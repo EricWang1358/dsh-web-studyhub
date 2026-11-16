@@ -18,8 +18,8 @@ export default function FocusProgressLine({ progress, courseId, lock, start, onC
           {uiFormat('重点 {0} 条：{1}', [progress.total, summaryParts(progress).join(' · ')])}
         </Button>
       </Tooltip>
-      {progress.weakScope?.length > 0 && <Button variant="link" lock={lock} onClick={() => start({ mode: 'path', scope: progress.weakScope })}>{ui('练还不会的重点 →')}</Button>}
-      {emptyTopics.length > 0 && <Button variant="link" lock={lock} onClick={() => onGenerateFocus(emptyTopics, progress.course)}>{ui('去出缺题重点 →')}</Button>}
+      {progress.weakScope?.length > 0 && <Button variant="link" iconEnd="arrow-right" lock={lock} onClick={() => start({ mode: 'path', scope: progress.weakScope })}>{ui('练还不会的重点')}</Button>}
+      {emptyTopics.length > 0 && <Button variant="link" iconEnd="arrow-right" lock={lock} onClick={() => onGenerateFocus(emptyTopics, progress.course)}>{ui('去出缺题重点')}</Button>}
       {allMastered && (
         <span className="focus-progress__done" data-testid="focus-all-mastered">
           <Icon name="check" size={13} strokeWidth={2.2} />

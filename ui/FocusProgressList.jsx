@@ -16,7 +16,7 @@ export function FocusProgressRows({ progress, lock, onGenerateTopic }) {
           {topic.cards > 0 && <Badge size="sm" tone={statusTone(topic.status)}>{statusLabel(topic.status)}</Badge>}
           <small className={topic.cards > 0 ? undefined : 'focus-progress-list__none'}>{topicCounts(topic)}</small>
           {onGenerateTopic && topic.status === 'none' && (
-            <Button variant="link" size="sm" lock={lock} onClick={() => onGenerateTopic(topic.topic)}>{ui('去出题 →')}</Button>
+            <Button variant="link" size="sm" iconEnd="arrow-right" lock={lock} onClick={() => onGenerateTopic(topic.topic)}>{ui('去出题')}</Button>
           )}
         </li>
       ))}

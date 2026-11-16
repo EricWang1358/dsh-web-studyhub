@@ -40,7 +40,7 @@ function StationBody({ station, onPractice }) {
     <>
       {station.meaning && <p className="spine-station-meaning">{station.meaning}</p>}
       {onPractice && station.subtreeCards.length > 0 && (
-        <Button variant="link" size="sm" className="spine-practice spine-station-practice" onClick={() => onPractice(station.subtreeCards)}>{uiFormat("学这一站 · {0} 题 →", [station.subtreeCards.length])}</Button>
+        <Button variant="link" size="sm" iconEnd="arrow-right" className="spine-practice spine-station-practice" onClick={() => onPractice(station.subtreeCards)}>{uiFormat("学这一站 · {0} 题", [station.subtreeCards.length])}</Button>
       )}
       <Branch items={station.children} onPractice={onPractice} />
     </>

@@ -146,7 +146,7 @@ export default function CourseField({ courses = [], value = '', onChange, multip
   };
   const chips = large ? entries.slice(0, MAX_CHIPS) : [];
   const expandedEntry = entries.find(entry => entry.type === 'group' && entry.key === expanded);
-  const hint = multiple ? ui('多门课程用分号分隔；留空为未分类。') : names.length ? ui('输入新课程名，或点下方已有课程直接切换；点 × 清空。') : '';
+  const hint = multiple ? ui('多门课程用分号分隔；留空为未分类。') : names.length ? ui('输入新课程名，或点下方已有课程直接切换；点清除按钮清空。') : '';
   const renderRow = row => row.type === 'parked-head'
     ? <><span className="course-field__option-chevron" aria-hidden="true" /><span className="course-field__option-name">{uiFormat('未激活的课程 ({0})', [row.count])}</span></>
     : row.type === 'group'

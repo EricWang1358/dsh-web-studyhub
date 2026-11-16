@@ -99,7 +99,7 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
         : materials ? { kind: 'empty', step: 1, eyebrow: ui('下一步'), headline: ui('用资料出第一组题'),
           title: uiFormat('{0} 份资料已就绪', [materials]), next: ui('选好资料、题型和题数，AI 出题后会逐题检查，再交给你确认。'),
           action: { label: uiFormat('用这 {0} 份资料出题', [materials]), run: () => generateFromSources?.(starterSources.map((source) => source.id)) },
-          also: [[ui('＋ 再添加资料'), addSource], jsonLink] }
+          also: [[ui('再添加资料'), addSource, 'plus'], jsonLink] }
           : { kind: 'empty', step: 0, eyebrow: ui('开始'), headline: ui('从一份资料开始'),
             title: ui('还没有资料'), next: ui('添加讲义、笔记或 PDF，AI 会据此出题；发布后这里会给出学习路径。'),
             action: { ...addSourceAction(addSource), run: addSource },

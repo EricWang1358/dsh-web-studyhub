@@ -27,7 +27,7 @@ export default function TopicChips({ value, onChange, suggestions = [], disabled
       {offered.length > 0 && <div className="topic-field__suggest">
         <small className="muted">{ui('建议：这些是你答错最多的知识点，点一下才会加入')}</small>
         <ul className="topic-field__list" aria-label={ui('建议的知识点')}>
-          {offered.map(item => <li key={item.topic}><Chip size="sm" disabled={disabled} onClick={() => onChange(addTopics(value, item.topic))}>{`＋ ${item.topic}`}</Chip></li>)}
+          {offered.map(item => <li key={item.topic}><Chip size="sm" icon="plus" disabled={disabled} onClick={() => onChange(addTopics(value, item.topic))}>{item.topic}</Chip></li>)}
         </ul>
       </div>}
     </div>

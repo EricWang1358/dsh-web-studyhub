@@ -102,7 +102,7 @@ export default function CompanionViewer({ modal, onClose }) {
   const [feedbackSeq, setFeedbackSeq] = useState(0);
   const [feedbackState, setFeedbackState] = useState(() => modal?.initialFeedbackState || { loading: false, total: 0, open: 0, items: [], error: '' });
 
-  const askLabel = ui('＋ 记疑问');
+  const askLabel = ui('记疑问');
   const selectionLabel = ui('就这句提问');
   const bootInitRef = useRef({ channelToken, appTheme, initialAnchor, requestedSlide, askLabel, selectionLabel });
   useEffect(() => {
@@ -703,7 +703,7 @@ export default function CompanionViewer({ modal, onClose }) {
                               {item.note && <div className="sh-comp-ledger__note">{item.note}</div>}
                               {item.quote && <blockquote className="sh-comp-drawer__quote">{item.quote}</blockquote>}
                               <div className="sh-comp-foot__actions">
-                                <Button size="sm" variant="secondary" icon="arrow-right" onClick={() => jumpToSlide(item.slide)}>
+                                <Button size="sm" variant="secondary" iconEnd="arrow-right" onClick={() => jumpToSlide(item.slide)}>
                                   {uiFormat('跳至第 {0} 页', [item.slide])}
                                 </Button>
                               </div>

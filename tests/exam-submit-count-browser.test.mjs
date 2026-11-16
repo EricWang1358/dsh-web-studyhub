@@ -60,7 +60,7 @@ test('交卷 asks only about questions that are still open, and a full paper goe
     assert.equal(total, 3);
     const submit = page.locator('.exam-foot').getByRole('button', { name: '交卷', exact: true });
     const dialog = page.getByRole('dialog');
-    const next = async number => { await page.getByRole('button', { name: '下一题 →' }).click(); await until(async () => (await page.locator('.exam-progress').innerText()).startsWith(`${number} `), 'the next question'); };
+    const next = async number => { await page.getByRole('button', { name: '下一题' }).click(); await until(async () => (await page.locator('.exam-progress').innerText()).startsWith(`${number} `), 'the next question'); };
 
     // Nothing answered: all three are open. 继续作答 closes the dialog and the paper is still running.
     await submit.click();
@@ -116,7 +116,7 @@ test('交卷 asks only about questions that are still open, and a full paper goe
     await mainInput.fill('Indexing uses a B-tree to narrow lookup paths quickly.');
     await page.keyboard.press('Control+Shift+Enter');
     await page.locator('.oral-followup').waitFor({ timeout: 15000 });
-    await page.getByRole('button', { name: '保存并继续 →' }).click();
+    await page.getByRole('button', { name: '保存并继续' }).click();
     await until(async () => (await page.locator('.oral-progress').innerText()).includes('第 2 / 3 题'), 'advanced to oral Q2');
     await page.locator('.oral-answer-input').first().fill('Second oral answer leaving Q3 blank.');
     await page.getByRole('button', { name: '提前结束' }).click();

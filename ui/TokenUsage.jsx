@@ -98,7 +98,7 @@ export function TokenEstimateView({ state = { status: 'idle' }, defaultOpen = fa
       {!totalOnly && open && <div className="token-estimate__panel" id={panel}>
         <ul className="token-estimate__stages">
           {estimate.stages.map((stage) => <li key={stage.id}>
-            <span>{stageLabel(stage.id, estimate.feature)} <small>×{stage.calls}</small></span>
+            <span>{stageLabel(stage.id, estimate.feature)} <small>{`×${stage.calls}`}</small></span>
             <small>{rangeTok({ low: stage.inputTokens.low + stage.outputTokens.low, high: stage.inputTokens.high + stage.outputTokens.high })}</small>
           </li>)}
         </ul>

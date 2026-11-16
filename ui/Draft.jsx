@@ -2,7 +2,7 @@ import { ui, uiFormat } from "./i18n.js";
 import { uiRich } from "./i18n-rich.jsx";
 import React from "react";
 import { flushSync } from "react-dom";
-import { Banner, Button, ChunkedRows, Disclosure, Hint, InlineMessage, LoadingState, PageHeader, Panel, Select, useToast } from "./components/index.js";
+import { Banner, Button, ChunkedRows, Disclosure, Hint, Icon, InlineMessage, LoadingState, PageHeader, Panel, Select, useToast } from "./components/index.js";
 import { formatNumber } from "./format.js";
 import { isActiveJob, isCancellable } from "./job-visibility.js";
 import { JOB_STATUS, JOB_TYPES } from "../lib/job-status.js";
@@ -161,8 +161,8 @@ export default function Draft({
     (draft.editorial?.partialEdit ? draft.editingDeckId : null);
   const publishedDeck = data.decks.find((deck) => deck.id === publishedDeckId);
   const publicationLabel = draft.editingDeckId
-    ? ui("保存并更新题组 →")
-    : draft.editorial?.repairOfDeckId ? ui("保存并补发到原题组 →") : ui("发布并开始练 →");
+    ? ui("保存并更新题组")
+    : draft.editorial?.repairOfDeckId ? ui("保存并补发到原题组") : ui("发布并开始练");
   const repairJob = data.jobs?.find((job) => job.draftId === draft.id &&
     job.type === JOB_TYPES.DRAFT_REPAIR && isActiveJob(job));
   const repairRunning = !!repairJob;
@@ -553,7 +553,7 @@ export default function Draft({
                       }
                     >
                       <span>
-                        ↗{" "}
+                        <Icon name="external" size={14} className="sh-icon--inline sh-icon--lead" />
                         {data.sources.find((s) => s.id === c.sourceId)
                           ?.title || ui("原文")}
                       </span>
@@ -627,7 +627,7 @@ export default function Draft({
           : draft.editorial?.repairOfDeckId
             ? ui("先前通过检查的题目已发布；当前草稿中的题目尚未发布。")
             : ui("当前草稿中的题目尚未发布。"),
-        retryPublishCount > 0 && uiFormat("可点击「{0}」重新检查其余题目。", [publicationLabel.replace(/\s*→$/, "")]),
+        retryPublishCount > 0 && uiFormat("可点击「{0}」重新检查其余题目。", [publicationLabel]),
         ui("待处理题目可自行修改，或选择交给后台修题。")].filter(Boolean).join(" ")}</p>
         {publishedDeck && <p>{uiFormat("已发布题组「{0}」现有 {1} 题。", [publishedDeck.title, publishedDeck.count])}{" "}
           <Button variant="link" size="sm" lock={busy} onClick={() => onOpenPublished(publishedDeck.id)}>{ui("查看已发布题组")}</Button>

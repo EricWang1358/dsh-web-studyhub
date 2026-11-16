@@ -189,8 +189,8 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
       <div className="oral-actions">
         {!run.entry.followup && <Button disabled={!answer.trim()} lock={busy} onClick={followup}>{ui("追问一次")}</Button>}
         {last
-          ? <Button variant="primary" busy={busy} onClick={submit}>{busy ? ui("正在集中评估…") : ui("结束模拟，查看反馈 →")}</Button>
-          : <Button variant="primary" lock={busy} onClick={nextQuestion}>{ui("保存并继续 →")}</Button>}
+          ? <Button variant="primary" iconEnd="arrow-right" busy={busy} onClick={submit}>{busy ? ui("正在集中评估…") : ui("结束模拟，查看反馈")}</Button>
+          : <Button variant="primary" iconEnd="arrow-right" lock={busy} onClick={nextQuestion}>{ui("保存并继续")}</Button>}
         {!last && <Button lock={busy} onClick={requestEarlySubmit}>{ui("提前结束")}</Button>}
       </div>
       <p className="muted small">{ui("模拟过程中不会显示对错；回答在本地学习库保存。")}</p>
@@ -216,7 +216,7 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
           : allAssessedTopicsClear
             ? <p className="oral-report__clear">{ui("本轮已评估题目均回答扎实，可以直接开启下一轮或回到学习库。")}</p>
             : <p className="muted">{ui("本次没有已评估的薄弱主题。")}</p>}
-        {!!report.weakScope?.length && <Button busy={busy} onClick={practiceWeak}>{ui("直接练这些题 →")}</Button>}
+        {!!report.weakScope?.length && <Button iconEnd="arrow-right" busy={busy} onClick={practiceWeak}>{ui("直接练这些题")}</Button>}
       </div>
       <div className="oral-actions"><Button variant="primary" onClick={onExit}>{ui("回到学习库")}</Button>
         <Button onClick={() => exam.leave()}>{ui("再来一轮")}</Button></div>

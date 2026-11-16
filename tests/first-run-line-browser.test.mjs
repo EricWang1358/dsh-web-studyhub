@@ -179,7 +179,7 @@ test('the first-run line from no model to the first question: one primary per st
         if (state === 'draft-clean') await page.locator('.first-run .sh-btn--primary').click();
         else {
           await page.locator('.first-run .sh-btn--primary').click();
-          await page.getByRole('button', { name: '发布并开始练 →' }).first().click();
+          await page.getByRole('button', { name: '发布并开始练' }).first().click();
           clicks++;
         }
         clicks++;

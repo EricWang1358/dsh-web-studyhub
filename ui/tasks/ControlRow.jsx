@@ -1,6 +1,6 @@
 import React, { useId, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
-import { Button, Checkbox, IconButton, Select, Tooltip } from '../components/index.js';
+import { Button, Checkbox, Icon, IconButton, Select, Tooltip } from '../components/index.js';
 import { useApp } from '../app/app-context.js';
 import { failureText } from '../failure.js';
 import { contractOf, isRunningTask } from './task-model.js';
@@ -64,7 +64,7 @@ export default function ControlRow({ job }) {
     } catch (error) { setNote({ text: failureText(error), tone: 'error' }); } finally { setWorking(false); }
   };
   const save = async () => {
-    try { await core.act(defaults.action, defaults.args); setSaved(true); setNote({ text: ui('✓ 已存为默认'), tone: 'success' }); } catch (error) { setNote({ text: failureText(error), tone: 'error' }); }
+    try { await core.act(defaults.action, defaults.args); setSaved(true); setNote({ text: ui('已存为默认'), tone: 'success' }); } catch (error) { setNote({ text: failureText(error), tone: 'error' }); }
   };
   return (
     <div className="tc-controls" role="group" aria-label={ui('即时控制')} data-empty={items.length ? undefined : 'true'}>
@@ -80,7 +80,7 @@ export default function ControlRow({ job }) {
           title={uiFormat('把这里的{0}存为以后新任务的默认', [items.filter((item) => saves.includes(item.key)).slice(0, 2).map((item) => controlLabel(item.key)).join('、')])}>{ui('存为默认')}</Button>}
         {isRunningTask(job) && ['capability-unsupported', 'no-safe-checkpoint', 'single-round', 'manual-run'].includes(contract.actions.pause.reason?.code) && <span className="tc-controls__note">{reasonText(contract.actions.pause, 'pause')}</span>}
         {staged && Array.isArray(efforts) && efforts.length === 0 && <span className="tc-controls__note">{ui('当前模型不支持推理程度设置，已使用模型默认。')}</span>}
-        <span className="tc-controls__applied" role="status" data-tone={note.tone}>{note.text || (ownModel ? ui('改动从下一次调用生效，模型仅本任务生效') : items.length ? ui('改动从下一次调用生效') : '')}</span>
+        <span className="tc-controls__applied" role="status" data-tone={note.tone}>{note.tone === 'success' && note.text && <Icon name="check" size={16} className="sh-icon--inline sh-icon--lead" />}{note.text || (ownModel ? ui('改动从下一次调用生效，模型仅本任务生效') : items.length ? ui('改动从下一次调用生效') : '')}</span>
       </div>
       {items.length > 0 && <div className="tc-controls__items">
         {items.map((item) => {

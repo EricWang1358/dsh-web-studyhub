@@ -76,7 +76,7 @@
   "确认合并": "Confirm merge",
   "已有课程": "Existing courses",
   "清空课程": "Clear course",
-  "输入新课程名，或点下方已有课程直接切换；点 × 清空。": "Type a new course name, or click an existing course below to switch. Click × to clear.",
+  "输入新课程名，或点下方已有课程直接切换；点清除按钮清空。": "Type a new course name, or click an existing course below to switch. Use the clear button to empty it.",
   "可能与「{0}」重复": "May duplicate “{0}”",
   "合并到这里": "Merge into this",
   "{0} 个章节": "{0} chapters",

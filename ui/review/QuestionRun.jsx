@@ -10,7 +10,8 @@ import FigurePageLink from "../document-preview/practice/FigurePageLink.jsx";
 import ExplanationFollowup from "../ExplanationFollowup.jsx";
 import { asksWhatTheSourceSays, SOURCE_VOICE_FIX } from "../../lib/question-voice.js";
 import ChoiceFeedback from "../ChoiceFeedback.jsx";
-import { fixedOptionLabel, optionMark } from "../option-label.js";
+import { fixedOptionLabel } from "../option-label.js";
+import OptionMark from "../OptionMark.jsx";
 import ThumbFeedback from "../ThumbFeedback.jsx";
 import PracticeTip from "./PracticeTip.jsx";
 import { usePracticeTip } from "./use-practice-tip.js";
@@ -23,6 +24,7 @@ import TeachingPanel from "./TeachingPanel.jsx";
 import { describeModelError, modelReadiness, plainAssistFailure } from "../generation-status.js";
 import { readableQualityIssue } from "../quality.js";
 import { ReadingBlock, useReadingProps } from "../reading-settings/ReadingSettings.jsx";
+import AnswerState from "./AnswerState.jsx";
 import { Banner, Button, Chip, Icon, InlineMessage, Popover, ProgressBar, SegmentedControl, Spinner, Tooltip } from "../components/index.js";
 import { useStudy } from "../study-context.jsx";
 import { HELP_CHOICES } from "../agent-prompts/card.js";
@@ -179,7 +181,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           const unlearned = run.prerequisites.some((p) => ["new", "weak"].includes(p.level));
           return (
             <Button
-              variant={unlearned ? "primary" : "secondary"} size="sm"
+              variant={unlearned ? "primary" : "secondary"} size="sm" iconEnd="arrow-right"
               lock={busy}
               title={unlearned ? ui("先学没掌握的前置题，学完回到这道题") : ui("把前置题再过一遍自查，做完回到这道题")}
               onClick={(e) => {
@@ -187,7 +189,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                 studyPrerequisites(run.prerequisites);
               }}
             >
-              {unlearned ? ui("先学前置 →") : ui("自查前置 →")}
+              {unlearned ? ui("先学前置") : ui("自查前置")}
             </Button>
           );
         })()}
@@ -198,7 +200,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             <button className="prereq-item" disabled={busy} title={ui("只练这一道，做完回到这道题")} onClick={() => studyPrerequisites([p])}>
               <span className={"map-dot lv-" + p.level} />
               <Markdown className="md-compact" links={false} text={p.prompt} />
-              <span className="prereq-go" aria-hidden="true">→</span>
+              <Icon name="arrow-right" size={16} className="prereq-go" />
             </button>
           </li>
         ))}
@@ -239,13 +241,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                     <p>{publicationIssues.join("；")}</p>
                     <Button size="sm" onClick={() => assistCard("improve", uiFormat('发布检查发现：{0}', [publicationIssues.join('; ')]))}>{ui("交给后台修题")}</Button>
                   </Popover>}
-                <Button
-                  className="question-meta__action"
-                  aria-label={ui("标记题目")}
-                  onClick={() => openModal({ type: "flag" })}
-                >
-                  ⚑
-                </Button>
+                <Tooltip layer content={ui("标记题目")}><Button icon="flag" variant="quiet" size="sm" aria-label={ui("标记题目")} className="sh-btn--icon question-meta__action" onClick={() => openModal({ type: "flag" })} /></Tooltip>
               </div>
             </div>
             <ProgressBar size="sm" className="card-progress" label={ui("复习进度")} value={position.at} max={Math.max(1, position.total)} />
@@ -253,7 +249,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           {(choice || isCloze || run.card.publicationUngrable) && prereqStrip}
           {run.card.publicationUngrable ? (
             <Banner tone="warning" role="status" className="review-ungrable"
-              action={{ label: ui("跳过此题，不计成绩 →"), variant: "primary", disabled: busy, onClick: () => reviewAct("review.skip") }}
+              action={{ label: ui("跳过此题，不计成绩"), variant: "primary", iconEnd: "arrow-right", disabled: busy, onClick: () => reviewAct("review.skip") }}
               secondary={{ label: ui("交给后台修题"), disabled: busy, onClick: () => assistCard("improve", uiFormat('发布检查发现：{0}', [publicationIssues.join('; ')])) }}>
               <div className="question"><Markdown text={run.card.prompt || ui("题干尚未填写")} /></div>
               <p>{ui("这道题缺少可判分内容。你可以交给助教修改，或跳过；跳过不会记录成绩或改变复习进度。")}</p>
@@ -301,7 +297,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                       onClick={() => choose(o.id)}
                     >
                       <span className="option-letter" aria-hidden={verdict || undefined}>
-                        {verdict ? optionMark(run.card, o, i) : `${optionMark(run.card, o, i)}.`}
+                        <OptionMark card={run.card} option={o} index={i} dot={!verdict} />
                       </span>
                       <div>
                         {verdict ? <span className="option-verdict">{fixedOptionLabel(run.card, o)}</span>
@@ -311,13 +307,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                           // Grows open from zero height, one option after another,
                           // instead of every explanation landing in the same frame.
                           <div className="option-reveal"><div>
-                            <strong className="answer-state">
-                              {solution?.correct
-                                ? picked ? ui("✓ 已选 · 正确") : multiple ? ui("漏选 · 正确答案") : ui("正确答案")
-                                : picked
-                                  ? multiple ? ui("× 已选 · 错选") : ui("× 你的选择")
-                                  : ""}
-                            </strong>
+                            <AnswerState correct={solution?.correct} picked={picked} multiple={multiple} />
                             <Markdown
                               text={solution?.explanation}
                               links={false}
@@ -671,8 +661,8 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                   requestAnimationFrame(() => reviewBodyRef.current?.querySelector?.(".question-card")?.focus?.({ preventScroll: true }));
                 }}>{ui("收起解析 (H)")}</Button>
                 {run.feedback && !run.complete && (
-                  <Button variant="primary" size="sm" lock={busy} onClick={() => reviewAct("review.move", { direction: 1 })}>
-                    {position.last ? ui("完成") : ui("下一题")} →
+                  <Button variant="primary" size="sm" iconEnd="arrow-right" lock={busy} onClick={() => reviewAct("review.move", { direction: 1 })}>
+                    {position.last ? ui("完成") : ui("下一题")}
                   </Button>
                 )}
               </div>

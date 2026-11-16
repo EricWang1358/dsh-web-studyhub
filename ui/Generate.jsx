@@ -374,12 +374,12 @@ export default function Generate({
                 </> : (
                   <Button variant="primary" type="submit" icon="sparkle" className="generate-submit__btn" busy={busy} disabled={!selectedSources.length || advice.blocked || !!referenceState.reason || invalidQuota}
                     data-tour="generate-submit" data-usage="generate.submit">
-                    {running ? ui("加入生成队列 →") : ui("生成并检查题组 →")}
+                    {running ? ui("加入生成队列") : ui("生成并检查题组")}
                   </Button>
                 )}
               </> : (
                 /* P14: no usable model, so there is nothing to click into a 20-second failure; the banner on top says why. */
-                <Button variant="primary" type="submit" icon="sparkle" className="generate-submit__btn" disabled data-tour="generate-submit">{ui("生成并检查题组 →")}</Button>
+                <Button variant="primary" type="submit" icon="sparkle" className="generate-submit__btn" disabled data-tour="generate-submit">{ui("生成并检查题组")}</Button>
               )}
             </div>
           </form>

@@ -82,7 +82,7 @@ export default function JsonImport({ data, openDraft }) {
           {proposal.mergeTargetId && <Checkbox checked={merge} onChange={setMerge} label={ui("发布时并入建议的同知识点题组（保留全部题和记录）")} />}
           {proposal.mergeTargetId && <p className="muted">{data?.decks?.find(deck => deck.id === proposal.mergeTargetId)?.title} · {proposal.course || ui('未分类')}</p>}
         </div>}
-        <Button type="submit" variant="primary" busy={reading || proposing} busyLabel={reading ? ui("正在读取文件…") : ui("正在整理建议…")} disabled={busy || !text.trim()}>{proposal ? ui("确认并导入草稿 →") : ui("检查并建议归类 →")}</Button>
+        <Button type="submit" variant="primary" iconEnd="arrow-right" busy={reading || proposing} busyLabel={reading ? ui("正在读取文件…") : ui("正在整理建议…")} disabled={busy || !text.trim()}>{proposal ? ui("确认并导入草稿") : ui("检查并建议归类")}</Button>
       </fieldset>
     </form>
     {message && <InlineMessage tone="error" secondary={invalid?.error === message ? handOff.action('import.file', pastedJsonInput(invalid.text, invalid.error),

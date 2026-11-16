@@ -11,7 +11,7 @@ import { loadUi } from './helpers/ui-module.mjs';
 /* D-6: the line under a practice answer says what the SAME level function of the mastery views says. One correct answer is 学习中 (the interval is not yet 6 days), never 已掌握. */
 
 const m = await loadUi(`
-  export { NextDue, nextDueWord } from './ui/NextDue.jsx';
+  export { NextDue, nextDueIcon, nextDueWord } from './ui/NextDue.jsx';
   export { setUiLanguage } from './ui/i18n.js';
   export { cardLevel } from './lib/mastery.js';
 `);
@@ -48,8 +48,8 @@ test('the feedback line follows the level: 答对了 after one correct answer, �
   assert.match(line({ correct: true, level: 'learning', nextDue: due }), /^答对了 · 下次/);
   assert.doesNotMatch(line({ correct: true, level: 'learning', nextDue: due }), /已掌握/);
   assert.match(line({ correct: true, level: 'familiar', nextDue: due }), /^答对了 · 下次/);
-  assert.match(line({ correct: true, level: 'mastered', nextDue: due }), /^✓ 已掌握 · 下次/);
-  assert.match(line({ correct: false, level: 'weak', nextDue: due }), /^↻ 将继续巩固 · 下次/);
+  assert.match(line({ correct: true, level: 'mastered', nextDue: due }), /^已掌握 · 下次/);
+  assert.match(line({ correct: false, level: 'weak', nextDue: due }), /^将继续巩固 · 下次/);
   assert.match(line({ correct: true, nextDue: due }), /^答对了/, 'a feedback from an older host has no level: it says only what it knows');
   assert.match(line({ correct: false, retryQueued: true, level: 'weak', nextDue: due }), /这道题放到了本轮最后，会再出现一次/);
   m.setUiLanguage('en');
@@ -57,7 +57,7 @@ test('the feedback line follows the level: 答对了 after one correct answer, �
     const english = line({ correct: true, level: 'learning', nextDue: due });
     assert.match(english, /^Correct · see it again/);
     assert.doesNotMatch(english, han);
-    assert.match(line({ correct: true, level: 'mastered', nextDue: due }), /^✓ Mastered · see it again/);
+    assert.match(line({ correct: true, level: 'mastered', nextDue: due }), /^Mastered · see it again/);
   } finally { m.setUiLanguage('zh'); }
 });
 
@@ -66,7 +66,11 @@ test('the word comes from the mastery level function, so the practice line and t
   const after = { review: { repetitions: 1, interval_days: 1 } };
   assert.equal(m.cardLevel(after, 4), 'learning');
   assert.equal(m.nextDueWord({ correct: true, level: m.cardLevel(after, 4) }), '答对了');
-  assert.equal(m.nextDueWord({ correct: true, level: m.cardLevel({ review: { repetitions: 3, interval_days: 30 } }, 4) }), '✓ 已掌握');
+  assert.equal(m.nextDueWord({ correct: true, level: m.cardLevel({ review: { repetitions: 3, interval_days: 30 } }, 4) }), '已掌握');
+  // The tick before it is the registry icon, not part of the word: a mastered answer has one, a miss has the refresh arrow, a plain right answer none.
+  assert.equal(m.nextDueIcon({ correct: true, level: 'mastered' }), 'check');
+  assert.equal(m.nextDueIcon({ correct: false, level: 'weak' }), 'refresh');
+  assert.equal(m.nextDueIcon({ correct: true, level: 'learning' }), null);
 });
 
 test('no practice screen calls a merely correct answer 已掌握: the result headline counts 答对, the feedback line is the level\'s', async () => {
@@ -74,6 +78,6 @@ test('no practice screen calls a merely correct answer 已掌握: the result hea
   // The page and the question it shows (ui/review/QuestionRun.jsx) are one practice screen.
   const review = await readFile('ui/Review.jsx', 'utf8') + await readFile('ui/review/QuestionRun.jsx', 'utf8');
   assert.doesNotMatch(review, /道题已掌握/, 'the end-of-run headline counts the correct answers, it does not call them mastered');
-  assert.doesNotMatch(review, /✓ 已掌握/, 'the one place that may say 已掌握 is ui/NextDue.jsx, by the level');
+  assert.doesNotMatch(review, /ui\(['"]已掌握['"]\)/, 'the one place that may say 已掌握 is ui/NextDue.jsx, by the level');
   assert.match(review, /<NextDue feedback=\{run\.feedback\}/);
 });

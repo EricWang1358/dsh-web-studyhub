@@ -68,15 +68,15 @@ test('how many questions a scope has left', () => {
 
 test('the button names its destination, in both languages', () => {
   const label = (destination, language = 'zh') => { m.setUiLanguage(language); try { return m.continueLabel(destination); } finally { m.setUiLanguage('zh'); } };
-  assert.equal(label({ kind: 'original' }), '回到原题 →');
-  assert.equal(label({ kind: 'scope' }), '继续这个范围 →');
-  assert.equal(label({ kind: 'plan', title: '巩固 PDF02' }), '下一步：巩固 PDF02 →');
-  assert.equal(label({ kind: 'path', reason: 'scope-done' }), '回到学习路径 →');
-  assert.equal(label({ kind: 'path', reason: 'original-gone' }), '回到学习路径 →');
-  assert.equal(label({ kind: 'path', reason: 'continuing' }), '继续学习 →');
-  assert.equal(label({ kind: 'original' }, 'en'), 'Return to original question →');
-  assert.equal(label({ kind: 'plan', title: 'Review PDF02' }, 'en'), 'Next: Review PDF02 →');
-  assert.equal(label({ kind: 'path', reason: 'scope-done' }, 'en'), 'Back to the learning path →');
+  assert.equal(label({ kind: 'original' }), '回到原题');
+  assert.equal(label({ kind: 'scope' }), '继续这个范围');
+  assert.equal(label({ kind: 'plan', title: '巩固 PDF02' }), '下一步：巩固 PDF02');
+  assert.equal(label({ kind: 'path', reason: 'scope-done' }), '回到学习路径');
+  assert.equal(label({ kind: 'path', reason: 'original-gone' }), '回到学习路径');
+  assert.equal(label({ kind: 'path', reason: 'continuing' }), '继续学习');
+  assert.equal(label({ kind: 'original' }, 'en'), 'Return to original question');
+  assert.equal(label({ kind: 'plan', title: 'Review PDF02' }, 'en'), 'Next: Review PDF02');
+  assert.equal(label({ kind: 'path', reason: 'scope-done' }, 'en'), 'Back to the learning path');
   assert.match(m.continueNote({ kind: 'path', reason: 'original-gone' }), /已经结束或不存在/);
   assert.equal(m.continueNote({ kind: 'plan' }), '');
 });
@@ -86,17 +86,17 @@ const strip = (props, language = 'zh') => { m.setUiLanguage(language); try { ret
   onPractice: noop, onReviewWeak: noop, ...props })); } finally { m.setUiLanguage('zh'); } };
 
 test('the coach card’s button is the decided destination; a way back to the original leaves no competing 继续学习', () => {
-  const plan = { kind: 'plan', taskId: 't2', title: '阅读 CAP 讲义', label: '下一步：阅读 CAP 讲义 →', go: noop };
+  const plan = { kind: 'plan', taskId: 't2', title: '阅读 CAP 讲义', label: '下一步：阅读 CAP 讲义', go: noop };
   const html = strip({ destination: plan });
-  assert.match(html, /<button[^>]*sh-btn--primary[^>]*>[^<]*下一步：阅读 CAP 讲义 →/);
+  assert.match(html, /<button[^>]*sh-btn--primary[^>]*>[^<]*下一步：阅读 CAP 讲义/);
   assert.doesNotMatch(html, /继续学习/);
-  const original = { kind: 'original', runId: 'orig', label: '回到原题 →', go: noop };
+  const original = { kind: 'original', runId: 'orig', label: '回到原题', go: noop };
   const back = strip({ destination: original });
   assert.doesNotMatch(back, /继续学习|回到原题/, 'the page’s own 回到原题 is the one primary action');
   assert.doesNotMatch(back, /<button[^>]*primary/, 'no button of the card competes with it');
   const prepared = strip({ destination: original, initial: { ...debrief, next: 'practice_prepared' } });
   assert.doesNotMatch(prepared, /为你定制的题/, 'nothing else is offered while a prerequisite round waits to return');
-  assert.match(strip({ onContinue: noop }), /继续学习 →/, 'without a decision the card keeps its old button (no library, tests)');
+  assert.match(strip({ onContinue: noop }), /继续学习/, 'without a decision the card keeps its old button (no library, tests)');
 });
 
 test('the session hands the decision to the page and keeps the typed answer for the way back', () => {

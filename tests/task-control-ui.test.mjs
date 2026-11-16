@@ -98,9 +98,9 @@ test('English wording', () => {
   assert.match(html, />Pause</);
   assert.match(m.appliedText({ textConcurrency: 4 }), /已生效/, 'back in Chinese once the language is reset');
   m.setUiLanguage('en');
-  assert.equal(m.appliedText({ textConcurrency: 4 }), '✓ Applied · Proofread/translate parallel → 4');
+  assert.equal(m.appliedText({ textConcurrency: 4 }), 'Applied · Proofread/translate parallel → 4');
   assert.equal(m.actionText('pause'), 'Paused: no new call starts, and it stops once the calls in progress finish');
-  assert.equal(m.appliedText({ proofreadReasoning: 'high' }), '✓ Applied · Proofread reasoning (rest) → High');
+  assert.equal(m.appliedText({ proofreadReasoning: 'high' }), 'Applied · Proofread reasoning (rest) → High');
   m.setUiLanguage('zh');
 });
 

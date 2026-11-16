@@ -33,7 +33,7 @@ test('draft page: the bar has the save and the publish button and a ⋯ menu; th
   const bar = barOf(draftPage());
   assert.ok(bar.includes('sticky-actions'), 'the bar is the draft page\'s one action bar');
   const labels = buttons(bar).map((button) => button.label);
-  assert.ok(labels.includes('保存并校验') && labels.includes('发布并开始练 →'), labels.join('|'));
+  assert.ok(labels.includes('保存并校验') && labels.includes('发布并开始练'), labels.join('|'));
   assert.ok(!labels.includes('删除草稿'), `no 删除草稿 in the row: ${labels.join('|')}`);
   const more = buttons(bar).find((button) => /aria-haspopup="menu"/.test(button.attrs));
   assert.ok(more, 'a menu button');
@@ -44,11 +44,11 @@ test('draft page: the bar has the save and the publish button and a ⋯ menu; th
 });
 
 test('draft page: the open menu has 删除草稿 in the danger colour, one step from the bar; English says the same', () => {
-  const open = renderToStaticMarkup(inApp(m, React.createElement(m.DraftBar, { publishLabel: '发布并开始练 →', onSave: noop, onPublish: noop, onDelete: noop, defaultMenuOpen: true }), { data: {} }));
+  const open = renderToStaticMarkup(inApp(m, React.createElement(m.DraftBar, { publishLabel: '发布并开始练', onSave: noop, onPublish: noop, onDelete: noop, defaultMenuOpen: true }), { data: {} }));
   const item = buttons(open).find((button) => /role="menuitem"/.test(button.attrs));
   assert.equal(item.label, '删除草稿');
   assert.match(item.attrs, /is-danger/);
-  const english = inLanguage('en', () => renderToStaticMarkup(inApp(m, React.createElement(m.DraftBar, { publishLabel: 'Publish and practise →', onSave: noop, onPublish: noop, onDelete: noop, defaultMenuOpen: true }), { data: {} })));
+  const english = inLanguage('en', () => renderToStaticMarkup(inApp(m, React.createElement(m.DraftBar, { publishLabel: 'Publish and practise', onSave: noop, onPublish: noop, onDelete: noop, defaultMenuOpen: true }), { data: {} })));
   assert.equal(buttons(english).find((button) => /role="menuitem"/.test(button.attrs)).label, 'Delete draft');
   assert.match(english, /aria-label="More"/);
   assert.ok(buttons(english).some((button) => button.label === 'Save & validate'));

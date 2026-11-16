@@ -57,7 +57,7 @@ function Letter({ m, now, onOpen, onToggleRead, onUndo, close }) {
         <span className="mailbox__top">
           {!m.read && <span className="sh-visually-hidden">{ui("未读")}</span>}
           <Badge className="mailbox__badge" tone={tone} size="sm" icon={tone === "error" || tone === "warning"}>{ui(m.label)}</Badge>
-          {m.count > 1 && <span className="mailbox__multi">×{m.count}</span>}
+          {m.count > 1 && <span className="mailbox__multi">{`×${m.count}`}</span>}
           <small className="mailbox__deck">{m.deckTitle}</small>
           <small className="mailbox__time">{formatAgo(m.at, now)}</small>
         </span>

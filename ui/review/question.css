@@ -345,7 +345,9 @@
       color: var(--text-muted);
     }
     .answer-state {
-      display: block;
+      display: flex;
+      align-items: center;
+      gap: var(--space-1);
       font-size: var(--fs-md);
       color: var(--ok-ink);
       margin: var(--space-2) 0 var(--space-1);

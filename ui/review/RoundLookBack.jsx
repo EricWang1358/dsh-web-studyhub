@@ -6,6 +6,8 @@ import CitationDisclosure from "../CitationDisclosure.jsx";
 import ExplanationFollowup from "../ExplanationFollowup.jsx";
 import { Badge, Button, ChunkedRows, Tooltip } from "../components/index.js";
 import { fixedOptionLabel, optionMark } from "../option-label.js";
+import OptionMark from "../OptionMark.jsx";
+import AnswerState from "./AnswerState.jsx";
 import { fixedOptionsOf, hasOptions, isGraded } from "../../lib/card-kinds.js";
 import { invalidate, useHostQuery } from "../host-query.js";
 import { useStudy } from "../study-context.jsx";
@@ -111,10 +113,10 @@ function LookBackAnswer({ row, mode }) {
           const picked = feedback.selected?.includes(option.id);
           return (
             <div key={option.id} className={"option " + (key?.correct ? "correct" : picked ? "incorrect" : "dim")}>
-              <span className="option-letter" aria-hidden={verdict || undefined}>{verdict ? optionMark(card, option, index) : `${optionMark(card, option, index)}.`}</span>
+              <span className="option-letter" aria-hidden={verdict || undefined}><OptionMark card={card} option={option} index={index} dot={!verdict} /></span>
               <div>
                 {verdict ? <span className="option-verdict">{fixedOptionLabel(card, option)}</span> : <Markdown text={option.text} links={false} className="md-compact" />}
-                <strong className="answer-state">{key?.correct ? (picked ? ui("✓ 已选 · 正确") : ui("正确答案")) : picked ? ui("× 你的选择") : ""}</strong>
+                <AnswerState correct={key?.correct} picked={picked} />
                 {key?.explanation && <Markdown text={key.explanation} links={false} className="md-compact option-explanation" />}
               </div>
             </div>

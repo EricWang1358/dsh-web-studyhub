@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from './i18n.js';
 import AudioReasoning from './AudioReasoning.jsx';
 import { formatNumber, ownTimeZone } from './format.js';
-import { Button, ErrorState, Hint, Panel, ProgressBar, Tooltip } from './components/index.js';
+import { Button, ErrorState, Hint, Icon, Panel, ProgressBar, Tooltip } from './components/index.js';
 import { usePolling } from './use-polling.js';
 import { AUDIO_PROVIDERS, AUDIO_TIERS, KEY_FIELDS, providerOf } from '../lib/audio-providers.js';
 import { useStudy } from './study-context.jsx';
@@ -92,7 +92,7 @@ export function AudioDashboardView({ data, settings, busy, refresh, save, error,
       </form>
     </details>
     <footer className="audio-dashboard-footer"><span>{ui('「今日」和近 7 日按你所在时区的日期；Gemini 免费额度按太平洋时间的额度日计算。从启用此统计起记录模型请求，包含失败及重试。课堂实时音频与 DSH Token 不计入。')}</span>
-      {AUDIO_PROVIDERS.filter(provider => provider.tier !== 'paid').map(provider => <a key={provider.tier} href={provider.usageUrl} target="_blank" rel="noreferrer">{providerName(provider.tier)} ↗</a>)}</footer>
+      {AUDIO_PROVIDERS.filter(provider => provider.tier !== 'paid').map(provider => <a key={provider.tier} href={provider.usageUrl} target="_blank" rel="noreferrer">{providerName(provider.tier)}<Icon name="external" size={13} className="sh-icon--inline sh-icon--trail" /></a>)}</footer>
   </Panel>;
 }
 
