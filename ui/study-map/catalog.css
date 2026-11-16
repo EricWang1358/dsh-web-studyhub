@@ -260,10 +260,10 @@
     .map-ask {
       flex-shrink: 0;
     }
-    /* Fixed width: "▶" and "继续" occupy the same slot, so bars line up. */
+    /* Fixed width: "▶" and "继续 →" occupy the same slot, so bars line up. */
     .map-play {
-      width: 56px;
-      min-width: 56px;
+      width: 72px;
+      min-width: 72px;
       padding: 0;
       height: 32px;
       color: var(--text-dim);
@@ -353,7 +353,7 @@
       .map-row > .map-dot { order: 1; }
       .map-ask { display: none; }
       .map-play { padding: var(--space-1) var(--space-2-5); }
-      .map-play { width: 56px; min-width: 56px; }
+      .map-play { width: 72px; min-width: 72px; }
       .section-heading {
         align-items: flex-start;
       }
