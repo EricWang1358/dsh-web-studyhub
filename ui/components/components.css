@@ -96,13 +96,14 @@
       border-color: var(--accent);
       color: var(--accent-ink);
       font-weight: var(--fw-strong);
-      box-shadow: 0 8px 20px -12px var(--accent-glow), inset 0 1px 0 var(--sheen);
+      /* The inner sheen is the whole resting look: no accent glow under a button (ui/DESIGN.md, Restraint). Hover lifts it on a neutral contact shadow. */
+      box-shadow: inset 0 1px 0 var(--sheen);
     }
     .sh-btn--primary:hover:not(:disabled) {
       background: var(--accent-soft);
       border-color: var(--accent-soft);
       transform: translateY(-1px);
-      box-shadow: 0 12px 28px -10px var(--accent-glow), inset 0 1px 0 var(--sheen-strong);
+      box-shadow: inset 0 1px 0 var(--sheen-strong), var(--shadow-contact);
     }
     .sh-btn--primary:active:not(:disabled) { transform: none; }
     /* A primary that cannot act turns neutral, not muddy red (ui/DESIGN.md). */
@@ -116,10 +117,12 @@
       border-color: var(--accent);
       color: var(--accent-ink);
     }
+    /* A text-only action: regular weight (the Han fallback fonts draw --fw-medium as bold, which made it read as a heading), an icon where it helps, a hover surface. Underline is for links only. */
     .sh-btn--quiet {
       background: transparent;
       border-color: transparent;
       color: var(--text-dim);
+      font-weight: var(--fw-regular);
     }
     .sh-btn--quiet:hover:not(:disabled) {
       background: var(--bg-hover);

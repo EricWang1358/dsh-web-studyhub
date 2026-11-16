@@ -6,7 +6,7 @@ import { build } from 'esbuild';
 const compiled = await build({ stdin: { contents: `export * from './ui/run-titles.js'; export * from './ui/i18n.js';`, resolveDir: process.cwd() }, bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'] });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { localizeRunResponse, localizedRun, setUiLanguage, uiFormat } = module.exports;
+const { localizeRunResponse, localizedRun, relocalizeSnapshotRuns, setUiLanguage, uiFormat } = module.exports;
 
 test('system review titles translate without rewriting course or question names', () => {
   const s = { decks: [{ id: 'd', title: '信箱 · 1 道' }], workflowSessions: [{ id: 'w', topic: '设计模式' }] };
@@ -35,5 +35,26 @@ test('system review titles translate without rewriting course or question names'
     assert.equal(result.runs[0].title, 'Inbox · 1');
     assert.equal(result.card, card);
     assert.equal(dto.title, '信箱 · 1 道');
+
+    // relocalizeSnapshotRuns translates cached runs/exams/lastRun in place when UI language changes, and preserves identity when unchanged.
+    const snapZh = {
+      root: '/lib/a',
+      runs: [dto],
+      exams: [{ id: 'ex1', title: '课程 · 设计模式', titleInfo: runTitleInfo(s, titles[4][0]) }],
+      lastRun: dto,
+      sources: [{ id: 'src1', title: '讲义' }],
+    };
+    const snapEn = relocalizeSnapshotRuns(snapZh);
+    assert.notEqual(snapEn, snapZh);
+    assert.equal(snapEn.runs[0].title, 'Inbox · 1');
+    assert.equal(snapEn.exams[0].title, 'Course · 设计模式');
+    assert.equal(snapEn.lastRun.title, 'Inbox · 1');
+    assert.equal(snapEn.sources, snapZh.sources, 'unrelated snapshot slices keep object identity');
+    assert.equal(relocalizeSnapshotRuns(snapEn), snapEn, 'calling again in same language preserves snapshot identity');
+    setUiLanguage('zh');
+    const snapBackZh = relocalizeSnapshotRuns(snapEn);
+    assert.equal(snapBackZh.runs[0].title, '信箱 · 1 道');
+    assert.equal(snapBackZh.exams[0].title, '课程 · 设计模式');
+    assert.equal(snapBackZh.lastRun.title, '信箱 · 1 道');
   } finally { setUiLanguage('zh'); }
 });

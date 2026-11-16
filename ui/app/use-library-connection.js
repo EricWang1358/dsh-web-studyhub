@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ui, getUiLanguage } from '../i18n.js';
-import { localizedRun } from '../run-titles.js';
+import { localizedRun, relocalizeSnapshotRuns } from '../run-titles.js';
 import { isTransientStudyError } from '../transport.js';
 import { shareUnchanged, sameExceptFingerprint, mergePartial } from '../snapshot-share.js';
 import { POLL_FAST_MS } from '../poll-schedule.js';
@@ -22,7 +22,7 @@ import { clearWarmSession, writeWarmBinding, writeWarmSnapshot } from './warm-se
 /** The generate form of a library that has not been opened yet: the defaults of its settings plus the content language. */
 const CONTENT_LANGUAGE = { en: 'English', zh: '中文' };
 export const initialGeneration = (host, language) => ({ ...GENERATION_DEFAULTS, language: host.defaultContentLanguage || CONTENT_LANGUAGE[language] || CONTENT_LANGUAGE.zh });
-export const freshGeneration = (settings) => ({ ...generationFormDefaults(settings?.generation), title: '', course: undefined });
+export const freshGeneration = (settings, language = getUiLanguage()) => ({ ...generationFormDefaults(settings?.generation, language), title: '', course: undefined });
 
 export function useLibraryConnection({ core, libApi, resetLibraryState, session, nav, host, language, warm = null }) {
   const { call, quick, quickStamp, setError, setBusy, notify, refs } = core;
@@ -78,8 +78,9 @@ export function useLibraryConnection({ core, libApi, resetLibraryState, session,
           setBinding(nextBinding);
         }
         if (!cur || (cur.root === value.root && cur.settings !== value.settings)) {
-          const before = cur ? generationFormDefaults(cur.settings?.generation) : initialGeneration(host, getUiLanguage());
-          const after = generationFormDefaults(value.settings?.generation);
+          const lang = getUiLanguage();
+          const before = cur ? generationFormDefaults(cur.settings?.generation, lang) : initialGeneration(host, lang);
+          const after = generationFormDefaults(value.settings?.generation, lang);
           libApi.setGen((current) => syncGenerationDefaults(current, before, after));
         }
         refs.dataRef.current = value;
@@ -105,6 +106,19 @@ export function useLibraryConnection({ core, libApi, resetLibraryState, session,
     const after = generationFormDefaults(refs.dataRef.current?.settings?.generation, language);
     libApi.setGen((current) => syncGenerationDefaults(current, before, after));
     session.patchRun((current) => localizedRun(current));
+    if (refs.dataRef.current) {
+      const relocalized = relocalizeSnapshotRuns(refs.dataRef.current);
+      if (relocalized !== refs.dataRef.current) {
+        const nextTexts = { ...refs.snapshotKey.current };
+        for (const key of ['runs', 'exams', 'lastRun']) {
+          if (Object.hasOwn(relocalized, key)) nextTexts[key] = JSON.stringify(relocalized[key]) ?? '';
+        }
+        refs.dataRef.current = relocalized;
+        refs.snapshotKey.current = nextTexts;
+        setData(relocalized);
+        writeWarmSnapshot(host.warmKey, { binding: bindingRef.current, data: relocalized, snapshotKey: nextTexts });
+      }
+    }
     void refresh().catch((failure) => setError(failure.message));
   }, [language, refresh]); // eslint-disable-line react-hooks/exhaustive-deps
 

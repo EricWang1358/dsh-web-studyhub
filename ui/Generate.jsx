@@ -18,7 +18,7 @@ import { useGenerationPath } from './use-generation-path.js';
 import { MODES, availableModes, effectiveMode, pathSummary, showsChoice } from './too-big-choice.js';
 import { courseForSources } from '../lib/source-courses.js';
 import { generationRulesOf } from '../lib/courses.js';
-import { Button, Disclosure, EmptyState, Hint, Icon, InlineMessage, PageHeader, SegmentedControl, TabPanel, Tabs, Tooltip } from './components/index.js';
+import { AddSourceButton, Button, Disclosure, EmptyState, Hint, Icon, InlineMessage, PageHeader, SegmentedControl, TabPanel, Tabs, Tooltip, addSourceAction } from './components/index.js';
 import ModelSetupGate from './ModelSetupGate.jsx';
 import { freshGeneration, generationFormDefaults, modelReadiness } from './generation-status.js';
 import { startGeneration } from './generate-start.js';
@@ -220,7 +220,7 @@ export default function Generate({
       ) : !data.sources.length ? (
         <EmptyState icon="file" title={ui("还没有资料")}
           description={ui("导入讲义、笔记、PDF 或网页，它们会列在这里；AI 只根据你选中的资料出题，并标出每道题的出处。")}
-          primary={{ label: ui("添加资料"), icon: "upload", onClick: openImport }}
+          primary={addSourceAction(openImport)}
           secondary={{ label: ui("已有题目？导入 JSON 题组"), onClick: () => setGenSource("json") }} />
       ) : (
         <>
@@ -236,7 +236,7 @@ export default function Generate({
                 onIndex={(course) => openIndexBuilder(openLargeDocumentSettings, course)} />
               <div className="generate-sources-actions">
                 {/* The one way to add material from here: the shared import dialog (WP3). */}
-                <Button variant="link" icon="upload" onClick={openImport}>{ui("添加资料")}</Button>
+                <AddSourceButton variant="quiet" className="sh-btn--flush-start" onClick={openImport} />
               </div>
               {/* A selection too big for one generation: ONE block with the ways on (steps / pages by topic), only the chosen one drawn; with no search tool the old card is a fold under it. */}
               {choice && <TooBigChoice advice={advice} stats={stats} modes={modes} mode={mode} onMode={setChosenMode} disabled={busy}

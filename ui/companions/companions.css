@@ -37,6 +37,7 @@
       display: block;
     }
     .sh-comp-drawer {
+      container-type: inline-size;
       border-left: 1px solid var(--line-strong);
       background: var(--bg-surface);
       display: flex;
@@ -175,6 +176,7 @@
       color: var(--text-muted);
     }
     .sh-comp-bar {
+      container-type: inline-size;
       margin: 0.85rem 0 1rem;
       padding: 0.8rem 1rem;
       border: 1px solid var(--line);
@@ -310,6 +312,32 @@
       margin-top: var(--space-2);
     }
   }
+  @container (max-width: 860px) {
+    :where(.study-app, .study-seat) {
+      .sh-comp-viewer {
+        min-height: min(24rem, 70vh);
+      }
+      .sh-comp-viewer--expanded {
+        min-height: 0;
+      }
+      .sh-comp-viewer--split {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr) minmax(0, 44%);
+      }
+      .sh-comp-drawer {
+        border-left: 0;
+        border-top: 1px solid var(--line-strong);
+        max-height: none;
+      }
+    }
+  }
+  @container (max-width: 560px) {
+    :where(.study-app, .study-seat) {
+      .sh-comp-build__row {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+  }
   @media (max-width: 860px) {
     :where(.study-app, .study-seat) {
       .sh-comp-viewer {
@@ -320,12 +348,12 @@
       }
       .sh-comp-viewer--split {
         grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: minmax(0, 1fr) auto;
+        grid-template-rows: minmax(0, 1fr) minmax(0, 44%);
       }
       .sh-comp-drawer {
         border-left: 0;
         border-top: 1px solid var(--line-strong);
-        max-height: 44%;
+        max-height: none;
       }
       .sh-comp-build__row {
         grid-template-columns: minmax(0, 1fr);

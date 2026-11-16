@@ -1,7 +1,7 @@
 import React, { memo, useCallback, useId, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, CheckboxInput, EmptyState, ScrollWindow, filterItems } from './components/index.js';
+import { AddSourceButton, Button, CheckboxInput, EmptyState, ScrollWindow, addSourceAction, filterItems } from './components/index.js';
 import PageScope from './PageScope.jsx';
 import { groupSourcesByDocument, isLegacyExtraction, sourceFormat } from '../lib/source-groups.js';
 import { isAiDraftedSource } from '../lib/source-provenance.js';
@@ -262,7 +262,7 @@ export default function SourcePicker({ sources = [], selected = [], onChange, co
   if (!items.length) return (
     <div className={`source-picker${className ? ` ${className}` : ''}`} {...rest}>
       <EmptyState size="sm" icon="file" title={ui('还没有资料')} description={ui('先添加讲义或笔记，再用它们出题。')}
-        primary={onAdd ? { label: ui('添加资料'), icon: 'plus', onClick: onAdd, disabled } : undefined} />
+        primary={onAdd ? addSourceAction(onAdd, { disabled }) : undefined} />
     </div>
   );
   return (
@@ -285,7 +285,7 @@ export default function SourcePicker({ sources = [], selected = [], onChange, co
         renderItem={item => <DocumentRow item={item} selected={selected} apply={apply} disabled={disabled} defaultOpen={item.key === defaultOpenKey}
           indexInfo={infos.get(item.key) ?? null} canIndex={canIndex} slot={indexSlot} relation={relations.get(item.key) ?? null} onIndex={onIndex ? goIndex : undefined} />} />
         : <p className="source-picker__note">{ui('这个范围还没有资料。可切换到全部课程查看。')}</p>}
-      {onAdd && <Button variant="quiet" size="sm" icon="plus" className="source-picker__add" disabled={disabled} onClick={onAdd}>{ui('添加资料')}</Button>}
+      {onAdd && <AddSourceButton variant="quiet" size="sm" className="source-picker__add sh-btn--flush-start" disabled={disabled} onClick={onAdd} />}
     </div>
   );
 }
