@@ -45,14 +45,27 @@ test('English says the same without a typed mark', () => {
   } finally { m.setUiLanguage('zh'); }
 });
 
-test('a 判断题 option shows the registry tick or cross where the other kinds show a letter; a choice shows A. / A', () => {
+test('a 判断题 option shows its words (对 / 错) in the circle where the other kinds show a letter, never the tick or cross of the verdict; a choice shows A. / A', () => {
   const trueFalse = { kind: 'truefalse' };
   const right = render(h(m.OptionMark, { card: trueFalse, option: { id: 'true' }, index: 0 }));
   const no = render(h(m.OptionMark, { card: trueFalse, option: { id: 'false' }, index: 1 }));
-  assert.ok(right.includes(iconPath('check').slice(0, 40)));
-  assert.ok(no.includes(iconPath('close').slice(0, 40)));
-  assert.doesNotMatch(right + no, /[✓✕]/);
+  assert.equal(right, '对');
+  assert.equal(no, '错');
+  assert.doesNotMatch(right + no, /<svg|[✓✕]/);
   const quiz = { kind: 'quiz' };
   assert.equal(render(h(m.OptionMark, { card: quiz, option: { id: 'b' }, index: 1 })), 'B');
   assert.equal(render(h(m.OptionMark, { card: quiz, option: { id: 'b' }, index: 1, dot: true })), 'B.');
+});
+
+test('the flag of a question is the registry icon, in a quiet icon button that is named and has its tooltip (#1073)', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const source = await readFile(new URL('../ui/review/QuestionRun.jsx', import.meta.url), 'utf8');
+  assert.ok(iconPath('flag'), 'the registry draws a flag');
+  assert.doesNotMatch(source, /⚑/);
+  const flag = source.match(/<Tooltip layer content=\{ui\("标记题目"\)\}><Button icon="flag"[^>]*>/);
+  assert.ok(flag, 'the Button icon="flag" sits in a Tooltip that says 标记题目');
+  assert.match(flag[0], /aria-label=\{ui\("标记题目"\)\}/);
+  assert.match(flag[0], /variant="quiet"/);
+  const en = JSON.parse(await readFile(new URL('../ui/locales/en.json', import.meta.url), 'utf8'));
+  assert.ok(en['标记题目'], 'the English catalogue has the name and tooltip');
 });

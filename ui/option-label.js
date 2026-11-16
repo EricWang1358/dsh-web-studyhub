@@ -10,6 +10,3 @@ export function fixedOptionLabel(card, option) {
 
 /** The letter before an option (A, B, …). */
 export const optionMark = (card, option, index) => String.fromCharCode(65 + index);
-
-/** The registry icon a fixed option shows in place of a letter (check / close for 对 / 错), or null. */
-export const optionIcon = (card, option) => fixedOptionsOf(card?.kind)?.find((item) => item.id === option?.id)?.icon ?? null;
