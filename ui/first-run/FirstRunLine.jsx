@@ -114,7 +114,7 @@ function MaterialBody({ step, on }) {
         ? ui('示例只用来看效果，不算你的进度。加一份你自己的讲义、课件或笔记，就能用它出第一组题。')
         : ui('PDF、Word、PowerPoint、Markdown、保存下来的网页文件（.html）或文本都可以，原文件会保留。添加后就能用它出题。')}</p>
       {on.importFirst && <div className="frl-body__actions">
-        <Button variant={sample ? 'secondary' : 'primary'} icon="upload" lock={busy} data-first-run="import" onClick={on.importFirst}>{ui('添加资料')}</Button>
+        <AddSourceButton variant={sample ? 'secondary' : 'primary'} lock={busy} data-first-run="import" onClick={on.importFirst} />
       </div>}
     </>
   );

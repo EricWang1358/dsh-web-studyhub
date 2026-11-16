@@ -9,7 +9,8 @@
 @layer study.features {
   :where(.study-app, .study-seat) {
     /* ── The mark ───────────────────────────────────────────────────────── */
-    .cov-mark, .cov-meter, .cov-bar { --cov-covered: var(--text-dim); }
+    /* Muted ink, not --text-dim: at 100% a full-width bar of the page's darkest ink outweighed the page title (#1078). */
+    .cov-mark, .cov-meter, .cov-bar { --cov-covered: var(--text-muted); }
     .cov-mark { display: inline-grid; flex: none; place-items: center; color: var(--text-faint); line-height: 0; vertical-align: -2px; }
     .cov-mark svg { display: block; }
     .cov-mark[data-state='covered'] { color: var(--cov-covered); }
@@ -25,7 +26,7 @@
     .cov-meter[data-state='none'] { color: var(--text-faint); }
     /* ── The bar (StackedBar with a kind per part) ─────────────────────── */
     .cov-bar [data-kind='covered'] { --sh-tone: var(--cov-covered); }
-    .cov-bar [data-kind='scheduled'] { --sh-tone: var(--text-faint); }
+    .cov-bar [data-kind='scheduled'] { --sh-tone: var(--line-strong); }
     .cov-bar [data-kind='never-planned'] { --sh-tone: var(--line); }
     /* An empty track has no fill to show in the key: its swatch is a ring (the swatch itself is feedback.css's; this sets what it reads). */
     .cov-bar li[data-kind='never-planned'] { --sh-tone: transparent; --sh-swatch-ring: var(--line-strong); }

@@ -113,7 +113,7 @@ function LookBackAnswer({ row, mode }) {
           const picked = feedback.selected?.includes(option.id);
           return (
             <div key={option.id} className={"option " + (key?.correct ? "correct" : picked ? "incorrect" : "dim")}>
-              <span className="option-letter" aria-hidden={verdict || undefined}><OptionMark card={card} option={option} index={index} dot={!verdict} /></span>
+              <span className="option-letter" aria-hidden={verdict || undefined}>{verdict ? String(index + 1) : <OptionMark card={card} option={option} index={index} />}</span>
               <div>
                 {verdict ? <span className="option-verdict">{fixedOptionLabel(card, option)}</span> : <Markdown text={option.text} links={false} className="md-compact" />}
                 <AnswerState correct={key?.correct} picked={picked} />
@@ -168,7 +168,7 @@ function LookBack({ row, mode, sources, onOpenSource }) {
  * props: run (the finished run), sources (optional material list for citations and source jumps),
  * onOpenWrongBook(refs) (optional: the wrong book on these questions, where its rescue is; absent when the page is not available).
  */
-export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAck, onPracticeWrong, segment = null, onSegmentChange }) {
+export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAck, onPracticeWrong, segment = null, onSegmentChange, collapsible = false }) {
   const study = useStudy();
   const courses = React.useContext(AppContext)?.data?.courses;
   const openSource = study?.openModal ? (source, quote, peekPage) => {
@@ -309,25 +309,28 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAc
       </li>
     );
   };
-  return (
-    <section className="round-look-back sh-paper-card" aria-label={ui("本轮题目")} onKeyDown={onKeyDown}>
+  const compactFolded = collapsible && wrong === 0 && unanswered === 0 && grading === 0 && corrections.length === 0 && !segment;
+  const content = (
+    <>
       <div className="round-look-back__head">
-        <div className="round-look-back__lead">
-          <h3>{ui("本轮题目")}</h3>
-          <span className="muted small">{[wrong > 0 && uiFormat("错 {0}", [wrong]), unanswered > 0 && uiFormat("未答 {0}", [unanswered]), grading > 0 && uiFormat("批改中 {0}", [grading])].filter(Boolean).join(" · ") || ui("全部过关")}</span>
-          {corrections.length > 0 && (view !== "pending" || !!segment || hesitantOnly) && <Button variant="link" size="sm" onClick={() => pickView("pending")}>{uiFormat("待看订正 {0}", [corrections.length])}</Button>}
-          {needsLook.length > 0 && needsLook.length < rows.length && (
-            <Button variant="link" size="sm" onClick={() => pickView(!segment && !hesitantOnly && view === "some" ? "all" : "some")}>
-              {!segment && !hesitantOnly && view === "some" ? uiFormat("显示全部 {0} 题", [rows.length]) : grading ? ui("只看错题、未答和批改中") : ui("只看错题和未答")}
-            </Button>
-          )}
-          {(view === "pending" || !!segment || hesitantOnly) && !(needsLook.length > 0 && needsLook.length < rows.length) && (
-            <Button variant="link" size="sm" onClick={() => pickView("all")}>{uiFormat("显示全部 {0} 题", [rows.length])}</Button>
-          )}
-          {segment && needsLook.length > 0 && needsLook.length < rows.length && (
-            <Button variant="link" size="sm" onClick={() => pickView("all")}>{uiFormat("显示全部 {0} 题", [rows.length])}</Button>
-          )}
-        </div>
+        {!compactFolded && (
+          <div className="round-look-back__lead">
+            <h3>{ui("本轮题目")}</h3>
+            <span className="muted small">{[wrong > 0 && uiFormat("错 {0}", [wrong]), unanswered > 0 && uiFormat("未答 {0}", [unanswered]), grading > 0 && uiFormat("批改中 {0}", [grading])].filter(Boolean).join(" · ") || ui("全部过关")}</span>
+            {corrections.length > 0 && (view !== "pending" || !!segment || hesitantOnly) && <Button variant="link" size="sm" onClick={() => pickView("pending")}>{uiFormat("待看订正 {0}", [corrections.length])}</Button>}
+            {needsLook.length > 0 && needsLook.length < rows.length && (
+              <Button variant="link" size="sm" onClick={() => pickView(!segment && !hesitantOnly && view === "some" ? "all" : "some")}>
+                {!segment && !hesitantOnly && view === "some" ? uiFormat("显示全部 {0} 题", [rows.length]) : grading ? ui("只看错题、未答和批改中") : ui("只看错题和未答")}
+              </Button>
+            )}
+            {(view === "pending" || !!segment || hesitantOnly) && !(needsLook.length > 0 && needsLook.length < rows.length) && (
+              <Button variant="link" size="sm" onClick={() => pickView("all")}>{uiFormat("显示全部 {0} 题", [rows.length])}</Button>
+            )}
+            {segment && needsLook.length > 0 && needsLook.length < rows.length && (
+              <Button variant="link" size="sm" onClick={() => pickView("all")}>{uiFormat("显示全部 {0} 题", [rows.length])}</Button>
+            )}
+          </div>
+        )}
         {(hesitantRows.length > 0 || shown.length >= 2 || (onPracticeWrong && wrong >= 1) || withSolution.length > 0) && (
           <div className="round-look-back__tools">
             {hesitantRows.length > 0 && (
@@ -357,6 +360,24 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAc
       <ol className="look-back__rows">
         <ChunkedRows items={shown} render={render} chunk={ROW_CHUNK} resetKey={`${view}:${segment || ""}:${hesitantOnly}`} as="li" />
       </ol>
+    </>
+  );
+  if (compactFolded) {
+    return (
+      <details className="round-look-back round-look-back--compact sh-paper-card" aria-label={ui("本轮题目")} onKeyDown={onKeyDown}>
+        <summary className="round-look-back__summary">
+          <h3>{ui("本轮题目")}</h3>
+          <span className="muted small">{uiFormat("全部过关 · 共 {0} 题", [rows.length])}</span>
+        </summary>
+        <div className="round-look-back__content">
+          {content}
+        </div>
+      </details>
+    );
+  }
+  return (
+    <section className="round-look-back sh-paper-card" aria-label={ui("本轮题目")} onKeyDown={onKeyDown}>
+      {content}
     </section>
   );
 }

@@ -71,7 +71,7 @@
     .book-kit__template {
       margin: 0;
       padding: var(--space-2) var(--space-3);
-      border-left: 2px solid var(--line-strong);
+      border-radius: var(--radius-sm);
       background: var(--bg-sunken);
       white-space: pre-wrap;
       line-height: var(--lh-body);

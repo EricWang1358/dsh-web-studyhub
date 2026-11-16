@@ -179,7 +179,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/slay.js`: contexts bank, coach, study; 1 other lib file
 - `lib/solution-exposure.js`: contexts jobs, study; 3 other lib files
 - `lib/source-query.js`: contexts bank, library
-- `lib/study-state.js`: contexts authoring, library, recording, study; 3 other lib files
+- `lib/study-state.js`: contexts authoring, library, recording, study; 2 other lib files
 - `lib/teaching.js`: contexts library, study; 1 other lib file
 - `lib/token-estimate.js`: contexts generation, library, materials; 5 other lib files
 - `lib/update-check.js`: contexts generation, system; 4 other lib files

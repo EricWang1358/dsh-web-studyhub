@@ -233,6 +233,8 @@ test('Cloze Enter/Esc keyboard flow and RoundLookBack source-page jump in a real
   await page.locator('.cloze-right').first().waitFor({ timeout: 15000 });
   await nextButton(page).click();
   await page.locator('.result-page').waitFor({ timeout: 30000 });
+  const lookBackSummary = page.locator('details.round-look-back > summary');
+  if (await lookBackSummary.count()) await lookBackSummary.click();
   const row = page.locator('.round-look-back .look-back__row').first();
   await row.locator('.look-back__line').click();
   const panel = row.locator('.look-back__panel');
@@ -301,7 +303,7 @@ test('Slice 1 practice controls: multi-choice clear, cloze Shift+Enter, open dra
   await page.locator('.submit-answer').click();
   await page.locator('.explanation-foot').waitFor({ timeout: 15000 });
   assert.match(await page.locator('.explanation-foot').innerText(), /收起解析 \(H\)/);
-  assert.match(await page.locator('.explanation-foot').innerText(), /下一题/);
+  assert.doesNotMatch(await page.locator('.explanation-foot').innerText(), /下一题/);
   await page.locator('.explanation-foot').getByRole('button', { name: /收起解析/ }).click();
   await page.locator('.explanation-collapsed').waitFor();
   await page.locator('.question-card').focus();
@@ -335,8 +337,7 @@ test('Slice 1 practice controls: multi-choice clear, cloze Shift+Enter, open dra
   await page.locator('.grading .grade').first().waitFor();
   await page.locator('.grade').nth(4).click();
 
-  // #35: Flashcard front/back cue + 0-5 grading works on front side too!
-  await nextButton(page).click();
+  // #35: Self-grading op1 advances directly to fl1; flashcard front/back cue + 0-5 grading works on front side too!
   await page.waitForFunction(() => /Front side question\?/.test(document.querySelector('.question-card')?.innerText || ''));
   await page.locator('.flip-control').click();
   await page.locator('.grading-side-cue').waitFor();
@@ -345,7 +346,8 @@ test('Slice 1 practice controls: multi-choice clear, cloze Shift+Enter, open dra
   await page.keyboard.press(' ');
   assert.match(await page.locator('.grading-side-cue').innerText(), /正在看正面题干 · 按 Space 回背面/);
   await page.keyboard.press('4');
-  await page.locator('.next-question:not(:disabled)').waitFor();
+  // Grading fl1 advances directly to the remaining skipped cl2.
+  await page.locator('.cloze-blank--input').first().waitFor();
 
   // #36 & #37 at 420px: RoundPending shows skipped cl2, 只看未答 toggle, arrow roving focus; RoundEndConfirm mounts focus + Esc + Enter block!
   await page.setViewportSize({ width: 420, height: 900 });

@@ -66,7 +66,6 @@ const ACCENT_FILL_ALLOW = [
   { file: 'ui/setup-checklist.css', selector: /\.setup-step\[data-next="true"\] \.setup-mark/, why: 'progress (the next setup step)' },
   { file: 'ui/skeleton.css', selector: /\.sqc-step--current/, why: 'progress (the step you are on)' },
   { file: 'ui/workflows.css', selector: /\.wf-portal-step\.is-current/, why: 'progress (the step you are on)' },
-  { file: 'ui/case-result.css', selector: /\.rubric-skills__trend i/, why: 'a chart, like the heatmap' },
   { file: 'ui/study-map/catalog.css', selector: /\.map-play:hover/, why: 'the primary action (play) on hover' },
 ];
 const ACCENT_PAINT_PROP = /^(background(-color|-image)?|border(-(top|right|bottom|left|inline|block)(-(start|end))?)?(-color)?|box-shadow)$/;

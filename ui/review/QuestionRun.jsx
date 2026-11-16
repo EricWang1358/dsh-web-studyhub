@@ -19,7 +19,6 @@ import { voteTipMoments } from "../guidance/practice-tips.js";
 import { reviewEntryKey } from "../async.js";
 import ModelErrorNote from "../ModelErrorNote.jsx";
 import ModelSetupGate from "../ModelSetupGate.jsx";
-import LearningActions from "./LearningActions.jsx";
 import TeachingPanel from "./TeachingPanel.jsx";
 import { describeModelError, modelReadiness, plainAssistFailure } from "../generation-status.js";
 import { readableQualityIssue } from "../quality.js";
@@ -41,7 +40,7 @@ import { useInjectCss } from "../shared.js";
 import { RubricAnswer, ScenarioPanel } from "../CaseWorkspace.jsx";
 import TaskCardRun from "../TaskCardRun.jsx";
 import { WrongAnswerSource } from "../document-preview/practice/ReadingReturn.jsx";
-import { NextDue } from "../NextDue.jsx";
+import { NextDue, nextDueIcon, nextDueWord } from "../NextDue.jsx";
 import { formatGap } from "../format.js";
 import { roundAt, roundWords } from "./round-words.js";
 import { fixedOptionsOf } from "../../lib/card-kinds.js";
@@ -50,7 +49,7 @@ import RoundPending from "./RoundPending.jsx";
 import { RoundEndConfirm, useRoundSteps } from "./RoundSteps.jsx";
 import { useVoiceAnswer } from "./VoiceAnswer.jsx";
 import { formatAssistTaskSummary } from "./assist-summary.js";
-import { ClozeQuestion, OpenResponseField, QuestionLiveMastery, QuestionMetaBadges } from "./QuestionParts.jsx";
+import { ClozeQuestion, OpenResponseField, PostAnswerDetails, QuestionLiveMastery, QuestionMetaBadges } from "./QuestionParts.jsx";
 import { useAssistWatch, useAutopilotPause, useBookQaSync, useCaseHighlights } from "./use-review-run-sync.js";
 import { companionSlideButtonLabel, openCompanionTarget, resolveCompanionTarget } from "../companions/companion-ref.js";
 import companionsCss from "../companions/companions.css";
@@ -83,7 +82,7 @@ function AssistFailure({ task, modelReady = false, onSettings, onResubmit, onEdi
   );
 }
 
-export default function QuestionRun({ session, data, coachProps, links = {}, context = {}, feedback }) {
+export default function QuestionRun({ session, data, coachProps, links = {}, context = {}, feedback, inline = false }) {
   useInjectCss(reviewCss, "study-review");
   useInjectCss(coachCss, "study-coach");
   useInjectCss(companionsCss, "study-companions");
@@ -281,6 +280,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                       key={o.id}
                       style={{ "--reveal-index": i }}
                       disabled={busy || !!run.feedback}
+                      aria-keyshortcuts={!run.feedback ? String(i + 1) : undefined}
                       className={
                         "option " +
                         (run.feedback
@@ -297,15 +297,14 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                       onClick={() => choose(o.id)}
                     >
                       <span className="option-letter" aria-hidden={verdict || undefined}>
-                        <OptionMark card={run.card} option={o} index={i} dot={!verdict} />
+                        {verdict ? String(i + 1) : <OptionMark card={run.card} option={o} index={i} />}
                       </span>
                       <div>
                         {verdict ? <span className="option-verdict">{fixedOptionLabel(run.card, o)}</span>
                           : <Markdown text={o.text} links={false} className="md-compact" />}
                         {!verdict && enOption?.text && <p className="option-en">{enOption.text}</p>}
-                        {run.feedback && (
-                          // Grows open from zero height, one option after another,
-                          // instead of every explanation landing in the same frame.
+                        {run.feedback && (solution?.correct || picked) && (
+                          // Grows open from zero height for the picked and right answers; distractor notes fold under 更多解析与巩固方式.
                           <div className="option-reveal"><div>
                             <AnswerState correct={solution?.correct} picked={picked} multiple={multiple} />
                             <Markdown
@@ -366,18 +365,18 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             <>
               <FlipCard key={`flip:${run.id}:${run.index}:${run.card.id}`} run={run} showBack={showBack} flipCard={flipCard} enOn={enOn} />
               <SmoothHeight className="flash-follow" key={`follow:${run.id}:${run.index}:${run.card.id}`}>
-              {run.card.kind === "open" && !run.revealed && (
+              {run.card.kind === "open" && !run.revealed && !showBack && (
                 <OpenResponseField grading={run.grading} value={response} onChange={actions.setResponse} onFlip={flipCard} />
               )}
               {voice.answer}
-              {run.revealed && !run.feedback && companionTarget && openModal && (
+              {(run.revealed || showBack) && !run.feedback && companionTarget && openModal && (
                 <div className="sh-comp-card-jump">
                   <Button size="sm" variant="quiet" icon="play" onClick={() => openCompanionTarget(openModal, companionTarget)}>
                     {companionSlideButtonLabel(companionTarget)}
                   </Button>
                 </div>
               )}
-              {run.revealed && !run.feedback && (
+              {(run.revealed || showBack) && !run.feedback && (
                 <div className="grading">
                   <div className="grading-head">
                     <span>{run.retry ? ui("本轮重练 · 掌握程度") : ui("掌握程度")}</span>
@@ -427,9 +426,10 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
               {prereqStrip}
             </>
           )}
-          {/* What the answer did and when the question comes back: at the foot of the card, right after the explanations, where the eyes already are (#672). */}
+          {/* Concise card verdict at the foot of the card; full schedule telemetry folds under 更多解析与巩固方式. */}
           {voice.correction}
-          {run.feedback && <NextDue feedback={run.feedback} telemetry={run.feedbackTelemetry} />}
+          {run.feedback && <p className={"next-due next-due--verdict" + (run.feedback.correct || run.feedback.selfReported ? "" : " retry")}
+            data-level={run.feedback.level || undefined} role="status">{nextDueIcon(run.feedback) && <Icon name={nextDueIcon(run.feedback)} size={16} className="sh-icon--inline sh-icon--lead" />}{nextDueWord(run.feedback)}</p>}
           {autoAdvanceActive && (
             <div className={"question-card__autopilot" + (autoAdvancePaused ? " is-paused" : "")}
               key={"card-auto:" + (session.advanceKey || run.index)}
@@ -439,40 +439,42 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             </div>
           )}
         </div>
-        {/* Under the card, which stays in view when a question switch pins it to the top. */}
-        {contextReturnLabel && <Button variant="quiet" size="sm" icon="arrow-left" className="review-detour" lock={busy} onClick={onReturnContext}>{contextReturnLabel}</Button>}
-        {detour && !contextReturnLabel && <Tooltip layer content={ui("回到从信箱跳过来之前正在做的题")} anchorClassName="review-detour">
-          <Button variant="quiet" size="sm" icon="arrow-left" className="review-detour__button" lock={busy} onClick={onReturnFromDetour}>{uiFormat("回到之前的第 {0} 题", [detour.index + 1])}</Button></Tooltip>}
-        <ReviewToolbar
-          key={session.advanceKey || `${run.id}:${run.index}:${run.card?.id}`}
-          assistMode={assistMode}
-          run={run} expanded={run.revealed ? explain : hint}
-          onToggleHelp={actions.toggleHelp}
-          onAsk={() => setAssistMode((m) => (m === "ask" ? "" : "ask"))}
-          onImprove={() => setAssistMode((m) => (m === "improve" ? "" : "improve"))}
-          onDerive={() => setAssistMode((m) => (m === "derive" ? "" : "derive"))}
-          onSlay={slayCard} onToggleFocus={run.mode !== "exam" ? toggleCardFocus : undefined}
-          onDeferUnstudiedPages={canDeferPages ? deferUnstudiedPages : undefined}
-          onReviewAction={reviewAct}
-          onNote={onMakeNote}
-          onTask={onMakeTask}
-          enOn={enOn}
-          enBusy={!!enBusyKey && enBusyKey === reviewEntryKey(run)}
-          onToggleEn={toggleEn}
-          autopilot={autopilot} onToggleAutopilot={actions.toggleAutopilot}
-          autoAdvanceActive={autoAdvanceActive} autoAdvancePaused={autoAdvancePaused} autoAdvanceMs={autoAdvanceMs}
-          onSkip={roundSteps.onSkip} onEndRound={roundSteps.onEnd}
-          // 这题不错 / 这题有问题 are items of 更多; ThumbFeedback keeps the vote, the tag tray and the G / B keys (#671).
-          thumbVote={thumbVote} onThumb={coachProps && run.mode !== "exam" ? (vote) => thumbsRef.current?.[vote === "up" ? "up" : "down"]() : undefined}
-          thumbs={coachProps && run.mode !== "exam" && (
-            <ThumbFeedback ref={thumbsRef} buttons={false} run={run} canShortcut={coachProps.canShortcut} onInteract={coachProps.cancelAutoAdvance}
-              onSent={(r) => r.scheduled?.length && coachProps.onStatus()} onVote={(vote, tags = []) => setThumbState({ vote, tags })}
-              onFix={(tags) => { setAssistMode("improve"); setAssistText(fixSuggestionFor(tags)); }} courseRules={courseRules} />
-          )}
-        />
-        <RoundEndConfirm session={session} />
-        {practiceTip.tip && <PracticeTip id={practiceTip.tip} onClose={practiceTip.close} onShown={practiceTip.onShown} />}
+        <div className="review-sticky-bar" data-answered={run.feedback ? "true" : undefined}>
+          {contextReturnLabel && <Button variant="quiet" size="sm" icon="arrow-left" className="review-detour" lock={busy} onClick={onReturnContext}>{contextReturnLabel}</Button>}
+          {detour && !contextReturnLabel && <Tooltip layer content={ui("回到从信箱跳过来之前正在做的题")} anchorClassName="review-detour">
+            <Button variant="quiet" size="sm" icon="arrow-left" className="review-detour__button" lock={busy} onClick={onReturnFromDetour}>{uiFormat("回到之前的第 {0} 题", [detour.index + 1])}</Button></Tooltip>}
+          <ReviewToolbar
+            key={session.advanceKey || `${run.id}:${run.index}:${run.card?.id}`}
+            assistMode={assistMode}
+            run={run} expanded={(run.revealed || showBack) ? explain : hint} revealed={!!(run.revealed || showBack)}
+            onToggleHelp={actions.toggleHelp}
+            onAsk={() => setAssistMode((m) => (m === "ask" ? "" : "ask"))}
+            onImprove={() => setAssistMode((m) => (m === "improve" ? "" : "improve"))}
+            onDerive={() => setAssistMode((m) => (m === "derive" ? "" : "derive"))}
+            onSlay={slayCard} onToggleFocus={run.mode !== "exam" ? toggleCardFocus : undefined}
+            onDeferUnstudiedPages={canDeferPages ? deferUnstudiedPages : undefined}
+            onReviewAction={reviewAct}
+            onNote={onMakeNote}
+            onTask={onMakeTask}
+            enOn={enOn}
+            enBusy={!!enBusyKey && enBusyKey === reviewEntryKey(run)}
+            onToggleEn={toggleEn}
+            autopilot={autopilot} onToggleAutopilot={actions.toggleAutopilot}
+            selfGradeAdvance={session.selfGradeAdvance} onToggleSelfGradeAdvance={actions.toggleSelfGradeAdvance}
+            onUndo={actions.undoAnswer}
+            autoAdvanceActive={autoAdvanceActive} autoAdvancePaused={autoAdvancePaused} autoAdvanceMs={autoAdvanceMs}
+            onSkip={roundSteps.onSkip} onEndRound={roundSteps.onEnd}
+            thumbVote={thumbVote} onThumb={coachProps && run.mode !== "exam" ? (vote) => thumbsRef.current?.[vote === "up" ? "up" : "down"]() : undefined}
+            thumbs={coachProps && run.mode !== "exam" && (
+              <ThumbFeedback ref={thumbsRef} buttons={false} run={run} canShortcut={coachProps.canShortcut} onInteract={coachProps.cancelAutoAdvance}
+                onSent={(r) => r.scheduled?.length && coachProps.onStatus()} onVote={(vote, tags = []) => setThumbState({ vote, tags })}
+                onFix={(tags) => { setAssistMode("improve"); setAssistText(fixSuggestionFor(tags)); }} courseRules={courseRules} />
+            )}
+          />
+          <RoundEndConfirm session={session} />
+        </div>
         {!assistMode && <div className="action-feedback-slot">{feedback}</div>}
+        {practiceTip.tip && <PracticeTip id={practiceTip.tip} onClose={practiceTip.close} onShown={practiceTip.onShown} />}
         {/* A stem that asks what the source says tests memory of a document's wording, not the concept: say so and offer the fix, so the learner never has to find the words. */}
         {!assistMode && !runningTask && run.mode !== "exam" && asksWhatTheSourceSays(run.card?.prompt) && (
           <p className="assist-status voice-hint" role="status">
@@ -626,9 +628,11 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
               <h3>{ui("理解这道题")}</h3>
               <Markdown text={run.solution.explanation} />
               {enOn && enAnswer?.explanation && <EnBlock text={enAnswer.explanation} />}
-              <h4>{ui("容易混淆的地方")}</h4>
-              <Markdown text={run.solution.misconception} />
-              {run.solution.rubric && <>
+              {!run.feedback && run.solution.misconception && <>
+                <h4>{ui("容易混淆的地方")}</h4>
+                <Markdown text={run.solution.misconception} />
+              </>}
+              {!run.feedback && run.solution.rubric && <>
                 <h4>{run.card?.kind === "task" ? ui("验收标准") : ui("评分依据")}</h4>
                 <Markdown text={run.solution.rubric} />
               </>}
@@ -660,17 +664,13 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                   }
                   requestAnimationFrame(() => reviewBodyRef.current?.querySelector?.(".question-card")?.focus?.({ preventScroll: true }));
                 }}>{ui("收起解析 (H)")}</Button>
-                {run.feedback && !run.complete && (
-                  <Button variant="primary" size="sm" iconEnd="arrow-right" lock={busy} onClick={() => reviewAct("review.move", { direction: 1 })}>
-                    {position.last ? ui("完成") : ui("下一题")}
-                  </Button>
-                )}
               </div>
             )}
           </ReadingBlock>
         )}
-        {/* 逐步理解 / 计算题引导练习 / 用自己的话讲一遍 / 试一道同类题 (ui/review/LearningActions.jsx, TeachingPanel.jsx). */}
-        <LearningActions session={session} data={data} model={model} onModelSettings={modelSettings} openModal={openModal} />
+        <PostAnswerDetails session={session} data={data} model={model} onModelSettings={modelSettings} openModal={openModal}
+          showSolution={showSolution} verdict={verdict} enOn={enOn} enAnswer={enAnswer} defaultOpen={!!inline}
+          nextDueNode={run.feedback ? <NextDue feedback={run.feedback} telemetry={run.feedbackTelemetry} /> : null} />
         <TeachingPanel session={session} data={data} model={model} onModelSettings={modelSettings} />
       </div>
     </div>

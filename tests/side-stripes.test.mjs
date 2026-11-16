@@ -5,8 +5,10 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /* #1080: a thick coloured edge on a card (a "side stripe") is the look of template UI, and a box inside a box inside a card is clutter. A quotation
-   may keep a neutral rule beside it, with no box: that is typography. What this test counts is a left/start edge of 2px or more that is either in
-   a tone (ok, warn, bad, info, accent, hue) or sits on a box (the same rule draws a border or a background). Per-file ratchet: numbers may only fall. */
+   may keep a neutral rule beside it, with no box: that is typography, and it has ONE width, 2px. What this test counts is a left/start edge of 2px or
+   more that is in a tone (ok, warn, bad, info, accent, hue), sits on a box (the same rule draws a border or a background), or is a neutral rule wider
+   than the quotation's 2px (an edge bar on a block of text, such as the answer card's definition, was 3px and passed as a quotation). Per-file ratchet. */
+const QUOTE_RULE = 2;
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const TONE = /var\(--(?:ok|warn|bad|info|accent|hue|sh-tone)[a-z-]*\)/;
@@ -39,7 +41,7 @@ export async function sideStripes() {
     for (const match of text.matchAll(EDGE)) {
       const block = blockAround(text, match.index);
       const boxed = /(?:^|[;{\s])border\s*:\s*[^;]*\d/.test(block) || /(?:^|[;{\s])background(?:-color)?\s*:/.test(block);
-      if (TONE.test(match[0]) || boxed) n += 1;
+      if (TONE.test(match[0]) || boxed || Number(match[1]) > QUOTE_RULE) n += 1;
     }
     for (const match of text.matchAll(INSET)) if (TONE.test(match[2])) n += 1;
     if (n) counts[relative(root, file).replaceAll('\\', '/')] = n;
@@ -47,27 +49,9 @@ export async function sideStripes() {
   return counts;
 }
 
-/* Today's count, file by file. Lower a number when you remove a stripe; never raise one. */
+/* Today's count, file by file. Lower a number when you remove a stripe; never raise one. The one that is left is in a file an open PR owns. */
 const BASELINE = {
-  'ui/book/book-kit.css': 1,
-  'ui/book/book.css': 1,
-  'ui/companions/companions.css': 1,
-  'ui/document-preview/practice/practice.css': 1,
-  'ui/document-preview/translation/translation.css': 2,
-  'ui/generation-path.css': 1,
   'ui/generation-transparency.css': 1,
-  'ui/guided-study/guided-study.css': 1,
-  'ui/large-documents.css': 1,
-  'ui/mineru.css': 2,
-  'ui/oral-exam.css': 1,
-  'ui/outline/outline.css': 1,
-  'ui/review/learning-loop.css': 1,
-  'ui/review/question.css': 3,
-  'ui/setup-checklist.css': 1,
-  'ui/skeleton.css': 1,
-  'ui/sources-page.css': 1,
-  'ui/study-map/catalog.css': 1,
-  'ui/workflow-scope.css': 1,
 };
 
 test('no new side stripes; the files of #1080 have none', async () => {

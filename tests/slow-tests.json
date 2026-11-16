@@ -126,6 +126,7 @@
     "tests/restore-points.test.mjs",
     "tests/review-autopilot-way-back.test.mjs",
     "tests/review-run-context-browser.test.mjs",
+    "tests/review-step-budget.test.mjs",
     "tests/round-setup-browser.test.mjs",
     "tests/row-coverage-browser.test.mjs",
     "tests/science-settings-browser.test.mjs",
@@ -162,7 +163,8 @@
     "tests/wp2f-shell-browser.test.mjs",
     "tests/wp5-tour-steps.test.mjs",
     "tests/wrongbook-distribution-browser.test.mjs",
-    "tests/wrongbook-filters-browser.test.mjs"
+    "tests/wrongbook-filters-browser.test.mjs",
+    "tests/wrongbook-header-steady-browser.test.mjs"
   ],
   "ffmpeg": [
     "tests/audio-ogg-ffmpeg.test.mjs",
