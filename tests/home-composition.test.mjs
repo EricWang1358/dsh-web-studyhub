@@ -75,7 +75,8 @@ test('a library with no questions yet keeps its way-ins in plain sight: JSON imp
   setUiLanguage('zh');
   const html = render({ decks: [], progress: {}, today: { due: 0, weak: 0, new: 0, size: 0 }, next: null, coach: { ready: 0 }, focus: { mode: 'class', course: 'CS3219', courses: [{ name: 'CS3219' }], fresh: [] } });
   assert.doesNotMatch(html, /desk-more/, 'the first-run card is not folded');
-  assert.match(html, /<p class="desk-also">(?:<button[^>]*>[^<]*<\/button>)*<button[^>]*>已有题目？导入 JSON 题组<\/button>/);
+  // An entry may draw an icon before its words (#1073): what matters is that the JSON import is a button in that line, not in a fold.
+  assert.match(html, /<p class="desk-also">(?:<button[^>]*>(?:(?!<\/button>)[\s\S])*<\/button>)*<button[^>]*>(?:(?!<\/button>)[\s\S])*已有题目？导入 JSON 题组<\/button>/);
 });
 
 test('every number has one plain label and a hover that says what it counts', () => {
