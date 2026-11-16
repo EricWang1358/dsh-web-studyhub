@@ -15,17 +15,11 @@
     }
     .gen-trans-strip strong { color: var(--text-dim); font-weight: var(--fw-medium); }
     .gen-trans-strip__item { font-variant-numeric: tabular-nums; }
-    .gen-trans-quota {
-      display: grid;
-      gap: var(--space-2);
-      width: 100%;
-    }
     .gen-trans-quota__bar {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      justify-content: space-between;
-      gap: var(--space-2);
+      gap: var(--space-2) var(--space-3);
     }
     .gen-trans-quota__grid {
       display: grid;
@@ -48,61 +42,19 @@
       text-align: right;
       font-variant-numeric: tabular-nums;
     }
-    .gen-trans-modules {
-      display: grid;
-      gap: var(--space-4);
-      width: 100%;
-    }
-    .gen-trans-module { display: grid; gap: var(--space-2); }
-    .gen-trans-module__head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--space-2);
-      font-size: var(--fs-sm);
-      font-weight: var(--fw-medium);
-      color: var(--text);
-    }
-    .gen-trans-preview {
-      display: grid;
-      gap: var(--space-2-5);
-      width: 100%;
-      padding: var(--space-3);
-      border: var(--hairline) solid var(--line);
-      border-radius: var(--radius-sm);
-      background: var(--bg-surface);
-    }
-    .gen-trans-preview__meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--space-2) var(--space-4);
-      margin: 0;
-      color: var(--text-muted);
-      font-size: var(--fs-xs);
-      font-variant-numeric: tabular-nums;
-    }
-    /* The course's 出题守则 (#889): their own row above the stages. */
-    .gen-trans-preview__rules {
-      font-size: var(--fs-xs);
-      line-height: var(--lh-snug);
-    }
-    .gen-trans-preview__rules ol {
-      margin: var(--space-1) 0 0;
-      padding-left: var(--space-5);
-    }
-    .gen-trans-preview__stages {
-      display: grid;
-      gap: var(--space-2);
-      margin: 0;
-      padding: 0;
-      list-style: none;
-    }
-    .gen-trans-preview__stage {
-      padding: var(--space-2) var(--space-2-5);
-      border-left: 2px solid var(--line-strong);
-      background: var(--bg-raised);
-      font-size: var(--fs-xs);
-      line-height: var(--lh-snug);
+    /* The rows of 额外要求 are the rows of the form (generate-rows.jsx): label | control, one gap. */
+    .gen-trans-modules { display: grid; gap: var(--space-4); width: 100%; }
+    /* What a run will ask for: a label and its words per row, no box of its own. */
+    .gen-trans-preview { display: grid; gap: var(--space-2); width: 100%; margin: 0; padding-top: var(--space-2); border-top: var(--hairline) solid var(--line-soft); }
+    .gen-trans-preview__row { display: grid; grid-template-columns: 9.5em minmax(0, 1fr); gap: var(--space-3); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    .gen-trans-preview dt { margin: 0; color: var(--text-muted); }
+    .gen-trans-preview dd { margin: 0; min-width: 0; color: var(--text); overflow-wrap: anywhere; }
+    .gen-trans-preview ul { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--space-1); }
+    .gen-trans-preview__name { display: block; margin-top: var(--space-1); color: var(--text-muted); }
+  }
+  @container study (max-width: 640px) {
+    :is(.study-app, .study-seat) {
+      .gen-trans-preview__row { grid-template-columns: minmax(0, 1fr); gap: var(--space-half); }
     }
   }
 }

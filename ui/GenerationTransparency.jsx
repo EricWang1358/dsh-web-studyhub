@@ -3,7 +3,9 @@ import { ui, uiFormat, uiIsEnglish } from './i18n.js';
 import { Button, Checkbox, InlineMessage } from './components/index.js';
 import { kinds as kindNames, useInjectCss } from './shared.js';
 import { useStudy } from './study-context.jsx';
-import { customCountOf, generationRequest, kindsOfForm } from './generate-form.js';
+import { customCountOf, kindsOfForm } from './generate-form.js';
+import { FormRow } from './generate-rows.jsx';
+import { EXTRA_REQUIREMENTS, previewRows } from './generation-preview.js';
 import { splitCount } from '../lib/generation-settings.js';
 import { MODULE_INSTRUCTION_MAX, TEMPLATE_NAME_MAX, detectRequirementConflicts, normalizeModuleOverrides, withCourseRules } from '../lib/generation-modules.js';
 import transparencyCss from './generation-transparency.css';
@@ -33,26 +35,32 @@ export function EffectiveRequirementsStrip({ gen, focusCount = 0, referenceCount
   );
 }
 
-/** The preview's own row for the course's 出题守则 (#889): every rule, or that the course has none. */
-function CourseRulesRow({ rules }) {
+/** What this run will ask for, as the rows of `previewRows` (a label and its words; a list where there are several). */
+export function EffectivePreview({ rows }) {
   return (
-    <div className="gen-trans-preview__rules" data-preview-course-rules>
-      <strong>{rules.length ? uiFormat('本课出题守则（{0} 条，规划、出题和审阅都带上）：', [rules.length]) : ui('本课出题守则：未设置（在课程设置的「更多设置」里添加）')}</strong>
-      {rules.length > 0 && <ol>{rules.map((rule) => <li key={rule}>{rule}</li>)}</ol>}
-    </div>
+    <dl className="gen-trans-preview" data-effective-preview-panel>
+      {rows.map((row) => (
+        <div key={row.key} className="gen-trans-preview__row" data-preview-row={row.key}>
+          <dt>{row.label}</dt>
+          <dd>
+            {row.items ? <ul>{row.items.map((item) => <li key={item}>{item}</li>)}</ul> : row.value}
+            {row.name ? <small className="gen-trans-preview__name">{uiFormat('要求名称：{0}', [row.name])}</small> : null}
+          </dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 
-export default function GenerationTransparency({ gen, setGen, course = '', sourceIds = [], sources = [], plannedGoal = null }) {
+export default function GenerationTransparency({ gen, setGen, sourceIds = [], sources = [], plannedGoal = null, focusCount = 0, rules = [] }) {
   useInjectCss(transparencyCss, 'study-generation-transparency');
-  const { call, busy: studyBusy } = useStudy();
+  const { busy: studyBusy } = useStudy();
   const disabled = Boolean(studyBusy);
   const kinds = kindsOfForm(gen);
   const hasCustomQuota = Boolean(gen.kindCounts && typeof gen.kindCounts === 'object' && !Array.isArray(gen.kindCounts));
   const targetTotal = customCountOf(gen) || plannedGoal || 10;
   const overrides = gen.moduleOverrides && typeof gen.moduleOverrides === 'object' ? gen.moduleOverrides : {};
-
-  const [previewState, setPreviewState] = React.useState({ status: 'idle', data: null, error: '' });
+  const [previewOpen, setPreviewOpen] = React.useState(false);
 
   const referenceDocs = React.useMemo(() => {
     const refIds = new Set(gen.referenceSourceIds || []);
@@ -115,42 +123,14 @@ export default function GenerationTransparency({ gen, setGen, course = '', sourc
     setGen(next);
   };
 
-  const runPreview = async () => {
-    if (!call || !sourceIds.length) return;
-    setPreviewState({ status: 'loading', data: null, error: '' });
-    try {
-      const result = await call('generate.preview', generationRequest(gen, { course, sourceIds }));
-      setPreviewState({ status: 'ready', data: result, error: '' });
-    } catch (error) {
-      setPreviewState({ status: 'error', data: null, error: String(error?.message || error) });
-    }
-  };
-
   const quotaSum = hasCustomQuota ? kinds.reduce((sum, k) => sum + (Number(gen.kindCounts?.[k]) || 0), 0) : 0;
-
-  const moduleRows = [
-    {
-      key: 'reasoning',
-      title: ui('推理与条件辨析'),
-      placeholder: ui('例如：必须包含边界条件反例判断，避免纯定义背诵'),
-    },
-    {
-      key: 'distractors',
-      title: ui('错误选项怎么设计'),
-      placeholder: ui('例如：每个干扰项对应具体常见误区，禁止凑数否定项'),
-    },
-    {
-      key: 'rubric',
-      title: ui('开放题 / 动手题怎么评分'),
-      placeholder: ui('例如：按推理步骤拆分采分点，标明遗漏关键前提的扣分原因'),
-    },
-  ];
+  const rows = previewOpen ? previewRows({ gen, sources, sourceIds, plannedGoal, focusCount, referenceCount: referenceDocs.length, rules }) : [];
 
   return (
     <div className="gen-trans-modules" data-generation-transparency>
       <p className="generate-note">{ui('想让题目更贴近你的考法，可以在这里写；不写就按默认来。')}</p>
       {kinds.length >= 2 && (
-        <div className="gen-trans-quota" data-quota-editor>
+        <FormRow label={ui('各题型题数')} data-quota-editor>
           <div className="gen-trans-quota__bar">
             <span className="generate-note">
               {hasCustomQuota
@@ -185,43 +165,40 @@ export default function GenerationTransparency({ gen, setGen, course = '', sourc
               {quotaSum < 1 && <InlineMessage tone="warning">{ui('请至少为一种题型分配 1 道题。')}</InlineMessage>}
             </>
           )}
-        </div>
+        </FormRow>
       )}
 
-      {moduleRows.map(({ key, title, placeholder }) => {
+      {EXTRA_REQUIREMENTS.map(({ key, label, placeholder }) => {
         const entry = overrides[key] && typeof overrides[key] === 'object' ? overrides[key] : { enabled: true, instruction: '' };
         const enabled = entry.enabled !== false;
+        // A requirement with nothing written is not "in use": the choice to switch one off shows only once there is a sentence (or it was switched off before).
+        const offerSwitch = Boolean(entry.instruction) || !enabled;
         return (
-          <div key={key} className="gen-trans-module" data-module-key={key}>
-            <div className="gen-trans-module__head">
-              <span>{title}</span>
+          <FormRow key={key} label={label} htmlFor={`generate-module-${key}`} data-module-key={key}>
+            <textarea
+              id={`generate-module-${key}`}
+              rows={2}
+              maxLength={MODULE_INSTRUCTION_MAX}
+              disabled={disabled}
+              data-module-input={key}
+              className={enabled ? 'generate-row__input' : 'generate-row__input generate-input--off'}
+              value={entry.instruction || ''}
+              onChange={(e) => updateModule(key, { instruction: e.target.value })}
+              placeholder={placeholder}
+            />
+            {offerSwitch && (
               <Checkbox
-                label={ui('使用这条')}
+                label={ui('用上这条')}
                 checked={enabled}
                 disabled={disabled}
                 onChange={(checked) => updateModule(key, { enabled: checked })}
               />
-            </div>
-            {enabled && (
-              <textarea
-                rows={2}
-                maxLength={MODULE_INSTRUCTION_MAX}
-                disabled={disabled}
-                data-module-input={key}
-                className="generate-row__input"
-                value={entry.instruction || ''}
-                onChange={(e) => updateModule(key, { instruction: e.target.value })}
-                placeholder={placeholder}
-              />
             )}
-          </div>
+          </FormRow>
         );
       })}
 
-      <div className="gen-trans-module">
-        <div className="gen-trans-module__head">
-          <label htmlFor="generate-module-template">{ui('给这套要求起个名字（可选）')}</label>
-        </div>
+      <FormRow label={ui('名称（可选）')} htmlFor="generate-module-template">
         <input
           id="generate-module-template"
           className="generate-row__input"
@@ -231,7 +208,7 @@ export default function GenerationTransparency({ gen, setGen, course = '', sourc
           onChange={(e) => updateTemplateName(e.target.value)}
           placeholder={ui('例如：期末辨析强化')}
         />
-      </div>
+      </FormRow>
 
       {conflicts.map((item) => (
         <InlineMessage key={item.code} tone={item.severity === 'warn' ? 'warning' : 'info'}>
@@ -239,36 +216,13 @@ export default function GenerationTransparency({ gen, setGen, course = '', sourc
         </InlineMessage>
       ))}
 
-      <div>
-        <Button variant="secondary" size="sm" disabled={disabled || !sourceIds.length}
-          busy={previewState.status === 'loading'} busyLabel={ui('正在汇总…')}
-          data-preview-effective onClick={runPreview}>
-          {ui('预览本次出题要求')}
+      <FormRow label={ui('预览')}>
+        <Button variant="secondary" size="sm" disabled={!sourceIds.length} aria-expanded={previewOpen}
+          data-preview-effective onClick={() => setPreviewOpen((open) => !open)}>
+          {previewOpen ? ui('收起预览') : ui('预览本次出题要求')}
         </Button>
-      </div>
-
-      {previewState.status === 'error' && <InlineMessage tone="warning">{previewState.error}</InlineMessage>}
-      {previewState.status === 'ready' && previewState.data && (
-        <div className="gen-trans-preview" data-effective-preview-panel>
-          <p className="gen-trans-preview__meta">
-            <span>{uiFormat('模型调用：{0} 次（预览不花 token）', [previewState.data.modelCalls ?? 0])}</span>
-          </p>
-          <CourseRulesRow rules={previewState.data.modules?.find((module) => module.id === 'course_rules')?.rules || []} />
-          <ul className="gen-trans-preview__stages">
-            {(previewState.data.stages || []).map((stage) => (
-              <li key={stage.id} className="gen-trans-preview__stage">
-                <strong>{stage.label}</strong>
-                {stage.determinedInputs?.length > 0 && (
-                  <div>{ui('已确定输入：')}{stage.determinedInputs.join('；')}</div>
-                )}
-                {stage.pendingInputs?.length > 0 && (
-                  <div className="muted">{ui('运行后产生：')}{stage.pendingInputs.join('；')}</div>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+        {previewOpen && <EffectivePreview rows={rows} />}
+      </FormRow>
     </div>
   );
 }

@@ -105,14 +105,27 @@ test('#852 browser: non-uniform quotas, modular rules, zero-call preview, and Ta
     // Fill modular reasoning rule
     await page.locator('[data-module-input="reasoning"]').fill('必须包含边界条件反例判断，避免纯定义背诵');
 
-    // Click zero-call effective preview
+    // The preview says, in a student's words, what this run will ask for (a local summary: it calls nothing)
+    const before = (await previewCall(running.server, 'snapshot'))?.jobs?.length ?? 0;
     await page.locator('[data-preview-effective]').click();
     await page.locator('[data-effective-preview-panel]').waitFor({ state: 'visible', timeout: 10000 });
     const previewText = await page.locator('[data-effective-preview-panel]').innerText();
-    assert.match(previewText, /模型调用：0 次（预览不花 token）/, 'zero-call preview confirmed');
-    assert.match(previewText, /阶段 4 · 独立审阅与按需修题/, 'four-stage preview shown');
+    assert.match(previewText, /题型与题数\s*单选测验 2 · 闪卡 0 · 开放问答 1（共 3 题）/, `counts per type, in words: ${previewText}`);
+    assert.match(previewText, /难度\s*混合/);
+    assert.match(previewText, /公式写法\s*自动/, 'the formula style is a word, not the stored value');
+    assert.match(previewText, /推理要求：必须包含边界条件反例判断，避免纯定义背诵/, 'the extra requirement just typed, with its label');
+    assert.doesNotMatch(previewText, /阶段|蓝图|缓存|协议|模块化|模型调用|规格版本|JSON|mixed|text/, `no engineering text in the preview: ${previewText}`);
+    assert.equal(await page.locator('[data-effective-preview-panel]').evaluate((element) => element.scrollWidth <= element.clientWidth + 1), true, 'the preview fits its column');
+    assert.equal(((await previewCall(running.server, 'snapshot'))?.jobs?.length ?? 0), before, 'a preview starts no run');
+    // the rows of 额外要求 are the rows of the form: label | control, one gap
+    const layout = await page.locator('.gen-trans-modules > .generate-row').evaluateAll((rows) => rows.map((row) => { const label = row.querySelector('.generate-row__label').getBoundingClientRect(), control = row.querySelector('.generate-row__control').getBoundingClientRect(), box = row.getBoundingClientRect();
+      return { top: box.top, bottom: box.bottom, twoColumns: label.right <= control.left + 1 }; }));
+    assert.ok(layout.length >= 4, 'quota, three requirements, name, preview');
+    assert.ok(layout.every((row) => row.twoColumns), 'every row has its label beside its control');
+    const gaps = layout.slice(1, -1).map((row, at) => Math.round(row.top - layout[at].bottom)); // (a notice between the name and the preview takes its own room)
+    assert.ok(Math.max(...gaps) - Math.min(...gaps) <= 1, `one gap between the rows: ${gaps}`);
     assert.equal(await page.locator('[data-locked-protocol]').count(), 0, 'no developer-facing safety row: the note under the form says the questions are checked against the source');
-    assert.doesNotMatch(await page.locator('.generate-extra').innerText(), /业务规则模板名称|启用此模块|系统基础安全约束|零模型调用/, 'no engineering words in the fold');
+    assert.doesNotMatch(await page.locator('.generate-extra').innerText(), /业务规则模板名称|启用此模块|系统基础安全约束|零模型调用|阶段规则/, 'no engineering words in the fold');
 
     const stripText = await page.locator('[data-effective-summary]').innerText();
     assert.match(stripText, /各题型题数：/, `effective strip shows non-uniform quota: ${stripText}`);
