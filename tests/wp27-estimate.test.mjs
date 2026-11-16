@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { estimateRun, createTextMeasure, dshSystemTokens, dshUserTokens, estimateFromState } from '../lib/token-estimate.js';
+import { estimateRun, calibrateEstimate, stageTotals, createTextMeasure, dshSystemTokens, dshUserTokens, estimateFromState } from '../lib/token-estimate.js';
 import { planGeneration, generateBatched, MAX_SELECTED_CHARS } from '../lib/batch.js';
 import { planPrompts } from '../lib/assessment-quality.js';
 import { authorPrompts, reviewPrompts } from '../lib/generation.js';
@@ -94,7 +94,31 @@ test('the estimate grows with the material and with the number of questions', ()
     previous = current;
   }
   assert.ok(pdf30.outputTokens.low >= 10 * 100, 'ten questions are not a few tokens');
-  assert.ok(pdf30.outputTokens.high <= 10 * 1500);
+  assert.ok(pdf30.outputTokens.high > pdf30.outputTokens.low * 2 && pdf30.outputTokens.high <= 10 * 3000, 'high end prices the retry/patch/reserve calls in calls.high');
+});
+
+test('#945: high-end token estimates price calls.high > calls.length across summarize and withThinking', () => {
+  const raw = estimateRun('generate', { ...base, count: 10, kind: 'quiz', sources: pdf(30) });
+  assert.ok(raw.calls.high > raw.calls.low * 2);
+  const sumCallsHigh = raw.stages.reduce((sum, stage) => sum + (stage.callsHigh ?? stage.calls), 0);
+  assert.equal(sumCallsHigh, raw.calls.high, 'per-stage callsHigh sums to calls.high');
+  const rawTotals = stageTotals(raw);
+  assert.equal(Object.values(rawTotals).reduce((sum, r) => sum + r.high, 0), raw.totalTokens.high, 'stageTotals high sums to totalTokens.high');
+
+  const raised = calibrateEstimate(raw, null, null);
+  assert.ok(raised.outputTokens.high > raw.calls.low * 25_000, 'withThinking prices DEFAULT_OUTPUT_PER_CALL across callsHigh, not just calls.low');
+  const raisedTotals = stageTotals(raised);
+  assert.equal(Object.values(raisedTotals).reduce((sum, r) => sum + r.high, 0), raised.totalTokens.high);
+
+  // Non-generate features with calls.high > calls.length also scale their high-end token bounds.
+  const lesson = estimateRun('flow', {
+    system: 'article system '.repeat(80),
+    reviewSystem: 'review system '.repeat(40),
+    input: { topic: 'Bridge', mode: 'lesson', instructions: 'Teach it', existingMaterial: '', cards: [], evidence: [{ sourceId: 's', text: filler(4000) }] },
+    mode: 'lesson',
+  });
+  assert.deepEqual(lesson.calls, { low: 2, high: 4 });
+  assert.ok(lesson.inputTokens.high >= lesson.inputTokens.low * 2, 'flow 4-call high end is at least 2x its 2-call low end');
 });
 
 test('output tokens come from the bundled sample, per kind and language', () => {
