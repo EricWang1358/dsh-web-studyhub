@@ -34,6 +34,8 @@ The whole panel follows one idea: **the card is the only physical object; everyt
 | `--warn` ochre | Learning, contrasts to watch |
 | `--bad` berry | Wrong, weak — deliberately far from cinnabar |
 
+Coverage (questions asked of a section) adds no hue: covered is ink (`--text-dim`), planned and failed is ochre, never planned is an empty track; its square marks keep it apart from the round mastery marks (#1078, `ui/coverage/coverage.css`).
+
 Rules: one filled primary button per screen; a primary that cannot act turns neutral, not muddy red; new CSS references tokens, never raw colours.
 
 Accent presets (设置 › 界面 › 强调色): cinnabar stays the default and the identity; jade, ochre, graphite and plum are opt-in swaps of `--accent`, `--accent-soft` and `--accent-text` (`ui/accent.css`, one `data-accent` attribute), nothing else changes. `--bg-selected` is not one of them: a selected row is the same neutral warm surface on every accent (a selection tinted in the accent put a second red, green or plum on the page next to the primary button, #658); mark the selection with it plus a neutral check or edge, a "new" row with a `Badge`. `tests/ui-guardrails.test.mjs` counts every background, border or inset edge painted in `--accent` / `--accent-soft` / `--accent-glow` (rule `accentFill`, a per-file ratchet that may only fall; the allowed fills are listed in `scripts/qa/guardrail-baseline.mjs`). There is no free colour picker, so every preset is contrast-checked in `tests/accent-presets.test.mjs`, and none is blue-violet. The mastery hues (`--ok` jade, `--warn` ochre) keep their meaning; a preset that shares a hue with one is a choice of the learner, not a signal.
@@ -93,6 +95,8 @@ Personalisation (设置 › 界面, `ui/appearance-prefs.js`) is data attributes
 ## Restraint
 
 - No boxed navigation, no rows of equal stat tiles, no ambient glow or glass.
+- No side stripes: a card, row or note never gets a thick or tone-coloured left edge. Weak or strong is said by the meter's colour, the score or a badge; a quotation may keep a neutral rule beside it, with no box around it (`tests/side-stripes.test.mjs`, per-file ratchet).
+- At most two container levels inside a page: the card, then one hairline or one quiet surface. Lists inside a card are rows under hairlines, not boxes in a box (#1080).
 - No helper sentence where a number, label or layout already says it.
 - Per-row actions (play, practise, select) appear on hover on pointer devices; information such as "继续 3/5" stays visible.
 
