@@ -14,7 +14,7 @@ const compiled = await build({
   bundle: true, write: false, platform: "node", format: "cjs", external: ["react", "react-dom"], loader: { ".css": "text" }, logLevel: "silent" });
 const module = { exports: {} };
 new Function("require", "module", "exports", compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { AddSourceButton, addSourceAction, Button, ReviewToolbar, StudyServicesContext, setUiLanguage } = module.exports;
+const { AddSourceButton, addSourceAction, ReviewToolbar, StudyServicesContext, setUiLanguage } = module.exports;
 const han = /[㐀-鿿]/;
 const h = React.createElement;
 
