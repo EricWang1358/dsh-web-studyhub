@@ -10,8 +10,42 @@ import { modelReadiness } from '../generation-status.js';
 import ModelSetupGate from '../ModelSetupGate.jsx';
 import { ModelSettingsContext } from '../ModelErrorNote.jsx';
 import { HandOff } from '../hand-off/HandOff.jsx';
+import { countMaterials, groupSourcesByDocument } from '../../lib/source-groups.js';
 import { Badge, Button, Checkbox, Chip, Dialog, Field, InlineMessage, SegmentedControl, Select, TextArea, TextInput } from '../components/index.js';
 import css from './companions.css';
+
+export function formatEstimateRange(value, formatter = formatNumber) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return formatter(Math.max(0, Math.round(value)));
+  }
+  if (value && typeof value === 'object') {
+    const low = Number(value.low);
+    const high = Number(value.high);
+    if (Number.isFinite(low) && Number.isFinite(high)) {
+      const rLow = Math.max(0, Math.round(low));
+      const rHigh = Math.max(rLow, Math.round(high));
+      return rHigh > rLow ? `${formatter(rLow)}–${formatter(rHigh)}` : formatter(rHigh);
+    }
+    if (Number.isFinite(high)) return formatter(Math.max(0, Math.round(high)));
+    if (Number.isFinite(low)) return formatter(Math.max(0, Math.round(low)));
+  }
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  return formatter(0);
+}
+
+function resolveEstimateTokens(est) {
+  if (!est || typeof est !== 'object') return 0;
+  if (est.totalTokens !== undefined && est.totalTokens !== null) return est.totalTokens;
+  const inp = est.inputTokens;
+  const out = est.outputTokens;
+  if (inp && typeof inp === 'object' && out && typeof out === 'object') {
+    return {
+      low: (Number(inp.low) || 0) + (Number(out.low) || 0),
+      high: (Number(inp.high) || 0) + (Number(out.high) || 0),
+    };
+  }
+  return (Number(inp) || 0) + (Number(out) || 0);
+}
 
 export default function CompanionBuildDialog({ modal, onClose }) {
   useInjectCss(css, 'study-companions');
@@ -34,7 +68,7 @@ export default function CompanionBuildDialog({ modal, onClose }) {
   const [archetypeManual, setArchetypeManual] = useState(() => Boolean(modal?.archetype && modal.archetype !== 'auto'));
   const [mountMode, setMountMode] = useState('auto');
   const [selectedSources, setSelectedSources] = useState(() => new Set(modal?.sourceIds || []));
-  const [estimate, setEstimate] = useState(null);
+  const [estimate, setEstimate] = useState(modal?.initialEstimate || null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -42,12 +76,18 @@ export default function CompanionBuildDialog({ modal, onClose }) {
   const [attachPath, setAttachPath] = useState('');
   const [storageMode, setStorageMode] = useState('linked');
 
-  const courseSources = useMemo(() => {
-    const all = (data?.sources || []).filter(s => !s.archived && !s.blueprint && !s.courseOutline && !s.courseInventory && !s.companionId);
-    if (!course.trim()) return all.slice(0, 60);
-    const filtered = all.filter(s => Array.isArray(s.courses) && s.courses.includes(course.trim()));
-    return (filtered.length ? filtered : all).slice(0, 60);
-  }, [course, data?.sources]);
+  const courseDocuments = useMemo(() => {
+    const raw = (data?.sources || []).filter(s => !s.archived && !s.blueprint && !s.courseOutline && !s.courseInventory && !s.companionId);
+    const docs = groupSourcesByDocument(raw, { documents: data?.documents }).filter(doc => !doc.archived && doc.sourceIds.length > 0);
+    const trimmed = course.trim();
+    if (!trimmed) return docs.slice(0, 60);
+    return docs.filter(doc => Array.isArray(doc.courses) && doc.courses.some(c => String(c).trim() === trimmed)).slice(0, 60);
+  }, [course, data?.documents, data?.sources]);
+
+  const selectedDocumentCount = useMemo(
+    () => countMaterials(data?.sources, [...selectedSources]),
+    [data?.sources, selectedSources],
+  );
 
   useLiveEffect(isLive => {
     if (tab !== 'build' || !course.trim() || (!topic.trim() && !selectedSources.size)) {
@@ -68,10 +108,12 @@ export default function CompanionBuildDialog({ modal, onClose }) {
     return () => { clearTimeout(timer); };
   }, [archetype, call, course, language, mountMode, selectedSources, tab, topic]);
 
-  const toggleSource = useCallback((id, checked) => {
+  const toggleSourceGroup = useCallback((ids, checked) => {
     setSelectedSources(prev => {
       const next = new Set(prev);
-      if (checked) next.add(id); else next.delete(id);
+      for (const id of ids) {
+        if (checked) next.add(id); else next.delete(id);
+      }
       return next;
     });
   }, []);
@@ -282,15 +324,15 @@ export default function CompanionBuildDialog({ modal, onClose }) {
               </Field>
             </div>
 
-            {courseSources.length > 0 && (
-              <Field label={uiFormat('可选：勾选参考讲义（已选 {0} 份；不选则按主题自由推演）', [selectedSources.size])}>
+            {courseDocuments.length > 0 && (
+              <Field group label={uiFormat('可选：勾选参考讲义（已选 {0} 份；不选则按主题自由推演）', [selectedDocumentCount])}>
                 <div className="sh-comp-build__sources">
-                  {courseSources.map(src => (
+                  {courseDocuments.map(doc => (
                     <Checkbox
-                      key={src.id}
-                      checked={selectedSources.has(src.id)}
-                      onChange={on => toggleSource(src.id, on)}
-                      label={src.title || src.id}
+                      key={doc.key}
+                      checked={doc.sourceIds.every(id => selectedSources.has(id))}
+                      onChange={on => toggleSourceGroup(doc.sourceIds, on)}
+                      label={doc.title || doc.sourceIds[0]}
                     />
                   ))}
                 </div>
@@ -300,8 +342,8 @@ export default function CompanionBuildDialog({ modal, onClose }) {
             {estimate?.estimate && (
               <InlineMessage tone="info">
                 {uiFormat('预计分 4 阶段（约 {0} 次模型调用，预估读取与输出约 {1} Tokens），产出约 16–20 页自包含 HTML 文件并写入工作区 companions/ 目录。', [
-                  estimate.estimate.calls || 3,
-                  formatNumber((estimate.estimate.inputTokens || 0) + (estimate.estimate.outputTokens || 0)),
+                  formatEstimateRange(estimate.estimate.calls || 3, n => String(n)),
+                  formatEstimateRange(resolveEstimateTokens(estimate.estimate), formatNumber),
                 ])}
               </InlineMessage>
             )}
@@ -338,7 +380,7 @@ export default function CompanionBuildDialog({ modal, onClose }) {
                   value={storageMode}
                   onChange={setStorageMode}
                   options={[
-                    { value: 'linked', label: ui('目录原位挂载（零备份膨胀，实时感知修改与同步 questions.json）') },
+                    { value: 'linked', label: ui('目录原位挂载（零备份膨胀，实时感知修改并同步疑问清单）') },
                     { value: 'managed', label: ui('复制副本至学习库（随便携备份导出）') },
                   ]}
                 />

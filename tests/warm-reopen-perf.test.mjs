@@ -60,6 +60,16 @@ test('warm-session store caches per session root, ignores ephemeral views and si
   assert.equal(cachedB.notebooks, null);
   assert.deepEqual(cachedB.views, {});
 
+  // Direct snapshot root switch (without prior writeWarmBinding) also resets old library fields cleanly.
+  warm.writeWarmBoard('s1', '/lib/b', { revision: 2, columns: [], cards: {} });
+  warm.writeWarmSnapshot('s1', { binding: { root: '/lib/c', provider: '', model: '' }, data: { root: '/lib/c', fingerprint: 'fp-c1' } });
+  const cachedC = warm.readWarmSession('s1');
+  assert.ok(cachedC);
+  assert.equal(cachedC.root, '/lib/c');
+  assert.equal(cachedC.board, null);
+  assert.deepEqual(cachedC.snapshotKey, {});
+  assert.deepEqual(cachedC.views, {});
+
   warm.clearWarmSession('s1');
   assert.equal(warm.readWarmSession('s1'), null);
 

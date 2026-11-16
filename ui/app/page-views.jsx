@@ -509,9 +509,15 @@ function GuidedStudyView() {
   const handlePause = (id) => core.act('study.session.pause', { sessionId: id }, () => { void readGuidedSession(); });
 
   const handleEnd = (id) => {
-    core.act('study.session.end', { sessionId: id });
-    set?.setGuidedSession?.(null);
-    nav.navigate('library');
+    if (!id) {
+      set?.setGuidedSession?.(null);
+      nav.navigate('library');
+      return undefined;
+    }
+    return core.act('study.session.end', { sessionId: id }, () => {
+      set?.setGuidedSession?.(null);
+      nav.navigate('library');
+    });
   };
 
   const handleCancelPrep = (sessionId) => {

@@ -73,10 +73,7 @@ export function writeWarmSnapshot(warmKey, { binding, data, snapshotKey } = {}) 
   if (!entry) return;
   const root = data?.root || binding?.root || '';
   if (entry.root && root && entry.root !== root) {
-    entry.board = null;
-    entry.dailyPlan = null;
-    entry.notebooks = null;
-    entry.views = {};
+    resetLibraryFields(entry);
   }
   entry.root = root;
   const matchedBinding = binding?.root === root ? binding : entry.binding?.root === root ? entry.binding : null;

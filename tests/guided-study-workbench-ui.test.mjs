@@ -7,6 +7,7 @@ import { loadUi } from './helpers/ui-module.mjs';
 const ui = await loadUi(`
   export { default as GuidedStudyWorkbench } from './ui/guided-study/GuidedStudyWorkbench.jsx';
   export { TeachingArtifactBlock } from './ui/guided-study/TeachingArtifactBlock.jsx';
+  export { setUiLanguage } from './ui/i18n.js';
 `);
 
 const h = React.createElement;
@@ -276,4 +277,66 @@ test('a choice question on the workbench is answered on its options, drawn as Ma
     session: { id: 's1', status: 'active' }, run: { id: 'r1', card: { id: 'f', kind: 'flashcard', prompt: 'Recall it' } }, modelReady: true, onAnswer: () => {},
   }));
   assert.match(flash, /揭晓答案/, 'a card without options is still revealed and self-graded');
+});
+
+test('GuidedStudyWorkbench reads scrubbed publicRun solution for choice verdicts, revealed reference answer, explanation, and busy locks', () => {
+  const session = { id: 's1', courseId: 'CS101', status: 'active', goal: { title: 'Master Trees' } };
+  // Real publicCard() strips option.correct, answer, and explanation onto run.solution.
+  const choiceRun = {
+    id: 'r-choice',
+    card: {
+      id: 'c-choice',
+      kind: 'quiz',
+      prompt: 'Pick the height of a single-node tree.',
+      options: [{ id: 'opt-a', text: 'Zero edges' }, { id: 'opt-b', text: 'One edge' }],
+    },
+    feedback: { grade: 3, correct: true, selected: ['opt-a'] },
+    solution: {
+      explanation: 'Height counts **edges** on the longest root-to-leaf path.',
+      options: [
+        { id: 'opt-a', correct: true, explanation: 'Single root node has zero edges.' },
+        { id: 'opt-b', correct: false, explanation: 'That counts nodes, not edges.' },
+      ],
+    },
+  };
+  const choiceHtml = renderToStaticMarkup(h(ui.GuidedStudyWorkbench, {
+    session,
+    run: choiceRun,
+    busy: true,
+    modelReady: true,
+    onPause: () => {},
+    onEnd: () => {},
+    onNext: () => {},
+  }));
+  assert.match(choiceHtml, /data-picked="true" data-verdict="correct"/, 'right choice option is marked correct from run.solution.options');
+  assert.doesNotMatch(choiceHtml, /data-verdict="wrong"/, 'right choice is never mislabeled wrong');
+  assert.match(choiceHtml, /Single root node has zero edges\./, 'per-option explanation renders after feedback');
+  assert.match(choiceHtml, /Height counts <strong>edges<\/strong>/, 'overall explanation renders from run.solution');
+  assert.match(choiceHtml, /disabled=""[^>]*>暂停<\/button>|disabled[^>]*>[\s\S]*?暂停/, 'pause button locks while busy');
+
+  const flashRun = {
+    id: 'r-flash',
+    card: { id: 'c-flash', kind: 'flashcard', prompt: 'Define AVL balance factor.' },
+    revealed: true,
+    solution: {
+      answer: 'Height difference is at most **1**.',
+      explanation: 'Rotations restore the invariant in logarithmic time.',
+    },
+  };
+  try {
+    ui.setUiLanguage('en');
+    const flashHtmlEn = renderToStaticMarkup(h(ui.GuidedStudyWorkbench, {
+      session: { id: 's1', courseId: 'CS101', status: 'active', goal: { title: 'AVL Trees' } },
+      run: flashRun,
+      modelReady: true,
+      onAnswer: () => {},
+    }));
+    assert.match(flashHtmlEn, /data-testid="guided-card-answer"/);
+    assert.match(flashHtmlEn, /Reference answer/);
+    assert.match(flashHtmlEn, /Height difference is at most <strong>1<\/strong>\./);
+    assert.match(flashHtmlEn, /Rotations restore the invariant/);
+    assert.doesNotMatch(flashHtmlEn, /[\u3400-\u9fff]/, 'English GuidedStudyWorkbench renders zero untranslated Han characters');
+  } finally {
+    ui.setUiLanguage('zh');
+  }
 });
