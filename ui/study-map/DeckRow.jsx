@@ -59,7 +59,7 @@ export default function DeckRow({ deck: d, progress: p, open, tree, runFor, acti
           title={run ? uiFormat('继续 {0}/{1}', [run.index + 1, run.total]) : uiFormat('学习全部 {0} 题', [d.available])}
           aria-label={run ? `${ui('继续')} ${d.title}` : uiFormat('开始学习 {0}', [d.title])}
           onClick={() => (run ? resume(run.id) : start({ mode: 'path', scope: [{ deckId: d.id }] }))}>
-          {run ? ui('继续') : <Icon name="play" size={14} />}
+          {run ? <>{ui('继续')}<Icon name="arrow-right" className="sh-icon--inline sh-icon--trail" /></> : <Icon name="play" size={14} />}
         </button>
         <Menu className="map-menu-wrap" label={ui('更多操作')} items={items} onSelect={(id) => choose[id]()} />
       </div>
@@ -81,7 +81,7 @@ export default function DeckRow({ deck: d, progress: p, open, tree, runFor, acti
                   aria-label={topicRun ? `${ui('继续')} ${t.name}` : uiFormat('学习主题 {0}', [t.name])}
                   title={topicRun ? uiFormat('继续 {0}/{1}', [topicRun.index + 1, topicRun.total]) : ui('学习这个主题')}
                   onClick={() => (topicRun ? resume(topicRun.id) : start({ mode: 'path', scope: [{ deckId: d.id, topic: t.name }] }))}>
-                  {topicRun ? ui('继续') : <Icon name="play" size={14} />}
+                  {topicRun ? <>{ui('继续')}<Icon name="arrow-right" className="sh-icon--inline sh-icon--trail" /></> : <Icon name="play" size={14} />}
                 </button>
                 <HandOff id="topic.explain" shape="icon" what="让主会话讲解这个主题" anchorClassName="map-ask"
                   input={{ topic: t.name, deckTitle: d.title, mastery: t.mastery, weak: t.counts.weak }} />
