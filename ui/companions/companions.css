@@ -65,7 +65,6 @@
     .sh-comp-drawer__quote {
       margin: 0;
       padding: 0.5rem 0.7rem;
-      border-left: 3px solid var(--line-strong);
       background: var(--bg-sunken);
       border-radius: var(--radius-sm);
       font-size: var(--fs-sm);

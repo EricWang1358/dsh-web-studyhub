@@ -196,7 +196,7 @@
     .md blockquote {
       margin: 0.4em 0 0.9em;
       padding: var(--space-half) 0 var(--space-half) var(--space-3);
-      border-left: 3px solid var(--line-strong);
+      border-left: 2px solid var(--line-strong);
       color: var(--text-dim);
     }
     .md .md-heading {

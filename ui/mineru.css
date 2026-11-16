@@ -124,14 +124,14 @@
     .pdf-live__state--warn { color: var(--bad-ink); }
     .pdf-live__state--warn .pdf-live__dot { background: var(--bad); }
     .pdf-live__advice { color: var(--text-dim); }
-    .pdf-live__advice--warn { color: var(--text); padding-left: var(--space-2); border-left: 3px solid var(--bad-line); }
+    .pdf-live__advice--warn { color: var(--text); }
     .pdf-live__why { min-width: 0; max-width: 100%; }
     .pdf-live__why summary { cursor: pointer; width: fit-content; max-width: 100%; color: var(--text-muted); }
     .pdf-live__why summary:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
     .pdf-live__why p { margin: var(--space-1) 0 0; color: var(--text-dim); max-width: 62ch; }
     .pdf-eta { color: var(--text); font-variant-numeric: tabular-nums; }
     .pdf-tool-progress { display: block; color: var(--text-dim); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-    .pdf-failure { display: grid; gap: var(--space-1); min-width: 0; padding: var(--space-2) var(--space-3); border-left: 3px solid var(--bad-line); }
+    .pdf-failure { display: grid; gap: var(--space-1); min-width: 0; padding: var(--space-2) 0; }
     .pdf-failure__title { color: var(--bad-ink); }
     .pdf-failure__cause { margin: 0; color: var(--text); overflow-wrap: anywhere; user-select: text; }
     .pdf-failure__label { color: var(--text-dim); }

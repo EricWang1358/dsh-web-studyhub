@@ -15,7 +15,7 @@
     /* While the answer is being graded the box shows what was sent and is not editable. */
     .response-sent { cursor: default; opacity: 0.8; }
 
-    .voice-said { margin: var(--space-2) 0 0; padding: var(--space-2) var(--space-3); border-inline-start: 3px solid var(--line-strong); color: var(--text); overflow-wrap: anywhere; }
+    .voice-said { margin: var(--space-2) 0 0; padding: var(--space-2) var(--space-3); border-inline-start: 2px solid var(--line-strong); color: var(--text); overflow-wrap: anywhere; }
     .voice-said__label { display: block; color: var(--text-muted); font-size: var(--fs-sm); }
     .voice-grade { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-block: var(--space-2); }
     .voice-grade small { flex-basis: 100%; }

@@ -300,8 +300,7 @@
     }
     .sk-overview {
       padding: var(--space-3) var(--space-3-5);
-      border-left: 3px solid var(--line-strong);
-      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      border-radius: var(--radius-sm);
       background: var(--bg-sunken);
     }
     .sk-text summary {

@@ -415,12 +415,11 @@
     .question-toolbar > .next-hint { flex: 1 0 100%; margin: 0; text-align: right; }
     .question-toolbar .question-navigation { gap: var(--space-2); }
     /* A drawn chevron: the "⌄" glyph sits below the baseline and read as a subscript. */
-    /* EN 附文：始终紧跟其中文原文之后，弱一级、左侧一道色杠。 */
+    /* EN 附文：始终紧跟其中文原文之后，弱一级、淡底。 */
     .en-block {
       margin-top: var(--space-2-5);
       padding: var(--space-2) var(--space-3);
-      border-left: 3px solid var(--line-strong);
-      border-radius: 0 var(--radius) var(--radius) 0;
+      border-radius: var(--radius);
       background: var(--bg-sunken);
       color: var(--text-dim);
       font-size: var(--fs-md);
@@ -439,9 +438,8 @@
     & p.en-block.en-inline-line { margin-top: var(--space-2); }
     .hint {
       background: var(--warn-bg);
-      border-left: 2px solid var(--warn);
       padding: var(--space-3-5) var(--space-4-5);
-      border-radius: 0 var(--radius) var(--radius) 0;
+      border-radius: var(--radius);
       display: flex;
       gap: var(--space-3-5);
       margin-bottom: var(--space-4);
@@ -596,8 +594,7 @@
       margin: 0 0 var(--space-3-5);
       padding: var(--space-3) var(--space-3-5);
       background: var(--bg-sunken);
-      border-left: 2px solid var(--line-strong);
-      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      border-radius: var(--radius-sm);
       color: var(--text);
       font-size: var(--fs-md);
       line-height: 1.65;
