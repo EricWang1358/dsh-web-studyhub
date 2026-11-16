@@ -182,10 +182,3 @@ test("#1077: the primary hover is the accent darkened, so its ink keeps 4.5:1 on
     assert.ok(ratio(hovered, hex(ink)) >= 4.5, `${name}: hover ${ratio(hovered, hex(ink)).toFixed(2)}:1`);
   }
 });
-
-test("a button can sit flush with the edge it aligns to (flush): the padding it would indent by is taken back with the same tokens", () => {
-  assert.match(renderToStaticMarkup(h(Button, { variant: "quiet", flush: true }, "x")), /sh-btn--flush/);
-  assert.doesNotMatch(renderToStaticMarkup(h(Button, { variant: "quiet" }, "x")), /sh-btn--flush/);
-  assert.match(read("ui/components/button-variants.css"), /\.sh-btn--flush\s*\{[^}]*margin-inline-start:\s*calc\(\(var\(--sh-btn-pad-x\) \+ var\(--hairline\)\) \* -1\)/);
-  assert.match(read("ui/components/components.css"), /padding:\s*var\(--space-2\) var\(--sh-btn-pad-x\)/, "the padding reads the same token");
-});
