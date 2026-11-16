@@ -1,4 +1,4 @@
-/* global document, window, getComputedStyle, NodeFilter */
+/* global document, window, getComputedStyle, NodeFilter, requestAnimationFrame */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm, mkdir } from 'node:fs/promises';
