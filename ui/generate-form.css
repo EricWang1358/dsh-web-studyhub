@@ -49,7 +49,7 @@
     .generate-rows--main { gap: var(--space-3); margin-top: var(--space-3); }
     .generate-plan { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); margin-top: var(--space-2); }
     /* The case-exam hint is one more line of the plan: it follows the links and wraps with them. */
-    .generate-plan__hint { color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    .generate-plan__hint { flex-basis: 100%; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .generate-plan__line { margin: 0; min-width: 0; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
     .generate-course { margin-top: var(--space-2); }
     .generate-opening { margin: 0 0 var(--space-3); font-size: var(--fs-sm); line-height: var(--lh-snug); }

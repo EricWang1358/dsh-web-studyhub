@@ -216,7 +216,8 @@ export default function GenerationTransparency({ gen, setGen, sourceIds = [], so
         </InlineMessage>
       ))}
 
-      <FormRow label={ui('预览')}>
+      {/* No label: the button already says what it shows; the empty label column keeps it on the controls' edge. */}
+      <FormRow label={null}>
         <Button variant="secondary" size="sm" disabled={!sourceIds.length} aria-expanded={previewOpen}
           data-preview-effective onClick={() => setPreviewOpen((open) => !open)}>
           {previewOpen ? ui('收起预览') : ui('预览本次出题要求')}

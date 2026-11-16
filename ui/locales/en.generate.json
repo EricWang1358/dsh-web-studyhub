@@ -337,7 +337,7 @@
   "{0}（共 {1} 题）": "{0} ({1} in all)",
   "{0}，共 {1} 题": "{0}, {1} in all",
   "{0}（题数按覆盖强度定）": "{0} (the number follows the coverage strength)",
-  "{0} 个重点知识点：相关章节多出题，出得更深": "{0} focus topics: matching sections get more and deeper questions",
+  "{0} 个重点知识点：相关章节多出题，出得更深": "Focus topics: {0}. Matching sections get more and deeper questions",
   "{0} 份，只参考题型和表达，题目是新出的": "{0} sample(s), used for form and wording only; the questions are new",
   "想练什么、难度、花费、额外要求": "Focus, difficulty, cost, extras",
   "各题型题数、补充要求": "Counts, notes"

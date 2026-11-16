@@ -30,7 +30,9 @@
     .generate-page .generate-submit > * { flex: 1 1 100%; min-width: 0; }
     .generate-page .generate-submit > .generate-submit__btn { flex: 0 0 auto; order: 1; }
     .generate-page .generate-submit > .generate-submit__note { flex: 1 1 14rem; order: 2; margin: 0; }
-    .generate-page .generate-submit > .generate-quality { order: 3; }
+    /* The count, then the button: what the run asks for and costs follows it, so the button stays on the first screen once a source is ticked (#1082). */
+    .generate-page .generate-submit > :is([data-effective-summary], [data-generate-estimate]) { order: 3; }
+    .generate-page .generate-submit > .generate-quality { order: 4; }
     /* The note about the checks is a quiet line, not a card of its own: the button stays within a screen and a half. */
     .generate-page .generate-submit .generate-quality { gap: var(--space-2); padding: 0; border-radius: 0; background: transparent; color: var(--text-muted); font-size: var(--fs-sm); }
     /* One line: what is checked leads (medium, the page's dim ink), what it means follows in the quiet ink at the same size. */
