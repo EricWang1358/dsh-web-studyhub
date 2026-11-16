@@ -48,9 +48,11 @@ async function start(distDir) {
 /** Per row: how much of the row is below its last content (the padding is the most that may be there), whether the button sits beside or under the facts. */
 const measure = page => page.evaluate(() => [...document.querySelectorAll('[data-tour="generate-sources"] .source-picker__item')].map(item => {
   const row = item.querySelector('.source-picker__row'), style = getComputedStyle(row), box = item.getBoundingClientRect();
-  const parts = [...row.querySelectorAll('.source-picker__text, .source-picker__expand')].map(element => element.getBoundingClientRect());
-  const bottom = Math.max(...parts.map(rect => rect.bottom));
-  const text = row.querySelector('.source-picker__text').getBoundingClientRect(), button = row.querySelector('.source-picker__expand')?.getBoundingClientRect() ?? null;
+  // the text block is measured by its lines: a narrow row lends them to its grid (display: contents), so the block itself has no box there
+  const lines = [...row.querySelectorAll('.source-picker__text strong, .source-picker__text small')].map(element => element.getBoundingClientRect());
+  const text = { top: Math.min(...lines.map(r => r.top)), bottom: Math.max(...lines.map(r => r.bottom)), left: Math.min(...lines.map(r => r.left)), right: Math.max(...lines.map(r => r.right)) };
+  const button = row.querySelector('.source-picker__expand')?.getBoundingClientRect() ?? null;
+  const bottom = Math.max(text.bottom, button?.bottom ?? 0);
   const head = row.querySelector('.source-picker__head'), slot = row.querySelector('[data-index-slot]');
   return { title: item.querySelector('strong').textContent, height: box.height, below: box.bottom - bottom, padBottom: parseFloat(style.paddingBottom),
     slotInHead: slot ? head.contains(slot) : null,
@@ -75,7 +77,7 @@ test('the rows of the material picker keep no empty block: height follows the co
       const rows = await measure(page);
       assert.equal(rows.length, 4, `${width}px: two PDFs and two notes`);
       for (const row of rows) {
-        assert.notEqual(row.slotInHead, false, `${width}px: ${row.title}: the badge's place is at the end of the title line`);
+        assert.notEqual(row.slotInHead, false, `${width}px: ${row.title}: the badge's place is in the title's block in the DOM (drawn at the end of the title line at 1280, of the row's last line at 420)`);
         assert.ok(row.below <= row.padBottom + 1, `${width}px: ${row.title}: ${row.below}px under the content, the row's padding is ${row.padBottom}px`);
         assert.equal(row.buttonOverlapsText, false, `${width}px: ${row.title}: 选择页面 does not sit on the text`);
       }
