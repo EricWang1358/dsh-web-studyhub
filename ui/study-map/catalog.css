@@ -260,11 +260,12 @@
     .map-ask {
       flex-shrink: 0;
     }
-    /* Fixed width: "▶" and "继续 →" occupy the same slot, so bars line up. */
+    /* The slot is as wide as its widest face (ui/study-map/DeckRow.jsx PlaySlot: the ▶ and an invisible 「继续 →」 share one grid cell), so the bars of the rows line up in
+       every language and nothing sticks out of the pill. */
     .map-play {
-      width: 72px;
-      min-width: 72px;
-      padding: 0;
+      display: inline-grid;
+      place-items: center;
+      padding: 0 var(--space-3);
       height: 32px;
       color: var(--text-dim);
       border: 1px solid var(--line);
@@ -275,6 +276,8 @@
         color var(--dur-fast) var(--ease),
         border-color var(--dur-fast) var(--ease);
     }
+    .map-play > .map-play__face { grid-area: 1 / 1; }
+    .map-play__ghost { visibility: hidden; }
     .map-play:hover:not(:disabled) {
       background: var(--accent);
       border-color: var(--accent);
@@ -352,8 +355,7 @@
       .map-row > .map-row__check { order: 0; }
       .map-row > .map-dot { order: 1; }
       .map-ask { display: none; }
-      .map-play { padding: var(--space-1) var(--space-2-5); }
-      .map-play { width: 72px; min-width: 72px; }
+      .map-play { padding: 0 var(--space-2-5); }
       .section-heading {
         align-items: flex-start;
       }
