@@ -73,6 +73,23 @@
     .restore-preview__file strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .restore-preview__file small { flex: none; color: var(--text-muted); }
     .restore-preview p { margin: 0; color: var(--text-dim); font-size: var(--fs-sm); }
+    .restore-points-block { display: grid; gap: var(--space-2); align-content: start; min-width: 0; margin-top: var(--space-4); padding: var(--space-4) var(--space-5);
+      border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
+    .restore-points-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-2); min-width: 0; }
+    .restore-points-usage { color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+    .restore-points-block > p { margin: 0; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-body); }
+    .restore-points-block > .restore-points-empty { color: var(--text-muted); }
+    .restore-points-list { display: grid; margin: var(--space-1) 0 0; padding: 0; list-style: none; border-top: 1px solid var(--line-soft); }
+    .restore-point-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2) var(--space-4); align-items: center; padding: var(--space-3) 0;
+      border-bottom: 1px solid var(--line-soft); }
+    .restore-point-row__info { display: grid; gap: var(--space-1); min-width: 0; }
+    .restore-point-row__title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; color: var(--text); font-size: var(--fs-md); font-variant-numeric: tabular-nums; }
+    .restore-point-row__icon { flex: none; color: var(--text-muted); }
+    .restore-point-row__bytes { color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+    .restore-point-row__meta { margin: 0; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); font-variant-numeric: tabular-nums; }
+    .restore-point-row__actions { display: flex; justify-content: flex-end; }
+    .restore-point-row__confirm { grid-column: 1 / -1; margin-top: var(--space-1); }
+    .restore-point-row__confirm p { margin: 0; }
     /* Settings: the categories on the left (under the three group headings 常用 / 一次性设置 / 高级), one category at a time on the right. Narrow: the list is a row
        of pills above the pane. */
     .settings-page .settings-layout { display: grid; grid-template-columns: 224px minmax(0, 1fr); gap: var(--space-6); align-items: start; margin-top: var(--space-5); }
@@ -123,6 +140,9 @@
     :is(.study-app, .study-seat) {
       /* The library row stacks: path and usage get the full width, 更换目录… goes below. */
       .backup-block { padding: var(--space-4); }
+      .restore-points-block { padding: var(--space-4); }
+      .restore-point-row { grid-template-columns: minmax(0, 1fr); }
+      .restore-point-row__actions { justify-content: flex-start; }
       .coach-stats__ready { margin-left: 0; }
       .guidance-item { grid-template-columns: minmax(0, 1fr); }
       .guidance-item__actions { justify-content: flex-start; }
