@@ -64,7 +64,7 @@
     .graph-line-demo { flex: none; }
     .graph-toolbar-sub {
       gap: var(--space-2-5);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       color: var(--text-muted);
     }
     .graph-scope {
@@ -86,7 +86,7 @@
       margin-left: auto;
     }
     .graph-truncated {
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       color: var(--warn-ink);
     }
     /* The viewport pans and zooms the WHOLE drawing (the shared canvas kit moves
@@ -139,7 +139,7 @@
     .graph-state--loading { justify-content: center; }
     .graph-state .graph-state__inline { max-width: 480px; margin-inline: auto; text-align: left; }
     .graph-hint {
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       color: var(--text-faint);
     }
     /* ── SVG nodes: soft level fill + solid level stroke ─────────────────── */
@@ -178,18 +178,18 @@
     }
     .gn-label {
       fill: var(--text);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
     }
     .gn-deck-label {
       font-size: var(--fs-sm);
-      font-weight: var(--fw-strong);
+      font-weight: var(--fw-medium);
     }
     .gn-card-label {
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
     }
     .gn-meta {
       fill: var(--text-muted);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
     }
     .gn-ghost-label {
       fill: var(--text-faint);
@@ -240,7 +240,7 @@
       gap: var(--space-1-5);
     }
     .cloze-hint {
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       color: var(--text-muted);
     }
     .cloze-text {
@@ -313,7 +313,7 @@
     }
     .cloze-yours {
       display: block;
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       line-height: 1.5;
       color: var(--text-dim);
     }

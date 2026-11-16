@@ -439,7 +439,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             </div>
           )}
         </div>
-        <div className="review-sticky-bar" data-answered={run.feedback ? "true" : undefined}>
+        <div className="review-sticky-bar" data-answered={run.feedback ? "true" : undefined} data-grading={rubricCard && (run.grading || gradeTask?.status === "running") ? "true" : undefined}>
           {contextReturnLabel && <Button variant="quiet" size="sm" icon="arrow-left" className="review-detour" lock={busy} onClick={onReturnContext}>{contextReturnLabel}</Button>}
           {detour && !contextReturnLabel && <Tooltip layer content={ui("回到从信箱跳过来之前正在做的题")} anchorClassName="review-detour">
             <Button variant="quiet" size="sm" icon="arrow-left" className="review-detour__button" lock={busy} onClick={onReturnFromDetour}>{uiFormat("回到之前的第 {0} 题", [detour.index + 1])}</Button></Tooltip>}
@@ -472,8 +472,8 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             )}
           />
           <RoundEndConfirm session={session} />
+          {!assistMode && <div className="action-feedback-slot">{feedback}</div>}
         </div>
-        {!assistMode && <div className="action-feedback-slot">{feedback}</div>}
         {practiceTip.tip && <PracticeTip id={practiceTip.tip} onClose={practiceTip.close} onShown={practiceTip.onShown} />}
         {/* A stem that asks what the source says tests memory of a document's wording, not the concept: say so and offer the fix, so the learner never has to find the words. */}
         {!assistMode && !runningTask && run.mode !== "exam" && asksWhatTheSourceSays(run.card?.prompt) && (

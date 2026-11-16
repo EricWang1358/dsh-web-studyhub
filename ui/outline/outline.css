@@ -221,7 +221,7 @@
       flex: 1 1 100%;
       order: 3;
       color: var(--text-muted);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
     }
     /* The AI outline (step 2): a book's contents. A chapter reads as a heading with its introduction under it, a section and a point are indented
        under it, a point's rows (the materials it comes from) one step further. The offer to make one, and the line of what its order rests on. */
@@ -400,7 +400,7 @@
       gap: var(--space-2);
       margin: 0;
       font-size: var(--fs-sm);
-      font-weight: var(--fw-strong);
+      font-weight: var(--fw-medium);
     }
     .outline-notes__exam,
     .outline-notes__none {

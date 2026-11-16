@@ -40,28 +40,28 @@ test('nothing pinned: the page is byte for byte what it was (no field, an empty 
   assert.equal(render({ ...base }), plain, 'a library with no settings at all');
 });
 
-test('a 置顶 group sits above the day groups, is open, keeps the learner\'s order and holds each pinned row once', () => {
+test('a 置顶 group sits above the course/day groups, is open, keeps the learner\'s order and holds each pinned row once', () => {
   const html = render(withPins(['source:n3', 'source:n1']));
   const groups = heads(html);
   assert.match(groups[0].text, /^已置顶 /, 'first');
   assert.equal(groups[0].open, true, 'open without being asked');
   assert.match(groups[0].text, /2 份/);
-  assert.deepEqual(keysInOrder(html).slice(0, 2), ['source:n3', 'source:n1'], 'the order of the pins, not of the days');
+  assert.deepEqual(keysInOrder(html).slice(0, 2), ['source:n3', 'source:n1'], 'the order of the pins, not of the groups');
   assert.equal(keysInOrder(html).filter(key => key === 'source:n1').length, 1, 'never drawn twice');
   assert.equal(keysInOrder(html).filter(key => key === 'source:n3').length, 1);
-  // The day groups keep their own rows: 3月4日 now holds n2 only, and its totals say so.
-  assert.equal(groups.length, 3, 'the pinned group and the two days that still hold a row');
-  assert.match(groups[1].text, /1 份 · \d+ 字符/, 'the newest day counts only the row that is left in it');
-  assert.deepEqual(keysInOrder(html), ['source:n3', 'source:n1', 'source:n2'], 'n2 stays in its day, which is open');
+  // The remaining course groups (DB and OS) keep their own rows and default open (#1071).
+  assert.equal(groups.length, 3, 'the pinned group and the two course groups that still hold a row');
+  assert.match(groups[1].text, /1 份 · \d+ 字符/, 'DB counts only the row that is left in it');
+  assert.deepEqual(keysInOrder(html), ['source:n3', 'source:n1', 'source:n2', 'source:n4'], 'n2 and n4 stay in their open groups');
 });
 
-test('the page says how many are pinned, and what the day groups are about', () => {
-  assert.match(render(withPins([])), /共 4 份资料，按导入日期分为 3 组/, 'unchanged without pins');
-  assert.match(render(withPins(['source:n1'])), /共 4 份资料，其中 1 份置顶，其余按导入日期分为 3 组/);
+test('the page says how many are pinned, and what the groups are about', () => {
+  assert.match(render(withPins([])), /共 4 份资料，按课程分为 2 组/, 'default course grouping without pins');
+  assert.match(render(withPins(['source:n1'])), /共 4 份资料，其中 1 份置顶，其余按课程分为 2 组/);
   assert.match(render(withPins(['source:n1'])), /1 份 · \d+ 字符/);
   assert.match(render(withPins(['source:n1', 'source:n2', 'source:n3', 'source:n4'])), /共 4 份资料，全部置顶/);
   inLanguage('en', () => {
-    assert.match(render(withPins(['source:n1'])), /4 source\(s\), 1 pinned, the rest grouped by import date \(3 group\(s\)\)/);
+    assert.match(render(withPins(['source:n1'])), /4 source\(s\), 1 pinned, the rest grouped by course \(2 group\(s\)\)/);
     const english = render(withPins(['source:n1']));
     assert.doesNotMatch(/sh-page-header__description">([^<]*)</.exec(english)[1] + heads(english)[0].text, han);
   });

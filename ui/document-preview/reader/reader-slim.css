@@ -20,7 +20,7 @@
     .reader-wrong__panel p, .reader-wrong__panel h4, .reader-wrong__panel ul { margin: 0; }
     .reader-wrong__body { display: grid; gap: var(--space-4); }
     .reader-wrong__heading { display: flex; align-items: baseline; gap: var(--space-2); padding-bottom: var(--space-1-5); color: var(--text-muted); font-size: var(--fs-sm); font-weight: var(--fw-strong); }
-    .reader-wrong__heading small { color: var(--text-faint); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+    .reader-wrong__heading small { color: var(--text-faint); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
     .reader-wrong__list { display: grid; padding: 0; list-style: none; }
     .reader-wrong__row { display: grid; gap: var(--space-1-5); padding: var(--space-2-5) 0; border-top: 1px solid var(--line-soft); }
     .reader-wrong__list > .reader-wrong__row:first-child { border-top: 0; }
@@ -32,7 +32,7 @@
       -webkit-box-orient: vertical;
       -webkit-line-clamp: 3;
     }
-    .reader-wrong__status { margin-inline-end: var(--space-1-5); color: var(--bad); font-size: var(--fs-xs); font-weight: var(--fw-strong); }
+    .reader-wrong__status { margin-inline-end: var(--space-1-5); color: var(--bad); font-size: var(--fs-xs); font-weight: var(--fw-regular); }
     .reader-wrong__actions { display: flex; gap: var(--space-2); }
     .reader-wrong__more, .reader-wrong__empty { color: var(--text-muted); font-size: var(--fs-sm); }
     .reader-wrong__empty { display: grid; justify-items: start; gap: var(--space-2); }
@@ -49,7 +49,7 @@
       background: var(--bg-selected);
       color: var(--text);
       font-size: var(--fs-sm);
-      font-weight: var(--fw-strong);
+      font-weight: var(--fw-medium);
       overflow-wrap: anywhere;
     }
     /* The branches hang from a vertical line, each with a short elbow to its row: a tree read top to bottom. */
@@ -74,7 +74,7 @@
       overflow-wrap: anywhere;
     }
     .reader-map__node:hover { background: var(--bg-hover); color: var(--text); }
-    .reader-map__item[data-depth='0'] > .reader-map__row > .reader-map__node { color: var(--text); font-weight: var(--fw-strong); }
+    .reader-map__item[data-depth='0'] > .reader-map__row > .reader-map__node { color: var(--text); font-weight: var(--fw-medium); }
     .reader-map__empty { color: var(--text-muted); font-size: var(--fs-sm); }
     .reader-map__foot { display: flex; justify-content: flex-start; padding-top: var(--space-2); border-top: 1px solid var(--line-soft); }
   }

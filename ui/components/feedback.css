@@ -173,7 +173,7 @@
     .sh-diagnostic-copy { display: inline-grid; justify-items: start; gap: var(--space-2); min-width: 0; max-width: 100%; }
     .sh-diagnostic-copy__refused { color: var(--text-muted); }
     .sh-diagnostic-copy__fold { width: 100%; font-size: var(--fs-sm); color: var(--text-muted); }
-    .sh-diagnostic-copy__text { box-sizing: border-box; width: min(100%, 560px); font-family: var(--font-stack-mono); font-size: var(--fs-xs); }
+    .sh-diagnostic-copy__text { box-sizing: border-box; width: min(100%, 560px); font-family: var(--font-stack-mono); font-size: var(--fs-sm); }
     /* ── Job row ────────────────────────────────────────────────────────── */
     .sh-job {
       display: grid;
@@ -190,7 +190,7 @@
     .sh-job--failed { border-color: var(--bad-line); }
     .sh-job__mark { display: flex; align-items: center; justify-content: center; height: 24px; color: var(--sh-tone-ink); }
     .sh-job__body { display: grid; gap: var(--space-1); min-width: 0; overflow-wrap: anywhere; }
-    .sh-job__title { color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-strong); line-height: var(--lh-snug); }
+    .sh-job__title { color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-medium); line-height: var(--lh-snug); }
     .sh-job__meta { display: block; margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .sh-job__progress { display: grid; gap: var(--space-2); max-width: 420px; margin-block: var(--space-1); }
     .sh-job__summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); color: var(--text-muted); font-size: var(--fs-sm); }
@@ -198,7 +198,7 @@
     .sh-job__steps { display: flex; flex-wrap: wrap; gap: var(--space-half) var(--space-3); margin: 0; padding: 0; list-style: none; }
     .sh-job__steps li { display: inline-flex; align-items: center; gap: var(--space-half); }
     .sh-job__steps .is-done { color: var(--ok-ink); }
-    .sh-job__steps [class~="is-current"] { color: var(--text); font-weight: var(--fw-strong); }
+    .sh-job__steps [class~="is-current"] { color: var(--text); font-weight: var(--fw-medium); }
     .sh-job__failure { display: grid; justify-items: start; gap: var(--space-2); margin-top: var(--space-1); }
     .sh-job__detail { width: 100%; color: var(--text-muted); font-size: var(--fs-sm); }
     .sh-job__raw { display: block; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-muted); font-size: var(--fs-xs); }

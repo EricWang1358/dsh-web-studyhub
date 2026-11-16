@@ -70,7 +70,7 @@
       border-color: var(--accent);
       background: var(--accent);
       color: var(--bg-canvas);
-      font-weight: var(--fw-strong);
+      font-weight: var(--fw-medium);
     }
     .setup-step[data-status="done"] .setup-mark {
       border-color: transparent;
@@ -94,7 +94,7 @@
     .setup-optional {
       margin-left: var(--space-2);
       color: var(--text-faint);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       font-weight: var(--fw-regular);
     }
     .setup-text {

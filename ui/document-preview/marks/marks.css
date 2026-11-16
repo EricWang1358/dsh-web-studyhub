@@ -55,16 +55,16 @@
       box-shadow: var(--shadow-popover); color: var(--text); font-size: var(--fs-sm); line-height: 1.6; pointer-events: none;
     }
     .reader-explain p { margin: 0; }
-    .reader-explain__term { display: flex; align-items: baseline; gap: var(--space-2); font-weight: var(--fw-strong); }
+    .reader-explain__term { display: flex; align-items: baseline; gap: var(--space-2); font-weight: var(--fw-medium); }
     .reader-explain__tag { color: var(--accent); font-size: var(--fs-xs); font-weight: var(--fw-strong); }
     .reader-explain__answer { max-height: 14rem; overflow: hidden; }
-    .reader-explain__hint { color: var(--text-faint); font-size: var(--fs-xs); }
+    .reader-explain__hint { color: var(--text-faint); font-size: var(--fs-sm); }
 
     .reader-marks-summary { display: grid; gap: var(--space-2); padding-bottom: var(--space-2); }
     .reader-marks-summary__bar { display: flex; flex-wrap: wrap; gap: var(--space-2); padding: var(--space-1) 0; }
     .reader-marks-summary__groups { display: grid; gap: var(--space-3); }
     .reader-marks-summary__group { display: grid; gap: var(--space-2); }
-    .reader-marks-summary__heading { margin: 0; color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-strong); }
+    .reader-marks-summary__heading { margin: 0; color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-medium); }
     .reader-marks-summary__items { display: grid; gap: var(--space-2); }
     .reader-marks-summary__item { display: grid; gap: var(--space-1-5); padding: var(--space-2) var(--space-2-5); border: 1px solid var(--line-soft); background: var(--bg-surface); border-radius: var(--radius-xs); }
     .reader-marks-summary__meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1-5); }

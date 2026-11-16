@@ -34,7 +34,7 @@
     }
     .resume strong {
       font-size: var(--fs-md);
-      font-weight: var(--fw-strong);
+      font-weight: var(--fw-medium);
     }
     /* The counter (「5 / 7」) and its arrow: one line, never wrapped, however narrow the row (the title gives way, not the counter). */
     .resume > span:last-child {
@@ -166,7 +166,7 @@
       color: var(--text-muted);
     }
     .desk-mastery-all strong {
-      font-weight: var(--fw-strong);
+      font-weight: var(--fw-medium);
       color: var(--text-dim);
       font-variant-numeric: tabular-nums;
     }
@@ -184,7 +184,7 @@
       font-size: var(--fs-md);
       color: var(--text-faint);
     }
-    .desk-next-topic strong { color: var(--text); font-weight: var(--fw-strong); }
+    .desk-next-topic strong { color: var(--text); font-weight: var(--fw-medium); }
     .desk-next-topic small { color: var(--text-muted); font-size: var(--fs-md); }
     .desk-also {
       display: flex;

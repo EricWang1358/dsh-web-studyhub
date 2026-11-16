@@ -51,7 +51,7 @@
     }
     .section-practice__progress {
       color: var(--ok-ink);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
     }
@@ -62,7 +62,7 @@
       border: 1px solid var(--ok-line);
       background: var(--ok-bg);
       color: var(--ok-ink);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       font-weight: var(--fw-medium);
     }
     .section-practice__qa-panel {

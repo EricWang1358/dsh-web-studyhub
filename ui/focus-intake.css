@@ -73,7 +73,7 @@
     }
 
     .focus-intake__thumb-size {
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       color: var(--text-muted);
     }
 

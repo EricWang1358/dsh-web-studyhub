@@ -48,8 +48,8 @@
       justify-self: start;
       padding: var(--space-half) var(--space-2);
       border-radius: var(--radius-pill);
-      font-size: var(--fs-xs);
-      font-weight: var(--fw-strong);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-medium);
       border: 1px solid currentColor;
     }
     .rubric-band.band-excellent, .rubric-band.band-good { color: var(--ok-ink); border-color: var(--ok-line); background: var(--ok-bg); }
@@ -101,8 +101,8 @@
     }
     .rubric-block small {
       color: var(--text-muted);
-      font-size: var(--fs-xs);
-      font-weight: var(--fw-strong);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-regular);
       letter-spacing: 0.02em;
     }
     .rubric-block p, .rubric-block ul {
@@ -154,7 +154,7 @@
     .rubric-flags q { color: var(--text); }
     .rubric-flags q.rubric-cue { color: var(--text); font-weight: var(--fw-medium); background: var(--warn-mark); border-radius: var(--radius-xs); }
     .rubric-flags p { margin: 0; }
-    .rubric-flags__hint { color: var(--text-muted); font-size: var(--fs-xs); }
+    .rubric-flags__hint { color: var(--text-muted); font-size: var(--fs-sm); }
     /* the case paper report */
     .case-report {
       display: grid;
@@ -206,14 +206,14 @@
     }
     .case-report__marks {
       font-variant-numeric: tabular-nums;
-      font-weight: var(--fw-strong);
+      font-weight: var(--fw-regular);
       color: var(--text);
     }
     .case-report__marks small { color: var(--text-muted); font-weight: var(--fw-regular); }
     .case-report__pace {
       grid-column: 2 / -1;
       color: var(--text-muted);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       font-variant-numeric: tabular-nums;
     }
     .case-report__pace.is-over { color: var(--warn-ink); }
@@ -228,7 +228,7 @@
       border-bottom: 1px solid var(--line);
     }
     .case-report__weak li div { display: grid; gap: var(--space-half); flex: 1 1 12rem; min-width: 0; }
-    .case-report__weak small { color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+    .case-report__weak small { color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
     .case-report__attained-badge {
       display: inline-block;
       margin-bottom: var(--space-1-5);
@@ -282,7 +282,7 @@
       gap: var(--space-half);
       height: 18px;
       color: var(--text-muted);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       white-space: nowrap;
       font-variant-numeric: tabular-nums;
     }

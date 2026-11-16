@@ -14,7 +14,19 @@
     .sources-filter__input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
     .sources-filter__state { grid-column: 3; justify-self: start; display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
     .sources-filter__count { font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+    .sources-view-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin: 0 0 var(--space-3); }
+    .sources-view-bar__sort { flex: 0 0 auto; width: auto; min-width: 8.5em; }
     .source-groups { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
+    .source-group-head-row { display: flex; align-items: center; gap: var(--space-2); min-width: 0; border-bottom: 1px solid var(--line); margin-bottom: var(--space-1); }
+    .source-group-head--in-row { flex: 1 1 auto; min-width: 0; margin-bottom: 0; border-bottom: 0; }
+    .source-group-actions { display: flex; flex: 0 0 auto; align-items: center; gap: var(--space-1); }
+    .source-group-folder-icon { flex: none; color: var(--accent-text); }
+    .source-group--drop { border-radius: var(--radius-sm); background: var(--bg-hover); box-shadow: 0 0 0 2px var(--accent-soft); }
+    .source-group__empty { margin: var(--space-2) 0; padding: 0 var(--space-2); font-size: var(--fs-sm); }
+    .source-course-extra { margin-inline-start: var(--space-1); vertical-align: baseline; }
+    .source-folder-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-2); }
+    .source-folder-actions__select { min-width: 11em; }
+    .source-folder-dialog__chips { display: flex; flex-wrap: wrap; gap: var(--space-1-5); margin: var(--space-2) 0; }
     & .source-group-head small { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
     /* A material is a row on the desk under its day's rule, not a card in a box (#570, ui/DESIGN.md "the card is the only physical object"): no border, no stock,
        three lines (title, facts, status) so a 900px window shows five or more. */
@@ -75,7 +87,7 @@
     /* The list rows (<Button variant="quiet" block align="start">): one line, the label ellipsises, the size sits at the end. */
     .source-doc__row { align-items: baseline; gap: var(--space-3); min-height: 0; padding: calc(var(--space-1) + var(--space-half)) var(--space-2); font-size: var(--fs-sm); font-weight: var(--fw-regular); }
     .source-doc__row > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .source-doc__page-list small { margin-left: auto; color: var(--text-muted); font-size: var(--fs-xs); white-space: nowrap; }
+    .source-doc__page-list small { margin-left: auto; color: var(--text-muted); font-size: var(--fs-sm); white-space: nowrap; }
     /* A chapter row: the chapter opens on the left, its own 出题 button sits at the right (not a full-width second line). */
     .source-doc__chapters li { display: flex; align-items: center; gap: var(--space-2); }
     .source-doc__chapters li > .source-doc__chapter-btn { flex: none; width: auto; }
