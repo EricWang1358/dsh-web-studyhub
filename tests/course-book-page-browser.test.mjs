@@ -56,11 +56,20 @@ const sideways = page => page.evaluate(() => {
 });
 const topOf = (page, hid) => page.evaluate(id => Math.round(document.getElementById(`book-${id}`).getBoundingClientRect().top), hid);
 const focusedId = page => page.evaluate(() => document.activeElement?.id || document.activeElement?.tagName);
-// A flashcard round is finished the way a learner does: flip, grade, next, until the result page.
+// A flashcard round is finished in 2 steps per card (flip, grade advances directly; choice/answered cards press next) until the result page.
 async function finishRound(page) {
   for (let guard = 0; guard < 12; guard += 1) {
+    await page.locator('.question-card, .result-page').first().waitFor({ timeout: 30000 });
     if (await page.locator('.result-page').count()) return;
-    if (!(await page.locator('.next-due').count())) { await page.locator('[data-usage="review.flip"]').click(); await page.locator('.grade.high').first().click(); }
+    if (await page.locator('[data-usage="review.flip"]').count() && !(await page.locator('.next-due').count())) {
+      const stepBefore = await page.locator('.question-meta > span > span').first().innerText();
+      const flipBtn = page.locator('[data-usage="review.flip"]');
+      if ((await flipBtn.getAttribute('aria-pressed')) !== 'true') await flipBtn.click();
+      await page.locator('.grade.high').first().waitFor({ timeout: 10000 });
+      await page.locator('.grade.high').first().click();
+      await page.waitForFunction((prev) => document.querySelector('.result-page') || document.querySelector('.question-meta > span > span')?.innerText !== prev, stepBefore, { timeout: 15000 });
+      continue;
+    }
     await page.locator('[data-usage="review.next"]:not([disabled])').waitFor({ timeout: 10000 });
     await page.locator('[data-usage="review.next"]').click();
     await page.waitForTimeout(400);

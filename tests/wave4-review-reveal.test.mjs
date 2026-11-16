@@ -114,16 +114,30 @@ test('in the browser: next after a reveal shows the question, inside an inbox de
     await page.waitForResponse(response => response.url().endsWith('/api/call') && /"review\.get"/.test(response.request().postData() || ''));
     await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
   };
-  const answer = async () => { await page.locator('.flip-control').click(); await page.locator('.grade-scale').waitFor(); await page.locator('.grade.high').first().click(); await page.locator('.next-due').waitFor(); };
+  const prev = async () => {
+    const before = await card.innerText();
+    await page.locator('[data-usage="review.prev"]').click();
+    await page.waitForFunction(text => document.querySelector('.flashcard')?.innerText !== text, before);
+  };
+  const answerAndAdvance = async () => {
+    const before = await page.locator('.flip-front .flash-prompt').textContent();
+    await page.locator('.flip-control').click();
+    await page.locator('.grade-scale').waitFor();
+    await page.locator('.grade.high').first().click();
+    await page.waitForFunction(text => document.querySelector('.flip-front .flash-prompt')?.textContent !== text, before);
+  };
 
   assert.equal(await flipped(), false);
-  await answer();
+  await answerAndAdvance();
+  assert.equal(await flipped(), false, 'card 2 opens on its question immediately after self-grading card 1');
+  assert.match(await card.innerText(), /Question 2\?/);
+  await prev();
   assert.equal(await flipped(), true, 'an answered card keeps its answer face');
   await next();
   assert.equal(await flipped(), false, 'card 2 opens on its question');
   assert.match(await card.innerText(), /Question 2\?/);
 
-  // The inbox detour: jump to card 5, answer it, go on.
+  // The inbox detour: jump to card 5, answer it (which advances directly to card 6).
   await page.locator('.mailbox__toggle').click();
   await page.locator('.mailbox__item').filter({ hasText: 'Question 5' }).first().click();
   await page.locator('.review-detour').waitFor();
@@ -131,8 +145,7 @@ test('in the browser: next after a reveal shows the question, inside an inbox de
   assert.equal(await flipped(), false, 'a card reached from the inbox opens on its question');
   await afterPoll(); // the review poll fires
   assert.equal(await flipped(), false, 'the poll does not flip it');
-  await answer();
-  await next();
+  await answerAndAdvance();
   assert.match(await card.innerText(), /Question 6\?/);
   assert.equal(await flipped(), false, 'the card after a detour card opens on its question');
   await afterPoll();

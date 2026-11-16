@@ -3,6 +3,8 @@
   "{0} · 先跳过待答": "{0} · Skipped for later",
   "{0} 字 · Ctrl+Enter 看答案": "{0} chars · Ctrl+Enter to reveal",
   "先跳过待答": "Skipped for later",
+  "全部过关 · 共 {0} 题": "All passed · {0} questions",
+  "其他选项辨析": "Why other options are wrong",
   "只看未答": "Unanswered only",
   "对照漏点再补一句": "Add to missed points",
   "展开解析 (H)": "Show explanation (H)",
@@ -11,12 +13,17 @@
   "已存进「{0}」（含 {1} 条问答）": "Saved to \"{0}\" ({1} Q&As)",
   "已暂停自动跳下一步（移开指针或取消选中后继续）": "Auto-advance paused (move pointer away or clear selection to resume)",
   "已自检 {0}/{1} 项": "{0}/{1} checked",
+  "已记分 · 撤销 (Z)": "Graded · Undo (Z)",
+  "已记分 · 撤销上一题评分 (Z)": "Graded · Undo last grade (Z)",
   "已选 {0} 项 · 按 Enter 提交": "{0} selected · Press Enter to submit",
   "按 1–7 选标签，Esc 收起": "Press 1–7 to pick a tag, Esc to collapse",
   "按 Space 可翻回正面核对题干": "Press Space to flip back to the front",
   "收起解析 (H)": "Hide explanation (H)",
+  "撤销上一题评分": "Undo last grade",
+  "更多解析与巩固方式": "More notes & ways to practise",
   "正在看正面题干 · 按 Space 回背面": "Viewing front · Press Space for back",
   "笔记中已保存 {0} 条问答": "{0} Q&As saved in notes",
   "脱离薄弱 · {0} → {1}": "Out of weak · {0} → {1}",
-  "熟练度进阶 · {0} → {1}": "Level up · {0} → {1}"
+  "熟练度进阶 · {0} → {1}": "Level up · {0} → {1}",
+  "评分后自动下一题": "Advance after self-grading"
 }
