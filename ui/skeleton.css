@@ -391,7 +391,7 @@
       min-height: 0;
       padding: var(--space-1) var(--space-3);
       border-radius: var(--radius-pill);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
     }
     .skc-seq-title {
       margin: 0;
@@ -414,7 +414,7 @@
     .skc-toolbar .skc-tool-btn {
       min-width: 30px;
       padding: var(--space-1) var(--space-2-5);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
     }
     .skc-toolbar .skc-tool-btn[aria-pressed="true"],
     .skc-toolbar .skc-tool-btn.is-active {
@@ -432,7 +432,7 @@
     .skc-hint {
       margin-left: auto;
       color: var(--text-faint);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
     }
     .skc-body {
       position: relative;
@@ -548,7 +548,7 @@
       border-bottom: 1px solid var(--line);
       background: var(--bg-sunken);
       border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-      font-weight: var(--fw-strong);
+      font-weight: var(--fw-medium);
       font-size: var(--fs-sm);
       text-align: center;
       overflow: hidden;
@@ -560,7 +560,7 @@
       flex-direction: column;
       padding: var(--space-2) var(--space-2-5);
       gap: var(--hairline);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       line-height: 17px;
       color: var(--text-dim);
     }
@@ -609,7 +609,7 @@
     .skc-detail h5 {
       margin: var(--space-1) 0 0;
       color: var(--text-muted);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       font-weight: var(--fw-strong);
     }
     .skc-detail-head {
@@ -646,11 +646,11 @@
     .skc-rels small {
       flex-basis: 100%;
       color: var(--text-muted);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
     }
     .skc-rel-type {
       color: var(--text-muted);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
     }
   }
   :is(.study-app, .study-seat) {
@@ -733,7 +733,7 @@
       background: var(--bg-surface);
       color: var(--text);
       font-size: var(--fs-sm);
-      font-weight: var(--fw-strong);
+      font-weight: var(--fw-medium);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -758,7 +758,7 @@
       border: 0;
       background: transparent;
       color: var(--text-dim);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       line-height: 20px;
       text-align: center;
       overflow: visible;
@@ -795,8 +795,8 @@
       border-radius: 50%;
       background: var(--bg-surface);
       border: 1px solid var(--line);
-      font-size: var(--fs-xs);
-      font-weight: var(--fw-strong);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-medium);
       vertical-align: 1px;
     }
     .sqc-label small {
@@ -804,7 +804,7 @@
       left: 0;
       right: 0;
       color: var(--text-faint);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       font-style: italic;
       line-height: 14px;
     }
@@ -812,7 +812,7 @@
   :is(.study-app, .study-seat) {
     .sqc-label.sqc-step--current {
       color: var(--text);
-      font-weight: var(--fw-strong);
+      font-weight: var(--fw-medium);
     }
   }
   :where(.study-app, .study-seat) {
@@ -875,7 +875,7 @@
       border-radius: var(--radius-pill);
       background: var(--bg-sunken);
       color: var(--accent-soft);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       white-space: nowrap;
     }
   }
@@ -972,7 +972,7 @@
   }
   :where(.study-app, .study-seat) {
     /* Navigation stays outside the canvas so it remains readable at every zoom. */
-    .skc-search { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); font-size: var(--fs-xs); }
+    .skc-search { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); font-size: var(--fs-sm); }
     .skc-search .skc-search-input { min-width: 0; width: min(100%, 280px); }
     .skc-results { display: flex; gap: var(--space-1-5); flex-wrap: wrap; max-height: 180px; overflow: auto; }
     .skc-class-name, .skc-class-attrs { width: 100%; box-sizing: border-box; min-width: 0; }
@@ -1026,7 +1026,7 @@
     .skc-minimap .skc-minimap-window { fill: color-mix(in srgb, var(--accent) 18%, transparent); stroke: var(--accent-soft); stroke-width: 2; vector-effect: non-scaling-stroke; }
     .skc-search .skc-search-select { max-width: min(100%, 250px); min-width: 0; }
     .skc-class-name { font-size: var(--fs-md); line-height: 18px; }
-    .skc-class-attrs { font-size: var(--fs-xs); }
+    .skc-class-attrs { font-size: var(--fs-sm); }
   }
   @container study (max-width: 600px) {
     :where(.study-app, .study-seat) {
@@ -1090,7 +1090,7 @@
       border: 0;
       border-radius: var(--radius-sm);
       background: transparent;
-      font-weight: var(--fw-strong);
+      font-weight: var(--fw-medium);
       text-align: left;
     }
     .spine-toggle:hover:not(:disabled) { background: transparent; }
@@ -1212,7 +1212,7 @@
       box-shadow: inset 0 0 0 2px var(--text-dim);
       font-family: var(--font-display);
       font-size: var(--fs-md);
-      font-weight: var(--fw-strong);
+      font-weight: var(--fw-medium);
       font-variant-numeric: tabular-nums;
     }
     .spine-tab.is-active .spine-marker { background: var(--text); box-shadow: none; color: var(--bg-canvas); }
@@ -1286,7 +1286,7 @@
     }
     .spine-point-body strong {
       font-size: var(--fs-md);
-      font-weight: var(--fw-strong);
+      font-weight: var(--fw-medium);
       line-height: 1.5;
       overflow-wrap: anywhere;
     }

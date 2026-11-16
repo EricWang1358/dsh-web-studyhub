@@ -113,7 +113,7 @@
     .question-strip__label {
       flex: none;
       color: var(--text-muted);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
     }
     .question-strip__stem { flex: 1 1 auto; min-width: 0; color: var(--text); }
     .question-strip__stem > :first-child { margin-top: 0; }

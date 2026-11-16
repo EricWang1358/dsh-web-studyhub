@@ -112,7 +112,7 @@
     .sh-steps { display: grid; align-content: start; gap: var(--space-2); margin: 0; padding: var(--space-3) 0 0; border-top: 1px solid var(--line-soft); list-style: none; font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .sh-steps li { display: flex; align-items: baseline; gap: var(--space-2); }
     .sh-steps a { color: var(--accent-text); text-underline-offset: 3px; overflow-wrap: anywhere; }
-    .sh-steps__num { display: inline-grid; place-items: center; flex: none; width: 1.5em; height: 1.5em; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-strong); line-height: 1; }
+    .sh-steps__num { display: inline-grid; place-items: center; flex: none; width: 1.5em; height: 1.5em; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-medium); line-height: 1; }
   }
   @supports (grid-template-rows: subgrid) {
     :is(.study-app, .study-seat) {

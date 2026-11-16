@@ -41,7 +41,7 @@
       background: var(--text);
       color: var(--bg-canvas);
       font-size: var(--fs-xs);
-      font-weight: var(--fw-strong);
+      font-weight: var(--fw-medium);
       font-variant-numeric: tabular-nums;
       line-height: 20px;
       text-align: center;

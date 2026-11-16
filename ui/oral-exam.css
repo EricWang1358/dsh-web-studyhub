@@ -11,7 +11,7 @@
     .oral-question details { padding: var(--space-3) var(--space-3-5); border: 1px solid var(--line-soft); border-radius: var(--radius); }
     .oral-question details summary, .oral-report details summary { cursor: pointer; }
     .oral-question details ul { margin-bottom: 0; }
-    .oral-answer-label { display: grid; gap: var(--space-2); font-weight: var(--fw-strong); }
+    .oral-answer-label { display: grid; gap: var(--space-2); font-weight: var(--fw-medium); }
     .oral-answer-input { width: 100%; box-sizing: border-box; min-height: 136px; resize: vertical; padding: var(--space-3) var(--space-3-5); border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-sunken); color: var(--text); font: inherit; font-weight: var(--fw-regular); line-height: 1.5; }
     .oral-answer-input:focus { border-color: var(--accent-soft); background: var(--bg-surface); box-shadow: var(--ring); outline: none; }
     .oral-answer-input:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: -1px; }

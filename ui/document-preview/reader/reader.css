@@ -108,11 +108,11 @@
     .reader-find__count { min-width: 5em; color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
     .reader-find__input::-webkit-search-cancel-button { display: none; }
     .reader-find { flex-wrap: wrap; }
-    .reader-find .reader-find__case { font-weight: var(--fw-strong); }
+    .reader-find .reader-find__case { font-weight: var(--fw-medium); }
     .reader-find .reader-find__case[aria-pressed='true'] { background: var(--bg-selected); color: var(--accent); }
     /* The other chapters that hold the text (one chapter is drawn at a time): one quiet row of buttons under the field. */
     .reader-find__elsewhere { display: flex; flex: 1 0 100%; flex-wrap: wrap; align-items: center; gap: var(--space-1-5); min-width: 0; }
-    .reader-find__elsewhere-label { color: var(--text-muted); font-size: var(--fs-xs); }
+    .reader-find__elsewhere-label { color: var(--text-muted); font-size: var(--fs-sm); }
     .reader-find .reader-find__chapter { max-width: 100%; gap: var(--space-1); }
     .reader-find__chapter-title { overflow: hidden; max-width: 14em; text-overflow: ellipsis; white-space: nowrap; }
     .reader-find__chapter small { color: var(--text-muted); white-space: nowrap; }
@@ -159,7 +159,7 @@
       padding: var(--space-4) var(--space-4) var(--space-2);
       color: var(--text-muted);
       font-family: var(--font-ui);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       font-weight: var(--fw-strong);
       letter-spacing: 0.08em;
     }
@@ -204,11 +204,11 @@
       text-align: left;
     }
     .reader-outline__link:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
-    .reader-outline__link[aria-current='location'] { background: var(--bg-selected); color: var(--text); font-weight: var(--fw-strong); }
-    .reader-outline li[data-minor] .reader-outline__link { color: var(--text-faint); font-size: var(--fs-xs); }
+    .reader-outline__link[aria-current='location'] { background: var(--bg-selected); color: var(--text); font-weight: var(--fw-medium); }
+    .reader-outline li[data-minor] .reader-outline__link { color: var(--text-faint); font-size: var(--fs-sm); }
     .reader-outline li[data-minor] .reader-outline__link[aria-current='location'] { color: var(--text); }
-    .reader-outline__label { color: var(--text-faint); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
-    .reader-outline__trail { color: var(--text-faint); font-size: var(--fs-xs); }
+    .reader-outline__label { color: var(--text-faint); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+    .reader-outline__trail { color: var(--text-faint); font-size: var(--fs-sm); }
     .reader-outline__title {
       display: -webkit-box;
       overflow: hidden;
@@ -218,7 +218,7 @@
     }
     .reader-outline__empty { margin: 0; padding: var(--space-2) var(--space-3); color: var(--text-muted); font-size: var(--fs-sm); }
     /* 已读 (#1014): the count under the title and a quiet ✓ beside each chapter read (a press takes it back). */
-    .reader-outline__readhead { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1-5); margin: 0; padding: 0 var(--space-3) var(--space-2); color: var(--text-dim); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+    .reader-outline__readhead { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1-5); margin: 0; padding: 0 var(--space-3) var(--space-2); color: var(--text-dim); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
     .reader-outline__readbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1-5); }
     .reader-outline__read { flex: none; align-self: center; color: var(--ok); }
     .reader-outline__read[data-read-weak='true'] { color: var(--warn-ink); }
@@ -247,12 +247,12 @@
     /* Using the outline as chapters: the level, the chapters it gives, what a chapter inside a page means. */
     .reader-segment { display: grid; gap: var(--space-3); }
     .reader-segment__levels { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
-    .reader-segment__levels > legend { width: 100%; margin: 0 0 var(--space-1); color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-strong); }
+    .reader-segment__levels > legend { width: 100%; margin: 0 0 var(--space-1); color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-medium); }
     .reader-segment__level { align-items: center; gap: var(--space-2); padding: var(--space-1-5) var(--space-3); }
     .reader-segment__chapters { max-height: 40vh; margin: 0; padding: var(--space-2); overflow: auto; list-style: none; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-sunken); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .reader-segment__chapters li { display: flex; align-items: baseline; gap: var(--space-2); padding: var(--space-1) var(--space-2); }
     .reader-segment__chapters li > span { min-width: 0; overflow-wrap: anywhere; }
-    .reader-segment__chapters li > small:last-child { flex: none; margin-left: auto; color: var(--text-muted); font-size: var(--fs-xs); white-space: nowrap; }
+    .reader-segment__chapters li > small:last-child { flex: none; margin-left: auto; color: var(--text-muted); font-size: var(--fs-sm); white-space: nowrap; }
     .reader-assist-dialog { display: grid; gap: var(--space-3); }
     .reader-assist-dialog > p { margin: 0; }
     .reader-assist-dialog .reader-assist__actions .reader-assist__btn { white-space: normal; }
@@ -336,7 +336,7 @@
       font-variant-numeric: tabular-nums;
     }
     .reader-html :is(th, td) { padding: 0.5em 0.8em; border: 1px solid var(--line); text-align: left; }
-    .reader-html th { background: var(--bg-sunken); font-weight: var(--fw-strong); }
+    .reader-html th { background: var(--bg-sunken); font-weight: var(--fw-medium); }
     .reader-html pre {
       margin: 1.2em 0;
       padding: 0.9em 1.1em;
@@ -362,8 +362,8 @@
       margin: 0 0 var(--space-2);
       color: var(--text-muted);
       font-family: var(--font-ui);
-      font-size: var(--fs-xs);
-      font-weight: var(--fw-strong);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-medium);
       letter-spacing: 0.06em;
       font-variant-numeric: tabular-nums;
     }
@@ -376,7 +376,7 @@
     .reader-p--furniture { margin: 0 0 var(--reader-gap, 1em); }
     .reader-furniture__title { display: block; color: var(--text-muted); font-family: var(--font-ui); font-size: var(--fs-sm); line-height: 1.5; }
     /* The labels of a part (英文原句, 中文对照, [English original] …): small captions over their text, never entries of the outline. */
-    .reader-p--label { margin: var(--space-4) 0 var(--space-2); color: var(--text-muted); font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: var(--fw-strong); letter-spacing: 0.08em; }
+    .reader-p--label { margin: var(--space-4) 0 var(--space-2); color: var(--text-muted); font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: var(--fw-medium); letter-spacing: 0.08em; }
     .reader-p--label + .reader-p { margin-top: 0; }
     .reader-join { font-size: 0; }
     .reader-p { margin: 0 0 var(--reader-gap, 1em); line-height: inherit; white-space: normal; text-wrap: pretty; }
@@ -483,7 +483,7 @@
     }
     .reader-pager .reader-pager__link[data-direction='next'] { align-items: flex-end; margin-left: auto; text-align: right; }
     .reader-pager .reader-pager__link:hover:not(:disabled) { background: var(--bg-hover); }
-    .reader-pager__link small { color: var(--text-muted); font-size: var(--fs-xs); }
+    .reader-pager__link small { color: var(--text-muted); font-size: var(--fs-sm); }
     /* The key of the chapter pager ([ / ]), beside its word. */
     .reader-pager__key { margin-inline-start: var(--space-1-5); padding: 0 var(--space-1); border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--text-faint); font-family: inherit; font-size: var(--fs-xs); }
     .reader-pager__link span { overflow-wrap: anywhere; }
@@ -493,7 +493,7 @@
     .reader-tools .study-document-selection { gap: var(--space-3); padding: 0; border: 0; border-radius: 0; background: transparent; }
     /* ── Display settings (Aa) ───────────────────────────────────────────── */
     .reader-setting { display: grid; gap: var(--space-2); }
-    .reader-setting__label { color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-strong); letter-spacing: 0.04em; }
+    .reader-setting__label { color: var(--text-muted); font-size: var(--fs-sm); font-weight: var(--fw-medium); letter-spacing: 0.04em; }
   }
   @container reader (max-width: 899.98px) {
     :is(.study-app, .study-seat) {

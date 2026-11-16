@@ -70,7 +70,7 @@
     .course-list__group-head > .course-list__toggle { flex: 1 1 200px; }
     .course-list__group-head > .course-active.is-compact > :not(.course-active__row) { order: 3; flex: 1 0 100%; margin-bottom: var(--space-2); padding-left: var(--space-3); }
     .course-list__text { display: grid; gap: var(--space-half); min-width: 0; text-align: left; }
-    .course-list__text strong { color: var(--text); font-weight: var(--fw-strong); line-height: var(--lh-snug); overflow-wrap: anywhere; }
+    .course-list__text strong { color: var(--text); font-weight: var(--fw-medium); line-height: var(--lh-snug); overflow-wrap: anywhere; }
     .course-list__text small { color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
     .course-list__duplicate { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-half) var(--space-2); margin-top: var(--space-half);
       color: var(--warn-ink); font-size: var(--fs-sm); line-height: var(--lh-snug); }
@@ -90,7 +90,7 @@
     .course-list__chapters .course-list__chapter--nested .course-list__item { padding-left: calc(var(--space-3) + var(--space-6) + var(--space-4) * var(--depth, 1)); }
     /* Library heading: the countdown sits beside the course name. */
     .course-heading .course-heading-exam { flex: none; align-self: center; padding: var(--space-1) var(--space-2); border-radius: var(--radius-pill);
-      font-size: var(--fs-sm); font-weight: var(--fw-strong); letter-spacing: 0; line-height: var(--lh-tight); white-space: nowrap;
+      font-size: var(--fs-sm); font-weight: var(--fw-medium); letter-spacing: 0; line-height: var(--lh-tight); white-space: nowrap;
       color: var(--text-dim); background: var(--bg-sunken); }
   }
   @container study (max-width: 520px) {

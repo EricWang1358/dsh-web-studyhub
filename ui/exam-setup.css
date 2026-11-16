@@ -7,7 +7,7 @@
   :where(.study-app, .study-seat) {
     .es-controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-4) var(--space-6); margin-top: var(--space-4); }
     .es-format { display: grid; gap: var(--space-1); min-width: 0; max-width: 100%; }
-    .es-label { color: var(--text-muted); font-size: var(--fs-sm); font-weight: var(--fw-strong); }
+    .es-label { color: var(--text-muted); font-size: var(--fs-sm); font-weight: var(--fw-medium); }
     .es-format .es-format__seg { max-width: 100%; }
     .es-format .es-format__seg-item { min-height: 36px; padding: var(--space-1) var(--space-3-5); flex: 0 1 auto; white-space: nowrap; }
     /* ── the setup card: the exam paper you are about to sit ── */
@@ -63,7 +63,7 @@
     /* case paper settings */
     .es-papers { display: grid; gap: var(--space-2); }
     .es-times { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-3); }
-    .es-times .es-times__field { display: grid; gap: var(--space-1); margin: 0; color: var(--text-dim); font-size: var(--fs-sm); font-weight: var(--fw-strong); }
+    .es-times .es-times__field { display: grid; gap: var(--space-1); margin: 0; color: var(--text-dim); font-size: var(--fs-sm); font-weight: var(--fw-medium); }
     .es-times__input { width: 100%; box-sizing: border-box; padding: var(--space-2) var(--space-2-5); background: var(--bg-sunken); border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--text); font-variant-numeric: tabular-nums; }
     .es-empty { display: grid; gap: var(--space-2); justify-items: start; padding: var(--space-4); border: 1px dashed var(--line-strong); border-radius: var(--radius-sm); }
     .es-empty strong { font-size: var(--fs-md); }

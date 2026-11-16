@@ -13,7 +13,7 @@
     .course-method__stage::marker { color: var(--text-muted); font-variant-numeric: tabular-nums; }
     .course-method__stage-name { overflow-wrap: anywhere; }
     .course-method__level { margin-inline-start: var(--space-2); font-size: var(--fs-sm); color: var(--text-muted); white-space: nowrap; }
-    .course-method__due { margin-inline-start: var(--space-2); font-size: var(--fs-xs); color: var(--text-faint); white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .course-method__due { margin-inline-start: var(--space-2); font-size: var(--fs-sm); color: var(--text-faint); white-space: nowrap; font-variant-numeric: tabular-nums; }
     .course-method__stage .course-method__now,
     .course-method__stage .course-method__status { margin-inline-start: var(--space-2); vertical-align: middle; }
     .course-method__stage .course-method__jump { margin-inline-start: var(--space-2); vertical-align: baseline; }
@@ -25,7 +25,7 @@
     .course-method__also-lead { white-space: nowrap; }
     .course-method__also-item { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-1-5); min-width: 0; }
     .course-method__also-blocked { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1); color: var(--text-muted); }
-    .course-method__also-why { font-size: var(--fs-xs); color: var(--text-faint); }
+    .course-method__also-why { font-size: var(--fs-sm); color: var(--text-faint); }
     .course-method__chat { display: grid; gap: var(--space-2); min-width: 0; }
     .course-method__chat-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); min-width: 0; }
     .course-method__form { display: grid; gap: var(--space-4); min-width: 0; }
@@ -51,7 +51,7 @@
     .course-method__activity { flex: 1 1 150px; min-width: 0; }
     .course-method__gate { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-2); min-width: 0; }
     .course-method__alts-edit { display: grid; gap: var(--space-1-5); min-width: 0; }
-    .course-method__alts-label { font-size: var(--fs-xs); color: var(--text-muted); }
+    .course-method__alts-label { font-size: var(--fs-sm); color: var(--text-muted); }
     .course-method__alts-chips { display: flex; flex-wrap: wrap; gap: var(--space-1-5); min-width: 0; }
     .course-method__add-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2-5); min-width: 0; }
     .course-method__count { font-size: var(--fs-xs); color: var(--text-muted); font-variant-numeric: tabular-nums; }

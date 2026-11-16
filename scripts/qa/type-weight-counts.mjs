@@ -18,7 +18,7 @@ async function cssFiles(dir) {
 }
 
 // A selector whose small type is allowed to stay 12px: a badge, chip, tag, key cap, a count, a number, a time, a tiny group label, a table cell, a chart axis, code.
-const SMALL_OK = /badge|chip|pill|tag|kbd|keycap|key\b|-key|count|counter|num|stat|table|\bth\b|\btd\b|cell|dot|meter|axis|tick|legend|unit|index|eyebrow|mark|code|\bpre\b|\btext\b|delta|pct|clock|time|mins|::before|::after|option-letter|--xs|__raw|command|group-label/i;
+const SMALL_OK = /badge|chip|pill|tag|kbd|keycap|key\b|-key|count|counter|num|stat|table|\bth\b|\btd\b|cell|dot|meter|axis|tick|legend|unit|index|eyebrow|mark|code|\bpre\b|\btext\b|delta|pct|clock|time|mins|::before|::after|option-letter|--xs|__raw|command|group-label|brand small/i;
 
 /** Walk a stylesheet (nested CSS included) and report each declaration with the selector of its innermost rule. */
 function declarations(text) {

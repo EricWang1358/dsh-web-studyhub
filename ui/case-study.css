@@ -37,7 +37,7 @@
       border: 1px solid var(--line-strong);
       background: transparent;
       color: var(--text-dim);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       cursor: pointer;
     }
     .case-pen.is-on { background: var(--bg-selected); color: var(--text); border-color: var(--text-muted); }
@@ -69,8 +69,8 @@
     .case-para__n {
       font-variant-numeric: tabular-nums;
       color: var(--text-muted);
-      font-size: var(--fs-xs);
-      font-weight: var(--fw-strong);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-medium);
       text-align: right;
       padding-top: var(--space-1);
     }
@@ -166,7 +166,7 @@
     .rubric-editor > span {
       color: var(--text-dim);
       font-size: var(--fs-sm);
-      font-weight: var(--fw-strong);
+      font-weight: var(--fw-medium);
     }
     .rubric-editor__input {
       width: 100%;
@@ -328,7 +328,7 @@
   }
   :where(.study-app, .study-seat) {
     .case-create legend {
-      font-weight: var(--fw-strong);
+      font-weight: var(--fw-medium);
       color: var(--text);
       margin-bottom: var(--space-2);
     }
@@ -396,7 +396,7 @@
       border: 1px solid var(--line);
       border-radius: var(--radius);
     }
-    .criteria-editor legend { padding: 0 var(--space-1); font-weight: var(--fw-strong); color: var(--text); }
+    .criteria-editor legend { padding: 0 var(--space-1); font-weight: var(--fw-medium); color: var(--text); }
     .criteria-editor__row {
       display: grid;
       grid-template-columns: minmax(0, 1fr) 6rem;

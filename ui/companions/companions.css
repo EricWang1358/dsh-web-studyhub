@@ -59,7 +59,7 @@
       font-weight: var(--fw-strong);
     }
     .sh-comp-drawer__loc {
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       color: var(--text-muted);
     }
     .sh-comp-drawer__quote {
@@ -80,7 +80,7 @@
     }
     .sh-comp-drawer__sub {
       margin: 0;
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       font-weight: var(--fw-medium);
       color: var(--text-muted);
     }
@@ -172,7 +172,7 @@
     }
     .sh-comp-ledger__empty {
       margin: 0;
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       color: var(--text-muted);
     }
     .sh-comp-bar {
@@ -261,7 +261,7 @@
     }
     .sh-comp-bar__empty {
       margin: 0;
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       color: var(--text-muted);
     }
     .sh-comp-bar__empty-filter {
@@ -296,7 +296,7 @@
       flex-wrap: wrap;
     }
     .sh-comp-build__starters-label {
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       color: var(--text-muted);
       font-weight: var(--fw-medium);
     }

@@ -20,7 +20,7 @@
       background: var(--bg-surface);
     }
     .next-card__text { display: grid; gap: var(--space-1); min-width: 0; }
-    .next-card__eyebrow { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); font-weight: var(--fw-strong); letter-spacing: 0.06em; }
+    .next-card__eyebrow { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); font-weight: var(--fw-medium); letter-spacing: 0.06em; }
     .next-card__headline { margin: 0; color: var(--text); font-size: var(--fs-xl); font-weight: var(--fw-strong); line-height: var(--lh-snug); overflow-wrap: anywhere; }
     /* The detail line keeps its line when there is nothing to say (a non-breaking space in it), so the card's height does not depend on it. */
     .next-card__detail { margin: 0; color: var(--text-dim); font-size: var(--fs-md); line-height: var(--lh-snug); min-height: calc(var(--fs-md) * var(--lh-snug)); overflow-wrap: anywhere; }

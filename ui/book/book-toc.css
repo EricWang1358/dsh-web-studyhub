@@ -65,7 +65,7 @@
       margin: 0;
       padding: 0 var(--space-2);
       color: var(--text-muted);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       line-height: var(--lh-snug);
     }
     /* 在书里找: the box over the list, and what it found in the list's place. The words are marked on the page with the reader's highlight (ui/book/use-found-marks.js). */
@@ -80,7 +80,7 @@
       margin: 0;
       padding: 0 var(--space-2);
       color: var(--text-muted);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
     }
     .book-toc__hit {
       flex-direction: column;
@@ -149,7 +149,7 @@
     /* The heading being read: bold, the text colour and a 2 px ink line on its left (no badge). */
     .book-toc__go[aria-current='location'] {
       color: var(--text);
-      font-weight: var(--fw-strong);
+      font-weight: var(--fw-medium);
       box-shadow: inset 2px 0 0 var(--text);
       border-start-start-radius: 0;
       border-end-start-radius: 0;

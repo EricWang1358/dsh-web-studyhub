@@ -17,11 +17,11 @@
       background: var(--bg-surface);
     }
     .note-list > .note-list-item:hover:not(:disabled) { border-color: var(--line-strong); background: var(--bg-hover); }
-    .note-list small { color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+    .note-list small { color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
     .note-daily-date { display: block; margin-top: var(--space-1); }
     .note-heading { align-items: flex-start; gap: var(--space-5); flex-wrap: wrap; }
     .note-daily-meta { color: var(--text-muted); font-size: var(--fs-sm); line-height: 1.7; margin: 0; font-variant-numeric: tabular-nums; }
-    .note-unsaved { display: block; margin-top: var(--space-1-5); font-size: var(--fs-xs); color: var(--text-muted); }
+    .note-unsaved { display: block; margin-top: var(--space-1-5); font-size: var(--fs-sm); color: var(--text-muted); }
     .note-reader { min-width: 0; height: min(78vh, 950px); min-height: 420px; margin: var(--space-4-5) 0; }
     .note-editor.note-editor-single { grid-template-columns: minmax(0, 1fr); max-width: 56rem; }
     .note-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-3) 0; }
