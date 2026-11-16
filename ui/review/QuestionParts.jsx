@@ -123,7 +123,7 @@ export function PostAnswerDetails({ session, data, model, onModelSettings, openM
       const enOpt = enOn ? enAnswer?.options?.find((item) => item.id === option.id) : null;
       return [{
         id: option.id,
-        mark: verdict ? String(index + 1) : optionMark(run.card, option, index),
+        mark: optionMark(run.card, option, index),
         label: verdict ? fixedOptionLabel(run.card, option) : option.text,
         explanation: sol.explanation,
         enExplanation: enOpt?.explanation || "",

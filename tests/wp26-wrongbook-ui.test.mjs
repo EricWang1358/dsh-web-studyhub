@@ -306,7 +306,7 @@ test('a history row keeps its 答错 / 未掌握 mark and adds 已订正 with ho
   assert.match(rowText[0], /^保护状态 熔断器修好了吗？ 答错 .*已订正 答错 3 次 · 最近答错 /, 'the miss kind stays next to the 已订正 mark');
   assert.match(rowText[1], /^集成收益 集成收益记住了吗？ 未掌握 .*已订正 答错 1 次 · 最近答错 /);
   assert.equal((html.match(/class="[^"]*wb-fixed-mark/g) || []).length, 2, 'one mark per corrected row');
-  assert.equal((html.match(/>练<\/button>/g) || []).length, 2, '练 still practises that card');
+  assert.equal((html.match(/>练(?:<svg[^>]*>.*?<\/svg>)?<\/button>/g) || []).length, 2, '练 (with its arrow) still practises that card');
   const details = { h1: { yourAnswer: 'A', correctAnswer: 'B', explanation: '', misconception: '', selfGrade: null, lastGrade: 4, missedGrade: 1, missedAt: '2026-10-03T10:30:00Z' } };
   const opened = text(render({ ...historyBase, details, initial: { groups: 'all', expanded: ['h1'] } }));
   assert.match(opened, new RegExp('上次答错 ' + escapeRe(formatDateTime('2026-10-03T10:30:00Z', 'stamp'))));

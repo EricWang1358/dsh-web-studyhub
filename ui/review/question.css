@@ -247,15 +247,17 @@
       font-size: var(--fs-md);
       font-weight: var(--fw-medium);
     }
+    /* A filled circle (the picked option, the right one): its mark is the raised colour, which on the card is the paper in every theme. The canvas colour
+       it had is dark in the dark theme, so the mark was dark on the dark ink and on the green. */
     .option--selected .option-letter {
       background: var(--text);
       box-shadow: none;
-      color: var(--bg-canvas);
+      color: var(--bg-raised);
     }
     .option.correct .option-letter {
       background: var(--ok);
       box-shadow: none;
-      color: var(--bg-canvas);
+      color: var(--bg-raised);
     }
     .option.incorrect .option-letter {
       background: transparent;
@@ -468,7 +470,10 @@
       margin: var(--space-3-5) 0 var(--space-3);
       font-weight: var(--fw-medium);
     }
-    .next-due__lead { margin: 0; }
+    /* The icon has its own column: a lead line that wraps starts its second line under the words, not under the icon. */
+    .next-due__lead { display: flex; align-items: flex-start; gap: var(--space-1-5); margin: 0; }
+    .next-due__icon { flex: none; margin-top: calc((1lh - var(--icon-inline)) / 2); }
+    .next-due__words { flex: 1 1 auto; min-width: 0; }
     /* 「为什么是 3 天」: the numbers behind the date stay one click away. */
     .next-due__why { margin-top: var(--space-2); }
     .next-due__explain { margin: var(--space-2) 0 0; }

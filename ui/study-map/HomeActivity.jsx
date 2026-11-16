@@ -59,7 +59,7 @@ function DraftRow({ draft: d, data, modelReady, openDraft, topUpDraft }) {
             {!work && <Badge size="sm" tone={rejectedCount || !clean ? 'warning' : 'neutral'} data-draft-status>{status}</Badge>}
           </small>
         </span>
-        <span>{ui('打开')}<Icon name="arrow-right" size={16} /></span>
+        <span className="row-end">{ui('打开')}<Icon name="arrow-right" className="sh-icon--inline" /></span>
       </button>
       {/* 删除 opens the same question as the draft page's 删除草稿 (ui/DeleteDraftDialog.jsx): the unpublished questions go for good, the materials stay. */}
       <Button variant="quiet" size="sm" className="draft-delete" lock={busy} aria-label={uiFormat('删除草稿「{0}」', [d.title || ui('未命名草稿')])} onClick={() => setDeleting(true)}>{ui('删除')}</Button>

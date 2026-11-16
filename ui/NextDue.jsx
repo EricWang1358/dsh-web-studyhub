@@ -96,9 +96,12 @@ export function NextDue({ feedback, telemetry = null, now = Date.now() }) {
   return (
     <div className={`next-due${feedback.correct || selfReported ? '' : ' retry'}`} data-level={feedback.level || undefined}>
       <p className="next-due__lead">
-        {nextDueIcon(feedback) && <Icon name={nextDueIcon(feedback)} size={16} className="sh-icon--inline sh-icon--lead" />}{uiFormat('{0} · {1}', [nextDueWord(feedback), nextDueWhen(feedback, now)])}
-        {feedback.retryQueued && <span>{' · '}{ui('这道题放到了本轮最后，会再出现一次')}</span>}
-        {feedback.hintGraded && <span>{' · '}{ui('用了提示，按「勉强答对」安排，这道题会更早回来')}</span>}
+        {nextDueIcon(feedback) && <Icon name={nextDueIcon(feedback)} className="next-due__icon sh-icon--inline" />}
+        <span className="next-due__words">
+          {uiFormat('{0} · {1}', [nextDueWord(feedback), nextDueWhen(feedback, now)])}
+          {feedback.retryQueued && <span>{' · '}{ui('这道题放到了本轮最后，会再出现一次')}</span>}
+          {feedback.hintGraded && <span>{' · '}{ui('用了提示，按「勉强答对」安排，这道题会更早回来')}</span>}
+        </span>
       </p>
       {(earnedClimb || feedback.focusScheduled || credited > 0) && (
         <div className="next-due__telemetry">

@@ -22,7 +22,7 @@ export default function FocusProgressLine({ progress, courseId, lock, start, onC
       {emptyTopics.length > 0 && <Button variant="link" iconEnd="arrow-right" lock={lock} onClick={() => onGenerateFocus(emptyTopics, progress.course)}>{ui('去出缺题重点')}</Button>}
       {allMastered && (
         <span className="focus-progress__done" data-testid="focus-all-mastered">
-          <Icon name="check" size={13} strokeWidth={2.2} />
+          <Icon name="check" className="sh-icon--inline" />
           <span>{ui('全部已掌握')}</span>
         </span>
       )}

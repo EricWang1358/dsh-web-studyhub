@@ -76,7 +76,7 @@ async function runCombo({ browser, lang, theme, width, out, dist }) {
   await settle(1200);
   seen.line = await text(".focus-progress");
   expect(seen.line.includes(t("重点 5 条：已掌握 1 · 还不会 2 · 还没有题 1", "Focus topics 5: Mastered 1 · Not yet 2 · No questions 1")), `the home line counts the five topics (${seen.line})`);
-  expect(seen.line.includes(t("练还不会的重点 →", "Practise the focus topics you can't do yet →")), `the practice link is there (${seen.line})`);
+  expect(seen.line.includes(t("练还不会的重点", "Practise the focus topics you can't do yet")), `the practice link is there (${seen.line})`);
   // One line where it fits: a single text line is one line-height tall (the quiet button and the link share it).
   const box = await line.boundingBox();
   seen.lineHeight = box?.height ?? null;
