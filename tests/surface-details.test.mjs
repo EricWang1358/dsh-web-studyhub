@@ -123,8 +123,8 @@ test('dialogs use --shadow-dialog, in both of their rules', () => {
   for (const d of found) assert.equal(d.value, 'var(--shadow-dialog)');
 });
 
-test('a floating toast keeps its tone bar and takes the popover elevation', () => {
-  assert.equal(shadowOf(COMPONENTS, '.sh-toast'), 'inset 3px 0 0 var(--sh-tone), var(--shadow-popover)');
+test('a floating toast takes the popover elevation; its tone is the icon, not a bar down the edge (#1080)', () => {
+  assert.equal(shadowOf(COMPONENTS, '.sh-toast'), 'var(--shadow-popover)');
 });
 
 test('the paper card keeps its contract (one shadow token, spelled in paper.css) and the card token carries the highlight', () => {
