@@ -151,12 +151,13 @@ export default function FileDrop({ accept = [], multiple = false, maxBytes, labe
         aria-disabled={disabled || undefined} aria-busy={busy || undefined}
         className={cx('sh-drop', compact && 'sh-drop--compact', over && 'is-over', dropClassName)}
         onClick={event => { if (!event.target.closest('button, a, input')) open(); }} {...rest}>
-        <span className="sh-drop__icon" aria-hidden="true"><Icon name={icon} size={compact ? 18 : 22} /></span>
+        {/* The big zone has a mark to aim at; a compact one is a row whose button already shows the icon (#1081: one add icon, not two). */}
+        {!compact && <span className="sh-drop__icon" aria-hidden="true"><Icon name={icon} size={22} /></span>}
         <div className="sh-drop__text">
           <p id={labelId} className="sh-drop__label">{label || (multiple ? ui('把文件拖到这里，可以一次放多个') : ui('把文件拖到这里'))}</p>
           {limits && <p id={hintId} className="sh-drop__hint">{limits}</p>}
         </div>
-        <Button variant="secondary" icon="plus" busy={busy} disabled={disabled} aria-describedby={limits ? hintId : undefined} onClick={open}>
+        <Button variant="secondary" icon={icon} busy={busy} disabled={disabled} aria-describedby={limits ? hintId : undefined} onClick={open}>
           {buttonLabel || (multiple ? ui('选择文件') : ui('选择一个文件'))}
         </Button>
         <input ref={input} type="file" hidden tabIndex={-1} accept={rulesOf(accept).join(',') || undefined} multiple={multiple} disabled={blocked}

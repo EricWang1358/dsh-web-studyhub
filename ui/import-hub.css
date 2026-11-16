@@ -6,12 +6,8 @@
        Tokens only; scoped like ui/components so it outranks the bare element
        defaults in style.css. */
     .import-hub { container-type: inline-size; display: grid; gap: var(--space-4); min-width: 0; }
-    .import-hub__course {
-      padding: var(--space-3) var(--space-4);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      background: var(--bg-surface);
-    }
+    /* Where the files go is a line of text above the tabs, not a third kind of box in the dialog (#1081): the drop zone keeps the one dashed edge. */
+    .import-hub__course { margin: 0; }
     .import-hub__course small { font-size: var(--fs-sm); font-weight: var(--fw-regular); line-height: var(--lh-snug); }
     /* The course as one line: where the files go, why, and the way to change it. The field opens under it. */
     .import-hub__chip { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-2); margin: 0; min-width: 0; }
@@ -49,7 +45,6 @@
   }
   @container (max-width: 560px) {
     :is(.study-app, .study-seat) {
-      .import-hub__course { padding: var(--space-3); }
       .import-hub__tabs { justify-self: stretch; }
       .import-hub__tabs .import-hub__tab-icon { display: none; }
     }
