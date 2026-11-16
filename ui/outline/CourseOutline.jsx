@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from '../i18n.js';
-import { Button, Checkbox, Combobox, Disclosure, EmptyState, ErrorState, LoadingState, PageHeader, Select, Tooltip } from '../components/index.js';
+import { Button, Checkbox, Combobox, Disclosure, EmptyState, ErrorState, LoadingState, PageHeader, Select, TextInput, Tooltip } from '../components/index.js';
 import { useStudy } from '../study-context.jsx';
 import { useInjectCss } from '../shared.js';
 import { useLiveEffect } from '../use-async.js';
@@ -18,7 +18,7 @@ import { customGateOf } from '../custom-entry.js';
 import { courseNamesOf } from '../PageScope.jsx';
 import { scopeFilter } from '../SourcePicker.jsx';
 import { useHandOff } from '../hand-off/use-hand-off.js';
-import { BOOK_BUILD_KIND, bookDefaultOpen, emptyPick, isPicked, keepView, keptView, mainAction, outlineRows, paperChoices, pickArgs, pickCard, pickRow, runningBuild } from './model.js';
+import { BOOK_BUILD_KIND, bookDefaultOpen, emptyPick, filterOutline, isPicked, keepView, keptView, mainAction, outlineRows, paperChoices, pickArgs, pickCard, pickRow, runningBuild } from './model.js';
 import CourseCompanionsBar from '../companions/CourseCompanionsBar.jsx';
 import { basisText, bookCostTipText, bookCoverageText, bookIntroText, bookScalePointsText, bookScaleTokensText, bookStartedText, bookWhatText, cappedText, courseLine, levelOptions,
   levelsText, offerText, pickedText, readMoreStartedText, rebuildTipText, runningText, startPickedText, startedText, usedPapersText, whatText, writingText } from './words.js';
@@ -92,11 +92,24 @@ export default function CourseOutline({ data, onBack, onCreate, onOpenSources, o
   const kept = keptView(root, course);
   const [open, setOpen] = useState(() => new Set(kept?.open || []));
   const [deckId, setDeckId] = useState(kept?.deckId || '');
+  const [filterQuery, setFilterQuery] = useState('');
   const [pick, setPick] = useState(emptyPick);
+  const scopeKeyRef = useRef(`${root}\n${course ?? ''}`);
   const { outline, details, error, retry } = useOutline({ call, course, deckId, open, revision: data?.revision });
   const picked = usePicked({ call, course, deckId, pick });
   // An outline seen for the first time opens its chapters (章 open, 节 closed); the view the learner left is kept otherwise.
   const bookId = outline?.book?.id ?? null, seen = useRef(kept?.bookId ?? null);
+  useEffect(() => {
+    const nextScope = `${root}\n${course ?? ''}`;
+    if (scopeKeyRef.current === nextScope) return;
+    scopeKeyRef.current = nextScope;
+    const restored = keptView(root, course);
+    seen.current = restored?.bookId ?? null;
+    setOpen(new Set(restored?.open || []));
+    setDeckId(restored?.deckId || '');
+    setFilterQuery('');
+    setPick(emptyPick());
+  }, [root, course]);
   useEffect(() => {
     if (!bookId || seen.current === bookId) return;
     seen.current = bookId;
@@ -167,10 +180,11 @@ export default function CourseOutline({ data, onBack, onCreate, onOpenSources, o
   }, [call, course, deckId, notify, onPractice]);
   const onPracticeRow = useCallback(row => practise({ keys: [row.key] }, { resume: !!row.node.resume }), [practise]);
 
-  return <CourseOutlineView course={course} outline={outline} details={details} error={error} open={open} deckId={deckId} pick={pick} picked={picked}
+  return <CourseOutlineView course={course} outline={outline} details={details} error={error} open={open} deckId={deckId} filterQuery={filterQuery} pick={pick} picked={picked}
     running={runningBuild(data?.jobs, course)} writing={runningBuild(data?.jobs, course, BOOK_BUILD_KIND)} model={modelReadiness(data)} coverage={coverage} gate={gate} bookScale={bookScale}
     companionsSlot={<CourseCompanionsBar course={course || data?.focus?.course || ''} data={data} />}
     actions={{ onBack, onCreate, onOpenSources, onOpenTask, onOpenSource, onOpenBook, organise, writeBook, readMore, setCoverage, pickScale, startCustom, gateScale, retry, toggle, onPick, onPickCard, onPracticeRow, clearPick: () => setPick(emptyPick()), practisePicked: () => practise(pickArgs(pick)),
+      onFilterChange: setFilterQuery,
       chooseDeck: value => { setDeckId(value); setPick(emptyPick()); } }} />;
 }
 
@@ -270,20 +284,44 @@ function Organise({ book, documents, running, writing, model, quiet, coverage, g
  * onOpenSource(sourceId, quote), organise(papers), writeBook(papers), retry, toggle(key, open), onPick, onPickCard, onPracticeRow(row), clearPick, practisePicked,
  * chooseDeck(id).
  */
-export function CourseOutlineView({ course, outline, details = {}, error = null, open, deckId = '', pick, picked = null, running = null, writing = null, model = { ready: true },
+export function CourseOutlineView({ course, outline, details = {}, error = null, open, deckId = '', filterQuery, pick, picked = null, running = null, writing = null, model = { ready: true },
   coverage = COVERAGE_DEFAULT, gate = null, bookScale = null, companionsSlot = null, actions }) {
   useInjectCss(css, 'study-outline');
   const { busy } = useStudy();
-  const rows = useMemo(() => outlineRows(outline, details, open), [outline, details, open]);
+  const [localQuery, setLocalQuery] = useState('');
+  const activeQuery = filterQuery !== undefined ? filterQuery : localQuery;
+  const setQuery = actions?.onFilterChange || setLocalQuery;
+  const filterBarRef = useRef(null);
+  useEffect(() => {
+    const bar = filterBarRef.current;
+    const page = bar?.closest?.('.outline-page');
+    if (!bar || !page || typeof window === 'undefined') return undefined;
+    const syncTop = () => {
+      const app = bar.closest('.study-app, .study-seat'), topbar = app?.querySelector('.topbar');
+      const top = topbar ? Math.max(0, Math.round(topbar.getBoundingClientRect().bottom - app.getBoundingClientRect().top - app.clientTop)) : 0;
+      const next = `${top}px`;
+      if (page.style.getPropertyValue('--outline-bar-top') !== next) page.style.setProperty('--outline-bar-top', next);
+    };
+    syncTop();
+    document.addEventListener('scroll', syncTop, { capture: true, passive: true });
+    window.addEventListener('resize', syncTop, { passive: true });
+    return () => {
+      document.removeEventListener('scroll', syncTop, { capture: true });
+      window.removeEventListener('resize', syncTop);
+    };
+  }, [outline?.status]);
+  const allRows = useMemo(() => outlineRows(outline, details, open), [outline, details, open]);
+  const filtered = useMemo(() => filterOutline(outline, details, open, activeQuery), [outline, details, open, activeQuery]);
+  const rows = filtered.rows;
   // The chapters of a book of some chapters not built yet (#708): their rows say 未生成.
   const unbuilt = useMemo(() => new Set(outline?.book?.notes ? (outline.book.parts || []).filter(part => !part.written).map(part => part.id) : []), [outline]);
   const courseName = course === '' ? ui('未分类课程') : course;
+  const deckSelect = outline?.decks?.length > 1 ? <Combobox className="outline-deck" label={ui('按题组筛选')} aria-label={ui('按题组筛选')} value={deckId} onChange={actions.chooseDeck}
+    options={[{ value: '', label: ui('全部题组') }, ...outline.decks.map(deck => ({ value: deck.id, label: deck.title, hint: uiFormat('{0} 题', [deck.total]) }))]}
+    searchPlaceholder={ui('搜索题组')} emptyText={query => uiFormat('没有叫「{0}」的题组', [query])} /> : null;
   const header = (
     <PageHeader className="outline-header" back={{ label: ui('返回学习库'), onClick: actions.onBack }} title={course === null ? ui('总纲') : uiFormat('总纲 · {0}', [courseName])}
-      titleProps={{ tabIndex: -1, 'data-context-heading': true }}
-      scope={outline?.decks?.length > 1 ? <Combobox className="outline-deck" label={ui('按题组筛选')} aria-label={ui('按题组筛选')} value={deckId} onChange={actions.chooseDeck}
-        options={[{ value: '', label: ui('全部题组') }, ...outline.decks.map(deck => ({ value: deck.id, label: deck.title, hint: uiFormat('{0} 题', [deck.total]) }))]}
-        searchPlaceholder={ui('搜索题组')} emptyText={query => uiFormat('没有叫「{0}」的题组', [query])} /> : null}>
+      titleProps={{ tabIndex: -1, 'data-context-heading': true }}>
       {outline && <p className="outline-summary">
         <MasteryLine summary={outline.summary} title={courseName || ui('总纲')} />
         <span className="outline-summary__line">{courseLine(outline)}</span>
@@ -329,6 +367,16 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
       </section>}
       {nothing && <EmptyState icon="book" title={outline.status === 'empty' ? ui('还没有课程') : ui('这门课还没有题')}
         description={ui('在「创建题组」里从资料出题，题目会按资料的章节排进总纲。')} primary={book ? undefined : create} secondary={book ? create : undefined} />}
+      {(allRows.length > 0 || deckSelect || filtered.filtering) && <div ref={filterBarRef} className="outline-filter-bar" role="search" aria-label={ui('筛选总纲')}>
+        <TextInput type="search" className="outline-filter-bar__search" value={activeQuery} onChange={event => setQuery(event.target.value)}
+          placeholder={ui('搜索章节、知识点或题目…')} aria-label={ui('搜索章节、知识点或题目')} autoComplete="off" spellCheck={false} />
+        {deckSelect}
+        {filtered.filtering && <>
+          <span className="outline-filter-bar__meta" aria-live="polite">{uiFormat('共 {0} 项匹配', [filtered.matchCount])}</span>
+          <Button size="sm" variant="quiet" onClick={() => setQuery('')}>{ui('清除筛选')}</Button>
+        </>}
+      </div>}
+      {filtered.filtering && rows.length === 0 && <p className="outline-filter-empty" role="status">{ui('没有匹配的章节或题目。')}</p>}
       {rows.length > 0 && <OutlineTree rows={rows} details={details} pick={pick} papers={book?.papers || 0} unbuilt={unbuilt} modelReady={model.ready} onToggle={actions.toggle} onPick={actions.onPick} onPickCard={actions.onPickCard}
         onPractice={actions.onPracticeRow} onOpenSources={actions.onOpenSources} onOpenSource={actions.onOpenSource} onOpenBook={book?.notes ? actions.onOpenBook : undefined}
         onReadMore={actions.readMore} label={ui('总纲')} />}

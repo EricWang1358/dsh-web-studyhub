@@ -1,6 +1,7 @@
 /* 总纲 page: the pure part. The rows on screen (documents, the chapters of the open ones, 未归位; or the AI outline's chapters, sections and points), what a
    key does on them, what is picked, and the view the learner left (open rows, the deck filter), kept for the way back from a practice round. No React, no ui(). */
 import { contractOf, isRunningTask } from '../tasks/task-model.js';
+import { browserStorage, readJSON, writeJSON } from '../storage.js';
 import { silentPaper, suggestRoles } from '../../lib/exam-prep-roles.js';
 
 export const UNPLACED = 'unplaced';
@@ -128,11 +129,111 @@ export const pickArgs = pick => ({ keys: [...pick.keys], cards: [...pick.cards.v
 /** Is a question ticked, by itself or by a row it is in (`rowKeys`: the rows on screen that hold it)? */
 export const cardTicked = (pick, ref, rowKeys = []) => pick.cards.has(`${ref.deckId}|${ref.cardId}`) || rowKeys.some(key => pick.keys.has(key));
 
-/* The view the learner left, per library and course: the open rows and the deck filter, so the way back from a round opens the page as it was.
-   Memory only (a session), never stored. */
+const matchesOutlineNeedle = (text, needle) => Boolean(text && String(text).toLowerCase().includes(needle));
+const cardsMatchNeedle = (detail, needle) => (detail?.cards || []).some(card => matchesOutlineNeedle(card.prompt, needle) || matchesOutlineNeedle(card.deckTitle, needle));
+
+/** Filter the outline rows by search query while keeping matching chapters, sections, points, documents and their ancestor rows visible without mutating saved fold state. */
+export function filterOutline(outline, details, open, query) {
+  const needle = String(query ?? '').trim().toLowerCase();
+  if (!needle) return { rows: outlineRows(outline, details, open), filtering: false, matchCount: 0 };
+  if (!outline) return { rows: [], filtering: true, matchCount: 0 };
+  if (outline.book) {
+    const matchedKeys = new Set(), forceOpen = new Set();
+    const visit = (node, ancestors) => {
+      const selfHit = matchesOutlineNeedle(node.title, needle)
+        || matchesOutlineNeedle(node.intro, needle)
+        || cardsMatchNeedle(details[node.key], needle)
+        || (details[node.key]?.anchors || []).some(anchor => matchesOutlineNeedle(anchor.title, needle)
+          || cardsMatchNeedle(details[anchor.key], needle)
+          || (details[anchor.key]?.chapters || []).some(ch => matchesOutlineNeedle(ch.title, needle) || cardsMatchNeedle(details[ch.key], needle)));
+      let childHit = false;
+      for (const child of node.children || []) {
+        if (visit(child, [...ancestors, node.key])) childHit = true;
+      }
+      if (selfHit || childHit) {
+        matchedKeys.add(node.key);
+        for (const anc of ancestors) { matchedKeys.add(anc); forceOpen.add(anc); }
+        if (childHit || (selfHit && node.children?.length)) forceOpen.add(node.key);
+      }
+      return selfHit || childHit;
+    };
+    (outline.book.nodes || []).forEach(node => visit(node, []));
+    if (outline.book.other) {
+      const otherKey = outline.book.other.key;
+      const otherHit = matchesOutlineNeedle(outline.book.other.title, needle) || cardsMatchNeedle(details[otherKey], needle)
+        || (details[otherKey]?.anchors || []).some(anchor => matchesOutlineNeedle(anchor.title, needle));
+      if (otherHit) matchedKeys.add(otherKey);
+    }
+    if (outline.unplaced?.total > 0 && (matchesOutlineNeedle('未归位 not placed', needle) || cardsMatchNeedle(details[UNPLACED], needle))) {
+      matchedKeys.add(UNPLACED);
+    }
+    const effectiveOpen = new Set([...open, ...forceOpen]);
+    const allOpenRows = bookRows(outline, details, effectiveOpen);
+    const rows = allOpenRows.filter(row => matchedKeys.has(row.key) || row.ancestors?.some(anc => matchedKeys.has(anc) && !forceOpen.has(anc)));
+    return { rows, filtering: true, matchCount: rows.length };
+  }
+  const matchedKeys = new Set(), forceOpen = new Set();
+  for (const doc of outline.documents || []) {
+    const docHit = matchesOutlineNeedle(doc.title, needle) || cardsMatchNeedle(details[doc.key], needle);
+    const chapters = details[doc.key]?.chapters || [];
+    let chHit = false;
+    for (const ch of chapters) {
+      if (matchesOutlineNeedle(ch.title, needle) || cardsMatchNeedle(details[ch.key], needle)) {
+        matchedKeys.add(ch.key);
+        chHit = true;
+      }
+    }
+    if (docHit || chHit) {
+      matchedKeys.add(doc.key);
+      if (chHit || (docHit && chapters.length)) forceOpen.add(doc.key);
+      if (docHit) for (const ch of chapters) matchedKeys.add(ch.key);
+    }
+  }
+  if (outline.unplaced?.total > 0 && (matchesOutlineNeedle('未归位 not placed', needle) || cardsMatchNeedle(details[UNPLACED], needle))) {
+    matchedKeys.add(UNPLACED);
+  }
+  const effectiveOpen = new Set([...open, ...forceOpen]);
+  const rows = outlineRows(outline, details, effectiveOpen).filter(row => matchedKeys.has(row.key));
+  return { rows, filtering: true, matchCount: rows.length };
+}
+
+/* The view the learner left, per library and course: the open rows and the deck filter, persisted in localStorage (`study-outline-view:${root}:${course}`)
+   with an in-memory mirror so both reload restoration and headless tests work identically. */
 const kept = new Map();
-export const keptView = (root, course) => kept.get(JSON.stringify([root, course])) || null;
-export function keepView(root, course, view) {
-  kept.set(JSON.stringify([root, course]), { open: [...view.open], deckId: view.deckId || '', ...(view.bookId ? { bookId: view.bookId } : {}) });
-  if (kept.size > 20) kept.delete(kept.keys().next().value);
+const MAX_STORED_OPEN = 500;
+export const outlineViewKey = (root, course) => `study-outline-view:${root ?? ''}:${course ?? ''}`;
+
+function normalizeStoredView(raw) {
+  if (!raw || typeof raw !== 'object' || !Array.isArray(raw.open)) return null;
+  const open = raw.open.filter(item => typeof item === 'string').slice(0, MAX_STORED_OPEN);
+  return {
+    open,
+    deckId: typeof raw.deckId === 'string' ? raw.deckId : '',
+    ...(typeof raw.bookId === 'string' && raw.bookId ? { bookId: raw.bookId } : {}),
+  };
+}
+
+export function keptView(root, course, storage) {
+  const explicitStorage = arguments.length >= 3;
+  const memKey = JSON.stringify([root, course]);
+  if (!explicitStorage && kept.has(memKey)) return kept.get(memKey);
+  const stored = normalizeStoredView(readJSON(outlineViewKey(root, course), null, explicitStorage ? storage : browserStorage()));
+  if (stored && !explicitStorage) kept.set(memKey, stored);
+  return stored;
+}
+
+export function keepView(root, course, view, storage) {
+  const explicitStorage = arguments.length >= 4;
+  const openList = [...(view?.open || [])].filter(item => typeof item === 'string').slice(0, MAX_STORED_OPEN);
+  const payload = {
+    open: openList,
+    deckId: view?.deckId || '',
+    ...(view?.bookId ? { bookId: view.bookId } : {}),
+  };
+  const memKey = JSON.stringify([root, course]);
+  if (!explicitStorage) {
+    kept.set(memKey, payload);
+    if (kept.size > 20) kept.delete(kept.keys().next().value);
+  }
+  writeJSON(outlineViewKey(root, course), payload, explicitStorage ? storage : browserStorage());
 }

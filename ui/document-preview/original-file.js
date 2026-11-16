@@ -83,8 +83,8 @@ export function issueOf(original) {
   if (state.mode === 'copy') return { kind: 'missing', message: ui('资料库里保存的原文件副本丢失了'), canCopy: false };
   if (state.status === 'missing') return { kind: 'missing', message: uiFormat('找不到原文件：{0}', [state.path]), canCopy: false };
   if (state.status === 'unreadable') return { kind: 'unreadable', message: uiFormat('无法读取原文件：{0}', [state.path]), canCopy: false };
-  if (state.reason === 'redirected') return { kind: 'redirected', message: uiFormat('这个路径现在指向别处：{0}', [state.path]), canCopy: true };
-  return { kind: 'changed', message: ui('文件已被修改，和保存的文字对不上'), canCopy: true };
+  if (state.reason === 'redirected') return { kind: 'redirected', message: uiFormat('这个路径现在指向别处：{0}', [state.path]), canCopy: true, canSync: false };
+  return { kind: 'changed', message: ui('文件已被修改，和保存的文字对不上'), canCopy: true, canSync: true };
 }
 
 const percent = value => `${Math.round(value * 1000) / 10}%`;

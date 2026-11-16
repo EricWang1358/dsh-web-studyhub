@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { loadUi } from './helpers/ui-module.mjs';
 
 const mod = await loadUi(`
-  export { SOUND_CUES, synthesizeCueSamples, playSound, playTimerChime, playSoundPreview, resetSoundEngineForTests } from './ui/sound-effects.js';
+  export { SOUND_CUES, synthesizeCueSamples, playSound, playTimerChime, playSoundPreview, stopSoundPreview, resetSoundEngineForTests } from './ui/sound-effects.js';
+  export { default as AppearanceSection } from './ui/settings/AppearanceSection.jsx';
   export { holdAudioCapture, isAudioCaptureActive } from './ui/live-audio.js';
   export { createVoiceRecorder } from './ui/voice/mic.js';
   export { isEarnedLevelClimb } from './ui/NextDue.jsx';
@@ -16,7 +17,9 @@ const {
   playSound,
   playTimerChime,
   playSoundPreview,
+  stopSoundPreview,
   resetSoundEngineForTests,
+  AppearanceSection,
   holdAudioCapture,
   isAudioCaptureActive,
   createVoiceRecorder,
@@ -33,7 +36,7 @@ function memoryStorage(initial = {}) {
   };
 }
 
-function createFakeAudioEnv() {
+function createFakeAudioEnv({ defaultResumeImpl = null } = {}) {
   const contexts = [];
   const originalAudioContext = Object.getOwnPropertyDescriptor(globalThis, 'AudioContext');
   const originalLocalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
@@ -48,10 +51,14 @@ function createFakeAudioEnv() {
       this.resumed = 0;
       this.closed = false;
       this.plays = [];
+      this.gains = [];
+      this.filters = [];
+      this.resumeImpl = defaultResumeImpl;
       contexts.push(this);
     }
     resume() {
       this.resumed += 1;
+      if (this.resumeImpl) return this.resumeImpl(this);
       this.state = 'running';
       return Promise.resolve();
     }
@@ -79,7 +86,12 @@ function createFakeAudioEnv() {
         buffer: null,
         playbackRate: { value: 1 },
         connectedTo: null,
+        disconnected: 0,
+        stopped: 0,
+        onended: null,
         connect: (target) => { src.connectedTo = target; return target; },
+        disconnect: () => { src.disconnected += 1; src.connectedTo = null; },
+        stop: () => { src.stopped += 1; },
         start: (when = 0) => {
           this.plays.push({ when, source: src, samples: src.buffer?.length || 0, playbackRate: src.playbackRate.value });
         },
@@ -91,8 +103,11 @@ function createFakeAudioEnv() {
         value: null,
         gain: { setValueAtTime: (value) => { gain.value = value; } },
         connectedTo: null,
+        disconnected: 0,
         connect: (target) => { gain.connectedTo = target; return target; },
+        disconnect: () => { gain.disconnected += 1; gain.connectedTo = null; },
       };
+      this.gains.push(gain);
       return gain;
     }
     createBiquadFilter() {
@@ -101,8 +116,11 @@ function createFakeAudioEnv() {
         frequency: { value: 2550, setValueAtTime: (v) => { filter.frequency.value = v; } },
         Q: { value: 0.7, setValueAtTime: (v) => { filter.Q.value = v; } },
         connectedTo: null,
+        disconnected: 0,
         connect: (target) => { filter.connectedTo = target; return target; },
+        disconnect: () => { filter.disconnected += 1; filter.connectedTo = null; },
       };
+      this.filters.push(filter);
       return filter;
     }
   }
@@ -252,4 +270,177 @@ test('isEarnedLevelClimb matches NextDue mastery progression semantics', () => {
   assert.equal(isEarnedLevelClimb({ correct: true, level: 'familiar', beforeLevel: 'familiar' }), false);
   assert.equal(isEarnedLevelClimb({ correct: true, level: 'learning', beforeLevel: 'weak' }), true);
   assert.equal(isEarnedLevelClimb({ correct: true, level: 'mastered' }, { beforeLevel: 'familiar' }), true);
+});
+
+test('suspended AudioContext never queues source.start synchronously while resume() is blocked and drops stale (>180ms) cues', async () => {
+  let unlockResume = null;
+  const env = createFakeAudioEnv({
+    defaultResumeImpl: (ctx) => new Promise((resolve) => {
+      unlockResume = () => {
+        ctx.state = 'running';
+        resolve();
+      };
+    }),
+  });
+  const realNow = Date.now;
+  let now = 10_000;
+  Date.now = () => now;
+  try {
+    resetSoundEngineForTests();
+    saveAppearance({ sound: 'standard' }, env.storage);
+
+    // Fire multiple cues while ctx.state === 'suspended' and resume() is blocked.
+    assert.equal(playSound('tap', { skipThrottle: true }), true);
+    now += 20;
+    assert.equal(playSound('flip', { skipThrottle: true }), true);
+    now += 20;
+    assert.equal(playSound('correct', { skipThrottle: true }), true);
+    const ctx = env.contexts[0];
+    assert.equal(ctx.state, 'suspended');
+    assert.equal(ctx.plays.length, 0, 'zero synchronous source.start calls queued while suspended');
+    assert.ok(ctx.resumed >= 1, 'resume() requested while suspended');
+
+    // User gesture arrives 250ms later (> 180ms stale threshold): queued cue must be dropped, never burst.
+    now += 250;
+    unlockResume();
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.equal(ctx.state, 'running');
+    assert.equal(ctx.plays.length, 0, 'stale (>180ms) suspended cues are dropped instead of bursting on unlock');
+
+    // Suspend again and unlock within <= 180ms: plays at most the single fresh cue (no stacked burst).
+    await ctx.suspend();
+    ctx.resumeImpl = (target) => new Promise((resolve) => {
+      unlockResume = () => {
+        target.state = 'running';
+        resolve();
+      };
+    });
+    assert.equal(playSound('tap', { skipThrottle: true }), true);
+    now += 15;
+    assert.equal(playSound('flip', { skipThrottle: true }), true);
+    assert.equal(ctx.plays.length, 0);
+    now += 80; // 80ms <= 180ms
+    unlockResume();
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.equal(ctx.plays.length, 1, 'fresh (<180ms) unlock plays only the latest single cue, never a stacked burst');
+
+    // Suspend again, switch sound to off before unlock -> nothing plays on unlock.
+    await ctx.suspend();
+    ctx.resumeImpl = (target) => new Promise((resolve) => {
+      unlockResume = () => {
+        target.state = 'running';
+        resolve();
+      };
+    });
+    assert.equal(playSound('correct', { skipThrottle: true }), true);
+    saveAppearance({ sound: 'off' }, env.storage);
+    now += 40;
+    unlockResume();
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.equal(ctx.plays.length, 1, 'muting before resume resolves suppresses the pending cue');
+  } finally {
+    Date.now = realNow;
+    env.restore();
+  }
+});
+
+test('source.onended disconnects source, gain, and warmBus (BiquadFilterNode) cleanly without leaking graph nodes', () => {
+  const env = createFakeAudioEnv();
+  try {
+    resetSoundEngineForTests();
+    saveAppearance({ sound: 'standard' }, env.storage);
+    assert.equal(playSound('correct', { skipThrottle: true }), true);
+    const ctx = env.contexts[0];
+    assert.equal(ctx.plays.length, 1);
+    const src = ctx.plays[0].source;
+    const gain = ctx.gains[0];
+    const warmBus = ctx.filters[0];
+    assert.ok(src && gain && warmBus, 'source, gain and warmBus created');
+    assert.equal(src.connectedTo, gain);
+    assert.equal(gain.connectedTo, warmBus);
+    assert.equal(warmBus.connectedTo, ctx.destination);
+    assert.equal(typeof src.onended, 'function', 'source.onended handler attached');
+
+    src.onended();
+    assert.equal(src.disconnected, 1, 'source disconnected on ended');
+    assert.equal(gain.disconnected, 1, 'gain disconnected on ended');
+    assert.equal(warmBus.disconnected, 1, 'warmBus disconnected on ended');
+
+    // Idempotent if invoked twice.
+    src.onended();
+    assert.equal(src.disconnected, 1);
+    assert.equal(gain.disconnected, 1);
+    assert.equal(warmBus.disconnected, 1);
+  } finally {
+    env.restore();
+  }
+});
+
+function findReactElement(node, predicate) {
+  if (!node || typeof node !== 'object') return null;
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      const hit = findReactElement(item, predicate);
+      if (hit) return hit;
+    }
+    return null;
+  }
+  if (predicate(node)) return node;
+  if (node.props?.children) return findReactElement(node.props.children, predicate);
+  return null;
+}
+
+test('stopSoundPreview cancels scheduled preview cues and AppearanceSection calls it when switching sound to off', async () => {
+  const env = createFakeAudioEnv();
+  try {
+    resetSoundEngineForTests();
+    saveAppearance({ sound: 'standard' }, env.storage);
+
+    assert.equal(playSoundPreview('subtle'), true);
+    const directCtx = env.contexts[0];
+    assert.equal(directCtx.plays.length, 1);
+    stopSoundPreview();
+    assert.equal(directCtx.plays[0].source.stopped, 1, 'direct stopSoundPreview() stops active preview source');
+
+    assert.equal(playSoundPreview('standard'), true);
+    const ctx = env.contexts[0];
+    assert.equal(ctx.plays.length, 2, 'step 0 of second preview played immediately');
+    const firstPreviewSource = ctx.plays[1].source;
+
+    let chosenSound = 'standard';
+    const tree = AppearanceSection({
+      appearance: {
+        language: 'zh',
+        theme: 'light',
+        sound: chosenSound,
+        onLanguage: () => {},
+        onTheme: () => {},
+        onSound: (value) => {
+          chosenSound = value;
+          saveAppearance({ sound: value }, env.storage);
+        },
+      },
+    });
+    const soundControl = findReactElement(
+      tree,
+      (el) => typeof el?.props?.onChange === 'function'
+        && Array.isArray(el?.props?.options)
+        && el.props.options.some((opt) => opt.value === 'subtle'),
+    );
+    assert.ok(soundControl, 'found sound SegmentedControl in AppearanceSection');
+
+    // Switching sound to 'off' via AppearanceSection calls stopSoundPreview(), stopping step 0 and cancelling steps at 160ms & 370ms.
+    soundControl.props.onChange('off');
+    assert.equal(chosenSound, 'off');
+    assert.equal(firstPreviewSource.stopped, 1, 'active preview buffer source stopped immediately');
+    assert.equal(firstPreviewSource.disconnected, 1, 'active preview buffer source disconnected');
+
+    await new Promise((resolve) => setTimeout(resolve, 420));
+    assert.equal(ctx.plays.length, 2, 'delayed preview cues (160ms, 370ms) were cancelled when switched to off');
+  } finally {
+    env.restore();
+  }
 });

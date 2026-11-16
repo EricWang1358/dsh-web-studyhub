@@ -84,7 +84,13 @@ export function useFinder({ nav, settingsEntry, core, tour, rootRef, learn }) {
           const ok = await latest.current.core.act('focus.set', { course: targetCourse });
           if (!ok) return;
         }
-        keepBook(root, targetCourse, { target: target.chapterId || null, switched });
+        keepBook(root, targetCourse, {
+          target: target.chapterId || null,
+          paragraphIndex: Number.isInteger(entry.paragraphIndex) ? entry.paragraphIndex : (Number.isInteger(target.paragraphIndex) ? target.paragraphIndex : null),
+          query: entry.query || target.query || '',
+          snippet: entry.snippet || target.snippet || '',
+          switched,
+        });
         navigate('book', { keepTrail: false, scroll: true });
         return;
       }

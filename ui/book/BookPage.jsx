@@ -39,7 +39,7 @@ import { hintDocOf, indexHintFor, INDEX_HINT_PAGES } from '../index-hint.js';
 import { groupSourcesByDocument } from '../../lib/source-groups.js';
 import { bookParts, showsPart } from './book-parts.js';
 import { bookCoverage, crunchWindow, resolveBookSettings } from '../../lib/book-settings.js';
-import { bookRows, crunchDateHint, keepBook, tocEntries } from './model.js';
+import { bookRows, crunchDateHint, keepBook, rowOf, tocEntries } from './model.js';
 import css from './book.css';
 import aiCss from './book-ai.css';
 
@@ -67,7 +67,7 @@ export function handleBookFindShortcut(event, { view, ready, inOverlay, onOpen }
 
 /** data: the snapshot; onBack() (the 总纲); onPractice(scope, { resume, place }); onOpenSource(sourceId, quote); onCreate() (出题); onOpenTask(jobId);
     onExamRun(run): enters a mock exam started here (M7); onCourseSettings(courseId); theme: 'light' | 'dark' (the editor's); holdLeave(ask): the app's leave gate, held while the editor has unsaved text. */
-export default function BookPage({ data, onBack, onPractice, onOpenSource, onCreate, onOpenTask, onExamRun, onCourseSettings, onBuildIndex, theme, holdLeave }) {
+export default function BookPage({ data, onBack, onPractice, onOpenSource, onCreate, onOpenTask, onExamRun, onCourseSettings, onBuildIndex, theme, holdLeave, paragraphIndex = null, searchQuery = '' }) {
   useInjectCss(css, 'study-book');
   useInjectCss(aiCss, 'study-book-ai');
   const { call, act, notify } = useStudy();
@@ -121,11 +121,33 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   useEffect(() => { setTocOver(false); }, [narrow]);
   const tocOpen = narrow ? tocOver : tocWide;
   // 在书里找 (the 目录's box, ui/book/book-search.js): what is typed stays while a narrow 目录 is closed; `found` is the point a row went to, its words marked while it is drawn.
-  const [findQuery, setFindQuery] = useState(''), [found, setFound] = useState(null);
+  const initialSearchRef = useRef(
+    (where.kept?.query || where.kept?.snippet || Number.isInteger(where.kept?.paragraphIndex))
+      ? { target: where.kept?.target ?? null, paragraphIndex: where.kept?.paragraphIndex ?? null, query: where.kept?.query || '', snippet: where.kept?.snippet || '' }
+      : null,
+  );
+  const [findQuery, setFindQuery] = useState(() => searchQuery || where.kept?.query || ''), [found, setFound] = useState(null);
   const dropFound = useCallback(() => setFound(null), []);
   const onFindQuery = useCallback(text => { setFindQuery(text); if (!text.trim()) setFound(null); }, []);
-  const { goTo } = where;
-  const onFound = useCallback((row, query) => { goTo(row.hid); setFound({ hid: row.hid, query, count: row.count, nonce: Date.now() }); }, [goTo]);
+  const { goTo, stopHold, current: whereCurrent } = where;
+  const onFound = useCallback((row, query) => { goTo(row.hid, { hold: false }); setFound({ hid: row.hid, query, count: row.count, nonce: Date.now() }); }, [goTo]);
+  useEffect(() => {
+    if (book?.status !== 'ok' || !book?.notes || !steps.length) return;
+    const pending = initialSearchRef.current;
+    const propHasTarget = Boolean(searchQuery || Number.isInteger(paragraphIndex));
+    if (!pending && !propHasTarget) return;
+    initialSearchRef.current = null;
+    const wantedTarget = pending?.target ?? null;
+    const resolvedRow = wantedTarget ? rowOf(rows, wantedTarget) : null;
+    const hid = resolvedRow?.hid ?? steps[whereCurrent]?.hid ?? steps[0]?.hid ?? null;
+    if (!hid) return;
+    const nextQuery = searchQuery || pending?.query || '';
+    const nextSnippet = pending?.snippet || '';
+    const nextParagraphIndex = Number.isInteger(paragraphIndex) ? paragraphIndex : (Number.isInteger(pending?.paragraphIndex) ? pending.paragraphIndex : null);
+    if (nextQuery) setFindQuery(nextQuery);
+    if (resolvedRow && resolvedRow.hid !== steps[whereCurrent]?.hid) goTo(resolvedRow.hid, { hold: false });
+    setFound({ hid, query: nextQuery, snippet: nextSnippet, paragraphIndex: nextParagraphIndex, count: 1, nonce: Date.now() });
+  }, [book?.status, book?.notes, steps, rows, whereCurrent, goTo, paragraphIndex, searchQuery]);
   const tocSearchRef = useRef(null), pendingFindFocusRef = useRef(false);
   const [findFocusTick, setFindFocusTick] = useState(0);
   const openBookFind = useCallback(() => {
@@ -167,7 +189,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     });
     return () => cancelAnimationFrame?.(frame);
   }, [findFocusTick, view, tocOpen]);
-  useFoundMarks({ found, drawn: `${view}:${reading.mode}:${where.stepAt}:${book?.revision}`, pageRef, aiFold, onGone: dropFound });
+  useFoundMarks({ found, drawn: `${view}:${reading.mode}:${where.stepAt}:${book?.revision}`, pageRef, aiFold, stopHold, onGone: dropFound });
   useStepKeys(view === 'read' && !tocOver && book?.status === 'ok' && !!book.notes, where.go);
   // Leaving the editor with unsaved text asks first: the 完成 button and another course here, every other way out of the page through the app's one leave gate
   // (holdLeave, ui/app/navigator.js createLeaveGate), closing or reloading the tab through the browser's own question.

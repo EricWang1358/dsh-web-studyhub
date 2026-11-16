@@ -444,9 +444,6 @@
     .nb-due .nb-due__eyebrow {
       margin-bottom: var(--space-2);
     }
-    .nb-row.due {
-      border-left: 3px solid var(--warn);
-    }
     .nb-search {
       display: flex;
       gap: var(--space-2);

@@ -16,9 +16,10 @@ export function reviewParts(old) {
     teaching: old.teaching ?? null, teachAnswer: old.teachAnswer ?? '' };
   const actions = { reviewAct: old.reviewAct ?? noop, choose: noop, flipCard: noop, assistCard: old.assistCard ?? noop, slayCard: noop, studyPrerequisites: noop,
     teachingAct: old.teachingAct ?? noop, toggleEn: noop, toggleHelp: noop, setResponse: noop, setClozeValue: noop, setTeachAnswer: noop, closeShortcutHelp: noop,
-    showExplanation: noop, askAboutCard: noop, improveCard: noop, toggleAutopilot: old.toggleAutopilot ?? noop };
+    showExplanation: noop, askAboutCard: noop, improveCard: noop, toggleAutopilot: old.toggleAutopilot ?? noop,
+    toggleSelfGradeAdvance: old.toggleSelfGradeAdvance, undoAnswer: old.undoAnswer };
   const session = { run: old.run, entry, showBack: !!old.showBack, showEn: !!old.showEn, enBusyKey: old.enBusyKey || '', keyGrade: old.keyGrade ?? null, teachingBusy: !!old.teachingBusy,
-    autopilot: !!old.autopilot, choice: old.choice ?? kind.choice, isCloze: old.isCloze ?? kind.isCloze, rubricCard: kind.rubricCard, enterRun: old.enterRun ?? noop, actions };
+    autopilot: !!old.autopilot, selfGradeAdvance: old.selfGradeAdvance, choice: old.choice ?? kind.choice, isCloze: old.isCloze ?? kind.isCloze, rubricCard: kind.rubricCard, enterRun: old.enterRun ?? noop, actions };
   const services = { call: old.call ?? (async () => ({})), act: old.act ?? (async () => undefined), busy: !!old.busy, notify: noop, askInChat: old.askInChat ?? noop,
     host: old.host ?? {}, openSettings: noop, navigate: old.setPage ?? noop, openModal: old.setModal ?? noop };
   const links = Object.fromEntries(['onBackToWorkflow', 'onCourseFlow', 'openSkeleton', 'onOpenNote', 'onMakeNote', 'onMakeTask', 'onRecapSettings', 'onModelSettings', 'onReturnToReading']

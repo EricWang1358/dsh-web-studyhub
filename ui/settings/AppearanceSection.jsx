@@ -3,7 +3,7 @@ import { ui } from '../i18n.js';
 import { APPEARANCE_LABELS, APPEARANCE_OPTIONS } from '../appearance-prefs.js';
 import { FONT_NAME_MAX, cleanFontName } from '../font-presets.js';
 import { Button, Disclosure, Field, InlineMessage, SegmentedControl, SettingsSection, TextInput } from '../components/index.js';
-import { playSound, playSoundPreview } from '../sound-effects.js';
+import { playSound, playSoundPreview, stopSoundPreview } from '../sound-effects.js';
 import AppearanceTransfer from './AppearanceTransfer.jsx';
 
 /** The choices of one appearance setting, from the module's own lists (so a new value shows up here by itself). */
@@ -63,7 +63,11 @@ export default function AppearanceSection({ appearance }) {
             <SegmentedControl label={ui('互动音效')} value={appearance.sound || 'off'}
               onChange={(value) => {
                 appearance.onSound(value);
-                if (value && value !== 'off') playSound(value === 'standard' ? 'tap' : 'flip', { mode: value });
+                if (!value || value === 'off') stopSoundPreview();
+                else {
+                  stopSoundPreview();
+                  playSound(value === 'standard' ? 'tap' : 'flip', { mode: value });
+                }
               }}
               options={appearanceOptions('sound')} />
             <Button variant="quiet" size="sm" icon="play" className="appearance-sound-preview"

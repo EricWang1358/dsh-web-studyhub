@@ -30,10 +30,21 @@ const visible = element => element.getClientRects().length > 0;
 const drawn = element => element.checkVisibility?.() !== false;
 const union = rects => rects.reduce((all, r) => ({ left: Math.min(all.left, r.left), top: Math.min(all.top, r.top), right: Math.max(all.right, r.right), bottom: Math.max(all.bottom, r.bottom) }));
 
-/** The row (the buttons of `group`, with the control itself) and the block (`bar`, the whole toolbar, or the group) a tip is placed against. */
+/** The row (the buttons of `group`, with the control itself) and the block (`bar`, the whole toolbar plus any visible feedback note right below it, or the group) a tip is placed against. */
 function originOf(group, at, bar) {
   const row = union([...group.querySelectorAll('button')].filter(visible).map(button => button.getBoundingClientRect()).concat(at));
-  return { row, block: (bar ?? group).getBoundingClientRect() };
+  let block = (bar ?? group).getBoundingClientRect();
+  if (bar) {
+    const scope = bar.closest('.question-area');
+    const feedbackMsg = scope ? [...scope.querySelectorAll('.action-feedback-slot > *')].find(visible) : null;
+    if (feedbackMsg) {
+      const msgRect = feedbackMsg.getBoundingClientRect();
+      if (msgRect.top >= block.top && msgRect.top <= block.bottom + 32) {
+        block = { left: Math.min(block.left, msgRect.left), top: block.top, right: Math.max(block.right, msgRect.right), bottom: Math.max(block.bottom, msgRect.bottom) };
+      }
+    }
+  }
+  return { row, block };
 }
 
 /** What the learner reads or presses on the question's column right now: every line of text, every button and field, and the divider above the explanation. The tip lies over none of it. */
@@ -44,7 +55,7 @@ function keepClear(area, card) {
     range.selectNodeContents(node);
     for (const r of range.getClientRects()) if (r.width > 1 && r.height > 1 && r.bottom > 0 && r.top < window.innerHeight) boxes.push(r);
   }
-  for (const element of area.querySelectorAll(CONTROLS)) if (!card.contains(element) && visible(element) && drawn(element)) boxes.push(element.getBoundingClientRect());
+  for (const element of area.querySelectorAll(`${CONTROLS}, .question-card .next-due, .action-feedback-slot > *`)) if (!card.contains(element) && visible(element) && drawn(element)) boxes.push(element.getBoundingClientRect());
   const explanation = area.querySelector('.explanation');
   if (explanation && visible(explanation)) { const r = explanation.getBoundingClientRect(); boxes.push({ left: r.left, right: r.right, top: r.top - 1, bottom: r.top + 2 }); }
   return boxes;

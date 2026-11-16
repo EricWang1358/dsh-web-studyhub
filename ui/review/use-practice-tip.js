@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { reviewEntryKey } from '../async.js';
 import { PRACTICE_TIP, markPracticeTipSeen, practiceTipFor, practiceTipState } from '../guidance/practice-tips.js';
-import { isPassed } from './session-logic.js';
+import { isPassed, isSelfGradedRun } from './session-logic.js';
 
 /*
  * The first-use tip of the practice page that is on screen now (ui/review/PracticeTip.jsx draws it; the rule is ui/guidance/practice-tips.js). The page says which
@@ -22,7 +22,7 @@ export function usePracticeTip({ run, votedDown = false, tooHard = false, answer
   const held = useRef({ key: '', ids: [] });
   const modelReadyRef = useRef(modelReady);
   modelReadyRef.current = modelReady;
-  const key = reviewEntryKey(run), exam = run?.mode === 'exam', feedbackWrong = !!run?.feedback && (!isPassed(run) || tooHard);
+  const key = reviewEntryKey(run), exam = run?.mode === 'exam', feedbackWrong = !!run?.feedback && !isSelfGradedRun(run) && (!isPassed(run) || tooHard);
   const choose = useCallback(id => { active.current = { id, shown: false }; setTip(id); }, []);
   const seen = useCallback(id => { markPracticeTipSeen(id); if (active.current.id === id) choose(null); }, [choose]);
 

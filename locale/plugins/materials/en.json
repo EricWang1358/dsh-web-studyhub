@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "StudyHub · Materials",
-    "description": "Import PDFs, notes and web pages as citable sources."
+    "description": "Import PDFs, notes and local saved HTML files (.html) as citable sources (offline-only; no remote URL fetching)."
   }
 }

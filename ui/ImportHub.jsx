@@ -385,7 +385,7 @@ function CourseChoice({ value, focus, from, courses, onChange, disabled }) {
   return (
     <div className="import-hub__course">
       <p className="import-hub__chip">
-        <strong>{chosen.length ? uiFormat('归入「{0}」', [chosen.join(ui('、'))]) : ui('未分类')}</strong>
+        <strong>{chosen.length ? uiFormat('归入「{0}」', [chosen.join(ui('、'))]) : ui('归入：未分类')}</strong>
         {reason && <small>{reason}</small>}
         <Button variant="link" size="sm" aria-expanded={editing} aria-controls={fieldId} disabled={disabled} onClick={() => setEditing(open => !open)}>
           {editing ? ui('收起') : ui('更改')}

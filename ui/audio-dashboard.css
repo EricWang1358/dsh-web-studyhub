@@ -24,7 +24,7 @@
     .audio-dashboard-metrics > div > span { color: var(--text-muted); font-size: var(--fs-xs); }
     .audio-dashboard-metrics strong { display: block; font-size: var(--fs-4xl); font-weight: var(--fw-strong); letter-spacing: -.045em; font-variant-numeric: tabular-nums; margin-top: var(--space-1); }
     .audio-dashboard-metrics strong small { color: var(--text-muted); font-size: var(--fs-xs); margin-left: var(--space-2); letter-spacing: 0; font-weight: var(--fw-regular); }
-    .audio-dashboard-metrics .audio-token-count { font-size: var(--fs-2xl); }
+    .audio-dashboard-metrics .audio-token-count { font-size: var(--fs-2xl); font-variant-numeric: tabular-nums; }
     .audio-provider-list { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,170px),1fr)); gap: var(--space-6); padding-block: var(--space-6); border-block: 1px solid var(--line); }
     .audio-provider { --provider-color: var(--usage-free); min-width: 0; }
     .audio-provider.siliconflow { --provider-color: var(--usage-siliconflow); }

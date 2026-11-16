@@ -79,7 +79,7 @@
     .question-area {
       /* 700px at the standard reading width and size (44em of 16px); 窄 / 宽 and a larger size change it. */
       width: min(var(--review-column, 700px), calc(100% - 48px));
-      margin: var(--space-7) auto var(--space-9);
+      margin: var(--space-7) auto calc(var(--space-9) * 2);
     }
     .question-area:not(.flash-area) .question-card {
       --paper-pad-top: var(--space-4-5);
@@ -174,6 +174,11 @@
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+    .question-meta__overflow {
+      color: var(--text-faint);
+      font-size: var(--fs-xs);
+      font-variant-numeric: tabular-nums;
     }
     .question-meta .question-meta__action {
       padding: var(--space-1) var(--space-2);
@@ -385,6 +390,9 @@
       padding: 0 var(--space-2);
       gap: var(--space-2) var(--space-4);
     }
+    .review-sticky-bar > .question-toolbar {
+      margin-top: 0;
+    }
     .question-toolbar > div {
       display: flex;
       flex-wrap: wrap;
@@ -417,12 +425,11 @@
     .question-toolbar > .next-hint { flex: 1 0 100%; margin: 0; text-align: right; }
     .question-toolbar .question-navigation { gap: var(--space-2); }
     /* A drawn chevron: the "⌄" glyph sits below the baseline and read as a subscript. */
-    /* EN 附文：始终紧跟其中文原文之后，弱一级、左侧一道色杠。 */
+    /* EN 附文：始终紧跟其中文原文之后，弱一级、淡底。 */
     .en-block {
       margin-top: var(--space-2-5);
       padding: var(--space-2) var(--space-3);
-      border-left: 3px solid var(--line-strong);
-      border-radius: 0 var(--radius) var(--radius) 0;
+      border-radius: var(--radius);
       background: var(--bg-sunken);
       color: var(--text-dim);
       font-size: var(--fs-md);
@@ -441,9 +448,8 @@
     & p.en-block.en-inline-line { margin-top: var(--space-2); }
     .hint {
       background: var(--warn-bg);
-      border-left: 2px solid var(--warn);
       padding: var(--space-3-5) var(--space-4-5);
-      border-radius: 0 var(--radius) var(--radius) 0;
+      border-radius: var(--radius);
       display: flex;
       gap: var(--space-3-5);
       margin-bottom: var(--space-4);
@@ -459,6 +465,11 @@
       font-size: var(--fs-md);
       color: var(--ok-ink);
       margin: var(--space-4) 0;
+    }
+    .next-due.next-due--verdict {
+      width: fit-content;
+      margin: var(--space-3-5) 0 var(--space-3);
+      font-weight: var(--fw-medium);
     }
     /* The icon has its own column: a lead line that wraps starts its second line under the words, not under the icon. */
     .next-due__lead { display: flex; align-items: flex-start; gap: var(--space-1-5); margin: 0; }
@@ -601,8 +612,7 @@
       margin: 0 0 var(--space-3-5);
       padding: var(--space-3) var(--space-3-5);
       background: var(--bg-sunken);
-      border-left: 2px solid var(--line-strong);
-      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      border-radius: var(--radius-sm);
       color: var(--text);
       font-size: var(--fs-md);
       line-height: 1.65;

@@ -151,21 +151,25 @@ test('delete: by id with the answers inside it, a whole passage, or all; it retu
   assert.equal('annotations' in record, false, 'an empty record leaves no field behind');
 });
 
-test('a new revision does not inherit the notes: they are listed as stale with their passages, and can be cleared', async t => {
+test('a new revision re-anchors notes whose passages still exist, lists deleted ones as stale, and can clear stale notes', async t => {
   const f = await fixture(t), { document } = await f.imported();
+  await f.call('save', { documentId: document.documentId, revision: document.revision, selection: await f.select(document, 'latency and availability'), nodes: [node('b1', { label: 'Kept' })] });
   await f.call('save', { documentId: document.documentId, revision: document.revision, selection: await f.select(document, 'CQRS design'), nodes: [node('a1', { label: 'Why' }), node('a2', { parentId: 'a1' })] });
-  const next = await f.imported(markdown(A, B, C, 'A new paragraph.'), 'notes.md', document.documentId);
+  const next = await f.imported(markdown('An added preface.', A, B, 'A rewritten final paragraph.'), 'notes.md', document.documentId);
   assert.notEqual(next.revision, document.revision);
   const list = await f.call('list', { documentId: document.documentId, revision: next.revision });
-  assert.equal(list.items.length, 0);
-  assert.equal(list.stale.length, 1);
+  assert.equal(list.items.length, 1, 'the unchanged passage re-anchors onto the new revision');
+  assert.equal(list.items[0].id, 'b1');
+  assert.equal(list.items[0].status, 'resolved');
+  assert.equal(list.stale.length, 1, 'the deleted passage is listed as stale');
   assert.deepEqual([list.stale[0].revision, list.stale[0].count], [document.revision, 2]);
   assert.deepEqual(list.stale[0].threads.map(thread => [thread.quote.slice(0, 11), thread.question, thread.nodes]), [['CQRS design', 'Why', 2]]);
   // The old revision is still readable as it was.
-  assert.equal((await f.call('list', { documentId: document.documentId, revision: document.revision })).items.length, 2);
+  assert.equal((await f.call('list', { documentId: document.documentId, revision: document.revision })).items.length, 3);
   const cleared = await f.call('delete', { documentId: document.documentId, revision: next.revision, stale: true });
   assert.equal(cleared.deleted, 2);
   assert.equal((await f.call('list', { documentId: document.documentId, revision: next.revision })).stale.length, 0);
+  assert.equal((await f.call('list', { documentId: document.documentId, revision: next.revision })).items.length, 1);
 });
 
 test('a document with no record keeps them on its first source, and a rename keeps them', async t => {

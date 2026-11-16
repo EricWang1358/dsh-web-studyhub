@@ -93,9 +93,10 @@ export function useBookPlace({ root, course, book, rows, toc, steps, chapters, r
     const shown = landing ? (reading.mode === 'step' && !landing.leaf ? step?.hid : landing.hid) : typed && wanted;
     setHere(shown ?? step?.hid ?? chapter ?? null);
     const back = !!given?.back && !given.target, same = back && !refuge;
-    restore.current = shown ? { hid: shown, offset: given?.target || refuge ? null : given?.offset ?? null, point: same ? given.point : null, folds: same ? given.folds : null, focus: back, land: true } : null;
+    const hasSearchTarget = Boolean(given?.query || given?.snippet || Number.isInteger(given?.paragraphIndex));
+    restore.current = shown ? { hid: shown, offset: given?.target || refuge ? null : given?.offset ?? null, point: same ? given.point : null, folds: same ? given.folds : null, focus: back, land: !hasSearchTarget } : null;
     first.current = null;
-    keepBook(root, course, { target: null, back: false, point: null, chapter: null, folds: null });
+    keepBook(root, course, { target: null, back: false, point: null, chapter: null, folds: null, paragraphIndex: null, query: '', snippet: '' });
   }, [book]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useLayoutEffect(() => {
@@ -200,13 +201,13 @@ export function useBookPlace({ root, course, book, rows, toc, steps, chapters, r
   }, [keeper, rows, chapters, pageRef]);
 
   // A heading of the 目录 (or of 速查页, 翻看, 今天读哪几节): its chapter opens and its point with it; 逐节读 shows that point (a chapter or section: its first).
-  const goTo = useCallback(id => {
+  const goTo = useCallback((id, options = {}) => {
     const entry = toc.find(item => item.id === id), step = steps[stepIndexOf(steps, toc, rows, id)], row = rowOf(rows, id);
     if (entry?.chapter) setOpen(current => new Set([...current, entry.chapter]));
     if (step) { setStepHid(step.hid); reading.only(step.hid); }
     // 逐节读 draws no chapter or section heading: their first point is shown instead.
     const shown = reading.mode === 'step' && step && row && !row.leaf ? step.hid : id;
-    restore.current = { hid: shown, offset: null };
+    restore.current = { hid: shown, offset: null, land: options.hold !== false };
     setHere(shown);
   }, [toc, steps, rows, reading]);
   // ‹ › and ← →: the point before or after the one being read, shown from its top (整章连着读: opened in its chapter).
@@ -238,5 +239,9 @@ export function useBookPlace({ root, course, book, rows, toc, steps, chapters, r
     // `read`: for the reading surface only (not a row of 翻看, which may be what is drawn until then).
     if (element) restore.current = { hid: id, offset: element.getBoundingClientRect().top, read: true };
   }, []);
-  return { kept, open, toggleChapter, here, stepAt, current, goTo, go, switchReading, remember, hold };
+  const stopHold = useCallback(() => {
+    holding.current?.();
+    holding.current = null;
+  }, []);
+  return { kept, open, toggleChapter, here, stepAt, current, goTo, go, switchReading, remember, hold, stopHold };
 }

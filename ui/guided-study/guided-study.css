@@ -247,7 +247,6 @@
       border-radius: var(--radius-sm);
       font-size: var(--fs-sm);
       color: var(--text-dim);
-      border-left: 3px solid var(--line-strong);
     }
 
     .guided-study-card-actions {

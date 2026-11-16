@@ -200,5 +200,6 @@ test('the book is never material: no 资料 list, no search, no context count, n
   assert.match(retrieval, /sources\.filter\(source => notExamPointList\(source\)/);
   assert.equal(JSON.stringify(await service.call('snapshot')).includes('还有 5 道题'), false, 'the book is read on demand, not carried by the snapshot');
   assert.match(libraryContracts.learning, /course\.book\.open \{course\?\}/);
-  assert.match(studyToolDescription, /course\.outline\.qa, course\.book\.open/);
+  assert.match(studyToolDescription, /library\.context \{area:"index"\}/);
+  assert.match(libraryContracts.index, /course\.outline\.qa, course\.book\.open/);
 });

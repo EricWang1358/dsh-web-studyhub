@@ -441,7 +441,7 @@ test('#9: PageHeader status counts are interactive filter toggles even when tota
     return found;
   };
   const gradedBtn = findToggle('客观答错 1 题');
-  const selfBtn = findToggle('自评未掌握 1 题');
+  const selfBtn = findToggle('未掌握 1 题');
   const rubricBtn = findToggle('按评分标准批改未达标 1 题');
   assert.ok(gradedBtn && selfBtn && rubricBtn, 'non-zero counts render as toggle buttons even below filterMin');
   assert.equal(findToggle('口头评估待巩固 0 题'), null, 'zero counts remain plain text');

@@ -56,6 +56,7 @@
     "tests/fix-phrases-browser.test.mjs",
     "tests/follow-label-fit-browser.test.mjs",
     "tests/generate-flow-browser.test.mjs",
+    "tests/generate-picker-rows-browser.test.mjs",
     "tests/generate-short-browser.test.mjs",
     "tests/generation-transparency-browser.test.mjs",
     "tests/grade-key-feedback-browser.test.mjs",
@@ -122,8 +123,10 @@
     "tests/reader-pdf-view-browser.test.mjs",
     "tests/reader-slim-browser.test.mjs",
     "tests/report-kit-browser.test.mjs",
+    "tests/restore-points.test.mjs",
     "tests/review-autopilot-way-back.test.mjs",
     "tests/review-run-context-browser.test.mjs",
+    "tests/review-step-budget.test.mjs",
     "tests/round-setup-browser.test.mjs",
     "tests/row-coverage-browser.test.mjs",
     "tests/science-settings-browser.test.mjs",
@@ -132,6 +135,7 @@
     "tests/settings-entry-targets.test.mjs",
     "tests/source-split-browser.test.mjs",
     "tests/sources-filter-archive-batch-browser.test.mjs",
+    "tests/sources-narrow-browser.test.mjs",
     "tests/spine-layout.test.mjs",
     "tests/study-image-cards.test.mjs",
     "tests/study-markdown.test.mjs",
@@ -159,7 +163,8 @@
     "tests/wp2f-shell-browser.test.mjs",
     "tests/wp5-tour-steps.test.mjs",
     "tests/wrongbook-distribution-browser.test.mjs",
-    "tests/wrongbook-filters-browser.test.mjs"
+    "tests/wrongbook-filters-browser.test.mjs",
+    "tests/wrongbook-header-steady-browser.test.mjs"
   ],
   "ffmpeg": [
     "tests/audio-ogg-ffmpeg.test.mjs",

@@ -74,13 +74,15 @@
     .result-legend-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
     .result-page .result-next { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin: var(--space-5) 0 var(--space-4); }
     .result-page .summary-topics h3 { margin: 0 0 var(--space-3); font-size: var(--fs-lg); }
-    .result-page .summary-topics .summary-topics__empty { margin: 0; }
     .result-page .summary-method-alt, .result-page .summary-leech { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1-5); margin: var(--space-3) 0; color: var(--text-muted); font-size: var(--fs-md); }
     .result-page .result-details,
     .exam-report .result-details { border: 1px solid var(--line); border-radius: var(--radius); padding: var(--space-4) var(--space-5); margin-top: var(--space-4-5); }
     .result-details > summary { cursor: pointer; font-weight: var(--fw-strong); }
     /* 本轮题目 (ui/review/RoundLookBack.jsx, #1009): a row per question, its read-only look-back opening under it. */
     .round-look-back { margin-top: var(--space-4-5); }
+    .round-look-back__summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-3); cursor: pointer; }
+    .round-look-back__summary h3 { margin: 0; font-size: var(--fs-lg); }
+    .round-look-back--compact[open] > .round-look-back__summary { margin-bottom: var(--space-3); }
     .round-look-back__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-2) var(--space-3); }
     .round-look-back__lead { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-3); min-width: 0; }
     .round-look-back__tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1-5); margin-inline-start: auto; }

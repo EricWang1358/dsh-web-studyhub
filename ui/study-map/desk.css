@@ -122,12 +122,13 @@
        physical object on the page. Everything else is type. */
     .desk {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(270px, 340px);
+      grid-template-columns: minmax(0, 1fr) minmax(min(270px, 100%), 340px);
       align-items: start;
       gap: calc(var(--space-8) - var(--space-1)) calc(var(--space-9) + var(--space-4));
       padding: calc(var(--space-7) + var(--space-half)) 0 calc(var(--space-9) - var(--space-1));
       margin-bottom: var(--space-8);
       border-bottom: 1px solid var(--line-soft);
+      min-width: 0;
     }
     .desk-intro { min-width: 0; }
     .desk-mastery {
@@ -378,7 +379,7 @@
     :is(.study-app, .study-seat) {
       .desk[data-tour="home-hero"] { gap: var(--space-5) 0; padding-top: var(--space-4); }
       .desk > .desk-intro { display: contents; }
-      .desk > .today-stack { order: 11; justify-self: stretch; max-width: none; margin: 0 var(--space-3-5) var(--space-2) 0; }
+      .desk > .today-stack { order: 11; justify-self: stretch; width: auto; max-width: none; margin: 0 var(--space-3-5) var(--space-2) 0; }
       .desk > .desk-intro > .desk-mastery { order: 6; }
       .desk > .desk-intro > .desk-next { order: 7; margin-top: 0; }
       .desk > .desk-intro > .desk-also { order: 8; }
@@ -390,5 +391,20 @@
         .desk > .desk-intro > .course-method-line { order: 5; }
 
 }
+  }
+  @media (max-width: 760px) {
+    :where(.study-app, .study-seat) {
+      .desk {
+        grid-template-columns: minmax(0, 1fr);
+        padding-top: var(--space-4-5);
+        gap: 0;
+      }
+      .today-card-main { min-height: 0; }
+    }
+    :is(.study-app, .study-seat) {
+      .desk[data-tour="home-hero"] { gap: var(--space-5) 0; padding-top: var(--space-4); }
+      .desk > .desk-intro { display: contents; }
+      .desk > .today-stack { order: 11; justify-self: stretch; width: auto; max-width: none; margin: 0 var(--space-3-5) var(--space-2) 0; }
+    }
   }
 }

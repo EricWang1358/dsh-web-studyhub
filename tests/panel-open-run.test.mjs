@@ -120,5 +120,6 @@ test('the panel area spells out whole rounds and queue edits, and learning point
   assert.match(libraryContracts.panel, /panel\.open \{scope:\[\{deckId\?,cardId\}\]\}/);
   assert.match(libraryContracts.panel, /review\.queue\.edit \{runId,add\?/);
   assert.match(libraryContracts.learning, /more: area panel/);
-  assert.match(studyToolDescription, /review\.start\/get\/reveal\/answer\/move\/end\/queue\.edit/);
+  assert.match(studyToolDescription, /panel\.current\/open/);
+  assert.match(libraryContracts.index, /review\.start\/get\/reveal\/answer\/move\/end\/queue\.edit/);
 });

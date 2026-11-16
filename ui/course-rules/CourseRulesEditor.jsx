@@ -18,7 +18,7 @@ export default function CourseRulesEditor({ value, onChange, disabled }) {
   const add = () => { if (!check.ok) return; onChange([...value, text.trim()]); setText(''); };
   return (
     <div className="course-rules" data-course-rules="">
-      <Hint>{uiFormat('给这门课出题时，规划、出题和审阅都会照这些守则来，每次出题前的「预览生效要求」里也能看到。每条一句话，最多 {0} 条；改了守则，之前审阅过的草稿原来的审阅就不再算数。', [GENERATION_RULE_LIMITS.count])}</Hint>
+      <Hint>{uiFormat('给这门课出题时，规划、出题和审阅都会照这些守则来，每次出题前的「预览本次出题要求」里也能看到。每条一句话，最多 {0} 条；改了守则，之前审阅过的草稿原来的审阅就不再算数。', [GENERATION_RULE_LIMITS.count])}</Hint>
       {value.length > 0 ? <ol className="course-rules__list">
         {value.map((rule, index) => <li key={index} className="course-rules__row">
           <TextInput className="course-rules__input" value={rule} maxLength={GENERATION_RULE_LIMITS.length} disabled={disabled} aria-label={uiFormat('第 {0} 条守则', [index + 1])}

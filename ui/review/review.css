@@ -142,6 +142,73 @@
     .explanation-collapsed {
       margin-top: var(--space-4);
     }
+    .review-sticky-bar {
+      position: sticky;
+      z-index: var(--z-sticky);
+      margin-top: var(--space-3-5);
+      padding: var(--space-2) 0;
+      background: var(--bg-canvas);
+    }
+    .review-sticky-bar[data-answered="true"] {
+      bottom: 0;
+    }
+    .review-undo {
+      color: var(--accent-text);
+    }
+    .post-answer-more {
+      margin-top: var(--space-4);
+      padding-top: var(--space-3);
+      border-top: 1px solid var(--line-soft);
+    }
+    .post-answer-more__summary {
+      cursor: pointer;
+      width: fit-content;
+      padding: var(--space-1) 0;
+      color: var(--text-muted);
+      font-size: var(--fs-md);
+      font-weight: var(--fw-medium);
+    }
+    .post-answer-more__summary:hover {
+      color: var(--text);
+    }
+    .post-answer-more__body {
+      display: grid;
+      gap: var(--space-4);
+      margin-top: var(--space-3);
+    }
+    .post-answer-more__section h4,
+    .post-answer-more__options h4 {
+      margin: 0 0 var(--space-1-5);
+      color: var(--text-muted);
+      font-size: var(--fs-md);
+      font-weight: var(--fw-medium);
+    }
+    .post-answer-more__option-list {
+      display: grid;
+      gap: var(--space-2);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .post-answer-more__option-item {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-2-5);
+      color: var(--text-dim);
+      font-size: var(--fs-md);
+    }
+    .post-answer-more__option-mark {
+      display: inline-grid;
+      place-items: center;
+      flex: none;
+      width: var(--space-6);
+      height: var(--space-6);
+      border-radius: var(--radius-pill);
+      box-shadow: inset 0 0 0 1px var(--line-strong);
+      color: var(--text-muted);
+      font-size: var(--fs-xs);
+      font-weight: var(--fw-strong);
+    }
   }
   @media (prefers-reduced-motion: reduce) {
     :is(.study-app, .study-seat) {

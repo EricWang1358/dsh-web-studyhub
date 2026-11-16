@@ -23,7 +23,7 @@ test('the plan area: both actions, the shape, the limits from the constants, the
 });
 
 test('Discovery lists course.plan, the areas list names plan, and course.save names plan in the learning area', () => {
-  assert.match(studyToolDescription, /Discovery: [^\n]*book\.crunch, course\.plan, book\.mock\.plan/);
+  assert.match(libraryContracts.index, /Discovery: [^\n]*book\.crunch, course\.plan, book\.mock\.plan/);
   assert.match(studyToolDescription, /areas: [^\n]*\bplan\b/);
   assert.match(libraryContracts.learning, /course\.save \{id\?,name,exam\?,plan\?,guidanceSourceIds\?,focusTopics\?\} only on request/);
   assert.match(libraryContracts.learning, /plan \(备考计划, area plan\) is replaced whole too/);
