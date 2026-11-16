@@ -22,7 +22,8 @@ const SIDE_EFFECT_PATTERNS = [
   /\bmock\.(?:timers|method)\b/,
   /\bprocess\.(?:chdir|exit|on|once|prependListener)\s*\(|\bsetInterval\s*\(|await\s+import\(\s*['"]\.\/[^'"]+\.test\.mjs['"]\s*\)/,
   /['"]\.\.?\/(?:\.\.\/)*lib\/(?:service|host|runtime\/builtins)\.js['"]/,
-  /['"]node:(?:http|https|net|tls|dgram|worker_threads|child_process|cluster)['"]/,
+  /['"]node:(?:http|https|net|tls|dgram|worker_threads|child_process|cluster|v8)['"]/,
+  /\b(?:process\.memoryUsage|collectGarbage|settledMemory|setFlagsFromString)\s*\(/,
 ];
 
 /** Whether a test file (or any relative test helper it imports) mutates process/global state that requires its own process. */
