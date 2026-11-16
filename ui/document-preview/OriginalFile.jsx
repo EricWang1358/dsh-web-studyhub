@@ -24,7 +24,7 @@ const identityOf = target => target.documentId ? { documentId: target.documentId
 /** The reader's explanation when a document has no (usable) original, with the buttons that fix it. onAction('attach' | 'relink' | 'copy').
     A text-only document's notice has a ×: closing it folds the notice into ONE quiet line that keeps 补全原文件… (remembered per document in this browser), so nothing is lost by closing it;
     `collapsed` / `onCollapse` let a caller (or a test) own that state. A reference that went missing or changed is a fault to fix and has no ×. */
-export function OriginalNotice({ document, onAction, collapsed, onCollapse }) {
+export function OriginalNotice({ document, onAction, onSync, syncing = false, collapsed, onCollapse }) {
   useInjectCss(css, 'study-original-file');
   const [closedHere, setClosedHere] = useState(() => new Set());
   if (!document || document.originalAvailable) return null;
@@ -49,8 +49,9 @@ export function OriginalNotice({ document, onAction, collapsed, onCollapse }) {
   return <InlineMessage tone="warning" boxed data-tour="reader-original-notice" data-kind={issue.kind}>
     <p>{issue.message}</p>
     <div className="original-notice__actions">
-      <Button size="sm" variant="secondary" onClick={() => onAction?.('relink')}>{ui('重新指定…')}</Button>
-      {issue.canCopy && <Button size="sm" variant="quiet" onClick={() => onAction?.('copy')}>{ui('改为复制到资料库')}</Button>}
+      {issue.canSync && <Button size="sm" variant="primary" busy={syncing} onClick={() => onSync ? onSync() : onAction?.('sync')}>{ui('同步最新文件内容')}</Button>}
+      <Button size="sm" variant="secondary" lock={syncing} onClick={() => onAction?.('relink')}>{ui('重新指定…')}</Button>
+      {issue.canCopy && <Button size="sm" variant="quiet" lock={syncing} onClick={() => onAction?.('copy')}>{ui('改为复制到资料库')}</Button>}
     </div>
   </InlineMessage>;
 }
@@ -75,6 +76,7 @@ export function OriginalDialog({ target, call, host, onClose, onChanged, intent 
   const [done, setDone] = useState(initial.done ?? null), [choosing, setChoosing] = useState(initial.choosing ?? intent === 'relink');
   // A file the browser chose that is too big to copy (name, size): said plainly, and the learner is taken to the path, which copies nothing and has no limit.
   const [tooBig, setTooBig] = useState(initial.tooBig ?? null);
+  const [syncing, setSyncing] = useState(false);
   const bytes = useRef(null), alive = useRef(true), pathId = useId(), modeName = useId(), hintId = useId(), pathField = useRef(null), pickButton = useRef(null);
   const identity = identityOf(target);
   useEffect(() => () => { alive.current = false; }, []);
@@ -165,34 +167,49 @@ export function OriginalDialog({ target, call, host, onClose, onChanged, intent 
       onChanged?.({ status: 'detached' });
     } catch (failure) { settle(setError, failure?.message || ''); settle(setPhase, 'idle'); }
   }
+  async function syncLatest() {
+    setSyncing(true); setPhase('attaching'); setError('');
+    try {
+      const result = await call('materials.document.get', { ...identity, refresh: true });
+      if (!alive.current) return;
+      setInfo(result?.original || info);
+      setDone({ mode: result?.original?.mode || 'reference', synced: true });
+      setSyncing(false);
+      setPhase('done');
+      setChoosing(false);
+      onChanged?.(result);
+    } catch (failure) { settle(setSyncing, false); settle(setError, failure?.message || ''); settle(setPhase, 'idle'); }
+  }
 
   const title = info && info.status !== 'none' ? uiFormat('原文件：{0}', [target.title]) : uiFormat('补全原文件：{0}', [target.title]);
   const options = picked ? modeOptions({ size: picked.size, hasPath: picked.kind === 'path' }) : [];
   const headline = report && reportHeadline(report), lines = report ? reportLines(report) : [];
   const footer = done ? <Button variant="primary" onClick={onClose}>{ui('完成')}</Button>
     : <><Button variant="quiet" lock={phase === 'attaching'} onClick={onClose}>{ui('取消')}</Button>
-      {picked && <Button variant="primary" busy={phase === 'attaching'} disabled={!canAttach({ phase, report, picked, mode, confirmed })} onClick={attach}>{ui('附上原文件')}</Button>}
+      {picked && <Button variant="primary" busy={phase === 'attaching' && !syncing} disabled={!canAttach({ phase, report, picked, mode, confirmed })} onClick={attach}>{ui('附上原文件')}</Button>}
       {!picked && pickerOn && <Button variant="primary" disabled>{ui('附上原文件')}</Button>}</>;
 
   return <Dialog size="md" className="original-dialog" contentClassName="original-dialog__content" title={title} busy={phase === 'attaching'} guardDrops onClose={onClose} footer={footer}>
     {!info && <LoadingState label={ui('正在读取原文件状态…')} />}
     {info && info.status === 'none' && !done && <p>{ui('这份资料只保存了提取出的文字，没有原文件。提问、补题和查看引用仍然可用；补上原文件后，还能对照原版排版和图表。已保存的文字、引用和题目不会变。')}</p>}
-    {done && <Status tone="success"><strong>{ui('已附上原文件')}</strong>{done.mode === 'reference' ? <span title={info?.path}>{uiFormat('引用 {0}', [info?.path])}</span> : <span>{uiFormat('已复制到资料库 · {0}', [formatBytes(info?.bytes)])}</span>}</Status>}
+    {done && <Status tone="success"><strong>{ui(done.synced ? '已同步最新文件内容' : '已附上原文件')}</strong>{done.mode === 'reference' ? <span title={info?.path}>{uiFormat('引用 {0}', [info?.path])}</span> : <span>{uiFormat('已复制到资料库 · {0}', [formatBytes(info?.bytes)])}</span>}</Status>}
     {!done && !report && issue?.message && <Status tone="warning" alert>{issue.message}</Status>}
     {!done && info && !issue && !choosing && <>
       <Status tone="success"><Tooltip layer content={info.path || ''}><span tabIndex={info.path ? 0 : undefined}>{info.mode === 'copy' ? uiFormat('原文件已经复制在资料库里（{0}），不受原文件移动影响。', [formatBytes(info.bytes)]) : uiFormat('原文件：引用 {0}', [info.path])}</span></Tooltip></Status>
       {info.mode === 'reference' && <div className="original-actions">
+        <Button size="sm" variant="secondary" busy={syncing} lock={busy} onClick={syncLatest}>{ui('同步最新文件内容')}</Button>
         <Button size="sm" variant="secondary" lock={busy} onClick={() => setChoosing(true)}>{ui('重新指定…')}</Button>
         <Button size="sm" variant="secondary" lock={busy} onClick={() => { setChoosing(true); void checkPath(info.path, 'copy'); }}>{ui('改为复制到资料库')}</Button>
         <Button size="sm" variant="quiet" lock={busy} onClick={detach}>{ui('不再引用')}</Button>
       </div>}
     </>}
-    {issue?.canCopy && !picked && !done && <div className="original-actions">
-      <Button size="sm" variant="secondary" lock={busy} onClick={() => checkPath(info.path, 'copy')}>{ui('改为复制到资料库')}</Button></div>}
+    {(issue?.canSync || issue?.canCopy) && !picked && !done && <div className="original-actions">
+      {issue?.canSync && <Button size="sm" variant="primary" busy={syncing} lock={busy} onClick={syncLatest}>{ui('同步最新文件内容')}</Button>}
+      {issue?.canCopy && <Button size="sm" variant="secondary" lock={busy} onClick={() => checkPath(info.path, 'copy')}>{ui('改为复制到资料库')}</Button>}</div>}
     {pickerOn && <section className="original-pick" aria-label={ui('选择原文件')}>
       {info.convertedFrom && !picked && <div className="original-converted">
         <Status tone="info">{uiFormat('这本书是从 {0}（{1}）转换来的，文件还在原处。', [info.convertedFrom.filename, formatBytes(info.convertedFrom.bytes)])}</Status>
-        <div className="original-actions"><Button variant="primary" busy={phase === 'attaching'} lock={busy} onClick={useConverted}>{ui('使用转换时的原文件')}</Button></div>
+        <div className="original-actions"><Button variant="primary" busy={phase === 'attaching' && !syncing} lock={busy} onClick={useConverted}>{ui('使用转换时的原文件')}</Button></div>
       </div>}
       <p className="original-step"><strong>{ui('原文件在哪里？')}</strong> <span id={hintId} className="muted">{ui('填写完整路径，或选择文件。')}</span></p>
       <div className="original-pathrow">

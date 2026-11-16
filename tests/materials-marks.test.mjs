@@ -86,16 +86,20 @@ test('the 待出题 list has a limit of its own and says so plainly', async t =>
   assert.equal((await f.marks('save', { ...id, selection: f.capture(document, words.at(-1)), style: 'underline' })).status, 'saved');
 });
 
-test('a new revision does not draw the old marks; it counts them as stale and they can be cleared', async t => {
+test('a new revision re-anchors surviving marks and counts deleted ones as stale so they can be cleared', async t => {
   const f = await fixture(t), first = await f.imported(markdown(A, B), 'notes.md');
   const old = first.document;
+  await f.marks('save', { documentId: old.documentId, revision: old.revision, selection: f.capture(old, 'principles guiding'), style: 'highlight' });
   await f.marks('save', { documentId: old.documentId, revision: old.revision, selection: f.capture(old, 'latency and availability'), style: 'underline' });
-  const second = await f.imported(markdown(A, B, C), 'notes.md', old.documentId);
+  const second = await f.imported(markdown('New intro.', A, C), 'notes.md', old.documentId);
   const now = second.document;
   assert.notEqual(now.revision, old.revision);
   const list = await f.marks('list', { documentId: now.documentId, revision: now.revision });
-  assert.equal(list.count, 0);
+  assert.equal(list.count, 1, 'surviving mark re-anchors onto the new revision');
+  assert.equal(list.items[0].selection.quote, 'principles guiding');
+  assert.equal(list.items[0].status, 'resolved');
   assert.deepEqual(list.stale.map(entry => [entry.revision, entry.count]), [[old.revision, 1]]);
+  assert.equal(list.stale[0].items[0].quote, 'latency and availability');
   assert.equal((await f.marks('delete', { documentId: now.documentId, revision: now.revision, stale: true })).deleted, 1);
   assert.deepEqual((await f.marks('list', { documentId: now.documentId, revision: now.revision })).stale, []);
 });

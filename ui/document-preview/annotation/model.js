@@ -60,5 +60,8 @@ export function annotationLinks(items) {
 }
 
 /** What the panel says about the kept notes of other revisions of the document. */
-export const staleCount = stale => (stale || []).reduce((total, entry) => total + (entry.count || 0), 0);
+export const staleCount = stale => (stale || []).reduce(
+  (total, entry) => total + (typeof entry?.count === 'number' ? entry.count : Array.isArray(entry?.threads) ? entry.threads.length : entry ? 1 : 0),
+  0,
+);
 
