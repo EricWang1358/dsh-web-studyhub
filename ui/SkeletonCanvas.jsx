@@ -606,7 +606,7 @@ export function SequenceCanvas({ sequence, nodes, onSelectNode }) {
       <p className="sqc-caption" aria-live="polite">
         {step ? (
           <>
-            <b>{uiFormat("第 {0} 步", [current])}</b> {label(step.from)} <Icon name={step.kind === "return" ? "undo" : "arrow-right"} size={14} className="sh-icon--inline" /> {label(step.to)}：{step.message}
+            <b>{uiFormat("第 {0} 步", [current])}</b> {label(step.from)} <Icon name={step.kind === "return" ? "undo" : "arrow-right"} className="sh-icon--inline" /> {label(step.to)}：{step.message}
             {step.note ? `（${step.note}）` : ""}
           </>
         ) : (

@@ -297,7 +297,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                       onClick={() => choose(o.id)}
                     >
                       <span className="option-letter" aria-hidden={verdict || undefined}>
-                        {verdict ? String(i + 1) : <OptionMark card={run.card} option={o} index={i} />}
+                        <OptionMark card={run.card} option={o} index={i} />
                       </span>
                       <div>
                         {verdict ? <span className="option-verdict">{fixedOptionLabel(run.card, o)}</span>
@@ -429,7 +429,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           {/* Concise card verdict at the foot of the card; full schedule telemetry folds under 更多解析与巩固方式. */}
           {voice.correction}
           {run.feedback && <p className={"next-due next-due--verdict" + (run.feedback.correct || run.feedback.selfReported ? "" : " retry")}
-            data-level={run.feedback.level || undefined} role="status">{nextDueIcon(run.feedback) && <Icon name={nextDueIcon(run.feedback)} size={16} className="sh-icon--inline sh-icon--lead" />}{nextDueWord(run.feedback)}</p>}
+            data-level={run.feedback.level || undefined} role="status">{nextDueIcon(run.feedback) && <Icon name={nextDueIcon(run.feedback)} className="sh-icon--inline sh-icon--lead" />}{nextDueWord(run.feedback)}</p>}
           {autoAdvanceActive && (
             <div className={"question-card__autopilot" + (autoAdvancePaused ? " is-paused" : "")}
               key={"card-auto:" + (session.advanceKey || run.index)}

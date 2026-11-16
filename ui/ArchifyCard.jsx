@@ -12,7 +12,7 @@ import css from './skeleton-companion.css';
 
 function OutsideLink({ href, children }) {
   return (
-    <a href={href} target="_blank" rel="noopener noreferrer">{children}<Icon name="external" size={13} /><span className="sh-visually-hidden">{ui('（在新标签页打开）')}</span></a>
+    <a href={href} target="_blank" rel="noopener noreferrer">{children}<Icon name="external" className="sh-icon--inline sh-icon--trail" /><span className="sh-visually-hidden">{ui('（在新标签页打开）')}</span></a>
   );
 }
 

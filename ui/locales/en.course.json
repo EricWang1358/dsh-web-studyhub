@@ -236,7 +236,7 @@
   "给这门课出题时，规划、出题和审阅都会照这些守则来，每次出题前的「预览本次出题要求」里也能看到。每条一句话，最多 {0} 条；改了守则，之前审阅过的草稿原来的审阅就不再算数。": "When questions are made for this course, planning, writing and review follow these rules, and “Preview what this run will ask for” before each run lists them. One sentence each, at most {0}; after a change, the review of drafts reviewed earlier no longer counts.",
   "第 {0} 条守则": "Rule {0}",
   "删除第 {0} 条守则": "Delete rule {0}",
-  "还没有守则。练习时在「修题」框或 👎 的标签旁点「设为本课守则」，也会加到这里。": "No rules yet. While practising, “Make it a course rule” under the Improve question box or beside the 👎 tags adds one here too.",
+  "还没有守则。练习时在「修题」框或「这题有问题」的标签旁点「设为本课守则」，也会加到这里。": "No rules yet. While practising, “Make it a course rule” under the Improve question box or beside the “Question needs work” tags adds one here too.",
   "新守则": "New rule",
   "例如：题干要自带情境和条件，不出只有一句空问的题": "For example: every stem carries its own scenario and conditions; no bare one-line questions",
   "添加守则": "Add rule"

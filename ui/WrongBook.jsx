@@ -76,13 +76,13 @@ const PROMPT_TIP_MIN = 48;
 const META_TIP_MIN = 20;
 
 function StatusMark({ kind, history = false }) {
-  return <Tooltip layer content={history ? historyTip() : statusTip(kind)}><span tabIndex={0} className={"wb-grade" + (kind === "graded" ? "" : " self")}><Icon name={kind === "graded" ? "close" : "circle"} size={14} />{statusLabel(kind)}</span></Tooltip>;
+  return <Tooltip layer content={history ? historyTip() : statusTip(kind)}><span tabIndex={0} className={"wb-grade" + (kind === "graded" ? "" : " self")}><Icon name={kind === "graded" ? "close" : "circle"} className="sh-icon--inline" />{statusLabel(kind)}</span></Tooltip>;
 }
 
 /** 顽固: the question keeps being failed (lib/leech.js). A state mark like the one beside it, not a control; the thresholds are the learner's own. */
 function LeechMark({ limits }) {
   const words = leechWords(limits);
-  return <Tooltip layer content={tip(words.sentence, words.consequence)}><span tabIndex={0} className="wb-grade leech"><Icon name="diamond" size={14} />{ui("顽固")}</span></Tooltip>;
+  return <Tooltip layer content={tip(words.sentence, words.consequence)}><span tabIndex={0} className="wb-grade leech"><Icon name="diamond" className="sh-icon--inline" />{ui("顽固")}</span></Tooltip>;
 }
 
 /** What each rescue action does, said where its button is. */
@@ -172,7 +172,7 @@ function RecRow({ rec, shortName, open, onToggle, onPractice, disabled }) {
             <span tabIndex={0} className="wb-why">{reasonText(rec.reasons[0])}</span>
           </Tooltip>
           : <span className="wb-why">{reasonText(rec.reasons[0])}</span>}
-        <Button variant="quiet" size="sm" disabled={disabled} onClick={onPractice}
+        <Button variant="quiet" size="sm" iconEnd="arrow-right" disabled={disabled} onClick={onPractice}
           aria-label={uiFormat("练习 {0}：{1}", [rec.topic || ui("未分类"), fullPrompt])}>{ui("练")}</Button>
       </div>
       {open && (
@@ -300,7 +300,7 @@ function RowDetail({ id, item, course, detail, variants, recs, shortName, rescue
                     </Tooltip>
                     : <span className="wb-prompt"><StudyInline text={rec.prompt} /></span>}
                   <span className="wb-why">{reasonText(rec.reasons[0])}</span>
-                  <Button variant="quiet" size="sm" disabled={disabled} onClick={() => onPractice(rec)}>{ui("练")}</Button>
+                  <Button variant="quiet" size="sm" iconEnd="arrow-right" disabled={disabled} onClick={() => onPractice(rec)}>{ui("练")}</Button>
                 </li>
               );
             })}
@@ -359,7 +359,7 @@ const Row = memo(function Row({ it, metaText, query = "", isOpen, state, detail,
             onPractice={canPracticePrepared ? () => handlers.practicePrepared(it) : undefined} />
         )}
         {showPractice && (
-          <Button variant="quiet" size="sm" disabled={disabled}
+          <Button variant="quiet" size="sm" iconEnd="arrow-right" disabled={disabled}
             aria-label={uiFormat("练习 {0}：{1}", [it.topic || ui("未分类"), it.prompt])}
             onClick={() => handlers.practice(it)}>{ui("练")}</Button>
         )}

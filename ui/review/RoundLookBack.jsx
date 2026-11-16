@@ -113,7 +113,7 @@ function LookBackAnswer({ row, mode }) {
           const picked = feedback.selected?.includes(option.id);
           return (
             <div key={option.id} className={"option " + (key?.correct ? "correct" : picked ? "incorrect" : "dim")}>
-              <span className="option-letter" aria-hidden={verdict || undefined}>{verdict ? String(index + 1) : <OptionMark card={card} option={option} index={index} />}</span>
+              <span className="option-letter" aria-hidden={verdict || undefined}><OptionMark card={card} option={option} index={index} /></span>
               <div>
                 {verdict ? <span className="option-verdict">{fixedOptionLabel(card, option)}</span> : <Markdown text={option.text} links={false} className="md-compact" />}
                 <AnswerState correct={key?.correct} picked={picked} />

@@ -113,7 +113,7 @@ export function StudyProgressPanel({
         </div>
         <div className="progress-time-line">
           <span className="progress-time-text" data-completed={goalCompleted ? 'true' : undefined}>
-            <Icon name={goalCompleted ? 'check' : 'clock'} size={14} strokeWidth={goalCompleted ? 2.2 : undefined} /> {estimateLine(estimate)}
+            <Icon name={goalCompleted ? 'check' : 'clock'} className="sh-icon--inline sh-icon--lead" />{estimateLine(estimate)}
           </span>
         </div>
         <div className="progress-toggle-row">

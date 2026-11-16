@@ -12,6 +12,7 @@ import { createFakeModel } from "../fake-model.mjs";
 import { finishCli, overflowProbe, parseQaArgs, runQa, sleep } from "./harness.mjs";
 import { mergedTranscript } from "../../tests/helpers/merged-transcript.mjs";
 import { revealNavRow } from "./nav-reveal.mjs";
+import { controlName } from "./control-name.mjs";
 
 const world = mergedTranscript({ recordings: 1, parts: 5, paragraphs: 3 });
 
@@ -119,7 +120,7 @@ export async function runDraftQa(options) {
           if (await fold.count() && !await fold.evaluate((element) => element.open)) await fold.locator("summary").first().click();
           await page.locator(".draft-row .draft-open").first().click();
         }
-        await page.getByRole("button", { name: t("发布并开始练 →", "Publish and practise →") }).first().waitFor({ timeout: 15000 });
+        await page.getByRole("button", { name: controlName(t, "发布并开始练") }).first().waitFor({ timeout: 15000 });
         await settle();
         const said = (await page.locator(".draft-page").first().innerText()).replace(/\s+/g, " ");
         facts.draftPage = said.slice(0, 700);
