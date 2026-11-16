@@ -40,7 +40,7 @@
     .generate-page .generate-submit > .generate-submit__lines { flex: 1 1 20rem; display: grid; align-items: center; row-gap: var(--space-half);
       grid-template-rows: calc(var(--fs-md) * var(--lh-snug)) calc(var(--fs-sm) * var(--lh-snug)); }
     .generate-page .generate-submit__lines > * { min-width: 0; margin: 0; overflow: hidden; line-height: var(--lh-snug); white-space: nowrap; text-overflow: ellipsis; }
-    .generate-page .generate-submit__note { font-size: var(--fs-sm); }
+    .generate-page .generate-submit__note { margin: 0; font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .generate-page .generate-submit > .generate-submit__btn { flex: 0 0 auto; }
     /* A control the keyboard reaches is scrolled clear of the bar, not under it: while this page is shown its scrolling box keeps the bar's measured height
        (--generate-bar-room, ui/use-sticky-room.js) out of the room a focus or a jump scrolls into. */
