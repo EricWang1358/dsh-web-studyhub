@@ -6,7 +6,7 @@ import { PdfConvertHistory, PdfConvertJobs } from './PdfConvertJob.jsx';
 import CourseField, { parseCourses } from './CourseField.jsx';
 import PageScope, { courseNamesOf, usePageScope } from './PageScope.jsx';
 import { useInjectCss } from "./shared.js";
-import { Badge, Button, Checkbox, CheckboxInput, ChunkedRows, ConfirmDialog, Dialog, Disclosure, Icon, InlineMessage, Menu, PageHeader, TextInput, Tooltip, filterItems, scrollWindowCount, useToast } from "./components/index.js";
+import { AddSourceButton, Badge, Button, Checkbox, CheckboxInput, ChunkedRows, ConfirmDialog, Dialog, Disclosure, Icon, InlineMessage, Menu, PageHeader, TextInput, Tooltip, filterItems, scrollWindowCount, useToast } from "./components/index.js";
 import { useNarrow } from "./use-narrow.js";
 import { scrollToAnchor } from "./tour/anchor.js";
 import { groupSourcesByDocument } from '../lib/source-groups.js';
@@ -547,8 +547,8 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
     relation={relations.get(item.key) ?? null} advice={bigKeys.has(item.key)} retrieval={bigKeys.has(item.key) ? retrieval : null} custom={offers.get(item.key) ?? null}
     courses={data.focus?.courses} defaultCourse={data.focus?.course}
     pinned={!!pin.pinned} pinFirst={!!pin.first} pinLast={!!pin.last} dragging={!!pin.pinned && drag?.key === item.key} dropMark={pin.pinned && drag?.over === item.key ? drag.side : ''} />;
-  const addButton = <Button variant="primary" icon="plus" data-tour="sources-add" data-usage="import.add"
-    onClick={() => setModal({ type: "add", course: scope === '*' ? '' : scope })}>{ui("添加资料")}</Button>;
+  const addButton = <AddSourceButton variant="primary" data-tour="sources-add" data-usage="import.add"
+    onClick={() => setModal({ type: "add", course: scope === '*' ? '' : scope })} />;
   // The header's other actions: buttons beside 添加资料 in a wide window; in a narrow one they wait in one 更多 menu, so the one primary action stands alone (#1083).
   const archivedCount = allItems.filter(item => item.archived).length;
   const toggleArchived = () => { setShowArchived(value => !value); setSelected([]); setProposals(null); setRemovingBatch(null); };
