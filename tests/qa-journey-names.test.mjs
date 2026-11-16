@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { controlName } from "../scripts/qa/journey.mjs";
+import { controlName } from "../scripts/qa/control-name.mjs";
 
 const zh = (text) => text;
 

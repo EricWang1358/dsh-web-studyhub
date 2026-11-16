@@ -36,14 +36,8 @@ const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
 const escapeRe = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 
-/** A control's accessible name as a pattern that does not hang on a typed glyph around its words. #1073 turns the typed → and ＋ into
- *  icons, which are not part of the name, and changes the en key with them: the pattern takes the words with or without the glyph, in
- *  either key, so the journey runs on both sides of that change. `t` is the journey's zh → UI-language lookup. */
-export function controlName(t, zh) {
-  const glyphFree = (text) => text.replace(/^\s*[＋+]\s*/, "").replace(/\s*→\s*$/, "");
-  const words = [...new Set([zh, `${zh} →`, `＋ ${zh}`].map(t).map(glyphFree))];
-  return new RegExp(`^\\s*[＋+]?\\s*(?:${words.map(escapeRe).join("|")})\\s*→?\\s*$`);
-}
+import { controlName } from "./control-name.mjs";
+export { controlName };
 
 /* ---------- layout offenders that are known and not fixed yet (#208) ---------- */
 
