@@ -62,7 +62,7 @@ test('reading a recap returns to completed results without reopening or moving t
   await page.addScriptTag({ content: bundle.outputFiles[0].text });
   await page.getByRole('button', { name: /^回到题目/ }).click();
   await page.getByRole('button', { name: /尝试回忆并解释推理/ }).click();
-  await page.getByRole('button', { name: '完成 →', exact: true }).click();
+  await page.getByRole('button', { name: '完成', exact: true }).click();
   await page.getByRole('heading', { name: '这一轮，完成了。', exact: true }).waitFor();
   await page.getByRole('button', { name: '生成今日合集', exact: true }).click();
   await page.getByRole('button', { name: '阅读今日合集', exact: true }).click({ timeout: 15000 });

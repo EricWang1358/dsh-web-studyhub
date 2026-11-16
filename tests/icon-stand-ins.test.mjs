@@ -19,8 +19,6 @@ const KEEP = Object.freeze([
 ]);
 
 /** Files another branch is rewriting at the moment; delete the line when it lands. */
-const SKIP_FILES = new Set(['ui/ReviewToolbar.jsx']); // lane B (#1075): the 下一题 button
-
 const keptText = new Set(KEEP.map((entry) => entry.text));
 
 test('the rule: edge arrows, icon glyphs and a close-mark × are stand-ins; sentence arrows, joiners and multiplications are not', () => {
@@ -36,7 +34,7 @@ test('the scanner reads the strings of formatted JavaScript, not its comments or
 
 test('no string of ui/ uses a typed glyph for an icon (#1073)', async () => {
   const found = [];
-  for (const { file, text } of await uiStrings()) if (!keptText.has(text) && !SKIP_FILES.has(file)) for (const problem of glyphProblems(text)) found.push(`${file}: ${JSON.stringify(text.slice(0, 70))}: ${problem}`);
+  for (const { file, text } of await uiStrings()) if (!keptText.has(text)) for (const problem of glyphProblems(text)) found.push(`${file}: ${JSON.stringify(text.slice(0, 70))}: ${problem}`);
   assert.deepEqual([...new Set(found)], [], `${new Set(found).size} string(s) with a typed glyph; draw an icon, or list a key name or a window title in KEEP with why`);
 });
 
