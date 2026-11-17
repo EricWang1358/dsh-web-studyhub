@@ -100,6 +100,10 @@ test('a course name said whole draws no hover card, so a shut row with a course 
   assert.ok(one, 'one row');
   assert.doesNotMatch(one, /role="tooltip"/, 'no hover card on a name that is not cut');
   assert.ok(elements(one) <= 16, `a shut row with a course drew ${elements(one)} elements`);
+  // round 11: a course with a figure and a 「 · 」 part is cut on whole words, with one word box more than round 8 at most
+  const figured = rowOf(renderToStaticMarkup(h(SourcePicker, { sources: [1, 2, 3].map(n => page(n, ['分布式系统与网络协议（2026 秋季学期 · 周三晚班）'])), selected: [], onChange: noop })));
+  assert.ok(figured, 'one row with a figured course');
+  assert.ok(elements(figured) <= 16, `a shut row with a figured course drew ${elements(figured)} elements`);
   const three = rowOf(renderToStaticMarkup(h(SourcePicker, { sources: [1, 2, 3].map(n => page(n, ['分布式系统与网络协议', 'Course 2', 'Course 3'])), selected: [], onChange: noop })));
   assert.match(three.replace(/<[^>]+>/g, ''), /PDF · 3 页 · \S+ 字符 · 分布式系统与网络协议 · Course 2 · Course 3/, 'the facts read as one line of words, every course in them');
   assert.ok(elements(three) <= 18, `a shut row with three courses drew ${elements(three)} elements`);

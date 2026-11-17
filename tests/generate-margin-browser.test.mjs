@@ -927,8 +927,11 @@ test('round 11: a shortened course is never cut inside a figure, and its checkbo
       await page.setViewportSize({ width, height: 900 });
       await frames(page, 2);
       let rows = await factsLines(page);
-      // the hover card comes with the shared observer's answer, a frame or two after the cut (ui/use-cut.js)
-      if (rows.some(row => row.names.some(piece => piece.shown && piece.cut && !piece.tip))) { await page.waitForTimeout(300); rows = await factsLines(page); }
+      // the hover card comes with the shared observer's answer, a frame or two after the cut (ui/use-cut.js), or after the shell's sidebar has finished
+      // opening where the window crosses its width (the line keeps changing while it slides)
+      for (let wait = 0; wait < 2000 && rows.some(row => row.names.some(piece => piece.shown && piece.cut && !piece.tip)); wait += 200) {
+        await page.waitForTimeout(200); rows = await factsLines(page);
+      }
       for (const row of rows) {
         for (const name of row.names.filter(piece => piece.shown && piece.cut)) {
           cuts++;

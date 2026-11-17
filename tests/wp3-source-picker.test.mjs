@@ -160,12 +160,18 @@ test('the facts lines are one decision for the whole scope, from the words and t
   assert.deepEqual(['pdf', 'md', 'audio', 'docx', 'nope'].map(format => sizeGroup(format, format === 'pdf')), ['paged', 'md', 'audio', 'docx', 'text']);
 });
 
-test('a shortened course ends on a whole word: before a space, an opening bracket or a figure after a Chinese word, never inside a figure (round 11)', () => {
+test('a shortened course never ends inside a figure, and has one word box more than round 8 at most (round 11, #565)', () => {
   const { nameWords } = module.exports;
-  assert.deepEqual(nameWords('· 分布式系统与网络协议（2026 秋季学期 · 周三晚班）'), ['· 分布式系统与网络协议', '（2026', ' 秋季学期', ' · 周三晚班）']);
-  assert.deepEqual(nameWords('· 示例课程 · 设计模式'), ['· 示例课程', ' · 设计模式']);
+  assert.deepEqual(nameWords('· 分布式系统与网络协议（2026 秋季学期 · 周三晚班）'), ['· 分布式系统与网络协议', '（2026 秋季学期 · 周三晚班）'],
+    'the head ends before its first figure, with the bracket before it; the rest of the name is one word');
+  assert.deepEqual(nameWords('· 示例课程 · 设计模式'), ['· 示例课程', ' · 设计模式'], 'a name without a figure is cut as in round 8');
   assert.deepEqual(nameWords('· 操作系统2026秋季学期回顾'), ['· 操作系统', '2026秋季学期回顾']);
-  assert.deepEqual(nameWords('· Distributed systems (CS5223)'), ['· Distributed', ' systems', ' (CS5223)'], 'a code is one word, and a space before a bracket starts it');
-  assert.deepEqual(nameWords('· 第2讲 · （重点）课程 1,234'), ['· 第2讲', ' · （重点）课程', ' 1,234'], 'a word is two characters at least; a figure keeps its comma');
-  for (const name of ['分布式系统与网络协议（2026 秋季学期 · 周三晚班）', 'Distributed systems (CS5223)', '第2讲 · （重点）课程 1,234']) assert.equal(nameWords(`· ${name}`).join(''), `· ${name}`);
+  assert.deepEqual(nameWords('· Distributed systems (CS5223)'), ['· Distributed systems', ' (CS5223)'], 'a code is one word, with the space before it; words without figures stay text');
+  assert.deepEqual(nameWords('· 第2讲 · （重点）课程 1,234'), ['· 第2讲', ' · （重点）课程 1,234'], 'a figure in the first two characters stays in the head; a part is one word');
+  assert.deepEqual(nameWords('· CS5223 2026 Fall · Lab2'), ['· CS5223', ' 2026 Fall · Lab2'], 'a code is never split inside');
+  for (const name of ['分布式系统与网络协议（2026 秋季学期 · 周三晚班）', 'Distributed systems (CS5223)', '第2讲 · （重点）课程 1,234', 'CS5223 2026 Fall · Lab2', 'Operating systems', 'A · B · C2026']) {
+    const words = nameWords(`· ${name}`), parts = name.split(' · ').length;
+    assert.equal(words.join(''), `· ${name}`);
+    assert.ok(words.length - 1 <= Math.max(parts - 1, 1), `${name}: no more word boxes than round 8 drew, one where it drew none`);
+  }
 });

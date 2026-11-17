@@ -145,16 +145,18 @@ export const relationNote = relation => !relation ? ''
 /* A course name this long or shorter is said whole or left out whole; a longer one, the first on a row's facts line, may be shortened (ui/source-picker.css). */
 const SHORTEST_NAME = 6;
 
-/* Where a shortened name may end before its 「…」 (round 11): before a space, before an opening bracket, and before a figure that follows a Chinese word,
-   each after two characters at least (「分布式系统与网络协议（2026 秋季学期」 ends 「…协议…」 or 「…（2026…」, never 「…（202…」; 「CS5223」 and 「第2讲」 are
-   one word). */
-const WORD_START = /(?=\s)|(?<=\S{2})(?=[（(【[《「])|(?<=[^\s\dA-Za-z（(【[《「,.]{2})(?=\d)/u;
+/* A figure, or a code with one (「（2026」, 「 (CS5223)」, 「Lab2」), that starts a word: with the space or the opening bracket before it. */
+const FIGURE = /\s?(?<![A-Za-z0-9])[（(【[《「]?[A-Za-z]*\d/gu;
 
-/** The words of a shortened name (`· ` and all): the head, up to the first place it may end, then each word after it (a part after a 「 · 」 with its 「·」). */
+/** The words of a shortened name (`· ` and all): its head as text, then each part after a 「 · 」 with its 「·」 (round 8). Round 11: where the head has a
+ *  figure after its first two characters, the head's text ends before it and the rest of the name is one word, so the name is never cut inside a
+ *  figure (「分布式系统与网络协议（2026 秋季学期 · 周三晚班）」 is said 「…协议…」 or whole, never 「…（202…」); a figure in the first two characters
+ *  (「第2讲」, 「CS5223」) stays in the head, which is said whole up to 6em. One word box at most where round 8 drew one, so a row keeps few elements
+ *  (#565). */
 export function nameWords(text) {
   const [head, ...tail] = text.split(' · ');
-  const [lead, ...more] = head.slice(2).split(WORD_START);
-  return [head.slice(0, 2) + lead, ...more, ...tail.flatMap(part => { const [first, ...rest] = part.split(WORD_START); return [` · ${first}`, ...rest]; })];
+  const parts = tail.map(part => ` · ${part}`), at = [...head.slice(2).matchAll(FIGURE)].find(match => match.index >= 2)?.index;
+  return at === undefined ? [head, ...parts] : [head.slice(0, 2 + at), head.slice(2 + at) + parts.join('')];
 }
 
 /* The shortened first course as its words: the head as text, each word after it one unbreakable box, so the name cut with 「…」 ends on a whole word,
@@ -165,7 +167,7 @@ const parted = words => <>{words[0]}{words.slice(1).map((word, at) => <span key=
 /* The first course on a row, shortened where its row is short of room (ui/source-picker.css): only while it is cut (measured with the shared observer of
    ui/use-cut.js) is it wrapped in the shared Tooltip with its whole name; a name said whole is one element and has no card (round 8 review, #565). The
    anchor takes the name's place in the line (the same size), so the name is cut the same with it and without. A box that does not start at a space puts
-   one into the checkbox's name (「协议 （2026」), so such a name gives its words as its label. */
+   one into the checkbox's name (「协议 （2026」), so such a name gives its whole words as its label. */
 function CourseName({ name }) {
   const ref = useRef(null), cut = useCut(ref, name), words = nameWords(`· ${name}`);
   const said = <span ref={ref} className="source-picker__fact source-picker__fact--name source-picker__fact--short" data-name="first"
