@@ -685,5 +685,13 @@
   "对照自测": "Self-check",
   "先按下方线索分辨这两个概念": "Identify these concepts from the clues below",
   "揭晓名称": "Reveal names",
-  "重新遮住": "Hide again"
+  "重新遮住": "Hide again",
+  "缺口筛选": "Gap filters",
+  "薄弱与到期 ({0})": "Weak & due ({0})",
+  "尚无题目 ({0})": "No questions yet ({0})",
+  "专练薄弱与到期 ({0} 处)": "Practise weak & due ({0} sections)",
+  "专练薄弱与到期 ({0} 处)#one": "Practise weak & due ({0} section)",
+  "当前筛选下没有薄弱或到期的小节。": "No weak or due sections match this filter.",
+  "当前筛选下没有尚未出题的章节或知识点。": "No sections without questions match this filter.",
+  "显示全部": "Show all"
 }

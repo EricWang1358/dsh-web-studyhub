@@ -238,5 +238,7 @@
   "另有 {0} 道已失效或归档，已自动跳过#one": "{0} unavailable or archived question was skipped",
   "练这道关联题": "Practise this linked question",
   "练这 {0} 道关联题": "Practise these {0} linked questions",
-  "练这 {0} 道关联题#one": "Practise this {0} linked question"
+  "练这 {0} 道关联题#one": "Practise this {0} linked question",
+  "总纲缺口筛选与无题直出": "Outline gap filters and quick question creation",
+  "打开后，「总纲」页面的筛选栏增加「薄弱与到期」和「尚无题目」视图，并提供一键专练全部薄弱与到期小节，以及在无题章节旁直接跳转创建题组。默认关闭，不调用模型。": "Shows \"Weak & due\" and \"No questions yet\" filters in the Course outline bar, adds a one-click drill across weak and due sections, and places a \"Generate questions\" link beside empty chapters or points. Off by default; uses no model."
 }
