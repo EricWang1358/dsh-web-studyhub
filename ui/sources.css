@@ -101,7 +101,7 @@
       min-width: 9em;
       margin-top: var(--space-1);
     }
-    .source-doc__actions .source-row-menu .source-row-menu__btn { display: block; width: 100%; max-width: 100%; margin: 0; text-align: left; white-space: nowrap; }
+    .source-doc__actions .source-row-menu .source-row-menu__btn { width: 100%; max-width: 100%; margin: 0; justify-content: flex-start; text-align: left; white-space: nowrap; }
     /* 查看 N 页 (a flush quiet button) starts where the title's text does, on a wide row and a narrow one. */
     .source-doc__pages { margin: var(--space-2) 0 0 var(--source-doc-lead); }
     /* 查看 N 章 and the quiet 深度定制 of a long book share one line; at narrow widths the second wraps under the first instead of widening the row. */
