@@ -16,9 +16,10 @@ const KIND = { card: () => ui('追问'), passage: () => ui('批注'), 'qa-card':
 
 /**
  * The items of course.outline.qa as one list: the book's 本节问答 and the reader's 追问 of a section (#1013) show them alike. onCard(ref) opens a question,
- * onSource(sourceId, quote) a passage; `book` (useBookQa) adds 「加入复习全书」 to a 追问, when the page has a book; `cardLabel` names what onCard does there.
+ * onSource(sourceId, quote) a passage; `book` (useBookQa) adds 「加入复习全书」 to a 追问, when the page has a book; `here`: onCard starts the question where the list
+ * stands (the reader's section practice), so it says 在这里做这道题 and has no arrow; otherwise it goes to the practice page (去练这道题 →).
  */
-export function QaList({ items, onCard, onSource, book = null, onBookChanged, cardLabel }) {
+export function QaList({ items, onCard, onSource, book = null, onBookChanged, here = false }) {
   useInjectCss(css, 'study-qa-list');
   return (
     <ul className="book-qa" aria-label={ui('本节问答')}>
@@ -28,7 +29,7 @@ export function QaList({ items, onCard, onSource, book = null, onBookChanged, ca
             <Markdown text={item.answer} />
             {item.kind === 'passage'
               ? onSource && <Button variant="link" size="sm" icon="external" onClick={() => onSource(item.openRef.sourceId, item.openRef.quote)}>{ui('看原文')}</Button>
-              : <Button variant="link" size="sm" iconEnd="arrow-right" onClick={() => onCard(item.openRef)}>{cardLabel || ui('去练这道题')}</Button>}
+              : <Button variant="link" size="sm" iconEnd={here ? undefined : 'arrow-right'} onClick={() => onCard(item.openRef)}>{here ? ui('在这里做这道题') : ui('去练这道题')}</Button>}
             {item.kind === 'card' && item.followupId && book?.ready && <BookQaButton refOf={{ ...item.openRef, followupId: item.followupId }} book={book} onChanged={onBookChanged} />}
           </Disclosure>
         </li>

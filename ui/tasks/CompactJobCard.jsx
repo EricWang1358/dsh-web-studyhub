@@ -120,7 +120,8 @@ export default function CompactJobCard({ job, onStop, onDismiss, primary, links,
   const stoppable = contract.actions?.cancel?.available && live, tone = summary.state, dismissFailure = quick?.failures[job.id];
   // A run that failed, was interrupted or was stopped: 「发给主会话」 is the last quiet way on (the hand-off plan N8; the console's line is N9).
   const handOff = failedHandOffInput(job, { line: line || cardLine(job, now) });
-  const goButton = <Button className="cjc__go" size="sm" disabled={go.disabled} aria-label={`${go.label}：${summary.title}`} iconEnd="arrow-right" onClick={go.run}>{go.label}</Button>;
+  // The arrow says the button takes the learner somewhere (the console, a draft, practice); an action that works on this card (`here`: 接着做, 继续, 再试一次) has none.
+  const goButton = <Button className="cjc__go" size="sm" disabled={go.disabled} aria-label={`${go.label}：${summary.title}`} iconEnd={go.here ? undefined : 'arrow-right'} onClick={go.run}>{go.label}</Button>;
   return (
     <article className={['cjc', job.leaving && 'is-leaving', className].filter(Boolean).join(' ')} data-job-id={job.id} data-state={tone} aria-label={summary.title} {...rest}
       aria-hidden={job.leaving ? 'true' : undefined} inert={job.leaving || undefined}>

@@ -24,7 +24,7 @@ function Branch({ items, onPractice }) {
               <span className="spine-contrast">{uiFormat("对比 · {0}", [item.contrasts.join("、")])}</span>
             )}
             {onPractice && item.subtreeCards.length > 0 && (
-              <Button variant="link" size="sm" className="spine-practice" onClick={() => onPractice(item.subtreeCards)}>{uiFormat("练 {0} 题", [item.subtreeCards.length])}</Button>
+              <Button variant="link" size="sm" iconEnd="arrow-right" className="spine-practice" onClick={() => onPractice(item.subtreeCards)}>{uiFormat("练 {0} 题", [item.subtreeCards.length])}</Button>
             )}
           </div>
           <Branch items={item.children} onPractice={onPractice} />

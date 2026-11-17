@@ -104,7 +104,7 @@ export default function SectionPractice({ loop, outline, title, chapterName = ''
       <Stat count={stats.notes} label={ui('批注')} onOpen={onNotes} />
     </div>}
     {!active && qaOpen && stats.followups > 0 && <div id={qaId} className="section-practice__qa-panel">
-      <QaList items={stats.items} cardLabel={ui('在这里做这道题')}
+      <QaList items={stats.items} here
         onCard={ref => { setQaOpen(false); const card = listed.cards.find(item => item.deckId === ref.deckId && item.cardId === ref.cardId); if (card) start(card); }} />
     </div>}
     {!active && loop.status === 'ready' && hasMixedMastery && (

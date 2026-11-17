@@ -60,7 +60,7 @@ function NodeTree({ skeleton, onPractice }) {
           <span className="sk-node-meaning">{n.meaning}</span>
         </div>
         {n.cards.length > 0 && (
-          <Button size="sm" className="sk-mini" onClick={() => onPractice(n.cards)} title={ui("练这个节点关联的题")}>{uiFormat("练 {0} 题", [n.cards.length])}</Button>
+          <Button size="sm" iconEnd="arrow-right" className="sk-mini" onClick={() => onPractice(n.cards)} title={ui("练这个节点关联的题")}>{uiFormat("练 {0} 题", [n.cards.length])}</Button>
         )}
         {children.has(n.id) && <ul className="sk-tree">{render(n.id, depth + 1)}</ul>}
       </li>
