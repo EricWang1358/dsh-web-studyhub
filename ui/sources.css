@@ -47,10 +47,10 @@
     /* --source-doc-lead: the icon and the gap after it, so a line under the title starts where the title's text does. */
     .source-doc { --source-doc-lead: calc(20px + var(--space-3)); display: block; margin: 0; padding: var(--space-2); border: 0; border-radius: var(--radius-sm); background: transparent; }
     /* A row is a small grid: the text (title and facts, after the checkbox while organizing) beside the actions, then the status line under both, as wide as the
-       row. The actions only ever sit beside the title and the facts, so a wide row's hover-only buttons never narrow the status line (#1083); where they wait for
-       the pointer they take no column at all (below). */
-    .source-doc__line { display: grid; grid-template-columns: [text-start] minmax(0, 1fr) [text-end] auto; align-items: center; gap: 0 var(--space-3); min-width: 0; }
-    .source-doc__line:has(> .source-doc__check) { grid-template-columns: auto [text-start] minmax(0, 1fr) [text-end] auto; }
+       row. The actions are always there, in a column as wide as they are (at most half the row), so they never lie over a word, nothing moves when the pointer
+       comes, and the text runs right up to them (#1083). */
+    .source-doc__line { display: grid; grid-template-columns: [text-start] minmax(0, 1fr) [text-end] fit-content(50%); align-items: center; gap: 0 var(--space-3); min-width: 0; }
+    .source-doc__line:has(> .source-doc__check) { grid-template-columns: auto [text-start] minmax(0, 1fr) [text-end] fit-content(50%); }
     .source-doc__line > * { grid-row: 1; grid-column: text; }
     .source-doc__line > .source-doc__check { grid-column: 1; margin: 0; }
     /* The text column takes the whole width of the row beside the icon (it used to be as wide as its longest line, the start of the text, so a row with a short title and
@@ -76,7 +76,8 @@
     /* Inside the slot the badge keeps one line (ui/sources-page.css). */
     .source-doc__index > * { min-width: 0; max-width: 100%; }
     .source-doc__icon { flex: none; margin-top: var(--space-half); color: var(--accent-text); }
-    .source-doc__line > .source-doc__actions { grid-column: -2; display: flex; flex-wrap: wrap; min-width: 0; align-items: center; gap: var(--space-2); }
+    /* One line of buttons: where they do not fit, a label wraps inside its button, never a button alone onto a line of its own. */
+    .source-doc__line > .source-doc__actions { grid-column: -2; display: flex; flex-wrap: nowrap; min-width: 0; align-items: center; gap: var(--space-2); }
     .source-doc__actions > .source-doc__action { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
     .source-doc__actions .source-row-actions > summary {
       padding: var(--space-1-5) var(--space-2-5);
@@ -132,26 +133,10 @@
     .sources-empty__intro p { margin: 0; color: var(--text-muted); }
     .source-doc .source-main--editing .source-doc__icon { margin-top: var(--space-2-5); }
   }
-  /* A row's actions (从这份资料出题, 补题, 更多) wait for the pointer on a device that has one (ui/DESIGN.md, Restraint); the status stays. Keyboard focus inside
-     the row, an open 更多 menu or 补题 popover, or a fresh import shows them. Touch and narrow panes (where they sit on their own line under the row) always show them.
-     While they wait they take no room (#1083): the text runs the whole width of the row and the actions lie over its end, beside the title and the facts, on the
-     row's own surface, which fades the text in before them. So nothing moves when they appear (no column opens, no line rewraps) and an idle row keeps no blank strip. */
+  /* A row lights up under the pointer on a device that has one; its actions are always shown (above), so hover changes only the tint. */
   @media (hover: hover) and (pointer: fine) {
     :is(.study-app, .study-seat) {
       .source-doc:hover { background: var(--bg-hover); }
-    }
-    :is(.study-app, .study-seat) .sources-page:not(.is-narrow) {
-      .source-doc__line { position: relative; grid-template-columns: [text-start] minmax(0, 1fr) [text-end]; }
-      .source-doc__line:has(> .source-doc__check) { grid-template-columns: auto [text-start] minmax(0, 1fr) [text-end]; }
-      /* --source-doc-veil: the hover tint of the row (none while it is not hovered), laid over the canvas under the actions. */
-      .source-doc { --source-doc-veil: transparent; }
-      .source-doc:hover { --source-doc-veil: var(--bg-hover); }
-      /* Its box is the text's cell of the first line (title and facts), both edges named: an absolute grid item's `auto` edge is the row's, and it hid the status. */
-      .source-doc__line > .source-doc__actions { position: absolute; grid-row: 1 / 2; grid-column: text; inset-block: 0; inset-inline-end: 0; flex-wrap: nowrap; padding-inline-start: var(--space-8);
-        background: linear-gradient(to right, transparent, var(--source-doc-veil) var(--space-8)), linear-gradient(to right, transparent, var(--bg-canvas) var(--space-8));
-        opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
-      .source-doc:is(:hover, :focus-within, .is-new) .source-doc__actions,
-      .source-doc__actions:has(details[open], [aria-expanded="true"]) { opacity: 1; }
     }
   }
   /* A narrow 资料 page (.is-narrow: Sources.jsx measures the page's own column against ROWS_NARROW, the one place the width is decided, #1083): the facts break

@@ -296,12 +296,7 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
             {item.renamedFrom && <small className="source-original" title={item.renamedFrom}>{originalNote(item)}</small>}
           </span>
         </button>}
-        {/* The status line, always visible: 资料掌握度 (the snapshot's materialMastery) and 覆盖 beside it (drafts included; the mastery is only about published questions),
-            then the index badge's slot, kept from the first paint so a late coverage answer fills it and moves nothing (#229). A click on it opens the material, as the title does. */}
-        <div className="source-doc__status" onClick={openRow}>
-          <span className="source-doc__quality"><MasteryLine className="source-doc__mastery" summary={mastery?.document ?? null} title={name} /><CoverageChip coverage={coverage} /></span>
-          {indexSlot}
-        </div>
+        {/* The row's actions, beside the title (line 1) on a wide row: before the status line in the DOM too, so Tab goes title, actions, then the index link under them. */}
         <div className="source-doc__actions">
           {companionTarget && openModal && (
             <Button size="sm" variant="secondary" icon="play" className="source-doc__action" onClick={() => openCompanionTarget(openModal, companionTarget)}>
@@ -311,7 +306,6 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
           {canGenerate && <Button size="sm" variant="secondary" icon="sparkle" className="source-doc__action" lock={busy} onClick={() => actions.generate(item.sourceIds)}>{ui('从这份资料出题')}</Button>}
           {/* 为没覆盖的部分补题 of a material whose questions were published: a NEW draft, the deck's next part (ui/coverage/DocumentTopUp.jsx). */}
           {topUp && <DocumentTopUp item={item} revision={JSON.stringify(coverage)} />}
-          {editor && !item.archived && <Button size="sm" variant="quiet" icon="edit" className="source-doc__action source-doc__rename" aria-label={uiFormat('重命名「{0}」', [name])} title={ui('重命名')} lock={busy} onClick={startEditing} />}
           {item.archived && <>
             <Button size="sm" variant="secondary" className="source-doc__action" lock={busy} onClick={() => actions.archive(item)}>{ui('恢复资料')}</Button>
             <Button size="sm" variant="danger" className="source-doc__action" lock={busy} onClick={() => actions.remove(item)}>{ui('永久删除')}</Button>
@@ -321,6 +315,12 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
               onArchive={item.archived ? undefined : actions.archive} onSegment={canSegment ? actions.segment : undefined} onRename={editor ? startEditing : undefined}
               onPin={actions.pin} onPinMove={actions.pinMove} pin={{ pinned, first: pinFirst, last: pinLast }} />
           </details>
+        </div>
+        {/* The status line, always visible: 资料掌握度 (the snapshot's materialMastery) and 覆盖 beside it (drafts included; the mastery is only about published questions),
+            then the index badge's slot, kept from the first paint so a late coverage answer fills it and moves nothing (#229). A click on it opens the material, as the title does. */}
+        <div className="source-doc__status" onClick={openRow}>
+          <span className="source-doc__quality"><MasteryLine className="source-doc__mastery" summary={mastery?.document ?? null} title={name} /><CoverageChip coverage={coverage} /></span>
+          {indexSlot}
         </div>
       </div>
       {(multi || chaptered) && <div className="source-doc__pages">
