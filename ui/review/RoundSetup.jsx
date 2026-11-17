@@ -98,7 +98,7 @@ function Form({ data, context, chapterRefs, onStart, close }) {
     <Hint size="xs" className="round-setup__estimate" aria-live="polite">{estimateLabel}</Hint>
     <div className="round-setup__actions">
       {differs && <Button size="sm" variant="quiet" onClick={() => { const fresh = roundDefaults(practice, context); setChoice(fresh); setText(String(fresh.size)); }}>{ui('恢复默认')}</Button>}
-      <Button type="submit" variant="primary" className="round-setup__start" busy={starting} lock={busy} disabled={!sizeOk} data-usage="round.setup.start">{ui('开始本轮')}</Button>
+      <Button iconEnd="arrow-right" type="submit" variant="primary" className="round-setup__start" busy={starting} lock={busy} disabled={!sizeOk} data-usage="round.setup.start">{ui('开始本轮')}</Button>
     </div>
     {error && <Hint tone="error" role="alert" className="round-setup__error">{error}</Hint>}
     <Hint size="xs">{ui('只对这一轮有效；想让题数一直这样，点「设为默认」。')}</Hint>

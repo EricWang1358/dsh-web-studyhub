@@ -57,7 +57,7 @@ export default function CustomGate({ kind, gate, scale, onCustom, onWhole, onClo
       description={book ? uiFormat('「生成复习全书」会先整理总纲，再给每个知识点写讲解，整本书都要读；这门课里最大的一本有 {0} 页。', [gate.pages])
         : uiFormat('「生成总纲」会把这门课的资料整本读一遍来排章节；这门课里最大的一本有 {0} 页。', [gate.pages])}
       footer={<>
-        <Tooltip layer content={handOffTip(CUSTOM_BOOK_WHAT)}><Button variant="primary" icon="chat" lock={busy} onClick={onCustom} data-custom-gate-action="custom">{ui('深度定制这本书（推荐）')}</Button></Tooltip>
+        <Tooltip layer content={handOffTip(CUSTOM_BOOK_WHAT)}><Button variant="primary" icon="external" lock={busy} onClick={onCustom} data-custom-gate-action="custom">{ui('深度定制这本书（推荐）')}</Button></Tooltip>
         <Tooltip layer content={book ? ui('照原来的做法：读整本书，生成复习全书，马上开始') : ui('照原来的做法：读整本书，生成总纲，马上开始')}>
           <Button variant="secondary" lock={busy} onClick={onWhole} data-custom-gate-action="whole">{ui('整本生成')}</Button></Tooltip>
         <Tooltip layer content={ui('什么都不生成，回到总纲')}><Button variant="quiet" lock={busy} onClick={() => onClose('button')} data-custom-gate-action="cancel">{ui('取消')}</Button></Tooltip>

@@ -120,7 +120,8 @@ export default function CompactJobCard({ job, onStop, onDismiss, primary, links,
   const stoppable = contract.actions?.cancel?.available && live, tone = summary.state, dismissFailure = quick?.failures[job.id];
   // A run that failed, was interrupted or was stopped: 「发给主会话」 is the last quiet way on (the hand-off plan N8; the console's line is N9).
   const handOff = failedHandOffInput(job, { line: line || cardLine(job, now) });
-  const goButton = <Button className="cjc__go" size="sm" disabled={go.disabled} aria-label={`${go.label}：${summary.title}`} iconEnd="arrow-right" onClick={go.run}>{go.label}</Button>;
+  // The arrow says the button takes the learner somewhere (the console, a draft, practice); an action that works on this card (`here`: 接着做, 继续, 再试一次) has none.
+  const goButton = <Button className="cjc__go" size="sm" disabled={go.disabled} aria-label={`${go.label}：${summary.title}`} iconEnd={go.here ? undefined : 'arrow-right'} onClick={go.run}>{go.label}</Button>;
   return (
     <article className={['cjc', job.leaving && 'is-leaving', className].filter(Boolean).join(' ')} data-job-id={job.id} data-state={tone} aria-label={summary.title} {...rest}
       aria-hidden={job.leaving ? 'true' : undefined} inert={job.leaving || undefined}>
@@ -139,9 +140,9 @@ export default function CompactJobCard({ job, onStop, onDismiss, primary, links,
         {stoppable ? <Button variant="quiet" size="sm" aria-label={uiFormat('停止：{0}', [summary.title])} onClick={cancel}>{ui('停止')}</Button>
           : !live ? <Button variant="quiet" size="sm" aria-label={uiFormat('归档：{0}', [summary.title])} onClick={dismiss}>{ui('归档')}</Button> : null}
       </div>
-      {/* The other ways on, as the card's one kind of quiet button ([{ label, run (or onClick), disabled, tip, aria }]; tip: on hover and focus): the card keeps ONE primary button. */}
+      {/* The other ways on, as the card's one kind of quiet button ([{ label, run (or onClick), here, icon, disabled, tip, aria }]; tip: on hover and focus): the card keeps ONE primary button. Like it, a link that takes the learner somewhere ends in →, one that works where it stands (`here`) has none (#1073 round 9); one that hands over to the DSH main chat leads with `icon: 'external'` and has no arrow (round 10). */}
       {(links?.length > 0 || handOff) && <div className="cjc__links">{(links || []).map((link) => {
-        const button = <Button key={link.label} variant="quiet" size="sm" disabled={link.disabled} aria-label={link.aria} onClick={link.run ?? link.onClick}>{link.label}</Button>;
+        const button = <Button key={link.label} variant="quiet" size="sm" icon={link.icon} iconEnd={link.here || link.icon ? undefined : 'arrow-right'} disabled={link.disabled} aria-label={link.aria} onClick={link.run ?? link.onClick}>{link.label}</Button>;
         return link.tip ? <Tooltip key={link.label} layer content={link.tip} anchorClassName="cjc__link-anchor">{button}</Tooltip> : button;
       })}{handOff && <HandOff id="job.failed" shape="quiet" input={handOff} what={FAILED_HAND_OFF_WHAT} aria-label={uiFormat('发给主会话：{0}', [summary.title])} />}</div>}
       {/* A dismissal that did not go through says so next to the card that came back. */}

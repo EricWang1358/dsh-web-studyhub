@@ -97,8 +97,8 @@ test("English audio import copy is fully translated and keeps user content as wr
       job({ id: 'subtitle', status: 'running', subtitle: true, phase: 'proofread' }),
     ] }, busy: false, act() {} })).replace(/lecture\.mp3/g, '');
     assert.doesNotMatch(reviewed, /[㐀-鿿]/);
-    assert.match(reviewed, /Review complete: 1 correction\(s\) applied/);
-    for (const text of ["Audio / recording", "Saved as 1 source(s) · 4 correction(s)", "2 doubtful word(s) were left unchanged; see them in the source", "Stopped", "View details",
+    assert.match(reviewed, /Review complete: 1 correction applied · 2 passages confirmed/);
+    for (const text of ["Audio / recording", "Saved as 1 source · 4 corrections", "2 doubtful words were left unchanged; see them in the source", "Stopped", "View details",
       "Drop an audio file here, or click to choose", "Up to 512 MB",
       "Find in the workspace", "Paste a file path (advanced)"])
       assert.ok(html.includes(text), text);

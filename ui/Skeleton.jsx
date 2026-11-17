@@ -60,7 +60,7 @@ function NodeTree({ skeleton, onPractice }) {
           <span className="sk-node-meaning">{n.meaning}</span>
         </div>
         {n.cards.length > 0 && (
-          <Button size="sm" className="sk-mini" onClick={() => onPractice(n.cards)} title={ui("练这个节点关联的题")}>{uiFormat("练 {0} 题", [n.cards.length])}</Button>
+          <Button size="sm" iconEnd="arrow-right" className="sk-mini" onClick={() => onPractice(n.cards)} title={ui("练这个节点关联的题")}>{uiFormat("练 {0} 题", [n.cards.length])}</Button>
         )}
         {children.has(n.id) && <ul className="sk-tree">{render(n.id, depth + 1)}</ul>}
       </li>
@@ -397,7 +397,7 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
                   {lint.flagged ? uiRich("{0} / {1} 道题有散装问题", <strong>{lint.flagged}</strong>, lint.total) : uiFormat("{0} 道题都没发现散装问题", [lint.total])}
                 </span>
                 {lint.flagged > 0 && (
-                  <Button size="sm" className="sk-mini" lock={busy} onClick={() => onPractice(lint.cards.filter((c) => c.issues.length))}>{ui("只练这些题")}</Button>
+                  <Button iconEnd="arrow-right" size="sm" className="sk-mini" lock={busy} onClick={() => onPractice(lint.cards.filter((c) => c.issues.length))}>{ui("只练这些题")}</Button>
                 )}
               </div>
               <div className="sk-filters" role="group" aria-label={ui("按问题筛选")}>
@@ -452,7 +452,7 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
               <header className="sk-view-head">
                 <h3>{viewing.title}</h3>
                 <div className="sk-actions">
-                  <Button variant="secondary"
+                  <Button iconEnd="arrow-right" variant="secondary"
                     lock={busy}
                     onClick={() => onPractice(viewing.nodes.flatMap((n) => n.cards))}
                   >{ui("练整个骨架")}</Button>

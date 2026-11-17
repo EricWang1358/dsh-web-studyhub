@@ -793,7 +793,7 @@ test('#942 N1: files the repair left alone because they are linked from elsewher
   const install = { ...local.homeInstall, install: { ...local.homeInstall.install, homeLinked: 1 } };
   assert.ok(textOf(render({ initialLocal: install })).includes('有 1 个文件同时链接在别的位置'));
   const english = textOf(render({ initialLocal: { ...local.homeService, lastError: { ...local.homeService.lastError, linked: 2 } } }, 'en'));
-  assert.match(english, /2 file\(s\) are also linked from another place.*this repair is not complete/);
+  assert.match(english, /2 files are also linked from another place.*this repair is not complete/);
   assert.doesNotMatch(english, han);
 });
 

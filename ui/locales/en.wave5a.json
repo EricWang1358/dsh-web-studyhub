@@ -1,6 +1,8 @@
 {
   "{0} 题 · 已归档": "{0} questions · archived",
+  "{0} 题 · 已归档#one": "{0} question · archived",
   "· {0} 条": "· {0} citations",
+  "· {0} 条#one": "· {0} citation",
   "客观题答对 {0}": "Objective answers correct {0}",
   "自评达标 {0}": "Self-rated as met {0}",
   "第 {0} / {1} 章 · {2} · 本章 {3}/{4}": "Chapter {0} / {1} · {2} · this chapter {3}/{4}",
@@ -14,6 +16,7 @@
   "全部章节都学过了": "All chapters learned",
   "下一批：{0}": "Next batch: {0}",
   "{0} 个主题组": "{0} topic groups",
+  "{0} 个主题组#one": "{0} topic group",
   "同名主题已跨题组合并": "Topics with the same name are merged across decks",
   "{0} 题待巩固": "{0} to reinforce",
   "{0} 题未自动审阅": "{0} not auto-reviewed",
@@ -21,11 +24,16 @@
   "推断归属": "ownership inferred",
   "用于 {0}": "used by {0}",
   "聚焦「{0}」· {1} 个邻居": "Focus “{0}” · {1} neighbours",
+  "聚焦「{0}」· {1} 个邻居#one:1": "Focus “{0}” · {1} neighbour",
   "全部 {0} 组": "All {0} groups",
+  "全部 {0} 组#one": "The {0} group",
   "{0} · {1} 个概念": "{0} · {1} concepts",
+  "{0} · {1} 个概念#one:1": "{0} · {1} concept",
   "练关联的 {0} 题": "Practise the {0} linked questions",
+  "练关联的 {0} 题#one": "Practise the {0} linked question",
   "对比 · {0}": "Compare · {0}",
   "学这一站 · {0} 题": "Study this stop · {0} questions",
+  "学这一站 · {0} 题#one": "Study this stop · {0} question",
   "{0}。错题会记为「薄弱」，学习路径优先出。": "{0}. Wrong answers are recorded as weak, and the learning path serves them first.",
   "· {0} 道题": "· {0} questions"
 }

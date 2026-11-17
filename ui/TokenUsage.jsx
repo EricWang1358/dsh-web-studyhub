@@ -211,7 +211,7 @@ export function ModelUsageView({ state = { status: 'idle' }, days = 30, onDays, 
     </>}
     <p className="model-usage__audio muted">
       {ui('音频转写按分钟计，不在这里；见「音频转写」页的「用量与额度」。')}
-      {onAudio && <> <Button variant="link" size="sm" onClick={onAudio}>{ui('打开音频转写')}</Button></>}
+      {onAudio && <> <Button iconEnd="arrow-right" variant="link" size="sm" onClick={onAudio}>{ui('打开音频转写')}</Button></>}
     </p>
     {instantWait(summary) && <p className="model-usage__audio muted" data-instant-wait>{instantWait(summary)}</p>}
   </Panel>;

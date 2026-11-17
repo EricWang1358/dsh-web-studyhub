@@ -216,7 +216,7 @@ test('the page form: only the open step has a body, with at most one primary but
   const ready = page(m.firstRunLine(library({ sources: [mine] })));
   assert.match(ready, /data-first-run="generate"/);
   assert.match(ready, />出第一组题</);
-  assert.match(ready, />再加一份</, 'an added material can have a second one, quietly');
+  assert.match(ready, /再添加资料/, 'an added material can have a second one, quietly');
   const running = page(m.firstRunLine(library({ sources: [mine], jobs: [job('running')] })), { jobs: h('div', { className: 'cjc' }, 'card') });
   assert.equal(primaries(running), 0, 'a run in progress has nothing to press but its own card');
   assert.match(running, /class="cjc"/, 'the run\'s card is inside the third step');
@@ -497,9 +497,9 @@ test('#1087: with the sample loaded, step 2 says the sample is there and what st
   const material = line.steps[1];
   assert.equal(material.status, 'todo', 'the sample still never ticks the step');
   assert.equal(material.sampleCount, 2);
-  assert.match(m.stepSentence(material), /示例资料 2 份已载入/);
+  assert.equal(m.stepSentence(material), '示例已载入 · 添加你自己的资料', 'the sample is there; what counts is a material of your own, in the words of the button (#1074)');
   const markup = page(line, { sample: SAMPLE });
-  assert.match(text(markup), /示例资料 2 份已载入/);
+  assert.match(text(markup), /示例已载入 · 添加你自己的资料/);
   assert.match(text(markup), /不算你的进度/);
   assert.equal(primaries(markup), 0, 'the sample banner leads; adding your own is a secondary button');
   assert.match(markup, /data-first-run="import"/);

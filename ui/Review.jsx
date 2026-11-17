@@ -147,16 +147,21 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
   // 继续下一批新题: one set of arguments for its button and for the 本轮设置 popover beside it (ui/review/round-setup.js resultTarget).
   const newBatchArgs = run.complete && run.mode === "new" && nextFreshCount > 0
     ? { mode: "new", scope: run.scope ?? [{ deckId: run.deckId }], count: freshRoundCount(data?.settings?.practice), ordered: true, fresh: true } : null;
+  /* `back`: the step goes back to where the learner came from (回到学习流, 回到之前的第 N 题, 回到原题, 回到学习路径), so its button leads with ← like every way
+     back; the rest step on and end in →. `path`: it is only the way back to the learning path, which a round with a way back of its own leaves out. */
   const nextStep = !run.complete ? null
-    : flow ? { label: ui("回到学习流"), run: () => onBackToWorkflow(flow.sessionId) }
-      : detour ? { label: uiFormat("回到之前的第 {0} 题", [detour.index + 1]), run: onReturnFromDetour }
-        : destination?.kind === "original" ? { label: destination.label, run: destination.go }
+    : flow ? { label: ui("回到学习流"), run: () => onBackToWorkflow(flow.sessionId), back: true }
+      : detour ? { label: uiFormat("回到之前的第 {0} 题", [detour.index + 1]), run: onReturnFromDetour, back: true }
+        : destination?.kind === "original" ? { label: destination.label, run: destination.go, back: true }
           : run.course?.next ? { label: ui("继续课程下一批"), run: () => act("review.start", { mode: "course", course: run.course.name, fresh: true }, enterRun) }
             : newBatchArgs ? { label: ui("继续下一批新题"), run: () => act("review.start", newBatchArgs, enterRun) }
-              : destination ? { label: destination.label, run: destination.go, back: isBackDestination(destination) } : null;
+              : destination ? { label: destination.label, run: destination.go, back: isBackDestination(destination), path: isBackDestination(destination) } : null;
   // With a way back as the main button (the book's, the 总纲's or the reader's), a next step that is just another place to go back to (回到学习路径) is left out: both would go back.
-  const onward = backHere && nextStep?.back ? null : nextStep;
+  const onward = backHere && nextStep?.path ? null : nextStep;
   // 本轮设置 (#1010): beside the next-round button, only where that button starts a round of the course or of the scope (the page decided it: ui/review/round-setup.js).
+  /* One way back on the result page (#1073 round 8): the main button when it goes back (the book's, 回到学习路径 / 回到学习流 / 回到原题), else the context's way
+     back beside a forward step; only when neither stands under the score does the header keep its 返回学习库. The foot's 回到学习目录 went to the same place. */
+  const resultBack = run.complete && (backHere || !!onward?.back || !!(onward && contextReturnLabel));
   const roundSetup = onward && !backHere && !flow && !detour && !run.course ? resultTarget(run, destination, { newBatch: newBatchArgs }) : null;
   const roundCourse = run.complete ? resolveRoundCourse(data, run) : "";
   const roundStage = roundCourse ? (currentMethodStage(data, roundCourse)?.stage?.name || "") : "";
@@ -186,12 +191,12 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
         actions={<>
           {host.openInSidebar && !run.complete && (
             <Tooltip layer content={ui("题目放到右栏，主区域回到主会话。在右栏里接着刚才做到的这一题继续。")}>
-              <Button variant="quiet" busy={movingToSidebar} onClick={moveToSidebar}>{ui("在右栏打开")}</Button>
+              <Button iconEnd="arrow-right" variant="quiet" busy={movingToSidebar} onClick={moveToSidebar}>{ui("在右栏打开")}</Button>
             </Tooltip>
           )}
           {!run.complete && onReturnToReading && <ReadingBackButton run={run} busy={busy} onReturn={onReturnToReading} />}
-          {/* On the result page the way back (the book, the 总纲 or the reading) is the main button below; the header does not say the same twice. */}
-          {!(run.complete && backHere) && <Button variant="quiet" className="review-return" aria-label={returnLabel} onClick={() => flow ? onBackToWorkflow(flow.sessionId) : wayBack ? wayBack.go() : navigate("library")}>
+          {/* On the result page the way back below the score (the book, the 总纲, the reading, 回到学习路径 …) is the one way back; the header does not say it twice. */}
+          {!resultBack && <Button icon="arrow-left" variant="quiet" className="review-return" aria-label={returnLabel} onClick={() => flow ? onBackToWorkflow(flow.sessionId) : wayBack ? wayBack.go() : navigate("library")}>
             <span className="review-return-full">{returnLabel}</span>
             <span className="review-return-short" aria-hidden="true">{wayBack ? wayBack.label : ui("返回")}</span>
           </Button>}
@@ -200,14 +205,14 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
           <Button variant="quiet" size="sm" onClick={() => openModal({ type: "sources" })}>{uiFormat("查看 {0} 份资料", [countMaterials(data?.sources, run.sourceIds)])}</Button>
           {!run.complete && !run.reading && run.mode !== "exam" && readableMaterialItems(data?.sources, run.sourceIds).length > 0 && (
             <Tooltip layer content={ui("打开资料阅读器，翻到已学章节或页码后点「做这几页的题」，避开还没学到的后续页。")}>
-              <Button variant="quiet" size="sm" onClick={() => openReaderForPages({ sources: data?.sources, sourceIds: run.sourceIds, openModal: study.openModal, back: true })}>
+              <Button iconEnd="arrow-right" variant="quiet" size="sm" onClick={() => openReaderForPages({ sources: data?.sources, sourceIds: run.sourceIds, openModal: study.openModal, back: true })}>
                 {ui("去资料选页做题")}
               </Button>
             </Tooltip>
           )}
           <RunContext data={data} deckId={run.deckId} run={run} />
           {skeletonHere && openSkeleton && (
-            <Button variant="quiet" size="sm" title={uiFormat("这道题在知识骨架「{0}」里", [skeletonHere.title])} onClick={() => openSkeleton(skeletonHere.id)}>{ui("知识骨架")}</Button>
+            <Button iconEnd="arrow-right" variant="quiet" size="sm" title={uiFormat("这道题在知识骨架「{0}」里", [skeletonHere.title])} onClick={() => openSkeleton(skeletonHere.id)}>{ui("知识骨架")}</Button>
           )}
         </div>
       </PageHeader>
@@ -243,7 +248,8 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
           {(onward || wayBack) && (
             <div className={cx("result-next", wayBack && "result-next--back")}>
               {wayBack && <ReturnPrimary arrow oneLine label={wayBack.label} place={wayBack.place} disabled={busy} onReturn={wayBack.go} />}
-              {onward && <Button variant={backHere ? "secondary" : "primary"} align={backHere ? "start" : undefined} iconEnd="arrow-right" lock={busy} onClick={onward.run}>{onward.label}</Button>}
+              {onward && <Button variant={backHere ? "secondary" : "primary"} align={backHere ? "start" : undefined} icon={onward.back ? "arrow-left" : undefined}
+                iconEnd={onward.back ? undefined : "arrow-right"} lock={busy} onClick={onward.run}>{onward.label}</Button>}
               {roundSetup && <RoundSetup data={data} context={roundSetup} chapterRefs={run.scope} onStart={(args, options) => act("review.start", args, enterRun, options)} className="result-setup" />}
 
               {onward && !backHere && contextReturnLabel && <Button icon="arrow-left" lock={busy} onClick={onReturnContext}>{contextReturnLabel}</Button>}
@@ -283,7 +289,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
           {leechCount > 0 && (
             <p className="summary-leech">
               {leechCount === 1 ? ui("本轮有 1 道题你已经反复答错。") : uiFormat("本轮有 {0} 道题你已经反复答错。", [leechCount])}
-              <Button variant="link" size="sm" lock={busy} onClick={() => { askForLeeches(data?.root, run.leechCards); navigate("wrongbook"); }}>{ui("在错题本里看看")}</Button>
+              <Button iconEnd="arrow-right" variant="link" size="sm" lock={busy} onClick={() => { askForLeeches(data?.root, run.leechCards); navigate("wrongbook"); }}>{ui("在错题本里看看")}</Button>
             </p>
           )}
           {run.course && (
@@ -310,7 +316,6 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
                 input={{ course: roundCourse, stage: roundStage, missed: missedList }}
                 disabled={busy} />
             )}
-            <Button onClick={() => navigate("library")}>{ui("回到学习目录")}</Button>
           </div>
           {caseNote && <p className="muted" role="status">{caseNote}</p>}
           {methodAlt && (
@@ -332,7 +337,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             <p className="muted">{ui("每道题的下次复习时间已保存。")}</p>
             <div className="summary-actions">
             {run.mode === "path" && !run.returnTo && !flow && run.scope?.length > 0 && run.dailyCourse === undefined && (
-              <Button lock={busy} onClick={() => act("review.start", { mode: "path", scope: run.scope, fresh: true }, enterRun)}>{ui("再练此范围")}</Button>
+              <Button iconEnd="arrow-right" lock={busy} onClick={() => act("review.start", { mode: "path", scope: run.scope, fresh: true }, enterRun)}>{ui("再练此范围")}</Button>
             )}
             {run.weakTopics?.length > 0 && (
               <HandOff id="review.weakTopics" lead="讲解薄弱点：" what="让主会话逐个讲清这一轮还没掌握稳的主题，并各出一道小题检查你"

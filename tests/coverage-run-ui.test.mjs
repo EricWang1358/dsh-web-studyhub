@@ -136,7 +136,7 @@ test('paused: 暂停于第 2 轮之后 and 继续; pausing waits for the running
   const pausingHtml = text(render(React.createElement(m.TaskConsole, { data: { jobs: [pausing], drafts: [], decks: [] }, openers: { resultOf: () => null } })));
   assert.match(pausingHtml, /正在暂停 · 等正在进行的 2 个模型调用结束/, 'it waits for the two calls that run, and says so');
   assert.doesNotMatch(pausingHtml, /做完后停下/, 'never for the round');
-  inLanguage('en', () => assert.match(text(render(React.createElement(m.TaskConsole, { data: { jobs: [pausing], drafts: [], decks: [] }, openers: { resultOf: () => null } }), { language: 'en' })), /Pausing · waiting for the 2 model call\(s\) in progress to finish/));
+  inLanguage('en', () => assert.match(text(render(React.createElement(m.TaskConsole, { data: { jobs: [pausing], drafts: [], decks: [] }, openers: { resultOf: () => null } }), { language: 'en' })), /Pausing · waiting for the 2 model calls in progress to finish/));
   const midRound = job({ ...paused_, pausedAt: at(900) });
   assert.match(text(render(React.createElement(m.TaskConsole, { data: { jobs: [midRound], drafts: [], decks: [] }, openers: { resultOf: () => null } }))), /已暂停 · 点「继续」接着做/);
   inLanguage('en', () => assert.match(text(render(React.createElement(m.TaskConsole, { data: { jobs: [midRound], drafts: [], decks: [] }, openers: { resultOf: () => null } }), { language: 'en' })), /Paused · press Resume to go on/));

@@ -29,15 +29,15 @@ export default function CrunchDay({ course, daysLeft, day, points, max = Infinit
             <span className="crunch-day__muted">{pointMeta(point)}</span>
           </div>
           <div className="crunch-day__actions">
-            <Button variant="quiet" size="sm" onClick={() => onRead?.(point)}>{looks ? ui('翻看') : ui('去读')}</Button>
-            {learns && point.questions > 0 && onPractice && <Button variant="quiet" size="sm" onClick={event => onPractice(point, event.currentTarget)}>{ui('练 5 道')}</Button>}
+            <Button iconEnd="arrow-right" variant="quiet" size="sm" onClick={() => onRead?.(point)}>{looks ? ui('翻看') : ui('去读')}</Button>
+            {learns && point.questions > 0 && onPractice && <Button iconEnd="arrow-right" variant="quiet" size="sm" onClick={event => onPractice(point, event.currentTarget)}>{ui('练 5 道')}</Button>}
             {learns && !point.questions && onMarkRead && <Checkbox label={ui('读完了')} checked={done.has(point.id)} onChange={on => onMarkRead(point, on)} />}
           </div>
         </li>)}
       </ul>}
       {rest > 0 && onMore && <Button variant="link" size="sm" className="crunch-day__more" onClick={onMore}>{uiFormat('还有 {0} 节', [rest])}</Button>}
       {(looks || day.mode === 'mock' || points.length > 0) && <div className="crunch-day__bar">
-        {looks && onFlip && <Button size="sm" variant="secondary" icon="book" onClick={onFlip}>{ui('翻看全书')}</Button>}
+        {looks && onFlip && <Button size="sm" variant="secondary" iconEnd="arrow-right" onClick={onFlip}>{ui('翻看全书')}</Button>}
         {(points.length > 0 || day.mode === 'mock') && <MockPaper course={course} pointIds={points.length ? points.map(point => point.id) : undefined} onStarted={onMockStarted} />}
       </div>}
     </div>

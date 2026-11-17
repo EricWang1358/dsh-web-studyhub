@@ -108,7 +108,7 @@ test("a source that is no longer in the library is grouped by the document name 
 test("in English the same list reads in English", () => {
   const out = text(render(draft(rows), pages, "en"));
   assert.match(out, /Per-source record · 3 of 6 pages cited/);
-  assert.match(out, /p\. 21: 1 knowledge point\(s\) planned, 2 question\(s\) passed/);
+  assert.match(out, /p\. 21: 1 knowledge point planned, 2 questions passed/);
   assert.match(out, /Pages: 22, 36, 40/);
   assert.doesNotMatch(out.replace(CLEAN, ""), /[㐀-鿿]/);
 });

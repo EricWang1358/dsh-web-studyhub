@@ -101,7 +101,7 @@ export function useBookAi({ call, course, notify, reload, book, setBook, rows, a
     setLines(current => current.filter(line => !ended.includes(line)));
     for (const line of written) {
       if (markLanded(line.id)) continue;
-      latest.current.notify({ text: ui('AI 段落写好了'), tone: 'success', action: { label: ui('去看'), onClick: () => {
+      latest.current.notify({ text: ui('AI 段落写好了'), tone: 'success', action: { label: ui('去看'), iconEnd: 'arrow-right', onClick: () => {
         latest.current.goTo?.(line.heading);
         setTimeout(() => { flushSync(() => latest.current.aiFold?.fold(line.id, false)); showBlock(line.id); }, 120);
       } } });

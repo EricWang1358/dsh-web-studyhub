@@ -86,6 +86,17 @@ test("#1074: 添加资料 is never drawn by hand anywhere in ui/ (a Button label
   assert.match(read("ui/study-map/CatalogHeading.jsx"), /ADD_SOURCE_ICON/, "the catalogue menu item takes the shared icon");
 });
 
+test("#1074: 'add another material' is AddSourceButton's `more` (or addSourceAction's), never drawn by hand: no ui('再添加资料') or ui('再加一份') outside the shared 添加资料 files", () => {
+  const offenders = [];
+  for (const file of walk("ui")) {
+    if (file === "ui/components/AddSourceButton.jsx" || file === "ui/components/add-source.js") continue;
+    for (const label of ["再添加资料", "再加一份"]) if (read(file).includes(`ui("${label}")`) || read(file).includes(`ui('${label}')`)) offenders.push(`${file}: ${label}`);
+  }
+  assert.deepEqual(offenders, [], "use <AddSourceButton more variant> or addSourceAction(onClick, { more: true })");
+  assert.match(read("ui/first-run/FirstRunLine.jsx"), /<AddSourceButton more /);
+  assert.match(read("ui/study-map/DeskIntro.jsx"), /<AddSourceButton key=\{entry\.label\} more /);
+});
+
 test("#1074: the compact first-run card offers 添加资料 as the shared upload-icon action, not a full-width arrow button", () => {
   const source = read("ui/first-run/FirstRunLine.jsx");
   assert.match(source, /icon=\{action\.icon\}/, "the compact button draws the action's own icon");

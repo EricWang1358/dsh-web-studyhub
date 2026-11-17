@@ -28,7 +28,7 @@ export default function CourseHeading({ data, headline, onFocus, onCourseSetting
   // Ranked like every course picker (current, recently used, busiest) with "Course / Chapter" names as a tree; parked courses stay reachable, last.
   const actions = [
     ...(focus.course ? [{ id: 'focus-intake', label: ui('录入重点…'), icon: 'sparkle', onSelect: () => openModal({ type: 'focusIntake', course: focus.course }) }] : []),
-    ...(typeof openModal === 'function' ? [{ id: 'companion-build', label: ui('新建交互伴学课…'), icon: 'play', onSelect: () => openModal({ type: 'companionBuild', course: focus.course || '' }) }] : []),
+    ...(typeof openModal === 'function' ? [{ id: 'companion-build', label: ui('新建交互伴学课…'), icon: 'plus', onSelect: () => openModal({ type: 'companionBuild', course: focus.course || '' }) }] : []),
     ...(onCourseSettings && focus.courseId ? [{ id: 'course-settings', label: ui('课程设置…'), icon: 'settings', onSelect: () => onCourseSettings(focus.courseId) }] : []),
   ];
   return frame(<>

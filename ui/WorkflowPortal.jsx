@@ -52,7 +52,7 @@ function PracticeStepArchive({ resources, onOpen }) {
         : <p>{uiRich("已做 {0} / {1} 道，答对 {2} 道。", <strong>{p.answered}</strong>, p.total, p.correct)}</p>}
       {p.runId && onOpen && (
         <div className="wf-actions">
-          <Button className="wf-action-btn" onClick={() => onOpen(p.runId)}>{ui("查看本轮结果")}</Button>
+          <Button iconEnd="arrow-right" className="wf-action-btn" onClick={() => onOpen(p.runId)}>{ui("查看本轮结果")}</Button>
         </div>
       )}
     </div>

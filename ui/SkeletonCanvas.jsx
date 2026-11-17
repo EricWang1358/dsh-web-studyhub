@@ -456,7 +456,7 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, fresh })
             )}
             <ExtendBox node={node} skeleton={skeleton} />
             {onPractice && node.cards.length > 0 && (
-              <Button variant="secondary" className="skc-practice" onClick={() => onPractice(node.cards)}>{uiFormat("练关联的 {0} 题", [node.cards.length])}</Button>
+              <Button variant="secondary" iconEnd="arrow-right" className="skc-practice" onClick={() => onPractice(node.cards)}>{uiFormat("练关联的 {0} 题", [node.cards.length])}</Button>
             )}
           </ReadingBlock>
         )}

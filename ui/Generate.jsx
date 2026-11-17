@@ -203,7 +203,7 @@ export default function Generate({
     <section className="page generate-page">
       <PageHeader className="generate-header" title={ui("出一组新题")}
         description={ui("用你的资料让 AI 出题；已经有现成的题目，也可以直接导入。")}
-        actions={pageAvailable(data, 'examcoach') ? <Button variant="quiet" className="sh-btn--flush-start sh-btn--flush-end" onClick={() => setPage?.('examcoach')}>{ui("去教练先校准考法")}</Button> : undefined} />
+        actions={pageAvailable(data, 'examcoach') ? <Button iconEnd="arrow-right" variant="quiet" className="sh-btn--flush-start sh-btn--flush-end" onClick={() => setPage?.('examcoach')}>{ui("去教练先校准考法")}</Button> : undefined} />
       {/* The row measures its own width (generate-home.css): where the cards no longer fit side by side they become one row of
           titles and the chosen way's line is said once under it (#575). The tab keeps its note, so a screen reader hears the same name. */}
       <div className="source-mode-frame">
@@ -276,7 +276,7 @@ export default function Generate({
               <div className="generate-plan" data-generate-plan data-tour="generate-course">
                 <p className="generate-plan__line">{courseLine(generationCourse)}</p>
                 <Button variant="link" size="sm" aria-expanded={courseOpen} onClick={() => setCourseOpen(open => !open)}>{courseOpen ? ui("收起") : ui("更改")}</Button>
-                <Button variant="link" size="sm" data-open-settings="settings-generation" onClick={openGenerationSettings}>{ui("前往设置")}</Button>
+                <Button iconEnd="arrow-right" variant="link" size="sm" data-open-settings="settings-generation" onClick={openGenerationSettings}>{ui("前往设置")}</Button>
                 {caseExam && <span className="generate-plan__hint">{ui("这门课考案例题，可以切到「案例分析题」出题。")}{" "}
                   <Button variant="link" size="sm" onClick={() => setGenSource("case")}>{ui("切到案例分析题")}</Button></span>}
               </div>

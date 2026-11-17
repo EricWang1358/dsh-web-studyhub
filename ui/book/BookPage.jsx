@@ -250,7 +250,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
       <section className="page book-page" ref={pageRef}>
         {header}
         {writing ? <p className="book-writing" role="status"><LoadingState inline label={writingText(writing)} />
-          {onOpenTask && <Button variant="link" size="sm" onClick={() => onOpenTask(writing.jobId)}>{ui('看进度')}</Button>}</p>
+          {onOpenTask && <Button iconEnd="arrow-right" variant="link" size="sm" onClick={() => onOpenTask(writing.jobId)}>{ui('看进度')}</Button>}</p>
           : <EmptyState icon="book" title={ui('还没有复习全书')} description={`${ui('「生成复习全书」给每个知识点写讲解；写好后在这里读，点题目链接就去练。')} ${bookCostTipText()}`}
             primary={{ label: ui('生成复习全书'), icon: 'book', onClick: writeBook, disabled: !model.ready }}
             secondary={onBack ? { label: ui('回到总纲'), onClick: onBack } : undefined} />}

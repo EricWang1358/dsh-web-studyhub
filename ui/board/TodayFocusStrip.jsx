@@ -54,7 +54,7 @@ export default function TodayFocusStrip({ library, today, budgetMinutes = null, 
             </Tooltip>
             {strip.budget.met && (
               <span className="board-today__focus-budget-met" data-testid="focus-budget-met">
-                <Icon name="check" size={12} strokeWidth={2.2} />
+                <Icon className="sh-icon--inline" name="check" />
                 <span>{ui('已达标')}</span>
               </span>
             )}

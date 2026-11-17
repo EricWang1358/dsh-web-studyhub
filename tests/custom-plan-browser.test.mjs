@@ -112,7 +112,7 @@ test('「你的定制」: the card, a saved toggle, no card without a plan, no s
       await page.locator('.course-list__item', { has: page.getByText(MOVED, { exact: true }) }).locator('.course-list__action').click();
       await page.locator('.course-settings').waitFor({ timeout: 30000 });
       const moved = page.locator('.course-settings .custom-card');
-      const notice = moved.getByText(say('有 1 章在资料里找不到了，需要重新选', '1 chapter(s) are no longer in the material and must be picked again'));
+      const notice = moved.getByText(say('有 1 章在资料里找不到了，需要重新选', '1 chapter is no longer in the material and must be picked again'));
       await notice.waitFor({ timeout: 30000 });
       await moved.getByRole('button', { name: say('发给主会话', 'Send to the main chat') }).waitFor({ timeout: 30000 });
       const movedFlat = await sideways(page);

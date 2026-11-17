@@ -83,8 +83,8 @@ export function ExamPrepDetailView({ row, blueprint = null, failure = null, onBa
     <section className="page exam-prep" data-usage-area="examprep">
       <PageHeader title={row.title} description={meta || undefined} back={{ label: ui('返回考点清单'), onClick: onBack }}
         actions={<>
-          <Explain k="regenerate"><Button variant="secondary" icon="refresh" data-usage="examprep.regenerate" disabled={!ready || !!row.build} lock={busy} onClick={() => onRegenerate(row, blueprint)}>{ui('重新生成')}</Button></Explain>
-          <Explain k="delete"><Button variant="quiet" icon="trash" data-usage="examprep.delete" lock={busy} onClick={() => setDeleting(true)}>{ui('删除')}</Button></Explain>
+          <Explain k="regenerate"><Button variant="secondary" data-usage="examprep.regenerate" disabled={!ready || !!row.build} lock={busy} onClick={() => onRegenerate(row, blueprint)}>{ui('重新生成')}</Button></Explain>
+          <Explain k="delete"><Button variant="quiet" data-usage="examprep.delete" lock={busy} onClick={() => setDeleting(true)}>{ui('删除')}</Button></Explain>
         </>} />
       <div className="exam-prep-summary">
         <Explain k="basis" focusable className="exam-prep-summary__basis">{basisLine(basis)}</Explain>
@@ -93,7 +93,7 @@ export function ExamPrepDetailView({ row, blueprint = null, failure = null, onBa
         {row.build && (
           <span className="exam-prep-row__state">
             <Explain k="building" focusable><Badge size="sm" tone="accent" dot>{ui('正在重新生成')}</Badge></Explain>
-            <Button variant="link" size="sm" onClick={() => onOpenTask(row.build.taskId)}>{ui('在任务里查看')}</Button>
+            <Button iconEnd="arrow-right" variant="link" size="sm" onClick={() => onOpenTask(row.build.taskId)}>{ui('在任务里查看')}</Button>
           </span>
         )}
       </div>

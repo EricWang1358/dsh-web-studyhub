@@ -4,7 +4,7 @@ English · [简体中文](README.zh-CN.md)
 
 Turn your lecture slides into questions that each link back to their page; finish a round and see yourself getting it.
 
-Free and open source, your materials stay on your computer; pick your own model and pay for what you use.
+Free and open source, your sources stay on your computer; pick your own model and pay for what you use.
 
 StudyHub is a plugin for [DeepSeek Harness (DSH)](https://www.deepseek.com/en/harness/), an AI agent app. DSH runs as a desktop app or as a web page served from your own computer, and StudyHub opens inside it.
 

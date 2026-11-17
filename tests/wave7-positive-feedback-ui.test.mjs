@@ -243,7 +243,7 @@ test('Wave 7 U32: TodayView shows all-done milestone when open=0 && done>0 and c
     assert.ok(bannerEnd > bannerStart, 'EN completion banner has closing div');
     const banner = enHtml.slice(bannerStart, bannerEnd);
     assert.match(textOfHtml(banner), /All scheduled tasks completed/);
-    assert.match(textOfHtml(banner), /3 task\(s\) finished today/);
+    assert.match(textOfHtml(banner), /3 tasks finished today/);
     assert.doesNotMatch(textOfHtml(banner), CJK);
   } finally {
     m.setUiLanguage('zh');
@@ -312,7 +312,7 @@ test('Wave 7 U34: WrongBook celebrates cleared active list when history exists a
     const clearedStart = htmlEn.indexOf('wb-cleared-milestone');
     const clearedSlice = htmlEn.slice(Math.max(0, clearedStart - 80), htmlEn.length);
     assert.match(textOfHtml(clearedSlice), /All caught up · No questions waiting for review/);
-    assert.match(textOfHtml(clearedSlice), /You have corrected 4 mistake\(s\) so far/);
+    assert.match(textOfHtml(clearedSlice), /You have corrected 4 mistakes so far/);
     assert.match(textOfHtml(clearedSlice), /View corrected history \(4\)/);
     assert.doesNotMatch(textOfHtml(clearedSlice), CJK);
   } finally {

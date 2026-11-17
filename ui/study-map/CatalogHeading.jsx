@@ -15,7 +15,7 @@ export default function CatalogHeading({ count, showArchived, hasDecks, hasSourc
   const items = [
     course != null && { id: 'merge', label: ui('整理题组'), disabled: busy || merge.busy },
     { id: 'add', label: ui('添加资料'), icon: ADD_SOURCE_ICON },
-    canOpenCompanionBuild && { id: 'companion', label: ui('新建交互伴学课…'), icon: 'play' },
+    canOpenCompanionBuild && { id: 'companion', label: ui('新建交互伴学课…'), icon: 'plus' },
     { id: 'manual', label: ui('手工建卡'), disabled: !hasSources },
     { id: 'json', label: ui('导入 JSON 题组') },
     slain && { id: 'slain', label: uiFormat('斩题组（{0}）', [slain.count]), disabled: busy },
@@ -33,7 +33,7 @@ export default function CatalogHeading({ count, showArchived, hasDecks, hasSourc
       <h2>{showArchived ? ui('已归档题组') : ui('学习目录')} <span>{count}</span></h2>
       <div className="section-heading-actions">
         {onShowOutline && <OutlineEntry size="sm" onShowOutline={onShowOutline} />}
-        {hasDecks && <Button size="sm" lock={busy} title={ui('用整块画布打开知识结构图 / 学习路径图（可缩放、拖拽）')}
+        {hasDecks && <Button size="sm" iconEnd="arrow-right" lock={busy} title={ui('用整块画布打开知识结构图 / 学习路径图（可缩放、拖拽）')}
           onClick={() => onShowGraph?.(null, { canvas: true })}>{ui('查看图谱')}</Button>}
         <Menu className="map-menu-wrap" label={ui('整理与添加')} items={items} onSelect={(id) => choose[id]()}
           trigger={({ props, ref }) => <Button ref={ref} size="sm" className="catalog-menu-toggle" busy={!!merge.busy} busyLabel={ui('整理中…')} {...props}>{ui('整理与添加')}</Button>} />

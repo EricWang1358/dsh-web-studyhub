@@ -44,7 +44,7 @@ export default function MockPaper({ course, pointIds, onStarted, className, auto
             <NumberInput suffix={ui('道')} min="1" max={String(most)} step="1" required value={count} disabled={busy} onChange={event => setCount(event.target.value)} />
           </Field>
           <span className="book-mock__muted">{plan.limitMinutes ? uiFormat('限时 {0} 分钟（课程的作答时间）', [minutes]) : uiFormat('限时 {0} 分钟', [minutes])}</span>
-          <Button type="submit" size="sm" variant="secondary" busy={busy} disabled={!valid}>{ui('开始模拟卷')}</Button>
+          <Button iconEnd="arrow-right" type="submit" size="sm" variant="secondary" busy={busy} disabled={!valid}>{ui('开始模拟卷')}</Button>
           <Button size="sm" variant="quiet" lock={busy} onClick={cancel}>{ui('取消')}</Button>
         </form>
       ) : (

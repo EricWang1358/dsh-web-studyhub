@@ -84,8 +84,8 @@ export function SelectionJobCard({ job, now = Date.now(), canPractice = false, o
         {canPractice && onPractice && added > 0 && <Button size="sm" variant="primary" iconEnd="arrow-right" className="selection-job__btn"
           onClick={() => onPractice({ deckId: job.publication.deckId, cardIds: job.publication.cardIds })}>
           {added === 1 ? ui('马上练这 1 张') : uiFormat('马上练这 {0} 张', [added])}</Button>}
-        {onOpenDeck && <Button size="sm" variant="secondary" className="selection-job__btn" onClick={() => onOpenDeck(job.publication?.deckId || job.deckId)}>{ui('打开题组')}</Button>}
-        {onOpenCard && job.publication?.firstCardId && <Button size="sm" variant="quiet" className="selection-job__btn"
+        {onOpenDeck && <Button iconEnd="arrow-right" size="sm" variant="secondary" className="selection-job__btn" onClick={() => onOpenDeck(job.publication?.deckId || job.deckId)}>{ui('打开题组')}</Button>}
+        {onOpenCard && job.publication?.firstCardId && <Button iconEnd="arrow-right" size="sm" variant="quiet" className="selection-job__btn"
           onClick={() => onOpenCard({ deckId: job.publication.deckId, cardId: job.publication.firstCardId })}>{ui('查看这道题与解析')}</Button>}
         {onDismiss && <Button size="sm" variant="quiet" className="selection-job__btn" onClick={() => onDismiss(job)}>{ui('知道了')}</Button>}
       </div>

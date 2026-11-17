@@ -35,7 +35,7 @@ test('a round with leeches says so in one line, with the way to the wrong book',
   const html = result({ run: { leechCards: leeches(2) } });
   assert.equal((text(html).match(/反复答错/g) || []).length, 1, 'one line');
   assert.match(text(html), /本轮有 2 道题你已经反复答错/);
-  assert.match(html, /<button[^>]*>[^<]*在错题本里看看[^<]*<\/button>/);
+  assert.match(html, /<button[^>]*>[^<]*在错题本里看看<svg[^>]*>.*?<\/svg><\/button>/, 'a link to the wrong book: it ends in the go-on arrow (#1073 round 6)');
   assert.match(text(result({ run: { leechCards: leeches(1) } })), /本轮有 1 道题你已经反复答错/);
 });
 

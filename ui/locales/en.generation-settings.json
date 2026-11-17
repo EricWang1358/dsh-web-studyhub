@@ -38,6 +38,10 @@
   "至少保留一种题型": "Keep at least one question type",
   "总题数按题型平均分配，多出的几题依次给排在前面的题型。": "The total is shared evenly between the types; any extra questions go to the first types in order.",
   "共 {0} 种题型，但只有 {1} 题：前 {1} 种题型各出 1 道，其余这次不出。": "{0} types but only {1} questions: the first {1} types get one each and the rest are left out this time.",
+  "共 {0} 种题型，但只有 {1} 题：前 {1} 种题型各出 1 道，其余这次不出。#one:1": "{0} types but only {1} question: the first type gets it and the rest are left out this time.",
   "共 {0} 种题型，按 {1} 题平均分配：{2}": "{0} types, {1} questions shared evenly: {2}",
+  "共 {0} 种题型，按 {1} 题平均分配：{2}#one:1": "{0} types, {1} question shared evenly: {2}",
+  "共 {0} 种题型，按 {1} 题平均分配：{2}#one:0,1": "{0} type, {1} question shared evenly: {2}",
+  "共 {0} 种题型，按 {1} 题平均分配：{2}#one": "{0} type, {1} questions shared evenly: {2}",
   "合并为一个待审题组，每种题型各按自己的规则出题和审阅。": "All in one draft to review; each type is written and reviewed by its own rules."
 }

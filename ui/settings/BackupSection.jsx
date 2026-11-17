@@ -164,7 +164,7 @@ export function BackupSection({ root, exportData, onRestored, jobs = [], nav, in
           <p>{ui('用一份完整备份替换当前学习库。替换前，当前数据会自动另存一份到：')}</p>
           <code className="backup-path" title={folder}>{folder || ui('当前学习库的 backups 文件夹')}</code>
           {/* Said before the learner picks a file: the restore cannot run now, and the reason is a task they can open. */}
-          {blockers.length > 0 && <InlineMessage tone="warning" action={openTask ? { label: ui('查看任务'), onClick: openTask } : undefined}>
+          {blockers.length > 0 && <InlineMessage tone="warning" action={openTask ? { label: ui('查看任务'), iconEnd: 'arrow-right', onClick: openTask } : undefined}>
             {ui(RUNNING_JOB)}
           </InlineMessage>}
           <input ref={input} type="file" hidden accept=".json,application/json" onChange={(e) => read(e.target.files?.[0])} />
@@ -192,7 +192,7 @@ export function BackupSection({ root, exportData, onRestored, jobs = [], nav, in
                 <li key={point.id} className="restore-point-row">
                   <div className="restore-point-row__info">
                     <div className="restore-point-row__title">
-                      <Icon name="clock" size={16} className="restore-point-row__icon" />
+                      <Icon name="clock" className="restore-point-row__icon sh-icon--inline" />
                       <strong>{label}</strong>
                       {point.tier === 'weekly' && <Badge tone="neutral">{ui('周恢复点')}</Badge>}
                       <small className="restore-point-row__bytes">{uiFormat('额外 {0}', [formatBytes(point.extraBytes || 0)])}</small>
@@ -234,7 +234,7 @@ export function BackupSection({ root, exportData, onRestored, jobs = [], nav, in
       </section>
       {confirm && file && <ConfirmDialog title={ui('用此备份替换当前学习库？')} confirmLabel={ui('用此备份替换当前学习库')} busy={busy} blocked={blockers.length > 0}
         onClose={() => setConfirm(false)}
-        errorAction={openTask ? { label: ui('查看任务'), onClick: openTask } : undefined}
+        errorAction={openTask ? { label: ui('查看任务'), iconEnd: 'arrow-right', onClick: openTask } : undefined}
         description={uiFormat('当前学习库会被「{0}」替换，替换后回到学习库首页。替换前，当前数据会自动保存到 {1}。', [file.name, folder || ui('当前学习库的 backups 文件夹')])}
         onConfirm={restore}>
         {blockers.length > 0 && <Hint>{ui(RUNNING_JOB)}</Hint>}

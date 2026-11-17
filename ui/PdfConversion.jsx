@@ -130,7 +130,7 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
     ? <MineruInstallCard compact initialLocal={local} onOpenSettings={onOpenSettings ? section => onOpenSettings(section, { file }) : undefined} />
     : <InlineMessage tone="info" boxed>
       {!available ? ui('PDF 解析是音频组件的一部分，而音频组件没有启用。在 DSH 插件管理器里启用它，这里就能用。') : ui('先在设置里安装或配置 Marker。')}
-      {onOpenSettings && available && <Button variant="link" className="mineru-route-panel__btn" onClick={() => onOpenSettings('settings-marker', { file })}>{ui('前往设置')}</Button>}
+      {onOpenSettings && available && <Button iconEnd="arrow-right" variant="link" className="mineru-route-panel__btn" onClick={() => onOpenSettings('settings-marker', { file })}>{ui('前往设置')}</Button>}
     </InlineMessage>);
 
   // The tool is chosen here and nowhere else. Inside another card (compact) it is one line, MinerU unless the learner changes it; the gate below says what the chosen one needs.
@@ -191,7 +191,7 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
 
         {available && gate}
 
-        {usable && <p className="mineru-acked"><Icon name="success" size={16} />{isMarker ? (review ? ui('在 StudyHub 所在电脑运行，转换好后先等你改。') : ui('在 StudyHub 所在电脑运行，结果自动导入。')) : ui('本地解析：不会上传任何内容。')}</p>}
+        {usable && <p className="mineru-acked"><Icon className="sh-icon--inline" name="success" />{isMarker ? (review ? ui('在 StudyHub 所在电脑运行，转换好后先等你改。') : ui('在 StudyHub 所在电脑运行，结果自动导入。')) : ui('本地解析：不会上传任何内容。')}</p>}
         {usable && stopped && <Hint>{ui('本机服务没在运行，开始解析时会先自动启动（约 1 分钟）。')}</Hint>}
         {usable && (() => {
           const active = Array.isArray(jobs) ? jobs.find(j => isConvertJob(j) && isActiveJob(j)) : null;

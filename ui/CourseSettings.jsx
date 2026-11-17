@@ -143,7 +143,7 @@ function CourseRow({ course, label = course.name, duplicates = [], onOpen, onMer
       <Tooltip layer content={course.name !== label ? course.name : ''}><strong tabIndex={course.name !== label ? 0 : undefined}>{label}</strong></Tooltip>
       {(meta || current) && <small>{[current ? ui('当前课程') : '', meta].filter(Boolean).join(' · ')}</small>}
       {duplicates.length > 0 && <span className="course-list__duplicate">
-        <Icon name="warning" size={14} />
+        <Icon className="sh-icon--inline" name="warning" />
         <span>{uiFormat('可能与「{0}」重复', [duplicates.map(item => item.name).join('」「')])}</span>
         {onMerge && <Button className="course-list__dup-link" size="sm" variant="link" lock={busy} onClick={() => onMerge(course.id, duplicates.map(item => item.id))}>{ui('合并到这里')}</Button>}
       </span>}

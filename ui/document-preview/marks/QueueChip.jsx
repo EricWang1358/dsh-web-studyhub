@@ -44,7 +44,7 @@ export default function QueueChip({ queue, disabled = false, modelReady = true, 
     {modelReady
       ? <Button variant="primary" icon="sparkle" className="reader-queue__start" lock={disabled} busy={starting} busyLabel={ui('正在开始…')} onClick={start}>
         {uiFormat('一次性出题 · 约 {0} 题', [total])}</Button>
-      : <Button variant="secondary" className="reader-queue__start" onClick={() => { setOpen(false); onOpenModelSettings?.(); }}>{ui('先连接模型')}</Button>}
+      : <Button iconEnd="arrow-right" variant="secondary" className="reader-queue__start" onClick={() => { setOpen(false); onOpenModelSettings?.(); }}>{ui('先连接模型')}</Button>}
     <small className="reader-queue__note">{ui('出成一份草稿，检查后再发布；用到的段落会从这里移走。')}</small>
   </Popover>;
 }

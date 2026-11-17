@@ -38,7 +38,7 @@ test('EmptyStudyActions uses Button: one primary per state', () => {
   m.setUiLanguage('zh');
   const decks = [{ id: 'd', archived: false }];
   const study = html(m.EmptyStudyActions, { data: { decks }, onStart: noop });
-  assert.match(study, /<button[^>]*sh-btn--primary[^>]*>开始学习<\/button>/);
+  assert.match(study, /<button[^>]*sh-btn--primary[^>]*>开始学习(?:<svg.*?<\/svg>)?<\/button>/);
   const create = html(m.EmptyStudyActions, { data: { decks: [] }, onCreate: noop, onSources: noop });
   assert.match(create, /sh-btn--primary[^>]*>创建题组</);
   assert.match(create, /sh-btn--secondary[^>]*>(<svg.*?<\/svg>)?添加资料</, '添加资料 is the shared upload-icon button (#1074)');

@@ -260,7 +260,7 @@ export function UpdateDialog({ update, onClose, initialPhase = null }) {
   else if (stuck && !available) primary = <Button variant="primary" busy={checking} onClick={recheck}>{ui('检查更新')}</Button>;
   const footer = (
     <div className="update-footer">
-      <a className="update-release-link" href={update.url} target="_blank" rel="noreferrer">{ui('查看发布页')}<Icon name="external" size={14} /></a>
+      <a className="update-release-link" href={update.url} target="_blank" rel="noreferrer">{ui('查看发布页')}<Icon className="sh-icon--inline" name="external" /></a>
       <span className="update-footer__actions">
         {phase.phase !== 'installed' && !stuck && <Button variant="quiet" lock={working} onClick={later}>{ui('稍后提醒')}</Button>}
         {primary}

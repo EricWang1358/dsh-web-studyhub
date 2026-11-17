@@ -69,7 +69,7 @@ test("a credential failure of the background assistant: readable cause, 前往�
   const html = failed({ message: `后台助教未完成：${RAW_403}` });
   assert.match(html, /role="alert"/);
   assert.match(html, /模型服务拒绝了请求/);
-  assert.match(html, />前往设置<\/button>/);
+  assert.match(html, />前往设置(?:<svg[\s\S]*?<\/svg>)?<\/button>/);
   assert.doesNotMatch(html, />重新提交<\/button>/, "resubmitting while model is unready cannot work");
   assert.match(html, />改一改再提交<\/button>/, "typed question can still be recovered (#961)");
   assert.match(html, /技术详情/);
@@ -85,7 +85,7 @@ test("a rate limit or timeout still offers 重新提交 with the retry wording (
     const html = failed({ message: raw });
     assert.match(html, /role="alert"/);
     assert.match(html, />重新提交<\/button>/, raw);
-    assert.doesNotMatch(html, />前往设置<\/button>/);
+    assert.doesNotMatch(html, />前往设置(?:<svg[\s\S]*?<\/svg>)?<\/button>/);
   }
   assert.match(failed({ message: "429 rate limit" }), /模型服务太忙了/);
 });

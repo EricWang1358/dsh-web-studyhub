@@ -158,7 +158,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
                     <ContextReturn />
                     {data && pageAvailable(data, 'live') && liveReady && <LiveClass key={connection.binding.root} data={data} visible={page === 'live'}
                       onSettings={() => nav.navigate('settings')} onSources={() => nav.navigate('sources')}
-                      onJobs={() => { void core.refresh().catch((failure) => core.setError(failure.message)); }} />}
+                      onQueued={() => { void core.refresh().catch((failure) => core.setError(failure.message)); }} />}
                     {page === 'board' ? (
                       <Board state={boardState} library={data} view={lib.boardView} onViewChange={set.setBoardView}
                         onOrigin={host.openWorkspaceNotebook} studyRef={lib.boardStudyRef}

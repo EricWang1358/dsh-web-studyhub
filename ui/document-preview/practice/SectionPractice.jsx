@@ -104,7 +104,7 @@ export default function SectionPractice({ loop, outline, title, chapterName = ''
       <Stat count={stats.notes} label={ui('批注')} onOpen={onNotes} />
     </div>}
     {!active && qaOpen && stats.followups > 0 && <div id={qaId} className="section-practice__qa-panel">
-      <QaList items={stats.items} cardLabel={ui('在这里做这道题')}
+      <QaList items={stats.items} here
         onCard={ref => { setQaOpen(false); const card = listed.cards.find(item => item.deckId === ref.deckId && item.cardId === ref.cardId); if (card) start(card); }} />
     </div>}
     {!active && loop.status === 'ready' && hasMixedMastery && (
@@ -134,9 +134,9 @@ export default function SectionPractice({ loop, outline, title, chapterName = ''
               </ol>
               {note && <InlineMessage tone="warning">{note}</InlineMessage>}
               <div className="section-practice__actions">
-                {inline && <Button variant="primary" size="sm" iconEnd="arrow-right" lock={busy} onClick={() => start(null)} data-usage="reader.section-practice">
+                {inline && <Button variant="primary" size="sm" lock={busy} onClick={() => start(null)} data-usage="reader.section-practice">
                   {shownCards.length === 1 ? ui('在这里做这 1 道题') : uiFormat('在这里做这 {0} 道题', [shownCards.length])}</Button>}
-                {onElsewhere && <Button variant="quiet" size="sm" lock={busy} onClick={() => onElsewhere(option)}>
+                {onElsewhere && <Button iconEnd="arrow-right" variant="quiet" size="sm" lock={busy} onClick={() => onElsewhere(option)}>
                   {shownRest > 0 ? uiFormat('还有 {0} 道，去练习页做全部', [shownRest]) : ui('去练习页做')}</Button>}
               </div>
             </>}

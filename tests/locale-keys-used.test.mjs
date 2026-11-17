@@ -9,14 +9,18 @@ import { englishCatalogues, sourceCorpus, unreferencedKeys } from './helpers/loc
 /* Keys the source does not spell out in one piece, each with where it is built. An entry is checked: it must match a key, and everything it matches
    must still be missing from the source (a key that is spelled out again does not need an exception). */
 const BUILT_AT_RUN_TIME = Object.freeze([]);
-const excepted = (key) => BUILT_AT_RUN_TIME.some((entry) => key.startsWith(entry.startsWith));
+/* The singular of a counted key (`<key>#one`, or `<key>#one:N` for the count {N}, #1073 round 8) is looked up by ui/i18n.js uiFormat when the count is 1: it is used wherever its plural is, and a singular
+   whose plural nothing uses is reported like any other key. */
+const SINGULAR = /#one(?::\d+(?:,\d+)*)?$/;
+const excepted = (key, corpus) => BUILT_AT_RUN_TIME.some((entry) => key.startsWith(entry.startsWith))
+  || (SINGULAR.test(key) && unreferencedKeys([key.replace(SINGULAR, '')], corpus).length === 0);
 
 const catalogues = await englishCatalogues();
 
 test('every English translation key is used by ui/ or lib/ source', async () => {
   const corpus = await sourceCorpus();
   const unused = [];
-  for (const { file, keys } of catalogues) for (const key of unreferencedKeys(keys, corpus)) if (!excepted(key)) unused.push(`${file}: ${key.slice(0, 80)}`);
+  for (const { file, keys } of catalogues) for (const key of unreferencedKeys(keys, corpus)) if (!excepted(key, corpus)) unused.push(`${file}: ${key.slice(0, 80)}`);
   assert.deepEqual(unused, [], `${unused.length} English key(s) nothing uses; delete them (or list a key built at run time in BUILT_AT_RUN_TIME with where it is built)`);
 });
 

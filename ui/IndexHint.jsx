@@ -36,13 +36,13 @@ export default function IndexHint({ docs, onOpenSettings, initialCoverage, hidde
   if (!hint) return null;
   const text = [indexWhyLine(), ...indexWhyTip()].join('\n');
   if (variant === 'link') return (
-    <Tooltip layer content={text}><Button variant="link" size="sm" data-index-hint onClick={go}>{linkLabel(hint.canIndex)}</Button></Tooltip>
+    <Tooltip layer content={text}><Button iconEnd="arrow-right" variant="link" size="sm" data-index-hint onClick={go}>{linkLabel(hint.canIndex)}</Button></Tooltip>
   );
   return (
     <p className={`index-hint${className ? ` ${className}` : ''}`} role="status" data-index-hint>
-      <Icon name="info" size={14} className="index-hint__icon" />
+      <Icon name="info" className="index-hint__icon sh-icon--inline" />
       <Tooltip layer anchorClassName="index-hint__tip" content={indexWhyTip().join('\n')}><span tabIndex={0}>{indexWhyLine()}</span></Tooltip>
-      <Button variant="link" size="sm" onClick={go}>{indexGoLabel(hint.canIndex)}</Button>
+      <Button iconEnd="arrow-right" variant="link" size="sm" onClick={go}>{indexGoLabel(hint.canIndex)}</Button>
       <Button variant="quiet" size="sm" onClick={dismiss}>{ui('知道了')}</Button>
     </p>
   );

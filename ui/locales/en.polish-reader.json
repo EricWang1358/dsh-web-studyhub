@@ -19,6 +19,7 @@
   "带出处复制": "Copy with citation",
   "已带出处复制": "Copied with citation",
   "{0} 词 · {1} 字符": "{0} words · {1} chars",
+  "{0} 词 · {1} 字符#one": "{0} word · {1} chars",
   "只看未掌握 {0}": "Not mastered ({0})",
   "上一段": "Previous passage",
   "本节题目已全部掌握": "All questions in this section mastered",

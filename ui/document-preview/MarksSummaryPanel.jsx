@@ -72,7 +72,7 @@ function SummaryContent({ summary, onJump, onOpenAnnotation }) {
               {entry.stale && <Badge size="sm" tone="warning">{staleTagText()}</Badge>}
               {canJump && <Button size="sm" variant="quiet" onClick={() => onJump(entry)}>{ui('跳转到原文')}</Button>}
               {entry.kind === 'annotation' && !entry.stale && entry.selection && onOpenAnnotation && (
-                <Button size="sm" variant="quiet" onClick={() => onOpenAnnotation(entry)}>{ui('打开问答')}</Button>
+                <Button iconEnd="arrow-right" size="sm" variant="quiet" onClick={() => onOpenAnnotation(entry)}>{ui('打开问答')}</Button>
               )}
             </div>
             {entry.quote && <blockquote className="reader-marks-summary__quote"><MathText text={entry.quote} /></blockquote>}

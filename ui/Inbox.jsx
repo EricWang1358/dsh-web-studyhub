@@ -23,7 +23,7 @@ function EmptyMailbox({ onOpenTasks }) {
   const topics = new Intl.ListFormat(uiLocale(), { style: "long", type: "conjunction" }).format(inboxTopics().map((topic) => ui(topic)));
   return <EmptyState size="sm" icon="mail" className="mailbox__empty" title={ui("信箱是空的")}
     description={uiFormat("{0}完成后会在这里提醒你，点一下就能跳回对应的地方。", [topics])}
-    secondary={onOpenTasks && { label: ui("看后台任务"), onClick: onOpenTasks }} />;
+    secondary={onOpenTasks && { label: ui("看后台任务"), iconEnd: "arrow-right", onClick: onOpenTasks }} />;
 }
 
 /** The card beside an entry: everything the list truncates, then what a click does. */

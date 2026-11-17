@@ -58,7 +58,7 @@ export default function BookFlip({ book, crunch, course, handlers, onMark, onGo,
             <Disclosure className="book-flip__explain" summary={ui('讲解')} open={open} onToggle={value => flip(setOpened, hid, value)}>
               {open && <PointBody node={row.node} course={course} handlers={handlers} level={4} />}
             </Disclosure>
-            <Button variant="link" size="sm" className="book-flip__go" onClick={() => onGo(hid)}>{ui('在书里看这个知识点')}</Button>
+            <Button iconEnd="arrow-right" variant="link" size="sm" className="book-flip__go" onClick={() => onGo(hid)}>{ui('在书里看这个知识点')}</Button>
           </article>
         );
       })}

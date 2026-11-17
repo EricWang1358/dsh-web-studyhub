@@ -179,7 +179,7 @@ test('generation details show queue vs model-call time per stage, and a rate lim
   const english = text(renderToStaticMarkup(React.createElement(m.GenerationTrace, { job, defaultOpen: true })));
   m.setUiLanguage('zh');
   assert.match(english, /Model call 12 s · Queued 4 s/);
-  assert.match(english, /rate-limited 2 time\(s\); simultaneous calls were lowered automatically to 2 \(set: 4\)/);
+  assert.match(english, /rate-limited 2 times; simultaneous calls were lowered automatically to 2 \(set: 4\)/);
 });
 
 /* #200 / #203: one card per deck. */

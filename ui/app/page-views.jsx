@@ -255,8 +255,8 @@ export function AudioHeader({ onSettings, onSources }) {
   return (
     <PageHeader title={ui('音频转写')} description={ui('导入录音文件，后台完成转录、校对和翻译；实时进度在本页和「任务」查看，转好后存入「资料」，完成时信箱会提醒你。')}
       actions={<>
-        <Button variant="quiet" onClick={onSettings}>{ui('音频设置')}</Button>
-        <Button variant="quiet" onClick={onSources}>{ui('查看资料')}</Button>
+        <Button iconEnd="arrow-right" variant="quiet" onClick={onSettings}>{ui('音频设置')}</Button>
+        <Button iconEnd="arrow-right" variant="quiet" onClick={onSources}>{ui('查看资料')}</Button>
       </>} />
   );
 }
@@ -579,7 +579,7 @@ function ExamPrepOffPage() {
     <section className="page" role="status">
       <PageHeader title={ui('备考补习还没有开启')}
         description={ui('备考补习在设置里被关掉了，要用的话在设置里重新打开；已保存的考点清单仍可阅读。')}
-        actions={<Button variant="primary" onClick={() => settingsEntry.openSettings('settings-exam-prep')}>{ui('前往设置')}</Button>} />
+        actions={<Button iconEnd="arrow-right" variant="primary" onClick={() => settingsEntry.openSettings('settings-exam-prep')}>{ui('前往设置')}</Button>} />
     </section>
   );
 }
@@ -595,7 +595,7 @@ export function DisabledPage({ page }) {
       <PageHeader title={ui('这个页面需要的组件没有启用')} description={ui('在 DSH 插件管理器里启用它们就能继续；你已保存的学习资料都还在。')}
         actions={<>
           {pluginManager && <Button variant="primary" icon="external" onClick={() => host.openPluginManager()}>{ui('打开 DSH 插件管理器')}</Button>}
-          <Button variant={pluginManager ? 'secondary' : 'primary'} onClick={() => nav.navigate('settings', { animate: true, keepTrail: false })}>{ui('前往设置')}</Button>
+          <Button iconEnd="arrow-right" variant={pluginManager ? 'secondary' : 'primary'} onClick={() => nav.navigate('settings', { animate: true, keepTrail: false })}>{ui('前往设置')}</Button>
         </>} />
     </section>
   );

@@ -36,7 +36,7 @@ export default function AiHelperNote({ unavailable, fallback, onRetry, onSetting
   const settingsLabel = useModelSettingsLabel();
   const note = describeAiUnavailable(unavailable, fallback);
   if (!note) return null;
-  const action = note.settings && onSettings ? { label: settingsLabel, onClick: onSettings }
+  const action = note.settings && onSettings ? { label: settingsLabel, iconEnd: 'arrow-right', onClick: onSettings }
     : !note.settings && onRetry ? { label: ui('再试一次'), onClick: onRetry } : undefined;
   const look = note.sample ? ui('看 AI 的回答（可以发给开发者）') : note.detail ? ui('看出错详情（可以发给开发者）') : '';
   return (

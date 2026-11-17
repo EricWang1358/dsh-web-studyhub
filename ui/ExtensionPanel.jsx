@@ -147,7 +147,7 @@ export function ExtensionUpdateNotice({ status, onStatus, initialDone = null }) 
  * A build of the original background run has no task, and outside the app (a preview, a test) nothing is drawn. */
 function TaskLink({ run }) {
   const show = useContext(AppContext)?.nav?.show?.task;
-  return run?.taskId && show ? <Button variant="link" size="sm" onClick={() => show(run.taskId)}>{ui('在任务里查看')}</Button> : null;
+  return run?.taskId && show ? <Button iconEnd="arrow-right" variant="link" size="sm" onClick={() => show(run.taskId)}>{ui('在任务里查看')}</Button> : null;
 }
 
 const names = courses => (courses || []).map(course => (typeof course === 'string' ? course : course?.name)).filter(Boolean);

@@ -98,7 +98,7 @@ test('the panel: steps with sizes and a queue button for a big selection, nothin
   const zh = render();
   assert.match(zh, /第 1 步/);
   assert.match(zh, /让 AI 优化路径/);
-  assert.match(zh, /想先和主会话聊聊怎么学：.*data-hand-off="path\.brief"[^>]*>发给主会话</, 'the chat entry is the shared 发给主会话 (path.brief), quiet, with its lead');
+  assert.match(zh, /想先和主会话聊聊怎么学：.*data-hand-off="path\.brief"[^>]*>(?:<svg.*?<\/svg>)?发给主会话</, 'the chat entry is the shared 发给主会话 (path.brief), quiet, with its lead');
   assert.doesNotMatch(zh, /和 AI 聊聊怎么学|title=/);
   assert.doesNotMatch(zh, /data-usage="generate\.path-queue"/, 'the one button that queues the steps is the own submit button of the form (Generate.jsx), not a second one in the list');
   assert.match(zh, /只出这一步/);

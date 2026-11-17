@@ -256,7 +256,7 @@ test('the confirmation is blocked and offers the task when the host refuses anyw
   // confirm, and the error line (the race: a job starts after the preview) offers the same 查看任务.
   const source = await readFile('ui/settings/BackupSection.jsx', 'utf8');
   assert.match(source, /busy=\{busy\} blocked=\{blockers\.length > 0\}/);
-  assert.match(source, /errorAction=\{openTask \? \{ label: ui\('查看任务'\), onClick: openTask \} : undefined\}/);
+  assert.match(source, /errorAction=\{openTask \? \{ label: ui\('查看任务'\), iconEnd: 'arrow-right', onClick: openTask \} : undefined\}/);
   assert.match(source, /\{blockers\.length > 0 && <Hint>\{ui\(RUNNING_JOB\)\}<\/Hint>\}/, 'the old fixed hint is shown only while a job runs, in the same words as the block');
 });
 test('changing the coach consent or goal reloads the profile outside the single-flight act', async () => {

@@ -103,7 +103,7 @@ function UncoveredList({ coverage, onOpen }) {
             <small>{[group && uiFormat('录音 {0}', [group.recording]), section.state === 'planned-failed' ? uiFormat('计划了没出成：{0}', [reasonWord(section.reason)]) : stateWord(section.state, coverage.recorded, !!section.scheduled)].filter(Boolean).join(' · ')}</small>
             {section.weight && <small className="cov-list__why" data-section-why>{weightLine(section.weight)}</small>}
           </span>
-          {onOpen && <Button size="sm" variant="quiet" className="cov-list__open" onClick={() => onOpen(section)} data-section-open={section.key}>{ui('在资料中查看')}</Button>}
+          {onOpen && <Button iconEnd="arrow-right" size="sm" variant="quiet" className="cov-list__open" onClick={() => onOpen(section)} data-section-open={section.key}>{ui('在资料中查看')}</Button>}
         </li>;
       })}
     </ul>

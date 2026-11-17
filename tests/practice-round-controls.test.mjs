@@ -732,7 +732,7 @@ test('#6, #41, #42, #43, #44: ResultBreakdown legend filtering, RoundLookBack ex
 
     setUiLanguage('en');
     tree = app.render(RoundLookBack, props);
-    assert.ok(findButton('Practice these 2 missed questions'));
+    assert.ok(findButton('Practise these 2 missed questions'));
     assert.ok(findButton('Copied'));
     assert.ok(findButton('Collapse all'));
   } finally {

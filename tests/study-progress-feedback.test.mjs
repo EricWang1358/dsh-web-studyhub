@@ -208,7 +208,7 @@ test('Point 3 (UI): NextDue renders FSRS memory trajectory pills honestly in Chi
     assert.match(enText, /Familiar → Mastered/);
     assert.match(enText, /Interval 8d → 24d/);
     assert.match(enText, /Stability 24\.5d/);
-    assert.match(enText, /Credited 1 prerequisite\(s\)/);
+    assert.match(enText, /Credited 1 prerequisite/);
     assert.equal((promotedMastered.match(/data-lit="true"/g) || []).length, 5, 'stability >=21d lights all 5 pips');
     assert.doesNotMatch(promotedMastered, han);
   } finally {

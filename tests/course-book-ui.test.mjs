@@ -156,7 +156,7 @@ test('in English the book\'s controls and notes have no Chinese of their own', (
     assert.doesNotMatch(deepText, han, deepText.match(/.{0,30}[㐀-鿿].{0,30}/)?.[0]);
     assert.match(textOf(deepHtml), /Pages 1–8 .* Pages 73–80/);
     assert.match(textOf(deepHtml), /Coverage: read 0 of 80 pages; 80 more only at their start Read more/);
-    assert.match(textOf(deepHtml), /Explanations cover 30% of the materials; 1 knowledge point\(s\) read only in part/);
+    assert.match(textOf(deepHtml), /Explanations cover 30% of the materials; 1 knowledge point read only in part/);
     assert.match(ui.levelOptions().at(-1).tip, /^Detailed: every item of the inventory must be covered/);
   });
 });
