@@ -305,7 +305,8 @@ const rows = page => page.evaluate(() => {
     }
     const parts = [...row.querySelectorAll('.source-picker__text strong, .source-picker__text small, .source-picker__expand, [data-index-slot], [data-index-slot] [data-state]')]
       .map(element => element.getBoundingClientRect()).filter(r => r.height > 0);
-    const slotElement = row.querySelector('[data-index-slot]'), slot = slotElement?.getBoundingClientRect() ?? null, badge = row.querySelector('[data-index-slot] [data-state]')?.getBoundingClientRect() ?? null;
+    // a slot that is not drawn (no badge once the answer is in, round 5) is no slot
+    const slotElement = row.querySelector('[data-index-slot]'), slot = slotElement && getComputedStyle(slotElement).display !== 'none' ? slotElement.getBoundingClientRect() : null, badge = row.querySelector('[data-index-slot] [data-state]')?.getBoundingClientRect() ?? null;
     // what Tab meets in the row, in DOM order, and the same sorted by where the eye meets it (line, then left)
     const focusable = [...row.querySelectorAll('[data-index-slot] [tabindex="0"], .source-picker__expand')].filter(element => element.getBoundingClientRect().width > 0);
     const named = element => element.matches('.source-picker__expand') ? 'expand' : 'badge';
@@ -316,7 +317,7 @@ const rows = page => page.evaluate(() => {
     return { title: title.textContent.slice(0, 16), share: t.width / (columnEnd - t.left), lines: titleLines.length ? lineTops(titleRange).length : 0, factLines: lineTops(factRange).length,
       height: item.getBoundingClientRect().height, oneLineHeight: parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + titleLH + factsLH,
       below: box.bottom - parseFloat(style.paddingBottom) - Math.max(...parts.map(r => r.bottom)), split, expand: !!row.querySelector('.source-picker__expand'),
-      slot: !!slotElement,
+      slot: !!slot, factsEnd: Math.round(facts.getBoundingClientRect().right * 10) / 10, columnEnd: Math.round(columnEnd * 10) / 10,
       slotPlace: slot && factLine ? [slot.top, slot.bottom, slot.right, factLine.top, factLine.bottom, columnEnd].map(v => Math.round(v * 10) / 10).join(' ') : '',
       slotOnFactsLine: slot && factLine ? slot.top >= factLine.top - 1 && slot.bottom <= factLine.bottom + 1 && Math.abs(slot.right - columnEnd) <= 1 : null,
       badgeMiddle: badge && firstLine ? Math.abs((badge.top + badge.bottom) / 2 - (firstLine.top + firstLine.bottom) / 2) : null,
@@ -367,7 +368,11 @@ test('#1084: at 420 a short row is as on main, a long title has the row, no fact
             }
             assert.deepEqual(row.split, [], `${where}: no fact is split across lines`);
             assert.ok(row.below <= 1, `${where}: ${Math.round(row.below)}px of empty band under the content`);
-            assert.equal(row.slotOnFactsLine, true, `${where}: the badge's slot ends the facts' first line, at the row's end (slot top, bottom, right; line top, bottom; column end: ${row.slotPlace})`);
+            // while the answer is coming every row holds the slot; once it is in, a row with a badge keeps one and a row without gives it to its facts (round 5)
+            if (when === 'before the answer' && late) assert.equal(row.slot, true, `${where}: the slot is held while the answer is coming`);
+            if (when === 'after it') assert.equal(row.slot, row.badge, `${where}: a slot where there is a badge, none where there is not`);
+            if (row.slot) assert.equal(row.slotOnFactsLine, true, `${where}: the badge's slot ends the facts' first line, at the row's end (slot top, bottom, right; line top, bottom; column end: ${row.slotPlace})`);
+            else assert.ok(Math.abs(row.factsEnd - row.columnEnd) <= 1, `${where}: with no slot the facts take the column (${row.factsEnd} vs ${row.columnEnd})`);
             if (row.badge) assert.ok(row.badgeMiddle <= 1, `${where}: the badge sits on the middle of that line (${row.badgeMiddle} px off)`);
             assert.equal(row.tabOrder, row.eyeOrder, `${where}: Tab meets the row's controls in the order they are seen`);
           }

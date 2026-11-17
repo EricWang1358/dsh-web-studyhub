@@ -27,16 +27,21 @@
     .source-picker__doc { display: contents; cursor: pointer; }
     .source-picker__text { display: contents; }
     .source-picker .source-picker__check { grid-column: 1; grid-row: 1 / span 2; margin: var(--space-1) 0 0; }
-    .source-picker__text strong { grid-column: 2 / -1; min-width: 0; color: var(--text); font-weight: var(--fw-medium); overflow-wrap: anywhere; line-height: var(--lh-snug); }
+    /* A title that wraps never leaves one character alone on its last line (「…参考 / 答」, #1084 round 5): it breaks its last lines like a paragraph (ui/base.css). */
+    .source-picker__text strong { grid-column: 2 / -1; min-width: 0; color: var(--text); font-weight: var(--fw-medium); overflow-wrap: anywhere; line-height: var(--lh-snug); text-wrap-style: pretty; }
     .source-picker__text small { grid-column: 2 / -1; min-width: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; word-break: keep-all; }
     /* The facts are one line at every width (#1084, round 4): the format, the size and the notes keep their words; the names after them (courses, the file a
        material comes from) give way where the line is short of room and end in 「…」 (the course is the scope's above the list). Nothing wraps,
        so a short row is one title line and one line of facts at 420 as at 1440. */
-    .source-picker__text .source-picker__facts { grid-column: 2; display: flex; column-gap: 0.3em; overflow: hidden; white-space: nowrap; }
-    /* The slot: a fixed box at the end of the facts' first line, the height of that line, on every row whatever the answer, so a badge filling it moves
-       nothing and an empty one is only the end of that line. It ends at the row's end on every row (justify-self: end in the last column, which a wide row
-       shares with 选择页面), so the badges stand in one column; the badge's middle is the facts' first line's middle. */
-    .source-picker__index { grid-column: 3; justify-self: end; display: flex; align-items: center; justify-content: flex-end; width: var(--picker-index-slot); height: calc(var(--fs-sm) * var(--lh-snug)); }
+    .source-picker__text .source-picker__facts { grid-column: 2 / -1; display: flex; column-gap: 0.3em; overflow: hidden; white-space: nowrap; }
+    .source-picker__row.has-index .source-picker__text .source-picker__facts { grid-column: 2; }
+    /* The slot: a box at the end of the facts' first line, the height of that line. While the index answer is coming it is the widest badge's width on every
+       row (held), so a badge filling it moves nothing; once the answer is in it is as wide as its badge, and a row with none has no slot: its facts take the
+       column (round 5). The facts are one line either way, so no row changes height. It ends at the row's end on every row (justify-self: end in the last
+       column, which a wide row shares with 选择页面), so the badges stand in one column; the badge's middle is the facts' first line's middle. */
+    .source-picker__index { grid-column: 3; justify-self: end; display: flex; align-items: center; justify-content: flex-end; height: calc(var(--fs-sm) * var(--lh-snug)); }
+    .source-picker__index[data-index-slot="held"] { width: var(--picker-index-slot); }
+    .source-picker__index[data-index-slot="none"] { display: none; }
     .source-picker__index .index-badge-compact { max-width: 100%; }
     .source-picker__text .source-picker__partial { color: var(--accent-text); }
     /* The first piece (format, size, notes) keeps its size and is only ever cut at the line's width (a 320 px line), with 「…」; the names after it take what is

@@ -15,7 +15,8 @@ import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* #1084, round 4: the rows of 创建题组 › 01 / 选择资料 over a sweep of title lengths (titles that grow one character at a time, Chinese and English, notes and
    PDFs with 选择页面), at 420, 900 and 1440 px, in zh and en, for every index answer (badges, no index, a failed read) arriving at once or late (1.5 s).
-   The badge's place is a slot of fixed size at the end of the row's facts line, on every row whatever the answer.
+   The badge's place is a slot at the end of the row's facts line: held on every row while the answer is coming, then kept where there is a badge (as wide as
+   it) and given back to the facts where there is none (round 5).
    - No row's height changes between the first frame it is drawn in and when everything has settled.
    - No row has a blank band: nothing under its content, nothing between its title and its facts. The slot sits on the facts' first line, not on a line of its own.
    - At one width every badge ends at the same x (±1 px), with or without 选择页面 on its row, and its middle is the facts' first line's middle.
@@ -58,7 +59,8 @@ function recordFirstFrames() {
     const title = item.querySelector('.source-picker__text strong'), titleLines = linesOf(title);
     const factsElement = item.querySelector('.source-picker__facts') ?? [...item.querySelectorAll('.source-picker__text small')].find(small => !small.classList.contains('source-picker__partial'));
     const facts = linesOf(factsElement), factsLine = facts[0];
-    const slotElement = item.querySelector('[data-index-slot]'), slot = slotElement?.getBoundingClientRect() ?? null;
+    // a slot that is not drawn (no badge once the answer is in, round 5) is no slot
+    const slotElement = item.querySelector('[data-index-slot]'), slot = slotElement && getComputedStyle(slotElement).display !== 'none' ? slotElement.getBoundingClientRect() : null;
     const badge = item.querySelector('[data-index-slot] [data-state]')?.getBoundingClientRect() ?? null;
     const bottoms = [...item.querySelectorAll('.source-picker__text strong, .source-picker__text small, .source-picker__expand, [data-index-slot] [data-state]')]
       .map(element => element.getBoundingClientRect()).filter(r => r.height > 0).map(r => r.bottom);
@@ -151,9 +153,11 @@ test('#1084: over a sweep of title lengths no row moves after its first frame, t
           for (const [when, shape] of [['first frame', before], ['settled', after]]) {
             if (shape.below > 1) failures.push(`${tag}, ${when}: ${shape.title}: ${Math.round(shape.below)} px of blank band under the content`);
             if (shape.between > 6) failures.push(`${tag}, ${when}: ${shape.title}: ${Math.round(shape.between)} px of blank band between the title and its facts`);
-            if (!shape.slot) failures.push(`${tag}, ${when}: ${shape.title}: no slot for the badge`);
-            else if (!shape.slotOnFacts) failures.push(`${tag}, ${when}: ${shape.title}: the badge's slot is not on the facts' first line`);
+            if (shape.slot && !shape.slotOnFacts) failures.push(`${tag}, ${when}: ${shape.title}: the badge's slot is not on the facts' first line`);
           }
+          // settled, a row keeps a slot where it has a badge and none where it has not (round 5); a late answer's rows held one in their first frame
+          if (!!after.slot !== !!after.badge) failures.push(`${tag}: ${after.title}: ${after.slot ? 'a slot with no badge' : 'a badge with no slot'}`);
+          if (late && !before.slot) failures.push(`${tag}: ${before.title}: no slot held while the answer was coming`);
           if (after.badge && Math.abs(after.badge.middle) > 1) failures.push(`${tag}: ${after.title}: the badge is ${after.badge.middle.toFixed(1)} px off the facts' first line's middle`);
           if (answer === 'no index') titleLines[key] = after.lines;
           else if (titleLines[key] !== undefined && titleLines[key] !== after.lines) failures.push(`${tag}: ${after.title}: the title has ${after.lines} lines, ${titleLines[key]} without badges`);

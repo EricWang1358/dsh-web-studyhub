@@ -81,7 +81,7 @@ export default function Generate({
   const [sourceScope, setSourceScope] = usePageScope(data.root, 'generate-sources', data.focus?.course ?? '*');
   // Whether each material's search index is built: the picker rows say so (and follow a running build). The page is drawn at once, as any page; every row keeps
   // the badge's slot, so the answer moves nothing whenever it comes (#1084).
-  const [indexCoverage] = useIndexCoverage(call);
+  const [indexCoverage, , indexStatus] = useIndexCoverage(call);
   const known = courseNamesOf(data);
   const referenceSourceIds = gen.referenceSourceIds || [];
   const referenceState = referenceSelection(data.sources, referenceSourceIds, selectedSources, gen.referenceLimits, gen.referenceFormat);
@@ -241,7 +241,7 @@ export default function Generate({
               {openingStands(opening, selectedSources) && <p className="generate-opening muted" data-opening-reason>{openingLine(opening.reason)}</p>}
               {/* One row per document with its pages on demand; counts are in documents (WP3, P18). */}
               {/* 添加资料 under the list is the one way to add material from here (the shared import dialog, WP3); the index line shares its line. */}
-              <SourcePicker sources={evidenceSources} selected={selectedSources} onChange={setSelectedSources} indexCoverage={indexCoverage}
+              <SourcePicker sources={evidenceSources} selected={selectedSources} onChange={setSelectedSources} indexCoverage={indexCoverage} indexPending={indexStatus === 'loading'}
                 courses={data.focus?.courses} scope={sourceScope} onScopeChange={setSourceScope} disabled={busy} onAdd={openImport}
                 onIndex={(course) => openIndexBuilder(openLargeDocumentSettings, course)} />
               {/* A selection too big for one generation: ONE block with the ways on (steps / pages by topic), only the chosen one drawn; with no search tool the old card is a fold under it. */}

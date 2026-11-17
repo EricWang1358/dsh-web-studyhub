@@ -40,8 +40,9 @@ export function focusQuietly(element, options) {
  * it wraps is never remounted when the words appear.
  * forceOpen: show the card while true (e.g. the 资料 title button has keyboard focus and its cut facts line sits inside it), as long as there are words.
  * onOpenChange(open): told after the card opens or closes (the sidebar says its reorder line in the first card only, ui/nav-reorder-hint.js).
+ * id: the card's own id, for a control outside the anchor that the card describes (its aria-describedby); one is made when it is not given.
  */
-export default function Tooltip({ content, children, placement = 'bottom-start', flip = true, className, layer = false, anchorClassName, interactive = false, group, outside, onOpenChange, forceOpen = false }) {
+export default function Tooltip({ content, children, placement = 'bottom-start', flip = true, className, layer = false, anchorClassName, interactive = false, group, outside, onOpenChange, forceOpen = false, id: givenId }) {
   useComponentCss(css);
   useComponentCss(overlayCss, 'study-overlays');
   useComponentCss(layerCss, 'study-tooltip-layer');
@@ -54,7 +55,7 @@ export default function Tooltip({ content, children, placement = 'bottom-start',
   const held = useRef(false);
   held.current = forced && !waived;
   useIsoLayoutEffect(() => { if (!forced) setWaived(false); setOpen(forced); }, [forced]);
-  const id = useId(), anchor = useRef(null), panel = useRef(null), timer = useRef(0), self = useRef(null), pressedAt = useRef(0);
+  const ownId = useId(), id = givenId || ownId, anchor = useRef(null), panel = useRef(null), timer = useRef(0), self = useRef(null), pressedAt = useRef(0);
   if (!self.current) self.current = { close: () => {} };
   self.current.close = () => { clearTimeout(timer.current); if (held.current) setWaived(true); setOpen(false); };
   const closeOthers = () => { const other = group && openInGroup.get(group); if (other && other !== self.current) other.close(); };
