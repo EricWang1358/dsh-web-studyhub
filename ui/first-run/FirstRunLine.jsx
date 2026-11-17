@@ -25,6 +25,39 @@ import css from './first-run.css';
    ticked. 发给主会话 (#453): step 2's 添加资料 and 再添加资料 open the one import dialog (ImportHub, importForLine); a file that does not import is said there,
    and that dialog's summary and drop zone carry the shared hand-off unit (ui/hand-off/, ui/import-hand-off.js). The line draws no second one. */
 
+/** A model label in its two parts (「SiliconFlow · Qwen/Qwen3-235B-A22B-Instruct-2507」): the provider whole with its separator (a no-break space before the 「·」), and
+ * the id. A label with no provider is all id. */
+export function modelLabelParts(label) {
+  const text = String(label || '');
+  const at = text.indexOf(' · ');
+  return at < 0 ? { provider: '', id: text } : { provider: `${text.slice(0, at)}\u00a0·`, id: text.slice(at + 3) };
+}
+
+/* The model step's words. The id may be longer than the line: it breaks after a 「/」 or 「-」 (and anywhere in a part longer than the line), the 「·」 is tied
+   to the id's first part with a no-break space so no line ends with it, and the whole label is in the shared Tooltip on hover and keyboard focus (#1073 round 7),
+   because the compact card cuts what is past its second line. */
+function StepText({ step }) {
+  const sentence = stepSentence(step);
+  const at = step.id === 'model' && step.label ? sentence.indexOf(step.label) : -1;
+  if (at < 0) return <span className="frl-step__text">{sentence}</span>;
+  const { provider, id } = modelLabelParts(step.label);
+  const parts = id.split(/(?<=[/-])/);
+  return (
+    <Tooltip layer content={step.label} anchorClassName="frl-step__tip">
+      <span className="frl-step__text" tabIndex={0}>
+        {sentence.slice(0, at)}
+        <span className="frl-model">
+          {provider && <span className="frl-model__provider">{provider}</span>}
+          {provider ? '\u00a0' : ''}
+          <span className="frl-model__part">{parts[0]}</span>
+          {parts.slice(1).map((part, index) => <React.Fragment key={index}><wbr /><span className="frl-model__part">{part}</span></React.Fragment>)}
+        </span>
+        {sentence.slice(at + step.label.length)}
+      </span>
+    </Tooltip>
+  );
+}
+
 /** One sentence per step and state: what the row says. */
 export function stepSentence(step) {
   if (step.id === 'model') {
@@ -239,7 +272,7 @@ function Steps({ line, on, jobs, compact, plan }) {
             {...(step.id === 'material' ? { 'data-tour': 'first-run-material' } : {})}>
             <div className="frl-step__row">
               <Mark index={index} done={step.status === 'done'} />
-              <span className="frl-step__text">{stepSentence(step)}</span>
+              <StepText step={step} />
               {!compact && !open && step.id === 'material' && <RowLink step={step} on={on} />}
             </div>
             {open && <div className="frl-body" data-body={step.id}>

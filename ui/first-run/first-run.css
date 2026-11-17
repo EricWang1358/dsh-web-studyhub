@@ -43,6 +43,9 @@
       padding: var(--space-2) 0;
     }
     .frl-step__text { flex: 1 1 auto; min-width: 0; font-size: var(--fs-md); line-height: var(--lh-snug); color: var(--text-dim); overflow-wrap: anywhere; }
+    /* The model step's words sit in the Tooltip's anchor (the whole label on hover and focus): the anchor takes the text's place in the row. */
+    .frl-step__tip { display: flex; flex: 1 1 auto; min-width: 0; }
+    .frl-step__tip > .frl-step__text { border-radius: var(--radius-sm); }
     .frl-step[aria-current="step"] .frl-step__text { color: var(--text); font-weight: var(--fw-medium); }
     .frl-step[data-status="done"] .frl-step__text { color: var(--text-muted); }
     .frl-row-link { flex: none; }
