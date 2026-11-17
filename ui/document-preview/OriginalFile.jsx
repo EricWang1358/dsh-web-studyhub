@@ -267,7 +267,7 @@ export function OriginalMenuEntry({ item, host, initial }) {
   };
   return <>
     {line && <Tooltip layer content={line.title || ''}><small className="source-row-menu__note" data-tone={line.tone} tabIndex={line.title ? 0 : undefined}>{line.text}</small></Tooltip>}
-    <Button ref={anchor} variant="quiet" size="sm" className="source-row-menu__btn" busy={busy} onClick={open}>{info && info.status !== 'none' ? ui('管理原文件…') : ui('补全原文件…')}</Button>
+    <Button ref={anchor} className="source-row-menu__btn" busy={busy} onClick={open}>{info && info.status !== 'none' ? ui('管理原文件…') : ui('补全原文件…')}</Button>
     {portal && createPortal(<OriginalDialog target={{ sourceId, title: item.title, format: item.format }} call={call} host={host} intent="attach"
       onClose={() => setPortal(null)} onChanged={() => Promise.resolve(call('materials.original.status', { sourceId })).then(setInfo, () => {})} />, portal)}
   </>;
