@@ -249,6 +249,17 @@ export function kindNote(list, count, kindCounts) {
 
 export const languageLabel = (value) => LANGUAGES.find((item) => item.value === value)?.label || String(value || '');
 
+/** The choices of 更多选项 a run will use that are not the plain defaults (`plain`: generationFormDefaults() with no saved preferences), as their labels in the
+ *  form's order: difficulty, language, formula style. What 更多选项 says while it is shut, so a run is never started in English or at a hard level unseen (#1082). */
+export function chosenOptions(gen = {}, plain = {}) {
+  const label = (list, value) => list.find((item) => item.value === value)?.label || '';
+  return [
+    gen.difficulty && gen.difficulty !== (plain.difficulty ?? 'mixed') && label(DIFFICULTIES, gen.difficulty),
+    gen.language && gen.language !== plain.language && languageLabel(gen.language),
+    (gen.notation ?? 'auto') !== (plain.notation ?? 'auto') && label(NOTATION_CHOICES, gen.notation),
+  ].filter(Boolean);
+}
+
 /** The sentence above the submit button: what will be made, from what, and about how long it takes. `count` is the number of questions the plan makes (the estimate's goal); without it the sentence leaves the number out.
  *  `choices: false` leaves out the difficulty and the language: 创建题组's bar says the count, and those two are the form's own settings (#1082). The pieces are joined by 「 · 」. */
 export function summaryLine({ materials = 0, pages = 0, count = null, difficulty = 'mixed', language = '中文', minutes = null } = {}, { choices = true } = {}) {

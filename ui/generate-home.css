@@ -24,7 +24,6 @@
     /* Two steps on one page: the rule above a step and the room under it are one rhythm, not the 52px of a bare fieldset. */
     .generate-page .generate-panel fieldset { margin: var(--space-4) 0 0; padding: var(--space-3) 0 0; }
     .generate-page .generate-panel > .generate-gate { margin-bottom: var(--space-4); }
-    .generate-page .generate-sources-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin-top: var(--space-2); }
     /* The one button is on the first screen with any list (#1082): the bar of the count and the button is a child of the form and sticks to the bottom of the view
        while its place is further down, then rests in its place at the end of the form. In the flow (the page keeps its room, nothing appears or goes), opaque on the
        page's ground (the list scrolls under it), quiet (a hairline, no card, no shadow, no motion). The hairline is --line, which reads in both themes: the list
@@ -41,7 +40,9 @@
     .generate-page .generate-submit > * { flex: 1 1 100%; min-width: 0; margin: 0; }
     .generate-page .generate-submit > .generate-submit__lines { flex: 1 1 20rem; display: grid; align-items: center; row-gap: var(--space-half);
       grid-template-rows: calc(var(--fs-md) * var(--lh-snug)) calc(var(--fs-sm) * var(--lh-snug)); }
-    .generate-page .generate-submit__lines > * { min-width: 0; margin: 0; overflow: hidden; line-height: var(--lh-snug); white-space: nowrap; text-overflow: ellipsis; }
+    /* Each line is the height of its track and clips to it (align-self: stretch): what a narrow line leaves out is on its hidden next line, never drawn over
+       the line under it or the hairline (#1082). */
+    .generate-page .generate-submit__lines > * { align-self: stretch; min-width: 0; margin: 0; overflow: hidden; line-height: var(--lh-snug); white-space: nowrap; text-overflow: ellipsis; }
     .generate-page .generate-submit__note { margin: 0; font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .generate-page .generate-submit > .generate-submit__btn { flex: 0 0 auto; }
     /* A control the keyboard reaches is scrolled clear of the bar, not under it: while this page is shown its scrolling box keeps the bar's measured height

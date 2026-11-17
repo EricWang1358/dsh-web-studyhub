@@ -35,7 +35,7 @@ import { generateAdvice, retrievalReady } from './large-document-advice.js';
 import { useRetrievalStatus } from './retrieval-status.js';
 import {
   DIFFICULTIES, LANGUAGES, appendFocus, applySuggestion, autoOf, customCountOf, courseHasCaseExam, coverageStructure,
-  NOTATION_CHOICES, caseEvidence, difficultyNote, estimateMinutes, estimateRequestOf, importDialog, kindNote, kindsOfForm, kindsPatch, extraValuesOf, moreValuesOf, notationNote, courseLine, roleOpenByDefault, selectionStats, summaryLine,
+  NOTATION_CHOICES, caseEvidence, chosenOptions, difficultyNote, estimateMinutes, estimateRequestOf, importDialog, kindNote, kindsOfForm, kindsPatch, extraValuesOf, moreValuesOf, notationNote, courseLine, roleOpenByDefault, selectionStats, summaryLine,
 } from './generate-form.js';
 import { DEFAULT_LEVEL, levelOf } from '../lib/coverage-strength.js';
 import homeCss from './generate-home.css';
@@ -113,6 +113,8 @@ export default function Generate({
   const pathMode = choice && mode === MODES.path, retrievalMode = choice && mode === MODES.retrieval;
   // 更多选项 holds every optional choice; it stays shut unless the form carries one (something typed, a choice that is not the saved default) or the way on needs a topic, so nothing set is hidden.
   const saved = React.useMemo(() => generationFormDefaults(data.settings?.generation), [data.settings?.generation]);
+  // Shut, it still says the choices a run will use that are not the plain defaults (a difficulty, a language, a formula style), saved ones included (#1082).
+  const chosen = chosenOptions(gen, generationFormDefaults());
   const [moreChoice, setMoreChoice] = React.useState(null);
   const [courseOpen, setCourseOpen] = React.useState(false);
 
@@ -279,7 +281,7 @@ export default function Generate({
                   <Button variant="link" size="sm" onClick={() => setGenSource("case")}>{ui("切到案例分析题")}</Button></span>}
               </div>
               {courseOpen && <div className="generate-course"><CourseField courses={data.focus?.courses} label={ui("新题组放进的课程")} value={generationCourse} onChange={course => setGen({ ...gen, course })} /></div>}
-              <Disclosure className="generate-more" bodyClassName="generate-more__body" data-tour="generate-more" summary={ui("更多选项")} meta={ui("想练什么、难度、花费、额外要求")} open={foldOpen} onToggle={setMoreOpen}>
+              <Disclosure className="generate-more" bodyClassName="generate-more__body" data-tour="generate-more" summary={ui("更多选项")} meta={chosen.length ? chosen.join(" · ") : ui("想练什么、难度、花费、额外要求")} open={foldOpen} onToggle={setMoreOpen}>
                 <FormGroup title={ui("想练什么")}>
                   <FormRow label={ui("这次想练什么？")} htmlFor="generate-focus" data-tour="generate-focus">
                     <textarea id="generate-focus" ref={focusBox} className="generate-focus generate-row__input" rows={2} value={gen.focus}
