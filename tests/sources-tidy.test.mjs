@@ -55,7 +55,16 @@ test('#1083: the index badge has one place on every row, the status line, in a s
   // Round 6: the actions are always shown, in a column as wide as they are (at most half the row), so they lie over no word and hover moves nothing; one line
   // of buttons; before the status line in the DOM (Tab follows the lines); rename lives in 更多 and F2, not in a pencil on the row.
   assert.match(css, /\.source-doc__line \{[^}]*grid-template-columns: \[text-start\] minmax\(0, 1fr\) \[text-end\] fit-content\(50%\);/, 'a content-sized column, capped at half the row');
+  // Round 7: the row shows ONE action (补题 where it is offered, else 从这份资料出题) and 更多, which holds the rest; a button is never narrower than its words.
+  assert.match(jsx, /\{topUp \? <DocumentTopUp [^>]*buttonClassName="source-doc__action" \/>\s*: canGenerate && <Button/, 'one action beside the title: 补题, else 从这份资料出题');
+  assert.match(jsx, /onGenerate=\{topUp && canGenerate \?/, 'and 从这份资料出题 in 更多 when 补题 is that action');
+  assert.match(jsx, /onCompanion=\{companionTarget && openModal \?/, 'the interactive companion in 更多');
+  assert.equal(jsx.match(/ui\('打开交互伴学页'\)/g).length, 1, 'and nowhere else on the row');
   assert.match(css, /\.source-doc__line > \.source-doc__actions \{[^}]*flex-wrap: nowrap;/, 'one line of buttons, never one alone on a line');
+  assert.match(css, /\.source-doc__actions \.source-doc__action \{ white-space: normal; word-break: keep-all; \}/, 'a label breaks only at a space; a zh label keeps its words whole');
+  assert.doesNotMatch(css, /\.source-doc__actions?[^{]*\{[^}]*overflow-wrap: anywhere/, 'no button is squeezed into a column of letters');
+  assert.match(css, /\.source-doc__actions \{[^}]*justify-content: safe flex-end;/, 'a narrow row never pushes a button out past its start');
+  assert.match(jsx, /<Tooltip layer anchorClassName="source-doc__facts-tip" content=\{coursesCut \? coursesText : ''\}>/, 'a cut courses piece says all of it on hover');
   const hover = css.slice(css.indexOf('@media (hover: hover) and (pointer: fine)'), css.indexOf('/* A narrow 资料 page'));
   assert.doesNotMatch(hover, /source-doc__actions|--source-doc-veil/, 'hover only tints the row: no actions laid over it');
   assert.doesNotMatch(css, /\.source-doc__actions \{[^}]*(position: absolute|opacity: 0)/, 'no overlay, no hidden actions');
