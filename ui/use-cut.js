@@ -1,21 +1,34 @@
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
+/* Every element asked about shares ONE ResizeObserver. Its callback runs after layout, once a frame, for all of them together, so a page of rows
+   (资料 with hundreds of materials) measures in one batch after the rows are drawn, and never draws a row twice before the first paint: the answer
+   only decides whether a hover card has words, which nobody sees until they point at it (4.11.2: a layout effect, a state for the element and an
+   observer per row made the switch to 资料 slow). */
+const watched = new Map();
+let shared = null;
+function watchSize(element, measure) {
+  if (typeof ResizeObserver === 'undefined') { measure(); return () => {}; }
+  shared ||= new ResizeObserver(entries => { for (const entry of entries) watched.get(entry.target)?.(); });
+  watched.set(element, measure);
+  shared.observe(element);
+  return () => { if (watched.get(element) === measure) { watched.delete(element); shared.unobserve(element); } };
+}
 
-/** Is the text of this element cut by its width (one line, ellipsis)? Measured again when the element is resized, `text` changes, or the element itself is
- *  replaced (a row that leaves and comes back from its rename field draws a new one: the old observer would keep watching the detached element). */
+/** Is the text of this element cut by its width (one line, ellipsis)? Measured when the element is first observed, when it is resized, when `text` changes,
+ *  and when the element itself is replaced (a row that leaves and comes back from its rename field draws a new one). */
 export function useCut(ref, text) {
   const [cut, setCut] = useState(false);
-  const [element, setElement] = useState(null);
-  useIsoLayoutEffect(() => { if (ref.current !== element) setElement(ref.current); });
-  useIsoLayoutEffect(() => {
-    if (!element) { setCut(false); return undefined; }
-    const measure = () => setCut(element.scrollWidth > element.clientWidth + 1);
-    measure();
-    if (typeof ResizeObserver === 'undefined') return undefined;
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [element, text]);
+  const seen = useRef({ element: null, text: undefined, stop: null });
+  // After every commit, on purpose (no dependency list): the element is compared by hand, so a replaced element is seen, and nothing else runs.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const now = seen.current, element = ref.current;
+    if (element === now.element && text === now.text) return;
+    now.stop?.();
+    Object.assign(now, { element, text, stop: null });
+    if (!element) { setCut(false); return; }
+    now.stop = watchSize(element, () => setCut(element.scrollWidth > element.clientWidth + 1));
+  });
+  useEffect(() => () => seen.current.stop?.(), []);
   return cut;
 }

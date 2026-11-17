@@ -121,9 +121,42 @@ test('no stylesheet has a :has() that makes every insertion restyle the whole ap
 
 test('the DSH seat wears the motion and contrast choices itself, so what sits beside the app (a note, the candidate dialog) follows them without a :has()', () => {
   const dark = { light: false, reducedMotion: false, contrast: false };
-  assert.deepEqual(seatAttrs(appearanceAttrs({ motion: 'off', contrast: 'high' }, dark)), { 'data-motion': 'off', 'data-contrast': 'high' });
-  assert.deepEqual(seatAttrs(appearanceAttrs({}, { ...dark, reducedMotion: true })), { 'data-motion': 'reduced', 'data-contrast': 'standard' }, 'auto follows the system');
+  assert.deepEqual(seatAttrs(appearanceAttrs({ motion: 'off', contrast: 'high', craft: 'refined' }, dark)), { 'data-motion': 'off', 'data-contrast': 'high', 'data-craft': 'refined' });
+  assert.deepEqual(seatAttrs(appearanceAttrs({}, { ...dark, reducedMotion: true })), { 'data-motion': 'reduced', 'data-contrast': 'standard', 'data-craft': 'standard' }, 'auto follows the system');
   const workspace = readFileSync(join(ROOT, 'ui/host/workspace.jsx'), 'utf8');
   assert.match(workspace, /const seatLook = useSeatAppearance\(\);/);
   assert.match(workspace, /<div className="study-seat" \{\.\.\.seatLook\}>/);
+});
+
+/* 4.11.1 felt slow to switch pages inside DSH (owner, 2026-11-17): 控件与字阶 (ui/appearance-craft.css) asked
+   `.study-seat:has(> .study-app[data-craft='refined']) <target>` in 26 rules, and `.sh-btn:has(> :first-child:is(.sh-icon, .sh-spinner))` of every
+   button, even with the choice off. In a real DSH host (4x CPU throttle) style recalculation went from 6.8 s to 10.6 s over the same switches.
+   The seat wears the choice itself (seatAttrs), and the glyph at a button's end takes its half step back itself. */
+function rootHasBeforeCombinator(css) {
+  const found = new Set();
+  for (const d of parseCss(css).declarations) for (const flat of flatSelectors(d.ctx)) for (const selector of splitTop(flat, ',')) {
+    const compounds = splitTop(selector, ' >+~');
+    if (compounds.slice(0, -1).some((compound) => /\.study-(seat|app)\b[^ ]*:has\(/.test(compound))) found.add(selector);
+  }
+  return [...found];
+}
+const positionalHas = (css) => [...css.matchAll(/:has\(([^{}]*?)\)\s*[,{]/g)].map((m) => m[0]).filter((text) => /:(first|last|only|nth)-(child|of-type)/.test(text));
+
+test('no stylesheet asks the seat or the app root with :has() before a combinator, and no :has() asks where a child stands', () => {
+  assert.equal(rootHasBeforeCombinator(".study-seat:has(> .study-app[data-craft='refined']) small { color: red; }").length, 1);
+  assert.equal(rootHasBeforeCombinator(".study-seat[data-craft='refined'] small { color: red; }\n.study-seat[data-craft='refined']:has(> .study-app[data-theme='light']) { --x: 1; }").length, 0);
+  assert.equal(positionalHas('.sh-btn:has(> :first-child:is(.sh-icon)) { padding: 0; }').length, 1);
+  const found = [];
+  for (const file of walk(join(ROOT, 'ui'), ['.css'])) {
+    const rel = relative(ROOT, file).split('\\').join('/'), css = readFileSync(file, 'utf8');
+    for (const entry of [...rootHasBeforeCombinator(css), ...positionalHas(css)]) found.push(`${rel}: ${entry}`);
+  }
+  assert.deepEqual(found, []);
+});
+
+test('控件与字阶 reads the choice from the seat and the glyph, never from a :has()', () => {
+  const craft = readFileSync(join(ROOT, 'ui/appearance-craft.css'), 'utf8');
+  assert.match(craft, /\.study-seat\[data-craft='refined'\] /);
+  assert.match(craft, /> :is\(\.sh-icon, \.sh-spinner\):first-child/);
+  assert.doesNotMatch(craft, /:has\(> \.study-app\[data-craft/);
 });
