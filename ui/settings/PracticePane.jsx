@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from '../i18n.js';
 import { Button, Field, Hint, Select, SettingsSection, Switch, useToast } from '../components/index.js';
-import { NEW_CARD_ORDERS, PRACTICE_DEFAULTS, freshRoundCount, lookBackBlindRecall, resolvePracticeSettings, studyChainRecipes, wrongbookClinic } from '../../lib/practice-settings.js';
+import { NEW_CARD_ORDERS, PRACTICE_DEFAULTS, freshRoundCount, lookBackBlindRecall, notesPracticeBridge, resolvePracticeSettings, studyChainRecipes, wrongbookClinic } from '../../lib/practice-settings.js';
 import { leechMisses } from '../../lib/leech.js';
 import { COVERAGE_DEFAULT, CRUNCH_MINUTES, CRUNCH_WINDOW, bookConfusableDrill, bookCoverage, bookInlinePractice, crunchMinutes, crunchWindow, resolveBookSettings } from '../../lib/book-settings.js';
 import { levelHint, levelOptions } from '../outline/words.js';
@@ -140,6 +140,13 @@ export default function PracticePane({ data, busy, act, openSchedule }) {
           return run('settings.practice.set', { patch: { lookBackBlindRecall: on ? true : null } }, next);
         }}
         hint={ui('每轮做完点开「本轮题目」里的错题时，先遮住正确答案与解析让你回想一遍再揭晓；揭晓后可顺手点选错因（概念混淆、漏看条件、推导卡住、粗心手滑），按错因一键重练或带进复制的复盘摘录。只影响回看显示，不改复习间隔，也不调用模型。')} />
+      <Switch name="notesPracticeBridge" label={ui('学习笔记显示关联题整套开练')} checked={notesPracticeBridge(values)} disabled={disabled}
+        onChange={(on) => {
+          const next = { ...values };
+          if (on) next.notesPracticeBridge = true; else delete next.notesPracticeBridge;
+          return run('settings.practice.set', { patch: { notesPracticeBridge: on ? true : null } }, next);
+        }}
+        hint={ui('打开后，「学习笔记」列表会出现「只看含关联题」筛选，点开笔记阅读时上方也会给出「练这 N 道关联题」按钮，把整篇笔记或每日总结关联的题目排成一轮重练，练完回到这篇笔记；自动跳过已移除或已归档的题目，不调用模型。')} />
       <Switch name="qaToBook" label={ui('自动加入复习全书')} checked={bookMode === 'auto'} disabled={disabled} onChange={(on) => setBook(on ? 'auto' : 'manual')}
         hint={ui('练习时得到的追问和「帮我弄懂」的回答，打开后会自动放进这门课的复习全书（这道题所在知识点的问答里）；关着时在每条问答旁点「加入复习全书」才放进去。题目自己的问答记录不受影响，加进书里的随时可以撤回。只影响之后的问答。')} />
       <Switch name="bookInlinePractice" label={ui('复习全书开启薄弱节筛选与页内自测')} checked={bookFlags.inlinePractice} disabled={disabled} onChange={(on) => setBookFlag('inlinePractice', on)}

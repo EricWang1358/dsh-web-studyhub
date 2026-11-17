@@ -21,6 +21,8 @@ import NoteDraft from './NoteDraft.jsx';
 import { modelReadiness } from './generation-status.js';
 import { useUndoable } from './use-undoable.js';
 import { parseCiteHref } from '../lib/contexts/notes/note-links.js';
+import { notesPracticeBridge } from '../lib/practice-settings.js';
+import { buildNotePracticeScope, countNotesWithCards, filterNotesWithCards } from './notes-practice-bridge.js';
 
 const csdnEditor = "https://mp.csdn.net/mp_blog/creation/editor";
 const isDailyNote = note => note?.kind?.startsWith('daily-recap');
@@ -32,7 +34,7 @@ export const resolveNoteEditLayout = (preferred, wide) => {
   return preferred === 'preview' ? 'preview' : 'edit';
 };
 
-export default function BlogNotes({ data, initialId, initialNote = null, initialEditing = false, initialEditLayout = 'edit', wideViewport, onSelect, onBack, backLabel, onOpenCard, onOpenSource, onRecapSettings, onModelSettings, theme = "dark" }) {
+export default function BlogNotes({ data, initialId, initialNote = null, initialEditing = false, initialEditLayout = 'edit', wideViewport, onSelect, onBack, backLabel, onOpenCard, onOpenSource, onPracticeCards, onRecapSettings, onModelSettings, theme = "dark" }) {
   const { call, act, busy } = useStudy();
   const science = useSciencePreferences();
   const toast = useToast();
@@ -51,6 +53,7 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
   const [query, setQuery] = useState(""), [results, setResults] = useState([]);
   const [picked, setPicked] = useState([]), [newTitle, setNewTitle] = useState("");
   const [editing, setEditing] = useState(initialEditing), [materialSaved, setMaterialSaved] = useState(false);
+  const [withCardsOnly, setWithCardsOnly] = useState(false);
   const [preferredLayout, setPreferredLayout] = usePageScope(data.root, 'notes-edit-layout', initialEditLayout);
   const [measuredWide, setMeasuredWide] = useState(() => (typeof window !== 'undefined' ? isSplitNoteViewport(window.innerWidth) : false));
   useEffect(() => {
@@ -137,6 +140,11 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
   const notes = (data.notes || []).filter(item => !undoable.hidden(item.id)).filter(item => course === '*' || (course === '' ? !item.courses?.length : (item.courses || []).some(within)))
     .sort((left, right) => Number(right.kind === 'daily-recap' && right.daily?.day === today) - Number(left.kind === 'daily-recap' && left.daily?.day === today)
       || String(right.updatedAt || '').localeCompare(String(left.updatedAt || '')));
+  const bridgeOn = notesPracticeBridge(data?.settings?.practice);
+  const linkedNotesCount = bridgeOn ? countNotesWithCards(notes) : 0;
+  const canFilterLinked = bridgeOn && linkedNotesCount > 0 && linkedNotesCount < notes.length;
+  const shownNotes = filterNotesWithCards(notes, canFilterLinked && withCardsOnly);
+  const practicePlan = bridgeOn && note ? buildNotePracticeScope(note, data?.decks) : { scope: [], totalLinked: 0, skippedCount: 0 };
   function edit(patch) {
     const next = { ...current.current, ...patch };
     applyNote(next);
@@ -311,6 +319,13 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
       onClose={() => setConfirmLeave(null)} onConfirm={() => { const go = confirmLeave; setConfirmLeave(null); go?.(); }} />}
     {!note && <div className="note-list">
       <DailyRecap root={data.root} course={course} saved={data.settings?.dailyRecap} poll onOpenNote={setId} onSettings={onRecapSettings} onModelSettings={onModelSettings} />
+      {canFilterLinked && (
+        <div className="note-list-tools">
+          <Button size="sm" variant="quiet" aria-pressed={withCardsOnly} onClick={() => setWithCardsOnly((prev) => !prev)}>
+            {uiFormat('只看含关联题 ({0})', [linkedNotesCount])}
+          </Button>
+        </div>
+      )}
       <details className="note-linking"><summary>{ui("挑题成文")}</summary>
         <label>{ui("笔记标题")}<TextInput className="note-input" value={newTitle} placeholder={ui("写一个可公开的知识点标题")}
           onChange={(event) => setNewTitle(event.target.value)} /></label>
@@ -329,7 +344,7 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
             setId(created.id); setPicked([]); setNewTitle(""); setResults([]);
           })}>{uiFormat("创建笔记草稿 · {0} 题", [picked.length])}</Button>
       </details>
-      {notes.length ? notes.map((item) => {
+      {shownNotes.length ? shownNotes.map((item) => {
         const hasLocalDraft = !(item.status === 'published' && !isDailyNote(item)) && !!readDraft(draftKey(data.root, 'note', item.id));
         return <button key={item.id} className={isDailyNote(item) ? 'note-list-item note-daily-item' : 'note-list-item'} onClick={() => setId(item.id)}>
           <span><strong>{item.title}</strong>{isDailyNote(item) && <small className="note-daily-date">{item.kind === 'daily-recap-history' ? ui('课程合并前的学习总结') : item.daily?.day === today ? ui('今日学习总结') : item.daily?.day}</small>}</span>
@@ -349,6 +364,20 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
       </details>}
       {note.status === 'draft' && !daily && <NoteDraft note={note} model={modelReadiness(data)} running={note.generation?.status === 'running'} disabled={saving || publishing}
         onStart={startDraft} onCancel={cancelDraft} onModelSettings={onModelSettings} />}
+      {bridgeOn && !editing && onPracticeCards && practicePlan.scope.length > 0 && (
+        <div className="note-practice-bar">
+          <div className="note-practice-bar__copy">
+            <span>{uiFormat('这篇笔记关联了 {0} 道可练原题', [practicePlan.scope.length])}</span>
+            {practicePlan.skippedCount > 0 && (
+              <small className="muted">{uiFormat('另有 {0} 道已失效或归档，已自动跳过', [practicePlan.skippedCount])}</small>
+            )}
+          </div>
+          <Button size="sm" variant="secondary" iconEnd="arrow-right" lock={busy || saving}
+            onClick={() => guardLeave(() => onPracticeCards(practicePlan.scope))}>
+            {practicePlan.scope.length === 1 ? ui('练这道关联题') : uiFormat('练这 {0} 道关联题', [practicePlan.scope.length])}
+          </Button>
+        </div>
+      )}
       {!editing && note.markdown && <div className="note-reader" onClickCapture={openCitation}><DocumentViewer key={note.id} source={{ id: note.id, title: note.title, text: note.markdown, format: 'md' }}
         localContent={{ id: note.id, title: note.title, markdown: note.markdown }} data={data} call={call} /></div>}
       {editing && writable && <>
@@ -412,6 +441,14 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
       </details>
       </div>
       <details className="note-linking"><summary>{uiFormat("关联题目 · {0} 题", [note.cards.length])}</summary>
+        {bridgeOn && onPracticeCards && practicePlan.scope.length > 0 && (
+          <div className="note-linking__actions">
+            <Button size="sm" variant="quiet" iconEnd="arrow-right" lock={busy || saving}
+              onClick={() => guardLeave(() => onPracticeCards(practicePlan.scope))}>
+              {practicePlan.scope.length === 1 ? ui('练这道关联题') : uiFormat('练这 {0} 道关联题', [practicePlan.scope.length])}
+            </Button>
+          </div>
+        )}
         <ul>{note.cards.map((ref) => <li key={ref.cardId}>
           <Button iconEnd={ref.missing ? undefined : "arrow-right"} disabled={ref.missing || !onOpenCard} onClick={() => onOpenCard(ref)}>{ref.missing ? ui('原题已移除') : ref.prompt || ui('查看原题')}</Button>
           {ref.deckTitle && <small className="muted">{ref.deckTitle}</small>}
