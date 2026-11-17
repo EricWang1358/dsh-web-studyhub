@@ -126,6 +126,7 @@ test('pressing the link starts a path run over the weak focus questions; pressin
   assert.equal(buttons.length, 2);
   const [summary, practise] = buttons;
   assert.match(textOf(summary), /重点 8 条/);
+  assert.equal(summary.props.iconEnd ?? summary.props.icon, undefined, 'a status that opens its detail: no arrow');
   assert.match(textOf(practise), /练还不会的重点/);
   summary.props.onClick();
   practise.props.onClick();
