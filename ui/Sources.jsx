@@ -10,6 +10,7 @@ import { AddSourceButton, Badge, Button, Checkbox, CheckboxInput, ChunkedRows, C
 import { browserStorage, readJSON, writeJSON } from "./storage.js";
 import { useNarrow } from "./use-narrow.js";
 import { useRowFit } from "./use-row-fit.js";
+import { useCut } from "./use-cut.js";
 import { scrollToAnchor } from "./tour/anchor.js";
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import {
@@ -193,12 +194,15 @@ export function ChapterList({ item, onOpen, onGenerate, onPractice, listId, mast
 }
 
 /** The entries of a row's 更多 menu. */
-export function RowMenuItems({ item, onChangeCourse, onMoveFolder, onRemove, onSegment, onRename, onArchive, onPin, onPinMove, pin }) {
+export function RowMenuItems({ item, onGenerate, onCompanion, onChangeCourse, onMoveFolder, onRemove, onSegment, onRename, onArchive, onPin, onPinMove, pin }) {
   const { busy, call } = useStudy();
   const close = event => event.currentTarget.closest("details")?.removeAttribute("open");
   return <div className="source-row-menu">
+    {/* What the row does not show beside its one action (#1083): 从这份资料出题 when 补题 is that action, and the material's interactive companion. */}
+    {onGenerate && <Button className="source-row-menu__btn" lock={busy} onClick={event => { close(event); onGenerate(item); }}>{ui('从这份资料出题')}</Button>}
+    {onCompanion && <Button className="source-row-menu__btn" onClick={event => { close(event); onCompanion(item); }}>{ui('打开交互伴学页')}</Button>}
     {call && <OriginalMenuEntry item={item} />}
-    {onRename && <Button className="source-row-menu__btn" lock={busy} onClick={event => { close(event); onRename(item); }}>{ui('重命名…')}</Button>}
+    {onRename && <Button className="source-row-menu__btn" lock={busy} aria-keyshortcuts="F2" onClick={event => { close(event); onRename(item); }}>{ui('重命名…')}</Button>}
     {/* 置顶: one entry to pin or unpin; a pinned row can also be moved without dragging (the pin's own order, lib/material-pins.js). */}
     {onPin && !item.archived && <Button className="source-row-menu__btn" lock={busy} onClick={event => { close(event); onPin(item); }}>{pin?.pinned ? ui('取消置顶') : ui('置顶')}</Button>}
     {onPin && onPinMove && !item.archived && pin?.pinned && <>
@@ -246,7 +250,7 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
   useEffect(() => { if (wasEditing.current && !editing) main.current?.focus({ preventScroll: true }); wasEditing.current = editing; }, [editing]);
   const editor = canRename ? actions.rename(item) : null;
   const name = displayTitle(item.title);
-  // Clicking anywhere on the row opens the reader immediately (0ms); rename uses hover button, F2, or 更多 menu.
+  // Clicking anywhere on the row opens the reader immediately (0ms); rename is F2 on the title or 重命名… in 更多.
   const openRow = () => actions.open(item.sourceIds[0]);
   const startEditing = () => setEditing(true);
   const multi = item.pages.length > 1;
@@ -259,6 +263,11 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
     row.current.querySelector(".source-main")?.focus({ preventScroll: true });
     return jump.cancel;
   }, [isNew]);
+  // The courses and 用于 piece of the facts ellipsises on its own; once it is cut, a hover tip says all of it.
+  const coursesRef = useRef(null);
+  const coursesText = [item.courses.join(' · ') || ui('未分类'), item.coursesInferred ? ui('推断归属') : '',
+    item.usedBy.length ? uiFormat('用于 {0}', [item.usedBy.map(deck => deck.title).join(' · ')]) : ''].filter(Boolean).join(' · ');
+  const coursesCut = useCut(coursesRef, coursesText);
   const corrections = source?.audio ? uiFormat("校对 {0} 处", [source.audio.corrections?.appliedCount ?? 0]) : "";
   // The facts only (#676): what it is, how big, and how it relates to the others. What the learner has to check is a Badge beside the title (below), the start of the text is not in the row.
   const details = [uiFormat("{0} 字符", [formatNumber(item.chars)]), corrections, relationNote(relation)].filter(Boolean);
@@ -289,8 +298,7 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
             <strong className="source-title" title={item.title}>{pinned && <span className="source-pin" role="img" aria-label={ui('已置顶')}><Icon name="pin" size={14} /></span>}{name}{isNew && <Badge size="sm" className="source-new">{ui("刚导入")}</Badge>}{notes.map(note => <Badge key={note} tone="warning" size="sm" icon wrap className="source-note">{note}</Badge>)}</strong>
             {/* One line of facts under the title (#570): where it belongs, then what it is and how big; each part ellipsises on its own. */}
             <span className="source-doc__meta">
-              <small>{[item.courses.join(' · ') || ui('未分类'), item.coursesInferred ? ui('推断归属') : '',
-                item.usedBy.length ? uiFormat('用于 {0}', [item.usedBy.map(deck => deck.title).join(' · ')]) : ''].filter(Boolean).join(' · ')}{showExtraCourseBadges && item.courses.length > 1 && item.courses.slice(1).map(extra => <Badge key={extra} size="sm" className="source-course-extra">{extra}</Badge>)}</small>
+              <small ref={coursesRef}><Tooltip layer anchorClassName="source-doc__facts-tip" content={coursesCut ? coursesText : ''}><span>{coursesText}</span></Tooltip>{showExtraCourseBadges && item.courses.length > 1 && item.courses.slice(1).map(extra => <Badge key={extra} size="sm" className="source-course-extra">{extra}</Badge>)}</small>
               <small className={gap ? "source-doc__facts--gap" : undefined}>{sourceFormatLabel(item)}{gap &&<>{" · "}<Tooltip layer content={pageGapHint(item)}><span className="source-doc__gap" tabIndex={0}>{gap}</span></Tooltip></>}{details.length > 0 && ` · ${details.join(" · ")}`}</small>
             </span>
             {item.renamedFrom && <small className="source-original" title={item.renamedFrom}>{originalNote(item)}</small>}
@@ -298,20 +306,17 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
         </button>}
         {/* The row's actions, beside the title (line 1) on a wide row: before the status line in the DOM too, so Tab goes title, actions, then the index link under them. */}
         <div className="source-doc__actions">
-          {companionTarget && openModal && (
-            <Button size="sm" variant="secondary" icon="play" className="source-doc__action" onClick={() => openCompanionTarget(openModal, companionTarget)}>
-              {ui('打开交互伴学页')}
-            </Button>
-          )}
-          {canGenerate && <Button size="sm" variant="secondary" icon="sparkle" className="source-doc__action" lock={busy} onClick={() => actions.generate(item.sourceIds)}>{ui('从这份资料出题')}</Button>}
-          {/* 为没覆盖的部分补题 of a material whose questions were published: a NEW draft, the deck's next part (ui/coverage/DocumentTopUp.jsx). */}
-          {topUp && <DocumentTopUp item={item} revision={JSON.stringify(coverage)} />}
+          {/* ONE action beside the title (#1083): 为没覆盖的部分补题 where a published deck leaves part of the material without questions (a NEW draft, the deck's
+              next part, ui/coverage/DocumentTopUp.jsx), else 从这份资料出题. The others (从这份资料出题 then, the interactive companion) are in 更多. */}
+          {topUp ? <DocumentTopUp item={item} revision={JSON.stringify(coverage)} buttonClassName="source-doc__action" />
+            : canGenerate && <Button size="sm" variant="secondary" icon="sparkle" className="source-doc__action" lock={busy} onClick={() => actions.generate(item.sourceIds)}>{ui('从这份资料出题')}</Button>}
           {item.archived && <>
             <Button size="sm" variant="secondary" className="source-doc__action" lock={busy} onClick={() => actions.archive(item)}>{ui('恢复资料')}</Button>
             <Button size="sm" variant="danger" className="source-doc__action" lock={busy} onClick={() => actions.remove(item)}>{ui('永久删除')}</Button>
           </>}
           <details className="source-row-actions"><summary>{ui('更多')}</summary>
-            <RowMenuItems item={item} onChangeCourse={actions.changeCourse} onMoveFolder={canMoveFolder ? actions.moveFolder : undefined}
+            <RowMenuItems item={item} onGenerate={topUp && canGenerate ? () => actions.generate(item.sourceIds) : undefined}
+              onCompanion={companionTarget && openModal ? () => openCompanionTarget(openModal, companionTarget) : undefined} onChangeCourse={actions.changeCourse} onMoveFolder={canMoveFolder ? actions.moveFolder : undefined}
               onArchive={item.archived ? undefined : actions.archive} onSegment={canSegment ? actions.segment : undefined} onRename={editor ? startEditing : undefined}
               onPin={actions.pin} onPinMove={actions.pinMove} pin={{ pinned, first: pinFirst, last: pinLast }} />
           </details>

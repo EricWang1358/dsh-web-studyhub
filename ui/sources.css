@@ -47,8 +47,8 @@
     /* --source-doc-lead: the icon and the gap after it, so a line under the title starts where the title's text does. */
     .source-doc { --source-doc-lead: calc(20px + var(--space-3)); display: block; margin: 0; padding: var(--space-2); border: 0; border-radius: var(--radius-sm); background: transparent; }
     /* A row is a small grid: the text (title and facts, after the checkbox while organizing) beside the actions, then the status line under both, as wide as the
-       row. The actions are always there, in a column as wide as they are (at most half the row), so they never lie over a word, nothing moves when the pointer
-       comes, and the text runs right up to them (#1083). */
+       row. The actions (the row's one action and 更多, ui/Sources.jsx) are always there, in a column as wide as they are (at most half the row), so they never
+       lie over a word, nothing moves when the pointer comes, and the text runs right up to them (#1083). */
     .source-doc__line { display: grid; grid-template-columns: [text-start] minmax(0, 1fr) [text-end] fit-content(50%); align-items: center; gap: 0 var(--space-3); min-width: 0; }
     .source-doc__line:has(> .source-doc__check) { grid-template-columns: auto [text-start] minmax(0, 1fr) [text-end] fit-content(50%); }
     .source-doc__line > * { grid-row: 1; grid-column: text; }
@@ -64,6 +64,8 @@
     .source-doc .source-main .source-doc__meta > small { flex: 0 1 auto; min-width: 0; max-width: none; margin: 0; }
     .source-doc .source-main .source-doc__meta > small + small { flex: 1 0 auto; max-width: 100%; }
     .source-doc__meta > small + small::before { content: "·"; margin-right: var(--space-2); color: var(--text-faint); }
+    /* The hover tip of a cut courses piece wraps its words inline, so the piece still ends in an ellipsis. */
+    .source-doc .source-main .source-doc__facts-tip { display: inline; }
     /* The status line: mastery and coverage, then the index badge's slot. The slot is there from the first paint and at least --index-slot wide; it takes the rest
        of the line, or the next line when the rest is narrower, which the slot decides before the badge comes: a late badge moves nothing (#229, #1083).
        --index-slot holds the longest common badge uncut: "Index partly built · 2/4 pages" with 「Build index」 after it (254px; 「索引建了一部分 · 2/4 页 建立索引」
@@ -76,9 +78,10 @@
     /* Inside the slot the badge keeps one line (ui/sources-page.css). */
     .source-doc__index > * { min-width: 0; max-width: 100%; }
     .source-doc__icon { flex: none; margin-top: var(--space-half); color: var(--accent-text); }
-    /* One line of buttons: where they do not fit, a label wraps inside its button, never a button alone onto a line of its own. */
+    /* One line of buttons, each never narrower than its longest word: where they do not fit, a label breaks at a space (a zh label keeps its words whole), never
+       inside a word, and no button drops alone onto a line of its own. */
     .source-doc__line > .source-doc__actions { grid-column: -2; display: flex; flex-wrap: nowrap; min-width: 0; align-items: center; gap: var(--space-2); }
-    .source-doc__actions > .source-doc__action { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+    .source-doc__actions .source-doc__action { white-space: normal; word-break: keep-all; }
     .source-doc__actions .source-row-actions > summary {
       padding: var(--space-1-5) var(--space-2-5);
       border-radius: var(--radius-sm);
@@ -119,7 +122,7 @@
     .source-doc__chapters li > .source-doc__row { flex: 1 1 auto; width: auto; min-width: 0; }
     .source-doc__chapters li > .source-doc__row small { white-space: normal; text-align: right; }
     /* 刚导入: the row itself stays plain (the page scrolls to it and focuses it); the word 「刚导入」 is a neutral Badge beside the title, never a tint of the accent (#658). */
-    .source-new { margin-inline-start: var(--space-2); vertical-align: baseline; }
+    .source-new { vertical-align: baseline; }
     /* A reminder about the material (文字偏少，核对正文…): a warning Badge beside the title, from the first paint (it comes with the row's data, so it moves nothing). */
     .source-note { vertical-align: baseline; }
     /* 置顶: the pin sits in the title line from the first paint (the row's height never depends on it); a pinned row can be dragged, and the drop mark is a shadow so it takes no room. */
@@ -145,7 +148,7 @@
     .source-doc__meta { flex-direction: column; align-items: stretch; gap: 0; }
     .source-doc__meta > small + small::before { content: none; }
     .source-doc .source-main small.source-doc__facts--gap { max-width: none; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-    .source-doc__line > .source-doc__actions { grid-row: 3; grid-column: text-start / -1; justify-content: flex-end; margin-top: var(--space-2); }
+    .source-doc__line > .source-doc__actions { grid-row: 3; grid-column: text-start / -1; justify-content: safe flex-end; margin-top: var(--space-2); }
     /* Here a row's actions take their own line under it: a hairline between rows says which row they belong to. */
     .source-doc + .source-doc { border-top: 1px solid var(--line-soft); border-radius: 0; }
     /* Narrow: a chapter row keeps 从这一章出题 at its right and breaks inside itself — the title gets a whole line (still one
