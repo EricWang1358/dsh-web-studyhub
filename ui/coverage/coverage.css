@@ -121,7 +121,7 @@
     /* The top-up button names the action in full. A label longer than about 11em (the en "Add questions for the uncovered parts") always takes two lines, at a
        space, never inside a word, and the box is only as wide as those lines: a wrapped label's box is otherwise as wide as the room it is offered, leaving an
        empty band after the words (the reader's outline, a narrow 资料 row). A shorter label (zh) keeps one line. Its lines start beside the icon. */
-    .cov-popover .cov-topup-trigger { max-width: calc(11em + 16px + var(--space-1-5) + 2 * var(--sh-btn-px) + 2 * var(--hairline)); white-space: normal; word-break: keep-all; text-wrap: pretty; text-align: start; }
+    .cov-popover .cov-topup-trigger { width: fit-content; max-width: calc(11em + 16px + var(--space-1-5) + 2 * var(--sh-btn-px) + 2 * var(--hairline)); white-space: normal; word-break: keep-all; text-wrap: pretty; text-align: start; }
     .reader-outline__covtoggle { display: inline-flex; align-items: center; gap: var(--space-1-5); margin: 0; color: var(--text-dim); font-size: var(--fs-sm); cursor: pointer; }
     /* ── 覆盖强度 on the 创建题组 form ─────────────────────────────────── */
     .cov-strength { display: grid; gap: var(--space-2); width: 100%; min-width: 0; justify-items: start; }
