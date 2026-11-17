@@ -4,7 +4,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { uiSources } from './helpers/icon-stand-ins.mjs';
-import { buttonElements, goOnProblems, iconTags } from './helpers/go-on.mjs';
+import { IN_PLACE, goOnProblems, iconTags, inPlaceWhy, labelHelpers, labelsOf, playLeads, propOf } from './helpers/go-on.mjs';
 import { loadUi } from './helpers/ui-module.mjs';
 
 /* #1073 / #1074, round 3 of the review of PR #1115: the rules ui/DESIGN.md (Icons) writes, found by scanning ui/ instead of by a hand list. Each test names the defect of the review it pins. */
@@ -24,48 +24,48 @@ const h = React.createElement;
 
 /* ---- 3: "go on" actions, by rule ------------------------------------------------------------------------------------------------------------------------------- */
 
-/** A Button that starts with a go-on verb and has no arrow, and why that is right. Everything else must end in `arrow-right`. */
-const GO_ON_EXCEPTIONS = [
-  { file: 'ui/LiveClass.jsx', label: '开始实录', why: 'a capture control: it starts the recording on this page' },
-  { file: 'ui/LiveClass.jsx', label: '接着录', why: 'a capture control: it resumes the recording on this page' },
-  { file: 'ui/LiveClass.jsx', label: '继续', why: 'the pause / resume toggle of a capture' },
-  { file: 'ui/tasks/TaskConsole.jsx', label: '继续', why: 'a job control (resume a paused job): it stays on the card' },
-  { file: 'ui/tasks/TaskConsole.jsx', label: '继续安装', why: 'the installer step of a job card: a state change on the card' },
-  { file: 'ui/UsageSettings.jsx', label: '继续记录', why: 'a switch of the settings page, not a way on' },
-  { file: 'ui/ExplanationFollowup.jsx', label: '继续追问', why: 'sends the follow-up question that is typed in the box above it' },
-  { file: 'ui/Ingest.jsx', label: '开始录题并发给主会话', why: 'the submit of the paste form: it hands the text over, it does not go to another place' },
-  { file: 'ui/companions/CompanionBuildDialog.jsx', label: '开始生成 HTML 伴学课', why: 'the confirm of a dialog that starts a background build' },
-  { file: 'ui/document-preview/translation/TranslationMenu.jsx', label: '开始翻译', why: 'the confirm of a menu panel that starts a background translation' },
-  { file: 'ui/document-preview/reader/OutlineAssist.jsx', label: '开始', why: 'the confirm of the outline assistant form: it starts a background task' },
-];
-
-test('3: every "go on" Button (a label that starts with 去 / 练 / 继续 / 开始 / 接着) ends in arrow-right, unless it is a listed exception with its reason', async () => {
-  const exceptions = new Set(GO_ON_EXCEPTIONS.map((entry) => `${entry.file}::${entry.label}`));
-  const used = new Set(), found = [];
-  for (const { file, source } of await uiSources()) {
-    for (const { label, open } of goOnProblems(source)) {
-      const key = `${file}::${label}`;
-      if (exceptions.has(key)) used.add(key); else found.push(`${file}: ${label}  ${open.slice(0, 80)}`);
-    }
-  }
-  assert.deepEqual(found, [], 'a go-on action ends in iconEnd="arrow-right" (ui/DESIGN.md); a control that goes nowhere is listed in GO_ON_EXCEPTIONS with why');
-  const stale = [...exceptions].filter((key) => !used.has(key));
-  assert.deepEqual(stale, [], 'an exception that no Button needs any more is deleted, so the list only shrinks');
-  for (const { why } of GO_ON_EXCEPTIONS) assert.ok(why.length > 12);
+/* Round 4: the arrow is decided by what the control does, in one place (tests/helpers/go-on.mjs `inPlaceWhy`): a go-on action that takes the learner somewhere
+   ends in arrow-right; one that acts where it stands (a job's 继续 / 接着做, a timer, a capture, a form's submit, a confirm that starts a background task) has
+   none. The words are read however the Button gets them: ui(), uiFormat(), uiMessage() or a helper of ui/ that returns one (练 {0} 题 of the skeleton was missed). */
+test('3 / 7: every "go on" Button (去 / 练 / 继续 / 开始 / 接着, however it gets its words) ends in arrow-right when it takes the learner somewhere, and has none when it acts in place', async () => {
+  const sources = await uiSources();
+  const helpers = labelHelpers(sources), used = new Set(), found = [];
+  for (const { file, source } of sources) for (const { label, open, want } of goOnProblems(source, { file, helpers, used })) found.push(`${file}: ${label} wants ${want}  ${open.slice(0, 80)}`);
+  assert.deepEqual(found, [], 'the arrow says where the control takes the learner (ui/DESIGN.md, Icons); a place where a go-on verb acts in place is listed in IN_PLACE with why');
+  const stale = IN_PLACE.filter((entry) => !used.has(entry)).map((entry) => `${entry.file} ${entry.handler || ''}`);
+  assert.deepEqual(stale, [], 'a listed place no Button needs any more is deleted, so the list only shrinks');
+  for (const { why } of IN_PLACE) assert.ok(why.length > 12);
 });
 
-/** The play icon that stays: it runs a clock or an installer on the page, it does not go on to practise. */
-const PLAY_OK = ['ui/board/TodayTimer.jsx', 'ui/MineruInstallCard.jsx'];
+/** The play icon leads the words of a control only where it plays something in time: a clock, a sound, a slide lesson. Everything that goes on to practise
+    ends in the arrow instead, and an installer or a job control has no icon. `handler` is what the onClick calls (the context, not the words). */
+const PLAY_OK = [
+  { file: 'ui/board/TodayTimer.jsx', why: 'the focus clock: ▶ runs the countdown again' },
+  { file: 'ui/board/Card.jsx', why: 'starts the focus clock of a board card (the clock\'s own ▶)' },
+  { file: 'ui/settings/AppearanceSection.jsx', why: 'plays the sound it previews (试听)' },
+  { file: '*', handler: /[Cc]ompanion/, why: 'opens a companion lesson, an HTML lesson that plays as slides' },
+  { file: 'ui/Sources.jsx', spec: true, why: 'the tab of the companion lessons (the file belongs to PR #1117; its ▶ is the lessons\' play)' },
+];
 
-test('3: no go-on Button leads with a play icon: "go practise" has one look, the arrow after the words', async () => {
-  const found = [];
+test('2: no Button with words leads with a play icon, whatever its words; ▶ stays only where it plays something in time (listed with why), as an icon-only control or in the deck row\'s slot', async () => {
+  const used = new Set(), found = [];
   for (const { file, source } of await uiSources()) {
-    for (const { open, children } of buttonElements(source)) {
-      if (PLAY_OK.includes(file)) continue;
-      if (/\sicon=(?:"play"|\{["']play["']\})/.test(open) && /ui\((["'])(?:去|练|继续|开始|接着)/.test(children)) found.push(`${file}: ${open.slice(0, 80)}`);
+    for (const { kind, open } of playLeads(source)) {
+      const ok = PLAY_OK.find((entry) => (entry.file === '*' || entry.file === file) && !!entry.spec === (kind === 'spec') && (!entry.handler || entry.handler.test(propOf(open, 'onClick'))));
+      if (ok) used.add(ok); else found.push(`${file}: ${kind} ${open.slice(0, 90)}`);
     }
   }
-  assert.deepEqual(found, []);
+  assert.deepEqual(found, [], 'a go-on action ends in iconEnd="arrow-right"; an installer or a job control has no icon');
+  assert.deepEqual(PLAY_OK.filter((entry) => !used.has(entry)).map((entry) => entry.file), [], 'a listed play no control needs any more is deleted');
+  for (const { why } of PLAY_OK) assert.ok(why.length > 12);
+});
+
+test('2: the play guard sees a play-led Button however its icon is written, and an action spec, and leaves an icon-only control alone', () => {
+  assert.equal(playLeads('<Button variant="primary" icon="play" onClick={go}>{run ? uiFormat("继续 {0}/{1}", [1, 2]) : ui("学习所选内容")}</Button>').length, 1);
+  assert.equal(playLeads('<Button icon={busy ? "clock" : "play"} onClick={go}>{label}</Button>').length, 1);
+  assert.equal(playLeads("const fix = { id: 'continue', label: ui('继续安装'), icon: 'play' };").length, 1);
+  assert.equal(playLeads('<Button icon="play" aria-label={ui("播放")} />').length, 0);
+  assert.equal(playLeads('<Button iconEnd="arrow-right" onClick={go}>{ui("学习所选内容")}</Button>').length, 0);
 });
 
 test('3: the go-on rule sees what it should and leaves the rest alone', () => {
@@ -73,7 +73,28 @@ test('3: the go-on rule sees what it should and leaves the rest alone', () => {
   assert.equal(goOnProblems('<Button iconEnd="arrow-right" onClick={() => go(1)}>{ui("去练")}</Button>').length, 0);
   assert.equal(goOnProblems('<Button icon="sparkle">{ui("开始生成")}</Button>').length, 0);
   assert.equal(goOnProblems('<Button onClick={() => x()}>{ui("删除")}</Button>').length, 0);
-  assert.equal(goOnProblems('<Button size="sm">{done ? ui("继续") : ui("开始")}</Button>').length, 2);
+  assert.equal(goOnProblems('<Button size="sm">{done ? ui("继续") : ui("开始")}</Button>').length, 1);
+});
+
+test('1: the rule reads the words however a Button gets them: uiFormat templates, uiMessage, and a helper of ui/ (by its key when it is a table)', () => {
+  assert.deepEqual(labelsOf('{uiFormat("练 {0} 题", [n.cards.length])}'), ['练 {0} 题']);
+  assert.equal(goOnProblems('<Button size="sm" className="sk-mini" onClick={() => onPractice(n.cards)}>{uiFormat("练 {0} 题", [n.cards.length])}</Button>').length, 1, 'the skeleton\'s 练 3 题 needs its arrow');
+  const helpers = labelHelpers([{ source: "export const practiceLabel = resume => (resume ? uiFormat('接着练 {0}/{1}', [1, 2]) : ui('练这一节'));\nexport const actionLabel = (action) => ({ resume: ui('继续'), 'model-settings': ui('去配置模型'), topup: ui('为没覆盖的部分补题') })[action] || '';" }]);
+  assert.deepEqual(labelsOf('{practiceLabel(node.resume)}', helpers), ['接着练 {0}/{1}', '练这一节']);
+  assert.deepEqual(labelsOf("{actionLabel('model-settings')}", helpers), ['去配置模型']);
+  assert.deepEqual(labelsOf("{actionLabel('topup')}", helpers), ['为没覆盖的部分补题']);
+  assert.deepEqual(labelsOf('{actionLabel(action)}', helpers), ['继续', '去配置模型', '为没覆盖的部分补题']);
+});
+
+test('7: in place or on is decided by what the control does, not by its words: the same 接着做 / 继续 acts in place on a job and goes on elsewhere', () => {
+  assert.match(inPlaceWhy("<Button size=\"sm\" onClick={() => act('retry')}>"), /act/);
+  assert.match(inPlaceWhy("<Button onClick={() => core.act('generate', args)}>"), /act/);
+  assert.equal(inPlaceWhy('<Button type="submit" variant="primary">'), '', 'a submit that starts a round goes on (开始本轮)');
+  assert.equal(inPlaceWhy('<Button onClick={() => plan.start(task.id)}>'), '');
+  assert.equal(inPlaceWhy('<Button onClick={onPractice}>'), '');
+  assert.equal(goOnProblems("<Button iconEnd=\"arrow-right\" size=\"sm\" onClick={() => act('retry')}>{ui(\"接着做\")}</Button>").length, 1, 'a job control on its card has no arrow');
+  assert.equal(goOnProblems("<Button size=\"sm\" onClick={() => act('resume')}>{ui(\"继续\")}</Button>").length, 0);
+  assert.equal(goOnProblems('<Button onClick={() => plan.start(task.id)}>{ui("继续")}</Button>').length, 1, 'the same word that takes the learner on wants the arrow');
 });
 
 /* ---- 2: icons beside text -------------------------------------------------------------------------------------------------------------------------------------- */
@@ -119,18 +140,20 @@ test('2: the icon guard catches what the review found: 12 / 13 / 16px and a heav
   assert.deepEqual(tags('<Icon name="check" className="sh-icon--inline" />'), [{ size: 0, stroke: false, inline: true, prop: false }]);
 });
 
-test('2/9: the one weight exception is the answer mark, written as `weight="regular"` (a state icon beside a medium label), never as a strokeWidth', async () => {
+test('2/9 (round 4): the one weight exception is the answer mark, written as `weight="state"` (a state icon beside a bold label: the stroke of the label\'s stem), never as a strokeWidth', async () => {
   const [icon, answer, design] = await Promise.all([read('ui/components/Icon.jsx'), read('ui/review/AnswerState.jsx'), read('ui/DESIGN.md')]);
-  assert.match(icon, /weight/);
-  assert.match(answer, /weight="regular"/);
+  assert.match(icon, /weight === 'state'/);
+  assert.doesNotMatch(icon, /REGULAR_STROKE|'regular'/, 'Regular was too thin beside a bold label (0.9px against 2px) and is gone');
+  assert.match(answer, /weight="state"/);
   assert.doesNotMatch(answer, /strokeWidth/);
-  assert.match(design, /weight="regular"/);
+  assert.match(design, /weight="state"/);
   const users = [];
   for (const { file, source } of await uiSources()) if (/<Icon\b[^>]*\sweight=/.test(source)) users.push(file);
-  assert.deepEqual(users, ['ui/review/AnswerState.jsx'], 'only a state icon beside its label is Regular');
-  const light = renderToStaticMarkup(h(m.Icon, { name: 'check' })), regular = renderToStaticMarkup(h(m.Icon, { name: 'check', weight: 'regular' }));
+  assert.deepEqual(users, ['ui/review/AnswerState.jsx'], 'only a state icon beside its label has the state weight');
+  const light = renderToStaticMarkup(h(m.Icon, { name: 'check' })), state = renderToStaticMarkup(h(m.Icon, { name: 'check', weight: 'state' }));
   assert.doesNotMatch(light, /stroke-width/);
-  assert.match(regular, /stroke-width/);
+  // Light is 12 units on the 256 grid; the state weight widens it to 34, about 1.9px at the 14px inline size: the stem of the 15px bold label beside it.
+  assert.equal(Number(state.match(/stroke-width="([\d.]+)"/)?.[1]), 22);
 });
 
 test('9: the answer mark and its label share a centre line', async () => {
@@ -149,7 +172,7 @@ test('5 (#1074): "add another material" is one control, AddSourceButton with `mo
   assert.match(html, /再添加资料/);
   assert.match(html, /<svg/);
   m.setUiLanguage('en');
-  try { assert.match(renderToStaticMarkup(h(m.AddSourceButton, { more: true, variant: 'link' })), /Add more sources/); } finally { m.setUiLanguage('zh'); }
+  try { assert.match(renderToStaticMarkup(h(m.AddSourceButton, { more: true, variant: 'link' })), /Add another source/); } finally { m.setUiLanguage('zh'); }
   assert.match(await read('ui/first-run/FirstRunLine.jsx'), /<AddSourceButton more /);
   assert.match(await read('ui/study-map/home-plan.js'), /addSourceAction\(addSource, \{ more: true \}\)/);
 });

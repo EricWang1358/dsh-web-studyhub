@@ -69,6 +69,7 @@
     "tests/home-width-browser.test.mjs",
     "tests/host-boot-lazy-browser.test.mjs",
     "tests/host-composer-selection-browser.test.mjs",
+    "tests/icon-round4-browser.test.mjs",
     "tests/import-hop-browser.test.mjs",
     "tests/index-guidance-browser.test.mjs",
     "tests/index-shortcut-browser.test.mjs",
