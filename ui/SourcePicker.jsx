@@ -145,20 +145,31 @@ export const relationNote = relation => !relation ? ''
 /* A course name this long or shorter is said whole or left out whole; a longer one, the first on a row's facts line, may be shortened (ui/source-picker.css). */
 const SHORTEST_NAME = 6;
 
-/* The shortened first course as its parts: each part after the first is one unbreakable box with its own 「·」, so the name cut with 「…」 ends on a word,
-   never on its own 「·」 (「示例课程 · …」, #1084 round 8). Only that name is boxed: the other pieces are never cut mid-name, and stay plain text
-   (one run of words for the static markup and the checkbox's name, and few elements per row, #565). */
-const parted = text => {
+/* Where a shortened name may end before its 「…」 (round 11): before a space, before an opening bracket, and before a figure that follows a Chinese word,
+   each after two characters at least (「分布式系统与网络协议（2026 秋季学期」 ends 「…协议…」 or 「…（2026…」, never 「…（202…」; 「CS5223」 and 「第2讲」 are
+   one word). */
+const WORD_START = /(?=\s)|(?<=\S{2})(?=[（(【[《「])|(?<=[^\s\dA-Za-z（(【[《「,.]{2})(?=\d)/u;
+
+/** The words of a shortened name (`· ` and all): the head, up to the first place it may end, then each word after it (a part after a 「 · 」 with its 「·」). */
+export function nameWords(text) {
   const [head, ...tail] = text.split(' · ');
-  return <>{head}{tail.map((part, at) => <span key={at} className="source-picker__part">{` · ${part}`}</span>)}</>;
-};
+  const [lead, ...more] = head.slice(2).split(WORD_START);
+  return [head.slice(0, 2) + lead, ...more, ...tail.flatMap(part => { const [first, ...rest] = part.split(WORD_START); return [` · ${first}`, ...rest]; })];
+}
+
+/* The shortened first course as its words: the head as text, each word after it one unbreakable box, so the name cut with 「…」 ends on a whole word,
+   never on its own 「·」 (「示例课程 · …」, #1084 round 8) nor inside a figure (round 11). Only that name is boxed: the other pieces are never cut
+   mid-name, and stay plain text (one run of words for the static markup and the checkbox's name, and few elements per row, #565). */
+const parted = words => <>{words[0]}{words.slice(1).map((word, at) => <span key={at} className="source-picker__part">{word}</span>)}</>;
 
 /* The first course on a row, shortened where its row is short of room (ui/source-picker.css): only while it is cut (measured with the shared observer of
    ui/use-cut.js) is it wrapped in the shared Tooltip with its whole name; a name said whole is one element and has no card (round 8 review, #565). The
-   anchor takes the name's place in the line (the same size), so the name is cut the same with it and without. */
+   anchor takes the name's place in the line (the same size), so the name is cut the same with it and without. A box that does not start at a space puts
+   one into the checkbox's name (「协议 （2026」), so such a name gives its words as its label. */
 function CourseName({ name }) {
-  const ref = useRef(null), cut = useCut(ref, name);
-  const said = <span ref={ref} className="source-picker__fact source-picker__fact--name source-picker__fact--short" data-name="first">{parted(`· ${name}`)}</span>;
+  const ref = useRef(null), cut = useCut(ref, name), words = nameWords(`· ${name}`);
+  const said = <span ref={ref} className="source-picker__fact source-picker__fact--name source-picker__fact--short" data-name="first"
+    aria-label={words.slice(1).some(word => !/^\s/.test(word)) ? `· ${name}` : undefined}>{parted(words)}</span>;
   return cut ? <Tooltip layer group="index-badge" anchorClassName="source-picker__fact-anchor" content={name}>{said}</Tooltip> : said;
 }
 
