@@ -199,7 +199,7 @@ test('6: useClamped measures again when the web font has loaded (it changes the 
   const line = await read('ui/first-run/FirstRunLine.jsx');
   const body = /function useClamped\([\s\S]*?\n\}/.exec(line)?.[0] ?? '';
   assert.match(body, /document\.fonts\?\.ready\??\.then\(/);
-  assert.match(body, /let live = true|alive/, 'a measure after the font is skipped once the effect has been cleaned up');
+  assert.match(body, /useLiveEffect\(\(isLive\)[\s\S]*if \(isLive\(\)\)/, 'a measure after the font is skipped once the effect has been cleaned up (useLiveEffect, #116)');
 });
 
 void React;
