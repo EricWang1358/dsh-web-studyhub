@@ -382,6 +382,20 @@ test('#1084: at 420 a short row is as on main, a long title has the row, no fact
           await frames(page, 3);
           const shown = await page.locator('[data-tour="generate-sources"] .source-picker__row').first().evaluate(row => !!row.querySelector('[data-index-slot] [role="tooltip"]')?.matches(':popover-open'));
           assert.equal(shown, true, `${tag}: the keyboard-focused row's badge shows its card`);
+          // another badge hovered: one card on screen, never two
+          await page.locator('[data-tour="generate-sources"] .source-picker__row').nth(1).locator('[data-index-slot] [data-state]').hover();
+          await page.waitForTimeout(700);
+          const cards = await page.evaluate(() => [...document.querySelectorAll('[data-tour="generate-sources"] [data-index-slot] [role="tooltip"]')].filter(tip => tip.matches(':popover-open')).length);
+          assert.ok(cards <= 1, `${tag}: ${cards} badge cards are on screen at once`);
+          await page.mouse.move(0, 0);
+          // Esc shuts a keyboard-opened card while the checkbox keeps its focus
+          await page.keyboard.press('Shift');
+          await page.locator('[data-tour="generate-sources"] .source-picker__row').nth(2).locator('input[type="checkbox"]').focus();
+          await frames(page, 3);
+          await page.keyboard.press('Escape');
+          await frames(page, 3);
+          const still = await page.locator('[data-tour="generate-sources"] .source-picker__row').nth(2).evaluate(row => !!row.querySelector('[data-index-slot] [role="tooltip"]')?.matches(':popover-open'));
+          assert.equal(still, false, `${tag}: Esc closes the keyboard-opened badge card`);
         }
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth) <= 0, `${tag}: no sideways scroll`);
         assert.deepEqual(errors, []);

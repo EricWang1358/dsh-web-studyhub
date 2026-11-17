@@ -71,7 +71,7 @@ export default function IndexBadge({ info, coverage, onIndex, compact = false, o
     const [tone, icon] = LOOK[info.state] || LOOK.missing;
     // The word is always shown, a narrow row included (a touch screen has no hover to explain a lone mark); the row gives it a slot of fixed size (ui/source-picker.css).
     // A list of many rows would be a Tab stop per badge (#1084): the row's checkbox stands for it, and the word is part of that checkbox's name.
-    return <Tooltip layer content={indexTip(info).join('\n')} forceOpen={open}>
+    return <Tooltip layer group="index-badge" content={indexTip(info).join('\n')} forceOpen={open}>
       <Badge className="index-badge index-badge-compact" size="sm" tone={tone} icon={info.state === 'building' ? <Spinner size="sm" /> : icon || 'info'} data-state={info.state}>
         <span className="index-badge-compact__word">{indexCompactLabel(info)}</span>
       </Badge>
