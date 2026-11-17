@@ -43,8 +43,8 @@ const PLAY_OK = [
   { file: 'ui/board/TodayTimer.jsx', why: 'the focus clock: ▶ runs the countdown again' },
   { file: 'ui/board/Card.jsx', why: 'starts the focus clock of a board card (the clock\'s own ▶)' },
   { file: 'ui/settings/AppearanceSection.jsx', why: 'plays the sound it previews (试听)' },
-  { file: '*', handler: /[Cc]ompanion/, why: 'opens a companion lesson, an HTML lesson that plays as slides' },
   { file: 'ui/Sources.jsx', spec: true, why: 'the tab of the companion lessons (the file belongs to PR #1117; its ▶ is the lessons\' play)' },
+  { file: 'ui/Sources.jsx', handler: /^live \? openCompanions/, why: '交互伴学 in the 资料 header opens the dialog that builds companion lessons over the page (where it stands); its ▶ names the lessons, as the 更多 entry of the same action does' },
 ];
 
 test('2: no Button with words leads with a play icon, whatever its words; ▶ stays only where it plays something in time (listed with why), as an icon-only control or in the deck row\'s slot', async () => {

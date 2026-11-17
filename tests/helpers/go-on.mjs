@@ -115,6 +115,7 @@ export const IN_PLACE = [
   { file: 'ui/companions/CompanionBuildDialog.jsx', handler: 'handleBuild', why: 'the confirm of a dialog: it starts a background build and the learner stays' },
   { file: 'ui/document-preview/translation/TranslationMenu.jsx', handler: 'onStart', why: 'the confirm of a menu panel: it starts a background translation of this page' },
   { file: 'ui/DailyPlan.jsx', handler: 'onAdjust', why: 'opens the 调整今天 editor in the card (choose(\'adjust\')); only that handler\'s 查看待办 branch goes to the board' },
+  { file: 'ui/book/BookEditor.jsx', handler: 'save', why: 'saves the book\'s text in the editor, which stays open; only a 完成 · 回到阅读 pressed while the save runs leaves after it (BookPage onSaving)' },
 ];
 
 /* ---- What a click does: read from its handler, never from its words -----------------------------------------------------------------------------------------
@@ -146,8 +147,11 @@ const VIEW_MODAL = /\b(?:openModal|setModal)\(\s*\{\s*type:\s*(['"])(?:source|co
 /** A window outside StudyHub (the system browser, DSH's plugin manager, a DSH chat, the host's own file preview): it leads with the `external` mark, never the
     go-on arrow. StudyHub's own reader is not one: it is a place in StudyHub, and a control that opens it ends in → (round 7). */
 export const EXTERNAL = /^(?:openFile|openExternal|openUrl|openPluginManager|openDocument|openAgent|hostPreview)$/;
-/** A practice run started by a job action or a host call (`act('review.start', …)`, `call('review.start', …)` then `enterRun`). */
-const STARTS_RUN = /\b(?:act|call)\(\s*(['"])(?:review|exam)\.start\1/;
+/** A practice run started by a job action or a host call (`act('review.start', …)`, `call('review.start', …)` then `enterRun`, a run's own `reviewAct('review.start')`). */
+const STARTS_RUN = /\b(?:act|call|[a-z]\w*Act)\(\s*(['"])(?:review|exam)\.start\1/;
+/** A step through the run the learner is in (`reviewAct('review.skip')`, `reviewAct('review.move', …)`): like a pager it goes on to the next question, so it
+    ends in → (跳过此题，不计成绩); the words of a step back (上一题) are read first and lead with ← (round 9). */
+const STEPS_RUN = /\b(?:[a-z]\w*Act|onReviewAction)\(\s*(['"])review\.(?:skip|move)\1/;
 /** A job action that hands its result to the practice run (`core.act('coach.practice', args, session.enterRun)`): the run opens when it is done (round 8). */
 const ENTERS_RUN = /\b(?:act|call)\([^;]*\benterRun\b/;
 /** A handler named for a change of data where it stands (a prop or a host call the page does not define: `onSave`, `onRetry`, `onArchive`, `onPinMove`, `addCard`,
@@ -344,7 +348,7 @@ function callsOf(click) {
 export function clickDoes(click, locals = new Map(), seen = new Set(), ctx = null) {
   if (!click || !click.trim()) return '';
   click = withoutOffers(click);
-  if (STARTS_RUN.test(click) || ENTERS_RUN.test(click) || VIEW_MODAL.test(click)) return 'leave';
+  if (STARTS_RUN.test(click) || ENTERS_RUN.test(click) || VIEW_MODAL.test(click) || STEPS_RUN.test(click)) return 'leave';
   const found = [];
   for (const path of callsOf(click)) {
     const name = path.split('.').at(-1), own = !path.includes('.') || /^core\.act$/.test(path);
@@ -380,8 +384,9 @@ export function clickDoes(click, locals = new Map(), seen = new Set(), ctx = nul
   return found.length && found.every((does) => does === 'here') ? 'here' : '';
 }
 
-/** Does a handler run a job or data action itself (`act(…)`, `core.act(…)`, a host `call(…)`)? */
-function hasDataCall(code) { return callsOf(code).some((path) => /^(?:core\.)?(?:act|call)$/.test(path)); }
+/** Does a handler run a job or data action itself (`act(…)`, `core.act(…)`, a host `call(…)`), or a dispatch of the run it stands in (`reviewAct('review.answer', …)`,
+    `actions.teachingAct('teach.answer', …)`: the answer is checked where the question stands, round 9)? */
+function hasDataCall(code) { return callsOf(code).some((path) => /^(?:core\.)?(?:act|call)$|(?:^|\.)[a-z]\w*Act$/.test(path)); }
 
 /** Why a click handler leaves nothing behind, from what it calls alone: it acts where it stands (clickDoes) without a job action: setters of this page's state
     (`setEditing(true)`, `setOpen((open) => !open)`: a dialog or a fold opens), a dialog over the page. A page setter (`setPage`, `setScreen`, `setView`, `setRoute`)
@@ -422,6 +427,7 @@ export const WAY_BACK = /^(?:返回|回到|回学习库)/u;
     a topic, a code, a page number: `{entry.title}`) is not read at all: its words name what it opens, so it is an entry of a list, not an action. `label` is matched
     against the Button's words. */
 export const LEAVES_WITHOUT_ARROW = [
+  { file: 'ui/review/RoundPending.jsx', label: /^再练$/, why: 'a cell of the round\'s question grid: its words are the question it jumps to (its number, or 再练 for a retry), an entry of a list like a page number' },
   { file: 'ui/tasks/PlanTable.jsx', label: /^第 \{0\} 页$/, why: 'a page number of the plan table: an entry of a list, its words are the page it opens' },
   { file: 'ui/Sources.jsx', label: /前言与目录|第 \{0\}|^\{0\} 字符$/, why: 'a chapter or document row of the 资料 page: its words are the part it opens (前言与目录, 第 N 页, its title and size), an entry of a list' },
   { file: 'ui/book/BookToc.jsx', label: /^\{0\} 处$/, why: 'a hit of the book\'s search: its words are the point and the number of hits it opens, an entry of a list (it moves inside the same book)' },
@@ -655,6 +661,78 @@ export function externalProblems(source) {
       continue;
     }
     push(source.slice(match.index, match.index + 80), 'an `external` mark outside a link or a Button: say what it opens');
+  }
+  return problems;
+}
+
+/* ---- Round 9: one action, one look ---------------------------------------------------------------------------------------------------------------------------
+   The round-8 review found the same words drawn two ways: 从这份资料出题 led with ✦ on the row and ended in → in the 更多 menu, 打开交互伴学页 led with ▶ in the
+   reader and ended in → in the menu, 创建题组 led with + on the exam page and ended in → on the empty page. The words of a control name one action; its look (the
+   icon in front, the arrow after) says what that action does, so it is the same wherever the words are. */
+
+/** The name of an icon prop as written: `icon="x"`, `icon={'x'}`, `icon={<Icon name="x" />}`; any other expression as it stands. */
+function iconName(value) {
+  const text = String(value || '').trim();
+  return /^['"]([^'"]+)['"]$/.exec(text)?.[1] ?? /<Icon\b[^>]*\bname="([^"]+)"/.exec(text)?.[1] ?? text.replace(/\s+/g, ' ');
+}
+
+/** The look of every control of a source file whose words are one catalogue key (`{ui('…')}` as a Button's whole children, `label: ui('…')` in an action spec
+    with a click): [{ key, look, line }], `look` = '<icon in front or ->|<→ or ->'. A spec of SPEC_FILES is drawn by the component that reads it: ← in front for
+    `back`, its `icon` in front, nothing for `here`, else → after (the job card, its links, the console's result, the first-run line, the home plan). */
+export function looksOf(source, { file = '' } = {}) {
+  const found = [], lineOf = (at) => source.slice(0, at).split('\n').length;
+  for (const { open, children, at } of buttonElements(source)) {
+    const key = /^\s*\{\s*ui\(\s*(['"])([^'"]+)\1\s*\)\s*\}\s*$/.exec(children)?.[2];
+    if (!key) continue;
+    const icon = /\sicon="([^"]*)"/.exec(open)?.[1] ?? iconName(propOf(open, 'icon'));
+    found.push({ key, look: `${icon || '-'}|${isArrow(open) ? '→' : '-'}`, line: lineOf(at) });
+  }
+  for (const { object, before, at } of labelledObjects(source)) {
+    const key = /^ui\(\s*(['"])([^'"]+)\1\s*\)$/.exec(valueOfProp(object, 'label'))?.[2];
+    const onClick = valueOfProp(object, 'onClick'), run = valueOfProp(object, 'run');
+    if (!key || !(onClick || run)) continue;
+    const icon = iconName(valueOfProp(object, 'icon')), back = /\bback\s*[=:]\s*$/.test(before) || /[{,]\s*back\s*:\s*true\b/.test(object);
+    const look = back ? 'arrow-left|-'
+      : !onClick && SPEC_FILES.includes(file) ? (icon ? `${icon}|-` : /[{,]\s*here\s*:\s*true\b/.test(object) ? '-|-' : '-|→')
+        : `${icon || '-'}|${/[{,]\s*iconEnd\s*:\s*['"]arrow-right['"]/.test(object) ? '→' : '-'}`;
+    found.push({ key, look, line: lineOf(at) });
+  }
+  return found;
+}
+
+/** The words that draw two looks on purpose, because they name two different actions, each with why. */
+export const LOOK_EXCEPTIONS = [
+  { key: '继续', why: 'two actions: the focus clock\'s 继续 plays a clock that runs in time (▶, ui/DESIGN.md, the play mark); a paused job\'s 继续 in the 任务 console resumes the job where it stands (no icon)' },
+  { key: '看原页', why: 'two actions: in the reader it opens the page\'s picture over the text being read (where it stands, no arrow); on a citation card it opens the reader at that page (→)' },
+  { key: '打开', why: 'two actions: a diagram of the skeleton opens inside the same page (no arrow); a live class capture opens its transcript in the reader (→)' },
+  { key: '查看详情', why: 'two actions: on a draft it scrolls to the details of the blocked questions below them, on the same page (no arrow); on a job card it opens the job in the 任务 console (→)' },
+  { key: '接着做', why: 'two actions: a job’s 接着做 retries the job on its card or in the console, where it stands (no arrow); the home plan’s 接着做 resumes the last practice run, on the practice page (→)' },
+];
+
+/** The controls that leave with an icon in front, each with why. A leading icon is for a control that acts where it stands (the sparkle of 生成, the trash of
+    删除); a control that takes the learner somewhere ends in → with nothing in front (ui/DESIGN.md, Icons). A way back (←) and a window outside (external) lead by rule. */
+export const LEADS_WHILE_LEAVING = [
+  { file: 'ui/exam-prep/ExamPrepList.jsx', label: /^新建考点清单$/, why: 'a new exam-point list: the plus says a new one is made (a new lesson is a plus, ui/DESIGN.md); its form is a view of the same 考点清单 page' },
+];
+
+/** The Buttons (and action specs) of a source file whose click leaves but whose words follow an icon of their own (not ← or external): [{ label, icon }]. */
+export function leadIconProblems(source, { file = '', helpers = new Map(), used = null, wiring = helpers.wiring } = {}) {
+  const problems = [], vars = varsOf(source), locals = localHandlers(source), traced = (at) => (wiring && file ? { wiring, file, at } : null);
+  const check = (labels, icon, click, at) => {
+    if (!labels.length || !icon || /^(?:arrow-left|external)$/.test(icon) || labels.some((label) => WAY_BACK.test(label))) return;
+    if (clickDoes(click, locals, new Set(), traced(at)) !== 'leave') return;
+    const listed = LEADS_WHILE_LEAVING.find((entry) => entry.file === file && entry.label.test(labels.join(' | ')));
+    if (listed) { used?.add(listed); return; }
+    problems.push({ label: labels.join(' | '), icon });
+  };
+  for (const { open, children, at } of buttonElements(source)) {
+    if (/\saria-(?:pressed|expanded)=/.test(open)) continue;
+    check(labelsOf(children, helpers, vars), /\sicon="([^"]*)"/.exec(open)?.[1] ?? iconName(propOf(open, 'icon')), propOf(open, 'onClick'), at);
+  }
+  for (const { object, before, at } of labelledObjects(source)) {
+    if (/\bback\s*[=:]\s*$/.test(before)) continue;
+    const label = valueOfProp(object, 'label');
+    check(labelsOf(/^[A-Za-z_$][\w$]*$/.test(label) ? `{${label}}` : label, helpers, vars), iconName(valueOfProp(object, 'icon')), valueOfProp(object, 'onClick') || valueOfProp(object, 'run'), at);
   }
   return problems;
 }
