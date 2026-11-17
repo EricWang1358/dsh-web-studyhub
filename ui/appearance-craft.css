@@ -1,0 +1,255 @@
+/* 控件与字阶（设置 › 界面 › 更多外观选项）：当选择「精致紧凑」（data-craft='refined'）时启用；
+   默认「标准」无任何规则，100% 保持应用原有设计不变。全部通过令牌与 color-mix() 表达，兼容深浅主题与纸色主题。 */
+
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  .study-app[data-craft='refined'],
+  .study-seat:has(> .study-app[data-craft='refined']) {
+    --control-h: 36px;
+    --control-h-sm: 30px;
+  }
+  .study-app[data-craft='refined'][data-theme='light'],
+  .study-seat:has(> .study-app[data-craft='refined'][data-theme='light']) {
+    --text-dim: color-mix(in srgb, var(--text) 62%, var(--text-faint));
+    --text-muted: color-mix(in srgb, var(--text) 28%, var(--text-faint));
+  }
+
+  /* ── 1. 按钮紧凑度、圆角比例（r/H ≈ 0.17）、光学内边距与禁用态识别 ── */
+  .study-app[data-craft='refined'] :where(.sh-btn),
+  .study-seat:has(> .study-app[data-craft='refined']) :where(.sh-btn) {
+    gap: var(--space-1-5);
+    --sh-btn-px: var(--space-3-5);
+    padding: var(--space-1-5) var(--sh-btn-px);
+    border-radius: calc(var(--radius-sm) * 0.75);
+    font-size: var(--fs-sm);
+  }
+  .study-app[data-craft='refined'] :where(.sh-btn--sm),
+  .study-seat:has(> .study-app[data-craft='refined']) :where(.sh-btn--sm) {
+    --sh-btn-px: var(--space-2-5);
+    padding: var(--space-1) var(--sh-btn-px);
+    gap: var(--space-1);
+    font-size: var(--fs-sm);
+  }
+  .study-app[data-craft='refined'] :where(.sh-btn--flush-start, .sh-btn--flush-end),
+  .study-seat:has(> .study-app[data-craft='refined']) :where(.sh-btn--flush-start, .sh-btn--flush-end) {
+    --sh-btn-px: var(--space-2);
+  }
+  .study-app[data-craft='refined'] :where(.sh-btn--link),
+  .study-seat:has(> .study-app[data-craft='refined']) :where(.sh-btn--link) {
+    min-height: 0;
+    padding: var(--space-half) 0;
+    border-radius: var(--radius-xs);
+    font-size: inherit;
+  }
+  .study-app[data-craft='refined'] :where(.sh-btn--link.sh-btn--sm),
+  .study-seat:has(> .study-app[data-craft='refined']) :where(.sh-btn--link.sh-btn--sm) {
+    font-size: var(--fs-sm);
+  }
+  .study-app[data-craft='refined'] :where(.sh-btn--pill),
+  .study-seat:has(> .study-app[data-craft='refined']) :where(.sh-btn--pill) {
+    border-radius: var(--radius-pill);
+    padding-inline: var(--space-3);
+  }
+  .study-app[data-craft='refined'] .sh-btn:not(.sh-btn--icon, .sh-btn--link, .sh-btn--pill, .sh-btn--flush-start, .sh-btn--flush-end):has(> :first-child:is(.sh-icon, .sh-spinner)),
+  .study-seat:has(> .study-app[data-craft='refined']) .sh-btn:not(.sh-btn--icon, .sh-btn--link, .sh-btn--pill, .sh-btn--flush-start, .sh-btn--flush-end):has(> :first-child:is(.sh-icon, .sh-spinner)) {
+    padding-inline-start: calc(var(--sh-btn-px) - var(--space-half));
+  }
+  .study-app[data-craft='refined'] .sh-btn:not(.sh-btn--icon, .sh-btn--link, .sh-btn--pill, .sh-btn--flush-start, .sh-btn--flush-end):has(> :last-child:is(.sh-icon, .sh-spinner)),
+  .study-seat:has(> .study-app[data-craft='refined']) .sh-btn:not(.sh-btn--icon, .sh-btn--link, .sh-btn--pill, .sh-btn--flush-start, .sh-btn--flush-end):has(> :last-child:is(.sh-icon, .sh-spinner)) {
+    padding-inline-end: calc(var(--sh-btn-px) - var(--space-half));
+  }
+  .study-app[data-craft='refined'] :where(.sh-btn > .sh-icon),
+  .study-seat:has(> .study-app[data-craft='refined']) :where(.sh-btn > .sh-icon) {
+    width: 16px;
+    height: 16px;
+  }
+  .study-app[data-craft='refined'] :where(.sh-btn--sm > .sh-icon),
+  .study-seat:has(> .study-app[data-craft='refined']) :where(.sh-btn--sm > .sh-icon) {
+    width: 15px;
+    height: 15px;
+  }
+  .study-app[data-craft='refined'] :where(.sh-btn:not(.sh-btn--spin-over) > .sh-spinner),
+  .study-seat:has(> .study-app[data-craft='refined']) :where(.sh-btn:not(.sh-btn--spin-over) > .sh-spinner) {
+    width: 16px;
+    height: 16px;
+  }
+  .study-app[data-craft='refined'] :where(.sh-btn--sm:not(.sh-btn--spin-over) > .sh-spinner),
+  .study-seat:has(> .study-app[data-craft='refined']) :where(.sh-btn--sm:not(.sh-btn--spin-over) > .sh-spinner) {
+    width: 14px;
+    height: 14px;
+  }
+  .study-app[data-craft='refined'] :where(.sh-btn:disabled),
+  .study-seat:has(> .study-app[data-craft='refined']) :where(.sh-btn:disabled) {
+    cursor: not-allowed;
+    color: color-mix(in srgb, var(--text-faint) 58%, transparent);
+    background: color-mix(in srgb, var(--text) 3%, transparent);
+    border-color: var(--line-soft);
+  }
+  .study-app[data-craft='refined'] :where(.sh-btn--quiet:disabled),
+  .study-seat:has(> .study-app[data-craft='refined']) :where(.sh-btn--quiet:disabled) {
+    background: transparent;
+    border-color: transparent;
+  }
+  .study-app[data-craft='refined'] :where(.sh-btn--link:disabled),
+  .study-seat:has(> .study-app[data-craft='refined']) :where(.sh-btn--link:disabled) {
+    background: none;
+    border-color: transparent;
+    text-decoration-color: transparent;
+  }
+
+  /* ── 2. 界面脚手架字阶与阅读正文字阶分离（13px vs 15px+） ── */
+  .study-app[data-craft='refined'] :where(small:not(.desk-mastery-value small)),
+  .study-seat:has(> .study-app[data-craft='refined']) small,
+  .study-app[data-craft='refined'] :where(.small),
+  .study-seat:has(> .study-app[data-craft='refined']) .small,
+  .study-app[data-craft='refined'] :where(legend),
+  .study-seat:has(> .study-app[data-craft='refined']) legend {
+    font-size: var(--fs-sm);
+    line-height: var(--lh-snug);
+  }
+  .study-app[data-craft='refined'] :where(legend),
+  .study-seat:has(> .study-app[data-craft='refined']) legend {
+    font-weight: var(--fw-medium);
+  }
+  .study-app[data-craft='refined'] :where(.eyebrow),
+  .study-seat:has(> .study-app[data-craft='refined']) :where(.eyebrow) {
+    font-size: var(--fs-sm);
+    letter-spacing: 0.12em;
+    margin-bottom: var(--space-2-5);
+  }
+  .study-app[data-craft='refined'] .topbar {
+    height: 48px;
+    font-size: var(--fs-sm);
+  }
+  .study-app[data-craft='refined'] .crumb[aria-current="page"] {
+    font-size: var(--fs-md);
+  }
+  .study-app[data-craft='refined'] .brand small,
+  .study-app[data-craft='refined'] .nav-count,
+  .study-app[data-craft='refined'] .top-status,
+  .study-app[data-craft='refined'] .section-heading h2 span,
+  .study-app[data-craft='refined'] .map-legend,
+  .study-app[data-craft='refined'] .mastery-value,
+  .study-app[data-craft='refined'] .map-play,
+  .study-app[data-craft='refined'] .nb-main small,
+  .study-app[data-craft='refined'] .nb-stats,
+  .study-app[data-craft='refined'] .resume .resume__eyebrow,
+  .study-app[data-craft='refined'] .resume > span:last-child,
+  .study-app[data-craft='refined'] .desk-mastery-label,
+  .study-app[data-craft='refined'] .desk-mastery-all,
+  .study-app[data-craft='refined'] .desk-next-label,
+  .study-app[data-craft='refined'] .desk-next-topic small,
+  .study-app[data-craft='refined'] .today-card-head,
+  .study-app[data-craft='refined'] .wb-filter-result,
+  .study-app[data-craft='refined'] .question-toolbar .tool-icon {
+    font-size: var(--fs-sm);
+  }
+  .study-app[data-craft='refined'] .map-name small {
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-regular);
+    line-height: var(--lh-snug);
+    color: var(--text-muted);
+  }
+
+  /* ── 3. 配对控件对齐、非切换药丸修正、齐平与首屏收敛 ── */
+  .study-app[data-craft='refined'] .today-go-row .today-setup .round-setup__trigger {
+    width: 42px;
+    min-height: 42px;
+    height: 100%;
+    border-radius: var(--radius-sm);
+  }
+  .study-app[data-craft='refined'] .today-card .today-go {
+    min-height: 42px;
+    padding: var(--space-2-5) var(--space-4);
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-md);
+  }
+  .study-app[data-craft='refined'] .today-card .today-go:disabled {
+    background: color-mix(in srgb, var(--paper-ink) 4%, transparent);
+    border-color: var(--paper-rule);
+    color: color-mix(in srgb, var(--paper-dim) 60%, transparent);
+  }
+  .study-app[data-craft='refined'] .nb-search {
+    align-items: center;
+  }
+  .study-app[data-craft='refined'] .nb-search .nb-search__input {
+    min-height: var(--control-h, 36px);
+    padding: var(--space-1-5) var(--space-3);
+    line-height: var(--lh-snug);
+  }
+  .study-app[data-craft='refined'] .setup-chip-toggle {
+    border-radius: var(--radius-sm);
+  }
+  .study-app[data-craft='refined'] .question-toolbar {
+    padding: 0;
+  }
+  .study-app[data-craft='refined'] .page-scope__select {
+    min-height: var(--control-h, 36px);
+    font-size: var(--fs-sm);
+  }
+  .study-app[data-craft='refined'] .page {
+    padding-top: var(--space-5-5);
+    padding-bottom: var(--space-8);
+  }
+  .study-app[data-craft='refined'] .sh-page-header:not(.sh-page-header--compact) {
+    gap: var(--space-3) var(--space-6);
+    margin: 0 0 var(--space-5);
+  }
+  .study-app[data-craft='refined'] .sh-page-header__eyebrow {
+    margin: 0 0 var(--space-1-5);
+  }
+  .study-app[data-craft='refined'] .sh-page-header__description {
+    margin: var(--space-1-5) 0 0;
+  }
+  .study-app[data-craft='refined'] .sh-page-header__scope {
+    margin-top: var(--space-2-5);
+  }
+  .study-app[data-craft='refined'] .desk {
+    padding: var(--space-4) 0 var(--space-7);
+    margin-bottom: var(--space-6-5);
+  }
+  .study-app[data-craft='refined'] .dash,
+  .study-app[data-craft='refined'] .exam,
+  .study-app[data-craft='refined'] .wb {
+    gap: var(--space-3);
+  }
+  .study-app[data-craft='refined'] .wb-retrain {
+    padding: var(--space-2-5) var(--space-3-5);
+  }
+  .study-app[data-craft='refined'] .wb-recs {
+    gap: var(--space-1-5);
+    padding: var(--space-2-5) var(--space-3-5);
+  }
+  .study-app[data-craft='refined'] .wb-toolbar {
+    margin-top: 0;
+    padding-top: var(--space-2-5);
+  }
+  .study-app[data-craft='refined'] .wb-group {
+    margin-top: var(--space-3);
+  }
+  .study-app[data-craft='refined'] .sources-page .sources-page__header {
+    margin-bottom: var(--space-3);
+  }
+  .study-app[data-craft='refined'] .sources-toolbar,
+  .study-app[data-craft='refined'] .sources-view-bar {
+    margin: 0 0 var(--space-2-5);
+  }
+  .study-app[data-craft='refined'] .sources-filter__input {
+    min-height: var(--control-h, 36px);
+  }
+
+  @container study (max-width: 640px) {
+    .study-app[data-craft='refined'] .sh-btn--md:not(.sh-btn--link),
+    .study-seat:has(> .study-app[data-craft='refined']) .sh-btn--md:not(.sh-btn--link) {
+      min-height: 40px;
+    }
+    .study-app[data-craft='refined'] .sh-btn--icon.sh-btn--md,
+    .study-seat:has(> .study-app[data-craft='refined']) .sh-btn--icon.sh-btn--md {
+      width: 40px;
+    }
+    .study-app[data-craft='refined'] .sh-page-header:not(.sh-page-header--compact) {
+      margin-bottom: var(--space-4-5);
+    }
+  }
+}

@@ -5,20 +5,20 @@
     /* Sources page (WP3): one row per document, pages on demand, fresh imports
        highlighted. Builds on the .source-group/.source-row rules in style.css;
        tokens only. */
-    .sources-page .sources-page__header { margin-bottom: var(--space-3); }
+    .sources-page .sources-page__header { margin-bottom: var(--space-4); }
     /* The filter under 课程范围 (#1085): in the control column of .page-scope-form (ui/course-active.css). Its count and 清除筛选 sit inside the field, at its
        end, over the field's own end padding (only while filtering, so the placeholder keeps the whole field): the field's box is the same whatever you type, so
        nothing above the list moves at any width (#1085). */
-    .sources-toolbar { margin: 0 0 var(--space-2-5); }
+    .sources-toolbar { margin: 0 0 var(--space-3); }
     .sources-toolbar > .sources-filter { --sources-filter-end: 7.5rem; grid-column: 2; position: relative; min-width: 0; }
-    .sources-filter__input { width: 100%; min-height: var(--control-h, 36px); }
+    .sources-filter__input { width: 100%; min-height: 38px; }
     .sources-filter:has(> .sources-filter__state) > .sources-filter__input { padding-inline-end: var(--sources-filter-end); }
     /* One way to clear the filter: the × of 清除筛选 beside the count, not the browser's own × in the field as well. */
     .sources-filter__input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
     .sources-filter__state { position: absolute; inset-block: 0; inset-inline-end: var(--space-1); display: inline-flex; align-items: center; gap: var(--space-1); max-width: var(--sources-filter-end); }
     .sources-filter__count { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
     .sources-filter__count { font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
-    .sources-view-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin: 0 0 var(--space-2-5); }
+    .sources-view-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin: 0 0 var(--space-3); }
     .sources-view-bar__sort { flex: 0 0 auto; width: auto; min-width: 8.5em; }
     .source-groups { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
     .source-group-head-row { display: flex; align-items: center; gap: var(--space-2); min-width: 0; border-bottom: 1px solid var(--line); margin-bottom: var(--space-1); }

@@ -415,6 +415,7 @@ function SettingsView() {
         onContrast: (value) => updateAppearance({ contrast: value }),
         onDensity: (value) => updateAppearance({ density: value }),
         onRadius: (value) => updateAppearance({ radius: value }),
+        onCraft: (value) => updateAppearance({ craft: value }),
         onScale: (value) => updateAppearance({ scale: value }),
         onFont: (value) => updateAppearance({ font: value }),
         onFontTitle: (value) => updateAppearance({ fontTitle: value }),

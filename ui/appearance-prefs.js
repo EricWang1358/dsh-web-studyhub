@@ -17,6 +17,7 @@ const BASE_MODE = Object.freeze({ oled: 'dark', paper: 'light' });
 export const CONTRASTS = Object.freeze(['auto', 'standard', 'high']);
 export const DENSITIES = Object.freeze(['compact', 'standard', 'comfortable']);
 export const RADII = Object.freeze(['sharp', 'standard', 'soft']);
+export const CRAFTS = Object.freeze(['standard', 'refined']);
 export const MOTIONS = Object.freeze(['auto', 'full', 'reduced', 'off']);
 /** Tactile acoustic feedback levels in 设置 › 界面: off by default so quiet rooms stay silent unless opted in. */
 export const SOUNDS = Object.freeze(['off', 'subtle', 'standard']);
@@ -26,9 +27,9 @@ export const SCALES = Object.freeze([90, 100, 110, 125, 150, 175, 200]);
 export const FONTS = Object.freeze([...FONT_IDS, 'custom']);
 /** The accent colours (强调色, ui/accent.css): cinnabar is the default and needs no override; there is no free colour picker, so contrast stays verifiable. */
 export const ACCENTS = Object.freeze(['cinnabar', 'jade', 'ochre', 'graphite', 'plum']);
-export const APPEARANCE_DEFAULTS = Object.freeze({ theme: 'auto', motion: 'auto', sound: 'off', scale: 100, font: 'system', fontTitle: 'follow', fontCustom: '', accent: 'cinnabar', contrast: 'auto', density: 'standard', radius: 'standard' });
+export const APPEARANCE_DEFAULTS = Object.freeze({ theme: 'auto', motion: 'auto', sound: 'off', scale: 100, font: 'system', fontTitle: 'follow', fontCustom: '', accent: 'cinnabar', contrast: 'auto', density: 'standard', radius: 'standard', craft: 'standard' });
 /** Per setting, its allowed values (in display order): the whitelist and the option list of the settings page. */
-export const APPEARANCE_OPTIONS = Object.freeze({ theme: THEMES, motion: MOTIONS, sound: SOUNDS, scale: SCALES, font: FONTS, fontTitle: TITLE_MODES, accent: ACCENTS, contrast: CONTRASTS, density: DENSITIES, radius: RADII });
+export const APPEARANCE_OPTIONS = Object.freeze({ theme: THEMES, motion: MOTIONS, sound: SOUNDS, scale: SCALES, font: FONTS, fontTitle: TITLE_MODES, accent: ACCENTS, contrast: CONTRASTS, density: DENSITIES, radius: RADII, craft: CRAFTS });
 /** A setting that is typed, not picked: its own gate instead of a list of values. */
 const GATES = Object.freeze({ fontCustom: cleanFontName });
 /** The zh label of each value, passed through ui() where shown; a scale shows as its percent, a value with no label as itself. */
@@ -42,6 +43,7 @@ export const APPEARANCE_LABELS = Object.freeze({
   contrast: { auto: '跟随系统', standard: '标准', high: '高对比' },
   density: { compact: '紧凑', standard: '标准', comfortable: '宽松' },
   radius: { sharp: '利落', standard: '标准', soft: '圆润' },
+  craft: { standard: '标准', refined: '精致紧凑' },
 });
 
 const KEYS = Object.keys(APPEARANCE_DEFAULTS);
@@ -98,6 +100,7 @@ export function appearanceAttrs(value, system = systemNow()) {
     'data-contrast': prefs.contrast === 'auto' ? (system.contrast ? 'high' : 'standard') : prefs.contrast,
     'data-density': prefs.density,
     'data-radius': prefs.radius,
+    'data-craft': prefs.craft,
     'data-accent': prefs.accent,
   };
 }

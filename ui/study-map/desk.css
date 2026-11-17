@@ -27,7 +27,7 @@
     }
     .resume .resume__eyebrow {
       margin: 0;
-      font-size: var(--fs-sm);
+      font-size: var(--fs-md);
       letter-spacing: 0;
       text-transform: none;
       color: var(--text-faint);
@@ -38,7 +38,7 @@
     }
     /* The counter (「5 / 7」) and its arrow: one line, never wrapped, however narrow the row (the title gives way, not the counter). */
     .resume > span:last-child {
-      font-size: var(--fs-sm);
+      font-size: var(--fs-md);
       font-variant-numeric: tabular-nums;
       color: var(--text-muted);
     }
@@ -125,8 +125,8 @@
       grid-template-columns: minmax(0, 1fr) minmax(min(270px, 100%), 340px);
       align-items: start;
       gap: calc(var(--space-8) - var(--space-1)) calc(var(--space-9) + var(--space-4));
-      padding: var(--space-4) 0 var(--space-7);
-      margin-bottom: var(--space-6-5);
+      padding: calc(var(--space-7) + var(--space-half)) 0 calc(var(--space-9) - var(--space-1));
+      margin-bottom: var(--space-8);
       border-bottom: 1px solid var(--line-soft);
       min-width: 0;
     }
@@ -156,13 +156,13 @@
     }
     .desk-mastery-label {
       padding-bottom: var(--space-1);
-      font-size: var(--fs-sm);
+      font-size: var(--fs-md);
       color: var(--text-muted);
     }
     .desk-mastery-all {
       grid-column: 1 / -1;
       margin-top: calc(var(--space-1) * -1);
-      font-size: var(--fs-sm);
+      font-size: var(--fs-md);
       color: var(--text-muted);
     }
     .desk-mastery-all strong {
@@ -181,11 +181,11 @@
       color: var(--text-dim);
     }
     .desk-next-label {
-      font-size: var(--fs-sm);
+      font-size: var(--fs-md);
       color: var(--text-faint);
     }
     .desk-next-topic strong { color: var(--text); font-weight: var(--fw-medium); }
-    .desk-next-topic small { color: var(--text-muted); font-size: var(--fs-sm); }
+    .desk-next-topic small { color: var(--text-muted); font-size: var(--fs-md); }
     .desk-also {
       display: flex;
       flex-wrap: wrap;
@@ -260,7 +260,7 @@
       gap: var(--space-3);
       padding-bottom: var(--space-3);
       border-bottom: 2px solid var(--accent);
-      font-size: var(--fs-sm);
+      font-size: var(--fs-md);
       font-weight: var(--fw-medium);
       color: var(--paper-dim);
     }
@@ -279,27 +279,25 @@
     .today-reread { margin: var(--space-3) 0 0; }
     /* The start button and, beside it, the 本轮设置 popover's button (ui/review/RoundSetup.jsx): the row takes the card's bottom, the button the room. */
     .today-go-row { display: flex; align-items: stretch; gap: var(--space-2); margin-top: auto; }
-    .today-go-row .today-setup .round-setup__trigger { width: 42px; min-height: 42px; height: 100%; border-radius: var(--radius-sm); }
+    .today-go-row .today-setup .round-setup__trigger { height: 100%; min-height: 44px; }
     .today-card .today-go-row > .today-go { flex: 1 1 auto; min-width: 0; margin-top: 0; }
     .today-card .today-go {
       display: flex;
       justify-content: space-between;
       align-items: center;
       width: 100%;
-      min-height: 42px;
       margin-top: auto;
-      padding: var(--space-2-5) var(--space-4);
-      border-radius: var(--radius-sm);
-      font-size: var(--fs-md);
+      padding: var(--space-3) var(--space-4-5);
+      border-radius: var(--radius);
+      font-size: var(--fs-lg);
     }
     /* A start button that leads with an icon (添加资料: the upload icon) has no arrow to push apart from its label: centred, like every other button with a leading icon. */
     .today-card .today-go--lead { justify-content: center; }
     .today-go span { transition: transform var(--dur) var(--ease-out); }
     .today-go:hover:not(:disabled) span { transform: translateX(4px); }
     .today-card .today-go:disabled {
-      background: color-mix(in srgb, var(--paper-ink) 4%, transparent);
-      border-color: var(--paper-rule);
-      color: color-mix(in srgb, var(--paper-dim) 60%, transparent);
+      background: color-mix(in srgb, var(--paper-ink) 7%, transparent);
+      color: var(--paper-dim);
     }
 
     .course-route { display: grid; gap: var(--space-2); max-width: 520px; margin: var(--space-4-5) 0 var(--space-5-5); font-size: var(--fs-md); }

@@ -141,12 +141,11 @@ test("#1076: a quiet button is ink, not --text-dim: at regular weight a grey wor
   assert.doesNotMatch(quiet, /--text-dim/);
 });
 
-test("#1075: every disabled button, secondary or primary, has the one neutral look (muted border, dimmed ink, lighter flat fill than resting secondary)", () => {
+test("#1075: every disabled button, secondary or primary, has the one neutral look (no border, faint ink, a flat fill)", () => {
   const disabled = rule(read("ui/components/components.css"), ".sh-btn:disabled");
-  assert.match(disabled, /cursor:\s*not-allowed/);
-  assert.match(disabled, /border-color:\s*var\(--line-soft\)/);
-  assert.match(disabled, /color:\s*color-mix\(in srgb, var\(--text-faint\) 58%/);
-  assert.match(disabled, /background:\s*color-mix\(in srgb, var\(--text\) 3%/);
+  assert.match(disabled, /border-color:\s*transparent/);
+  assert.match(disabled, /color:\s*var\(--text-faint\)/);
+  assert.match(disabled, /background:\s*color-mix\(in srgb, var\(--text\) 7%/);
 });
 
 test("#1075: at a narrow width the practice bar is two deliberate rows: the tools, then 更多 with 上一题 / 下一题 sharing the full row", () => {

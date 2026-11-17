@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 // ties must resolve the same way in the preview as they do in the host.
 import "./styles.js";
 import "./appearance-themes.css";
+import "./appearance-craft.css";
 import "./accent.css";
 import './audio-dashboard.css';
 import App from "./App.jsx";

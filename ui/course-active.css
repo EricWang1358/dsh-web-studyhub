@@ -30,8 +30,8 @@
     .page-scope { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); max-width: 100%; margin: 0; flex: 0 1 auto;
       font-size: var(--fs-sm); font-weight: var(--fw-medium); line-height: var(--lh-snug); color: var(--text-muted); }
     .page-scope__label { display: block; flex: none; margin: 0; color: inherit; cursor: pointer; }
-    .page-scope__select { flex: 1 1 12rem; width: 20rem; max-width: 20rem; min-width: 0; min-height: var(--control-h, 36px);
-      font-size: var(--fs-sm); font-weight: var(--fw-regular); text-overflow: ellipsis; }
+    .page-scope__select { flex: 1 1 12rem; width: 20rem; max-width: 20rem; min-width: 0; min-height: 38px;
+      font-size: var(--fs-md); font-weight: var(--fw-regular); text-overflow: ellipsis; }
     /* A scope with more controls under it (资料: 筛选资料), as one small form (issue 1085): the label in the first column, the select and the controls
        under it in the second at one left edge and one width, the follow mark in the third. The third column is as wide as the mark (auto) and the second
        takes the rest up to 24rem, so the mark always stays inside the page (a 1fr third column got nothing until the second had its whole 24rem, and the

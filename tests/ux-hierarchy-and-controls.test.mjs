@@ -3,7 +3,11 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { buildSite } from '../scripts/site-build.mjs';
+import { APPEARANCE_DEFAULTS, APPEARANCE_LABELS, APPEARANCE_OPTIONS, appearanceAttrs } from '../ui/appearance-prefs.js';
+import { loadUi } from './helpers/ui-module.mjs';
 
 const read = (rel) => readFile(new URL(`../${rel}`, import.meta.url), 'utf8');
 
@@ -20,11 +24,18 @@ function extractBlock(css, selectorStart) {
 function hexToRgb(hex) {
   const m = hex.match(/^#([0-9a-f]{6})$/i);
   assert.ok(m, `expected opaque 6-digit hex, got ${hex}`);
-  return [0, 2, 4].map((i) => parseInt(m[1].slice(i, i + 2), 16) / 255);
+  return [0, 2, 4].map((i) => parseInt(m[1].slice(i, i + 2), 16));
+}
+
+function mixHex(hexA, pctA, hexB) {
+  const a = hexToRgb(hexA), b = hexToRgb(hexB), w = pctA / 100;
+  const rgb = a.map((v, i) => Math.round(v * w + b[i] * (1 - w)));
+  return `#${rgb.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
 }
 
 function toLinear(c) {
-  return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  const s = c / 255;
+  return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
 }
 
 function oklabL(hex) {
@@ -37,103 +48,118 @@ function oklabL(hex) {
 
 function wcagRatio(hexA, hexB) {
   const lum = (hex) => {
-    const [r, g, b] = hexToRgb(hex).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+    const [r, g, b] = hexToRgb(hex).map((c) => {
+      const s = c / 255;
+      return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+    });
     return 0.2126 * r + 0.7152 * g + 0.0722 * b;
   };
   const [hi, lo] = [lum(hexA), lum(hexB)].sort((a, b) => b - a);
   return (hi + 0.05) / (lo + 0.05);
 }
 
-test('light-theme text hierarchy maintains OKLab perceptual separation and WCAG AA contrast', async () => {
-  const tokensCss = await read('ui/tokens.css');
+test('standard look is untouched by default; refined mode lives in opt-in data-craft="refined" loaded in all hosts', async () => {
+  assert.equal(APPEARANCE_DEFAULTS.craft, 'standard');
+  assert.deepEqual([...APPEARANCE_OPTIONS.craft], ['standard', 'refined']);
+  assert.equal(appearanceAttrs({}, { light: false, reducedMotion: false, contrast: false })['data-craft'], 'standard');
+  assert.equal(appearanceAttrs({ craft: 'refined' }, { light: false, reducedMotion: false, contrast: false })['data-craft'], 'refined');
+
+  const [craftCss, tokensCss, baseCss, componentsCss, workspace, dev, demo] = await Promise.all([
+    read('ui/appearance-craft.css'),
+    read('ui/tokens.css'),
+    read('ui/base.css'),
+    read('ui/components/components.css'),
+    read('ui/host/workspace.jsx'),
+    read('ui/dev.jsx'),
+    read('web-demo/main.jsx'),
+  ]);
+
+  assert.doesNotMatch(craftCss, /data-craft=['"]standard['"]/, 'standard default requires zero CSS rules');
+  assert.match(baseCss, /& small\s*\{\s*font-size:\s*var\(--fs-md\)/, 'default base small stays untouched');
+  assert.match(componentsCss, /min-height:\s*var\(--control-h,\s*40px\)/, 'default control height stays 40px');
+  assert.doesNotMatch(tokensCss, /--control-h:/, 'default tokens leave control height at component default');
+
+  assert.match(workspace, /import \w+ from ["']\.\.\/appearance-craft\.css["']/);
+  assert.match(dev, /import ["']\.\/appearance-craft\.css["']/);
+  assert.match(demo, /import ['"]\.\.\/ui\/appearance-craft\.css['"]/);
+});
+
+test('Settings > More appearance options renders 控件与字阶 in both languages', async () => {
+  const { AppearanceSection, setUiLanguage, ui } = await loadUi(
+    `export { default as AppearanceSection } from './ui/settings/AppearanceSection.jsx'; export { setUiLanguage, ui } from './ui/i18n.js';`,
+  );
+  const noop = () => {};
+  const props = {
+    appearance: {
+      language: 'zh', onLanguage: noop, theme: 'dark', onTheme: noop, accent: 'cinnabar', onAccent: noop,
+      scale: 100, onScale: noop, font: 'system', onFont: noop, craft: 'standard', onCraft: noop,
+    },
+  };
+  try {
+    setUiLanguage('zh');
+    const zh = renderToStaticMarkup(React.createElement(AppearanceSection, props));
+    assert.match(zh, /data-tour="settings-appearance-craft"/);
+    assert.match(zh, />控件与字阶</);
+    assert.match(zh, />精致紧凑</);
+    setUiLanguage('en');
+    const en = renderToStaticMarkup(React.createElement(AppearanceSection, { appearance: { ...props.appearance, language: 'en' } }));
+    assert.match(en, />Controls &amp; hierarchy</);
+    assert.match(en, />Refined compact</);
+    for (const label of Object.values(APPEARANCE_LABELS.craft)) {
+      assert.doesNotMatch(ui(label), /[㐀-鿿]/, `${label} is translated`);
+    }
+  } finally {
+    setUiLanguage('zh');
+  }
+});
+
+test('refined light-theme color-mix steps reach OKLab ΔL* >= 6.5 and WCAG AA >= 4.5:1 on all surfaces', async () => {
+  const [tokensCss, craftCss] = await Promise.all([read('ui/tokens.css'), read('ui/appearance-craft.css')]);
   const light = extractBlock(tokensCss, '.study-app[data-theme="light"],');
-  const levels = ['--text', '--text-dim', '--text-muted', '--text-faint'];
-  const lValues = levels.map((name) => oklabL(light[name]));
+  const dimExpr = craftCss.match(/--text-dim:\s*color-mix\(in srgb,\s*var\(--text\)\s*(\d+)%,\s*var\(--text-faint\)\)/);
+  const mutedExpr = craftCss.match(/--text-muted:\s*color-mix\(in srgb,\s*var\(--text\)\s*(\d+)%,\s*var\(--text-faint\)\)/);
+  assert.ok(dimExpr && mutedExpr, 'light contrast rebalancing uses color-mix of --text and --text-faint');
+
+  const resolved = {
+    '--text': light['--text'],
+    '--text-dim': mixHex(light['--text'], Number(dimExpr[1]), light['--text-faint']),
+    '--text-muted': mixHex(light['--text'], Number(mutedExpr[1]), light['--text-faint']),
+    '--text-faint': light['--text-faint'],
+  };
+  const levels = Object.keys(resolved);
+  const lVals = levels.map((k) => oklabL(resolved[k]));
   for (let i = 0; i < levels.length - 1; i += 1) {
-    const delta = lValues[i + 1] - lValues[i];
-    assert.ok(delta >= 6.5, `light ${levels[i]} -> ${levels[i + 1]} OKLab ΔL* must be >= 6.5, got ${delta.toFixed(2)}`);
+    const delta = lVals[i + 1] - lVals[i];
+    assert.ok(delta >= 6.5, `refined light ${levels[i]} -> ${levels[i + 1]} ΔL* = ${delta.toFixed(2)} < 6.5`);
   }
   for (const bg of ['--bg-canvas', '--bg-sunken', '--bg-surface', '--bg-raised', '--bg-selected']) {
     for (const fg of levels) {
-      const ratio = wcagRatio(light[fg], light[bg]);
-      assert.ok(ratio >= 4.5, `light ${fg} on ${bg} contrast ${ratio.toFixed(2)}:1 < 4.5:1`);
+      const ratio = wcagRatio(resolved[fg], light[bg]);
+      assert.ok(ratio >= 4.5, `refined light ${fg} (${resolved[fg]}) on ${bg} (${light[bg]}): ${ratio.toFixed(2)}:1`);
     }
   }
 });
 
-test('apparatus typography separates chrome/meta (--fs-sm) from reading copy (--fs-md)', async () => {
-  const [baseCss, shellCss, catalogCss, deskCss] = await Promise.all([
-    read('ui/base.css'),
-    read('ui/shell.css'),
-    read('ui/study-map/catalog.css'),
-    read('ui/study-map/desk.css'),
-  ]);
-  assert.match(baseCss, /& small\s*\{[^}]*font-size:\s*var\(--fs-sm\)/);
-  assert.match(baseCss, /\.eyebrow\s*\{[^}]*font-size:\s*var\(--fs-sm\)/);
-  assert.match(baseCss, /& legend\s*\{[^}]*font-size:\s*var\(--fs-sm\)/);
-  assert.match(baseCss, /\.small\s*\{[^}]*font-size:\s*var\(--fs-sm\)/);
-
-  assert.match(shellCss, /\.brand small\s*\{[^}]*font-size:\s*var\(--fs-sm\)/);
-  assert.match(shellCss, /\.nav-count\s*\{[^}]*font-size:\s*var\(--fs-sm\)/);
-  assert.match(shellCss, /\.topbar\s*\{[^}]*font-size:\s*var\(--fs-sm\)/);
-  assert.match(shellCss, /\.crumb\[aria-current="page"\]\s*\{[^}]*font-size:\s*var\(--fs-md\)/);
-  assert.match(shellCss, /\.top-status\s*\{[^}]*font-size:\s*var\(--fs-sm\)/);
-
-  assert.match(catalogCss, /\.map-legend\s*\{[^}]*font-size:\s*var\(--fs-sm\)/);
-  assert.match(catalogCss, /\.map-name small\s*\{[^}]*font-size:\s*var\(--fs-sm\)/);
-  assert.match(catalogCss, /\.mastery-value\s*\{[^}]*font-size:\s*var\(--fs-sm\)/);
-  assert.match(deskCss, /\.desk-mastery-label\s*\{[^}]*font-size:\s*var\(--fs-sm\)/);
-  assert.match(deskCss, /\.desk-next-label\s*\{[^}]*font-size:\s*var\(--fs-sm\)/);
-  assert.match(deskCss, /\.today-card-head\s*\{[^}]*font-size:\s*var\(--fs-sm\)/);
-});
-
-test('button proportions, curvature, optical icon padding, and 5 geometry bug fixes hold', async () => {
-  const [tokensCss, componentsCss, buttonJsx, inboxJsx, inboxCss, setupCss, deskCss, catalogCss, questionCss] = await Promise.all([
-    read('ui/tokens.css'),
+test('non-aesthetic geometry bug fixes, companions tokenization, and refined overrides hold', async () => {
+  const [componentsCss, inboxCss, companionsCss, craftCss] = await Promise.all([
     read('ui/components/components.css'),
-    read('ui/components/Button.jsx'),
-    read('ui/Inbox.jsx'),
     read('ui/inbox.css'),
-    read('ui/setup-checklist.css'),
-    read('ui/study-map/desk.css'),
-    read('ui/study-map/catalog.css'),
-    read('ui/review/question.css'),
+    read('ui/companions/companions.css'),
+    read('ui/appearance-craft.css'),
   ]);
 
-  assert.match(tokensCss, /--control-h:\s*36px;/);
-  assert.match(tokensCss, /--control-h-sm:\s*30px;/);
-  assert.match(buttonJsx, /const iconSize = scale === 'sm' \? 15 : 16;/);
-
-  // Curvature ratio & compact control height + optical icon padding
-  assert.match(componentsCss, /\.sh-btn\s*\{[^}]*border-radius:\s*calc\(var\(--radius-sm\)\s*\*\s*0\.75\)/);
-  assert.match(componentsCss, /\.sh-btn\s*\{[^}]*min-height:\s*var\(--control-h,\s*36px\)/);
-  assert.match(componentsCss, /\.sh-btn--sm\s*\{[^}]*min-height:\s*var\(--control-h-sm,\s*30px\)/);
-  assert.match(componentsCss, /:has\(>\s*:first-child:is\(\.sh-icon,\s*\.sh-spinner\)\)/);
-  assert.match(componentsCss, /:has\(>\s*:last-child:is\(\.sh-icon,\s*\.sh-spinner\)\)/);
-
-  // 1. IconButton never squishes in flex headers
   assert.match(componentsCss, /\.sh-btn--icon\s*\{[^}]*flex:\s*none/);
-  // 2. Narrow-container rule does not inflate inline link buttons
   assert.match(componentsCss, /@container study \(max-width:\s*640px\)[\s\S]*\.sh-btn--md:not\(\.sh-btn--link\)/);
-  // 3. Topbar mailbox toggle stays square
-  assert.match(inboxJsx, /<IconButton[\s\S]*?size="sm"[\s\S]*?mailbox__toggle/);
   assert.match(inboxCss, /\.mailbox__toggle\s*\{[^}]*min-height:\s*0/);
-  // 4. Today CTA & RoundSetup trigger align in height and radius
-  assert.match(deskCss, /\.round-setup__trigger\s*\{[^}]*width:\s*42px;\s*min-height:\s*42px;[^}]*border-radius:\s*var\(--radius-sm\)/);
-  assert.match(deskCss, /\.today-card \.today-go\s*\{[^}]*min-height:\s*42px;[^}]*border-radius:\s*var\(--radius-sm\)/);
-  // 5. Notebook search aligns vertically without stretching its button
-  assert.match(catalogCss, /\.nb-search\s*\{[^}]*align-items:\s*center/);
-  // Semiotic fix: disclosure toggle is not a pill
-  assert.doesNotMatch(setupCss.slice(setupCss.indexOf('.setup-chip-toggle')), /^\.setup-chip-toggle\s*\{[^}]*radius-pill/m);
-  assert.match(setupCss, /\.setup-chip-toggle\s*\{[^}]*border-radius:\s*var\(--radius-sm\)/);
-  // Question toolbar aligns flush with card width
-  assert.match(questionCss, /\.question-toolbar\s*\{[^}]*padding:\s*0;/);
-});
+  const spacingRem = [...companionsCss.matchAll(/(?:padding|margin|gap)(?:-[\w-]+)?:\s*[^;]*\b\d*\.?\d+rem\b/g)];
+  assert.deepEqual(spacingRem.map((m) => m[0]), [], 'companions.css uses --space-* tokens for layout spacing');
 
-test('companions.css uses density-responsive --space-* tokens for layout spacing', async () => {
-  const css = await read('ui/companions/companions.css');
-  const spacingRem = [...css.matchAll(/(?:padding|margin|gap)(?:-[\w-]+)?:\s*[^;]*\b\d*\.?\d+rem\b/g)];
-  assert.deepEqual(spacingRem.map((m) => m[0]), [], 'all padding/margin/gap spacing in companions.css uses --space-* tokens');
+  assert.match(craftCss, /--control-h:\s*36px/);
+  assert.match(craftCss, /--control-h-sm:\s*30px/);
+  assert.match(craftCss, /cursor:\s*not-allowed/);
+  assert.match(craftCss, /:has\(>\s*:first-child:is\(\.sh-icon,\s*\.sh-spinner\)\)/);
+  assert.match(craftCss, /\.setup-chip-toggle\s*\{[^}]*border-radius:\s*var\(--radius-sm\)/);
+  assert.match(craftCss, /\.question-toolbar\s*\{[^}]*padding:\s*0;/);
 });
 
 test('landing page (index.html & en.html) uses Ink-desk dark/light tokens without indigo/glass drift', async () => {

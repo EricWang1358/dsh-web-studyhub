@@ -132,8 +132,8 @@
     --line-strong: #c5bbad;
 
     --text: #1e1a15;
-    --text-dim: #3c352d;
-    --text-muted: #554d43;
+    --text-dim: #453e35;
+    --text-muted: #635b51;
     --text-faint: #6a635a;
     --decor-faint: #9c9488;
 
@@ -204,8 +204,6 @@
     --fw-medium: 500;
     --fw-strong: 650;
     --radius-xs: 4px;
-    --control-h: 36px;
-    --control-h-sm: 30px;
     --space-half: 2px;
     /* The 1px border of a surface; a concentric inner radius subtracts it (and the padding) from the outer one. */
     --hairline: 1px;
