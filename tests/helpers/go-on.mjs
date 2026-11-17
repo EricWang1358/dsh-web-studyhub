@@ -107,7 +107,7 @@ export const IN_PLACE = [
   { file: 'ui/Ingest.jsx', submit: true, why: 'the submit of the paste form: it hands the text to the main chat, the learner stays' },
   { file: 'ui/AudioImport.jsx', submit: true, why: 'the submit of the audio form: the import runs in the background, the learner stays' },
   { file: 'ui/LiveClass.jsx', submit: true, why: 'the submit of the live class form: it starts the recording on this page' },
-  { file: 'ui/LiveClass.jsx', handler: 'onResume|perform', why: 'the capture controls of a live class: pause and resume the recording on this page' },
+  { file: 'ui/LiveClass.jsx', handler: 'onResume|client\\.pause', why: 'the capture controls of a live class: 接着录 and 暂停 / 继续 resume and pause the recording on this page' },
   { file: 'ui/MineruInstallCard.jsx', handler: 'start', why: 'the installer card: 继续安装 goes on installing on this card' },
   { file: 'ui/PdfConvertJob.jsx', handler: 'onRetry', why: '接着做 retries the conversion on its own row of the history' },
   { file: 'ui/UsageSettings.jsx', handler: 'onPause', why: 'a switch of the settings page: the record goes on, the page stays' },
@@ -127,24 +127,35 @@ export const IN_PLACE = [
 const NEUTRAL = new Set(['ui', 'uiFormat', 'uiMessage', 'map', 'filter', 'find', 'some', 'every', 'includes', 'has', 'trim', 'join', 'slice', 'split', 'push', 'String',
   'Number', 'Boolean', 'Date', 'Set', 'Map', 'Array', 'Object', 'now', 'max', 'min', 'requestAnimationFrame', 'setTimeout', 'clearTimeout', 'flushSync', 'async',
   'if', 'for', 'while', 'switch', 'catch', 'then', 'finally', 'void', 'return', 'stopPropagation', 'preventDefault', 'closest', 'querySelector', 'toISOString',
-  'toString', 'flatMap', 'keys', 'values', 'entries', 'parse', 'stringify', 'resolve', 'all', 'from', 'assign', 'useCallback', 'Promise', 'Error', 'log', 'warn']);
+  'toString', 'flatMap', 'keys', 'values', 'entries', 'parse', 'stringify', 'resolve', 'all', 'from', 'assign', 'useCallback', 'Promise', 'Error', 'log', 'warn',
+  // What a toast or a notice says about a click (`toast.success(…)`, `notify({ … })`), and a pause before the next step: words again, not a place.
+  'success', 'info', 'warning', 'error', 'notify', 'sleep', 'currentTarget']);
 /** A dialog, a sheet, a menu or an editor opened over this page (by the page or the host: `openModal`, `host.setModal`, `openImport`): the learner stays
     (录入课程重点…, 展开窗口, 继续解析 reopens the import dialog). */
 const OVER_PAGE = /^(?:(?:on)?[oO]pen\w*(?:Modal|Dialog|Sheet|Menu|Composer|Editor|Peek|Popover|Picker|Import)|setModal)$/;
 /** The handlers that take the learner somewhere: a router or a page setter (navigate, nav.show.page, setPage, setScreen, setView, setRoute), a go or open prop
     (onGo…, go…, onOpen…, open…), the settings, the library, the board, the sources, the wrong book, a way back (onBack, onExit), a practice run (onPractice…,
     practice…, startReview, onReviewWeak, act('review.start', …)). */
-const LEAVE = /^(?:navigate|go|goTo|goto|go[A-Z]\w*|on(?:Go|Open|Navigate|Practi[cs]e|Library|Board|Today|Sources|WrongBook|Jobs|Tasks|Back|Exit)\w*|on\w*Settings|open[A-Z]\w*|practi[cs]e[A-Z]?\w*|on\w*Practi[cs]e|start(?:Review|Round|Course|Path|Practice|Practise)\w*|onReviewWeak|set(?:Page|Screen|View|Route))$/;
+const LEAVE = /^(?:navigate|go|goTo|goto|go[A-Z]\w*|enterRun|onSource|onSeek|on(?:Go|Open|Navigate|Practi[cs]e|Library|Board|Today|Sources|WrongBook|Jobs|Tasks|Back|Exit)\w*|on\w*Settings|open[A-Z]\w*|practi[cs]e[A-Z]?\w*|on\w*Practi[cs]e|start(?:Review|Round|Course|Path|Practice|Practise)\w*|onReviewWeak|set(?:Page|Screen|View|Route|Tab))$/;
+/** A move inside the open document (the reader's chapter, page or outline): the learner stays in the same reader, as with a scroll. */
+const IN_DOC = /^(?:chapter|chapters|outline|toc|pages?|pdf|scroller)\.(?:go|goTo|open)\w*$/;
 const LEAVE_PATH = /(?:^|\.)(?:nav|router|history)\.|\.show\.|^wayBack\.go$/;
-const LOCAL_BODY = 240;
 /** The two modals that are views of their own, not dialogs over the page: the reader of a source and a companion lesson. Opening one takes the learner there. */
 const VIEW_MODAL = /\b(?:openModal|setModal)\(\s*\{\s*type:\s*(['"])(?:source|companion)\1/;
-/** A window outside StudyHub (the system browser, DSH's plugin manager): it leads with the `external` mark, never the go-on arrow. */
-const EXTERNAL = /^(?:openFile|openExternal|openUrl|openPluginManager)$/;
-const STARTS_RUN = /\bact\(\s*(['"])(?:review|exam)\.start\1/;
+/** A window outside StudyHub (the system browser, DSH's plugin manager, a DSH chat, the host's own file preview): it leads with the `external` mark, never the
+    go-on arrow. StudyHub's own reader is not one: it is a place in StudyHub, and a control that opens it ends in → (round 7). */
+export const EXTERNAL = /^(?:openFile|openExternal|openUrl|openPluginManager|openDocument|openAgent|hostPreview)$/;
+/** A practice run started by a job action or a host call (`act('review.start', …)`, `call('review.start', …)` then `enterRun`). */
+const STARTS_RUN = /\b(?:act|call)\(\s*(['"])(?:review|exam)\.start\1/;
+/** A handler named for a change of data where it stands (a prop or a host call the page does not define: `onSave`, `onRetry`, `onArchive`, `onPinMove`, `addCard`,
+    `refresh`): it saves, removes, undoes, retries, pauses, copies, exports … what is shown, and the learner stays. The verbs that may go somewhere (start, run,
+    continue, resume, next, generate, open, edit, again, check) are not here: those stay with the words; nor is a named retry (`retryGeneration` puts the failed
+    request back on the 创建题组 form), only a bare `retry` / `onRetry`. */
+const HERE_VERB = /^(?:retry$|(?:save|remove|delete|archive|unarchive|restore|undo|rescue|pause|reset|clear|discard|create|add|copy|export|download|install|upgrade|refresh|recheck|apply|rename|patch|update|sync|accept|attach|zoom|test|verify|pin|move|dismiss|cancel|close|toggle|select|focus|fix|answer|later|mark|flag|rate|record|stop|skip|hide|keep|choose|pick|load|reload|translate|retranslate|split|merge|unlink|vote)(?:[A-Z]\w*)?$)/;
+const hereVerb = (name) => HERE_VERB.test(name.replace(/^(?:on|handle)(?=[A-Z])/, '').replace(/^[A-Z]/, (ch) => ch.toLowerCase()));
 /** The handlers that act where they stand, when the page defines or owns them (an undotted call): a setter of this page's state, a job or data action (act, core.act),
     a toggle, a fold, a focus, a copy, a close. A dotted call (`host.setModal`) is not the page's own. */
-const HERE = /^(?:set[A-Z]\w*|act|toggle\w*|onToggle\w*|focus|blur|select|scrollIntoView|copy|writeText|dismiss|close|onClose|onDismiss|onCancel|cancel|onChange|onExpand\w*|onCollapse\w*|onFold\w*)$/;
+const HERE = /^(?:set[A-Z]\w*|act|dispatch|toggle\w*|onToggle\w*|focus|blur|select|scrollIntoView|copy|writeText|dismiss|close|onClose|onDismiss|onCancel|cancel|onChange|onExpand\w*|onCollapse\w*|onFold\w*)$/;
 
 /** The source of the balanced `{…}` that starts at `at`, or ''. */
 function balanced(source, at) {
@@ -169,6 +180,8 @@ export function localHandlers(source) {
     if (!locals.has(match[1])) locals.set(match[1], body);
   }
   for (const match of source.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\([^)]*\)\s*\{/g)) if (!locals.has(match[1])) locals.set(match[1], balanced(source, match.index + match[0].length - 1));
+  // A page index of the page's own (`const [page, setPage] = useState(0)`: the pager of a list) is state of this page, not a page of the app.
+  locals.state = new Set([...source.matchAll(/\[\s*[A-Za-z_$][\w$]*\s*,\s*(set[A-Z][\w$]*)\s*\]\s*=\s*(?:React\.)?useState\(\s*\d+\s*\)/g)].map((match) => match[1]));
   for (const match of source.matchAll(/\b([A-Za-z_$][\w$]*)\.current\s*=\s*\{/g)) {
     const object = balanced(source, match.index + match[0].length - 1);
     for (const prop of object.matchAll(/[{,]\s*([A-Za-z_$][\w$]*)\s*:\s*([A-Za-z_$][\w$.]*)/g)) locals.set(`${match[1]}.current.${prop[1]}`, prop[2]);
@@ -193,20 +206,35 @@ export function clickDoes(click, locals = new Map(), seen = new Set()) {
   for (const path of callsOf(click)) {
     const name = path.split('.').at(-1), own = !path.includes('.') || /^core\.act$/.test(path);
     if (NEUTRAL.has(name)) continue;
-    // A short handler of the page is read through its body; a long one (a loader, a whole flow) says too much to be one click's answer.
-    if (locals.has(path) && !seen.has(path)) { seen.add(path); found.push(locals.get(path).length <= LOCAL_BODY ? clickDoes(locals.get(path), locals, seen) : ''); continue; }
-    if (EXTERNAL.test(name)) found.push('external');
+    // A handler of the page is read through its whole body, however long (round 7: a long one was given up on, and 648 Buttons fell back to their words).
+    if (locals.has(path) && !seen.has(path)) {
+      seen.add(path);
+      // A body that does not say (a DOM call, a download) is read by the handler's own name, as a prop would be: `close`, `save`, `copyMarkdown` act here.
+      found.push(clickDoes(locals.get(path), locals, seen) || (HERE.test(name) || hereVerb(name) ? 'here' : ''));
+      continue;
+    }
+    if (locals.state?.has(path) || IN_DOC.test(path)) found.push('here');
+    else if (EXTERNAL.test(name)) found.push('external');
     else if (OVER_PAGE.test(name)) found.push('here');
     else if (LEAVE_PATH.test(path) || LEAVE.test(name)) found.push('leave');
-    else if (own && HERE.test(name)) found.push('here');
+    else if (own && (HERE.test(name) || hereVerb(name))) found.push('here');
+    // A data verb or a setter of a service of the page (`plan.accept`, `flow.install`, `uploads.cancel`, `core.setError`, `shell.setSidebarCollapsed`), not of the
+    // app's router, intents or host (`intents.openRun`, `drafts.restoreRecovery` go to another page).
+    else if (!own && !/^(?:intents|nav|host|app|study|links|learn|session|wayBack|drafts)\./.test(path) && (HERE.test(name) || hereVerb(name))) found.push('here');
+    // A file input or a field of the page, pressed or focused through its ref (`picker.current.click()`): the system's file dialog over the page, a focus.
+    else if (/\.current\.(?:click|focus|select|showPicker|scrollIntoView)$/.test(path)) found.push('here');
     else found.push('');
   }
   if (found.includes('external')) return 'external';
   if (found.includes('leave')) return 'leave';
-  // A job or data action of the page acts where it stands, whatever builds its arguments or says what it did (`core.act('generate', continueArgs(…), notify)`).
-  if (callsOf(click).some((path) => /^(?:core\.)?act$/.test(path))) return 'here';
+  // A job or data action of the page (`act`, a host `call`) acts where it stands, whatever builds its arguments or says what it did
+  // (`core.act('generate', continueArgs(…), notify)`, `call('live.save', …)` then a toast).
+  if (hasDataCall(click)) return 'here';
   return found.length && found.every((does) => does === 'here') ? 'here' : '';
 }
+
+/** Does a handler run a job or data action itself (`act(…)`, `core.act(…)`, a host `call(…)`)? */
+function hasDataCall(code) { return callsOf(code).some((path) => /^(?:core\.)?(?:act|call)$/.test(path)); }
 
 /** Why a click handler leaves nothing behind, from what it calls alone: it acts where it stands (clickDoes) without a job action: setters of this page's state
     (`setEditing(true)`, `setOpen((open) => !open)`: a dialog or a fold opens), a dialog over the page. A page setter (`setPage`, `setScreen`, `setView`, `setRoute`)
@@ -241,7 +269,6 @@ export const WAY_BACK = /^(?:返回|回到|回学习库)/u;
     a topic, a code, a page number: `{entry.title}`) is not read at all: its words name what it opens, so it is an entry of a list, not an action. `label` is matched
     against the Button's words. */
 export const LEAVES_WITHOUT_ARROW = [
-  { file: 'ui/book/BookStep.jsx', label: /^(?:上一个|下一个)知识点/, why: 'the book’s pager: it steps to the point before or after on the same book page, like the bar’s ‹ ›' },
   { file: 'ui/tasks/PlanTable.jsx', label: /^第 \{0\} 页$/, why: 'a page number of the plan table: an entry of a list, its words are the page it opens' },
   { file: 'ui/Sources.jsx', label: /前言与目录|第 \{0\}/, why: 'a chapter row of the 资料 page: its words are the part it opens (前言与目录, 第 N 页), an entry of a list' },
   { file: 'ui/study-map/FocusProgressLine.jsx', label: /^重点 \{0\} 条/, why: 'a status, not an action: the summary of the course’s focus points, which opens their detail' },
@@ -254,11 +281,27 @@ export const LEAVES_WITHOUT_ARROW = [
 const isArrow = (open) => /\biconEnd=(?:"arrow-right"|\{[^}]*arrow-right)/.test(open);
 const leadIcon = (open) => /\sicon="([^"]*)"/.exec(open)?.[1] ?? (propOf(open, 'icon') || '');
 
+/** A pager: a control that steps through the same content, forward (下一题, 下一个知识点, 下一页, 跳至第 N 页) or back (上一题 …). "→ = onward, to another place or
+    the next step" (round 7): forward ends in `arrow-right`, back leads with `arrow-left`, like a way back. A page number (第 N 页) or a TOC entry is data, not a pager. */
+export const STEP_ON = /^(?:下一(?:题|页|个知识点)|跳至第 \{0\} 页)$/u;
+export const STEP_BACK = /^上一(?:题|页|个知识点)$/u;
+
+/** The click of a form's submit Button that has no onClick of its own: the `onSubmit` of the form around it (`<form onSubmit={…}>`), or ''. */
+function submitOf(source, at, open) {
+  if (!/\stype="submit"/.test(open)) return '';
+  const form = source.lastIndexOf('<form', at);
+  if (form < 0 || source.slice(form, at).includes('</form>')) return '';
+  const end = openingTagEnd(source, form);
+  return end < 0 ? '' : propOf(source.slice(form, end + 1), 'onSubmit');
+}
+
 /** The Buttons of one source file whose arrow does not match what they do: [{ label, open, want, at }]. Every Button with words is read: what its click does
-    (clickDoes) decides; only a click that does not say falls back to the words (GO_ON_WORDS). A way back (WAY_BACK) leads with `arrow-left` and has no go-on
-    arrow. A Button with its own leading icon (the sparkle of 生成) takes no arrow either way; the test checks that no Button leads with a play icon. A listed
-    place acts in place (IN_PLACE) or leaves without the arrow (LEAVES_WITHOUT_ARROW), each with why. `seen` counts what was read:
-    { buttons, data, leave, here, unknown }. */
+    (clickDoes; a form's submit by the form's onSubmit) decides; only a click that does not say falls back to the words (GO_ON_WORDS). A way back (WAY_BACK)
+    leads with `arrow-left` and has no go-on arrow, whatever its click (返回文件导入 only closes a panel, and it is still a way back); a toggle is a switch, not a way
+    back. A pager (STEP_ON / STEP_BACK) ends in → or leads with ←. `external` is only for a window outside StudyHub; a control that leaves to a place in StudyHub
+    (the reader at a quote or a page) draws no `external` or `file` in front and ends in →. A Button with another leading icon of its own (the sparkle of 生成) takes
+    no arrow either way; the test checks that no Button leads with a play icon. A listed place acts in place (IN_PLACE) or leaves without the arrow
+    (LEAVES_WITHOUT_ARROW), each with why. `seen` counts what was read: { buttons, data, leave, here, external, unknown }. */
 export function goOnProblems(source, { file = '', helpers = new Map(), used = null, seen = null } = {}) {
   const problems = [], vars = varsOf(source), locals = localHandlers(source);
   const count = (key) => { if (seen) seen[key] = (seen[key] || 0) + 1; };
@@ -267,17 +310,30 @@ export function goOnProblems(source, { file = '', helpers = new Map(), used = nu
     const labels = labelsOf(children, helpers, vars);
     count('buttons');
     if (!labels.length) { count('data'); continue; }
-    // Its own leading icon is the `icon` prop, or an <Icon> its words start with (the ↗ of a draft's citation, drawn inside its first span).
-    const click = propOf(open, 'onClick'), arrow = isArrow(open), icon = leadIcon(open) || (/^\s*(?:<span\b[^>]*>\s*)?<Icon\b[^>]*\bname="([^"]+)"/.exec(children)?.[1] ?? '');
+    // Its own leading icon is the `icon` prop, or an <Icon> its words start with (drawn inside its first span).
+    const click = propOf(open, 'onClick') || submitOf(source, at, open), arrow = isArrow(open);
+    const icon = leadIcon(open) || (/^\s*(?:<span\b[^>]*>\s*)?<Icon\b[^>]*\bname="([^"]+)"/.exec(children)?.[1] ?? '');
     // A toggle says so itself (aria-pressed / aria-expanded: 今天读哪几节 opens its list where it stands).
-    const does = /\saria-(?:pressed|expanded)=/.test(open) ? 'here' : clickDoes(click, locals);
+    const toggle = /\saria-(?:pressed|expanded)=/.test(open), does = toggle ? 'here' : clickDoes(click, locals);
     count(does || 'unknown');
-    if (labels.some((label) => WAY_BACK.test(label)) && does !== 'here') {
+    if (!toggle && labels.some((label) => WAY_BACK.test(label))) {
       if (arrow) push(labels, open, 'no go-on arrow: it is a way back', at);
       else if (!/arrow-left/.test(icon)) push(labels, open, 'icon="arrow-left": it is a way back (ui/DESIGN.md, Icons)', at);
       continue;
     }
+    if (labels.some((label) => STEP_ON.test(label))) {
+      if (!arrow || icon) push(labels, open, 'iconEnd="arrow-right" and nothing in front: a pager steps on (ui/DESIGN.md, Icons)', at);
+      continue;
+    }
+    if (labels.some((label) => STEP_BACK.test(label))) {
+      if (arrow || !/arrow-left/.test(icon)) push(labels, open, 'icon="arrow-left": a pager steps back (ui/DESIGN.md, Icons)', at);
+      continue;
+    }
     if (does === 'external') { if (icon !== 'external' || arrow) push(labels, open, 'icon="external": it opens a window outside StudyHub', at); continue; }
+    if (icon === 'external' || (does === 'leave' && icon === 'file')) {
+      push(labels, open, 'iconEnd="arrow-right" and no `external` / `file` in front: it opens a place in StudyHub (the reader), not a window outside', at);
+      continue;
+    }
     if (icon) continue;
     const listed = LEAVES_WITHOUT_ARROW.find((entry) => entry.file === file && entry.label.test(labels.join(' | ')));
     if (listed) { used?.add(listed); if (arrow) push(labels, open, `no arrow: ${listed.why}`, at); continue; }
@@ -364,6 +420,18 @@ export function specProblems(source, { file = '' } = {}) {
       if (sets && !here) problems.push({ label, open, want: `here: true: ${sets}` });
       else if (here && !structuralWhy(run, locals) && /(?<![.\w$])[A-Za-z_$][\w$]*\(/.test(run)) problems.push({ label, open, want: 'no `here`: its run leaves the page' });
     }
+    // A spec whose words are a way back (回到学习流, 回到之前的第 N 题) says `back`, so the Button that draws it leads with ← (round 7).
+    const labels = labelsOf(valueOfProp(object, 'label'));
+    if (run && labels.some((words) => WAY_BACK.test(words)) && !/[{,]\s*back\s*:/.test(object)) {
+      problems.push({ label: labels.join(' | '), open: object.replace(/\s+/g, ' ').slice(0, 120), want: 'back: true: its words are a way back' });
+    }
+  }
+  // Where the specs say `back`, the Button that draws one (`{onward.label}`) reads it: ← in front for a way back, → at the end for a step on, never a fixed →.
+  if (/[{,]\s*back\s*:/.test(source)) {
+    for (const { open, children } of buttonElements(source)) {
+      const spec = /^\s*\{\s*([A-Za-z_$][\w$]*)\.label\s*\}\s*$/.exec(children)?.[1];
+      if (spec && !new RegExp(`\\b${spec}\\.back\\b`).test(open)) problems.push({ label: `{${spec}.label}`, open: open.replace(/\s+/g, ' ').slice(0, 120), want: `icon / iconEnd by ${spec}.back: a way back leads with ←` });
+    }
   }
   return problems;
 }
@@ -386,4 +454,44 @@ export function playLeads(source) {
   }
   for (const match of source.matchAll(/\{[^{}\n]*\bicon:\s*['"]play['"][^{}\n]*\}/g)) found.push({ kind: 'spec', open: match[0].slice(0, 140) });
   return found;
+}
+
+/** Every place of a source file that draws the `external` mark (a Button's or an IconButton's `icon` / `iconEnd`, a menu spec's `icon: 'external'`, an `<Icon
+    name="external">` inside a Button) whose click does not open a window outside StudyHub (EXTERNAL: the system browser, the plugin manager, a DSH chat, the host's
+    file preview). An `<a href>` (a link to a web page, opened by the browser) is outside by itself. StudyHub's own reader is a place in StudyHub: a control that
+    opens it ends in →, an icon-only one draws `arrow-right` (round 7). [{ label, want }] */
+export function externalProblems(source) {
+  const problems = [], locals = localHandlers(source);
+  const push = (label, want) => problems.push({ label: label.replace(/\s+/g, ' ').slice(0, 100), want });
+  const outside = (click) => !!click && clickDoes(click, locals) === 'external';
+  // A component tag that carries the mark as a prop.
+  for (const mark of source.matchAll(/\s(?:icon|iconEnd)=(?:"external"|\{\s*['"]external['"]\s*\})/g)) {
+    // The innermost tag whose opening holds the prop (a Dialog's footer={…} may hold a Button: that Button is the one).
+    let at = mark.index, end = -1, tag = '';
+    while ((at = source.lastIndexOf('<', at - 1)) >= 0) {
+      const name = /^<([A-Z][\w.]*)\b/.exec(source.slice(at, at + 40))?.[1];
+      if (name && (end = openingTagEnd(source, at)) >= mark.index) { tag = name; break; }
+    }
+    if (!tag || tag === 'Badge' || tag === 'Icon') continue; // a Badge's or an Icon's mark is read below, by the element around it
+    const open = source.slice(at, end + 1);
+    // A link to a DSH chat (`openAgent`) or any prop handing a host window opener.
+    const opener = [...open.matchAll(/\s([A-Za-z]+)=\{/g)].some((prop) => EXTERNAL.test(prop[1]));
+    if (!opener && !outside(propOf(open, 'onClick'))) push(open, 'not `external`: it opens a place in StudyHub, so it ends in → (an icon-only control draws arrow-right)');
+  }
+  // A menu or action spec.
+  for (const match of source.matchAll(/\{[^{}]*\bicon:\s*['"]external['"][^{}]*\}/g)) {
+    if (!outside(valueOfProp(match[0], 'run') || valueOfProp(match[0], 'onClick'))) push(match[0], 'not `external`: its run opens a place in StudyHub');
+  }
+  // An <Icon name="external"> (or a Badge with it) inside an element: an <a href> is outside; a Button says by its click.
+  for (const match of source.matchAll(/<(?:Icon\b[^>]*\bname|Badge\b[^>]*\bicon)="external"/g)) {
+    const a = source.lastIndexOf('<a ', match.index), button = Math.max(source.lastIndexOf('<Button', match.index), source.lastIndexOf('<button', match.index));
+    if (a > button && !source.slice(a, match.index).includes('</a>') && /\shref=/.test(source.slice(a, openingTagEnd(source, a) + 1))) continue;
+    if (button > a && !source.slice(button, match.index).includes('</Button>') && !source.slice(button, match.index).includes('</button>')) {
+      const open = source.slice(button, openingTagEnd(source, button) + 1);
+      if (!outside(propOf(open, 'onClick'))) push(open, 'not `external`: the Button opens a place in StudyHub, so it ends in →');
+      continue;
+    }
+    push(source.slice(match.index, match.index + 80), 'an `external` mark outside a link or a Button: say what it opens');
+  }
+  return problems;
 }
