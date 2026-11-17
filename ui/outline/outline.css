@@ -294,6 +294,10 @@
       font-size: var(--fs-sm);
       overflow-wrap: anywhere;
     }
+    /* A long English word group in a button must not push it past the footer's padding (the recommended button was 386px in a 370px footer and touched the dialog's left edge at 420px): the
+       buttons may take the footer's width and their words wrap. */
+    .sh-dialog[data-custom-gate] .sh-dialog__footer > * { max-width: 100%; }
+    .sh-dialog[data-custom-gate] .sh-dialog__footer [data-custom-gate-action] { max-width: 100%; white-space: normal; text-align: center; }
     .outline-papers__list {
       display: grid;
       gap: var(--space-1);
