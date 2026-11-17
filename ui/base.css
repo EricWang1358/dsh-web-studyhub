@@ -78,8 +78,8 @@
       color: var(--text-muted);
     }
     & small {
-      font-size: var(--fs-md);
-      line-height: 1.6;
+      font-size: var(--fs-sm);
+      line-height: var(--lh-snug);
     }
     & h1,
     & h2,
@@ -187,10 +187,10 @@
       flex-shrink: 0;
     }
     .eyebrow {
-      font-size: var(--fs-md);
-      letter-spacing: 2px;
+      font-size: var(--fs-sm);
+      letter-spacing: 0.12em;
       color: var(--text-muted);
-      margin-bottom: var(--space-3);
+      margin-bottom: var(--space-2-5);
     }
     & fieldset {
       min-width: 0;
@@ -200,12 +200,13 @@
       margin: var(--space-7-less) 0 var(--space-3);
     }
     & legend {
-      font-size: var(--fs-md);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-medium);
       padding-right: var(--space-4);
       color: var(--text-dim);
     }
     .small {
-      font-size: var(--fs-md);
+      font-size: var(--fs-sm);
     }
   }
   .study-app::-webkit-scrollbar {
@@ -234,7 +235,7 @@
   @container study (max-width:720px) {
     :where(.study-app, .study-seat) {
       .eyebrow {
-        font-size: var(--fs-md);
+        font-size: var(--fs-sm);
       }
     }
   }

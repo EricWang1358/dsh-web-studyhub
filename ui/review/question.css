@@ -387,7 +387,7 @@
       justify-content: space-between;
       align-items: center;
       margin: var(--space-3-5) 0 0;
-      padding: 0 var(--space-2);
+      padding: 0;
       gap: var(--space-2) var(--space-4);
     }
     .review-sticky-bar > .question-toolbar {
@@ -404,13 +404,13 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      min-height: var(--control-h, 40px);
+      min-height: var(--control-h, 36px);
       padding: var(--space-2) var(--space-3);
       border: 1px solid transparent;
       border-radius: var(--radius-sm);
       background: transparent;
       color: var(--text-dim);
-      font-size: var(--fs-md);
+      font-size: var(--fs-sm);
       line-height: 1.2;
       white-space: nowrap;
     }
@@ -419,7 +419,7 @@
       background: var(--bg-hover);
       color: var(--text);
     }
-    .question-toolbar .thumbs > .tool-icon { width: var(--control-h, 40px); padding: var(--space-2); }
+    .question-toolbar .thumbs > .tool-icon { width: var(--control-h, 36px); padding: var(--space-2); }
     .question-toolbar .thumbs svg { display: block; width: 17px; height: 17px; }
     .question-navigation { margin-left: auto; }
     .question-toolbar > .next-hint { flex: 1 0 100%; margin: 0; text-align: right; }

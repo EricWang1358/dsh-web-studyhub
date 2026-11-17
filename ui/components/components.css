@@ -38,17 +38,17 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: var(--space-2);
-      min-height: var(--control-h, 40px);
+      gap: var(--space-1-5);
+      min-height: var(--control-h, 36px);
       margin: 0;
-      --sh-btn-px: var(--space-4);
-      padding: var(--space-2) var(--sh-btn-px);
+      --sh-btn-px: var(--space-3-5);
+      padding: var(--space-1-5) var(--sh-btn-px);
       border: 1px solid var(--line-strong);
-      border-radius: var(--radius-sm);
+      border-radius: calc(var(--radius-sm) * 0.75);
       background: color-mix(in srgb, var(--text) 5%, transparent);
       color: var(--text);
       font: inherit;
-      font-size: var(--fs-md);
+      font-size: var(--fs-sm);
       font-weight: var(--fw-medium);
       line-height: 1.2;
       text-decoration: none;
@@ -66,13 +66,13 @@
       outline-offset: 2px;
       box-shadow: var(--ring);
     }
-    /* The one disabled look, for every variant that has a fill or an edge: flat neutral, no border, faint ink (a primary adds only that its shadow goes). */
+    /* The one disabled look, for every variant that has a fill or an edge: clearly quieter than resting controls, muted hairline border, faint ink (primary also drops its sheen shadow). */
     .sh-btn:disabled {
       opacity: 1;
-      cursor: default;
-      color: var(--text-faint);
-      background: color-mix(in srgb, var(--text) 7%, transparent);
-      border-color: transparent;
+      cursor: not-allowed;
+      color: color-mix(in srgb, var(--text-faint) 58%, transparent);
+      background: color-mix(in srgb, var(--text) 3%, transparent);
+      border-color: var(--line-soft);
     }
     /* Busy keeps the width the press measured (Button stores it in --sh-held-width). */
     .sh-btn[aria-busy="true"] { cursor: progress; min-width: var(--sh-held-width, 0); }
@@ -83,11 +83,18 @@
       color: var(--text);
     }
     .sh-btn--sm {
-      min-height: var(--control-h-sm, 32px);
-      --sh-btn-px: var(--space-3);
+      min-height: var(--control-h-sm, 30px);
+      --sh-btn-px: var(--space-2-5);
       padding: var(--space-1) var(--sh-btn-px);
-      gap: var(--space-1-5);
+      gap: var(--space-1);
       font-size: var(--fs-sm);
+    }
+    /* Optical padding compensation: icons have transparent outer glyph margin, so a leading/trailing icon side trims 2px for visual balance. */
+    .sh-btn:not(.sh-btn--icon, .sh-btn--link, .sh-btn--pill, .sh-btn--flush-start, .sh-btn--flush-end):has(> :first-child:is(.sh-icon, .sh-spinner)) {
+      padding-inline-start: calc(var(--sh-btn-px) - var(--space-half));
+    }
+    .sh-btn:not(.sh-btn--icon, .sh-btn--link, .sh-btn--pill, .sh-btn--flush-start, .sh-btn--flush-end):has(> :last-child:is(.sh-icon, .sh-spinner)) {
+      padding-inline-end: calc(var(--sh-btn-px) - var(--space-half));
     }
     /* A quiet button that stands at the edge of a column hangs its padding and border outside it (one decision, read from the button's own padding), so its words, not its box, line up with the text beside it.
        The padding is the tighter --space-2 for it: the hung box then ends inside the page's gutter (a 16px hang put the hover box at x=3 on a 420px pane). */
@@ -137,16 +144,18 @@
       border-radius: var(--radius-xs);
       background: none;
       color: var(--sh-link-ink, var(--accent-text));
+      font-size: inherit;
       text-decoration: underline;
       text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
       text-underline-offset: 3px;
     }
+    .sh-btn--link.sh-btn--sm { font-size: var(--fs-sm); }
     /* --sh-link-ink / --sh-link-wash: a reading area (the review book) sets them once for the links inside it; elsewhere the link stays cinnabar and has no wash. */
     .sh-btn--link:hover:not(:disabled) {
       background: var(--sh-link-wash, none);
       text-decoration-color: currentColor;
     }
-    .sh-btn--link:disabled { background: none; }
+    .sh-btn--link:disabled { background: none; border-color: transparent; text-decoration-color: transparent; }
     /* A link-style button that wraps still reads as running text. */
     .sh-btn--link[class~="sh-btn--wrap"] { display: inline; text-align: start; }
     .sh-btn--danger {
@@ -159,12 +168,13 @@
       border-color: var(--bad);
     }
     .sh-btn--icon {
-      width: var(--control-h, 40px);
+      flex: none;
+      width: var(--control-h, 36px);
       padding: 0;
     }
-    .sh-btn--icon.sh-btn--sm { width: var(--control-h-sm, 32px); }
-    .sh-btn:not(.sh-btn--spin-over) > .sh-spinner { width: 18px; height: 18px; }
-    .sh-btn--sm:not(.sh-btn--spin-over) > .sh-spinner { width: 16px; height: 16px; }
+    .sh-btn--icon.sh-btn--sm { width: var(--control-h-sm, 30px); }
+    .sh-btn:not(.sh-btn--spin-over) > .sh-spinner { width: 16px; height: 16px; }
+    .sh-btn--sm:not(.sh-btn--spin-over) > .sh-spinner { width: 14px; height: 14px; }
     /* An icon-less busy button centers the spinner over its own invisible label so its width and height never jump. */
     :is(.sh-btn, .sh-btn--danger)[aria-busy="true"].sh-btn--spin-over {
       position: relative;
@@ -292,13 +302,13 @@
       flex-wrap: wrap;
       align-items: flex-end;
       justify-content: space-between;
-      gap: var(--space-4) var(--space-6);
-      margin: 0 0 var(--space-7);
+      gap: var(--space-3) var(--space-6);
+      margin: 0 0 var(--space-5);
     }
     .sh-page-header__text { flex: 1 1 320px; min-width: 0; }
     .sh-page-header__back { margin-bottom: var(--space-3); }
     .sh-page-header__eyebrow {
-      margin: 0 0 var(--space-2);
+      margin: 0 0 var(--space-1-5);
       color: var(--text-muted);
       font-size: var(--fs-sm);
       font-weight: var(--fw-medium);
@@ -322,7 +332,7 @@
       text-wrap: balance;
       word-break: keep-all;
       overflow-wrap: anywhere;
-      margin: var(--space-2) 0 0;
+      margin: var(--space-1-5) 0 0;
       color: var(--text-dim);
       font-size: var(--fs-md);
       line-height: var(--lh-body);
@@ -352,7 +362,7 @@
     /* The scope slot of PageHeader (ui-consistency #142): the page's scope picker sits under the title block.
        Tokens only. */
     .sh-page-header__scope {
-      margin-top: var(--space-3);
+      margin-top: var(--space-2-5);
       min-width: 0;
     }
     /* compact: the header inside a working surface (a practice session): the title is a line, not a poster. */
@@ -1065,9 +1075,9 @@
   }
   @container study (max-width: 640px) {
     :is(.study-app, .study-seat) {
-      .sh-btn--md { min-height: 44px; }
-      .sh-btn--icon.sh-btn--md { width: 44px; }
-      .sh-page-header { margin-bottom: var(--space-6); }
+      .sh-btn--md:not(.sh-btn--link) { min-height: 40px; }
+      .sh-btn--icon.sh-btn--md { width: 40px; }
+      .sh-page-header { margin-bottom: var(--space-4-5); }
       .sh-page-header__title { font-size: var(--fs-2xl); }
     }
   }

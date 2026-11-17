@@ -147,6 +147,7 @@ export default function Inbox({ inbox, onOpen, onReadAll, onToggleRead, onUndo, 
     <div className="mailbox" ref={root}>
       <IconButton
         ref={toggle}
+        size="sm"
         icon="mail"
         className={"mailbox__toggle" + (unread ? " has-unread" : "")}
         data-tour="topbar-mailbox"

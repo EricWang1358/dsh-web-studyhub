@@ -13,6 +13,7 @@
       place-items: center;
       width: 32px;
       height: 32px;
+      min-height: 0;
       margin: 0;
       padding: 0;
       border: 1px solid transparent;

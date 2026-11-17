@@ -35,7 +35,7 @@ export const Button = forwardRef(function Button({ variant = 'secondary', size =
   useComponentCss(variantsCss, 'study-button-variants');
   const kind = VARIANTS.has(variant) ? variant : 'secondary';
   const scale = size === 'sm' ? 'sm' : 'md';
-  const iconSize = scale === 'sm' ? 16 : 18;
+  const iconSize = scale === 'sm' ? 15 : 16;
   const pill = shape === 'pill' && rest['aria-pressed'] !== undefined;
   const locks = lock !== undefined;
   const pressed = useRef(false);

@@ -19,7 +19,7 @@
       margin: 0;
     }
     .section-heading h2 span {
-      font-size: var(--fs-md);
+      font-size: var(--fs-sm);
       color: var(--text-muted);
       margin-left: var(--space-2-5);
     }
@@ -84,7 +84,7 @@
       gap: var(--space-1-5) var(--space-3-5);
       margin: 0 0 0 auto;
       padding: 0;
-      font-size: var(--fs-md);
+      font-size: var(--fs-sm);
       color: var(--text-faint);
     }
     .map-legend span { display: inline-flex; align-items: center; gap: var(--space-1-5); }
@@ -193,8 +193,8 @@
       white-space: nowrap;
     }
     .map-name strong { font-size: var(--fs-md); }
-    /* Secondary line under a name: small but never faint. */
-    .map-name small { font-size: var(--fs-md); font-weight: var(--fw-medium); line-height: 1.5; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+    /* Secondary line under a name: small, legible and tabular. */
+    .map-name small { font-size: var(--fs-sm); font-weight: var(--fw-regular); line-height: var(--lh-snug); color: var(--text-muted); font-variant-numeric: tabular-nums; }
     .folder-row .map-name { gap: var(--space-1); }
     .mastery {
       display: inline-flex;
@@ -239,7 +239,7 @@
     .mastery-value {
       min-width: 40px;
       text-align: right;
-      font-size: var(--fs-md);
+      font-size: var(--fs-sm);
       font-variant-numeric: tabular-nums;
       color: var(--text-dim);
       white-space: nowrap;
@@ -250,7 +250,7 @@
     .map-play {
       flex-shrink: 0;
       padding: var(--space-1-5) var(--space-2-5);
-      font-size: var(--fs-md);
+      font-size: var(--fs-sm);
       border-radius: var(--radius-pill);
       display: inline-flex;
       align-items: center;
@@ -323,7 +323,7 @@
   @container study (max-width:720px) {
     :where(.study-app, .study-seat) {
       .map-tools { flex: 1 1 100%; }
-      .map-legend { gap: var(--space-1) var(--space-2-5); font-size: var(--fs-md); margin-left: 0; }
+      .map-legend { gap: var(--space-1) var(--space-2-5); font-size: var(--fs-sm); margin-left: 0; }
       .map-topics { padding: 0 0 var(--space-2) var(--space-3); }
       /* Row keeps name + play + menu on line one; mastery spans line two. */
       .map-row {
@@ -421,7 +421,7 @@
       display: block;
       margin-top: var(--space-1);
       color: var(--text-muted);
-      font-size: var(--fs-md);
+      font-size: var(--fs-sm);
     }
     .nb-path {
       overflow: hidden;
@@ -430,7 +430,7 @@
     }
     .nb-stats {
       flex: none;
-      font-size: var(--fs-md);
+      font-size: var(--fs-sm);
       color: var(--text-dim);
       white-space: nowrap;
     }
@@ -446,11 +446,15 @@
     }
     .nb-search {
       display: flex;
+      align-items: center;
       gap: var(--space-2);
       margin: var(--space-2-5) 0 var(--space-3-5);
     }
     .nb-search .nb-search__input {
       flex: 1;
+      min-height: var(--control-h, 36px);
+      padding: var(--space-1-5) var(--space-3);
+      line-height: var(--lh-snug);
     }
     .nb-results {
       margin-bottom: var(--space-3-5);

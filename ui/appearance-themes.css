@@ -16,7 +16,7 @@
     --bg-canvas: #f1e8d3; --bg-sunken: #e7dcc3; --bg-surface: #f7efdd; --bg-raised: #fbf5e8;
     --bg-hover: #4a35180d; --bg-selected: #eadfc7;
     --line-soft: #4a351814; --line: #d8cbb0; --line-strong: #bfae8d;
-    --text: #231d12; --text-dim: #433929; --text-muted: #5d513c; --text-faint: #64583f; --decor-faint: #968a72;
+    --text: #231d12; --text-dim: #3d3324; --text-muted: #524734; --text-faint: #64583f; --decor-faint: #968a72;
     --accent-text: #a33a1f; --ok: #1c6c48; --warn: #7f510c; --bad: #a23461; --info: #346287; --paper: #fcf6e6;
   }
   /* High contrast: stronger lines, solid faint text, 3px focus outline (dark, light, card stock). */

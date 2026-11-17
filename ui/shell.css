@@ -36,7 +36,7 @@
     .brand small {
       display: block;
       font-family: var(--font-ui);
-      font-size: var(--fs-md);
+      font-size: var(--fs-sm);
       font-weight: var(--fw-regular);
       letter-spacing: 0;
       margin-top: var(--space-1);
@@ -154,7 +154,7 @@
     .nav-count {
       flex: none;
       margin-left: auto;
-      font-size: var(--fs-md);
+      font-size: var(--fs-sm);
       font-variant-numeric: tabular-nums;
       color: var(--text-faint);
       font-weight: var(--fw-regular);
@@ -176,13 +176,13 @@
       container: main / inline-size;
     }
     .topbar {
-      height: 51px;
+      height: 48px;
       border-bottom: 1px solid var(--line-soft);
       display: flex;
       justify-content: space-between;
       align-items: center;
       padding: 0 var(--space-6);
-      font-size: var(--fs-md);
+      font-size: var(--fs-sm);
       position: sticky;
       top: 0;
       z-index: calc(var(--z-sticky) + 2);
@@ -199,6 +199,7 @@
       white-space: nowrap;
     }
     .crumb[aria-current="page"] {
+      font-size: var(--fs-md);
       color: var(--text);
       font-weight: var(--fw-strong);
       overflow: hidden;
@@ -212,7 +213,7 @@
       display: inline-flex;
       align-items: center;
       gap: var(--space-2);
-      font-size: var(--fs-md);
+      font-size: var(--fs-sm);
       color: var(--text-muted);
       white-space: nowrap;
     }
@@ -335,7 +336,7 @@
     .page {
       max-width: 1200px;
       margin: 0 auto;
-      padding: var(--space-7) 36px var(--space-9);
+      padding: var(--space-5-5) 36px var(--space-8);
     }
     .page-heading {
       display: flex;
