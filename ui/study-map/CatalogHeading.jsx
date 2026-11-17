@@ -15,7 +15,7 @@ export default function CatalogHeading({ count, showArchived, hasDecks, hasSourc
   const items = [
     course != null && { id: 'merge', label: ui('整理题组'), disabled: busy || merge.busy },
     { id: 'add', label: ui('添加资料'), icon: ADD_SOURCE_ICON },
-    canOpenCompanionBuild && { id: 'companion', label: ui('新建交互伴学课…'), icon: 'play' },
+    canOpenCompanionBuild && { id: 'companion', label: ui('新建交互伴学课…'), icon: 'plus' },
     { id: 'manual', label: ui('手工建卡'), disabled: !hasSources },
     { id: 'json', label: ui('导入 JSON 题组') },
     slain && { id: 'slain', label: uiFormat('斩题组（{0}）', [slain.count]), disabled: busy },

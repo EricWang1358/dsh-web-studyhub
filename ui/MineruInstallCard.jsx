@@ -278,13 +278,13 @@ export default function MineruInstallCard({ call: given, compact = false, onOpen
     {stages}
     {(changeLine || shown.code === 'interrupted') && <Hint>{changeLine || errorHint('interrupted')}</Hint>}
     {!choosing && <div className="mineru-install__row">
-      {changeButton || <Button variant="primary" icon="play" busy={working === 'start'} disabled={!!working} onClick={() => void start({ location: fixFolder() })}>{ui('继续安装')}</Button>}
+      {changeButton || <Button variant="primary" busy={working === 'start'} disabled={!!working} onClick={() => void start({ location: fixFolder() })}>{ui('继续安装')}</Button>}
       {menu}
     </div>}
     {choosing && chooseHere}
   </div>;
   else if (shown.state === 'stopped') body = <div className="mineru-install__row">
-    <Button variant="primary" icon="play" busy={working === 'service'} disabled={!!working} onClick={() => startService()}>{ui('启动服务')}</Button>
+    <Button variant="primary" busy={working === 'service'} disabled={!!working} onClick={() => startService()}>{ui('启动服务')}</Button>
     <Hint as="span">{ui('开始解析时也会自动启动。')}</Hint>
   </div>;
   else if (shown.state === 'ready') body = (compact || tierLine) ? <>{compact && <Hint>{ui('可以开始解析了。')}</Hint>}{tierLine}</> : null;

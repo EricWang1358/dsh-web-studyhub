@@ -170,7 +170,7 @@ export function fixFor(code, { attempts = 1, external = false, source = 'mainlan
       ...(code === 'not-writable' ? { secondary: { id: 'relocate', label: ui('换位置') } } : {}) };
     case 'retry': return { id, label: ui('重试'), icon: 'refresh', tip: ui('从停下的那一步接着装，已下载的部分不会重下。') };
     case 'switch-source': return { id, label: ui('换下载源重试'), icon: 'sync', tip: uiFormat('换成{0}再试；已装好的步骤不会重做。', [sourceName(otherSourceId(source))]), source: otherSourceId(source) };
-    case 'continue': return { id, label: ui('继续安装'), icon: 'play' };
+    case 'continue': return { id, label: ui('继续安装') };
     case 'relocate': return { id, label: ui('换位置'), icon: 'location' };
     case 'restart-service': return { id, label: ui('重新启动服务'), icon: 'refresh' };
     case 'stop-external': return { id, label: ui('停止另一份 MinerU 并重试'), icon: 'stop', tip: ui('先停掉另一份 MinerU 的服务，再启动这一份；那一份的文件不会被改动。') };

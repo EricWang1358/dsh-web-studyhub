@@ -384,7 +384,7 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
         {picked ? <span className="outline-bar__count" aria-live="polite">{pickedText(picked.total)}</span> : <LoadingState inline className="outline-bar__count" label={ui('正在计算…')} />}
         {picked?.capped && <small className="outline-bar__note">{cappedText(picked.total, picked.limit)}</small>}
         <Button size="sm" variant="quiet" onClick={actions.clearPick}>{ui('清除')}</Button>
-        <Button size="sm" variant="primary" icon="play" disabled={!picked?.total} lock={busy} onClick={actions.practisePicked}>
+        <Button size="sm" variant="primary" iconEnd="arrow-right" disabled={!picked?.total} lock={busy} onClick={actions.practisePicked}>
           {startPickedText(picked ? Math.min(picked.total, picked.limit) : 0)}</Button>
       </div>}
     </section>

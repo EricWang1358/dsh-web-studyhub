@@ -55,14 +55,14 @@ export default function SimilarTry({ session, data, model, onModelSettings }) {
 
   const tryButton = (
     <Tooltip layer content={ui("从题库里找一道考同一知识点、这一轮没出现过的题，不消耗模型。做完点「回到原题」回到这里。")}>
-      <Button size="sm" variant="secondary" icon="play" className="similar-try__go" data-usage="review.similar" lock={busy} busy={here.kind === "finding"} onClick={find}>
+      <Button size="sm" variant="secondary" iconEnd="arrow-right" className="similar-try__go" data-usage="review.similar" lock={busy} busy={here.kind === "finding"} onClick={find}>
         {ui("试一道同类题")}</Button>
     </Tooltip>
   );
   return (
     <div className="similar-try">
       {variantReady
-        ? <Button size="sm" variant="primary" icon="play" className="similar-try__go" lock={busy} data-usage="review.similar-variant-go"
+        ? <Button size="sm" variant="primary" iconEnd="arrow-right" className="similar-try__go" lock={busy} data-usage="review.similar-variant-go"
           onClick={() => detour(variant.resultCardId, variant.deckId)}>{ui("做这道变式题")}</Button>
         : tryButton}
       {variantRunning && <span className="similar-try__note" role="status"><Spinner size="sm" />{ui("正在出一道变式题，写好后这里会出现「做这道变式题」。")}</span>}

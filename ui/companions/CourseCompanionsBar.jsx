@@ -73,7 +73,7 @@ export default function CourseCompanionsBar({ course, data }) {
           <Button
             size="sm"
             variant="secondary"
-            icon={isEmpty ? 'play' : 'plus'}
+            icon="plus"
             onClick={() => openModal({ type: 'companionBuild', course })}
           >
             {isEmpty ? ui('新建交互伴学课') : ui('生成 / 挂载伴学课')}
