@@ -80,16 +80,30 @@
        none. data-names: 'all' every name, whole; 'first' the first name takes the rest (6em at least, cut if need be); 'none' (a course scope) no name;
        'kind' (全部课程) the format without its pages and size, then the course (6em at least, cut with 「…」 and its whole name on hover); 'alone'
        (全部课程 at its narrowest, no room even for that) the course has the line to itself on every row, its 「· 」 hidden left of the line's start
-       (--picker-dot, measured), cut with 「…」 and its whole name on hover where it is longer. data-chars: 'all' every row says its characters; 'unpaged' a row with pages says its size in pages only; 'none' no row says them. A piece
-       left out is see-through and out of the line's flow, not hidden, so the checkbox's name (the facts line's words) still says every course and the
-       whole lead. */
+       (--picker-dot, measured), cut with 「…」 and its whole name on hover where it is longer. The characters are decided for the rows of a kind (round 11,
+       data-size-group: the rows with pages, or a format without pages): data-chars-off lists the groups whose rows leave them out (a row with pages still
+       says its pages); data-unit="short" says them in their short words (the lead's data-short, out of the checkbox's name), the long ones leaving the line. Every
+       size group the list decides is named here (ui/picker-names.js SIZE_GROUPS). A piece left out is see-through and out of the line's flow, not hidden,
+       so the checkbox's name (the facts line's words) still says every course and the whole lead. */
     .source-picker:is([data-names="first"], [data-names="all"]) .source-picker__fact--lead { flex: 0 1 auto; }
     .source-picker[data-names="none"] :is([data-name="first"], .source-picker__names),
     .source-picker:is([data-names="first"], [data-names="kind"]) .source-picker__names,
     .source-picker[data-names="alone"] :is(.source-picker__fact--lead, .source-picker__names, .source-picker__notes),
     .source-picker[data-names="kind"] .source-picker__part--pages,
-    .source-picker[data-chars="unpaged"] .source-picker__part--pages + .source-picker__part--size,
-    .source-picker[data-chars="none"] .source-picker__part--size { position: absolute; opacity: 0; pointer-events: none; }
+    .source-picker[data-unit="short"] .source-picker__part--size { position: absolute; opacity: 0; pointer-events: none; }
+    /* The short words of the characters (the lead's data-short), said after the lead where the list says them; not in the checkbox's name. */
+    .source-picker[data-unit="short"] .source-picker__fact--lead::after { content: attr(data-short); content: attr(data-short) / ""; white-space: pre; }
+    /* A size group that leaves its characters out (data-chars-off), in the long words and the short; a row with pages still says its pages. */
+    .source-picker[data-chars-off~="paged"] [data-size-group="paged"],
+    .source-picker[data-chars-off~="text"] [data-size-group="text"],
+    .source-picker[data-chars-off~="md"] [data-size-group="md"],
+    .source-picker[data-chars-off~="tex"] [data-size-group="tex"],
+    .source-picker[data-chars-off~="html"] [data-size-group="html"],
+    .source-picker[data-chars-off~="txt"] [data-size-group="txt"],
+    .source-picker[data-chars-off~="docx"] [data-size-group="docx"],
+    .source-picker[data-chars-off~="json"] [data-size-group="json"],
+    .source-picker[data-chars-off~="audio"] [data-size-group="audio"] {
+      & .source-picker__part--size, & .source-picker__fact--lead::after { position: absolute; opacity: 0; pointer-events: none; } }
     /* A name left out is never cut, so it never takes the hover card's anchor (#1136: an anchor 0 wide, a gap on the line, never to open). */
     .source-picker[data-names="none"] [data-name="first"] { width: auto; max-width: none; }
     .source-picker:is([data-names="kind"], [data-names="alone"]) .source-picker__facts > :is([data-name="first"], .source-picker__fact-anchor) {

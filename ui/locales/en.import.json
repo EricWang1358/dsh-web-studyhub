@@ -16,6 +16,8 @@
   "第 {0} 部分": "Part {0}",
   "{0} 字符": "{0} characters",
   "{0} 字符#one": "{0} character",
+  "{0}字": "{0} chars",
+  "{0}字#one": "{0} char",
   "已选 {0} / {1} 页": "{0} / {1} pages selected",
   "选择页面": "Choose pages",
   "选择部分": "Choose parts",

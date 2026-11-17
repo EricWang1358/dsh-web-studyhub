@@ -3,44 +3,71 @@ import { liveScope } from './use-async.js';
 
 /* What the rows' facts lines of one picker say follows one rule for the whole scope (#1084, round 8): a run of rows reads the same, and scrolling a long
    list (the window draws more rows) changes no row. The rule is decided from the words of every document in the scope, drawn or not, and the room of the
-   facts line, and said on the picker's root in two words. `data-names`, which names a row says:
+   facts line, and said on the picker's root. `data-names`, which names a row says:
    'all'   every name, whole;
    'first' only the first name (whole, or a course longer than six characters at 6em at least, cut with 「…」 and its whole name on hover);
    'none'  (a course scope) no name: the format and the size have the line;
    'kind'  (全部课程, #1134) the format, without its pages and size, then the course (6em at least, cut if need be);
    'alone' (全部课程 at its narrowest, where a row has no room even for that) the course alone on the line, its 「· 」 hidden left of the line's start,
            cut with 「…」 and its whole name on hover where it is longer: a course cut to two characters after a long format would say neither.
-   `data-chars`, which rows say their characters (#1135: a size is said whole or not at all, never cut, by one rule for the rows of a kind):
-   'all' every row; 'unpaged' the rows without pages (a document with pages says its size in pages, its characters give way first); 'none' no row.
-   The rule is the first of a short list, most said first, that every row has room for: the characters of a document with pages give way first, then
-   the names after the first, then (a course scope) the first name, then the other rows' characters. In 全部课程 the first name is the course the row
-   belongs to, the one thing the scope does not say for it, so every row keeps it, and its format with it where the course keeps 6em. The notes come after the names and take what
-   is left of the line, each whole or out of sight (ui/source-picker.css), so they never decide. A row so never shows two cut pieces: in 'first',
-   'kind' and 'alone' only the name may be cut, in 'none' only the format (where it alone is wider than the line).
+   The names are the first of a short list, most said first, that every row has room for, each row with its size in pages where it has pages and in
+   characters where it has none ('first' in 全部课程: without its characters). In 全部课程 the first name is the course the row belongs to, the one thing
+   the scope does not say for it, so every row keeps it, and its format with it where the course keeps 6em.
+   The sizes (#1135; round 11: one Markdown note no longer takes the characters of every Text note) are decided for the rows of a kind, `data-size-group`:
+   the rows with pages are one group, a row without pages is in its format's group. A group says its characters where every row of it has room for them
+   beside the names, else none of its rows does (`data-chars-off` lists the groups that do not), so a size is said whole or not at all and the rows of
+   a kind read alike. `data-unit="short"`: while a group without pages has no room for its characters in their long words (「180 characters」), the list
+   says them all in their short words (「180 chars」, en 320), and the long words come back for every row at once when every such group has room for them
+   (one change of words while the window widens, not one each time a kind gains its size); the long words stay in the checkbox's name. A document with
+   pages says its characters only where its long words fit: its pages say its size first. `data-chars` sums the groups up for a reader of the page: 'all', 'unpaged' (only the rows with pages leave
+   their characters out), 'some' or 'none'.
+   The notes come after the names and take what is left of the line, each whole or out of sight (ui/source-picker.css), so they never decide. A row so
+   never shows two cut pieces: in 'first', 'kind' and 'alone' only the name may be cut, in 'none' only the format (where it alone is wider than the line).
    The decision is taken again only when the scope's documents, the line's width or the font change: never because more rows are drawn, nor when the
-   index answer lands (the badges' column is the same width coming, with a badge and without). A word a row does not show stays in its checkbox's name. */
+   index answer lands (the badges' column is the same width coming, with a badge and without). In a picker that shows badges the line is as wide on a
+   row with 选择页面 as on one without, at every width (ui/source-picker.css), so a wider window never says less. A word a row does not show stays in its checkbox's name. */
 
 /** A little room kept spare: the canvas measures the words a hair differently from the line (rounding, the digits' font). */
 const SPARE = 4;
 
-/* The choices, most said first: [names, chars]. A course scope gives its other names way before a note's characters; 全部课程 keeps the course. */
-const IN_SCOPE = [['all', 'all'], ['all', 'unpaged'], ['first', 'all'], ['first', 'unpaged'], ['none', 'all'], ['none', 'unpaged'], ['none', 'none']];
-const EVERY_COURSE = [['all', 'all'], ['all', 'unpaged'], ['first', 'all'], ['first', 'unpaged'], ['first', 'none'], ['kind', 'none'], ['alone', 'none']];
+/* The names, most said first. A course scope gives its other names way before a note's characters; 全部课程 keeps the course. */
+const IN_SCOPE = ['all', 'first', 'none'];
+const EVERY_COURSE = ['all', 'first', 'kind', 'alone'];
+/** The groups whose characters the list decides together (ui/source-picker.css hides each by name): the rows with pages, then a format without pages. */
+export const SIZE_GROUPS = ['paged', 'text', 'md', 'tex', 'html', 'txt', 'docx', 'json', 'audio'];
+/** The size group of a document: 'paged' where its format says pages (or parts), else its format, a format not listed taking the text's (its label is 文本). */
+export const sizeGroup = (format, paged) => (paged ? 'paged' : SIZE_GROUPS.includes(format) ? format : 'text');
 
 /**
- * `{ names, chars }` for `rows` (each `{ kind, pages, size, first, later, shortened, multi }`: the widths in px of the format, of its pages with their
- * 「 · 」 (0 where it has none), of its characters with their 「 · 」, of the first name and of each name after it, whether the first may be shortened,
- * whether the row has 选择页面). `names` is '' when no row has a name. `room(row)` is the facts line's width for that row, `gap` the space between two
- * pieces, `em` the line's font size; `everyCourse` keeps the first name on every row (全部课程).
+ * `{ names, unit, off }` for `rows` (each `{ kind, pages, size, short, first, later, shortened, multi, group }`: the widths in px of the format, of its pages
+ * with their 「 · 」 (0 where it has none), of its characters with their 「 · 」 in the long and the short words, of the first name and of each name after
+ * it, whether the first may be shortened, whether the row has 选择页面, and its size group). `names` is '' when no row has a name; `unit` 'long' or
+ * 'short'; `off` the size groups that leave their characters out, in SIZE_GROUPS order. `room(row)` is the facts line's width for that row, `gap` the
+ * space between two pieces, `em` the line's font size; `everyCourse` keeps the first name on every row (全部课程).
  */
 export function decideFacts(rows, { room, gap, em, everyCourse = false, spare = SPARE }) {
-  const lead = (row, chars, names) => row.kind + (names === 'kind' ? 0 : row.pages + (chars === 'all' || (chars === 'unpaged' && !row.pages) ? row.size : 0));
   const named = (row, names) => (!row.first || names === 'none' ? 0
     : gap + (names === 'all' ? row.first + row.later.reduce((sum, name) => sum + gap + name, 0) : row.shortened ? Math.min(row.first, 6 * em) : row.first));
+  const fits = (row, names, chars) => row.kind + (names === 'kind' ? 0 : row.pages + chars) + named(row, names) <= room(row) - spare;
   const choices = everyCourse ? EVERY_COURSE : IN_SCOPE;
-  const [names, chars] = choices.find(([which, said], at) => at === choices.length - 1 || rows.every(row => lead(row, said, which) + named(row, which) <= room(row) - spare));
-  return { names: rows.some(row => row.first) ? names : '', chars };
+  const names = choices.find((which, at) => at === choices.length - 1
+    || rows.every(row => fits(row, which, row.pages || (everyCourse && which === 'first') ? 0 : row.size)));
+  const sized = names !== 'kind' && names !== 'alone';
+  // which groups have room for their characters, in the long words and in the short ones
+  const fitting = width => {
+    const said = new Map();
+    for (const row of rows) said.set(row.group, (said.get(row.group) ?? true) && sized && fits(row, names, width(row)));
+    return said;
+  };
+  const long = fitting(row => row.size), short = fitting(row => row.short);
+  const unit = sized && [...long].some(([group, fit]) => !fit && group !== 'paged') ? 'short' : 'long';
+  const said = group => (group === 'paged' ? long.get(group) : (unit === 'short' ? short : long).get(group));
+  const off = SIZE_GROUPS.filter(group => long.has(group) && !said(group));
+  return { names: rows.some(row => row.first) ? names : '', unit, off };
 }
+
+/** `data-chars` for `off` of the groups `present`: 'all', 'unpaged' (only the rows with pages leave their characters out), 'some' or 'none'. */
+export const charsSummary = (off, present) => (!off.length ? 'all' : off.length === present.size ? 'none' : off.length === 1 && off[0] === 'paged' ? 'unpaged' : 'some');
 
 let canvas;
 /** The rows' words measured in the facts line's font, or null where there is no canvas (a test without a browser). `dot`: the width of a name's 「· 」. */
@@ -50,8 +77,8 @@ function measured(rows, style) {
   canvas.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
   if ('letterSpacing' in canvas) canvas.letterSpacing = style.letterSpacing === 'normal' ? '0px' : style.letterSpacing;
   const sizes = new Map(), size = text => { if (!text) return 0; if (!sizes.has(text)) sizes.set(text, canvas.measureText(text).width); return sizes.get(text); };
-  const widths = rows.map(row => ({ kind: size(row.kind), pages: size(row.pages), size: size(row.size), first: size(row.first), later: row.later.map(size), shortened: row.shortened,
-    multi: row.multi }));
+  const widths = rows.map(row => ({ kind: size(row.kind), pages: size(row.pages), size: size(row.size), short: size(row.short), first: size(row.first), later: row.later.map(size),
+    shortened: row.shortened, multi: row.multi, group: row.group }));
   widths.dot = size('· ');
   return widths;
 }
@@ -64,9 +91,9 @@ function rooms(root) {
 }
 
 /**
- * Keep `data-names` and `data-chars` on the picker's root (`ref`) for `rows`: every document in the scope as `{ kind, pages, size, first, later, shortened,
- * multi }`, the words of its facts line (a new array when the scope or its documents change). `everyCourse`: the scope is 全部课程. The width of a name's
- * 「· 」 is kept on the root as `--picker-dot`: a course said alone hides its 「· 」 left of the line ('alone').
+ * Keep `data-names`, `data-chars-off`, `data-unit` and `data-chars` on the picker's root (`ref`) for `rows`: every document in the scope as `{ kind, pages,
+ * size, short, first, later, shortened, multi, group }`, the words of its facts line (a new array when the scope or its documents change). `everyCourse`:
+ * the scope is 全部课程. The width of a name's 「· 」 is kept on the root as `--picker-dot`: a course said alone hides its 「· 」 left of the line ('alone').
  */
 export function useFactsFit(ref, rows, everyCourse) {
   useLayoutEffect(() => {
@@ -84,9 +111,11 @@ export function useFactsFit(ref, rows, everyCourse) {
       if (!widths) return;
       decided = width;
       const room = rooms(root), em = parseFloat(style.fontSize), gap = parseFloat(style.columnGap) || 0.3 * em;
-      const { names, chars } = decideFacts(widths, { room: row => (row.multi ? room.wide : room.plain), gap, em, everyCourse });
+      const { names, unit, off } = decideFacts(widths, { room: row => (row.multi ? room.wide : room.plain), gap, em, everyCourse });
       if (names) root.dataset.names = names; else delete root.dataset.names;
-      root.dataset.chars = chars;
+      if (unit === 'short') root.dataset.unit = unit; else delete root.dataset.unit;
+      if (off.length) root.dataset.charsOff = off.join(' '); else delete root.dataset.charsOff;
+      root.dataset.chars = charsSummary(off, new Set(widths.map(row => row.group)));
       root.style.setProperty('--picker-dot', `${widths.dot}px`);
     };
     look();
