@@ -350,7 +350,7 @@ const draw = (element) => renderToStaticMarkup(h(m.StudyServicesContext.Provider
 test('<HandOff>: the label, its rule in a layered Tooltip, a lead; never primary; the icon shape is named by its label and has no title', () => {
   const link = draw(h(m.HandOff, { id: 'deck.ask', input: { deckTitle: 'Physics' }, lead: '想先和主会话聊聊怎么学：' }));
   assert.match(link, /class="sh-handoff__lead">想先和主会话聊聊怎么学：</);
-  assert.match(link, /data-hand-off="deck\.ask"[^>]*>发给主会话</);
+  assert.match(link, /data-hand-off="deck\.ask"[^>]*>(?:<svg.*?<\/svg>)?发给主会话</);
   assert.match(link, /sh-btn--link/);
   assert.match(link, /只填进主会话的输入框，由你按发送；没有主会话时复制到剪贴板。/);
   for (const shape of ['link', 'quiet', 'icon', 'secondary']) {
@@ -365,7 +365,7 @@ test('<HandOff>: the label, its rule in a layered Tooltip, a lead; never primary
   const form = draw(h(m.HandOffForm, { id: 'skeleton.extend', input: (text) => ({ text }), chips: ['讲细点'], placeholder: '想让主会话怎么扩展？' }));
   assert.match(form, /data-hand-off-form="skeleton\.extend"/);
   assert.match(form, /<textarea[^>]*placeholder="想让主会话怎么扩展？"/);
-  assert.match(form, /type="submit"[^>]*>发给主会话</);
+  assert.match(form, /type="submit"[^>]*>(?:<svg.*?<\/svg>)?发给主会话</);
 });
 
 test('Feedback: InlineMessage has Banner\'s secondary; action and secondary may carry a tip (a layered Tooltip, no title)', () => {

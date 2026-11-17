@@ -73,6 +73,7 @@
     "tests/home-width-browser.test.mjs",
     "tests/host-boot-lazy-browser.test.mjs",
     "tests/host-composer-selection-browser.test.mjs",
+    "tests/icon-round10-browser.test.mjs",
     "tests/icon-round4-browser.test.mjs",
     "tests/icon-round7-browser.test.mjs",
     "tests/icon-round8-browser.test.mjs",

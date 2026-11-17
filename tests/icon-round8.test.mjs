@@ -127,7 +127,7 @@ test('5: every link to a DSH chat is an AgentLink, which leads with the external
   assert.equal(externalProblems('<AgentLink childId={id} openAgent={openAgent} label={ui("在 DSH 中打开完整会话")} iconEnd="external" />').length, 2, 'a trailing mark handed to AgentLink is two faults');
   assert.equal(externalProblems('<AgentLink childId={id} openAgent={openAgent} label={ui("查看后台助手")} />').length, 0);
   const { sources } = await all();
-  assert.deepEqual(sources.flatMap(({ file, source }) => externalProblems(source).map((problem) => `${file}: ${problem.label} ${problem.want}`)), []);
+  assert.deepEqual(sources.flatMap(({ file, source }) => externalProblems(source, { file }).map((problem) => `${file}: ${problem.label} ${problem.want}`)), []);
   for (const [file, label] of [['ui/tasks/OutputPanel.jsx', '在 DSH 中打开完整会话'], ['ui/GenerationTrace.jsx', '查看后台助手']]) {
     const source = await read(file);
     const at = source.indexOf(`label={ui(${file.includes('tasks') ? "'" : '"'}${label}`);

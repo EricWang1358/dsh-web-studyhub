@@ -124,7 +124,7 @@ test('3: `external` only marks a window outside StudyHub, and a control that ope
     }
   }
   for (const file of ['ui/tasks/GenerationParts.jsx', 'ui/review/SourceColumn.jsx']) assert.doesNotMatch(byFile.get(file), /icon="external"/, `${file}: an icon-only way into the reader is not external`);
-  const sources = (await uiSources()).flatMap(({ file, source }) => externalProblems(source).map((problem) => `${file}: ${problem.label} ${problem.want}`));
+  const sources = (await uiSources()).flatMap(({ file, source }) => externalProblems(source, { file }).map((problem) => `${file}: ${problem.label} ${problem.want}`));
   assert.deepEqual(sources, []);
   assert.match(await read('ui/DESIGN.md'), /StudyHub's own reader/);
 });

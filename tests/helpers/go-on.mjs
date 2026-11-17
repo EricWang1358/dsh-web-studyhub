@@ -69,6 +69,12 @@ export function labelHelpers(sources) {
   // Round 8: the same sources tell how a prop is wired (wiringOf), so every gate that is handed the helpers reads a prop where it is wired.
   let wiring = null;
   Object.defineProperty(helpers, 'wiring', { get: () => (wiring ??= wiringOf(sources.filter((entry) => entry.file))) });
+  // Round 10: a label kept in a constant (`export const CUSTOM_BOOK_LABEL = '深度定制这本书'`, then `ui(CUSTOM_BOOK_LABEL)`) is its words, so the gates read it like a literal.
+  const constants = new Map();
+  for (const { source } of sources) {
+    for (const match of source.matchAll(/(?:export\s+)?const\s+([A-Z][A-Z0-9_]{2,})\s*=\s*(["'])((?:\.|(?!\2).)*)\2\s*;/gu)) if (!constants.has(match[1])) constants.set(match[1], match[3]);
+  }
+  Object.defineProperty(helpers, 'constants', { value: constants });
   for (const { source } of sources) {
     for (const match of source.matchAll(/(?:export\s+)?const\s+([A-Za-z_$][\w$]*)\s*=\s*(?:\([^)\n]*\)|[A-Za-z_$][\w$]*)\s*=>([^\n]*)/g)) add(match[1], match[2]);
     for (const match of source.matchAll(/(?:export\s+)?function\s+([A-Za-z_$][\w$]*)\s*\([^)]*\)\s*\{([\s\S]{0,600}?)\n\}/g)) add(match[1], match[2]);
@@ -96,6 +102,7 @@ export function varsOf(source) {
     variable they show was set to (`{settingsLabel}`, with the file's `varsOf`). */
 export function labelsOf(children, helpers = new Map(), vars = new Map()) {
   const labels = literalsOf(children);
+  for (const match of children.matchAll(/\bui(?:Format|Message)?\(\s*([A-Z][A-Z0-9_]{2,})\s*[,)]/g)) if (helpers.constants?.has(match[1])) labels.push(helpers.constants.get(match[1]));
   for (const match of children.matchAll(/\b([A-Za-z_$][\w$]*)\(\s*(?:(["'])([\w-]+)\2)?/g)) {
     if (!/^ui(?:Format|Message)?$/.test(match[1])) labels.push(...helperLabels(match[1], helpers, match[3]));
   }
@@ -147,6 +154,9 @@ const VIEW_MODAL = /\b(?:openModal|setModal)\(\s*\{\s*type:\s*(['"])(?:source|co
 /** A window outside StudyHub (the system browser, DSH's plugin manager, a DSH chat, the host's own file preview): it leads with the `external` mark, never the
     go-on arrow. StudyHub's own reader is not one: it is a place in StudyHub, and a control that opens it ends in → (round 7). */
 export const EXTERNAL = /^(?:openFile|openExternal|openUrl|openPluginManager|openDocument|openAgent|hostPreview)$/;
+/** The hand-off to the DSH main chat (ui/hand-off): `handOff.send(…)` / `handOff.action(…)` of `useHandOff()`, and the custom-interview start of the course book
+    (`startCustom`, which sends `custom.start`). The main chat is DSH's, not StudyHub's: it leads with the same `external` mark as a link to a DSH chat (round 10). */
+export const HANDS_OFF = /^(?:handOff\.(?:send|action)|(?:actions\.)?startCustom)$/;
 /** A practice run started by a job action or a host call (`act('review.start', …)`, `call('review.start', …)` then `enterRun`, a run's own `reviewAct('review.start')`). */
 const STARTS_RUN = /\b(?:act|call|[a-z]\w*Act)\(\s*(['"])(?:review|exam)\.start\1/;
 /** A step through the run the learner is in (`reviewAct('review.skip')`, `reviewAct('review.move', …)`): like a pager it goes on to the next question, so it
@@ -269,7 +279,7 @@ function memberOf(object, member) {
     { object, at }, or null. */
 function localObject(source, name, component) {
   const from = component?.at ?? 0, scope = source.slice(from, component?.end ?? source.length);
-  const match = new RegExp(`\\b(?:const|let)\\s+${name.replace(/\$/g, '\\$')}\\s*=\\s*(?:(?:React\\.)?useMemo\\(\\s*\\(\\)\\s*=>\\s*\\(\\s*)?\\{`).exec(scope);
+  const match = new RegExp(`\\b(?:const|let)\\s+${name.replace(/\$/g, '\\$')}\\s*=\\s*(?:!?[\\w$.]+\\s*\\?\\s*null\\s*:\\s*)?(?:(?:React\\.)?useMemo\\(\\s*\\(\\)\\s*=>\\s*\\(\\s*)?\\{`).exec(scope);
   return match ? { object: balanced(scope, match.index + match[0].length - 1), at: from + match.index } : null;
 }
 
@@ -280,6 +290,17 @@ function handedDoes(component, object, member, wiring, seen) {
     if (!member) return valueDoes(value, site.file, site.at, wiring, seen);
     if (/^\{/.test(value)) { const inner = memberOf(value, member); return inner ? valueDoes(inner, site.file, site.at, wiring, seen) : ''; }
     return /^[A-Za-z_$][\w$]*$/.test(value) ? wiredDoes(`${value}.${member}`, { wiring, file: site.file, at: site.at }, seen) : '';
+  }));
+}
+
+/** What the member of a component's rest props does (`handlers.onFlip` of `…handlers`): read at each site where the prop is handed in by its own name, or by the rest
+    spread on (`{…handlers}`), which is that rest of the component around the site. */
+function restDoes(component, rest, member, wiring, seen) {
+  return agree((wiring.sites.get(component?.name) || []).map((site) => {
+    const value = propOf(site.open, member);
+    if (value) return valueDoes(value, site.file, site.at, wiring, seen);
+    const spread = /\{\s*\.\.\.([A-Za-z_$][\w$]*)\s*\}/.exec(site.open)?.[1];
+    return spread ? wiredDoes(`${spread}.${member}`, { wiring, file: site.file, at: site.at }, seen) : '';
   }));
 }
 
@@ -302,6 +323,9 @@ function wiredDoes(path, ctx, seen) {
     } else if (parts.length === 2) {
       const built = localObject(source, parts[0], component), inner = built && memberOf(built.object, parts[1]);
       result = built ? (inner ? valueDoes(inner, file, built.at, wiring, seen) : '') : handedDoes(component, parts[0], parts[1], wiring, seen);
+      // The rest of a component's props (`function Days({ answer, …handlers })`, then `handlers.onFlip`): the prop of that name at its sites, or the same rest spread
+      // on again (`<Days {…handlers} />`), read where the next component hands it in (round 10).
+      if (!built && !result && new RegExp(String.raw`\.\.\.${name}\b`).test(component?.params || '')) result = restDoes(component, parts[0], parts[1], wiring, seen);
     } else {
       result = handedDoes(component, path, '', wiring, seen);
       // A prop destructured out of an object prop (`function StudyMap({ actions: { generateFromSources } })`): the member of what the sites hand in.
@@ -335,6 +359,12 @@ function withoutOffers(code) {
   return out.replace(/\b(?:const|let)\s+[A-Za-z_$][\w$]*\s*=\s*(?:[\w$.?]+\s*(?:\|\||\?\?)\s*)?\(?\s*(?:[\w$.]+\s*\?\s*)?(?:async\s*)?(?:\([^()]*\)|[\w$]+)\s*=>[^;\n]*;/g, '');
 }
 
+/** A prop handed in under a guard (`cond ? onShowOutline : undefined`, `cond && onFlip`) is that prop: the guard only decides whether the control is there (round 10). */
+function unguarded(click) {
+  const text = click.trim(), name = String.raw`([A-Za-z_$][\w$]*(?:\??\.[A-Za-z_$][\w$]*)*)`;
+  return new RegExp(String.raw`\s\?\s+${name}\s*:\s*(?:undefined|null)$`).exec(text)?.[1] ?? new RegExp(String.raw`\s&&\s*${name}$`).exec(text)?.[1] ?? click;
+}
+
 /** The calls of a handler, as their dotted paths (`nav.show.page`, `onGoGenerate`); a handler that is only a name (`onClick={onGoGenerate}`) is that one call. */
 function callsOf(click) {
   const text = click.trim();
@@ -347,7 +377,7 @@ function callsOf(click) {
     call): then the words decide. A handler defined in the same file (`locals`, from localHandlers) is read through its body. */
 export function clickDoes(click, locals = new Map(), seen = new Set(), ctx = null) {
   if (!click || !click.trim()) return '';
-  click = withoutOffers(click);
+  click = unguarded(withoutOffers(click));
   if (STARTS_RUN.test(click) || ENTERS_RUN.test(click) || VIEW_MODAL.test(click) || STEPS_RUN.test(click)) return 'leave';
   const found = [];
   for (const path of callsOf(click)) {
@@ -363,9 +393,9 @@ export function clickDoes(click, locals = new Map(), seen = new Set(), ctx = nul
     }
     if (locals.state?.has(path) || IN_DOC.test(path) || IN_DOC_CALL.test(path)) { found.push('here'); continue; }
     // Round 8: a prop is read where it is wired, before its name (`onCreate` wired to intents.goGenerate() leaves); sites that disagree leave it undecided.
-    const wired = ctx?.wiring && !locals.has(path) && !EXTERNAL.test(name) ? wiredDoes(path, ctx, seen) : '';
+    const wired = ctx?.wiring && !locals.has(path) && !EXTERNAL.test(name) && !HANDS_OFF.test(path) ? wiredDoes(path, ctx, seen) : '';
     if (wired) { found.push(wired === 'mixed' ? '' : wired); continue; }
-    else if (EXTERNAL.test(name)) found.push('external');
+    else if (EXTERNAL.test(name) || HANDS_OFF.test(path)) found.push('external');
     else if (OVER_PAGE.test(name)) found.push('here');
     else if (LEAVE_PATH.test(path) || LEAVE.test(name)) found.push('leave');
     else if (own && (HERE.test(name) || hereVerb(name))) found.push('here');
@@ -556,7 +586,12 @@ export function actionProblems(source, { file = '', helpers = new Map(), seen = 
     const arrow = /[{,]\s*iconEnd\s*:\s*['"]arrow-right['"]/.test(object), open = object.replace(/\s+/g, ' ').slice(0, 120);
     const does = clickDoes(click, locals, new Set(), wiring && file ? { wiring, file, at } : null);
     if (labels.some((word) => WAY_BACK.test(word)) && does !== 'here') { if (arrow) problems.push({ label: labels.join(' | '), open, want: 'no go-on arrow: it is a way back' }); continue; }
-    if (does === 'external' || /[{,]\s*icon\s*:/.test(object)) continue;
+    // A window outside StudyHub (the DSH main chat, a DSH chat, the plugin manager) leads with the `external` mark the drawer puts in front, and never ends in → (round 10).
+    if (does === 'external') {
+      if (!/[{,]\s*icon\s*:\s*['"]external['"]/.test(object) || arrow) problems.push({ label: labels.join(' | '), open, want: "icon: 'external' and no arrow: it opens a window outside StudyHub" });
+      continue;
+    }
+    if (/[{,]\s*icon\s*:/.test(object)) continue;
     const listed = LEAVES_WITHOUT_ARROW.find((entry) => entry.file === file && entry.label.test(labels.join(' | ')));
     if (listed) { used?.add(listed); if (arrow) problems.push({ label: labels.join(' | '), open, want: `no arrow: ${listed.why}` }); continue; }
     const here = does === 'here' ? 'it acts where it stands (a setter of this page, a job or data action)' : '';
@@ -579,6 +614,7 @@ export function specProblems(source, { file = '' } = {}) {
       const here = /(?:^|[{,])\s*here\s*:\s*true\b/.test(object), sets = setsStateWhy(run, locals);
       const label = valueOfProp(object, 'label').slice(0, 40), open = object.replace(/\s+/g, ' ').slice(0, 120);
       if (sets && !here) problems.push({ label, open, want: `here: true: ${sets}` });
+      else if (clickDoes(run, locals) === 'external' && !/[{,]\s*icon\s*:\s*['"]external['"]/.test(object)) problems.push({ label, open, want: "icon: 'external': its run opens a window outside StudyHub (the main chat), so the card draws the mark in front" });
       else if (here && !structuralWhy(run, locals) && /(?<![.\w$])[A-Za-z_$][\w$]*\(/.test(run)) problems.push({ label, open, want: 'no `here`: its run leaves the page' });
     }
     // A spec whose words are a way back (回到学习流, 回到之前的第 N 题) says `back`, so the Button that draws it leads with ← (round 7).
@@ -622,10 +658,11 @@ export function playLeads(source) {
     file preview). An `<a href>` (a link to a web page, opened by the browser) is outside by itself. StudyHub's own reader is a place in StudyHub: a control that
     opens it ends in →, an icon-only one draws `arrow-right` (round 7). The mark of a window outside leads (`icon`), never trails (`iconEnd`), and a link to a DSH
     chat is an <AgentLink>, which draws that one look itself: a site that hands it an `icon` or `iconEnd` is a second look (round 8). [{ label, want }] */
-export function externalProblems(source) {
-  const problems = [], locals = localHandlers(source);
+export function externalProblems(source, { file = '' } = {}) {
+  const problems = [], locals = localHandlers(source), handsOff = HAND_OFF_SURFACES.some((entry) => entry.file === file);
   const push = (label, want) => problems.push({ label: label.replace(/\s+/g, ' ').slice(0, 100), want });
-  const outside = (click) => !!click && clickDoes(click, locals) === 'external';
+  // The places that draw the hand-off to the DSH main chat (HAND_OFF_SURFACES): their `external` mark is the hand-off's, whatever prop the click is handed in as.
+  const outside = (click) => handsOff || (!!click && clickDoes(click, locals) === 'external');
   for (const match of source.matchAll(/<AgentLink\b/g)) {
     const open = source.slice(match.index, openingTagEnd(source, match.index) + 1);
     if (/\s(?:icon|iconEnd)=/.test(open)) push(open, 'an AgentLink draws its own leading `external` mark: one look for every link to a DSH chat');
@@ -645,7 +682,7 @@ export function externalProblems(source) {
     const open = source.slice(at, end + 1);
     // A link to a DSH chat (`openAgent`) or any prop handing a host window opener.
     const opener = [...open.matchAll(/\s([A-Za-z]+)=\{/g)].some((prop) => EXTERNAL.test(prop[1]));
-    if (!opener && !outside(propOf(open, 'onClick'))) push(open, 'not `external`: it opens a place in StudyHub, so it ends in → (an icon-only control draws arrow-right)');
+    if (!opener && !handsOff && !outside(propOf(open, 'onClick'))) push(open, 'not `external`: it opens a place in StudyHub, so it ends in → (an icon-only control draws arrow-right)');
   }
   // A menu or action spec.
   for (const match of source.matchAll(/\{[^{}]*\bicon:\s*['"]external['"][^{}]*\}/g)) {
@@ -676,19 +713,39 @@ function iconName(value) {
   return /^['"]([^'"]+)['"]$/.exec(text)?.[1] ?? /<Icon\b[^>]*\bname="([^"]+)"/.exec(text)?.[1] ?? text.replace(/\s+/g, ' ');
 }
 
+/** The words of a label expression as a catalogue key: `ui('…')`, or `ui(NAME)` where NAME is a constant of ui/ (`helpers.constants`, round 10), else ''. */
+function keyOfLabel(expression, helpers) {
+  const text = String(expression || '').trim();
+  const constant = /^ui\(\s*([A-Z][A-Z0-9_]{2,})\s*\)$/.exec(text)?.[1] ?? /^([A-Z][A-Z0-9_]{2,})$/.exec(text)?.[1];
+  return /^ui\(\s*(['"])([^'"]+)\1\s*\)$/.exec(text)?.[2] ?? (constant && helpers?.constants?.get(constant)) ?? '';
+}
+
+/** The files that draw a hand-off to the main chat from a click handed in as a prop (so the click itself does not say where it goes): the `external` mark in them is
+    the hand-off's. `tests/icon-round10.test.mjs` reads each one's hand-off by what it draws, and fails one that no longer draws the mark. */
+export const HAND_OFF_SURFACES = [
+  { file: 'ui/hand-off/HandOff.jsx', why: 'HandOffButton: every shape of the hand-off, its click is the one the page hands in (send)' },
+  { file: 'ui/hand-off/use-hand-off.js', why: 'useHandOff().action: the spec of a hand-off for a message, a card or a drop zone, its onClick sends' },
+  { file: 'ui/outline/CustomGate.jsx', why: 'the 先深度定制这本书？ dialog: its onCustom sends the custom.start hand-off (CourseOutline.startCustom)' },
+];
+
+/** The look of the hand-off to the DSH main chat, wherever it is drawn (ui/hand-off/HandOff.jsx draws it: the `external` mark in front, nothing after): the main chat
+    is a window outside StudyHub, so it leads with the same mark as a link to a DSH chat (AgentLink). */
+export const HAND_OFF_LOOK = 'external|-';
+
 /** The look of every control of a source file whose words are one catalogue key (`{ui('…')}` as a Button's whole children, `label: ui('…')` in an action spec
-    with a click): [{ key, look, line }], `look` = '<icon in front or ->|<→ or ->'. A spec of SPEC_FILES is drawn by the component that reads it: ← in front for
-    `back`, its `icon` in front, nothing for `here`, else → after (the job card, its links, the console's result, the first-run line, the home plan). */
-export function looksOf(source, { file = '' } = {}) {
+    with a click, a <HandOff label=…>): [{ key, look, line }], `look` = '<icon in front or ->|<→ or ->'. A spec of SPEC_FILES is drawn by the component that reads it:
+    ← in front for `back`, its `icon` in front, nothing for `here`, else → after (the job card, its links, the console's result, the first-run line, the home plan).
+    A key kept in a constant (`ui(CUSTOM_BOOK_LABEL)`) is read through `helpers.constants`. */
+export function looksOf(source, { file = '', helpers = new Map() } = {}) {
   const found = [], lineOf = (at) => source.slice(0, at).split('\n').length;
   for (const { open, children, at } of buttonElements(source)) {
-    const key = /^\s*\{\s*ui\(\s*(['"])([^'"]+)\1\s*\)\s*\}\s*$/.exec(children)?.[2];
+    const key = keyOfLabel(/^\s*\{([\s\S]*)\}\s*$/.exec(children)?.[1], helpers);
     if (!key) continue;
     const icon = /\sicon="([^"]*)"/.exec(open)?.[1] ?? iconName(propOf(open, 'icon'));
     found.push({ key, look: `${icon || '-'}|${isArrow(open) ? '→' : '-'}`, line: lineOf(at) });
   }
   for (const { object, before, at } of labelledObjects(source)) {
-    const key = /^ui\(\s*(['"])([^'"]+)\1\s*\)$/.exec(valueOfProp(object, 'label'))?.[2];
+    const key = keyOfLabel(valueOfProp(object, 'label'), helpers);
     const onClick = valueOfProp(object, 'onClick'), run = valueOfProp(object, 'run');
     if (!key || !(onClick || run)) continue;
     const icon = iconName(valueOfProp(object, 'icon')), back = /\bback\s*[=:]\s*$/.test(before) || /[{,]\s*back\s*:\s*true\b/.test(object);
@@ -696,6 +753,14 @@ export function looksOf(source, { file = '' } = {}) {
       : !onClick && SPEC_FILES.includes(file) ? (icon ? `${icon}|-` : /[{,]\s*here\s*:\s*true\b/.test(object) ? '-|-' : '-|→')
         : `${icon || '-'}|${/[{,]\s*iconEnd\s*:\s*['"]arrow-right['"]/.test(object) ? '→' : '-'}`;
     found.push({ key, look, line: lineOf(at) });
+  }
+  // <HandOff … /> and <HandOffButton … /> draw the one look of a hand-off (HAND_OFF_LOOK); the words are their `label` (a literal, a constant) or 发给主会话.
+  for (const match of source.matchAll(/<(?:HandOff|HandOffButton)(?=[\s/>])/g)) {
+    const end = openingTagEnd(source, match.index);
+    if (end < 0) continue;
+    const open = source.slice(match.index, end + 1), label = propOf(open, 'label') || /\slabel="([^"]*)"/.exec(open)?.[1] || '';
+    const key = (/^[A-Z][A-Z0-9_]{2,}$/.test(label) ? helpers.constants?.get(label) : label) || helpers.constants?.get('HAND_OFF_LABEL') || '发给主会话';
+    found.push({ key, look: HAND_OFF_LOOK, line: lineOf(match.index) });
   }
   return found;
 }
@@ -706,7 +771,7 @@ export const LOOK_EXCEPTIONS = [
   { key: '看原页', why: 'two actions: in the reader it opens the page\'s picture over the text being read (where it stands, no arrow); on a citation card it opens the reader at that page (→)' },
   { key: '打开', why: 'two actions: a diagram of the skeleton opens inside the same page (no arrow); a live class capture opens its transcript in the reader (→)' },
   { key: '查看详情', why: 'two actions: on a draft it scrolls to the details of the blocked questions below them, on the same page (no arrow); on a job card it opens the job in the 任务 console (→)' },
-  { key: '接着做', why: 'two actions: a job’s 接着做 retries the job on its card or in the console, where it stands (no arrow); the home plan’s 接着做 resumes the last practice run, on the practice page (→)' },
+  { key: '接着做', why: 'two actions that share words: a job’s 接着做 (the PDF import card, the 任务 console) retries the failed job where it stands, a data action of its card (no arrow); the home plan’s 接着做 resumes the last unfinished practice round and takes the learner to the practice page (→). The first one is a retry, the second a resume of practice: they are never on one card', sites: { '-|-': ['ui/PdfConvertJob.jsx', 'ui/tasks/TaskConsole.jsx'], '-|→': ['ui/study-map/home-plan.js'] } },
 ];
 
 /** The controls that leave with an icon in front, each with why. A leading icon is for a control that acts where it stands (the sparkle of 生成, the trash of
