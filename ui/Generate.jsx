@@ -80,7 +80,7 @@ export default function Generate({
   useInjectCss(focusIntakeCss, "study-focus-intake");
   const [sourceScope, setSourceScope] = usePageScope(data.root, 'generate-sources', data.focus?.course ?? '*');
   // Whether each material's search index is built: the picker rows say so (and follow a running build). The page is drawn at once, as any page; while the answer is on
-  // its way every row holds the badge's slot, then a row keeps a slot as wide as its badge or none; its facts are one line either way, so no row moves (#1084).
+  // its way every row holds the badge's slot, and it keeps that column's width after, badge or none; its facts are one line either way, so no row moves (#1084).
   const [indexCoverage, , indexStatus] = useIndexCoverage(call);
   const known = courseNamesOf(data);
   const referenceSourceIds = gen.referenceSourceIds || [];
