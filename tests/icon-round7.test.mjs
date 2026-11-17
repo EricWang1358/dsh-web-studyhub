@@ -208,7 +208,7 @@ test('8: every English count that leads with {0} and a plural noun has a singula
   for (const name of (await readdir(new URL('../ui/locales/', import.meta.url))).filter((entry) => /^en(?:\..+)?\.json$/.test(entry))) Object.assign(catalogue, JSON.parse(await read(`ui/locales/${name}`)));
   const missing = [];
   for (const [key, value] of Object.entries(catalogue)) {
-    if (key.endsWith('#one') || typeof value !== 'string') continue;
+    if (/#one(?::[\d,]+)?$/.test(key) || typeof value !== 'string') continue; // round 8: `#one:N` is the singular of the count {N}
     const noun = NOUN.exec(value)?.[1];
     if (!noun || NOT_PLURAL.has(noun.toLowerCase())) continue;
     if (!Object.hasOwn(catalogue, `${key}#one`) && !SINGULAR_LEFT.some((entry) => entry.key === key)) missing.push(`${key} → ${value}`);

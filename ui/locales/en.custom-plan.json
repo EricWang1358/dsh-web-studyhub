@@ -25,7 +25,8 @@
   "不出题": "No questions",
   "{0}和{1}": "{0} and {1}",
   "不排计划": "No study plan",
-  "每周 {0} 章排计划": "Plan {0} chapter(s) a week",
+  "每周 {0} 章排计划": "Plan {0} chapters a week",
+  "每周 {0} 章排计划#one": "Plan {0} chapter a week",
   "按考试日期排计划": "Plan back from the exam date",
   "不需要模型调用": "No model calls needed",
   "粗估：约 {0} 次模型调用，读取约 {1}": "Rough: about {0} model calls, reading about {1}",
@@ -57,6 +58,7 @@
   "变式题要先在设置里同意学习教练准备，才会开始。": "Variants start only after you agree to the study coach’s preparation in Settings.",
   "这些已经在补了，进度在「任务」里。": "These are already being filled; follow them in Jobs.",
   "已开始补齐，进度在「任务」里。": "Started; follow it in Jobs.",
-  "有 {0} 章在资料里找不到了，需要重新选": "{0} chapter(s) are no longer in the material and must be picked again",
+  "有 {0} 章在资料里找不到了，需要重新选": "{0} chapters are no longer in the material and must be picked again",
+  "有 {0} 章在资料里找不到了，需要重新选#one": "{0} chapter is no longer in the material and must be picked again",
   "让主会话重新选这几章": "Have the main chat pick those chapters again"
 }

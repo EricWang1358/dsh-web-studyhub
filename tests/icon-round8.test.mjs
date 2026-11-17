@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
+import React from 'react';
 import { uiSources } from './helpers/icon-stand-ins.mjs';
+import { countedNouns, missingSingulars, SINGULAR_KEY } from './helpers/plurals.mjs';
+import { loadUi } from './helpers/ui-module.mjs';
 import { actionProblems, buttonElements, clickDoes, goOnProblems, labelHelpers, labelsOf, localHandlers, propOf, specProblems, varsOf, wiringOf } from './helpers/go-on.mjs';
 
 /* #1073, round 8 of the review of PR #1118 (the round-7 review, 2e391b83). The gate read a click's handler, but not the prop it calls: 查看图谱, 改题型和题数,
@@ -112,4 +115,104 @@ test('2: 创建题组 on the empty home ends in → beside 开始学习 → and 
     const button = buttonElements(source).find(({ children }) => children.includes(`ui("${label}")`));
     assert.match(button.open, ARROW_END, label);
   }
+});
+
+/* ---- 3: English counts say "1 question", never "question(s)" ------------------------------------------------------------------------------------------- */
+
+const englishCatalogue = async () => {
+  const catalogue = {}, fileOf = {};
+  for (const name of (await readdir(new URL('../ui/locales/', import.meta.url))).filter((entry) => /^en(?:\..+)?\.json$/.test(entry)).sort()) {
+    for (const [key, value] of Object.entries(JSON.parse(await read(`ui/locales/${name}`)))) if (!Object.hasOwn(catalogue, key)) { catalogue[key] = value; fileOf[key] = name; }
+  }
+  return { catalogue, fileOf };
+};
+/** The screens a learner meets every day: home and the study map, deck rows, practice and review, the wrong book, materials, generating and its draft, jobs,
+    notes, the today board and the book. A count on them says "1 question". */
+const FREQUENT = /^ui\/(?:StudyMap|study-map\/|Dashboard|charts\/Dashboard|DailyPlan|daily-plan\/|first-run\/|DeckRow|deck-|ArchivedDeckRow|EmptyStudyActions|Review|review\/|QuestionRun|practice|WrongBook|wrongbook|Sources|sources\/|source-|Generate|generate|GenerationPath|GenerationTrace|generation-status|TooBigChoice|ReferenceQuestions|Draft\.jsx|IndexBadge|ImportHub|tasks\/|job-visibility|Notes|BlogNotes|notes\/|app\/page-views|app\/use-drafts|app\/AppBanners|board\/|book\/|exam\/|ResultBreakdown|Manage\.jsx|RemoveDeckDialog|Skeleton|OralExam|audio\/AudioCorrections)/;
+/** Counts on those screens left plural, and why: a limit or a threshold the app sets is never 1. */
+const PLURAL_LEFT = [
+  { key: '标题请控制在 {0} 字以内，更多内容写在下一行作为备注。', why: 'the length limit of a to-do title, a constant far above 1' },
+  { key: '默认 {0} 个片段 / {1} 字符；可调整，最高 {2} 个片段 / {3} 字符。', why: 'the default and the most of the reference excerpts, constants above 1' },
+  { key: '先提取知识点和逐字原文，再确定答案、必要情景和选项依据；每批最多 {0} 题，出题与自查后独立审阅，通过的题保留在草稿。', why: 'the batch size of a generation, a constant above 1' },
+  { key: '最长 {0} 分钟（不算排队）；到时会停止，已通过检查的题保留在草稿里。', why: 'the time limit of a generation, a constant above 1' },
+  { key: '最长 {0} 分钟（不算排队）；到时会停止，题组不会有变化。', why: 'the time limit of a top-up, a constant above 1' },
+  { key: '每个阶段最多等待 {0} 分钟。', why: 'the wait limit of a stage, a constant above 1' },
+  { key: '所选资料约 {0} 页、{1} 个字符，一次生成最多 {2} 个字符。', why: 'shown only when the selection is too big for one generation: thousands of characters' },
+  { key: '所选资料约 {0} 个字符，一次生成最多 {1} 个字符。', why: 'shown only when the selection is too big for one generation: thousands of characters' },
+  { key: '共 {0} 种题型，但只有 {1} 题：前 {1} 种题型各出 1 道，其余这次不出。', why: 'shown only when there are more question types than questions, so at least 2 types ({1} has its singular)' },
+  { key: 'PDF 超过 {0} 页。请按章节拆分后再导入。', why: 'the page limit of an import, a constant in the hundreds' },
+  { key: '提取出的文字超过 {0} 字符。请按章节拆分后再导入。', why: 'the text limit of an import, a constant in the hundreds of thousands' },
+  { key: '⋯ 差异较长，仅展示前 {0} 行对比', why: 'the cut of a long diff, a constant above 1' },
+  { key: '明显偏久：用时超过同类已完成步骤中位数的 {0} 倍，并且超过 {1} 分钟（同类还没有完成的步骤时，只看 {1} 分钟）。', why: '{0} is the factor of the rule (3), not a count; {1} has its singular' },
+  { key: '累计答错 {0} 次，或最近 {1} 次作答里答错 {2} 次以上（{3}%；作答不满 {1} 次时也这样算）。', why: 'the 顽固题 thresholds: lib/practice-settings.js keeps failures ≥ 2 and the window ≥ 3' },
+  { key: '最近 {0} 次全部答对后，这个标记就会消失。题目本身也可能有问题：展开这一行，有几个办法。', why: 'the 顽固题 window: lib/practice-settings.js keeps it ≥ 3' },
+  { key: '这一组有 {0} 道题，一次最多 {1} 道：先练前 {1} 道。', why: 'shown only when the group has more questions than a round takes, so far more than one' },
+  { key: '共选了 {0} 道题，一次最多 {1} 道：先练前 {1} 道。', why: 'shown only when more questions are selected than a round takes, so far more than one' },
+];
+/** Elsewhere (settings, converters and installers, the reader's tools, the book planner, coverage diagnostics, agent prompts) counts still plural, by catalogue: a
+    ratchet, each number only shrinks as those screens are touched. Round 8 started at 235 of them (and 106 "noun(s)" everywhere, now none). */
+const LEFT_ELSEWHERE = { 'en.agent.json': 13, 'en.audio-pipeline.json': 1, 'en.audio.json': 7, 'en.book-pick.json': 4, 'en.case.json': 6, 'en.coach.json': 1, 'en.companions.json': 1,
+  'en.course.json': 5, 'en.coverage.json': 34, 'en.custom-plan.json': 6, 'en.custom.json': 5, 'en.delete.json': 1, 'en.exam-prep-settings.json': 2, 'en.exam-prep.json': 3,
+  'en.exam.json': 1, 'en.flow.json': 2, 'en.focus.json': 8, 'en.frequency.json': 2, 'en.generate-short.json': 3, 'en.generation-settings.json': 1, 'en.guided.json': 1,
+  'en.import.json': 3, 'en.jev.json': 2, 'en.json': 2, 'en.largedocs.json': 26, 'en.loop.json': 12, 'en.materials.json': 3, 'en.mineru.json': 14, 'en.original.json': 4,
+  'en.outline.json': 6, 'en.pages.json': 1, 'en.peek.json': 1, 'en.polish-reader.json': 1, 'en.practice.json': 4, 'en.reader.json': 13, 'en.selection.json': 12,
+  'en.shared.json': 8, 'en.shell.json': 1, 'en.tiers.json': 4, 'en.translation.json': 4, 'en.usage.json': 4, 'en.wave5a.json': 2, 'en.web-gemini.json': 1 };
+
+test('3: the gate finds a count with a plural noun anywhere in the value, the whole of a fraction, and no range', () => {
+  assert.deepEqual(countedNouns('Removed {1} unanswered questions on p. {0} and later'), [{ index: 1, noun: 'questions' }]);
+  assert.deepEqual(countedNouns('At about {0} minutes per mark, allow {1} minutes of writing'), [{ index: 0, noun: 'minutes' }, { index: 1, noun: 'minutes' }]);
+  assert.deepEqual(countedNouns('Index built · {0}/{1} pages'), [{ index: 1, noun: 'pages' }], 'the noun of a fraction counts the whole');
+  assert.deepEqual(countedNouns('Window {0} started: pages {1}–{2} ({3} pages)').map(({ index }) => index), [3]);
+  assert.deepEqual(countedNouns('{0} file(s) were not added'), [{ index: 0, noun: 'file(s)' }]);
+  assert.deepEqual(countedNouns('{0} is ready · {1} needs a look'), [], 'a verb after a count is not a plural');
+  const catalogue = { 'k': '{0} questions · about {1} minutes', 'k#one': '{0} question · about {1} minutes' };
+  assert.deepEqual(missingSingulars(catalogue, 'k'), [1, '0,1'], 'each count its singular, and both together');
+});
+
+test('3: no English value writes "noun(s)"', async () => {
+  const { catalogue, fileOf } = await englishCatalogue();
+  assert.deepEqual(Object.entries(catalogue).filter(([, value]) => typeof value === 'string' && /\w\(s\)/.test(value)).map(([key, value]) => `${fileOf[key]}: ${value}`), []);
+});
+
+test('3: on the frequent screens every count with a plural noun has its singular, or is listed with why; elsewhere the number left only shrinks', async () => {
+  const { catalogue, fileOf } = await englishCatalogue();
+  const sources = await uiSources();
+  const usedBy = (key) => sources.filter(({ source }) => source.includes(key)).map(({ file }) => file);
+  const missing = [], elsewhere = {};
+  for (const [key, value] of Object.entries(catalogue)) {
+    if (SINGULAR_KEY.test(key) || typeof value !== 'string' || !missingSingulars(catalogue, key).length) continue;
+    if (usedBy(key).some((file) => FREQUENT.test(file))) { if (!PLURAL_LEFT.some((entry) => entry.key === key)) missing.push(`${fileOf[key]}: ${key} → ${value}`); }
+    else elsewhere[fileOf[key]] = (elsewhere[fileOf[key]] || 0) + 1;
+  }
+  assert.deepEqual(missing, []);
+  for (const entry of PLURAL_LEFT) {
+    assert.ok(Object.hasOwn(catalogue, entry.key), `${entry.key}: still in the catalogue`);
+    assert.ok(missingSingulars(catalogue, entry.key).length, `${entry.key}: has its singulars now, so it leaves the list`);
+    assert.ok(entry.why.length > 15, `${entry.key}: say why`);
+  }
+  for (const [name, count] of Object.entries(elsewhere)) assert.ok(count <= (LEFT_ELSEWHERE[name] ?? 0), `${name}: ${count} plural counts without a singular (at most ${LEFT_ELSEWHERE[name] ?? 0})`);
+  for (const key of Object.keys(catalogue).filter((name) => SINGULAR_KEY.test(name))) {
+    const plural = key.replace(SINGULAR_KEY, '');
+    assert.ok(Object.hasOwn(catalogue, plural), `${key}: the plural it is the singular of`);
+    for (const index of (/#one:([\d,]+)$/.exec(key)?.[1] ?? '0').split(',')) assert.ok(catalogue[key].includes(`{${index}}`), `${key}: says the count {${index}}`);
+  }
+});
+
+test('3: uiFormat and uiRich take the singular of the count that is 1, wherever it stands; "Practise" is the verb', async () => {
+  const { catalogue } = await englishCatalogue();
+  assert.equal(catalogue['重练这 {0} 道错题'], 'Practise these {0} missed questions');
+  assert.equal(catalogue['重练这 {0} 道错题#one'], 'Practise this {0} missed question');
+  const { setUiLanguage, uiFormat, uiRich } = await loadUi("export { setUiLanguage, uiFormat } from './ui/i18n.js'; export { uiRich } from './ui/i18n-rich.jsx';");
+  setUiLanguage('en');
+  try {
+    assert.equal(uiFormat('答错 {0} 次', [1]), 'Missed 1 time', 'the wrong book row');
+    assert.equal(uiFormat('答错 {0} 次', [3]), 'Missed 3 times');
+    assert.equal(uiFormat('已从本轮移出第 {0} 页及之后的 {1} 道未答题，题库中仍保留。', [4, 1]), 'Removed 1 unanswered question on p. 4 and later from this round; it stays in your deck.');
+    assert.equal(uiFormat('{0} 个活跃日 · 累计作答 {1} 次', [1, 1]), '1 active day · 1 attempt in total', 'both counts are 1');
+    assert.equal(uiFormat('{0} 个活跃日 · 累计作答 {1} 次', [2, 1]), '2 active days · 1 attempt in total');
+    assert.equal(uiFormat('{0} 个活跃日 · 累计作答 {1} 次', [1, 5]), '1 active day · 5 attempts in total');
+    assert.equal(uiFormat('{0} 个活跃日 · 累计作答 {1} 次', [3, 5]), '3 active days · 5 attempts in total');
+    const words = (parts) => parts.map((part) => typeof part === 'string' ? part : String(part.props.children.props?.children ?? part.props.children)).join('');
+    assert.equal(words(uiRich('累计作答 {0} 次', React.createElement('b', null, 1))), '1 attempt in total', 'a count inside an element');
+  } finally { setUiLanguage('zh'); }
 });

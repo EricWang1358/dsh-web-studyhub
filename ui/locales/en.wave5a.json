@@ -24,11 +24,16 @@
   "推断归属": "ownership inferred",
   "用于 {0}": "used by {0}",
   "聚焦「{0}」· {1} 个邻居": "Focus “{0}” · {1} neighbours",
+  "聚焦「{0}」· {1} 个邻居#one:1": "Focus “{0}” · {1} neighbour",
   "全部 {0} 组": "All {0} groups",
+  "全部 {0} 组#one": "The {0} group",
   "{0} · {1} 个概念": "{0} · {1} concepts",
+  "{0} · {1} 个概念#one:1": "{0} · {1} concept",
   "练关联的 {0} 题": "Practise the {0} linked questions",
+  "练关联的 {0} 题#one": "Practise the {0} linked question",
   "对比 · {0}": "Compare · {0}",
   "学这一站 · {0} 题": "Study this stop · {0} questions",
+  "学这一站 · {0} 题#one": "Study this stop · {0} question",
   "{0}。错题会记为「薄弱」，学习路径优先出。": "{0}. Wrong answers are recorded as weak, and the learning path serves them first.",
   "· {0} 道题": "· {0} questions"
 }

@@ -11,6 +11,7 @@
   "后台助教按这道题的知识点出一道新题，放进同一题组：约 1 次模型调用。": "The background assistant writes one new question on this question's point into the same deck: about 1 model call.",
   "生成一道变式": "Write a variant",
   "用自己的话讲过 {0} 次，其中 {1} 次 AI 认为讲清楚了。": "Explained in your own words {0} times; {1} of them clear, according to the AI.",
+  "用自己的话讲过 {0} 次，其中 {1} 次 AI 认为讲清楚了。#one": "Explained in your own words {0} time; {1} of them clear, according to the AI.",
   "讲清楚过": "Explained clearly",
   "这次没有拿到 AI 的反馈，写的内容还在，可以再试一次。": "No AI feedback this time. What you wrote is still here; try again.",
   "用自己的话讲一遍": "Explain it in your own words",
