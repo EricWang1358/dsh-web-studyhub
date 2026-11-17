@@ -43,7 +43,6 @@ async function* cssFiles(dir) {
     skeleton station's 「学这一站 · 3 题→」 had 0px between the words and the arrow and sat 2.5px high. Listed: the ones whose icon keeps its own margin, and why. */
 const DISPLAY_OK = [
   { selector: '.book-file li .book-link', why: 'a link that is the text of a list item runs on like text; its icon carries its own margin (.book-link > svg)' },
-  { selector: '.citations .citations__button', why: 'a citation card: the source title and its quote are a block, and the icon heads the card on a line of its own' },
 ];
 
 test('4: no stylesheet gives a Button that draws an icon display: block / inline / inline-block, which drops the gap between the icon and the words', async () => {

@@ -36,8 +36,9 @@
       gap: var(--space-1-5) var(--space-2);
       margin-top: var(--space-3);
     }
+    /* The card is a Button like any other (inline-flex, its gap before the →): the source and its quote are one block, and the → sits after it on the source's
+       line (sh-btn--lines). */
     .citations .citations__button {
-      display: block;
       flex: 1 1 16rem;
       min-width: 0;
       width: auto;
@@ -47,6 +48,7 @@
       font-size: var(--fs-md);
       color: var(--text-dim);
     }
+    .citations .citations__button > span { flex: 0 1 auto; min-width: 0; }
     .citations .citations__peek {
       flex: none;
       margin-top: var(--space-1-5);

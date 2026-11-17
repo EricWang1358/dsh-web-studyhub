@@ -28,7 +28,7 @@ export function QaList({ items, onCard, onSource, book = null, onBookChanged, he
           <Disclosure summary={<span className="book-qa__question"><Badge size="sm">{(KIND[item.kind] || KIND.card)()}</Badge> {plainPrompt(item.question)}</span>}>
             <Markdown text={item.answer} />
             {item.kind === 'passage'
-              ? onSource && <Button variant="link" size="sm" icon="external" onClick={() => onSource(item.openRef.sourceId, item.openRef.quote)}>{ui('看原文')}</Button>
+              ? onSource && <Button variant="link" size="sm" iconEnd="arrow-right" onClick={() => onSource(item.openRef.sourceId, item.openRef.quote)}>{ui('看原文')}</Button>
               : <Button variant="link" size="sm" iconEnd={here ? undefined : 'arrow-right'} onClick={() => onCard(item.openRef)}>{here ? ui('在这里做这道题') : ui('去练这道题')}</Button>}
             {item.kind === 'card' && item.followupId && book?.ready && <BookQaButton refOf={{ ...item.openRef, followupId: item.followupId }} book={book} onChanged={onBookChanged} />}
           </Disclosure>

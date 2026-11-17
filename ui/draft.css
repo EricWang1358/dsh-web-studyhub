@@ -288,12 +288,19 @@
     .draft-card { margin: var(--space-2) 0; padding: var(--space-2-5) var(--space-4); }
     /* The page's toasts stand above the bar, not behind it (the bar is 60 to 90px high, and the rail's bottom edge is below the bar's). */
     main:has([data-draft-bar]) { --sh-toast-offset: calc(var(--space-9) * 2); }
+    /* The source and its quote are one block; the → after it sits on the source's line (sh-btn--lines), like the citation card of a question. */
     .draft-citation-preview {
-      flex-direction: column;
-      align-items: flex-start;
+      justify-content: flex-start;
       height: auto;
       text-align: left;
       white-space: normal;
+    }
+    .draft-citation-text {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--space-2);
+      min-width: 0;
     }
     .draft-citation-quote {
       display: block;

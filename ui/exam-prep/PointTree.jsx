@@ -23,7 +23,7 @@ function Places({ point, onOpenSource }) {
           <span className="exam-prep-place__where">{placeLabel(place)}</span>
           <q className="exam-prep-place__quote">{place.quote}</q>
           <Explain k={place.kind === 'paper' ? 'peek.paper' : 'peek'}>
-            <Button variant="quiet" size="sm" icon="external" data-usage="examprep.peek" onClick={() => onOpenSource(place.sourceId, place.quote)}>
+            <Button variant="quiet" size="sm" iconEnd="arrow-right" data-usage="examprep.peek" onClick={() => onOpenSource(place.sourceId, place.quote)}>
               {place.kind === 'paper' ? ui('看原题') : ui('看原页')}
             </Button>
           </Explain>

@@ -2,7 +2,7 @@ import { ui, uiFormat } from "./i18n.js";
 import { uiRich } from "./i18n-rich.jsx";
 import React from "react";
 import { flushSync } from "react-dom";
-import { Banner, Button, ChunkedRows, Disclosure, Hint, Icon, InlineMessage, LoadingState, PageHeader, Panel, Select, useToast } from "./components/index.js";
+import { Banner, Button, ChunkedRows, Disclosure, Hint, InlineMessage, LoadingState, PageHeader, Panel, Select, useToast } from "./components/index.js";
 import { formatNumber } from "./format.js";
 import { isActiveJob, isCancellable } from "./job-visibility.js";
 import { JOB_STATUS, JOB_TYPES } from "../lib/job-status.js";
@@ -541,7 +541,8 @@ export default function Draft({
                       />
                     </label>
                     <Button
-                      className="draft-citation-preview"
+                      className="draft-citation-preview sh-btn--lines"
+                      iconEnd="arrow-right"
                       onClick={() =>
                         setModal({
                           type: "source",
@@ -552,12 +553,13 @@ export default function Draft({
                         })
                       }
                     >
-                      <span>
-                        <Icon name="external" className="sh-icon--inline sh-icon--lead" />
-                        {data.sources.find((s) => s.id === c.sourceId)
-                          ?.title || ui("原文")}
+                      <span className="draft-citation-text">
+                        <span>
+                          {data.sources.find((s) => s.id === c.sourceId)
+                            ?.title || ui("原文")}
+                        </span>
+                        {c.quote && <span className="draft-citation-quote">{c.quote}</span>}
                       </span>
-                      {c.quote && <span className="draft-citation-quote">{c.quote}</span>}
                     </Button>
                     <Button variant="danger"
                       onClick={() => patchCard(i, "citations", q.citations.filter((_, index) => index !== j))}>{ui("删除这条引用")}</Button>

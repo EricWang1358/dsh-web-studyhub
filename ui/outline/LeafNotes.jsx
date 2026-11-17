@@ -71,7 +71,7 @@ export default function LeafNotes({ notes, modelReady = true, onOpenSource, onRe
       {[notes.bridge?.out, notes.bridge?.wrap].filter(Boolean).map(text => <p key={text} className="outline-notes__bridge">{text}</p>)}
       {body?.cites.length > 0 && <ol className="outline-notes__cites" aria-label={ui('出处')}>
         {body.cites.map(item => <li key={item.n} className="outline-notes__cite">
-          {onOpenSource ? <Button variant="link" size="sm" wrap icon="external" onClick={() => onOpenSource(item.sourceId, item.quote)}>{citeText(item)}</Button>
+          {onOpenSource ? <Button variant="link" size="sm" wrap iconEnd="arrow-right" iconEndClassName="sh-icon--inline sh-icon--trail" onClick={() => onOpenSource(item.sourceId, item.quote)}>{citeText(item)}</Button>
             : <span>{citeText(item)}</span>}
           {item.title && <small className="outline-notes__source">{displayTitle(item.title)}</small>}
         </li>)}
