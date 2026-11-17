@@ -46,30 +46,30 @@
     .source-picker__index { grid-column: 3; justify-self: end; display: flex; align-items: center; justify-content: flex-end; height: calc(var(--fs-sm) * var(--lh-snug)); }
     .source-picker__index[data-index-slot="held"] { width: var(--picker-index-slot); }
     .source-picker__index[data-index-slot="none"] { display: none; }
-    /* Round 8: in a picker that shows badges (Generate) the badges' column is the same width on every row, coming, with a badge and without, so the names
-       on the facts line have the same room whatever the answer: it lands and no name comes or goes. A row without a badge lends that column to its first
-       piece only (the format, the size and the notes), never to the names. */
+    /* Round 8: in a picker that shows badges (Generate) the badges' column is the same width on every row, coming, with a badge and without, so the facts
+       line has the same room whatever the answer: it lands and nothing on the line comes, goes or is cut otherwise. A row without a badge lends that column
+       to nothing (round 8 review: a size said whole while the answer is coming stays so). */
     .source-picker--index .source-picker__index { width: var(--picker-index-slot); }
     .source-picker--index .source-picker__index[data-index-slot="none"] { display: flex; }
-    .source-picker__row.is-unbadged .source-picker__fact--lead { max-width: calc(100% + var(--picker-index-slot) + var(--space-3)); }
     .source-picker__index .index-badge-compact { max-width: 100%; }
     .source-picker__text .source-picker__partial { color: var(--accent-text); }
-    /* The first piece (format, size, notes) keeps its size and is only ever cut at the line's width (a 320 px line), with 「…」; the names after it keep their
-       size too, and the first that does not fit goes on to the hidden line with all after it. The shortened course ends on a word: each part after its first
-       is one unbreakable box with its own 「·」 (.source-picker__part), so 「…」 never follows a bare 「·」 (round 8). */
+    /* The first piece (format, size, notes) keeps its size and is cut, in its own words with 「…」, only at the line's width or where the names the list
+       decided on take the rest of the line (below). The first name after it keeps its size; a course longer than six characters (.source-picker__fact--short,
+       or the Tooltip's anchor that takes its place while it is cut) is 6em at least (its own width where that is less, half the line on a line too short
+       for both: the first piece keeps the other half, its format and the start of its size) and grows to its whole width before
+       anything after it: it ends on a word, each part after its first being one unbreakable box with its own 「·」 (.source-picker__part), so 「…」 never
+       follows a bare 「·」 (round 8). The names after it are one group that takes what is left: each said whole or on the group's hidden line. */
     .source-picker__fact { flex: none; max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
     .source-picker__part { display: inline-block; white-space: pre; }
-    /* The first course after them that the scope does not name (round 7) and the names after it are one group (round 8). The group takes the room left on
-       the line, 6em at least (or the names' own width where that is less), so with less room than that it goes whole on to the hidden line. Inside it the
-       first course takes the room: said whole, or cut with 「…」 (「· 分布式系统…」, its whole name in the shared Tooltip on hover), and then the names after
-       it go on to the group's hidden line; they follow it only where it is whole and they fit whole. */
-    .source-picker__names { flex: 1 1 6em; min-width: 0; max-width: max-content; display: flex; flex-wrap: wrap; column-gap: 0.3em;
-      height: calc(var(--fs-sm) * var(--lh-snug)); overflow: hidden; }
-    .source-picker__fact-anchor { flex: 0 1 auto; min-width: 0; }
-    .source-picker__fact-anchor > .source-picker__fact--short { flex: 0 1 auto; }
-    /* Which names a row shows is the list's one decision (ui/picker-names.js), so a run of rows reads the same: the first name on every row or on none, the
-       names after it likewise. A name left out is hidden in place. */
-    .source-picker[data-names="none"] [data-name], .source-picker[data-names="first"] [data-name="rest"] { visibility: hidden; }
+    .source-picker__fact--short, .source-picker__fact-anchor { flex: 1000 0 auto; width: min(6em, 50%); max-width: max-content; min-width: 0; }
+    .source-picker__fact-anchor > .source-picker__fact--short { flex: 0 1 auto; width: auto; max-width: 100%; }
+    .source-picker__names { flex: 1 0 0; min-width: 0; display: flex; flex-wrap: wrap; column-gap: 0.3em; height: calc(var(--fs-sm) * var(--lh-snug)); overflow: hidden; }
+    /* Which names a row shows is the list's one decision for the scope (ui/picker-names.js), so a run of rows reads the same and scrolling changes none. Where
+       the rows show their first name the line does not wrap: the name keeps its room and the first piece gives way (in 全部课程, the row's course on every
+       row). A name left out is see-through in place, not hidden, so the checkbox's name (the facts line's words) still says every course. */
+    .source-picker:is([data-names="first"], [data-names="all"]) .source-picker__facts { flex-wrap: nowrap; }
+    .source-picker:is([data-names="first"], [data-names="all"]) .source-picker__fact--lead { flex: 0 1 auto; }
+    .source-picker[data-names="none"] [data-name], .source-picker[data-names="first"] [data-name="rest"] { opacity: 0; pointer-events: none; }
     /* 选择页面 ends a wide row's title line, as tall as that line in the grid (its box hangs into the row's padding), so it makes no row taller. */
     .source-picker__expand { grid-column: 3; grid-row: 1; justify-self: end;
       margin-block: calc((var(--fs-md) * var(--lh-snug) - var(--picker-expand-h)) / 2); }

@@ -153,13 +153,27 @@ const parted = text => {
   return <>{head}{tail.map((part, at) => <span key={at} className="source-picker__part">{` · ${part}`}</span>)}</>;
 };
 
-/* The first course on a row, shortened where its row is short of room (ui/source-picker.css): its whole name is in the shared Tooltip only while it is
-   cut (measured with the shared observer of ui/use-cut.js); a name said whole has no card (round 8). The anchor stays either way. */
+/* The first course on a row, shortened where its row is short of room (ui/source-picker.css): only while it is cut (measured with the shared observer of
+   ui/use-cut.js) is it wrapped in the shared Tooltip with its whole name; a name said whole is one element and has no card (round 8 review, #565). The
+   anchor takes the name's place in the line (the same size), so the name is cut the same with it and without. */
 function CourseName({ name }) {
   const ref = useRef(null), cut = useCut(ref, name);
-  return <Tooltip layer group="index-badge" anchorClassName="source-picker__fact-anchor" content={cut ? name : ''}>
-    <span ref={ref} className="source-picker__fact source-picker__fact--name source-picker__fact--short">{parted(`· ${name}`)}</span>
-  </Tooltip>;
+  const said = <span ref={ref} className="source-picker__fact source-picker__fact--name source-picker__fact--short" data-name="first">{parted(`· ${name}`)}</span>;
+  return cut ? <Tooltip layer group="index-badge" anchorClassName="source-picker__fact-anchor" content={name}>{said}</Tooltip> : said;
+}
+
+/**
+ * The words of a row's facts line (#1084): the format, the size and the notes as one piece (`lead`); then the names. The course 课程范围 names is said once,
+ * above the list, not again here; another course the material is in comes `first` (`shortened`: it is long enough to be shortened with 「…」), then the
+ * names after it (`later`: more courses, the file it comes from). Shared by the row and the list's one decision on which names the rows show
+ * (ui/picker-names.js), which reads every document in the scope, drawn or not.
+ */
+export function rowNames(item, scope, relation) {
+  const related = relationNote(relation);
+  const lead = [sourceFormatLabel(item), uiFormat('{0} 字符', [formatNumber(item.chars)]), ...documentNotes(item), item.coursesInferred ? ui('推断归属') : ''].filter(Boolean).join(' · ');
+  const courses = item.courses.length ? item.courses.filter(course => course !== scope) : scope === '' ? [] : [ui('未分类')];
+  const [first = '', ...later] = [...courses, related].filter(Boolean);
+  return { lead, first, later, shortened: courses.length > 0 && [...courses[0]].length > SHORTEST_NAME };
 }
 
 /* The index badge's slot is at the end of the facts line, after the facts in the DOM (the checkbox's name reads title, facts, badge). While the index answer is
@@ -168,8 +182,8 @@ function CourseName({ name }) {
    either way, so no row changes height. The title has the whole column. The slot is in the row's last column, under 选择页面 where a wide row has it, so
    every badge ends at the row's end: one column of badges (ui/source-picker.css). The badge is no Tab stop of its own: the row's checkbox opens its hover
    while it has the keyboard focus. Round 8: in a picker that shows badges (`indexColumn`) that column is the same width on every row, coming, with a badge
-   and without, so the names on the facts line have the same room whatever the answer; on a row without a badge the format, the size and the notes may
-   still run on under it. */
+   and without, so the facts line has the same room whatever the answer (round 8 review: a row without a badge lends it to nothing, so a size said while
+   the answer is coming is said the same once it is in). */
 const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled, defaultOpen = false, indexInfo = null, indexPending = false, canIndex, relation = null, scope = '*', indexColumn = false }) {
   const [open, setOpen] = useState(defaultOpen), [pagesOpen, setPagesOpen] = useState(false), [focused, setFocused] = useState(false);
   const listId = useId(), chaptersId = useId(), nameId = useId();
@@ -178,21 +192,17 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
   const chosen = new Set(selected);
   const multi = item.pages.length > 1;
   const picked = item.sourceIds.filter(id => chosen.has(id)).length;
-  // Materials made from one original file say so (#207): "派生自 <file>" on a text version, "另有 2 份派生资料" on the file.
-  const related = relationNote(relation), name = displayTitle(item.title);
-  // The facts, one line (#1084): the format, the size and the notes first, as one piece kept whole; then the names, by one rule on every row (round 7): the
-  // course 课程范围 names is said once, above the list, not again here; another course the material is in comes first, said whole or, short of room, shortened
-  // to its first words with 「…」 and its whole name on hover; the names after it (more courses, the file it comes from) are said whole or left out whole with
-  // their 「·」, and only while the first is whole (round 8: the first takes the room). Which names a row shows is then the list's one decision
-  // (ui/picker-names.js): a run of rows reads the same.
-  const facts = [sourceFormatLabel(item), uiFormat('{0} 字符', [formatNumber(item.chars)]), ...documentNotes(item), item.coursesInferred ? ui('推断归属') : ''].filter(Boolean);
-  const courses = item.courses.length ? item.courses.filter(course => course !== scope) : scope === '' ? [] : [ui('未分类')];
-  const [first, ...later] = [...courses, related].filter(Boolean), shortened = courses.length > 0 && [...courses[0]].length > SHORTEST_NAME;
+  const name = displayTitle(item.title);
+  // The facts, one line (#1084, rowNames): the format, the size and the notes; then the names. Materials made from one original file say so (#207):
+  // "派生自 <file>" on a text version, "另有 2 份派生资料" on the file. The first name is said whole or, short of room, shortened to its first words with 「…」
+  // and its whole name on hover; the names after it are said whole or left out whole with their 「·」, and only while the first is whole (round 8: the first
+  // takes the room). Which names a row shows is the list's one decision (ui/picker-names.js): a run of rows reads the same. Every name stays in the words
+  // the checkbox's name reads, shown or not.
+  const { lead, first, later, shortened } = rowNames(item, scope, relation);
   const slot = indexInfo ? 'badge' : indexPending ? 'held' : 'none';
-  const after = later.map((name, at) => <React.Fragment key={at}>{' '}<span className="source-picker__fact source-picker__fact--name" data-name="rest">{`· ${name}`}</span></React.Fragment>);
   return (
     <div className={`source-picker__item${state !== 'none' ? ' is-selected' : ''}`} data-document-key={item.key}>
-      <div className={`source-picker__row${multi ? ' has-expand' : ''}${slot !== 'none' || indexColumn ? ' has-index' : ''}${indexColumn && slot === 'none' ? ' is-unbadged' : ''}`}>
+      <div className={`source-picker__row${multi ? ' has-expand' : ''}${slot !== 'none' || indexColumn ? ' has-index' : ''}`}>
         <label className="source-picker__doc">
           {/* Its name is what the row says (title, facts, the badge's word, the pages picked), not the badge's card: the card is held open while the box has the
               keyboard focus, and a card inside the label would join the name. The card is the box's description. */}
@@ -203,10 +213,10 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
             onChange={event => { const on = event.target.checked; apply(current => toggleDocument(current, item, on)); }} />
           <span className="source-picker__text">
             <strong id={`${nameId}-t`} title={item.title}>{name}</strong>
-            <small id={`${nameId}-f`} className="source-picker__facts"><span className="source-picker__fact source-picker__fact--lead">{facts.join(' · ')}</span>
-              {first && ' '}{first && (shortened
-                ? <span className="source-picker__names" data-name="first"><CourseName name={first} />{after}</span>
-                : <><span className="source-picker__fact source-picker__fact--name" data-name="first">{`· ${first}`}</span>{after}</>)}</small>
+            <small id={`${nameId}-f`} className="source-picker__facts"><span className="source-picker__fact source-picker__fact--lead">{lead}</span>
+              {first && ' '}{first && (shortened ? <CourseName name={first} /> : <span className="source-picker__fact source-picker__fact--name" data-name="first">{`· ${first}`}</span>)}
+              {later.length > 0 && <>{' '}<span className="source-picker__names">{later.map((other, at) => <React.Fragment key={at}>{at > 0 && ' '}<span
+                className="source-picker__fact source-picker__fact--name" data-name="rest">{`· ${other}`}</span></React.Fragment>)}</span></>}</small>
             <span className="source-picker__index" data-index-slot={slot}>{indexInfo && <IndexBadge compact info={indexInfo} coverage={{ canIndex }} open={focused} wordId={`${nameId}-w`} tipId={`${nameId}-c`} />}</span>
             {state === 'some' && <small id={`${nameId}-p`} className="source-picker__partial">{uiFormat('已选 {0} / {1} 页', [picked, item.sourceIds.length])}</small>}
           </span>
@@ -305,8 +315,12 @@ export default function SourcePicker({ sources = [], selected = [], onChange, co
   const goIndex = useCallback(course => latest.current.onIndex?.(course), []);
   const gap = useMemo(() => (onIndex ? indexGap(visible.map(item => ({ item, info: infos.get(item.key) }))) : null), [onIndex, visible, infos]);
   const relations = useMemo(() => materialRelations(items), [items]);
-  // The rows show the names the whole list can hold (ui/picker-names.js); a picker that shows index badges keeps their column on every row.
-  useNamesFit(root, visible);
+  // The rows show the names every document in the scope has room for (ui/picker-names.js); a picker that shows index badges keeps their column on every row.
+  const nameRows = useMemo(() => visible.map(item => {
+    const { lead, first, later, shortened } = rowNames(item, scope, relations.get(item.key) ?? null);
+    return { lead, first: first && `· ${first}`, later: later.map(name => `· ${name}`), shortened, multi: item.pages.length > 1 };
+  }), [visible, scope, relations]);
+  useNamesFit(root, nameRows, scope === '*');
   const indexColumn = !!onIndex || indexPending || !!indexCoverage;
   if (!items.length) return (
     <div ref={root} className={`source-picker${className ? ` ${className}` : ''}`} {...rest}>
