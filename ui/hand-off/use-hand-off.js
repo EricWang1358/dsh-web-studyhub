@@ -90,7 +90,7 @@ export async function deliverToChat({ host, prompt, said = '', picture, notify =
     if (filled) host?.noteInChat?.(line);
   }
   // 去主会话 only where the host can show the chat (the top-level page covers it)
-  const toChat = typeof host?.showChat === 'function' ? { label: ui(HAND_OFF_RECEIPTS.kept.action), run: () => host.showChat() } : null;
+  const toChat = typeof host?.showChat === 'function' ? { label: ui(HAND_OFF_RECEIPTS.kept.action), icon: 'external', run: () => host.showChat() } : null;
   if (filled) { notify(handOffReceipt('filled', { lead, action: toChat })); return 'filled'; }
   const look = mode => () => { notify(''); openSheet?.({ text, mode, lead }); };
   try {

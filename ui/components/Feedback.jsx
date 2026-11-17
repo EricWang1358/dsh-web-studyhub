@@ -44,7 +44,7 @@ export function Toast({ tone, title, children, action, secondary, onDismiss, dis
         {title && <strong className="sh-toast__title">{title}</strong>}
         <span className="sh-toast__message">{children}</span>
       </div>
-      {action && <Button variant={receipt ? 'quiet' : 'link'} size="sm" className="sh-toast__action" iconEnd={action.iconEnd} disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>}
+      {action && <Button variant={receipt ? 'quiet' : 'link'} size="sm" className="sh-toast__action" icon={action.icon} iconEnd={action.iconEnd} disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>}
       {secondary && <Button variant="link" size="sm" className="sh-toast__action sh-toast__secondary" icon={secondary.icon} iconEnd={secondary.iconEnd} disabled={secondary.disabled} onClick={secondary.onClick}>{secondary.label}</Button>}
       {onDismiss && <IconButton icon="close" size="sm" className="sh-toast__close" label={dismissText || dismissLabel(kind)} onClick={onDismiss} />}
       {timerRef && <span ref={timerRef} className="sh-toast__timer" aria-hidden="true" />}
@@ -246,8 +246,8 @@ export function createToastApi({ setNotice, setError }) {
   const show = ({ tone = 'info', message, action, secondary, persistent, undo, timeout, scope, onLeave }) => setNotice({
     text: message, tone,
     ...(persistent ? { persistent } : {}), ...(undo ? { undo } : {}), ...(timeout ? { timeout } : {}), ...(scope !== undefined ? { scope } : {}),
-    ...(action ? { action: { label: action.label, run: action.run ?? action.onClick, ...(action.iconEnd ? { iconEnd: action.iconEnd } : {}) } } : {}),
-    ...(secondary ? { secondary: { label: secondary.label, run: secondary.run ?? secondary.onClick } } : {}),
+    ...(action ? { action: { label: action.label, run: action.run ?? action.onClick, ...(action.icon ? { icon: action.icon } : {}), ...(action.iconEnd ? { iconEnd: action.iconEnd } : {}) } } : {}),
+    ...(secondary ? { secondary: { label: secondary.label, run: secondary.run ?? secondary.onClick, ...(secondary.icon ? { icon: secondary.icon } : {}) } } : {}),
     ...(onLeave ? { onLeave } : {}),
   });
   const withTone = kind => (message, options = {}) => show({ tone: kind, message, ...options });
