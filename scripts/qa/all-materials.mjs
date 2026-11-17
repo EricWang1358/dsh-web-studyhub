@@ -59,10 +59,10 @@ export async function runAllMaterialsQa(options) {
         await page.getByRole("button", { name: /选择当前范围|Select this scope/ }).first().click();
         const want = (await call("usage.estimate", { feature: "generate", sourceIds: ids, coverageLevel: "standard" })).coverage.materials;
         assert.deepEqual([want.selected, want.planned], [8, 8]);
-        const line = await until("[data-generate-estimate] [data-coverage-materials]", (value) => value.length > 0, "the materials line");
+        const line = await until("[data-generate-coverage] [data-coverage-materials]", (value) => value.length > 0, "the materials line");
         facts.formLine = line;
         assert.equal(line, zh ? "选了 8 份资料，每份都会出题。" : "8 materials selected; each of them will get questions.");
-        await page.locator("[data-generate-estimate]").scrollIntoViewIfNeeded();
+        await page.locator("[data-generate-coverage]").scrollIntoViewIfNeeded();
         await noOverflow("the create form");
       });
       await step("create-form-raised-count", async () => {

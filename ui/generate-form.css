@@ -71,6 +71,10 @@
     .generate-role { min-width: 0; }
     /* ── Summary above the one primary button ─────────────────────────────── */
     .generate-summary { margin: 0; color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-medium); line-height: var(--lh-snug); font-variant-numeric: tabular-nums; }
+    /* In the bar of 创建题组 (one line, ui/generate-home.css) the count is whole pieces (「·」 between them): a line too narrow for all of them shows the first
+       ones and leaves the rest on the hidden next line, never half a word (#1082); a screen reader hears them all. */
+    .generate-page .generate-submit__lines > .generate-summary { white-space: normal; }
+    .generate-page .generate-summary__piece { display: inline-block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; vertical-align: top; }
   }
   @container study (max-width: 640px) {
     :is(.study-app, .study-seat) {

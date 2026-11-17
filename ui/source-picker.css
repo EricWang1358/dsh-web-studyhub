@@ -3,7 +3,8 @@
 @layer study.features {
   :is(.study-app, .study-seat) {
     /* SourcePicker (WP3): one row per document, pages on demand. Tokens only. */
-    .source-picker { display: grid; gap: var(--space-3); min-width: 0; }
+    /* One column the width of the page: a part wider than a 320 px page (the scope's row) does not widen the list with it (#1082). */
+    .source-picker { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); min-width: 0; }
     .source-picker__bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-3); }
     .source-picker__count { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); }
     .source-picker__actions { display: flex; flex-wrap: wrap; gap: var(--space-1); }
@@ -16,19 +17,36 @@
     /* A ticked row is the selection colour with a neutral tick: the accent stays on the one primary button (ui/DESIGN.md, #658). */
     .source-picker__item.is-selected { background: var(--bg-selected); }
     .source-picker .source-picker__check:is(:checked, :indeterminate) { border-color: var(--text); background: var(--text); color: var(--bg-surface); }
-    .source-picker__row { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4); }
-    .source-picker__doc { display: flex; flex-direction: row; align-items: flex-start; gap: var(--space-3); flex: 1; min-width: 0; margin: 0; cursor: pointer; }
-    .source-picker .source-picker__check { margin: var(--space-1) 0 0; }
-    .source-picker__text { display: grid; gap: var(--space-half); min-width: 0; }
-    .source-picker__text strong { color: var(--text); font-weight: var(--fw-medium); overflow-wrap: anywhere; line-height: var(--lh-snug); }
-    .source-picker__text small { color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; word-break: keep-all; }
-    /* The index badge ends the title line, in a slot of its own width whether or not the coverage has arrived: the title wraps in the same width either way and the badge has no line of its own, so its answer moves nothing (#205). */
-    .source-picker__head { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
-    .source-picker__head > strong { flex: 0 1 auto; min-width: 0; }
-    .source-picker__index { display: inline-flex; align-items: center; justify-content: flex-end; flex: none; width: 6.5rem; height: calc(var(--fs-md) * var(--lh-snug)); margin-inline-start: auto; }
+    /* A row is one grid (#1084, round 4): the checkbox; the title on the first line, with the whole width (on a wide row 选择页面 ends that line where the
+       document has pages); the facts on the next, then the index badge's slot in the last column. The label and the text lend their parts to the grid
+       (display: contents), so a click on any of them still ticks the row. The title, the facts, the slot and the partial line take the rows in DOM order;
+       only the checkbox and a wide row's 选择页面 are placed. */
+    /* --picker-index-slot holds the widest compact badge uncut (「部分索引」 80px, "Not built" 82px at the default sizes). */
+    .source-picker__row { --picker-index-slot: calc(var(--fs-xs) * 7); --picker-expand-h: var(--control-h-sm, 32px); display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: var(--space-half) var(--space-3);
+      padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4); }
+    .source-picker__doc { display: contents; cursor: pointer; }
+    .source-picker__text { display: contents; }
+    .source-picker .source-picker__check { grid-column: 1; grid-row: 1 / span 2; margin: var(--space-1) 0 0; }
+    .source-picker__text strong { grid-column: 2 / -1; min-width: 0; color: var(--text); font-weight: var(--fw-medium); overflow-wrap: anywhere; line-height: var(--lh-snug); }
+    .source-picker__text small { grid-column: 2 / -1; min-width: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; word-break: keep-all; }
+    /* The facts are one line at every width (#1084, round 4): the format, the size and the notes keep their words; the names after them (courses, the file a
+       material comes from) give way where the line is short of room and end in 「…」 (the course is the scope's above the list). Nothing wraps,
+       so a short row is one title line and one line of facts at 420 as at 1440. */
+    .source-picker__text .source-picker__facts { grid-column: 2; display: flex; column-gap: 0.3em; overflow: hidden; white-space: nowrap; }
+    /* The slot: a fixed box at the end of the facts' first line, the height of that line, on every row whatever the answer, so a badge filling it moves
+       nothing and an empty one is only the end of that line. It ends at the row's end on every row (justify-self: end in the last column, which a wide row
+       shares with 选择页面), so the badges stand in one column; the badge's middle is the facts' first line's middle. */
+    .source-picker__index { grid-column: 3; justify-self: end; display: flex; align-items: center; justify-content: flex-end; width: var(--picker-index-slot); height: calc(var(--fs-sm) * var(--lh-snug)); }
     .source-picker__index .index-badge-compact { max-width: 100%; }
     .source-picker__text .source-picker__partial { color: var(--accent-text); }
-    .source-picker__expand { flex: 0 0 auto; }
+    /* The first piece (format, size, notes) keeps its size and is only ever cut at the line's width (a 320 px line), with 「…」; the names after it take what is
+       left, down to nothing, and end in 「…」. */
+    .source-picker__fact { flex: none; max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    .source-picker__fact--name { flex: 0 1 auto; }
+    /* 选择页面 ends a wide row's title line, as tall as that line in the grid (its box hangs into the row's padding), so it makes no row taller. */
+    .source-picker__expand { grid-column: 3; grid-row: 1; justify-self: end;
+      margin-block: calc((var(--fs-md) * var(--lh-snug) - var(--picker-expand-h)) / 2); }
+    .source-picker__row.has-expand .source-picker__text strong { grid-column: 2; }
     .source-picker__expand .source-picker__chevron { transition: transform 0.18s var(--ease); }
     .source-picker__expand[aria-expanded="true"] .source-picker__chevron { transform: rotate(90deg); }
     .source-picker__pages { list-style: none; margin: 0; padding: 0 var(--space-3) var(--space-3) calc(var(--space-4) + var(--space-6-5)); display: grid; gap: var(--space-half); }
@@ -37,6 +55,15 @@
     .source-picker__pages > li > *:hover { background: var(--bg-hover); }
     .source-picker__pages small { margin-left: auto; color: var(--text-muted); font-size: var(--fs-sm); white-space: nowrap; }
     .source-picker__add { justify-self: start; }
+    /* Under the list: 添加资料 and the index line on one line, whatever the answer (the line ends in 「…」 where it is short of room; its link keeps its words). */
+    .source-picker__foot { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+    .source-picker__foot > .source-picker__add { flex: none; }
+    .source-picker__foot [data-index-gap] { flex: 0 1 auto; flex-wrap: nowrap; min-width: 0; white-space: nowrap; }
+    .source-picker__foot [data-index-gap] > :first-child { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    .source-picker__foot [data-index-gap] > :not(:first-child) { flex: none; }
+    /* The rows a window shows at first are laid out in its first frame (the rest wait until they scroll near): the window has its final height at once
+       and what is under it never moves (#1084). It shows about six rows, so eight cover it at every width. */
+    .source-picker__entry:nth-child(-n + 8) { content-visibility: visible; }
     /* Chapters of a converted book (WP28): the list is bounded, a book can have hundreds. */
     .source-picker__chapters { display: grid; gap: var(--space-2); justify-items: start; padding: 0 var(--space-3) var(--space-3) calc(var(--space-4) + var(--space-6-5)); }
     .source-picker__chapter-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-half); width: 100%; max-height: 320px; overflow: auto; }
@@ -47,12 +74,11 @@
   }
   @container study (max-width: 520px) {
     :is(.study-app, .study-seat) {
-      /* A narrow row gives the title the whole width: 选择页面 follows the facts on a line of its own (#1084), so the badge keeps its word (a touch
-         screen has no hover to explain a lone mark) and a long title still has room beside it. */
-      .source-picker__row { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: var(--space-1) var(--space-3); padding: var(--space-3); }
-      .source-picker__doc { display: contents; }
-      .source-picker__text { cursor: pointer; }
-      .source-picker__expand { grid-column: 2; justify-self: start; margin-inline-start: calc((var(--sh-btn-px) + var(--hairline)) * -1); }
+      /* A narrow row (#1084): the title has the whole column on every row; the facts and the badge's slot follow it; 选择页面 is under them, at the start of
+         the text column, so the eye and Tab meet the badge before it. */
+      .source-picker__row { padding: var(--space-3); }
+      .source-picker__row.has-expand .source-picker__text strong { grid-column: 2 / -1; }
+      .source-picker__expand { grid-column: 2 / -1; grid-row: auto; justify-self: start; margin-block: 0; margin-inline-start: calc((var(--sh-btn-px) + var(--hairline)) * -1); }
       .source-picker__pages { padding-left: var(--space-6); }
     }
   }

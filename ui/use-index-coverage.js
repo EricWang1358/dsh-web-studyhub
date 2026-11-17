@@ -8,7 +8,7 @@ import { usePolling } from "./use-polling.js";
 const POLL_MS = 3000;
 
 /* Third value, `status`: "loading" until the first answer, "ready" once there is one, "unavailable" when the first read failed or `call` is missing.
-   A list that shows a badge per row keeps the badge's line while it is "loading" or "ready" (#205), so the answer changes no row height. */
+   A list that shows a badge per row keeps a slot for it on every row (ui/SourcePicker.jsx), so the answer, whenever it comes, changes no row height. */
 export default function useIndexCoverage(call, { enabled = true } = {}) {
   const app = useContext(AppContext);
   const active = enabled && hasContext(app?.data, "generation");

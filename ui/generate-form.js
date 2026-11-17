@@ -249,8 +249,20 @@ export function kindNote(list, count, kindCounts) {
 
 export const languageLabel = (value) => LANGUAGES.find((item) => item.value === value)?.label || String(value || '');
 
-/** The sentence above the submit button: what will be made, from what, and about how long it takes. `count` is the number of questions the plan makes (the estimate's goal); without it the sentence leaves the number out. */
-export function summaryLine({ materials = 0, pages = 0, count = null, difficulty = 'mixed', language = '中文', minutes = null } = {}) {
+/** The choices of 更多选项 a run will use that are not the plain defaults (`plain`: generationFormDefaults() with no saved preferences), as their labels in the
+ *  form's order: difficulty, language, formula style. What 更多选项 says while it is shut, so a run is never started in English or at a hard level unseen (#1082). */
+export function chosenOptions(gen = {}, plain = {}) {
+  const label = (list, value) => list.find((item) => item.value === value)?.label || '';
+  return [
+    gen.difficulty && gen.difficulty !== (plain.difficulty ?? 'mixed') && label(DIFFICULTIES, gen.difficulty),
+    gen.language && gen.language !== plain.language && languageLabel(gen.language),
+    (gen.notation ?? 'auto') !== (plain.notation ?? 'auto') && label(NOTATION_CHOICES, gen.notation),
+  ].filter(Boolean);
+}
+
+/** The sentence above the submit button: what will be made, from what, and about how long it takes. `count` is the number of questions the plan makes (the estimate's goal); without it the sentence leaves the number out.
+ *  `choices: false` leaves out the difficulty and the language: 创建题组's bar says the count, and those two are the form's own settings (#1082). The pieces are joined by 「 · 」. */
+export function summaryLine({ materials = 0, pages = 0, count = null, difficulty = 'mixed', language = '中文', minutes = null } = {}, { choices = true } = {}) {
   if (!(materials > 0)) return '';
   const sources = materials === 1 ? ui('1 份资料') : uiFormat('{0} 份资料', [materials]);
   const total = Number.isFinite(Number(count)) && Number(count) >= 1 ? clampCount(count) : null;
@@ -260,7 +272,7 @@ export function summaryLine({ materials = 0, pages = 0, count = null, difficulty
     : size ? uiFormat('将从 {0}（{1}）出 {2}', [sources, size, questions]) : uiFormat('将从 {0}出 {1}', [sources, questions]);
   const level = difficulty === 'mixed' ? ui('混合难度') : DIFFICULTIES.find((item) => item.value === difficulty)?.label || '';
   const time = minutes ? (minutes.low >= minutes.high ? uiFormat('约 {0} 分钟', [minutes.high]) : uiFormat('约 {0}–{1} 分钟', [minutes.low, minutes.high])) : '';
-  return [what, level, languageLabel(language), time].filter(Boolean).join(' · ');
+  return [what, choices && level, choices && languageLabel(language), time].filter(Boolean).join(' · ');
 }
 
 /* ---------- focus text and suggestions ---------- */

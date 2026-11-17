@@ -24,22 +24,44 @@
     /* Two steps on one page: the rule above a step and the room under it are one rhythm, not the 52px of a bare fieldset. */
     .generate-page .generate-panel fieldset { margin: var(--space-4) 0 0; padding: var(--space-3) 0 0; }
     .generate-page .generate-panel > .generate-gate { margin-bottom: var(--space-4); }
-    .generate-page .generate-sources-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin-top: var(--space-2); }
-    /* The action first: the button, and beside it the one line of why it is off; what is checked comes after it (the first screen ends at the button). */
-    .generate-page .generate-submit { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin-top: var(--space-4); }
-    .generate-page .generate-submit > * { flex: 1 1 100%; min-width: 0; }
-    .generate-page .generate-submit > .generate-submit__btn { flex: 0 0 auto; order: 1; }
-    .generate-page .generate-submit > .generate-submit__note { flex: 1 1 14rem; order: 2; margin: 0; }
-    /* The count, then the button: what the run asks for and costs follows it, so the button stays on the first screen once a source is ticked (#1082). */
-    .generate-page .generate-submit > :is([data-effective-summary], [data-generate-estimate]) { order: 3; }
-    .generate-page .generate-submit > .generate-quality { order: 4; }
-    /* The note about the checks is a quiet line, not a card of its own: the button stays within a screen and a half. */
-    .generate-page .generate-submit .generate-quality { gap: var(--space-2); padding: 0; border-radius: 0; background: transparent; color: var(--text-muted); font-size: var(--fs-sm); }
+    /* The one button is on the first screen with any list (#1082): the bar of the count and the button is a child of the form and sticks to the bottom of the view
+       while its place is further down, then rests in its place at the end of the form. In the flow (the page keeps its room, nothing appears or goes), opaque on the
+       page's ground (the list scrolls under it), quiet (a hairline, no card, no shadow, no motion). The hairline is --line, which reads in both themes: the list
+       ends where the bar starts (--line-soft almost vanished on the dark ground). The DOM is the order it is seen: no `order` (Tab follows it). */
+    .generate-page .generate-submit {
+      position: sticky; bottom: 0; z-index: var(--z-sticky);
+      display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3);
+      margin-top: var(--space-4); padding: var(--space-3) 0; border-top: 1px solid var(--line); background: var(--bg-canvas);
+    }
+    /* The count and the tokens on the left, the button at the end of their line (the draft's bar does the same); on a narrow page they take the line and the button
+       starts the next. They are two lines of fixed height whatever is ticked (with nothing ticked the first says what to do and the second is blank), each one
+       line (the count in whole pieces, below; the tokens end in 「…」 if ever too long; a screen reader hears both whole), so the bar never changes height and
+       the button never moves (#1082). */
+    .generate-page .generate-submit > * { flex: 1 1 100%; min-width: 0; margin: 0; }
+    .generate-page .generate-submit > .generate-submit__lines { flex: 1 1 20rem; display: grid; align-items: center; row-gap: var(--space-half);
+      grid-template-rows: calc(var(--fs-md) * var(--lh-snug)) calc(var(--fs-sm) * var(--lh-snug)); }
+    /* Each line is the height of its track and clips to it (align-self: stretch): what a narrow line leaves out is on its hidden next line, never drawn over
+       the line under it or the hairline (#1082). */
+    .generate-page .generate-submit__lines > * { align-self: stretch; min-width: 0; margin: 0; overflow: hidden; line-height: var(--lh-snug); white-space: nowrap; text-overflow: ellipsis; }
+    .generate-page .generate-submit__note { margin: 0; font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    .generate-page .generate-submit > .generate-submit__btn { flex: 0 0 auto; }
+    /* A control the keyboard reaches is scrolled clear of the bar, not under it: while this page is shown its scrolling box keeps the bar's measured height
+       (--generate-bar-room, ui/use-sticky-room.js) out of the room a focus or a jump scrolls into. */
+    &:has(.generate-page [data-generate-bar]) { scroll-padding-bottom: calc(var(--generate-bar-room, calc(var(--space-9) * 2)) + var(--space-3)); }
+    .generate-page .generate-run { display: grid; gap: var(--space-3); margin-top: var(--space-2); }
+    /* The note about the checks is a quiet line, not a card of its own. */
+    .generate-page .generate-run .generate-quality { gap: var(--space-2); margin: 0; padding: 0; border-radius: 0; background: transparent; color: var(--text-muted); font-size: var(--fs-sm); }
     /* One line: what is checked leads (medium, the page's dim ink), what it means follows in the quiet ink at the same size. */
-    .generate-page .generate-submit .generate-quality p { font-size: var(--fs-sm); line-height: var(--lh-snug); }
-    .generate-page .generate-submit .generate-quality small { font-size: var(--fs-sm); color: var(--text-muted); }
-    .generate-page .generate-submit .generate-quality__lead { color: var(--text-dim); font-weight: var(--fw-medium); }
-    .generate-page .generate-submit .generate-quality > svg { color: var(--text-muted); }
+    .generate-page .generate-run .generate-quality p { font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    .generate-page .generate-run .generate-quality small { font-size: var(--fs-sm); color: var(--text-muted); }
+    .generate-page .generate-run .generate-quality__lead { color: var(--text-dim); font-weight: var(--fw-medium); }
+    .generate-page .generate-run .generate-quality > svg { color: var(--text-muted); }
+  }
+  /* A narrow page stacks the button under the two lines (they do not fit beside it): the bar keeps less room above and below them there (#1082). */
+  @container study (max-width: 520px) {
+    :where(.study-app, .study-seat) {
+      .generate-page .generate-submit { padding-block: var(--space-2); }
+    }
   }
 }
 
