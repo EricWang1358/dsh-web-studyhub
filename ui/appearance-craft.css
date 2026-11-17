@@ -5,19 +5,19 @@
 
 @layer study.features {
   .study-app[data-craft='refined'],
-  .study-seat:has(> .study-app[data-craft='refined']) {
+  .study-seat[data-craft='refined'] {
     --control-h: 36px;
     --control-h-sm: 30px;
   }
   .study-app[data-craft='refined'][data-theme='light'],
-  .study-seat:has(> .study-app[data-craft='refined'][data-theme='light']) {
+  .study-seat[data-craft='refined']:has(> .study-app[data-theme='light']) {
     --text-dim: color-mix(in srgb, var(--text) 62%, var(--text-faint));
     --text-muted: color-mix(in srgb, var(--text) 28%, var(--text-faint));
   }
 
   /* ── 1. 按钮紧凑度、圆角比例（r/H ≈ 0.17）、光学内边距与禁用态识别 ── */
   .study-app[data-craft='refined'] :where(.sh-btn),
-  .study-seat:has(> .study-app[data-craft='refined']) :where(.sh-btn) {
+  .study-seat[data-craft='refined'] :where(.sh-btn) {
     gap: var(--space-1-5);
     --sh-btn-px: var(--space-3-5);
     padding: var(--space-1-5) var(--sh-btn-px);
@@ -25,74 +25,76 @@
     font-size: var(--fs-sm);
   }
   .study-app[data-craft='refined'] :where(.sh-btn--sm),
-  .study-seat:has(> .study-app[data-craft='refined']) :where(.sh-btn--sm) {
+  .study-seat[data-craft='refined'] :where(.sh-btn--sm) {
     --sh-btn-px: var(--space-2-5);
     padding: var(--space-1) var(--sh-btn-px);
     gap: var(--space-1);
     font-size: var(--fs-sm);
   }
   .study-app[data-craft='refined'] :where(.sh-btn--flush-start, .sh-btn--flush-end),
-  .study-seat:has(> .study-app[data-craft='refined']) :where(.sh-btn--flush-start, .sh-btn--flush-end) {
+  .study-seat[data-craft='refined'] :where(.sh-btn--flush-start, .sh-btn--flush-end) {
     --sh-btn-px: var(--space-2);
   }
   .study-app[data-craft='refined'] :where(.sh-btn--link),
-  .study-seat:has(> .study-app[data-craft='refined']) :where(.sh-btn--link) {
+  .study-seat[data-craft='refined'] :where(.sh-btn--link) {
     min-height: 0;
     padding: var(--space-half) 0;
     border-radius: var(--radius-xs);
     font-size: inherit;
   }
   .study-app[data-craft='refined'] :where(.sh-btn--link.sh-btn--sm),
-  .study-seat:has(> .study-app[data-craft='refined']) :where(.sh-btn--link.sh-btn--sm) {
+  .study-seat[data-craft='refined'] :where(.sh-btn--link.sh-btn--sm) {
     font-size: var(--fs-sm);
   }
   .study-app[data-craft='refined'] :where(.sh-btn--pill),
-  .study-seat:has(> .study-app[data-craft='refined']) :where(.sh-btn--pill) {
+  .study-seat[data-craft='refined'] :where(.sh-btn--pill) {
     border-radius: var(--radius-pill);
     padding-inline: var(--space-3);
   }
-  .study-app[data-craft='refined'] .sh-btn:not(.sh-btn--icon, .sh-btn--link, .sh-btn--pill, .sh-btn--flush-start, .sh-btn--flush-end):has(> :first-child:is(.sh-icon, .sh-spinner)),
-  .study-seat:has(> .study-app[data-craft='refined']) .sh-btn:not(.sh-btn--icon, .sh-btn--link, .sh-btn--pill, .sh-btn--flush-start, .sh-btn--flush-end):has(> :first-child:is(.sh-icon, .sh-spinner)) {
-    padding-inline-start: calc(var(--sh-btn-px) - var(--space-half));
+  /* The glyph's side of a button is half a step tighter (optical balance): the glyph itself takes the half step back, so no rule has to ask the
+     button what its first or last child is with :has() (that made every page switch restyle the app, tests/page-switch-jank.test.mjs). */
+  .study-app[data-craft='refined'] .sh-btn:not(.sh-btn--icon, .sh-btn--link, .sh-btn--pill, .sh-btn--flush-start, .sh-btn--flush-end) > :is(.sh-icon, .sh-spinner):first-child,
+  .study-seat[data-craft='refined'] .sh-btn:not(.sh-btn--icon, .sh-btn--link, .sh-btn--pill, .sh-btn--flush-start, .sh-btn--flush-end) > :is(.sh-icon, .sh-spinner):first-child {
+    margin-inline-start: calc(var(--space-half) * -1);
   }
-  .study-app[data-craft='refined'] .sh-btn:not(.sh-btn--icon, .sh-btn--link, .sh-btn--pill, .sh-btn--flush-start, .sh-btn--flush-end):has(> :last-child:is(.sh-icon, .sh-spinner)),
-  .study-seat:has(> .study-app[data-craft='refined']) .sh-btn:not(.sh-btn--icon, .sh-btn--link, .sh-btn--pill, .sh-btn--flush-start, .sh-btn--flush-end):has(> :last-child:is(.sh-icon, .sh-spinner)) {
-    padding-inline-end: calc(var(--sh-btn-px) - var(--space-half));
+  .study-app[data-craft='refined'] .sh-btn:not(.sh-btn--icon, .sh-btn--link, .sh-btn--pill, .sh-btn--flush-start, .sh-btn--flush-end) > :is(.sh-icon, .sh-spinner):last-child:not(:first-child),
+  .study-seat[data-craft='refined'] .sh-btn:not(.sh-btn--icon, .sh-btn--link, .sh-btn--pill, .sh-btn--flush-start, .sh-btn--flush-end) > :is(.sh-icon, .sh-spinner):last-child:not(:first-child) {
+    margin-inline-end: calc(var(--space-half) * -1);
   }
   .study-app[data-craft='refined'] :where(.sh-btn > .sh-icon),
-  .study-seat:has(> .study-app[data-craft='refined']) :where(.sh-btn > .sh-icon) {
+  .study-seat[data-craft='refined'] :where(.sh-btn > .sh-icon) {
     width: 16px;
     height: 16px;
   }
   .study-app[data-craft='refined'] :where(.sh-btn--sm > .sh-icon),
-  .study-seat:has(> .study-app[data-craft='refined']) :where(.sh-btn--sm > .sh-icon) {
+  .study-seat[data-craft='refined'] :where(.sh-btn--sm > .sh-icon) {
     width: 15px;
     height: 15px;
   }
   .study-app[data-craft='refined'] :where(.sh-btn:not(.sh-btn--spin-over) > .sh-spinner),
-  .study-seat:has(> .study-app[data-craft='refined']) :where(.sh-btn:not(.sh-btn--spin-over) > .sh-spinner) {
+  .study-seat[data-craft='refined'] :where(.sh-btn:not(.sh-btn--spin-over) > .sh-spinner) {
     width: 16px;
     height: 16px;
   }
   .study-app[data-craft='refined'] :where(.sh-btn--sm:not(.sh-btn--spin-over) > .sh-spinner),
-  .study-seat:has(> .study-app[data-craft='refined']) :where(.sh-btn--sm:not(.sh-btn--spin-over) > .sh-spinner) {
+  .study-seat[data-craft='refined'] :where(.sh-btn--sm:not(.sh-btn--spin-over) > .sh-spinner) {
     width: 14px;
     height: 14px;
   }
   .study-app[data-craft='refined'] :where(.sh-btn:disabled),
-  .study-seat:has(> .study-app[data-craft='refined']) :where(.sh-btn:disabled) {
+  .study-seat[data-craft='refined'] :where(.sh-btn:disabled) {
     cursor: not-allowed;
     color: color-mix(in srgb, var(--text-faint) 58%, transparent);
     background: color-mix(in srgb, var(--text) 3%, transparent);
     border-color: var(--line-soft);
   }
   .study-app[data-craft='refined'] :where(.sh-btn--quiet:disabled),
-  .study-seat:has(> .study-app[data-craft='refined']) :where(.sh-btn--quiet:disabled) {
+  .study-seat[data-craft='refined'] :where(.sh-btn--quiet:disabled) {
     background: transparent;
     border-color: transparent;
   }
   .study-app[data-craft='refined'] :where(.sh-btn--link:disabled),
-  .study-seat:has(> .study-app[data-craft='refined']) :where(.sh-btn--link:disabled) {
+  .study-seat[data-craft='refined'] :where(.sh-btn--link:disabled) {
     background: none;
     border-color: transparent;
     text-decoration-color: transparent;
@@ -100,20 +102,20 @@
 
   /* ── 2. 界面脚手架字阶与阅读正文字阶分离（13px vs 15px+） ── */
   .study-app[data-craft='refined'] :where(small:not(.desk-mastery-value small)),
-  .study-seat:has(> .study-app[data-craft='refined']) small,
+  .study-seat[data-craft='refined'] small,
   .study-app[data-craft='refined'] :where(.small),
-  .study-seat:has(> .study-app[data-craft='refined']) .small,
+  .study-seat[data-craft='refined'] .small,
   .study-app[data-craft='refined'] :where(legend),
-  .study-seat:has(> .study-app[data-craft='refined']) legend {
+  .study-seat[data-craft='refined'] legend {
     font-size: var(--fs-sm);
     line-height: var(--lh-snug);
   }
   .study-app[data-craft='refined'] :where(legend),
-  .study-seat:has(> .study-app[data-craft='refined']) legend {
+  .study-seat[data-craft='refined'] legend {
     font-weight: var(--fw-medium);
   }
   .study-app[data-craft='refined'] :where(.eyebrow),
-  .study-seat:has(> .study-app[data-craft='refined']) :where(.eyebrow) {
+  .study-seat[data-craft='refined'] :where(.eyebrow) {
     font-size: var(--fs-sm);
     letter-spacing: 0.12em;
     margin-bottom: var(--space-2-5);
@@ -241,11 +243,11 @@
 
   @container study (max-width: 640px) {
     .study-app[data-craft='refined'] .sh-btn--md:not(.sh-btn--link),
-    .study-seat:has(> .study-app[data-craft='refined']) .sh-btn--md:not(.sh-btn--link) {
+    .study-seat[data-craft='refined'] .sh-btn--md:not(.sh-btn--link) {
       min-height: 40px;
     }
     .study-app[data-craft='refined'] .sh-btn--icon.sh-btn--md,
-    .study-seat:has(> .study-app[data-craft='refined']) .sh-btn--icon.sh-btn--md {
+    .study-seat[data-craft='refined'] .sh-btn--icon.sh-btn--md {
       width: 40px;
     }
     .study-app[data-craft='refined'] .sh-page-header:not(.sh-page-header--compact) {
