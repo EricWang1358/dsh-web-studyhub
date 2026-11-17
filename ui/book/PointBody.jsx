@@ -111,6 +111,12 @@ export default function PointBody({ node, course, handlers, level = 4 }) {
       {handlers.retellOpen?.(node.hid) && <RetellPanel op="book.retell" args={{ course, hid: node.hid }} draftKey={`point:${course}:${node.hid}`} model={handlers.model}
         onSource={view.citeCount > 0 ? () => setCites(true) : undefined} onDone={answer => setRetold(answer.record)} onClose={() => handlers.toggleRetell(node.hid)} />}
       {cites && view.citeCount > 0 && <BookFile text={view.cites} citeText={node.gen} hid={node.hid} handlers={handlers} className="book-file book-point__cite-list" />}
+      {(() => {
+        const inlineRun = handlers.inlineRunFor?.(node.hid);
+        const Inline = handlers.InlineRun;
+        if (!inlineRun || !Inline) return null;
+        return <Inline key={inlineRun.started?.id || node.hid} started={inlineRun.started} origin={inlineRun.origin} label={inlineRun.label} shown={handlers.inlineShown ?? true} onClose={handlers.closeInlineRun} />;
+      })()}
       {handlers.qaOpen(node.hid) && <BookQa course={course} nodeKey={node.key} onCard={ref => handlers.card(ref, node.hid)} onSource={handlers.source} onBookChanged={handlers.reload} />}
     </div>
   );

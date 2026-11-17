@@ -1,10 +1,11 @@
 import React, { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
-import { Button, Icon, IconButton, TextInput, Tooltip } from '../components/index.js';
+import { Button, Icon, IconButton, SegmentedControl, TextInput, Tooltip } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
 import { levelsText } from '../outline/words.js';
 import { codeOf } from '../../lib/course-book-lookup.js';
 import { searchBook, searchIndex, SEARCH_ROWS } from './book-search.js';
+import { filterWeakTocEntries } from './book-weak-lens.js';
 import css from './book-toc.css';
 
 /* The review book's live 目录 (docs/review-book.md "The contents"): every heading of the stitched book (lib/course-book-links.js bookIndex), indented by level.
@@ -78,9 +79,9 @@ export function handleSearchKeyDown(event, { query, onQuery, narrow, onClose }) 
   return true;
 }
 
-/** The 目录 itself: the book's coverage line on top (quiet, explained on hover), 在书里找, then the list. narrow: it is the slide-over (onClose closes it, the focus goes
+/** The 目录 itself: the book's coverage line on top (quiet, explained on hover), 在书里找, optional weak-point lens, then the list. narrow: it is the slide-over (onClose closes it, the focus goes
     back to `returnRef`); coverage: course.book.open's `coverage` or null; book, query, onQuery(text), onFound(row, query): the search (the page keeps what is typed while a narrow 目录 is closed). */
-export default function BookToc({ entries, here, onGo, narrow, onClose, returnRef, coverage, book, query = '', onQuery, onFound, searchRef }) {
+export default function BookToc({ entries, here, onGo, narrow, onClose, returnRef, coverage, book, query = '', onQuery, onFound, searchRef, showWeakLens = false, weakPoints = null, lens: controlledLens, onLens }) {
   useInjectCss(css, 'study-book-toc');
   const panel = useRef(null);
   const setSearchInput = useCallback(node => {
@@ -94,6 +95,13 @@ export default function BookToc({ entries, here, onGo, narrow, onClose, returnRe
   const typed = useDeferredValue(query), searching = !!typed.trim();
   const index = useMemo(() => (searching ? searchIndex(book) : null), [book, searching]);
   const results = useMemo(() => (index ? searchBook(index, typed) : null), [index, typed]);
+  const weakLens = useMemo(() => (weakPoints ? filterWeakTocEntries(entries, weakPoints) : { weakCount: 0, entries: [] }), [entries, weakPoints]);
+  const [localLens, setLocalLens] = useState('all');
+  const lens = controlledLens ?? localLens;
+  const setLens = onLens ?? setLocalLens;
+  const lensLoaded = Array.isArray(weakPoints);
+  const lensEnabled = showWeakLens || lensLoaded;
+  const activeLens = lensEnabled && lensLoaded && lens === 'weak' && weakLens.weakCount > 0 ? 'weak' : 'all';
   // A big book: chapters, and the one being read open, unless the learner said otherwise.
   const folds = entries.length > TOC_FOLD_ABOVE;
   const hereChapter = useMemo(() => entries.find(entry => entry.id === here)?.chapter ?? null, [entries, here]);
@@ -129,8 +137,19 @@ export default function BookToc({ entries, here, onGo, narrow, onClose, returnRe
         <TextInput ref={setSearchInput} type="search" className="book-toc__input" value={query} autoComplete="off" spellCheck={false} placeholder={ui('在书里找')} aria-label={ui('在书里找')} onChange={event => onQuery(event.target.value)}
           onKeyDown={event => handleSearchKeyDown(event, { query, onQuery, narrow, onClose })} />
       </div>}
+      {lensEnabled && !searching && (
+        <div className="book-toc__lens">
+          <SegmentedControl size="sm" label={ui('目录范围')} value={activeLens} onChange={setLens}
+            options={[
+              { value: 'all', label: ui('全部') },
+              { value: 'weak', label: lensLoaded ? uiFormat('薄弱节 ({0})', [weakLens.weakCount]) : ui('薄弱节'), disabled: !lensLoaded || weakLens.weakCount === 0 },
+            ]} />
+        </div>
+      )}
       {results ? <FoundList results={results} query={typed} onFound={found} />
-        : <BookTocList entries={shown} here={here} onGo={go} opened={opened} parents={parents} onToggle={toggle} hidden={opened && hereChapter && !opened.has(hereChapter) && hereChapter !== here ? hereChapter : null} />}
+        : activeLens === 'weak'
+          ? <BookTocList entries={weakLens.entries} here={here} onGo={go} />
+          : <BookTocList entries={shown} here={here} onGo={go} opened={opened} parents={parents} onToggle={toggle} hidden={opened && hereChapter && !opened.has(hereChapter) && hereChapter !== here ? hereChapter : null} />}
     </nav>
   </>;
 }

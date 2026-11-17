@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { PageBoundary } from './page-boundary.jsx';
 import { useDiagnostics } from '../diagnostics.js';
 import { currentStudyHubVersion, currentUpgradeMarker } from '../UpdateCenter.jsx';
@@ -23,6 +23,7 @@ import Sources from '../Sources.jsx';
 import { keepBook } from '../book/model.js';
 import CrunchCard from '../book/CrunchCard.jsx';
 import WeeklyCard from '../book/WeeklyCard.jsx';
+import BookInlineRun from './modals/BookInlineRun.jsx';
 import Manage from '../Manage.jsx';
 import Settings, { backupFileName } from '../Settings.jsx';
 import Generate from '../Generate.jsx';
@@ -311,9 +312,19 @@ function BookView() {
     const origin = learn.captureContext({ ...(place ? { place } : {}), arrive: () => keepBook(data.root, course, { back: true }) });
     intents.practice(scope, { fresh: !resume, then: (run) => { learn.rememberContext(origin); session.enterRun(run); } });
   };
+  const inlinePractice = useMemo(() => {
+    const course = data.focus?.course ?? null;
+    return {
+      Run: BookInlineRun,
+      start: (scope, { resume = false, place = '' } = {}, onStarted) => {
+        const origin = learn.captureContext({ ...(place ? { place } : {}), arrive: () => keepBook(data.root, course, { back: true }) });
+        return intents.practice(scope, { fresh: !resume, then: (run) => onStarted?.(run, origin) });
+      },
+    };
+  }, [data.root, data.focus?.course, intents, learn]);
   // A mock paper started in the book (M7) is the ordinary exam; its way back is the book.
   const onExamRun = (run) => { learn.rememberContext(learn.captureContext()); session.enterRun(run); };
-  return <BookPage key={`${data.root}:${data.focus?.course}`} data={data} theme={shell.resolvedTheme} onBack={() => nav.navigate('outline')} onPractice={onPractice} onOpenTask={nav.show.task}
+  return <BookPage key={`${data.root}:${data.focus?.course}`} data={data} theme={shell.resolvedTheme} onBack={() => nav.navigate('outline')} onPractice={onPractice} inlinePractice={inlinePractice} onOpenTask={nav.show.task}
     onCreate={() => intents.goGenerate()} onOpenSource={(id, quote) => learn.openLearningTarget({ kind: 'source', id, quote })} onExamRun={onExamRun}
     onCourseSettings={settingsEntry.setCourseSettings} onBuildIndex={(name) => openIndexBuilder(settingsEntry.openSettings, name)} holdLeave={nav.holdLeave} />;
 }

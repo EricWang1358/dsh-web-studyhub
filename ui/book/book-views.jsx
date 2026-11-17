@@ -95,11 +95,11 @@ export function TodayPanel({ course, crunch, day, points, onRead, onPractice, on
 
 /** 速查页 in a dialog (without its 目录, which the page has): a code opens the reading surface at that point (a 术语卡's number: at that card) and closes the dialog.
     `parts`: the parts the course's 定制方案 asks for (./book-parts.js; null: every part). */
-export function LookupDialog({ book, parts = null, onGo, onCard, onClose }) {
+export function LookupDialog({ book, parts = null, confusableDrill = false, onGo, onCard, onClose }) {
   const lookup = useMemo(() => plannedLookup(bookLookup(book, book), parts), [book, parts]);
   return (
     <Dialog title={ui('速查页')} size="lg" className="book-lookup-dialog" onClose={onClose}>
-      {lookup && <BookLookup lookup={lookup} toc={false} onGo={hid => { onClose(); onGo(hid); }} onCard={onCard && ((hid, code) => { onClose(); onCard(hid, code); })} />}
+      {lookup && <BookLookup lookup={lookup} toc={false} confusableDrill={confusableDrill} onGo={hid => { onClose(); onGo(hid); }} onCard={onCard && ((hid, code) => { onClose(); onCard(hid, code); })} />}
     </Dialog>
   );
 }

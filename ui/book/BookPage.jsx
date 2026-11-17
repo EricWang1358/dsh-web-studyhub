@@ -38,7 +38,7 @@ import useIndexCoverage from '../use-index-coverage.js';
 import { hintDocOf, indexHintFor, INDEX_HINT_PAGES } from '../index-hint.js';
 import { groupSourcesByDocument } from '../../lib/source-groups.js';
 import { bookParts, showsPart } from './book-parts.js';
-import { bookCoverage, crunchWindow, resolveBookSettings } from '../../lib/book-settings.js';
+import { bookConfusableDrill, bookCoverage, bookInlinePractice, crunchWindow, resolveBookSettings } from '../../lib/book-settings.js';
 import { bookRows, crunchDateHint, keepBook, rowOf, tocEntries } from './model.js';
 import css from './book.css';
 import aiCss from './book-ai.css';
@@ -67,7 +67,7 @@ export function handleBookFindShortcut(event, { view, ready, inOverlay, onOpen }
 
 /** data: the snapshot; onBack() (the 总纲); onPractice(scope, { resume, place }); onOpenSource(sourceId, quote); onCreate() (出题); onOpenTask(jobId);
     onExamRun(run): enters a mock exam started here (M7); onCourseSettings(courseId); theme: 'light' | 'dark' (the editor's); holdLeave(ask): the app's leave gate, held while the editor has unsaved text. */
-export default function BookPage({ data, onBack, onPractice, onOpenSource, onCreate, onOpenTask, onExamRun, onCourseSettings, onBuildIndex, theme, holdLeave, paragraphIndex = null, searchQuery = '' }) {
+export default function BookPage({ data, onBack, onPractice, inlinePractice = null, onOpenSource, onCreate, onOpenTask, onExamRun, onCourseSettings, onBuildIndex, theme, holdLeave, paragraphIndex = null, searchQuery = '' }) {
   useInjectCss(css, 'study-book');
   useInjectCss(aiCss, 'study-book-ai');
   const { call, act, notify } = useStudy();
@@ -102,24 +102,52 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   // 备考计划's fold is kept in this browser per library and course (open at first: it is the page's plan).
   const [planOpen, setPlanOpen] = usePersistentState(`study-book-plan:${root}:${course}`, true, { parse: value => value !== 'closed', serialize: value => (value ? 'open' : 'closed') });
   const pages = useBookPages({ call, course, book }), pageLimit = resolveBookSettings(data?.settings?.book).pageLimit;
+  const inlinePracticeOn = bookInlinePractice(data?.settings?.book);
+  const confusableDrillOn = bookConfusableDrill(data?.settings?.book);
+  const [tocWide, setTocWide] = usePersistentState(`study-book-toc:${root}:${course}`, true, { parse: value => value !== 'closed', serialize: value => (value ? 'open' : 'closed') });
+  const [tocOver, setTocOver] = useState(false), closeToc = useCallback(() => setTocOver(false), []);
+  const [tocLens, setTocLens] = useState('all');
+  useEffect(() => { setTocOver(false); }, [narrow]);
+  const tocOpen = narrow ? tocOver : tocWide;
   const aiFold = useAiFold(root, course);
   const ai = useBookAi({ call, course, notify, reload, book, setBook, rows, aiFold, goTo: where.goTo });
+  const [inlineState, setInlineState] = useState(null);
+  const inlineHidRef = useRef(null);
+  inlineHidRef.current = inlineState?.hid ?? null;
+  const clearInlineRun = useCallback(() => {
+    if (!inlineHidRef.current) return;
+    inlineHidRef.current = null;
+    setInlineState(null);
+    plan.refresh?.();
+    period.refresh?.();
+  }, [plan, period]);
   // The 问 AI panel belongs to the point it was opened on: in 逐节读 another point closes it, and so does another view or reading mode. In 整章连着读 the place
   // read (the top heading on screen) changes with every scroll, so scrolling keeps the panel (and what is typed in it); it closes there only when its point is folded or no longer drawn.
-  useEffect(() => { ai.closeAsk(); }, [reading.mode === 'step' ? where.current : -1, reading.mode, view]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { ai.closeAsk(); clearInlineRun(); }, [reading.mode === 'step' ? where.current : -1, reading.mode, view]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (reading.mode !== 'scroll' || view !== 'read' || !ai.ask || !pageRef.current) return;
-    if (!pageRef.current.querySelector(`[data-book-point="${CSS.escape(ai.ask.heading)}"]`)) ai.closeAsk();
+    if (!pageRef.current) return;
+    if (reading.mode === 'scroll' && view === 'read' && ai.ask && !pageRef.current.querySelector(`[data-book-point="${CSS.escape(ai.ask.heading)}"]`)) ai.closeAsk();
+    if (inlineState && !((view === 'read' || view === 'flip') && pageRef.current.querySelector(`[data-book-point="${CSS.escape(inlineState.hid)}"]`))) clearInlineRun();
   });
   const placeSection = useCallback(section => setStructure({ kind: 'place', section }), []);
   // The model's readiness as primitives, so a poll that rebuilds the snapshot does not rebuild every point's handlers.
   const readiness = modelReadiness(data), model = useMemo(() => readiness, [readiness.ready, readiness.reason, readiness.label]); // eslint-disable-line react-hooks/exhaustive-deps
+  const inlineShown = !tocOver && !dialog && !leaving && !structure;
+  const inlineController = useMemo(() => {
+    if (!inlinePracticeOn || !inlinePractice?.Run || !inlinePractice?.start) return null;
+    return {
+      Run: inlinePractice.Run,
+      shown: inlineShown,
+      isOpen: hid => inlineState?.hid === hid,
+      runFor: hid => (inlineState?.hid === hid ? inlineState : null),
+      open: (node, scope, fromPlace) => inlinePractice.start(scope, { resume: true, place: fromPlace }, (started, origin) => {
+        setInlineState({ hid: node.hid, started, origin, label: uiFormat('{0} · {1} 道题', [node.title, started?.total || scope.length]) });
+      }),
+      close: clearInlineRun,
+    };
+  }, [inlinePracticeOn, inlinePractice, inlineShown, inlineState, clearInlineRun]);
   const handlers = useBookHandlers({ call, act, course, notify, book, setBook, rows, reload, remember: where.remember, onPractice, onCreate, onOpenSource,
-    modelReady: model.ready, model, onBack, ai: ai.actions, foldAi: aiFold.fold, onPlace: placeSection, goTo: where.goTo });
-  const [tocWide, setTocWide] = usePersistentState(`study-book-toc:${root}:${course}`, true, { parse: value => value !== 'closed', serialize: value => (value ? 'open' : 'closed') });
-  const [tocOver, setTocOver] = useState(false), closeToc = useCallback(() => setTocOver(false), []);
-  useEffect(() => { setTocOver(false); }, [narrow]);
-  const tocOpen = narrow ? tocOver : tocWide;
+    modelReady: model.ready, model, onBack, ai: ai.actions, foldAi: aiFold.fold, onPlace: placeSection, goTo: where.goTo, inlinePractice: inlineController });
   // 在书里找 (the 目录's box, ui/book/book-search.js): what is typed stays while a narrow 目录 is closed; `found` is the point a row went to, its words marked while it is drawn.
   const initialSearchRef = useRef(
     (where.kept?.query || where.kept?.snippet || Number.isInteger(where.kept?.paragraphIndex))
@@ -161,9 +189,9 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const handleFindShortcut = useCallback(event => handleBookFindShortcut(event, {
     view,
     ready: book?.status === 'ok' && !!book?.notes,
-    inOverlay: Boolean(event?.target?.closest?.('dialog, .cm-editor') || pageRef.current?.querySelector?.('dialog[open]')),
+    inOverlay: Boolean(inlineState || event?.target?.closest?.('dialog, [role="dialog"], .cm-editor, [data-inline-run]') || pageRef.current?.querySelector?.('dialog[open]')),
     onOpen: openBookFind,
-  }), [view, book?.status, book?.notes, openBookFind]);
+  }), [view, inlineState, book?.status, book?.notes, openBookFind]);
   useEffect(() => {
     if (view !== 'read' || book?.status !== 'ok' || !book?.notes || typeof window === 'undefined') return undefined;
     window.addEventListener('keydown', handleFindShortcut);
@@ -190,7 +218,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     return () => cancelAnimationFrame?.(frame);
   }, [findFocusTick, view, tocOpen]);
   useFoundMarks({ found, drawn: `${view}:${reading.mode}:${where.stepAt}:${book?.revision}`, pageRef, aiFold, stopHold, onGone: dropFound });
-  useStepKeys(view === 'read' && !tocOver && book?.status === 'ok' && !!book.notes, where.go);
+  useStepKeys(view === 'read' && !tocOver && !inlineState && book?.status === 'ok' && !!book.notes, where.go);
   // Leaving the editor with unsaved text asks first: the 完成 button and another course here, every other way out of the page through the app's one leave gate
   // (holdLeave, ui/app/navigator.js createLeaveGate), closing or reloading the tab through the browser's own question.
   const unsaved = view === 'edit' && dirty;
@@ -270,7 +298,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     kit={!!book.examKit?.types?.length} cheat={offerCheat} cardPass={cardPass} index={needsIndex} />;
   const dialogs = <>
     {dialog === 'export' && <BookExport course={course} pageLimit={pageLimit} book={offerCheat ? book : null} onClose={() => setDialog(null)} />}
-    {dialog === 'lookup' && <LookupDialog book={book} parts={parts} onGo={where.goTo} onCard={handlers.goCard} onClose={() => setDialog(null)} />}
+    {dialog === 'lookup' && <LookupDialog book={book} parts={parts} confusableDrill={confusableDrillOn} onGo={where.goTo} onCard={handlers.goCard} onClose={() => setDialog(null)} />}
     {dialog === 'kit' && book.examKit && <KitDialog book={book} onGo={where.goTo} onClose={() => setDialog(null)} />}
     {dialog === 'history' && <HistoryDialog book={book} step={step} onChanged={setBook} onClose={() => setDialog(null)} />}
     {dialog === 'mock' && <MockDialog course={course} pointIds={plan.day ? plan.points.map(point => point.id) : undefined} onStarted={onExamRun} onClose={() => setDialog(null)} />}
@@ -304,7 +332,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
         onPractice={(point, element) => handlers.practice(point.id, 5, point.id, element)} onMarkRead={(point, on) => plan.mark(point.id, 'read', on)}
         onFlip={() => openView('flip')} onMockStarted={onExamRun} />}
       <div className={tocOpen && !narrow ? 'book-layout book-layout--toc' : 'book-layout'}>
-        {tocOpen && <BookToc entries={toc} here={where.here} onGo={where.goTo} narrow={narrow} onClose={closeToc} returnRef={tocRef} coverage={book.coverage ?? null} book={book} query={findQuery} onQuery={onFindQuery} onFound={onFound} searchRef={tocSearchRef} />}
+        {tocOpen && <BookToc entries={toc} here={where.here} onGo={where.goTo} narrow={narrow} onClose={closeToc} returnRef={tocRef} coverage={book.coverage ?? null} book={book} query={findQuery} onQuery={onFindQuery} onFound={onFound} searchRef={tocSearchRef} showWeakLens={inlinePracticeOn} weakPoints={inlinePracticeOn ? plan.crunch?.points ?? null : null} lens={tocLens} onLens={setTocLens} />}
         <ReadingBlock className="book-read" measure>
           <AiFoldContext.Provider value={aiFold}><BookAiContext.Provider value={ai.lines}><BookReadContext.Provider value={reading}>
             {reading.mode === 'step' ? <BookStep steps={steps} at={where.stepAt} onGo={index => where.go(index - where.stepAt)} course={course} handlers={handlers} />

@@ -52,7 +52,7 @@ export function useBookReading(root, course) {
 }
 
 // The ← / → keys belong to whatever has the focus when it is a field, an editor, a menu, a segmented control or the 弄懂 panel, and to a selection.
-const OWN_KEYS = 'input, textarea, select, [contenteditable=""], [contenteditable="true"], [role="menu"], [role="tablist"], [role="radiogroup"], [role="slider"], .sh-seg, .cm-editor, .book-ai-ask, dialog';
+const OWN_KEYS = 'input, textarea, select, [contenteditable=""], [contenteditable="true"], [role="menu"], [role="tablist"], [role="radiogroup"], [role="slider"], .sh-seg, .cm-editor, .book-ai-ask, [data-inline-run], [role="dialog"], dialog';
 /** ← / → go to the previous / next point while `on` (go(-1) / go(1)). */
 export function useStepKeys(on, go) {
   useEffect(() => {
