@@ -136,6 +136,7 @@
     "tests/select-combobox-browser.test.mjs",
     "tests/settings-entry-targets.test.mjs",
     "tests/source-split-browser.test.mjs",
+    "tests/sources-actions-browser.test.mjs",
     "tests/sources-filter-archive-batch-browser.test.mjs",
     "tests/sources-narrow-browser.test.mjs",
     "tests/spine-layout.test.mjs",

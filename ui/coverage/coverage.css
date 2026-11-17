@@ -32,6 +32,10 @@
     .cov-bar li[data-kind='never-planned'] { --sh-tone: transparent; --sh-swatch-ring: var(--line-strong); }
     /* A material row: the mastery line and the coverage chip share one line (it wraps rather than growing the row sideways). */
     .source-doc__quality { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-half) var(--space-4); min-width: 0; }
+    /* On a narrow 资料 page (.is-narrow, ui/Sources.jsx ROWS_NARROW) the two share that line where they fit (an English row in a 290px column did not:
+       three status lines, #1083): a smaller gap, and the coverage says its percent without the bar; its hover still says it all. */
+    .sources-page.is-narrow .source-doc__quality { column-gap: var(--space-3); }
+    .sources-page.is-narrow .source-doc__quality .cov-meter__bar { display: none; }
     /* ── The summary on the draft page ─────────────────────────────────── */
     .cov-summary { display: grid; gap: var(--space-3); min-width: 0; margin-block: var(--space-4); padding: var(--space-4) var(--space-5); border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-raised); }
     .cov-summary > * { min-width: 0; margin: 0; }
@@ -114,6 +118,10 @@
     .reader-outline__covhead .cov-meter { color: var(--text-dim); }
     .reader-outline__covaction { flex-basis: 100%; }
     .reader-outline__covaction .cov-popover { width: 100%; }
+    /* The top-up button names the action in full. A label longer than about 11em (the en "Add questions for the uncovered parts") always takes two lines, at a
+       space, never inside a word, and the box is only as wide as those lines: a wrapped label's box is otherwise as wide as the room it is offered, leaving an
+       empty band after the words (the reader's outline, a narrow 资料 row). A shorter label (zh) keeps one line. Its lines start beside the icon. */
+    .cov-popover .cov-topup-trigger { width: fit-content; max-width: calc(11em + 16px + var(--space-1-5) + 2 * var(--sh-btn-px) + 2 * var(--hairline)); white-space: normal; word-break: keep-all; text-wrap: pretty; text-align: start; }
     .reader-outline__covtoggle { display: inline-flex; align-items: center; gap: var(--space-1-5); margin: 0; color: var(--text-dim); font-size: var(--fs-sm); cursor: pointer; }
     /* ── 覆盖强度 on the 创建题组 form ─────────────────────────────────── */
     .cov-strength { display: grid; gap: var(--space-2); width: 100%; min-width: 0; justify-items: start; }

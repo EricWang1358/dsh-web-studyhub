@@ -10,6 +10,7 @@ import { AddSourceButton, Badge, Button, Checkbox, CheckboxInput, ChunkedRows, C
 import { browserStorage, readJSON, writeJSON } from "./storage.js";
 import { useNarrow } from "./use-narrow.js";
 import { useRowFit } from "./use-row-fit.js";
+import { useCut } from "./use-cut.js";
 import { scrollToAnchor } from "./tour/anchor.js";
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import {
@@ -193,12 +194,15 @@ export function ChapterList({ item, onOpen, onGenerate, onPractice, listId, mast
 }
 
 /** The entries of a row's 更多 menu. */
-export function RowMenuItems({ item, onChangeCourse, onMoveFolder, onRemove, onSegment, onRename, onArchive, onPin, onPinMove, pin }) {
+export function RowMenuItems({ item, onGenerate, onCompanion, onChangeCourse, onMoveFolder, onRemove, onSegment, onRename, onArchive, onPin, onPinMove, pin }) {
   const { busy, call } = useStudy();
   const close = event => event.currentTarget.closest("details")?.removeAttribute("open");
   return <div className="source-row-menu">
+    {/* What the row does not show beside its one action (#1083): 从这份资料出题 when 补题 is that action, and the material's interactive companion. */}
+    {onGenerate && <Button className="source-row-menu__btn" lock={busy} onClick={event => { close(event); onGenerate(item); }}>{ui('从这份资料出题')}</Button>}
+    {onCompanion && <Button className="source-row-menu__btn" onClick={event => { close(event); onCompanion(item); }}>{ui('打开交互伴学页')}</Button>}
     {call && <OriginalMenuEntry item={item} />}
-    {onRename && <Button className="source-row-menu__btn" lock={busy} onClick={event => { close(event); onRename(item); }}>{ui('重命名…')}</Button>}
+    {onRename && <Button className="source-row-menu__btn" lock={busy} aria-keyshortcuts="F2" onClick={event => { close(event); onRename(item); }}>{ui('重命名…')}</Button>}
     {/* 置顶: one entry to pin or unpin; a pinned row can also be moved without dragging (the pin's own order, lib/material-pins.js). */}
     {onPin && !item.archived && <Button className="source-row-menu__btn" lock={busy} onClick={event => { close(event); onPin(item); }}>{pin?.pinned ? ui('取消置顶') : ui('置顶')}</Button>}
     {onPin && onPinMove && !item.archived && pin?.pinned && <>
@@ -242,11 +246,13 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
     ? resolveSourceCompanionTarget({ source, courses: appData?.courses, sources: appData?.sources })
     : null;
   const [pagesOpen, setPagesOpen] = useState(false), [editing, setEditing] = useState(false);
+  // The title button holds the facts line, so a cut courses piece's tip cannot see the button's keyboard focus: the row tells it (#1083).
+  const [titleFocus, setTitleFocus] = useState(false);
   const listId = useId(), row = useRef(null), main = useRef(null), wasEditing = useRef(false);
   useEffect(() => { if (wasEditing.current && !editing) main.current?.focus({ preventScroll: true }); wasEditing.current = editing; }, [editing]);
   const editor = canRename ? actions.rename(item) : null;
   const name = displayTitle(item.title);
-  // Clicking anywhere on the row opens the reader immediately (0ms); rename uses hover button, F2, or 更多 menu.
+  // Clicking anywhere on the row opens the reader immediately (0ms); rename is F2 on the title or 重命名… in 更多.
   const openRow = () => actions.open(item.sourceIds[0]);
   const startEditing = () => setEditing(true);
   const multi = item.pages.length > 1;
@@ -259,6 +265,11 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
     row.current.querySelector(".source-main")?.focus({ preventScroll: true });
     return jump.cancel;
   }, [isNew]);
+  // The courses and 用于 piece of the facts ellipsises on its own; once it is cut, a hover tip says all of it.
+  const coursesRef = useRef(null);
+  const coursesText = [item.courses.join(' · ') || ui('未分类'), item.coursesInferred ? ui('推断归属') : '',
+    item.usedBy.length ? uiFormat('用于 {0}', [item.usedBy.map(deck => deck.title).join(' · ')]) : ''].filter(Boolean).join(' · ');
+  const coursesCut = useCut(coursesRef, coursesText);
   const corrections = source?.audio ? uiFormat("校对 {0} 处", [source.audio.corrections?.appliedCount ?? 0]) : "";
   // The facts only (#676): what it is, how big, and how it relates to the others. What the learner has to check is a Badge beside the title (below), the start of the text is not in the row.
   const details = [uiFormat("{0} 字符", [formatNumber(item.chars)]), corrections, relationNote(relation)].filter(Boolean);
@@ -283,49 +294,46 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
           <RenameField title={item.title} original={item.renamedFrom} label={uiFormat('重命名「{0}」', [name])}
             onSave={async title => { await editor.save(title); setEditing(false); }} onRestore={async () => { await editor.restore(); setEditing(false); }} onCancel={() => setEditing(false)} />
         </div> : <button ref={main} className="source-main" onClick={openRow} aria-keyshortcuts={editor ? 'F2' : undefined}
-          onKeyDown={editor ? event => { if (startsEditing(event)) { event.preventDefault(); startEditing(); } } : undefined}>
+          onFocus={event => setTitleFocus(event.currentTarget.matches(':focus-visible'))} onBlur={() => setTitleFocus(false)}
+          onKeyDown={event => { if (event.key === 'Escape') setTitleFocus(false); if (editor && startsEditing(event)) { event.preventDefault(); startEditing(); } }}>
           <Icon name={item.format === "audio" ? "audio" : "file"} size={20} className="source-doc__icon" />
           <span>
             <strong className="source-title" title={item.title}>{pinned && <span className="source-pin" role="img" aria-label={ui('已置顶')}><Icon name="pin" size={14} /></span>}{name}{isNew && <Badge size="sm" className="source-new">{ui("刚导入")}</Badge>}{notes.map(note => <Badge key={note} tone="warning" size="sm" icon wrap className="source-note">{note}</Badge>)}</strong>
             {/* One line of facts under the title (#570): where it belongs, then what it is and how big; each part ellipsises on its own. */}
             <span className="source-doc__meta">
-              <small>{[item.courses.join(' · ') || ui('未分类'), item.coursesInferred ? ui('推断归属') : '',
-                item.usedBy.length ? uiFormat('用于 {0}', [item.usedBy.map(deck => deck.title).join(' · ')]) : ''].filter(Boolean).join(' · ')}{showExtraCourseBadges && item.courses.length > 1 && item.courses.slice(1).map(extra => <Badge key={extra} size="sm" className="source-course-extra">{extra}</Badge>)}</small>
+              <small ref={coursesRef}><Tooltip layer group="source-facts" anchorClassName="source-doc__facts-tip" content={coursesCut ? coursesText : ''} forceOpen={titleFocus}><span>{coursesText}</span></Tooltip>{showExtraCourseBadges && item.courses.length > 1 && item.courses.slice(1).map(extra => <Badge key={extra} size="sm" className="source-course-extra">{extra}</Badge>)}</small>
               <small className={gap ? "source-doc__facts--gap" : undefined}>{sourceFormatLabel(item)}{gap &&<>{" · "}<Tooltip layer content={pageGapHint(item)}><span className="source-doc__gap" tabIndex={0}>{gap}</span></Tooltip></>}{details.length > 0 && ` · ${details.join(" · ")}`}</small>
             </span>
             {item.renamedFrom && <small className="source-original" title={item.renamedFrom}>{originalNote(item)}</small>}
           </span>
         </button>}
+        {/* The row's actions, beside the title (line 1) on a wide row: before the status line in the DOM too, so Tab goes title, actions, then the index link under them. */}
+        <div className="source-doc__actions">
+          {/* ONE action beside the title (#1083): 为没覆盖的部分补题 where a published deck leaves part of the material without questions (a NEW draft, the deck's
+              next part, ui/coverage/DocumentTopUp.jsx), else 从这份资料出题. The others (从这份资料出题 then, the interactive companion) are in 更多. */}
+          {topUp ? <DocumentTopUp item={item} revision={JSON.stringify(coverage)} buttonClassName="source-doc__action" />
+            : canGenerate && <Button size="sm" variant="secondary" icon="sparkle" className="source-doc__action" lock={busy} onClick={() => actions.generate(item.sourceIds)}>{ui('从这份资料出题')}</Button>}
+          {item.archived && <>
+            <Button size="sm" variant="secondary" className="source-doc__action" lock={busy} onClick={() => actions.archive(item)}>{ui('恢复资料')}</Button>
+            <Button size="sm" variant="danger" className="source-doc__action" lock={busy} onClick={() => actions.remove(item)}>{ui('永久删除')}</Button>
+          </>}
+          <details className="source-row-actions"><summary>{ui('更多')}</summary>
+            <RowMenuItems item={item} onGenerate={topUp && canGenerate ? () => actions.generate(item.sourceIds) : undefined}
+              onCompanion={companionTarget && openModal ? () => openCompanionTarget(openModal, companionTarget) : undefined} onChangeCourse={actions.changeCourse} onMoveFolder={canMoveFolder ? actions.moveFolder : undefined}
+              onArchive={item.archived ? undefined : actions.archive} onSegment={canSegment ? actions.segment : undefined} onRename={editor ? startEditing : undefined}
+              onPin={actions.pin} onPinMove={actions.pinMove} pin={{ pinned, first: pinFirst, last: pinLast }} />
+          </details>
+        </div>
         {/* The status line, always visible: 资料掌握度 (the snapshot's materialMastery) and 覆盖 beside it (drafts included; the mastery is only about published questions),
             then the index badge's slot, kept from the first paint so a late coverage answer fills it and moves nothing (#229). A click on it opens the material, as the title does. */}
         <div className="source-doc__status" onClick={openRow}>
           <span className="source-doc__quality"><MasteryLine className="source-doc__mastery" summary={mastery?.document ?? null} title={name} /><CoverageChip coverage={coverage} /></span>
           {indexSlot}
         </div>
-        <div className="source-doc__actions">
-          {companionTarget && openModal && (
-            <Button size="sm" variant="secondary" icon="play" className="source-doc__action" onClick={() => openCompanionTarget(openModal, companionTarget)}>
-              {ui('打开交互伴学页')}
-            </Button>
-          )}
-          {canGenerate && <Button size="sm" variant="secondary" icon="sparkle" className="source-doc__action" lock={busy} onClick={() => actions.generate(item.sourceIds)}>{ui('从这份资料出题')}</Button>}
-          {/* 为没覆盖的部分补题 of a material whose questions were published: a NEW draft, the deck's next part (ui/coverage/DocumentTopUp.jsx). */}
-          {topUp && <DocumentTopUp item={item} revision={JSON.stringify(coverage)} />}
-          {editor && !item.archived && <Button size="sm" variant="quiet" icon="edit" className="source-doc__action source-doc__rename" aria-label={uiFormat('重命名「{0}」', [name])} title={ui('重命名')} lock={busy} onClick={startEditing} />}
-          {item.archived && <>
-            <Button size="sm" variant="secondary" className="source-doc__action" lock={busy} onClick={() => actions.archive(item)}>{ui('恢复资料')}</Button>
-            <Button size="sm" variant="danger" className="source-doc__action" lock={busy} onClick={() => actions.remove(item)}>{ui('永久删除')}</Button>
-          </>}
-          <details className="source-row-actions"><summary>{ui('更多')}</summary>
-            <RowMenuItems item={item} onChangeCourse={actions.changeCourse} onMoveFolder={canMoveFolder ? actions.moveFolder : undefined}
-              onArchive={item.archived ? undefined : actions.archive} onSegment={canSegment ? actions.segment : undefined} onRename={editor ? startEditing : undefined}
-              onPin={actions.pin} onPinMove={actions.pinMove} pin={{ pinned, first: pinFirst, last: pinLast }} />
-          </details>
-        </div>
       </div>
       {(multi || chaptered) && <div className="source-doc__pages">
         <div className="source-doc__pages-bar">
-          <Button variant="quiet" size="sm" iconEnd="chevron" iconEndClassName="source-doc__pages-chevron" className="source-doc__pages-toggle" aria-expanded={pagesOpen} aria-controls={listId}
+          <Button variant="quiet" size="sm" iconEnd="chevron" iconEndClassName="source-doc__pages-chevron" className="source-doc__pages-toggle sh-btn--flush-start" aria-expanded={pagesOpen} aria-controls={listId}
             onClick={() => setPagesOpen(open => !open)}>
             {pagesOpen ? ui('收起') : chaptered ? uiFormat('查看 {0} 章', [item.chapters.length]) : item.format === 'pdf' ? uiFormat('查看 {0} 页', [item.pages.length]) : uiFormat('查看 {0} 部分', [item.pages.length])}
           </Button>
@@ -463,11 +471,17 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   );
   // The header describes the scope, not the filter: the filter's own count says how many match, so typing changes no line above the controls (#1085);
   // its 全部展开 / 全部收起 is there and named by the scope's groups too, so typing neither adds, removes nor renames a header button.
+  // `groupsInEither`: whether the scope has more than one group in the archive or out of it, so the header's fit counts 全部展开 in both views (below).
   const scopeView = useMemo(() => {
-    const split = showArchived ? { pinned: [], rest: scoped } : splitPinned(scoped, pins);
-    const scopeGroups = buildSourceGroups(split.rest, { mode: groupMode, folders: materialFolders, sort: sortBy, includeEmpty: groupMode === 'folder' && !showArchived, locale, scope, known });
-    return { groupKeys: scopeGroups.map(group => group.key), summary: { count: scoped.length, pinned: split.pinned.length, rest: split.rest.length, groups: scopeGroups.length } };
-  }, [scoped, pins, showArchived, groupMode, materialFolders, sortBy, locale, scope, known]);
+    const view = (rows, archived) => {
+      const split = archived ? { pinned: [], rest: rows } : splitPinned(rows, pins);
+      return { split, groups: buildSourceGroups(split.rest, { mode: groupMode, folders: materialFolders, sort: sortBy, includeEmpty: groupMode === 'folder' && !archived, locale, scope, known }) };
+    };
+    const { split, groups: scopeGroups } = view(scoped, showArchived);
+    const other = view(allItems.filter(item => item.archived !== showArchived && inScope(item, scope, known)), !showArchived).groups;
+    return { groupKeys: scopeGroups.map(group => group.key), groupsInEither: scopeGroups.length > 1 || other.length > 1,
+      summary: { count: scoped.length, pinned: split.pinned.length, rest: split.rest.length, groups: scopeGroups.length } };
+  }, [scoped, allItems, pins, showArchived, groupMode, materialFolders, sortBy, locale, scope, known]);
   const scopeSummary = scopeView.summary;
   // Materials made from one original file say so on their rows (#207), as in the picker of 创建题组.
   const relations = useMemo(() => materialRelations(items), [items]);
@@ -682,7 +696,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
     else updateClosed(current => new Set([...current].filter(key => !keys.includes(key))));
   };
   const openCompanions = () => setModal({ type: "companionBuild", course: scope === '*' ? (data.focus?.course || '') : scope });
-  const archiveLabel = showArchived ? ui('返回资料') : uiFormat('已归档（{0}）', [archivedCount]);
+  const archiveLabels = [uiFormat('已归档（{0}）', [archivedCount]), ui('返回资料')], archiveLabel = archiveLabels[showArchived ? 1 : 0];
   const requestDeleteFolder = (folder, count) => {
     if (count > 0) { setDeletingFolder({ folder, count }); return; }
     act('source.folder.delete', { folder });
@@ -694,16 +708,23 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
     return dayLabel(key);
   };
   // The header's actions sit on the title's row: all of them when they fit beside the title in this language and width, else 添加资料 with one 更多 before it
-  // (#1083). Either way 添加资料 is last, at the right edge; whether they fit is measured (ui/use-row-fit.js), not guessed from the page's width.
-  const groupsLabel = allOpen ? ui("全部收起") : ui("全部展开"), manyGroups = scopeView.groupKeys.length > 1;
-  const fullHeader = useRowFit(pageRef, '.sources-page__header .sh-page-header__title-row', [archiveLabel, manyGroups && groupsLabel, locale].join('|'));
+  // (#1083). Either way 添加资料 is last, at the right edge; whether they fit is measured (ui/use-row-fit.js) on a hidden copy of the full set, not guessed
+  // from the page's width, and never by drawing the visible set again.
+  const groupsLabels = [ui("全部展开"), ui("全部收起")], groupsLabel = groupsLabels[allOpen ? 1 : 0], manyGroups = scopeView.groupKeys.length > 1;
+  const fullHeader = useRowFit(pageRef, '.sources-page__header .sh-page-header__title-row', '.sources-page__fit > .sh-page-header__actions');
+  // The full set: `live` on the title row; otherwise the copy it is measured on, without handlers or the anchors 找功能 and the tour look for. In the copy a
+  // button that changes its words is as wide as the wider of them, and 全部展开 is there when either view of the archive has it, so a choice in 更多
+  // (opening or leaving the archive, expanding every group) never swaps the header under the focus (#1083, round 5).
+  const either = labels => <span className="sources-page__fit-labels">{labels.map(label => <span key={label}>{label}</span>)}</span>;
+  const fullActions = live => <>
+    <Button variant="quiet" icon={showArchived ? 'arrow-left' : 'archive'} aria-pressed={showArchived}
+      {...(live && { 'data-archive-toggle': '', 'data-tour': 'sources-archived', onClick: toggleArchived })}>{live ? archiveLabel : either(archiveLabels)}</Button>
+    {(live ? manyGroups : scopeView.groupsInEither) && <Button variant="quiet" icon="list" onClick={live ? toggleGroups : undefined}>{live ? groupsLabel : either(groupsLabels)}</Button>}
+    <Button variant="secondary" icon="play" onClick={live ? openCompanions : undefined}>{ui("交互伴学")}</Button>
+    {live ? addButton : <AddSourceButton variant="primary" />}
+  </>;
   const headerActions = fullHeader
-    ? <>
-      <Button variant="quiet" icon={showArchived ? 'arrow-left' : 'archive'} data-archive-toggle data-tour="sources-archived" aria-pressed={showArchived} onClick={toggleArchived}>{archiveLabel}</Button>
-      {manyGroups && <Button variant="quiet" icon="list" onClick={toggleGroups}>{groupsLabel}</Button>}
-      <Button variant="secondary" icon="play" onClick={openCompanions}>{ui("交互伴学")}</Button>
-      {addButton}
-    </>
+    ? fullActions(true)
     : <>
       <Menu label={ui('更多')} data-tour="sources-archived"
         items={[{ id: 'archived', icon: showArchived ? 'arrow-left' : 'archive', label: archiveLabel, attrs: { 'data-archive-toggle': '' } },
@@ -718,6 +739,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
       <PageHeader className={`sources-page__header sh-page-header--measured${fullHeader ? '' : ' sh-page-header--compact-actions'}`} title={ui("资料")}
         description={<>{ui("题目从这里生长。原文与引用一直保留。")}{items.length > 0 && groupSummaryDescription({ mode: groupMode, summary: scopeSummary })}</>}
         actions={headerActions} actionsOnTitleRow />
+      <div className="sources-page__fit" aria-hidden="true" inert><div className="sh-page-header__actions">{fullActions(false)}</div></div>
       {gap && <IndexGapLine count={gap.count} canIndex={indexCoverage?.canIndex} onGo={() => onBuildIndex(gap.course)} />}
       {(items.length > 0 || (groupMode === 'folder' && !showArchived && materialFolders.folders.length > 0)) && <>
         {/* 课程范围 and 筛选资料 are one small form: the label in one column, both controls in the next, at one left edge and one width (#1085). */}
@@ -734,9 +756,11 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
               if (query) { event.stopPropagation(); setQuery(''); }
               else event.currentTarget?.blur?.();
             }} />
-          {/* Inside the field's end, over padding it always keeps (ui/sources.css): the numbers, said in full for a screen reader, and the × of 清除筛选. */}
-          {filtering && <span className="sources-filter__state">
-            <small className="sources-filter__count muted" aria-live="polite"><span aria-hidden="true">{filtered.length} / {scoped.length}</span>
+          {/* Inside the field's end, over padding it keeps while filtering (ui/sources.css): the numbers, said in full for a screen reader, and the × of 清除筛选.
+              The numbers hold the room of the widest count this scope can show (all of it), so they keep one width while you type; the field's padding is that
+              width, measured here when they appear. */}
+          {filtering && <span className="sources-filter__state" ref={state => state?.parentElement.style.setProperty('--sources-filter-count', `${state.offsetWidth}px`)}>
+            <small className="sources-filter__count muted" aria-live="polite"><span aria-hidden="true" className="sources-filter__figures" data-widest={`${scoped.length} / ${scoped.length}`}><span>{filtered.length} / {scoped.length}</span></span>
               <span className="sh-visually-hidden">{scrollWindowCount(scoped.length, filtered.length, true)}</span></small>
             <Button variant="quiet" size="sm" icon="close" aria-label={ui('清除筛选')} title={ui('清除筛选')} onClick={() => setQuery('')} />
           </span>}
