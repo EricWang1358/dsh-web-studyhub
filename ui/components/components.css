@@ -159,6 +159,7 @@
       border-color: var(--bad);
     }
     .sh-btn--icon {
+      flex: none;
       width: var(--control-h, 40px);
       padding: 0;
     }
@@ -1065,7 +1066,7 @@
   }
   @container study (max-width: 640px) {
     :is(.study-app, .study-seat) {
-      .sh-btn--md { min-height: 44px; }
+      .sh-btn--md:not(.sh-btn--link) { min-height: 44px; }
       .sh-btn--icon.sh-btn--md { width: 44px; }
       .sh-page-header { margin-bottom: var(--space-6); }
       .sh-page-header__title { font-size: var(--fs-2xl); }

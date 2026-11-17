@@ -89,6 +89,8 @@ export default function AppearanceSection({ appearance }) {
         hint={ui('高对比会加深边框和次要文字、加粗焦点框；跟随系统时遵循系统的“增加对比度”设置。')} />}
       {appearance.onDensity && <Choice data-tour="settings-appearance-density" label={ui('界面密度')} value={appearance.density} onChange={appearance.onDensity} kind="density" hint={ui('密度只改间距和行距，不改字号。')} />}
       {appearance.onRadius && <Choice data-tour="settings-appearance-radius" label={ui('圆角')} value={appearance.radius} onChange={appearance.onRadius} kind="radius" />}
+      {appearance.onCraft && <Choice data-tour="settings-appearance-craft" label={ui('控件与字阶')} value={appearance.craft} onChange={appearance.onCraft} kind="craft"
+        hint={ui('收紧按钮高度与圆角比例、将顶栏与次要说明降至较小字阶，并拉开浅色灰阶与禁用态对比；「标准」保持原版设计不变。')} />}
       <AppearanceTransfer appearance={appearance} />
       </Disclosure>
     </SettingsSection>

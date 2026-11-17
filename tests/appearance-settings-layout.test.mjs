@@ -13,7 +13,7 @@ const noop = () => {};
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 const full = { language: 'zh', onLanguage: noop, theme: 'dark', onTheme: noop, accent: 'cinnabar', onAccent: noop, scale: 100, onScale: noop, sound: 'off', onSound: noop, font: 'system', onFont: noop,
   fontCustom: '', onFontCustom: noop, fontTitle: 'follow', onFontTitle: noop, motion: 'auto', onMotion: noop, contrast: 'auto', onContrast: noop, density: 'standard', onDensity: noop,
-  radius: 'standard', onRadius: noop, onReset: noop, onExport: () => '{"studyhubAppearance":1}', onImport: () => true };
+  radius: 'standard', onRadius: noop, craft: 'standard', onCraft: noop, onReset: noop, onExport: () => '{"studyhubAppearance":1}', onImport: () => true };
 
 const mod = await loadUi(`export { default as AppearanceSection } from './ui/settings/AppearanceSection.jsx'; export { setUiLanguage } from './ui/i18n.js';`);
 async function draw(appearance = full, lang = 'zh') {
@@ -32,15 +32,15 @@ test('without opening anything there are five open choices: language, look, acce
   const { main } = split(await draw());
   assert.deepEqual(anchorsIn(main).filter((anchor) => !anchor.endsWith('-reset')), ['settings-appearance-language', 'settings-appearance-theme', 'settings-appearance-accent', 'settings-appearance-scale', 'settings-appearance-sound']);
   assert.match(main, />试听</);
-  for (const gone of ['界面字体', '标题字体', '动画', '对比度', '界面密度', '圆角']) assert.doesNotMatch(main, new RegExp(`>${gone}<`), `${gone} is not in the open`);
+  for (const gone of ['界面字体', '标题字体', '动画', '对比度', '界面密度', '圆角', '控件与字阶']) assert.doesNotMatch(main, new RegExp(`>${gone}<`), `${gone} is not in the open`);
 });
 
 test('every other choice is still there, inside 更多外观选项, with its anchor', async () => {
   const { more } = split(await draw());
   assert.match(more, /更多外观选项/);
   assert.deepEqual(anchorsIn(more).filter((anchor) => !anchor.endsWith('-transfer')),
-    ['settings-appearance-font', 'settings-appearance-motion', 'settings-appearance-contrast', 'settings-appearance-density', 'settings-appearance-radius']);
-  for (const label of ['界面字体', '标题字体', '动画', '对比度', '界面密度', '圆角', '无动画', '高对比', '圆润']) assert.match(more, new RegExp(label), label);
+    ['settings-appearance-font', 'settings-appearance-motion', 'settings-appearance-contrast', 'settings-appearance-density', 'settings-appearance-radius', 'settings-appearance-craft']);
+  for (const label of ['界面字体', '标题字体', '动画', '对比度', '界面密度', '圆角', '控件与字阶', '无动画', '高对比', '圆润', '精致紧凑']) assert.match(more, new RegExp(label), label);
 });
 
 test('a typed font name still shows when 本机字体 is chosen, inside the fold', async () => {
