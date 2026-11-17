@@ -32,7 +32,10 @@ import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
    Round 10 (rv26): at 320–420 a row has at most one cut piece, a cut ends after a whole part (never on 「·」 or a figure), the line never starts with
    「·」, and in a course scope long notes give way at the line's end, so the other course is said on every row.
    Round 10 review (#1132–#1136): a note is said whole or out of sight (judged by its right edge against the notes' box); 全部课程 keeps every row's format
-   beside its course; a size is said whole or not at all, by one rule for the rows of a kind; a course name left out draws no hover anchor. */
+   beside its course; a size is said whole or not at all, by one rule for the rows of a kind; a course name left out draws no hover anchor.
+   Round 11 review (rv30): the characters are decided for the rows of a kind, so one Markdown note no longer takes the Text notes' (en 375–420 全部课程),
+   and en 320 says them in their short words; a row with 选择页面 has the facts line of a row without, so dragging the window wider never says less
+   (532–540 px); a shortened course ends on a whole word, never inside a figure (「…（202…」). */
 
 const STAMP = '2026-10-01T08:00:00.000Z';
 const COURSE = '示例课程 · 设计模式';
@@ -74,7 +77,27 @@ async function seedLong(root) {
   service.dispose?.();
 }
 
-let browser = null, server = null, longServer = null, base = null, dist = null, ids = [], skip = '';
+/* Round 11 (rv30): the reviewer's sample library: a Markdown note, Text notes (one in the long course), and two PDFs with 选择页面 in the long course. */
+async function seedKinds(root) {
+  await mkdir(root, { recursive: true });
+  const service = new StudyService(root);
+  await service.call('snapshot');
+  await service.store.update(state => {
+    state.sources.push({ id: 'k-md', title: '示例 · 设计模式讲义', format: 'md', text: '模式。'.repeat(186) + '模式', createdAt: STAMP, courses: [COURSE] });
+    state.sources.push({ id: 'k-case', title: '案例：墨笺笔记应用', text: '笔记。'.repeat(89), createdAt: STAMP, courses: [COURSE] });
+    for (const [name, pages] of [['网络协议与分布式系统一致性原理讲义（第二版，含习题与参考答案）.pdf', 4], ['并发编程讲义.pdf', 3]]) {
+      for (let page = 1; page <= pages; page++) state.sources.push({ id: `${name}-${page}`, title: `${name} · ${page}`, text: `第 ${page} 页：线程、锁与死锁。`.repeat(20), createdAt: STAMP,
+        courses: [COURSE, LONG], document: { id: name, filename: name, page, totalPages: pages, extractionVersion: 2, format: 'pdf' } });
+    }
+    state.sources.push({ id: 'k-long', title: 'A very long English lecture title about distributed consensus protocols and their failure modes', text: 'Consensus, quorum and failure. '.repeat(30), createdAt: STAMP, courses: [COURSE, LONG] });
+    for (let n = 1; n <= 5; n++) state.sources.push({ id: `k-z${n}`, title: `第 ${n} 讲 一致性原理`, text: '要点。'.repeat(60), createdAt: STAMP, courses: [COURSE] });
+    for (let n = 1; n <= 4; n++) state.sources.push({ id: `k-e${n}`, title: `Lecture ${n}: consensus in practice`, text: 'Point. '.repeat(60), createdAt: STAMP, courses: [COURSE] });
+    state.focus = { ...(state.focus || {}), course: COURSE, mode: 'class' };
+  });
+  service.dispose?.();
+}
+
+let browser = null, server = null, longServer = null, kindsServer = null, base = null, dist = null, ids = [], skip = '';
 before(async () => {
   try { browser = await launchChromium(); } catch (error) { skip = `no Chromium to measure with: ${String(error.message).split('\n')[0]}`; return; }
   scrubProcessEnv();
@@ -86,18 +109,21 @@ before(async () => {
   ids = (await previewCall(server, 'snapshot')).sources.map(source => source.id);
   await seedLong(join(base, 'long'));
   longServer = await createPreviewServer({ libraryRoot: join(base, 'long'), home: join(base, 'home-long'), port: 0, model: createFakeModel({ latencyMs: 20 }), distDir: dist });
+  await seedKinds(join(base, 'kinds'));
+  kindsServer = await createPreviewServer({ libraryRoot: join(base, 'kinds'), home: join(base, 'home-kinds'), port: 0, model: createFakeModel({ latencyMs: 20 }), distDir: dist });
 });
 after(async () => {
   await browser?.close();
   await server?.close();
   await longServer?.close();
+  await kindsServer?.close();
   if (base) await rm(base, { recursive: true, force: true, maxRetries: 20, retryDelay: 150 });
   if (dist) await rm(dist, { recursive: true, force: true });
 });
 
-const answers = () => ({
-  'no index': { ok: true, value: { indexed: [], stale: [], missing: ids, hasIndex: false, canIndex: true, building: null } },
-  badges: { ok: true, value: { indexed: ids, stale: [], missing: [], hasIndex: true, canIndex: true, building: null } },
+const answers = (all = ids) => ({
+  'no index': { ok: true, value: { indexed: [], stale: [], missing: all, hasIndex: false, canIndex: true, building: null } },
+  badges: { ok: true, value: { indexed: all, stale: [], missing: [], hasIndex: true, canIndex: true, building: null } },
 });
 
 /** 创建题组 with the index answer held until `release()` (or given at once with `now`). */
@@ -289,6 +315,9 @@ const factsLines = page => page.evaluate(() => {
       return true;
     };
     walk(element);
+    // round 11: the characters' short words, drawn after the lead from its data-short where the list says them (not in the checkbox's name)
+    const after = getComputedStyle(element, '::after');
+    if (element.dataset.short && !['none', 'normal'].includes(after.content) && Number(after.opacity) !== 0 && after.position !== 'absolute') text.push(element.dataset.short);
     return text.join('');
   };
   return [...document.querySelectorAll('[data-tour="generate-sources"] .source-picker__item')].map(item => {
@@ -307,7 +336,7 @@ const factsLines = page => page.evaluate(() => {
     };
     const pieces = [...facts.querySelectorAll('.source-picker__fact')].map(piece => {
       const cut = piece.scrollWidth > piece.clientWidth + 0.5, tip = document.getElementById(piece.getAttribute('aria-describedby') || ''), box = piece.getBoundingClientRect();
-      return { text: piece.textContent, name: piece.classList.contains('source-picker__fact--name'), note: piece.classList.contains('source-picker__fact--note'), shown: drawn(piece), cut, seen: seen(piece, cut),
+      return { text: piece.textContent, short: piece.dataset.short || '', name: piece.classList.contains('source-picker__fact--name'), note: piece.classList.contains('source-picker__fact--note'), shown: drawn(piece), cut, seen: seen(piece, cut),
         clipped: box.right > clipRight(piece) + 0.5, tip: tip ? tip.textContent : null, right: box.right };
     });
     const shown = pieces.filter(piece => piece.shown);
@@ -334,18 +363,23 @@ const factsLines = page => page.evaluate(() => {
 
 /**
  * #1134, #1135: what is wrong with the rows' formats and sizes, in words. The format (the lead's first part) is said whole on every row; the pages and the
- * characters are each said whole or left out, never cut; and the rows of a kind (with pages, without) say their characters all or none.
+ * characters are each said whole or left out, never cut (round 11: the characters in their long words or their short ones); and the rows of a kind (the
+ * rows with pages; the rows of one format without) say their characters all or none, in one kind of words for the list.
  */
 const leadProblems = rows => {
-  const bad = [], says = { 'with pages': new Set(), 'without pages': new Set() };
+  const bad = [], says = new Map(), words = new Set();
   for (const row of rows) {
-    const parts = row.lead.text.split(' · '), [kind] = parts, paged = parts.length > 2, chars = parts.at(-1), seen = row.lead.seen.trim();
+    const parts = row.lead.text.split(' · '), [kind] = parts, paged = parts.length > 2, seen = row.lead.seen.trim(), sized = paged ? parts.slice(0, 2).join(' · ') : kind;
     if (!row.lead.shown || !seen.startsWith(kind)) { bad.push(`the format is not said whole: ${row.title}: ${row.text}`); continue; }
-    const wholes = paged ? [kind, parts.slice(0, 2).join(' · '), row.lead.text] : [kind, row.lead.text];
+    const wholes = [kind, sized, row.lead.text, `${sized}${row.lead.short}`];
     if (row.lead.cut || !wholes.includes(seen)) bad.push(`the size is cut: ${row.title}: ${row.text}`);
-    if (parts.length > 1) says[paged ? 'with pages' : 'without pages'].add(seen.endsWith(chars));
+    const group = paged ? 'with pages' : `${kind} without pages`;
+    if (!says.has(group)) says.set(group, new Set());
+    says.get(group).add(seen.length > sized.length);
+    if (seen.length > sized.length) words.add(seen === row.lead.text ? 'long' : 'short');
   }
-  for (const [kind, said] of Object.entries(says)) if (said.size > 1) bad.push(`rows ${kind} disagree on their characters`);
+  for (const [group, said] of says) if (said.size > 1) bad.push(`rows ${group} disagree on their characters`);
+  if (words.size > 1) bad.push('the list says its characters in two kinds of words');
   return bad;
 };
 
@@ -813,6 +847,102 @@ test('#1136: a course name left out of the line draws no hover anchor, so its ro
     const differ = narrow.filter(row => !row.anchors && wide.has(row.title) && row.elements !== wide.get(row.title).elements);
     assert.deepEqual(differ.map(row => `${row.title}: ${row.elements} at ${width}, ${wide.get(row.title).elements} at 1440`), [], `${tag}: a row without a cut name draws what it draws at 1440`);
     t.diagnostic(`${tag}: data-names=${await page.evaluate(() => document.querySelector('[data-tour="generate-sources"] .source-picker').dataset.names)}, elements ${narrow.slice(0, 3).map(row => row.elements).join('/')}`);
+    assert.deepEqual(errors, []);
+    await context.close();
+  }
+});
+
+/* Round 11 (rv30): en 375–420 全部课程, one Markdown note without room for its characters took them from all eleven Text notes; en 320 in the scope no note
+   said a size (「Text」 beside 「PDF · 4 pages」). The characters are decided for the rows of a kind, and said in their short words where the long ones
+   have no room; the rows of a kind still read alike, and a size is said whole or not at all. */
+test('round 11: a kind of note that has room for its characters says them, whatever another kind has room for (en/zh 320 scope, en 400–420 and zh 375 全部课程)', { timeout: 600000 }, async t => {
+  if (skip) { t.skip(skip); return; }
+  const all = (await previewCall(kindsServer, 'snapshot')).sources.map(source => source.id);
+  for (const [lang, width, everyCourse] of [['en', 320, false], ['zh', 320, false], ['en', 400, true], ['en', 420, true], ['zh', 375, true]]) {
+    const tag = `${lang} ${width}${everyCourse ? ' 全部课程' : ''}`;
+    const { page, errors, context } = await openGenerate({ lang, width, height: 900, answer: answers(all).badges, on: kindsServer });
+    if (everyCourse) await allCourses(page, lang);
+    await frames(page, 4);
+    const rows = [...(await everyRow(page)).values()];
+    assert.ok(rows.length >= 14, `${tag}: every row was drawn (${rows.length})`);
+    const notes = rows.filter(row => /^(Text|文本) · /.test(row.lead.text));
+    assert.ok(notes.length >= 10, `${tag}: the Text notes (${notes.length})`);
+    const bare = notes.filter(row => !/ · \d[\d,]* ?(characters?|字符|chars?|字)$/.test(row.lead.seen.trim()));
+    assert.deepEqual(bare.map(row => `${row.title}: ${row.text}`), [], `${tag}: every Text note says its characters`);
+    assert.deepEqual(leadProblems(rows), [], `${tag}: ${rows.slice(0, 3).map(row => row.text).join(' | ')}`);
+    if (everyCourse) assert.deepEqual(rows.filter(row => !row.names[0]?.shown).map(row => row.text), [], `${tag}: every row says its course`);
+    t.diagnostic(`${tag}: ${rows.slice(0, 3).map(row => row.text).join(' | ')}`);
+    assert.deepEqual(errors, []);
+    await context.close();
+  }
+});
+
+/* Round 11 (rv30): at 532–540 px (en) 选择页面 moved up onto the title line, a PDF row's facts line lost its width (327 → 274 px) and the list said less
+   while the window grew (first/all → first/unpaged → first/all). The facts line of a row with 选择页面 is now the line of a row without, at every width,
+   so a wider window never says less. */
+test('round 11: a row with 选择页面 has the facts line of a row without on each side of 532 px, so dragging the window wider never says less', { timeout: 600000 }, async t => {
+  if (skip) { t.skip(skip); return; }
+  const all = (await previewCall(kindsServer, 'snapshot')).sources.map(source => source.id);
+  for (const lang of ['en', 'zh']) for (const everyCourse of [false, true]) {
+    const tag = `${lang}${everyCourse ? ' 全部课程' : ''}`;
+    const { page, errors, context } = await openGenerate({ lang, width: 500, height: 900, answer: answers(all).badges, on: kindsServer });
+    if (everyCourse) await allCourses(page, lang);
+    let before = null;
+    const bad = [];
+    for (let width = 500; width <= 600; width += 2) {
+      await page.setViewportSize({ width, height: 900 });
+      await frames(page, 2);
+      const rows = await page.evaluate(() => [...document.querySelectorAll('[data-tour="generate-sources"] .source-picker__item')].map(item => ({
+        title: item.querySelector('strong').textContent, wide: item.querySelector('.source-picker__row').classList.contains('has-expand'),
+        line: item.querySelector('.source-picker__facts').getBoundingClientRect().width })));
+      const lines = rows.map(row => row.line), wide = rows.filter(row => row.wide), plain = rows.filter(row => !row.wide);
+      if (wide.length && plain.length && Math.max(...lines) - Math.min(...lines) > 0.5) bad.push(`${width}: a row with 选择页面 has ${Math.round(wide[0].line)} px, one without ${Math.round(plain[0].line)} px`);
+      // what each row says: its names, then the parts of its lead (the format, the pages, the characters)
+      const said = new Map((await factsLines(page)).map(row => [row.title, [row.names.filter(name => name.shown).length, row.lead.seen.trim().split(' · ').length]]));
+      if (before && Math.min(...lines) >= before.line - 0.5) {
+        for (const [title, [names, lead]] of said) {
+          const [wereNames, wereLead] = before.said.get(title) || [0, 0];
+          if (names < wereNames || (names === wereNames && lead < wereLead)) bad.push(`${before.width} → ${width}: ${title} says less`);
+        }
+      }
+      before = { width, line: Math.min(...lines), said };
+    }
+    assert.deepEqual(bad, [], tag);
+    t.diagnostic(`${tag}: ${(await factsLines(page)).slice(2, 4).map(row => row.text).join(' | ')}`);
+    assert.deepEqual(errors, []);
+    await context.close();
+  }
+});
+
+/* Round 11 (rv30): the long course was cut inside its figure at the line's end, 「分布式系统与网络协议（202…」. A shortened course ends on a whole word
+   (before a space, an opening bracket or a figure after a Chinese word), keeps its 「…」 and its hover card, and the checkbox's name says it as written. */
+test('round 11: a shortened course is never cut inside a figure, and its checkbox\'s name says it as written', { timeout: 600000 }, async t => {
+  if (skip) { t.skip(skip); return; }
+  const all = (await previewCall(kindsServer, 'snapshot')).sources.map(source => source.id);
+  for (const lang of ['en', 'zh']) {
+    const { page, errors, context } = await openGenerate({ lang, width: 480, height: 900, answer: answers(all).badges, on: kindsServer });
+    const bad = [];
+    let cuts = 0;
+    for (let width = 480; width <= 960; width += 4) {
+      await page.setViewportSize({ width, height: 900 });
+      await frames(page, 2);
+      let rows = await factsLines(page);
+      // the hover card comes with the shared observer's answer, a frame or two after the cut (ui/use-cut.js)
+      if (rows.some(row => row.names.some(piece => piece.shown && piece.cut && !piece.tip))) { await page.waitForTimeout(300); rows = await factsLines(page); }
+      for (const row of rows) {
+        for (const name of row.names.filter(piece => piece.shown && piece.cut)) {
+          cuts++;
+          const whole = name.text, shown = name.seen;
+          if (/\d$/.test(shown) && /^\d/.test(whole.slice(shown.length))) bad.push(`${width}: cut inside a figure: ${row.text}`);
+          if (!name.tip) bad.push(`${width}: a cut name has no hover card: ${row.text}`);
+        }
+      }
+    }
+    assert.ok(cuts > 0, `${lang}: some course was cut`);
+    assert.deepEqual(bad.slice(0, 8), [], lang);
+    const names = await boxNames(page, 6);
+    assert.ok(names.filter(name => name.includes(LONG)).length >= 3, `${lang}: the checkbox's name says the long course as written (${names[2]})`);
+    t.diagnostic(`${lang}: ${cuts} cut names checked`);
     assert.deepEqual(errors, []);
     await context.close();
   }
