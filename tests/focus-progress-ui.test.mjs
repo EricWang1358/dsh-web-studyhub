@@ -66,7 +66,7 @@ test('zero counts are left out, and nothing to practise means no link', () => {
 test('every topic still being learned: the line says so instead of ending at the colon', () => {
   const learning = { ...progress, total: 2, done: 0, weak: 0, none: 0, weakScope: [], topics: progress.topics.filter(topic => ['todo', 'active'].includes(topic.status)) };
   assert.match(visible(desk({ progress: learning })), /重点 2 条：学习中 2/);
-  assert.match(visible(render(h(m.FocusProgressLine, { progress: learning, courseId: 'c', start: noop }), 'en')), /Learning 2/);
+  assert.match(visible(render(h(m.FocusProgressLine, { progress: learning, courseId: 'c', start: noop }), 'en')), /2 focus topics: 2 learning/);
 });
 
 test('the line is hidden without focus topics and when the readout is empty', () => {
@@ -84,12 +84,22 @@ test('how it is counted is a hover Tooltip, never a title attribute', () => {
 
 test('English: every word of the line and its explanation is English', () => {
   const html = render(h(m.FocusProgressLine, { progress, courseId: 'course-os', lock: false, start: noop, onCourseSettings: noop }), 'en'), line = visible(html);
-  assert.match(line, /Focus topics 8: Mastered 3 · Not yet 2 · No questions 1(?! ·)/);
+  assert.match(line, /8 focus topics: 3 mastered · 2 not yet · 1 without a question(?! ·)/);
   assert.match(line, /Practise the focus topics you can't do yet/);
   assert.doesNotMatch(text(html), /[㐀-鿿]/, 'the explanation too');
   const rows = text(render(h(m.FocusProgressRows, { progress }), 'en'));
   assert.match(rows, /4 questions · Mastered 3/);
   assert.match(rows, /No questions/);
+});
+
+test('English reads as a sentence, with the singular, not two counts glued together (#1130: \"Focus topics 1: No questions 1\")', () => {
+  const one = { ...progress, total: 1, done: 0, weak: 0, none: 1, weakScope: [], topics: progress.topics.filter(topic => topic.status === 'none').slice(0, 1) };
+  const en = visible(render(h(m.FocusProgressLine, { progress: one, courseId: 'c', start: noop }), 'en'));
+  assert.match(en, /1 focus topic: 1 without a question/);
+  assert.doesNotMatch(en, /Focus topics|No questions \d/);
+  assert.match(visible(render(h(m.FocusProgressLine, { progress: { ...one, none: 3, total: 3 }, courseId: 'c', start: noop }), 'en')), /3 focus topics: 3 without questions/);
+  assert.match(visible(render(h(m.FocusProgressLine, { progress: { ...one, none: 0, done: 1 }, courseId: 'c', start: noop }), 'en')), /1 focus topic: 1 mastered/);
+  assert.match(visible(desk({ progress: one })), /重点 1 条：还没有题 1/, 'Chinese is unchanged');
 });
 
 /* The elements of a component's output, to press a button without a DOM: the line has no hooks, so calling it gives its tree. */

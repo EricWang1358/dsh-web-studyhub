@@ -1,0 +1,1 @@
+- **The English home line about focus topics reads as a sentence.** It used to say "Focus topics 1: No questions 1"; it now says "1 focus topic: 1 without a question", "5 focus topics: 1 mastered · 2 not yet · 1 without a question", with the singular right. The Chinese line is unchanged. Not verified: the course settings list below it, which has its own wording.
