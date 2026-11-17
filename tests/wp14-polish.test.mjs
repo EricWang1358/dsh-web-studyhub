@@ -444,9 +444,9 @@ test('the picker labels Word and PowerPoint and groups a deck of slides', () => 
   setUiLanguage('zh');
   const html = render(h(SourcePicker, { sources: Array.from({ length: 12 }, (_, i) => slide(i + 1)), selected: [], onChange() {} }));
   assert.equal((html.match(/data-document-key="/g) || []).length, 1);
-  assert.match(html, /PowerPoint · 12 页/);
+  assert.match(html.replace(/<[^>]+>/g, ''), /PowerPoint · 12 页/);
   assert.match(html, /选择页面/);
-  assert.match(render(h(SourcePicker, { sources: Array.from({ length: 12 }, (_, i) => slide(i + 1)), selected: [], onChange() {} }), 'en'), /PowerPoint · 12 slides/);
+  assert.match(render(h(SourcePicker, { sources: Array.from({ length: 12 }, (_, i) => slide(i + 1)), selected: [], onChange() {} }), 'en').replace(/<[^>]+>/g, ''), /PowerPoint · 12 slides/);
   const word = { id: 'w', title: 'notes.docx', text: 'x', createdAt: '2026-10-01T08:00:00.000Z', courses: [], document: { format: 'docx', filename: 'notes.docx', materialId: 'document-w-docx' } };
   assert.equal(sourceFormatLabel(word), 'Word');
   assert.match(sourceFormatLabel(slide(3)), /^PowerPoint · 第 3 页/);

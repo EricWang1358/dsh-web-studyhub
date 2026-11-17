@@ -31,7 +31,7 @@ test('the generation form lists documents and counts documents', () => {
   assert.ok(evidencePicker, 'the factual material picker is present');
   assert.equal((evidencePicker.match(/data-document-key="/g) || []).length, 2, 'a 4-page PDF and a Markdown file in factual selection');
   assert.match(evidencePicker, /已选择 1 \/ 2 份资料/);
-  assert.match(evidencePicker, /PDF · 4 页/);
+  assert.match(evidencePicker.replace(/<[^>]+>/g, ''), /PDF · 4 页/);
   assert.doesNotMatch(html, /slides\.pdf · p\.3|排版提取|旧版提取/);
   assert.match(html, /添加资料/, 'adding material still goes through the shared import dialog');
 });
