@@ -200,7 +200,7 @@ export function RowMenuItems({ item, onGenerate, onCompanion, onChangeCourse, on
   return <div className="source-row-menu">
     {/* What the row does not show beside its one action (#1083): 从这份资料出题 when 补题 is that action, and the material's interactive companion. */}
     {onGenerate && <Button className="source-row-menu__btn" lock={busy} onClick={event => { close(event); onGenerate(item); }}>{ui('从这份资料出题')}</Button>}
-    {onCompanion && <Button className="source-row-menu__btn" onClick={event => { close(event); onCompanion(item); }}>{ui('打开交互伴学页')}</Button>}
+    {onCompanion && <Button className="source-row-menu__btn" iconEnd="arrow-right" onClick={event => { close(event); onCompanion(item); }}>{ui('打开交互伴学页')}</Button>}
     {call && <OriginalMenuEntry item={item} />}
     {onRename && <Button className="source-row-menu__btn" lock={busy} aria-keyshortcuts="F2" onClick={event => { close(event); onRename(item); }}>{ui('重命名…')}</Button>}
     {/* 置顶: one entry to pin or unpin; a pinned row can also be moved without dragging (the pin's own order, lib/material-pins.js). */}
