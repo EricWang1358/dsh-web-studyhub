@@ -16,7 +16,7 @@ function PlaySlot({ run }) {
   const resume = <>{ui('继续')}<Icon name="arrow-right" className="sh-icon--inline" /></>;
   return run
     ? <span className="map-play__face row-end">{resume}</span>
-    : <><span className="map-play__face"><Icon name="play" size={14} /></span><span className="map-play__face map-play__ghost row-end" aria-hidden="true">{resume}</span></>;
+    : <><span className="map-play__face map-play__glyph"><Icon name="play" size={14} /></span><span className="map-play__face map-play__ghost row-end" aria-hidden="true">{resume}</span></>;
 }
 
 /** One deck of the tree: its fold, selection, mastery, play button and ⋯ menu (with 发给主会话), and its topics when open (each with a 发给主会话 icon). */
