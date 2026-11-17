@@ -300,8 +300,9 @@ export default function Generate({
                   </FormRow>
                   <div className="generate-focus-bar" data-generate-focus>
                     <p className="generate-focus-bar__text">
-                      {activeFocusCount > 0
-                        ? uiFormat("当前课程已设 {0} 个重点知识点：相关章节自动提高题量配额，重点题加深为应用 / 进阶难度。", [activeFocusCount])
+                      {/* One topic is said in the singular (English has a number), as the bar says 「1 题」. */}
+                      {activeFocusCount === 1 ? ui("当前课程已设 1 个重点知识点：相关章节自动提高题量配额，重点题加深为应用 / 进阶难度。")
+                        : activeFocusCount > 1 ? uiFormat("当前课程已设 {0} 个重点知识点：相关章节自动提高题量配额，重点题加深为应用 / 进阶难度。", [activeFocusCount])
                         : ui("手上有老师划的重点图或范围？先录入重点，出题会自动提高重点占比并加深难度。")}
                     </p>
                     <Button variant="link" size="sm" lock={busy} onClick={openFocusDialog}>

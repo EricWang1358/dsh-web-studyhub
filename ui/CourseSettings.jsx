@@ -358,7 +358,7 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
       <CustomPlanCard course={course} />
 
       <Disclosure className="course-settings__more" bodyClassName="course-settings__more-body" summary={ui('更多设置')} defaultOpen={startOpen}
-        meta={joinMeta([draft.format !== 'other' ? examFormatLabel(draft.format) : '', String(draft.interviewRole ?? '').trim(), splitTopics(draft.focusTopics).length ? uiFormat('{0} 个重点知识点', [splitTopics(draft.focusTopics).length]) : '',
+        meta={joinMeta([draft.format !== 'other' ? examFormatLabel(draft.format) : '', String(draft.interviewRole ?? '').trim(), splitTopics(draft.focusTopics).length === 1 ? ui('1 个重点知识点') : splitTopics(draft.focusTopics).length ? uiFormat('{0} 个重点知识点', [splitTopics(draft.focusTopics).length]) : '',
           draft.guidanceSourceIds.length ? uiFormat('考官指引 {0} 份', [draft.guidanceSourceIds.length]) : '', draft.generationRules.length ? uiFormat('出题守则 {0} 条', [draft.generationRules.length]) : ''])}>
         <section className="course-settings__block" aria-labelledby="course-settings-name">
           <h3 id="course-settings-name">{ui('名称')}</h3>
