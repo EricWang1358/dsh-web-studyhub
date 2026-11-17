@@ -79,15 +79,16 @@ function summaryParts(text) {
  * A selection over the limit says so in plain sight, not only in the panel. `tight` keeps the info button at the end of a long line instead of under it. `lead` is what goes before the figures (the 覆盖强度 line: 「标准：约 343 道题，覆盖 81/81 个部分，分 12 轮，」).
  * `method`: how the figures were made, the panel's last line (default: DSH's fixed estimate; a scale measured from a sample run says so instead).
  * `summary(estimate)`: other figures for the line (创建题组 says the tokens in its bar and the calls under it, each once); `warn={false}` leaves the over-limit line to the other one.
+ * `pieces`: the line sits in a box of one line's room that clips (创建题组's bar): a piece that does not fit goes to the hidden next line whole.
  */
-export function TokenEstimateView({ state = { status: 'idle' }, defaultOpen = false, align = 'start', lead = '', tight = false, method = null, totalOnly = false, summary = null, warn = true }) {
+export function TokenEstimateView({ state = { status: 'idle' }, defaultOpen = false, align = 'start', lead = '', tight = false, method = null, totalOnly = false, summary = null, warn = true, pieces = false }) {
   useInjectCss(css, 'study-token-usage');
   const [open, setOpen] = useState(defaultOpen);
   const panel = useId();
   const estimate = state.status === 'ready' ? state.estimate : null;
   const notes = (estimate?.notes || []).filter((code) => code !== 'over-limit').map((code) => noteText(code, estimate)).filter(Boolean);
   const summarize = summary || (totalOnly ? totalEstimateSummary : estimateSummary);
-  return <div className={`${align === 'end' ? 'token-estimate token-estimate--end' : 'token-estimate'}${tight ? ' token-estimate--tight' : ''}`} data-token-estimate data-status={state.status} aria-live="polite">
+  return <div className={`${align === 'end' ? 'token-estimate token-estimate--end' : 'token-estimate'}${tight ? ' token-estimate--tight' : ''}${pieces ? ' token-estimate--pieces' : ''}`} data-token-estimate data-status={state.status} aria-live="polite">
     {state.status === 'loading' && <p className="token-estimate__line token-estimate__line--loading">
       <span className="token-estimate__text">
         <span className="token-estimate__ghost" aria-hidden="true">{summaryParts(summarize(GHOST_ESTIMATE))}</span>

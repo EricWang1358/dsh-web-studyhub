@@ -364,7 +364,7 @@ export default function Generate({
                 {summary ? <p className="generate-summary" role="status">{summary.split(' · ').map((piece, at) => <React.Fragment key={at}>{at ? ' ' : ''}<span className="generate-summary__piece">{at ? `· ${piece}` : piece}</span></React.Fragment>)}</p>
                   : <p className="muted generate-submit__note" role="status">{model.ready && !selectedSources.length ? ui("先在「01 / 选择资料」勾选资料。") : ""}</p>}
                 {!pathMode && <div className="generate-submit__cost" data-generate-estimate>
-                  {estimating && <TokenEstimateView state={planned} totalOnly />}
+                  {estimating && <TokenEstimateView state={planned} totalOnly pieces />}
                 </div>}
               </div>
               {!model.ready ? (

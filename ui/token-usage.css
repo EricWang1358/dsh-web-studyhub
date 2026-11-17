@@ -80,6 +80,11 @@
     /* A long line (the 覆盖强度 one) wraps inside its own width and the info button stays at its end instead of dropping under it. */
     .token-estimate--tight .token-estimate__line { flex-wrap: nowrap; align-items: flex-start; }
     .token-estimate--tight .token-estimate__line > :first-child { flex: 1 1 auto; min-width: 0; padding-top: var(--space-1); overflow-wrap: anywhere; }
+    /* A line in a box of one line's room (`pieces`, 创建题组's bar, which clips to it): each piece (the range, its 「（含思考）」) is drawn whole or goes to the
+       hidden next line whole, never cut inside a word (#1082, round 5); while estimating, 「正在估算…」 stands on the first line. */
+    .token-estimate--pieces .token-estimate__line > :first-child { white-space: normal; }
+    .token-estimate--pieces .token-estimate__part { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: top; }
+    .token-estimate--pieces .token-estimate__quiet { align-self: start; }
     /* An action column right-aligns the line under its button. */
     .token-estimate--end .token-estimate__line { justify-content: flex-end; text-align: right; }
     .token-estimate--end .token-estimate__quiet { justify-self: end; }
