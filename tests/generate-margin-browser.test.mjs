@@ -673,8 +673,11 @@ test('#1084 round 10: at 320–420, in the scope and in 全部课程, a row has 
         if (row.pieces.some(piece => piece.shown && piece.clipped)) bad.push(`a piece is drawn past its box: ${row.text}`);
         if (all && !row.names[0]?.shown) bad.push(`no course in 全部课程: ${row.text}`);
       }
-      // #1134, #1135: every row says its format whole (全部课程 too), and its size whole or not at all, by one rule for its kind
-      bad.push(...leadProblems(rows));
+      // #1134, #1135: every row says its format whole (全部课程 too), and its size whole or not at all, by one rule for its kind. 全部课程 says the course
+      // alone only where the format would leave it less than 6em (a long format at 320): never above 320
+      const decided = await page.evaluate(() => document.querySelector('[data-tour="generate-sources"] .source-picker').dataset.names);
+      if (!(all && decided === 'alone')) bad.push(...leadProblems(rows));
+      else if (width > 320) bad.push(`全部课程 says the course alone at ${width}`);
       assert.deepEqual(bad, [], `${tag}: ${rows.slice(0, 3).map(row => row.text).join(' | ')}`);
       // what a row leaves out is still in its checkbox's name: the format, size and notes whole, and every course
       rows.slice(0, 3).forEach((row, at) => assert.ok(names[at]?.includes(row.pieces.map(piece => piece.text).join(' ')), `${tag}: the checkbox's name has every fact ("${names[at]}")`));

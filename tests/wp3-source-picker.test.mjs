@@ -116,5 +116,6 @@ test('the facts lines are one decision for the whole scope, from the words and t
   assert.equal(decide([row(60, 0, 100, 40), row(40, 0, 40, 40)]), 'none/all', 'in a course scope the other course gives way before a note\'s characters');
   assert.equal(decide([row(60, 0, 100, 40), row(40, 0, 40, 40)], { everyCourse: true }), 'first/none', 'in 全部课程 every row keeps its course and its format, a note gives its characters way');
   assert.equal(decide([row(40, 40, 80, 40), row(40, 0, 40, 40)], { everyCourse: true }), 'all/unpaged');
-  assert.equal(decide([row(120, 30, 40, 100, [], true)], { everyCourse: true }), 'kind/none', 'in 全部课程 with no room for the format with its pages and 6em of the course: the format alone, the course takes the rest');
+  assert.equal(decide([row(100, 60, 40, 100, [], true)], { everyCourse: true }), 'kind/none', 'in 全部课程 with no room for the format with its pages and 6em of the course: the format without its pages, then the course');
+  assert.equal(decide([row(150, 30, 40, 100, [], true)], { everyCourse: true }), 'alone/none', 'no room even for the format and 6em of the course: the course alone, rather than cut to two characters');
 });

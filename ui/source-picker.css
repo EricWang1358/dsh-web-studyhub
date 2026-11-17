@@ -32,7 +32,7 @@
     .source-picker__text small { grid-column: 2 / -1; min-width: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; word-break: keep-all; }
     /* The facts are one line at every width (#1084, round 4), so a short row is one title line and one line of facts at 420 as at 1440: the format, its
        pages and its size (the lead), then the names (each course, the file a material comes from), then the notes. Which names and sizes the rows show is
-       one decision for the list (ui/picker-names.js, below): the format is always said, a size whole or not at all (#1135), a name whole or, the first,
+       one decision for the list (ui/picker-names.js, below): the format is said (in 全部课程 where the course keeps 6em), a size whole or not at all (#1135), a name whole or, the first,
        cut with 「…」, and a row has one cut piece at most (round 10). The course the scope names is not said again (above the list). The line ends at the
        badges' column on every row, badge or none (round 8, below), and clips what is left out (in place, see-through), so nothing draws past it. */
     .source-picker__text .source-picker__facts { grid-column: 2 / -1; position: relative; display: flex; column-gap: 0.3em; height: calc(var(--fs-sm) * var(--lh-snug)); overflow: clip; white-space: nowrap; }
@@ -73,19 +73,23 @@
     .source-picker__fact--note + .source-picker__fact--note { margin-inline-start: 0.3em; }
     /* Which names and sizes a row shows is the list's one decision for the scope (ui/picker-names.js), so a run of rows reads the same and scrolling changes
        none. data-names: 'all' every name, whole; 'first' the first name takes the rest (6em at least, cut if need be); 'none' (a course scope) no name;
-       'kind' (全部课程 at its narrowest) the format without its pages and size, then the course, cut with 「…」 and its whole name on hover where it is
-       longer. data-chars: 'all' every row says its characters; 'unpaged' a row with pages says its size in pages only; 'none' no row says them. A piece
+       'kind' (全部课程) the format without its pages and size, then the course (6em at least, cut with 「…」 and its whole name on hover); 'alone'
+       (全部课程 at its narrowest, no room even for that) the course has the line to itself on every row, its 「· 」 hidden left of the line's start
+       (--picker-dot, measured), cut with 「…」 and its whole name on hover where it is longer. data-chars: 'all' every row says its characters; 'unpaged' a row with pages says its size in pages only; 'none' no row says them. A piece
        left out is see-through and out of the line's flow, not hidden, so the checkbox's name (the facts line's words) still says every course and the
        whole lead. */
     .source-picker:is([data-names="first"], [data-names="all"]) .source-picker__fact--lead { flex: 0 1 auto; }
     .source-picker[data-names="none"] :is([data-name="first"], .source-picker__names),
     .source-picker:is([data-names="first"], [data-names="kind"]) .source-picker__names,
+    .source-picker[data-names="alone"] :is(.source-picker__fact--lead, .source-picker__names, .source-picker__notes),
     .source-picker[data-names="kind"] .source-picker__part--pages,
     .source-picker[data-chars="unpaged"] .source-picker__part--pages + .source-picker__part--size,
     .source-picker[data-chars="none"] .source-picker__part--size { position: absolute; opacity: 0; pointer-events: none; }
     /* A name left out is never cut, so it never takes the hover card's anchor (#1136: an anchor 0 wide, a gap on the line, never to open). */
     .source-picker[data-names="none"] [data-name="first"] { width: auto; max-width: none; }
-    .source-picker[data-names="kind"] .source-picker__facts > :is([data-name="first"], .source-picker__fact-anchor) { flex: 0 1 auto; width: auto; max-width: none; }
+    .source-picker:is([data-names="kind"], [data-names="alone"]) .source-picker__facts > :is([data-name="first"], .source-picker__fact-anchor) {
+      flex: 0 1 auto; width: auto; max-width: none; }
+    .source-picker[data-names="alone"] .source-picker__facts > :is([data-name="first"], .source-picker__fact-anchor) { margin-inline-start: calc(-1 * var(--picker-dot, 0.6em)); }
     /* 选择页面 ends a wide row's title line, as tall as that line in the grid (its box hangs into the row's padding), so it makes no row taller. */
     .source-picker__expand { grid-column: 3; grid-row: 1; justify-self: end;
       margin-block: calc((var(--fs-md) * var(--lh-snug) - var(--picker-expand-h)) / 2); }
