@@ -289,6 +289,43 @@ test('#1084: every row follows one rule for its courses: the course 课程范围
   }
 });
 
+test('#1082: the estimate under 帮我想想 is as tall while it is coming as when it is in, so the controls under it in 更多选项 do not move when it lands', { timeout: 300000 }, async t => {
+  if (skip) { t.skip(skip); return; }
+  for (const [lang, width] of [['en', 320], ['en', 420], ['zh', 320], ['zh', 420], ['en', 1440]]) {
+    const tag = `${lang} ${width}`;
+    const { page, errors, context } = await openGenerate({ lang, width, height: 1400 });
+    let release, held = new Promise(done => { release = done; });
+    await page.route('**/api/call', async route => {
+      let body = {};
+      try { body = JSON.parse(route.request().postData() || '{}'); } catch { /* not JSON */ }
+      if (body.action === 'usage.estimate' && JSON.stringify(body).includes('"suggest"')) await held;
+      return route.fallback();
+    });
+    // the page again, with the estimate held: it is coming for the first time, as on a fresh visit
+    await page.reload();
+    await page.locator('aside, nav').first().waitFor({ timeout: 30000 });
+    await (await revealNavRow(page, 'generate')).dispatchEvent('click');
+    await page.locator('[data-tour="generate-sources"] .source-picker__item').first().waitFor({ timeout: 30000 });
+    const fold = page.locator('.generate-more').first();
+    if (!await fold.evaluate(element => element.open)) await fold.locator(':scope > summary').click();
+    const estimate = page.locator('.generate-more__body [data-token-estimate]').first();
+    await until(async () => (await estimate.getAttribute('data-status')) === 'loading', `${tag}: the estimate is coming`);
+    await frames(page, 3);
+    const read = () => page.evaluate(() => ({ box: document.querySelector('.generate-more__body [data-token-estimate]').getBoundingClientRect().height,
+      control: document.querySelector('[data-tour="generate-difficulty"] button').getBoundingClientRect().top }));
+    const coming = await read();
+    release();
+    await until(async () => (await estimate.getAttribute('data-status')) === 'ready', `${tag}: the estimate is in`);
+    await frames(page, 3);
+    const landed = await read();
+    t.diagnostic(`${tag}: estimate ${coming.box} → ${landed.box}`);
+    assert.ok(Math.abs(landed.box - coming.box) <= 0.5, `${tag}: the estimate keeps its height when it lands (${coming.box} → ${landed.box})`);
+    assert.ok(Math.abs(landed.control - coming.control) <= 0.5, `${tag}: 难度 stays where it is (${coming.control} → ${landed.control})`);
+    assert.deepEqual(errors, []);
+    await context.close();
+  }
+});
+
 test('#1082: at 1440 with nothing ticked, the bar\'s reason is level with the button', { timeout: 300000 }, async t => {
   if (skip) { t.skip(skip); return; }
   for (const lang of ['zh', 'en']) {

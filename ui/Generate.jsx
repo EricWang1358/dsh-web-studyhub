@@ -293,7 +293,7 @@ export default function Generate({
                       placeholder={ui("例如：区分相似模式，重点练习工程场景中的取舍")} />
                     {(pathMode || retrievalMode) && <FocusHelp mode={mode} />}
                     <GenerateAssist ready={model.ready} phase={assist.phase} result={assist.result} applied={assist.applied} focus={gen.focus} disabled={busy}
-                      estimate={<TokenEstimate enabled={model.ready && selectedSources.length > 0}
+                      estimate={<TokenEstimate pieces enabled={model.ready && selectedSources.length > 0}
                         request={{ feature: 'suggest', sourceIds: selectedSources, course: generationCourse, ...(goal ? { goal } : {}) }} />}
                       onAsk={askAssist} onSettings={openSettings}
                       onPick={(item) => setGen({ ...gen, focus: appendFocus(gen.focus, item) })}
