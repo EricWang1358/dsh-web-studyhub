@@ -10,5 +10,5 @@ export default function AnswerState({ correct, picked, multiple = false }) {
     ? picked ? ui("已选 · 正确") : multiple ? ui("漏选 · 正确答案") : ui("正确答案")
     : picked ? multiple ? ui("已选 · 错选") : ui("你的选择") : "";
   const mark = picked ? (correct ? "check" : "close") : null;
-  return <strong className="answer-state">{mark && <Icon name={mark} weight="regular" className="answer-state__mark sh-icon--inline" />}{words}</strong>;
+  return <strong className="answer-state">{mark && <Icon name={mark} weight="state" className="answer-state__mark sh-icon--inline" />}{words}</strong>;
 }
