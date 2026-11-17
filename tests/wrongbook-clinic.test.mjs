@@ -6,6 +6,7 @@ import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { wrongBook } from '../lib/insights.js';
+import { PRACTICE_DEFAULTS, mergePracticeSettings, resolvePracticeSettings, wrongbookClinic } from '../lib/practice-settings.js';
 
 const compiled = await build({
   stdin: {
@@ -375,4 +376,19 @@ test('WrongBookView renders 靶向清零处方 only when settings.practice.wrong
   } finally {
     setUiLanguage('zh');
   }
+});
+
+test('wrongbookClinic stays an optional setting outside PRACTICE_DEFAULTS', () => {
+  const baselineKeys = ['autopilot', 'roundSize', 'newCardOrder', 'debrief', 'rereadMarks', 'leechFailures', 'leechWindow', 'leechRate'];
+  assert.deepEqual(Object.keys(PRACTICE_DEFAULTS), baselineKeys);
+  assert.deepEqual(Object.keys(resolvePracticeSettings(undefined)), baselineKeys);
+  assert.equal(wrongbookClinic(undefined), false);
+
+  const enabled = mergePracticeSettings(undefined, { wrongbookClinic: true });
+  assert.equal(enabled.wrongbookClinic, true);
+  assert.equal(wrongbookClinic(enabled), true);
+
+  const cleared = mergePracticeSettings(enabled, { wrongbookClinic: null });
+  assert.equal('wrongbookClinic' in cleared, false);
+  assert.equal(wrongbookClinic(cleared), false);
 });

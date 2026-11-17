@@ -139,6 +139,9 @@ test('a switch saves just its own field at once and shows the choice without wai
   await named(view, 'wrongbookClinic').props.onChange(true);
   assert.deepEqual(calls[3].slice(0, 2), ['settings.practice.set', { patch: { wrongbookClinic: true } }]);
   assert.equal(named(view, 'wrongbookClinic').props.checked, true);
+  await named(view, 'wrongbookClinic').props.onChange(false);
+  assert.deepEqual(calls[4].slice(0, 2), ['settings.practice.set', { patch: { wrongbookClinic: null } }]);
+  assert.equal(named(view, 'wrongbookClinic').props.checked, false);
   assert.equal(named(view, 'autopilot').props.checked, true, 'the earlier choice stays');
 });
 

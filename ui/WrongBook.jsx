@@ -16,7 +16,7 @@ import { Badge, Banner, Button, ChunkedRows, Combobox, DisclosureToggle, foldLab
 import { scrollToAnchor } from './tour/anchor.js';
 import { HandOff } from './hand-off/HandOff.jsx';
 import { leechLimits } from '../lib/leech.js';
-import { resolvePracticeSettings } from '../lib/practice-settings.js';
+import { wrongbookClinic } from '../lib/practice-settings.js';
 import { isJsonCardSource } from '../lib/source-provenance.js';
 import { firstCitation, usableCitations } from './document-preview/practice/citations.js';
 import ModelSetupGate from './ModelSetupGate.jsx';
@@ -693,7 +693,7 @@ export function WrongBookView({
   const canGenerate = hasCoach && coach.enabled && !!onGenerate;
   const rowIds = new Set(rows.map((row) => row.cardId));
   const readyHere = (coach?.readyCards || []).filter((variant) => rowIds.has(variant.originCardId));
-  const clinicOn = Boolean(resolvePracticeSettings(data?.settings?.practice).wrongbookClinic);
+  const clinicOn = wrongbookClinic(data?.settings?.practice);
   const clinicLanes = useMemo(
     () => (clinicOn && !isHistory && rows.length >= 2
       ? buildWrongbookClinic({ rows, sourceTargetByCard, companionTargetByCard, wrongCounts })
