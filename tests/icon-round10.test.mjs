@@ -144,9 +144,9 @@ const draw = async () => {
     drawn: (html, name) => html.includes([].concat(m.ICON_PATHS[name])[0].slice(0, 40)) };
 };
 
-test('2: HandOff draws the external mark in front in every shape (a link, a quiet line, the icon-only one, the form\'s submit), and never the chat glyph or an arrow', async () => {
+test('2: HandOff draws the external mark in front in every shape with words (a link, a quiet line, the submit of the form), and never the chat glyph or an arrow (the icon-only shape: round 11)', async () => {
   const { m, render, drawn } = await draw();
-  for (const shape of ['link', 'quiet', 'secondary', 'icon']) {
+  for (const shape of ['link', 'quiet', 'secondary']) {
     const html = render(React.createElement(m.HandOff, { id: 'deck.ask', input: {}, shape }));
     assert.ok(drawn(html, 'external'), `${shape}: the external mark`);
     assert.ok(!drawn(html, 'chat') && !drawn(html, 'arrow-right'), `${shape}: no chat glyph, no arrow`);
