@@ -189,7 +189,7 @@ export default function BookPage({ data, onBack, onPractice, inlinePractice = nu
   const handleFindShortcut = useCallback(event => handleBookFindShortcut(event, {
     view,
     ready: book?.status === 'ok' && !!book?.notes,
-    inOverlay: Boolean(inlineState || event?.target?.closest?.('dialog, [role="dialog"], .cm-editor, [data-inline-run]') || pageRef.current?.querySelector?.('dialog[open]')),
+    inOverlay: Boolean(inlineState || event?.target?.closest?.('dialog, [role=dialog], .cm-editor, [data-inline-run]') || pageRef.current?.querySelector?.('dialog[open]')),
     onOpen: openBookFind,
   }), [view, inlineState, book?.status, book?.notes, openBookFind]);
   useEffect(() => {
