@@ -370,9 +370,10 @@ test('#1084: at 420 a short row is as on main, a long title has the row, no fact
             }
             assert.deepEqual(row.split, [], `${where}: no fact is split across lines`);
             assert.ok(row.below <= 1, `${where}: ${Math.round(row.below)}px of empty band under the content`);
-            // while the answer is coming every row holds the slot; once it is in, a row with a badge keeps one and a row without gives it to its facts (round 5)
+            // while the answer is coming every row holds the slot; once it is in, every row keeps it, badge or none (round 8: the names on the facts line keep
+            // their room when the answer lands; a row without a badge lends it to its format and size only)
             if (when === 'before the answer' && late) assert.equal(row.slot, true, `${where}: the slot is held while the answer is coming`);
-            if (when === 'after it') assert.equal(row.slot, row.badge, `${where}: a slot where there is a badge, none where there is not`);
+            if (when === 'after it') assert.equal(row.slot, true, `${where}: the slot is kept, badge or none`);
             if (row.slot) assert.equal(row.slotOnFactsLine, true, `${where}: the badge's slot ends the facts' first line, at the row's end (slot top, bottom, right; line top, bottom; column end: ${row.slotPlace})`);
             else assert.ok(Math.abs(row.factsEnd - row.columnEnd) <= 1, `${where}: with no slot the facts take the column (${row.factsEnd} vs ${row.columnEnd})`);
             if (row.badge) assert.ok(row.badgeMiddle <= 1, `${where}: the badge sits on the middle of that line (${row.badgeMiddle} px off)`);

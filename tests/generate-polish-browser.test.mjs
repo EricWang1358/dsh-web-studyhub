@@ -97,11 +97,17 @@ const pickerRows = page => page.evaluate(() => [...document.querySelectorAll('[d
   const title = item.querySelector('.source-picker__text strong').getBoundingClientRect(), facts = item.querySelector('.source-picker__facts').getBoundingClientRect();
   const slotElement = item.querySelector('[data-index-slot]'), slot = slotElement && getComputedStyle(slotElement).display !== 'none' ? slotElement.getBoundingClientRect() : null;
   const badge = item.querySelector('[data-index-slot] [data-state]')?.getBoundingClientRect() ?? null;
+  // how far the format, the size and the notes may run: the piece's end with a long text in it (put back at once, in the same task: nothing is drawn)
+  const lead = item.querySelector('.source-picker__fact'), long = document.createTextNode(' ·'.repeat(200));
+  lead.append(long);
+  const leadEnd = lead.getBoundingClientRect().right;
+  long.remove();
   return { title: item.querySelector('strong').textContent.slice(0, 12), height: Math.round(item.getBoundingClientRect().height * 10) / 10, factsRight: facts.right, columnEnd: title.right,
-    slot: slot && slot.width > 0 ? { left: slot.left, width: slot.width } : null, badge: badge ? { left: badge.left, width: badge.width } : null };
+    leadRoom: leadEnd, slot: slot && slot.width > 0 ? { left: slot.left, width: slot.width, right: slot.right } : null,
+    badge: badge ? { left: badge.left, width: badge.width, right: badge.right } : null };
 }));
 
-test('#1084: at 420 a row without a badge gives the slot back to its facts once the answer is in, a badge row keeps a slot as wide as its badge, and no row moves', { timeout: 900000 }, async t => {
+test('#1084: at 420 the badge column keeps one width on every row, coming, with a badge and without (round 8); a row without a badge lends it to its format, size and notes; no row moves', { timeout: 900000 }, async t => {
   if (skip) { t.skip(skip); return; }
   for (const lang of ['zh', 'en']) for (const [answer, body] of Object.entries(answers())) {
     const tag = `${lang} 420, ${answer}`;
@@ -116,13 +122,15 @@ test('#1084: at 420 a row without a badge gives the slot back to its facts once 
     await frames(page, 6);
     const settled = await pickerRows(page);
     assert.deepEqual(settled.map(row => row.height), loading.map(row => row.height), `${tag}: no row changes height when the answer comes`);
+    // Round 8: the column is as wide on every row before and after the answer, so the names on the facts line keep their room and none comes or goes.
+    const width = loading[0].slot.width;
+    for (const row of [...loading, ...settled]) assert.ok(row.slot && Math.abs(row.slot.width - width) <= 0.5, `${tag}: ${row.title}: the badges' column is ${width} px (${row.slot?.width})`);
     for (const row of settled) {
       if (row.badge) {
-        assert.ok(row.slot && row.slot.width <= row.badge.width + 0.5, `${tag}: ${row.title}: the slot is as wide as its badge (${row.slot?.width} for a ${row.badge.width} px badge)`);
-        assert.ok(row.factsRight >= row.badge.left - 13, `${tag}: ${row.title}: the facts end by the badge (${Math.round(row.factsRight)} vs the badge at ${Math.round(row.badge.left)})`);
+        assert.ok(row.badge.width <= row.slot.width + 0.5 && Math.abs(row.badge.right - row.slot.right) <= 0.5, `${tag}: ${row.title}: the badge ends at the column's end (${row.badge.right} vs ${row.slot.right})`);
+        assert.ok(row.factsRight >= row.slot.left - 13, `${tag}: ${row.title}: the facts end by the badge (${Math.round(row.factsRight)} vs the column at ${Math.round(row.slot.left)})`);
       } else {
-        assert.equal(row.slot, null, `${tag}: ${row.title}: no slot is kept for a badge that will not come`);
-        assert.ok(Math.abs(row.factsRight - row.columnEnd) <= 1, `${tag}: ${row.title}: the facts have the whole column (end ${Math.round(row.factsRight)}, column ${Math.round(row.columnEnd)})`);
+        assert.ok(row.leadRoom >= row.columnEnd - 1, `${tag}: ${row.title}: the format, the size and the notes may run to the column's end (room to ${Math.round(row.leadRoom)}, column ${Math.round(row.columnEnd)})`);
       }
     }
     if (answer === 'badges') assert.ok(settled.every(row => row.badge), `${tag}: every row shows its badge`);
