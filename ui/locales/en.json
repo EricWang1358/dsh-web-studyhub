@@ -568,6 +568,7 @@
   "去建立索引": "Go and build the index",
   "去安装检索扩展": "Go and install the search extension",
   "有 {0} 份资料的索引还没建完": "The index of {0} material(s) is not finished",
+  "{0} 份资料未建完索引": "{0} not fully indexed",
   "界面大小": "Interface size",
   "放大整个界面（文字、按钮和间距一起），最大 200%。阅读和做题页另有 Aa 可以单独调字号和宽度。": "Scales the whole interface (text, buttons and spacing together), up to 200%. Reading and review pages also have Aa for text size and width.",
   "界面字体": "Interface typeface",

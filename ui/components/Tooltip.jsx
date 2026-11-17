@@ -39,12 +39,14 @@ export function focusQuietly(element, options) {
  * An empty `content` draws no card (and closes an open one): a caller whose words come and go keeps one anchor in the page, so the control
  * it wraps is never remounted when the words appear.
  * onOpenChange(open): told after the card opens or closes (the sidebar says its reorder line in the first card only, ui/nav-reorder-hint.js).
+ * show: the card is also open while this is true (a row whose own focus stands for the anchor, ui/SourcePicker.jsx).
  */
-export default function Tooltip({ content, children, placement = 'bottom-start', flip = true, className, layer = false, anchorClassName, interactive = false, group, outside, onOpenChange }) {
+export default function Tooltip({ content, children, placement = 'bottom-start', flip = true, className, layer = false, anchorClassName, interactive = false, group, outside, onOpenChange, show = false }) {
   useComponentCss(css);
   useComponentCss(overlayCss, 'study-overlays');
   useComponentCss(layerCss, 'study-tooltip-layer');
-  const [open, setOpen] = useState(false);
+  const [opened, setOpen] = useState(false);
+  const open = opened || (show && Boolean(content));
   const id = useId(), anchor = useRef(null), panel = useRef(null), timer = useRef(0), self = useRef(null), pressedAt = useRef(0);
   if (!self.current) self.current = { close: () => {} };
   self.current.close = () => { clearTimeout(timer.current); setOpen(false); };
