@@ -1909,4 +1909,21 @@ test('Wave 7 Polish: detokenized glossary & slide titles in companion.get, 15 MB
   const companionsCss = await readFile(new URL('../ui/companions/companions.css', import.meta.url), 'utf8');
   assert.match(companionsCss, /container-type:\s*inline-size/);
   assert.match(companionsCss, /minmax\(0,\s*1fr\)\s+minmax\(0,\s*44%\)/);
+
+  // 5. Top-bar non-overlapping grid tracks, dark scrollbar color-scheme, board auto-width & fullscreen dialog stage sizing
+  const plainFramed = framedDocument('<!doctype html><html><head></head><body></body></html>');
+  assert.doesNotMatch(plainFramed, /sh-companion-frame-fix/, '1-arg Archify framedDocument stays free of companion overrides');
+  assert.match(shimBooted, /id="sh-companion-frame-fix"/);
+  assert.match(shimBooted, /minmax\(0,auto\)\s+minmax\(0,1fr\)\s+auto/);
+  assert.match(shimBooted, /html\[data-theme="dark"\]\{color-scheme:dark\}/);
+  assert.match(shimBooted, /\.pic__board\{[^}]*max-width:184px/);
+
+  assert.match(LESSON_TEMPLATE_CSS, /\.top\s*\{\s*display:\s*grid;\s*grid-template-columns:\s*minmax\(0,\s*auto\)\s+minmax\(0,\s*1fr\)\s+auto;/);
+  assert.doesNotMatch(LESSON_TEMPLATE_CSS, /grid-template-columns:\s*minmax\(0,\s*1fr\)\s+auto\s+minmax\(0,\s*1fr\)/);
+  assert.match(LESSON_TEMPLATE_CSS, /\.pic__board\s*\{[^}]*max-width:\s*184px/);
+
+  const componentsCss = await readFile(new URL('../ui/components/components.css', import.meta.url), 'utf8');
+  assert.match(componentsCss, /\.sh-dialog--full\.sh-comp-dialog\s+\.sh-dialog__content\s*\{[^}]*max-width:\s*min\(1480px,\s*100%\)/);
+  const viewerSrc = await readFile(new URL('../ui/companions/CompanionViewer.jsx', import.meta.url), 'utf8');
+  assert.match(viewerSrc, /'sh-comp-dialog sh-comp-dialog--expanded'\s*:\s*'sh-comp-dialog'/);
 });

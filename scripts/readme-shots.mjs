@@ -222,7 +222,6 @@ try {
       await saveShot(encoderPage, page, `desk-${lang}-${theme}`, { targetWidth: 1200, quality: 0.85 });
 
       // (b) Interactive Companion parametric math sandbox
-      await page.setViewportSize({ width: 1560, height: 940 });
       await page.locator('[data-tour="nav-sources"]').click();
       await page.waitForSelector('article.source-doc button.source-doc__action', { timeout: 15000 });
       await page.waitForTimeout(300);
@@ -253,7 +252,6 @@ try {
       await page.waitForTimeout(500);
       await saveShot(encoderPage, page, `companion-${lang}-${theme}`, { targetWidth: 1200, quality: 0.85 });
       await closeAnyDialogs(page);
-      await page.setViewportSize({ width: 1280, height: 820 });
 
       // (c) Practice & per-option grading feedback
       await page.locator('[data-tour="nav-library"]').click();

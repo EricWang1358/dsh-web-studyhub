@@ -566,7 +566,7 @@ export default function CompanionViewer({ modal, onClose }) {
   return (
     <Dialog
       size="full"
-      className={expanded ? 'sh-comp-dialog--expanded' : undefined}
+      className={expanded ? 'sh-comp-dialog sh-comp-dialog--expanded' : 'sh-comp-dialog'}
       title={state.companion?.title || modal?.title || ui('交互伴学页')}
       description={state.companion?.grounded === false
         ? ui('AI 推演伴学页（隔离沙箱运行，未绑定原讲义）')

@@ -45,8 +45,27 @@ const UNIVERSAL_COMPANION_SHIM = `<script>(function(){try{`
   + `var nx=document.getElementById('next'),pv=document.getElementById('prev'),g=0,backed=false;while(nx&&curSlide().slide<tgt&&!nx.disabled&&g++<240){nx.click();}while(pv&&curSlide().slide>tgt&&!pv.disabled&&g++<240){pv.click();backed=true;}`
   + `if(backed&&pv){if(tgt>1){while(curSlide().slide===tgt&&!pv.disabled&&g++<40){pv.click();}while(nx&&curSlide().slide<tgt&&!nx.disabled&&g++<10){nx.click();}}else{while(!pv.disabled&&g++<40){pv.click();}}}}`
   + `});`
-  + `var cEl=document.getElementById('count');if(cEl){var timer=0;new MutationObserver(function(){clearTimeout(timer);timer=setTimeout(function(){var p=curSlide();post({kind:'progress',slide:p.slide,slideTotal:p.total,completed:p.slide>=p.total});},400);}).observe(cEl,{childList:true,characterData:true,subtree:true});}`
+  + `function syncBeat(){var nb=document.querySelector('#beats .beat.is-now');if(nb&&nb.scrollIntoView){try{nb.scrollIntoView({block:'nearest',inline:'nearest'});}catch(e){}}}`
+  + `syncBeat();`
+  + `var cEl=document.getElementById('count');if(cEl){var timer=0;new MutationObserver(function(){syncBeat();clearTimeout(timer);timer=setTimeout(function(){var p=curSlide();post({kind:'progress',slide:p.slide,slideTotal:p.total,completed:p.slide>=p.total});},400);}).observe(cEl,{childList:true,characterData:true,subtree:true});}`
   + `});}catch(e){}})();</script>`;
+
+const COMPANION_FRAME_FIX = `<style id="sh-companion-frame-fix">`
+  + `html[data-theme="dark"]{color-scheme:dark}`
+  + `html[data-theme="light"]{color-scheme:light}`
+  + `html body .top{grid-template-columns:minmax(0,auto) minmax(0,1fr) auto;gap:.75rem 1rem}`
+  + `html body .top:has(>.top__title:empty){grid-template-columns:minmax(0,1fr) auto}`
+  + `html body .top__title{max-width:14rem}`
+  + `html body .top__title:empty{display:none}`
+  + `html body .beats{min-width:0;max-width:100%;overflow-x:auto;scrollbar-width:none}`
+  + `html body .beats::-webkit-scrollbar{display:none}`
+  + `html body .top__tools{flex-shrink:0;white-space:nowrap;gap:.5rem}`
+  + `html body .stage{scrollbar-width:thin;scrollbar-color:var(--rule-strong,rgba(160,150,138,.36)) transparent}`
+  + `html body .slide--hook .slide__title{margin-top:clamp(.25rem,2.2vh,1.5rem)}`
+  + `html body .pic__board{left:150px;transform:translateX(-50%);width:auto;min-width:120px;max-width:184px;min-height:62px;height:auto;padding:6px 12px}`
+  + `html body .pic__value{font-size:clamp(16px,1.2rem,22px);line-height:1.22;overflow-wrap:break-word}`
+  + `@media (max-width:900px){html body .top{grid-template-columns:minmax(0,1fr) auto}}`
+  + `</style>`;
 
 function safeBootJson(value) {
   return JSON.stringify(value).replace(/<\//g, '<\\/').replace(/<!--/g, '<\\!--');
@@ -77,7 +96,7 @@ export function framedDocument(html, companion) {
       askLabel: typeof companion.askLabel === 'string' && companion.askLabel ? companion.askLabel : '+ Ask / Note',
       selectionLabel: typeof companion.selectionLabel === 'string' && companion.selectionLabel ? companion.selectionLabel : 'Ask about selection',
     })}</script>`;
-    headInsert = GUARD + bootTag + UNIVERSAL_COMPANION_SHIM;
+    headInsert = GUARD + COMPANION_FRAME_FIX + bootTag + UNIVERSAL_COMPANION_SHIM;
   }
   for (const opening of [/<head(?:\s[^>]*)?>/i, /<html(?:\s[^>]*)?>/i, /^\s*(?:﻿)?<!doctype[^>]*>/i]) {
     const found = opening.exec(text);

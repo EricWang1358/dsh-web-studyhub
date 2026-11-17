@@ -1060,6 +1060,8 @@
     .sh-dialog--full.source-preview .sh-dialog__body { display: flex; flex-direction: column; padding: 0; overflow: hidden; scrollbar-gutter: auto; }
     .sh-dialog--full.source-preview .sh-dialog__content { display: flex; flex: 1 1 auto; flex-direction: column; width: 100%; max-width: none; min-height: 0; margin-inline: 0; }
     .sh-dialog--full.source-preview .sh-dialog__content > :not(.study-document-viewer) { flex: none; margin: var(--space-2) var(--space-5); }
+    .sh-dialog--full.sh-comp-dialog .sh-dialog__body { display: flex; flex-direction: column; padding: var(--space-3) var(--space-4); overflow: hidden; scrollbar-gutter: auto; }
+    .sh-dialog--full.sh-comp-dialog .sh-dialog__content { display: flex; flex: 1 1 auto; flex-direction: column; width: 100%; max-width: min(1480px, 100%); min-height: 0; margin-inline: auto; }
     .sh-dialog--full.sh-comp-dialog--expanded .sh-dialog__description { display: none; }
     .sh-dialog--full.sh-comp-dialog--expanded .sh-dialog__body { display: flex; flex-direction: column; padding: 0; overflow: hidden; scrollbar-gutter: auto; }
     .sh-dialog--full.sh-comp-dialog--expanded .sh-dialog__content { display: flex; flex: 1 1 auto; flex-direction: column; width: 100%; max-width: none; min-height: 0; margin-inline: 0; }
