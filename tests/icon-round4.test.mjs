@@ -122,6 +122,16 @@ test('7: a job card\'s button has the arrow only when it takes the learner somew
   assert.match(go(draw({ label: '检查草稿', run: () => {} })), ARROW, '检查草稿 opens the draft');
 });
 
+test('7: the 任务 console head decides the same way as the card: a job action (act) has no arrow, a button that opens a page (the result, the material, the settings) has one', async () => {
+  const source = await readFile(join(repoRoot, 'ui', 'tasks', 'TaskConsole.jsx'), 'utf8');
+  const heads = buttonElements(source).map(({ open, children }) => ({ open: open.replace(/\s+/g, ' '), words: children.trim().slice(0, 60), arrow: /\biconEnd="arrow-right"/.test(open) }));
+  const goes = heads.filter((button) => /onClick=\{(?:result\.run|material\.run|settingsEntry\.open\w*Settings|\(\) => settingsEntry\.open\w*Settings)/.test(button.open));
+  const acts = heads.filter((button) => /(?:^|[^\w$.])(?:core\.)?act\(/.test(button.open));
+  assert.ok(goes.length >= 4, `the head opens the result, the material and the settings (${goes.map((button) => button.words).join(' | ')})`);
+  assert.deepEqual(goes.filter((button) => !button.arrow).map((button) => button.words), [], 'a button that opens another page ends in the arrow, like the 检查草稿 of the job card');
+  assert.deepEqual(acts.filter((button) => button.arrow).map((button) => button.words), [], 'a job action stays where it is: no arrow');
+});
+
 test('10: 「在这里做这道题」 starts the question where it stands, so it has no arrow; 「去练这道题」 goes to the practice page and keeps it', () => {
   const items = [{ kind: 'card', question: 'Q', answer: 'A', openRef: { deckId: 'd', cardId: 'c' } }];
   const away = renderToStaticMarkup(h(m.QaList, { items, onCard: () => {} }));

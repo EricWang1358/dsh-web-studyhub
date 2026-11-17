@@ -154,7 +154,7 @@ function Detail({ task, data, openers, full, onFull, onDelete, undoable }) {
           <ParallelButton task={task} />
           {actions.pause && <Button size="sm" aria-pressed="false" lock={core.busy} onClick={() => act('pause')}>{ui('暂停')}</Button>}
           {actions.resume && <Button size="sm" aria-pressed="true" lock={core.busy} onClick={() => act('resume')}>{ui('继续')}</Button>}
-          {fix && <Button size="sm" variant="primary" data-fix="settings" onClick={() => settingsEntry.openSettings(fix)}>{ui('前往设置')}</Button>}
+          {fix && <Button size="sm" variant="primary" iconEnd="arrow-right" data-fix="settings" onClick={() => settingsEntry.openSettings(fix)}>{ui('前往设置')}</Button>}
           {actions.retry && <Button size="sm" variant={shortfall?.action === 'model-settings' || fix ? undefined : 'primary'} lock={core.busy} title={run ? uiFormat('继续第 {0} 轮：已通过的题都保留，这一轮从头重做', [run.round]) : shortfall?.continueKind === 'count' ? ui('已出的题都保留，只补还差的题，设置不变') : retryTitle(task)} onClick={() => act('retry')}>{ui('接着做')}</Button>}
           {draftContinue && <Tooltip content={ui('已出的题都保留，只补还差的题，设置不变')} layer placement="bottom-end">
             <Button size="sm" variant="primary" lock={core.busy} data-draft-continue
@@ -162,8 +162,8 @@ function Detail({ task, data, openers, full, onFull, onDelete, undoable }) {
           </Tooltip>}
           {toggle && live && <Checkbox className="tc-head__auto" label={autoLabel()} checked={toggle.value} disabled={core.busy} data-run-auto
             onChange={(value) => core.act('job.control', { jobId: contract.jobId, action: 'set', patch: { autoComplete: value } })} />}
-          {result && <Button size="sm" onClick={result.run}>{result.label}</Button>}
-          {material && <Button size="sm" data-task-material aria-label={uiFormat('打开「{0}」', [material.title])} onClick={material.run}>{ui('打开资料')}</Button>}
+          {result && <Button size="sm" iconEnd="arrow-right" onClick={result.run}>{result.label}</Button>}
+          {material && <Button size="sm" iconEnd="arrow-right" data-task-material aria-label={uiFormat('打开「{0}」', [material.title])} onClick={material.run}>{ui('打开资料')}</Button>}
           {shortfall?.action === 'model-settings' && !live && settingsEntry?.openModelSettings && <Button size="sm" variant="primary" iconEnd="arrow-right" data-shortfall-act="model-settings" onClick={settingsEntry.openModelSettings}>{actionLabel('model-settings')}</Button>}
           {draft && !live && !continued && <CoverageTopUpPopover draft={draft} view={covered.view} jobs={data?.jobs || []} modelReady={modelReadiness(data || {}).ready}
             onTopUp={(target, sectionIds) => core.act('generate', topUpArgs(target, sectionIds), (job) => core.notify?.(topUpNotice(target, job)))} />}
