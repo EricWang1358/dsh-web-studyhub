@@ -313,5 +313,7 @@
   "交互伴学当页随堂自测": "Companion slide inline self-check",
   "在「设置 › 练习」开启后，交互伴学抽屉会匹配当前页关联题目并支持不关伴学窗口直接在侧栏「当页自测」，课程伴学栏也会显示配套题直达入口，不消耗模型。": "After turning it on in Settings › Practice, the companion drawer matches questions for the active slide so you can take a self-check right inside the drawer without closing the lesson, and the course companion bar shows a direct practice button (zero model tokens).",
   "阅读器本文疑问收件匣": "Document reader doubt ledger",
-  "在「设置 › 练习」开启后，打开资料阅读器且尚未选中原文时，右侧栏会汇总这篇资料的已存批注与本次问过的回答，支持「遮住答案自测」和一键存成闪卡，不消耗模型。": "After turning it on in Settings › Practice, opening the reader with no passage selected shows saved notes and session answers for this material, with hidden-answer self-check and one-click flashcard saving (zero model tokens)."
+  "在「设置 › 练习」开启后，打开资料阅读器且尚未选中原文时，右侧栏会汇总这篇资料的已存批注与本次问过的回答，支持「遮住答案自测」和一键存成闪卡，不消耗模型。": "After turning it on in Settings › Practice, opening the reader with no passage selected shows saved notes and session answers for this material, with hidden-answer self-check and one-click flashcard saving (zero model tokens).",
+  "错题靶向清零处方": "Targeted clear-out plan",
+  "在「设置 › 练习」里打开「错题页显示靶向清零处方」后，「错题与待巩固」上方会把引用同一处原文的错题、顽固题和单次失误理成几条直接开练的处方；只看作答和引用记录，不消耗模型。": "Turn on “Show targeted clear-out plan on Mistakes page” in Settings › Practice to list focused practice rows above your mistakes by shared passage, stubborn questions, and single-slip misses. Uses your answer log and citations only, with no model calls."
 }

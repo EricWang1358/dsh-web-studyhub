@@ -16,11 +16,13 @@ import { Badge, Banner, Button, ChunkedRows, Combobox, DisclosureToggle, foldLab
 import { scrollToAnchor } from './tour/anchor.js';
 import { HandOff } from './hand-off/HandOff.jsx';
 import { leechLimits } from '../lib/leech.js';
+import { resolvePracticeSettings } from '../lib/practice-settings.js';
 import { isJsonCardSource } from '../lib/source-provenance.js';
 import { firstCitation, usableCitations } from './document-preview/practice/citations.js';
 import ModelSetupGate from './ModelSetupGate.jsx';
 import { modelReadiness } from './generation-status.js';
 import { similarWinLine } from './review/similar-words.js';
+import { buildWrongbookClinic } from './wrongbook-clinic.js';
 import { FILTER_MIN, NO_FILTER, PRACTICE_SCOPE_CAP, RECS_PREVIEW, SORT_KINDS, STATUS_KINDS, VARIANT_BATCH_CAP, capPracticeScope, deckChoices, filterActive, filterRows, groupRows, groupSummaryText, leechCount, leechRetellNote, leechWords, practiceCappedText, readGroupBy, readOpenGroups, readSortBy, reasonText, retrainOptions,
   sameVariantState, saveGroupBy, saveSortBy, sortGroupRows, rescueCall, rescueGate, rescueNote, takeArrival, undoPauseCall, readSignature, rowsAwaitingDetail, saveOpenGroups, scopedFilter, shortDeckNames, statusCounts, statusLabel, statusOf, variantFailureText, variantState } from './wrongbook-model.js';
 import { useStudy } from './study-context.jsx';
@@ -238,7 +240,7 @@ function resolveCardSourceTarget(item, decks = [], sources = []) {
     return null;
   }
   const itemCited = firstCitation(item, sources);
-  if (itemCited) return { ...itemCited, peekPage: itemCited.source?.selection?.page ?? item.page ?? undefined };
+  if (itemCited) return { ...itemCited, peekPage: itemCited.source?.selection?.page ?? itemCited.source?.document?.page ?? item.page ?? undefined };
   const fallbackId = item.sourceId || (!deck?.cards ? (deck?.sourceId || deck?.case?.sourceId) : null);
   if (fallbackId) {
     const src = sources.find((s) => s.id === fallbackId && !isJsonCardSource(s));
@@ -440,6 +442,97 @@ function HeadItem({ first, children }) {
   return <>{!first && " "}<span className="wb-headline__item">{!first && <><span className="wb-headline__dot" aria-hidden="true">·</span>{" "}</>}{children}</span></>;
 }
 
+function WrongBookClinic({ lanes, filterLeech, loading, canOpenSource, canPractice, onOpenSource, onOpenCompanion, onPracticeScope, onToggleLeech }) {
+  const { busy } = useStudy();
+  if (!lanes.length) return null;
+  const clusterTitle = (lane) => {
+    if (lane.kind === "companion") {
+      if (lane.companionTitle) {
+        return lane.slide ? uiFormat("伴学同页 · 《{0}》第 {1} 页", [lane.companionTitle, lane.slide]) : uiFormat("伴学同课 · 《{0}》", [lane.companionTitle]);
+      }
+      return lane.slide ? uiFormat("伴学同页 · 第 {0} 页", [lane.slide]) : ui("伴学同课");
+    }
+    const hasPage = lane.page != null && lane.page !== "";
+    if (lane.sourceTitle) {
+      return hasPage ? uiFormat("同页错题 · 《{0}》第 {1} 页", [lane.sourceTitle, lane.page]) : uiFormat("同源错题 · 《{0}》", [lane.sourceTitle]);
+    }
+    return hasPage ? uiFormat("同页错题 · 第 {0} 页", [lane.page]) : ui("同源错题");
+  };
+  const practiceBtn = (lane, label) => {
+    if (!canPractice) return null;
+    const btn = (
+      <Button variant="secondary" size="sm" wrap iconEnd="arrow-right" lock={busy || loading} onClick={() => onPracticeScope(lane.refs)}>
+        {label}
+      </Button>
+    );
+    return lane.scope.capped
+      ? <Tooltip layer content={practiceCappedText(lane.scope.total, { group: false })}>{btn}</Tooltip>
+      : btn;
+  };
+  return (
+    <section className="wb-clinic" aria-labelledby="wb-clinic-title" data-tour="wrongbook-clinic">
+      <div className="wb-clinic-head">
+        <h2 id="wb-clinic-title">{ui("靶向清零处方")}<span className="wb-free">{ui("不消耗模型")}</span></h2>
+        <span className="muted wb-clinic-lead">{ui("按引用位置与作答记录整理，可回看原文或直接专项重练。")}</span>
+      </div>
+      <ul className="wb-clinic-list">
+        {lanes.map((lane) => {
+          if (lane.id === "cluster") {
+            const hasJump = Boolean(canOpenSource && lane.target);
+            return (
+              <li key={lane.id} className="wb-clinic-item" data-clinic-lane={lane.id}>
+                <div className="wb-clinic-copy">
+                  <span className="wb-clinic-name">{clusterTitle(lane)}</span>
+                  <span className="muted wb-clinic-meta">
+                    {hasJump ? uiFormat("{0} 道错题集中在同一处，可先回看再连练", [lane.count]) : uiFormat("{0} 道错题集中在同一处，可集中连练", [lane.count])}
+                  </span>
+                </div>
+                <div className="wb-clinic-actions">
+                  {hasJump && (
+                    <Button variant="quiet" size="sm" wrap iconEnd="arrow-right" onClick={() => (lane.kind === "companion" ? onOpenCompanion(lane.target) : onOpenSource(lane.target))}>
+                      {lane.kind === "companion" ? companionSlideButtonLabel(lane.target) : ui("先看原文")}
+                    </Button>
+                  )}
+                  {practiceBtn(lane, uiFormat("练这 {0} 题", [lane.scope.scope.length]))}
+                </div>
+              </li>
+            );
+          }
+          if (lane.id === "leech") {
+            return (
+              <li key={lane.id} className="wb-clinic-item" data-clinic-lane={lane.id}>
+                <div className="wb-clinic-copy">
+                  <span className="wb-clinic-name">{ui("顽固题专项")}</span>
+                  <span className="muted wb-clinic-meta">{uiFormat("{0} 道题反复答错，先专练或点开排查原因", [lane.count])}</span>
+                </div>
+                <div className="wb-clinic-actions">
+                  {(lane.partial || filterLeech) && (
+                    <Button variant="quiet" size="sm" wrap onClick={onToggleLeech}>
+                      {filterLeech ? ui("显示全部") : ui("只看顽固题")}
+                    </Button>
+                  )}
+                  {practiceBtn(lane, uiFormat("练顽固题 ({0})", [lane.scope.scope.length]))}
+                </div>
+              </li>
+            );
+          }
+          return (
+            <li key={lane.id} className="wb-clinic-item" data-clinic-lane={lane.id}>
+              <div className="wb-clinic-copy">
+                <span className="wb-clinic-name">{ui("单次失误速清")}</span>
+                <span className="muted wb-clinic-meta">{uiFormat("{0} 道仅错过一次的题，适合几分钟内快速清零", [lane.count])}</span>
+              </div>
+              <div className="wb-clinic-actions">
+                {practiceBtn(lane, uiFormat("速清 {0} 题", [lane.scope.scope.length]))}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 /** The one sentence about the open list (#1086): the counts that are not zero, one separator, one full stop. From 待巩固 the kept history is the last part
  *  of the same sentence; the history view says its own counts the same way and the same words. With more than one mistake (or a filter on)
  *  each count is a toggle that filters the list below. It sits under the view switch, not in the page header: the header and the switch stay put
@@ -600,6 +693,13 @@ export function WrongBookView({
   const canGenerate = hasCoach && coach.enabled && !!onGenerate;
   const rowIds = new Set(rows.map((row) => row.cardId));
   const readyHere = (coach?.readyCards || []).filter((variant) => rowIds.has(variant.originCardId));
+  const clinicOn = Boolean(resolvePracticeSettings(data?.settings?.practice).wrongbookClinic);
+  const clinicLanes = useMemo(
+    () => (clinicOn && !isHistory && rows.length >= 2
+      ? buildWrongbookClinic({ rows, sourceTargetByCard, companionTargetByCard, wrongCounts })
+      : []),
+    [clinicOn, isHistory, rows, sourceTargetByCard, companionTargetByCard, wrongCounts],
+  );
   const stateOf = (cardId) => variantState(coach, cardId, pending);
   const eligible = (list) => list.filter((row) => stateOf(row.cardId).kind === "none" || stateOf(row.cardId).kind === "failed");
   const toggle = (set, setter, key) => setter((previous) => {
@@ -895,6 +995,14 @@ export function WrongBookView({
       {!isHistory && <RubricSkills attempts={data?.attempts} practiceLabel={ui("练案例题")}
         onPractice={data?.decks?.some((deck) => deck.format === "case-study" && !deck.archived)
           ? () => onPractice(data.decks.filter((deck) => deck.format === "case-study" && !deck.archived).map((deck) => ({ deckId: deck.id }))) : undefined} />}
+
+      {!isHistory && clinicLanes.length > 0 && (
+        <WrongBookClinic lanes={clinicLanes} filterLeech={!!filter.leech} loading={loading}
+          canOpenSource={!!openModal} canPractice={!!onPractice}
+          onOpenSource={openCardSource} onOpenCompanion={openCardCompanion}
+          onPracticeScope={(refs) => practiceScope(refs)}
+          onToggleLeech={() => patchFilter({ leech: !filter.leech })} />
+      )}
 
       {showRecs && (
         <section className={"wb-recs" + (recsOpen && recItems.length ? " is-open" : "")} aria-labelledby="wb-recs-title" data-tour="wrongbook-recs">

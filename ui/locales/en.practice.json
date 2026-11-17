@@ -215,5 +215,7 @@
   "交互伴学开启当页随堂自测": "Turn on slide inline self-check in Interactive Companions",
   "打开后，交互伴学课抽屉会自动匹配当前页关联题卡并提供「当页自测」与「抽屉自测」：不关伴学窗口直接在侧栏作答，课程伴学栏也会显示配套题入口，不消耗模型。关掉后保持原有伴学界面。": "When on, the companion drawer matches questions linked to the current slide and offers “Quiz slide” and “Check in drawer” right in the sidebar without closing the lesson, and the course companion bar shows a direct practice button (zero model tokens). Turn off to keep the default companion view.",
   "阅读器未选段时显示本文疑问收件匣": "Show document doubt ledger when no text is selected",
-  "打开后，资料阅读器里还没选中段落时，右侧会列出这篇资料本次问过的回答与已存批注；点「遮住答案自测」可以先自己回想再看回答，也能一键存成闪卡，不消耗模型。关掉后保持原有提示。": "When on, opening a material with no passage selected shows this document’s session Q&As and saved notes on the right, with “Hide answers to quiz yourself” for active recall and one-click flashcard saving (zero model tokens). Turn off to keep the original hint."
+  "打开后，资料阅读器里还没选中段落时，右侧会列出这篇资料本次问过的回答与已存批注；点「遮住答案自测」可以先自己回想再看回答，也能一键存成闪卡，不消耗模型。关掉后保持原有提示。": "When on, opening a material with no passage selected shows this document’s session Q&As and saved notes on the right, with “Hide answers to quiz yourself” for active recall and one-click flashcard saving (zero model tokens). Turn off to keep the original hint.",
+  "错题页显示靶向清零处方": "Show targeted clear-out plan on Mistakes page",
+  "打开后，「错题与待巩固」在列表上方按同一处原文、顽固题和单次失误整理出可直接开练的处方行，只看现有作答和引用记录，不调用模型；关着时保持原有的错题列表不变。": "When turned on, Mistakes & weak points lists focused clear-out rows above the list by shared passage, stubborn questions, and single-slip misses. Read from your answers and citations only, with no model call; off keeps the original mistake list unchanged."
 }
