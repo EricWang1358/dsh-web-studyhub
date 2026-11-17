@@ -113,6 +113,10 @@
     .source-picker__expand { grid-column: 3; grid-row: 1; justify-self: end;
       margin-block: calc((var(--fs-md) * var(--lh-snug) - var(--picker-expand-h)) / 2); }
     :where(.source-picker--index) .source-picker__expand { grid-column: 3 / -1; }
+    /* There the facts line runs on under 选择页面 (round 11), so its box is no taller than the title line and the row's gaps: it ends where the facts line
+       starts, its words still on the title line's middle, and its hover box or focus ring never covers the facts' end. */
+    .source-picker--index .source-picker__row .source-picker__expand { --picker-expand-h: calc(var(--fs-md) * var(--lh-snug) + 2 * var(--space-half));
+      min-height: var(--picker-expand-h); padding-block: 0; }
     .source-picker__row.has-expand .source-picker__text strong { grid-column: 2; }
     .source-picker__expand .source-picker__chevron { transition: transform 0.18s var(--ease); }
     .source-picker__expand[aria-expanded="true"] .source-picker__chevron { transform: rotate(90deg); }
@@ -147,6 +151,7 @@
       .source-picker__row.has-expand .source-picker__text strong { grid-column: 2 / -1; }
       .source-picker__row.has-expand:not(.has-index) .source-picker__text .source-picker__facts { grid-column: 2 / -1; }
       .source-picker__expand { grid-column: 2 / -1; grid-row: auto; justify-self: start; margin-block: 0; margin-inline-start: calc((var(--sh-btn-px) + var(--hairline)) * -1); }
+      .source-picker--index .source-picker__row .source-picker__expand { min-height: var(--control-h-sm, 32px); padding-block: var(--space-1); }
       .source-picker__pages { padding-left: var(--space-6); }
     }
   }
