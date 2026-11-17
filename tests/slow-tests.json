@@ -75,6 +75,7 @@
     "tests/host-composer-selection-browser.test.mjs",
     "tests/icon-round4-browser.test.mjs",
     "tests/icon-round7-browser.test.mjs",
+    "tests/icon-round8-browser.test.mjs",
     "tests/import-hop-browser.test.mjs",
     "tests/index-guidance-browser.test.mjs",
     "tests/index-shortcut-browser.test.mjs",
