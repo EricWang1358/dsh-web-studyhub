@@ -142,20 +142,27 @@ test('a 资料 row with several actions stays tidy at every width in zh and en',
         if (numbers?.cut) faults.push(`${at}: ${row.title}: the numbers "${numbers.text}" are cut`);
         if (courses?.cut && courses.tip !== courses.text) faults.push(`${at}: ${row.title}: "${courses.text.slice(0, 30)}" is cut and its tip says "${courses.tip}"`);
       }
-      // (f) one look for the row's one action: the top-up and 从这份资料出题 both carry their icon.
-      const bare = await page.evaluate(() => [...document.querySelectorAll('.source-doc__actions .source-doc__action')].filter(b => b.getClientRects().length && !b.querySelector('svg')).map(b => b.textContent.trim()));
-      for (const text of bare) faults.push(`${at}: the row action "${text}" has no icon`);
-      // (h) the icon stays beside its words when a label wraps: the gap from the icon to the nearest line of text is the button's own gap, not a centred hole.
+      // (f) one look for the row's actions (rounds 9 and 12 of #1073): 从这份资料出题 leaves for the 出题 page and ends in → with nothing in front; the top-up starts a round where it stands and has no icon at all.
+      const looks = await page.evaluate(() => [...document.querySelectorAll('.source-doc__actions .source-doc__action')].filter(b => b.getClientRects().length).map(b => {
+        const box = b.getBoundingClientRect(), marks = [...b.querySelectorAll('svg')].map(svg => (svg.getBoundingClientRect().left < box.left + box.width / 2 ? 'lead' : 'trail'));
+        return { text: b.textContent.trim(), top: b.hasAttribute('data-document-topup-open'), marks };
+      }));
+      for (const { text, top, marks } of looks) {
+        if (top && marks.length) faults.push(`${at}: the row action "${text}" has an icon (${marks}), it acts where it stands`);
+        if (!top && marks.join() !== 'trail') faults.push(`${at}: the row action "${text}" should end in the arrow and lead with nothing (${marks})`);
+      }
+      // (h) the arrow stays beside its words when a label wraps: the gap from the words to the arrow is the button's own gap, not a centred hole.
       const apart = await page.evaluate(() => [...document.querySelectorAll('.source-doc__actions .source-doc__action')].filter(b => b.getClientRects().length && b.querySelector('svg')).map(button => {
         const icon = button.querySelector('svg').getBoundingClientRect();
         const walker = document.createTreeWalker(button, NodeFilter.SHOW_TEXT);
         let left = Infinity, right = -Infinity;
         for (let node = walker.nextNode(); node; node = walker.nextNode()) { if (!node.data.trim()) continue; const range = document.createRange(); range.selectNodeContents(node); for (const r of range.getClientRects()) if (r.width > 0) { left = Math.min(left, r.left); right = Math.max(right, r.right); } }
-        const box = button.getBoundingClientRect();
-        return { text: button.textContent.trim().slice(0, 30), gap: left - icon.right, hole: box.right - parseFloat(getComputedStyle(button).paddingRight) - right };
+        const box = button.getBoundingClientRect(), style = getComputedStyle(button), trailing = icon.left >= box.left + box.width / 2;
+        return trailing ? { text: button.textContent.trim().slice(0, 30), gap: icon.left - right, hole: left - (box.left + parseFloat(style.paddingLeft)) }
+          : { text: button.textContent.trim().slice(0, 30), gap: left - icon.right, hole: box.right - parseFloat(style.paddingRight) - right };
       }).filter(found => found.gap > 12 || found.hole > 16));
-      // and the button hugs its words: no empty band after the longest line (a wrapped label's box is otherwise as wide as the room it was offered).
-      for (const found of apart) faults.push(`${at}: "${found.text}": the icon is ${found.gap.toFixed(1)}px from its words, and ${found.hole.toFixed(1)}px is empty after them`);
+      // and the button hugs its words: no empty band beside the longest line (a wrapped label's box is otherwise as wide as the room it was offered).
+      for (const found of apart) faults.push(`${at}: "${found.text}": the icon is ${found.gap.toFixed(1)}px from its words, and ${found.hole.toFixed(1)}px is empty beside them`);
       // (g) a cut courses piece's tip also opens when the title button has keyboard focus, not only on hover.
       const cutAt = rows.findIndex(row => row.facts[0]?.cut);
       if (cutAt >= 0) {

@@ -778,6 +778,11 @@ export const ICON_ONLY_HAND_OFFS = [
     is a window outside StudyHub, so it leads with the same mark as a link to a DSH chat (AgentLink). */
 export const HAND_OFF_LOOK = 'external|-';
 
+/** What the icon-only hand-off draws (ICON_ONLY_HAND_OFFS): the chat glyph in front, nothing after, and no words. `looksOf` records it under its label plus ICON_ONLY_SUFFIX, so
+    the words of the other shapes keep their one look (`external|-`) and the screen and the record say the same thing. */
+export const ICON_ONLY_HAND_OFF_LOOK = 'chat|-';
+export const ICON_ONLY_SUFFIX = ' (icon only)';
+
 /** The look of every control of a source file whose words are one catalogue key (`{ui('…')}` as a Button's whole children, `label: ui('…')` in an action spec
     with a click, a <HandOff label=…>): [{ key, look, line }], `look` = '<icon in front or ->|<→ or ->'. A spec of SPEC_FILES is drawn by the component that reads it:
     ← in front for `back`, its `icon` in front, nothing for `here`, else → after (the job card, its links, the console's result, the first-run line, the home plan).
@@ -809,7 +814,9 @@ export function looksOf(source, { file = '', helpers = new Map() } = {}) {
     if (end < 0) continue;
     const open = source.slice(match.index, end + 1), label = propOf(open, 'label') || /\slabel="([^"]*)"/.exec(open)?.[1] || '';
     const key = (/^[A-Z][A-Z0-9_]{2,}$/.test(label) ? helpers.constants?.get(label) : label) || helpers.constants?.get('HAND_OFF_LABEL') || '发给主会话';
-    found.push({ key, look: HAND_OFF_LOOK, line: lineOf(match.index) });
+    // The icon-only shape (`shape="icon"`) draws the chat glyph and no words (its label is only its accessible name), so it is its own entry, not a second look of the words (#1129).
+    if (/\sshape=(?:"icon"|\{\s*['"]icon['"]\s*\})/.test(open)) found.push({ key: `${key}${ICON_ONLY_SUFFIX}`, look: ICON_ONLY_HAND_OFF_LOOK, line: lineOf(match.index) });
+    else found.push({ key, look: HAND_OFF_LOOK, line: lineOf(match.index) });
   }
   return found;
 }
@@ -821,7 +828,6 @@ export const LOOK_EXCEPTIONS = [
   { key: '打开', why: 'two actions: a diagram of the skeleton opens inside the same page (no arrow); a live class capture opens its transcript in the reader (→)' },
   { key: '查看详情', why: 'two actions: on a draft it scrolls to the details of the blocked questions below them, on the same page (no arrow); on a job card it opens the job in the 任务 console (→)' },
   { key: '接着做', why: 'two actions that share words: a job’s 接着做 (the PDF import card, the home job card, the draft page’s top-up button, the 任务 console) continues or retries the job where it stands, a data action of its card (act job.control or generate, no arrow); the home plan’s 接着做 resumes the last unfinished practice round and takes the learner to the practice page (→). The first one is a retry, the second a resume of practice: they are never on one card', sites: { '-|-': ['ui/PdfConvertJob.jsx', 'ui/coverage/CoverageTopUp.jsx', 'ui/study-map/JobCard.jsx', 'ui/tasks/TaskConsole.jsx'], '-|→': ['ui/study-map/home-plan.js'] } },
-  { key: '为没覆盖的部分补题', why: 'two faces of one action: on the draft page, the home card and the job card the button starts the top-up round where it stands (no icon, no arrow); on the 资料 row of a published deck the same words are the trigger of a popover that chooses the part and then starts the round in place, so it leads with the sparkle of 生成 (the 资料 row\'s one action beside the title, sized for it in coverage.css). Neither leaves the page', sites: { '-|-': ['ui/coverage/CoverageTopUp.jsx', 'ui/study-map/JobCard.jsx'], 'sparkle|-': ['ui/coverage/DocumentTopUp.jsx'] } },
 ];
 
 /** The controls that leave with an icon in front, each with why. A leading icon is for a control that acts where it stands (the sparkle of 生成, the trash of
