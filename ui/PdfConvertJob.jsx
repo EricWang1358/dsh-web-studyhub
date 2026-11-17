@@ -339,7 +339,7 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onEditHeld, onRetry,
           {status === 'complete' && document?.exists && offersCustom(document.pages) && !offered && <HandOff id="custom.start" shape="link" label={CUSTOM_BOOK_LABEL} what={CUSTOM_BOOK_WHAT}
             data-tour="custom-book" input={{ document: row.documentId, pages: document.pages }} onSent={() => { markCustomOffered(row.documentId); setOffered(true); }} />}
           {status === 'complete' && document?.exists && <IndexHint variant="link" docs={[hintDocOf({ documentId: row.documentId, sourceIds: document.sourceIds, pages: document.pages, courses: document.courses })]} onOpenSettings={onOpenSettings} />}
-          {status === 'running' && row.live && <Button variant="link" size="sm" className="pdf-history__action" aria-label={uiFormat('查看「{0}」的进度', [row.filename])} onClick={() => onShowJob(row)}>{ui('查看进度')}</Button>}
+          {status === 'running' && row.live && <Button variant="link" size="sm" iconEnd="arrow-right" className="pdf-history__action" aria-label={uiFormat('查看「{0}」的进度', [row.filename])} onClick={() => onShowJob(row)}>{ui('查看进度')}</Button>}
           {status === 'held' && <Button variant="link" size="sm" className="pdf-history__action" aria-label={uiFormat('修改并导入「{0}」', [row.filename])} onClick={() => onEditHeld(row)}>{HELD_ENTRY()}</Button>}
           {row.canRetry && <Tooltip layer content={row.converter !== 'marker' && row.failure?.code === 'server-stopped' ? ui('会先启动本机 MinerU 服务，再从停下的那一段接着解析。') : ui('已完成的段落会直接复用，不会重复解析。')}>
             <Button variant="secondary" size="sm" className="pdf-history__action" busy={busy} lock={!!working && !busy} aria-label={uiFormat('接着解析「{0}」', [row.filename])} onClick={() => onRetry(row)}>{ui('接着做')}</Button>

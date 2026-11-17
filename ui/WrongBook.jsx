@@ -945,7 +945,7 @@ export function WrongBookView({
             onCreate={onCreate} onSources={onSources} />
           {historyCount > 0 && onView && (
             <div className="wb-cleared-history">
-              <Button variant="secondary" size="sm" onClick={() => onView('history')}>
+              <Button variant="secondary" size="sm" iconEnd="arrow-right" onClick={() => onView('history')}>
                 {uiFormat("查看已订正记录 ({0})", [historyCount])}
               </Button>
             </div>

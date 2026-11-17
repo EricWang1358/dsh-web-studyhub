@@ -66,6 +66,9 @@ export function labelHelpers(sources) {
     const byKey = new Map([...body.matchAll(/['"]?([\w-]+)['"]?:\s*ui(?:Format)?\(\s*(["'`])((?:\\.|(?!\2).)*)\2/gu)].map((match) => [match[1], match[3]]));
     helpers.set(name, { all, byKey, calls: [...new Set(calls)] });
   };
+  // Round 8: the same sources tell how a prop is wired (wiringOf), so every gate that is handed the helpers reads a prop where it is wired.
+  let wiring = null;
+  Object.defineProperty(helpers, 'wiring', { get: () => (wiring ??= wiringOf(sources.filter((entry) => entry.file))) });
   for (const { source } of sources) {
     for (const match of source.matchAll(/(?:export\s+)?const\s+([A-Za-z_$][\w$]*)\s*=\s*(?:\([^)\n]*\)|[A-Za-z_$][\w$]*)\s*=>([^\n]*)/g)) add(match[1], match[2]);
     for (const match of source.matchAll(/(?:export\s+)?function\s+([A-Za-z_$][\w$]*)\s*\([^)]*\)\s*\{([\s\S]{0,600}?)\n\}/g)) add(match[1], match[2]);
@@ -108,11 +111,10 @@ export const IN_PLACE = [
   { file: 'ui/AudioImport.jsx', submit: true, why: 'the submit of the audio form: the import runs in the background, the learner stays' },
   { file: 'ui/LiveClass.jsx', submit: true, why: 'the submit of the live class form: it starts the recording on this page' },
   { file: 'ui/LiveClass.jsx', handler: 'onResume|client\\.pause', why: 'the capture controls of a live class: 接着录 and 暂停 / 继续 resume and pause the recording on this page' },
-  { file: 'ui/ExplanationFollowup.jsx', handler: 'onAskMore', why: 'sends the follow-up typed above it into the same thread' },
   { file: 'ui/document-preview/PageAsk.jsx', handler: 'onContinue', why: 'reads the next part of the page into the same answer' },
   { file: 'ui/companions/CompanionBuildDialog.jsx', handler: 'handleBuild', why: 'the confirm of a dialog: it starts a background build and the learner stays' },
   { file: 'ui/document-preview/translation/TranslationMenu.jsx', handler: 'onStart', why: 'the confirm of a menu panel: it starts a background translation of this page' },
-  { file: 'ui/document-preview/reader/OutlineAssist.jsx', handler: 'onRun', why: 'the confirm of the outline assistant form: it starts a background task' },
+  { file: 'ui/DailyPlan.jsx', handler: 'onAdjust', why: 'opens the 调整今天 editor in the card (choose(\'adjust\')); only that handler\'s 查看待办 branch goes to the board' },
 ];
 
 /* ---- What a click does: read from its handler, never from its words -----------------------------------------------------------------------------------------
@@ -129,13 +131,15 @@ const NEUTRAL = new Set(['ui', 'uiFormat', 'uiMessage', 'map', 'filter', 'find',
   'success', 'info', 'warning', 'error', 'notify', 'sleep', 'currentTarget']);
 /** A dialog, a sheet, a menu or an editor opened over this page (by the page or the host: `openModal`, `host.setModal`, `openImport`): the learner stays
     (录入课程重点…, 展开窗口, 继续解析 reopens the import dialog). */
-const OVER_PAGE = /^(?:(?:on)?[oO]pen\w*(?:Modal|Dialog|Sheet|Menu|Composer|Editor|Peek|Popover|Picker|Import)|setModal)$/;
+const OVER_PAGE = /^(?:(?:on)?[oO]pen\w*(?:Modal|Dialog|Sheet|Menu|Composer|Editor|Peek|Popover|Picker|Import|Ask)|setModal)$/;
 /** The handlers that take the learner somewhere: a router or a page setter (navigate, nav.show.page, setPage, setScreen, setView, setRoute), a go or open prop
     (onGo…, go…, onOpen…, open…), the settings, the library, the board, the sources, the wrong book, a way back (onBack, onExit), a practice run (onPractice…,
     practice…, startReview, onReviewWeak, act('review.start', …)). */
 const LEAVE = /^(?:navigate|go|goTo|goto|go[A-Z]\w*|enterRun|onSource|onSeek|on(?:Go|Open|Navigate|Practi[cs]e|Library|Board|Today|Sources|WrongBook|Jobs|Tasks|Back|Exit)\w*|on\w*Settings|open[A-Z]\w*|practi[cs]e[A-Z]?\w*|on\w*Practi[cs]e|start(?:Review|Round|Course|Path|Practice|Practise)\w*|onReviewWeak|set(?:Page|Screen|View|Route|Tab))$/;
 /** A move inside the open document (the reader's chapter, page or outline): the learner stays in the same reader, as with a scroll. */
 const IN_DOC = /^(?:chapter|chapters|outline|toc|pages?|pdf|scroller)\.(?:go|goTo|open)\w*$/;
+/** The same moves called by the reader itself (DocumentViewer's goToPage / setPdfPage / seekSource, a jump to an entry of its own lists). */
+const IN_DOC_CALL = /^(?:goToPage|setPdfPage|seekSource|jumpTo\w*)$/;
 const LEAVE_PATH = /(?:^|\.)(?:nav|router|history)\.|\.show\.|^wayBack\.go$/;
 /** The two modals that are views of their own, not dialogs over the page: the reader of a source and a companion lesson. Opening one takes the learner there. */
 const VIEW_MODAL = /\b(?:openModal|setModal)\(\s*\{\s*type:\s*(['"])(?:source|companion)\1/;
@@ -144,6 +148,8 @@ const VIEW_MODAL = /\b(?:openModal|setModal)\(\s*\{\s*type:\s*(['"])(?:source|co
 export const EXTERNAL = /^(?:openFile|openExternal|openUrl|openPluginManager|openDocument|openAgent|hostPreview)$/;
 /** A practice run started by a job action or a host call (`act('review.start', …)`, `call('review.start', …)` then `enterRun`). */
 const STARTS_RUN = /\b(?:act|call)\(\s*(['"])(?:review|exam)\.start\1/;
+/** A job action that hands its result to the practice run (`core.act('coach.practice', args, session.enterRun)`): the run opens when it is done (round 8). */
+const ENTERS_RUN = /\b(?:act|call)\([^;]*\benterRun\b/;
 /** A handler named for a change of data where it stands (a prop or a host call the page does not define: `onSave`, `onRetry`, `onArchive`, `onPinMove`, `addCard`,
     `refresh`): it saves, removes, undoes, retries, pauses, copies, exports … what is shown, and the learner stays. The verbs that may go somewhere (start, run,
     continue, resume, next, generate, open, edit, again, check) are not here: those stay with the words; nor is a named retry (`retryGeneration` puts the failed
@@ -182,8 +188,147 @@ export function localHandlers(source) {
   for (const match of source.matchAll(/\b([A-Za-z_$][\w$]*)\.current\s*=\s*\{/g)) {
     const object = balanced(source, match.index + match[0].length - 1);
     for (const prop of object.matchAll(/[{,]\s*([A-Za-z_$][\w$]*)\s*:\s*([A-Za-z_$][\w$.]*)/g)) locals.set(`${match[1]}.current.${prop[1]}`, prop[2]);
+    // A shorthand member (`latest.current = { onGenerate, … }`) is the name itself: a prop or a handler of the page (round 8).
+    for (const prop of object.matchAll(/[{,]\s*([A-Za-z_$][\w$]*)\s*(?=[,}])/g)) if (!locals.has(`${match[1]}.current.${prop[1]}`)) locals.set(`${match[1]}.current.${prop[1]}`, prop[1]);
   }
   return locals;
+}
+
+/* ---- Round 8: a prop is read where it is wired -------------------------------------------------------------------------------------------------------------
+   The round-7 review found Buttons that leave but passed: their click calls a prop (`onShowGraph`, `on.tune`, `onManage`, `onGenerate`) that the gate could not
+   read, and a prop named `onCreate` was taken for "here" by its name while its wiring is `intents.goGenerate()`. `wiringOf(sources)` follows a prop to the places
+   that hand it in: the JSX sites of the component around the Button (`<EmptyStudyActions onCreate={() => intents.goGenerate()} />`, through pass-throughs such
+   as `onCreate={onCreate}`), and the member of an object handed in or built in the file (`actions={{ manage: intents.openDeck }}`, `const lineOn = { tune: … }`,
+   a prop destructured out of one: `actions: { generateFromSources }`). What the wiring does beats what the prop is called; sites that disagree leave it
+   undecided. A dismissal (`onClose`, `onCancel`, `onDismiss`) is never traced: closing is not going on, wherever the page is closed to. */
+
+/** The roots of the app's own services: their members are read by name (LEAVE, HERE, ...), never traced as props. */
+const SERVICE_ROOT = /^(?:intents|nav|host|app|core|set|session|learn|drafts|tour|settingsEntry|links|wayBack|study|window|document|navigator|console|Math|JSON|Object|Array|Promise|event|e|ev|client|props|React|ui|router|history|location|localStorage|sessionStorage|URL)$/;
+/** A dismissal, or the end of a dialog's own task (`onComplete`, `onStarted`, `onImported`, `finishImport`): the dialog closes on what it did, which is not
+    going on to another step, wherever the page under it is. Never traced; its name decides, as before. */
+const DISMISS = /^(?:on)?(?:close|cancel|dismiss|complete|done|finish|started|imported|saved)\w*$/i;
+
+/** The source of the balanced `(…)` that starts at `at`, or ''. */
+function balancedParens(source, at) {
+  let depth = 0;
+  for (let end = at; end < source.length; end++) {
+    if (source[end] === '(') depth++;
+    else if (source[end] === ')' && --depth === 0) return source.slice(at, end + 1);
+  }
+  return '';
+}
+
+/** The index of how ui/ wires its components: the JSX sites of each component and the components each file defines (where, and their parameters). Built once
+    per set of sources (labelHelpers keeps the sources, so every gate that is handed the helpers reads the wiring). */
+export function wiringOf(sources) {
+  const byFile = new Map(sources.map(({ file, source }) => [file, source]));
+  const sites = new Map(), defs = new Map(), locals = new Map();
+  for (const { file, source } of sources) {
+    for (const match of source.matchAll(/<([A-Z][\w$]*)(?=[\s/>])/g)) {
+      const end = openingTagEnd(source, match.index);
+      if (end < 0) continue;
+      if (!sites.has(match[1])) sites.set(match[1], []);
+      sites.get(match[1]).push({ file, at: match.index, open: source.slice(match.index, end + 1) });
+    }
+    defs.set(file, [...source.matchAll(/(?:\bfunction\s+([A-Z][\w$]*)\s*\(|\b(?:const|let)\s+([A-Z][\w$]*)\s*=\s*(?:React\.)?(?:memo\(|forwardRef\()?\s*(?:function\b[^(]*)?\()/g)]
+      .map((match) => ({ name: match[1] || match[2], at: match.index, params: balancedParens(source, match.index + match[0].length - 1) })));
+    defs.get(file).forEach((def, index, all) => { def.end = all[index + 1]?.at ?? source.length; });
+  }
+  return { byFile, sites, defs, locals: (file) => { if (!locals.has(file)) locals.set(file, localHandlers(byFile.get(file) || '')); return locals.get(file); } };
+}
+
+/** The component a position of a file is inside: the last `function Name(` / `const Name = (` before it ({ name, params }), or null. */
+function componentAt(wiring, file, at) {
+  let found = null;
+  for (const def of wiring.defs.get(file) || []) { if (def.at < at) found = def; else break; }
+  return found;
+}
+
+/** One answer from many wirings: all of them say the same, or 'mixed' (the same prop leaves in one place and stays in another, or one place does not say:
+    then it is not known), or '' (none says). */
+function agree(results) {
+  const said = new Set(results);
+  return said.size === 1 ? [...said][0] : said.size ? 'mixed' : '';
+}
+
+/** What a value handed in as a prop does, read in the file that hands it in. */
+function valueDoes(value, file, at, wiring, seen) {
+  return clickDoes(value, wiring.locals(file), seen, { file, at, wiring }) || '';
+}
+
+/** The value of `member` in an object literal: `member: value`, or the member itself when it is shorthand (`{ manage, start }`), or ''. */
+function memberOf(object, member) {
+  return valueOfProp(object, member) || (new RegExp(`[{,]\\s*${member.replace(/\$/g, '\\$')}\\s*[,}]`).test(object) ? member : '');
+}
+
+/** The object a name stands for, when the component around a place builds it there (`const lineOn = { … }`, `const actions = useMemo(() => ({ … }), …)`):
+    { object, at }, or null. */
+function localObject(source, name, component) {
+  const from = component?.at ?? 0, scope = source.slice(from, component?.end ?? source.length);
+  const match = new RegExp(`\\b(?:const|let)\\s+${name.replace(/\$/g, '\\$')}\\s*=\\s*(?:(?:React\\.)?useMemo\\(\\s*\\(\\)\\s*=>\\s*\\(\\s*)?\\{`).exec(scope);
+  return match ? { object: balanced(scope, match.index + match[0].length - 1), at: from + match.index } : null;
+}
+
+/** What the sites of `component` hand in as `object.member` (or as `object` when `member` is empty), each read where it is handed in. */
+function handedDoes(component, object, member, wiring, seen) {
+  const handed = (wiring.sites.get(component?.name) || []).map((site) => ({ site, value: propOf(site.open, object) })).filter(({ value }) => value);
+  return agree(handed.map(({ site, value }) => {
+    if (!member) return valueDoes(value, site.file, site.at, wiring, seen);
+    if (/^\{/.test(value)) { const inner = memberOf(value, member); return inner ? valueDoes(inner, site.file, site.at, wiring, seen) : ''; }
+    return /^[A-Za-z_$][\w$]*$/.test(value) ? wiredDoes(`${value}.${member}`, { wiring, file: site.file, at: site.at }, seen) : '';
+  }));
+}
+
+/** What a call of a prop does, by where it is wired: 'leave', 'here', 'external', 'mixed' (its sites disagree) or '' (the wiring does not say). `path` is a name
+    (`onCreate`) or a member (`on.tune`, `actions.manage`). */
+function wiredDoes(path, ctx, seen) {
+  const { wiring, file, at } = ctx, parts = path.split('.');
+  if (parts.length > 2 || SERVICE_ROOT.test(parts[0]) || DISMISS.test(parts.at(-1))) return '';
+  const component = componentAt(wiring, file, at), key = `wired:${file}@${component?.name}#${path}`;
+  if (seen.has(key)) return '';
+  seen.add(key);
+  const source = wiring.byFile.get(file) || '', name = parts[0].replace(/\$/g, '\\$');
+  let result = '';
+  // A name the file declares itself (a state setter, an import) is not a prop: its name decides, as before.
+  if (!new RegExp(`\\[\\s*[\\w$]+\\s*,\\s*${name}\\s*\\]\\s*=|\\bimport\\s*\\{[^}]*\\b${name}\\b[^}]*\\}\\s*from|\\bimport\\s+${name}\\b`).test(source)) {
+    if (parts.length === 2 && new RegExp(`\\{[^{}]*\\b${name}\\b[^{}]*\\}\\s*=\\s*useApp\\(\\)`).test(source)) {
+      // A service of the app (`const { sources } = useApp()`): the hook of ui/app that defines and returns the member (`generateFromSources` of use-source-import).
+      result = agree([...wiring.byFile].filter(([where, text]) => where.startsWith('ui/app/') && wiring.locals(where).has(parts[1]) && new RegExp(`return\\s*\\{[^{}]*\\b${parts[1]}\\b`).test(text))
+        .map(([where, text]) => valueDoes(parts[1], where, text.search(new RegExp(`\\b(?:const|function)\\s+${parts[1]}\\b`)), wiring, seen)));
+    } else if (parts.length === 2) {
+      const built = localObject(source, parts[0], component), inner = built && memberOf(built.object, parts[1]);
+      result = built ? (inner ? valueDoes(inner, file, built.at, wiring, seen) : '') : handedDoes(component, parts[0], parts[1], wiring, seen);
+    } else {
+      result = handedDoes(component, path, '', wiring, seen);
+      // A prop destructured out of an object prop (`function StudyMap({ actions: { generateFromSources } })`): the member of what the sites hand in.
+      const outer = !result && new RegExp(`([A-Za-z_$][\\w$]*)\\s*:\\s*\\{[^{}]*\\b${name}\\b`).exec(component?.params || '')?.[1];
+      if (outer) result = handedDoes(component, outer, path, wiring, seen);
+      // A name destructured in the body from an object (`const { manage, onShowGraph } = actions;`): that object's member.
+      if (!result && !outer) {
+        for (const match of source.slice(component?.at ?? 0, component?.end).matchAll(/\b(?:const|let)\s*\{([^{}]*)\}\s*=\s*([A-Za-z_$][\w$]*)\s*[;\n]/g)) {
+          const member = new RegExp(`(?:^|,)\\s*(?:([A-Za-z_$][\\w$]*)\\s*:\\s*)?${name}\\s*(?:=[^,]*)?(?:,|$)`).exec(match[1]);
+          if (member && !SERVICE_ROOT.test(match[2])) { result = wiredDoes(`${match[2]}.${member[1] || parts[0]}`, ctx, seen); break; }
+        }
+      }
+    }
+  }
+  // Read afresh for every control (no cache): what a prop does then depends on the control alone, never on which file the gate read first.
+  seen.delete(key);
+  return result;
+}
+
+/** A handler without the actions it offers in a notice (`toast.show({ …, action: { label, onClick: openModel } })`): those are other clicks, later, not what
+    this one does (round 8: 暂停此题 offers 撤销 and 打开模型设置 in its toast, and stays). */
+function withoutOffers(code) {
+  let out = code;
+  for (let at = out.search(/\{\s*label\s*:/); at >= 0; at = out.search(/\{\s*label\s*:/)) {
+    const object = balanced(out, at);
+    if (!object) break;
+    out = `${out.slice(0, at)}{}${out.slice(at + object.length)}`;
+  }
+  // A function the body only defines for later (`const openModel = onOpenSettings || (() => openSettings('settings-model'));`, then offered in a toast).
+  // Only a value that is a function (`= () => …`, `= a || (() => …)`, `= a || (b ? () => … : undefined)`), never a value that calls something now.
+  return out.replace(/\b(?:const|let)\s+[A-Za-z_$][\w$]*\s*=\s*(?:[\w$.?]+\s*(?:\|\||\?\?)\s*)?\(?\s*(?:[\w$.]+\s*\?\s*)?(?:async\s*)?(?:\([^()]*\)|[\w$]+)\s*=>[^;\n]*;/g, '');
 }
 
 /** The calls of a handler, as their dotted paths (`nav.show.page`, `onGoGenerate`); a handler that is only a name (`onClick={onGoGenerate}`) is that one call. */
@@ -196,21 +341,26 @@ function callsOf(click) {
 /** What a click does, from its handler alone: 'leave' (it takes the learner somewhere: another page or view, a practice run, a way back), 'here' (it acts where it
     stands: only setters of this page's state, a job or data action, a dialog over the page), 'external' (a window outside StudyHub), or '' when the handler does not say (a prop such as `onPick`, a host
     call): then the words decide. A handler defined in the same file (`locals`, from localHandlers) is read through its body. */
-export function clickDoes(click, locals = new Map(), seen = new Set()) {
+export function clickDoes(click, locals = new Map(), seen = new Set(), ctx = null) {
   if (!click || !click.trim()) return '';
-  if (STARTS_RUN.test(click) || VIEW_MODAL.test(click)) return 'leave';
+  click = withoutOffers(click);
+  if (STARTS_RUN.test(click) || ENTERS_RUN.test(click) || VIEW_MODAL.test(click)) return 'leave';
   const found = [];
   for (const path of callsOf(click)) {
     const name = path.split('.').at(-1), own = !path.includes('.') || /^core\.act$/.test(path);
     if (NEUTRAL.has(name)) continue;
     // A handler of the page is read through its whole body, however long (round 7: a long one was given up on, and 648 Buttons fell back to their words).
-    if (locals.has(path) && !seen.has(path)) {
-      seen.add(path);
+    const localKey = ctx ? `${ctx.file}:${path}` : path;
+    if (locals.has(path) && !seen.has(localKey)) {
+      seen.add(localKey);
       // A body that does not say (a DOM call, a download) is read by the handler's own name, as a prop would be: `close`, `save`, `copyMarkdown` act here.
-      found.push(clickDoes(locals.get(path), locals, seen) || (HERE.test(name) || hereVerb(name) ? 'here' : ''));
+      found.push(clickDoes(locals.get(path), locals, seen, ctx) || (HERE.test(name) || hereVerb(name) ? 'here' : ''));
       continue;
     }
-    if (locals.state?.has(path) || IN_DOC.test(path)) found.push('here');
+    if (locals.state?.has(path) || IN_DOC.test(path) || IN_DOC_CALL.test(path)) { found.push('here'); continue; }
+    // Round 8: a prop is read where it is wired, before its name (`onCreate` wired to intents.goGenerate() leaves); sites that disagree leave it undecided.
+    const wired = ctx?.wiring && !locals.has(path) && !EXTERNAL.test(name) ? wiredDoes(path, ctx, seen) : '';
+    if (wired) { found.push(wired === 'mixed' ? '' : wired); continue; }
     else if (EXTERNAL.test(name)) found.push('external');
     else if (OVER_PAGE.test(name)) found.push('here');
     else if (LEAVE_PATH.test(path) || LEAVE.test(name)) found.push('leave');
@@ -242,6 +392,11 @@ export function setsStateWhy(click, locals = new Map()) {
 
 /** Why a go-on Button's click acts where it stands, from what it calls alone: a job or data action (`act(…)`: 继续 / 接着做 on a job; `act('review.start')` starts a
     practice run, so it leaves), or setsStateWhy. */
+/** Why a click that acts where it stands does so: a job or data action, or only state of this page. */
+function hereWhy(click) {
+  return /(?:^|[^\w$.])(?:core\.)?act\(/.test(click) ? 'it runs a job or data action (act) on what is shown; the page stays' : 'it only sets state on this page (a dialog, a fold, a view); the learner stays';
+}
+
 export function structuralWhy(click, locals = new Map()) {
   if (/(?:^|[^\w$.])(?:core\.)?act\(/.test(click) && clickDoes(click, locals) === 'here') return 'it runs a job or data action (act) on what is shown; the page stays';
   return setsStateWhy(click, locals);
@@ -250,9 +405,10 @@ export function structuralWhy(click, locals = new Map()) {
 /** Why a Button acts where it stands, or '' when it takes the learner somewhere. One decision, in this order: what its click does (structuralWhy: a job or data
     action, the study actions 继续 / 接着做 / 继续安装 on a job's card or the console; only a setter of this page's state); a listed place (IN_PLACE). A form's submit
     is decided by what it starts: 开始本轮 submits and goes on to the round, so it keeps its arrow. `used` collects the listed places that matched. */
-export function inPlaceWhy(open, file = '', used = null, locals = new Map()) {
+export function inPlaceWhy(open, file = '', used = null, locals = new Map(), does = undefined) {
   const click = propOf(open, 'onClick');
-  const structural = structuralWhy(click, locals);
+  // What the click does, when the caller traced it where it is wired (round 8), beats what its handler is called.
+  const structural = does === undefined ? structuralWhy(click, locals) : does === 'here' && click ? hereWhy(click) : '';
   if (structural) return structural;
   const place = IN_PLACE.find((entry) => entry.file === file && (entry.submit ? /\stype="submit"/.test(open) && !click : new RegExp(`\\b(?:${entry.handler})\\b`).test(click)));
   if (place) used?.add(place);
@@ -267,7 +423,8 @@ export const WAY_BACK = /^(?:返回|回到|回学习库)/u;
     against the Button's words. */
 export const LEAVES_WITHOUT_ARROW = [
   { file: 'ui/tasks/PlanTable.jsx', label: /^第 \{0\} 页$/, why: 'a page number of the plan table: an entry of a list, its words are the page it opens' },
-  { file: 'ui/Sources.jsx', label: /前言与目录|第 \{0\}/, why: 'a chapter row of the 资料 page: its words are the part it opens (前言与目录, 第 N 页), an entry of a list' },
+  { file: 'ui/Sources.jsx', label: /前言与目录|第 \{0\}|^\{0\} 字符$/, why: 'a chapter or document row of the 资料 page: its words are the part it opens (前言与目录, 第 N 页, its title and size), an entry of a list' },
+  { file: 'ui/book/BookToc.jsx', label: /^\{0\} 处$/, why: 'a hit of the book\'s search: its words are the point and the number of hits it opens, an entry of a list (it moves inside the same book)' },
   { file: 'ui/study-map/FocusProgressLine.jsx', label: /^重点 \{0\} 条/, why: 'a status, not an action: the summary of the course’s focus points, which opens their detail' },
   { file: 'ui/study-map/MethodLine.jsx', label: /^学法 · /, why: 'a status, not an action: the course’s 学法 stage, which opens the whole 学法 (its aria-label says so)' },
   { file: 'ui/CourseSettings.jsx', label: /^设置$/, why: 'opens the course’s panel inside the 设置 page (setCourseSettings): the page stays, the panel is its detail' },
@@ -299,8 +456,8 @@ function submitOf(source, at, open) {
     (the reader at a quote or a page) draws no `external` or `file` in front and ends in →. A Button with another leading icon of its own (the sparkle of 生成) takes
     no arrow either way; the test checks that no Button leads with a play icon. A listed place acts in place (IN_PLACE) or leaves without the arrow
     (LEAVES_WITHOUT_ARROW), each with why. `seen` counts what was read: { buttons, data, leave, here, external, unknown }. */
-export function goOnProblems(source, { file = '', helpers = new Map(), used = null, seen = null } = {}) {
-  const problems = [], vars = varsOf(source), locals = localHandlers(source);
+export function goOnProblems(source, { file = '', helpers = new Map(), used = null, seen = null, wiring = helpers.wiring } = {}) {
+  const problems = [], vars = varsOf(source), locals = localHandlers(source), traced = (at) => (wiring && file ? { wiring, file, at } : null);
   const count = (key) => { if (seen) seen[key] = (seen[key] || 0) + 1; };
   const push = (labels, open, want, at) => problems.push({ label: labels.join(' | ') || '?', open: open.replace(/\s+/g, ' ').slice(0, 120), want, at });
   for (const { open, children, at } of buttonElements(source)) {
@@ -311,7 +468,7 @@ export function goOnProblems(source, { file = '', helpers = new Map(), used = nu
     const click = propOf(open, 'onClick') || submitOf(source, at, open), arrow = isArrow(open);
     const icon = leadIcon(open) || (/^\s*(?:<span\b[^>]*>\s*)?<Icon\b[^>]*\bname="([^"]+)"/.exec(children)?.[1] ?? '');
     // A toggle says so itself (aria-pressed / aria-expanded: 今天读哪几节 opens its list where it stands).
-    const toggle = /\saria-(?:pressed|expanded)=/.test(open), does = toggle ? 'here' : clickDoes(click, locals);
+    const toggle = /\saria-(?:pressed|expanded)=/.test(open), does = toggle ? 'here' : clickDoes(click, locals, new Set(), traced(at));
     count(does || 'unknown');
     if (!toggle && labels.some((label) => WAY_BACK.test(label))) {
       if (arrow) push(labels, open, 'no go-on arrow: it is a way back', at);
@@ -334,7 +491,7 @@ export function goOnProblems(source, { file = '', helpers = new Map(), used = nu
     if (icon) continue;
     const listed = LEAVES_WITHOUT_ARROW.find((entry) => entry.file === file && entry.label.test(labels.join(' | ')));
     if (listed) { used?.add(listed); if (arrow) push(labels, open, `no arrow: ${listed.why}`, at); continue; }
-    const here = inPlaceWhy(open, file, used, locals);
+    const here = inPlaceWhy(open, file, used, locals, wiring && file ? does : undefined);
     const goes = !here && (does === 'leave' || (does === '' && labels.some((label) => GO_ON.test(label))));
     const want = here && arrow ? `no arrow: ${here}` : goes && !arrow ? `iconEnd="arrow-right": it takes the learner somewhere (${does === 'leave' ? 'its click leaves' : 'its words go on'})` : '';
     if (want) push(labels, open, want, at);
@@ -365,7 +522,7 @@ function labelledObjects(source) {
   for (let at = source.search(/\{\s*label:/); at >= 0; ) {
     let depth = 0, end = at;
     for (; end < source.length; end++) { if (source[end] === '{') depth++; else if (source[end] === '}' && --depth === 0) break; }
-    found.push({ object: source.slice(at, end + 1), before: source.slice(Math.max(0, at - 24), at) });
+    found.push({ object: source.slice(at, end + 1), before: source.slice(Math.max(0, at - 24), at), at });
     const next = source.slice(at + 1).search(/\{\s*label:/);
     at = next < 0 ? -1 : at + 1 + next;
   }
@@ -382,15 +539,16 @@ export const SPEC_FILES = ['ui/study-map/JobCard.jsx', 'ui/PdfConvertJob.jsx', '
     draw a Button from the object, with the `iconEnd` they are given) whose arrow does not match what they do, by the same rule as a Button: what the handler does
     decides (clickDoes), the words only when it does not say; a way back has no go-on arrow; an action with its own leading `icon` takes none. A PageHeader's
     `back` draws its own arrow-left; a spec of SPEC_FILES is read by specProblems. [{ label, open, want }] */
-export function actionProblems(source, { file = '', helpers = new Map(), seen = null, used = null } = {}) {
+export function actionProblems(source, { file = '', helpers = new Map(), seen = null, used = null, wiring = helpers.wiring } = {}) {
   const vars = varsOf(source), locals = localHandlers(source), problems = [];
-  for (const { object, before } of labelledObjects(source)) {
+  for (const { object, before, at } of labelledObjects(source)) {
     const onClick = valueOfProp(object, 'onClick'), run = valueOfProp(object, 'run'), click = onClick || run;
     if (!click || (!onClick && SPEC_FILES.includes(file)) || /\bback\s*[=:]\s*$/.test(before)) continue;
     const label = valueOfProp(object, 'label'), labels = labelsOf(/^[A-Za-z_$][\w$]*$/.test(label) ? `{${label}}` : label, helpers, vars);
     if (!labels.length) continue;
     if (seen) seen.actions = (seen.actions || 0) + 1;
-    const arrow = /[{,]\s*iconEnd\s*:\s*['"]arrow-right['"]/.test(object), does = clickDoes(click, locals), open = object.replace(/\s+/g, ' ').slice(0, 120);
+    const arrow = /[{,]\s*iconEnd\s*:\s*['"]arrow-right['"]/.test(object), open = object.replace(/\s+/g, ' ').slice(0, 120);
+    const does = clickDoes(click, locals, new Set(), wiring && file ? { wiring, file, at } : null);
     if (labels.some((word) => WAY_BACK.test(word)) && does !== 'here') { if (arrow) problems.push({ label: labels.join(' | '), open, want: 'no go-on arrow: it is a way back' }); continue; }
     if (does === 'external' || /[{,]\s*icon\s*:/.test(object)) continue;
     const listed = LEAVES_WITHOUT_ARROW.find((entry) => entry.file === file && entry.label.test(labels.join(' | ')));

@@ -220,7 +220,7 @@ function DeckBody({ step, on, jobs, plan }) {
       {(on.generate || on.tune) && <div className="frl-body__actions">
         {on.generate && <Button variant="primary" iconEnd="arrow-right" disabled={!!blocked} lock={busy} data-first-run="generate" data-usage="first-run.generate"
           onClick={() => on.generate(step.sourceIds)}>{ui('出第一组题')}</Button>}
-        {on.tune && <Button variant="link" className="first-run__link" lock={busy} data-first-run="tune" onClick={() => on.tune(step.sourceIds)}>{ui('改题型和题数')}</Button>}
+        {on.tune && <Button variant="link" className="first-run__link" iconEnd="arrow-right" lock={busy} data-first-run="tune" onClick={() => on.tune(step.sourceIds)}>{ui('改题型和题数')}</Button>}
       </div>}
       {blocked && on.generate && <Hint data-first-run="blocked">{blocked}</Hint>}
     </>
@@ -248,7 +248,7 @@ function CompactBlocked({ reason, sourceIds, on }) {
   return (
     <div className="frl-compact-plan frl-compact-plan--blocked">
       <p className="frl-compact-plan__reason" data-first-run="blocked">{reason}</p>
-      {on.tune && <Button variant="link" size="sm" className="first-run__link frl-compact-plan__tune" lock={busy} data-first-run="tune"
+      {on.tune && <Button variant="link" size="sm" className="first-run__link frl-compact-plan__tune" iconEnd="arrow-right" lock={busy} data-first-run="tune"
         onClick={() => on.tune(sourceIds)}>{ui('改题型和题数')}</Button>}
     </div>
   );

@@ -13,7 +13,7 @@ export default function ArchivedDeckRow({ deck, onRestore, onRemove, onManage })
     </div>
     <div className="archived-deck__actions">
       {!deck.systemKind && <Button variant="secondary" lock={busy} onClick={() => onRestore(deck.id)}>{ui('恢复题组')}</Button>}
-      <Button variant="quiet" lock={busy} onClick={() => onManage(deck.id)}>{ui('管理题组')}</Button>
+      <Button variant="quiet" iconEnd="arrow-right" lock={busy} onClick={() => onManage(deck.id)}>{ui('管理题组')}</Button>
       {!deck.systemKind && <Button variant="danger" lock={busy} onClick={() => onRemove(deck.id)}>{ui('永久删除')}</Button>}
     </div>
   </li>;
