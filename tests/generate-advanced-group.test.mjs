@@ -67,10 +67,13 @@ test('no engineering words on the page, shut or open, in either language', () =>
   } finally { m.setUiLanguage('zh'); }
 });
 
-test('the picker row draws the badge line only for a row that has a badge, or while the answer is still coming', () => {
+test('the picker row has the badge\'s place only when it is drawn with a badge: never an empty place (#1084)', () => {
   const render2 = props => renderToStaticMarkup(React.createElement(m.SourcePicker, { sources, selected: [], onChange: noop, ...props }));
-  assert.doesNotMatch(render2({ indexCoverage: { indexed: [], stale: [], canIndex: true }, indexSlot: false }), /source-picker__index/, 'answered, no badge: no empty line');
-  assert.match(render2({ indexCoverage: null, indexSlot: true }), /source-picker__index/, 'while the answer is still coming the line is kept (#205)');
+  assert.doesNotMatch(render2({ indexCoverage: { indexed: [], stale: [], canIndex: true } }), /source-picker__index|source-picker__place/, 'answered, no badge: no place');
+  assert.doesNotMatch(render2({ indexCoverage: null }), /source-picker__index|source-picker__place/, 'no answer yet: no place kept for one');
+  const html = render2({ indexCoverage: { indexed: ['a', 'b'], stale: [], canIndex: true } });
+  assert.equal(html.match(/source-picker__place/g)?.length, 2, 'drawn with a badge: the place, on each row that has one');
+  assert.ok(html.indexOf('索引笔记') < html.indexOf('source-picker__index') && html.indexOf('source-picker__place') < html.indexOf('索引笔记'), 'the place before the title (it ends the first line), the badge after it (read after the title)');
 });
 
 /* The preview is what a student would ask: which materials, how many questions of which types, difficulty, language, formula style, the extra requirements. */

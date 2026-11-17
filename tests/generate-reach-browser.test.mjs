@@ -18,11 +18,14 @@ import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
    course, so their facts are long too (#1082, #1084).
    - #1082: with all five ticked, 生成并检查题组 is on the first screen at 1440×900 (zh, en) and at 420: one primary in view, nothing on top of it, and
      Tab through the form never puts the focused control under the bar that holds it. At the end of the page the bar is back in its place.
-     The bar keeps one height and the button one box with 0, 1 and 5 ticked, and the estimate (「预计 … tok」) is in the bar, on the first screen.
-   - #1084: at 420 a long title has the row's text column (at least 80% of it), before the index answer and after it. A short row is one title line and one
-     line of facts, as on main (67/68 px there). No fact is split across lines (「267 / 字符」). The badge's place ends the title's last line at the column's
-     end, its middle on that line's middle, before 选择页面 for the eye and for Tab. Badges arriving change no row height; an answer that brings no badge
-     leaves no empty slot and changes no row height either. */
+     The bar keeps one height and the button one box with 0, 1 and 5 ticked, and the estimate (「预计 … tok」) is in the bar, on the first screen. Its count
+     line is never cut inside a word, at 360, 420 and 1440, in zh and en; on a narrow page the bar is lighter than the 120 px of round 2; its top hairline
+     reads in both themes.
+   - #1084: at 420 a long title has the row's text column (at least 80% of it), whether the index answer came before the rows were drawn or after. A short
+     row is one title line and one line of facts, as on main (67/68 px there). No fact is split across lines (「267 / 字符」). The badge's place ends the
+     title's FIRST line at the column's end, its middle on that line's middle, before 选择页面 for the eye and for Tab. An answer that comes at once is
+     drawn with the rows (only the rows it gives a badge have a place); one that comes late fills the places every row kept beside its first line: either
+     way no row changes height. The title-length sweep is tests/generate-picker-sweep-browser.test.mjs. */
 
 const STAMP = '2026-10-01T08:00:00.000Z';
 const LONG_COURSE = '分布式系统与网络协议（2026 秋季学期 · 周三晚班）';
@@ -61,6 +64,8 @@ async function start(distDir) {
 async function openGenerate(browser, running, options) {
   const opened = await openPage(browser, running, options);
   const hold = options.hold ? await holdActions(opened.page, options.hold) : null;
+  // an answer given here is let through as soon as it is asked for
+  if (hold && options.answer !== undefined) for (const action of options.hold) hold.release(action, options.answer);
   await opened.page.goto(running.server.url);
   await opened.page.locator('aside, nav').first().waitFor({ timeout: 30000 });
   await (await revealNavRow(opened.page, 'generate')).dispatchEvent('click');
@@ -106,6 +111,46 @@ const focusSettled = page => page.evaluate(() => new Promise(done => {
 const boxesOf = page => page.locator('[data-tour="generate-sources"] .source-picker__item input[type="checkbox"]');
 const ticked = page => page.locator('[data-tour="generate-sources"] .source-picker__item.is-selected').count();
 const estimateReady = page => page.locator('[data-generate-estimate] [data-token-estimate][data-status="ready"]').count().then(count => count > 0);
+
+/** The count line of the bar: whether a word is cut by its edge (a piece of it partly in the line's box and partly out), whether it runs out sideways, and
+ *  the pieces it shows whole. A piece is what lies between 「·」 (a narrow line may leave whole pieces out, never half of one). */
+const countLine = page => page.evaluate(() => {
+  const line = document.querySelector('.generate-summary');
+  if (!line) return null;
+  const box = line.getBoundingClientRect(), text = line.textContent;
+  const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT), nodes = [];
+  for (let node = walker.nextNode(), at = 0; node; at += node.data.length, node = walker.nextNode()) nodes.push([node, at]);
+  const rangeOf = (from, to) => {
+    const locate = offset => { const found = nodes.findLast(([node, start]) => start <= offset && offset <= start + node.data.length); return [found[0], offset - found[1]]; };
+    const range = document.createRange();
+    range.setStart(...locate(from));
+    range.setEnd(...locate(to));
+    return range;
+  };
+  const cut = [], shown = [];
+  let from = 0;
+  for (const piece of text.split('·').map(part => part.trim()).filter(Boolean)) {
+    const at = text.indexOf(piece, from);
+    from = at + piece.length;
+    const rects = [...rangeOf(at, at + piece.length).getClientRects()].filter(r => r.width > 0.5);
+    const inside = rects.filter(r => r.left >= box.left - 0.5 && r.right <= box.right + 0.5 && r.top >= box.top - 0.5 && r.bottom <= box.bottom + 0.5);
+    const outside = rects.filter(r => r.top >= box.bottom - 0.5 || r.left >= box.right - 0.5);
+    if (rects.length && inside.length === rects.length) shown.push(piece);
+    else if (outside.length !== rects.length) cut.push(piece);
+  }
+  return { cut, shown, overflow: line.scrollWidth - line.clientWidth, text };
+});
+
+/** How far the bar's top hairline stands out from the ground it is drawn on: the contrast ratio of the two colours as composited. */
+const hairline = page => page.evaluate(() => {
+  const rgba = value => (value.match(/[\d.]+/g) || []).map(Number);
+  const ground = element => { for (let node = element; node; node = node.parentElement) { const [r, g, b, a = 1] = rgba(getComputedStyle(node).backgroundColor); if (a > 0.5) return [r, g, b]; } return [255, 255, 255]; };
+  const bar = document.querySelector('[data-generate-bar]'), style = getComputedStyle(bar), below = ground(bar);
+  const [r, g, b, a = 1] = rgba(style.borderTopColor), line = [r, g, b].map((value, i) => value * a + below[i] * (1 - a));
+  const luminance = colour => colour.map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }).reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0);
+  const [hi, lo] = [luminance(line), luminance(below)].sort((x, y) => y - x);
+  return { width: parseFloat(style.borderTopWidth), contrast: (hi + 0.05) / (lo + 0.05) };
+});
 
 test('#1082: with five materials ticked, 生成并检查题组 is on the first screen, alone, uncovered, and Tab never hides a control under it', { timeout: 900000 }, async t => {
   let browser;
@@ -194,7 +239,7 @@ test('#1082: the bar keeps one height and the button one place with 0, 1 and 5 t
   await buildPreview({ outdir: dist });
   const running = await start(dist);
   try {
-    for (const [lang, theme, width, height] of [['zh', 'light', 1440, 900], ['en', 'light', 1440, 900], ['zh', 'dark', 420, 860], ['en', 'dark', 420, 860]]) {
+    for (const [lang, theme, width, height] of [['zh', 'light', 1440, 900], ['en', 'light', 1440, 900], ['zh', 'dark', 420, 860], ['en', 'dark', 420, 860], ['zh', 'dark', 360, 780], ['en', 'dark', 360, 780]]) {
       const tag = `${lang} ${width}`;
       const { page, errors, context } = await openGenerate(browser, running, { lang, theme, width, height });
       const boxes = boxesOf(page);
@@ -203,10 +248,18 @@ test('#1082: the bar keeps one height and the button one place with 0, 1 and 5 t
       const none = await barBox(page);
       await boxes.nth(0).check();
       await until(async () => (await ticked(page)) === 1 && await estimateReady(page), `${tag}: one ticked and its estimate`, { timeoutMs: 60000 });
-      const one = await barBox(page), seenOne = await estimateSeen(page);
+      const one = await barBox(page), seenOne = await estimateSeen(page), countOne = await countLine(page);
       for (let i = 1; i < 5; i++) await boxes.nth(i).check();
       await until(async () => (await ticked(page)) === 5 && /5/.test(await page.locator('.generate-summary').innerText()) && await estimateReady(page), `${tag}: five ticked and their estimate`, { timeoutMs: 60000 });
-      const five = await barBox(page), seenFive = await estimateSeen(page);
+      const five = await barBox(page), seenFive = await estimateSeen(page), countFive = await countLine(page);
+      for (const [count, line] of [[1, countOne], [5, countFive]]) {
+        assert.deepEqual(line.cut, [], `${tag}, ${count} ticked: no word of the count line is cut by its edge (${line.text})`);
+        assert.ok(line.overflow <= 0, `${tag}, ${count} ticked: the count line does not run out sideways (${line.overflow} px)`);
+        assert.match(line.shown.join(' · '), lang === 'en' ? new RegExp(`\\b${count} materials?\\b`) : new RegExp(`${count} 份资料`), `${tag}, ${count} ticked: the line shows how many materials, whole (${line.shown.join(' · ')})`);
+      }
+      const seam = await hairline(page);
+      assert.ok(seam.width >= 1 && seam.contrast >= 1.2, `${tag}, ${theme}: the bar's top hairline reads against the page (contrast ${seam.contrast.toFixed(2)})`);
+      if (width < 600) assert.ok(none.bar <= 112, `${tag}: the bar is lighter than round 2's 120 px (${none.bar} px)`);
       assert.deepEqual([one.bar, five.bar], [none.bar, none.bar], `${tag}: the bar is as tall with 0, 1 and 5 ticked`);
       assert.deepEqual([one.button, five.button], [none.button, none.button], `${tag}: the button has one box with 0, 1 and 5 ticked`);
       for (const [count, seen] of [[1, seenOne], [5, seenFive]]) {
@@ -238,7 +291,7 @@ const rows = page => page.evaluate(() => {
     const row = item.querySelector('.source-picker__row'), style = getComputedStyle(row), box = row.getBoundingClientRect();
     const columnEnd = box.right - parseFloat(style.paddingRight);
     const title = item.querySelector('.source-picker__text strong'), titleRange = textRange(title), t = titleRange.getBoundingClientRect();
-    const titleLines = [...titleRange.getClientRects()].filter(r => r.width > 0.5), lastLine = titleLines.at(-1);
+    const titleLines = [...titleRange.getClientRects()].filter(r => r.width > 0.5).sort((a, b) => a.top - b.top), firstLine = titleLines[0];
     const facts = [...item.querySelectorAll('.source-picker__text small')].find(small => !small.classList.contains('source-picker__partial'));
     const factRange = textRange(facts), text = facts.textContent;
     // every piece between 「 · 」 on one line, unless it is wider than the column itself
@@ -262,8 +315,8 @@ const rows = page => page.evaluate(() => {
       height: item.getBoundingClientRect().height, oneLineHeight: parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + titleLH + factsLH,
       below: box.bottom - parseFloat(style.paddingBottom) - Math.max(...parts.map(r => r.bottom)), split, expand: !!row.querySelector('.source-picker__expand'),
       slot: !!slotElement, emptySlot: !!slotElement && !badge,
-      slotOnTitleLine: slot && lastLine ? slot.top < lastLine.bottom && slot.bottom > lastLine.top && Math.abs(slot.right - columnEnd) <= 1 : null,
-      badgeMiddle: badge && lastLine ? Math.abs((badge.top + badge.bottom) / 2 - (lastLine.top + lastLine.bottom) / 2) : null,
+      slotOnTitleLine: slot && firstLine ? slot.top < firstLine.bottom && slot.bottom > firstLine.top && Math.abs(slot.right - columnEnd) <= 1 : null,
+      badgeMiddle: badge && firstLine ? Math.abs((badge.top + badge.bottom) / 2 - (firstLine.top + firstLine.bottom) / 2) : null,
       tabOrder: focusable.map(named).join(' '), eyeOrder: seen.map(named).join(' '),
       badgeFits: badge && slot ? badge.width <= slot.width + 0.5 && badge.height <= slot.height + 0.5 : null, badge: !!badge };
   });
@@ -271,7 +324,7 @@ const rows = page => page.evaluate(() => {
 
 const heights = list => list.map(row => Math.round(row.height * 10) / 10);
 
-test('#1084: at 420 a short row is as on main, a long title has the row, no fact splits, and no index answer moves a row or leaves a hole', { timeout: 900000 }, async t => {
+test('#1084: at 420 a short row is as on main, a long title has the row, no fact splits, and no index answer, at once or late, moves a row or leaves a hole', { timeout: 900000 }, async t => {
   let browser;
   try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
   const dist = await mkdtemp(join(tmpdir(), 'study-generate-rows420-dist-'));
@@ -284,17 +337,20 @@ test('#1084: at 420 a short row is as on main, a long title has the row, no fact
       badges: { indexed: ids.filter(id => !partial.includes(id)), stale: [], missing: partial, hasIndex: true, canIndex: true, building: null },
       none: { indexed: [], stale: [], missing: ids, hasIndex: false, canIndex: true, building: null },
     };
-    for (const lang of ['zh', 'en']) {
+    for (const lang of ['zh', 'en']) for (const late of [false, true]) {
       for (const [answer, value] of Object.entries(answers)) {
-        const tag = `${lang}, ${answer === 'badges' ? 'badges arrive' : 'no index'}`;
-        const { page, errors, context, hold } = await openGenerate(browser, running, { lang, theme: 'dark', width: 420, height: 860, hold: ['retrieval.index.coverage'] });
+        const tag = `${lang}, ${answer === 'badges' ? 'badges' : 'no index'} ${late ? 'late' : 'at once'}`;
+        // at once: the answer is let through as soon as it is asked for; late: it is held until the rows are drawn
+        const { page, errors, context, hold } = await openGenerate(browser, running, { lang, theme: 'dark', width: 420, height: 860, hold: ['retrieval.index.coverage'], answer: late ? undefined : value });
         await until(() => hold.seen('retrieval.index.coverage'), 'the page to ask for index coverage');
         await settleAnimations(page);
         await frames(page, 4);
         const before = await rows(page);
-        hold.release('retrieval.index.coverage', value);
-        if (answer === 'badges') await until(async () => (await page.locator('[data-tour="generate-sources"] [data-index-slot] [data-state]').count()) === 5, 'a badge on every row');
-        else await until(async () => (await page.locator('[data-tour="generate-sources"] [data-index-slot]').count()) === 0, 'no badge place left once the answer says no index', { timeoutMs: 8000 });
+        const answered = late ? page.waitForResponse(response => response.url().endsWith('/api/call') && (response.request().postData() || '').includes('retrieval.index.coverage')) : null;
+        if (late) hold.release('retrieval.index.coverage', value);
+        if (late) await answered;
+        // at once, every row has its badge; late, a badge is shown only on a row it does not move (the rest leave it out), so there is nothing more to wait for
+        if (answer === 'badges' && !late) await until(async () => (await page.locator('[data-tour="generate-sources"] [data-index-slot] [data-state]').count()) === 5, 'a badge on every row');
         await settleAnimations(page);
         await frames(page, 6);
         const after = await rows(page);
@@ -308,14 +364,15 @@ test('#1084: at 420 a short row is as on main, a long title has the row, no fact
             }
             assert.deepEqual(row.split, [], `${where}: no fact is split across lines`);
             assert.ok(row.below <= 1, `${where}: ${Math.round(row.below)}px of empty band under the content`);
-            if (row.slot) assert.equal(row.slotOnTitleLine, true, `${where}: the badge's place ends the title's last line, at the column's end`);
+            if (row.slot) assert.equal(row.slotOnTitleLine, true, `${where}: the badge's place ends the title's first line, at the column's end`);
             if (row.badge) assert.ok(row.badgeMiddle <= 1, `${where}: the badge sits on the middle of that line (${row.badgeMiddle} px off)`);
             assert.equal(row.tabOrder, row.eyeOrder, `${where}: Tab meets the row's controls in the order they are seen`);
           }
         }
         assert.deepEqual(heights(after), heights(before), `${tag}: no row changes height when the answer arrives`);
-        if (answer === 'badges') assert.deepEqual(after.map(row => row.badgeFits), after.map(() => true), `${tag}: every badge fits its place`);
-        else assert.deepEqual(after.filter(row => row.emptySlot).map(row => row.title), [], `${tag}: no row keeps an empty place for a badge that cannot come`);
+        assert.deepEqual(after.filter(row => row.badge && !row.badgeFits).map(row => row.title), [], `${tag}: every badge fits its place`);
+        if (answer === 'badges' && late) assert.ok(after.some(row => row.badge), `${tag}: a late badge is still shown where it moves nothing`);
+        for (const [when, list] of [['before the answer', before], ['after it', after]]) assert.deepEqual(list.filter(row => row.emptySlot).map(row => row.title), [], `${tag}, ${when}: no row holds an empty place for a badge`);
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth) <= 0, `${tag}: no sideways scroll`);
         assert.deepEqual(errors, []);
         await context.close();

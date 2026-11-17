@@ -14,7 +14,7 @@ import { loadUi } from './helpers/ui-module.mjs';
 test('the picker\'s row memo only follows a row\'s own data', async () => {
   const { documentRowPropsEqual } = await loadUi(`export { documentRowPropsEqual } from './ui/SourcePicker.jsx';`);
   const item = { key: 'a', sourceIds: ['a1', 'a2'] }, other = { key: 'b', sourceIds: ['b1'] };
-  const base = { item, selected: ['b1'], disabled: false, defaultOpen: false, indexInfo: { state: 'indexed', indexed: 2, stale: 0, total: 2 }, canIndex: true, apply: () => {}, slot: true };
+  const base = { item, selected: ['b1'], disabled: false, defaultOpen: false, indexInfo: { state: 'indexed', indexed: 2, stale: 0, total: 2 }, canIndex: true, apply: () => {} };
   assert.equal(documentRowPropsEqual(base, { ...base }), true);
   assert.equal(documentRowPropsEqual(base, { ...base, selected: ['b1', 'c9'], indexInfo: { ...base.indexInfo } }), true, 'another row\'s selection or a new coverage object of equal content re-renders nothing');
   assert.equal(documentRowPropsEqual(base, { ...base, selected: ['b1', 'a1'] }), false, 'its own selection changes it');
@@ -22,7 +22,6 @@ test('the picker\'s row memo only follows a row\'s own data', async () => {
   assert.equal(documentRowPropsEqual({ ...base, indexInfo: null }, { ...base, indexInfo: { state: 'indexed', indexed: 2, stale: 0, total: 2 } }), false, 'a badge arriving changes it');
   assert.equal(documentRowPropsEqual(base, { ...base, item: other }), false);
   assert.equal(documentRowPropsEqual(base, { ...base, disabled: true }), false);
-  assert.equal(documentRowPropsEqual(base, { ...base, slot: false }), false);
 });
 
 test('index coverage arriving late changes no row height, and re-renders only badges (132 materials)', { timeout: 300000 }, async (t) => {

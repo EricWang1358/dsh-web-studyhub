@@ -39,14 +39,14 @@ test('the submit area is in the order it is seen: the count and the tokens, the 
   assert.ok(at('data-generate-coverage') < at('generate-quality'), 'the note about the checks comes last');
 });
 
-test('with nothing ticked the bar still has its two lines, saying what to do, so ticking the first material moves nothing', () => {
+test('with nothing ticked the bar still has its two lines, the first saying what to do and the second holding its place with no filler, so ticking the first material moves nothing', () => {
   for (const lang of ['zh', 'en']) {
     m.setUiLanguage(lang);
     const html = render({}, { selectedSources: [] });
     const bar = html.slice(html.indexOf('data-tour="generate-summary"'), html.indexOf('data-generate-run'));
     const lines = /<div class="generate-submit__lines">([\s\S]*?)<button/.exec(bar)?.[1] || '';
     assert.match(lines, /role="status"[^>]*>[^<]+</, `${lang}: the first line says what to do`);
-    assert.match(lines, /data-generate-estimate[^>]*><p[^>]*>[^<]+</, `${lang}: the second line says where the tokens will be`);
+    assert.match(lines, /data-generate-estimate[^>]*><\/div>/, `${lang}: the second line is there, empty: no sentence about where the tokens will be (#1082)`);
     assert.ok(bar.indexOf('generate-submit__lines') < bar.indexOf('data-tour="generate-submit"'), `${lang}: the lines come before the button, as when something is ticked`);
   }
   m.setUiLanguage('zh');
@@ -82,4 +82,13 @@ test('the line under the button reads right for one focus topic and for many, in
       assert.doesNotMatch(said, /[一-鿿]/, `English: ${said}`);
     }
   } finally { m.setUiLanguage('zh'); }
+});
+
+test('the picker draws its rows once the index answer is known, or past a short wait without it (#1084)', async () => {
+  const { indexWaiting, INDEX_WAIT_MS } = await loadUi(`export { indexWaiting, INDEX_WAIT_MS } from './ui/use-index-coverage.js';`);
+  assert.equal(indexWaiting('loading', false), true, 'the rows wait for the first answer');
+  assert.equal(indexWaiting('ready', false), false, 'an answer in time: the rows are drawn with it');
+  assert.equal(indexWaiting('unavailable', false), false, 'a failed read in time: drawn at once, with no badges');
+  assert.equal(indexWaiting('loading', true), false, 'past the wait: drawn without it');
+  assert.ok(INDEX_WAIT_MS > 0 && INDEX_WAIT_MS <= 600, `a short wait (${INDEX_WAIT_MS} ms), about the page's own fade-in`);
 });
