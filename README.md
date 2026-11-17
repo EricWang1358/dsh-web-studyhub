@@ -12,6 +12,22 @@ StudyHub is a plugin for [DeepSeek Harness (DSH)](https://www.deepseek.com/en/ha
 
 The demo runs in your browser with sample questions, playable **Interactive Companions**, and prepared AI replies. It needs no install and no key, and your progress there stays in that browser.
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/hero-en-dark.webp">
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/readme/hero-en-light.webp">
+    <img src="docs/assets/readme/hero-en-light.webp" alt="StudyHub overview: turn lecture slides into source-linked questions" width="100%">
+  </picture>
+</p>
+
+## Interface & workflow showcase
+
+| | |
+| --- | --- |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/desk-en-dark.webp"><source media="(prefers-color-scheme: light)" srcset="docs/assets/readme/desk-en-light.webp"><img src="docs/assets/readme/desk-en-light.webp" alt="StudyHub study library and Today's study card"></picture><br>**Study library & today's round** — Course mastery overview, due queue, and warm-paper Today card ready to launch practice. | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/reader-en-dark.webp"><source media="(prefers-color-scheme: light)" srcset="docs/assets/readme/reader-en-light.webp"><img src="docs/assets/readme/reader-en-light.webp" alt="StudyHub source reader with bidirectional passage citation highlight"></picture><br>**Source reader & linked citations** — Every question's citation opens the exact passage highlighted beside the question explanation. |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/practice-en-dark.webp"><source media="(prefers-color-scheme: light)" srcset="docs/assets/readme/practice-en-light.webp"><img src="docs/assets/readme/practice-en-light.webp" alt="StudyHub practice view with per-option feedback and AI tutor"></picture><br>**Practice, per-option feedback & tutor** — Immediate correctness cues per option, prerequisite strips, and one-click **Help me understand**. | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/companion-en-dark.webp"><source media="(prefers-color-scheme: light)" srcset="docs/assets/readme/companion-en-light.webp"><img src="docs/assets/readme/companion-en-light.webp" alt="StudyHub Interactive Companions parametric 2D phase-plane sandbox"></picture><br>**Interactive Companions sandbox** — Self-contained interactive stages with live parameter sliders, 2D phase portraits, and offline MathML formulas. |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/exam-en-dark.webp"><source media="(prefers-color-scheme: light)" srcset="docs/assets/readme/exam-en-light.webp"><img src="docs/assets/readme/exam-en-light.webp" alt="StudyHub timed mock exam paper"></picture><br>**Timed mock exams** — Focused paper mode with question navigator, countdown clock, and post-submission mastery breakdown. | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/explorer-en-dark.webp"><source media="(prefers-color-scheme: light)" srcset="docs/assets/readme/explorer-en-light.webp"><img src="docs/assets/readme/explorer-en-light.webp" alt="StudyHub open learning architecture explorer page"></picture><br>**Open learning architecture explorer** — Interactive breakdown of Cordis contexts, 5-stage grounded generation, FSRS-6, and offline LPT tests. |
+
 ## At a glance
 
 - **Made for:** students who learn from slides, PDFs, notes and recorded lectures, in English or Chinese.

@@ -12,6 +12,22 @@ StudyHub 是 [DeepSeek Harness（DSH）](https://www.deepseek.com/en/harness/)�
 
 在线体验直接在浏览器里打开，内置示例题、可直接互动体验的跨学科**交互伴学**课和预置的 AI 回复，不用安装，也不用 Key；体验进度只保存在当前浏览器。
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/hero-zh-dark.webp">
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/readme/hero-zh-light.webp">
+    <img src="docs/assets/readme/hero-zh-light.webp" alt="StudyHub 首页总览：把课件变成每道题都点得回原页的练习" width="100%">
+  </picture>
+</p>
+
+## 界面与使用样例
+
+| | |
+| --- | --- |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/desk-zh-dark.webp"><source media="(prefers-color-scheme: light)" srcset="docs/assets/readme/desk-zh-light.webp"><img src="docs/assets/readme/desk-zh-light.webp" alt="StudyHub 学习库首页与纸感今日学习卡"></picture><br>**学习库与今日学习卡** — 直观查看课程掌握度、待巩固队列，点击纸感今日卡片一键开启一轮练习。 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/reader-zh-dark.webp"><source media="(prefers-color-scheme: light)" srcset="docs/assets/readme/reader-zh-light.webp"><img src="docs/assets/readme/reader-zh-light.webp" alt="StudyHub 原文阅读与题目引用高亮对照"></picture><br>**原文阅读与双向引用溯源** — 从题目的「查看引用」直接并排打开原文，高亮锚定出处片段。 |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/practice-zh-dark.webp"><source media="(prefers-color-scheme: light)" srcset="docs/assets/readme/practice-zh-light.webp"><img src="docs/assets/readme/practice-zh-light.webp" alt="StudyHub 做题逐项解析与前置提示"></picture><br>**作答反馈、逐项解析与「帮我弄懂」** — 每个选项都有清晰对错依据与错因说明，卡壳随时一键追问助教。 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/companion-zh-dark.webp"><source media="(prefers-color-scheme: light)" srcset="docs/assets/readme/companion-zh-light.webp"><img src="docs/assets/readme/companion-zh-light.webp" alt="StudyHub 跨学科交互伴学相平面矢量场沙盒"></picture><br>**跨学科交互伴学沙盒** — 零依赖独立互动舞台，实时拖动参数观察二维相平面轨迹、向量场与离线 MathML 公式。 |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/exam-zh-dark.webp"><source media="(prefers-color-scheme: light)" srcset="docs/assets/readme/exam-zh-light.webp"><img src="docs/assets/readme/exam-zh-light.webp" alt="StudyHub 限时模拟考试界面"></picture><br>**限时模拟考试** — 专注试卷模式支持题号跳转与倒计时，交卷后自动定位薄弱项并排入复习路径。 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/explorer-zh-dark.webp"><source media="(prefers-color-scheme: light)" srcset="docs/assets/readme/explorer-zh-light.webp"><img src="docs/assets/readme/explorer-zh-light.webp" alt="StudyHub 开放式学习架构探索页"></picture><br>**开放式学习架构探索页** — 交互查看 19 个 StudyRuntime 上下文、五阶段核验出题、FSRS-6 与离线分片测试。 |
+
 ## 开始前先知道
 
 - **适合谁**：用课件、PDF、讲义和课堂录音学习的学生，中文、英文资料都可以。
