@@ -86,7 +86,7 @@ function recordFrames() {
     const page = document.querySelector('.generate-page');
     if (window.__from !== null && page) {
       const origin = page.getBoundingClientRect().top;
-      const at = selector => { const element = document.querySelector(selector); if (!element) return null; const box = element.getBoundingClientRect(); return [Math.round((box.top - origin) * 2) / 2, Math.round(box.height * 2) / 2]; };
+      const at = selector => { const element = document.querySelector(selector); if (!element) return null; const box = element.getBoundingClientRect(); return [Math.round((box.top - origin) * 100) / 100, Math.round(box.height * 100) / 100]; };
       window.__frames.push({ t: Math.round(performance.now() - window.__from), header: !!page.querySelector('.generate-header'), tabs: !!page.querySelector('.source-mode [role="tab"]'),
         list: !!page.querySelector('[data-tour="generate-sources"] .source-picker__item'), form: !!page.querySelector('[data-tour="generate-options"]'),
         place: { window: at('[data-tour="generate-sources"] .sh-scroll__viewport'), foot: at('[data-tour="generate-sources"] .source-picker__foot'),
@@ -105,7 +105,8 @@ test('#1084: the page is drawn whole at once, whatever the index answer, and not
   const running = await start(dist);
   try {
     const ids = (await previewCall(running.server, 'snapshot')).sources.map(source => source.id);
-    const missing = ids.filter(id => id.startsWith(LONG_PDF));
+    // Two of the long PDF's four pages: a small document with no page built has no badge (documentIndexState), a half-built one has 「部分索引」 and the line.
+    const missing = ids.filter(id => id.startsWith(LONG_PDF)).slice(0, 2);
     const answers = {
       'slow (2 s), with a gap': [{ ok: true, value: { indexed: ids.filter(id => !missing.includes(id)), stale: [], missing, hasIndex: true, canIndex: true, building: null } }, 2000],
       'failed': [{ ok: false, error: 'no search component' }, 0],
@@ -125,7 +126,8 @@ test('#1084: the page is drawn whole at once, whatever the index answer, and not
       const steady = drawn.filter(frame => frame.list);
       const first = steady[0];
       for (const [part, place] of Object.entries(first?.place ?? {})) {
-        const moved = steady.find(frame => JSON.stringify(frame.place[part]) !== JSON.stringify(place));
+        // A quarter of a pixel apart is a move: the page's own rise (a transform) jitters a box by a hundredth of a pixel, which is no move.
+        const moved = steady.find(frame => !frame.place[part] !== !place || (place && frame.place[part].some((value, at) => Math.abs(value - place[at]) > 0.25)));
         if (moved) failures.push(`${tag}: ${part} ${JSON.stringify(place)} at ${first.t} ms → ${JSON.stringify(moved.place[part])} at ${moved.t} ms`);
       }
       if (!first?.place.foot) failures.push(`${tag}: no foot row under the list`);

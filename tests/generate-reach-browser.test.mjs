@@ -311,11 +311,14 @@ const rows = page => page.evaluate(() => {
     const named = element => element.matches('.source-picker__expand') ? 'expand' : 'badge';
     const seen = [...focusable].sort((a, b) => { const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect(); return Math.abs(ra.top - rb.top) > 4 ? ra.top - rb.top : ra.left - rb.left; });
     const titleLH = parseFloat(getComputedStyle(title).lineHeight), factsLH = parseFloat(getComputedStyle(facts).lineHeight);
+    // The facts' first line box (the slot is that line's height; a glyph's own box is a little shorter).
+    const factsTop = facts.getBoundingClientRect().top, factLine = firstLine ? { top: Math.min(factsTop, firstLine.top), bottom: Math.min(factsTop, firstLine.top) + factsLH } : null;
     return { title: title.textContent.slice(0, 16), share: t.width / (columnEnd - t.left), lines: titleLines.length ? lineTops(titleRange).length : 0, factLines: lineTops(factRange).length,
       height: item.getBoundingClientRect().height, oneLineHeight: parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + titleLH + factsLH,
       below: box.bottom - parseFloat(style.paddingBottom) - Math.max(...parts.map(r => r.bottom)), split, expand: !!row.querySelector('.source-picker__expand'),
       slot: !!slotElement,
-      slotOnFactsLine: slot && firstLine ? slot.top >= firstLine.top - 1 && slot.bottom <= firstLine.bottom + 1 && Math.abs(slot.right - columnEnd) <= 1 : null,
+      slotPlace: slot && factLine ? [slot.top, slot.bottom, slot.right, factLine.top, factLine.bottom, columnEnd].map(v => Math.round(v * 10) / 10).join(' ') : '',
+      slotOnFactsLine: slot && factLine ? slot.top >= factLine.top - 1 && slot.bottom <= factLine.bottom + 1 && Math.abs(slot.right - columnEnd) <= 1 : null,
       badgeMiddle: badge && firstLine ? Math.abs((badge.top + badge.bottom) / 2 - (firstLine.top + firstLine.bottom) / 2) : null,
       tabOrder: focusable.map(named).join(' '), eyeOrder: seen.map(named).join(' '),
       badgeFits: badge && slot ? badge.width <= slot.width + 0.5 && badge.height <= slot.height + 0.5 : null, badge: !!badge };
@@ -364,7 +367,7 @@ test('#1084: at 420 a short row is as on main, a long title has the row, no fact
             }
             assert.deepEqual(row.split, [], `${where}: no fact is split across lines`);
             assert.ok(row.below <= 1, `${where}: ${Math.round(row.below)}px of empty band under the content`);
-            assert.equal(row.slotOnFactsLine, true, `${where}: the badge's slot ends the facts' first line, at the row's end`);
+            assert.equal(row.slotOnFactsLine, true, `${where}: the badge's slot ends the facts' first line, at the row's end (slot top, bottom, right; line top, bottom; column end: ${row.slotPlace})`);
             if (row.badge) assert.ok(row.badgeMiddle <= 1, `${where}: the badge sits on the middle of that line (${row.badgeMiddle} px off)`);
             assert.equal(row.tabOrder, row.eyeOrder, `${where}: Tab meets the row's controls in the order they are seen`);
           }
