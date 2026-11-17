@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useId, useMemo, useRef, useState } from 'react';
+import React, { memo, useCallback, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { AddSourceButton, Button, CheckboxInput, EmptyState, ScrollWindow, addSourceAction, filterItems } from './components/index.js';
@@ -128,7 +128,7 @@ const setOfIds = ids => { let set = idSets.get(ids); if (!set) idSets.set(ids, s
  * a coverage answer or a click on another row leaves the other rows alone. `apply(update)` is stable and reads the latest selection itself.
  */
 export function documentRowPropsEqual(a, b) {
-  if (a.item !== b.item || a.disabled !== b.disabled || a.defaultOpen !== b.defaultOpen || a.canIndex !== b.canIndex || a.slot !== b.slot || a.relation !== b.relation
+  if (a.item !== b.item || a.disabled !== b.disabled || a.defaultOpen !== b.defaultOpen || a.canIndex !== b.canIndex || a.relation !== b.relation
     || a.apply !== b.apply || !sameIndexInfo(a.indexInfo, b.indexInfo)) return false;
   if (a.selected === b.selected) return true;
   const was = setOfIds(a.selected), now = setOfIds(b.selected);
@@ -140,10 +140,22 @@ export const relationNote = relation => !relation ? ''
   : relation.role === 'derived' ? uiFormat('派生自 {0}', [displayTitle(relation.of)])
     : relation.role === 'original' ? (relation.derived ? uiFormat('另有 {0} 份派生资料', [relation.derived]) : '') : uiFormat('同一文件的 {0} 份资料', [relation.count]);
 
-/* `slot`: the index badge's place at the end of the title's last line (a fixed width, no line of its own) is kept while the coverage is still coming, so a badge
-   arriving later fills it and moves nothing (#205); once the answer says this row gets no badge there is no place either. */
-const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled, defaultOpen = false, indexInfo = null, canIndex, slot = false, relation = null }) {
+/* The index badge's place ends the title's FIRST line, at the column's end, on every row and at every width (#1084): a float of fixed width before the title
+   shortens that one line, and the badge is drawn over it (after the title in the DOM, so the checkbox's name and Tab read title, badge, facts). It is never on a
+   line of its own, the lines after the first have the whole column, and a state that changes while a build runs keeps the width. A row has the place when it
+   is drawn with a badge (the list is drawn once the coverage is known: ui/use-index-coverage.js) and keeps it. A badge that comes after the row was drawn (an
+   answer past the wait, a build that starts) takes the place only where that moves nothing: the row tries it before the frame is painted and keeps it only
+   if the row is as tall with it; elsewhere that badge is left out for as long as the row is shown (#205). No row ever holds an empty place. */
+const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled, defaultOpen = false, indexInfo = null, canIndex, relation = null }) {
   const [open, setOpen] = useState(defaultOpen), [pagesOpen, setPagesOpen] = useState(false);
+  // 'kept' | 'none' (no badge yet) | 'trying' (laid out with the place, not painted) | 'refused' (it would have moved the row)
+  const [place, setPlace] = useState(() => (indexInfo ? 'kept' : 'none'));
+  const head = useRef(null), without = useRef(0);
+  useLayoutEffect(() => {
+    if (place === 'none' && indexInfo) { without.current = head.current.offsetHeight; setPlace('trying'); }
+    else if (place === 'trying') setPlace(head.current.offsetHeight === without.current ? 'kept' : 'refused');
+  }, [place, indexInfo]);
+  const placed = place === 'kept' || place === 'trying';
   const listId = useId(), chaptersId = useId();
   const chaptered = chosenByChapters(item);
   const state = selectionState(item, selected);
@@ -162,9 +174,10 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
           <CheckboxInput className="source-picker__check" checked={state === 'all'} indeterminate={state === 'some'} disabled={disabled}
             onChange={event => { const on = event.target.checked; apply(current => toggleDocument(current, item, on)); }} />
           <span className="source-picker__text">
-            <span className="source-picker__head">
+            <span className="source-picker__head" ref={head}>
+              {placed && <span className="source-picker__place" aria-hidden="true" />}
               <strong title={item.title}>{name}</strong>
-              {(slot || indexInfo) && <span className="source-picker__index" data-index-slot>{indexInfo && <IndexBadge compact info={indexInfo} coverage={{ canIndex }} />}</span>}
+              {placed && <span className="source-picker__index" data-index-slot>{indexInfo && <IndexBadge compact info={indexInfo} coverage={{ canIndex }} />}</span>}
             </span>
             <small>{facts.map((fact, at) => <React.Fragment key={at}>{at ? ' ' : ''}<span className="source-picker__fact">{at < facts.length - 1 ? `${fact} ·` : fact}</span></React.Fragment>)}</small>
             {state === 'some' && <small className="source-picker__partial">{uiFormat('已选 {0} / {1} 页', [picked, item.sourceIds.length])}</small>}
@@ -220,13 +233,13 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
  * Props: sources (snapshot sources), selected (source ids), onChange(ids),
  * courses + scope + onScopeChange (course scope; omit onScopeChange to show
  * everything), disabled, onAdd (shows “添加资料”), defaultQuery (initial filter
- * text), defaultOpenKey (a document key whose pages/chapters start open), maxHeight (list window height in px), indexCoverage + indexSlot (the index badge of each row; `indexSlot` keeps the badge's place while the coverage is still coming, so a badge that arrives later changes no row height; pass it only while a badge can still come),
+ * text), defaultOpenKey (a document key whose pages/chapters start open), maxHeight (list window height in px), indexCoverage (the index badge of each row: draw the list once it is known, or past a short wait, ui/use-index-coverage.js useIndexWait; a badge that comes after a row is drawn is shown only where it moves nothing),
  * onIndex(course) (the way to 设置 › 检索扩展 with that course chosen: one line above the list says how many rows are not fully indexed and leads there; none without it. The row badges only show the state, #1084). Extra props land on the root.
  * The list scrolls in a bounded window with a filter (WP14), so a course with
  * hundreds of materials never pushes the page down.
  */
 export default function SourcePicker({ sources = [], selected = [], onChange, courses = [], scope = '*', onScopeChange, disabled = false,
-  onAdd, defaultQuery = '', defaultOpenKey = '', maxHeight = 420, className, indexCoverage = null, indexSlot = false, onIndex, ...rest }) {
+  onAdd, defaultQuery = '', defaultOpenKey = '', maxHeight = 420, className, indexCoverage = null, onIndex, ...rest }) {
   useInjectCss(css, 'study-source-picker');
   const [query, setQuery] = useState(defaultQuery);
   const items = useMemo(() => groupSourcesByDocument(sources).filter(item => !item.archived), [sources]);
@@ -259,7 +272,9 @@ export default function SourcePicker({ sources = [], selected = [], onChange, co
   const canIndex = indexCoverage?.canIndex;
   // The badges ask for the index through one stable function that reads the latest handler, so a new handler each render redraws no row.
   const goIndex = useCallback(course => latest.current.onIndex?.(course), []);
-  const gap = useMemo(() => (onIndex ? indexGap(visible.map(item => ({ item, info: infos.get(item.key) }))) : null), [onIndex, visible, infos]);
+  // The line above the list is there from the first draw or not at all: an answer that comes after the list was drawn would push every row down (#1084).
+  const [drawnWithCoverage] = useState(() => !!indexCoverage);
+  const gap = useMemo(() => (onIndex && drawnWithCoverage ? indexGap(visible.map(item => ({ item, info: infos.get(item.key) }))) : null), [onIndex, drawnWithCoverage, visible, infos]);
   const relations = useMemo(() => materialRelations(items), [items]);
   if (!items.length) return (
     <div className={`source-picker${className ? ` ${className}` : ''}`} {...rest}>
@@ -285,7 +300,7 @@ export default function SourcePicker({ sources = [], selected = [], onChange, co
         filterPlaceholder={ui('筛选资料…')} maxHeight={maxHeight} renderLimit={SOURCE_PICKER_FIRST_ROWS} listClassName="source-picker__list" itemClassName="source-picker__entry"
         empty={uiFormat('没有匹配“{0}”的资料', [query.trim()])}
         renderItem={item => <DocumentRow item={item} selected={selected} apply={apply} disabled={disabled} defaultOpen={item.key === defaultOpenKey}
-          indexInfo={infos.get(item.key) ?? null} canIndex={canIndex} slot={indexSlot} relation={relations.get(item.key) ?? null} />} />
+          indexInfo={infos.get(item.key) ?? null} canIndex={canIndex} relation={relations.get(item.key) ?? null} />} />
         : <p className="source-picker__note">{ui('这个范围还没有资料。可切换到全部课程查看。')}</p>}
       {onAdd && <AddSourceButton variant="quiet" size="sm" className="source-picker__add sh-btn--flush-start" disabled={disabled} onClick={onAdd} />}
     </div>

@@ -19,13 +19,15 @@
     .source-picker__row { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4); }
     .source-picker__doc { display: flex; flex-direction: row; align-items: flex-start; gap: var(--space-3); flex: 1; min-width: 0; margin: 0; cursor: pointer; }
     .source-picker .source-picker__check { margin: var(--space-1) 0 0; }
-    .source-picker__text { display: grid; gap: var(--space-half); min-width: 0; }
+    .source-picker__text { display: grid; flex: 1 1 auto; gap: var(--space-half); min-width: 0; }
     .source-picker__text strong { color: var(--text); font-weight: var(--fw-medium); overflow-wrap: anywhere; line-height: var(--lh-snug); }
     .source-picker__text small { color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; word-break: keep-all; }
-    /* The index badge ends the title line, in a slot of its own width whether or not the coverage has arrived: the title wraps in the same width either way and the badge has no line of its own, so its answer moves nothing (#205). */
-    .source-picker__head { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
-    .source-picker__head > strong { flex: 0 1 auto; min-width: 0; }
-    .source-picker__index { display: inline-flex; align-items: center; justify-content: flex-end; flex: none; width: 6.5rem; height: calc(var(--fs-md) * var(--lh-snug)); margin-inline-start: auto; }
+    /* The index badge ends the title's first line, at the column's end, at every width (#1084): the place is a float of fixed width before the title, so it
+       shortens that one line and no other, and it can never fall onto a line of its own (a float before the text is on the first line, whatever the title's
+       length); the badge is drawn over the place, after the title in the DOM. A row that has no place has the whole column (ui/SourcePicker.jsx says which). */
+    .source-picker__head { display: flow-root; position: relative; min-width: 0; line-height: var(--lh-snug); }
+    .source-picker__place { float: inline-end; width: 6.5rem; height: calc(var(--fs-md) * var(--lh-snug)); margin-inline-start: var(--space-2); }
+    .source-picker__index { position: absolute; inset-block-start: 0; inset-inline-end: 0; display: flex; align-items: center; justify-content: flex-end; width: 6.5rem; height: calc(var(--fs-md) * var(--lh-snug)); }
     .source-picker__index .index-badge-compact { max-width: 100%; }
     .source-picker__text .source-picker__partial { color: var(--accent-text); }
     /* One fact never breaks inside (「267 / 字符」): the line breaks between facts; a fact wider than the line still wraps. */
@@ -49,16 +51,12 @@
   }
   @container study (max-width: 520px) {
     :is(.study-app, .study-seat) {
-      /* A narrow row gives the title the whole text column (#1084): 选择页面 follows the facts on a line of its own, and the badge's place ends the title's
-         last line at the column's end, beside a short title (the row stays one title line and one line of facts, as wide as it was) and after the last
-         line of a long one, which wraps in the whole column. It keeps its word (a touch screen has no hover to explain a lone mark) and its fixed width, so
-         a badge arriving fills it and moves nothing; the eye and Tab meet it before 选择页面. */
+      /* A narrow row gives the title the whole text column (#1084): 选择页面 follows the facts on a line of its own; the badge's place ends the title's first
+         line as on a wide row (beside a short title the row stays one title line and one line of facts), keeping its word (a touch screen has no hover to
+         explain a lone mark); the eye and Tab meet it before 选择页面. */
       .source-picker__row { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: var(--space-1) var(--space-3); padding: var(--space-3); }
       .source-picker__doc { display: contents; }
       .source-picker__text { cursor: pointer; }
-      .source-picker__head { display: flow-root; line-height: var(--lh-snug); }
-      .source-picker__head > strong { display: inline; }
-      .source-picker__index { float: inline-end; margin-inline-start: var(--space-2); }
       .source-picker__expand { grid-column: 2; justify-self: start; margin-inline-start: calc((var(--sh-btn-px) + var(--hairline)) * -1); }
       .source-picker__pages { padding-left: var(--space-6); }
     }

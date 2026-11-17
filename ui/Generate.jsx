@@ -11,7 +11,7 @@ import CourseField from './CourseField.jsx';
 import { courseNamesOf, usePageScope } from './PageScope.jsx';
 import SourcePicker from './SourcePicker.jsx';
 import { openIndexBuilder } from './index-focus.js';
-import useIndexCoverage from './use-index-coverage.js';
+import useIndexCoverage, { useIndexWait } from './use-index-coverage.js';
 import GenerationPath from './GenerationPath.jsx';
 import TooBigChoice, { FocusHelp } from './TooBigChoice.jsx';
 import { useGenerationPath } from './use-generation-path.js';
@@ -79,8 +79,10 @@ export default function Generate({
   useInjectCss(formCss, "study-generate-form");
   useInjectCss(focusIntakeCss, "study-focus-intake");
   const [sourceScope, setSourceScope] = usePageScope(data.root, 'generate-sources', data.focus?.course ?? '*');
-  // Whether each material's search index is built: the picker rows say so (and follow a running build).
+  // Whether each material's search index is built: the picker rows say so (and follow a running build). The page waits a moment for the first answer, so
+  // the rows are drawn once, with it known (#1084).
   const [indexCoverage, , indexStatus] = useIndexCoverage(call);
+  const indexWait = useIndexWait(indexStatus);
   const known = courseNamesOf(data);
   const referenceSourceIds = gen.referenceSourceIds || [];
   const referenceState = referenceSelection(data.sources, referenceSourceIds, selectedSources, gen.referenceLimits, gen.referenceFormat);
@@ -195,6 +197,9 @@ export default function Generate({
   // The plan is priced for these materials: the tokens in the bar, the rest of the plan under it.
   const estimating = !pathMode && !blocked && selectedSources.length > 0 && !referenceState.reason;
   const barRoom = useStickyRoom('--generate-bar-room');
+  // While it waits, the ways in and the form are not drawn: they then appear at once under the header and nothing on the page moves; and a jump to a control
+  // of the form (找功能, the tour) waits for it instead of landing on the way in that stands for it while it is not there.
+  const holding = indexWait && current === "files";
   return (
     <section className="page generate-page">
       <PageHeader className="generate-header" title={ui("出一组新题")}
@@ -202,7 +207,7 @@ export default function Generate({
         actions={pageAvailable(data, 'examcoach') ? <Button variant="quiet" className="sh-btn--flush-start sh-btn--flush-end" onClick={() => setPage?.('examcoach')}>{ui("去教练先校准考法")}</Button> : undefined} />
       {/* The row measures its own width (generate-home.css): where the cards no longer fit side by side they become one row of
           titles and the chosen way's line is said once under it (#575). The tab keeps its note, so a screen reader hears the same name. */}
-      <div className="source-mode-frame">
+      {!holding && <><div className="source-mode-frame">
         <Tabs id="generate" className="source-mode" itemClassName="source-tab" noteClassName="source-tab__note" label={ui("创建方式")} value={current} onChange={setGenSource}
           items={tabs.map((tab) => ({ value: tab.id, label: tab.label, note: tab.note, attrs: tab.attrs }))} />
         <p className="source-mode-note" aria-hidden="true">{tabs.find((tab) => tab.id === current)?.note}</p>
@@ -236,7 +241,7 @@ export default function Generate({
               {/* Why these are ticked (only while the ticks are still the ones the page opened with). */}
               {openingStands(opening, selectedSources) && <p className="generate-opening muted" data-opening-reason>{openingLine(opening.reason)}</p>}
               {/* One row per document with its pages on demand; counts are in documents (WP3, P18). */}
-              <SourcePicker sources={evidenceSources} selected={selectedSources} onChange={setSelectedSources} indexCoverage={indexCoverage} indexSlot={indexStatus === "loading"}
+              <SourcePicker sources={evidenceSources} selected={selectedSources} onChange={setSelectedSources} indexCoverage={indexCoverage}
                 courses={data.focus?.courses} scope={sourceScope} onScopeChange={setSourceScope} disabled={busy}
                 onIndex={(course) => openIndexBuilder(openLargeDocumentSettings, course)} />
               <div className="generate-sources-actions">
@@ -407,7 +412,7 @@ export default function Generate({
           </form>
         </>
       )}
-      </TabPanel>
+      </TabPanel></>}
     </section>
   );
 }
