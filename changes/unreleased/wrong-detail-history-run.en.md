@@ -1,0 +1,1 @@
+- **Fixed expanded details for corrected mistakes showing the later passing answer instead of the wrong one.** Expanding a row under Mistakes & weak points › Corrected now shows the question snapshot, your wrong answer, and the explanation from when you missed it rather than the later attempt that cleared it. Not verified: expanding a corrected row in a live desktop window.
