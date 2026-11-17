@@ -14,9 +14,13 @@ function watchSize(element, measure) {
   return () => { if (watched.get(element) === measure) { watched.delete(element); shared.unobserve(element); } };
 }
 
+/** A line of text is cut where its words are wider than its box by more than a rounding. */
+const textCut = element => element.scrollWidth > element.clientWidth + 1;
+
 /** Is the text of this element cut by its width (one line, ellipsis)? Measured when the element is first observed, when it is resized, when `text` changes,
- *  and when the element itself is replaced (a row that leaves and comes back from its rename field draws a new one). */
-export function useCut(ref, text) {
+ *  and when the element itself is replaced (a row that leaves and comes back from its rename field draws a new one). `isCut` measures it where the default
+ *  rounding does not fit (a line of whole boxes, which loses a box to its 「…」 by a pixel's overflow). */
+export function useCut(ref, text, isCut = textCut) {
   const [cut, setCut] = useState(false);
   const seen = useRef({ element: null, text: undefined, stop: null });
   // After every commit, on purpose (no dependency list): the element is compared by hand, so a replaced element is seen, and nothing else runs.
@@ -27,7 +31,7 @@ export function useCut(ref, text) {
     now.stop?.();
     Object.assign(now, { element, text, stop: null });
     if (!element) { setCut(false); return; }
-    now.stop = watchSize(element, () => setCut(element.scrollWidth > element.clientWidth + 1));
+    now.stop = watchSize(element, () => setCut(isCut(element)));
   });
   useEffect(() => () => seen.current.stop?.(), []);
   return cut;

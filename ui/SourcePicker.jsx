@@ -167,9 +167,13 @@ const parted = words => <>{words[0]}{words.slice(1).map((word, at) => <span key=
 /* The first course on a row, shortened where its row is short of room (ui/source-picker.css): only while it is cut (measured with the shared observer of
    ui/use-cut.js) is it wrapped in the shared Tooltip with its whole name; a name said whole is one element and has no card (round 8 review, #565). The
    anchor takes the name's place in the line (the same size), so the name is cut the same with it and without. A box that does not start at a space puts
-   one into the checkbox's name (「协议 （2026」), so such a name gives its whole words as its label. */
+   one into the checkbox's name (「协议 （2026」), so such a name gives its whole words as its label. The name is cut as soon as its words overflow at
+   all: a word box past its end is hidden behind the 「…」 by a pixel's overflow too, which the default rounding of ui/use-cut.js lets pass. */
+const wordsCut = element => element.scrollWidth > element.clientWidth
+  || [...element.querySelectorAll('.source-picker__part')].some(word => word.getBoundingClientRect().right > element.getBoundingClientRect().right + 0.01);
+
 function CourseName({ name }) {
-  const ref = useRef(null), cut = useCut(ref, name), words = nameWords(`· ${name}`);
+  const ref = useRef(null), cut = useCut(ref, name, wordsCut), words = nameWords(`· ${name}`);
   const said = <span ref={ref} className="source-picker__fact source-picker__fact--name source-picker__fact--short" data-name="first"
     aria-label={words.slice(1).some(word => !/^\s/.test(word)) ? `· ${name}` : undefined}>{parted(words)}</span>;
   return cut ? <Tooltip layer group="index-badge" anchorClassName="source-picker__fact-anchor" content={name}>{said}</Tooltip> : said;
