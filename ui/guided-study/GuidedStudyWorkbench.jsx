@@ -367,7 +367,7 @@ export default function GuidedStudyWorkbench({
               <div className="guided-study-card-actions">
                 {hasFeedback ? (
                   onNext ? (
-                    <Button variant="primary" size="sm" className="guided-study-btn" onClick={() => onNext?.(run?.id)}>
+                    <Button variant="primary" size="sm" iconEnd="arrow-right" className="guided-study-btn" onClick={() => onNext?.(run?.id)}>
                       {ui('下一题')}
                     </Button>
                   ) : null

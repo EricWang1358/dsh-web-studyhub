@@ -32,10 +32,11 @@ export default function BookStep({ steps, at, onGo, course, handlers }) {
       {step.hid === 'unplaced' ? <UnplacedBody node={node} handlers={handlers} /> : <PointBody node={node} course={course} handlers={handlers} level={3} />}
       {/* Named like the bar's ‹ › (知识点), one word for the unit the learner steps through. */}
       <nav className="book-step__nav" aria-label={ui('上一个与下一个知识点')}>
-        <Button variant="secondary" wrap className="book-step__prev" disabled={!prev} onClick={() => onGo(at - 1)}>
-          <span className="book-step__dir">{ui('上一个知识点')}</span>{prev && <span className="book-step__title">{neighbour(prev)}</span>}</Button>
-        <Button variant="secondary" wrap className="book-step__next" disabled={!next} onClick={() => onGo(at + 1)}>
-          <span className="book-step__dir">{ui('下一个知识点')}</span>{next && <span className="book-step__title">{neighbour(next)}</span>}</Button>
+        {/* A pager: ← in front of the point before, → after the point after, on the direction's line (sh-btn--lines). */}
+        <Button variant="secondary" wrap icon="arrow-left" className="book-step__prev sh-btn--lines" disabled={!prev} onClick={() => onGo(at - 1)}>
+          <span className="book-step__text"><span className="book-step__dir">{ui('上一个知识点')}</span>{prev && <span className="book-step__title">{neighbour(prev)}</span>}</span></Button>
+        <Button variant="secondary" wrap iconEnd="arrow-right" className="book-step__next sh-btn--lines" disabled={!next} onClick={() => onGo(at + 1)}>
+          <span className="book-step__text"><span className="book-step__dir">{ui('下一个知识点')}</span>{next && <span className="book-step__title">{neighbour(next)}</span>}</span></Button>
       </nav>
     </article>
   );

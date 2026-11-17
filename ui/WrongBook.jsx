@@ -1143,8 +1143,8 @@ export function WrongBookView({
       })}
       {items && hasMore && <nav className="wb-pages" aria-label={ui(isHistory ? "已订正题分页" : "待巩固题分页")}>
         <span>{uiFormat("第 {0}–{1} 题 / 共 {2} 题", [page * pageSize + 1, page * pageSize + total, counts.total])}</span>
-        <Button size="sm" disabled={page === 0} lock={busy || loading} onClick={() => onPage(page - 1)}>{ui("上一页")}</Button>
-        <Button size="sm" disabled={(page + 1) * pageSize >= counts.total} lock={busy || loading}
+        <Button size="sm" icon="arrow-left" disabled={page === 0} lock={busy || loading} onClick={() => onPage(page - 1)}>{ui("上一页")}</Button>
+        <Button size="sm" iconEnd="arrow-right" disabled={(page + 1) * pageSize >= counts.total} lock={busy || loading}
           onClick={() => onPage(page + 1)}>{ui("下一页")}</Button>
       </nav>}
     </section>
