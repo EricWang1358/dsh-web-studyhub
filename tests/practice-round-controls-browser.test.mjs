@@ -23,7 +23,7 @@ const quiz = (deck, n) => ({ id: `${deck}-q${n}`, kind: 'quiz', topic: `Topic ${
 const WORDS = {
   zh: { skip: /先跳过/, end: /到此为止…/, confirm: '到此为止，看结果', next: '下一题', resume: (title) => `继续 ${title}`, pending: (n) => `${n} 题待答`, closed: '这一轮，已结束。', unanswered: '未答 1',
     lookBack: '本轮题目', showAll: (n) => `显示全部 ${n} 题`, unansweredNote: /这道题这一轮没有作答/, left: (n) => `还有 ${n} 题没答` },
-  en: { skip: /Skip for now/, end: /Stop here…/, confirm: 'Stop and see the result', next: 'Next question', resume: (title) => `Continue ${title}`, pending: (n) => `${n} to answer`, closed: 'This session has ended.', unanswered: 'unanswered 1',
+  en: { skip: /Skip for now/, end: /Stop here…/, confirm: 'Stop and see the result', next: 'Next question', resume: (title) => `Resume ${title}`, pending: (n) => `${n} to answer`, closed: 'This session has ended.', unanswered: 'unanswered 1',
     lookBack: 'Questions in this round', showAll: (n) => `Show all ${n} questions`, unansweredNote: /did not answer this question/, left: (n) => `${n} questions are still unanswered` },
 };
 

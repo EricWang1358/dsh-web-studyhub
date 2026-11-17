@@ -328,27 +328,29 @@
       .map-tools { flex: 1 1 100%; }
       .map-legend { gap: var(--space-1) var(--space-2-5); font-size: var(--fs-md); margin-left: 0; }
       .map-topics { padding: 0 0 var(--space-2) var(--space-3); }
-      /* Row keeps name + play + menu on line one; mastery spans line two. */
+      /* Row keeps name + menu on line one, so the title has the width of the row (#1073: an English 「Resume →」 beside it cut the title to
+         「Sample · Mem…」); the mastery bar and the play slot share line two. The empty ::after is the line break; every slot is one width, so the bars still line up. */
       .map-row {
         flex-wrap: wrap;
         gap: var(--space-1) var(--space-2);
         padding: var(--space-2-5);
         align-items: center;
       }
+      .map-row::after { content: ""; order: 9; flex-basis: 100%; height: 0; }
       .map-row > .map-name {
         flex: 1 1 0;
         max-width: none;
         order: 1;
         min-width: 0;
       }
-      .map-row .map-play { order: 2; }
       .map-row .map-menu-wrap { order: 3; }
+      .map-row .map-play { order: 11; }
       .folder-row > .mastery { margin-right: 0; }
       .map-row .mastery {
         order: 10;
-        flex: 1 0 100%;
+        flex: 1 1 0;
         width: auto;
-        margin: var(--space-half) 0 0;
+        margin: 0;
         padding-left: var(--space-6-5);
       }
       .map-row .mastery-bar { flex: 1; width: auto; }
