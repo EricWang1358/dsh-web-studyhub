@@ -25,7 +25,10 @@ import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
    - The first course takes the room: a later name is never shown while the first is cut, and a cut never ends on the name's own 「·」.
    - A run of rows reads the same: a name is shown on every row that has one or on none, at 420, 900 and 1440, in the scope and in 全部课程.
    - What a row's facts line shows does not change when the index answer lands (a failed one, an empty one).
-   - A name shown whole has no hover card; a cut one says its whole name in the shared Tooltip. */
+   - A name shown whole has no hover card; a cut one says its whole name in the shared Tooltip.
+   Round 8 review: which names the rows show is decided once for the scope and the line's width, so scrolling a long list (more rows drawn) changes no
+   row; at 320–420 a row's facts read the same before and after the index answer and say the size (cut in its own words if need be); every course a row
+   carries is in its checkbox's name, drawn or not. */
 
 const STAMP = '2026-10-01T08:00:00.000Z';
 const COURSE = '示例课程 · 设计模式';
@@ -50,7 +53,24 @@ async function seed(root) {
   service.dispose?.();
 }
 
-let browser = null, server = null, base = null, dist = null, ids = [], skip = '';
+/* A list longer than the 24 rows a window draws at first: 30 notes, then PDFs whose format, size and notes are long (drawn only on scroll). */
+async function seedLong(root) {
+  await mkdir(root, { recursive: true });
+  const service = new StudyService(root);
+  await service.call('snapshot');
+  await service.store.update(state => {
+    for (let n = 1; n <= 30; n++) state.sources.push({ id: `m${n}`, title: `第 ${n} 讲 笔记.md`, text: '要点。'.repeat(60), createdAt: STAMP, courses: [COURSE, '网络'] });
+    for (const n of [1, 2, 3, 4]) {
+      const name = `扫描讲义 ${n}.pdf`;
+      for (let page = 1; page <= 3; page++) state.sources.push({ id: `s${n}-${page}`, title: `${name} · ${page}`, text: `第 ${page} 页：锁。`.repeat(20), createdAt: STAMP, courses: [COURSE, '网络'],
+        document: { id: name, filename: name, page, totalPages: 3, extractionVersion: 2, format: 'pdf', warnings: ['complex'], sparseText: true } });
+    }
+    state.focus = { ...(state.focus || {}), course: COURSE, mode: 'class' };
+  });
+  service.dispose?.();
+}
+
+let browser = null, server = null, longServer = null, base = null, dist = null, ids = [], skip = '';
 before(async () => {
   try { browser = await launchChromium(); } catch (error) { skip = `no Chromium to measure with: ${String(error.message).split('\n')[0]}`; return; }
   scrubProcessEnv();
@@ -60,10 +80,13 @@ before(async () => {
   await seed(join(base, 'library'));
   server = await createPreviewServer({ libraryRoot: join(base, 'library'), home: join(base, 'home'), port: 0, model: createFakeModel({ latencyMs: 20 }), distDir: dist });
   ids = (await previewCall(server, 'snapshot')).sources.map(source => source.id);
+  await seedLong(join(base, 'long'));
+  longServer = await createPreviewServer({ libraryRoot: join(base, 'long'), home: join(base, 'home-long'), port: 0, model: createFakeModel({ latencyMs: 20 }), distDir: dist });
 });
 after(async () => {
   await browser?.close();
   await server?.close();
+  await longServer?.close();
   if (base) await rm(base, { recursive: true, force: true, maxRetries: 20, retryDelay: 150 });
   if (dist) await rm(dist, { recursive: true, force: true });
 });
@@ -74,8 +97,8 @@ const answers = () => ({
 });
 
 /** 创建题组 with the index answer held until `release()` (or given at once with `now`). */
-async function openGenerate({ lang, theme = 'light', width, height = 860, answer = answers()['no index'], now = true }) {
-  const opened = await openPage(browser, { server }, { lang, theme, width, height });
+async function openGenerate({ lang, theme = 'light', width, height = 860, answer = answers()['no index'], now = true, on = server }) {
+  const opened = await openPage(browser, { server: on }, { lang, theme, width, height });
   let release, held = new Promise(done => { release = done; }), asked = false;
   if (now) release();
   await opened.page.route('**/api/call', async route => {
@@ -87,7 +110,7 @@ async function openGenerate({ lang, theme = 'light', width, height = 860, answer
     if (answer === 'fail') return route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'the search server is down' }) });
     return route.fulfill({ contentType: 'application/json', body: JSON.stringify(answer) });
   });
-  await opened.page.goto(server.url);
+  await opened.page.goto(on.url);
   await opened.page.locator('aside, nav').first().waitFor({ timeout: 30000 });
   await (await revealNavRow(opened.page, 'generate')).dispatchEvent('click');
   await opened.page.locator('[data-tour="generate-sources"] .source-picker__item').first().waitFor({ timeout: 30000 });
@@ -264,14 +287,15 @@ const factsLines = page => page.evaluate(() => {
   };
   return [...document.querySelectorAll('[data-tour="generate-sources"] .source-picker__item')].map(item => {
     const facts = item.querySelector('.source-picker__facts'), line = facts.getBoundingClientRect(), lineHeight = parseFloat(getComputedStyle(facts).height);
-    const drawn = piece => { const box = piece.getBoundingClientRect(); return box.width > 0 && box.top < line.top + lineHeight / 2 && box.left < line.right - 0.5 && getComputedStyle(piece).visibility === 'visible'; };
+    const unseen = piece => { for (let element = piece; element && element !== facts; element = element.parentElement) { const style = getComputedStyle(element); if (style.visibility !== 'visible' || Number(style.opacity) === 0) return true; } return false; };
+    const drawn = piece => { const box = piece.getBoundingClientRect(); return box.width > 0 && box.top < line.top + lineHeight / 2 && box.left < line.right - 0.5 && !unseen(piece); };
     const pieces = [...facts.querySelectorAll('.source-picker__fact')].map(piece => {
       const cut = piece.scrollWidth > piece.clientWidth + 0.5, tip = document.getElementById(piece.getAttribute('aria-describedby') || '');
       return { text: piece.textContent, name: piece.classList.contains('source-picker__fact--name'), shown: drawn(piece), cut, seen: cut ? seen(piece) : piece.textContent,
         tip: tip ? tip.textContent : null, right: piece.getBoundingClientRect().right };
     });
     const shown = pieces.filter(piece => piece.shown);
-    return { title: item.querySelector('strong').textContent, pieces, names: pieces.filter(piece => piece.name), text: shown.map(piece => piece.seen + (piece.cut ? '…' : '')).join(' '),
+    return { title: item.querySelector('strong').textContent, lead: pieces[0], pieces, names: pieces.filter(piece => piece.name), text: shown.map(piece => piece.seen + (piece.cut ? '…' : '')).join(' '),
       room: line.right - Math.max(...shown.map(piece => piece.right)) };
   });
 });
@@ -462,6 +486,111 @@ test('#1082: 题型\'s label is level with its row of boxes at 1440', { timeout:
       return (text.top + text.height / 2) - (box.top + box.height / 2);
     });
     assert.ok(Math.abs(level) <= 1, `${lang} 1440: the label's middle is level with the first box's (${level.toFixed(1)}px)`);
+    assert.deepEqual(errors, []);
+    await context.close();
+  }
+});
+
+/** The checkboxes' accessible names, as Chromium computes them for a screen reader (the row's title, its facts and its badge's word). */
+async function boxNames(page, count) {
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    const { root } = await cdp.send('DOM.getDocument', { depth: 0 });
+    const { nodeIds } = await cdp.send('DOM.querySelectorAll', { nodeId: root.nodeId, selector: '[data-tour="generate-sources"] .source-picker__item input[type="checkbox"]' });
+    const names = [];
+    for (const nodeId of nodeIds.slice(0, count)) names.push((await cdp.send('Accessibility.getPartialAXTree', { nodeId, fetchRelatives: false })).nodes[0]?.name?.value ?? '');
+    return names;
+  } finally { await cdp.detach(); }
+}
+
+/** Scroll the list's window to its end (the window then draws more rows) or back to its top. The number of rows drawn. */
+const scrollList = (page, { top = false } = {}) => page.evaluate(top => {
+  const box = document.querySelector('[data-tour="generate-sources"] .sh-scroll__viewport');
+  box.scrollTop = top ? 0 : box.scrollHeight;
+  return document.querySelectorAll('[data-tour="generate-sources"] .source-picker__item').length;
+}, top);
+
+test('#1084 round 8 review: scrolling a list longer than its first 24 rows changes no row: the names are decided once for the scope and the line\'s width', { timeout: 600000 }, async t => {
+  if (skip) { t.skip(skip); return; }
+  for (const [lang, width] of [['zh', 420], ['en', 420], ['en', 900], ['zh', 900]]) for (const all of [false, true]) {
+    const tag = `${lang} ${width}${all ? ' 全部课程' : ''}`;
+    const { page, errors, context } = await openGenerate({ lang, width, height: 900, answer: answers().badges, on: longServer });
+    if (all) await allCourses(page, lang);
+    await frames(page, 4);
+    const decided = () => page.evaluate(() => document.querySelector('[data-tour="generate-sources"] .source-picker').dataset.names);
+    const first = await decided(), seen = new Map(), later = [];
+    const look = async step => {
+      assert.equal(await decided(), first, `${tag}, ${step}: the list's decision stays ${first}`);
+      for (const row of await factsLines(page)) {
+        if (!row.names.length) continue;
+        if (!seen.has(row.title)) seen.set(row.title, row.text);
+        else if (seen.get(row.title) !== row.text) later.push(`${step}: ${row.title}: "${seen.get(row.title)}" then "${row.text}"`);
+        if (all) assert.ok(row.names[0].shown && row.names[0].seen.replace(/^·\s*/, '').length >= 2, `${tag}, ${step}: in 全部课程 every row says its course (${row.title}: ${row.text})`);
+      }
+    };
+    await look('first paint');
+    let drawn = 0, still = 0;
+    for (let step = 1; step <= 30 && still < 2; step++) {
+      const now = await scrollList(page);
+      still = now === drawn ? still + 1 : 0;
+      drawn = now;
+      await page.waitForTimeout(150);
+      await frames(page, 3);
+      await look(`scrolled ${step}`);
+    }
+    assert.ok(seen.size >= 34, `${tag}: every row was drawn (${seen.size})`);
+    await scrollList(page, { top: true });
+    await frames(page, 4);
+    await look('back at the top');
+    assert.deepEqual(later, [], `${tag}: no row reads differently after scrolling`);
+    const rows = [...seen.values()], withCourse = rows.filter(text => /网络|示例课程/.test(text)).length;
+    if (!all) assert.ok(withCourse === 0 || withCourse === rows.length, `${tag}: the other course on every row or on none (${withCourse}/${rows.length})`);
+    t.diagnostic(`${tag}: data-names=${first}, ${seen.size} rows: ${rows.slice(0, 2).concat(rows.slice(-1)).join(' | ')}`);
+    assert.deepEqual(errors, []);
+    await context.close();
+  }
+});
+
+test('#1084 round 8 review: at 320–420 a row\'s facts read the same before and after the index answer, and say the size (cut in its own words if need be)', { timeout: 900000 }, async t => {
+  if (skip) { t.skip(skip); return; }
+  for (const lang of ['en', 'zh']) for (const width of [320, 360, 375, 390, 420]) for (const outcome of width === 320 ? ['badges', 'no index', 'fail'] : ['badges', 'no index']) {
+    const tag = `${lang} ${width} ${outcome}`;
+    const { page, errors, context, release } = await openGenerate({ lang, width, now: false, answer: outcome === 'fail' ? 'fail' : answers()[outcome] });
+    await frames(page, 4);
+    const coming = await factsLines(page);
+    release();
+    await until(() => page.evaluate(() => !document.querySelector('[data-tour="generate-sources"] [data-index-slot="held"]')), `${tag}: the answer is in`);
+    if (outcome === 'badges') await until(async () => (await page.locator('[data-tour="generate-sources"] [data-index-slot] [data-state]').count()) >= 5, `${tag}: the badges`);
+    await settleAnimations(page);
+    await frames(page, 4);
+    const landed = await factsLines(page);
+    assert.deepEqual(landed.map(row => row.text), coming.map(row => row.text), `${tag}: the facts lines read the same before and after the answer`);
+    for (const row of landed) {
+      const format = row.lead.text.split(' · ')[0];
+      assert.ok(row.lead.shown && row.lead.seen.length >= format.length + 4, `${tag}: ${row.title}: the size is said, at least its first figures ("${row.text}")`);
+    }
+    t.diagnostic(`${tag}: ${landed.slice(0, 2).map(row => row.text).join(' | ')}`);
+    assert.deepEqual(errors.filter(error => !/status of 500/.test(error)), []);
+    await context.close();
+  }
+});
+
+test('#1084 round 8 review: every course a row carries is in its checkbox\'s name at every width, drawn or not', { timeout: 600000 }, async t => {
+  if (skip) { t.skip(skip); return; }
+  for (const lang of ['zh', 'en']) for (const width of [320, 420, 900, 1440]) {
+    const { page, errors, context } = await openGenerate({ lang, width, answer: answers().badges });
+    for (const all of [false, true]) {
+      const tag = `${lang} ${width}${all ? ' 全部课程' : ''}`;
+      if (all) await allCourses(page, lang);
+      await frames(page, 4);
+      const names = await boxNames(page, 5);
+      assert.equal(names.length, 5, `${tag}: five rows`);
+      for (const name of names) {
+        assert.ok(name.includes(LONG), `${tag}: the other course is in the checkbox's name ("${name}")`);
+        if (all) assert.ok(name.includes(COURSE), `${tag}: the course is in the checkbox's name ("${name}")`);
+      }
+      t.diagnostic(`${tag}: ${names[0]}`);
+    }
     assert.deepEqual(errors, []);
     await context.close();
   }

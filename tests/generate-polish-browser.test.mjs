@@ -107,7 +107,7 @@ const pickerRows = page => page.evaluate(() => [...document.querySelectorAll('[d
     badge: badge ? { left: badge.left, width: badge.width, right: badge.right } : null };
 }));
 
-test('#1084: at 420 the badge column keeps one width on every row, coming, with a badge and without (round 8); a row without a badge lends it to its format, size and notes; no row moves', { timeout: 900000 }, async t => {
+test('#1084: at 420 the badge column keeps one width on every row, coming, with a badge and without (round 8); the facts keep their room when the answer lands; no row moves', { timeout: 900000 }, async t => {
   if (skip) { t.skip(skip); return; }
   for (const lang of ['zh', 'en']) for (const [answer, body] of Object.entries(answers())) {
     const tag = `${lang} 420, ${answer}`;
@@ -129,10 +129,12 @@ test('#1084: at 420 the badge column keeps one width on every row, coming, with 
       if (row.badge) {
         assert.ok(row.badge.width <= row.slot.width + 0.5 && Math.abs(row.badge.right - row.slot.right) <= 0.5, `${tag}: ${row.title}: the badge ends at the column's end (${row.badge.right} vs ${row.slot.right})`);
         assert.ok(row.factsRight >= row.slot.left - 13, `${tag}: ${row.title}: the facts end by the badge (${Math.round(row.factsRight)} vs the column at ${Math.round(row.slot.left)})`);
-      } else {
-        assert.ok(row.leadRoom >= row.columnEnd - 1, `${tag}: ${row.title}: the format, the size and the notes may run to the column's end (room to ${Math.round(row.leadRoom)}, column ${Math.round(row.columnEnd)})`);
       }
     }
+    // Round 8 review: a row without a badge does not lend the column to its format, size and notes either, so they have the same room before and after
+    // the answer (a size said while the answer is coming is not cut, nor a cut one said whole, when it lands).
+    settled.forEach((row, at) => assert.ok(Math.abs(row.leadRoom - loading[at].leadRoom) <= 0.5 && row.leadRoom <= row.slot.left + 0.5,
+      `${tag}: ${row.title}: the format, the size and the notes keep their room (${Math.round(loading[at].leadRoom)} then ${Math.round(row.leadRoom)}, the column at ${Math.round(row.slot.left)})`));
     if (answer === 'badges') assert.ok(settled.every(row => row.badge), `${tag}: every row shows its badge`);
     assert.deepEqual(errors, []);
     await context.close();

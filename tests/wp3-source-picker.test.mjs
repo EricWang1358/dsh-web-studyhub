@@ -91,3 +91,21 @@ test('an empty picker points at adding material, in either language', () => {
     assert.match(html, /1 \/ 3 pages selected|selected 1 \/ 3/i);
   } finally { setUiLanguage('zh'); }
 });
+
+test('the names on the facts lines are one decision for the whole scope, from the words and the line\'s room (#1084 round 8 review)', async () => {
+  const names = await build({ stdin: { contents: `export { decideNames } from './ui/picker-names.js';`, resolveDir: process.cwd() },
+    bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], logLevel: 'silent' });
+  const scope = { exports: {} };
+  new Function('require', 'module', 'exports', names.outputFiles[0].text)(require, scope, scope.exports);
+  const { decideNames } = scope.exports;
+  // widths in px: the format, size and notes; the first name; the names after it; whether the course may be shortened; whether the row has 选择页面
+  const row = (lead, first, later = [], shortened = false, multi = false) => ({ lead, first, later, shortened, multi });
+  const fit = { room: () => 200, gap: 4, em: 12 };
+  assert.equal(decideNames([row(100, 40, [30]), row(80, 40)], fit), 'all', 'every row says every name whole');
+  assert.equal(decideNames([row(100, 40, [60]), row(80, 40)], fit), 'first', 'one row has no room for a later name: no row says one');
+  assert.equal(decideNames([row(120, 150, [], true)], fit), 'first', 'a course that may be shortened needs 6em at most');
+  assert.equal(decideNames([row(190, 40), row(20, 40)], fit), 'none', 'in a course scope, one row without room for its other course: no row says one');
+  assert.equal(decideNames([row(190, 40), row(20, 40)], { ...fit, everyCourse: true }), 'first', 'in 全部课程 every row keeps its course');
+  assert.equal(decideNames([row(190, 0)], fit), '', 'no row has a name');
+  assert.equal(decideNames([row(100, 40, [], false, true)], { ...fit, room: line => (line.multi ? 120 : 200) }), 'none', 'a row with 选择页面 has less room');
+});

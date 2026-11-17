@@ -88,3 +88,19 @@ test('scopeFilter is inScope for a whole list: all, unassigned, a course and its
   assert.deepEqual(items.map(scopeFilter('Cloud', known)), [false, true, true, false, true], 'a parent takes in its sub-courses');
   assert.deepEqual(items.map(scopeFilter('', known)), [true, false, false, false, false]);
 });
+
+test('a course name said whole draws no hover card, so a shut row with a course stays a handful of elements (#565, #1084 round 8 review)', () => {
+  setUiLanguage('zh');
+  const SHA = 'b'.repeat(64);
+  // a course longer than six characters is the one a row may shorten: its whole name is on hover only once it is cut, which a first draw never is
+  const page = (n, courses) => ({ id: `pdf-${SHA}-text2-p${n}`, title: `deck.pdf · p.${n}`, text: `page ${n}`, courses,
+    document: { id: SHA, filename: 'deck.pdf', page: n, totalPages: 3, extractionVersion: 2, warnings: [], materialId: `document-${SHA}-pdf`, format: 'pdf' } });
+  const rowOf = html => html.match(/<div class="source-picker__item[^"]*" data-document-key="[^"]+">[\s\S]*<\/button><\/div><\/div>/)?.[0] || '';
+  const one = rowOf(renderToStaticMarkup(h(SourcePicker, { sources: [1, 2, 3].map(n => page(n, ['分布式系统与网络协议'])), selected: [], onChange: noop })));
+  assert.ok(one, 'one row');
+  assert.doesNotMatch(one, /role="tooltip"/, 'no hover card on a name that is not cut');
+  assert.ok(elements(one) <= 16, `a shut row with a course drew ${elements(one)} elements`);
+  const three = rowOf(renderToStaticMarkup(h(SourcePicker, { sources: [1, 2, 3].map(n => page(n, ['分布式系统与网络协议', 'Course 2', 'Course 3'])), selected: [], onChange: noop })));
+  assert.match(three.replace(/<[^>]+>/g, ''), /PDF · 3 页 · \S+ 字符 · 分布式系统与网络协议 · Course 2 · Course 3/, 'the facts read as one line of words, every course in them');
+  assert.ok(elements(three) <= 18, `a shut row with three courses drew ${elements(three)} elements`);
+});
