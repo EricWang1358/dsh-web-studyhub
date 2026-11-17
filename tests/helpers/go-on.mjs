@@ -75,6 +75,16 @@ export function labelHelpers(sources) {
     for (const match of source.matchAll(/(?:export\s+)?const\s+([A-Z][A-Z0-9_]{2,})\s*=\s*(["'])((?:\.|(?!\2).)*)\2\s*;/gu)) if (!constants.has(match[1])) constants.set(match[1], match[3]);
   }
   Object.defineProperty(helpers, 'constants', { value: constants });
+  // Round 11: a one-line predicate of ui/ with no call in it (`actionHere = (action) => action !== 'model-settings'`) is read as what it says, so a label a helper returns by key
+  // (`actionLabel(action)`) is drawn with the arrow its call site decides for that key.
+  const predicates = new Map();
+  for (const { source } of sources) {
+    for (const match of source.matchAll(/(?:export\s+)?const\s+([A-Za-z_$][\w$]*)\s*=\s*\(?([A-Za-z_$][\w$]*)\)?\s*=>\s*([^\n;(){}]+);/g)) {
+      if (predicates.has(match[1])) continue;
+      try { predicates.set(match[1], new Function(match[2], `return (${match[3]});`)); } catch { /* not a plain expression */ }
+    }
+  }
+  Object.defineProperty(helpers, 'predicates', { value: predicates });
   for (const { source } of sources) {
     for (const match of source.matchAll(/(?:export\s+)?const\s+([A-Za-z_$][\w$]*)\s*=\s*(?:\([^)\n]*\)|[A-Za-z_$][\w$]*)\s*=>([^\n]*)/g)) add(match[1], match[2]);
     for (const match of source.matchAll(/(?:export\s+)?function\s+([A-Za-z_$][\w$]*)\s*\([^)]*\)\s*\{([\s\S]{0,600}?)\n\}/g)) add(match[1], match[2]);
@@ -720,12 +730,48 @@ function keyOfLabel(expression, helpers) {
   return /^ui\(\s*(['"])([^'"]+)\1\s*\)$/.exec(text)?.[2] ?? (constant && helpers?.constants?.get(constant)) ?? '';
 }
 
+/** Round 11: the catalogue keys of a label expression, each with the table key (`arg`) a label helper picked it by: [{ key, arg }]. `ui('…')` / a constant is one key; a call
+    of a label helper that is a table keyed by its argument (`actionLabel('continue')`, in a Button's children `{actionLabel(action)}`) is the one key its literal picks, or,
+    for an argument that is a variable, every key of the table (the call site's arrow, `arrowOf`, then says which of them end in →). */
+function keysOfLabel(expression, helpers) {
+  const text = String(expression || '').trim(), direct = keyOfLabel(text, helpers);
+  if (direct) return [{ key: direct, arg: undefined }];
+  const call = /^([A-Za-z_$][\w$]*)\(\s*(?:(['"])([\w-]+)\2|([A-Za-z_$][\w$]*))?\s*\)$/.exec(text);
+  const helper = call && !/^ui(?:Format|Message)?$/.test(call[1]) ? helpers?.get?.(call[1]) : null;
+  if (!helper?.byKey?.size) return [];
+  if (call[3] !== undefined) return helper.byKey.has(call[3]) ? [{ key: helper.byKey.get(call[3]), arg: call[3] }] : [];
+  return call[4] ? [...helper.byKey].map(([arg, key]) => ({ key, arg })) : [];
+}
+
+/** Whether a predicate call (`actionHere(action)`, `actionHere('continue')`) is true for a table key; undefined when the gate cannot say. */
+function predicateOf(expression, arg, helpers) {
+  const call = /^\s*([A-Za-z_$][\w$]*)\(\s*(?:(['"])([\w-]+)\2|[A-Za-z_$][\w$]*)\s*\)\s*$/.exec(String(expression || ''));
+  const test = call && helpers?.predicates?.get(call[1]);
+  const value = call?.[3] ?? arg;
+  if (!test || value === undefined) return undefined;
+  try { return !!test(value); } catch { return undefined; }
+}
+
+/** The arrow a Button draws for a table key: `iconEnd="arrow-right"`, or `iconEnd={here(arg) ? undefined : 'arrow-right'}` (read for the key). */
+function arrowOf(open, arg, helpers) {
+  const cond = /^([\s\S]+?)\?\s*undefined\s*:\s*['"]arrow-right['"]\s*$/.exec(propOf(open, 'iconEnd'));
+  if (!cond) return isArrow(open);
+  const here = predicateOf(cond[1], arg, helpers);
+  return here === undefined ? true : !here;
+}
+
 /** The files that draw a hand-off to the main chat from a click handed in as a prop (so the click itself does not say where it goes): the `external` mark in them is
     the hand-off's. `tests/icon-round10.test.mjs` reads each one's hand-off by what it draws, and fails one that no longer draws the mark. */
 export const HAND_OFF_SURFACES = [
   { file: 'ui/hand-off/HandOff.jsx', why: 'HandOffButton: every shape of the hand-off, its click is the one the page hands in (send)' },
   { file: 'ui/hand-off/use-hand-off.js', why: 'useHandOff().action: the spec of a hand-off for a message, a card or a drop zone, its onClick sends' },
   { file: 'ui/outline/CustomGate.jsx', why: 'the 先深度定制这本书？ dialog: its onCustom sends the custom.start hand-off (CourseOutline.startCustom)' },
+];
+
+/** The icon-only hand-off (`<HandOff shape="icon">`, round 11): a control with no room for words (a topic row's end) draws the chat glyph, not the `external` mark, because a
+    lone arrow reads "opens a link" and the learner would have to hover to learn it asks the main chat; the one exception to the mark leading. Every place is listed with why. */
+export const ICON_ONLY_HAND_OFFS = [
+  { file: 'ui/study-map/DeckRow.jsx', why: 'the end of a topic row (bar, percentage, then the control): no room for words, and the row is met on every visit, so the control must say "ask the main chat" at a glance; hidden at the narrow width' },
 ];
 
 /** The look of the hand-off to the DSH main chat, wherever it is drawn (ui/hand-off/HandOff.jsx draws it: the `external` mark in front, nothing after): the main chat
@@ -739,20 +785,23 @@ export const HAND_OFF_LOOK = 'external|-';
 export function looksOf(source, { file = '', helpers = new Map() } = {}) {
   const found = [], lineOf = (at) => source.slice(0, at).split('\n').length;
   for (const { open, children, at } of buttonElements(source)) {
-    const key = keyOfLabel(/^\s*\{([\s\S]*)\}\s*$/.exec(children)?.[1], helpers);
-    if (!key) continue;
+    const keys = keysOfLabel(/^\s*\{([\s\S]*)\}\s*$/.exec(children)?.[1], helpers);
     const icon = /\sicon="([^"]*)"/.exec(open)?.[1] ?? iconName(propOf(open, 'icon'));
-    found.push({ key, look: `${icon || '-'}|${isArrow(open) ? '→' : '-'}`, line: lineOf(at) });
+    for (const { key, arg } of keys) found.push({ key, look: `${icon || '-'}|${arrowOf(open, arg, helpers) ? '→' : '-'}`, line: lineOf(at) });
   }
   for (const { object, before, at } of labelledObjects(source)) {
-    const key = keyOfLabel(valueOfProp(object, 'label'), helpers);
+    const keys = keysOfLabel(valueOfProp(object, 'label'), helpers);
     const onClick = valueOfProp(object, 'onClick'), run = valueOfProp(object, 'run');
-    if (!key || !(onClick || run)) continue;
+    if (!keys.length || !(onClick || run)) continue;
     const icon = iconName(valueOfProp(object, 'icon')), back = /\bback\s*[=:]\s*$/.test(before) || /[{,]\s*back\s*:\s*true\b/.test(object);
-    const look = back ? 'arrow-left|-'
-      : !onClick && SPEC_FILES.includes(file) ? (icon ? `${icon}|-` : /[{,]\s*here\s*:\s*true\b/.test(object) ? '-|-' : '-|→')
-        : `${icon || '-'}|${/[{,]\s*iconEnd\s*:\s*['"]arrow-right['"]/.test(object) ? '→' : '-'}`;
-    found.push({ key, look, line: lineOf(at) });
+    for (const { key, arg } of keys) {
+      // `here: true`, or `here: actionHere('continue')` (a predicate of ui/, read for the key)
+      const here = /[{,]\s*here\s*:\s*true\b/.test(object) || predicateOf(valueOfProp(object, 'here'), arg, helpers) === true;
+      const look = back ? 'arrow-left|-'
+        : !onClick && SPEC_FILES.includes(file) ? (icon ? `${icon}|-` : here ? '-|-' : '-|→')
+          : `${icon || '-'}|${/[{,]\s*iconEnd\s*:\s*['"]arrow-right['"]/.test(object) ? '→' : '-'}`;
+      found.push({ key, look, line: lineOf(at) });
+    }
   }
   // <HandOff … /> and <HandOffButton … /> draw the one look of a hand-off (HAND_OFF_LOOK); the words are their `label` (a literal, a constant) or 发给主会话.
   for (const match of source.matchAll(/<(?:HandOff|HandOffButton)(?=[\s/>])/g)) {
@@ -771,7 +820,8 @@ export const LOOK_EXCEPTIONS = [
   { key: '看原页', why: 'two actions: in the reader it opens the page\'s picture over the text being read (where it stands, no arrow); on a citation card it opens the reader at that page (→)' },
   { key: '打开', why: 'two actions: a diagram of the skeleton opens inside the same page (no arrow); a live class capture opens its transcript in the reader (→)' },
   { key: '查看详情', why: 'two actions: on a draft it scrolls to the details of the blocked questions below them, on the same page (no arrow); on a job card it opens the job in the 任务 console (→)' },
-  { key: '接着做', why: 'two actions that share words: a job’s 接着做 (the PDF import card, the 任务 console) retries the failed job where it stands, a data action of its card (no arrow); the home plan’s 接着做 resumes the last unfinished practice round and takes the learner to the practice page (→). The first one is a retry, the second a resume of practice: they are never on one card', sites: { '-|-': ['ui/PdfConvertJob.jsx', 'ui/tasks/TaskConsole.jsx'], '-|→': ['ui/study-map/home-plan.js'] } },
+  { key: '接着做', why: 'two actions that share words: a job’s 接着做 (the PDF import card, the home job card, the draft page’s top-up button, the 任务 console) continues or retries the job where it stands, a data action of its card (act job.control or generate, no arrow); the home plan’s 接着做 resumes the last unfinished practice round and takes the learner to the practice page (→). The first one is a retry, the second a resume of practice: they are never on one card', sites: { '-|-': ['ui/PdfConvertJob.jsx', 'ui/coverage/CoverageTopUp.jsx', 'ui/study-map/JobCard.jsx', 'ui/tasks/TaskConsole.jsx'], '-|→': ['ui/study-map/home-plan.js'] } },
+  { key: '为没覆盖的部分补题', why: 'two faces of one action: on the draft page, the home card and the job card the button starts the top-up round where it stands (no icon, no arrow); on the 资料 row of a published deck the same words are the trigger of a popover that chooses the part and then starts the round in place, so it leads with the sparkle of 生成 (the 资料 row\'s one action beside the title, sized for it in coverage.css). Neither leaves the page', sites: { '-|-': ['ui/coverage/CoverageTopUp.jsx', 'ui/study-map/JobCard.jsx'], 'sparkle|-': ['ui/coverage/DocumentTopUp.jsx'] } },
 ];
 
 /** The controls that leave with an icon in front, each with why. A leading icon is for a control that acts where it stands (the sparkle of 生成, the trash of
