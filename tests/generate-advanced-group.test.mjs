@@ -122,6 +122,18 @@ test('the same preview in English has no Chinese outside the materials\' own nam
   } finally { preview.setUiLanguage('zh'); }
 });
 
+test('the preview\'s materials row counts the ones it does not name, not all of them, in English (#1082, round 7)', () => {
+  const five = ['One', 'Two', 'Three', 'Four', 'Five'].map((title, at) => ({ id: `f${at}`, title: `${title}.md`, text: 'x', courses: ['DB'], usedBy: [], chars: 1 }));
+  const materials = () => preview.previewRows({ gen, sources: five, sourceIds: five.map(source => source.id) }).find(row => row.key === 'materials').value;
+  assert.match(materials(), /^5 份：One、Two、Three 等$/, 'zh: the three named and 等, as before');
+  preview.setUiLanguage('en');
+  try {
+    const said = materials();
+    assert.match(said, /One, Two, Three and 2 more/, `two are not named, so it says 2 more (${said})`);
+    assert.doesNotMatch(said, /more \(5\)/, `not "and more (5)" (${said})`);
+  } finally { preview.setUiLanguage('zh'); }
+});
+
 test('an empty requirement is not shown as in use: the choice to apply one appears once there is a sentence', () => {
   const open = (moduleOverrides) => text(render({ moduleOverrides, kinds: ['quiz', 'open'], kind: 'quiz', kindCounts: { quiz: 3, open: 1 } }));
   assert.ok(!open({}).includes('用上这条'), 'nothing written, nothing to apply');

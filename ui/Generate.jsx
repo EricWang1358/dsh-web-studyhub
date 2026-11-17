@@ -79,9 +79,9 @@ export default function Generate({
   useInjectCss(formCss, "study-generate-form");
   useInjectCss(focusIntakeCss, "study-focus-intake");
   const [sourceScope, setSourceScope] = usePageScope(data.root, 'generate-sources', data.focus?.course ?? '*');
-  // Whether each material's search index is built: the picker rows say so (and follow a running build). The page is drawn at once, as any page; every row keeps
-  // the badge's slot, so the answer moves nothing whenever it comes (#1084).
-  const [indexCoverage] = useIndexCoverage(call);
+  // Whether each material's search index is built: the picker rows say so (and follow a running build). The page is drawn at once, as any page; while the answer is on
+  // its way every row holds the badge's slot, and it keeps that column's width after, badge or none; its facts are one line either way, so no row moves (#1084).
+  const [indexCoverage, , indexStatus] = useIndexCoverage(call);
   const known = courseNamesOf(data);
   const referenceSourceIds = gen.referenceSourceIds || [];
   const referenceState = referenceSelection(data.sources, referenceSourceIds, selectedSources, gen.referenceLimits, gen.referenceFormat);
@@ -241,7 +241,7 @@ export default function Generate({
               {openingStands(opening, selectedSources) && <p className="generate-opening muted" data-opening-reason>{openingLine(opening.reason)}</p>}
               {/* One row per document with its pages on demand; counts are in documents (WP3, P18). */}
               {/* 添加资料 under the list is the one way to add material from here (the shared import dialog, WP3); the index line shares its line. */}
-              <SourcePicker sources={evidenceSources} selected={selectedSources} onChange={setSelectedSources} indexCoverage={indexCoverage}
+              <SourcePicker sources={evidenceSources} selected={selectedSources} onChange={setSelectedSources} indexCoverage={indexCoverage} indexPending={indexStatus === 'loading'}
                 courses={data.focus?.courses} scope={sourceScope} onScopeChange={setSourceScope} disabled={busy} onAdd={openImport}
                 onIndex={(course) => openIndexBuilder(openLargeDocumentSettings, course)} />
               {/* A selection too big for one generation: ONE block with the ways on (steps / pages by topic), only the chosen one drawn; with no search tool the old card is a fold under it. */}
@@ -281,7 +281,11 @@ export default function Generate({
                   <Button variant="link" size="sm" onClick={() => setGenSource("case")}>{ui("切到案例分析题")}</Button></span>}
               </div>
               {courseOpen && <div className="generate-course"><CourseField courses={data.focus?.courses} label={ui("新题组放进的课程")} value={generationCourse} onChange={course => setGen({ ...gen, course })} /></div>}
-              <Disclosure className="generate-more" bodyClassName="generate-more__body" data-tour="generate-more" summary={ui("更多选项")} meta={chosen.length ? chosen.join(" · ") : ui("想练什么、难度、花费、额外要求")} open={foldOpen} onToggle={setMoreOpen}>
+              {/* Shut, its summary says the choices that are not the defaults, each whole (they wrap after a 「·」, ui/generate-form.css); open, its hint on one line,
+                  as with none chosen, and the choices are not drawn: a choice picked inside the open fold moves nothing (round 7). */}
+              <Disclosure className="generate-more" bodyClassName="generate-more__body" data-tour="generate-more" summary={ui("更多选项")} open={foldOpen} onToggle={setMoreOpen}
+                meta={chosen.length ? <span className="generate-more__meta"><span className="generate-more__hint">{ui("想练什么、难度、花费、额外要求")}</span><span className="generate-more__choices">{chosen.map((choice, at) => <React.Fragment key={at}>{at ? " " : ""}<span className="generate-more__choice">{at < chosen.length - 1 ? `${choice} ·` : choice}</span></React.Fragment>)}</span></span>
+                  : ui("想练什么、难度、花费、额外要求")}>
                 <FormGroup title={ui("想练什么")}>
                   <FormRow label={ui("这次想练什么？")} htmlFor="generate-focus" data-tour="generate-focus">
                     <textarea id="generate-focus" ref={focusBox} className="generate-focus generate-row__input" rows={2} value={gen.focus}
@@ -289,7 +293,7 @@ export default function Generate({
                       placeholder={ui("例如：区分相似模式，重点练习工程场景中的取舍")} />
                     {(pathMode || retrievalMode) && <FocusHelp mode={mode} />}
                     <GenerateAssist ready={model.ready} phase={assist.phase} result={assist.result} applied={assist.applied} focus={gen.focus} disabled={busy}
-                      estimate={<TokenEstimate enabled={model.ready && selectedSources.length > 0}
+                      estimate={<TokenEstimate pieces enabled={model.ready && selectedSources.length > 0}
                         request={{ feature: 'suggest', sourceIds: selectedSources, course: generationCourse, ...(goal ? { goal } : {}) }} />}
                       onAsk={askAssist} onSettings={openSettings}
                       onPick={(item) => setGen({ ...gen, focus: appendFocus(gen.focus, item) })}
@@ -360,7 +364,7 @@ export default function Generate({
                 {summary ? <p className="generate-summary" role="status">{summary.split(' · ').map((piece, at) => <React.Fragment key={at}>{at ? ' ' : ''}<span className="generate-summary__piece">{at ? `· ${piece}` : piece}</span></React.Fragment>)}</p>
                   : <p className="muted generate-submit__note" role="status">{model.ready && !selectedSources.length ? ui("先在「01 / 选择资料」勾选资料。") : ""}</p>}
                 {!pathMode && <div className="generate-submit__cost" data-generate-estimate>
-                  {estimating && <TokenEstimateView state={planned} totalOnly />}
+                  {estimating && <TokenEstimateView state={planned} totalOnly pieces />}
                 </div>}
               </div>
               {!model.ready ? (

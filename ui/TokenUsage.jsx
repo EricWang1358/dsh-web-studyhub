@@ -63,8 +63,17 @@ export function TokenUsage({ usage, estimate, inline = false, copy = true, total
 /* The widest line an estimate usually is: the loading line lays this out invisibly, so it takes the lines the ready one will take. A question estimate says
    「（含思考）」 (lib/token-estimate.js withThinking), so the ghost does too. */
 const GHOST_ESTIMATE = { totalTokens: { low: 88800, high: 99900 }, calls: { low: 88, high: 99 }, notes: ['thinking-default'] };
-/** The summary drawn as its parts (「预计 … tok（含思考）」, 「4–11 次模型调用」): a narrow line breaks between them, never inside one (「次模型 / 调用」). */
-const summaryParts = (text) => text.split(' · ').map((part, at) => <React.Fragment key={at}>{at ? ' · ' : ''}<span className="token-estimate__part">{part}</span></React.Fragment>);
+/** The summary drawn as its parts (「预计 … tok」 and its 「（含思考）」, 「4–11 次模型调用」): a narrow line breaks between them, never inside one (「次模型 / 调用」);
+ *  a line of one line's room (`pieces`) leaves the last ones out whole, each with the 「·」 before it, so the line it shows never ends in one. */
+function summaryParts(text, pieces = false) {
+  const note = ui('（含思考）'), said = note.trim(), lead = note.slice(0, note.length - note.trimStart().length);
+  return text.split(' · ').map((part, at) => {
+    const mark = pieces && at ? '· ' : '';
+    return <React.Fragment key={at}>{at ? (pieces ? ' ' : ' · ') : ''}{part.endsWith(note) && part.length > note.length
+      ? <><span className="token-estimate__part">{mark}{part.slice(0, -note.length)}</span>{lead}<span className="token-estimate__part">{said}</span></>
+      : <span className="token-estimate__part">{mark}{part}</span>}</React.Fragment>;
+  });
+}
 
 /**
  * The estimate line above a submit button: "预计 58.3K–96.1K tok · 8–10 次模型调用", with an ⓘ button that opens the
@@ -73,25 +82,27 @@ const summaryParts = (text) => text.split(' · ').map((part, at) => <React.Fragm
  * A selection over the limit says so in plain sight, not only in the panel. `tight` keeps the info button at the end of a long line instead of under it. `lead` is what goes before the figures (the 覆盖强度 line: 「标准：约 343 道题，覆盖 81/81 个部分，分 12 轮，」).
  * `method`: how the figures were made, the panel's last line (default: DSH's fixed estimate; a scale measured from a sample run says so instead).
  * `summary(estimate)`: other figures for the line (创建题组 says the tokens in its bar and the calls under it, each once); `warn={false}` leaves the over-limit line to the other one.
+ * `pieces`: the line is one line's room and clips (创建题组's bar, the estimate under 帮我想想): a piece that does not fit goes to the hidden next line whole, so the
+ * line is as tall while estimating (its ghost) as with the answer, whatever the width, and an answer that lands moves nothing under it (round 7).
  */
-export function TokenEstimateView({ state = { status: 'idle' }, defaultOpen = false, align = 'start', lead = '', tight = false, method = null, totalOnly = false, summary = null, warn = true }) {
+export function TokenEstimateView({ state = { status: 'idle' }, defaultOpen = false, align = 'start', lead = '', tight = false, method = null, totalOnly = false, summary = null, warn = true, pieces = false }) {
   useInjectCss(css, 'study-token-usage');
   const [open, setOpen] = useState(defaultOpen);
   const panel = useId();
   const estimate = state.status === 'ready' ? state.estimate : null;
   const notes = (estimate?.notes || []).filter((code) => code !== 'over-limit').map((code) => noteText(code, estimate)).filter(Boolean);
   const summarize = summary || (totalOnly ? totalEstimateSummary : estimateSummary);
-  return <div className={`${align === 'end' ? 'token-estimate token-estimate--end' : 'token-estimate'}${tight ? ' token-estimate--tight' : ''}`} data-token-estimate data-status={state.status} aria-live="polite">
+  return <div className={`${align === 'end' ? 'token-estimate token-estimate--end' : 'token-estimate'}${tight ? ' token-estimate--tight' : ''}${pieces ? ' token-estimate--pieces' : ''}`} data-token-estimate data-status={state.status} aria-live="polite">
     {state.status === 'loading' && <p className="token-estimate__line token-estimate__line--loading">
       <span className="token-estimate__text">
-        <span className="token-estimate__ghost" aria-hidden="true">{summaryParts(summarize(GHOST_ESTIMATE))}</span>
+        <span className="token-estimate__ghost" aria-hidden="true">{summaryParts(summarize(GHOST_ESTIMATE), pieces)}</span>
         <small className="token-estimate__quiet">{ui('正在估算…')}</small>
       </span>
       {!totalOnly && <IconButton icon="info" size="sm" className="token-estimate__info token-estimate__info--slot" label={ui('查看估算明细')} aria-hidden="true" tabIndex={-1} disabled />}
     </p>}
     {estimate && <>
       <p className="token-estimate__line">
-        <span>{lead}{summaryParts(summarize(estimate))}</span>
+        <span>{lead}{summaryParts(summarize(estimate), pieces)}</span>
         {!totalOnly && <IconButton icon="info" size="sm" className="token-estimate__info" aria-expanded={open} aria-controls={panel}
           label={ui('查看估算明细')} onClick={() => setOpen(!open)} />}
       </p>
@@ -144,11 +155,11 @@ export function useUsageEstimate(call, request, { enabled = true, delay = 450 } 
 }
 
 /** The estimate line, connected: `request` is what `usage.estimate` takes (with `feature`); `action` overrides the action name. */
-export function TokenEstimate({ request, action, enabled = true, align, totalOnly = false }) {
+export function TokenEstimate({ request, action, enabled = true, align, totalOnly = false, pieces = false }) {
   const { call } = useStudy();
   const state = useUsageEstimate(call, action ? { action, args: request } : request, { enabled });
   if (!enabled) return null;
-  return <TokenEstimateView state={state} align={align} totalOnly={totalOnly} />;
+  return <TokenEstimateView state={state} align={align} totalOnly={totalOnly} pieces={pieces} />;
 }
 
 /* ---------- after a run ---------- */
