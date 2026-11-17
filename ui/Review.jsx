@@ -147,15 +147,17 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
   // 继续下一批新题: one set of arguments for its button and for the 本轮设置 popover beside it (ui/review/round-setup.js resultTarget).
   const newBatchArgs = run.complete && run.mode === "new" && nextFreshCount > 0
     ? { mode: "new", scope: run.scope ?? [{ deckId: run.deckId }], count: freshRoundCount(data?.settings?.practice), ordered: true, fresh: true } : null;
+  /* `back`: the step goes back to where the learner came from (回到学习流, 回到之前的第 N 题, 回到原题, 回到学习路径), so its button leads with ← like every way
+     back; the rest step on and end in →. `path`: it is only the way back to the learning path, which a round with a way back of its own leaves out. */
   const nextStep = !run.complete ? null
-    : flow ? { label: ui("回到学习流"), run: () => onBackToWorkflow(flow.sessionId) }
-      : detour ? { label: uiFormat("回到之前的第 {0} 题", [detour.index + 1]), run: onReturnFromDetour }
-        : destination?.kind === "original" ? { label: destination.label, run: destination.go }
+    : flow ? { label: ui("回到学习流"), run: () => onBackToWorkflow(flow.sessionId), back: true }
+      : detour ? { label: uiFormat("回到之前的第 {0} 题", [detour.index + 1]), run: onReturnFromDetour, back: true }
+        : destination?.kind === "original" ? { label: destination.label, run: destination.go, back: true }
           : run.course?.next ? { label: ui("继续课程下一批"), run: () => act("review.start", { mode: "course", course: run.course.name, fresh: true }, enterRun) }
             : newBatchArgs ? { label: ui("继续下一批新题"), run: () => act("review.start", newBatchArgs, enterRun) }
-              : destination ? { label: destination.label, run: destination.go, back: isBackDestination(destination) } : null;
+              : destination ? { label: destination.label, run: destination.go, back: isBackDestination(destination), path: isBackDestination(destination) } : null;
   // With a way back as the main button (the book's, the 总纲's or the reader's), a next step that is just another place to go back to (回到学习路径) is left out: both would go back.
-  const onward = backHere && nextStep?.back ? null : nextStep;
+  const onward = backHere && nextStep?.path ? null : nextStep;
   // 本轮设置 (#1010): beside the next-round button, only where that button starts a round of the course or of the scope (the page decided it: ui/review/round-setup.js).
   const roundSetup = onward && !backHere && !flow && !detour && !run.course ? resultTarget(run, destination, { newBatch: newBatchArgs }) : null;
   const roundCourse = run.complete ? resolveRoundCourse(data, run) : "";
@@ -243,7 +245,8 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
           {(onward || wayBack) && (
             <div className={cx("result-next", wayBack && "result-next--back")}>
               {wayBack && <ReturnPrimary arrow oneLine label={wayBack.label} place={wayBack.place} disabled={busy} onReturn={wayBack.go} />}
-              {onward && <Button variant={backHere ? "secondary" : "primary"} align={backHere ? "start" : undefined} iconEnd="arrow-right" lock={busy} onClick={onward.run}>{onward.label}</Button>}
+              {onward && <Button variant={backHere ? "secondary" : "primary"} align={backHere ? "start" : undefined} icon={onward.back ? "arrow-left" : undefined}
+                iconEnd={onward.back ? undefined : "arrow-right"} lock={busy} onClick={onward.run}>{onward.label}</Button>}
               {roundSetup && <RoundSetup data={data} context={roundSetup} chapterRefs={run.scope} onStart={(args, options) => act("review.start", args, enterRun, options)} className="result-setup" />}
 
               {onward && !backHere && contextReturnLabel && <Button icon="arrow-left" lock={busy} onClick={onReturnContext}>{contextReturnLabel}</Button>}
