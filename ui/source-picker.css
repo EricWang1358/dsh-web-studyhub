@@ -32,7 +32,8 @@
     .source-picker__text small { grid-column: 2 / -1; min-width: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; word-break: keep-all; }
     /* The facts are one line at every width (#1084, round 4): the format, the size and the notes keep their words; the names after them (each course, the file
        a material comes from) are each said whole or left out whole with their 「·」 where the line is short of room (round 6: a name cut to 「示例课程 · …」 read
-       as a bare 「· …」): one that does not fit goes on to a next line the facts' one-line height hides. The course is also the scope's, above the list.
+       as a bare 「· …」): one that does not fit goes on to a next line the facts' one-line height hides. The course the scope names is not said again (above the
+       list); another course comes first and may be shortened with 「…」 (round 7, below).
        So a short row is one title line and one line of facts at 420 as at 1440. */
     .source-picker__text .source-picker__facts { grid-column: 2 / -1; display: flex; flex-wrap: wrap; column-gap: 0.3em; height: calc(var(--fs-sm) * var(--lh-snug)); overflow: hidden; white-space: nowrap; }
     /* The facts stop at the last column where it holds the badge, or 选择页面 on a wide row (whose box hangs a little into the facts' line). */
@@ -49,6 +50,9 @@
     /* The first piece (format, size, notes) keeps its size and is only ever cut at the line's width (a 320 px line), with 「…」; the names after it keep their
        size too, and the first that does not fit goes on to the hidden line with all after it. */
     .source-picker__fact { flex: none; max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    /* The first course after them that the scope does not name (round 7) takes the room left on the line, as wide as its name at most and 6em at least
+       (「· 分布式系统…」), ending in 「…」 with its whole name on hover (title); with less room than that it goes whole on to the hidden line, as the others do. */
+    .source-picker__fact--short { flex: 1 1 0; min-width: 6em; max-width: max-content; }
     /* 选择页面 ends a wide row's title line, as tall as that line in the grid (its box hangs into the row's padding), so it makes no row taller. */
     .source-picker__expand { grid-column: 3; grid-row: 1; justify-self: end;
       margin-block: calc((var(--fs-md) * var(--lh-snug) - var(--picker-expand-h)) / 2); }
