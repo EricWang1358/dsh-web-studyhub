@@ -295,9 +295,10 @@
       overflow-wrap: anywhere;
     }
     /* A long English word group in a button must not push it past the footer's padding (the recommended button was 386px in a 370px footer and touched the dialog's left edge at 420px): the
-       buttons may take the footer's width and their words wrap. */
+       buttons may take the footer's width and their words wrap, and the wrapped
+       lines start beside the icon (start, not centred): the words are one flex item as wide as the button, so centred lines left the external mark 59px from the first line at 420px (#1127). */
     .sh-dialog[data-custom-gate] .sh-dialog__footer > * { max-width: 100%; }
-    .sh-dialog[data-custom-gate] .sh-dialog__footer [data-custom-gate-action] { max-width: 100%; white-space: normal; text-align: center; }
+    .sh-dialog[data-custom-gate] .sh-dialog__footer [data-custom-gate-action] { max-width: 100%; white-space: normal; text-align: start; }
     .outline-papers__list {
       display: grid;
       gap: var(--space-1);

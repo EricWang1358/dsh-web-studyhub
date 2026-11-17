@@ -1,0 +1,1 @@
+- **On a narrow English screen, the recommended button of "Customize this book in depth first?" keeps its icon next to its words.** When the button wraps onto two lines, the icon now sits beside the first line instead of being left far from the text; checked at 320, 375 and 420 px, light and dark. Not verified: inside a DSH window with a very large font setting.
