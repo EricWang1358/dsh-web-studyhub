@@ -15,6 +15,8 @@ import { documentIndexState } from './index-coverage.js';
 import { indexGap } from './index-scope.js';
 import css from './source-picker.css';
 import { formatNumber } from './format.js';
+import { useCut } from './use-cut.js';
+import { useNamesFit } from './picker-names.js';
 
 /* Choosing material for generation (P18, P22). One row per document: a PDF is
    one checkbox for the whole file with an expandable page list. Counts are in
@@ -128,7 +130,7 @@ const setOfIds = ids => { let set = idSets.get(ids); if (!set) idSets.set(ids, s
  * a coverage answer or a click on another row leaves the other rows alone. `apply(update)` is stable and reads the latest selection itself.
  */
 export function documentRowPropsEqual(a, b) {
-  if (a.item !== b.item || a.disabled !== b.disabled || a.defaultOpen !== b.defaultOpen || a.canIndex !== b.canIndex || a.relation !== b.relation || a.scope !== b.scope
+  if (a.item !== b.item || a.disabled !== b.disabled || a.defaultOpen !== b.defaultOpen || a.canIndex !== b.canIndex || a.relation !== b.relation || a.scope !== b.scope || a.indexColumn !== b.indexColumn
     || a.apply !== b.apply || a.indexPending !== b.indexPending || !sameIndexInfo(a.indexInfo, b.indexInfo)) return false;
   if (a.selected === b.selected) return true;
   const was = setOfIds(a.selected), now = setOfIds(b.selected);
@@ -143,13 +145,31 @@ export const relationNote = relation => !relation ? ''
 /* A course name this long or shorter is said whole or left out whole; a longer one, the first on a row's facts line, may be shortened (ui/source-picker.css). */
 const SHORTEST_NAME = 6;
 
+/* A piece of the facts line as its parts: each part after the first is one unbreakable box with its own 「·」, so a piece cut with 「…」 ends on a word,
+   never on its own 「·」 (「示例课程 · …」, #1084 round 8). The words are the same text as before. */
+const parted = text => {
+  const [head, ...tail] = text.split(' · ');
+  return <>{head}{tail.map((part, at) => <span key={at} className="source-picker__part">{` · ${part}`}</span>)}</>;
+};
+
+/* The first course on a row, shortened where its row is short of room (ui/source-picker.css): its whole name is in the shared Tooltip only while it is
+   cut (measured with the shared observer of ui/use-cut.js); a name said whole has no card (round 8). The anchor stays either way. */
+function CourseName({ name }) {
+  const ref = useRef(null), cut = useCut(ref, name);
+  return <Tooltip layer group="index-badge" anchorClassName="source-picker__fact-anchor" content={cut ? name : ''}>
+    <span ref={ref} className="source-picker__fact source-picker__fact--name source-picker__fact--short">{parted(`· ${name}`)}</span>
+  </Tooltip>;
+}
+
 /* The index badge's slot is at the end of the facts line, after the facts in the DOM (the checkbox's name reads title, facts, badge). While the index answer is
-   coming (`indexPending`) every row holds a box of fixed size for it, so a badge that comes fills it and moves nothing (#1084, round 4). Once the answer is in, a
-   row with a badge keeps a slot as wide as its badge, and a row without one gives the slot and its gap back to the facts (round 5): the facts are one line
+   coming (`indexPending`) every row holds a box of fixed size for it, so a badge that comes fills it and moves nothing (#1084, round 4). Once the answer is in, the
+   column keeps its width, badge or not (round 8, below), and a picker that shows no badges has none: the facts are one line
    either way, so no row changes height. The title has the whole column. The slot is in the row's last column, under 选择页面 where a wide row has it, so
    every badge ends at the row's end: one column of badges (ui/source-picker.css). The badge is no Tab stop of its own: the row's checkbox opens its hover
-   while it has the keyboard focus. */
-const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled, defaultOpen = false, indexInfo = null, indexPending = false, canIndex, relation = null, scope = '*' }) {
+   while it has the keyboard focus. Round 8: in a picker that shows badges (`indexColumn`) that column is the same width on every row, coming, with a badge
+   and without, so the names on the facts line have the same room whatever the answer; on a row without a badge the format, the size and the notes may
+   still run on under it. */
+const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled, defaultOpen = false, indexInfo = null, indexPending = false, canIndex, relation = null, scope = '*', indexColumn = false }) {
   const [open, setOpen] = useState(defaultOpen), [pagesOpen, setPagesOpen] = useState(false), [focused, setFocused] = useState(false);
   const listId = useId(), chaptersId = useId(), nameId = useId();
   const chaptered = chosenByChapters(item);
@@ -162,14 +182,16 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
   // The facts, one line (#1084): the format, the size and the notes first, as one piece kept whole; then the names, by one rule on every row (round 7): the
   // course 课程范围 names is said once, above the list, not again here; another course the material is in comes first, said whole or, short of room, shortened
   // to its first words with 「…」 and its whole name on hover; the names after it (more courses, the file it comes from) are said whole or left out whole with
-  // their 「·」 (ui/source-picker.css).
+  // their 「·」, and only while the first is whole (round 8: the first takes the room). Which names a row shows is then the list's one decision
+  // (ui/picker-names.js): a run of rows reads the same.
   const facts = [sourceFormatLabel(item), uiFormat('{0} 字符', [formatNumber(item.chars)]), ...documentNotes(item), item.coursesInferred ? ui('推断归属') : ''].filter(Boolean);
   const courses = item.courses.length ? item.courses.filter(course => course !== scope) : scope === '' ? [] : [ui('未分类')];
-  const names = [...courses, related].filter(Boolean), shortened = courses.length > 0 && [...courses[0]].length > SHORTEST_NAME;
+  const [first, ...later] = [...courses, related].filter(Boolean), shortened = courses.length > 0 && [...courses[0]].length > SHORTEST_NAME;
   const slot = indexInfo ? 'badge' : indexPending ? 'held' : 'none';
+  const after = later.map((name, at) => <React.Fragment key={at}>{' '}<span className="source-picker__fact source-picker__fact--name" data-name="rest">{parted(`· ${name}`)}</span></React.Fragment>);
   return (
     <div className={`source-picker__item${state !== 'none' ? ' is-selected' : ''}`} data-document-key={item.key}>
-      <div className={`source-picker__row${multi ? ' has-expand' : ''}${slot !== 'none' ? ' has-index' : ''}`}>
+      <div className={`source-picker__row${multi ? ' has-expand' : ''}${slot !== 'none' || indexColumn ? ' has-index' : ''}${indexColumn && slot === 'none' ? ' is-unbadged' : ''}`}>
         <label className="source-picker__doc">
           {/* Its name is what the row says (title, facts, the badge's word, the pages picked), not the badge's card: the card is held open while the box has the
               keyboard focus, and a card inside the label would join the name. The card is the box's description. */}
@@ -180,9 +202,10 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
             onChange={event => { const on = event.target.checked; apply(current => toggleDocument(current, item, on)); }} />
           <span className="source-picker__text">
             <strong id={`${nameId}-t`} title={item.title}>{name}</strong>
-            <small id={`${nameId}-f`} className="source-picker__facts"><span className="source-picker__fact">{facts.join(' · ')}</span>{names.map((fact, at) => <React.Fragment key={at}>{' '}{at === 0 && shortened
-              ? <Tooltip layer group="index-badge" anchorClassName="source-picker__fact-anchor" content={fact}><span className="source-picker__fact source-picker__fact--name source-picker__fact--short">{`· ${fact}`}</span></Tooltip>
-              : <span className="source-picker__fact source-picker__fact--name">{`· ${fact}`}</span>}</React.Fragment>)}</small>
+            <small id={`${nameId}-f`} className="source-picker__facts"><span className="source-picker__fact source-picker__fact--lead">{parted(facts.join(' · '))}</span>
+              {first && ' '}{first && (shortened
+                ? <span className="source-picker__names" data-name="first"><CourseName name={first} />{after}</span>
+                : <><span className="source-picker__fact source-picker__fact--name" data-name="first">{parted(`· ${first}`)}</span>{after}</>)}</small>
             <span className="source-picker__index" data-index-slot={slot}>{indexInfo && <IndexBadge compact info={indexInfo} coverage={{ canIndex }} open={focused} wordId={`${nameId}-w`} tipId={`${nameId}-c`} />}</span>
             {state === 'some' && <small id={`${nameId}-p`} className="source-picker__partial">{uiFormat('已选 {0} / {1} 页', [picked, item.sourceIds.length])}</small>}
           </span>
@@ -238,7 +261,7 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
  * courses + scope + onScopeChange (course scope; omit onScopeChange to show
  * everything), disabled, onAdd (shows “添加资料”), defaultQuery (initial filter
  * text), defaultOpenKey (a document key whose pages/chapters start open), maxHeight (list window height in px), indexCoverage (the index badge of each row, at the end of its facts line: a slot
- * held on every row while the answer is on its way, then as wide as the row's badge or none; the facts are one line either way, so the answer moves no row), onIndex(course) (the way to 设置 › 检索扩展 with that course chosen: one line says how many rows are not fully indexed and leads there,
+ * held on every row while the answer is on its way, and kept, badge or none, so the facts' names have the same room before and after the answer; the facts are one line either way, so the answer moves no row), onIndex(course) (the way to 设置 › 检索扩展 with that course chosen: one line says how many rows are not fully indexed and leads there,
  * beside 添加资料 under the list when there is one (a line that is there anyway, so a late answer moves nothing), else above the list; none without it. The row badges only show the
  * state, #1084), indexPending (the coverage answer is still coming: every row holds the badge's slot until it is in). Extra props land on the root.
  * The list scrolls in a bounded window with a filter (WP14), so a course with
@@ -248,6 +271,7 @@ export default function SourcePicker({ sources = [], selected = [], onChange, co
   onAdd, defaultQuery = '', defaultOpenKey = '', maxHeight = 420, className, indexCoverage = null, indexPending = false, onIndex, ...rest }) {
   useInjectCss(css, 'study-source-picker');
   const [query, setQuery] = useState(defaultQuery);
+  const root = useRef(null);
   const items = useMemo(() => groupSourcesByDocument(sources).filter(item => !item.archived), [sources]);
   const bigKeys = useMemo(() => new Set(indexCoverage ? bigDocuments(items).map(item => item.key) : []), [items, indexCoverage]);
   const effectiveScope = onScopeChange ? scope : '*';
@@ -280,14 +304,17 @@ export default function SourcePicker({ sources = [], selected = [], onChange, co
   const goIndex = useCallback(course => latest.current.onIndex?.(course), []);
   const gap = useMemo(() => (onIndex ? indexGap(visible.map(item => ({ item, info: infos.get(item.key) }))) : null), [onIndex, visible, infos]);
   const relations = useMemo(() => materialRelations(items), [items]);
+  // The rows show the names the whole list can hold (ui/picker-names.js); a picker that shows index badges keeps their column on every row.
+  useNamesFit(root, visible);
+  const indexColumn = !!onIndex || indexPending || !!indexCoverage;
   if (!items.length) return (
-    <div className={`source-picker${className ? ` ${className}` : ''}`} {...rest}>
+    <div ref={root} className={`source-picker${className ? ` ${className}` : ''}`} {...rest}>
       <EmptyState size="sm" icon="file" title={ui('还没有资料')} description={ui('先添加讲义或笔记，再用它们出题。')}
         primary={onAdd ? addSourceAction(onAdd, { disabled }) : undefined} />
     </div>
   );
   return (
-    <div className={`source-picker${className ? ` ${className}` : ''}`} {...rest}>
+    <div ref={root} className={`source-picker${indexColumn ? ' source-picker--index' : ''}${className ? ` ${className}` : ''}`} {...rest}>
       {onScopeChange && <PageScope courses={courses} value={scope} onChange={onScopeChange} disabled={disabled} />}
       <div className="source-picker__bar">
         <p className="source-picker__count" role="status">{uiFormat('已选择 {0} / {1} 份资料', [chosenDocuments, items.length])}</p>
@@ -304,7 +331,7 @@ export default function SourcePicker({ sources = [], selected = [], onChange, co
         filterPlaceholder={ui('筛选资料…')} maxHeight={maxHeight} renderLimit={SOURCE_PICKER_FIRST_ROWS} listClassName="source-picker__list" itemClassName="source-picker__entry"
         empty={uiFormat('没有匹配“{0}”的资料', [query.trim()])}
         renderItem={item => <DocumentRow item={item} selected={selected} apply={apply} disabled={disabled} defaultOpen={item.key === defaultOpenKey}
-          indexInfo={infos.get(item.key) ?? null} indexPending={indexPending && !indexCoverage} canIndex={canIndex} relation={relations.get(item.key) ?? null} scope={scope} />} />
+          indexInfo={infos.get(item.key) ?? null} indexPending={indexPending && !indexCoverage} canIndex={canIndex} relation={relations.get(item.key) ?? null} scope={scope} indexColumn={indexColumn} />} />
         : <p className="source-picker__note">{ui('这个范围还没有资料。可切换到全部课程查看。')}</p>}
       {/* Under the list: 添加资料, and the index line beside it on the same line (one line whatever the answer: it ends in 「…」 where it is short of room). */}
       {onAdd && <div className="source-picker__foot">
