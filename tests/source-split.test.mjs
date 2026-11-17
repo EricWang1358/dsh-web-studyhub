@@ -379,7 +379,7 @@ test('#51-#54 SourceColumn and useSourceDock: pin toggle, pop-out expand, divide
     assert.equal(pinBtn().props['data-pinned'], 'true');
     assert.equal(pinBtn().props.label, '取消固定');
 
-    const popBtn = harness.findAll(n => n.props?.['data-icon'] === 'external')[0];
+    const popBtn = harness.findAll(n => n.props?.['data-icon'] === 'arrow-right' && n.props?.label === '大窗打开阅读器')[0];
     assert.equal(popBtn.props.label, '大窗打开阅读器');
     popBtn.props.onClick();
     assert.equal(expanded[0]?.source?.id, 'book-p2');
