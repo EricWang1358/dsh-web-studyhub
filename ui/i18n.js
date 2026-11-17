@@ -112,11 +112,14 @@ function singulars(catalogue) {
   return singularsOf.get(catalogue);
 }
 function englishOf(template, values) {
-  const forms = singulars(english).get(template);
+  // Looked up as ui() looks it up: as written, else with its spaces collapsed and trimmed, the spaces around it kept (the 资料 page's " 共 {0} 份资料。").
+  const exact = singulars(english).get(template), clean = exact ? template : template.replace(/\s+/g,' ').trim();
+  const forms = exact || singulars(english).get(clean);
   if (!forms || !values?.length) return ui(template);
   let best = null;
   for (const form of forms) if (form.counts.every((index) => Number(values[index]) === 1) && form.counts.length > (best?.counts.length || 0)) best = form;
-  return best ? english[best.key] : ui(template);
+  if (!best) return ui(template);
+  return exact ? english[best.key] : `${template.match(/^\s*/)[0]}${english[best.key]}${template.match(/\s*$/)[0]}`;
 }
 /** The translated template for these values: in English the singular form that fits the counts among them (above), else ui(template). */
 export const uiTemplate = (template, values) => language === 'en' ? englishOf(template, values) : ui(template);
