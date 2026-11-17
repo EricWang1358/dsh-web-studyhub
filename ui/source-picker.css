@@ -30,10 +30,11 @@
     /* A title that wraps never leaves one character alone on its last line (「…参考 / 答」, #1084 round 5): it breaks its last lines like a paragraph (ui/base.css). */
     .source-picker__text strong { grid-column: 2 / -1; min-width: 0; color: var(--text); font-weight: var(--fw-medium); overflow-wrap: anywhere; line-height: var(--lh-snug); text-wrap-style: pretty; }
     .source-picker__text small { grid-column: 2 / -1; min-width: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; word-break: keep-all; }
-    /* The facts are one line at every width (#1084, round 4): the format, the size and the notes keep their words; the names after them (courses, the file a
-       material comes from) give way where the line is short of room and end in 「…」 (the course is the scope's above the list). Nothing wraps,
-       so a short row is one title line and one line of facts at 420 as at 1440. */
-    .source-picker__text .source-picker__facts { grid-column: 2 / -1; display: flex; column-gap: 0.3em; overflow: hidden; white-space: nowrap; }
+    /* The facts are one line at every width (#1084, round 4): the format, the size and the notes keep their words; the names after them (each course, the file
+       a material comes from) are each said whole or left out whole with their 「·」 where the line is short of room (round 6: a name cut to 「示例课程 · …」 read
+       as a bare 「· …」): one that does not fit goes on to a next line the facts' one-line height hides. The course is also the scope's, above the list.
+       So a short row is one title line and one line of facts at 420 as at 1440. */
+    .source-picker__text .source-picker__facts { grid-column: 2 / -1; display: flex; flex-wrap: wrap; column-gap: 0.3em; height: calc(var(--fs-sm) * var(--lh-snug)); overflow: hidden; white-space: nowrap; }
     /* The facts stop at the last column where it holds the badge, or 选择页面 on a wide row (whose box hangs a little into the facts' line). */
     .source-picker__row:is(.has-index, .has-expand) .source-picker__text .source-picker__facts { grid-column: 2; }
     /* The slot: a box at the end of the facts' first line, the height of that line. While the index answer is coming it is the widest badge's width on every
@@ -45,10 +46,9 @@
     .source-picker__index[data-index-slot="none"] { display: none; }
     .source-picker__index .index-badge-compact { max-width: 100%; }
     .source-picker__text .source-picker__partial { color: var(--accent-text); }
-    /* The first piece (format, size, notes) keeps its size and is only ever cut at the line's width (a 320 px line), with 「…」; the names after it take what is
-       left, down to nothing, and end in 「…」. */
+    /* The first piece (format, size, notes) keeps its size and is only ever cut at the line's width (a 320 px line), with 「…」; the names after it keep their
+       size too, and the first that does not fit goes on to the hidden line with all after it. */
     .source-picker__fact { flex: none; max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-    .source-picker__fact--name { flex: 0 1 auto; }
     /* 选择页面 ends a wide row's title line, as tall as that line in the grid (its box hangs into the row's padding), so it makes no row taller. */
     .source-picker__expand { grid-column: 3; grid-row: 1; justify-self: end;
       margin-block: calc((var(--fs-md) * var(--lh-snug) - var(--picker-expand-h)) / 2); }

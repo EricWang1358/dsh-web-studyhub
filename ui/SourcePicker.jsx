@@ -157,9 +157,9 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
   // Materials made from one original file say so (#207): "派生自 <file>" on a text version, "另有 2 份派生资料" on the file.
   const related = relationNote(relation), name = displayTitle(item.title);
   // The facts, one line (#1084): the format, the size and the notes first, as one piece kept whole; then the names (the courses, and the file it comes from),
-  // which give way where the line is short of room and end in 「…」 (ui/source-picker.css): the course is also the scope's, above the list.
+  // each said whole or, where the line is short of room, left out whole with its 「·」 (ui/source-picker.css): the course is also the scope's, above the list.
   const facts = [sourceFormatLabel(item), uiFormat('{0} 字符', [formatNumber(item.chars)]), ...documentNotes(item), item.coursesInferred ? ui('推断归属') : ''].filter(Boolean);
-  const names = [(item.courses.length ? item.courses : [ui('未分类')]).join(' · '), related].filter(Boolean);
+  const names = [...(item.courses.length ? item.courses : [ui('未分类')]), related].filter(Boolean);
   const slot = indexInfo ? 'badge' : indexPending ? 'held' : 'none';
   return (
     <div className={`source-picker__item${state !== 'none' ? ' is-selected' : ''}`} data-document-key={item.key}>
@@ -229,8 +229,8 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
  * Props: sources (snapshot sources), selected (source ids), onChange(ids),
  * courses + scope + onScopeChange (course scope; omit onScopeChange to show
  * everything), disabled, onAdd (shows “添加资料”), defaultQuery (initial filter
- * text), defaultOpenKey (a document key whose pages/chapters start open), maxHeight (list window height in px), indexCoverage (the index badge of each row, in a slot every row keeps, so
- * the answer moves nothing whenever it comes), onIndex(course) (the way to 设置 › 检索扩展 with that course chosen: one line says how many rows are not fully indexed and leads there,
+ * text), defaultOpenKey (a document key whose pages/chapters start open), maxHeight (list window height in px), indexCoverage (the index badge of each row, at the end of its facts line: a slot
+ * held on every row while the answer is on its way, then as wide as the row's badge or none; the facts are one line either way, so the answer moves no row), onIndex(course) (the way to 设置 › 检索扩展 with that course chosen: one line says how many rows are not fully indexed and leads there,
  * beside 添加资料 under the list when there is one (a line that is there anyway, so a late answer moves nothing), else above the list; none without it. The row badges only show the
  * state, #1084), indexPending (the coverage answer is still coming: every row holds the badge's slot until it is in). Extra props land on the root.
  * The list scrolls in a bounded window with a filter (WP14), so a course with
