@@ -1214,6 +1214,7 @@
   "已把 {0} 道答错或未答题排进学习路径，回到学习库即可开始练习。": "Added {0} incorrect or unanswered questions to your study path. Return to the library to practise.",
   "掌握 {0}%": "Mastery {0}%",
   "{0} 题": "{0} questions",
+  "{0} 题#one": "{0} question",
   "未命名主题": "Untitled topic",
   "已选 {0} 项范围": "{0} scopes selected",
   "全部题组（未归档）": "All unarchived decks",

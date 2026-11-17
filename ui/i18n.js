@@ -92,6 +92,10 @@ export const uiLabels = labels => new Proxy(labels, { get: (target, key) => ui(t
 export const uiMessage = value => localizeAppMessage(ui(value), language);
 /** What a failure says, for the learner: its message (or the value thrown) through uiMessage, so an English page never shows a Chinese host message. */
 export const errorMessage = failure => uiMessage(failureText(failure));
+/** The singular of a counted English key: when the first value is 1 and the catalogue has `<key>#one` (the key of "{0} questions" with #one: "{0} question"), that form is used,
+    so "1 question" is right wherever the key shows a count, without a `count === 1 ? … : …` at every call. */
+const SINGULAR = '#one';
 export function uiFormat(template, values) {
-  return ui(template).replace(/\{(\d+)\}/g, (match, index) => index < values.length ? String(values[index] ?? '') : match);
+  const one = language === 'en' && Number(values?.[0]) === 1 && Object.hasOwn(english, `${template}${SINGULAR}`);
+  return (one ? english[`${template}${SINGULAR}`] : ui(template)).replace(/\{(\d+)\}/g, (match, index) => index < values.length ? String(values[index] ?? '') : match);
 }
