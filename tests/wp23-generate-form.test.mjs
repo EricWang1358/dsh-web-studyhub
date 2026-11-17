@@ -281,7 +281,8 @@ test("a live summary sits above the one primary button", () => {
   const html = render();
   const summary = html.match(/<p[^>]*class="generate-summary"[^>]*role="status"[^>]*>(.*?)<\/p>|<p[^>]*role="status"[^>]*class="generate-summary"[^>]*>(.*?)<\/p>/);
   assert.ok(summary, "summary paragraph");
-  assert.match(text(summary[0]), /将从 1 份资料出题 · 混合难度 · 中文/, "the number of questions is the plan's: it appears once the plan has arrived");
+  assert.match(text(summary[0]), /将从 1 份资料出题/, "the number of questions is the plan's: it appears once the plan has arrived");
+  assert.doesNotMatch(text(summary[0]), /混合难度|中文/, "the bar says the count: the difficulty and the language are the form's own settings, not repeated there (#1082)");
   assert.ok(html.indexOf("generate-summary") < html.indexOf('data-tour="generate-submit"'), "summary comes first");
   assert.equal((html.match(/sh-btn--primary/g) || []).length, 1, "the submit button stays the only primary action");
   const estimated = render({ jobs: [{ status: "complete", count: 10, startedAt: "2026-10-01T10:00:00.000Z", finishedAt: "2026-10-01T10:01:30.000Z" }] });

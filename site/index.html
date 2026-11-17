@@ -7,40 +7,41 @@
 <meta name="description" content="把老师的课件变成题，每道题都点得回原页；做完一轮，看得见自己变熟。开源免费，资料存在你电脑上；模型自己选，按用量付费。DSH 学习插件 · 4.11.0 本地预览。">
 <style>
 /* ─────────────────────────────────────────────────────────────
-   Tokens — borrowed from the product itself (ui/style.css), so the
-   page and the app speak one visual language.
+   Ink-desk tokens — mirrored from ui/tokens.css so the landing page
+   and the app share warm dark/light paper & cinnabar surfaces.
    ───────────────────────────────────────────────────────────── */
 :root{
-  --bg:#14171a;
-  --bg-deep:#101316;
-  --surface:#1d2126;
-  --glass:#242930d9;
+  --bg:#161412;
+  --bg-deep:#110f0d;
+  --surface:#1e1b18;
+  --raised:#26231f;
 
-  --line-soft:#ffffff10;
-  --line:#2f353d;
-  --line-strong:#454c56;
+  --line-soft:#f5e6cf12;
+  --line:#332f2a;
+  --line-strong:#4a443c;
 
-  --text:#e8eaed;
-  --dim:#b6bcc6;
-  --muted:#8b929c;
-  --faint:#7d8592;
+  --text:#efe9df;
+  --dim:#c5bdb1;
+  --muted:#a59d91;
+  --faint:#958e84;
 
-  --accent:#6d72ff;
-  --accent-soft:#8b8bff;
-  --accent-glow:#6d72ff40;
+  --accent:#c93d22;
+  --accent-soft:#ec6a4a;
+  --accent-ink:#fff8f2;
+  --accent-glow:color-mix(in srgb,var(--accent) 26%,transparent);
 
   /* mastery scale — used only where mastery is being explained */
-  --ok:#4fb287;
-  --info:#61a8dd;
-  --warn:#deb05a;
-  --bad:#e0736a;
-  --none:#5b626c;
+  --ok:#5fb58a;
+  --info:#86a9c6;
+  --warn:#d9a441;
+  --bad:#d76c93;
+  --none:#6f685e;
 
   /* type scale, ratio 1.25 */
   --t-xs:.75rem; --t-sm:.875rem; --t-base:1rem; --t-md:1.25rem;
   --t-2xl:2.441rem; --t-3xl:3.052rem;
 
-  --radius:14px; --radius-sm:10px;
+  --radius:12px; --radius-sm:8px;
   --ease:cubic-bezier(.2,.7,.3,1);
   --shadow:0 28px 64px -28px #000000e6;
 
@@ -51,6 +52,37 @@
   --sans:"Inter","PingFang SC","Microsoft YaHei","Noto Sans SC","Hiragino Sans GB",system-ui,sans-serif;
   --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
   color-scheme:dark;
+}
+@media (prefers-color-scheme: light){
+  :root{
+    --bg:#f1ede6;
+    --bg-deep:#e8e3da;
+    --surface:#faf8f4;
+    --raised:#ffffff;
+
+    --line-soft:#2a1c0e12;
+    --line:#ddd5c9;
+    --line-strong:#c5bbad;
+
+    --text:#1e1a15;
+    --dim:#3c352d;
+    --muted:#554d43;
+    --faint:#6a635a;
+
+    --accent:#c03a1f;
+    --accent-soft:#d44f2e;
+    --accent-ink:#fffaf5;
+    --accent-glow:color-mix(in srgb,var(--accent) 18%,transparent);
+
+    --ok:#1e724d;
+    --info:#376893;
+    --warn:#8b590f;
+    --bad:#ad3966;
+    --none:#9c9488;
+
+    --shadow:0 24px 52px -24px #2a1c0e38;
+    color-scheme:light;
+  }
 }
 
 *,*::before,*::after{box-sizing:border-box}
@@ -72,7 +104,7 @@ h1,h2,p,figcaption,.opt,.step-d,.step-t,.rail-label{overflow-wrap:anywhere}
    which stretches every screenshot vertically. */
 img{display:block;max-width:100%;height:auto}
 a{color:inherit}
-::selection{background:var(--accent-glow);color:#fff}
+::selection{background:var(--accent-glow);color:var(--text)}
 
 
 
@@ -134,7 +166,7 @@ a{color:inherit}
   position:fixed; top:calc(26px + env(safe-area-inset-top,0px)); right:28px; z-index:50;
   appearance:none; cursor:pointer; font:inherit;
   font-size:var(--t-xs); font-weight:600; letter-spacing:.06em;
-  color:var(--dim); background:var(--glass); backdrop-filter:blur(14px);
+  color:var(--dim); background:var(--raised);
   border:1px solid var(--line-strong); border-radius:999px; padding:9px 18px;
   display:inline-flex; align-items:center; gap:8px;
   opacity:0; transform:translateY(-8px); pointer-events:none;
@@ -186,7 +218,7 @@ h2{
 .hi{color:var(--text);font-weight:600}
 code{
   font-family:var(--mono); font-size:.86em;
-  background:#ffffff0d; border:1px solid var(--line);
+  background:color-mix(in srgb,var(--text) 6%,transparent); border:1px solid var(--line);
   border-radius:6px; padding:.15em .45em; color:var(--dim);
 }
 
@@ -241,9 +273,8 @@ code{
 /* ── The evidence pair: source → question, shown not described ── */
 .pair{display:grid;gap:0;max-width:600px}
 .pair-card{
-  background:var(--glass); border:1px solid var(--line);
+  background:var(--surface); border:1px solid var(--line);
   border-radius:var(--radius); padding:clamp(18px,1.8vw,24px);
-  backdrop-filter:blur(14px);
 }
 .pair-head{
   display:flex;align-items:center;justify-content:space-between;gap:12px;
@@ -265,14 +296,14 @@ code{
 .pair-link::after{bottom:0;height:16px;background:linear-gradient(180deg,var(--accent-glow),var(--accent-soft))}
 .pair-chip{
   font-size:10px;letter-spacing:.12em;font-weight:600;
-  color:var(--accent-soft);background:#6d72ff14;
-  border:1px solid #6d72ff40;border-radius:999px;padding:5px 13px;
+  color:var(--accent-soft);background:color-mix(in srgb,var(--accent) 10%,var(--surface));
+  border:1px solid color-mix(in srgb,var(--accent) 32%,var(--line));border-radius:999px;padding:5px 13px;
   white-space:nowrap;
 }
 
 /* A citation mark that can never be mistaken for a text selection. */
 mark{
-  background:#6d72ff1f; color:var(--text);
+  background:color-mix(in srgb,var(--accent) 14%,transparent); color:var(--text);
   border-left:2px solid var(--accent-soft);
   padding:2px 5px 2px 7px; border-radius:0 4px 4px 0;
   -webkit-box-decoration-break:clone; box-decoration-break:clone;
@@ -292,7 +323,7 @@ figure{margin:clamp(36px,4vw,56px) 0 0}
 .band img{margin-top:-52px;margin-bottom:-40px}
 .band::after{
   content:"";position:absolute;inset:auto 0 0 0;height:56px;
-  background:linear-gradient(180deg,transparent,#1d2126);
+  background:linear-gradient(180deg,transparent,var(--surface));
 }
 .real{display:inline-block;margin-right:10px;padding:2px 8px;border:1px solid var(--line-strong);border-radius:999px;font-size:10px;font-weight:600;letter-spacing:.08em;color:var(--muted)}
 figcaption{margin-top:14px;font-size:var(--t-xs);color:var(--faint);max-width:62ch;line-height:1.7}
@@ -306,9 +337,8 @@ figcaption{margin-top:14px;font-size:var(--t-xs);color:var(--faint);max-width:62
 }
 @media (max-width:900px){.demo{grid-template-columns:1fr}}
 .card{
-  background:var(--glass); border:1px solid var(--line);
+  background:var(--surface); border:1px solid var(--line);
   border-radius:var(--radius); padding:clamp(20px,2.2vw,28px);
-  backdrop-filter:blur(14px);
 }
 .card-head{
   display:flex;align-items:center;justify-content:space-between;gap:12px;
@@ -324,7 +354,7 @@ figcaption{margin-top:14px;font-size:var(--t-xs);color:var(--faint);max-width:62
   color:var(--faint);border:1px solid transparent;border-radius:999px;
   padding:3px 9px;transition:color .5s var(--ease),border-color .5s var(--ease),background .5s var(--ease);
 }
-.loc.on{color:var(--accent-soft);border-color:#6d72ff45;background:#6d72ff14}
+.loc.on{color:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 34%,var(--line));background:color-mix(in srgb,var(--accent) 10%,transparent)}
 .q{font-size:var(--t-base);font-weight:600;line-height:1.6;margin-bottom:18px}
 .opt{
   display:flex;gap:12px;padding:11px 14px;
@@ -333,18 +363,18 @@ figcaption{margin-top:14px;font-size:var(--t-xs);color:var(--faint);max-width:62
 }
 .opt i{font-style:normal;color:var(--faint);font-family:var(--mono);font-size:var(--t-xs);padding-top:3px}
 .opt-why{display:block;margin-top:5px;font-size:var(--t-xs);color:var(--faint);line-height:1.7}
-.opt.correct{border-color:#4fb28766;background:#4fb2870f;color:var(--text)}
+.opt.correct{border-color:color-mix(in srgb,var(--ok) 45%,var(--line));background:color-mix(in srgb,var(--ok) 8%,transparent);color:var(--text)}
 .opt.correct i{color:var(--ok)}
 
 .cite{
   margin-top:16px;display:inline-flex;align-items:center;gap:9px;
   appearance:none;cursor:pointer;
-  background:#6d72ff14;border:1px solid #6d72ff45;color:var(--accent-soft);
+  background:color-mix(in srgb,var(--accent) 10%,transparent);border:1px solid color-mix(in srgb,var(--accent) 34%,var(--line));color:var(--accent-soft);
   border-radius:999px;padding:8px 16px;font:inherit;font-size:var(--t-xs);
   font-weight:600;letter-spacing:.03em;
   transition:background .3s var(--ease),border-color .3s var(--ease),transform .2s var(--ease);
 }
-.cite:hover{background:#6d72ff26;border-color:var(--accent-soft)}
+.cite:hover{background:color-mix(in srgb,var(--accent) 18%,transparent);border-color:var(--accent-soft)}
 .cite:active{transform:translateY(1px)}
 .cite:focus-visible{outline:2px solid var(--accent-soft);outline-offset:3px}
 .cite-dot{width:5px;height:5px;border-radius:50%;background:currentColor}
@@ -352,7 +382,7 @@ figcaption{margin-top:14px;font-size:var(--t-xs);color:var(--faint);max-width:62
 .demo-hint.off{color:var(--faint)}
 
 /* The ungrounded question, section 01: deliberately inert and unverifiable. */
-.card--void{border-style:dashed;background:#1d212680;backdrop-filter:none}
+.card--void{border-style:dashed;background:var(--bg-deep)}
 .void-q{color:var(--muted);font-weight:600}
 .void-opt{border-style:dashed;color:var(--muted);margin-bottom:0}
 .void-opt i{color:var(--faint)}
@@ -379,7 +409,7 @@ figcaption{margin-top:14px;font-size:var(--t-xs);color:var(--faint);max-width:62
   margin-top:16px;font-size:var(--t-xs);color:var(--faint);
   font-family:var(--mono);line-height:1.9;
 }
-.facts-cap s{color:#5a616b}
+.facts-cap s{color:var(--faint)}
 
 /* ── Mastery legend, review schedule, heatmap ── */
 .legend{display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:26px;font-size:var(--t-xs);color:var(--muted)}
@@ -405,8 +435,8 @@ figcaption{margin-top:14px;font-size:var(--t-xs);color:var(--faint);max-width:62
 @media (pointer:coarse){
   .pill,.jump,.cite{min-height:44px;padding-top:12px;padding-bottom:12px}
 }
-.pill--ok:hover{border-color:var(--ok);background:#4fb2871a}
-.pill--bad:hover{border-color:var(--bad);background:#e0736a1a}
+.pill--ok:hover{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 12%,transparent)}
+.pill--bad:hover{border-color:var(--bad);background:color-mix(in srgb,var(--bad) 12%,transparent)}
 .pill--ghost{color:var(--faint);border-color:var(--line)}
 .sm2-read{display:flex;align-items:center;gap:10px;font-size:var(--t-sm);color:var(--muted)}
 .sm2-next b{color:var(--text)}
@@ -415,11 +445,11 @@ figcaption{margin-top:14px;font-size:var(--t-xs);color:var(--faint);max-width:62
   padding:4px 10px;border-radius:999px;border:1px solid;
   transition:color .35s var(--ease),border-color .35s var(--ease),background .35s var(--ease);
 }
-.chip[data-level="none"]{color:var(--none);border-color:#5b626c55;background:#5b626c14}
-.chip[data-level="bad"]{color:var(--bad);border-color:#e0736a55;background:#e0736a14}
-.chip[data-level="warn"]{color:var(--warn);border-color:#deb05a55;background:#deb05a14}
-.chip[data-level="info"]{color:var(--info);border-color:#61a8dd55;background:#61a8dd14}
-.chip[data-level="ok"]{color:var(--ok);border-color:#4fb28755;background:#4fb28714}
+.chip[data-level="none"]{color:var(--none);border-color:color-mix(in srgb,var(--none) 35%,transparent);background:color-mix(in srgb,var(--none) 9%,transparent)}
+.chip[data-level="bad"]{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 35%,transparent);background:color-mix(in srgb,var(--bad) 9%,transparent)}
+.chip[data-level="warn"]{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 35%,transparent);background:color-mix(in srgb,var(--warn) 9%,transparent)}
+.chip[data-level="info"]{color:var(--info);border-color:color-mix(in srgb,var(--info) 35%,transparent);background:color-mix(in srgb,var(--info) 9%,transparent)}
+.chip[data-level="ok"]{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 35%,transparent);background:color-mix(in srgb,var(--ok) 9%,transparent)}
 /* Bars grow from their baseline, so the state change is a motion, not a redraw. */
 .sm2-bar-rect{transform-box:fill-box;transform-origin:bottom;transition:transform .45s var(--ease),fill .35s var(--ease),opacity .35s var(--ease)}
 .sm2-label{transition:fill .35s var(--ease),opacity .35s var(--ease)}
@@ -462,16 +492,16 @@ figcaption{margin-top:14px;font-size:var(--t-xs);color:var(--faint);max-width:62
 .cmd pre b{color:var(--accent-soft);font-weight:500;-webkit-user-select:none;user-select:none}
 .links{margin-top:30px;display:flex;flex-wrap:wrap;gap:12px}
 .btn{
-  display:inline-flex;align-items:center;gap:10px;padding:13px 24px;
-  border-radius:999px;font-size:var(--t-sm);font-weight:600;text-decoration:none;
+  display:inline-flex;align-items:center;gap:10px;padding:11px 20px;
+  border-radius:var(--radius-sm);font-size:var(--t-sm);font-weight:600;text-decoration:none;
   border:1px solid var(--line-strong);color:var(--text);
   transition:border-color .3s var(--ease),background .3s var(--ease),transform .2s var(--ease);
 }
-.btn:hover{border-color:var(--accent-soft);background:#6d72ff12}
+.btn:hover{border-color:var(--line-strong);background:color-mix(in srgb,var(--text) 6%,transparent)}
 .btn:active{transform:translateY(1px)}
 .btn:focus-visible{outline:2px solid var(--accent-soft);outline-offset:3px}
-.btn--go{background:var(--accent);border-color:var(--accent);color:#fff}
-.btn--go:hover{background:var(--accent-soft);border-color:var(--accent-soft)}
+.btn--go{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn--go:hover{background:color-mix(in srgb,var(--accent),black 12%);border-color:color-mix(in srgb,var(--accent),black 12%)}
 
 footer{
   padding:44px clamp(24px,3vw,48px) 60px 0;
@@ -528,7 +558,6 @@ footer{
 .btn,.pill{max-width:100%;white-space:normal;overflow-wrap:anywhere}
 .col-b,.step>div,.sm2-read{min-width:0}
 .graph-say,figcaption,.fig-cap,.note{overflow-wrap:anywhere}
-@media(prefers-reduced-transparency:reduce){.jump{background:var(--surface);backdrop-filter:none}}
 </style>
 </head>
 <body>
@@ -541,8 +570,8 @@ footer{
   <svg class="rail-svg" id="railSvg" aria-hidden="true" preserveAspectRatio="none">
     <defs>
       <linearGradient id="railGrad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#8b8bff"></stop>
-        <stop offset="1" stop-color="#6d72ff"></stop>
+        <stop offset="0" stop-color="var(--accent-soft)"></stop>
+        <stop offset="1" stop-color="var(--accent)"></stop>
       </linearGradient>
     </defs>
     <path class="rail-base" id="railBase"></path>
@@ -859,7 +888,7 @@ footer{
     var defs = document.createElementNS(NS, "defs");
     defs.innerHTML =
       '<marker id="ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">' +
-      '<path d="M0 0 L8 4 L0 8 z" fill="#8b8bff"></path></marker>';
+      '<path d="M0 0 L8 4 L0 8 z" fill="var(--accent-soft)"></path></marker>';
     svg.appendChild(defs);
 
     // node: x, y, w, label, color, sub
@@ -903,8 +932,8 @@ footer{
       var box = add("rect", {
         "class":"graph-box",
         x:n.x, y:n.y, width:n.w, height:H, rx:9,
-        fill: n.kind === "group" ? "#6d72ff1a" : "var(--surface)",
-        stroke: n.kind === "group" ? "#6d72ff59" : "var(--line)",
+        fill: n.kind === "group" ? "color-mix(in srgb, var(--accent) 12%, var(--surface))" : "var(--surface)",
+        stroke: n.kind === "group" ? "color-mix(in srgb, var(--accent) 45%, var(--line))" : "var(--line)",
         "stroke-width":"1"
       });
       var dot = null;
@@ -944,7 +973,7 @@ footer{
         var e = el[n.id];
         if (e.dot) e.dot.style.fill = n.color;
         if (e.sub) e.sub.textContent = n.sub;
-        e.box.style.stroke = n.kind === "group" ? "#6d72ff59" : "var(--line)";
+        e.box.style.stroke = n.kind === "group" ? "color-mix(in srgb, var(--accent) 45%, var(--line))" : "var(--line)";
       });
       preEdges.forEach(function(p){ p.classList.remove("graph-edge--fire"); });
       counter.textContent = "前置题 2 · 已掌握 1";
@@ -961,13 +990,13 @@ footer{
       preEdges.forEach(function(p){ p.classList.add("graph-edge--fire"); });
 
       // The question itself: one pass recorded.
-      el.t.box.style.stroke = "#4fb28777";
+      el.t.box.style.stroke = "var(--ok)";
       el.t.sub.textContent = "✓ 记一次通过";
 
       // p2 was weak and due — it is credited too, so it leaves 薄弱.
       el.p2.dot.style.fill = "var(--warn)";
       el.p2.sub.textContent = "✓ 一并记一次通过";
-      el.p2.box.style.stroke = "#4fb28755";
+      el.p2.box.style.stroke = "color-mix(in srgb, var(--ok) 55%, var(--line))";
 
       // p1 is already mastered and not due — untouched, on purpose.
       el.p1.sub.textContent = "未到期 · 不动";
@@ -988,7 +1017,7 @@ footer{
     var nextEl = document.getElementById("sm2Next"), chipEl = document.getElementById("sm2Chip");
     var days = [0].concat(rules.intervals), review = rules.initialReview(), grade = null;
     var at = "2026-01-01T00:00:00.000Z";
-    var palette = { weak:"#e0736a", learning:"#deb05a", familiar:"#61a8dd", mastered:"#4fb287", new:"#5b626c" };
+    var palette = { weak:"var(--bad)", learning:"var(--warn)", familiar:"var(--info)", mastered:"var(--ok)", new:"var(--none)" };
     var levelKeys = { weak:"bad", learning:"warn", familiar:"info", mastered:"ok", new:"none" };
     var levelText = { weak:"薄弱", learning:"学习中", familiar:"熟悉", mastered:"已掌握", new:"未学" };
     var W = 520, base = 74, padL = 22, padR = 22, bars = [], labels = [];
@@ -1007,7 +1036,7 @@ footer{
     function render(){
       var level = rules.cardLevel({ review: review }, grade === null ? undefined : grade), index = -1;
       if (grade !== null) { index = 0; if (grade >= 3) for (var n = 1; n < days.length; n++) if (review.interval_days >= days[n]) index = n; }
-      bars.forEach(function(bar, i){ var active = index >= 0 && i <= index; bar.style.fill = active ? palette[level] : "#2f353d";
+      bars.forEach(function(bar, i){ var active = index >= 0 && i <= index; bar.style.fill = active ? palette[level] : "var(--line-strong)";
         bar.style.opacity = active ? "1" : ".55"; bar.style.transform = "scaleY(" + (active ? 1 : 0.35) + ")";
         labels[i].style.fill = i === index ? "var(--text)" : "var(--faint)";
       });

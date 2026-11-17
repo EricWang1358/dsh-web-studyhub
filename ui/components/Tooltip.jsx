@@ -38,13 +38,20 @@ export function focusQuietly(element, options) {
  * ancestor's edge, level with the anchor, and below the anchor itself when there is no room beside.
  * An empty `content` draws no card (and closes an open one): a caller whose words come and go keeps one anchor in the page, so the control
  * it wraps is never remounted when the words appear.
+ * forceOpen: show the card while true (e.g. the 资料 title button has keyboard focus and its cut facts line sits inside it), as long as there are words.
  * onOpenChange(open): told after the card opens or closes (the sidebar says its reorder line in the first card only, ui/nav-reorder-hint.js).
  */
-export default function Tooltip({ content, children, placement = 'bottom-start', flip = true, className, layer = false, anchorClassName, interactive = false, group, outside, onOpenChange }) {
+export default function Tooltip({ content, children, placement = 'bottom-start', flip = true, className, layer = false, anchorClassName, interactive = false, group, outside, onOpenChange, forceOpen = false }) {
   useComponentCss(css);
   useComponentCss(overlayCss, 'study-overlays');
   useComponentCss(layerCss, 'study-tooltip-layer');
   const [open, setOpen] = useState(false);
+  // forceOpen: the caller opens the card while something the card's own handlers cannot see holds (keyboard focus on a control that contains the anchor),
+  // and closes it when that ends. It opens like any other way, so another card of its `group` still closes it.
+  const forced = forceOpen && Boolean(content);
+  const held = useRef(forced);
+  held.current = forced;
+  useIsoLayoutEffect(() => { setOpen(forced); }, [forced]);
   const id = useId(), anchor = useRef(null), panel = useRef(null), timer = useRef(0), self = useRef(null), pressedAt = useRef(0);
   if (!self.current) self.current = { close: () => {} };
   self.current.close = () => { clearTimeout(timer.current); setOpen(false); };
@@ -92,8 +99,9 @@ export default function Tooltip({ content, children, placement = 'bottom-start',
   useEffect(() => () => { if (wasOpen.current) openChange.current?.(false); }, []); // an open card that goes away has closed
   const worded = Boolean(content);
   useEffect(() => { if (!worded) { clearTimeout(timer.current); setOpen(false); } }, [worded]);
-  const later = (delay, visible) => { clearTimeout(timer.current); timer.current = setTimeout(() => setOpen(visible && worded), delay); };
-  const now = visible => { clearTimeout(timer.current); setOpen(visible && worded); };
+  // Hover and focus on the anchor itself only add to a forced card: leaving the anchor returns to it (still open while the caller holds it).
+  const later = (delay, visible) => { clearTimeout(timer.current); timer.current = setTimeout(() => setOpen((visible || held.current) && worded), delay); };
+  const now = visible => { clearTimeout(timer.current); setOpen((visible || held.current) && worded); };
   const child = React.Children.only(children);
   const describedBy = [child.props['aria-describedby'], id].filter(Boolean).join(' ');
   const own = child.props;

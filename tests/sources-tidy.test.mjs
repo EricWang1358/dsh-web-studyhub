@@ -51,7 +51,28 @@ test('#1083: the index badge has one place on every row, the status line, in a s
   assert.equal(jsx.match(/\{[^{}]*indexSlot\}/g).length, 1, 'and is drawn nowhere else (not on the actions line of a narrow row)');
   assert.doesNotMatch(jsx, /DocumentRow\([^)]*\bnarrow\b/, 'a row does not depend on the page width');
   assert.match(css, /\.source-doc__status > \.source-doc__index \{[^}]*min-width: var\(--index-slot\)/, 'the slot is never narrower than --index-slot, so a long button line cannot crush it');
-  assert.match(css, /\.source-doc__line > \.source-doc__status \{[^}]*grid-column: -3 \/ -1/, 'the status line runs under the actions too: hidden actions never narrow it');
+  assert.match(css, /\.source-doc__line > \.source-doc__status \{[^}]*grid-column: text-start \/ -1/, 'the status line runs under the actions too: hidden actions never narrow it');
+  // Round 6: the actions are always shown, in a column as wide as they are (at most half the row), so they lie over no word and hover moves nothing; one line
+  // of buttons; before the status line in the DOM (Tab follows the lines); rename lives in 更多 and F2, not in a pencil on the row.
+  assert.match(css, /\.source-doc__line \{[^}]*grid-template-columns: \[text-start\] minmax\(0, 1fr\) \[text-end\] fit-content\(50%\);/, 'a content-sized column, capped at half the row');
+  // Round 7: the row shows ONE action (补题 where it is offered, else 从这份资料出题) and 更多, which holds the rest; a button is never narrower than its words.
+  assert.match(jsx, /\{topUp \? <DocumentTopUp [^>]*buttonClassName="source-doc__action" \/>\s*: canGenerate && <Button/, 'one action beside the title: 补题, else 从这份资料出题');
+  assert.match(jsx, /onGenerate=\{topUp && canGenerate \?/, 'and 从这份资料出题 in 更多 when 补题 is that action');
+  assert.match(jsx, /onCompanion=\{companionTarget && openModal \?/, 'the interactive companion in 更多');
+  assert.equal(jsx.match(/ui\('打开交互伴学页'\)/g).length, 1, 'and nowhere else on the row');
+  assert.match(css, /\.source-doc__line > \.source-doc__actions \{[^}]*flex-wrap: nowrap;/, 'one line of buttons, never one alone on a line');
+  assert.match(css, /\.source-doc__actions \.source-doc__action \{ white-space: normal; word-break: keep-all; text-wrap: pretty; text-align: start; \}/, 'a label breaks only at a space, with no lone last word, its lines beside its icon; a zh label keeps its words whole');
+  assert.doesNotMatch(css, /\.source-doc__actions?[^{]*\{[^}]*overflow-wrap: anywhere/, 'no button is squeezed into a column of letters');
+  assert.match(css, /\.source-doc__actions \{[^}]*justify-content: safe flex-end;/, 'a narrow row never pushes a button out past its start');
+  assert.match(jsx, /<Tooltip layer group="source-facts" anchorClassName="source-doc__facts-tip" content=\{coursesCut \? coursesText : ''\} forceOpen=\{titleFocus\}>/, 'a cut courses piece says all of it on hover and on keyboard focus of the title, one card at a time');
+  const hover = css.slice(css.indexOf('@media (hover: hover) and (pointer: fine)'), css.indexOf('/* A narrow 资料 page'));
+  assert.doesNotMatch(hover, /source-doc__actions|--source-doc-veil/, 'hover only tints the row: no actions laid over it');
+  assert.doesNotMatch(css, /\.source-doc__actions \{[^}]*(position: absolute|opacity: 0)/, 'no overlay, no hidden actions');
+  assert.doesNotMatch(css, /var\(--bg-canvas\) var\(--space-8\)/, 'no fade painted in a fixed colour');
+  assert.ok(jsx.indexOf('<div className="source-doc__actions">') < jsx.indexOf('<div className="source-doc__status"'), 'the actions come before the status line in the DOM');
+  assert.doesNotMatch(jsx, /source-doc__rename/, 'no pencil on the row');
+  assert.match(jsx, /onRename=\{editor \? startEditing : undefined\}/, 'rename stays in 更多');
+  assert.doesNotMatch(css, /max-width: 45%/, 'the facts line has no fixed cap that cuts a line that fits');
   // The shared Badge may wrap elsewhere (the 创建题组 picker); in a 资料 row's slot its words keep one line and end in an ellipsis, so it is never taller than its slot.
   const badgeCss = await read('ui/sources-page.css');
   assert.match(badgeCss, /\.source-doc__index \.index-badge__text \{[^}]*white-space: nowrap[^}]*text-overflow: ellipsis/, 'the row badge keeps one line (it ends in an ellipsis), so it is never taller than its slot');
@@ -61,6 +82,9 @@ test('#1083: the header keeps 添加资料 last on the title row and shows the o
   const jsx = await read('ui/Sources.jsx');
   assert.match(jsx, /actions=\{headerActions\} actionsOnTitleRow \/>/, 'the actions always end the title row');
   assert.match(jsx, /const fullHeader = useRowFit\(pageRef,/, 'whether the full set fits is measured, not read from a width');
+  assert.match(jsx, /<div className="sources-page__fit" aria-hidden="true" inert><div className="sh-page-header__actions">\{fullActions\(false\)\}/, 'on a hidden copy, so the visible header is never drawn only to be measured');
+  const hook = await read('ui/use-row-fit.js');
+  assert.doesNotMatch(hook, /setFits\(true\)/, 'the hook never flips the visible set back to measure it');
   const compact = jsx.slice(jsx.indexOf('    : <>', jsx.indexOf('const headerActions = fullHeader')), jsx.indexOf('</>;', jsx.indexOf('const headerActions = fullHeader')));
   assert.match(compact, /<Menu[^]*\{addButton\}\s*$/, 'compact: 更多, then the primary at the right edge');
   for (const id of ['archived', 'groups', 'companions']) assert.match(compact, new RegExp(`id: '${id}'`));

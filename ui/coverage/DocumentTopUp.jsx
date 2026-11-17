@@ -56,15 +56,15 @@ export function DocumentTopUpBody({ view, onStart }) {
   </div>;
 }
 
-/** The button and its popover. `item` is the document (lib/source-groups.js), `revision` the library's (the answer is asked again when it changes). */
-export default function DocumentTopUp({ item, revision, size = 'sm', className = '', placement = 'bottom-end', block = false }) {
+/** The button and its popover. `item` is the document (lib/source-groups.js), `revision` the library's (the answer is asked again when it changes); `buttonClassName` styles the button itself. */
+export default function DocumentTopUp({ item, revision, size = 'sm', className = '', buttonClassName, placement = 'bottom-end', block = false }) {
   useInjectCss(css, 'study-coverage');
   const { act, notify } = useStudy();
   const [open, setOpen] = useState(false);
   const asked = useCoverage(open && item ? { documentId: item.key } : null, { version: String(revision ?? ''), enabled: open });
   const start = (args, chosen) => { setOpen(false); act('generate', args, (started) => notify?.(topUpNotice({ title: partTitle(chosen.title, chosen.nextPart) }, started))); };
   return <Popover open={open} onOpenChange={setOpen} label={actionLabel('topup')} className={`cov-popover ${className}`.trim()} panelClassName="cov-popover__panel" placement={placement}
-    trigger={({ props, ref }) => <Button ref={ref} size={size} variant="secondary" block={block} {...props} data-document-topup-open>{actionLabel('topup')}</Button>}>
+    trigger={({ props, ref }) => <Button ref={ref} size={size} variant="secondary" icon="sparkle" block={block} className={`cov-topup-trigger ${buttonClassName ?? ''}`.trim()} {...props} data-document-topup-open>{actionLabel('topup')}</Button>}>
     {asked.view ? <DocumentTopUpBody view={asked.view} onStart={start} /> : <LoadingState label={ui('正在读取这份资料的覆盖…')} />}
   </Popover>;
 }

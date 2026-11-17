@@ -18,12 +18,14 @@ import { useGenerationPath } from './use-generation-path.js';
 import { MODES, availableModes, effectiveMode, pathSummary, showsChoice } from './too-big-choice.js';
 import { courseForSources } from '../lib/source-courses.js';
 import { generationRulesOf } from '../lib/courses.js';
-import { AddSourceButton, Button, Disclosure, EmptyState, Hint, Icon, InlineMessage, PageHeader, SegmentedControl, TabPanel, Tabs, Tooltip, addSourceAction } from './components/index.js';
+import { Button, Disclosure, EmptyState, Hint, Icon, InlineMessage, PageHeader, SegmentedControl, TabPanel, Tabs, Tooltip, addSourceAction } from './components/index.js';
 import ModelSetupGate from './ModelSetupGate.jsx';
 import { freshGeneration, generationFormDefaults, modelReadiness } from './generation-status.js';
 import { startGeneration } from './generate-start.js';
 import GenerateAssist from './GenerateAssist.jsx';
 import { TokenEstimate, TokenEstimateView, useUsageEstimate } from './TokenUsage.jsx';
+import { callsText } from './token-usage.js';
+import { useStickyRoom } from './use-sticky-room.js';
 import CoverageStrength, { MaterialsForecast } from './coverage/CoverageStrength.jsx';
 import { autoLine } from './coverage/copy.js';
 import { openingLine, openingSelection, openingStands } from './generate-opening.js';
@@ -33,7 +35,7 @@ import { generateAdvice, retrievalReady } from './large-document-advice.js';
 import { useRetrievalStatus } from './retrieval-status.js';
 import {
   DIFFICULTIES, LANGUAGES, appendFocus, applySuggestion, autoOf, customCountOf, courseHasCaseExam, coverageStructure,
-  NOTATION_CHOICES, caseEvidence, difficultyNote, estimateMinutes, estimateRequestOf, importDialog, kindNote, kindsOfForm, kindsPatch, extraValuesOf, moreValuesOf, notationNote, courseLine, roleOpenByDefault, selectionStats, summaryLine,
+  NOTATION_CHOICES, caseEvidence, chosenOptions, difficultyNote, estimateMinutes, estimateRequestOf, importDialog, kindNote, kindsOfForm, kindsPatch, extraValuesOf, moreValuesOf, notationNote, courseLine, roleOpenByDefault, selectionStats, summaryLine,
 } from './generate-form.js';
 import { DEFAULT_LEVEL, levelOf } from '../lib/coverage-strength.js';
 import homeCss from './generate-home.css';
@@ -77,8 +79,9 @@ export default function Generate({
   useInjectCss(formCss, "study-generate-form");
   useInjectCss(focusIntakeCss, "study-focus-intake");
   const [sourceScope, setSourceScope] = usePageScope(data.root, 'generate-sources', data.focus?.course ?? '*');
-  // Whether each material's search index is built: the picker rows say so (and follow a running build).
-  const [indexCoverage, , indexStatus] = useIndexCoverage(call);
+  // Whether each material's search index is built: the picker rows say so (and follow a running build). The page is drawn at once, as any page; every row keeps
+  // the badge's slot, so the answer moves nothing whenever it comes (#1084).
+  const [indexCoverage] = useIndexCoverage(call);
   const known = courseNamesOf(data);
   const referenceSourceIds = gen.referenceSourceIds || [];
   const referenceState = referenceSelection(data.sources, referenceSourceIds, selectedSources, gen.referenceLimits, gen.referenceFormat);
@@ -110,6 +113,8 @@ export default function Generate({
   const pathMode = choice && mode === MODES.path, retrievalMode = choice && mode === MODES.retrieval;
   // 更多选项 holds every optional choice; it stays shut unless the form carries one (something typed, a choice that is not the saved default) or the way on needs a topic, so nothing set is hidden.
   const saved = React.useMemo(() => generationFormDefaults(data.settings?.generation), [data.settings?.generation]);
+  // Shut, it still says the choices a run will use that are not the plain defaults (a difficulty, a language, a formula style), saved ones included (#1082).
+  const chosen = chosenOptions(gen, generationFormDefaults());
   const [moreChoice, setMoreChoice] = React.useState(null);
   const [courseOpen, setCourseOpen] = React.useState(false);
 
@@ -148,8 +153,9 @@ export default function Generate({
   const openGenerationSettings = () => (openSettingsSection ? openSettingsSection(settingsSectionOr('settings-generation', 'settings-generation')) : setPage?.("settings"));
   // The page opens filled in (ui/generate-opening.js): with nothing ticked yet (the sidebar entry; the home and the checklist tick their own) the current course's documents that have no question
   // are ticked and one line says why; one document (a PDF is several page sources) is ticked because there is nothing to choose. Only on entering the page, so 清空选择 still sticks.
+  // Before the first paint (a layout effect): the page is drawn at once, and the line and the ticks are in its first frame, never a line that pushes the list down (#1084).
   const [opening, setOpening] = React.useState(null);
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     if (selectedSources.length) return;
     const found = openingSelection(data, { scope: sourceScope, known, exclude: referenceSourceIds });
     if (!found.sourceIds.length) return;
@@ -189,7 +195,10 @@ export default function Generate({
   const plannedCoverage = planned.status === 'ready' ? planned.estimate?.coverage : null, plannedGoal = plannedCoverage?.goal ?? null;
   // A summary promises questions: not for a button that is off (the reason is said below), and for the steps it is their own total.
   const blocked = !pathMode && advice.blocked;
-  const summary = pathMode ? pathSummary(path.included) : blocked ? '' : summaryLine({ ...stats, count: plannedGoal, difficulty: gen.difficulty, language: gen.language, minutes: plannedGoal ? estimateMinutes(data.jobs, plannedGoal) : null });
+  const summary = pathMode ? pathSummary(path.included) : blocked ? '' : summaryLine({ ...stats, count: plannedGoal, difficulty: gen.difficulty, language: gen.language, minutes: plannedGoal ? estimateMinutes(data.jobs, plannedGoal) : null }, { choices: false });
+  // The plan is priced for these materials: the tokens in the bar, the rest of the plan under it.
+  const estimating = !pathMode && !blocked && selectedSources.length > 0 && !referenceState.reason;
+  const barRoom = useStickyRoom('--generate-bar-room');
   return (
     <section className="page generate-page">
       <PageHeader className="generate-header" title={ui("出一组新题")}
@@ -231,13 +240,10 @@ export default function Generate({
               {/* Why these are ticked (only while the ticks are still the ones the page opened with). */}
               {openingStands(opening, selectedSources) && <p className="generate-opening muted" data-opening-reason>{openingLine(opening.reason)}</p>}
               {/* One row per document with its pages on demand; counts are in documents (WP3, P18). */}
-              <SourcePicker sources={evidenceSources} selected={selectedSources} onChange={setSelectedSources} indexCoverage={indexCoverage} indexSlot={indexStatus !== "unavailable"}
-                courses={data.focus?.courses} scope={sourceScope} onScopeChange={setSourceScope} disabled={busy}
+              {/* 添加资料 under the list is the one way to add material from here (the shared import dialog, WP3); the index line shares its line. */}
+              <SourcePicker sources={evidenceSources} selected={selectedSources} onChange={setSelectedSources} indexCoverage={indexCoverage}
+                courses={data.focus?.courses} scope={sourceScope} onScopeChange={setSourceScope} disabled={busy} onAdd={openImport}
                 onIndex={(course) => openIndexBuilder(openLargeDocumentSettings, course)} />
-              <div className="generate-sources-actions">
-                {/* The one way to add material from here: the shared import dialog (WP3). */}
-                <AddSourceButton variant="quiet" className="sh-btn--flush-start" onClick={openImport} />
-              </div>
               {/* A selection too big for one generation: ONE block with the ways on (steps / pages by topic), only the chosen one drawn; with no search tool the old card is a fold under it. */}
               {choice && <TooBigChoice advice={advice} stats={stats} modes={modes} mode={mode} onMode={setChosenMode} disabled={busy}
                 card={advice.tooBig && !retrievalReady(retrieval) ? <LargeDocumentCard reason="selection" detail={{ chars: advice.chars }} retrieval={retrieval} onOpenSettings={openLargeDocumentSettings}
@@ -275,7 +281,7 @@ export default function Generate({
                   <Button variant="link" size="sm" onClick={() => setGenSource("case")}>{ui("切到案例分析题")}</Button></span>}
               </div>
               {courseOpen && <div className="generate-course"><CourseField courses={data.focus?.courses} label={ui("新题组放进的课程")} value={generationCourse} onChange={course => setGen({ ...gen, course })} /></div>}
-              <Disclosure className="generate-more" bodyClassName="generate-more__body" data-tour="generate-more" summary={ui("更多选项")} meta={ui("想练什么、难度、花费、额外要求")} open={foldOpen} onToggle={setMoreOpen}>
+              <Disclosure className="generate-more" bodyClassName="generate-more__body" data-tour="generate-more" summary={ui("更多选项")} meta={chosen.length ? chosen.join(" · ") : ui("想练什么、难度、花费、额外要求")} open={foldOpen} onToggle={setMoreOpen}>
                 <FormGroup title={ui("想练什么")}>
                   <FormRow label={ui("这次想练什么？")} htmlFor="generate-focus" data-tour="generate-focus">
                     <textarea id="generate-focus" ref={focusBox} className="generate-focus generate-row__input" rows={2} value={gen.focus}
@@ -344,49 +350,60 @@ export default function Generate({
               </Disclosure>
               {!pathMode && custom && selectedPdfPages > custom && <InlineMessage tone="warning">{uiFormat("已选 {0} 页 PDF，计划生成 {1} 题。题数少于页数，不能保证逐页考察；可缩小页码范围、取消自定义题数，或按覆盖强度出题。", [selectedPdfPages, custom])}</InlineMessage>}
             </fieldset>
-            <div className="generate-submit" data-tour="generate-summary">
+            {/* The DOM is the order it is seen (#1082): the count and what it costs, the one button and why it is off; then what the run asks for and how it goes on;
+                then the note about the checks. The bar is a child of the form, so it can stay at the bottom of the view while its place is further down
+                (ui/generate-home.css). Its two lines are there whatever is ticked (with nothing ticked the first says what to do), so the bar keeps one height and the
+                button one place; the tokens are in it, where the tour's step about the cost lights them. */}
+            <div className="generate-submit" data-generate-bar data-tour="generate-summary" ref={barRoom}>
+              <div className="generate-submit__lines">
+                {/* Whole pieces (「·」 between them): a line too narrow for all of them leaves the last ones out, never half a word (#1082). */}
+                {summary ? <p className="generate-summary" role="status">{summary.split(' · ').map((piece, at) => <React.Fragment key={at}>{at ? ' ' : ''}<span className="generate-summary__piece">{at ? `· ${piece}` : piece}</span></React.Fragment>)}</p>
+                  : <p className="muted generate-submit__note" role="status">{model.ready && !selectedSources.length ? ui("先在「01 / 选择资料」勾选资料。") : ""}</p>}
+                {!pathMode && <div className="generate-submit__cost" data-generate-estimate>
+                  {estimating && <TokenEstimateView state={planned} totalOnly />}
+                </div>}
+              </div>
+              {!model.ready ? (
+                /* P14: no usable model, so there is nothing to click into a 20-second failure; the banner on top says why. */
+                <Button variant="primary" type="submit" icon="sparkle" className="generate-submit__btn" disabled data-tour="generate-submit">{ui("生成并检查题组")}</Button>
+              ) : pathMode ? (
+                <Tooltip layer placement="top-start" anchorClassName="generate-submit__btn" content={ui("每一步是一个独立的出题任务，按顺序排队；先做完的一步就可以先练。")}>
+                  <Button variant="primary" type="submit" icon="sparkle" busy={path.queueing} disabled={busy || !path.included.length || !!referenceState.reason}
+                    data-tour="generate-submit" data-usage="generate.path-queue">
+                    {uiFormat("按路径逐步出题 · {0} 步依次排队", [path.included.length])}
+                  </Button>
+                </Tooltip>
+              ) : (
+                <Button variant="primary" type="submit" icon="sparkle" className="generate-submit__btn" busy={busy} disabled={!selectedSources.length || advice.blocked || !!referenceState.reason || invalidQuota}
+                  data-tour="generate-submit" data-usage="generate.submit">
+                  {running ? ui("加入生成队列") : ui("生成并检查题组")}
+                </Button>
+              )}
+              {/* Why the button is off, once: with pages picked by topic the panel above already says the topic is missing, so here it is only what to do. */}
+              {model.ready && blocked && (retrievalMode ? <Hint>{ui("写下主题后才能生成。")}</Hint>
+                : <InlineMessage tone="warning">{ui("所选资料超过一次生成的上限。请按章节缩小选择，或按上面的建议用检索工具。")}</InlineMessage>)}
+              {model.ready && running && <p className="muted generate-submit__note">{ui("已有出题任务在进行，新的会排在它后面。")}</p>}
+            </div>
+            <div className="generate-run" data-generate-run>
+              {model.ready && pathMode && path.groups.length > 0 && <InlineMessage tone="warning" boxed title={uiFormat("有 {0} 步没能开始", [path.report.failed.length])}>
+                {path.groups.map(group => <p key={group.message} className="gen-path__failure">{group.message}{" "}<small>{group.steps.length > 3
+                  ? uiFormat("（{0} 等 {1} 步）", [group.steps.slice(0, 3).join("、"), group.steps.length]) : uiFormat("（{0}）", [group.steps.join("、")])}</small></p>)}
+              </InlineMessage>}
+              {!pathMode && selectedSources.length > 0 && <EffectiveRequirementsStrip gen={gen} focusCount={activeFocusCount} referenceCount={referenceSourceIds.length} ruleCount={generationRulesOf(data, generationCourse).length} />}
+              {/* The rest of the plan, said once: how much it covers, in how many rounds and model calls (the ⓘ has the stages), and whether the rest goes on by
+                  itself (the count and the tokens are the bar's). */}
+              {estimating && <div className="generate-estimate" data-generate-coverage>
+                <TokenEstimateView state={planned} lead={coverageStructure(plannedCoverage)} summary={estimate => callsText(estimate.calls)} warn={false} tight />
+                <MaterialsForecast coverage={plannedCoverage} />
+                {plannedCoverage?.rounds > 1 && <p className="generate-note" data-coverage-auto-note>{autoLine(autoOf({ ...gen, coverageLevel: level }), plannedCoverage.rounds,
+                  plannedCoverage.leaves > 0 && Number.isFinite(plannedCoverage.firstRoundSections) ? { level: plannedCoverage.level, percent: Math.round(plannedCoverage.firstRoundSections / plannedCoverage.leaves * 100) } : undefined)}</p>}
+              </div>}
               <div className="quality-note generate-quality">
                 <Icon name="sparkle" />
                 <p><span className="generate-quality__lead">{ui("原文引用核验 · 独立质量审阅 · 干扰项逐项解释")}</span>{" "}
                   <small>{ui("出题时已逐题核验并审阅；生成结果先进入草稿，你看过再发布；想再检查一遍，在草稿页点「保存并校验」。")}</small>
                 </p>
               </div>
-              {!pathMode && selectedSources.length > 0 && <EffectiveRequirementsStrip gen={gen} focusCount={activeFocusCount} referenceCount={referenceSourceIds.length} ruleCount={generationRulesOf(data, generationCourse).length} />}
-              {summary && <p className="generate-summary" role="status">{summary}</p>}
-              {/* The plan, said once: the tokens and calls it costs, how many rounds, and whether the rest goes on by itself (the count is the line above's). */}
-              {!pathMode && !blocked && selectedSources.length > 0 && !referenceState.reason && <div className="generate-estimate" data-generate-estimate>
-                <TokenEstimateView state={planned} lead={coverageStructure(plannedCoverage)} tight />
-                <MaterialsForecast coverage={plannedCoverage} />
-                {plannedCoverage?.rounds > 1 && <p className="generate-note" data-coverage-auto-note>{autoLine(autoOf({ ...gen, coverageLevel: level }), plannedCoverage.rounds,
-                  plannedCoverage.leaves > 0 && Number.isFinite(plannedCoverage.firstRoundSections) ? { level: plannedCoverage.level, percent: Math.round(plannedCoverage.firstRoundSections / plannedCoverage.leaves * 100) } : undefined)}</p>}
-              </div>}
-              {model.ready ? <>
-                {!selectedSources.length && <p className="muted generate-submit__note">{ui("在「01 / 选择资料」勾选至少一份资料后即可生成。")}</p>}
-                {/* Why the button is off, once: with pages picked by topic the panel above already says the topic is missing, so here it is only what to do. */}
-                {blocked && (retrievalMode ? <Hint>{ui("写下主题后才能生成。")}</Hint>
-                  : <InlineMessage tone="warning">{ui("所选资料超过一次生成的上限。请按章节缩小选择，或按上面的建议用检索工具。")}</InlineMessage>)}
-                {running && <p className="muted generate-submit__note">{ui("已有出题任务在进行，新的会排在它后面。")}</p>}
-                {pathMode ? <>
-                  <Tooltip layer placement="top-start" content={ui("每一步是一个独立的出题任务，按顺序排队；先做完的一步就可以先练。")}>
-                    <Button variant="primary" type="submit" icon="sparkle" busy={path.queueing} disabled={busy || !path.included.length || !!referenceState.reason}
-                      data-tour="generate-submit" data-usage="generate.path-queue">
-                      {uiFormat("按路径逐步出题 · {0} 步依次排队", [path.included.length])}
-                    </Button>
-                  </Tooltip>
-                  {path.groups.length > 0 && <InlineMessage tone="warning" boxed title={uiFormat("有 {0} 步没能开始", [path.report.failed.length])}>
-                    {path.groups.map(group => <p key={group.message} className="gen-path__failure">{group.message}{" "}<small>{group.steps.length > 3
-                      ? uiFormat("（{0} 等 {1} 步）", [group.steps.slice(0, 3).join("、"), group.steps.length]) : uiFormat("（{0}）", [group.steps.join("、")])}</small></p>)}
-                  </InlineMessage>}
-                </> : (
-                  <Button variant="primary" type="submit" icon="sparkle" className="generate-submit__btn" busy={busy} disabled={!selectedSources.length || advice.blocked || !!referenceState.reason || invalidQuota}
-                    data-tour="generate-submit" data-usage="generate.submit">
-                    {running ? ui("加入生成队列") : ui("生成并检查题组")}
-                  </Button>
-                )}
-              </> : (
-                /* P14: no usable model, so there is nothing to click into a 20-second failure; the banner on top says why. */
-                <Button variant="primary" type="submit" icon="sparkle" className="generate-submit__btn" disabled data-tour="generate-submit">{ui("生成并检查题组")}</Button>
-              )}
             </div>
           </form>
         </>

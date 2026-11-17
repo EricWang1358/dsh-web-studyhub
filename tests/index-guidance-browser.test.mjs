@@ -59,7 +59,8 @@ test('a 513-page book with no index: the shortcut line on 创建题组 explains 
       await gap.waitFor({ timeout: 30000 });
       await settleAnimations(page);
       await frames(page, 3);
-      assert.match(await gap.innerText(), /有 1 份资料的索引还没建完/);
+      // 创建题组 has the short line, beside 添加资料 under the list (#1084, round 4).
+      assert.match(await gap.innerText(), /1 份资料未建完索引/);
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth) <= 0, `${width}px: no sideways scroll`);
       // The hover has the facts.
       await gap.locator('span[tabindex="0"]').hover();
@@ -69,7 +70,7 @@ test('a 513-page book with no index: the shortcut line on 创建题组 explains 
       if (SHOTS) await page.screenshot({ path: join(SHOTS, `generate-hint-${width}.png`) });
       await page.mouse.move(0, 0);
       // The button goes to 设置 › 检索扩展 with the book's course chosen, and the panel says what the index costs and is for.
-      await gap.getByRole('button', { name: '去建立索引' }).click();
+      await gap.getByRole('button', { name: '建立索引' }).click();
       const note = page.locator('[data-index-note]').first();
       await note.waitFor({ timeout: 30000 });
       await page.locator('.extension-panel__course').first().waitFor({ timeout: 30000 });

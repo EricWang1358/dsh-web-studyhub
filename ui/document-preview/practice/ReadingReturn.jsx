@@ -1,8 +1,9 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useRef } from 'react';
 import { ui, uiFormat } from '../../i18n.js';
 import { useInjectCss } from '../../shared.js';
 import { Button, Icon, Tooltip } from '../../components/index.js';
 import { cx } from '../../components/css.js';
+import { useCut } from '../../use-cut.js';
 import { MasteryMark } from './MasteryMark.jsx';
 import { meaningLine, scopeLabel } from './mastery-copy.js';
 import { firstCitation } from './citations.js';
@@ -71,24 +72,6 @@ export function MasteryChange({ change, kind = 'pages', className }) {
 export function placeText(reading) {
   const where = reading?.sectionTitle || (reading?.page ? uiFormat('第 {0} 页', [reading.page]) : '');
   return where ? uiFormat('回到「{0}」', [where]) : ui('回到你读到的位置');
-}
-
-const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
-
-/** Is the text of this element cut by its width (one line, ellipsis)? Measured again when the element is resized. */
-function useCut(ref, text) {
-  const [cut, setCut] = useState(false);
-  useIsoLayoutEffect(() => {
-    const element = ref.current;
-    if (!element) { setCut(false); return undefined; }
-    const measure = () => setCut(element.scrollWidth > element.clientWidth + 1);
-    measure();
-    if (typeof ResizeObserver === 'undefined') return undefined;
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [ref, text]);
-  return cut;
 }
 
 /** The primary button of a way back: what it does, and in quiet type under it where it leads. `arrow` puts the back arrow (the Phosphor icon, the one arrow of every way
