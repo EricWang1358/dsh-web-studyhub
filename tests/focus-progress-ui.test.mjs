@@ -22,7 +22,9 @@ const m = await loadUi(`
 `);
 const h = React.createElement;
 const noop = () => {};
-const text = markup => markup.replace(/<[^>]+>/g, ' ').replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/\s+/g, ' ').trim();
+/* The pieces of the home line (head, each count with its words) are inline spans of one sentence: they read as the text they hold, not as separate blocks. */
+const joinPieces = markup => markup.replace(/<span class="focus-progress__piece">([^<]*)<\/span>/g, '$1').replace(/<span class="focus-progress__words">([^<]*)<\/span>/g, '$1');
+const text = markup => joinPieces(markup).replace(/<[^>]+>/g, ' ').replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/\s+/g, ' ').trim();
 /* What the learner reads without hovering: the markup without its tooltips. */
 const visible = markup => text(markup.replace(/<span id="[^"]*" role="tooltip"[^>]*>[^<]*<\/span>/g, ''));
 const render = (element, language = 'zh') => { m.setUiLanguage(language); try { return renderToStaticMarkup(inApp(m, element, { call: async () => ({}) })); } finally { m.setUiLanguage('zh'); } };
@@ -100,6 +102,13 @@ test('English reads as a sentence, with the singular, not two counts glued toget
   assert.match(visible(render(h(m.FocusProgressLine, { progress: { ...one, none: 3, total: 3 }, courseId: 'c', start: noop }), 'en')), /3 focus topics: 3 without questions/);
   assert.match(visible(render(h(m.FocusProgressLine, { progress: { ...one, none: 0, done: 1 }, courseId: 'c', start: noop }), 'en')), /1 focus topic: 1 mastered/);
   assert.match(visible(desk({ progress: one })), /重点 1 条：还没有题 1/, 'Chinese is unchanged');
+  // The line is drawn in pieces that never break (the head and each count with its words), joined by the spaces the sentence has: the same visible words, the same accessible name.
+  const piecesOf = (markup) => [...markup.matchAll(/<span class="focus-progress__piece">([^<]*)<\/span>/g)].map(found => found[1]);
+  const mix = { ...progress, total: 7, done: 2, weak: 2, none: 2 };
+  assert.deepEqual(piecesOf(render(h(m.FocusProgressLine, { progress: mix, courseId: 'c', start: noop }), 'en')), ['7 focus topics:', '2 mastered ·', '2 not yet ·', '2 without questions']);
+  assert.deepEqual(piecesOf(render(h(m.FocusProgressLine, { progress: { ...one, none: 1 }, courseId: 'c', start: noop }), 'en')), ['1 focus topic:', '1 without a question']);
+  assert.deepEqual(piecesOf(render(h(m.FocusProgressLine, { progress: mix, courseId: 'c', start: noop }), 'zh')), ['重点 7 条：', '已掌握 2 ·', '还不会 2 ·', '还没有题 2']);
+  assert.match(visible(render(h(m.FocusProgressLine, { progress: mix, courseId: 'c', start: noop }), 'zh')), /重点 7 条：已掌握 2 · 还不会 2 · 还没有题 2/, 'no space after the Chinese colon');
 });
 
 /* The elements of a component's output, to press a button without a DOM: the line has no hooks, so calling it gives its tree. */
