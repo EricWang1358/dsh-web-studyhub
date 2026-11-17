@@ -2,11 +2,13 @@ import { useEffect, useLayoutEffect, useState } from 'react';
 
 const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
-/** Is the text of this element cut by its width (one line, ellipsis)? Measured again when the element is resized or `text` changes. */
+/** Is the text of this element cut by its width (one line, ellipsis)? Measured again when the element is resized, `text` changes, or the element itself is
+ *  replaced (a row that leaves and comes back from its rename field draws a new one: the old observer would keep watching the detached element). */
 export function useCut(ref, text) {
   const [cut, setCut] = useState(false);
+  const [element, setElement] = useState(null);
+  useIsoLayoutEffect(() => { if (ref.current !== element) setElement(ref.current); });
   useIsoLayoutEffect(() => {
-    const element = ref.current;
     if (!element) { setCut(false); return undefined; }
     const measure = () => setCut(element.scrollWidth > element.clientWidth + 1);
     measure();
@@ -14,6 +16,6 @@ export function useCut(ref, text) {
     const observer = new ResizeObserver(measure);
     observer.observe(element);
     return () => observer.disconnect();
-  }, [ref, text]);
+  }, [element, text]);
   return cut;
 }
