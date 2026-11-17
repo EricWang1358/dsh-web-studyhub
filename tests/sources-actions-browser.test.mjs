@@ -164,6 +164,14 @@ test('a 资料 row with several actions stays tidy at every width in zh and en',
         await page.waitForTimeout(80);
         const shown = await page.locator('.source-doc').nth(cutAt).evaluate(row => !!row.querySelector('.source-doc__facts-tip [role="tooltip"]')?.matches(':popover-open'));
         if (!shown) faults.push(`${at}: ${rows[cutAt].title}: the cut courses tip does not open on keyboard focus of the title`);
+        // (k) the mouse passing over the focused title's own cut piece and leaving it does not close the card while the title keeps focus.
+        const piece = page.locator('.source-doc').nth(cutAt).locator('.source-doc__facts-tip');
+        await piece.hover();
+        await page.waitForTimeout(150);
+        await page.mouse.move(0, 0);
+        await page.waitForTimeout(150);
+        const kept = await page.locator('.source-doc').nth(cutAt).evaluate(row => !!row.querySelector('.source-doc__facts-tip [role="tooltip"]')?.matches(':popover-open'));
+        if (!kept) faults.push(`${at}: ${rows[cutAt].title}: the mouse leaving the cut piece closes the card while the title keeps focus`);
         // (i) a second cut piece hovered while the first is open: one card on screen, never two.
         const other = rows.findIndex((row, index) => index !== cutAt && row.facts[0]?.cut);
         if (other >= 0) {
