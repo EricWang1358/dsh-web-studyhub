@@ -281,8 +281,8 @@ export default function Generate({
                   <Button variant="link" size="sm" onClick={() => setGenSource("case")}>{ui("切到案例分析题")}</Button></span>}
               </div>
               {courseOpen && <div className="generate-course"><CourseField courses={data.focus?.courses} label={ui("新题组放进的课程")} value={generationCourse} onChange={course => setGen({ ...gen, course })} /></div>}
-              {/* Shut, its summary says the choices that are not the defaults, each whole (they wrap after a 「·」, ui/generate-form.css); open, its hint, as with none
-                  chosen. Both are in one place, the one not shown hidden, so the summary is as tall open as shut. */}
+              {/* Shut, its summary says the choices that are not the defaults, each whole (they wrap after a 「·」, ui/generate-form.css); open, its hint on one line,
+                  as with none chosen, and the choices are not drawn: a choice picked inside the open fold moves nothing (round 7). */}
               <Disclosure className="generate-more" bodyClassName="generate-more__body" data-tour="generate-more" summary={ui("更多选项")} open={foldOpen} onToggle={setMoreOpen}
                 meta={chosen.length ? <span className="generate-more__meta"><span className="generate-more__hint">{ui("想练什么、难度、花费、额外要求")}</span><span className="generate-more__choices">{chosen.map((choice, at) => <React.Fragment key={at}>{at ? " " : ""}<span className="generate-more__choice">{at < chosen.length - 1 ? `${choice} ·` : choice}</span></React.Fragment>)}</span></span>
                   : ui("想练什么、难度、花费、额外要求")}>
@@ -301,9 +301,8 @@ export default function Generate({
                   </FormRow>
                   <div className="generate-focus-bar" data-generate-focus>
                     <p className="generate-focus-bar__text">
-                      {/* One topic is said in the singular (English has a number), as the bar says 「1 题」. */}
-                      {activeFocusCount === 1 ? ui("当前课程已设 1 个重点知识点：相关章节自动提高题量配额，重点题加深为应用 / 进阶难度。")
-                        : activeFocusCount > 1 ? uiFormat("当前课程已设 {0} 个重点知识点：相关章节自动提高题量配额，重点题加深为应用 / 进阶难度。", [activeFocusCount])
+                      {activeFocusCount > 0
+                        ? uiFormat("当前课程已设 {0} 个重点知识点：相关章节自动提高题量配额，重点题加深为应用 / 进阶难度。", [activeFocusCount])
                         : ui("手上有老师划的重点图或范围？先录入重点，出题会自动提高重点占比并加深难度。")}
                     </p>
                     <Button variant="link" size="sm" lock={busy} onClick={openFocusDialog}>

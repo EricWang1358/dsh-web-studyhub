@@ -70,15 +70,14 @@
     .generate-more__body details > summary { flex-wrap: wrap; }
     .generate-more__body details > summary > span + span { min-width: 0; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
     /* The choices that are not the defaults (难度, 语言, 公式写法) are what a run will use, so each is said whole: a summary too narrow for all of them on one line
-       goes on under them after a 「·」 (the separator stays with the piece before it, so no line starts with one), never cutting a word (#1082). Open, the summary
-       says its hint, as with nothing chosen. The hint and the choices share one place, the one not shown hidden: the summary is as tall open as shut (round 6).
-       A choice picked inside the open fold may add a line to it; the page keeps the control under the pointer where it was (the browser's scroll anchoring). */
+       goes on under them after a 「·」 (the separator stays with the piece before it, so no line starts with one), never cutting a word (#1082). That is the
+       summary shut. Open, it says its hint, on one line, as with nothing chosen; the choices are not drawn at all (display: none, so they hold no room), so a
+       choice picked inside the open fold changes neither the summary's height nor anything under it (round 7). Opening or shutting may change its height. */
     .generate-more__meta { display: grid; grid-template-columns: minmax(0, 1fr); }
-    .generate-more__meta > * { grid-area: 1 / 1; }
-    .generate-more__hint { align-self: center; justify-self: end; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .generate-more__hint { justify-self: end; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
     .generate-more__choices { display: block; white-space: normal; text-align: end; line-height: var(--lh-snug); }
     .generate-more__choice { display: inline-block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; vertical-align: top; }
-    .generate-more[open] .generate-more__choices, .generate-more:not([open]) .generate-more__hint { visibility: hidden; }
+    .generate-more[open] .generate-more__choices, .generate-more:not([open]) .generate-more__hint { display: none; }
     .generate-more .generate-rows { margin-top: 0; }
     /* A purpose inside 更多选项: a small title over its rows (想练什么 / 难度与语言 / 花费与分轮 / 题组信息). */
     .generate-group { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); min-width: 0; }

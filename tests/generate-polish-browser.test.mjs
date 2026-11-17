@@ -236,29 +236,57 @@ const foldSummary = page => page.evaluate(() => {
   return { height: box.height, text, pieces, cut };
 });
 
-test('#1082: 更多选项 shut says the non-default choices whole at 320 and 420, and picking them while it is open moves nothing under its summary', { timeout: 600000 }, async t => {
+/** 更多选项's summary and the given control, read once a frame until two frames agree (a layout that is still settling is not measured; no fixed sleep):
+    the page's scroll, the summary's top and height, the control's top. */
+const steadyFold = (page, control) => page.evaluate(async selector => {
+  const read = () => {
+    let box = document.querySelector('[data-generate-bar]');
+    while (box && !(box.scrollHeight > box.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(box).overflowY))) box = box.parentElement;
+    const summary = document.querySelector('.generate-more > summary').getBoundingClientRect(), target = document.querySelector(selector).getBoundingClientRect();
+    return { scroll: (box ?? document.scrollingElement).scrollTop, summaryTop: summary.top, summaryHeight: summary.height, controlTop: target.top, controlBottom: target.bottom };
+  };
+  const frame = () => new Promise(done => requestAnimationFrame(() => done()));
+  let last = read();
+  for (let count = 0; count < 120; count++) {
+    await frame();
+    const now = read();
+    if (Object.keys(now).every(key => Math.abs(now[key] - last[key]) < 0.01)) return now;
+    last = now;
+  }
+  return { ...last, unsteady: true };
+}, control);
+
+test('#1082: 更多选项 open: picking any choice in it changes nothing on the screen (a tall narrow window, its summary in view, zh and en); shut, it says each choice whole', { timeout: 600000 }, async t => {
   if (skip) { t.skip(skip); return; }
-  for (const [lang, width] of [['en', 420], ['zh', 420], ['en', 320]]) {
-    const tag = `${lang} ${width}`;
-    const { page, errors, context, release } = await openGenerate({ lang, width, answer: answers()['no index'], now: true });
+  for (const [lang, width] of [['en', 420], ['zh', 420], ['en', 320], ['zh', 320]]) {
+    const tag = `${lang} ${width}×1400`;
+    const { page, errors, context, release } = await openGenerate({ lang, width, height: 1400, answer: answers()['no index'], now: true });
     release();
     await settleAnimations(page);
     const fold = page.locator('.generate-more').first(), summary = fold.locator(':scope > summary');
     if (!await fold.evaluate(element => element.open)) await summary.click();
     await settleAnimations(page);
-    // 深入辨析, the language that is not the page's own (English on a Chinese page, 中文 on an English one) and 公式（LaTeX）. Round 6: the summary is as tall
-    // open as shut, so a choice may add a line to it while it is open; what is under it (the control just picked) stays where it is on the screen, within the
-    // whole pixel the browser's scroll anchoring rounds to.
-    const moves = [];
-    for (const [name, at] of [['difficulty', 3], ['language', lang === 'en' ? 0 : 1], ['notation', 2]]) {
-      const button = page.locator(`[data-tour="generate-${name}"] button`).nth(at);
-      await button.scrollIntoViewIfNeeded();
-      const y = (await button.boundingBox()).y;
-      await button.click();
-      await frames(page, 3);
-      moves.push((await button.boundingBox()).y - y);
+    // the summary near the top of the view, so it and the controls under it are all on the screen and nothing needs scrolling to be picked
+    await summary.evaluate(element => element.scrollIntoView({ block: 'start' }));
+    await page.evaluate(() => { let box = document.querySelector('[data-generate-bar]'); while (box && !(box.scrollHeight > box.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(box).overflowY))) box = box.parentElement; (box ?? document.scrollingElement).scrollTop -= 60; });
+    // 深入辨析, the language that is not the page's own (English on a Chinese page, 中文 on an English one) and 公式（LaTeX）; each one clicked where it is on
+    // the screen, as a pointer does. The open summary is its hint's one line, so a pick changes neither its height nor anything under it.
+    const choices = [['difficulty', 3], ['language', lang === 'en' ? 0 : 1], ['notation', 2]];
+    for (const [name, at] of choices) {
+      const selector = `[data-tour="generate-${name}"] button:nth-of-type(${at + 1})`;
+      const before = await steadyFold(page, selector);
+      assert.ok(!before.unsteady, `${tag}: the page is still before picking ${name}`);
+      assert.ok(before.summaryTop >= 0 && before.summaryTop + before.summaryHeight <= 1400, `${tag}: the summary is on the screen (${before.summaryTop})`);
+      assert.ok(before.controlTop >= 0 && before.controlBottom <= 1400 - 120, `${tag}: ${name} is on the screen, clear of the bar (${before.controlTop})`);
+      const box = await page.locator(selector).boundingBox();
+      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      await until(() => page.locator(selector).evaluate(element => element.getAttribute('aria-pressed') === 'true' || element.getAttribute('aria-checked') === 'true'), `${tag}: ${name} picked`);
+      const after = await steadyFold(page, selector);
+      assert.ok(!after.unsteady, `${tag}: the page settles after picking ${name}`);
+      for (const key of ['scroll', 'summaryTop', 'summaryHeight', 'controlTop']) {
+        assert.ok(Math.abs(after[key] - before[key]) < 0.5, `${tag}: picking ${name} leaves ${key} where it was (${before[key]} → ${after[key]})`);
+      }
     }
-    assert.ok(moves.every(move => Math.abs(move) < 1), `${tag}: picking choices in the open fold does not move what is under its summary (${moves.join(', ')})`);
     await summary.click();
     await until(() => fold.evaluate(element => !element.open), `${tag}: 更多选项 shut`);
     await settleAnimations(page);
