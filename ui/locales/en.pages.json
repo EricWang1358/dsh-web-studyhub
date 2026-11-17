@@ -25,6 +25,7 @@
   "到期待复习 {0} 题": "{0} questions due for review",
   "前 {0}": "Top {0}",
   "练 {0} 题": "Practise {0} questions",
+  "练 {0} 题#one": "Practise {0} question",
   "跨 {0} 个题组": "Across {0} decks",
   "{0} / {1} 道题有散装问题": "{0} / {1} questions have disconnected-concept issues",
   "全部问题 {0}": "All issues {0}",

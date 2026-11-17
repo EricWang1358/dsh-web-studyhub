@@ -123,6 +123,9 @@ test('4: a count of one question is "1 question": uiFormat takes the singular a 
     assert.equal(uiFormat('{0} 题', [1]), '1 question');
     assert.equal(uiFormat('{0} 题', [3]), '3 questions');
     assert.equal(uiFormat('{0} 题', [0]), '0 questions');
+    assert.equal(uiFormat('练 {0} 题', [1]), 'Practise 1 question', 'the skeleton\'s 练 1 题');
+    assert.equal(uiFormat('查看 {0} 份资料', [1]), 'View 1 source', 'the round\'s header');
+    assert.equal(uiFormat('{0} 份资料', [1]), '1 source');
   } finally { setUiLanguage('zh'); }
   assert.equal(uiFormat('{0} 题', [1]), '1 题');
 });

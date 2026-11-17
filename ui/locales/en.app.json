@@ -6,6 +6,7 @@
   "第 {0}/{1} 步": "Step {0}/{1}",
   "本轮重练": "Session retry",
   "查看 {0} 份资料": "View {0} sources",
+  "查看 {0} 份资料#one": "View {0} source",
   "{0} · {1} 道题": "{0} · {1} questions",
   "道题答对 / {0} 道": "questions correct / {0}",
   "另外重练了 {0} 次": "Retried {0} more times",

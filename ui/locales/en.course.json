@@ -9,6 +9,7 @@
   "{0} 个题组": "{0} decks",
   "1 份资料": "1 source",
   "{0} 份资料": "{0} sources",
+  "{0} 份资料#one": "{0} source",
   "课程": "Courses",
   "每门课可以记下考试形式、日期、分值和考官指引；改名或合并会同步更新所有题组和资料。": "Each course can record its exam format, date, marks and examiner guidance. Renaming or merging updates every deck and material with it.",
   "也叫 {0}": "also called {0}",
