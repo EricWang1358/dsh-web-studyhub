@@ -159,6 +159,9 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
   // With a way back as the main button (the book's, the 总纲's or the reader's), a next step that is just another place to go back to (回到学习路径) is left out: both would go back.
   const onward = backHere && nextStep?.path ? null : nextStep;
   // 本轮设置 (#1010): beside the next-round button, only where that button starts a round of the course or of the scope (the page decided it: ui/review/round-setup.js).
+  /* One way back on the result page (#1073 round 8): the main button when it goes back (the book's, 回到学习路径 / 回到学习流 / 回到原题), else the context's way
+     back beside a forward step; only when neither stands under the score does the header keep its 返回学习库. The foot's 回到学习目录 went to the same place. */
+  const resultBack = run.complete && (backHere || !!onward?.back || !!(onward && contextReturnLabel));
   const roundSetup = onward && !backHere && !flow && !detour && !run.course ? resultTarget(run, destination, { newBatch: newBatchArgs }) : null;
   const roundCourse = run.complete ? resolveRoundCourse(data, run) : "";
   const roundStage = roundCourse ? (currentMethodStage(data, roundCourse)?.stage?.name || "") : "";
@@ -192,8 +195,8 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             </Tooltip>
           )}
           {!run.complete && onReturnToReading && <ReadingBackButton run={run} busy={busy} onReturn={onReturnToReading} />}
-          {/* On the result page the way back (the book, the 总纲 or the reading) is the main button below; the header does not say the same twice. */}
-          {!(run.complete && backHere) && <Button icon="arrow-left" variant="quiet" className="review-return" aria-label={returnLabel} onClick={() => flow ? onBackToWorkflow(flow.sessionId) : wayBack ? wayBack.go() : navigate("library")}>
+          {/* On the result page the way back below the score (the book, the 总纲, the reading, 回到学习路径 …) is the one way back; the header does not say it twice. */}
+          {!resultBack && <Button icon="arrow-left" variant="quiet" className="review-return" aria-label={returnLabel} onClick={() => flow ? onBackToWorkflow(flow.sessionId) : wayBack ? wayBack.go() : navigate("library")}>
             <span className="review-return-full">{returnLabel}</span>
             <span className="review-return-short" aria-hidden="true">{wayBack ? wayBack.label : ui("返回")}</span>
           </Button>}
@@ -313,7 +316,6 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
                 input={{ course: roundCourse, stage: roundStage, missed: missedList }}
                 disabled={busy} />
             )}
-            <Button icon="arrow-left" onClick={() => navigate("library")}>{ui("回到学习目录")}</Button>
           </div>
           {caseNote && <p className="muted" role="status">{caseNote}</p>}
           {methodAlt && (

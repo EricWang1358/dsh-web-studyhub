@@ -243,3 +243,34 @@ test('3: uiFormat and uiRich take the singular of the count that is 1, wherever 
     assert.equal(words(uiRich('累计作答 {0} 次', React.createElement('b', null, 1))), '1 attempt in total', 'a count inside an element');
   } finally { setUiLanguage('zh'); }
 });
+
+/* ---- 7: one way back on the round's result ------------------------------------------------------------------------------------------------------------------- */
+
+/* The ways back (返回 … / 回到 …, each leading with ←) on the result page of a finished round. The header's 返回学习库, the 回到学习路径 / 回到学习流 / 回到原题 main
+   button, the context's 返回学习库首页 beside a forward step and a 回到学习目录 at the foot all went back: up to three ← at once (#1073 round 8, 7). */
+const resultWaysBack = async (extra) => {
+  const { default: Review, StudyServicesContext, setUiLanguage } = await loadUi("export { default } from './ui/Review.jsx'; export { StudyServicesContext } from './ui/study-context.jsx'; export { setUiLanguage } from './ui/i18n.js';");
+  const { reviewElement } = await import('./helpers/review-render.mjs');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  setUiLanguage('zh');
+  const noop = () => {}, card = { id: 'q', kind: 'quiz', topic: 'T', prompt: 'Q?', options: [] };
+  const { run = {}, coach = {}, ...rest } = extra;
+  const html = renderToStaticMarkup(reviewElement(Review, StudyServicesContext, {
+    run: { id: 'r', mode: 'path', complete: true, index: 4, total: 4, questions: 4, answered: 4, correct: 2, weakTopics: [], scope: [], card, ...run },
+    data: { sources: [] }, host: {}, choice: true, isCloze: false, selected: [], clozeValues: {}, shellTitle: '今日学习', busy: false, act: noop, enterRun: noop, setPage: noop,
+    coachProps: { debrief: null, autopilot: false, onPractice: noop, onContinue: noop, onReviewWeak: noop, destination: { kind: 'path', reason: 'continuing', label: '继续学习', go: noop, note: '' }, ...coach },
+    ...rest,
+  }));
+  return [...html.matchAll(/<button[^>]*>(.*?)<\/button>/gs)].map((match) => ({ html: match[1], text: match[1].replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() }))
+    .filter((button) => /^\s*<svg/.test(button.html) && /^(?:返回|回到)/.test(button.text)).map((button) => button.text.split(' ')[0]);
+};
+
+test('7: a finished round has one way back with ←: the main button when it goes back, else the one beside the next step, else the header\'s', async () => {
+  const noop = () => {};
+  const path = { kind: 'path', reason: 'original-gone', label: '回到学习路径', go: noop, note: '' };
+  assert.deepEqual(await resultWaysBack({ coach: { destination: path } }), ['回到学习路径'], '回到学习路径 is the main button: no header 返回学习库, no 回到学习目录 at the foot');
+  assert.deepEqual(await resultWaysBack({ run: { returnTo: 'orig' }, coach: { destination: { kind: 'original', runId: 'orig', label: '回到原题', go: noop } } }), ['回到原题']);
+  assert.deepEqual(await resultWaysBack({ run: { workflow: { sessionId: 's', stepIndex: 0, stepCount: 3, stepTitle: 'x', current: true } }, onBackToWorkflow: noop }), ['回到学习流']);
+  assert.deepEqual(await resultWaysBack({ contextKind: 'library', contextReturnLabel: '返回学习库首页', onReturnContext: noop }), ['返回学习库首页'], 'beside 继续学习 →');
+  assert.deepEqual(await resultWaysBack({}), ['返回学习库'], 'a forward step alone: the header keeps the way back');
+});

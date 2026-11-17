@@ -95,7 +95,7 @@ test('3: a way back (返回 … / 回到 …) leads with arrow-left and never en
   assert.equal(goOnProblems('<Button onClick={() => navigate("library")}>{ui("回到学习目录")}</Button>').length, 1);
   assert.equal(goOnProblems('<Button icon="arrow-left" onClick={() => navigate("library")}>{ui("回到学习目录")}</Button>').length, 0);
   assert.equal(goOnProblems('<Button icon="arrow-left" iconEnd="arrow-right" onClick={onBack}>{ui("返回学习库")}</Button>').length, 1);
-  for (const [file, label] of [['ui/Review.jsx', '回到学习目录'], ['ui/OralExam.jsx', '回到学习库'], ['ui/BlogNotes.jsx', '返回学习库']]) {
+  for (const [file, label] of [['ui/OralExam.jsx', '回到学习库'], ['ui/BlogNotes.jsx', '返回学习库']]) {
     const source = await read(file), at = source.indexOf(`ui("${label}")`) >= 0 ? source.indexOf(`ui("${label}")`) : source.indexOf(`ui('${label}')`);
     const open = source.slice(source.lastIndexOf('<Button', at), at);
     assert.match(open, /\sicon="arrow-left"/, `${file}: ${label}`);
