@@ -64,13 +64,21 @@ function recordFirstFrames() {
     const badge = item.querySelector('[data-index-slot] [data-state]')?.getBoundingClientRect() ?? null;
     const bottoms = [...item.querySelectorAll('.source-picker__text strong, .source-picker__text small, .source-picker__expand, [data-index-slot] [data-state]')]
       .map(element => element.getBoundingClientRect()).filter(r => r.height > 0).map(r => r.bottom);
-    return { title: title.textContent.slice(0, 14), height: item.getBoundingClientRect().height, lines: titleLines.length, expand: !!item.querySelector('.source-picker__expand'),
+    return { at: performance.now(), title: title.textContent.slice(0, 14), height: item.getBoundingClientRect().height, lines: titleLines.length, expand: !!item.querySelector('.source-picker__expand'),
       below: box.bottom - parseFloat(style.paddingBottom) - Math.max(...bottoms), between: factsLine.top - titleLines.at(-1).bottom,
       slot: !!slot, slotOnFacts: slot ? slot.top >= factsLine.top - 1 && slot.bottom <= factsLine.bottom + 1 : null,
       badge: badge ? { right: badge.right, middle: (badge.top + badge.bottom) / 2 - (factsLine.top + factsLine.bottom) / 2 } : null };
   };
   window.__rowShape = shape;
   window.__firstFrames = {};
+  // when the index answer reached the page: a row first drawn after it (rows past the first 24 are drawn on scroll) never had an answer to wait for
+  window.__answeredAt = Infinity;
+  const fetchFirst = window.fetch.bind(window);
+  window.fetch = async (...args) => {
+    const response = await fetchFirst(...args);
+    if (String(args[1]?.body ?? '').includes('retrieval.index.coverage')) window.__answeredAt = Math.min(window.__answeredAt, performance.now());
+    return response;
+  };
   const tick = () => {
     for (const item of document.querySelectorAll('[data-tour="generate-sources"] .source-picker__item')) {
       const key = item.getAttribute('data-document-key');
@@ -144,6 +152,8 @@ test('#1084: over a sweep of title lengths no row moves after its first frame, t
         await frames(page, 8);
         const settled = await settledRows(page);
         const first = await page.evaluate(() => window.__firstFrames);
+        const answeredAt = await page.evaluate(() => window.__answeredAt);
+        if (late && answeredAt === Infinity) failures.push(`${tag}: the page never saw the index answer`);
         const keys = Object.keys(settled);
         assert.ok(keys.length >= 50, `${tag}: the whole sweep is drawn (${keys.length} rows)`);
         for (const key of keys) {
@@ -155,9 +165,9 @@ test('#1084: over a sweep of title lengths no row moves after its first frame, t
             if (shape.between > 6) failures.push(`${tag}, ${when}: ${shape.title}: ${Math.round(shape.between)} px of blank band between the title and its facts`);
             if (shape.slot && !shape.slotOnFacts) failures.push(`${tag}, ${when}: ${shape.title}: the badge's slot is not on the facts' first line`);
           }
-          // settled, a row keeps a slot where it has a badge and none where it has not (round 5); a late answer's rows held one in their first frame
+          // settled, a row keeps a slot where it has a badge and none where it has not (round 5); a late answer's rows drawn before it held one in their first frame
           if (!!after.slot !== !!after.badge) failures.push(`${tag}: ${after.title}: ${after.slot ? 'a slot with no badge' : 'a badge with no slot'}`);
-          if (late && !before.slot) failures.push(`${tag}: ${before.title}: no slot held while the answer was coming`);
+          if (late && before.at < answeredAt && !before.slot) failures.push(`${tag}: ${before.title}: no slot held while the answer was coming`);
           if (after.badge && Math.abs(after.badge.middle) > 1) failures.push(`${tag}: ${after.title}: the badge is ${after.badge.middle.toFixed(1)} px off the facts' first line's middle`);
           if (answer === 'no index') titleLines[key] = after.lines;
           else if (titleLines[key] !== undefined && titleLines[key] !== after.lines) failures.push(`${tag}: ${after.title}: the title has ${after.lines} lines, ${titleLines[key]} without badges`);
