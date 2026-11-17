@@ -21,9 +21,14 @@
        document has pages); the facts on the next, then the index badge's slot in the last column. The label and the text lend their parts to the grid
        (display: contents), so a click on any of them still ticks the row. The title, the facts, the slot and the partial line take the rows in DOM order;
        only the checkbox and a wide row's 选择页面 are placed. */
+    /* Round 11: in a picker that shows badges a row has a fourth column, between the text and the badges' column: 选择页面 spans both on a wide row's
+       title line, so it widens only the room it needs past the badges' column, and the facts take that room under it. The facts line is so as wide on a
+       row with 选择页面 as on one without, on a wide window and a narrow one (where 选择页面 is under the facts and the column is empty): it no longer loses
+       the button's width where 选择页面 moves up (532 px, en), so a wider window never says less (ui/picker-names.js). */
     /* --picker-index-slot holds the widest compact badge uncut (「部分索引」 80px, "Not built" 82px at the default sizes). */
     .source-picker__row { --picker-index-slot: calc(var(--fs-xs) * 7); --picker-expand-h: var(--control-h-sm, 32px); display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: var(--space-half) var(--space-3);
       padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4); }
+    .source-picker--index .source-picker__row { grid-template-columns: auto minmax(0, 1fr) auto auto; }
     .source-picker__doc { display: contents; cursor: pointer; }
     .source-picker__text { display: contents; }
     .source-picker .source-picker__check { grid-column: 1; grid-row: 1 / span 2; margin: var(--space-1) 0 0; }
@@ -36,13 +41,13 @@
        cut with 「…」, and a row has one cut piece at most (round 10). The course the scope names is not said again (above the list). The line ends at the
        badges' column on every row, badge or none (round 8, below), and clips what is left out (in place, see-through), so nothing draws past it. */
     .source-picker__text .source-picker__facts { grid-column: 2 / -1; position: relative; display: flex; column-gap: 0.3em; height: calc(var(--fs-sm) * var(--lh-snug)); overflow: clip; white-space: nowrap; }
-    /* The facts stop at the last column where it holds the badge, or 选择页面 on a wide row (whose box hangs a little into the facts' line). */
-    .source-picker__row:is(.has-index, .has-expand) .source-picker__text .source-picker__facts { grid-column: 2; }
+    /* The facts stop before the last column: the badges' (or, in a picker without badges, 选择页面's on a wide row, whose box hangs a little into the facts' line). */
+    .source-picker__row:is(.has-index, .has-expand) .source-picker__text .source-picker__facts { grid-column: 2 / -2; }
     /* The slot: a box at the end of the facts' first line, the height of that line. While the index answer is coming it is the widest badge's width on every
        row (held), so a badge filling it moves nothing; on 创建题组 it keeps that width once the answer is in, badge or none (round 8, below); a picker
        without badges has no slot. The facts are one line either way, so no row changes height. It ends at the row's end on every row (justify-self: end in the last
        column, which a wide row shares with 选择页面), so the badges stand in one column; the badge's middle is the facts' first line's middle. */
-    .source-picker__index { grid-column: 3; justify-self: end; display: flex; align-items: center; justify-content: flex-end; height: calc(var(--fs-sm) * var(--lh-snug)); }
+    .source-picker__index { grid-column: -2; justify-self: end; display: flex; align-items: center; justify-content: flex-end; height: calc(var(--fs-sm) * var(--lh-snug)); }
     .source-picker__index[data-index-slot="held"] { width: var(--picker-index-slot); }
     .source-picker__index[data-index-slot="none"] { display: none; }
     /* Round 8: in a picker that shows badges (Generate) the badges' column is the same width on every row, coming, with a badge and without, so the facts
@@ -93,6 +98,7 @@
     /* 选择页面 ends a wide row's title line, as tall as that line in the grid (its box hangs into the row's padding), so it makes no row taller. */
     .source-picker__expand { grid-column: 3; grid-row: 1; justify-self: end;
       margin-block: calc((var(--fs-md) * var(--lh-snug) - var(--picker-expand-h)) / 2); }
+    :where(.source-picker--index) .source-picker__expand { grid-column: 3 / -1; }
     .source-picker__row.has-expand .source-picker__text strong { grid-column: 2; }
     .source-picker__expand .source-picker__chevron { transition: transform 0.18s var(--ease); }
     .source-picker__expand[aria-expanded="true"] .source-picker__chevron { transform: rotate(90deg); }
