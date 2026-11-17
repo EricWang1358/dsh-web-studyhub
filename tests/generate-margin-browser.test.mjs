@@ -20,10 +20,15 @@ import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
    - At 320 the form fits its column (zh and en): nothing is drawn past it, and a folded row's summary is never cut bare.
    - At 320 and 360, with nothing ticked, the bar's reason is said whole, and the bar keeps one height for 0, 1 and 5 ticked.
    - A row's facts never end in a bare 「· …」: a name is shown with some of its words or left out whole, while the index answer is coming too.
-   - 题型's label is level with its row of boxes at 1440. */
+   - 题型's label is level with its row of boxes at 1440.
+   Round 8 (#1084): the course names on a row's facts line.
+   - The first course takes the room: a later name is never shown while the first is cut, and a cut never ends on the name's own 「·」.
+   - A run of rows reads the same: a name is shown on every row that has one or on none, at 420, 900 and 1440, in the scope and in 全部课程.
+   - What a row's facts line shows does not change when the index answer lands (a failed one, an empty one).
+   - A name shown whole has no hover card; a cut one says its whole name in the shared Tooltip. */
 
 const STAMP = '2026-10-01T08:00:00.000Z';
-const COURSE = '分布式系统';
+const COURSE = '示例课程 · 设计模式';
 const LONG = '分布式系统与网络协议（2026 秋季学期 · 周三晚班）';
 
 async function seed(root) {
@@ -31,9 +36,9 @@ async function seed(root) {
   const service = new StudyService(root);
   await service.call('snapshot');
   await service.store.update(state => {
-    // notes whose size piece grows by a digit: the room left for the course names goes from plenty to none, row by row
-    for (const [at, chars] of [9, 98, 987, 9876, 98765, 987654, 9876543, 12, 345, 6789, 12345, 678901].entries()) {
-      state.sources.push({ id: `n${at}`, title: `笔记 ${at + 1}${at % 2 ? '.md' : ''}`, text: '要点。'.repeat(40), createdAt: STAMP, courses: [COURSE, LONG], chars });
+    // notes whose size piece grows by a digit (the size is counted from the text): the room left for the course names differs from row to row
+    for (const [at, times] of [3, 33, 333, 3333, 33334, 4, 44, 444, 4444, 5, 55, 5555].entries()) {
+      state.sources.push({ id: `n${at}`, title: `笔记 ${at + 1}${at % 2 ? '.md' : ''}`, text: '要点。'.repeat(times), createdAt: STAMP, courses: [COURSE, LONG] });
     }
     for (const n of [1, 2]) {
       const name = `讲义 ${n}.pdf`;
@@ -79,6 +84,7 @@ async function openGenerate({ lang, theme = 'light', width, height = 860, answer
     if (action !== 'retrieval.index.coverage') return route.continue();
     asked = true;
     await held;
+    if (answer === 'fail') return route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'the search server is down' }) });
     return route.fulfill({ contentType: 'application/json', body: JSON.stringify(answer) });
   });
   await opened.page.goto(server.url);
@@ -227,70 +233,160 @@ test('#1082: at 320 and 360, with nothing ticked, the bar says why whole, and ke
   }
 });
 
+/**
+ * Each row's facts line as a learner sees it: the pieces on its one line that are drawn (not hidden), each with the words it shows. A cut piece shows its
+ * words up to the 「…」: the characters (and the unbreakable parts, inline blocks) that end before the ellipsis.
+ */
+const factsLines = page => page.evaluate(() => {
+  const ellipsis = element => { const canvas = document.createElement('canvas').getContext('2d'); canvas.font = getComputedStyle(element).font; return canvas.measureText('…').width; };
+  const seen = element => {
+    const text = [], edge = element.getBoundingClientRect().right - ellipsis(element) + 0.5;
+    const walk = node => {
+      for (const child of node.childNodes) {
+        if (child.nodeType === 3) {
+          for (let at = 0; at < child.data.length; at++) {
+            const range = document.createRange();
+            range.setStart(child, at);
+            range.setEnd(child, at + 1);
+            const box = range.getBoundingClientRect();
+            if (box.right > edge) return false;
+            text.push(child.data[at]);
+          }
+        } else if (getComputedStyle(child).display.startsWith('inline-')) {
+          if (child.getBoundingClientRect().right > edge) return false;
+          text.push(child.textContent);
+        } else if (!walk(child)) return false;
+      }
+      return true;
+    };
+    walk(element);
+    return text.join('');
+  };
+  return [...document.querySelectorAll('[data-tour="generate-sources"] .source-picker__item')].map(item => {
+    const facts = item.querySelector('.source-picker__facts'), line = facts.getBoundingClientRect(), lineHeight = parseFloat(getComputedStyle(facts).height);
+    const drawn = piece => { const box = piece.getBoundingClientRect(); return box.width > 0 && box.top < line.top + lineHeight / 2 && box.left < line.right - 0.5 && getComputedStyle(piece).visibility === 'visible'; };
+    const pieces = [...facts.querySelectorAll('.source-picker__fact')].map(piece => {
+      const cut = piece.scrollWidth > piece.clientWidth + 0.5, tip = document.getElementById(piece.getAttribute('aria-describedby') || '');
+      return { text: piece.textContent, name: piece.classList.contains('source-picker__fact--name'), shown: drawn(piece), cut, seen: cut ? seen(piece) : piece.textContent,
+        tip: tip ? tip.textContent : null, right: piece.getBoundingClientRect().right };
+    });
+    const shown = pieces.filter(piece => piece.shown);
+    return { title: item.querySelector('strong').textContent, pieces, names: pieces.filter(piece => piece.name), text: shown.map(piece => piece.seen + (piece.cut ? '…' : '')).join(' '),
+      room: line.right - Math.max(...shown.map(piece => piece.right)) };
+  });
+});
+
+/** 课程范围: 全部课程. */
+async function allCourses(page, lang) {
+  await page.locator('[data-tour="generate-sources"] .page-scope__select').first().click();
+  await page.getByRole('option', { name: lang === 'zh' ? '全部课程' : 'All courses' }).first().click();
+  await until(async () => (await factsLines(page)).some(row => row.names.some(name => name.text.includes(COURSE))), `${lang}: 全部课程`);
+  await settleAnimations(page);
+  await frames(page, 4);
+}
+
 test('#1084: a row\'s facts never end in a bare 「· …」 at 420: a name is said whole or left out whole, while the index answer is coming and after it', { timeout: 300000 }, async t => {
   if (skip) { t.skip(skip); return; }
-  // what each row's facts line shows: the pieces on its one line, and which of them are cut
-  const shown = page => page.evaluate(() => [...document.querySelectorAll('[data-tour="generate-sources"] .source-picker__facts')].map(facts => {
-    const line = facts.getBoundingClientRect();
-    // A shortened course sits in its Tooltip's anchor: the anchor holds the room on the line, the name inside it is what is cut.
-    const pieces = [...facts.children].filter(piece => { const box = piece.getBoundingClientRect(); return box.width > 0 && box.top < line.bottom - 1 && box.left < line.right - 0.5; })
-      .map(piece => (piece.matches('.source-picker__fact-anchor') ? piece.querySelector(':scope > .source-picker__fact') : piece));
-    // A course the scope does not name may be shortened (round 7): it then keeps its least width, ends in 「…」 and says its whole name on hover.
-    const visible = pieces.map(piece => ({ text: piece.textContent, name: piece.classList.contains('source-picker__fact--name'),
-      cut: piece.scrollWidth > piece.clientWidth + 0.5 || piece.getBoundingClientRect().right > line.right + 0.5,
-      shortened: piece.classList.contains('source-picker__fact--short') && getComputedStyle(piece).textOverflow === 'ellipsis' && !piece.title
-        && document.getElementById(piece.getAttribute('aria-describedby') || '')?.textContent === piece.textContent.replace(/^·\s*/, '')
-        && piece.parentElement.getBoundingClientRect().right <= line.right + 0.5
-        && piece.parentElement.getBoundingClientRect().width >= parseFloat(getComputedStyle(piece.parentElement).minWidth) - 0.5 }));
-    return { text: visible.map(piece => piece.text + (piece.cut ? '…' : '')).join(' '), cutNames: visible.filter(piece => piece.name && piece.cut && !piece.shortened).map(piece => piece.text) };
-  }));
   const check = (rows, tag) => {
     assert.ok(rows.length >= 10, `${tag}: rows (${rows.length})`);
-    assert.deepEqual(rows.filter(row => row.cutNames.length).map(row => row.text), [], `${tag}: no name is cut bare`);
+    // a name is cut only where it is the shortened course, which then says its whole name on hover
+    assert.deepEqual(rows.filter(row => row.names.some(name => name.shown && name.cut && name.tip !== name.text.replace(/^·\s*/, ''))).map(row => row.text), [], `${tag}: no name is cut bare`);
     assert.deepEqual(rows.filter(row => /·\s*…?$/.test(row.text)).map(row => row.text), [], `${tag}: no line ends in 「·」 or 「· …」`);
   };
   for (const lang of ['zh', 'en']) {
     const { page, errors, context, release } = await openGenerate({ lang, width: 420, now: false });
     await frames(page, 4);
-    check(await shown(page), `${lang} 420, while the answer is coming`);
+    check(await factsLines(page), `${lang} 420, while the answer is coming`);
     release();
     await settleAnimations(page);
     await frames(page, 4);
-    check(await shown(page), `${lang} 420, answered`);
+    check(await factsLines(page), `${lang} 420, answered`);
     assert.deepEqual(errors, []);
     await context.close();
   }
 });
 
-test('#1084: every row follows one rule for its courses: the course 课程范围 names is not said again, another course is said first, whole or shortened, and left out only where there is no room for it', { timeout: 300000 }, async t => {
+test('#1084 round 8: in 全部课程 the first course takes the room: no later name while it is cut, and a cut never ends on its own 「·」', { timeout: 300000 }, async t => {
   if (skip) { t.skip(skip); return; }
-  const rowsOf = page => page.evaluate(([course, long]) => [...document.querySelectorAll('[data-tour="generate-sources"] .source-picker__facts')].map(facts => {
-    const line = facts.getBoundingClientRect(), gap = parseFloat(getComputedStyle(facts).columnGap) || 0;
-    const onLine = piece => { const box = piece.getBoundingClientRect(); return box.width > 0 && box.top < line.bottom - 1; };
-    const names = [...facts.querySelectorAll('.source-picker__fact--name')], other = names.find(piece => piece.textContent.includes(long));
-    const shown = [...facts.children].filter(onLine), lastRight = Math.max(...shown.map(piece => piece.getBoundingClientRect().right));
-    return { text: shown.map(piece => piece.textContent).join(' '), repeats: names.some(piece => piece.textContent.replace(/^·\s*/, '') === course && onLine(piece)),
-      firstName: names[0]?.textContent.replace(/^·\s*/, '') ?? '', other: other ? { shown: onLine(other), cut: other.scrollWidth > other.clientWidth + 0.5, title: other.title, tip: document.getElementById(other.getAttribute('aria-describedby') || '')?.textContent ?? '',
-        least: parseFloat(getComputedStyle(other.closest('.source-picker__fact-anchor') || other).minWidth) || other.scrollWidth } : null, room: line.right - lastRight - gap };
-  }), [COURSE, LONG]);
-  for (const lang of ['zh', 'en']) for (const width of [420, 1440]) {
-    const tag = `${lang} ${width}`;
-    const { page, errors, context } = await openGenerate({ lang, width });
-    await frames(page, 4);
-    const scope = await page.evaluate(() => document.querySelector('[data-tour="generate-sources"] [data-page-scope] button, [data-tour="generate-sources"] .page-scope button, [data-tour="generate-sources"] select')?.textContent ?? '');
-    const rows = await rowsOf(page);
+  for (const lang of ['zh', 'en']) for (const width of [420, 900, 1440]) {
+    const tag = `${lang} ${width} 全部课程`;
+    const { page, errors, context } = await openGenerate({ lang, width, answer: answers().badges });
+    await allCourses(page, lang);
+    const rows = await factsLines(page);
     assert.ok(rows.length >= 10, `${tag}: rows (${rows.length})`);
-    t.diagnostic(`${tag}: scope "${scope.slice(0, 40)}"; ${rows.filter(row => row.other?.shown).length}/${rows.length} say ${LONG.slice(0, 6)}…`);
-    assert.deepEqual(rows.filter(row => row.repeats).map(row => row.text), [], `${tag}: no row says the scope's course 「${COURSE}」 again`);
     for (const row of rows) {
-      assert.equal(row.firstName, LONG, `${tag}: the course outside the scope comes first among the names (${row.text})`);
-      if (row.other.shown && row.other.cut) {
-        assert.equal(row.other.tip, LONG, `${tag}: a shortened course says its whole name in the shared Tooltip (${row.text})`);
-        assert.equal(row.other.title, '', `${tag}: never a title= on the text (#86)`);
+      const [first, ...later] = row.names;
+      assert.equal(first.text, `· ${COURSE}`, `${tag}: the course comes first (${row.title})`);
+      if (first.shown && first.cut) {
+        assert.deepEqual(later.filter(name => name.shown).map(name => name.text), [], `${tag}: no later name while the first is cut (${row.text})`);
+        assert.ok(!/·\s*$/.test(first.seen) && first.seen.replace(/^·\s*/, '').length >= 2, `${tag}: the cut shows some of the name and does not end on its own 「·」 (${row.text})`);
       }
-      if (!row.other.shown) assert.ok(row.room < row.other.least + 0.5, `${tag}: a course is left out only where its least width does not fit (room ${row.room.toFixed(1)}, least ${row.other.least}): ${row.text}`);
     }
-    if (width === 1440) assert.ok(rows.every(row => row.other.shown && !row.other.cut), `${tag}: with room, every row says the other course whole`);
+    t.diagnostic(`${tag}: ${rows.slice(0, 3).map(row => row.text).join(' | ')}`);
+    assert.deepEqual(errors, []);
+    await context.close();
+  }
+});
+
+test('#1084: one rule for the courses, and a run of rows reads the same: the course 课程范围 names is not said again; another course is said first, whole or shortened, on every row that has one or on none', { timeout: 600000 }, async t => {
+  if (skip) { t.skip(skip); return; }
+  for (const lang of ['zh', 'en']) for (const width of [420, 900, 1440]) for (const all of [false, true]) {
+    const tag = `${lang} ${width}${all ? ' 全部课程' : ''}`;
+    const { page, errors, context } = await openGenerate({ lang, width, answer: answers().badges });
+    if (all) await allCourses(page, lang);
+    await frames(page, 4);
+    const rows = await factsLines(page);
+    assert.ok(rows.length >= 10, `${tag}: rows (${rows.length})`);
+    if (!all) assert.deepEqual(rows.filter(row => row.names.some(name => name.text.replace(/^·\s*/, '') === COURSE)).map(row => row.text), [], `${tag}: no row says the scope's course 「${COURSE}」 again`);
+    const firstShown = rows.filter(row => row.names[0]?.shown).length, withLater = rows.filter(row => row.names.length > 1), laterShown = withLater.filter(row => row.names.slice(1).every(name => name.shown)).length;
+    t.diagnostic(`${tag}: the first name on ${firstShown}/${rows.length} rows, every later one on ${laterShown}/${withLater.length}: ${rows.slice(0, 3).map(row => row.text).join(' | ')}`);
+    for (const row of rows) {
+      assert.equal(row.names[0].text, `· ${all ? COURSE : LONG}`, `${tag}: the course outside the scope comes first among the names (${row.text})`);
+      for (const name of row.names.filter(piece => piece.shown && piece.cut)) {
+        assert.equal(name.tip, name.text.replace(/^·\s*/, ''), `${tag}: a shortened course says its whole name in the shared Tooltip (${row.text})`);
+      }
+    }
+    assert.ok(firstShown === 0 || firstShown === rows.length, `${tag}: the first course is said on every row or on none (${firstShown}/${rows.length}): ${rows.map(row => row.text).join(' | ')}`);
+    assert.ok(laterShown === 0 || laterShown === withLater.length, `${tag}: the later names are said on every row or on none (${laterShown}/${withLater.length})`);
+    if (width === 1440) assert.ok(rows.every(row => row.names.every(name => name.shown && !name.cut)), `${tag}: with room, every row says its courses whole`);
+    if (width === 420 && !all && lang === 'zh') assert.equal(firstShown, rows.length, `${tag}: with room for a shortened course on every row, every row says it`);
+    assert.deepEqual(errors, []);
+    await context.close();
+  }
+});
+
+test('#1084 round 8: what a row\'s facts line shows does not change when the index answer lands (a failed one, an empty one)', { timeout: 300000 }, async t => {
+  if (skip) { t.skip(skip); return; }
+  for (const [lang, width, outcome] of [['en', 420, 'fail'], ['en', 420, 'no index'], ['zh', 420, 'fail'], ['en', 900, 'fail']]) {
+    const tag = `${lang} ${width} ${outcome}`;
+    const { page, errors, context, release } = await openGenerate({ lang, width, now: false, answer: outcome === 'fail' ? 'fail' : answers()[outcome] });
+    await frames(page, 4);
+    const coming = (await factsLines(page)).map(row => row.text);
+    release();
+    await until(() => page.evaluate(() => !document.querySelector('[data-tour="generate-sources"] [data-index-slot="held"]')), `${tag}: the answer is in`);
+    await settleAnimations(page);
+    await frames(page, 4);
+    const landed = (await factsLines(page)).map(row => row.text);
+    t.diagnostic(`${tag}: ${coming.slice(0, 3).join(' | ')}`);
+    assert.deepEqual(landed, coming, `${tag}: the facts lines read the same before and after the answer`);
+    // the failed read is the browser's own console line for the 500 the test answers with
+    assert.deepEqual(errors.filter(error => !/status of 500/.test(error)), []);
+    await context.close();
+  }
+});
+
+test('#1084 round 8: a name shown whole has no hover card (1440)', { timeout: 300000 }, async t => {
+  if (skip) { t.skip(skip); return; }
+  for (const lang of ['zh', 'en']) {
+    const { page, errors, context } = await openGenerate({ lang, width: 1440, height: 900, answer: answers().badges });
+    const rows = await factsLines(page);
+    const worded = rows.flatMap(row => row.names.filter(name => name.shown && !name.cut && name.tip));
+    assert.deepEqual(worded.map(name => name.text), [], `${lang} 1440: no whole name carries hover words`);
+    const name = page.locator('[data-tour="generate-sources"] .source-picker__fact--name').first();
+    await name.hover();
+    await page.waitForTimeout(600);
+    const open = await page.evaluate(() => [...document.querySelectorAll('[role="tooltip"]')].filter(tip => { try { return tip.matches(':popover-open') || (!tip.hidden && tip.getBoundingClientRect().height > 0); } catch { return false; } }).map(tip => tip.textContent));
+    assert.deepEqual(open, [], `${lang} 1440: hovering a whole name opens no card`);
     assert.deepEqual(errors, []);
     await context.close();
   }
