@@ -122,7 +122,7 @@ export function ReadingBackButton({ run, onReturn, busy }) {
   useInjectCss(css, 'study-reading-loop');
   if (!run?.reading) return null;
   // The same size as its neighbours in the header (在右栏打开, 返回学习库): a smaller one beside two larger ones read as a mistake.
-  return <Button variant="quiet" className="reading-back" lock={busy} title={placeText(run.reading)} onClick={() => onReturn(run.reading)}>{ui('回到原文')}</Button>;
+  return <Button icon="arrow-left" variant="quiet" className="reading-back" lock={busy} title={placeText(run.reading)} onClick={() => onReturn(run.reading)}>{ui('回到原文')}</Button>;
 }
 
 /** After an answer, right or wrong (the answer is revealed with it): open the passage the question points at, with a way back to this very question. */
@@ -131,5 +131,5 @@ export function WrongAnswerSource({ run, sources, onOpen }) {
   if (!run?.feedback || !run.solution) return null;
   const found = firstCitation(run.solution, sources || []);
   if (!found) return null;
-  return <Button size="sm" className="reading-source" onClick={() => onOpen(found.source, found.quote)}>{ui('看这题的原文')}</Button>;
+  return <Button iconEnd="arrow-right" size="sm" className="reading-source" onClick={() => onOpen(found.source, found.quote)}>{ui('看这题的原文')}</Button>;
 }

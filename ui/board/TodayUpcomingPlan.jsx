@@ -40,7 +40,7 @@ export default function TodayUpcomingPlan({ library, today, planAnswer, onOpenPl
         <div className="board-upcoming__panel">
           <p className="board-upcoming__quiet">
             <span className="board-upcoming__quiet-text">{ui('还没有备考计划')}</span>
-            <Button
+            <Button iconEnd="arrow-right"
               variant="link"
               size="sm"
               className="board-upcoming__link"

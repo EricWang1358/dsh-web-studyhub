@@ -651,7 +651,7 @@ export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, on
               <strong>{ui("还没有案例分析题组")}</strong>
               <p>{ui("在「创建题组 › 案例分析题」里用课程资料出一套案例，或粘贴往年真题仿照出题。")}</p>
               {onCreate && <Button variant="secondary" icon="plus" onClick={onCreate}>{ui("新出一份案例卷")}</Button>}
-              <Button variant="quiet" onClick={onExit}>{ui("回学习库")}</Button>
+              <Button icon="arrow-left" variant="quiet" onClick={onExit}>{ui("回学习库")}</Button>
             </div>
           )}
         </div>

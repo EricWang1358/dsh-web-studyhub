@@ -93,7 +93,7 @@ export function ExamPrepDetailView({ row, blueprint = null, failure = null, onBa
         {row.build && (
           <span className="exam-prep-row__state">
             <Explain k="building" focusable><Badge size="sm" tone="accent" dot>{ui('正在重新生成')}</Badge></Explain>
-            <Button variant="link" size="sm" onClick={() => onOpenTask(row.build.taskId)}>{ui('在任务里查看')}</Button>
+            <Button iconEnd="arrow-right" variant="link" size="sm" onClick={() => onOpenTask(row.build.taskId)}>{ui('在任务里查看')}</Button>
           </span>
         )}
       </div>

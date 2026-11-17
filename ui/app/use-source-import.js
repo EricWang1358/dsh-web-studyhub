@@ -53,7 +53,7 @@ export function useSourceImport({ core, lib, nav, drafts, intents, data }) {
     if (outcome.highlight) setSourceHighlight({ ids: outcome.highlight, at: Date.now() });
     const ids = outcome.highlight;
     notify({ text: outcome.notice.text, tone: outcome.notice.tone,
-      ...(outcome.notice.action === 'generate' ? { action: { label: ui('用它出题'), run: () => generateFromSources(ids) } } : {}) });
+      ...(outcome.notice.action === 'generate' ? { action: { label: ui('用它出题'), iconEnd: 'arrow-right', run: () => generateFromSources(ids) } } : {}) });
   }
   return { paste, setPaste, formCourse, courseFrom: ownCourse ? 'page' : undefined, changeFormCourse, finishImport, finishAudioStart, generateFromSources };
 }

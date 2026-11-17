@@ -170,7 +170,7 @@ test("during a round started in the book or on the 总纲 the header's return bu
   const page = (extra) => renderToStaticMarkup(reviewEl({ run, data: { sources: [] }, host: {}, choice: false, isCloze: false, selected: [], clozeValues: {}, shellTitle: "今日学习", busy: false,
     onReturnContext: () => {}, ...extra }));
   const book = page({ contextKind: "book", contextPlace: "1.2.2 Title", contextReturnLabel: "回到复习全书" });
-  assert.match(book, /<button[^>]*review-return[^>]*aria-label="回到复习全书"[^>]*>\s*<span class="review-return-full">回到复习全书<\/span>/);
+  assert.match(book, /<button[^>]*review-return[^>]*aria-label="回到复习全书"[^>]*>\s*<svg[^>]*>.*?<\/svg><span class="review-return-full">回到复习全书<\/span>/, 'a way back leads with arrow-left (#1073 round 6)');
   assert.doesNotMatch(book, /返回学习库/);
   assert.doesNotMatch(book, /review-detour/, "one way back during the run: the header's, no pill under the card");
   assert.doesNotMatch(book, /←/);

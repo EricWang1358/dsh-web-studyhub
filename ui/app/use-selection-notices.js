@@ -15,7 +15,7 @@ export function useSelectionNotices({ core, learn, data }) {
       if (seen.current.get(job.id) !== 'active') continue;
       seen.current.set(job.id, 'told');
       const outcome = finishedNotice(job), added = outcome.jump?.cardIds?.length || 0;
-      latest.current.notify({ text: outcome.text, tone: outcome.tone, ...(added ? { action: { label: added === 1 ? ui('马上练这 1 张') : uiFormat('马上练这 {0} 张', [added]),
+      latest.current.notify({ text: outcome.text, tone: outcome.tone, ...(added ? { action: { label: added === 1 ? ui('马上练这 1 张') : uiFormat('马上练这 {0} 张', [added]), iconEnd: 'arrow-right',
         run: () => latest.current.open({ kind: 'cards', deckId: outcome.jump.deckId, cardIds: outcome.jump.cardIds }) } } : {}) });
     }
   }, [data?.jobs]);

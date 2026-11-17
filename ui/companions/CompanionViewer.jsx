@@ -638,7 +638,7 @@ export default function CompanionViewer({ modal, onClose }) {
                 {copyPath.copied ? ui('已复制路径') : ui('复制文件路径')}
               </Button>
             )}
-            {openExternal && <Button size="sm" variant="quiet" onClick={openExternal}>{ui('在外部浏览器打开')}</Button>}
+            {openExternal && <Button icon="external" size="sm" variant="quiet" onClick={openExternal}>{ui('在外部浏览器打开')}</Button>}
           </div>
         </div>
       )}

@@ -85,7 +85,7 @@ function Row({ entry, domId, active, query = '', onSelect, onGo }) {
           {entry.unavailable && <span className="finder-row__reason">{entry.unavailable}</span>}
         </p>}
       </div>
-      {canGo && <Button size="sm" variant="secondary" className="finder-row__go" tabIndex={-1} onClick={(event) => { event.stopPropagation(); onGo(entry); }}>{ui('带我去')}</Button>}
+      {canGo && <Button iconEnd="arrow-right" size="sm" variant="secondary" className="finder-row__go" tabIndex={-1} onClick={(event) => { event.stopPropagation(); onGo(entry); }}>{ui('带我去')}</Button>}
     </div>
   );
 }

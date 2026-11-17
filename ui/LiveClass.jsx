@@ -289,7 +289,7 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
   return <section className="page live-class" hidden={!visible} aria-label={ui('课堂实录')}>
     <PageHeader title={ui('课堂实录')}
       description={session ? undefined : ui('边听边看简体中文，选中重点就能出题。')}
-      actions={<Button variant="quiet" onClick={openAudio}>{ui('音频设置')}</Button>} />
+      actions={<Button iconEnd="arrow-right" variant="quiet" onClick={openAudio}>{ui('音频设置')}</Button>} />
     {error && <InlineMessage tone="error" boxed>{uiMessage(error)}</InlineMessage>}
     {error && !active(session) && <CaptureHelp kind={errorKind} facts={errorFacts} activeOp={activeOp} lock={disabled}
       liveLoopback={readiness?.liveLoopback || null} initialLoopback={initialLoopback}

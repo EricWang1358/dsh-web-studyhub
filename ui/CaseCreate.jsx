@@ -97,7 +97,7 @@ export default function CaseCreate({ data, onStarted, openImport, openReferenceI
             profile.guidanceSourceIds.length ? uiFormat("，评分说明 {0} 份", [profile.guidanceSourceIds.length]) : ui("，还没有评分说明"),
             profile.focusTopics.length ? uiFormat("，重点主题：{0}", [profile.focusTopics.join("、")]) : ""])}</p>
           {courseRecord && onCourseSettings
-            ? <Button className="case-create__action" size="sm" variant="link" onClick={() => onCourseSettings(courseRecord.id)}>{ui("修改课程的考试设置、评分说明和重点主题")}</Button>
+            ? <Button iconEnd="arrow-right" className="case-create__action" size="sm" variant="link" onClick={() => onCourseSettings(courseRecord.id)}>{ui("修改课程的考试设置、评分说明和重点主题")}</Button>
             : <small className="muted">{ui("选好课程后，可以在课程设置里指定评分说明资料和重点主题。")}</small>}
         </div>
         {initial.broughtOver > 0 && mode !== "import" && openingStands({ sourceIds: initial.sourceIds }, sourceIds) && <p className="muted" data-brought-over>{uiFormat("已带入刚才选好的 {0} 份资料；不合适就在下面改。", [initial.broughtOver])}</p>}

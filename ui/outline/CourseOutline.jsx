@@ -221,7 +221,7 @@ function Organise({ book, documents, running, writing, model, quiet, coverage, g
   if (run) return (
     <p className="outline-organise__running" role="status">
       <LoadingState inline label={writing ? writingText(writing) : runningText(running)} />
-      {actions.onOpenTask && <Button variant="link" size="sm" onClick={() => actions.onOpenTask(run.jobId)}>{ui('看进度')}</Button>}
+      {actions.onOpenTask && <Button iconEnd="arrow-right" variant="link" size="sm" onClick={() => actions.onOpenTask(run.jobId)}>{ui('看进度')}</Button>}
     </p>
   );
   const flip = (key, on) => { setChanged(true); setPapers(current => { const next = new Set(current); if (on) next.add(key); else next.delete(key); return next; }); };

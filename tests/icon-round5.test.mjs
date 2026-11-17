@@ -21,7 +21,7 @@ test('1: a navigating label that is not led by a go-on verb (前往设置, 打�
   assert.equal(goOnProblems('<Button variant="link" size="sm" iconEnd="arrow-right" onClick={onSettings}>{ui("前往设置")}</Button>').length, 0);
   assert.equal(goOnProblems('<Button variant="link" size="sm" onClick={onSources}>{ui(\'打开资料\')}</Button>').length, 1);
   assert.equal(goOnProblems('<Button variant="link" onClick={() => settingsFor(\'settings-mineru\')}>{ui(\'前往设置\')}</Button>').length, 1);
-  assert.equal(goOnProblems('<Button icon="plug" onClick={() => host.openPluginManager()}>{ui(\'打开 DSH 插件管理器\')}</Button>').length, 0, 'a Button with its own leading icon takes no arrow');
+  assert.equal(goOnProblems('<Button icon="external" onClick={() => host.openPluginManager()}>{ui(\'打开 DSH 插件管理器\')}</Button>').length, 0, 'a Button with its own leading icon takes no arrow');
 });
 
 test('1: what the control does decides, not its words: a control that only sets state on this page (a dialog, a fold) acts in place, so it has no arrow whatever it says', () => {
@@ -29,7 +29,8 @@ test('1: what the control does decides, not its words: a control that only sets 
   assert.match(inPlaceWhy('<Button onClick={() => setOpen((open) => !open)}>'), /state/);
   assert.equal(inPlaceWhy('<Button onClick={() => onOpenSettings(\'settings-marker\')}>'), '', 'a call of a prop leaves the page');
   assert.equal(inPlaceWhy('<Button onClick={() => nav.navigate(\'settings\')}>'), '');
-  assert.equal(inPlaceWhy('<Button onClick={() => host.setModal({ type: \'add\' })}>'), '', 'a dotted call is not a local setter');
+  assert.equal(inPlaceWhy('<Button onClick={() => host.setDraft(next)}>'), '', 'a dotted setter is not the page\'s own');
+  assert.match(inPlaceWhy('<Button onClick={() => host.setModal({ type: \'add\' })}>'), /state/, 'round 6: a dialog over the page, whoever opens it, acts in place');
   assert.equal(goOnProblems('<Button onClick={() => setOpened(row)}>{ui("打开")}</Button>').length, 0);
   assert.equal(goOnProblems('<Button iconEnd="arrow-right" onClick={() => setOpened(row)}>{ui("打开")}</Button>').length, 1);
   assert.equal(goOnProblems('<Button iconEnd="arrow-right" onClick={() => setEditing(true)}>{ui("修改并导入")}</Button>').length, 1, '修改并导入 opens a dialog in place: no arrow, whatever its words');
@@ -80,8 +81,8 @@ test('1: the whole of ui/ agrees with the rule: no go-on or navigating Button wi
   const sources = await uiSources(), helpers = labelHelpers(sources), found = [];
   for (const { file, source } of sources) {
     for (const { label, open, want } of goOnProblems(source, { file, helpers })) found.push(`${file}: ${label} wants ${want}  ${open.slice(0, 80)}`);
-    for (const { label, open, want } of specProblems(source)) found.push(`${file}: spec ${label} wants ${want}  ${open.slice(0, 80)}`);
-    for (const { label, open, want } of actionProblems(source, { helpers })) found.push(`${file}: action ${label} wants ${want}  ${open.slice(0, 80)}`);
+    for (const { label, open, want } of specProblems(source, { file })) found.push(`${file}: spec ${label} wants ${want}  ${open.slice(0, 80)}`);
+    for (const { label, open, want } of actionProblems(source, { file, helpers })) found.push(`${file}: action ${label} wants ${want}  ${open.slice(0, 80)}`);
   }
   assert.deepEqual(found, []);
 });

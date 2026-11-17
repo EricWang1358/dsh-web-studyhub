@@ -166,7 +166,7 @@ function DeckBody({ step, on, jobs, plan }) {
       <p className="frl-body__text">{ui('出题时已逐题审阅；发布时会再检查一遍题目的结构，然后直接开始练第一轮。')}</p>
       <div className="frl-body__actions">
         {on.publish && <Button variant="primary" iconEnd="arrow-right" lock={busy} data-first-run="publish" onClick={() => on.publish(draft)}>{ui('发布并开始练')}</Button>}
-        {on.openDraft && <Button variant="link" className="first-run__link" lock={busy} data-first-run="look" onClick={() => on.openDraft(draft)}>{ui('先看看草稿')}</Button>}
+        {on.openDraft && <Button iconEnd="arrow-right" variant="link" className="first-run__link" lock={busy} data-first-run="look" onClick={() => on.openDraft(draft)}>{ui('先看看草稿')}</Button>}
       </div>
     </>
   );

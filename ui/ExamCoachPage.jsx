@@ -276,7 +276,7 @@ export default function ExamCoachPage({
         eyebrow={ui('考试与统计')}
         title={ui('考试教练')}
         description={ui('先分析考察方式、确认代表变式与干扰项错因，再按模块化配额生成并分开核对资料覆盖、训练覆盖与独立能力证据。普通直接出题无需经过此处。')}
-        actions={onGoGenerate ? <Button variant="quiet" onClick={onGoGenerate}>{ui('直接去创建题组')}</Button> : undefined}
+        actions={onGoGenerate ? <Button iconEnd="arrow-right" variant="quiet" onClick={onGoGenerate}>{ui('直接去创建题组')}</Button> : undefined}
       />
 
       {!model.ready && (
@@ -735,10 +735,10 @@ export default function ExamCoachPage({
                     <Button variant="secondary" lock={busy || working} onClick={handleBuildPreview}>
                       {ui('预览生效要求与配额')}
                     </Button>
-                    <Button variant="secondary" lock={busy || working} onClick={handleApplyToGenerateForm}>
+                    <Button iconEnd="arrow-right" variant="secondary" lock={busy || working} onClick={handleApplyToGenerateForm}>
                       {ui('带入创建题组表单')}
                     </Button>
-                    <Button variant="primary" lock={busy || working || !model.ready} onClick={handleDirectGenerate}>
+                    <Button iconEnd="arrow-right" variant="primary" lock={busy || working || !model.ready} onClick={handleDirectGenerate}>
                       {ui('按校准方案立即出题')}
                     </Button>
                   </>

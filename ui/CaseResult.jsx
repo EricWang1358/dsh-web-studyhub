@@ -188,7 +188,7 @@ export function CaseReport({ report, busy, assistTasks, submitting = false, onDr
       <div className="case-report__actions">
         {onDrills && <Button variant="primary" icon="sparkle" disabled={!paper.weakest.length} lock={busy} onClick={() => onDrills()}>{ui("把薄弱项变成练习")}</Button>}
         {onAgain && <Button variant="secondary" lock={busy} onClick={onAgain}>{ui("再来一个同类案例")}</Button>}
-        {onPracticeDeck && <Button variant="quiet" lock={busy} onClick={onPracticeDeck}>{ui("逐题复习这套案例")}</Button>}
+        {onPracticeDeck && <Button iconEnd="arrow-right" variant="quiet" lock={busy} onClick={onPracticeDeck}>{ui("逐题复习这套案例")}</Button>}
       </div>
       {paper.questions.some((question) => question.status === "graded") && <Disclosure summary={ui("逐题批改详情")}>
         {paper.questions.filter((question) => question.rubric).map((question) => (

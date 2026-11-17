@@ -218,7 +218,7 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
             : <p className="muted">{ui("本次没有已评估的薄弱主题。")}</p>}
         {!!report.weakScope?.length && <Button iconEnd="arrow-right" busy={busy} onClick={practiceWeak}>{ui("直接练这些题")}</Button>}
       </div>
-      <div className="oral-actions"><Button variant="primary" onClick={onExit}>{ui("回到学习库")}</Button>
+      <div className="oral-actions"><Button icon="arrow-left" variant="primary" onClick={onExit}>{ui("回到学习库")}</Button>
         <Button onClick={() => exam.leave()}>{ui("再来一轮")}</Button></div>
       <details className="result-details"><summary>{ui("查看逐题反馈与原回答")}</summary>
         {canFilterWeak && (

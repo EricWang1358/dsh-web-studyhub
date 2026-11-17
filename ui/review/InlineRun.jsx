@@ -35,7 +35,7 @@ function InlineRunDone({ session, onClose, onContinue }) {
         <span>{after.percent !== before.percent ? uiFormat("本组 {0}% → {1}%", [before.percent, after.percent]) : uiFormat("本组 {0}%", [after.percent])}</span></p>}
       <div className="inline-run__done-actions">
         <Button variant="primary" size="sm" icon="arrow-left" onClick={onClose}>{ui("回到题目列表")}</Button>
-        {weak && <Button size="sm" lock={busy} onClick={session.coach.onReviewWeak}>{ui("错的再练一遍")}</Button>}
+        {weak && <Button iconEnd="arrow-right" size="sm" lock={busy} onClick={session.coach.onReviewWeak}>{ui("错的再练一遍")}</Button>}
         {onContinue && <Button size="sm" variant="quiet" lock={busy} onClick={onContinue}>{ui("在练习页看结果")}</Button>}
       </div>
     </div>

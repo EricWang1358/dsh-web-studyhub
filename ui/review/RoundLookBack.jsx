@@ -344,7 +344,7 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAc
               </Button>
             )}
             {onPracticeWrong && wrong >= 1 && (
-              <Button size="sm" variant="quiet" lock={study?.busy} onClick={() => onPracticeWrong(wrongRefs)}>
+              <Button iconEnd="arrow-right" size="sm" variant="quiet" lock={study?.busy} onClick={() => onPracticeWrong(wrongRefs)}>
                 {wrong === 1 ? ui("重练这道错题") : uiFormat("重练这 {0} 道错题", [wrong])}
               </Button>
             )}

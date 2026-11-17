@@ -88,7 +88,7 @@ export function RelatedTasks({ plan, reference, runId, onBoard }) {
         <strong>{task.title}</strong><TaskProgress task={task} /></div>
       {task.kind === 'reading' && actionable(task) && <Button size="sm" lock={!!plan.busy} onClick={() => plan.complete(task.id)}>{ui('我已完成')}</Button>}
     </div>)}
-    {onBoard && <Button variant="link" size="sm" onClick={onBoard}>{ui('查看待办')}</Button>}
+    {onBoard && <Button iconEnd="arrow-right" variant="link" size="sm" onClick={onBoard}>{ui('查看待办')}</Button>}
   </aside>;
 }
 

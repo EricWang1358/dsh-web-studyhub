@@ -186,12 +186,12 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
         actions={<>
           {host.openInSidebar && !run.complete && (
             <Tooltip layer content={ui("题目放到右栏，主区域回到主会话。在右栏里接着刚才做到的这一题继续。")}>
-              <Button variant="quiet" busy={movingToSidebar} onClick={moveToSidebar}>{ui("在右栏打开")}</Button>
+              <Button iconEnd="arrow-right" variant="quiet" busy={movingToSidebar} onClick={moveToSidebar}>{ui("在右栏打开")}</Button>
             </Tooltip>
           )}
           {!run.complete && onReturnToReading && <ReadingBackButton run={run} busy={busy} onReturn={onReturnToReading} />}
           {/* On the result page the way back (the book, the 总纲 or the reading) is the main button below; the header does not say the same twice. */}
-          {!(run.complete && backHere) && <Button variant="quiet" className="review-return" aria-label={returnLabel} onClick={() => flow ? onBackToWorkflow(flow.sessionId) : wayBack ? wayBack.go() : navigate("library")}>
+          {!(run.complete && backHere) && <Button icon="arrow-left" variant="quiet" className="review-return" aria-label={returnLabel} onClick={() => flow ? onBackToWorkflow(flow.sessionId) : wayBack ? wayBack.go() : navigate("library")}>
             <span className="review-return-full">{returnLabel}</span>
             <span className="review-return-short" aria-hidden="true">{wayBack ? wayBack.label : ui("返回")}</span>
           </Button>}
@@ -207,7 +207,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
           )}
           <RunContext data={data} deckId={run.deckId} run={run} />
           {skeletonHere && openSkeleton && (
-            <Button variant="quiet" size="sm" title={uiFormat("这道题在知识骨架「{0}」里", [skeletonHere.title])} onClick={() => openSkeleton(skeletonHere.id)}>{ui("知识骨架")}</Button>
+            <Button iconEnd="arrow-right" variant="quiet" size="sm" title={uiFormat("这道题在知识骨架「{0}」里", [skeletonHere.title])} onClick={() => openSkeleton(skeletonHere.id)}>{ui("知识骨架")}</Button>
           )}
         </div>
       </PageHeader>
@@ -283,7 +283,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
           {leechCount > 0 && (
             <p className="summary-leech">
               {leechCount === 1 ? ui("本轮有 1 道题你已经反复答错。") : uiFormat("本轮有 {0} 道题你已经反复答错。", [leechCount])}
-              <Button variant="link" size="sm" lock={busy} onClick={() => { askForLeeches(data?.root, run.leechCards); navigate("wrongbook"); }}>{ui("在错题本里看看")}</Button>
+              <Button iconEnd="arrow-right" variant="link" size="sm" lock={busy} onClick={() => { askForLeeches(data?.root, run.leechCards); navigate("wrongbook"); }}>{ui("在错题本里看看")}</Button>
             </p>
           )}
           {run.course && (
@@ -310,7 +310,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
                 input={{ course: roundCourse, stage: roundStage, missed: missedList }}
                 disabled={busy} />
             )}
-            <Button onClick={() => navigate("library")}>{ui("回到学习目录")}</Button>
+            <Button icon="arrow-left" onClick={() => navigate("library")}>{ui("回到学习目录")}</Button>
           </div>
           {caseNote && <p className="muted" role="status">{caseNote}</p>}
           {methodAlt && (
@@ -332,7 +332,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             <p className="muted">{ui("每道题的下次复习时间已保存。")}</p>
             <div className="summary-actions">
             {run.mode === "path" && !run.returnTo && !flow && run.scope?.length > 0 && run.dailyCourse === undefined && (
-              <Button lock={busy} onClick={() => act("review.start", { mode: "path", scope: run.scope, fresh: true }, enterRun)}>{ui("再练此范围")}</Button>
+              <Button iconEnd="arrow-right" lock={busy} onClick={() => act("review.start", { mode: "path", scope: run.scope, fresh: true }, enterRun)}>{ui("再练此范围")}</Button>
             )}
             {run.weakTopics?.length > 0 && (
               <HandOff id="review.weakTopics" lead="讲解薄弱点：" what="让主会话逐个讲清这一轮还没掌握稳的主题，并各出一道小题检查你"

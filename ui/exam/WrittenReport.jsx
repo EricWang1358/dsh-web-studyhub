@@ -87,7 +87,7 @@ export default function WrittenReport({ report, busy, pathNote, error, onQueueWe
       </div>
 
       <div className="exam-report-actions">
-        <Button variant="primary" onClick={onExit}>{ui('回学习库')}</Button>
+        <Button icon="arrow-left" variant="primary" onClick={onExit}>{ui('回学习库')}</Button>
         <Button onClick={onAgain}>{ui('再考一次')}</Button>
       </div>
 

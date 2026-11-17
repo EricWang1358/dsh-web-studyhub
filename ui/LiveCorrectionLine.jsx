@@ -28,7 +28,7 @@ export default function LiveCorrectionLine({ correction, total, polished, active
       {error ? <span className="live-correction-error" role="status">{uiMessage(error)}</span>
         : paused && <span className="live-correction-error" role="status">{ui('润色已暂停，点「重试待校正内容」再继续。')}</span>}
       {canRetry && retry}
-      {modelProblem && onSettings && <Button variant="link" size="sm" data-live-model-setting onClick={onSettings}>{ui('到音频设置换一个文字模型')}</Button>}</span>}
+      {modelProblem && onSettings && <Button iconEnd="arrow-right" variant="link" size="sm" data-live-model-setting onClick={onSettings}>{ui('到音频设置换一个文字模型')}</Button>}</span>}
     <details className="live-correction-more"><summary>{ui('说明与用量')}</summary>
       <p className="muted">{ui('每 30 秒检查一次新句子，按顺序分批，并带上前面几句作上下文；结束后补齐剩余内容。只有模型高置信度改动过的句子才会亮绿点：实心表示已润色，空心圈表示检查过、无需修改。')}</p>
       {skippedItems.length > 0 && <p>{uiFormat('已跳过的句子：{0}', [skippedItems.map(item => `${uiFormat('句 {0}', [item.id])} · ${uiMessage(item.reason)}`).join('；')])}</p>}

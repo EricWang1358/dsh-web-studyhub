@@ -397,7 +397,7 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
                   {lint.flagged ? uiRich("{0} / {1} 道题有散装问题", <strong>{lint.flagged}</strong>, lint.total) : uiFormat("{0} 道题都没发现散装问题", [lint.total])}
                 </span>
                 {lint.flagged > 0 && (
-                  <Button size="sm" className="sk-mini" lock={busy} onClick={() => onPractice(lint.cards.filter((c) => c.issues.length))}>{ui("只练这些题")}</Button>
+                  <Button iconEnd="arrow-right" size="sm" className="sk-mini" lock={busy} onClick={() => onPractice(lint.cards.filter((c) => c.issues.length))}>{ui("只练这些题")}</Button>
                 )}
               </div>
               <div className="sk-filters" role="group" aria-label={ui("按问题筛选")}>

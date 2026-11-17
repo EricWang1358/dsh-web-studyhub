@@ -36,7 +36,7 @@ export default function CitationDisclosure({ card, sources = [], onOpenSource, d
                 <span>{source?.title || ui("资料")}{aiDrafted && <>{" "}<Badge size="sm" tone="warning" className="citations__provenance">{ui("AI 撰写 · 未核对")}</Badge></>}
                   <blockquote>{citation.quote}</blockquote></span>
               </Button>
-              {pdfPage > 0 && <Button className="citations__peek" variant="quiet" size="sm"
+              {pdfPage > 0 && <Button icon="external" className="citations__peek" variant="quiet" size="sm"
                 onClick={() => onOpenSource(targetSource, citation.quote, pdfPage)}>{ui("看原页")}</Button>}
             </div>;
           })}
