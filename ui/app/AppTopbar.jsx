@@ -96,7 +96,7 @@ export default function AppTopbar({ title }) {
       {shell?.navDrawer && <NavMenuButton />}
       <nav className="crumbs" aria-label={ui('位置')}>
         <span className="crumb">{ui('StudyHub')}</span>
-        <span className="breadcrumb" aria-hidden="true"><Icon className="sh-icon--inline" name="arrow-right" /></span>
+        <span className="breadcrumb" aria-hidden="true"><Icon className="sh-icon--inline" name="chevron" /></span>
         <span className="crumb" aria-current="page">{title}</span>
       </nav>
       <div className="top-right">

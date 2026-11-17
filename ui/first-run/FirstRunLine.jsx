@@ -33,19 +33,21 @@ export function modelLabelParts(label) {
   return at < 0 ? { provider: '', id: text } : { provider: `${text.slice(0, at)}\u00a0·`, id: text.slice(at + 3) };
 }
 
-/** Is the text of this element cut: past its width (one line, an ellipsis) or past its lines (a line clamp)? Measured once drawn and again when it is resized or
-    its words change. ui/use-cut.js answers the width alone; the model step of the compact card is cut by its second line. */
+/** Is the text of this element cut: past its width (one line, an ellipsis) or past its lines (a line clamp)? Measured once drawn and again when it is resized, its
+    words change or the web font has loaded. ui/use-cut.js answers the width alone; the model step of the compact card is cut by its second line. */
 function useClamped(ref, text) {
   const [cut, setCut] = useState(false);
   useEffect(() => {
     const element = ref.current;
     if (!element) return undefined;
-    const measure = () => setCut(element.scrollWidth > element.clientWidth + 1 || element.scrollHeight > element.clientHeight + 1);
+    let live = true;
+    const measure = () => { if (live) setCut(element.scrollWidth > element.clientWidth + 1 || element.scrollHeight > element.clientHeight + 1); };
     measure();
-    if (typeof ResizeObserver === 'undefined') return undefined;
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    return () => observer.disconnect();
+    // The web font (Inter, for Latin and digits) may arrive after the first measure and change the width of the words without resizing the row (#1073 round 9).
+    document.fonts?.ready?.then(measure);
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    observer?.observe(element);
+    return () => { live = false; observer?.disconnect(); };
   }, [ref, text]);
   return cut;
 }
