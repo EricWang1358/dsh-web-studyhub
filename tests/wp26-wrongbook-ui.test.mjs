@@ -354,7 +354,7 @@ test('English: the history view is translated while the question text stays as w
     assert.match(t, /To review 5/);
     assert.match(t, /Corrected 2/);
     assert.match(t, /Corrected — Objectively incorrect: 1 ·\sNot mastered: 1\./);
-    assert.match(t, new RegExp('Corrected Missed 3 time\\(s\\) · Last missed ' + escapeRe(formatDateTime('2026-10-03T10:30:00Z', 'stamp'))));
+    assert.match(t, new RegExp('Corrected Missed 3 times · Last missed ' + escapeRe(formatDateTime('2026-10-03T10:30:00Z', 'stamp'))));
     const empty = render({ ...historyBase, data: { ...base.data, decks: englishDecks }, items: [],
       counts: { total: 0, graded: 0, self: 0, oral: 0, rubric: 0 }, viewCounts: { weak: 5, history: 0 } });
     assert.doesNotMatch(empty, han);

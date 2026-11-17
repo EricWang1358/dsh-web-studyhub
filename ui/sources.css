@@ -104,8 +104,8 @@
     .source-doc__actions .source-row-menu .source-row-menu__btn { width: 100%; max-width: 100%; margin: 0; justify-content: flex-start; text-align: left; white-space: nowrap; }
     /* Its entries are menu items, not a stack of boxes (#1073 round 8): no border or fill of their own, a fill on hover, and every entry (补全原文件… of the
        original file too, the same md Button as the rest) with its text 17px in (the 1px border kept clear plus --space-4). */
-    .source-doc__actions .source-row-menu .source-row-menu__btn.sh-btn { padding: var(--space-2) var(--space-4); border-color: transparent; background: none; }
-    .source-doc__actions .source-row-menu .source-row-menu__btn.sh-btn:hover:not(:disabled) { border-color: transparent; background: var(--bg-hover); }
+    .source-doc__actions .source-row-menu .source-row-menu__btn { padding: var(--space-2) var(--space-4); border-color: transparent; background: none; }
+    .source-doc__actions .source-row-menu .source-row-menu__btn:hover:not(:disabled) { border-color: transparent; background: var(--bg-hover); }
     /* 查看 N 页 (a flush quiet button) starts where the title's text does, on a wide row and a narrow one. */
     .source-doc__pages { margin: var(--space-2) 0 0 var(--source-doc-lead); }
     /* 查看 N 章 and the quiet 深度定制 of a long book share one line; at narrow widths the second wraps under the first instead of widening the row. */

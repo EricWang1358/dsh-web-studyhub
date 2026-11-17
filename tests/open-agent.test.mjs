@@ -88,7 +88,9 @@ test('attemptOpen returns an empty string on success and the reason on failure',
 test('the button shows only when there is an assistant and a host that can open it', () => {
   const link = props => renderToStaticMarkup(h(AgentLink, { label: '查看后台助手', ...props }));
   const html = link({ childId: 'c1', openAgent() {} });
-  assert.match(html, /^<button type="button" class="sh-btn sh-btn--link sh-btn--sm">查看后台助手<\/button>$/);
+  // A DSH chat is outside StudyHub: the link leads with the external mark (#1073 round 8).
+  assert.match(html, /^<button type="button" class="sh-btn sh-btn--link sh-btn--sm"><svg class="sh-icon"[^>]*>.*<\/svg>查看后台助手<\/button>$/);
+  assert.match(html, /data-icon="external"|<path d="M222,104/, 'the mark is the external icon');
   assert.equal(link({ childId: 'c1' }), '', 'no host support, no button');
   assert.equal(link({ openAgent() {} }), '', 'no assistant id, no button');
   assert.match(link({ childId: 'c1', openAgent() {}, className: 'link-btn', ariaLabel: '查看子代理：校对 1/30' }), /class="sh-btn sh-btn--link sh-btn--sm link-btn" aria-label="查看子代理：校对 1\/30"/);
