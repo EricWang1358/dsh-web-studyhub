@@ -24,7 +24,7 @@
   "练选中的 {0} 题": "Practise picked ({0})",
   "共 {0} 题，一轮最多 {1} 题：先练到期、薄弱和新题里排在前面的 {1} 题。": "{0} questions; a round takes at most {1}: the first {1} of the due, weak and new questions come first.",
   "练这一节": "Practise this",
-  "接着练 {0}/{1}": "Continue {0}/{1}",
+  "接着练 {0}/{1}": "Resume {0}/{1}",
   "正在读取题目…": "Loading questions…",
   "这里还没有题。": "No questions here yet.",
   "还有 {0} 题没列出，「练这一节」会一起练。": "{0} more questions are not listed; Practise this includes them.",

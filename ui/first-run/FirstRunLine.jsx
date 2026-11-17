@@ -91,7 +91,7 @@ function ModelBody({ step, on }) {
           <li key={index}>
             <span className="frl-setup__num" aria-hidden="true">{index + 1}</span>
             <span className="frl-setup__text">{item.text}
-              {item.choose && on.openModelSettings && <>{' '}<Button variant="link" size="sm" className="first-run__link" lock={busy} onClick={on.openModelSettings}>{settingsLabel}</Button></>}
+              {item.choose && on.openModelSettings && <>{' '}<Button iconEnd="arrow-right" variant="link" size="sm" className="first-run__link" lock={busy} onClick={on.openModelSettings}>{settingsLabel}</Button></>}
               {item.hint && <span className="frl-setup__hint">{item.hint}</span>}
             </span>
           </li>

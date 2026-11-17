@@ -321,7 +321,7 @@ export default function ExamCoachPage({
           icon="file"
           title={ui('还没有课程资料')}
           description={ui('导入讲义、教材或往年样卷后，教练可以区分资料事实与样卷观察并整理考察任务族；你也可以先查看现有题库的能力证据分界。')}
-          primary={onGoGenerate ? { label: ui('前往创建题组导入资料'), onClick: onGoGenerate } : undefined}
+          primary={onGoGenerate ? { label: ui('前往创建题组导入资料'), iconEnd: 'arrow-right', onClick: onGoGenerate } : undefined}
         />
       )}
 

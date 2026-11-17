@@ -44,8 +44,8 @@ export function Toast({ tone, title, children, action, secondary, onDismiss, dis
         {title && <strong className="sh-toast__title">{title}</strong>}
         <span className="sh-toast__message">{children}</span>
       </div>
-      {action && <Button variant={receipt ? 'quiet' : 'link'} size="sm" className="sh-toast__action" disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>}
-      {secondary && <Button variant="link" size="sm" className="sh-toast__action sh-toast__secondary" disabled={secondary.disabled} onClick={secondary.onClick}>{secondary.label}</Button>}
+      {action && <Button variant={receipt ? 'quiet' : 'link'} size="sm" className="sh-toast__action" iconEnd={action.iconEnd} disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>}
+      {secondary && <Button variant="link" size="sm" className="sh-toast__action sh-toast__secondary" iconEnd={secondary.iconEnd} disabled={secondary.disabled} onClick={secondary.onClick}>{secondary.label}</Button>}
       {onDismiss && <IconButton icon="close" size="sm" className="sh-toast__close" label={dismissText || dismissLabel(kind)} onClick={onDismiss} />}
       {timerRef && <span ref={timerRef} className="sh-toast__timer" aria-hidden="true" />}
     </div>
@@ -176,8 +176,8 @@ export function InlineMessage({ tone = 'error', title, children, action, seconda
   useComponentCss(css);
   const kind = toneOf(tone);
   const actions = <>
-    {action && withTip(action.tip, <Button variant="link" size="sm" className="sh-inline__action" disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>)}
-    {secondary && withTip(secondary.tip, <Button variant="link" size="sm" className="sh-inline__action sh-inline__secondary" disabled={secondary.disabled} onClick={secondary.onClick}>{secondary.label}</Button>)}
+    {action && withTip(action.tip, <Button variant="link" size="sm" className="sh-inline__action" iconEnd={action.iconEnd} disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>)}
+    {secondary && withTip(secondary.tip, <Button variant="link" size="sm" className="sh-inline__action sh-inline__secondary" iconEnd={secondary.iconEnd} disabled={secondary.disabled} onClick={secondary.onClick}>{secondary.label}</Button>)}
   </>;
   const below = actionsBelow && (action || secondary);
   return (
@@ -246,7 +246,7 @@ export function createToastApi({ setNotice, setError }) {
   const show = ({ tone = 'info', message, action, secondary, persistent, undo, timeout, scope, onLeave }) => setNotice({
     text: message, tone,
     ...(persistent ? { persistent } : {}), ...(undo ? { undo } : {}), ...(timeout ? { timeout } : {}), ...(scope !== undefined ? { scope } : {}),
-    ...(action ? { action: { label: action.label, run: action.run ?? action.onClick } } : {}),
+    ...(action ? { action: { label: action.label, run: action.run ?? action.onClick, ...(action.iconEnd ? { iconEnd: action.iconEnd } : {}) } } : {}),
     ...(secondary ? { secondary: { label: secondary.label, run: secondary.run ?? secondary.onClick } } : {}),
     ...(onLeave ? { onLeave } : {}),
   });

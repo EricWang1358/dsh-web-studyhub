@@ -49,7 +49,7 @@ export function PassageLinks({ groups = [], onOpenCard }) {
       <p><strong>{link.prompt || link.cardId}</strong>{link.status !== 'resolved' && <> <Badge tone="warning" size="sm">{ui(link.status === 'stale' ? '引用待核对' : '原文位置不可用')}</Badge></>}</p>
       {link.answer && <p>{Array.isArray(link.answer) ? link.answer.join('、') : String(link.answer)}</p>}
       {link.explanation && <Markdown text={link.explanation} />}
-      {onOpenCard && <Button size="sm" onClick={() => onOpenCard(link)}>{ui('打开题目与解析')}</Button>}
+      {onOpenCard && <Button iconEnd="arrow-right" size="sm" onClick={() => onOpenCard(link)}>{ui('打开题目与解析')}</Button>}
     </article>)}
   </details>)}</div>;
 }
@@ -134,7 +134,7 @@ export function LearningPanel({ capture, scope = null, jobsOnly = false, pageHan
             <label className="study-learning-label">{ui('题数')}<input className="study-learning-control" type="number" min="1" max="20" value={count} onChange={event => onCount?.(event.target.value)} /></label>
           </div>
           <p className="muted">{ui('题型和题数取自设置里的出题偏好；在这里改，不会改动设置。')}
-            {openSettings && <> <Button variant="link" size="sm" onClick={() => openSettings('settings-generation')}>{ui('前往设置')}</Button></>}</p>
+            {openSettings && <> <Button iconEnd="arrow-right" variant="link" size="sm" onClick={() => openSettings('settings-generation')}>{ui('前往设置')}</Button></>}</p>
         </Disclosure>
         <HelpTip label={ui('生成之后会怎样')}>{ui('生成后独立审核，通过的题目增量保存到所选题组，并与此段原文关联。')}</HelpTip>
         {generateReady && deckId && typeof call === 'function' && <TokenEstimate enabled totalOnly

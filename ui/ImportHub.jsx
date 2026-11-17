@@ -553,7 +553,7 @@ export default function ImportHub({
   const shown = items.map(item => ({ id: item.id, name: item.name, status: item.status, detail: itemDetail(item),
     action: item.status === 'done' && item.result?.repeated?.count > 0 && item.result.documentId
       ? { label: ui('恢复'), onClick: () => putBack(item), disabled: !!restoring || running }
-      : item.status !== 'error' ? customAction(item) : item.carry && audioOn ? { label: ui('去音频页'), onClick: () => { carryToAudio([item.file]); drop(item.id); } }
+      : item.status !== 'error' ? customAction(item) : item.carry && audioOn ? { label: ui('去音频页'), iconEnd: 'arrow-right', onClick: () => { carryToAudio([item.file]); drop(item.id); } }
       : item.permanent || !item.kind ? { label: ui('移除'), onClick: () => drop(item.id), disabled: running }
         : { label: ui('重试'), onClick: () => retry(item.id), disabled: running } }));
   const finished = items.filter(item => item.status === 'done').length, failed = items.filter(item => item.status === 'error').length;
@@ -605,7 +605,7 @@ export default function ImportHub({
           <div className="import-hub__converter-actions">
             <Button size="sm" icon="upload" disabled={!convertible} lock={busy || running} data-tour="import-mineru" onClick={choosePdfToConvert}>{ui('选择 PDF 解析…')}</Button>
             <Button variant="link" size="sm" disabled={!convertible} lock={busy || running} onClick={() => { setConversionHistory(true); setConversionOpen(true); }}>{ui('解析历史')}</Button>
-            {onOpenSettings && convertible && <Button variant="link" size="sm" lock={busy || running} onClick={() => settingsFor('settings-mineru')}>{ui('前往设置')}</Button>}
+            {onOpenSettings && convertible && <Button iconEnd="arrow-right" variant="link" size="sm" lock={busy || running} onClick={() => settingsFor('settings-mineru')}>{ui('前往设置')}</Button>}
           </div>
         </Disclosure>}
         {!items.length && !conversionOpen && <p className="import-hub__routes">{audioOn

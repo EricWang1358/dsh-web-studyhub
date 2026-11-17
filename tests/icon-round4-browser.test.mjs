@@ -20,6 +20,7 @@ import { sampleAction } from '../lib/sample-library.js';
      5  every 再添加资料 is one colour (ink, never the cinnabar of the one primary) and one icon size, on the first-run line and on the home;
      6  the first-run card's step 2 in the sample state is never cut, in zh and en, at 1440 and 420px;
      8  at 420px the English deck row's title is not cut by its play slot.
+   And round 5: at 420px an idle row has no invisible play slot, and the ways in of the sample state's home row are one colour and one size.
    ICON_ROUND4_SHOTS=<dir> keeps a screenshot of each place. */
 
 const SHOTS = process.env.ICON_ROUND4_SHOTS || '';
@@ -159,6 +160,45 @@ test('round 4 in the browser: answer marks as heavy as their label, the station 
       const slots = await page.evaluate(() => [...document.querySelectorAll('.deck-row .map-play')].map((slot) => Math.round(slot.getBoundingClientRect().width * 10) / 10));
       assert.equal(new Set(slots).size, 1, `${lang} 420px: the play slots are one width (${slots.join(', ')})`);
       await shot(page, `deck-rows-${lang}-420`);
+      await context.close();
+    } });
+
+    await t.test(`round 5 (2): at 420px with a mouse an idle deck or topic row has no invisible play slot beside its bar, and the bars still line up`, async () => { for (const [lang, server] of [['zh', zh], ['en', en]]) {
+      const { page, context } = await open(browser, server, { lang, width: 420, height: 844 });
+      await later(page, lang);
+      await page.locator('.deck-row .map-play').first().waitFor({ timeout: 30000 });
+      assert.ok(await page.evaluate(() => matchMedia('(hover: hover)').matches), 'the browser has a mouse: the case the review found');
+      await page.locator('.deck-row .map-fold').first().click();
+      await page.locator('.topic-row .map-play').first().waitFor({ timeout: 15000 });
+      await page.waitForTimeout(500);
+      const rows = await page.evaluate(() => [...document.querySelectorAll('.deck-row, .topic-row')].filter((row) => row.getClientRects().length).map((row) => {
+        const slot = row.querySelector('.map-play'), bar = row.querySelector('.mastery-bar');
+        const box = slot.getBoundingClientRect(), track = bar?.getBoundingClientRect();
+        return { kind: row.classList.contains('deck-row') ? 'deck' : 'topic', run: slot.classList.contains('is-run'), opacity: +getComputedStyle(slot).opacity, width: +box.width.toFixed(1), right: track ? +track.right.toFixed(1) : null, left: track ? +track.left.toFixed(1) : null, bar: track ? +track.width.toFixed(1) : null };
+      }));
+      assert.ok(rows.some((row) => row.kind === 'deck' && !row.run) && rows.some((row) => row.kind === 'topic'), `${lang}: idle deck and topic rows are on screen`);
+      for (const row of rows) assert.ok(row.opacity >= 0.99 || row.width <= 4, `${lang} 420px: an idle ${row.kind} row keeps an invisible ${row.width}px slot beside its bar (opacity ${row.opacity})`);
+      const bars = rows.filter((row) => row.bar !== null);
+      for (const kind of ['deck', 'topic']) {
+        const mine = bars.filter((row) => row.kind === kind);
+        assert.ok(new Set(mine.map((row) => Math.round(row.right))).size <= 1 && new Set(mine.map((row) => Math.round(row.left))).size <= 1, `${lang} 420px: the ${kind} bars share one left and one right edge (${JSON.stringify(mine.map((row) => [row.left, row.right]))})`);
+      }
+      await shot(page, `deck-rows-idle-${lang}-420`);
+      await context.close();
+    } });
+
+    await t.test(`round 5 (3 / #1074): the ways in on the home row of the sample state are one system: one colour and one size, the hand-off link too`, async () => { for (const [lang, server] of [['zh', zh], ['en', en]]) {
+      const { page, context } = await open(browser, server, { lang, width: 1440 });
+      await later(page, lang);
+      await page.locator('.desk-also [data-hand-off="import.file"]').first().waitFor({ timeout: 30000 });
+      const row = await page.evaluate(() => [...document.querySelectorAll('.desk-also')].filter((line) => line.querySelector('[data-hand-off="import.file"]')).flatMap((line) => [...line.querySelectorAll('button')].filter((button) => button.getClientRects().length).map((button) => {
+        const style = getComputedStyle(button);
+        return { text: button.textContent.trim().slice(0, 24), color: style.color, size: style.fontSize };
+      })));
+      assert.ok(row.length >= 2, `${lang}: the row has the JSON link and the hand-off link (${JSON.stringify(row)})`);
+      assert.equal(new Set(row.map((entry) => entry.color)).size, 1, `${lang}: one colour on the row (${JSON.stringify(row)})`);
+      assert.equal(new Set(row.map((entry) => entry.size)).size, 1, `${lang}: one text size on the row (${JSON.stringify(row)})`);
+      await shot(page, `desk-also-${lang}-1440`);
       await context.close();
     } });
 

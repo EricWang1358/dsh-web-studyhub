@@ -270,7 +270,7 @@ export default function Generate({
               <div className="generate-plan" data-generate-plan data-tour="generate-course">
                 <p className="generate-plan__line">{courseLine(generationCourse)}</p>
                 <Button variant="link" size="sm" aria-expanded={courseOpen} onClick={() => setCourseOpen(open => !open)}>{courseOpen ? ui("收起") : ui("更改")}</Button>
-                <Button variant="link" size="sm" data-open-settings="settings-generation" onClick={openGenerationSettings}>{ui("前往设置")}</Button>
+                <Button iconEnd="arrow-right" variant="link" size="sm" data-open-settings="settings-generation" onClick={openGenerationSettings}>{ui("前往设置")}</Button>
                 {caseExam && <span className="generate-plan__hint">{ui("这门课考案例题，可以切到「案例分析题」出题。")}{" "}
                   <Button variant="link" size="sm" onClick={() => setGenSource("case")}>{ui("切到案例分析题")}</Button></span>}
               </div>

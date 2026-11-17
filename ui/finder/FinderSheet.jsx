@@ -234,7 +234,7 @@ export default function FinderSheet({ data, entries = FINDER_ENTRIES, initialQue
         {!browsing && totalMatches === 0 && (
           <div className="finder-empty">
             <p>{uiFormat('没找到『{0}』。试试换个说法，或打开功能导览。', [query.trim()])}</p>
-            <Button size="sm" variant="secondary" onClick={onTour}>{ui('打开功能导览')}</Button>
+            <Button iconEnd="arrow-right" size="sm" variant="secondary" onClick={onTour}>{ui('打开功能导览')}</Button>
           </div>
         )}
       </div>

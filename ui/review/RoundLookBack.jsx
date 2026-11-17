@@ -289,7 +289,7 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAc
                   </Button>
                 )}
                 {place && (
-                  <Button variant="link" size="sm" onClick={() => study.openModal({ type: "source", source: place, back: true })}>
+                  <Button iconEnd="arrow-right" variant="link" size="sm" onClick={() => study.openModal({ type: "source", source: place, back: true })}>
                     {row.sourceTitle && row.page != null
                       ? uiFormat("打开出处「{0}」{1}", [row.sourceTitle, pageWords(row)])
                       : row.sourceTitle

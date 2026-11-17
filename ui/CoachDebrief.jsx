@@ -116,7 +116,7 @@ export default function CoachDebrief({ run, initial, autopilot, onPractice, onCo
      setting that turns that off is one link away. A shorter round never asks, so it has nothing to say. */
   const modelNote = onSettings && run.answered >= 3 && (
     <p className="coach-model-note">{debriefModel ? ui("这段点评请较轻量的模型写一句话。") : ui("点评没有调用模型：已在设置里关闭，只按作答统计。")}
-      {" "}<Button variant="link" size="sm" onClick={onSettings}>{ui("前往设置")}</Button></p>
+      {" "}<Button iconEnd="arrow-right" variant="link" size="sm" onClick={onSettings}>{ui("前往设置")}</Button></p>
   );
   if (error && !debrief) return null;
   if (!debrief)
@@ -214,7 +214,7 @@ export default function CoachDebrief({ run, initial, autopilot, onPractice, onCo
       )}
       {consent.answer === false && (
         <p className="coach-consent-note" role="status">{ui("好的，不备题。想开启时可以在设置里打开「陪学」。")}
-          {onProfileSettings && <>{" "}<Button variant="link" size="sm" onClick={onProfileSettings}>{ui("前往设置")}</Button></>}</p>
+          {onProfileSettings && <>{" "}<Button iconEnd="arrow-right" variant="link" size="sm" onClick={onProfileSettings}>{ui("前往设置")}</Button></>}</p>
       )}
     </ReadingBlock>
   );

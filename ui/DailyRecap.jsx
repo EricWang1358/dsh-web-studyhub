@@ -51,7 +51,7 @@ export function DailyRecapPanel(props) {
       {onSettings && <Button className="daily-recap-heading__btn" size="sm" variant="quiet" onClick={onSettings}>{ui('生成设置')}</Button>}
     </div>
     <p className="daily-recap-lead">{ui('把今天各章的练习串起来，收好错因、思路和下一步。')}</p>
-    {status && !modelReady && <InlineMessage tone="warning" title={gateTitle('inline')} action={onModelSettings ? { label: ui('打开模型设置'), onClick: onModelSettings } : undefined}>
+    {status && !modelReady && <InlineMessage tone="warning" title={gateTitle('inline')} action={onModelSettings ? { label: ui('打开模型设置'), iconEnd: 'arrow-right', onClick: onModelSettings } : undefined}>
       {ui('整理合集需要先配置模型；已经写好的合集仍可阅读。')}</InlineMessage>}
     {error && <InlineMessage tone="error" boxed action={{ label: ui('重新加载状态'), onClick: recap.refresh, disabled: !!working }}
       secondary={/模型|model|provider/i.test(error) && onModelSettings ? { label: ui('检查 AI 模型设置'), onClick: onModelSettings } : undefined}>
@@ -104,6 +104,6 @@ export function DailyRecapPanel(props) {
     })}
     {status && <div className="daily-recap-footer"><span>{ui(status.automatic ? '自动整理已开启' : '由你决定何时生成')}</span>
       <details><summary>{ui('合集如何生成')}</summary><p>{ui('同日同课程合成一篇。累计作答 10 道不同题目后生成，重练只计一次。自动生成可在设置里开启。')}
-        {onSettings && <>{' '}<Button size="sm" variant="link" onClick={onSettings}>{ui('前往设置')}</Button></>}</p></details></div>}
+        {onSettings && <>{' '}<Button iconEnd="arrow-right" size="sm" variant="link" onClick={onSettings}>{ui('前往设置')}</Button></>}</p></details></div>}
   </section>;
 }

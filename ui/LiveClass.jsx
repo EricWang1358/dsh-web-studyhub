@@ -345,7 +345,7 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
             <Button variant="link" size="sm" className="live-follow" onClick={() => setFollow(!follow)} aria-pressed={follow}>{follow ? ui('正在跟随最新') : ui('回到最新')}</Button></div>
         </div>
         {pauseHint && <p className="live-pause-hint muted" role="status" data-live-pause-hint>{ui('讲得很快、一直没有断句？到 音频设置 › 断句停顿 选『短』，下次开始或接着录时生效。')}
-          {openPause && <> <Button variant="link" size="sm" onClick={openPause}>{ui('打开断句停顿设置')}</Button></>}</p>}
+          {openPause && <> <Button iconEnd="arrow-right" variant="link" size="sm" onClick={openPause}>{ui('打开断句停顿设置')}</Button></>}</p>}
         <div className="live-feed" ref={feed} tabIndex={0} onMouseUp={selectText} onKeyUp={selectText} onScroll={() => {
           const node = feed.current; if (node && node.scrollHeight - node.scrollTop - node.clientHeight > 80) setFollow(false);
         }} aria-label={ui('课堂原文与译文')}>
@@ -398,7 +398,7 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
             <Button variant="quiet" busy={activeOp === 'save-proofread'} lock={disabled} onClick={() => void perform('save-proofread', async () => {
               await call('live.save', { id: session.id, proofread: true, paidOnly }); toast.success(ui('已加入校对任务，完成后会保存为资料。')); onJobs?.();
             })}>{ui('校对后保存')}</Button></Why>
-          <Button variant="link" size="sm" onClick={onSources}>{ui('打开资料')}</Button></div>}</footer>
+          <Button iconEnd="arrow-right" variant="link" size="sm" onClick={onSources}>{ui('打开资料')}</Button></div>}</footer>
     </>}
     <LiveHistory sessions={sessions.filter(item => !undoable.hidden(`live:${item.id}`))} disabled={disabled} capturing={capturing}
       onOpen={id => void perform('history-open', async () => { setSelected(new Set()); await client.open(id); })}

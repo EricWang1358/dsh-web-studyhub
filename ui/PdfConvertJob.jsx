@@ -62,7 +62,7 @@ function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, on
   const retry = () => run('retry', () => send('mineru.retry', { jobId: job.id }));
   // A failure only the installation can fix (Marker 2.x without Docker, a missing program) leads to the settings; 接着做 helps after that, from the console.
   const needsSettings = job.status === 'failed' && job.failure?.fix === 'settings' && !!onOpenSettings;
-  const primary = isHeldTask(job) && !isActiveJob(job) ? { label: HELD_ENTRY(), run: () => setEditing(true) } : needsSettings ? { label: ui('前往设置'), run: () => onOpenSettings(job.converter === 'marker' ? 'settings-marker' : 'settings-mineru') }
+  const primary = isHeldTask(job) && !isActiveJob(job) ? { label: HELD_ENTRY(), here: true, run: () => setEditing(true) } : needsSettings ? { label: ui('前往设置'), run: () => onOpenSettings(job.converter === 'marker' ? 'settings-marker' : 'settings-mineru') }
     : job.status === 'failed' && job.retryable ? { label: ui('接着做'), here: true, run: retry, disabled: !!working, tip: retryTip(job) }
       : job.status === 'complete' && job.sourceIds?.length > 0 && onOpenSources ? { label: ui('打开资料'), run: () => onOpenSources(job.sourceIds) } : undefined;
   const follow = followUpLink(job, job.sourceIds, onGenerate), custom = useCustomLink(job);
@@ -334,7 +334,7 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onEditHeld, onRetry,
         {row.env && <details className="pdf-env-details"><summary>{ui('运行环境')}</summary><ConversionEnvironment converter={row.converter} env={row.env} bare stoppedAtFailure={row.failure?.code === 'server-stopped'}
           timings={row.route === 'local' ? { windows: row.windows, secondsPerPage: row.plan?.secondsPerPage } : undefined} /></details>}
         <div className="pdf-history__actions">
-          {status === 'complete' && document?.exists && <Button variant="link" size="sm" className="pdf-history__action" aria-label={uiFormat('打开「{0}」', [title])} onClick={() => onOpen(row)}>{ui('打开资料')}</Button>}
+          {status === 'complete' && document?.exists && <Button iconEnd="arrow-right" variant="link" size="sm" className="pdf-history__action" aria-label={uiFormat('打开「{0}」', [title])} onClick={() => onOpen(row)}>{ui('打开资料')}</Button>}
           {/* 深度定制这本书 (skills/study-custom): quietly, once, for a book long enough to ask about before anything is made from it (ui/custom-entry.js) */}
           {status === 'complete' && document?.exists && offersCustom(document.pages) && !offered && <HandOff id="custom.start" shape="link" label={CUSTOM_BOOK_LABEL} what={CUSTOM_BOOK_WHAT}
             data-tour="custom-book" input={{ document: row.documentId, pages: document.pages }} onSent={() => { markCustomOffered(row.documentId); setOffered(true); }} />}

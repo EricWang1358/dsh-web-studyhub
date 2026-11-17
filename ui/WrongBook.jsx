@@ -111,7 +111,7 @@ function LeechRescue({ item, course, disabled, rescuePrompt, rescuing, canOpenMo
         <div className="wb-consent" role="group" aria-label={ui("确认补一张前置小卡")}>
           <strong>{ui("要开启后台准备并补一张前置小卡吗？")}</strong>
           <p>{ui("这会在后台写一张更基础的前置小卡（约 1 次轻量调用），写好后放进「为你定制」；同时会在设置里开启后台准备，随时可以去那里关掉。")}
-            {canOpenSettings && <>{" "}<Button variant="link" size="sm" onClick={onOpenProfileSettings}>{ui("前往设置")}</Button></>}</p>
+            {canOpenSettings && <>{" "}<Button iconEnd="arrow-right" variant="link" size="sm" onClick={onOpenProfileSettings}>{ui("前往设置")}</Button></>}</p>
           <div className="wb-consent-actions">
             <Button variant="secondary" size="sm" icon="sparkle" busy={rescuing} lock={disabled}
               onClick={() => onRescue('easier', item, { consent: true })}>{ui("同意并生成")}</Button>
@@ -121,7 +121,7 @@ function LeechRescue({ item, course, disabled, rescuePrompt, rescuing, canOpenMo
       )}
       {rescuePrompt?.type === "no-model" && (
         <InlineMessage className="wb-leech__notice" tone="warning" boxed actionsBelow
-          action={canOpenModel ? { label: ui("打开模型设置"), onClick: onOpenModel } : undefined}
+          action={canOpenModel ? { label: ui("打开模型设置"), iconEnd: "arrow-right", onClick: onOpenModel } : undefined}
           onDismiss={onDismissRescue}>
           {rescueGate(rescuePrompt.kind, { modelReady: false }).text}
         </InlineMessage>
@@ -314,7 +314,7 @@ function RowDetail({ id, item, course, detail, variants, recs, shortName, rescue
             {companionSlideButtonLabel(companionTarget)}
           </Button>
         )}
-        {onOpenSource && <Button variant="link" size="sm" onClick={onOpenSource}>{ui("打开出处")}</Button>}
+        {onOpenSource && <Button iconEnd="arrow-right" variant="link" size="sm" onClick={onOpenSource}>{ui("打开出处")}</Button>}
       </div>
     </div>
   );
@@ -1048,7 +1048,7 @@ export function WrongBookView({
         <div className="wb-consent" ref={consentRef} role="group" aria-label={ui("先确认是否备变式题")}>
           <strong>{ui("要让 AI 为错题备变式题吗？")}</strong>
           <p>{ui("生成变式会在后台少量调用模型：每道题约 1 次轻量调用，只用你的原题和原文引用改写，写好的题会放进「为你定制」。可以随时在设置里关闭「陪学」。")}
-            {onSettings && <>{" "}<Button variant="link" size="sm" onClick={() => onSettings("settings-profile")}>{ui("前往设置")}</Button></>}</p>
+            {onSettings && <>{" "}<Button iconEnd="arrow-right" variant="link" size="sm" onClick={() => onSettings("settings-profile")}>{ui("前往设置")}</Button></>}</p>
           <div className="wb-consent-actions">
             <Button variant="secondary" icon="sparkle" busy={working} disabled={busy || !ask.cards.length}
               onClick={() => run(ask.cards, true)}>{ui("同意并生成")}</Button>
@@ -1342,7 +1342,7 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
       toast.show({
         tone: note.tone,
         message: note.text,
-        ...(needsModel ? { action: { label: ui('打开模型设置'), onClick: openModel } } : {}),
+        ...(needsModel ? { action: { label: ui('打开模型设置'), iconEnd: 'arrow-right', onClick: openModel } } : {}),
       });
     } catch (failure) { toast.error(failure); }
     finally { rescuing.current = false; }

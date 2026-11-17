@@ -51,7 +51,7 @@ export default function MoreSettings({ form, title, courses, hideCourse, disable
       {onSettings && (
         <p className="exam-prep-more__settings">
           {ui('这些默认值可以在设置里修改')}{' '}
-          <Button variant="link" size="sm" onClick={() => onSettings('settings-exam-prep')}>{ui('前往设置')}</Button>
+          <Button iconEnd="arrow-right" variant="link" size="sm" onClick={() => onSettings('settings-exam-prep')}>{ui('前往设置')}</Button>
         </p>
       )}
     </Disclosure>

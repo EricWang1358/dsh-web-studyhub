@@ -130,7 +130,7 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
     ? <MineruInstallCard compact initialLocal={local} onOpenSettings={onOpenSettings ? section => onOpenSettings(section, { file }) : undefined} />
     : <InlineMessage tone="info" boxed>
       {!available ? ui('PDF 解析是音频组件的一部分，而音频组件没有启用。在 DSH 插件管理器里启用它，这里就能用。') : ui('先在设置里安装或配置 Marker。')}
-      {onOpenSettings && available && <Button variant="link" className="mineru-route-panel__btn" onClick={() => onOpenSettings('settings-marker', { file })}>{ui('前往设置')}</Button>}
+      {onOpenSettings && available && <Button iconEnd="arrow-right" variant="link" className="mineru-route-panel__btn" onClick={() => onOpenSettings('settings-marker', { file })}>{ui('前往设置')}</Button>}
     </InlineMessage>);
 
   // The tool is chosen here and nowhere else. Inside another card (compact) it is one line, MinerU unless the learner changes it; the gate below says what the chosen one needs.

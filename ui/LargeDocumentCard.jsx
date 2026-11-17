@@ -160,7 +160,7 @@ export function DetectionLine({ retrieval, onOpenSettings }) {
     <p className={`large-doc__detect large-doc__detect--${tone}`} role="status">
       <Icon name={tone === 'on' ? 'success' : 'info'} className="large-doc__detect-icon sh-icon--inline" />
       <span>{text}</span>
-      {onOpenSettings && tone !== 'on' && <Button size="sm" variant="link" onClick={onOpenSettings}>{ui('打开检索设置')}</Button>}
+      {onOpenSettings && tone !== 'on' && <Button iconEnd="arrow-right" size="sm" variant="link" onClick={onOpenSettings}>{ui('打开检索设置')}</Button>}
       {onOpenSettings && tone === 'on' && <Button size="sm" variant="link" onClick={onOpenSettings}>{ui('查看检索设置')}</Button>}
     </p>
   );
