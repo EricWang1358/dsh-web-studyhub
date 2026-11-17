@@ -314,7 +314,9 @@ const rows = page => page.evaluate(() => {
     const titleLH = parseFloat(getComputedStyle(title).lineHeight), factsLH = parseFloat(getComputedStyle(facts).lineHeight);
     // The facts' first line box (the slot is that line's height; a glyph's own box is a little shorter).
     const factsTop = facts.getBoundingClientRect().top, factLine = firstLine ? { top: Math.min(factsTop, firstLine.top), bottom: Math.min(factsTop, firstLine.top) + factsLH } : null;
-    return { title: title.textContent.slice(0, 16), share: t.width / (columnEnd - t.left), lines: titleLines.length ? lineTops(titleRange).length : 0, factLines: lineTops(factRange).length,
+    return { title: title.textContent.slice(0, 16), share: t.width / (columnEnd - t.left), lines: titleLines.length ? lineTops(titleRange).length : 0,
+      // the lines drawn: a name that does not fit goes whole on to a next line the facts' one-line height hides (round 6), which is not a line the row shows
+      factLines: lineTops(factRange).filter(middle => middle < facts.getBoundingClientRect().bottom).length,
       height: item.getBoundingClientRect().height, oneLineHeight: parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + titleLH + factsLH,
       below: box.bottom - parseFloat(style.paddingBottom) - Math.max(...parts.map(r => r.bottom)), split, expand: !!row.querySelector('.source-picker__expand'),
       slot: !!slot, factsEnd: Math.round(facts.getBoundingClientRect().right * 10) / 10, columnEnd: Math.round(columnEnd * 10) / 10,
