@@ -31,7 +31,7 @@ function ListRow({ row, onOpen, onOpenTask, onRestore }) {
       </Button>
       <Explain k="basis" focusable className="exam-prep-row__basis">{basisLine(row.basis)}</Explain>
       <span className="exam-prep-row__counts">{countsLine(row.counts)}</span>
-      {row.archived ? <span className="exam-prep-row__state"><Explain k="restore"><Button variant="quiet" size="sm" icon="undo" data-usage="examprep.restore" onClick={() => onRestore(row)}>{ui('恢复')}</Button></Explain></span>
+      {row.archived ? <span className="exam-prep-row__state"><Explain k="restore"><Button variant="quiet" size="sm" data-usage="examprep.restore" onClick={() => onRestore(row)}>{ui('恢复')}</Button></Explain></span>
         : row.build ? <BuildState build={row.build} onOpenTask={onOpenTask} />
         : (
           <span className="exam-prep-row__time">

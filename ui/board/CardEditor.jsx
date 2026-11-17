@@ -65,8 +65,8 @@ export default function CardEditor({ card, board, baseRevision, library, today, 
   const footer = (
     <>
       <div className="board-editor__danger">
-        <Button variant="quiet" size="sm" icon={<Icon name="archive" />} disabled={readOnly} lock={saving} onClick={() => onArchive(card)}>{ui('归档')}</Button>
-        <Button variant="quiet" size="sm" icon={<Icon name="trash" />} disabled={readOnly} lock={saving} onClick={() => setConfirming(true)}>{ui('删除')}</Button>
+        <Button variant="quiet" size="sm" disabled={readOnly} lock={saving} onClick={() => onArchive(card)}>{ui('归档')}</Button>
+        <Button variant="quiet" size="sm" disabled={readOnly} lock={saving} onClick={() => setConfirming(true)}>{ui('删除')}</Button>
       </div>
       <div className="board-editor__main">
         <Button variant="quiet" onClick={onClose} lock={saving}>{ui('取消')}</Button>

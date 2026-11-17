@@ -579,7 +579,7 @@ export default function FocusIntakeDialog({
                       </Button>
                     )}
                     {onGenerateCourse && (
-                      <Button size="sm" variant="secondary" icon="sparkle" lock={disabled} onClick={() => onGenerateCourse(savedResult.course)}>
+                      <Button size="sm" variant="secondary" iconEnd="arrow-right" lock={disabled} onClick={() => onGenerateCourse(savedResult.course)}>
                         {ui('按重点出题')}
                       </Button>
                     )}

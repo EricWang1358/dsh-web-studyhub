@@ -310,7 +310,7 @@ function RowDetail({ id, item, course, detail, variants, recs, shortName, rescue
       <div className="wb-detail__foot">
         <small className="muted">{shortName(item.deckTitle)}</small>
         {companionTarget && onOpenCompanion && (
-          <Button variant="quiet" size="sm" icon="play" onClick={onOpenCompanion}>
+          <Button variant="quiet" size="sm" iconEnd="arrow-right" onClick={onOpenCompanion}>
             {companionSlideButtonLabel(companionTarget)}
           </Button>
         )}

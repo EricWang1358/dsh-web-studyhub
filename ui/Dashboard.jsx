@@ -308,7 +308,7 @@ export default function Dashboard({
       {/* 刷新 ends the title's row; the scope picker sits under both (#573). */}
       <PageHeader title={ui("学习统计")} actionsOnTitleRow
         scope={<PageScope courses={data?.focus?.courses} value={course} onChange={setCourse} showInactive={showInactive} onShowInactive={setShowInactive} />}
-        actions={<Button variant="quiet" icon="refresh" onClick={load} busy={loading} busyLabel={ui("统计中…")}>{ui("刷新")}</Button>} />
+        actions={<Button variant="quiet" onClick={load} busy={loading} busyLabel={ui("统计中…")}>{ui("刷新")}</Button>} />
 
       {err && <ErrorState error={err} onRetry={load} />}
       {loading && !stats && <LoadingState label={ui("正在统计学习记录…")} />}

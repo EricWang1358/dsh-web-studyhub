@@ -184,8 +184,8 @@ export function ChapterList({ item, onOpen, onGenerate, onPractice, listId, mast
             item.chapterUnit === 'text' ? '' : uiFormat(item.chapterUnit === 'part' ? '{0} 部分 · {1} 字符' : '{0} 页 · {1} 字符', [chapter.sourceIds.length, formatNumber(chapter.chars)])].filter(Boolean).join(' · ')}</small>
           <MasteryLine className="source-doc__mastery" summary={mastery?.chapters?.[chapter.index] ?? null} title={chapterLabel(chapter, item.chapterUnit)} />
         </Button>
-        {practisable && <Button size="sm" variant="secondary" icon="success" className="source-doc__chapter-btn" lock={busy} onClick={() => onPractice(item, chapter)}>{ui('练这一章')}</Button>}
-        {onGenerate && <Button size="sm" variant={onPractice && !practisable ? 'secondary' : 'quiet'} icon="sparkle" className="source-doc__chapter-btn" disabled={inside} lock={busy}
+        {practisable && <Button size="sm" variant="secondary" iconEnd="arrow-right" className="source-doc__chapter-btn" lock={busy} onClick={() => onPractice(item, chapter)}>{ui('练这一章')}</Button>}
+        {onGenerate && <Button size="sm" variant={onPractice && !practisable ? 'secondary' : 'quiet'} iconEnd="arrow-right" className="source-doc__chapter-btn" disabled={inside} lock={busy}
           title={inside ? (item.chapterUnit === 'text' ? ui('这份资料是一整段文字，出题仍以整份资料为单位') : ui('这一章在同一页内，不能单独出题')) : undefined}
           onClick={() => onGenerate(chapter.sourceIds)}>{ui('从这一章出题')}</Button>}
       </li>;
@@ -312,7 +312,7 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
           {/* ONE action beside the title (#1083): 为没覆盖的部分补题 where a published deck leaves part of the material without questions (a NEW draft, the deck's
               next part, ui/coverage/DocumentTopUp.jsx), else 从这份资料出题. The others (从这份资料出题 then, the interactive companion) are in 更多. */}
           {topUp ? <DocumentTopUp item={item} revision={JSON.stringify(coverage)} buttonClassName="source-doc__action" />
-            : canGenerate && <Button size="sm" variant="secondary" icon="sparkle" className="source-doc__action" lock={busy} onClick={() => actions.generate(item.sourceIds)}>{ui('从这份资料出题')}</Button>}
+            : canGenerate && <Button size="sm" variant="secondary" iconEnd="arrow-right" className="source-doc__action" lock={busy} onClick={() => actions.generate(item.sourceIds)}>{ui('从这份资料出题')}</Button>}
           {item.archived && <>
             <Button size="sm" variant="secondary" className="source-doc__action" lock={busy} onClick={() => actions.archive(item)}>{ui('恢复资料')}</Button>
             <Button size="sm" variant="danger" className="source-doc__action" lock={busy} onClick={() => actions.remove(item)}>{ui('永久删除')}</Button>

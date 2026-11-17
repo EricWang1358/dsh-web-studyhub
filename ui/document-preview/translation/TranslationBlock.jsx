@@ -36,7 +36,7 @@ function AskForm({ onSubmit, onCancel }) {
     <label className="tr-ask__label" htmlFor={id}>{ui('给点意见（可选）')}</label>
     <div className="tr-ask__row">
       <input id={id} ref={input} className="tr-ask__input" type="text" value={comment} maxLength={300} onChange={event => setComment(event.target.value)} placeholder={ui('例如：更口语一点；术语保持英文')} />
-      <Button size="sm" variant="secondary" type="submit" icon="refresh">{ui('重新翻译')}</Button>
+      <Button size="sm" variant="secondary" type="submit">{ui('重新翻译')}</Button>
       <Button size="sm" variant="quiet" onClick={onCancel}>{ui('取消')}</Button>
     </div>
   </form>;

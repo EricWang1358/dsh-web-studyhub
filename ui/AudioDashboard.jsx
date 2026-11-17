@@ -34,7 +34,7 @@ export function AudioDashboardView({ data, settings, busy, refresh, save, error,
   const max = Math.max(1, ...data.trend.map(dayTotal));
   return <Panel tone="sunken" className="audio-dashboard" aria-labelledby="audio-dashboard-title">
     <header className="audio-dashboard-heading"><div><small>{ui('音频 / 用量')}</small><h2 id="audio-dashboard-title">{ui('用量控制台')}</h2></div>
-      <Button className="audio-dashboard-btn" variant="quiet" size="sm" icon="refresh" busy={busy} onClick={refresh}>{ui('刷新')}</Button></header>
+      <Button className="audio-dashboard-btn" variant="quiet" size="sm" busy={busy} onClick={refresh}>{ui('刷新')}</Button></header>
     {error && <ErrorState error={error} className="audio-dashboard__problem" />}
     <div className="audio-dashboard-summary">
       <div className="audio-usage-dial" role="meter" aria-label={dialLabel} aria-valuenow={freeQuota ? Math.max(0, freeQuota.remaining) : 0} aria-valuemin={0} aria-valuemax={freeQuota ? freeQuota.limit : 0} data-exhausted={exhausted ? 'true' : undefined} style={{ '--share': `${share}%` }}><div><strong>{freeQuota ? fmt(freeQuota.remaining) : '—'}</strong>

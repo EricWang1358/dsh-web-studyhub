@@ -284,7 +284,7 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAc
             {(companionTarget || place || (row.status === "wrong" && onOpenWrongBook)) && (
               <div className="look-back__actions">
                 {companionTarget && (
-                  <Button variant="quiet" size="sm" icon="play" onClick={() => openCompanionTarget(study.openModal, companionTarget)}>
+                  <Button variant="quiet" size="sm" iconEnd="arrow-right" onClick={() => openCompanionTarget(study.openModal, companionTarget)}>
                     {companionSlideButtonLabel(companionTarget)}
                   </Button>
                 )}

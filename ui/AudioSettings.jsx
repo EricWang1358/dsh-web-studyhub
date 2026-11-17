@@ -91,7 +91,7 @@ export function AudioSetupGate({ language = getUiLanguage(), onOpenSettings, onS
       why={reason === 'paid-missing' ? ui('选择了「只用付费密钥」，但还没有配置 Gemini 付费密钥。去掉这个勾选，或在音频设置的「高级」里填写付费密钥。')
         : ui(copy.why)}
       steps={reason === 'paid-missing' ? [] : provider.steps.map((step) => ({ text: ui(step.text), href: step.href }))}
-      secondary={onOpenSettings ? { label: ui('打开音频设置'), icon: 'key', onClick: onOpenSettings } : undefined}>
+      secondary={onOpenSettings ? { label: ui('打开音频设置'), iconEnd: 'arrow-right', onClick: onOpenSettings } : undefined}>
       {reason !== 'paid-missing' && <>
         <ProviderKeyForm className="audio-setup__secret" provider={provider} onSaved={onSaved} label={uiFormat('{0} 的 API 密钥', [ui(provider.name)])} />
         <Hint className="audio-setup-alt">{ui(others.text)} · <a href={others.href} target="_blank" rel="noreferrer">{ui(others.label)}</a></Hint>

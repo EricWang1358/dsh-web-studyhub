@@ -227,7 +227,7 @@ export default function MarkerInstall({ disabled = false, markerReady = false, m
       <JobRow status={cancelled ? 'cancelled' : install.status === 'interrupted' ? 'interrupted' : 'failed'} title={cancelled ? ui('安装已取消') : install.status === 'interrupted' ? ui('安装被中断') : ui('Marker 没有装好')}
         meta={install.stage ? uiFormat('停在：{0}', [stageName(install.stage)]) : undefined}
         failure={cancelled ? { hint } : { hint: <><span className="marker-install__reason">{uiMessage(install.error?.message || '')}</span> {hint}</>, detail: install.log?.length ? install.log.join('\n') : undefined }}
-        actions={[{ label: ui('重试'), variant: 'primary', icon: 'refresh', onClick: start, busy: working === 'start', disabled: locked || (!!plan && !canInstall(plan)) }]}>
+        actions={[{ label: ui('重试'), variant: 'primary', onClick: start, busy: working === 'start', disabled: locked || (!!plan && !canInstall(plan)) }]}>
         <Stages install={install} />
         {!cancelled && diagRow()}
       </JobRow>

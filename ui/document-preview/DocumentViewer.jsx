@@ -893,7 +893,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
       {/* 出题 is the one primary control; the arrow beside it opens 做这几页的题 (shortcut P). 错题 and 思维导图 are panels. */}
       <div className="reader-toolbar__actions">
         {!localMode && openCompanion && (
-          <Button size="sm" variant="secondary" icon="play" onClick={openCompanion}>
+          <Button size="sm" variant="secondary" iconEnd="arrow-right" onClick={openCompanion}>
             {ui('打开交互伴学页')}
           </Button>
         )}

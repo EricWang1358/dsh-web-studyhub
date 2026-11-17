@@ -218,7 +218,7 @@ export function OriginalDialog({ target, call, host, onClose, onChanged, intent 
           onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void checkPath(pathText); } }} />
         <Button lock={busy} disabled={!pathText.trim()} onClick={() => checkPath(pathText)}>{ui('核对')}</Button>
       </div>
-      {host?.pickFile && <div className="original-actions"><Button ref={pickButton} icon="folder" lock={busy} onClick={pickNative}>{ui('选择文件…')}</Button></div>}
+      {host?.pickFile && <div className="original-actions"><Button ref={pickButton} icon="file" lock={busy} onClick={pickNative}>{ui('选择文件…')}</Button></div>}
       <FileDrop compact accept={[`.${format}`]} disabled={busy} hint={`${format.toUpperCase()} · ${uiFormat('复制最多 {0}', [formatBytes(ORIGINAL_MAX_BYTES)])}`}
         label={ui('或把文件拖到这里（浏览器不提供路径，只能复制）')} buttonLabel={host?.pickFile ? ui('从浏览器选择…') : ui('选择文件…')}
         onFiles={accepted => void chooseFile(accepted)} />

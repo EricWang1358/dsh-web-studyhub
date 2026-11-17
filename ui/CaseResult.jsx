@@ -186,7 +186,7 @@ export function CaseReport({ report, busy, assistTasks, submitting = false, onDr
       </section>}
       {allAttained && <p className="case-report__attained-note" role="status">{ui("本次案例各评分项均已达标，没有待补薄弱项。")}</p>}
       <div className="case-report__actions">
-        {onDrills && <Button variant="primary" icon="sparkle" disabled={!paper.weakest.length} lock={busy} onClick={() => onDrills()}>{ui("把薄弱项变成练习")}</Button>}
+        {onDrills && <Button variant="primary" disabled={!paper.weakest.length} lock={busy} onClick={() => onDrills()}>{ui("把薄弱项变成练习")}</Button>}
         {onAgain && <Button variant="secondary" lock={busy} onClick={onAgain}>{ui("再来一个同类案例")}</Button>}
         {onPracticeDeck && <Button iconEnd="arrow-right" variant="quiet" lock={busy} onClick={onPracticeDeck}>{ui("逐题复习这套案例")}</Button>}
       </div>

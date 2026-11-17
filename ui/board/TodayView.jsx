@@ -380,7 +380,6 @@ export default function TodayView({
                           type="submit"
                           variant="quiet"
                           size="sm"
-                          icon="plus"
                           busy={addingLane === laneId}
                           disabled={!canAdd || !isMeaningfulTitle(laneTitles[laneId])}
                         >

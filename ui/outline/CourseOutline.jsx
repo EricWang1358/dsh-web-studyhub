@@ -341,7 +341,7 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
   // While the sample waits, the next build (重做样例 or 生成其余) reads the materials as they are now: no 更新全书 to suggest.
   const stale = book?.notes ? (book.notes.stale && !book.notes.sample ? ui('资料有更新，建议更新全书') : null) : book?.stale ? ui('资料有更新，建议重新整理') : null;
   // With an outline the book is the main action, so 创建题组 of a course without questions is the quiet one.
-  const create = { label: ui('创建题组'), icon: 'sparkle', onClick: actions.onCreate };
+  const create = { label: ui('创建题组'), iconEnd: 'arrow-right', onClick: actions.onCreate };
   return (
     <section className="page outline-page">
       {header}
@@ -349,7 +349,7 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
       {!book?.notes && outline.status === 'ok' && outline.documents.length > 0 && <p className="outline-book-intro">{bookIntroText()}</p>}
       {book && <div className="outline-book-line">
         <p className="outline-book-line__basis">{basisText(book.orderBasis)}</p>
-        {book.notes && actions.onOpenBook && <Button size={openMain ? undefined : 'sm'} variant={openMain ? 'primary' : 'secondary'} icon="book" className="outline-book-line__open" onClick={() => actions.onOpenBook()}>{ui('打开书页')}</Button>}
+        {book.notes && actions.onOpenBook && <Button size={openMain ? undefined : 'sm'} variant={openMain ? 'primary' : 'secondary'} iconEnd="arrow-right" className="outline-book-line__open" onClick={() => actions.onOpenBook()}>{ui('打开书页')}</Button>}
         {stale && <p className="outline-book-line__stale" role="status">{stale}</p>}
         {book.from === null && actions.writeBook && <p className="outline-book-line__stale" data-old-outline="">
           <span>{ui('这份总纲是旧版本按资料名整理的，复习全书照旧按它写。')}</span>

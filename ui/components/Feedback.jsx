@@ -176,7 +176,7 @@ export function InlineMessage({ tone = 'error', title, children, action, seconda
   useComponentCss(css);
   const kind = toneOf(tone);
   const actions = <>
-    {action && withTip(action.tip, <Button variant="link" size="sm" className="sh-inline__action" iconEnd={action.iconEnd} disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>)}
+    {action && withTip(action.tip, <Button variant="link" size="sm" className="sh-inline__action" icon={action.icon} iconEnd={action.iconEnd} disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>)}
     {secondary && withTip(secondary.tip, <Button variant="link" size="sm" className="sh-inline__action sh-inline__secondary" iconEnd={secondary.iconEnd} disabled={secondary.disabled} onClick={secondary.onClick}>{secondary.label}</Button>)}
   </>;
   const below = actionsBelow && (action || secondary);

@@ -214,7 +214,7 @@ export default function Manage({
             </div>
             <div className="manage-card__actions">
               {companionTarget && openModal && (
-                <Button size="sm" variant="quiet" icon="play" className="manage-card__action" onClick={() => openCompanionTarget(openModal, companionTarget)}>
+                <Button size="sm" variant="quiet" iconEnd="arrow-right" className="manage-card__action" onClick={() => openCompanionTarget(openModal, companionTarget)}>
                   {companionSlideButtonLabel(companionTarget)}
                 </Button>
               )}

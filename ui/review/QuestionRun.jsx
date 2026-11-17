@@ -371,7 +371,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
               {voice.answer}
               {(run.revealed || showBack) && !run.feedback && companionTarget && openModal && (
                 <div className="sh-comp-card-jump">
-                  <Button size="sm" variant="quiet" icon="play" onClick={() => openCompanionTarget(openModal, companionTarget)}>
+                  <Button size="sm" variant="quiet" iconEnd="arrow-right" onClick={() => openCompanionTarget(openModal, companionTarget)}>
                     {companionSlideButtonLabel(companionTarget)}
                   </Button>
                 </div>
@@ -642,7 +642,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                 onOpen={(source, quote, peekPage) => openModal({ type: "source", source, quote, peekPage, back: true })} />
               {!run.feedback && (choice || isCloze || rubricCard || taskCard) && companionTarget && openModal && (
                 <div className="sh-comp-card-jump">
-                  <Button size="sm" variant="quiet" icon="play" onClick={() => openCompanionTarget(openModal, companionTarget)}>
+                  <Button size="sm" variant="quiet" iconEnd="arrow-right" onClick={() => openCompanionTarget(openModal, companionTarget)}>
                     {companionSlideButtonLabel(companionTarget)}
                   </Button>
                 </div>

@@ -115,7 +115,7 @@ export default function WrittenSetup({ data, header, recent, decks, deckNames, p
             <p>{flashOnly
               ? ui('现有题组都是闪卡。模拟考试只抽单选 / 多选题，创建题组时勾选选择题题型即可。')
               : ui('模拟考试从题组里抽单选 / 多选题。先创建一个包含选择题的题组，再回来生成试卷。')}</p>
-            {onCreate && <Button variant="secondary" icon="plus" onClick={onCreate}>{ui('创建题组')}</Button>}
+            {onCreate && <Button variant="secondary" iconEnd="arrow-right" onClick={onCreate}>{ui('创建题组')}</Button>}
             {data?.decks?.length > 0 && <Button iconEnd="arrow-right" variant="quiet" onClick={onExit}>{ui('去学习库')}</Button>}
           </div>
         )}

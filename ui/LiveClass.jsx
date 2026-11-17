@@ -88,7 +88,7 @@ const GEMINI_STEPS = () => [{ text: ui('用 Google 账号登录 AI Studio'), hre
 export function LiveSetup({ readiness, onSettings, onReady, initialLocal = null }) {
   // A pre-flight that says nothing about the local engine (an older backend) keeps the Gemini steps.
   const local = readiness?.liveLocal?.supported === true && readiness?.liveReason !== 'no-gemini-key';
-  const settings = onSettings ? { label: ui('打开音频设置'), icon: 'key', onClick: onSettings } : undefined;
+  const settings = onSettings ? { label: ui('打开音频设置'), iconEnd: 'arrow-right', onClick: onSettings } : undefined;
   if (!local) return <SetupRequired className="live-setup-gate" icon="audio" title={ui('课堂实录需要 Gemini 密钥')}
     why={readiness?.liveReason === 'no-gemini-key' ? ui('你在音频设置里选了用 Gemini 转写课堂实录，但还没有填 Gemini 密钥。也可以在音频设置里改选「本地转写（声音不上传）」。')
       : ui('这台电脑没有现成的本地转写引擎，边听边转写要用 Google Gemini 的实时接口（需要海外网络）。也可以课后在「音频转写」里导入录音。')}

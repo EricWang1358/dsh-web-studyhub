@@ -64,7 +64,7 @@ const Row = memo(function Row({ row, data, tabStop, bodyId, pick, papers, unbuil
       </div>
       {node.intro && (row.kind === 'part' || row.kind === 'section' || row.kind === 'point') && <p className="outline-row__intro">{node.intro}</p>}
       {row.kind === 'point' && row.expanded && data?.notes && <LeafNotes notes={data.notes} modelReady={modelReady} onOpenSource={onOpenSource} onReadMore={onReadMore} />}
-      {row.kind === 'point' && row.expanded && onOpenBook && <Button size="sm" variant="link" icon="book" className="outline-row__book" onClick={() => onOpenBook(row.key)}>{ui('打开书页')}</Button>}
+      {row.kind === 'point' && row.expanded && onOpenBook && <Button size="sm" variant="link" iconEnd="arrow-right" className="outline-row__book" onClick={() => onOpenBook(row.key)}>{ui('打开书页')}</Button>}
       {row.kind === 'other' && node.anchors > 0 && <p className="outline-row__hint"><span>{otherText(node.anchors)}</span></p>}
       {row.kind === 'unplaced' && node.materials?.length > 0 && <p className="outline-row__hint">
         <span>{unfiledText(node.materials.map(material => displayTitle(material.title)), node.materialCount)}</span>

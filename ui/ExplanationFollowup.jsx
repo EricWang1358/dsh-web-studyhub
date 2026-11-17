@@ -187,7 +187,7 @@ function NoteQaButton({ followupId, noteQa, cardNotes = [] }) {
           ? uiFormat("笔记中已保存 {0} 条问答", [count])
           : "";
     const button = (
-      <Button variant="link" size="sm" icon="check" className="note-qa-button" data-note-qa="saved" onClick={() => noteQa.onOpen(noteId)}>
+      <Button variant="link" size="sm" iconEnd="arrow-right" className="note-qa-button" data-note-qa="saved" onClick={() => noteQa.onOpen(noteId)}>
         {ui("已存进笔记 · 打开")}
       </Button>
     );
