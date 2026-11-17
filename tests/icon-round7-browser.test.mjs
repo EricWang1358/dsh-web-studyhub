@@ -16,7 +16,7 @@ import { sampleAction } from '../lib/sample-library.js';
      4  the citation card under an answered question ends in its → (StudyHub's own reader, never the external mark), with the Button's gap before it, level
         with the card's first line (±1px; the external mark led the title 3.5px off its line, with no gap);
      6  the first-run card's model step with a long model id: no line ends with the 「·」 of the provider, and the whole label is in the shared Tooltip on hover
-        and on keyboard focus;
+        and on keyboard focus (since round 8: when the card cuts it, only then);
      7  at 420px an idle row's ▶ takes keyboard focus as a ring around the glyph (not the slot's 74 - 101px), and its centre is level with the bar's (±0.5px).
    ICON_ROUND7_SHOTS=<dir> keeps a screenshot of each place. */
 
@@ -164,15 +164,20 @@ test('round 7 in the browser: the citation card\'s arrow, the first-run model id
         for (const line of seen.lines) assert.doesNotMatch(line.trimEnd(), /·$/, `${where}: no line ends with the provider's 「·」 (${JSON.stringify(seen.lines)})`);
         assert.equal(seen.title, '', `${where}: no title attribute; the shared Tooltip says the label`);
         await shot(page, `first-run-long-id-${lang}-${width}`);
+        // Round 8: the whole label is in the Tooltip, and the row a Tab stop, only when the card cuts it (tests/icon-round8-browser.test.mjs measures both cases).
+        const cut = await text.evaluate((element) => element.scrollHeight > element.clientHeight + 1 || element.scrollWidth > element.clientWidth + 1);
         await text.hover();
         await page.waitForTimeout(700);
-        assert.ok((await shown(page)).includes(LONG), `${where}: hovering the model step shows the whole label (${JSON.stringify(await shown(page))})`);
+        assert.equal((await shown(page)).includes(LONG), cut, `${where}: hovering the model step shows the whole label when it is cut, only then (${JSON.stringify(await shown(page))})`);
         await shot(page, `first-run-long-id-hover-${lang}-${width}`);
         await page.mouse.move(1, 1);
         await page.waitForTimeout(500);
-        await keyboardFocus(page, text);
-        assert.ok(await text.evaluate((element) => element.matches(':focus-visible')), `${where}: the model step takes keyboard focus`);
-        assert.ok((await shown(page)).includes(LONG), `${where}: keyboard focus on the model step shows the whole label`);
+        assert.equal(await text.evaluate((element) => element.tabIndex), cut ? 0 : -1, `${where}: the model step is a Tab stop when it is cut, only then`);
+        if (cut) {
+          await keyboardFocus(page, text);
+          assert.ok(await text.evaluate((element) => element.matches(':focus-visible')), `${where}: the model step takes keyboard focus`);
+          assert.ok((await shown(page)).includes(LONG), `${where}: keyboard focus on the model step shows the whole label`);
+        }
         await shot(page, `first-run-long-id-focus-${lang}-${width}`);
         assert.deepEqual(errors, [], where);
         await page.unrouteAll({ behavior: 'ignoreErrors' });

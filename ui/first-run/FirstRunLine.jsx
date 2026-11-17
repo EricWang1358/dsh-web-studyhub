@@ -33,27 +33,49 @@ export function modelLabelParts(label) {
   return at < 0 ? { provider: '', id: text } : { provider: `${text.slice(0, at)}\u00a0·`, id: text.slice(at + 3) };
 }
 
-/* The model step's words. The id may be longer than the line: it breaks after a 「/」 or 「-」 (and anywhere in a part longer than the line), the 「·」 is tied
-   to the id's first part with a no-break space so no line ends with it, and the whole label is in the shared Tooltip on hover and keyboard focus (#1073 round 7),
-   because the compact card cuts what is past its second line. */
+/** Is the text of this element cut: past its width (one line, an ellipsis) or past its lines (a line clamp)? Measured once drawn and again when it is resized or
+    its words change. ui/use-cut.js answers the width alone; the model step of the compact card is cut by its second line. */
+function useClamped(ref, text) {
+  const [cut, setCut] = useState(false);
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return undefined;
+    const measure = () => setCut(element.scrollWidth > element.clientWidth + 1 || element.scrollHeight > element.clientHeight + 1);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [ref, text]);
+  return cut;
+}
+
+/* A step's words. The model's id may be longer than the line: it breaks after a 「/」 or 「-」 (and anywhere in a part longer than the line), the 「·」 is tied
+   to the id's first part with a no-break space so no line ends with it (#1073 round 7). Only when the row cuts its words (the compact card cuts the model step
+   past its second line, the others at one line) is the whole in the shared Tooltip on hover and keyboard focus, and only then is the row a Tab stop: words
+   shown whole are no stop on the way to the step's button (round 8). The Tooltip's anchor stays either way, so the row is not redrawn when it is cut. */
 function StepText({ step }) {
   const sentence = stepSentence(step);
+  const ref = useRef(null), cut = useClamped(ref, sentence);
   const at = step.id === 'model' && step.label ? sentence.indexOf(step.label) : -1;
-  if (at < 0) return <span className="frl-step__text">{sentence}</span>;
-  const { provider, id } = modelLabelParts(step.label);
-  const parts = id.split(/(?<=[/-])/);
-  return (
-    <Tooltip layer content={step.label} anchorClassName="frl-step__tip">
-      <span className="frl-step__text" tabIndex={0}>
-        {sentence.slice(0, at)}
-        <span className="frl-model">
-          {provider && <span className="frl-model__provider">{provider}</span>}
-          {provider ? '\u00a0' : ''}
-          <span className="frl-model__part">{parts[0]}</span>
-          {parts.slice(1).map((part, index) => <React.Fragment key={index}><wbr /><span className="frl-model__part">{part}</span></React.Fragment>)}
-        </span>
-        {sentence.slice(at + step.label.length)}
+  let words = sentence;
+  if (at >= 0) {
+    const { provider, id } = modelLabelParts(step.label);
+    const parts = id.split(/(?<=[/-])/);
+    words = <>
+      {sentence.slice(0, at)}
+      <span className="frl-model">
+        {provider && <span className="frl-model__provider">{provider}</span>}
+        {provider ? ' ' : ''}
+        <span className="frl-model__part">{parts[0]}</span>
+        {parts.slice(1).map((part, index) => <React.Fragment key={index}><wbr /><span className="frl-model__part">{part}</span></React.Fragment>)}
       </span>
+      {sentence.slice(at + step.label.length)}
+    </>;
+  }
+  return (
+    <Tooltip layer content={cut ? (at >= 0 ? step.label : sentence) : ''} anchorClassName="frl-step__tip">
+      <span ref={ref} className="frl-step__text" tabIndex={cut ? 0 : undefined}>{words}</span>
     </Tooltip>
   );
 }
