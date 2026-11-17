@@ -126,7 +126,7 @@
   "正在出第一组题": "Writing your first deck",
   "出题在后台进行，离开这一页也不会中断；完成后草稿会出现在上方。": "Generation runs in the background, even if you leave this page; the draft appears above when it is ready.",
   "查看进度": "See progress",
-  "用资料出第一组题": "Make your first deck from what you added",
+  "用资料出第一组题": "Make your first deck",
   "{0} 份资料已就绪": "Sources ready: {0}",
   "选好资料、题型和题数，AI 出题后会逐题检查，再交给你确认。": "Choose sources, question types and a count; AI writes the questions, checks each one, and hands them to you to confirm.",
   "用这 {0} 份资料出题": "Generate from your sources",

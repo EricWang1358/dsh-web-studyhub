@@ -358,6 +358,9 @@
       .map-row > .map-dot { order: 1; }
       .map-ask { display: none; }
       .map-play { padding: 0 var(--space-2-5); }
+      /* Here the slot shares line two with the bar and is as wide as 「继续 →」 whether or not a run is open, so an idle row's ▶ is drawn always: hiding it until the
+         pointer comes (the wide layout's rule above) left an empty 74 - 101px gap beside every bar with a mouse, and the right edge ragged (#1073). */
+      .map-play:not(.is-run) { opacity: 1; }
       .section-heading {
         align-items: flex-start;
       }

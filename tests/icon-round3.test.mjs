@@ -152,8 +152,8 @@ test('2/9 (round 4): the one weight exception is the answer mark, written as `we
   assert.deepEqual(users, ['ui/review/AnswerState.jsx'], 'only a state icon beside its label has the state weight');
   const light = renderToStaticMarkup(h(m.Icon, { name: 'check' })), state = renderToStaticMarkup(h(m.Icon, { name: 'check', weight: 'state' }));
   assert.doesNotMatch(light, /stroke-width/);
-  // Light is 12 units on the 256 grid; the state weight widens it to 34, about 1.9px at the 14px inline size: the stem of the 15px bold label beside it.
-  assert.equal(Number(state.match(/stroke-width="([\d.]+)"/)?.[1]), 22);
+  // Light is 12 units on the 256 grid; the state weight widens it to 38, about 2.0px at the 14px inline size: the stem of the 15px bold label beside it (34 measured 0.85 of the label).
+  assert.equal(Number(state.match(/stroke-width="([\d.]+)"/)?.[1]), 26);
 });
 
 test('9: the answer mark and its label share a centre line', async () => {

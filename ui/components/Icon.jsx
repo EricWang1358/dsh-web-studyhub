@@ -28,9 +28,9 @@ export const ICON_NAMES = [...Object.keys(ICON_PATHS), ...Object.keys(BRAND)];
 const DEFAULT_STROKE = 1.6;
 const GRID_PER_PX = 256 / 24;
 /** `weight="state"`: the one deliberate exception to Light, for a state icon that stands beside a bold label (the tick and cross of an answer,
-    ui/review/AnswerState.jsx). Light draws 12 units of the 256 grid; this widens the glyph by 22 more, to 34 units: about 1.9px at the 14px inline size,
-    the stem of the 15px bold label beside it (2x screenshots: Regular, 16 units, was 0.9px against the label's 2px and read as a hairline). */
-const STATE_STROKE = DEFAULT_STROKE + 22 / GRID_PER_PX;
+    ui/review/AnswerState.jsx). Light draws 12 units of the 256 grid; this widens the glyph by 26 more, to 38 units: about 2.0px at the 14px inline size,
+    the stem of the 15px bold label beside it (2x screenshots: Regular, 16 units, was 0.9px against the label's 2px and read as a hairline; 34 units measured 1.78px against 2.09px, 0.85). */
+const STATE_STROKE = DEFAULT_STROKE + 26 / GRID_PER_PX;
 
 /** Decorative icon; pair it with visible text or an aria-label on the control. */
 export default function Icon({ name, size = 18, strokeWidth: requested = DEFAULT_STROKE, weight, className }) {

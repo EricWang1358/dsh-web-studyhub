@@ -96,8 +96,8 @@ test('1: DESIGN.md names the list and the decision once', async () => {
 
 test('4: 「用资料出第一组题」 is worded for one source or many, never "it" (it is the home headline and also follows 「{0} and the rest: {1} sources added」)', async () => {
   const headline = (await locale('en.generate.json'))['用资料出第一组题'];
-  assert.ok(headline && !/it/i.test(headline), `「${headline}」 does not say "it"`);
-  assert.doesNotMatch(headline, /sources?|materials?/i, 'and counts nothing, so it is right for one source and for ten');
+  assert.ok(headline && headline.length <= 30 && !/it/i.test(headline), `「${headline}」 does not say "it"`);
+  assert.doesNotMatch(headline, /sources?|materials?/i, 'and counts nothing, so it is right for one source and for ten, and short enough for the compact first-run card at 1440');
 });
 
 test('4: the generate form line 「将从 {0}出 {1}」 counts the sources in the word of the card button ("1 source", "{0} sources", beside 「Add another source」), in every catalogue that defines it', async () => {

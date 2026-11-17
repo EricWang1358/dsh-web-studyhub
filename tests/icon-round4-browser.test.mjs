@@ -266,7 +266,7 @@ test('round 4 in the browser: answer marks as heavy as their label, the station 
         const mark = await strokeWidth(page, { x: state.icon[0] - 1, y: state.icon[1] - 1, width: state.icon[2] + 2, height: state.icon[3] + 2 }, state.color);
         const label = await strokeWidth(page, { x: state.icon[0] + state.icon[2] + 2, y: state.box[1], width: state.box[2] - state.icon[2] - 3, height: state.box[3] }, state.color);
         const ratio = mark / label;
-        assert.ok(ratio >= 0.85 && ratio <= 1.2, `「${state.text}」: the mark's stroke ${mark.toFixed(2)}px against the label's ${label.toFixed(2)}px (${ratio.toFixed(2)})`);
+        assert.ok(ratio >= 0.9 && ratio <= 1.2, `「${state.text}」: the mark's stroke ${mark.toFixed(2)}px against the label's ${label.toFixed(2)}px (${ratio.toFixed(2)})`);
       }
       await shot(page, 'answer-marks-zh-1440');
       await context.close();
