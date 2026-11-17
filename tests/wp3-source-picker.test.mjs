@@ -105,7 +105,7 @@ test('the names on the facts lines are one decision for the whole scope, from th
   assert.equal(decideNames([row(100, 40, [60]), row(80, 40)], fit), 'first', 'one row has no room for a later name: no row says one');
   assert.equal(decideNames([row(120, 150, [], true)], fit), 'first', 'a course that may be shortened needs 6em at most');
   assert.equal(decideNames([row(190, 40), row(20, 40)], fit), 'none', 'in a course scope, one row without room for its other course: no row says one');
-  assert.equal(decideNames([row(190, 40), row(20, 40)], { ...fit, everyCourse: true }), 'first', 'in 全部课程 every row keeps its course');
+  assert.equal(decideNames([row(190, 40), row(20, 40)], { ...fit, everyCourse: true }), 'alone', 'in 全部课程 every row keeps its course: alone on the line where a row has no room for its format and size beside it (round 10)');
   assert.equal(decideNames([row(190, 0)], fit), '', 'no row has a name');
   assert.equal(decideNames([row(100, 40, [], false, true)], { ...fit, room: line => (line.multi ? 120 : 200) }), 'none', 'a row with 选择页面 has less room');
 });

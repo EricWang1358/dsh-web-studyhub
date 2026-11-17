@@ -163,17 +163,33 @@ function CourseName({ name }) {
 }
 
 /**
- * The words of a row's facts line (#1084): the format, the size and the notes as one piece (`lead`); then the names. The course 课程范围 names is said once,
- * above the list, not again here; another course the material is in comes `first` (`shortened`: it is long enough to be shortened with 「…」), then the
- * names after it (`later`: more courses, the file it comes from). Shared by the row and the list's one decision on which names the rows show
- * (ui/picker-names.js), which reads every document in the scope, drawn or not.
+ * The words of a row's facts line (#1084): the format and the size as one piece (`lead`, said in its `parts`: the format with its pages, the size); then the
+ * names; then the notes (`notes`: what to check before generating, and an inferred course). The course 课程范围 names is said once, above the list, not
+ * again here; another course the material is in comes `first` (`shortened`: it is long enough to be shortened with 「…」), then the names after it
+ * (`later`: more courses, the file it comes from). Shared by the row and the list's one decision on which names the rows show (ui/picker-names.js), which
+ * reads every document in the scope, drawn or not. Round 10: the notes come last, so a long note gives way at the line's end instead of taking the
+ * names' room on every row of the list.
  */
 export function rowNames(item, scope, relation) {
   const related = relationNote(relation);
-  const lead = [sourceFormatLabel(item), uiFormat('{0} 字符', [formatNumber(item.chars)]), ...documentNotes(item), item.coursesInferred ? ui('推断归属') : ''].filter(Boolean).join(' · ');
+  const parts = [sourceFormatLabel(item), uiFormat('{0} 字符', [formatNumber(item.chars)])];
+  const notes = [...documentNotes(item), item.coursesInferred ? ui('推断归属') : ''].filter(Boolean);
   const courses = item.courses.length ? item.courses.filter(course => course !== scope) : scope === '' ? [] : [ui('未分类')];
   const [first = '', ...later] = [...courses, related].filter(Boolean);
-  return { lead, first, later, shortened: courses.length > 0 && [...courses[0]].length > SHORTEST_NAME };
+  return { lead: parts.join(' · '), parts, notes, first, later, shortened: courses.length > 0 && [...courses[0]].length > SHORTEST_NAME };
+}
+
+/* The lead as whole parts (#1084, round 10): the format (with its pages), then the size, one unbreakable box with its own 「·」, so a lead short of room ends
+   after a whole part with 「…」, never on a bare 「·」 and never inside a figure (「1,12…」, rv26). The size's box holds its figure and the space after it;
+   its unit may be cut (「267 charac…」), so the size still shows at 320 where its unit does not fit. A box ends at a space, so the words read as one run of
+   text (the static markup, and the checkbox's name, which puts a space at a box's edge). The lead is only cut where it ends the line (ui/picker-names.js). */
+function leadParts(parts) {
+  return parts.map((part, at) => {
+    if (!at) return part;
+    const text = ` · ${part}`, figure = at === parts.length - 1 ? text.search(/\d \D*$/) : -1;
+    if (figure < 0) return <span key={at} className="source-picker__part">{text}</span>;
+    return <React.Fragment key={at}><span className="source-picker__part">{text.slice(0, figure + 2)}</span>{text.slice(figure + 2)}</React.Fragment>;
+  });
 }
 
 /* The index badge's slot is at the end of the facts line, after the facts in the DOM (the checkbox's name reads title, facts, badge). While the index answer is
@@ -193,12 +209,12 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
   const multi = item.pages.length > 1;
   const picked = item.sourceIds.filter(id => chosen.has(id)).length;
   const name = displayTitle(item.title);
-  // The facts, one line (#1084, rowNames): the format, the size and the notes; then the names. Materials made from one original file say so (#207):
-  // "派生自 <file>" on a text version, "另有 2 份派生资料" on the file. The first name is said whole or, short of room, shortened to its first words with 「…」
-  // and its whole name on hover; the names after it are said whole or left out whole with their 「·」, and only while the first is whole (round 8: the first
-  // takes the room). Which names a row shows is the list's one decision (ui/picker-names.js): a run of rows reads the same. Every name stays in the words
-  // the checkbox's name reads, shown or not.
-  const { lead, first, later, shortened } = rowNames(item, scope, relation);
+  // The facts, one line (#1084, rowNames): the format and the size; then the names; then the notes, each said whole or left out at the line's end (round
+  // 10). Materials made from one original file say so (#207): "派生自 <file>" on a text version, "另有 2 份派生资料" on the file. The first name is said whole
+  // or, short of room, shortened to its first words with 「…」 and its whole name on hover; the names after it are said whole or left out whole with their
+  // 「·」, and only while the first is whole (round 8: the first takes the room). Which names a row shows is the list's one decision (ui/picker-names.js): a
+  // run of rows reads the same. Every word stays in the words the checkbox's name reads, shown or not.
+  const { parts, notes, first, later, shortened } = rowNames(item, scope, relation);
   const slot = indexInfo ? 'badge' : indexPending ? 'held' : 'none';
   return (
     <div className={`source-picker__item${state !== 'none' ? ' is-selected' : ''}`} data-document-key={item.key}>
@@ -213,10 +229,12 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
             onChange={event => { const on = event.target.checked; apply(current => toggleDocument(current, item, on)); }} />
           <span className="source-picker__text">
             <strong id={`${nameId}-t`} title={item.title}>{name}</strong>
-            <small id={`${nameId}-f`} className="source-picker__facts"><span className="source-picker__fact source-picker__fact--lead">{lead}</span>
+            <small id={`${nameId}-f`} className="source-picker__facts"><span className="source-picker__fact source-picker__fact--lead">{leadParts(parts)}</span>
               {first && ' '}{first && (shortened ? <CourseName name={first} /> : <span className="source-picker__fact source-picker__fact--name" data-name="first">{`· ${first}`}</span>)}
               {later.length > 0 && <>{' '}<span className="source-picker__names">{later.map((other, at) => <React.Fragment key={at}>{at > 0 && ' '}<span
-                className="source-picker__fact source-picker__fact--name" data-name="rest">{`· ${other}`}</span></React.Fragment>)}</span></>}</small>
+                className="source-picker__fact source-picker__fact--name" data-name="rest">{`· ${other}`}</span></React.Fragment>)}</span></>}
+              {notes.length > 0 && <>{' '}<span className="source-picker__notes">{notes.map((note, at) => <React.Fragment key={at}>{at > 0 && ' '}<span
+                className="source-picker__fact source-picker__fact--note">{`· ${note}`}</span></React.Fragment>)}</span></>}</small>
             <span className="source-picker__index" data-index-slot={slot}>{indexInfo && <IndexBadge compact info={indexInfo} coverage={{ canIndex }} open={focused} wordId={`${nameId}-w`} tipId={`${nameId}-c`} />}</span>
             {state === 'some' && <small id={`${nameId}-p`} className="source-picker__partial">{uiFormat('已选 {0} / {1} 页', [picked, item.sourceIds.length])}</small>}
           </span>
