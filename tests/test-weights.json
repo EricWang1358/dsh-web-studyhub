@@ -447,6 +447,7 @@
  "tests/generate-picker-rows-browser.test.mjs": 600,
  "tests/generate-picker-sweep-browser.test.mjs": 11000,
  "tests/generate-picker-weight.test.mjs": 260,
+ "tests/generate-polish-browser.test.mjs": 1800,
  "tests/generate-reach-browser.test.mjs": 3500,
  "tests/generate-reach.test.mjs": 200,
  "tests/generate-short-browser.test.mjs": 2530,
