@@ -142,6 +142,18 @@ test('a 资料 row with several actions stays tidy at every width in zh and en',
         if (numbers?.cut) faults.push(`${at}: ${row.title}: the numbers "${numbers.text}" are cut`);
         if (courses?.cut && courses.tip !== courses.text) faults.push(`${at}: ${row.title}: "${courses.text.slice(0, 30)}" is cut and its tip says "${courses.tip}"`);
       }
+      // (f) one look for the row's one action: the top-up and 从这份资料出题 both carry their icon.
+      const bare = await page.evaluate(() => [...document.querySelectorAll('.source-doc__actions .source-doc__action')].filter(b => b.getClientRects().length && !b.querySelector('svg')).map(b => b.textContent.trim()));
+      for (const text of bare) faults.push(`${at}: the row action "${text}" has no icon`);
+      // (g) a cut courses piece's tip also opens when the title button has keyboard focus, not only on hover.
+      const cutAt = rows.findIndex(row => row.facts[0]?.cut);
+      if (cutAt >= 0) {
+        await page.keyboard.press('Shift');
+        await page.locator('.source-doc').nth(cutAt).locator('.source-main').focus();
+        await page.waitForTimeout(80);
+        const shown = await page.locator('.source-doc').nth(cutAt).evaluate(row => !!row.querySelector('.source-doc__facts-tip [role="tooltip"]')?.matches(':popover-open'));
+        if (!shown) faults.push(`${at}: ${rows[cutAt].title}: the cut courses tip does not open on keyboard focus of the title`);
+      }
       assert.deepEqual(errors, [], `${at}: page errors`);
       await page.close();
     }

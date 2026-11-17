@@ -246,6 +246,8 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
     ? resolveSourceCompanionTarget({ source, courses: appData?.courses, sources: appData?.sources })
     : null;
   const [pagesOpen, setPagesOpen] = useState(false), [editing, setEditing] = useState(false);
+  // The title button holds the facts line, so a cut courses piece's tip cannot see the button's keyboard focus: the row tells it (#1083).
+  const [titleFocus, setTitleFocus] = useState(false);
   const listId = useId(), row = useRef(null), main = useRef(null), wasEditing = useRef(false);
   useEffect(() => { if (wasEditing.current && !editing) main.current?.focus({ preventScroll: true }); wasEditing.current = editing; }, [editing]);
   const editor = canRename ? actions.rename(item) : null;
@@ -292,13 +294,14 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
           <RenameField title={item.title} original={item.renamedFrom} label={uiFormat('重命名「{0}」', [name])}
             onSave={async title => { await editor.save(title); setEditing(false); }} onRestore={async () => { await editor.restore(); setEditing(false); }} onCancel={() => setEditing(false)} />
         </div> : <button ref={main} className="source-main" onClick={openRow} aria-keyshortcuts={editor ? 'F2' : undefined}
-          onKeyDown={editor ? event => { if (startsEditing(event)) { event.preventDefault(); startEditing(); } } : undefined}>
+          onFocus={event => setTitleFocus(event.currentTarget.matches(':focus-visible'))} onBlur={() => setTitleFocus(false)}
+          onKeyDown={event => { if (event.key === 'Escape') setTitleFocus(false); if (editor && startsEditing(event)) { event.preventDefault(); startEditing(); } }}>
           <Icon name={item.format === "audio" ? "audio" : "file"} size={20} className="source-doc__icon" />
           <span>
             <strong className="source-title" title={item.title}>{pinned && <span className="source-pin" role="img" aria-label={ui('已置顶')}><Icon name="pin" size={14} /></span>}{name}{isNew && <Badge size="sm" className="source-new">{ui("刚导入")}</Badge>}{notes.map(note => <Badge key={note} tone="warning" size="sm" icon wrap className="source-note">{note}</Badge>)}</strong>
             {/* One line of facts under the title (#570): where it belongs, then what it is and how big; each part ellipsises on its own. */}
             <span className="source-doc__meta">
-              <small ref={coursesRef}><Tooltip layer anchorClassName="source-doc__facts-tip" content={coursesCut ? coursesText : ''}><span>{coursesText}</span></Tooltip>{showExtraCourseBadges && item.courses.length > 1 && item.courses.slice(1).map(extra => <Badge key={extra} size="sm" className="source-course-extra">{extra}</Badge>)}</small>
+              <small ref={coursesRef}><Tooltip layer anchorClassName="source-doc__facts-tip" content={coursesCut ? coursesText : ''} forceOpen={titleFocus}><span>{coursesText}</span></Tooltip>{showExtraCourseBadges && item.courses.length > 1 && item.courses.slice(1).map(extra => <Badge key={extra} size="sm" className="source-course-extra">{extra}</Badge>)}</small>
               <small className={gap ? "source-doc__facts--gap" : undefined}>{sourceFormatLabel(item)}{gap &&<>{" · "}<Tooltip layer content={pageGapHint(item)}><span className="source-doc__gap" tabIndex={0}>{gap}</span></Tooltip></>}{details.length > 0 && ` · ${details.join(" · ")}`}</small>
             </span>
             {item.renamedFrom && <small className="source-original" title={item.renamedFrom}>{originalNote(item)}</small>}

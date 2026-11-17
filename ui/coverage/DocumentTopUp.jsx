@@ -64,7 +64,7 @@ export default function DocumentTopUp({ item, revision, size = 'sm', className =
   const asked = useCoverage(open && item ? { documentId: item.key } : null, { version: String(revision ?? ''), enabled: open });
   const start = (args, chosen) => { setOpen(false); act('generate', args, (started) => notify?.(topUpNotice({ title: partTitle(chosen.title, chosen.nextPart) }, started))); };
   return <Popover open={open} onOpenChange={setOpen} label={actionLabel('topup')} className={`cov-popover ${className}`.trim()} panelClassName="cov-popover__panel" placement={placement}
-    trigger={({ props, ref }) => <Button ref={ref} size={size} variant="secondary" block={block} className={buttonClassName} {...props} data-document-topup-open>{actionLabel('topup')}</Button>}>
+    trigger={({ props, ref }) => <Button ref={ref} size={size} variant="secondary" icon="sparkle" block={block} className={buttonClassName} {...props} data-document-topup-open>{actionLabel('topup')}</Button>}>
     {asked.view ? <DocumentTopUpBody view={asked.view} onStart={start} /> : <LoadingState label={ui('正在读取这份资料的覆盖…')} />}
   </Popover>;
 }

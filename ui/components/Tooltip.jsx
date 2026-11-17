@@ -38,13 +38,16 @@ export function focusQuietly(element, options) {
  * ancestor's edge, level with the anchor, and below the anchor itself when there is no room beside.
  * An empty `content` draws no card (and closes an open one): a caller whose words come and go keeps one anchor in the page, so the control
  * it wraps is never remounted when the words appear.
+ * forceOpen: show the card while true (e.g. the 资料 title button has keyboard focus and its cut facts line sits inside it), as long as there are words.
  * onOpenChange(open): told after the card opens or closes (the sidebar says its reorder line in the first card only, ui/nav-reorder-hint.js).
  */
-export default function Tooltip({ content, children, placement = 'bottom-start', flip = true, className, layer = false, anchorClassName, interactive = false, group, outside, onOpenChange }) {
+export default function Tooltip({ content, children, placement = 'bottom-start', flip = true, className, layer = false, anchorClassName, interactive = false, group, outside, onOpenChange, forceOpen = false }) {
   useComponentCss(css);
   useComponentCss(overlayCss, 'study-overlays');
   useComponentCss(layerCss, 'study-tooltip-layer');
-  const [open, setOpen] = useState(false);
+  const [openState, setOpen] = useState(false);
+  // forceOpen: the caller shows the card while something the card's own handlers cannot see holds (keyboard focus on a control that contains the anchor).
+  const open = openState || (forceOpen && Boolean(content));
   const id = useId(), anchor = useRef(null), panel = useRef(null), timer = useRef(0), self = useRef(null), pressedAt = useRef(0);
   if (!self.current) self.current = { close: () => {} };
   self.current.close = () => { clearTimeout(timer.current); setOpen(false); };
