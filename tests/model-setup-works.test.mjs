@@ -232,12 +232,12 @@ test('every page that said "no model" in its own words says it with the gate\'s 
   assert.doesNotMatch(firstRun(READY), /data-body="model"/, 'a usable model is a ticked row');
   assert.equal(labelOf(welcome, 'primary'), '重新检查', 'the open step re-reads the state');
   assert.doesNotMatch(text(welcome), /前往设置/, 'a missing key has no model to pick: no settings link at all');
-  assert.match(firstRun(NO_ROUTE, { host: { openModelSettings: noop } }), />打开模型设置<\/button>/, 'the one quiet link is named for where it goes');
+  assert.match(firstRun(NO_ROUTE, { host: { openModelSettings: noop } }), />打开模型设置(?:<svg[\s\S]*?<\/svg>)?<\/button>/, 'the one quiet link is named for where it goes');
   const note = render(h(m.ModelErrorNote, { error: 'NO_ADAPTER: Configure a model provider', onSettings: noop }));
-  assert.match(note, />前往设置<\/button>/);
-  assert.match(render(h(m.ModelErrorNote, { error: 'NO_ADAPTER: Configure a model provider', onSettings: noop }), { host: { openModelSettings: noop } }), />打开模型设置<\/button>/);
+  assert.match(note, />前往设置(?:<svg[\s\S]*?<\/svg>)?<\/button>/);
+  assert.match(render(h(m.ModelErrorNote, { error: 'NO_ADAPTER: Configure a model provider', onSettings: noop }), { host: { openModelSettings: noop } }), />打开模型设置(?:<svg[\s\S]*?<\/svg>)?<\/button>/);
   const helper = render(h(m.AiHelperNote, { unavailable: { reason: 'no-model' }, fallback: '先用按章节做的路径', onSettings: noop }));
-  assert.match(helper, />前往设置<\/button>/);
+  assert.match(helper, />前往设置(?:<svg[\s\S]*?<\/svg>)?<\/button>/);
   assert.match(text(helper), /还没有可用的 AI 模型。先用按章节做的路径。/);
 });
 

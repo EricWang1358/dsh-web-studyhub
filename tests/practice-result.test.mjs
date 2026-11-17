@@ -119,11 +119,11 @@ test('the 点评 says once that it asks the model and links to the setting; swit
   assert.equal((on.match(/class="coach-model-note"/g) || []).length, 1);
   const noteOn = on.slice(at(on, 'class="coach-model-note"'));
   assert.match(noteOn, /请较轻量的模型写一句话/);
-  assert.match(noteOn.slice(0, noteOn.indexOf('</p>')), /<button[^>]*>前往设置<\/button>/);
+  assert.match(noteOn.slice(0, noteOn.indexOf('</p>')), /<button[^>]*>前往设置(?:<svg[\s\S]*?<\/svg>)?<\/button>/);
   const off = result({ data: { settings: { practice: { debrief: false } } } });
   const noteOff = off.slice(at(off, 'class="coach-model-note"'));
   assert.match(noteOff.slice(0, noteOff.indexOf('</p>')), /没有调用模型/);
-  assert.match(noteOff.slice(0, noteOff.indexOf('</p>')), /<button[^>]*>前往设置<\/button>/);
+  assert.match(noteOff.slice(0, noteOff.indexOf('</p>')), /<button[^>]*>前往设置(?:<svg[\s\S]*?<\/svg>)?<\/button>/);
   const short = result({ run: { answered: 2, questions: 2, total: 2 } });
   assert.doesNotMatch(short, /coach-model-note/, 'a round of fewer than three answers never asks the model, so there is nothing to disclose');
 });

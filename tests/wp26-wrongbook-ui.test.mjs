@@ -383,7 +383,7 @@ test('#49: opened RowDetail renders 打开出处 from card citations/source and 
   const htmlZh = renderToStaticMarkup(React.createElement(StudyServicesContext.Provider, { value: { openModal: (m) => modals.push(m), busy: false } },
     React.createElement(WrongBookView, props)));
   assert.match(htmlZh, /class="wb-detail__foot"/);
-  assert.equal((htmlZh.match(/>打开出处<\/button>/g) || []).length, 1, 'only the row with a resolvable source renders 打开出处');
+  assert.equal((htmlZh.match(/>打开出处(?:<svg[\s\S]*?<\/svg>)?<\/button>/g) || []).length, 1, 'only the row with a resolvable source renders 打开出处');
 
   const internals = React.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
   const hooks = [];
@@ -443,7 +443,7 @@ test('#49: opened RowDetail renders 打开出处 from card citations/source and 
   try {
     const htmlEn = renderToStaticMarkup(React.createElement(StudyServicesContext.Provider, { value: { openModal: () => {}, busy: false } },
       React.createElement(WrongBookView, props)));
-    assert.match(htmlEn, />Open source<\/button>/);
+    assert.match(htmlEn, />Open source(?:<svg[\s\S]*?<\/svg>)?<\/button>/);
   } finally { setUiLanguage('zh'); }
 });
 

@@ -129,7 +129,7 @@ test("summaryLine reads as one plain sentence in both languages; without a plan 
     setUiLanguage("en");
     const english = form.summaryLine(base);
     assert.doesNotMatch(english, han);
-    assert.match(english, /3 materials/);
+    assert.match(english, /3 sources/);
     assert.match(english, /10 questions/);
   } finally { setUiLanguage("zh"); }
 });

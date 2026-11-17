@@ -197,7 +197,7 @@
       margin: var(--space-3) 0 0;
     }
     /* The links of this row are text actions: ink, never the cinnabar of the one primary (the same as 再添加资料 beside them). */
-    .desk-also .sh-handoff__btn { --sh-link-ink: var(--text); }
+    .desk-also [data-hand-off] { --sh-link-ink: var(--text); }
     /* Today's stack. Cards behind the top one mirror how much is left. */
     .today-stack {
       position: relative;
