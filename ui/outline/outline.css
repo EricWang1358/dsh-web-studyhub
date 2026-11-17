@@ -300,15 +300,15 @@
     .sh-dialog[data-custom-gate] .sh-dialog__footer > * { max-width: 100%; }
     .sh-dialog[data-custom-gate] .sh-dialog__footer [data-custom-gate-action] { max-width: 100%; white-space: normal; text-align: start; }
     /* The recommended button leads with its hand-off icon on the FIRST line of its words (sh-btn--lines: the icon's box is one line high, its glyph in the middle of it), so the icon
-       stays level with that line when the words wrap. A one-line button stays as tall as any other button, its words in the middle: the padding is half of the control height (40px, 44px on a
-       phone, as components.css gives it) less the line and the borders. */
+       stays level with that line when the words wrap. It does no height arithmetic: a two-column grid (the icon, the words) is centred in the button's own minimum height
+       (align-content: center), the icon and the words start on the first line (align-items: start), and the padding and the line height (1.2) are every button's, so a one-line button is as tall as 「整本生成」
+       with its words in the middle at every density and appearance (a padding worked out from --space-8 put the words 3.5px high under 紧凑, and made the button 48px beside 40px under 宽松 and
+       44px beside 40px under 精致紧凑 on a phone, where the minimum height does not follow). */
     .sh-dialog[data-custom-gate] .sh-dialog__footer [data-custom-gate-action="custom"] {
-      --gate-button-h: var(--control-h, var(--space-8));
-      padding-block: max(var(--space-2), calc((var(--gate-button-h) - 1lh - var(--space-half)) / 2));
-      line-height: var(--lh-snug);
-    }
-    @container study (max-width: 640px) {
-      .sh-dialog[data-custom-gate] .sh-dialog__footer [data-custom-gate-action="custom"] { --gate-button-h: 44px; }
+      display: inline-grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-content: center;
+      align-items: start;
     }
     .outline-papers__list {
       display: grid;

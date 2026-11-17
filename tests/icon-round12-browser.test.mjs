@@ -83,6 +83,64 @@ test('#1127 in the browser: the recommended button of the gate dialog keeps its 
   assert.ok(wrapped >= 2, `the button wrapped in ${wrapped} of the narrow cases: the measure means something`);
 });
 
+/* #1127 round 13: the recommended button keeps its look under the appearance settings. Density changes --space-8 (32px / 48px) but not the button's minimum height (40px), and 精致紧凑
+   keeps 40px on a phone, so a padding worked out from a guessed height put the words 3.5px high (紧凑 at 1440), made the button 44px beside a 40px neighbour (精致紧凑 at 420) and
+   48px beside 40px (宽松 at 1440). The button now does no height arithmetic: its own minimum height centres the block of words (a grid with align-content: center), the icon stays on the
+   first line, the padding is the neighbours' own. A one-line button is as tall as 「整本生成」, its words are in the middle of it, and its padding is the neighbours'; a wrapped one has its
+   icon level with its first line. */
+const GATE_CASES = [
+  { lang: 'zh', width: 1440, iface: { density: 'compact' } }, { lang: 'zh', width: 1440, iface: { density: 'comfortable' } }, { lang: 'zh', width: 420, iface: { craft: 'refined' } },
+  { lang: 'en', width: 1440, iface: { density: 'comfortable' } }, { lang: 'en', width: 1440, iface: { density: 'compact' } }, { lang: 'en', width: 420, iface: { density: 'compact' } },
+  { lang: 'en', width: 420, iface: { density: 'comfortable' } }, { lang: 'en', width: 420, iface: { craft: 'refined' } }, { lang: 'zh', width: 1440, iface: null }, { lang: 'en', width: 420, iface: null }];
+test('#1127 round 13 in the browser: under 紧凑, 宽松 and 精致紧凑 the recommended gate button is as tall as its neighbour with its words in the middle (one line), or has its icon level with its first line (wrapped), with the same padding as the next button', { timeout: 900000 }, async (t) => {
+  let browser;
+  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
+  t.after(() => browser.close());
+  const dist = await mkdtemp(join(tmpdir(), 'study-icon-round13-'));
+  t.after(() => rm(dist, { recursive: true, force: true }));
+  await buildPreview({ outdir: dist });
+  if (SHOTS) await mkdir(SHOTS, { recursive: true });
+  let oneLine = 0, wrapped = 0;
+  for (const lang of ['en', 'zh']) {
+    const running = await startLateServer({ distDir: dist, seed, lang });
+    try {
+      for (const { width, iface } of GATE_CASES.filter((one) => one.lang === lang)) {
+        const { page: view, context } = await openPage(browser, running, { lang, theme: 'light', width, height: 900 });
+        try {
+          const label = `${lang} ${width}px ${JSON.stringify(iface)}`;
+          if (iface) await context.addInitScript((value) => { try { localStorage.setItem('study-interface', value); } catch { /* blocked */ } }, JSON.stringify(iface));
+          await view.goto(running.server.url);
+          await view.locator('.course-header .outline-entry').first().click();
+          await view.locator('.outline-organise').waitFor({ timeout: 30000 });
+          await view.getByRole('button', { name: lang === 'en' ? /Write the review book/ : '生成复习全书' }).first().click();
+          const dialog = view.locator('dialog[data-custom-gate][open]');
+          await dialog.waitFor({ timeout: 10000 });
+          await settleAnimations(view);
+          const button = dialog.locator('[data-custom-gate-action="custom"]'), found = await measure(button);
+          const sizes = await dialog.evaluate((root) => {
+            const own = root.querySelector('[data-custom-gate-action="custom"]'), other = root.querySelector('[data-custom-gate-action="whole"]'), range = document.createRange();
+            range.selectNodeContents(own);
+            const icon = own.querySelector('svg').getBoundingClientRect(), words = [...range.getClientRects()].filter((rect) => rect.width > 4 && rect.height > 4 && rect.left >= icon.right - 1), box = own.getBoundingClientRect();
+            const top = Math.min(...words.map((rect) => rect.top)), bottom = Math.max(...words.map((rect) => rect.bottom));
+            return { own: box.height, other: other.getBoundingClientRect().height, wordsFromCentre: (top + bottom) / 2 - (box.top + box.bottom) / 2,
+              pad: [getComputedStyle(own).paddingTop, getComputedStyle(own).paddingBottom].join('/'), padOther: [getComputedStyle(other).paddingTop, getComputedStyle(other).paddingBottom].join('/') };
+          });
+          assert.equal(sizes.pad, sizes.padOther, `${label}: the recommended button has its neighbour's padding (${JSON.stringify(sizes)})`);
+          assert.ok(Math.abs(found.offFirstLine) <= 2, `${label}: the icon's middle is ${found.offFirstLine}px from the middle of the first line (${JSON.stringify(found)})`);
+          if (found.lines > 1) wrapped += 1;
+          else {
+            oneLine += 1;
+            assert.ok(Math.abs(sizes.own - sizes.other) <= 1, `${label}: a one-line recommended button is as tall as the next one (${sizes.own}px against ${sizes.other}px)`);
+            assert.ok(Math.abs(sizes.wordsFromCentre) <= 1.5, `${label}: its words sit in the middle of the button, not ${sizes.wordsFromCentre}px off (${JSON.stringify(sizes)})`);
+          }
+          if (SHOTS) await dialog.screenshot({ path: join(SHOTS, `gate13-${lang}-${width}-${iface ? Object.values(iface)[0] : 'default'}.png`) });
+        } finally { await context.close(); }
+      }
+    } finally { await running.close(); }
+  }
+  assert.ok(oneLine >= 6 && wrapped >= 1, `${oneLine} one-line and ${wrapped} wrapped cases: the measure means something`);
+});
+
 /* #1130 follow-up: the home line about the focus topics ("7 focus topics: 2 mastered · 2 not yet · 2 without questions") breaks only between its pieces, never inside one: the head
    ("7 focus topics:") and each count with its words ("2 without questions") stay whole on one line, at 320, 375 and 420px, light and dark (en), and in zh. At 420px it broke as
    "· 2" / "without questions" and "1 without" / "a question". A piece is looked up by its words in the button's text and measured by the line boxes of its characters. */
