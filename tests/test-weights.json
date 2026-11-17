@@ -556,7 +556,7 @@
  "tests/host-ownership.test.mjs": 1620,
  "tests/host.test.mjs": 4550,
  "tests/icon-paths.test.mjs": 30,
- "tests/icon-round4-browser.test.mjs": 55000,
+ "tests/icon-round4-browser.test.mjs": 62000,
  "tests/import-course.test.mjs": 10,
  "tests/import-hop-browser.test.mjs": 1570,
  "tests/import-hop.test.mjs": 50,

@@ -361,6 +361,10 @@
       /* Here the slot shares line two with the bar and is as wide as 「继续 →」 whether or not a run is open, so an idle row's ▶ is drawn always: hiding it until the
          pointer comes (the wide layout's rule above) left an empty 74 - 101px gap beside every bar with a mouse, and the right edge ragged (#1073). */
       .map-play:not(.is-run) { opacity: 1; }
+      /* Idle, the slot keeps its width, so every bar still ends at one x, but it draws only its ▶, at the slot's end where 「继续 →」 ends: a 74 - 101px hollow pill
+         around one glyph read as an empty button (#1073 round 6). A pointer or a touch only tints the glyph; nothing moves. */
+      .map-play:not(.is-run) { justify-items: end; border-color: transparent; }
+      .map-play:not(.is-run):hover:not(:disabled) { background: transparent; border-color: transparent; color: var(--accent); }
       .section-heading {
         align-items: flex-start;
       }

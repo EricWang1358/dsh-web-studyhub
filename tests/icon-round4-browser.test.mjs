@@ -143,6 +143,30 @@ test('round 4 in the browser: answer marks as heavy as their label, the station 
       }
     } });
 
+    await t.test(`round 6 (5): the model step of the compact first-run card says the whole model id, the provider first, never cut, at 1440 and 420px`, async () => { for (const [lang, server] of [['en', en], ['zh', zh]]) {
+      for (const width of [1440, 420]) {
+        const { page, context } = await open(browser, server, { lang, width });
+        await later(page, lang);
+        await page.locator('.first-run-card .frl-step[data-step="model"] .frl-step__text').first().waitFor({ timeout: 30000 });
+        // The preview's model is "preview · fake-model"; a learner's is longer. The row is given the ids of the free providers the guide names, as the card would say them.
+        for (const id of ['preview · fake-model', 'deepseek · deepseek-chat', 'siliconflow · Qwen/Qwen2.5-7B-Instruct']) {
+          const seen = await page.evaluate(([label, zh]) => {
+            const text = document.querySelector('.first-run-card .frl-step[data-step="model"] .frl-step__text'), row = text.closest('.frl-step__row');
+            text.textContent = zh ? `已选择模型：${label}` : `Model selected: ${label}`;
+            const box = text.getBoundingClientRect(), range = document.createRange();
+            range.selectNodeContents(text);
+            const lines = [...range.getClientRects()].map((rect) => Math.round(rect.top)).filter((top, index, all) => all.indexOf(top) === index).length;
+            return { cut: text.scrollWidth > text.clientWidth + 0.5 || text.scrollHeight > text.clientHeight + 0.5, lines, height: +row.getBoundingClientRect().height.toFixed(1), width: +box.width.toFixed(1) };
+          }, [id, lang === 'zh']);
+          assert.ok(!seen.cut, `${lang} ${width}px: 「${id}」 is cut on the model step (${JSON.stringify(seen)})`);
+          assert.ok(seen.lines <= 2, `${lang} ${width}px: 「${id}」 takes at most two ruled lines (${seen.lines})`);
+          assert.ok(Math.abs(seen.height / 32 - Math.round(seen.height / 32)) < 0.05, `${lang} ${width}px: the row stays on the card's 32px ruling (${seen.height}px)`);
+          if (id.startsWith('siliconflow')) await shot(page, `first-run-model-${lang}-${width}`);
+        }
+        await context.close();
+      }
+    } });
+
     await t.test(`8: at 420px no deck title is cut by the play slot, which keeps one width`, async () => { for (const [lang, server] of [['en', en], ['zh', zh]]) {
       const { page, context } = await open(browser, server, { lang, width: 420, height: 844 });
       await later(page, lang);
@@ -163,7 +187,7 @@ test('round 4 in the browser: answer marks as heavy as their label, the station 
       await context.close();
     } });
 
-    await t.test(`round 5 (2): at 420px with a mouse an idle deck or topic row has no invisible play slot beside its bar, and the bars still line up`, async () => { for (const [lang, server] of [['zh', zh], ['en', en]]) {
+    await t.test(`round 5 (2) / round 6 (2): at 420px with a mouse an idle deck or topic row has no invisible play slot beside its bar, its ▶ is a glyph at the slot's end (not a wide hollow pill), and the bars still line up`, async () => { for (const [lang, server] of [['zh', zh], ['en', en]]) {
       const { page, context } = await open(browser, server, { lang, width: 420, height: 844 });
       await later(page, lang);
       await page.locator('.deck-row .map-play').first().waitFor({ timeout: 30000 });
@@ -173,11 +197,21 @@ test('round 4 in the browser: answer marks as heavy as their label, the station 
       await page.waitForTimeout(500);
       const rows = await page.evaluate(() => [...document.querySelectorAll('.deck-row, .topic-row')].filter((row) => row.getClientRects().length).map((row) => {
         const slot = row.querySelector('.map-play'), bar = row.querySelector('.mastery-bar');
-        const box = slot.getBoundingClientRect(), track = bar?.getBoundingClientRect();
-        return { kind: row.classList.contains('deck-row') ? 'deck' : 'topic', run: slot.classList.contains('is-run'), opacity: +getComputedStyle(slot).opacity, width: +box.width.toFixed(1), right: track ? +track.right.toFixed(1) : null, left: track ? +track.left.toFixed(1) : null, bar: track ? +track.width.toFixed(1) : null };
+        const box = slot.getBoundingClientRect(), track = bar?.getBoundingClientRect(), style = getComputedStyle(slot);
+        // What the eye sees of the slot: its pill when it draws a border or a fill, else only its face (the ▶ glyph).
+        const clear = (colour) => /^(?:transparent|rgba\(0, 0, 0, 0\))$/.test(colour) || / 0\)$/.test(colour);
+        const face = slot.querySelector('.map-play__face:not(.map-play__ghost)').getBoundingClientRect();
+        const pill = (parseFloat(style.borderTopWidth) > 0 && !clear(style.borderTopColor)) || !clear(style.backgroundColor);
+        return { kind: row.classList.contains('deck-row') ? 'deck' : 'topic', run: slot.classList.contains('is-run'), opacity: +style.opacity, width: +box.width.toFixed(1), seen: +(pill ? box.width : face.width).toFixed(1),
+          end: +(box.right - face.right).toFixed(1), right: track ? +track.right.toFixed(1) : null, left: track ? +track.left.toFixed(1) : null, bar: track ? +track.width.toFixed(1) : null };
       }));
       assert.ok(rows.some((row) => row.kind === 'deck' && !row.run) && rows.some((row) => row.kind === 'topic'), `${lang}: idle deck and topic rows are on screen`);
       for (const row of rows) assert.ok(row.opacity >= 0.99 || row.width <= 4, `${lang} 420px: an idle ${row.kind} row keeps an invisible ${row.width}px slot beside its bar (opacity ${row.opacity})`);
+      // Round 6: the idle face is the ▶ alone, at the slot's end where 「继续 →」 ends, never a 74 - 101px hollow pill around one glyph.
+      for (const row of rows.filter((entry) => !entry.run)) {
+        assert.ok(row.seen <= 40, `${lang} 420px: an idle ${row.kind} row shows a ${row.seen}px pill around its ▶ (slot ${row.width}px)`);
+        assert.ok(row.end <= 16, `${lang} 420px: the ▶ of an idle ${row.kind} row sits at the slot's end (${row.end}px from it)`);
+      }
       const bars = rows.filter((row) => row.bar !== null);
       for (const kind of ['deck', 'topic']) {
         const mine = bars.filter((row) => row.kind === kind);
