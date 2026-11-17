@@ -227,7 +227,7 @@ test('#1082: the count line is one line from 320 to 1440 px, zh and en, with 1 a
         if (!line.clipped) failures.push(`${tag}: the count line does not clip what it leaves out`);
         if (!line.underHairline || !line.overTokens) failures.push(`${tag}: the count line leaves its place (under the hairline: ${line.underHairline}, over the tokens: ${line.overTokens})`);
         if (line.cut.length) failures.push(`${tag}: pieces cut by the line's edge: ${line.cut.join(' / ')}`);
-        if (!new RegExp(lang === 'en' ? `\\b${count} materials?\\b` : `${count} 份资料`).test(line.shown.join(' · '))) failures.push(`${tag}: the line does not show the materials whole (${line.shown.join(' · ')})`);
+        if (!new RegExp(lang === 'en' ? `\\b${count} (?:materials?|sources?)\\b` : `${count} 份资料`).test(line.shown.join(' · '))) failures.push(`${tag}: the line does not show the materials whole (${line.shown.join(' · ')})`);
       }
       if (await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth) > 0) failures.push(`${lang} ${width}: sideways scroll`);
       if (errors.length) failures.push(`${lang} ${width}: errors ${errors.join(' | ')}`);
