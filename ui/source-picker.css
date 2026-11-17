@@ -55,8 +55,8 @@
     .source-picker__index .index-badge-compact { max-width: 100%; }
     .source-picker__text .source-picker__partial { color: var(--accent-text); }
     /* The first piece (format, size, notes) keeps its size and is only ever cut at the line's width (a 320 px line), with 「…」; the names after it keep their
-       size too, and the first that does not fit goes on to the hidden line with all after it. A cut piece ends on a word: each part after its first is one
-       unbreakable box with its own 「·」 (.source-picker__part), so 「…」 never follows a bare 「·」 (round 8). */
+       size too, and the first that does not fit goes on to the hidden line with all after it. The shortened course ends on a word: each part after its first
+       is one unbreakable box with its own 「·」 (.source-picker__part), so 「…」 never follows a bare 「·」 (round 8). */
     .source-picker__fact { flex: none; max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
     .source-picker__part { display: inline-block; white-space: pre; }
     /* The first course after them that the scope does not name (round 7) and the names after it are one group (round 8). The group takes the room left on

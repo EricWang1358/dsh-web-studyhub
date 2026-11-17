@@ -145,8 +145,9 @@ export const relationNote = relation => !relation ? ''
 /* A course name this long or shorter is said whole or left out whole; a longer one, the first on a row's facts line, may be shortened (ui/source-picker.css). */
 const SHORTEST_NAME = 6;
 
-/* A piece of the facts line as its parts: each part after the first is one unbreakable box with its own 「·」, so a piece cut with 「…」 ends on a word,
-   never on its own 「·」 (「示例课程 · …」, #1084 round 8). The words are the same text as before. */
+/* The shortened first course as its parts: each part after the first is one unbreakable box with its own 「·」, so the name cut with 「…」 ends on a word,
+   never on its own 「·」 (「示例课程 · …」, #1084 round 8). Only that name is boxed: the other pieces are never cut mid-name, and stay plain text
+   (one run of words for the static markup and the checkbox's name, and few elements per row, #565). */
 const parted = text => {
   const [head, ...tail] = text.split(' · ');
   return <>{head}{tail.map((part, at) => <span key={at} className="source-picker__part">{` · ${part}`}</span>)}</>;
@@ -188,7 +189,7 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
   const courses = item.courses.length ? item.courses.filter(course => course !== scope) : scope === '' ? [] : [ui('未分类')];
   const [first, ...later] = [...courses, related].filter(Boolean), shortened = courses.length > 0 && [...courses[0]].length > SHORTEST_NAME;
   const slot = indexInfo ? 'badge' : indexPending ? 'held' : 'none';
-  const after = later.map((name, at) => <React.Fragment key={at}>{' '}<span className="source-picker__fact source-picker__fact--name" data-name="rest">{parted(`· ${name}`)}</span></React.Fragment>);
+  const after = later.map((name, at) => <React.Fragment key={at}>{' '}<span className="source-picker__fact source-picker__fact--name" data-name="rest">{`· ${name}`}</span></React.Fragment>);
   return (
     <div className={`source-picker__item${state !== 'none' ? ' is-selected' : ''}`} data-document-key={item.key}>
       <div className={`source-picker__row${multi ? ' has-expand' : ''}${slot !== 'none' || indexColumn ? ' has-index' : ''}${indexColumn && slot === 'none' ? ' is-unbadged' : ''}`}>
@@ -202,10 +203,10 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
             onChange={event => { const on = event.target.checked; apply(current => toggleDocument(current, item, on)); }} />
           <span className="source-picker__text">
             <strong id={`${nameId}-t`} title={item.title}>{name}</strong>
-            <small id={`${nameId}-f`} className="source-picker__facts"><span className="source-picker__fact source-picker__fact--lead">{parted(facts.join(' · '))}</span>
+            <small id={`${nameId}-f`} className="source-picker__facts"><span className="source-picker__fact source-picker__fact--lead">{facts.join(' · ')}</span>
               {first && ' '}{first && (shortened
                 ? <span className="source-picker__names" data-name="first"><CourseName name={first} />{after}</span>
-                : <><span className="source-picker__fact source-picker__fact--name" data-name="first">{parted(`· ${first}`)}</span>{after}</>)}</small>
+                : <><span className="source-picker__fact source-picker__fact--name" data-name="first">{`· ${first}`}</span>{after}</>)}</small>
             <span className="source-picker__index" data-index-slot={slot}>{indexInfo && <IndexBadge compact info={indexInfo} coverage={{ canIndex }} open={focused} wordId={`${nameId}-w`} tipId={`${nameId}-c`} />}</span>
             {state === 'some' && <small id={`${nameId}-p`} className="source-picker__partial">{uiFormat('已选 {0} / {1} 页', [picked, item.sourceIds.length])}</small>}
           </span>
