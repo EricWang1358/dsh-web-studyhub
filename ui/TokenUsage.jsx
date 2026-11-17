@@ -63,8 +63,14 @@ export function TokenUsage({ usage, estimate, inline = false, copy = true, total
 /* The widest line an estimate usually is: the loading line lays this out invisibly, so it takes the lines the ready one will take. A question estimate says
    「（含思考）」 (lib/token-estimate.js withThinking), so the ghost does too. */
 const GHOST_ESTIMATE = { totalTokens: { low: 88800, high: 99900 }, calls: { low: 88, high: 99 }, notes: ['thinking-default'] };
-/** The summary drawn as its parts (「预计 … tok（含思考）」, 「4–11 次模型调用」): a narrow line breaks between them, never inside one (「次模型 / 调用」). */
-const summaryParts = (text) => text.split(' · ').map((part, at) => <React.Fragment key={at}>{at ? ' · ' : ''}<span className="token-estimate__part">{part}</span></React.Fragment>);
+/** The summary drawn as its parts (「预计 … tok」 and its 「（含思考）」, 「4–11 次模型调用」): a narrow line breaks between them, never inside one (「次模型 / 调用」);
+ *  a line of one line's room (创建题组's bar) leaves the last ones out whole. */
+function summaryParts(text) {
+  const note = ui('（含思考）'), said = note.trim(), lead = note.slice(0, note.length - note.trimStart().length);
+  return text.split(' · ').map((part, at) => <React.Fragment key={at}>{at ? ' · ' : ''}{part.endsWith(note) && part.length > note.length
+    ? <><span className="token-estimate__part">{part.slice(0, -note.length)}</span>{lead}<span className="token-estimate__part">{said}</span></>
+    : <span className="token-estimate__part">{part}</span>}</React.Fragment>);
+}
 
 /**
  * The estimate line above a submit button: "预计 58.3K–96.1K tok · 8–10 次模型调用", with an ⓘ button that opens the

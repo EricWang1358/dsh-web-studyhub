@@ -44,6 +44,11 @@
        the line under it or the hairline (#1082). */
     .generate-page .generate-submit__lines > * { align-self: stretch; min-width: 0; margin: 0; overflow: hidden; line-height: var(--lh-snug); white-space: nowrap; text-overflow: ellipsis; }
     .generate-page .generate-submit__note { margin: 0; font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    /* The tokens line is pieces too (the range, its 「（含思考）」): one that does not fit goes to the hidden next line whole, never cut inside a word (#1082, round 5). */
+    .generate-page .generate-submit__cost .token-estimate__line > :first-child { white-space: normal; }
+    .generate-page .generate-submit__cost .token-estimate__part { display: inline-block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; vertical-align: top; }
+    /* While estimating, 「正在估算…」 stands on the line itself (the invisible line it covers may be two pieces high there). */
+    .generate-page .generate-submit__cost .token-estimate__quiet { align-self: start; }
     .generate-page .generate-submit > .generate-submit__btn { flex: 0 0 auto; }
     /* A control the keyboard reaches is scrolled clear of the bar, not under it: while this page is shown its scrolling box keeps the bar's measured height
        (--generate-bar-room, ui/use-sticky-room.js) out of the room a focus or a jump scrolls into. */

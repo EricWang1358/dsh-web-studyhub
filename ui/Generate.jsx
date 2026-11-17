@@ -281,7 +281,10 @@ export default function Generate({
                   <Button variant="link" size="sm" onClick={() => setGenSource("case")}>{ui("切到案例分析题")}</Button></span>}
               </div>
               {courseOpen && <div className="generate-course"><CourseField courses={data.focus?.courses} label={ui("新题组放进的课程")} value={generationCourse} onChange={course => setGen({ ...gen, course })} /></div>}
-              <Disclosure className="generate-more" bodyClassName="generate-more__body" data-tour="generate-more" summary={ui("更多选项")} meta={chosen.length ? chosen.join(" · ") : ui("想练什么、难度、花费、额外要求")} open={foldOpen} onToggle={setMoreOpen}>
+              {/* Shut, its summary says the choices that are not the defaults, each whole (they wrap at a 「·」, ui/generate-form.css); open, the fold says them itself. */}
+              <Disclosure className="generate-more" bodyClassName="generate-more__body" data-tour="generate-more" summary={ui("更多选项")} open={foldOpen} onToggle={setMoreOpen}
+                meta={chosen.length ? <span className="generate-more__choices">{chosen.map((choice, at) => <React.Fragment key={at}>{at ? " " : ""}<span className="generate-more__choice">{at ? `· ${choice}` : choice}</span></React.Fragment>)}</span>
+                  : ui("想练什么、难度、花费、额外要求")}>
                 <FormGroup title={ui("想练什么")}>
                   <FormRow label={ui("这次想练什么？")} htmlFor="generate-focus" data-tour="generate-focus">
                     <textarea id="generate-focus" ref={focusBox} className="generate-focus generate-row__input" rows={2} value={gen.focus}

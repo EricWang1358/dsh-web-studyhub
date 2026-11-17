@@ -64,6 +64,12 @@
     .generate-more > summary { min-width: 0; }
     .generate-more > summary > span:last-child, .generate-extra > summary > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .generate-more .sh-disclosure__label { white-space: nowrap; }
+    /* The choices that are not the defaults (难度, 语言, 公式写法) are what a run will use, so each is said whole: a summary too narrow for all of them on one line
+       goes on under them at a 「·」, never cutting a word (#1082, round 5). Open, the fold's own controls say them, so the summary does not: a choice picked
+       inside it never makes the summary taller and moves nothing under it. */
+    .generate-more__choices { display: block; white-space: normal; text-align: end; }
+    .generate-more__choice { display: inline-block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; vertical-align: top; }
+    .generate-more[open] > summary > .sh-disclosure__meta { display: none; }
     .generate-more .generate-rows { margin-top: 0; }
     /* A purpose inside 更多选项: a small title over its rows (想练什么 / 难度与语言 / 花费与分轮 / 题组信息). */
     .generate-group { display: grid; gap: var(--space-3); min-width: 0; }
