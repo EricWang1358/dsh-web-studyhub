@@ -2,6 +2,7 @@
   "逐份资料出题记录 · 已引用 {0} / {1} 页": "Per-source record · {0} of {1} pages cited",
   "第 {0} 页：规划 {1} 个考点，通过 {2} 题": "p. {0}: {1} knowledge point(s) planned, {2} question(s) passed",
   "{0} 页本次没有合格题 · 查看清单": "{0} pages have no accepted questions this time · view the list",
+  "{0} 页本次没有合格题 · 查看清单#one": "{0} page has no accepted questions this time · view the list",
   "页码：{0}": "Pages: {0}",
   "补题": "Filling",
   "生成": "Generation",

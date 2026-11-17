@@ -2,6 +2,7 @@
   "Shift+Enter 回上一空": "Shift+Enter for previous blank",
   "{0} · 先跳过待答": "{0} · Skipped for later",
   "{0} 字 · Ctrl+Enter 看答案": "{0} chars · Ctrl+Enter to reveal",
+  "{0} 字 · Ctrl+Enter 看答案#one": "{0} char · Ctrl+Enter to reveal",
   "先跳过待答": "Skipped for later",
   "全部过关 · 共 {0} 题": "All passed · {0} questions",
   "其他选项辨析": "Why other options are wrong",

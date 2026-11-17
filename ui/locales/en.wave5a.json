@@ -1,6 +1,8 @@
 {
   "{0} 题 · 已归档": "{0} questions · archived",
+  "{0} 题 · 已归档#one": "{0} question · archived",
   "· {0} 条": "· {0} citations",
+  "· {0} 条#one": "· {0} citation",
   "客观题答对 {0}": "Objective answers correct {0}",
   "自评达标 {0}": "Self-rated as met {0}",
   "第 {0} / {1} 章 · {2} · 本章 {3}/{4}": "Chapter {0} / {1} · {2} · this chapter {3}/{4}",
@@ -14,6 +16,7 @@
   "全部章节都学过了": "All chapters learned",
   "下一批：{0}": "Next batch: {0}",
   "{0} 个主题组": "{0} topic groups",
+  "{0} 个主题组#one": "{0} topic group",
   "同名主题已跨题组合并": "Topics with the same name are merged across decks",
   "{0} 题待巩固": "{0} to reinforce",
   "{0} 题未自动审阅": "{0} not auto-reviewed",

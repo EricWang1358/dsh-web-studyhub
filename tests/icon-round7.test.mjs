@@ -185,7 +185,20 @@ test('6: the first-run model line shows the whole id in the shared Tooltip (neve
 /* ---- 8: English singulars ------------------------------------------------------------------------------------------------------------------------------- */
 
 /** The English counts that keep one form, each with why (filled as the singulars are written). */
-const SINGULAR_LEFT = [];
+// Round 7 wrote 185 singulars; these 11 stay plural.
+const SINGULAR_LEFT = [
+  { key: '{0} 等 {1} 个', why: '{0} is the first name of a list, not a count' },
+  { key: '选了 {0} 份资料，{1} 份会出题，{2} 份不会：{3}{4}', why: 'shown only when some materials get questions and some do not, so at least 2 are selected' },
+  { key: '选了 {0} 份，{1} 份已出题，{2} 份没出题', why: 'shown only when some materials have questions and some do not, so at least 2 are selected' },
+  { key: '分 {0} 轮；这次先出第 1 轮（约 {1} 题），其余 {2} 轮会自动接着做，可以在「任务」里暂停或停下。', why: 'shown only when a generation is split into rounds, so at least 2 rounds' },
+  { key: '分 {0} 轮；这次只出第 1 轮（约 {1} 题），其余 {2} 轮要到草稿页点「为没覆盖的部分补题」，一次补一轮。', why: 'shown only when a generation is split into rounds, so at least 2 rounds' },
+  { key: '分 {0} 轮；这次先出第 1 轮（约 {1} 题）。', why: 'shown only when a generation is split into rounds, so at least 2 rounds' },
+  { key: '已出过题的 {0} 份', why: '{0} counts materials and "questions" is not what it counts: "1 with questions already" is right' },
+  { key: '共 {0} 种题型，但只有 {1} 题：前 {1} 种题型各出 1 道，其余这次不出。', why: 'shown only when there are more question types than questions, so at least 2 types' },
+  { key: '共 {0} 题，一轮最多 {1} 题：先练到期、薄弱和新题里排在前面的 {1} 题。', why: 'shown only when there are more questions than a round takes, so far more than one' },
+  { key: '{0} 等 {1} 份', why: '{0} is the first name of a list, not a count' },
+  { key: '共选了 {0} 道题，一次最多 {1} 道：先练前 {1} 道。', why: 'shown only when more questions are selected than a round takes, so far more than one' },
+];
 
 const NOUN = /^\{0\} (?:[a-z-]+ )?([A-Za-z]+s)\b/;
 const NOT_PLURAL = new Set(['is', 'was', 'has', 'does', 'its', 'this', 'appears', 'needs']);
@@ -207,7 +220,7 @@ test('8: every English count that leads with {0} and a plural noun has a singula
   }
   for (const key of Object.keys(catalogue).filter((name) => name.endsWith('#one'))) {
     assert.ok(Object.hasOwn(catalogue, key.slice(0, -4)), `${key}: the plural it is the singular of`);
-    assert.match(catalogue[key], /^\{0\} /, `${key}: leads with the count`);
+    assert.match(catalogue[key], /\{0\}/, `${key}: says the count`);
   }
   const { setUiLanguage, uiFormat } = await loadUi("export { setUiLanguage, uiFormat } from './ui/i18n.js';");
   setUiLanguage('en');
@@ -216,5 +229,6 @@ test('8: every English count that leads with {0} and a plural noun has a singula
     assert.equal(uiFormat('{0} 道题 · 共 {1} 分 · 建议作答约 {2} 分钟', [1, 4, 5]), '1 question · 4 marks · about 5 min of writing');
     assert.equal(uiFormat('{0} 个任务正在进行', [1]), '1 job running');
     assert.equal(uiFormat('{0} 个任务正在进行', [2]), '2 jobs running');
+    assert.equal(uiFormat('· {0} 条', [1]), '· 1 citation', 'the count of citations under an answer');
   } finally { setUiLanguage('zh'); }
 });

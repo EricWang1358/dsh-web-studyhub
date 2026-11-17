@@ -76,6 +76,7 @@
   "重点掌握情况": "Focus topics and how far you are",
   "1 题 · 已掌握 {0}": "1 question · Mastered {0}",
   "{0} 题 · 已掌握 {1}": "{0} questions · Mastered {1}",
+  "{0} 题 · 已掌握 {1}#one": "{0} question · Mastered {1}",
   "去出题": "Generate questions",
   "去出缺题重点": "Generate for empty focus topics",
   "全部已掌握": "All mastered"

@@ -6,6 +6,7 @@
   "典型": "Typical",
   "较重": "Heavier",
   "整本 {0} 个知识点，样例 {1} 个，其余 {2} 个": "{0} knowledge points in the book: {1} in the sample, {2} to go",
+  "整本 {0} 个知识点，样例 {1} 个，其余 {2} 个#one": "{0} knowledge point in the book: {1} in the sample, {2} to go",
   "生成其余：": "Building the rest: ",
   "按样例这 {0} 个知识点实际用的调用和 token 推算：较轻的那个是下限，样例的平均是上限；缓存命中越多，实际越少。": "Scaled from the calls and tokens the {0} sample points really used: the lighter one is the low end, the sample's average the high end. The more the cache hits, the less it really uses.",
   "按现在的并行 {0} 个，不到 1 分钟": "At the current {0} in parallel: under a minute",

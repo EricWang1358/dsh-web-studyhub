@@ -15,6 +15,7 @@
   "索引已是最新（{0} 页）": "The index is up to date ({0} pages)",
   "要对整本书提问或出题，先安装检索扩展，再为这门课建立索引。": "To ask about or make questions from the whole book, install the search extension first, then build this course's index.",
   "还有 {0} 页没建好索引。": "{0} pages are not indexed yet.",
+  "还有 {0} 页没建好索引。#one": "{0} page is not indexed yet.",
   "检索扩展已安装，为这门课建立索引即可。": "The search extension is installed; build this course's index.",
   "补全原文件": "Re-attach the original files",
   "{0} 份旧资料只保留了提取文字，没有原文件；重新导入原文件，才能对照原版排版和图表。": "Older materials with no original file: {0}. They kept only the extracted text; import the originals again to compare with the real layout and figures.",

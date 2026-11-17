@@ -14,6 +14,7 @@
   "让主会话把主题按知识域归并成主题组（不改题目）": "Ask the main chat to group the topics by knowledge domain (questions stay as they are)",
   "让主会话把新增的主题归入主题组（不改题目）": "Ask the main chat to put the new topics into the topic groups (questions stay as they are)",
   "{0} 个新主题还没归入主题组：": "{0} new topics are not in a topic group yet:",
+  "{0} 个新主题还没归入主题组：#one": "{0} new topic is not in a topic group yet:",
   "主题组不合适时：": "If the topic groups do not fit:",
   "主题太碎时：": "If the topics are too fragmented:",
   "让主会话把新增的主题归入主题组（不改题目）；要全部重新归并，在输入框里说一声": "Ask the main chat to put the new topics into the topic groups (questions stay as they are); to regroup all of them, say so in the input box",

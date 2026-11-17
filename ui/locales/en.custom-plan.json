@@ -47,6 +47,7 @@
   "扎实 {0}": "Solid {0}",
   "扎实：一个知识点至少一半的题已掌握或在两天里答对过，并且没有答错的题。": "Solid: at least half of a point’s questions are mastered or were answered right on two different days, and none was answered wrong.",
   "有 {0} 道题被审核退回，等着修": "{0} questions were sent back by the review and wait for repair",
+  "有 {0} 道题被审核退回，等着修#one": "{0} question was sent back by the review and waits for repair",
   "讲解 {0} 个知识点": "explain {0} points",
   "出题 {0} 个知识点": "write questions for {0} points",
   "变式 {0} 道错题": "prepare variants for {0} wrong questions",
