@@ -34,7 +34,8 @@
        material comes from) give way where the line is short of room and end in 「…」 (the course is the scope's above the list). Nothing wraps,
        so a short row is one title line and one line of facts at 420 as at 1440. */
     .source-picker__text .source-picker__facts { grid-column: 2 / -1; display: flex; column-gap: 0.3em; overflow: hidden; white-space: nowrap; }
-    .source-picker__row.has-index .source-picker__text .source-picker__facts { grid-column: 2; }
+    /* The facts stop at the last column where it holds the badge, or 选择页面 on a wide row (whose box hangs a little into the facts' line). */
+    .source-picker__row:is(.has-index, .has-expand) .source-picker__text .source-picker__facts { grid-column: 2; }
     /* The slot: a box at the end of the facts' first line, the height of that line. While the index answer is coming it is the widest badge's width on every
        row (held), so a badge filling it moves nothing; once the answer is in it is as wide as its badge, and a row with none has no slot: its facts take the
        column (round 5). The facts are one line either way, so no row changes height. It ends at the row's end on every row (justify-self: end in the last
@@ -83,6 +84,7 @@
          the text column, so the eye and Tab meet the badge before it. */
       .source-picker__row { padding: var(--space-3); }
       .source-picker__row.has-expand .source-picker__text strong { grid-column: 2 / -1; }
+      .source-picker__row.has-expand:not(.has-index) .source-picker__text .source-picker__facts { grid-column: 2 / -1; }
       .source-picker__expand { grid-column: 2 / -1; grid-row: auto; justify-self: start; margin-block: 0; margin-inline-start: calc((var(--sh-btn-px) + var(--hairline)) * -1); }
       .source-picker__pages { padding-left: var(--space-6); }
     }
