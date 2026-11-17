@@ -93,9 +93,33 @@ export const uiMessage = value => localizeAppMessage(ui(value), language);
 /** What a failure says, for the learner: its message (or the value thrown) through uiMessage, so an English page never shows a Chinese host message. */
 export const errorMessage = failure => uiMessage(failureText(failure));
 /** The singular of a counted English key: when the first value is 1 and the catalogue has `<key>#one` (the key of "{0} questions" with #one: "{0} question"), that form is used,
-    so "1 question" is right wherever the key shows a count, without a `count === 1 ? … : …` at every call. */
-const SINGULAR = '#one';
+    so "1 question" is right wherever the key shows a count, without a `count === 1 ? … : …` at every call. A count elsewhere in the sentence has its own form,
+    `<key>#one:N` (when {N} is 1: "Removed {1} unanswered question on p. {0}"), and two counts that are both 1 one more, `<key>#one:0,1`; of the forms the
+    catalogue has, the one that names the most of the counts that are 1 is used (#1073 round 8). */
+const singularsOf = new WeakMap();
+/** The templates of a catalogue that have singular forms: template → [{ counts: [N…], key }]. */
+function singulars(catalogue) {
+  if (!singularsOf.has(catalogue)) {
+    const found = new Map();
+    for (const key of Object.keys(catalogue)) {
+      const match = /^([\s\S]*)#one(?::(\d+(?:,\d+)*))?$/.exec(key);
+      if (!match) continue;
+      if (!found.has(match[1])) found.set(match[1], []);
+      found.get(match[1]).push({ counts: match[2] ? match[2].split(',').map(Number) : [0], key });
+    }
+    singularsOf.set(catalogue, found);
+  }
+  return singularsOf.get(catalogue);
+}
+function englishOf(template, values) {
+  const forms = singulars(english).get(template);
+  if (!forms || !values?.length) return ui(template);
+  let best = null;
+  for (const form of forms) if (form.counts.every((index) => Number(values[index]) === 1) && form.counts.length > (best?.counts.length || 0)) best = form;
+  return best ? english[best.key] : ui(template);
+}
+/** The translated template for these values: in English the singular form that fits the counts among them (above), else ui(template). */
+export const uiTemplate = (template, values) => language === 'en' ? englishOf(template, values) : ui(template);
 export function uiFormat(template, values) {
-  const one = language === 'en' && Number(values?.[0]) === 1 && Object.hasOwn(english, `${template}${SINGULAR}`);
-  return (one ? english[`${template}${SINGULAR}`] : ui(template)).replace(/\{(\d+)\}/g, (match, index) => index < values.length ? String(values[index] ?? '') : match);
+  return uiTemplate(template, values).replace(/\{(\d+)\}/g, (match, index) => index < values.length ? String(values[index] ?? '') : match);
 }
