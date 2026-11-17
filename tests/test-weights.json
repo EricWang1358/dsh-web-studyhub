@@ -1046,7 +1046,7 @@
  "tests/sources-chapter-list.test.mjs": 10,
  "tests/sources-filter-archive-batch-browser.test.mjs": 1720,
  "tests/sources-filter-archive-batch.test.mjs": 20,
- "tests/sources-narrow-browser.test.mjs": 9500,
+ "tests/sources-narrow-browser.test.mjs": 10800,
  "tests/space-half-steps.test.mjs": 330,
  "tests/spine-layout.test.mjs": 860,
  "tests/spine-markup.test.mjs": 70,

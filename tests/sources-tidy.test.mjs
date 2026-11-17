@@ -52,10 +52,17 @@ test('#1083: the index badge has one place on every row, the status line, in a s
   assert.doesNotMatch(jsx, /DocumentRow\([^)]*\bnarrow\b/, 'a row does not depend on the page width');
   assert.match(css, /\.source-doc__status > \.source-doc__index \{[^}]*min-width: var\(--index-slot\)/, 'the slot is never narrower than --index-slot, so a long button line cannot crush it');
   assert.match(css, /\.source-doc__line > \.source-doc__status \{[^}]*grid-column: text-start \/ -1/, 'the status line runs under the actions too: hidden actions never narrow it');
-  // Round 5: actions that wait for the pointer take no column; they lie over the end of the title and the facts, and the facts line has no fixed cap.
-  const hover = css.slice(css.indexOf('@media (hover: hover) and (pointer: fine)'));
-  assert.match(hover, /\.sources-page:not\(\.is-narrow\) \{[^]*?\.source-doc__line \{ position: relative; grid-template-columns: \[text-start\] minmax\(0, 1fr\) \[text-end\]; \}/, 'no column is kept for hidden actions');
-  assert.match(hover, /\.source-doc__actions \{ position: absolute; grid-row: 1 \/ 2; grid-column: text;/, 'they lie over the first line only, never over the status line');
+  // Round 6: the actions are always shown, in a column as wide as they are (at most half the row), so they lie over no word and hover moves nothing; one line
+  // of buttons; before the status line in the DOM (Tab follows the lines); rename lives in 更多 and F2, not in a pencil on the row.
+  assert.match(css, /\.source-doc__line \{[^}]*grid-template-columns: \[text-start\] minmax\(0, 1fr\) \[text-end\] fit-content\(50%\);/, 'a content-sized column, capped at half the row');
+  assert.match(css, /\.source-doc__line > \.source-doc__actions \{[^}]*flex-wrap: nowrap;/, 'one line of buttons, never one alone on a line');
+  const hover = css.slice(css.indexOf('@media (hover: hover) and (pointer: fine)'), css.indexOf('/* A narrow 资料 page'));
+  assert.doesNotMatch(hover, /source-doc__actions|--source-doc-veil/, 'hover only tints the row: no actions laid over it');
+  assert.doesNotMatch(css, /\.source-doc__actions \{[^}]*(position: absolute|opacity: 0)/, 'no overlay, no hidden actions');
+  assert.doesNotMatch(css, /var\(--bg-canvas\) var\(--space-8\)/, 'no fade painted in a fixed colour');
+  assert.ok(jsx.indexOf('<div className="source-doc__actions">') < jsx.indexOf('<div className="source-doc__status"'), 'the actions come before the status line in the DOM');
+  assert.doesNotMatch(jsx, /source-doc__rename/, 'no pencil on the row');
+  assert.match(jsx, /onRename=\{editor \? startEditing : undefined\}/, 'rename stays in 更多');
   assert.doesNotMatch(css, /max-width: 45%/, 'the facts line has no fixed cap that cuts a line that fits');
   // The shared Badge may wrap elsewhere (the 创建题组 picker); in a 资料 row's slot its words keep one line and end in an ellipsis, so it is never taller than its slot.
   const badgeCss = await read('ui/sources-page.css');

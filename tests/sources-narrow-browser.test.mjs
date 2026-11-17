@@ -20,8 +20,9 @@ import { launchChromium } from '../scripts/qa/browser.mjs';
 import { holdActions, until } from '../scripts/qa/layout-late.mjs';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
-// 600 is a window with the sidebar docked (a 338px column); 960–1340 is the docked band where the header used to wrap under its description.
-const WIDTHS = [420, 600, 720, 880, 960, 1000, 1180, 1340, 1440];
+// 580 is the narrowest window with the sidebar docked (a 318px column), 600 a 338px one; 960–1340 is the docked band where the header used to wrap under
+// its description.
+const WIDTHS = [420, 580, 600, 720, 880, 960, 1000, 1180, 1340, 1440];
 // A badge narrower than this many of its own letters cannot hold 「索引已建好 · 1/1 页」 / "Index built · 1/1 pages" (11 and 23 characters); the old fault squeezed it to 3.
 const BADGE_FLOOR_EM = 8;
 
@@ -110,7 +111,31 @@ test('资料 holds still and tidy at every width in zh and en: header, controls,
       text: r(row.querySelector('.source-main > span')), title: r(row.querySelector('.source-title')), meta: r(meta), metaWidth: meta.clientWidth,
       factsNatural: facts.reduce((sum, f) => sum + f.natural, 0) + gap * Math.max(0, facts.length - 1), facts,
       mastery: r(row.querySelector('.source-doc__quality .mastery-line')), coverage: r(row.querySelector('.source-doc__quality [data-coverage-chip]')), toggleText,
-      status: r(row.querySelector('.source-doc__status')), actions: getComputedStyle(row.querySelector('.source-doc__actions')).opacity === '0' ? null : r(row.querySelector('.source-doc__actions')) };
+      status: r(row.querySelector('.source-doc__status')), quality: r(row.querySelector('.source-doc__quality')),
+      qualityGap: parseFloat(getComputedStyle(row.querySelector('.source-doc__quality')).columnGap) || 0,
+      lineGap: parseFloat(getComputedStyle(row.querySelector('.source-doc__line')).columnGap) || 0,
+      actions: getComputedStyle(row.querySelector('.source-doc__actions')).opacity === '0' ? null : r(row.querySelector('.source-doc__actions')),
+      // Every line of words the row shows (title, facts, status), one box per line: what the actions must never lie over.
+      words: [...row.querySelectorAll('.source-main, .source-doc__status')].flatMap(part => {
+        const walker = document.createTreeWalker(part, 4), boxes = [];
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          if (!node.textContent.trim() || node.parentElement.closest('.source-doc__actions')) continue;
+          const range = document.createRange(); range.selectNodeContents(node);
+          // Only the part it shows: a fact that ends in an ellipsis hides the rest of its text box behind its own edge.
+          let left = -Infinity, right = Infinity;
+          for (let el = node.parentElement; el && el !== row; el = el.parentElement) if (getComputedStyle(el).overflowX !== 'visible') {
+            const clip = el.getBoundingClientRect(); left = Math.max(left, clip.left); right = Math.min(right, clip.right);
+          }
+          for (const b of range.getClientRects()) {
+            const l = Math.max(b.left, left), rr = Math.min(b.right, right);
+            if (rr - l > 0) boxes.push({ text: node.textContent.trim().slice(0, 24), box: [l - at.left, rr - at.left, b.top - at.top, b.bottom - at.top] });
+          }
+        }
+        return boxes;
+      }),
+      // The row's action buttons, each with its line, for a narrow row (no button alone on a line).
+      buttons: [...row.querySelectorAll('.source-doc__actions > *')].map(el => el.matches('details') ? el.querySelector('summary') : el).filter(el => el.getBoundingClientRect().width > 0)
+        .map(el => ({ text: el.textContent.trim().slice(0, 16) || el.getAttribute('aria-label'), top: el.getBoundingClientRect().top - at.top, bottom: el.getBoundingClientRect().bottom - at.top })) };
   }));
   const wide = [], narrowRows = [], pagesToggle = [], filterRoom = [];
   const near = (a, b) => Math.abs(a - b) < 1;
@@ -161,7 +186,19 @@ test('资料 holds still and tidy at every width in zh and en: header, controls,
         await page.waitForTimeout(250);
         const focused = await rowsLook(page);
         await page.evaluate(() => document.activeElement?.blur());
-        wide.push({ at, rows, hovered, focused });
+        // A fresh import (.is-new) shows its actions with no pointer: try it on the row with the longest title.
+        const fresh = page.locator('.source-doc[data-document-key="source:long-en"]');
+        await fresh.evaluate(el => el.classList.add('is-new'));
+        await page.waitForTimeout(250);
+        const freshRows = await rowsLook(page);
+        await fresh.evaluate(el => el.classList.remove('is-new'));
+        // Tab from a row's title goes to the actions beside it (line 1) before the index link under it (line 2): the row with 建立索引.
+        const linked = page.locator('.source-doc', { has: page.locator('.index-badge__go') }).first();
+        await linked.locator('.source-main').evaluate(el => el.focus({ preventScroll: true }));
+        await page.keyboard.press('Tab');
+        const tabbed = await page.evaluate(() => ({ inActions: !!document.activeElement?.closest('.source-doc__actions'), text: document.activeElement?.textContent?.trim().slice(0, 30) }));
+        await page.evaluate(() => document.activeElement?.blur());
+        wide.push({ at, rows, hovered, focused, fresh: freshRows, tabbed });
       }
 
       // (a) typing changes nothing above the list: the header's actions, the scope select, the filter and the view bar keep their boxes.
@@ -186,12 +223,15 @@ test('资料 holds still and tidy at every width in zh and en: header, controls,
 
   // Each of (e)–(i) is a subtest, so a fault in one does not hide the others; each lists every width it fails at.
   const box = (row, key) => row[key].map(v => v.toFixed(1)).join(',');
-  await t.test('(e) a wide row keeps no blank strip for its hidden actions, its facts are not cut while they fit, and hover or focus moves nothing', () => {
+  // Two boxes share more than half a pixel each way.
+  const overlap = (a, b) => Math.min(a[1], b[1]) - Math.max(a[0], b[0]) > 0.5 && Math.min(a[3], b[3]) - Math.max(a[2], b[2]) > 0.5;
+  await t.test('(e) a wide row keeps no blank strip, its actions lie over no words (at rest, hover, focus, fresh import), its facts are not cut while they fit, hover or focus moves nothing, and Tab follows the lines', () => {
     const faults = [];
-    for (const { at, rows, hovered, focused } of wide) {
+    for (const { at, rows, hovered, focused, fresh, tabbed } of wide) {
       for (const row of rows) {
-        const strip = row.line[1] - row.text[1];
-        if (strip > 1) faults.push(`${at}: ${row.key}'s text column ends ${strip.toFixed(1)}px before the row's end`);
+        // The text column runs to the row's end, or to the actions the row shows beside it: no room is kept for actions that are not there.
+        const end = row.actions ? row.actions[0] - row.lineGap : row.line[1], strip = end - row.text[1];
+        if (strip > 1) faults.push(`${at}: ${row.key}'s text column ends ${strip.toFixed(1)}px before ${row.actions ? 'its actions' : "the row's end"}`);
         if (row.factsNatural <= row.metaWidth + 1) {
           for (const fact of row.facts) if (fact.natural > fact.shown + 1) faults.push(`${at}: ${row.key}'s facts fit (${row.factsNatural.toFixed(0)} of ${row.metaWidth}px) yet "${fact.text}" is cut to ${fact.shown}px`);
         }
@@ -202,21 +242,35 @@ test('资料 holds still and tidy at every width in zh and en: header, controls,
         const was = rows[i];
         if (!near(row.height, was.height) || !row.title.every((v, k) => near(v, was.title[k])) || !row.meta.every((v, k) => near(v, was.meta[k])))
           faults.push(`${at}: ${how} a row moves ${row.key}: height ${was.height} -> ${row.height}, title ${box(was, 'title')} -> ${box(row, 'title')}, facts ${box(was, 'meta')} -> ${box(row, 'meta')}`);
-        // The actions it shows lie beside the title and the facts only: never over the status line under them.
-        if (row.actions && row.actions[3] > row.status[2] + 0.5) faults.push(`${at}: ${how} a row shows ${row.key}'s actions (${box(row, 'actions')}) over its status line (${box(row, 'status')})`);
       });
       if (![hovered, focused].every(now => now.some(row => row.actions))) faults.push(`${at}: hovering or focusing a row shows no actions`);
+      // Wherever the actions show (at rest, on hover, on focus, on a fresh import), they lie over no words of the row: not the title, the facts or the status.
+      for (const [how, now] of [['at rest', rows], ['hovering', hovered], ['focusing', focused], ['on a fresh import', fresh]]) for (const row of now) {
+        if (!row.actions) continue;
+        for (const word of row.words) if (overlap(word.box, row.actions)) faults.push(`${at}: ${how}, ${row.key}'s actions (${box(row, 'actions')}) lie over "${word.text}" (${word.box.map(v => v.toFixed(1)).join(',')})`);
+      }
+      if (!tabbed.inActions) faults.push(`${at}: Tab from a row's title goes to "${tabbed.text}", not to the actions beside the title`);
     }
     assert.equal(wide.length, 10, 'the wide widths (960–1440) were measured in both languages');
     assert.deepEqual(faults, []);
   });
 
-  await t.test('(f) a narrow row puts its mastery and coverage on one line', () => {
+  await t.test('(f) a narrow row puts its mastery and coverage on one line where they fit, and never leaves one action alone on a line', () => {
     const faults = [];
     for (const { at, rows } of narrowRows) for (const row of rows) {
+      // The actions line never leaves one button alone on a line of its own (「More」 did, under 「Generate from this source」, at en 580).
+      const lines = [];
+      // A button is on a line when it shares more than half its height with the line's first button (buttons of different heights are centred on it).
+      for (const b of row.buttons) {
+        const line = lines.find(l => Math.min(l.bottom, b.bottom) - Math.max(l.top, b.top) > (b.bottom - b.top) / 2);
+        if (line) line.texts.push(b.text); else lines.push({ top: b.top, bottom: b.bottom, texts: [b.text] });
+      }
+      if (row.buttons.length > 1 && lines.some(line => line.texts.length === 1)) faults.push(`${at}: ${row.key}'s actions break into ${JSON.stringify(lines.map(line => line.texts))}`);
       if (!row.mastery || !row.coverage) continue;
-      // One line: the two overlap vertically (they are centred on it), instead of the coverage starting under the mastery.
-      if (!(row.coverage[2] < row.mastery[3] && row.coverage[3] > row.mastery[2])) faults.push(`${at}: ${row.key}'s coverage (${box(row, 'coverage')}) is under its mastery (${box(row, 'mastery')})`);
+      // Where the two fit side by side (en 580's 270px does not hold "Mastery 30% · 2 questions" and "Covered 100%"), they share the line: they overlap
+      // vertically (they are centred on it), instead of the coverage starting under the mastery.
+      const fits = (row.mastery[1] - row.mastery[0]) + row.qualityGap + (row.coverage[1] - row.coverage[0]) <= row.quality[1] - row.quality[0] + 0.5;
+      if (fits && !(row.coverage[2] < row.mastery[3] && row.coverage[3] > row.mastery[2])) faults.push(`${at}: ${row.key}'s coverage (${box(row, 'coverage')}) is under its mastery (${box(row, 'mastery')})`);
     }
     assert.ok(narrowRows.some(({ rows }) => rows.some(row => row.mastery && row.coverage)), 'some narrow row has both');
     assert.deepEqual(faults, []);
