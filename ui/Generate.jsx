@@ -79,8 +79,8 @@ export default function Generate({
   useInjectCss(formCss, "study-generate-form");
   useInjectCss(focusIntakeCss, "study-focus-intake");
   const [sourceScope, setSourceScope] = usePageScope(data.root, 'generate-sources', data.focus?.course ?? '*');
-  // Whether each material's search index is built: the picker rows say so (and follow a running build). The page is drawn at once, as any page; every row keeps
-  // the badge's slot, so the answer moves nothing whenever it comes (#1084).
+  // Whether each material's search index is built: the picker rows say so (and follow a running build). The page is drawn at once, as any page; while the answer is on
+  // its way every row holds the badge's slot, then a row keeps a slot as wide as its badge or none; its facts are one line either way, so no row moves (#1084).
   const [indexCoverage, , indexStatus] = useIndexCoverage(call);
   const known = courseNamesOf(data);
   const referenceSourceIds = gen.referenceSourceIds || [];
@@ -281,9 +281,10 @@ export default function Generate({
                   <Button variant="link" size="sm" onClick={() => setGenSource("case")}>{ui("切到案例分析题")}</Button></span>}
               </div>
               {courseOpen && <div className="generate-course"><CourseField courses={data.focus?.courses} label={ui("新题组放进的课程")} value={generationCourse} onChange={course => setGen({ ...gen, course })} /></div>}
-              {/* Shut, its summary says the choices that are not the defaults, each whole (they wrap at a 「·」, ui/generate-form.css); open, the fold says them itself. */}
+              {/* Shut, its summary says the choices that are not the defaults, each whole (they wrap after a 「·」, ui/generate-form.css); open, its hint, as with none
+                  chosen. Both are in one place, the one not shown hidden, so the summary is as tall open as shut. */}
               <Disclosure className="generate-more" bodyClassName="generate-more__body" data-tour="generate-more" summary={ui("更多选项")} open={foldOpen} onToggle={setMoreOpen}
-                meta={chosen.length ? <span className="generate-more__choices">{chosen.map((choice, at) => <React.Fragment key={at}>{at ? " " : ""}<span className="generate-more__choice">{at ? `· ${choice}` : choice}</span></React.Fragment>)}</span>
+                meta={chosen.length ? <span className="generate-more__meta"><span className="generate-more__hint">{ui("想练什么、难度、花费、额外要求")}</span><span className="generate-more__choices">{chosen.map((choice, at) => <React.Fragment key={at}>{at ? " " : ""}<span className="generate-more__choice">{at < chosen.length - 1 ? `${choice} ·` : choice}</span></React.Fragment>)}</span></span>
                   : ui("想练什么、难度、花费、额外要求")}>
                 <FormGroup title={ui("想练什么")}>
                   <FormRow label={ui("这次想练什么？")} htmlFor="generate-focus" data-tour="generate-focus">

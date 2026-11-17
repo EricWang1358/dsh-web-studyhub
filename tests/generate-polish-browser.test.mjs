@@ -211,9 +211,10 @@ test('#1084: the row\'s checkbox keeps a short name while the badge\'s card is h
   }
 });
 
-/** 更多选项's summary: its height, its meta's pieces (between 「·」) and whether each is drawn whole inside the summary. */
+/** 更多选项's summary: its height, its meta's pieces (between 「·」) and whether each is drawn whole inside the summary. With choices the meta also holds the
+    hint, hidden while the fold is shut (round 6): the pieces are read from the choices. */
 const foldSummary = page => page.evaluate(() => {
-  const summary = document.querySelector('.generate-more > summary'), meta = summary.querySelector('.sh-disclosure__meta');
+  const summary = document.querySelector('.generate-more > summary'), meta = summary.querySelector('.generate-more__choices') ?? summary.querySelector('.sh-disclosure__meta');
   const box = summary.getBoundingClientRect();
   if (!meta || getComputedStyle(meta).display === 'none') return { height: box.height, text: '', pieces: [] };
   const text = meta.textContent, walker = document.createTreeWalker(meta, 4), nodes = [];
@@ -245,14 +246,19 @@ test('#1082: 更多选项 shut says the non-default choices whole at 320 and 420
     const fold = page.locator('.generate-more').first(), summary = fold.locator(':scope > summary');
     if (!await fold.evaluate(element => element.open)) await summary.click();
     await settleAnimations(page);
-    const heights = [await summary.evaluate(element => element.getBoundingClientRect().height)];
-    // 深入辨析, the language that is not the page's own (English on a Chinese page, 中文 on an English one) and 公式（LaTeX）
+    // 深入辨析, the language that is not the page's own (English on a Chinese page, 中文 on an English one) and 公式（LaTeX）. Round 6: the summary is as tall
+    // open as shut, so a choice may add a line to it while it is open; what is under it (the control just picked) stays where it is on the screen, within the
+    // whole pixel the browser's scroll anchoring rounds to.
+    const moves = [];
     for (const [name, at] of [['difficulty', 3], ['language', lang === 'en' ? 0 : 1], ['notation', 2]]) {
-      await page.locator(`[data-tour="generate-${name}"] button`).nth(at).click();
+      const button = page.locator(`[data-tour="generate-${name}"] button`).nth(at);
+      await button.scrollIntoViewIfNeeded();
+      const y = (await button.boundingBox()).y;
+      await button.click();
       await frames(page, 3);
-      heights.push(await summary.evaluate(element => element.getBoundingClientRect().height));
+      moves.push((await button.boundingBox()).y - y);
     }
-    assert.ok(Math.max(...heights) - Math.min(...heights) <= 0.5, `${tag}: picking choices in the open fold does not move what is under its summary (${heights.join(', ')})`);
+    assert.ok(moves.every(move => Math.abs(move) < 1), `${tag}: picking choices in the open fold does not move what is under its summary (${moves.join(', ')})`);
     await summary.click();
     await until(() => fold.evaluate(element => !element.open), `${tag}: 更多选项 shut`);
     await settleAnimations(page);
