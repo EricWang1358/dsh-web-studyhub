@@ -76,7 +76,8 @@ export default function DeskIntro({ data, home, mastery, start, resume, endRun, 
       </p>
       {plan.kind === 'empty' && plan.also.length > 0 && (
         <p className="desk-also">
-          {plan.also.map((entry) => (Array.isArray(entry) ? <Button key={entry[0]} variant="link" icon={entry[2]} lock={busy} onClick={entry[1]}>{entry[0]}</Button>
+          {/* The other ways in beside 再添加资料 are text actions like it, so they are ink too (sh-btn--ink): one row, one colour (#1074). */}
+          {plan.also.map((entry) => (Array.isArray(entry) ? <Button key={entry[0]} variant="link" className="sh-btn--ink" icon={entry[2]} lock={busy} onClick={entry[1]}>{entry[0]}</Button>
             : entry.onClick ? <AddSourceButton key={entry.label} more variant="link" lock={busy} onClick={entry.onClick} />
               : <HandOff key={entry.handOff.id} id={entry.handOff.id} input={entry.handOff.input} lead={entry.handOff.lead} what={entry.handOff.what} disabled={busy} />))}
         </p>

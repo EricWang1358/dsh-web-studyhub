@@ -142,6 +142,8 @@
       text-underline-offset: 3px;
     }
     /* --sh-link-ink / --sh-link-wash: a reading area (the review book) sets them once for the links inside it; elsewhere the link stays cinnabar and has no wash. */
+    /* A link that is a text action (添加资料 / 再添加资料, AddSourceButton) is ink, wherever it stands: cinnabar is the one primary's (#1074). */
+    .sh-btn--link.sh-btn--ink { --sh-link-ink: var(--text); }
     .sh-btn--link:hover:not(:disabled) {
       background: var(--sh-link-wash, none);
       text-decoration-color: currentColor;

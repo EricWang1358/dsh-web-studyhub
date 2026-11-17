@@ -22,7 +22,7 @@ import css from './first-run.css';
    Step 3 makes the first deck from the line (3.6 D4, option A): `plan` ({ summary, estimate, block }, ui/first-run/use-first-deck.js) says what will be made
    and its usage estimate before anything is spent, both 创建题组's own; 「出第一组题」 (on.generate) runs that request and is only ever pressed by the learner
    (disabled, with the reason, while no model is usable or the selection needs 创建题组); the quiet 「改题型和题数」 (on.tune) opens 创建题组 with the materials
-   ticked. 发给主会话 (#453): step 2's 添加资料 and 再加一份 open the one import dialog (ImportHub, importForLine); a file that does not import is said there,
+   ticked. 发给主会话 (#453): step 2's 添加资料 and 再添加资料 open the one import dialog (ImportHub, importForLine); a file that does not import is said there,
    and that dialog's summary and drop zone carry the shared hand-off unit (ui/hand-off/, ui/import-hand-off.js). The line draws no second one. */
 
 /** One sentence per step and state: what the row says. */
@@ -33,8 +33,9 @@ export function stepSentence(step) {
     return step.verified ? uiFormat('已连接：{0}', [step.label]) : uiFormat('已选择模型：{0}', [step.label]);
   }
   if (step.id === 'material') {
-    // With the sample loaded the step still waits for a material of the learner's own, and says so instead of asking as if the library were empty (#1087).
-    if (step.status === 'todo') return step.sampleCount > 0 ? uiFormat('示例资料 {0} 份已载入 · 再加一份你自己的', [step.sampleCount]) : ui('添加一份资料：讲义、课件或笔记');
+    // With the sample loaded the step still waits for a material of the learner's own, and says so instead of asking as if the library were empty (#1087), in the
+    // words of its button (添加资料) and short enough for the compact card at 420px (#1074).
+    if (step.status === 'todo') return step.sampleCount > 0 ? ui('示例已载入 · 添加你自己的资料') : ui('添加一份资料：讲义、课件或笔记');
     return step.count > 1 ? uiFormat('{0} 等 {1} 份资料 · 已添加', [step.title, step.count]) : uiFormat('{0} · 已添加', [step.title]);
   }
   return ({
@@ -223,8 +224,8 @@ function CompactBlocked({ reason, sourceIds, on }) {
 /** A quiet link on a closed row: the second step is never locked (a material can come before the model), and an added one can have a second. */
 function RowLink({ step, on }) {
   const { busy } = useStudy();
-  if (step.status === 'todo' && on.importFirst) return <AddSourceButton variant="link" size="sm" className="frl-row-link first-run__link" lock={busy} onClick={on.importFirst} />;
-  if (step.status === 'done' && on.importMore) return <AddSourceButton more variant="link" size="sm" className="frl-row-link first-run__link" lock={busy} data-first-run="more" onClick={() => on.importMore(step.sourceIds)} />;
+  if (step.status === 'todo' && on.importFirst) return <AddSourceButton variant="link" className="frl-row-link" lock={busy} onClick={on.importFirst} />;
+  if (step.status === 'done' && on.importMore) return <AddSourceButton more variant="link" className="frl-row-link" lock={busy} data-first-run="more" onClick={() => on.importMore(step.sourceIds)} />;
   return null;
 }
 

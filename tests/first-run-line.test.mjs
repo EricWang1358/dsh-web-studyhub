@@ -497,9 +497,9 @@ test('#1087: with the sample loaded, step 2 says the sample is there and what st
   const material = line.steps[1];
   assert.equal(material.status, 'todo', 'the sample still never ticks the step');
   assert.equal(material.sampleCount, 2);
-  assert.match(m.stepSentence(material), /示例资料 2 份已载入/);
+  assert.equal(m.stepSentence(material), '示例已载入 · 添加你自己的资料', 'the sample is there; what counts is a material of your own, in the words of the button (#1074)');
   const markup = page(line, { sample: SAMPLE });
-  assert.match(text(markup), /示例资料 2 份已载入/);
+  assert.match(text(markup), /示例已载入 · 添加你自己的资料/);
   assert.match(text(markup), /不算你的进度/);
   assert.equal(primaries(markup), 0, 'the sample banner leads; adding your own is a secondary button');
   assert.match(markup, /data-first-run="import"/);
