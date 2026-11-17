@@ -85,7 +85,8 @@
        text clips to the one line, so the line is as tall estimating as answered at any width (round 7: the ghost took two lines at 320 and the answer one). */
     .token-estimate--pieces .token-estimate__line > :first-child { white-space: normal; height: calc(var(--fs-sm) * var(--lh-snug)); overflow: hidden; }
     .token-estimate--pieces .token-estimate__part { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: top; }
-    .token-estimate--pieces .token-estimate__quiet { align-self: start; }
+    /* 「正在估算…」 is a <small>, set larger than the line elsewhere (ui/base.css): in one line's room it takes the line's own size, so it is never clipped. */
+    .token-estimate--pieces .token-estimate__quiet { align-self: start; font-size: inherit; line-height: inherit; }
     /* An action column right-aligns the line under its button. */
     .token-estimate--end .token-estimate__line { justify-content: flex-end; text-align: right; }
     .token-estimate--end .token-estimate__quiet { justify-self: end; }
