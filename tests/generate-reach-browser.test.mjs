@@ -375,6 +375,14 @@ test('#1084: at 420 a short row is as on main, a long title has the row, no fact
         assert.deepEqual(heights(after), heights(before), `${tag}: no row changes height when the answer arrives`);
         assert.deepEqual(after.filter(row => row.badge && !row.badgeFits).map(row => row.title), [], `${tag}: every badge fits its place`);
         if (answer === 'badges') assert.ok(after.every(row => row.badge), `${tag}: every row shows its badge, late or not`);
+        if (answer === 'badges') {
+          // the badge is no Tab stop: the row's checkbox, focused from the keyboard, opens the badge's card (one forceOpen decision, ui/components/Tooltip.jsx)
+          await page.keyboard.press('Shift');
+          await page.locator('[data-tour="generate-sources"] .source-picker__row').first().locator('input[type="checkbox"]').focus();
+          await frames(page, 3);
+          const shown = await page.locator('[data-tour="generate-sources"] .source-picker__row').first().evaluate(row => !!row.querySelector('[data-index-slot] [role="tooltip"]')?.matches(':popover-open'));
+          assert.equal(shown, true, `${tag}: the keyboard-focused row's badge shows its card`);
+        }
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth) <= 0, `${tag}: no sideways scroll`);
         assert.deepEqual(errors, []);
         await context.close();
