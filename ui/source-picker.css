@@ -51,8 +51,10 @@
        size too, and the first that does not fit goes on to the hidden line with all after it. */
     .source-picker__fact { flex: none; max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
     /* The first course after them that the scope does not name (round 7) takes the room left on the line, as wide as its name at most and 6em at least
-       (「· 分布式系统…」), ending in 「…」 with its whole name on hover (title); with less room than that it goes whole on to the hidden line, as the others do. */
-    .source-picker__fact--short { flex: 1 1 0; min-width: 6em; max-width: max-content; }
+       (「· 分布式系统…」), ending in 「…」 with its whole name in the shared Tooltip on hover; with less room than that it goes whole on to the hidden line, as the
+       others do. The Tooltip's anchor is the piece on the line, so it takes the room and the name inside it is cut. */
+    .source-picker__fact-anchor { flex: 1 1 0; min-width: 6em; max-width: max-content; overflow: hidden; }
+    .source-picker__fact-anchor > .source-picker__fact--short { flex: 0 1 auto; }
     /* 选择页面 ends a wide row's title line, as tall as that line in the grid (its box hangs into the row's padding), so it makes no row taller. */
     .source-picker__expand { grid-column: 3; grid-row: 1; justify-self: end;
       margin-block: calc((var(--fs-md) * var(--lh-snug) - var(--picker-expand-h)) / 2); }

@@ -1,7 +1,7 @@
 import React, { memo, useCallback, useId, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { AddSourceButton, Button, CheckboxInput, EmptyState, ScrollWindow, addSourceAction, filterItems } from './components/index.js';
+import { AddSourceButton, Button, CheckboxInput, EmptyState, ScrollWindow, Tooltip, addSourceAction, filterItems } from './components/index.js';
 import PageScope from './PageScope.jsx';
 import { groupSourcesByDocument, isLegacyExtraction, sourceFormat } from '../lib/source-groups.js';
 import { isAiDraftedSource } from '../lib/source-provenance.js';
@@ -181,7 +181,7 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
           <span className="source-picker__text">
             <strong id={`${nameId}-t`} title={item.title}>{name}</strong>
             <small id={`${nameId}-f`} className="source-picker__facts"><span className="source-picker__fact">{facts.join(' · ')}</span>{names.map((fact, at) => <React.Fragment key={at}>{' '}{at === 0 && shortened
-              ? <span className="source-picker__fact source-picker__fact--name source-picker__fact--short" title={fact}>{`· ${fact}`}</span>
+              ? <Tooltip layer group="index-badge" anchorClassName="source-picker__fact-anchor" content={fact}><span className="source-picker__fact source-picker__fact--name source-picker__fact--short">{`· ${fact}`}</span></Tooltip>
               : <span className="source-picker__fact source-picker__fact--name">{`· ${fact}`}</span>}</React.Fragment>)}</small>
             <span className="source-picker__index" data-index-slot={slot}>{indexInfo && <IndexBadge compact info={indexInfo} coverage={{ canIndex }} open={focused} wordId={`${nameId}-w`} tipId={`${nameId}-c`} />}</span>
             {state === 'some' && <small id={`${nameId}-p`} className="source-picker__partial">{uiFormat('已选 {0} / {1} 页', [picked, item.sourceIds.length])}</small>}

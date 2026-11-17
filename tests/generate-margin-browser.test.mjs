@@ -232,12 +232,16 @@ test('#1084: a row\'s facts never end in a bare 「· …」 at 420: a name is s
   // what each row's facts line shows: the pieces on its one line, and which of them are cut
   const shown = page => page.evaluate(() => [...document.querySelectorAll('[data-tour="generate-sources"] .source-picker__facts')].map(facts => {
     const line = facts.getBoundingClientRect();
-    const pieces = [...facts.children].filter(piece => { const box = piece.getBoundingClientRect(); return box.width > 0 && box.top < line.bottom - 1 && box.left < line.right - 0.5; });
+    // A shortened course sits in its Tooltip's anchor: the anchor holds the room on the line, the name inside it is what is cut.
+    const pieces = [...facts.children].filter(piece => { const box = piece.getBoundingClientRect(); return box.width > 0 && box.top < line.bottom - 1 && box.left < line.right - 0.5; })
+      .map(piece => (piece.matches('.source-picker__fact-anchor') ? piece.querySelector(':scope > .source-picker__fact') : piece));
     // A course the scope does not name may be shortened (round 7): it then keeps its least width, ends in 「…」 and says its whole name on hover.
     const visible = pieces.map(piece => ({ text: piece.textContent, name: piece.classList.contains('source-picker__fact--name'),
       cut: piece.scrollWidth > piece.clientWidth + 0.5 || piece.getBoundingClientRect().right > line.right + 0.5,
-      shortened: piece.classList.contains('source-picker__fact--short') && getComputedStyle(piece).textOverflow === 'ellipsis' && piece.title === piece.textContent.replace(/^·\s*/, '')
-        && piece.getBoundingClientRect().right <= line.right + 0.5 && piece.getBoundingClientRect().width >= parseFloat(getComputedStyle(piece).minWidth) - 0.5 }));
+      shortened: piece.classList.contains('source-picker__fact--short') && getComputedStyle(piece).textOverflow === 'ellipsis' && !piece.title
+        && document.getElementById(piece.getAttribute('aria-describedby') || '')?.textContent === piece.textContent.replace(/^·\s*/, '')
+        && piece.parentElement.getBoundingClientRect().right <= line.right + 0.5
+        && piece.parentElement.getBoundingClientRect().width >= parseFloat(getComputedStyle(piece.parentElement).minWidth) - 0.5 }));
     return { text: visible.map(piece => piece.text + (piece.cut ? '…' : '')).join(' '), cutNames: visible.filter(piece => piece.name && piece.cut && !piece.shortened).map(piece => piece.text) };
   }));
   const check = (rows, tag) => {
@@ -266,8 +270,8 @@ test('#1084: every row follows one rule for its courses: the course 课程范围
     const names = [...facts.querySelectorAll('.source-picker__fact--name')], other = names.find(piece => piece.textContent.includes(long));
     const shown = [...facts.children].filter(onLine), lastRight = Math.max(...shown.map(piece => piece.getBoundingClientRect().right));
     return { text: shown.map(piece => piece.textContent).join(' '), repeats: names.some(piece => piece.textContent.replace(/^·\s*/, '') === course && onLine(piece)),
-      firstName: names[0]?.textContent.replace(/^·\s*/, '') ?? '', other: other ? { shown: onLine(other), cut: other.scrollWidth > other.clientWidth + 0.5, title: other.title,
-        least: parseFloat(getComputedStyle(other).minWidth) || other.scrollWidth } : null, room: line.right - lastRight - gap };
+      firstName: names[0]?.textContent.replace(/^·\s*/, '') ?? '', other: other ? { shown: onLine(other), cut: other.scrollWidth > other.clientWidth + 0.5, title: other.title, tip: document.getElementById(other.getAttribute('aria-describedby') || '')?.textContent ?? '',
+        least: parseFloat(getComputedStyle(other.closest('.source-picker__fact-anchor') || other).minWidth) || other.scrollWidth } : null, room: line.right - lastRight - gap };
   }), [COURSE, LONG]);
   for (const lang of ['zh', 'en']) for (const width of [420, 1440]) {
     const tag = `${lang} ${width}`;
@@ -280,7 +284,10 @@ test('#1084: every row follows one rule for its courses: the course 课程范围
     assert.deepEqual(rows.filter(row => row.repeats).map(row => row.text), [], `${tag}: no row says the scope's course 「${COURSE}」 again`);
     for (const row of rows) {
       assert.equal(row.firstName, LONG, `${tag}: the course outside the scope comes first among the names (${row.text})`);
-      if (row.other.shown && row.other.cut) assert.equal(row.other.title, LONG, `${tag}: a shortened course says its whole name on hover (${row.text})`);
+      if (row.other.shown && row.other.cut) {
+        assert.equal(row.other.tip, LONG, `${tag}: a shortened course says its whole name in the shared Tooltip (${row.text})`);
+        assert.equal(row.other.title, '', `${tag}: never a title= on the text (#86)`);
+      }
       if (!row.other.shown) assert.ok(row.room < row.other.least + 0.5, `${tag}: a course is left out only where its least width does not fit (room ${row.room.toFixed(1)}, least ${row.other.least}): ${row.text}`);
     }
     if (width === 1440) assert.ok(rows.every(row => row.other.shown && !row.other.cut), `${tag}: with room, every row says the other course whole`);
