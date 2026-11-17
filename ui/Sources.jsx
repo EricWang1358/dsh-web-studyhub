@@ -124,6 +124,13 @@ function buildSourceGroups(items, { mode, folders, sort = "recent", includeEmpty
   return groupByDay(items, { sort, locale });
 }
 
+/** The page header's description: its fixed sentence, then the summary of what the library holds. The summary templates keep a leading space (the one the English
+    singular lookup of ui/i18n.js is keyed by), so the join decides the space: none after a Chinese full stop, one after a Latin one (#1073 round 10). */
+export function joinSummary(lead, summary) {
+  const rest = String(summary || '').trim();
+  return rest ? `${lead}${/[!-~]$/.test(lead) ? ' ' : ''}${rest}` : lead;
+}
+
 function groupSummaryDescription({ mode, summary }) {
   if (summary.pinned) {
     if (!summary.rest) return uiFormat(" 共 {0} 份资料，全部置顶。", [summary.count]);
@@ -737,7 +744,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   return (
     <section ref={pageRef} className={`page sources-page${narrow ? ' is-narrow' : ''}`}>
       <PageHeader className={`sources-page__header sh-page-header--measured${fullHeader ? '' : ' sh-page-header--compact-actions'}`} title={ui("资料")}
-        description={<>{ui("题目从这里生长。原文与引用一直保留。")}{items.length > 0 && groupSummaryDescription({ mode: groupMode, summary: scopeSummary })}</>}
+        description={joinSummary(ui("题目从这里生长。原文与引用一直保留。"), items.length > 0 ? groupSummaryDescription({ mode: groupMode, summary: scopeSummary }) : "")}
         actions={headerActions} actionsOnTitleRow />
       <div className="sources-page__fit" aria-hidden="true" inert><div className="sh-page-header__actions">{fullActions(false)}</div></div>
       {gap && <IndexGapLine count={gap.count} canIndex={indexCoverage?.canIndex} onGo={() => onBuildIndex(gap.course)} />}
