@@ -46,6 +46,7 @@
     /* The model step's words sit in the Tooltip's anchor (the whole label on hover and focus): the anchor takes the text's place in the row. */
     .frl-step__tip { display: flex; flex: 1 1 auto; min-width: 0; }
     .frl-step__tip > .frl-step__text { border-radius: var(--radius-sm); }
+    .frl-step__tip > .frl-step__text:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; box-shadow: var(--ring); }
     .frl-step[aria-current="step"] .frl-step__text { color: var(--text); font-weight: var(--fw-medium); }
     .frl-step[data-status="done"] .frl-step__text { color: var(--text-muted); }
     .frl-row-link { flex: none; }
