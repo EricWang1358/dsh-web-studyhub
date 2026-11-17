@@ -157,7 +157,7 @@ test('non-aesthetic geometry bug fixes, companions tokenization, and refined ove
   assert.match(craftCss, /--control-h:\s*36px/);
   assert.match(craftCss, /--control-h-sm:\s*30px/);
   assert.match(craftCss, /cursor:\s*not-allowed/);
-  assert.match(craftCss, /:has\(>\s*:first-child:is\(\.sh-icon,\s*\.sh-spinner\)\)/);
+  assert.match(craftCss, /> :is\(\.sh-icon, \.sh-spinner\):first-child/, 'the glyph side is tighter by the glyph taking the half step back, not by a :has() on the button');
   assert.match(craftCss, /\.setup-chip-toggle\s*\{[^}]*border-radius:\s*var\(--radius-sm\)/);
   assert.match(craftCss, /\.question-toolbar\s*\{[^}]*padding:\s*0;/);
 });
