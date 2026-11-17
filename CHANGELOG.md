@@ -2,6 +2,11 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 4.11.2 — 2026-11-17
+
+- **Switching pages inside DSH is fast again, including Materials with many materials and Return to question.** The optional Controls & hierarchy style added in 4.11.1 made the browser re-check the whole StudyHub area every time anything was added to the page, even with the option off, so every page switch inside DSH did extra styling work; it now reads the choice from the StudyHub frame itself. Rows on the Materials page also check whether their course line is cut in one batch after they are drawn, instead of drawing every row two or three times before it appears. Not verified: libraries with several thousand materials on slow machines.
+- **Create a deck and Materials: steadier pages that are quicker to use.** On Create a deck, the main button is reachable on the first screen, Tab follows the reading order, the materials list is drawn whole from its first frame with each row's index mark in a fixed place at the end of its facts line, and a changed difficulty or language shows in the More options summary while it is closed. On Materials, wide rows no longer leave an empty strip for their actions, the More menu keeps the keyboard focus, the docked header stays on one line, and narrow English rows are shorter. Not verified: screen readers.
+
 ## 4.11.1 — 2026-11-17
 
 - **Optional "Controls & hierarchy" style under More appearance options, plus layout bug fixes and Ink-desk landing styling.** By default the app keeps its original button sizes, typography, colours, and spacing unchanged; under Settings › Interface › More appearance options, learners can now switch Controls & hierarchy from Standard to Refined compact for smaller controls, clearer hierarchy between labels and prose, stronger light-mode grey separation, quieter disabled buttons, and tighter page chrome. Independently, squished dialog close buttons, stretched inline links on narrow panes, non-square mailbox icons, and non-density-scaling companion gaps were fixed, and the standalone landing page now matches the warm dark/light ink-desk palette. Not verified: visual rendering on macOS Safari or inside a standalone packaged Electron window.
