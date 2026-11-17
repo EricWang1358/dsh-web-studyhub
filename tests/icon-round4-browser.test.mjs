@@ -149,17 +149,19 @@ test('round 4 in the browser: answer marks as heavy as their label, the station 
         await later(page, lang);
         await page.locator('.first-run-card .frl-step[data-step="model"] .frl-step__text').first().waitFor({ timeout: 30000 });
         // The preview's model is "preview · fake-model"; a learner's is longer. The row is given the ids of the free providers the guide names, as the card would say them.
-        for (const id of ['preview · fake-model', 'deepseek · deepseek-chat', 'siliconflow · Qwen/Qwen2.5-7B-Instruct']) {
+        for (const id of ['preview · fake-model', 'deepseek · deepseek-chat', 'siliconflow · Qwen/Qwen2.5-7B-Instruct', 'SiliconFlow · Qwen/Qwen3-235B-A22B-Instruct-2507']) {
           const seen = await page.evaluate(([label, zh]) => {
             const text = document.querySelector('.first-run-card .frl-step[data-step="model"] .frl-step__text'), row = text.closest('.frl-step__row');
             text.textContent = zh ? `已选择模型：${label}` : `Model selected: ${label}`;
             const box = text.getBoundingClientRect(), range = document.createRange();
             range.selectNodeContents(text);
             const lines = [...range.getClientRects()].map((rect) => Math.round(rect.top)).filter((top, index, all) => all.indexOf(top) === index).length;
-            return { cut: text.scrollWidth > text.clientWidth + 0.5 || text.scrollHeight > text.clientHeight + 0.5, lines, height: +row.getBoundingClientRect().height.toFixed(1), width: +box.width.toFixed(1) };
+            const shown = Math.round(row.getBoundingClientRect().height / 32);
+            return { cut: text.scrollWidth > text.clientWidth + 0.5 || text.scrollHeight > text.clientHeight + 0.5, lines, shown, height: +row.getBoundingClientRect().height.toFixed(1), width: +box.width.toFixed(1) };
           }, [id, lang === 'zh']);
-          assert.ok(!seen.cut, `${lang} ${width}px: 「${id}」 is cut on the model step (${JSON.stringify(seen)})`);
-          assert.ok(seen.lines <= 2, `${lang} ${width}px: 「${id}」 takes at most two ruled lines (${seen.lines})`);
+          // The typical ids (the free providers the guide names) are never cut; a longer id is clamped to the two lines with an ellipsis, its provider whole.
+          if (!id.startsWith('SiliconFlow')) assert.ok(!seen.cut, `${lang} ${width}px: 「${id}」 is cut on the model step (${JSON.stringify(seen)})`);
+          assert.ok(seen.shown <= 2 && (seen.lines <= 2 || seen.cut), `${lang} ${width}px: 「${id}」 shows at most two ruled lines (${JSON.stringify(seen)})`);
           assert.ok(Math.abs(seen.height / 32 - Math.round(seen.height / 32)) < 0.05, `${lang} ${width}px: the row stays on the card's 32px ruling (${seen.height}px)`);
           if (id.startsWith('siliconflow')) await shot(page, `first-run-model-${lang}-${width}`);
         }
