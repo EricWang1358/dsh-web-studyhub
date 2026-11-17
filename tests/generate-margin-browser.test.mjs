@@ -115,7 +115,13 @@ const foldSummary = page => page.evaluate(() => {
   return { height: summary.getBoundingClientRect().height, text: words.join('').replace(/\s+/g, ' ').trim(), starts };
 });
 
-test('#1082: 更多选项 keeps its hint while open, says the chosen pieces shut, is as tall open as shut, and no line of pieces starts with 「·」', { timeout: 600000 }, async t => {
+/** The room between 更多选项's summary and its first group's title (「想练什么」): the summary's own band, which a hidden line must not widen. */
+const bandUnderSummary = page => page.evaluate(() => {
+  const summary = document.querySelector('.generate-more > summary').getBoundingClientRect(), title = document.querySelector('.generate-more .generate-group__title').getBoundingClientRect();
+  return { summary: summary.height, band: title.top - summary.bottom };
+});
+
+test('#1082: 更多选项 open says its hint on one line whatever is chosen (no empty band under it), shut says the chosen pieces, and no line of pieces starts with 「·」', { timeout: 600000 }, async t => {
   if (skip) { t.skip(skip); return; }
   const hints = { en: 'Focus, difficulty, cost, extras', zh: '想练什么、难度、花费、额外要求' };
   for (const [lang, width] of [['en', 420], ['en', 320], ['zh', 420], ['zh', 320]]) {
@@ -127,35 +133,30 @@ test('#1082: 更多选项 keeps its hint while open, says the chosen pieces shut
     const shutPlain = await foldSummary(page);
     await summary.click();
     await settleAnimations(page);
-    const openPlain = await foldSummary(page);
+    const openPlain = await foldSummary(page), bandPlain = await bandUnderSummary(page);
     assert.ok(Math.abs(openPlain.height - shutPlain.height) <= 0.5, `${tag}: with nothing chosen, open ${openPlain.height} = shut ${shutPlain.height}`);
     for (const [name, at] of [['difficulty', 3], ['language', lang === 'en' ? 0 : 1], ['notation', 2]]) {
-      const button = page.locator(`[data-tour="generate-${name}"] button`).nth(at);
-      await button.scrollIntoViewIfNeeded();
-      const y = (await button.boundingBox()).y;
-      await button.click();
+      await page.locator(`[data-tour="generate-${name}"] button`).nth(at).click();
       await frames(page, 4);
-      const moved = (await button.boundingBox()).y - y;
-      // a line added to the summary above is taken up by the browser's scroll anchoring, which works in whole pixels: under one pixel is no move
-      assert.ok(Math.abs(moved) < 1, `${tag}: picking ${name} does not move it under the pointer (${moved}px)`);
-      const now = await foldSummary(page);
-      assert.ok(now.text.includes(hints[lang].slice(0, 8)), `${tag}: open, after picking ${name}, the summary still says its hint ("${now.text}")`);
+      const now = await foldSummary(page), band = await bandUnderSummary(page);
+      assert.ok(now.text.includes(hints[lang].slice(0, 8)), `${tag}: open, after picking ${name}, the summary says its hint ("${now.text}")`);
+      // the open summary is the hint's one line: what is chosen (hidden while open) adds no empty band above 「想练什么」
+      assert.ok(Math.abs(now.height - openPlain.height) <= 0.5, `${tag}: open, after picking ${name}, the summary is as tall as with nothing chosen (${now.height} vs ${openPlain.height})`);
+      assert.ok(Math.abs(band.band - bandPlain.band) <= 0.5, `${tag}: open, after picking ${name}, the room under the summary is unchanged (${band.band} vs ${bandPlain.band})`);
     }
-    const openPicked = await foldSummary(page);
     await summary.click();
     await until(() => fold.evaluate(element => !element.open), `${tag}: shut`);
     await settleAnimations(page);
     const shutPicked = await foldSummary(page);
     assert.ok(!shutPicked.text.includes(hints[lang].slice(0, 8)), `${tag}: shut, the summary says the chosen pieces, not the hint ("${shutPicked.text}")`);
     assert.equal(shutPicked.text.split('·').filter(piece => piece.trim()).length, 3, `${tag}: shut, three pieces ("${shutPicked.text}")`);
-    assert.ok(Math.abs(openPicked.height - shutPicked.height) <= 0.5, `${tag}: with three chosen, open ${openPicked.height} = shut ${shutPicked.height}`);
     assert.deepEqual(shutPicked.starts.filter(start => start === '·'), [], `${tag}: no line starts with 「·」 (${shutPicked.starts.join('')}: "${shutPicked.text}")`);
     await summary.click();
     await settleAnimations(page);
     const reopened = await foldSummary(page);
-    assert.ok(Math.abs(reopened.height - shutPicked.height) <= 0.5, `${tag}: reopened ${reopened.height} = shut ${shutPicked.height}`);
+    assert.ok(Math.abs(reopened.height - openPlain.height) <= 0.5, `${tag}: reopened ${reopened.height} = open with nothing chosen ${openPlain.height}`);
     assert.ok(reopened.text.includes(hints[lang].slice(0, 8)), `${tag}: reopened, the hint ("${reopened.text}")`);
-    t.diagnostic(`${tag}: plain ${shutPlain.height}/${openPlain.height}, chosen ${shutPicked.height}/${openPicked.height}: "${shutPicked.text}"`);
+    t.diagnostic(`${tag}: plain ${shutPlain.height}/${openPlain.height}, chosen shut ${shutPicked.height} / open ${reopened.height}: "${shutPicked.text}"`);
     assert.deepEqual(errors, []);
     await context.close();
   }
@@ -232,13 +233,16 @@ test('#1084: a row\'s facts never end in a bare 「· …」 at 420: a name is s
   const shown = page => page.evaluate(() => [...document.querySelectorAll('[data-tour="generate-sources"] .source-picker__facts')].map(facts => {
     const line = facts.getBoundingClientRect();
     const pieces = [...facts.children].filter(piece => { const box = piece.getBoundingClientRect(); return box.width > 0 && box.top < line.bottom - 1 && box.left < line.right - 0.5; });
+    // A course the scope does not name may be shortened (round 7): it then keeps its least width, ends in 「…」 and says its whole name on hover.
     const visible = pieces.map(piece => ({ text: piece.textContent, name: piece.classList.contains('source-picker__fact--name'),
-      cut: piece.scrollWidth > piece.clientWidth + 0.5 || piece.getBoundingClientRect().right > line.right + 0.5 }));
-    return { text: visible.map(piece => piece.text + (piece.cut ? '…' : '')).join(' '), cutNames: visible.filter(piece => piece.name && piece.cut).map(piece => piece.text) };
+      cut: piece.scrollWidth > piece.clientWidth + 0.5 || piece.getBoundingClientRect().right > line.right + 0.5,
+      shortened: piece.classList.contains('source-picker__fact--short') && getComputedStyle(piece).textOverflow === 'ellipsis' && piece.title === piece.textContent.replace(/^·\s*/, '')
+        && piece.getBoundingClientRect().right <= line.right + 0.5 && piece.getBoundingClientRect().width >= parseFloat(getComputedStyle(piece).minWidth) - 0.5 }));
+    return { text: visible.map(piece => piece.text + (piece.cut ? '…' : '')).join(' '), cutNames: visible.filter(piece => piece.name && piece.cut && !piece.shortened).map(piece => piece.text) };
   }));
   const check = (rows, tag) => {
     assert.ok(rows.length >= 10, `${tag}: rows (${rows.length})`);
-    assert.deepEqual(rows.filter(row => row.cutNames.length).map(row => row.text), [], `${tag}: no name is cut`);
+    assert.deepEqual(rows.filter(row => row.cutNames.length).map(row => row.text), [], `${tag}: no name is cut bare`);
     assert.deepEqual(rows.filter(row => /·\s*…?$/.test(row.text)).map(row => row.text), [], `${tag}: no line ends in 「·」 or 「· …」`);
   };
   for (const lang of ['zh', 'en']) {
@@ -249,6 +253,58 @@ test('#1084: a row\'s facts never end in a bare 「· …」 at 420: a name is s
     await settleAnimations(page);
     await frames(page, 4);
     check(await shown(page), `${lang} 420, answered`);
+    assert.deepEqual(errors, []);
+    await context.close();
+  }
+});
+
+test('#1084: every row follows one rule for its courses: the course 课程范围 names is not said again, another course is said first, whole or shortened, and left out only where there is no room for it', { timeout: 300000 }, async t => {
+  if (skip) { t.skip(skip); return; }
+  const rowsOf = page => page.evaluate(([course, long]) => [...document.querySelectorAll('[data-tour="generate-sources"] .source-picker__facts')].map(facts => {
+    const line = facts.getBoundingClientRect(), gap = parseFloat(getComputedStyle(facts).columnGap) || 0;
+    const onLine = piece => { const box = piece.getBoundingClientRect(); return box.width > 0 && box.top < line.bottom - 1; };
+    const names = [...facts.querySelectorAll('.source-picker__fact--name')], other = names.find(piece => piece.textContent.includes(long));
+    const shown = [...facts.children].filter(onLine), lastRight = Math.max(...shown.map(piece => piece.getBoundingClientRect().right));
+    return { text: shown.map(piece => piece.textContent).join(' '), repeats: names.some(piece => piece.textContent.replace(/^·\s*/, '') === course && onLine(piece)),
+      firstName: names[0]?.textContent.replace(/^·\s*/, '') ?? '', other: other ? { shown: onLine(other), cut: other.scrollWidth > other.clientWidth + 0.5, title: other.title,
+        least: parseFloat(getComputedStyle(other).minWidth) || other.scrollWidth } : null, room: line.right - lastRight - gap };
+  }), [COURSE, LONG]);
+  for (const lang of ['zh', 'en']) for (const width of [420, 1440]) {
+    const tag = `${lang} ${width}`;
+    const { page, errors, context } = await openGenerate({ lang, width });
+    await frames(page, 4);
+    const scope = await page.evaluate(() => document.querySelector('[data-tour="generate-sources"] [data-page-scope] button, [data-tour="generate-sources"] .page-scope button, [data-tour="generate-sources"] select')?.textContent ?? '');
+    const rows = await rowsOf(page);
+    assert.ok(rows.length >= 10, `${tag}: rows (${rows.length})`);
+    t.diagnostic(`${tag}: scope "${scope.slice(0, 40)}"; ${rows.filter(row => row.other?.shown).length}/${rows.length} say ${LONG.slice(0, 6)}…`);
+    assert.deepEqual(rows.filter(row => row.repeats).map(row => row.text), [], `${tag}: no row says the scope's course 「${COURSE}」 again`);
+    for (const row of rows) {
+      assert.equal(row.firstName, LONG, `${tag}: the course outside the scope comes first among the names (${row.text})`);
+      if (row.other.shown && row.other.cut) assert.equal(row.other.title, LONG, `${tag}: a shortened course says its whole name on hover (${row.text})`);
+      if (!row.other.shown) assert.ok(row.room < row.other.least + 0.5, `${tag}: a course is left out only where its least width does not fit (room ${row.room.toFixed(1)}, least ${row.other.least}): ${row.text}`);
+    }
+    if (width === 1440) assert.ok(rows.every(row => row.other.shown && !row.other.cut), `${tag}: with room, every row says the other course whole`);
+    assert.deepEqual(errors, []);
+    await context.close();
+  }
+});
+
+test('#1082: at 1440 with nothing ticked, the bar\'s reason is level with the button', { timeout: 300000 }, async t => {
+  if (skip) { t.skip(skip); return; }
+  for (const lang of ['zh', 'en']) {
+    const { page, errors, context } = await openGenerate({ lang, width: 1440, height: 900 });
+    const clear = page.locator('[data-tour="generate-sources"] .source-picker__actions button').nth(1);
+    if (await clear.count()) await clear.click();
+    await until(async () => (await page.locator('[data-generate-bar] .generate-submit__note').count()) === 1, `${lang}: the reason`);
+    await frames(page, 3);
+    const level = await page.evaluate(() => {
+      const note = document.querySelector('[data-generate-bar] .generate-submit__note'), button = document.querySelector('[data-generate-bar] [data-tour="generate-submit"]');
+      const range = document.createRange();
+      range.selectNodeContents(note);
+      const lines = [...range.getClientRects()].filter(r => r.width > 0.5), top = Math.min(...lines.map(r => r.top)), bottom = Math.max(...lines.map(r => r.bottom)), box = button.getBoundingClientRect();
+      return (top + bottom) / 2 - (box.top + box.height / 2);
+    });
+    assert.ok(Math.abs(level) <= 1, `${lang} 1440: the reason's middle is level with the button's (${level.toFixed(1)}px)`);
     assert.deepEqual(errors, []);
     await context.close();
   }
