@@ -193,7 +193,7 @@ export default function Generate({
   const plannedCoverage = planned.status === 'ready' ? planned.estimate?.coverage : null, plannedGoal = plannedCoverage?.goal ?? null;
   // A summary promises questions: not for a button that is off (the reason is said below), and for the steps it is their own total.
   const blocked = !pathMode && advice.blocked;
-  const summary = pathMode ? pathSummary(path.included) : blocked ? '' : summaryLine({ ...stats, count: plannedGoal, difficulty: gen.difficulty, language: gen.language, minutes: plannedGoal ? estimateMinutes(data.jobs, plannedGoal) : null });
+  const summary = pathMode ? pathSummary(path.included) : blocked ? '' : summaryLine({ ...stats, count: plannedGoal, difficulty: gen.difficulty, language: gen.language, minutes: plannedGoal ? estimateMinutes(data.jobs, plannedGoal) : null }, { choices: false });
   // The plan is priced for these materials: the tokens in the bar, the rest of the plan under it.
   const estimating = !pathMode && !blocked && selectedSources.length > 0 && !referenceState.reason;
   const barRoom = useStickyRoom('--generate-bar-room');
@@ -356,15 +356,15 @@ export default function Generate({
             </fieldset>
             {/* The DOM is the order it is seen (#1082): the count and what it costs, the one button and why it is off; then what the run asks for and how it goes on;
                 then the note about the checks. The bar is a child of the form, so it can stay at the bottom of the view while its place is further down
-                (ui/generate-home.css). Its two lines are there whatever is ticked (with nothing ticked they say what to do), so the bar keeps one height and the
+                (ui/generate-home.css). Its two lines are there whatever is ticked (with nothing ticked the first says what to do), so the bar keeps one height and the
                 button one place; the tokens are in it, where the tour's step about the cost lights them. */}
             <div className="generate-submit" data-generate-bar data-tour="generate-summary" ref={barRoom}>
               <div className="generate-submit__lines">
-                {summary ? <p className="generate-summary" role="status">{summary}</p>
+                {/* Whole pieces (「·」 between them): a line too narrow for all of them leaves the last ones out, never half a word (#1082). */}
+                {summary ? <p className="generate-summary" role="status">{summary.split(' · ').map((piece, at) => <React.Fragment key={at}>{at ? ' ' : ''}<span className="generate-summary__piece">{at ? `· ${piece}` : piece}</span></React.Fragment>)}</p>
                   : <p className="muted generate-submit__note" role="status">{model.ready && !selectedSources.length ? ui("先在「01 / 选择资料」勾选资料。") : ""}</p>}
                 {!pathMode && <div className="generate-submit__cost" data-generate-estimate>
-                  {estimating ? <TokenEstimateView state={planned} totalOnly />
-                    : !selectedSources.length && <p className="muted generate-submit__note">{ui("勾选后，这里写出预计用量。")}</p>}
+                  {estimating && <TokenEstimateView state={planned} totalOnly />}
                 </div>}
               </div>
               {!model.ready ? (

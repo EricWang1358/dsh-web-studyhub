@@ -958,7 +958,6 @@
   "点击翻面 · Space": "Click to flip · Space",
   "导入 JSON 题组": "Import JSON deck",
   "先在「01 / 选择资料」勾选资料。": "Tick a source under “01 / Choose sources” first.",
-  "勾选后，这里写出预计用量。": "The estimated usage shows here once ticked.",
   "加入生成队列": "Add to generation queue",
   "生成并检查题组": "Generate & check deck",
   "启动中": "Starting",

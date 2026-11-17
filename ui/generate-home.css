@@ -27,15 +27,17 @@
     .generate-page .generate-sources-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin-top: var(--space-2); }
     /* The one button is on the first screen with any list (#1082): the bar of the count and the button is a child of the form and sticks to the bottom of the view
        while its place is further down, then rests in its place at the end of the form. In the flow (the page keeps its room, nothing appears or goes), opaque on the
-       page's ground (the list scrolls under it), quiet (a hairline, no card, no shadow, no motion). The DOM is the order it is seen: no `order` (Tab follows it). */
+       page's ground (the list scrolls under it), quiet (a hairline, no card, no shadow, no motion). The hairline is --line, which reads in both themes: the list
+       ends where the bar starts (--line-soft almost vanished on the dark ground). The DOM is the order it is seen: no `order` (Tab follows it). */
     .generate-page .generate-submit {
       position: sticky; bottom: 0; z-index: var(--z-sticky);
       display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3);
-      margin-top: var(--space-4); padding: var(--space-3) 0; border-top: 1px solid var(--line-soft); background: var(--bg-canvas);
+      margin-top: var(--space-4); padding: var(--space-3) 0; border-top: 1px solid var(--line); background: var(--bg-canvas);
     }
     /* The count and the tokens on the left, the button at the end of their line (the draft's bar does the same); on a narrow page they take the line and the button
-       starts the next. They are two lines of fixed height whatever is ticked, each one line (a longer one ends in 「…」; a screen reader hears it whole), so the
-       bar never changes height and the button never moves (#1082). */
+       starts the next. They are two lines of fixed height whatever is ticked (with nothing ticked the first says what to do and the second is blank), each one
+       line (the count in whole pieces, below; the tokens end in 「…」 if ever too long; a screen reader hears both whole), so the bar never changes height and
+       the button never moves (#1082). */
     .generate-page .generate-submit > * { flex: 1 1 100%; min-width: 0; margin: 0; }
     .generate-page .generate-submit > .generate-submit__lines { flex: 1 1 20rem; display: grid; align-items: center; row-gap: var(--space-half);
       grid-template-rows: calc(var(--fs-md) * var(--lh-snug)) calc(var(--fs-sm) * var(--lh-snug)); }
@@ -53,6 +55,12 @@
     .generate-page .generate-run .generate-quality small { font-size: var(--fs-sm); color: var(--text-muted); }
     .generate-page .generate-run .generate-quality__lead { color: var(--text-dim); font-weight: var(--fw-medium); }
     .generate-page .generate-run .generate-quality > svg { color: var(--text-muted); }
+  }
+  /* A narrow page stacks the button under the two lines (they do not fit beside it): the bar keeps less room above and below them there (#1082). */
+  @container study (max-width: 520px) {
+    :where(.study-app, .study-seat) {
+      .generate-page .generate-submit { padding-block: var(--space-2); }
+    }
   }
 }
 
