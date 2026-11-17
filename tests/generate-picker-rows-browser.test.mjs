@@ -53,9 +53,9 @@ const measure = page => page.evaluate(() => [...document.querySelectorAll('[data
   const text = { top: Math.min(...lines.map(r => r.top)), bottom: Math.max(...lines.map(r => r.bottom)), left: Math.min(...lines.map(r => r.left)), right: Math.max(...lines.map(r => r.right)) };
   const button = row.querySelector('.source-picker__expand')?.getBoundingClientRect() ?? null;
   const bottom = Math.max(text.bottom, button?.bottom ?? 0);
-  const head = row.querySelector('.source-picker__head'), slot = row.querySelector('[data-index-slot]');
+  const facts = row.querySelector('.source-picker__facts'), slot = row.querySelector('[data-index-slot]');
   return { title: item.querySelector('strong').textContent, height: box.height, below: box.bottom - bottom, padBottom: parseFloat(style.paddingBottom),
-    slotInHead: slot ? head.contains(slot) : null,
+    slotAfterFacts: slot && facts ? !!(facts.compareDocumentPosition(slot) & 4) : false,
     hasButton: !!button, buttonBesideText: button ? button.top < text.bottom - 1 : null, buttonOverlapsText: button ? button.left < text.right && button.right > text.left && button.top < text.bottom - 1 && button.bottom > text.top : false };
 }));
 
@@ -77,7 +77,7 @@ test('the rows of the material picker keep no empty block: height follows the co
       const rows = await measure(page);
       assert.equal(rows.length, 4, `${width}px: two PDFs and two notes`);
       for (const row of rows) {
-        assert.notEqual(row.slotInHead, false, `${width}px: ${row.title}: the badge's place is in the title's block in the DOM (drawn at the end of the title line at 1280, of the row's last line at 420)`);
+        assert.equal(row.slotAfterFacts, true, `${width}px: ${row.title}: the badge's slot follows the facts in the DOM (it ends the facts line)`);
         assert.ok(row.below <= row.padBottom + 1, `${width}px: ${row.title}: ${row.below}px under the content, the row's padding is ${row.padBottom}px`);
         assert.equal(row.buttonOverlapsText, false, `${width}px: ${row.title}: 选择页面 does not sit on the text`);
       }

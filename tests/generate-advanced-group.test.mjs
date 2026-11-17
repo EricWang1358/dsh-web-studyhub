@@ -5,8 +5,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
 
 /* 创建题组 (#1082, #1084): the engineering-looking group (题型配额与模块化规则) is a student's 「额外要求（可选）」, shut inside 「高级」 next to 花费上限 and open only when the form carries a value
-   of it; the words of the old group (业务规则模板名称, 启用此模块, 系统基础安全约束 …, 预览生效要求与阶段规则（零模型调用）) are gone from the page in both languages. The picker row
-   reserves a line for a badge only while the answer is still coming. */
+   of it; the words of the old group (业务规则模板名称, 启用此模块, 系统基础安全约束 …, 预览生效要求与阶段规则（零模型调用）) are gone from the page in both languages. Every picker row
+   keeps a slot of fixed size for its index badge at the end of its facts line. */
 
 const m = await loadUi(`
   export { default as Generate } from './ui/Generate.jsx';
@@ -67,13 +67,16 @@ test('no engineering words on the page, shut or open, in either language', () =>
   } finally { m.setUiLanguage('zh'); }
 });
 
-test('the picker row has the badge\'s place only when it is drawn with a badge: never an empty place (#1084)', () => {
+test('every picker row has the badge\'s slot at the end of its facts line, whatever the answer: the title has the whole column (#1084, round 4)', () => {
   const render2 = props => renderToStaticMarkup(React.createElement(m.SourcePicker, { sources, selected: [], onChange: noop, ...props }));
-  assert.doesNotMatch(render2({ indexCoverage: { indexed: [], stale: [], canIndex: true } }), /source-picker__index|source-picker__place/, 'answered, no badge: no place');
-  assert.doesNotMatch(render2({ indexCoverage: null }), /source-picker__index|source-picker__place/, 'no answer yet: no place kept for one');
-  const html = render2({ indexCoverage: { indexed: ['a', 'b'], stale: [], canIndex: true } });
-  assert.equal(html.match(/source-picker__place/g)?.length, 2, 'drawn with a badge: the place, on each row that has one');
-  assert.ok(html.indexOf('索引笔记') < html.indexOf('source-picker__index') && html.indexOf('source-picker__place') < html.indexOf('索引笔记'), 'the place before the title (it ends the first line), the badge after it (read after the title)');
+  for (const [what, coverage] of [['no answer yet', null], ['answered, no badge', { indexed: [], stale: [], canIndex: true }], ['with badges', { indexed: ['a', 'b'], stale: [], canIndex: true }]]) {
+    const html = render2({ indexCoverage: coverage });
+    assert.equal(html.match(/data-index-slot/g)?.length, 2, `${what}: a slot on each row`);
+    assert.doesNotMatch(html, /source-picker__place|source-picker__head/, `${what}: nothing beside the title takes its width`);
+    for (const row of html.split('data-document-key').slice(1)) {
+      assert.ok(row.indexOf('<strong') < row.indexOf('source-picker__facts') && row.indexOf('source-picker__facts') < row.indexOf('data-index-slot'), `${what}: title, facts, then the slot (read in that order)`);
+    }
+  }
 });
 
 /* The preview is what a student would ask: which materials, how many questions of which types, difficulty, language, formula style, the extra requirements. */

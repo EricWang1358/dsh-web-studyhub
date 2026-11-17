@@ -84,11 +84,22 @@ test('the line under the button reads right for one focus topic and for many, in
   } finally { m.setUiLanguage('zh'); }
 });
 
-test('the picker draws its rows once the index answer is known, or past a short wait without it (#1084)', async () => {
-  const { indexWaiting, INDEX_WAIT_MS } = await loadUi(`export { indexWaiting, INDEX_WAIT_MS } from './ui/use-index-coverage.js';`);
-  assert.equal(indexWaiting('loading', false), true, 'the rows wait for the first answer');
-  assert.equal(indexWaiting('ready', false), false, 'an answer in time: the rows are drawn with it');
-  assert.equal(indexWaiting('unavailable', false), false, 'a failed read in time: drawn at once, with no badges');
-  assert.equal(indexWaiting('loading', true), false, 'past the wait: drawn without it');
-  assert.ok(INDEX_WAIT_MS > 0 && INDEX_WAIT_MS <= 600, `a short wait (${INDEX_WAIT_MS} ms), about the page's own fade-in`);
+test('the page draws its list and its form at once, as on main: nothing waits for the index answer (#1084, round 4)', async () => {
+  const source = await readFile(new URL('../ui/Generate.jsx', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /useIndexWait|holding/, 'no hold before the ways in, the list and the form are drawn');
+  const coverage = await loadUi(`export * from './ui/use-index-coverage.js';`);
+  assert.deepEqual(Object.keys(coverage).filter(name => /wait/i.test(name)), [], 'and no wait left to call');
+  assert.match(render(), /data-tour="generate-sources"[\s\S]*data-tour="generate-options"/, 'a first render (no answer yet) has the list and the form');
+});
+
+test('更多选项 says the choices that are not the defaults while it is shut: the difficulty and the language a run will use are seen (#1082)', () => {
+  const summaryOf = html => /<details class="sh-disclosure[^"]*generate-more"[^>]*>\s*<summary[^>]*>([\s\S]*?)<\/summary>/.exec(html)?.[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() || '';
+  const plain = summaryOf(render());
+  assert.doesNotMatch(plain, /深入辨析|English/, `defaults: the summary says what is inside (${plain})`);
+  const chosen = summaryOf(render({}, { gen: { ...gen, difficulty: 'advanced', language: 'English' } }));
+  assert.match(chosen, /深入辨析/, `the difficulty is named (${chosen})`);
+  assert.match(chosen, /English/, `the language is named (${chosen})`);
+  const bar = render({}, { gen: { ...gen, difficulty: 'advanced', language: 'English' } });
+  const count = /class="generate-summary"[^>]*>([\s\S]*?)<\/p>/.exec(bar)?.[1].replace(/<[^>]+>/g, '') || '';
+  assert.doesNotMatch(count, /深入辨析|English/, `the count line stays short: questions, materials, pages (${count})`);
 });

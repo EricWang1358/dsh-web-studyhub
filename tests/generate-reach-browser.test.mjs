@@ -22,10 +22,10 @@ import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
      line is never cut inside a word, at 360, 420 and 1440, in zh and en; on a narrow page the bar is lighter than the 120 px of round 2; its top hairline
      reads in both themes.
    - #1084: at 420 a long title has the row's text column (at least 80% of it), whether the index answer came before the rows were drawn or after. A short
-     row is one title line and one line of facts, as on main (67/68 px there). No fact is split across lines (「267 / 字符」). The badge's place ends the
-     title's FIRST line at the column's end, its middle on that line's middle, before 选择页面 for the eye and for Tab. An answer that comes at once is
-     drawn with the rows (only the rows it gives a badge have a place); one that comes late fills the places every row kept beside its first line: either
-     way no row changes height. The title-length sweep is tests/generate-picker-sweep-browser.test.mjs. */
+     row is one title line and one line of facts, as on main (67/68 px there). No fact is split across lines (「267 / 字符」). Every row has the badge's
+     slot at the end of its facts line, at the row's end, its badge's middle on that line's middle; Tab meets the row's controls in the order they are
+     seen. An answer that comes at once or late fills the slots and no row changes height; a late badge is shown like one that came at once (round 4).
+     The title-length sweep is tests/generate-picker-sweep-browser.test.mjs; the page as a whole is tests/generate-steady-browser.test.mjs. */
 
 const STAMP = '2026-10-01T08:00:00.000Z';
 const LONG_COURSE = '分布式系统与网络协议（2026 秋季学期 · 周三晚班）';
@@ -291,9 +291,9 @@ const rows = page => page.evaluate(() => {
     const row = item.querySelector('.source-picker__row'), style = getComputedStyle(row), box = row.getBoundingClientRect();
     const columnEnd = box.right - parseFloat(style.paddingRight);
     const title = item.querySelector('.source-picker__text strong'), titleRange = textRange(title), t = titleRange.getBoundingClientRect();
-    const titleLines = [...titleRange.getClientRects()].filter(r => r.width > 0.5).sort((a, b) => a.top - b.top), firstLine = titleLines[0];
-    const facts = [...item.querySelectorAll('.source-picker__text small')].find(small => !small.classList.contains('source-picker__partial'));
-    const factRange = textRange(facts), text = facts.textContent;
+    const titleLines = [...titleRange.getClientRects()].filter(r => r.width > 0.5).sort((a, b) => a.top - b.top);
+    const facts = item.querySelector('.source-picker__facts') ?? [...item.querySelectorAll('.source-picker__text small')].find(small => !small.classList.contains('source-picker__partial'));
+    const factRange = textRange(facts), text = facts.textContent, firstLine = [...factRange.getClientRects()].filter(r => r.width > 0.5).sort((a, b) => a.top - b.top)[0];
     // every piece between 「 · 」 on one line, unless it is wider than the column itself
     const split = [];
     let from = 0;
@@ -314,8 +314,8 @@ const rows = page => page.evaluate(() => {
     return { title: title.textContent.slice(0, 16), share: t.width / (columnEnd - t.left), lines: titleLines.length ? lineTops(titleRange).length : 0, factLines: lineTops(factRange).length,
       height: item.getBoundingClientRect().height, oneLineHeight: parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + titleLH + factsLH,
       below: box.bottom - parseFloat(style.paddingBottom) - Math.max(...parts.map(r => r.bottom)), split, expand: !!row.querySelector('.source-picker__expand'),
-      slot: !!slotElement, emptySlot: !!slotElement && !badge,
-      slotOnTitleLine: slot && firstLine ? slot.top < firstLine.bottom && slot.bottom > firstLine.top && Math.abs(slot.right - columnEnd) <= 1 : null,
+      slot: !!slotElement,
+      slotOnFactsLine: slot && firstLine ? slot.top >= firstLine.top - 1 && slot.bottom <= firstLine.bottom + 1 && Math.abs(slot.right - columnEnd) <= 1 : null,
       badgeMiddle: badge && firstLine ? Math.abs((badge.top + badge.bottom) / 2 - (firstLine.top + firstLine.bottom) / 2) : null,
       tabOrder: focusable.map(named).join(' '), eyeOrder: seen.map(named).join(' '),
       badgeFits: badge && slot ? badge.width <= slot.width + 0.5 && badge.height <= slot.height + 0.5 : null, badge: !!badge };
@@ -349,8 +349,8 @@ test('#1084: at 420 a short row is as on main, a long title has the row, no fact
         const answered = late ? page.waitForResponse(response => response.url().endsWith('/api/call') && (response.request().postData() || '').includes('retrieval.index.coverage')) : null;
         if (late) hold.release('retrieval.index.coverage', value);
         if (late) await answered;
-        // at once, every row has its badge; late, a badge is shown only on a row it does not move (the rest leave it out), so there is nothing more to wait for
-        if (answer === 'badges' && !late) await until(async () => (await page.locator('[data-tour="generate-sources"] [data-index-slot] [data-state]').count()) === 5, 'a badge on every row');
+        // at once or late, every row shows its badge
+        if (answer === 'badges') await until(async () => (await page.locator('[data-tour="generate-sources"] [data-index-slot] [data-state]').count()) === 5, 'a badge on every row');
         await settleAnimations(page);
         await frames(page, 6);
         const after = await rows(page);
@@ -364,15 +364,14 @@ test('#1084: at 420 a short row is as on main, a long title has the row, no fact
             }
             assert.deepEqual(row.split, [], `${where}: no fact is split across lines`);
             assert.ok(row.below <= 1, `${where}: ${Math.round(row.below)}px of empty band under the content`);
-            if (row.slot) assert.equal(row.slotOnTitleLine, true, `${where}: the badge's place ends the title's first line, at the column's end`);
+            assert.equal(row.slotOnFactsLine, true, `${where}: the badge's slot ends the facts' first line, at the row's end`);
             if (row.badge) assert.ok(row.badgeMiddle <= 1, `${where}: the badge sits on the middle of that line (${row.badgeMiddle} px off)`);
             assert.equal(row.tabOrder, row.eyeOrder, `${where}: Tab meets the row's controls in the order they are seen`);
           }
         }
         assert.deepEqual(heights(after), heights(before), `${tag}: no row changes height when the answer arrives`);
         assert.deepEqual(after.filter(row => row.badge && !row.badgeFits).map(row => row.title), [], `${tag}: every badge fits its place`);
-        if (answer === 'badges' && late) assert.ok(after.some(row => row.badge), `${tag}: a late badge is still shown where it moves nothing`);
-        for (const [when, list] of [['before the answer', before], ['after it', after]]) assert.deepEqual(list.filter(row => row.emptySlot).map(row => row.title), [], `${tag}, ${when}: no row holds an empty place for a badge`);
+        if (answer === 'badges') assert.ok(after.every(row => row.badge), `${tag}: every row shows its badge, late or not`);
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth) <= 0, `${tag}: no sideways scroll`);
         assert.deepEqual(errors, []);
         await context.close();

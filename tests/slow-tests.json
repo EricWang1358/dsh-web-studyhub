@@ -61,6 +61,7 @@
     "tests/generate-picker-sweep-browser.test.mjs",
     "tests/generate-reach-browser.test.mjs",
     "tests/generate-short-browser.test.mjs",
+    "tests/generate-steady-browser.test.mjs",
     "tests/generate-tour-cost-browser.test.mjs",
     "tests/generation-transparency-browser.test.mjs",
     "tests/grade-key-feedback-browser.test.mjs",
