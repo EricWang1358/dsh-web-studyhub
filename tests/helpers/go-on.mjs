@@ -614,11 +614,19 @@ export function playLeads(source) {
 /** Every place of a source file that draws the `external` mark (a Button's or an IconButton's `icon` / `iconEnd`, a menu spec's `icon: 'external'`, an `<Icon
     name="external">` inside a Button) whose click does not open a window outside StudyHub (EXTERNAL: the system browser, the plugin manager, a DSH chat, the host's
     file preview). An `<a href>` (a link to a web page, opened by the browser) is outside by itself. StudyHub's own reader is a place in StudyHub: a control that
-    opens it ends in →, an icon-only one draws `arrow-right` (round 7). [{ label, want }] */
+    opens it ends in →, an icon-only one draws `arrow-right` (round 7). The mark of a window outside leads (`icon`), never trails (`iconEnd`), and a link to a DSH
+    chat is an <AgentLink>, which draws that one look itself: a site that hands it an `icon` or `iconEnd` is a second look (round 8). [{ label, want }] */
 export function externalProblems(source) {
   const problems = [], locals = localHandlers(source);
   const push = (label, want) => problems.push({ label: label.replace(/\s+/g, ' ').slice(0, 100), want });
   const outside = (click) => !!click && clickDoes(click, locals) === 'external';
+  for (const match of source.matchAll(/<AgentLink\b/g)) {
+    const open = source.slice(match.index, openingTagEnd(source, match.index) + 1);
+    if (/\s(?:icon|iconEnd)=/.test(open)) push(open, 'an AgentLink draws its own leading `external` mark: one look for every link to a DSH chat');
+  }
+  for (const match of source.matchAll(/\siconEnd=(?:"external"|\{\s*['"]external['"]\s*\})|\biconEnd:\s*['"]external['"]/g)) {
+    push(source.slice(Math.max(0, match.index - 60), match.index + 30), 'the `external` mark of a window outside leads (`icon`), it never trails');
+  }
   // A component tag that carries the mark as a prop.
   for (const mark of source.matchAll(/\s(?:icon|iconEnd)=(?:"external"|\{\s*['"]external['"]\s*\})/g)) {
     // The innermost tag whose opening holds the prop (a Dialog's footer={…} may hold a Button: that Button is the one).

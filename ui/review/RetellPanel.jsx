@@ -140,7 +140,7 @@ export default function RetellPanel({ op, args, draftKey, model, onModelSettings
               requestAnimationFrame(() => inputRef.current?.focus());
             }}>{ui("对照漏点再补一句")}</Button>
           )}
-          {onSource && <Button variant="link" size="sm" icon="book" className="retell-result__source" onClick={() => onSource(answer.cite ?? null)}>{ui("去原文看这段")}</Button>}
+          {onSource && <Button variant="link" size="sm" iconEnd="arrow-right" className="retell-result__source" onClick={() => onSource(answer.cite ?? null)}>{ui("去原文看这段")}</Button>}
         </div>
       )}
     </section>

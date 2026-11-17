@@ -5,7 +5,7 @@ import React from 'react';
 import { uiSources } from './helpers/icon-stand-ins.mjs';
 import { countedNouns, missingSingulars, SINGULAR_KEY } from './helpers/plurals.mjs';
 import { loadUi } from './helpers/ui-module.mjs';
-import { actionProblems, buttonElements, clickDoes, goOnProblems, labelHelpers, labelsOf, localHandlers, propOf, specProblems, varsOf, wiringOf } from './helpers/go-on.mjs';
+import { actionProblems, buttonElements, clickDoes, externalProblems, goOnProblems, labelHelpers, labelsOf, localHandlers, propOf, specProblems, varsOf, wiringOf } from './helpers/go-on.mjs';
 
 /* #1073, round 8 of the review of PR #1118 (the round-7 review, 2e391b83). The gate read a click's handler, but not the prop it calls: 查看图谱, 改题型和题数,
    从这份资料出题 and 管理题组 leave through a prop wired in ui/app/page-views.jsx and passed with no →, and 创建题组 (`onCreate`) was taken for "here" by its name
@@ -117,7 +117,34 @@ test('2: 创建题组 on the empty home ends in → beside 开始学习 → and 
   }
 });
 
-/* ---- 3: English counts say "1 question", never "question(s)" ------------------------------------------------------------------------------------------- */
+/* ---- 5: one look for a DSH chat; 去原文看这段 like every control that opens the reader at a quote ------------------------------------------------------------ */
+
+test('5: every link to a DSH chat is an AgentLink, which leads with the external mark; no site hands it a second look', async () => {
+  const agentLink = await read('ui/AgentLink.jsx');
+  const [button] = buttonElements(agentLink);
+  assert.match(button.open, /\sicon="external"/, 'AgentLink leads with external');
+  assert.doesNotMatch(button.open, /\siconEnd=/, 'and nothing trails');
+  assert.equal(externalProblems('<AgentLink childId={id} openAgent={openAgent} label={ui("在 DSH 中打开完整会话")} iconEnd="external" />').length, 2, 'a trailing mark handed to AgentLink is two faults');
+  assert.equal(externalProblems('<AgentLink childId={id} openAgent={openAgent} label={ui("查看后台助手")} />').length, 0);
+  const { sources } = await all();
+  assert.deepEqual(sources.flatMap(({ file, source }) => externalProblems(source).map((problem) => `${file}: ${problem.label} ${problem.want}`)), []);
+  for (const [file, label] of [['ui/tasks/OutputPanel.jsx', '在 DSH 中打开完整会话'], ['ui/GenerationTrace.jsx', '查看后台助手']]) {
+    const source = await read(file);
+    const at = source.indexOf(`label={ui(${file.includes('tasks') ? "'" : '"'}${label}`);
+    const open = source.slice(source.lastIndexOf('<AgentLink', at), source.indexOf('/>', at) + 2);
+    assert.match(open, /^<AgentLink\b/, `${file}: ${label} is an AgentLink`);
+    assert.doesNotMatch(open, /\s(?:icon|iconEnd)=/, `${file}: ${label} takes AgentLink's own look`);
+  }
+});
+
+test('5: 去原文看这段 under a retelling ends in → with nothing in front, like 看原文 and a citation card', async () => {
+  const source = await read('ui/review/RetellPanel.jsx');
+  const button = buttonElements(source).find(({ children }) => children.includes('去原文看这段'));
+  assert.match(button.open, ARROW_END);
+  assert.doesNotMatch(button.open, /\sicon=/);
+});
+
+/* ---- 3: English counts say "1 question", never "question(s)"------------------------------------------------------------------------------------------- */
 
 const englishCatalogue = async () => {
   const catalogue = {}, fileOf = {};
