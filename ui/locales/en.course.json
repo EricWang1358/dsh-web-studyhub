@@ -56,7 +56,7 @@
   "重点知识点": "Focus topics",
   "填了就会在首页倒数；其余都可以不填。": "Once it is set, the home page counts down to it. Everything else is optional.",
   "{0} 个重点知识点": "{0} focus topics",
-  "1 个重点知识点": "1 focus topic",
+  "{0} 个重点知识点#one": "{0} focus topic",
   "考官指引 {0} 份": "{0} examiner guidance",
   "有 {0} 份建议": "{0} suggested",
   "添加重点知识点": "Add a focus topic",
