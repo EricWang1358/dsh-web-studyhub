@@ -182,5 +182,14 @@
   "没法确认当前模型能不能看图，这次只发了文字；需要的话自己截图贴上": "Could not tell whether the current model reads pictures, so only the text went in; paste a screenshot yourself if you need it",
   "{0} 页里附上了 {1} 页的图，其余的没画出来": "{1} of {0} page pictures attached; the others could not be drawn",
   "这 {0} 页的图都附上了": "The pictures of all {0} pages are attached",
-  "正在画第 {0} 页的图…": "Drawing page {0} as a picture…"
+  "正在画第 {0} 页的图…": "Drawing page {0} as a picture…",
+  "本文疑问 ({0})": "Document questions ({0})",
+  "本文疑问 ({0})#one": "Document question ({0})",
+  "退出遮罩自测": "Exit self-check",
+  "遮住答案自测": "Hide answers to quiz yourself",
+  "本次提问": "This session",
+  "定位原段落": "Jump to passage",
+  "先自己回想刚才的回答，再揭晓对照。": "Recall the answer yourself before revealing it.",
+  "揭晓回答": "Reveal answer",
+  "重新遮住": "Hide again"
 }

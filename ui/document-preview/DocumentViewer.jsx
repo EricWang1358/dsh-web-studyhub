@@ -292,8 +292,10 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     return selection === link.selection ? link : { ...link, selection };
   }), [links, expandSelection]);
   const groups = useMemo(() => groupPassageLinks(localMode ? [] : [...expandedLinks, ...annotationMarks]), [expandedLinks, annotationMarks, localMode]);
+  const openAnnotationRef = useRef(null);
   const annotation = useMemo(() => ({ mode: annotationMode, items: keptItems, stale: kept.stale,
-    onMode: next => { setAnnotationMode(next); saveAnnotationMode(next); }, onChanged: () => setKeptReload(count => count + 1) }), [annotationMode, keptItems, kept.stale]);
+    onMode: next => { setAnnotationMode(next); saveAnnotationMode(next); }, onChanged: () => setKeptReload(count => count + 1),
+    onSelect: selection => selection && openAnnotationRef.current?.({ selection }) }), [annotationMode, keptItems, kept.stale]);
   const clearStaleAnnotations = async () => {
     await call('materials.annotation.delete', { documentId: document.documentId || document.id, revision: document.revision, stale: true });
     setKeptReload(count => count + 1);
@@ -572,6 +574,17 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     setCapture(previous => previous?.sourceId === at.sourceId && previous?.start === at.start && previous?.end === at.end ? previous
       : { quote: at.quote, prefix: at.prefix || '', suffix: at.suffix || '', sourceId: at.sourceId, start: at.start, end: at.end, ...(at.page ? { page: at.page } : {}) });
     openTools();
+  };
+  openAnnotationRef.current = selection => {
+    const sel = selection?.selection || selection;
+    if (!sel?.quote) return;
+    openAnnotation({ selection: sel });
+    const at = expandSelection(sel);
+    if (at?.sourceId && allSections.some(section => section.sourceId === at.sourceId)) {
+      armReturnCheck();
+      if (chaptered && !sections.some(section => section.sourceId === at.sourceId)) chapter.goTo({ sourceId: at.sourceId });
+      setSeekGoal({ sourceId: at.sourceId, quote: at.quote || '' });
+    }
   };
   const openGroup = group => {
     setFocusedKey(group.key);

@@ -1,0 +1,100 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    .study-doubt-ledger {
+      display: grid;
+      gap: var(--space-3);
+      margin-top: var(--space-2);
+      padding-top: var(--space-3);
+      border-top: 1px solid var(--line);
+    }
+
+    .study-doubt-ledger__head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2);
+    }
+
+    .study-doubt-ledger__title {
+      margin: 0;
+      font-size: var(--fs-md);
+      font-weight: var(--fw-medium);
+      line-height: var(--lh-snug);
+    }
+
+    .study-doubt-ledger__list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: var(--space-2);
+    }
+
+    .study-doubt-ledger__item {
+      display: grid;
+      gap: var(--space-2);
+      padding: var(--space-3) 0;
+      border-bottom: 1px solid var(--line);
+      min-width: 0;
+    }
+
+    .study-doubt-ledger__trail {
+      color: var(--text-muted);
+      font-weight: var(--fw-regular);
+    }
+
+    .study-doubt-ledger__meta {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2);
+    }
+
+    .study-doubt-ledger__quote {
+      margin: 0;
+      font-size: var(--fs-sm);
+      color: var(--text-muted);
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      overflow: hidden;
+    }
+
+    .study-doubt-ledger__q {
+      margin: 0;
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-medium);
+      color: var(--text);
+    }
+
+    .study-doubt-ledger__veil {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2);
+      padding: var(--space-2);
+      border: 1px dashed var(--line);
+      border-radius: var(--radius-sm);
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+
+    .study-doubt-ledger__answer {
+      font-size: var(--fs-sm);
+      min-width: 0;
+    }
+
+    .study-doubt-ledger__actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2);
+    }
+  }
+}

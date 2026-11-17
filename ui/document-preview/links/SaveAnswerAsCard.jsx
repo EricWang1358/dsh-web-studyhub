@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useContext, useState } from 'react';
 import { Button, InlineMessage } from '../../components/index.js';
 import { ui, uiFormat } from '../../i18n.js';
+import { StudyServicesContext } from '../../study-context.jsx';
 
 /** "已存为闪卡 · 打开这道题": the result of saving, with the jump to the saved (or already existing) card. */
 export function QaSavedLine({ result, onOpenCard }) {
@@ -19,7 +20,9 @@ export function QaSavedLine({ result, onOpenCard }) {
  * `deckId` is the deck picked in the learning panel; without one the course's 原文问答 deck is used. One
  * operation id per answer makes a second click or a retry harmless.
  */
-export default function SaveAnswerAsCard({ call, selection, question, answer, deckId = '', decks = [], ready = true, onSaved, onOpenCard, isCurrent = () => true }) {
+export default function SaveAnswerAsCard({ call: callProp, selection, question, answer, deckId = '', decks = [], ready = true, compact = false, onSaved, onOpenCard, isCurrent = () => true }) {
+  const study = useContext(StudyServicesContext);
+  const call = typeof callProp === 'function' ? callProp : (typeof study?.call === 'function' ? study.call : null);
   // The question as it was asked: the box may be edited after the answer arrived.
   const [asked] = useState(question), [operationId] = useState(() => crypto.randomUUID());
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [result, setResult] = useState(null);
@@ -44,7 +47,7 @@ export default function SaveAnswerAsCard({ call, selection, question, answer, de
     } catch (e) { setError(e.message); }
     finally { setBusy(false); }
   }
-  return <div className="study-qa-save">
+  return <div className="study-qa-save" data-compact={compact ? '' : undefined}>
     {result ? <QaSavedLine result={result} onOpenCard={onOpenCard} /> : <>
       <Button size="sm" busy={busy} disabled={!ready} onClick={save}
         title={ready ? undefined : ui('需要先启用出题组件，才能存成闪卡。')}>{busy ? ui('正在保存…') : error ? ui('重试保存') : ui('存成闪卡')}</Button>
