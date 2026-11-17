@@ -140,9 +140,9 @@ export default function CompactJobCard({ job, onStop, onDismiss, primary, links,
         {stoppable ? <Button variant="quiet" size="sm" aria-label={uiFormat('停止：{0}', [summary.title])} onClick={cancel}>{ui('停止')}</Button>
           : !live ? <Button variant="quiet" size="sm" aria-label={uiFormat('归档：{0}', [summary.title])} onClick={dismiss}>{ui('归档')}</Button> : null}
       </div>
-      {/* The other ways on, as the card's one kind of quiet button ([{ label, run (or onClick), here, disabled, tip, aria }]; tip: on hover and focus): the card keeps ONE primary button. Like it, a link that takes the learner somewhere ends in →, one that works where it stands (`here`) has none (#1073 round 9). */}
+      {/* The other ways on, as the card's one kind of quiet button ([{ label, run (or onClick), here, icon, disabled, tip, aria }]; tip: on hover and focus): the card keeps ONE primary button. Like it, a link that takes the learner somewhere ends in →, one that works where it stands (`here`) has none (#1073 round 9); one that hands over to the DSH main chat leads with `icon: 'external'` and has no arrow (round 10). */}
       {(links?.length > 0 || handOff) && <div className="cjc__links">{(links || []).map((link) => {
-        const button = <Button key={link.label} variant="quiet" size="sm" iconEnd={link.here ? undefined : 'arrow-right'} disabled={link.disabled} aria-label={link.aria} onClick={link.run ?? link.onClick}>{link.label}</Button>;
+        const button = <Button key={link.label} variant="quiet" size="sm" icon={link.icon} iconEnd={link.here || link.icon ? undefined : 'arrow-right'} disabled={link.disabled} aria-label={link.aria} onClick={link.run ?? link.onClick}>{link.label}</Button>;
         return link.tip ? <Tooltip key={link.label} layer content={link.tip} anchorClassName="cjc__link-anchor">{button}</Tooltip> : button;
       })}{handOff && <HandOff id="job.failed" shape="quiet" input={handOff} what={FAILED_HAND_OFF_WHAT} aria-label={uiFormat('发给主会话：{0}', [summary.title])} />}</div>}
       {/* A dismissal that did not go through says so next to the card that came back. */}

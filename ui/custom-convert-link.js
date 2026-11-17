@@ -9,7 +9,7 @@ export function useCustomLink(job) {
   const handOff = useHandOff(), [offered, setOffered] = useState(() => customOffered(job.documentId));
   const pages = job.sourceIds?.length ?? 0;
   if (job.status !== 'complete' || !job.documentId || !offersCustom(pages) || offered) return null;
-  return { label: ui(CUSTOM_BOOK_LABEL), tip: ui(CUSTOM_BOOK_WHAT), aria: uiFormat('{0}：{1}', [ui(CUSTOM_BOOK_LABEL), job.filename || job.title || '']),
+  return { label: ui(CUSTOM_BOOK_LABEL), icon: 'external', tip: ui(CUSTOM_BOOK_WHAT), aria: uiFormat('{0}：{1}', [ui(CUSTOM_BOOK_LABEL), job.filename || job.title || '']),
     run: async () => {
       if (await handOff.send('custom.start', { document: job.documentId, pages }) === 'failed') return;
       markCustomOffered(job.documentId);

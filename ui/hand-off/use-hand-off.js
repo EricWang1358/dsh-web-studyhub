@@ -115,7 +115,7 @@ export async function deliverToChat({ host, prompt, said = '', picture, notify =
  *   send(id, input, { said }) -> Promise<'filled'|'kept'|'copied'|'shown'|'failed'>: `input` may be an async function (read what the message needs first); `picture` in
  *     the input (reader.page, pictureLine) travels beside the text;
  *     a write before the hand-off stays at the call site (await act(..., { rethrow: true }), then send with `said`). 'failed': the input could not be read.
- *   action(id, input, { what, said }) -> { label, onClick, tip }: for a Feedback action/secondary, a CompactJobCard link, a FileDrop rejectAction.
+ *   action(id, input, { what, said }) -> { label, icon: 'external', onClick, tip }: for a Feedback action/secondary, a CompactJobCard link, a FileDrop rejectAction.
  *   item(id, input) -> { id, label, hint (the short rule), run }: a Menu item; Menu runs it when chosen (it does not reach onSelect; no dialog of its own).
  * An id the registry does not have throws at once.
  */
@@ -136,7 +136,7 @@ export function useHandOff() {
   }, [askInChat, notify]);
   const action = useCallback((id, input, { what = '', said = '' } = {}) => {
     if (!isHandOff(id)) throw new Error(`Unknown hand-off: ${id}`);
-    return { label: ui(HAND_OFF_LABEL), onClick: () => send(id, input, { said }), tip: handOffTip(what) };
+    return { label: ui(HAND_OFF_LABEL), icon: 'external', onClick: () => send(id, input, { said }), tip: handOffTip(what) };
   }, [send]);
   const item = useCallback((id, input) => {
     if (!isHandOff(id)) throw new Error(`Unknown hand-off: ${id}`);

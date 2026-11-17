@@ -544,7 +544,7 @@ export default function ImportHub({
   const customAction = item => {
     const offer = item.status === 'done' && !item.customSent ? customOfferOf(item.result) : null;
     if (!offer || customOffered(offer.document)) return undefined;
-    return { label: ui(CUSTOM_BOOK_LABEL), disabled: running, onClick: async () => {
+    return { label: ui(CUSTOM_BOOK_LABEL), icon: 'external', disabled: running, onClick: async () => {
       if (await handOff.send('custom.start', offer) === 'failed') return;
       markCustomOffered(offer.document);
       setItems(current => current.map(entry => entry.id === item.id ? { ...entry, customSent: true } : entry));

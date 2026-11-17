@@ -45,7 +45,7 @@ export function Toast({ tone, title, children, action, secondary, onDismiss, dis
         <span className="sh-toast__message">{children}</span>
       </div>
       {action && <Button variant={receipt ? 'quiet' : 'link'} size="sm" className="sh-toast__action" iconEnd={action.iconEnd} disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>}
-      {secondary && <Button variant="link" size="sm" className="sh-toast__action sh-toast__secondary" iconEnd={secondary.iconEnd} disabled={secondary.disabled} onClick={secondary.onClick}>{secondary.label}</Button>}
+      {secondary && <Button variant="link" size="sm" className="sh-toast__action sh-toast__secondary" icon={secondary.icon} iconEnd={secondary.iconEnd} disabled={secondary.disabled} onClick={secondary.onClick}>{secondary.label}</Button>}
       {onDismiss && <IconButton icon="close" size="sm" className="sh-toast__close" label={dismissText || dismissLabel(kind)} onClick={onDismiss} />}
       {timerRef && <span ref={timerRef} className="sh-toast__timer" aria-hidden="true" />}
     </div>
@@ -177,7 +177,7 @@ export function InlineMessage({ tone = 'error', title, children, action, seconda
   const kind = toneOf(tone);
   const actions = <>
     {action && withTip(action.tip, <Button variant="link" size="sm" className="sh-inline__action" icon={action.icon} iconEnd={action.iconEnd} disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>)}
-    {secondary && withTip(secondary.tip, <Button variant="link" size="sm" className="sh-inline__action sh-inline__secondary" iconEnd={secondary.iconEnd} disabled={secondary.disabled} onClick={secondary.onClick}>{secondary.label}</Button>)}
+    {secondary && withTip(secondary.tip, <Button variant="link" size="sm" className="sh-inline__action sh-inline__secondary" icon={secondary.icon} iconEnd={secondary.iconEnd} disabled={secondary.disabled} onClick={secondary.onClick}>{secondary.label}</Button>)}
   </>;
   const below = actionsBelow && (action || secondary);
   return (
@@ -211,7 +211,7 @@ export function Banner({ tone = 'info', title, children, action, secondary, onDi
         </div>
         {(action || secondary) && <div className="sh-banner__actions">
           {action && withTip(action.tip, <Button size="sm" variant={action.variant || 'secondary'} icon={action.icon} iconEnd={action.iconEnd} disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>)}
-          {secondary && withTip(secondary.tip, <Button size="sm" variant="quiet" disabled={secondary.disabled} onClick={secondary.onClick}>{secondary.label}</Button>)}
+          {secondary && withTip(secondary.tip, <Button size="sm" variant="quiet" icon={secondary.icon} disabled={secondary.disabled} onClick={secondary.onClick}>{secondary.label}</Button>)}
         </div>}
         {onDismiss && <IconButton icon="close" size="sm" className="sh-banner__close" label={dismissLabel(kind)} onClick={onDismiss} />}
       </div>
