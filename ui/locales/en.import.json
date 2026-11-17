@@ -22,6 +22,7 @@
   "「{0}」的页面": "Pages of “{0}”",
   "先添加讲义或笔记，再用它们出题。": "Add lecture notes or slides first, then generate questions from them.",
   "已选择 {0} / {1} 份资料": "{0} / {1} sources selected",
+  "已选择 {0} / {1} 份资料#one:1": "{0} / {1} source selected",
   "文本文件需要是 UTF-8 编码。请在编辑器里“另存为 UTF-8”后再导入。": "Text files must be UTF-8. Use “Save as UTF-8” in your editor, then import again.",
   "不支持这种文件。可以导入 PDF、Word、PowerPoint、Markdown、LaTeX、HTML、TXT、JSON 题组和字幕。": "This file type isn’t supported. You can import PDF, Word, PowerPoint, Markdown, LaTeX, HTML, TXT, JSON decks and subtitles.",
   "暂不支持旧版 .doc，请在 Word 里另存为 .docx 或 PDF 后再导入。": "Old-format .doc files aren’t supported. In Word, save as .docx or PDF, then import it.",

@@ -564,6 +564,7 @@
  "tests/icon-round4-browser.test.mjs": 62000,
  "tests/icon-round7-browser.test.mjs": 55000,
  "tests/icon-round8-browser.test.mjs": 135000,
+ "tests/icon-round9-browser.test.mjs": 60000,
  "tests/import-course.test.mjs": 10,
  "tests/import-hop-browser.test.mjs": 1570,
  "tests/import-hop.test.mjs": 50,
