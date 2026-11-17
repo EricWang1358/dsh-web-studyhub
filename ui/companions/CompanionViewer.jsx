@@ -730,7 +730,7 @@ export default function CompanionViewer({ modal, onClose }) {
                       <li key={card.cardId} className="sh-comp-terms__item">
                         <strong className="sh-comp-terms__term">{card.topic || card.deckTitle}</strong>
                         <div>{card.prompt}</div>
-                        <Button size="sm" variant="link" onClick={() => practicePrereqCard(card)}>{ui('闪回练一下这道题')}</Button>
+                        <Button size="sm" variant="link" iconEnd="arrow-right" onClick={() => practicePrereqCard(card)}>{ui('闪回练一下这道题')}</Button>
                       </li>
                     ))}
                   </ul>

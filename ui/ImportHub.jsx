@@ -591,7 +591,7 @@ export default function ImportHub({
         {!largeItem && scannedItem && <div ref={converterBox}><ConverterMain key={scannedItem.id} available={convertible} runnable file={scannedItem.file} courses={coursesOf(scannedItem.file)}
           jobs={data?.jobs} onOpenSettings={settingsFor} onStarted={job => conversionStarted(job, scannedItem)} why={scannedItem.error} scanned /></div>}
         {staged && <>
-          <Button variant="link" size="sm" onClick={() => { setConversionOpen(false); setConversionHistory(false); setConversionFile(null); }}>{ui('返回文件导入')}</Button>
+          <Button variant="link" size="sm" icon="arrow-left" onClick={() => { setConversionOpen(false); setConversionHistory(false); setConversionFile(null); }}>{ui('返回文件导入')}</Button>
           <PdfConversion available={convertible} file={conversionFile} onFile={setConversionFile} courses={coursesOf(conversionFile)} onStarted={conversionStarted} onOpenSettings={settingsFor}
           jobs={data?.jobs} historyOpen={conversionHistory} onOpenSources={onOpenSources} onOpenJob={job => void conversionStarted({ jobId: job.id, filename: job.filename, pages: job.pages, route: job.route, converter: job.converter })}
           onChanged={() => onImported?.()} />

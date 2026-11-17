@@ -56,7 +56,7 @@ export default function RereadLine({ data }) {
     <p className="today-reread" data-reread={items.length}>
       <span>{ui('划过的重点')}</span>
       <Tooltip layer content={uiFormat('3 天没再看、所在章节或页有到期或薄弱题：{0}', [places(items)])}>
-        <Button variant="link" size="sm" wrap lock={busy} data-usage="home.reread" onClick={open}>{uiFormat('重读 {0} 段', [items.length])}</Button>
+        <Button variant="link" size="sm" wrap iconEnd="arrow-right" iconEndClassName="sh-icon--inline sh-icon--trail" lock={busy} data-usage="home.reread" onClick={open}>{uiFormat('重读 {0} 段', [items.length])}</Button>
       </Tooltip>
     </p>
   );

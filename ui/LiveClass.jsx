@@ -180,7 +180,7 @@ export function CaptureHelp({ kind, facts, disabled, activeOp = '', lock = false
   </div>;
 }
 
-export default function LiveClass({ data, visible, onJobs, onSettings, onSources, initialReadiness = null, initialLocal = null, initialLoopback = null, initialAppHost, initialKind = 'microphone', initialSession = null }) {
+export default function LiveClass({ data, visible, onQueued, onSettings, onSources, initialReadiness = null, initialLocal = null, initialLoopback = null, initialAppHost, initialKind = 'microphone', initialSession = null }) {
   const { call } = useStudy();
   const language = useUiLanguage();
   useInjectCss(css, 'study-live-class');
@@ -374,7 +374,7 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
               onClick={() => void perform('generate', async () => {
                 const result = await call('live.generate', { id: session.id, segmentIds: chosen.map((segment) => segment.id), count });
                 toast.success(ui('已加入出题任务；课堂实录会继续。草稿会出现在「学习库 › 待发布草稿」，进度在「任务」。'));
-                setSelected(new Set()); await client.poll(); onJobs?.(result);
+                setSelected(new Set()); await client.poll(); onQueued?.(result);
               })}>{ui('选中内容出题')}</Button></Why></div></div>
       </div>
       {correction && <LiveNotes correction={correction} disabled={disabled} onSentence={id => {
@@ -392,11 +392,11 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
               // Said plainly either way: the notes are saved, or they are not (no model, or the model gave nothing usable).
               else if (saved?.noteSourceId) toast.success(ui('已保存文字稿和课堂笔记。'));
               else toast.warning(ui('已保存文字稿，但没有保存课堂笔记：没有可用的文字模型，或模型没有给出可用的笔记。'));
-              onJobs?.(saved?.jobId ? saved : undefined);
+              onQueued?.(saved?.jobId ? saved : undefined);
             })}>{ui('保存为资料')}</Button></Why>
           <Why reason={ui('再校对一遍整份文字、按段翻译并起标题，需要文字模型，比较慢；一般点「保存为资料」就够了。')}>
             <Button variant="quiet" busy={activeOp === 'save-proofread'} lock={disabled} onClick={() => void perform('save-proofread', async () => {
-              await call('live.save', { id: session.id, proofread: true, paidOnly }); toast.success(ui('已加入校对任务，完成后会保存为资料。')); onJobs?.();
+              await call('live.save', { id: session.id, proofread: true, paidOnly }); toast.success(ui('已加入校对任务，完成后会保存为资料。')); onQueued?.();
             })}>{ui('校对后保存')}</Button></Why>
           <Button iconEnd="arrow-right" variant="link" size="sm" onClick={onSources}>{ui('打开资料')}</Button></div>}</footer>
     </>}

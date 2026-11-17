@@ -151,7 +151,7 @@ const STARTS_RUN = /\b(?:act|call)\(\s*(['"])(?:review|exam)\.start\1/;
     `refresh`): it saves, removes, undoes, retries, pauses, copies, exports … what is shown, and the learner stays. The verbs that may go somewhere (start, run,
     continue, resume, next, generate, open, edit, again, check) are not here: those stay with the words; nor is a named retry (`retryGeneration` puts the failed
     request back on the 创建题组 form), only a bare `retry` / `onRetry`. */
-const HERE_VERB = /^(?:retry$|(?:save|remove|delete|archive|unarchive|restore|undo|rescue|pause|reset|clear|discard|create|add|copy|export|download|install|upgrade|refresh|recheck|apply|rename|patch|update|sync|accept|attach|zoom|test|verify|pin|move|dismiss|cancel|close|toggle|select|focus|fix|answer|later|mark|flag|rate|record|stop|skip|hide|keep|choose|pick|load|reload|translate|retranslate|split|merge|unlink|vote)(?:[A-Z]\w*)?$)/;
+const HERE_VERB = /^(?:retry$|(?:save|remove|delete|archive|unarchive|restore|undo|rescue|pause|reset|clear|discard|create|add|copy|export|download|install|upgrade|refresh|recheck|apply|rename|patch|update|sync|accept|attach|zoom|test|verify|pin|move|dismiss|cancel|close|toggle|select|focus|fix|answer|later|mark|flag|rate|record|stop|skip|hide|keep|load|reload|translate|retranslate|split|merge|unlink|vote)(?:[A-Z]\w*)?$)/;
 const hereVerb = (name) => HERE_VERB.test(name.replace(/^(?:on|handle)(?=[A-Z])/, '').replace(/^[A-Z]/, (ch) => ch.toLowerCase()));
 /** The handlers that act where they stand, when the page defines or owns them (an undotted call): a setter of this page's state, a job or data action (act, core.act),
     a toggle, a fold, a focus, a copy, a close. A dotted call (`host.setModal`) is not the page's own. */
