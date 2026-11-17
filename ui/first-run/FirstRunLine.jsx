@@ -3,6 +3,7 @@ import { ui, uiFormat } from '../i18n.js';
 import { AddSourceButton, Button, Hint, Icon, Tooltip, addSourceAction } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
 import { useStudy } from '../study-context.jsx';
+import { useLiveEffect } from '../use-async.js';
 import { modelSetupCopy } from '../ModelSetupGate.jsx';
 import { recheckSentence, runRecheck } from './recheck.js';
 import { useModelSettingsLabel } from '../ModelErrorNote.jsx';
@@ -37,17 +38,16 @@ export function modelLabelParts(label) {
     words change or the web font has loaded. ui/use-cut.js answers the width alone; the model step of the compact card is cut by its second line. */
 function useClamped(ref, text) {
   const [cut, setCut] = useState(false);
-  useEffect(() => {
+  useLiveEffect((isLive) => {
     const element = ref.current;
     if (!element) return undefined;
-    let live = true;
-    const measure = () => { if (live) setCut(element.scrollWidth > element.clientWidth + 1 || element.scrollHeight > element.clientHeight + 1); };
+    const measure = () => { if (isLive()) setCut(element.scrollWidth > element.clientWidth + 1 || element.scrollHeight > element.clientHeight + 1); };
     measure();
     // The web font (Inter, for Latin and digits) may arrive after the first measure and change the width of the words without resizing the row (#1073 round 9).
     document.fonts?.ready?.then(measure);
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
     observer?.observe(element);
-    return () => { live = false; observer?.disconnect(); };
+    return () => { observer?.disconnect(); };
   }, [ref, text]);
   return cut;
 }
