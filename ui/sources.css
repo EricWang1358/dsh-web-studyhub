@@ -79,9 +79,10 @@
     .source-doc__index > * { min-width: 0; max-width: 100%; }
     .source-doc__icon { flex: none; margin-top: var(--space-half); color: var(--accent-text); }
     /* One line of buttons, each never narrower than its longest word: where they do not fit, a label breaks at a space (a zh label keeps its words whole), never
-       inside a word, and no button drops alone onto a line of its own. */
+       inside a word, no button drops alone onto a line of its own, and a wrapped label's lines start beside its icon (text-wrap: pretty keeps the last word
+       company without the wide balanced box that centred the words away from the icon). */
     .source-doc__line > .source-doc__actions { grid-column: -2; display: flex; flex-wrap: nowrap; min-width: 0; align-items: center; gap: var(--space-2); }
-    .source-doc__actions .source-doc__action { white-space: normal; word-break: keep-all; text-wrap: balance; }
+    .source-doc__actions .source-doc__action { white-space: normal; word-break: keep-all; text-wrap: pretty; text-align: start; }
     .source-doc__actions .source-row-actions > summary {
       padding: var(--space-1-5) var(--space-2-5);
       border-radius: var(--radius-sm);
