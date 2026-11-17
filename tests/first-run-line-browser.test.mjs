@@ -1,4 +1,4 @@
-/* global document, window, getComputedStyle -- page.evaluate callbacks run in the browser */
+/* global document, window, getComputedStyle, NodeFilter -- page.evaluate callbacks run in the browser */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
