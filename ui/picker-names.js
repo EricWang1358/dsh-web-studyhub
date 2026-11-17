@@ -1,4 +1,5 @@
 import { useLayoutEffect } from 'react';
+import { liveScope } from './use-async.js';
 
 /* The names on the rows' facts lines of one picker follow one rule for the whole list (#1084, round 8): a run of rows reads the same. Each row lays its
    names out on its own (ui/source-picker.css: the first course whole or shortened to 6em at least, the names after it whole or on the hidden line); then
@@ -43,8 +44,8 @@ export function useNamesFit(ref, key) {
     const list = root.querySelector('.source-picker__list');
     if (list) observer.observe(list);
     // A web font that arrives later changes the words' widths, not the boxes the observer watches.
-    let live = true;
-    document.fonts?.ready?.then(() => { if (live) look(); });
-    return () => { live = false; observer.disconnect(); };
+    const scope = liveScope();
+    document.fonts?.ready?.then(() => { if (scope.isLive()) look(); });
+    return () => { scope.end(); observer.disconnect(); };
   }, [ref, key]);
 }
