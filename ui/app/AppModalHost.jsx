@@ -9,10 +9,16 @@ import FlagDialog from './modals/FlagDialog.jsx';
 import SourceListDialog from './modals/SourceListDialog.jsx';
 import SourceReaderDialog from './modals/SourceReaderDialog.jsx';
 import CompanionViewer from '../companions/CompanionViewer.jsx';
+import { useCompanionInlinePractice } from './modals/CompanionInlineRun.jsx';
 import CompanionBuildDialog from '../companions/CompanionBuildDialog.jsx';
 import { practiceArgs } from '../learning-navigation.js';
 import { appendFocus } from '../generate-form.js';
 import { useApp } from './app-context.js';
+
+function CompanionModal({ modal, onClose }) {
+  const inlinePractice = useCompanionInlinePractice();
+  return <CompanionViewer key={modal.id || modal.companionId || 'companion'} modal={modal} onClose={onClose} inlinePractice={inlinePractice} />;
+}
 
 /* The app's dialogs, each in its own file. `modal` (library state) says which one is open; any other value is the reader. */
 const DIALOGS = {
@@ -21,7 +27,7 @@ const DIALOGS = {
     onOpenSource={(source) => app.set.setModal({ type: 'source', source, ...(modal.pickPages ? { pickPages: true } : {}), ...(modal.back ? { back: true } : {}) })} />,
   flag: ({ onClose, app }) => <FlagDialog run={app.session.run} onClose={onClose} />,
   source: ({ modal, onClose }) => <SourceReaderDialog modal={modal} onClose={onClose} />,
-  companion: ({ modal, onClose }) => <CompanionViewer key={modal.id || modal.companionId || 'companion'} modal={modal} onClose={onClose} />,
+  companion: ({ modal, onClose }) => <CompanionModal modal={modal} onClose={onClose} />,
   companionBuild: ({ modal, onClose }) => <CompanionBuildDialog key={modal.course || 'companionBuild'} modal={modal} onClose={onClose} />,
   focusIntake: ({ modal, onClose, app }) => (
     <FocusIntakeDialog

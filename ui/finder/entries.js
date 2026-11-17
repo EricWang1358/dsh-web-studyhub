@@ -146,6 +146,10 @@ export const FEATURES = Object.freeze([
     aliases: ['伴学', '伴学页', '伴学课', '伴学包', '参数沙盒', '反例矩阵', '矢量框图', '泳道', '跨学科', '挂载 html', 'companion', 'companions', 'interactive', 'interactive companion', 'interactive companions', 'sandbox', 'dialectic', 'mechanism', 'empirical', 'html', 'lesson', 'html lesson'],
     path: ['资料', '交互伴学'],
     what: '在「资料」页右上角（窄窗口里在「更多」里）或任意课程「总纲」顶部点「交互伴学」：可为数学、哲学、机械工程、计算机等任意学科生成独立自包含的逐句互动 HTML 伴学课（含参数沙盒、思辨反例矩阵、分步框图、公式推导与零消耗导题），也可原位挂载本地伴学目录（仅挂载不需要 AI 模型）。' }),
+  feature({ id: 'companion-slide-check', area: 'practice', title: '交互伴学当页随堂自测', page: 'settings', anchors: ['settings-practice'],
+    aliases: ['伴学自测', '随堂练', '随堂自测', '当页自测', 'companion quiz', 'slide check', 'inline practice'],
+    path: ['设置', '练习', '交互伴学开启当页随堂自测'],
+    what: '在「设置 › 练习」开启后，交互伴学抽屉会匹配当前页关联题目并支持不关伴学窗口直接在侧栏「当页自测」，课程伴学栏也会显示配套题直达入口，不消耗模型。' }),
 
   // ── 出题 ──
   feature({ id: 'json-import', area: 'generate', title: '导入 JSON 题组', page: 'generate', anchors: ['generate-json'],

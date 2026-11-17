@@ -7,6 +7,8 @@ import { useCopyFeedback } from '../use-copy-feedback.js';
 import { useUndoable } from '../use-undoable.js';
 import { useHandOff } from '../hand-off/use-hand-off.js';
 import { AppContext } from '../app/app-context.js';
+import { companionSlideCheck } from '../../lib/practice-settings.js';
+import { selectCompanionPracticeCards } from './companion-cards.js';
 import { DiagramFrame } from '../diagram-frame.js';
 import Markdown from '../Markdown.jsx';
 import { Badge, Button, Checkbox, Dialog, Disclosure, Field, IconButton, InlineMessage, LoadingState, Select, TextArea, TextInput } from '../components/index.js';
@@ -35,9 +37,9 @@ function feedbackTagLabel(tag) {
   return ui('没看懂');
 }
 
-export default function CompanionViewer({ modal, onClose }) {
+export default function CompanionViewer({ modal, onClose, inlinePractice = null }) {
   useInjectCss(css, 'study-companions');
-  const { call, host, notify } = useStudy();
+  const { call, host, busy, notify } = useStudy();
   const app = useContext(AppContext);
   const refresh = app?.core?.refresh;
   const appTheme = app?.shell?.resolvedTheme;
@@ -101,6 +103,8 @@ export default function CompanionViewer({ modal, onClose }) {
   const [ledgerOpen, setLedgerOpen] = useState(true);
   const [feedbackSeq, setFeedbackSeq] = useState(0);
   const [feedbackState, setFeedbackState] = useState(() => modal?.initialFeedbackState || { loading: false, total: 0, open: 0, items: [], error: '' });
+  const [inlineRound, setInlineRound] = useState(null);
+  useEffect(() => { setInlineRound(null); }, [companionId]);
 
   const askLabel = ui('记疑问');
   const selectionLabel = ui('就这句提问');
@@ -218,6 +222,7 @@ export default function CompanionViewer({ modal, onClose }) {
           codeSlice: String(c.codeSlice || '').slice(0, 1500),
         });
         setDrawerOpen(true);
+        setInlineRound(null);
         setAskError('');
         setInquiryFocusSeq(n => n + 1);
         if (typeof requestAnimationFrame === 'function') {
@@ -515,6 +520,34 @@ export default function CompanionViewer({ modal, onClose }) {
     });
   }, [companionId, courseName, question, send, slideCtx, state.companion?.title]);
 
+  const slideCheckOn = companionSlideCheck(app?.data?.settings?.practice);
+  const InlineRunView = inlinePractice?.Run;
+  const canInlineRun = Boolean(slideCheckOn && InlineRunView && inlinePractice?.load);
+  const { slideCards, lessonCards } = useMemo(
+    () => (slideCheckOn ? selectCompanionPracticeCards(state.relatedCards || [], { companionId, slide: slideCtx.slide }) : { slideCards: [], lessonCards: [] }),
+    [companionId, slideCheckOn, slideCtx.slide, state.relatedCards],
+  );
+  const drawerCards = slideCards.length > 0 ? slideCards : lessonCards;
+  const startInlineCheck = useCallback((cards, roundLabel) => {
+    const scope = (cards || []).slice(0, 20).map(card => ({ deckId: card.deckId, cardId: card.cardId })).filter(ref => ref.deckId && ref.cardId);
+    if (!scope.length || !inlinePractice?.load) return;
+    inlinePractice.load(scope, (run) => {
+      setDrawerOpen(true);
+      setInlineRound({ started: run, label: roundLabel });
+    });
+  }, [inlinePractice]);
+  const toggleDrawer = useCallback(() => {
+    if (drawerOpen) {
+      setDrawerOpen(false);
+      if (inlineRound) {
+        setInlineRound(null);
+        Promise.resolve(refresh?.()).catch(() => {});
+      }
+    } else {
+      setDrawerOpen(true);
+    }
+  }, [drawerOpen, inlineRound, refresh]);
+
   const practicePrereqCard = useCallback(async cardRef => {
     try {
       const run = await call('review.start', { mode: 'path', fresh: true, scope: [{ deckId: cardRef.deckId, cardId: cardRef.cardId }] });
@@ -630,9 +663,25 @@ export default function CompanionViewer({ modal, onClose }) {
               label={expanded ? ui('退出铺满视图') : ui('铺满伴学舞台')}
               onClick={() => setExpanded(v => !v)}
             />
-            <Button size="sm" variant={drawerOpen ? 'primary' : 'secondary'} onClick={() => setDrawerOpen(v => !v)}>
+            <Button size="sm" variant={drawerOpen ? 'primary' : 'secondary'} onClick={toggleDrawer}>
               {drawerOpen ? ui('收起解惑栏') : ui('查前置 / 记疑问')}
             </Button>
+            {canInlineRun && drawerCards.length > 0 && (
+              <Button
+                size="sm"
+                variant="secondary"
+                wrap
+                lock={busy}
+                onClick={() => startInlineCheck(
+                  drawerCards,
+                  slideCards.length > 0
+                    ? uiFormat('第 {0} 页 · {1} 道题', [slideCtx.slide, Math.min(20, slideCards.length)])
+                    : uiFormat('{0} · {1} 道题', [state.companion?.title || ui('本课'), Math.min(20, lessonCards.length)]),
+                )}
+              >
+                {slideCards.length > 0 ? uiFormat('当页自测 ({0})', [slideCards.length]) : uiFormat('本课自测 ({0})', [lessonCards.length])}
+              </Button>
+            )}
             {state.file && (
               <Button size="sm" variant="quiet" onClick={copyPath.copy}>
                 {copyPath.copied ? ui('已复制路径') : ui('复制文件路径')}
@@ -662,16 +711,70 @@ export default function CompanionViewer({ modal, onClose }) {
           </div>
           {drawerOpen && (
             <aside className="sh-comp-drawer" aria-label={ui('伴学解惑栏')}>
-              <div className="sh-comp-drawer__head">
-                <h4 className="sh-comp-drawer__title">{ui('伴学解惑与防混拾遗')}</h4>
-                <span className="sh-comp-drawer__loc">{uiFormat('第 {0} 页', [slideCtx.slide])}</span>
-              </div>
+              {canInlineRun && inlineRound ? (
+                <InlineRunView
+                  key={inlineRound.started?.id || 'companion-inline'}
+                  started={inlineRound.started}
+                  label={inlineRound.label}
+                  companionId={companionId}
+                  onJumpSlide={jumpToSlide}
+                  onClose={() => { setInlineRound(null); Promise.resolve(refresh?.()).catch(() => {}); }}
+                  shown={drawerOpen}
+                />
+              ) : <>
+                <div className="sh-comp-drawer__head">
+                  <h4 className="sh-comp-drawer__title">{ui('伴学解惑与防混拾遗')}</h4>
+                  <span className="sh-comp-drawer__loc">{uiFormat('第 {0} 页', [slideCtx.slide])}</span>
+                </div>
 
-              {slideCtx.quote && (
-                <blockquote className="sh-comp-drawer__quote">{slideCtx.quote}</blockquote>
-              )}
+                {slideCtx.quote && (
+                  <blockquote className="sh-comp-drawer__quote">{slideCtx.quote}</blockquote>
+                )}
 
-              {hasLinkedFeedback && (
+                {canInlineRun && drawerCards.length > 0 && (
+                  <section className="sh-comp-drawer__section" data-companion-drill="">
+                    <div className="sh-comp-drill__head">
+                      <h5 className="sh-comp-drawer__sub">{slideCards.length > 0 ? ui('当页配套自测') : ui('本课配套自测')}</h5>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        wrap
+                        lock={busy}
+                        onClick={() => startInlineCheck(
+                          drawerCards,
+                          slideCards.length > 0
+                            ? uiFormat('第 {0} 页 · {1} 道题', [slideCtx.slide, Math.min(20, slideCards.length)])
+                            : uiFormat('{0} · {1} 道题', [state.companion?.title || ui('本课'), Math.min(20, lessonCards.length)]),
+                        )}
+                      >
+                        {uiFormat('抽屉自测 ({0})', [Math.min(20, drawerCards.length)])}
+                      </Button>
+                    </div>
+                    <ul className="sh-comp-terms">
+                      {drawerCards.slice(0, 4).map(card => (
+                        <li key={`${card.deckId}:${card.cardId}`} className="sh-comp-terms__item">
+                          <div className="sh-comp-terms__top">
+                            <strong className="sh-comp-terms__term">{card.topic || card.deckTitle}</strong>
+                            {card.slide >= 1 && <Badge size="sm" tone="neutral">{uiFormat('第 {0} 页', [card.slide])}</Badge>}
+                          </div>
+                          <div>{card.prompt}</div>
+                          <div className="sh-comp-terms__actions">
+                            <Button
+                              size="sm"
+                              variant="link"
+                              lock={busy}
+                              onClick={() => startInlineCheck([card], uiFormat('第 {0} 页 · {1}', [card.slide || slideCtx.slide, card.topic || card.deckTitle || ui('单题自测')]))}
+                            >
+                              {ui('随堂自测')}
+                            </Button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
+
+                {hasLinkedFeedback && (
                 <section className="sh-comp-drawer__section">
                   <Disclosure
                     open={ledgerOpen}
@@ -782,6 +885,7 @@ export default function CompanionViewer({ modal, onClose }) {
                   </div>
                 </section>
               )}
+              </>}
             </aside>
           )}
         </div>

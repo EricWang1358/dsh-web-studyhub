@@ -18,6 +18,8 @@ function parseSlideFromQuote(quote) {
 /**
  * Resolve a card's interactive companion deep-link target (`{ companionId, course, slide, anchor, label, companionTitle }`),
  * returning `null` when the card is not linked to a companion or when the companion was removed / archived.
+ *
+ * @param {{ card?: Record<string, any>, solution?: Record<string, any>, courses?: Array<Record<string, any>>, sources?: Array<Record<string, any>>, fallbackCourse?: string }} [opts]
  */
 export function resolveCompanionTarget({ card, solution, courses, sources, fallbackCourse = '' } = {}) {
   const explicit = card?.companionRef || solution?.companionRef;
