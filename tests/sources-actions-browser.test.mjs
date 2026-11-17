@@ -1,4 +1,4 @@
-/* global localStorage, getComputedStyle, document */
+/* global localStorage, getComputedStyle, document, NodeFilter */
 // A 资料 row with several actions (#1083, round 7): a material a published deck uses but does not fully cover offers 为没覆盖的部分补题 beside 从这份资料出题,
 // and one with an interactive companion also offers 打开交互伴学页. Round 6 squeezed those into a column of single letters at en 1000 and pushed a button over
 // the sidebar at en 580. At every width from 420 to 1440, in zh and en, on every row:
@@ -145,6 +145,17 @@ test('a 资料 row with several actions stays tidy at every width in zh and en',
       // (f) one look for the row's one action: the top-up and 从这份资料出题 both carry their icon.
       const bare = await page.evaluate(() => [...document.querySelectorAll('.source-doc__actions .source-doc__action')].filter(b => b.getClientRects().length && !b.querySelector('svg')).map(b => b.textContent.trim()));
       for (const text of bare) faults.push(`${at}: the row action "${text}" has no icon`);
+      // (h) the icon stays beside its words when a label wraps: the gap from the icon to the nearest line of text is the button's own gap, not a centred hole.
+      const apart = await page.evaluate(() => [...document.querySelectorAll('.source-doc__actions .source-doc__action')].filter(b => b.getClientRects().length && b.querySelector('svg')).map(button => {
+        const icon = button.querySelector('svg').getBoundingClientRect();
+        const walker = document.createTreeWalker(button, NodeFilter.SHOW_TEXT);
+        let left = Infinity, right = -Infinity;
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) { if (!node.data.trim()) continue; const range = document.createRange(); range.selectNodeContents(node); for (const r of range.getClientRects()) if (r.width > 0) { left = Math.min(left, r.left); right = Math.max(right, r.right); } }
+        const box = button.getBoundingClientRect();
+        return { text: button.textContent.trim().slice(0, 30), gap: left - icon.right, hole: box.right - parseFloat(getComputedStyle(button).paddingRight) - right };
+      }).filter(found => found.gap > 12 || found.hole > 16));
+      // and the button hugs its words: no empty band after the longest line (a wrapped label's box is otherwise as wide as the room it was offered).
+      for (const found of apart) faults.push(`${at}: "${found.text}": the icon is ${found.gap.toFixed(1)}px from its words, and ${found.hole.toFixed(1)}px is empty after them`);
       // (g) a cut courses piece's tip also opens when the title button has keyboard focus, not only on hover.
       const cutAt = rows.findIndex(row => row.facts[0]?.cut);
       if (cutAt >= 0) {
@@ -153,6 +164,25 @@ test('a 资料 row with several actions stays tidy at every width in zh and en',
         await page.waitForTimeout(80);
         const shown = await page.locator('.source-doc').nth(cutAt).evaluate(row => !!row.querySelector('.source-doc__facts-tip [role="tooltip"]')?.matches(':popover-open'));
         if (!shown) faults.push(`${at}: ${rows[cutAt].title}: the cut courses tip does not open on keyboard focus of the title`);
+        // (i) a second cut piece hovered while the first is open: one card on screen, never two.
+        const other = rows.findIndex((row, index) => index !== cutAt && row.facts[0]?.cut);
+        if (other >= 0) {
+          await page.locator('.source-doc').nth(other).locator('.source-doc__facts-tip').hover();
+          await page.waitForTimeout(700);
+          const cards = await page.evaluate(() => [...document.querySelectorAll('.source-doc__facts-tip [role="tooltip"]')].filter(tip => tip.matches(':popover-open')).length);
+          if (cards > 1) faults.push(`${at}: ${cards} courses tips are on screen at once`);
+          await page.mouse.move(0, 0);
+        }
+        // (j) after a rename is opened and cancelled (F2, Esc), the cut piece still has its tip on keyboard focus.
+        await page.locator('.source-doc').nth(cutAt).locator('.source-main').focus();
+        await page.keyboard.press('F2');
+        await page.keyboard.press('Escape');
+        await page.waitForTimeout(80);
+        await page.keyboard.press('Shift');
+        await page.locator('.source-doc').nth(cutAt).locator('.source-main').focus();
+        await page.waitForTimeout(80);
+        const after = await page.locator('.source-doc').nth(cutAt).evaluate(row => !!row.querySelector('.source-doc__facts-tip [role="tooltip"]')?.matches(':popover-open'));
+        if (!after) faults.push(`${at}: ${rows[cutAt].title}: after F2 then Esc the cut courses tip no longer opens`);
       }
       assert.deepEqual(errors, [], `${at}: page errors`);
       await page.close();

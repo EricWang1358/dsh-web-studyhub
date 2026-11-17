@@ -61,10 +61,10 @@ test('#1083: the index badge has one place on every row, the status line, in a s
   assert.match(jsx, /onCompanion=\{companionTarget && openModal \?/, 'the interactive companion in 更多');
   assert.equal(jsx.match(/ui\('打开交互伴学页'\)/g).length, 1, 'and nowhere else on the row');
   assert.match(css, /\.source-doc__line > \.source-doc__actions \{[^}]*flex-wrap: nowrap;/, 'one line of buttons, never one alone on a line');
-  assert.match(css, /\.source-doc__actions \.source-doc__action \{ white-space: normal; word-break: keep-all; text-wrap: balance; \}/, 'a label breaks only at a space, in balanced lines (no lone last word); a zh label keeps its words whole');
+  assert.match(css, /\.source-doc__actions \.source-doc__action \{ white-space: normal; word-break: keep-all; text-wrap: pretty; text-align: start; \}/, 'a label breaks only at a space, with no lone last word, its lines beside its icon; a zh label keeps its words whole');
   assert.doesNotMatch(css, /\.source-doc__actions?[^{]*\{[^}]*overflow-wrap: anywhere/, 'no button is squeezed into a column of letters');
   assert.match(css, /\.source-doc__actions \{[^}]*justify-content: safe flex-end;/, 'a narrow row never pushes a button out past its start');
-  assert.match(jsx, /<Tooltip layer anchorClassName="source-doc__facts-tip" content=\{coursesCut \? coursesText : ''\} forceOpen=\{titleFocus\}>/, 'a cut courses piece says all of it on hover and on keyboard focus of the title');
+  assert.match(jsx, /<Tooltip layer group="source-facts" anchorClassName="source-doc__facts-tip" content=\{coursesCut \? coursesText : ''\} forceOpen=\{titleFocus\}>/, 'a cut courses piece says all of it on hover and on keyboard focus of the title, one card at a time');
   const hover = css.slice(css.indexOf('@media (hover: hover) and (pointer: fine)'), css.indexOf('/* A narrow 资料 page'));
   assert.doesNotMatch(hover, /source-doc__actions|--source-doc-veil/, 'hover only tints the row: no actions laid over it');
   assert.doesNotMatch(css, /\.source-doc__actions \{[^}]*(position: absolute|opacity: 0)/, 'no overlay, no hidden actions');
