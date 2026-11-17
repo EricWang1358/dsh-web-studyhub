@@ -37,7 +37,7 @@ export default function CrunchDay({ course, daysLeft, day, points, max = Infinit
       </ul>}
       {rest > 0 && onMore && <Button variant="link" size="sm" className="crunch-day__more" onClick={onMore}>{uiFormat('还有 {0} 节', [rest])}</Button>}
       {(looks || day.mode === 'mock' || points.length > 0) && <div className="crunch-day__bar">
-        {looks && onFlip && <Button size="sm" variant="secondary" icon="book" onClick={onFlip}>{ui('翻看全书')}</Button>}
+        {looks && onFlip && <Button size="sm" variant="secondary" iconEnd="arrow-right" onClick={onFlip}>{ui('翻看全书')}</Button>}
         {(points.length > 0 || day.mode === 'mock') && <MockPaper course={course} pointIds={points.length ? points.map(point => point.id) : undefined} onStarted={onMockStarted} />}
       </div>}
     </div>
