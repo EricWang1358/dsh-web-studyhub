@@ -31,7 +31,7 @@ test('a round that kept questions and credited no section says so, in Chinese an
   const zh = inLanguage('zh', () => m.copy.runEventText('round-end', OWNER_ROUND));
   assert.match(zh, /补做第 7 轮完成：保留 5 题，新覆盖 0\/15 个小节 · 5 道题通过了审阅，但没有对上任何小节 · 覆盖 76%/);
   const en = inLanguage('en', () => m.copy.runEventText('round-end', ENGLISH_ROUND(OWNER_ROUND)));
-  assert.match(en, /5 question\(s\) passed review but were not credited to any section/);
+  assert.match(en, /5 questions passed review but were not credited to any section/);
   assert.doesNotMatch(en, han);
   const quiet = inLanguage('zh', () => m.copy.runEventText('round-end', { ...OWNER_ROUND, uncredited: undefined, covered: 3 }));
   assert.doesNotMatch(quiet, /没有对上任何小节/, 'a round that credited sections says nothing of the kind');
@@ -72,7 +72,7 @@ test('a run that stops because a round kept questions and credited none says so,
   const stop = { reason: 'no-progress', round: 7, left: 26, uncredited: 5 };
   assert.equal(inLanguage('zh', () => m.copy.stopText(stop)), '第 7 轮保留了 5 道题，但它们没有对上任何还没有题的小节，没有新的进展，所以停下了，免得白白重复花费。还有 26 个小节没有题，可以点「为没覆盖的部分补题」再试。');
   const en = inLanguage('en', () => m.copy.stopText(stop));
-  assert.match(en, /Round 7 kept 5 question\(s\), but none of them was credited to a section that had no question/);
+  assert.match(en, /Round 7 kept 5 questions, but none of them was credited to a section that had no question/);
   assert.doesNotMatch(en, han);
   assert.match(inLanguage('zh', () => m.copy.stopText({ reason: 'no-progress', round: 7, left: 26 })), /重试后仍没有补到新的小节/, 'a stop without the number reads as it did');
 });

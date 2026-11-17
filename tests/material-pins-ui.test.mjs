@@ -61,7 +61,7 @@ test('the page says how many are pinned, and what the groups are about', () => {
   assert.match(render(withPins(['source:n1'])), /1 份 · \d+ 字符/);
   assert.match(render(withPins(['source:n1', 'source:n2', 'source:n3', 'source:n4'])), /共 4 份资料，全部置顶/);
   inLanguage('en', () => {
-    assert.match(render(withPins(['source:n1'])), /4 source\(s\), 1 pinned, the rest grouped by course \(2 group\(s\)\)/);
+    assert.match(render(withPins(['source:n1'])), /4 sources, 1 pinned, the rest grouped by course \(2 groups\)/);
     const english = render(withPins(['source:n1']));
     assert.doesNotMatch(/sh-page-header__description">([^<]*)</.exec(english)[1] + heads(english)[0].text, han);
   });

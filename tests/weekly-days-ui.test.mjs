@@ -23,5 +23,5 @@ test('after the last week they are past the plan\'s end, not placed anywhere', (
   const html = render(over);
   assert.doesNotMatch(html, /已排进本周/);
   assert.match(html, /3 节过了计划的最后一周还没学完/);
-  assert.match(render(over, 'en'), /3 point\(s\) were not learnt by the end of the plan/);
+  assert.match(render(over, 'en'), /3 points were not learnt by the end of the plan/);
 });
