@@ -443,6 +443,7 @@
  "tests/generate-advanced-group.test.mjs": 600,
  "tests/generate-flow-browser.test.mjs": 2070,
  "tests/generate-opening.test.mjs": 60,
+ "tests/generate-margin-browser.test.mjs": 1500,
  "tests/generate-page-selection.test.mjs": 30,
  "tests/generate-picker-rows-browser.test.mjs": 600,
  "tests/generate-picker-sweep-browser.test.mjs": 11000,
