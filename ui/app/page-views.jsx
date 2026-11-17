@@ -213,7 +213,8 @@ function ExamView() {
       onLocation={(location) => { core.refs.examLocation.current = location; }}
       onStartRun={(next, origin) => { if (origin) learn.rememberContext(learn.captureContext({ page: 'exam', exam: origin })); session.enterRun(next); }}
       onExit={() => nav.navigate('library')} onCreate={() => intents.goGenerate()} onCreateCase={() => intents.goGenerate({ source: 'case' })}
-      onSetupModel={settingsEntry.openModelSettings} />
+      onSetupModel={settingsEntry.openModelSettings}
+      onOpenSource={(id, quote) => learn.openLearningTarget({ kind: 'source', id, quote })} />
   );
 }
 

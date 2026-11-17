@@ -39,5 +39,10 @@
   "全部主题均已达标": "All tested topics attained",
   "全部回答扎实": "All answers strong",
   "全部考查主题均已过关": "All assessed topics passed",
-  "本轮已评估题目均回答扎实，可以直接开启下一轮或回到学习库。": "Every assessed answer in this round was solid — start another round or return to the library."
+  "本轮已评估题目均回答扎实，可以直接开启下一轮或回到学习库。": "Every assessed answer in this round was solid — start another round or return to the library.",
+  "已作答部分正确率 {0}%（{1}/{2}）· 未作答 {3} 题": "Answered accuracy {0}% ({1}/{2}) · {3} unanswered",
+  "只练答错（{0}）": "Practise wrong ({0})",
+  "补做未答（{0}）": "Practise unanswered ({0})",
+  "已把 {0} 道题排进学习路径，回到学习库即可开始练习。": "Added {0} questions to your study path. Return to the library to practise.",
+  "已把 {0} 道题排进学习路径，回到学习库即可开始练习。#one": "Added {0} question to your study path. Return to the library to practise."
 }
