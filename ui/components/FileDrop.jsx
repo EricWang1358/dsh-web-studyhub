@@ -189,7 +189,7 @@ export default function FileDrop({ accept = [], multiple = false, maxBytes, labe
                 {status === 'done' && <Icon name="check" size={14} strokeWidth={2} />}
                 {statusLabel(status)}
               </span>
-              {item.action && <Button variant="quiet" size="sm" disabled={item.action.disabled} onClick={item.action.onClick}>{item.action.label}</Button>}
+              {item.action && <Button variant="quiet" size="sm" icon={item.action.icon} iconEnd={item.action.iconEnd} disabled={item.action.disabled} onClick={item.action.onClick}>{item.action.label}</Button>}
             </li>
           );
         })}

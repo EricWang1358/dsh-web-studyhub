@@ -469,6 +469,9 @@ export function repeatingLine(s, max = 2) {
 
 /** The words of the ONE primary action of a shortfall (lib/shortfall.js `action`). */
 export const actionLabel = (action) => ({ resume: ui('继续'), continue: ui('接着做'), 'model-settings': ui('去配置模型'), topup: ui('为没覆盖的部分补题') })[action] || '';
+/** Whether that action works where it stands (ui/DESIGN.md, Icons: no arrow): 继续, 接着做 and 补题 run the job again on its card, row or page; only 去配置模型 takes the
+    learner somewhere (the settings), so only it ends in the go-on arrow. */
+export const actionHere = (action) => action !== 'model-settings';
 
 /** What the row's badge says a draft is: what is true, never 「已复审，待发布」 for a draft that is short, stopped, refused or interrupted. */
 const STOP_WORD = { learner: '你停下了', budget: '到花费上限', 'no-progress': '没有新进展', 'sections-left': '重试后仍没出成', 'round-failed': '出错了', 'time-limit': '用时到限', 'run-failed': '出错了' };

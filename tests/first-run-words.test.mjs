@@ -107,7 +107,7 @@ test('the checklist button for the skeleton goes to the page, and says so (it ge
 test('StudyHub says what it is once: the welcome page, the sidebar, the READMEs and the plugin descriptions use the one positioning', async () => {
   const ZH = '把老师的课件变成题，每道题都点得回原页；做完一轮，看得见自己变熟。', ZH_SUB = '开源免费，资料存在你电脑上；模型自己选，按用量付费。';
   const EN = 'Turn your lecture slides into questions that each link back to their page; finish a round and see yourself getting it.';
-  const EN_SUB = 'Free and open source, your materials stay on your computer; pick your own model and pay for what you use.';
+  const EN_SUB = 'Free and open source, your sources stay on your computer; pick your own model and pay for what you use.';
   m.setUiLanguage('zh');
   const first = text(welcome());
   assert.ok(first.includes(ZH) && first.includes(ZH_SUB), 'the first screen carries both lines');
@@ -144,7 +144,7 @@ test('the introduction site carries the same positioning in its title, descripti
     const strip = (value) => value.replace(/<[^>]+>/g, '');
     for (const [html, first, sentence, sub] of [
       [zh, '把老师的课件变成题，每道题都点得回原页', '把老师的课件变成题，每道题都点得回原页；做完一轮，看得见自己变熟。', '开源免费，资料存在你电脑上；模型自己选，按用量付费。'],
-      [en, 'Turn your lecture slides into questions that each link back to their page', 'Turn your lecture slides into questions that each link back to their page; finish a round and see yourself getting it.', 'Free and open source, your materials stay on your computer; pick your own model and pay for what you use.'],
+      [en, 'Turn your lecture slides into questions that each link back to their page', 'Turn your lecture slides into questions that each link back to their page; finish a round and see yourself getting it.', 'Free and open source, your sources stay on your computer; pick your own model and pay for what you use.'],
     ]) {
       assert.ok(pick(html, /<title>([\s\S]*?)<\/title>/).includes(first), 'the title leads with the positioning');
       assert.ok(pick(html, /<meta name="description" content="([^"]*)"/).includes(first), 'the meta description carries it');

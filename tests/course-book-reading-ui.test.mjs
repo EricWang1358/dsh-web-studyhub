@@ -137,7 +137,7 @@ test('逐节读: one point under its path, 上一个知识点 / 下一个知识�
   assert.match(html, /<div class="book-ask-top"><ol class="book-step__path"[\s\S]*?<\/ol><h2 id="book-h2"[\s\S]*?<\/h2><span class="sh-popover-anchor book-ask-tip"><button[^>]*class="sh-btn sh-btn--quiet sh-btn--sm book-ask-open"[^>]*data-book-ask-open/, '问 AI is a quiet button beside the title, outside the heading');
   assert.doesNotMatch(html, /book-step__back|book-step__jump/);
   assert.match(text, /上一个知识点 下一个知识点 1\.2 焓$/);
-  assert.match(html, /disabled=""[^>]*><span class="book-step__dir">上一个知识点/);
+  assert.match(html, /disabled=""[^>]*><svg[^>]*>[\s\S]*?<\/svg><span class="book-step__text"><span class="book-step__dir">上一个知识点/, 'the pager leads with ← (#1073 round 7)');
   assert.doesNotMatch(html, /data-book-point="h3"/, 'only the point shown is drawn');
   const last = textOf(render(h(ui.BookStep, { steps, at: 1, onGo: noop, course: 'SA', handlers })));
   assert.match(last, /上一个知识点 1\.1 熵 下一个知识点$/);

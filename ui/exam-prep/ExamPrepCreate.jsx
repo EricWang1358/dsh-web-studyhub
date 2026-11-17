@@ -100,7 +100,7 @@ export default function ExamPrepCreate({ data, initial, initialMore, onBack, onS
         <section className="exam-prep-docs" aria-label={ui('用来列考点的资料')}>
           <div className="exam-prep-docs__head">
             <p className="exam-prep-docs__counts" role="status">{countsLine(counts)}</p>
-            <Explain k="roles" focusable label={ui('用途是什么')}><Icon name="info" size={16} /></Explain>
+            <Explain k="roles" focusable label={ui('用途是什么')}><Icon className="sh-icon--inline" name="info" /></Explain>
           </div>
           {pool.length > 0 && counts['past-paper'] === 0 && (
             <p className="exam-prep-docs__none" data-docs-none="paper">
@@ -131,7 +131,7 @@ export default function ExamPrepCreate({ data, initial, initialMore, onBack, onS
         <div className="exam-prep-start">
           <div className="exam-prep-estimate">
             <p className="exam-prep-estimate__label">
-              {ui('预计用量')} <Explain k="estimate" focusable label={ui('预计用量的说明')}><Icon name="info" size={16} /></Explain>
+              {ui('预计用量')} <Explain k="estimate" focusable label={ui('预计用量的说明')}><Icon className="sh-icon--inline" name="info" /></Explain>
             </p>
             {ready ? <TokenEstimateView state={estimate} /> : <p className="exam-prep-estimate__wait">{ui('先选至少一份课件（或大纲），这里就会显示预计用量。')}</p>}
           </div>

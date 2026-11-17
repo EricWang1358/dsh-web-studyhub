@@ -242,7 +242,7 @@ test('Sources defaults to course grouping, shows multi-course badges once, hides
     assert.match(en, /By folder/);
     assert.match(en, /By import date/);
     assert.match(en, /Flat/);
-    assert.match(en, /2 source\(s\), grouped by course \(2 group\(s\)\)/);
+    assert.match(en, /2 sources, grouped by course \(2 groups\)/);
     assert.doesNotMatch(en.replace(/<[^>]+>/g, ' '), han, 'English Sources page has zero Han characters');
 
     const menuEn = renderToStaticMarkup(withStudy(StudyServicesContext, React.createElement(RowMenuItems, {

@@ -22,7 +22,7 @@ function Rows({ rows, onPractice, onSeek }) {
       <p className="reader-wrong__prompt"><span className="reader-wrong__status">{statusLabel(statusOf(row.item))}</span><StudyInline text={row.item.prompt} /></p>
       <span className="reader-wrong__actions">
         <Button size="sm" variant="secondary" iconEnd="arrow-right" onClick={() => onPractice(row)}>{ui('去练')}</Button>
-        <Button size="sm" variant="quiet" disabled={!row.entryId} onClick={() => onSeek(row)}>{ui('看原文')}</Button>
+        <Button size="sm" variant="quiet" iconEnd="arrow-right" disabled={!row.entryId} onClick={() => onSeek(row)}>{ui('看原文')}</Button>
       </span>
     </li>)}
     {rows.length > SHOWN_MAX && <li className="reader-wrong__more">{uiFormat('还有 {0} 道，在「错题与待巩固」里看', [rows.length - SHOWN_MAX])}</li>}

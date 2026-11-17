@@ -162,7 +162,7 @@ test("a failed call in the console says its cause in plain words, with what was 
   const line = (error, language = "zh") => inLanguage(language, () => m.logLines({ calls: [call(error)], events: [] })[0].text);
   const chinese = modelFailureMessage(Object.assign(new Error("Model returned no text"), { attempts: 3 }));
   assert.match(line(chinese), /原因：模型这次没有返回内容，已自动重试 2 次/, "a Chinese UI keeps the plain sentence the job recorded");
-  assert.match(line(chinese, "en"), /The model returned nothing; Retried 2 time\(s\) automatically/, "an English UI says the same in English");
+  assert.match(line(chinese, "en"), /The model returned nothing; Retried 2 times automatically/, "an English UI says the same in English");
   assert.doesNotMatch(line(chinese, "en"), han);
   assert.match(line("Model returned no text"), /原因：模型没有返回内容/, "an English exception is said in plain words");
   assert.match(line("Model returned no text", "en"), /The model returned nothing/);

@@ -4,5 +4,7 @@
   "题库里没有找到合适的同类题": "No suitable similar questions were found in the bank",
   "派生自 {0}": "Derived from {0}",
   "另有 {0} 份派生资料": "{0} derived materials",
-  "同一文件的 {0} 份资料": "{0} materials from the same file"
+  "另有 {0} 份派生资料#one": "{0} derived material",
+  "同一文件的 {0} 份资料": "{0} materials from the same file",
+  "同一文件的 {0} 份资料#one": "{0} material from the same file"
 }

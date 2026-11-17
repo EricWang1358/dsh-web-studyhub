@@ -16,7 +16,7 @@ import css from './practice.css';
 export function FigurePageLinkView({ found, onOpen }) {
   if (!found) return null;
   return <Tooltip content={ui('这道题引用的那一页有图。文字版不保存图片，点它直接看原文件的这一页。')} placement="bottom-start">
-    <Button size="sm" variant="quiet" icon="file" className="figure-page-link" data-tour="review-figure-page" onClick={() => onOpen(found.source, found.quote, found.page)}>{ui('看原页图')}</Button>
+    <Button size="sm" variant="quiet" iconEnd="arrow-right" className="figure-page-link" data-tour="review-figure-page" onClick={() => onOpen(found.source, found.quote, found.page)}>{ui('看原页图')}</Button>
   </Tooltip>;
 }
 

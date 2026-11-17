@@ -17,7 +17,7 @@ export default function RereadBar({ reread, onPractise }) {
       {reread.total > 1 && <span className="reader-reread__count">{uiFormat('第 {0} / {1} 段', [reread.position, reread.total])}</span>}
       {reread.onPrev && <Button variant="quiet" size="sm" icon="arrow-left" lock={working} data-reread="prev" onClick={reread.onPrev}>{ui('上一段')}</Button>}
       <Button variant="secondary" size="sm" icon="check" lock={working} data-reread="done" onClick={done}>{ui('已重读')}</Button>
-      {onPractise && <Button variant="quiet" size="sm" data-reread="practise" onClick={onPractise}>{ui('再练这一节')}</Button>}
+      {onPractise && <Button iconEnd="arrow-right" variant="quiet" size="sm" data-reread="practise" onClick={onPractise}>{ui('再练这一节')}</Button>}
     </div>
   );
 }

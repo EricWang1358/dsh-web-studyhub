@@ -38,7 +38,7 @@ test('an opened knowledge point: its text, its concept coverage, and when short 
   assert.match(ok, /概念覆盖 4\/4/);
   assert.doesNotMatch(ok, /未达标|补漏/, 'a complete point offers no gap filling');
   const en = english(() => textOf(render(h(ui.LeafNotes, { notes, onOpenSource: noop, onReadMore: noop }))));
-  assert.match(en, /Short: 1 concept\(s\) missing/);
+  assert.match(en, /Short: 1 concept missing/);
   assert.match(en, /Concepts covered 3\/4/);
   assert.match(en, /Fill the gaps/);
   assert.doesNotMatch(en.replace(/CIA triad|Risk scenario/g, ''), han);

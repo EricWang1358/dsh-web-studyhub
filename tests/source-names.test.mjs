@@ -64,7 +64,7 @@ test('the same material has the same name on the 资料 page, in the picker, in 
   const page = renderToStaticMarkup(sourcesPage);
   const pageNames = [...page.matchAll(/<strong class="source-title"[^>]*>([^<]*)/g)].map((match) => match[1]);
   const picker = renderToStaticMarkup(React.createElement(ui.SourcePicker, { sources, selected: [], onChange: noop }));
-  const pickerNames = [...picker.matchAll(/<strong title="[^"]*">([^<]*)<\/strong>/g)].map((match) => match[1]);
+  const pickerNames = [...picker.matchAll(/<strong(?: id="[^"]*")? title="[^"]*">([^<]*)<\/strong>/g)].map((match) => match[1]);
   const coverage = ui.coverageGroups(sources.map((source) => ({ id: source.id, title: source.title, planned: 1, accepted: 1 })), sources).map((group) => group.title);
   const reader = text(renderToStaticMarkup(React.createElement(ui.ReaderHeading, { data, source: sources[0] })));
   assert.deepEqual([...pageNames].sort(), [CLEAN, `${CLEAN} (diagram-normalized text)`].sort(), 'the 资料 page');

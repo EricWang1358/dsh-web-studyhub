@@ -96,7 +96,7 @@ export default function BookEditor({ book, file, onPick, onChanged, onDirty, onS
         {/* While there are unsaved edits the file stays chosen: save them or 放弃改动 first, so nothing is lost by switching. */}
         <Combobox className="book-editor__file" label={ui('要改的文件')} aria-label={ui('要改的文件')} searchPlaceholder={ui('搜索文件')} value={file} options={options} disabled={dirty || working} onChange={value => onPick(value)} />
         {book.files[file]?.forked && <Badge size="sm" tone="warning" className="book-editor__forked">{ui('已改动')}</Badge>}
-        <Button size="sm" variant="primary" icon="check" disabled={!dirty} busy={saving} lock={reverting} onClick={save} className="book-editor__save">{ui('保存')}</Button>
+        <Button size="sm" variant="primary" disabled={!dirty} busy={saving} lock={reverting} onClick={save} className="book-editor__save">{ui('保存')}</Button>
         <Button size="sm" variant="quiet" disabled={!dirty} lock={working} onClick={() => setDraft(base.current.text)}>{ui('放弃改动')}</Button>
         <Button size="sm" variant="quiet" icon="refresh" disabled={!book.history?.[file] || dirty} busy={reverting} lock={saving} onClick={revert} className="book-editor__revert">{ui('回退到上一版')}</Button>
         <Button size="sm" variant={historyOpen ? 'secondary' : 'quiet'} icon="clock" aria-expanded={historyOpen} lock={working}

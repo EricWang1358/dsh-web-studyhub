@@ -44,8 +44,8 @@ export function Toast({ tone, title, children, action, secondary, onDismiss, dis
         {title && <strong className="sh-toast__title">{title}</strong>}
         <span className="sh-toast__message">{children}</span>
       </div>
-      {action && <Button variant={receipt ? 'quiet' : 'link'} size="sm" className="sh-toast__action" disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>}
-      {secondary && <Button variant="link" size="sm" className="sh-toast__action sh-toast__secondary" disabled={secondary.disabled} onClick={secondary.onClick}>{secondary.label}</Button>}
+      {action && <Button variant={receipt ? 'quiet' : 'link'} size="sm" className="sh-toast__action" icon={action.icon} iconEnd={action.iconEnd} disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>}
+      {secondary && <Button variant="link" size="sm" className="sh-toast__action sh-toast__secondary" icon={secondary.icon} iconEnd={secondary.iconEnd} disabled={secondary.disabled} onClick={secondary.onClick}>{secondary.label}</Button>}
       {onDismiss && <IconButton icon="close" size="sm" className="sh-toast__close" label={dismissText || dismissLabel(kind)} onClick={onDismiss} />}
       {timerRef && <span ref={timerRef} className="sh-toast__timer" aria-hidden="true" />}
     </div>
@@ -176,8 +176,8 @@ export function InlineMessage({ tone = 'error', title, children, action, seconda
   useComponentCss(css);
   const kind = toneOf(tone);
   const actions = <>
-    {action && withTip(action.tip, <Button variant="link" size="sm" className="sh-inline__action" disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>)}
-    {secondary && withTip(secondary.tip, <Button variant="link" size="sm" className="sh-inline__action sh-inline__secondary" disabled={secondary.disabled} onClick={secondary.onClick}>{secondary.label}</Button>)}
+    {action && withTip(action.tip, <Button variant="link" size="sm" className="sh-inline__action" icon={action.icon} iconEnd={action.iconEnd} disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>)}
+    {secondary && withTip(secondary.tip, <Button variant="link" size="sm" className="sh-inline__action sh-inline__secondary" icon={secondary.icon} iconEnd={secondary.iconEnd} disabled={secondary.disabled} onClick={secondary.onClick}>{secondary.label}</Button>)}
   </>;
   const below = actionsBelow && (action || secondary);
   return (
@@ -211,7 +211,7 @@ export function Banner({ tone = 'info', title, children, action, secondary, onDi
         </div>
         {(action || secondary) && <div className="sh-banner__actions">
           {action && withTip(action.tip, <Button size="sm" variant={action.variant || 'secondary'} icon={action.icon} iconEnd={action.iconEnd} disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>)}
-          {secondary && withTip(secondary.tip, <Button size="sm" variant="quiet" disabled={secondary.disabled} onClick={secondary.onClick}>{secondary.label}</Button>)}
+          {secondary && withTip(secondary.tip, <Button size="sm" variant="quiet" icon={secondary.icon} disabled={secondary.disabled} onClick={secondary.onClick}>{secondary.label}</Button>)}
         </div>}
         {onDismiss && <IconButton icon="close" size="sm" className="sh-banner__close" label={dismissLabel(kind)} onClick={onDismiss} />}
       </div>
@@ -246,8 +246,8 @@ export function createToastApi({ setNotice, setError }) {
   const show = ({ tone = 'info', message, action, secondary, persistent, undo, timeout, scope, onLeave }) => setNotice({
     text: message, tone,
     ...(persistent ? { persistent } : {}), ...(undo ? { undo } : {}), ...(timeout ? { timeout } : {}), ...(scope !== undefined ? { scope } : {}),
-    ...(action ? { action: { label: action.label, run: action.run ?? action.onClick } } : {}),
-    ...(secondary ? { secondary: { label: secondary.label, run: secondary.run ?? secondary.onClick } } : {}),
+    ...(action ? { action: { label: action.label, run: action.run ?? action.onClick, ...(action.icon ? { icon: action.icon } : {}), ...(action.iconEnd ? { iconEnd: action.iconEnd } : {}) } } : {}),
+    ...(secondary ? { secondary: { label: secondary.label, run: secondary.run ?? secondary.onClick, ...(secondary.icon ? { icon: secondary.icon } : {}) } } : {}),
     ...(onLeave ? { onLeave } : {}),
   });
   const withTone = kind => (message, options = {}) => show({ tone: kind, message, ...options });

@@ -89,7 +89,7 @@ function Step({ step, index, setup, on, next, onLater }) {
   const done = step.status === "done";
   return (
     <li className="setup-step" data-step={step.id} data-status={step.status} data-next={next ? "true" : undefined}>
-      <span className="setup-mark" aria-hidden="true">{done ? <Icon name="check" size={14} /> : index + 1}</span>
+      <span className="setup-mark" aria-hidden="true">{done ? <Icon className="sh-icon--inline" name="check" /> : index + 1}</span>
       <div className="setup-body">
         <Tooltip layer content={copy.hint}>
           <strong className="setup-title">{copy.title}{copy.optional && <span className="setup-optional">{ui("可选")}</span>}</strong>

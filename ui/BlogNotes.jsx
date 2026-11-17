@@ -298,7 +298,7 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
         {note && writable && <Button aria-pressed={editing} disabled={publishing || note.generation?.status === 'running'} lock={saving}
           onClick={() => editing ? returnToReading() : setEditing(true)}>{ui(editing ? dirty ? '保存并返回阅读' : '返回阅读' : '编辑内容')}</Button>}
         {(editing || dirty) && writable && <Button variant="primary" disabled={!dirty || note.generation?.status === 'running'} lock={saving} onClick={save}>{ui(daily ? '保存合集' : '保存草稿')}</Button>}
-        <Button onClick={() => guardLeave(() => onBack?.())}>{backLabel || ui('返回学习库')}</Button>
+        <Button icon="arrow-left" onClick={() => guardLeave(() => onBack?.())}>{backLabel || ui('返回学习库')}</Button>
         {/* Behind the note's ⋯ (更多操作), never beside 返回: a slip on the way back must not delete. One choice there, then 撤销 in the notice. */}
         {note && <Menu className="note-more" label={ui('更多操作')} items={[{ id: 'delete', label: ui('删除这篇笔记'), danger: true, disabled: saving || publishing, attrs: { 'data-note-delete': '' } }]}
           onSelect={(id) => { if (id === 'delete') removeNote(); }} />}
@@ -413,7 +413,7 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
       </div>
       <details className="note-linking"><summary>{uiFormat("关联题目 · {0} 题", [note.cards.length])}</summary>
         <ul>{note.cards.map((ref) => <li key={ref.cardId}>
-          <Button disabled={ref.missing || !onOpenCard} onClick={() => onOpenCard(ref)}>{ref.missing ? ui('原题已移除') : ref.prompt || ui('查看原题')}</Button>
+          <Button iconEnd={ref.missing ? undefined : "arrow-right"} disabled={ref.missing || !onOpenCard} onClick={() => onOpenCard(ref)}>{ref.missing ? ui('原题已移除') : ref.prompt || ui('查看原题')}</Button>
           {ref.deckTitle && <small className="muted">{ref.deckTitle}</small>}
           {editing && note.status === "draft" && !daily && <Button onClick={() => edit({
             cards: note.cards.filter((item) => item.cardId !== ref.cardId) })}>{ui("移除")}</Button>}</li>)}</ul>

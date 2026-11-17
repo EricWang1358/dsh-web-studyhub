@@ -35,7 +35,7 @@ export default function WeeklyCard({ data, onOpenBook, onPractice, onExamRun }) 
         <p className="crunch-card__week"><strong>{weekText(schedule.weekly)}</strong></p>
         {day && points.length > 0 && <CrunchDay course={course} day={day} points={points} max={5} onRead={point => onOpenBook(course, { target: point.key })}
           onPractice={point => onPractice(course, point)} onMore={() => onOpenBook(course, {})} onMockStarted={onExamRun} />}
-        <Button variant="link" size="sm" className="crunch-card__open" data-usage="home.weekly" onClick={() => onOpenBook(course, {})}>{ui('打开复习全书')}</Button>
+        <Button iconEnd="arrow-right" variant="link" size="sm" className="crunch-card__open" data-usage="home.weekly" onClick={() => onOpenBook(course, {})}>{ui('打开复习全书')}</Button>
       </section>
     );
   });

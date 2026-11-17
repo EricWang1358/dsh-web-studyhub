@@ -84,6 +84,18 @@ test('the line under the button reads right for one focus topic and for many, in
   } finally { m.setUiLanguage('zh'); }
 });
 
+test('one focus topic is one in English: 「1 focus topic」, never 「1 focus topics」; many stay plural (#1082)', () => {
+  m.setUiLanguage('en');
+  try {
+    for (const [count, said] of [[1, /has 1 focus topic:/], [3, /has 3 focus topics:/]]) {
+      const html = render({ courses: [{ name: '数据库', focusTopics: Array.from({ length: count }, (_, at) => `topic ${at}`) }] });
+      const text = html.replace(/<[^>]+>/g, ' ');
+      assert.doesNotMatch(text, / 1 focus topics/, `${count}: no 「1 focus topics」`);
+      assert.match(text, said, `${count}: the line under 想练什么 says the count in the right number`);
+    }
+  } finally { m.setUiLanguage('zh'); }
+});
+
 test('the page draws its list and its form at once, as on main: nothing waits for the index answer (#1084, round 4)', async () => {
   const source = await readFile(new URL('../ui/Generate.jsx', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /useIndexWait|holding/, 'no hold before the ways in, the list and the form are drawn');

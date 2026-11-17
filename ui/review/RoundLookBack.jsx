@@ -284,12 +284,12 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAc
             {(companionTarget || place || (row.status === "wrong" && onOpenWrongBook)) && (
               <div className="look-back__actions">
                 {companionTarget && (
-                  <Button variant="quiet" size="sm" icon="play" onClick={() => openCompanionTarget(study.openModal, companionTarget)}>
+                  <Button variant="quiet" size="sm" iconEnd="arrow-right" onClick={() => openCompanionTarget(study.openModal, companionTarget)}>
                     {companionSlideButtonLabel(companionTarget)}
                   </Button>
                 )}
                 {place && (
-                  <Button variant="link" size="sm" onClick={() => study.openModal({ type: "source", source: place, back: true })}>
+                  <Button iconEnd="arrow-right" variant="link" size="sm" onClick={() => study.openModal({ type: "source", source: place, back: true })}>
                     {row.sourceTitle && row.page != null
                       ? uiFormat("打开出处「{0}」{1}", [row.sourceTitle, pageWords(row)])
                       : row.sourceTitle
@@ -300,7 +300,7 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAc
                   </Button>
                 )}
                 {row.status === "wrong" && onOpenWrongBook && (
-                  <Button variant="link" size="sm" onClick={() => onOpenWrongBook([{ deckId: row.deckId, cardId: row.cardId }])}>{ui("去错题本练这道题")}</Button>
+                  <Button iconEnd="arrow-right" variant="link" size="sm" onClick={() => onOpenWrongBook([{ deckId: row.deckId, cardId: row.cardId }])}>{ui("去错题本练这道题")}</Button>
                 )}
               </div>
             )}
@@ -344,7 +344,7 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAc
               </Button>
             )}
             {onPracticeWrong && wrong >= 1 && (
-              <Button size="sm" variant="quiet" lock={study?.busy} onClick={() => onPracticeWrong(wrongRefs)}>
+              <Button iconEnd="arrow-right" size="sm" variant="quiet" lock={study?.busy} onClick={() => onPracticeWrong(wrongRefs)}>
                 {wrong === 1 ? ui("重练这道错题") : uiFormat("重练这 {0} 道错题", [wrong])}
               </Button>
             )}

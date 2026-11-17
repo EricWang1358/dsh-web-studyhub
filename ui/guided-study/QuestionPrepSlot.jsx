@@ -41,7 +41,7 @@ export function QuestionPrepSlot({
     return (
       <div className="question-prep-slot question-prep-failed" role="alert">
         <div className="question-prep-header">
-          <span className="question-prep-warning-icon"><Icon name="warning" size={16} /></span>
+          <span className="question-prep-warning-icon"><Icon className="sh-icon--inline" name="warning" /></span>
           <span className="question-prep-title">{ui('这道题没有加入题组')}</span>
         </div>
         <p className="question-prep-reason">

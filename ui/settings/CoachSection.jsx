@@ -112,7 +112,7 @@ export function CoachSection({ profile, setProfile, confirmForget = false }) {
         {long && <Button variant="link" size="sm" className="coach-profile__more" aria-expanded={expanded} aria-controls={summaryId}
           onClick={() => setExpanded(value => !value)}>{expanded ? ui('收起') : ui('展开')}</Button>}
         <ul className="coach-stats" aria-label={ui('你的反馈')}>
-          {stats.map(([icon, label, count]) => <li key={label}><Icon name={icon} size={16} />{`${ui(label)} `}<strong>{count || 0}</strong></li>)}
+          {stats.map(([icon, label, count]) => <li key={label}><Icon className="sh-icon--inline" name={icon} />{`${ui(label)} `}<strong>{count || 0}</strong></li>)}
           {profile.ready ? <li className="coach-stats__ready">{uiFormat('已备 {0} 道定制题', [profile.ready])}</li> : null}
         </ul>
       </div>

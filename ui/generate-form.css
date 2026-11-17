@@ -29,7 +29,8 @@
     .generate-note { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     /* Six question types wrap instead of overflowing a narrow pane. */
     .generate-form .generate-seg { max-width: 100%; }
-    .generate-form .generate-kind { display: flex; flex-wrap: wrap; }
+    /* Beside its label (a wide form) the first row of boxes is level with the label's words, which sit lower to meet a field's text (#1082). */
+    .generate-form .generate-kind { display: flex; flex-wrap: wrap; margin-top: var(--space-1-5); }
     /* ── Custom number of questions: field and presets ───────────────────── */
     .generate-count { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); }
     /* ── Chips: presets, focus suggestions ──────────────── */
@@ -57,16 +58,29 @@
     /* ── 更多选项 and the case-exam hint ──────────────────────────────────── */
     .generate-more { margin-top: var(--space-2); }
     /* 更多选项's body (bodyClassName): its groups under the summary with room above, and the labels in the page's own column (the indent a disclosure keeps for its chevron is not taken). */
-    .generate-more__body { display: grid; gap: var(--space-6); padding: var(--space-4) 0 0; }
+    /* One column the width of the form: a part wider than a 320 px page (a fold's summary, a field) does not widen the groups with it (#1082). */
+    .generate-more__body { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-6); padding: var(--space-4) 0 0; }
     /* The same for a fold inside it that holds rows of the form (参考样题, 面试方向, 额外要求). */
     .generate-fold__body { padding-left: 0; }
     /* What is inside 更多选项 follows its name on one line and is cut cleanly where the pane is too narrow for it (the words in full are in the folds). */
     .generate-more > summary { min-width: 0; }
     .generate-more > summary > span:last-child, .generate-extra > summary > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .generate-more .sh-disclosure__label { white-space: nowrap; }
+    .generate-more > summary .sh-disclosure__label { white-space: nowrap; }
+    /* A fold inside it (面试方向, 花费上限, 额外要求): its note follows its name on one line, or goes under it where the pane is too narrow for both; never cut bare, never on two lines. */
+    .generate-more__body details > summary { flex-wrap: wrap; }
+    .generate-more__body details > summary > span + span { min-width: 0; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    /* The choices that are not the defaults (难度, 语言, 公式写法) are what a run will use, so each is said whole: a summary too narrow for all of them on one line
+       goes on under them after a 「·」 (the separator stays with the piece before it, so no line starts with one), never cutting a word (#1082). That is the
+       summary shut. Open, it says its hint, on one line, as with nothing chosen; the choices are not drawn at all (display: none, so they hold no room), so a
+       choice picked inside the open fold changes neither the summary's height nor anything under it (round 7). Opening or shutting may change its height. */
+    .generate-more__meta { display: grid; grid-template-columns: minmax(0, 1fr); }
+    .generate-more__hint { justify-self: end; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .generate-more__choices { display: block; white-space: normal; text-align: end; line-height: var(--lh-snug); }
+    .generate-more__choice { display: inline-block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; vertical-align: top; }
+    .generate-more[open] .generate-more__choices, .generate-more:not([open]) .generate-more__hint { display: none; }
     .generate-more .generate-rows { margin-top: 0; }
     /* A purpose inside 更多选项: a small title over its rows (想练什么 / 难度与语言 / 花费与分轮 / 题组信息). */
-    .generate-group { display: grid; gap: var(--space-3); min-width: 0; }
+    .generate-group { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); min-width: 0; }
     .generate-group__title { margin: 0; color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-strong); line-height: var(--lh-snug); }
     .generate-role { min-width: 0; }
     /* ── Summary above the one primary button ─────────────────────────────── */
@@ -80,6 +94,7 @@
     :is(.study-app, .study-seat) {
       .generate-row { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
       .generate-row__label { padding-top: 0; }
+      .generate-form .generate-kind { margin-top: 0; }
     }
   }
 }

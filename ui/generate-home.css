@@ -44,6 +44,10 @@
        the line under it or the hairline (#1082). */
     .generate-page .generate-submit__lines > * { align-self: stretch; min-width: 0; margin: 0; overflow: hidden; line-height: var(--lh-snug); white-space: nowrap; text-overflow: ellipsis; }
     .generate-page .generate-submit__note { margin: 0; font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    /* With nothing ticked the tokens line is empty, so what to do may take both lines: a narrow page says it whole (en 320, #1082), in the bar's same height.
+       It sits in the middle of the two lines' room, so one line of it is level with the button beside it (1440, round 7). */
+    .generate-page .generate-submit__lines > .generate-submit__note { grid-row: 1 / span 2; grid-column: 1; align-self: center; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+    .generate-page .generate-submit__lines > .generate-submit__cost { grid-row: 2; grid-column: 1; }
     .generate-page .generate-submit > .generate-submit__btn { flex: 0 0 auto; }
     /* A control the keyboard reaches is scrolled clear of the bar, not under it: while this page is shown its scrolling box keeps the bar's measured height
        (--generate-bar-room, ui/use-sticky-room.js) out of the room a focus or a jump scrolls into. */

@@ -60,7 +60,7 @@ export const LOCAL_STATUS = Object.freeze({
 const RELOCATE = ['no-space', 'not-writable', 'folder-in-use', 'bad-location', 'path-too-long'];
 /** The one fix of a failure: { id, label, icon, tip? }. */
 export function localFix(code) {
-  if (PAUSED.includes(code)) return { id: 'continue', label: ui('继续安装'), icon: 'play' };
+  if (PAUSED.includes(code)) return { id: 'continue', label: ui('继续安装') };
   if (code === 'network' || code === 'checksum') return { id: 'retry', label: ui('重试'), icon: 'refresh', tip: ui('从停下的地方接着下载，已校验的文件不会重下。') };
   if (RELOCATE.includes(code)) return { id: 'relocate', label: ui('换位置'), icon: 'location' };
   if (code === 'vc-runtime') return { id: 'vc-runtime', label: ui('下载 VC++ 运行库'), icon: 'download', tip: ui('微软官方安装包，装好后点「重试」。') };

@@ -186,9 +186,9 @@ export function CaseReport({ report, busy, assistTasks, submitting = false, onDr
       </section>}
       {allAttained && <p className="case-report__attained-note" role="status">{ui("本次案例各评分项均已达标，没有待补薄弱项。")}</p>}
       <div className="case-report__actions">
-        {onDrills && <Button variant="primary" icon="sparkle" disabled={!paper.weakest.length} lock={busy} onClick={() => onDrills()}>{ui("把薄弱项变成练习")}</Button>}
+        {onDrills && <Button variant="primary" disabled={!paper.weakest.length} lock={busy} onClick={() => onDrills()}>{ui("把薄弱项变成练习")}</Button>}
         {onAgain && <Button variant="secondary" lock={busy} onClick={onAgain}>{ui("再来一个同类案例")}</Button>}
-        {onPracticeDeck && <Button variant="quiet" lock={busy} onClick={onPracticeDeck}>{ui("逐题复习这套案例")}</Button>}
+        {onPracticeDeck && <Button iconEnd="arrow-right" variant="quiet" lock={busy} onClick={onPracticeDeck}>{ui("逐题复习这套案例")}</Button>}
       </div>
       {paper.questions.some((question) => question.status === "graded") && <Disclosure summary={ui("逐题批改详情")}>
         {paper.questions.filter((question) => question.rubric).map((question) => (
@@ -211,7 +211,7 @@ export function RubricSkills({ attempts = [], onPractice, practiceLabel }) {
   return (
     <Panel className="rubric-skills" title={ui("案例分析能力")}
       description={ui("按评分项统计你在开放题和案例题上的得分率，最弱的在前。")}
-      actions={onPractice ? <Button size="sm" variant="secondary" onClick={onPractice}>{practiceLabel || ui("练案例题")}</Button> : null}>
+      actions={onPractice ? <Button iconEnd="arrow-right" size="sm" variant="secondary" onClick={onPractice}>{practiceLabel || ui("练案例题")}</Button> : null}>
       <ul className="rubric-skills__list">
         {skills.map((skill) => (
           <li key={skill.label}>

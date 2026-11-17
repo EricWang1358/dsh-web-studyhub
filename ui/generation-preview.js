@@ -24,8 +24,9 @@ export function previewRows({ gen = {}, sources = [], sourceIds = [], plannedGoa
   const chosen = new Set(sourceIds);
   const titles = groupSourcesByDocument((sources || []).filter((source) => chosen.has(source.id))).map((item) => displayTitle(item.title));
   if (titles.length) {
-    const shown = titles.slice(0, SHOWN_TITLES).join('、');
-    rows.push({ key: 'materials', label: ui('资料'), value: titles.length > SHOWN_TITLES ? uiFormat('{0} 份：{1} 等', [titles.length, shown]) : uiFormat('{0} 份：{1}', [titles.length, shown]) });
+    // The first few by name; the rest counted ({2}: how many are not named, which the English says, "and 2 more").
+    const shown = titles.slice(0, SHOWN_TITLES).join(ui('、'));
+    rows.push({ key: 'materials', label: ui('资料'), value: titles.length > SHOWN_TITLES ? uiFormat('{0} 份：{1} 等', [titles.length, shown, titles.length - SHOWN_TITLES]) : uiFormat('{0} 份：{1}', [titles.length, shown]) });
   }
   const kinds = kindsOfForm(gen);
   const custom = gen.kindCounts && typeof gen.kindCounts === 'object' && !Array.isArray(gen.kindCounts);

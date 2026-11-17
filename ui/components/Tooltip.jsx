@@ -40,21 +40,24 @@ export function focusQuietly(element, options) {
  * it wraps is never remounted when the words appear.
  * forceOpen: show the card while true (e.g. the 资料 title button has keyboard focus and its cut facts line sits inside it), as long as there are words.
  * onOpenChange(open): told after the card opens or closes (the sidebar says its reorder line in the first card only, ui/nav-reorder-hint.js).
+ * id: the card's own id, for a control outside the anchor that the card describes (its aria-describedby); one is made when it is not given.
  */
-export default function Tooltip({ content, children, placement = 'bottom-start', flip = true, className, layer = false, anchorClassName, interactive = false, group, outside, onOpenChange, forceOpen = false }) {
+export default function Tooltip({ content, children, placement = 'bottom-start', flip = true, className, layer = false, anchorClassName, interactive = false, group, outside, onOpenChange, forceOpen = false, id: givenId }) {
   useComponentCss(css);
   useComponentCss(overlayCss, 'study-overlays');
   useComponentCss(layerCss, 'study-tooltip-layer');
   const [open, setOpen] = useState(false);
   // forceOpen: the caller opens the card while something the card's own handlers cannot see holds (keyboard focus on a control that contains the anchor),
-  // and closes it when that ends. It opens like any other way, so another card of its `group` still closes it.
+  // and closes it when that ends. It opens like any other way, so another card of its `group` still closes it. Esc, a click outside or another card of
+  // the group waives the hold: the card stays shut until the caller lets go and holds again (the next keyboard focus).
   const forced = forceOpen && Boolean(content);
-  const held = useRef(forced);
-  held.current = forced;
-  useIsoLayoutEffect(() => { setOpen(forced); }, [forced]);
-  const id = useId(), anchor = useRef(null), panel = useRef(null), timer = useRef(0), self = useRef(null), pressedAt = useRef(0);
+  const [waived, setWaived] = useState(false);
+  const held = useRef(false);
+  held.current = forced && !waived;
+  useIsoLayoutEffect(() => { if (!forced) setWaived(false); setOpen(forced); }, [forced]);
+  const ownId = useId(), id = givenId || ownId, anchor = useRef(null), panel = useRef(null), timer = useRef(0), self = useRef(null), pressedAt = useRef(0);
   if (!self.current) self.current = { close: () => {} };
-  self.current.close = () => { clearTimeout(timer.current); setOpen(false); };
+  self.current.close = () => { clearTimeout(timer.current); if (held.current) setWaived(true); setOpen(false); };
   const closeOthers = () => { const other = group && openInGroup.get(group); if (other && other !== self.current) other.close(); };
   useIsoLayoutEffect(() => {
     if (!group || !open) return undefined;
@@ -63,7 +66,14 @@ export default function Tooltip({ content, children, placement = 'bottom-start',
     return () => { if (openInGroup.get(group) === self.current) openInGroup.delete(group); };
   }, [group, open]);
   useAnchoredPosition({ anchorRef: anchor, panelRef: panel, placement, flip, open: open && !layer });
-  useDismiss({ open, onClose: () => setOpen(false), refs: anchor });
+  useDismiss({ open, onClose: () => { if (held.current) setWaived(true); setOpen(false); }, refs: anchor });
+  // A held card answers Esc wherever the focus is: the control that holds it is outside the anchor, where the dismiss above does not listen.
+  useEffect(() => {
+    if (!open || !held.current) return undefined;
+    const onKey = event => { if (event.key === 'Escape') { setWaived(true); setOpen(false); } };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open, forced, waived]);
   useIsoLayoutEffect(() => {
     const element = panel.current;
     if (!layer || !element?.showPopover) return undefined;

@@ -62,18 +62,19 @@ function GoAction({ label, onGo }) {
 
 /**
  * Props: info (documentIndexState), coverage ({ canIndex }), compact (one word, no action, no Tab stop of its own: the row that holds it opens its hover through `open`
- * while the row has the keyboard focus), onIndex (optional: the click that goes to 设置 › 检索扩展 to build the index; ui/index-focus.js).
+ * while the row has the keyboard focus; `wordId` and `tipId` are the ids of its word and of its card, for the row's control to name itself with the word and be
+ * described by the card), onIndex (optional: the click that goes to 设置 › 检索扩展 to build the index; ui/index-focus.js).
  * With onIndex, a document whose index is partial, stale or missing gets 「建立索引」 after the badge (「安装扩展」 when the extension is not installed), and the hover says where it goes.
  */
-export default function IndexBadge({ info, coverage, onIndex, compact = false, open = false }) {
+export default function IndexBadge({ info, coverage, onIndex, compact = false, open = false, wordId, tipId }) {
   if (!info) return null;
   if (compact) {
     const [tone, icon] = LOOK[info.state] || LOOK.missing;
-    // The word is always shown, a narrow row included (a touch screen has no hover to explain a lone mark); the row gives it a slot of fixed size (ui/source-picker.css).
-    // A list of many rows would be a Tab stop per badge (#1084): the row's checkbox stands for it, and the word is part of that checkbox's name.
-    return <Tooltip layer content={indexTip(info).join('\n')} forceOpen={open}>
+    // The word is always shown, a narrow row included (a touch screen has no hover to explain a lone mark); the row gives it a slot (ui/source-picker.css).
+    // A list of many rows would be a Tab stop per badge (#1084): the row's checkbox stands for it; the word is part of that checkbox's name, the card its description.
+    return <Tooltip layer group="index-badge" content={indexTip(info).join('\n')} forceOpen={open} id={tipId}>
       <Badge className="index-badge index-badge-compact" size="sm" tone={tone} icon={info.state === 'building' ? <Spinner size="sm" /> : icon || 'info'} data-state={info.state}>
-        <span className="index-badge-compact__word">{indexCompactLabel(info)}</span>
+        <span className="index-badge-compact__word" id={wordId}>{indexCompactLabel(info)}</span>
       </Badge>
     </Tooltip>;
   }
@@ -102,6 +103,6 @@ export function IndexGapLine({ count, canIndex, onGo, short = false }) {
     {/* The hover says why to build it: what it is for, that it runs here and costs no tokens, the one-time download. */}
     <Tooltip layer content={[indexWhyLine(), ...indexWhyTip()].join('\n')}><span tabIndex={0}>{said}</span></Tooltip>
     <span aria-hidden="true"> · </span>
-    <Button variant="link" size="sm" onClick={onGo}>{go}</Button>
+    <Button iconEnd="arrow-right" variant="link" size="sm" onClick={onGo}>{go}</Button>
   </p>;
 }

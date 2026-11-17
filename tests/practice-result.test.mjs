@@ -119,11 +119,11 @@ test('the 点评 says once that it asks the model and links to the setting; swit
   assert.equal((on.match(/class="coach-model-note"/g) || []).length, 1);
   const noteOn = on.slice(at(on, 'class="coach-model-note"'));
   assert.match(noteOn, /请较轻量的模型写一句话/);
-  assert.match(noteOn.slice(0, noteOn.indexOf('</p>')), /<button[^>]*>前往设置<\/button>/);
+  assert.match(noteOn.slice(0, noteOn.indexOf('</p>')), /<button[^>]*>前往设置(?:<svg[\s\S]*?<\/svg>)?<\/button>/);
   const off = result({ data: { settings: { practice: { debrief: false } } } });
   const noteOff = off.slice(at(off, 'class="coach-model-note"'));
   assert.match(noteOff.slice(0, noteOff.indexOf('</p>')), /没有调用模型/);
-  assert.match(noteOff.slice(0, noteOff.indexOf('</p>')), /<button[^>]*>前往设置<\/button>/);
+  assert.match(noteOff.slice(0, noteOff.indexOf('</p>')), /<button[^>]*>前往设置(?:<svg[\s\S]*?<\/svg>)?<\/button>/);
   const short = result({ run: { answered: 2, questions: 2, total: 2 } });
   assert.doesNotMatch(short, /coach-model-note/, 'a round of fewer than three answers never asks the model, so there is nothing to disclose');
 });
@@ -352,7 +352,8 @@ test('a round started on the 总纲 says 回到总纲 (no second line); every ot
     assert.match(second.html, arrowLeft, `${kind}: the way back has the arrow icon before its label, like every other way back`);
     assert.doesNotMatch(second.html, /←/, `${kind}: no arrow character`);
     assert.doesNotMatch(html, /reading-result__return/, kind);
-    assert.match(html, /aria-label="返回学习库"/, `${kind}: the header keeps its words`);
+    // One way back on the result page (#1073 round 8): the one beside the next step; the header does not add 返回学习库 to it.
+    assert.doesNotMatch(html, /review-return/, `${kind}: the header does not say it twice`);
   }
   assert.doesNotMatch(result({ contextKind: 'book', contextPlace: 'x' }), /reading-result__return/, 'without a way to go back there is no button for it');
 });
@@ -377,7 +378,7 @@ test('a round nested inside a book round (a prerequisite round, a detour from th
   assert.equal(first.text, '回到原题', 'the way on to the unfinished question is the main button');
   assert.doesNotMatch(prerequisite, /reading-result__return/);
   assert.ok(!second || /sh-btn--secondary/.test(second.cls), 'what else is there stays plain (the trail\'s own return, as before)');
-  assert.match(prerequisite, /aria-label="返回学习库"/, 'and the header keeps its words');
+  assert.doesNotMatch(prerequisite, /review-return/, 'the header does not add a third way back (#1073 round 8): the ways back are under the score');
   const detour = result({ ...bookTrail(), detour: { runId: 'outer', index: 2, title: '课程' }, onReturnFromDetour: noop });
   const [back] = buttonsOf(nextBlock(detour));
   assert.match(back.cls, /sh-btn--primary/);

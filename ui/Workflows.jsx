@@ -81,7 +81,7 @@ export default function Workflows({ data, openSession, openRun, onOpenSettings, 
                 <small className="muted">{`${ui(STATUS[s.status] || STATUS.completed)} · ${when(s.updatedAt)}`}</small>
               </div>
               <div className="wf-actions">
-                <Button className="wf-action-btn" onClick={() => setScreen({ kind: "portal", id: s.id })}>{ui("查看记录")}</Button>
+                <Button iconEnd="arrow-right" className="wf-action-btn" onClick={() => setScreen({ kind: "portal", id: s.id })}>{ui("查看记录")}</Button>
               </div>
             </li>
           ))}

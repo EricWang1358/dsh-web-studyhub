@@ -77,9 +77,9 @@
   "答错后提示「帮我弄懂」": "A tip for “Help me understand” after a wrong answer",
   "第一次答错一道题（闪卡：自评没掌握）、看到解析时，在「帮我弄懂」旁提示：讲解会直接出现在这道题下面。": "The first time an answer is wrong (a flashcard: rated not mastered) and its explanation shows, a tip beside “Help me understand” says the explanation appears right under the question.",
   "下次答错一道题时": "the next time an answer is wrong",
-  "标记「这题有问题」后提示「修题」": "A tip for “Improve question” after “Something is wrong with it”",
-  "第一次标记「这题有问题」时，在「修题」旁提示：助教直接改这张卡，改完可以在信箱里一步撤销。": "The first time you mark “Something is wrong with it”, a tip beside “Improve question” says the assistant edits the card directly and you can undo it from the inbox in one step.",
-  "下次标记「这题有问题」时": "the next time you mark “Something is wrong with it”",
+  "标记「这题有问题」后提示「修题」": "A tip for “Improve question” after “Question needs work”",
+  "第一次标记「这题有问题」时，在「修题」旁提示：助教直接改这张卡，改完可以在信箱里一步撤销。": "The first time you mark “Question needs work”, a tip beside “Improve question” says the assistant edits the card directly and you can undo it from the inbox in one step.",
+  "下次标记「这题有问题」时": "the next time you mark “Question needs work”",
   "看到讲解后提示「出成前置题」": "A tip for “Turn into a prerequisite question” once an explanation shows",
   "第一次在题目下看到讲解（帮我弄懂或追问的回答）时，在讲解下面的「出成前置题」旁提示它能做什么。": "The first time an explanation (an answer of “Help me understand” or a follow-up) shows under a question, a tip beside “Turn into a prerequisite question” under it says what it does.",
   "下次在题目下看到讲解时": "the next time an explanation shows under a question"

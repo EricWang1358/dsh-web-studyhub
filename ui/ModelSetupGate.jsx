@@ -39,7 +39,7 @@ const providerOf = (label) => String(label || '').split(' · ')[0].trim();
    The link opens in a new tab like every outside link of a setup step (ui/components/SetupRequired.jsx). */
 const GUIDE = 'https://github.com/EricWang1358/dsh-web-studyhub/blob/main/docs/';
 export const keyGuideUrl = () => (uiIsEnglish() ? `${GUIDE}install.md#configure-a-model-provider` : `${GUIDE}install.zh-CN.md#${encodeURIComponent('配置模型服务商')}`);
-const keyHint = () => <>{ui('去哪拿 Key、要不要充值：看')}<a href={keyGuideUrl()} target="_blank" rel="noreferrer">{ui('安装说明')}<Icon name="external" size={14} />
+const keyHint = () => <>{ui('去哪拿 Key、要不要充值：看')}<a href={keyGuideUrl()} target="_blank" rel="noreferrer">{ui('安装说明')}<Icon className="sh-icon--inline" name="external" />
   <span className="sh-visually-hidden">{ui('（在新标签页打开）')}</span></a>{ui('（以服务商页面为准）')}</>;
 
 /**

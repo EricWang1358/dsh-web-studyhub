@@ -7,8 +7,10 @@ import css from './hand-off.css';
 
 /* 「发给主会话」 as drawn (the hand-off plan, section 1.2; ui/hand-off/use-hand-off.js does the work). One label everywhere, its rule on hover and focus
    in a layered Tooltip (never a title attribute), and never the page's primary button: the two places whose main action IS the hand-off keep their own
-   primary Button and only call send(). Shapes: 'link' (default, inside a line or an error row), 'quiet' (a line of its own), 'icon' (the ChatCircleText
-   glyph, its accessible name the label), 'secondary' (the one action of a form or dialog that holds nothing else). */
+   primary Button and only call send(). The main chat is DSH's, not StudyHub's, so every shape leads with the `external` mark, the one look of a link to a DSH chat
+   (AgentLink; ui/DESIGN.md, #1073 round 10). Shapes: 'link' (default, inside a line or an error row), 'quiet' (a line of its own), 'icon' (no words, its accessible
+   name the label: the chat glyph, the one exception to the mark, because a lone ↗ reads "opens a link" and a topic row's end must say "ask the main chat" at a glance;
+   round 11, ICON_ONLY_HAND_OFFS in tests/helpers/go-on.mjs lists where it is used), 'secondary' (the one action of a form or dialog that holds nothing else). */
 
 const VARIANT = { link: 'link', quiet: 'quiet', icon: 'quiet', secondary: 'secondary' };
 
@@ -22,7 +24,7 @@ export function HandOffButton({ shape = 'link', size = 'sm', what = '', label = 
   const variant = VARIANT[shape] || 'link', text = ui(label);
   const button = shape === 'icon'
     ? <Button variant={variant} size={size} icon="chat" className="sh-btn--icon sh-handoff__btn" data-tour="hand-off" aria-label={text} aria-busy={busy || undefined} disabled={disabled || busy} onClick={onClick} {...rest} />
-    : <Button variant={variant} size={size} className="sh-handoff__btn" data-tour="hand-off" aria-busy={busy || undefined} disabled={disabled || busy} onClick={onClick} {...rest}>{text}</Button>;
+    : <Button variant={variant} size={size} icon="external" className="sh-handoff__btn" data-tour="hand-off" aria-busy={busy || undefined} disabled={disabled || busy} onClick={onClick} {...rest}>{text}</Button>;
   return <Tooltip layer content={handOffTip(what)} anchorClassName={anchorClassName}>{button}</Tooltip>;
 }
 

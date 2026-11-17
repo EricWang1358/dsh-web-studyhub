@@ -61,7 +61,7 @@ export const LOOPBACK_STATUS = Object.freeze({
 
 const RELOCATE = ['no-space', 'not-writable', 'folder-in-use', 'bad-location', 'path-too-long'];
 export function loopbackFix(code) {
-  if (PAUSED.includes(code)) return { id: 'continue', label: ui('重新安装'), icon: 'play' };
+  if (PAUSED.includes(code)) return { id: 'continue', label: ui('重新安装'), icon: 'refresh' };
   if (RELOCATE.includes(code)) return { id: 'relocate', label: ui('换位置'), icon: 'location' };
   return { id: 'repair', label: ui('修复'), icon: 'refresh', tip: ui('在本地重新生成并校验采音组件。') };
 }

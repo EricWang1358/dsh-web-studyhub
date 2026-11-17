@@ -179,7 +179,7 @@ const SourceColumn = React.forwardRef(function SourceColumn({ request, followKey
           </Tooltip>
           {onExpand && (
             <Tooltip layer content={ui("大窗打开阅读器")}>
-              <IconButton icon="external" size="sm" label={ui("大窗打开阅读器")} onClick={() => onExpand(dockedPlace(state))} />
+              <IconButton icon="arrow-right" size="sm" label={ui("大窗打开阅读器")} onClick={() => onExpand(dockedPlace(state))} />
             </Tooltip>
           )}
           <Tooltip layer content={ui("收起资料栏（Esc 回题目）")}>

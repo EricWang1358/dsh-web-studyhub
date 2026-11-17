@@ -121,7 +121,7 @@ export default function PracticePane({ data, busy, act, openSchedule }) {
       <div className="settings-actions">
         <Button disabled={disabled || (saved === undefined && same(values, PRACTICE_DEFAULTS))}
           onClick={() => run('settings.practice.reset', {}, resolvePracticeSettings())}>{ui('恢复默认')}</Button>
-        <Button variant="link" size="sm" iconEnd="chevron-right"
+        <Button variant="link" size="sm" iconEnd="arrow-right"
           onClick={() => (openSchedule ? openSchedule() : openSettings('settings-data'))}>{ui('间隔复习 · FSRS-6')}</Button>
       </div>
       <Hint>{ui('改动立即保存，只影响之后的练习。')}</Hint>

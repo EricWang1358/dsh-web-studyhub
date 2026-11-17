@@ -35,7 +35,7 @@ export function OriginalNotice({ document, onAction, onSync, syncing = false, co
   const closed = collapsed ?? (closedHere.has(id) || noticeCollapsed(id) || !guidanceAllows('reader.original-notice'));
   const close = () => { collapseNotice(id); setClosedHere(previous => new Set(previous).add(id)); onCollapse?.(id); };
   if (issue.kind === 'none' && closed) return <p className="original-quiet" data-tour="reader-original-notice" data-kind="none" data-collapsed="true">
-    <Icon name="info" size={16} />
+    <Icon className="sh-icon--inline" name="info" />
     <span>{ui('这份资料没有原文件。')}</span>
     <Button size="sm" variant="quiet" icon="file" onClick={() => onAction?.('attach')}>{ui('补全原文件…')}</Button>
   </p>;
@@ -218,7 +218,7 @@ export function OriginalDialog({ target, call, host, onClose, onChanged, intent 
           onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void checkPath(pathText); } }} />
         <Button lock={busy} disabled={!pathText.trim()} onClick={() => checkPath(pathText)}>{ui('核对')}</Button>
       </div>
-      {host?.pickFile && <div className="original-actions"><Button ref={pickButton} icon="folder" lock={busy} onClick={pickNative}>{ui('选择文件…')}</Button></div>}
+      {host?.pickFile && <div className="original-actions"><Button ref={pickButton} icon="file" lock={busy} onClick={pickNative}>{ui('选择文件…')}</Button></div>}
       <FileDrop compact accept={[`.${format}`]} disabled={busy} hint={`${format.toUpperCase()} · ${uiFormat('复制最多 {0}', [formatBytes(ORIGINAL_MAX_BYTES)])}`}
         label={ui('或把文件拖到这里（浏览器不提供路径，只能复制）')} buttonLabel={host?.pickFile ? ui('从浏览器选择…') : ui('选择文件…')}
         onFiles={accepted => void chooseFile(accepted)} />
@@ -267,7 +267,7 @@ export function OriginalMenuEntry({ item, host, initial }) {
   };
   return <>
     {line && <Tooltip layer content={line.title || ''}><small className="source-row-menu__note" data-tone={line.tone} tabIndex={line.title ? 0 : undefined}>{line.text}</small></Tooltip>}
-    <Button ref={anchor} variant="quiet" size="sm" className="source-row-menu__btn" busy={busy} onClick={open}>{info && info.status !== 'none' ? ui('管理原文件…') : ui('补全原文件…')}</Button>
+    <Button ref={anchor} className="source-row-menu__btn" busy={busy} onClick={open}>{info && info.status !== 'none' ? ui('管理原文件…') : ui('补全原文件…')}</Button>
     {portal && createPortal(<OriginalDialog target={{ sourceId, title: item.title, format: item.format }} call={call} host={host} intent="attach"
       onClose={() => setPortal(null)} onChanged={() => Promise.resolve(call('materials.original.status', { sourceId })).then(setInfo, () => {})} />, portal)}
   </>;

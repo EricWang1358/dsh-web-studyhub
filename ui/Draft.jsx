@@ -2,7 +2,7 @@ import { ui, uiFormat } from "./i18n.js";
 import { uiRich } from "./i18n-rich.jsx";
 import React from "react";
 import { flushSync } from "react-dom";
-import { Banner, Button, ChunkedRows, Disclosure, Hint, Icon, InlineMessage, LoadingState, PageHeader, Panel, Select, useToast } from "./components/index.js";
+import { Banner, Button, ChunkedRows, Disclosure, Hint, InlineMessage, LoadingState, PageHeader, Panel, Select, useToast } from "./components/index.js";
 import { formatNumber } from "./format.js";
 import { isActiveJob, isCancellable } from "./job-visibility.js";
 import { JOB_STATUS, JOB_TYPES } from "../lib/job-status.js";
@@ -274,7 +274,7 @@ export default function Draft({
     setJsonMode(!jsonMode);
   }
   const headerActions = jsonMode
-    ? <Button variant="quiet" onClick={toggleJsonMode}>{ui("返回逐题编辑")}</Button>
+    ? <Button icon="arrow-left" variant="quiet" onClick={toggleJsonMode}>{ui("返回逐题编辑")}</Button>
     : flaggedIndices.length > 0
       ? <Button size="sm" variant="quiet" className="draft-next-flagged" title="Alt+N / Alt+Shift+N" onClick={jumpToNextFlagged}>
           {uiFormat("下一道待核对 ({0}/{1})", [flaggedPos >= 0 ? flaggedPos + 1 : 0, flaggedIndices.length])}
@@ -541,7 +541,8 @@ export default function Draft({
                       />
                     </label>
                     <Button
-                      className="draft-citation-preview"
+                      className="draft-citation-preview sh-btn--lines"
+                      iconEnd="arrow-right"
                       onClick={() =>
                         setModal({
                           type: "source",
@@ -552,12 +553,13 @@ export default function Draft({
                         })
                       }
                     >
-                      <span>
-                        <Icon name="external" className="sh-icon--inline sh-icon--lead" />
-                        {data.sources.find((s) => s.id === c.sourceId)
-                          ?.title || ui("原文")}
+                      <span className="draft-citation-text">
+                        <span>
+                          {data.sources.find((s) => s.id === c.sourceId)
+                            ?.title || ui("原文")}
+                        </span>
+                        {c.quote && <span className="draft-citation-quote">{c.quote}</span>}
                       </span>
-                      {c.quote && <span className="draft-citation-quote">{c.quote}</span>}
                     </Button>
                     <Button variant="danger"
                       onClick={() => patchCard(i, "citations", q.citations.filter((_, index) => index !== j))}>{ui("删除这条引用")}</Button>
@@ -630,7 +632,7 @@ export default function Draft({
         retryPublishCount > 0 && uiFormat("可点击「{0}」重新检查其余题目。", [publicationLabel]),
         ui("待处理题目可自行修改，或选择交给后台修题。")].filter(Boolean).join(" ")}</p>
         {publishedDeck && <p>{uiFormat("已发布题组「{0}」现有 {1} 题。", [publishedDeck.title, publishedDeck.count])}{" "}
-          <Button variant="link" size="sm" lock={busy} onClick={() => onOpenPublished(publishedDeck.id)}>{ui("查看已发布题组")}</Button>
+          <Button iconEnd="arrow-right" variant="link" size="sm" lock={busy} onClick={() => onOpenPublished(publishedDeck.id)}>{ui("查看已发布题组")}</Button>
         </p>}
         <Disclosure summary={ui("查看待处理问题")}>
           <ul>{rejectedCards.map((card) =>

@@ -43,7 +43,7 @@ function DiagramViewer({ skeletonId, row, onClose }) {
         <div className="sk-diagram-foot">
           <span className="sk-diagram-links muted small">{ui('里面的链接不会在这里打开。')}</span>
           <Button size="sm" variant="quiet" icon={copy.copied ? 'check' : undefined} onClick={copy.copy}>{copy.copied ? ui('已复制') : ui('复制文件路径')}</Button>
-          {openFile && <Button size="sm" onClick={openFile}>{ui('在浏览器中打开')}</Button>}
+          {openFile && <Button icon="external" size="sm" onClick={openFile}>{ui('在浏览器中打开')}</Button>}
         </div>
       )}>
       {state.status === 'loading' && <LoadingState label={ui('正在读取这张图…')} />}

@@ -30,7 +30,7 @@ export default function ModelErrorNote({ error, onSettings, onRetry, context, ha
   const known = info.kind !== 'unknown';
   if (!known && context !== 'generate') return <InlineMessage tone="error" className={className} data-context={context} {...rest}>{info.title}</InlineMessage>;
   const want = info.action || 'retry';
-  const action = want === 'settings' && onSettings ? { label: settingsLabel, onClick: onSettings }
+  const action = want === 'settings' && onSettings ? { label: settingsLabel, iconEnd: 'arrow-right', onClick: onSettings }
     : want === 'retry' && onRetry ? { label: ui('重试'), onClick: onRetry } : undefined;
   return (
     <InlineMessage tone="error" title={info.title} action={action} className={className} data-context={context} {...rest}>

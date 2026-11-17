@@ -98,7 +98,7 @@ test('English: every word of the section is English (the course\'s own names sta
   english(() => {
     const html = section(answer());
     const text = textOf(html);
-    for (const part of ['Study plan', 'Exam in 40 days', '3 of 8 learnt · 7 of 8 placed', '1 not placed', 'Study day', 'Review day', 'Mock exam', 'a full mock paper', 'Day off', '1 points · about 12 min',
+    for (const part of ['Study plan', 'Exam in 40 days', '3 of 8 learnt · 7 of 8 placed', '1 not placed', 'Study day', 'Review day', 'Mock exam', 'a full mock paper', 'Day off', '1 point · about 12 min',
       'Read', 'Practise 5', 'Refresh', '10/30 on is the final week']) assert.ok(text.includes(part), `${part}: ${text}`);
     assert.ok(!han.test(text.replace(/基础|冲刺|读完每一章/g, '')), text);
     const near = textOf(section(answer({ daysLeft: 10 }, { examDate: '2026-10-21', daysLeft: 10 }), { todayOpen: false }));

@@ -60,15 +60,15 @@ const Row = memo(function Row({ row, data, tabStop, bodyId, pick, papers, unbuil
         {row.kind === 'part' && unbuilt?.has(node.id) && <Badge size="sm" className="outline-row__tier" data-unbuilt="">{ui('未生成')}</Badge>}
         {papers > 0 && node.tier && <Badge size="sm" tone={node.tier === 'must' ? 'warning' : 'neutral'} className="outline-row__tier">{tierText(node, papers)}</Badge>}
         <MasteryLine className="outline-row__mastery" summary={node.summary} title={title} />
-        {node.total > 0 && <Button size="sm" variant="secondary" icon="play" className="outline-row__practice" lock={busy} onClick={() => onPractice(row)}>{practiceLabel(node.resume)}</Button>}
+        {node.total > 0 && <Button size="sm" variant="secondary" iconEnd="arrow-right" className="outline-row__practice" lock={busy} onClick={() => onPractice(row)}>{practiceLabel(node.resume)}</Button>}
       </div>
       {node.intro && (row.kind === 'part' || row.kind === 'section' || row.kind === 'point') && <p className="outline-row__intro">{node.intro}</p>}
       {row.kind === 'point' && row.expanded && data?.notes && <LeafNotes notes={data.notes} modelReady={modelReady} onOpenSource={onOpenSource} onReadMore={onReadMore} />}
-      {row.kind === 'point' && row.expanded && onOpenBook && <Button size="sm" variant="link" icon="book" className="outline-row__book" onClick={() => onOpenBook(row.key)}>{ui('打开书页')}</Button>}
+      {row.kind === 'point' && row.expanded && onOpenBook && <Button size="sm" variant="link" iconEnd="arrow-right" className="outline-row__book" onClick={() => onOpenBook(row.key)}>{ui('打开书页')}</Button>}
       {row.kind === 'other' && node.anchors > 0 && <p className="outline-row__hint"><span>{otherText(node.anchors)}</span></p>}
       {row.kind === 'unplaced' && node.materials?.length > 0 && <p className="outline-row__hint">
         <span>{unfiledText(node.materials.map(material => displayTitle(material.title)), node.materialCount)}</span>
-        {onOpenSources && <Button variant="link" size="sm" onClick={onOpenSources}>{ui('去资料页归入课程')}</Button>}
+        {onOpenSources && <Button iconEnd="arrow-right" variant="link" size="sm" onClick={onOpenSources}>{ui('去资料页归入课程')}</Button>}
       </p>}
       {!row.hasChildren && <div id={bodyId} className="outline-row__body" hidden={!row.expanded}>
         {row.expanded && <Questions data={data} holders={holders} pick={pick} onPickCard={onPickCard} />}

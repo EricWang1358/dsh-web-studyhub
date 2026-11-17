@@ -114,7 +114,7 @@ test('发给主会话 is one destination of 问 AI: the point\'s row has no butt
   const bar = textOf(render(h(ui.PointToolbar, { node: { ...node, questionTotal: 1 }, course: 'SA', handlers })));
   assert.match(bar, /^练 5 道 本节问答$/, 'the row of actions keeps 练 5 道 and 本节问答 only');
   const point = render(h(ui.BookAsk, { target: { heading: 'h12', anchor: null }, model: { ready: true }, onWrite: noop, onSend: noop, onClose: noop }));
-  assert.match(point, /data-book-ask="chat"[^>]*>发给主会话</);
+  assert.match(point, /data-book-ask="chat"[^>]*>(?:<svg.*?<\/svg>)?发给主会话</);
   assert.match(textOf(point), /只填进主会话的输入框，由你按发送；没有主会话时复制到剪贴板。/, 'its rule: it never sends by itself');
   const words = render(h(ui.BookAsk, { target: { heading: 'h12', words: '熵只增不减', anchor: null }, model: { ready: false, status: 'missing' }, onWrite: noop, onSend: noop, onClose: noop }));
   assert.match(words, /data-book-ask="chat"(?![^>]*disabled)/, 'sending to the chat works without a model');

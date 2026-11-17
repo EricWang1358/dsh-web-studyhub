@@ -46,7 +46,7 @@ function LinkItem({ link, onOpen, onAnnotation }) {
     <p className="reader-link-item__head"><Badge size="sm" className="origin-note">{ui('批注')}</Badge> <strong>{link.prompt}</strong></p>
     <p className="reader-link-item__deck">{uiFormat('{0} 条问答', [link.nodes || 1])}</p>
     {answer && <div className="reader-link-item__answer"><Markdown text={clip(answer, 280)} /></div>}
-    {onAnnotation && <div className="reader-link-item__actions"><Button size="sm" variant="quiet" onClick={() => onAnnotation(link)}>{ui('打开问答')}</Button></div>}
+    {onAnnotation && <div className="reader-link-item__actions"><Button iconEnd="arrow-right" size="sm" variant="quiet" onClick={() => onAnnotation(link)}>{ui('打开问答')}</Button></div>}
   </article>;
   return <article className="reader-link-item" data-kind={kind} data-mastery={itemMastery || undefined}>
     <p className="reader-link-item__head">
@@ -57,7 +57,7 @@ function LinkItem({ link, onOpen, onAnnotation }) {
     {deckMeta && <p className="reader-link-item__deck">{deckMeta}</p>}
     {answer && <div className="reader-link-item__answer"><Markdown text={clip(answer, 280)} /></div>}
     {onOpen && <div className="reader-link-item__actions">
-      <Button size="sm" variant="quiet" onClick={() => onOpen({ deckId: link.deckId, cardId: link.cardId })}>{ui('打开这道题')}</Button>
+      <Button iconEnd="arrow-right" size="sm" variant="quiet" onClick={() => onOpen({ deckId: link.deckId, cardId: link.cardId })}>{ui('打开这道题')}</Button>
     </div>}
     {followups.length > 0 && <LazyDetails className="reader-link-item__qa" summary={uiFormat('追问 {0}', [followups.length])}>
       {followups.map(item => <div className="reader-link-item__followup" key={item.id}>
@@ -91,7 +91,7 @@ function Group({ group, focused, onOpen, onAnnotation }) {
     {group.notes.map(note => <p className="reader-link-note" key={note.noteId}>
       <span className="reader-link-note__label">{ui('笔记')}</span>
       <span className="reader-link-note__title">{note.title}</span>
-      {onOpen && <Button size="sm" variant="quiet" onClick={() => onOpen({ kind: 'note', id: note.noteId })}>{ui('打开笔记')}</Button>}
+      {onOpen && <Button iconEnd="arrow-right" size="sm" variant="quiet" onClick={() => onOpen({ kind: 'note', id: note.noteId })}>{ui('打开笔记')}</Button>}
     </p>)}
   </LazyDetails>;
 }

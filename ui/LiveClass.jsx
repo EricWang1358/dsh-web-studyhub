@@ -88,7 +88,7 @@ const GEMINI_STEPS = () => [{ text: ui('用 Google 账号登录 AI Studio'), hre
 export function LiveSetup({ readiness, onSettings, onReady, initialLocal = null }) {
   // A pre-flight that says nothing about the local engine (an older backend) keeps the Gemini steps.
   const local = readiness?.liveLocal?.supported === true && readiness?.liveReason !== 'no-gemini-key';
-  const settings = onSettings ? { label: ui('打开音频设置'), icon: 'key', onClick: onSettings } : undefined;
+  const settings = onSettings ? { label: ui('打开音频设置'), iconEnd: 'arrow-right', onClick: onSettings } : undefined;
   if (!local) return <SetupRequired className="live-setup-gate" icon="audio" title={ui('课堂实录需要 Gemini 密钥')}
     why={readiness?.liveReason === 'no-gemini-key' ? ui('你在音频设置里选了用 Gemini 转写课堂实录，但还没有填 Gemini 密钥。也可以在音频设置里改选「本地转写（声音不上传）」。')
       : ui('这台电脑没有现成的本地转写引擎，边听边转写要用 Google Gemini 的实时接口（需要海外网络）。也可以课后在「音频转写」里导入录音。')}
@@ -180,7 +180,7 @@ export function CaptureHelp({ kind, facts, disabled, activeOp = '', lock = false
   </div>;
 }
 
-export default function LiveClass({ data, visible, onJobs, onSettings, onSources, initialReadiness = null, initialLocal = null, initialLoopback = null, initialAppHost, initialKind = 'microphone', initialSession = null }) {
+export default function LiveClass({ data, visible, onQueued, onSettings, onSources, initialReadiness = null, initialLocal = null, initialLoopback = null, initialAppHost, initialKind = 'microphone', initialSession = null }) {
   const { call } = useStudy();
   const language = useUiLanguage();
   useInjectCss(css, 'study-live-class');
@@ -289,7 +289,7 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
   return <section className="page live-class" hidden={!visible} aria-label={ui('课堂实录')}>
     <PageHeader title={ui('课堂实录')}
       description={session ? undefined : ui('边听边看简体中文，选中重点就能出题。')}
-      actions={<Button variant="quiet" onClick={openAudio}>{ui('音频设置')}</Button>} />
+      actions={<Button iconEnd="arrow-right" variant="quiet" onClick={openAudio}>{ui('音频设置')}</Button>} />
     {error && <InlineMessage tone="error" boxed>{uiMessage(error)}</InlineMessage>}
     {error && !active(session) && <CaptureHelp kind={errorKind} facts={errorFacts} activeOp={activeOp} lock={disabled}
       liveLoopback={readiness?.liveLoopback || null} initialLoopback={initialLoopback}
@@ -345,7 +345,7 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
             <Button variant="link" size="sm" className="live-follow" onClick={() => setFollow(!follow)} aria-pressed={follow}>{follow ? ui('正在跟随最新') : ui('回到最新')}</Button></div>
         </div>
         {pauseHint && <p className="live-pause-hint muted" role="status" data-live-pause-hint>{ui('讲得很快、一直没有断句？到 音频设置 › 断句停顿 选『短』，下次开始或接着录时生效。')}
-          {openPause && <> <Button variant="link" size="sm" onClick={openPause}>{ui('打开断句停顿设置')}</Button></>}</p>}
+          {openPause && <> <Button iconEnd="arrow-right" variant="link" size="sm" onClick={openPause}>{ui('打开断句停顿设置')}</Button></>}</p>}
         <div className="live-feed" ref={feed} tabIndex={0} onMouseUp={selectText} onKeyUp={selectText} onScroll={() => {
           const node = feed.current; if (node && node.scrollHeight - node.scrollTop - node.clientHeight > 80) setFollow(false);
         }} aria-label={ui('课堂原文与译文')}>
@@ -374,7 +374,7 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
               onClick={() => void perform('generate', async () => {
                 const result = await call('live.generate', { id: session.id, segmentIds: chosen.map((segment) => segment.id), count });
                 toast.success(ui('已加入出题任务；课堂实录会继续。草稿会出现在「学习库 › 待发布草稿」，进度在「任务」。'));
-                setSelected(new Set()); await client.poll(); onJobs?.(result);
+                setSelected(new Set()); await client.poll(); onQueued?.(result);
               })}>{ui('选中内容出题')}</Button></Why></div></div>
       </div>
       {correction && <LiveNotes correction={correction} disabled={disabled} onSentence={id => {
@@ -392,13 +392,13 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
               // Said plainly either way: the notes are saved, or they are not (no model, or the model gave nothing usable).
               else if (saved?.noteSourceId) toast.success(ui('已保存文字稿和课堂笔记。'));
               else toast.warning(ui('已保存文字稿，但没有保存课堂笔记：没有可用的文字模型，或模型没有给出可用的笔记。'));
-              onJobs?.(saved?.jobId ? saved : undefined);
+              onQueued?.(saved?.jobId ? saved : undefined);
             })}>{ui('保存为资料')}</Button></Why>
           <Why reason={ui('再校对一遍整份文字、按段翻译并起标题，需要文字模型，比较慢；一般点「保存为资料」就够了。')}>
             <Button variant="quiet" busy={activeOp === 'save-proofread'} lock={disabled} onClick={() => void perform('save-proofread', async () => {
-              await call('live.save', { id: session.id, proofread: true, paidOnly }); toast.success(ui('已加入校对任务，完成后会保存为资料。')); onJobs?.();
+              await call('live.save', { id: session.id, proofread: true, paidOnly }); toast.success(ui('已加入校对任务，完成后会保存为资料。')); onQueued?.();
             })}>{ui('校对后保存')}</Button></Why>
-          <Button variant="link" size="sm" onClick={onSources}>{ui('打开资料')}</Button></div>}</footer>
+          <Button iconEnd="arrow-right" variant="link" size="sm" onClick={onSources}>{ui('打开资料')}</Button></div>}</footer>
     </>}
     <LiveHistory sessions={sessions.filter(item => !undoable.hidden(`live:${item.id}`))} disabled={disabled} capturing={capturing}
       onOpen={id => void perform('history-open', async () => { setSelected(new Set()); await client.open(id); })}

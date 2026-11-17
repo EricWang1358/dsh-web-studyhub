@@ -544,7 +544,7 @@ export default function ImportHub({
   const customAction = item => {
     const offer = item.status === 'done' && !item.customSent ? customOfferOf(item.result) : null;
     if (!offer || customOffered(offer.document)) return undefined;
-    return { label: ui(CUSTOM_BOOK_LABEL), disabled: running, onClick: async () => {
+    return { label: ui(CUSTOM_BOOK_LABEL), icon: 'external', disabled: running, onClick: async () => {
       if (await handOff.send('custom.start', offer) === 'failed') return;
       markCustomOffered(offer.document);
       setItems(current => current.map(entry => entry.id === item.id ? { ...entry, customSent: true } : entry));
@@ -553,7 +553,7 @@ export default function ImportHub({
   const shown = items.map(item => ({ id: item.id, name: item.name, status: item.status, detail: itemDetail(item),
     action: item.status === 'done' && item.result?.repeated?.count > 0 && item.result.documentId
       ? { label: ui('恢复'), onClick: () => putBack(item), disabled: !!restoring || running }
-      : item.status !== 'error' ? customAction(item) : item.carry && audioOn ? { label: ui('去音频页'), onClick: () => { carryToAudio([item.file]); drop(item.id); } }
+      : item.status !== 'error' ? customAction(item) : item.carry && audioOn ? { label: ui('去音频页'), iconEnd: 'arrow-right', onClick: () => { carryToAudio([item.file]); drop(item.id); } }
       : item.permanent || !item.kind ? { label: ui('移除'), onClick: () => drop(item.id), disabled: running }
         : { label: ui('重试'), onClick: () => retry(item.id), disabled: running } }));
   const finished = items.filter(item => item.status === 'done').length, failed = items.filter(item => item.status === 'error').length;
@@ -567,7 +567,7 @@ export default function ImportHub({
     <div ref={root} className={`import-hub${className ? ` ${className}` : ''}`} data-tab={tab} {...rest}>
       <CourseChoice value={courseText} focus={data?.focus?.course || ''} from={courseFrom} courses={choices} onChange={setCourseText} disabled={busy || running} />
       <SegmentedControl className="import-hub__tabs" iconClassName="import-hub__tab-icon" label={ui('添加方式')} value={tab} options={tabs} disabled={running} onChange={setTab} />
-      {stray && <p className="import-hub__stray" role="status"><Icon name="info" size={16} className="import-hub__stray-icon" />{strayText}</p>}
+      {stray && <p className="import-hub__stray" role="status"><Icon name="info" className="import-hub__stray-icon sh-icon--inline" />{strayText}</p>}
       {tab === 'files' && <div className="import-hub__files">
         {!running && failed > 0 && <InlineMessage tone="warning" boxed className="import-hub__summary" actionsBelow
           title={finished ? uiFormat('{0} 个文件已导入，{1} 个没有导入', [finished, failed]) : uiFormat('{0} 个文件没有导入', [failed])}
@@ -591,7 +591,7 @@ export default function ImportHub({
         {!largeItem && scannedItem && <div ref={converterBox}><ConverterMain key={scannedItem.id} available={convertible} runnable file={scannedItem.file} courses={coursesOf(scannedItem.file)}
           jobs={data?.jobs} onOpenSettings={settingsFor} onStarted={job => conversionStarted(job, scannedItem)} why={scannedItem.error} scanned /></div>}
         {staged && <>
-          <Button variant="link" size="sm" onClick={() => { setConversionOpen(false); setConversionHistory(false); setConversionFile(null); }}>{ui('返回文件导入')}</Button>
+          <Button variant="link" size="sm" icon="arrow-left" onClick={() => { setConversionOpen(false); setConversionHistory(false); setConversionFile(null); }}>{ui('返回文件导入')}</Button>
           <PdfConversion available={convertible} file={conversionFile} onFile={setConversionFile} courses={coursesOf(conversionFile)} onStarted={conversionStarted} onOpenSettings={settingsFor}
           jobs={data?.jobs} historyOpen={conversionHistory} onOpenSources={onOpenSources} onOpenJob={job => void conversionStarted({ jobId: job.id, filename: job.filename, pages: job.pages, route: job.route, converter: job.converter })}
           onChanged={() => onImported?.()} />
@@ -605,7 +605,7 @@ export default function ImportHub({
           <div className="import-hub__converter-actions">
             <Button size="sm" icon="upload" disabled={!convertible} lock={busy || running} data-tour="import-mineru" onClick={choosePdfToConvert}>{ui('选择 PDF 解析…')}</Button>
             <Button variant="link" size="sm" disabled={!convertible} lock={busy || running} onClick={() => { setConversionHistory(true); setConversionOpen(true); }}>{ui('解析历史')}</Button>
-            {onOpenSettings && convertible && <Button variant="link" size="sm" lock={busy || running} onClick={() => settingsFor('settings-mineru')}>{ui('前往设置')}</Button>}
+            {onOpenSettings && convertible && <Button iconEnd="arrow-right" variant="link" size="sm" lock={busy || running} onClick={() => settingsFor('settings-mineru')}>{ui('前往设置')}</Button>}
           </div>
         </Disclosure>}
         {!items.length && !conversionOpen && <p className="import-hub__routes">{audioOn

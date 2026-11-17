@@ -38,7 +38,7 @@ export default function CrunchCard({ data, onOpenBook, onPractice, onExamRun }) 
           onRead={point => onOpenBook(entry.course, { target: point.key, view: entry.today.mode === 'flip' ? 'flip' : null })}
           onPractice={point => onPractice(entry.course, point)} onFlip={() => onOpenBook(entry.course, { view: 'flip' })}
           onMore={() => onOpenBook(entry.course, { view: 'today' })} onMockStarted={onExamRun} />
-        <Button variant="link" size="sm" className="crunch-card__open" data-usage="home.crunch" onClick={() => onOpenBook(entry.course, { view: 'today' })}>{ui('打开复习全书')}</Button>
+        <Button iconEnd="arrow-right" variant="link" size="sm" className="crunch-card__open" data-usage="home.crunch" onClick={() => onOpenBook(entry.course, { view: 'today' })}>{ui('打开复习全书')}</Button>
       </section>
     );
   });

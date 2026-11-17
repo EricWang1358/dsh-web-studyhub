@@ -40,7 +40,7 @@ test('the main path of the options: the question types, the 覆盖强度 with �
   assert.deepEqual(choices, [['精简', false], ['标准', true], ['完整', false], ['自定义', false]], 'four choices, one on');
   assert.match(main, /data-generate-plan/);
   assert.match(text(main.slice(main.indexOf('data-generate-plan'))), /^[^>]*> 新题组放进课程：数据库 更改 前往设置/, 'where the new deck goes (as the page infers it), 更改, and the way to the defaults');
-  assert.match(main, /<button[^>]*data-open-settings="settings-generation"[^>]*>前往设置<\/button>/);
+  assert.match(main, /<button[^>]*data-open-settings="settings-generation"[^>]*>前往设置(?:<svg[\s\S]*?<\/svg>)?<\/button>/);
   assert.doesNotMatch(main, /generate-focus|generate-title|generate-role|generate-count|data-tour="generate-(difficulty|language|notation)"/, 'nothing optional on the main path');
   assert.doesNotMatch(main, /课程归属|课程范围/, 'the course field of the new deck is not drawn until 更改 (the page has one course field: 课程范围 of the materials)');
 });

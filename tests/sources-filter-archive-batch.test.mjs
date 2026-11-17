@@ -60,7 +60,7 @@ test('BatchRemoveDialog and RemoveDialog block deletion when cited, unarchived, 
   try {
     const enHtml = renderToStaticMarkup(React.createElement(BatchRemoveDialog, { items: citedBatch, onClose() {}, onRemoved() {} }));
     assert.match(enHtml, /Permanently delete these 2 sources\?/);
-    assert.match(enHtml, /1 selected source\(s\) are cited by decks/);
+    assert.match(enHtml, /1 selected source is cited by decks/);
     assert.doesNotMatch(enHtml.replace(/Lecture [AB]|OS Midterm/g, ''), /[\u3400-\u9fff]/);
 
     const enModularBatch = renderToStaticMarkup(

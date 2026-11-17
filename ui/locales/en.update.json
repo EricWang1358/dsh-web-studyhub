@@ -40,6 +40,7 @@
   "暂时无法连接 GitHub 检查更新，稍后会自动重试。": "GitHub could not be reached just now; StudyHub will try again later.",
   "更新内容": "What's new",
   "有 {0} 个后台任务正在运行": "{0} background tasks are running",
+  "有 {0} 个后台任务正在运行#one": "{0} background task is running",
   "有新版本 {0}": "Version {0} available",
   "查看升级": "View upgrade",
   "查看发布页": "Release page",
