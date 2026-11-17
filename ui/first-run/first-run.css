@@ -43,6 +43,10 @@
       padding: var(--space-2) 0;
     }
     .frl-step__text { flex: 1 1 auto; min-width: 0; font-size: var(--fs-md); line-height: var(--lh-snug); color: var(--text-dim); overflow-wrap: anywhere; }
+    /* The model step's words sit in the Tooltip's anchor (the whole label on hover and focus): the anchor takes the text's place in the row. */
+    .frl-step__tip { display: flex; flex: 1 1 auto; min-width: 0; }
+    .frl-step__tip > .frl-step__text { border-radius: var(--radius-sm); }
+    .frl-step__tip > .frl-step__text:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; box-shadow: var(--ring); }
     .frl-step[aria-current="step"] .frl-step__text { color: var(--text); font-weight: var(--fw-medium); }
     .frl-step[data-status="done"] .frl-step__text { color: var(--text-muted); }
     .frl-row-link { flex: none; }
@@ -117,14 +121,19 @@
     /* The rows sit on the today card's index-card ruling (ui/study-map/desk.css: a rule every 32px from 52px down the card's border box): the head ends
        exactly there (the 1px border, the top padding, the head), whatever the font's line height; then one ruled line left blank, then one 32px line per row. --frl-rule is that
        ruling's pitch, not a spacing token: it must not scale with the density setting. */
-    .first-run-card { --frl-rule: 32px; }
+    .first-run-card { --frl-rule: 32px; --frl-card-mark: 20px; }
     .first-run-card .frl-head { box-sizing: border-box; height: calc(51px - var(--paper-pad-top)); flex-wrap: nowrap; }
     .first-run-card .frl-steps { margin: var(--frl-rule) 0 var(--space-5); }
     .first-run-card .frl-step__row { height: var(--frl-rule); min-height: 0; padding: 0; gap: var(--space-2); }
     .first-run-card .frl-step__text { color: var(--paper-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .first-run-card .frl-step[aria-current="step"] .frl-step__text { color: var(--paper-ink); }
     .first-run-card .frl-step[data-status="done"] .frl-step__text { color: var(--paper-dim); }
-    .first-run-card .frl-mark { width: 20px; height: 20px; border-color: currentColor; color: var(--paper-dim); }
+    /* The model step names the model, provider first (「siliconflow · Qwen/Qwen2.5-7B-Instruct」): it takes a second ruled line rather than cut the id, and an id longer than that ends there with an ellipsis, the provider whole (#1073
+       round 6), with its mark on the first line, so the rows under it stay on the card's ruling. */
+    .first-run-card .frl-step[data-step="model"] .frl-step__row { height: auto; min-height: var(--frl-rule); align-items: flex-start; }
+    .first-run-card .frl-step[data-step="model"] .frl-mark { margin-top: calc((var(--frl-rule) - var(--frl-card-mark)) / 2); }
+    .first-run-card .frl-step[data-step="model"] .frl-step__text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; max-height: calc(2 * var(--frl-rule)); white-space: normal; overflow-wrap: break-word; line-height: var(--frl-rule); }
+    .first-run-card .frl-mark { width: var(--frl-card-mark); height: var(--frl-card-mark); border-color: currentColor; color: var(--paper-dim); }
     .first-run-card .frl-step[aria-current="step"] .frl-mark { border-color: var(--paper-ink); background: var(--paper-ink); color: var(--paper); }
     .first-run-card .frl-step[data-status="done"] .frl-mark { border-color: transparent; background: color-mix(in srgb, var(--paper-ink) 10%, transparent); color: var(--paper-dim); }
     /* The first deck's summary and estimate: two more ruled lines under the rows (held while the estimate is asked), cut with an ellipsis like the rows. */

@@ -104,7 +104,7 @@ test('a failed conversion: the cause in full with the last lines and 复制诊�
   assert.match(text, /已转换的页会保留。先按「前往设置」里的说明处理，再点「接着做」继续。/);
   assert.doesNotMatch(text, /已出的题/);
   assert.match(html, /data-fix="settings"[^>]*>前往设置</);
-  const retry = /<button[^>]*>接着做<\/button>/.exec(html)?.[0] || '';
+  const retry = /<button[^>]*>接着做(?:<svg.*?<\/svg>)?<\/button>/.exec(html)?.[0] || '';
   assert.ok(retry, '接着做 is still offered (after Docker is started it continues)');
   assert.doesNotMatch(retry, /primary/, '接着做 is not the primary action');
   assert.doesNotMatch(html, /tc-timeline/);
@@ -120,7 +120,7 @@ test('a failure the job can retry by itself keeps 接着做 as the primary actio
   job.errorCode = 'timeout'; job.stage = job.failure.summary;
   const html = draw(job), text = textOf(html);
   assert.doesNotMatch(html, /data-fix="settings"/);
-  assert.match(/<button[^>]*>接着做<\/button>/.exec(html)?.[0] || '', /primary/);
+  assert.match(/<button[^>]*>接着做(?:<svg.*?<\/svg>)?<\/button>/.exec(html)?.[0] || '', /primary/);
   assert.match(text, /已转换的页会保留，点「接着做」继续。/);
 });
 

@@ -11,7 +11,7 @@ import { useApp } from '../app-context.js';
 function MaterialsOff({ host }) {
   return (
     <InlineMessage tone="info" boxed
-      action={host?.openPluginManager ? { label: ui('打开 DSH 插件管理器'), onClick: () => host.openPluginManager() } : undefined}>
+      action={host?.openPluginManager ? { label: ui('打开 DSH 插件管理器'), icon: 'external', onClick: () => host.openPluginManager() } : undefined}>
       {ui('请在 DSH 插件管理器中启用资料组件，再导入资料。')}
     </InlineMessage>
   );

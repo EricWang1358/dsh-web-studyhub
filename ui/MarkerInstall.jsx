@@ -47,8 +47,8 @@ function Facts({ plan }) {
   const disk = free == null ? uiFormat('至少需要 {0}', [sizeLabel(plan.disk?.neededMb)]) : uiFormat('剩余 {0} · 至少需要 {1}', [sizeLabel(free), sizeLabel(plan.disk?.neededMb)]);
   const low = free != null && free < plan.disk.neededMb;
   return <dl className="marker-install__facts">
-    <div><dt>{ui('Python')}</dt><dd data-ok={plan.python ? 'true' : 'false'}><span className="marker-install__fact-mark"><Icon name={plan.python ? 'success' : 'warning'} size={16} /></span>{python}</dd></div>
-    <div><dt>{ui('磁盘空间')}</dt><dd data-ok={low ? 'false' : 'true'}><span className="marker-install__fact-mark"><Icon name={low ? 'warning' : 'success'} size={16} /></span>{disk}</dd></div>
+    <div><dt>{ui('Python')}</dt><dd data-ok={plan.python ? 'true' : 'false'}><span className="marker-install__fact-mark"><Icon className="sh-icon--inline" name={plan.python ? 'success' : 'warning'} /></span>{python}</dd></div>
+    <div><dt>{ui('磁盘空间')}</dt><dd data-ok={low ? 'false' : 'true'}><span className="marker-install__fact-mark"><Icon className="sh-icon--inline" name={low ? 'warning' : 'success'} /></span>{disk}</dd></div>
     <div><dt>{ui('下载与时间')}</dt><dd>{uiFormat('约 {0}，通常 {1}–{2} 分钟（估算，取决于网速）', [sizeLabel(plan.estimate?.downloadMb), plan.estimate?.minutes?.[0], plan.estimate?.minutes?.[1]])}</dd></div>
   </dl>;
 }
@@ -227,7 +227,7 @@ export default function MarkerInstall({ disabled = false, markerReady = false, m
       <JobRow status={cancelled ? 'cancelled' : install.status === 'interrupted' ? 'interrupted' : 'failed'} title={cancelled ? ui('安装已取消') : install.status === 'interrupted' ? ui('安装被中断') : ui('Marker 没有装好')}
         meta={install.stage ? uiFormat('停在：{0}', [stageName(install.stage)]) : undefined}
         failure={cancelled ? { hint } : { hint: <><span className="marker-install__reason">{uiMessage(install.error?.message || '')}</span> {hint}</>, detail: install.log?.length ? install.log.join('\n') : undefined }}
-        actions={[{ label: ui('重试'), variant: 'primary', icon: 'refresh', onClick: start, busy: working === 'start', disabled: locked || (!!plan && !canInstall(plan)) }]}>
+        actions={[{ label: ui('重试'), variant: 'primary', onClick: start, busy: working === 'start', disabled: locked || (!!plan && !canInstall(plan)) }]}>
         <Stages install={install} />
         {!cancelled && diagRow()}
       </JobRow>

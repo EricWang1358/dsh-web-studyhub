@@ -111,13 +111,14 @@ test("English: every line is in English and the dates are written the English wa
   }
   assert.match(view({ preview: preview() }, "en"), /Exam alignment[\s\S]*Exam day: OS Nov 20, 2026\. Switched off: reviews are scheduled as usual\./);
   assert.match(view({ preview: preview({ enabled: true }) }, "en"), /Exam day: OS Nov 20, 2026\. Answers from now on come back by the exam day\./);
-  // Counts follow the catalogue's way with a number that may be 1: "question(s)", never "1 questions".
+  // A count of 1 says "1 question" (the catalogue's `#one`, #1073 round 8), never "1 questions" nor "question(s)".
   const counted = [view({ preview: preview({ enabled: true, pending: 1 }) }, "en"), view({ preview: preview({ courses: [], restorable: 1 }) }, "en"),
     render(React.createElement(m.ExamAlignmentPointerView, { preview: preview({ enabled: true, courses: [{ name: "OS", date: "2026-11-20", pending: 1 }] }), course: "OS" }), "en")];
   m.setUiLanguage("en");
   try { counted.push(m.alignmentReceipt({ pulled: 1, restored: 1 })); } finally { m.setUiLanguage("zh"); }
   for (const shown of counted) {
-    assert.match(shown, /\b1 question\(s\)/, shown);
+    assert.match(shown, /\b1 question\b/, shown);
+    assert.doesNotMatch(shown, /\(s\)/, shown);
     assert.doesNotMatch(shown, /\b1 questions\b/, shown);
   }
   assert.match(view({ preview: preview() }, "en"), /November 10 \+2/);

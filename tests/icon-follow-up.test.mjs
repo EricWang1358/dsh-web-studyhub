@@ -105,7 +105,8 @@ test('a "go on" action carries the arrow: the wrong book\'s 练 and the deck row
   const practice = wrong.split('<Button').slice(1).map((chunk) => chunk.split('</Button>')[0]).filter((chunk) => chunk.endsWith('{ui("练")}'));
   assert.equal(practice.length, 3);
   for (const button of practice) assert.match(button, /iconEnd="arrow-right"/);
-  assert.equal([...deck.matchAll(/ui\('继续'\)\}<Icon name="arrow-right"/g)].length, 2);
+  assert.equal(deck.split('<PlaySlot run=').length - 1, 2, 'the deck row and the topic row both draw the slot');
+  assert.ok(deck.includes("const resume = <>{ui('继续')}<Icon name=\"arrow-right\""), 'and the slot says 继续 with its arrow');
 });
 
 test('NextDue: a lead line that wraps starts its second line under the words, not under the icon', async () => {
@@ -115,10 +116,10 @@ test('NextDue: a lead line that wraps starts its second line under the words, no
   assert.match(html, /next-due__lead[^>]*>(?:<svg[^>]*>.*?<\/svg>)?<span class="next-due__words">/s);
 });
 
-test('the answer mark is an inline icon too: 14px, the default weight', () => {
+test('the answer mark is an inline icon too: 14px, Regular beside its medium label (weight="regular")', () => {
   const html = renderToStaticMarkup(h(m.AnswerState, { correct: true, picked: true }));
-  assert.match(html, /class="sh-icon sh-icon--inline"/);
-  assert.doesNotMatch(html, /stroke-width/);
+  assert.match(html, /class="sh-icon answer-state__mark sh-icon--inline"/);
+  assert.match(html, /stroke-width/);
 });
 
 test('ui/DESIGN.md says the rules once: inline size, row-end gap, the arrow on a "go on" action, verdict marks', async () => {

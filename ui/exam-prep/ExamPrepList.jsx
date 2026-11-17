@@ -16,7 +16,7 @@ function BuildState({ build, onOpenTask }) {
   return (
     <span className="exam-prep-row__state">
       <Explain k="building" focusable><Badge size="sm" tone="accent" dot>{buildWords(build)}</Badge></Explain>
-      <Button variant="link" size="sm" onClick={() => onOpenTask(build.taskId)}>{ui('在任务里查看')}</Button>
+      <Button iconEnd="arrow-right" variant="link" size="sm" onClick={() => onOpenTask(build.taskId)}>{ui('在任务里查看')}</Button>
     </span>
   );
 }
@@ -31,7 +31,7 @@ function ListRow({ row, onOpen, onOpenTask, onRestore }) {
       </Button>
       <Explain k="basis" focusable className="exam-prep-row__basis">{basisLine(row.basis)}</Explain>
       <span className="exam-prep-row__counts">{countsLine(row.counts)}</span>
-      {row.archived ? <span className="exam-prep-row__state"><Explain k="restore"><Button variant="quiet" size="sm" icon="undo" data-usage="examprep.restore" onClick={() => onRestore(row)}>{ui('恢复')}</Button></Explain></span>
+      {row.archived ? <span className="exam-prep-row__state"><Explain k="restore"><Button variant="quiet" size="sm" data-usage="examprep.restore" onClick={() => onRestore(row)}>{ui('恢复')}</Button></Explain></span>
         : row.build ? <BuildState build={row.build} onOpenTask={onOpenTask} />
         : (
           <span className="exam-prep-row__time">
@@ -91,7 +91,7 @@ export default function ExamPrepList({ data, scope, onScope, rows, history = [],
       {failed.map(build => (
         <p key={build.jobId} className="exam-prep-failed" role="status">
           {uiFormat('「{0}」没有生成完。', [build.title])}{' '}
-          <Button variant="link" size="sm" onClick={() => onOpenTask(build.taskId)}>{ui('在任务里查看原因')}</Button>
+          <Button iconEnd="arrow-right" variant="link" size="sm" onClick={() => onOpenTask(build.taskId)}>{ui('在任务里查看原因')}</Button>
         </p>
       ))}
       {rows.length || fresh.length ? (

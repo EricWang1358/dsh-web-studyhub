@@ -199,7 +199,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             <button className="prereq-item" disabled={busy} title={ui("只练这一道，做完回到这道题")} onClick={() => studyPrerequisites([p])}>
               <span className={"map-dot lv-" + p.level} />
               <Markdown className="md-compact" links={false} text={p.prompt} />
-              <Icon name="arrow-right" size={16} className="prereq-go" />
+              <Icon name="arrow-right" className="prereq-go sh-icon--inline" />
             </button>
           </li>
         ))}
@@ -371,7 +371,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
               {voice.answer}
               {(run.revealed || showBack) && !run.feedback && companionTarget && openModal && (
                 <div className="sh-comp-card-jump">
-                  <Button size="sm" variant="quiet" icon="play" onClick={() => openCompanionTarget(openModal, companionTarget)}>
+                  <Button size="sm" variant="quiet" iconEnd="arrow-right" onClick={() => openCompanionTarget(openModal, companionTarget)}>
                     {companionSlideButtonLabel(companionTarget)}
                   </Button>
                 </div>
@@ -642,7 +642,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                 onOpen={(source, quote, peekPage) => openModal({ type: "source", source, quote, peekPage, back: true })} />
               {!run.feedback && (choice || isCloze || rubricCard || taskCard) && companionTarget && openModal && (
                 <div className="sh-comp-card-jump">
-                  <Button size="sm" variant="quiet" icon="play" onClick={() => openCompanionTarget(openModal, companionTarget)}>
+                  <Button size="sm" variant="quiet" iconEnd="arrow-right" onClick={() => openCompanionTarget(openModal, companionTarget)}>
                     {companionSlideButtonLabel(companionTarget)}
                   </Button>
                 </div>

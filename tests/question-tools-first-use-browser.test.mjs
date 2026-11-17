@@ -96,7 +96,7 @@ const insideWindow = (tip, viewport) => tip.left >= 0 && tip.top >= 0 && tip.rig
 const shot = async (page, name) => { if (SHOTS) { await mkdir(SHOTS, { recursive: true }); await page.screenshot({ path: join(SHOTS, `${name}.png`) }); } };
 const WORDS = {
   zh: { help: '没懂？点「帮我弄懂」，讲解会直接出现在这道题下面。', fix: '觉得题目有问题？点「修题」', prereq: '基础不牢？点「出成前置题」', ok: '知道了', more: '更多', thumbDown: /这题有问题/ },
-  en: { help: 'Still not clear? Choose “Help me understand”', fix: 'Question wrong? Choose “Improve question”', prereq: 'Shaky basics? Choose “Turn into a prerequisite question”', ok: 'Got it', more: 'More', thumbDown: /Something is wrong with it/ },
+  en: { help: 'Still not clear? Choose “Help me understand”', fix: 'Question wrong? Choose “Improve question”', prereq: 'Shaky basics? Choose “Turn into a prerequisite question”', ok: 'Got it', more: 'More', thumbDown: /Question needs work/ },
 };
 const voteDown = async (page, words) => {
   await page.evaluate(() => document.querySelector('.question-toolbar').scrollIntoView({ block: 'center' }));

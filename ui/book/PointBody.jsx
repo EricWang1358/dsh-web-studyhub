@@ -37,7 +37,7 @@ function PointQuestions({ node, handlers }) {
     <Disclosure className="book-questions" summary={uiFormat('本节的题 ({0})', [node.questionTotal])}>
       <ul className="book-questions__list">
         {shown.map(item => <li key={`${item.deckId}|${item.cardId}`}>
-          <Button variant="link" size="sm" wrap className="book-link" data-book-link="card" onClick={event => handlers.card({ deckId: item.deckId, cardId: item.cardId }, node.hid, event.currentTarget)}>
+          <Button variant="link" size="sm" wrap iconEnd="arrow-right" iconEndClassName="sh-icon--inline sh-icon--trail" className="book-link" data-book-link="card" onClick={event => handlers.card({ deckId: item.deckId, cardId: item.cardId }, node.hid, event.currentTarget)}>
             {uiFormat('练习：{0}', [plainPrompt(item.prompt)])}</Button>
         </li>)}
       </ul>

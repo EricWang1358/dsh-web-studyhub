@@ -10,6 +10,15 @@ import { HandOff } from '../hand-off/HandOff.jsx';
 import { useHandOff } from '../hand-off/use-hand-off.js';
 import { useStudy } from '../study-context.jsx';
 
+/** The inside of a play slot: the ▶ of a row with no open run, 「继续 →」 of one with a run. A row without a run keeps the room of 「继续 →」 in an invisible twin, so every slot is as wide as
+    its widest face in the language of the page (「Continue →」 is wider than 「继续 →」, and a fixed width cut it) and the bars of the rows still line up. */
+function PlaySlot({ run }) {
+  const resume = <>{ui('继续')}<Icon name="arrow-right" className="sh-icon--inline" /></>;
+  return run
+    ? <span className="map-play__face row-end">{resume}</span>
+    : <><span className="map-play__face map-play__glyph"><Icon name="play" size={14} /></span><span className="map-play__face map-play__ghost row-end" aria-hidden="true">{resume}</span></>;
+}
+
 /** One deck of the tree: its fold, selection, mastery, play button and ⋯ menu (with 发给主会话), and its topics when open (each with a 发给主会话 icon). */
 export default function DeckRow({ deck: d, progress: p, open, tree, runFor, actions }) {
   const { busy } = useStudy();
@@ -59,7 +68,7 @@ export default function DeckRow({ deck: d, progress: p, open, tree, runFor, acti
           title={run ? uiFormat('继续 {0}/{1}', [run.index + 1, run.total]) : uiFormat('学习全部 {0} 题', [d.available])}
           aria-label={run ? `${ui('继续')} ${d.title}` : uiFormat('开始学习 {0}', [d.title])}
           onClick={() => (run ? resume(run.id) : start({ mode: 'path', scope: [{ deckId: d.id }] }))}>
-          {run ? <>{ui('继续')}<Icon name="arrow-right" className="sh-icon--inline sh-icon--trail" /></> : <Icon name="play" size={14} />}
+          <PlaySlot run={run} />
         </button>
         <Menu className="map-menu-wrap" label={ui('更多操作')} items={items} onSelect={(id) => choose[id]()} />
       </div>
@@ -81,7 +90,7 @@ export default function DeckRow({ deck: d, progress: p, open, tree, runFor, acti
                   aria-label={topicRun ? `${ui('继续')} ${t.name}` : uiFormat('学习主题 {0}', [t.name])}
                   title={topicRun ? uiFormat('继续 {0}/{1}', [topicRun.index + 1, topicRun.total]) : ui('学习这个主题')}
                   onClick={() => (topicRun ? resume(topicRun.id) : start({ mode: 'path', scope: [{ deckId: d.id, topic: t.name }] }))}>
-                  {topicRun ? <>{ui('继续')}<Icon name="arrow-right" className="sh-icon--inline sh-icon--trail" /></> : <Icon name="play" size={14} />}
+                  <PlaySlot run={topicRun} />
                 </button>
                 <HandOff id="topic.explain" shape="icon" what="让主会话讲解这个主题" anchorClassName="map-ask"
                   input={{ topic: t.name, deckTitle: d.title, mastery: t.mastery, weak: t.counts.weak }} />

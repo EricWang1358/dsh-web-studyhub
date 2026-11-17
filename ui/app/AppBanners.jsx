@@ -38,7 +38,7 @@ export function RecoveryBanner() {
   const saved = lib.recovery;
   if (!saved) return null;
   return (
-    <Banner tone="info" className="app-banner" action={{ label: ui('继续编辑'), onClick: () => drafts.restoreRecovery(saved) }}
+    <Banner tone="info" className="app-banner" action={{ label: ui('继续编辑'), iconEnd: 'arrow-right', onClick: () => drafts.restoreRecovery(saved) }}
       secondary={{ label: ui('丢弃暂存'), onClick: drafts.clearRecovery }}>
       {uiFormat('有本窗口暂存的编辑：{0}（尚未发布）', [saved.draft.title])}
     </Banner>

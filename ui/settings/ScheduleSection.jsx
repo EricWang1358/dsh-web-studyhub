@@ -101,7 +101,7 @@ export function ScheduleSection({ root, settings = {}, saved = {}, setSettings }
       <SettingsSection className="sm2-settings" tour="settings-data" title={ui('间隔复习 · FSRS-6')} lead={ui('每次作答后，按上次复习到现在实际隔了几天、这次答得怎样，估算这道题还能记多久，在预计还记得的把握降到目标时安排下一次复习。答错会缩短间隔，但不一定回到 1 天。')}>
         <div className="sm2-fields">
           {FIELDS.map(field => <Field key={field.key} width="sm" label={<>{ui(field.label)}{' '}<Tooltip layer content={ui(field.tip)}>
-              <span tabIndex={0} className="sm2-field-tip" aria-label={uiFormat('「{0}」是什么', [ui(field.label)])}><Icon name="info" size={16} /></span>
+              <span tabIndex={0} className="sm2-field-tip" aria-label={uiFormat('「{0}」是什么', [ui(field.label)])}><Icon className="sh-icon--inline" name="info" /></span>
             </Tooltip></>}>
             <NumberInput required min={field.min * field.scale} max={field.max * field.scale} step="1" suffix={field.unit === '%' ? '%' : ui(field.unit)} value={shown(field, settings[field.key])} disabled={busy}
               onChange={(e) => { const value = e.target.value === '' ? NaN : Number(e.target.value) / field.scale; setError(''); setSettings(previous => ({ ...previous, [field.key]: value })); }} />

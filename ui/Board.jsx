@@ -140,7 +140,7 @@ function ArchiveList({ board, readOnly, library, onRestore, onDelete, onBack }) 
           <span className="board-archive-list__title">{isMemoCard(card) && <span className="board-chip board-archive-list__kind">{ui("备忘")}</span>}{card.title}</span>
           <span className="board-archive-list__meta">{uiFormat("更新于 {0}", [stamp(card.updatedAt)])}{card.studyRef ? ` · ${studyRefLabel(card.studyRef, library).text}` : ""}</span>
         </div>
-        <Button variant="secondary" size="sm" icon={<Icon name="undo" />} disabled={readOnly || !board.columns.length} onClick={() => onRestore(card)}>{ui("恢复")}</Button>
+        <Button variant="secondary" size="sm" disabled={readOnly || !board.columns.length} onClick={() => onRestore(card)}>{ui("恢复")}</Button>
         <IconButton icon={<Icon name="trash" size={18} />} size="sm" label={uiFormat("永久删除：{0}", [card.title])} disabled={readOnly} onClick={() => onDelete(card)} />
       </li>)}
     </ul>

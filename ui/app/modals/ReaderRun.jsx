@@ -71,7 +71,7 @@ export default function ReaderRun({ started, label, onClose, onSeek, shown = tru
   }), [host, set, settingsEntry, core, learn, decks]);
   return (
     <StudyServicesContext.Provider value={services}>
-      <InlineRun session={session} data={data} label={label} rootRef={rootRef} onClose={onClose} onContinue={continueThere} links={links} feedback={null} />
+      <InlineRun session={session} data={data} label={label} rootRef={rootRef} onClose={onClose} onOpenRun={continueThere} links={links} feedback={null} />
       {flagging && session.run?.card && <FlagDialog run={session.run} onClose={() => setFlagging(false)} />}
       {helpOpen && <ShortcutHelp page="review" onClose={closeShortcutHelp} />}
     </StudyServicesContext.Provider>

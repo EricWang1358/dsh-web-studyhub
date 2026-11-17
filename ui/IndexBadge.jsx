@@ -103,6 +103,6 @@ export function IndexGapLine({ count, canIndex, onGo, short = false }) {
     {/* The hover says why to build it: what it is for, that it runs here and costs no tokens, the one-time download. */}
     <Tooltip layer content={[indexWhyLine(), ...indexWhyTip()].join('\n')}><span tabIndex={0}>{said}</span></Tooltip>
     <span aria-hidden="true"> · </span>
-    <Button variant="link" size="sm" onClick={onGo}>{go}</Button>
+    <Button iconEnd="arrow-right" variant="link" size="sm" onClick={onGo}>{go}</Button>
   </p>;
 }

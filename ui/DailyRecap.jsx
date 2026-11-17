@@ -48,13 +48,13 @@ export function DailyRecapPanel(props) {
   </details>;
   return <section className="daily-recap" aria-labelledby={prefix + '-title'}>
     <div className="daily-recap-heading"><h2 id={prefix + '-title'}>{ui('今日学习总结')}</h2>
-      {onSettings && <Button className="daily-recap-heading__btn" size="sm" variant="quiet" onClick={onSettings}>{ui('生成设置')}</Button>}
+      {onSettings && <Button iconEnd="arrow-right" className="daily-recap-heading__btn" size="sm" variant="quiet" onClick={onSettings}>{ui('生成设置')}</Button>}
     </div>
     <p className="daily-recap-lead">{ui('把今天各章的练习串起来，收好错因、思路和下一步。')}</p>
-    {status && !modelReady && <InlineMessage tone="warning" title={gateTitle('inline')} action={onModelSettings ? { label: ui('打开模型设置'), onClick: onModelSettings } : undefined}>
+    {status && !modelReady && <InlineMessage tone="warning" title={gateTitle('inline')} action={onModelSettings ? { label: ui('打开模型设置'), iconEnd: 'arrow-right', onClick: onModelSettings } : undefined}>
       {ui('整理合集需要先配置模型；已经写好的合集仍可阅读。')}</InlineMessage>}
     {error && <InlineMessage tone="error" boxed action={{ label: ui('重新加载状态'), onClick: recap.refresh, disabled: !!working }}
-      secondary={/模型|model|provider/i.test(error) && onModelSettings ? { label: ui('检查 AI 模型设置'), onClick: onModelSettings } : undefined}>
+      secondary={/模型|model|provider/i.test(error) && onModelSettings ? { label: ui('检查 AI 模型设置'), iconEnd: 'arrow-right', onClick: onModelSettings } : undefined}>
       {ui('这一步没有成功。可以再试一次。')}
       <details><summary>{ui('查看原因')}</summary><p>{error}</p></details>
     </InlineMessage>}
@@ -68,7 +68,7 @@ export function DailyRecapPanel(props) {
       return <article className="daily-recap-course" data-state={phase} data-all-clear={allClear || undefined} key={recapGroupKey(group)}>
         <div className="daily-recap-course-heading"><h3>{group.course || ui('未分配课程')}</h3>
           <span className="daily-recap-status-row">
-            {allClear && <span className="daily-recap-clear" data-testid="daily-recap-clear"><Icon name="check" size={12} strokeWidth={2.2} /><span>{ui('今日零错题')}</span></span>}
+            {allClear && <span className="daily-recap-clear" data-testid="daily-recap-clear"><Icon className="sh-icon--inline" name="check" /><span>{ui('今日零错题')}</span></span>}
             <span className="daily-recap-state">{ui(stateLabels[phase])}</span>
           </span></div>
         <p className="daily-recap-meta">{group.day !== status.day && <>{group.day} · </>}{uiFormat('已练习 {0} 题 · 需要回顾 {1} 题', [group.answeredCount, group.wrongCount])}</p>
@@ -82,7 +82,7 @@ export function DailyRecapPanel(props) {
         {retry && <div className="daily-recap-hint" role={phase === 'failed' ? 'alert' : 'status'}>
           <p>{ui(phase === 'failed' ? '这次没能整理完成。可以再试一次。' : '生成已停止，可以从已完成的讲解继续整理。')}{group.hasContent && ui('上一版仍然可以阅读。')}</p>
           {group.generation?.message && <details><summary>{ui('查看原因')}</summary><p>{group.generation.message}</p></details>}
-          {/模型|model|provider/i.test(group.generation?.message || '') && onModelSettings && <Button size="sm" onClick={onModelSettings}>{ui('检查 AI 模型设置')}</Button>}
+          {/模型|model|provider/i.test(group.generation?.message || '') && onModelSettings && <Button iconEnd="arrow-right" size="sm" onClick={onModelSettings}>{ui('检查 AI 模型设置')}</Button>}
         </div>}
         {phase === 'update' && <p className="daily-recap-hint">{ui('又有新的作答了，更新后会合并进这一篇。')}</p>}
         {phase === 'available' && !group.wrongCount && !group.unassessedCount && <p className="daily-recap-hint">{ui('今天没有错题，也值得总结：回顾练习过的内容和下次复习重点。')}</p>}
@@ -91,7 +91,7 @@ export function DailyRecapPanel(props) {
         <div className="daily-recap-actions">
           {canGenerate && toneControl(group)}
           <div className="daily-recap-buttons">
-            {group.noteId && group.hasContent && <Button className="daily-recap-buttons__btn" variant={primary ? 'primary' : 'secondary'} disabled={!onOpenNote} lock={busy} onClick={() => onOpenNote(group.noteId)}>{ui('阅读今日合集')}</Button>}
+            {group.noteId && group.hasContent && <Button iconEnd="arrow-right" className="daily-recap-buttons__btn" variant={primary ? 'primary' : 'secondary'} disabled={!onOpenNote} lock={busy} onClick={() => onOpenNote(group.noteId)}>{ui('阅读今日合集')}</Button>}
             {canGenerate && <Button className="daily-recap-buttons__btn" variant={group.hasContent || !primary ? 'secondary' : 'primary'} busy={working === recapGroupKey(group)} disabled={busy || !!working || !group.eligible || !modelReady}
               onClick={() => recap.generate(group)}>{ui(retry ? '重试生成合集' : group.hasContent ? '更新今日合集' : '生成今日合集')}</Button>}
             {running && <Button className="daily-recap-buttons__btn" size="sm" variant="quiet" disabled={!!working} lock={busy} onClick={() => recap.cancel(group)}>{ui('停止生成')}</Button>}
@@ -104,6 +104,6 @@ export function DailyRecapPanel(props) {
     })}
     {status && <div className="daily-recap-footer"><span>{ui(status.automatic ? '自动整理已开启' : '由你决定何时生成')}</span>
       <details><summary>{ui('合集如何生成')}</summary><p>{ui('同日同课程合成一篇。累计作答 10 道不同题目后生成，重练只计一次。自动生成可在设置里开启。')}
-        {onSettings && <>{' '}<Button size="sm" variant="link" onClick={onSettings}>{ui('前往设置')}</Button></>}</p></details></div>}
+        {onSettings && <>{' '}<Button iconEnd="arrow-right" size="sm" variant="link" onClick={onSettings}>{ui('前往设置')}</Button></>}</p></details></div>}
   </section>;
 }

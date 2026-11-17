@@ -43,7 +43,7 @@ test('the index of a book is an optional step: off by default, said in words, no
     const en = render();
     assert.match(en, /Optional · skipped by default \(Index\)/);
     assert.match(en, /Tick the box to include this step/);
-    assert.match(en, /1 optional step\(s\) skipped by default \(Index, …\)/);
+    assert.match(en, /1 optional step skipped by default \(Index, …\)/);
     assert.match(en, /Pages 31–36/);
     assert.doesNotMatch(en, /[㐀-鿿]/, 'no Han in the English panel');
   } finally { setUiLanguage('zh'); }

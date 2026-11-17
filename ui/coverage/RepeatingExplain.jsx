@@ -21,8 +21,8 @@ export default function RepeatingExplain({ shortfall, onOpenSource, onOpenSettin
       </ul>
       <ul className="cov-why__advice">{advice.map((line) => <li key={line}>{line}</li>)}</ul>
       {(pages.length > 0 || planning) && <div className="cov-why__acts">
-        {pages.map((item) => <Button key={item.key} size="sm" variant="quiet" data-open-page={item.key} onClick={() => onOpenSource(item.sourceId, item.start)}>{uiFormat('在资料里打开 · {0}', [item.name])}</Button>)}
-        {planning && <Button size="sm" variant="quiet" data-open-settings="settings-generation" onClick={() => onOpenSettings('settings-generation')}>{ui('去设置 › 出题偏好')}</Button>}
+        {pages.map((item) => <Button iconEnd="arrow-right" key={item.key} size="sm" variant="quiet" data-open-page={item.key} onClick={() => onOpenSource(item.sourceId, item.start)}>{uiFormat('在资料里打开 · {0}', [item.name])}</Button>)}
+        {planning && <Button iconEnd="arrow-right" size="sm" variant="quiet" data-open-settings="settings-generation" onClick={() => onOpenSettings('settings-generation')}>{ui('去设置 › 出题偏好')}</Button>}
       </div>}
     </details>
   );

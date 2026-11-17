@@ -2,6 +2,7 @@
   "录入重点…": "Add exam focus…",
   "只练重点": "Focus only",
   "只练重点 · {0} 题": "Focus only · {0} questions",
+  "只练重点 · {0} 题#one": "Focus only · {0} question",
   "按重点出题": "Generate from focus",
   "重点": "Focus",
   "重点加密复习": "High-frequency focus review",
@@ -77,6 +78,7 @@
   "重点掌握情况": "Focus topics and how far you are",
   "1 题 · 已掌握 {0}": "1 question · Mastered {0}",
   "{0} 题 · 已掌握 {1}": "{0} questions · Mastered {1}",
+  "{0} 题 · 已掌握 {1}#one": "{0} question · Mastered {1}",
   "去出题": "Generate questions",
   "去出缺题重点": "Generate for empty focus topics",
   "全部已掌握": "All mastered"

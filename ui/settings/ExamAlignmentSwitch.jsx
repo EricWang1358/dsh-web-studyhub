@@ -40,7 +40,7 @@ export function ExamAlignmentView({ preview, working = null, onSet, onAlign, onR
     <div className="sm2-exam-align" data-tour="settings-exam-alignment">
       {showSwitch && <Switch checked={preview.enabled} disabled={busy} onChange={enabled => onSet?.(enabled)}
         label={<>{ui('考前对齐')}{' '}<Tooltip layer content={ui(RULE)}>
-          <span tabIndex={0} className="sm2-field-tip" aria-label={uiFormat('「{0}」是什么', [ui('考前对齐')])}><Icon name="info" size={16} /></span>
+          <span tabIndex={0} className="sm2-field-tip" aria-label={uiFormat('「{0}」是什么', [ui('考前对齐')])}><Icon className="sh-icon--inline" name="info" /></span>
         </Tooltip></>}
         hint={uiFormat(preview.enabled ? '考试日：{0}。之后的作答不晚于考试日。' : '考试日：{0}。已关闭：复习按平常安排。', [exams])} />}
       {showSwitch && (waiting

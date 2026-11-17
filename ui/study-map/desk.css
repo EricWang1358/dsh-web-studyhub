@@ -19,13 +19,17 @@
     .resume:hover:not(:disabled) {
       background: var(--bg-hover);
     }
+    /* The eyebrow and the title: side by side where the row is wide, the title under the eyebrow where it is not (flex-wrap), and the eyebrow never breaks inside a word
+       (keep-all: 「继续上次学习」 does not leave a lone 「习」 on a second line). */
     .resume > span:first-child {
       display: flex;
+      flex-wrap: wrap;
       align-items: baseline;
-      gap: var(--space-3);
+      gap: var(--space-half) var(--space-3);
       min-width: 0;
     }
     .resume .resume__eyebrow {
+      word-break: keep-all;
       margin: 0;
       font-size: var(--fs-md);
       letter-spacing: 0;
@@ -192,6 +196,8 @@
       gap: var(--space-1-5) var(--space-5);
       margin: var(--space-3) 0 0;
     }
+    /* The links of this row are text actions: ink, never the cinnabar of the one primary (the same as 再添加资料 beside them). */
+    .desk-also [data-hand-off] { --sh-link-ink: var(--text); }
     /* Today's stack. Cards behind the top one mirror how much is left. */
     .today-stack {
       position: relative;

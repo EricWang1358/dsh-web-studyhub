@@ -16,8 +16,8 @@ export function bookResolver({ gone, onCard, onPractice, onQa, qaOpen, onSource 
       if (gone.has(`${link.deckId}|${link.cardId}`)) return <span key={key} className="book-link-gone">{ui('这道题已被删除')}</span>;
       return <Button key={key} variant="link" size="sm" wrap className="book-link" data-book-link="card" onClick={event => onCard({ deckId: link.deckId, cardId: link.cardId }, event.currentTarget)}>{label}</Button>;
     }
-    if (link.kind === 'practice') return <Button key={key} variant="link" size="sm" wrap icon="play" className="book-link" data-book-link="practice" onClick={event => onPractice(link.heading, link.n, event.currentTarget)}>{label}</Button>;
+    if (link.kind === 'practice') return <Button key={key} variant="link" size="sm" wrap iconEnd="arrow-right" iconEndClassName="sh-icon--inline sh-icon--trail" className="book-link" data-book-link="practice" onClick={event => onPractice(link.heading, link.n, event.currentTarget)}>{label}</Button>;
     if (link.kind === 'qa') return <Button key={key} variant="link" size="sm" wrap className="book-link" data-book-link="qa" aria-expanded={qaOpen(link.heading)} onClick={() => onQa(link.heading)}>{label}</Button>;
-    return <Button key={key} variant="link" size="sm" wrap icon="external" className="book-link" data-book-link="source" onClick={() => onSource(link.sourceId, String(text ?? '').replace(/^[「“]|[」”]$/g, ''))}>{label}</Button>;
+    return <Button key={key} variant="link" size="sm" wrap iconEnd="arrow-right" iconEndClassName="sh-icon--inline sh-icon--trail" className="book-link" data-book-link="source" onClick={() => onSource(link.sourceId, String(text ?? '').replace(/^[「“]|[」”]$/g, ''))}>{label}</Button>;
   };
 }

@@ -1296,7 +1296,7 @@
     }
   }
   :is(.study-app, .study-seat) {
-    .spine-station-practice { display: inline-block; margin: 0 0 var(--space-1); }
+    .spine-station-practice { margin: 0 0 var(--space-1); }
   }
   :where(.study-app, .study-seat) {
     /* Points: a short list under hairlines. Where the pane is wide they run in two columns, each as tall as its own text. */

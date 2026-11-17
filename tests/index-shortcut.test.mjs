@@ -60,7 +60,7 @@ test('English: the action, the hover and the shortcut line carry no Chinese', ()
     assert.match(install, />Install extension</);
     assert.match(install, /Click to go and install the search extension/);
     const line = html(h(m.IndexGapLine, { count: 3, canIndex: true, onGo: go }));
-    assert.match(line, /The index of 3 material\(s\) is not finished/);
+    assert.match(line, /The index of 3 materials is not finished/);
     assert.match(line, /Go and build the index/);
     assert.doesNotMatch(line, /[㐀-鿿]/);
   } finally { m.setUiLanguage('zh'); }

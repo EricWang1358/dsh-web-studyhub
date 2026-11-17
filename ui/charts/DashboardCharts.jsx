@@ -245,7 +245,7 @@ export function ForecastPanel({ forecast, onStart, parked }) {
         )}
       </div>
       {scopeNote && <p className="dash-scope-note">{scopeNote}
-        {parkedCount > 0 && parked?.onManage && <> <Button variant="link" size="sm" onClick={parked.onManage}>{ui('管理课程')}</Button></>}</p>}
+        {parkedCount > 0 && parked?.onManage && <> <Button variant="link" size="sm" iconEnd="arrow-right" onClick={parked.onManage}>{ui('管理课程')}</Button></>}</p>}
       {total > 0 && (
         <table className="sh-visually-hidden">
           <caption>{ui('未来 14 天到期复习')}</caption>

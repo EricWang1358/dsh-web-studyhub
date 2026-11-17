@@ -1,4 +1,4 @@
-/* global document, window, getComputedStyle -- page.evaluate callbacks run in the browser */
+/* global document, window, getComputedStyle, NodeFilter -- page.evaluate callbacks run in the browser */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -95,7 +95,7 @@ test('the first-run line from no model to the first question: one primary per st
         await until(async () => !(await page.locator('dialog[open]').count()) && (await status(page, 'material')) === 'done', 'the import closes on the line, step 2 ticked');
         assert.equal(await page.locator('.generate-page').count(), 0, 'the first import does not hop to 创建题组');
         assert.match(await page.locator('.frl-step[data-step="material"]').innerText(), /第3讲 进程与线程(\.md)? · 已添加/, 'the material by the title 资料 shows');
-        assert.match(await page.locator('.frl-step[data-step="material"]').innerText(), /再加一份/);
+        assert.match(await page.locator('.frl-step[data-step="material"]').innerText(), /再添加资料/);
         assert.equal(await openStep(page), 'deck');
         assert.equal(await primaries(page), 1);
         assert.equal((await page.locator('.first-run .sh-btn--primary').innerText()).trim(), '出第一组题');
@@ -250,13 +250,18 @@ test('the compact card keeps its rows inside the card and on its ruling, with a 
         const card = page.locator('[data-first-run="compact"]');
         await card.waitFor({ timeout: 30000 });
         await until(async () => /SiliconFlow/.test(await card.innerText()), 'the long label is on the card');
+        // The card tilts under a pointer (.today-stack:hover, -0.6deg), which makes its boxes measure taller: measure it at rest.
+        await page.mouse.move(1, 1);
         await settleAnimations(page);
         const box = await card.evaluate((element) => {
           const rect = element.getBoundingClientRect(), style = getComputedStyle(element);
           const inner = { left: rect.left + parseFloat(style.paddingLeft), right: rect.right - parseFloat(style.paddingRight) };
           const rows = [...element.querySelectorAll('.frl-step')].map((li) => {
             const text = li.querySelector('.frl-step__text'), row = li.querySelector('.frl-step__row').getBoundingClientRect(), own = text.getBoundingClientRect();
-            return { right: Math.round(own.right), liRight: Math.round(li.getBoundingClientRect().right), top: Math.round(row.top - rect.top), height: Math.round(row.height), cut: text.scrollWidth > text.clientWidth };
+            const range = document.createRange(); range.selectNodeContents(text);
+            const firstLine = [...range.getClientRects()].filter((r) => r.width > 0)[0];
+            return { step: li.dataset.step, right: Math.round(own.right), liRight: Math.round(li.getBoundingClientRect().right), top: Math.round(row.top - rect.top), height: Math.round(row.height),
+              cut: text.scrollWidth > text.clientWidth || text.scrollHeight > text.clientHeight + 0.5, firstLineRight: firstLine ? Math.round(firstLine.right) : 0 };
           });
           // The first deck's summary and estimate (3.6 D4): two more ruled lines under the rows.
           const planLines = [...element.querySelectorAll('.frl-compact-plan__line')].map((line) => { const own = line.getBoundingClientRect();
@@ -265,11 +270,24 @@ test('the compact card keeps its rows inside the card and on its ruling, with a 
         });
         for (const row of box.rows) {
           assert.ok(row.right <= box.inner.right + 1 && row.liRight <= box.inner.right + 1, `${width}px: a row stays inside the card: ${JSON.stringify(box)}`);
-          assert.equal(row.height, 32, `${width}px: one 32px ruled line per row: ${JSON.stringify(box)}`);
+          // The model step may take a second ruled line rather than cut the model's id (#1073 round 6); every other row is one line.
+          if (row.step === 'model') assert.ok(row.height === 32 || row.height === 64, `${width}px: the model step takes one or two 32px ruled lines: ${JSON.stringify(box)}`);
+          else assert.equal(row.height, 32, `${width}px: one 32px ruled line per row: ${JSON.stringify(box)}`);
           // The ruling (ui/study-map/desk.css) starts 52px down the card and repeats every 32px: each row starts on a rule.
           assert.equal((row.top - 52) % 32, 0, `${width}px: the row sits on the ruling: ${JSON.stringify(box)}`);
         }
-        assert.ok(box.rows[0].cut, `${width}px: the long label is cut with an ellipsis, not spilled: ${JSON.stringify(box)}`);
+        // A label longer than two lines ends with an ellipsis on the second line; the provider, which comes first, is always whole.
+        assert.ok(box.rows[0].height === 64, `${width}px: the long label takes the second ruled line: ${JSON.stringify(box)}`);
+        assert.ok(box.rows[0].firstLineRight <= box.inner.right + 1, `${width}px: the long label is never spilled: ${JSON.stringify(box)}`);
+        const provider = await card.locator('.frl-step[data-step="model"] .frl-step__text').evaluate((text) => {
+          const walker = document.createTreeWalker(text, NodeFilter.SHOW_TEXT); let node;
+          while ((node = walker.nextNode()) && !node.data.includes('SiliconFlow')) { /* the text node with the provider */ }
+          if (!node) return { found: false };
+          const range = document.createRange(), at = node.data.indexOf('SiliconFlow'); range.setStart(node, at); range.setEnd(node, at + 'SiliconFlow'.length);
+          const own = range.getClientRects(), box = text.getBoundingClientRect();
+          return { found: true, rects: own.length, inside: [...own].every((r) => r.bottom <= box.bottom + 0.5 && r.right <= box.right + 0.5) };
+        });
+        assert.deepEqual(provider, { found: true, rects: 1, inside: true }, `${width}px: the provider is whole and shown`);
         assert.equal(box.planLines.length, 2, `${width}px: the summary and the estimate under the rows: ${JSON.stringify(box)}`);
         for (const line of box.planLines) {
           assert.equal(line.height, 32, `${width}px: one ruled line each: ${JSON.stringify(box)}`);
@@ -285,6 +303,8 @@ test('the compact card keeps its rows inside the card and on its ruling, with a 
         const half = '进程是资源分配的单位，线程是调度的单位。'.repeat(17500); // 350 000 characters each, 700 000 together: over the one-run limit
         for (const title of ['整本教材 上册', '整本教材 下册']) await previewCall(running.server, 'source.add', { title, text: half });
         await until(async () => (await card.locator('[data-first-run="blocked"]').count()) > 0, 'the card says why 出第一组题 is off', { timeoutMs: 30000 });
+        // The card tilts under a pointer (.today-stack:hover, -0.6deg), which makes its boxes measure taller: measure it at rest.
+        await page.mouse.move(1, 1);
         await settleAnimations(page);
         const go = card.locator('.sh-btn--primary');
         assert.equal((await go.innerText()).trim(), '出第一组题');

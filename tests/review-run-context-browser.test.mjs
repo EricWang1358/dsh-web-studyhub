@@ -104,7 +104,7 @@ test('the practice page names the course and how this chapter and the whole cour
         if (shots) await page.screenshot({ path: join(shots, `review-context-${lang}-${width}-${deckId}.png`) });
         assert.deepEqual(errors, [], `${where}: no page errors`);
         await page.goto(server.url);
-        await page.getByRole('button', { name: `${lang === 'zh' ? '继续' : 'Continue'} ${deckTitle}` }).first().waitFor({ timeout: 15000 });
+        await page.getByRole('button', { name: `${lang === 'zh' ? '继续' : 'Resume'} ${deckTitle}` }).first().waitFor({ timeout: 15000 });
         for (const openRun of (await previewCall(server, 'snapshot', {})).runs || []) {
           await previewCall(server, 'review.end', { runId: openRun.id });
         }

@@ -58,7 +58,7 @@ export function useNotice(scope) {
 }
 
 const toObject = value => typeof value === 'string' ? { text: value } : value || {};
-const actionOf = (value, busy) => value.action && { label: value.action.label, onClick: value.action.run ?? value.action.onClick, disabled: !!busy || value.action.disabled };
+const actionOf = (value, busy) => value.action && { label: value.action.label, onClick: value.action.run ?? value.action.onClick, icon: value.action.icon, iconEnd: value.action.iconEnd, disabled: !!busy || value.action.disabled };
 
 /** A notice as the toast the region draws. An undo offer (`undo`, with `timeout`) may leave by itself but is held while hovered or focused.
     `title`: a heading line; `copy`: the text is something to copy as it is, never translated. `receipt`: the outcome of a 「发给主会话」 (ui/hand-off/):

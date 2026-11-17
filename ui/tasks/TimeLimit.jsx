@@ -34,7 +34,7 @@ export default function TimeLimit({ task, now, steps = [], onPick }) {
       <strong className="tc-limit__line" data-limit-line>{joinMeta([limitText(facts), usedText(facts)])}</strong>
       {facts.callSeconds && <span className="tc-limit__call" data-limit-call>{uiFormat('单次模型调用最长 {0}', [minutes(facts.callSeconds)])}</span>}
       {facts.adjustable && settingsEntry?.openSettings && (
-        <Button size="sm" variant="quiet" className="tc-limit__adjust" data-limit-adjust
+        <Button iconEnd="arrow-right" size="sm" variant="quiet" className="tc-limit__adjust" data-limit-adjust
           title={ui('在「设置 › 出题偏好」里改「每轮运行时限（分钟）」。只对之后开始的任务生效，已经开始的不受影响。')} onClick={() => settingsEntry.openSettings(LIMIT_ANCHOR)}>{ui('调整时限')}</Button>
       )}
       {note && <span className="tc-limit__note" data-limit-note>{note}</span>}

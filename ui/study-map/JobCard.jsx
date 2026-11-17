@@ -13,7 +13,7 @@ import { canPublishAtOnce } from '../draft-publish.js';
 import { contractOf } from '../tasks/task-model.js';
 import { LIMIT_ANCHOR } from '../tasks/time-limit.js';
 import { useDraftShortfall } from '../coverage/use-shortfall.js';
-import { actionLabel, continueLine, reasonWord, shortfallLine } from '../coverage/copy.js';
+import { actionHere, actionLabel, continueLine, reasonWord, shortfallLine } from '../coverage/copy.js';
 import { continueArgs, continueNotice } from '../coverage/top-up.js';
 
 /* One question run on the home, as the compact job card: which deck, the percent, one line of where it is, a stop control while it runs, and ONE button for
@@ -64,10 +64,10 @@ export default function JobCard({ job: j, jobs = [], drafts, data, openDraft, ca
   // The shortfall's action first: the same button as the 待发布 row of this draft.
   const own = !stands ? null : ({
     'model-settings': openModelSettings && { label: actionLabel('model-settings'), run: openModelSettings },
-    continue: { label: actionLabel('continue'), disabled: !modelReady, run: () => (shortfall.continueKind === 'count' && draft ? act('generate', continueArgs(draft), (started) => notify?.(continueNotice(draft, started)))
+    continue: { label: actionLabel('continue'), here: actionHere('continue'), disabled: !modelReady, run: () => (shortfall.continueKind === 'count' && draft ? act('generate', continueArgs(draft), (started) => notify?.(continueNotice(draft, started)))
       : act('job.control', { jobId, action: 'retry' })) },
-    resume: { label: actionLabel('resume'), run: () => act('job.control', { jobId, action: 'resume' }) },
-    topup: view?.canTopUp && view.round?.sections > 0 && topUpDraft && { label: actionLabel('topup'), run: () => topUpDraft(draft, view.round.picks.map((pick) => pick.key), view.round), disabled: !modelReady },
+    resume: { label: actionLabel('resume'), here: actionHere('resume'), run: () => act('job.control', { jobId, action: 'resume' }) },
+    topup: view?.canTopUp && view.round?.sections > 0 && topUpDraft && { label: actionLabel('topup'), here: actionHere('topup'), run: () => topUpDraft(draft, view.round.picks.map((pick) => pick.key), view.round), disabled: !modelReady },
   })[shortfall.action];
   const choices = [
     atOnce && { label: ui('发布并开始练'), run: () => publishDraft(draft) },
@@ -75,7 +75,7 @@ export default function JobCard({ job: j, jobs = [], drafts, data, openDraft, ca
       run: () => practiceCards(published.deckId, published.cardIds) },
     own,
     failure?.action === 'settings' && openModelSettings && { label: ui('去配置模型'), run: openModelSettings },
-    retryAgain && { label: ui('再试一次'), disabled: !modelReady, run: () => act('job.control', { jobId, action: 'retry' }) },
+    retryAgain && { label: ui('再试一次'), here: true, disabled: !modelReady, run: () => act('job.control', { jobId, action: 'retry' }) },
     draft && !active && !atOnce && { label: ui('检查草稿'), run: () => openDraft(draft) },
     retryGeneration && generation && j.type !== JOB_TYPES.SUPPLEMENT && ['failed', 'cancelled'].includes(j.status) && !draft && !retryAgain && { label: ui('按原资料重新设置'), run: () => retryGeneration(j) },
     published && openDeck && { label: ui('打开题组'), run: () => openDeck(published.deckId) },

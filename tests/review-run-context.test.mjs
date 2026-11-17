@@ -107,7 +107,7 @@ test("English: the same facts in the English words", () => {
   try {
     assert.equal(text(render(library)), "Design This chapter Mastery 62% · 10 questions Whole course Mastery 38% · 40 questions");
     assert.equal(text(render(data([deck("a", "")], { a: row(4, 0, 4) }))), "Uncategorised course This chapter New · 4 questions");
-    assert.match(render(library), /View 1 sources/);
+    assert.match(render(library), /View 1 source</);
     const mixed = render(mixedLibrary, "a", ["a", "c", "u"]);
     assert.equal(text(mixed), "Design +2 This chapter Mastery 62% · 10 questions Whole course Mastery 38% · 40 questions");
     assert.deepEqual(tips(mixed)[0], "Also in this round: Other, Uncategorised course");

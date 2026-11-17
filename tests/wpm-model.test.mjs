@@ -65,9 +65,9 @@ test('ModelErrorNote is an alert with the plain title, a fix and the raw text be
   assert.match(rate, /模型服务太忙了/);
   assert.match(rate, /sh-disclosure[^>]*>(?:(?!<\/details>).)*技术详情(?:(?!<\/details>).)*429 Too Many Requests: rate limit/s);
   assert.match(rate, />重试<\/button>/);
-  assert.doesNotMatch(rate, />前往设置<\/button>/);
+  assert.doesNotMatch(rate, />前往设置(?:<svg[\s\S]*?<\/svg>)?<\/button>/);
   const key = html(h(m.ModelErrorNote, { error: SAMPLES.credential, onRetry: noop, onSettings: noop }));
-  assert.match(key, />前往设置<\/button>/, 'a key problem is fixed in the settings');
+  assert.match(key, />前往设置(?:<svg[\s\S]*?<\/svg>)?<\/button>/, 'a key problem is fixed in the settings');
   assert.doesNotMatch(key, />重试<\/button>/);
   const bare = html(h(m.ModelErrorNote, { error: SAMPLES.credential }));
   assert.doesNotMatch(bare, /<button[^>]*sh-inline__action/, 'no action without a handler');
@@ -98,7 +98,7 @@ test('ModelSetupGate: one copy table, three shapes (#104)', () => {
   assert.match(inline, /sh-inline--warning/);
   assert.match(inline, /还没有可用的 AI 模型/);
   assert.match(inline, /录题需要模型整理题目/);
-  assert.match(inline, />前往设置<\/button>/);
+  assert.match(inline, />前往设置(?:<svg[\s\S]*?<\/svg>)?<\/button>/);
   const banner = html(h(m.ModelSetupGate, { variant: 'banner', feature: 'translate', model: { ready: false }, onOpenSettings: noop }));
   assert.match(banner, /sh-banner--warning/);
   assert.match(banner, /还没有可用的 AI 模型/);

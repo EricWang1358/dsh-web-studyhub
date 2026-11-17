@@ -110,7 +110,7 @@ export function OutputView({ jobId, record: call, active, view, now }) {
     <div className="tc-output" data-mode={quiet ? 'none' : mode}>
       <div className="tc-output__head">
         <div className="tc-output__title"><strong>{callLabel(call, { file: true })}</strong><span>{meta}</span></div>
-        <AgentLink childId={call.childId} parentId={call.parentId} openAgent={host?.openAgent} label={ui('在 DSH 中打开完整会话')} iconEnd="external" ariaLabel={uiFormat('在 DSH 中打开完整会话：{0}', [callLabel(call)])} />
+        <AgentLink childId={call.childId} parentId={call.parentId} openAgent={host?.openAgent} label={ui('在 DSH 中打开完整会话')} ariaLabel={uiFormat('在 DSH 中打开完整会话：{0}', [callLabel(call)])} />
       </div>
       <p className="tc-output__facts">{callFacts(call)}</p>
       {!readable ? (

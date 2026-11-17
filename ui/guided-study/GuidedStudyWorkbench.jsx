@@ -346,7 +346,7 @@ export default function GuidedStudyWorkbench({
                   data-tone={currentMissed ? 'warning' : 'success'}
                   role="status"
                 >
-                  <Icon name={currentMissed ? 'info' : 'check'} size={15} strokeWidth={2.1} />
+                  <Icon className="sh-icon--inline" name={currentMissed ? 'info' : 'check'} />
                   <span>{verdictText}</span>
                 </div>
               )}
@@ -367,7 +367,7 @@ export default function GuidedStudyWorkbench({
               <div className="guided-study-card-actions">
                 {hasFeedback ? (
                   onNext ? (
-                    <Button variant="primary" size="sm" className="guided-study-btn" onClick={() => onNext?.(run?.id)}>
+                    <Button variant="primary" size="sm" iconEnd="arrow-right" className="guided-study-btn" onClick={() => onNext?.(run?.id)}>
                       {ui('下一题')}
                     </Button>
                   ) : null

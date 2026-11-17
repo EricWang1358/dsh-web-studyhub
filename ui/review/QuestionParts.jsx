@@ -69,7 +69,7 @@ export function QuestionMetaBadges({ run, sources, cardNotes = [], onOpenNote })
     const statusLabel = note.status === "published" ? ui("已发布笔记") : ui("笔记草稿");
     const linkNode = note.status === "published" && note.url
       ? <a key={note.noteId} className="result-note-link" href={note.url} target="_blank" rel="noopener noreferrer"><Badge size="sm" icon="external">{statusLabel}</Badge></a>
-      : <Button key={note.noteId} variant="quiet" size="sm" className="result-note-link question-meta__action" disabled={!onOpenNote}
+      : <Button key={note.noteId} variant="quiet" size="sm" iconEnd="arrow-right" className="result-note-link question-meta__action" disabled={!onOpenNote}
           onClick={() => onOpenNote?.(note.noteId)}>{statusLabel}</Button>;
     items.push({
       key: `note:${note.noteId}`,

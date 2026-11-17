@@ -260,11 +260,12 @@
     .map-ask {
       flex-shrink: 0;
     }
-    /* Fixed width: "▶" and "继续 →" occupy the same slot, so bars line up. */
+    /* The slot is as wide as its widest face (ui/study-map/DeckRow.jsx PlaySlot: the ▶ and an invisible 「继续 →」 share one grid cell), so the bars of the rows line up in
+       every language and nothing sticks out of the pill. */
     .map-play {
-      width: 72px;
-      min-width: 72px;
-      padding: 0;
+      display: inline-grid;
+      place-items: center;
+      padding: 0 var(--space-3);
       height: 32px;
       color: var(--text-dim);
       border: 1px solid var(--line);
@@ -275,6 +276,10 @@
         color var(--dur-fast) var(--ease),
         border-color var(--dur-fast) var(--ease);
     }
+    .map-play > .map-play__face { grid-area: 1 / 1; }
+    .map-play__ghost { visibility: hidden; }
+    /* The ▶ face is the glyph's own box (no line box under it), so its centre is the slot's centre, level with the bar and with the arrow of 「继续 →」 (#1073 round 7). */
+    .map-play__glyph { display: inline-flex; align-items: center; justify-content: center; border-radius: var(--radius-pill); }
     .map-play:hover:not(:disabled) {
       background: var(--accent);
       border-color: var(--accent);
@@ -325,35 +330,46 @@
       .map-tools { flex: 1 1 100%; }
       .map-legend { gap: var(--space-1) var(--space-2-5); font-size: var(--fs-md); margin-left: 0; }
       .map-topics { padding: 0 0 var(--space-2) var(--space-3); }
-      /* Row keeps name + play + menu on line one; mastery spans line two. */
+      /* Row keeps name + menu on line one, so the title has the width of the row (#1073: an English 「Resume →」 beside it cut the title to
+         「Sample · Mem…」); the mastery bar and the play slot share line two. The empty ::after is the line break; every slot is one width, so the bars still line up. */
       .map-row {
         flex-wrap: wrap;
         gap: var(--space-1) var(--space-2);
         padding: var(--space-2-5);
         align-items: center;
       }
+      .map-row::after { content: ""; order: 9; flex-basis: 100%; height: 0; }
       .map-row > .map-name {
         flex: 1 1 0;
         max-width: none;
         order: 1;
         min-width: 0;
       }
-      .map-row .map-play { order: 2; }
       .map-row .map-menu-wrap { order: 3; }
+      .map-row .map-play { order: 11; }
       .folder-row > .mastery { margin-right: 0; }
       .map-row .mastery {
         order: 10;
-        flex: 1 0 100%;
+        flex: 1 1 0;
         width: auto;
-        margin: var(--space-half) 0 0;
+        margin: 0;
         padding-left: var(--space-6-5);
       }
       .map-row .mastery-bar { flex: 1; width: auto; }
       .map-row > .map-row__check { order: 0; }
       .map-row > .map-dot { order: 1; }
       .map-ask { display: none; }
-      .map-play { padding: var(--space-1) var(--space-2-5); }
-      .map-play { width: 72px; min-width: 72px; }
+      .map-play { padding: 0 var(--space-2-5); }
+      /* Here the slot shares line two with the bar and is as wide as 「继续 →」 whether or not a run is open, so an idle row's ▶ is drawn always: hiding it until the
+         pointer comes (the wide layout's rule above) left an empty 74 - 101px gap beside every bar with a mouse, and the right edge ragged (#1073). */
+      .map-play:not(.is-run) { opacity: 1; }
+      /* Idle, the slot keeps its width, so every bar still ends at one x, but it draws only its ▶, at the slot's end where 「继续 →」 ends: a 74 - 101px hollow pill
+         around one glyph read as an empty button (#1073 round 6). A pointer or a touch only tints the glyph; nothing moves. */
+      .map-play:not(.is-run) { justify-items: end; border-color: transparent; }
+      .map-play:not(.is-run):hover:not(:disabled) { background: transparent; border-color: transparent; color: var(--accent); }
+      /* Keyboard focus rings the ▶ that is drawn, not the slot's invisible width (a 74 - 101px ring around one glyph, #1073 round 7). */
+      .map-play:not(.is-run):focus-visible { outline: none; box-shadow: none; }
+      .map-play:not(.is-run):focus-visible > .map-play__glyph { outline: 2px solid var(--accent-soft); outline-offset: 3px; box-shadow: var(--ring); }
       .section-heading {
         align-items: flex-start;
       }

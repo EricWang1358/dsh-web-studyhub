@@ -166,7 +166,7 @@ test('the stop of a run says how many retries were made and in which rounds, and
   assert.equal(m.copy.stopText({ ...stop, fills: [] }), '这些小节之前已经失败过多次，自动补题不再重试，已经停下；还有 2 页没出成题（第 18、19 页）。');
   assert.equal(m.copy.stopText({ reason: 'sections-left', round: 2, left: 2 }), '重试后，还有 2 个小节没出成题，已经停下。', 'an older record: no number of rounds is invented');
   assert.doesNotMatch(m.copy.stopText({ reason: 'sections-left', left: 2 }), /几轮/);
-  inLanguage('en', () => assert.equal(m.copy.stopText(stop), 'After 1 retry round(s) (Round 2), 2 pages still have no question (Page 18, 19), so the run stopped; the automatic top-up does not try them again.'));
+  inLanguage('en', () => assert.equal(m.copy.stopText(stop), 'After 1 retry round (Round 2), 2 pages still have no question (Page 18, 19), so the run stopped; the automatic top-up does not try them again.'));
 });
 
 /* ---------- the plan block and the log, rendered: the run of the screenshots ---------- */

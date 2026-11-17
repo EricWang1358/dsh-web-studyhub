@@ -25,6 +25,7 @@
   "用量：{0} tok": "Used: {0} tok",
   "最近输出：{0}": "Latest output: {0}",
   "输入约 {0} 字": "input about {0} characters",
+  "输入约 {0} 字#one": "input about {0} character",
   "处理结果由插件直接回收并保存，不回流主会话。": "The plugin collects and saves the results directly; nothing is sent back to the main conversation.",
   "当前宿主缺少可用的子代理能力或运行中的主会话，使用直接模型调用。": "This host has no usable sub-agent capability or running main session, so a direct model call is used.",
   "DSH 的子代理列表里还没有它，可能已经结束并被清理。": "DSH's sub-agent list does not have it yet; it may have finished and been cleaned up."

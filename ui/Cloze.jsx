@@ -83,14 +83,14 @@ export default function Cloze({ card, values, onChange, onSubmit, focusRequest =
               <Tooltip key={i} layer content={ui("回答正确")}>
                 <span tabIndex={0} className="cloze-blank cloze-right">
                   {val || <MathText text={solution?.cloze?.answers?.find((answer) => answer.id === id)?.value || ui("回答正确")} />}
-                  <span className="cloze-mark"><Icon name="check" size={14} strokeWidth={2.2} /></span>
+                  <span className="cloze-mark"><Icon className="sh-icon--inline" name="check" /></span>
                 </span>
               </Tooltip>
             ) : (
               <Tooltip key={i} layer content={ui("回答错误")}>
                 <span tabIndex={0} className="cloze-blank cloze-wrong">
                   <span className="cloze-expected">{detail.expected == null ? "—" : <MathText text={String(detail.expected)} />}</span>
-                  <span className="cloze-mark" role="img" aria-label={ui("回答错误")}><Icon name="close" size={14} strokeWidth={2.2} /></span>
+                  <span className="cloze-mark" role="img" aria-label={ui("回答错误")}><Icon className="sh-icon--inline" name="close" /></span>
                   {Object.hasOwn(values || {}, id) && <span className="cloze-yours">{ui("你的答案：")}{val || ui("未填写")}</span>}
                 </span>
               </Tooltip>

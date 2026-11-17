@@ -33,7 +33,7 @@ test('the notice says how many moved and how many wait, and opens the whole list
   assert.match(draw({ at: 'g', list: [], held: 0, gone: 2, goneList: [{ from: 'A' }, { from: 'B' }] }), /2 个知识点在新总纲里没有了/);
   ui.setUiLanguage('en');
   try {
-    assert.match(draw({ at: 'y', list: [], held: 3 }), /The notes of 3 knowledge point\(s\) match no new point; they wait in Not placed/);
+    assert.match(draw({ at: 'y', list: [], held: 3 }), /The notes of 3 knowledge points match no new point; they wait in Not placed/);
   } finally { ui.setUiLanguage('zh'); }
 });
 

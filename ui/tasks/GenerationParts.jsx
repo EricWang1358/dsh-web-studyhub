@@ -63,7 +63,7 @@ export default function GenerationParts({ contract, task }) {
                 </span>
                 <span className="tc-num">{item.kept !== undefined ? uiFormat('{0}/{1} 题', [item.kept, item.asked]) : ui(STATUS_WORD[item.status] || '等待中')}</span>
               </Button>
-              {row && <IconButton icon="external" size="sm" className="tc-partrow__open" data-part-open={item.part} label={uiFormat('在资料中查看第 {0} 批', [item.part])}
+              {row && <IconButton icon="arrow-right" size="sm" className="tc-partrow__open" data-part-open={item.part} label={uiFormat('在资料中查看第 {0} 批', [item.part])}
                 title={row.available ? undefined : row.reason} disabled={!row.available} onClick={row.run} />}
             </div>
           );

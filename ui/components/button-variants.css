@@ -21,6 +21,11 @@
       width: 100%;
     }
     .sh-btn--start { justify-content: flex-start; text-align: start; }
+    /* A Button whose words are a block of lines (a citation card: the source, then its quote; the book's pager: the direction, then the point's title) keeps its
+       icons on the first line, the icon's middle on that line's middle, like the arrow of a one-line Button: the icon's box is one line high (1lh) and its
+       glyph is drawn in the middle of it (the svg keeps its width and its viewBox's aspect). */
+    .sh-btn--lines { align-items: flex-start; }
+    .sh-btn--lines > svg { height: 1lh; }
     .sh-btn--center { justify-content: center; text-align: center; }
     /* Pill is for toggle buttons only (Button drops it without aria-pressed). */
     .sh-btn--pill {

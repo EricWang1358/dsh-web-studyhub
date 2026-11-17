@@ -3,6 +3,7 @@ import { ui, uiFormat } from '../i18n.js';
 import { AddSourceButton, Button, Hint, Icon, Tooltip, addSourceAction } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
 import { useStudy } from '../study-context.jsx';
+import { useLiveEffect } from '../use-async.js';
 import { modelSetupCopy } from '../ModelSetupGate.jsx';
 import { recheckSentence, runRecheck } from './recheck.js';
 import { useModelSettingsLabel } from '../ModelErrorNote.jsx';
@@ -22,8 +23,64 @@ import css from './first-run.css';
    Step 3 makes the first deck from the line (3.6 D4, option A): `plan` ({ summary, estimate, block }, ui/first-run/use-first-deck.js) says what will be made
    and its usage estimate before anything is spent, both 创建题组's own; 「出第一组题」 (on.generate) runs that request and is only ever pressed by the learner
    (disabled, with the reason, while no model is usable or the selection needs 创建题组); the quiet 「改题型和题数」 (on.tune) opens 创建题组 with the materials
-   ticked. 发给主会话 (#453): step 2's 添加资料 and 再加一份 open the one import dialog (ImportHub, importForLine); a file that does not import is said there,
+   ticked. 发给主会话 (#453): step 2's 添加资料 and 再添加资料 open the one import dialog (ImportHub, importForLine); a file that does not import is said there,
    and that dialog's summary and drop zone carry the shared hand-off unit (ui/hand-off/, ui/import-hand-off.js). The line draws no second one. */
+
+/** A model label in its two parts (「SiliconFlow · Qwen/Qwen3-235B-A22B-Instruct-2507」): the provider whole with its separator (a no-break space before the 「·」), and
+ * the id. A label with no provider is all id. */
+export function modelLabelParts(label) {
+  const text = String(label || '');
+  const at = text.indexOf(' · ');
+  return at < 0 ? { provider: '', id: text } : { provider: `${text.slice(0, at)}\u00a0·`, id: text.slice(at + 3) };
+}
+
+/** Is the text of this element cut: past its width (one line, an ellipsis) or past its lines (a line clamp)? Measured once drawn and again when it is resized, its
+    words change or the web font has loaded. ui/use-cut.js answers the width alone; the model step of the compact card is cut by its second line. */
+function useClamped(ref, text) {
+  const [cut, setCut] = useState(false);
+  useLiveEffect((isLive) => {
+    const element = ref.current;
+    if (!element) return undefined;
+    const measure = () => { if (isLive()) setCut(element.scrollWidth > element.clientWidth + 1 || element.scrollHeight > element.clientHeight + 1); };
+    measure();
+    // The web font (Inter, for Latin and digits) may arrive after the first measure and change the width of the words without resizing the row (#1073 round 9).
+    document.fonts?.ready?.then(measure);
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    observer?.observe(element);
+    return () => { observer?.disconnect(); };
+  }, [ref, text]);
+  return cut;
+}
+
+/* A step's words. The model's id may be longer than the line: it breaks after a 「/」 or 「-」 (and anywhere in a part longer than the line), the 「·」 is tied
+   to the id's first part with a no-break space so no line ends with it (#1073 round 7). Only when the row cuts its words (the compact card cuts the model step
+   past its second line, the others at one line) is the whole in the shared Tooltip on hover and keyboard focus, and only then is the row a Tab stop: words
+   shown whole are no stop on the way to the step's button (round 8). The Tooltip's anchor stays either way, so the row is not redrawn when it is cut. */
+function StepText({ step }) {
+  const sentence = stepSentence(step);
+  const ref = useRef(null), cut = useClamped(ref, sentence);
+  const at = step.id === 'model' && step.label ? sentence.indexOf(step.label) : -1;
+  let words = sentence;
+  if (at >= 0) {
+    const { provider, id } = modelLabelParts(step.label);
+    const parts = id.split(/(?<=[/-])/);
+    words = <>
+      {sentence.slice(0, at)}
+      <span className="frl-model">
+        {provider && <span className="frl-model__provider">{provider}</span>}
+        {provider ? ' ' : ''}
+        <span className="frl-model__part">{parts[0]}</span>
+        {parts.slice(1).map((part, index) => <React.Fragment key={index}><wbr /><span className="frl-model__part">{part}</span></React.Fragment>)}
+      </span>
+      {sentence.slice(at + step.label.length)}
+    </>;
+  }
+  return (
+    <Tooltip layer content={cut ? (at >= 0 ? step.label : sentence) : ''} anchorClassName="frl-step__tip">
+      <span ref={ref} className="frl-step__text" tabIndex={cut ? 0 : undefined}>{words}</span>
+    </Tooltip>
+  );
+}
 
 /** One sentence per step and state: what the row says. */
 export function stepSentence(step) {
@@ -33,8 +90,9 @@ export function stepSentence(step) {
     return step.verified ? uiFormat('已连接：{0}', [step.label]) : uiFormat('已选择模型：{0}', [step.label]);
   }
   if (step.id === 'material') {
-    // With the sample loaded the step still waits for a material of the learner's own, and says so instead of asking as if the library were empty (#1087).
-    if (step.status === 'todo') return step.sampleCount > 0 ? uiFormat('示例资料 {0} 份已载入 · 再加一份你自己的', [step.sampleCount]) : ui('添加一份资料：讲义、课件或笔记');
+    // With the sample loaded the step still waits for a material of the learner's own, and says so instead of asking as if the library were empty (#1087), in the
+    // words of its button (添加资料) and short enough for the compact card at 420px (#1074).
+    if (step.status === 'todo') return step.sampleCount > 0 ? ui('示例已载入 · 添加你自己的资料') : ui('添加一份资料：讲义、课件或笔记');
     return step.count > 1 ? uiFormat('{0} 等 {1} 份资料 · 已添加', [step.title, step.count]) : uiFormat('{0} · 已添加', [step.title]);
   }
   return ({
@@ -66,7 +124,7 @@ export function compactAction(line, on = {}, plan = null) {
 }
 
 function Mark({ index, done }) {
-  return <span className="frl-mark" aria-hidden="true">{done ? <Icon name="check" size={14} /> : index + 1}</span>;
+  return <span className="frl-mark" aria-hidden="true">{done ? <Icon className="sh-icon--inline" name="check" /> : index + 1}</span>;
 }
 
 /** Step 1, open: the gate's own words (ModelSetupGate is the one source), the key line, and 重新检查; the only way to the settings is the quiet link in the step that picks a model. */
@@ -90,7 +148,7 @@ function ModelBody({ step, on }) {
           <li key={index}>
             <span className="frl-setup__num" aria-hidden="true">{index + 1}</span>
             <span className="frl-setup__text">{item.text}
-              {item.choose && on.openModelSettings && <>{' '}<Button variant="link" size="sm" className="first-run__link" lock={busy} onClick={on.openModelSettings}>{settingsLabel}</Button></>}
+              {item.choose && on.openModelSettings && <>{' '}<Button iconEnd="arrow-right" variant="link" size="sm" className="first-run__link" lock={busy} onClick={on.openModelSettings}>{settingsLabel}</Button></>}
               {item.hint && <span className="frl-setup__hint">{item.hint}</span>}
             </span>
           </li>
@@ -165,7 +223,7 @@ function DeckBody({ step, on, jobs, plan }) {
       <p className="frl-body__text">{ui('出题时已逐题审阅；发布时会再检查一遍题目的结构，然后直接开始练第一轮。')}</p>
       <div className="frl-body__actions">
         {on.publish && <Button variant="primary" iconEnd="arrow-right" lock={busy} data-first-run="publish" onClick={() => on.publish(draft)}>{ui('发布并开始练')}</Button>}
-        {on.openDraft && <Button variant="link" className="first-run__link" lock={busy} data-first-run="look" onClick={() => on.openDraft(draft)}>{ui('先看看草稿')}</Button>}
+        {on.openDraft && <Button iconEnd="arrow-right" variant="link" className="first-run__link" lock={busy} data-first-run="look" onClick={() => on.openDraft(draft)}>{ui('先看看草稿')}</Button>}
       </div>
     </>
   );
@@ -186,7 +244,7 @@ function DeckBody({ step, on, jobs, plan }) {
       {(on.generate || on.tune) && <div className="frl-body__actions">
         {on.generate && <Button variant="primary" iconEnd="arrow-right" disabled={!!blocked} lock={busy} data-first-run="generate" data-usage="first-run.generate"
           onClick={() => on.generate(step.sourceIds)}>{ui('出第一组题')}</Button>}
-        {on.tune && <Button variant="link" className="first-run__link" lock={busy} data-first-run="tune" onClick={() => on.tune(step.sourceIds)}>{ui('改题型和题数')}</Button>}
+        {on.tune && <Button variant="link" className="first-run__link" iconEnd="arrow-right" lock={busy} data-first-run="tune" onClick={() => on.tune(step.sourceIds)}>{ui('改题型和题数')}</Button>}
       </div>}
       {blocked && on.generate && <Hint data-first-run="blocked">{blocked}</Hint>}
     </>
@@ -214,7 +272,7 @@ function CompactBlocked({ reason, sourceIds, on }) {
   return (
     <div className="frl-compact-plan frl-compact-plan--blocked">
       <p className="frl-compact-plan__reason" data-first-run="blocked">{reason}</p>
-      {on.tune && <Button variant="link" size="sm" className="first-run__link frl-compact-plan__tune" lock={busy} data-first-run="tune"
+      {on.tune && <Button variant="link" size="sm" className="first-run__link frl-compact-plan__tune" iconEnd="arrow-right" lock={busy} data-first-run="tune"
         onClick={() => on.tune(sourceIds)}>{ui('改题型和题数')}</Button>}
     </div>
   );
@@ -223,8 +281,8 @@ function CompactBlocked({ reason, sourceIds, on }) {
 /** A quiet link on a closed row: the second step is never locked (a material can come before the model), and an added one can have a second. */
 function RowLink({ step, on }) {
   const { busy } = useStudy();
-  if (step.status === 'todo' && on.importFirst) return <AddSourceButton variant="link" size="sm" className="frl-row-link first-run__link" lock={busy} onClick={on.importFirst} />;
-  if (step.status === 'done' && on.importMore) return <Button variant="link" size="sm" className="frl-row-link first-run__link" lock={busy} data-first-run="more" onClick={() => on.importMore(step.sourceIds)}>{ui('再加一份')}</Button>;
+  if (step.status === 'todo' && on.importFirst) return <AddSourceButton variant="link" className="frl-row-link" lock={busy} onClick={on.importFirst} />;
+  if (step.status === 'done' && on.importMore) return <AddSourceButton more variant="link" className="frl-row-link" lock={busy} data-first-run="more" onClick={() => on.importMore(step.sourceIds)} />;
   return null;
 }
 
@@ -238,7 +296,7 @@ function Steps({ line, on, jobs, compact, plan }) {
             {...(step.id === 'material' ? { 'data-tour': 'first-run-material' } : {})}>
             <div className="frl-step__row">
               <Mark index={index} done={step.status === 'done'} />
-              <span className="frl-step__text">{stepSentence(step)}</span>
+              <StepText step={step} />
               {!compact && !open && step.id === 'material' && <RowLink step={step} on={on} />}
             </div>
             {open && <div className="frl-body" data-body={step.id}>

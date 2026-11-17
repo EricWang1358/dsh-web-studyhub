@@ -6,7 +6,7 @@ import { Icon } from '../components/index.js';
 export default function InstallStages({ stages, label, className, markClassName }) {
   return <ol className={className} aria-label={label}>
     {stages.map(item => <li key={item.id} data-state={item.state} aria-current={item.state === 'active' ? 'step' : undefined}>
-      <span className={markClassName} aria-hidden="true">{item.state === 'done' ? <Icon name="success" size={14} /> : item.state === 'failed' ? <Icon name="error" size={14} /> : null}</span>
+      <span className={markClassName} aria-hidden="true">{item.state === 'done' ? <Icon className="sh-icon--inline" name="success" /> : item.state === 'failed' ? <Icon className="sh-icon--inline" name="error" /> : null}</span>
       {item.name}
     </li>)}
   </ol>;

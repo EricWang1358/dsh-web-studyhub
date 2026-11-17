@@ -574,12 +574,12 @@ export default function FocusIntakeDialog({
                   </p>
                   <div className="focus-intake__actions">
                     {onStartFocusPractice && (
-                      <Button size="sm" variant="secondary" lock={disabled} onClick={() => onStartFocusPractice(savedResult.course)}>
+                      <Button iconEnd="arrow-right" size="sm" variant="secondary" lock={disabled} onClick={() => onStartFocusPractice(savedResult.course)}>
                         {ui('只练重点')}
                       </Button>
                     )}
                     {onGenerateCourse && (
-                      <Button size="sm" variant="secondary" icon="sparkle" lock={disabled} onClick={() => onGenerateCourse(savedResult.course)}>
+                      <Button size="sm" variant="secondary" iconEnd="arrow-right" lock={disabled} onClick={() => onGenerateCourse(savedResult.course)}>
                         {ui('按重点出题')}
                       </Button>
                     )}

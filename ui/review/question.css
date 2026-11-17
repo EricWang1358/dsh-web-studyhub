@@ -36,8 +36,9 @@
       gap: var(--space-1-5) var(--space-2);
       margin-top: var(--space-3);
     }
+    /* The card is a Button like any other (inline-flex, its gap before the →): the source and its quote are one block that takes the card's width, and the → is
+       pinned to the card's inline end, level with the source's line (sh-btn--lines), at every width (#1073 round 8: at 1440px it floated mid-card). */
     .citations .citations__button {
-      display: block;
       flex: 1 1 16rem;
       min-width: 0;
       width: auto;
@@ -47,6 +48,7 @@
       font-size: var(--fs-md);
       color: var(--text-dim);
     }
+    .citations .citations__button > span { flex: 1 1 auto; min-width: 0; }
     .citations .citations__peek {
       flex: none;
       margin-top: var(--space-1-5);
@@ -255,7 +257,7 @@
       color: var(--bg-raised);
     }
     .option.correct .option-letter {
-      background: var(--ok);
+      background: var(--ok-fill, var(--ok));
       box-shadow: none;
       color: var(--bg-raised);
     }
@@ -358,6 +360,8 @@
       color: var(--ok-ink);
       margin: var(--space-2) 0 var(--space-1);
     }
+    /* The mark sits on the centre of the glyphs, not of the line box (the line box is taller than the glyphs by its leading, below them): nudged up by a quarter of a pixel (measured on 2x screenshots: Light sat 0.25 - 0.75px low; a 1px margin, which moves it half a pixel, overshot to 0.25 - 0.75px high; a transform is not a raw-px margin). */
+    .answer-state__mark { transform: translateY(-0.25px); }
     .option.incorrect .answer-state {
       color: var(--bad-ink);
     }

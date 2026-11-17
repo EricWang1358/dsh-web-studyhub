@@ -17,6 +17,6 @@ test('the card says how many chapters the material no longer holds, and says not
   assert.equal(m.model.unknownChaptersText(null), '');
   assert.equal(m.model.unknownChaptersText({}), '');
   assert.equal(m.model.unknownChaptersText({ unknownChapters: 'pdf:a#3' }), '', 'a string is not a list');
-  assert.equal(say(['x'], 'en'), '1 chapter(s) are no longer in the material and must be picked again');
+  assert.equal(say(['x'], 'en'), '1 chapter is no longer in the material and must be picked again');
   assert.doesNotMatch(say(['x'], 'en'), /[\u3400-\u9fff]/);
 });

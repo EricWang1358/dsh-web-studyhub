@@ -139,6 +139,7 @@
   "核对同型组卷缺口": "Check mock-paper shortfalls",
   "可完整组成同型卷": "Ready for strict mock paper",
   "存在 {0} 处结构缺口（未凑数）": "{0} structural shortfalls (no padding)",
+  "存在 {0} 处结构缺口（未凑数）#one": "{0} structural shortfall (no padding)",
   "可达分值：{0} / {1} 分": "Achievable marks: {0} / {1}",
   "「{0}」需 {1} 题，实有合格 {2} 题：{3}": "\"{0}\" needs {1}, found {2} qualified: {3}",
   "批量生成和 AI 深化分析要调用 AI 模型；考察方式离线校准、配额调整和能力证据核对不需要模型也能用。": "Batch generation and AI enrichment use an AI model; offline calibration, quota configuration, and capability evidence checks work without one.",
