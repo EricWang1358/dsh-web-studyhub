@@ -172,7 +172,7 @@
       "ui/review/use-review-run-sync.js": 2,
       "ui/review/use-source-dock.jsx": 2,
       "ui/review/usePinQuestion.js": 1,
-      "ui/review/useReviewSession.js": 5,
+      "ui/review/useReviewSession.js": 6,
       "ui/study-map/useCourseFolders.js": 2,
       "ui/study-map/useCourseMastery.js": 1,
       "ui/tasks/TaskConsole.jsx": 2,
