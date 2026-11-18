@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat, uiLabels } from '../i18n.js';
 import { formatDateTime } from '../format.js';
 import { Button, Icon, IconButton, NumberInput, Panel, ProgressBar, SegmentedControl, Tooltip } from '../components/index.js';
-import { dateLabel, evenTicks, fillTrend, linePath, linearScale, niceTicks } from './chart-math.js';
+import { dateLabel, evenTicks, fillTrend, linePath, linearScale, niceTicks, trendTicks } from './chart-math.js';
 import { MEASURES, THIN_DATA } from '../mastery-terms.js';
 import { CARD_KIND_LIST } from '../../lib/card-kinds.js';
 import { ACTUAL_MINUTES_MAX, summarizeFocusDuration } from '../../lib/board-model.js';
@@ -60,10 +60,10 @@ function Empty({ title, children }) {
 
 /* ── Trend ───────────────────────────────────────────────────────────── */
 
-const RANGES = [30, 90];
+const RANGES = [7, 30, 90];
 
-export function TrendPanel({ trend = [], today }) {
-  const [range, setRange] = useState(30);
+export function TrendPanel({ trend = [], today, defaultRange = 30 }) {
+  const [range, setRange] = useState(() => (RANGES.includes(defaultRange) ? defaultRange : 30));
   const [boxRef, width] = useChartWidth();
   const [active, setActive] = useState(null);
   const rows = fillTrend(trend, today, range);
@@ -75,10 +75,10 @@ export function TrendPanel({ trend = [], today }) {
   const y = linearScale([0, SCORE_MAX], [height - B, T]);
   const series = (key) => rows.map((r, i) => ({ x: x(i), y: r[`${key}Avg`] == null ? null : y(r[`${key}Avg`]) }));
   const graded = series('graded'), self = series('self');
-  const ticks = evenTicks(rows.length, narrow ? 4 : 6);
+  const ticks = trendTicks(rows.length, narrow);
 
   const show = (i) => setActive(i);
-  const tip = active == null ? null : (() => {
+  const tip = active == null || !rows[active] ? null : (() => {
     const r = rows[active];
     const lines = [];
     if (r.gradedAvg != null) lines.push(uiFormat('客观判分 平均 {0} 分 · {1} 次', [r.gradedAvg, r.gradedCount]));
