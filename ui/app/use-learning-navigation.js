@@ -7,6 +7,78 @@ import {
   openLearningTarget as openTarget, openReturnTarget, returnTargetFor, withoutSelfReturn,
 } from '../learning-navigation.js';
 
+const restoreFallbackText = () => ui('已回到原位置，但没能切回之前的课程。可以在学习库重新切换当前课程。');
+
+async function restoreCourseFocus({ origin, currentCourse, call, live }) {
+  if (!origin.courseSwitched) return null;
+  if (typeof origin.course !== 'string' && origin.course !== null) return null;
+  if (currentCourse === origin.course) return null;
+  let restored;
+  let failureMessage = null;
+  try {
+    restored = await call('focus.set', { course: origin.course });
+    if (!live()) return { aborted: true };
+    if (!restored) failureMessage = restoreFallbackText();
+  } catch (error) {
+    if (!live()) return { aborted: true };
+    const reason = errorMessage(error);
+    failureMessage = reason
+      ? uiFormat('已回到原位置，但没能切回之前的课程：{0}。可以在学习库重新切换当前课程。', [reason])
+      : restoreFallbackText();
+  }
+  return { aborted: false, restored: Boolean(restored), failureMessage };
+}
+
+/**
+ * Restore any focus course switched when leaving for a cross-course page, reload the return destination,
+ * refresh the library snapshot, and switch back without letting a course-restore failure strand the learner.
+ */
+export async function executeContextReturn({
+  origin, currentCourse, getSources, call, refresh, verbs, setModal, setContextTrail, setFocusRequest, setError, live = () => true,
+}) {
+  let courseRestore = null;
+  try {
+    setError('');
+    courseRestore = await restoreCourseFocus({ origin, currentCourse, call, live });
+    if (courseRestore?.aborted || !live()) return false;
+
+    const target = returnTargetFor(origin);
+    const loaded = await loadReturnTarget(target, origin, call);
+    if (!live()) return false;
+
+    let refreshMessage = null;
+    if (courseRestore?.restored && typeof refresh === 'function') {
+      try {
+        await refresh();
+      } catch (error) {
+        if (!live()) return false;
+        refreshMessage = errorMessage(error);
+      }
+      if (!live()) return false;
+    }
+
+    // A page may ask to know it is being returned to (the review book puts the focus on the point the learner left); only a return does this, never a later visit.
+    origin.arrive?.();
+    openReturnTarget(target, loaded, origin, verbs);
+    if (origin.modal) {
+      const source = await call('source.get', { id: origin.modal.sourceId });
+      if (!live()) return false;
+      setModal({ type: 'source', source: getSources?.()?.find((item) => item.id === source.id) || source, quote: origin.modal.quote });
+    } else setModal(null);
+    setContextTrail((previous) => previous.slice(0, -1));
+    setFocusRequest({ element: origin.invoker });
+    const warning = courseRestore?.failureMessage || refreshMessage;
+    if (warning) setError(warning);
+    return true;
+  } catch (error) {
+    if (courseRestore?.restored && typeof refresh === 'function') {
+      void Promise.resolve(refresh()).catch(() => {});
+    }
+    if (live()) setError(errorMessage(error));
+    return false;
+  }
+}
+
 /* Links between learning objects and the way back (ui-consistency #110): open a card, source, note, deck or exam from anywhere,
    remember where the learner was, and return there. What each kind loads and shows is the table in ui/learning-navigation.js;
    this hook owns the trail, the stale-request guard and the focus that follows an arrival. */
@@ -108,22 +180,20 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
     if (!(await draftSaved())) return;
     const origin = latest.current.state.contextTrail.at(-1), live = guard();
     if (!origin || origin.root !== refs.dataRef.current?.root) { setContextTrail([]); return; }
-    try {
-      const target = returnTargetFor(origin);
-      const loaded = await loadReturnTarget(target, origin, call);
-      if (!live()) return;
-      // A page may ask to know it is being returned to (the review book puts the focus on the point the learner left); only a return does this, never a later visit.
-      origin.arrive?.();
-      openReturnTarget(target, loaded, origin, verbs);
-      if (origin.modal) {
-        const source = await call('source.get', { id: origin.modal.sourceId });
-        if (!live()) return;
-        setModal({ type: 'source', source: refs.dataRef.current?.sources?.find((item) => item.id === source.id) || source, quote: origin.modal.quote });
-      } else setModal(null);
-      setContextTrail((previous) => previous.slice(0, -1));
-      setFocusRequest({ element: origin.invoker });
-    } catch (error) { if (live()) setError(errorMessage(error)); }
-  }, [call, draftSaved, guard, refs, setContextTrail, setError, setFocusRequest, setModal, verbs]);
+    await executeContextReturn({
+      origin,
+      currentCourse: refs.dataRef.current?.focus?.course ?? null,
+      getSources: () => refs.dataRef.current?.sources,
+      call,
+      refresh,
+      verbs,
+      setModal,
+      setContextTrail,
+      setFocusRequest,
+      setError,
+      live,
+    });
+  }, [call, draftSaved, guard, refresh, refs, setContextTrail, setError, setFocusRequest, setModal, verbs]);
 
   // Back to the question a letter took the learner away from.
   const returnFromDetour = useCallback(async () => {

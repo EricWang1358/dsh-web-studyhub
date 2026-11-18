@@ -11,15 +11,16 @@ import { courseNotesMaterial } from '../lib/course-book.js';
 import { openCourseBook } from '../lib/course-book-files.js';
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { buildPreview } from '../scripts/build.mjs';
-import { createPreviewServer } from '../scripts/preview-server.mjs';
+import { createPreviewServer, previewCall } from '../scripts/preview-server.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 import { scrubProcessEnv } from '../scripts/qa/env.mjs';
 import { openPage, settleAnimations } from '../scripts/qa/layout-late.mjs';
 
 const SHOTS = process.env.QUESTION_BOOK_SECTION_SHOTS || '';
 const COURSE = 'Arch';
 
-async function seedLibrary(root) {
+async function seedLibrary(root, { extraCourse = null } = {}) {
   await mkdir(root, { recursive: true });
   const service = new StudyService(root);
   await service.call('snapshot');
@@ -188,7 +189,29 @@ async function seedLibrary(root) {
       }),
       createdAt: '2026-10-09T01:00:00.000Z',
     });
-    openCourseBook(state, {});
+    openCourseBook(state, { course: COURSE });
+    if (extraCourse) {
+      state.decks.push({
+        id: 'deck-extra',
+        title: 'Extra Course Practice',
+        course: extraCourse,
+        cards: [
+          {
+            id: 'q-extra',
+            kind: 'quiz',
+            topic: 'Transport',
+            prompt: 'Which mechanism limits unacknowledged segments in TCP?',
+            answer: 'a',
+            options: [
+              { id: 'a', text: '滑动窗口与拥塞控制', correct: true },
+              { id: 'b', text: 'ARP 广播', correct: false },
+            ],
+            citations: [],
+          },
+        ],
+      });
+      state.focus = { mode: 'class', course: extraCourse, role: '', jd: '', targetTopics: [] };
+    }
   });
 
   await service.call('card.followup.add', {
@@ -207,11 +230,11 @@ async function seedLibrary(root) {
   await service.dispose();
 }
 
-async function startScenarioServer(distDir) {
+async function startScenarioServer(distDir, options = {}) {
   scrubProcessEnv();
   const base = await mkdtemp(join(tmpdir(), 'study-question-book-section-'));
   const libraryRoot = join(base, 'library');
-  await seedLibrary(libraryRoot);
+  await seedLibrary(libraryRoot, options);
   const server = await createPreviewServer({ libraryRoot, home: join(base, 'home'), port: 0, model: null, distDir });
   return {
     server,
@@ -376,6 +399,94 @@ test('built review book links from wrong feedback and Q&A jump to the section an
         await page.locator('.next-due--verdict.retry').waitFor({ timeout: 15000 });
         assert.equal(await page.locator('.options .option.incorrect').count(), 1);
         assert.deepEqual(errors, [], `unexpected browser errors (en 1280): ${errors.join('\n')}`);
+      } finally {
+        await context.close();
+      }
+    }
+
+    // 4. Cross-course 「读全书这一节」: Course A (Networks, no book) -> mixed run card from Course B (Arch) -> book -> back restores Course A (#1223)
+    {
+      const EXTRA_COURSE = 'Networks';
+      const running = await startScenarioServer(distDir, { extraCourse: EXTRA_COURSE });
+      cleanups.push(() => running.close());
+      const mixedRun = await previewCall(running.server, 'review.start', {
+        mode: 'path',
+        scope: [{ deckId: 'deck-arch', cardId: 'q-built' }, { deckId: 'deck-extra', cardId: 'q-extra' }],
+        ordered: true,
+        fresh: true,
+      });
+      assert.equal((await previewCall(running.server, 'snapshot', {})).focus.course, EXTRA_COURSE);
+
+      const opened = await openPage(browser, running, { lang: 'zh', theme: 'light', width: 1280, height: 900 });
+      const { page, errors, context } = opened;
+      try {
+        await page.addInitScript(() => {
+          try { localStorage.setItem('study-autopilot', 'off'); } catch { /* blocked */ }
+        });
+        await page.goto(running.server.url);
+        await page.locator('.course-heading', { hasText: EXTRA_COURSE }).waitFor({ state: 'visible', timeout: 30000 });
+
+        await page.locator('[data-usage="nav.resume"]').click();
+        await page.locator('.question-card').waitFor({ timeout: 30000 });
+        await page.locator('.options .option', { hasText: '展示层（UI）' }).click();
+        await page.locator('.next-due--verdict.retry').waitFor({ timeout: 15000 });
+        const feedbackLink = page.locator('[data-book-section-link="feedback"]');
+        await feedbackLink.waitFor({ state: 'visible', timeout: 15000 });
+
+        await feedbackLink.click();
+        await page.locator('.book-header').waitFor({ timeout: 30000 });
+        assert.match(await page.locator('.book-header h1').innerText(), new RegExp(`复习全书\\s*·\\s*${COURSE}`));
+        await page.locator('[data-book-heading]', { hasText: 'Layered boundaries' }).waitFor({ timeout: 15000 });
+        assert.equal((await previewCall(running.server, 'snapshot', {})).focus.course, COURSE, 'book link switched focus course to card course');
+
+        await page.locator('.book-header .sh-page-header__back').click();
+        await page.locator('.question-card').waitFor({ timeout: 30000 });
+        await page.locator('.next-due--verdict.retry').waitFor({ timeout: 15000 });
+        assert.match(await page.locator('.question').innerText(), /哪一层负责把核心业务规则与框架细节隔离？/);
+        assert.equal((await previewCall(running.server, 'snapshot', {})).focus.course, EXTRA_COURSE, 'returning from book restored focus course back to Networks');
+        assert.equal((await previewCall(running.server, 'snapshot', {})).lastRun?.id, mixedRun.id, 'resumed exact mixed review run');
+
+        await (await revealNavRow(page, 'library')).click();
+        await page.locator('.course-heading', { hasText: EXTRA_COURSE }).waitFor({ state: 'visible', timeout: 30000 });
+
+        // Failure fallback when restoring focus course fails / returns falsy
+        for (const mode of ['throw', 'falsy']) {
+          await page.locator('[data-usage="nav.resume"]').click();
+          await page.locator('[data-book-section-link="feedback"]').waitFor({ state: 'visible', timeout: 15000 });
+          await page.locator('[data-book-section-link="feedback"]').click();
+          await page.locator('.book-header').waitFor({ timeout: 30000 });
+
+          const failRestore = async (route) => {
+            const request = route.request();
+            if (request.method() === 'POST' && request.url().endsWith('/api/call')) {
+              const body = JSON.parse(request.postData() || '{}');
+              if (body.action === 'focus.set' && body.args?.course === EXTRA_COURSE) {
+                if (mode === 'throw') {
+                  await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: false, error: '请选择已有课程' }) });
+                } else {
+                  await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, value: null }) });
+                }
+                return;
+              }
+            }
+            await route.continue();
+          };
+          await page.route('**/api/call', failRestore);
+          await page.locator('.book-header .sh-page-header__back').click();
+          await page.locator('.next-due--verdict.retry').waitFor({ timeout: 15000 });
+          assert.match(await page.locator('.question').innerText(), /哪一层负责把核心业务规则与框架细节隔离？/);
+          const expectedError = mode === 'throw'
+            ? '已回到原位置，但没能切回之前的课程：请选择已有课程'
+            : '已回到原位置，但没能切回之前的课程。可以在学习库重新切换当前课程。';
+          await page.locator('.sh-toasts .sh-toast--error', { hasText: expectedError }).waitFor({ state: 'visible', timeout: 15000 });
+          await page.unroute('**/api/call', failRestore);
+
+          await previewCall(running.server, 'focus.set', { course: EXTRA_COURSE });
+          await (await revealNavRow(page, 'library')).click();
+          await page.locator('.course-heading', { hasText: EXTRA_COURSE }).waitFor({ state: 'visible', timeout: 30000 });
+        }
+
+        assert.deepEqual(errors, [], `unexpected browser errors (cross-course): ${errors.join('\n')}`);
       } finally {
         await context.close();
       }

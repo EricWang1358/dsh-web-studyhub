@@ -468,11 +468,12 @@ function SettingsView() {
   );
 }
 
-async function openReviewCoursePage({ place, data, core, session, learn, nav, targetPage, prepare }) {
+export async function openReviewCoursePage({ place, data, core, session, learn, nav, targetPage, prepare }) {
   if (await session.flushDraft?.() === false) return;
-  const origin = learn.captureContext();
-  const targetCourse = typeof place?.course === 'string' ? place.course : (data?.focus?.course ?? null);
-  const switched = typeof place?.course === 'string' && place.course !== (data?.focus?.course ?? null);
+  const previousCourse = data?.focus?.course ?? null;
+  const targetCourse = typeof place?.course === 'string' ? place.course : previousCourse;
+  const switched = typeof place?.course === 'string' && place.course !== previousCourse;
+  const origin = learn.captureContext(switched ? { course: previousCourse, courseSwitched: true } : {});
   if (switched && !await core.act('focus.set', { course: place.course })) return;
   learn.rememberContext(origin);
   prepare(targetCourse);

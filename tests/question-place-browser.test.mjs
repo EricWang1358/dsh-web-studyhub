@@ -626,3 +626,169 @@ test('outline target resets stale deck filter, restores filter without target, c
     await context.close();
   }
 });
+
+test('cross-course 出处 switches focus course to card course, restores previous focus course on return, and still returns when focus.set fails (#1223)', { timeout: 600000 }, async (t) => {
+  const COURSE_A = 'Operating Systems';
+  const root = await mkdtemp(join(tmpdir(), 'question-place-cross-course-'));
+  const service = new StudyService(join(root, 'library'));
+  t.after(async () => { await service.dispose(); await rm(root, { recursive: true, force: true }); });
+  await service.call('snapshot');
+  await service.store.update((state) => {
+    CHAPTERS.slice(0, 3).forEach((title, index) => {
+      state.sources.push({
+        id: `ds-p${index + 1}`,
+        title: `${DOC_TITLE} · p. ${index + 1}`,
+        text: `${quoteOf(index)} Extra lecture details for section ${index + 1}.`,
+        createdAt: at,
+        courses: [COURSE],
+        document: {
+          materialId: 'ds-notes-pdf',
+          page: index + 1,
+          totalPages: 3,
+          format: 'pdf',
+          origin: 'converted',
+          converter: 'marker',
+          filename: `${DOC_TITLE}.pdf`,
+          chapter: { index, title, level: 1 },
+          extractionVersion: 2,
+        },
+      });
+    });
+    state.decks.push(
+      {
+        id: 'os-deck',
+        title: 'OS Scheduling',
+        course: COURSE_A,
+        cards: [
+          {
+            id: 'os-c1',
+            kind: 'quiz',
+            topic: 'Scheduling',
+            prompt: 'Which scheduling algorithm prevents starvation by increasing priority over time?',
+            answer: 'Aging.',
+            options: [
+              { id: 'a', text: 'Aging', correct: true },
+              { id: 'b', text: 'Strict FIFO without preemption', correct: false },
+            ],
+            citations: [],
+          },
+        ],
+      },
+      {
+        id: 'ds-deck',
+        title: DECK_TITLE,
+        course: COURSE,
+        cards: [
+          {
+            id: 'c-raft',
+            kind: 'quiz',
+            topic: 'Consensus',
+            prompt: 'Which mechanism ensures leader election safety during a network partition in Raft?',
+            answer: 'Majority quorum and term numbers.',
+            options: [
+              { id: 'a', text: 'Majority quorum and up-to-date log term checks', correct: true },
+              { id: 'b', text: 'Static priority configured by node IP', correct: false },
+            ],
+            citations: [{ sourceId: 'ds-p3', quote: quoteOf(2) }],
+          },
+        ],
+      },
+    );
+    state.focus = { mode: 'class', course: COURSE_A, role: '', jd: '', targetTopics: [] };
+  });
+  await service.dispose();
+
+  const distDir = join(root, 'dist');
+  await buildPreview({ outdir: distDir });
+  const server = await createPreviewServer({ libraryRoot: join(root, 'library'), home: join(root, 'home'), port: 0, model: null, distDir });
+  let browser;
+  t.after(async () => { await browser?.close(); await server.close(); });
+  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium available: ${String(error.message).split('\n')[0]}`); return; }
+
+  const mixedRun = await previewCall(server, 'review.start', {
+    mode: 'path',
+    scope: [{ deckId: 'ds-deck', cardId: 'c-raft' }, { deckId: 'os-deck', cardId: 'os-c1' }],
+    ordered: true,
+    fresh: true,
+  });
+  assert.equal((await previewCall(server, 'snapshot', {})).focus.course, COURSE_A);
+
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.addInitScript(() => {
+    localStorage.setItem('study-ui-language', 'zh');
+    localStorage.setItem('study-autopilot', 'off');
+  });
+
+  // 1. Course A active -> mixed run card from Course B still offers 出处 (even though Course A has no materials)
+  //    -> clicking 出处 switches focus to Course B -> returning restores focus to Course A and resumes the exact run.
+  await page.goto(server.url);
+  await page.locator('.course-heading', { hasText: COURSE_A }).waitFor({ state: 'visible', timeout: 30000 });
+  await page.locator('[data-usage="nav.resume"]').click();
+  const place = page.locator('[data-review-place]');
+  await place.waitFor({ state: 'visible', timeout: 30000 });
+  assert.equal(await place.evaluate((el) => el.tagName), 'BUTTON', '出处 is clickable even when current focus course has no materials');
+  assert.match(await place.innerText(), new RegExp(CHAPTERS[2].slice(0, 12)));
+
+  await place.click();
+  await page.locator('.outline-tree').waitFor({ timeout: 30000 });
+  assert.match(await page.locator('.outline-page h1').innerText(), new RegExp(`总纲 · ${COURSE}`));
+  assert.equal((await previewCall(server, 'snapshot', {})).focus.course, COURSE, 'jumping to 出处 switches active course to Course B');
+  await page.locator('[data-key="pdf:ds-notes-pdf#2"]').waitFor({ state: 'visible', timeout: 30000 });
+
+  await page.locator('.outline-header').getByRole('button', { name: /回到之前的第 1 题/ }).click();
+  await place.waitFor({ state: 'visible', timeout: 30000 });
+  assert.match(await page.locator('.question').innerText(), /leader election safety/i, 'returned to exact Course B question in mixed run');
+  assert.equal((await previewCall(server, 'snapshot', {})).focus.course, COURSE_A, 'returning restored focus course back to Course A');
+  const activeRun = (await previewCall(server, 'snapshot', {})).lastRun;
+  assert.equal(activeRun?.id, mixedRun.id, 'resumed the exact same mixed review run');
+
+  await (await revealNavRow(page, 'library')).click();
+  await page.locator('.course-heading', { hasText: COURSE_A }).waitFor({ state: 'visible', timeout: 30000 });
+
+  // 2. If restoring focus.set throws or returns falsy, returning still brings learner back to the question and surfaces an error.
+  for (const mode of ['throw', 'falsy']) {
+    await page.locator('[data-usage="nav.resume"]').click();
+    await place.waitFor({ state: 'visible', timeout: 30000 });
+    await place.click();
+    await page.locator('.outline-tree').waitFor({ timeout: 30000 });
+
+    const failRestore = async (route) => {
+      const request = route.request();
+      if (request.method() === 'POST' && request.url().endsWith('/api/call')) {
+        const body = JSON.parse(request.postData() || '{}');
+        if (body.action === 'focus.set' && body.args?.course === COURSE_A) {
+          if (mode === 'throw') {
+            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: false, error: '请选择已有课程' }) });
+          } else {
+            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, value: null }) });
+          }
+          return;
+        }
+      }
+      await route.continue();
+    };
+    await page.route('**/api/call', failRestore);
+    await page.locator('.outline-header').getByRole('button', { name: /回到之前的第 1 题/ }).click();
+    await place.waitFor({ state: 'visible', timeout: 30000 });
+    assert.match(await page.locator('.question').innerText(), /leader election safety/i, `still returned to question on focus.set ${mode}`);
+    const expectedError = mode === 'throw'
+      ? '已回到原位置，但没能切回之前的课程：请选择已有课程'
+      : '已回到原位置，但没能切回之前的课程。可以在学习库重新切换当前课程。';
+    await page.locator('.sh-toasts .sh-toast--error', { hasText: expectedError }).waitFor({ state: 'visible', timeout: 15000 });
+    await page.unroute('**/api/call', failRestore);
+
+    // Restore course back to A cleanly before next iteration or library check.
+    await previewCall(server, 'focus.set', { course: COURSE_A });
+    await (await revealNavRow(page, 'library')).click();
+    await page.locator('.course-heading', { hasText: COURSE_A }).waitFor({ state: 'visible', timeout: 30000 });
+  }
+
+  assert.deepEqual(errors, [], 'zero uncaught page errors');
+  for (const openRun of (await previewCall(server, 'snapshot', {})).runs || []) {
+    await previewCall(server, 'review.end', { runId: openRun.id });
+  }
+  await context.close();
+});
