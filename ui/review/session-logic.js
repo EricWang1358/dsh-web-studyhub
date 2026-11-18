@@ -145,6 +145,16 @@ export function isSelfGradedRun(run) {
   return !choice && !isCloze && !rubricCard && !taskCard;
 }
 
+/**
+ * Whether a self-graded answer (0–5) should advance immediately to the next card.
+ * When "List unfamiliar words after wrong answers" (`autoTerms`) is on and the grade is low (< 3),
+ * stay on the card so candidate terms can load and appear instead of skipping past them (#1246).
+ * @param {{ selfGradeAdvance?: boolean, autoTerms?: boolean, grade?: number }} [options]
+ * @returns {boolean}
+ */
+export const shouldAdvanceOnSelfGrade = ({ selfGradeAdvance = true, autoTerms = false, grade } = {}) =>
+  selfGradeAdvance !== false && !(autoTerms && Number.isInteger(grade) && grade < 3);
+
 /** Is a key press on `target` someone else's: in a dialog over the page, or in a region that owns its keys ([data-own-keys]: the 对照栏's reader beside the
     question, #1012), unless the question itself (`root`) is inside it (the reader's 本节题目, #1013)? */
 export function keysElsewhere(target, root) {

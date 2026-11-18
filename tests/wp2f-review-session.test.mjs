@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   AUTO_ADVANCE_MS, emptyEntry, entryForRun, shouldResetEntry, isPassed, advanceKeyOf, autopilotPlan, shortcutGate, shortcutAction,
-  isCurrentEntry, createFlightSet, pressedGradeOf, reviewChoiceKind,
+  isCurrentEntry, createFlightSet, pressedGradeOf, reviewChoiceKind, shouldAdvanceOnSelfGrade,
 } from '../ui/review/session-logic.js';
 
 // UI wave 2 · WP-F (#112): the practice session's rules, away from the DOM.
@@ -44,6 +44,20 @@ test('what counts as a pass: a grade of 3 or more, or a correct choice', () => {
   assert.equal(isPassed(run({ feedback: { correct: false } })), false);
   assert.equal(isPassed(run()), false);
   assert.equal(isPassed(null), false);
+});
+
+test('shouldAdvanceOnSelfGrade holds low grades only when autoTerms is on (#1246)', () => {
+  for (const grade of [0, 1, 2, 3, 4, 5]) {
+    assert.equal(shouldAdvanceOnSelfGrade({ selfGradeAdvance: true, autoTerms: false, grade }), true);
+    assert.equal(shouldAdvanceOnSelfGrade({ selfGradeAdvance: false, autoTerms: false, grade }), false);
+    assert.equal(shouldAdvanceOnSelfGrade({ selfGradeAdvance: false, autoTerms: true, grade }), false);
+  }
+  for (const grade of [0, 1, 2]) {
+    assert.equal(shouldAdvanceOnSelfGrade({ selfGradeAdvance: true, autoTerms: true, grade }), false);
+  }
+  for (const grade of [3, 4, 5]) {
+    assert.equal(shouldAdvanceOnSelfGrade({ selfGradeAdvance: true, autoTerms: true, grade }), true);
+  }
 });
 
 test('autopilot moves on by itself only after a pass, on the practice page, and only until the learner touches something', () => {

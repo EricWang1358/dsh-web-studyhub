@@ -13,7 +13,7 @@ import { describeModelError, modelReadiness } from '../generation-status.js';
 import { practiceArgs } from '../learning-navigation.js';
 import {
   AUTO_ADVANCE_MS, SELF_GRADE_ADVANCE_KEY, advanceKeyOf, assistRunningOn, autopilotPlan, gradeRunning, gradesOutstanding, isSelfGradedRun, keepAutopilotHold, continueDestination, createFlightSet, emptyEntry, entryForRun, isCurrentEntry, isPassed, pressedGradeOf, reviewChoiceKind,
-  keysElsewhere, mergeReviewPollWithFollowups, reviewPollResult, shortcutAction, shortcutGate, shouldResetEntry, skipTarget,
+  keysElsewhere, mergeReviewPollWithFollowups, reviewPollResult, shouldAdvanceOnSelfGrade, shortcutAction, shortcutGate, shouldResetEntry, skipTarget,
 } from './session-logic.js';
 import { continueLabel, continueNote } from './continue-labels.js';
 import { createDraftSaver, draftKey, draftPayloadOf, draftable, entrySignature, keepTyped, savedSignature } from './draft-persistence.js';
@@ -47,6 +47,8 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   showBackRef.current = showBack;
   const [showEn, setShowEn] = usePersistentState(EN_KEY, false, flag('1', '0'));
   const [autoTerms, setAutoTerms] = usePersistentState(CANDIDATE_TERMS_KEY, false, flag('1', '0'));
+  const autoTermsRef = useRef(autoTerms);
+  autoTermsRef.current = autoTerms;
   const [selfGradeAdvance, setSelfGradeAdvance] = usePersistentState(SELF_GRADE_ADVANCE_KEY, true, flag('1', '0'));
   const selfGradeAdvanceRef = useRef(selfGradeAdvance);
   selfGradeAdvanceRef.current = selfGradeAdvance;
@@ -258,7 +260,14 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     const current = runRef.current;
     if (!current?.id) return Promise.resolve();
     const resolvedArgs = action === 'review.answer' && isSelfGradedRun(current) && Number.isInteger(args.grade) && args.advanceOnSelfGrade === undefined
-      ? { ...args, advanceOnSelfGrade: selfGradeAdvanceRef.current !== false }
+      ? {
+          ...args,
+          advanceOnSelfGrade: shouldAdvanceOnSelfGrade({
+            selfGradeAdvance: selfGradeAdvanceRef.current,
+            autoTerms: autoTermsRef.current,
+            grade: args.grade,
+          }),
+        }
       : args;
     const step = () => {
       const latest = runRef.current || current;

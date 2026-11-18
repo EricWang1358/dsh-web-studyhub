@@ -1,0 +1,2 @@
+- **Flashcard low self-grades now stay on the card to show candidate terms when “List unfamiliar words after wrong answers” is enabled.** Even with “Auto-advance after grading” on by default, rating a flashcard 0–2 keeps the card open so candidate unfamiliar words can load and be marked; passing grades (3–5) and rounds with candidate terms turned off continue to auto-advance as before.
+  - Not verified: Live remote LLM candidate extraction quality on flashcards and packaged StudyHub host execution (verified via unit tests and preview fake-model browser tests).

@@ -163,6 +163,13 @@ const chipTexts = (page) =>
 const highlightCount = (page, name = "study-term-mark") =>
   page.evaluate((hlName) => (typeof CSS !== "undefined" && CSS.highlights ? CSS.highlights.get(hlName)?.size || 0 : -1), name);
 
+const highlightTexts = (page, name) =>
+  page.evaluate((hlName) => {
+    if (typeof CSS === "undefined" || !CSS.highlights) return null;
+    const hl = CSS.highlights.get(hlName);
+    return hl ? [...hl].map((range) => range.toString()) : [];
+  }, name);
+
 const covers = (a, b) => !!a && !!b && a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
 
 async function takeShot(page, name) {
@@ -1779,6 +1786,611 @@ test("More menu › 生词表… opens TermListDialog with 0 marked terms on fla
         await context.close();
         await running.close();
       }
+    }
+  }
+});
+
+test("filled candidate term stays excluded from dashed candidates and keeps only pale study-term-seen highlight (#1242)", async (t) => {
+  let browser;
+  try {
+    browser = await launchChromium();
+  } catch (error) {
+    t.skip(`no Chromium to look with: ${String(error.message).split("\n")[0]}`);
+    return;
+  }
+  const dist = await mkdtemp(join(tmpdir(), "study-cand-exclude-dist-"));
+  await buildPreview({ outdir: dist });
+  t.after(async () => {
+    await browser.close();
+    await rm(dist, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  });
+
+  for (const lang of ["zh", "en"]) {
+    const tag = `cand-exclude-${lang}`;
+    const running = await startLateServer({ distDir: dist, lang, seed: (root) => seedCandidateTermsDeck(root, lang) });
+    const { context, page, errors } = await openPage(browser, running, { lang, theme: "light", width: 1280, height: 900 });
+    try {
+      let termsGetCalls = 0;
+      let lastGetPromise = Promise.resolve();
+      let lastMarkPromise = Promise.resolve();
+      page.on("request", (req) => {
+        if (!req.url().endsWith("/api/call")) return;
+        const body = req.postData() || "";
+        const waitRes = () =>
+          page.waitForResponse((res) => res.url().endsWith("/api/call") && res.request() === req, { timeout: 10000 }).catch(() => null);
+        if (body.includes('"course.terms.get"')) {
+          termsGetCalls += 1;
+          lastGetPromise = waitRes();
+        }
+        if (body.includes('"course.terms.mark"')) lastMarkPromise = waitRes();
+      });
+
+      await page.goto(running.server.url);
+      await page.locator('[data-usage="home.start"]').first().click({ timeout: 30000 });
+      await page.locator(".question-toolbar").waitFor({ timeout: 30000 });
+      await settleAnimations(page);
+      await lastGetPromise;
+
+      // Enable candidate terms and answer Card 1 wrong -> dashed candidate chips appear.
+      await page.locator(".review-more-trigger").click();
+      await page.locator('[data-usage="review.terms-auto"]').click();
+      await page.locator(".options .option", {
+        hasText: lang === "en" ? "Every reader acquires a mutex first" : "每次读取必须先加互斥量阻塞",
+      }).click();
+      await page.locator(".term-strip .term-strip__candidate").first().waitFor({ state: "visible", timeout: 15000 });
+      await settleAnimations(page);
+
+      const initialCandidates = (await page.locator(".term-strip .term-strip__candidate .sh-chip__main").allInnerTexts())
+        .map((text) => text.trim())
+        .filter(Boolean);
+      assert.ok(initialCandidates.length >= 2, `${tag}: expected >= 2 candidate chips (${initialCandidates.join(", ")})`);
+      const pickedWord = initialCandidates[0];
+      const remainingExpected = initialCandidates.slice(1);
+
+      // Click first candidate -> moves to active strip -> click 补齐 / Fill in this 1 word.
+      await page.locator(".term-strip .term-strip__candidate .sh-chip__main").first().click();
+      await page.locator(".term-strip .sh-chip__label").first().waitFor({ state: "visible", timeout: 10000 });
+      await lastMarkPromise;
+      assert.deepEqual(await chipTexts(page), [pickedWord], `${tag}: clicked candidate staged in active strip`);
+
+      const getsBeforeFill = termsGetCalls;
+      await page.locator(".term-strip__fill").click();
+      await page.waitForFunction(
+        () => !!document.querySelector(".explanation-followup .followup-item[open]") && !!document.querySelector(".prereq-strip"),
+        { timeout: 25000 },
+      );
+      await page.waitForFunction(
+        () => document.querySelectorAll(".term-strip .sh-chip__label").length === 0,
+        { timeout: 10000 },
+      );
+      for (let i = 0; i < 40 && termsGetCalls <= getsBeforeFill; i += 1) {
+        await page.waitForTimeout(50);
+      }
+      await lastGetPromise;
+      await settleAnimations(page);
+
+      // Server confirms filled term is saved with state === "unknown" and linked check card.
+      const courseName = lang === "en" ? "Systems" : "系统课";
+      const persisted = await previewCall(running.server, "course.terms.get", { course: courseName });
+      const savedEntry = persisted.items?.find((item) => item.term.toLowerCase() === pickedWord.toLowerCase());
+      assert.ok(savedEntry && savedEntry.state === "unknown" && savedEntry.card?.cardId, `${tag}: filled term stored as unknown with check card`);
+
+      // Strip must NOT re-show pickedWord as a dashed candidate; unpicked candidates remain.
+      const afterCandidates = (await page.locator(".term-strip .term-strip__candidate .sh-chip__main").allInnerTexts())
+        .map((text) => text.trim())
+        .filter(Boolean);
+      assert.equal(
+        afterCandidates.some((item) => item.toLowerCase() === pickedWord.toLowerCase()),
+        false,
+        `${tag}: filled term "${pickedWord}" must not reappear as dashed candidate (got: ${afterCandidates.join(", ")})`,
+      );
+      assert.deepEqual(afterCandidates, remainingExpected, `${tag}: unpicked candidates remain available`);
+      assert.equal(await page.locator(".term-strip .sh-chip__label").count(), 0, `${tag}: active marked strip stays cleared`);
+
+      // CSS highlights: pickedWord has ONLY pale study-term-seen highlight, NEVER study-term-candidate or study-term-mark.
+      const seenTexts = await highlightTexts(page, "study-term-seen");
+      const candTexts = await highlightTexts(page, "study-term-candidate");
+      const activeCount = await highlightCount(page, "study-term-mark");
+      if (seenTexts !== null && candTexts !== null) {
+        assert.equal(activeCount, 0, `${tag}: active study-term-mark is empty`);
+        assert.ok(
+          seenTexts.some((text) => text.toLowerCase() === pickedWord.toLowerCase()),
+          `${tag}: filled term "${pickedWord}" keeps pale study-term-seen highlight (${seenTexts.join(", ")})`,
+        );
+        assert.equal(
+          candTexts.some((text) => text.toLowerCase() === pickedWord.toLowerCase()),
+          false,
+          `${tag}: filled term "${pickedWord}" has NO dashed study-term-candidate highlight (${candTexts.join(", ")})`,
+        );
+      }
+
+      assert.deepEqual(errors, [], `${tag}: unexpected console/page errors: ${errors.join(" | ")}`);
+    } finally {
+      await context.close();
+      await running.close();
+    }
+  }
+});
+
+async function seedCandidateCoverageDeck(root, lang) {
+  const service = new StudyService(root);
+  await service.call("snapshot");
+  const courseName = lang === "en" ? "Systems" : "系统课";
+  await service.store.update((state) => {
+    state.decks.push({
+      id: "d-cov",
+      title: lang === "en" ? "Distributed Review" : "分布式复习",
+      course: courseName,
+      folder: "",
+      publishedAt: "2026-10-01T00:00:00.000Z",
+      cards: lang === "en"
+        ? [
+            {
+              id: "cov-fc1",
+              kind: "flashcard",
+              topic: "Consistency",
+              objective: "Understand linearizability",
+              prompt: "Explain what linearizability guarantees across replicas.",
+              answer: "Linearizability enforces real-time atomic ordering while balancing quorum availability and split-brain protection.",
+              hint: "Focus on wall-clock order.",
+              explanation: "Linearizability guarantees every read observes the newest completed write.",
+              misconception: "Confusing linearizability with eventual convergence.",
+              citations: [],
+            },
+            {
+              id: "cov-fc2",
+              kind: "flashcard",
+              topic: "Retry Safety",
+              objective: "Understand idempotency",
+              prompt: "Why does idempotency matter for distributed RPC retries?",
+              answer: "Idempotency guarantees repeated requests produce the same durable state without duplicate side effects.",
+              hint: "Think about duplicate messages.",
+              explanation: "Idempotency lets clients safely retry timeouts.",
+              misconception: "Assuming retries are harmless by default.",
+              citations: [],
+            },
+            {
+              id: "cov-q1",
+              kind: "quiz",
+              topic: "Concurrency Control",
+              objective: "Identify optimistic locking",
+              prompt: "Which assumption defines optimistic concurrency control?",
+              answer: "Conflicts stay rare until commit validation checks versions.",
+              options: [
+                { id: "a", text: "Validation checks versions at commit", correct: true, explanation: "Optimistic locking defers checking until commit." },
+                { id: "b", text: "Every reader acquires a mutex first", correct: false, explanation: "Acquiring a mutex upfront describes pessimistic locking." },
+              ],
+              hint: "Think about validation time.",
+              explanation: "Optimistic concurrency avoids read locks and checks serializability at commit.",
+              misconception: "Blocking every reader.",
+              citations: [],
+            },
+            {
+              id: "cov-q2",
+              kind: "quiz",
+              topic: "Quorums",
+              objective: "Recall quorum intersection",
+              prompt: "Why must read and write quorums intersect in replicated storage?",
+              answer: "Intersection guarantees every read sees at least one replica with the latest write.",
+              options: [
+                { id: "a", text: "Overlap ensures reads encounter the newest committed write", correct: true, explanation: "R + W > N guarantees overlap." },
+                { id: "b", text: "Replicas discard commit logs before consensus finishes", correct: false, explanation: "Logs preserve durable history." },
+              ],
+              hint: "Think about R + W > N.",
+              explanation: "Quorum overlap guarantees at least one up-to-date replica answers.",
+              misconception: "Assuming any single replica is always current.",
+              citations: [],
+            },
+          ]
+        : [
+            {
+              id: "cov-fc1",
+              kind: "flashcard",
+              topic: "一致性",
+              objective: "理解线性一致性",
+              prompt: "请说明线性一致性对并发读写的核心保证。",
+              answer: "系统在 线性一致性 与 最终一致性 之间权衡，依靠 多数派 与 原子序 防范 脑裂。",
+              hint: "关注实时原子序。",
+              explanation: "线性一致性保证并发读写呈现全局实时原子序。",
+              misconception: "把线性一致性混同最终一致性。",
+              citations: [],
+            },
+            {
+              id: "cov-fc2",
+              kind: "flashcard",
+              topic: "重试安全",
+              objective: "理解幂等性",
+              prompt: "分布式系统里为什么需要幂等性？",
+              answer: "幂等性 保证重复执行同一请求不会产生额外副作用，常配合 事务日志 使用。",
+              hint: "想一想超时重试。",
+              explanation: "幂等性让客户端超时重试保持结果一致。",
+              misconception: "把幂等性和可交换性混为一谈。",
+              citations: [],
+            },
+            {
+              id: "cov-q1",
+              kind: "quiz",
+              topic: "并发控制",
+              objective: "识别乐观锁假设",
+              prompt: "在并发控制中，下列哪项对应乐观锁的核心假设？",
+              answer: "冲突很少发生，只在提交阶段校验版本号。",
+              options: [
+                { id: "a", text: "提交时通过版本号检查并发冲突", correct: true, explanation: "乐观锁推迟到提交时才验证版本。" },
+                { id: "b", text: "每次读取必须先加互斥量阻塞", correct: false, explanation: "预先加互斥量属于悲观锁策略。" },
+              ],
+              hint: "想想何时检查冲突。",
+              explanation: "乐观锁不在读阶段加锁，只在提交时校验版本号与序列化条件。",
+              misconception: "以为乐观锁也会阻塞读操作。",
+              citations: [],
+            },
+            {
+              id: "cov-q2",
+              kind: "quiz",
+              topic: "多数派交集",
+              objective: "理解读写交集",
+              prompt: "为什么分布式存储要求读多数派与写多数派有交集？",
+              answer: "交集保证读取至少命中一个持有最新写入的副本。",
+              options: [
+                { id: "a", text: "交集确保读请求至少命中一个最新副本", correct: true, explanation: "R + W > N 保证读写集合必然相交。" },
+                { id: "b", text: "副本在达成共识前可以随意丢弃事务日志", correct: false, explanation: "事务日志用于保障持久性。" },
+              ],
+              hint: "想想 R + W > N。",
+              explanation: "多数派交集确保至少一个副本保存了最新已提交版本。",
+              misconception: "以为任意单个副本总是最新的。",
+              citations: [],
+            },
+          ],
+    });
+  });
+}
+
+async function seedQuizOnlyDeck(root, lang) {
+  const service = new StudyService(root);
+  await service.call("snapshot");
+  const courseName = lang === "en" ? "Systems" : "系统课";
+  await service.store.update((state) => {
+    state.decks.push({
+      id: "d-quiz-cov",
+      title: lang === "en" ? "Concurrency Quiz" : "并发测验",
+      course: courseName,
+      folder: "",
+      publishedAt: "2026-10-01T00:00:00.000Z",
+      cards: lang === "en"
+        ? [
+            {
+              id: "qz-1",
+              kind: "quiz",
+              topic: "Concurrency Control",
+              objective: "Identify optimistic locking",
+              prompt: "Which assumption defines optimistic concurrency control?",
+              answer: "Validation checks versions at commit.",
+              options: [
+                { id: "a", text: "Validation checks versions at commit", correct: true, explanation: "Optimistic locking defers checking until commit." },
+                { id: "b", text: "Every reader acquires a mutex first", correct: false, explanation: "Acquiring a mutex upfront describes pessimistic locking." },
+              ],
+              hint: "Think about validation time.",
+              explanation: "Optimistic concurrency avoids read locks and checks serializability at commit.",
+              misconception: "Blocking every reader.",
+              citations: [],
+            },
+            {
+              id: "qz-2",
+              kind: "quiz",
+              topic: "Quorums",
+              objective: "Recall quorum intersection",
+              prompt: "Why must read and write quorums intersect in replicated storage?",
+              answer: "Overlap ensures reads encounter the newest committed write.",
+              options: [
+                { id: "a", text: "Overlap ensures reads encounter the newest committed write", correct: true, explanation: "R + W > N guarantees overlap." },
+                { id: "b", text: "Replicas discard commit logs before consensus finishes", correct: false, explanation: "Logs preserve durable history." },
+              ],
+              hint: "Think about R + W > N.",
+              explanation: "Quorum overlap guarantees at least one up-to-date replica answers.",
+              misconception: "Assuming any single replica is always current.",
+              citations: [],
+            },
+          ]
+        : [
+            {
+              id: "qz-1",
+              kind: "quiz",
+              topic: "并发控制",
+              objective: "识别乐观锁假设",
+              prompt: "在并发控制中，下列哪项对应乐观锁的核心假设？",
+              answer: "提交时通过版本号检查并发冲突。",
+              options: [
+                { id: "a", text: "提交时通过版本号检查并发冲突", correct: true, explanation: "乐观锁推迟到提交时才验证版本。" },
+                { id: "b", text: "每次读取必须先加互斥量阻塞", correct: false, explanation: "预先加互斥量属于悲观锁策略。" },
+              ],
+              hint: "想想何时检查冲突。",
+              explanation: "乐观锁不在读阶段加锁，只在提交时校验版本号与序列化条件。",
+              misconception: "以为乐观锁也会阻塞读操作。",
+              citations: [],
+            },
+            {
+              id: "qz-2",
+              kind: "quiz",
+              topic: "多数派交集",
+              objective: "理解读写交集",
+              prompt: "为什么分布式存储要求读多数派与写多数派有交集？",
+              answer: "交集确保读请求至少命中一个最新副本。",
+              options: [
+                { id: "a", text: "交集确保读请求至少命中一个最新副本", correct: true, explanation: "R + W > N 保证读写集合必然相交。" },
+                { id: "b", text: "副本在达成共识前可以随意丢弃事务日志", correct: false, explanation: "事务日志用于保障持久性。" },
+              ],
+              hint: "想想 R + W > N。",
+              explanation: "多数派交集确保至少一个副本保存了最新已提交版本。",
+              misconception: "以为任意单个副本总是最新的。",
+              citations: [],
+            },
+          ],
+    });
+  });
+}
+
+test("candidate terms behavioral guards: flashcard 1/4, right quiz, cache revisit, light-model failure auto-off, and exam mode (#1243, #1246)", async (t) => {
+  let browser;
+  try {
+    browser = await launchChromium();
+  } catch (error) {
+    t.skip(`no Chromium to look with: ${String(error.message).split("\n")[0]}`);
+    return;
+  }
+  const dist = await mkdtemp(join(tmpdir(), "study-cand-1243-dist-"));
+  await buildPreview({ outdir: dist });
+  t.after(async () => {
+    await browser.close();
+    await rm(dist, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  });
+
+  // 0. Guard #1246 non-regression: with autoTerms OFF (default), rating flashcard 1 still auto-advances with 0 card.terms calls.
+  {
+    const running = await startLateServer({ distDir: dist, lang: "zh", seed: (root) => seedCandidateCoverageDeck(root, "zh") });
+    const { context, page, errors } = await openPage(browser, running, { lang: "zh", theme: "light", width: 1280, height: 900 });
+    try {
+      let cardTermsCalls = 0;
+      page.on("request", (req) => {
+        if (req.url().endsWith("/api/call") && (req.postData() || "").includes('"card.terms"')) cardTermsCalls += 1;
+      });
+      await page.goto(running.server.url);
+      await page.locator('[data-usage="home.start"]').first().click({ timeout: 30000 });
+      await page.locator(".flashcard").waitFor({ state: "visible", timeout: 30000 });
+      await settleAnimations(page);
+
+      await page.locator('[data-usage="review.flip"]').click();
+      await page.locator('.flip-back[aria-hidden="false"]').waitFor({ state: "visible", timeout: 10000 });
+      await page.locator(".grade-scale .grade").nth(1).click();
+      await page.waitForFunction(
+        () => (document.querySelector(".question-card .flash-prompt")?.textContent || "").includes("幂等性"),
+        { timeout: 10000 },
+      );
+      assert.equal(cardTermsCalls, 0, "autoTerms OFF + flashcard grade 1 keeps auto-advance and calls card.terms 0 times");
+      assert.equal(await page.locator(".term-strip .term-strip__candidate").count(), 0);
+      assert.deepEqual(errors, [], `autoTerms-off guard errors: ${errors.join(" | ")}`);
+    } finally {
+      await context.close();
+      await running.close();
+    }
+  }
+
+  // Scenarios 1, 2, 3, 4: toggle already ON -> flashcard rate 1 -> next flashcard rate 4 -> quiz right -> revisit cached card.
+  {
+    const running = await startLateServer({ distDir: dist, lang: "zh", seed: (root) => seedCandidateCoverageDeck(root, "zh") });
+    const { context, page, errors } = await openPage(browser, running, { lang: "zh", theme: "light", width: 1280, height: 900 });
+    try {
+      let cardTermsCalls = 0;
+      page.on("request", (req) => {
+        if (req.url().endsWith("/api/call") && (req.postData() || "").includes('"card.terms"')) cardTermsCalls += 1;
+      });
+
+      await page.goto(running.server.url);
+      await page.locator('[data-usage="home.start"]').first().click({ timeout: 30000 });
+      await page.locator(".flashcard").waitFor({ state: "visible", timeout: 30000 });
+      await settleAnimations(page);
+
+      // Scenario 1: Toggle already ON before flipping -> flashcard flip -> rate 1 -> stays on Card 1, candidates appear, card.terms called 1 time.
+      await page.locator(".review-more-trigger").click();
+      const autoToggle = page.locator('[data-usage="review.terms-auto"]');
+      await autoToggle.waitFor({ state: "visible", timeout: 10000 });
+      assert.equal(await autoToggle.getAttribute("aria-checked"), "false", "S1: toggle starts OFF");
+      await autoToggle.click();
+      assert.equal(cardTermsCalls, 0, "S1: turning toggle ON before reveal/grade triggers 0 card.terms calls");
+
+      await page.locator('[data-usage="review.flip"]').click();
+      await page.locator('.flip-back[aria-hidden="false"]').waitFor({ state: "visible", timeout: 10000 });
+      await settleAnimations(page);
+      assert.equal(cardTermsCalls, 0, "S1: flipping before grading triggers 0 card.terms calls");
+
+      await page.locator(".grade-scale .grade").nth(1).click();
+      await page.locator(".term-strip .term-strip__candidate").first().waitFor({ state: "visible", timeout: 15000 });
+      await settleAnimations(page);
+      assert.equal(cardTermsCalls, 1, "S1: rating flashcard 1 with toggle ON calls card.terms exactly 1 time");
+      assert.ok(
+        (await page.locator(".term-strip .term-strip__candidate").count()) >= 1,
+        "S1: candidate chips appear after rating flashcard 1",
+      );
+      const fc1Prompt = await page.locator(".question-card").innerText();
+      assert.match(fc1Prompt, /线性一致性/, "S1: stayed on Flashcard 1 after rating 1 (#1246)");
+
+      // Scenario 2: Next flashcard in same round -> flip -> rate 4 -> no candidates appear, card.terms count unchanged.
+      await page.locator('[data-usage="review.next"]').click();
+      await page.waitForFunction(
+        () => (document.querySelector(".question-card .flash-prompt")?.textContent || "").includes("幂等性"),
+        { timeout: 10000 },
+      );
+      await settleAnimations(page);
+      await page.locator('[data-usage="review.flip"]').click();
+      await page.locator('.flip-back[aria-hidden="false"]').waitFor({ state: "visible", timeout: 10000 });
+      await page.locator(".grade-scale .grade").nth(4).click();
+      // Passing self-grade 4 still auto-advances to Card 3 (quiz).
+      await page.locator(".options .option:not([disabled])").first().waitFor({ state: "visible", timeout: 15000 });
+      await settleAnimations(page);
+      assert.equal(cardTermsCalls, 1, "S2: rating next flashcard 4 keeps card.terms count at 1");
+
+      // Step back to Card 2 (graded 4) to also verify directly on Card 2 that no candidates appear and no call fires.
+      await page.locator('[data-usage="review.prev"]').click();
+      await page.waitForFunction(
+        () => (document.querySelector(".question-card")?.textContent || "").includes("幂等性"),
+        { timeout: 10000 },
+      );
+      await settleAnimations(page);
+      await page.waitForTimeout(250);
+      assert.equal(await page.locator(".term-strip .term-strip__candidate").count(), 0, "S2: no candidate chips on flashcard rated 4");
+      assert.equal(cardTermsCalls, 1, "S2: viewing flashcard rated 4 keeps card.terms count at 1");
+
+      // Scenario 3: Toggle ON -> quiz question answered RIGHT -> no candidates, card.terms count unchanged.
+      await page.locator('[data-usage="review.next"]').click();
+      await page.locator(".options .option:not([disabled])").first().waitFor({ state: "visible", timeout: 10000 });
+      await page.locator(".options .option", { hasText: "提交时通过版本号检查并发冲突" }).click();
+      await page.locator(".options .option.correct, .next-due").first().waitFor({ state: "visible", timeout: 10000 });
+      await settleAnimations(page);
+      await page.waitForTimeout(250);
+      assert.equal(cardTermsCalls, 1, "S3: answering quiz RIGHT with toggle ON keeps card.terms count at 1");
+      assert.equal(await page.locator(".term-strip .term-strip__candidate").count(), 0, "S3: no candidate chips on right quiz answer");
+
+      // Scenario 4: Toggle ON -> revisit already-fetched Flashcard 1 -> uses card cache, card.terms count unchanged.
+      await page.locator('[data-usage="review.prev"]').click();
+      await page.waitForFunction(
+        () => (document.querySelector(".question-card")?.textContent || "").includes("幂等性"),
+        { timeout: 10000 },
+      );
+      await page.locator('[data-usage="review.prev"]').click();
+      await page.locator(".term-strip .term-strip__candidate").first().waitFor({ state: "visible", timeout: 10000 });
+      await settleAnimations(page);
+      await page.waitForTimeout(250);
+      assert.equal(cardTermsCalls, 1, "S4: revisiting already-fetched question reuses card cache without calling card.terms again");
+      assert.ok(
+        (await page.locator(".term-strip .term-strip__candidate").count()) >= 1,
+        "S4: cached candidate chips still display on revisit",
+      );
+
+      assert.deepEqual(errors, [], `S1-S4 unexpected console/page errors: ${errors.join(" | ")}`);
+    } finally {
+      await context.close();
+      await running.close();
+    }
+  }
+
+  // Scenario 5: Light model unavailable -> wrong answer -> page shows error AND toggle switches OFF; 2nd wrong answer never calls card.terms.
+  {
+    const running = await startControlledServer({
+      distDir: dist,
+      lang: "zh",
+      seed: (root) => seedQuizOnlyDeck(root, "zh"),
+      model: null,
+    });
+    const { context, page } = await openPage(browser, running, { lang: "zh", theme: "light", width: 1280, height: 900 });
+    try {
+      let cardTermsCalls = 0;
+      let lastTermsResponse = Promise.resolve();
+      page.on("request", (req) => {
+        if (!req.url().endsWith("/api/call")) return;
+        const body = req.postData() || "";
+        if (body.includes('"card.terms"')) {
+          cardTermsCalls += 1;
+          lastTermsResponse = page.waitForResponse(
+            (res) => res.url().endsWith("/api/call") && res.request() === req,
+            { timeout: 10000 },
+          ).catch(() => null);
+        }
+      });
+
+      await page.goto(running.server.url);
+      await page.locator('[data-usage="home.start"]').first().click({ timeout: 30000 });
+      await page.locator(".options .option:not([disabled])").first().waitFor({ state: "visible", timeout: 30000 });
+      await settleAnimations(page);
+
+      // Turn toggle ON first.
+      await page.locator(".review-more-trigger").click();
+      await page.locator('[data-usage="review.terms-auto"]').click();
+
+      // Answer Card 1 WRONG -> card.terms called once, fails -> page shows error toast AND toggle flips OFF.
+      await page.locator(".options .option", { hasText: "每次读取必须先加互斥量阻塞" }).click();
+      await page.locator(".options .option.incorrect, .next-due").first().waitFor({ state: "visible", timeout: 10000 });
+      await page.locator(".sh-toast--error").waitFor({ state: "visible", timeout: 15000 });
+      await lastTermsResponse;
+      assert.equal(cardTermsCalls, 1, "S5: first wrong answer attempted card.terms once");
+      const errText = (await page.locator(".sh-toast--error").innerText()).trim();
+      assert.ok(errText.length > 0, `S5: error toast shows failure message (${errText})`);
+
+      // Verify More menu toggle switched OFF automatically.
+      await page.locator(".review-more-trigger").click();
+      const autoToggleAfterErr = page.locator('[data-usage="review.terms-auto"]');
+      await autoToggleAfterErr.waitFor({ state: "visible", timeout: 10000 });
+      assert.equal(await autoToggleAfterErr.getAttribute("aria-checked"), "false", "S5: toggle switched OFF after light-model failure");
+      await page.keyboard.press("Escape");
+
+      // Advance to Card 2 and answer WRONG -> card.terms must NOT be called again!
+      await page.locator('[data-usage="review.next"]').click();
+      await page.locator(".options .option:not([disabled])").first().waitFor({ state: "visible", timeout: 10000 });
+      await page.locator(".options .option", { hasText: "副本在达成共识前可以随意丢弃事务日志" }).click();
+      await page.locator(".options .option.incorrect, .next-due").first().waitFor({ state: "visible", timeout: 10000 });
+      await settleAnimations(page);
+      await page.waitForTimeout(300);
+      assert.equal(cardTermsCalls, 1, "S5: second wrong answer does NOT call card.terms after toggle switched OFF");
+      assert.equal(await page.locator(".term-strip .term-strip__candidate").count(), 0, "S5: no candidate chips after failure");
+    } finally {
+      await context.close();
+      await running.close();
+    }
+  }
+
+  // Scenario 6: Exam mode -> toggle absent, wrong answer never calls card.terms (even with autoTerms persisted ON).
+  {
+    const running = await startLateServer({ distDir: dist, lang: "zh", seed: (root) => seedQuizOnlyDeck(root, "zh") });
+    const { context, page, errors } = await openPage(browser, running, { lang: "zh", theme: "light", width: 1280, height: 900 });
+    try {
+      let cardTermsCalls = 0;
+      page.on("request", (req) => {
+        if (req.url().endsWith("/api/call") && (req.postData() || "").includes('"card.terms"')) cardTermsCalls += 1;
+      });
+
+      await page.goto(running.server.url);
+      // Persist autoTerms = ON via normal practice More menu first, without answering any card.
+      await page.locator('[data-usage="home.start"]').first().click({ timeout: 30000 });
+      await page.locator(".question-toolbar").waitFor({ state: "visible", timeout: 30000 });
+      await page.locator(".review-more-trigger").click();
+      await page.locator('[data-usage="review.terms-auto"]').click();
+      assert.equal(cardTermsCalls, 0, "S6 setup: 0 card.terms calls before exam");
+
+      // Navigate to Exam page and start a written mock exam.
+      const examNav = page.locator('[data-tour="nav-exam"]');
+      if (!(await examNav.isVisible())) {
+        await page.locator('[data-tour="nav-more"]').click();
+      }
+      await examNav.waitFor({ state: "visible", timeout: 10000 });
+      await examNav.click();
+      const startExamBtn = page.locator('[data-tour="exam-start"] button.sh-btn--primary');
+      await startExamBtn.waitFor({ state: "visible", timeout: 15000 });
+      await startExamBtn.click();
+      await page.locator(".exam-card").waitFor({ state: "visible", timeout: 15000 });
+      await settleAnimations(page);
+
+      // Toggle is absent in exam mode.
+      assert.equal(await page.locator('[data-usage="review.terms-auto"]').count(), 0, "S6: autoTerms toggle absent in exam mode");
+      assert.equal(await page.locator(".review-more-trigger").count(), 0, "S6: no practice More menu toggle in exam mode");
+
+      // Pick wrong answers on exam questions and submit -> zero card.terms calls.
+      const wrongOpt1 = page.locator(".exam-option", { hasText: /每次读取必须先加互斥量阻塞|副本在达成共识前可以随意丢弃事务日志/ }).first();
+      await wrongOpt1.click();
+      const nextExamBtn = page.locator(".exam-toolbar button.sh-btn--primary");
+      if (await nextExamBtn.isEnabled()) {
+        await nextExamBtn.click();
+        await settleAnimations(page);
+        const wrongOpt2 = page.locator(".exam-option", { hasText: /每次读取必须先加互斥量阻塞|副本在达成共识前可以随意丢弃事务日志/ }).first();
+        await wrongOpt2.click();
+      }
+      await page.locator(".exam-foot button").first().click();
+      await page.locator(".exam-report, .report-summary, [data-exam-report], h1").first().waitFor({ state: "visible", timeout: 15000 });
+      await settleAnimations(page);
+      await page.waitForTimeout(300);
+
+      assert.equal(cardTermsCalls, 0, "S6: exam mode wrong answers and submission never call card.terms");
+      assert.equal(await page.locator(".term-strip .term-strip__candidate").count(), 0, "S6: no candidate chips in exam mode");
+      assert.deepEqual(errors, [], `S6 unexpected console/page errors: ${errors.join(" | ")}`);
+    } finally {
+      await context.close();
+      await running.close();
     }
   }
 });
