@@ -300,9 +300,52 @@
       background-image: radial-gradient(circle at 50% 0, var(--ok-halo), transparent 68%);
     }
     .wb-cleared-history { display: flex; justify-content: center; margin-top: var(--space-2-5); font-variant-numeric: tabular-nums; }
+    /* ── 靶向清零处方 (opt-in via settings.practice.wrongbookClinic) ── */
+    .wb-clinic {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--space-2);
+      padding: var(--space-3) var(--space-4);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--bg-surface);
+    }
+    .wb-clinic-head {
+      display: flex;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: var(--space-1) var(--space-3);
+    }
+    .wb-clinic-head h2 {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: var(--fs-lg);
+      font-weight: var(--fw-medium);
+    }
+    .wb-clinic-lead { font-size: var(--fs-sm); }
+    .wb-clinic-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
+    .wb-clinic-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: var(--space-2) var(--space-3);
+      min-width: 0;
+      padding-top: var(--space-2);
+      border-top: 1px solid var(--line-soft);
+    }
+    .wb-clinic-copy { display: grid; gap: var(--space-half); min-width: 0; flex: 1 1 16em; }
+    .wb-clinic-name { font-size: var(--fs-md); font-weight: var(--fw-medium); overflow-wrap: anywhere; }
+    .wb-clinic-meta { font-size: var(--fs-sm); line-height: var(--lh-body); overflow-wrap: anywhere; }
+    .wb-clinic-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1) var(--space-2); min-width: 0; }
   }
   @container study (max-width: 640px) {
     :where(.study-app, .study-seat) {
+      .wb-clinic-actions { flex: 1 1 100%; }
       .wb-retrain { align-items: stretch; }
       .wb-retrain > .wb-retrain__btn { width: 100%; }
       .wb-retrain .wb-retrain__seg, .wb-retrain-pick { width: 100%; }

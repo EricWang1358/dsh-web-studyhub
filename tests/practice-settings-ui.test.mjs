@@ -45,6 +45,7 @@ test('nothing saved: the defaults show as the contract says, and there is nothin
   assert.doesNotMatch(input(html, 'autopilot'), /checked/);
   assert.match(input(html, 'debrief'), /checked/);
   assert.match(input(html, 'rereadMarks'), /checked/, '今日 「重读 N 段」 is on by default');
+  assert.doesNotMatch(input(html, 'wrongbookClinic'), /checked/, '错题页靶向清零处方 is off by default');
   assert.match(html, /<option[^>]*value="20"[^>]*selected|<option[^>]*selected[^>]*value="20"/);
   assert.match(words(html), /每轮题数/);
   assert.match(words(html), /当前是 20 题一轮，新题最多 10 道/);
@@ -135,6 +136,12 @@ test('a switch saves just its own field at once and shows the choice without wai
   assert.equal(named(view, 'debrief').props.checked, false);
   await named(view, 'rereadMarks').props.onChange(false);
   assert.deepEqual(calls[2].slice(0, 2), ['settings.practice.set', { patch: { rereadMarks: false } }]);
+  await named(view, 'wrongbookClinic').props.onChange(true);
+  assert.deepEqual(calls[3].slice(0, 2), ['settings.practice.set', { patch: { wrongbookClinic: true } }]);
+  assert.equal(named(view, 'wrongbookClinic').props.checked, true);
+  await named(view, 'wrongbookClinic').props.onChange(false);
+  assert.deepEqual(calls[4].slice(0, 2), ['settings.practice.set', { patch: { wrongbookClinic: null } }]);
+  assert.equal(named(view, 'wrongbookClinic').props.checked, false);
   assert.equal(named(view, 'autopilot').props.checked, true, 'the earlier choice stays');
 });
 
