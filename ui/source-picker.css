@@ -91,6 +91,8 @@
     .source-picker[data-names="alone"] :is(.source-picker__fact--lead, .source-picker__names, .source-picker__notes),
     .source-picker[data-names="kind"] .source-picker__part--pages,
     .source-picker[data-unit="short"] .source-picker__part--size { position: absolute; opacity: 0; pointer-events: none; }
+    /* A course whose drawn words are boxed (「协议」「（2026 …）」) is said once more as written for the checkbox's name, out of sight (round 14, SourcePicker.jsx). */
+    .source-picker__said { position: absolute; opacity: 0; pointer-events: none; }
     /* The short words of the characters (the lead's data-short), said after the lead where the list says them; not in the checkbox's name. */
     .source-picker[data-unit="short"] .source-picker__fact--lead::after { content: attr(data-short); content: attr(data-short) / ""; white-space: pre; }
     /* A size group that leaves its characters out (data-chars-off), in the long words and the short; a row with pages still says its pages. */
