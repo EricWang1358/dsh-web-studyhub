@@ -122,6 +122,8 @@
     .source-picker[data-names="alone"] :is(.source-picker__fact--lead, .source-picker__names, .source-picker__notes),
     .source-picker[data-names="kind"] .source-picker__part--pages,
     .source-picker[data-unit="short"] .source-picker__part--size { position: absolute; opacity: 0; pointer-events: none; }
+    /* A course whose drawn words are boxed (「协议」「（2026 …）」) is said once more as written for the checkbox's name, out of sight (round 14, SourcePicker.jsx). */
+    .source-picker__said { position: absolute; opacity: 0; pointer-events: none; }
     /* The short words of the characters (the lead's data-short), said after the lead where the list says them; not in the checkbox's name. */
     .source-picker[data-unit="short"] .source-picker__fact--lead::after { content: attr(data-short); content: attr(data-short) / ""; white-space: pre; }
     /* A size group that leaves its characters out (data-chars-off), in the long words and the short; a row with pages still says its pages. */
@@ -144,10 +146,13 @@
     .source-picker__expand { grid-column: 3; grid-row: 1; justify-self: end;
       margin-block: calc((var(--fs-md) * var(--lh-snug) - var(--picker-expand-h)) / 2); }
     :where(.source-picker--index) .source-picker__expand { grid-column: 3 / -1; }
-    /* There the facts line runs on under 选择页面 (round 11), so its box is no taller than the title line and the row's gaps: it ends where the facts line
-       starts, its words still on the title line's middle, and its hover box or focus ring never covers the facts' end. */
-    .source-picker--index .source-picker__row .source-picker__expand { --picker-expand-h: calc(var(--fs-md) * var(--lh-snug) + 2 * var(--space-half));
+    /* There the facts line runs on under 选择页面 (round 11), so its box is as tall as the title line, 24px at least, its words on that line's middle: it ends
+       above the facts line (round 14: it ended where that line starts, and its focus ring, 2px out and a 3px shadow, and its hover fill reached the 已索引
+       pill under it on a one-line title). Its focus ring is drawn inside its box, at every width (one look for the button), so neither ever covers the pill
+       or the facts' end. */
+    .source-picker--index .source-picker__row .source-picker__expand { --picker-expand-h: max(24px, var(--fs-md) * var(--lh-snug));
       min-height: var(--picker-expand-h); padding-block: 0; }
+    .source-picker--index .source-picker__row .source-picker__expand:focus-visible { outline-offset: -2px; box-shadow: none; }
     .source-picker__row.has-expand .source-picker__text strong { grid-column: 2; }
     .source-picker__expand .source-picker__chevron { transition: transform 0.18s var(--ease); }
     .source-picker__expand[aria-expanded="true"] .source-picker__chevron { transform: rotate(90deg); }

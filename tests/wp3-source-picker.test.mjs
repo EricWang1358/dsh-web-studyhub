@@ -124,8 +124,14 @@ test('the facts lines are one decision for the whole scope, from the words and t
   const course = 121, em = 13, wide = { room: () => 219, em, everyCourse: true };
   const sample = [row(65, 0, 103, course, [], true, false, 'md', 80), row(26, 0, 103, course, [], true, false, 'text', 73), row(26, 0, 101, course, [], true, false, 'text', 71),
     row(25, 60, 109, course, [], true, true, 'paged', 79)];
-  assert.equal(decide(sample, wide), 'first/paged+md/short', 'a Markdown note without room for its characters leaves them out; the Text notes keep theirs, in the short words while a kind has no room for the long');
-  assert.equal(decide(sample.slice(1), wide), 'first/paged', 'the long words where every note has room for them');
+  // round 14 (rv33): in 全部课程 the course is the one fact the scope does not give for a row, so a kind says its characters only where every row of it
+  // still says its course as the names alone leave it: en 420 read one course three ways, 「Text · 267 chars · 示例课程…」 beside 「Markdown · 示例课程 ·
+  // 设计模式」. At 219 px no note has room for its characters beside its whole course; at 262 the Text notes have, in the short words
+  assert.equal(decide(sample, wide), 'first/paged+text+md/short', 'no kind cuts the course for its characters');
+  assert.equal(decide(sample.slice(1), wide), 'first/paged+text/short', 'the Text notes neither, without the Markdown note');
+  assert.equal(decide(sample, { ...wide, room: () => 262 }), 'first/paged+md/short', 'a Markdown note without room for its characters leaves them out; the Text notes keep theirs beside their whole course, in the short words while a kind has no room for the long');
+  assert.equal(decide(sample.slice(1), { ...wide, room: () => 262 }), 'all/paged', 'the long words where every note has room for them beside its whole course');
+  assert.equal(decide(sample.slice(1, 2), { room: () => 219, em }), 'first/-', 'in a course scope the other course still gives its end way to a note\'s characters (6em at least)');
   // en 320 course scope: 「Text · 267 characters」 has no room beside the badge; 「Text · 267 chars」 has
   const narrow = { room: () => 119, em };
   assert.equal(decide(sample.map(item => ({ ...item, first: 0 })), narrow), '/paged+md/short', 'the short words keep the notes\' characters where the long ones have no room');
@@ -145,6 +151,13 @@ test('the facts lines are one decision for the whole scope, from the words and t
     for (let room = 60; room <= 720; room++) {
       const { names: said, unit, off } = decideFacts(list, { room: () => room, gap: 4, em, everyCourse });
       const now = { rank: list.some(item => item.first) ? order.indexOf(said) : 0, on: new Set(list.map(item => item.group).filter(group => !off.includes(group))), unit };
+      // round 14: in 全部课程 a row that says its characters says its course whole beside them, as without them
+      if (everyCourse && said === 'first') {
+        for (const item of list.filter(one => !off.includes(one.group))) {
+          const chars = !item.pages && unit === 'short' ? item.short : item.size; // a row with pages is decided in the long words
+          assert.ok(item.kind + item.pages + chars + 4 + item.first <= room - 4, `list ${at} 全部课程: a ${item.group} row cuts its course for its characters at ${room}`);
+        }
+      }
       // with the same names, the short words give way to the long ones once, never back
       if (before && now.rank === before.rank) assert.ok(!(before.unit === 'long' && unit === 'short'), `list ${at}${everyCourse ? ' 全部课程' : ''}: back to the short words at ${room}`);
       if (before) {

@@ -806,7 +806,9 @@ test('#1132: a row\'s note is said whole or left out of sight at 375–900, in t
 /* #1134 (round 10 review): in 全部课程 a list where one row had no room for its format, size and course said the course alone on every row: at en 420
    34 rows read 「操作系统」, though 30 short notes had room for 「Text · 180 characters · 操作系统」. Every row now keeps its format; a document with pages says
    its size in pages, so its characters give way first, and a note keeps its characters where every note has room for them. */
-test('#1134: 全部课程 at 420 keeps every row\'s format, a note\'s characters and a PDF\'s pages, beside the course', { timeout: 600000 }, async t => {
+/* Round 14 (rv33): a note's characters no longer take the end of its course in 全部课程: at 420 the notes say their format beside their whole course, and
+   their characters from where those fit beside it too. */
+test('#1134: 全部课程 at 420 keeps every row\'s format, a PDF\'s pages and the whole course, and a note\'s characters from where they fit beside it', { timeout: 600000 }, async t => {
   if (skip) { t.skip(skip); return; }
   for (const lang of ['en', 'zh']) {
     const tag = `${lang} 420 全部课程`;
@@ -817,11 +819,25 @@ test('#1134: 全部课程 at 420 keeps every row\'s format, a note\'s characters
     assert.ok(rows.length >= 34, `${tag}: every row was drawn (${rows.length})`);
     const bad = leadProblems(rows);
     for (const row of rows) {
-      const paged = /PDF/.test(row.lead.text), want = paged ? /^PDF · 3 (页|pages)/ : /^(Text|文本) · 180 (字符|characters)$/;
-      if (!want.test(row.lead.seen.trim())) bad.push(`${paged ? 'no pages' : 'no characters'}: ${row.title}: ${row.text}`);
+      const paged = /PDF/.test(row.lead.text), want = paged ? /^PDF · 3 (页|pages)/ : /^(Text|文本)( · 180 ?(字符|characters|字|chars))?$/;
+      if (!want.test(row.lead.seen.trim())) bad.push(`${paged ? 'no pages' : 'no format'}: ${row.title}: ${row.text}`);
       if (!(row.names[0]?.shown && row.names[0].seen.replace(/^·\s*/, '').length >= 2)) bad.push(`no course: ${row.title}: ${row.text}`);
+      else if (!paged && row.names[0].cut) bad.push(`a note cuts its course: ${row.title}: ${row.text}`);
     }
     assert.deepEqual(bad, [], tag);
+    // a little wider, the notes say their characters too, beside their whole course (by 448 px: a looser bound would let a lost size pass)
+    let said = 0;
+    for (let width = 424; width <= 448 && !said; width += 8) {
+      await page.setViewportSize({ width, height: 900 });
+      await frames(page, 3);
+      const notes = [...(await everyRow(page)).values()].filter(row => !/PDF/.test(row.lead.text));
+      if (notes.every(row => /^(Text|文本) · 180 ?(字符|characters|字|chars)$/.test(row.lead.seen.trim()))) {
+        said = width;
+        assert.deepEqual(notes.filter(row => row.names[0]?.cut).map(row => row.text), [], `${lang} ${width} 全部课程: the course whole beside the characters`);
+      }
+    }
+    assert.ok(said, `${lang} 全部课程: the notes say their characters again by 448 px (they come back at en 432, zh 424: round 15 asked for a bound that pins it)`);
+    t.diagnostic(`${lang}: the notes say their characters from ${said} px`);
     t.diagnostic(`${tag}: data-names=${await page.evaluate(() => document.querySelector('[data-tour="generate-sources"] .source-picker').dataset.names)}: ${rows[0].text} | ${rows.at(-1).text}`);
     assert.deepEqual(errors, []);
     await context.close();
@@ -858,11 +874,13 @@ test('#1136: a course name left out of the line draws no hover anchor, so its ro
 
 /* Round 11 (rv30): en 375–420 全部课程, one Markdown note without room for its characters took them from all eleven Text notes; en 320 in the scope no note
    said a size (「Text」 beside 「PDF · 4 pages」). The characters are decided for the rows of a kind, and said in their short words where the long ones
-   have no room; the rows of a kind still read alike, and a size is said whole or not at all. */
-test('round 11: a kind of note that has room for its characters says them, whatever another kind has room for (en/zh 320 scope, en 400–420 and zh 375 全部课程)', { timeout: 600000 }, async t => {
+   have no room; the rows of a kind still read alike, and a size is said whole or not at all. Round 14 (rv33): in 全部课程 a note has room for its
+   characters only beside its whole course (en 400–420 and zh 375 now say 「Text · 示例课程 · 设计模式」), so there the Text notes say them from en 432 and
+   zh 404 on, while the Markdown note still has no room for its own. */
+test('round 11: a kind of note that has room for its characters says them, whatever another kind has room for (en/zh 320 scope, en 440–460 and zh 420 全部课程)', { timeout: 600000 }, async t => {
   if (skip) { t.skip(skip); return; }
   const all = (await previewCall(kindsServer, 'snapshot')).sources.map(source => source.id);
-  for (const [lang, width, everyCourse] of [['en', 320, false], ['zh', 320, false], ['en', 400, true], ['en', 420, true], ['zh', 375, true]]) {
+  for (const [lang, width, everyCourse] of [['en', 320, false], ['zh', 320, false], ['en', 440, true], ['en', 460, true], ['zh', 420, true]]) {
     const tag = `${lang} ${width}${everyCourse ? ' 全部课程' : ''}`;
     const { page, errors, context } = await openGenerate({ lang, width, height: 900, answer: answers(all).badges, on: kindsServer });
     if (everyCourse) await allCourses(page, lang);
@@ -950,6 +968,126 @@ test('round 11: a shortened course is never cut inside a figure, and its checkbo
     const names = await boxNames(page, 6);
     assert.ok(names.filter(name => name.includes(LONG)).length >= 3, `${lang}: the checkbox's name says the long course as written (${names[2]})`);
     t.diagnostic(`${lang}: ${cuts} cut names checked`);
+    assert.deepEqual(errors, []);
+    await context.close();
+  }
+});
+
+/* Round 14 review (rv33): en 420 全部课程 read one course three ways, 「Text · 267 chars · 示例课程…」 beside 「Markdown · 示例课程 · 设计模式」 and 「PDF · 4 pages ·
+   示例课程 · 设计模式」: a Text note's characters took the end of its course. In 全部课程 the course is the one fact the scope does not give for a row, so the
+   rows of a kind say their characters only where every row of it still says its course as the names alone leave it: none of them cuts its course for them. */
+test('round 14: in 全部课程 a kind says its characters only where every row of it keeps its course whole beside them (320–1000, zh/en)', { timeout: 900000 }, async t => {
+  if (skip) { t.skip(skip); return; }
+  const all = (await previewCall(kindsServer, 'snapshot')).sources.map(source => source.id);
+  for (const lang of ['en', 'zh']) {
+    const { page, errors, context } = await openGenerate({ lang, width: 320, height: 900, answer: answers(all).badges, on: kindsServer });
+    await allCourses(page, lang);
+    const bad = [];
+    let sized = 0;
+    for (let width = 320; width <= 1000; width += 4) {
+      await page.setViewportSize({ width, height: 900 });
+      await frames(page, 2);
+      const rows = await factsLines(page), kinds = new Map();
+      for (const row of rows) {
+        const parts = row.lead.text.split(' · '), paged = parts.length > 2, said = paged ? parts.slice(0, 2).join(' · ') : parts[0];
+        const kind = paged ? 'with pages' : parts[0], course = row.names[0];
+        if (!kinds.has(kind)) kinds.set(kind, { chars: false, cut: [] });
+        if (row.lead.seen.trim().length > said.length) kinds.get(kind).chars = true;
+        if (course && course.shown && course.cut) kinds.get(kind).cut.push(row.text);
+      }
+      for (const [kind, { chars, cut }] of kinds) {
+        if (chars) sized++;
+        if (chars && cut.length) bad.push(`${width}: ${kind} rows say their characters while one cuts its course: ${cut[0]}`);
+      }
+    }
+    assert.ok(sized > 0, `${lang}: some kind says its characters`);
+    assert.deepEqual(bad.slice(0, 8), [], `${lang} 全部课程 (${bad.length} widths)`);
+    assert.deepEqual(errors, []);
+    await context.close();
+  }
+});
+
+/* Round 14 review (rv33): at 1440 the focus ring of 选择页面 (2px at 2px, and a 3px shadow) and its hover fill reached into the 已索引 pill under it on a row
+   whose title is one line: the button's box ended where the facts line starts. The button stays at least 24px tall, its words on the title line's middle,
+   and neither its box nor its focus ring ever reaches the pill. */
+test('round 14: 选择页面\'s box, hover fill and focus ring stay off the 已索引 pill under it (900/1440, zh/en, light/dark)', { timeout: 600000 }, async t => {
+  if (skip) { t.skip(skip); return; }
+  const all = (await previewCall(kindsServer, 'snapshot')).sources.map(source => source.id);
+  const measure = page => page.evaluate(() => {
+    const active = document.activeElement;
+    return [...document.querySelectorAll('[data-tour="generate-sources"] .source-picker__item')].filter(item => item.querySelector('.source-picker__expand')).map(item => {
+      const button = item.querySelector('.source-picker__expand'), box = button.getBoundingClientRect(), style = getComputedStyle(button);
+      // the title's lines (a grid item is one box: its words' boxes give its lines)
+      const title = item.querySelector('strong'), range = document.createRange();
+      range.selectNodeContents(title);
+      const boxes = [...range.getClientRects()].filter(rect => rect.width > 0), line = boxes[0], lines = new Set(boxes.map(rect => Math.round(rect.top)));
+      const facts = item.querySelector('.source-picker__facts').getBoundingClientRect();
+      const pill = item.querySelector('[data-index-slot] [data-state]')?.getBoundingClientRect() ?? null;
+      const words = document.createRange();
+      words.selectNodeContents(button.firstChild?.nodeType === 3 ? button.firstChild : button);
+      const text = words.getBoundingClientRect();
+      // how far past its box the button draws: the outline (width + offset) and every outer shadow (spread + blur + offset)
+      const outline = style.outlineStyle === 'none' ? 0 : parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset);
+      const shadows = style.boxShadow === 'none' ? [] : style.boxShadow.split(/,(?![^(]*\))/).filter(shadow => !/inset/.test(shadow)).map(shadow => {
+        const [x = 0, y = 0, blur = 0, spread = 0] = (shadow.replace(/(rgba?|color-mix|oklch|color)\([^)]*\)/g, '').match(/-?[\d.]+px/g) || []).map(parseFloat);
+        return spread + blur + Math.max(Math.abs(x), Math.abs(y));
+      });
+      return { title: title.textContent, oneLine: lines.size === 1, focused: active === button, height: box.height, bottom: box.bottom, reach: Math.max(0, outline, ...shadows),
+        textMiddle: (text.top + text.bottom) / 2, lineMiddle: (line.top + line.bottom) / 2, pillTop: pill?.top ?? null, facts: facts.width };
+    });
+  });
+  for (const [lang, width, theme] of [['zh', 1440, 'light'], ['en', 1440, 'dark'], ['en', 900, 'light'], ['zh', 900, 'dark']]) {
+    const tag = `${lang} ${width} ${theme}`;
+    const { page, errors, context } = await openGenerate({ lang, theme, width, height: 900, answer: answers(all).badges, on: kindsServer });
+    await until(async () => (await page.locator('[data-tour="generate-sources"] [data-index-slot] [data-state]').count()) >= 5, `${tag}: the badges`);
+    await frames(page, 4);
+    const bad = [];
+    const rows = await measure(page);
+    assert.ok(rows.some(row => row.oneLine), `${tag}: a row with 选择页面 and a one-line title`);
+    const lines = await page.evaluate(() => [...document.querySelectorAll('[data-tour="generate-sources"] .source-picker__facts')].map(facts => facts.getBoundingClientRect().width));
+    if (Math.max(...lines) - Math.min(...lines) > 0.5) bad.push(`the facts lines differ: ${Math.min(...lines)}–${Math.max(...lines)} px`);
+    for (const [at, row] of rows.entries()) {
+      if (row.height < 24 - 0.01) bad.push(`${row.title}: 选择页面 is ${row.height} px tall`);
+      if (Math.abs(row.textMiddle - row.lineMiddle) > 1) bad.push(`${row.title}: its words are ${row.textMiddle - row.lineMiddle} px off the title line's middle`);
+      if (row.pillTop !== null && row.bottom > row.pillTop + 0.01) bad.push(`${row.title}: its box (the hover fill) ends ${row.bottom - row.pillTop} px into the pill`);
+      // the keyboard's focus ring, and the pointer's hover
+      const item = page.locator('[data-tour="generate-sources"] .source-picker__item').filter({ has: page.locator('.source-picker__expand') }).nth(at);
+      await item.locator('input[type="checkbox"]').focus();
+      await page.keyboard.press('Tab');
+      await frames(page, 2);
+      await page.waitForTimeout(250);
+      const focused = (await measure(page))[at];
+      if (!focused.focused) bad.push(`${row.title}: Tab did not reach 选择页面`);
+      else if (focused.pillTop !== null && focused.bottom + focused.reach > focused.pillTop + 0.01) bad.push(`${row.title}: its focus ring reaches ${focused.bottom + focused.reach - focused.pillTop} px into the pill`);
+      await page.evaluate(() => document.activeElement?.blur());
+      await item.locator('.source-picker__expand').hover();
+      await page.waitForTimeout(250);
+      const hovered = (await measure(page))[at];
+      if (hovered.pillTop !== null && hovered.bottom + hovered.reach > hovered.pillTop + 0.01) bad.push(`${row.title}: hovered, it reaches ${hovered.bottom + hovered.reach - hovered.pillTop} px into the pill`);
+      await page.mouse.move(1, 1);
+    }
+    assert.deepEqual(bad, [], tag);
+    t.diagnostic(`${tag}: ${rows.map(row => `${row.title.slice(0, 6)} ${row.height.toFixed(1)}px, ${row.pillTop === null ? 'no pill' : `${(row.pillTop - row.bottom).toFixed(1)}px to the pill`}`).join(' | ')}`);
+    assert.deepEqual(errors, []);
+    await context.close();
+  }
+});
+
+/* Round 14 review (rv33): the whole course reached the checkbox's name through an aria-label on a plain span, which ARIA 1.2 prohibits. The name is the
+   same without it: the course as written, once, with no space put into it at a word box's edge. */
+test('round 14: no span in the list carries an aria-label, and the checkbox\'s name still says the long course as written', { timeout: 300000 }, async t => {
+  if (skip) { t.skip(skip); return; }
+  const all = (await previewCall(kindsServer, 'snapshot')).sources.map(source => source.id);
+  for (const [lang, width] of [['en', 420], ['zh', 1440]]) {
+    const { page, errors, context } = await openGenerate({ lang, width, height: 900, answer: answers(all).badges, on: kindsServer });
+    await frames(page, 4);
+    assert.equal(await page.locator('[data-tour="generate-sources"] span[aria-label]').count(), 0, `${lang} ${width}: an aria-label on a span`);
+    const names = await boxNames(page, 6), long = names.filter(name => name.includes(LONG));
+    assert.ok(long.length >= 3, `${lang} ${width}: the long course as written (${names[2]})`);
+    for (const name of long) {
+      assert.equal(name.split(LONG).length, 2, `${lang} ${width}: said once: ${name}`);
+      assert.doesNotMatch(name, /\s{2}|协议 （/, `${lang} ${width}: no space put into it: ${name}`);
+    }
     assert.deepEqual(errors, []);
     await context.close();
   }
