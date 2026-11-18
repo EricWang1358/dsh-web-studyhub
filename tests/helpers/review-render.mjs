@@ -8,7 +8,7 @@ const noop = () => {};
 
 /** { services, props } for Review. `old` may carry: run, data, shellTitle, feedback, coachProps, busy, host, call, act, askInChat, setPage, setModal, choice, isCloze,
  *  selected, hint, explain, response, clozeValues, teaching, teachAnswer, showBack, showEn, enBusyKey, teachingBusy, enterRun, reviewAct, assistCard,
- *  detour, contextReturnLabel, onReturnContext, onReturnFromDetour, contextKind (the page the trail leads to), contextPlace, and the links (onBackToWorkflow, onCourseFlow, openSkeleton, onOpenNote, onMakeNote,
+ *  detour, contextReturnLabel, onReturnContext, onReturnFromDetour, contextKind (the page the trail leads to), contextPlace, and the links (onBackToWorkflow, onCourseFlow, openSkeleton, onOpenOutline, onOpenBookSection, onOpenNote, onMakeNote,
  *  onMakeTask, onRecapSettings, onModelSettings, onReturnToReading). */
 export function reviewParts(old) {
   const kind = reviewChoiceKind(old.run);
@@ -22,7 +22,7 @@ export function reviewParts(old) {
     autopilot: !!old.autopilot, selfGradeAdvance: old.selfGradeAdvance, choice: old.choice ?? kind.choice, isCloze: old.isCloze ?? kind.isCloze, rubricCard: kind.rubricCard, enterRun: old.enterRun ?? noop, actions };
   const services = { call: old.call ?? (async () => ({})), act: old.act ?? (async () => undefined), busy: !!old.busy, notify: noop, askInChat: old.askInChat ?? noop,
     host: old.host ?? {}, openSettings: noop, navigate: old.setPage ?? noop, openModal: old.setModal ?? noop };
-  const links = Object.fromEntries(['onBackToWorkflow', 'onCourseFlow', 'openSkeleton', 'onOpenNote', 'onMakeNote', 'onMakeTask', 'onRecapSettings', 'onModelSettings', 'onReturnToReading']
+  const links = Object.fromEntries(['onBackToWorkflow', 'onCourseFlow', 'openSkeleton', 'onOpenOutline', 'onOpenBookSection', 'onOpenNote', 'onMakeNote', 'onMakeTask', 'onRecapSettings', 'onModelSettings', 'onReturnToReading']
     .filter((name) => old[name]).map((name) => [name, old[name]]));
   const context = { label: old.contextReturnLabel, onReturn: old.onReturnContext, detour: old.detour, onReturnFromDetour: old.onReturnFromDetour,
     kind: old.contextKind, place: old.contextPlace };

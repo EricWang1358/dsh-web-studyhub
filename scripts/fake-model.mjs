@@ -698,6 +698,54 @@ const HANDLERS = [
     reply: ({ input, english }) => {
       const card = input.card || {}, question = input.request?.question || "";
       // 出题 (derive, e.g. 生成一道变式 #1015): one new flashcard citing the first supplied source window verbatim, or no change without one.
+      if (input.mode === "terms") {
+        const requested = Array.isArray(input.request?.terms) && input.request.terms.length ? input.request.terms : input.terms?.unknown;
+        const unknown = Array.isArray(requested) ? requested.filter((item) => typeof item === "string" && item.trim()) : [];
+        const source = (input.sources || []).find((item) => String(item.text || "").trim().length >= 12);
+        const sourceQuote = source ? String(source.text).trim().slice(0, 48) : "";
+        const buildStep = ({ term, alt, layer, needs }) => {
+          const topic = card.topic || term;
+          const note = source ? undefined : (english
+            ? `Supplementary preview note (outside sources) for ${term}: defines its formal boundary and role in ${topic}.`
+            : `补充预览说明（非原始资料，属常识性补充）：「${term}」用于界定概念边界，是理解「${topic}」的前置基础。`);
+          const quote = source ? sourceQuote : String(note).slice(0, 28);
+          const sourceId = source ? source.sourceId : "NOTE";
+          return {
+            term,
+            ...(alt ? { alt } : {}),
+            layer,
+            needs,
+            problem: english ? `Preview problem: without ${term}, reasoning about ${topic} lacks a clear boundary.` : `预览问题：如果不理解「${term}」，判断「${topic}」时就找不到清晰边界。`,
+            plain: english ? `Preview plain words: treat ${term} as an everyday rule before applying ${topic}.` : `预览大白话：把「${term}」看成一条先分清前提再判断的日常规则。`,
+            formal: english ? `Preview formal definition: ${term} (${alt || "abbr."}) is the formal criterion used for ${topic}${needs.length ? ` building on ${needs.join(", ")}` : ""}.` : `预览正式说法：「${term}」（${alt || term}）是分析「${topic}」时用于界定适用条件的正式准则${needs.length ? `，建立在「${needs.join("、")}」之上` : ""}。`,
+            example: english ? `Preview example: check ${term} first on a concrete sample case before deciding.` : `预览例子：先拿一个具体样例核对「${term}」是否成立，再下结论。`,
+            card: {
+              kind: "flashcard",
+              topic,
+              objective: english ? `State the formal definition of ${term}` : `用正式说法界定「${term}」`,
+              prompt: english ? `In formal terms, what role does ${term} play in ${topic}?` : `用正式的说法讲一遍，「${term}」解决什么界定问题？`,
+              answer: english ? `${term} defines the formal criterion for evaluating ${topic}.` : `「${term}」用于在「${topic}」中界定成立条件与判断边界。`,
+              hint: english ? `Recall the formal definition of ${term}.` : `先想「${term}」的正式说法和适用前提。`,
+              explanation: english ? `Grounded check on ${term}.` : `围绕「${term}」的正式定义作答。`,
+              misconception: english ? `Confusing ${term} with its everyday metaphor.` : `把「${term}」和日常比喻混为一谈，漏掉适用条件。`,
+              citations: [{ sourceId, quote }],
+            },
+            ...(note ? { note } : {}),
+          };
+        };
+        const baseName = english ? "Foundational premise" : "前置前提";
+        const includeLayer2 = unknown.length > 0 && !unknown.some((item) => item.toLowerCase() === baseName.toLowerCase());
+        const ladder = [];
+        if (includeLayer2) {
+          ladder.push(buildStep({ term: baseName, alt: english ? "baseline" : "baseline", layer: 2, needs: [] }));
+        }
+        unknown.forEach((term, index) => {
+          const needs = index === 0 ? (includeLayer2 ? [baseName] : []) : [unknown[index - 1]];
+          ladder.push(buildStep({ term, layer: 1, needs }));
+        });
+        const needsDeeper = unknown.some((item) => /底层|深层|deeper|primitive/i.test(item));
+        return needsDeeper ? { ladder, deeper: [english ? "Underlying representation" : "二进制与底层前置"] } : { ladder };
+      }
       if (input.mode === "derive") {
         const source = (input.sources || []).find((item) => String(item.text || "").trim().length >= 12);
         if (!source) return { noChange: english ? "Preview: no source to cite." : "预览：没有可引用的资料。" };
@@ -729,6 +777,48 @@ const HANDLERS = [
     reply: ({ input }) => ({ prompt: `[EN preview] ${input.prompt}`, answer: `[EN preview] ${input.answer}`, explanation: `[EN preview] ${input.explanation}`,
       ...(input.clozeText ? { clozeText: `[EN preview] ${input.clozeText}`, blanks: (input.blanks || []).map(({ id, value }) => ({ id, value })) } : {}),
       ...(input.options ? { options: input.options.map(({ id, text, explanation }) => ({ id, text: `[EN preview] ${text}`, explanation: `[EN preview] ${explanation}` })) } : {}) }) },
+  { name: "card.terms", match: (s) => s.startsWith("You extract up to 6 unfamiliar technical terms or concepts from a flashcard"),
+    reply: ({ input }) => {
+      const texts = [
+        input?.prompt, input?.answer, input?.explanation, input?.clozeText,
+        ...(Array.isArray(input?.blanks) ? input.blanks.map((b) => b?.value) : []),
+        ...(Array.isArray(input?.options) ? input.options.flatMap((o) => [o?.text, o?.explanation]) : []),
+      ].filter((t) => typeof t === "string" && t.trim());
+      const corpus = texts.join("\n");
+      const known = new Set((Array.isArray(input?.known) ? input.known : []).map((t) => String(t).replace(/\s+/g, " ").trim().toLowerCase()).filter(Boolean));
+      const enStop = new Set(["which", "where", "there", "these", "those", "about", "would", "could", "should", "using", "after", "before", "while", "under", "above", "below", "between", "because", "answer", "option", "question", "correct", "explain", "explanation", "therefore", "however", "example", "applies", "correct", "wrong", "false", "following"]);
+      const zhStop = new Set(["为什么", "什么是", "请问", "如何", "怎样", "怎么", "下列", "以下", "关于", "错误", "正确", "答案", "解析", "说明", "原因"]);
+      const picked = [];
+      const seen = new Set();
+      const add = (candidate) => {
+        const clean = String(candidate || "").replace(/\s+/g, " ").trim();
+        if (clean.length < 2 || clean.length > 24) return;
+        const key = clean.toLowerCase();
+        if (seen.has(key) || known.has(key) || !corpus.includes(clean)) return;
+        seen.add(key);
+        picked.push(clean);
+      };
+      for (const text of texts) {
+        const clauses = text.split(/[，。？！：；、“”‘’（）()[\]{},.!?;:"'`/\n\r\t\s]+/);
+        for (const clause of clauses) {
+          for (const piece of clause.split(/(?:什么|为什?么|请问|如何|怎样|怎么|下列|哪项|哪种|哪个|对应|以下|关于|有关|中的|之间|是否|还是|以及|因此|所以|因为|如果|就是|可以|的|和|与|及|或|是|在)/)) {
+            for (const m of piece.matchAll(/[\u4e00-\u9fff]{2,12}/g)) {
+              const term = m[0].replace(/[中里内]$/, "");
+              if (term.length >= 2 && !zhStop.has(term)) add(term);
+              if (picked.length >= 4) break;
+            }
+            if (picked.length >= 4) break;
+          }
+          for (const en of clause.matchAll(/\b[A-Za-z][A-Za-z0-9_-]{4,}\b/g)) {
+            if (!enStop.has(en[0].toLowerCase())) add(en[0]);
+            if (picked.length >= 4) break;
+          }
+          if (picked.length >= 4) break;
+        }
+        if (picked.length >= 4) break;
+      }
+      return { terms: picked.slice(0, 6) };
+    } },
   { name: "transcript.title", match: (s) => s.startsWith("You write one English title for a lecture recording"),
     reply: ({ nextNumber }) => ({ titleEn: `Preview Lecture Recording ${nextNumber()}` }) },
   { name: "transcript.proofread", match: (s) => s.startsWith("You proofread speech-to-text transcripts"),

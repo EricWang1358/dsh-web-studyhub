@@ -10,9 +10,9 @@ The report moves nothing (#902): it is the data for deciding what could later go
 | Class | Modules |
 | --- | ---: |
 | Used by ui | 105 |
-| Used by several contexts | 61 |
+| Used by several contexts | 63 |
 | Used by exactly one context | 137 |
-| Used by none of these (other lib files, entry points, scripts and tests only) | 119 |
+| Used by none of these (other lib files, entry points, scripts and tests only) | 117 |
 
 ## Used by ui (105)
 
@@ -54,7 +54,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/custom-plan.js`: 2 ui files; 3 other lib files
 - `lib/deck-format.js`: 1 ui file; 1 other lib file
 - `lib/deck-parts.js`: 2 ui files; contexts authoring, generation, library; 1 other lib file
-- `lib/document-title.js`: 18 ui files; contexts generation, materials; 10 other lib files
+- `lib/document-title.js`: 19 ui files; contexts generation, materials; 10 other lib files
 - `lib/draft-continuation.js`: 1 ui file; contexts generation, jobs, library; 2 other lib files
 - `lib/draft-fields.js`: 1 ui file; context bank; 4 other lib files
 - `lib/exam-point-list.js`: 4 ui files; contexts generation, library, materials; 18 other lib files
@@ -122,7 +122,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/token-usage.js`: 8 ui files; contexts audio, generation, materials; 10 other lib files
 - `lib/usage-registry.js`: 1 ui file; 2 other lib files
 
-## Used by several contexts (61)
+## Used by several contexts (63)
 
 - `lib/assessment-quality.js`: contexts authoring, generation; 7 other lib files
 - `lib/audio-messages.js`: contexts audio, jobs; 4 other lib files
@@ -131,12 +131,14 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/bank-import.js`: contexts authoring, bank, generation, recording; 1 other lib file
 - `lib/batch.js`: contexts generation, materials; 1 other lib file
 - `lib/blog-notes.js`: contexts library, notes; 1 other lib file
+- `lib/capture.js`: contexts recording, study; 2 other lib files
 - `lib/card-content.js`: contexts authoring, coach, study; 3 other lib files
 - `lib/coach-daily.js`: contexts coach, jobs, library
 - `lib/coach.js`: contexts coach, study; 10 other lib files
 - `lib/course-active.js`: contexts generation, library; 11 other lib files
 - `lib/course-book-files.js`: contexts generation, library; 14 other lib files
-- `lib/course-book.js`: contexts generation, library; 8 other lib files
+- `lib/course-book.js`: contexts generation, library, study; 8 other lib files
+- `lib/course-outline-book.js`: contexts generation, library; 9 other lib files
 - `lib/coverage-state.js`: contexts generation, library; 1 other lib file
 - `lib/custom-skeleton.js`: contexts courses, generation; 4 other lib files
 - `lib/daily-recap-settings.js`: contexts notes, system; 2 other lib files
@@ -164,7 +166,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/job-structure.js`: contexts jobs, library
 - `lib/learner-facts.js`: contexts coach, library; 2 other lib files
 - `lib/learning-scope.js`: contexts skeleton, study; 5 other lib files
-- `lib/mastery.js`: contexts generation, library, study; 28 other lib files
+- `lib/mastery.js`: contexts courses, generation, library, study; 28 other lib files
 - `lib/mineru-history.js`: contexts audio, jobs, materials; 1 other lib file
 - `lib/mineru-job.js`: contexts audio, jobs; 1 other lib file
 - `lib/model-retry.js`: contexts coach, generation; 7 other lib files
@@ -213,7 +215,6 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/book-section-ops.js`: context notes; 4 other lib files
 - `lib/bulk-import.js`: context authoring; 2 other lib files
 - `lib/call-counts.js`: context generation
-- `lib/capture.js`: context recording; 2 other lib files
 - `lib/card-schedule.js`: context study; 7 other lib files
 - `lib/case-types.js`: context generation; 3 other lib files
 - `lib/converted-chapter-stamps.js`: context materials; 3 other lib files
@@ -236,7 +237,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/course-book-structure.js`: context library
 - `lib/course-book-term-cards.js`: context generation; 2 other lib files
 - `lib/course-book-writer.js`: context library; 2 other lib files
-- `lib/course-outline-book.js`: context generation; 9 other lib files
+- `lib/course-outline-book-view.js`: context library; 6 other lib files
 - `lib/course-outline-index.js`: context generation; 8 other lib files
 - `lib/course-outline-qa.js`: context library
 - `lib/course-outline.js`: context library; 6 other lib files
@@ -320,13 +321,14 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/subtitles.js`: context audio; 1 other lib file
 - `lib/tool-install.js`: context audio; 7 other lib files
 - `lib/transcript.js`: context audio; 6 other lib files
+- `lib/translation-source.js`: context study; 4 other lib files
 - `lib/translation.js`: context study
 - `lib/usage-frequency-operations.js`: context system
 - `lib/within-deadline.js`: context generation; 1 other lib file
 - `lib/workflows.js`: context workflows; 4 other lib files
 - `lib/wrong-detail.js`: context library
 
-## Used by none of these (other lib files, entry points, scripts and tests only) (119)
+## Used by none of these (other lib files, entry points, scripts and tests only) (117)
 
 - `lib/assigned-plan.js`: 2 other lib files
 - `lib/assist-child.js`: 1 other lib file
@@ -361,7 +363,6 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/course-book-sample.js`: 3 other lib files
 - `lib/course-book-unplaced.js`: 3 other lib files
 - `lib/course-book-view.js`: 2 other lib files
-- `lib/course-outline-book-view.js`: 6 other lib files
 - `lib/custom-apply-words.js`: 1 other lib file
 - `lib/custom-estimate.js`: 1 other lib file
 - `lib/custom-questions.js`: 2 other lib files
@@ -434,7 +435,6 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/study-tool-mode.js`: 1 other lib file
 - `lib/subagent-api.js`: 2 other lib files
 - `lib/tex-text.js`: 7 other lib files
-- `lib/translation-source.js`: 3 other lib files
 - `lib/true-false.js`: 4 other lib files
 - `lib/types.js`: no import found in ui/ or lib/
 - `lib/update-install.js`: 2 other lib files

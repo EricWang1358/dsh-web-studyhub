@@ -351,5 +351,13 @@
   "编排：按 studyhub-lesson/1 规范组织逐句舞台（含离线 LaTeX 公式与 sandbox、matrix、schematic 或 lanes 互动组件），直接调用 companion.compile 挂载到课程，或在已配好模型时调用 generation.companion.build。": "Authoring: structure a progressive studyhub-lesson/1 stage (with offline LaTeX math and sandbox, matrix, schematic or lanes blocks) and mount it directly via companion.compile, or start generation.companion.build when a model is configured.",
   "交互母版": "interactive archetype",
   "导题模式": "card sync mode",
-  "参考讲义 ID": "reference sourceIds"
+  "参考讲义 ID": "reference sourceIds",
+  "我在做下面这道题时卡住了，想先从 {0} 最底层的概念学起，再回来做题。": "I got stuck on this question and want to learn from the most foundational concepts in {0} first before returning to the questions.",
+  "我在做下面这道题时卡住了，想先从这一部分最底层的概念学起，再回来做题。": "I got stuck on this question and want to learn from the most foundational concepts in this section first before returning to the questions.",
+  "背景：学生在这道题上卡住，标了下面这些不认识的词，补了一轮词后还引出了更底层的前置概念（必要时可用 study_workspace 的 card.get 读原题，用 source.search 查出处）。": "Context: the learner got stuck on this question, marked the unfamiliar terms below, and after one round of filling terms even deeper prerequisite concepts came up (read the card with study_workspace card.get and check sources with source.search if needed).",
+  "讲法：请从这一部分最基础的概念讲起：先讲每个概念解决什么问题，再给出名字和正式说法。": "Method: start from the most foundational concepts of this section: first explain what problem each concept solves, then give its name and formal definition.",
+  "节奏：每讲完一小步问一个检查问题，等我回答后再继续。": "Pace: ask one check question after each small step and wait for my reply before continuing.",
+  "避免：不要一次讲完，不要让我死记硬背。": "Avoid: dumping everything at once, and never ask me to memorize by rote.",
+  "所在资料": "Source",
+  "还缺的底层词": "Deeper prerequisite terms"
 }

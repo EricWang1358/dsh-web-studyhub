@@ -21,6 +21,7 @@ import WrongBook from '../WrongBook.jsx';
 import DailyPlan, { RelatedTasks } from '../DailyPlan.jsx';
 import Sources from '../Sources.jsx';
 import { keepBook } from '../book/model.js';
+import { keepOutline } from '../outline/model.js';
 import CrunchCard from '../book/CrunchCard.jsx';
 import WeeklyCard from '../book/WeeklyCard.jsx';
 import BookInlineRun from './modals/BookInlineRun.jsx';
@@ -307,7 +308,10 @@ function OutlineView() {
       remember: true,
     });
   };
-  return <CourseOutline key={`${data.root}:${data.focus?.course}`} data={data} onBack={() => nav.navigate('library')} onCreate={() => intents.goGenerate()}
+  return <CourseOutline key={`${data.root}:${data.focus?.course}`} data={data}
+    backLabel={learn.hasTrail ? learn.trailLabel : undefined}
+    onBack={learn.hasTrail ? learn.returnFromContext : () => nav.navigate('library')}
+    onCreate={() => intents.goGenerate()}
     onGoGenerateTopic={onGoGenerateTopic}
     onOpenSources={pageAvailable(data, 'sources') ? () => nav.navigate('sources') : undefined} onPractice={onPractice} onOpenTask={nav.show.task}
     onOpenSource={(id, quote) => learn.openLearningTarget({ kind: 'source', id, quote })} onOpenBook={onOpenBook} />;
@@ -337,7 +341,10 @@ function BookView() {
   }, [data.root, data.focus?.course, intents, learn]);
   // A mock paper started in the book (M7) is the ordinary exam; its way back is the book.
   const onExamRun = (run) => { learn.rememberContext(learn.captureContext()); session.enterRun(run); };
-  return <BookPage key={`${data.root}:${data.focus?.course}`} data={data} theme={shell.resolvedTheme} onBack={() => nav.navigate('outline')} onPractice={onPractice} inlinePractice={inlinePractice} onOpenTask={nav.show.task}
+  const fromReview = learn.hasTrail && learn.trailPage === 'review';
+  return <BookPage key={`${data.root}:${data.focus?.course}`} data={data} theme={shell.resolvedTheme} onBack={() => nav.navigate('outline')}
+    backLabel={fromReview ? ui('回到这道题') : ''} onReturnBack={fromReview ? learn.returnFromContext : undefined}
+    onPractice={onPractice} inlinePractice={inlinePractice} onOpenTask={nav.show.task}
     onCreate={() => intents.goGenerate()} onOpenSource={(id, quote) => learn.openLearningTarget({ kind: 'source', id, quote })} onExamRun={onExamRun}
     onCourseSettings={settingsEntry.setCourseSettings} onBuildIndex={(name) => openIndexBuilder(settingsEntry.openSettings, name)} holdLeave={nav.holdLeave} />;
 }
@@ -461,6 +468,17 @@ function SettingsView() {
   );
 }
 
+async function openReviewCoursePage({ place, data, core, session, learn, nav, targetPage, prepare }) {
+  if (await session.flushDraft?.() === false) return;
+  const origin = learn.captureContext();
+  const targetCourse = typeof place?.course === 'string' ? place.course : (data?.focus?.course ?? null);
+  const switched = typeof place?.course === 'string' && place.course !== (data?.focus?.course ?? null);
+  if (switched && !await core.act('focus.set', { course: place.course })) return;
+  learn.rememberContext(origin);
+  prepare(targetCourse);
+  nav.navigate(targetPage);
+}
+
 function ReviewView({ feedback }) {
   const { data, core, nav, lib, set, session, learn, dailyPlan, settingsEntry, tour } = useApp();
   const run = session.run;
@@ -487,6 +505,21 @@ function ReviewView({ feedback }) {
     onSaveQaToNote: (followupId) => core.act('note.qa.add', qaToNoteArgs(run, followupId, data?.decks), undefined, { rethrow: true }),
     onMakeTask: learn.openBoardWithContext,
     openSkeleton: (id) => learn.openLearningTarget({ kind: 'skeleton', id }),
+    onOpenOutline: pageAvailable(data, 'outline') ? async (place) => {
+      const target = place?.chapter?.key || place?.document?.key || place?.leaf?.key || '';
+      if (!target) return;
+      await openReviewCoursePage({
+        place, data, core, session, learn, nav, targetPage: 'outline',
+        prepare: (targetCourse) => keepOutline(data?.root, targetCourse, { target, leafKey: place?.leaf?.key || null }),
+      });
+    } : undefined,
+    onOpenBookSection: pageAvailable(data, 'book') ? async (place) => {
+      if (!place?.leaf?.built || !place?.leaf?.key) return;
+      await openReviewCoursePage({
+        place, data, core, session, learn, nav, targetPage: 'book',
+        prepare: (targetCourse) => keepBook(data?.root, targetCourse, { target: place.leaf.key }),
+      });
+    } : undefined,
     onReturnToReading: learn.returnToReading,
   };
   return (

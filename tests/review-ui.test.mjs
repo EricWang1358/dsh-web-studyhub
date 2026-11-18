@@ -7,13 +7,13 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { globalCss } from "./helpers/global-css.mjs";
 import { reviewElement } from "./helpers/review-render.mjs";
 
-const compiled = await build({ stdin: { contents: "export { default } from './ui/Review.jsx'; export { StudyServicesContext } from './ui/study-context.jsx'; export { formatAssistTaskSummary } from './ui/review/QuestionRun.jsx';", resolveDir: process.cwd() }, bundle: true,
+const compiled = await build({ stdin: { contents: "export { default } from './ui/Review.jsx'; export { StudyServicesContext } from './ui/study-context.jsx'; export { formatAssistTaskSummary } from './ui/review/QuestionRun.jsx'; export { setUiLanguage } from './ui/i18n.js';", resolveDir: process.cwd() }, bundle: true,
   write: false, platform: "node", format: "cjs", external: ["react"],
   loader: { ".css": "text" }, logLevel: "silent" });
 const module = { exports: {} };
 new Function("require", "module", "exports", compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const Review = module.exports.default;
-const { formatAssistTaskSummary } = module.exports;
+const { formatAssistTaskSummary, setUiLanguage } = module.exports;
 const reviewEl = (old) => reviewElement(Review, module.exports.StudyServicesContext, old);
 function render(kind, revealed, runPatch = {}, dataPatch = {}) {
   const card = { id: "q", kind, topic: "Context", prompt: "Who processes payments?",
@@ -367,4 +367,369 @@ test("formatAssistTaskSummary summarizes chips without raw prompts (#U3) and Que
   assert.equal((enHtml.match(/class="en-block__toggle"/g) || []).length, 2);
   assert.match(enHtml, /English stem/);
   assert.match(enHtml, /English explanation/);
+});
+
+test("summary-course shows finished chapter wording (weak=0, weak>0, multi-chapter), falls back cleanly when empty, and hides bar above 30 chapters (#1195)", () => {
+  const noop = () => {};
+  const textOf = (html) => html.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+  const renderCourseSummary = (course) => {
+    const html = renderToStaticMarkup(reviewEl({
+      run: {
+        id: "r-course", mode: "path", complete: true, index: 4, total: 4, questions: 4, answered: 4, correct: 4,
+        weakTopics: [], scope: [], card: { id: "q", kind: "quiz", topic: "T", prompt: "Q?", options: [] },
+        course,
+      },
+      data: { sources: [] }, host: {}, choice: true, isCloze: false, selected: [], clozeValues: {},
+      shellTitle: "课程 · Cloud Native", busy: false, act: noop, enterRun: noop, setPage: noop, askInChat: noop,
+    }));
+    const start = html.indexOf('class="summary-course"');
+    assert.ok(start > -1, "renders .summary-course");
+    const end = html.indexOf('<div class="summary-actions">', start);
+    return html.slice(start, end);
+  };
+
+  setUiLanguage("zh");
+  try {
+    // 1. No finished chapters: exact legacy wording + 3-state bar
+    const plain = renderCourseSummary({
+      name: "Cloud Native", cards: 20, learned: 6, chapters: 3, doneChapters: 0,
+      chapter: { index: 0, title: "01 概览", learned: 6, total: 12 },
+      finished: [],
+      segments: ["started", "upcoming", "upcoming"],
+      next: { label: "01 概览 · 第 7–12 题" },
+    });
+    assert.match(textOf(plain), /课程进度 · 已学 6 \/ 20 题 · 第 1 \/ 3 章「01 概览」6\/12 · 下一批：01 概览 · 第 7–12 题/);
+    assert.match(plain, /class="summary-course__bar" aria-hidden="true"/);
+    assert.equal((plain.match(/class="summary-course__seg /g) || []).length, 3);
+    assert.doesNotMatch(plain, /<button\b/, "no extra buttons inside .summary-course");
+
+    // 2. Single finished chapter with weak === 0
+    const oneClean = renderCourseSummary({
+      name: "Cloud Native", cards: 20, learned: 12, chapters: 4, doneChapters: 1,
+      chapter: { index: 1, title: "02 迁移", learned: 0, total: 8 },
+      finished: [{ index: 0, title: "01 概览", total: 12, weak: 0 }],
+      segments: ["done", "upcoming", "upcoming", "upcoming"],
+      next: { label: "02 迁移 · 第 1–8 题" },
+    });
+    assert.match(textOf(oneClean), /「01 概览」做完一遍，都答对过 · 全课 4 章，已过 1 章 · 下一批：02 迁移 · 第 1–8 题/);
+    assert.match(oneClean, /<strong>01 概览<\/strong>/);
+
+    // 3. Single finished chapter with weak > 0
+    const oneWeak = renderCourseSummary({
+      name: "Cloud Native", cards: 20, learned: 12, chapters: 4, doneChapters: 1,
+      chapter: { index: 1, title: "02 迁移", learned: 0, total: 8 },
+      finished: [{ index: 0, title: "01 概览", total: 12, weak: 2 }],
+      segments: ["done", "upcoming", "upcoming", "upcoming"],
+      next: { label: "02 迁移 · 第 1–8 题" },
+    });
+    assert.match(textOf(oneWeak), /「01 概览」做完一遍，2 题还不稳 · 全课 4 章，已过 1 章 · 下一批：02 迁移 · 第 1–8 题/);
+
+    // 4. Multiple finished chapters (weak === 0 and weak > 0)
+    const multiClean = renderCourseSummary({
+      name: "Cloud Native", cards: 20, learned: 20, chapters: 3, doneChapters: 2,
+      chapter: { index: 2, title: "03 网格", learned: 0, total: 4 },
+      finished: [
+        { index: 0, title: "01 概览", total: 8, weak: 0 },
+        { index: 1, title: "02 迁移", total: 8, weak: 0 },
+      ],
+      segments: ["done", "done", "upcoming"],
+      next: null,
+    });
+    assert.match(textOf(multiClean), /「01 概览」等 2 章做完一遍，都答对过 · 全课 3 章，已过 2 章/);
+
+    const multiWeak = renderCourseSummary({
+      name: "Cloud Native", cards: 20, learned: 20, chapters: 3, doneChapters: 2,
+      chapter: { index: 2, title: "03 网格", learned: 0, total: 4 },
+      finished: [
+        { index: 0, title: "01 概览", total: 8, weak: 0 },
+        { index: 1, title: "02 迁移", total: 8, weak: 3 },
+      ],
+      segments: ["done", "done", "upcoming"],
+      next: null,
+    });
+    assert.match(textOf(multiWeak), /「01 概览」等 2 章做完一遍，3 题还不稳 · 全课 3 章，已过 2 章/);
+
+    // 5. Chapter count boundary: 30 renders bar, 31 does not
+    const bar30 = renderCourseSummary({
+      name: "Big Course", cards: 30, learned: 10, chapters: 30, doneChapters: 1,
+      chapter: { index: 1, title: "Ch 2", learned: 0, total: 1 },
+      finished: [],
+      segments: ["done", ...Array(29).fill("upcoming")],
+      next: null,
+    });
+    assert.equal((bar30.match(/class="summary-course__seg /g) || []).length, 30);
+
+    const bar31 = renderCourseSummary({
+      name: "Huge Course", cards: 31, learned: 10, chapters: 31, doneChapters: 1,
+      chapter: { index: 1, title: "Ch 2", learned: 0, total: 1 },
+      finished: [],
+      segments: ["done", ...Array(30).fill("upcoming")],
+      next: null,
+    });
+    assert.doesNotMatch(bar31, /summary-course__bar/, "chapters > 30 suppresses the segment bar");
+
+    // 6. English wording & #one singular forms
+    setUiLanguage("en");
+    const enSingleOneWeakOneChapter = renderCourseSummary({
+      name: "Cloud Native", cards: 10, learned: 10, chapters: 1, doneChapters: 1,
+      chapter: null,
+      finished: [{ index: 0, title: "01 Overview", total: 10, weak: 1 }],
+      segments: ["done"],
+      next: null,
+    });
+    assert.match(textOf(enSingleOneWeakOneChapter), /“01 Overview” finished once, 1 question still shaky · 1 of 1 chapter done/);
+    assert.doesNotMatch(textOf(enSingleOneWeakOneChapter), /[\u3400-\u9fff]/);
+
+    const enSinglePlural = renderCourseSummary({
+      name: "Cloud Native", cards: 20, learned: 10, chapters: 4, doneChapters: 1,
+      chapter: null,
+      finished: [{ index: 0, title: "01 Overview", total: 10, weak: 2 }],
+      segments: ["done", "upcoming", "upcoming", "upcoming"],
+      next: null,
+    });
+    assert.match(textOf(enSinglePlural), /“01 Overview” finished once, 2 questions still shaky · 1 of 4 chapters done/);
+    assert.doesNotMatch(textOf(enSinglePlural), /[\u3400-\u9fff]/);
+
+    const enMultiOneWeak = renderCourseSummary({
+      name: "Cloud Native", cards: 20, learned: 20, chapters: 3, doneChapters: 2,
+      chapter: null,
+      finished: [
+        { index: 0, title: "01 Overview", total: 10, weak: 1 },
+        { index: 1, title: "02 Migration", total: 10, weak: 0 },
+      ],
+      segments: ["done", "done", "upcoming"],
+      next: null,
+    });
+    assert.match(textOf(enMultiOneWeak), /2 chapters including “01 Overview” finished once, 1 question still shaky · 2 of 3 chapters done/);
+    assert.doesNotMatch(textOf(enMultiOneWeak), /[\u3400-\u9fff]/);
+  } finally {
+    setUiLanguage("zh");
+  }
+});
+
+test("QuestionPlace shows source document/chapter in normal mode, hides in exam/complete/null, and stays plain text when outline is unavailable (#1197)", async () => {
+  const { loadUi } = await import("./helpers/ui-module.mjs");
+  const { keepOutline, keptOutlineTarget, clearOutlineTarget, outlineTargetExpandKeys } = await loadUi(`
+    export { keepOutline, keptOutlineTarget, clearOutlineTarget, outlineTargetExpandKeys } from './ui/outline/model.js';
+  `);
+
+  const cardPlace = {
+    course: "Arch",
+    document: { key: "pdf:doc-1", title: "Architecture Guide.pdf" },
+    chapter: { key: "pdf:doc-1#1", title: "Core Layers" },
+    leaf: null,
+  };
+  const docSource = { id: "s1", title: "Architecture Guide · p. 1", courses: ["Arch"] };
+
+  const clickableHtml = renderToStaticMarkup(reviewEl({
+    run: { id: "r-place", index: 0, total: 2, card: { id: "q-p", kind: "quiz", topic: "Arch", prompt: "Prompt?", options: [{ id: "a", text: "A" }] }, cardPlace },
+    data: { sources: [docSource] }, host: {}, choice: true, selected: [], clozeValues: {}, shellTitle: "Arch", busy: false,
+    onOpenOutline: () => {}, openSkeleton: () => {},
+  }));
+  assert.match(clickableHtml, /data-review-place=""/);
+  assert.match(clickableHtml, /<button[^>]*data-review-place=""[^>]*>/);
+  assert.match(clickableHtml, /出处 ·/);
+  assert.match(clickableHtml, /Architecture Guide › Core Layers/);
+  assert.doesNotMatch(clickableHtml, /<[^>]*data-review-place=""[^>]*\btitle=/);
+
+  const docOnlyHtml = renderToStaticMarkup(reviewEl({
+    run: {
+      id: "r-doc", index: 0, total: 2,
+      card: { id: "q-d", kind: "quiz", topic: "Arch", prompt: "Prompt?", options: [{ id: "a", text: "A" }] },
+      cardPlace: { course: "Arch", document: { key: "doc:plain", title: "Plain Notes" }, chapter: null, leaf: null },
+    },
+    data: { sources: [docSource] }, host: {}, choice: true, selected: [], clozeValues: {}, shellTitle: "Arch", busy: false,
+    onOpenOutline: () => {},
+  }));
+  assert.match(docOnlyHtml, /出处 ·/);
+  assert.match(docOnlyHtml, /Plain Notes/);
+  assert.doesNotMatch(docOnlyHtml, /Plain Notes ›/);
+
+  const staticHtml = renderToStaticMarkup(reviewEl({
+    run: { id: "r-static", index: 0, total: 2, card: { id: "q-s", kind: "quiz", topic: "Arch", prompt: "Prompt?", options: [{ id: "a", text: "A" }] }, cardPlace },
+    data: { sources: [] }, host: {}, choice: true, selected: [], clozeValues: {}, shellTitle: "Arch", busy: false,
+    onOpenOutline: () => {},
+  }));
+  assert.match(staticHtml, /<span[^>]*review-place-static[^>]*data-review-place=""[^>]*>/);
+  assert.doesNotMatch(staticHtml, /<button[^>]*data-review-place=""/);
+
+  const unplacedHtml = renderToStaticMarkup(reviewEl({
+    run: { id: "r-null", index: 0, total: 2, card: { id: "q-n", kind: "quiz", topic: "Arch", prompt: "Prompt?", options: [{ id: "a", text: "A" }] },
+      cardPlace: { course: "Arch", document: null, chapter: null, leaf: null } },
+    data: { sources: [docSource] }, host: {}, choice: true, selected: [], clozeValues: {}, shellTitle: "Arch", busy: false,
+    onOpenOutline: () => {},
+  }));
+  assert.doesNotMatch(unplacedHtml, /data-review-place/);
+
+  const examHtml = renderToStaticMarkup(reviewEl({
+    run: { id: "r-exam", mode: "exam", index: 0, total: 2, card: { id: "q-e", kind: "quiz", topic: "Arch", prompt: "Prompt?", options: [{ id: "a", text: "A" }] }, cardPlace },
+    data: { sources: [docSource] }, host: {}, choice: true, selected: [], clozeValues: {}, shellTitle: "Exam", busy: false,
+    onOpenOutline: () => {},
+  }));
+  assert.doesNotMatch(examHtml, /data-review-place/);
+
+  const completeHtml = renderToStaticMarkup(reviewEl({
+    run: { id: "r-done", complete: true, index: 1, total: 1, questions: 1, answered: 1, correct: 1, card: { id: "q-c", kind: "quiz", topic: "Arch", prompt: "Prompt?", options: [{ id: "a", text: "A" }] }, cardPlace },
+    data: { sources: [docSource] }, host: {}, choice: true, selected: [], clozeValues: {}, shellTitle: "Arch", busy: false,
+    onOpenOutline: () => {},
+  }));
+  assert.doesNotMatch(completeHtml, /data-review-place/);
+
+  // Coexists with 知识骨架 button when both are present.
+  const bothHtml = renderToStaticMarkup(reviewEl({
+    run: { id: "r-both", index: 0, total: 2, card: { id: "q-b", kind: "quiz", topic: "Arch", prompt: "Prompt?", options: [{ id: "a", text: "A" }] }, cardPlace },
+    data: { sources: [docSource], skeletons: [{ id: "sk-1", title: "Arch Skeleton", cardIds: ["q-b"] }] },
+    host: {}, choice: true, selected: [], clozeValues: {}, shellTitle: "Arch", busy: false,
+    onOpenOutline: () => {}, openSkeleton: () => {},
+  }));
+  assert.match(bothHtml, /data-review-place=""/);
+  assert.match(bothHtml, /知识骨架/);
+
+  // One-shot outline target helpers in ui/outline/model.js
+  keepOutline("/lib", "Arch", { target: "pdf:doc-1#1", leafKey: "bk:leaf-1" });
+  const got = keptOutlineTarget("/lib", "Arch");
+  assert.deepEqual(got, { target: "pdf:doc-1#1", leafKey: "bk:leaf-1" });
+  assert.deepEqual(outlineTargetExpandKeys(got, { nodes: [{ key: "bk:part-1", children: [{ key: "bk:leaf-1" }] }] }), ["bk:part-1", "bk:leaf-1", "pdf:doc-1", "pdf:doc-1#1"]);
+  clearOutlineTarget("/lib", "Arch");
+  assert.equal(keptOutlineTarget("/lib", "Arch"), null);
+});
+
+test("QuestionRun and ExplanationFollowup show 「读全书这一节」 only when leaf.built is true and not exam mode, and BookHeader renders 「回到这道题」 (#1196)", async () => {
+  const { loadUi } = await import("./helpers/ui-module.mjs");
+  const bookUi = await loadUi(`
+    export { default as BookHeader } from './ui/book/BookHeader.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { setUiLanguage, ui } from './ui/i18n.js';
+  `);
+
+  const builtPlace = {
+    course: "Arch",
+    document: { key: "pdf:doc-1", title: "Architecture Guide.pdf" },
+    chapter: { key: "pdf:doc-1#1", title: "Core Layers" },
+    leaf: { key: "bk:leaf-1", title: "What is Layered Architecture?", built: true },
+  };
+  const unbuiltPlace = {
+    ...builtPlace,
+    leaf: { key: "bk:leaf-2", title: "Who Uses It?", built: false },
+  };
+  const nullLeafPlace = {
+    ...builtPlace,
+    leaf: null,
+  };
+  const followups = [{ id: "fu-1", question: "为什么这样分层？", answer: "为了解耦每一层的职责。" }];
+  const quizCard = { id: "q-b1", kind: "quiz", topic: "Arch", prompt: "Which layer?", options: [{ id: "a", text: "Domain" }, { id: "b", text: "UI" }] };
+  const flashCard = { id: "q-f1", kind: "flashcard", topic: "Arch", prompt: "Explain domain layer", answer: "Core logic" };
+  const baseData = { sources: [{ id: "s1", title: "Architecture Guide", courses: ["Arch"] }] };
+
+  const renderQuestion = (runPatch, extra = {}) => renderToStaticMarkup(reviewEl({
+    run: { id: "r-book-1", index: 0, total: 2, card: quizCard, ...runPatch },
+    data: baseData,
+    host: {},
+    choice: !runPatch.card || runPatch.card.kind === "quiz",
+    selected: [],
+    clozeValues: {},
+    shellTitle: "Arch",
+    busy: false,
+    onOpenBookSection: () => {},
+    ...extra,
+  }));
+
+  setUiLanguage("zh");
+  try {
+    // 1. Built leaf + wrong quiz answer -> link below verdict + link under Q&A followup
+    const wrongQuizHtml = renderQuestion({
+      cardPlace: builtPlace,
+      feedback: { correct: false, chosen: ["b"] },
+      solution: { answer: "Domain", explanation: "Domain is core.", followups },
+    });
+    assert.match(wrongQuizHtml, /data-book-section-link="feedback">读全书这一节<svg class="sh-icon"/);
+    assert.match(wrongQuizHtml, /data-book-section-link="followup">读全书这一节<svg class="sh-icon"/);
+
+    // 2. Built leaf + wrong flashcard (grade < 3) -> link below verdict
+    const wrongFlashHtml = renderQuestion({
+      card: flashCard,
+      cardPlace: builtPlace,
+      revealed: true,
+      feedback: { grade: 2 },
+      solution: { answer: "Core logic", followups },
+    });
+    assert.match(wrongFlashHtml, /data-book-section-link="feedback"/);
+    assert.match(wrongFlashHtml, /data-book-section-link="followup"/);
+
+    // 3. Built leaf + right quiz answer -> NO link under verdict, YES link under Q&A followup
+    const rightQuizHtml = renderQuestion({
+      cardPlace: builtPlace,
+      feedback: { correct: true, chosen: ["a"] },
+      solution: { answer: "Domain", explanation: "Domain is core.", followups },
+    });
+    assert.doesNotMatch(rightQuizHtml, /data-book-section-link="feedback"/);
+    assert.match(rightQuizHtml, /data-book-section-link="followup"/);
+
+    // 4. Built leaf + before answer (no feedback yet) -> NO feedback link
+    const beforeHtml = renderQuestion({ cardPlace: builtPlace });
+    assert.doesNotMatch(beforeHtml, /data-book-section-link=/);
+
+    // 5. Unbuilt leaf (built: false) -> NEVER shows link (neither wrong feedback nor followup)
+    const unbuiltHtml = renderQuestion({
+      cardPlace: unbuiltPlace,
+      feedback: { correct: false, chosen: ["b"] },
+      solution: { answer: "Domain", explanation: "Domain is core.", followups },
+    });
+    assert.doesNotMatch(unbuiltHtml, /data-book-section-link=/);
+    assert.doesNotMatch(unbuiltHtml, /读全书这一节/);
+
+    // 6. leaf: null -> NEVER shows link
+    const nullLeafHtml = renderQuestion({
+      cardPlace: nullLeafPlace,
+      feedback: { correct: false, chosen: ["b"] },
+      solution: { answer: "Domain", explanation: "Domain is core.", followups },
+    });
+    assert.doesNotMatch(nullLeafHtml, /data-book-section-link=/);
+
+    // 7. Exam mode -> NEVER shows link even when leaf.built is true
+    const examHtml = renderQuestion({
+      mode: "exam",
+      cardPlace: builtPlace,
+      feedback: { correct: false, chosen: ["b"] },
+      solution: { answer: "Domain", explanation: "Domain is core.", followups },
+    });
+    assert.doesNotMatch(examHtml, /data-book-section-link=/);
+    assert.doesNotMatch(examHtml, /读全书这一节/);
+
+    // 8. English wording
+    setUiLanguage("en");
+    const enWrongHtml = renderQuestion({
+      cardPlace: builtPlace,
+      feedback: { correct: false, chosen: ["b"] },
+      solution: { answer: "Domain", explanation: "Domain is core." },
+    });
+    assert.match(enWrongHtml, /Read this section in the book/);
+
+    // 9. BookHeader default vs returning to question
+    const bookServices = { call: async () => ({}), act: async () => undefined, busy: false, notify: () => {}, openSettings: () => {}, navigate: () => {}, openModal: () => {} };
+    const renderHeader = (props) => renderToStaticMarkup(
+      React.createElement(bookUi.StudyServicesContext.Provider, { value: bookServices },
+        React.createElement(bookUi.BookHeader, {
+          data: { focus: { courses: [{ course: "Arch", name: "Architecture" }] } },
+          course: "Arch",
+          courseName: "Architecture",
+          book: { status: "ok", notes: true },
+          onBack: () => {},
+          onCourse: () => {},
+          ...props,
+        })),
+    );
+    bookUi.setUiLanguage("zh");
+    const defaultHeader = renderHeader({});
+    assert.match(defaultHeader, /回到总纲/);
+    const returnHeader = renderHeader({ backLabel: bookUi.ui("回到这道题") });
+    assert.match(returnHeader, /sh-page-header__back"><svg class="sh-icon"[^>]*>.*?<\/svg>回到这道题/);
+    assert.doesNotMatch(returnHeader, /回到总纲/);
+    bookUi.setUiLanguage("en");
+    const enReturnHeader = renderHeader({ backLabel: bookUi.ui("回到这道题") });
+    assert.match(enReturnHeader, /Back to this question/);
+  } finally {
+    setUiLanguage("zh");
+    bookUi.setUiLanguage("zh");
+  }
 });

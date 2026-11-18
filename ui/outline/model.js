@@ -237,3 +237,45 @@ export function keepView(root, course, view, storage) {
   }
   writeJSON(outlineViewKey(root, course), payload, explicitStorage ? storage : browserStorage());
 }
+
+/* One-shot target for opening 总纲 at a specific document or chapter (e.g. from 题目页「出处」), kept in memory only and never written to localStorage. */
+const outlineTargets = new Map();
+
+function pathToBookKey(nodes, key) {
+  for (const node of Array.isArray(nodes) ? nodes : []) {
+    if (node.key === key) return [node.key];
+    if (node.children?.length) {
+      const childPath = pathToBookKey(node.children, key);
+      if (childPath.length) return [node.key, ...childPath];
+    }
+  }
+  return [];
+}
+
+/** Expand keys needed to reveal `targetInfo` (`target`, optional `leafKey`) inside `outline` (either document tree or AI outline tree). */
+export function outlineTargetExpandKeys(targetInfo, book = null) {
+  const target = targetInfo?.target;
+  if (typeof target !== 'string' || !target) return [];
+  const hashAt = target.indexOf('#');
+  const docKey = hashAt > 0 ? target.slice(0, hashAt) : null;
+  const bookPath = book?.nodes && targetInfo?.leafKey ? pathToBookKey(book.nodes, targetInfo.leafKey) : [];
+  return [...new Set([...(bookPath || []), ...(docKey ? [docKey] : []), target])];
+}
+
+export function keepOutline(root, course, { target = null, leafKey = null } = {}) {
+  const memKey = JSON.stringify([root ?? '', course ?? '']);
+  if (!target) {
+    outlineTargets.delete(memKey);
+    return;
+  }
+  outlineTargets.set(memKey, { target, ...(leafKey ? { leafKey } : {}) });
+  if (outlineTargets.size > 20) outlineTargets.delete(outlineTargets.keys().next().value);
+}
+
+export function keptOutlineTarget(root, course) {
+  return outlineTargets.get(JSON.stringify([root ?? '', course ?? ''])) ?? null;
+}
+
+export function clearOutlineTarget(root, course) {
+  outlineTargets.delete(JSON.stringify([root ?? '', course ?? '']));
+}

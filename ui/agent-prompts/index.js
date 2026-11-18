@@ -20,6 +20,7 @@ import { selfStartPrompt } from './self.js';
 import { methodDraftMaterialPrompt, methodEditPrompt, methodExplainPrompt, methodMissedPrompt, stubbornQuestionPrompt } from './method.js';
 import { taskCheckPrompt } from './task.js';
 import { companionAskPrompt } from './companion.js';
+import { chapterBasicsPrompt } from './card.js';
 
 /* The registry of 「发给主会话」 messages (the hand-off plan, section 1.3): every message a StudyHub page hands to the main chat has an id here, and
    ui/hand-off/ sends only ids from it. An entry's builder returns the parts of one message (ui/agent-prompts/message.js: the learner's sentence, the notes
@@ -73,6 +74,8 @@ export const HAND_OFFS = Object.freeze({
   'task.check': { build: (input, language) => taskCheckPrompt(input, language), skill: 'study-tutor', tail: 'file' },
   // 交互伴学页课中卡壳升级到主会话: carries the exact slide, quote and derivation/code slice into guided study.
   'companion.ask': { build: (input, language) => companionAskPrompt(input, language), skill: 'study-tutor' },
+  // 补词到底提示「先读这一章 · 发给主会话讲」 (#1193): build up from foundational section concepts step by step.
+  'question.basics': { build: (input, language) => chapterBasicsPrompt(input, language), skill: 'study-tutor' },
 });
 
 /** Whether `id` names a registered hand-off. */

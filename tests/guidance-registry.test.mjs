@@ -51,6 +51,9 @@ const SEEN = {
   'study-jev-guide-seen': '1',
   'study-nav-reorder-hint:v1': 'true',
 };
+const SEEN_SESSION = {
+  'study-chapter-basics-seen': '1',
+};
 /* Keys that look alike but are NOT registered guidance: a reset must leave them alone (the tour's resume point included: it is not in the registry). */
 const UNRELATED = {
   'study-ui-language': 'zh', 'study-theme': 'dark', 'study-tasks-seen:/lib': '123', 'study-tour:/lib': JSON.stringify({ stepId: 'practice', done: false }),
@@ -61,7 +64,7 @@ const UNRELATED = {
 };
 
 test('every entry is well formed, ids are unique, kinds are tip/card/tour/nudge, and the tour resume point is not an entry', () => {
-  assert.equal(GUIDANCE_ITEMS.length, 16, 'the 「从这里开始」 dots left with #655: a new learner is led by the home first-run line, not by dots');
+  assert.equal(GUIDANCE_ITEMS.length, 17, 'the 「从这里开始」 dots left with #655: a new learner is led by the home first-run line, not by dots');
   for (const item of GUIDANCE_ITEMS) assert.deepEqual(entryProblems(item), [], item.id);
   const ids = GUIDANCE_ITEMS.map(item => item.id);
   assert.equal(new Set(ids).size, ids.length, 'ids are unique');
@@ -70,7 +73,7 @@ test('every entry is well formed, ids are unique, kinds are tip/card/tour/nudge,
   assert.ok(entryProblems({ id: 'x', kind: 'popup', dismiss: 'never', proactive: 'yes', memory: { store: 'cookie' } }).length > 3, 'a bad entry is caught');
   assert.equal(guidanceItem('reader.pdf-page').memory.item, 'pdf-page');
   assert.deepEqual(GUIDANCE_ITEMS.filter(item => item.proactive).map(item => item.id).sort(),
-    ['book.moves', 'library.topic-groups', 'practice.fix-first', 'practice.help-first', 'practice.prereq-first', 'reader.original-notice', 'reader.page-presets', 'reader.pdf-page', 'skeleton.archify'],
+    ['book.moves', 'library.topic-groups', 'practice.chapter-basics', 'practice.fix-first', 'practice.help-first', 'practice.prereq-first', 'reader.original-notice', 'reader.page-presets', 'reader.pdf-page', 'skeleton.archify'],
     'what appears by itself (the master switch hint names exactly these; the setup "all done" note is a status, not a tip)');
 });
 
@@ -93,8 +96,8 @@ test('the experiment entry needs both the experiments switch and the system comp
 });
 
 test('seen, clear one: only that entry goes; a shared list keeps the other id; a prefix does not match a look-alike', () => {
-  const local = memoryStorage({ ...SEEN, ...UNRELATED });
-  for (const item of GUIDANCE_ITEMS) assert.equal(itemSeen(item, both(local)), true, `${item.id} reads as seen`);
+  const local = memoryStorage({ ...SEEN, ...UNRELATED }), session = memoryStorage(SEEN_SESSION);
+  for (const item of GUIDANCE_ITEMS) assert.equal(itemSeen(item, both(local, session)), true, `${item.id} reads as seen`);
   const pdf = guidanceItem('reader.pdf-page'), presets = guidanceItem('reader.page-presets');
   assert.equal(clearItem(pdf, both(local)), true);
   assert.equal(itemSeen(pdf, both(local)), false);
@@ -111,18 +114,19 @@ test('seen, clear one: only that entry goes; a shared list keeps the other id; a
 });
 
 test('重新显示全部提示 clears exactly the registered keys and nothing else (the tour resume point survives)', () => {
-  const local = memoryStorage({ ...SEEN, ...UNRELATED }), session = memoryStorage({ 'study-draft:/lib': '{}' });
+  const local = memoryStorage({ ...SEEN, ...UNRELATED }), session = memoryStorage({ ...SEEN_SESSION, 'study-draft:/lib': '{}' });
   const cleared = resetAllGuidance(both(local, session));
   assert.deepEqual(cleared, GUIDANCE_ITEMS.map(item => item.id), 'every seen entry is reported, in list order');
   for (const key of Object.keys(SEEN)) assert.equal(local.getItem(key), null, `${key} is cleared`);
+  for (const key of Object.keys(SEEN_SESSION)) assert.equal(session.getItem(key), null, `${key} is cleared`);
   for (const [key, value] of Object.entries(UNRELATED)) assert.equal(local.getItem(key), value, `${key} survives`);
   assert.equal(session.getItem('study-draft:/lib'), '{}', 'the tab storage is untouched');
   assert.deepEqual(resetAllGuidance(both(local, session)), [], 'a second reset has nothing to clear');
   const state = readGuidanceState(local);
   assert.equal(state.off, true, 'the master switch is a choice, not a seen state: it stays');
   assert.deepEqual(state.muted, ['skeleton.archify'], 'so do the per-item switches');
-  const partial = memoryStorage(SEEN);
-  assert.deepEqual(resetAllGuidance(both(partial), guidanceItemsFor()), guidanceItemsFor().map(item => item.id), 'only the items handed in');
+  const partial = memoryStorage(SEEN), partialSession = memoryStorage(SEEN_SESSION);
+  assert.deepEqual(resetAllGuidance(both(partial, partialSession), guidanceItemsFor()), guidanceItemsFor().map(item => item.id), 'only the items handed in');
   assert.equal(partial.getItem('study-jev-guide-seen'), '1', 'a hidden experiment keeps its memory');
 });
 

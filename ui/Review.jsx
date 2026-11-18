@@ -2,6 +2,7 @@ import { ui, uiFormat, errorMessage } from "./i18n.js";
 import React from "react";
 import ReviewNavigator from "./ReviewNavigator.jsx";
 import RunContext from "./review/RunContext.jsx";
+import QuestionPlace, { useCardPlace } from "./review/QuestionPlace.jsx";
 import QuestionRun from "./review/QuestionRun.jsx";
 import usePinQuestion from "./review/usePinQuestion.js";
 import CoachDebrief from "./CoachDebrief.jsx";
@@ -54,6 +55,35 @@ function scoreWording(run) {
   return self === 0 ? "道题答对 / {0} 道" : self >= (run.answered || 0) ? "道题自评达标 / {0} 道" : "道题达标 / {0} 道";
 }
 
+function courseSummaryText(course) {
+  const finished = Array.isArray(course?.finished) ? course.finished : [];
+  const totalChapters = course?.chapters ?? (Array.isArray(course?.segments) ? course.segments.length : 0);
+  const doneChapters = course?.doneChapters ?? (Array.isArray(course?.segments)
+    ? course.segments.filter((status) => status === "done").length
+    : finished.length);
+  if (finished.length > 0) {
+    const first = finished[0];
+    const weak = finished.reduce((sum, item) => sum + (Number(item?.weak) || 0), 0);
+    if (finished.length === 1) {
+      return weak === 0
+        ? uiRich("「{0}」做完一遍，都答对过 · 全课 {1} 章，已过 {2} 章", <strong>{first.title}</strong>, totalChapters, doneChapters)
+        : uiRich("「{0}」做完一遍，{1} 题还不稳 · 全课 {2} 章，已过 {3} 章", <strong>{first.title}</strong>, weak, totalChapters, doneChapters);
+    }
+    return weak === 0
+      ? uiRich("「{0}」等 {1} 章做完一遍，都答对过 · 全课 {2} 章，已过 {3} 章", <strong>{first.title}</strong>, finished.length, totalChapters, doneChapters)
+      : uiRich("「{0}」等 {1} 章做完一遍，{2} 题还不稳 · 全课 {3} 章，已过 {4} 章", <strong>{first.title}</strong>, finished.length, weak, totalChapters, doneChapters);
+  }
+  return (
+    <>
+      {uiRich("课程进度 · 已学 {0} 题", <strong>{course.learned ?? 0} / {course.cards ?? 0}</strong>)}
+      {" · "}
+      {course.chapter
+        ? uiFormat("第 {0} / {1} 章「{2}」{3}/{4}", [course.chapter.index + 1, course.chapters, course.chapter.title, course.chapter.learned, course.chapter.total])
+        : ui("全部章节都学过了")}
+    </>
+  );
+}
+
 const SEGMENT_TO_STATUS = { correct: "right", practice: "wrong", remaining: "unanswered" };
 const STATUS_TO_SEGMENT = { right: "correct", wrong: "practice", unanswered: "remaining" };
 
@@ -63,6 +93,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
   const { reviewAct } = actions;
   const study = useStudy();
   const { call, act, busy, host, navigate, openSettings, notify } = study;
+  const cardPlace = useCardPlace({ call, run });
   const [lookBackSegmentState, setLookBackSegmentState] = React.useState({ runId: null, segment: null });
   const lookBackSegment = lookBackSegmentState.runId === run?.id ? lookBackSegmentState.segment : null;
   const setLookBackSegment = (segment) => setLookBackSegmentState({ runId: run?.id ?? null, segment });
@@ -76,7 +107,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
       });
     }
   };
-  const { onBackToWorkflow, openSkeleton, onOpenNote, onRecapSettings, onModelSettings, onReturnToReading } = links;
+  const { onBackToWorkflow, openSkeleton, onOpenOutline, onOpenNote, onRecapSettings, onModelSettings, onReturnToReading } = links;
   const { label: contextReturnLabel, onReturn: onReturnContext, detour, onReturnFromDetour } = context;
   const enterRun = session.enterRun;
   const app = React.useContext(AppContext);
@@ -211,6 +242,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             </Tooltip>
           )}
           <RunContext data={data} deckId={run.deckId} run={run} />
+          <QuestionPlace data={data} run={run} place={cardPlace} onOpenOutline={onOpenOutline} />
           {skeletonHere && openSkeleton && (
             <Button iconEnd="arrow-right" variant="quiet" size="sm" title={uiFormat("这道题在知识骨架「{0}」里", [skeletonHere.title])} onClick={() => openSkeleton(skeletonHere.id)}>{ui("知识骨架")}</Button>
           )}
@@ -292,11 +324,29 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               <Button iconEnd="arrow-right" variant="link" size="sm" lock={busy} onClick={() => { askForLeeches(data?.root, run.leechCards); navigate("wrongbook"); }}>{ui("在错题本里看看")}</Button>
             </p>
           )}
-          {run.course && (
-            <p className="summary-course">{uiRich("课程进度 · 已学 {0} 题", <strong>{run.course.learned ?? 0} / {run.course.cards ?? 0}</strong>)}{" · "}{run.course.chapter ? uiFormat("第 {0} / {1} 章「{2}」{3}/{4}", [run.course.chapter.index + 1, run.course.chapters, run.course.chapter.title, run.course.chapter.learned, run.course.chapter.total]) : ui("全部章节都学过了")}
-              {run.course.next?.label ? <span>{" · "}{uiFormat("下一批：{0}", [run.course.next.label])}</span> : null}
-            </p>
-          )}
+          {run.course && (() => {
+            const course = run.course;
+            const totalChapters = course.chapters ?? course.segments?.length ?? 0;
+            const segments = totalChapters >= 1 && totalChapters <= 30
+              && Array.isArray(course.segments) && course.segments.length === totalChapters
+              ? course.segments
+              : null;
+            return (
+              <div className="summary-course">
+                <p className="summary-course__text">
+                  {courseSummaryText(course)}
+                  {course.next?.label ? <span>{" · "}{uiFormat("下一批：{0}", [course.next.label])}</span> : null}
+                </p>
+                {segments && (
+                  <div className="summary-course__bar" aria-hidden="true">
+                    {segments.map((status, index) => (
+                      <span key={index} className={cx("summary-course__seg", `is-${status === "done" || status === "started" ? status : "upcoming"}`)} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           <div className="summary-actions">
             {!run.closed && run.undoable && actions.undoAnswer && (
               <Button variant="quiet" data-usage="review.undo" aria-keyshortcuts="Z" lock={busy} onClick={actions.undoAnswer}>
@@ -347,7 +397,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
           </details>
         </div>
       ) : (
-        <QuestionRun key="body" session={session} data={data} coachProps={coachProps} links={links} context={{ ...context, inHeader: !!wayBack }} feedback={feedback} />
+        <QuestionRun key="body" session={session} data={data} coachProps={coachProps} links={links} place={cardPlace} context={{ ...context, inHeader: !!wayBack }} feedback={feedback} />
       )}
       {dock.column}
     </section>

@@ -7,7 +7,7 @@ import { reviewNoticeScope } from '../ActionFeedback.jsx';
 import { usePersistentState } from '../storage.js';
 import { usePolling } from '../use-polling.js';
 import { reviewPollDelay } from '../poll-schedule.js';
-import { EN_KEY, flag } from '../app/use-app-shell.js';
+import { CANDIDATE_TERMS_KEY, EN_KEY, flag } from '../app/use-app-shell.js';
 import { resolvePracticeSettings } from '../../lib/practice-settings.js';
 import { describeModelError, modelReadiness } from '../generation-status.js';
 import { practiceArgs } from '../learning-navigation.js';
@@ -46,11 +46,13 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   const showBackRef = useRef(showBack);
   showBackRef.current = showBack;
   const [showEn, setShowEn] = usePersistentState(EN_KEY, false, flag('1', '0'));
+  const [autoTerms, setAutoTerms] = usePersistentState(CANDIDATE_TERMS_KEY, false, flag('1', '0'));
   const [selfGradeAdvance, setSelfGradeAdvance] = usePersistentState(SELF_GRADE_ADVANCE_KEY, true, flag('1', '0'));
   const selfGradeAdvanceRef = useRef(selfGradeAdvance);
   selfGradeAdvanceRef.current = selfGradeAdvance;
   const toggleSelfGradeAdvance = useCallback(() => setSelfGradeAdvance((value) => !value), [setSelfGradeAdvance]);
   const [enBusyKey, setEnBusyKey] = useState('');
+  const [autoTermsBusyKey, setAutoTermsBusyKey] = useState('');
   /* 自动驾驶 is the library's setting (设置 › 练习), not a browser flag: the toolbar switch and the A key write it, and what was just chosen shows at
      once, until the library says the same. */
   const savedAutopilot = resolvePracticeSettings(refs.dataRef.current?.settings?.practice).autopilot;
@@ -72,6 +74,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   const [explainHidden, setExplainHidden] = useState(false);
   const [skippedIndices, setSkippedIndices] = useState(() => new Set());
   const [shortcutHelp, setShortcutHelp] = useState(false);
+  const [markingTerms, setMarkingTerms] = useState(false);
   /* A number key answers straight from here, so no <button> is ever seen going down (#745): the grade button the key names wears the same press for a
      moment. The one key handler below is the only writer; the view only reads it. */
   const [keyGrade, setKeyGrade] = useState(null);
@@ -179,8 +182,14 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   const enterMovedRun = useCallback((next, input) => enterRun(next, input, true), [enterRun]);
   const revealFlights = useRef(new Map());
   const revealKeyOf = (r) => (r?.card?.id ? `${r.id}:${r.index}:${r.card.id}:${r.queueVersion || 0}` : '');
-  const reset = useCallback(() => { revealFlights.current.clear(); draftSaver.current.discard(); draftBase.current = { key: '', signature: '' }; setRun(null); setShowBack(false); setEntry(emptyEntry()); }, []);
-  const clearRun = useCallback(() => setRun(null), []);
+  const toggleMarkTerms = useCallback(() => {
+    const current = runRef.current;
+    if (pageRef.current !== 'review' || !current?.card || current.complete || current.mode === 'exam') return;
+    setMarkingTerms((value) => !value);
+  }, []);
+  const exitMarkTerms = useCallback(() => setMarkingTerms(false), []);
+  const reset = useCallback(() => { revealFlights.current.clear(); draftSaver.current.discard(); draftBase.current = { key: '', signature: '' }; setRun(null); setShowBack(false); setMarkingTerms(false); setEntry(emptyEntry()); }, []);
+  const clearRun = useCallback(() => { setMarkingTerms(false); setRun(null); }, []);
   const patchRun = useCallback((change) => setRun(change), []);
 
   const onReviewState = host.onReviewState;
@@ -195,7 +204,11 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     priorQueue.current = { id: run?.id, version: queueVersion, index: run?.index, cardId: run?.card?.id };
     // A rebuilt queue that replaced the question on screen: what the library kept for the new one comes back. The same question keeps what is typed.
     if (shouldResetEntry(previous, run)) setEntry(entryForRun(run, null, { draft: (teaching) => readTeachingDraft(dataRoot(), teaching) }));
+    setMarkingTerms(false);
   }, [run?.id, queueVersion, run?.index, run?.card?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (page !== 'review' || !run?.card || run?.complete || run?.mode === 'exam') setMarkingTerms(false);
+  }, [page, run?.card, run?.complete, run?.mode]);
   // After the rebuilt queue's reset above, so a new question's first pass sees its own entry.
   useEffect(() => { syncDraft(); }, [run, entry.selected, entry.response, entry.clozeValues, entry.assistance, syncDraft]);
   useEffect(() => { saveTeachingDraft(dataRoot(), entry.teaching, entry.teachAnswer); }, [entry.teaching, entry.teachAnswer]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -484,6 +497,46 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     if (next && runRef.current && !runRef.current.card?.translation) translateEn(runRef.current);
   }, [showEn, setShowEn, translateEn]);
 
+  /* ── Candidate unfamiliar terms: one lightweight extraction per wrong revealed entry ── */
+  const candidateFlights = useRef(createFlightSet());
+  const fetchCardTerms = useCallback(async (target) => {
+    if (!target?.card || target.complete || target.mode === 'exam') return;
+    if (!target.revealed || !target.feedback || target.feedback.selfReported || isPassed(target)) return;
+    const key = reviewEntryKey(target);
+    if (!candidateFlights.current.begin(key)) return;
+    setAutoTermsBusyKey(key);
+    try {
+      await call('card.terms', { deckId: target.deckId, cardId: target.card.id });
+      const next = await call('review.get', { runId: target.id });
+      setRun((current) => (reviewEntryKey(current) === key ? mergeReviewPollWithFollowups(current, next) : current));
+    } catch (failure) {
+      const msg = errorMessage(failure);
+      if (
+        !modelReadiness(refs.dataRef.current).ready ||
+        describeModelError(msg).action === 'settings' ||
+        /没有可用的.*模型|未配置|密钥/.test(String(failure?.message || failure))
+      ) {
+        setAutoTerms(false);
+      }
+      if (isCurrentEntry(runRef.current, key)) setError(msg);
+    } finally {
+      candidateFlights.current.end(key);
+      setAutoTermsBusyKey((current) => (current === key ? '' : current));
+    }
+  }, [call, refs, setError, setAutoTerms]);
+  useEffect(() => {
+    if (page !== 'review' || !autoTerms || !run?.card || run.complete || run.mode === 'exam') return;
+    if (!run.revealed || !run.feedback || run.feedback.selfReported || isPassed(run)) return;
+    if (run.solution?.terms !== undefined) return;
+    fetchCardTerms(run);
+    // Primitive feedback fields avoid polling churn while reacting to reveal, answer grade, or card edits.
+  }, [page, autoTerms, run?.id, run?.index, run?.card?.id, run?.revealed, run?.feedback?.correct, run?.feedback?.grade, run?.feedback?.selfReported, run?.solution?.terms === undefined, fetchCardTerms]); // eslint-disable-line react-hooks/exhaustive-deps
+  const toggleAutoTerms = useCallback(() => {
+    const next = !autoTerms;
+    setAutoTerms(next);
+    if (next && runRef.current?.solution?.terms === undefined) fetchCardTerms(runRef.current);
+  }, [autoTerms, setAutoTerms, fetchCardTerms]);
+
   /* ── the step-by-step teaching panel ── */
   const teachingFlights = useRef(createFlightSet());
   // Each request holds a token; cancelling (or a newer request) drops the token, and a late answer carrying an old one is ignored.
@@ -527,22 +580,26 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
 
   /* ── helping the learner: the background assistant, slaying, prerequisites ── */
   // `quiet`: the caller shows the state itself (a spoken answer's 正在批改 under the question, #1031), so no toast covers the page.
-  const assistCard = useCallback(async (mode, text, helpChoices = [], derive = undefined, { quiet = false } = {}) => {
+  const assistCard = useCallback(async (mode, text, helpChoices = [], extra = undefined, { quiet = false } = {}) => {
     const current = runRef.current;
-    if (!current?.card || (!text.trim() && !(mode === 'ask' && helpChoices.length) && !(mode === 'derive' && derive?.followupId))) return false;
-    // Only asking helps with the answer: 修题 and 出题 change the bank, and 批改 is the answer itself, which reads what was recorded.
-    if (mode === 'ask') { noteAssistance('askedTutorBeforeAnswer'); patch({ explain: true }); }
+    if (!current?.card || (!text.trim() && !(mode === 'ask' && helpChoices.length) && !(mode === 'derive' && extra?.followupId) && !(mode === 'terms' && Array.isArray(extra?.terms) && extra.terms.length))) return false;
+    // Asking or filling marked terms helps understand before answering; 修题 and 出成题 change the bank, and 批改 grades the written answer.
+    if (mode === 'ask' || mode === 'terms') { noteAssistance('askedTutorBeforeAnswer'); patch({ explain: true }); }
     if (mode === 'grade' && !(await flushDraft())) return false;
     try {
       await submitAssist(call, { deckId: current.deckId, cardId: current.card.id, runId: current.id,
-        mode, text: text.trim(), helpChoices, ...(derive ? { derive } : {}), uiLanguage: getUiLanguage() });
+        mode, text: text.trim(), helpChoices,
+        ...(mode === 'derive' && extra ? { derive: extra } : {}),
+        ...(mode === 'terms' && extra?.terms ? { terms: extra.terms } : {}),
+        uiLanguage: getUiLanguage() });
       // Back to the quick rhythm at once: the answer must not wait out a slowed-down poll.
       assistSentAt.current = Date.now();
       pollingRef.current.refresh();
       if (!quiet) notify(mode === 'ask' ? ui('后台助教正在解答。讲解会出现在这道题下面的问答里，完成时信箱会提醒你。')
         : mode === 'derive' ? ui('后台助教正在出题。新题会放进同一题组，完成时信箱会提醒你。')
-          : mode === 'grade' ? { text: ui('已提交批改：后台按评分标准逐项打分，结果会显示在这道题下，完成时信箱也会提醒你。'), tone: 'success' }
-            : ui('后台助教正在改这道题，会直接改这张卡。完成时信箱会提醒你，在信箱里可以一步撤销。'));
+          : mode === 'terms' ? ui('后台助教正在补词。台阶讲解和前置检查题会出现在这道题下面，完成时信箱会提醒你。')
+            : mode === 'grade' ? { text: ui('已提交批改：后台按评分标准逐项打分，结果会显示在这道题下，完成时信箱也会提醒你。'), tone: 'success' }
+              : ui('后台助教正在改这道题，会直接改这张卡。完成时信箱会提醒你，在信箱里可以一步撤销。'));
       core.refresh().catch(() => {});
       return true;
     } catch (failure) {
@@ -604,7 +661,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     const shape = eventShape(event);
     const k = shape.key?.toLowerCase();
     if ((k === 'g' || k === 'b') && !shape.repeat && !shape.shiftKey && page === 'review' && run?.card && shortcutGate(shape, gateContext())) cancelAutoAdvance();
-    const outcome = shortcutAction(shape, { ...gateContext(), page, run, busy, showBack: showBackRef.current, shortcutHelp, endAsked, choice, isCloze, rubricCard, selected: entry.selected, clozeValues: entry.clozeValues });
+    const outcome = shortcutAction(shape, { ...gateContext(), page, run, busy, showBack: showBackRef.current, shortcutHelp, endAsked, markingTerms, choice, isCloze, rubricCard, selected: entry.selected, clozeValues: entry.clozeValues });
     if (!outcome) return;
     cancelAutoAdvance();
     if (outcome.preventDefault) event.preventDefault();
@@ -613,6 +670,8 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     if (action.type === 'help') setShortcutHelp((value) => !value);
     else if (action.type === 'help-close') { event.preventDefault(); setShortcutHelp(false); }
     else if (action.type === 'end-cancel') { setEndAsked(false); rootRef.current?.querySelector?.('.question-card')?.focus?.({ preventScroll: true }); }
+    else if (action.type === 'mark-terms') toggleMarkTerms();
+    else if (action.type === 'mark-terms-exit') exitMarkTerms();
     else if (action.type === 'autopilot') toggleAutopilot();
     else if (action.type === 'undo') undoAnswer();
     else if (action.type === 'resume') late.current.resume?.();
@@ -678,7 +737,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     canShortcut, cancelAutoAdvance, autoAdvance: activeAutoAdvance ? AUTO_ADVANCE_MS : 0, autoAdvanceActive: activeAutoAdvance, autoAdvancePaused, setAutoAdvancePaused, debrief: null,
   };
   const actions = useMemo(() => ({
-    reviewAct, choose, clearChoice: () => patch({ selected: [] }), flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn,
+    reviewAct, choose, clearChoice: () => patch({ selected: [] }), flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, toggleAutoTerms,
     toggleHelp: () => { if (runRef.current?.feedback) setExplainHidden((value) => !value); else if (runRef.current?.revealed) patch((value) => ({ explain: !value.explain })); else toggleHint(); },
     noteAssistance,
     // Opening a question to read its Q&A (a 信箱 letter): the explanation shows and the autopilot is held on this question, whatever the answer was.
@@ -696,8 +755,10 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     skipQuestion,
     askEnd: () => setEndAsked(true),
     cancelEnd: () => setEndAsked(false),
+    toggleMarkTerms,
+    exitMarkTerms,
     endRound,
-  }), [reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, patch, toggleAutopilot, toggleSelfGradeAdvance, undoAnswer, setAutoAdvancePaused, toggleHint, noteAssistance, skipQuestion, endRound]);
-  return { run, entry, showBack, showEn, selfGradeAdvance, enBusyKey, teachingBusy: !!teachingPending[reviewEntryKey(run)], teachingError: teachingFailure[reviewEntryKey(run)]?.message || '', autopilot, autoAdvance, autoAdvanceActive: activeAutoAdvance, autoAdvancePaused, setAutoAdvancePaused, advanceKey,
-    explainHidden, skippedIndices, shortcutHelp, keyGrade, endAsked, questionKeys, ...kind, coach, continueTo, onCoachPractice, enterRun, enterMovedRun, reset, clearRun, patchRun, pollRun, pollNow, actions, flushDraft };
+  }), [reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, toggleAutoTerms, patch, toggleAutopilot, toggleSelfGradeAdvance, undoAnswer, setAutoAdvancePaused, toggleHint, noteAssistance, skipQuestion, toggleMarkTerms, exitMarkTerms, endRound]);
+  return { run, entry, showBack, showEn, autoTerms, selfGradeAdvance, enBusyKey, autoTermsBusyKey, teachingBusy: !!teachingPending[reviewEntryKey(run)], teachingError: teachingFailure[reviewEntryKey(run)]?.message || '', autopilot, autoAdvance, autoAdvanceActive: activeAutoAdvance, autoAdvancePaused, setAutoAdvancePaused, advanceKey,
+    explainHidden, skippedIndices, shortcutHelp, markingTerms, keyGrade, endAsked, questionKeys, ...kind, coach, continueTo, onCoachPractice, enterRun, enterMovedRun, reset, clearRun, patchRun, pollRun, pollNow, actions, flushDraft };
 }

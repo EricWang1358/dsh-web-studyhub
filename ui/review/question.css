@@ -474,6 +474,16 @@
       margin: var(--space-3-5) 0 var(--space-3);
       font-weight: var(--fw-medium);
     }
+    .next-due.next-due--verdict:has(+ .question-book-link) {
+      margin-bottom: var(--space-1-5);
+    }
+    .question-book-link {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2);
+      margin: 0 0 var(--space-2);
+    }
     /* The icon has its own column: a lead line that wraps starts its second line under the words, not under the icon. */
     .next-due__lead { display: flex; align-items: flex-start; gap: var(--space-1-5); margin: 0; }
     .next-due__icon { flex: none; margin-top: calc((1lh - var(--icon-inline)) / 2); }
@@ -704,6 +714,172 @@
     .flip-face[aria-hidden="true"] {
       pointer-events: none;
       visibility: hidden;
+    }
+    /* Term marking mode (#1192): flip-inner takes clicks/selection instead of flip-control,
+       options keep text selection & cursor without firing answer clicks, and marked words stay highlighted. */
+    .review-body.is-marking .flashcard .flip-inner { pointer-events: auto; }
+    .review-body.is-marking .flashcard .flip-control { pointer-events: none; }
+    .review-body.is-marking .options .option {
+      user-select: text;
+      cursor: text;
+    }
+    .review-body.is-marking :is(.question, .flip-face[aria-hidden="false"], .explanation) {
+      cursor: text;
+    }
+    .review-body :not(.katex, .katex *)::highlight(study-term-mark) {
+      background-color: var(--warn-mark);
+      color: inherit;
+    }
+    .review-body :not(.katex, .katex *)::highlight(study-term-seen) {
+      background-color: var(--warn-seen);
+      color: inherit;
+    }
+    .review-body :not(.katex, .katex *)::highlight(study-term-candidate) {
+      background-color: transparent;
+      color: inherit;
+      text-decoration: underline dashed var(--warn);
+      text-underline-offset: 3px;
+    }
+    .term-strip {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-3);
+      margin-top: var(--space-2);
+      background: var(--bg-surface);
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius);
+    }
+    .term-strip__label {
+      flex: 0 0 auto;
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-medium);
+      color: var(--text-muted);
+    }
+    .term-strip__list {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1);
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    .term-strip__actions {
+      display: flex;
+      align-items: center;
+      gap: var(--space-1);
+      flex: 0 0 auto;
+      margin-left: auto;
+    }
+    .term-strip__list-btn {
+      color: var(--text-muted);
+    }
+    .term-strip__fill {
+      flex: 0 0 auto;
+    }
+    .term-strip .term-strip__candidate.term-strip__candidate {
+      border-style: dashed;
+      border-color: var(--line-strong);
+      background: transparent;
+      color: var(--text-dim);
+    }
+    .term-strip .term-strip__candidate.term-strip__candidate:hover {
+      border-color: var(--warn-line);
+      color: var(--text);
+    }
+    .term-list-dialog {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+    .term-list-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2);
+    }
+    .term-list-head__count {
+      font-size: var(--fs-sm);
+      color: var(--text-muted);
+    }
+    .term-list-loading {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-4) 0;
+      font-size: var(--fs-sm);
+      color: var(--text-muted);
+    }
+    .term-list-groups {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+    }
+    .term-list-group {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+    .term-list-group__title {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      margin: 0;
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-medium);
+      color: var(--text-dim);
+    }
+    .term-list-group__count {
+      font-size: var(--fs-sm);
+      color: var(--text-muted);
+    }
+    .term-list-items {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+    .term-list-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-3);
+      background: var(--bg-surface);
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius-sm);
+    }
+    .term-list-row__main {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+    .term-list-row__head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2);
+    }
+    .term-list-row__term {
+      font-size: var(--fs-md);
+      font-weight: var(--fw-medium);
+      color: var(--text);
+    }
+    .term-list-row__alt {
+      font-size: var(--fs-sm);
+      color: var(--text-muted);
+    }
+    .term-list-row__prompt {
+      margin: 0;
+      font-size: var(--fs-sm);
+      line-height: var(--lh-snug);
+      color: var(--text-muted);
+      overflow-wrap: anywhere;
     }
     /* Area under the card: response box → grading → nothing, eased not snapped. */
     .smooth-height {
@@ -1138,6 +1314,9 @@
       .question-toolbar .question-navigation > .sh-menu-anchor { flex: none; }
       .question-toolbar .question-navigation > [data-usage="review.prev"],
       .question-toolbar .question-navigation > [data-usage="review.next"] { flex: 1 1 0; }
+      .term-strip { padding: var(--space-2); }
+      .term-strip__list { flex: 1 1 100%; }
+      .term-strip__actions { margin-left: auto; }
     }
   }
   /* The 600px rule comes first: at equal specificity the case review's own width (980px, below) has always won over it. */

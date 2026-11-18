@@ -162,10 +162,10 @@ const BLANK = (value) => String(value).trim();
 
 /**
  * What a key press means. Returns null when the press is not ours, otherwise { cancelAuto, preventDefault, action }
- * (action may be null: the key is consumed, nothing happens). Actions: help, help-close, end-cancel, autopilot, resume, answer{args}, focus-cloze, voice, voice-ask,
+ * Actions: help, help-close, end-cancel, mark-terms, mark-terms-exit, autopilot, resume, answer{args}, focus-cloze, voice, voice-ask,
  * move{direction}, flip, hint, explain, assist-plain, choose{id}, clear-choice, skip, note, focus, source.
  * event: { key, code, shiftKey, repeat, defaultPrevented, ctrlKey, metaKey, altKey, inEditable, onButton }.
- * ctx: { inside, modalOpen, page, run, busy, shortcutHelp, endAsked, choice, isCloze, rubricCard, selected, clozeValues }.
+ * ctx: { inside, modalOpen, page, run, busy, shortcutHelp, endAsked, markingTerms, choice, isCloze, rubricCard, selected, clozeValues }.
  */
 export function shortcutAction(event, ctx) {
   if (!event.defaultPrevented && !event.repeat && !!ctx.inside && !event.inEditable && !ctx.modalOpen
@@ -180,6 +180,7 @@ export function shortcutAction(event, ctx) {
   if (event.key === '?' || (event.shiftKey && event.code === 'Slash')) return result({ type: 'help' }, true);
   if (event.key === 'Escape' && ctx.shortcutHelp) return result({ type: 'help-close' });
   if (event.key === 'Escape' && ctx.endAsked && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) return result({ type: 'end-cancel' }, true);
+  if (event.key === 'Escape' && ctx.markingTerms && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) return result({ type: 'mark-terms-exit' }, true);
   // Shift+V: ask 帮我弄懂 by voice (#1031), on any question outside an exam.
   if (event.shiftKey && event.code === 'KeyV') return result(ctx.page === 'review' && run?.card && !busy && run.mode !== 'exam' ? { type: 'voice-ask' } : null, true);
   if (event.shiftKey || (event.onButton && (event.key === 'Enter' || event.code === 'Space'))) return result(null);
@@ -207,6 +208,8 @@ export function shortcutAction(event, ctx) {
   // The actions of 更多 that have a key of their own (#1008): 先跳过, 写笔记, 标为重点, and the question's own page. An exam has none of them.
   const moreKey = { k: 'skip', n: 'note', f: 'focus', o: 'source' }[letter];
   if (moreKey) return run.mode === 'exam' ? result(null) : result({ type: moreKey }, true);
+  // W: toggle unknown-term marking outside an exam (#1192).
+  if (letter === 'w') return result(run.mode !== 'exam' && !run.complete ? { type: 'mark-terms' } : null, true);
   // V: answer by voice (#1031): a flashcard, an open question or a cloze not yet answered; never a choice, a task or an exam.
   if (letter === 'v') return result(run.mode !== 'exam' && !run.feedback && !choice && !taskCard && (isCloze || flipsOnly || rubricCard) ? { type: 'voice' } : null, true);
   if (event.key === 'ArrowRight' && (run.feedback || run.grading)) return result({ type: 'move', direction: 1 }, true);

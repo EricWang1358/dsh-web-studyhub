@@ -457,6 +457,27 @@
       ]
     },
     {
+      "file": "lib/contexts/study/card-terms.js",
+      "calls": [
+        {
+          "callee": "complete",
+          "count": 1
+        }
+      ],
+      "owner": "existing domain maintainer",
+      "reason": "card.terms: shared pipeline called by instant action card.terms via injected light gateway step",
+      "removeAt": "retained: shared pipeline",
+      "evidence": "s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "injected complete of card candidate term extraction",
+          "disposition": "exception",
+          "kind": "shared-pipeline",
+          "reached": true
+        }
+      ]
+    },
+    {
       "file": "lib/contexts/study/operations.js",
       "calls": [
         {
