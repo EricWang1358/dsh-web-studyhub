@@ -29,6 +29,7 @@
     .sources-filter__figures > *, .sources-filter__figures::after { grid-area: 1 / 1; }
     .sources-filter__figures::after { content: attr(data-widest); visibility: hidden; }
     .sources-view-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin: 0 0 var(--space-3); }
+    .sources-facets { margin: 0 0 var(--space-3); }
     .sources-view-bar__sort { flex: 0 0 auto; width: auto; min-width: 8.5em; }
     .source-groups { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
     .source-group-head-row { display: flex; align-items: center; gap: var(--space-2); min-width: 0; border-bottom: 1px solid var(--line); margin-bottom: var(--space-1); }
