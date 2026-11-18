@@ -72,6 +72,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   const [explainHidden, setExplainHidden] = useState(false);
   const [skippedIndices, setSkippedIndices] = useState(() => new Set());
   const [shortcutHelp, setShortcutHelp] = useState(false);
+  const [markingTerms, setMarkingTerms] = useState(false);
   /* A number key answers straight from here, so no <button> is ever seen going down (#745): the grade button the key names wears the same press for a
      moment. The one key handler below is the only writer; the view only reads it. */
   const [keyGrade, setKeyGrade] = useState(null);
@@ -179,8 +180,14 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   const enterMovedRun = useCallback((next, input) => enterRun(next, input, true), [enterRun]);
   const revealFlights = useRef(new Map());
   const revealKeyOf = (r) => (r?.card?.id ? `${r.id}:${r.index}:${r.card.id}:${r.queueVersion || 0}` : '');
-  const reset = useCallback(() => { revealFlights.current.clear(); draftSaver.current.discard(); draftBase.current = { key: '', signature: '' }; setRun(null); setShowBack(false); setEntry(emptyEntry()); }, []);
-  const clearRun = useCallback(() => setRun(null), []);
+  const toggleMarkTerms = useCallback(() => {
+    const current = runRef.current;
+    if (pageRef.current !== 'review' || !current?.card || current.complete || current.mode === 'exam') return;
+    setMarkingTerms((value) => !value);
+  }, []);
+  const exitMarkTerms = useCallback(() => setMarkingTerms(false), []);
+  const reset = useCallback(() => { revealFlights.current.clear(); draftSaver.current.discard(); draftBase.current = { key: '', signature: '' }; setRun(null); setShowBack(false); setMarkingTerms(false); setEntry(emptyEntry()); }, []);
+  const clearRun = useCallback(() => { setMarkingTerms(false); setRun(null); }, []);
   const patchRun = useCallback((change) => setRun(change), []);
 
   const onReviewState = host.onReviewState;
@@ -195,7 +202,11 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     priorQueue.current = { id: run?.id, version: queueVersion, index: run?.index, cardId: run?.card?.id };
     // A rebuilt queue that replaced the question on screen: what the library kept for the new one comes back. The same question keeps what is typed.
     if (shouldResetEntry(previous, run)) setEntry(entryForRun(run, null, { draft: (teaching) => readTeachingDraft(dataRoot(), teaching) }));
+    setMarkingTerms(false);
   }, [run?.id, queueVersion, run?.index, run?.card?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (page !== 'review' || !run?.card || run?.complete || run?.mode === 'exam') setMarkingTerms(false);
+  }, [page, run?.card, run?.complete, run?.mode]);
   // After the rebuilt queue's reset above, so a new question's first pass sees its own entry.
   useEffect(() => { syncDraft(); }, [run, entry.selected, entry.response, entry.clozeValues, entry.assistance, syncDraft]);
   useEffect(() => { saveTeachingDraft(dataRoot(), entry.teaching, entry.teachAnswer); }, [entry.teaching, entry.teachAnswer]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -604,7 +615,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     const shape = eventShape(event);
     const k = shape.key?.toLowerCase();
     if ((k === 'g' || k === 'b') && !shape.repeat && !shape.shiftKey && page === 'review' && run?.card && shortcutGate(shape, gateContext())) cancelAutoAdvance();
-    const outcome = shortcutAction(shape, { ...gateContext(), page, run, busy, showBack: showBackRef.current, shortcutHelp, endAsked, choice, isCloze, rubricCard, selected: entry.selected, clozeValues: entry.clozeValues });
+    const outcome = shortcutAction(shape, { ...gateContext(), page, run, busy, showBack: showBackRef.current, shortcutHelp, endAsked, markingTerms, choice, isCloze, rubricCard, selected: entry.selected, clozeValues: entry.clozeValues });
     if (!outcome) return;
     cancelAutoAdvance();
     if (outcome.preventDefault) event.preventDefault();
@@ -613,6 +624,8 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     if (action.type === 'help') setShortcutHelp((value) => !value);
     else if (action.type === 'help-close') { event.preventDefault(); setShortcutHelp(false); }
     else if (action.type === 'end-cancel') { setEndAsked(false); rootRef.current?.querySelector?.('.question-card')?.focus?.({ preventScroll: true }); }
+    else if (action.type === 'mark-terms') toggleMarkTerms();
+    else if (action.type === 'mark-terms-exit') exitMarkTerms();
     else if (action.type === 'autopilot') toggleAutopilot();
     else if (action.type === 'undo') undoAnswer();
     else if (action.type === 'resume') late.current.resume?.();
@@ -696,8 +709,10 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     skipQuestion,
     askEnd: () => setEndAsked(true),
     cancelEnd: () => setEndAsked(false),
+    toggleMarkTerms,
+    exitMarkTerms,
     endRound,
-  }), [reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, patch, toggleAutopilot, toggleSelfGradeAdvance, undoAnswer, setAutoAdvancePaused, toggleHint, noteAssistance, skipQuestion, endRound]);
+  }), [reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, patch, toggleAutopilot, toggleSelfGradeAdvance, undoAnswer, setAutoAdvancePaused, toggleHint, noteAssistance, skipQuestion, toggleMarkTerms, exitMarkTerms, endRound]);
   return { run, entry, showBack, showEn, selfGradeAdvance, enBusyKey, teachingBusy: !!teachingPending[reviewEntryKey(run)], teachingError: teachingFailure[reviewEntryKey(run)]?.message || '', autopilot, autoAdvance, autoAdvanceActive: activeAutoAdvance, autoAdvancePaused, setAutoAdvancePaused, advanceKey,
-    explainHidden, skippedIndices, shortcutHelp, keyGrade, endAsked, questionKeys, ...kind, coach, continueTo, onCoachPractice, enterRun, enterMovedRun, reset, clearRun, patchRun, pollRun, pollNow, actions, flushDraft };
+    explainHidden, skippedIndices, shortcutHelp, markingTerms, keyGrade, endAsked, questionKeys, ...kind, coach, continueTo, onCoachPractice, enterRun, enterMovedRun, reset, clearRun, patchRun, pollRun, pollNow, actions, flushDraft };
 }
