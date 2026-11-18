@@ -31,7 +31,7 @@ function menuItems(items, pick) {
     ? <p key={`h${index}`} role="presentation" className="sh-menu__heading">{item.label}</p>
     : tipped(item, <button key={item.id} type="button" role={item.checked === undefined ? 'menuitem' : 'menuitemcheckbox'} aria-checked={item.checked === undefined ? undefined : !!item.checked}
       disabled={item.disabled} {...item.attrs}
-      className={cx('sh-menu__item', item.danger && 'is-danger')}
+      className={cx('sh-menu__item', item.danger && 'is-danger', typeof item.hint === 'string' && item.hint.length > 10 && 'is-hint-wrap')}
       onClick={() => pick(item)}>
       {item.icon ? glyph(item.icon, 16) : item.checked ? glyph('check', 16) : iconColumn && <span className="sh-menu__gap" aria-hidden="true" />}
       <span className="sh-menu__label">{item.label}</span>

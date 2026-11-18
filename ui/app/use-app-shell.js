@@ -11,6 +11,7 @@ import { usePersistentState } from '../storage.js';
    carried over it put every such learner's navigation in the drawer. Everyone starts docked again; putting it away is asked anew. */
 export const SIDEBAR_KEY = 'study-nav-place';
 export const EN_KEY = 'study-en';
+export const CANDIDATE_TERMS_KEY = 'study-term-candidates';
 
 /** Stored as readable words: 'drawer' | 'docked', '1' | '0', 'on' | 'off'. */
 export const flag = (on, off) => ({ parse: (raw) => raw === on, serialize: (value) => (value ? on : off) });

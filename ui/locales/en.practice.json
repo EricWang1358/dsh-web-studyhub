@@ -274,5 +274,8 @@
   "这一块的基础还没搭起来，再往下补词效率不高。这一部分先别急着做题，先读一遍，或者让主会话讲一讲。": "The foundation for this part is not solid yet, so looking up more terms won't take you far. Hold off on questions in this section for now — read through it first, or ask the main chat to walk you through it.",
   "在旁边读原文": "Read source alongside",
   "发给主会话讲": "Ask main chat to teach",
-  "这类不再提示": "Don't show this tip again"
+  "这类不再提示": "Don't show this tip again",
+  "答错后列出生词": "List unfamiliar words after wrong answers",
+  "打开后，每道答错的题第一次会多一次轻量调用": "When on, the first wrong answer on a question runs one light model call",
+  "可能的生词": "Suggested words"
 }

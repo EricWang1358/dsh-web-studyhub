@@ -7,7 +7,7 @@ import { reviewNoticeScope } from '../ActionFeedback.jsx';
 import { usePersistentState } from '../storage.js';
 import { usePolling } from '../use-polling.js';
 import { reviewPollDelay } from '../poll-schedule.js';
-import { EN_KEY, flag } from '../app/use-app-shell.js';
+import { CANDIDATE_TERMS_KEY, EN_KEY, flag } from '../app/use-app-shell.js';
 import { resolvePracticeSettings } from '../../lib/practice-settings.js';
 import { describeModelError, modelReadiness } from '../generation-status.js';
 import { practiceArgs } from '../learning-navigation.js';
@@ -46,11 +46,13 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   const showBackRef = useRef(showBack);
   showBackRef.current = showBack;
   const [showEn, setShowEn] = usePersistentState(EN_KEY, false, flag('1', '0'));
+  const [autoTerms, setAutoTerms] = usePersistentState(CANDIDATE_TERMS_KEY, false, flag('1', '0'));
   const [selfGradeAdvance, setSelfGradeAdvance] = usePersistentState(SELF_GRADE_ADVANCE_KEY, true, flag('1', '0'));
   const selfGradeAdvanceRef = useRef(selfGradeAdvance);
   selfGradeAdvanceRef.current = selfGradeAdvance;
   const toggleSelfGradeAdvance = useCallback(() => setSelfGradeAdvance((value) => !value), [setSelfGradeAdvance]);
   const [enBusyKey, setEnBusyKey] = useState('');
+  const [autoTermsBusyKey, setAutoTermsBusyKey] = useState('');
   /* 自动驾驶 is the library's setting (设置 › 练习), not a browser flag: the toolbar switch and the A key write it, and what was just chosen shows at
      once, until the library says the same. */
   const savedAutopilot = resolvePracticeSettings(refs.dataRef.current?.settings?.practice).autopilot;
@@ -495,6 +497,46 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     if (next && runRef.current && !runRef.current.card?.translation) translateEn(runRef.current);
   }, [showEn, setShowEn, translateEn]);
 
+  /* ── Candidate unfamiliar terms: one lightweight extraction per wrong revealed entry ── */
+  const candidateFlights = useRef(createFlightSet());
+  const fetchCardTerms = useCallback(async (target) => {
+    if (!target?.card || target.complete || target.mode === 'exam') return;
+    if (!target.revealed || !target.feedback || target.feedback.selfReported || isPassed(target)) return;
+    const key = reviewEntryKey(target);
+    if (!candidateFlights.current.begin(key)) return;
+    setAutoTermsBusyKey(key);
+    try {
+      await call('card.terms', { deckId: target.deckId, cardId: target.card.id });
+      const next = await call('review.get', { runId: target.id });
+      setRun((current) => (reviewEntryKey(current) === key ? mergeReviewPollWithFollowups(current, next) : current));
+    } catch (failure) {
+      const msg = errorMessage(failure);
+      if (
+        !modelReadiness(refs.dataRef.current).ready ||
+        describeModelError(msg).action === 'settings' ||
+        /没有可用的.*模型|未配置|密钥/.test(String(failure?.message || failure))
+      ) {
+        setAutoTerms(false);
+      }
+      if (isCurrentEntry(runRef.current, key)) setError(msg);
+    } finally {
+      candidateFlights.current.end(key);
+      setAutoTermsBusyKey((current) => (current === key ? '' : current));
+    }
+  }, [call, refs, setError, setAutoTerms]);
+  useEffect(() => {
+    if (page !== 'review' || !autoTerms || !run?.card || run.complete || run.mode === 'exam') return;
+    if (!run.revealed || !run.feedback || run.feedback.selfReported || isPassed(run)) return;
+    if (run.solution?.terms !== undefined) return;
+    fetchCardTerms(run);
+    // Primitive feedback fields avoid polling churn while reacting to reveal, answer grade, or card edits.
+  }, [page, autoTerms, run?.id, run?.index, run?.card?.id, run?.revealed, run?.feedback?.correct, run?.feedback?.grade, run?.feedback?.selfReported, run?.solution?.terms === undefined, fetchCardTerms]); // eslint-disable-line react-hooks/exhaustive-deps
+  const toggleAutoTerms = useCallback(() => {
+    const next = !autoTerms;
+    setAutoTerms(next);
+    if (next && runRef.current?.solution?.terms === undefined) fetchCardTerms(runRef.current);
+  }, [autoTerms, setAutoTerms, fetchCardTerms]);
+
   /* ── the step-by-step teaching panel ── */
   const teachingFlights = useRef(createFlightSet());
   // Each request holds a token; cancelling (or a newer request) drops the token, and a late answer carrying an old one is ignored.
@@ -695,7 +737,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     canShortcut, cancelAutoAdvance, autoAdvance: activeAutoAdvance ? AUTO_ADVANCE_MS : 0, autoAdvanceActive: activeAutoAdvance, autoAdvancePaused, setAutoAdvancePaused, debrief: null,
   };
   const actions = useMemo(() => ({
-    reviewAct, choose, clearChoice: () => patch({ selected: [] }), flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn,
+    reviewAct, choose, clearChoice: () => patch({ selected: [] }), flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, toggleAutoTerms,
     toggleHelp: () => { if (runRef.current?.feedback) setExplainHidden((value) => !value); else if (runRef.current?.revealed) patch((value) => ({ explain: !value.explain })); else toggleHint(); },
     noteAssistance,
     // Opening a question to read its Q&A (a 信箱 letter): the explanation shows and the autopilot is held on this question, whatever the answer was.
@@ -716,7 +758,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     toggleMarkTerms,
     exitMarkTerms,
     endRound,
-  }), [reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, patch, toggleAutopilot, toggleSelfGradeAdvance, undoAnswer, setAutoAdvancePaused, toggleHint, noteAssistance, skipQuestion, toggleMarkTerms, exitMarkTerms, endRound]);
-  return { run, entry, showBack, showEn, selfGradeAdvance, enBusyKey, teachingBusy: !!teachingPending[reviewEntryKey(run)], teachingError: teachingFailure[reviewEntryKey(run)]?.message || '', autopilot, autoAdvance, autoAdvanceActive: activeAutoAdvance, autoAdvancePaused, setAutoAdvancePaused, advanceKey,
+  }), [reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, toggleAutoTerms, patch, toggleAutopilot, toggleSelfGradeAdvance, undoAnswer, setAutoAdvancePaused, toggleHint, noteAssistance, skipQuestion, toggleMarkTerms, exitMarkTerms, endRound]);
+  return { run, entry, showBack, showEn, autoTerms, selfGradeAdvance, enBusyKey, autoTermsBusyKey, teachingBusy: !!teachingPending[reviewEntryKey(run)], teachingError: teachingFailure[reviewEntryKey(run)]?.message || '', autopilot, autoAdvance, autoAdvanceActive: activeAutoAdvance, autoAdvancePaused, setAutoAdvancePaused, advanceKey,
     explainHidden, skippedIndices, shortcutHelp, markingTerms, keyGrade, endAsked, questionKeys, ...kind, coach, continueTo, onCoachPractice, enterRun, enterMovedRun, reset, clearRun, patchRun, pollRun, pollNow, actions, flushDraft };
 }

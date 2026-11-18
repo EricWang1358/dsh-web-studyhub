@@ -93,9 +93,9 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   useInjectCss(reviewCss, "study-review");
   useInjectCss(coachCss, "study-coach");
   useInjectCss(companionsCss, "study-companions");
-  const { run, entry, showBack, showEn, enBusyKey, keyGrade, choice, isCloze, autopilot, actions } = session;
+  const { run, entry, showBack, showEn, autoTerms, enBusyKey, autoTermsBusyKey, keyGrade, choice, isCloze, autopilot, actions } = session;
   const { selected, hint, explain, response, clozeValues } = entry;
-  const { reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, toggleEn } = actions;
+  const { reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, toggleEn, toggleAutoTerms } = actions;
   const { call, act, busy, openModal, openSettings, notify } = useStudy();
   const toggleCardFocus = React.useCallback(() => {
     if (!run?.card?.id) return;
@@ -492,6 +492,9 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             enOn={enOn}
             enBusy={!!enBusyKey && enBusyKey === reviewEntryKey(run)}
             onToggleEn={toggleEn}
+            autoTerms={!!autoTerms}
+            autoTermsBusy={!!autoTermsBusyKey && autoTermsBusyKey === reviewEntryKey(run)}
+            onToggleAutoTerms={toggleAutoTerms}
             autopilot={autopilot} onToggleAutopilot={actions.toggleAutopilot}
             selfGradeAdvance={session.selfGradeAdvance} onToggleSelfGradeAdvance={actions.toggleSelfGradeAdvance}
             onUndo={actions.undoAnswer}
@@ -517,7 +520,9 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
         )}
         <TermChips
           terms={termMarks.terms}
+          candidates={termMarks.candidates}
           onRemove={termMarks.removeTerm}
+          onMarkCandidate={termMarks.markCandidate}
           onFill={applyMarkedTerms}
           onTermList={termCourseName ? () => { termMarks.refreshCourseTerms(); setTermListOpen(true); } : undefined}
           hasCourse={Boolean(termCourseName)}

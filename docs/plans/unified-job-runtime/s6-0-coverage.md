@@ -174,6 +174,7 @@
 | **新增** `lib/contexts/materials/classify-jobs.js`、`lib/contexts/materials/course-suggest.js` | 仍走 | 例外：共享流水线 | 资料 AI 智能分类（`source.folder.classify`）与课程归属整理（`source.organize.start` / `source.organize.suggest`）经注入宿主模型路由运行（#1181） |
 | **新增→已更新** `lib/contexts/notes/note-generation.js` | 仍走 | 例外：共享流水线 | S4-10 把 `note.generate` 的模型调用抽到这里，模型由调用方传入（网关步骤 `note:1`） |
 | **新增** `lib/contexts/recording/operations.js:54` | 仍走 | 例外：即时请求 | `capture` 的宿主模型调用 |
+| **新增** `lib/contexts/study/card-terms.js:90` | 仍走 | 例外：共享流水线 | `card.terms` 即时提取候选生词，模型由调用方传入（经 `lib/runtime/instant.js` 计量） |
 | **新增** `lib/contexts/study/operations.js:134` | 仍走 | 例外：即时请求 | `card.grade` |
 
 ## 5. 发现的缺口（本步不修，登记并给出去向）

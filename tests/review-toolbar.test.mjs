@@ -81,7 +81,7 @@ test("更多 is a menu (#79): a button with aria-haspopup, not a details element
   assert.match(closed, /<button[^>]*aria-haspopup="menu"[^>]*aria-expanded="false"[^>]*>更多<\/button>|<button[^>]*aria-expanded="false"[^>]*aria-haspopup="menu"[^>]*>更多<\/button>/);
   const open = render({ feedback: null }, { moreDefaultOpen: true });
   assert.match(open, /role="menu"/);
-  assert.deepEqual([...open.matchAll(/<span class="sh-menu__label">([^<]*)<\/span>/g)].map((match) => match[1]), ["显示英文", "字号与版心…", "写笔记", "斩掉此题"], "修题 is no item of 更多 any more: it is a button on the toolbar");
+  assert.deepEqual([...open.matchAll(/<span class="sh-menu__label">([^<]*)<\/span>/g)].map((match) => match[1]), ["显示英文", "答错后列出生词", "字号与版心…", "写笔记", "斩掉此题"], "修题 is no item of 更多 any more: it is a button on the toolbar");
   assert.match(open, /<button[^>]*role="menuitem"[^>]*class="sh-menu__item is-danger"[^>]*>(?:(?!<\/button>).)*斩掉此题/, 'slaying is marked as the dangerous one');
   const withTask = render({ feedback: null }, { onTask() {}, moreDefaultOpen: true });
   assert.ok(withTask.indexOf("记待办") > withTask.indexOf("写笔记") && withTask.indexOf("记待办") < withTask.indexOf("斩掉此题"));
@@ -207,5 +207,31 @@ test("标生词 sits after 修题, reflects aria-pressed and W shortcut, and sta
   setUiLanguage("en");
   try {
     assert.match(termsButton(render({ feedback: null })), />Mark words<\/button>$/);
+  } finally { setUiLanguage("zh"); }
+});
+
+test("答错后列出生词 sits in 更多 below 显示英文, reflects aria-checked/busy/exam, and translates to English (#1204)", () => {
+  setUiLanguage("zh");
+  const off = menuOf({ feedback: null }, { autoTerms: false, onToggleAutoTerms() {} });
+  const offBtn = item(off, "答错后列出生词");
+  assert.match(offBtn, /aria-checked="false"/);
+  assert.match(offBtn, /data-usage="review\.terms-auto"/);
+  assert.match(offBtn, /打开后，每道答错的题第一次会多一次轻量调用/);
+  assert.ok(off.indexOf("显示英文") < off.indexOf("答错后列出生词"), "after 显示英文");
+
+  const on = menuOf({ feedback: null }, { autoTerms: true, onToggleAutoTerms() {} });
+  assert.match(item(on, "答错后列出生词"), /aria-checked="true"/);
+
+  const busy = menuOf({ feedback: null }, { autoTerms: false, autoTermsBusy: true, onToggleAutoTerms() {} });
+  assert.match(item(busy, "答错后列出生词"), /\bdisabled\b/);
+
+  assert.doesNotMatch(menuOf({ mode: "exam", feedback: null }, { autoTerms: true }), /答错后列出生词/);
+
+  setUiLanguage("en");
+  try {
+    const english = menuOf({ feedback: null }, { autoTerms: false, onToggleAutoTerms() {} });
+    assert.match(english, />List unfamiliar words after wrong answers</);
+    assert.match(english, />When on, the first wrong answer on a question runs one light model call</);
+    assert.doesNotMatch(english.replace(/data-usage="[^"]*"/g, ""), han);
   } finally { setUiLanguage("zh"); }
 });

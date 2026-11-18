@@ -1,10 +1,12 @@
 import React from "react";
 import { reviewEntryKey } from "../async.js";
+import { isPassed } from "./session-logic.js";
 import { ui, uiLocale } from "../i18n.js";
 import { MAX_MARKED_TERMS, mergeAdjacent, normalizeTerm, toggleTerm, wordAt } from "./term-marks.js";
 
 export const TERM_HIGHLIGHT_NAME = "study-term-mark";
 export const SEEN_TERM_HIGHLIGHT_NAME = "study-term-seen";
+export const CANDIDATE_TERM_HIGHLIGHT_NAME = "study-term-candidate";
 
 const EMPTY_ENTRY = Object.freeze({ terms: [], hits: [] });
 const PROMPT_EXCERPT_MAX = 60;
@@ -259,11 +261,24 @@ function replaceMergedTerms(terms, replaced, nextTerm) {
  * per-question memory keyed by `reviewEntryKey(run)`, click/drag extraction, adjacent word merge,
  * option interception during marking mode, and CSS Custom Highlight synchronization.
  */
-export function useTermMarking({ session, reviewBodyRef, notify, call, courseName = "", assistTasks } = {}) {
+export function useTermMarking({ session, reviewBodyRef, notify, call, courseName = "", assistTasks, candidates } = {}) {
   const run = session?.run;
   const entryKey = reviewEntryKey(run);
   const runId = run?.id || "";
   const disabledForState = !entryKey || run?.mode === "exam" || !!run?.complete;
+  const sessionCandidates = React.useMemo(() => (
+    Array.isArray(candidates) ? candidates :
+    session?.autoTerms &&
+    run?.mode !== "exam" &&
+    !run?.complete &&
+    run?.revealed &&
+    run?.feedback &&
+    !run.feedback.selfReported &&
+    !isPassed(run) &&
+    Array.isArray(run.solution?.terms)
+      ? run.solution.terms
+      : []
+  ), [candidates, session?.autoTerms, run]);
   const resolvedCourse = typeof (courseName || run?.course) === "string"
     ? (courseName || run?.course).replace(/\s+/g, " ").trim()
     : "";
@@ -323,6 +338,7 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
 
   const activeSpansRef = React.useRef([]);
   const seenSpansRef = React.useRef([]);
+  const candidateSpansRef = React.useRef([]);
   const pointerDownRef = React.useRef(null);
   const suppressClickUntilRef = React.useRef(0);
   const markingRef = React.useRef(marking);
@@ -605,6 +621,26 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
     persistMark([clean]);
   }, [commitEntry, entryKey, notifyLimit, persistMark, persistUnmark]);
 
+  const addPhraseTerm = React.useCallback((raw, hit = null) => {
+    const clean = normalizeTerm(raw);
+    if (!clean || !entryKey) return;
+    const current = entriesByKeyRef.current[entryKey] || EMPTY_ENTRY;
+    if (current.terms.some((item) => item.toLowerCase() === clean.toLowerCase())) return;
+    const result = toggleTerm(current.terms, clean, MAX_MARKED_TERMS);
+    if (result.limitReached) {
+      notifyLimit();
+      return;
+    }
+    if (!result.added) return;
+    commitEntry({
+      terms: result.terms,
+      hits: hit ? [...current.hits, hit] : current.hits,
+    });
+    persistMark([clean]);
+  }, [commitEntry, entryKey, notifyLimit, persistMark]);
+
+  const markCandidate = React.useCallback((raw) => addPhraseTerm(raw), [addPhraseTerm]);
+
   const applyPointHit = React.useCallback((pointHit) => {
     if (!pointHit || !entryKey) return;
     const { node, offset } = pointHit;
@@ -617,22 +653,11 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
     }
 
     const current = entriesByKeyRef.current[entryKey] || EMPTY_ENTRY;
-    const seenHit = seenSpansRef.current.find(
-      (span) => span.node === node && offset >= span.start && offset < span.end,
-    );
-    if (seenHit) {
-      if (current.terms.some((item) => item.toLowerCase() === seenHit.term.toLowerCase())) return;
-      const result = toggleTerm(current.terms, seenHit.term, MAX_MARKED_TERMS);
-      if (result.limitReached) {
-        notifyLimit();
-        return;
-      }
-      if (!result.added) return;
-      commitEntry({
-        terms: result.terms,
-        hits: [...current.hits, { node, start: seenHit.start, end: seenHit.end, term: seenHit.term }],
-      });
-      persistMark([seenHit.term]);
+    const phraseHit =
+      seenSpansRef.current.find((span) => span.node === node && offset >= span.start && offset < span.end) ||
+      candidateSpansRef.current.find((span) => span.node === node && offset >= span.start && offset < span.end);
+    if (phraseHit) {
+      addPhraseTerm(phraseHit.term, { node, start: phraseHit.start, end: phraseHit.end, term: phraseHit.term });
       return;
     }
 
@@ -668,7 +693,7 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
     if (!result.added) return;
     commitEntry({ terms: result.terms, hits: merged.entries });
     persistMark([hit.term]);
-  }, [commitEntry, entryKey, notifyLimit, persistMark, persistUnmark, removeTerm]);
+  }, [addPhraseTerm, commitEntry, entryKey, notifyLimit, persistMark, persistUnmark, removeTerm]);
 
   handlersRef.current = { applySelectedText, applyPointHit };
 
@@ -679,18 +704,42 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
       .map((item) => item.term);
   }, [courseTerms, terms]);
 
+  const candidateTerms = React.useMemo(() => {
+    if (!sessionCandidates.length) return [];
+    const activeKeys = new Set(terms.map((item) => item.toLowerCase()));
+    const knownKeys = new Set(
+      courseTerms
+        .filter((item) => item?.state === "known" || item?.state === "learned")
+        .map((item) => item?.term?.toLowerCase())
+        .filter(Boolean),
+    );
+    const seen = new Set();
+    const out = [];
+    for (const raw of sessionCandidates) {
+      const clean = normalizeTerm(raw);
+      if (!clean) continue;
+      const key = clean.toLowerCase();
+      if (seen.has(key) || activeKeys.has(key) || knownKeys.has(key)) continue;
+      seen.add(key);
+      out.push(clean);
+    }
+    return out;
+  }, [sessionCandidates, courseTerms, terms]);
+
   // Paint all occurrences via CSS Custom Highlight API and keep ranges fresh on DOM changes.
   React.useEffect(() => {
     const body = reviewBodyRef?.current;
     const clearHighlight = () => {
       activeSpansRef.current = [];
       seenSpansRef.current = [];
+      candidateSpansRef.current = [];
       if (supportsHighlights()) {
         CSS.highlights.delete(TERM_HIGHLIGHT_NAME);
         CSS.highlights.delete(SEEN_TERM_HIGHLIGHT_NAME);
+        CSS.highlights.delete(CANDIDATE_TERM_HIGHLIGHT_NAME);
       }
     };
-    if (!body || disabledForState || (!terms.length && !seenUnknownTerms.length)) {
+    if (!body || disabledForState || (!terms.length && !seenUnknownTerms.length && !candidateTerms.length)) {
       clearHighlight();
       return clearHighlight;
     }
@@ -700,11 +749,17 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
       const seen = seenUnknownTerms.length
         ? collectHighlightEntries(body.ownerDocument, body, seenUnknownTerms, { caseInsensitive: true })
         : { ranges: [], spans: [] };
+      const cand = candidateTerms.length
+        ? collectHighlightEntries(body.ownerDocument, body, candidateTerms, { caseInsensitive: true })
+        : { ranges: [], spans: [] };
       activeSpansRef.current = active.spans;
       seenSpansRef.current = seen.spans;
+      candidateSpansRef.current = cand.spans;
       if (supportsHighlights()) {
         if (seen.ranges.length) CSS.highlights.set(SEEN_TERM_HIGHLIGHT_NAME, new Highlight(...seen.ranges));
         else CSS.highlights.delete(SEEN_TERM_HIGHLIGHT_NAME);
+        if (cand.ranges.length) CSS.highlights.set(CANDIDATE_TERM_HIGHLIGHT_NAME, new Highlight(...cand.ranges));
+        else CSS.highlights.delete(CANDIDATE_TERM_HIGHLIGHT_NAME);
         if (active.ranges.length) {
           const highlight = new Highlight(...active.ranges);
           try { highlight.priority = 1; } catch {}
@@ -737,7 +792,7 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
       if (rafId) cancelAnimationFrame(rafId);
       clearHighlight();
     };
-  }, [disabledForState, reviewBodyRef, terms, seenUnknownTerms, entryKey, run?.revealed, run?.feedback, session?.showBack]);
+  }, [disabledForState, reviewBodyRef, terms, seenUnknownTerms, candidateTerms, entryKey, run?.revealed, run?.feedback, session?.showBack]);
 
   React.useEffect(() => {
     if (!marking) pointerDownRef.current = null;
@@ -827,8 +882,10 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
   return {
     marking,
     terms,
+    candidates: candidateTerms,
     toggleMarking,
     exitMarking,
+    markCandidate,
     removeTerm,
     courseName: resolvedCourse,
     courseTerms,
