@@ -75,7 +75,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/jev-providers.js`: 1 ui file; 3 other lib files
 - `lib/job-contract.js`: 4 ui files; contexts audio, generation, jobs; 3 other lib files
 - `lib/job-model.js`: 3 ui files; context generation; 4 other lib files
-- `lib/job-status.js`: 27 ui files; contexts audio, jobs, library; 5 other lib files
+- `lib/job-status.js`: 28 ui files; contexts audio, jobs, library; 5 other lib files
 - `lib/job-timing.js`: 1 ui file
 - `lib/large-documents.js`: 10 ui files; context generation; 6 other lib files
 - `lib/learner.js`: 1 ui file; context coach; 4 other lib files

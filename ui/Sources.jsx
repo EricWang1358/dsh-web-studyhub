@@ -6,6 +6,7 @@ import { PdfConvertHistory, PdfConvertJobs } from './PdfConvertJob.jsx';
 import CourseField, { parseCourses } from './CourseField.jsx';
 import PageScope, { courseNamesOf, usePageScope } from './PageScope.jsx';
 import MaterialCategoryBar from './MaterialCategoryBar.jsx';
+import { LIVE_MATERIAL_JOB_STATUSES, consumeOpenSourcesOrganize } from './use-material-classify.js';
 import {
   ALL_FACET,
   buildMaterialCategoryOptions,
@@ -15,7 +16,7 @@ import {
   hasFacetOption,
 } from './material-facets.js';
 import { useInjectCss } from "./shared.js";
-import { AddSourceButton, Badge, Button, Checkbox, CheckboxInput, Chip, ChunkedRows, ConfirmDialog, Dialog, Disclosure, Field, Icon, InlineMessage, Menu, PageHeader, SegmentedControl, Select, TextInput, Tooltip, filterItems, scrollWindowCount, useToast } from "./components/index.js";
+import { AddSourceButton, Badge, Button, Checkbox, CheckboxInput, Chip, ChunkedRows, ConfirmDialog, Dialog, Disclosure, Field, Icon, InlineMessage, Menu, PageHeader, ProgressBar, SegmentedControl, Select, TextInput, Tooltip, filterItems, scrollWindowCount, useToast } from "./components/index.js";
 import { browserStorage, readJSON, writeJSON } from "./storage.js";
 import { useNarrow } from "./use-narrow.js";
 import { useRowFit } from "./use-row-fit.js";
@@ -76,6 +77,16 @@ import { openCompanionTarget, resolveSourceCompanionTarget } from './companions/
 const UNKNOWN = "unknown";
 /* The 已置顶 group is not a day: its own key in the open/closed sets (lib/material-pins.js). */
 const PINNED = "__pinned";
+const pendingOrganizeEdits = new Map();
+function rememberOrganizeEdit(jobKey, proposalId, patch) {
+  if (!jobKey || !proposalId) return;
+  if (!pendingOrganizeEdits.has(jobKey)) {
+    if (pendingOrganizeEdits.size >= 16) pendingOrganizeEdits.delete(pendingOrganizeEdits.keys().next().value);
+    pendingOrganizeEdits.set(jobKey, new Map());
+  }
+  const map = pendingOrganizeEdits.get(jobKey);
+  map.set(proposalId, { ...(map.get(proposalId) || {}), ...patch });
+}
 const VALID_GROUP_MODES = new Set(["course", "folder", "day", "none"]);
 const VALID_SORTS = new Set(["recent", "title", "review"]);
 const groupModeKey = root => `study-sources-group-mode:v1:${root || ""}`;
@@ -457,7 +468,8 @@ function GroupHead({ expanded, onToggle, className = '', children }) {
 
 export default function Sources({ data, setModal, sourceForm, openAgent, onGenerate, onPractice, onOpenSources, onLegacyRetry, onOpenSettings, onBuildIndex, highlight }) {
   const { busy, act, call } = useStudy();
-  const refresh = useContext(AppContext)?.core?.refresh;
+  const app = useContext(AppContext);
+  const refresh = app?.core?.refresh;
   useInjectCss(css, "study-sources");
   const toast = useToast();
   const [scope, setScope] = usePageScope(data.root, 'sources', data.focus?.course ?? '*');
@@ -630,8 +642,39 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
     widened.current = highlight.at;
     if (landed.some(item => !inScope(item, scope, known))) setScope('*');
   }, [highlight?.at, allItems]); // eslint-disable-line react-hooks/exhaustive-deps
-  const [organizing, setOrganizing] = useState(false), [selected, setSelected] = useState([]);
+  const snapshotOrganizeJob = useMemo(
+    () => (Array.isArray(data.jobs) ? data.jobs.find(job => job?.type === 'material-organize' && LIVE_MATERIAL_JOB_STATUSES.has(job?.contract?.status || job?.status)) || null : null),
+    [data.jobs],
+  );
+  const pendingOrganize = useMemo(() => {
+    const raw = data.settings?.materialOrganizePending;
+    return raw && Array.isArray(raw.proposals) && raw.proposals.length > 0 ? raw : null;
+  }, [data.settings?.materialOrganizePending]);
+  const [optimisticOrganizeJob, setOptimisticOrganizeJob] = useState(null);
+  useEffect(() => {
+    if (!optimisticOrganizeJob) return;
+    const inSnapshot = Array.isArray(data.jobs) && data.jobs.find(job => job?.id === optimisticOrganizeJob.id);
+    if (inSnapshot || (pendingOrganize && (!pendingOrganize.jobId || pendingOrganize.jobId === optimisticOrganizeJob.id))) {
+      setOptimisticOrganizeJob(null);
+    }
+  }, [optimisticOrganizeJob, data.jobs, pendingOrganize]);
+  const activeOrganizeJob = snapshotOrganizeJob || (optimisticOrganizeJob && LIVE_MATERIAL_JOB_STATUSES.has(optimisticOrganizeJob.contract?.status || optimisticOrganizeJob.status) ? optimisticOrganizeJob : null);
+  const pendingOrganizeKey = pendingOrganize ? String(pendingOrganize.jobId || pendingOrganize.createdAt || 'pending') : '';
+  const [organizing, setOrganizing] = useState(() => Boolean(activeOrganizeJob || pendingOrganize || consumeOpenSourcesOrganize()));
+  const [selected, setSelected] = useState([]);
   const [courseText, setCourseText] = useState(''), [proposals, setProposals] = useState(null);
+  const [organizeStartingCount, setOrganizeStartingCount] = useState(0);
+  const [organizeError, setOrganizeError] = useState('');
+  const [organizeEditRev, setOrganizeEditRev] = useState(0);
+  const prevOrganizeSignal = useRef({ jobId: activeOrganizeJob?.id || '', pendingKey: pendingOrganizeKey });
+  useEffect(() => {
+    const requested = consumeOpenSourcesOrganize();
+    const newJob = Boolean(activeOrganizeJob?.id && activeOrganizeJob.id !== prevOrganizeSignal.current.jobId);
+    const newPending = Boolean(pendingOrganizeKey && pendingOrganizeKey !== prevOrganizeSignal.current.pendingKey);
+    prevOrganizeSignal.current = { jobId: activeOrganizeJob?.id || '', pendingKey: pendingOrganizeKey };
+    if (requested) setShowArchived(false);
+    if (requested || newJob || newPending) setOrganizing(true);
+  }, [activeOrganizeJob?.id, pendingOrganizeKey]);
   const [batchFolder, setBatchFolder] = useState('');
   // EXPERIMENTAL (hidden unless "Show experimental features" is on, off by default): Jev's course suggestions share the AI suggestions' rows and apply button.
   const experimental = experimentalShown(data), jevOn = useJevCourseSuggest(call, experimental ? undefined : false), [jevNote, setJevNote] = useState(''), [jevRun, setJevRun] = useState(null);
@@ -649,8 +692,135 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
     restore: async () => { await renameDocument({ act, call }, item, { restore: true }); },
   }) : undefined;
   const finish = () => { setProposals(null); setSelected([]); setJevRun(null); };
+  const hydratedProposals = useMemo(() => {
+    if (!pendingOrganize) return null;
+    const edits = pendingOrganizeKey ? pendingOrganizeEdits.get(pendingOrganizeKey) : null;
+    return pendingOrganize.proposals.map(proposal => {
+      const item = allItems.find(entry => entry.sourceIds.includes(proposal.id));
+      const edit = edits?.get(proposal.id);
+      const defaultInclude = proposal.decidedBy === 'jev' ? startsIncluded(proposal) : true;
+      const defaultCourseText = Array.isArray(proposal.courses) ? proposal.courses.join('; ') : '';
+      return {
+        ...proposal,
+        key: item?.key ?? proposal.key,
+        title: item?.title ?? proposal.title,
+        include: edit?.include !== undefined ? Boolean(edit.include) : defaultInclude,
+        courseText: edit?.courseText !== undefined ? edit.courseText : defaultCourseText,
+      };
+    });
+  }, [pendingOrganize, pendingOrganizeKey, allItems, organizeEditRev]); // eslint-disable-line react-hooks/exhaustive-deps
+  const shownProposals = proposals || hydratedProposals;
+  const shownJevRun = proposals ? jevRun : (pendingOrganize?.jev ?? null);
+  const organizeRunning = Boolean(activeOrganizeJob || organizeStartingCount > 0);
+  const organizeDone = activeOrganizeJob ? Number(activeOrganizeJob.contract?.progress?.done ?? activeOrganizeJob.done ?? 0) : 0;
+  const organizeTotal = activeOrganizeJob
+    ? Number(activeOrganizeJob.contract?.progress?.total ?? activeOrganizeJob.total ?? 0)
+    : organizeStartingCount;
   // B6: every batch action (course attribution, AI suggest, folder move, archive, restore, permanent delete) acts strictly on visible `chosen` items in active scope/filter.
   const chosen = filtered.filter(item => selected.includes(item.key));
+  const loadOrganizeSuggestions = async () => {
+    const sourceIds = chosen.map(item => item.sourceIds[0]).filter(Boolean);
+    if (!sourceIds.length) return;
+    setOrganizeError('');
+    if (!Array.isArray(data.jobs)) {
+      await act('source.organize.suggest', { sourceIds }, result => {
+        setJevRun(result.jev ?? null);
+        setProposals(result.proposals.map(proposal => {
+          const item = allItems.find(entry => entry.sourceIds.includes(proposal.id));
+          return { ...proposal, key: item?.key, title: item?.title ?? proposal.title, include: proposal.decidedBy === 'jev' ? startsIncluded(proposal) : true, courseText: proposal.courses.join('; ') };
+        }));
+      });
+      return;
+    }
+    setOrganizeStartingCount(sourceIds.length);
+    try {
+      const res = await call('source.organize.start', { sourceIds });
+      if (res?.job && LIVE_MATERIAL_JOB_STATUSES.has(res.job.contract?.status || res.job.status)) {
+        setOptimisticOrganizeJob(res.job);
+      }
+      await Promise.resolve(refresh?.()).catch(() => {});
+    } catch (err) {
+      if (/unknown action|not found|未知操作|未注册/i.test(String(err?.message || ''))) {
+        setOrganizeStartingCount(0);
+        await act('source.organize.suggest', { sourceIds }, result => {
+          setJevRun(result.jev ?? null);
+          setProposals(result.proposals.map(proposal => {
+            const item = allItems.find(entry => entry.sourceIds.includes(proposal.id));
+            return { ...proposal, key: item?.key, title: item?.title ?? proposal.title, include: proposal.decidedBy === 'jev' ? startsIncluded(proposal) : true, courseText: proposal.courses.join('; ') };
+          }));
+        });
+        return;
+      }
+      setOrganizeError(errorMessage(err));
+    } finally {
+      setOrganizeStartingCount(0);
+    }
+  };
+  const stopOrganizeJob = async () => {
+    setOrganizeStartingCount(0);
+    setOptimisticOrganizeJob(null);
+    if (!activeOrganizeJob?.id) return;
+    try {
+      await call('job.control', { jobId: activeOrganizeJob.id, action: 'cancel' });
+      await Promise.resolve(refresh?.()).catch(() => {});
+    } catch (err) {
+      setOrganizeError(errorMessage(err));
+    }
+  };
+  const toggleProposalInclude = (proposalId, include) => {
+    if (proposals) {
+      setProposals(current => current.map(item => (item.id === proposalId ? { ...item, include } : item)));
+      return;
+    }
+    if (pendingOrganizeKey) {
+      rememberOrganizeEdit(pendingOrganizeKey, proposalId, { include });
+      setOrganizeEditRev(v => v + 1);
+    }
+  };
+  const changeProposalCourses = (proposalId, nextCourseText) => {
+    if (proposals) {
+      setProposals(current => current.map(item => (item.id === proposalId ? { ...item, courseText: nextCourseText } : item)));
+      return;
+    }
+    if (pendingOrganizeKey) {
+      rememberOrganizeEdit(pendingOrganizeKey, proposalId, { courseText: nextCourseText });
+      setOrganizeEditRev(v => v + 1);
+    }
+  };
+  const applyOrganizeProposals = () => {
+    if (!shownProposals?.length) return;
+    const assignments = shownProposals.filter(proposal => proposal.include).flatMap(proposal => {
+      const courses = parseCourses(proposal.courseText);
+      if (proposal.key) {
+        const mapped = courseAssignments(allItems, [proposal.key], courses, byId);
+        if (mapped.length) return mapped;
+      }
+      if (!proposal.id) return [];
+      return [{ id: proposal.id, courses, expectedCourses: byId.get(proposal.id)?.courses || [] }];
+    });
+    if (!assignments.length) return;
+    act('source.courses.set', { assignments }, () => {
+      if (pendingOrganizeKey) pendingOrganizeEdits.delete(pendingOrganizeKey);
+      setOrganizeEditRev(v => v + 1);
+      finish();
+    });
+  };
+  const dismissOrganizeProposals = () => {
+    setOrganizeError('');
+    if (pendingOrganize && !proposals) {
+      act(
+        'source.organize.dismiss',
+        pendingOrganize.jobId ? { jobId: pendingOrganize.jobId } : {},
+        () => {
+          if (pendingOrganizeKey) pendingOrganizeEdits.delete(pendingOrganizeKey);
+          setOrganizeEditRev(v => v + 1);
+          finish();
+        },
+      );
+      return;
+    }
+    finish();
+  };
   const archiveChosen = async () => {
     if (!chosen.length) return;
     const done = await act('source.archive', { sourceIds: idsOfDocuments(chosen), archived: true });
@@ -904,7 +1074,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
             <Button size="sm" variant="secondary" icon="plus" lock={busy} onClick={() => setCreatingFolder(true)}>{ui('新建文件夹')}</Button>
           )}
         </div>
-        {items.length > 0 && <details className="source-organize" data-tour="sources-organize" onToggle={event => setOrganizing(event.currentTarget.open)}>
+        {items.length > 0 && <details className="source-organize" data-tour="sources-organize" open={organizing || undefined} onToggle={event => setOrganizing(event.currentTarget.open)}>
           <summary>{showArchived ? ui('批量管理已归档资料') : ui('整理课程归属')}</summary>
           <p className="muted">{showArchived ? ui('勾选已归档资料后，可批量恢复、统一永久删除，或整理课程归属。') : ui('勾选资料后统一整理。改课程归属时，原文与引用保持不变。')}</p>
           <p>{uiFormat('已选择 {0} 份资料', [chosen.length])}{' '}
@@ -916,15 +1086,8 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
             <Button disabled={!chosen.length} lock={busy} onClick={() => act('source.courses.set', {
               assignments: courseAssignments(chosen, chosen.map(item => item.key), parseCourses(courseText), byId),
             }, finish)}>{ui('应用课程归属')}</Button>
-            <Button disabled={!modelReadiness(data).ready || !chosen.length || chosen.length > 100} lock={busy}
-              onClick={() => act('source.organize.suggest', { sourceIds: chosen.map(item => item.sourceIds[0]) }, result => {
-                setJevRun(result.jev ?? null);
-                setProposals(result.proposals.map(proposal => {
-                  const item = items.find(entry => entry.sourceIds.includes(proposal.id));
-                  // A row Jev decided starts included only if it changes something, like the Jev button's rows; the model's rows start included.
-                  return { ...proposal, key: item?.key, title: item?.title ?? proposal.title, include: proposal.decidedBy === 'jev' ? startsIncluded(proposal) : true, courseText: proposal.courses.join('; ') };
-                }));
-              })}>{ui('请 AI 建议')}</Button>
+            <Button busy={organizeRunning} disabled={!modelReadiness(data).ready || !chosen.length} lock={busy}
+              data-organize-ai onClick={loadOrganizeSuggestions}>{ui('请 AI 建议')}</Button>
             <JevSuggestButton enabled={jevOn} disabled={busy || !chosen.length || chosen.length > 100}
               onClick={() => { setJevNote(''); act('source.organize.jev', { sourceIds: chosen.map(item => item.sourceIds[0]) }, result => {
                 setJevNote(noteText(result));
@@ -934,6 +1097,29 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
                 }));
               }); }} />
           </div>
+          {organizeRunning && (
+            <div className="source-organize-progress" role="status" aria-live="polite" data-organize-phase="running">
+              <div className="source-organize-progress__head">
+                <span className="source-organize-progress__text">
+                  {uiFormat('正在整理课程归属（{0} / {1}）…', [organizeDone, organizeTotal])}
+                </span>
+                <div className="source-organize-progress__actions">
+                  {activeOrganizeJob?.id && app?.nav?.show?.task && (
+                    <Button size="sm" variant="quiet" iconEnd="arrow-right" data-open-organize-task
+                      onClick={() => app.nav.show.task(activeOrganizeJob.id)}>{ui('查看任务')}</Button>
+                  )}
+                  <Button size="sm" variant="quiet" lock={busy} data-stop-organize onClick={stopOrganizeJob}>{ui('停止')}</Button>
+                </div>
+              </div>
+              <ProgressBar size="sm" value={organizeDone} max={Math.max(organizeTotal, 1)} indeterminate={organizeDone === 0} label={ui('课程归属整理进度')} />
+            </div>
+          )}
+          {organizeError && (
+            <InlineMessage tone="error" className="source-organize-error">
+              <span>{organizeError}</span>{' '}
+              <Button size="sm" variant="link" onClick={dismissOrganizeProposals}>{ui('关闭')}</Button>
+            </InlineMessage>
+          )}
           {!showArchived && <div className="source-folder-actions">
             <Select className="source-folder-actions__select" aria-label={ui('目标文件夹')} value={batchFolder} onChange={setBatchFolder}
               options={[{ value: '', label: ui('未归入文件夹') }, ...materialFolders.folders.map(folder => ({ value: folder, label: folder }))]} disabled={busy} />
@@ -944,7 +1130,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
           </div>}
           <ModelSetupGate variant="compact" feature="organize" model={modelReadiness(data)} />
           {experimental && <JevNote note={jevNote} />}
-          {experimental && <JevRunNote jev={jevRun} />}
+          {experimental && <JevRunNote jev={shownJevRun} />}
           {/* 归档所选: the checked documents in one go (a material is archived before it can be deleted; in 已归档, checked ones can be restored or permanently deleted together). */}
           {!showArchived ? <div className="source-organization-actions source-archive-actions">
             <Button disabled={!chosen.length} lock={busy} data-archive-selected onClick={archiveChosen}>{chosen.length ? uiFormat('归档所选（{0}）', [chosen.length]) : ui('归档所选')}</Button>
@@ -954,20 +1140,20 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
             <Button variant="danger" disabled={!chosen.length} lock={busy} data-delete-selected onClick={() => setRemovingBatch(chosen)}>{chosen.length ? uiFormat('永久删除所选（{0}）', [chosen.length]) : ui('永久删除所选')}</Button>
             <span className="muted">{ui('恢复会把它们放回资料列表；永久删除不可撤销。')}</span>
           </div>}
-          {proposals &&<div className="source-course-proposals">
+          {shownProposals && <div className="source-course-proposals" data-organize-phase="review">
             <p className="muted">{ui('建议尚未保存，可先修改课程，再确认应用。')}</p>
-            {proposals.map(proposal => <div key={proposal.id}>
+            {shownProposals.map(proposal => <div key={proposal.id}>
               <Checkbox checked={proposal.include} disabled={busy} label={uiFormat('采用建议：{0}', [displayTitle(proposal.title)])}
-                onChange={include => setProposals(current => current.map(item => item.id === proposal.id ? { ...item, include } : item))} />
+                onChange={include => toggleProposalInclude(proposal.id, include)} />
               <CourseField label={displayTitle(proposal.title)} value={proposal.courseText} multiple courses={data.focus?.courses}
-                onChange={courseText => setProposals(current => current.map(item => item.id === proposal.id ? { ...item, courseText } : item))} disabled={busy || !proposal.include} />
+                onChange={nextCourseText => changeProposalCourses(proposal.id, nextCourseText)} disabled={busy || !proposal.include} />
               <p className="muted">{proposal.reason}{experimental && proposal.decidedBy === 'jev' && <> <JevDecidedBadge scope="row" /></>}</p>
               {experimental && <JevProbabilities jev={proposal.jev} />}
             </div>)}
-            <Button disabled={!proposals.some(proposal => proposal.include)} lock={busy} onClick={() => act('source.courses.set', {
-              assignments: proposals.filter(proposal => proposal.include).flatMap(proposal =>
-                courseAssignments(chosen, [proposal.key], parseCourses(proposal.courseText), byId)),
-            }, finish)}>{ui('确认应用建议')}</Button>
+            <div className="source-organization-actions">
+              <Button disabled={!shownProposals.some(proposal => proposal.include)} lock={busy} data-apply-organize onClick={applyOrganizeProposals}>{ui('确认应用建议')}</Button>
+              <Button variant="quiet" lock={busy} data-discard-organize onClick={dismissOrganizeProposals}>{ui('放弃建议')}</Button>
+            </div>
           </div>}
         </details>}
         {items.length > 0 && !courseScoped.length && <p className="muted">{ui('这个范围还没有资料。可切换到全部课程查看。')}</p>}

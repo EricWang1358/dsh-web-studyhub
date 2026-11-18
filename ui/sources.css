@@ -41,6 +41,11 @@
     .source-course-extra { margin-inline-start: var(--space-1); vertical-align: baseline; }
     .source-folder-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-2); }
     .source-folder-actions__select { min-width: 11em; }
+    .source-organize-progress { display: grid; gap: var(--space-1-5); margin: var(--space-3) 0; padding: var(--space-2-5) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-surface); min-width: 0; }
+    .source-organize-progress__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); min-width: 0; }
+    .source-organize-progress__text { font-size: var(--fs-sm); color: var(--text-dim); font-variant-numeric: tabular-nums; }
+    .source-organize-progress__actions { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); }
+    .source-organize-error { margin: var(--space-2) 0; }
     .source-folder-dialog__chips { display: flex; flex-wrap: wrap; gap: var(--space-1-5); margin: var(--space-2) 0; }
     & .source-group-head small { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
     /* A material is a row on the desk under its day's rule, not a card in a box (#570, ui/DESIGN.md "the card is the only physical object"): no border, no stock,
