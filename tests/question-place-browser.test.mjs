@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { createPreviewServer, previewCall } from '../scripts/preview-server.mjs';
 import { buildPreview } from '../scripts/build.mjs';
+import { build } from 'esbuild';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
@@ -260,4 +261,368 @@ test('question source place renders cleanly at 1280 and 420 px, hides in exam mo
     await previewCall(server, 'review.end', { runId: openRun.id });
   }
   await examContext.close();
+});
+
+const BOOK2_TITLE = 'Replication Handbook';
+const BOOK2_CHAPTERS = [
+  'State Machine Basics',
+  'Quorum Intersection',
+  'Byzantine Fault Tolerance Under Partial Synchrony',
+];
+const quoteBOf = (index) => `Handbook chapter ${index + 1} (${BOOK2_CHAPTERS[index]}) enforces linearizable state.`;
+
+async function seedMultiDeckLibrary(t) {
+  const root = await mkdtemp(join(tmpdir(), 'question-place-multi-'));
+  const service = new StudyService(join(root, 'library'));
+  t.after(async () => { await service.dispose(); await rm(root, { recursive: true, force: true }); });
+  await service.call('snapshot');
+  await service.store.update((state) => {
+    CHAPTERS.slice(0, 3).forEach((title, index) => {
+      state.sources.push({
+        id: `ds-p${index + 1}`,
+        title: `${DOC_TITLE} · p. ${index + 1}`,
+        text: `${quoteOf(index)} Extra lecture details for section ${index + 1}.`,
+        createdAt: at,
+        courses: [COURSE],
+        document: {
+          materialId: 'ds-notes-pdf',
+          page: index + 1,
+          totalPages: 3,
+          format: 'pdf',
+          origin: 'converted',
+          converter: 'marker',
+          filename: `${DOC_TITLE}.pdf`,
+          chapter: { index, title, level: 1 },
+          extractionVersion: 2,
+        },
+      });
+    });
+    BOOK2_CHAPTERS.forEach((title, index) => {
+      state.sources.push({
+        id: `ds-b2-p${index + 1}`,
+        title: `${BOOK2_TITLE} · p. ${index + 1}`,
+        text: `${quoteBOf(index)} Detailed notes for handbook chapter ${index + 1}.`,
+        createdAt: at,
+        courses: [COURSE],
+        document: {
+          materialId: 'ds-book2-pdf',
+          page: index + 1,
+          totalPages: BOOK2_CHAPTERS.length,
+          format: 'pdf',
+          origin: 'converted',
+          converter: 'marker',
+          filename: `${BOOK2_TITLE}.pdf`,
+          chapter: { index, title, level: 1 },
+          extractionVersion: 2,
+        },
+      });
+    });
+    state.decks.push(
+      {
+        id: 'ds-deck-a',
+        title: 'Consensus Deck',
+        course: COURSE,
+        cards: [
+          {
+            id: 'c-a1',
+            kind: 'quiz',
+            topic: 'Clock',
+            prompt: 'Why is physical clock synchronization bounded in distributed systems?',
+            answer: 'Crystal drift and asymmetric network delays.',
+            options: [
+              { id: 'a', text: 'Crystal drift and asymmetric network delays', correct: true },
+              { id: 'b', text: 'Zero latency fiber', correct: false },
+            ],
+            citations: [{ sourceId: 'ds-p1', quote: quoteOf(0) }],
+          },
+        ],
+      },
+      {
+        id: 'ds-deck-b',
+        title: 'Replication Deck',
+        course: COURSE,
+        cards: [
+          {
+            id: 'c-b1',
+            kind: 'quiz',
+            topic: 'BFT',
+            prompt: 'How many replicas tolerate f Byzantine faults under partial synchrony?',
+            answer: '3f + 1 replicas.',
+            options: [
+              { id: 'a', text: '3f + 1 replicas', correct: true },
+              { id: 'b', text: 'f + 1 replicas', correct: false },
+            ],
+            citations: [{ sourceId: 'ds-b2-p3', quote: quoteBOf(2) }],
+          },
+        ],
+      },
+    );
+    state.focus = { mode: 'class', course: COURSE, role: '', jd: '', targetTopics: [] };
+  });
+  await service.dispose();
+  return root;
+}
+
+test('outline target resets stale deck filter, restores filter without target, cleans up on early exit/failure, notifies missing row, and works under StrictMode (#1224, #1226)', { timeout: 600000 }, async (t) => {
+  const root = await seedMultiDeckLibrary(t);
+  const distDir = join(root, 'dist');
+  await buildPreview({ outdir: distDir });
+  const server = await createPreviewServer({ libraryRoot: join(root, 'library'), home: join(root, 'home'), port: 0, model: null, distDir });
+  let browser;
+  t.after(async () => { await browser?.close(); await server.close(); });
+  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium available: ${String(error.message).split('\n')[0]}`); return; }
+
+  const endRuns = async () => {
+    for (const openRun of (await previewCall(server, 'snapshot', {})).runs || []) {
+      await previewCall(server, 'review.end', { runId: openRun.id });
+    }
+  };
+
+  // 1. #1226: filter by Deck A -> restore without target -> click 出处 from Deck B -> filter resets to all decks and Deck B chapter opens & scrolls; missing row notifies.
+  {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await context.newPage();
+    const errors = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.addInitScript(() => {
+      localStorage.setItem('study-ui-language', 'zh');
+      localStorage.setItem('study-autopilot', 'off');
+    });
+
+    await page.goto(server.url);
+    await page.locator('.course-header .outline-entry').click();
+    await page.locator('.outline-tree').waitFor({ timeout: 30000 });
+    await page.locator('.outline-row', { hasText: BOOK2_TITLE }).waitFor({ state: 'visible', timeout: 15000 });
+
+    const deckCombo = page.locator('.outline-deck[role="combobox"]');
+    await deckCombo.waitFor({ state: 'visible', timeout: 30000 });
+    await deckCombo.click();
+    await page.locator('.sh-pop__popup:not([data-closed]) .sh-opt', { hasText: 'Consensus Deck' }).click();
+    await page.locator('.outline-row', { hasText: BOOK2_TITLE }).waitFor({ state: 'detached', timeout: 15000 });
+    assert.match(await deckCombo.innerText(), /Consensus Deck/);
+
+    // Return to library and re-open Outline normally: saved Deck A filter still restores when there is no target.
+    await page.locator('.outline-header').getByRole('button', { name: '返回学习库' }).click();
+    await page.locator('.course-header .outline-entry').click();
+    await page.locator('.outline-tree').waitFor({ timeout: 30000 });
+    await deckCombo.waitFor({ state: 'visible', timeout: 30000 });
+    assert.match(await deckCombo.innerText(), /Consensus Deck/, 'normal entry without target restores saved deck filter');
+    assert.equal(await page.locator('.outline-row', { hasText: BOOK2_TITLE }).count(), 0, 'Deck B document remains filtered out');
+
+    // Return to library, practise Deck B, and click 出处 -> filter resets to all decks and Deck B chapter #2 expands into viewport.
+    await page.locator('.outline-header').getByRole('button', { name: '返回学习库' }).click();
+    await page.getByRole('button', { name: '开始学习 Replication Deck' }).first().click();
+    const place = page.locator('[data-review-place]');
+    await place.waitFor({ state: 'visible', timeout: 30000 });
+    await place.click();
+
+    await page.locator('.outline-tree').waitFor({ timeout: 30000 });
+    await deckCombo.waitFor({ state: 'visible', timeout: 30000 });
+    assert.match(await deckCombo.innerText(), /全部题组/, 'arriving via 出处 resets stale deck filter to all decks');
+    await page.locator('.outline-row', { hasText: DOC_TITLE }).waitFor({ state: 'visible', timeout: 15000 });
+    const targetChapter = page.locator('[data-key="pdf:ds-book2-pdf#2"]');
+    await targetChapter.waitFor({ state: 'visible', timeout: 30000 });
+    assert.equal(await page.locator('[data-outline-toggle="pdf:ds-book2-pdf"]').getAttribute('aria-expanded'), 'true');
+    assert.equal(await page.locator('[data-outline-toggle="pdf:ds-book2-pdf#2"]').getAttribute('aria-expanded'), 'true');
+    assert.equal(await page.locator('[data-outline-toggle="pdf:ds-book2-pdf#0"]').getAttribute('aria-expanded'), 'false');
+    const inViewport = await page.evaluate(() => {
+      const r = document.querySelector('[data-key="pdf:ds-book2-pdf#2"]').getBoundingClientRect();
+      return r.bottom > 0 && r.top < window.innerHeight;
+    });
+    assert.equal(inViewport, true, 'Deck B target chapter scrolled into viewport');
+
+    // Missing target row in Outline notifies instead of failing silently.
+    await page.locator('.outline-header').getByRole('button', { name: /回到之前的第 1 题/ }).click();
+    await place.waitFor({ state: 'visible', timeout: 30000 });
+    let stripNextOutline = true;
+    const stripHandler = async (route) => {
+      const body = route.request().postData() || '';
+      if (stripNextOutline && /"action":"course\.outline"/.test(body)) {
+        stripNextOutline = false;
+        const response = await route.fetch();
+        const json = await response.json();
+        if (json?.value) {
+          json.value.documents = (json.value.documents || []).filter((doc) => doc.key !== 'pdf:ds-book2-pdf');
+          if (json.value.open) {
+            for (const key of Object.keys(json.value.open)) {
+              if (key.startsWith('pdf:ds-book2-pdf')) delete json.value.open[key];
+            }
+          }
+        }
+        await route.fulfill({ response, json });
+        return;
+      }
+      await route.continue();
+    };
+    await page.route('**/api/call', stripHandler);
+    await place.click();
+    await page.locator('.outline-tree').waitFor({ timeout: 30000 });
+    await page.locator('.sh-toasts .sh-toast', { hasText: '没有在总纲里找到这道题的出处' }).waitFor({ state: 'visible', timeout: 15000 });
+    await page.unroute('**/api/call', stripHandler);
+
+    assert.deepEqual(errors, []);
+    await endRuns();
+    await context.close();
+  }
+
+  // 2. #1224: leaving before course.outline finishes AND load failure both clear the one-shot target so later normal Outline open does not auto-expand.
+  {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await context.newPage();
+    const errors = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.addInitScript(() => {
+      localStorage.setItem('study-ui-language', 'zh');
+      localStorage.setItem('study-autopilot', 'off');
+    });
+
+    // 2a. Abort while loading (back before course.outline settles).
+    await page.goto(server.url);
+    await page.getByRole('button', { name: '开始学习 Consensus Deck' }).first().click();
+    const place = page.locator('[data-review-place]');
+    await place.waitFor({ state: 'visible', timeout: 30000 });
+
+    let markRequested;
+    const outlineRequested = new Promise((resolve) => { markRequested = resolve; });
+    let releaseOutline;
+    let markDone;
+    const outlineDone = new Promise((resolve) => { markDone = resolve; });
+    let holdNext = true;
+    const holdHandler = async (route) => {
+      const body = route.request().postData() || '';
+      if (holdNext && /"action":"course\.outline"/.test(body)) {
+        holdNext = false;
+        markRequested();
+        await new Promise((resolve) => { releaseOutline = resolve; });
+        await route.continue().catch(() => {});
+        markDone();
+        return;
+      }
+      await route.continue();
+    };
+    await page.route('**/api/call', holdHandler);
+    await place.click();
+    await outlineRequested;
+    await page.locator('text=正在读取总纲…').waitFor({ state: 'visible', timeout: 15000 });
+    await page.locator('.outline-header').getByRole('button', { name: /回到之前的第 1 题/ }).click();
+    await page.locator('.question').waitFor({ state: 'visible', timeout: 15000 });
+    releaseOutline();
+    await outlineDone;
+    await page.unroute('**/api/call', holdHandler);
+
+    await (await revealNavRow(page, 'library')).click();
+    await page.locator('.course-header .outline-entry').click();
+    await page.locator('.outline-tree').waitFor({ timeout: 30000 });
+    assert.equal(await page.locator('[data-outline-toggle="pdf:ds-notes-pdf"]').getAttribute('aria-expanded'), 'false', 'aborted target does not auto-expand document');
+    assert.equal(await page.locator('[data-key="pdf:ds-notes-pdf#0"]').count(), 0, 'aborted target does not auto-expand chapter');
+
+    // 2b. Load failure clears target.
+    await endRuns();
+    await page.goto(server.url);
+    await page.getByRole('button', { name: '开始学习 Consensus Deck' }).first().click();
+    await place.waitFor({ state: 'visible', timeout: 30000 });
+
+    let failNext = true;
+    const failHandler = async (route) => {
+      const body = route.request().postData() || '';
+      if (failNext && /"action":"course\.outline"/.test(body)) {
+        failNext = false;
+        await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'Simulated outline failure' }) });
+        return;
+      }
+      await route.continue();
+    };
+    await page.route('**/api/call', failHandler);
+    await place.click();
+    await page.locator('.sh-error-state', { hasText: '没能打开总纲' }).waitFor({ state: 'visible', timeout: 15000 });
+    await page.unroute('**/api/call', failHandler);
+
+    await (await revealNavRow(page, 'library')).click();
+    await page.locator('.course-header .outline-entry').click();
+    await page.locator('.outline-tree').waitFor({ timeout: 30000 });
+    assert.equal(await page.locator('[data-outline-toggle="pdf:ds-notes-pdf"]').getAttribute('aria-expanded'), 'false', 'failed outline load does not leave target expanded');
+    assert.equal(await page.locator('[data-key="pdf:ds-notes-pdf#0"]').count(), 0);
+
+    assert.deepEqual(errors, []);
+    await endRuns();
+    await context.close();
+  }
+
+  // 3. #1224: React StrictMode simulated cleanup clears map without breaking pendingTarget scroll in real Chromium DOM.
+  {
+    const bundle = await build({
+      stdin: {
+        contents: `
+          import React, { StrictMode } from 'react';
+          import { createRoot } from 'react-dom/client';
+          import CourseOutline from './ui/outline/CourseOutline.jsx';
+          import { keepOutline, keptOutlineTarget } from './ui/outline/model.js';
+          import { StudyServicesContext } from './ui/study-context.jsx';
+
+          const summary = { total: 1, counts: { new: 1, weak: 0, learning: 0, familiar: 0, mastered: 0 }, due: 0, weak: 0, fresh: 1, inactive: 0, percent: 0, state: 'unlearned' };
+          keepOutline('/strict', 'StrictCourse', { target: 'pdf:strict#1' });
+          window.strictTargetAtMount = keptOutlineTarget('/strict', 'StrictCourse');
+          window.getStrictTargetAfter = () => keptOutlineTarget('/strict', 'StrictCourse');
+          window.scrolledKeys = [];
+          const origScroll = Element.prototype.scrollIntoView;
+          Element.prototype.scrollIntoView = function (opts) {
+            window.scrolledKeys.push([this.getAttribute('data-key'), opts?.block]);
+            return origScroll?.call(this, opts);
+          };
+
+          const services = {
+            busy: false, notify: () => {}, askInChat: () => {}, host: {}, openSettings: () => {}, navigate: () => {}, openModal: () => {},
+            act: async () => undefined,
+            call: async (action) => {
+              if (action !== 'course.outline') return {};
+              await new Promise(resolve => setTimeout(resolve, 20));
+              return {
+                status: 'ok', course: 'StrictCourse', total: 1, placed: 1, summary, draftCards: 0, limit: 200,
+                decks: [], deckId: null,
+                documents: [{ key: 'pdf:strict', title: 'Strict.pdf', format: 'pdf', chapters: 2, total: 1, summary, deckCount: 1 }],
+                unplaced: { key: 'unplaced', total: 0, summary, reasons: {}, materials: [] },
+                open: {
+                  'pdf:strict': { chapters: [
+                    { key: 'pdf:strict#0', kind: 'chapter', index: 0, title: 'Ch 0', level: 1, total: 0, summary, deckCount: 0 },
+                    { key: 'pdf:strict#1', kind: 'chapter', index: 1, title: 'Ch 1', level: 1, total: 1, summary, deckCount: 1 },
+                  ] },
+                  'pdf:strict#1': { cards: [], more: 0 },
+                },
+              };
+            },
+          };
+
+          createRoot(document.getElementById('root')).render(
+            <StrictMode>
+              <StudyServicesContext.Provider value={services}>
+                <CourseOutline data={{ root: '/strict', revision: 1, focus: { course: 'StrictCourse' }, sources: [], jobs: [], settings: {} }}
+                  onBack={() => {}} onCreate={() => {}} onPractice={() => {}} />
+              </StudyServicesContext.Provider>
+            </StrictMode>
+          );
+        `,
+        resolveDir: process.cwd(),
+        loader: 'jsx',
+      },
+      bundle: true,
+      write: false,
+      platform: 'browser',
+      format: 'iife',
+      loader: { '.css': 'text' },
+      logLevel: 'silent',
+    });
+
+    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await context.newPage();
+    const errors = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.setContent('<main id="root"></main>');
+    await page.addScriptTag({ content: bundle.outputFiles[0].text });
+    await page.locator('[data-key="pdf:strict#1"]').waitFor({ state: 'visible', timeout: 15000 });
+    await page.waitForFunction(() => window.scrolledKeys.length > 0, null, { timeout: 15000 });
+    assert.deepEqual(await page.evaluate(() => window.scrolledKeys), [['pdf:strict#1', 'center']]);
+    assert.equal(await page.evaluate(() => window.getStrictTargetAfter()), null);
+    assert.deepEqual(errors, []);
+    await context.close();
+  }
 });
