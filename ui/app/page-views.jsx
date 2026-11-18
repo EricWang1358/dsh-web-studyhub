@@ -308,9 +308,10 @@ function OutlineView() {
       remember: true,
     });
   };
+  const fromReview = learn.hasTrail && learn.trailPage === 'review';
   return <CourseOutline key={`${data.root}:${data.focus?.course}`} data={data}
-    backLabel={learn.hasTrail ? learn.trailLabel : undefined}
-    onBack={learn.hasTrail ? learn.returnFromContext : () => nav.navigate('library')}
+    backLabel={fromReview ? learn.trailLabel : undefined}
+    onBack={fromReview ? learn.returnFromContext : () => nav.navigate('library')}
     onCreate={() => intents.goGenerate()}
     onGoGenerateTopic={onGoGenerateTopic}
     onOpenSources={pageAvailable(data, 'sources') ? () => nav.navigate('sources') : undefined} onPractice={onPractice} onOpenTask={nav.show.task}
@@ -343,7 +344,7 @@ function BookView() {
   const onExamRun = (run) => { learn.rememberContext(learn.captureContext()); session.enterRun(run); };
   const fromReview = learn.hasTrail && learn.trailPage === 'review';
   return <BookPage key={`${data.root}:${data.focus?.course}`} data={data} theme={shell.resolvedTheme} onBack={() => nav.navigate('outline')}
-    backLabel={fromReview ? ui('回到这道题') : ''} onReturnBack={fromReview ? learn.returnFromContext : undefined}
+    backLabel={fromReview ? learn.trailLabel : ''} onReturnBack={fromReview ? learn.returnFromContext : undefined}
     onPractice={onPractice} inlinePractice={inlinePractice} onOpenTask={nav.show.task}
     onCreate={() => intents.goGenerate()} onOpenSource={(id, quote) => learn.openLearningTarget({ kind: 'source', id, quote })} onExamRun={onExamRun}
     onCourseSettings={settingsEntry.setCourseSettings} onBuildIndex={(name) => openIndexBuilder(settingsEntry.openSettings, name)} holdLeave={nav.holdLeave} />;

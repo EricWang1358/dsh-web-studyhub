@@ -220,6 +220,9 @@ test('question source place renders cleanly at 1280 and 420 px, hides in exam mo
       });
       assert.equal(outlineMetrics.inViewport, true, `${where}: target chapter scrolled into viewport`);
       assert.ok(outlineMetrics.scrollWidth <= outlineMetrics.viewport, `${where}: outline has no horizontal overflow`);
+      assert.equal(await page.locator('.context-return').count(), 0, `${where}: outline from review hides duplicate .context-return banner`);
+      assert.equal(await page.locator('.outline-header').getByRole('button', { name: words.backToQuestion }).count(), 1, `${where}: outline header shows single return button`);
+      assert.equal(await page.getByRole('button', { name: words.backToQuestion }).count(), 1, `${where}: only one return-to-question control is rendered`);
 
       await page.locator('.outline-header').getByRole('button', { name: words.backToQuestion }).click();
       await page.locator('[data-review-place]').waitFor({ state: 'visible', timeout: 30000 });
@@ -405,6 +408,8 @@ test('outline target resets stale deck filter, restores filter without target, c
     await page.locator('.outline-header').getByRole('button', { name: '返回学习库' }).click();
     await page.locator('.course-header .outline-entry').click();
     await page.locator('.outline-tree').waitFor({ timeout: 30000 });
+    assert.equal(await page.locator('.context-return').count(), 0, 'normal outline entry from library has no .context-return banner');
+    assert.equal(await page.locator('.outline-header').getByRole('button', { name: '返回学习库' }).count(), 1, 'normal outline entry shows 返回学习库');
     await deckCombo.waitFor({ state: 'visible', timeout: 30000 });
     assert.match(await deckCombo.innerText(), /Consensus Deck/, 'normal entry without target restores saved deck filter');
     assert.equal(await page.locator('.outline-row', { hasText: BOOK2_TITLE }).count(), 0, 'Deck B document remains filtered out');
@@ -417,6 +422,8 @@ test('outline target resets stale deck filter, restores filter without target, c
     await place.click();
 
     await page.locator('.outline-tree').waitFor({ timeout: 30000 });
+    assert.equal(await page.locator('.context-return').count(), 0, 'outline from review hides duplicate .context-return banner');
+    assert.equal(await page.getByRole('button', { name: /回到之前的第 1 题/ }).count(), 1, 'only one return-to-question control is rendered');
     await deckCombo.waitFor({ state: 'visible', timeout: 30000 });
     assert.match(await deckCombo.innerText(), /全部题组/, 'arriving via 出处 resets stale deck filter to all decks');
     await page.locator('.outline-row', { hasText: DOC_TITLE }).waitFor({ state: 'visible', timeout: 15000 });
@@ -734,6 +741,8 @@ test('cross-course 出处 switches focus course to card course, restores previou
 
   await place.click();
   await page.locator('.outline-tree').waitFor({ timeout: 30000 });
+  assert.equal(await page.locator('.context-return').count(), 0, 'cross-course outline from review hides duplicate .context-return banner');
+  assert.equal(await page.getByRole('button', { name: /回到之前的第 1 题/ }).count(), 1, 'cross-course outline renders only one return-to-question control');
   assert.match(await page.locator('.outline-page h1').innerText(), new RegExp(`总纲 · ${COURSE}`));
   assert.equal((await previewCall(server, 'snapshot', {})).focus.course, COURSE, 'jumping to 出处 switches active course to Course B');
   await page.locator('[data-key="pdf:ds-notes-pdf#2"]').waitFor({ state: 'visible', timeout: 30000 });

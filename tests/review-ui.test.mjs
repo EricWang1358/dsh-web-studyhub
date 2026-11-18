@@ -725,6 +725,9 @@ test("QuestionRun and ExplanationFollowup show 「读全书这一节」 only whe
     const returnHeader = renderHeader({ backLabel: bookUi.ui("回到这道题") });
     assert.match(returnHeader, /sh-page-header__back"><svg class="sh-icon"[^>]*>.*?<\/svg>回到这道题/);
     assert.doesNotMatch(returnHeader, /回到总纲/);
+    const trailHeader = renderHeader({ backLabel: "回到之前的第 1 题" });
+    assert.match(trailHeader, /sh-page-header__back"><svg class="sh-icon"[^>]*>.*?<\/svg>回到之前的第 1 题/);
+    assert.doesNotMatch(trailHeader, /回到总纲/);
     bookUi.setUiLanguage("en");
     const enReturnHeader = renderHeader({ backLabel: bookUi.ui("回到这道题") });
     assert.match(enReturnHeader, /Back to this question/);

@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import {
   ABORT, LEARNING_TARGETS, REFERENCE_ORDER, practiceArgs, RETURN_PAGES, captureContext, currentStudyReference, loadLearningTarget, openLearningTarget,
   returnTargetFor, openReturnTarget, loadReturnTarget, readExamTarget,
@@ -370,5 +372,130 @@ test('executeContextReturn restores previous focus course, refreshes, and still 
     assert.match(r.errors.at(-1), /could not switch back to the previous course/i);
   } finally {
     setUiLanguage('zh');
+  }
+});
+
+test('ContextReturn hides duplicate banner on book/outline from review while keeping non-review trails and consistent BookView/OutlineView headers (#1225)', async () => {
+  const ui = await loadUi(`
+    export { ContextReturn } from './ui/app/AppBanners.jsx';
+    export { PAGE_VIEWS } from './ui/app/page-views.jsx';
+    export { default as BookPage } from './ui/book/BookPage.jsx';
+    export { default as CourseOutline } from './ui/outline/CourseOutline.jsx';
+    export { AppContext } from './ui/app/app-context.js';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { setUiLanguage, ui, uiFormat } from './ui/i18n.js';
+  `);
+  const noop = () => {};
+  const studyServices = { call: async () => ({}), act: async () => undefined, busy: false, notify: noop, askInChat: noop, host: {}, openSettings: noop, navigate: noop, openModal: noop };
+  const inspectViewProps = (View, appValue) => {
+    const internals = React.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
+    const prev = internals.H;
+    internals.H = {
+      useContext: (ctx) => (ctx === ui.AppContext ? appValue : ctx._currentValue),
+      useMemo: (fn) => fn(),
+      useCallback: (fn) => fn,
+    };
+    try {
+      return View().props;
+    } finally {
+      internals.H = prev;
+    }
+  };
+  const renderApp = ({ page, learn }) => {
+    const appValue = {
+      data: { root: '/lib', focus: { course: 'Arch', courses: [] }, sources: [], jobs: [], settings: {} },
+      core: { busy: false },
+      nav: { page, navigate: noop, show: { task: noop }, holdLeave: noop },
+      learn: {
+        captureContext: noop,
+        rememberContext: noop,
+        openLearningTarget: noop,
+        returnFromContext: noop,
+        ...learn,
+      },
+      intents: { goGenerate: noop, practice: noop },
+      session: {},
+      shell: { resolvedTheme: 'light' },
+      settingsEntry: { setCourseSettings: noop, openSettings: noop },
+    };
+    const renderNode = (node) => renderToStaticMarkup(
+      React.createElement(ui.StudyServicesContext.Provider, { value: studyServices },
+        React.createElement(ui.AppContext.Provider, { value: appValue }, node)),
+    );
+    let viewProps = null;
+    let pageHtml = '';
+    if (page === 'book' || page === 'outline') {
+      viewProps = inspectViewProps(ui.PAGE_VIEWS[page], appValue);
+      const PageComp = page === 'book' ? ui.BookPage : ui.CourseOutline;
+      pageHtml = renderNode(React.createElement(PageComp, viewProps));
+    }
+    return {
+      bannerHtml: renderNode(React.createElement(ui.ContextReturn)),
+      pageHtml,
+      viewProps,
+    };
+  };
+
+  ui.setUiLanguage('zh');
+  try {
+    // 1. book & outline from review: ContextReturn is suppressed, and both headers show learn.trailLabel and wire returnFromContext.
+    const returnFn = () => 'returned';
+    for (const [page, label] of [['book', '回到之前的第 2 题'], ['outline', '回到之前的第 2 题']]) {
+      const { bannerHtml, pageHtml, viewProps } = renderApp({
+        page,
+        learn: { hasTrail: true, trailPage: 'review', trailLabel: label, returnFromContext: returnFn },
+      });
+      assert.equal(bannerHtml, '', `${page} from review renders no .context-return banner`);
+      assert.equal(viewProps.backLabel, label);
+      assert.equal(page === 'book' ? viewProps.onReturnBack : viewProps.onBack, returnFn);
+      assert.match(pageHtml, /回到之前的第 2 题/);
+      assert.doesNotMatch(pageHtml, /回到这道题/);
+      assert.doesNotMatch(pageHtml, /回到总纲|返回学习库/);
+    }
+
+    // 2. book & outline with non-review trail (e.g. from notes or source modal): ContextReturn stays visible and headers show normal back links (no duplicate).
+    for (const [page, defaultBack] of [['book', '回到总纲'], ['outline', '返回学习库']]) {
+      const { bannerHtml, pageHtml, viewProps } = renderApp({
+        page,
+        learn: { hasTrail: true, trailPage: 'notes', trailLabel: '回到学习笔记', returnFromContext: returnFn },
+      });
+      assert.match(bannerHtml, /class="context-return"/, `${page} with non-review trail keeps .context-return banner`);
+      assert.match(bannerHtml, /回到学习笔记/);
+      if (page === 'book') assert.equal(viewProps.onReturnBack, undefined);
+      else assert.notEqual(viewProps.onBack, returnFn);
+      assert.match(pageHtml, new RegExp(defaultBack));
+      assert.doesNotMatch(pageHtml, /回到学习笔记/);
+    }
+
+    // 3. book & outline with no trail: no ContextReturn, normal header back links.
+    for (const [page, defaultBack] of [['book', '回到总纲'], ['outline', '返回学习库']]) {
+      const { bannerHtml, pageHtml } = renderApp({
+        page,
+        learn: { hasTrail: false, trailPage: '', trailLabel: '' },
+      });
+      assert.equal(bannerHtml, '');
+      assert.match(pageHtml, new RegExp(defaultBack));
+    }
+
+    // 4. Other pages (e.g. settings) keep ContextReturn even when trailPage === 'review'; review & notes still suppress ContextReturn.
+    assert.match(renderApp({ page: 'settings', learn: { hasTrail: true, trailPage: 'review', trailLabel: '回到之前的第 2 题' } }).bannerHtml, /class="context-return"/);
+    assert.equal(renderApp({ page: 'review', learn: { hasTrail: true, trailPage: 'book', trailLabel: '回到复习全书' } }).bannerHtml, '');
+    assert.equal(renderApp({ page: 'notes', learn: { hasTrail: true, trailPage: 'review', trailLabel: '回到之前的第 2 题' } }).bannerHtml, '');
+
+    // 5. English wording on book & outline from review.
+    ui.setUiLanguage('en');
+    const enLabel = ui.uiFormat('回到之前的第 {0} 题', [2]);
+    assert.equal(enLabel, 'Return to previous question (2)');
+    for (const page of ['book', 'outline']) {
+      const { bannerHtml, pageHtml } = renderApp({
+        page,
+        learn: { hasTrail: true, trailPage: 'review', trailLabel: enLabel },
+      });
+      assert.equal(bannerHtml, '');
+      assert.match(pageHtml, /Return to previous question \(2\)/);
+      assert.doesNotMatch(pageHtml, /Back to this question/);
+    }
+  } finally {
+    ui.setUiLanguage('zh');
   }
 });
