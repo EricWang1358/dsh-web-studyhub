@@ -197,6 +197,36 @@ export function clearCompletedTermEntries(entriesByKey, tasks) {
   return changed ? nextEntries : entriesByKey;
 }
 
+/**
+ * Filter candidate unfamiliar terms so only normalized, unique terms not currently in `activeTerms`
+ * and not present anywhere in `courseTerms` (regardless of `state`: `'unknown'`, `'learned'`, `'known'`, etc.)
+ * are shown as dashed candidates. Matching is case-insensitive.
+ */
+export function filterCandidateTerms(candidates, activeTerms = [], courseTerms = []) {
+  if (!Array.isArray(candidates) || !candidates.length) return [];
+  const excluded = new Set();
+  for (const raw of Array.isArray(activeTerms) ? activeTerms : []) {
+    const clean = normalizeTerm(raw);
+    if (clean) excluded.add(clean.toLowerCase());
+  }
+  for (const entry of Array.isArray(courseTerms) ? courseTerms : []) {
+    const rawTerm = typeof entry === "string" ? entry : entry?.term;
+    const clean = normalizeTerm(rawTerm);
+    if (clean) excluded.add(clean.toLowerCase());
+  }
+  const seen = new Set();
+  const out = [];
+  for (const raw of candidates) {
+    const clean = normalizeTerm(raw);
+    if (!clean) continue;
+    const key = clean.toLowerCase();
+    if (seen.has(key) || excluded.has(key)) continue;
+    seen.add(key);
+    out.push(clean);
+  }
+  return out;
+}
+
 /** Format marked unknown terms into the question prompt sent to assist via `uiFormat` and the active locale. */
 export function fillQuestion(terms, language = getUiLanguage()) {
   const clean = [];

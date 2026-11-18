@@ -163,6 +163,13 @@ const chipTexts = (page) =>
 const highlightCount = (page, name = "study-term-mark") =>
   page.evaluate((hlName) => (typeof CSS !== "undefined" && CSS.highlights ? CSS.highlights.get(hlName)?.size || 0 : -1), name);
 
+const highlightTexts = (page, name) =>
+  page.evaluate((hlName) => {
+    if (typeof CSS === "undefined" || !CSS.highlights) return null;
+    const hl = CSS.highlights.get(hlName);
+    return hl ? [...hl].map((range) => range.toString()) : [];
+  }, name);
+
 const covers = (a, b) => !!a && !!b && a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
 
 async function takeShot(page, name) {
@@ -1779,6 +1786,128 @@ test("More menu › 生词表… opens TermListDialog with 0 marked terms on fla
         await context.close();
         await running.close();
       }
+    }
+  }
+});
+
+test("filled candidate term stays excluded from dashed candidates and keeps only pale study-term-seen highlight (#1242)", async (t) => {
+  let browser;
+  try {
+    browser = await launchChromium();
+  } catch (error) {
+    t.skip(`no Chromium to look with: ${String(error.message).split("\n")[0]}`);
+    return;
+  }
+  const dist = await mkdtemp(join(tmpdir(), "study-cand-exclude-dist-"));
+  await buildPreview({ outdir: dist });
+  t.after(async () => {
+    await browser.close();
+    await rm(dist, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  });
+
+  for (const lang of ["zh", "en"]) {
+    const tag = `cand-exclude-${lang}`;
+    const running = await startLateServer({ distDir: dist, lang, seed: (root) => seedCandidateTermsDeck(root, lang) });
+    const { context, page, errors } = await openPage(browser, running, { lang, theme: "light", width: 1280, height: 900 });
+    try {
+      let termsGetCalls = 0;
+      let lastGetPromise = Promise.resolve();
+      let lastMarkPromise = Promise.resolve();
+      page.on("request", (req) => {
+        if (!req.url().endsWith("/api/call")) return;
+        const body = req.postData() || "";
+        const waitRes = () =>
+          page.waitForResponse((res) => res.url().endsWith("/api/call") && res.request() === req, { timeout: 10000 }).catch(() => null);
+        if (body.includes('"course.terms.get"')) {
+          termsGetCalls += 1;
+          lastGetPromise = waitRes();
+        }
+        if (body.includes('"course.terms.mark"')) lastMarkPromise = waitRes();
+      });
+
+      await page.goto(running.server.url);
+      await page.locator('[data-usage="home.start"]').first().click({ timeout: 30000 });
+      await page.locator(".question-toolbar").waitFor({ timeout: 30000 });
+      await settleAnimations(page);
+      await lastGetPromise;
+
+      // Enable candidate terms and answer Card 1 wrong -> dashed candidate chips appear.
+      await page.locator(".review-more-trigger").click();
+      await page.locator('[data-usage="review.terms-auto"]').click();
+      await page.locator(".options .option", {
+        hasText: lang === "en" ? "Every reader acquires a mutex first" : "每次读取必须先加互斥量阻塞",
+      }).click();
+      await page.locator(".term-strip .term-strip__candidate").first().waitFor({ state: "visible", timeout: 15000 });
+      await settleAnimations(page);
+
+      const initialCandidates = (await page.locator(".term-strip .term-strip__candidate .sh-chip__main").allInnerTexts())
+        .map((text) => text.trim())
+        .filter(Boolean);
+      assert.ok(initialCandidates.length >= 2, `${tag}: expected >= 2 candidate chips (${initialCandidates.join(", ")})`);
+      const pickedWord = initialCandidates[0];
+      const remainingExpected = initialCandidates.slice(1);
+
+      // Click first candidate -> moves to active strip -> click 补齐 / Fill in this 1 word.
+      await page.locator(".term-strip .term-strip__candidate .sh-chip__main").first().click();
+      await page.locator(".term-strip .sh-chip__label").first().waitFor({ state: "visible", timeout: 10000 });
+      await lastMarkPromise;
+      assert.deepEqual(await chipTexts(page), [pickedWord], `${tag}: clicked candidate staged in active strip`);
+
+      const getsBeforeFill = termsGetCalls;
+      await page.locator(".term-strip__fill").click();
+      await page.waitForFunction(
+        () => !!document.querySelector(".explanation-followup .followup-item[open]") && !!document.querySelector(".prereq-strip"),
+        { timeout: 25000 },
+      );
+      await page.waitForFunction(
+        () => document.querySelectorAll(".term-strip .sh-chip__label").length === 0,
+        { timeout: 10000 },
+      );
+      for (let i = 0; i < 40 && termsGetCalls <= getsBeforeFill; i += 1) {
+        await page.waitForTimeout(50);
+      }
+      await lastGetPromise;
+      await settleAnimations(page);
+
+      // Server confirms filled term is saved with state === "unknown" and linked check card.
+      const courseName = lang === "en" ? "Systems" : "系统课";
+      const persisted = await previewCall(running.server, "course.terms.get", { course: courseName });
+      const savedEntry = persisted.items?.find((item) => item.term.toLowerCase() === pickedWord.toLowerCase());
+      assert.ok(savedEntry && savedEntry.state === "unknown" && savedEntry.card?.cardId, `${tag}: filled term stored as unknown with check card`);
+
+      // Strip must NOT re-show pickedWord as a dashed candidate; unpicked candidates remain.
+      const afterCandidates = (await page.locator(".term-strip .term-strip__candidate .sh-chip__main").allInnerTexts())
+        .map((text) => text.trim())
+        .filter(Boolean);
+      assert.equal(
+        afterCandidates.some((item) => item.toLowerCase() === pickedWord.toLowerCase()),
+        false,
+        `${tag}: filled term "${pickedWord}" must not reappear as dashed candidate (got: ${afterCandidates.join(", ")})`,
+      );
+      assert.deepEqual(afterCandidates, remainingExpected, `${tag}: unpicked candidates remain available`);
+      assert.equal(await page.locator(".term-strip .sh-chip__label").count(), 0, `${tag}: active marked strip stays cleared`);
+
+      // CSS highlights: pickedWord has ONLY pale study-term-seen highlight, NEVER study-term-candidate or study-term-mark.
+      const seenTexts = await highlightTexts(page, "study-term-seen");
+      const candTexts = await highlightTexts(page, "study-term-candidate");
+      const activeCount = await highlightCount(page, "study-term-mark");
+      if (seenTexts !== null && candTexts !== null) {
+        assert.equal(activeCount, 0, `${tag}: active study-term-mark is empty`);
+        assert.ok(
+          seenTexts.some((text) => text.toLowerCase() === pickedWord.toLowerCase()),
+          `${tag}: filled term "${pickedWord}" keeps pale study-term-seen highlight (${seenTexts.join(", ")})`,
+        );
+        assert.equal(
+          candTexts.some((text) => text.toLowerCase() === pickedWord.toLowerCase()),
+          false,
+          `${tag}: filled term "${pickedWord}" has NO dashed study-term-candidate highlight (${candTexts.join(", ")})`,
+        );
+      }
+
+      assert.deepEqual(errors, [], `${tag}: unexpected console/page errors: ${errors.join(" | ")}`);
+    } finally {
+      await context.close();
+      await running.close();
     }
   }
 });

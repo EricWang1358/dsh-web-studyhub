@@ -2,7 +2,7 @@ import React from "react";
 import { reviewEntryKey } from "../async.js";
 import { isPassed } from "./session-logic.js";
 import { ui, uiLocale } from "../i18n.js";
-import { MAX_MARKED_TERMS, clearCompletedTermEntries, mergeAdjacent, normalizeTerm, toggleTerm, wordAt } from "./term-marks.js";
+import { MAX_MARKED_TERMS, clearCompletedTermEntries, filterCandidateTerms, mergeAdjacent, normalizeTerm, toggleTerm, wordAt } from "./term-marks.js";
 
 export const TERM_HIGHLIGHT_NAME = "study-term-mark";
 export const SEEN_TERM_HIGHLIGHT_NAME = "study-term-seen";
@@ -782,27 +782,10 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
       .map((item) => item.term);
   }, [courseTerms, terms]);
 
-  const candidateTerms = React.useMemo(() => {
-    if (!sessionCandidates.length) return [];
-    const activeKeys = new Set(terms.map((item) => item.toLowerCase()));
-    const knownKeys = new Set(
-      courseTerms
-        .filter((item) => item?.state === "known" || item?.state === "learned")
-        .map((item) => item?.term?.toLowerCase())
-        .filter(Boolean),
-    );
-    const seen = new Set();
-    const out = [];
-    for (const raw of sessionCandidates) {
-      const clean = normalizeTerm(raw);
-      if (!clean) continue;
-      const key = clean.toLowerCase();
-      if (seen.has(key) || activeKeys.has(key) || knownKeys.has(key)) continue;
-      seen.add(key);
-      out.push(clean);
-    }
-    return out;
-  }, [sessionCandidates, courseTerms, terms]);
+  const candidateTerms = React.useMemo(
+    () => filterCandidateTerms(sessionCandidates, terms, courseTerms),
+    [sessionCandidates, courseTerms, terms],
+  );
 
   // Paint all occurrences via CSS Custom Highlight API and keep ranges fresh on DOM changes.
   React.useEffect(() => {

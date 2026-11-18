@@ -12,6 +12,7 @@ const {
   MAX_TERM_LENGTH,
   clearCompletedTermEntries,
   fillQuestion,
+  filterCandidateTerms,
   mergeAdjacent,
   normalizeTerm,
   toggleTerm,
@@ -309,4 +310,42 @@ test("clearCompletedTermEntries clears completed terms & hits case-insensitively
     { id: "t-orphan", mode: "terms", status: "done", cardId: "c1", terms: ["quorum"] },
   ]);
   assert.deepEqual(cleanedOrphan[keyC1], { terms: [], hits: [] });
+});
+
+test("filterCandidateTerms excludes all courseTerms states and activeTerms case-insensitively (#1242)", () => {
+  const courseTerms = [
+    { term: "Linearizability", state: "unknown" },
+    { term: "Quorum", state: "learned" },
+    { term: "Idempotency", state: "known" },
+    { term: "乐观锁", state: "unknown" },
+  ];
+  const activeTerms = ["  Mutex  ", "互斥量"];
+  const candidates = [
+    "linearizability", // unknown in courseTerms -> excluded
+    "QUORUM",          // learned in courseTerms -> excluded
+    "idempotency",     // known in courseTerms -> excluded
+    "  乐观锁 ",        // unknown in courseTerms (with spaces) -> excluded
+    "mutex",           // in activeTerms (case-insensitive) -> excluded
+    "互斥量",           // in activeTerms -> excluded
+    "  Serializability  ", // not in courseTerms or activeTerms -> kept & normalized
+    "serializability", // duplicate (case-insensitive) -> excluded
+    "Consensus",       // kept
+    "最终一致性",       // kept
+    "   ",             // blank -> dropped
+    "line1\nline2",    // multiline -> dropped
+    "x".repeat(61),    // > MAX_TERM_LENGTH -> dropped
+  ];
+
+  assert.deepEqual(
+    filterCandidateTerms(candidates, activeTerms, courseTerms),
+    ["Serializability", "Consensus", "最终一致性"],
+  );
+
+  // Handles missing/empty inputs and courseTerms entries without an explicit state cleanly.
+  assert.deepEqual(filterCandidateTerms(null, activeTerms, courseTerms), []);
+  assert.deepEqual(filterCandidateTerms([], activeTerms, courseTerms), []);
+  assert.deepEqual(
+    filterCandidateTerms(["Raft", "Paxos"], undefined, [{ term: "raft" }]),
+    ["Paxos"],
+  );
 });
