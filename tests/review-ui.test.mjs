@@ -7,13 +7,13 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { globalCss } from "./helpers/global-css.mjs";
 import { reviewElement } from "./helpers/review-render.mjs";
 
-const compiled = await build({ stdin: { contents: "export { default } from './ui/Review.jsx'; export { StudyServicesContext } from './ui/study-context.jsx'; export { formatAssistTaskSummary } from './ui/review/QuestionRun.jsx';", resolveDir: process.cwd() }, bundle: true,
+const compiled = await build({ stdin: { contents: "export { default } from './ui/Review.jsx'; export { StudyServicesContext } from './ui/study-context.jsx'; export { formatAssistTaskSummary } from './ui/review/QuestionRun.jsx'; export { setUiLanguage } from './ui/i18n.js';", resolveDir: process.cwd() }, bundle: true,
   write: false, platform: "node", format: "cjs", external: ["react"],
   loader: { ".css": "text" }, logLevel: "silent" });
 const module = { exports: {} };
 new Function("require", "module", "exports", compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const Review = module.exports.default;
-const { formatAssistTaskSummary } = module.exports;
+const { formatAssistTaskSummary, setUiLanguage } = module.exports;
 const reviewEl = (old) => reviewElement(Review, module.exports.StudyServicesContext, old);
 function render(kind, revealed, runPatch = {}, dataPatch = {}) {
   const card = { id: "q", kind, topic: "Context", prompt: "Who processes payments?",
@@ -367,4 +367,142 @@ test("formatAssistTaskSummary summarizes chips without raw prompts (#U3) and Que
   assert.equal((enHtml.match(/class="en-block__toggle"/g) || []).length, 2);
   assert.match(enHtml, /English stem/);
   assert.match(enHtml, /English explanation/);
+});
+
+test("summary-course shows finished chapter wording (weak=0, weak>0, multi-chapter), falls back cleanly when empty, and hides bar above 30 chapters (#1195)", () => {
+  const noop = () => {};
+  const textOf = (html) => html.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+  const renderCourseSummary = (course) => {
+    const html = renderToStaticMarkup(reviewEl({
+      run: {
+        id: "r-course", mode: "path", complete: true, index: 4, total: 4, questions: 4, answered: 4, correct: 4,
+        weakTopics: [], scope: [], card: { id: "q", kind: "quiz", topic: "T", prompt: "Q?", options: [] },
+        course,
+      },
+      data: { sources: [] }, host: {}, choice: true, isCloze: false, selected: [], clozeValues: {},
+      shellTitle: "课程 · Cloud Native", busy: false, act: noop, enterRun: noop, setPage: noop, askInChat: noop,
+    }));
+    const start = html.indexOf('class="summary-course"');
+    assert.ok(start > -1, "renders .summary-course");
+    const end = html.indexOf('<div class="summary-actions">', start);
+    return html.slice(start, end);
+  };
+
+  setUiLanguage("zh");
+  try {
+    // 1. No finished chapters: exact legacy wording + 3-state bar
+    const plain = renderCourseSummary({
+      name: "Cloud Native", cards: 20, learned: 6, chapters: 3, doneChapters: 0,
+      chapter: { index: 0, title: "01 概览", learned: 6, total: 12 },
+      finished: [],
+      segments: ["started", "upcoming", "upcoming"],
+      next: { label: "01 概览 · 第 7–12 题" },
+    });
+    assert.match(textOf(plain), /课程进度 · 已学 6 \/ 20 题 · 第 1 \/ 3 章「01 概览」6\/12 · 下一批：01 概览 · 第 7–12 题/);
+    assert.match(plain, /class="summary-course__bar" aria-hidden="true"/);
+    assert.equal((plain.match(/class="summary-course__seg /g) || []).length, 3);
+    assert.doesNotMatch(plain, /<button\b/, "no extra buttons inside .summary-course");
+
+    // 2. Single finished chapter with weak === 0
+    const oneClean = renderCourseSummary({
+      name: "Cloud Native", cards: 20, learned: 12, chapters: 4, doneChapters: 1,
+      chapter: { index: 1, title: "02 迁移", learned: 0, total: 8 },
+      finished: [{ index: 0, title: "01 概览", total: 12, weak: 0 }],
+      segments: ["done", "upcoming", "upcoming", "upcoming"],
+      next: { label: "02 迁移 · 第 1–8 题" },
+    });
+    assert.match(textOf(oneClean), /「01 概览」做完一遍，都答对过 · 全课 4 章，已过 1 章 · 下一批：02 迁移 · 第 1–8 题/);
+    assert.match(oneClean, /<strong>01 概览<\/strong>/);
+
+    // 3. Single finished chapter with weak > 0
+    const oneWeak = renderCourseSummary({
+      name: "Cloud Native", cards: 20, learned: 12, chapters: 4, doneChapters: 1,
+      chapter: { index: 1, title: "02 迁移", learned: 0, total: 8 },
+      finished: [{ index: 0, title: "01 概览", total: 12, weak: 2 }],
+      segments: ["done", "upcoming", "upcoming", "upcoming"],
+      next: { label: "02 迁移 · 第 1–8 题" },
+    });
+    assert.match(textOf(oneWeak), /「01 概览」做完一遍，2 题还不稳 · 全课 4 章，已过 1 章 · 下一批：02 迁移 · 第 1–8 题/);
+
+    // 4. Multiple finished chapters (weak === 0 and weak > 0)
+    const multiClean = renderCourseSummary({
+      name: "Cloud Native", cards: 20, learned: 20, chapters: 3, doneChapters: 2,
+      chapter: { index: 2, title: "03 网格", learned: 0, total: 4 },
+      finished: [
+        { index: 0, title: "01 概览", total: 8, weak: 0 },
+        { index: 1, title: "02 迁移", total: 8, weak: 0 },
+      ],
+      segments: ["done", "done", "upcoming"],
+      next: null,
+    });
+    assert.match(textOf(multiClean), /「01 概览」等 2 章做完一遍，都答对过 · 全课 3 章，已过 2 章/);
+
+    const multiWeak = renderCourseSummary({
+      name: "Cloud Native", cards: 20, learned: 20, chapters: 3, doneChapters: 2,
+      chapter: { index: 2, title: "03 网格", learned: 0, total: 4 },
+      finished: [
+        { index: 0, title: "01 概览", total: 8, weak: 0 },
+        { index: 1, title: "02 迁移", total: 8, weak: 3 },
+      ],
+      segments: ["done", "done", "upcoming"],
+      next: null,
+    });
+    assert.match(textOf(multiWeak), /「01 概览」等 2 章做完一遍，3 题还不稳 · 全课 3 章，已过 2 章/);
+
+    // 5. Chapter count boundary: 30 renders bar, 31 does not
+    const bar30 = renderCourseSummary({
+      name: "Big Course", cards: 30, learned: 10, chapters: 30, doneChapters: 1,
+      chapter: { index: 1, title: "Ch 2", learned: 0, total: 1 },
+      finished: [],
+      segments: ["done", ...Array(29).fill("upcoming")],
+      next: null,
+    });
+    assert.equal((bar30.match(/class="summary-course__seg /g) || []).length, 30);
+
+    const bar31 = renderCourseSummary({
+      name: "Huge Course", cards: 31, learned: 10, chapters: 31, doneChapters: 1,
+      chapter: { index: 1, title: "Ch 2", learned: 0, total: 1 },
+      finished: [],
+      segments: ["done", ...Array(30).fill("upcoming")],
+      next: null,
+    });
+    assert.doesNotMatch(bar31, /summary-course__bar/, "chapters > 30 suppresses the segment bar");
+
+    // 6. English wording & #one singular forms
+    setUiLanguage("en");
+    const enSingleOneWeakOneChapter = renderCourseSummary({
+      name: "Cloud Native", cards: 10, learned: 10, chapters: 1, doneChapters: 1,
+      chapter: null,
+      finished: [{ index: 0, title: "01 Overview", total: 10, weak: 1 }],
+      segments: ["done"],
+      next: null,
+    });
+    assert.match(textOf(enSingleOneWeakOneChapter), /“01 Overview” finished once, 1 question still shaky · 1 of 1 chapter done/);
+    assert.doesNotMatch(textOf(enSingleOneWeakOneChapter), /[\u3400-\u9fff]/);
+
+    const enSinglePlural = renderCourseSummary({
+      name: "Cloud Native", cards: 20, learned: 10, chapters: 4, doneChapters: 1,
+      chapter: null,
+      finished: [{ index: 0, title: "01 Overview", total: 10, weak: 2 }],
+      segments: ["done", "upcoming", "upcoming", "upcoming"],
+      next: null,
+    });
+    assert.match(textOf(enSinglePlural), /“01 Overview” finished once, 2 questions still shaky · 1 of 4 chapters done/);
+    assert.doesNotMatch(textOf(enSinglePlural), /[\u3400-\u9fff]/);
+
+    const enMultiOneWeak = renderCourseSummary({
+      name: "Cloud Native", cards: 20, learned: 20, chapters: 3, doneChapters: 2,
+      chapter: null,
+      finished: [
+        { index: 0, title: "01 Overview", total: 10, weak: 1 },
+        { index: 1, title: "02 Migration", total: 10, weak: 0 },
+      ],
+      segments: ["done", "done", "upcoming"],
+      next: null,
+    });
+    assert.match(textOf(enMultiOneWeak), /2 chapters including “01 Overview” finished once, 1 question still shaky · 2 of 3 chapters done/);
+    assert.doesNotMatch(textOf(enMultiOneWeak), /[\u3400-\u9fff]/);
+  } finally {
+    setUiLanguage("zh");
+  }
 });
