@@ -69,6 +69,7 @@ export function StatsView({
   onEditTimeLog, onRemoveTimeLog, onOpenToday,
   onStartScope, onLibrary, onCreate, onSources, onManageCourses, onOpenWorkflowSession, onOpenWorkflowArchive,
 }) {
+  const { busy } = useStudy();
   const decks = localDecks ?? decksInCourse(data, course);
   const scopedAttempts = useMemo(() => {
     const attempts = data?.attempts;
@@ -105,6 +106,44 @@ export function StatsView({
       heat.length - minDays)),
     shownHeat = heat.slice(heatStart);
   const broken = !(totals.streak > 0) && totals.activeDays > 0;
+  const practiseScope = (scope) => {
+    if (!busy && onStartScope && Array.isArray(scope) && scope.length) onStartScope(scope.slice(0, 200));
+  };
+  const casePracticeCards = useMemo(() => {
+    if (Array.isArray(stats?.caseScope) && stats.caseScope.length > 0) return stats.caseScope.slice(0, 200);
+    const collected = [];
+    for (const deck of decks || []) {
+      if (deck?.archived) continue;
+      if (Array.isArray(deck.cards)) {
+        for (const card of deck.cards) {
+          if (card?.suspended) continue;
+          if (deck.format === "case-study" || card.kind === "case" || card.kind === "open" || (Array.isArray(card.rubricCriteria) && card.rubricCriteria.length > 0)) {
+            collected.push({ deckId: deck.id, cardId: card.id });
+            if (collected.length >= 200) return collected;
+          }
+        }
+      } else if (deck?.format === "case-study" && deck.available !== 0) {
+        collected.push({ deckId: deck.id });
+        if (collected.length >= 200) return collected;
+      }
+    }
+    return collected;
+  }, [stats?.caseScope, decks]);
+  const mergedWeakCards = useMemo(() => {
+    if (Array.isArray(stats?.weakScope) && stats.weakScope.length) return stats.weakScope.slice(0, 200);
+    const seen = new Set();
+    const list = [];
+    for (const row of weak) {
+      for (const ref of row.cards || []) {
+        const key = `${ref.deckId}\u0000${ref.cardId}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        list.push(ref);
+        if (list.length >= 200) return list;
+      }
+    }
+    return list;
+  }, [stats?.weakScope, weak]);
   const heatRef = useRef(null);
   useIsomorphicLayoutEffect(() => {
     if (heatRef.current) heatRef.current.scrollLeft = heatRef.current.scrollWidth;
@@ -158,13 +197,18 @@ export function StatsView({
       </div>
 
       {/* Rubric skills over time (WP12), weakest first, scoped to the active course. */}
-      <RubricSkills attempts={scopedAttempts} />
+      <RubricSkills attempts={scopedAttempts} onPractice={onStartScope && casePracticeCards.length ? () => practiseScope(casePracticeCards) : undefined} />
 
       <div className="dash-split">
         <section className="dash-section" data-weak-cleared={totals.attempts > 0 && !weak.length ? "true" : undefined}>
           <h2 className="dash-section__head">
             <span>{ui("需要补强")}{weak.length ? <small>{" · "}{uiFormat("前 {0}", [weak.length])}</small> : null}</span>
             {totals.attempts > 0 && !weak.length && <Badge size="sm" tone="success" className="dash-section__badge">{ui("已清零")}</Badge>}
+            {onStartScope && weak.length > 1 && mergedWeakCards.length > 0 && (
+              <Button variant="link" size="sm" iconEnd="arrow-right" className="dash-section__action" lock={busy} onClick={() => practiseScope(mergedWeakCards)}>
+                {ui("合并练薄弱题")}
+              </Button>
+            )}
           </h2>
           {weak.length ? (
             <ul className="dash-weak">
@@ -174,9 +218,9 @@ export function StatsView({
                     <strong>{w.topic || ui("未分类")}</strong>
                     <small>{w.detail}</small>
                   </span>
-                  <Button variant="link" size="sm" iconEnd="arrow-right" className="dash-weak-start"
+                  <Button variant="link" size="sm" iconEnd="arrow-right" className="dash-weak-start" lock={busy}
                     onClick={() =>
-                      onStartScope([
+                      practiseScope(w.cards?.length ? w.cards : [
                         w.topic ? { deckId: w.deckId, topic: w.topic } : { deckId: w.deckId },
                       ])
                     }
@@ -208,7 +252,7 @@ export function StatsView({
         <div className="dash-charts" data-tour="dashboard-charts">
           <TrendPanel trend={trend} today={stats?.today} />
           <ForecastPanel forecast={stats?.forecast} onStart={onStartScope} parked={{ included: stats?.inactive?.included === true && showsParked(data, course), onManage: onManageCourses }} />
-          <MasteryPanel mastery={stats?.mastery} />
+          <MasteryPanel mastery={stats?.mastery} onStartScope={onStartScope} />
           {board && (
             <FocusDurationPanel
               board={board}

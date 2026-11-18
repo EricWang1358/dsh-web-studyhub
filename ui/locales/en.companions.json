@@ -127,5 +127,18 @@
   "导出 HTML": "Export HTML",
   "打开交互伴学页": "Open interactive companion",
   "新建交互伴学课": "New interactive companion",
-  "新建交互伴学课…": "New interactive companion…"
+  "新建交互伴学课…": "New interactive companion…",
+  "回到解惑栏": "Back to doubts",
+  "本课": "This lesson",
+  "第 {0} 页 · {1} 道题": "Slide {0} · {1} questions",
+  "第 {0} 页 · {1} 道题#one:1": "Slide {0} · {1} question",
+  "当页自测 ({0})": "Quiz slide ({0})",
+  "本课自测 ({0})": "Quiz lesson ({0})",
+  "当页配套自测": "Slide self-check",
+  "本课配套自测": "Lesson self-check",
+  "抽屉自测 ({0})": "Check in drawer ({0})",
+  "第 {0} 页 · {1}": "Slide {0} · {1}",
+  "单题自测": "Single question",
+  "随堂自测": "Self-check",
+  "练配套题 ({0})": "Practise linked ({0})"
 }

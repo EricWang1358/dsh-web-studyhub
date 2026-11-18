@@ -85,6 +85,15 @@ export function evenTicks(length, count) {
     i === count - 1 ? length - 1 : Math.floor((i * (length - 1)) / (count - 1)));
 }
 
+/**
+ * Axis label indexes for a `length`-day score trend: every day up to a week on wide boxes, else evenly spaced.
+ * @param {number} length
+ * @param {boolean} [narrow]
+ */
+export function trendTicks(length, narrow = false) {
+  return evenTicks(length, narrow ? 4 : length <= 7 ? length : 6);
+}
+
 /** "2026-10-02" -> "10/2" */
 export function dateLabel(key) {
   const [, m, d] = key.split('-').map(Number);

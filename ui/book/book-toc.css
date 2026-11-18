@@ -76,6 +76,10 @@
     .book-toc__input {
       width: 100%;
     }
+    .book-toc__lens {
+      min-width: 0;
+      padding: 0 var(--space-half);
+    }
     .book-toc__found {
       margin: 0;
       padding: 0 var(--space-2);

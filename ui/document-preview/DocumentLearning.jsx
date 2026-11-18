@@ -27,6 +27,9 @@ import { JOB_STATUS } from '../../lib/job-status.js';
 import { useUndoable } from '../use-undoable.js';
 import { deleteKeptThread, restoreKeptThread } from './annotation/delete-thread.js';
 import { GENERATE_KIND_IDS } from '../../lib/card-kinds.js';
+import { readerDoubtLedger } from '../../lib/practice-settings.js';
+import { collectReaderDoubts } from './doubt-ledger.js';
+import DoubtLedger from './DoubtLedger.jsx';
 
 const noop = () => {};
 /** The key a passage's unsaved thread is held under: where it is and what it says (a text that changed under the same offsets is another passage). */
@@ -79,7 +82,7 @@ export function ModeSwitch({ mode, onMode }) {
  */
 export function LearningPanel({ capture, scope = null, jobsOnly = false, pageHandOff = null, pageCut = null, pageRefusal = null, pageTotal = 0, onPage, onRange, onContinue, resolution, resolving = false, error = '', question = '', thread = emptyThread(), notice = '', noticeWhy = '', mode = 'read', onMode, annotateReady = false, savedIds, keepBusy = false, keepError = '', onKeep, onDeleteThread, deckId = '', deckNote = '', count = 3, kind = 'quiz',
   decks = [], askReady = false, generateReady = false, modelReady = false, starting = false, primary = true, jobs = [], now = Date.now(), call, sectionRef,
-  onQuestion, onAsk, onQuick, onAskInside, onRetryNode, onToggleNode, onDeck, onCount, onKind, onStart, saveReady = false, onSaved, isCurrent, ...jobHandlers }) {
+  onQuestion, onAsk, onQuick, onAskInside, onRetryNode, onToggleNode, onDeck, onCount, onKind, onStart, saveReady = false, onSaved, isCurrent, doubtLedgerOn = false, doubts = [], onSelectDoubt, ...jobHandlers }) {
   const resolved = resolution?.status === 'resolved';
   const asking = thread.nodes.some(node => node.parentId === null && node.status === 'asking');
   const area = useRef(null), supplement = useRef(null);
@@ -97,6 +100,7 @@ export function LearningPanel({ capture, scope = null, jobsOnly = false, pageHan
     {list}
     {modeSwitch}
     <p className="muted">{ui('选中原文中的一段文字，再提问或补充题目。')}</p>
+    {doubtLedgerOn && doubts.length > 0 && <DoubtLedger doubts={doubts} deckId={deckId} decks={decks} saveReady={saveReady} saveCall={call} onSaved={onSaved} onOpenCard={jobHandlers.onOpenCard} onSelectDoubt={onSelectDoubt} isCurrent={isCurrent} />}
   </section>;
   return <section className="study-document-learning" aria-label={ui('选段学习')} ref={sectionRef}>
     {list}
@@ -155,9 +159,14 @@ export default function DocumentLearning({ call, document, capture, scope = null
   const threadRef = useRef(thread);
   const undoable = useUndoable(), deleting = useRef(null);
   const commit = next => { threadRef.current = next; setThread(next); };
-  // What 阅读 mode did not keep, held per passage while the reader is open (thread-memory.js).
-  const memory = useRef(null);
-  if (!memory.current) memory.current = createThreadMemory();
+  // What 阅读 mode did not keep, held per passage while the reader is open and scoped by document revision (thread-memory.js).
+  const memoryScope = `${document?.documentId || document?.id || ''}|${document?.revision ?? ''}`;
+  const memory = useRef(null), memoryFor = useRef(memoryScope);
+  if (!memory.current || memoryFor.current !== memoryScope) {
+    memory.current = createThreadMemory();
+    memoryFor.current = memoryScope;
+  }
+  const [memoryRev, setMemoryRev] = useState(0);
   // The inline refusal of the thread (what it cannot ask, and why): it sits in the thread, not in a toast, and a new selection or question clears it.
   const say = (text = '', why = '') => { setRefused(text); setRefusedWhy(why); };
   // The top-up form starts filled in: a deck guessed from the material (or the last one used), the kind and the number of 设置 › 出题偏好. What the learner picks is held here (null: not picked yet).
@@ -238,8 +247,8 @@ export default function DocumentLearning({ call, document, capture, scope = null
     if (!passageKey || (modeRef.current === 'annotate' && !passageKey.startsWith('page|')) || threadRef.current.nodes.length) return;
     const held = memory.current.recall(passageKey);
     if (held) { commit(held.thread); setSavedLocal(held.saved); }
-  }, [passageKey]);
-  useEffect(() => { memory.current.remember(passageKey, thread, savedLocal); }, [passageKey, thread, savedLocal]);
+  }, [passageKey, mode]);
+  useEffect(() => { memory.current.remember(passageKey, thread, savedIds, resolution?.selection ?? null); }, [passageKey, thread, savedIds, resolution?.selection]);
 
   // Supplements still running (or just finished) when the reader was closed come back with it.
   useEffect(() => {
@@ -281,8 +290,13 @@ export default function DocumentLearning({ call, document, capture, scope = null
   /** Ask the model for one node of the thread; a thread that was dropped meanwhile (another selection) is left alone. */
   async function run(id, { question: asked, term = '', context = [], intent = '', offset = 0, first = false }) {
     const selection = resolution.selection, held = threadKey(resolution), page = pageMode;
+    const runScope = memoryFor.current, runMemory = memory.current;
     // The answer lands in the thread on screen; when the learner has moved to another passage meanwhile, in the thread held for this one.
-    const settle = change => { if (nodeOf(threadRef.current, id)) commit(change(threadRef.current)); else memory.current.settle(held, id, change); };
+    const settle = change => {
+      if (memoryFor.current !== runScope) { runMemory.settle(held, id, change); return; }
+      if (nodeOf(threadRef.current, id)) commit(change(threadRef.current));
+      else if (runMemory.settle(held, id, change)) setMemoryRev(n => n + 1);
+    };
     try {
       ensureCurrent();
       const value = await call('materials.selection.ask', askRequest({ selection, page, question: asked, intent, term, context, offset, language: uiLanguageName() }));
@@ -442,12 +456,22 @@ export default function DocumentLearning({ call, document, capture, scope = null
     } catch (e) { setError(e.message); }
   }
   const shown = jobs.filter(job => !dismissed.has(job.operationId));
+  const doubtLedgerOn = readerDoubtLedger(snapshot?.settings?.practice);
+  const doubts = useMemo(
+    () => (doubtLedgerOn && !capture?.quote ? collectReaderDoubts({ annotationItems: annotation?.items, heldEntries: memory.current.entries() }) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `thread`, `savedIds`, `memoryScope`, and `memoryRev` mirror updates held in `memory.current`
+    [doubtLedgerOn, capture?.quote, annotation?.items, thread, savedIds, memoryScope, memoryRev],
+  );
+  const selectDoubt = annotation?.onSelect ? (selection, item) => {
+    if (item && !item.kept && modeRef.current === 'annotate') annotation?.onMode?.('read');
+    annotation.onSelect(selection, item);
+  } : undefined;
   return <LearningPanel capture={capture} scope={scope} pageHandOff={pageHandOff} jobsOnly={jobsOnly} pageCut={pageCut} pageRefusal={pageRefusal} pageTotal={pageTotal} onPage={onPage} onRange={onRange} onContinue={readOn} resolution={resolution} resolving={resolving} error={error} question={question} thread={thread} notice={refused} noticeWhy={refusedWhy}
     mode={mode} onMode={annotation?.onMode} annotateReady={annotateReady} savedIds={savedIds} keepBusy={keepBusy} keepError={keepError} onKeep={keep} onDeleteThread={deleteThread}
     onAskInside={onAskInside} onRetryNode={onRetryNode} onToggleNode={onToggleNode} onQuick={askFirst}
     deckId={deckId} deckNote={deckNote} count={count} kind={kind} decks={decks} askReady={askReady} generateReady={generateReady} modelReady={modelReady}
     starting={starting} primary={primary} jobs={shown} now={now} call={call} sectionRef={sectionRef} canPractice={typeof onPractice === 'function'}
-    saveReady={available('generation', 'selection.saveAnswer')} onSaved={onPublished} isCurrent={isCurrent}
+    saveReady={available('generation', 'selection.saveAnswer')} onSaved={onPublished} isCurrent={isCurrent} doubtLedgerOn={doubtLedgerOn} doubts={doubts} onSelectDoubt={selectDoubt}
     onQuestion={(text, label = '') => { setQuestion(text); setQuestionLabel(label); if (draftKey) drafts.current.set(draftKey, text); }} onAsk={ask} onDeck={setPickedDeck} onCount={setPickedCount} onKind={setPickedKind} onStart={start}
     onCancel={cancel} onRetry={retry} onDismiss={job => setDismissed(current => new Set(current).add(job.operationId))}
     onPractice={onPractice} onOpenDeck={onOpenDeck} onOpenCard={onOpenCard} />;

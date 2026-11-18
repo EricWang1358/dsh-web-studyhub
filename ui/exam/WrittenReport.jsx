@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { plainPrompt } from '../shared.js';
 import { Badge, Button, ErrorState, PageHeader, ProgressBar, Tooltip } from '../components/index.js';
 import { formatDuration } from '../format.js';
+import { examPostmortemBridge } from '../../lib/practice-settings.js';
 import ResultBreakdown from '../ResultBreakdown.jsx';
 import { ReadingBlock, ReadingSettingsButton } from '../reading-settings/ReadingSettings.jsx';
+import { buildExamPostmortem } from './exam-postmortem.js';
 import { kindName, scoreChange } from './exam-written.js';
 
 /* The written exam's report: the score and where it went, the weak topics, what to do next, and the details
@@ -21,21 +23,40 @@ function BarRow({ label, row, soft }) {
   );
 }
 
-function QuestionList({ title, items, empty }) {
+function QuestionList({ title, items, empty, citationsByCard = null, lock = false, disabled = false, onOpenSource = null, onPracticeItem = null }) {
   if (!items) return null;
   return (
     <div className="exam-wrong">
       <div className="eyebrow">{title}</div>
       {items.length ? (
-        <ul>{items.map((item) => (
-          <li key={item.deckId + ':' + item.cardId} className="exam-wrong-row">
-            <Badge tone="info">{item.topic || ui('未分类')}</Badge>
-            <Tooltip layer content={plainPrompt(item.prompt)} anchorClassName="exam-wrong-prompt-tip">
-              <span className="exam-wrong-prompt" tabIndex={0}>{plainPrompt(item.prompt)}</span>
-            </Tooltip>
-            <Badge>{kindName(item.kind)}</Badge>
-          </li>
-        ))}</ul>
+        <ul>{items.map((item, index) => {
+          const cite = citationsByCard?.get(`${item.deckId}:${item.cardId}`) || null;
+          const showActions = Boolean((cite && onOpenSource) || onPracticeItem);
+          return (
+            <li key={`${item.deckId}:${item.cardId}:${index}`} className="exam-wrong-row" data-has-actions={showActions ? 'true' : undefined}>
+              <Badge tone="info">{item.topic || ui('未分类')}</Badge>
+              <Tooltip layer content={plainPrompt(item.prompt)} anchorClassName="exam-wrong-prompt-tip">
+                <span className="exam-wrong-prompt" tabIndex={0}>{plainPrompt(item.prompt)}</span>
+              </Tooltip>
+              <Badge>{kindName(item.kind)}</Badge>
+              {showActions && (
+                <span className="exam-wrong-actions">
+                  {cite && onOpenSource && (
+                    <Button variant="quiet" size="sm" iconEnd="arrow-right" onClick={() => onOpenSource(cite.sourceId, cite.quote)}>
+                      {ui('打开出处')}
+                    </Button>
+                  )}
+                  {onPracticeItem && (
+                    <Button variant="quiet" size="sm" iconEnd="arrow-right" lock={lock} disabled={disabled}
+                      onClick={() => onPracticeItem([{ deckId: item.deckId, cardId: item.cardId }])}>
+                      {ui('去练这道题')}
+                    </Button>
+                  )}
+                </span>
+              )}
+            </li>
+          );
+        })}</ul>
       ) : <p className="muted">{empty}</p>}
     </div>
   );
@@ -44,7 +65,7 @@ function QuestionList({ title, items, empty }) {
 /** The name of a topic row: the deck is named only when the same topic name also stands in another deck. */
 const topicLabel = (report, row) => (report.byTopic.filter((other) => other.topic === row.topic).length > 1 ? `${row.deckTitle} · ` : '') + (row.topic || ui('未分类'));
 
-export default function WrittenReport({ report, busy, pathNote, error, onQueueWeak, onPracticeTopic, onExit, onAgain }) {
+export default function WrittenReport({ report, busy, pathNote, error, practiceSettings = null, decks = null, sources = null, onQueueWeak, onPracticeTopic, onPracticeScope = null, onOpenSource = null, onExit, onAgain }) {
   const weakTopicRows = (report.byTopic || [])
     .filter((topic) => topic.total > topic.correct)
     .sort((a, b) => (b.total - b.correct) - (a.total - a.correct))
@@ -55,6 +76,12 @@ export default function WrittenReport({ report, busy, pathNote, error, onQueueWe
   const scoreDelta = report.comparison && Number.isFinite(report.comparison.scorePct)
     ? Math.round(report.scorePct ?? 0) - Math.round(report.comparison.scorePct)
     : 0;
+  const bridgeOn = examPostmortemBridge(practiceSettings);
+  const unansweredCount = Array.isArray(report.skipped) ? report.skipped.length : (Number(report.unanswered) || 0);
+  const postmortem = useMemo(
+    () => (bridgeOn ? buildExamPostmortem(report, { decks, sources }) : null),
+    [bridgeOn, report, decks, sources],
+  );
   return (
     <ReadingBlock className="exam-report">
       <PageHeader title={ui('考试报告')} actions={<ReadingSettingsButton className="exam-reading" />}
@@ -72,6 +99,16 @@ export default function WrittenReport({ report, busy, pathNote, error, onQueueWe
           <small>{uiFormat('用时：{0}', [formatDuration(report.durationMs || 0)])}</small>
         </div>
         <ResultBreakdown total={report.total ?? 0} answered={report.answered ?? 0} correct={report.correct ?? 0} correctLabel={ui('答对')} />
+        {bridgeOn && postmortem?.answeredAccuracyPct !== null && unansweredCount > 0 && (
+          <p className="muted small exam-attempted-note" data-exam-postmortem-pacing="">
+            {uiFormat('已作答部分正确率 {0}%（{1}/{2}）· 未作答 {3} 题', [
+              postmortem.answeredAccuracyPct,
+              report.correct ?? 0,
+              report.answered ?? 0,
+              unansweredCount,
+            ])}
+          </p>
+        )}
       </div>
       {report.comparison && <p className="muted">{uiFormat('同范围、题数及题型构成的上次考试为 {0}%；这次{1}。两次抽到的题目可能不同，仅供参考。', [report.comparison.scorePct, scoreChange(report.comparison)])}</p>}
 
@@ -83,6 +120,14 @@ export default function WrittenReport({ report, busy, pathNote, error, onQueueWe
             onClick={() => onPracticeTopic(topic)}>{ui('练这个主题')}</Button>}
         </li>)}</ol> : <p className="muted result-weak__empty">{ui('本次已答题全部答对。')}</p>}
         {report.weakScope?.length > 0 && <Button className="exam-weak-queue" iconEnd="arrow-right" busy={busy} disabled={!!pathNote} onClick={onQueueWeak}>{uiFormat('练习答错与未答的 {0} 道', [report.weakScope.length])}</Button>}
+        {bridgeOn && postmortem?.wrongScope.length > 0 && postmortem?.skippedScope.length > 0 && onPracticeScope && (
+          <div className="exam-weak-split" data-exam-weak-split="">
+            <Button size="sm" variant="secondary" iconEnd="arrow-right" lock={busy} disabled={!!pathNote}
+              onClick={() => onPracticeScope(postmortem.wrongScope)}>{uiFormat('只练答错（{0}）', [postmortem.wrongScope.length])}</Button>
+            <Button size="sm" variant="secondary" iconEnd="arrow-right" lock={busy} disabled={!!pathNote}
+              onClick={() => onPracticeScope(postmortem.skippedScope)}>{uiFormat('补做未答（{0}）', [postmortem.skippedScope.length])}</Button>
+          </div>
+        )}
         {pathNote && <p className="muted exam-path-note">{pathNote}</p>}
       </div>
 
@@ -107,8 +152,12 @@ export default function WrittenReport({ report, busy, pathNote, error, onQueueWe
           <div className="eyebrow">{ui('按题型分布')}</div>
           {report.byKind.map((row) => <BarRow key={row.kind} soft row={row} label={kindName(row.kind)} />)}
         </div>}
-        <QuestionList title={uiFormat('答错 · {0}', [report.wrong?.length || 0])} items={report.wrong || []} empty={ui('已答的题目没有答错。')} />
-        {report.skipped?.length > 0 && <QuestionList title={uiFormat('未答 · {0}', [report.skipped.length])} items={report.skipped} />}
+        <QuestionList title={uiFormat('答错 · {0}', [report.wrong?.length || 0])} items={report.wrong || []} empty={ui('已答的题目没有答错。')}
+          citationsByCard={postmortem?.citationsByCard} lock={busy} disabled={!!pathNote}
+          onOpenSource={bridgeOn ? onOpenSource : null} onPracticeItem={bridgeOn ? onPracticeScope : null} />
+        {report.skipped?.length > 0 && <QuestionList title={uiFormat('未答 · {0}', [report.skipped.length])} items={report.skipped}
+          citationsByCard={postmortem?.citationsByCard} lock={busy} disabled={!!pathNote}
+          onOpenSource={bridgeOn ? onOpenSource : null} onPracticeItem={bridgeOn ? onPracticeScope : null} />}
       </details>
       {error && <ErrorState error={error} />}
     </ReadingBlock>

@@ -137,6 +137,10 @@
     .dash-section__badge {
       font-weight: var(--fw-medium);
     }
+    .dash-section__action {
+      margin-inline-start: auto;
+      font-weight: var(--fw-medium);
+    }
     .dash-section h2 small {
       font-family: var(--font-ui);
       font-size: var(--fs-md);
@@ -420,6 +424,10 @@
       border: 1px solid var(--line-soft);
       border-radius: var(--radius-sm);
       background: var(--bg-surface);
+    }
+    .exam-wrong-row[data-has-actions="true"] {
+      flex-wrap: wrap;
+      row-gap: var(--space-1-5);
     }
     .exam-wrong-prompt {
       flex: 1;

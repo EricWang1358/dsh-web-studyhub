@@ -64,6 +64,31 @@ test('trend: empty state replaces the chart', () => {
   assert.match(out, /完成第一次学习后/);
 });
 
+test('trend: offers 7 / 30 / 90-day range options with 30 selected by default, and filters points, ticks, table and empty state for 7 days (#1170)', () => {
+  const def = html(TrendPanel, { trend, today: '2026-10-02' });
+  const labels = [...def.matchAll(/<button[^>]*class="[^"]*sh-seg__item[^"]*"[^>]*>([^<]+)<\/button>/g)].map((m) => m[1]);
+  assert.deepEqual(labels, ['近 7 天', '近 30 天', '近 90 天']);
+  assert.match(def, /aria-pressed="true"[^>]*>近 30 天<\/button>/);
+
+  const week = html(TrendPanel, { trend, today: '2026-10-02', defaultRange: 7 });
+  assert.match(week, /aria-pressed="true"[^>]*>近 7 天<\/button>/);
+  assert.equal((week.match(/class="dash-point[ "]/g) || []).length, 1 + 2, 'only 2026-09-26 (self) and 2026-10-01 (graded + self) fall in 9/26..10/2');
+  assert.doesNotMatch(week, /2026-09-25/);
+  const xLabels = [...week.matchAll(/<text[^>]*y="212"[^>]*>([^<]+)<\/text>/g)].map((m) => m[1]);
+  assert.deepEqual(xLabels, ['9/26', '9/27', '9/28', '9/29', '9/30', '10/1', '10/2'], 'wide 7-day axis shows all 7 consecutive dates');
+  const gradedPath = week.match(/<path class="dash-line graded"[^>]*d="([^"]*)"/)?.[1] ?? '';
+  const selfPath = week.match(/<path class="dash-line self"[^>]*d="([^"]*)"/)?.[1] ?? '';
+  assert.equal(gradedPath, '', 'one lone graded day in the 7-day window draws a dot only, no line');
+  assert.equal(selfPath, '', 'non-adjacent self-rated days (9/26 and 10/1) stay disconnected across empty days');
+  const table = week.match(/<table class="sh-visually-hidden"[\s\S]*?<\/table>/)?.[0] || '';
+  assert.equal((table.match(/<tr>/g) || []).length, 1 + 2, 'header + two studied days in the 7-day window');
+
+  const emptyWeek = html(TrendPanel, { trend: [day('2026-09-20', 4, 2, null, 0)], today: '2026-10-02', defaultRange: 7 });
+  assert.doesNotMatch(emptyWeek, /<svg/);
+  assert.match(emptyWeek, /近 7 天没有作答记录/);
+  assert.match(emptyWeek, /试试更长的时间范围。/);
+});
+
 test('forecast: 14 bars, today is labelled with overdue, and a bar with cards starts that day', () => {
   const out = html(ForecastPanel, { forecast, onStart: noop });
   assert.equal((out.match(/class="dash-bar[ "]/g) || []).length, 14);
@@ -162,8 +187,13 @@ test('stats view: without any attempt each chart still has its own short empty s
 test('english: chart copy is translated and no Chinese is left in the chart panels', () => {
   try {
     setUiLanguage('en');
-    const out = [html(TrendPanel, { trend, today: '2026-10-02' }), html(ForecastPanel, { forecast, onStart: noop }), html(MasteryPanel, { mastery }),
+    const out = [html(TrendPanel, { trend, today: '2026-10-02' }), html(TrendPanel, { trend: [day('2026-09-20', 4, 2, null, 0)], today: '2026-10-02', defaultRange: 7 }),
+      html(ForecastPanel, { forecast, onStart: noop }), html(MasteryPanel, { mastery }),
       html(MasteryPanel, { mastery, defaultView: 'kind' })].join('');
+    assert.match(out, /Last 7 days/);
+    assert.match(out, /Last 30 days/);
+    assert.match(out, /Last 90 days/);
+    assert.match(out, /No answers in the last 7 days/);
     assert.match(out, /Due in the next 14 days/);
     assert.match(out, /Today \(incl\. overdue\)/);
     assert.match(out, /Recall/);

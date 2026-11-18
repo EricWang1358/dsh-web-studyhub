@@ -168,3 +168,72 @@ test('explicit new-question card scope survives changed focus and next batch', a
   assert.equal(second.total, 1);
   assert.ok(scope.some(ref => ref.cardId === second.card.id));
 });
+
+test('wrongDetail history view reads the missed run entry rather than the later clearing run', () => {
+  const state = emptyState();
+  state.decks = [{
+    id: 'd',
+    title: 'Deck',
+    cards: [{
+      id: 'q',
+      kind: 'quiz',
+      topic: 'Topic',
+      prompt: 'Current prompt?',
+      options: [{ id: 'yes', text: 'Right option', correct: true }, { id: 'no', text: 'Wrong option', correct: false }],
+    }],
+  }];
+  state.attempts = [
+    { deckId: 'd', quiz_id: 'q', runId: 'run-missed', assessment: 'graded', grade: 1, timestamp: '2026-10-01T01:00:00Z' },
+    { deckId: 'd', quiz_id: 'q', runId: 'run-cleared', assessment: 'graded', grade: 5, timestamp: '2026-10-02T01:00:00Z' },
+  ];
+  state.runs = [
+    {
+      id: 'run-missed',
+      entries: [{
+        card: { id: 'q', kind: 'quiz', prompt: 'Original prompt?', options: state.decks[0].cards[0].options },
+        feedback: { correct: false, selected: ['no'] },
+      }],
+    },
+    {
+      id: 'run-cleared',
+      entries: [{
+        card: { id: 'q', kind: 'quiz', prompt: 'Updated prompt?', options: state.decks[0].cards[0].options },
+        feedback: { correct: true, selected: ['yes'] },
+      }],
+    },
+  ];
+  const detail = wrongDetail(state, { deckId: 'd', cardId: 'q' }, { view: 'history' });
+  assert.equal(detail.lastGrade, 5);
+  assert.equal(detail.missedGrade, 1);
+  assert.equal(detail.yourAnswer, 'Wrong option');
+});
+
+test('implicit prerequisite credits and #778 unverified self-reports never clear unresolved mistakes in wrongBook or wrongDetail', () => {
+  const state = emptyState();
+  state.decks = [{ id: 'd', title: 'Deck', course: 'C', cards: [
+    card('imp-miss', 'quiz'),
+    card('self-miss', 'task'),
+    card('verified-later', 'task'),
+  ] }];
+  state.attempts = [
+    { deckId: 'd', quiz_id: 'imp-miss', grade: 1, assessment: 'graded', timestamp: '2026-10-01T01:00:00Z' },
+    { deckId: 'd', quiz_id: 'imp-miss', grade: 4, implicit: true, timestamp: '2026-10-02T01:00:00Z' },
+    { deckId: 'd', quiz_id: 'self-miss', grade: 1, assessment: 'rubric', timestamp: '2026-10-01T02:00:00Z' },
+    { deckId: 'd', quiz_id: 'self-miss', grade: 3, assessment: 'self-report', correct: false, selfReported: true, unverified: true, timestamp: '2026-10-02T02:00:00Z' },
+    { deckId: 'd', quiz_id: 'verified-later', grade: 1, assessment: 'rubric', timestamp: '2026-10-01T03:00:00Z' },
+    { deckId: 'd', quiz_id: 'verified-later', grade: 3, assessment: 'self-report', correct: false, selfReported: true, unverified: true, timestamp: '2026-10-02T03:00:00Z' },
+    { deckId: 'd', quiz_id: 'verified-later', grade: 4, assessment: 'rubric', correct: true, timestamp: '2026-10-03T03:00:00Z' },
+  ];
+
+  const weak = wrongBook(state);
+  assert.deepEqual(weak.items.map((item) => item.cardId), ['self-miss', 'imp-miss']);
+  assert.deepEqual(weak.counts, { weak: 2, history: 1 });
+
+  const history = wrongBook(state, { view: 'history' });
+  assert.deepEqual(history.items.map((item) => item.cardId), ['verified-later']);
+  assert.equal(history.items[0].recoveredAt, '2026-10-03T03:00:00Z');
+
+  assert.equal(wrongDetail(state, { deckId: 'd', cardId: 'imp-miss' }).lastGrade, 1);
+  assert.equal(wrongDetail(state, { deckId: 'd', cardId: 'self-miss' }).lastGrade, 1);
+  assert.equal(wrongDetail(state, { deckId: 'd', cardId: 'verified-later' }, { view: 'history' }).lastGrade, 4);
+});

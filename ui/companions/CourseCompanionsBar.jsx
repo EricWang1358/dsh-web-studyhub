@@ -5,13 +5,21 @@ import { useStudy } from '../study-context.jsx';
 import { useInjectCss } from '../shared.js';
 import { useUndoable } from '../use-undoable.js';
 import { AppContext } from '../app/app-context.js';
+import { companionSlideCheck } from '../../lib/practice-settings.js';
+import { companionDeckRefsMap } from './companion-cards.js';
 import { Badge, Button, SegmentedControl, TextInput } from '../components/index.js';
 import css from './companions.css';
 
 export default function CourseCompanionsBar({ course, data }) {
   useInjectCss(css, 'study-companions');
-  const { call, openModal } = useStudy();
-  const refresh = useContext(AppContext)?.core?.refresh;
+  const { busy, call, openModal } = useStudy();
+  const app = useContext(AppContext);
+  const refresh = app?.core?.refresh;
+  const slideCheckOn = companionSlideCheck(data?.settings?.practice);
+  const deckRefsByCompanion = useMemo(
+    () => (slideCheckOn && app?.intents?.practice ? companionDeckRefsMap(data?.decks, data?.sources, data?.courses) : new Map()),
+    [app?.intents?.practice, data?.courses, data?.decks, data?.sources, slideCheckOn],
+  );
   const undoable = useUndoable();
   const [expanded, setExpanded] = useState(false);
   const [query, setQuery] = useState('');
@@ -138,6 +146,15 @@ export default function CourseCompanionsBar({ course, data }) {
                 {item.grounded === false && <Badge size="sm" tone="neutral">{ui('AI 推演')}</Badge>}
               </div>
               <div className="sh-comp-bar__btns">
+                {(() => {
+                  const cardRefs = slideCheckOn ? deckRefsByCompanion.get(item.id) || [] : [];
+                  if (!cardRefs.length || !app?.intents?.practice) return null;
+                  return (
+                    <Button iconEnd="arrow-right" size="sm" variant="quiet" wrap lock={busy} onClick={() => app.intents.practice(cardRefs.slice(0, 200))}>
+                      {uiFormat('练配套题 ({0})', [Math.min(200, cardRefs.length)])}
+                    </Button>
+                  );
+                })()}
                 <Button iconEnd="arrow-right" size="sm" onClick={() => openModal({ type: 'companion', id: item.id, course })}>
                   {item.progress?.slide > 1 && !item.progress?.completed ? ui('接着看') : ui('打开')}
                 </Button>

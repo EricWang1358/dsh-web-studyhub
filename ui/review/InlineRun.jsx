@@ -23,7 +23,7 @@ export function roundTally(run) {
   return { answered: stops.length, passed: stops.filter((stop) => stop.passed).length };
 }
 
-function InlineRunDone({ session, onClose, onOpenRun }) {
+function InlineRunDone({ session, onClose, onOpenRun, backLabel }) {
   const { busy } = useStudy();
   const run = session.run, { answered, passed } = roundTally(run);
   const before = run.liveMastery?.before, after = run.liveMastery?.after;
@@ -34,7 +34,7 @@ function InlineRunDone({ session, onClose, onOpenRun }) {
       {before?.total > 0 && after?.total > 0 && <p className="inline-run__mastery"><MasteryMark summary={after} size={14} />
         <span>{after.percent !== before.percent ? uiFormat("本组 {0}% → {1}%", [before.percent, after.percent]) : uiFormat("本组 {0}%", [after.percent])}</span></p>}
       <div className="inline-run__done-actions">
-        <Button variant="primary" size="sm" icon="arrow-left" onClick={onClose}>{ui("回到题目列表")}</Button>
+        <Button variant="primary" size="sm" icon="arrow-left" onClick={onClose}>{backLabel}</Button>
         {weak && <Button iconEnd="arrow-right" size="sm" lock={busy} onClick={session.coach.onReviewWeak}>{ui("错的再练一遍")}</Button>}
         {onOpenRun && <Button iconEnd="arrow-right" size="sm" variant="quiet" lock={busy} onClick={onOpenRun}>{ui("在练习页看结果")}</Button>}
       </div>
@@ -42,7 +42,7 @@ function InlineRunDone({ session, onClose, onOpenRun }) {
   );
 }
 
-export default function InlineRun({ session, data, label, rootRef, onClose, onOpenRun, links, feedback }) {
+export default function InlineRun({ session, data, label, rootRef, onClose, onOpenRun, links, feedback, backLabel = ui("回到题目列表") }) {
   useInjectCss(css, "study-inline-run");
   const { busy } = useStudy();
   const run = session.run;
@@ -54,11 +54,11 @@ export default function InlineRun({ session, data, label, rootRef, onClose, onOp
         <span className="inline-run__label">{label}</span>
         <span className="inline-run__actions">
           {onOpenRun && run && !run.complete && <Button iconEnd="arrow-right" size="sm" variant="quiet" lock={busy} onClick={onOpenRun}>{ui("去练习页继续")}</Button>}
-          <Button size="sm" variant="secondary" icon="arrow-left" onClick={onClose}>{ui("回到题目列表")}</Button>
+          <Button size="sm" variant="secondary" icon="arrow-left" onClick={onClose}>{backLabel}</Button>
         </span>
       </header>
       {!run ? <LoadingState label={ui("正在打开这一轮…")} />
-        : run.complete ? <InlineRunDone session={session} onClose={onClose} onOpenRun={onOpenRun} />
+        : run.complete ? <InlineRunDone session={session} onClose={onClose} onOpenRun={onOpenRun} backLabel={backLabel} />
           : <QuestionRun inline session={session} data={data} coachProps={data ? session.coach : undefined} links={links} feedback={feedback} />}
     </section>
   );

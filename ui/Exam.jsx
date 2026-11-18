@@ -34,7 +34,7 @@ import { useStudy } from './study-context.jsx';
 const RETRY_SUBMIT_MS = 5000;
 const LOW_TIME_MS = 5 * 60 * 1000;
 
-export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun, onSetupModel, initialRunId, initialKind = 'exam', onLocation }) {
+export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun, onSetupModel, onOpenSource, initialRunId, initialKind = 'exam', onLocation }) {
   const { call } = useStudy();
   useInjectCss(css, "study-views");
   useInjectCss(caseCss, "study-case-workspace");
@@ -145,6 +145,7 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
       });
       writes.current = createWriteQueue();
       applyPicks(picksFromRun(r));
+      setPathNote("");
       exam.enter(r);
     });
   };
@@ -246,21 +247,36 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [examMode, phase, run?.card, confirming, expired]);
 
+  const practiceScope = (scope) => {
+    if (pathNote || !scope?.length) return;
+    const runId = report?.runId;
+    return exam.perform(async () => {
+      const nextRun = await call("review.start", { mode: "path", scope, fresh: true });
+      if (onStartRun) onStartRun(nextRun, runId ? { kind: 'exam', runId } : undefined);
+      else setPathNote(uiFormat("已把 {0} 道题排进学习路径，回到学习库即可开始练习。", [scope.length]));
+    });
+  };
+
   const queueWeak = () => {
     if (pathNote || !report?.weakScope?.length) return;
+    const runId = report.runId;
     return exam.perform(async () => {
       const nextRun = await call("review.start", { mode: "path", scope: report.weakScope, fresh: true });
-      if (onStartRun) onStartRun(nextRun, { kind: 'exam', runId: report.runId });
+      if (onStartRun) onStartRun(nextRun, runId ? { kind: 'exam', runId } : undefined);
       else setPathNote(uiFormat("已把 {0} 道答错或未答题排进学习路径，回到学习库即可开始练习。", [report.weakScope.length]));
     });
   };
 
   // One weak topic of the report: the same practice the dashboard's 练这个主题 starts (a path round over that topic of that deck), with the way back to this report.
-  const practiceTopic = (row) => exam.perform(async () => {
-    const nextRun = await call("review.start", practiceArgs([{ deckId: row.deckId, topic: row.topic }], { fresh: false }));
-    if (onStartRun) onStartRun(nextRun, { kind: 'exam', runId: report.runId });
-    else setPathNote(uiFormat("已把「{0}」的题排进学习路径，回到学习库即可开始练习。", [row.topic]));
-  });
+  const practiceTopic = (row) => {
+    if (pathNote || !row?.deckId) return;
+    const runId = report?.runId;
+    return exam.perform(async () => {
+      const nextRun = await call("review.start", practiceArgs([{ deckId: row.deckId, topic: row.topic }], { fresh: false }));
+      if (onStartRun) onStartRun(nextRun, runId ? { kind: 'exam', runId } : undefined);
+      else setPathNote(uiFormat("已把「{0}」的题排进学习路径，回到学习库即可开始练习。", [row.topic]));
+    });
+  };
 
   const openReport = async (runId) => { if (await exam.openReport(runId)) setPathNote(""); };
 
@@ -375,7 +391,9 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
       )}
 
       {phase === "report" && report && <WrittenReport report={report} busy={busy} pathNote={pathNote} error={err}
-        onQueueWeak={queueWeak} onPracticeTopic={practiceTopic} onExit={onExit} onAgain={() => exam.leave({ clear: false })} />}
+        practiceSettings={data?.settings?.practice} decks={data?.decks} sources={data?.sources}
+        onQueueWeak={queueWeak} onPracticeTopic={practiceTopic} onPracticeScope={practiceScope} onOpenSource={onOpenSource}
+        onExit={onExit} onAgain={() => { setPathNote(""); exam.leave({ clear: false }); }} />}
     </section>
   );
 }

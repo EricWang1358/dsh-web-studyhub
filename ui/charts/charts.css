@@ -34,10 +34,12 @@
       .dash-charts { gap: var(--space-4); }
       .dash-chart { padding: var(--space-4); }
       .dash-mrow { grid-template-columns: minmax(4em, 6.25em) minmax(0, 1fr) auto; gap: var(--space-2); }
+      .dash-maction { white-space: normal; text-align: right; }
     }
   }
   :where(.study-app, .study-seat) {
     .dash-chart .dash-chart__head { flex-wrap: wrap; }
+    .dash-chart .dash-chart__head > * { min-width: 0; max-width: 100%; }
     /* Legend: line samples that differ by dash pattern, not only by colour. */
     .dash-legend {
       display: flex;
@@ -123,7 +125,8 @@
       border-radius: var(--radius-pill);
       background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--text) 10%, transparent) 0 4px, transparent 4px 8px);
     }
-    .dash-mvalue { display: flex; flex-direction: column; align-items: flex-end; line-height: var(--lh-tight); text-align: right; }
+    .dash-mvalue { display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-1); line-height: var(--lh-tight); text-align: right; }
+    .dash-maction { white-space: nowrap; }
     .dash-mvalue b { font-size: var(--fs-lg); font-weight: var(--fw-strong); font-variant-numeric: tabular-nums; color: var(--text); }
     .dash-mvalue em { font-size: var(--fs-sm); font-style: normal; color: var(--text-muted); }
     .dash-mvalue small { font-size: var(--fs-sm); font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--text-muted); }
