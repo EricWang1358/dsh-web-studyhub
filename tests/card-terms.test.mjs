@@ -5,7 +5,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import {
-  cardTextCorpus,
   currentCardTerms,
   extractCardTerms,
   normalizeCardTerms,
@@ -297,19 +296,18 @@ test('7. refuses when light model is unavailable or card is missing', async (t) 
   await assert.rejects(service.call('card.terms', { deckId: 'd1', cardId: 'missing' }), /not found|No/i);
 });
 
-test('8. cardTextCorpus, currentCardTerms, extractCardTerms, and fake-model handler work across card kinds', async () => {
-  const corpus = cardTextCorpus(cloze());
-  assert.ok(corpus.includes('{{b1}}'));
-  assert.ok(corpus.includes('谱定理'));
+test('8. normalizeCardTerms, currentCardTerms, extractCardTerms, and fake-model handler work across card kinds', async () => {
+  assert.deepEqual(normalizeCardTerms(cloze(), { terms: ['对称矩阵', '谱定理', 'not here'] }), ['对称矩阵', '谱定理']);
   assert.equal(currentCardTerms(flashcard()), null);
 
+  const q = quiz();
   const fake = createFakeModel();
-  const extracted = await extractCardTerms(fake, quiz(), ['谱定理']);
+  const extracted = await extractCardTerms(fake, q, ['谱定理']);
   assert.ok(Array.isArray(extracted.terms));
   assert.ok(extracted.terms.length >= 1);
   assert.ok(!extracted.terms.some((item) => item.toLowerCase() === '谱定理'));
-  const quizCorpus = cardTextCorpus(quiz());
+  const quizText = [q.prompt, q.answer, q.explanation, ...q.options.flatMap((o) => [o.text, o.explanation])].join('\n');
   for (const term of extracted.terms) {
-    assert.ok(quizCorpus.includes(term), `fake-model term "${term}" must be verbatim in corpus`);
+    assert.ok(quizText.includes(term), `fake-model term "${term}" must be verbatim in card text`);
   }
 });

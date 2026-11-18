@@ -11,8 +11,8 @@ The report moves nothing (#902): it is the data for deciding what could later go
 | --- | ---: |
 | Used by ui | 105 |
 | Used by several contexts | 63 |
-| Used by exactly one context | 136 |
-| Used by none of these (other lib files, entry points, scripts and tests only) | 118 |
+| Used by exactly one context | 137 |
+| Used by none of these (other lib files, entry points, scripts and tests only) | 117 |
 
 ## Used by ui (105)
 
@@ -188,7 +188,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/usage-scope.js`: contexts authoring, coach, generation, materials, workflows; 6 other lib files
 - `lib/util.js`: contexts audio, authoring, bank, coach, generation, jobs, library, materials, notes, recording, skeleton, study; 48 other lib files
 
-## Used by exactly one context (136)
+## Used by exactly one context (137)
 
 - `lib/answer-card-materials.js`: context generation
 - `lib/answer-time.js`: context study
@@ -321,13 +321,14 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/subtitles.js`: context audio; 1 other lib file
 - `lib/tool-install.js`: context audio; 7 other lib files
 - `lib/transcript.js`: context audio; 6 other lib files
+- `lib/translation-source.js`: context study; 4 other lib files
 - `lib/translation.js`: context study
 - `lib/usage-frequency-operations.js`: context system
 - `lib/within-deadline.js`: context generation; 1 other lib file
 - `lib/workflows.js`: context workflows; 4 other lib files
 - `lib/wrong-detail.js`: context library
 
-## Used by none of these (other lib files, entry points, scripts and tests only) (118)
+## Used by none of these (other lib files, entry points, scripts and tests only) (117)
 
 - `lib/assigned-plan.js`: 2 other lib files
 - `lib/assist-child.js`: 1 other lib file
@@ -434,7 +435,6 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/study-tool-mode.js`: 1 other lib file
 - `lib/subagent-api.js`: 2 other lib files
 - `lib/tex-text.js`: 7 other lib files
-- `lib/translation-source.js`: 4 other lib files
 - `lib/true-false.js`: 4 other lib files
 - `lib/types.js`: no import found in ui/ or lib/
 - `lib/update-install.js`: 2 other lib files
