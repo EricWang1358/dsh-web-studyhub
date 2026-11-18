@@ -684,3 +684,17 @@ test('startServer reads a missing VC++ runtime in its English Windows forms as v
   }
 });
 
+test('parseWindow rejects non-markdown output paths before invoking the CLI or touching the filesystem', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'study-mineru-path-guards-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const protectedFile = join(dir, 'outside.json');
+  await writeFile(protectedFile, '{"keep":true}', 'utf8');
+
+  for (const badOut of ['', '   ', protectedFile, join(dir, '.md'), join(dir, 'output.txt')]) {
+    await assert.rejects(
+      parseWindow({ cli: { file: process.execPath, prefix: [] }, pdf: 'book.pdf', tier: 'basic', startPage: 1, endPage: 1, totalPages: 1, outFile: badOut }),
+      error => error instanceof LocalMineruError && error.code === 'invalid-output-path',
+    );
+  }
+  assert.equal(await readFile(protectedFile, 'utf8'), '{"keep":true}', 'protected non-.md file is never deleted');
+});
