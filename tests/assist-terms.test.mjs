@@ -196,8 +196,12 @@ test("terms mode happy path: 3 marked terms create 3 cards, 3 prereq links, 1 la
     assert.match(fu.answer, /例子：/);
     assert.match(fu.answer, /检查题：用正式的说法讲一遍/);
 
-    const followupNotif = state.inbox.find((item) => item.kind === "followup");
-    assert.ok(followupNotif);
+    assert.equal(state.inbox.length, 1, `${switchMode}: one summary letter in inbox`);
+    const [followupNotif] = state.inbox;
+    assert.equal(followupNotif.kind, "followup");
+    assert.equal(followupNotif.cardId, "card-main");
+    assert.equal(followupNotif.read, false);
+    assert.equal(followupNotif.count, undefined);
     assert.equal(followupNotif.detail, "补了 3 个词，检查题已排到这道题前面");
     assert.doesNotMatch(followupNotif.detail, /进信箱/);
   }
@@ -911,4 +915,206 @@ test("step cards without card.explanation pass validation and build 4-section ex
     committedExplanations.push(createdCard.explanation);
   }
   assert.equal(committedExplanations[1], committedExplanations[0]);
+});
+
+test("5-step terms ladder (3 layer-1 + 2 layer-2) emits only 1 unmerged followup letter on the original card (#1218)", async (t) => {
+  for (const switchMode of SWITCH_MODES) {
+    const f = await setupTermsFixture(
+      t,
+      async () =>
+        JSON.stringify({
+          ladder: [
+            makeStep({ term: "源地址", layer: 2, needs: [] }),
+            makeStep({ term: "地址前缀", layer: 2, needs: [] }),
+            makeStep({ term: "入口过滤", layer: 1, needs: ["源地址", "地址前缀"] }),
+            makeStep({ term: "BCP38", layer: 1, needs: ["入口过滤"] }),
+            makeStep({ term: "出口过滤", layer: 1, needs: ["地址前缀", "入口过滤"] }),
+          ],
+        }),
+      switchMode,
+    );
+
+    await f.assist.startAssist(f.ctx, {
+      root: f.root,
+      service: f.service,
+      sessionId: "s1",
+      mode: "terms",
+      ref: { deckId: "deck-1", cardId: "card-main" },
+      terms: ["入口过滤", "BCP38", "出口过滤"],
+      card: PARENT_CARD,
+      deckTitle: "Network Security",
+      language: "zh",
+    });
+    await ended(f.assist, f.root);
+
+    const [task] = f.assist.assistView(f.root).tasks;
+    assert.equal(task.status, "done", `${switchMode}: ${task.message}`);
+
+    const state = await f.service.store.read();
+    assert.equal(state.decks[0].cards.length, 6, `${switchMode}: 5 check cards added`);
+    assert.equal(state.decks[0].cards[0].requires.length, 3, `${switchMode}: 3 layer-1 prerequisites linked`);
+
+    assert.equal(state.inbox.length, 1, `${switchMode}: no per-link or duplicate followup letters`);
+    const [letter] = state.inbox;
+    assert.equal(letter.kind, "followup");
+    assert.equal(letter.deckId, "deck-1");
+    assert.equal(letter.cardId, "card-main");
+    assert.equal(letter.read, false);
+    assert.equal(letter.count, undefined);
+    assert.equal(letter.detail, "补了 5 个词，检查题已排到这道题前面");
+
+    const inbox = await f.service.call("inbox");
+    assert.equal(inbox.unread, 1);
+    assert.equal(inbox.items.length, 1);
+    assert.equal(inbox.items[0].kind, "followup");
+    assert.equal(inbox.items[0].cardId, "card-main");
+    assert.equal(inbox.items[0].count, undefined);
+    assert.equal(inbox.items[0].detail, "补了 5 个词，检查题已排到这道题前面");
+  }
+});
+
+test("non-terms assist modes (derive/ask/improve) and card.link / card.followup.add preserve default inbox notifications while silent: true suppresses them (#1218)", async (t) => {
+  // 1. derive (出成前置题) still emits its "关联前置题" letter.
+  const prereqStep = makeStep({ term: "源地址", layer: 1, needs: [] });
+  const prereqCard = { ...prereqStep.card, explanation: "源地址指 IP 报文头中标记发送方的地址。" };
+  const derived = await setupTermsFixture(t, async () => JSON.stringify({ card: prereqCard }));
+  await derived.assist.startAssist(derived.ctx, {
+    root: derived.root,
+    service: derived.service,
+    sessionId: "s1",
+    mode: "derive",
+    ref: { deckId: "deck-1", cardId: "card-main" },
+    text: "什么是源地址？",
+    derive: { relation: "prerequisite" },
+    card: PARENT_CARD,
+    deckTitle: "Network Security",
+    language: "zh",
+  });
+  await ended(derived.assist, derived.root);
+  assert.equal(derived.assist.assistView(derived.root).tasks[0].status, "done");
+  const derivedState = await derived.service.store.read();
+  assert.equal(derivedState.inbox.length, 1);
+  assert.equal(derivedState.inbox[0].kind, "link");
+  assert.equal(derivedState.inbox[0].cardId, "card-main");
+  assert.match(derivedState.inbox[0].detail, /^关联前置题：/);
+  assert.equal(derivedState.inbox[0].count, undefined);
+
+  // 2. ask (with prerequisites) and improve keep their normal inbox notifications.
+  const asked = await setupTermsFixture(t, async () =>
+    JSON.stringify({
+      answer: "边界路由器在报文进入时校验源地址前缀。",
+      prerequisites: [{ card: prereqCard }],
+    }),
+  );
+  await asked.assist.startAssist(asked.ctx, {
+    root: asked.root,
+    service: asked.service,
+    sessionId: "s1",
+    mode: "ask",
+    ref: { deckId: "deck-1", cardId: "card-main" },
+    text: "为什么入口过滤有效？",
+    helpChoices: ["prerequisite"],
+    card: PARENT_CARD,
+    deckTitle: "Network Security",
+    language: "zh",
+  });
+  await ended(asked.assist, asked.root);
+  assert.equal(asked.assist.assistView(asked.root).tasks[0].status, "done");
+  const askedState = await asked.service.store.read();
+  assert.deepEqual(askedState.inbox.map((item) => item.kind), ["link", "followup"]);
+
+  const improved = await setupTermsFixture(t, async () =>
+    JSON.stringify({
+      patch: { hint: "注意边界路由器检查源地址前缀的方向。" },
+      reason: "补充方向提示",
+    }),
+  );
+  await improved.assist.startAssist(improved.ctx, {
+    root: improved.root,
+    service: improved.service,
+    sessionId: "s1",
+    mode: "improve",
+    ref: { deckId: "deck-1", cardId: "card-main" },
+    text: "提示再明确一点",
+    helpChoices: [],
+    card: PARENT_CARD,
+    deckTitle: "Network Security",
+    language: "zh",
+  });
+  await ended(improved.assist, improved.root);
+  assert.equal(improved.assist.assistView(improved.root).tasks[0].status, "done");
+  const improvedState = await improved.service.store.read();
+  assert.equal(improvedState.inbox.length, 1);
+  assert.equal(improvedState.inbox[0].kind, "improve");
+  assert.equal(improvedState.inbox[0].detail, "补充方向提示");
+
+  // 3. Direct card.link & card.followup.add: silent: true skips notify; omitted / false emits normally.
+  const direct = await setupTermsFixture(t, async () => "{}", "legacy", (state) => {
+    state.decks[0].cards.push(
+      { ...PARENT_CARD, id: "pre-1", prompt: "前置题 1" },
+      { ...PARENT_CARD, id: "pre-2", prompt: "前置题 2" },
+      { ...PARENT_CARD, id: "pre-3", prompt: "前置题 3" },
+    );
+  });
+
+  await direct.service.call("card.link", {
+    deckId: "deck-1",
+    cardId: "card-main",
+    requires: { deckId: "deck-1", cardId: "pre-1" },
+    silent: true,
+  });
+  await direct.service.call("card.followup.add", {
+    deckId: "deck-1",
+    cardId: "card-main",
+    question: "静默追问",
+    answer: "静默追问回答",
+    silent: true,
+  });
+
+  let directState = await direct.service.store.read();
+  assert.equal(directState.decks[0].cards[0].requires.length, 1);
+  assert.equal(directState.decks[0].cards[0].followups.length, 1);
+  assert.equal(directState.inbox.length, 0, "silent: true skips both link and followup notifications");
+
+  // Omitted silent and silent: false both notify normally.
+  await direct.service.call("card.link", {
+    deckId: "deck-1",
+    cardId: "card-main",
+    requires: { deckId: "deck-1", cardId: "pre-2" },
+  });
+  await direct.service.call("card.followup.add", {
+    deckId: "deck-1",
+    cardId: "card-main",
+    question: "默认追问",
+    answer: "默认追问回答",
+    silent: false,
+  });
+
+  directState = await direct.service.store.read();
+  assert.equal(directState.inbox.length, 2);
+  assert.equal(directState.inbox[0].kind, "link");
+  assert.equal(directState.inbox[0].detail, "关联前置题：前置题 2");
+  assert.equal(directState.inbox[1].kind, "followup");
+  assert.equal(directState.inbox[1].detail, "默认追问");
+
+  // A subsequent silent: true call must not merge into or bump counts on existing unread letters.
+  await direct.service.call("card.link", {
+    deckId: "deck-1",
+    cardId: "card-main",
+    requires: { deckId: "deck-1", cardId: "pre-3" },
+    silent: true,
+  });
+  await direct.service.call("card.followup.add", {
+    deckId: "deck-1",
+    cardId: "card-main",
+    question: "第二次静默追问",
+    answer: "第二次静默追问回答",
+    silent: true,
+  });
+  directState = await direct.service.store.read();
+  assert.equal(directState.decks[0].cards[0].requires.length, 3);
+  assert.equal(directState.decks[0].cards[0].followups.length, 3);
+  assert.equal(directState.inbox.length, 2);
+  assert.equal(directState.inbox[0].count, undefined);
+  assert.equal(directState.inbox[1].count, undefined);
 });
