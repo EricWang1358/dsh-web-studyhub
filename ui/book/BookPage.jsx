@@ -67,7 +67,7 @@ export function handleBookFindShortcut(event, { view, ready, inOverlay, onOpen }
 
 /** data: the snapshot; onBack() (the 总纲); onPractice(scope, { resume, place }); onOpenSource(sourceId, quote); onCreate() (出题); onOpenTask(jobId);
     onExamRun(run): enters a mock exam started here (M7); onCourseSettings(courseId); theme: 'light' | 'dark' (the editor's); holdLeave(ask): the app's leave gate, held while the editor has unsaved text. */
-export default function BookPage({ data, onBack, onPractice, inlinePractice = null, onOpenSource, onCreate, onOpenTask, onExamRun, onCourseSettings, onBuildIndex, theme, holdLeave, paragraphIndex = null, searchQuery = '' }) {
+export default function BookPage({ data, onBack, backLabel = '', onReturnBack = null, onPractice, inlinePractice = null, onOpenSource, onCreate, onOpenTask, onExamRun, onCourseSettings, onBuildIndex, theme, holdLeave, paragraphIndex = null, searchQuery = '' }) {
   useInjectCss(css, 'study-book');
   useInjectCss(aiCss, 'study-book-ai');
   const { call, act, notify } = useStudy();
@@ -251,7 +251,7 @@ export default function BookPage({ data, onBack, onPractice, inlinePractice = nu
   const cardPass = useCardPass({ call, course, book, building });
   const header = <BookHeader data={data} course={course} courseName={courseName} book={book} writing={writing} switched={switched} onOpenTask={onOpenTask} onUndoRebuild={building || unsaved ? undefined : rebuild.undo}
     onUpdate={book?.sample ? undefined : modelReadiness(data).ready ? () => startBookBuild({ act, course, notify }) : onBack}
-    onBack={onBack} onCourse={next => guard(() => act('focus.set', { course: next }))} />;
+    backLabel={backLabel} onBack={onReturnBack ? () => guard(onReturnBack) : onBack} onCourse={next => guard(() => act('focus.set', { course: next }))} />;
   const step = steps[where.current] ?? null;
   // 改名 / 移动到… / 删除这个知识点… act on the point being read; a delete goes to the point after it (or before it, at the end) once it is gone.
   const structureAt = where.current;

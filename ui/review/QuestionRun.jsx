@@ -56,6 +56,8 @@ import { ClozeQuestion, OpenResponseField, PostAnswerDetails, QuestionLiveMaster
 import { useAssistWatch, useAutopilotPause, useBookQaSync, useCaseHighlights } from "./use-review-run-sync.js";
 import { companionSlideButtonLabel, openCompanionTarget, resolveCompanionTarget } from "../companions/companion-ref.js";
 import companionsCss from "../companions/companions.css";
+import { useCardPlace } from "./QuestionPlace.jsx";
+import { isPassed } from "./session-logic.js";
 
 export { formatAssistTaskSummary };
 
@@ -85,7 +87,7 @@ function AssistFailure({ task, modelReady = false, onSettings, onResubmit, onEdi
   );
 }
 
-export default function QuestionRun({ session, data, coachProps, links = {}, context = {}, feedback, inline = false }) {
+export default function QuestionRun({ session, data, coachProps, links = {}, context = {}, feedback, place: placeProp, inline = false }) {
   useInjectCss(reviewCss, "study-review");
   useInjectCss(coachCss, "study-coach");
   useInjectCss(companionsCss, "study-companions");
@@ -106,7 +108,10 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
     () => runDeferUnstudiedPages({ run, sources: data?.sources, openModal, reviewAct, notify }),
     [data?.sources, notify, openModal, reviewAct, run],
   );
-  const { onOpenNote, onMakeNote, onMakeTask, onModelSettings, onSaveQaToNote } = links;
+  const { onOpenNote, onMakeNote, onMakeTask, onModelSettings, onSaveQaToNote, onOpenBookSection } = links;
+  const fetchedPlace = useCardPlace({ call, run, enabled: placeProp === undefined && Boolean(onOpenBookSection) });
+  const cardPlace = placeProp !== undefined ? placeProp : fetchedPlace;
+  const canOpenBookSection = run?.mode !== "exam" && !run?.complete && cardPlace?.leaf?.built === true && typeof onOpenBookSection === "function";
   // `inHeader`: the page's header already carries the way back (the review book's or the 总纲's, ui/Review.jsx), so it is not said a second time under the card.
   const { label: contextLabel, onReturn: onReturnContext, detour, onReturnFromDetour, inHeader, tourRunning } = context;
   const contextReturnLabel = inHeader ? '' : contextLabel;
@@ -442,6 +447,14 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           {voice.correction}
           {run.feedback && <p className={"next-due next-due--verdict" + (run.feedback.correct || run.feedback.selfReported ? "" : " retry")}
             data-level={run.feedback.level || undefined} role="status">{nextDueIcon(run.feedback) && <Icon name={nextDueIcon(run.feedback)} className="sh-icon--inline sh-icon--lead" />}{nextDueWord(run.feedback)}</p>}
+          {canOpenBookSection && run.feedback && !run.feedback.selfReported && !isPassed(run) && (
+            <div className="question-book-link">
+              <Button variant="link" size="sm" iconEnd="arrow-right" data-book-section-link="feedback" lock={busy}
+                onClick={() => onOpenBookSection(cardPlace)}>
+                {ui("读全书这一节")}
+              </Button>
+            </div>
+          )}
           {autoAdvanceActive && (
             <div className={"question-card__autopilot" + (autoAdvancePaused ? " is-paused" : "")}
               key={"card-auto:" + (session.advanceKey || run.index)}
@@ -672,7 +685,8 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
               onDerive={(followupId, relation) => assistCard("derive", "", [], { relation, followupId })} deriving={!!runningTask}
               onAskMore={(event) => { const body = event?.currentTarget?.closest?.(".review-body"); setAssistMode("ask"); requestAnimationFrame(() => { body?.querySelector(".assist-area")?.scrollIntoView?.({ behavior: "smooth", block: "nearest" }); body?.querySelector(".assist-form__input")?.focus(); }); }}
               bookQa={{ course: bookCourse, mode: qaToBook, onMode: setQaToBook, book, note: bookNote }}
-              noteQa={onSaveQaToNote ? { savedIn: (followupId) => cardNotes.find((note) => note.qa && note.followupIds?.includes(followupId))?.noteId || "", onSave: onSaveQaToNote, onOpen: onOpenNote } : null} />}
+              noteQa={onSaveQaToNote ? { savedIn: (followupId) => cardNotes.find((note) => note.qa && note.followupIds?.includes(followupId))?.noteId || "", onSave: onSaveQaToNote, onOpen: onOpenNote } : null}
+              onOpenBookSection={canOpenBookSection ? () => onOpenBookSection(cardPlace) : undefined} />}
             {showSolution && (allFollowups.length > 0 || (run.solution?.explanation?.length || 0) >= 280) && (
               <div className="explanation-foot">
                 <Button variant="quiet" size="sm" onClick={() => {

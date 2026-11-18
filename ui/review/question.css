@@ -474,6 +474,16 @@
       margin: var(--space-3-5) 0 var(--space-3);
       font-weight: var(--fw-medium);
     }
+    .next-due.next-due--verdict:has(+ .question-book-link) {
+      margin-bottom: var(--space-1-5);
+    }
+    .question-book-link {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2);
+      margin: 0 0 var(--space-2);
+    }
     /* The icon has its own column: a lead line that wraps starts its second line under the words, not under the icon. */
     .next-due__lead { display: flex; align-items: flex-start; gap: var(--space-1-5); margin: 0; }
     .next-due__icon { flex: none; margin-top: calc((1lh - var(--icon-inline)) / 2); }

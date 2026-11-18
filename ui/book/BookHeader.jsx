@@ -8,13 +8,13 @@ import BookMoves from './BookMoves.jsx';
    (the home's: it makes another course current in the whole app; plain text when there is one course), a status line only while a book task runs, the
    one-off 「已切换到课程 X」 of the home's card and the 「笔记换了位置」 notice (one line once read; the list stays one click away). */
 
-/** data: the snapshot; course, courseName; book: course.book.open's answer or null; writing: the running book task or null; switched; onBack, onCourse(course), onOpenTask(jobId), onUndoRebuild(outlineId). */
-export default function BookHeader({ data, course, courseName, book, writing, switched, onBack, onCourse, onOpenTask, onUndoRebuild, onUpdate }) {
+/** data: the snapshot; course, courseName; book: course.book.open's answer or null; writing: the running book task or null; switched; backLabel (overrides 回到总纲 when returning to a question), onBack, onCourse(course), onOpenTask(jobId), onUndoRebuild(outlineId). */
+export default function BookHeader({ data, course, courseName, book, writing, switched, backLabel = '', onBack, onCourse, onOpenTask, onUndoRebuild, onUpdate }) {
   const courses = data?.focus?.courses || [];
   const name = courses.length > 1 ? <Tooltip layer content={ui('会切换整个应用的当前课程')} anchorClassName="book-header__course">
     <CourseSwitch data={data} onFocus={next => onCourse(next.course)}>{courseName}</CourseSwitch></Tooltip> : courseName;
   return (
-    <PageHeader compact className="book-header" back={{ label: ui('回到总纲'), onClick: onBack }} title={<>{ui('复习全书')}<span className="book-header__dot" aria-hidden="true"> · </span>{name}</>}
+    <PageHeader compact className="book-header" back={{ label: backLabel || ui('回到总纲'), onClick: onBack }} title={<>{ui('复习全书')}<span className="book-header__dot" aria-hidden="true"> · </span>{name}</>}
       titleProps={{ tabIndex: -1, 'data-context-heading': true }}>
       {writing && book?.status === 'ok' && book.notes && <p className="book-header__status" role="status">{ui('正在更新复习全书…')}
         {onOpenTask && <Button iconEnd="arrow-right" variant="link" size="sm" onClick={() => onOpenTask(writing.jobId)}>{ui('看进度')}</Button>}</p>}

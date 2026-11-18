@@ -122,6 +122,7 @@
     "tests/pdf-console-browser.test.mjs",
     "tests/practice-round-controls-browser.test.mjs",
     "tests/qa-harness-dist-isolation.test.mjs",
+    "tests/question-book-section-browser.test.mjs",
     "tests/question-card-focus-browser.test.mjs",
     "tests/question-figure-link-browser.test.mjs",
     "tests/question-place-browser.test.mjs",
