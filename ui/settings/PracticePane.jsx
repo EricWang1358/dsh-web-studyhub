@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from '../i18n.js';
 import { Button, Field, Hint, Select, SettingsSection, Switch, useToast } from '../components/index.js';
-import { NEW_CARD_ORDERS, PRACTICE_DEFAULTS, freshRoundCount, resolvePracticeSettings, studyChainRecipes } from '../../lib/practice-settings.js';
+import { NEW_CARD_ORDERS, PRACTICE_DEFAULTS, freshRoundCount, lookBackBlindRecall, notesPracticeBridge, resolvePracticeSettings, studyChainRecipes, wrongbookClinic } from '../../lib/practice-settings.js';
 import { leechMisses } from '../../lib/leech.js';
 import { COVERAGE_DEFAULT, CRUNCH_MINUTES, CRUNCH_WINDOW, bookConfusableDrill, bookCoverage, bookInlinePractice, crunchMinutes, crunchWindow, resolveBookSettings } from '../../lib/book-settings.js';
 import { levelHint, levelOptions } from '../outline/words.js';
@@ -46,6 +46,20 @@ export default function PracticePane({ data, busy, act, openSchedule }) {
     finally { if (live.current) setWorking(false); }
   };
   const set = (patch) => run('settings.practice.set', { patch }, { ...values, ...patch });
+  const setOptional = async (settingKey, on) => {
+    if (busy || working || typeof act !== 'function') return;
+    setError('');
+    setValues((current) => {
+      const next = { ...current };
+      if (on) next[settingKey] = true;
+      else delete next[settingKey];
+      return next;
+    });
+    try {
+      const result = await act('settings.practice.set', { patch: { [settingKey]: on ? true : null } }, () => toast.success(ui('练习设置已保存')), { rethrow: true });
+      if (result === undefined && live.current) setValues(savedValues);
+    } catch (cause) { if (live.current) { setValues(savedValues); setError(errorMessage(cause)); } }
+  };
   // 自动加入复习全书 (lib/book-settings.js, settings.book): its own key, saved at once too; the practice page has the same switch beside its Q&A.
   const savedBook = resolveBookSettings(data?.settings?.book).qaToBook;
   const [bookMode, setBookMode] = useState(savedBook);
@@ -126,6 +140,29 @@ export default function PracticePane({ data, busy, act, openSchedule }) {
         return run('settings.practice.set', { patch: { readerDoubtLedger: on ? true : null } }, next);
       }}
         hint={ui('打开后，资料阅读器里还没选中段落时，右侧会列出这篇资料本次问过的回答与已存批注；点「遮住答案自测」可以先自己回想再看回答，也能一键存成闪卡，不消耗模型。关掉后保持原有提示。')} />
+      <Switch name="wrongbookClinic" label={ui('错题页显示靶向清零处方')} checked={wrongbookClinic(values)} disabled={disabled}
+        onChange={(on) => {
+          const next = { ...values };
+          if (on) next.wrongbookClinic = true; else delete next.wrongbookClinic;
+          return run('settings.practice.set', { patch: { wrongbookClinic: on ? true : null } }, next);
+        }}
+        hint={ui('打开后，「错题与待巩固」在列表上方按同一处原文、顽固题和单次失误整理出可直接开练的处方行，只看现有作答和引用记录，不调用模型；关着时保持原有的错题列表不变。')} />
+      <Switch name="lookBackBlindRecall" label={ui('练习结果页错题先遮答案并可标错因')} checked={lookBackBlindRecall(values)} disabled={disabled}
+        onChange={(on) => {
+          const next = { ...values };
+          if (on) next.lookBackBlindRecall = true; else delete next.lookBackBlindRecall;
+          return run('settings.practice.set', { patch: { lookBackBlindRecall: on ? true : null } }, next);
+        }}
+        hint={ui('每轮做完点开「本轮题目」里的错题时，先遮住正确答案与解析让你回想一遍再揭晓；揭晓后可顺手点选错因（概念混淆、漏看条件、推导卡住、粗心手滑），按错因一键重练或带进复制的复盘摘录。只影响回看显示，不改复习间隔，也不调用模型。')} />
+      <Switch name="notesPracticeBridge" label={ui('学习笔记显示关联题整套开练')} checked={notesPracticeBridge(values)} disabled={disabled}
+        onChange={(on) => {
+          const next = { ...values };
+          if (on) next.notesPracticeBridge = true; else delete next.notesPracticeBridge;
+          return run('settings.practice.set', { patch: { notesPracticeBridge: on ? true : null } }, next);
+        }}
+        hint={ui('打开后，「学习笔记」列表会出现「只看含关联题」筛选，点开笔记阅读时上方也会给出「练这 N 道关联题」按钮，把整篇笔记或每日总结关联的题目排成一轮重练，练完回到这篇笔记；自动跳过已移除或已归档的题目，不调用模型。')} />
+      <Switch name="outlineGapLens" label={ui('总纲缺口筛选与无题直出')} checked={Boolean(values.outlineGapLens)} disabled={disabled} onChange={(on) => setOptional('outlineGapLens', on)}
+        hint={ui('打开后，「总纲」页面的筛选栏增加「薄弱与到期」和「尚无题目」视图，并提供一键专练全部薄弱与到期小节，以及在无题章节旁直接跳转创建题组。默认关闭，不调用模型。')} />
       <Switch name="qaToBook" label={ui('自动加入复习全书')} checked={bookMode === 'auto'} disabled={disabled} onChange={(on) => setBook(on ? 'auto' : 'manual')}
         hint={ui('练习时得到的追问和「帮我弄懂」的回答，打开后会自动放进这门课的复习全书（这道题所在知识点的问答里）；关着时在每条问答旁点「加入复习全书」才放进去。题目自己的问答记录不受影响，加进书里的随时可以撤回。只影响之后的问答。')} />
       <Switch name="bookInlinePractice" label={ui('复习全书开启薄弱节筛选与页内自测')} checked={bookFlags.inlinePractice} disabled={disabled} onChange={(on) => setBookFlag('inlinePractice', on)}

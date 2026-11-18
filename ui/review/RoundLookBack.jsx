@@ -15,6 +15,8 @@ import { AppContext } from "../app/app-context.js";
 import { useCopyFeedback } from "../use-copy-feedback.js";
 import CorrectionCard from "./CorrectionCard.jsx";
 import { companionSlideButtonLabel, openCompanionTarget, resolveCompanionTarget } from "../companions/companion-ref.js";
+import { lookBackBlindRecall } from "../../lib/practice-settings.js";
+import { LOOKBACK_ERROR_REASONS, maskedClozeTextOf, maskedPromptOf, reasonGroups, reasonLabelOf, rowReasonKey, toggleRowReason } from "./lookback-recall.js";
 
 /* 本轮题目 on the result page (#1009): one row per question of the round, read once when the page opens with review.lookBack {runId}
    (lib/contexts/study/round-look-back.js; a read the main chat is refused, so a chat's tool results of the round stay small), and a press on a row opens a
@@ -79,8 +81,9 @@ function rowCorrectAnswerMarkdown(row, mode) {
 }
 
 /** Format look-back rows with solutions as clean Markdown for copying notes out of a round. */
-export function formatLookBackMarkdown(rows = [], translate = ui) {
+export function formatLookBackMarkdown(rows = [], translate = ui, options = {}) {
   const sections = [];
+  const reasonsByKey = options?.reasonsByKey;
   for (const row of Array.isArray(rows) ? rows : []) {
     if (!row) continue;
     const mode = row.mode || "";
@@ -97,6 +100,8 @@ export function formatLookBackMarkdown(rows = [], translate = ui) {
       if (row.solution.misconception) lines.push(`**${translate("易错点")}**：${String(row.solution.misconception).trim()}`);
       if (row.solution.rubric) lines.push(`**${translate("评分依据")}**：${String(row.solution.rubric).trim()}`);
     }
+    const reasonLabel = row.status === "wrong" && reasonsByKey ? reasonLabelOf(reasonsByKey[rowReasonKey(row)]) : "";
+    if (reasonLabel) lines.push(`**${translate("错因归类")}**：${translate(reasonLabel)}`);
     sections.push(lines.join("\n\n"));
   }
   return sections.join("\n\n---\n\n");
@@ -135,13 +140,43 @@ function LookBackAnswer({ row, mode }) {
   );
 }
 
+/** Neutral options preview shown while blind-recall veil is active (hides correctness & explanations). */
+function VeiledOptions({ card }) {
+  const verdict = !!fixedOptionsOf(card.kind);
+  return (
+    <ul className="look-back__veil-options">
+      {card.options.map((option, index) => (
+        <li key={option.id} className="look-back__veil-option">
+          <span className="look-back__veil-mark" aria-hidden={verdict || undefined}><OptionMark card={card} option={option} index={index} /></span>
+          <div>{verdict ? fixedOptionLabel(card, option) : <Markdown text={option.text} links={false} className="md-compact" />}</div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /** The read-only look-back of one row. */
-function LookBack({ row, mode, sources, onOpenSource }) {
+function LookBack({ row, mode, sources, onOpenSource, veiled = false, onReveal, showReasons = false, reasonId = "", onPickReason }) {
   if (!row.solution || row.status === "grading") {
     return (
       <div className="look-back__body">
         <Markdown text={promptOf(row)} />
         <p className="muted small">{row.status === "grading" ? ui("正在批改，分数出来后这里会显示答案和讲解。") : ui("这道题这一轮没有作答，答案留到下次练到时再看。")}</p>
+      </div>
+    );
+  }
+  if (veiled) {
+    const promptText = maskedPromptOf(row);
+    const clozeText = maskedClozeTextOf(row);
+    return (
+      <div className="look-back__body">
+        {promptText && <Markdown text={promptText} />}
+        {clozeText && <Markdown text={clozeText} />}
+        {mode !== "flashcard" && hasOptions(row.card?.kind) && row.card?.options?.length > 0 && <VeiledOptions card={row.card} />}
+        <div className="look-back__veil">
+          <span className="muted small">{ui("先在心里回想一遍答案与卡点，再揭晓核对。")}</span>
+          <Button size="sm" variant="secondary" onClick={onReveal}>{ui("揭晓答案与解析")}</Button>
+        </div>
       </div>
     );
   }
@@ -158,6 +193,16 @@ function LookBack({ row, mode, sources, onOpenSource }) {
           {!isChoice && row.solution.rubric && <><h4>{row.card.kind === "task" ? ui("验收标准") : ui("评分依据")}</h4><Markdown text={row.solution.rubric} /></>}
         </div>
       )}
+      {showReasons && row.status === "wrong" && (
+        <div className="look-back__reasons" role="group" aria-label={ui("错因归类")}>
+          <span className="muted small">{ui("错因归类")}</span>
+          {LOOKBACK_ERROR_REASONS.map((item) => (
+            <Button key={item.id} size="sm" variant="quiet" shape="pill" aria-pressed={reasonId === item.id} onClick={() => onPickReason?.(item.id)}>
+              {ui(item.label)}
+            </Button>
+          ))}
+        </div>
+      )}
       {onOpenSource && <CitationDisclosure card={row.solution} sources={sources} onOpenSource={onOpenSource} />}
       <ExplanationFollowup run={{ deckId: row.deckId, card: { id: row.cardId }, solution: row.solution }} readOnly />
     </div>
@@ -168,9 +213,11 @@ function LookBack({ row, mode, sources, onOpenSource }) {
  * props: run (the finished run), sources (optional material list for citations and source jumps),
  * onOpenWrongBook(refs) (optional: the wrong book on these questions, where its rescue is; absent when the page is not available).
  */
-export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAck, onPracticeWrong, segment = null, onSegmentChange, collapsible = false }) {
+export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAck, onPracticeWrong, segment = null, onSegmentChange, collapsible = false, practiceSettings = null }) {
   const study = useStudy();
-  const courses = React.useContext(AppContext)?.data?.courses;
+  const appData = React.useContext(AppContext)?.data;
+  const courses = appData?.courses;
+  const recallEnabled = lookBackBlindRecall(practiceSettings ?? appData?.settings?.practice);
   const openSource = study?.openModal ? (source, quote, peekPage) => {
     if (source) study.openModal({ type: "source", source, quote, peekPage, back: true });
   } : null;
@@ -189,6 +236,14 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAc
   const [hesitantOnly, setHesitantOnly] = React.useState(false);
   const view = chosen ?? (corrections.length ? "pending" : needsLook.length ? "some" : "all"), all = view === "all";
   const [open, setOpen] = React.useState(() => new Set());
+  const [veilActive, setVeilActive] = React.useState(recallEnabled);
+  const [revealedRows, setRevealedRows] = React.useState(() => new Set());
+  const [reasonsByKey, setReasonsByKey] = React.useState({});
+  React.useEffect(() => {
+    setVeilActive(recallEnabled);
+    setRevealedRows(new Set());
+    setReasonsByKey({});
+  }, [run.id, recallEnabled]);
   React.useEffect(() => { if (segment) setHesitantOnly(false); }, [segment]);
   const shown = hesitantOnly
     ? hesitantRows
@@ -198,7 +253,7 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAc
   const withSolution = shown.filter((row) => row.solution);
   const expandedWithSolution = withSolution.filter((row) => open.has(row.number));
   const copyTargets = (expandedWithSolution.length ? expandedWithSolution : withSolution).map((row) => (row.mode ? row : { ...row, mode: run.mode }));
-  const { copied, copy } = useCopyFeedback(() => formatLookBackMarkdown(copyTargets, ui));
+  const { copied, copy } = useCopyFeedback(() => formatLookBackMarkdown(copyTargets, ui, recallEnabled ? { reasonsByKey } : undefined));
   if (!rows.length) return null;
   const count = (status) => rows.filter((row) => row.status === status).length;
   const wrong = count("wrong"), unanswered = count("unanswered"), grading = count("grading");
@@ -254,11 +309,19 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAc
       }
     }
   };
+  const taggedReasons = recallEnabled && onPracticeWrong ? reasonGroups(rows, reasonsByKey) : [];
   const render = (row) => {
     const words = STATUS[row.status] || STATUS.unanswered;
     const expanded = open.has(row.number), regionId = `look-back-${run.id}-${row.number}`;
+    const rKey = rowReasonKey(row);
+    const isVeiled = recallEnabled && veilActive && row.status === "wrong" && !!row.solution && !revealedRows.has(row.number);
+    const revealRow = () => setRevealedRows((previous) => {
+      const next = new Set(previous);
+      next.add(row.number);
+      return next;
+    });
     const place = sourceForRow(row);
-    const companionTarget = expanded && row.solution && study?.openModal
+    const companionTarget = expanded && row.solution && !isVeiled && study?.openModal
       ? resolveCompanionTarget({ card: row.card, solution: row.solution, courses, sources })
       : null;
     return (
@@ -268,6 +331,9 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAc
           <Badge size="sm" tone={words.tone}>{ui(selfGraded(row, run.mode) ? words.self : words.graded)}</Badge>
           {row.hinted && <Badge size="sm">{ui("用了提示")}</Badge>}
           {row.correctionPending && <Badge size="sm" tone="warning">{ui("待看订正")}</Badge>}
+          {recallEnabled && row.status === "wrong" && reasonsByKey[rKey] && (
+            <Badge size="sm">{ui(reasonLabelOf(reasonsByKey[rKey]))}</Badge>
+          )}
           {row.hesitant && (
             <Tooltip layer content={uiFormat("用时约 {0} 秒", [Math.round((row.elapsedMs || 0) / 1000)])}>
               <Badge size="sm">{ui("想了较久")}</Badge>
@@ -278,10 +344,13 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAc
         </Button>
         {expanded && (
           <div id={regionId} className="look-back__panel" role="region" aria-label={uiFormat("第 {0} 题回看", [row.number])}>
-            <LookBack row={row} mode={run.mode} sources={sources} onOpenSource={openSource} />
-            {row.feedback && <CorrectionCard feedback={row.feedback} withRubric={!!row.feedback.rubric && row.card?.kind !== "task"}
+            <LookBack row={row} mode={run.mode} sources={sources} onOpenSource={openSource}
+              veiled={isVeiled} onReveal={revealRow} showReasons={recallEnabled}
+              reasonId={reasonsByKey[rKey] || ""}
+              onPickReason={(reasonId) => setReasonsByKey((prev) => toggleRowReason(prev, rKey, reasonId))} />
+            {!isVeiled && row.feedback && <CorrectionCard feedback={row.feedback} withRubric={!!row.feedback.rubric && row.card?.kind !== "task"}
               onAck={row.correctionPending && onAck ? () => Promise.resolve(onAck(row)).then(() => invalidate("review.lookBack")) : undefined} />}
-            {(companionTarget || place || (row.status === "wrong" && onOpenWrongBook)) && (
+            {!isVeiled && (companionTarget || place || (row.status === "wrong" && onOpenWrongBook)) && (
               <div className="look-back__actions">
                 {companionTarget && (
                   <Button variant="quiet" size="sm" iconEnd="arrow-right" onClick={() => openCompanionTarget(study.openModal, companionTarget)}>
@@ -331,8 +400,13 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAc
             )}
           </div>
         )}
-        {(hesitantRows.length > 0 || shown.length >= 2 || (onPracticeWrong && wrong >= 1) || withSolution.length > 0) && (
+        {(hesitantRows.length > 0 || shown.length >= 2 || (onPracticeWrong && wrong >= 1) || (recallEnabled && wrong >= 1) || taggedReasons.length > 0 || withSolution.length > 0) && (
           <div className="round-look-back__tools">
+            {recallEnabled && wrong >= 1 && (
+              <Button variant="quiet" size="sm" aria-pressed={veilActive} onClick={() => setVeilActive((prev) => !prev)}>
+                {ui("先遮答案自测")}
+              </Button>
+            )}
             {hesitantRows.length > 0 && (
               <Button variant="quiet" size="sm" aria-pressed={hesitantOnly} onClick={() => { setHesitantOnly((prev) => !prev); onSegmentChange?.(null); }}>
                 {uiFormat("只看想了较久 ({0})", [hesitantRows.length])}
@@ -348,6 +422,11 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAc
                 {wrong === 1 ? ui("重练这道错题") : uiFormat("重练这 {0} 道错题", [wrong])}
               </Button>
             )}
+            {taggedReasons.map((group) => (
+              <Button key={group.id} iconEnd="arrow-right" size="sm" variant="quiet" lock={study?.busy} onClick={() => onPracticeWrong(group.refs)}>
+                {uiFormat("重练「{0}」({1})", [ui(group.label), group.refs.length])}
+              </Button>
+            ))}
             {withSolution.length > 0 && (
               <Button variant="quiet" size="sm" onClick={copy}>
                 {copied ? ui("已复制") : ui("复制复盘摘录")}

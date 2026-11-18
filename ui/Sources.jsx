@@ -1,10 +1,19 @@
 import { ui, uiFormat, uiLocale, errorMessage } from "./i18n.js";
 import { formatNumber, formatDay } from "./format.js";
-import React, { memo, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
+import React, { memo, useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import { AudioJobs } from "./audio/AudioJobs.jsx";
 import { PdfConvertHistory, PdfConvertJobs } from './PdfConvertJob.jsx';
 import CourseField, { parseCourses } from './CourseField.jsx';
 import PageScope, { courseNamesOf, usePageScope } from './PageScope.jsx';
+import MaterialCategoryBar from './MaterialCategoryBar.jsx';
+import {
+  ALL_FACET,
+  buildMaterialCategoryOptions,
+  buildMaterialTypeOptions,
+  buildSourceFlags,
+  filterMaterialsByFacets,
+  hasFacetOption,
+} from './material-facets.js';
 import { useInjectCss } from "./shared.js";
 import { AddSourceButton, Badge, Button, Checkbox, CheckboxInput, Chip, ChunkedRows, ConfirmDialog, Dialog, Disclosure, Field, Icon, InlineMessage, Menu, PageHeader, SegmentedControl, Select, TextInput, Tooltip, filterItems, scrollWindowCount, useToast } from "./components/index.js";
 import { browserStorage, readJSON, writeJSON } from "./storage.js";
@@ -455,6 +464,8 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   const [showArchived, setShowArchived] = useState(false);
   const [reviewOnly, setReviewOnly] = useState(false);
   const [query, setQuery] = useState('');
+  const [typeScope, setTypeScope] = useState(ALL_FACET);
+  const [categoryScope, setCategoryScope] = useState(ALL_FACET);
   const [viewState, setViewState] = useState(() => ({ root: data.root, mode: readGroupMode(data.root), sort: readSortMode(data.root) }));
   const groupMode = viewState.root === data.root ? viewState.mode : readGroupMode(data.root);
   const sortBy = viewState.root === data.root ? viewState.sort : readSortMode(data.root);
@@ -472,10 +483,42 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   const pageRef = useRef(null);
   const narrow = useNarrow(pageRef, ROWS_NARROW, { content: true });
   const allItems = useMemo(() => groupSourcesByDocument(data.sources), [data.sources]);
+  const sourceFlags = useMemo(() => buildSourceFlags(data.sources), [data.sources]);
   const items = useMemo(() => allItems.filter(item => item.archived === showArchived), [allItems, showArchived]);
   const byId = useMemo(() => new Map(data.sources.map(source => [source.id, source])), [data.sources]);
   const known = useMemo(() => courseNamesOf(data), [data.focus?.courses]); // eslint-disable-line react-hooks/exhaustive-deps
-  const scoped = useMemo(() => items.filter(item => inScope(item, scope, known)), [items, scope, known]);
+  const materialFolders = useMemo(
+    () => (data.materialFolders ? readMaterialFolders({ materialFolders: data.materialFolders }) : readMaterialFolders(data.settings)),
+    [data.materialFolders, data.settings],
+  );
+  const courseScoped = useMemo(() => items.filter(item => inScope(item, scope, known)), [items, scope, known]);
+  const showCategoryBar = !showArchived && courseScoped.length > 1;
+  const typeOptions = useMemo(
+    () => (showCategoryBar ? buildMaterialTypeOptions(courseScoped, sourceFlags) : []),
+    [showCategoryBar, courseScoped, sourceFlags],
+  );
+  const categoryOptions = useMemo(
+    () => (showCategoryBar ? buildMaterialCategoryOptions(courseScoped, materialFolders) : []),
+    [showCategoryBar, courseScoped, materialFolders],
+  );
+  const activeTypeScope = showCategoryBar && hasFacetOption(typeOptions, typeScope) ? typeScope : ALL_FACET;
+  const activeCategoryScope = showCategoryBar && hasFacetOption(categoryOptions, categoryScope) ? categoryScope : ALL_FACET;
+  useEffect(() => {
+    if (typeScope !== ALL_FACET && !hasFacetOption(typeOptions, typeScope)) setTypeScope(ALL_FACET);
+  }, [typeOptions, typeScope]);
+  useEffect(() => {
+    if (categoryScope !== ALL_FACET && !hasFacetOption(categoryOptions, categoryScope)) setCategoryScope(ALL_FACET);
+  }, [categoryOptions, categoryScope]);
+  const scoped = useMemo(
+    () => (showArchived ? courseScoped : filterMaterialsByFacets(courseScoped, {
+      typeScope: activeTypeScope,
+      categoryScope: activeCategoryScope,
+      materialFolders,
+      sourceFlags,
+    })),
+    [showArchived, courseScoped, activeTypeScope, activeCategoryScope, materialFolders, sourceFlags],
+  );
+  const searchMatch = useCallback(item => documentSearchText(item, materialFolders), [materialFolders]);
   const filtering = !!query.trim();
   const urgentScopedCount = useMemo(
     () => (showArchived ? 0 : scoped.filter(item => reviewUrgencyOf(data.materialMastery?.[item.key]?.document).hasUrgent).length),
@@ -487,8 +530,8 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
     const base = activeReviewFilter
       ? scoped.filter(item => reviewUrgencyOf(data.materialMastery?.[item.key]?.document).hasUrgent)
       : scoped;
-    return filtering ? filterItems(base, query, documentSearchText) : base;
-  }, [scoped, activeReviewFilter, data.materialMastery, filtering, query]);
+    return filtering ? filterItems(base, query, searchMatch) : base;
+  }, [scoped, activeReviewFilter, data.materialMastery, filtering, query, searchMatch]);
   // Books of more than 300 pages get the 大教材建议; what DSH can search with is read once, and only then (WP28).
   const bigKeys = useMemo(() => new Set(bigDocuments(items).map(item => item.key)), [items]);
   // Whether each material's search index is built (the rows say so); read once, and followed while a build runs.
@@ -496,15 +539,12 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   const { data: retrieval } = useRetrievalStatus({ enabled: bigKeys.size > 0 });
   // 置顶: the pinned rows leave the groups and form their own group above them; with nothing pinned `rest` is `filtered` itself. The archive has no pins.
   const pins = useMemo(() => pinnedKeys(data.settings), [data.settings]);
-  const materialFolders = useMemo(
-    () => (data.materialFolders ? readMaterialFolders({ materialFolders: data.materialFolders }) : readMaterialFolders(data.settings)),
-    [data.materialFolders, data.settings],
-  );
+  const facetNarrowed = activeTypeScope !== ALL_FACET || activeCategoryScope !== ALL_FACET;
   const { pinned, rest } = useMemo(() => showArchived ? { pinned: [], rest: filtered } : splitPinned(filtered, pins), [filtered, pins, showArchived]);
   const locale = uiLocale();
   const groups = useMemo(
-    () => buildSourceGroups(rest, { mode: groupMode, folders: materialFolders, sort: sortBy, includeEmpty: groupMode === 'folder' && !narrowing && !showArchived, locale, scope, known, materialMastery: showArchived ? null : data.materialMastery }),
-    [rest, groupMode, materialFolders, sortBy, narrowing, showArchived, locale, scope, known, data.materialMastery],
+    () => buildSourceGroups(rest, { mode: groupMode, folders: materialFolders, sort: sortBy, includeEmpty: groupMode === 'folder' && !narrowing && !showArchived && !facetNarrowed, locale, scope, known, materialMastery: showArchived ? null : data.materialMastery }),
+    [rest, groupMode, materialFolders, sortBy, narrowing, showArchived, facetNarrowed, locale, scope, known, data.materialMastery],
   );
   // The header describes the scope, not the filter: the filter's own count says how many match, so typing changes no line above the controls (#1085);
   // its 全部展开 / 全部收起 is there and named by the scope's groups too, so typing neither adds, removes nor renames a header button.
@@ -512,13 +552,13 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   const scopeView = useMemo(() => {
     const view = (rows, archived) => {
       const split = archived ? { pinned: [], rest: rows } : splitPinned(rows, pins);
-      return { split, groups: buildSourceGroups(split.rest, { mode: groupMode, folders: materialFolders, sort: sortBy, includeEmpty: groupMode === 'folder' && !archived, locale, scope, known, materialMastery: archived ? null : data.materialMastery }) };
+      return { split, groups: buildSourceGroups(split.rest, { mode: groupMode, folders: materialFolders, sort: sortBy, includeEmpty: groupMode === 'folder' && !archived && !facetNarrowed, locale, scope, known, materialMastery: archived ? null : data.materialMastery }) };
     };
     const { split, groups: scopeGroups } = view(scoped, showArchived);
     const other = view(allItems.filter(item => item.archived !== showArchived && inScope(item, scope, known)), !showArchived).groups;
     return { groupKeys: scopeGroups.map(group => group.key), groupsInEither: scopeGroups.length > 1 || other.length > 1,
       summary: { count: scoped.length, pinned: split.pinned.length, rest: split.rest.length, groups: scopeGroups.length } };
-  }, [scoped, allItems, pins, showArchived, groupMode, materialFolders, sortBy, locale, scope, known, data.materialMastery]);
+  }, [scoped, allItems, pins, showArchived, groupMode, materialFolders, sortBy, facetNarrowed, locale, scope, known, data.materialMastery]);
   const scopeSummary = scopeView.summary;
   // Materials made from one original file say so on their rows (#207), as in the picker of 创建题组.
   const relations = useMemo(() => materialRelations(items), [items]);
@@ -743,7 +783,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   }, [items, data.courses, showArchived]);
   // A group draws its rows in chunks (ChunkedRows); the rows something goes to are drawn even past the first chunk: the new import, and the 深度定制 button 找功能 looks for.
   // A new course scope, filter query, grouping mode, sort mode or archive toggle starts every group from its first chunk again.
-  const chunkKey = `${scope}|${showArchived}|${activeReviewFilter}|${query.trim()}|${groupMode}|${sortBy}`;
+  const chunkKey = `${scope}|${activeTypeScope}|${activeCategoryScope}|${showArchived}|${activeReviewFilter}|${query.trim()}|${groupMode}|${sortBy}`;
   const rowOf = (rows, keys) => rows.findIndex(item => keys.has(item.key));
   const anchorsOf = rows => ({ 'custom-book-row': rowOf(rows, offers) });
   // One row, in a group or in the pinned group (`pin`: where it stands among the pinned rows).
@@ -836,6 +876,13 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
           </span>}
         </div>
         </div>
+        {showCategoryBar && <MaterialCategoryBar className="sources-facets" items={courseScoped} targetItems={scoped}
+          course={scope === '*' || scope === '' ? '' : scope}
+          materialFolders={materialFolders} sourceFlags={sourceFlags}
+          typeOptions={typeOptions} categoryOptions={categoryOptions}
+          typeScope={activeTypeScope} onTypeScopeChange={setTypeScope}
+          categoryScope={activeCategoryScope} onCategoryScopeChange={setCategoryScope}
+          modelReady={modelReadiness(data).ready} />}
         <div className="sources-view-bar">
           <SegmentedControl size="sm" wrap label={ui('分组方式')} value={groupMode} onChange={chooseGroupMode} options={[
             { value: 'course', label: ui('按课程') },
@@ -923,7 +970,8 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
             }, finish)}>{ui('确认应用建议')}</Button>
           </div>}
         </details>}
-        {items.length > 0 && !scoped.length && <p className="muted">{ui('这个范围还没有资料。可切换到全部课程查看。')}</p>}
+        {items.length > 0 && !courseScoped.length && <p className="muted">{ui('这个范围还没有资料。可切换到全部课程查看。')}</p>}
+        {items.length > 0 && courseScoped.length > 0 && !scoped.length && <p className="muted">{ui('当前类型与分类组合下没有匹配的资料，可调整筛选条件。')}</p>}
         {items.length > 0 && scoped.length > 0 && !filtered.length && (
           activeReviewFilter
             ? <p className="muted">{filtering ? uiFormat('待巩固资料中没有匹配“{0}”的项。', [query.trim()]) : ui('当前范围没有待巩固的资料。')} <Button variant="link" size="sm" onClick={() => setReviewOnly(false)}>{ui('显示全部资料')}</Button></p>

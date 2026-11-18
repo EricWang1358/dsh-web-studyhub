@@ -296,7 +296,19 @@ function OutlineView() {
   };
   // 打开书页: the 复习全书 of the course, at the point the learner opened (its 总纲 key), or where they were in it.
   const onOpenBook = (key) => { keepBook(data.root, data.focus?.course ?? null, { target: key || null }); nav.navigate('book'); };
+  const onGoGenerateTopic = (topic) => {
+    const course = data.focus?.course;
+    intents.goGenerate({
+      genPatch: (cur) => ({
+        ...cur,
+        ...(course ? { course } : {}),
+        ...(topic ? { focus: appendFocus(cur.focus, topic) } : {}),
+      }),
+      remember: true,
+    });
+  };
   return <CourseOutline key={`${data.root}:${data.focus?.course}`} data={data} onBack={() => nav.navigate('library')} onCreate={() => intents.goGenerate()}
+    onGoGenerateTopic={onGoGenerateTopic}
     onOpenSources={pageAvailable(data, 'sources') ? () => nav.navigate('sources') : undefined} onPractice={onPractice} onOpenTask={nav.show.task}
     onOpenSource={(id, quote) => learn.openLearningTarget({ kind: 'source', id, quote })} onOpenBook={onOpenBook} />;
 }
@@ -488,12 +500,13 @@ function ReviewView({ feedback }) {
 }
 
 function NotesView() {
-  const { data, nav, lib, set, shell, learn, settingsEntry } = useApp();
+  const { data, nav, lib, set, shell, learn, settingsEntry, intents, session } = useApp();
   return (
     <BlogNotes key={data.root} data={data} theme={shell.resolvedTheme} onModelSettings={settingsEntry.openModelSettings}
       onRecapSettings={() => { learn.rememberContext(learn.captureContext()); settingsEntry.setSettingsFocus('settings-daily-recap'); nav.show.page('settings'); }}
       initialId={lib.noteInitialId} onSelect={set.setNoteInitialId} onOpenCard={(reference) => learn.openLearningTarget({ kind: 'card', ...reference })}
       onOpenSource={(id, quote) => learn.openLearningTarget({ kind: 'source', id, quote })}
+      onPracticeCards={pageAvailable(data, 'review') ? (scope) => practiseRound({ intents, learn, session }, scope) : undefined}
       backLabel={learn.trailLabel} onBack={learn.hasTrail ? learn.returnFromContext : () => { set.setNoteInitialId(''); nav.navigate('library'); }} />
   );
 }

@@ -103,7 +103,9 @@ export default function CaseCreate({ data, onStarted, openImport, openReferenceI
         {initial.broughtOver > 0 && mode !== "import" && openingStands({ sourceIds: initial.sourceIds }, sourceIds) && <p className="muted" data-brought-over>{uiFormat("已带入刚才选好的 {0} 份资料；不合适就在下面改。", [initial.broughtOver])}</p>}
         {/* A material imported from here goes into THIS selection, through the import dialog's own hand-off. */}
         <SourcePicker sources={caseEvidence(data.sources, referenceSourceIds)} selected={sourceIds} onChange={setSourceIds}
-          courses={data.focus?.courses} scope={scope} onScopeChange={setScope} onAdd={() => openImport?.({ course, onImported: (ids) => setSourceIds((current) => takeImported(current, ids)) })} disabled={busy} />
+          courses={data.focus?.courses} scope={scope} onScopeChange={setScope}
+          materialFolders={data.materialFolders ?? data.settings?.materialFolders} modelReady={model.ready}
+          onAdd={() => openImport?.({ course, onImported: (ids) => setSourceIds((current) => takeImported(current, ids)) })} disabled={busy} />
         <p className="muted">{mode === "import" ? ui("可选：勾选课程资料，评分标准会用到其中的概念。") : ui("勾选要考查的课程资料；案例和题目都基于这些概念。")}</p>
         {passage && mode !== "import" && <div className="case-create__passage">
           <strong>{ui("围绕这段资料出题")}</strong>
