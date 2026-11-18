@@ -1300,3 +1300,500 @@ test("combined 12-prerequisite limit and 500-term course cap reports unlinked wi
   assert.equal(enInbox.items[0].detail, expectedEn);
   assert.doesNotMatch(enInbox.items[0].detail, /[\u3400-\u9fff]/);
 });
+
+test("#1215 scenario 1: filling the same term twice on one card makes 1 model call, keeps 1 check card and 1 requires link, and preserves course.terms card", async (t) => {
+  for (const switchMode of SWITCH_MODES) {
+    let calls = 0;
+    const f = await setupTermsFixture(
+      t,
+      async (_sys, payload) => {
+        calls += 1;
+        const input = JSON.parse(payload);
+        assert.deepEqual(input.request.terms, ["BCP38"]);
+        return JSON.stringify({
+          ladder: [
+            makeStep({
+              term: "BCP38",
+              alt: "RFC 2827",
+              layer: 1,
+              needs: [],
+              prompt: calls === 1 ? "第一次生成的 BCP38 检查题？" : "第二次换了个问法的 BCP38 检查题？",
+            }),
+          ],
+        });
+      },
+      switchMode,
+    );
+
+    await f.assist.startAssist(f.ctx, {
+      root: f.root,
+      service: f.service,
+      sessionId: "s1",
+      mode: "terms",
+      ref: { deckId: "deck-1", cardId: "card-main" },
+      terms: ["BCP38"],
+      card: PARENT_CARD,
+      deckTitle: "Network Security",
+      language: "zh",
+    });
+    await ended(f.assist, f.root);
+
+    assert.equal(calls, 1);
+    const firstState = await f.service.store.read();
+    assert.equal(firstState.decks[0].cards.length, 2);
+    const firstCheckRef = structuredClone(firstState.decks[0].cards[0].requires[0]);
+    const firstCourseTerms = await f.service.call("course.terms.get", { course: "Networks" });
+    assert.deepEqual(firstCourseTerms.items.find((item) => item.term === "BCP38")?.card, firstCheckRef);
+
+    // Repeat fill for the same term (even with different casing) on the same card: 0 extra model calls.
+    await f.assist.startAssist(f.ctx, {
+      root: f.root,
+      service: f.service,
+      sessionId: "s1",
+      mode: "terms",
+      ref: { deckId: "deck-1", cardId: "card-main" },
+      terms: ["bcp38"],
+      card: PARENT_CARD,
+      deckTitle: "Network Security",
+      language: "zh",
+    });
+    await ended(f.assist, f.root);
+
+    assert.equal(calls, 1, `${switchMode}: second fill skips model call`);
+    const tasks = f.assist.assistView(f.root).tasks;
+    assert.equal(tasks.length, 2);
+    assert.equal(tasks[1].status, "done");
+    assert.equal(tasks[1].outcome, "linked");
+    assert.deepEqual(tasks[1].terms, ["bcp38"]);
+    assert.equal(tasks[1].message, "这几个词以前补过，检查题已排到这道题前面：bcp38");
+
+    const secondState = await f.service.store.read();
+    assert.equal(secondState.decks[0].cards.length, 2, `${switchMode}: still 1 check card in deck`);
+    assert.deepEqual(secondState.decks[0].cards[0].requires, [firstCheckRef], `${switchMode}: requires deduplicated`);
+    assert.equal(secondState.decks[0].cards[0].followups.length, 2, `${switchMode}: records second terms followup for #1193`);
+    assert.equal(secondState.decks[0].cards[0].followups[1].kind, "terms");
+    assert.deepEqual(secondState.decks[0].cards[0].followups[1].terms, ["bcp38"]);
+    assert.equal(secondState.decks[0].cards[0].followups[1].answer, "这几个词以前补过，检查题已排到这道题前面：bcp38");
+
+    const secondCourseTerms = await f.service.call("course.terms.get", { course: "Networks" });
+    assert.deepEqual(secondCourseTerms.items.find((item) => item.term === "BCP38")?.card, firstCheckRef);
+  }
+});
+
+test("#1215 scenario 2: existing check-card term on a second card runs with 0 model calls (even without configured model) and localizes cleanly", async (t) => {
+  const secondCard = {
+    ...PARENT_CARD,
+    id: "card-second",
+    topic: "Edge Filtering",
+    prompt: "为什么要在网络边界过滤伪造报文？",
+  };
+  const existingCheck = {
+    ...PARENT_CARD,
+    id: "chk-bcp38",
+    topic: "BCP38",
+    prompt: "什么是 BCP38？",
+  };
+
+  for (const switchMode of SWITCH_MODES) {
+    // 1. Completely unconfigured model (no complete, no jobExecutor) and 2. Throwing model with switchOptions.
+    for (const modelKind of ["none", "throwing"]) {
+      const root = await privateRoot(t, `assist-terms-reuse-${switchMode}-${modelKind}-`);
+      const complete = modelKind === "throwing" ? async () => { throw new Error("model must not be called"); } : undefined;
+      const service = modelKind === "none"
+        ? new StudyService(root, { runtimePilot: { assist: switchMode === "runtime" } })
+        : new StudyService(root, { complete, ...switchOptions(switchMode, { complete, paths: ["assist"] }) });
+      const assist = createAssistService();
+      t.after(async () => {
+        assist.dispose();
+        await service.dispose();
+        await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+      });
+      await service.store.update((state) => {
+        state.sources.push({ id: "src-1", title: "Routing Security", text: EVIDENCE });
+        state.decks.push({
+          id: "deck-1",
+          title: "Network Security",
+          course: "Networks",
+          cards: [structuredClone(PARENT_CARD), structuredClone(secondCard), structuredClone(existingCheck)],
+        });
+      });
+      await service.call("course.save", {
+        name: "Networks",
+        terms: {
+          version: 1,
+          items: [
+            {
+              term: "BCP38",
+              at: "2026-11-18T08:00:00.000Z",
+              from: { deckId: "deck-1", cardId: "card-main" },
+              card: { deckId: "deck-1", cardId: "chk-bcp38" },
+            },
+          ],
+        },
+      });
+      const ctx = { sessions: { get: () => ({ header: { cwd: root } }) }, get: () => undefined };
+
+      const lang = modelKind === "none" ? "zh" : "en";
+      await assist.startAssist(ctx, {
+        root,
+        service,
+        sessionId: "s1",
+        mode: "terms",
+        ref: { deckId: "deck-1", cardId: "card-second" },
+        terms: ["BCP38"],
+        card: secondCard,
+        deckTitle: "Network Security",
+        language: lang,
+      });
+      await ended(assist, root);
+
+      const [task] = assist.assistView(root).tasks;
+      assert.equal(task.status, "done", `${switchMode}/${modelKind}: ${task.message}`);
+      assert.equal(task.outcome, "linked");
+      assert.deepEqual(task.terms, ["BCP38"]);
+      assert.equal(task.text, "BCP38");
+
+      const state = await service.store.read();
+      assert.equal(state.decks[0].cards.length, 3, "no new check card created");
+      const target = state.decks[0].cards.find((c) => c.id === "card-second");
+      assert.deepEqual(target.requires, [{ deckId: "deck-1", cardId: "chk-bcp38" }]);
+      assert.equal(target.followups.length, 1);
+      assert.equal(target.followups[0].kind, "terms");
+      assert.deepEqual(target.followups[0].terms, ["BCP38"]);
+
+      assert.equal(state.inbox.length, 1);
+      assert.equal(state.inbox[0].kind, "followup");
+      assert.equal(state.inbox[0].cardId, "card-second");
+      assert.equal(state.inbox[0].read, false);
+
+      if (lang === "zh") {
+        assert.equal(task.message, "这几个词以前补过，检查题已排到这道题前面：BCP38");
+        assert.equal(target.followups[0].answer, "这几个词以前补过，检查题已排到这道题前面：BCP38");
+        assert.equal(state.inbox[0].detail, "这几个词以前补过，检查题已排到这道题前面：BCP38");
+      } else {
+        assert.equal(task.message, "These terms were already filled in earlier; their check questions are queued before this card: BCP38");
+        assert.equal(target.followups[0].answer, "These terms were already filled in earlier; their check questions are queued before this card: BCP38");
+        assert.doesNotMatch(task.message, /[\u3400-\u9fff]/);
+        assert.doesNotMatch(target.followups[0].answer, /[\u3400-\u9fff]/);
+        const enInbox = await service.call("inbox", { uiLanguage: "en" });
+        assert.equal(enInbox.items[0].detail, "These terms were already filled in earlier; their check questions are queued before this card: BCP38");
+        assert.doesNotMatch(enInbox.items[0].detail, /[\u3400-\u9fff]/);
+      }
+    }
+  }
+
+  // 12-prerequisite cap overflow in reuse-only case sets outcome: 'unlinked' and localizes cleanly.
+  const fillers = Array.from({ length: 12 }, (_, i) => ({
+    ...PARENT_CARD,
+    id: `fill-${i}`,
+    prompt: `前置占位 ${i + 1}`,
+  }));
+  const capRoot = await privateRoot(t, "assist-terms-reuse-cap-");
+  const capService = new StudyService(capRoot);
+  const capAssist = createAssistService();
+  t.after(async () => {
+    capAssist.dispose();
+    await capService.dispose();
+    await rm(capRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  });
+  await capService.store.update((state) => {
+    state.sources.push({ id: "src-1", title: "Routing Security", text: EVIDENCE });
+    state.decks.push({
+      id: "deck-1",
+      title: "Network Security",
+      course: "Networks",
+      cards: [
+        { ...structuredClone(PARENT_CARD), requires: fillers.map((c) => ({ deckId: "deck-1", cardId: c.id })) },
+        structuredClone(existingCheck),
+        ...fillers,
+      ],
+    });
+  });
+  await capService.call("course.save", {
+    name: "Networks",
+    terms: { version: 1, items: [{ term: "BCP38", at: "2026-11-18T08:00:00.000Z", card: { deckId: "deck-1", cardId: "chk-bcp38" } }] },
+  });
+  await capAssist.startAssist(
+    { sessions: { get: () => ({ header: { cwd: capRoot } }) }, get: () => undefined },
+    {
+      root: capRoot,
+      service: capService,
+      sessionId: "s1",
+      mode: "terms",
+      ref: { deckId: "deck-1", cardId: "card-main" },
+      terms: ["BCP38"],
+      card: PARENT_CARD,
+      deckTitle: "Network Security",
+      language: "en",
+    },
+  );
+  await ended(capAssist, capRoot);
+  const [capTask] = capAssist.assistView(capRoot).tasks;
+  assert.equal(capTask.status, "done");
+  assert.equal(capTask.outcome, "unlinked");
+  assert.match(capTask.message, /cannot link more prerequisites.*BCP38/);
+  assert.doesNotMatch(capTask.message, /[\u3400-\u9fff]/);
+  const capEnInbox = await capService.call("inbox", { uiLanguage: "en" });
+  assert.doesNotMatch(capEnInbox.items[0].detail, /[\u3400-\u9fff]/);
+});
+
+test("#1215 scenario 3: mixed 3 terms (1 live check card + 2 missing) sends 2 request.terms + 1 terms.hasCard, links all 3 and cited needs, and repairs redundant steps", async (t) => {
+  const existingCheck = {
+    ...PARENT_CARD,
+    id: "chk-bcp38",
+    topic: "BCP38",
+    prompt: "什么是 BCP38？",
+  };
+
+  for (const switchMode of SWITCH_MODES) {
+    let seenInput = null;
+    let seenSystem = "";
+    const f = await setupTermsFixture(
+      t,
+      async (system, payload) => {
+        seenSystem = system;
+        seenInput = JSON.parse(payload);
+        return JSON.stringify({
+          ladder: [
+            makeStep({ term: "入口过滤", alt: "ingress filtering", layer: 1, needs: ["BCP38"] }),
+            makeStep({ term: "出口过滤", alt: "egress filtering", layer: 1, needs: ["入口过滤"] }),
+          ],
+        });
+      },
+      switchMode,
+      (state) => {
+        state.decks[0].cards.push(structuredClone(existingCheck));
+        state.courses.push({
+          id: "course-net",
+          name: "Networks",
+          aliases: [],
+          createdAt: "2026-11-18T08:00:00.000Z",
+          updatedAt: "2026-11-18T08:00:00.000Z",
+          guidanceSourceIds: [],
+          focusTopics: [],
+          terms: {
+            version: 1,
+            items: [
+              {
+                term: "BCP38",
+                alt: "RFC 2827",
+                at: "2026-11-18T08:00:00.000Z",
+                from: { deckId: "deck-1", cardId: "card-main" },
+                card: { deckId: "deck-1", cardId: "chk-bcp38" },
+              },
+            ],
+          },
+        });
+      },
+    );
+
+    await f.assist.startAssist(f.ctx, {
+      root: f.root,
+      service: f.service,
+      sessionId: "s1",
+      mode: "terms",
+      ref: { deckId: "deck-1", cardId: "card-main" },
+      terms: ["BCP38", "入口过滤", "出口过滤"],
+      card: PARENT_CARD,
+      deckTitle: "Network Security",
+      language: "zh",
+    });
+    await ended(f.assist, f.root);
+
+    const [task] = f.assist.assistView(f.root).tasks;
+    assert.equal(task.status, "done", `${switchMode}: ${task.message}`);
+    assert.deepEqual(task.terms, ["BCP38", "入口过滤", "出口过滤"], `${switchMode}: task keeps all 3 terms for #1214 strip clear`);
+    assert.equal(task.message, "补了 2 个词，复用 1 个已有检查题，检查题已排到这道题前面");
+
+    assert.match(seenSystem, /terms\.hasCard/);
+    assert.deepEqual(seenInput.request.terms, ["入口过滤", "出口过滤"], `${switchMode}: model receives only 2 missing terms`);
+    assert.deepEqual(seenInput.terms.hasCard, ["BCP38"], `${switchMode}: model receives 1 hasCard term`);
+    assert.equal(seenInput.terms.unknown.includes("BCP38"), false, `${switchMode}: hasCard term excluded from terms.unknown`);
+
+    const state = await f.service.store.read();
+    const deck = state.decks[0];
+    assert.equal(deck.cards.length, 4, `${switchMode}: parent + 1 existing + 2 new = 4 cards`);
+    const parent = deck.cards.find((c) => c.id === "card-main");
+    const ingress = deck.cards.find((c) => c.topic === "入口过滤 检查");
+    const egress = deck.cards.find((c) => c.topic === "出口过滤 检查");
+    assert.equal(parent.requires.length, 3, `${switchMode}: parent card links all 3 prerequisites`);
+    assert.deepEqual(parent.requires.map((r) => r.cardId), ["chk-bcp38", ingress.id, egress.id]);
+    assert.deepEqual(ingress.requires, [{ deckId: "deck-1", cardId: "chk-bcp38" }], `${switchMode}: new step links reused check card`);
+    assert.deepEqual(egress.requires, [{ deckId: "deck-1", cardId: ingress.id }]);
+
+    assert.equal(parent.followups.length, 1);
+    assert.equal(parent.followups[0].kind, "terms");
+    assert.deepEqual(parent.followups[0].terms, ["BCP38", "入口过滤", "出口过滤"]);
+    assert.match(parent.followups[0].answer, /已有检查题（以前补过，已直接关联）：BCP38/);
+
+    const courseTerms = await f.service.call("course.terms.get", { course: "Networks" });
+    assert.deepEqual(courseTerms.items.find((item) => item.term === "BCP38")?.card, { deckId: "deck-1", cardId: "chk-bcp38" });
+    assert.deepEqual(courseTerms.items.find((item) => item.term === "入口过滤")?.card, { deckId: "deck-1", cardId: ingress.id });
+    assert.deepEqual(courseTerms.items.find((item) => item.term === "出口过滤")?.card, { deckId: "deck-1", cardId: egress.id });
+
+    const enInbox = await f.service.call("inbox", { uiLanguage: "en" });
+    assert.equal(enInbox.items[0].detail, "Filled in 2 terms and reused 1 existing check question; check questions are queued before this card");
+    assert.doesNotMatch(enInbox.items[0].detail, /[\u3400-\u9fff]/);
+  }
+
+  // Repair retry when model emits a step for a `hasCard` term, and layer-2 `needs` still rejected.
+  let retryCalls = 0;
+  const repairFixture = await setupTermsFixture(
+    t,
+    async (_sys, payload) => {
+      retryCalls += 1;
+      if (retryCalls === 1) {
+        return JSON.stringify({
+          ladder: [
+            makeStep({ term: "BCP38", layer: 2, needs: [] }),
+            makeStep({ term: "入口过滤", layer: 1, needs: ["BCP38"] }),
+          ],
+        });
+      }
+      assert.match(payload, /REFUSED_REPLY:/);
+      assert.match(payload, /已有检查题的词不用再生成台阶/);
+      return JSON.stringify({
+        ladder: [makeStep({ term: "入口过滤", layer: 1, needs: ["BCP38"] })],
+      });
+    },
+    "legacy",
+    (state) => {
+      state.decks[0].cards.push(structuredClone(existingCheck));
+      state.courses.push({
+        id: "course-net",
+        name: "Networks",
+        aliases: [],
+        createdAt: "2026-11-18T08:00:00.000Z",
+        updatedAt: "2026-11-18T08:00:00.000Z",
+        guidanceSourceIds: [],
+        focusTopics: [],
+        terms: {
+          version: 1,
+          items: [{ term: "BCP38", at: "2026-11-18T08:00:00.000Z", card: { deckId: "deck-1", cardId: "chk-bcp38" } }],
+        },
+      });
+    },
+  );
+  await repairFixture.assist.startAssist(repairFixture.ctx, {
+    root: repairFixture.root,
+    service: repairFixture.service,
+    sessionId: "s1",
+    mode: "terms",
+    ref: { deckId: "deck-1", cardId: "card-main" },
+    terms: ["BCP38", "入口过滤"],
+    card: PARENT_CARD,
+    deckTitle: "Network Security",
+  });
+  await ended(repairFixture.assist, repairFixture.root);
+  assert.equal(retryCalls, 2);
+  assert.equal(repairFixture.assist.assistView(repairFixture.root).tasks[0].status, "done");
+  assert.equal(repairFixture.assist.assistView(repairFixture.root).tasks[0].repaired, true);
+  assert.doesNotMatch(localizeAppMessage("已有检查题的词不用再生成台阶，请直接移除或在 needs 中引用", "en"), /[\u3400-\u9fff]/);
+  assert.doesNotMatch(localizeAppMessage("台阶前置依赖必须指向前面已经讲过的词条或已有检查题的词", "en"), /[\u3400-\u9fff]/);
+  assert.throws(
+    () => validateTermsReply(
+      {
+        ladder: [
+          makeStep({ term: "地址前缀", layer: 2, needs: ["BCP38"] }),
+          makeStep({ term: "入口过滤", layer: 1, needs: ["地址前缀"] }),
+        ],
+      },
+      ["入口过滤"],
+      PARENT_CARD.prompt,
+      ["BCP38"],
+    ),
+    /第 2 层台阶不能再依赖别的词/,
+  );
+});
+
+test("#1215 scenario 4: term whose check card was deleted, archived, or slain is treated as missing and course.terms.attach updates card to new live card", async (t) => {
+  for (const switchMode of SWITCH_MODES) {
+    for (const deadMode of ["deleted", "archived", "slain"]) {
+      let calls = 0;
+      const f = await setupTermsFixture(
+        t,
+        async (_sys, payload) => {
+          calls += 1;
+          const input = JSON.parse(payload);
+          assert.deepEqual(input.request.terms, ["BCP38"]);
+          assert.equal(input.terms.hasCard, undefined);
+          return JSON.stringify({
+            ladder: [makeStep({ term: "BCP38", layer: 1, needs: [] })],
+          });
+        },
+        switchMode,
+        (state) => {
+          if (deadMode === "archived") {
+            state.decks.push({
+              id: "deck-arch",
+              title: "Archived",
+              course: "Networks",
+              archived: true,
+              cards: [{ ...PARENT_CARD, id: "chk-dead", topic: "BCP38", prompt: "旧的已归档检查题？" }],
+            });
+          } else if (deadMode === "slain") {
+            state.decks.push({
+              id: "deck-slain",
+              title: "斩题组",
+              systemKind: "slain",
+              archived: true,
+              cards: [{ ...PARENT_CARD, id: "chk-dead", topic: "BCP38", prompt: "旧的已斩检查题？" }],
+            });
+          }
+          state.courses.push({
+            id: "course-net",
+            name: "Networks",
+            aliases: [],
+            createdAt: "2026-11-18T08:00:00.000Z",
+            updatedAt: "2026-11-18T08:00:00.000Z",
+            guidanceSourceIds: [],
+            focusTopics: [],
+            terms: {
+              version: 1,
+              items: [
+                {
+                  term: "BCP38",
+                  at: "2026-11-18T08:00:00.000Z",
+                  card: {
+                    deckId: deadMode === "archived" ? "deck-arch" : deadMode === "slain" ? "deck-slain" : "deck-1",
+                    cardId: "chk-dead",
+                  },
+                },
+              ],
+            },
+          });
+        },
+      );
+
+      await f.assist.startAssist(f.ctx, {
+        root: f.root,
+        service: f.service,
+        sessionId: "s1",
+        mode: "terms",
+        ref: { deckId: "deck-1", cardId: "card-main" },
+        terms: ["BCP38"],
+        card: PARENT_CARD,
+        deckTitle: "Network Security",
+        language: "zh",
+      });
+      await ended(f.assist, f.root);
+
+      assert.equal(calls, 1, `${switchMode}/${deadMode}: triggers model call when previous card is ${deadMode}`);
+      const [task] = f.assist.assistView(f.root).tasks;
+      assert.equal(task.status, "done", `${switchMode}/${deadMode}: ${task.message}`);
+
+      const state = await f.service.store.read();
+      const newCheckCard = state.decks[0].cards.find((c) => c.id !== "card-main");
+      assert.ok(newCheckCard, `${switchMode}/${deadMode}: created replacement check card`);
+      assert.notEqual(newCheckCard.id, "chk-dead");
+      assert.deepEqual(state.decks[0].cards[0].requires, [{ deckId: "deck-1", cardId: newCheckCard.id }]);
+
+      const courseTerms = await f.service.call("course.terms.get", { course: "Networks" });
+      assert.deepEqual(
+        courseTerms.items.find((item) => item.term === "BCP38")?.card,
+        { deckId: "deck-1", cardId: newCheckCard.id },
+        `${switchMode}/${deadMode}: course.terms card updated to new live card`,
+      );
+    }
+  }
+});
