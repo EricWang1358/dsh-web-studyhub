@@ -3,6 +3,8 @@ import { contractOf } from './task-model.js';
 import { isLiveStatus } from '../../lib/job-contract.js';
 import { taskMaterial } from './task-material.js';
 import { openCompanionTarget, resolveCompanionTarget } from '../companions/companion-ref.js';
+import { writePageScope } from '../PageScope.jsx';
+import { requestOpenSourcesOrganize } from '../use-material-classify.js';
 
 /* Where 打开结果 leads, for the console's header and for the compact card: read from the job's contract (the references to what it made) and carried out by
    the app's own navigation (`app` is the controller of ui/app/app-context.js, or anything shaped like its learn / drafts / intents / data). One place, so a
@@ -29,6 +31,39 @@ export function resultOpener(job, app) {
       kind: 'companion',
       label: ui('打开伴学页'),
       run: () => openCompanionTarget(openModal, { ...target, companionTitle: title }),
+    };
+  }
+  const classifyRef = refs.find((ref) => ref.kind === 'material-classify')
+    || (Array.isArray(job?.result?.refs) ? job.result.refs.find((ref) => ref.kind === 'material-classify') : null);
+  const isClassifyJob = Boolean(classifyRef || contract.kind === 'material-classify' || job?.type === 'material-classify');
+  if (isClassifyJob) {
+    if (contract.status !== 'complete' || isLiveStatus(contract.status) || !(app?.nav?.navigate || app?.nav?.show?.page)) return null;
+    const rawCourse = classifyRef?.course || contract.detail?.course || job?.course || data?.settings?.materialClassifyPending?.course || '';
+    const targetScope = typeof rawCourse === 'string' && rawCourse.trim() ? rawCourse.trim() : '*';
+    return {
+      kind: 'material-classify',
+      label: ui('查看分类建议'),
+      run: () => {
+        if (data?.root !== undefined) writePageScope(data.root, 'sources', targetScope);
+        if (app.nav.navigate) app.nav.navigate('sources');
+        else app.nav.show.page('sources');
+      },
+    };
+  }
+  const organizeRef = refs.find((ref) => ref.kind === 'material-organize')
+    || (Array.isArray(job?.result?.refs) ? job.result.refs.find((ref) => ref.kind === 'material-organize') : null);
+  const isOrganizeJob = Boolean(organizeRef || contract.kind === 'material-organize' || job?.type === 'material-organize');
+  if (isOrganizeJob) {
+    if (contract.status !== 'complete' || isLiveStatus(contract.status) || !(app?.nav?.navigate || app?.nav?.show?.page)) return null;
+    return {
+      kind: 'material-organize',
+      label: ui('查看归属建议'),
+      run: () => {
+        requestOpenSourcesOrganize();
+        app?.set?.setSourcesOrganizeOpen?.(true);
+        if (app.nav.navigate) app.nav.navigate('sources');
+        else app.nav.show.page('sources');
+      },
     };
   }
   // A source that has since been deleted is not offered (an archived task outlives what it made); without a list of sources nothing is checked.

@@ -48,7 +48,8 @@ export default function MaterialCategoryBar({
   const typeId = useId();
   const categoryId = useId();
   const { busy } = useStudy();
-  const appData = useContext(AppContext)?.data;
+  const app = useContext(AppContext);
+  const appData = app?.data;
 
   const resolvedFolders = useMemo(
     () => resolveMaterialFolders(materialFoldersProp, appData),
@@ -126,9 +127,26 @@ export default function MaterialCategoryBar({
         <div className="material-classify-progress" role="status" aria-live="polite" data-classify-phase="running">
           <div className="material-classify-progress__head">
             <span className="material-classify-progress__text">
-              {uiFormat('正在按内容整理分类（{0} / {1}）…', [classify.done, classify.total])}
+              {classify.jobStage === 'taxonomy'
+                ? uiFormat('正在归纳主题目录（共 {0} 份资料）…', [classify.total])
+                : uiFormat('正在按内容整理分类（{0} / {1}）…', [classify.done, classify.total])}
             </span>
-            <Button size="sm" variant="quiet" onClick={classify.cancel}>{ui('取消')}</Button>
+            <div className="material-classify-progress__actions">
+              {classify.jobId && app?.nav?.show?.task && (
+                <Button
+                  size="sm"
+                  variant="quiet"
+                  iconEnd="arrow-right"
+                  data-open-classify-task
+                  onClick={() => app.nav.show.task(classify.jobId)}
+                >
+                  {ui('查看任务')}
+                </Button>
+              )}
+              <Button size="sm" variant="quiet" lock={busy} data-stop-classify onClick={classify.cancel}>
+                {ui('停止')}
+              </Button>
+            </div>
           </div>
           <ProgressBar
             size="sm"

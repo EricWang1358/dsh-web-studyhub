@@ -26,13 +26,14 @@ export function contractOf(job) {
 }
 
 const KINDS = { ...Object.fromEntries(AUDIO_JOB_TYPES.map((type) => [type, 'audio'])), 'pdf-convert': 'pdf', translation: 'translation', generation: 'generation', supplement: 'supplement',
-  'draft-repair': 'repair', 'draft-publish': 'publish', 'coach-daily': 'coach', 'companion-lesson-build': 'companion', extension: 'extension' };
+  'draft-repair': 'repair', 'draft-publish': 'publish', 'coach-daily': 'coach', 'companion-lesson-build': 'companion',
+  'material-classify': 'material-classify', 'material-organize': 'material-organize' };
 /**
  * The kind of a job, for its label and for the job-type section of the detail pane.
  * @param {SnapshotJob} job
  * @returns {string}
  */
-export const taskKindOf = (job) => KINDS[contractOf(job).kind] || (job?.type === 'companion-lesson-build' ? 'companion' : 'extension');
+export const taskKindOf = (job) => KINDS[contractOf(job).kind] || KINDS[job?.type] || 'extension';
 
 /**
  * The identity a selection and a deep link use: what survives a retry.

@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { errorMessage, ui } from './i18n.js';
 import { useStudy } from './study-context.jsx';
+import { AppContext } from './app/app-context.js';
+import { browserSession, readJSON, removeKey, writeJSON } from './storage.js';
 import { MAX_FOLDER_NAME_CHARS, normalizeFolderName } from '../lib/contexts/materials/material-folders.js';
 
 const cleanProposalTitle = value =>
@@ -13,6 +15,47 @@ export const CLASSIFY_BATCH_SIZE = 60;
 export const CLASSIFY_CONCURRENCY = 2;
 export const AUTO_MAX_FOLDERS = 12;
 export const LARGE_MAX_FOLDERS = 14;
+export const LIVE_MATERIAL_JOB_STATUSES = new Set(['queued', 'running', 'pausing', 'paused', 'cancelling']);
+
+const ORGANIZE_OPEN_KEY = 'study-sources-organize-open:v1';
+let pendingOrganizeOpenFlag = false;
+
+/** Signal `Sources` to open `<details class="source-organize">` on arrival (e.g. from `任务` -> `查看归属建议`). */
+export function requestOpenSourcesOrganize() {
+  pendingOrganizeOpenFlag = true;
+  writeJSON(ORGANIZE_OPEN_KEY, Date.now(), browserSession());
+}
+
+/** Consume any pending request to open `<details class="source-organize">`. */
+export function consumeOpenSourcesOrganize() {
+  const fromMemory = pendingOrganizeOpenFlag;
+  pendingOrganizeOpenFlag = false;
+  const fromSession = Boolean(readJSON(ORGANIZE_OPEN_KEY, null, browserSession()));
+  if (fromSession) removeKey(ORGANIZE_OPEN_KEY, browserSession());
+  return fromMemory || fromSession;
+}
+
+const MAX_EDIT_CACHE = 16;
+const pendingGroupEdits = new Map();
+
+function rememberGroupEdit(jobKey, originalName, patch) {
+  if (!jobKey || !originalName) return;
+  if (!pendingGroupEdits.has(jobKey)) {
+    if (pendingGroupEdits.size >= MAX_EDIT_CACHE) {
+      const oldest = pendingGroupEdits.keys().next().value;
+      pendingGroupEdits.delete(oldest);
+    }
+    pendingGroupEdits.set(jobKey, new Map());
+  }
+  const map = pendingGroupEdits.get(jobKey);
+  const prev = map.get(originalName) || {};
+  map.set(originalName, { ...prev, ...patch });
+}
+
+export function clearPendingClassifyEdits(jobKey) {
+  if (jobKey) pendingGroupEdits.delete(jobKey);
+  else pendingGroupEdits.clear();
+}
 
 const IDLE_STATE = Object.freeze({
   phase: 'idle',
@@ -27,6 +70,7 @@ const IDLE_STATE = Object.freeze({
 /**
  * Run `source.folder.suggest` for small (`<= 60`, single `auto` call) or large (`> 60`, 2-stage
  * `taxonomy` + `batch` chunks with concurrency 2) material sets, reporting live item progress.
+ * Kept for standalone callers/tests when `AppContext` job snapshots are absent.
  */
 export async function runBatchedFolderSuggest({
   call,
@@ -210,17 +254,32 @@ export function canApplyProposalGroups(groups = []) {
   return buildApplyAssignments(included).length > 0;
 }
 
+const normalizeScopeCourse = value =>
+  typeof value === 'string' && value.trim() && value.trim() !== '*' ? value.trim() : '';
+
 /**
  * Shared React hook for `AI 智能分类`:
- * - Reads `call`, `act`, `busy` from `useStudy()` directly (zero prop handoff).
- * - Supports live batched progress, epoch cancellation, grouped category review/rename, and atomic apply.
+ * - Inside `<App>` (`Array.isArray(appData?.jobs)`): starts `source.folder.classify` background job,
+ *   never cancels on page switch, tracks `taxonomy` vs `batch` progress from `appData.jobs`,
+ *   and hydrates durable pending proposals from `appData.settings?.materialClassifyPending`.
+ * - Outside `<App>` (isolated unit tests): falls back to `runBatchedFolderSuggest`.
  */
 export function useMaterialClassify({ items = [], course = '' } = {}) {
   const { call, act, busy } = useStudy();
+  const app = useContext(AppContext);
+  const appData = app?.data;
+  const jobBacked = Array.isArray(appData?.jobs);
+
   const [state, setState] = useState(IDLE_STATE);
+  const [startingTotal, setStartingTotal] = useState(0);
+  const [optimisticJob, setOptimisticJob] = useState(null);
+  const [jobError, setJobError] = useState('');
+  const [applyError, setApplyError] = useState('');
+  const [editRevision, setEditRevision] = useState(0);
   const epochRef = useRef(0);
   const prevCourseRef = useRef(course);
 
+  // Only cancel local standalone runs on unmount; background jobs survive page switches!
   useEffect(() => () => {
     epochRef.current += 1;
   }, []);
@@ -230,21 +289,74 @@ export function useMaterialClassify({ items = [], course = '' } = {}) {
       prevCourseRef.current = course;
       epochRef.current += 1;
       setState(IDLE_STATE);
+      setOptimisticJob(null);
+      setJobError('');
+      setApplyError('');
     }
   }, [course]);
 
-  const cancel = useCallback(() => {
-    epochRef.current += 1;
-    setState(IDLE_STATE);
-  }, []);
+  const scopeCourse = normalizeScopeCourse(course);
+  const matchesScope = useCallback(
+    targetCourse => {
+      const normalized = normalizeScopeCourse(targetCourse);
+      return !normalized || !scopeCourse || normalized === scopeCourse;
+    },
+    [scopeCourse],
+  );
 
-  const start = useCallback(
-    async overrideItems => {
-      const targetItems = Array.isArray(overrideItems) && overrideItems.length ? overrideItems : items;
-      const keys = targetItems.map(item => item?.key).filter(Boolean);
-      if (!keys.length) return;
+  const snapshotActiveJob = useMemo(() => {
+    if (!jobBacked) return null;
+    return (
+      appData.jobs.find(
+        job =>
+          job?.type === 'material-classify' &&
+          LIVE_MATERIAL_JOB_STATUSES.has(job?.contract?.status || job?.status) &&
+          matchesScope(job?.course ?? job?.contract?.detail?.course),
+      ) || null
+    );
+  }, [jobBacked, appData?.jobs, matchesScope]);
 
-      const titleByKey = new Map(targetItems.map(item => [item.key, item.title]));
+  const pending = useMemo(() => {
+    const raw = appData?.settings?.materialClassifyPending;
+    if (!raw || !Array.isArray(raw.suggestions)) return null;
+    return matchesScope(raw.course) ? raw : null;
+  }, [appData?.settings?.materialClassifyPending, matchesScope]);
+
+  useEffect(() => {
+    if (!optimisticJob) return;
+    const inSnapshot = jobBacked && appData.jobs.find(job => job?.id === optimisticJob.id);
+    if (inSnapshot || (pending && (!pending.jobId || pending.jobId === optimisticJob.id))) {
+      setOptimisticJob(null);
+    }
+  }, [optimisticJob, jobBacked, appData?.jobs, pending]);
+
+  const activeJob = snapshotActiveJob || (optimisticJob && LIVE_MATERIAL_JOB_STATUSES.has(optimisticJob.contract?.status || optimisticJob.status) && matchesScope(optimisticJob.course) ? optimisticJob : null);
+
+  const pendingKey = pending ? String(pending.jobId || pending.createdAt || 'pending') : '';
+
+  const titleByKey = useMemo(
+    () => new Map((Array.isArray(items) ? items : []).map(item => [item?.key, item?.title]).filter(([k]) => k)),
+    [items],
+  );
+
+  const pendingGroups = useMemo(() => {
+    if (!pending) return [];
+    const base = buildProposalGroups(pending.suggestions, pending.folders, titleByKey);
+    const saved = pendingKey ? pendingGroupEdits.get(pendingKey) : null;
+    if (!saved?.size) return base;
+    return base.map(group => {
+      const edit = saved.get(group.originalName);
+      if (!edit) return group;
+      return {
+        ...group,
+        name: edit.name !== undefined ? edit.name : group.name,
+        include: edit.include !== undefined ? Boolean(edit.include) : group.include,
+      };
+    });
+  }, [pending, pendingKey, titleByKey, editRevision]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const runStandalone = useCallback(
+    async (keys, localTitleByKey) => {
       const token = ++epochRef.current;
       setState({
         phase: 'running',
@@ -255,12 +367,11 @@ export function useMaterialClassify({ items = [], course = '' } = {}) {
         error: '',
         applyError: '',
       });
-
       try {
         const result = await runBatchedFolderSuggest({
           call,
           keys,
-          course,
+          course: scopeCourse,
           isCancelled: () => token !== epochRef.current,
           onProgress: ({ done, total }) => {
             if (token !== epochRef.current) return;
@@ -268,7 +379,7 @@ export function useMaterialClassify({ items = [], course = '' } = {}) {
           },
         });
         if (!result || token !== epochRef.current) return;
-        const groups = buildProposalGroups(result.suggestions, result.folders, titleByKey);
+        const groups = buildProposalGroups(result.suggestions, result.folders, localTitleByKey);
         if (!groups.length) {
           setState({
             phase: 'error',
@@ -303,29 +414,131 @@ export function useMaterialClassify({ items = [], course = '' } = {}) {
         });
       }
     },
-    [call, course, items],
+    [call, scopeCourse],
   );
 
-  const toggleGroup = useCallback((groupId, include) => {
-    setState(prev => ({
-      ...prev,
-      applyError: '',
-      groups: prev.groups.map(group => (group.id === groupId ? { ...group, include: Boolean(include) } : group)),
-    }));
-  }, []);
+  const start = useCallback(
+    async overrideItems => {
+      const targetItems = Array.isArray(overrideItems) && overrideItems.length ? overrideItems : items;
+      const keys = [...new Set(targetItems.map(item => item?.key).filter(Boolean))];
+      if (!keys.length) return;
 
-  const renameGroup = useCallback((groupId, name) => {
-    setState(prev => ({
-      ...prev,
-      applyError: '',
-      groups: prev.groups.map(group => (group.id === groupId ? { ...group, name } : group)),
-    }));
-  }, []);
+      const localTitleByKey = new Map(targetItems.map(item => [item.key, item.title]));
+      setJobError('');
+      setApplyError('');
+
+      if (!jobBacked) {
+        await runStandalone(keys, localTitleByKey);
+        return;
+      }
+
+      const maxFolders = keys.length > CLASSIFY_BATCH_SIZE ? LARGE_MAX_FOLDERS : AUTO_MAX_FOLDERS;
+      setStartingTotal(keys.length);
+      try {
+        const res = await call('source.folder.classify', {
+          keys,
+          ...(scopeCourse ? { course: scopeCourse } : {}),
+          maxFolders,
+        });
+        if (res?.job && LIVE_MATERIAL_JOB_STATUSES.has(res.job.contract?.status || res.job.status)) {
+          setOptimisticJob(res.job);
+        }
+        await Promise.resolve(app?.core?.refresh?.()).catch(() => {});
+      } catch (err) {
+        if (/unknown action|not found|未知操作|未注册/i.test(String(err?.message || ''))) {
+          setStartingTotal(0);
+          await runStandalone(keys, localTitleByKey);
+          return;
+        }
+        setJobError(errorMessage(err));
+      } finally {
+        setStartingTotal(0);
+      }
+    },
+    [app, call, items, jobBacked, runStandalone, scopeCourse],
+  );
+
+  const cancel = useCallback(async () => {
+    epochRef.current += 1;
+    setStartingTotal(0);
+    setOptimisticJob(null);
+    setState(IDLE_STATE);
+    if (activeJob?.id) {
+      try {
+        await call('job.control', { jobId: activeJob.id, action: 'cancel' });
+        await Promise.resolve(app?.core?.refresh?.()).catch(() => {});
+      } catch (err) {
+        setJobError(errorMessage(err));
+      }
+    }
+  }, [activeJob?.id, app, call]);
+
+  const discard = useCallback(async () => {
+    epochRef.current += 1;
+    setJobError('');
+    setApplyError('');
+    if (pending) {
+      await act(
+        'source.folder.dismiss',
+        pending.jobId ? { jobId: pending.jobId } : {},
+        () => {
+          if (pendingKey) pendingGroupEdits.delete(pendingKey);
+          setEditRevision(v => v + 1);
+          setState(IDLE_STATE);
+        },
+      );
+      return;
+    }
+    setState(IDLE_STATE);
+  }, [act, pending, pendingKey]);
+
+  const toggleGroup = useCallback(
+    (groupId, include) => {
+      setApplyError('');
+      if (pending && pendingGroups.length > 0) {
+        const target = pendingGroups.find(group => group.id === groupId);
+        if (target && pendingKey) {
+          rememberGroupEdit(pendingKey, target.originalName, { include: Boolean(include) });
+          setEditRevision(v => v + 1);
+        }
+        return;
+      }
+      setState(prev => ({
+        ...prev,
+        applyError: '',
+        groups: prev.groups.map(group => (group.id === groupId ? { ...group, include: Boolean(include) } : group)),
+      }));
+    },
+    [pending, pendingGroups, pendingKey],
+  );
+
+  const renameGroup = useCallback(
+    (groupId, name) => {
+      setApplyError('');
+      if (pending && pendingGroups.length > 0) {
+        const target = pendingGroups.find(group => group.id === groupId);
+        if (target && pendingKey) {
+          rememberGroupEdit(pendingKey, target.originalName, { name });
+          setEditRevision(v => v + 1);
+        }
+        return;
+      }
+      setState(prev => ({
+        ...prev,
+        applyError: '',
+        groups: prev.groups.map(group => (group.id === groupId ? { ...group, name } : group)),
+      }));
+    },
+    [pending, pendingGroups, pendingKey],
+  );
+
+  const activeGroups = pending && pendingGroups.length > 0 ? pendingGroups : state.groups;
 
   const apply = useCallback(async () => {
-    if (!canApplyProposalGroups(state.groups)) return false;
-    const assignments = buildApplyAssignments(state.groups);
+    if (!canApplyProposalGroups(activeGroups)) return false;
+    const assignments = buildApplyAssignments(activeGroups);
     if (!assignments.length) return false;
+    setApplyError('');
     setState(prev => ({ ...prev, applyError: '' }));
     try {
       let applied = false;
@@ -335,25 +548,78 @@ export function useMaterialClassify({ items = [], course = '' } = {}) {
         () => {
           applied = true;
           epochRef.current += 1;
+          if (pendingKey) pendingGroupEdits.delete(pendingKey);
+          setEditRevision(v => v + 1);
           setState(IDLE_STATE);
         },
         { rethrow: true },
       );
       return applied;
     } catch (err) {
-      setState(prev => ({ ...prev, applyError: errorMessage(err) }));
+      const msg = errorMessage(err);
+      setApplyError(msg);
+      setState(prev => ({ ...prev, applyError: msg }));
       return false;
     }
-  }, [act, state.groups]);
+  }, [act, activeGroups, pendingKey]);
+
+  let view = state;
+  let jobId = null;
+  let jobStage = null;
+
+  if (activeJob || startingTotal > 0) {
+    const done = activeJob ? Number(activeJob.contract?.progress?.done ?? activeJob.done ?? 0) : 0;
+    const total = activeJob
+      ? Number(activeJob.contract?.progress?.total ?? activeJob.total ?? items.length)
+      : startingTotal;
+    jobId = activeJob?.id || null;
+    jobStage = activeJob?.phase === 'taxonomy' || done === 0 ? 'taxonomy' : 'batch';
+    view = {
+      phase: 'running',
+      done,
+      total,
+      groups: [],
+      unmatchedCount: 0,
+      error: '',
+      applyError: '',
+    };
+  } else if (pending && pendingGroups.length > 0) {
+    const matchedCount = pendingGroups.reduce((sum, group) => sum + group.items.length, 0);
+    jobId = pending.jobId || null;
+    jobStage = 'done';
+    view = {
+      phase: 'review',
+      done: matchedCount,
+      total: matchedCount,
+      groups: pendingGroups,
+      unmatchedCount: Array.isArray(pending.unmatchedKeys)
+        ? pending.unmatchedKeys.length
+        : Number(pending.unmatchedCount) || 0,
+      error: '',
+      applyError,
+    };
+  } else if (jobError) {
+    view = {
+      phase: 'error',
+      done: 0,
+      total: 0,
+      groups: [],
+      unmatchedCount: 0,
+      error: jobError,
+      applyError: '',
+    };
+  }
 
   return {
-    ...state,
+    ...view,
+    jobId,
+    jobStage,
     busy,
-    canApply: canApplyProposalGroups(state.groups),
+    canApply: canApplyProposalGroups(view.groups),
     start,
     loadSuggestions: start,
     cancel,
-    discard: cancel,
+    discard,
     toggleGroup,
     renameGroup,
     apply,

@@ -12,7 +12,8 @@ import { partTitle } from '../deck-parts.js';
 
 const KIND_LABEL = {
   audio: '音频批量转写', pdf: 'PDF 转换', translation: '翻译', supplement: '补题', repair: '修题', publish: '发布检查',
-  generation: '出题', companion: '交互伴学', extension: '后台任务', coach: '为你定制',
+  generation: '出题', companion: '交互伴学', 'material-classify': '资料智能分类', 'material-organize': '整理课程归属',
+  extension: '后台任务', coach: '为你定制',
 };
 export const taskKindLabel = (kind) => ui(KIND_LABEL[kind] || KIND_LABEL.extension);
 
@@ -43,14 +44,29 @@ const dayName = (date) => { const [year, month, day] = String(date).split('-').m
 
 /** The title the learner knows the job by. */
 export function taskTitle(job) {
-  const { title, kind, detail } = contractOf(job);
+  const contract = contractOf(job), { title, kind, detail, progress } = contract, taskKind = taskKindOf(job);
   if (kind === 'coach-daily') return uiFormat('为你定制 · {0}', [dayName(title)]);
   // A new draft that will be the next part of a deck (lib/deck-parts.js): 「期中复习 · 第二部分」.
   if (detail?.part?.deckTitle) return partTitle(detail.part.deckTitle, detail.part.n);
+  if (taskKind === 'material-classify' || taskKind === 'material-organize') {
+    const rawCourse = (typeof detail?.course === 'string' && detail.course.trim()) || (typeof job?.course === 'string' && job.course.trim()) || '';
+    const course = rawCourse && rawCourse !== '*' ? rawCourse : '';
+    const total = Number(progress?.total) || Number(job?.total) || 0;
+    if (taskKind === 'material-classify') {
+      if (course && total > 0) return uiFormat('资料智能分类 · {0}（{1} 份）', [course, total]);
+      if (course) return uiFormat('资料智能分类 · {0}', [course]);
+      if (total > 0) return uiFormat('资料智能分类（{0} 份）', [total]);
+      return ui('资料智能分类');
+    }
+    if (course && total > 0) return uiFormat('整理课程归属 · {0}（{1} 份）', [course, total]);
+    if (course) return uiFormat('整理课程归属 · {0}', [course]);
+    if (total > 0) return uiFormat('整理课程归属（{0} 份）', [total]);
+    return ui('整理课程归属');
+  }
   // An install's title is the producer's words (安装本机 MinerU), and so is a search-index build's (建立检索索引 · 课程): in the learner's language like its step.
   if (title === '生成交互伴学课') return ui('生成交互伴学课');
   if (title) return kind === 'translation' ? uiFormat('翻译「{0}」', [title]) : detail?.install || kind === 'retrieval-index' ? uiMessage(title) : title;
-  return kind === 'generation' || kind === 'supplement' ? ui('新题组') : taskKindLabel(taskKindOf(job));
+  return kind === 'generation' || kind === 'supplement' ? ui('新题组') : taskKindLabel(taskKind);
 }
 
 /** 0-100, or null when nobody can say. A running count is real progress (finished over total), never a guess. */
@@ -84,6 +100,18 @@ export function stageLabel(stage) {
   if (family === 'audio' && AUDIO_PHASES[name]) return withCount(ui(AUDIO_PHASES[name]), ['transcribe', 'proofread', 'translate'].includes(name) ? stage.args : undefined);
   if (family === 'pdf' && PDF_PHASES[name]) return ui(PDF_PHASES[name]);
   if (family === 'companion' && COMPANION_PHASES[name]) return ui(COMPANION_PHASES[name]);
+  if (family === 'material-classify' || family === 'material-organize' || family === 'materials') {
+    if (name === 'queued') return ui('排队中');
+    if (name === 'taxonomy') return stage.args?.total > 0 ? uiFormat('归纳主题目录 · 共 {0} 份资料', [stage.args.total]) : ui('归纳主题目录');
+    if (family === 'material-organize' || name === 'organize' || name === 'organize-batch') {
+      if (stage.args?.part > 0 && stage.args?.parts > 0) return uiFormat('课程归属第 {0}/{1} 批', [stage.args.part, stage.args.parts]);
+      if (stage.args?.total > 0) return uiFormat('整理课程归属 · {0}/{1}', [stage.args.done ?? 0, stage.args.total]);
+      return ui('整理课程归属');
+    }
+    if (stage.args?.part > 0 && stage.args?.parts > 0) return uiFormat('内容分类第 {0}/{1} 批', [stage.args.part, stage.args.parts]);
+    if (stage.args?.total > 0) return uiFormat('按内容整理分类 · {0}/{1}', [stage.args.done ?? 0, stage.args.total]);
+    return ui('按内容整理分类');
+  }
   if (family === 'translation') return name === 'queued' ? ui('排队中') : stage.args?.total > 0 ? uiFormat('正在翻译 · {0}/{1} 段', [stage.args.done, stage.args.total]) : ui('正在翻译');
   if (['generation', 'repair', 'publish'].includes(family)) return stageCodeLabel(name === 'blueprinting' ? 'blueprinting' : name) || ui('进行中');
   if (family === 'task') return name === 'queued' ? ui('排队中') : ui('进行中');
@@ -130,6 +158,37 @@ export function taskLine(job) {
   // 要求并行 (lib/job-parallel.js): a job a model error sent back to the queue says so; one that runs beside the queue is marked.
   if (contract.detail?.requeued && contract.status === STATUS.QUEUED) return ui('已退回排队 · 等前面的任务完成后自动继续');
   const beside = contract.detail?.parallel && isRunningTask(job) ? badgeText() : '';
+  const taskKind = taskKindOf(job);
+  if (taskKind === 'material-classify' || taskKind === 'material-organize') {
+    const done = Number(contract.progress?.done ?? job?.done ?? 0);
+    const total = Number(contract.progress?.total ?? job?.total ?? 0);
+    if (contract.status === STATUS.COMPLETE) {
+      return total > 0 ? uiFormat('已完成 · 共 {0} 份资料，待确认应用', [total]) : ui('已完成 · 待确认应用');
+    }
+    if (contract.status === STATUS.RUNNING) {
+      const activeCall = (contract.calls || []).find((call) => call.status === 'running' && call.kind !== 'wait');
+      const phase = job?.phase || contract.detail?.phase || '';
+      let line = '';
+      if (taskKind === 'material-classify') {
+        if (phase === 'taxonomy' || activeCall?.stage === 'taxonomy') {
+          line = total > 0 ? uiFormat('归纳主题目录 · 共 {0} 份资料', [total]) : ui('归纳主题目录');
+        } else if (activeCall?.part > 0 && activeCall?.parts > 0) {
+          line = total > 0 ? uiFormat('内容分类第 {0}/{1} 批 · {2}/{3}', [activeCall.part, activeCall.parts, done, total]) : uiFormat('内容分类第 {0}/{1} 批', [activeCall.part, activeCall.parts]);
+        } else if (total > 0) {
+          line = uiFormat('按内容整理分类 · {0}/{1}', [done, total]);
+        } else {
+          line = ui('按内容整理分类');
+        }
+      } else if (activeCall?.part > 0 && activeCall?.parts > 0) {
+        line = total > 0 ? uiFormat('课程归属第 {0}/{1} 批 · {2}/{3}', [activeCall.part, activeCall.parts, done, total]) : uiFormat('课程归属第 {0}/{1} 批', [activeCall.part, activeCall.parts]);
+      } else if (total > 0) {
+        line = uiFormat('整理课程归属 · {0}/{1}', [done, total]);
+      } else {
+        line = ui('整理课程归属');
+      }
+      return beside ? joinMeta([beside, line]) : line;
+    }
+  }
   if (run && isRunningTask(job) && run.rounds > 1) return joinMeta([beside, roundOfText(run.round, run.rounds), stageLabel(contract.stage)]);
   return beside ? joinMeta([beside, stageLabel(contract.stage)]) : stageLabel(contract.stage);
 }
