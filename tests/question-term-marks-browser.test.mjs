@@ -281,26 +281,50 @@ test("term marking flows cleanly across 1280/420 widths and zh/en languages (#11
         assert.equal(await page.locator(".review-body.is-marking").count(), 0);
         assert.equal((await chipTexts(page)).length, 3, `${tag}: chips remain visible after Escape`);
 
-        // 7. Clicking "弄懂这 N 个词" triggers assist ("ask") and shows fake model reply under question.
-        await page.locator(".term-strip__fill").click();
+        // 7. Clicking "补齐这 N 个词" triggers assist ("terms") and shows ladder + prerequisite check cards under question.
+        const fillBtn = page.locator(".term-strip__fill");
+        assert.match(
+          await fillBtn.innerText(),
+          lang === "en" ? /Fill in these 3 words/ : /补齐这 3 个词/,
+          `${tag}: button reads 补齐这 3 个词 / Fill in these 3 words`,
+        );
+        await fillBtn.click();
         await page.waitForFunction(
           (pattern) => {
             const openItem = document.querySelector(".explanation-followup .followup-item[open]");
-            return !!openItem && new RegExp(pattern, "i").test(openItem.textContent || "");
+            const prereqStrip = document.querySelector(".prereq-strip");
+            return !!openItem && !!prereqStrip && new RegExp(pattern, "i").test(openItem.textContent || "");
           },
-          lang === "en" ? "Preview answer" : "预览回答",
-          { timeout: 20000 },
+          lang === "en" ? "Preview formal definition" : "预览正式说法",
+          { timeout: 25000 },
         );
         const firstFollowup = page.locator(".explanation-followup .followup-item[open]").first();
         await firstFollowup.locator(".md").waitFor({ state: "visible", timeout: 10000 });
         const followupText = await firstFollowup.innerText();
         if (lang === "en") {
-          assert.match(followupText, /I don't know these terms/i, `${tag}: English ask prompt sent`);
-          assert.match(followupText, /Preview answer/i, `${tag}: fake model reply appeared`);
+          assert.match(followupText, /Fill terms:/i, `${tag}: English terms title shown`);
+          assert.match(followupText, /Preview formal definition/i, `${tag}: ladder sections appeared`);
         } else {
-          assert.match(followupText, /这几个词我不认识/, `${tag}: Chinese ask prompt sent`);
-          assert.match(followupText, /预览回答/, `${tag}: fake model reply appeared`);
+          assert.match(followupText, /补词：/, `${tag}: Chinese terms title shown`);
+          assert.match(followupText, /预览正式说法/, `${tag}: ladder sections appeared`);
         }
+        await page.locator(".prereq-strip summary > span").click();
+        assert.equal(
+          await page.locator(".prereq-strip .prereq-item").count(),
+          3,
+          `${tag}: 3 layer-1 prerequisite check cards linked directly`,
+        );
+        if (width === 420) {
+          const overflow = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
+          assert.ok(overflow, `${tag}: no horizontal overflow after ladder`);
+        }
+        await settleAnimations(page);
+        await page.locator(".prereq-strip").scrollIntoViewIfNeeded();
+        await takeShot(page, `terms-ladder-${lang}-${width}`);
+        await firstFollowup.scrollIntoViewIfNeeded();
+        await settleAnimations(page);
+        await takeShot(page, `terms-followup-${lang}-${width}`);
+        await page.locator(".prereq-strip summary > span").click();
 
         // Advance to Card 2 (quiz) to verify option click interception + per-question term memory.
         await page.locator(".grade-scale .grade").nth(4).click();
@@ -325,6 +349,23 @@ test("term marking flows cleanly across 1280/420 widths and zh/en languages (#11
         assert.deepEqual(await chipTexts(page), [optionWord], `${tag}: option word marked`);
         assert.equal(await page.locator(".options .option.correct, .options .option.incorrect, .options .option--selected, .next-due").count(), 0,
           `${tag}: option click in marking mode does not answer`);
+
+        // Mark a 2nd word on Card 2 (unanswered quiz) and run 补齐这 2 个词 -> ladder + 2 prerequisite cards.
+        const secondOptionWord = lang === "en" ? "mutex" : "互斥";
+        await clickWord(page, ".options", secondOptionWord, 0);
+        assert.deepEqual(await chipTexts(page), [optionWord, secondOptionWord], `${tag}: 2 words marked on quiz`);
+        await page.keyboard.press("Escape");
+        await page.locator(".term-strip__fill").click();
+        await page.waitForFunction(
+          () => !!document.querySelector(".explanation-followup .followup-item[open]") && !!document.querySelector(".prereq-strip"),
+          { timeout: 25000 },
+        );
+        await page.locator(".prereq-strip summary > span").click();
+        assert.equal(
+          await page.locator(".prereq-strip .prereq-item").count(),
+          2,
+          `${tag}: 2 marked words created 2 direct prerequisite check cards on Card 2`,
+        );
 
         // Moving back to Card 1 (flashcard) restores Card 1's 3 marked terms from memory.
         await page.locator('[data-usage="review.prev"]').click();

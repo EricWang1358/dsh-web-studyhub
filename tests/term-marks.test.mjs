@@ -16,10 +16,14 @@ const {
   toggleTerm,
   wordAt,
   TermChips,
+  ExplanationFollowup,
+  formatAssistTaskSummary,
 } = await loadUi(`
   export * from "./ui/i18n.js";
   export * from "./ui/review/term-marks.js";
   export { default as TermChips } from "./ui/review/TermChips.jsx";
+  export { default as ExplanationFollowup } from "./ui/ExplanationFollowup.jsx";
+  export { formatAssistTaskSummary } from "./ui/review/assist-summary.js";
 `);
 
 test("term mark constants match spec", () => {
@@ -180,7 +184,7 @@ test("TermChips renders labelled chips, SVG close buttons without text glyphs, a
     const zhHtml = renderToStaticMarkup(React.createElement(TermChips, { terms: ["线性一致性", "充分条件", "幂等性"] }));
     assert.match(zhHtml, /class="term-strip"/);
     assert.match(zhHtml, />生词</);
-    assert.match(zhHtml, />弄懂这 3 个词</);
+    assert.match(zhHtml, />补齐这 3 个词</);
     assert.match(zhHtml, /class="[^"]*sh-btn--secondary[^"]*term-strip__fill/);
     assert.match(zhHtml, /class="[^"]*sh-chip\b/);
     assert.match(zhHtml, /aria-label="移除生词「线性一致性」"/);
@@ -188,14 +192,47 @@ test("TermChips renders labelled chips, SVG close buttons without text glyphs, a
     assert.doesNotMatch(zhHtml, /[×✕]/);
     assert.doesNotMatch(zhHtml, /arrow-right/);
 
+    const zhBusyHtml = renderToStaticMarkup(
+      React.createElement(TermChips, { terms: ["线性一致性", "幂等性"], busy: true, running: true }),
+    );
+    assert.match(zhBusyHtml, /disabled=""/);
+    assert.match(zhBusyHtml, /aria-busy="true"/);
+
     setUiLanguage("en");
     const enOneHtml = renderToStaticMarkup(React.createElement(TermChips, { terms: ["linearizability"] }));
     assert.match(enOneHtml, />Words</);
-    assert.match(enOneHtml, />Explain this 1 word</);
+    assert.match(enOneHtml, />Fill in this 1 word</);
     assert.match(enOneHtml, /aria-label="Remove word “linearizability”"/);
 
     const enManyHtml = renderToStaticMarkup(React.createElement(TermChips, { terms: ["linearizability", "idempotency"] }));
-    assert.match(enManyHtml, />Explain these 2 words</);
+    assert.match(enManyHtml, />Fill in these 2 words</);
+
+    assert.equal(formatAssistTaskSummary({ mode: "terms", terms: ["CAP", "MVCC"] }), "CAP, MVCC");
+    const followupEn = renderToStaticMarkup(
+      React.createElement(ExplanationFollowup, {
+        run: {
+          deckId: "d",
+          card: { id: "c" },
+          followups: [{ id: "f1", kind: "terms", terms: ["CAP", "MVCC"], question: "raw", answer: "### CAP\n- Problem: x" }],
+        },
+        readOnly: true,
+      }),
+    );
+    assert.match(followupEn, />Fill terms: CAP, MVCC</);
+
+    setUiLanguage("zh");
+    assert.equal(formatAssistTaskSummary({ mode: "terms", terms: ["CAP", "MVCC"] }), "CAP、MVCC");
+    const followupZh = renderToStaticMarkup(
+      React.createElement(ExplanationFollowup, {
+        run: {
+          deckId: "d",
+          card: { id: "c" },
+          followups: [{ id: "f1", kind: "terms", terms: ["线性一致性", "充分条件"], question: "raw", answer: "### 线性一致性\n- 问题：x" }],
+        },
+        readOnly: true,
+      }),
+    );
+    assert.match(followupZh, />补词：线性一致性、充分条件</);
   } finally {
     setUiLanguage(prev);
   }

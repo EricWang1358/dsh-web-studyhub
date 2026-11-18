@@ -698,6 +698,52 @@ const HANDLERS = [
     reply: ({ input, english }) => {
       const card = input.card || {}, question = input.request?.question || "";
       // 出题 (derive, e.g. 生成一道变式 #1015): one new flashcard citing the first supplied source window verbatim, or no change without one.
+      if (input.mode === "terms") {
+        const unknown = Array.isArray(input.terms?.unknown) ? input.terms.unknown.filter((item) => typeof item === "string" && item.trim()) : [];
+        const source = (input.sources || []).find((item) => String(item.text || "").trim().length >= 12);
+        const sourceQuote = source ? String(source.text).trim().slice(0, 48) : "";
+        const buildStep = ({ term, alt, layer, needs }) => {
+          const topic = card.topic || term;
+          const note = source ? undefined : (english
+            ? `Supplementary preview note (outside sources) for ${term}: defines its formal boundary and role in ${topic}.`
+            : `补充预览说明（非原始资料，属常识性补充）：「${term}」用于界定概念边界，是理解「${topic}」的前置基础。`);
+          const quote = source ? sourceQuote : String(note).slice(0, 28);
+          const sourceId = source ? source.sourceId : "NOTE";
+          return {
+            term,
+            ...(alt ? { alt } : {}),
+            layer,
+            needs,
+            problem: english ? `Preview problem: without ${term}, reasoning about ${topic} lacks a clear boundary.` : `预览问题：如果不理解「${term}」，判断「${topic}」时就找不到清晰边界。`,
+            plain: english ? `Preview plain words: treat ${term} as an everyday rule before applying ${topic}.` : `预览大白话：把「${term}」看成一条先分清前提再判断的日常规则。`,
+            formal: english ? `Preview formal definition: ${term} (${alt || "abbr."}) is the formal criterion used for ${topic}${needs.length ? ` building on ${needs.join(", ")}` : ""}.` : `预览正式说法：「${term}」（${alt || term}）是分析「${topic}」时用于界定适用条件的正式准则${needs.length ? `，建立在「${needs.join("、")}」之上` : ""}。`,
+            example: english ? `Preview example: check ${term} first on a concrete sample case before deciding.` : `预览例子：先拿一个具体样例核对「${term}」是否成立，再下结论。`,
+            card: {
+              kind: "flashcard",
+              topic,
+              objective: english ? `State the formal definition of ${term}` : `用正式说法界定「${term}」`,
+              prompt: english ? `In formal terms, what role does ${term} play in ${topic}?` : `用正式的说法讲一遍，「${term}」解决什么界定问题？`,
+              answer: english ? `${term} defines the formal criterion for evaluating ${topic}.` : `「${term}」用于在「${topic}」中界定成立条件与判断边界。`,
+              hint: english ? `Recall the formal definition of ${term}.` : `先想「${term}」的正式说法和适用前提。`,
+              explanation: english ? `Grounded check on ${term}.` : `围绕「${term}」的正式定义作答。`,
+              misconception: english ? `Confusing ${term} with its everyday metaphor.` : `把「${term}」和日常比喻混为一谈，漏掉适用条件。`,
+              citations: [{ sourceId, quote }],
+            },
+            ...(note ? { note } : {}),
+          };
+        };
+        const baseName = english ? "Foundational premise" : "前置前提";
+        const includeLayer2 = unknown.length > 0 && !unknown.some((item) => item.toLowerCase() === baseName.toLowerCase());
+        const ladder = [];
+        if (includeLayer2) {
+          ladder.push(buildStep({ term: baseName, alt: english ? "baseline" : "baseline", layer: 2, needs: [] }));
+        }
+        unknown.forEach((term, index) => {
+          const needs = index === 0 ? (includeLayer2 ? [baseName] : []) : [unknown[index - 1]];
+          ladder.push(buildStep({ term, layer: 1, needs }));
+        });
+        return { ladder };
+      }
       if (input.mode === "derive") {
         const source = (input.sources || []).find((item) => String(item.text || "").trim().length >= 12);
         if (!source) return { noChange: english ? "Preview: no source to cite." : "预览：没有可引用的资料。" };

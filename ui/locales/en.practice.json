@@ -247,7 +247,10 @@
   "标出的生词": "Marked words",
   "生词": "Words",
   "移除生词「{0}」": "Remove word “{0}”",
-  "弄懂这 {0} 个词": "Explain these {0} words",
-  "弄懂这 {0} 个词#one": "Explain this {0} word",
+  "补齐这 {0} 个词": "Fill in these {0} words",
+  "补齐这 {0} 个词#one": "Fill in this {0} word",
+  "补词：{0}": "Fill terms: {0}",
+  "后台助教正在补词：{0}": "Background assistant is filling terms: {0}",
+  "后台助教正在补词。台阶讲解和前置检查题会出现在这道题下面，完成时信箱会提醒你。": "The assistant is filling in the marked terms in the background. The concept ladder and prerequisite check questions will appear under this question, and the inbox will tell you when it is done.",
   "这几个词我不认识：{0}。请一个一个讲：它是为了解决什么问题才出现的，大白话怎么说，正式说法是什么。": "I don't know these terms: {0}. Please explain each one: what problem it exists to solve, how to put it in plain words, and what the formal wording is."
 }

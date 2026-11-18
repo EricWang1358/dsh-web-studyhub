@@ -10,8 +10,8 @@ The report moves nothing (#902): it is the data for deciding what could later go
 | Class | Modules |
 | --- | ---: |
 | Used by ui | 105 |
-| Used by several contexts | 62 |
-| Used by exactly one context | 137 |
+| Used by several contexts | 63 |
+| Used by exactly one context | 136 |
 | Used by none of these (other lib files, entry points, scripts and tests only) | 118 |
 
 ## Used by ui (105)
@@ -122,7 +122,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/token-usage.js`: 8 ui files; contexts audio, generation, materials; 10 other lib files
 - `lib/usage-registry.js`: 1 ui file; 2 other lib files
 
-## Used by several contexts (62)
+## Used by several contexts (63)
 
 - `lib/assessment-quality.js`: contexts authoring, generation; 7 other lib files
 - `lib/audio-messages.js`: contexts audio, jobs; 4 other lib files
@@ -131,12 +131,13 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/bank-import.js`: contexts authoring, bank, generation, recording; 1 other lib file
 - `lib/batch.js`: contexts generation, materials; 1 other lib file
 - `lib/blog-notes.js`: contexts library, notes; 1 other lib file
+- `lib/capture.js`: contexts recording, study; 2 other lib files
 - `lib/card-content.js`: contexts authoring, coach, study; 3 other lib files
 - `lib/coach-daily.js`: contexts coach, jobs, library
 - `lib/coach.js`: contexts coach, study; 10 other lib files
 - `lib/course-active.js`: contexts generation, library; 11 other lib files
 - `lib/course-book-files.js`: contexts generation, library; 14 other lib files
-- `lib/course-book.js`: contexts generation, library; 8 other lib files
+- `lib/course-book.js`: contexts generation, library, study; 8 other lib files
 - `lib/course-outline-book.js`: contexts generation, library; 9 other lib files
 - `lib/coverage-state.js`: contexts generation, library; 1 other lib file
 - `lib/custom-skeleton.js`: contexts courses, generation; 4 other lib files
@@ -187,7 +188,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/usage-scope.js`: contexts authoring, coach, generation, materials, workflows; 6 other lib files
 - `lib/util.js`: contexts audio, authoring, bank, coach, generation, jobs, library, materials, notes, recording, skeleton, study; 48 other lib files
 
-## Used by exactly one context (137)
+## Used by exactly one context (136)
 
 - `lib/answer-card-materials.js`: context generation
 - `lib/answer-time.js`: context study
@@ -214,7 +215,6 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/book-section-ops.js`: context notes; 4 other lib files
 - `lib/bulk-import.js`: context authoring; 2 other lib files
 - `lib/call-counts.js`: context generation
-- `lib/capture.js`: context recording; 2 other lib files
 - `lib/card-schedule.js`: context study; 7 other lib files
 - `lib/case-types.js`: context generation; 3 other lib files
 - `lib/converted-chapter-stamps.js`: context materials; 3 other lib files

@@ -1,4 +1,4 @@
-import { getUiLanguage, ui, uiFormat, uiMessage } from "../i18n.js";
+import { ui, uiFormat, uiMessage } from "../i18n.js";
 import React from "react";
 import Markdown from "../Markdown.jsx";
 import EnBlock from "../EnBlock.jsx";
@@ -15,7 +15,6 @@ import OptionMark from "../OptionMark.jsx";
 import ThumbFeedback from "../ThumbFeedback.jsx";
 import PracticeTip from "./PracticeTip.jsx";
 import TermChips from "./TermChips.jsx";
-import { fillQuestion } from "./term-marks.js";
 import { useTermMarking } from "./use-term-marking.js";
 import { usePracticeTip } from "./use-practice-tip.js";
 import { voteTipMoments } from "../guidance/practice-tips.js";
@@ -156,7 +155,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
       setAssistMode("ask");
       return;
     }
-    assistCard("ask", fillQuestion(terms, getUiLanguage()), []);
+    assistCard("terms", "", [], { terms });
   };
   const fixPhrases = useFixPhrases(data);
   const ruleDeck = data?.decks?.find((deck) => deck.id === run.deckId);
@@ -514,6 +513,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           onRemove={termMarks.removeTerm}
           onFill={applyMarkedTerms}
           busy={busy || !!runningTask}
+          running={runningTask?.mode === "terms"}
         />
         <SmoothHeight className="assist-area">
           {assistMode && (!model.ready ? (
@@ -610,7 +610,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             <p className="assist-status" role="status">
               <span className="assist-status__spinner" aria-hidden="true"><Spinner size="sm" /></span>
               <span className="assist-status__text">
-                {uiFormat(runningTask.mode === "ask" ? "后台助教正在解答：{0}" : runningTask.mode === "derive" ? "后台助教正在出新题：{0}" : "后台助教正在改题：{0}", [formatAssistTaskSummary(runningTask)])}
+                {uiFormat(runningTask.mode === "ask" ? "后台助教正在解答：{0}" : runningTask.mode === "derive" ? "后台助教正在出新题：{0}" : runningTask.mode === "terms" ? "后台助教正在补词：{0}" : "后台助教正在改题：{0}", [formatAssistTaskSummary(runningTask)])}
               </span>
             </p>
           )}
@@ -621,7 +621,8 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             if (!runningTask && lastTask?.status === "failed") {
               return <AssistFailure task={lastTask} modelReady={model.ready} onSettings={modelSettings}
                 onResubmit={() => assistCard(lastTask.mode, lastTask.question || "", lastTask.mode === "ask" ? lastTask.choices || [] : [],
-                  lastTask.mode === "derive" ? { relation: lastTask.relation, followupId: lastTask.followupId } : undefined)}
+                  lastTask.mode === "derive" ? { relation: lastTask.relation, followupId: lastTask.followupId }
+                    : lastTask.mode === "terms" ? { terms: lastTask.terms || [] } : undefined)}
                 onEdit={editLastTask} />;
             }
             if (!runningTask && !assistMode && lastTask?.status === "done" && (lastTask.outcome === "no-change" || lastTask.outcome === "unlinked") && dismissedTaskId !== lastTask.id) {
