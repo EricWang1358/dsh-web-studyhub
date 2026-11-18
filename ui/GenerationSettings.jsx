@@ -4,20 +4,20 @@ import { Button, Checkbox, Field, Hint, NumberInput, Select, SettingsSection, Te
 import KindPicker from './KindPicker.jsx';
 import { COVERAGE_LEVELS, kindNote, kindsPatch, levelNote } from './generate-form.js';
 import { GENERATION_SETTINGS_DEFAULTS, GENERATION_SETTINGS_LIMITS, GENERATION_LANGUAGES,
-  GENERATION_DIFFICULTIES, GENERATION_NOTATIONS, normalizeGenerationSettings, validateGenerationPatch } from '../lib/generation-settings.js';
+  GENERATION_DIFFICULTIES, GENERATION_NOTATIONS, UNLIMITED_TIMEOUT_KEYS, normalizeGenerationSettings, validateGenerationPatch } from '../lib/generation-settings.js';
 import { lightModelOf, modelKey } from '../lib/job-model.js';
 import { EFFORT_STAGES, effortKey } from '../lib/stage-effort.js';
 import { EffortSelect } from './EffortSelect.jsx';
 import { useStudy } from './study-context.jsx';
 
 const labels = { kinds: '默认题型', coverageLevel: '默认覆盖强度', selectionCount: '选段补题默认题数', count: '主会话里出题的默认题数', language: '默认语言', difficulty: '默认难度', focus: '默认侧重点', notation: '默认公式写法',
-  concurrency: '同时生成的批数', batchSize: '每批题数', jobTimeoutMinutes: '每轮运行时限（分钟）', fillRounds: '自动补题轮数',
+  concurrency: '同时生成的批数', batchSize: '每批题数', jobTimeoutMinutes: '每轮运行时限（分钟）', bookCallTimeoutMinutes: '总纲与全书单次调用时限（分钟）', fillRounds: '自动补题轮数',
   effortPlanning: '规划考点与答案设计', effortReview: '独立审阅', effortWriting: '出题与替换题', effortRepair: '修复题目',
   lightModel: '机械步骤轻量模型', applySuggestions: '采纳审阅建议' };
 const languages = { auto: '跟随界面语言', 中文: '中文', English: 'English', 中英双语: '中英双语' };
 const difficulties = { mixed: '混合难度', foundation: '基础理解', application: '应用迁移', advanced: '深入辨析' };
 const notations = { auto: '自动', text: '纯文本', latex: '公式（LaTeX）' };
-const numeric = ['selectionCount', 'count', 'concurrency', 'batchSize', 'jobTimeoutMinutes', 'fillRounds'];
+const numeric = ['selectionCount', 'count', 'concurrency', 'batchSize', 'jobTimeoutMinutes', 'bookCallTimeoutMinutes', 'fillRounds'];
 const same = (left, right) => JSON.stringify(left) === JSON.stringify(right);
 const numbers = values => ({ ...values, ...Object.fromEntries(numeric.map(key =>
   [key, typeof values[key] === 'string' && !values[key].trim() ? NaN : Number(values[key])])) });
@@ -41,8 +41,9 @@ export function generationFormErrors(values) {
     try { validateGenerationPatch({ [key]: checked[key] }); }
     catch {
       const limit = GENERATION_SETTINGS_LIMITS[key];
-      errors[key] = numeric.includes(key) ? uiFormat('请输入 {0}–{1} 的整数。', [limit.min, limit.max])
-        : key === 'focus' ? uiFormat('侧重点最多 {0} 个字符。', [limit.max]) : ui('请选择一个支持的选项。');
+      errors[key] = UNLIMITED_TIMEOUT_KEYS.includes(key) ? uiFormat('请输入 {0}–{1} 的整数，或填 0 表示无上限。', [limit.min, limit.max])
+        : numeric.includes(key) ? uiFormat('请输入 {0}–{1} 的整数。', [limit.min, limit.max])
+          : key === 'focus' ? uiFormat('侧重点最多 {0} 个字符。', [limit.max]) : ui('请选择一个支持的选项。');
     }
   }
   return errors;
@@ -112,7 +113,11 @@ export function GenerationSettingsForm({ root, saved, efforts = null, session, m
   const field = (key, control, note, group = false) => <Field key={key} label={ui(labels[key])} hint={note} error={errors[key]} group={group} {...(key === 'jobTimeoutMinutes' ? { 'data-tour': 'settings-generation-time' } : {})}>{control}</Field>;
   const propsFor = key => ({ name: key, value: editor.values[key], disabled, onChange: event => edit(key, event.target.value) });
   const numberField = (key, note) => field(key, <NumberInput {...propsFor(key)} required inputMode="numeric" step="1"
-    min={GENERATION_SETTINGS_LIMITS[key].min} max={GENERATION_SETTINGS_LIMITS[key].max} />, note);
+    min={UNLIMITED_TIMEOUT_KEYS.includes(key) ? 0 : GENERATION_SETTINGS_LIMITS[key].min} max={GENERATION_SETTINGS_LIMITS[key].max} />, note);
+  const timeoutField = (key, note) => {
+    const isUnlimited = Number(editor.values[key]) === 0 && String(editor.values[key]).trim() !== '';
+    return numberField(key, <><span>{note}</span>{' '}<Button variant="link" size="sm" disabled={disabled || isUnlimited} onClick={() => edit(key, 0)}>{ui(isUnlimited ? '当前：无上限' : '设为无上限')}</Button></>);
+  };
   const choiceField = (key, choices, label) => field(key, <Select {...propsFor(key)} onChange={value => edit(key, value)} options={choices.map(value => ({ value, label: label(value) }))} />);
   const availableGroups = modelGroups ?? host?.modelGroups;
   return <form ref={formRef} className="settings-form" onSubmit={save}>
@@ -133,7 +138,8 @@ export function GenerationSettingsForm({ root, saved, efforts = null, session, m
       <h3 className="settings-subtitle">{ui('生成安排')}</h3>
       {numberField('concurrency', ui('同时处理更多批次通常更快；服务容易限流时可以调低。'))}
       {numberField('batchSize', ui('小批更早保存已核验题目，但会增加调用次数。'))}
-      {numberField('jobTimeoutMinutes', ui('从这一轮开始运行计时，不含排队。出题计划的每一轮各自计时，整个计划没有总时限；一轮用时较长（慢模型）可以调到 180 分钟。达到时限会保留已核验题目。'))}
+      {timeoutField('jobTimeoutMinutes', ui('从这一轮开始运行计时，不含排队；填 0 表示无上限。出题计划的每一轮各自计时，整个计划没有总时限；一轮用时较长（慢模型）可以调到 180 分钟或设为无上限。达到时限会保留已核验题目。'))}
+      {timeoutField('bookCallTimeoutMinutes', ui('整理总纲、清点资料与生成复习全书时，单次模型调用的时长上限；默认 0（无上限，只要模型持续输出就不截断，连续 3 分钟完全没有输出仍会自动截断）。需要限制单次耗时可设为 3–180 分钟。'))}
       {numberField('fillRounds', ui('题数不够时自动再补几轮，每轮只补缺的题，并避开已被拒绝的考点；填 0 表示不自动补。'))}
       <h3 className="settings-subtitle">{ui('各阶段的推理程度')}</h3>
       <Hint>{ui('规划和审阅决定题目对不对，值得多想；按答案设计写题、写替换题和改措辞可以少想，更快也更省。按模型实际提供的档位取最接近的一档，没有对应档位时会在生成详情里注明。')}</Hint>
