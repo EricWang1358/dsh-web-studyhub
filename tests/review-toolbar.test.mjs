@@ -235,3 +235,25 @@ test("答错后列出生词 sits in 更多 below 显示英文, reflects aria-che
     assert.doesNotMatch(english.replace(/data-usage="[^"]*"/g, ""), han);
   } finally { setUiLanguage("zh"); }
 });
+
+test("the More menu has 生词表… beside 出前置题… (only for non-exam runs with onTermList), in both languages (#1221)", () => {
+  setUiLanguage("zh");
+  const withIt = render({ feedback: null }, { onDerive() {}, onTermList() {}, moreDefaultOpen: true });
+  assert.match(withIt, /<button[^>]*data-usage="review\.term-list"[^>]*>(?:(?!<\/button>).)*生词表…<\/span><\/button>/);
+  assert.ok(
+    withIt.indexOf("出前置题…") < withIt.indexOf("生词表…") && withIt.indexOf("生词表…") < withIt.indexOf("斩掉此题"),
+    "beside 出前置题… and before 斩掉此题",
+  );
+  assert.doesNotMatch(render({ feedback: null }, { moreDefaultOpen: true }), /生词表/, "no course / handler, no entry");
+  assert.doesNotMatch(
+    render({ mode: "exam", feedback: null }, { onTermList() {}, moreDefaultOpen: true }),
+    /生词表/,
+    "mock exam hides term list",
+  );
+  setUiLanguage("en");
+  try {
+    const english = render({ feedback: null }, { onDerive() {}, onTermList() {}, moreDefaultOpen: true });
+    assert.match(english, />Word list…</);
+    assert.doesNotMatch(english.replace(/data-usage="[^"]*"/g, ""), han);
+  } finally { setUiLanguage("zh"); }
+});

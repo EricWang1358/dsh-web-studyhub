@@ -1536,3 +1536,249 @@ test("term strip clears only filled terms on done, preserves mid-task marks, and
     }
   }
 });
+
+async function seedMoreMenuTermListDeck(root, lang) {
+  const service = new StudyService(root);
+  await service.call("snapshot");
+  const courseName = lang === "en" ? "Systems" : "系统课";
+  await service.store.update((state) => {
+    state.decks.push(
+      {
+        id: "d-course",
+        title: lang === "en" ? "Consistency Basics" : "一致性基础",
+        course: courseName,
+        folder: "",
+        publishedAt: "2026-10-01T00:00:00.000Z",
+        cards: lang === "en"
+          ? [
+              {
+                id: "m1",
+                kind: "flashcard",
+                topic: "Quorums",
+                objective: "Recall quorum overlap",
+                prompt: "Why do read and write quorums overlap?",
+                answer: "Overlap guarantees every read sees the latest committed write.",
+                hint: "Think about R + W > N.",
+                explanation: "Quorum intersection ensures at least one replica holds the newest version.",
+                misconception: "Assuming any replica always has the latest state.",
+                citations: [],
+              },
+              {
+                id: "m2",
+                kind: "quiz",
+                topic: "Replication",
+                objective: "Identify leader role",
+                prompt: "What is the leader's primary role in single-leader replication?",
+                options: [
+                  { id: "a", text: "Serialize writes in a single log order", correct: true, explanation: "A single leader orders mutations." },
+                  { id: "b", text: "Eliminate all network partitions", correct: false, explanation: "Protocols tolerate partitions rather than preventing them." },
+                ],
+                hint: "Focus on write ordering.",
+                explanation: "Single-leader replication orders all writes through the leader.",
+                misconception: "Thinking a leader prevents packet drops.",
+                citations: [],
+              },
+            ]
+          : [
+              {
+                id: "m1",
+                kind: "flashcard",
+                topic: "多数派交集",
+                objective: "理解读写交集",
+                prompt: "为什么读多数派和写多数派需要有交集？",
+                answer: "读写有交集时，每次读取至少能命中一个保存着最新写入版本的副本。",
+                hint: "想一想 R + W > N。",
+                explanation: "交集保证最新写入能被后续读请求观察到。",
+                misconception: "以为任意单个副本都会立刻同步。",
+                citations: [],
+              },
+              {
+                id: "m2",
+                kind: "quiz",
+                topic: "主从复制",
+                objective: "识别主节点职责",
+                prompt: "单主复制模式中，主节点最核心的职责是什么？",
+                options: [
+                  { id: "a", text: "将所有写入排成单一顺序日志", correct: true, explanation: "单主负责全局写定序。" },
+                  { id: "b", text: "消除所有网络分区故障", correct: false, explanation: "复制协议只能容错而不能消除网络分区。" },
+                ],
+                hint: "关注写入定序。",
+                explanation: "主节点串行化写入顺序并向从节点传播变更。",
+                misconception: "以为选主可以避免网络分区。",
+                citations: [],
+              },
+            ],
+      },
+      {
+        id: "d-nocourse",
+        title: lang === "en" ? "Misc Notes" : "未归类题组",
+        course: "",
+        folder: "",
+        publishedAt: "2026-10-01T00:00:00.000Z",
+        cards: [
+          {
+            id: "nc1",
+            kind: "flashcard",
+            topic: "Misc",
+            objective: "Uncategorized card",
+            prompt: lang === "en" ? "What is a checksum?" : "什么是校验和？",
+            answer: lang === "en" ? "A compact digest for detecting corruption." : "用于检测数据损坏的紧凑摘要。",
+            hint: "Error detection.",
+            explanation: "Checksums detect accidental bit flips.",
+            misconception: "Same as encryption.",
+            citations: [],
+          },
+        ],
+      },
+    );
+  });
+  await service.call("course.save", {
+    name: courseName,
+    terms: {
+      version: 1,
+      items: lang === "en"
+        ? [
+            { term: "idempotency", alt: "retry safety", at: "2026-11-18T09:00:00.000Z", from: { deckId: "d-course", cardId: "m1" } },
+            { term: "linearizability", at: "2026-11-18T08:00:00.000Z", from: { deckId: "d-course", cardId: "m2" } },
+          ]
+        : [
+            { term: "幂等性", alt: "idempotency", at: "2026-11-18T09:00:00.000Z", from: { deckId: "d-course", cardId: "m1" } },
+            { term: "线性一致性", at: "2026-11-18T08:00:00.000Z", from: { deckId: "d-course", cardId: "m2" } },
+          ],
+    },
+  });
+}
+
+test("More menu › 生词表… opens TermListDialog with 0 marked terms on flashcard & quiz, hides without course, and Finder targets 更多 (#1221)", async (t) => {
+  let browser;
+  try {
+    browser = await launchChromium();
+  } catch (error) {
+    t.skip(`no Chromium to look with: ${String(error.message).split("\n")[0]}`);
+    return;
+  }
+  const dist = await mkdtemp(join(tmpdir(), "study-more-term-list-dist-"));
+  await buildPreview({ outdir: dist });
+  t.after(async () => {
+    await browser.close();
+    await rm(dist, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  });
+
+  for (const lang of ["zh", "en"]) {
+    for (const width of [1280, 420]) {
+      const tag = `more-term-list-${lang}@${width}`;
+      const running = await startLateServer({ distDir: dist, lang, seed: (root) => seedMoreMenuTermListDeck(root, lang) });
+      const { context, page, errors } = await openPage(browser, running, { lang, theme: "light", width, height: 900 });
+      try {
+        const expectedTermA = lang === "en" ? "idempotency" : "幂等性";
+        const expectedTermB = lang === "en" ? "linearizability" : "线性一致性";
+
+        const assertMoreMenuOpensTermList = async (stepTag) => {
+          assert.equal(await page.locator(".term-strip").count(), 0, `${stepTag}: 0 marked terms so strip is hidden`);
+          await page.locator(".review-more-trigger").scrollIntoViewIfNeeded();
+          await settleAnimations(page);
+          await page.locator(".review-more-trigger").click();
+          const item = page.locator('[data-usage="review.term-list"]');
+          await item.waitFor({ state: "visible", timeout: 10000 });
+          assert.equal((await item.innerText()).trim(), lang === "en" ? "Word list…" : "生词表…", `${stepTag}: More menu label matches`);
+          await item.click();
+
+          const dlg = page.locator("dialog[open]").last();
+          await dlg.waitFor({ state: "visible", timeout: 10000 });
+          await dlg.locator(".term-list-group").first().waitFor({ state: "visible", timeout: 10000 });
+          const dlgText = await dlg.innerText();
+          assert.match(dlgText, lang === "en" ? /Systems · Word list/ : /系统课 · 生词表/, `${stepTag}: course title shown`);
+          assert.ok(dlgText.includes(expectedTermA) && dlgText.includes(expectedTermB), `${stepTag}: saved course terms appear`);
+          await page.keyboard.press("Escape");
+          await dlg.waitFor({ state: "hidden", timeout: 10000 });
+        };
+
+        await page.goto(running.server.url);
+        // 1. Start the course deck directly (Card 1: flashcard, 0 marked terms).
+        const coursePlay = page.locator('[data-deck-id="d-course"] > .deck-row .map-play');
+        await coursePlay.waitFor({ state: "visible", timeout: 30000 });
+        await coursePlay.click();
+        await page.locator(".flashcard").waitFor({ state: "visible", timeout: 30000 });
+        await settleAnimations(page);
+        await assertMoreMenuOpensTermList(`${tag}-flashcard`);
+
+        // 2. Feature Finder locates course-term-list at 更多 › 生词表… and focuses review-more.
+        if (width <= 560) {
+          await page.locator(".nav-menu-toggle").click();
+          await page.locator('[data-tour="nav-finder"]').waitFor({ state: "visible", timeout: 10000 });
+          await page.locator('[data-tour="nav-finder"]').click();
+        } else {
+          await page.locator(".question-meta").click({ position: { x: 10, y: 10 } });
+          await page.keyboard.press("Control+K");
+        }
+        const finderInput = page.locator('dialog[open] [role="combobox"]');
+        await finderInput.waitFor({ state: "visible", timeout: 10000 });
+        await finderInput.fill(lang === "en" ? "Word list" : "生词表");
+        const finderRow = page.locator('[data-entry="course-term-list"]');
+        await finderRow.waitFor({ state: "visible", timeout: 10000 });
+        const rowText = await finderRow.innerText();
+        assert.match(rowText, lang === "en" ? /More › Word list…/ : /更多 › 生词表…/, `${tag}: Finder crumbs point to 更多 › 生词表…`);
+        await finderRow.locator(".finder-row__go").click();
+
+        await page.waitForFunction(
+          () => !!document.activeElement?.closest('[data-tour="review-more"]'),
+          undefined,
+          { timeout: 10000 },
+        );
+        const toast = page.locator(".sh-toast").first();
+        await toast.waitFor({ state: "visible", timeout: 10000 });
+        const toastText = await toast.innerText();
+        assert.match(
+          toastText,
+          lang === "en" ? /click “More” below the question/i : /点题目下方的「更多」/,
+          `${tag}: Finder shows run-more guidance toast`,
+        );
+
+        // 3. Flip & grade Card 1 to advance to Card 2 (quiz, 0 marked terms) and verify 更多 › 生词表… works there too.
+        await page.locator('[data-usage="review.flip"]').click();
+        await page.locator('.flip-back[aria-hidden="false"]').waitFor({ state: "visible", timeout: 10000 });
+        await settleAnimations(page);
+        await page.locator(".grade-scale .grade").nth(4).click();
+        await Promise.race([
+          page.locator(".options .option:not([disabled])").first().waitFor({ timeout: 15000 }),
+          page.locator('[data-usage="review.next"]:not([disabled])').waitFor({ timeout: 15000 }).then(() =>
+            page.locator('[data-usage="review.next"]').click(),
+          ),
+        ]);
+        await page.locator(".options .option:not([disabled])").first().waitFor({ timeout: 15000 });
+        await settleAnimations(page);
+        await assertMoreMenuOpensTermList(`${tag}-quiz`);
+
+        // 4. Start self-paced flashcard mode on the course deck and verify 更多 › 生词表… opens TermListDialog too.
+        await page.locator(".review-return").click();
+        await page.locator('[data-deck-id="d-course"] > .deck-row .map-menu-wrap button').waitFor({ state: "visible", timeout: 15000 });
+        await page.locator('[data-deck-id="d-course"] > .deck-row .map-menu-wrap button').click();
+        await page.getByRole("menuitem", { name: lang === "en" ? "Browse flashcards" : "闪卡翻看" }).click();
+        await page.locator(".flashcard").waitFor({ state: "visible", timeout: 15000 });
+        await settleAnimations(page);
+        await assertMoreMenuOpensTermList(`${tag}-self-paced-flashcard`);
+
+        // 5. Return to library and open an uncategorized deck (no course) -> 更多 omits 生词表….
+        await page.locator(".review-return").click();
+        const showOtherBtn = page.locator(".show-other-courses").first();
+        await showOtherBtn.waitFor({ state: "visible", timeout: 15000 });
+        await showOtherBtn.click();
+        const noCoursePlay = page.locator('[data-deck-id="d-nocourse"] > .deck-row .map-play');
+        await noCoursePlay.waitFor({ state: "visible", timeout: 15000 });
+        await noCoursePlay.click();
+        await page.locator(".flashcard").waitFor({ state: "visible", timeout: 15000 });
+        await settleAnimations(page);
+        await page.locator(".review-more-trigger").scrollIntoViewIfNeeded();
+        await page.locator(".review-more-trigger").click();
+        await page.getByRole("menu").waitFor({ state: "visible", timeout: 10000 });
+        assert.equal(await page.locator('[data-usage="review.term-list"]').count(), 0, `${tag}: no-course deck omits term list from More menu`);
+        await page.keyboard.press("Escape");
+
+        assert.deepEqual(errors, [], `${tag}: unexpected console/page errors: ${errors.join(" | ")}`);
+      } finally {
+        await context.close();
+        await running.close();
+      }
+    }
+  }
+});

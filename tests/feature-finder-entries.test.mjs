@@ -148,3 +148,11 @@ test("the tags say what an entry needs, never hide it", () => {
   assert.ok(byId.get("translation").needs.model, "translation needs a model");
   assert.equal(byId.get("page-examprep").needs.flag, "examBlueprint");
 });
+
+test("course-term-list targets 更多 › 生词表… with run-more prepare so it works with 0 marked terms (#1221)", () => {
+  const entry = byId.get("course-term-list");
+  assert.ok(entry);
+  assert.deepEqual(entry.path, ["练习", "题目下方", "更多", "生词表…"]);
+  assert.deepEqual(entry.anchors, ["review-more"]);
+  assert.equal(entry.prepare, "run-more");
+});
