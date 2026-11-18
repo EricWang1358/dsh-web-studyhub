@@ -19,7 +19,7 @@ import { customGateOf } from '../custom-entry.js';
 import { courseNamesOf } from '../PageScope.jsx';
 import { scopeFilter } from '../SourcePicker.jsx';
 import { useHandOff } from '../hand-off/use-hand-off.js';
-import { BOOK_BUILD_KIND, bookDefaultOpen, emptyPick, filterOutline, isPicked, keepView, keptView, mainAction, outlineRows, paperChoices, pickArgs, pickCard, pickRow, runningBuild } from './model.js';
+import { BOOK_BUILD_KIND, bookDefaultOpen, clearOutlineTarget, emptyPick, filterOutline, isPicked, keepView, keptOutlineTarget, keptView, mainAction, outlineRows, outlineTargetExpandKeys, paperChoices, pickArgs, pickCard, pickRow, runningBuild } from './model.js';
 import { collectOutlineGapStats, filterOutlineWithLens } from './gap-lens.js';
 import CourseCompanionsBar from '../companions/CourseCompanionsBar.jsx';
 import { basisText, bookCostTipText, bookCoverageText, bookIntroText, bookScalePointsText, bookScaleTokensText, bookStartedText, bookWhatText, cappedText, courseLine, levelOptions,
@@ -88,15 +88,18 @@ export const REBUILD_OUTLINE = Object.freeze({ rebuildOutline: true, confirm: tr
 /** 生成其余 of a waiting sample (#710): the build keeps the sample's points and writes the rest in their style. */
 export const SAMPLE_CONFIRM = Object.freeze({ sample: 'confirm' });
 
-export default function CourseOutline({ data, onBack, onCreate, onGoGenerateTopic, onOpenSources, onPractice, onOpenTask, onOpenSource, onOpenBook }) {
+export default function CourseOutline({ data, backLabel = '', onBack, onCreate, onGoGenerateTopic, onOpenSources, onPractice, onOpenTask, onOpenSource, onOpenBook }) {
   const { call, act, notify } = useStudy();
   const course = data?.focus?.course ?? null, root = data?.root || '';
   const kept = keptView(root, course);
-  const [open, setOpen] = useState(() => new Set(kept?.open || []));
+  const initialTarget = keptOutlineTarget(root, course);
+  const [pendingTarget, setPendingTarget] = useState(() => initialTarget);
+  const [open, setOpen] = useState(() => new Set([...(kept?.open || []), ...outlineTargetExpandKeys(initialTarget)]));
   const [deckId, setDeckId] = useState(kept?.deckId || '');
   const [filterQuery, setFilterQuery] = useState('');
   const [pick, setPick] = useState(emptyPick);
   const scopeKeyRef = useRef(`${root}\n${course ?? ''}`);
+  const pageRef = useRef(null);
   const { outline, details, error, retry } = useOutline({ call, course, deckId, open, revision: data?.revision });
   const picked = usePicked({ call, course, deckId, pick });
   // An outline seen for the first time opens its chapters (章 open, 节 closed); the view the learner left is kept otherwise.
@@ -106,8 +109,10 @@ export default function CourseOutline({ data, onBack, onCreate, onGoGenerateTopi
     if (scopeKeyRef.current === nextScope) return;
     scopeKeyRef.current = nextScope;
     const restored = keptView(root, course);
+    const nextTarget = keptOutlineTarget(root, course);
     seen.current = restored?.bookId ?? null;
-    setOpen(new Set(restored?.open || []));
+    setPendingTarget(nextTarget);
+    setOpen(new Set([...(restored?.open || []), ...outlineTargetExpandKeys(nextTarget)]));
     setDeckId(restored?.deckId || '');
     setFilterQuery('');
     setPick(emptyPick());
@@ -117,6 +122,40 @@ export default function CourseOutline({ data, onBack, onCreate, onGoGenerateTopi
     seen.current = bookId;
     setOpen(current => new Set([...current, ...bookDefaultOpen(outline.book)]));
   }, [bookId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!pendingTarget || !outline?.book) return;
+    const needed = outlineTargetExpandKeys(pendingTarget, outline.book);
+    if (!needed.length) return;
+    setOpen(current => {
+      const next = new Set(current);
+      let added = false;
+      for (const key of needed) if (!next.has(key)) { next.add(key); added = true; }
+      return added ? next : current;
+    });
+  }, [outline?.book, pendingTarget]);
+  useEffect(() => {
+    if (!pendingTarget || !outline) return undefined;
+    if ('course' in outline && outline.course !== course) return undefined;
+    if (outline.status === 'empty') {
+      clearOutlineTarget(root, course);
+      setPendingTarget(null);
+      return undefined;
+    }
+    const needed = outlineTargetExpandKeys(pendingTarget, outline.book);
+    const parentKeys = needed.filter(key => key !== pendingTarget.target);
+    if (parentKeys.some(key => !(key in details))) return undefined;
+    if (!(pendingTarget.target in details) && open.has(pendingTarget.target)) return undefined;
+    const escapeCss = key => (typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(key) : key.replace(/"/g, '\\"'));
+    const frame = requestAnimationFrame(() => {
+      const container = pageRef.current || (typeof document !== 'undefined' ? document : null);
+      const rowEl = container?.querySelector?.(`[data-key="${escapeCss(pendingTarget.target)}"]`)
+        || (pendingTarget.leafKey ? container?.querySelector?.(`[data-key="${escapeCss(pendingTarget.leafKey)}"]`) : null);
+      rowEl?.scrollIntoView?.({ block: 'center' });
+      clearOutlineTarget(root, course);
+      setPendingTarget(null);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [course, details, open, outline, pendingTarget, root]);
   useEffect(() => { keepView(root, course, { open, deckId, bookId: seen.current }); }, [root, course, open, deckId, bookId]);
   const organise = useCallback(async papers => {
     try {
@@ -185,9 +224,9 @@ export default function CourseOutline({ data, onBack, onCreate, onGoGenerateTopi
   const gapLensEnabled = outlineGapLens(data?.settings?.practice);
   return <CourseOutlineView course={course} outline={outline} details={details} error={error} open={open} deckId={deckId} filterQuery={filterQuery} pick={pick} picked={picked}
     running={runningBuild(data?.jobs, course)} writing={runningBuild(data?.jobs, course, BOOK_BUILD_KIND)} model={modelReadiness(data)} coverage={coverage} gate={gate} bookScale={bookScale}
-    gapLensEnabled={gapLensEnabled}
+    gapLensEnabled={gapLensEnabled} pageRef={pageRef}
     companionsSlot={<CourseCompanionsBar course={course || data?.focus?.course || ''} data={data} />}
-    actions={{ onBack, onCreate, onOpenSources, onOpenTask, onOpenSource, onOpenBook, organise, writeBook, readMore, setCoverage, pickScale, startCustom, gateScale, retry, toggle, onPick, onPickCard, onPracticeRow,
+    actions={{ backLabel, onBack, onCreate, onOpenSources, onOpenTask, onOpenSource, onOpenBook, organise, writeBook, readMore, setCoverage, pickScale, startCustom, gateScale, retry, toggle, onPick, onPickCard, onPracticeRow,
       onPracticeWeakDue: keys => practise({ keys }),
       onGoGenerateRow: row => (onGoGenerateTopic ? onGoGenerateTopic(rowTitle(row)) : onCreate?.()),
       clearPick: () => setPick(emptyPick()), practisePicked: () => practise(pickArgs(pick)),
@@ -292,7 +331,7 @@ function Organise({ book, documents, running, writing, model, quiet, coverage, g
  * chooseDeck(id).
  */
 export function CourseOutlineView({ course, outline, details = {}, error = null, open, deckId = '', filterQuery, gapLensEnabled = false, gapFilter, pick, picked = null, running = null, writing = null, model = { ready: true },
-  coverage = COVERAGE_DEFAULT, gate = null, bookScale = null, companionsSlot = null, actions }) {
+  coverage = COVERAGE_DEFAULT, gate = null, bookScale = null, companionsSlot = null, pageRef = null, actions }) {
   useInjectCss(css, 'study-outline');
   const { busy } = useStudy();
   const [localQuery, setLocalQuery] = useState('');
@@ -337,7 +376,7 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
     options={[{ value: '', label: ui('全部题组') }, ...outline.decks.map(deck => ({ value: deck.id, label: deck.title, hint: uiFormat('{0} 题', [deck.total]) }))]}
     searchPlaceholder={ui('搜索题组')} emptyText={query => uiFormat('没有叫「{0}」的题组', [query])} /> : null;
   const header = (
-    <PageHeader className="outline-header" back={{ label: ui('返回学习库'), onClick: actions.onBack }} title={course === null ? ui('总纲') : uiFormat('总纲 · {0}', [courseName])}
+    <PageHeader className="outline-header" back={{ label: actions?.backLabel || ui('返回学习库'), onClick: actions.onBack }} title={course === null ? ui('总纲') : uiFormat('总纲 · {0}', [courseName])}
       titleProps={{ tabIndex: -1, 'data-context-heading': true }}>
       {outline && <p className="outline-summary">
         <MasteryLine summary={outline.summary} title={courseName || ui('总纲')} />
@@ -360,7 +399,7 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
   // With an outline the book is the main action, so 创建题组 of a course without questions is the quiet one.
   const create = { label: ui('创建题组'), iconEnd: 'arrow-right', onClick: actions.onCreate };
   return (
-    <section className="page outline-page">
+    <section ref={pageRef} className="page outline-page">
       {header}
       {companionsSlot}
       {!book?.notes && outline.status === 'ok' && outline.documents.length > 0 && <p className="outline-book-intro">{bookIntroText()}</p>}

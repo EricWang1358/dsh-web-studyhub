@@ -21,6 +21,7 @@ import WrongBook from '../WrongBook.jsx';
 import DailyPlan, { RelatedTasks } from '../DailyPlan.jsx';
 import Sources from '../Sources.jsx';
 import { keepBook } from '../book/model.js';
+import { keepOutline } from '../outline/model.js';
 import CrunchCard from '../book/CrunchCard.jsx';
 import WeeklyCard from '../book/WeeklyCard.jsx';
 import BookInlineRun from './modals/BookInlineRun.jsx';
@@ -307,7 +308,10 @@ function OutlineView() {
       remember: true,
     });
   };
-  return <CourseOutline key={`${data.root}:${data.focus?.course}`} data={data} onBack={() => nav.navigate('library')} onCreate={() => intents.goGenerate()}
+  return <CourseOutline key={`${data.root}:${data.focus?.course}`} data={data}
+    backLabel={learn.hasTrail ? learn.trailLabel : undefined}
+    onBack={learn.hasTrail ? learn.returnFromContext : () => nav.navigate('library')}
+    onCreate={() => intents.goGenerate()}
     onGoGenerateTopic={onGoGenerateTopic}
     onOpenSources={pageAvailable(data, 'sources') ? () => nav.navigate('sources') : undefined} onPractice={onPractice} onOpenTask={nav.show.task}
     onOpenSource={(id, quote) => learn.openLearningTarget({ kind: 'source', id, quote })} onOpenBook={onOpenBook} />;
@@ -487,6 +491,18 @@ function ReviewView({ feedback }) {
     onSaveQaToNote: (followupId) => core.act('note.qa.add', qaToNoteArgs(run, followupId, data?.decks), undefined, { rethrow: true }),
     onMakeTask: learn.openBoardWithContext,
     openSkeleton: (id) => learn.openLearningTarget({ kind: 'skeleton', id }),
+    onOpenOutline: pageAvailable(data, 'outline') ? async (place) => {
+      const target = place?.chapter?.key || place?.document?.key || place?.leaf?.key || '';
+      if (!target) return;
+      if (await session.flushDraft?.() === false) return;
+      const origin = learn.captureContext();
+      const targetCourse = typeof place?.course === 'string' ? place.course : (data?.focus?.course ?? null);
+      const switched = typeof place?.course === 'string' && place.course !== (data?.focus?.course ?? null);
+      if (switched && !await core.act('focus.set', { course: place.course })) return;
+      learn.rememberContext(origin);
+      keepOutline(data?.root, targetCourse, { target, leafKey: place?.leaf?.key || null });
+      nav.navigate('outline');
+    } : undefined,
     onReturnToReading: learn.returnToReading,
   };
   return (

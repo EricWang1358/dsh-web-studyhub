@@ -2,6 +2,7 @@ import { ui, uiFormat, errorMessage } from "./i18n.js";
 import React from "react";
 import ReviewNavigator from "./ReviewNavigator.jsx";
 import RunContext from "./review/RunContext.jsx";
+import QuestionPlace from "./review/QuestionPlace.jsx";
 import QuestionRun from "./review/QuestionRun.jsx";
 import usePinQuestion from "./review/usePinQuestion.js";
 import CoachDebrief from "./CoachDebrief.jsx";
@@ -105,7 +106,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
       });
     }
   };
-  const { onBackToWorkflow, openSkeleton, onOpenNote, onRecapSettings, onModelSettings, onReturnToReading } = links;
+  const { onBackToWorkflow, openSkeleton, onOpenOutline, onOpenNote, onRecapSettings, onModelSettings, onReturnToReading } = links;
   const { label: contextReturnLabel, onReturn: onReturnContext, detour, onReturnFromDetour } = context;
   const enterRun = session.enterRun;
   const app = React.useContext(AppContext);
@@ -240,6 +241,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             </Tooltip>
           )}
           <RunContext data={data} deckId={run.deckId} run={run} />
+          <QuestionPlace data={data} run={run} onOpenOutline={onOpenOutline} />
           {skeletonHere && openSkeleton && (
             <Button iconEnd="arrow-right" variant="quiet" size="sm" title={uiFormat("这道题在知识骨架「{0}」里", [skeletonHere.title])} onClick={() => openSkeleton(skeletonHere.id)}>{ui("知识骨架")}</Button>
           )}
