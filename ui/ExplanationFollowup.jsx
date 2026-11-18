@@ -107,7 +107,7 @@ export default function ExplanationFollowup({ run, readOnly = false, onDerive, o
               {withBook && <BookQaButton refOf={{ ...ref, followupId: item.id }} book={book} />}
               {noteQa && <NoteQaButton followupId={item.id} noteQa={noteQa} cardNotes={cardNotes} />}
               {canReadBookSection && (
-                <Button variant="link" size="sm" iconEnd="arrow-right" className="book-section-button" data-book-section-link="followup" onClick={onOpenBookSection}>
+                <Button variant="link" size="sm" iconEnd="arrow-right" className="book-section-button" data-usage="review.book-section" data-tour="review-book-section" data-book-section-link="followup" onClick={onOpenBookSection}>
                   {ui("读全书这一节")}
                 </Button>
               )}
