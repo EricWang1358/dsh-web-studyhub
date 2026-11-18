@@ -73,6 +73,7 @@
     .source-doc__line > .source-doc__status { --index-slot: calc(var(--fs-xs) * 22); grid-row: 2; grid-column: text-start / -1; display: flex; flex-wrap: wrap; align-items: center;
       gap: var(--space-half) var(--space-4); min-width: 0; margin-top: var(--space-half); padding-inline-start: var(--source-doc-lead); cursor: pointer; }
     .source-doc__status > .source-doc__index { display: flex; align-items: center; flex: 1 1 var(--index-slot); min-width: var(--index-slot); min-height: calc(var(--fs-sm) * var(--lh-snug)); }
+    .source-doc__urgency { display: inline-flex; flex: 0 0 auto; align-items: center; }
     /* “原 PDF 422 页” beside the page count: dotted, so it reads as something to hover for the reason. */
     .source-doc__gap { text-decoration: underline dotted; text-underline-offset: 0.2em; }
     /* Inside the slot the badge keeps one line (ui/sources-page.css). */

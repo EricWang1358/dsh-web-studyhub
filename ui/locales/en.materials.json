@@ -148,5 +148,18 @@
   "共 {0} 份资料。": "{0} sources.",
   "共 {0} 份资料。#one": "{0} source.",
   "共 {0} 份资料，其中 {1} 份置顶。": "{0} sources, {1} pinned.",
-  "共 {0} 份资料，其中 {1} 份置顶。#one": "{0} source, {1} pinned."
+  "共 {0} 份资料，其中 {1} 份置顶。#one": "{0} source, {1} pinned.",
+  "待巩固优先": "Needs review first",
+  "只看待巩固（{0}）": "Needs review ({0})",
+  "显示全部资料": "Show all materials",
+  "当前范围没有待巩固的资料。": "No materials need review in this scope.",
+  "待巩固资料中没有匹配“{0}”的项。": "No materials needing review match “{0}”.",
+  "练待巩固的题": "Practise due & weak",
+  "练整份资料": "Practise whole source",
+  "这一章可练题目较多，本次先练最需巩固的 {0} 道（共 {1} 道）。": "This chapter has {1} questions; starting with the {0} needing review most.",
+  "这一章可练题目较多，本次先练最需巩固的 {0} 道（共 {1} 道）。#one:1": "This chapter has {1} question; starting with the {0} needing review most.",
+  "这份资料可练题目较多，本次先练最需巩固的 {0} 道（共 {1} 道）。": "This material has {1} questions; starting with the {0} needing review most.",
+  "这份资料可练题目较多，本次先练最需巩固的 {0} 道（共 {1} 道）。#one:1": "This material has {1} question; starting with the {0} needing review most.",
+  "这份资料暂时没有薄弱或到期题，可以在菜单里选「练整份资料」。": "No weak or due questions in this material right now; choose “Practise whole source” from the menu instead.",
+  "这份资料现在没有可练的题（已斩或已归档的不算）。可以先从它出题。": "No practisable questions for this material yet (slain or archived decks don’t count). Generate questions from it first."
 }
