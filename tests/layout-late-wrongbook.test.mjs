@@ -1,3 +1,4 @@
+/* global document */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -6,9 +7,10 @@ import { join } from 'node:path';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { StudyService } from '../lib/service.js';
+import { Store } from '../lib/store.js';
 import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
-import { openPage, seedWrongBookLibrary, startLateServer, wrongBookScenario } from '../scripts/qa/layout-late.mjs';
+import { openPage, seedWrongBookLibrary, settleAnimations, startLateServer, wrongBookScenario } from '../scripts/qa/layout-late.mjs';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 import { loadUi } from './helpers/ui-module.mjs';
 
@@ -171,6 +173,70 @@ test('WrongBook headless Chromium shows retell signal on stubborn rows cleanly a
         await plainRow.locator('.wb-leech').waitFor({ timeout: 10000 });
         assert.equal(await plainRow.locator('.wb-leech__retell').count(), 0);
         assert.deepEqual(errors, [], `no console/page errors at ${width}px`);
+      } finally {
+        await context.close();
+      }
+    }
+  } finally {
+    if (running) await running.close();
+    await browser.close();
+    await rm(dist, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  }
+});
+
+test('expanded recommendations with long prompts stay inside .wb-recs at 1280px and 420px', { timeout: 120000 }, async (t) => {
+  let browser;
+  try { browser = await launchChromium(); } catch (error) {
+    t.skip(`no Chromium to verify with: ${String(error.message).split('\n')[0]}`);
+    return;
+  }
+  const dist = await mkdtemp(join(tmpdir(), 'study-wb-recs-fit-dist-'));
+  let running;
+  try {
+    await buildPreview({ outdir: dist });
+    running = await startLateServer({
+      distDir: dist,
+      seed: async (root) => {
+        await seedWrongBookLibrary(root, { wrong: 6 });
+        const store = new Store(root);
+        await store.update((library) => {
+          const longPrompt = '一台主机上同时存在 TCP 服务和 UDP 服务。收到一个 IP 包后，内核为什么不能只用目的端口号决定把它交给哪个服务？请按处理顺序说明协议栈如何一步步分流并最终交付给对应进程。';
+          for (const deck of library.decks) {
+            for (const card of deck.cards) card.prompt = longPrompt;
+          }
+        });
+      },
+    });
+
+    for (const width of [1280, 420]) {
+      const { context, page, errors } = await openPage(browser, running, { lang: 'zh', width });
+      try {
+        await page.goto(running.server.url);
+        await page.locator('aside, nav').first().waitFor({ timeout: 30000 });
+        await (await revealNavRow(page, 'wrongbook')).dispatchEvent('click');
+        const toggle = page.locator('.wb-recs-bar button[aria-expanded]');
+        await toggle.waitFor({ timeout: 30000 });
+        await toggle.click();
+        await page.locator('.wb-rec-line').first().waitFor({ timeout: 10000 });
+        await settleAnimations(page);
+        const fit = await page.evaluate(() => {
+          const panel = document.querySelector('.wb-recs').getBoundingClientRect();
+          const lines = [...document.querySelectorAll('.wb-rec-line')].map((el) => {
+            const r = el.getBoundingClientRect();
+            const btn = el.querySelector('.sh-btn').getBoundingClientRect();
+            return { lineRight: r.right, btnRight: btn.right };
+          });
+          return {
+            panelRight: panel.right,
+            maxLineRight: Math.max(...lines.map((l) => l.lineRight)),
+            maxBtnRight: Math.max(...lines.map((l) => l.btnRight)),
+            docOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          };
+        });
+        assert.ok(fit.maxLineRight <= fit.panelRight + 0.5, `${width}px: .wb-rec-line (${fit.maxLineRight}) must fit inside .wb-recs (${fit.panelRight})`);
+        assert.ok(fit.maxBtnRight <= fit.panelRight + 0.5, `${width}px: practice button (${fit.maxBtnRight}) must fit inside .wb-recs (${fit.panelRight})`);
+        assert.equal(fit.docOverflow, 0, `${width}px: no horizontal document overflow`);
+        assert.deepEqual(errors, [], `${width}px: no console/page errors`);
       } finally {
         await context.close();
       }

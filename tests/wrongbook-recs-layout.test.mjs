@@ -17,11 +17,13 @@ function rule(selector) {
   return css.slice(open + 1, css.indexOf('}', open));
 }
 
-test('the recommendations panel is a grid whose column can shrink below its longest question', () => {
-  const panel = rule('.wb-recs');
-  assert.match(panel, /display:\s*grid/);
-  assert.match(panel, /grid-template-columns:\s*minmax\(0,\s*1fr\)/, 'an auto column would be as wide as the longest nowrap question');
-  assert.match(panel, /min-width:\s*0/);
+test('the recommendations panel and body are grids whose columns can shrink below their longest question', () => {
+  for (const selector of ['.wb-recs', '.wb-recs-body']) {
+    const grid = rule(selector);
+    assert.match(grid, /display:\s*grid/, `${selector} uses grid layout`);
+    assert.match(grid, /grid-template-columns:\s*minmax\(0,\s*1fr\)/, `${selector}: an auto column would expand to the longest nowrap question`);
+    assert.match(grid, /min-width:\s*0/, `${selector} may shrink`);
+  }
 });
 
 test('the question stays a single ellipsised line that may shrink', () => {
