@@ -154,9 +154,10 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const { autoAdvanceMs, autoAdvanceActive, autoAdvancePaused, hoverPauseRef, syncAutoPause } = useAutopilotPause({ session, coachProps, reviewBodyRef });
   const fixPhrases = useFixPhrases(data);
   const ruleDeck = data?.decks?.find((deck) => deck.id === run.deckId);
-  const termCourseName = ruleDeck?.course ?? ruleDeck?.folder ?? run?.course ?? "";
+  const termCourseName = ruleDeck?.course ?? ruleDeck?.folder ?? (typeof run?.course === "string" ? run.course : run?.course?.name) ?? "";
   const courseRules = useCourseRules(data, ruleDeck?.course ?? ruleDeck?.folder ?? "");
   const termMarks = useTermMarking({ session, reviewBodyRef, notify, call, courseName: termCourseName, assistTasks });
+  const openTermListDialog = () => { termMarks.refreshCourseTerms(); setTermListOpen(true); };
   const chapterHint = useChapterHint({ run, cardPlace, allFollowups, currentTerms: termMarks.terms, tipShown: practiceTip.tip, tourRunning: !!tourRunning });
   const applyMarkedTerms = (terms) => {
     if (!terms?.length) return;
@@ -484,6 +485,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             onAsk={() => setAssistMode((m) => (m === "ask" ? "" : "ask"))}
             onImprove={() => setAssistMode((m) => (m === "improve" ? "" : "improve"))}
             onDerive={() => setAssistMode((m) => (m === "derive" ? "" : "derive"))}
+            onTermList={run.mode !== "exam" && termMarks.courseName ? openTermListDialog : undefined}
             onSlay={slayCard} onToggleFocus={run.mode !== "exam" ? toggleCardFocus : undefined}
             onDeferUnstudiedPages={canDeferPages ? deferUnstudiedPages : undefined}
             onReviewAction={reviewAct}
@@ -524,14 +526,14 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           onRemove={termMarks.removeTerm}
           onMarkCandidate={termMarks.markCandidate}
           onFill={applyMarkedTerms}
-          onTermList={termCourseName ? () => { termMarks.refreshCourseTerms(); setTermListOpen(true); } : undefined}
-          hasCourse={Boolean(termCourseName)}
+          onTermList={run.mode !== "exam" && termMarks.courseName ? openTermListDialog : undefined}
+          hasCourse={Boolean(termMarks.courseName)}
           busy={busy || !!runningTask}
           running={runningTask?.mode === "terms"}
         />
-        {termListOpen && termCourseName && (
+        {termListOpen && termMarks.courseName && (
           <TermListDialog
-            courseName={termCourseName}
+            courseName={termMarks.courseName}
             items={termMarks.courseTerms}
             loading={termMarks.loadingCourseTerms}
             error={termMarks.courseTermsError}
