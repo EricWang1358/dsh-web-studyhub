@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { linearScale, niceTicks, recentDays, fillTrend, linePath, lineRuns, shortDeckTitles, dateLabel, evenTicks }
+import { linearScale, niceTicks, recentDays, fillTrend, linePath, lineRuns, shortDeckTitles, dateLabel, evenTicks, trendTicks }
   from '../ui/charts/chart-math.js';
 
 // WP24: the dashboard charts are plain SVG; every number they draw comes from
@@ -30,6 +30,9 @@ test('niceTicks gives round steps that always cover the max', () => {
 
 test('recentDays lists local date keys oldest first and crosses month and year ends', () => {
   assert.deepEqual(recentDays('2026-10-02', 3), ['2026-09-30', '2026-10-01', '2026-10-02']);
+  assert.deepEqual(recentDays('2026-10-02', 7), [
+    '2026-09-26', '2026-09-27', '2026-09-28', '2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02',
+  ]);
   assert.deepEqual(recentDays('2027-01-02', 4), ['2026-12-30', '2026-12-31', '2027-01-01', '2027-01-02']);
   assert.equal(recentDays('2026-10-02', 90).length, 90);
   assert.equal(recentDays('2024-03-01', 2)[0], '2024-02-29', 'leap day');
@@ -60,6 +63,16 @@ test('evenTicks picks a handful of evenly spaced labels and always includes the 
   assert.deepEqual(evenTicks(3, 5), [0, 1, 2]);
   assert.deepEqual(evenTicks(1, 5), [0]);
   assert.deepEqual(evenTicks(0, 5), []);
+});
+
+test('trendTicks labels every day on a wide 7-day axis and evenly spaces narrow or longer windows', () => {
+  assert.deepEqual(trendTicks(7, false), [0, 1, 2, 3, 4, 5, 6], 'all 7 days shown without skipping day 6');
+  assert.deepEqual(trendTicks(7, true), [0, 2, 4, 6], 'narrow 7-day axis steps evenly by 2 days');
+  assert.deepEqual(trendTicks(30, false), [0, 5, 11, 17, 23, 29]);
+  assert.deepEqual(trendTicks(30, true), [0, 9, 19, 29]);
+  assert.deepEqual(trendTicks(90, false), [0, 17, 35, 53, 71, 89]);
+  assert.deepEqual(trendTicks(90, true), [0, 29, 59, 89]);
+  assert.deepEqual(trendTicks(0, false), []);
 });
 
 test('dateLabel is a compact M/D for axes', () => {
