@@ -425,6 +425,10 @@
       border-radius: var(--radius-sm);
       background: var(--bg-surface);
     }
+    .exam-wrong-row[data-has-actions="true"] {
+      flex-wrap: wrap;
+      row-gap: var(--space-1-5);
+    }
     .exam-wrong-prompt {
       flex: 1;
       min-width: 0;

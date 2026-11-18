@@ -112,6 +112,8 @@ export default function PracticePane({ data, busy, act, openSchedule }) {
       <Switch name="studyChainRecipes" label={ui('找功能里显示学习场景向导')} checked={studyChainRecipes(values)} disabled={disabled}
         onChange={(on) => set({ studyChainRecipes: on ? true : null })}
         hint={ui('打开「找功能」（Ctrl K 或 /）且未输入搜索词时，在完整索引上方按常见学习处境串起下一步（刚加新资料、刷完清错、读讲义边问边练、考前限时自检），并根据当前题库与资料状态展开最贴近的一组；纯本地整理，不调用模型。')} />
+      <Switch name="examPostmortemBridge" label={ui('笔试报告拆分答错与未答并附原出处')} checked={!!values.examPostmortemBridge} disabled={disabled} onChange={(on) => set({ examPostmortemBridge: on ? true : null })}
+        hint={ui('打开后，笔试模拟考报告会在有未答题时列出已作答正确率，拆出「只练答错」与「补做未答」按钮，并在逐题列表中附带「打开出处」与「去练这道题」（不调用模型）。关掉后保持原有合并视图。')} />
       <Switch name="qaToBook" label={ui('自动加入复习全书')} checked={bookMode === 'auto'} disabled={disabled} onChange={(on) => setBook(on ? 'auto' : 'manual')}
         hint={ui('练习时得到的追问和「帮我弄懂」的回答，打开后会自动放进这门课的复习全书（这道题所在知识点的问答里）；关着时在每条问答旁点「加入复习全书」才放进去。题目自己的问答记录不受影响，加进书里的随时可以撤回。只影响之后的问答。')} />
       <Switch name="bookInlinePractice" label={ui('复习全书开启薄弱节筛选与页内自测')} checked={bookFlags.inlinePractice} disabled={disabled} onChange={(on) => setBookFlag('inlinePractice', on)}
