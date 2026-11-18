@@ -696,5 +696,7 @@
   "显示全部": "Show all",
   "出处 ·": "Source ·",
   "出处：{0}\n点此打开总纲定位到这一处": "Source: {0}\nClick to open this chapter in the course outline",
-  "没有在总纲里找到这道题的出处": "Could not find where this question is in the course outline"
+  "没有在总纲里找到这道题的出处": "Could not find where this question is in the course outline",
+  "已回到原位置，但没能切回之前的课程。可以在学习库重新切换当前课程。": "Returned to where you were, but could not switch back to the previous course. You can switch the current course again in the Study library.",
+  "已回到原位置，但没能切回之前的课程：{0}。可以在学习库重新切换当前课程。": "Returned to where you were, but could not switch back to the previous course: {0}. You can switch the current course again in the Study library."
 }

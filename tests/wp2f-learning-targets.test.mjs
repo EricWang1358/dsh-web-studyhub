@@ -4,6 +4,7 @@ import {
   ABORT, LEARNING_TARGETS, REFERENCE_ORDER, practiceArgs, RETURN_PAGES, captureContext, currentStudyReference, loadLearningTarget, openLearningTarget,
   returnTargetFor, openReturnTarget, loadReturnTarget, readExamTarget,
 } from '../ui/learning-navigation.js';
+import { loadUi } from './helpers/ui-module.mjs';
 
 // UI wave 2 · WP-F (#110): one table per learning object instead of four if-chains.
 
@@ -219,4 +220,155 @@ test('readExamTarget still reads a finished exam with its report', async () => {
   const call = async (action) => (action === 'review.get' ? { mode: 'exam', complete: true } : { score: 1 });
   assert.deepEqual(await readExamTarget(call, 'r'), { run: { mode: 'exam', complete: true }, report: { score: 1 } });
   await assert.rejects(readExamTarget(async () => ({ mode: 'path' }), 'r'), /找不到这场笔试/);
+});
+
+test('openReviewCoursePage records previous course only when switching courses and stops if focus.set fails (#1223)', async () => {
+  const { openReviewCoursePage } = await loadUi("export { openReviewCoursePage } from './ui/app/page-views.jsx';");
+  const makeHarness = ({ focusCourse = 'Course A', actResult = { course: 'Course B' } } = {}) => {
+    const remembered = [], prepared = [], navigated = [], acted = [];
+    const data = { root: '/lib', focus: { course: focusCourse } };
+    const core = { act: async (action, args) => { acted.push([action, args]); return actResult; } };
+    const session = { flushDraft: async () => true };
+    const learn = {
+      captureContext: (overrides = {}) => captureContext({ ...base, page: 'review', run: { id: 'r1', index: 0, card: { id: 'c1' } } }, overrides),
+      rememberContext: (origin) => remembered.push(origin),
+    };
+    const nav = { navigate: (page) => navigated.push(page) };
+    return { data, core, session, learn, nav, remembered, prepared, navigated, acted };
+  };
+
+  // Single-course: no focus.set, no courseSwitched metadata.
+  {
+    const h = makeHarness({ focusCourse: 'Course A' });
+    await openReviewCoursePage({ place: { course: 'Course A' }, ...h, targetPage: 'outline', prepare: (c) => h.prepared.push(c) });
+    assert.deepEqual(h.acted, []);
+    assert.equal(h.remembered.length, 1);
+    assert.equal(Object.hasOwn(h.remembered[0], 'courseSwitched'), false);
+    assert.deepEqual(h.prepared, ['Course A']);
+    assert.deepEqual(h.navigated, ['outline']);
+  }
+
+  // Cross-course (including null and '' previousCourse): captures previousCourse BEFORE focus.set.
+  for (const prev of ['Course A', '', null]) {
+    const h = makeHarness({ focusCourse: prev });
+    await openReviewCoursePage({ place: { course: 'Course B' }, ...h, targetPage: 'book', prepare: (c) => h.prepared.push(c) });
+    assert.deepEqual(h.acted, [['focus.set', { course: 'Course B' }]]);
+    assert.equal(h.remembered.length, 1);
+    assert.equal(h.remembered[0].courseSwitched, true);
+    assert.equal(h.remembered[0].course, prev);
+    assert.deepEqual(h.prepared, ['Course B']);
+    assert.deepEqual(h.navigated, ['book']);
+  }
+
+  // Failed focus.set aborts navigation without remembering trail.
+  {
+    const h = makeHarness({ focusCourse: 'Course A', actResult: null });
+    await openReviewCoursePage({ place: { course: 'Course B' }, ...h, targetPage: 'outline', prepare: (c) => h.prepared.push(c) });
+    assert.deepEqual(h.acted, [['focus.set', { course: 'Course B' }]]);
+    assert.deepEqual(h.remembered, []);
+    assert.deepEqual(h.prepared, []);
+    assert.deepEqual(h.navigated, []);
+  }
+});
+
+test('executeContextReturn restores previous focus course, refreshes, and still returns when restore fails (#1223)', async () => {
+  const { executeContextReturn, setUiLanguage } = await loadUi("export { executeContextReturn } from './ui/app/use-learning-navigation.js'; export { setUiLanguage } from './ui/i18n.js';");
+
+  const runHarness = async ({ origin, currentCourse = 'Course B', focusSetImpl, refreshImpl }) => {
+    const calls = [], errors = [], trailOps = [], focusReqs = [], modals = [], sink = nav();
+    let refreshed = 0;
+    const call = async (action, args) => {
+      calls.push([action, args]);
+      if (action === 'focus.set') {
+        if (focusSetImpl) return focusSetImpl(args);
+        return { mode: 'class', course: args.course };
+      }
+      if (action === 'review.move') return { id: args.runId, index: args.index, card: { id: 'c1' } };
+      return {};
+    };
+    const refresh = async () => {
+      refreshed++;
+      if (refreshImpl) return refreshImpl();
+    };
+    const ok = await executeContextReturn({
+      origin,
+      currentCourse,
+      getSources: () => [],
+      call,
+      refresh,
+      verbs: sink,
+      setModal: (m) => modals.push(m),
+      setContextTrail: (fn) => trailOps.push(fn([origin])),
+      setFocusRequest: (req) => focusReqs.push(req),
+      setError: (msg) => errors.push(msg),
+      live: () => true,
+    });
+    return { ok, calls, errors, refreshed, trailOps, focusReqs, modals, sink };
+  };
+
+  // 1. Cross-course restore (string, '', and null).
+  for (const prev of ['Course A', '', null]) {
+    const r = await runHarness({
+      origin: { page: 'review', runId: 'r1', index: 1, runComplete: false, input: { key: 'k' }, course: prev, courseSwitched: true, invoker: 'btn' },
+      currentCourse: 'Course B',
+    });
+    assert.equal(r.ok, true);
+    assert.deepEqual(r.calls, [['focus.set', { course: prev }], ['review.move', { runId: 'r1', index: 1 }]]);
+    assert.equal(r.refreshed, 1);
+    assert.equal(r.sink.log[0][0], 'enterMovedRun');
+    assert.deepEqual(r.trailOps, [[]]);
+    assert.deepEqual(r.errors, ['']);
+  }
+
+  // 2. Skips redundant focus.set if already back on origin.course.
+  {
+    const r = await runHarness({
+      origin: { page: 'review', runId: 'r1', index: 0, runComplete: false, course: 'Course A', courseSwitched: true },
+      currentCourse: 'Course A',
+    });
+    assert.deepEqual(r.calls, [['review.move', { runId: 'r1', index: 0 }]]);
+    assert.equal(r.refreshed, 0);
+  }
+
+  // 3. Single-course (no courseSwitched) does not touch focus.set or refresh.
+  {
+    const r = await runHarness({
+      origin: { page: 'review', runId: 'r1', index: 0, runComplete: false },
+      currentCourse: 'Course A',
+    });
+    assert.deepEqual(r.calls, [['review.move', { runId: 'r1', index: 0 }]]);
+    assert.equal(r.refreshed, 0);
+  }
+
+  // 4. focus.set throws -> still returns to review run and surfaces localized error.
+  setUiLanguage('zh');
+  {
+    const r = await runHarness({
+      origin: { page: 'review', runId: 'r1', index: 2, runComplete: false, course: 'Deleted Course', courseSwitched: true },
+      currentCourse: 'Course B',
+      focusSetImpl: async () => { throw new Error('请选择已有课程'); },
+    });
+    assert.equal(r.ok, true);
+    assert.equal(r.refreshed, 0);
+    assert.equal(r.sink.log[0][0], 'enterMovedRun');
+    assert.deepEqual(r.trailOps, [[]]);
+    assert.match(r.errors.at(-1), /已回到原位置，但没能切回之前的课程：请选择已有课程/);
+  }
+
+  // 5. focus.set returns falsy -> still returns to review run and surfaces fallback error (also checks English).
+  setUiLanguage('en');
+  try {
+    const r = await runHarness({
+      origin: { page: 'review', runId: 'r1', index: 2, runComplete: false, course: 'Course A', courseSwitched: true },
+      currentCourse: 'Course B',
+      focusSetImpl: async () => null,
+    });
+    assert.equal(r.ok, true);
+    assert.equal(r.refreshed, 0);
+    assert.equal(r.sink.log[0][0], 'enterMovedRun');
+    assert.deepEqual(r.trailOps, [[]]);
+    assert.match(r.errors.at(-1), /could not switch back to the previous course/i);
+  } finally {
+    setUiLanguage('zh');
+  }
 });
