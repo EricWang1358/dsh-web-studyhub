@@ -825,9 +825,9 @@ test('#1134: 全部课程 at 420 keeps every row\'s format, a PDF\'s pages and t
       else if (!paged && row.names[0].cut) bad.push(`a note cuts its course: ${row.title}: ${row.text}`);
     }
     assert.deepEqual(bad, [], tag);
-    // wider, the notes say their characters too, beside their whole course
+    // a little wider, the notes say their characters too, beside their whole course (by 448 px: a looser bound would let a lost size pass)
     let said = 0;
-    for (let width = 424; width <= 640 && !said; width += 8) {
+    for (let width = 424; width <= 448 && !said; width += 8) {
       await page.setViewportSize({ width, height: 900 });
       await frames(page, 3);
       const notes = [...(await everyRow(page)).values()].filter(row => !/PDF/.test(row.lead.text));
@@ -836,7 +836,7 @@ test('#1134: 全部课程 at 420 keeps every row\'s format, a PDF\'s pages and t
         assert.deepEqual(notes.filter(row => row.names[0]?.cut).map(row => row.text), [], `${lang} ${width} 全部课程: the course whole beside the characters`);
       }
     }
-    assert.ok(said, `${lang} 全部课程: the notes say their characters somewhere up to 640 px`);
+    assert.ok(said, `${lang} 全部课程: the notes say their characters again by 448 px (they come back at en 432, zh 424: round 15 asked for a bound that pins it)`);
     t.diagnostic(`${lang}: the notes say their characters from ${said} px`);
     t.diagnostic(`${tag}: data-names=${await page.evaluate(() => document.querySelector('[data-tour="generate-sources"] .source-picker').dataset.names)}: ${rows[0].text} | ${rows.at(-1).text}`);
     assert.deepEqual(errors, []);
