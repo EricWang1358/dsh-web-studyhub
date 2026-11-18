@@ -583,7 +583,7 @@ test('Browser E2E: narrowing 01 / 选择资料 by type & category selects only m
   const errors = [];
   page.on('pageerror', err => errors.push(err.message));
 
-  // Intercept RPC for AI classify (`source.folder.suggest` & `source.folder.apply`) so browser test verifies full review/apply loop even before backend branch merges
+  // Intercept RPC for AI classify (`source.folder.classify`, `source.folder.suggest` & `source.folder.apply`) so browser test verifies full review/apply loop deterministically
   let appliedPayload = null;
   await page.route('**/*', async route => {
     const req = route.request();
@@ -591,6 +591,36 @@ test('Browser E2E: narrowing 01 / 选择资料 by type & category selects only m
     if (url.hostname !== '127.0.0.1') return route.abort();
     if (req.method() === 'POST' && url.pathname.includes('/api/call')) {
       const body = JSON.parse(req.postData() || '{}');
+      if (body.action === 'source.folder.classify') {
+        await service.store.update(state => {
+          state.settings = {
+            ...(state.settings || {}),
+            materialClassifyPending: {
+              jobId: 'job-classify-e2e',
+              createdAt: '2026-10-05T08:00:00.000Z',
+              course: 'Java 八股',
+              folders: ['计算机网络', '并发题库'],
+              suggestions: [
+                { key: 'doc:doc-net1', title: 'TCP 三次握手详解.md', currentFolder: '计算机网络', suggestedFolder: '计算机网络' },
+                { key: 'doc:doc-net2', title: 'HTTP 缓存与状态码.md', currentFolder: '计算机网络', suggestedFolder: '计算机网络' },
+                { key: 'doc:doc-qb1', title: 'JSON 导入：并发原题', currentFolder: null, suggestedFolder: '并发题库' },
+              ],
+              unmatchedKeys: [],
+            },
+          };
+        });
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            ok: true,
+            value: {
+              job: { id: 'job-classify-e2e', type: 'material-classify', status: 'complete', done: 3, total: 3 },
+              reused: false,
+            },
+          }),
+        });
+      }
       if (body.action === 'source.folder.suggest') {
         return route.fulfill({
           status: 200,
@@ -614,7 +644,9 @@ test('Browser E2E: narrowing 01 / 选择资料 by type & category selects only m
         await service.store.update(state => {
           const folders = [...new Set(body.args.assignments.map(a => a.folder).filter(Boolean))];
           const items = Object.fromEntries(body.args.assignments.filter(a => a.folder).map(a => [a.key, a.folder]));
-          state.settings = { ...(state.settings || {}), materialFolders: { folders, items } };
+          const nextSettings = { ...(state.settings || {}), materialFolders: { folders, items } };
+          delete nextSettings.materialClassifyPending;
+          state.settings = nextSettings;
         });
         return route.fulfill({
           status: 200,

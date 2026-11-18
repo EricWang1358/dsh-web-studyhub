@@ -13,17 +13,21 @@ import { convertEventBlock, convertEventText } from './convert-log.js';
 const KIND_LABEL = { transcribe: '转写', proofread: '校对', translate: '翻译', title: '生成标题', plan: '提取知识点与原文', blueprint: '确定答案与情景', author: '出题与自查',
   review: '独立审阅', repair: '修复题目', publish: '发布检查', prep: '备题', wait: '限流等待', other: '模型调用', 'live.correct': '课堂校正',
   inventory: '清点资料', outline: '归纳知识点', write: '写讲解', cards: '补术语卡', confusables: '写易混概念对照', exam: '写考情', kit: '写答题模板',
+  taxonomy: '归纳主题目录', 'classify-batch': '按内容整理分类', 'organize-batch': '整理课程归属',
   // A search-index build's one local call (no model): lib/contexts/generation/retrieval/jobs/retrieval-index.js.
   index: '写入检索索引' };
 /** The review book's review and repair are of explanations, not questions: their calls say so (their stage label is exactly the word). */
-const STAGE_LABEL = { review: '审阅讲解', repair: '修复讲解', place: '概念归位' };
+const STAGE_LABEL = { review: '审阅讲解', repair: '修复讲解', place: '概念归位',
+  taxonomy: '归纳主题目录', 'classify-batch': '按内容整理分类', 'organize-batch': '整理课程归属' };
 
 /** The calls each kind of audio job can make, in the order the work goes: what its timeline legend may name. A task of the original path is one kind for all of them. */
 const AUDIO_CALLS = { 'audio-subtitles': ['proofread', 'translate'], 'audio-review': ['proofread'], 'audio-live-save': ['proofread', 'translate'], 'audio-live-correction': ['live.correct'] };
 export const audioCallKinds = (contractKind) => AUDIO_CALLS[contractKind] || ['transcribe', 'proofread', 'translate'];
 const LEGEND = { generation: ['plan', 'author', 'review', 'repair'], coach: ['prep'], 'course-book-build': ['inventory', 'outline', 'write', 'review', 'repair'],
-  'course-outline-build': ['inventory', 'outline'], 'companion-lesson-build': ['plan', 'author', 'repair'] };
-const LEGEND_LABEL = { plan: '规划', author: '出题', review: '审阅', repair: '修复', prep: '备题', inventory: '清点', outline: '归纳', write: '写' };
+  'course-outline-build': ['inventory', 'outline'], 'companion-lesson-build': ['plan', 'author', 'repair'],
+  'material-classify': ['taxonomy', 'classify-batch', 'other'], 'material-organize': ['organize-batch', 'other'] };
+const LEGEND_LABEL = { plan: '规划', author: '出题', review: '审阅', repair: '修复', prep: '备题', inventory: '清点', outline: '归纳', write: '写',
+  taxonomy: '归纳', 'classify-batch': '分类', 'organize-batch': '归属', other: '调用' };
 /** The legend of the parallel timeline for a family of tasks (and, for audio, for the kind): [[call kind, label]]. */
 export const timelineLegend = (family, contractKind) => family === 'audio' ? audioCallKinds(contractKind).map((kind) => [kind, KIND_LABEL[kind]])
   : (LEGEND[contractKind] || LEGEND[family] || LEGEND.generation).map((kind) => [kind, LEGEND_LABEL[kind]]);
@@ -31,8 +35,18 @@ export const timelineLegend = (family, contractKind) => family === 'audio' ? aud
 /** A call as a short phrase: "校对 6/9", "限流等待"; `file` adds the recording it belongs to. */
 export function callLabel(call, { file = false } = {}) {
   if (!call) return '';
-  const base = ui(STAGE_LABEL[call.stage] || KIND_LABEL[call.kind] || KIND_LABEL.other);
-  const counted = call.kind !== 'wait' && call.part != null && call.parts ? uiFormat('{0} {1}/{2}', [base, call.part, call.parts]) : base;
+  const stageOrKind = call.stage || call.kind;
+  let counted;
+  if (stageOrKind === 'taxonomy') {
+    counted = ui('归纳主题目录');
+  } else if (stageOrKind === 'classify-batch') {
+    counted = call.part != null && call.parts ? uiFormat('内容分类第 {0}/{1} 批', [call.part, call.parts]) : ui('按内容整理分类');
+  } else if (stageOrKind === 'organize-batch') {
+    counted = call.part != null && call.parts ? uiFormat('课程归属第 {0}/{1} 批', [call.part, call.parts]) : ui('整理课程归属');
+  } else {
+    const base = ui(STAGE_LABEL[call.stage] || KIND_LABEL[call.kind] || KIND_LABEL.other);
+    counted = call.kind !== 'wait' && call.part != null && call.parts ? uiFormat('{0} {1}/{2}', [base, call.part, call.parts]) : base;
+  }
   // A review asked again because its reply could not be used (lib/generation.js) is a retry of the same review, and is called that.
   const numbered = call.kind === 'review' && call.retry > 0 ? uiFormat('{0} · 第 {1} 次重新审阅', [counted, call.retry]) : counted;
   // A transcript taken from the saved one is a call too (drawn as a blue bar), and is called what it is.
@@ -225,6 +239,9 @@ const sameStep = (a, b) => a.kind === b.kind && (a.file ?? '') === (b.file ?? ''
 const AUDIO_NEXT = '可点「接着做」补上';
 const NEXT_STEP = { transcribe: AUDIO_NEXT, proofread: AUDIO_NEXT, translate: AUDIO_NEXT, prep: '可在「错题与待巩固」里再点「生成变式」',
   index: '再点「建立索引」会接着写还没建好的页',
+  taxonomy: '可在「资料」页重新运行「AI 智能分类」',
+  'classify-batch': '可在「资料」页重新运行「AI 智能分类」',
+  'organize-batch': '可在「资料」页重新运行「请 AI 建议」',
   // A 清点 range that was not read stays unread in the inventory: 接着做 (the retry), or the next 整理, reads it again.
   inventory: '没读成的这段，点「接着做」或下次整理时会再读' };
 
@@ -235,7 +252,8 @@ const NEXT_STEP = { transcribe: AUDIO_NEXT, proofread: AUDIO_NEXT, translate: AU
 export function retryNote(call, calls) {
   const later = (calls || []).filter((other) => other !== call && other.kind !== 'wait' && sameStep(call, other) && Date.parse(other.startedAt) > Date.parse(call.startedAt))
     .sort((a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt));
-  if (!later.length) return joinMeta([ui('没有自动重试'), NEXT_STEP[call.kind] ? ui(NEXT_STEP[call.kind]) : ui('缺的题请在草稿里点「补题」')]);
+  const nextStep = NEXT_STEP[call.stage] || NEXT_STEP[call.kind];
+  if (!later.length) return joinMeta([ui('没有自动重试'), nextStep ? ui(nextStep) : ui('缺的题请在草稿里点「补题」')]);
   const last = later[later.length - 1], times = later.length > 1 ? uiFormat('已重试 {0} 次', [later.length]) : ui('已重试');
   if (last.status === 'running' || last.status === 'waiting') return ui('重试中');
   if (last.status === 'ok') return later.length > 1 ? uiFormat('已重试 {0} 次，成功', [later.length]) : ui('已重试，成功');
