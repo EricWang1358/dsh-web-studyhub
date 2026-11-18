@@ -456,7 +456,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             data-level={run.feedback.level || undefined} role="status">{nextDueIcon(run.feedback) && <Icon name={nextDueIcon(run.feedback)} className="sh-icon--inline sh-icon--lead" />}{nextDueWord(run.feedback)}</p>}
           {canOpenBookSection && run.feedback && !run.feedback.selfReported && !isPassed(run) && (
             <div className="question-book-link">
-              <Button variant="link" size="sm" iconEnd="arrow-right" data-book-section-link="feedback" lock={busy}
+              <Button variant="link" size="sm" iconEnd="arrow-right" data-usage="review.book-section" data-tour="review-book-section" data-book-section-link="feedback" lock={busy}
                 onClick={() => onOpenBookSection(cardPlace)}>
                 {ui("读全书这一节")}
               </Button>

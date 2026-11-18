@@ -172,6 +172,10 @@ test("where 带我去 stands: on the page already, on the page of the entry, on 
   assert.deepEqual(m.planTrip(entry("hint"), { page: "review" }), { here: true, land: null, settings: null });
   assert.deepEqual(m.planTrip(entry("update"), { page: "library" }), { here: false, land: "settings", settings: "settings-update" });
   assert.deepEqual(m.planTrip(entry("mailbox"), { page: "dashboard" }), { here: true, land: null, settings: null }, "the top bar is on every page");
+  assert.deepEqual(m.planTrip(entry("question-place"), { page: "library" }), { here: false, land: "library", settings: null });
+  assert.deepEqual(m.planTrip(entry("question-place"), { page: "review" }), { here: true, land: null, settings: null });
+  assert.deepEqual(m.planTrip(entry("read-book-section"), { page: "library" }), { here: false, land: "library", settings: null });
+  assert.deepEqual(m.planTrip(entry("read-book-section"), { page: "review" }), { here: true, land: null, settings: null });
 });
 
 test("the toast says the path, then what is left to do: nothing when the control was lit where the entry says it is", () => {
@@ -188,6 +192,12 @@ test("the toast says the path, then what is left to do: nothing when the control
   assert.equal(m.pathText(entry("pdf-convert")), "资料 › 添加资料 › PDF 解析");
   const english = inLanguage("en", () => m.tripNotice(entry("budget"), -1).text);
   assert.doesNotMatch(english, han);
+  assert.equal(m.tripNotice(entry("question-place"), 0), null);
+  assert.match(m.tripNotice(entry("question-place"), 1).text, /题目页页头/);
+  assert.equal(m.tripNotice(entry("read-book-section"), 0), null);
+  assert.match(m.tripNotice(entry("read-book-section"), 1).text, /复习全书这一节已经写好/);
+  assert.doesNotMatch(inLanguage("en", () => m.tripNotice(entry("question-place"), 1).text), han);
+  assert.doesNotMatch(inLanguage("en", () => m.tripNotice(entry("read-book-section"), 1).text), han);
 });
 
 test("recent finder entries deduplicate, move to front, cap at 4, clear cleanly, and drop terms or unavailable items", () => {

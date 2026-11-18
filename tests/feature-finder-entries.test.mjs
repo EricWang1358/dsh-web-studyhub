@@ -156,3 +156,26 @@ test("course-term-list targets 更多 › 生词表… with run-more prepare so 
   assert.deepEqual(entry.anchors, ["review-more"]);
   assert.equal(entry.prepare, "run-more");
 });
+
+test("question-place and read-book-section are registered with conditional anchors and aliases (#1222)", () => {
+  const place = byId.get("question-place");
+  assert.ok(place);
+  assert.equal(place.title, "这道题的出处");
+  assert.equal(place.page, "review");
+  assert.deepEqual(place.anchors, ["review-place", "review-question"]);
+  assert.equal(place.prepare, "run-place");
+  for (const word of ["出处", "出自哪一章", "在总纲里的位置"]) assert.ok(place.aliases.includes(word), `question-place alias: ${word}`);
+  assert.match(place.what, /页头/);
+  assert.match(place.what, /总纲/);
+
+  const section = byId.get("read-book-section");
+  assert.ok(section);
+  assert.equal(section.title, "读全书这一节");
+  assert.equal(section.page, "review");
+  assert.deepEqual(section.anchors, ["review-book-section", "review-question"]);
+  assert.equal(section.prepare, "run-book-section");
+  for (const word of ["对应的全书", "读讲解"]) assert.ok(section.aliases.includes(word), `read-book-section alias: ${word}`);
+  assert.match(section.what, /已经写好/);
+  assert.match(section.what, /反馈下面/);
+  assert.match(section.what, /问答下面/);
+});
