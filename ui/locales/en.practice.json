@@ -252,5 +252,21 @@
   "补词：{0}": "Fill terms: {0}",
   "后台助教正在补词：{0}": "Background assistant is filling terms: {0}",
   "后台助教正在补词。台阶讲解和前置检查题会出现在这道题下面，完成时信箱会提醒你。": "The assistant is filling in the marked terms in the background. The concept ladder and prerequisite check questions will appear under this question, and the inbox will tell you when it is done.",
-  "这几个词我不认识：{0}。请一个一个讲：它是为了解决什么问题才出现的，大白话怎么说，正式说法是什么。": "I don't know these terms: {0}. Please explain each one: what problem it exists to solve, how to put it in plain words, and what the formal wording is."
+  "这几个词我不认识：{0}。请一个一个讲：它是为了解决什么问题才出现的，大白话怎么说，正式说法是什么。": "I don't know these terms: {0}. Please explain each one: what problem it exists to solve, how to put it in plain words, and what the formal wording is.",
+  "生词表": "Word list",
+  "{0} · 生词表": "{0} · Word list",
+  "按课程记住标过的词，状态会随检查题掌握度自动更新。": "Words you marked are saved by course, and their status updates automatically as your mastery of each check question grows.",
+  "共 {0} 个词": "{0} words",
+  "共 {0} 个词#one": "{0} word",
+  "清空生词表": "Clear word list",
+  "正在读取生词表…": "Loading word list…",
+  "还没有标过生词": "No marked words yet",
+  "做题或看答案时点「标生词」，标过的词会按课程记在这里。": "Choose “Mark words” in a question or explanation and marked words will be saved here by course.",
+  "不认识": "Unknown",
+  "会了": "Known",
+  "出自：{0}": "From: {0}",
+  "从生词表移除「{0}」": "Remove “{0}” from word list",
+  "移除失败，请再试一次。": "Could not remove this word. Please try again.",
+  "清空这门课的生词表？": "Clear this course’s word list?",
+  "会移除这门课记录的所有生词；题组里已生成的检查题和作答记录会保留。": "This removes all saved words for this course. Generated check questions in your deck and their review history will stay."
 }

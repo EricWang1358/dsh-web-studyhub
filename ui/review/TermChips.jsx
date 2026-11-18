@@ -7,7 +7,15 @@ import { ui, uiFormat } from "../i18n.js";
  * Renders the tagged words via shared `Chip` components and a secondary button
  * whose click action is injected via `onFill(terms)` for extensibility (`#1202`).
  */
-export default function TermChips({ terms, onRemove, onFill, busy = false, running = false }) {
+export default function TermChips({
+  terms,
+  onRemove,
+  onFill,
+  onTermList,
+  hasCourse = false,
+  busy = false,
+  running = false,
+}) {
   if (!Array.isArray(terms) || !terms.length) return null;
 
   return (
@@ -24,16 +32,30 @@ export default function TermChips({ terms, onRemove, onFill, busy = false, runni
           </Chip>
         ))}
       </div>
-      <Button
-        variant="secondary"
-        size="sm"
-        className="term-strip__fill"
-        busy={running}
-        lock={busy}
-        onClick={() => onFill?.(terms)}
-      >
-        {uiFormat("补齐这 {0} 个词", [terms.length])}
-      </Button>
+      <div className="term-strip__actions">
+        {hasCourse && onTermList && (
+          <Button
+            variant="quiet"
+            size="sm"
+            className="term-strip__list-btn"
+            data-tour="review-term-list"
+            data-usage="review.term-list"
+            onClick={onTermList}
+          >
+            {ui("生词表")}
+          </Button>
+        )}
+        <Button
+          variant="secondary"
+          size="sm"
+          className="term-strip__fill"
+          busy={running}
+          lock={busy}
+          onClick={() => onFill?.(terms)}
+        >
+          {uiFormat("补齐这 {0} 个词", [terms.length])}
+        </Button>
+      </div>
     </div>
   );
 }

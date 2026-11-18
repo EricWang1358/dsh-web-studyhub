@@ -699,7 +699,8 @@ const HANDLERS = [
       const card = input.card || {}, question = input.request?.question || "";
       // 出题 (derive, e.g. 生成一道变式 #1015): one new flashcard citing the first supplied source window verbatim, or no change without one.
       if (input.mode === "terms") {
-        const unknown = Array.isArray(input.terms?.unknown) ? input.terms.unknown.filter((item) => typeof item === "string" && item.trim()) : [];
+        const requested = Array.isArray(input.request?.terms) && input.request.terms.length ? input.request.terms : input.terms?.unknown;
+        const unknown = Array.isArray(requested) ? requested.filter((item) => typeof item === "string" && item.trim()) : [];
         const source = (input.sources || []).find((item) => String(item.text || "").trim().length >= 12);
         const sourceQuote = source ? String(source.text).trim().slice(0, 48) : "";
         const buildStep = ({ term, alt, layer, needs }) => {
