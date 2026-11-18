@@ -1,0 +1,1 @@
+- **英文首页的重点知识点一行读起来像一句话。** 原来写成「Focus topics 1: No questions 1」，现在是「1 focus topic: 1 without a question」「5 focus topics: 1 mastered · 2 not yet · 1 without a question」，单数也对了。窄屏上这一行只在各段之间换行（「5 focus topics:」「1 mastered ·」「1 without a question」），不会把数字和它的词拆开。中文的字没有改。未验证：它下面课程设置里的列表，那里有自己的写法。

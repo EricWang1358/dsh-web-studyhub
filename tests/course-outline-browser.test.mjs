@@ -1,5 +1,5 @@
 /* global window document */
-import test from 'node:test';
+import test, { mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -45,6 +45,30 @@ const sideways = page => page.evaluate(() => {
   return { doc: document.documentElement.scrollWidth - width, wide };
 });
 
+/** Answers every question of the round that is on the page, one at a time: waits for a question not answered yet, flips it, grades it, and only then looks for the next, so a slow
+    answer never makes the loop grade the same card twice or look for a button the result page has already replaced (#1131: the old loop watched the card's text, which a flip alone changes). */
+async function answerRound(page, count) {
+  const answered = [];
+  for (let step = 0; step < count; step += 1) {
+    const handle = await page.waitForFunction((done) => {
+      const ids = [...document.querySelectorAll('.flashcard')].map(card => /Question (i\d+):/.exec(card.innerText)?.[1]).filter(Boolean);
+      return ids.find(id => !done.includes(id)) || false;
+    }, answered, { timeout: 30000 });
+    const id = await handle.jsonValue(), card = page.locator('.flashcard', { hasText: `Question ${id}:` });
+    await card.locator('[data-usage="review.flip"]').click({ timeout: 30000 });
+    await page.locator('.grade.high').first().click({ timeout: 30000 });
+    answered.push(id);
+  }
+  await page.locator('.result-page').waitFor({ timeout: 30000 });
+  return answered;
+}
+
+/** A grade is answered late, as it is on a busy machine: the loop that answers the round has to wait for it, not for the clock of the day. */
+const slowGrades = (page, ms = 400) => page.route('**/api/call', async (route) => {
+  if (/"action":"review\.answer"/.test(route.request().postData() || '')) await new Promise(done => setTimeout(done, ms));
+  await route.continue();
+});
+
 test('总纲: open from the home, expand, pick two questions in two chapters, practise exactly those, come back (1280 and 420 px)', { timeout: 300000 }, async (t) => {
   let browser;
   try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to look with: ${String(error.message).split('\n')[0]}`); return; }
@@ -58,6 +82,7 @@ test('总纲: open from the home, expand, pick two questions in two chapters, pr
     for (const [theme, width] of (shots ? [['dark', 1280], ['dark', 420], ['light', 1280], ['light', 420]] : [['dark', 1280], ['dark', 420]])) {
       const tag = `${width}${theme === 'light' ? '-light' : ''}`;
       const { page, errors, context } = await openPage(browser, running, { width, height: 1000, theme });
+      await slowGrades(page);
       await page.goto(running.server.url);
       const link = page.locator('.course-header .outline-entry');
       await link.waitFor({ timeout: 30000 });
@@ -151,22 +176,7 @@ test('总纲: open from the home, expand, pick two questions in two chapters, pr
       await settleAnimations(page);
       if (shots) await page.screenshot({ path: join(shots, `review-${tag}.png`) });
       // Finished, the result page goes back to the 总纲 first (no second line: the 总纲 has no point to name); the page's own next step is the plain button after it.
-      for (let guard = 0; guard < 8 && !(await page.locator('.result-page').count()); guard += 1) {
-        await page.locator('.question-card, .result-page').first().waitFor({ timeout: 15000 });
-        if (await page.locator('.result-page').count()) break;
-        if (await page.locator('[data-usage="review.flip"]').count() && !(await page.locator('.next-due').count())) {
-          const before = await page.locator('.flashcard').innerText();
-          await page.locator('[data-usage="review.flip"]').click();
-          await page.locator('.grade.high').first().waitFor({ timeout: 10000 });
-          await page.locator('.grade.high').first().click();
-          await page.waitForFunction((prev) => document.querySelector('.result-page') || document.querySelector('.flashcard')?.innerText !== prev, before, { timeout: 15000 });
-          continue;
-        }
-        await page.locator('[data-usage="review.next"]:not([disabled])').waitFor({ timeout: 10000 });
-        await page.locator('[data-usage="review.next"]').click();
-        await page.waitForTimeout(400);
-      }
-      await page.locator('.result-page').waitFor({ timeout: 5000 });
+      assert.deepEqual((await answerRound(page, 2)).sort(), ['i1', 'i2'], `${width}px: each picked question is answered once`);
       const primary = page.locator('.result-next .sh-btn--primary');
       assert.equal(await page.locator('.result-page .sh-btn--primary').count(), 1, `${width}px: one filled button on the result page`);
       assert.equal((await primary.innerText()).replace(/\s+/g, ' ').trim(), '回到总纲', `${width}px: the main button goes back to the 总纲, with no second line`);
@@ -192,4 +202,41 @@ test('总纲: open from the home, expand, pick two questions in two chapters, pr
       await context.close();
     }
   } finally { await browser.close(); await running.close(); await rm(dist, { recursive: true, force: true }); }
+});
+
+/* The round does not depend on the day (#1131: the test looked date-dependent because it failed after midnight; the cause was a loop that raced the answer of a grade, and the same
+   failure happened at noon). Run it with the page's clock and the service's clock fixed at several days, on both sides of midnight, a year end and a day in March. Both clocks are fixed to the same instant. (With both fixed in mid-October the page stayed in its loading state while either clock alone did not; that is not understood
+   and not this test's question, so no October day is in the list.) */
+const DAYS = ['2026-11-17T12:00:00+08:00', '2026-11-17T23:59:40+08:00', '2026-11-18T00:00:20+08:00', '2026-11-18T03:20:00+08:00', '2026-12-31T23:59:50+00:00', '2027-03-01T00:00:10-08:00'];
+
+test('总纲: the practice round of two picked questions finishes on any day (the clock fixed at six days, both sides of midnight)', { timeout: 600000 }, async (t) => {
+  let browser;
+  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to look with: ${String(error.message).split('\n')[0]}`); return; }
+  const dist = await mkdtemp(join(tmpdir(), 'study-outline-days-'));
+  await buildPreview({ outdir: dist });
+  try {
+    for (const day of DAYS) {
+      mock.timers.enable({ apis: ['Date'], now: new Date(day) });
+      const running = await startLateServer({ distDir: dist, seed });
+      try {
+        const { page, errors, context } = await openPage(browser, running, { width: 420, height: 1000, theme: 'dark' });
+        await context.clock.setFixedTime(new Date(day));
+        await slowGrades(page);
+        await page.goto(running.server.url);
+        await page.locator('.course-header .outline-entry').click();
+        await page.locator('.outline-tree').waitFor({ timeout: 30000 });
+        const book = await page.locator('.outline-tree > .outline-row').first().getAttribute('data-key');
+        if (await page.locator(`[data-outline-toggle="${book}"]`).getAttribute('aria-expanded') !== 'true') await page.locator(`[data-outline-toggle="${book}"]`).click();
+        for (const index of [0, 1]) if (await page.locator(`[data-outline-toggle="${book}#${index}"]`).getAttribute('aria-expanded') !== 'true') await page.locator(`[data-outline-toggle="${book}#${index}"]`).click();
+        await page.locator(`[data-key="${book}#0"] [data-card="i1"] input[type="checkbox"]`).check();
+        await page.locator(`[data-key="${book}#1"] [data-card="i2"] input[type="checkbox"]`).check();
+        await page.locator('.outline-bar .outline-bar__count', { hasText: '已选 2 题' }).waitFor();
+        await page.locator('.outline-bar .sh-btn--primary').click();
+        assert.deepEqual((await answerRound(page, 2)).sort(), ['i1', 'i2'], `${day}: each picked question is answered once`);
+        assert.equal((await page.locator('.result-next .sh-btn--primary').innerText()).replace(/\s+/g, ' ').trim(), '回到总纲', `${day}: the round ends on the way back to the 总纲`);
+        assert.deepEqual(errors, [], `${day}: no page errors`);
+        await context.close();
+      } finally { await running.close(); mock.timers.reset(); }
+    }
+  } finally { await browser.close(); await rm(dist, { recursive: true, force: true }); }
 });

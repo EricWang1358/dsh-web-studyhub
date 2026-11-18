@@ -310,6 +310,8 @@
     /* 重点 × 掌握度: one line under the course progress; the summary is a quiet button, the practice link follows it. */
     .focus-progress { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); margin: 0; font-size: var(--fs-md); color: var(--text-dim); }
     .focus-progress .focus-progress__summary { min-height: 0; padding: 0; font-size: inherit; font-weight: var(--fw-regular); text-align: start; }
+    /* The words are pieces (the head, then each count with its words): the line wraps between them, never inside one ("1 without" / "a question" at 420px, #1130). */
+    .focus-progress__piece { white-space: nowrap; }
     .focus-progress__done {
       display: inline-flex; align-items: center; gap: var(--space-1);
       color: var(--ok-ink); font-size: var(--fs-sm); font-weight: var(--fw-medium); white-space: nowrap;
