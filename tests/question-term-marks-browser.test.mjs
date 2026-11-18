@@ -8,8 +8,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { StudyService } from "../lib/service.js";
 import { buildPreview } from "../scripts/build.mjs";
-import { previewCall } from "../scripts/preview-server.mjs";
+import { createFakeModel } from "../scripts/fake-model.mjs";
+import { createPreviewServer, previewCall } from "../scripts/preview-server.mjs";
 import { launchChromium } from "../scripts/qa/browser.mjs";
+import { scrubProcessEnv } from "../scripts/qa/env.mjs";
 import { openPage, settleAnimations, startLateServer } from "../scripts/qa/layout-late.mjs";
 
 const SHOTS = process.env.QUESTION_TERM_MARKS_SHOTS || "";
@@ -326,6 +328,14 @@ test("term marking flows cleanly across 1280/420 widths and zh/en languages (#11
         await settleAnimations(page);
         await takeShot(page, `terms-followup-${lang}-${width}`);
         await page.locator(".prereq-strip summary > span").click();
+        await page.waitForFunction(() => document.querySelectorAll(".term-strip").length === 0, { timeout: 10000 });
+
+        // Mark 1 unfilled word on Card 1 so returning from Card 2 verifies per-question term memory (#1192, #1214).
+        await termsBtn.click();
+        const memoryWord = lang === "en" ? "contrapositive" : "原子";
+        if (lang === "zh") await dragPhrase(page, backSel, memoryWord, 0);
+        else await clickWord(page, backSel, memoryWord, 0);
+        assert.deepEqual(await chipTexts(page), [memoryWord], `${tag}: unfilled memoryWord staged on Card 1`);
 
         // Advance to Card 2 (quiz) to verify option click interception + per-question term memory.
         await page.locator(".grade-scale .grade").nth(4).click();
@@ -367,12 +377,13 @@ test("term marking flows cleanly across 1280/420 widths and zh/en languages (#11
           2,
           `${tag}: 2 marked words created 2 direct prerequisite check cards on Card 2`,
         );
+        await page.waitForFunction(() => document.querySelectorAll(".term-strip").length === 0, { timeout: 10000 });
 
-        // Moving back to Card 1 (flashcard) restores Card 1's 3 marked terms from memory.
+        // Moving back to Card 1 (flashcard) restores Card 1's unmarked term from memory.
         await page.locator('[data-usage="review.prev"]').click();
         await page.locator(".flashcard").waitFor({ timeout: 10000 });
         await page.locator(".term-strip").waitFor({ timeout: 10000 });
-        assert.equal((await chipTexts(page)).length, 3, `${tag}: returning to Card 1 restores its marked words`);
+        assert.deepEqual(await chipTexts(page), [memoryWord], `${tag}: returning to Card 1 restores its marked words`);
 
         assert.deepEqual(errors, [], `${tag}: unexpected console/page errors: ${errors.join(" | ")}`);
       } finally {
@@ -1054,6 +1065,10 @@ test("term-strip remove only unmarks unattached visit-added terms and protects f
       }
       await lastGetPromise;
 
+      // #1214 automatically clears filled termA from the strip; re-stage pale termA and verify #1212 guard on ×.
+      await page.waitForFunction(() => document.querySelectorAll(".term-strip").length === 0, { timeout: 10000 });
+      await clickWord(page, backSel, termA, 0);
+      assert.deepEqual(await chipTexts(page), [termA], `${tag}: pale termA clicks back into strip`);
       await page.locator(".term-strip .sh-chip__remove").click();
       await page.waitForFunction(() => document.querySelectorAll(".term-strip").length === 0, { timeout: 10000 });
 
@@ -1157,6 +1172,365 @@ test("term-strip remove only unmarks unattached visit-added terms and protects f
 
       assert.deepEqual(errors, [], `${tag}: unexpected console/page errors: ${errors.join(" | ")}`);
     } finally {
+      await context.close();
+      await running.close();
+    }
+  }
+});
+
+async function seedClearOnDoneDeck(root, lang) {
+  const service = new StudyService(root);
+  await service.call("snapshot");
+  const courseName = lang === "en" ? "Systems" : "系统课";
+  await service.store.update((state) => {
+    state.decks.push({
+      id: "d-clear",
+      title: lang === "en" ? "Distributed Systems" : "分布式系统",
+      course: courseName,
+      folder: "",
+      publishedAt: "2026-10-01T00:00:00.000Z",
+      cards: lang === "en"
+        ? [
+            {
+              id: "k1",
+              kind: "flashcard",
+              topic: "Replication",
+              objective: "Coordinate replicas safely",
+              prompt: "Explain why distributed protocols balance consistency and fault tolerance.",
+              answer: "Protocols coordinate linearizability, quorum, and consensus across unreliable replicas.",
+              hint: "Consider replica coordination.",
+              explanation: "Linearizability orders operations while quorum and consensus prevent divergence.",
+              misconception: "Assuming network links never drop messages.",
+              citations: [],
+            },
+            {
+              id: "k2",
+              kind: "quiz",
+              topic: "Recovery & Retries",
+              objective: "Combine idempotency and snapshotting",
+              prompt: "How do distributed systems combine idempotency and snapshotting under failures?",
+              options: [
+                { id: "a", text: "Idempotency makes retries safe while snapshotting bounds log replay", correct: true, explanation: "Both handle failure recovery cleanly." },
+                { id: "b", text: "Replicas discard logs before checkpoint verification", correct: false, explanation: "Discarding unverified logs loses durable state." },
+              ],
+              hint: "Think about retries and recovery.",
+              explanation: "Idempotency guards duplicate writes and snapshotting shortens recovery.",
+              misconception: "Assuming retries are harmless without tracking.",
+              citations: [],
+            },
+          ]
+        : [
+            {
+              id: "k1",
+              kind: "flashcard",
+              topic: "副本协议",
+              objective: "理解副本协调机制",
+              prompt: "请说明分布式协议为什么要在一致性与容错之间做权衡。",
+              answer: "系统通常围绕 线性一致性、多数派 与 幂等性 来协调副本状态与重试安全。",
+              hint: "关注副本协同与重试。",
+              explanation: "线性一致性约束操作顺序，多数派保证读写交集，幂等性确保重试安全。",
+              misconception: "以为网络消息永远不会乱序或重传。",
+              citations: [],
+            },
+            {
+              id: "k2",
+              kind: "quiz",
+              topic: "恢复与重试",
+              objective: "结合事务日志与检查点",
+              prompt: "在 分布式 场景下，如何配合 事务日志 与 检查点 来加速恢复？",
+              options: [
+                { id: "a", text: "通过 事务日志 记录变更，再用 检查点 截断历史", correct: true, explanation: "两者协同缩短重启恢复时间。" },
+                { id: "b", text: "在未落盘前直接丢弃所有状态", correct: false, explanation: "未落盘丢弃状态会导致数据丢失。" },
+              ],
+              hint: "想一想持久化与截断。",
+              explanation: "事务日志保障持久性，检查点缩短重启回放长度。",
+              misconception: "以为检查点可以取代全部日志。",
+              citations: [],
+            },
+          ],
+    });
+  });
+}
+
+function createControlledTermsModel() {
+  const baseModel = createFakeModel({ latencyMs: 20 });
+  let mode = "auto";
+  let activeHold = null;
+
+  const model = async (system, prompt, options = {}) => {
+    const isAssistTerms =
+      system.startsWith("You are a background study assistant.") &&
+      (prompt.includes('"mode":"terms"') || prompt.includes('"mode": "terms"'));
+    if (isAssistTerms) {
+      if (mode === "fail") {
+        // Invalid ladder shape triggers 1 repair retry and then fails the assist task.
+        return JSON.stringify({ ladder: "invalid" });
+      }
+      if (mode === "hold" && activeHold) {
+        const hold = activeHold;
+        hold.signalEntered();
+        await Promise.race([
+          hold.waitRelease,
+          new Promise((resolve) => {
+            if (options?.signal?.aborted) resolve();
+            else options?.signal?.addEventListener("abort", resolve, { once: true });
+          }),
+        ]);
+      }
+    }
+    return baseModel(system, prompt, options);
+  };
+
+  return {
+    model,
+    setAuto: () => { mode = "auto"; activeHold = null; },
+    setFail: () => { mode = "fail"; activeHold = null; },
+    armHold: () => {
+      let signalEntered;
+      const entered = new Promise((resolve) => { signalEntered = resolve; });
+      let releaseGate;
+      const waitRelease = new Promise((resolve) => { releaseGate = resolve; });
+      activeHold = { signalEntered, waitRelease };
+      mode = "hold";
+      return {
+        entered,
+        release: () => {
+          mode = "auto";
+          activeHold = null;
+          releaseGate();
+        },
+      };
+    },
+  };
+}
+
+async function startControlledServer({ distDir, seed, lang = "zh", model }) {
+  scrubProcessEnv();
+  const base = await mkdtemp(join(tmpdir(), "study-terms-ctrl-"));
+  const root = join(base, "library");
+  const seeded = seed ? await seed(root) : null;
+  const server = await createPreviewServer({
+    libraryRoot: root,
+    home: join(base, "home"),
+    port: 0,
+    model,
+    distDir,
+  });
+  return {
+    base,
+    server,
+    seeded,
+    lang,
+    api: (action, args = {}) => previewCall(server, action, { ...args, uiLanguage: lang }),
+    close: async () => {
+      await server.close();
+      await rm(base, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    },
+  };
+}
+
+test("term strip clears only filled terms on done, preserves mid-task marks, and keeps terms on failure (#1214)", async (t) => {
+  let browser;
+  try {
+    browser = await launchChromium();
+  } catch (error) {
+    t.skip(`no Chromium to look with: ${String(error.message).split("\n")[0]}`);
+    return;
+  }
+  const dist = await mkdtemp(join(tmpdir(), "study-clear-on-done-dist-"));
+  await buildPreview({ outdir: dist });
+  t.after(async () => {
+    await browser.close();
+    await rm(dist, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  });
+
+  for (const lang of ["zh", "en"]) {
+    const tag = `clear-on-done-${lang}`;
+    const controller = createControlledTermsModel();
+    const running = await startControlledServer({
+      distDir: dist,
+      lang,
+      seed: (root) => seedClearOnDoneDeck(root, lang),
+      model: controller.model,
+    });
+    const { context, page, errors } = await openPage(browser, running, { lang, theme: "light", width: 1280, height: 900 });
+    let pendingHold = null;
+    try {
+      let unmarkCalls = 0;
+      let termsGetCalls = 0;
+      let lastMarkPromise = Promise.resolve();
+      let lastGetPromise = Promise.resolve();
+      page.on("request", (req) => {
+        if (!req.url().endsWith("/api/call")) return;
+        const body = req.postData() || "";
+        const waitRes = () =>
+          page.waitForResponse((res) => res.url().endsWith("/api/call") && res.request() === req, { timeout: 10000 }).catch(() => null);
+        if (body.includes('"course.terms.get"')) {
+          termsGetCalls += 1;
+          lastGetPromise = waitRes();
+        }
+        if (body.includes('"course.terms.mark"')) lastMarkPromise = waitRes();
+        if (body.includes('"course.terms.unmark"')) unmarkCalls += 1;
+      });
+
+      const courseName = lang === "en" ? "Systems" : "系统课";
+      const k1Term1 = lang === "en" ? "linearizability" : "线性一致性";
+      const k1Term2 = lang === "en" ? "quorum" : "多数派";
+      const k1Term3 = lang === "en" ? "consensus" : "幂等性";
+      const k2TermA = lang === "en" ? "idempotency" : "事务日志";
+      const k2TermB = lang === "en" ? "snapshotting" : "检查点";
+
+      await page.goto(running.server.url);
+      await page.locator('[data-usage="home.start"]').first().click({ timeout: 30000 });
+      await page.locator(".question-toolbar").waitFor({ timeout: 30000 });
+      await settleAnimations(page);
+      await lastGetPromise;
+
+      // Flip Card 1 and enter marking mode.
+      await clickWord(page, '.flip-front[aria-hidden="false"]', lang === "en" ? "protocols" : "分布式");
+      await page.locator('.flip-back[aria-hidden="false"]').waitFor({ timeout: 10000 });
+      await settleAnimations(page);
+      const termsBtn = page.locator('[data-usage="review.terms"]');
+      await termsBtn.click();
+      const backSel = '.flip-back[aria-hidden="false"] .flash-prompt';
+
+      // 1. Mark 2 terms -> 补齐 -> done -> strip disappears, pale highlight remains, 生词表 keeps both, 0 unmark calls.
+      if (lang === "zh") {
+        await dragPhrase(page, backSel, k1Term1, 0);
+        await dragPhrase(page, backSel, k1Term2, 0);
+      } else {
+        await clickWord(page, backSel, k1Term1, 0);
+        await clickWord(page, backSel, k1Term2, 0);
+      }
+      assert.deepEqual(await chipTexts(page), [k1Term1, k1Term2], `${tag}: 2 terms marked on Card 1`);
+      await lastMarkPromise;
+
+      const fillBtn = page.locator(".term-strip__fill");
+      assert.match(await fillBtn.innerText(), lang === "en" ? /Fill in these 2 words/ : /补齐这 2 个词/);
+      const getsBeforeFill1 = termsGetCalls;
+      await fillBtn.click();
+      await page.waitForFunction(
+        () => !!document.querySelector(".explanation-followup .followup-item[open]") && !!document.querySelector(".prereq-strip"),
+        { timeout: 25000 },
+      );
+      await page.waitForFunction(() => document.querySelectorAll(".term-strip").length === 0, { timeout: 10000 });
+      for (let i = 0; i < 40 && termsGetCalls <= getsBeforeFill1; i += 1) {
+        await page.waitForTimeout(50);
+      }
+      await lastGetPromise;
+
+      assert.equal(await page.locator(".term-strip").count(), 0, `${tag}: term strip disappears once 补齐 finishes done`);
+      assert.equal(unmarkCalls, 0, `${tag}: clearing strip on done never calls course.terms.unmark`);
+      const activeHl1 = await highlightCount(page, "study-term-mark");
+      const seenHl1 = await highlightCount(page, "study-term-seen");
+      if (activeHl1 >= 0) assert.equal(activeHl1, 0, `${tag}: active study-term-mark cleared after done`);
+      if (seenHl1 >= 0) assert.ok(seenHl1 >= 2, `${tag}: both filled terms remain faintly highlighted as study-term-seen`);
+
+      const afterK1 = await previewCall(running.server, "course.terms.get", { course: courseName });
+      assert.ok(afterK1.items?.find((item) => item.term === k1Term1)?.card?.cardId, `${tag}: term 1 saved with check card`);
+      assert.ok(afterK1.items?.find((item) => item.term === k1Term2)?.card?.cardId, `${tag}: term 2 saved with check card`);
+
+      // Re-stage pale term 1 to open 生词表 and verify both filled terms appear inside TermListDialog, then remove without unmarking.
+      await clickWord(page, backSel, k1Term1, 0);
+      assert.deepEqual(await chipTexts(page), [k1Term1], `${tag}: clicking pale term stages it to strip`);
+      await page.locator(".term-strip__list-btn").click();
+      const dlg = page.locator("dialog[open]").last();
+      await dlg.waitFor({ state: "visible", timeout: 10000 });
+      await dlg.locator(".term-list-group").first().waitFor({ state: "visible", timeout: 10000 });
+      const dlgText = await dlg.innerText();
+      assert.ok(dlgText.includes(k1Term1) && dlgText.includes(k1Term2), `${tag}: TermListDialog retains both filled terms`);
+      await page.keyboard.press("Escape");
+      await dlg.waitFor({ state: "hidden", timeout: 10000 });
+      await page.locator(".term-strip .sh-chip__remove").click();
+      await page.waitForFunction(() => document.querySelectorAll(".term-strip").length === 0, { timeout: 10000 });
+      assert.equal(unmarkCalls, 0, `${tag}: removing attached term still keeps unmarkCalls=0`);
+
+      // Stage an unfilled 3rd term on Card 1 so we can also confirm Card 2's completion leaves Card 1 untouched.
+      if (lang === "zh") await dragPhrase(page, backSel, k1Term3, 0);
+      else await clickWord(page, backSel, k1Term3, 0);
+      assert.deepEqual(await chipTexts(page), [k1Term3], `${tag}: Card 1 keeps unfilled k1Term3`);
+      await lastMarkPromise;
+
+      // Advance to Card 2 (quiz).
+      await page.locator(".grade-scale .grade").nth(4).click();
+      await Promise.race([
+        page.locator(".options .option:not([disabled])").first().waitFor({ timeout: 15000 }),
+        page.locator('[data-usage="review.next"]:not([disabled])').waitFor({ timeout: 15000 }).then(() =>
+          page.locator('[data-usage="review.next"]').click(),
+        ),
+      ]);
+      await page.locator(".options .option:not([disabled])").first().waitFor({ timeout: 15000 });
+      await settleAnimations(page);
+      assert.equal(await page.locator(".term-strip").count(), 0, `${tag}: Card 2 starts with no strip`);
+
+      // 2. Mark term A -> click 补齐 -> while running, mark term B -> on done, A clears while B stays and count reads 1.
+      await termsBtn.click();
+      const qSel = ".question-card .question";
+      if (lang === "zh") await dragPhrase(page, qSel, k2TermA, 0);
+      else await clickWord(page, qSel, k2TermA, 0);
+      assert.deepEqual(await chipTexts(page), [k2TermA], `${tag}: term A marked on Card 2`);
+      await lastMarkPromise;
+
+      pendingHold = controller.armHold();
+      const getsBeforeFill2 = termsGetCalls;
+      await fillBtn.click();
+      await pendingHold.entered;
+      await page.locator('.term-strip__fill[aria-busy="true"]').waitFor({ state: "visible", timeout: 10000 });
+
+      // Mark term B while task for term A is still running.
+      if (lang === "zh") await dragPhrase(page, qSel, k2TermB, 0);
+      else await clickWord(page, qSel, k2TermB, 0);
+      assert.deepEqual(await chipTexts(page), [k2TermA, k2TermB], `${tag}: term B added while task A is running`);
+      await lastMarkPromise;
+
+      // Release task A -> finishes done -> A clears from strip while B remains!
+      pendingHold.release();
+      pendingHold = null;
+      await page.waitForFunction(
+        () => !!document.querySelector(".explanation-followup .followup-item[open]"),
+        { timeout: 25000 },
+      );
+      await page.waitForFunction(
+        (expected) => {
+          const labels = [...document.querySelectorAll(".term-strip .sh-chip__label")].map((el) => el.textContent?.trim());
+          return labels.length === 1 && labels[0] === expected;
+        },
+        k2TermB,
+        { timeout: 10000 },
+      );
+      for (let i = 0; i < 40 && termsGetCalls <= getsBeforeFill2; i += 1) {
+        await page.waitForTimeout(50);
+      }
+      await lastGetPromise;
+
+      assert.deepEqual(await chipTexts(page), [k2TermB], `${tag}: term A cleared while mid-task term B stayed`);
+      assert.match(await fillBtn.innerText(), lang === "en" ? /Fill in this 1 word/ : /补齐这 1 个词/);
+      assert.equal(unmarkCalls, 0, `${tag}: unmark never called when clearing A`);
+
+      const seenHl2 = await highlightCount(page, "study-term-seen");
+      const activeHl2 = await highlightCount(page, "study-term-mark");
+      if (seenHl2 >= 0) assert.ok(seenHl2 >= 1, `${tag}: term A switched to pale study-term-seen highlight`);
+      if (activeHl2 >= 0) assert.ok(activeHl2 >= 1, `${tag}: term B kept active study-term-mark highlight`);
+
+      // 3. Task fails (model returns invalid result twice) -> term B stays on the strip and button remains usable.
+      controller.setFail();
+      await fillBtn.click();
+      await page.locator(".assist-failed").waitFor({ state: "visible", timeout: 25000 });
+      assert.deepEqual(await chipTexts(page), [k2TermB], `${tag}: failed terms task preserves term B on strip`);
+      assert.equal(await fillBtn.isDisabled(), false, `${tag}: fill button recovers and stays enabled after failure`);
+      assert.match(await fillBtn.innerText(), lang === "en" ? /Fill in this 1 word/ : /补齐这 1 个词/);
+      assert.equal(unmarkCalls, 0, `${tag}: failure does not call unmark`);
+      assert.match(await page.locator(".assist-failed").innerText(), lang === "en" ? /Submit again/ : /重新提交/);
+
+      // Return to Card 1 -> Card 1's unmarked term is untouched by Card 2's completed/failed tasks.
+      await page.locator('[data-usage="review.prev"]').click();
+      await page.locator(".flashcard").waitFor({ timeout: 10000 });
+      await page.locator(".term-strip").waitFor({ timeout: 10000 });
+      assert.deepEqual(await chipTexts(page), [k1Term3], `${tag}: unrelated Card 1 strip preserved`);
+
+      assert.deepEqual(errors, [], `${tag}: unexpected console/page errors: ${errors.join(" | ")}`);
+    } finally {
+      pendingHold?.release();
       await context.close();
       await running.close();
     }

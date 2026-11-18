@@ -2,7 +2,7 @@ import React from "react";
 import { reviewEntryKey } from "../async.js";
 import { isPassed } from "./session-logic.js";
 import { ui, uiLocale } from "../i18n.js";
-import { MAX_MARKED_TERMS, mergeAdjacent, normalizeTerm, toggleTerm, wordAt } from "./term-marks.js";
+import { MAX_MARKED_TERMS, clearCompletedTermEntries, mergeAdjacent, normalizeTerm, toggleTerm, wordAt } from "./term-marks.js";
 
 export const TERM_HIGHLIGHT_NAME = "study-term-mark";
 export const SEEN_TERM_HIGHLIGHT_NAME = "study-term-seen";
@@ -469,6 +469,12 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
     );
     if (!newlyDone.length) return;
     for (const task of newlyDone) seenDoneTasksRef.current.add(task.id);
+    // Clear completed terms in memory only: never call course.terms.unmark, since their check cards & course records are now saved.
+    const nextEntries = clearCompletedTermEntries(entriesByKeyRef.current, newlyDone);
+    if (nextEntries !== entriesByKeyRef.current) {
+      entriesByKeyRef.current = nextEntries;
+      setEntriesByKey(nextEntries);
+    }
     loadCourseTerms({ force: true });
   }, [assistTasks, loadCourseTerms]);
 
