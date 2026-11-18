@@ -488,12 +488,13 @@ function ReviewView({ feedback }) {
 }
 
 function NotesView() {
-  const { data, nav, lib, set, shell, learn, settingsEntry } = useApp();
+  const { data, nav, lib, set, shell, learn, settingsEntry, intents, session } = useApp();
   return (
     <BlogNotes key={data.root} data={data} theme={shell.resolvedTheme} onModelSettings={settingsEntry.openModelSettings}
       onRecapSettings={() => { learn.rememberContext(learn.captureContext()); settingsEntry.setSettingsFocus('settings-daily-recap'); nav.show.page('settings'); }}
       initialId={lib.noteInitialId} onSelect={set.setNoteInitialId} onOpenCard={(reference) => learn.openLearningTarget({ kind: 'card', ...reference })}
       onOpenSource={(id, quote) => learn.openLearningTarget({ kind: 'source', id, quote })}
+      onPracticeCards={pageAvailable(data, 'review') ? (scope) => practiseRound({ intents, learn, session }, scope) : undefined}
       backLabel={learn.trailLabel} onBack={learn.hasTrail ? learn.returnFromContext : () => { set.setNoteInitialId(''); nav.navigate('library'); }} />
   );
 }

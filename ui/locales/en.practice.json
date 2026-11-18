@@ -228,5 +228,15 @@
   "漏看条件": "Missed condition",
   "推导卡住": "Derivation stuck",
   "粗心手滑": "Careless slip",
-  "重练「{0}」({1})": "Practise “{0}” ({1})"
+  "重练「{0}」({1})": "Practise “{0}” ({1})",
+  "学习笔记显示关联题整套开练": "Practise linked questions straight from Study notes",
+  "打开后，「学习笔记」列表会出现「只看含关联题」筛选，点开笔记阅读时上方也会给出「练这 N 道关联题」按钮，把整篇笔记或每日总结关联的题目排成一轮重练，练完回到这篇笔记；自动跳过已移除或已归档的题目，不调用模型。": "Adds a “With linked questions” filter to Study notes and a “Practise linked questions” bar above each note reader so you can practise the questions linked to a note or daily recap in one round and return to the note afterwards; removed or archived questions are skipped and no model is used.",
+  "只看含关联题 ({0})": "With linked questions ({0})",
+  "这篇笔记关联了 {0} 道可练原题": "This note links {0} questions ready to practise",
+  "这篇笔记关联了 {0} 道可练原题#one": "This note links {0} question ready to practise",
+  "另有 {0} 道已失效或归档，已自动跳过": "{0} unavailable or archived questions were skipped",
+  "另有 {0} 道已失效或归档，已自动跳过#one": "{0} unavailable or archived question was skipped",
+  "练这道关联题": "Practise this linked question",
+  "练这 {0} 道关联题": "Practise these {0} linked questions",
+  "练这 {0} 道关联题#one": "Practise this {0} linked question"
 }
