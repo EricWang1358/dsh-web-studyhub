@@ -56,7 +56,9 @@ const measure = page => page.evaluate(() => [...document.querySelectorAll('[data
   const facts = row.querySelector('.source-picker__facts'), slot = row.querySelector('[data-index-slot]');
   return { title: item.querySelector('strong').textContent, height: box.height, below: box.bottom - bottom, padBottom: parseFloat(style.paddingBottom),
     slotAfterFacts: slot && facts ? !!(facts.compareDocumentPosition(slot) & 4) : false,
-    hasButton: !!button, buttonBesideText: button ? button.top < text.bottom - 1 : null, buttonOverlapsText: button ? button.left < text.right && button.right > text.left && button.top < text.bottom - 1 && button.bottom > text.top : false };
+    // 选择页面 sits on no line of the text (round 11: in a picker with badges the facts line runs on under the button's end, below the title line)
+    hasButton: !!button, buttonBesideText: button ? button.top < text.bottom - 1 : null,
+    buttonOverlapsText: button ? lines.some(line => button.left < line.right && button.right > line.left && button.top < line.bottom - 1 && button.bottom > line.top + 1) : false };
 }));
 
 test('the rows of the material picker keep no empty block: height follows the content, 选择页面 only where a document has pages', { timeout: 600000 }, async t => {

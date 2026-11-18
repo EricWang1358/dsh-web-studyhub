@@ -255,7 +255,7 @@ test('#1082: the bar keeps one height and the button one place with 0, 1 and 5 t
       for (const [count, line] of [[1, countOne], [5, countFive]]) {
         assert.deepEqual(line.cut, [], `${tag}, ${count} ticked: no word of the count line is cut by its edge (${line.text})`);
         assert.ok(line.overflow <= 0, `${tag}, ${count} ticked: the count line does not run out sideways (${line.overflow} px)`);
-        assert.match(line.shown.join(' · '), lang === 'en' ? new RegExp(`\\b${count} (?:materials?|sources?)\\b`) : new RegExp(`${count} 份资料`), `${tag}, ${count} ticked: the line shows how many materials, whole (${line.shown.join(' · ')})`);
+        assert.match(line.shown.join(' · '), lang === 'en' ? new RegExp(`\\b${count} sources?\\b`) : new RegExp(`${count} 份资料`), `${tag}, ${count} ticked: the line shows how many materials, whole (${line.shown.join(' · ')})`);
       }
       const seam = await hairline(page);
       assert.ok(seam.width >= 1 && seam.contrast >= 1.2, `${tag}, ${theme}: the bar's top hairline reads against the page (contrast ${seam.contrast.toFixed(2)})`);

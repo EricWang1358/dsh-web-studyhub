@@ -21,9 +21,14 @@
        document has pages); the facts on the next, then the index badge's slot in the last column. The label and the text lend their parts to the grid
        (display: contents), so a click on any of them still ticks the row. The title, the facts, the slot and the partial line take the rows in DOM order;
        only the checkbox and a wide row's 选择页面 are placed. */
+    /* Round 11: in a picker that shows badges a row has a fourth column, between the text and the badges' column: 选择页面 spans both on a wide row's
+       title line, so it widens only the room it needs past the badges' column, and the facts take that room under it. The facts line is so as wide on a
+       row with 选择页面 as on one without, on a wide window and a narrow one (where 选择页面 is under the facts and the column is empty): it no longer loses
+       the button's width where 选择页面 moves up (532 px, en), so a wider window never says less (ui/picker-names.js). */
     /* --picker-index-slot holds the widest compact badge uncut (「部分索引」 80px, "Not built" 82px at the default sizes). */
     .source-picker__row { --picker-index-slot: calc(var(--fs-xs) * 7); --picker-expand-h: var(--control-h-sm, 32px); display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: var(--space-half) var(--space-3);
       padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4); }
+    .source-picker--index .source-picker__row { grid-template-columns: auto minmax(0, 1fr) auto auto; }
     .source-picker__doc { display: contents; cursor: pointer; }
     .source-picker__text { display: contents; }
     .source-picker .source-picker__check { grid-column: 1; grid-row: 1 / span 2; margin: var(--space-1) 0 0; }
@@ -36,13 +41,13 @@
        cut with 「…」, and a row has one cut piece at most (round 10). The course the scope names is not said again (above the list). The line ends at the
        badges' column on every row, badge or none (round 8, below), and clips what is left out (in place, see-through), so nothing draws past it. */
     .source-picker__text .source-picker__facts { grid-column: 2 / -1; position: relative; display: flex; column-gap: 0.3em; height: calc(var(--fs-sm) * var(--lh-snug)); overflow: clip; white-space: nowrap; }
-    /* The facts stop at the last column where it holds the badge, or 选择页面 on a wide row (whose box hangs a little into the facts' line). */
-    .source-picker__row:is(.has-index, .has-expand) .source-picker__text .source-picker__facts { grid-column: 2; }
+    /* The facts stop before the last column: the badges' (or, in a picker without badges, 选择页面's on a wide row, whose box hangs a little into the facts' line). */
+    .source-picker__row:is(.has-index, .has-expand) .source-picker__text .source-picker__facts { grid-column: 2 / -2; }
     /* The slot: a box at the end of the facts' first line, the height of that line. While the index answer is coming it is the widest badge's width on every
        row (held), so a badge filling it moves nothing; on 创建题组 it keeps that width once the answer is in, badge or none (round 8, below); a picker
        without badges has no slot. The facts are one line either way, so no row changes height. It ends at the row's end on every row (justify-self: end in the last
        column, which a wide row shares with 选择页面), so the badges stand in one column; the badge's middle is the facts' first line's middle. */
-    .source-picker__index { grid-column: 3; justify-self: end; display: flex; align-items: center; justify-content: flex-end; height: calc(var(--fs-sm) * var(--lh-snug)); }
+    .source-picker__index { grid-column: -2; justify-self: end; display: flex; align-items: center; justify-content: flex-end; height: calc(var(--fs-sm) * var(--lh-snug)); }
     .source-picker__index[data-index-slot="held"] { width: var(--picker-index-slot); }
     .source-picker__index[data-index-slot="none"] { display: none; }
     /* Round 8: in a picker that shows badges (Generate) the badges' column is the same width on every row, coming, with a badge and without, so the facts
@@ -75,16 +80,30 @@
        none. data-names: 'all' every name, whole; 'first' the first name takes the rest (6em at least, cut if need be); 'none' (a course scope) no name;
        'kind' (全部课程) the format without its pages and size, then the course (6em at least, cut with 「…」 and its whole name on hover); 'alone'
        (全部课程 at its narrowest, no room even for that) the course has the line to itself on every row, its 「· 」 hidden left of the line's start
-       (--picker-dot, measured), cut with 「…」 and its whole name on hover where it is longer. data-chars: 'all' every row says its characters; 'unpaged' a row with pages says its size in pages only; 'none' no row says them. A piece
-       left out is see-through and out of the line's flow, not hidden, so the checkbox's name (the facts line's words) still says every course and the
-       whole lead. */
+       (--picker-dot, measured), cut with 「…」 and its whole name on hover where it is longer. The characters are decided for the rows of a kind (round 11,
+       data-size-group: the rows with pages, or a format without pages): data-chars-off lists the groups whose rows leave them out (a row with pages still
+       says its pages); data-unit="short" says them in their short words (the lead's data-short, out of the checkbox's name), the long ones leaving the line. Every
+       size group the list decides is named here (ui/picker-names.js SIZE_GROUPS). A piece left out is see-through and out of the line's flow, not hidden,
+       so the checkbox's name (the facts line's words) still says every course and the whole lead. */
     .source-picker:is([data-names="first"], [data-names="all"]) .source-picker__fact--lead { flex: 0 1 auto; }
     .source-picker[data-names="none"] :is([data-name="first"], .source-picker__names),
     .source-picker:is([data-names="first"], [data-names="kind"]) .source-picker__names,
     .source-picker[data-names="alone"] :is(.source-picker__fact--lead, .source-picker__names, .source-picker__notes),
     .source-picker[data-names="kind"] .source-picker__part--pages,
-    .source-picker[data-chars="unpaged"] .source-picker__part--pages + .source-picker__part--size,
-    .source-picker[data-chars="none"] .source-picker__part--size { position: absolute; opacity: 0; pointer-events: none; }
+    .source-picker[data-unit="short"] .source-picker__part--size { position: absolute; opacity: 0; pointer-events: none; }
+    /* The short words of the characters (the lead's data-short), said after the lead where the list says them; not in the checkbox's name. */
+    .source-picker[data-unit="short"] .source-picker__fact--lead::after { content: attr(data-short); content: attr(data-short) / ""; white-space: pre; }
+    /* A size group that leaves its characters out (data-chars-off), in the long words and the short; a row with pages still says its pages. */
+    .source-picker[data-chars-off~="paged"] [data-size-group="paged"],
+    .source-picker[data-chars-off~="text"] [data-size-group="text"],
+    .source-picker[data-chars-off~="md"] [data-size-group="md"],
+    .source-picker[data-chars-off~="tex"] [data-size-group="tex"],
+    .source-picker[data-chars-off~="html"] [data-size-group="html"],
+    .source-picker[data-chars-off~="txt"] [data-size-group="txt"],
+    .source-picker[data-chars-off~="docx"] [data-size-group="docx"],
+    .source-picker[data-chars-off~="json"] [data-size-group="json"],
+    .source-picker[data-chars-off~="audio"] [data-size-group="audio"] {
+      & .source-picker__part--size, & .source-picker__fact--lead::after { position: absolute; opacity: 0; pointer-events: none; } }
     /* A name left out is never cut, so it never takes the hover card's anchor (#1136: an anchor 0 wide, a gap on the line, never to open). */
     .source-picker[data-names="none"] [data-name="first"] { width: auto; max-width: none; }
     .source-picker:is([data-names="kind"], [data-names="alone"]) .source-picker__facts > :is([data-name="first"], .source-picker__fact-anchor) {
@@ -93,6 +112,11 @@
     /* 选择页面 ends a wide row's title line, as tall as that line in the grid (its box hangs into the row's padding), so it makes no row taller. */
     .source-picker__expand { grid-column: 3; grid-row: 1; justify-self: end;
       margin-block: calc((var(--fs-md) * var(--lh-snug) - var(--picker-expand-h)) / 2); }
+    :where(.source-picker--index) .source-picker__expand { grid-column: 3 / -1; }
+    /* There the facts line runs on under 选择页面 (round 11), so its box is no taller than the title line and the row's gaps: it ends where the facts line
+       starts, its words still on the title line's middle, and its hover box or focus ring never covers the facts' end. */
+    .source-picker--index .source-picker__row .source-picker__expand { --picker-expand-h: calc(var(--fs-md) * var(--lh-snug) + 2 * var(--space-half));
+      min-height: var(--picker-expand-h); padding-block: 0; }
     .source-picker__row.has-expand .source-picker__text strong { grid-column: 2; }
     .source-picker__expand .source-picker__chevron { transition: transform 0.18s var(--ease); }
     .source-picker__expand[aria-expanded="true"] .source-picker__chevron { transform: rotate(90deg); }
@@ -127,6 +151,7 @@
       .source-picker__row.has-expand .source-picker__text strong { grid-column: 2 / -1; }
       .source-picker__row.has-expand:not(.has-index) .source-picker__text .source-picker__facts { grid-column: 2 / -1; }
       .source-picker__expand { grid-column: 2 / -1; grid-row: auto; justify-self: start; margin-block: 0; margin-inline-start: calc((var(--sh-btn-px) + var(--hairline)) * -1); }
+      .source-picker--index .source-picker__row .source-picker__expand { min-height: var(--control-h-sm, 32px); padding-block: var(--space-1); }
       .source-picker__pages { padding-left: var(--space-6); }
     }
   }

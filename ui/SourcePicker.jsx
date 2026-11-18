@@ -16,7 +16,7 @@ import { indexGap } from './index-scope.js';
 import css from './source-picker.css';
 import { formatNumber } from './format.js';
 import { useCut } from './use-cut.js';
-import { useFactsFit } from './picker-names.js';
+import { sizeGroup, useFactsFit } from './picker-names.js';
 
 /* Choosing material for generation (P18, P22). One row per document: a PDF is
    one checkbox for the whole file with an expandable page list. Counts are in
@@ -145,20 +145,37 @@ export const relationNote = relation => !relation ? ''
 /* A course name this long or shorter is said whole or left out whole; a longer one, the first on a row's facts line, may be shortened (ui/source-picker.css). */
 const SHORTEST_NAME = 6;
 
-/* The shortened first course as its parts: each part after the first is one unbreakable box with its own 「·」, so the name cut with 「…」 ends on a word,
-   never on its own 「·」 (「示例课程 · …」, #1084 round 8). Only that name is boxed: the other pieces are never cut mid-name, and stay plain text
-   (one run of words for the static markup and the checkbox's name, and few elements per row, #565). */
-const parted = text => {
+/* A figure, or a code with one (「（2026」, 「 (CS5223)」, 「Lab2」), that starts a word: with the space or the opening bracket before it. */
+const FIGURE = /\s?(?<![A-Za-z0-9])[（(【[《「]?[A-Za-z]*\d/gu;
+
+/** The words of a shortened name (`· ` and all): its head as text, then each part after a 「 · 」 with its 「·」 (round 8). Round 11: where the head has a
+ *  figure after its first two characters, the head's text ends before it and the rest of the name is one word, so the name is never cut inside a
+ *  figure (「分布式系统与网络协议（2026 秋季学期 · 周三晚班）」 is said 「…协议…」 or whole, never 「…（202…」); a figure in the first two characters
+ *  (「第2讲」, 「CS5223」) stays in the head, which is said whole up to 6em. One word box at most where round 8 drew one, so a row keeps few elements
+ *  (#565). */
+export function nameWords(text) {
   const [head, ...tail] = text.split(' · ');
-  return <>{head}{tail.map((part, at) => <span key={at} className="source-picker__part">{` · ${part}`}</span>)}</>;
-};
+  const parts = tail.map(part => ` · ${part}`), at = [...head.slice(2).matchAll(FIGURE)].find(match => match.index >= 2)?.index;
+  return at === undefined ? [head, ...parts] : [head.slice(0, 2 + at), head.slice(2 + at) + parts.join('')];
+}
+
+/* The shortened first course as its words: the head as text, each word after it one unbreakable box, so the name cut with 「…」 ends on a whole word,
+   never on its own 「·」 (「示例课程 · …」, #1084 round 8) nor inside a figure (round 11). Only that name is boxed: the other pieces are never cut
+   mid-name, and stay plain text (one run of words for the static markup and the checkbox's name, and few elements per row, #565). */
+const parted = words => <>{words[0]}{words.slice(1).map((word, at) => <span key={at} className="source-picker__part">{word}</span>)}</>;
 
 /* The first course on a row, shortened where its row is short of room (ui/source-picker.css): only while it is cut (measured with the shared observer of
    ui/use-cut.js) is it wrapped in the shared Tooltip with its whole name; a name said whole is one element and has no card (round 8 review, #565). The
-   anchor takes the name's place in the line (the same size), so the name is cut the same with it and without. */
+   anchor takes the name's place in the line (the same size), so the name is cut the same with it and without. A box that does not start at a space puts
+   one into the checkbox's name (「协议 （2026」), so such a name gives its whole words as its label. The name is cut as soon as its words overflow at
+   all: a word box past its end is hidden behind the 「…」 by a pixel's overflow too, which the default rounding of ui/use-cut.js lets pass. */
+const wordsCut = element => element.scrollWidth > element.clientWidth
+  || [...element.querySelectorAll('.source-picker__part')].some(word => word.getBoundingClientRect().right > element.getBoundingClientRect().right + 0.01);
+
 function CourseName({ name }) {
-  const ref = useRef(null), cut = useCut(ref, name);
-  const said = <span ref={ref} className="source-picker__fact source-picker__fact--name source-picker__fact--short" data-name="first">{parted(`· ${name}`)}</span>;
+  const ref = useRef(null), cut = useCut(ref, name, wordsCut), words = nameWords(`· ${name}`);
+  const said = <span ref={ref} className="source-picker__fact source-picker__fact--name source-picker__fact--short" data-name="first"
+    aria-label={words.slice(1).some(word => !/^\s/.test(word)) ? `· ${name}` : undefined}>{parted(words)}</span>;
   return cut ? <Tooltip layer group="index-badge" anchorClassName="source-picker__fact-anchor" content={name}>{said}</Tooltip> : said;
 }
 
@@ -173,16 +190,19 @@ function CourseName({ name }) {
 export function rowNames(item, scope, relation) {
   const related = relationNote(relation), label = sourceFormatLabel(item), split = label.indexOf(' · ');
   const kind = split < 0 ? label : label.slice(0, split), pages = split < 0 ? '' : label.slice(split + 3), size = uiFormat('{0} 字符', [formatNumber(item.chars)]);
+  const short = uiFormat('{0}字', [formatNumber(item.chars)]), group = sizeGroup(item.format, !!pages);
   const notes = [...documentNotes(item), item.coursesInferred ? ui('推断归属') : ''].filter(Boolean);
   const courses = item.courses.length ? item.courses.filter(course => course !== scope) : scope === '' ? [] : [ui('未分类')];
   const [first = '', ...later] = [...courses, related].filter(Boolean);
-  return { lead: [label, size].join(' · '), kind, pages, size, notes, first, later, shortened: courses.length > 0 && [...courses[0]].length > SHORTEST_NAME };
+  return { lead: [label, size].join(' · '), kind, pages, size, short, group, notes, first, later, shortened: courses.length > 0 && [...courses[0]].length > SHORTEST_NAME };
 }
 
 /* The lead as whole parts (#1084, round 10; #1134, #1135): the format, then its pages and its size, each one unbreakable box with its own 「·」, said whole
-   or left out whole by the list's one decision (ui/picker-names.js: a document with pages says its size in pages, its characters give way first), so a
-   size is never cut (「Markdown · 560 …」, 「Text · 267 charac…」) and the line never ends on a bare 「·」. A box starts at a space, so the words read as
-   one run of text (the static markup, and the checkbox's name, which puts a space at a box's edge). */
+   or left out whole by the list's one decision for the rows of a kind (ui/picker-names.js: a document with pages says its size in pages, its characters
+   give way first), so a size is never cut (「Markdown · 560 …」, 「Text · 267 charac…」) and the line never ends on a bare 「·」. A box starts at a space, so
+   the words read as one run of text (the static markup, and the checkbox's name, which puts a space at a box's edge). The characters' short words
+   (「180 chars」, round 11: en 320) are the lead's `data-short`, drawn after it only where the list says them (ui/source-picker.css): no element more on a
+   row (#565), and not in the checkbox's name, which says the long ones. */
 function leadParts({ kind, pages, size }) {
   return <>{kind}{pages && <span className="source-picker__part source-picker__part--pages">{` · ${pages}`}</span>}<span
     className="source-picker__part source-picker__part--size">{` · ${size}`}</span></>;
@@ -210,11 +230,11 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
   // is said whole or, short of room, shortened to its first words with 「…」 and its whole name on hover; the names after it are said whole or left out
   // whole with their 「·」, and only while the first is whole (round 8: the first takes the room). Which names and sizes a row shows is the list's one
   // decision (ui/picker-names.js): a run of rows reads the same. Every word stays in the words the checkbox's name reads, shown or not.
-  const { notes, first, later, shortened, ...lead } = rowNames(item, scope, relation);
+  const { notes, first, later, shortened, group, ...lead } = rowNames(item, scope, relation);
   const slot = indexInfo ? 'badge' : indexPending ? 'held' : 'none';
   return (
     <div className={`source-picker__item${state !== 'none' ? ' is-selected' : ''}`} data-document-key={item.key}>
-      <div className={`source-picker__row${multi ? ' has-expand' : ''}${slot !== 'none' || indexColumn ? ' has-index' : ''}`}>
+      <div className={`source-picker__row${multi ? ' has-expand' : ''}${slot !== 'none' || indexColumn ? ' has-index' : ''}`} data-size-group={group}>
         <label className="source-picker__doc">
           {/* Its name is what the row says (title, facts, the badge's word, the pages picked), not the badge's card: the card is held open while the box has the
               keyboard focus, and a card inside the label would join the name. The card is the box's description. */}
@@ -225,7 +245,8 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
             onChange={event => { const on = event.target.checked; apply(current => toggleDocument(current, item, on)); }} />
           <span className="source-picker__text">
             <strong id={`${nameId}-t`} title={item.title}>{name}</strong>
-            <small id={`${nameId}-f`} className="source-picker__facts"><span className="source-picker__fact source-picker__fact--lead">{leadParts(lead)}</span>
+            <small id={`${nameId}-f`} className="source-picker__facts"><span className="source-picker__fact source-picker__fact--lead"
+              data-short={` · ${lead.short}`}>{leadParts(lead)}</span>
               {first && ' '}{first && (shortened ? <CourseName name={first} /> : <span className="source-picker__fact source-picker__fact--name" data-name="first">{`· ${first}`}</span>)}
               {later.length > 0 && <>{' '}<span className="source-picker__names">{later.map((other, at) => <React.Fragment key={at}>{at > 0 && ' '}<span
                 className="source-picker__fact source-picker__fact--name" data-name="rest">{`· ${other}`}</span></React.Fragment>)}</span></>}
@@ -332,8 +353,9 @@ export default function SourcePicker({ sources = [], selected = [], onChange, co
   // The rows show the names and sizes every document in the scope has room for (ui/picker-names.js); a picker that shows index badges keeps their column on
   // every row.
   const nameRows = useMemo(() => visible.map(item => {
-    const { kind, pages, size, first, later, shortened } = rowNames(item, scope, relations.get(item.key) ?? null);
-    return { kind, pages: pages && ` · ${pages}`, size: ` · ${size}`, first: first && `· ${first}`, later: later.map(name => `· ${name}`), shortened, multi: item.pages.length > 1 };
+    const { kind, pages, size, short, group, first, later, shortened } = rowNames(item, scope, relations.get(item.key) ?? null);
+    return { kind, pages: pages && ` · ${pages}`, size: ` · ${size}`, short: ` · ${short}`, first: first && `· ${first}`, later: later.map(name => `· ${name}`), shortened,
+      multi: item.pages.length > 1, group };
   }), [visible, scope, relations]);
   useFactsFit(root, nameRows, scope === '*');
   const indexColumn = !!onIndex || indexPending || !!indexCoverage;
