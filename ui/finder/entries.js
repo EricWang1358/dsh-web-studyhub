@@ -150,6 +150,10 @@ export const FEATURES = Object.freeze([
     aliases: ['伴学自测', '随堂练', '随堂自测', '当页自测', 'companion quiz', 'slide check', 'inline practice'],
     path: ['设置', '练习', '交互伴学开启当页随堂自测'],
     what: '在「设置 › 练习」开启后，交互伴学抽屉会匹配当前页关联题目并支持不关伴学窗口直接在侧栏「当页自测」，课程伴学栏也会显示配套题直达入口，不消耗模型。' }),
+  feature({ id: 'reader-doubt-ledger', area: 'material', title: '阅读器本文疑问收件匣', page: 'settings', anchors: ['settings-practice'],
+    aliases: ['疑问清单', '疑问收件匣', '遮住答案', '阅读器自测', '本文疑问', 'doubt ledger', 'reader notes recall'],
+    path: ['设置', '练习', '阅读器未选段时显示本文疑问收件匣'],
+    what: '在「设置 › 练习」开启后，打开资料阅读器且尚未选中原文时，右侧栏会汇总这篇资料的已存批注与本次问过的回答，支持「遮住答案自测」和一键存成闪卡，不消耗模型。' }),
 
   // ── 出题 ──
   feature({ id: 'json-import', area: 'generate', title: '导入 JSON 题组', page: 'generate', anchors: ['generate-json'],
