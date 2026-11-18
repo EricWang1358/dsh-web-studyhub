@@ -46,6 +46,20 @@ export default function PracticePane({ data, busy, act, openSchedule }) {
     finally { if (live.current) setWorking(false); }
   };
   const set = (patch) => run('settings.practice.set', { patch }, { ...values, ...patch });
+  const setOptional = async (settingKey, on) => {
+    if (busy || working || typeof act !== 'function') return;
+    setError('');
+    setValues((current) => {
+      const next = { ...current };
+      if (on) next[settingKey] = true;
+      else delete next[settingKey];
+      return next;
+    });
+    try {
+      const result = await act('settings.practice.set', { patch: { [settingKey]: on ? true : null } }, () => toast.success(ui('练习设置已保存')), { rethrow: true });
+      if (result === undefined && live.current) setValues(savedValues);
+    } catch (cause) { if (live.current) { setValues(savedValues); setError(errorMessage(cause)); } }
+  };
   // 自动加入复习全书 (lib/book-settings.js, settings.book): its own key, saved at once too; the practice page has the same switch beside its Q&A.
   const savedBook = resolveBookSettings(data?.settings?.book).qaToBook;
   const [bookMode, setBookMode] = useState(savedBook);
@@ -147,6 +161,8 @@ export default function PracticePane({ data, busy, act, openSchedule }) {
           return run('settings.practice.set', { patch: { notesPracticeBridge: on ? true : null } }, next);
         }}
         hint={ui('打开后，「学习笔记」列表会出现「只看含关联题」筛选，点开笔记阅读时上方也会给出「练这 N 道关联题」按钮，把整篇笔记或每日总结关联的题目排成一轮重练，练完回到这篇笔记；自动跳过已移除或已归档的题目，不调用模型。')} />
+      <Switch name="outlineGapLens" label={ui('总纲缺口筛选与无题直出')} checked={Boolean(values.outlineGapLens)} disabled={disabled} onChange={(on) => setOptional('outlineGapLens', on)}
+        hint={ui('打开后，「总纲」页面的筛选栏增加「薄弱与到期」和「尚无题目」视图，并提供一键专练全部薄弱与到期小节，以及在无题章节旁直接跳转创建题组。默认关闭，不调用模型。')} />
       <Switch name="qaToBook" label={ui('自动加入复习全书')} checked={bookMode === 'auto'} disabled={disabled} onChange={(on) => setBook(on ? 'auto' : 'manual')}
         hint={ui('练习时得到的追问和「帮我弄懂」的回答，打开后会自动放进这门课的复习全书（这道题所在知识点的问答里）；关着时在每条问答旁点「加入复习全书」才放进去。题目自己的问答记录不受影响，加进书里的随时可以撤回。只影响之后的问答。')} />
       <Switch name="bookInlinePractice" label={ui('复习全书开启薄弱节筛选与页内自测')} checked={bookFlags.inlinePractice} disabled={disabled} onChange={(on) => setBookFlag('inlinePractice', on)}
