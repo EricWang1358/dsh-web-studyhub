@@ -434,7 +434,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/study-tool-mode.js`: 1 other lib file
 - `lib/subagent-api.js`: 2 other lib files
 - `lib/tex-text.js`: 7 other lib files
-- `lib/translation-source.js`: 3 other lib files
+- `lib/translation-source.js`: 4 other lib files
 - `lib/true-false.js`: 4 other lib files
 - `lib/types.js`: no import found in ui/ or lib/
 - `lib/update-install.js`: 2 other lib files

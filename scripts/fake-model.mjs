@@ -777,6 +777,48 @@ const HANDLERS = [
     reply: ({ input }) => ({ prompt: `[EN preview] ${input.prompt}`, answer: `[EN preview] ${input.answer}`, explanation: `[EN preview] ${input.explanation}`,
       ...(input.clozeText ? { clozeText: `[EN preview] ${input.clozeText}`, blanks: (input.blanks || []).map(({ id, value }) => ({ id, value })) } : {}),
       ...(input.options ? { options: input.options.map(({ id, text, explanation }) => ({ id, text: `[EN preview] ${text}`, explanation: `[EN preview] ${explanation}` })) } : {}) }) },
+  { name: "card.terms", match: (s) => s.startsWith("You extract up to 6 unfamiliar technical terms or concepts from a flashcard"),
+    reply: ({ input }) => {
+      const texts = [
+        input?.prompt, input?.answer, input?.explanation, input?.clozeText,
+        ...(Array.isArray(input?.blanks) ? input.blanks.map((b) => b?.value) : []),
+        ...(Array.isArray(input?.options) ? input.options.flatMap((o) => [o?.text, o?.explanation]) : []),
+      ].filter((t) => typeof t === "string" && t.trim());
+      const corpus = texts.join("\n");
+      const known = new Set((Array.isArray(input?.known) ? input.known : []).map((t) => String(t).replace(/\s+/g, " ").trim().toLowerCase()).filter(Boolean));
+      const enStop = new Set(["which", "where", "there", "these", "those", "about", "would", "could", "should", "using", "after", "before", "while", "under", "above", "below", "between", "because", "answer", "option", "question", "correct", "explain", "explanation", "therefore", "however", "example", "applies", "correct", "wrong", "false", "following"]);
+      const zhStop = new Set(["为什么", "什么是", "请问", "如何", "怎样", "怎么", "下列", "以下", "关于", "错误", "正确", "答案", "解析", "说明", "原因"]);
+      const picked = [];
+      const seen = new Set();
+      const add = (candidate) => {
+        const clean = String(candidate || "").replace(/\s+/g, " ").trim();
+        if (clean.length < 2 || clean.length > 24) return;
+        const key = clean.toLowerCase();
+        if (seen.has(key) || known.has(key) || !corpus.includes(clean)) return;
+        seen.add(key);
+        picked.push(clean);
+      };
+      for (const text of texts) {
+        const clauses = text.split(/[，。？！：；、“”‘’（）()[\]{},.!?;:"'`/\n\r\t\s]+/);
+        for (const clause of clauses) {
+          for (const piece of clause.split(/(?:什么|为什?么|请问|如何|怎样|怎么|下列|哪项|哪种|哪个|对应|以下|关于|有关|中的|之间|是否|还是|以及|因此|所以|因为|如果|就是|可以|的|和|与|及|或|是|在)/)) {
+            for (const m of piece.matchAll(/[\u4e00-\u9fff]{2,12}/g)) {
+              const term = m[0].replace(/[中里内]$/, "");
+              if (term.length >= 2 && !zhStop.has(term)) add(term);
+              if (picked.length >= 4) break;
+            }
+            if (picked.length >= 4) break;
+          }
+          for (const en of clause.matchAll(/\b[A-Za-z][A-Za-z0-9_-]{4,}\b/g)) {
+            if (!enStop.has(en[0].toLowerCase())) add(en[0]);
+            if (picked.length >= 4) break;
+          }
+          if (picked.length >= 4) break;
+        }
+        if (picked.length >= 4) break;
+      }
+      return { terms: picked.slice(0, 6) };
+    } },
   { name: "transcript.title", match: (s) => s.startsWith("You write one English title for a lecture recording"),
     reply: ({ nextNumber }) => ({ titleEn: `Preview Lecture Recording ${nextNumber()}` }) },
   { name: "transcript.proofread", match: (s) => s.startsWith("You proofread speech-to-text transcripts"),

@@ -734,6 +734,12 @@
       background-color: var(--warn-seen);
       color: inherit;
     }
+    .review-body :not(.katex, .katex *)::highlight(study-term-candidate) {
+      background-color: transparent;
+      color: inherit;
+      text-decoration: underline dashed var(--warn);
+      text-underline-offset: 3px;
+    }
     .term-strip {
       display: flex;
       flex-wrap: wrap;
@@ -771,6 +777,16 @@
     }
     .term-strip__fill {
       flex: 0 0 auto;
+    }
+    .term-strip .term-strip__candidate.term-strip__candidate {
+      border-style: dashed;
+      border-color: var(--line-strong);
+      background: transparent;
+      color: var(--text-dim);
+    }
+    .term-strip .term-strip__candidate.term-strip__candidate:hover {
+      border-color: var(--warn-line);
+      color: var(--text);
     }
     .term-list-dialog {
       display: flex;

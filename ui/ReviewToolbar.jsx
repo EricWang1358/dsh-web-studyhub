@@ -14,7 +14,7 @@ const NEXT_HINT_ID = "review-next-hint";
  * (mark it, note, task, derive a prerequisite, slay). `moreDefaultOpen` opens the menu at first render.
  * `onThumb('up' | 'down')` and `thumbVote` are the page's 评价: its ThumbFeedback keeps the vote and the keys; `thumbs` is that component (it draws only the tag tray).
  */
-export default function ReviewToolbar({ run, expanded, revealed, onToggleHelp, onAsk, onImprove, onDerive, onSlay, onToggleFocus, onDeferUnstudiedPages, onNote, onTask, onReviewAction, thumbs, onThumb, thumbVote, enOn, enBusy, onToggleEn, assistMode, markingTerms = false, onToggleMarkTerms, autopilot, onToggleAutopilot, selfGradeAdvance, onToggleSelfGradeAdvance, onUndo, autoAdvanceActive = false, autoAdvancePaused = false, autoAdvanceMs = 0, onSkip, onEndRound, moreDefaultOpen = false }) {
+export default function ReviewToolbar({ run, expanded, revealed, onToggleHelp, onAsk, onImprove, onDerive, onSlay, onToggleFocus, onDeferUnstudiedPages, onNote, onTask, onReviewAction, thumbs, onThumb, thumbVote, enOn, enBusy, onToggleEn, autoTerms, autoTermsBusy, onToggleAutoTerms, assistMode, markingTerms = false, onToggleMarkTerms, autopilot, onToggleAutopilot, selfGradeAdvance, onToggleSelfGradeAdvance, onUndo, autoAdvanceActive = false, autoAdvancePaused = false, autoAdvanceMs = 0, onSkip, onEndRound, moreDefaultOpen = false }) {
   const { busy } = useStudy();
   const [readingOpen, setReadingOpen] = React.useState(false);
   // Say why 下一题 is unavailable instead of leaving a dim button: an unanswered question waits for its answer (one whose AI grade is on its way is answered: the grade lands on it later, #1031); a pending step is still saving.
@@ -35,6 +35,9 @@ export default function ReviewToolbar({ run, expanded, revealed, onToggleHelp, o
     { heading: true, label: ui("显示与节奏") },
     !exam && { id: "en", label: ui("显示英文"), checked: !!enOn, disabled: !!enBusy && !enOn, hint: enBusy ? "EN…" : undefined,
       run: onToggleEn },
+    !exam && { id: "terms-auto", label: ui("答错后列出生词"), hint: ui("打开后，每道答错的题第一次会多一次轻量调用"),
+      checked: !!autoTerms, disabled: !!autoTermsBusy && !autoTerms,
+      attrs: { "data-usage": "review.terms-auto" }, run: onToggleAutoTerms },
     // 自动驾驶, in plain words: the setting of 设置 › 练习 (default off), switchable here and with the A key; it only flips a setting, so a saving step does not block it.
     !exam && onToggleAutopilot && { id: "autopilot", label: ui("自动跳下一步"), checked: !!autopilot, hint: "A",
       attrs: { "aria-keyshortcuts": "A" }, run: onToggleAutopilot },

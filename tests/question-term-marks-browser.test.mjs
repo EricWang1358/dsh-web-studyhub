@@ -654,3 +654,226 @@ test("course term persistence, pale study-term-seen highlight, click-to-stage, a
     }
   }
 });
+
+async function seedCandidateTermsDeck(root, lang) {
+  const service = new StudyService(root);
+  await service.call("snapshot");
+  const courseName = lang === "en" ? "Systems" : "系统课";
+  await service.store.update((state) => {
+    state.decks.push({
+      id: "d-cand",
+      title: lang === "en" ? "Concurrency & Consensus" : "并发与一致性",
+      course: courseName,
+      folder: "",
+      publishedAt: "2026-10-01T00:00:00.000Z",
+      cards: lang === "en"
+        ? [
+            {
+              id: "cand-q1",
+              kind: "quiz",
+              topic: "Concurrency Control",
+              objective: "Recall optimistic locking",
+              prompt: "Which assumption defines optimistic concurrency control?",
+              answer: "Conflicts stay rare until commit validation checks versions.",
+              options: [
+                { id: "a", text: "Validation checks versions at commit", correct: true, explanation: "Optimistic locking defers checking until commit." },
+                { id: "b", text: "Every reader acquires a mutex first", correct: false, explanation: "Acquiring a mutex upfront describes pessimistic locking." },
+                { id: "c", text: "Transactions skip commit ordering entirely", correct: false, explanation: "Serializability checks still run at commit." },
+              ],
+              hint: "Think about validation time.",
+              explanation: "Optimistic concurrency avoids read locks and verifies serializability at commit.",
+              misconception: "Blocking every reader.",
+              citations: [],
+            },
+            {
+              id: "cand-q2",
+              kind: "quiz",
+              topic: "Consistency",
+              objective: "Distinguish linearizability",
+              prompt: "What guarantee distinguishes linearizability from sequential consistency?",
+              answer: "Real-time ordering between non-overlapping operations.",
+              options: [
+                { id: "a", text: "Operations respect global real-time precedence", correct: true, explanation: "Linearizability binds reads to wall-clock recency." },
+                { id: "b", text: "Replicas ignore clock drift completely", correct: false, explanation: "Clock assumptions differ across protocols." },
+                { id: "c", text: "Clients cache stale reads indefinitely", correct: false, explanation: "Stale reads violate linearizability." },
+              ],
+              hint: "Consider real-time bounds.",
+              explanation: "Linearizability preserves a total real-time order across replicas.",
+              misconception: "Ignoring wall-clock precedence.",
+              citations: [],
+            },
+          ]
+        : [
+            {
+              id: "cand-q1",
+              kind: "quiz",
+              topic: "并发控制",
+              objective: "区分乐观锁与悲观锁",
+              prompt: "在并发控制中，下列哪项对应乐观锁的核心假设？",
+              answer: "冲突很少发生，只在提交阶段校验版本号。",
+              options: [
+                { id: "a", text: "提交时通过版本号检查并发冲突", correct: true, explanation: "乐观锁推迟到提交时才验证版本。" },
+                { id: "b", text: "每次读取必须先加互斥量阻塞", correct: false, explanation: "预先加互斥量属于悲观锁策略。" },
+                { id: "c", text: "所有事务跳过序列化检验步骤", correct: false, explanation: "提交前仍需校验序列化条件。" },
+              ],
+              hint: "想想何时检查冲突。",
+              explanation: "乐观锁不在读阶段加锁，只在提交时校验版本号与序列化条件。",
+              misconception: "以为乐观锁也会阻塞读操作。",
+              citations: [],
+            },
+            {
+              id: "cand-q2",
+              kind: "quiz",
+              topic: "一致性",
+              objective: "辨析线性一致性",
+              prompt: "下列哪项描述了线性一致性的关键约束？",
+              answer: "并发操作服从满足实时先后的全局原子序。",
+              options: [
+                { id: "a", text: "非重叠操作保持全局实时偏序", correct: true, explanation: "线性一致性保证实时全局原子序。" },
+                { id: "b", text: "副本之间永远不比较时间戳", correct: false, explanation: "很多协议会利用逻辑时钟辅助定序。" },
+                { id: "c", text: "读取请求可以无限返回旧副本", correct: false, explanation: "返回陈旧值破坏线性一致性。" },
+              ],
+              hint: "想想实时先后顺序。",
+              explanation: "线性一致性要求操作在完成瞬间立即可见，满足全局原子序。",
+              misconception: "把线性一致性混同最终一致性。",
+              citations: [],
+            },
+          ],
+    });
+  });
+}
+
+test("candidate unfamiliar words after wrong answers, 1-click mark, and 420px layout, zh & en (#1204)", async (t) => {
+  let browser;
+  try {
+    browser = await launchChromium();
+  } catch (error) {
+    t.skip(`no Chromium to look with: ${String(error.message).split("\n")[0]}`);
+    return;
+  }
+  const dist = await mkdtemp(join(tmpdir(), "study-candidate-terms-dist-"));
+  await buildPreview({ outdir: dist });
+  t.after(async () => {
+    await browser.close();
+    await rm(dist, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  });
+
+  for (const lang of ["zh", "en"]) {
+    for (const width of [1280, 420]) {
+      const tag = `cand-${lang}@${width}`;
+      const running = await startLateServer({ distDir: dist, lang, seed: (root) => seedCandidateTermsDeck(root, lang) });
+      const { context, page, errors } = await openPage(browser, running, { lang, theme: "light", width, height: 900 });
+      try {
+        let cardTermsCalls = 0;
+        let lastMarkPromise = Promise.resolve();
+        page.on("request", (req) => {
+          if (!req.url().endsWith("/api/call")) return;
+          const body = req.postData() || "";
+          if (body.includes('"card.terms"')) cardTermsCalls += 1;
+          if (body.includes('"course.terms.mark"')) {
+            lastMarkPromise = page.waitForResponse(
+              (res) => res.url().endsWith("/api/call") && res.request() === req,
+              { timeout: 10000 },
+            ).catch(() => null);
+          }
+        });
+
+        await page.goto(running.server.url);
+        await page.locator('[data-usage="home.start"]').first().click({ timeout: 30000 });
+        await page.locator(".question-toolbar").waitFor({ timeout: 30000 });
+        await settleAnimations(page);
+
+        // 1. Wrong answer while toggle is OFF -> 0 card.terms calls and no candidates shown.
+        await page.locator(".options .option", {
+          hasText: lang === "en" ? "Every reader acquires a mutex first" : "每次读取必须先加互斥量阻塞",
+        }).click();
+        await page.locator(".options .option.incorrect, .next-due").first().waitFor({ state: "visible", timeout: 10000 });
+        await settleAnimations(page);
+        assert.equal(cardTermsCalls, 0, `${tag}: toggle OFF triggers zero card.terms calls on wrong answer`);
+        assert.equal(await page.locator(".term-strip").count(), 0, `${tag}: no term strip when toggle OFF`);
+
+        // 2. Open 更多 -> inspect label legibility & toggle "答错后列出生词" ON.
+        await page.locator(".review-more-trigger").click();
+        const menuToggle = page.locator('[data-usage="review.terms-auto"]');
+        await menuToggle.waitFor({ state: "visible", timeout: 10000 });
+        const menuMetrics = await page.evaluate(() => {
+          const menu = document.querySelector(".sh-menu");
+          const item = document.querySelector('[data-usage="review.terms-auto"]');
+          const label = item?.querySelector(".sh-menu__label");
+          return {
+            scrollW: document.documentElement.scrollWidth,
+            clientW: document.documentElement.clientWidth,
+            menuRight: menu?.getBoundingClientRect().right ?? 0,
+            labelWidth: label?.getBoundingClientRect().width ?? 0,
+          };
+        });
+        assert.ok(menuMetrics.labelWidth >= 90, `${tag}: menu label stays readable (width=${menuMetrics.labelWidth})`);
+        assert.ok(menuMetrics.menuRight <= menuMetrics.clientW, `${tag}: open menu stays inside viewport`);
+        await menuToggle.click();
+
+        await page.locator(".term-strip .term-strip__candidate").first().waitFor({ state: "visible", timeout: 15000 });
+        await settleAnimations(page);
+        assert.equal(cardTermsCalls, 1, `${tag}: enabling on a wrong revealed card calls card.terms once`);
+        assert.equal(await page.locator(".term-strip__fill").count(), 0, `${tag}: fill button hidden before any term marked`);
+
+        const candStyle = await page.evaluate(() => {
+          const el = document.querySelector(".term-strip .sh-chip.term-strip__candidate");
+          return el ? window.getComputedStyle(el).borderTopStyle : "";
+        });
+        assert.equal(candStyle, "dashed", `${tag}: candidate chips render with dashed border`);
+        const candHl = await highlightCount(page, "study-term-candidate");
+        if (candHl >= 0) assert.ok(candHl >= 1, `${tag}: study-term-candidate CSS highlight painted (${candHl})`);
+
+        if (width === 420) {
+          const stripBox = await page.locator(".term-strip").boundingBox();
+          assert.ok(stripBox && stripBox.x >= 0 && stripBox.x + stripBox.width <= 421, `${tag}: term-strip fits 420px`);
+          const noOverflow = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
+          assert.ok(noOverflow, `${tag}: no horizontal overflow at 420px`);
+        }
+        await page.locator(".term-strip").scrollIntoViewIfNeeded();
+        await settleAnimations(page);
+        await takeShot(page, `candidate-terms-${lang}-${width}`);
+
+        // 3. One-click candidate chip -> moves to solid marked chip + shows fill button + persists only clicked term.
+        const initialCandBtns = page.locator(".term-strip .term-strip__candidate .sh-chip__main");
+        const initialCandCount = await initialCandBtns.count();
+        const pickedWord = (await initialCandBtns.first().innerText()).trim();
+        await initialCandBtns.first().click();
+        await page.locator(".term-strip .sh-chip__label").first().waitFor({ state: "visible", timeout: 10000 });
+        await lastMarkPromise;
+
+        assert.deepEqual(await chipTexts(page), [pickedWord], `${tag}: clicked candidate became marked chip`);
+        assert.equal(
+          await page.locator(".term-strip .term-strip__candidate .sh-chip__main").count(),
+          initialCandCount - 1,
+          `${tag}: clicked word removed from candidate list`,
+        );
+        assert.equal(await page.locator(".term-strip__fill").count(), 1, `${tag}: fill button shows after marking`);
+
+        const courseName = lang === "en" ? "Systems" : "系统课";
+        const persisted = await previewCall(running.server, "course.terms.get", { course: courseName });
+        assert.ok(
+          persisted.items?.some((item) => item.term === pickedWord && item.state === "unknown"),
+          `${tag}: clicked candidate persisted as unknown`,
+        );
+        assert.equal(persisted.items.length, 1, `${tag}: unclicked candidates were NOT added to course word list`);
+
+        // 4. Advance to Card 2 with toggle still ON, answer RIGHT -> zero card.terms call!
+        await page.locator('[data-usage="review.next"]').click();
+        await page.locator(".options .option:not([disabled])").first().waitFor({ timeout: 10000 });
+        await page.locator(".options .option", {
+          hasText: lang === "en" ? "Operations respect global real-time precedence" : "非重叠操作保持全局实时偏序",
+        }).click();
+        await page.locator(".options .option.correct, .next-due").first().waitFor({ state: "visible", timeout: 10000 });
+        await settleAnimations(page);
+        assert.equal(cardTermsCalls, 1, `${tag}: right answer does NOT call card.terms even when toggle is ON`);
+        assert.equal(await page.locator(".term-strip .term-strip__candidate").count(), 0, `${tag}: no candidate chips on right answer`);
+
+        assert.deepEqual(errors, [], `${tag}: unexpected console/page errors: ${errors.join(" | ")}`);
+      } finally {
+        await context.close();
+        await running.close();
+      }
+    }
+  }
+});
