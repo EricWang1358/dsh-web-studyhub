@@ -242,7 +242,9 @@ export default function Generate({
               {/* One row per document with its pages on demand; counts are in documents (WP3, P18). */}
               {/* 添加资料 under the list is the one way to add material from here (the shared import dialog, WP3); the index line shares its line. */}
               <SourcePicker sources={evidenceSources} selected={selectedSources} onChange={setSelectedSources} indexCoverage={indexCoverage} indexPending={indexStatus === 'loading'}
-                courses={data.focus?.courses} scope={sourceScope} onScopeChange={setSourceScope} disabled={busy} onAdd={openImport}
+                courses={data.focus?.courses} scope={sourceScope} onScopeChange={setSourceScope}
+                materialFolders={data.materialFolders ?? data.settings?.materialFolders} modelReady={model.ready}
+                disabled={busy} onAdd={openImport}
                 onIndex={(course) => openIndexBuilder(openLargeDocumentSettings, course)} />
               {/* A selection too big for one generation: ONE block with the ways on (steps / pages by topic), only the chosen one drawn; with no search tool the old card is a fold under it. */}
               {choice && <TooBigChoice advice={advice} stats={stats} modes={modes} mode={mode} onMode={setChosenMode} disabled={busy}

@@ -1,8 +1,20 @@
-import React, { memo, useCallback, useId, useMemo, useRef, useState } from 'react';
+import React, { memo, useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { AddSourceButton, Button, CheckboxInput, EmptyState, ScrollWindow, Tooltip, addSourceAction, filterItems } from './components/index.js';
 import PageScope from './PageScope.jsx';
+import MaterialCategoryBar from './MaterialCategoryBar.jsx';
+import { AppContext } from './app/app-context.js';
+import {
+  ALL_FACET,
+  buildMaterialCategoryOptions,
+  buildMaterialTypeOptions,
+  buildSourceFlags,
+  filterMaterialsByFacets,
+  hasFacetOption,
+  itemFolderName,
+  resolveMaterialFolders,
+} from './material-facets.js';
 import { groupSourcesByDocument, isLegacyExtraction, sourceFormat } from '../lib/source-groups.js';
 import { isAiDraftedSource } from '../lib/source-provenance.js';
 import { courseScope } from '../lib/course-tree.js';
@@ -111,8 +123,9 @@ export function documentNotes(item) {
     isAiDraftedSource(item) && ui('AI 撰写 · 未核对')].filter(Boolean);
 }
 
-/** What the picker's filter searches: title, file name, the title before a rename, courses and format. */
-export const documentSearchText = item => [item.title, item.filename, item.renamedFrom, ...(item.courses || []), sourceFormatLabel(item)].filter(Boolean).join(' ');
+/** What the picker's filter searches: title, file name, the title before a rename, courses, content folder and format. */
+export const documentSearchText = (item, materialFolders = null) =>
+  [item.title, item.filename, item.renamedFrom, ...(item.courses || []), itemFolderName(item, materialFolders), sourceFormatLabel(item)].filter(Boolean).join(' ');
 
 /* The filter appears once the list is longer than a screenful of rows. */
 const FILTER_AFTER = 6;
@@ -314,18 +327,54 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
  * hundreds of materials never pushes the page down.
  */
 export default function SourcePicker({ sources = [], selected = [], onChange, courses = [], scope = '*', onScopeChange, disabled = false,
-  onAdd, defaultQuery = '', defaultOpenKey = '', maxHeight = 420, className, indexCoverage = null, indexPending = false, onIndex, ...rest }) {
+  onAdd, defaultQuery = '', defaultOpenKey = '', maxHeight = 420, className, indexCoverage = null, indexPending = false, onIndex,
+  materialFolders: materialFoldersProp, modelReady, ...rest }) {
   useInjectCss(css, 'study-source-picker');
+  const appData = useContext(AppContext)?.data;
   const [query, setQuery] = useState(defaultQuery);
+  const [typeScope, setTypeScope] = useState(ALL_FACET);
+  const [categoryScope, setCategoryScope] = useState(ALL_FACET);
   const root = useRef(null);
   const items = useMemo(() => groupSourcesByDocument(sources).filter(item => !item.archived), [sources]);
+  const sourceFlags = useMemo(() => buildSourceFlags(sources), [sources]);
+  const resolvedMaterialFolders = useMemo(
+    () => resolveMaterialFolders(materialFoldersProp, appData),
+    [materialFoldersProp, appData],
+  );
   const bigKeys = useMemo(() => new Set(indexCoverage ? bigDocuments(items).map(item => item.key) : []), [items, indexCoverage]);
   const effectiveScope = onScopeChange ? scope : '*';
   const known = useMemo(() => courses.map(course => typeof course === 'string' ? course : course?.name).filter(Boolean), [courses]);
-  const visible = useMemo(() => items.filter(scopeFilter(effectiveScope, known)), [items, effectiveScope, known]);
+  const scoped = useMemo(() => items.filter(scopeFilter(effectiveScope, known)), [items, effectiveScope, known]);
+  const showCategoryBar = Boolean(onScopeChange) && scoped.length > 1;
+  const typeOptions = useMemo(
+    () => (showCategoryBar ? buildMaterialTypeOptions(scoped, sourceFlags) : []),
+    [showCategoryBar, scoped, sourceFlags],
+  );
+  const categoryOptions = useMemo(
+    () => (showCategoryBar ? buildMaterialCategoryOptions(scoped, resolvedMaterialFolders) : []),
+    [showCategoryBar, scoped, resolvedMaterialFolders],
+  );
+  const activeTypeScope = showCategoryBar && hasFacetOption(typeOptions, typeScope) ? typeScope : ALL_FACET;
+  const activeCategoryScope = showCategoryBar && hasFacetOption(categoryOptions, categoryScope) ? categoryScope : ALL_FACET;
+  useEffect(() => {
+    if (typeScope !== ALL_FACET && !hasFacetOption(typeOptions, typeScope)) setTypeScope(ALL_FACET);
+  }, [typeOptions, typeScope]);
+  useEffect(() => {
+    if (categoryScope !== ALL_FACET && !hasFacetOption(categoryOptions, categoryScope)) setCategoryScope(ALL_FACET);
+  }, [categoryOptions, categoryScope]);
+  const visible = useMemo(
+    () => filterMaterialsByFacets(scoped, {
+      typeScope: activeTypeScope,
+      categoryScope: activeCategoryScope,
+      materialFolders: resolvedMaterialFolders,
+      sourceFlags,
+    }),
+    [scoped, activeTypeScope, activeCategoryScope, resolvedMaterialFolders, sourceFlags],
+  );
+  const searchMatch = useCallback(item => documentSearchText(item, resolvedMaterialFolders), [resolvedMaterialFolders]);
   const visibleIds = useMemo(() => new Set(visible.flatMap(item => item.sourceIds)), [visible]);
   const filtering = !!query.trim();
-  const shown = filtering ? filterItems(visible, query, documentSearchText) : visible;
+  const shown = filtering ? filterItems(visible, query, searchMatch) : visible;
   const chosen = new Set(selected);
   const chosenDocuments = items.filter(item => item.sourceIds.some(id => chosen.has(id))).length;
   const outside = selected.some(id => !visibleIds.has(id));
@@ -368,6 +417,13 @@ export default function SourcePicker({ sources = [], selected = [], onChange, co
   return (
     <div ref={root} className={`source-picker${indexColumn ? ' source-picker--index' : ''}${className ? ` ${className}` : ''}`} {...rest}>
       {onScopeChange && <PageScope courses={courses} value={scope} onChange={onScopeChange} disabled={disabled} />}
+      {showCategoryBar && <MaterialCategoryBar className="source-picker__filters" items={scoped} targetItems={visible}
+        course={effectiveScope === '*' || effectiveScope === '' ? '' : effectiveScope}
+        materialFolders={resolvedMaterialFolders} sourceFlags={sourceFlags}
+        typeOptions={typeOptions} categoryOptions={categoryOptions}
+        typeScope={activeTypeScope} onTypeScopeChange={setTypeScope}
+        categoryScope={activeCategoryScope} onCategoryScopeChange={setCategoryScope}
+        disabled={disabled} modelReady={modelReady} />}
       <div className="source-picker__bar">
         <p className="source-picker__count" role="status">{uiFormat('已选择 {0} / {1} 份资料', [chosenDocuments, items.length])}</p>
         <div className="source-picker__actions">
@@ -379,12 +435,13 @@ export default function SourcePicker({ sources = [], selected = [], onChange, co
       {outside && <p className="source-picker__note">{ui('已选资料包含其他范围，生成时仍会保留。')}</p>}
       {gap && !onAdd && <IndexGapLine count={gap.count} canIndex={canIndex} onGo={() => goIndex(gap.course)} />}
       {visible.length ? <ScrollWindow className="source-picker__window" label={ui('资料列表')} items={visible} itemKey={item => item.key}
-        match={documentSearchText} query={query} onQueryChange={setQuery} filterable={visible.length > FILTER_AFTER || filtering}
+        match={searchMatch} query={query} onQueryChange={setQuery}
+        filterable={scoped.length > FILTER_AFTER || activeTypeScope !== ALL_FACET || activeCategoryScope !== ALL_FACET || filtering}
         filterPlaceholder={ui('筛选资料…')} maxHeight={maxHeight} renderLimit={SOURCE_PICKER_FIRST_ROWS} listClassName="source-picker__list" itemClassName="source-picker__entry"
         empty={uiFormat('没有匹配“{0}”的资料', [query.trim()])}
         renderItem={item => <DocumentRow item={item} selected={selected} apply={apply} disabled={disabled} defaultOpen={item.key === defaultOpenKey}
           indexInfo={infos.get(item.key) ?? null} indexPending={indexPending && !indexCoverage} canIndex={canIndex} relation={relations.get(item.key) ?? null} scope={scope} indexColumn={indexColumn} />} />
-        : <p className="source-picker__note">{ui('这个范围还没有资料。可切换到全部课程查看。')}</p>}
+        : <p className="source-picker__note">{scoped.length ? ui('当前类型与分类组合下没有匹配的资料，可调整筛选条件。') : ui('这个范围还没有资料。可切换到全部课程查看。')}</p>}
       {/* Under the list: 添加资料, and the index line beside it on the same line (one line whatever the answer: it ends in 「…」 where it is short of room). */}
       {onAdd && <div className="source-picker__foot">
         <AddSourceButton variant="quiet" size="sm" className="source-picker__add sh-btn--flush-start" disabled={disabled} onClick={onAdd} />

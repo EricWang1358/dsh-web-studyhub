@@ -96,6 +96,7 @@
     "tests/live-capture-browser.test.mjs",
     "tests/local-study-image.test.mjs",
     "tests/marks-reread-browser.test.mjs",
+    "tests/material-classify-ui.test.mjs",
     "tests/material-folders-and-grouping.test.mjs",
     "tests/math-font-browser.test.mjs",
     "tests/mineru-fix-menu-browser.test.mjs",
