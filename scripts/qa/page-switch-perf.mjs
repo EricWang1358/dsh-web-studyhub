@@ -1,4 +1,4 @@
-/* node scripts/qa/page-switch-perf.mjs [--widths 1440,1050] [--rounds 3] [--production true] [--sources 300] [--trace true] [--out <dir>]   (build first: node scripts/build.mjs)
+/* node scripts/qa/page-switch-perf.mjs [--widths 1440,1050] [--rounds 3] [--production true] [--readable true] [--sources 300] [--trace true] [--out <dir>]   (build first: node scripts/build.mjs)
    How smooth switching pages is, measured on a library shaped like a heavy user's (scripts/qa/perf-seed.mjs), fake model, no network.
    For every sidebar page (学习库, 资料, 创建题组, 错题与待巩固, 模拟考试, 统计, and 任务 and 复习全书 under 「更多」) and for opening and closing 「更多」:
    frame times from requestAnimationFrame (p50 / p95 / worst, the share over 24 ms), long tasks (> 50 ms), and from the DevTools protocol the
@@ -187,8 +187,7 @@ export async function runPageSwitch(options) {
 }
 
 if (process.argv[1]?.endsWith("page-switch-perf.mjs")) {
-  const base = parseQaArgs(process.argv.slice(2), "page-switch-perf", { sources: "300", rounds: "3", production: "false", trace: "true", widths: "1440,1050", "trace-file": "", invalidations: "false", selectors: "false" });
-  if (base.production === "true") { const { buildPreview } = await import("../build.mjs"); await buildPreview({ production: true }); console.log("preview rebuilt with React's production build (run node scripts/build.mjs to get the development one back)"); }
+  const base = parseQaArgs(process.argv.slice(2), "page-switch-perf", { sources: "300", rounds: "3", production: "false", readable: "false", trace: "true", widths: "1440,1050", "trace-file": "", invalidations: "false", selectors: "false" });
   let ok = true;
   for (const width of String(base.widths).split(",").map(Number)) {
     const options = { ...base, width, out: join(base.out, String(width)), "trace-file": base["trace-file"] && base["trace-file"].replace(/(\.json)?$/, `-${width}.json`) };

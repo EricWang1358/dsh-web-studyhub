@@ -282,6 +282,8 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
     ? resolveSourceCompanionTarget({ source, courses: appData?.courses, sources: appData?.sources })
     : null;
   const [pagesOpen, setPagesOpen] = useState(false), [editing, setEditing] = useState(false);
+  // The open 更多 menu hangs below the row: the row tells its stylesheet, which otherwise clips a row to itself (ui/sources.css).
+  const [menuOpen, setMenuOpen] = useState(false);
   // The title button holds the facts line, so a cut courses piece's tip cannot see the button's keyboard focus: the row tells it (#1083).
   const [titleFocus, setTitleFocus] = useState(false);
   const listId = useId(), row = useRef(null), main = useRef(null), wasEditing = useRef(false);
@@ -321,7 +323,7 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
       ? { draggable: true, onDragStart: event => actions.folderDragStart(item.key, event), onDragEnd: actions.folderDragEnd }
       : {};
   return (
-    <article ref={row} className={"source-row source-doc" + (isNew ? " is-new" : "") + (dragging ? " source-doc--dragging" : "") + (dropMark ? ` source-doc--drop-${dropMark}` : "")} data-document-key={item.key} data-new={isNew ? "true" : undefined} data-stable-row=""
+    <article ref={row} className={"source-row source-doc" + (isNew ? " is-new" : "") + (dragging ? " source-doc--dragging" : "") + (dropMark ? ` source-doc--drop-${dropMark}` : "") + (menuOpen ? " source-doc--menu" : "")} data-document-key={item.key} data-new={isNew ? "true" : undefined} data-stable-row=""
       {...dragProps}>
       <div className="source-doc__line">
         {organizing && <CheckboxInput className="source-doc__check" aria-label={uiFormat('选择资料：{0}', [name])}
@@ -354,7 +356,7 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
             <Button size="sm" variant="secondary" className="source-doc__action" lock={busy} onClick={() => actions.archive(item)}>{ui('恢复资料')}</Button>
             <Button size="sm" variant="danger" className="source-doc__action" lock={busy} onClick={() => actions.remove(item)}>{ui('永久删除')}</Button>
           </>}
-          <details className="source-row-actions"><summary>{ui('更多')}</summary>
+          <details className="source-row-actions" onToggle={event => setMenuOpen(event.currentTarget.open)}><summary>{ui('更多')}</summary>
             <RowMenuItems item={item}
               onPracticeUrgent={canPractice && docUrgency.hasUrgent ? actions.practiceUrgent : undefined}
               onPractice={canPractice && docUrgency.total > 0 ? actions.practiceDocument : undefined}
