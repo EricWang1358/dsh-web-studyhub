@@ -352,7 +352,7 @@ test('未归位 gets the learner\'s text as written: every footnote label rename
   const write = async (row, text) => { const file = (await study.call('book.read', { hid: row.hid, file: 'mine' })).files.mine; await study.call('course.book.save', { file: file.name, text, version: file.version }); };
   await write(two, `注一句[^注]。正则 \`[^abc]\` 不是脚注。\n\n\`\`\`\nx = s[^y]\n\`\`\`\n\n见 [练 5 道：知识点 2](studyhub://practice?heading=${two.hid}&n=5)，我常回来练。\n\n[^注]: 我的注`);
   await write(three, '另一句[^注]。\n\n[^注]: 另一个注');
-  let version = (await study.call('course.book.delete', { hid: two.hid, version: toc.structureVersion })).structureVersion;
+  const version = (await study.call('course.book.delete', { hid: two.hid, version: toc.structureVersion })).structureVersion;
   await study.call('course.book.delete', { hid: three.hid, version });
   const text = (await study.call('course.book.open')).unplaced.text;
   assert.ok(text.includes(`注一句[^${two.hid}m-注]。`) && text.includes(`[^${two.hid}m-注]: 我的注`), text);
@@ -409,7 +409,7 @@ test('two 出处 lists that share [^1]: rename, move, delete and insert keep eve
     return now;
   };
   // Each op, then an ordinary section write (the footnote pipeline): both notes survive, each mark on its own.
-  const ops = [['rename', (a, b) => ({ op: 'rename', heading: a, title: 'A2' })], ['move', (a, b) => ({ op: 'move', heading: b, before: a })],
+  const ops = [['rename', (a, _b) => ({ op: 'rename', heading: a, title: 'A2' })], ['move', (a, b) => ({ op: 'move', heading: b, before: a })],
     ['move within', (a, b) => ({ op: 'move', heading: b, within: a })], ['delete promote', a => ({ op: 'delete', heading: a })],
     ['insert', a => ({ op: 'insert', after: a, section: { heading: 'C', markdown: 'C text.' } })]];
   for (const [label, make] of ops) {
@@ -583,7 +583,7 @@ test('two structure changes at the same moment from the same version: one queue,
 test('a rebuild keeps a point\'s title by its id; a renamed chapter only while the outline titles it the same; a point that is gone waits in 未归位 under the title the book showed', async t => {
   const { study } = await bookService(t);
   const toc = await study.call('book.toc'), [chapter, what] = toc.toc;
-  let version = (await study.call('course.book.rename', { hid: chapter.hid, title: '导论', version: toc.structureVersion })).structureVersion;
+  const version = (await study.call('course.book.rename', { hid: chapter.hid, title: '导论', version: toc.structureVersion })).structureVersion;
   await study.call('course.book.rename', { hid: what.hid, title: '架构师做什么', version });
   const mine = (await study.call('book.read', { hid: what.hid, file: 'mine' })).files.mine;
   await study.call('course.book.save', { file: mine.name, text: '我的笔记。', version: mine.version });

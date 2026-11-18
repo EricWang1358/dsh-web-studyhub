@@ -42,7 +42,14 @@ export const RULES = {
     fix: 'say 主会话 (the button is 发给主会话); English stays "the main chat"' },
   accentFill: { issue: '#658', why: 'a background, border or inset edge painted in the accent (var(--accent), --accent-soft or --accent-glow, also inside color-mix): the accent is the primary action, progress, a drop target, the card head rule and the heatmap, nothing else',
     fix: 'selection is var(--bg-selected) plus a neutral check or edge (var(--line-strong), var(--text-muted)); "just imported", "new" and the like are a <Badge>; a focus ring keeps the accent' },
+  lintDisable: { issue: 'code audit 2026-11', why: 'a lint rule switched off in a comment (the old ones are react-hooks/exhaustive-deps): the rule goes on reporting nothing there, whatever the code becomes',
+    fix: 'fix what the rule points at (for an effect: list the real dependencies, read a changing value through a ref, or useLiveEffect from ui/use-async.js); one that is really needed carries its reason after `--` in the comment and is accepted by the coordinator (--update --allow-increase)' },
 };
+
+/* A comment that switches lint rules off: the line, next-line and block forms (the matching enable comment is not one). tests/lint-guard.test.mjs holds lib/, scripts/, tests/ and
+   packages/ at zero with the same pattern. */
+const LINT_DISABLE = /(?:\/\/|\/\*)\s*eslint-disable(?:-next-line|-line)?(?![\w-])/g;
+export const countLintDisables = (source) => (source.match(LINT_DISABLE) || []).length;
 
 /* The accent fills DESIGN.md allows (the accent table: "the single primary action, the card head rule / progress, the heatmap"), by file and selector. A declaration that matches one is
    not counted; an entry that matches nothing is stale. A focus ring (:focus*, outline) and ::selection are never counted: they are not a fill. */
@@ -319,7 +326,7 @@ const FLAG = new RegExp(`(?<![\\w$!.])(?:[\\w$]+\\??\\.)*${WORKING_WORD}(?![\\w$
 const waitsOnFlag = (expression) => FLAG.test(expression.replace(/(['"`])(?:\\.|(?!\1).)*\1/g, '""').replace(/!!/g, ''));
 const LABEL_SWAP = new RegExp(`\\b${WORKING_WORD}\\b[\\w.!=\\s&|'"]*\\?\\s*(?:ui|uiFormat)\\(`);
 
-function scanJsxFile(file, source, metrics, found) {
+function scanJsxFile(file, source, metrics) {
   const bump = (name, n = 1) => { if (n) (metrics[name][file] = (metrics[name][file] || 0) + n); };
   const text = stripJsComments(source);
   if (!file.startsWith('ui/components/')) {
@@ -373,8 +380,10 @@ export function scanUi(root = ROOT) {
     const source = readFileSync(abs, 'utf8');
     if (file.endsWith('.css')) scanCssFile(file, source, metrics, found);
     else {
-      if (file.endsWith('.jsx')) scanJsxFile(file, source, metrics, found);
+      if (file.endsWith('.jsx')) scanJsxFile(file, source, metrics);
       scanJsFile(file, source, found);
+      const disables = countLintDisables(source);
+      if (disables) metrics.lintDisable[file] = disables;
       if (!CHAT_HANDOFF_HOMES.test(file)) {
         const asks = (stripJsComments(source).match(/\baskInChat\b/g) || []).length;
         if (asks) metrics.chatHandOff[file] = asks;

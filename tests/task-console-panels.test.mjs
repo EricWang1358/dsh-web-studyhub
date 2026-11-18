@@ -45,7 +45,7 @@ test('the timeline: a lane per file in order, a dashed wait on the file whose sl
   assert.doesNotMatch(out, /并行时间线/);
   assert.doesNotMatch(out, /data-kind="translate"><i>/, 'no legend entry for a stage that did not run');
   assert.match(out, /title="转写 · a\.wav · 10:00:01–10:00:09 · 8 秒"/, 'a bar says when it ran and for how long');
-  for (const lane of ['file:a.wav', 'file:b.mp3']) assert.match(out, new RegExp(`data-lane="${lane.replace('.', '\.')}"`), lane);
+  for (const lane of ['file:a.wav', 'file:b.mp3']) assert.match(out, new RegExp(`data-lane="${lane.replace('.', '\\.')}"`), lane);
   assert.doesNotMatch(out, /data-lane="(slot|transcribe)-/, 'the lanes are units of work, not pool slots');
   assert.doesNotMatch(out, /data-lane="other/, 'the wait found its file');
   const bLane = out.slice(out.indexOf('data-lane="file:b.mp3"'));

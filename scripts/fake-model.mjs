@@ -482,7 +482,7 @@ const RECAP_TEXT = {
     })[kind],
     rule: (friendly, text) => friendly ? `**判断的尺子**：${text}` : `**判断依据**：${text}`,
     example: (friendly, question, answer) => friendly ? `**一个例子**：${question}。正确思路是：${answer}。` : `**示例**：${question}；正确答案：${answer}。`,
-    opening: (input, friendly, topics, stuck, solid) => friendly
+    opening: (input, friendly, topics, stuck, _solid) => friendly
       ? `今天你一共练了 ${input.answeredCount} 道不同的题，主线是把「${topics}」一步步串起来。${stuck ? `大部分题你都有不错的把握，有 ${stuck} 处值得停一停，下面一处一处看。` : '这些题你都答得不错，下面不用停在错处，把要点再串一遍就好。'}`
       : `今日完成 ${input.answeredCount} 道不同题目，涉及：${topics}。${stuck ? `需要巩固的要点共 ${stuck} 处，依次说明判断依据如下。` : '未发现需要巩固的要点，以下回顾已掌握的内容。'}`,
     pending: (count, friendly) => friendly ? `另外有 ${count} 道作答还在等批改，先回顾内容，不急着判断对错。` : `另有 ${count} 道作答待批改，仅回顾内容，不据此判断对错。`,
@@ -531,7 +531,7 @@ function dailyRecapReply(input, system) {
   if (stage === 'rewrite') // keep every passage that reads naturally, drop the ones that recite internal bookkeeping
     return String(input.markdown || '').split(/\n{2,}/).filter((paragraph) => !recapLeaks(paragraph).length).join('\n\n');
   const sectionOf = (title, ...paragraphs) => `## ${title}\n\n${paragraphs.join('\n\n')}`;
-  let stuck = [], solid = [], uncovered = [], pending = input.unassessedCount || 0, topics = [];
+  const stuck = [], solid = [], uncovered = []; let pending = input.unassessedCount || 0, topics = [];
   if (stage === 'consolidate') {
     for (const text of input.sections || []) for (const block of String(text).split(/^## /m).slice(1)) {
       const title = block.split('\n')[0].trim();

@@ -268,7 +268,7 @@ test('StaleAnnotations renders qa.answer, notes, and staleMarks with 1-click dis
 
   // Verify useReaderMarks surfaces both in-list stale marks and older-revision stale groups, and wires 1-click delete:
   const deletedCalls = [];
-  let hooks = [], cursor = 0, effects = [];
+  const hooks = []; let cursor = 0, effects = [];
   const fakeReact = {
     ...React,
     useState: init => {

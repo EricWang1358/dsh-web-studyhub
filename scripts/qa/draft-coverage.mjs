@@ -55,7 +55,7 @@ export async function runDraftQa(options) {
   return runQa({ name: "draft-coverage", options, model: createFakeModel({ latencyMs: 20, usage: true }), latencyMs: 20,
     localStorageSeed: { "study-interface": JSON.stringify({ accent: "cinnabar" }) },
     seed: async (root) => { options.ids = await seed(root, options.lang); },
-    async run({ page, server, t, step, check, summary }) {
+    async run({ page, server, t, step, summary }) {
       const call = (action, args = {}) => previewCall(server, action, { ...args, uiLanguage: options.lang });
       const facts = {}, narrow = options.width < 700, strict = !!options.check;
       summary.facts = facts;

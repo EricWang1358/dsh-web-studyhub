@@ -72,7 +72,7 @@ test('a model reply gives importance, kind and a one-line reason for each sectio
 });
 
 test('a reply that is not JSON is asked again, with the exact format on the last re-ask; the evidence prefix stays the same', async () => {
-  const model = lightModel((call, evidence) => call.n < 2 ? 'Sure! Here are my ratings: a few sections matter more.' : null);
+  const model = lightModel((call, _evidence) => call.n < 2 ? 'Sure! Here are my ratings: a few sections matter more.' : null);
   const result = await sectionWeights({ sections: leaves.slice(0, 20), sources, light: model.complete });
   assert.equal(model.calls.length, 3, 'one call and two re-asks');
   assert.equal(result.source, 'model');

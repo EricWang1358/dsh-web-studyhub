@@ -235,7 +235,7 @@ test('the 资料 row shows 覆盖 9% beside the mastery mark, before anything is
   assert.match(english, /Covered 25%/);
 });
 
-const entriesOf = (language = 'zh') => {
+const entriesOf = () => {
   const own = small.sources[0], sections = m.readingSections({ text: own.text, sourceId: own.id, group: small.sources });
   const outline = m.structureOutline(m.outlineFromSections(sections));
   return { sections, outline, own };

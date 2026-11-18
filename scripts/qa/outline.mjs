@@ -223,7 +223,6 @@ export async function runOutlineQa(options) {
     await browser.close().catch(() => {});
     await server.close();
   }
-  return summary;
 }
 
 const invoked = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);

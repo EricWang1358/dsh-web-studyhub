@@ -75,7 +75,7 @@ test('job.delete skips a running job and says so, in the same request that delet
   t.after(() => rm(root, { recursive: true, force: true }));
   let release;
   const gate = new Promise((resolve) => { release = resolve; });
-  const service = new StudyService(root, { complete: async (system, prompt, options) => { await gate; throw new Error('model down'); } });
+  const service = new StudyService(root, { complete: async (_system, _prompt, _options) => { await gate; throw new Error('model down'); } });
   t.after(() => release());
   await service.call('source.add', { id: 's', title: '容器笔记', text });
   const running = await service.call('generate', { sourceIds: ['s'], count: 1, kind: 'flashcard' });

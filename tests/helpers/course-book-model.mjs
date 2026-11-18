@@ -105,7 +105,7 @@ export function bookModel({ invent = false, skip = [], omit = 0, stubborn = [], 
       if (data.stage === 'kit') return JSON.stringify(kitAnswer(data));
       return JSON.stringify(examAnswer(data));
     }
-    let text = await base.complete(system, prompt, request);
+    const text = await base.complete(system, prompt, request);
     if (!['reduce', 'order'].includes(data.stage)) return text;
     const value = JSON.parse(text.replace(/^```json\n|\n```$/g, '')), known = new Map(data.points.map(point => [point.id, point.title]));
     // A course whose points no chapter of the outline fake names (a short course of its own): one chapter holds them all.

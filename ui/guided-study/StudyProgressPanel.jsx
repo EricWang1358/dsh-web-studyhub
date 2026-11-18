@@ -67,8 +67,6 @@ export function StudyProgressPanel({
   estimate = {},
   cost = null,
   defaultExpanded = false,
-  session = {},
-  onUpdateItem,
   onAddItem,
   onDeleteItem,
   onSelectAttempt,

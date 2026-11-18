@@ -25,8 +25,8 @@ export function resolveCompanionTarget({ card, solution, courses, sources, fallb
   const explicit = card?.companionRef || solution?.companionRef;
   let companionId = typeof explicit?.companionId === 'string' ? explicit.companionId.trim() : '';
   let slide = parsePositiveSlide(explicit?.slide, explicit?.anchor);
-  let anchor = typeof explicit?.anchor === 'string' ? explicit.anchor.trim() : '';
-  let label = typeof explicit?.label === 'string' ? explicit.label.trim() : '';
+  const anchor = typeof explicit?.anchor === 'string' ? explicit.anchor.trim() : '';
+  const label = typeof explicit?.label === 'string' ? explicit.label.trim() : '';
   let sourceCourse = '';
 
   const sourceList = Array.isArray(sources) ? sources : [];

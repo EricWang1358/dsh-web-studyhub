@@ -203,7 +203,7 @@ export default function GuidedStudyWorkbench({
         try {
           await navigator.clipboard.writeText(prompt);
           copied = true;
-        } catch {}
+        } catch { /* no clipboard permission: the textarea copy below is tried next */ }
       }
       if (!copied && typeof document !== 'undefined') {
         try {
@@ -215,7 +215,7 @@ export default function GuidedStudyWorkbench({
           textarea.select();
           document.execCommand('copy');
           document.body.removeChild(textarea);
-        } catch {}
+        } catch { /* nothing could copy it: `copied` stays false */ }
       }
     }
     if (onAskTutor) {

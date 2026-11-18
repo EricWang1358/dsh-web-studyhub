@@ -138,7 +138,7 @@ test('a transcript that comes back after the learner moved to another question i
   const calls = [];
   const capture = fakeCapture();
   const recorder = createVoiceRecorder({ capture: capture.fn, upload: async () => 'u-moved', scope: () => where,
-    call: async (action, args) => { calls.push(action); where = 'q2'; return { text: '幂等' }; } });
+    call: async (action, _args) => { calls.push(action); where = 'q2'; return { text: '幂等' }; } });
   await recorder.start();
   capture.push(new Array(4000).fill(700));
   await assert.rejects(recorder.finish(), (error) => error.code === 'VOICE_MOVED' && /换了题/.test(error.message));
@@ -155,8 +155,7 @@ test('a transcript that comes back after the learner moved to another question i
 test('cancel while the clip is uploading deletes the uploaded clip instead of leaving it for a day', async () => {
   const calls = [];
   const capture = fakeCapture();
-  let recorder;
-  recorder = createVoiceRecorder({ capture: capture.fn, call: async (action, args) => { calls.push([action, args]); return {}; },
+  const recorder = createVoiceRecorder({ capture: capture.fn, call: async (action, args) => { calls.push([action, args]); return {}; },
     upload: async () => { await recorder.cancel(); return 'u-late'; } });
   await recorder.start();
   capture.push(new Array(4000).fill(700));

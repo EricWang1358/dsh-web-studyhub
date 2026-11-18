@@ -72,7 +72,7 @@ function Bar({ open, onToggle, target, item, menu, preview, copied }) {
  * spinner (with the old translation, dimmed, when it is a retranslation), in 'error' the reason and a retry, in 'undo' the few seconds
  * in which a deleted translation can come back.
  */
-export default function TranslationBlock({ state, item, target, open, pendingKind, error, onToggle, onDelete, onRetranslate, onGlossary, onCancel, onRetry, onUndo, onDismiss }) {
+export default function TranslationBlock({ state, item, target, open, error, onToggle, onDelete, onRetranslate, onGlossary, onCancel, onRetry, onUndo, onDismiss }) {
   const [asking, setAsking] = useState(false);
   const { copied, copy } = useCopyFeedback(() => item?.text ?? '', { resetMs: 1600 });
   const lang = targetLang(target), tag = targetTag(target);

@@ -104,7 +104,7 @@ test('Guided Study Loop E2E: scripted 10-step full workflow (UC-01 ~ UC-09, Sect
   // ---------------------------------------------------------------------------
   // Step 3: Locate existing question (UC-03) and prepare an audited new question (UC-07)
   // ---------------------------------------------------------------------------
-  let run = await study.call('review.start', {
+  const run = await study.call('review.start', {
     mode: 'path',
     fresh: true,
     scope: [{ deckId: 'd-algo', cardId: 'c1' }],

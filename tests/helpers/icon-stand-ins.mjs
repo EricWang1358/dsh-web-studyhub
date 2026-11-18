@@ -17,7 +17,7 @@ export const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 export const ICON_GLYPHS = '✓✔✗✘✕⚑⚐↻↺⟳▶▸▾▼◀◂＋↗↘➜➔⇒⇠⏎○◆↩👍👎';
 const EMOJI = /\p{Emoji_Presentation}/u;
 const ARROWS = '→←↑↓';
-const EDGE_OPEN = /^[\s「『（(“"'‘\[]+/u;
+const EDGE_OPEN = /^[\s「『（(“"'‘[]+/u;
 const EDGE_CLOSE = /[\s」』）)”"'’\]。.；;]+$/u;
 const JOINER = /^\s+[→←↑↓]\s+$/u;
 

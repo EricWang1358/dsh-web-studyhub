@@ -77,7 +77,7 @@ test('a slow window never idles the other slots: a finished window is replaced a
   }
 });
 
-test('corrections found by finished windows reach windows that start later, whichever order they finished in', async t => {
+test('corrections found by finished windows reach windows that start later, whichever order they finished in', async _t => {
   const seen = [], controller = new AbortController(), release = new Map();
   const hold = key => new Promise(resolve => release.set(key, resolve));
   const work = finishTranscript({ paragraphs: paragraphs.slice(0, 5), filename: 'lecture.wav', settings: {}, signal: controller.signal,
