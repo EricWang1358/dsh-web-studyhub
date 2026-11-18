@@ -4,6 +4,7 @@ import { useInjectCss } from "./shared.js";
 import Markdown from "./Markdown.jsx";
 import { Badge, Button, Disclosure, InlineMessage, Panel, ProgressBar, Spinner } from "./components/index.js";
 import { rubricSkills } from "../lib/case-study.js";
+import { useStudy } from "./study-context.jsx";
 import css from "./case-result.css";
 import { joinMeta } from './format.js';
 
@@ -206,12 +207,13 @@ export function CaseReport({ report, busy, assistTasks, submitting = false, onDr
 /** Rubric criteria as skills over time (case linkage, assumptions, justification…), weakest first. */
 export function RubricSkills({ attempts = [], onPractice, practiceLabel }) {
   useInjectCss(css, "study-case-result");
+  const { busy } = useStudy();
   const skills = rubricSkills(attempts);
   if (!skills.length) return null;
   return (
     <Panel className="rubric-skills" title={ui("案例分析能力")}
       description={ui("按评分项统计你在开放题和案例题上的得分率，最弱的在前。")}
-      actions={onPractice ? <Button iconEnd="arrow-right" size="sm" variant="secondary" onClick={onPractice}>{practiceLabel || ui("练案例题")}</Button> : null}>
+      actions={onPractice ? <Button iconEnd="arrow-right" size="sm" variant="secondary" lock={busy} onClick={onPractice}>{practiceLabel || ui("练案例题")}</Button> : null}>
       <ul className="rubric-skills__list">
         {skills.map((skill) => (
           <li key={skill.label}>

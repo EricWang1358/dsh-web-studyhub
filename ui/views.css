@@ -137,6 +137,10 @@
     .dash-section__badge {
       font-weight: var(--fw-medium);
     }
+    .dash-section__action {
+      margin-inline-start: auto;
+      font-weight: var(--fw-medium);
+    }
     .dash-section h2 small {
       font-family: var(--font-ui);
       font-size: var(--fs-md);
