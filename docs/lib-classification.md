@@ -378,7 +378,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/heading-levels.js`: 1 other lib file
 - `lib/host-service.js`: 4 other lib files
 - `lib/host.js`: 2 other lib files
-- `lib/http.js`: 3 other lib files
+- `lib/http.js`: 13 other lib files
 - `lib/index.js`: 1 other lib file
 - `lib/install-drives.js`: 3 other lib files
 - `lib/install-sources.js`: 3 other lib files

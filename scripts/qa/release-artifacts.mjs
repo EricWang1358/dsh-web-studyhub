@@ -46,6 +46,8 @@ for (const artifact of [...receipt.archives, receipt.setup, receipt.setupZh]) {
     await access(resolve(packageRoot, packed.main));
     if (packed.name === '@ericwang1358/dsh-daily-flashcard') {
       assert.ok(files.includes('package/lib/client.js'), 'workbench archive includes built UI client bundle');
+      assert.deepEqual(UI_ONLY_DEPENDENCIES.filter(dep => dep in (packed.dependencies || {})), [],
+        `${packed.name} omits UI-only dependencies from runtime dependencies`);
     } else if (packed.name.startsWith('@ericwang1358/dsh-study-')) {
       assert.equal(files.some(file => /^package\/lib\/client(?:\.[A-Za-z0-9._-]+)?\.js$/.test(file)), false,
         `${packed.name} omits built UI client bundles`);
