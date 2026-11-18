@@ -506,3 +506,90 @@ test("summary-course shows finished chapter wording (weak=0, weak>0, multi-chapt
     setUiLanguage("zh");
   }
 });
+
+test("QuestionPlace shows source document/chapter in normal mode, hides in exam/complete/null, and stays plain text when outline is unavailable (#1197)", async () => {
+  const { loadUi } = await import("./helpers/ui-module.mjs");
+  const { keepOutline, keptOutlineTarget, clearOutlineTarget, outlineTargetExpandKeys } = await loadUi(`
+    export { keepOutline, keptOutlineTarget, clearOutlineTarget, outlineTargetExpandKeys } from './ui/outline/model.js';
+  `);
+
+  const cardPlace = {
+    course: "Arch",
+    document: { key: "pdf:doc-1", title: "Architecture Guide.pdf" },
+    chapter: { key: "pdf:doc-1#1", title: "Core Layers" },
+    leaf: null,
+  };
+  const docSource = { id: "s1", title: "Architecture Guide · p. 1", courses: ["Arch"] };
+
+  const clickableHtml = renderToStaticMarkup(reviewEl({
+    run: { id: "r-place", index: 0, total: 2, card: { id: "q-p", kind: "quiz", topic: "Arch", prompt: "Prompt?", options: [{ id: "a", text: "A" }] }, cardPlace },
+    data: { sources: [docSource] }, host: {}, choice: true, selected: [], clozeValues: {}, shellTitle: "Arch", busy: false,
+    onOpenOutline: () => {}, openSkeleton: () => {},
+  }));
+  assert.match(clickableHtml, /data-review-place=""/);
+  assert.match(clickableHtml, /<button[^>]*data-review-place=""[^>]*>/);
+  assert.match(clickableHtml, /出处 ·/);
+  assert.match(clickableHtml, /Architecture Guide › Core Layers/);
+  assert.doesNotMatch(clickableHtml, /<[^>]*data-review-place=""[^>]*\btitle=/);
+
+  const docOnlyHtml = renderToStaticMarkup(reviewEl({
+    run: {
+      id: "r-doc", index: 0, total: 2,
+      card: { id: "q-d", kind: "quiz", topic: "Arch", prompt: "Prompt?", options: [{ id: "a", text: "A" }] },
+      cardPlace: { course: "Arch", document: { key: "doc:plain", title: "Plain Notes" }, chapter: null, leaf: null },
+    },
+    data: { sources: [docSource] }, host: {}, choice: true, selected: [], clozeValues: {}, shellTitle: "Arch", busy: false,
+    onOpenOutline: () => {},
+  }));
+  assert.match(docOnlyHtml, /出处 ·/);
+  assert.match(docOnlyHtml, /Plain Notes/);
+  assert.doesNotMatch(docOnlyHtml, /Plain Notes ›/);
+
+  const staticHtml = renderToStaticMarkup(reviewEl({
+    run: { id: "r-static", index: 0, total: 2, card: { id: "q-s", kind: "quiz", topic: "Arch", prompt: "Prompt?", options: [{ id: "a", text: "A" }] }, cardPlace },
+    data: { sources: [] }, host: {}, choice: true, selected: [], clozeValues: {}, shellTitle: "Arch", busy: false,
+    onOpenOutline: () => {},
+  }));
+  assert.match(staticHtml, /<span[^>]*review-place-static[^>]*data-review-place=""[^>]*>/);
+  assert.doesNotMatch(staticHtml, /<button[^>]*data-review-place=""/);
+
+  const unplacedHtml = renderToStaticMarkup(reviewEl({
+    run: { id: "r-null", index: 0, total: 2, card: { id: "q-n", kind: "quiz", topic: "Arch", prompt: "Prompt?", options: [{ id: "a", text: "A" }] },
+      cardPlace: { course: "Arch", document: null, chapter: null, leaf: null } },
+    data: { sources: [docSource] }, host: {}, choice: true, selected: [], clozeValues: {}, shellTitle: "Arch", busy: false,
+    onOpenOutline: () => {},
+  }));
+  assert.doesNotMatch(unplacedHtml, /data-review-place/);
+
+  const examHtml = renderToStaticMarkup(reviewEl({
+    run: { id: "r-exam", mode: "exam", index: 0, total: 2, card: { id: "q-e", kind: "quiz", topic: "Arch", prompt: "Prompt?", options: [{ id: "a", text: "A" }] }, cardPlace },
+    data: { sources: [docSource] }, host: {}, choice: true, selected: [], clozeValues: {}, shellTitle: "Exam", busy: false,
+    onOpenOutline: () => {},
+  }));
+  assert.doesNotMatch(examHtml, /data-review-place/);
+
+  const completeHtml = renderToStaticMarkup(reviewEl({
+    run: { id: "r-done", complete: true, index: 1, total: 1, questions: 1, answered: 1, correct: 1, card: { id: "q-c", kind: "quiz", topic: "Arch", prompt: "Prompt?", options: [{ id: "a", text: "A" }] }, cardPlace },
+    data: { sources: [docSource] }, host: {}, choice: true, selected: [], clozeValues: {}, shellTitle: "Arch", busy: false,
+    onOpenOutline: () => {},
+  }));
+  assert.doesNotMatch(completeHtml, /data-review-place/);
+
+  // Coexists with 知识骨架 button when both are present.
+  const bothHtml = renderToStaticMarkup(reviewEl({
+    run: { id: "r-both", index: 0, total: 2, card: { id: "q-b", kind: "quiz", topic: "Arch", prompt: "Prompt?", options: [{ id: "a", text: "A" }] }, cardPlace },
+    data: { sources: [docSource], skeletons: [{ id: "sk-1", title: "Arch Skeleton", cardIds: ["q-b"] }] },
+    host: {}, choice: true, selected: [], clozeValues: {}, shellTitle: "Arch", busy: false,
+    onOpenOutline: () => {}, openSkeleton: () => {},
+  }));
+  assert.match(bothHtml, /data-review-place=""/);
+  assert.match(bothHtml, /知识骨架/);
+
+  // One-shot outline target helpers in ui/outline/model.js
+  keepOutline("/lib", "Arch", { target: "pdf:doc-1#1", leafKey: "bk:leaf-1" });
+  const got = keptOutlineTarget("/lib", "Arch");
+  assert.deepEqual(got, { target: "pdf:doc-1#1", leafKey: "bk:leaf-1" });
+  assert.deepEqual(outlineTargetExpandKeys(got, { nodes: [{ key: "bk:part-1", children: [{ key: "bk:leaf-1" }] }] }), ["bk:part-1", "bk:leaf-1", "pdf:doc-1", "pdf:doc-1#1"]);
+  clearOutlineTarget("/lib", "Arch");
+  assert.equal(keptOutlineTarget("/lib", "Arch"), null);
+});
