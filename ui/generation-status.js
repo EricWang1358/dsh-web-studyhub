@@ -419,12 +419,34 @@ export function describeFailure(text = '', options = {}) {
 /** One failure as the sentence the lists print after "第 N 批没有完成：" (the cause, then what was already tried again). */
 export const failureSentence = (found) => formatClauses([found.cause, found.retried].filter(Boolean));
 
+const GENERIC_PROVIDER_CODE = /^(RATE_LIMIT|unauthorized|ACCOUNT_QUOTA|unavailable|MISSING_CREDENTIAL)$/i;
+
 /** A failed model call of a job (its `error` text) in plain words in the UI language; a text nothing recognises is shown as it is. */
 export function callErrorText(text = '') {
+  const raw = String(text ?? '').trim();
+  if (!raw) return '';
   // The console already writes a model failure in plain Chinese (lib/model-retry.js modelFailureMessage); in a Chinese UI that is the sentence.
-  if (!uiIsEnglish() && /[㐀-鿿]/.test(String(text))) return String(text);
-  const found = describeFailure(text);
-  return found.code === 'unknown' ? String(text) : failureSentence(found);
+  if (!uiIsEnglish() && /[㐀-鿿]/.test(raw)) return raw;
+  const callCap = /^Call reached its (\d+)-(minute|second) single-call time limit$/i.exec(raw);
+  if (callCap) {
+    return callCap[2].toLowerCase() === 'minute'
+      ? uiFormat('到了单次模型调用时限（{0} 分钟），可在「设置 › 出题偏好」调高或设为无上限', [Number(callCap[1])])
+      : uiFormat('到了单次模型调用时限（{0} 秒），可在「设置 › 出题偏好」调高或设为无上限', [Number(callCap[1])]);
+  }
+  const silent = /^No output for (\d+) minutes?$/i.exec(raw);
+  if (silent) return uiFormat('连续 {0} 分钟没有任何输出，已自动截断', [Number(silent[1])]);
+  const timedOut = /^Model timed out after (\d+)s$/i.exec(raw);
+  if (timedOut) {
+    const secs = Number(timedOut[1]);
+    return secs >= 60 && secs % 60 === 0 ? uiFormat('单次模型调用超时（{0} 分钟）', [secs / 60]) : uiFormat('单次模型调用超时（{0} 秒）', [secs]);
+  }
+  if (/^MAX_TOKENS\b/i.test(raw)) return ui('还没写出答案就用完了输出上限，可以把推理程度调低再试');
+  const found = describeFailure(raw);
+  if (found.code === 'unknown') return raw;
+  const base = failureSentence(found);
+  const statusCode = /^(\d{3})\s+([A-Za-z][A-Za-z0-9_.-]{1,40})$/.exec(raw);
+  if (statusCode && !GENERIC_PROVIDER_CODE.test(statusCode[2])) return uiFormat('{0}（{1}）', [base, `${statusCode[1]} ${statusCode[2]}`]);
+  return base;
 }
 
 function failureKind(text = '', { hasDraft = false } = {}) {

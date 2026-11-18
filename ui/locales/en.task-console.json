@@ -600,5 +600,13 @@
   "正在编译独立 HTML 并挂载至课程": "Compiling self-contained HTML & linking to course",
   "交互伴学课已就绪": "Interactive companion ready",
   "已在检查点暂停": "Paused at checkpoint",
-  "已生成 {0} 页交互伴学课": "Generated {0}-slide interactive companion"
+  "已生成 {0} 页交互伴学课": "Generated {0}-slide interactive companion",
+  "到了单次模型调用时限（{0} 分钟），可在「设置 › 出题偏好」调高或设为无上限": "Reached the single-call time limit ({0} min); raise it or set no limit in Settings › Question defaults",
+  "到了单次模型调用时限（{0} 秒），可在「设置 › 出题偏好」调高或设为无上限": "Reached the single-call time limit ({0} sec); raise it or set no limit in Settings › Question defaults",
+  "到了单次模型调用时限，可在「设置 › 出题偏好」调高或设为无上限": "Reached the single-call time limit; raise it or set no limit in Settings › Question defaults",
+  "连续 {0} 分钟没有任何输出，已自动截断": "No output for {0} min; cut automatically",
+  "单次模型调用超时（{0} 分钟）": "Model call timed out ({0} min)",
+  "单次模型调用超时（{0} 秒）": "Model call timed out ({0} sec)",
+  "还没写出答案就用完了输出上限，可以把推理程度调低再试": "Reached the output limit before finishing an answer; try lowering the reasoning level",
+  "{0}（{1}）": "{0} ({1})"
 }

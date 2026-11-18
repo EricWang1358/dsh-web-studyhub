@@ -54,7 +54,9 @@ export function slowSteps(calls, { now = Date.now(), hitLimit = false } = {}) {
 
 /** Did this call fail at the limit of one call (`callSeconds`, detail.timeLimit)? It ran that long (a few seconds short allowed: the clock starts a moment after the call is logged) and its own error is the model not answering. */
 export function callLimitHit(call, callSeconds, now) {
-  if (!(callSeconds > 0) || call?.status !== 'failed') return false;
+  if (call?.status !== 'failed') return false;
+  if (call.reason === 'call-timeout') return true;
+  if (!(callSeconds > 0)) return false;
   const ms = callMs(call, now);
   return ms !== null && ms >= callSeconds * 1000 - 5000 && hitCallTimeout(call.error);
 }
