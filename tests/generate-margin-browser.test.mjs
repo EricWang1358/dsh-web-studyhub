@@ -442,7 +442,11 @@ test('#1084: one rule for the courses, and a run of rows reads the same: the cou
     const { page, errors, context } = await openGenerate({ lang, width, answer: answers().badges });
     if (all) await allCourses(page, lang);
     await frames(page, 4);
-    const rows = await factsLines(page);
+    let rows = await factsLines(page);
+    // a cut name's hover card comes with the shared observer's answer (ui/use-cut.js), a few frames later on a busy machine: wait for it, 2 s at most
+    for (let wait = 0; wait < 2000 && rows.some(row => row.names.some(piece => piece.shown && piece.cut && !piece.tip)); wait += 100) {
+      await page.waitForTimeout(100); rows = await factsLines(page);
+    }
     assert.ok(rows.length >= 10, `${tag}: rows (${rows.length})`);
     if (!all) assert.deepEqual(rows.filter(row => row.names.some(name => name.text.replace(/^·\s*/, '') === COURSE)).map(row => row.text), [], `${tag}: no row says the scope's course 「${COURSE}」 again`);
     const firstShown = rows.filter(row => row.names[0]?.shown).length, withLater = rows.filter(row => row.names.length > 1), laterShown = withLater.filter(row => row.names.slice(1).every(name => name.shown)).length;
