@@ -732,14 +732,22 @@ const HANDLERS = [
             ...(note ? { note } : {}),
           };
         };
+        const hasCard = Array.isArray(input.terms?.hasCard)
+          ? input.terms.hasCard.filter((item) => typeof item === "string" && item.trim())
+          : [];
+        const hasCardSet = new Set(hasCard.map((item) => item.toLowerCase()));
         const baseName = english ? "Foundational premise" : "前置前提";
-        const includeLayer2 = unknown.length > 0 && !unknown.some((item) => item.toLowerCase() === baseName.toLowerCase());
+        const includeLayer2 = unknown.length > 0
+          && !unknown.some((item) => item.toLowerCase() === baseName.toLowerCase())
+          && !hasCardSet.has(baseName.toLowerCase());
         const ladder = [];
         if (includeLayer2) {
           ladder.push(buildStep({ term: baseName, alt: english ? "baseline" : "baseline", layer: 2, needs: [] }));
         }
         unknown.forEach((term, index) => {
-          const needs = index === 0 ? (includeLayer2 ? [baseName] : []) : [unknown[index - 1]];
+          const needs = index === 0
+            ? [...(includeLayer2 ? [baseName] : []), ...(hasCard.length ? [hasCard[0]] : [])]
+            : [unknown[index - 1]];
           ladder.push(buildStep({ term, layer: 1, needs }));
         });
         const needsDeeper = unknown.some((item) => /底层|深层|deeper|primitive/i.test(item));

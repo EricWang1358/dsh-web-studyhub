@@ -13,6 +13,7 @@ import {
   termState,
   courseTermsWithState,
   coursePromptTerms,
+  partitionCourseTermCards,
 } from "../lib/contexts/courses/contracts.js";
 import { assistInput, assistInstruction } from "../lib/assist-content.js";
 import { createAssistService } from "../lib/assist.js";
@@ -597,4 +598,86 @@ test("TermListDialog static render shows three state groups, prompts, remove but
   assert.match(enHtml, /Networks · Word list/);
   assert.match(enHtml, /Clear word list/);
   setUiLanguage("zh");
+});
+
+test("course.terms.attach keeps live card refs intact and overwrites only missing/archived/slain refs (#1215)", async (t) => {
+  const root = await tempRoot(t, "course-terms-attach-guard-");
+  const service = new StudyService(root);
+  t.after(() => service.dispose());
+
+  await service.call("snapshot");
+  await service.store.update((state) => {
+    state.decks.push(
+      {
+        id: "deck-live",
+        title: "Routing",
+        course: "Networks",
+        cards: [
+          makeCard("c-live-1", "Live check 1"),
+          makeCard("c-live-2", "Live check 2"),
+          makeCard("c-live-3", "Live check 3"),
+          makeCard("c-replacement", "Replacement check"),
+        ],
+      },
+      {
+        id: "deck-arch",
+        title: "Old Routing",
+        course: "Networks",
+        archived: true,
+        cards: [makeCard("c-archived", "Archived check")],
+      },
+      {
+        id: "deck-slain",
+        title: "斩题组",
+        systemKind: "slain",
+        archived: true,
+        cards: [makeCard("c-slain", "Slain check")],
+      },
+    );
+  });
+
+  await service.call("course.save", {
+    name: "Networks",
+    terms: {
+      version: 1,
+      items: [
+        { term: "LiveTerm", alt: "orig alt", at: "2026-11-18T08:00:00.000Z", card: { deckId: "deck-live", cardId: "c-live-1" } },
+        { term: "DeletedTerm", at: "2026-11-18T08:01:00.000Z", card: { deckId: "deck-live", cardId: "c-deleted" } },
+        { term: "ArchivedTerm", at: "2026-11-18T08:02:00.000Z", card: { deckId: "deck-arch", cardId: "c-archived" } },
+        { term: "SlainTerm", at: "2026-11-18T08:03:00.000Z", card: { deckId: "deck-slain", cardId: "c-slain" } },
+      ],
+    },
+  });
+
+  const snapBefore = await service.store.read();
+  assert.deepEqual(
+    partitionCourseTermCards(snapBefore, "Networks", ["liveterm", "DeletedTerm", "ArchivedTerm", "SlainTerm", "Unseen"]),
+    {
+      hasCard: [{ term: "liveterm", card: { deckId: "deck-live", cardId: "c-live-1" } }],
+      missing: ["DeletedTerm", "ArchivedTerm", "SlainTerm", "Unseen"],
+    },
+  );
+
+  const liveOnly = await service.call("course.terms.attach", {
+    course: "Networks",
+    links: [{ term: "liveterm", alt: "new alt", card: { deckId: "deck-live", cardId: "c-live-2" } }],
+  });
+  assert.equal(liveOnly.attached, 0, "live card ref is not overwritten");
+  assert.deepEqual(liveOnly.items.find((item) => item.term === "LiveTerm")?.card, { deckId: "deck-live", cardId: "c-live-1" });
+  assert.equal(liveOnly.items.find((item) => item.term === "LiveTerm")?.alt, "orig alt");
+
+  const replaced = await service.call("course.terms.attach", {
+    course: "Networks",
+    links: [
+      { term: "LiveTerm", card: { deckId: "deck-live", cardId: "c-live-2" } },
+      { term: "DeletedTerm", card: { deckId: "deck-live", cardId: "c-live-3" } },
+      { term: "ArchivedTerm", card: { deckId: "deck-live", cardId: "c-replacement" } },
+      { term: "SlainTerm", card: { deckId: "deck-live", cardId: "c-live-2" } },
+    ],
+  });
+  assert.equal(replaced.attached, 3, "overwrites only dead/archived/slain card refs");
+  assert.deepEqual(replaced.items.find((item) => item.term === "LiveTerm")?.card, { deckId: "deck-live", cardId: "c-live-1" });
+  assert.deepEqual(replaced.items.find((item) => item.term === "DeletedTerm")?.card, { deckId: "deck-live", cardId: "c-live-3" });
+  assert.deepEqual(replaced.items.find((item) => item.term === "ArchivedTerm")?.card, { deckId: "deck-live", cardId: "c-replacement" });
+  assert.deepEqual(replaced.items.find((item) => item.term === "SlainTerm")?.card, { deckId: "deck-live", cardId: "c-live-2" });
 });
