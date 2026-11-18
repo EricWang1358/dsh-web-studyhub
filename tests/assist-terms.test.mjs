@@ -121,6 +121,14 @@ test("normalizeAssistRequest enforces strict terms validation and English locali
     localizeAppMessage("补了 3 个词，检查题已排到这道题前面", "en"),
     "Filled in 3 terms; check questions are queued before this card",
   );
+  assert.equal(
+    localizeAppMessage("第 1 层台阶只能是学生标出的词；为了讲清楚而加的词请标 layer 2", "en"),
+    "Layer-1 steps must be requested terms; mark added foundational terms as layer 2",
+  );
+  assert.equal(
+    localizeAppMessage("第 2 层台阶不能再依赖别的词（needs 须为空）；还需要更底层的词请写进 deeper", "en"),
+    "Layer-2 steps cannot depend on other steps (needs must be empty); list still-missing prerequisites in deeper",
+  );
 });
 
 test("terms mode happy path: 3 marked terms create 3 cards, 3 prereq links, 1 ladder followup, and notify cleanly in both legacy and runtime", async (t) => {
@@ -196,8 +204,8 @@ test("layer 2 foundations link in chain order and original card never links laye
     JSON.stringify({
       ladder: [
         makeStep({ term: "地址前缀", alt: "prefix", layer: 2, needs: [] }),
-        makeStep({ term: "入口过滤", layer: 2, needs: ["地址前缀"] }),
-        makeStep({ term: "BCP38", layer: 1, needs: ["入口过滤"] }),
+        makeStep({ term: "入口过滤", layer: 2, needs: [] }),
+        makeStep({ term: "BCP38", layer: 1, needs: ["地址前缀", "入口过滤"] }),
       ],
     }),
   );
@@ -217,9 +225,16 @@ test("layer 2 foundations link in chain order and original card never links laye
   const state = await f.service.store.read();
   const [parent, prefixCard, ingressCard, bcp38Card] = state.decks[0].cards;
   assert.deepEqual(parent.requires, [{ deckId: "deck-1", cardId: bcp38Card.id }]);
-  assert.deepEqual(bcp38Card.requires, [{ deckId: "deck-1", cardId: ingressCard.id }]);
-  assert.deepEqual(ingressCard.requires, [{ deckId: "deck-1", cardId: prefixCard.id }]);
+  assert.deepEqual(bcp38Card.requires, [
+    { deckId: "deck-1", cardId: prefixCard.id },
+    { deckId: "deck-1", cardId: ingressCard.id },
+  ]);
   assert.equal(prefixCard.requires, undefined);
+  assert.equal(ingressCard.requires, undefined);
+
+  // Course term list attaches only layer-1 terms, never layer-2 added foundations.
+  const courseTerms = await f.service.call("course.terms.get", { course: "Networks" });
+  assert.deepEqual(courseTerms.items.map((item) => item.term), ["BCP38"]);
 
   // orderByPrerequisites places layer 2 -> layer 1 -> parent card in daily practice ordering.
   const index = cardIndex(state.decks, () => null);
@@ -302,6 +317,203 @@ test("out-of-order needs triggers one repair retry and failing again keeps the b
   assert.equal(badState.decks[0].cards.length, 1);
   assert.equal(badState.decks[0].cards[0].requires, undefined);
   assert.equal(badState.decks[0].cards[0].followups, undefined);
+  assert.equal(badState.inbox.length, 0);
+});
+
+test("unrequested term marked layer 1 triggers one repair retry and failing again keeps decks, courses and inbox untouched", async (t) => {
+  // 1. Repaired on retry -> commits cleanly without attaching unrequested layer-2 terms.
+  let calls = 0;
+  const ok = await setupTermsFixture(t, async (_sys, payload) => {
+    calls += 1;
+    if (calls === 1) {
+      return JSON.stringify({
+        ladder: [
+          makeStep({ term: "地址前缀", layer: 1, needs: [] }),
+          makeStep({ term: "路由器", layer: 1, needs: ["地址前缀"] }),
+          makeStep({ term: "入口过滤", layer: 1, needs: ["路由器"] }),
+        ],
+      });
+    }
+    assert.match(payload, /REFUSED_REPLY:/);
+    assert.match(payload, /第 1 层台阶只能是学生标出的词/);
+    return JSON.stringify({
+      ladder: [
+        makeStep({ term: "地址前缀", layer: 2, needs: [] }),
+        makeStep({ term: "入口过滤", layer: 1, needs: ["地址前缀"] }),
+      ],
+      deeper: ["路由器"],
+    });
+  });
+
+  await ok.assist.startAssist(ok.ctx, {
+    root: ok.root,
+    service: ok.service,
+    sessionId: "s1",
+    mode: "terms",
+    ref: { deckId: "deck-1", cardId: "card-main" },
+    terms: ["入口过滤"],
+    card: PARENT_CARD,
+    deckTitle: "Network Security",
+  });
+  await ended(ok.assist, ok.root);
+  assert.equal(calls, 2);
+  const [okTask] = ok.assist.assistView(ok.root).tasks;
+  assert.equal(okTask.status, "done");
+  assert.equal(okTask.repaired, true);
+  const okState = await ok.service.store.read();
+  assert.equal(okState.decks[0].cards.length, 3);
+  assert.equal(okState.decks[0].cards[0].requires.length, 1);
+  const okTerms = await ok.service.call("course.terms.get", { course: "Networks" });
+  assert.deepEqual(okTerms.items.map((item) => item.term), ["入口过滤"]);
+
+  // 2. Case-insensitive requested term at layer 1 succeeds without retry.
+  let ciCalls = 0;
+  const ci = await setupTermsFixture(t, async () => {
+    ciCalls += 1;
+    return JSON.stringify({
+      ladder: [makeStep({ term: "BCP38", layer: 1, needs: [] })],
+    });
+  });
+  await ci.assist.startAssist(ci.ctx, {
+    root: ci.root,
+    service: ci.service,
+    sessionId: "s1",
+    mode: "terms",
+    ref: { deckId: "deck-1", cardId: "card-main" },
+    terms: ["bcp38"],
+    card: PARENT_CARD,
+    deckTitle: "Network Security",
+  });
+  await ended(ci.assist, ci.root);
+  assert.equal(ciCalls, 1);
+  assert.equal(ci.assist.assistView(ci.root).tasks[0].status, "done");
+
+  // 3. Retry still marks unrequested term as layer 1 -> fails and leaves decks, courses and inbox untouched.
+  let brokenCalls = 0;
+  const bad = await setupTermsFixture(t, async () => {
+    brokenCalls += 1;
+    return JSON.stringify({
+      ladder: [
+        makeStep({ term: "地址前缀", layer: 1, needs: [] }),
+        makeStep({ term: "路由器", layer: 1, needs: ["地址前缀"] }),
+        makeStep({ term: "入口过滤", layer: 1, needs: ["路由器"] }),
+      ],
+    });
+  });
+  await bad.service.call("course.save", {
+    name: "Networks",
+    terms: { version: 1, items: [{ term: "入口过滤", at: "2026-11-18T10:00:00.000Z" }] },
+  });
+  const beforeCourses = structuredClone((await bad.service.store.read()).courses);
+
+  await bad.assist.startAssist(bad.ctx, {
+    root: bad.root,
+    service: bad.service,
+    sessionId: "s1",
+    mode: "terms",
+    ref: { deckId: "deck-1", cardId: "card-main" },
+    terms: ["入口过滤"],
+    card: PARENT_CARD,
+    deckTitle: "Network Security",
+  });
+  await ended(bad.assist, bad.root);
+  assert.equal(brokenCalls, 2);
+  const [badTask] = bad.assist.assistView(bad.root).tasks;
+  assert.equal(badTask.status, "failed");
+  assert.equal(badTask.repaired, true);
+  assert.match(badTask.message, /第 1 层台阶只能是学生标出的词/);
+  const badState = await bad.service.store.read();
+  assert.equal(badState.decks[0].cards.length, 1);
+  assert.equal(badState.decks[0].cards[0].requires, undefined);
+  assert.equal(badState.decks[0].cards[0].followups, undefined);
+  assert.deepEqual(badState.courses, beforeCourses);
+  assert.equal(badState.inbox.length, 0);
+});
+
+test("layer 2 step with non-empty needs triggers one repair retry and failing again keeps decks, courses and inbox untouched", async (t) => {
+  // 1. Repaired on retry -> moves deeper dependency into `deeper` and clears layer-2 needs.
+  let calls = 0;
+  const ok = await setupTermsFixture(t, async (_sys, payload) => {
+    calls += 1;
+    if (calls === 1) {
+      return JSON.stringify({
+        ladder: [
+          makeStep({ term: "地址前缀", layer: 2, needs: [] }),
+          makeStep({ term: "入口过滤", layer: 2, needs: ["地址前缀"] }),
+          makeStep({ term: "BCP38", layer: 1, needs: ["入口过滤"] }),
+        ],
+      });
+    }
+    assert.match(payload, /REFUSED_REPLY:/);
+    assert.match(payload, /第 2 层台阶不能再依赖别的词/);
+    return JSON.stringify({
+      ladder: [
+        makeStep({ term: "入口过滤", layer: 2, needs: [] }),
+        makeStep({ term: "BCP38", layer: 1, needs: ["入口过滤"] }),
+      ],
+      deeper: ["地址前缀"],
+    });
+  });
+
+  await ok.assist.startAssist(ok.ctx, {
+    root: ok.root,
+    service: ok.service,
+    sessionId: "s1",
+    mode: "terms",
+    ref: { deckId: "deck-1", cardId: "card-main" },
+    terms: ["BCP38"],
+    card: PARENT_CARD,
+    deckTitle: "Network Security",
+  });
+  await ended(ok.assist, ok.root);
+  assert.equal(calls, 2);
+  const [okTask] = ok.assist.assistView(ok.root).tasks;
+  assert.equal(okTask.status, "done");
+  assert.equal(okTask.repaired, true);
+  const okState = await ok.service.store.read();
+  assert.equal(okState.decks[0].cards.length, 3);
+  assert.equal(okState.decks[0].cards[0].requires.length, 1);
+  assert.deepEqual(okState.decks[0].cards[0].followups[0].deeper, ["地址前缀"]);
+
+  // 2. Retry still chains layer 2 -> fails cleanly and leaves decks, courses and inbox untouched.
+  let brokenCalls = 0;
+  const bad = await setupTermsFixture(t, async () => {
+    brokenCalls += 1;
+    return JSON.stringify({
+      ladder: [
+        makeStep({ term: "地址前缀", layer: 2, needs: [] }),
+        makeStep({ term: "入口过滤", layer: 2, needs: ["地址前缀"] }),
+        makeStep({ term: "BCP38", layer: 1, needs: ["入口过滤"] }),
+      ],
+    });
+  });
+  await bad.service.call("course.save", {
+    name: "Networks",
+    terms: { version: 1, items: [{ term: "BCP38", at: "2026-11-18T10:00:00.000Z" }] },
+  });
+  const beforeCourses = structuredClone((await bad.service.store.read()).courses);
+
+  await bad.assist.startAssist(bad.ctx, {
+    root: bad.root,
+    service: bad.service,
+    sessionId: "s1",
+    mode: "terms",
+    ref: { deckId: "deck-1", cardId: "card-main" },
+    terms: ["BCP38"],
+    card: PARENT_CARD,
+    deckTitle: "Network Security",
+  });
+  await ended(bad.assist, bad.root);
+  assert.equal(brokenCalls, 2);
+  const [badTask] = bad.assist.assistView(bad.root).tasks;
+  assert.equal(badTask.status, "failed");
+  assert.equal(badTask.repaired, true);
+  assert.match(badTask.message, /第 2 层台阶不能再依赖别的词/);
+  const badState = await bad.service.store.read();
+  assert.equal(badState.decks[0].cards.length, 1);
+  assert.equal(badState.decks[0].cards[0].requires, undefined);
+  assert.equal(badState.decks[0].cards[0].followups, undefined);
+  assert.deepEqual(badState.courses, beforeCourses);
   assert.equal(badState.inbox.length, 0);
 });
 
@@ -622,6 +834,9 @@ test("host assist.start forwards terms, never reuses ask child sessions, and fak
   );
   assert.equal(enReply.ladder.length, 3);
   assert.equal(enReply.ladder[0].layer, 2);
+  assert.deepEqual(enReply.ladder[0].needs, []);
+  assert.equal(enReply.ladder[1].layer, 1);
+  assert.equal(enReply.ladder[2].layer, 1);
   assert.deepEqual(enReply.ladder[1].needs, [enReply.ladder[0].term]);
   assert.deepEqual(enReply.ladder[2].needs, ["linearizability"]);
   assert.ok(enReply.ladder.every((step) => step.note && step.card.citations[0].sourceId === "NOTE"));
