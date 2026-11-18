@@ -8,6 +8,7 @@ import {
 } from "../lib/assist.js";
 import { assistDigest, assistInput, assistInstruction } from "../lib/assist-content.js";
 import { localizeAppMessage } from "../lib/application-messages.js";
+import { TERMS_INSTRUCTION, validateTermsReply } from "../lib/contexts/study/terms-ladder.js";
 import { createHostHandler } from "../lib/host.js";
 import { cardIndex, orderByPrerequisites, planPath } from "../lib/mastery.js";
 import { StudyService } from "../lib/service.js";
@@ -39,6 +40,7 @@ function makeStep({
   needs = [],
   prompt = `用正式的说法讲一遍，「${term}」解决什么问题？`,
   formal = `${term}${alt ? `（${alt}）` : ""}是用于检验边界源地址前缀的正式规则。`,
+  explanation,
   note,
   citations = [{ sourceId: "src-1", quote: EVIDENCE }],
 }) {
@@ -58,7 +60,7 @@ function makeStep({
       prompt,
       answer: `边界检查源地址前缀并在不匹配时丢弃。`,
       hint: `想想「${term}」检查的是哪一段字段。`,
-      explanation: `占位说明`,
+      ...(explanation !== undefined ? { explanation } : {}),
       misconception: `把「${term}」当成检查目的地址。`,
       citations,
     },
@@ -169,6 +171,8 @@ test("terms mode happy path: 3 marked terms create 3 cards, 3 prereq links, 1 la
     assert.doesNotMatch(task.message, /进信箱/);
 
     assert.match(seenSystem, /bottom-up concept ladder/);
+    assert.match(seenSystem, /do NOT write `card\.explanation`/);
+    assert.doesNotMatch(seenSystem, /"explanation":/);
     assert.deepEqual(seenInput.terms, { unknown: ["入口过滤", "BCP38", "出口过滤"], known: [] });
 
     const state = await f.service.store.read();
@@ -840,4 +844,71 @@ test("host assist.start forwards terms, never reuses ask child sessions, and fak
   assert.deepEqual(enReply.ladder[1].needs, [enReply.ladder[0].term]);
   assert.deepEqual(enReply.ladder[2].needs, ["linearizability"]);
   assert.ok(enReply.ladder.every((step) => step.note && step.card.citations[0].sourceId === "NOTE"));
+  assert.ok(enReply.ladder.every((step) => !Object.hasOwn(step.card, "explanation")));
+});
+
+test("step cards without card.explanation pass validation and build 4-section explanation, while extra card.explanation stays accepted (#1219)", async (t) => {
+  assert.match(TERMS_INSTRUCTION, /do NOT write `card\.explanation`/);
+  assert.doesNotMatch(TERMS_INSTRUCTION, /"explanation":/);
+
+  const stepWithout = makeStep({ term: "入口过滤", layer: 1, needs: [] });
+  const stepWith = makeStep({ term: "入口过滤", layer: 1, needs: [], explanation: "模型额外写了说明" });
+  const stepWithEmpty = makeStep({ term: "入口过滤", layer: 1, needs: [], explanation: "" });
+  assert.equal(Object.hasOwn(stepWithout.card, "explanation"), false);
+
+  const withoutExpl = validateTermsReply({ ladder: [stepWithout] }, ["入口过滤"], PARENT_CARD.prompt);
+  const withExpl = validateTermsReply({ ladder: [stepWith] }, ["入口过滤"], PARENT_CARD.prompt);
+  const withEmptyExpl = validateTermsReply({ ladder: [stepWithEmpty] }, ["入口过滤"], PARENT_CARD.prompt);
+  assert.equal(Object.hasOwn(withoutExpl.ladder[0].card, "explanation"), false);
+  assert.deepEqual(withExpl, withoutExpl);
+  assert.deepEqual(withEmptyExpl, withoutExpl);
+
+  const missingMisconception = makeStep({ term: "入口过滤", layer: 1, needs: [] });
+  delete missingMisconception.card.misconception;
+  assert.throws(
+    () => validateTermsReply({ ladder: [missingMisconception] }, ["入口过滤"], PARENT_CARD.prompt),
+    /台阶检查题缺少 misconception/,
+  );
+
+  const extraField = makeStep({ term: "入口过滤", layer: 1, needs: [] });
+  extraField.card.unknownField = "bad";
+  assert.throws(
+    () => validateTermsReply({ ladder: [extraField] }, ["入口过滤"], PARENT_CARD.prompt),
+    /台阶检查题包含不支持的字段/,
+  );
+
+  // Full assist flow: both replies without and with card.explanation commit identical 4-section check cards.
+  const committedExplanations = [];
+  for (const extraExplanation of [undefined, "模型多余输出的解释"]) {
+    const f = await setupTermsFixture(t, async () =>
+      JSON.stringify({
+        ladder: [makeStep({ term: "入口过滤", layer: 1, needs: [], explanation: extraExplanation })],
+      }),
+    );
+    await f.assist.startAssist(f.ctx, {
+      root: f.root,
+      service: f.service,
+      sessionId: "s1",
+      mode: "terms",
+      ref: { deckId: "deck-1", cardId: "card-main" },
+      terms: ["入口过滤"],
+      card: PARENT_CARD,
+      deckTitle: "Network Security",
+      language: "zh",
+    });
+    await ended(f.assist, f.root);
+
+    const [task] = f.assist.assistView(f.root).tasks;
+    assert.equal(task.status, "done", task.message);
+    const state = await f.service.store.read();
+    assert.equal(state.decks[0].cards.length, 2);
+    const createdCard = state.decks[0].cards[1];
+    assert.match(createdCard.explanation, /### 问题/);
+    assert.match(createdCard.explanation, /### 大白话/);
+    assert.match(createdCard.explanation, /### 正式说法/);
+    assert.match(createdCard.explanation, /### 例子/);
+    assert.doesNotMatch(createdCard.explanation, /模型多余输出的解释/);
+    committedExplanations.push(createdCard.explanation);
+  }
+  assert.equal(committedExplanations[1], committedExplanations[0]);
 });

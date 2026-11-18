@@ -726,7 +726,6 @@ const HANDLERS = [
               prompt: english ? `In formal terms, what role does ${term} play in ${topic}?` : `用正式的说法讲一遍，「${term}」解决什么界定问题？`,
               answer: english ? `${term} defines the formal criterion for evaluating ${topic}.` : `「${term}」用于在「${topic}」中界定成立条件与判断边界。`,
               hint: english ? `Recall the formal definition of ${term}.` : `先想「${term}」的正式说法和适用前提。`,
-              explanation: english ? `Grounded check on ${term}.` : `围绕「${term}」的正式定义作答。`,
               misconception: english ? `Confusing ${term} with its everyday metaphor.` : `把「${term}」和日常比喻混为一谈，漏掉适用条件。`,
               citations: [{ sourceId, quote }],
             },
