@@ -538,22 +538,26 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
 
   /* ── helping the learner: the background assistant, slaying, prerequisites ── */
   // `quiet`: the caller shows the state itself (a spoken answer's 正在批改 under the question, #1031), so no toast covers the page.
-  const assistCard = useCallback(async (mode, text, helpChoices = [], derive = undefined, { quiet = false } = {}) => {
+  const assistCard = useCallback(async (mode, text, helpChoices = [], extra = undefined, { quiet = false } = {}) => {
     const current = runRef.current;
-    if (!current?.card || (!text.trim() && !(mode === 'ask' && helpChoices.length) && !(mode === 'derive' && derive?.followupId))) return false;
-    // Only asking helps with the answer: 修题 and 出题 change the bank, and 批改 is the answer itself, which reads what was recorded.
-    if (mode === 'ask') { noteAssistance('askedTutorBeforeAnswer'); patch({ explain: true }); }
+    if (!current?.card || (!text.trim() && !(mode === 'ask' && helpChoices.length) && !(mode === 'derive' && extra?.followupId) && !(mode === 'terms' && Array.isArray(extra?.terms) && extra.terms.length))) return false;
+    // Asking or filling marked terms helps understand before answering; 修题 and 出成题 change the bank, and 批改 grades the written answer.
+    if (mode === 'ask' || mode === 'terms') { noteAssistance('askedTutorBeforeAnswer'); patch({ explain: true }); }
     if (mode === 'grade' && !(await flushDraft())) return false;
     try {
       await submitAssist(call, { deckId: current.deckId, cardId: current.card.id, runId: current.id,
-        mode, text: text.trim(), helpChoices, ...(derive ? { derive } : {}), uiLanguage: getUiLanguage() });
+        mode, text: text.trim(), helpChoices,
+        ...(mode === 'derive' && extra ? { derive: extra } : {}),
+        ...(mode === 'terms' && extra?.terms ? { terms: extra.terms } : {}),
+        uiLanguage: getUiLanguage() });
       // Back to the quick rhythm at once: the answer must not wait out a slowed-down poll.
       assistSentAt.current = Date.now();
       pollingRef.current.refresh();
       if (!quiet) notify(mode === 'ask' ? ui('后台助教正在解答。讲解会出现在这道题下面的问答里，完成时信箱会提醒你。')
         : mode === 'derive' ? ui('后台助教正在出题。新题会放进同一题组，完成时信箱会提醒你。')
-          : mode === 'grade' ? { text: ui('已提交批改：后台按评分标准逐项打分，结果会显示在这道题下，完成时信箱也会提醒你。'), tone: 'success' }
-            : ui('后台助教正在改这道题，会直接改这张卡。完成时信箱会提醒你，在信箱里可以一步撤销。'));
+          : mode === 'terms' ? ui('后台助教正在补词。台阶讲解和前置检查题会出现在这道题下面，完成时信箱会提醒你。')
+            : mode === 'grade' ? { text: ui('已提交批改：后台按评分标准逐项打分，结果会显示在这道题下，完成时信箱也会提醒你。'), tone: 'success' }
+              : ui('后台助教正在改这道题，会直接改这张卡。完成时信箱会提醒你，在信箱里可以一步撤销。'));
       core.refresh().catch(() => {});
       return true;
     } catch (failure) {

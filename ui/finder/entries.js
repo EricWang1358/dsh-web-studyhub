@@ -276,7 +276,7 @@ export const FEATURES = Object.freeze([
   feature({ id: 'question-mark-terms', area: 'practice', title: '标生词', page: 'review', anchors: ['review-terms'], prepare: 'run',
     aliases: ['生词', '划词', '不认识的词', '点词', 'mark words', 'unknown words', 'highlight terms'],
     path: ['练习', '题目下方', '标生词'],
-    what: '做题或看答案时遇到不认识的词，点题目下方的「标生词」（或按 W），直接在文字上点选或拖选，最多标 6 个；再点「弄懂这 N 个词」，让助教一次讲清。' }),
+    what: '做题或看答案时遇到不认识的词，点题目下方的「标生词」（或按 W），直接在文字上点选或拖选，最多标 6 个；再点「补齐这 N 个词」，让助教一次搭出概念台阶和检查题。' }),
   feature({ id: 'derive-prerequisite', area: 'practice', title: '出前置题', page: 'review', anchors: ['review-more'], prepare: 'run-more',
     aliases: ['前置题', '基础不牢', '先补基础', '出成前置题', '更基础的题', '出成独立题', 'prerequisite question', 'derive a question', 'easier question first'],
     path: ['练习', '题目下方', '更多', '出前置题…'],

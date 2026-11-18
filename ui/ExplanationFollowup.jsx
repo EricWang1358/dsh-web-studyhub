@@ -92,10 +92,14 @@ export default function ExplanationFollowup({ run, readOnly = false, onDerive, o
           </Button>
         </div>
       )}
-      {items.map((item) => (
+      {items.map((item) => {
+        const title = item.kind === "terms" && Array.isArray(item.terms) && item.terms.length
+          ? uiFormat("补词：{0}", [item.terms.join(ui("、"))])
+          : item.question;
+        return (
         <details className="followup-item" key={item.id} open={openIds.has(item.id)}
           onToggle={(event) => toggle(item.id, event.currentTarget.open)}>
-          <summary><Badge size="sm" tone="accent" className="en-mark">Q&amp;A</Badge><h4>{item.question}</h4>
+          <summary><Badge size="sm" tone="accent" className="en-mark">Q&amp;A</Badge><h4>{title}</h4>
             <span className="followup-state" aria-hidden="true">{openIds.has(item.id) ? ui("收起") : ui("展开")}</span></summary>
           <Markdown text={item.answer} />
           {(withBook || noteQa || canReadBookSection) && (
@@ -121,7 +125,8 @@ export default function ExplanationFollowup({ run, readOnly = false, onDerive, o
             requestAnimationFrame(() => summary?.scrollIntoView({ block: "nearest" }));
           }}>{ui("收起")}</Button>
         </details>
-      ))}
+        );
+      })}
       {readOnly && onAskMore && items.length > 0 && (
         <Button size="sm" variant="secondary" onClick={onAskMore}>{ui("继续追问")}</Button>
       )}
