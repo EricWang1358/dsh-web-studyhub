@@ -743,7 +743,8 @@ const HANDLERS = [
           const needs = index === 0 ? (includeLayer2 ? [baseName] : []) : [unknown[index - 1]];
           ladder.push(buildStep({ term, layer: 1, needs }));
         });
-        return { ladder };
+        const needsDeeper = unknown.some((item) => /底层|深层|deeper|primitive/i.test(item));
+        return needsDeeper ? { ladder, deeper: [english ? "Underlying representation" : "二进制与底层前置"] } : { ladder };
       }
       if (input.mode === "derive") {
         const source = (input.sources || []).find((item) => String(item.text || "").trim().length >= 12);

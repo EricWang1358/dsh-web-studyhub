@@ -58,6 +58,8 @@ import { companionSlideButtonLabel, openCompanionTarget, resolveCompanionTarget 
 import companionsCss from "../companions/companions.css";
 import { useCardPlace } from "./QuestionPlace.jsx";
 import { isPassed } from "./session-logic.js";
+import ChapterHint from "./ChapterHint.jsx";
+import { useChapterHint } from "./use-chapter-hint.js";
 
 export { formatAssistTaskSummary };
 
@@ -109,7 +111,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
     [data?.sources, notify, openModal, reviewAct, run],
   );
   const { onOpenNote, onMakeNote, onMakeTask, onModelSettings, onSaveQaToNote, onOpenBookSection } = links;
-  const fetchedPlace = useCardPlace({ call, run, enabled: placeProp === undefined && Boolean(onOpenBookSection) });
+  const fetchedPlace = useCardPlace({ call, run, enabled: placeProp === undefined && run?.mode !== "exam" });
   const cardPlace = placeProp !== undefined ? placeProp : fetchedPlace;
   const canOpenBookSection = run?.mode !== "exam" && !run?.complete && cardPlace?.leaf?.built === true && typeof onOpenBookSection === "function";
   // `inHeader`: the page's header already carries the way back (the review book's or the 总纲's, ui/Review.jsx), so it is not said a second time under the card.
@@ -143,7 +145,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const voteMoments = voteTipMoments(thumbVote, thumbState.tags, !!run.feedback);
   // The three first-use tips under the question (#948): which one shows, if any, is ui/guidance/practice-tips.js; it says nothing before the learner has acted.
   const practiceTip = usePracticeTip({ run, assistMode, tourRunning: !!tourRunning, modelReady: model.ready, votedDown: voteMoments.votedDown, tooHard: voteMoments.tooHard,
-    answerShown: run.mode !== "exam" && ((showSolution && (run.solution?.followups?.length ?? 0) > 0) || showUnansweredFollowups) });
+    answerShown: run.mode !== "exam" && ((showSolution && (run.solution?.followups?.some((item) => item?.kind !== "terms") ?? false)) || (showUnansweredFollowups && (run.followups?.some((item) => item?.kind !== "terms") ?? false))) });
   const [helpChoices, setHelpChoices] = React.useState([]);
   const [clozeFocusTick, setClozeFocusTick] = React.useState(0);
   const [deriveRelation, setDeriveRelation] = React.useState("prerequisite");
@@ -155,12 +157,14 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const termCourseName = ruleDeck?.course ?? ruleDeck?.folder ?? run?.course ?? "";
   const courseRules = useCourseRules(data, ruleDeck?.course ?? ruleDeck?.folder ?? "");
   const termMarks = useTermMarking({ session, reviewBodyRef, notify, call, courseName: termCourseName, assistTasks });
+  const chapterHint = useChapterHint({ run, cardPlace, allFollowups, currentTerms: termMarks.terms, tipShown: practiceTip.tip, tourRunning: !!tourRunning });
   const applyMarkedTerms = (terms) => {
     if (!terms?.length) return;
     if (!model.ready) {
       setAssistMode("ask");
       return;
     }
+    chapterHint.noteFillTerms();
     assistCard("terms", "", [], { terms });
   };
   React.useEffect(() => { setAssistMode(""); setAssistText(""); setHelpChoices([]); setDeriveRelation("prerequisite"); setClozeFocusTick(0); setTermListOpen(false); }, [run.id, run.index, run.card?.id]);
@@ -531,6 +535,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             onClose={() => setTermListOpen(false)}
           />
         )}
+        {chapterHint.visible && <ChapterHint run={run} sources={data?.sources} decks={data?.decks} openModal={openModal} cardPlace={cardPlace} terms={chapterHint.terms} deeper={chapterHint.deeper} onDismiss={chapterHint.dismiss} onDismissForever={chapterHint.mute} />}
         <SmoothHeight className="assist-area">
           {assistMode && (!model.ready ? (
             <div className="assist-form assist-gate">
