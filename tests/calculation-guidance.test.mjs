@@ -1,10 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { domainTool } from '../lib/runtime/tools.js';
+import { NON_CONTENT_CARD_FIELDS } from '../lib/card-content.js';
 import { readTeachingDraft, saveTeachingDraft } from '../ui/teaching-draft.js';
 
 const quote = 'Distance equals speed multiplied by elapsed time.';
@@ -173,5 +175,182 @@ test('unanswered origins and missing citations cannot start model work, and bad 
   await service.store.update(s => { s.teaching = []; });
   await assert.rejects(service.call('teach.start', { runId: run.id, mode: 'calculation' }), /cited source/i);
   assert.equal(calls, before);
+});
+
+/* ---------- #1240: non-content records during guided teaching ---------- */
+
+const quizSource = {
+  id: 's-quiz',
+  title: '线性代数讲义',
+  text: '正交矩阵的逆等于它的转置，实对称矩阵可以通过谱定理正交对角化。',
+};
+const quizCard = () => ({
+  id: 'q-teach',
+  kind: 'quiz',
+  topic: '谱定理',
+  objective: '理解实对称矩阵的正交对角化条件',
+  prompt: '实对称矩阵为什么总能正交对角化？',
+  answer: '谱定理保证存在标准正交特征基。',
+  hint: '回忆谱定理的结论。',
+  explanation: '正交矩阵的转置等于它的逆，谱定理保证不同特征向量可取标准正交基。',
+  misconception: '以为任意实矩阵都能正交对角化。',
+  citations: [{ sourceId: 's-quiz', quote: quizSource.text }],
+  options: [
+    { id: 'a', text: '谱定理保证存在标准正交特征基', correct: true, explanation: '谱定理直接给出正交对角化。' },
+    { id: 'b', text: '行列式恒为零', correct: false, explanation: '对称矩阵行列式不必为零。' },
+    { id: 'c', text: '矩阵不可逆', correct: false, explanation: '可逆与否不影响正交对角化。' },
+  ],
+});
+const quizTranslation = {
+  prompt: 'Why can every real symmetric matrix be orthogonally diagonalized?',
+  answer: 'The spectral theorem guarantees an orthonormal eigenbasis.',
+  explanation: 'An orthogonal matrix has its transpose as its inverse, and the spectral theorem yields an orthonormal basis.',
+  options: [
+    { id: 'a', text: 'The spectral theorem guarantees an orthonormal eigenbasis', explanation: 'Direct consequence of the spectral theorem.' },
+    { id: 'b', text: 'The determinant is always zero', explanation: 'A symmetric matrix need not be singular.' },
+    { id: 'c', text: 'The matrix is not invertible', explanation: 'Invertibility is not required.' },
+  ],
+};
+
+async function setupQuizTeaching(t, { complete, completeLight } = {}) {
+  const root = await mkdtemp(join(tmpdir(), 'study-teach-meta-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const service = new StudyService(root, {
+    complete: complete || (async () => JSON.stringify(genericPlan)),
+    completeLight: completeLight || (async (_system, _prompt, options) => {
+      if (options?.task === 'card.translate') return JSON.stringify(quizTranslation);
+      return JSON.stringify({ terms: ['谱定理', '正交矩阵'] });
+    }),
+  });
+  await service.call('source.add', quizSource);
+  const saved = await service.call('draft.save', { deck: { id: 'd-teach', title: '谱定理', cards: [quizCard()] } });
+  await service.call('draft.publish.quick', { id: saved.id, draftVersion: saved.draftVersion });
+  const run = await service.call('review.start', { mode: 'path', scope: [{ deckId: 'd-teach', cardId: 'q-teach' }] });
+  await service.call('review.answer', { runId: run.id, cardId: 'q-teach', selected: ['b'] });
+  return { service, run };
+}
+
+test('#1240: card.terms, card.followup.add and card.translate after teach.start do not break teach.answer', async t => {
+  for (const kind of ['terms', 'followup', 'translate']) {
+    const { service, run } = await setupQuizTeaching(t);
+    const session = await service.call('teach.start', { runId: run.id });
+    if (kind === 'terms') {
+      await service.call('card.terms', { deckId: 'd-teach', cardId: 'q-teach' });
+    } else if (kind === 'followup') {
+      await service.call('card.followup.add', { deckId: 'd-teach', cardId: 'q-teach', question: '什么是标准正交基？', answer: '两两正交且模长为 1 的基向量。' });
+    } else {
+      await service.call('card.translate', { deckId: 'd-teach', cardId: 'q-teach' });
+    }
+    const refreshed = await service.call('review.get', { runId: run.id });
+    if (kind === 'terms') assert.deepEqual(refreshed.solution.terms, ['谱定理', '正交矩阵']);
+    if (kind === 'followup') assert.equal(refreshed.followups.length, 1);
+    if (kind === 'translate') assert.equal(refreshed.card.translation.prompt, quizTranslation.prompt);
+
+    service.complete = async () => JSON.stringify({ passed: true, feedback: '答对了，继续下一步。' });
+    const next = await service.call('teach.answer', { id: session.id, stepIndex: 0, answer: '谱定理保证正交基' });
+    assert.equal(next.index, 1, `teach.answer succeeds after ${kind}`);
+  }
+});
+
+test('#1240: card.terms landing mid-flight during teach.start does not abort or call the main model twice', async t => {
+  let completeCalls = 0;
+  const started = Promise.withResolvers();
+  const gate = Promise.withResolvers();
+  const { service, run } = await setupQuizTeaching(t, {
+    complete: async () => {
+      completeCalls++;
+      started.resolve();
+      await gate.promise;
+      return JSON.stringify(genericPlan);
+    },
+  });
+  const pending = service.call('teach.start', { runId: run.id });
+  await started.promise;
+  await service.call('card.terms', { deckId: 'd-teach', cardId: 'q-teach' });
+  await service.call('review.get', { runId: run.id });
+  // Also simulate an entry.card copy already carrying the non-content terms record before commit.
+  await service.store.update(s => {
+    const live = s.decks[0].cards[0];
+    s.runs[0].entries[0].card.terms = structuredClone(live.terms);
+  });
+  gate.resolve();
+  const session = await pending;
+  assert.equal(session.index, 0);
+  assert.equal(completeCalls, 1, 'main model called exactly once');
+  service.complete = async () => JSON.stringify({ passed: true, feedback: '很好' });
+  const advanced = await service.call('teach.answer', { id: session.id, stepIndex: 0, answer: '理解了' });
+  assert.equal(advanced.index, 1);
+});
+
+test('#1240: card.update changing the answer after teach.start still throws original-question-changed', async t => {
+  const { service, run } = await setupQuizTeaching(t);
+  const session = await service.call('teach.start', { runId: run.id });
+  await service.call('card.update', {
+    deckId: 'd-teach',
+    cardId: 'q-teach',
+    patch: { answer: '因为实对称矩阵满足谱定理，存在正交矩阵将其对角化。' },
+    reason: 'refine answer',
+  });
+  await service.call('review.get', { runId: run.id });
+  service.complete = async () => JSON.stringify({ passed: true, feedback: 'ok' });
+  await assert.rejects(
+    service.call('teach.answer', { id: session.id, stepIndex: 0, answer: '我的回答' }),
+    /Original question changed; reload guided teaching/,
+  );
+});
+
+test('#1240: pre-upgrade sessions with legacy origin_snapshot continue when question is unchanged', async t => {
+  const { service, run } = await setupQuizTeaching(t);
+  const session = await service.call('teach.start', { runId: run.id });
+  await service.store.update(s => {
+    const legacyDigest = createHash('sha256').update(JSON.stringify(s.runs[0].entries[0].card)).digest('hex');
+    s.teaching[0].origin_snapshot = legacyDigest;
+  });
+  // Cached reopen accepts the legacy digest without invoking the model.
+  service.complete = async () => { throw new Error('Cache must reuse legacy session'); };
+  const reopened = await service.call('teach.start', { runId: run.id });
+  assert.equal(reopened.id, session.id);
+
+  // Answering the step also succeeds with the legacy digest.
+  service.complete = async () => JSON.stringify({ passed: true, feedback: '继续' });
+  const advanced = await service.call('teach.answer', { id: session.id, stepIndex: 0, answer: '正交基' });
+  assert.equal(advanced.index, 1);
+
+  // A real question edit still invalidates a legacy-snapshot session.
+  await service.call('card.update', {
+    deckId: 'd-teach',
+    cardId: 'q-teach',
+    patch: { answer: '修改后的参考答案' },
+    reason: 'change answer',
+  });
+  await assert.rejects(
+    service.call('teach.answer', { id: session.id, stepIndex: 1, answer: '继续' }),
+    /Original question changed; reload guided teaching/,
+  );
+});
+
+test('#1240: teach.start sends stripped question content without terms, translation, followups or other non-content fields', async t => {
+  let capturedPrompt = null;
+  const { service } = await setupQuizTeaching(t, {
+    complete: async (_system, prompt) => {
+      capturedPrompt = JSON.parse(prompt);
+      return JSON.stringify(genericPlan);
+    },
+  });
+  await service.call('card.terms', { deckId: 'd-teach', cardId: 'q-teach' });
+  await service.call('card.translate', { deckId: 'd-teach', cardId: 'q-teach' });
+  await service.call('card.followup.add', { deckId: 'd-teach', cardId: 'q-teach', question: '为什么要正交？', answer: '因为特征向量彼此垂直。' });
+  await service.call('card.focus', { deckId: 'd-teach', cardId: 'q-teach', focus: true });
+  await service.call('card.flag', { deckId: 'd-teach', cardId: 'q-teach', reason: '重点复习' });
+  // Start a fresh run so entry.card itself is cloned with all non-content fields attached.
+  const freshRun = await service.call('review.start', { mode: 'path', scope: [{ deckId: 'd-teach', cardId: 'q-teach' }], fresh: true });
+  await service.call('review.answer', { runId: freshRun.id, cardId: 'q-teach', selected: ['b'] });
+  await service.call('teach.start', { runId: freshRun.id });
+  assert.ok(capturedPrompt?.question, 'model received question payload');
+  assert.equal(capturedPrompt.question.prompt, quizCard().prompt);
+  assert.equal(capturedPrompt.question.answer, quizCard().answer);
+  for (const field of NON_CONTENT_CARD_FIELDS) {
+    assert.equal(field in capturedPrompt.question, false, `prompt question must omit non-content field "${field}"`);
+  }
 });
 
