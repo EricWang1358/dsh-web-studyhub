@@ -111,13 +111,14 @@ export const scrollWindowCount = (total, shown, filtering) => filtering
  *   match(item) → searchable text, filterable, filterLabel, filterPlaceholder,
  *   query + onQueryChange (controlled) or defaultQuery, showCount (default = filterable),
  *   activeKey, maxHeight (px, default 380), as ('ul' | 'div'), listClassName,
- *   itemClassName, empty (node when the filter matches nothing), toolbar (node beside the filter),
+ *   itemClassName, empty (node when the filter matches nothing), toolbar (node beside the filter), below (node under the filter's line, above the list:
+ *   what a toolbar button opens, or what it says while shut),
  *   focusable (default true; false when another control drives it, e.g. a combobox),
  *   listProps (extra props for the list, e.g. role="listbox"), itemProps(item) (extra props per item).
  */
 export default function ScrollWindow({ label, items = [], itemKey = (item, index) => index, renderItem = item => textOf(item), match = textOf,
   filterable = false, filterLabel, filterPlaceholder, query, onQueryChange, defaultQuery = '', showCount, activeKey, maxHeight = 380, renderLimit = SCROLL_WINDOW_CHUNK,
-  as = 'ul', frameClassName, listClassName, itemClassName, empty, toolbar, focusable = true, listProps, itemProps, className, style, ...rest }) {
+  as = 'ul', frameClassName, listClassName, itemClassName, empty, toolbar, below, focusable = true, listProps, itemProps, className, style, ...rest }) {
   useComponentCss(css, 'study-scroll-window');
   const [ownQuery, setOwnQuery] = useState(defaultQuery);
   const value = query ?? ownQuery;
@@ -172,6 +173,7 @@ export default function ScrollWindow({ label, items = [], itemKey = (item, index
         {toolbar}
         {counted && <small className="sh-scroll__count" aria-live="polite">{scrollWindowCount(items.length, shown.length, filtering)}</small>}
       </div>}
+      {below}
       <div className={cx('sh-scroll__frame', frameClassName)} data-fade-top={edges.top || undefined} data-fade-bottom={edges.bottom || undefined}>
         <div ref={viewport} id={id} className="sh-scroll__viewport" role="region" aria-label={label} tabIndex={focusable ? 0 : undefined}
           onScroll={event => { measure(); if (more && nearEnd(event.currentTarget)) grow(); }}

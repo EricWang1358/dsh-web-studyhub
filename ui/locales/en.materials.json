@@ -193,5 +193,8 @@
   "原：{0}": "Was: {0}",
   "确认应用分类": "Apply categories",
   "放弃建议": "Discard suggestions",
-  "当前类型与分类组合下没有匹配的资料，可调整筛选条件。": "No materials match the selected type and category filters. Adjust the filters to see more."
+  "当前类型与分类组合下没有匹配的资料，可调整筛选条件。": "No materials match the selected type and category filters. Adjust the filters to see more.",
+  "按类型或内容分类筛选资料；AI 智能分类也在这里。": "Filter the materials by type or category; AI classify is here too.",
+  "类型与分类": "Type and category",
+  "只显示：{0}": "Showing only: {0}"
 }
