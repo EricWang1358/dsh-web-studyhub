@@ -313,8 +313,11 @@ test('built review book links from wrong feedback and Q&A jump to the section an
         await page.locator('[data-book-heading]', { hasText: 'Layered boundaries' }).waitFor({ timeout: 15000 });
         const landedTop = await page.locator('[data-book-heading]', { hasText: 'Layered boundaries' }).evaluate((el) => el.getBoundingClientRect().top);
         assert.ok(landedTop >= 0 && landedTop < 600, `expected targeted section heading in view, got top=${landedTop}`);
+        assert.equal(await page.locator('.context-return').count(), 0, 'book page from review hides duplicate .context-return banner');
         const backBtn = page.locator('.book-header .sh-page-header__back');
-        assert.match(await backBtn.innerText(), /回到这道题/);
+        assert.match(await backBtn.innerText(), /回到之前的第 1 题/);
+        assert.doesNotMatch(await backBtn.innerText(), /回到这道题/);
+        assert.equal(await page.getByRole('button', { name: /回到之前的第 1 题|回到这道题/ }).count(), 1, 'only one return-to-question control is rendered');
         await settleAnimations(page);
         if (SHOTS) await page.screenshot({ path: join(SHOTS, 'zh-1280-book-section.png') });
 
@@ -332,6 +335,15 @@ test('built review book links from wrong feedback and Q&A jump to the section an
         await page.waitForTimeout(300);
         assert.equal(await page.locator('[data-book-section-link]').count(), 0, 'unbuilt outline leaf hides 「读全书这一节」');
         assert.equal(counts.get('q-unbuilt'), 1, 'card.place is requested once for the second question');
+
+        // Entering the book from the library (not from a question) keeps the normal 回到总纲 back button and no .context-return banner.
+        await (await revealNavRow(page, 'library')).click();
+        await page.locator('[data-usage="home.start"]').first().waitFor({ state: 'visible', timeout: 30000 });
+        await (await revealNavRow(page, 'book')).click();
+        await page.locator('.book-header').waitFor({ timeout: 30000 });
+        assert.equal(await page.locator('.context-return').count(), 0, 'normal book entry from library has no .context-return banner');
+        assert.match(await page.locator('.book-header .sh-page-header__back').innerText(), /回到总纲/);
+
         assert.deepEqual(errors, [], `unexpected browser errors (zh 1280): ${errors.join('\n')}`);
       } finally {
         await context.close();
@@ -361,7 +373,9 @@ test('built review book links from wrong feedback and Q&A jump to the section an
         await qaLink.click();
         await page.locator('.book-header').waitFor({ timeout: 30000 });
         await page.locator('[data-book-heading]', { hasText: 'Layered boundaries' }).waitFor({ timeout: 15000 });
-        assert.match(await page.locator('.book-header .sh-page-header__back').innerText(), /回到这道题/);
+        assert.equal(await page.locator('.context-return').count(), 0, '420px book page from review hides duplicate .context-return banner');
+        assert.match(await page.locator('.book-header .sh-page-header__back').innerText(), /回到之前的第 1 题/);
+        assert.equal(await page.getByRole('button', { name: /回到之前的第 1 题|回到这道题/ }).count(), 1, '420px book page renders only one return-to-question control');
         await settleAnimations(page);
         const overflow420Book = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
         assert.equal(overflow420Book, false, 'no horizontal overflow on 420px book view');
@@ -390,8 +404,11 @@ test('built review book links from wrong feedback and Q&A jump to the section an
         await enFeedbackLink.click();
         await page.locator('.book-header').waitFor({ timeout: 30000 });
         await page.locator('[data-book-heading]', { hasText: 'Layered boundaries' }).waitFor({ timeout: 15000 });
+        assert.equal(await page.locator('.context-return').count(), 0, 'en book page from review hides duplicate .context-return banner');
         const enBackBtn = page.locator('.book-header .sh-page-header__back');
-        assert.match(await enBackBtn.innerText(), /Back to this question/);
+        assert.match(await enBackBtn.innerText(), /Return to previous question \(1\)/);
+        assert.doesNotMatch(await enBackBtn.innerText(), /Back to this question/);
+        assert.equal(await page.getByRole('button', { name: /Return to previous question|Back to this question/ }).count(), 1, 'en book page renders only one return-to-question control');
         await settleAnimations(page);
         if (SHOTS) await page.screenshot({ path: join(SHOTS, 'en-1280-book-section.png') });
 
@@ -435,6 +452,8 @@ test('built review book links from wrong feedback and Q&A jump to the section an
 
         await feedbackLink.click();
         await page.locator('.book-header').waitFor({ timeout: 30000 });
+        assert.equal(await page.locator('.context-return').count(), 0, 'cross-course book page from review hides duplicate .context-return banner');
+        assert.match(await page.locator('.book-header .sh-page-header__back').innerText(), /回到之前的第 1 题/);
         assert.match(await page.locator('.book-header h1').innerText(), new RegExp(`复习全书\\s*·\\s*${COURSE}`));
         await page.locator('[data-book-heading]', { hasText: 'Layered boundaries' }).waitFor({ timeout: 15000 });
         assert.equal((await previewCall(running.server, 'snapshot', {})).focus.course, COURSE, 'book link switched focus course to card course');
