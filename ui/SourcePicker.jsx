@@ -130,6 +130,15 @@ export const documentSearchText = (item, materialFolders = null) =>
 /* The filter appears once the list is longer than a screenful of rows. */
 const FILTER_AFTER = 6;
 
+/** The name of a facet's chosen option, without its count (「PDF (3)」 → 「PDF」), for the line that says a filter is in use. */
+function facetName(options, value) {
+  for (const option of options) {
+    const name = option.options ? facetName(option.options, value) : option.value === value ? String(option.label).replace(/\s*\(\d+\)$/, '') : '';
+    if (name) return name;
+  }
+  return '';
+}
+
 const pageLabel = (item, page) => isPagedFormat(item.format)
   ? uiFormat('第 {0} 页', [page.page]) + (page.legacy ? ` · ${ui('旧版提取')}` : '')
   : item.format === 'audio' ? uiFormat('第 {0} 部分', [page.page]) : displayTitle(page.title);
@@ -327,7 +336,9 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
  * beside 添加资料 under the list when there is one (a line that is there anyway, so a late answer moves nothing), else above the list; none without it. The row badges only show the
  * state, #1084), indexPending (the coverage answer is still coming: every row holds the badge's slot until it is in). Extra props land on the root.
  * The list scrolls in a bounded window with a filter (WP14), so a course with
- * hundreds of materials never pushes the page down.
+ * hundreds of materials never pushes the page down. With a course scope (onScopeChange) and that filter, the list's filter line also holds one button that
+ * opens the type and category filters with AI 智能分类 (#1177) under it: shut by default, off the main path (#1182); while shut, a filter in use is said
+ * on that line's next line with 「清除筛选」, so no row goes missing unexplained.
  */
 export default function SourcePicker({ sources = [], selected = [], onChange, courses = [], scope = '*', onScopeChange, disabled = false,
   onAdd, defaultQuery = '', defaultOpenKey = '', maxHeight = 420, className, indexCoverage = null, indexPending = false, onIndex,
@@ -337,6 +348,8 @@ export default function SourcePicker({ sources = [], selected = [], onChange, co
   const [query, setQuery] = useState(defaultQuery);
   const [typeScope, setTypeScope] = useState(ALL_FACET);
   const [categoryScope, setCategoryScope] = useState(ALL_FACET);
+  const [facetsOpen, setFacetsOpen] = useState(false);
+  const facetsId = useId();
   const root = useRef(null);
   const items = useMemo(() => groupSourcesByDocument(sources).filter(item => !item.archived), [sources]);
   const sourceFlags = useMemo(() => buildSourceFlags(sources), [sources]);
@@ -348,7 +361,8 @@ export default function SourcePicker({ sources = [], selected = [], onChange, co
   const effectiveScope = onScopeChange ? scope : '*';
   const known = useMemo(() => courses.map(course => typeof course === 'string' ? course : course?.name).filter(Boolean), [courses]);
   const scoped = useMemo(() => items.filter(scopeFilter(effectiveScope, known)), [items, effectiveScope, known]);
-  const showCategoryBar = Boolean(onScopeChange) && scoped.length > 1;
+  // The type and category filters come with the name filter, once the scope is longer than a screenful (#1182: a few rows need no filter).
+  const showCategoryBar = Boolean(onScopeChange) && scoped.length > FILTER_AFTER;
   const typeOptions = useMemo(
     () => (showCategoryBar ? buildMaterialTypeOptions(scoped, sourceFlags) : []),
     [showCategoryBar, scoped, sourceFlags],
@@ -411,6 +425,27 @@ export default function SourcePicker({ sources = [], selected = [], onChange, co
   }), [visible, scope, relations]);
   useFactsFit(root, nameRows, scope === '*');
   const indexColumn = !!onIndex || indexPending || !!indexCoverage;
+  const facetsOn = activeTypeScope !== ALL_FACET || activeCategoryScope !== ALL_FACET;
+  const facetsSaid = [[typeOptions, activeTypeScope], [categoryOptions, activeCategoryScope]].filter(([, value]) => value !== ALL_FACET)
+    .map(([options, value]) => facetName(options, value)).filter(Boolean);
+  // On the filter's line, beside 「筛选资料…」: a button of the line's height, so the filters cost the first screen nothing while shut (#1182).
+  const facetsToggle = showCategoryBar ? <Tooltip layer anchorClassName="source-picker__facets-tip" content={ui('按类型或内容分类筛选资料；AI 智能分类也在这里。')}>
+    <Button size="sm" variant="quiet" icon="filter" className={`sh-btn--icon source-picker__facets-toggle${facetsOn ? ' is-on' : ''}`} aria-label={ui('类型与分类')}
+      aria-expanded={facetsOpen} aria-controls={facetsId} data-material-filters-toggle data-tour="source-filters" onClick={() => setFacetsOpen(open => !open)} />
+  </Tooltip> : null;
+  const facetsBelow = showCategoryBar ? <>
+    <MaterialCategoryBar id={facetsId} open={facetsOpen} className="source-picker__filters" items={scoped} targetItems={visible}
+      course={effectiveScope === '*' || effectiveScope === '' ? '' : effectiveScope}
+      materialFolders={resolvedMaterialFolders} sourceFlags={sourceFlags}
+      typeOptions={typeOptions} categoryOptions={categoryOptions}
+      typeScope={activeTypeScope} onTypeScopeChange={setTypeScope}
+      categoryScope={activeCategoryScope} onCategoryScopeChange={setCategoryScope}
+      disabled={disabled} modelReady={modelReady} />
+    {!facetsOpen && facetsOn && <p className="source-picker__facets-on" data-material-filters-on>
+      <span className="source-picker__facets-said">{uiFormat('只显示：{0}', [facetsSaid.join(' · ')])}</span>
+      <Button variant="link" size="sm" onClick={() => { setTypeScope(ALL_FACET); setCategoryScope(ALL_FACET); }}>{ui('清除筛选')}</Button>
+    </p>}
+  </> : null;
   if (!items.length) return (
     <div ref={root} className={`source-picker${className ? ` ${className}` : ''}`} {...rest}>
       <EmptyState size="sm" icon="file" title={ui('还没有资料')} description={ui('先添加讲义或笔记，再用它们出题。')}
@@ -420,13 +455,6 @@ export default function SourcePicker({ sources = [], selected = [], onChange, co
   return (
     <div ref={root} className={`source-picker${indexColumn ? ' source-picker--index' : ''}${className ? ` ${className}` : ''}`} {...rest}>
       {onScopeChange && <PageScope courses={courses} value={scope} onChange={onScopeChange} disabled={disabled} />}
-      {showCategoryBar && <MaterialCategoryBar className="source-picker__filters" items={scoped} targetItems={visible}
-        course={effectiveScope === '*' || effectiveScope === '' ? '' : effectiveScope}
-        materialFolders={resolvedMaterialFolders} sourceFlags={sourceFlags}
-        typeOptions={typeOptions} categoryOptions={categoryOptions}
-        typeScope={activeTypeScope} onTypeScopeChange={setTypeScope}
-        categoryScope={activeCategoryScope} onCategoryScopeChange={setCategoryScope}
-        disabled={disabled} modelReady={modelReady} />}
       <div className="source-picker__bar">
         <p className="source-picker__count" role="status">{uiFormat('已选择 {0} / {1} 份资料', [chosenDocuments, items.length])}</p>
         <div className="source-picker__actions">
@@ -437,14 +465,15 @@ export default function SourcePicker({ sources = [], selected = [], onChange, co
       </div>
       {outside && <p className="source-picker__note">{ui('已选资料包含其他范围，生成时仍会保留。')}</p>}
       {gap && !onAdd && <IndexGapLine count={gap.count} canIndex={canIndex} onGo={() => goIndex(gap.course)} />}
-      {visible.length ? <ScrollWindow className="source-picker__window" label={ui('资料列表')} items={visible} itemKey={item => item.key}
+      {/* A filter that leaves no row keeps the list's window (its filter line, the button and 「清除筛选」), with the empty line inside it. */}
+      {scoped.length ? <ScrollWindow className={`source-picker__window${showCategoryBar ? ' source-picker__window--facets' : ''}`} label={ui('资料列表')} items={visible} itemKey={item => item.key} toolbar={facetsToggle} below={facetsBelow}
         match={searchMatch} query={query} onQueryChange={setQuery}
         filterable={scoped.length > FILTER_AFTER || activeTypeScope !== ALL_FACET || activeCategoryScope !== ALL_FACET || filtering}
         filterPlaceholder={ui('筛选资料…')} maxHeight={maxHeight} renderLimit={SOURCE_PICKER_FIRST_ROWS} listClassName="source-picker__list" itemClassName="source-picker__entry"
-        empty={uiFormat('没有匹配“{0}”的资料', [query.trim()])}
+        empty={visible.length ? uiFormat('没有匹配“{0}”的资料', [query.trim()]) : ui('当前类型与分类组合下没有匹配的资料，可调整筛选条件。')}
         renderItem={item => <DocumentRow item={item} selected={selected} apply={apply} disabled={disabled} defaultOpen={item.key === defaultOpenKey}
           indexInfo={infos.get(item.key) ?? null} indexPending={indexPending && !indexCoverage} canIndex={canIndex} relation={relations.get(item.key) ?? null} scope={scope} indexColumn={indexColumn} />} />
-        : <p className="source-picker__note">{scoped.length ? ui('当前类型与分类组合下没有匹配的资料，可调整筛选条件。') : ui('这个范围还没有资料。可切换到全部课程查看。')}</p>}
+        : <p className="source-picker__note">{ui('这个范围还没有资料。可切换到全部课程查看。')}</p>}
       {/* Under the list: 添加资料, and the index line beside it on the same line (one line whatever the answer: it ends in 「…」 where it is short of room). */}
       {onAdd && <div className="source-picker__foot">
         <AddSourceButton variant="quiet" size="sm" className="source-picker__add sh-btn--flush-start" disabled={disabled} onClick={onAdd} />

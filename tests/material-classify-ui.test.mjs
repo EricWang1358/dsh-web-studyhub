@@ -343,7 +343,7 @@ test('runBatchedFolderSuggest uses single auto call for <= 60 items and 2-stage 
 
 /* ---------- 4. SSR, Guardrails & English Zero-Han Across Generate, CaseCreate, SourcePicker & Sources ---------- */
 
-test('SSR mounts MaterialCategoryBar in Generate, CaseCreate, and Sources, skips single-doc pickers, and has zero Han in English', () => {
+test('SSR mounts MaterialCategoryBar in Generate, CaseCreate, and Sources, skips short pickers, and has zero Han in English', () => {
   const sources = [
     {
       id: 's1',
@@ -363,6 +363,15 @@ test('SSR mounts MaterialCategoryBar in Generate, CaseCreate, and Sources, skips
       courses: ['Networks'],
       document: { materialId: 'doc-s2', format: 'pptx', filename: 'lec2.pptx' },
     },
+    // A course long enough for the list's filter line (more than 6 materials): the type and category filters come with it (#1182).
+    ...Array.from({ length: 6 }, (_, at) => ({
+      id: `n${at + 3}`,
+      title: `Routing note ${at + 3}.md`,
+      text: 'Routing tables and hops.',
+      chars: 300,
+      createdAt: '2026-10-03T08:00:00.000Z',
+      courses: ['Networks'],
+    })),
   ];
   const data = {
     root: 'lib-classify',
@@ -381,8 +390,13 @@ test('SSR mounts MaterialCategoryBar in Generate, CaseCreate, and Sources, skips
   // Compact picker without onScopeChange does NOT render MaterialCategoryBar
   const compactHtml = renderToStaticMarkup(h(SourcePicker, { sources, selected: [], onChange: noop }));
   assert.doesNotMatch(compactHtml, /data-material-category-bar/);
+  // Nor does a course scope of a few materials (no filter line, nothing to narrow, #1182)
+  const shortHtml = renderToStaticMarkup(withStudy(StudyServicesContext,
+    h(SourcePicker, { sources: sources.slice(0, 2), selected: [], onChange: noop, courses: data.focus.courses, scope: 'Networks', onScopeChange: noop }),
+    { act: noop, call: noop, busy: false }));
+  assert.doesNotMatch(shortHtml, /data-material-category-bar|data-material-filters-toggle/);
 
-  // Generate 01 / 选择资料 renders MaterialCategoryBar above .source-picker__bar
+  // Generate 01 / 选择资料 renders MaterialCategoryBar under the list's filter line, behind its button, shut (#1182)
   const genZh = renderToStaticMarkup(
     withStudy(
       StudyServicesContext,
@@ -405,11 +419,16 @@ test('SSR mounts MaterialCategoryBar in Generate, CaseCreate, and Sources, skips
   );
   assert.match(genZh, /data-material-category-bar/);
   assert.match(genZh, /Transport Layer \(1\)/);
-  assert.match(genZh, /未归类 \(1\)/);
+  assert.match(genZh, /未归类 \(7\)/);
   assert.match(genZh, /AI 智能分类/);
   const filtersPos = genZh.indexOf('source-picker__filters');
   const barPos = genZh.indexOf('source-picker__bar');
-  assert.ok(filtersPos > 0 && filtersPos < barPos, 'MaterialCategoryBar sits above .source-picker__bar');
+  const togglePos = genZh.indexOf('data-material-filters-toggle');
+  const linePos = genZh.indexOf('sh-scroll__filter');
+  assert.ok(barPos > 0 && linePos > barPos && togglePos > linePos && filtersPos > togglePos,
+    'the filters button is on the filter line of the list, after .source-picker__bar, and the filters follow it');
+  assert.match(genZh, /<button[^>]*aria-expanded="false"[^>]*data-material-filters-toggle/, 'the filters start shut');
+  assert.match(genZh, /<div[^>]*class="material-category-bar source-picker__filters"[^>]*hidden=""/, 'shut, the filters draw nothing');
 
   // CaseCreate 01 / 课程与资料 also renders MaterialCategoryBar
   const caseZh = renderToStaticMarkup(
@@ -457,7 +476,7 @@ test('SSR mounts MaterialCategoryBar in Generate, CaseCreate, and Sources, skips
     assert.match(genEn, /AI classify/);
     assert.match(genEn, /All types/);
     assert.match(genEn, /All categories/);
-    assert.match(genEn, /Unfiled \(1\)/);
+    assert.match(genEn, /Unfiled \(7\)/);
     assert.doesNotMatch(genEn.replace(/<[^>]+>/g, ' '), han, 'English Generate picker has zero Han characters');
 
     const sourcesEn = renderToStaticMarkup(
@@ -516,6 +535,14 @@ test('Browser E2E: narrowing 01 / 选择资料 by type & category selects only m
         courses: ['Java 八股'],
         document: { materialId: 'doc-qb1', format: 'json', filename: 'qb.json' },
       },
+      // Four more notes, so the course is long enough for the list's filter line and the type and category filters with it (more than 6, #1182).
+      ...['集合', '线程池', 'JVM', 'Spring'].map((topic, at) => ({
+        id: `java${at + 1}`,
+        title: `Java ${topic} 笔记`,
+        text: `${topic} 要点。`.repeat(10),
+        createdAt: `2026-10-0${at + 5}T08:00:00.000Z`,
+        courses: ['Java 八股'],
+      })),
       {
         id: 'py1',
         title: 'Python 装饰器笔记',
@@ -639,12 +666,17 @@ test('Browser E2E: narrowing 01 / 选择资料 by type & category selects only m
   await page.goto(server.url);
   await page.locator('aside, nav').first().waitFor();
   await (await revealNavRow(page, 'generate')).click();
-  await page.locator('[data-tour="generate-sources"] [data-material-category-bar]').waitFor();
+  // The filters are behind one button on the list's filter line, shut by default (#1182): open them first.
+  const filtersToggle = page.locator('[data-tour="generate-sources"] [data-material-filters-toggle]');
+  await filtersToggle.waitFor();
+  assert.equal(await filtersToggle.getAttribute('aria-expanded'), 'false');
+  await filtersToggle.click();
+  await page.locator('[data-tour="generate-sources"] .material-category-bar__controls').waitFor();
 
   // Clear initial auto-selection, filter by 内容分类 -> 计算机网络 (2), and click 选择当前范围
   const clearBtn = page.locator('[data-tour="generate-sources"] .source-picker__actions button', { hasText: '清空选择' });
   if (await clearBtn.count()) await clearBtn.click();
-  assert.match(await page.locator('[data-tour="generate-sources"] .source-picker__count').innerText(), /已选择 0 \/ 4 份资料/);
+  assert.match(await page.locator('[data-tour="generate-sources"] .source-picker__count').innerText(), /已选择 0 \/ 8 份资料/);
 
   const categoryTrigger = page.locator('[data-tour="generate-sources"] .material-category-bar__field').nth(1).locator('button[role="combobox"]');
   await categoryTrigger.click();
@@ -652,7 +684,7 @@ test('Browser E2E: narrowing 01 / 选择资料 by type & category selects only m
   await page.waitForFunction(() => document.querySelector('[data-tour="generate-sources"]')?.innerText.includes('共 2 项'));
 
   await page.locator('[data-tour="generate-sources"] .source-picker__actions button', { hasText: '选择当前范围' }).click();
-  assert.match(await page.locator('[data-tour="generate-sources"] .source-picker__count').innerText(), /已选择 2 \/ 4 份资料/);
+  assert.match(await page.locator('[data-tour="generate-sources"] .source-picker__count').innerText(), /已选择 2 \/ 8 份资料/);
   assert.equal(await page.locator('[data-tour="generate-sources"] .source-picker__actions button').count(), 2, 'keeps exact 2 buttons in .source-picker__actions');
 
   // Switching course scope to Python基础 resets unavailable category back to 全部分类
@@ -663,6 +695,7 @@ test('Browser E2E: narrowing 01 / 选择资料 by type & category selects only m
   // Switch back to Java 八股, run AI 智能分类, rename a category in review panel, and click 确认应用分类
   await page.locator('[data-tour="generate-sources"] .page-scope__select').click();
   await page.locator('[role="option"]', { hasText: 'Java 八股' }).click();
+  if ((await filtersToggle.getAttribute('aria-expanded')) !== 'true') await filtersToggle.click();
   await page.locator('[data-tour="generate-sources"] [data-ai-classify]').click();
   await page.locator('[data-tour="generate-sources"] [data-classify-phase="review"]').waitFor();
   assert.match(

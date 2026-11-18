@@ -88,6 +88,24 @@ function scrollRoom(element, delta) {
   if (typeof window !== "undefined" && typeof window.scrollTo === "function") window.scrollTo({ top: window.scrollY + delta, behavior });
 }
 
+/* A target that sticks (创建题组's bar sticks to the bottom of the view while its place in the page is further down, #1183) moves only once the page has
+   scrolled its place into the view: a scroll that brings it above the docked card is measured from that place, not from where it is drawn while stuck.
+   The place is read by laying the sticky box out as static for one synchronous read (it keeps its room in the flow either way, so nothing else moves). */
+function stuckShift(element) {
+  if (typeof getComputedStyle !== "function") return 0;
+  for (let node = element; node && node !== document.body && node !== document.documentElement; node = node.parentElement) {
+    if (getComputedStyle(node).position !== "sticky") continue;
+    const drawn = element.getBoundingClientRect().top;
+    const value = node.style.getPropertyValue("position"), priority = node.style.getPropertyPriority("position");
+    node.style.setProperty("position", "static", "important");
+    const placed = element.getBoundingClientRect().top;
+    if (value) node.style.setProperty("position", value, priority);
+    else node.style.removeProperty("position");
+    return placed - drawn;
+  }
+  return 0;
+}
+
 const sameBox = (a, b) => !a === !b && (!a || ["left", "top", "width", "height"].every((key) => Math.abs(a[key] - b[key]) < 0.5));
 
 /**
@@ -144,7 +162,7 @@ export default function Tour({ steps, stepId, rootRef, model, sampleLoaded, busy
           if (top < DOCK_CEILING || bottom > floor) {
             setDockRoom(rootRef.current, popH);
             const desiredTop = Math.max(DOCK_CEILING, Math.min(96, floor - own.height));
-            scrollRoom(found, top - desiredTop);
+            scrollRoom(found, top + stuckShift(found) / scale - desiredTop);
           }
           dockSizesRef.current = `${step?.id}:${Math.round(own.height)}:${Math.round(popH)}`;
         } else {
@@ -185,7 +203,7 @@ export default function Tour({ steps, stepId, rootRef, model, sampleLoaded, busy
       if (dockSizesRef.current && dockSizesRef.current.startsWith(`${step?.id}:`) && dockSizesRef.current !== sizeKey) {
         dockSizesRef.current = sizeKey;
         const top = box.top, bottom = box.top + box.height, floor = place.top - DOCK_MARGIN;
-        if (bottom > floor && top > DOCK_CEILING) scrollRoom(element, Math.min(bottom - floor, top - DOCK_CEILING));
+        if (bottom > floor && top > DOCK_CEILING) scrollRoom(element, stuckShift(element) / scale + Math.min(bottom - floor, top - DOCK_CEILING));
       } else if (!dockSizesRef.current) {
         dockSizesRef.current = sizeKey;
       }

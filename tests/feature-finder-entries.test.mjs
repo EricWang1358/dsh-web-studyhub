@@ -134,6 +134,9 @@ test("the words a learner types for the old names and the English words are alia
   for (const word of ["token", "预算", "上限"]) assert.ok(aliases("budget").includes(word), `budget: ${word}`);
   assert.ok(aliases("tour").includes("导览") && aliases("tour").includes("tour"));
   assert.ok(aliases("finder").includes("ctrl k"));
+  // #1182: the type and category filters of 创建题组 moved behind a button on the list's filter line; the finder lights that button and knows their names.
+  for (const word of ["类型", "内容分类", "ai 智能分类", "category", "ai classify"]) assert.ok(aliases("material-facets").includes(word), `material-facets: ${word}`);
+  assert.equal(byId.get("material-facets").anchors[0], "source-filters");
 });
 
 test("the tags say what an entry needs, never hide it", () => {

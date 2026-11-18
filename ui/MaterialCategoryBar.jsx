@@ -26,7 +26,9 @@ import css from './source-picker.css';
 
 /* Shared compact selector bar + batched AI topic classification panel for both
    SourcePicker (`01 / 选择资料` & `CaseCreate`) and Sources (`资料` library page).
-   Reads `call` / `act` / `busy` from `useStudy()` directly (no service prop handoff). */
+   Reads `call` / `act` / `busy` from `useStudy()` directly (no service prop handoff).
+   `open` (default true): SourcePicker keeps the selects behind a button on the list's filter line (#1182); shut, the bar draws nothing, except a classify
+   that is running or waiting for review, which stays in view (and keeps its state: the bar stays mounted). */
 
 export default function MaterialCategoryBar({
   items = [],
@@ -43,6 +45,8 @@ export default function MaterialCategoryBar({
   disabled = false,
   modelReady: modelReadyProp,
   className = '',
+  open = true,
+  id,
 }) {
   useInjectCss(css, 'study-source-picker');
   const typeId = useId();
@@ -90,8 +94,8 @@ export default function MaterialCategoryBar({
   );
 
   return (
-    <div className={`material-category-bar${className ? ` ${className}` : ''}`} data-material-category-bar>
-      <div className="material-category-bar__controls">
+    <div id={id} className={`material-category-bar${className ? ` ${className}` : ''}`} data-material-category-bar hidden={!open && classify.phase === 'idle'}>
+      <div className="material-category-bar__controls" hidden={!open}>
         <div className="material-category-bar__field">
           <label className="material-category-bar__label" htmlFor={typeId}>{ui('类型')}</label>
           <Select
