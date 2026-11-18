@@ -2,7 +2,7 @@ import React from 'react';
 import { reviewEntryKey } from '../async.js';
 import { setItemMuted } from '../guidance/budget.js';
 import { clearCount } from '../guidance/cleared.js';
-import { PRACTICE_OFFER, chapterHintFor, markChapterHintSeen, practiceOfferAllowed, practiceOfferFor } from '../guidance/practice-offers.js';
+import { PRACTICE_OFFER, chapterHintFor, freshTermsDeeper, markChapterHintSeen, practiceOfferAllowed, practiceOfferFor } from '../guidance/practice-offers.js';
 
 function dedupeTerms(list) {
   const seen = new Set();
@@ -15,10 +15,11 @@ function dedupeTerms(list) {
 }
 
 /**
- * Manages the proactive chapter-basics hint (#1193) below TermChips in QuestionRun:
- * triggers on non-empty `deeper` prerequisites in the latest `kind: 'terms'` followup,
- * or on a second "补齐" fill on a card that already has `kind: 'terms'`, yielding to
- * first-use practice tips, exam mode, tourRunning, opt-out switches, and once-per-chapter per round.
+ * Manages the proactive chapter-basics hint (#1193, #1216) below TermChips in QuestionRun:
+ * triggers when a `kind: 'terms'` fill completes during the current question visit (`at >= enteredAt`)
+ * with non-empty `deeper` prerequisites, or on a second "补齐" fill on a card that already has
+ * `kind: 'terms'`, yielding to first-use practice tips, exam mode, tourRunning, opt-out switches,
+ * and once-per-chapter per round.
  */
 export function useChapterHint({ run, cardPlace, allFollowups = [], currentTerms = [], tipShown = null, tourRunning = false }) {
   const runId = run?.id || '';
@@ -29,6 +30,13 @@ export function useChapterHint({ run, cardPlace, allFollowups = [], currentTerms
     || run?.deckId
     || '';
 
+  // Record entry timestamp synchronously on entryKey change so historical followups never flash for one frame.
+  const enteredAtRef = React.useRef({ key: '', at: 0 });
+  if (enteredAtRef.current.key !== entryKey) {
+    enteredAtRef.current = { key: entryKey, at: entryKey ? Date.now() : 0 };
+  }
+  const enteredAt = enteredAtRef.current.at;
+
   const latestTerms = React.useMemo(() => {
     for (let i = (allFollowups?.length ?? 0) - 1; i >= 0; i -= 1) {
       if (allFollowups[i]?.kind === 'terms') return allFollowups[i];
@@ -37,6 +45,7 @@ export function useChapterHint({ run, cardPlace, allFollowups = [], currentTerms
   }, [allFollowups]);
 
   const deeper = Array.isArray(latestTerms?.deeper) ? latestTerms.deeper : [];
+  const triggerDeeper = freshTermsDeeper(latestTerms, enteredAt);
   const hasExistingTerms = Boolean(latestTerms);
   const handOffTerms = React.useMemo(() => dedupeTerms([...(latestTerms?.terms || []), ...(currentTerms || [])]), [latestTerms, currentTerms]);
 
@@ -64,7 +73,7 @@ export function useChapterHint({ run, cardPlace, allFollowups = [], currentTerms
 
   const allowed = !exam && !tourRunning && practiceOfferAllowed(PRACTICE_OFFER.chapterBasics);
   const moment = chapterHintFor({
-    deeper,
+    deeper: triggerDeeper,
     refill: Boolean(entryKey && refillState.epoch === resetEpoch && refillState.key === entryKey),
     exam,
     tourRunning,
