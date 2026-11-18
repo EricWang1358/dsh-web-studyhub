@@ -207,5 +207,7 @@
   "复习全书开启薄弱节筛选与页内自测": "Weak-section filter and inline self-check in Review book",
   "打开后，复习全书目录在有待巩固或到期题的章节时可切到「薄弱节」，每节下方也会提供「合书自测」：留在当前书页直接作答并轻掩正文讲解（悬停或聚焦可看），不消耗模型。关掉后保持原有阅读界面。": "When turned on, Review book lets Contents filter to “Weak” sections with due or weak questions and adds a “Quick check” button under each point to practise in place while softly veiling the explanation (hover or focus to peek), with no model call. Off keeps the default reading view.",
   "复习全书速查页开启易混概念自测": "Confusable concept self-check in Review book lookup",
-  "打开后，复习全书「速查页 › 易混概念」支持一键遮住概念名，只看适用场景、关键区别和常见误区做辨析自测，点一下即可揭晓，不改复习排期、不消耗模型。": "When turned on, Review book “Lookup › Confusable concepts” lets you hide concept names in one click and test yourself from the usage, key difference, and common mistake clues before revealing, without changing your schedule or calling a model."
+  "打开后，复习全书「速查页 › 易混概念」支持一键遮住概念名，只看适用场景、关键区别和常见误区做辨析自测，点一下即可揭晓，不改复习排期、不消耗模型。": "When turned on, Review book “Lookup › Confusable concepts” lets you hide concept names in one click and test yourself from the usage, key difference, and common mistake clues before revealing, without changing your schedule or calling a model.",
+  "找功能里显示学习场景向导": "Show learning situation guides in Find a feature",
+  "打开「找功能」（Ctrl K 或 /）且未输入搜索词时，在完整索引上方按常见学习处境串起下一步（刚加新资料、刷完清错、读讲义边问边练、考前限时自检），并根据当前题库与资料状态展开最贴近的一组；纯本地整理，不调用模型。": "When you open Find a feature (Ctrl K or /) with no search query, common learning situations appear above the full index linking your next steps across pages (just added materials, clearing mistakes after practice, asking and testing while reading, timed pre-exam check), with the closest match to your library expanded automatically. Sorted locally with no model call."
 }

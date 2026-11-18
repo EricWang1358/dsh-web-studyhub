@@ -10,6 +10,8 @@ import { withAvailability } from './availability.js';
 import { moveActive } from './keys.js';
 import { searchLibraryHits } from './library-hits.js';
 import { highlightSnippetParts, shouldSearchContent, toFinderContentEntries } from './content-hits.js';
+import { studyChainRecipes } from '../../lib/practice-settings.js';
+import { buildChainRecipes } from './chain-recipes.js';
 import { clearRecentFinderIds, readRecentFinderIds, recentFinderEntries, recordRecentFinderId } from './recent.js';
 
 /* 找功能 (#653): one dialog. A search field, then the results as a listbox: ↑ and ↓ move, Enter is 「带我去」, Esc closes and gives the focus back to what opened it
@@ -78,7 +80,7 @@ function Row({ entry, domId, active, query = '', onSelect, onGo }) {
       data-active={active ? 'true' : undefined} data-unavailable={entry.unavailable ? 'true' : undefined}
       onClick={() => (isContent && canGo ? onGo(entry) : onSelect())}>
       <div className="finder-row__text">
-        <p className="finder-row__head"><span className="finder-row__title">{titleText}</span>{crumbs && <span className="finder-row__crumbs">{crumbs}</span>}</p>
+        <p className="finder-row__head">{entry.stepNumber > 0 && <span className="finder-row__step">{entry.stepNumber}.</span>}<span className="finder-row__title">{titleText}</span>{crumbs && <span className="finder-row__crumbs">{crumbs}</span>}</p>
         {whatText && <p className="finder-row__what">{isContent ? <HighlightedSnippet snippet={whatText} query={query} /> : whatText}</p>}
         {(tags.length > 0 || entry.unavailable) && <p className="finder-row__tags">
           {tags.map((tag) => <Badge key={tag} size="sm">{tag}</Badge>)}
@@ -104,6 +106,7 @@ export default function FinderSheet({ data, entries = FINDER_ENTRIES, initialQue
   const [recentIds, setRecentIds] = useState(() => (Array.isArray(initialRecentIds) ? initialRecentIds : readRecentFinderIds()));
   const [contentHits, setContentHits] = useState(() => (initialContentHits ? toFinderContentEntries(initialContentHits) : []));
   const [selected, setSelected] = useState(null);
+  const [recipeToggles, setRecipeToggles] = useState(() => new Map());
   const input = useRef(null), byKey = useRef(false), searchSeq = useRef(0);
   const base = useId(), listId = `${base}-list`;
   const hasQuery = query.trim().length >= 1;
@@ -114,6 +117,15 @@ export default function FinderSheet({ data, entries = FINDER_ENTRIES, initialQue
   const libraryHits = useMemo(() => (hasQuery ? searchLibraryHits(data, query) : []), [hasQuery, data, query]);
   const shownContentHits = eligibleForContent ? contentHits : [];
   const recentEntries = useMemo(() => (browsing ? recentFinderEntries(marked, recentIds) : []), [browsing, marked, recentIds]);
+  const showRecipes = browsing && studyChainRecipes(data?.settings?.practice);
+  const recipes = useMemo(() => (showRecipes ? buildChainRecipes(marked, data) : []), [showRecipes, marked, data]);
+  const isRecipeOpen = (recipe) => (recipeToggles.has(recipe.id) ? recipeToggles.get(recipe.id) : Boolean(recipe.recommended));
+  const toggleRecipe = (id, open) => setRecipeToggles((current) => {
+    if (current.get(id) === open) return current;
+    const next = new Map(current);
+    next.set(id, open);
+    return next;
+  });
   const groups = useMemo(() => (browsing ? groupByArea(found, FINDER_AREAS) : []), [browsing, found]);
 
   useEffect(() => {
@@ -140,6 +152,7 @@ export default function FinderSheet({ data, entries = FINDER_ENTRIES, initialQue
   const visibleSlots = browsing
     ? [
       ...recentEntries.map((entry) => ({ slotKey: `recent:${entry.id}`, entry })),
+      ...recipes.filter(isRecipeOpen).flatMap((recipe) => recipe.steps.map((entry) => ({ slotKey: `recipe:${recipe.id}:${entry.id}`, entry }))),
       ...groups.filter((group) => openAreas.has(group.area.id)).flatMap((group) => group.entries.map((entry) => ({ slotKey: entry.id, entry }))),
     ]
     : [
@@ -203,6 +216,25 @@ export default function FinderSheet({ data, entries = FINDER_ENTRIES, initialQue
                   <Button size="sm" variant="link" onClick={clearRecent}>{ui('清除记录')}</Button>
                 </div>
                 <div role="group" aria-label={ui('最近去过')}>{recentEntries.map((entry) => row(entry, `recent:${entry.id}`))}</div>
+              </section>
+            )}
+            {recipes.length > 0 && (
+              <section className="finder-recipes" data-finder-recipes="" aria-label={ui('学习场景向导')}>
+                <div className="finder-recipes__head">
+                  <span className="finder-recipes__label">{ui('学习场景向导')}</span>
+                </div>
+                {recipes.map((recipe) => (
+                  <details key={recipe.id} className="finder-group finder-recipe" data-recipe={recipe.id} open={isRecipeOpen(recipe)} onToggle={(event) => toggleRecipe(recipe.id, event.currentTarget.open)}>
+                    <summary className="finder-group__summary">
+                      <span className="finder-group__label">{ui(recipe.title)}</span>
+                      {recipe.reason && <Badge size="sm">{ui(recipe.reason)}</Badge>}
+                      <span className="finder-group__count">{uiFormat('{0} 步', [recipe.steps.length])}</span>
+                    </summary>
+                    <div role="group" aria-label={ui(recipe.title)}>
+                      {recipe.steps.map((entry) => row(entry, `recipe:${recipe.id}:${entry.id}`))}
+                    </div>
+                  </details>
+                ))}
               </section>
             )}
             {groups.map(({ area, entries: inArea }) => (

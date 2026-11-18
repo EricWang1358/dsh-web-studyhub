@@ -613,6 +613,10 @@ export const FEATURES = Object.freeze([
     aliases: ['搜索', '查找', '找', '搜', 'search', 'find', 'find a feature', 'command palette', 'ctrl k', 'ctrl+k', 'cmd k', '⌘k'],
     path: ['侧栏', '找功能'],
     what: '输入一个词（中文、英文或常见叫法都行）就能找到功能在哪，选中后「带我去」会切到那一页，并把焦点放到那个控件上。按 Ctrl K（Mac 上 ⌘K），或在没有输入框聚焦时按 /，也能打开。' }),
+  feature({ id: 'finder-chain-recipes', area: 'settings', title: '学习场景向导', page: 'settings', anchors: ['settings-practice'],
+    aliases: ['场景配方', '学习路径', '从哪开始', '下一步做什么', '新手向导', '怎么串起来', 'study recipes', 'workflow guide', 'where to start', 'study chain'],
+    path: ['设置', '练习', '找功能里显示学习场景向导'],
+    what: '在「设置 › 练习」打开后，「找功能」（Ctrl K 或 /）未输入搜索词时，会在索引上方按四种常见处境（导入新资料开练、集中清掉错题、边读边问边测、考前冲刺与限时模考）按顺序把三步串联在一起，并按你当前的资料、题目和待巩固错题自动展开最合适的一条；点任意一步的「带我去」直达对应位置，不调用模型。' }),
 ]);
 
 /** One entry per page of the registry that has a sidebar group or a purpose. */
