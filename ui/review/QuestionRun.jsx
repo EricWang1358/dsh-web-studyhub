@@ -1,4 +1,4 @@
-import { ui, uiFormat, uiMessage } from "../i18n.js";
+import { getUiLanguage, ui, uiFormat, uiMessage } from "../i18n.js";
 import React from "react";
 import Markdown from "../Markdown.jsx";
 import EnBlock from "../EnBlock.jsx";
@@ -14,6 +14,9 @@ import { fixedOptionLabel } from "../option-label.js";
 import OptionMark from "../OptionMark.jsx";
 import ThumbFeedback from "../ThumbFeedback.jsx";
 import PracticeTip from "./PracticeTip.jsx";
+import TermChips from "./TermChips.jsx";
+import { fillQuestion } from "./term-marks.js";
+import { useTermMarking } from "./use-term-marking.js";
 import { usePracticeTip } from "./use-practice-tip.js";
 import { voteTipMoments } from "../guidance/practice-tips.js";
 import { reviewEntryKey } from "../async.js";
@@ -141,6 +144,15 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const [deriveRelation, setDeriveRelation] = React.useState("prerequisite");
   const reviewBodyRef = React.useRef(null);
   const { autoAdvanceMs, autoAdvanceActive, autoAdvancePaused, hoverPauseRef, syncAutoPause } = useAutopilotPause({ session, coachProps, reviewBodyRef });
+  const termMarks = useTermMarking({ session, reviewBodyRef, notify });
+  const applyMarkedTerms = (terms) => {
+    if (!terms?.length) return;
+    if (!model.ready) {
+      setAssistMode("ask");
+      return;
+    }
+    assistCard("ask", fillQuestion(terms, getUiLanguage()), []);
+  };
   const fixPhrases = useFixPhrases(data);
   const ruleDeck = data?.decks?.find((deck) => deck.id === run.deckId);
   const courseRules = useCourseRules(data, ruleDeck?.course ?? ruleDeck?.folder ?? "");
@@ -207,7 +219,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
     </details>
   );
   return (
-    <div className="review-body" ref={reviewBodyRef}>
+    <div className={"review-body" + (termMarks.marking ? " is-marking" : "")} ref={reviewBodyRef}>
       <div
         className={
           "question-area " +
@@ -446,6 +458,8 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           <ReviewToolbar
             key={session.advanceKey || `${run.id}:${run.index}:${run.card?.id}`}
             assistMode={assistMode}
+            markingTerms={termMarks.marking}
+            onToggleMarkTerms={termMarks.toggleMarking}
             run={run} expanded={(run.revealed || showBack) ? explain : hint} revealed={!!(run.revealed || showBack)}
             onToggleHelp={actions.toggleHelp}
             onAsk={() => setAssistMode((m) => (m === "ask" ? "" : "ask"))}
@@ -482,6 +496,12 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             <Button variant="link" size="sm" data-usage="review.voice-fix" lock={busy} onClick={() => assistCard("improve", ui(SOURCE_VOICE_FIX))}>{ui("改成概念或情景题")}</Button>
           </p>
         )}
+        <TermChips
+          terms={termMarks.terms}
+          onRemove={termMarks.removeTerm}
+          onFill={applyMarkedTerms}
+          busy={busy || !!runningTask}
+        />
         <SmoothHeight className="assist-area">
           {assistMode && (!model.ready ? (
             <div className="assist-form assist-gate">

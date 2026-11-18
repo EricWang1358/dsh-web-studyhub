@@ -14,7 +14,7 @@ const NEXT_HINT_ID = "review-next-hint";
  * (mark it, note, task, derive a prerequisite, slay). `moreDefaultOpen` opens the menu at first render.
  * `onThumb('up' | 'down')` and `thumbVote` are the page's 评价: its ThumbFeedback keeps the vote and the keys; `thumbs` is that component (it draws only the tag tray).
  */
-export default function ReviewToolbar({ run, expanded, revealed, onToggleHelp, onAsk, onImprove, onDerive, onSlay, onToggleFocus, onDeferUnstudiedPages, onNote, onTask, onReviewAction, thumbs, onThumb, thumbVote, enOn, enBusy, onToggleEn, assistMode, autopilot, onToggleAutopilot, selfGradeAdvance, onToggleSelfGradeAdvance, onUndo, autoAdvanceActive = false, autoAdvancePaused = false, autoAdvanceMs = 0, onSkip, onEndRound, moreDefaultOpen = false }) {
+export default function ReviewToolbar({ run, expanded, revealed, onToggleHelp, onAsk, onImprove, onDerive, onSlay, onToggleFocus, onDeferUnstudiedPages, onNote, onTask, onReviewAction, thumbs, onThumb, thumbVote, enOn, enBusy, onToggleEn, assistMode, markingTerms = false, onToggleMarkTerms, autopilot, onToggleAutopilot, selfGradeAdvance, onToggleSelfGradeAdvance, onUndo, autoAdvanceActive = false, autoAdvancePaused = false, autoAdvanceMs = 0, onSkip, onEndRound, moreDefaultOpen = false }) {
   const { busy } = useStudy();
   const [readingOpen, setReadingOpen] = React.useState(false);
   // Say why 下一题 is unavailable instead of leaving a dim button: an unanswered question waits for its answer (one whose AI grade is on its way is answered: the grade lands on it later, #1031); a pending step is still saving.
@@ -58,6 +58,12 @@ export default function ReviewToolbar({ run, expanded, revealed, onToggleHelp, o
     onDerive && { id: "derive", label: ui("出前置题…"), attrs: { "data-usage": "review.derive" }, run: onDerive },
     { id: "slay", label: ui("斩掉此题"), disabled: busy, danger: true, run: onSlay },
   ].filter(Boolean);
+  const handleToggleMarkTerms = (event) => {
+    if (event?.detail > 0) {
+      event.currentTarget.closest(".review-body")?.querySelector(".question-card")?.focus?.({ preventScroll: true });
+    }
+    onToggleMarkTerms?.();
+  };
   return (
     <div className="question-toolbar">
       <div className="question-tools">
@@ -66,6 +72,20 @@ export default function ReviewToolbar({ run, expanded, revealed, onToggleHelp, o
         </Button>}
         <Button variant="quiet" icon="sparkle" className="tool-action tool-help" data-tour="review-help" data-usage="review.help" aria-expanded={assistMode === "ask"} onClick={onAsk}>{ui("帮我弄懂")}</Button>
         <Button variant="quiet" icon="edit" className="tool-action" data-tour="review-improve" data-usage="review.improve" aria-expanded={assistMode === "improve"} onClick={onImprove}>{ui("修题")}</Button>
+        {!exam && !run.complete && (
+          <Button
+            variant="quiet"
+            icon="highlighter"
+            className="tool-action"
+            data-tour="review-terms"
+            data-usage="review.terms"
+            aria-pressed={!!markingTerms}
+            aria-keyshortcuts="W"
+            onClick={handleToggleMarkTerms}
+          >
+            {ui("标生词")}
+          </Button>
+        )}
         {canUndo && !run.feedback && <Button variant="quiet" className="tool-action review-undo" data-usage="review.undo" aria-keyshortcuts="Z" lock={busy} onClick={onUndo}>{ui("已记分 · 撤销 (Z)")}</Button>}
         {thumbs}
       </div>

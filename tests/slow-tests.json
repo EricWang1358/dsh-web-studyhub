@@ -125,6 +125,7 @@
     "tests/question-card-focus-browser.test.mjs",
     "tests/question-figure-link-browser.test.mjs",
     "tests/question-place-browser.test.mjs",
+    "tests/question-term-marks-browser.test.mjs",
     "tests/question-tools-first-use-browser.test.mjs",
     "tests/quote-jump-browser.test.mjs",
     "tests/reader-chapter-progress-browser.test.mjs",

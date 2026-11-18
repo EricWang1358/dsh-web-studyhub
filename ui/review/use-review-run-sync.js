@@ -57,10 +57,15 @@ export function useAutopilotPause({ session, coachProps, reviewBodyRef }) {
   const autoAdvancePaused = Boolean(session.autoAdvancePaused);
   const hoverPauseRef = React.useRef({ card: false, explanation: false });
   const selectionPauseRef = React.useRef(false);
+  const markingPaused = !!session.markingTerms;
   const syncAutoPause = React.useCallback(() => {
-    const paused = hoverPauseRef.current.card || hoverPauseRef.current.explanation || selectionPauseRef.current;
+    const paused = hoverPauseRef.current.card || hoverPauseRef.current.explanation || selectionPauseRef.current || !!session.markingTerms;
     session.setAutoAdvancePaused?.(paused);
   }, [session]);
+
+  React.useEffect(() => {
+    if (autoAdvanceActive) syncAutoPause();
+  }, [autoAdvanceActive, markingPaused, syncAutoPause]);
 
   React.useEffect(() => {
     hoverPauseRef.current = { card: false, explanation: false };
