@@ -169,6 +169,14 @@ test('openLeeches: of a round\'s questions, the leeches the wrong book still hol
   assert.deepEqual(openLeeches(attempts, refs), [{ deckId: 'd', cardId: 'stuck' }], 'put-right is in 已订正, twice is no leech');
   assert.deepEqual(openLeeches(attempts, refs, leechLimits({ leechFailures: 2 })).map(ref => ref.cardId), ['stuck', 'twice']);
   assert.deepEqual(openLeeches([], refs), []);
+
+  const withSynthetic = [
+    ...attempts,
+    { deckId: 'd', quiz_id: 'stuck', grade: 4, implicit: true, timestamp: at(90) },
+    { deckId: 'd', quiz_id: 'twice', grade: 3, assessment: 'self-report', correct: false, selfReported: true, unverified: true, timestamp: at(91) },
+  ];
+  assert.deepEqual(openLeeches(withSynthetic, refs), [{ deckId: 'd', cardId: 'stuck' }], 'implicit credit does not dismiss open leech');
+  assert.deepEqual(openLeeches(withSynthetic, refs, leechLimits({ leechFailures: 2 })).map(ref => ref.cardId), ['stuck', 'twice'], 'unverified self-report does not dismiss open leech');
 });
 
 test('retellSignal classifies card.retell aggregates for stubborn questions (#1027)', async () => {
