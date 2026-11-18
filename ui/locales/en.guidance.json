@@ -84,6 +84,6 @@
   "第一次在题目下看到讲解（帮我弄懂或追问的回答）时，在讲解下面的「出成前置题」旁提示它能做什么。": "The first time an explanation (an answer of “Help me understand” or a follow-up) shows under a question, a tip beside “Turn into a prerequisite question” under it says what it does.",
   "下次在题目下看到讲解时": "the next time an explanation shows under a question",
   "补词到底时提示「先读这一章」": "A hint to “read this chapter first” when filling terms hits bottom",
-  "在一道题上点「补齐」仍引出更底层前置词，或在同一道题上第二次点「补齐」时，在生词行下方提示先读这一章或发给主会话讲。": "When filling terms on a question still points to deeper prerequisites, or when choosing “Fill” a second time on the same question, hints below the term strip to read the chapter or ask the main chat.",
-  "下次补词到底或同一题第二次点「补齐」时": "the next time filling terms hits deeper prerequisites or fills a question twice"
+  "在一道题上点「补齐」刚完成、仍引出更底层前置词，或在同一道题上第二次点「补齐」时，在生词行下方提示先读这一章或发给主会话讲。": "When filling terms on a question has just finished during this visit and still points to deeper prerequisites, or when choosing “Fill” a second time on the same question, hints below the term strip to read the chapter or ask the main chat.",
+  "下次补齐刚完成且仍有更底层前置词，或同一题第二次点「补齐」时": "the next time filling terms finishes on a question and still points to deeper prerequisites, or fills a question twice"
 }
