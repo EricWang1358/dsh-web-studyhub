@@ -75,6 +75,13 @@
     .result-page .result-next { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin: var(--space-5) 0 var(--space-4); }
     .result-page .summary-topics h3 { margin: 0 0 var(--space-3); font-size: var(--fs-lg); }
     .result-page .summary-method-alt, .result-page .summary-leech { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1-5); margin: var(--space-3) 0; color: var(--text-muted); font-size: var(--fs-md); }
+    .result-page .summary-course { margin: var(--space-3) 0; color: var(--text-dim); font-size: var(--fs-md); }
+    .result-page .summary-course__text { margin: 0; }
+    .result-page .summary-course__bar { display: flex; gap: var(--space-1); height: var(--space-1-5); margin-top: var(--space-2); }
+    .result-page .summary-course__seg { flex: 1 1 0; min-width: 0; border-radius: var(--radius-xs); background: var(--line); }
+    .result-page .summary-course__seg.is-done { background: var(--ok); }
+    .result-page .summary-course__seg.is-started { background: var(--warn); }
+    .result-page .summary-course__seg.is-upcoming { background: var(--line); }
     .result-page .result-details,
     .exam-report .result-details { border: 1px solid var(--line); border-radius: var(--radius); padding: var(--space-4) var(--space-5); margin-top: var(--space-4-5); }
     .result-details > summary { cursor: pointer; font-weight: var(--fw-medium); }
