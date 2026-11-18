@@ -217,6 +217,7 @@
     --ok-tint: color-mix(in srgb, var(--ok) 22%, var(--bg-surface));
     --ok-solid: color-mix(in srgb, var(--ok) 70%, var(--bg-surface));
     --warn-halo: color-mix(in srgb, var(--warn) 22%, transparent);
+    --warn-seen: color-mix(in srgb, var(--warn) 14%, transparent);
     --warn-mid: color-mix(in srgb, var(--warn) 45%, transparent);
     --warn-mark: color-mix(in srgb, var(--warn) 32%, transparent);
     --warn-tint: color-mix(in srgb, var(--warn) 22%, var(--bg-surface));

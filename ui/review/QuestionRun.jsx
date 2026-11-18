@@ -15,6 +15,7 @@ import OptionMark from "../OptionMark.jsx";
 import ThumbFeedback from "../ThumbFeedback.jsx";
 import PracticeTip from "./PracticeTip.jsx";
 import TermChips from "./TermChips.jsx";
+import TermListDialog from "./TermListDialog.jsx";
 import { useTermMarking } from "./use-term-marking.js";
 import { usePracticeTip } from "./use-practice-tip.js";
 import { voteTipMoments } from "../guidance/practice-tips.js";
@@ -146,9 +147,14 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const [helpChoices, setHelpChoices] = React.useState([]);
   const [clozeFocusTick, setClozeFocusTick] = React.useState(0);
   const [deriveRelation, setDeriveRelation] = React.useState("prerequisite");
+  const [termListOpen, setTermListOpen] = React.useState(false);
   const reviewBodyRef = React.useRef(null);
   const { autoAdvanceMs, autoAdvanceActive, autoAdvancePaused, hoverPauseRef, syncAutoPause } = useAutopilotPause({ session, coachProps, reviewBodyRef });
-  const termMarks = useTermMarking({ session, reviewBodyRef, notify });
+  const fixPhrases = useFixPhrases(data);
+  const ruleDeck = data?.decks?.find((deck) => deck.id === run.deckId);
+  const termCourseName = ruleDeck?.course ?? ruleDeck?.folder ?? run?.course ?? "";
+  const courseRules = useCourseRules(data, ruleDeck?.course ?? ruleDeck?.folder ?? "");
+  const termMarks = useTermMarking({ session, reviewBodyRef, notify, call, courseName: termCourseName, assistTasks });
   const applyMarkedTerms = (terms) => {
     if (!terms?.length) return;
     if (!model.ready) {
@@ -157,10 +163,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
     }
     assistCard("terms", "", [], { terms });
   };
-  const fixPhrases = useFixPhrases(data);
-  const ruleDeck = data?.decks?.find((deck) => deck.id === run.deckId);
-  const courseRules = useCourseRules(data, ruleDeck?.course ?? ruleDeck?.folder ?? "");
-  React.useEffect(() => { setAssistMode(""); setAssistText(""); setHelpChoices([]); setDeriveRelation("prerequisite"); setClozeFocusTick(0); }, [run.id, run.index, run.card?.id]);
+  React.useEffect(() => { setAssistMode(""); setAssistText(""); setHelpChoices([]); setDeriveRelation("prerequisite"); setClozeFocusTick(0); setTermListOpen(false); }, [run.id, run.index, run.card?.id]);
   const cardTasks = (assistTasks || []).filter((task) => task.cardId === run.card?.id);
   const runningTask = cardTasks.find((task) => task.status === "running" && task.mode !== "grade");
   const lastTask = cardTasks.filter((task) => task.mode !== "grade").at(-1);
@@ -512,9 +515,22 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           terms={termMarks.terms}
           onRemove={termMarks.removeTerm}
           onFill={applyMarkedTerms}
+          onTermList={termCourseName ? () => { termMarks.refreshCourseTerms(); setTermListOpen(true); } : undefined}
+          hasCourse={Boolean(termCourseName)}
           busy={busy || !!runningTask}
           running={runningTask?.mode === "terms"}
         />
+        {termListOpen && termCourseName && (
+          <TermListDialog
+            courseName={termCourseName}
+            items={termMarks.courseTerms}
+            loading={termMarks.loadingCourseTerms}
+            error={termMarks.courseTermsError}
+            onRemove={termMarks.removeCourseTerm}
+            onClear={termMarks.clearCourseTerms}
+            onClose={() => setTermListOpen(false)}
+          />
+        )}
         <SmoothHeight className="assist-area">
           {assistMode && (!model.ready ? (
             <div className="assist-form assist-gate">
