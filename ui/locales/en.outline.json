@@ -695,5 +695,6 @@
   "当前筛选下没有尚未出题的章节或知识点。": "No sections without questions match this filter.",
   "显示全部": "Show all",
   "出处 ·": "Source ·",
-  "出处：{0}\n点此打开总纲定位到这一处": "Source: {0}\nClick to open this chapter in the course outline"
+  "出处：{0}\n点此打开总纲定位到这一处": "Source: {0}\nClick to open this chapter in the course outline",
+  "没有在总纲里找到这道题的出处": "Could not find where this question is in the course outline"
 }

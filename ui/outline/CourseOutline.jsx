@@ -19,7 +19,7 @@ import { customGateOf } from '../custom-entry.js';
 import { courseNamesOf } from '../PageScope.jsx';
 import { scopeFilter } from '../SourcePicker.jsx';
 import { useHandOff } from '../hand-off/use-hand-off.js';
-import { BOOK_BUILD_KIND, bookDefaultOpen, clearOutlineTarget, emptyPick, filterOutline, isPicked, keepView, keptOutlineTarget, keptView, mainAction, outlineRows, outlineTargetExpandKeys, paperChoices, pickArgs, pickCard, pickRow, runningBuild } from './model.js';
+import { BOOK_BUILD_KIND, bookDefaultOpen, clearOutlineTarget, emptyPick, filterOutline, isPicked, keepView, keptOutlineTarget, keptView, mainAction, outlineRows, outlineTargetExpandKeys, paperChoices, pickArgs, pickCard, pickRow, resolveOutlineDeckFilter, runningBuild } from './model.js';
 import { collectOutlineGapStats, filterOutlineWithLens } from './gap-lens.js';
 import CourseCompanionsBar from '../companions/CourseCompanionsBar.jsx';
 import { basisText, bookCostTipText, bookCoverageText, bookIntroText, bookScalePointsText, bookScaleTokensText, bookStartedText, bookWhatText, cappedText, courseLine, levelOptions,
@@ -95,10 +95,12 @@ export default function CourseOutline({ data, backLabel = '', onBack, onCreate, 
   const initialTarget = keptOutlineTarget(root, course);
   const [pendingTarget, setPendingTarget] = useState(() => initialTarget);
   const [open, setOpen] = useState(() => new Set([...(kept?.open || []), ...outlineTargetExpandKeys(initialTarget)]));
-  const [deckId, setDeckId] = useState(kept?.deckId || '');
+  const [deckId, setDeckId] = useState(() => resolveOutlineDeckFilter(kept, initialTarget));
   const [filterQuery, setFilterQuery] = useState('');
   const [pick, setPick] = useState(emptyPick);
-  const scopeKeyRef = useRef(`${root}\n${course ?? ''}`);
+  const scopeRef = useRef({ root, course, key: `${root}\n${course ?? ''}` });
+  const liveScopeRef = useRef({ root, course });
+  liveScopeRef.current = { root, course };
   const pageRef = useRef(null);
   const { outline, details, error, retry } = useOutline({ call, course, deckId, open, revision: data?.revision });
   const picked = usePicked({ call, course, deckId, pick });
@@ -106,17 +108,24 @@ export default function CourseOutline({ data, backLabel = '', onBack, onCreate, 
   const bookId = outline?.book?.id ?? null, seen = useRef(kept?.bookId ?? null);
   useEffect(() => {
     const nextScope = `${root}\n${course ?? ''}`;
-    if (scopeKeyRef.current === nextScope) return;
-    scopeKeyRef.current = nextScope;
+    if (scopeRef.current.key === nextScope) return;
+    clearOutlineTarget(scopeRef.current.root, scopeRef.current.course);
+    scopeRef.current = { root, course, key: nextScope };
     const restored = keptView(root, course);
     const nextTarget = keptOutlineTarget(root, course);
     seen.current = restored?.bookId ?? null;
     setPendingTarget(nextTarget);
     setOpen(new Set([...(restored?.open || []), ...outlineTargetExpandKeys(nextTarget)]));
-    setDeckId(restored?.deckId || '');
+    setDeckId(resolveOutlineDeckFilter(restored, nextTarget));
     setFilterQuery('');
     setPick(emptyPick());
   }, [root, course]);
+  useEffect(() => () => clearOutlineTarget(liveScopeRef.current.root, liveScopeRef.current.course), []);
+  useEffect(() => {
+    if (!error || !pendingTarget) return;
+    clearOutlineTarget(root, course);
+    setPendingTarget(null);
+  }, [course, error, pendingTarget, root]);
   useEffect(() => {
     if (!bookId || seen.current === bookId) return;
     seen.current = bookId;
@@ -137,6 +146,7 @@ export default function CourseOutline({ data, backLabel = '', onBack, onCreate, 
     if (!pendingTarget || !outline) return undefined;
     if ('course' in outline && outline.course !== course) return undefined;
     if (outline.status === 'empty') {
+      notify?.(ui('没有在总纲里找到这道题的出处'));
       clearOutlineTarget(root, course);
       setPendingTarget(null);
       return undefined;
@@ -150,13 +160,18 @@ export default function CourseOutline({ data, backLabel = '', onBack, onCreate, 
       const container = pageRef.current || (typeof document !== 'undefined' ? document : null);
       const rowEl = container?.querySelector?.(`[data-key="${escapeCss(pendingTarget.target)}"]`)
         || (pendingTarget.leafKey ? container?.querySelector?.(`[data-key="${escapeCss(pendingTarget.leafKey)}"]`) : null);
-      rowEl?.scrollIntoView?.({ block: 'center' });
+      if (rowEl) rowEl.scrollIntoView?.({ block: 'center' });
+      else notify?.(ui('没有在总纲里找到这道题的出处'));
       clearOutlineTarget(root, course);
       setPendingTarget(null);
     });
     return () => cancelAnimationFrame(frame);
-  }, [course, details, open, outline, pendingTarget, root]);
-  useEffect(() => { keepView(root, course, { open, deckId, bookId: seen.current }); }, [root, course, open, deckId, bookId]);
+  }, [course, details, notify, open, outline, pendingTarget, root]);
+  const hasOutline = !!outline;
+  useEffect(() => {
+    if (pendingTarget || !hasOutline) return;
+    keepView(root, course, { open, deckId, bookId: seen.current });
+  }, [root, course, open, deckId, bookId, pendingTarget, hasOutline]);
   const organise = useCallback(async papers => {
     try {
       // The interface language goes with every request (uiLanguage), so the task speaks it without being told here.
