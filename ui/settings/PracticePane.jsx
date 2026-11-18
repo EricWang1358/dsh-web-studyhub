@@ -3,7 +3,7 @@ import { ui, uiFormat, errorMessage } from '../i18n.js';
 import { Button, Field, Hint, Select, SettingsSection, Switch, useToast } from '../components/index.js';
 import { NEW_CARD_ORDERS, PRACTICE_DEFAULTS, freshRoundCount, resolvePracticeSettings } from '../../lib/practice-settings.js';
 import { leechMisses } from '../../lib/leech.js';
-import { COVERAGE_DEFAULT, CRUNCH_MINUTES, CRUNCH_WINDOW, bookCoverage, crunchMinutes, crunchWindow, resolveBookSettings } from '../../lib/book-settings.js';
+import { COVERAGE_DEFAULT, CRUNCH_MINUTES, CRUNCH_WINDOW, bookConfusableDrill, bookCoverage, bookInlinePractice, crunchMinutes, crunchWindow, resolveBookSettings } from '../../lib/book-settings.js';
 import { levelHint, levelOptions } from '../outline/words.js';
 import { AUTO_ADVANCE_MS, RESULT_COUNTDOWN_SECONDS } from '../review/session-logic.js';
 import { useStudy } from '../study-context.jsx';
@@ -77,6 +77,19 @@ export default function PracticePane({ data, busy, act, openSchedule }) {
     try { await act('settings.book.set', { patch: { coverage: level === COVERAGE_DEFAULT ? null : level } }, () => toast.success(ui('练习设置已保存')), { rethrow: true }); }
     catch (cause) { if (live.current) { setCoverage(savedCoverage); setError(errorMessage(cause)); } }
   };
+  const savedBookFlags = { inlinePractice: bookInlinePractice(data?.settings?.book), confusableDrill: bookConfusableDrill(data?.settings?.book) };
+  const bookFlagsKey = JSON.stringify(savedBookFlags);
+  const [bookFlags, setBookFlags] = useState(savedBookFlags);
+  useEffect(() => { setBookFlags(JSON.parse(bookFlagsKey)); }, [bookFlagsKey]);
+  const setBookFlag = async (flagKey, on) => {
+    if (busy || working || typeof act !== 'function') return;
+    setError(''); setWorking(true); setBookFlags((current) => ({ ...current, [flagKey]: on }));
+    try {
+      const result = await act('settings.book.set', { patch: { [flagKey]: on ? true : null } }, () => toast.success(ui('练习设置已保存')), { rethrow: true });
+      if (result === undefined && live.current) setBookFlags(JSON.parse(bookFlagsKey));
+    } catch (cause) { if (live.current) { setBookFlags(JSON.parse(bookFlagsKey)); setError(errorMessage(cause)); } }
+    finally { if (live.current) setWorking(false); }
+  };
   const disabled = busy || working;
   const sizes = ROUND_SIZES.includes(values.roundSize) ? ROUND_SIZES : [...ROUND_SIZES, values.roundSize].sort((a, b) => a - b);
   return <div className="settings-form">
@@ -98,6 +111,10 @@ export default function PracticePane({ data, busy, act, openSchedule }) {
         hint={ui('阅读器里用荧光笔或加粗标过的段落，3 天没再看、所在章节或页又有到期或薄弱题时，首页「今日」会出现一行「重读 N 段」，每天最多 3 段。关掉后这一行不再出现。')} />
       <Switch name="qaToBook" label={ui('自动加入复习全书')} checked={bookMode === 'auto'} disabled={disabled} onChange={(on) => setBook(on ? 'auto' : 'manual')}
         hint={ui('练习时得到的追问和「帮我弄懂」的回答，打开后会自动放进这门课的复习全书（这道题所在知识点的问答里）；关着时在每条问答旁点「加入复习全书」才放进去。题目自己的问答记录不受影响，加进书里的随时可以撤回。只影响之后的问答。')} />
+      <Switch name="bookInlinePractice" label={ui('复习全书开启薄弱节筛选与页内自测')} checked={bookFlags.inlinePractice} disabled={disabled} onChange={(on) => setBookFlag('inlinePractice', on)}
+        hint={ui('打开后，复习全书目录在有待巩固或到期题的章节时可切到「薄弱节」，每节下方也会提供「合书自测」：留在当前书页直接作答并轻掩正文讲解（悬停或聚焦可看），不消耗模型。关掉后保持原有阅读界面。')} />
+      <Switch name="bookConfusableDrill" label={ui('复习全书速查页开启易混概念自测')} checked={bookFlags.confusableDrill} disabled={disabled} onChange={(on) => setBookFlag('confusableDrill', on)}
+        hint={ui('打开后，复习全书「速查页 › 易混概念」支持一键遮住概念名，只看适用场景、关键区别和常见误区做辨析自测，点一下即可揭晓，不改复习排期、不消耗模型。')} />
       <Field label={ui('多少次答错算顽固题')} hint={ui('一道题累计答错这么多次，错题本里会标上「顽固」，展开后有修题、补前置小卡、发给主会话和暂停几个办法。只看作答记录，不调用模型。')}>
         <Select name="leechFailures" value={String(values.leechFailures)} disabled={disabled} onChange={(leechFailures) => set({ leechFailures: Number(leechFailures) })}
           options={withSaved(LEECH_FAILURES, values.leechFailures).map((count) => ({ value: String(count), label: uiFormat('{0} 次', [count]) }))} />

@@ -13,10 +13,24 @@
       min-width: 0;
       overflow-wrap: anywhere;
     }
+    .book-conf__bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2);
+    }
     .book-conf__muted {
       margin: 0;
       color: var(--text-muted);
       font-size: var(--fs-sm);
+    }
+    .book-conf__cue {
+      color: var(--text-muted);
+      font-weight: var(--fw-regular);
+    }
+    .book-conf__toggle {
+      margin-inline-start: auto;
     }
     .book-conf__pair {
       display: grid;

@@ -30,6 +30,8 @@ export default function PointToolbar({ node, course, handlers, cites = null, ret
         {cites}
         {node.questionTotal > 0 && <Button size="sm" variant="secondary" iconEnd="arrow-right" className="book-point__practice" data-book-link="practice"
           onClick={event => handlers.practice(node.hid, 5, node.hid, event.currentTarget)}>{ui('练 5 道')}</Button>}
+        {node.questionTotal > 0 && handlers.inlineCheck && <Button size="sm" variant="quiet" className="book-point__inline-check" data-book-link="inline-practice" aria-expanded={!!handlers.inlineOpen?.(node.hid)}
+          onClick={event => handlers.inlineCheck(node, event.currentTarget)}>{handlers.inlineOpen?.(node.hid) ? ui('收起自测') : ui('合书自测')}</Button>}
         <Button size="sm" variant="quiet" className="book-point__qa" data-book-link="qa" aria-expanded={qaOpen} onClick={() => handlers.toggleQa(node.hid)}>
           {qaCount ? uiFormat('本节问答 ({0})', [qaCount]) : ui('本节问答')}</Button>
         {handlers.toggleRetell && <Button size="sm" variant="quiet" className="book-point__retell" data-book-link="retell" data-usage="book.retell" aria-expanded={!!handlers.retellOpen?.(node.hid)}

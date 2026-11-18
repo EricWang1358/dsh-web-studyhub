@@ -25,17 +25,19 @@ export async function startBookBuild({ act, course, notify, extra = {} }) {
 /** 期末一周 (M7, book.crunch): the plan of the course's last days, asked again when the book changes or a mark is set. -> { crunch, day, points, mark }. */
 export function useBookCrunch({ call, course, book, notify }) {
   const [crunch, setCrunch] = useState(null);
+  const [ticket, setTicket] = useState(0);
   useLiveEffect(isLive => {
     if (book?.status !== 'ok' || !book.notes) return;
     call('book.crunch', { course, date: localDate() }).then(next => { if (isLive()) setCrunch(next); }, () => { if (isLive()) setCrunch({ status: 'error' }); });
-  }, [call, course, book?.revision, book?.status, book?.notes]);
+  }, [call, course, book?.revision, book?.status, book?.notes, ticket]);
+  const refresh = useCallback(() => setTicket(value => value + 1), []);
   const day = crunch?.status === 'ok' ? crunch.plan.today : null;
   const points = useMemo(() => { const byId = new Map((crunch?.points || []).map(point => [point.id, point])); return (day?.points || []).map(id => byId.get(id)).filter(Boolean); }, [crunch, day]);
   // 读完了 / 已看 (book.crunch.mark): kept per course in the book's record; the answer is the plan again.
   const mark = useCallback(async (hid, kind, on) => {
     try { setCrunch(await call('book.crunch.mark', { course, hid, kind, on, date: localDate() })); } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
   }, [call, course, notify]);
-  return { crunch, day, points, mark };
+  return { crunch, day, points, mark, refresh };
 }
 
 /** 备考计划 (course.plan, lib/course-plan.js): the course's whole-period plan, asked again when the book or the library changes (a plan agreed in the chat, an exam date,
@@ -68,7 +70,7 @@ async function copyText(text) {
 
 /** The handlers every point reads (ui/book/PointBody.jsx and below). ai: the stable ctions of ui/book/use-book-ai.js (the lines themselves reach the points
     through BookAiContext, so a line or the 问 AI panel never gives every point new handlers). */
-export function useBookHandlers({ call, act, course, notify, book, setBook, rows, reload, remember, onPractice, onCreate, onOpenSource, modelReady = true, model, onBack, ai, foldAi, onPlace, goTo }) {
+export function useBookHandlers({ call, act, course, notify, book, setBook, rows, reload, remember, onPractice, onCreate, onOpenSource, modelReady = true, model, onBack, ai, foldAi, onPlace, goTo, inlinePractice = null }) {
   const [qa, setQa] = useState(() => new Set());
   const [retell, setRetell] = useState(() => new Set());
   const [choosing, setChoosing] = useState(false);
@@ -79,6 +81,22 @@ export function useBookHandlers({ call, act, course, notify, book, setBook, rows
     // 用自己的话讲一遍 of a point (#1016, ui/review/RetellPanel.jsx): which points have it open; `model` is the readiness its gate shows.
     retellOpen: heading => retell.has(heading),
     toggleRetell: heading => setRetell(current => { const next = new Set(current); if (next.has(heading)) next.delete(heading); else next.add(heading); return next; }),
+    inlineOpen: inlinePractice?.isOpen,
+    inlineShown: inlinePractice?.shown ?? true,
+    inlineRunFor: inlinePractice?.runFor,
+    closeInlineRun: inlinePractice?.close,
+    InlineRun: inlinePractice?.Run,
+    inlineCheck: inlinePractice ? async (node, element) => {
+      if (inlinePractice.isOpen(node.hid)) { inlinePractice.close(); return; }
+      const row = rowOf(rows, node.hid);
+      if (!row) { notify(ui('这一节已不在总纲里。')); return; }
+      try {
+        const { practice } = await call('course.outline', { course, pick: { keys: [row.key] } });
+        const scope = practice?.scope.slice(0, 5) || [];
+        if (!scope.length) { notify(ui('这个知识点还没有题。先到「创建题组」从资料出题。')); return; }
+        inlinePractice.open(node, scope, remember(node.hid, element));
+      } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
+    } : undefined,
     model: model ?? { ready: modelReady },
     source: (sourceId, quote) => onOpenSource?.(sourceId, quote),
     card: (ref, from, element) => { const place = remember(from, element); onPractice([ref], { resume: true, place }); },
@@ -151,5 +169,5 @@ export function useBookHandlers({ call, act, course, notify, book, setBook, rows
     aiWords: id => showWords(id),
     // A 术语卡's link (#710): its point opened when the card is not drawn, then the card shown (ui/book/term-card-go.js).
     goCard: (hid, code) => { if (!cardShown(code)) goTo?.(hid); showCard(code); },
-  }), [book, qa, retell, rows, call, course, notify, onCreate, onOpenSource, onPractice, remember, choosing, setBook, modelReady, model, onBack, ai, foldAi, reload, act, onPlace, goTo]);
+  }), [book, qa, retell, rows, call, course, notify, onCreate, onOpenSource, onPractice, remember, choosing, setBook, modelReady, model, onBack, ai, foldAi, reload, act, onPlace, goTo, inlinePractice]);
 }
