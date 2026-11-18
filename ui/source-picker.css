@@ -7,14 +7,15 @@
     .source-picker { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); min-width: 0; }
     .source-picker__filters { min-width: 0; }
     /* #1182: the type and category filters (#1177) are behind one button on the list's filter line, beside 「筛选资料…」, so they cost the first screen
-       nothing while shut. The button is quiet; open, it is pressed in; a filter in use marks it with a dot and is said on the line under it. */
+       nothing while shut. The button is quiet; open, it is pressed in; a filter in use marks it with a dot in the strong ink (the accent is the primary action's, #658)
+       and is said on the line under it. */
     .source-picker__facets-tip { display: inline-flex; flex: none; }
     /* The filter gives the button its room, so the count stays on the filter's line wherever it was before (en 375: 220 + 32 + 49 px and two gaps fill 325). */
-    .source-picker__window--facets .sh-scroll__filter { flex-basis: 12rem; }
+    .source-picker__window--facets { --sh-scroll-filter-basis: 12rem; }
     .source-picker__facets-toggle { position: relative; flex: none; color: var(--text-muted); }
     .source-picker__facets-toggle[aria-expanded="true"] { color: var(--text); background: var(--bg-sunken); }
-    .source-picker__facets-toggle.is-on { color: var(--accent-text); }
-    .source-picker__facets-toggle.is-on::after { content: ""; position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); pointer-events: none; }
+    .source-picker__facets-toggle.is-on { color: var(--text); }
+    .source-picker__facets-toggle.is-on::after { content: ""; position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--text); pointer-events: none; }
     .material-category-bar[hidden], .material-category-bar__controls[hidden] { display: none; }
     /* Open, in the picker: the labels in one column and the selects with AI 智能分类 under them in the next, every label on its select's line at every width. */
     .source-picker__filters .material-category-bar__controls { display: grid; grid-template-columns: max-content minmax(0, 20rem); justify-content: start; align-items: center; gap: var(--space-2) var(--space-3); }
