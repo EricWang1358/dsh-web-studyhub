@@ -165,6 +165,7 @@ test("terms mode happy path: 3 marked terms create 3 cards, 3 prereq links, 1 la
 
     const [task] = f.assist.assistView(f.root).tasks;
     assert.equal(task.status, "done", `${switchMode}: ${task.message}`);
+    if (switchMode === "legacy") assert.equal(task.outcome, "linked");
     assert.deepEqual(task.terms, ["入口过滤", "BCP38", "出口过滤"]);
     assert.equal(task.text, "入口过滤、BCP38、出口过滤");
     assert.match(task.message, /补了 3 个词，检查题已排到这道题前面/);
@@ -949,6 +950,7 @@ test("5-step terms ladder (3 layer-1 + 2 layer-2) emits only 1 unmerged followup
 
     const [task] = f.assist.assistView(f.root).tasks;
     assert.equal(task.status, "done", `${switchMode}: ${task.message}`);
+    if (switchMode === "legacy") assert.equal(task.outcome, "linked");
 
     const state = await f.service.store.read();
     assert.equal(state.decks[0].cards.length, 6, `${switchMode}: 5 check cards added`);
@@ -1117,4 +1119,184 @@ test("non-terms assist modes (derive/ask/improve) and card.link / card.followup.
   assert.equal(directState.inbox.length, 2);
   assert.equal(directState.inbox[0].count, undefined);
   assert.equal(directState.inbox[1].count, undefined);
+});
+
+test("500-term course cap keeps check cards, prerequisites, followup, and notifies cleanly in one model call (#1217)", async (t) => {
+  const fullTerms = Array.from({ length: 500 }, (_, i) => ({
+    term: `existing-term-${i}`,
+    at: "2026-11-18T10:00:00.000Z",
+  }));
+
+  for (const switchMode of SWITCH_MODES) {
+    let calls = 0;
+    const f = await setupTermsFixture(
+      t,
+      async (_sys, payload) => {
+        calls += 1;
+        const input = JSON.parse(payload);
+        const requested = input.request?.terms?.[0] || "入口过滤";
+        return JSON.stringify({
+          ladder: [
+            makeStep({
+              term: requested,
+              ...(requested === "入口过滤" ? { alt: "ingress filtering" } : {}),
+              layer: 1,
+              needs: [],
+            }),
+          ],
+        });
+      },
+      switchMode,
+    );
+    await f.service.call("course.save", {
+      name: "Networks",
+      terms: { version: 1, items: fullTerms },
+    });
+    const beforeItems = structuredClone((await f.service.call("course.terms.get", { course: "Networks" })).items);
+    assert.equal(beforeItems.length, 500);
+
+    await f.assist.startAssist(f.ctx, {
+      root: f.root,
+      service: f.service,
+      sessionId: "s1",
+      mode: "terms",
+      ref: { deckId: "deck-1", cardId: "card-main" },
+      terms: ["入口过滤"],
+      card: PARENT_CARD,
+      deckTitle: "Network Security",
+      language: "zh",
+    });
+    await ended(f.assist, f.root);
+
+    assert.equal(calls, 1, `${switchMode}: model called once with no spurious repair retry`);
+    const [task] = f.assist.assistView(f.root).tasks;
+    assert.equal(task.status, "done", `${switchMode}: ${task.message}`);
+    assert.equal(task.repaired, undefined);
+    if (switchMode === "legacy") assert.equal(task.outcome, "linked");
+    const expectedDetail = "补了 1 个词，检查题已排到这道题前面；生词表已满，这几个词没有记进生词表";
+    assert.equal(task.message, expectedDetail);
+
+    const state = await f.service.store.read();
+    const deck = state.decks[0];
+    assert.equal(deck.cards.length, 2, `${switchMode}: check card saved`);
+    const [parent, checkCard] = deck.cards;
+    assert.deepEqual(parent.requires, [{ deckId: "deck-1", cardId: checkCard.id }]);
+    assert.equal(parent.followups.length, 1);
+    assert.equal(parent.followups[0].kind, "terms");
+    assert.deepEqual(parent.followups[0].terms, ["入口过滤"]);
+
+    assert.equal(state.inbox.length, 1);
+    assert.equal(state.inbox[0].kind, "followup");
+    assert.equal(state.inbox[0].cardId, "card-main");
+    assert.equal(state.inbox[0].count, undefined);
+    assert.equal(state.inbox[0].detail, expectedDetail);
+
+    const afterTerms = await f.service.call("course.terms.get", { course: "Networks" });
+    assert.equal(afterTerms.items.length, 500);
+    assert.deepEqual(afterTerms.items, beforeItems);
+
+    const expectedEn = "Filled in 1 term; check questions are queued before this card; the course word list is full, so these terms were not saved to it";
+    assert.equal(localizeAppMessage(expectedDetail, "en"), expectedEn);
+    assert.doesNotMatch(expectedEn, /[\u3400-\u9fff]/);
+    const enInbox = await f.service.call("inbox", { uiLanguage: "en" });
+    assert.equal(enInbox.items[0].detail, expectedEn);
+    assert.doesNotMatch(enInbox.items[0].detail, /[\u3400-\u9fff]/);
+
+    // Updating an already-stored term at the 500 cap stays at 500 and attaches cleanly without the full-list suffix.
+    await f.assist.startAssist(f.ctx, {
+      root: f.root,
+      service: f.service,
+      sessionId: "s1",
+      mode: "terms",
+      ref: { deckId: "deck-1", cardId: "card-main" },
+      terms: ["existing-term-0"],
+      card: PARENT_CARD,
+      deckTitle: "Network Security",
+      language: "en",
+    });
+    await ended(f.assist, f.root);
+    assert.equal(calls, 2);
+    const secondTask = f.assist.assistView(f.root).tasks[1];
+    assert.equal(secondTask.status, "done");
+    assert.doesNotMatch(secondTask.message, /[\u3400-\u9fff]/);
+    assert.doesNotMatch(secondTask.message, /word list is full/);
+    const updatedTerms = await f.service.call("course.terms.get", { course: "Networks" });
+    assert.equal(updatedTerms.items.length, 500);
+    assert.ok(updatedTerms.items.find((item) => item.term === "existing-term-0")?.card?.cardId);
+  }
+});
+
+test("combined 12-prerequisite limit and 500-term course cap reports unlinked with full-list suffix and localizes cleanly (#1217)", async (t) => {
+  const fullTerms = Array.from({ length: 500 }, (_, i) => ({
+    term: `existing-term-${i}`,
+    at: "2026-11-18T10:00:00.000Z",
+  }));
+  const fillers = Array.from({ length: 12 }, (_, i) => ({
+    ...PARENT_CARD,
+    id: `pre-${i}`,
+    prompt: `前置填充题 ${i + 1}`,
+    objective: `前置 ${i + 1}`,
+  }));
+
+  let calls = 0;
+  const f = await setupTermsFixture(
+    t,
+    async () => {
+      calls += 1;
+      return JSON.stringify({
+        ladder: [
+          makeStep({ term: "地址前缀", layer: 2, needs: [] }),
+          makeStep({ term: "入口过滤", layer: 1, needs: ["地址前缀"] }),
+        ],
+      });
+    },
+    "legacy",
+    (state) => {
+      state.decks[0].cards.push(...fillers);
+      state.decks[0].cards[0].requires = fillers.map((c) => ({ deckId: "deck-1", cardId: c.id }));
+    },
+  );
+  await f.service.call("course.save", {
+    name: "Networks",
+    terms: { version: 1, items: fullTerms },
+  });
+
+  await f.assist.startAssist(f.ctx, {
+    root: f.root,
+    service: f.service,
+    sessionId: "s1",
+    mode: "terms",
+    ref: { deckId: "deck-1", cardId: "card-main" },
+    terms: ["入口过滤"],
+    card: { ...PARENT_CARD, requires: fillers.map((c) => ({ deckId: "deck-1", cardId: c.id })) },
+    deckTitle: "Network Security",
+    language: "zh",
+  });
+  await ended(f.assist, f.root);
+
+  assert.equal(calls, 1);
+  const [task] = f.assist.assistView(f.root).tasks;
+  assert.equal(task.status, "done");
+  assert.equal(task.repaired, undefined);
+  assert.equal(task.outcome, "unlinked");
+  const expectedDetail = "补了 2 个词，但原题前置已满或无法关联，检查题保留在题组里；生词表已满，这几个词没有记进生词表";
+  assert.equal(task.message, expectedDetail);
+
+  const state = await f.service.store.read();
+  assert.equal(state.decks[0].cards.length, 15, "both layer-2 and layer-1 check cards kept in deck");
+  assert.equal(state.decks[0].cards[0].requires.length, 12);
+  assert.equal(state.decks[0].cards[0].followups.length, 1);
+  assert.equal(state.decks[0].cards[0].followups[0].kind, "terms");
+
+  assert.equal(state.inbox.length, 1);
+  assert.equal(state.inbox[0].kind, "followup");
+  assert.equal(state.inbox[0].detail, expectedDetail);
+  assert.equal((await f.service.call("course.terms.get", { course: "Networks" })).items.length, 500);
+
+  const expectedEn = "Filled in 2 terms, but the original card cannot link more prerequisites; check questions were saved in the deck; the course word list is full, so these terms were not saved to it";
+  assert.equal(localizeAppMessage(expectedDetail, "en"), expectedEn);
+  assert.doesNotMatch(expectedEn, /[\u3400-\u9fff]/);
+  const enInbox = await f.service.call("inbox", { uiLanguage: "en" });
+  assert.equal(enInbox.items[0].detail, expectedEn);
+  assert.doesNotMatch(enInbox.items[0].detail, /[\u3400-\u9fff]/);
 });
