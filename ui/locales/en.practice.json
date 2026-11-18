@@ -217,5 +217,16 @@
   "阅读器未选段时显示本文疑问收件匣": "Show document doubt ledger when no text is selected",
   "打开后，资料阅读器里还没选中段落时，右侧会列出这篇资料本次问过的回答与已存批注；点「遮住答案自测」可以先自己回想再看回答，也能一键存成闪卡，不消耗模型。关掉后保持原有提示。": "When on, opening a material with no passage selected shows this document’s session Q&As and saved notes on the right, with “Hide answers to quiz yourself” for active recall and one-click flashcard saving (zero model tokens). Turn off to keep the original hint.",
   "错题页显示靶向清零处方": "Show targeted clear-out plan on Mistakes page",
-  "打开后，「错题与待巩固」在列表上方按同一处原文、顽固题和单次失误整理出可直接开练的处方行，只看现有作答和引用记录，不调用模型；关着时保持原有的错题列表不变。": "When turned on, Mistakes & weak points lists focused clear-out rows above the list by shared passage, stubborn questions, and single-slip misses. Read from your answers and citations only, with no model call; off keeps the original mistake list unchanged."
+  "打开后，「错题与待巩固」在列表上方按同一处原文、顽固题和单次失误整理出可直接开练的处方行，只看现有作答和引用记录，不调用模型；关着时保持原有的错题列表不变。": "When turned on, Mistakes & weak points lists focused clear-out rows above the list by shared passage, stubborn questions, and single-slip misses. Read from your answers and citations only, with no model call; off keeps the original mistake list unchanged.",
+  "练习结果页错题先遮答案并可标错因": "Hide answers first and tag mistake reasons on round results",
+  "每轮做完点开「本轮题目」里的错题时，先遮住正确答案与解析让你回想一遍再揭晓；揭晓后可顺手点选错因（概念混淆、漏看条件、推导卡住、粗心手滑），按错因一键重练或带进复制的复盘摘录。只影响回看显示，不改复习间隔，也不调用模型。": "When you expand a missed question under Questions in this round, hide the answer and explanation first so you recall it before revealing; once revealed, tag why you missed it (Confused concept, Missed condition, Derivation stuck, Careless slip) to practise by reason or include it in copied notes. Display only — never changes review schedules or calls a model.",
+  "先遮答案自测": "Hide answers to self-test",
+  "先在心里回想一遍答案与卡点，再揭晓核对。": "Recall the answer and where you got stuck in your head before revealing.",
+  "揭晓答案与解析": "Reveal answer & explanation",
+  "错因归类": "Mistake reason",
+  "概念混淆": "Confused concept",
+  "漏看条件": "Missed condition",
+  "推导卡住": "Derivation stuck",
+  "粗心手滑": "Careless slip",
+  "重练「{0}」({1})": "Practise “{0}” ({1})"
 }

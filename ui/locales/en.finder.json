@@ -315,5 +315,7 @@
   "阅读器本文疑问收件匣": "Document reader doubt ledger",
   "在「设置 › 练习」开启后，打开资料阅读器且尚未选中原文时，右侧栏会汇总这篇资料的已存批注与本次问过的回答，支持「遮住答案自测」和一键存成闪卡，不消耗模型。": "After turning it on in Settings › Practice, opening the reader with no passage selected shows saved notes and session answers for this material, with hidden-answer self-check and one-click flashcard saving (zero model tokens).",
   "错题靶向清零处方": "Targeted clear-out plan",
-  "在「设置 › 练习」里打开「错题页显示靶向清零处方」后，「错题与待巩固」上方会把引用同一处原文的错题、顽固题和单次失误理成几条直接开练的处方；只看作答和引用记录，不消耗模型。": "Turn on “Show targeted clear-out plan on Mistakes page” in Settings › Practice to list focused practice rows above your mistakes by shared passage, stubborn questions, and single-slip misses. Uses your answer log and citations only, with no model calls."
+  "在「设置 › 练习」里打开「错题页显示靶向清零处方」后，「错题与待巩固」上方会把引用同一处原文的错题、顽固题和单次失误理成几条直接开练的处方；只看作答和引用记录，不消耗模型。": "Turn on “Show targeted clear-out plan on Mistakes page” in Settings › Practice to list focused practice rows above your mistakes by shared passage, stubborn questions, and single-slip misses. Uses your answer log and citations only, with no model calls.",
+  "结果页错题先遮答案与标错因": "Blind recall & mistake reasons on round results",
+  "打开后，每轮练习结果页展开一道错题时先遮住答案与解析，想过一遍再点「揭晓答案与解析」；揭晓后可以给错题点选错因（概念混淆、漏看条件、推导卡住、粗心手滑），按错因挑出来重练，复制复盘摘录时也会一并带上。不改成绩和复习间隔，不调用模型。": "When turned on, expanding a missed question on the round result page hides the answer and explanation until you press “Reveal answer & explanation”; afterwards you can tag the reason (Confused concept, Missed condition, Derivation stuck, Careless slip), practise one reason at a time, and carry the tag into copied notes. It changes neither scores nor review intervals and uses no model."
 }
