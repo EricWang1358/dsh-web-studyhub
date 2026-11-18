@@ -26,6 +26,16 @@ export function summaryParts(progress) {
   return parts.length ? parts : [uiFormat('学习中 {0}', [progress.total])];
 }
 
+/** The words of the home line as pieces that must not be broken: the head ("7 focus topics:" / 「重点 7 条：」) and each count with its words ("2 not yet ·"), with `gap`, the
+    space (en) or nothing (zh) between the head and the first count. Joined as head + gap + parts.join(' ') they read as the one sentence of the template, so the line may wrap
+    only between pieces, never inside "1 without" / "a question". The head comes from the same template as the whole line, so its singular form and its words stay in one place. */
+export function summaryPieces(progress) {
+  const template = '重点 {0} 条：{1}', mark = '\uE000', whole = uiFormat(template, [progress.total, mark]);
+  const head = uiFormat(template, [progress.total, '']).trimEnd(), gap = whole.slice(head.length, whole.indexOf(mark));
+  const parts = summaryParts(progress);
+  return { head, gap, parts: parts.map((part, index) => (index < parts.length - 1 ? `${part} ·` : part)) };
+}
+
 /** What one topic holds: its questions and how many are mastered ("还没有题" for a topic without a question). */
 export function topicCounts(topic) {
   if (!topic.cards) return ui('还没有题');

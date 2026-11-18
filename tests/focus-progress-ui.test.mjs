@@ -22,7 +22,9 @@ const m = await loadUi(`
 `);
 const h = React.createElement;
 const noop = () => {};
-const text = markup => markup.replace(/<[^>]+>/g, ' ').replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/\s+/g, ' ').trim();
+/* The pieces of the home line (head, each count with its words) are inline spans of one sentence: they read as the text they hold, not as separate blocks. */
+const joinPieces = markup => markup.replace(/<span class="focus-progress__piece">([^<]*)<\/span>/g, '$1').replace(/<span class="focus-progress__words">([^<]*)<\/span>/g, '$1');
+const text = markup => joinPieces(markup).replace(/<[^>]+>/g, ' ').replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/\s+/g, ' ').trim();
 /* What the learner reads without hovering: the markup without its tooltips. */
 const visible = markup => text(markup.replace(/<span id="[^"]*" role="tooltip"[^>]*>[^<]*<\/span>/g, ''));
 const render = (element, language = 'zh') => { m.setUiLanguage(language); try { return renderToStaticMarkup(inApp(m, element, { call: async () => ({}) })); } finally { m.setUiLanguage('zh'); } };
@@ -66,7 +68,7 @@ test('zero counts are left out, and nothing to practise means no link', () => {
 test('every topic still being learned: the line says so instead of ending at the colon', () => {
   const learning = { ...progress, total: 2, done: 0, weak: 0, none: 0, weakScope: [], topics: progress.topics.filter(topic => ['todo', 'active'].includes(topic.status)) };
   assert.match(visible(desk({ progress: learning })), /重点 2 条：学习中 2/);
-  assert.match(visible(render(h(m.FocusProgressLine, { progress: learning, courseId: 'c', start: noop }), 'en')), /Learning 2/);
+  assert.match(visible(render(h(m.FocusProgressLine, { progress: learning, courseId: 'c', start: noop }), 'en')), /2 focus topics: 2 learning/);
 });
 
 test('the line is hidden without focus topics and when the readout is empty', () => {
@@ -84,12 +86,29 @@ test('how it is counted is a hover Tooltip, never a title attribute', () => {
 
 test('English: every word of the line and its explanation is English', () => {
   const html = render(h(m.FocusProgressLine, { progress, courseId: 'course-os', lock: false, start: noop, onCourseSettings: noop }), 'en'), line = visible(html);
-  assert.match(line, /Focus topics 8: Mastered 3 · Not yet 2 · No questions 1(?! ·)/);
+  assert.match(line, /8 focus topics: 3 mastered · 2 not yet · 1 without a question(?! ·)/);
   assert.match(line, /Practise the focus topics you can't do yet/);
   assert.doesNotMatch(text(html), /[㐀-鿿]/, 'the explanation too');
   const rows = text(render(h(m.FocusProgressRows, { progress }), 'en'));
   assert.match(rows, /4 questions · Mastered 3/);
   assert.match(rows, /No questions/);
+});
+
+test('English reads as a sentence, with the singular, not two counts glued together (#1130: \"Focus topics 1: No questions 1\")', () => {
+  const one = { ...progress, total: 1, done: 0, weak: 0, none: 1, weakScope: [], topics: progress.topics.filter(topic => topic.status === 'none').slice(0, 1) };
+  const en = visible(render(h(m.FocusProgressLine, { progress: one, courseId: 'c', start: noop }), 'en'));
+  assert.match(en, /1 focus topic: 1 without a question/);
+  assert.doesNotMatch(en, /Focus topics|No questions \d/);
+  assert.match(visible(render(h(m.FocusProgressLine, { progress: { ...one, none: 3, total: 3 }, courseId: 'c', start: noop }), 'en')), /3 focus topics: 3 without questions/);
+  assert.match(visible(render(h(m.FocusProgressLine, { progress: { ...one, none: 0, done: 1 }, courseId: 'c', start: noop }), 'en')), /1 focus topic: 1 mastered/);
+  assert.match(visible(desk({ progress: one })), /重点 1 条：还没有题 1/, 'Chinese is unchanged');
+  // The line is drawn in pieces that never break (the head and each count with its words), joined by the spaces the sentence has: the same visible words, the same accessible name.
+  const piecesOf = (markup) => [...markup.matchAll(/<span class="focus-progress__piece">([^<]*)<\/span>/g)].map(found => found[1]);
+  const mix = { ...progress, total: 7, done: 2, weak: 2, none: 2 };
+  assert.deepEqual(piecesOf(render(h(m.FocusProgressLine, { progress: mix, courseId: 'c', start: noop }), 'en')), ['7 focus topics:', '2 mastered ·', '2 not yet ·', '2 without questions']);
+  assert.deepEqual(piecesOf(render(h(m.FocusProgressLine, { progress: { ...one, none: 1 }, courseId: 'c', start: noop }), 'en')), ['1 focus topic:', '1 without a question']);
+  assert.deepEqual(piecesOf(render(h(m.FocusProgressLine, { progress: mix, courseId: 'c', start: noop }), 'zh')), ['重点 7 条：', '已掌握 2 ·', '还不会 2 ·', '还没有题 2']);
+  assert.match(visible(render(h(m.FocusProgressLine, { progress: mix, courseId: 'c', start: noop }), 'zh')), /重点 7 条：已掌握 2 · 还不会 2 · 还没有题 2/, 'no space after the Chinese colon');
 });
 
 /* The elements of a component's output, to press a button without a DOM: the line has no hooks, so calling it gives its tree. */
@@ -107,6 +126,7 @@ test('pressing the link starts a path run over the weak focus questions; pressin
   assert.equal(buttons.length, 2);
   const [summary, practise] = buttons;
   assert.match(textOf(summary), /重点 8 条/);
+  assert.equal(summary.props.iconEnd ?? summary.props.icon, undefined, 'a status that opens its detail: no arrow');
   assert.match(textOf(practise), /练还不会的重点/);
   summary.props.onClick();
   practise.props.onClick();
