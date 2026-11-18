@@ -268,5 +268,11 @@
   "从生词表移除「{0}」": "Remove “{0}” from word list",
   "移除失败，请再试一次。": "Could not remove this word. Please try again.",
   "清空这门课的生词表？": "Clear this course’s word list?",
-  "会移除这门课记录的所有生词；题组里已生成的检查题和作答记录会保留。": "This removes all saved words for this course. Generated check questions in your deck and their review history will stay."
+  "会移除这门课记录的所有生词；题组里已生成的检查题和作答记录会保留。": "This removes all saved words for this course. Generated check questions in your deck and their review history will stay.",
+  "这一章先别做题提示": "Chapter basics tip",
+  "这一块的基础还没搭起来，再往下补词效率不高。「{0}」先别急着做题，先读一遍，或者让主会话讲一讲。": "The foundation for this part is not solid yet, so looking up more terms won't take you far. Hold off on questions in “{0}” for now — read through the section first, or ask the main chat to walk you through it.",
+  "这一块的基础还没搭起来，再往下补词效率不高。这一部分先别急着做题，先读一遍，或者让主会话讲一讲。": "The foundation for this part is not solid yet, so looking up more terms won't take you far. Hold off on questions in this section for now — read through it first, or ask the main chat to walk you through it.",
+  "在旁边读原文": "Read source alongside",
+  "发给主会话讲": "Ask main chat to teach",
+  "这类不再提示": "Don't show this tip again"
 }

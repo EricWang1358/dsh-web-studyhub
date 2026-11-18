@@ -40,6 +40,7 @@ const EXCLUDED_SELECTOR = [
   ".option-letter",
   ".answer-state",
   ".practice-tip",
+  ".chapter-hint",
   ".choice-feedback-wrap",
   ".sh-comp-card-jump",
   ".question-live-mastery",

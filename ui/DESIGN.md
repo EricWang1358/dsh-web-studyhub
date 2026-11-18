@@ -131,6 +131,24 @@ Personalisation (设置 › 界面, `ui/appearance-prefs.js`) is data attributes
 - No helper sentence where a number, label or layout already says it.
 - Per-row actions (play, practise, select) appear on hover on pointer devices; information such as "继续 3/5" stays visible.
 
+## Proactive elements on the question page
+
+The question page keeps the learner's focus on answering the card; anything that appears without being clicked follows these five rules:
+
+1. **Prefer ambient presence over triggers.** When something only needs to be found when wanted (such as a section link in the book, `#1197`, or a quiet time cue, `#1195`), place it calmly on the page instead of popping a tip or reminder.
+2. **Bring actions closer instead of adding prose.** Put a direct action button on the surface rather than adding a paragraph explaining why the learner might want to act.
+3. **Reserve prose for one situation.** Only speak up proactively with prose when the learner's own action just revealed a problem they are about to push into for nothing (such as `#1193`), and every item of that kind must satisfy all eight constraints:
+   - Appears only immediately after a completed learner action, never mid-thought.
+   - Never appears in mock exams (`exam`) or while the feature tour (`tourRunning`) is running.
+   - At most one item shows at a time; the three first-use tips (`practice-tips.js`) always take priority.
+   - Appears below the question as a quiet in-flow block, never a modal or popover covering the question or answer buttons.
+   - Dismissible, with an explicit "stop showing this kind of tip" (`这类不再提示`) control.
+   - Advisory only — never stops the round, moves cards, changes scheduling or intervals, or disables buttons.
+   - Has an opt-out switch in `Settings › 引导` and an entry in `找功能`.
+   - Never uses a filled primary button (`variant="primary"`).
+4. **Trigger from concrete learner actions, never mental-state guesses.** Triggers come from what the learner just did (marking unknown terms, importing past exams, finishing a chapter), never from guessing frustration or fatigue from wrong-answer counts alone.
+5. **Never spend model tokens automatically.** Proactive elements must never invoke the model on their own; any model call starts only after an explicit click (opt-in learner switches such as `#1204` are user preferences, not proactive offers).
+
 ## Taste notes from the owner
 
 - Likes: a clear focal point, creative but refined, generous space.
