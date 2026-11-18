@@ -524,13 +524,16 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
       setAutoTermsBusyKey((current) => (current === key ? '' : current));
     }
   }, [call, refs, setError, setAutoTerms]);
+  const cardTermsMissing = run?.solution?.terms === undefined;
   useEffect(() => {
-    if (page !== 'review' || !autoTerms || !run?.card || run.complete || run.mode === 'exam') return;
-    if (!run.revealed || !run.feedback || run.feedback.selfReported || isPassed(run)) return;
-    if (run.solution?.terms !== undefined) return;
-    fetchCardTerms(run);
+    // The run is read through its ref (set in every render), so the effect depends on the fields below and not on the object a poll replaces.
+    const current = runRef.current;
+    if (page !== 'review' || !autoTerms || !current?.card || current.complete || current.mode === 'exam') return;
+    if (!current.revealed || !current.feedback || current.feedback.selfReported || isPassed(current)) return;
+    if (current.solution?.terms !== undefined) return;
+    fetchCardTerms(current);
     // Primitive feedback fields avoid polling churn while reacting to reveal, answer grade, or card edits.
-  }, [page, autoTerms, run?.id, run?.index, run?.card?.id, run?.revealed, run?.feedback?.correct, run?.feedback?.grade, run?.feedback?.selfReported, run?.solution?.terms === undefined, fetchCardTerms]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [page, autoTerms, run?.id, run?.index, run?.card?.id, run?.revealed, run?.feedback?.correct, run?.feedback?.grade, run?.feedback?.selfReported, cardTermsMissing, fetchCardTerms]);
   const toggleAutoTerms = useCallback(() => {
     const next = !autoTerms;
     setAutoTerms(next);
