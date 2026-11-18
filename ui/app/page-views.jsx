@@ -134,17 +134,21 @@ function WorkflowsView() {
 }
 
 function SkeletonView() {
-  const { data, lib, set, session, intents } = useApp();
+  const { data, lib, set, session, learn, intents } = useApp();
   const run = session.run;
+  const fromActiveRun = Boolean(run && !run.complete && learn.trailPage === 'review');
   return (
     <Skeleton data={data} focusId={lib.skeletonFocus} onFocus={set.setSkeletonFocus}
-      onPractice={(cards) => intents.practice([...new Map(cards.map((card) => [card.cardId, { deckId: card.deckId, cardId: card.cardId }])).values()],
-        { returnTo: run && !run.complete ? run.id : undefined })} />
+      onPractice={(cards) => {
+        const origin = fromActiveRun ? null : learn.captureContext();
+        intents.practice([...new Map(cards.map((card) => [card.cardId, { deckId: card.deckId, cardId: card.cardId }])).values()],
+          { returnTo: fromActiveRun ? run.id : undefined, then: (nextRun) => { if (origin) learn.rememberContext(origin); session.enterRun(nextRun); } });
+      }} />
   );
 }
 
 function DashboardView() {
-  const { data, core, nav, set, intents, board, dailyPlan } = useApp();
+  const { data, core, nav, set, session, learn, intents, board, dailyPlan } = useApp();
   const offerUndo = (message, undo) => {
     core.toast.show({
       tone: 'success',
@@ -194,7 +198,7 @@ function DashboardView() {
       onRefreshBoard={() => board.state.refresh({ force: true })}
       onEditTimeLog={editTimeLog} onRemoveTimeLog={removeTimeLog}
       onOpenToday={pageAvailable(data, 'board') ? () => { set.setBoardView('today'); nav.navigate('board'); } : undefined}
-      onStartScope={(scope) => intents.practice(scope, { fresh: false })} onLibrary={() => nav.navigate('library')}
+      onStartScope={(scope) => practiseRound({ intents, learn, session }, scope)} onLibrary={() => nav.navigate('library')}
       onCreate={() => intents.goGenerate()} onSources={() => nav.navigate('sources')} onAudioUsage={() => nav.navigate('audio')}
       onOpenWorkflowSession={pageAvailable(data, 'workflows') ? (sessionId) => nav.show.workflow(sessionId) : undefined}
       onOpenWorkflowArchive={pageAvailable(data, 'workflows') ? () => nav.navigate('workflows') : undefined} />

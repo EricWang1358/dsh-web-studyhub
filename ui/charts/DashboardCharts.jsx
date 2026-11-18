@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat, uiLabels } from '../i18n.js';
 import { formatDateTime } from '../format.js';
 import { Button, Icon, IconButton, NumberInput, Panel, ProgressBar, SegmentedControl, Tooltip } from '../components/index.js';
+import { useStudy } from '../study-context.jsx';
 import { dateLabel, evenTicks, fillTrend, linePath, linearScale, niceTicks, trendTicks } from './chart-math.js';
 import { MEASURES, THIN_DATA } from '../mastery-terms.js';
 import { CARD_KIND_LIST } from '../../lib/card-kinds.js';
@@ -15,6 +16,7 @@ import { ACTUAL_MINUTES_MAX, summarizeFocusDuration } from '../../lib/board-mode
 
 const NARROW = 520;
 const SCORE_MAX = 5;
+const FORECAST_START_LIMIT = 200; // Matches SCOPE_LIMIT in lib/prereq.js so bar/today clicks never exceed review.start cap.
 
 /** Measured width of the box the chart sits in; a sensible fallback before layout and in SSR. */
 function useChartWidth(fallback = 640) {
@@ -160,6 +162,7 @@ export function TrendPanel({ trend = [], today, defaultRange = 30 }) {
 /* ── Due forecast ────────────────────────────────────────────────────── */
 
 export function ForecastPanel({ forecast, onStart, parked }) {
+  const { busy } = useStudy();
   const [boxRef, width] = useChartWidth();
   // What the card counts: the active courses; what sits in parked ones (lib/course-active.js) is named, never silently dropped.
   const parkedCount = forecast?.hidden?.count || 0;
@@ -180,20 +183,23 @@ export function ForecastPanel({ forecast, onStart, parked }) {
   const today = days[0];
   const dayName = (d, i) => (i === 0 ? ui('今天') : dateLabel(d.date));
   const summary = (d, i) => (i === 0 ? uiFormat('今天（含逾期） · {0} 题', [d.count]) : uiFormat('{0} · {1} 题', [dateLabel(d.date), d.count]));
-  const start = (d) => { if (onStart && d.cards?.length) onStart(d.cards); };
+  const start = (d) => { if (!busy && onStart && d.cards?.length) onStart(d.cards.slice(0, FORECAST_START_LIMIT)); };
+  const practiseDue = (cards) => { if (!busy && onStart && cards?.length) onStart(cards.slice(0, FORECAST_START_LIMIT)); };
 
   const tip = active == null ? null : (() => {
     const d = days[active];
     const lines = [];
+    const cardCount = d.cards?.length ?? 0;
     if (active === 0 && d.overdue) lines.push(uiFormat('其中逾期 {0} 题', [d.overdue]));
-    if (onStart && d.count) lines.push(active === 0 ? ui('点击开始复习') : ui('点击提前复习'));
-    if (d.truncated) lines.push(uiFormat('一次最多开始 {0} 题', [d.cards.length]));
+    if (onStart && cardCount > 0) lines.push(active === 0 ? ui('点击开始复习') : ui('点击提前复习'));
+    if (d.truncated || cardCount > FORECAST_START_LIMIT) lines.push(uiFormat('一次最多开始 {0} 题', [Math.min(cardCount || d.count, FORECAST_START_LIMIT)]));
     return { x: L + band * (active + 0.5), y: y(d.count) - 6, title: summary(d, active), lines };
   })();
 
   return (
     <Panel className="dash-chart dash-forecast-panel" headClassName="dash-chart__head" title={ui('未来 14 天到期复习')}
-      description={ui('按间隔重复排好的复习日，逾期的并入今天')}>
+      description={ui('按间隔重复排好的复习日，逾期的并入今天')}
+      actions={onStart && today?.cards?.length > 0 ? <Button variant="secondary" size="sm" iconEnd="arrow-right" lock={busy} onClick={() => practiseDue(today.cards)}>{ui('开始今日复习')}</Button> : null}>
       <div className="dash-chart-box" ref={boxRef}>
         {total ? (
           <>
@@ -214,7 +220,7 @@ export function ForecastPanel({ forecast, onStart, parked }) {
               ))}
               {days.map((d, i) => {
                 const cx = L + band * (i + 0.5);
-                const action = onStart && d.count > 0;
+                const action = Boolean(onStart && !busy && d.cards?.length > 0);
                 const label = uiFormat('{0} · {1} 题', [i === 0 ? ui('今天（含逾期）') : dateLabel(d.date), d.count]);
                 return (
                   <g key={d.date} className={`dash-bar${i === 0 ? ' today' : ''}${d.count ? '' : ' zero'}`}
@@ -265,7 +271,8 @@ const LEVEL_NAME = uiLabels({ recall: '记忆', concept: '概念辨析', apply: 
 const KIND_NAME = uiLabels({ ...Object.fromEntries(CARD_KIND_LIST.map((kind) => [kind.id, kind.short])), case: '案例' });
 const tone = (rate) => (rate >= 70 ? 'success' : rate >= 50 ? 'warning' : 'error');
 
-export function MasteryPanel({ mastery, defaultView = 'level' }) {
+export function MasteryPanel({ mastery, defaultView = 'level', onStartScope }) {
+  const { busy } = useStudy();
   const [view, setView] = useState(defaultView);
   const windowDays = mastery?.windowDays ?? 30;
   const rows = (view === 'level' ? mastery?.levels : mastery?.kinds) || [];
@@ -273,6 +280,7 @@ export function MasteryPanel({ mastery, defaultView = 'level' }) {
   const answered = rows.reduce((n, r) => n + r.n, 0);
   const enoughRows = rows.filter((r) => r.enough);
   const allMet = answered > 0 && enoughRows.length > 0 && enoughRows.every((r) => r.rate >= 70);
+  const practiseWeak = (cards) => { if (!busy && onStartScope && cards?.length) onStartScope(cards.slice(0, FORECAST_START_LIMIT)); };
   return (
     <Panel className="dash-chart dash-mastery-panel" headClassName="dash-chart__head" title={ui(MEASURES.passRate.label)}
       description={uiFormat('近 {0} 天作答，3 分及以上算达标', [windowDays])}
@@ -290,6 +298,11 @@ export function MasteryPanel({ mastery, defaultView = 'level' }) {
                 <span className="dash-mvalue">
                   {r.enough ? <b>{r.rate}%</b> : <em>{ui(THIN_DATA)}</em>}
                   <small>{uiFormat('{0} 次作答', [r.n])}</small>
+                  {onStartScope && r.practiceCards?.length > 0 && (!r.enough || r.rate < 70) && (
+                    <Button variant="link" size="sm" iconEnd="arrow-right" className="dash-maction" lock={busy} onClick={() => practiseWeak(r.practiceCards)}>
+                      {ui('专练薄弱项')}
+                    </Button>
+                  )}
                 </span>
               </li>
             ))}
