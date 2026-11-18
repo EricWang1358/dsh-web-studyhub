@@ -10,10 +10,11 @@ import BookQaButton, { BookQaAuto } from "./book/BookQaButton.jsx";
    the practice page (ui/review/QuestionRun.jsx), which is on screen even while this list is folded away; `note` says when one failed.
    noteQa (optional): { savedIn(followupId) -> noteId | '', onSave(followupId), onOpen(noteId) } — 「存进笔记」 under each Q&A (#1017): into this question's
    learning note once (note.qa.add); saved, it reads 已存进笔记 · 打开. Needs no review book. */
-export default function ExplanationFollowup({ run, readOnly = false, onDerive, onAskMore = null, deriving = false, bookQa = null, noteQa = null, cardNotes = [] }) {
+export default function ExplanationFollowup({ run, readOnly = false, onDerive, onAskMore = null, deriving = false, bookQa = null, noteQa = null, cardNotes = [], onOpenBookSection = null }) {
   const { call } = useStudy();
   const book = bookQa?.book;
   const withBook = !!book && book.ready && book.courses.has(bookQa.course ?? "");
+  const canReadBookSection = run?.mode !== "exam" && !run?.complete && typeof onOpenBookSection === "function";
   const [open, setOpen] = React.useState(false);
   const [questions, setQuestions] = React.useState([]);
   const [custom, setCustom] = React.useState(false);
@@ -97,8 +98,17 @@ export default function ExplanationFollowup({ run, readOnly = false, onDerive, o
           <summary><Badge size="sm" tone="accent" className="en-mark">Q&amp;A</Badge><h4>{item.question}</h4>
             <span className="followup-state" aria-hidden="true">{openIds.has(item.id) ? ui("收起") : ui("展开")}</span></summary>
           <Markdown text={item.answer} />
-          {withBook && <BookQaButton refOf={{ ...ref, followupId: item.id }} book={book} />}
-          {noteQa && <NoteQaButton followupId={item.id} noteQa={noteQa} cardNotes={cardNotes} />}
+          {(withBook || noteQa || canReadBookSection) && (
+            <div className="followup-actions">
+              {withBook && <BookQaButton refOf={{ ...ref, followupId: item.id }} book={book} />}
+              {noteQa && <NoteQaButton followupId={item.id} noteQa={noteQa} cardNotes={cardNotes} />}
+              {canReadBookSection && (
+                <Button variant="link" size="sm" iconEnd="arrow-right" className="book-section-button" data-book-section-link="followup" onClick={onOpenBookSection}>
+                  {ui("读全书这一节")}
+                </Button>
+              )}
+            </div>
+          )}
           {/* A long answer can be folded from its end, landing back on its question. */}
           {/* 出成题: this Q&A becomes a question of its own, as a prerequisite of this card or standalone (a background task, the result goes to the deck and the inbox). */}
           {onDerive && <div className="followup-derive" role="group" aria-label={ui("用这个问答出题")}>

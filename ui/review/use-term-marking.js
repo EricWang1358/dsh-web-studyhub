@@ -36,9 +36,11 @@ const EXCLUDED_SELECTOR = [
   ".citation-disclosure",
   ".followup-head",
   ".followup-book",
+  ".followup-actions",
   ".followup-derive",
   ".followup-picker",
   ".note-qa-button",
+  ".question-book-link",
   '[aria-hidden="true"]',
 ].join(", ");
 

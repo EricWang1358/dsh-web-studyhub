@@ -2,7 +2,7 @@ import { ui, uiFormat, errorMessage } from "./i18n.js";
 import React from "react";
 import ReviewNavigator from "./ReviewNavigator.jsx";
 import RunContext from "./review/RunContext.jsx";
-import QuestionPlace from "./review/QuestionPlace.jsx";
+import QuestionPlace, { useCardPlace } from "./review/QuestionPlace.jsx";
 import QuestionRun from "./review/QuestionRun.jsx";
 import usePinQuestion from "./review/usePinQuestion.js";
 import CoachDebrief from "./CoachDebrief.jsx";
@@ -93,6 +93,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
   const { reviewAct } = actions;
   const study = useStudy();
   const { call, act, busy, host, navigate, openSettings, notify } = study;
+  const cardPlace = useCardPlace({ call, run });
   const [lookBackSegmentState, setLookBackSegmentState] = React.useState({ runId: null, segment: null });
   const lookBackSegment = lookBackSegmentState.runId === run?.id ? lookBackSegmentState.segment : null;
   const setLookBackSegment = (segment) => setLookBackSegmentState({ runId: run?.id ?? null, segment });
@@ -241,7 +242,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             </Tooltip>
           )}
           <RunContext data={data} deckId={run.deckId} run={run} />
-          <QuestionPlace data={data} run={run} onOpenOutline={onOpenOutline} />
+          <QuestionPlace data={data} run={run} place={cardPlace} onOpenOutline={onOpenOutline} />
           {skeletonHere && openSkeleton && (
             <Button iconEnd="arrow-right" variant="quiet" size="sm" title={uiFormat("这道题在知识骨架「{0}」里", [skeletonHere.title])} onClick={() => openSkeleton(skeletonHere.id)}>{ui("知识骨架")}</Button>
           )}
@@ -396,7 +397,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
           </details>
         </div>
       ) : (
-        <QuestionRun key="body" session={session} data={data} coachProps={coachProps} links={links} context={{ ...context, inHeader: !!wayBack }} feedback={feedback} />
+        <QuestionRun key="body" session={session} data={data} coachProps={coachProps} links={links} place={cardPlace} context={{ ...context, inHeader: !!wayBack }} feedback={feedback} />
       )}
       {dock.column}
     </section>

@@ -593,3 +593,143 @@ test("QuestionPlace shows source document/chapter in normal mode, hides in exam/
   clearOutlineTarget("/lib", "Arch");
   assert.equal(keptOutlineTarget("/lib", "Arch"), null);
 });
+
+test("QuestionRun and ExplanationFollowup show 「读全书这一节」 only when leaf.built is true and not exam mode, and BookHeader renders 「回到这道题」 (#1196)", async () => {
+  const { loadUi } = await import("./helpers/ui-module.mjs");
+  const bookUi = await loadUi(`
+    export { default as BookHeader } from './ui/book/BookHeader.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { setUiLanguage, ui } from './ui/i18n.js';
+  `);
+
+  const builtPlace = {
+    course: "Arch",
+    document: { key: "pdf:doc-1", title: "Architecture Guide.pdf" },
+    chapter: { key: "pdf:doc-1#1", title: "Core Layers" },
+    leaf: { key: "bk:leaf-1", title: "What is Layered Architecture?", built: true },
+  };
+  const unbuiltPlace = {
+    ...builtPlace,
+    leaf: { key: "bk:leaf-2", title: "Who Uses It?", built: false },
+  };
+  const nullLeafPlace = {
+    ...builtPlace,
+    leaf: null,
+  };
+  const followups = [{ id: "fu-1", question: "为什么这样分层？", answer: "为了解耦每一层的职责。" }];
+  const quizCard = { id: "q-b1", kind: "quiz", topic: "Arch", prompt: "Which layer?", options: [{ id: "a", text: "Domain" }, { id: "b", text: "UI" }] };
+  const flashCard = { id: "q-f1", kind: "flashcard", topic: "Arch", prompt: "Explain domain layer", answer: "Core logic" };
+  const baseData = { sources: [{ id: "s1", title: "Architecture Guide", courses: ["Arch"] }] };
+
+  const renderQuestion = (runPatch, extra = {}) => renderToStaticMarkup(reviewEl({
+    run: { id: "r-book-1", index: 0, total: 2, card: quizCard, ...runPatch },
+    data: baseData,
+    host: {},
+    choice: !runPatch.card || runPatch.card.kind === "quiz",
+    selected: [],
+    clozeValues: {},
+    shellTitle: "Arch",
+    busy: false,
+    onOpenBookSection: () => {},
+    ...extra,
+  }));
+
+  setUiLanguage("zh");
+  try {
+    // 1. Built leaf + wrong quiz answer -> link below verdict + link under Q&A followup
+    const wrongQuizHtml = renderQuestion({
+      cardPlace: builtPlace,
+      feedback: { correct: false, chosen: ["b"] },
+      solution: { answer: "Domain", explanation: "Domain is core.", followups },
+    });
+    assert.match(wrongQuizHtml, /data-book-section-link="feedback">读全书这一节<svg class="sh-icon"/);
+    assert.match(wrongQuizHtml, /data-book-section-link="followup">读全书这一节<svg class="sh-icon"/);
+
+    // 2. Built leaf + wrong flashcard (grade < 3) -> link below verdict
+    const wrongFlashHtml = renderQuestion({
+      card: flashCard,
+      cardPlace: builtPlace,
+      revealed: true,
+      feedback: { grade: 2 },
+      solution: { answer: "Core logic", followups },
+    });
+    assert.match(wrongFlashHtml, /data-book-section-link="feedback"/);
+    assert.match(wrongFlashHtml, /data-book-section-link="followup"/);
+
+    // 3. Built leaf + right quiz answer -> NO link under verdict, YES link under Q&A followup
+    const rightQuizHtml = renderQuestion({
+      cardPlace: builtPlace,
+      feedback: { correct: true, chosen: ["a"] },
+      solution: { answer: "Domain", explanation: "Domain is core.", followups },
+    });
+    assert.doesNotMatch(rightQuizHtml, /data-book-section-link="feedback"/);
+    assert.match(rightQuizHtml, /data-book-section-link="followup"/);
+
+    // 4. Built leaf + before answer (no feedback yet) -> NO feedback link
+    const beforeHtml = renderQuestion({ cardPlace: builtPlace });
+    assert.doesNotMatch(beforeHtml, /data-book-section-link=/);
+
+    // 5. Unbuilt leaf (built: false) -> NEVER shows link (neither wrong feedback nor followup)
+    const unbuiltHtml = renderQuestion({
+      cardPlace: unbuiltPlace,
+      feedback: { correct: false, chosen: ["b"] },
+      solution: { answer: "Domain", explanation: "Domain is core.", followups },
+    });
+    assert.doesNotMatch(unbuiltHtml, /data-book-section-link=/);
+    assert.doesNotMatch(unbuiltHtml, /读全书这一节/);
+
+    // 6. leaf: null -> NEVER shows link
+    const nullLeafHtml = renderQuestion({
+      cardPlace: nullLeafPlace,
+      feedback: { correct: false, chosen: ["b"] },
+      solution: { answer: "Domain", explanation: "Domain is core.", followups },
+    });
+    assert.doesNotMatch(nullLeafHtml, /data-book-section-link=/);
+
+    // 7. Exam mode -> NEVER shows link even when leaf.built is true
+    const examHtml = renderQuestion({
+      mode: "exam",
+      cardPlace: builtPlace,
+      feedback: { correct: false, chosen: ["b"] },
+      solution: { answer: "Domain", explanation: "Domain is core.", followups },
+    });
+    assert.doesNotMatch(examHtml, /data-book-section-link=/);
+    assert.doesNotMatch(examHtml, /读全书这一节/);
+
+    // 8. English wording
+    setUiLanguage("en");
+    const enWrongHtml = renderQuestion({
+      cardPlace: builtPlace,
+      feedback: { correct: false, chosen: ["b"] },
+      solution: { answer: "Domain", explanation: "Domain is core." },
+    });
+    assert.match(enWrongHtml, /Read this section in the book/);
+
+    // 9. BookHeader default vs returning to question
+    const bookServices = { call: async () => ({}), act: async () => undefined, busy: false, notify: () => {}, openSettings: () => {}, navigate: () => {}, openModal: () => {} };
+    const renderHeader = (props) => renderToStaticMarkup(
+      React.createElement(bookUi.StudyServicesContext.Provider, { value: bookServices },
+        React.createElement(bookUi.BookHeader, {
+          data: { focus: { courses: [{ course: "Arch", name: "Architecture" }] } },
+          course: "Arch",
+          courseName: "Architecture",
+          book: { status: "ok", notes: true },
+          onBack: () => {},
+          onCourse: () => {},
+          ...props,
+        })),
+    );
+    bookUi.setUiLanguage("zh");
+    const defaultHeader = renderHeader({});
+    assert.match(defaultHeader, /回到总纲/);
+    const returnHeader = renderHeader({ backLabel: bookUi.ui("回到这道题") });
+    assert.match(returnHeader, /sh-page-header__back"><svg class="sh-icon"[^>]*>.*?<\/svg>回到这道题/);
+    assert.doesNotMatch(returnHeader, /回到总纲/);
+    bookUi.setUiLanguage("en");
+    const enReturnHeader = renderHeader({ backLabel: bookUi.ui("回到这道题") });
+    assert.match(enReturnHeader, /Back to this question/);
+  } finally {
+    setUiLanguage("zh");
+    bookUi.setUiLanguage("zh");
+  }
+});
