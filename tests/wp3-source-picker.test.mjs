@@ -62,7 +62,7 @@ test('the picker lists one row per document and counts documents, not pages', ()
   assert.match(html, /已选择 1 \/ 3 份资料/);
   assert.match(html, /slides\.pdf/);
   assert.doesNotMatch(html, /slides\.pdf · p\.2/, 'pages stay inside the document until expanded');
-  assert.match(html, /PDF · 3 页/);
+  assert.match(html.replace(/<[^>]+>/g, ''), /PDF · 3 页/, 'the format and its pages (two boxes on the row, #1134)');
   assert.doesNotMatch(html, /排版提取 v2|旧版提取/);
   assert.match(html, /aria-expanded="false"/, 'a multi-page document offers its page list');
   const partial = render({ selected: [page(2).id] });
@@ -92,20 +92,30 @@ test('an empty picker points at adding material, in either language', () => {
   } finally { setUiLanguage('zh'); }
 });
 
-test('the names on the facts lines are one decision for the whole scope, from the words and the line\'s room (#1084 round 8 review)', async () => {
-  const names = await build({ stdin: { contents: `export { decideNames } from './ui/picker-names.js';`, resolveDir: process.cwd() },
+test('the facts lines are one decision for the whole scope, from the words and the line\'s room: which names, which sizes (#1084 round 8 review, #1134, #1135)', async () => {
+  const names = await build({ stdin: { contents: `export { decideFacts } from './ui/picker-names.js';`, resolveDir: process.cwd() },
     bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], logLevel: 'silent' });
   const scope = { exports: {} };
   new Function('require', 'module', 'exports', names.outputFiles[0].text)(require, scope, scope.exports);
-  const { decideNames } = scope.exports;
-  // widths in px: the format, size and notes; the first name; the names after it; whether the course may be shortened; whether the row has 选择页面
-  const row = (lead, first, later = [], shortened = false, multi = false) => ({ lead, first, later, shortened, multi });
+  const { decideFacts } = scope.exports;
+  // widths in px: the format; its pages with their 「 · 」 (0: none); its characters with their 「 · 」; the first name; the names after it; whether the
+  // course may be shortened; whether the row has 选择页面
+  const row = (kind, pages, size, first, later = [], shortened = false, multi = false) => ({ kind, pages, size, first, later, shortened, multi });
   const fit = { room: () => 200, gap: 4, em: 12 };
-  assert.equal(decideNames([row(100, 40, [30]), row(80, 40)], fit), 'all', 'every row says every name whole');
-  assert.equal(decideNames([row(100, 40, [60]), row(80, 40)], fit), 'first', 'one row has no room for a later name: no row says one');
-  assert.equal(decideNames([row(120, 150, [], true)], fit), 'first', 'a course that may be shortened needs 6em at most');
-  assert.equal(decideNames([row(190, 40), row(20, 40)], fit), 'none', 'in a course scope, one row without room for its other course: no row says one');
-  assert.equal(decideNames([row(190, 40), row(20, 40)], { ...fit, everyCourse: true }), 'alone', 'in 全部课程 every row keeps its course: alone on the line where a row has no room for its format and size beside it (round 10)');
-  assert.equal(decideNames([row(190, 0)], fit), '', 'no row has a name');
-  assert.equal(decideNames([row(100, 40, [], false, true)], { ...fit, room: line => (line.multi ? 120 : 200) }), 'none', 'a row with 选择页面 has less room');
+  const decide = (rows, extra = {}) => { const { names, chars } = decideFacts(rows, { ...fit, ...extra }); return `${names}/${chars}`; };
+  assert.equal(decide([row(40, 0, 60, 40, [30]), row(40, 0, 40, 40)]), 'all/all', 'every row says every name and its size whole');
+  assert.equal(decide([row(40, 0, 60, 40, [60]), row(40, 0, 40, 40)]), 'first/all', 'one row has no room for a later name: no row says one');
+  assert.equal(decide([row(40, 0, 80, 150, [], true)]), 'first/all', 'a course that may be shortened needs 6em at most');
+  assert.equal(decide([row(40, 0, 150, 40), row(10, 0, 10, 40)]), 'none/all', 'in a course scope, one row without room for its other course: no row says one');
+  assert.equal(decide([row(40, 0, 60, 0)]), '/all', 'no row has a name');
+  assert.equal(decide([row(40, 0, 60, 40)], { room: line => (line.multi ? 120 : 200) }), 'all/all');
+  assert.equal(decide([row(40, 30, 60, 40, [], false, true)], { room: line => (line.multi ? 120 : 200) }), 'all/unpaged', 'a row with 选择页面 has less room');
+  // #1134, #1135: a size is said whole or not at all, by one rule for the rows of a kind; a document with pages says its size in pages first
+  assert.equal(decide([row(40, 40, 80, 40, [20]), row(40, 0, 60, 40, [20])]), 'all/unpaged', 'a PDF without room for its characters says its pages; a note keeps its characters');
+  assert.equal(decide([row(60, 0, 150, 0), row(40, 30, 40, 0)]), '/none', 'one note without room for its characters: no row says characters, a PDF still its pages');
+  assert.equal(decide([row(60, 0, 100, 40), row(40, 0, 40, 40)]), 'none/all', 'in a course scope the other course gives way before a note\'s characters');
+  assert.equal(decide([row(60, 0, 100, 40), row(40, 0, 40, 40)], { everyCourse: true }), 'first/none', 'in 全部课程 every row keeps its course and its format, a note gives its characters way');
+  assert.equal(decide([row(40, 40, 80, 40), row(40, 0, 40, 40)], { everyCourse: true }), 'all/unpaged');
+  assert.equal(decide([row(100, 60, 40, 100, [], true)], { everyCourse: true }), 'kind/none', 'in 全部课程 with no room for the format with its pages and 6em of the course: the format without its pages, then the course');
+  assert.equal(decide([row(150, 30, 40, 100, [], true)], { everyCourse: true }), 'alone/none', 'no room even for the format and 6em of the course: the course alone, rather than cut to two characters');
 });

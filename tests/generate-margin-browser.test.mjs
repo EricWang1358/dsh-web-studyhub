@@ -30,8 +30,9 @@ import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
    row; at 320–420 a row's facts read the same before and after the index answer and say the size (cut in its own words if need be); every course a row
    carries is in its checkbox's name, drawn or not.
    Round 10 (rv26): at 320–420 a row has at most one cut piece, a cut ends after a whole part (never on 「·」 or a figure), the line never starts with
-   「·」 (全部课程 says the course alone where a row has no room for its format, size and course), and in a course scope long notes give way at the line's
-   end, so the other course is said on every row. */
+   「·」, and in a course scope long notes give way at the line's end, so the other course is said on every row.
+   Round 10 review (#1132–#1136): a note is said whole or out of sight (judged by its right edge against the notes' box); 全部课程 keeps every row's format
+   beside its course; a size is said whole or not at all, by one rule for the rows of a kind; a course name left out draws no hover anchor. */
 
 const STAMP = '2026-10-01T08:00:00.000Z';
 const COURSE = '示例课程 · 设计模式';
@@ -265,10 +266,12 @@ test('#1082: at 320 and 360, with nothing ticked, the bar says why whole, and ke
  */
 const factsLines = page => page.evaluate(() => {
   const ellipsis = element => { const canvas = document.createElement('canvas').getContext('2d'); canvas.font = getComputedStyle(element).font; return canvas.measureText('…').width; };
-  const seen = element => {
-    const text = [], edge = element.getBoundingClientRect().right - ellipsis(element) + 0.5;
+  // a part left out of a piece (see-through, out of the line's flow) is not seen (#1134, #1135: the size and the pages give way whole)
+  const seen = (element, cut) => {
+    const text = [], edge = cut ? element.getBoundingClientRect().right - ellipsis(element) + 0.5 : Infinity;
     const walk = node => {
       for (const child of node.childNodes) {
+        if (child.nodeType === 1 && Number(getComputedStyle(child).opacity) === 0) continue;
         if (child.nodeType === 3) {
           for (let at = 0; at < child.data.length; at++) {
             const range = document.createRange();
@@ -292,10 +295,20 @@ const factsLines = page => page.evaluate(() => {
     const facts = item.querySelector('.source-picker__facts'), line = facts.getBoundingClientRect(), lineHeight = parseFloat(getComputedStyle(facts).height);
     const unseen = piece => { for (let element = piece; element && element !== facts; element = element.parentElement) { const style = getComputedStyle(element); if (style.visibility !== 'visible' || Number(style.opacity) === 0) return true; } return false; };
     const drawn = piece => { const box = piece.getBoundingClientRect(); return box.width > 0 && box.top < line.top + lineHeight / 2 && box.left < line.right - 0.5 && !unseen(piece); };
+    // #1133: a piece is cut bare where a box around it that clips (the notes' box, the line) ends before it does: its own box is whole, so its own widths
+    // do not show it
+    const clipRight = piece => {
+      let right = Infinity;
+      for (let element = piece.parentElement; element; element = element.parentElement) {
+        if (getComputedStyle(element).overflowX !== 'visible') right = Math.min(right, element.getBoundingClientRect().right);
+        if (element === facts) break;
+      }
+      return right;
+    };
     const pieces = [...facts.querySelectorAll('.source-picker__fact')].map(piece => {
-      const cut = piece.scrollWidth > piece.clientWidth + 0.5, tip = document.getElementById(piece.getAttribute('aria-describedby') || '');
-      return { text: piece.textContent, name: piece.classList.contains('source-picker__fact--name'), note: piece.classList.contains('source-picker__fact--note'), shown: drawn(piece), cut, seen: cut ? seen(piece) : piece.textContent,
-        tip: tip ? tip.textContent : null, right: piece.getBoundingClientRect().right };
+      const cut = piece.scrollWidth > piece.clientWidth + 0.5, tip = document.getElementById(piece.getAttribute('aria-describedby') || ''), box = piece.getBoundingClientRect();
+      return { text: piece.textContent, name: piece.classList.contains('source-picker__fact--name'), note: piece.classList.contains('source-picker__fact--note'), shown: drawn(piece), cut, seen: seen(piece, cut),
+        clipped: box.right > clipRight(piece) + 0.5, tip: tip ? tip.textContent : null, right: box.right };
     });
     const shown = pieces.filter(piece => piece.shown);
     // the first character drawn inside the line (a piece pulled left of the line's start is clipped there)
@@ -318,6 +331,23 @@ const factsLines = page => page.evaluate(() => {
       room: line.right - Math.max(...shown.map(piece => piece.right)), start };
   });
 });
+
+/**
+ * #1134, #1135: what is wrong with the rows' formats and sizes, in words. The format (the lead's first part) is said whole on every row; the pages and the
+ * characters are each said whole or left out, never cut; and the rows of a kind (with pages, without) say their characters all or none.
+ */
+const leadProblems = rows => {
+  const bad = [], says = { 'with pages': new Set(), 'without pages': new Set() };
+  for (const row of rows) {
+    const parts = row.lead.text.split(' · '), [kind] = parts, paged = parts.length > 2, chars = parts.at(-1), seen = row.lead.seen.trim();
+    if (!row.lead.shown || !seen.startsWith(kind)) { bad.push(`the format is not said whole: ${row.title}: ${row.text}`); continue; }
+    const wholes = paged ? [kind, parts.slice(0, 2).join(' · '), row.lead.text] : [kind, row.lead.text];
+    if (row.lead.cut || !wholes.includes(seen)) bad.push(`the size is cut: ${row.title}: ${row.text}`);
+    if (parts.length > 1) says[paged ? 'with pages' : 'without pages'].add(seen.endsWith(chars));
+  }
+  for (const [kind, said] of Object.entries(says)) if (said.size > 1) bad.push(`rows ${kind} disagree on their characters`);
+  return bad;
+};
 
 /** 课程范围: 全部课程. */
 async function allCourses(page, lang) {
@@ -570,7 +600,7 @@ test('#1084 round 8 review: scrolling a list longer than its first 24 rows chang
   }
 });
 
-test('#1084 round 8 review: at 320–420 a row\'s facts read the same before and after the index answer, and say the size (cut in its own words if need be)', { timeout: 900000 }, async t => {
+test('#1084 round 8 review: at 320–420 a row\'s facts read the same before and after the index answer; #1135: they say the format whole and the size whole or not at all, by one rule for the list', { timeout: 900000 }, async t => {
   if (skip) { t.skip(skip); return; }
   for (const lang of ['en', 'zh']) for (const width of [320, 360, 375, 390, 420]) for (const outcome of width === 320 ? ['badges', 'no index', 'fail'] : ['badges', 'no index']) {
     const tag = `${lang} ${width} ${outcome}`;
@@ -584,12 +614,10 @@ test('#1084 round 8 review: at 320–420 a row\'s facts read the same before and
     await frames(page, 4);
     const landed = await factsLines(page);
     assert.deepEqual(landed.map(row => row.text), coming.map(row => row.text), `${tag}: the facts lines read the same before and after the answer`);
-    for (const row of landed) {
-      const format = row.lead.text.split(' · ')[0];
-      assert.ok(row.lead.shown && row.lead.seen.length >= format.length + 4, `${tag}: ${row.title}: the size is said, at least its first figures ("${row.text}")`);
-      // round 10: a cut ends on a whole part, never on its 「·」 nor inside or right after a figure (「1,12…」)
-      if (row.lead.cut) assert.ok(!/(·\s*|\d)$/.test(row.lead.seen), `${tag}: ${row.title}: the format, size and notes are cut after a whole part ("${row.text}")`);
-    }
+    // round 8 review asked for the size at 320–420 even cut in its own words; #1135 (round 10 review): 「Markdown · 560 …」, 「Text · 267 charac…」 and
+    // 「PDF · 4 pages…」 on three rows read three ways. The size is now said whole or not at all, by one rule for the rows of a kind (a document with pages
+    // says its size in pages), and the format is always said whole.
+    assert.deepEqual(leadProblems(landed), [], `${tag}: ${landed.slice(0, 3).map(row => row.text).join(' | ')}`);
     t.diagnostic(`${tag}: ${landed.slice(0, 2).map(row => row.text).join(' | ')}`);
     assert.deepEqual(errors.filter(error => !/status of 500/.test(error)), []);
     await context.close();
@@ -640,9 +668,16 @@ test('#1084 round 10: at 320–420, in the scope and in 全部课程, a row has 
           if (piece.seen.replace(/^·\s*/, '').trim().length < 2) bad.push(`a cut piece shows almost nothing: ${row.text}`);
         }
         if (row.start === '·') bad.push(`starts with 「·」: ${row.text}`);
-        if (row.pieces.some(piece => piece.note && piece.shown && piece.cut)) bad.push(`a note is cut: ${row.text}`);
+        // #1133: a note is cut where the notes' box ends before it does (its own box is whole): judged by the right edges
+        if (row.pieces.some(piece => piece.note && piece.shown && (piece.cut || piece.clipped))) bad.push(`a note is cut: ${row.text}`);
+        if (row.pieces.some(piece => piece.shown && piece.clipped)) bad.push(`a piece is drawn past its box: ${row.text}`);
         if (all && !row.names[0]?.shown) bad.push(`no course in 全部课程: ${row.text}`);
       }
+      // #1134, #1135: every row says its format whole (全部课程 too), and its size whole or not at all, by one rule for its kind. 全部课程 says the course
+      // alone only where the format would leave it less than 6em (a long format at 320): never above 320
+      const decided = await page.evaluate(() => document.querySelector('[data-tour="generate-sources"] .source-picker').dataset.names);
+      if (!(all && decided === 'alone')) bad.push(...leadProblems(rows));
+      else if (width > 320) bad.push(`全部课程 says the course alone at ${width}`);
       assert.deepEqual(bad, [], `${tag}: ${rows.slice(0, 3).map(row => row.text).join(' | ')}`);
       // what a row leaves out is still in its checkbox's name: the format, size and notes whole, and every course
       rows.slice(0, 3).forEach((row, at) => assert.ok(names[at]?.includes(row.pieces.map(piece => piece.text).join(' ')), `${tag}: the checkbox's name has every fact ("${names[at]}")`));
@@ -676,9 +711,108 @@ test('#1084 round 10: in a course scope a row\'s long notes give way, so the oth
     for (const row of all.filter(item => /PDF/.test(item.lead.text))) {
       assert.ok(cutsOf(row).length <= 1 && /^PDF · 3 (页|pages) · \S+ (字符|characters)/.test(row.lead.seen), `${tag}: a long-noted row keeps its format and size, its notes give way ("${row.text}")`);
       assert.ok(!/(·\s*|\d)$/.test(row.lead.seen), `${tag}: the format and size are not cut ("${row.text}")`);
-      assert.deepEqual(row.pieces.filter(piece => piece.note && piece.shown && piece.cut).map(piece => piece.text), [], `${tag}: a note is said whole or left out ("${row.text}")`);
+      assert.deepEqual(row.pieces.filter(piece => piece.note && piece.shown && (piece.cut || piece.clipped)).map(piece => piece.text), [], `${tag}: a note is said whole or left out ("${row.text}")`);
     }
     t.diagnostic(`${tag}: ${all[0].text} | ${all.at(-1).text}`);
+    assert.deepEqual(errors, []);
+    await context.close();
+  }
+});
+
+/** Every row of the list: scrolled to its end step by step (the window draws more rows as it goes), the rows' facts lines by title. */
+async function everyRow(page) {
+  const rows = new Map();
+  for (let step = 0, drawn = 0, still = 0; step <= 30 && still < 2; step++) {
+    for (const row of await factsLines(page)) rows.set(row.title, row);
+    const now = await scrollList(page);
+    still = now === drawn ? still + 1 : 0;
+    drawn = now;
+    await page.waitForTimeout(150);
+    await frames(page, 3);
+  }
+  for (const row of await factsLines(page)) rows.set(row.title, row);
+  return rows;
+}
+
+/* #1132 (round 10 review): at 375–420 the first note of a long-noted row was cut mid-word with no 「…」 (「PDF · 3 pages · 480 characters · littl」,
+   「… · 网络 · 文字偏少」): the notes' box clipped it, its own box being whole. A note is said whole or left out of sight, at first paint, when the index
+   answer lands late, and after scrolling (#1133: judged by its right edge against the notes' box). */
+test('#1132: a row\'s note is said whole or left out of sight at 375–900, in the scope and in 全部课程, before and after a late index answer', { timeout: 900000 }, async t => {
+  if (skip) { t.skip(skip); return; }
+  for (const lang of ['en', 'zh']) for (const width of [375, 420, 900]) for (const all of [false, true]) {
+    const tag = `${lang} ${width}${all ? ' 全部课程' : ''}`;
+    const { page, errors, context, release } = await openGenerate({ lang, width, height: 900, answer: answers().badges, now: false, on: longServer });
+    if (all) await allCourses(page, lang);
+    await frames(page, 4);
+    const coming = await everyRow(page);
+    release();
+    await until(() => page.evaluate(() => !document.querySelector('[data-tour="generate-sources"] [data-index-slot="held"]')), `${tag}: the answer is in`);
+    await settleAnimations(page);
+    await frames(page, 4);
+    const landed = await everyRow(page);
+    assert.ok(landed.size >= 34, `${tag}: every row was drawn (${landed.size})`);
+    const bad = [];
+    for (const [title, row] of landed) {
+      for (const piece of row.pieces.filter(item => item.shown && (item.clipped || (item.note && item.cut)))) bad.push(`${piece.note ? 'a note' : 'a piece'} is cut bare: ${title}: ${row.text} (${piece.text})`);
+      if (coming.has(title) && coming.get(title).text !== row.text) bad.push(`${title}: "${coming.get(title).text}" then "${row.text}"`);
+    }
+    assert.deepEqual(bad, [], tag);
+    const noted = [...landed.values()].filter(row => row.pieces.some(piece => piece.note));
+    assert.ok(noted.length >= 4, `${tag}: the long-noted rows were drawn (${noted.length})`);
+    t.diagnostic(`${tag}: ${noted.at(-1).text} (${noted.filter(row => row.pieces.some(piece => piece.note && piece.shown)).length}/${noted.length} rows say a note)`);
+    assert.deepEqual(errors, []);
+    await context.close();
+  }
+});
+
+/* #1134 (round 10 review): in 全部课程 a list where one row had no room for its format, size and course said the course alone on every row: at en 420
+   34 rows read 「操作系统」, though 30 short notes had room for 「Text · 180 characters · 操作系统」. Every row now keeps its format; a document with pages says
+   its size in pages, so its characters give way first, and a note keeps its characters where every note has room for them. */
+test('#1134: 全部课程 at 420 keeps every row\'s format, a note\'s characters and a PDF\'s pages, beside the course', { timeout: 600000 }, async t => {
+  if (skip) { t.skip(skip); return; }
+  for (const lang of ['en', 'zh']) {
+    const tag = `${lang} 420 全部课程`;
+    const { page, errors, context } = await openGenerate({ lang, width: 420, height: 900, answer: answers().badges, on: longServer });
+    await allCourses(page, lang);
+    await frames(page, 4);
+    const rows = [...(await everyRow(page)).values()];
+    assert.ok(rows.length >= 34, `${tag}: every row was drawn (${rows.length})`);
+    const bad = leadProblems(rows);
+    for (const row of rows) {
+      const paged = /PDF/.test(row.lead.text), want = paged ? /^PDF · 3 (页|pages)/ : /^(Text|文本) · 180 (字符|characters)$/;
+      if (!want.test(row.lead.seen.trim())) bad.push(`${paged ? 'no pages' : 'no characters'}: ${row.title}: ${row.text}`);
+      if (!(row.names[0]?.shown && row.names[0].seen.replace(/^·\s*/, '').length >= 2)) bad.push(`no course: ${row.title}: ${row.text}`);
+    }
+    assert.deepEqual(bad, [], tag);
+    t.diagnostic(`${tag}: data-names=${await page.evaluate(() => document.querySelector('[data-tour="generate-sources"] .source-picker').dataset.names)}: ${rows[0].text} | ${rows.at(-1).text}`);
+    assert.deepEqual(errors, []);
+    await context.close();
+  }
+});
+
+/* #1136 (round 10 review): a course name the list leaves out ('none') that counted as cut still drew the hover card's anchor (0 wide, a column gap on the
+   line, never to open): more elements on every such row. A name left out has no anchor: such a row draws as many elements as at 1440. */
+test('#1136: a course name left out of the line draws no hover anchor, so its row has the elements it has at 1440', { timeout: 600000 }, async t => {
+  if (skip) { t.skip(skip); return; }
+  const count = page => page.evaluate(() => [...document.querySelectorAll('[data-tour="generate-sources"] .source-picker__item')].map(item => {
+    const hidden = element => { for (let at = element; at && at !== item; at = at.parentElement) if (Number(getComputedStyle(at).opacity) === 0) return true; return false; };
+    const anchors = [...item.querySelectorAll('.source-picker__fact-anchor')];
+    return { title: item.querySelector('strong').textContent, elements: item.querySelectorAll('*').length, idle: anchors.filter(anchor => hidden(anchor.querySelector('[data-name]') || anchor)).length,
+      anchors: anchors.length };
+  }));
+  for (const [lang, width] of [['en', 320], ['en', 420], ['zh', 320], ['zh', 420]]) {
+    const tag = `${lang} ${width}`;
+    const { page, errors, context } = await openGenerate({ lang, width, answer: answers().badges });
+    await frames(page, 4);
+    const narrow = await count(page);
+    await page.setViewportSize({ width: 1440, height: 860 });
+    await frames(page, 6);
+    const wide = new Map((await count(page)).map(row => [row.title, row]));
+    assert.ok(narrow.length >= 10, `${tag}: rows (${narrow.length})`);
+    assert.deepEqual(narrow.filter(row => row.idle).map(row => `${row.title}: ${row.idle}`), [], `${tag}: no anchor around a name left out`);
+    const differ = narrow.filter(row => !row.anchors && wide.has(row.title) && row.elements !== wide.get(row.title).elements);
+    assert.deepEqual(differ.map(row => `${row.title}: ${row.elements} at ${width}, ${wide.get(row.title).elements} at 1440`), [], `${tag}: a row without a cut name draws what it draws at 1440`);
+    t.diagnostic(`${tag}: data-names=${await page.evaluate(() => document.querySelector('[data-tour="generate-sources"] .source-picker').dataset.names)}, elements ${narrow.slice(0, 3).map(row => row.elements).join('/')}`);
     assert.deepEqual(errors, []);
     await context.close();
   }
