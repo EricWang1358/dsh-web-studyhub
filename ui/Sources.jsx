@@ -6,7 +6,7 @@ import { PdfConvertHistory, PdfConvertJobs } from './PdfConvertJob.jsx';
 import CourseField, { parseCourses } from './CourseField.jsx';
 import PageScope, { courseNamesOf, usePageScope } from './PageScope.jsx';
 import { useInjectCss } from "./shared.js";
-import { AddSourceButton, Badge, Button, Checkbox, CheckboxInput, ChunkedRows, ConfirmDialog, Dialog, Disclosure, Field, Icon, InlineMessage, Menu, PageHeader, SegmentedControl, Select, TextInput, Tooltip, filterItems, scrollWindowCount, useToast } from "./components/index.js";
+import { AddSourceButton, Badge, Button, Checkbox, CheckboxInput, Chip, ChunkedRows, ConfirmDialog, Dialog, Disclosure, Field, Icon, InlineMessage, Menu, PageHeader, SegmentedControl, Select, TextInput, Tooltip, filterItems, scrollWindowCount, useToast } from "./components/index.js";
 import { browserStorage, readJSON, writeJSON } from "./storage.js";
 import { useNarrow } from "./use-narrow.js";
 import { useRowFit } from "./use-row-fit.js";
@@ -28,6 +28,7 @@ import { displayTitle } from '../lib/document-title.js';
 import { bigDocuments } from '../lib/large-documents.js';
 import { chapterLabel, documentNotes, documentSearchText, inScope, relationNote, sameIndexInfo, sourceFormatLabel } from './SourcePicker.jsx';
 import { materialRelations } from '../lib/source-relations.js';
+import { compareMaterialReview, pickPracticeRefs, reviewUrgencyOf } from '../lib/contexts/materials/material-practice.js';
 import { dropRequest, pinnedKeys, splitPinned, stepRequest } from '../lib/material-pins.js';
 import { MasteryLine } from './document-preview/practice/MasteryMark.jsx';
 import { CoverageChip } from './coverage/Coverage.jsx';
@@ -67,7 +68,7 @@ const UNKNOWN = "unknown";
 /* The 已置顶 group is not a day: its own key in the open/closed sets (lib/material-pins.js). */
 const PINNED = "__pinned";
 const VALID_GROUP_MODES = new Set(["course", "folder", "day", "none"]);
-const VALID_SORTS = new Set(["recent", "title"]);
+const VALID_SORTS = new Set(["recent", "title", "review"]);
 const groupModeKey = root => `study-sources-group-mode:v1:${root || ""}`;
 const sortModeKey = root => `study-sources-sort-mode:v1:${root || ""}`;
 const closedGroupsKey = (root, mode) => `study-sources-group-closed:v1:${root || ""}:${mode}`;
@@ -117,11 +118,17 @@ function groupByDay(items, { sort = "recent", locale = uiLocale() } = {}) {
     }));
 }
 
-function buildSourceGroups(items, { mode, folders, sort = "recent", includeEmpty = false, locale = uiLocale(), scope = "*", known = [] }) {
-  if (mode === "course") return groupMaterialsByCourse(items, { sort, locale, scope, known });
-  if (mode === "folder") return groupMaterialsByFolder(items, folders, { sort, locale, includeEmpty });
-  if (mode === "none") return groupMaterialsFlat(items, { sort, locale });
-  return groupByDay(items, { sort, locale });
+function buildSourceGroups(items, { mode, folders, sort = "recent", includeEmpty = false, locale = uiLocale(), scope = "*", known = [], materialMastery = null } = {}) {
+  const baseSort = sort === "review" ? "recent" : sort;
+  const groups = mode === "course" ? groupMaterialsByCourse(items, { sort: baseSort, locale, scope, known })
+    : mode === "folder" ? groupMaterialsByFolder(items, folders, { sort: baseSort, locale, includeEmpty })
+      : mode === "none" ? groupMaterialsFlat(items, { sort: baseSort, locale })
+        : groupByDay(items, { sort: baseSort, locale });
+  if (sort !== "review") return groups;
+  return groups.map(group => ({
+    ...group,
+    rows: [...group.rows].sort((a, b) => compareMaterialReview(a, b, materialMastery, locale)),
+  }));
 }
 
 /** The page header's description: its fixed sentence, then the summary of what the library holds. The summary templates keep a leading space (the one the English
@@ -201,11 +208,13 @@ export function ChapterList({ item, onOpen, onGenerate, onPractice, listId, mast
 }
 
 /** The entries of a row's 更多 menu. */
-export function RowMenuItems({ item, onGenerate, onCompanion, onChangeCourse, onMoveFolder, onRemove, onSegment, onRename, onArchive, onPin, onPinMove, pin }) {
+export function RowMenuItems({ item, onPracticeUrgent, onPractice, onGenerate, onCompanion, onChangeCourse, onMoveFolder, onRemove, onSegment, onRename, onArchive, onPin, onPinMove, pin }) {
   const { busy, call } = useStudy();
   const close = event => event.currentTarget.closest("details")?.removeAttribute("open");
   return <div className="source-row-menu">
     {/* What the row does not show beside its one action (#1083): 从这份资料出题 when 补题 is that action, and the material's interactive companion. */}
+    {onPracticeUrgent && <Button className="source-row-menu__btn" iconEnd="arrow-right" lock={busy} onClick={event => { close(event); return onPracticeUrgent(item); }}>{ui('练待巩固的题')}</Button>}
+    {onPractice && <Button className="source-row-menu__btn" iconEnd="arrow-right" lock={busy} onClick={event => { close(event); return onPractice(item); }}>{ui('练整份资料')}</Button>}
     {onGenerate && <Button className="source-row-menu__btn" iconEnd="arrow-right" lock={busy} onClick={event => { close(event); onGenerate(item); }}>{ui('从这份资料出题')}</Button>}
     {onCompanion && <Button className="source-row-menu__btn" iconEnd="arrow-right" onClick={event => { close(event); onCompanion(item); }}>{ui('打开交互伴学页')}</Button>}
     {call && <OriginalMenuEntry item={item} />}
@@ -283,6 +292,7 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
   const notes = documentNotes(item);
   // One page count for the document (the pages that have text); when the original file has more, that is said once, beside it, with the reason on hover.
   const gap = pageGapNote(item), pages = pageFacts(item).readable;
+  const docUrgency = !item.archived ? reviewUrgencyOf(mastery?.document) : reviewUrgencyOf(null);
   const indexSlot = (slot || indexInfo) && <span className="source-doc__index">{indexInfo && <IndexBadge info={indexInfo} coverage={{ canIndex }} onIndex={indexLink ? () => actions.buildIndex(item.courses?.[0] || '') : undefined} />}</span>;
   const dragProps = pinned && !editing
     ? { draggable: true, onDragStart: event => actions.dragStart(item.key, event), onDragOver: event => actions.dragOver(item.key, event),
@@ -325,7 +335,10 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
             <Button size="sm" variant="danger" className="source-doc__action" lock={busy} onClick={() => actions.remove(item)}>{ui('永久删除')}</Button>
           </>}
           <details className="source-row-actions"><summary>{ui('更多')}</summary>
-            <RowMenuItems item={item} onGenerate={topUp && canGenerate ? () => actions.generate(item.sourceIds) : undefined}
+            <RowMenuItems item={item}
+              onPracticeUrgent={canPractice && docUrgency.hasUrgent ? actions.practiceUrgent : undefined}
+              onPractice={canPractice && docUrgency.total > 0 ? actions.practiceDocument : undefined}
+              onGenerate={topUp && canGenerate ? () => actions.generate(item.sourceIds) : undefined}
               onCompanion={companionTarget && openModal ? () => openCompanionTarget(openModal, companionTarget) : undefined} onChangeCourse={actions.changeCourse} onMoveFolder={canMoveFolder ? actions.moveFolder : undefined}
               onArchive={item.archived ? undefined : actions.archive} onSegment={canSegment ? actions.segment : undefined} onRename={editor ? startEditing : undefined}
               onPin={actions.pin} onPinMove={actions.pinMove} pin={{ pinned, first: pinFirst, last: pinLast }} />
@@ -335,6 +348,11 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
             then the index badge's slot, kept from the first paint so a late coverage answer fills it and moves nothing (#229). A click on it opens the material, as the title does. */}
         <div className="source-doc__status" onClick={openRow}>
           <span className="source-doc__quality"><MasteryLine className="source-doc__mastery" summary={mastery?.document ?? null} title={name} /><CoverageChip coverage={coverage} /></span>
+          {docUrgency.hasUrgent && (
+            <span className="source-doc__urgency">
+              <Badge size="sm">{[docUrgency.weak > 0 && uiFormat('{0} 题薄弱', [docUrgency.weak]), docUrgency.due > 0 && uiFormat('{0} 题到期', [docUrgency.due])].filter(Boolean).join(' · ')}</Badge>
+            </span>
+          )}
           {indexSlot}
         </div>
       </div>
@@ -435,6 +453,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   const toast = useToast();
   const [scope, setScope] = usePageScope(data.root, 'sources', data.focus?.course ?? '*');
   const [showArchived, setShowArchived] = useState(false);
+  const [reviewOnly, setReviewOnly] = useState(false);
   const [query, setQuery] = useState('');
   const [viewState, setViewState] = useState(() => ({ root: data.root, mode: readGroupMode(data.root), sort: readSortMode(data.root) }));
   const groupMode = viewState.root === data.root ? viewState.mode : readGroupMode(data.root);
@@ -458,7 +477,18 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   const known = useMemo(() => courseNamesOf(data), [data.focus?.courses]); // eslint-disable-line react-hooks/exhaustive-deps
   const scoped = useMemo(() => items.filter(item => inScope(item, scope, known)), [items, scope, known]);
   const filtering = !!query.trim();
-  const filtered = useMemo(() => filtering ? filterItems(scoped, query, documentSearchText) : scoped, [scoped, filtering, query]);
+  const urgentScopedCount = useMemo(
+    () => (showArchived ? 0 : scoped.filter(item => reviewUrgencyOf(data.materialMastery?.[item.key]?.document).hasUrgent).length),
+    [scoped, showArchived, data.materialMastery],
+  );
+  const activeReviewFilter = !showArchived && reviewOnly;
+  const narrowing = filtering || activeReviewFilter;
+  const filtered = useMemo(() => {
+    const base = activeReviewFilter
+      ? scoped.filter(item => reviewUrgencyOf(data.materialMastery?.[item.key]?.document).hasUrgent)
+      : scoped;
+    return filtering ? filterItems(base, query, documentSearchText) : base;
+  }, [scoped, activeReviewFilter, data.materialMastery, filtering, query]);
   // Books of more than 300 pages get the 大教材建议; what DSH can search with is read once, and only then (WP28).
   const bigKeys = useMemo(() => new Set(bigDocuments(items).map(item => item.key)), [items]);
   // Whether each material's search index is built (the rows say so); read once, and followed while a build runs.
@@ -473,8 +503,8 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   const { pinned, rest } = useMemo(() => showArchived ? { pinned: [], rest: filtered } : splitPinned(filtered, pins), [filtered, pins, showArchived]);
   const locale = uiLocale();
   const groups = useMemo(
-    () => buildSourceGroups(rest, { mode: groupMode, folders: materialFolders, sort: sortBy, includeEmpty: groupMode === 'folder' && !filtering && !showArchived, locale, scope, known }),
-    [rest, groupMode, materialFolders, sortBy, filtering, showArchived, locale, scope, known],
+    () => buildSourceGroups(rest, { mode: groupMode, folders: materialFolders, sort: sortBy, includeEmpty: groupMode === 'folder' && !narrowing && !showArchived, locale, scope, known, materialMastery: showArchived ? null : data.materialMastery }),
+    [rest, groupMode, materialFolders, sortBy, narrowing, showArchived, locale, scope, known, data.materialMastery],
   );
   // The header describes the scope, not the filter: the filter's own count says how many match, so typing changes no line above the controls (#1085);
   // its 全部展开 / 全部收起 is there and named by the scope's groups too, so typing neither adds, removes nor renames a header button.
@@ -482,13 +512,13 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   const scopeView = useMemo(() => {
     const view = (rows, archived) => {
       const split = archived ? { pinned: [], rest: rows } : splitPinned(rows, pins);
-      return { split, groups: buildSourceGroups(split.rest, { mode: groupMode, folders: materialFolders, sort: sortBy, includeEmpty: groupMode === 'folder' && !archived, locale, scope, known }) };
+      return { split, groups: buildSourceGroups(split.rest, { mode: groupMode, folders: materialFolders, sort: sortBy, includeEmpty: groupMode === 'folder' && !archived, locale, scope, known, materialMastery: archived ? null : data.materialMastery }) };
     };
     const { split, groups: scopeGroups } = view(scoped, showArchived);
     const other = view(allItems.filter(item => item.archived !== showArchived && inScope(item, scope, known)), !showArchived).groups;
     return { groupKeys: scopeGroups.map(group => group.key), groupsInEither: scopeGroups.length > 1 || other.length > 1,
       summary: { count: scoped.length, pinned: split.pinned.length, rest: split.rest.length, groups: scopeGroups.length } };
-  }, [scoped, allItems, pins, showArchived, groupMode, materialFolders, sortBy, locale, scope, known]);
+  }, [scoped, allItems, pins, showArchived, groupMode, materialFolders, sortBy, locale, scope, known, data.materialMastery]);
   const scopeSummary = scopeView.summary;
   // Materials made from one original file say so on their rows (#207), as in the picker of 创建题组.
   const relations = useMemo(() => materialRelations(items), [items]);
@@ -518,7 +548,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
       return { key: foldKey, set: next };
     });
   };
-  const isOpen = group => filtering || !closed.has(group.key);
+  const isOpen = group => narrowing || !closed.has(group.key);
   // A new import reopens its group even if the learner had closed it.
   useEffect(() => {
     if (!highlight?.at) return;
@@ -604,7 +634,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   // The learner's own folds (a filter opens every matching group for a while but leaves them as they were).
   const allOpen = scopeView.groupKeys.length > 0 && scopeView.groupKeys.every(key => !closed.has(key));
   // The pinned group is open unless the learner closed it (or while filtering so matching pinned rows stay visible).
-  const pinnedOpen = filtering || !closed.has(PINNED);
+  const pinnedOpen = narrowing || !closed.has(PINNED);
   const togglePinned = () => updateClosed(current => { const next = new Set(current); pinnedOpen ? next.add(PINNED) : next.delete(PINNED); return next; });
   // Dragging a pinned row: `drag` is { key, over, side }; dragging a row into a folder in folder mode: `folderDragKey` & `folderDropKey`.
   const [drag, setDrag] = useState(null);
@@ -625,18 +655,51 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
     if (was?.fromNotice) setTimeout(() => { (rowMenu(was.key)() || document.querySelector('[data-archive-toggle]'))?.focus?.(); }, 30);
   };
   latest.current = { offerArchived, setModal, byId, act, onGenerate, onPractice, toast, onOpenSettings, onBuildIndex, renameFor, drag, pinKeys: pins, shownPins: pinned.map(item => item.key) };
+  const practiceMaterialCards = async ({ item, params, only, empty, capped }) => {
+    const { act, onPractice: startPractice, toast: say } = latest.current;
+    const view = await act('materials.pages.cards', { documentId: item.documentId || item.key, ...(item.sourceIds?.[0] ? { sourceId: item.sourceIds[0] } : {}), ...params }, undefined, { refreshAfter: false });
+    if (!view) return;
+    const { refs, totalUnique, capped: truncated } = pickPracticeRefs(view.cards || [], { only });
+    if (!refs.length) { say.info(empty); return; }
+    const result = startPractice?.(refs);
+    if (!truncated) return result;
+    const notice = uiFormat(capped, [refs.length, totalUnique]);
+    if (result && typeof result.then === 'function') {
+      try {
+        if (await result) say.info(notice);
+      } catch {
+        // practice start failed or was cancelled; suppress stale truncation toast
+      }
+    } else if (result !== false) {
+      say.info(notice);
+    }
+  };
   const actions = useMemo(() => ({
     open: id => latest.current.setModal({ type: "source", source: latest.current.byId.get(id) }),
     select: (key, on) => { setSelected(current => on ? [...current, key] : current.filter(entry => entry !== key)); setProposals(null); },
     generate: ids => latest.current.onGenerate?.(ids),
-    // 练这一章: ask which questions the chapter's number counts (materials.pages.cards { chapter }), then start the ordinary practice round on them.
-    practiceChapter: async (item, chapter) => {
-      const { act, onPractice: start, toast: say } = latest.current;
-      const view = await act('materials.pages.cards', { documentId: item.documentId || item.key, sourceId: item.sourceIds[0], chapter: chapter.index }, undefined, { refreshAfter: false });
-      if (!view) return;
-      const refs = (view.cards || []).map(({ deckId, cardId }) => ({ deckId, cardId }));
-      if (refs.length) start?.(refs); else say.info(ui('这一章现在没有可练的题（已斩或已归档的不算）。可以先用这份资料出题。'));
-    },
+    // 练这一章 / 练整份资料 / 练待巩固的题: ask which questions the chapter or whole document owns (materials.pages.cards), prioritize urgency, and cap at 200.
+    practiceChapter: (item, chapter) => practiceMaterialCards({
+      item,
+      params: { chapter: chapter.index },
+      only: 'all',
+      empty: ui('这一章现在没有可练的题（已斩或已归档的不算）。可以先用这份资料出题。'),
+      capped: '这一章可练题目较多，本次先练最需巩固的 {0} 道（共 {1} 道）。',
+    }),
+    practiceDocument: item => practiceMaterialCards({
+      item,
+      params: {},
+      only: 'all',
+      empty: ui('这份资料现在没有可练的题（已斩或已归档的不算）。可以先从它出题。'),
+      capped: '这份资料可练题目较多，本次先练最需巩固的 {0} 道（共 {1} 道）。',
+    }),
+    practiceUrgent: item => practiceMaterialCards({
+      item,
+      params: {},
+      only: 'urgent',
+      empty: ui('这份资料暂时没有薄弱或到期题，可以在菜单里选「练整份资料」。'),
+      capped: '这份资料可练题目较多，本次先练最需巩固的 {0} 道（共 {1} 道）。',
+    }),
     archive: async item => {
       const done = await latest.current.act('source.archive', { sourceIds: item.sourceIds, archived: !item.archived });
       if (done && !item.archived) latest.current.offerArchived([item]);
@@ -680,7 +743,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   }, [items, data.courses, showArchived]);
   // A group draws its rows in chunks (ChunkedRows); the rows something goes to are drawn even past the first chunk: the new import, and the 深度定制 button 找功能 looks for.
   // A new course scope, filter query, grouping mode, sort mode or archive toggle starts every group from its first chunk again.
-  const chunkKey = `${scope}|${showArchived}|${query.trim()}|${groupMode}|${sortBy}`;
+  const chunkKey = `${scope}|${showArchived}|${activeReviewFilter}|${query.trim()}|${groupMode}|${sortBy}`;
   const rowOf = (rows, keys) => rows.findIndex(item => keys.has(item.key));
   const anchorsOf = rows => ({ 'custom-book-row': rowOf(rows, offers) });
   // One row, in a group or in the pinned group (`pin`: where it stands among the pinned rows).
@@ -783,7 +846,13 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
           <Select className="sources-view-bar__sort" aria-label={ui('排序')} value={sortBy} onChange={chooseSort} options={[
             { value: 'recent', label: ui('最近导入') },
             { value: 'title', label: ui('按标题') },
+            { value: 'review', label: ui('待巩固优先') },
           ]} />
+          {!showArchived && (urgentScopedCount > 0 || reviewOnly) && (
+            <Chip size="sm" className="sources-view-bar__review" selected={reviewOnly} onClick={() => setReviewOnly(current => !current)}>
+              {uiFormat('只看待巩固（{0}）', [urgentScopedCount])}
+            </Chip>
+          )}
           {groupMode === 'folder' && !showArchived && !!(act || call) && (
             <Button size="sm" variant="secondary" icon="plus" lock={busy} onClick={() => setCreatingFolder(true)}>{ui('新建文件夹')}</Button>
           )}
@@ -792,7 +861,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
           <summary>{showArchived ? ui('批量管理已归档资料') : ui('整理课程归属')}</summary>
           <p className="muted">{showArchived ? ui('勾选已归档资料后，可批量恢复、统一永久删除，或整理课程归属。') : ui('勾选资料后统一整理。改课程归属时，原文与引用保持不变。')}</p>
           <p>{uiFormat('已选择 {0} 份资料', [chosen.length])}{' '}
-            <Button disabled={!filtered.length} onClick={() => { setSelected(filtered.map(item => item.key)); setProposals(null); }}>{filtering ? ui('选择筛选结果') : ui('选择当前范围')}</Button>{' '}
+            <Button disabled={!filtered.length} onClick={() => { setSelected(filtered.map(item => item.key)); setProposals(null); }}>{narrowing ? ui('选择筛选结果') : ui('选择当前范围')}</Button>{' '}
             {selected.length > 0 && <Button onClick={finish}>{ui('清空选择')}</Button>}
           </p>
           <CourseField value={courseText} onChange={setCourseText} courses={data.focus?.courses} multiple disabled={busy} />
@@ -855,7 +924,11 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
           </div>}
         </details>}
         {items.length > 0 && !scoped.length && <p className="muted">{ui('这个范围还没有资料。可切换到全部课程查看。')}</p>}
-        {items.length > 0 && scoped.length > 0 && !filtered.length && <p className="muted">{uiFormat('没有匹配“{0}”的资料', [query.trim()])}</p>}
+        {items.length > 0 && scoped.length > 0 && !filtered.length && (
+          activeReviewFilter
+            ? <p className="muted">{filtering ? uiFormat('待巩固资料中没有匹配“{0}”的项。', [query.trim()]) : ui('当前范围没有待巩固的资料。')} <Button variant="link" size="sm" onClick={() => setReviewOnly(false)}>{ui('显示全部资料')}</Button></p>
+            : <p className="muted">{uiFormat('没有匹配“{0}”的资料', [query.trim()])}</p>
+        )}
       </>}
       <AudioJobs data={data} openAgent={openAgent} onOpenSources={onOpenSources} onLegacyRetry={onLegacyRetry} onGenerate={onGenerate} />
       <PdfConvertJobs data={data} act={act} onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} onGenerate={onGenerate} />
