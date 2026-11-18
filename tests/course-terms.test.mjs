@@ -214,6 +214,72 @@ test("five course.terms operations, mastery updates, store round-trip persistenc
   assert.equal(afterClear.courses.find((c) => c.name === "Networks").terms, undefined);
 });
 
+test("course.terms.unmark with onlyUnattached keeps attached terms while deleting unattached ones (#1212)", async (t) => {
+  const root = await tempRoot(t, "course-terms-unmark-guard-");
+  const service = new StudyService(root);
+  t.after(() => service.dispose());
+
+  await service.call("snapshot");
+  await service.store.update((state) => {
+    state.decks.push({
+      id: "deck-1",
+      title: "Routing",
+      course: "Networks",
+      cards: [
+        makeCard("c-chk-1", "Check card 1"),
+        makeCard("c-chk-2", "Check card 2"),
+      ],
+    });
+  });
+
+  await service.call("course.terms.mark", {
+    course: "Networks",
+    terms: ["Ingress"],
+  });
+  await service.call("course.terms.attach", {
+    course: "Networks",
+    links: [
+      { term: "BCP38", card: { deckId: "deck-1", cardId: "c-chk-1" } },
+      { term: "Egress", card: { deckId: "deck-1", cardId: "c-chk-2" } },
+    ],
+  });
+
+  // onlyUnattached: true deletes unattached "Ingress" while preserving attached "BCP38".
+  const guarded = await service.call("course.terms.unmark", {
+    course: "Networks",
+    terms: ["bcp38", "ingress"],
+    onlyUnattached: true,
+  });
+  assert.equal(guarded.removed, 1);
+  assert.deepEqual(guarded.items.map((item) => item.term), ["BCP38", "Egress"]);
+  assert.deepEqual(guarded.items[0].card, { deckId: "deck-1", cardId: "c-chk-1" });
+
+  // Calling again with only attached terms deletes nothing.
+  const noopGuarded = await service.call("course.terms.unmark", {
+    course: "Networks",
+    terms: ["bcp38"],
+    onlyUnattached: true,
+  });
+  assert.equal(noopGuarded.removed, 0);
+  assert.equal(noopGuarded.items.length, 2);
+
+  // Without onlyUnattached (or with onlyUnattached: false), attached terms ARE deleted.
+  const unguarded = await service.call("course.terms.unmark", {
+    course: "Networks",
+    terms: ["bcp38"],
+  });
+  assert.equal(unguarded.removed, 1);
+  assert.deepEqual(unguarded.items.map((item) => item.term), ["Egress"]);
+
+  const falseFlag = await service.call("course.terms.unmark", {
+    course: "Networks",
+    terms: ["egress"],
+    onlyUnattached: false,
+  });
+  assert.equal(falseFlag.removed, 1);
+  assert.deepEqual(falseFlag.items, []);
+});
+
 test("mergeCourseTerms and course.merge take union keeping earlier at and card links", async (t) => {
   const merged = mergeCourseTerms(
     {

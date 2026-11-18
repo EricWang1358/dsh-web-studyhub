@@ -877,3 +877,288 @@ test("candidate unfamiliar words after wrong answers, 1-click mark, and 420px la
     }
   }
 });
+
+async function seedUnmarkGuardDeck(root, lang) {
+  const service = new StudyService(root);
+  await service.call("snapshot");
+  const courseName = lang === "en" ? "Systems" : "系统课";
+  await service.store.update((state) => {
+    state.decks.push({
+      id: "d-guard",
+      title: lang === "en" ? "Distributed Systems" : "分布式系统",
+      course: courseName,
+      folder: "",
+      publishedAt: "2026-10-01T00:00:00.000Z",
+      cards: lang === "en"
+        ? [
+            {
+              id: "g1",
+              kind: "flashcard",
+              topic: "Replication",
+              objective: "Understand consistency vs quorum",
+              prompt: "Explain the core trade-off in distributed replication.",
+              answer: "Systems balance linearizability against quorum guarantees while avoiding split-brain.",
+              hint: "Focus on ordering and availability.",
+              explanation: "Linearizability gives a single global order; quorum prevents split-brain.",
+              misconception: "Assuming weak consistency prevents split-brain.",
+              citations: [],
+            },
+            {
+              id: "g2",
+              kind: "quiz",
+              topic: "Retry Safety",
+              objective: "Connect idempotency and linearizability",
+              prompt: "In distributed systems, how do idempotency and linearizability work together?",
+              options: [
+                { id: "a", text: "Linearizability gives real-time order while idempotency makes retries safe", correct: true, explanation: "Ordering and retry safety complement each other." },
+                { id: "b", text: "Both only promise eventual convergence", correct: false, explanation: "Linearizability guarantees real-time atomic ordering." },
+              ],
+              hint: "Think about retries and ordering.",
+              explanation: "Linearizability orders operations while idempotency handles duplicates.",
+              misconception: "Treating them as identical.",
+              citations: [],
+            },
+          ]
+        : [
+            {
+              id: "g1",
+              kind: "flashcard",
+              topic: "副本同步",
+              objective: "理解一致性权衡",
+              prompt: "请说明分布式副本同步的核心权衡。",
+              answer: "系统常在 线性一致性 与 最终一致性 之间权衡，另需防范 脑裂 问题。",
+              hint: "关注全局顺序与容错。",
+              explanation: "线性一致性保证全局原子序，另需防止脑裂。",
+              misconception: "把弱一致与强一致混为一谈。",
+              citations: [],
+            },
+            {
+              id: "g2",
+              kind: "quiz",
+              topic: "并发与重试",
+              objective: "区分幂等性与线性一致性",
+              prompt: "在 分布式系统 里，关于 幂等性 与 线性一致性 的作用，下列哪项正确？",
+              options: [
+                { id: "a", text: "线性一致性保证全局实时序，幂等性保证重复执行安全", correct: true, explanation: "两者分别负责全局序与安全重试。" },
+                { id: "b", text: "两者都只保证最终收敛", correct: false, explanation: "线性一致性要求实时全局原子序。" },
+              ],
+              hint: "想一想顺序保证与重试安全。",
+              explanation: "线性一致性保证并发实时序，幂等性保证重试不出错。",
+              misconception: "以为两者作用相同。",
+              citations: [],
+            },
+          ],
+    });
+  });
+  await service.call("course.save", {
+    name: courseName,
+    terms: {
+      version: 1,
+      items: lang === "en"
+        ? [{ term: "idempotency", at: "2026-11-18T08:00:00.000Z", from: { deckId: "d-guard", cardId: "g2" } }]
+        : [
+            { term: "幂等性", at: "2026-11-18T08:00:00.000Z", from: { deckId: "d-guard", cardId: "g2" } },
+            { term: "分布式", at: "2026-11-18T07:00:00.000Z", from: { deckId: "d-guard", cardId: "g2" } },
+          ],
+    },
+  });
+}
+
+test("term-strip remove only unmarks unattached visit-added terms and protects filled/historical terms (#1212)", async (t) => {
+  let browser;
+  try {
+    browser = await launchChromium();
+  } catch (error) {
+    t.skip(`no Chromium to look with: ${String(error.message).split("\n")[0]}`);
+    return;
+  }
+  const dist = await mkdtemp(join(tmpdir(), "study-unmark-guard-dist-"));
+  await buildPreview({ outdir: dist });
+  t.after(async () => {
+    await browser.close();
+    await rm(dist, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  });
+
+  for (const lang of ["zh", "en"]) {
+    const tag = `unmark-guard-${lang}`;
+    const running = await startLateServer({ distDir: dist, lang, seed: (root) => seedUnmarkGuardDeck(root, lang) });
+    const { context, page, errors } = await openPage(browser, running, { lang, theme: "light", width: 1280, height: 900 });
+    try {
+      let unmarkCalls = 0;
+      let termsGetCalls = 0;
+      let lastMarkPromise = Promise.resolve();
+      let lastUnmarkPromise = Promise.resolve();
+      let lastGetPromise = Promise.resolve();
+      page.on("request", (req) => {
+        if (!req.url().endsWith("/api/call")) return;
+        const body = req.postData() || "";
+        const waitRes = () =>
+          page.waitForResponse((res) => res.url().endsWith("/api/call") && res.request() === req, { timeout: 10000 }).catch(() => null);
+        if (body.includes('"course.terms.get"')) {
+          termsGetCalls += 1;
+          lastGetPromise = waitRes();
+        }
+        if (body.includes('"course.terms.mark"')) lastMarkPromise = waitRes();
+        if (body.includes('"course.terms.unmark"')) {
+          unmarkCalls += 1;
+          lastUnmarkPromise = waitRes();
+        }
+      });
+
+      const courseName = lang === "en" ? "Systems" : "系统课";
+      const termA = lang === "en" ? "linearizability" : "线性一致性";
+      const termB = lang === "en" ? "quorum" : "脑裂";
+      const termC = lang === "en" ? "idempotency" : "幂等性";
+      const removeAria = (term) => (lang === "en" ? `Remove word “${term}”` : `移除生词「${term}」`);
+
+      const openWordListAndRead = async () => {
+        const listBtn = page.locator(".term-strip__list-btn");
+        await listBtn.waitFor({ state: "visible", timeout: 10000 });
+        await listBtn.click();
+        const dlg = page.locator("dialog[open]").last();
+        await dlg.waitFor({ state: "visible", timeout: 10000 });
+        await dlg.locator(".term-list-group, .sh-empty").first().waitFor({ state: "visible", timeout: 10000 });
+        return dlg;
+      };
+
+      await page.goto(running.server.url);
+      await page.locator('[data-usage="home.start"]').first().click({ timeout: 30000 });
+      await page.locator(".question-toolbar").waitFor({ timeout: 30000 });
+      await settleAnimations(page);
+      await lastGetPromise;
+
+      // Flip Card 1 and enter marking mode.
+      await clickWord(page, '.flip-front[aria-hidden="false"]', lang === "en" ? "replication" : "副本");
+      await page.locator('.flip-back[aria-hidden="false"]').waitFor({ timeout: 10000 });
+      await settleAnimations(page);
+      const termsBtn = page.locator('[data-usage="review.terms"]');
+      await termsBtn.click();
+      const backSel = '.flip-back[aria-hidden="false"] .flash-prompt';
+
+      // (a) Mark Term A -> complete fill (补齐这 1 个词) -> click × in .term-strip -> TermListDialog & card link stay intact.
+      if (lang === "zh") await dragPhrase(page, backSel, termA, 0);
+      else await clickWord(page, backSel, termA, 0);
+      assert.deepEqual(await chipTexts(page), [termA], `${tag}: termA marked`);
+      await lastMarkPromise;
+
+      const fillBtn = page.locator(".term-strip__fill");
+      assert.match(await fillBtn.innerText(), lang === "en" ? /Fill in this 1 word/ : /补齐这 1 个词/);
+      const getsBeforeFill = termsGetCalls;
+      await fillBtn.click();
+      await page.waitForFunction(
+        () => !!document.querySelector(".explanation-followup .followup-item[open]") && !!document.querySelector(".prereq-strip"),
+        { timeout: 25000 },
+      );
+      for (let i = 0; i < 40 && termsGetCalls <= getsBeforeFill; i += 1) {
+        await page.waitForTimeout(50);
+      }
+      await lastGetPromise;
+
+      await page.locator(".term-strip .sh-chip__remove").click();
+      await page.waitForFunction(() => document.querySelectorAll(".term-strip").length === 0, { timeout: 10000 });
+
+      const afterA = await previewCall(running.server, "course.terms.get", { course: courseName });
+      const savedA = afterA.items?.find((item) => item.term === termA);
+      assert.ok(savedA, `${tag}: filled termA remains in course.terms after clicking ×`);
+      assert.ok(savedA.card?.cardId, `${tag}: filled termA keeps its linked check card`);
+
+      // Click pale study-term-seen termA to re-open .term-strip and verify TermListDialog shows termA.
+      await clickWord(page, backSel, termA, 0);
+      assert.deepEqual(await chipTexts(page), [termA], `${tag}: pale termA clicks back into strip`);
+      const dlgA = await openWordListAndRead();
+      assert.ok((await dlgA.innerText()).includes(termA), `${tag}: TermListDialog still lists filled termA`);
+      await page.keyboard.press("Escape");
+      await dlgA.waitFor({ state: "hidden", timeout: 10000 });
+      await page.locator(".term-strip .sh-chip__remove").click();
+      await page.waitForFunction(() => document.querySelectorAll(".term-strip").length === 0, { timeout: 10000 });
+
+      // (b) Mark brand-new Term B (NOT filled) -> click × -> deleted from course.terms & TermListDialog.
+      if (lang === "zh") await dragPhrase(page, backSel, termB, 0);
+      else await clickWord(page, backSel, termB, 0);
+      assert.deepEqual(await chipTexts(page), [termB], `${tag}: brand-new termB marked`);
+      await lastMarkPromise;
+
+      await page.getByRole("button", { name: removeAria(termB) }).click();
+      await lastUnmarkPromise;
+      await page.waitForFunction(() => document.querySelectorAll(".term-strip").length === 0, { timeout: 10000 });
+
+      const afterB = await previewCall(running.server, "course.terms.get", { course: courseName });
+      assert.equal(afterB.items?.some((item) => item.term === termB), false, `${tag}: unfilled misclick termB removed`);
+      assert.ok(afterB.items?.find((item) => item.term === termA)?.card?.cardId, `${tag}: termA and card untouched`);
+
+      // Verify in TermListDialog via staging pale termA.
+      await clickWord(page, backSel, termA, 0);
+      const dlgB = await openWordListAndRead();
+      const dlgBText = await dlgB.innerText();
+      assert.ok(dlgBText.includes(termA), `${tag}: TermListDialog retains termA`);
+      assert.equal(dlgBText.includes(termB), false, `${tag}: TermListDialog no longer contains termB`);
+      await page.keyboard.press("Escape");
+      await dlgB.waitFor({ state: "hidden", timeout: 10000 });
+
+      // (c) Advance to Card 2 -> click pale study-term-seen historical termC into .term-strip -> click × -> still present!
+      await page.locator(".grade-scale .grade").nth(4).click();
+      await Promise.race([
+        page.locator(".options .option:not([disabled])").first().waitFor({ timeout: 15000 }),
+        page.locator('[data-usage="review.next"]:not([disabled])').waitFor({ timeout: 15000 }).then(() =>
+          page.locator('[data-usage="review.next"]').click(),
+        ),
+      ]);
+      await page.locator(".options .option:not([disabled])").first().waitFor({ timeout: 15000 });
+      await settleAnimations(page);
+
+      assert.equal(await page.locator(".term-strip").count(), 0, `${tag}: Card 2 starts without strip`);
+      const seenHl = await highlightCount(page, "study-term-seen");
+      if (seenHl >= 0) assert.ok(seenHl >= 1, `${tag}: Card 2 paints study-term-seen for historical termC`);
+
+      await termsBtn.click();
+      await clickWord(page, ".question-card .question", termC, 0);
+      assert.deepEqual(await chipTexts(page), [termC], `${tag}: historical termC staged into strip`);
+
+      const unmarkBeforeC = unmarkCalls;
+      await page.getByRole("button", { name: removeAria(termC) }).click();
+      await page.waitForFunction(() => document.querySelectorAll(".term-strip").length === 0, { timeout: 10000 });
+      assert.equal(unmarkCalls, unmarkBeforeC, `${tag}: removing historical termC from strip triggers no unmark RPC`);
+
+      const afterC = await previewCall(running.server, "course.terms.get", { course: courseName });
+      assert.ok(afterC.items?.some((item) => item.term === termC), `${tag}: historical termC remains in course.terms`);
+
+      // Stage pale termA on Card 2 and confirm both termC and termA remain in TermListDialog.
+      await clickWord(page, ".question-card .question", termA, 0);
+      const dlgC = await openWordListAndRead();
+      const dlgCText = await dlgC.innerText();
+      assert.ok(dlgCText.includes(termC), `${tag}: TermListDialog retains historical termC`);
+      assert.ok(dlgCText.includes(termA), `${tag}: TermListDialog retains filled termA`);
+      assert.equal(dlgCText.includes(termB), false, `${tag}: TermListDialog excludes removed termB`);
+      await page.keyboard.press("Escape");
+      await dlgC.waitFor({ state: "hidden", timeout: 10000 });
+      await page.getByRole("button", { name: removeAria(termA) }).click();
+      await page.waitForFunction(() => document.querySelectorAll(".term-strip").length === 0, { timeout: 10000 });
+
+      // (zh) Verify adjacent merge of historical A ("分布式") + new B ("系统") preserves A and manages merged term.
+      if (lang === "zh") {
+        await clickWord(page, ".question-card .question", "分布式", 0);
+        assert.deepEqual(await chipTexts(page), ["分布式"], `${tag}: historical prefix staged`);
+        const unmarkBeforeMerge = unmarkCalls;
+        await clickWord(page, ".question-card .question", "系统", 0);
+        assert.deepEqual(await chipTexts(page), ["分布式系统"], `${tag}: merged into 分布式系统`);
+        await lastMarkPromise;
+        assert.equal(unmarkCalls, unmarkBeforeMerge, `${tag}: merging over historical prefix does not unmark 分布式`);
+
+        const afterMerge = await previewCall(running.server, "course.terms.get", { course: courseName });
+        assert.ok(afterMerge.items?.some((item) => item.term === "分布式"), `${tag}: historical 分布式 kept after merge`);
+        assert.ok(afterMerge.items?.some((item) => item.term === "分布式系统"), `${tag}: merged 分布式系统 persisted`);
+
+        await page.getByRole("button", { name: removeAria("分布式系统") }).click();
+        await lastUnmarkPromise;
+        const afterUnmarkMerged = await previewCall(running.server, "course.terms.get", { course: courseName });
+        assert.equal(afterUnmarkMerged.items?.some((item) => item.term === "分布式系统"), false, `${tag}: unfilled merged term removed`);
+        assert.ok(afterUnmarkMerged.items?.some((item) => item.term === "分布式"), `${tag}: historical 分布式 still kept`);
+      }
+
+      assert.deepEqual(errors, [], `${tag}: unexpected console/page errors: ${errors.join(" | ")}`);
+    } finally {
+      await context.close();
+      await running.close();
+    }
+  }
+});
