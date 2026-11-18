@@ -3,6 +3,7 @@ import { errorMessage, ui } from './i18n.js';
 import { useStudy } from './study-context.jsx';
 import { AppContext } from './app/app-context.js';
 import { browserSession, readJSON, removeKey, writeJSON } from './storage.js';
+import { JOB_STATUS } from '../lib/job-status.js';
 import { MAX_FOLDER_NAME_CHARS, normalizeFolderName } from '../lib/contexts/materials/material-folders.js';
 
 const cleanProposalTitle = value =>
@@ -15,7 +16,7 @@ export const CLASSIFY_BATCH_SIZE = 60;
 export const CLASSIFY_CONCURRENCY = 2;
 export const AUTO_MAX_FOLDERS = 12;
 export const LARGE_MAX_FOLDERS = 14;
-export const LIVE_MATERIAL_JOB_STATUSES = new Set(['queued', 'running', 'pausing', 'paused', 'cancelling']);
+export const LIVE_MATERIAL_JOB_STATUSES = new Set([JOB_STATUS.QUEUED, JOB_STATUS.RUNNING, 'pausing', 'paused', JOB_STATUS.CANCELLING]);
 
 const ORGANIZE_OPEN_KEY = 'study-sources-organize-open:v1';
 let pendingOrganizeOpenFlag = false;
