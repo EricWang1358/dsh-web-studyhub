@@ -2,7 +2,8 @@ import React, { useRef, useState } from 'react';
 import { ui } from '../i18n.js';
 import { Button, TextArea, Tooltip } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
-import { HAND_OFF_LABEL, handOffTip, useHandOff } from './use-hand-off.js';
+import { useStudy } from '../study-context.jsx';
+import { COPY_PROMPT_LABEL, HAND_OFF_LABEL, handOffTip, hasChatHost, useHandOff } from './use-hand-off.js';
 import css from './hand-off.css';
 
 /* 「发给主会话」 as drawn (the hand-off plan, section 1.2; ui/hand-off/use-hand-off.js does the work). One label everywhere, its rule on hover and focus
@@ -21,11 +22,14 @@ const VARIANT = { link: 'link', quiet: 'quiet', icon: 'quiet', secondary: 'secon
  */
 export function HandOffButton({ shape = 'link', size = 'sm', what = '', label = HAND_OFF_LABEL, busy = false, disabled = false, onClick, anchorClassName = 'sh-handoff__tip', ...rest }) {
   useInjectCss(css, 'study-hand-off');
-  const variant = VARIANT[shape] || 'link', text = ui(label);
+  const { host } = useStudy();
+  const canChat = hasChatHost(host);
+  const effectiveLabel = !canChat && label === HAND_OFF_LABEL ? COPY_PROMPT_LABEL : label;
+  const variant = VARIANT[shape] || 'link', text = ui(effectiveLabel);
   const button = shape === 'icon'
-    ? <Button variant={variant} size={size} icon="chat" className="sh-btn--icon sh-handoff__btn" data-tour="hand-off" aria-label={text} aria-busy={busy || undefined} disabled={disabled || busy} onClick={onClick} {...rest} />
-    : <Button variant={variant} size={size} icon="external" className="sh-handoff__btn" data-tour="hand-off" aria-busy={busy || undefined} disabled={disabled || busy} onClick={onClick} {...rest}>{text}</Button>;
-  return <Tooltip layer content={handOffTip(what)} anchorClassName={anchorClassName}>{button}</Tooltip>;
+    ? <Button variant={variant} size={size} icon={canChat ? 'chat' : 'copy'} className="sh-btn--icon sh-handoff__btn" data-tour="hand-off" aria-label={text} aria-busy={busy || undefined} disabled={disabled || busy} onClick={onClick} {...rest} />
+    : <Button variant={variant} size={size} icon={canChat ? 'external' : 'copy'} className="sh-handoff__btn" data-tour="hand-off" aria-busy={busy || undefined} disabled={disabled || busy} onClick={onClick} {...rest}>{text}</Button>;
+  return <Tooltip layer content={handOffTip(what, canChat)} anchorClassName={anchorClassName}>{button}</Tooltip>;
 }
 
 /**

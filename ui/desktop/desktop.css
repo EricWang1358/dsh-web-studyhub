@@ -1,0 +1,115 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    /* StudyHub Desktop model setup and local CLI cards. Design tokens only. */
+    .desktop-setup {
+      display: grid;
+      gap: var(--space-3);
+      margin-top: var(--space-3);
+      min-width: 0;
+    }
+
+    .desktop-model__endpoint {
+      display: grid;
+      gap: var(--space-3);
+      min-width: 0;
+    }
+
+    .desktop-model__actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .desktop-model__note {
+      margin-top: var(--space-2);
+    }
+
+    .desktop-cli__grid {
+      display: grid;
+      gap: var(--space-3);
+      min-width: 0;
+    }
+
+    .desktop-cli__row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-3);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--bg-sunken);
+    }
+
+    .desktop-cli__meta {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2);
+      min-width: 0;
+    }
+
+    .desktop-cli__name {
+      font-weight: var(--fw-medium);
+      color: var(--text);
+    }
+
+    .desktop-cli__reason {
+      font-size: var(--fs-sm);
+      color: var(--text-dim);
+    }
+
+    .desktop-cli-strip {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: var(--space-2) var(--space-3);
+      background: var(--bg-surface);
+    }
+
+    .desktop-cli-strip__summary {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2);
+      list-style: none;
+      cursor: pointer;
+      font-size: var(--fs-sm);
+      color: var(--text-dim);
+    }
+
+    .desktop-cli-strip__summary::-webkit-details-marker,
+    .desktop-cli-strip__summary::before {
+      display: none;
+    }
+
+    .desktop-cli-strip__chevron {
+      flex-shrink: 0;
+      transition: transform var(--dur-fast);
+    }
+
+    .desktop-cli-strip__chevron.is-open {
+      transform: rotate(90deg);
+    }
+
+    .desktop-cli-strip__toggle {
+      margin-inline-start: auto;
+      color: var(--accent-text);
+    }
+
+    .desktop-cli-strip__body {
+      display: grid;
+      gap: var(--space-2);
+      margin-top: var(--space-3);
+    }
+
+    .desktop-library-notice {
+      display: grid;
+      gap: var(--space-2);
+      margin-top: var(--space-2);
+    }
+  }
+}

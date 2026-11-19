@@ -452,7 +452,7 @@ export const FEATURES = Object.freeze([
     aliases: ['带学', '讲给我听', '先讲后练', '主会话带学', '学习流', 'guided study', 'explain to me', 'tutor', 'learning flow', 'workflow'],
     path: ['许多页面', '发给主会话'],
     what: '把这一阶段的资料交给主会话一步步讲清楚、边讲边问，不懂的地方当场追问。',
-    needs: { capability: ['study'], model: true } }),
+    needs: { capability: ['study'], model: true, chat: true } }),
   feature({ id: 'task-controls', area: 'daily', title: '任务的停止与调整时限', page: 'tasks', anchors: ['tasks-detail', 'nav-tasks'], prepare: 'task',
     aliases: ['停止', '暂停', '停在这里', '时限', '运行时限', '超时', '取消任务', '任务控制台', 'stop', 'pause', 'time limit', 'timeout', 'cancel a task'],
     path: ['任务', '点开一个任务', '停止 / 调整时限'],

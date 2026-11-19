@@ -3,6 +3,7 @@ import { CopyDiagnosticsButton, Tooltip } from '../components/index.js';
 import { ui } from '../i18n.js';
 import { needsWrite } from '../agent-prompts/setup-repairs.js';
 import { useInjectCss } from '../shared.js';
+import { useStudy } from '../study-context.jsx';
 import css from './diagnostic-actions.css';
 
 /* Shared one-click diagnostic copy (复制诊断信息) + main-chat hand-off (发给主会话) bar.
@@ -21,8 +22,10 @@ const PERMISSION_WHY = '主会话要改 StudyHub 文件夹以外的东西（比�
 
 export function DiagnosticBar({ diagnostic, text, resetKey, row = false, className = '', children }) {
   useInjectCss(css, 'study-diagnostic-actions');
+  const { host } = useStudy();
+  const canChat = host?.capabilities?.chat !== false;
   const read = () => (typeof diagnostic === 'function' ? diagnostic() : diagnostic);
-  const failure = diagnostic != null ? read()?.input : null, asks = !!failure && needsWrite(failure.tool, failure.code, failure.installedBy);
+  const failure = diagnostic != null ? read()?.input : null, asks = canChat && !!failure && needsWrite(failure.tool, failure.code, failure.installedBy);
   const beside = typeof children === 'function' ? children(() => read()?.input || {}) : children;
   const hint = asks && <Tooltip layer content={ui(PERMISSION_WHY)} anchorClassName="sh-diag-actions__hint-row"><span tabIndex={0} className="sh-diag-actions__hint">{ui(PERMISSION_HINT)}</span></Tooltip>;
   const describe = () => (typeof text === 'function' ? text() : text) || read()?.text || '';

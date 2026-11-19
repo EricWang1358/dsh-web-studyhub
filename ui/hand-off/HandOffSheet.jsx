@@ -2,8 +2,9 @@ import React, { useMemo, useRef, useState } from 'react';
 import { getUiLanguage, ui, uiFormat } from '../i18n.js';
 import { Button, Dialog } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
+import { useStudy } from '../study-context.jsx';
 import { messageParts } from '../agent-prompts/message.js';
-import { HAND_OFF_RECEIPTS, joinSentences } from './use-hand-off.js';
+import { COPY_PROMPT_RECEIPT_LINE, HAND_OFF_RECEIPTS, hasChatHost, joinSentences } from './use-hand-off.js';
 import { Seal } from './Receipt.jsx';
 import css from './hand-off.css';
 
@@ -42,7 +43,10 @@ export default function HandOffSheet({ sheet, onClose }) {
   const parts = useMemo(() => messageParts(sheet.text, language), [sheet.text, language]);
   const [copied, setCopied] = useState(false), [selected, setSelected] = useState(false), [open, setOpen] = useState(false);
   const copyRef = useRef(null), boxRef = useRef(null), copiedRef = useRef(false);
+  const { host } = useStudy();
+  const canChat = hasChatHost(host);
   const shown = sheet.mode === 'shown', receipt = HAND_OFF_RECEIPTS[shown ? 'shown' : 'copied'];
+  const receiptLine = !shown && !canChat ? ui(COPY_PROMPT_RECEIPT_LINE) : ui(receipt.line);
   const touch = useMemo(isTouch, []), keys = isMac() ? '⌘C' : 'Ctrl+C';
   const laidOut = parts.notes.length > 0;
   const close = () => { onClose?.(); sheet.onClosed?.(copiedRef.current); };
@@ -89,7 +93,7 @@ export default function HandOffSheet({ sheet, onClose }) {
   return (
     <Dialog size="sm" className="sh-handoff-sheet" initialFocus={copyRef} onClose={close} footer={footer} bodyLabel={ui(receipt.title)}
       title={<span className="sh-handoff-sheet__title"><Seal outcome={shown ? 'shown' : 'copied'} size="lg" /><span>{ui(receipt.title)}</span></span>}
-      description={shown ? joinSentences([sheet.lead, ui(receipt.line)]) : ui(receipt.line)}>
+      description={shown ? joinSentences([sheet.lead, receiptLine]) : receiptLine}>
       <div ref={boxRef} className="sh-handoff-sheet__box" data-hand-off-text="" onCopy={tookCopy}>
         {laidOut ? <Sentence text={parts.ask} /> : <div className="sh-handoff-sheet__plain">{sheet.text}</div>}
         {laidOut && parts.request && <blockquote className="sh-handoff-sheet__request"><span className="sh-handoff-sheet__label">{ui('我的要求')}</span>{parts.request}</blockquote>}

@@ -203,7 +203,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
     : [];
   // 顽固题 of this round that the wrong book still holds (lib/leech.js, computed with the run): one line, and it opens the wrong book on them.
   const leechCount = run.complete && run.mode !== "exam" && pageAvailable(data, "wrongbook") ? (run.leechCards || []).length : 0;
-  const methodAlt = run.complete && !flow && run.mode !== "exam" ? roundEndAlternative(data, roundCourse, { guidedSession: app?.lib?.guidedSession }) : null;
+  const methodAlt = run.complete && !flow && run.mode !== "exam" ? roundEndAlternative(data, roundCourse, { guidedSession: app?.lib?.guidedSession, canChat: app?.host?.capabilities?.chat !== false }) : null;
   const roundTotal = run.questions ?? run.total ?? 0;
   const allCorrect = Boolean(run.complete && roundTotal > 0 && (run.answered || 0) >= roundTotal && run.correct === roundTotal);
   return (
