@@ -2,6 +2,14 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 4.15.0 — 2026-11-20
+
+- **New: StudyHub Desktop for Windows, which runs without DSH.** It comes as an `.msi` installer and a portable `.zip`; your materials and decks still live in a library folder on your computer, and the DSH plugin can share that folder. Not verified: this version's `.msi` was not installed before the release; the full import, generation and review flows were not run in the desktop app; Windows 10 was not tried; for the system folder picker, only the save after picking was checked.
+  - In step 1, "Set up an AI model", a signed-in local agy or codex is enabled in one click; an API key in Settings works too.
+  - The interface size defaults to "Fit window": it grows a little when the window gets wide (for example when maximised), and a fixed size can still be chosen under Settings › Appearance.
+  - "Open agy in the library" (or codex) under Settings › Library & model opens a command-line window of its own to chat with it, which can sit beside StudyHub. It can change the files in your library directly, and StudyHub does not check those changes.
+  - "Change folder…" under Settings › Library & model moves the study library; when the `STUDYHUB_LIBRARY` environment variable decides the folder, the button is disabled and says why.
+
 ## 4.14.0 — 2026-11-19
 
 - **The round summary now highlights chapters completed for the first time in that round alongside a segmented chapter bar.** When a course batch finishes every question in one or more chapters for the first time, the course progress line names the chapter, how many questions remain shaky (or that all were answered right), and how many chapters of the course are done, with a compact per-chapter status bar underneath (shown for courses up to 30 chapters). Not verified: visual check inside the DSH host pane.
