@@ -281,6 +281,21 @@
       }
     }
   }
+  /* Wider than that the bar gives way in the same order, now that the model chip stands beside the library chip (library-location.css): the page title keeps its room and
+     the chips shrink, to a readable minimum, before the title is squeezed. */
+  @container study (min-width: 641px) {
+    :where(.study-app, .study-seat) {
+      .crumbs {
+        flex-shrink: 0;
+        min-width: 5em;
+        max-width: 50%;
+      }
+      .topbar .top-right {
+        flex-shrink: 1;
+        min-width: 0;
+      }
+    }
+  }
   /* At 320 px the words do not fit beside the page title and the mailbox. An English label folds into its dot here, the way the steady state does at 640 px: the
      whole sentence is the Tooltip and the dot keeps its colour. The Chinese labels run five to seven characters and keep their words; should one still not fit, it
      ends in an ellipsis rather than push the mailbox out of the bar. */

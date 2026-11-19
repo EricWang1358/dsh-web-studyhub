@@ -197,7 +197,7 @@ test('in English the button names its destination in English', () => {
 
 /* The top bar names the model every question, explanation and grading goes to (ModelChip), so nobody spends on a model by accident: a quiet button beside the
    library chip, with the shared Tooltip (never a title) for what it means. */
-const chipOf = (html) => /<button[^>]*\bmodel-chip\b[\s\S]*?<\/button>/.exec(html)?.[0] || '';
+const chipOf = (html) => /<button[^>]*\bmodel-in-use\b[\s\S]*?<\/button>/.exec(html)?.[0] || '';
 const tipsOf = (html) => [...html.matchAll(/<span[^>]*role="tooltip"[^>]*>([^<]*)<\/span>/g)].map((hit) => hit[1].replaceAll('&#x27;', "'"));
 const LABEL = 'agy · gemini-4-hydrogen-high';
 const modelData = { root: '/lib', inbox: [], model: { ready: true, label: LABEL } };
@@ -205,11 +205,11 @@ const modelData = { root: '/lib', inbox: [], model: { ready: true, label: LABEL 
 test('the model chip shows only for a ready model with a label, says 模型：<label>, and opens Settings like the library chip', () => {
   const html = bar({ data: modelData });
   const chip = chipOf(html);
-  assert.match(chip, /^<button type="button" class="[^"]*\blibrary-location\b[^"]*\bmodel-chip\b/, 'it is a library-chip look-alike, so the narrow-pane rules are the same');
+  assert.match(chip, /^<button type="button" class="[^"]*\blibrary-location\b[^"]*\bmodel-in-use\b/, 'it is a library-chip look-alike, so the narrow-pane rules are the same');
   assert.match(chip, /模型：agy · gemini-4-hydrogen-high</);
   assert.match(chip, /aria-label="当前模型：agy · gemini-4-hydrogen-high。打开设置可更换"/);
   assert.doesNotMatch(chip, /\stitle=/, 'the full text is the Tooltip, never a title attribute');
-  assert.ok(html.indexOf('library-location') < html.indexOf('model-chip'), 'it sits beside the library chip, after it');
+  assert.ok(html.indexOf('library-location') < html.indexOf('model-in-use'), 'it sits beside the library chip, after it');
   for (const data of [{ root: '/lib', inbox: [], model: { ready: true } }, { root: '/lib', inbox: [], model: { ready: false, label: LABEL } },
     { root: '/lib', inbox: [], modelReady: true }, { root: '/lib', inbox: [] }, null]) {
     assert.equal(chipOf(bar({ data })), '', JSON.stringify(data));

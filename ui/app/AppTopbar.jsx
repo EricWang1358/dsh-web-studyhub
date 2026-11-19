@@ -42,8 +42,8 @@ export function ModelChip({ label, note, onOpen }) {
   if (!label) return null;
   const words = [ui('出题、讲解和批改都会调用这个模型。'), note].filter(Boolean).join(uiIsEnglish() ? ' ' : '');
   return (
-    <Tooltip layer content={words} anchorClassName="model-chip-anchor">
-      <Button variant="quiet" size="sm" className="library-location model-chip" aria-label={uiFormat('当前模型：{0}。打开设置可更换', [label])} onClick={onOpen}>
+    <Tooltip layer content={words} anchorClassName="model-in-use-anchor">
+      <Button variant="quiet" size="sm" className="library-location model-in-use" data-tour="topbar-model" aria-label={uiFormat('当前模型：{0}。打开设置可更换', [label])} onClick={onOpen}>
         <Icon className="sh-icon--inline" name="model" />
         <span>{uiFormat('模型：{0}', [label])}</span>
       </Button>
