@@ -6,9 +6,11 @@ import {
   OPENAI_PRESETS,
   applyConfigPatch,
   concurrencyHookForMode,
+  modelViaOf,
   redactDesktopConfig,
   resolveEffectiveModel,
 } from '../domain/config-policy.js';
+import { libraryPlaceOf } from '../domain/library-place.js';
 import { cliLaunchRequest } from '../domain/terminal-command.js';
 import { createDesktopCompletePort } from './complete-port.js';
 import { localizeProviders } from './provider-discovery.js';
@@ -81,7 +83,7 @@ function buildConfigResponse({ config, providers, configPath, keyDropped, langua
   };
 }
 
-async function buildBindingView({ ctx, state, route }) {
+async function buildBindingView({ ctx, state, route, systemDrive }) {
   const status = await modelStatus(ctx, route);
   return {
     root: state.library.root,
@@ -91,6 +93,10 @@ async function buildBindingView({ ctx, state, route }) {
     workspaceRoot: state.library.root,
     defaultRoot: state.library.defaultRoot,
     libraryProblem: state.library.problem,
+    libraryPlace: libraryPlaceOf({
+      confirmed: state.config.libraryPlaceConfirmed, rootSource: state.library.rootSource, root: state.library.root, systemDrive,
+    }),
+    modelVia: modelViaOf(state.config),
     provider: '',
     model: '',
     modelSource: 'config',
@@ -104,7 +110,8 @@ async function buildBindingView({ ctx, state, route }) {
 const langOf = (args) => (args?.uiLanguage === 'en' ? 'en' : 'zh');
 
 function createDesktopActionHandlers(deps) {
-  const { configStore, providerDiscovery, completePort, openExternal, openCliTerminal, getState, reloadState, getRoute, ctx, forward } = deps;
+  const { configStore, providerDiscovery, completePort, openExternal, openCliTerminal, getState, reloadState, getRoute, ctx, forward, systemDrive } = deps;
+  const bindingView = () => buildBindingView({ ctx, state: getState(), route: getRoute() || null, systemDrive });
   return {
     'desktop.config.get': async (args) => {
       const providers = await providerDiscovery.scan({ force: false });
@@ -139,22 +146,29 @@ function createDesktopActionHandlers(deps) {
       await openCliTerminal(request);
       return { ok: true, provider: args.provider, cwd: request.cwd };
     },
-    'binding.get': () => buildBindingView({ ctx, state: getState(), route: getRoute() || null }),
+    'binding.get': bindingView,
     'binding.set': async (args) => {
-      // getState().config still holds the folder from before this call, so the folder just saved
-      // has to be carried into the second write or it would be put back.
       try {
-        const libraryRoot = typeof args?.root === 'string'
-          ? await configStore.saveLibraryRoot(args.root)
-          : getState().config.libraryRoot;
+        // A folder saved here is also the learner settling where the library lives (the store writes both), so the state in memory
+        // is read again before the second write, or it would put the folder and that setting back.
+        if (typeof args?.root === 'string') {
+          await configStore.saveLibraryRoot(args.root);
+          await reloadState();
+        }
         if (typeof args?.reasoningEffort === 'string') {
-          await configStore.save({ ...getState().config, libraryRoot, reasoningEffort: args.reasoningEffort.trim() });
+          await configStore.save({ ...getState().config, reasoningEffort: args.reasoningEffort.trim() });
         }
       } finally {
         // Also after a failed second write: the folder may already be saved, and the state in memory has to match the file.
         await reloadState();
       }
-      return buildBindingView({ ctx, state: getState(), route: getRoute() || null });
+      return bindingView();
+    },
+    // 就用这里: the learner accepts the library where it is.
+    'desktop.library.confirm': async () => {
+      await configStore.save({ ...getState().config, libraryPlaceConfirmed: true });
+      await reloadState();
+      return bindingView();
     },
     'update.check': async (args) => {
       const answer = await forward('update.check', args);
@@ -251,6 +265,7 @@ export async function createDesktopHost({
   openCliTerminal = terminalUnavailable,
   ensureDir,
   injectedComplete = null,
+  systemDrive = '',
 }) {
   let state = await configStore.load();
   await ensureDir(state.library.root);
@@ -295,7 +310,7 @@ export async function createDesktopHost({
 
   const desktopHandlers = createDesktopActionHandlers({
     configStore, providerDiscovery, completePort, openExternal, openCliTerminal,
-    getState: () => state, reloadState, getRoute, ctx, forward,
+    getState: () => state, reloadState, getRoute, ctx, forward, systemDrive,
   });
   const call = createCallDispatcher(desktopHandlers, forward);
 

@@ -73,7 +73,21 @@
  * @property {AgyConfig} agy
  * @property {CodexConfig} codex
  * @property {string} libraryRoot
+ * @property {boolean} libraryPlaceConfirmed the learner has chosen (or accepted) where the library lives; false until then
  * @property {string} reasoningEffort
+ */
+
+/**
+ * @typedef {object} LibraryPlace
+ * @property {boolean} confirmed
+ * @property {boolean} onSystemDrive
+ */
+
+/**
+ * How the model in use is reached: through the learner's API Key, or through a CLI on this computer.
+ * @typedef {object} ModelVia
+ * @property {'api' | 'cli'} kind
+ * @property {string} name
  */
 
 /**

@@ -31,9 +31,12 @@ import {
   concurrencyHookForMode,
   concurrencyPolicyForMode,
   defaultDesktopConfig,
+  modelViaOf,
+  normalizeDesktopConfig,
   redactDesktopConfig,
   resolveEffectiveModel,
 } from '../packages/studyhub-desktop/domain/config-policy.js';
+import { isOnSystemDrive, libraryPlaceOf } from '../packages/studyhub-desktop/domain/library-place.js';
 import { DESKTOP_CAPABILITIES } from '../packages/studyhub-desktop/domain/contracts.js';
 import { clipDetail, keyLast4, redactSecret } from '../packages/studyhub-desktop/domain/redact.js';
 import { openableExternalUrl, parseCliVersion, parseCmdShimTarget } from '../packages/studyhub-desktop/domain/shim-parser.js';
@@ -873,6 +876,129 @@ test('adapters/storage/config-store uses the DSH library inside a picked workspa
   const byDefault = (await store.load()).library;
   assert.equal(byDefault.root, resolve(docs, 'StudyHub', '.dsh-study'));
   assert.equal(byDefault.rootSource, 'default');
+});
+
+test('domain/library-place tells a system-drive library from another drive, and a confirmed place from one still to confirm', () => {
+  assert.equal(isOnSystemDrive('C:\\Users\\me\\Documents\\StudyHub', 'C:'), true);
+  assert.equal(isOnSystemDrive('c:/Users/me/StudyHub', 'C:'), true, 'the drive letter is compared without case');
+  assert.equal(isOnSystemDrive('C:\\Users\\me', 'c:\\'), true, 'the system drive may be written with a slash or in lower case');
+  assert.equal(isOnSystemDrive('D:\\StudyHub', 'C:'), false);
+  assert.equal(isOnSystemDrive('\\\\server\\share\\StudyHub', 'C:'), false, 'a network path is not on the drive');
+  assert.equal(isOnSystemDrive('/home/me/StudyHub', 'C:'), false, 'a path with no drive letter is not on the drive');
+  assert.equal(isOnSystemDrive('C:relative', 'C:'), false);
+  assert.equal(isOnSystemDrive('', 'C:'), false);
+  assert.equal(isOnSystemDrive('C:\\StudyHub', ''), false, 'with no system drive named nothing is on it');
+  assert.equal(isOnSystemDrive('E:\\StudyHub', 'E:'), true, 'the system drive is the one given, not a fixed letter');
+
+  const system = { root: 'C:\\StudyHub', systemDrive: 'C:' };
+  assert.deepEqual(libraryPlaceOf({ ...system, confirmed: false, rootSource: 'default' }), { confirmed: false, onSystemDrive: true });
+  assert.deepEqual(libraryPlaceOf({ ...system, confirmed: true, rootSource: 'custom' }), { confirmed: true, onSystemDrive: true });
+  assert.deepEqual(libraryPlaceOf({ root: 'D:\\StudyHub', systemDrive: 'C:', confirmed: false, rootSource: 'custom' }), { confirmed: false, onSystemDrive: false });
+  assert.equal(libraryPlaceOf({ ...system, confirmed: false, rootSource: 'config' }).confirmed, true, 'the variable decides: there is nothing to choose');
+});
+
+test('domain/config-policy keeps libraryPlaceConfirmed through every save and names how the model is reached', () => {
+  assert.equal(defaultDesktopConfig().libraryPlaceConfirmed, false);
+  assert.equal(normalizeDesktopConfig({ libraryPlaceConfirmed: true }).libraryPlaceConfirmed, true);
+  assert.equal(normalizeDesktopConfig({ libraryPlaceConfirmed: 'yes' }).libraryPlaceConfirmed, false, 'only a real true counts');
+  assert.equal(normalizeDesktopConfig({}).libraryPlaceConfirmed, false, 'a config written before this field existed is not confirmed');
+  const confirmed = { ...defaultDesktopConfig(), libraryPlaceConfirmed: true };
+  const saved = applyConfigPatch(confirmed, { mode: 'agy', agy: { model: 'gemini-4' } });
+  assert.equal(saved.config.libraryPlaceConfirmed, true, 'a model save does not take the confirmation back');
+
+  assert.deepEqual(modelViaOf(defaultDesktopConfig()), { kind: 'api', name: 'DeepSeek' });
+  assert.deepEqual(modelViaOf({ ...defaultDesktopConfig(), mode: 'agy' }), { kind: 'cli', name: 'Antigravity CLI' });
+  assert.deepEqual(modelViaOf({ ...defaultDesktopConfig(), mode: 'codex' }), { kind: 'cli', name: 'Codex CLI' });
+});
+
+test('adapters/storage/config-store confirms the library place when a folder is saved, and a refused folder confirms nothing', async (t) => {
+  const work = await mkdtemp(join(tmpdir(), 'studyhub-config-place-'));
+  t.after(() => rm(work, { recursive: true, force: true }));
+  const store = createConfigStore({ env: {}, home: join(work, 'home'), documentsDir: join(work, 'docs') });
+  assert.equal((await store.load()).config.libraryPlaceConfirmed, false);
+  await assert.rejects(store.saveLibraryRoot('not-absolute'), { code: 'invalid-library-root' });
+  assert.equal((await store.load()).config.libraryPlaceConfirmed, false, 'a refused folder changes nothing');
+  await store.saveLibraryRoot(join(work, 'Picked'));
+  assert.equal((await store.load()).config.libraryPlaceConfirmed, true);
+  await store.save({ ...(await store.load()).config, mode: 'codex' });
+  assert.equal((await store.load()).config.libraryPlaceConfirmed, true, 'a later save keeps it');
+  await store.saveLibraryRoot('');
+  assert.equal((await store.load()).config.libraryPlaceConfirmed, true, 'going back to the default folder is a choice too');
+});
+
+test('application/desktop-host exposes libraryPlace and modelVia in the binding, and desktop.library.confirm confirms once', async (t) => {
+  const work = await mkdtemp(join(tmpdir(), 'studyhub-desktop-place-'));
+  const prevDshHome = process.env.DSH_HOME;
+  t.after(async () => {
+    registerHostConcurrencyCap(null);
+    if (prevDshHome === undefined) delete process.env.DSH_HOME;
+    else process.env.DSH_HOME = prevDshHome;
+    await rm(work, { recursive: true, force: true });
+  });
+  const env = { DSH_HOME: join(work, 'dsh-home') };
+  const documentsDir = join(work, 'Documents');
+  const configStore = createConfigStore({ env, home: join(work, 'home'), documentsDir });
+  const providerDiscovery = createProviderDiscovery({
+    listCandidates: async () => [],
+    probeVersion: async () => ({ ok: false, version: '', reason: '' }),
+    listAgyModels: async () => ({ ok: true, unauthenticated: false, models: [], reason: '' }),
+    checkCodexAuth: async () => ({ ok: true, authenticated: true, detail: '' }),
+  });
+  const stub = async () => 'OK';
+  const start = async (store, systemDrive) => {
+    const started = await createDesktopHost({
+      configStore: store, providerDiscovery, openaiComplete: createOpenAiCompleteAdapter, agyComplete: () => stub, codexComplete: () => stub,
+      jobExecutor: createInProcessJobExecutor(), openExternal: async () => ({ ok: true }), ensureDir: (p) => mkdir(p, { recursive: true }),
+      injectedComplete: stub, systemDrive,
+    });
+    t.after(() => started.dispose());
+    return started;
+  };
+  // The drive the work folder sits on stands in for the system drive: the host is told which drive that is.
+  const host = await start(configStore, resolve(documentsDir).slice(0, 2));
+
+  const first = (await host.call('binding.get')).value;
+  assert.deepEqual(first.libraryPlace, { confirmed: false, onSystemDrive: process.platform === 'win32' }, 'a library nobody confirmed yet');
+  assert.deepEqual(first.modelVia, { kind: 'api', name: 'DeepSeek' });
+
+  const confirmed = await host.call('desktop.library.confirm', {});
+  assert.equal(confirmed.ok, true);
+  assert.equal(confirmed.value.libraryPlace.confirmed, true);
+  assert.equal(confirmed.value.root, first.root, 'confirming moves nothing');
+  assert.equal(JSON.parse(await readFile(configStore.configPath, 'utf8')).libraryPlaceConfirmed, true);
+  assert.equal((await host.call('desktop.library.confirm', {})).value.libraryPlace.confirmed, true, 'asking again ends in the same state');
+
+  // The flag survives a model save, and the model is named by how it is reached.
+  await host.call('desktop.config.save', { mode: 'codex', codex: { model: 'gpt-5.4' } });
+  const viaCli = (await host.call('binding.get')).value;
+  assert.equal(viaCli.libraryPlace.confirmed, true);
+  assert.deepEqual(viaCli.modelVia, { kind: 'cli', name: 'Codex CLI' });
+  await host.call('desktop.config.save', { mode: 'agy' });
+  assert.deepEqual((await host.call('binding.get')).value.modelVia, { kind: 'cli', name: 'Antigravity CLI' });
+  await host.call('desktop.config.save', { mode: 'openai' });
+  assert.equal((await host.call('binding.get')).value.modelVia.kind, 'api');
+
+  // Picking a folder confirms, a refused folder and a change of effort alone do not (a new learner: nothing confirmed yet).
+  const freshStore = createConfigStore({ env: { DSH_HOME: join(work, 'dsh-home-2') }, home: join(work, 'home2'), documentsDir });
+  const fresh = await start(freshStore, 'C:');
+  await fresh.call('binding.set', { reasoningEffort: 'low' });
+  assert.equal((await fresh.call('binding.get')).value.libraryPlace.confirmed, false, 'an effort-only change confirms nothing');
+  const refused = await fresh.call('binding.set', { root: 'not-absolute' });
+  assert.equal(refused.ok, false);
+  assert.equal((await fresh.call('binding.get')).value.libraryPlace.confirmed, false, 'a refused folder changes nothing');
+  const elsewhere = join(work, 'Elsewhere');
+  const picked = await fresh.call('binding.set', { root: elsewhere, provider: '', model: '', reasoningEffort: 'high' });
+  assert.equal(picked.value.libraryPlace.confirmed, true);
+  assert.equal(picked.value.reasoningEffort, 'high', 'the effort sent with the folder is kept');
+  assert.equal(picked.value.root, resolve(elsewhere));
+  assert.equal(JSON.parse(await readFile(freshStore.configPath, 'utf8')).libraryPlaceConfirmed, true, 'the second write of one call keeps the confirmation');
+
+  // The variable decides the folder: there is nothing to choose, so the place counts as confirmed with no flag.
+  const pinnedStore = createConfigStore({ env: { DSH_HOME: join(work, 'dsh-home-3'), STUDYHUB_LIBRARY: join(work, 'Pinned') }, home: join(work, 'home3'), documentsDir });
+  const pinned = await start(pinnedStore, 'C:');
+  const byEnv = (await pinned.call('binding.get')).value;
+  assert.equal(byEnv.rootSource, 'config');
+  assert.equal(byEnv.libraryPlace.confirmed, true);
 });
 
 test('application/desktop-host integrates with v4.14.0 StudyRuntime, config, concurrency cap, background generation, and job recovery', async (t) => {

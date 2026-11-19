@@ -11,6 +11,7 @@ import { keyLast4 } from './redact.js';
 /** @typedef {import('./contracts.js').OpenAiConfig} OpenAiConfig */
 /** @typedef {import('./contracts.js').OpenAiConfigView} OpenAiConfigView */
 /** @typedef {import('./contracts.js').OpenAiPreset} OpenAiPreset */
+/** @typedef {import('./contracts.js').ModelVia} ModelVia */
 /** @typedef {import('./contracts.js').ProbeResult} ProbeResult */
 
 /** @type {readonly OpenAiPreset[]} */
@@ -139,6 +140,7 @@ export function defaultDesktopConfig() {
       effort: '',
     },
     libraryRoot: '',
+    libraryPlaceConfirmed: false,
     reasoningEffort: '',
   };
 }
@@ -216,6 +218,7 @@ export function normalizeDesktopConfig(raw) {
     agy,
     codex,
     libraryRoot: trimText(source.libraryRoot),
+    libraryPlaceConfirmed: source.libraryPlaceConfirmed === true,
     reasoningEffort: trimText(source.reasoningEffort),
   };
 }
@@ -393,6 +396,18 @@ export function openAiProviderLabel(openai) {
   }
 }
 
+const CLI_TITLES = Object.freeze({ agy: 'Antigravity CLI', codex: 'Codex CLI' });
+
+/**
+ * How the model in use is reached: the learner's API Key (billed by use), or a CLI on this computer (the quota of the account it is signed in to).
+ * @param {DesktopConfig} config
+ * @returns {ModelVia}
+ */
+export function modelViaOf(config) {
+  if (config.mode === 'agy' || config.mode === 'codex') return { kind: 'cli', name: CLI_TITLES[config.mode] };
+  return { kind: 'api', name: openAiProviderLabel(config.openai) };
+}
+
 /**
  * @param {'agy' | 'codex'} id
  * @param {AgyConfig | CodexConfig} cliConfig
@@ -404,10 +419,9 @@ function resolveEffectiveCli(id, cliConfig, providers) {
   const probe = providers.find((item) => item.id === id) || null;
   const ready = Boolean(cliConfig.executablePath) || probe?.status === 'ready';
   const reason = ready ? 'ok' : probe?.status === 'unauthenticated' ? 'no-credential' : 'no-route';
-  const title = id === 'codex' ? 'Codex CLI' : 'Antigravity CLI';
   return {
     ready,
-    label: `${title} · ${cliConfig.model || '默认模型'}`,
+    label: `${CLI_TITLES[id]} · ${cliConfig.model || '默认模型'}`,
     reason,
     provider: id,
     model: cliConfig.model || 'default',
