@@ -7,6 +7,7 @@ import { dismissJobs, useQuickActions } from "./quick-actions.js";
 import { offerDeckArchived, openRunsOn } from "./archive-entries.js";
 import { isActiveJob, isDeckJob, visibleGenerationJobs } from "./job-visibility.js";
 import { modelReadiness } from "./generation-status.js";
+import { hostPart } from "./host-parts.js";
 import focusCss from "./focus.css";
 import homeCss from "./generate-home.css";
 import caseCss from "./case-study.css";
@@ -149,6 +150,8 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   const autoOpenDrafts = !activeJobs.length && nextFacts.drafts.draftIds.some((id) => !shownDraftIds.has(id)) && (next.id === "draft" || !ownDeck || !today.size || !!today.ahead);
   // 出第一组题 runs the request itself (firstRun.on.generate, the app's); without it the step offers only 改题型和题数, which opens 创建题组 with the materials ticked.
   const lineOn = { importFirst: addSource, tune: generateFromSources, openDraft, publish: publishDraft, ...firstRun?.on };
+  // What the host puts first on the home, on the first-run page and on the normal one alike (ui/host-parts.js HomeLead); the DSH plugin registers none.
+  const lead = hostPart("HomeLead") && React.createElement(hostPart("HomeLead"), { data });
   if (line.show && firstRun?.form === "page") {
     // The first screen is the line alone: its third step carries the runs of the first deck (their cards are not drawn anywhere else on it), running first;
     // the line chose them, so a run that stands over its draft is carried even when newer finished jobs push it out of the home's recent cards.
@@ -156,6 +159,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
     // Its own element (key): the home that replaces it (a tour, 以后再说, the first publish) is new content, not this page moved down under a banner.
     return (
       <section key="first-run" className="page library-page map-page first-run-page" ref={pageRef}>
+        {lead}
         {children}
         <FirstRunLine line={line} form="page" sample={data.sample} on={lineOn} plan={firstRun?.plan}
           jobs={deckJobs.length ? <HomeActivity sectionRef={activityRef} jobs={deckJobs} drafts={drafts} data={data} modelReady={modelReadiness(data).ready}
@@ -166,6 +170,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   }
   return (
     <section className="page library-page map-page" ref={pageRef}>
+      {lead}
       {showNext && <NextStepCard view={nextView} onDismiss={dismissNext} />}
       {children}
       <HomeActivity sectionRef={activityRef} jobs={visibleJobs} drafts={drafts} data={data} modelReady={modelReadiness(data).ready}

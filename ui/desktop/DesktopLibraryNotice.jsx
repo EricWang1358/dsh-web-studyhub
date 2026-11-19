@@ -4,20 +4,25 @@ import { Hint, InlineMessage } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
 import css from './desktop.css';
 
+/** The folder that was picked is a DSH workspace: the library in use is the one the plugin keeps inside it. The one wording of that fact, wherever it is told. */
+export function WorkspaceNote({ binding }) {
+  const inWorkspace = binding?.pickedRoot && binding.pickedRoot !== binding.root ? binding.pickedRoot : '';
+  if (!inWorkspace) return null;
+  return (
+    <InlineMessage tone="info" data-desktop-library-in-workspace="">
+      {uiFormat('你选的「{0}」里已有 DSH 插件的学习库，这里直接使用它（其中的 .dsh-study 文件夹），原来的题组和记录都在。', [inWorkspace])}
+    </InlineMessage>
+  );
+}
+
 /* Under the library folder in Settings › 学习库与模型 (ui/host-parts.js LibraryNotice). */
 export default function DesktopLibraryNotice({ binding }) {
   useInjectCss(css, 'study-desktop');
   const problem = binding?.libraryProblem;
   const problemText = problem?.message || problem?.reason || '';
-  // The folder that was picked is a DSH workspace: the library in use is the one the plugin keeps inside it.
-  const inWorkspace = binding?.pickedRoot && binding.pickedRoot !== binding.root ? binding.pickedRoot : '';
   return (
     <div className="desktop-library-note">
-      {inWorkspace && (
-        <InlineMessage tone="info" data-desktop-library-in-workspace="">
-          {uiFormat('你选的「{0}」里已有 DSH 插件的学习库，这里直接使用它（其中的 .dsh-study 文件夹），原来的题组和记录都在。', [inWorkspace])}
-        </InlineMessage>
-      )}
+      <WorkspaceNote binding={binding} />
       {problemText && (
         <InlineMessage tone="warning" data-desktop-library-problem="">
           {problemText}

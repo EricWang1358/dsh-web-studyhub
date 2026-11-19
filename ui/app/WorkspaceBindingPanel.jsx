@@ -1,6 +1,7 @@
 import React, { useContext, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Button, Select } from '../components/index.js';
+import ChangeFolderButton from './ChangeFolderButton.jsx';
 import LibraryUsage from '../LibraryUsage.jsx';
 import ReasoningEffortField from '../ReasoningEffortField.jsx';
 import { AppContext } from './app-context.js';
@@ -29,16 +30,6 @@ function Binding({ app }) {
   };
   const customModelKey = binding.modelSource === 'custom' ? JSON.stringify([binding.provider, binding.model]) : '';
   const customListed = modelGroups.some((group) => group.id === binding.provider && group.models.some((model) => model.id === binding.model));
-  async function chooseRoot() {
-    if (!host.pickDirectory) { setRootDraft(binding.root || ''); return; }
-    try {
-      const picked = await host.pickDirectory();
-      if (picked) await updateBinding({ root: picked });
-    } catch {
-      setRootDraft(binding.root || '');
-      core.notify(ui('无法打开目录选择器，请直接输入路径。'));
-    }
-  }
   const configLabel = host?.capabilities?.edition === 'desktop' ? ui('环境变量指定') : ui('插件配置指定'), pinned = libraryPinnedByEnv(binding, host);
   const where = binding.rootSource === 'default' ? ui('默认位置') : binding.rootSource === 'workspace' ? ui('当前工作区') : binding.rootSource === 'config' ? configLabel : ui('自定义目录');
   const modelNote = binding.modelSource === 'session'
@@ -56,7 +47,7 @@ function Binding({ app }) {
           {hostPart('LibraryNotice') && React.createElement(hostPart('LibraryNotice'), { binding })}
         </div>
         <div className="binding-actions">
-          <Button onClick={chooseRoot} lock={busy} disabled={pinned}>{ui('更换目录…')}</Button>
+          <ChangeFolderButton disabled={pinned} onUnavailable={() => setRootDraft(binding.root || '')}>{ui('更换目录…')}</ChangeFolderButton>
           {binding.rootSource === 'custom' && <Button lock={busy} onClick={() => updateBinding({ root: '' })}>{binding.defaultRoot ? ui('改回默认位置') : ui('改回当前工作区')}</Button>}
         </div>
       </div>
