@@ -4,6 +4,7 @@ import { AddSourceButton, Button, Hint, Icon, Tooltip, addSourceAction } from '.
 import { useInjectCss } from '../shared.js';
 import { useStudy } from '../study-context.jsx';
 import { useLiveEffect } from '../use-async.js';
+import { hostPart } from '../host-parts.js';
 import { modelSetupCopy } from '../ModelSetupGate.jsx';
 import { recheckSentence, runRecheck } from './recheck.js';
 import { useModelSettingsLabel } from '../ModelErrorNote.jsx';
@@ -127,10 +128,11 @@ function Mark({ index, done }) {
   return <span className="frl-mark" aria-hidden="true">{done ? <Icon className="sh-icon--inline" name="check" /> : index + 1}</span>;
 }
 
-/** Step 1, open: the gate's own words (ModelSetupGate is the one source), the key line, and 重新检查; the only way to the settings is the quiet link in the step that picks a model. */
+/** Step 1, open: the gate's own words (ModelSetupGate is the one source), the key line, and 重新检查; the only way to the settings is the quiet link in the step that picks a model.
+    A host with a one-click way to a model (hostPart('ModelQuickEnable'), the desktop's detected local CLI) draws it first; while it offers one, that is the primary action and 重新检查 is secondary. */
 function ModelBody({ step, on }) {
   const { busy } = useStudy();
-  const [checking, setChecking] = useState(false), [outcome, setOutcome] = useState('');
+  const [checking, setChecking] = useState(false), [outcome, setOutcome] = useState(''), [offered, setOffered] = useState(false);
   const live = useRef(true), settingsLabel = useModelSettingsLabel();
   useEffect(() => () => { live.current = false; }, []);
   const copy = modelSetupCopy(step, 'welcome', { recheck: !!on.recheck });
@@ -139,10 +141,11 @@ function ModelBody({ step, on }) {
     const result = await runRecheck(on.recheck);
     if (live.current) { setOutcome(result); setChecking(false); }
   });
-  const steps = copy.steps.length ? [...copy.steps, { text: copy.then }] : [];
+  const steps = copy.steps.length ? [...copy.steps, { text: copy.then }] : [], Quick = hostPart('ModelQuickEnable');
   return (
     <>
       <p className="frl-body__text">{copy.why}</p>
+      {Quick && <Quick onOffer={setOffered} />}
       {steps.length > 0 && <ol className="frl-setup">
         {steps.map((item, index) => (
           <li key={index}>
@@ -156,7 +159,7 @@ function ModelBody({ step, on }) {
       </ol>}
       {outcome && !checking && <Hint role="status">{recheckSentence(outcome)}</Hint>}
       {recheck && <div className="frl-body__actions">
-        <Button variant="primary" icon="refresh" busy={checking} busyLabel={ui('正在检查…')} disabled={busy} data-first-run="recheck" onClick={recheck}>{ui('重新检查')}</Button>
+        <Button variant={offered ? 'secondary' : 'primary'} icon="refresh" busy={checking} busyLabel={ui('正在检查…')} disabled={busy} data-first-run="recheck" onClick={recheck}>{ui('重新检查')}</Button>
       </div>}
     </>
   );

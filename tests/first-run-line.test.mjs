@@ -17,6 +17,7 @@ const m = await loadUi(`export * from './ui/first-run/line.js';
   export { importForFirstRun, importForLine, importHandoff } from './ui/app/import-handoff.js';
   export { useUsageEstimate } from './ui/TokenUsage.jsx';
   export { refreshUntil, tourAfterSample } from './ui/app/use-tour.js';
+  export { registerHostParts } from './ui/host-parts.js';
   export { setUiLanguage } from './ui/i18n.js';`);
 const h = React.createElement;
 const noop = () => {};
@@ -306,6 +307,20 @@ test('step 3 says what will be made and its estimate before anything is spent; �
   const asking = page(ready, { plan: { ...PLAN, estimate: { status: 'loading' } } });
   assert.match(asking, /token-estimate__ghost/);
   assert.match(text(asking), /正在估算…/);
+});
+
+test('step 1 draws the host\'s own quick way to a model (a detected local CLI on the desktop) above 重新检查; DSH draws nothing there', () => {
+  m.setUiLanguage('zh');
+  const line = m.firstRunLine(library({ model: NOTHING }));
+  assert.doesNotMatch(page(line), /data-probe="quick"/);
+  m.registerHostParts({ ModelQuickEnable: ({ onOffer }) => h('div', { 'data-probe': 'quick', 'data-on-offer': typeof onOffer }) });
+  try {
+    const markup = page(line);
+    assert.match(markup, /data-probe="quick"/);
+    assert.match(markup, /data-on-offer="function"/, 'the part says when it offers a way, so 重新检查 stops being the primary button beside it');
+    assert.ok(markup.indexOf('data-probe="quick"') < markup.indexOf('data-first-run="recheck"'), 'the one-click way comes before the button that only reads again');
+    assert.doesNotMatch(page(m.firstRunLine(library({ sources: [mine] }))), /data-probe="quick"/, 'a ready model: step 1 is closed and asks for nothing');
+  } finally { m.registerHostParts({ ModelQuickEnable: undefined }); }
 });
 
 test('出第一组题 is disabled with the reason while no model is usable or the selection needs 创建题组', () => {

@@ -98,13 +98,13 @@ const upgradeLine = upgrade => (typeof upgrade?.version === 'string' && VERSION_
  * `error`: an Error (or a string) when a page crashed; left out when the learner copies from Settings.
  * `session`: the summary of this session's performance (ui/session-performance.js); no section when it is left out.
  */
-export function diagnosticText({ version, language, page, error, data, session, upgrade } = {}) {
+export function diagnosticText({ version, language, page, error, data, session, upgrade, edition } = {}) {
   const jobs = Array.isArray(data?.jobs) ? data.jobs.slice(-DIAGNOSTIC_LIMITS.jobs) : [];
   const decks = Array.isArray(data?.decks) ? data.decks : [];
   return [
     'StudyHub diagnostic info',
     `StudyHub version: ${plainReason(typeof version === 'string' ? version : '', { limit: DIAGNOSTIC_LIMITS.version }) || 'unknown'}`,
-    'DSH version: (fill in by hand)',
+    edition === 'desktop' ? 'Host: StudyHub Desktop' : 'DSH version: (fill in by hand)',
     ...upgradeLine(upgrade),
     `Interface language: ${token(language)}`,
     `Page: ${token(page)}`,
@@ -121,6 +121,6 @@ export function diagnosticText({ version, language, page, error, data, session, 
  * `getVersion()` is StudyHub's version, read when the text is built (not on every render of the page). `getUpgrade()`: { version, restartFailed } of the upgrade seen, or nothing.
  */
 export function useDiagnostics(getVersion, getUpgrade) {
-  const { data, language, nav } = useApp();
-  return error => diagnosticText({ version: getVersion?.(), language, page: nav?.page, error, data, session: sessionPerformance.summary(), upgrade: getUpgrade?.() });
+  const { data, language, nav, host } = useApp();
+  return error => diagnosticText({ version: getVersion?.(), language, page: nav?.page, error, data, session: sessionPerformance.summary(), upgrade: getUpgrade?.(), edition: host?.capabilities?.edition });
 }

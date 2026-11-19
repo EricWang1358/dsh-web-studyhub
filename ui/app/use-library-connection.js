@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ui, getUiLanguage } from '../i18n.js';
+import { getUiLanguage } from '../i18n.js';
 import { localizedRun, relocalizeSnapshotRuns } from '../run-titles.js';
 import { isTransientStudyError } from '../transport.js';
 import { shareUnchanged, sameExceptFingerprint, mergePartial } from '../snapshot-share.js';
@@ -15,6 +15,7 @@ import { applyLiveJobs } from './live-jobs.js';
 import { flushUndoable } from '../undoable.js';
 import { sessionPerformance, snapshotChars } from '../session-performance.js';
 import { clearWarmSession, writeWarmBinding, writeWarmSnapshot } from './warm-session.js';
+import { bindingNotice } from './binding-notice.js';
 
 /* The connection to the library: the binding (which folder, which model), the snapshot the whole app reads, how it is kept
    fresh (the first handshake, then the shared polling loop) and what happens when the library underneath changes. */
@@ -214,7 +215,7 @@ export function useLibraryConnection({ core, libApi, resetLibraryState, session,
         setBusy(true);
       }
       await refresh();
-      notify(moved ? ui('已切换学习库') : Object.hasOwn(patch, 'reasoningEffort') ? ui('已更新推理程度') : ui('已更新生成模型'));
+      notify(bindingNotice({ patch, moved, value, host }));
       return true;
     } catch (failure) {
       setError(failure.message);

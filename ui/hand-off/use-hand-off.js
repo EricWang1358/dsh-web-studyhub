@@ -18,6 +18,13 @@ export const HAND_OFF_RULE = '只填进主会话的输入框，由你按发送�
 /** The short form of the rule, for a menu item's one-line hint (the whole rule does not fit beside a label on a phone). */
 export const HAND_OFF_MENU_HINT = '只填进输入框，不自动发送';
 
+/** Copy-prompt degradation wording when the host declares `capabilities.chat === false` (e.g. StudyHub Desktop). */
+export const COPY_PROMPT_LABEL = '复制提示词';
+export const COPY_PROMPT_RULE = '复制提示词到剪贴板，可粘贴到外部 AI 对话使用。';
+export const COPY_PROMPT_MENU_HINT = '复制提示词到剪贴板';
+export const COPY_PROMPT_RECEIPT_LINE = '已复制提示词，可粘贴到任意 AI 对话';
+export const hasChatHost = (host) => host?.capabilities?.chat !== false;
+
 /**
  * The receipt of each outcome: its title (the seal's character is in it: 填 留 复 手), the one line under it, its one action and how long it stays (ms; 0:
  * until it is closed). 'filled' and 'kept' offer 去主会话 only where the host can show the chat (a learner who came back to the reader finds the way again);
@@ -54,7 +61,7 @@ export const joinSentences = parts => parts.filter(Boolean).reduce((text, part) 
 }, '');
 
 /** The Tooltip text: this place's `what` (optional, a catalogue key) and the fixed rule. */
-export const handOffTip = (what = '') => joinSentences([what ? ui(what) : '', ui(HAND_OFF_RULE)]);
+export const handOffTip = (what = '', canChat = true) => joinSentences([what ? ui(what) : '', ui(canChat ? HAND_OFF_RULE : COPY_PROMPT_RULE)]);
 
 /** A prompt that does not say which language to answer in yet gets the one language sentence (a registered hand-off already ends with it). */
 export const withLanguageTail = text => (hasLanguageTail(text) ? text : `${String(text).trimEnd()}\n${languageTail(getUiLanguage())}`);
@@ -97,7 +104,9 @@ export async function deliverToChat({ host, prompt, said = '', picture, notify =
     await clipboard.writeText(text);
     // 看看内容 opens the card with what was copied
     const action = kept ? toChat : openSheet ? { label: ui(HAND_OFF_RECEIPTS.copied.action), run: look('copied') } : null;
-    notify(handOffReceipt(kept ? 'kept' : 'copied', { lead, action }));
+    const notice = handOffReceipt(kept ? 'kept' : 'copied', { lead, action });
+    if (!kept && !hasChatHost(host)) notice.text = joinSentences([lead, ui(COPY_PROMPT_RECEIPT_LINE)]);
+    notify(notice);
     return kept ? 'kept' : 'copied';
   } catch {
     if (!openSheet) { notify({ ...handOffReceipt('shown', { lead }), text: `${joinSentences([lead, ui(HAND_OFF_RECEIPTS.shown.line)])}\n\n${text}`, copy: true }); return 'shown'; }
@@ -120,7 +129,8 @@ export async function deliverToChat({ host, prompt, said = '', picture, notify =
  * An id the registry does not have throws at once.
  */
 export function useHandOff() {
-  const { askInChat, notify } = useStudy();
+  const { askInChat, notify, host } = useStudy();
+  const canChat = hasChatHost(host);
   const send = useCallback(async (id, input = {}, { said = '' } = {}) => {
     if (!isHandOff(id)) throw new Error(`Unknown hand-off: ${id}`);
     let text, picture;
@@ -136,11 +146,21 @@ export function useHandOff() {
   }, [askInChat, notify]);
   const action = useCallback((id, input, { what = '', said = '' } = {}) => {
     if (!isHandOff(id)) throw new Error(`Unknown hand-off: ${id}`);
-    return { label: ui(HAND_OFF_LABEL), icon: 'external', onClick: () => send(id, input, { said }), tip: handOffTip(what) };
-  }, [send]);
+    return {
+      label: ui(canChat ? HAND_OFF_LABEL : COPY_PROMPT_LABEL),
+      icon: canChat ? 'external' : 'copy',
+      onClick: () => send(id, input, { said }),
+      tip: handOffTip(what, canChat),
+    };
+  }, [canChat, send]);
   const item = useCallback((id, input) => {
     if (!isHandOff(id)) throw new Error(`Unknown hand-off: ${id}`);
-    return { id: `hand-off:${id}`, label: ui(HAND_OFF_LABEL), hint: ui(HAND_OFF_MENU_HINT), run: () => send(id, input) };
-  }, [send]);
-  return useMemo(() => ({ send, action, item }), [send, action, item]);
+    return {
+      id: `hand-off:${id}`,
+      label: ui(canChat ? HAND_OFF_LABEL : COPY_PROMPT_LABEL),
+      hint: ui(canChat ? HAND_OFF_MENU_HINT : COPY_PROMPT_MENU_HINT),
+      run: () => send(id, input),
+    };
+  }, [canChat, send]);
+  return useMemo(() => ({ send, action, item, canChat }), [send, action, item, canChat]);
 }

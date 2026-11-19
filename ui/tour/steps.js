@@ -137,8 +137,9 @@ export const tourStepCopy = (step) => [step.title, step.body, step.modelNote, st
  * full tour; the default is the short one, in CORE_ORDER; `line` says the
  * first-run line is up (the short tour then ends on its step 2).
  */
-export function availableTourSteps(steps, { sample, pageAvailable = () => true, hasContext = () => true, full = false, line = false } = {}) {
+export function availableTourSteps(steps, { sample, pageAvailable = () => true, hasContext = () => true, full = false, line = false, canChat = true } = {}) {
   const shown = steps.filter((step) => (full ? inFullTour(step) : inCoreTour(step) && (step.line === undefined || step.line === !!line)) &&
+    (canChat !== false || step.id !== "guided-study") &&
     (!step.needs || (sample?.loaded && sample[step.needs])) && (!step.page || step.page === "draft" || pageAvailable(step.page)) && (!step.context || hasContext(step.context)));
   if (full) return shown;
   const rank = (step) => { const at = CORE_ORDER.indexOf(step.id); return at < 0 ? CORE_ORDER.length : at; };

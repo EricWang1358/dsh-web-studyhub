@@ -296,7 +296,7 @@ export default function CourseMethodCard({ course, readout = null, data = null, 
         }) : null)))
     : null;
   const activeStage = current >= 0 ? shown.stages[current] : (resolvedData ? currentMethodStage(resolvedData, course)?.stage : null);
-  const altItems = !draft && resolvedData && activeStage ? stageAlternatives(resolvedData, course, activeStage, { guidedSession: app?.lib?.guidedSession }) : [];
+  const altItems = !draft && resolvedData && activeStage ? stageAlternatives(resolvedData, course, activeStage, { guidedSession: app?.lib?.guidedSession, canChat: app?.host?.capabilities?.chat !== false }) : [];
   const write = async method => {
     setWorking(true); setError('');
     const payload = method ? clampMethodStageIndices(method) : null;

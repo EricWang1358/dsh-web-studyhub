@@ -7,6 +7,7 @@ import { guidanceOn, itemMuted, readGuidanceState, setGuidanceOn, setItemMuted }
 import { experimentalShown } from '../experimental-flag.js';
 import { hasOwnDeck } from '../study-map/home-plan.js';
 import GuidedStudyStart from '../guided-study/GuidedStudyStart.jsx';
+import { useStudy } from '../study-context.jsx';
 
 /* 设置 › 引导 (3.7 guidance, step 0): the master switch, every registered tip, card, tour and nudge (ui/guidance/registry.js) with its own switch when it
    appears by itself and 「再显示一次」 once it was seen, and the one 重新显示全部提示. Everything is kept in this browser (ui/storage.js); nothing is
@@ -21,6 +22,8 @@ const MASTER_OFF_TOAST = '引导提示已关闭：阅读页的两条提示、练
 /** Of the shared settings services the pane reads `data` (an experiment's entry, and whether 入门三步 can still appear) and `capabilities`; the
     switches live in this browser. `storages` is for tests. */
 export default function GuidancePane({ data, capabilities, storages }) {
+  const { host } = useStudy();
+  const canChat = host?.capabilities?.chat !== false;
   const toast = useToast();
   const offNoteId = useId();
   const [, setVersion] = useState(0);
@@ -93,10 +96,12 @@ export default function GuidancePane({ data, capabilities, storages }) {
         {error && <Hint tone="error" role="alert">{error}</Hint>}
       </SettingsSection>
       {/* AI 带学 (issue 549): what to say to start, and what a guided session leaves off until the learner agrees. Nothing here is a switch of this browser. */}
-      <SettingsSection title={ui('AI 带学')} data-guidance="guided-study"
-        lead={ui('在主会话里说想学什么，主会话就会边讲边出题：讲一个点，当场出一道经过审核的题放到右侧，你做完它再接着讲。下面这几句可以直接发过去。')}>
-        <GuidedStudyStart defaults />
-      </SettingsSection>
+      {canChat && (
+        <SettingsSection title={ui('AI 带学')} data-guidance="guided-study"
+          lead={ui('在主会话里说想学什么，主会话就会边讲边出题：讲一个点，当场出一道经过审核的题放到右侧，你做完它再接着讲。下面这几句可以直接发过去。')}>
+          <GuidedStudyStart defaults />
+        </SettingsSection>
+      )}
       <SettingsSection title={ui('每一项提示')} lead={ui('每一项在哪里出现、什么时候出现。看过的可以单独再显示一次。')}>
         <ul className="guidance-list">
           {items.map((item) => {

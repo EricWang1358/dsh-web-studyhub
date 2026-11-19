@@ -1,0 +1,176 @@
+name: release-desktop
+
+on:
+  push:
+    tags:
+      - 'v[0-9]*.[0-9]*.[0-9]*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Optional existing release tag to attach desktop assets to (for example, v4.14.0)'
+        required: false
+        type: string
+      publish_release:
+        description: 'Attach built desktop artifacts to the GitHub Release for the tag'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-desktop-${{ inputs.tag || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: verify desktop (windows-latest)
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/studyhub-desktop/src-tauri
+
+      - name: Install root dependencies
+        run: npm ci --legacy-peer-deps
+        env:
+          STUDYHUB_SKIP_PREPARE: '1'
+
+      - name: Lint and typecheck
+        run: |
+          npm run lint
+          npm run typecheck
+
+      - name: Run desktop boundary, backend, and UI tests
+        shell: pwsh
+        run: |
+          $tests = @(
+            "tests/desktop-architecture-boundaries.test.mjs",
+            "tests/desktop-backend.test.mjs",
+            "tests/desktop-ui.test.mjs"
+          ) | Where-Object { Test-Path $_ }
+          $desktopTests = Get-ChildItem -Path "packages/studyhub-desktop" -Recurse -File -ErrorAction SilentlyContinue |
+            Where-Object {
+              $_.FullName -notmatch '\\(node_modules|dist|target)\\' -and
+              $_.Name -match '\.test\.(mjs|js)$'
+            } |
+            ForEach-Object { $_.FullName }
+          $tests += $desktopTests
+          if ($tests.Count -eq 0) {
+            throw "No desktop test files found"
+          }
+          node --test @tests
+
+      - name: Smoke test isolated staged runtime
+        run: node packages/studyhub-desktop/scripts/smoke-staged-runtime.mjs
+
+      - name: Build desktop UI bundle for Tauri context
+        shell: pwsh
+        run: |
+          if (Test-Path "ui/desktop.jsx") {
+            npm --prefix packages/studyhub-desktop run build:ui
+          } else {
+            New-Item -ItemType Directory -Force -Path "packages/studyhub-desktop/dist/ui" | Out-Null
+          }
+
+      - name: Check Rust formatting, clippy, and unit tests
+        working-directory: packages/studyhub-desktop/src-tauri
+        run: |
+          cargo fmt --check
+          cargo clippy --all-targets -- -D warnings
+          cargo test
+
+  build-release:
+    name: build windows installer & portable zip
+    needs: [verify]
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - name: Resolve release version metadata
+        id: meta
+        shell: pwsh
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          $tag = if ($env:EVENT_NAME -eq "push") { $env:REF_NAME } else { $env:INPUT_TAG }
+          "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.meta.outputs.tag != '' && format('refs/tags/{0}', steps.meta.outputs.tag) || github.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/studyhub-desktop/src-tauri
+
+      - name: Install root and desktop package dependencies
+        run: |
+          npm ci --legacy-peer-deps
+          npm --prefix packages/studyhub-desktop install
+        env:
+          STUDYHUB_SKIP_PREPARE: '1'
+
+      - name: Build desktop UI and stage portable Node runtime
+        run: |
+          npm --prefix packages/studyhub-desktop run build:ui
+          npm --prefix packages/studyhub-desktop run stage:runtime
+
+      - name: Build Tauri Windows MSI installer
+        working-directory: packages/studyhub-desktop
+        run: npx tauri build
+
+      - name: Pack portable ZIP and SHA256SUMS
+        run: npm --prefix packages/studyhub-desktop run bundle:zip
+
+      - name: Upload desktop build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: studyhub-desktop-win-x64
+          path: packages/studyhub-desktop/dist/release/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Attach desktop assets to GitHub Release
+        if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && inputs.publish_release && inputs.tag != '')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          REPO: ${{ github.repository }}
+        run: |
+          $assets = Get-ChildItem -Path "packages/studyhub-desktop/dist/release" -File |
+            Where-Object { $_.Name -match '\.(msi|zip)$|^SHA256SUMS-Desktop-.*\.txt$' } |
+            ForEach-Object { $_.FullName }
+          if ($assets.Count -lt 3) {
+            throw "Expected .msi, .zip, and SHA256SUMS desktop assets, found $($assets.Count)"
+          }
+          gh release view $env:TAG -R $env:REPO *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:TAG @assets -R $env:REPO --clobber
+          } else {
+            $version = $env:TAG.TrimStart('v')
+            gh release create $env:TAG @assets -R $env:REPO --verify-tag --title "StudyHub $version" --notes "StudyHub Desktop $version Windows x64 installer (.msi), portable archive (.zip), and SHA-256 checksums."
+          }

@@ -13,10 +13,13 @@ import { useApp } from './app-context.js';
    made the same choice live in two places. The update notice joins them only while there is an update. */
 
 /** The one line the glossary entry shows on hover/focus: every word the interface assumes, with what it means (ui/mastery-terms.js). */
-const glossaryText = () => [ui('界面里这些词的意思：'), ...Object.values(GLOSSARY).map((term) => `${ui(term.label)} — ${ui(term.hint)}`)].join('\n');
+const glossaryText = (canChat = true) => [ui('界面里这些词的意思：'), ...Object.entries(GLOSSARY)
+  .filter(([key]) => canChat !== false || key !== 'mainChat')
+  .map(([, term]) => `${ui(term.label)} — ${ui(term.hint)}`)].join('\n');
 
 export default function SidebarFooter() {
-  const { nav, session, tour, finder } = useApp();
+  const { nav, session, tour, finder, host } = useApp();
+  const canChat = host?.capabilities?.chat !== false;
   const [help, setHelp] = useState(false);
   const resume = tour.tourResume;
   return (
@@ -33,7 +36,7 @@ export default function SidebarFooter() {
           purpose={ui('看这一页能用的键；按 ? 也能打开')} hint="?" onClick={() => session.actions.openShortcutHelp()} />
         {/* The glossary is words to read: pressing the row (or moving to it) shows them, in a Tooltip the pointer may enter to scroll. */}
         <NavItem className="glossary-nav" data-tour="nav-glossary" data-keep-open="" icon={<Icon name="book" />} label={ui('名词解释')}
-          purpose={glossaryText()} tipInteractive tipPlacement="right-start" onClick={(event) => event.currentTarget.focus()} />
+          purpose={glossaryText(canChat)} tipInteractive tipPlacement="right-start" onClick={(event) => event.currentTarget.focus()} />
       </NavFold>
       <NavItem glyph="settings" label={ui('设置')} active={nav.navPage === 'settings'} purpose={ui(PAGES.settings.purpose)} data-tour="nav-settings" data-usage="nav.settings"
         onClick={() => nav.navigate('settings', { animate: true, keepTrail: false })} />
