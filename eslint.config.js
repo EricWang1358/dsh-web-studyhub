@@ -56,6 +56,10 @@ export default [
     ignores: [
       "dist/**",
       "output/**",
+      "packages/*/dist/**",
+      "packages/*/node_modules/**",
+      "packages/*/src-tauri/target/**",
+      "packages/*/src-tauri/resources/**",
       "lib/client.js",
       "lib/client.*.js",
       "node_modules/**",
@@ -65,7 +69,7 @@ export default [
     ],
   },
   {
-    files: ["lib/**/*.js", "scripts/**/*.mjs", "tests/**/*.mjs", "packages/**/*.js", "eslint.config.js"],
+    files: ["lib/**/*.js", "scripts/**/*.mjs", "tests/**/*.mjs", "packages/**/*.js", "packages/**/*.mjs", "eslint.config.js"],
     languageOptions: {
       ecmaVersion: 2024,
       sourceType: "module",
@@ -134,6 +138,145 @@ export default [
       "react/jsx-key": "error",
       "react/react-in-jsx-scope": "off",
       "react/prop-types": "off",
+    },
+  },
+  // M0 Anti-Bad-Smell & DDD Guardrails for StudyHub Desktop (built-in rules only; no custom ESLint plugin).
+  {
+    files: ["packages/studyhub-desktop/**/*.{js,mjs}", "ui/desktop/**/*.{js,jsx}"],
+    rules: {
+      complexity: ["error", 12],
+      "max-depth": ["error", 3],
+      "max-lines": ["error", { max: 300, skipBlankLines: true, skipComments: true }],
+      "max-lines-per-function": ["error", { max: 80, skipBlankLines: true, skipComments: true }],
+      "max-params": ["error", 4],
+      eqeqeq: ["error", "always"],
+      "no-var": "error",
+      "prefer-const": "error",
+      "no-empty": "error",
+      "no-throw-literal": "error",
+      "no-param-reassign": "error",
+      "consistent-return": "error",
+    },
+  },
+  {
+    files: ["packages/studyhub-desktop/**/*.{js,mjs}"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "ImportDeclaration[source.value=/^(node:)?child_process$/] ImportSpecifier[imported.name=/^(exec|execSync)$/]",
+          message: "Do not import exec or execSync; use spawn/execFile without a shell inside adapters/cli/process-runner.mjs.",
+        },
+        {
+          selector: "CallExpression[callee.property.name='execSync']",
+          message: "Do not call execSync; use spawn/execFile without a shell inside adapters/cli/process-runner.mjs.",
+        },
+        {
+          selector: "Property[key.name='shell'][value.value=true], Property[key.value='shell'][value.value=true]",
+          message: "Never pass shell: true when spawning child processes.",
+        },
+      ],
+    },
+  },
+  {
+    files: ["packages/studyhub-desktop/**/*.{js,mjs}"],
+    ignores: ["packages/studyhub-desktop/adapters/cli/process-runner.mjs"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        paths: [
+          { name: "node:child_process", message: "Only adapters/cli/process-runner.mjs may import node:child_process." },
+          { name: "child_process", message: "Only adapters/cli/process-runner.mjs may import child_process." },
+        ],
+      }],
+    },
+  },
+  {
+    files: ["packages/studyhub-desktop/adapters/cli/process-runner.mjs"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        paths: [
+          { name: "node:child_process", importNames: ["exec", "execSync"], message: "Never import exec or execSync; use spawn or execFile without a shell." },
+          { name: "child_process", importNames: ["exec", "execSync"], message: "Never import exec or execSync; use spawn or execFile without a shell." },
+        ],
+        patterns: [
+          { group: ["../application/*", "../application/**", "**/application/**"], message: "Desktop adapters cannot import application layer." },
+          { group: ["../entry/*", "../entry/**", "**/entry/**"], message: "Desktop adapters cannot import entry layer." },
+          { group: ["ui/*", "ui/**", "**/ui/**"], message: "Desktop adapters cannot import UI modules." },
+        ],
+      }],
+    },
+  },
+  {
+    files: ["packages/studyhub-desktop/adapters/**/*.{js,mjs}"],
+    ignores: ["packages/studyhub-desktop/adapters/cli/process-runner.mjs"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        paths: [
+          { name: "node:child_process", message: "Only adapters/cli/process-runner.mjs may import node:child_process." },
+          { name: "child_process", message: "Only adapters/cli/process-runner.mjs may import child_process." },
+        ],
+        patterns: [
+          { group: ["../application/*", "../application/**", "**/application/**"], message: "Desktop adapters cannot import application layer." },
+          { group: ["../entry/*", "../entry/**", "**/entry/**"], message: "Desktop adapters cannot import entry layer." },
+          { group: ["ui/*", "ui/**", "**/ui/**"], message: "Desktop adapters cannot import UI modules." },
+        ],
+      }],
+    },
+  },
+  {
+    files: ["packages/studyhub-desktop/application/**/*.{js,mjs}"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        paths: [
+          { name: "node:child_process", message: "Desktop application layer cannot import node:child_process." },
+          { name: "child_process", message: "Desktop application layer cannot import child_process." },
+          { name: "node:fs", message: "Desktop application layer cannot import node:fs; inject a port." },
+          { name: "fs", message: "Desktop application layer cannot import fs; inject a port." },
+          { name: "node:fs/promises", message: "Desktop application layer cannot import node:fs/promises; inject a port." },
+          { name: "fs/promises", message: "Desktop application layer cannot import fs/promises; inject a port." },
+          { name: "node:http", message: "Desktop application layer cannot import node:http; inject a port." },
+          { name: "http", message: "Desktop application layer cannot import http; inject a port." },
+          { name: "node:https", message: "Desktop application layer cannot import node:https; inject a port." },
+          { name: "https", message: "Desktop application layer cannot import https; inject a port." },
+          { name: "node:net", message: "Desktop application layer cannot import node:net; inject a port." },
+          { name: "net", message: "Desktop application layer cannot import net; inject a port." },
+        ],
+        patterns: [
+          { group: ["../adapters/*", "../adapters/**", "**/adapters/**"], message: "Desktop application layer cannot import adapters layer; depend on domain ports." },
+          { group: ["../entry/*", "../entry/**", "**/entry/**"], message: "Desktop application layer cannot import entry layer." },
+          { group: ["ui/*", "ui/**", "**/ui/**"], message: "Desktop application layer cannot import UI modules." },
+        ],
+      }],
+    },
+  },
+  {
+    files: ["packages/studyhub-desktop/domain/**/*.{js,mjs}"],
+    rules: {
+      "no-console": "error",
+      "no-restricted-imports": ["error", {
+        paths: [
+          { name: "child_process", message: "Desktop domain must be pure and cannot import Node built-ins." },
+          { name: "fs", message: "Desktop domain must be pure and cannot import Node built-ins." },
+          { name: "fs/promises", message: "Desktop domain must be pure and cannot import Node built-ins." },
+          { name: "http", message: "Desktop domain must be pure and cannot import Node built-ins." },
+          { name: "https", message: "Desktop domain must be pure and cannot import Node built-ins." },
+          { name: "net", message: "Desktop domain must be pure and cannot import Node built-ins." },
+          { name: "path", message: "Desktop domain must be pure and cannot import Node built-ins." },
+          { name: "os", message: "Desktop domain must be pure and cannot import Node built-ins." },
+          { name: "crypto", message: "Desktop domain must be pure and cannot import Node built-ins." },
+          { name: "url", message: "Desktop domain must be pure and cannot import Node built-ins." },
+          { name: "stream", message: "Desktop domain must be pure and cannot import Node built-ins." },
+          { name: "events", message: "Desktop domain must be pure and cannot import Node built-ins." },
+          { name: "util", message: "Desktop domain must be pure and cannot import Node built-ins." },
+        ],
+        patterns: [
+          { group: ["node:*", "node:**"], message: "Desktop domain must be pure and cannot import any node:* built-in." },
+          { group: ["../application/*", "../application/**", "**/application/**"], message: "Desktop domain cannot import application layer." },
+          { group: ["../adapters/*", "../adapters/**", "**/adapters/**"], message: "Desktop domain cannot import adapters layer." },
+          { group: ["../entry/*", "../entry/**", "**/entry/**"], message: "Desktop domain cannot import entry layer." },
+          { group: ["ui/*", "ui/**", "**/ui/**"], message: "Desktop domain cannot import UI modules." },
+        ],
+      }],
     },
   },
 ];
