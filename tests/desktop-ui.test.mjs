@@ -536,7 +536,8 @@ test('the library-place card shows until the learner settles it: hidden when con
   const html = placeCard({ binding: { libraryPlace: { confirmed: false, onSystemDrive: false } } });
   assert.match(html, /data-desktop-library-place/);
   assert.match(html, /先确认学习库放在哪/);
-  assert.match(html, /资料、题组和练习记录都存在这个文件夹：/);
+  assert.match(html, /资料、题组和复习记录都存在这个文件夹：/);
+  assert.doesNotMatch(html, /练习记录/, 'Settings and the finder say 复习记录: one name');
   assert.ok(html.includes(PLACE_ROOT), 'the folder in use is named');
   assert.match(html, /在 DSH 里用过 StudyHub？选那个工作区文件夹，原来的题组和记录都会出现。/);
   assert.doesNotMatch(html, /它在系统盘/, 'no warning off the system drive');
@@ -555,11 +556,22 @@ test('the library-place card warns about the system drive and says what a move n
   assert.doesNotMatch(placeCard({ binding: { libraryPlace: { confirmed: false, onSystemDrive: false } } }), /你选的/);
 });
 
+test('an existing install (a saved folder, no confirmation yet) gets the card, and a library problem keeps it away until the problem is gone', () => {
+  const unconfirmed = { libraryPlace: { confirmed: false, onSystemDrive: false } };
+  const existing = placeCard({ binding: { ...unconfirmed, root: 'D:\\Study', pickedRoot: 'D:\\Study', rootSource: 'custom' }, data: { decks: [{ id: 'd' }], sources: [] } });
+  assert.match(existing, /data-desktop-library-place/);
+  assert.match(existing, /换文件夹不会搬动已有内容/);
+  // The saved folder cannot be opened and a fallback is in use: 「就用这里」 would confirm the fallback, so the card waits (the library notice reports the problem).
+  const problem = { root: 'E:\\Study', source: 'custom', reason: 'gone', message: '无法打开学习库目录「E:\\Study」（gone），已暂时改用「D:\\Fallback」' };
+  assert.equal(placeCard({ binding: { ...unconfirmed, libraryProblem: problem } }), '');
+  assert.match(placeCard({ binding: { ...unconfirmed, libraryProblem: null } }), /data-desktop-library-place/, 'back once the problem is gone');
+});
+
 test('the library-place card has two buttons and at most one primary: choosing a folder on the system drive, using this place elsewhere', () => {
   const place = (onSystemDrive) => placeCard({ binding: { libraryPlace: { confirmed: false, onSystemDrive } } });
-  assert.deepEqual(buttonLabels(place(true)), ['选择文件夹…', '就用这里']);
-  assert.deepEqual(primaryLabels(place(true)), ['选择文件夹…']);
-  assert.deepEqual(buttonLabels(place(false)), ['选择文件夹…', '就用这里']);
+  assert.deepEqual(buttonLabels(place(true)), ['更换目录…', '就用这里'], 'the same action is named the same as in Settings');
+  assert.deepEqual(primaryLabels(place(true)), ['更换目录…']);
+  assert.deepEqual(buttonLabels(place(false)), ['更换目录…', '就用这里']);
   assert.deepEqual(primaryLabels(place(false)), ['就用这里']);
 });
 
@@ -568,7 +580,7 @@ test('in English the library-place card has no Chinese and keeps its sentences',
   assert.doesNotMatch(html.replace(/<[^>]+>/g, ' '), /[㐀-鿿]/);
   assert.match(html, /Confirm where your library lives/);
   assert.match(html, /It is on the system drive \(C:\)/);
-  assert.deepEqual(buttonLabels(html), ['Choose folder…', 'Use this folder']);
+  assert.deepEqual(buttonLabels(html), ['Change folder…', 'Use this folder']);
 });
 
 test('「就用这里」 confirms through the host and takes the binding that comes back; a failure keeps the card and says why', async () => {
@@ -594,15 +606,23 @@ test('「选择文件夹…」 is the Settings picker: a picked folder goes to u
   assert.deepEqual(log, [['update', { root: 'D:\\Study' }], ['fallback'], ['fallback'], ['notify', '无法打开目录选择器，请直接输入路径。']]);
 });
 
-test('the desktop says how the model is paid for: its own key, or the account of the CLI signed in on this computer', () => {
+test('the desktop says how the model is paid for: its own key, the account of the CLI, a CLI signed in with a key, or that it cannot tell', () => {
   const note = (modelVia) => m.DESKTOP_PARTS.modelCostNote({ modelVia });
-  assert.equal(note({ kind: 'api', name: 'DeepSeek' }), '通过你填的 API Key 调用，按用量计费。');
-  assert.equal(note({ kind: 'cli', name: 'Codex CLI' }), '通过本机 Codex CLI 调用，用的是它登录账号的额度。');
+  const cli = (billing) => ({ kind: 'cli', name: 'Codex CLI', billing });
+  assert.equal(note({ kind: 'api', name: 'DeepSeek', billing: 'per-use' }), '通过你填的 API Key 调用，按用量计费。');
+  assert.equal(note(cli('account')), '通过本机 Codex CLI 调用，用的是它登录账号的额度。');
+  assert.equal(note(cli('per-use')), '通过本机 Codex CLI 调用，它登录用的是 API Key，按用量计费。');
+  const unknown = note(cli('unknown'));
+  assert.equal(unknown, '通过本机 Codex CLI 调用；用的是它登录账号的额度，还是它登录时用的 API Key（按用量计费），要看它的登录方式。');
+  assert.equal(note({ kind: 'cli', name: 'Codex CLI' }), unknown, 'a host that sends no billing promises neither');
   assert.equal(note(undefined), '', 'a host that says nothing is not guessed at');
   assert.equal(m.DESKTOP_PARTS.modelCostNote({}), '');
   m.setUiLanguage('en');
   try {
-    assert.equal(note({ kind: 'api', name: 'DeepSeek' }), 'Called through the API key you entered and billed by usage.');
-    assert.equal(note({ kind: 'cli', name: 'Codex CLI' }), 'Called through Codex CLI on this computer, using the quota of the account it is signed in to.');
+    assert.equal(note({ kind: 'api', name: 'DeepSeek', billing: 'per-use' }), 'Called through the API key you entered and billed by usage.');
+    assert.equal(note(cli('account')), 'Called through Codex CLI on this computer, using the quota of the account it is signed in to.');
+    assert.equal(note(cli('per-use')), 'Called through Codex CLI on this computer, which is signed in with an API key and billed by usage.');
+    assert.equal(note(cli('unknown')), 'Called through Codex CLI on this computer; whether that uses its account quota or the API key it signed in with depends on how it is logged in.');
+    for (const billing of ['account', 'per-use', 'unknown']) assert.doesNotMatch(note(cli(billing)), /[㐀-鿿]/);
   } finally { m.setUiLanguage('zh'); }
 });

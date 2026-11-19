@@ -532,7 +532,7 @@ export const FEATURES = Object.freeze([
   feature({ id: 'model-in-use', area: 'settings', title: '当前用的模型', page: null, anchors: ['topbar-model'],
     aliases: ['模型', '当前模型', '在用哪个模型', '用哪个模型', '费用', '计费', '花钱', 'api 费用', 'model in use', 'which model', 'current model', 'cost', 'billing', 'fees'],
     path: ['页面顶栏', '模型：…'],
-    what: '页面顶栏的「模型：…」写着出题、讲解和批改现在用的是哪个模型，免得不知不觉花掉 API 费用；还没配好模型时不显示，状态处写「还没配模型」。鼠标放上去或用键盘聚焦能看到说明，点它直接打开「设置 › 学习库与模型」更换。桌面版的说明还会写这个模型是按你的 API Key 计费，还是用本机 CLI 登录账号的额度。窗口窄时它缩成一个图标，再窄就不显示，到「设置 › 学习库与模型」里看。' }),
+    what: '页面顶栏的「模型：…」写着出题、讲解和批改现在用的是哪个模型，免得不知不觉花掉 API 费用；还没配好模型时不显示，状态处写「还没配模型」。鼠标放上去或用键盘聚焦能看到说明，点它直接打开「设置 › 学习库与模型」更换。桌面版的说明还会写这个模型怎么计费：按你填的 API Key 按用量计费，还是用本机 CLI 登录账号的额度（CLI 若是用 API Key 登录的，则按用量计费）。窗口窄时它缩成一个图标，再窄就不显示，到「设置 › 学习库与模型」里看。' }),
   feature({ id: 'audio-keys', area: 'settings', title: '音频转写密钥 / 硅基流动', page: 'settings', anchors: ['settings-audio'],
     aliases: ['转写密钥', '硅基流动', 'siliconflow', 'gemini', 'groq', 'audio key', 'transcription key', '录音转文字'],
     path: ['设置', '音频转写'],

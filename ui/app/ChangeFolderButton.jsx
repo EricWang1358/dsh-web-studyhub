@@ -3,8 +3,8 @@ import { ui } from '../i18n.js';
 import { Button } from '../components/index.js';
 import { AppContext } from './app-context.js';
 
-/* The one control that moves the library folder: the host's own folder picker, then the app's binding (Settings › 学习库与模型 draws it as 「更换目录…」, the desktop's
-   first-use card as 「选择文件夹…」). Where there is no picker, or it cannot open, `onUnavailable` is the way to type the path instead. */
+/* The one control that moves the library folder: the host's own folder picker, then the app's binding (Settings › 学习库与模型 and the desktop's first-use card both
+   draw it as 「更换目录…」). Where there is no picker, or it cannot open, `onUnavailable` is the way to type the path instead. */
 
 /** Pick a folder with the host's picker and make it the library. A cancelled pick does nothing. */
 export async function chooseLibraryFolder({ host, updateBinding, notify, onUnavailable }) {
