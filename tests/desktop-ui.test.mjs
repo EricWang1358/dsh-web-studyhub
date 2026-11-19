@@ -110,6 +110,22 @@ test('DESKTOP_PARTS exposes its host-part slots and renders upgrade & library no
   assert.doesNotMatch(noticeEn.replace(/<[^>]+>/g, ' '), /[㐀-鿿]/, 'English library notice has zero untranslated Han text');
 });
 
+test('DesktopCliCard offers the models a ready codex lists as a dropdown, and takes free text when it lists none', () => {
+  const card = (codexProvider, model) => render(h(m.DesktopCliCard, {
+    providers: [{ id: 'codex', name: 'Codex CLI', supported: true, status: 'ready', executablePath: 'C:\\codex.exe', version: '0.170.0', reason: '', ...codexProvider }],
+    mode: 'codex',
+    agy: {},
+    codex: { model, effort: '' },
+    actions: { saveCli: () => {}, testCli: () => {}, scan: () => {} },
+    working: '',
+  }));
+  const listed = card({ models: [{ id: 'gpt-6-luna', name: 'GPT-6-Luna' }, { id: 'gpt-5.6-terra', name: 'GPT-5.6-Terra' }] }, 'gpt-6-luna');
+  assert.match(listed, /GPT-6-Luna/, 'the chosen model shows by the name codex gives it');
+  assert.doesNotMatch(listed, /留空使用默认模型/, 'no free-text field when codex lists its models');
+  assert.match(card({ models: [] }, ''), /留空使用默认模型/, 'a codex that lists nothing keeps the free-text field');
+  assert.match(card({}, ''), /留空使用默认模型/);
+});
+
 test('DesktopCliCard renders primary ready card when agy or codex is ready, dual switcher when both are ready, and quiet strip otherwise', () => {
   const noopActions = { saveCli: () => {}, testCli: () => {}, scan: () => {} };
   const readyHtml = render(h(m.DesktopCliCard, {
