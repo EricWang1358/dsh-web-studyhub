@@ -86,7 +86,13 @@ async function runFixtures(dir, args = []) {
   return { code, out, err, started: (await readFile(log, 'utf8')).split('\n').filter(Boolean) };
 }
 
-test('the first run learns how long each file took and the next run starts the slowest first', async t => {
+const fixtureKey = name => `tests/fixtures/runner-suite/${name}.test.mjs`;
+const fixtureName = key => key.slice('tests/fixtures/runner-suite/'.length, -'.test.mjs'.length);
+
+/* What a file is recorded as taking includes starting its process, and on a busy machine that start can cost more than the fixtures
+   differ by (a waits 60 ms, c 250 ms: a shared Windows runner once measured a above c). So no assertion here compares two measured
+   files: a measurement is checked against the wait it must contain, and the order against the figures the run was given. */
+test('the first run learns how long each file took and the next run starts in the order of those figures, longest first', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'study-order-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const first = await runFixtures(dir);
@@ -94,11 +100,22 @@ test('the first run learns how long each file took and the next run starts the s
   assert.deepEqual(first.started, ['a', 'b', 'c'], 'nothing is known yet: by name');
   assert.match(first.out, /# pass 3/, 'node\'s usual TAP report and summary are still printed');
   const recorded = await readDurations(join(dir, 'durations.json'));
-  assert.deepEqual(Object.keys(recorded).sort(), ['a', 'b', 'c'].map(name => `tests/fixtures/runner-suite/${name}.test.mjs`));
-  assert.ok(recorded['tests/fixtures/runner-suite/b.test.mjs'] > recorded['tests/fixtures/runner-suite/a.test.mjs']);
+  assert.deepEqual(Object.keys(recorded).sort(), ['a', 'b', 'c'].map(fixtureKey));
+  for (const [name, waited] of [['a', 60], ['b', 500], ['c', 250]]) {
+    assert.ok(recorded[fixtureKey(name)] >= waited * 0.8, `${name} waits ${waited} ms and was recorded as ${recorded[fixtureKey(name)]} ms`);
+  }
   const second = await runFixtures(dir);
   assert.equal(second.code, 0, second.err + second.out);
-  assert.deepEqual(second.started, ['b', 'c', 'a'], 'slowest first');
+  assert.deepEqual(second.started, orderLongestFirst(Object.keys(recorded).sort(), recorded).map(fixtureName), 'what the first run recorded decides the order');
+});
+
+test('recorded figures decide the order, not the names and not how long the files really take', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'study-order-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await writeFile(join(dir, 'durations.json'), JSON.stringify({ [fixtureKey('a')]: 300, [fixtureKey('b')]: 5, [fixtureKey('c')]: 90_000 }), 'utf8');
+  const run = await runFixtures(dir);
+  assert.equal(run.code, 0, run.err + run.out);
+  assert.deepEqual(run.started, ['c', 'a', 'b'], 'slowest recorded first, although b really takes longest');
 });
 
 test('the fast tier leaves out what the slow list names', async t => {
