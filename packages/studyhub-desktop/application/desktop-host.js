@@ -83,8 +83,10 @@ function buildConfigResponse({ config, providers, configPath, keyDropped, langua
   };
 }
 
-async function buildBindingView({ ctx, state, route, systemDrive }) {
+async function buildBindingView({ ctx, state, route, systemDrive, providerDiscovery }) {
   const status = await modelStatus(ctx, route);
+  // Only a codex model needs discovery here (how it is signed in decides what it costs); the others never wait for a probe.
+  const providers = state.config.mode === 'codex' ? await providerDiscovery.scan({ force: false }).catch(() => []) : [];
   return {
     root: state.library.root,
     // The folder that was asked for: the same as `root`, unless the library is the DSH plugin's `.dsh-study` inside it.
@@ -96,7 +98,7 @@ async function buildBindingView({ ctx, state, route, systemDrive }) {
     libraryPlace: libraryPlaceOf({
       confirmed: state.config.libraryPlaceConfirmed, rootSource: state.library.rootSource, root: state.library.root, systemDrive,
     }),
-    modelVia: modelViaOf(state.config),
+    modelVia: modelViaOf(state.config, providers),
     provider: '',
     model: '',
     modelSource: 'config',
@@ -111,7 +113,7 @@ const langOf = (args) => (args?.uiLanguage === 'en' ? 'en' : 'zh');
 
 function createDesktopActionHandlers(deps) {
   const { configStore, providerDiscovery, completePort, openExternal, openCliTerminal, getState, reloadState, getRoute, ctx, forward, systemDrive } = deps;
-  const bindingView = () => buildBindingView({ ctx, state: getState(), route: getRoute() || null, systemDrive });
+  const bindingView = () => buildBindingView({ ctx, state: getState(), route: getRoute() || null, systemDrive, providerDiscovery });
   return {
     'desktop.config.get': async (args) => {
       const providers = await providerDiscovery.scan({ force: false });
@@ -166,7 +168,7 @@ function createDesktopActionHandlers(deps) {
     },
     // 就用这里: the learner accepts the library where it is.
     'desktop.library.confirm': async () => {
-      await configStore.save({ ...getState().config, libraryPlaceConfirmed: true });
+      await configStore.confirmLibraryPlace();
       await reloadState();
       return bindingView();
     },

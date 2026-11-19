@@ -18,6 +18,7 @@
  * @property {ProviderId} id
  * @property {string} name
  * @property {boolean} supported
+ * @property {'account' | 'api-key' | 'unknown'} [authMethod] how a ready codex is signed in (an account, or an API key billed per use)
  * @property {ProviderStatus} status
  * @property {string | null} executablePath
  * @property {string | null} version
@@ -88,6 +89,7 @@
  * @typedef {object} ModelVia
  * @property {'api' | 'cli'} kind
  * @property {string} name
+ * @property {'account' | 'per-use' | 'unknown'} billing what the model costs: an account's quota, a charge per use, or not known
  */
 
 /**

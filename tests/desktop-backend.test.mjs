@@ -23,6 +23,7 @@ import {
   buildCodexWrappedPrompt,
   mapCodexUsageToBuckets,
   parseCodexJsonlOutput,
+  parseCodexLoginMethod,
   parseCodexStreamLine,
 } from '../packages/studyhub-desktop/domain/codex-protocol.js';
 import {
@@ -501,6 +502,21 @@ test('adapters/cli/agy-adapter runs stream-json in fresh temp cwd, streams chunk
   await assert.rejects(() => access(usedCwd));
 });
 
+test('domain/codex-protocol reads how codex is signed in (an account or an API key) from `codex login status`, and never returns the key', () => {
+  assert.equal(parseCodexLoginMethod('Logged in using ChatGPT'), 'account');
+  assert.equal(parseCodexLoginMethod('\nLogged in using ChatGPT\n'), 'account');
+  assert.equal(parseCodexLoginMethod('Logged in using an API key - sk-proj-***abcd'), 'api-key');
+  assert.equal(parseCodexLoginMethod('logged in using an api key'), 'api-key', 'the case of the words does not matter');
+  assert.equal(parseCodexLoginMethod('Not logged in'), 'unknown');
+  assert.equal(parseCodexLoginMethod('Logged in'), 'unknown', 'a login with no method named is not guessed at');
+  assert.equal(parseCodexLoginMethod(''), 'unknown');
+  assert.equal(parseCodexLoginMethod(undefined), 'unknown');
+  // Whatever the text holds, the answer is one of three words: no part of the key goes on.
+  for (const text of ['Logged in using an API key - sk-proj-SECRET1234', 'sk-live-SECRET1234 Logged in using ChatGPT']) {
+    assert.match(parseCodexLoginMethod(text), /^(account|api-key|unknown)$/);
+  }
+});
+
 test('adapters/cli/codex-adapter probes stderr auth, runs in cleaned temp cwd, reports usage, and handles non-fatal error items', async (t) => {
   const work = await mkdtemp(join(tmpdir(), 'studyhub-codex-adapter-'));
   t.after(() => rm(work, { recursive: true, force: true }));
@@ -513,6 +529,7 @@ test('adapters/cli/codex-adapter probes stderr auth, runs in cleaned temp cwd, r
     'if (args[0] === "--version") { console.log("codex-cli 0.170.0"); process.exit(0); }',
     'if (args[0] === "login" && args[1] === "status") {',
     '  if (process.env.FAKE_CODEX_UNAUTH === "1") { process.stderr.write("Not logged in\\n"); process.exit(1); }',
+    '  if (process.env.FAKE_CODEX_APIKEY === "1") { process.stderr.write("Logged in using an API key - sk-proj-***abcd\\n"); process.exit(0); }',
     '  process.stderr.write("Logged in using ChatGPT\\n");',
     '  process.exit(0);',
     '}',
@@ -534,6 +551,12 @@ test('adapters/cli/codex-adapter probes stderr auth, runs in cleaned temp cwd, r
   assert.equal(readyProbe.status, 'ready');
   assert.equal(readyProbe.version, '0.170.0');
   assert.match(readyProbe.detail, /Logged in using ChatGPT/);
+  assert.equal((await probeCodexAuth(runner, fakeCodex)).authMethod, 'account', 'the probe says how codex is signed in');
+  const keyRunner = { run: (req) => runner.run({ ...req, env: { ...process.env, FAKE_CODEX_APIKEY: '1' } }) };
+  const keyAuth = await probeCodexAuth(keyRunner, fakeCodex);
+  assert.equal(keyAuth.authenticated, true);
+  assert.equal(keyAuth.authMethod, 'api-key', 'a codex signed in with an API key is told apart from an account');
+  assert.equal(Object.hasOwn(await probeCodexAuth({ run: (req) => runner.run({ ...req, env: { ...process.env, FAKE_CODEX_UNAUTH: '1' } }) }, fakeCodex), 'authMethod'), false, 'not signed in: no method');
 
   // Unauthenticated probe (non-zero exit with stderr)
   const unauthRunner = {
@@ -610,7 +633,7 @@ test('application/provider-discovery distinguishes ready, unauthenticated, broke
     },
     checkCodexAuth: async () => {
       if (codexMode === 'unauth') return { ok: false, authenticated: false, detail: 'Not logged in' };
-      return { ok: true, authenticated: true, detail: 'Logged in using ChatGPT' };
+      return { ok: true, authenticated: true, authMethod: 'account', detail: 'Logged in using ChatGPT' };
     },
   });
 
@@ -623,6 +646,8 @@ test('application/provider-discovery distinguishes ready, unauthenticated, broke
   assert.equal(first.find((p) => p.id === 'codex').supported, true);
   assert.equal(first.find((p) => p.id === 'codex').status, 'ready');
   assert.equal(first.find((p) => p.id === 'codex').version, '0.170.0');
+  assert.equal(first.find((p) => p.id === 'codex').authMethod, 'account', 'the ready codex carries how it is signed in');
+  assert.equal(Object.hasOwn(first.find((p) => p.id === 'agy'), 'authMethod'), false, 'no other provider has one');
   assert.equal(discovery.findReadyCodexPath(), 'C:\\node_global\\codex.cmd');
   const countAfterFirst = probeCalls;
 
@@ -906,9 +931,17 @@ test('domain/config-policy keeps libraryPlaceConfirmed through every save and na
   const saved = applyConfigPatch(confirmed, { mode: 'agy', agy: { model: 'gemini-4' } });
   assert.equal(saved.config.libraryPlaceConfirmed, true, 'a model save does not take the confirmation back');
 
-  assert.deepEqual(modelViaOf(defaultDesktopConfig()), { kind: 'api', name: 'DeepSeek' });
-  assert.deepEqual(modelViaOf({ ...defaultDesktopConfig(), mode: 'agy' }), { kind: 'cli', name: 'Antigravity CLI' });
-  assert.deepEqual(modelViaOf({ ...defaultDesktopConfig(), mode: 'codex' }), { kind: 'cli', name: 'Codex CLI' });
+  assert.deepEqual(modelViaOf(defaultDesktopConfig()), { kind: 'api', name: 'DeepSeek', billing: 'per-use' });
+  assert.deepEqual(modelViaOf({ ...defaultDesktopConfig(), mode: 'agy' }), { kind: 'cli', name: 'Antigravity CLI', billing: 'account' });
+  const codex = { ...defaultDesktopConfig(), mode: 'codex' };
+  const probe = (status, authMethod) => [{ id: 'codex', status, ...(authMethod ? { authMethod } : {}) }];
+  assert.equal(modelViaOf(codex).billing, 'unknown', 'no probe yet: not guessed');
+  assert.equal(modelViaOf(codex, probe('ready', 'account')).billing, 'account');
+  assert.equal(modelViaOf(codex, probe('ready', 'api-key')).billing, 'per-use', 'a codex signed in with an API key is billed per use');
+  assert.equal(modelViaOf(codex, probe('ready', 'unknown')).billing, 'unknown');
+  assert.equal(modelViaOf(codex, probe('ready')).billing, 'unknown');
+  assert.equal(modelViaOf(codex, probe('unauthenticated', 'account')).billing, 'unknown', 'only a ready codex says how it is signed in');
+  assert.deepEqual(modelViaOf(codex, probe('ready', 'api-key')), { kind: 'cli', name: 'Codex CLI', billing: 'per-use' });
 });
 
 test('adapters/storage/config-store confirms the library place when a folder is saved, and a refused folder confirms nothing', async (t) => {
@@ -959,7 +992,7 @@ test('application/desktop-host exposes libraryPlace and modelVia in the binding,
 
   const first = (await host.call('binding.get')).value;
   assert.deepEqual(first.libraryPlace, { confirmed: false, onSystemDrive: process.platform === 'win32' }, 'a library nobody confirmed yet');
-  assert.deepEqual(first.modelVia, { kind: 'api', name: 'DeepSeek' });
+  assert.deepEqual(first.modelVia, { kind: 'api', name: 'DeepSeek', billing: 'per-use' });
 
   const confirmed = await host.call('desktop.library.confirm', {});
   assert.equal(confirmed.ok, true);
@@ -972,9 +1005,9 @@ test('application/desktop-host exposes libraryPlace and modelVia in the binding,
   await host.call('desktop.config.save', { mode: 'codex', codex: { model: 'gpt-5.4' } });
   const viaCli = (await host.call('binding.get')).value;
   assert.equal(viaCli.libraryPlace.confirmed, true);
-  assert.deepEqual(viaCli.modelVia, { kind: 'cli', name: 'Codex CLI' });
+  assert.deepEqual(viaCli.modelVia, { kind: 'cli', name: 'Codex CLI', billing: 'unknown' }, 'no CLI detected here: how it is billed is not guessed');
   await host.call('desktop.config.save', { mode: 'agy' });
-  assert.deepEqual((await host.call('binding.get')).value.modelVia, { kind: 'cli', name: 'Antigravity CLI' });
+  assert.deepEqual((await host.call('binding.get')).value.modelVia, { kind: 'cli', name: 'Antigravity CLI', billing: 'account' });
   await host.call('desktop.config.save', { mode: 'openai' });
   assert.equal((await host.call('binding.get')).value.modelVia.kind, 'api');
 
@@ -999,6 +1032,67 @@ test('application/desktop-host exposes libraryPlace and modelVia in the binding,
   const byEnv = (await pinned.call('binding.get')).value;
   assert.equal(byEnv.rootSource, 'config');
   assert.equal(byEnv.libraryPlace.confirmed, true);
+});
+
+test('application/desktop-host: an existing install is still to confirm, confirming writes on a fresh read of the file, and codex says how it is billed', async (t) => {
+  const work = await mkdtemp(join(tmpdir(), 'studyhub-desktop-place2-'));
+  const prevDshHome = process.env.DSH_HOME;
+  t.after(async () => {
+    registerHostConcurrencyCap(null);
+    if (prevDshHome === undefined) delete process.env.DSH_HOME;
+    else process.env.DSH_HOME = prevDshHome;
+    await rm(work, { recursive: true, force: true });
+  });
+  const stub = async () => 'OK';
+  let codexAuth = { ok: true, authenticated: true, authMethod: 'account', detail: 'Logged in using ChatGPT' };
+  const providerDiscovery = createProviderDiscovery({
+    listCandidates: async (id) => (id === 'codex' ? ['C:\\fake\\codex.cmd'] : []),
+    probeVersion: async () => ({ ok: true, version: '0.170.0', reason: '' }),
+    listAgyModels: async () => ({ ok: true, unauthenticated: false, models: [], reason: '' }),
+    checkCodexAuth: async () => codexAuth,
+    ttlMs: 0,
+  });
+  const start = async (store) => {
+    const started = await createDesktopHost({
+      configStore: store, providerDiscovery, openaiComplete: createOpenAiCompleteAdapter, agyComplete: () => stub, codexComplete: () => stub,
+      jobExecutor: createInProcessJobExecutor(), openExternal: async () => ({ ok: true }), ensureDir: (p) => mkdir(p, { recursive: true }),
+      injectedComplete: stub, systemDrive: 'C:',
+    });
+    t.after(() => started.dispose());
+    return started;
+  };
+
+  // An install from before this field: desktop.json holds a folder and no flag, so the learner is still to confirm it (and sees the card once).
+  const env = { DSH_HOME: join(work, 'dsh-home') };
+  const home = join(work, 'home'), documentsDir = join(work, 'Documents');
+  const existing = join(work, 'Existing');
+  await mkdir(join(env.DSH_HOME, 'study'), { recursive: true });
+  await writeFile(join(env.DSH_HOME, 'study', 'desktop.json'), JSON.stringify({ mode: 'openai', libraryRoot: existing }), 'utf8');
+  const store = createConfigStore({ env, home, documentsDir });
+  const host = await start(store);
+  const before = (await host.call('binding.get')).value;
+  assert.equal(before.rootSource, 'custom');
+  assert.equal(before.root, resolve(existing));
+  assert.equal(before.libraryPlace.confirmed, false, 'a saved folder alone is not a confirmed place');
+
+  // The host's state is read once; the file then changes under it (a folder saved by another call). Confirming must not put the old folder back.
+  const moved = join(work, 'Moved');
+  await store.saveLibraryRoot(moved);
+  const confirmed = await host.call('desktop.library.confirm', {});
+  assert.equal(confirmed.ok, true);
+  const onDisk = JSON.parse(await readFile(store.configPath, 'utf8'));
+  assert.equal(onDisk.libraryRoot, resolve(moved), 'the folder saved after the host read its state is kept');
+  assert.equal(onDisk.libraryPlaceConfirmed, true);
+  assert.equal(confirmed.value.root, resolve(moved), 'and the binding that comes back shows it');
+
+  // codex: how it is signed in decides what the note may say.
+  await host.call('desktop.config.save', { mode: 'codex', codex: { model: 'gpt-5.4' } });
+  assert.deepEqual((await host.call('binding.get')).value.modelVia, { kind: 'cli', name: 'Codex CLI', billing: 'account' });
+  codexAuth = { ok: true, authenticated: true, authMethod: 'api-key', detail: 'Logged in using an API key' };
+  assert.deepEqual((await host.call('binding.get')).value.modelVia, { kind: 'cli', name: 'Codex CLI', billing: 'per-use' }, 'a codex signed in with an API key is billed per use');
+  codexAuth = { ok: true, authenticated: true, detail: 'Logged in' };
+  assert.equal((await host.call('binding.get')).value.modelVia.billing, 'unknown', 'a login that names no method promises nothing');
+  assert.equal(JSON.stringify((await host.call('binding.get')).value).includes('sk-'), false, 'no key text in the binding');
 });
 
 test('application/desktop-host integrates with v4.14.0 StudyRuntime, config, concurrency cap, background generation, and job recovery', async (t) => {

@@ -4,6 +4,19 @@
 
 export const CODEX_EFFORT_LEVELS = Object.freeze(['low', 'medium', 'high', 'xhigh']);
 
+/**
+ * How `codex login status` says codex is signed in: with an account ("Logged in using ChatGPT", billed to that account's quota) or with an API key
+ * ("Logged in using an API key - sk-…", billed per use). Only the method comes back, never any of the text, so a key cannot travel on.
+ * @param {unknown} text the status text, both streams
+ * @returns {'account' | 'api-key' | 'unknown'}
+ */
+export function parseCodexLoginMethod(text) {
+  const words = typeof text === 'string' ? text : '';
+  if (/logged in using an? api key/i.test(words)) return 'api-key';
+  if (/logged in using chatgpt/i.test(words)) return 'account';
+  return 'unknown';
+}
+
 const READ_ONLY_GUARD = 'Do not run shell commands, do not call tools, do not read or write any files, and respond with the final answer directly.';
 
 /**

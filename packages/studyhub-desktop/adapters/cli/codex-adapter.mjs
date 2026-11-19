@@ -9,6 +9,7 @@ import {
   buildCodexWrappedPrompt,
   extractCodexJsonlError,
   parseCodexJsonlOutput,
+  parseCodexLoginMethod,
   parseCodexStreamLine,
 } from '../../domain/codex-protocol.js';
 import { clipDetail } from '../../domain/redact.js';
@@ -43,6 +44,7 @@ export async function probeCodexAuth(runner, executablePath, { timeoutMs = AUTH_
     return {
       ok: true,
       authenticated: true,
+      authMethod: parseCodexLoginMethod(combined),
       detail: clipDetail(combined, 160),
     };
   }

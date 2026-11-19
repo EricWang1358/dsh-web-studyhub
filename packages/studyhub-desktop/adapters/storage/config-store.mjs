@@ -155,6 +155,12 @@ export function createConfigStore({
     return target;
   }
 
+  /** The learner accepts the library where it is. Written on a fresh read of the file, so a folder saved a moment ago is not put back. */
+  async function confirmLibraryPlace() {
+    const current = await readStoredConfig(configPath);
+    await atomicWriteJson(configPath, { ...current, libraryPlaceConfirmed: true });
+  }
+
   return Object.freeze({
     dshHome,
     configPath,
@@ -162,5 +168,6 @@ export function createConfigStore({
     load,
     save,
     saveLibraryRoot,
+    confirmLibraryPlace,
   });
 }
