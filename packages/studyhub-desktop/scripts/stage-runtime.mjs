@@ -154,9 +154,14 @@ export async function stageRuntime({
   allowIncomplete = false,
 } = {}) {
   const runtimeDir = resolve(outdir);
+  const gitkeepPath = join(runtimeDir, '.gitkeep');
+  const preserveGitkeep = await pathExists(gitkeepPath);
   const rootPkg = await readJson(join(repoRoot, 'package.json'));
   await rm(runtimeDir, { recursive: true, force: true });
   await mkdir(runtimeDir, { recursive: true });
+  if (preserveGitkeep) {
+    await writeFile(gitkeepPath, '', 'utf8');
+  }
 
   const nodeInfo = await stageNodeBinary(runtimeDir, { nodePath, downloadNode, nodeVersion });
   await writeFile(

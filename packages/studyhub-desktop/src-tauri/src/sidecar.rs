@@ -98,6 +98,30 @@ fn node_binary_name() -> &'static str {
     }
 }
 
+#[cfg(any(windows, test))]
+fn strip_windows_verbatim_prefix_str(raw: &str) -> String {
+    if let Some(rest) = raw.strip_prefix(r"\\?\UNC\") {
+        return format!(r"\\{rest}");
+    }
+    if let Some(rest) = raw.strip_prefix(r"\\?\") {
+        let bytes = rest.as_bytes();
+        if bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':' {
+            return rest.to_string();
+        }
+    }
+    raw.to_string()
+}
+
+pub fn normalize_runtime_path(path: &Path) -> PathBuf {
+    #[cfg(windows)]
+    {
+        if let Some(raw) = path.to_str() {
+            return PathBuf::from(strip_windows_verbatim_prefix_str(raw));
+        }
+    }
+    path.to_path_buf()
+}
+
 fn find_entry_in_runtime(runtime_dir: &Path) -> Option<PathBuf> {
     let nested = runtime_dir
         .join("packages")
@@ -175,29 +199,32 @@ pub fn resolve_runtime_paths(
             "STUDYHUB_DESKTOP_DEV=1 is set, but entry/sidecar.mjs could not be found".to_string()
         })?;
         return Ok(SidecarPaths {
-            node_bin,
-            entry_script,
-            working_dir,
+            node_bin: normalize_runtime_path(&node_bin),
+            entry_script: normalize_runtime_path(&entry_script),
+            working_dir: normalize_runtime_path(&working_dir),
         });
     }
 
     let mut candidate_roots = Vec::new();
     if let Some(dir) = resource_dir {
+        let dir = normalize_runtime_path(dir);
         candidate_roots.push(dir.join("resources").join("runtime"));
         candidate_roots.push(dir.join("runtime"));
     }
     if let Some(dir) = exe_dir {
+        let dir = normalize_runtime_path(dir);
         candidate_roots.push(dir.join("resources").join("runtime"));
         candidate_roots.push(dir.join("runtime"));
     }
 
     for root in candidate_roots {
+        let root = normalize_runtime_path(&root);
         let node_bin = root.join(node_binary_name());
         if node_bin.is_file() {
             if let Some(entry_script) = find_entry_in_runtime(&root) {
                 return Ok(SidecarPaths {
-                    node_bin,
-                    entry_script,
+                    node_bin: normalize_runtime_path(&node_bin),
+                    entry_script: normalize_runtime_path(&entry_script),
                     working_dir: root,
                 });
             }
@@ -536,5 +563,27 @@ mod tests {
         assert_eq!(paths.entry_script, entry_file);
         assert_eq!(paths.working_dir, runtime_dir);
         Ok(())
+    }
+
+    #[test]
+    fn strip_windows_verbatim_prefix_normalizes_drive_and_unc_paths() {
+        assert_eq!(
+            strip_windows_verbatim_prefix_str(
+                r"\\?\C:\Program Files\StudyHub\resources\runtime\node.exe"
+            ),
+            r"C:\Program Files\StudyHub\resources\runtime\node.exe"
+        );
+        assert_eq!(
+            strip_windows_verbatim_prefix_str(r"\\?\UNC\server\share\StudyHub"),
+            r"\\server\share\StudyHub"
+        );
+        assert_eq!(
+            strip_windows_verbatim_prefix_str(r"C:\Users\dev\StudyHub"),
+            r"C:\Users\dev\StudyHub"
+        );
+        assert_eq!(
+            strip_windows_verbatim_prefix_str(r"\\?\Volume{01234567}\foo"),
+            r"\\?\Volume{01234567}\foo"
+        );
     }
 }

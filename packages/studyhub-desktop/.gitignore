@@ -1,6 +1,7 @@
 dist/
 node_modules/
 release/
+src-tauri/gen/
 src-tauri/target/
 src-tauri/resources/runtime/*
 !src-tauri/resources/runtime/.gitkeep
