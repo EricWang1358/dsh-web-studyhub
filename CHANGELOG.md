@@ -2,6 +2,12 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 4.15.1 — 2026-11-20
+
+- **Desktop: after updating, the home asks you once where your library lives, and the top bar names the model in use.** The card "Confirm where your library lives" shows the folder, tells DSH users to pick their workspace folder, and warns when the library is on the system drive (usually C:) because it keeps growing; "Change folder…" and "Use this folder" both settle it for good. The top bar now also shows "Model: …" beside the library folder (also in the DSH plugin), so you can see which model questions, explanations and grading call; on the desktop its hover text says how it is billed: by usage to your API key, against your local CLI's account quota, or by usage when that CLI is signed in with an API key. Not verified: opening the system folder picker from the card was not tried (it is the same button as in Settings); the billing note for a codex signed in with an API key has unit tests only and was not seen on a real machine; the top bar in the DSH plugin was checked for fit in a browser, not inside DSH.
+- **Desktop: picking a DSH workspace folder now uses the library already inside it.** Before, it was treated as a new empty library and asked you to start from a material, with your decks nowhere to be seen (nothing was lost: the data is in the workspace's `.dsh-study` folder). If you already picked the workspace, reopen StudyHub Desktop; there is no need to pick again. Not verified: DSH and StudyHub Desktop open at once and both writing to the same library was not tried.
+- **Desktop: the Codex CLI model is now a dropdown.** Before, you had to type a model name without knowing which ones your account can use. The card now lists the models your local codex offers (read with `codex debug models`, which calls no model and uses no quota); when no list can be read you can still type one. Not verified: tried on codex-cli 0.170.0 only; an older codex without this command falls back to typing.
+
 ## 4.15.0 — 2026-11-20
 
 - **New: StudyHub Desktop for Windows, which runs without DSH.** It comes as an `.msi` installer and a portable `.zip`; your materials and decks still live in a library folder on your computer, and the DSH plugin can share that folder. Not verified: this version's `.msi` was not installed before the release; the full import, generation and review flows were not run in the desktop app; Windows 10 was not tried; for the system folder picker, only the save after picking was checked.
