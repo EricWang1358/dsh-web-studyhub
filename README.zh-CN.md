@@ -6,7 +6,7 @@
 
 开源免费，资料存在你电脑上；模型自己选，按用量付费。
 
-StudyHub 是 [DeepSeek Harness（DSH）](https://www.deepseek.com/en/harness/)的插件。DSH 是 AI 助手应用，可以装成桌面版，也可以在自己电脑上以网页版运行；StudyHub 就在 DSH 里打开使用。4.15.0 起另有 **StudyHub 桌面版**（Windows），不装 DSH 也能用，见[桌面版说明](docs/desktop.zh-CN.md)。
+StudyHub 是 [DeepSeek Harness（DSH）](https://www.deepseek.com/en/harness/)的插件。DSH 是 AI 助手应用，可以装成桌面版，也可以在自己电脑上以网页版运行；StudyHub 就在 DSH 里打开使用。4.15.0 起另有 **StudyHub 桌面版**（Windows），不装 DSH 也能用，见[桌面版说明](https://github.com/EricWang1358/dsh-web-studyhub/blob/main/docs/desktop.zh-CN.md)。
 
 [在线体验](https://daily-flashcard-demo.ziangw1358.chatgpt.site) · [安装指南](docs/install.zh-CN.md) · [发布页](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v4.15.0) · [更新日志](CHANGELOG.zh-CN.md)
 

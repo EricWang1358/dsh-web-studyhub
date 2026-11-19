@@ -6,7 +6,7 @@ Turn your lecture slides into questions that each link back to their page; finis
 
 Free and open source, your sources stay on your computer; pick your own model and pay for what you use.
 
-StudyHub is a plugin for [DeepSeek Harness (DSH)](https://www.deepseek.com/en/harness/), an AI agent app. DSH runs as a desktop app or as a web page served from your own computer, and StudyHub opens inside it. From 4.15.0 there is also **StudyHub Desktop** for Windows, which runs without DSH: see the [desktop guide](docs/desktop.md).
+StudyHub is a plugin for [DeepSeek Harness (DSH)](https://www.deepseek.com/en/harness/), an AI agent app. DSH runs as a desktop app or as a web page served from your own computer, and StudyHub opens inside it. From 4.15.0 there is also **StudyHub Desktop** for Windows, which runs without DSH: see the [desktop guide](https://github.com/EricWang1358/dsh-web-studyhub/blob/main/docs/desktop.md).
 
 [Try the demo](https://daily-flashcard-demo.ziangw1358.chatgpt.site) · [Install guide](docs/install.md) · [Release 4.15.0](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v4.15.0) · [Changelog](CHANGELOG.md)
 
