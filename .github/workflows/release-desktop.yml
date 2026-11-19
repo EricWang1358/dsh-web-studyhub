@@ -15,23 +15,13 @@ on:
         required: false
         default: false
         type: boolean
-  pull_request:
-    paths:
-      - 'packages/studyhub-desktop/**'
-      - 'ui/desktop/**'
-      - 'ui/desktop.jsx'
-      - 'ui/host-parts.js'
-      - 'lib/generation-settings.js'
-      - 'lib/job-control.js'
-      - 'tests/desktop-*.test.mjs'
-      - '.github/workflows/release-desktop.yml'
 
 permissions:
   contents: write
 
 concurrency:
-  group: release-desktop-${{ github.event.pull_request.number || inputs.tag || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: release-desktop-${{ inputs.tag || github.ref }}
+  cancel-in-progress: false
 
 jobs:
   verify:
