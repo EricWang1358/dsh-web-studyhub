@@ -77,7 +77,7 @@ Good to know about CLI backends:
 
 ### Open a local CLI in the library to chat while you study
 
-StudyHub Desktop has no DSH main chat. To talk to an AI, select **Open agy in the library** (or codex) on the local CLI card in **Settings › Library & model**: StudyHub opens a command-line window of its own with your library as the current folder and the CLI ready to chat. Snap it beside StudyHub with `Win + ←` / `Win + →`; what **Copy prompt** puts on the clipboard can be pasted straight into it.
+StudyHub Desktop has no DSH main chat. To talk to an AI, select **Open agy in the library** (or codex) on the local CLI card in **Settings › Library & model**: StudyHub opens a command-line window of its own with the library folder you picked as the current folder and the CLI ready to chat. Snap it beside StudyHub with `Win + ←` / `Win + →`; what **Copy prompt** puts on the clipboard can be pasted straight into it.
 
 - Only a CLI detected as ready has this button; the program opened is the detected one, and the folder is always the current library.
 - The CLI can read and change the files in your library directly, and StudyHub does not check those changes. Back up the library before you let it edit decks or materials.
@@ -87,7 +87,7 @@ StudyHub Desktop has no DSH main chat. To talk to an AI, select **Open agy in th
 
 - **Default location**: `Documents\StudyHub` (created automatically on first launch).
 - **Choosing another folder**: Open **Settings › Library & model → Library** and click **Change folder…** to use the native Windows folder picker.
-- **Sharing one library with DSH (or ZCode)**: You can point StudyHub Desktop and DSH at the exact same library folder. Every write takes an OS-level file lock (`proper-lockfile`), so changes written by one app are visible to the other without corrupting files.
+- **Sharing one library with DSH (or ZCode)**: You can point StudyHub Desktop and DSH at the exact same library folder. The DSH plugin keeps a workspace's library in the `.dsh-study` folder inside it; pick that **workspace folder** in StudyHub Desktop and it uses the `.dsh-study` inside, with your decks and records as they were. Every write takes an OS-level file lock (`proper-lockfile`), so changes written by one app are visible to the other without corrupting files.
 - **Background tasks caveat**: A running background job (question generation, review-book build, audio transcription) runs inside the app that started it. The other app can see the recorded job status, but cannot pause or cancel it. Closing StudyHub Desktop stops its active background tasks; completed items are preserved so you can resume later.
 
 ## Differences from the DSH plugin

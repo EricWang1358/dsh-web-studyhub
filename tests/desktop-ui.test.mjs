@@ -108,6 +108,16 @@ test('DESKTOP_PARTS exposes its host-part slots and renders upgrade & library no
   assert.match(noticeReasonFallback, /Permission denied/);
   const noticeEn = render(h(m.DesktopLibraryNotice, { binding: {} }), 'en');
   assert.doesNotMatch(noticeEn.replace(/<[^>]+>/g, ' '), /[㐀-鿿]/, 'English library notice has zero untranslated Han text');
+
+  // A DSH workspace was picked: the page says the library in use is the plugin's, inside it. A plain folder says nothing extra.
+  const inWorkspace = { root: 'D:\\notes\\.dsh-study', pickedRoot: 'D:\\notes' };
+  const workspaceZh = render(h(m.DesktopLibraryNotice, { binding: inWorkspace }), 'zh');
+  assert.match(workspaceZh, /data-desktop-library-in-workspace/);
+  assert.match(workspaceZh, /你选的「D:\\notes」里已有 DSH 插件的学习库/);
+  const workspaceEn = render(h(m.DesktopLibraryNotice, { binding: inWorkspace }), 'en');
+  assert.match(workspaceEn, /already holds a library from the DSH plugin/);
+  assert.doesNotMatch(workspaceEn.replace(/<[^>]+>/g, ' '), /[㐀-鿿]/, 'the workspace note has zero untranslated Han text in English');
+  assert.doesNotMatch(render(h(m.DesktopLibraryNotice, { binding: { root: 'D:\\lib', pickedRoot: 'D:\\lib' } }), 'zh'), /data-desktop-library-in-workspace/);
 });
 
 test('DesktopCliCard renders primary ready card when agy or codex is ready, dual switcher when both are ready, and quiet strip otherwise', () => {

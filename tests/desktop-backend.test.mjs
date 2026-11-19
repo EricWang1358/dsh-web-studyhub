@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import http from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -827,6 +827,54 @@ test('adapters/os/open-terminal starts cmd.exe once with the verbatim line, unwr
   assert.equal(await codeOfAsync(() => openCliTerminal({ executablePath: 'E:\\agy.exe', cwd: 'D:\\Study' }, { platform: 'win32', launch: failing, unwrap: plain, env })), 'terminal-launch-failed');
 });
 
+test('adapters/storage/config-store uses the DSH library inside a picked workspace folder, and the folder itself otherwise', async (t) => {
+  const work = await mkdtemp(join(tmpdir(), 'studyhub-config-library-'));
+  t.after(() => rm(work, { recursive: true, force: true }));
+  const home = join(work, 'home'), docs = join(work, 'docs');
+  const store = createConfigStore({ env: {}, home, documentsDir: docs });
+  const libraryFile = (folder) => join(folder, 'study-workspace.json');
+  const holdLibrary = async (folder) => { await mkdir(folder, { recursive: true }); await writeFile(libraryFile(folder), '{}', 'utf8'); };
+
+  // A DSH workspace: the plugin keeps its library in .dsh-study, and the folder itself has none.
+  const workspace = join(work, '八股项目');
+  await holdLibrary(join(workspace, '.dsh-study'));
+  assert.equal(await store.saveLibraryRoot(workspace), resolve(workspace), 'what was picked is what is saved');
+  const inWorkspace = (await store.load()).library;
+  assert.equal(inWorkspace.root, resolve(workspace, '.dsh-study'), 'the library is the one the plugin already keeps there');
+  assert.equal(inWorkspace.pickedRoot, resolve(workspace));
+  assert.equal(inWorkspace.rootSource, 'custom');
+
+  // A folder that is a library itself stays the library, whatever else is inside it.
+  await holdLibrary(workspace);
+  const itself = (await store.load()).library;
+  assert.equal(itself.root, resolve(workspace));
+  assert.equal(itself.pickedRoot, resolve(workspace));
+
+  // A folder with no library anywhere becomes one itself: no .dsh-study is made for it.
+  const fresh = join(work, 'Fresh');
+  await store.saveLibraryRoot(fresh);
+  const empty = (await store.load()).library;
+  assert.equal(empty.root, resolve(fresh));
+  assert.equal(empty.pickedRoot, resolve(fresh));
+  assert.deepEqual(await readdir(fresh), []);
+
+  // An empty .dsh-study is not a library: nothing was ever saved in it.
+  await mkdir(join(fresh, '.dsh-study'));
+  assert.equal((await store.load()).library.root, resolve(fresh));
+
+  // The variable and the default folder follow the same rule.
+  const pinned = createConfigStore({ env: { STUDYHUB_LIBRARY: join(work, 'Pinned') }, home, documentsDir: docs });
+  await holdLibrary(join(work, 'Pinned', '.dsh-study'));
+  const byEnv = (await pinned.load()).library;
+  assert.equal(byEnv.root, resolve(work, 'Pinned', '.dsh-study'));
+  assert.equal(byEnv.rootSource, 'config');
+  await store.saveLibraryRoot('');
+  await holdLibrary(join(docs, 'StudyHub', '.dsh-study'));
+  const byDefault = (await store.load()).library;
+  assert.equal(byDefault.root, resolve(docs, 'StudyHub', '.dsh-study'));
+  assert.equal(byDefault.rootSource, 'default');
+});
+
 test('application/desktop-host integrates with v4.14.0 StudyRuntime, config, concurrency cap, background generation, and job recovery', async (t) => {
   const work = await mkdtemp(join(tmpdir(), 'studyhub-desktop-host-'));
   const prevDshHome = process.env.DSH_HOME;
@@ -1005,6 +1053,7 @@ test('application/desktop-host integrates with v4.14.0 StudyRuntime, config, con
   assert.equal(backToDefault.value.root, backToDefault.value.defaultRoot);
   const bindBack = await host.call('binding.set', { root: altLibrary, provider: '', model: '', reasoningEffort: '' });
   assert.equal(bindBack.value.root, resolve(altLibrary));
+  assert.equal(bindBack.value.pickedRoot, resolve(altLibrary), 'a plain folder is both what was picked and the library');
   assert.equal(bindBack.value.reasoningEffort, '');
 
   // 「在学习库里打开 CLI」: the page names a CLI and nothing else; the program comes from discovery and the folder is the library.
@@ -1017,6 +1066,19 @@ test('application/desktop-host integrates with v4.14.0 StudyRuntime, config, con
   assert.equal(refusedCli.code, 'invalid-cli');
   assert.doesNotMatch(refusedCli.error, /[㐀-鿿]/, 'the refusal reads in English when the interface is English');
   assert.equal(terminalRequests.length, 1, 'a refused request starts nothing');
+
+  // A DSH workspace picked as the library folder: the library is the .dsh-study the plugin keeps in it, and the CLI opens in the workspace.
+  const dshWorkspace = join(work, 'DshWorkspace');
+  await mkdir(join(dshWorkspace, '.dsh-study'), { recursive: true });
+  await writeFile(join(dshWorkspace, '.dsh-study', 'study-workspace.json'), '{}', 'utf8');
+  const inWorkspace = await host.call('binding.set', { root: dshWorkspace, provider: '', model: '', reasoningEffort: '' });
+  assert.equal(inWorkspace.value.root, resolve(dshWorkspace, '.dsh-study'));
+  assert.equal(inWorkspace.value.pickedRoot, resolve(dshWorkspace));
+  const samePick = await host.call('binding.set', { root: dshWorkspace, provider: '', model: '', reasoningEffort: '' });
+  assert.equal(samePick.value.root, inWorkspace.value.root, 'picking the workspace again changes nothing');
+  await host.call('desktop.cli.open', { provider: 'agy' });
+  assert.equal(terminalRequests.at(-1).cwd, resolve(dshWorkspace), 'the CLI opens in the folder the learner picked');
+  await host.call('binding.set', { root: altLibrary, provider: '', model: '', reasoningEffort: '' });
 
   // 5d. Real StudyRuntime flow: import material (source.add) -> start background generation job (generate)
   const imported = await host.call('source.add', {
