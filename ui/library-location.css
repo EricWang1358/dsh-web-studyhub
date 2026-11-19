@@ -54,7 +54,7 @@
     /* The model chip (AppTopbar.jsx ModelChip) is a library chip that holds a model's name: it shrinks, folds to its icon and goes away by the rules below, with the
        chip. Its Tooltip anchor is the flex item, so it takes the chip's width and never less than the chip's own minimum. */
     .model-in-use-anchor { display: inline-flex; flex-shrink: 1; }
-    .model-in-use { max-width: min(16ch, 20cqi); }
+    .model-in-use { max-width: none; }
   }
 }
 
@@ -101,11 +101,11 @@
   }
 }
 
-/* The model chip beside the library chip (AppTopbar.jsx ModelChip). Above 640 px the bar gives way in one order: the page title keeps its room (ui/shell.css, as in the
-   narrow panes), the model chip shrinks first and the library chip next, each to a readable minimum. Where the "Study ›" of the crumb is gone (800 px and narrower) there
-   is no room for a second name: the chip is its icon (its aria-label and Tooltip say which model); this rule comes last so it wins over the chip rules above it, which the
-   chip shares. In a pane of 640 px or less, where the status label is whole or the bar is measured to the pixel (a failing read in English), the chip is gone and
-   Settings › 学习库与模型 names the model. */
+/* The model chip beside the library chip (AppTopbar.jsx ModelChip). The learner reads the model at a glance, so above 800 px it is drawn whole and the folder's name gives
+   way first: the page title keeps its room (ui/shell.css, as in the narrow panes), the library chip shrinks first, to a readable minimum, and the model chip only after it.
+   From 641 to 800 px there is no room for a second name: the chip is its icon (its aria-label and Tooltip say which model); this rule comes last so it wins over the chip
+   rules above it, which the chip shares. In a pane of 640 px or less, where the status label is whole or the bar is measured to the pixel (a failing read in English),
+   the chip is gone and Settings › 学习库与模型 names the model. */
 @layer study.features {
   @container study (min-width: 641px) {
     :is(.study-app, .study-seat) {
@@ -114,10 +114,10 @@
         min-width: 5.5em;
       }
       .library-location {
-        flex-shrink: 5;
+        flex-shrink: 10;
       }
       .model-in-use-anchor {
-        flex-shrink: 10;
+        flex-shrink: 1;
       }
     }
   }
