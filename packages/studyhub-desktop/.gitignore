@@ -1,0 +1,6 @@
+dist/
+node_modules/
+release/
+src-tauri/target/
+src-tauri/resources/runtime/*
+!src-tauri/resources/runtime/.gitkeep

@@ -1,0 +1,98 @@
+# StudyHub 桌面版（StudyHub Desktop）
+
+[English](desktop.md) · 简体中文
+
+**StudyHub 桌面版**是独立运行的 Windows 桌面应用。安装包自带便携版 Node.js 运行时和本地服务，**不需要先装 DeepSeek Harness（DSH），也不需要单独安装 Node.js**。你的讲义资料、题组、复习手册、Interactive Companions 和 FSRS-6 复习记录都保存在本地文件夹里，格式与 DSH 插件版完全一致。
+
+## 选择安装包
+
+每次发布在 [GitHub 发布页](https://github.com/EricWang1358/dsh-web-studyhub/releases/latest)提供两个 Windows 64 位（x64）包，并附带 `SHA256SUMS-Desktop-<version>.txt` 校验文件：
+
+| 安装包 | 适合谁 | 说明 |
+| --- | --- | --- |
+| `StudyHub-Desktop-<version>-win-x64.msi` | 大多数 Windows 10 / 11 用户 | 标准安装器，提供开始菜单快捷方式、控制面板卸载入口，并内置 Windows 10 的 WebView2 引导程序。 |
+| `StudyHub-Desktop-<version>-win-x64.zip` | 绿色便携 / 免安装使用 | 解压到任意可写目录，双击 `StudyHub.exe` 即可运行。**不会**自动安装 WebView2。 |
+
+### 方式一：使用 `.msi` 安装器（推荐）
+
+1. 在发布页下载 `StudyHub-Desktop-<version>-win-x64.msi` 和 `SHA256SUMS-Desktop-<version>.txt`。
+2. 核对文件的 SHA-256 校验值（见下方[Windows SmartScreen 未签名提示](#windows-smartscreen-未签名提示)）。
+3. 双击 `.msi` 文件并按向导完成安装。
+4. 从开始菜单打开 **StudyHub**。
+
+### 方式二：使用便携版 `.zip`
+
+1. 在发布页下载 `StudyHub-Desktop-<version>-win-x64.zip` 和 `SHA256SUMS-Desktop-<version>.txt`。
+2. 核对 SHA-256 校验值后，解压到一个固定的可写文件夹（例如 `D:\Apps\StudyHub-Desktop`），不要解压到 `C:\Program Files` 下。
+3. 保持 `StudyHub.exe` 与同目录下的 `resources\runtime\` 文件夹在一起，不要单独移走主程序。
+4. 双击 `StudyHub.exe` 启动。
+
+## Windows 10 的 WebView2 要求
+
+StudyHub 桌面版使用系统自带的 **Microsoft Edge WebView2 运行时**渲染界面：
+
+- **Windows 11**：系统已预装 WebView2，`.msi` 和 `.zip` 都可以直接运行。
+- **Windows 10 使用 `.msi`**：安装器内置了微软官方 WebView2 引导程序（`downloadBootstrapper`）。如果电脑尚未安装 WebView2，安装过程中会自动联网下载并安装（首次安装需要联网）。
+- **Windows 10 使用便携版 `.zip`**：压缩包**不包含** WebView2 安装步骤。如果启动时提示缺少 WebView2，请先手动安装微软官方 [Microsoft Edge WebView2 Evergreen 运行时](https://developer.microsoft.com/zh-cn/microsoft-edge/webview2/)，再重新运行 `StudyHub.exe`。
+
+## Windows SmartScreen 未签名提示
+
+当前的 StudyHub 桌面版构建**尚未使用付费的 Windows Authenticode 代码签名证书进行签名**。因此，首次运行 `.msi` 安装器或 `StudyHub.exe` 时，Windows Defender SmartScreen 通常会弹出蓝色的**「Windows 已保护你的电脑」**提示。
+
+请**不要**在未核验来源的情况下直接跳过提示。建议先核对发布页提供的校验值：
+
+1. 在下载目录打开 PowerShell，计算文件 SHA-256：
+
+   ```powershell
+   Get-FileHash .\StudyHub-Desktop-<version>-win-x64.msi -Algorithm SHA256
+   ```
+
+2. 将输出的哈希值与 GitHub 发布页上 `SHA256SUMS-Desktop-<version>.txt` 中对应行逐字核对。
+3. 确认哈希完全一致后，在 SmartScreen 弹窗中点击**「更多信息」**，再点击**「仍要运行」**。
+
+如果你不希望运行未签名的桌面二进制文件，可以从本仓库源码自行编译，或继续使用 DSH 插件版 StudyHub。
+
+## 配置模型
+
+浏览资料、体验示例导览和复习已有卡片都不需要模型，可完全离线使用。生成题目、讲解、制作复习手册、音频校对和翻译需要连接模型。
+
+在桌面版中打开 **「设置 › 学习库与模型」**，支持以下两种连接方式：
+
+### 1. OpenAI 兼容 API Key（批量出题推荐）
+
+1. 打开 **「设置 › 学习库与模型」**（或在需要模型的功能页面直接按引导填写）。
+2. 选择内置服务商预设 —— **DeepSeek**、**智谱 GLM**、**硅基流动（SiliconFlow）** 或 **OpenAI**，也可以选择**自定义**填写任意 OpenAI 兼容接口地址和模型 ID。
+3. 粘贴 API Key，点击**「保存并测试」**。
+
+API Key 仅保存在本机桌面配置目录中，绝不会写入你的学习库、备份文件或导出包。
+
+### 2. 自动检测 `agy` CLI
+
+如果你的电脑上已经安装并登录了 Google Antigravity CLI（`agy`），StudyHub 桌面版会在启动时自动探测并识别它，你可以直接在 **「设置 › 学习库与模型」** 中选用已检测到的 CLI 后端，无需再复制粘贴 API Key。
+
+使用 CLI 后端需要了解：
+- 由于每次调用都会启动独立的 CLI 子进程，CLI 后端默认限制较低的并发数（默认 `1`，上限 `2`），以保证稳定性。
+- 如果 `agy` 未安装或未登录，设置页会如实说明原因，你随时可以改用 API Key。
+
+## 学习库位置与和 DSH 共用
+
+- **默认位置**：`文档\StudyHub`（首次启动时自动创建）。
+- **更换目录**：在 **「设置 › 学习库与模型 › 学习库」** 点击**「更改文件夹…」**，通过 Windows 原生文件夹选择器指定任意目录。
+- **与 DSH（或 ZCode）共用同一个学习库**：可以安全共用。每次写入都会通过文件锁（`proper-lockfile`）协调，两个程序不会互相覆盖或损坏数据；一方写入后，另一方刷新即可读到最新内容。
+- **后台任务说明**：正在进行的后台任务（批量出题、复习手册构建、音频转写等）属于启动它的那个程序。另一个程序可以看到任务记录，但无法暂停或终止它。关闭 StudyHub 桌面版会停止其正在运行的后台任务；已完成的部分会保留，下次打开后可继续。
+
+## 与 DSH 插件版的差异
+
+| 功能 | DSH 插件版 | StudyHub 桌面版 |
+| --- | --- | --- |
+| 运行前提 | 需要先安装 DSH 桌面版或网页版 | 独立 `.msi` 或 `.zip`（内置 Node.js 22） |
+| 模型配置 | 复用 DSH 里配好的模型 | 内置 API Key 预设 + 自动检测 `agy` CLI |
+| 选择学习库文件夹 | DSH 工作区 / 路径选择 | Windows 原生文件夹选择器 |
+| 「发给主会话」/ 对话联动 | 直接填入 DSH 聊天输入框 | 将结构化提示词复制到剪贴板，可粘贴到任意 AI 对话工具 |
+| 版本更新 | 在 DSH 插件管理中更新 | 从 GitHub 发布页下载新版 `.msi` 或 `.zip` |
+
+## 隐私与安全说明
+
+- **本地优先**：资料原文、题组、笔记和复习历史全部保存在你的电脑上；只有触发 AI 出题、讲解或转写时，相关内容才会发送到你配置的模型服务商。
+- **严格的本机回环隔离**：桌面界面从内置静态资源（`tauri://localhost`）加载，不加载 `127.0.0.1` 的 HTML。每次启动时，Rust 壳层生成一次性 256 位随机令牌，并通过 `stdin` 管道传给本地 Node.js 后端（绝不出现在命令行参数、URL 或 HTML 中）；后端只监听 `127.0.0.1` 且拒绝缺少有效令牌的请求。
+- **最小桌面权限**：Tauri 壳层只向主窗口暴露 3 个命令（`get_bootstrap_info`、`pick_directory`、`open_external`）；所有外部链接都会严格校验为 `http://` 或 `https://` 后再交由系统默认浏览器打开。
