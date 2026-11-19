@@ -5,7 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createDesktopHost } from '../application/desktop-host.js';
 import { createProviderDiscovery } from '../application/provider-discovery.js';
 import { createAgyCompleteAdapter, probeAgyModels, probeCliVersion } from '../adapters/cli/agy-adapter.mjs';
-import { createCodexCompleteAdapter, probeCodexAuth } from '../adapters/cli/codex-adapter.mjs';
+import { createCodexCompleteAdapter, probeCodexAuth, probeCodexModels } from '../adapters/cli/codex-adapter.mjs';
 import { listCandidatePaths } from '../adapters/cli/candidate-paths.mjs';
 import { createProcessRunner } from '../adapters/cli/process-runner.mjs';
 import { startLocalServer } from '../adapters/http/local-server.mjs';
@@ -114,6 +114,7 @@ export async function composeDesktopSidecar({
     probeVersion: (_id, executablePath) => probeCliVersion(runner, executablePath),
     listAgyModels: (executablePath) => probeAgyModels(runner, executablePath),
     checkCodexAuth: (executablePath) => probeCodexAuth(runner, executablePath),
+    listCodexModels: (executablePath) => probeCodexModels(runner, executablePath),
     getCustomPath: (id) => currentCustomPaths[id] || '',
   });
 

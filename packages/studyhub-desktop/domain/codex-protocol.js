@@ -281,3 +281,27 @@ export function parseCodexJsonlOutput(rawOutput, options = {}) {
   }
   throw localizedCodexFailure('Codex CLI 没有返回文字', 'Codex CLI returned no text', isEn);
 }
+
+/**
+ * The models of `codex debug models` (`{ models: [{ slug, display_name, visibility, priority, … }] }`) that codex's own picker lists, in its
+ * order (lowest `priority` first). The catalog also carries models marked `hide` (internal ones), which are left out. An answer that cannot be
+ * read gives no models: the page then takes the model as free text, as before.
+ * @param {string} stdout
+ * @returns {Array<{ id: string, name: string }>}
+ */
+export function parseCodexModelsOutput(stdout) {
+  const text = String(stdout || '');
+  const start = text.indexOf('{');
+  if (start < 0) return [];
+  let catalog;
+  try {
+    catalog = JSON.parse(text.slice(start));
+  } catch {
+    return [];
+  }
+  const listed = Array.isArray(catalog?.models) ? catalog.models : [];
+  return listed
+    .filter((model) => model && typeof model.slug === 'string' && model.slug && model.visibility === 'list')
+    .sort((a, b) => (Number(a.priority) || 0) - (Number(b.priority) || 0))
+    .map((model) => ({ id: model.slug, name: typeof model.display_name === 'string' && model.display_name ? model.display_name : model.slug }));
+}
