@@ -11,6 +11,7 @@ import { keyLast4 } from './redact.js';
 /** @typedef {import('./contracts.js').OpenAiConfig} OpenAiConfig */
 /** @typedef {import('./contracts.js').OpenAiConfigView} OpenAiConfigView */
 /** @typedef {import('./contracts.js').OpenAiPreset} OpenAiPreset */
+/** @typedef {import('./contracts.js').ModelVia} ModelVia */
 /** @typedef {import('./contracts.js').ProbeResult} ProbeResult */
 
 /** @type {readonly OpenAiPreset[]} */
@@ -139,6 +140,7 @@ export function defaultDesktopConfig() {
       effort: '',
     },
     libraryRoot: '',
+    libraryPlaceConfirmed: false,
     reasoningEffort: '',
   };
 }
@@ -216,6 +218,7 @@ export function normalizeDesktopConfig(raw) {
     agy,
     codex,
     libraryRoot: trimText(source.libraryRoot),
+    libraryPlaceConfirmed: source.libraryPlaceConfirmed === true,
     reasoningEffort: trimText(source.reasoningEffort),
   };
 }
@@ -393,6 +396,27 @@ export function openAiProviderLabel(openai) {
   }
 }
 
+const CLI_TITLES = Object.freeze({ agy: 'Antigravity CLI', codex: 'Codex CLI' });
+
+/** What a ready codex costs, from how its login status says it is signed in: an account has a quota, an API key is billed per use. Anything else is not guessed. */
+const CODEX_BILLING = Object.freeze({ account: 'account', 'api-key': 'per-use' });
+
+/**
+ * How the model in use is reached and what it costs: the learner's API Key (billed per use), or a CLI on this computer (the quota of the account it
+ * is signed in to; a codex signed in with an API key is billed per use, and one whose login is not known promises neither).
+ * @param {DesktopConfig} config
+ * @param {readonly ProbeResult[]} [providers] what discovery found, for how codex is signed in
+ * @returns {ModelVia}
+ */
+export function modelViaOf(config, providers = []) {
+  if (config.mode === 'agy') return { kind: 'cli', name: CLI_TITLES.agy, billing: 'account' };
+  if (config.mode === 'codex') {
+    const probe = providers.find((item) => item.id === 'codex' && item.status === 'ready');
+    return { kind: 'cli', name: CLI_TITLES.codex, billing: CODEX_BILLING[probe?.authMethod] ?? 'unknown' };
+  }
+  return { kind: 'api', name: openAiProviderLabel(config.openai), billing: 'per-use' };
+}
+
 /**
  * @param {'agy' | 'codex'} id
  * @param {AgyConfig | CodexConfig} cliConfig
@@ -404,10 +428,9 @@ function resolveEffectiveCli(id, cliConfig, providers) {
   const probe = providers.find((item) => item.id === id) || null;
   const ready = Boolean(cliConfig.executablePath) || probe?.status === 'ready';
   const reason = ready ? 'ok' : probe?.status === 'unauthenticated' ? 'no-credential' : 'no-route';
-  const title = id === 'codex' ? 'Codex CLI' : 'Antigravity CLI';
   return {
     ready,
-    label: `${title} · ${cliConfig.model || '默认模型'}`,
+    label: `${CLI_TITLES[id]} · ${cliConfig.model || '默认模型'}`,
     reason,
     provider: id,
     model: cliConfig.model || 'default',

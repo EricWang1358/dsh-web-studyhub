@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
+import { inApp } from './helpers/fake-app.mjs';
 
 const h = React.createElement;
 const m = await loadUi(`
@@ -13,6 +14,8 @@ const m = await loadUi(`
   export { normalizeAppearance } from './ui/appearance-prefs.js';
   export { default as DesktopOpenAiForm } from './ui/desktop/DesktopOpenAiForm.jsx';
   export { default as DesktopLibraryNotice } from './ui/desktop/DesktopLibraryNotice.jsx';
+  export { default as DesktopLibraryPlace, confirmLibraryPlace } from './ui/desktop/DesktopLibraryPlace.jsx';
+  export { chooseLibraryFolder } from './ui/app/ChangeFolderButton.jsx';
   export { default as DesktopUpgradeGuide } from './ui/desktop/DesktopUpgradeGuide.jsx';
   export { MODEL_PRESETS, presetOf } from './ui/desktop/presets.js';
   export { createDesktopHost, loadBootstrapInfo, safeExternalUrl, syncDesktopConcurrency, readDesktopConcurrency } from './ui/desktop/ipc.js';
@@ -92,7 +95,7 @@ test('the desktop makes 跟随窗口 the default 界面大小; a chosen percent 
 
 test('DESKTOP_PARTS exposes its host-part slots and renders upgrade & library notices cleanly in zh and en', () => {
   assert.deepEqual(Object.keys(m.DESKTOP_PARTS).sort(), [
-    'LibraryNotice', 'ModelGateForm', 'ModelQuickEnable', 'ModelSetup', 'UpgradeGuide', 'appearanceDefaults', 'modelFact', 'modelSetupSteps', 'recheckNote', 'runningNote',
+    'HomeLead', 'LibraryNotice', 'ModelGateForm', 'ModelQuickEnable', 'ModelSetup', 'UpgradeGuide', 'appearanceDefaults', 'modelCostNote', 'modelFact', 'modelSetupSteps', 'recheckNote', 'runningNote',
   ]);
   const upgradeZh = render(h(m.DesktopUpgradeGuide, { update: { assetUrl: 'https://example.com/StudyHub.msi', assetName: 'StudyHub.msi' } }), 'zh');
   assert.match(upgradeZh, /SmartScreen/);
@@ -531,4 +534,112 @@ test('chat: false degradation cleanly updates HandOff, GuidancePane, DiagnosticB
   assert.doesNotMatch(enCliHtml.replace(/<[^>]+>/g, ' '), /[㐀-鿿]/, 'English CLI strip has zero untranslated Han text');
   assert.match(enCliHtml, /Broken launch shim or missing target \(coming soon\)/);
   assert.doesNotMatch(enCliHtml, /Launcher shim target is missing:\s*</);
+});
+
+/* The first-use card (HomeLead): where the library lives. Drawn by the home through ui/host-parts.js, only on the desktop, until the learner has settled it. */
+const PLACE_ROOT = 'C:\\Users\\me\\Documents\\StudyHub';
+const placeCard = ({ binding = {}, data = { decks: [], sources: [] }, language = 'zh' } = {}) => render(inApp(m, h(m.DesktopLibraryPlace, { data }), {
+  data, host: DESKTOP_HOST,
+  app: { connection: { binding: { root: PLACE_ROOT, pickedRoot: PLACE_ROOT, rootSource: 'default', ...binding }, setBinding: () => {}, updateBinding: async () => true } },
+}), language);
+const primaryLabels = (html) => [...html.matchAll(/<button[^>]*sh-btn--primary[^>]*>([\s\S]*?)<\/button>/g)].map((hit) => hit[1].replace(/<[^>]+>/g, ''));
+const buttonLabels = (html) => [...html.matchAll(/<button[^>]*>([\s\S]*?)<\/button>/g)].map((hit) => hit[1].replace(/<[^>]+>/g, ''));
+
+test('the library-place card shows until the learner settles it: hidden when confirmed or when the host says nothing', () => {
+  assert.equal(typeof m.DESKTOP_PARTS.HomeLead, 'function');
+  assert.equal(placeCard({ binding: { libraryPlace: { confirmed: true, onSystemDrive: true } } }), '', 'confirmed: nothing');
+  assert.equal(placeCard(), '', 'a host with no libraryPlace (an older sidecar) draws nothing');
+  const html = placeCard({ binding: { libraryPlace: { confirmed: false, onSystemDrive: false } } });
+  assert.match(html, /data-desktop-library-place/);
+  assert.match(html, /先确认学习库放在哪/);
+  assert.match(html, /资料、题组和复习记录都存在这个文件夹：/);
+  assert.doesNotMatch(html, /练习记录/, 'Settings and the finder say 复习记录: one name');
+  assert.ok(html.includes(PLACE_ROOT), 'the folder in use is named');
+  assert.match(html, /在 DSH 里用过 StudyHub？选那个工作区文件夹，原来的题组和记录都会出现。/);
+  assert.doesNotMatch(html, /它在系统盘/, 'no warning off the system drive');
+  assert.doesNotMatch(html, /换文件夹不会搬动已有内容/, 'nothing to move in an empty library');
+});
+
+test('the library-place card warns about the system drive and says what a move needs only when the library has content', () => {
+  const onSystem = placeCard({ binding: { libraryPlace: { confirmed: false, onSystemDrive: true } } });
+  assert.match(onSystem, /它在系统盘（C:）。学习库会越用越大，建议放到其他盘。/);
+  const withDecks = placeCard({ binding: { libraryPlace: { confirmed: false, onSystemDrive: false } }, data: { decks: [{ id: 'd' }], sources: [] } });
+  assert.match(withDecks, /换文件夹不会搬动已有内容；要搬，先退出 StudyHub，把整个文件夹移到新位置，再回来选它。/);
+  assert.match(placeCard({ binding: { libraryPlace: { confirmed: false, onSystemDrive: false } }, data: { decks: [], sources: [{ id: 's' }] } }), /换文件夹不会搬动已有内容/);
+  // The DSH workspace note is the one wording of that fact (DesktopLibraryNotice's), not a second sentence.
+  const picked = placeCard({ binding: { libraryPlace: { confirmed: false, onSystemDrive: false }, root: 'D:\\notes\\.dsh-study', pickedRoot: 'D:\\notes' } });
+  assert.match(picked, /你选的「D:\\notes」里已有 DSH 插件的学习库/);
+  assert.doesNotMatch(picked, /在 DSH 里用过 StudyHub/, 'a learner already on the DSH workspace is not told to go and pick it');
+  assert.doesNotMatch(placeCard({ binding: { libraryPlace: { confirmed: false, onSystemDrive: false } } }), /你选的/);
+});
+
+test('an existing install (a saved folder, no confirmation yet) gets the card, and a library problem keeps it away until the problem is gone', () => {
+  const unconfirmed = { libraryPlace: { confirmed: false, onSystemDrive: false } };
+  const existing = placeCard({ binding: { ...unconfirmed, root: 'D:\\Study', pickedRoot: 'D:\\Study', rootSource: 'custom' }, data: { decks: [{ id: 'd' }], sources: [] } });
+  assert.match(existing, /data-desktop-library-place/);
+  assert.match(existing, /换文件夹不会搬动已有内容/);
+  // The saved folder cannot be opened and a fallback is in use: 「就用这里」 would confirm the fallback, so the card waits (the library notice reports the problem).
+  const problem = { root: 'E:\\Study', source: 'custom', reason: 'gone', message: '无法打开学习库目录「E:\\Study」（gone），已暂时改用「D:\\Fallback」' };
+  assert.equal(placeCard({ binding: { ...unconfirmed, libraryProblem: problem } }), '');
+  assert.match(placeCard({ binding: { ...unconfirmed, libraryProblem: null } }), /data-desktop-library-place/, 'back once the problem is gone');
+});
+
+test('the library-place card has two buttons and at most one primary: choosing a folder on the system drive, using this place elsewhere', () => {
+  const place = (onSystemDrive) => placeCard({ binding: { libraryPlace: { confirmed: false, onSystemDrive } } });
+  assert.deepEqual(buttonLabels(place(true)), ['更换目录…', '就用这里'], 'the same action is named the same as in Settings');
+  assert.deepEqual(primaryLabels(place(true)), ['更换目录…']);
+  assert.deepEqual(buttonLabels(place(false)), ['更换目录…', '就用这里']);
+  assert.deepEqual(primaryLabels(place(false)), ['就用这里']);
+});
+
+test('in English the library-place card has no Chinese and keeps its sentences', () => {
+  const html = placeCard({ binding: { libraryPlace: { confirmed: false, onSystemDrive: true } }, data: { decks: [{ id: 'd' }], sources: [] }, language: 'en' });
+  assert.doesNotMatch(html.replace(/<[^>]+>/g, ' '), /[㐀-鿿]/);
+  assert.match(html, /Confirm where your library lives/);
+  assert.match(html, /It is on the system drive \(C:\)/);
+  assert.deepEqual(buttonLabels(html), ['Change folder…', 'Use this folder']);
+});
+
+test('「就用这里」 confirms through the host and takes the binding that comes back; a failure keeps the card and says why', async () => {
+  const seen = [], bindings = [], errors = [], busy = [];
+  const base = { setBinding: (value) => bindings.push(value), setError: (text) => errors.push(text), setBusy: (flag) => busy.push(flag) };
+  await m.confirmLibraryPlace({ ...base, call: async (action, args) => { seen.push([action, args]); return { root: PLACE_ROOT, libraryPlace: { confirmed: true, onSystemDrive: true } }; } });
+  assert.deepEqual(seen, [['desktop.library.confirm', {}]]);
+  assert.deepEqual(bindings.map((value) => value.libraryPlace.confirmed), [true]);
+  assert.deepEqual(busy, [true, false]);
+  await m.confirmLibraryPlace({ ...base, call: async () => { throw new Error('写不进配置文件'); } });
+  assert.equal(bindings.length, 1, 'a failure changes no binding: the card stays');
+  assert.equal(errors.at(-1), '写不进配置文件');
+  assert.deepEqual(busy.slice(-2), [true, false]);
+});
+
+test('「选择文件夹…」 is the Settings picker: a picked folder goes to updateBinding, a cancel does nothing, no picker or a broken one falls back', async () => {
+  const log = [];
+  const run = (host) => m.chooseLibraryFolder({ host, updateBinding: async (patch) => { log.push(['update', patch]); return true; }, notify: (text) => log.push(['notify', text]), onUnavailable: () => log.push(['fallback']) });
+  await run({ pickDirectory: async () => 'D:\\Study' });
+  await run({ pickDirectory: async () => null });
+  await run({});
+  await run({ pickDirectory: async () => { throw new Error('no dialog'); } });
+  assert.deepEqual(log, [['update', { root: 'D:\\Study' }], ['fallback'], ['fallback'], ['notify', '无法打开目录选择器，请直接输入路径。']]);
+});
+
+test('the desktop says how the model is paid for: its own key, the account of the CLI, a CLI signed in with a key, or that it cannot tell', () => {
+  const note = (modelVia) => m.DESKTOP_PARTS.modelCostNote({ modelVia });
+  const cli = (billing) => ({ kind: 'cli', name: 'Codex CLI', billing });
+  assert.equal(note({ kind: 'api', name: 'DeepSeek', billing: 'per-use' }), '通过你填的 API Key 调用，按用量计费。');
+  assert.equal(note(cli('account')), '通过本机 Codex CLI 调用，用的是它登录账号的额度。');
+  assert.equal(note(cli('per-use')), '通过本机 Codex CLI 调用，它登录用的是 API Key，按用量计费。');
+  const unknown = note(cli('unknown'));
+  assert.equal(unknown, '通过本机 Codex CLI 调用；用的是它登录账号的额度，还是它登录时用的 API Key（按用量计费），要看它的登录方式。');
+  assert.equal(note({ kind: 'cli', name: 'Codex CLI' }), unknown, 'a host that sends no billing promises neither');
+  assert.equal(note(undefined), '', 'a host that says nothing is not guessed at');
+  assert.equal(m.DESKTOP_PARTS.modelCostNote({}), '');
+  m.setUiLanguage('en');
+  try {
+    assert.equal(note({ kind: 'api', name: 'DeepSeek', billing: 'per-use' }), 'Called through the API key you entered and billed by usage.');
+    assert.equal(note(cli('account')), 'Called through Codex CLI on this computer, using the quota of the account it is signed in to.');
+    assert.equal(note(cli('per-use')), 'Called through Codex CLI on this computer, which is signed in with an API key and billed by usage.');
+    assert.equal(note(cli('unknown')), 'Called through Codex CLI on this computer; whether that uses its account quota or the API key it signed in with depends on how it is logged in.');
+    for (const billing of ['account', 'per-use', 'unknown']) assert.doesNotMatch(note(cli(billing)), /[㐀-鿿]/);
+  } finally { m.setUiLanguage('zh'); }
 });

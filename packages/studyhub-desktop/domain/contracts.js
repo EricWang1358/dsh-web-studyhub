@@ -18,6 +18,7 @@
  * @property {ProviderId} id
  * @property {string} name
  * @property {boolean} supported
+ * @property {'account' | 'api-key' | 'unknown'} [authMethod] how a ready codex is signed in (an account, or an API key billed per use)
  * @property {ProviderStatus} status
  * @property {string | null} executablePath
  * @property {string | null} version
@@ -73,7 +74,22 @@
  * @property {AgyConfig} agy
  * @property {CodexConfig} codex
  * @property {string} libraryRoot
+ * @property {boolean} libraryPlaceConfirmed the learner has chosen (or accepted) where the library lives; false until then
  * @property {string} reasoningEffort
+ */
+
+/**
+ * @typedef {object} LibraryPlace
+ * @property {boolean} confirmed
+ * @property {boolean} onSystemDrive
+ */
+
+/**
+ * How the model in use is reached: through the learner's API Key, or through a CLI on this computer.
+ * @typedef {object} ModelVia
+ * @property {'api' | 'cli'} kind
+ * @property {string} name
+ * @property {'account' | 'per-use' | 'unknown'} billing what the model costs: an account's quota, a charge per use, or not known
  */
 
 /**

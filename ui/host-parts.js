@@ -12,7 +12,9 @@
      modelFact          (model) => one-sentence reason when a chosen model cannot be used, in place of DSH wording.
      UpgradeGuide       component in place of the DSH plugin-manager steps of the upgrade dialog ({ update, host }).
      runningNote        () => the top bar's hover words while background work runs.
-     LibraryNotice      component under the library folder in Settings › 学习库与模型 ({ binding }). */
+     LibraryNotice      component under the library folder in Settings › 学习库与模型 ({ binding }).
+     HomeLead           component at the top of the home, in the first-run page and on the normal home alike ({ data }); the desktop's 先确认学习库放在哪 card.
+     modelCostNote      (binding) => one sentence on how the model named in the top bar is paid for, after the shared one in its Tooltip, or ''. */
 const parts = {};
 
 /** Add or replace parts (an entry calls this once, before rendering). */

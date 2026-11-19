@@ -522,13 +522,17 @@ export const FEATURES = Object.freeze([
 
   // ── 设置 ──
   feature({ id: 'library-folder', area: 'settings', title: '学习库文件夹', page: 'settings', anchors: ['settings-model'],
-    aliases: ['学习库', '文件夹', '位置', '路径', '换文件夹', 'library folder', 'workspace', 'folder'],
+    aliases: ['学习库', '文件夹', '位置', '路径', '换文件夹', '放在哪', '系统盘', 'c 盘', '已有学习库', '确认学习库', '搬家', 'library folder', 'workspace', 'folder', 'system drive', 'existing library', 'move library'],
     path: ['设置', '学习库与模型'],
     what: '学习库是你电脑上的一个文件夹，资料、题组和复习记录都保存在里面；在这里选它放在哪个文件夹。' }),
   feature({ id: 'choose-model', area: 'settings', title: '选择模型', page: 'settings', anchors: ['settings-model'],
     aliases: ['模型', 'ai 模型', '换模型', '密钥', 'api key', 'model', 'deepseek'],
     path: ['设置', '学习库与模型'],
     what: '出题、讲解和提问需要一个 AI 模型，在这里选用哪个；模型的密钥在 DSH 的「设置 › 模型」里填，不在这里填。' }),
+  feature({ id: 'model-in-use', area: 'settings', title: '当前用的模型', page: null, anchors: ['topbar-model'],
+    aliases: ['模型', '当前模型', '在用哪个模型', '用哪个模型', '费用', '计费', '花钱', 'api 费用', 'model in use', 'which model', 'current model', 'cost', 'billing', 'fees'],
+    path: ['页面顶栏', '模型：…'],
+    what: '页面顶栏的「模型：…」写着出题、讲解和批改现在用的是哪个模型，免得不知不觉花掉 API 费用；还没配好模型时不显示，状态处写「还没配模型」。鼠标放上去或用键盘聚焦能看到说明，点它直接打开「设置 › 学习库与模型」更换。桌面版的说明还会写这个模型怎么计费：按你填的 API Key 按用量计费，还是用本机 CLI 登录账号的额度（CLI 若是用 API Key 登录的，则按用量计费）。窗口窄时它缩成一个图标，再窄就不显示，到「设置 › 学习库与模型」里看。' }),
   feature({ id: 'audio-keys', area: 'settings', title: '音频转写密钥 / 硅基流动', page: 'settings', anchors: ['settings-audio'],
     aliases: ['转写密钥', '硅基流动', 'siliconflow', 'gemini', 'groq', 'audio key', 'transcription key', '录音转文字'],
     path: ['设置', '音频转写'],

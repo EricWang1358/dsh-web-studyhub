@@ -76,11 +76,12 @@ export function localizeProviders(providers, language = 'zh') {
   return (Array.isArray(providers) ? providers : []).map((item) => localizeProbeResult(item, language));
 }
 
-function makeProbeResult({ id, supported, status, executablePath, version, reasonCode, reasonParams = {}, models }) {
+function makeProbeResult({ id, supported, authMethod, status, executablePath, version, reasonCode, reasonParams = {}, models }) {
   const base = {
     id,
     name: PROVIDER_DISPLAY_NAMES[id],
     supported,
+    ...(authMethod !== undefined ? { authMethod } : {}),
     status,
     executablePath,
     version,
@@ -183,6 +184,7 @@ async function probeSupportedCodex({ candidates, probeVersion, checkCodexAuth, l
     return makeProbeResult({
       id: 'codex',
       supported: true,
+      authMethod: auth.authMethod,
       status: 'ready',
       executablePath: candidate,
       version: ver.version,

@@ -120,7 +120,7 @@ test("the features that are about to be folded away or are hard to find today al
   const required = ["translation", "original-file", "practice-pages", "original-pdf", "selection-ask", "selection-quiz", "generate-from-source", "archive", "organize-courses",
     "pdf-convert", "json-import", "case-exam", "coverage", "custom-count", "budget", "difficulty", "question-language", "notation", "generate-focus", "generate-assist",
     "reference-questions", "target-role", "top-up", "publish-draft", "draft-advanced", "hint", "help-me-understand", "autopilot", "en-toggle", "font-size", "thumbs", "write-note",
-    "slay", "retrain", "similar", "variants", "recommend", "exam-formats", "course-settings", "daily-recap", "task-controls", "mailbox", "library-folder", "choose-model",
+    "slay", "retrain", "similar", "variants", "recommend", "exam-formats", "course-settings", "daily-recap", "task-controls", "mailbox", "library-folder", "choose-model", "model-in-use",
     "audio-keys", "live-local", "retrieval", "appearance-theme", "appearance-accent", "appearance-scale", "appearance-font", "appearance-density", "appearance-radius",
     "appearance-motion", "appearance-contrast", "appearance-transfer", "ui-language", "shortcuts", "tour", "glossary", "sample-remove", "backup", "legacy-import", "update",
     "usage-record", "experimental", "hand-off", "finder"];
@@ -137,6 +137,16 @@ test("the words a learner types for the old names and the English words are alia
   // #1182: the type and category filters of 创建题组 moved behind a button on the list's filter line; the finder lights that button and knows their names.
   for (const word of ["类型", "内容分类", "ai 智能分类", "category", "ai classify"]) assert.ok(aliases("material-facets").includes(word), `material-facets: ${word}`);
   assert.equal(byId.get("material-facets").anchors[0], "source-filters");
+});
+
+test("where the library lives and which model is in use can both be looked up: the folder entry answers the words for moving it off the system drive, the top-bar model chip has its own entry", () => {
+  const words = (id) => byId.get(id).aliases.map((alias) => alias.toLowerCase());
+  for (const word of ["放在哪", "系统盘", "c 盘", "已有学习库", "确认学习库", "system drive", "existing library"]) assert.ok(words("library-folder").includes(word), `library-folder: ${word}`);
+  const model = byId.get("model-in-use");
+  for (const word of ["当前模型", "用哪个模型", "费用", "which model", "billing"]) assert.ok(words("model-in-use").includes(word), `model-in-use: ${word}`);
+  assert.deepEqual(model.anchors, ["topbar-model"]);
+  assert.deepEqual(model.path, ["页面顶栏", "模型：…"]);
+  assert.equal(model.page, null, "every page has the top bar");
 });
 
 test("the tags say what an entry needs, never hide it", () => {

@@ -138,8 +138,9 @@ export function createConfigStore({
   async function saveLibraryRoot(rawRoot) {
     const trimmed = String(rawRoot ?? '').trim();
     const current = await readStoredConfig(configPath);
+    // Saving a folder, the default one included, is the learner settling where the library lives.
     if (!trimmed) {
-      await atomicWriteJson(configPath, { ...current, libraryRoot: '' });
+      await atomicWriteJson(configPath, { ...current, libraryRoot: '', libraryPlaceConfirmed: true });
       return '';
     }
     if (!isAbsolute(trimmed)) {
@@ -150,8 +151,14 @@ export function createConfigStore({
       throw Object.assign(new Error('学习库目录不能包含配置文件目录'), { code: 'invalid-library-root' });
     }
     await verifyWritableDirectory(target);
-    await atomicWriteJson(configPath, { ...current, libraryRoot: target });
+    await atomicWriteJson(configPath, { ...current, libraryRoot: target, libraryPlaceConfirmed: true });
     return target;
+  }
+
+  /** The learner accepts the library where it is. Written on a fresh read of the file, so a folder saved a moment ago is not put back. */
+  async function confirmLibraryPlace() {
+    const current = await readStoredConfig(configPath);
+    await atomicWriteJson(configPath, { ...current, libraryPlaceConfirmed: true });
   }
 
   return Object.freeze({
@@ -161,5 +168,6 @@ export function createConfigStore({
     load,
     save,
     saveLibraryRoot,
+    confirmLibraryPlace,
   });
 }

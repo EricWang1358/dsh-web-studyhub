@@ -4,6 +4,7 @@ import { Icon } from '../components/index.js';
 import DesktopModelSetup from './DesktopModelSetup.jsx';
 import DesktopUpgradeGuide from './DesktopUpgradeGuide.jsx';
 import DesktopLibraryNotice from './DesktopLibraryNotice.jsx';
+import DesktopLibraryPlace from './DesktopLibraryPlace.jsx';
 
 /* Desktop host parts registered into shared StudyHub pages via ui/host-parts.js. */
 
@@ -70,6 +71,18 @@ function runningNote() {
   return ui('有后台任务在进行（转换、转写、出题等）。关闭桌面版窗口会结束正在运行的任务；已完成并通过核验的部分都会保留，下次打开可点「接着做」继续。');
 }
 
+/* One sentence on how the model in the top bar is paid for, from how the desktop reaches it (the binding's modelVia): its own API key, the quota of the account a
+   CLI is signed in to, a CLI signed in with an API key (billed per use), or, when the host cannot tell, a sentence that promises neither. A binding that says
+   nothing gets no sentence. One wording per case, wherever the fact is shown. */
+function modelCostNote(binding) {
+  const via = binding?.modelVia;
+  if (via?.kind === 'api') return ui('通过你填的 API Key 调用，按用量计费。');
+  if (via?.kind !== 'cli') return '';
+  if (via.billing === 'account') return uiFormat('通过本机 {0} 调用，用的是它登录账号的额度。', [via.name]);
+  if (via.billing === 'per-use') return uiFormat('通过本机 {0} 调用，它登录用的是 API Key，按用量计费。', [via.name]);
+  return uiFormat('通过本机 {0} 调用；用的是它登录账号的额度，还是它登录时用的 API Key（按用量计费），要看它的登录方式。', [via.name]);
+}
+
 export const DESKTOP_PARTS = Object.freeze({
   ModelSetup,
   ModelGateForm,
@@ -80,5 +93,7 @@ export const DESKTOP_PARTS = Object.freeze({
   appearanceDefaults: Object.freeze({ scale: 'auto' }),
   UpgradeGuide: DesktopUpgradeGuide,
   LibraryNotice: DesktopLibraryNotice,
+  HomeLead: DesktopLibraryPlace,
+  modelCostNote,
   runningNote,
 });

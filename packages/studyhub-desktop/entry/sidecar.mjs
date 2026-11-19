@@ -129,6 +129,8 @@ export async function composeDesktopSidecar({
     openCliTerminal: (request) => openCliTerminal(request, { env }),
     ensureDir: (dirPath) => mkdir(dirPath, { recursive: true }),
     injectedComplete,
+    // The drive Windows is installed on; the default is the usual one when the variable is missing.
+    systemDrive: env.SystemDrive || 'C:',
   });
   const syncCustomPaths = () => {
     currentCustomPaths.agy = host.config.agy.executablePath;
