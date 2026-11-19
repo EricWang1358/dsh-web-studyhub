@@ -10,12 +10,14 @@ import {
   extractCodexJsonlError,
   parseCodexJsonlOutput,
   parseCodexLoginMethod,
+  parseCodexModelsOutput,
   parseCodexStreamLine,
 } from '../../domain/codex-protocol.js';
 import { clipDetail } from '../../domain/redact.js';
 import { probeCliVersion } from './agy-adapter.mjs';
 
 const AUTH_PROBE_TIMEOUT_MS = 10_000;
+const MODELS_PROBE_TIMEOUT_MS = 15_000;
 
 function reportTokens(usage, execution) {
   if (!usage) return;
@@ -56,6 +58,22 @@ export async function probeCodexAuth(runner, executablePath, { timeoutMs = AUTH_
     authenticated: false,
     detail: clipDetail(combined || fallback, 160),
   };
+}
+
+/**
+ * The models this codex offers, from `codex debug models` (codex-cli 0.170.0; no model is called). It refreshes the catalog for the signed-in
+ * account first; when that fails (offline), the catalog shipped with the CLI (`--bundled`) is the next best list. A codex with no such command,
+ * or an answer with nothing to list, gives `ok: false` and no models.
+ */
+export async function probeCodexModels(runner, executablePath, { timeoutMs = MODELS_PROBE_TIMEOUT_MS } = {}) {
+  let reason = '';
+  for (const args of [['debug', 'models'], ['debug', 'models', '--bundled']]) {
+    const result = await runner.run({ command: executablePath, args, timeoutMs });
+    const models = result.code === 0 && !result.timedOut && !result.errorCode ? parseCodexModelsOutput(result.stdout) : [];
+    if (models.length) return { ok: true, models, reason: '' };
+    reason ||= clipDetail(result.stderr || result.errorMessage || `codex debug models exited with code ${result.code}`, 160);
+  }
+  return { ok: false, models: [], reason };
 }
 
 /**

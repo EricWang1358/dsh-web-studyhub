@@ -24,6 +24,7 @@ import {
   mapCodexUsageToBuckets,
   parseCodexJsonlOutput,
   parseCodexLoginMethod,
+  parseCodexModelsOutput,
   parseCodexStreamLine,
 } from '../packages/studyhub-desktop/domain/codex-protocol.js';
 import {
@@ -48,7 +49,7 @@ import { createProviderDiscovery, localizeProviders } from '../packages/studyhub
 import { desktopUpdateView } from '../packages/studyhub-desktop/application/update-view.js';
 import { createAgyCompleteAdapter } from '../packages/studyhub-desktop/adapters/cli/agy-adapter.mjs';
 import { listCandidatePaths } from '../packages/studyhub-desktop/adapters/cli/candidate-paths.mjs';
-import { createCodexCompleteAdapter, probeCodex, probeCodexAuth } from '../packages/studyhub-desktop/adapters/cli/codex-adapter.mjs';
+import { createCodexCompleteAdapter, probeCodex, probeCodexAuth, probeCodexModels } from '../packages/studyhub-desktop/adapters/cli/codex-adapter.mjs';
 import { createProcessRunner, runProcess } from '../packages/studyhub-desktop/adapters/cli/process-runner.mjs';
 import { startLocalServer } from '../packages/studyhub-desktop/adapters/http/local-server.mjs';
 import { createOpenAiCompleteAdapter } from '../packages/studyhub-desktop/adapters/http/openai-adapter.mjs';
@@ -285,6 +286,56 @@ test('domain/shim-parser validates external URLs and unwraps npm .cmd shims', ()
     targetPath: 'C:\\tools\\cli\\cli.mjs',
   });
   assert.equal(parseCliVersion('codex-cli 0.170.0\n'), '0.170.0');
+});
+
+/* The shape of `codex debug models` (codex-cli 0.170.0), cut to the fields that matter: the catalog also lists models the picker hides. */
+const CODEX_CATALOG = JSON.stringify({
+  models: [
+    { slug: 'codex-auto-review', display_name: 'Codex Auto Review', visibility: 'hide', priority: 5 },
+    { slug: 'gpt-5.6-terra', display_name: 'GPT-5.6-Terra', visibility: 'list', priority: 3 },
+    { slug: 'gpt-reserve', display_name: 'GPT-Reserve', visibility: 'hide', priority: 1 },
+    { slug: 'gpt-6-luna', display_name: 'GPT-6-Luna', visibility: 'list', priority: 2 },
+    { slug: 'gpt-5.6-luna', visibility: 'list', priority: 4 },
+    { display_name: 'No slug', visibility: 'list', priority: 0 },
+  ],
+});
+
+test('domain/codex-protocol reads the model catalog: the models codex lists, in its order, and nothing from an unreadable answer', () => {
+  assert.deepEqual(parseCodexModelsOutput(CODEX_CATALOG), [
+    { id: 'gpt-6-luna', name: 'GPT-6-Luna' },
+    { id: 'gpt-5.6-terra', name: 'GPT-5.6-Terra' },
+    { id: 'gpt-5.6-luna', name: 'gpt-5.6-luna' },
+  ]);
+  // A notice printed before the JSON does not hide it.
+  assert.equal(parseCodexModelsOutput(`Refreshing models…\n${CODEX_CATALOG}\n`).length, 3);
+  for (const unreadable of ['', 'not json', '{"models": "none"}', '[]', '{"models": [null, 3, {"visibility": "list"}]}']) {
+    assert.deepEqual(parseCodexModelsOutput(unreadable), [], unreadable);
+  }
+});
+
+test('adapters/cli/codex-adapter lists models with `codex debug models`, and falls back on the catalog shipped with the CLI', async () => {
+  const calls = [];
+  const runnerOf = (answers) => ({ run: async (request) => { calls.push(request.args.join(' ')); return answers(request.args); } });
+  const ok = { code: 0, stdout: CODEX_CATALOG, stderr: '' }, failed = { code: 1, stdout: '', stderr: 'network unreachable' };
+
+  const fresh = await probeCodexModels(runnerOf(() => ok), 'C:\\codex.exe');
+  assert.equal(fresh.ok, true);
+  assert.deepEqual(fresh.models.map((model) => model.id), ['gpt-6-luna', 'gpt-5.6-terra', 'gpt-5.6-luna']);
+  assert.deepEqual(calls, ['debug models'], 'one call when the catalog answers');
+
+  calls.length = 0;
+  const offline = await probeCodexModels(runnerOf((args) => (args.includes('--bundled') ? ok : failed)), 'C:\\codex.exe');
+  assert.equal(offline.ok, true);
+  assert.equal(offline.models.length, 3);
+  assert.deepEqual(calls, ['debug models', 'debug models --bundled']);
+
+  // An older codex with no such command: no list, and the reason is kept short.
+  const none = await probeCodexModels(runnerOf(() => ({ code: 2, stdout: '', stderr: "error: unrecognized subcommand 'models'" })), 'C:\\codex.exe');
+  assert.deepEqual({ ok: none.ok, models: none.models }, { ok: false, models: [] });
+  assert.match(none.reason, /unrecognized subcommand/);
+  // An answer that exits 0 but lists nothing readable is no list either.
+  const empty = await probeCodexModels(runnerOf(() => ({ code: 0, stdout: '{}', stderr: '' })), 'C:\\codex.exe');
+  assert.deepEqual({ ok: empty.ok, models: empty.models }, { ok: false, models: [] });
 });
 
 test('domain/codex-protocol parses fixtures/codex-real-output.jsonl, ignores non-fatal errors, maps usage cleanly, and builds read-only args', async () => {
@@ -605,6 +656,7 @@ test('application/provider-discovery distinguishes ready, unauthenticated, broke
   let probeCalls = 0;
   let agyMode = 'ready';
   let codexMode = 'ready';
+  let codexModels = 'listed', codexModelCalls = 0;
 
   const discovery = createProviderDiscovery({
     now: () => clock,
@@ -635,9 +687,24 @@ test('application/provider-discovery distinguishes ready, unauthenticated, broke
       if (codexMode === 'unauth') return { ok: false, authenticated: false, detail: 'Not logged in' };
       return { ok: true, authenticated: true, authMethod: 'account', detail: 'Logged in using ChatGPT' };
     },
+    listCodexModels: async () => {
+      codexModelCalls += 1;
+      if (codexModels === 'throws') throw new Error('spawn failed');
+      if (codexModels === 'none') return { ok: false, models: [], reason: 'unrecognized subcommand' };
+      return { ok: true, models: [{ id: 'gpt-6-luna', name: 'GPT-6-Luna' }], reason: '' };
+    },
   });
 
   const first = await discovery.scan();
+  assert.deepEqual(first.find((p) => p.id === 'codex').models, [{ id: 'gpt-6-luna', name: 'GPT-6-Luna' }], 'a ready codex carries the models it lists');
+  // A codex that cannot list its models is still ready: the page then offers the model as free text.
+  for (const mode of ['none', 'throws']) {
+    codexModels = mode;
+    const unlisted = (await discovery.scan({ force: true })).find((p) => p.id === 'codex');
+    assert.deepEqual({ status: unlisted.status, models: unlisted.models }, { status: 'ready', models: [] }, mode);
+  }
+  codexModels = 'listed';
+  await discovery.scan({ force: true });
   assert.equal(first.find((p) => p.id === 'agy').status, 'ready');
   assert.equal(first.find((p) => p.id === 'agy').models.length, 1);
   assert.equal(first.find((p) => p.id === 'claude').status, 'coming-soon');
@@ -664,9 +731,11 @@ test('application/provider-discovery distinguishes ready, unauthenticated, broke
   // Forced refresh detects unauthenticated for both agy and codex
   agyMode = 'unauth';
   codexMode = 'unauth';
+  const modelCallsBefore = codexModelCalls;
   const unauth = await discovery.scan({ force: true });
   assert.equal(unauth.find((p) => p.id === 'agy').status, 'unauthenticated');
   assert.equal(unauth.find((p) => p.id === 'codex').status, 'unauthenticated');
+  assert.equal(codexModelCalls, modelCallsBefore, 'a codex that is not signed in is not asked for its models');
   for (const prov of localizeProviders(unauth, 'en')) {
     assert.ok(!/[\u4e00-\u9fff]/.test(prov.reason), `EN unauth ${prov.id} leaked CJK: ${prov.reason}`);
   }

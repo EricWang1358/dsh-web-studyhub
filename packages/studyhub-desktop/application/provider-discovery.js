@@ -151,7 +151,17 @@ async function probeSupportedAgy({ candidates, probeVersion, listAgyModels }) {
   return firstBroken ? buildBrokenShim('agy', true, firstBroken) : buildNotInstalled('agy', true);
 }
 
-async function probeSupportedCodex({ candidates, probeVersion, checkCodexAuth }) {
+/** The models a ready codex lists. Listing them is a convenience (the page offers them in a dropdown): a codex that cannot is still ready. */
+async function codexModels(listCodexModels, candidate) {
+  try {
+    const listed = await listCodexModels(candidate);
+    return listed?.ok && Array.isArray(listed.models) ? listed.models : [];
+  } catch {
+    return [];
+  }
+}
+
+async function probeSupportedCodex({ candidates, probeVersion, checkCodexAuth, listCodexModels }) {
   let firstBroken = null;
   for (const candidate of candidates) {
     const ver = await probeVersion('codex', candidate);
@@ -180,6 +190,7 @@ async function probeSupportedCodex({ candidates, probeVersion, checkCodexAuth })
       version: ver.version,
       reasonCode: 'ready',
       reasonParams: ver.version ? { version: ver.version } : {},
+      models: await codexModels(listCodexModels, candidate),
     });
   }
   return firstBroken ? buildBrokenShim('codex', true, firstBroken) : buildNotInstalled('codex', true);
@@ -220,6 +231,7 @@ export function createProviderDiscovery({
   probeVersion,
   listAgyModels,
   checkCodexAuth = async () => ({ ok: false, authenticated: false, detail: '' }),
+  listCodexModels = async () => ({ ok: false, models: [], reason: '' }),
   getCustomPath = () => '',
   ttlMs = DEFAULT_CACHE_TTL_MS,
   now = () => Date.now(),
@@ -233,7 +245,7 @@ export function createProviderDiscovery({
     const candidates = await listCandidates(id, { customPath });
     if (!candidates.length) return buildNotInstalled(id, supported);
     if (id === 'agy') return probeSupportedAgy({ candidates, probeVersion, listAgyModels });
-    if (id === 'codex') return probeSupportedCodex({ candidates, probeVersion, checkCodexAuth });
+    if (id === 'codex') return probeSupportedCodex({ candidates, probeVersion, checkCodexAuth, listCodexModels });
     return probeComingSoonProvider({ id, candidates, probeVersion });
   }
 
