@@ -345,3 +345,16 @@ test('eslint.config.js enforces desktop anti-bad-smell, DDD layer, child_process
   assert.ok(uiMsgs.some((m) => m.includes('max-depth')));
   assert.ok(uiMsgs.some((m) => m.includes('consistent-return')));
 });
+
+test('the desktop package carries the release version everywhere it is written', async () => {
+  const read = (file) => readFile(join(REPOSITORY, file), 'utf8');
+  const { version } = JSON.parse(await read('package.json'));
+  const cargoVersion = (text, heading) => new RegExp(`${heading}\\r?\\nname = "studyhub-desktop"\\r?\\nversion = "([^"]+)"`).exec(text)?.[1];
+  /* The installer's version comes from tauri.conf.json and the file names from the root package: one drifting makes an .msi that upgrades nothing. */
+  assert.deepEqual({
+    desktopPackage: JSON.parse(await read(`${DESKTOP_ROOT}/package.json`)).version,
+    tauriConf: JSON.parse(await read(`${DESKTOP_ROOT}/src-tauri/tauri.conf.json`)).version,
+    cargoToml: cargoVersion(await read(`${DESKTOP_ROOT}/src-tauri/Cargo.toml`), '\\[package\\]'),
+    cargoLock: cargoVersion(await read(`${DESKTOP_ROOT}/src-tauri/Cargo.lock`), '\\[\\[package\\]\\]'),
+  }, { desktopPackage: version, tauriConf: version, cargoToml: version, cargoLock: version });
+});
