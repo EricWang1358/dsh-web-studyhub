@@ -440,7 +440,9 @@ test('adapters/cli/process-runner handles >40KB stdin, output cap, timeout, Abor
   }
   assert.equal(stillAlive, false, `grandchild PID ${grandchildPid} should be terminated`);
 
-  // 2e. .cmd shim unwrapping (valid + broken)
+  // 2e. .cmd shim unwrapping (valid + broken). An npm .cmd shim exists only on Windows and names its target with backslashes,
+  // so the round trip through the file system runs there; the parsing itself is covered on every system by the shim-parser test.
+  if (process.platform !== 'win32') return;
   const targetJs = join(work, 'tool.js');
   await writeFile(targetJs, 'console.log("fake-tool 2.3.4");\n', 'utf8');
   const validCmd = join(work, 'tool.cmd');

@@ -1,6 +1,9 @@
 import { stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { delimiter, join, resolve } from 'node:path';
+import { posix, win32 } from 'node:path';
+
+/* Paths are built for the platform asked about, not the one this code runs on: a Windows candidate keeps its backslashes on any machine. */
+const pathFor = (platform) => (platform === 'win32' ? win32 : posix);
 
 async function isRegularFile(targetPath) {
   try {
@@ -19,6 +22,7 @@ function namesForProvider(providerId, platform) {
 }
 
 function explicitHomeCandidates(providerId, home, platform) {
+  const { join } = pathFor(platform);
   if (providerId === 'agy') {
     return platform === 'win32'
       ? [join(home, '.gemini', 'bin', 'agy.exe'), join(home, '.gemini', 'antigravity', 'bin', 'agy.exe')]
@@ -33,6 +37,7 @@ function npmPrefixDir(env) {
 }
 
 function extraInstallDirs(env, home, platform) {
+  const { join } = pathFor(platform);
   const npmPrefix = npmPrefixDir(env);
   if (platform === 'win32') {
     const dirs = [];
@@ -49,11 +54,12 @@ function extraInstallDirs(env, home, platform) {
 
 function pathEntries(env, platform) {
   const raw = env.PATH || env.Path || '';
-  const sep = platform === 'win32' ? ';' : delimiter;
+  const sep = pathFor(platform).delimiter;
   return raw.split(sep).map((entry) => entry.trim().replace(/^"|"$/g, '')).filter(Boolean);
 }
 
 function buildRawCandidateList(providerId, { customPath, env, home, platform }) {
+  const { join, resolve } = pathFor(platform);
   const list = [];
   if (typeof customPath === 'string' && customPath.trim()) {
     list.push(resolve(customPath.trim()));
