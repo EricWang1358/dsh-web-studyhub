@@ -85,6 +85,8 @@ async function buildBindingView({ ctx, state, route }) {
   const status = await modelStatus(ctx, route);
   return {
     root: state.library.root,
+    // The folder that was asked for: the same as `root`, unless the library is the DSH plugin's `.dsh-study` inside it.
+    pickedRoot: state.library.pickedRoot,
     rootSource: state.library.rootSource,
     workspaceRoot: state.library.root,
     defaultRoot: state.library.defaultRoot,
@@ -129,9 +131,11 @@ function createDesktopActionHandlers(deps) {
       await openExternal(args?.url);
       return { ok: true };
     },
-    // Only the CLI's name is read from the page: the program is the one discovery found ready, the folder is the library.
+    // Only the CLI's name is read from the page: the program is the one discovery found ready, the folder is the one the learner picked for
+    // the library (a DSH workspace when the library is the `.dsh-study` inside it, so the CLI sees the notes beside it too).
     'desktop.cli.open': async (args) => {
-      const request = cliLaunchRequest(await providerDiscovery.scan({ force: false }), args?.provider, getState().library.root);
+      const { pickedRoot, root } = getState().library;
+      const request = cliLaunchRequest(await providerDiscovery.scan({ force: false }), args?.provider, pickedRoot || root);
       await openCliTerminal(request);
       return { ok: true, provider: args.provider, cwd: request.cwd };
     },

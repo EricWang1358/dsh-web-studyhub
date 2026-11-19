@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { homedir as osHomedir } from 'node:os';
 import { isAbsolute, join, resolve, sep } from 'node:path';
+import { workspaceLibrary } from '../../../../lib/host.js';
 import { defaultDesktopConfig, normalizeDesktopConfig } from '../../domain/config-policy.js';
 
 function resolveStudyHubHome(env, home) {
@@ -53,13 +54,26 @@ async function readStoredConfig(configPath) {
   }
 }
 
+/**
+ * The library a folder holds. The DSH plugin keeps a workspace's library in the `.dsh-study` folder inside it (lib/host.js workspaceLibrary is
+ * its rule), so a learner who picks that workspace here means the library in it, not a new empty one beside it. A folder with a library of its
+ * own, or with none anywhere, is the library itself.
+ */
+async function libraryHeldBy(folder) {
+  const inner = await workspaceLibrary(folder);
+  if (inner === folder) return folder;
+  return (await workspaceLibrary(inner)) === inner ? inner : folder;
+}
+
 async function resolveLibraryCandidate({ candidate, source, defaultRoot, fallbackRoot, configPath }) {
   if (isInsidePath(configPath, candidate)) {
     return { ok: false, reason: '学习库目录不能包含配置文件所在目录' };
   }
   try {
-    const verified = await verifyWritableDirectory(candidate);
-    return { ok: true, root: verified, rootSource: source, defaultRoot, problem: null };
+    const pickedRoot = await verifyWritableDirectory(candidate);
+    const held = await libraryHeldBy(pickedRoot);
+    const root = held === pickedRoot ? pickedRoot : await verifyWritableDirectory(held);
+    return { ok: true, root, pickedRoot, rootSource: source, defaultRoot, problem: null };
   } catch (error) {
     return { ok: false, reason: error?.message || '目录不可写', fallbackRoot };
   }
@@ -84,7 +98,7 @@ async function resolveLibraryRoot({ config, env, defaultRoot, fallbackRoot, conf
     });
     if (checked.ok) {
       const problem = firstProblem ? { ...firstProblem, message: formatProblemMessage(firstProblem, checked.root) } : null;
-      return { root: checked.root, rootSource: checked.rootSource, defaultRoot, problem };
+      return { root: checked.root, pickedRoot: checked.pickedRoot, rootSource: checked.rootSource, defaultRoot, problem };
     }
     firstProblem ||= { root: item.path, source: item.source, reason: checked.reason };
   }
