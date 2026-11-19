@@ -8,6 +8,7 @@ import { useInjectCss } from '../shared.js';
 import { useApp } from './app-context.js';
 import { useNavAlert } from './use-nav-alert.js';
 import { hostPart } from '../host-parts.js';
+import { modelReadiness } from '../generation-status.js';
 import css from './app-shell.css';
 
 /** The folder a learner recognises: the default library is a hidden folder inside its workspace. */
@@ -32,6 +33,21 @@ export function LibraryChip({ root, onOpen }) {
       <Icon className="sh-icon--inline" name="folder" />
       <span>{uiFormat('学习库：{0}', [libraryFolderName(root)])}</span>
     </Button>
+  );
+}
+
+/** Top-bar "模型：<label>": the model every question, explanation and grading goes to, so nobody spends on one by accident. It looks and shrinks like the library chip
+    (the narrow-pane rules are one set) and opens the same place; the full words are the Tooltip's, with the host's own sentence on how the model is paid for. */
+export function ModelChip({ label, note, onOpen }) {
+  if (!label) return null;
+  const words = [ui('出题、讲解和批改都会调用这个模型。'), note].filter(Boolean).join(uiIsEnglish() ? ' ' : '');
+  return (
+    <Tooltip layer content={words} anchorClassName="model-chip-anchor">
+      <Button variant="quiet" size="sm" className="library-location model-chip" aria-label={uiFormat('当前模型：{0}。打开设置可更换', [label])} onClick={onOpen}>
+        <Icon className="sh-icon--inline" name="model" />
+        <span>{uiFormat('模型：{0}', [label])}</span>
+      </Button>
+    </Tooltip>
   );
 }
 
@@ -82,6 +98,7 @@ export default function AppTopbar({ title }) {
   const { binding, running, publishing, syncIssue, syncTransient } = connection;
   const labelId = React.useId();
   // 已连接 is about the library (the chip beside it names the folder); with no model to run the questions the bar says so (and keeps its words in a narrow pane: it is not the steady state).
+  const model = modelReadiness(data);
   const noModel = !!data && (data.model ? data.model.ready === false : data.modelReady === false);
   const hint = statusHint({ busy, running, publishing, syncIssue, syncTransient });
   const idle = !busy && !running && !syncIssue && data && !noModel;
@@ -102,6 +119,7 @@ export default function AppTopbar({ title }) {
       </nav>
       <div className="top-right">
         <LibraryChip root={binding.root} onOpen={openLibrary} />
+        <ModelChip label={model.ready ? model.label : ''} note={hostPart('modelCostNote')?.(binding)} onOpen={openLibrary} />
         <Tooltip layer content={hint} anchorClassName={'top-status-anchor' + (idle ? ' is-idle' : '')}>
           <span className={'top-status' + (idle ? ' idle' : '')} role="status" tabIndex={hint ? 0 : undefined} aria-labelledby={hint ? labelId : undefined}>
             {fixModel
