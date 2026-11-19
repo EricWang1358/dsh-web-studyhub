@@ -4,8 +4,9 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
-import { GENERATION_COVERAGE_LEVELS, GENERATION_SETTINGS_DEFAULTS, normalizeGenerationSettings, normalizeGenerationPerformance, resolveGenerationRequest,
-  validateGenerationPatch, validateGenerationPerformance } from '../lib/generation-settings.js';
+import { GENERATION_COVERAGE_LEVELS, GENERATION_SETTINGS_DEFAULTS, clampConcurrency, effectiveConcurrencyLimit, normalizeGenerationSettings, normalizeGenerationPerformance,
+  registerHostConcurrencyCap, resolveGenerationRequest, validateGenerationPatch, validateGenerationPerformance } from '../lib/generation-settings.js';
+import { generationControl } from '../lib/job-control.js';
 import { DEFAULT_LEVEL, LEVELS } from '../lib/coverage-strength.js';
 
 // Every performance key that is not a number: the four reasoning levels and whether the review's suggestions are applied (off by default).
@@ -161,4 +162,40 @@ test('selectionCount defaults to 3 even when count: 10 was already persisted, va
   assert.equal((await service.call('snapshot')).settings.generation.selectionCount, 3);
   assert.equal((await service.call('settings', { generation: { selectionCount: 5 } })).generation.selectionCount, 5);
   assert.equal((await service.call('snapshot')).settings.generation.selectionCount, 5);
+});
+
+test('host concurrency cap hook clamps reads and enforces upper bound without affecting DSH defaults when unset', (t) => {
+  t.after(() => registerHostConcurrencyCap(null));
+  assert.deepEqual(effectiveConcurrencyLimit(), { min: 1, max: 8 });
+  assert.equal(clampConcurrency(undefined), 4);
+
+  // Explicit per-call cap
+  assert.deepEqual(effectiveConcurrencyLimit({ maxConcurrency: 2 }), { min: 1, max: 2 });
+  assert.equal(normalizeGenerationSettings({}, { maxConcurrency: 2, defaultConcurrency: 1 }).concurrency, 1);
+  assert.equal(normalizeGenerationSettings({ concurrency: 6 }, { maxConcurrency: 2, defaultConcurrency: 1 }).concurrency, 2);
+  assert.throws(() => validateGenerationPatch({ concurrency: 3 }, { maxConcurrency: 2 }), /concurrency/);
+  assert.deepEqual(validateGenerationPatch({ concurrency: 2 }, { maxConcurrency: 2 }), { concurrency: 2 });
+  assert.equal(resolveGenerationRequest({ concurrency: 6 }, {}, { maxConcurrency: 2 }).performance.concurrency, 2);
+
+  // Dynamic host-registered cap (e.g. CLI backend default 1, max 2)
+  registerHostConcurrencyCap(() => ({ max: 2, default: 1 }));
+  assert.deepEqual(effectiveConcurrencyLimit(), { min: 1, max: 2 });
+  assert.equal(normalizeGenerationSettings({}).concurrency, 1);
+  assert.equal(normalizeGenerationSettings({ concurrency: 4 }).concurrency, 2);
+  assert.equal(normalizeGenerationPerformance({ concurrency: 4 }).concurrency, 2);
+  assert.throws(() => validateGenerationPatch({ concurrency: 3 }), /concurrency/);
+  assert.throws(() => validateGenerationPerformance({ concurrency: 3 }), /concurrency/);
+  assert.equal(resolveGenerationRequest({ concurrency: 4 }).performance.concurrency, 2);
+
+  const job = {};
+  const control = generationControl({ job, request: { performance: { concurrency: 4 } } });
+  assert.deepEqual(job.control.limits.concurrency, { type: 'int', min: 1, max: 2 });
+  assert.equal(job.control.values.concurrency, 2);
+  assert.throws(() => control.patch({ concurrency: 3 }), /concurrency/);
+  control.patch({ concurrency: 1 });
+  assert.equal(job.control.values.concurrency, 1);
+  control.close();
+
+  registerHostConcurrencyCap(null);
+  assert.deepEqual(effectiveConcurrencyLimit(), { min: 1, max: 8 });
 });

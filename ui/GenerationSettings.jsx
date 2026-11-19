@@ -4,7 +4,7 @@ import { Button, Checkbox, Field, Hint, NumberInput, Select, SettingsSection, Te
 import KindPicker from './KindPicker.jsx';
 import { COVERAGE_LEVELS, kindNote, kindsPatch, levelNote } from './generate-form.js';
 import { GENERATION_SETTINGS_DEFAULTS, GENERATION_SETTINGS_LIMITS, GENERATION_LANGUAGES,
-  GENERATION_DIFFICULTIES, GENERATION_NOTATIONS, normalizeGenerationSettings, validateGenerationPatch } from '../lib/generation-settings.js';
+  GENERATION_DIFFICULTIES, GENERATION_NOTATIONS, clampConcurrency, effectiveConcurrencyLimit, normalizeGenerationSettings, validateGenerationPatch } from '../lib/generation-settings.js';
 import { lightModelOf, modelKey } from '../lib/job-model.js';
 import { EFFORT_STAGES, effortKey } from '../lib/stage-effort.js';
 import { EffortSelect } from './EffortSelect.jsx';
@@ -35,12 +35,12 @@ function lightModelOptions(value, groups) {
 }
 
 /** Preserve unfinished numeric input in the form, but validate the exact shared contract before saving. */
-export function generationFormErrors(values) {
+export function generationFormErrors(values, options) {
   const checked = numbers(values), errors = {};
   for (const key of Object.keys(GENERATION_SETTINGS_DEFAULTS)) {
-    try { validateGenerationPatch({ [key]: checked[key] }); }
+    try { validateGenerationPatch({ [key]: checked[key] }, options); }
     catch {
-      const limit = GENERATION_SETTINGS_LIMITS[key];
+      const limit = key === 'concurrency' ? effectiveConcurrencyLimit(options) : GENERATION_SETTINGS_LIMITS[key];
       errors[key] = numeric.includes(key) ? uiFormat('请输入 {0}–{1} 的整数。', [limit.min, limit.max])
         : key === 'focus' ? uiFormat('侧重点最多 {0} 个字符。', [limit.max]) : ui('请选择一个支持的选项。');
     }
@@ -57,7 +57,8 @@ export default function GenerationSettings(props) {
 export function GenerationSettingsForm({ root, saved, efforts = null, session, modelGroups }) {
   const { busy, act, host } = useStudy();
   const toast = useToast();
-  const savedKey = JSON.stringify(normalizeGenerationSettings(saved));
+  const capOptions = host?.maxConcurrency !== undefined ? { maxConcurrency: host.maxConcurrency, defaultConcurrency: host.defaultConcurrency } : undefined;
+  const savedKey = JSON.stringify(normalizeGenerationSettings(saved, capOptions));
   const [editor, setEditor] = useState(() => ({ observed: savedKey, baseline: JSON.parse(savedKey), values: JSON.parse(savedKey) }));
   const [working, setWorking] = useState(false), [error, setError] = useState('');
   const scope = useRef({ root, live: true }), version = useRef(0), pending = useRef(null), formRef = useRef(null), saveRef = useRef(null);
@@ -76,9 +77,9 @@ export function GenerationSettingsForm({ root, saved, efforts = null, session, m
   };
   const reset = () => {
     version.current++; setError('');
-    setEditor(current => ({ ...current, values: { ...GENERATION_SETTINGS_DEFAULTS } }));
+    setEditor(current => ({ ...current, values: { ...GENERATION_SETTINGS_DEFAULTS, concurrency: clampConcurrency(undefined, capOptions) } }));
   };
-  const errors = generationFormErrors(editor.values), invalid = Object.keys(errors).length > 0;
+  const errors = generationFormErrors(editor.values, capOptions), invalid = Object.keys(errors).length > 0;
   const dirty = !same(numbers(editor.values), editor.baseline), disabled = busy || working;
   useEffect(() => {
     if (!dirty || typeof document === 'undefined') return;
@@ -95,13 +96,13 @@ export function GenerationSettingsForm({ root, saved, efforts = null, session, m
     event.preventDefault();
     if (busy || pending.current || invalid || !dirty || typeof act !== 'function') return;
     const owner = scope.current, revision = version.current, operation = {};
-    const generation = validateGenerationPatch(numbers(editor.values));
+    const generation = validateGenerationPatch(numbers(editor.values), capOptions);
     pending.current = operation; setWorking(true); setError('');
     const current = () => owner.live && owner.root === root && scope.current === owner && pending.current === operation;
     try {
       await act('settings', { generation }, (result, context) => {
         if (!current() || context?.isCurrent?.() === false) return;
-        const next = normalizeGenerationSettings(result.generation);
+        const next = normalizeGenerationSettings(result.generation, capOptions);
         setEditor(previous => ({ ...previous, baseline: next, values: version.current === revision ? next : previous.values }));
         toast.success(ui(version.current === revision ? '出题偏好已保存' : '出题偏好已保存；后续修改尚未保存。'));
       }, { rethrow: true });
@@ -111,10 +112,13 @@ export function GenerationSettingsForm({ root, saved, efforts = null, session, m
   // The time limit is also a deep link: the 任务 page's 调整时限 opens Settings at this field (ui/tasks/time-limit.js LIMIT_ANCHOR).
   const field = (key, control, note, group = false) => <Field key={key} label={ui(labels[key])} hint={note} error={errors[key]} group={group} {...(key === 'jobTimeoutMinutes' ? { 'data-tour': 'settings-generation-time' } : {})}>{control}</Field>;
   const propsFor = key => ({ name: key, value: editor.values[key], disabled, onChange: event => edit(key, event.target.value) });
-  const numberField = (key, note) => field(key, <NumberInput {...propsFor(key)} required inputMode="numeric" step="1"
-    min={GENERATION_SETTINGS_LIMITS[key].min} max={GENERATION_SETTINGS_LIMITS[key].max} />, note);
+  const numberField = (key, note) => {
+    const limit = key === 'concurrency' ? effectiveConcurrencyLimit(capOptions) : GENERATION_SETTINGS_LIMITS[key];
+    return field(key, <NumberInput {...propsFor(key)} required inputMode="numeric" step="1" min={limit.min} max={limit.max} />, note);
+  };
   const choiceField = (key, choices, label) => field(key, <Select {...propsFor(key)} onChange={value => edit(key, value)} options={choices.map(value => ({ value, label: label(value) }))} />);
   const availableGroups = modelGroups ?? host?.modelGroups;
+  const canChat = host?.capabilities?.chat !== false;
   return <form ref={formRef} className="settings-form" onSubmit={save}>
     <SettingsSection className="generation-settings" tour="settings-generation" disabled={disabled} title={ui('出题偏好')}
       lead={ui('保存在当前学习库，作为新出题任务的默认值。每次出题时仍可单独调整；已开始的任务不受影响。')}>
@@ -129,7 +133,7 @@ export function GenerationSettingsForm({ root, saved, efforts = null, session, m
       {choiceField('notation', GENERATION_NOTATIONS, value => ui(notations[value]))}
       {field('focus', <TextArea {...propsFor('focus')} rows={3} maxLength={GENERATION_SETTINGS_LIMITS.focus.max}
         placeholder={ui('例如：重点解释成立条件，再比较相似概念。')} />, ui('可留空；这次出题的侧重点可以覆盖这里的默认值。'))}
-      {numberField('count', ui('只在让助手在主会话里出题、又没说题数时用；创建题组页按「覆盖强度」出题，不用它。与每批题数分别设置。'))}
+      {canChat && numberField('count', ui('只在让助手在主会话里出题、又没说题数时用；创建题组页按「覆盖强度」出题，不用它。与每批题数分别设置。'))}
       <h3 className="settings-subtitle">{ui('生成安排')}</h3>
       {numberField('concurrency', ui('同时处理更多批次通常更快；服务容易限流时可以调低。'))}
       {numberField('batchSize', ui('小批更早保存已核验题目，但会增加调用次数。'))}
