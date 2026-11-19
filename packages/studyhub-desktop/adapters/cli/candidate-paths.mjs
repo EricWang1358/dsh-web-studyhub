@@ -13,7 +13,7 @@ async function isRegularFile(targetPath) {
 
 function namesForProvider(providerId, platform) {
   if (platform === 'win32') {
-    return [`${providerId}.exe`, `${providerId}.cmd`, `${providerId}.bat`, providerId];
+    return [`${providerId}.exe`, `${providerId}.cmd`, `${providerId}.bat`];
   }
   return [providerId];
 }
@@ -27,15 +27,24 @@ function explicitHomeCandidates(providerId, home, platform) {
   return [];
 }
 
+function npmPrefixDir(env) {
+  const raw = env.npm_config_prefix || env.NPM_CONFIG_PREFIX || '';
+  return typeof raw === 'string' ? raw.trim() : '';
+}
+
 function extraInstallDirs(env, home, platform) {
+  const npmPrefix = npmPrefixDir(env);
   if (platform === 'win32') {
     const dirs = [];
+    if (npmPrefix) dirs.push(npmPrefix);
     if (env.APPDATA) dirs.push(join(env.APPDATA, 'npm'));
     if (env.LOCALAPPDATA) dirs.push(join(env.LOCALAPPDATA, 'Programs', 'nodejs'));
     dirs.push(join(home, '.local', 'bin'));
     return dirs;
   }
-  return [join(home, '.local', 'bin'), '/opt/homebrew/bin', '/usr/local/bin'];
+  const dirs = [join(home, '.local', 'bin'), '/opt/homebrew/bin', '/usr/local/bin'];
+  if (npmPrefix) dirs.unshift(join(npmPrefix, 'bin'));
+  return dirs;
 }
 
 function pathEntries(env, platform) {

@@ -9,7 +9,7 @@ import DesktopCliCard from './DesktopCliCard.jsx';
 import DesktopOpenAiForm from './DesktopOpenAiForm.jsx';
 import css from './desktop.css';
 
-function useDesktopConfigActions({ call, refresh, setConfig, setError, setWorking }) {
+export function createDesktopConfigActions({ call, refresh, setConfig, setError, setWorking }) {
   const applyConfig = async (next) => {
     setConfig(next);
     syncDesktopConcurrency(next?.effective);
@@ -31,8 +31,12 @@ function useDesktopConfigActions({ call, refresh, setConfig, setError, setWorkin
   };
 
   return {
-    saveAgy: (agy) => runAction('save-agy', async () => applyConfig(await call('desktop.config.save', { mode: 'agy', agy }))),
-    testAgy: (agy) => runAction('test-agy', () => call('desktop.config.test', { mode: 'agy', agy })),
+    saveCli: (providerId, cliConfig) => runAction(`save-${providerId}`, async () => (
+      applyConfig(await call('desktop.config.save', { mode: providerId, [providerId]: cliConfig }))
+    )),
+    testCli: (providerId, cliConfig) => runAction(`test-${providerId}`, () => (
+      call('desktop.config.test', { mode: providerId, [providerId]: cliConfig })
+    )),
     saveOpenAi: async (openai) => {
       setError('');
       setWorking('save-openai');
@@ -58,7 +62,8 @@ function SetupBody({ config, actions, working, error, onDismissError, compact })
   const providers = Array.isArray(config.providers) ? config.providers : [];
   const hasReadyCli = providers.some((item) => item.supported && item.status === 'ready');
   const cliCard = (
-    <DesktopCliCard providers={providers} mode={config.mode} agy={config.agy} actions={actions} working={working} compact={compact} />
+    <DesktopCliCard providers={providers} mode={config.mode} agy={config.agy} codex={config.codex}
+      actions={actions} working={working} compact={compact} />
   );
   const openAiCard = (
     <DesktopOpenAiForm openai={config.openai} active={config.mode === 'openai'} actions={actions} working={working} compact={compact} />
@@ -102,7 +107,7 @@ export default function DesktopModelSetup({ compact = false }) {
     );
   }, [call, language]);
 
-  const actions = useDesktopConfigActions({ call, refresh, setConfig, setError, setWorking });
+  const actions = createDesktopConfigActions({ call, refresh, setConfig, setError, setWorking });
   if (!call) return null;
   if (!config) return error ? <InlineMessage tone="error">{error}</InlineMessage> : null;
 

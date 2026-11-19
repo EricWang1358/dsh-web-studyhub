@@ -2,8 +2,9 @@
 
 /** @typedef {'agy' | 'claude' | 'codex'} ProviderId */
 /** @typedef {'ready' | 'unauthenticated' | 'broken-shim' | 'not-installed' | 'coming-soon'} ProviderStatus */
-/** @typedef {'openai' | 'agy'} DesktopMode */
+/** @typedef {'openai' | 'agy' | 'codex'} DesktopMode */
 /** @typedef {'' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'} AgyEffort */
+/** @typedef {'' | 'low' | 'medium' | 'high' | 'xhigh'} CodexEffort */
 /** @typedef {'ok' | 'no-credential' | 'no-route'} EffectiveReason */
 
 /**
@@ -59,10 +60,18 @@
  */
 
 /**
+ * @typedef {object} CodexConfig
+ * @property {string} executablePath
+ * @property {string} model
+ * @property {CodexEffort} effort
+ */
+
+/**
  * @typedef {object} DesktopConfig
  * @property {DesktopMode} mode
  * @property {OpenAiConfig} openai
  * @property {AgyConfig} agy
+ * @property {CodexConfig} codex
  * @property {string} libraryRoot
  * @property {string} reasoningEffort
  */
@@ -154,7 +163,7 @@ export const DESKTOP_CAPABILITIES = Object.freeze({
 export const ALL_CLI_PROVIDERS = Object.freeze(['agy', 'claude', 'codex']);
 
 /** @type {readonly ProviderId[]} */
-export const SUPPORTED_CLI_PROVIDERS = Object.freeze(['agy']);
+export const SUPPORTED_CLI_PROVIDERS = Object.freeze(['agy', 'codex']);
 
 /** @type {Readonly<Record<ProviderId, string>>} */
 export const PROVIDER_DISPLAY_NAMES = Object.freeze({

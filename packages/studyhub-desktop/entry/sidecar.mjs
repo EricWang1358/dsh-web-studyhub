@@ -5,6 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createDesktopHost } from '../application/desktop-host.js';
 import { createProviderDiscovery } from '../application/provider-discovery.js';
 import { createAgyCompleteAdapter, probeAgyModels, probeCliVersion } from '../adapters/cli/agy-adapter.mjs';
+import { createCodexCompleteAdapter, probeCodexAuth } from '../adapters/cli/codex-adapter.mjs';
 import { listCandidatePaths } from '../adapters/cli/candidate-paths.mjs';
 import { createProcessRunner } from '../adapters/cli/process-runner.mjs';
 import { startLocalServer } from '../adapters/http/local-server.mjs';
@@ -105,13 +106,14 @@ export async function composeDesktopSidecar({
   const configStore = createConfigStore({ env });
   const runner = createProcessRunner();
   const jobExecutor = createInProcessJobExecutor();
-  let currentAgyCustomPath = '';
+  const currentCustomPaths = { agy: '', codex: '' };
 
   const providerDiscovery = createProviderDiscovery({
     listCandidates: (id, opts) => listCandidatePaths(id, { ...opts, env }),
     probeVersion: (_id, executablePath) => probeCliVersion(runner, executablePath),
     listAgyModels: (executablePath) => probeAgyModels(runner, executablePath),
-    getCustomPath: () => currentAgyCustomPath,
+    checkCodexAuth: (executablePath) => probeCodexAuth(runner, executablePath),
+    getCustomPath: (id) => currentCustomPaths[id] || '',
   });
 
   const host = await createDesktopHost({
@@ -119,16 +121,21 @@ export async function composeDesktopSidecar({
     providerDiscovery,
     openaiComplete: (config, opts) => createOpenAiCompleteAdapter(config, opts),
     agyComplete: (config, opts) => createAgyCompleteAdapter(config, { ...opts, runner }),
+    codexComplete: (config, opts) => createCodexCompleteAdapter(config, { ...opts, runner }),
     jobExecutor,
     openExternal: (url) => openExternalUrl(url),
     ensureDir: (dirPath) => mkdir(dirPath, { recursive: true }),
     injectedComplete,
   });
-  currentAgyCustomPath = host.config.agy.executablePath;
+  const syncCustomPaths = () => {
+    currentCustomPaths.agy = host.config.agy.executablePath;
+    currentCustomPaths.codex = host.config.codex.executablePath;
+  };
+  syncCustomPaths();
 
   const onCall = async (action, args) => {
     const result = await host.call(action, args);
-    currentAgyCustomPath = host.config.agy.executablePath;
+    syncCustomPaths();
     return result;
   };
 

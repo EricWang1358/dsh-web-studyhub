@@ -9,20 +9,24 @@ const REASON_MESSAGES = Object.freeze({
     en: (p) => (p.version ? `Ready (v${p.version})` : 'Ready'),
   },
   unauthenticated: {
-    zh: () => '检测到 agy CLI，但尚未登录账号',
-    en: () => 'Detected agy CLI, but it is not signed in yet',
+    zh: (p) => `检测到 ${p.cli || 'CLI'}，但尚未登录账号`,
+    en: (p) => `Detected ${p.cli || 'CLI'}, but it is not signed in yet`,
   },
   'not-installed': {
     zh: () => '未检测到本机安装',
     en: () => 'Not installed locally',
   },
   'coming-soon-not-installed': {
-    zh: () => '尚未安装（即将支持）',
-    en: () => 'Not installed (coming soon)',
+    zh: () => '尚未安装（按服务条款暂不支持复用消费者订阅登录）',
+    en: () => 'Not installed (consumer subscription OAuth is not supported per ToS)',
   },
   'coming-soon-detected': {
-    zh: (p) => (p.version ? `已检测到 v${p.version}，即将支持` : '已检测到本机 CLI，即将支持'),
-    en: (p) => (p.version ? `Detected v${p.version} (coming soon)` : 'Detected locally (coming soon)'),
+    zh: (p) => (p.version
+      ? `已检测到 v${p.version}（按服务条款暂不支持复用消费者订阅登录）`
+      : '已检测到本机 CLI（按服务条款暂不支持复用消费者订阅登录）'),
+    en: (p) => (p.version
+      ? `Detected v${p.version} (consumer subscription OAuth is not supported per ToS)`
+      : 'Detected locally (consumer subscription OAuth is not supported per ToS)'),
   },
   'broken-shim': {
     zh: () => '启动脚本损坏或目标文件缺失',
@@ -128,6 +132,7 @@ async function probeSupportedAgy({ candidates, probeVersion, listAgyModels }) {
         executablePath: candidate,
         version: ver.version,
         reasonCode: 'unauthenticated',
+        reasonParams: { cli: 'agy CLI' },
         models: [],
       });
     }
@@ -143,6 +148,39 @@ async function probeSupportedAgy({ candidates, probeVersion, listAgyModels }) {
     });
   }
   return firstBroken ? buildBrokenShim('agy', true, firstBroken) : buildNotInstalled('agy', true);
+}
+
+async function probeSupportedCodex({ candidates, probeVersion, checkCodexAuth }) {
+  let firstBroken = null;
+  for (const candidate of candidates) {
+    const ver = await probeVersion('codex', candidate);
+    if (!ver.ok) {
+      firstBroken ||= { candidate, reasonCode: ver.reasonCode || 'broken-shim', reasonParams: ver.reasonParams || {} };
+      continue;
+    }
+    const auth = await checkCodexAuth(candidate);
+    if (!auth?.authenticated) {
+      return makeProbeResult({
+        id: 'codex',
+        supported: true,
+        status: 'unauthenticated',
+        executablePath: candidate,
+        version: ver.version,
+        reasonCode: 'unauthenticated',
+        reasonParams: { cli: 'Codex CLI' },
+      });
+    }
+    return makeProbeResult({
+      id: 'codex',
+      supported: true,
+      status: 'ready',
+      executablePath: candidate,
+      version: ver.version,
+      reasonCode: 'ready',
+      reasonParams: ver.version ? { version: ver.version } : {},
+    });
+  }
+  return firstBroken ? buildBrokenShim('codex', true, firstBroken) : buildNotInstalled('codex', true);
 }
 
 async function probeComingSoonProvider({ id, candidates, probeVersion }) {
@@ -165,6 +203,12 @@ async function probeComingSoonProvider({ id, candidates, probeVersion }) {
   return firstBroken ? buildBrokenShim(id, false, firstBroken) : buildNotInstalled(id, false);
 }
 
+function readCustomPathFor(getCustomPath, id) {
+  if (typeof getCustomPath !== 'function') return '';
+  if (getCustomPath.length === 0) return id === 'agy' ? (getCustomPath() || '') : '';
+  return getCustomPath(id) || '';
+}
+
 /**
  * Orchestrate local CLI provider discovery with TTL caching.
  * Depends only on injected ports (no direct fs or child_process imports).
@@ -173,39 +217,49 @@ export function createProviderDiscovery({
   listCandidates,
   probeVersion,
   listAgyModels,
+  checkCodexAuth = async () => ({ ok: false, authenticated: false, detail: '' }),
   getCustomPath = () => '',
   ttlMs = DEFAULT_CACHE_TTL_MS,
   now = () => Date.now(),
 }) {
   let cached = null;
   let cachedAt = 0;
-  let cachedCustomPath = '';
+  let cachedCustomKey = '';
 
   async function scanOne(id, customPath) {
     const supported = SUPPORTED_CLI_PROVIDERS.includes(id);
-    const candidates = await listCandidates(id, { customPath: id === 'agy' ? customPath : '' });
+    const candidates = await listCandidates(id, { customPath });
     if (!candidates.length) return buildNotInstalled(id, supported);
     if (id === 'agy') return probeSupportedAgy({ candidates, probeVersion, listAgyModels });
+    if (id === 'codex') return probeSupportedCodex({ candidates, probeVersion, checkCodexAuth });
     return probeComingSoonProvider({ id, candidates, probeVersion });
   }
 
   async function scan({ force = false } = {}) {
-    const customPath = getCustomPath() || '';
+    const paths = {
+      agy: readCustomPathFor(getCustomPath, 'agy'),
+      codex: readCustomPathFor(getCustomPath, 'codex'),
+    };
+    const customKey = `${paths.agy}\0${paths.codex}`;
     const cacheValid = !force
       && cached !== null
-      && customPath === cachedCustomPath
+      && customKey === cachedCustomKey
       && now() - cachedAt < ttlMs;
     if (cacheValid) return cached;
-    const providers = await Promise.all(ALL_CLI_PROVIDERS.map((id) => scanOne(id, customPath)));
+    const providers = await Promise.all(ALL_CLI_PROVIDERS.map((id) => scanOne(id, paths[id] || '')));
     cached = providers;
     cachedAt = now();
-    cachedCustomPath = customPath;
+    cachedCustomKey = customKey;
     return providers;
   }
+
+  const findReadyPath = (id) => (cached || []).find((item) => item.id === id && item.status === 'ready')?.executablePath || '';
 
   return Object.freeze({
     scan,
     getCached: () => cached || [],
-    findReadyAgyPath: () => (cached || []).find((item) => item.id === 'agy' && item.status === 'ready')?.executablePath || '',
+    findReadyPath,
+    findReadyAgyPath: () => findReadyPath('agy'),
+    findReadyCodexPath: () => findReadyPath('codex'),
   });
 }

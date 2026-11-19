@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
-import { Badge, Button, Field, Hint, Icon, InlineMessage, ProviderCard, Select, TextInput } from '../components/index.js';
+import { Badge, Button, Field, Hint, Icon, InlineMessage, ProviderCard, SegmentedControl, Select, TextInput } from '../components/index.js';
 
 const EFFORT_OPTIONS = Object.freeze([
   { value: '', label: 'CLI 默认' },
@@ -14,7 +14,7 @@ const STATUS_BADGE = Object.freeze({
   unauthenticated: { tone: 'warning', text: '未登录' },
   'broken-shim': { tone: 'warning', text: '路径异常' },
   'not-installed': { tone: 'neutral', text: '未安装' },
-  'coming-soon': { tone: 'info', text: '即将支持' },
+  'coming-soon': { tone: 'neutral', text: '暂不支持' },
 });
 
 function badgeInfo(status) {
@@ -34,17 +34,24 @@ function modelOptionsFor(provider, currentModel) {
 
 const REASON_TEMPLATES = Object.freeze({
   'not-installed': '未检测到本机安装',
-  'not-installed-coming-soon': '尚未安装（即将支持）',
-  'coming-soon-detected': '已检测到 {0}，即将支持',
-  'coming-soon': '即将支持',
+  'coming-soon-not-installed': '尚未安装（按服务条款暂不支持复用消费者订阅登录）',
+  'not-installed-coming-soon': '尚未安装（按服务条款暂不支持复用消费者订阅登录）',
+  'coming-soon-detected': '已检测到 {0}（按服务条款暂不支持复用消费者订阅登录）',
+  'coming-soon': '按服务条款暂不支持复用消费者订阅登录',
   'broken-shim': '启动脚本指向的目标文件不存在：{0}',
-  'broken-shim-coming-soon': '启动脚本指向的目标文件不存在：{0}（即将支持）',
+  'broken-shim-coming-soon': '启动脚本指向的目标文件不存在：{0}（暂不支持）',
   unauthenticated: '本机已安装，但尚未登录',
 });
 
+function formatVersionDetail(version) {
+  const text = String(version || '').trim();
+  if (!text) return '';
+  return text.startsWith('v') ? text : `v${text}`;
+}
+
 function reasonDetailOf(provider) {
   const params = provider?.reasonParams || {};
-  return params.detail || params.version || params.target || provider?.version || '';
+  return params.detail || formatVersionDetail(params.version || provider?.version) || params.target || '';
 }
 
 function providerReasonText(provider) {
@@ -75,7 +82,7 @@ function CliControls({ provider, draft, setDraft, locked }) {
   const options = modelOptionsFor(provider, draft.model);
   return (
     <div className="desktop-cli__grid">
-      <Field label={ui('模型（可选）')} width="full" hint={ui('留空时使用本机 agy 的默认模型。')}>
+      <Field label={ui('模型（可选）')} width="full" hint={uiFormat('留空时使用本机 {0} 的默认模型。', [provider.id])}>
         {options ? (
           <Select value={draft.model} disabled={locked} options={options} onChange={(value) => setDraft({ ...draft, model: value })} />
         ) : (
@@ -100,17 +107,20 @@ function CliTestResult({ result }) {
   return <InlineMessage tone={result.ok ? 'success' : 'error'}>{text}</InlineMessage>;
 }
 
-function CliActionBar({ active, dirty, working, onActivate, onTest, onScan }) {
+function CliActionBar({ providerId, active, dirty, working, onActivate, onTest, onScan }) {
   const locked = Boolean(working);
+  const saveTag = `save-${providerId}`;
+  const testTag = `test-${providerId}`;
   const activateLabel = !active
-    ? ui('一键启用本机 agy')
-    : dirty ? ui('保存 agy 设置') : ui('已启用本机 agy');
+    ? uiFormat('一键启用本机 {0}', [providerId])
+    : dirty ? uiFormat('保存 {0} 设置', [providerId]) : uiFormat('已启用本机 {0}', [providerId]);
   return (
     <div className="desktop-model__actions">
-      <Button variant={active && !dirty ? 'secondary' : 'primary'} busy={working === 'save-agy'} lock={locked && working !== 'save-agy'} onClick={onActivate}>
+      <Button variant={active && !dirty ? 'secondary' : 'primary'} busy={working === saveTag}
+        lock={locked && working !== saveTag} onClick={onActivate}>
         {activateLabel}
       </Button>
-      <Button variant="secondary" busy={working === 'test-agy'} lock={locked && working !== 'test-agy'} onClick={onTest}>
+      <Button variant="secondary" busy={working === testTag} lock={locked && working !== testTag} onClick={onTest}>
         {ui('测试连通')}
       </Button>
       <Button variant="quiet" busy={working === 'scan'} lock={locked && working !== 'scan'} onClick={onScan}>
@@ -130,12 +140,42 @@ function ReadyCliBadges({ provider, active }) {
   );
 }
 
-function cliDraftState(provider, agy, draft) {
-  const savedModel = agy?.model || '';
-  const savedEffort = agy?.effort || '';
+function ReadyCliSelector({ readyProviders, selectedId, mode, onSelect, locked }) {
+  if (readyProviders.length <= 1) return null;
+  const options = readyProviders.map((item) => ({
+    value: item.id,
+    label: item.id === mode ? uiFormat('{0}（当前）', [item.name || item.id]) : (item.name || item.id),
+  }));
+  return (
+    <div className="desktop-cli__switcher" data-desktop-cli-switcher="">
+      <SegmentedControl label={ui('选择本机 CLI 引擎')} size="sm" wrap
+        value={selectedId} disabled={locked} options={options} onChange={onSelect} />
+    </div>
+  );
+}
+
+function cliConfigMap({ agy, codex }) {
+  return { agy: agy || {}, codex: codex || {} };
+}
+
+function initialDrafts(configs) {
+  return Object.fromEntries(
+    Object.entries(configs).map(([id, cfg]) => [id, { model: cfg?.model || '', effort: cfg?.effort || '' }]),
+  );
+}
+
+function pickSelectedProvider(readyProviders, selectedId, mode) {
+  return readyProviders.find((item) => item.id === selectedId)
+    || readyProviders.find((item) => item.id === mode)
+    || readyProviders[0];
+}
+
+function cliDraftState(provider, savedConfig, draft) {
+  const savedModel = savedConfig?.model || '';
+  const savedEffort = savedConfig?.effort || '';
   const dirty = draft.model !== savedModel || draft.effort !== savedEffort;
   const payload = {
-    executablePath: provider.executablePath || agy?.executablePath || '',
+    executablePath: provider.executablePath || savedConfig?.executablePath || '',
     model: draft.model.trim(),
     effort: draft.effort,
   };
@@ -154,32 +194,44 @@ function ReadyCliFooter({ compact, otherProviders }) {
   );
 }
 
-function ReadyCliCard({ provider, otherProviders, active, agy, actions, working, compact }) {
-  const [draft, setDraft] = useState(() => ({ model: agy?.model || '', effort: agy?.effort || '' }));
-  const [testResult, setTestResult] = useState(null);
-  const { dirty, payload } = cliDraftState(provider, agy, draft);
+function ReadyCliCard({ readyProviders, otherProviders, mode, configs, actions, working, compact }) {
+  const [selectedId, setSelectedId] = useState(() => pickSelectedProvider(readyProviders, mode, mode).id);
+  const [drafts, setDrafts] = useState(() => initialDrafts(configs));
+  const [testResults, setTestResults] = useState({});
+
+  const selected = pickSelectedProvider(readyProviders, selectedId, mode);
+  const saved = configs[selected.id] || {};
+  const draft = drafts[selected.id] || { model: saved.model || '', effort: saved.effort || '' };
+  const setDraft = (next) => setDrafts((prev) => ({ ...prev, [selected.id]: next }));
+  const active = mode === selected.id;
+  const { dirty, payload } = cliDraftState(selected, saved, draft);
+  const title = readyProviders.length > 1
+    ? ui('本机 CLI 引擎')
+    : uiFormat('本机 CLI：{0}', [selected.name || selected.id]);
   const status = active
-    ? ui('当前通过本机 agy 执行 AI 任务（无需填写 API Key）')
-    : ui('检测到本机已安装并登录 agy，可一键启用');
+    ? uiFormat('当前通过本机 {0} 执行 AI 任务（无需填写 API Key）', [selected.id])
+    : uiFormat('检测到本机已安装并登录 {0}，可一键启用', [selected.id]);
 
   const activate = async () => {
-    setTestResult(null);
-    await actions.saveAgy(payload);
+    setTestResults((prev) => ({ ...prev, [selected.id]: null }));
+    const updated = await actions.saveCli(selected.id, payload);
+    if (updated) setDraft({ model: payload.model, effort: payload.effort });
   };
   const testCli = async () => {
-    setTestResult(null);
-    const result = await actions.testAgy(payload);
-    if (result) setTestResult(result);
+    setTestResults((prev) => ({ ...prev, [selected.id]: null }));
+    const result = await actions.testCli(selected.id, payload);
+    if (result) setTestResults((prev) => ({ ...prev, [selected.id]: result }));
   };
 
   return (
-    <ProviderCard layout="stack" data-desktop-cli-card="ready"
-      title={uiFormat('本机 CLI：{0}', [provider.name || 'agy'])}
-      badges={<ReadyCliBadges provider={provider} active={active} />}
-      status={status} set={active}>
-      {!compact && <CliControls provider={provider} draft={draft} setDraft={setDraft} locked={Boolean(working)} />}
-      <CliActionBar active={active} dirty={dirty} working={working} onActivate={activate} onTest={testCli} onScan={actions.scan} />
-      <CliTestResult result={testResult} />
+    <ProviderCard layout="stack" data-desktop-cli-card="ready" data-desktop-cli-selected={selected.id}
+      title={title} badges={<ReadyCliBadges provider={selected} active={active} />} status={status} set={active}>
+      <ReadyCliSelector readyProviders={readyProviders} selectedId={selected.id} mode={mode}
+        onSelect={setSelectedId} locked={Boolean(working)} />
+      {!compact && <CliControls provider={selected} draft={draft} setDraft={setDraft} locked={Boolean(working)} />}
+      <CliActionBar providerId={selected.id} active={active} dirty={dirty} working={working}
+        onActivate={activate} onTest={testCli} onScan={actions.scan} />
+      <CliTestResult result={testResults[selected.id]} />
       <ReadyCliFooter compact={compact} otherProviders={otherProviders} />
     </ProviderCard>
   );
@@ -193,7 +245,7 @@ function QuietCliStrip({ providers, onScan, working }) {
       onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary className="desktop-cli-strip__summary">
         <Icon className={open ? 'desktop-cli-strip__chevron is-open' : 'desktop-cli-strip__chevron'} name="chevron" size={14} />
-        <span>{ui('本机 CLI（agy / claude / codex）：暂未检测到可直接使用的本机 CLI')}</span>
+        <span>{ui('本机 CLI（agy / codex）：暂未检测到可直接使用的本机 CLI')}</span>
         <span className="desktop-cli-strip__toggle">{open ? ui('收起') : ui('查看状态')}</span>
       </summary>
       <div className="desktop-cli-strip__body">
@@ -208,12 +260,16 @@ function QuietCliStrip({ providers, onScan, working }) {
   );
 }
 
-/** Local CLI section: primary card at top when a ready supported CLI exists, quiet collapsible strip otherwise. */
-export default function DesktopCliCard({ providers = [], mode, agy, actions, working, compact = false }) {
-  const ready = providers.find((item) => item.supported && item.status === 'ready');
-  if (ready) {
-    const others = providers.filter((item) => item.id !== ready.id);
-    return <ReadyCliCard provider={ready} otherProviders={others} active={mode === 'agy'} agy={agy} actions={actions} working={working} compact={compact} />;
+/** Local CLI section: primary card at top when 1+ ready supported CLIs exist, quiet collapsible strip otherwise. */
+export default function DesktopCliCard({ providers = [], mode, agy, codex, actions, working, compact = false }) {
+  const readyProviders = providers.filter((item) => item.supported && item.status === 'ready');
+  if (readyProviders.length > 0) {
+    const readyIds = new Set(readyProviders.map((item) => item.id));
+    const others = providers.filter((item) => !readyIds.has(item.id));
+    return (
+      <ReadyCliCard readyProviders={readyProviders} otherProviders={others} mode={mode}
+        configs={cliConfigMap({ agy, codex })} actions={actions} working={working} compact={compact} />
+    );
   }
   return <QuietCliStrip providers={providers} onScan={actions.scan} working={working} />;
 }

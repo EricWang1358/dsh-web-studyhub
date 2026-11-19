@@ -8,6 +8,7 @@ const h = React.createElement;
 const m = await loadUi(`
   export { DESKTOP_PARTS } from './ui/desktop/parts.jsx';
   export { default as DesktopCliCard } from './ui/desktop/DesktopCliCard.jsx';
+  export { createDesktopConfigActions } from './ui/desktop/DesktopModelSetup.jsx';
   export { default as DesktopOpenAiForm } from './ui/desktop/DesktopOpenAiForm.jsx';
   export { default as DesktopLibraryNotice } from './ui/desktop/DesktopLibraryNotice.jsx';
   export { default as DesktopUpgradeGuide } from './ui/desktop/DesktopUpgradeGuide.jsx';
@@ -65,8 +66,8 @@ test('DESKTOP_PARTS exposes all 6 host-part slots and renders upgrade & library 
   assert.doesNotMatch(noticeEn.replace(/<[^>]+>/g, ' '), /[㐀-鿿]/, 'English library notice has zero untranslated Han text');
 });
 
-test('DesktopCliCard renders primary ready card when agy is ready and quiet collapsible strip when no ready CLI exists', () => {
-  const noopActions = { saveAgy: () => {}, testAgy: () => {}, scan: () => {} };
+test('DesktopCliCard renders primary ready card when agy or codex is ready, dual switcher when both are ready, and quiet strip otherwise', () => {
+  const noopActions = { saveCli: () => {}, testCli: () => {}, scan: () => {} };
   const readyHtml = render(h(m.DesktopCliCard, {
     providers: [
       { id: 'agy', name: 'Antigravity CLI (agy)', supported: true, status: 'ready', executablePath: 'C:\\agy.exe', version: '1.5.5', reason: '' },
@@ -74,25 +75,162 @@ test('DesktopCliCard renders primary ready card when agy is ready and quiet coll
     ],
     mode: 'openai',
     agy: { model: '', effort: '' },
+    codex: { model: '', effort: '' },
     actions: noopActions,
     working: '',
   }));
   assert.match(readyHtml, /data-desktop-cli-card="ready"/);
+  assert.match(readyHtml, /data-desktop-cli-selected="agy"/);
+  assert.doesNotMatch(readyHtml, /data-desktop-cli-switcher/);
   assert.match(readyHtml, /一键启用本机 agy/);
   assert.match(readyHtml, /1\.5\.5/);
+
+  const codexOnlyHtml = render(h(m.DesktopCliCard, {
+    providers: [
+      { id: 'agy', name: 'Antigravity CLI (agy)', supported: true, status: 'not-installed', executablePath: null, version: null, reasonCode: 'not-installed' },
+      { id: 'codex', name: 'Codex CLI (codex)', supported: true, status: 'ready', executablePath: 'C:\\codex.exe', version: '0.170.0', reason: '' },
+      { id: 'claude', name: 'Claude Code', supported: false, status: 'coming-soon', executablePath: null, version: null, reasonCode: 'coming-soon' },
+    ],
+    mode: 'openai',
+    agy: {},
+    codex: { model: 'gpt-5', effort: 'high' },
+    actions: noopActions,
+    working: '',
+  }));
+  assert.match(codexOnlyHtml, /data-desktop-cli-card="ready"/);
+  assert.match(codexOnlyHtml, /data-desktop-cli-selected="codex"/);
+  assert.match(codexOnlyHtml, /一键启用本机 codex/);
+  assert.match(codexOnlyHtml, /0\.170\.0/);
+  assert.match(codexOnlyHtml, /value="gpt-5"/);
+  assert.match(codexOnlyHtml, /data-desktop-provider="agy"/);
+
+  const dualReadyHtml = render(h(m.DesktopCliCard, {
+    providers: [
+      {
+        id: 'agy',
+        name: 'Antigravity CLI (agy)',
+        supported: true,
+        status: 'ready',
+        executablePath: 'C:\\agy.exe',
+        version: '1.5.11',
+        models: [{ id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' }],
+        reason: '',
+      },
+      { id: 'codex', name: 'Codex CLI (codex)', supported: true, status: 'ready', executablePath: 'C:\\codex.exe', version: '0.170.0', reason: '' },
+      { id: 'claude', name: 'Claude Code', supported: false, status: 'coming-soon', executablePath: null, version: '2.1.327', reasonCode: 'coming-soon-detected', reasonParams: { version: '2.1.327' } },
+    ],
+    mode: 'codex',
+    agy: { model: 'gemini-2.5-pro', effort: 'medium' },
+    codex: { model: 'o3', effort: 'low' },
+    actions: noopActions,
+    working: '',
+  }));
+  assert.match(dualReadyHtml, /data-desktop-cli-card="ready"/);
+  assert.match(dualReadyHtml, /data-desktop-cli-selected="codex"/);
+  assert.match(dualReadyHtml, /data-desktop-cli-switcher/);
+  assert.match(dualReadyHtml, /本机 CLI 引擎/);
+  assert.match(dualReadyHtml, /Antigravity CLI \(agy\)/);
+  assert.match(dualReadyHtml, /Codex CLI \(codex\)（当前）/);
+  assert.match(dualReadyHtml, /已启用本机 codex/);
+  assert.match(dualReadyHtml, /当前通过本机 codex 执行 AI 任务/);
+  assert.match(dualReadyHtml, /data-desktop-provider="claude"/);
+  assert.doesNotMatch(dualReadyHtml, /data-desktop-provider="agy"/);
+
+  const dualReadyEn = render(h(m.DesktopCliCard, {
+    providers: [
+      { id: 'agy', name: 'Antigravity CLI (agy)', supported: true, status: 'ready', executablePath: 'C:\\agy.exe', version: '1.5.11', reason: '' },
+      { id: 'codex', name: 'Codex CLI (codex)', supported: true, status: 'ready', executablePath: 'C:\\codex.exe', version: '0.170.0', reason: '' },
+      { id: 'claude', name: 'Claude Code', supported: false, status: 'coming-soon', executablePath: null, version: '2.1.327', reasonCode: 'coming-soon-detected', reasonParams: { version: '2.1.327' } },
+    ],
+    mode: 'codex',
+    agy: {},
+    codex: { model: '', effort: 'high' },
+    actions: noopActions,
+    working: '',
+  }), 'en');
+  assert.doesNotMatch(dualReadyEn.replace(/<[^>]+>/g, ' '), /[㐀-鿿]/, 'English dual CLI card has zero untranslated Han text');
+  assert.match(dualReadyEn, /Local CLI engine/);
+  assert.match(dualReadyEn, /Local codex enabled/);
 
   const quietHtml = render(h(m.DesktopCliCard, {
     providers: [
       { id: 'agy', name: 'Antigravity CLI (agy)', supported: true, status: 'not-installed', executablePath: null, version: null, reason: 'Not found' },
+      { id: 'codex', name: 'Codex CLI (codex)', supported: true, status: 'unauthenticated', executablePath: 'C:\\codex.exe', version: '0.170.0', reasonCode: 'unauthenticated' },
     ],
     mode: 'openai',
     agy: {},
+    codex: {},
     actions: noopActions,
     working: '',
   }));
   assert.match(quietHtml, /data-desktop-cli-card="quiet"/);
   assert.match(quietHtml, /<details/);
   assert.match(quietHtml, /重新扫描本机 CLI/);
+  assert.match(quietHtml, /agy \/ codex/);
+});
+
+test('createDesktopConfigActions saves & tests codex mode and syncs effective concurrency cap cleanly', async (t) => {
+  t.after(() => {
+    m.syncDesktopConcurrency(null);
+    m.registerHostConcurrencyCap(null);
+  });
+  const calls = [];
+  let savedConfig = null;
+  let lastError = '';
+  const workingLog = [];
+  const actions = m.createDesktopConfigActions({
+    call: async (action, args) => {
+      calls.push({ action, args });
+      if (action === 'desktop.config.save' && args.mode === 'codex') {
+        return {
+          mode: 'codex',
+          codex: args.codex,
+          effective: { ready: true, maxConcurrency: 2, defaultConcurrency: 1 },
+        };
+      }
+      if (action === 'desktop.config.test' && args.mode === 'codex') {
+        return { ok: true, latencyMs: 420, message: 'PONG' };
+      }
+      if (action === 'desktop.config.save' && args.mode === 'openai') {
+        return { mode: 'openai', openai: args.openai, effective: { ready: true } };
+      }
+      return {};
+    },
+    refresh: async () => {},
+    setConfig: (next) => { savedConfig = next; },
+    setError: (msg) => { lastError = msg; },
+    setWorking: (tag) => { workingLog.push(tag); },
+  });
+
+  const payload = { executablePath: 'C:\\codex.exe', model: 'o3', effort: 'high' };
+  const result = await actions.saveCli('codex', payload);
+  assert.equal(lastError, '');
+  assert.equal(savedConfig?.mode, 'codex');
+  assert.deepEqual(result?.codex, payload);
+  assert.deepEqual(calls[0], { action: 'desktop.config.save', args: { mode: 'codex', codex: payload } });
+  assert.deepEqual(m.readDesktopConcurrency(), { maxConcurrency: 2, defaultConcurrency: 1 });
+  assert.deepEqual(m.effectiveConcurrencyLimit(), { min: 1, max: 2 });
+
+  const testResult = await actions.testCli('codex', payload);
+  assert.deepEqual(calls[1], { action: 'desktop.config.test', args: { mode: 'codex', codex: payload } });
+  assert.equal(testResult?.ok, true);
+
+  await actions.saveOpenAi({ providerId: 'deepseek', baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat', apiKey: 'sk-test' });
+  assert.deepEqual(m.readDesktopConcurrency(), { maxConcurrency: undefined, defaultConcurrency: undefined });
+  assert.deepEqual(m.effectiveConcurrencyLimit(), { min: 1, max: 8 });
+  assert.ok(workingLog.includes('save-codex'));
+  assert.ok(workingLog.includes('test-codex'));
+
+  m.setUiLanguage('en');
+  try {
+    const stepsEn = m.DESKTOP_PARTS.modelSetupSteps();
+    const stepText = stepsEn.map((step) => step.text).join(' ');
+    assert.match(stepText, /agy/);
+    assert.match(stepText, /codex/);
+    assert.doesNotMatch(stepText, /[㐀-鿿]/, 'English modelSetupSteps has zero untranslated Han text');
+  } finally {
+    m.setUiLanguage('zh');
+  }
 });
 
 test('DesktopOpenAiForm exposes domestic presets (智谱, 硅基流动, DeepSeek, 自定义) cleanly', () => {
@@ -247,7 +385,8 @@ test('chat: false degradation cleanly updates HandOff, GuidancePane, DiagnosticB
     ],
     mode: 'openai',
     agy: {},
-    actions: { saveAgy: () => {}, testAgy: () => {}, scan: () => {} },
+    codex: {},
+    actions: { saveCli: () => {}, testCli: () => {}, scan: () => {} },
     working: '',
   }), 'en');
   assert.doesNotMatch(enCliHtml.replace(/<[^>]+>/g, ' '), /[㐀-鿿]/, 'English CLI strip has zero untranslated Han text');

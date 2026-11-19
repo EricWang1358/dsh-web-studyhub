@@ -3,6 +3,8 @@ import { keyLast4 } from './redact.js';
 
 /** @typedef {import('./contracts.js').AgyConfig} AgyConfig */
 /** @typedef {import('./contracts.js').AgyEffort} AgyEffort */
+/** @typedef {import('./contracts.js').CodexConfig} CodexConfig */
+/** @typedef {import('./contracts.js').CodexEffort} CodexEffort */
 /** @typedef {import('./contracts.js').DesktopConfig} DesktopConfig */
 /** @typedef {import('./contracts.js').DesktopMode} DesktopMode */
 /** @typedef {import('./contracts.js').EffectiveModelState} EffectiveModelState */
@@ -44,9 +46,18 @@ export const CLI_CONCURRENCY_CAP = Object.freeze({
   maxConcurrency: 2,
 });
 
-const VALID_MODES = new Set(['openai', 'agy']);
-const VALID_EFFORTS = new Set(['', 'low', 'medium', 'high', 'xhigh', 'max']);
+const VALID_MODES = new Set(['openai', 'agy', 'codex']);
+const VALID_AGY_EFFORTS = new Set(['', 'low', 'medium', 'high', 'xhigh', 'max']);
+const VALID_CODEX_EFFORTS = new Set(['', 'low', 'medium', 'high', 'xhigh']);
 const VALID_API_KEY_RE = /^[\x21-\x7e]{1,512}$/;
+
+/**
+ * @param {DesktopMode} mode
+ * @returns {boolean}
+ */
+function isCliMode(mode) {
+  return mode === 'agy' || mode === 'codex';
+}
 
 /**
  * @param {unknown} value
@@ -122,6 +133,11 @@ export function defaultDesktopConfig() {
       model: '',
       effort: '',
     },
+    codex: {
+      executablePath: '',
+      model: '',
+      effort: '',
+    },
     libraryRoot: '',
     reasoningEffort: '',
   };
@@ -129,12 +145,12 @@ export function defaultDesktopConfig() {
 
 /**
  * Return concurrency policy for the given mode.
- * CLI `agy` is capped at default 1 / max 2; OpenAI is uncapped (null).
+ * Local CLI modes (`agy`, `codex`) are capped at default 1 / max 2; OpenAI is uncapped (null).
  * @param {DesktopMode} mode
  * @returns {{ defaultConcurrency: number | null, maxConcurrency: number | null }}
  */
 export function concurrencyPolicyForMode(mode) {
-  if (mode === 'agy') {
+  if (isCliMode(mode)) {
     return {
       defaultConcurrency: CLI_CONCURRENCY_CAP.defaultConcurrency,
       maxConcurrency: CLI_CONCURRENCY_CAP.maxConcurrency,
@@ -149,13 +165,28 @@ export function concurrencyPolicyForMode(mode) {
  * @returns {{ max: number, default: number } | null}
  */
 export function concurrencyHookForMode(mode) {
-  if (mode === 'agy') {
+  if (isCliMode(mode)) {
     return {
       max: CLI_CONCURRENCY_CAP.maxConcurrency,
       default: CLI_CONCURRENCY_CAP.defaultConcurrency,
     };
   }
   return null;
+}
+
+/**
+ * @param {unknown} raw
+ * @param {Set<string>} validEfforts
+ * @returns {{ executablePath: string, model: string, effort: string }}
+ */
+function normalizeCliSection(raw, validEfforts) {
+  const src = raw && typeof raw === 'object' ? /** @type {Record<string, unknown>} */ (raw) : {};
+  const effortStr = trimText(src.effort);
+  return {
+    executablePath: trimText(src.executablePath),
+    model: trimText(src.model),
+    effort: validEfforts.has(effortStr) ? effortStr : '',
+  };
 }
 
 /**
@@ -171,11 +202,8 @@ export function normalizeDesktopConfig(raw) {
   const rawOpenAi = source.openai && typeof source.openai === 'object'
     ? /** @type {Record<string, unknown>} */ (source.openai)
     : {};
-  const rawAgy = source.agy && typeof source.agy === 'object'
-    ? /** @type {Record<string, unknown>} */ (source.agy)
-    : {};
-  const effortStr = trimText(rawAgy.effort);
-  const effort = VALID_EFFORTS.has(effortStr) ? /** @type {AgyEffort} */ (effortStr) : '';
+  const agy = /** @type {AgyConfig} */ (normalizeCliSection(source.agy, VALID_AGY_EFFORTS));
+  const codex = /** @type {CodexConfig} */ (normalizeCliSection(source.codex, VALID_CODEX_EFFORTS));
 
   return {
     mode,
@@ -185,11 +213,8 @@ export function normalizeDesktopConfig(raw) {
       model: trimText(rawOpenAi.model),
       apiKey: trimText(rawOpenAi.apiKey),
     },
-    agy: {
-      executablePath: trimText(rawAgy.executablePath),
-      model: trimText(rawAgy.model),
-      effort,
-    },
+    agy,
+    codex,
     libraryRoot: trimText(source.libraryRoot),
     reasoningEffort: trimText(source.reasoningEffort),
   };
@@ -257,12 +282,14 @@ function mergeOpenAiPatch(current, patch) {
 }
 
 /**
- * Apply an `agy` config patch with strict effort validation.
- * @param {AgyConfig} current
+ * Apply a CLI provider (`agy` / `codex`) config patch with strict effort validation.
+ * @template {{ executablePath: string, model: string, effort: string }} T
+ * @param {T} current
  * @param {Record<string, unknown>} patch
- * @returns {AgyConfig}
+ * @param {Set<string>} validEfforts
+ * @returns {T}
  */
-function mergeAgyPatch(current, patch) {
+function mergeCliPatch(current, patch, validEfforts) {
   const next = { ...current };
   if (patch.executablePath !== undefined) {
     next.executablePath = trimText(patch.executablePath);
@@ -272,10 +299,10 @@ function mergeAgyPatch(current, patch) {
   }
   if (patch.effort !== undefined) {
     const effort = trimText(patch.effort);
-    if (!VALID_EFFORTS.has(effort)) {
+    if (!validEfforts.has(effort)) {
       throw configError('invalid-effort', '思考强度设置无效');
     }
-    next.effort = /** @type {AgyEffort} */ (effort);
+    next.effort = effort;
   }
   return next;
 }
@@ -309,11 +336,14 @@ export function applyConfigPatch(current, patch) {
   }
 
   const agy = patch.agy && typeof patch.agy === 'object'
-    ? mergeAgyPatch(base.agy, /** @type {Record<string, unknown>} */ (patch.agy))
+    ? mergeCliPatch(base.agy, /** @type {Record<string, unknown>} */ (patch.agy), VALID_AGY_EFFORTS)
     : base.agy;
+  const codex = patch.codex && typeof patch.codex === 'object'
+    ? mergeCliPatch(base.codex, /** @type {Record<string, unknown>} */ (patch.codex), VALID_CODEX_EFFORTS)
+    : base.codex;
 
   return {
-    config: { ...base, mode, openai, agy },
+    config: { ...base, mode, openai, agy, codex },
     keyDropped,
   };
 }
@@ -321,7 +351,7 @@ export function applyConfigPatch(current, patch) {
 /**
  * Return the safe UI-visible view of desktop config (never includes raw `apiKey`).
  * @param {DesktopConfig} config
- * @returns {{ mode: DesktopMode, openai: OpenAiConfigView, agy: AgyConfig }}
+ * @returns {{ mode: DesktopMode, openai: OpenAiConfigView, agy: AgyConfig, codex: CodexConfig }}
  */
 export function redactDesktopConfig(config) {
   return {
@@ -337,6 +367,11 @@ export function redactDesktopConfig(config) {
       executablePath: config.agy.executablePath,
       model: config.agy.model,
       effort: config.agy.effort,
+    },
+    codex: {
+      executablePath: config.codex.executablePath,
+      model: config.codex.model,
+      effort: config.codex.effort,
     },
   };
 }
@@ -359,21 +394,23 @@ export function openAiProviderLabel(openai) {
 }
 
 /**
- * @param {AgyConfig} agy
+ * @param {'agy' | 'codex'} id
+ * @param {AgyConfig | CodexConfig} cliConfig
  * @param {readonly ProbeResult[]} providers
  * @returns {EffectiveModelState}
  */
-function resolveEffectiveAgy(agy, providers) {
-  const concurrency = concurrencyPolicyForMode('agy');
-  const probe = providers.find((item) => item.id === 'agy') || null;
-  const ready = Boolean(agy.executablePath) || probe?.status === 'ready';
+function resolveEffectiveCli(id, cliConfig, providers) {
+  const concurrency = concurrencyPolicyForMode(id);
+  const probe = providers.find((item) => item.id === id) || null;
+  const ready = Boolean(cliConfig.executablePath) || probe?.status === 'ready';
   const reason = ready ? 'ok' : probe?.status === 'unauthenticated' ? 'no-credential' : 'no-route';
+  const title = id === 'codex' ? 'Codex CLI' : 'Antigravity CLI';
   return {
     ready,
-    label: `Antigravity CLI · ${agy.model || '默认模型'}`,
+    label: `${title} · ${cliConfig.model || '默认模型'}`,
     reason,
-    provider: 'agy',
-    model: agy.model || 'default',
+    provider: id,
+    model: cliConfig.model || 'default',
     ...concurrency,
   };
 }
@@ -385,7 +422,8 @@ function resolveEffectiveAgy(agy, providers) {
  * @returns {EffectiveModelState}
  */
 export function resolveEffectiveModel(config, providers = []) {
-  if (config.mode === 'agy') return resolveEffectiveAgy(config.agy, providers);
+  if (config.mode === 'agy') return resolveEffectiveCli('agy', config.agy, providers);
+  if (config.mode === 'codex') return resolveEffectiveCli('codex', config.codex, providers);
 
   const concurrency = concurrencyPolicyForMode('openai');
   const hasEndpoint = Boolean(config.openai.baseUrl && config.openai.model);

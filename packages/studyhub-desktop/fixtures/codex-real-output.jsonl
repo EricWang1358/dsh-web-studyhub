@@ -1,0 +1,6 @@
+{"type":"thread.started","thread_id":"00000000-0000-4000-8000-000000000003"}
+{"type":"item.completed","item":{"id":"item_0","type":"error","message":"Codex is ignoring 2 unrecognized configuration settings. Check for typos or deprecated settings.\n  user (C:\\Users\\example\\.codex\\config.toml): `disable_response_storage` is ignored.\n  user (C:\\Users\\example\\.codex\\config.toml): `preferred_auth_method` is ignored."}}
+{"type":"item.completed","item":{"id":"item_1","type":"error","message":"Codex is ignoring 2 unrecognized configuration settings. Check for typos or deprecated settings.\n  user (C:\\Users\\example\\.codex\\config.toml): `disable_response_storage` is ignored.\n  user (C:\\Users\\example\\.codex\\config.toml): `preferred_auth_method` is ignored."}}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_2","type":"agent_message","text":"PONG"}}
+{"type":"turn.completed","usage":{"input_tokens":19560,"cached_input_tokens":0,"cache_write_input_tokens":0,"output_tokens":6,"reasoning_output_tokens":0}}

@@ -66,13 +66,14 @@ StudyHub Desktop supports two ways to connect a model in **Settings › Library 
 
 Your API key is stored locally in your StudyHub Desktop configuration directory and is never written into your study library, backups, or exports.
 
-### 2. Automatic `agy` CLI detection
+### 2. Automatic local CLI detection (`agy` & `codex`)
 
-If you already have the Google Antigravity CLI (`agy`) installed and signed in on your computer, StudyHub Desktop automatically probes and detects `agy` at startup. You can select the detected CLI backend in **Settings › Library & model** without pasting an API key.
+If you already have **Google Antigravity CLI (`agy`)** or **OpenAI Codex CLI (`codex`)** installed and signed in on your computer, StudyHub Desktop automatically probes and detects them at startup. In **Settings › Library & model**, you can switch between ready local CLIs, optionally configure a model and reasoning effort (`low` / `medium` / `high`), and enable or test them without pasting an API key.
 
 Good to know about CLI backends:
-- Because each request runs an isolated CLI process, CLI backends use a lower concurrency cap (default `1`, maximum `2`) than direct HTTP API keys.
-- If `agy` is not installed or signed out, StudyHub Desktop reports the reason honestly and lets you switch to an API key at any time.
+- Because each request runs an isolated CLI process, both `agy` and `codex` use a lower concurrency cap (default `1`, maximum `2`) than direct HTTP API keys.
+- If a CLI is not installed or signed out, StudyHub Desktop reports the status honestly and lets you switch to another ready CLI or an API key at any time.
+- **Note on Claude Code CLI (`claude`)**: Anthropic's consumer Terms of Service forbid third-party desktop apps from wrapping consumer subscription OAuth logins, so StudyHub Desktop does not wrap consumer `claude` OAuth.
 
 ## Library folder and sharing with DSH
 
@@ -86,7 +87,7 @@ Good to know about CLI backends:
 | Feature | DSH plugin | StudyHub Desktop |
 | --- | --- | --- |
 | Runtime prerequisites | Requires DSH desktop or web | Standalone `.msi` or `.zip` (bundles Node.js 22) |
-| Model configuration | Uses DSH's configured models | Built-in API key presets + automatic `agy` CLI detection |
+| Model configuration | Uses DSH's configured models | Built-in API key presets + automatic `agy` & `codex` CLI detection |
 | Folder selection | DSH workspace / picker | Native Windows folder picker |
 | "Send to main chat" / AI chat hand-off | Sends directly into DSH's chat input | Copies the structured prompt to your clipboard so you can paste it into any chat tool |
 | Updates | DSH plugin manager | Download the new `.msi` or `.zip` from GitHub Releases |

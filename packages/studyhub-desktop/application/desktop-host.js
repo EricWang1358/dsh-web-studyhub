@@ -163,9 +163,20 @@ function buildEffectiveResolver({ getConfig, providerDiscovery, injectedComplete
   };
 }
 
+const DESKTOP_ERROR_EN = Object.freeze({
+  'invalid-config': 'Configuration payload must be an object',
+  'invalid-mode': 'Unsupported model provider mode',
+  'invalid-effort': 'Invalid reasoning effort value',
+  'model-url-invalid': 'Invalid base URL; please provide a full http:// or https:// URL',
+  'model-key-invalid': 'Invalid API key format; spaces and control characters are not allowed',
+});
+
 function formatCallError(error, language) {
-  const message = localizeAppMessage(error?.message || String(error), language);
   const code = typeof error?.code === 'string' && error.code ? error.code : 'STUDY_ERROR';
+  if (language === 'en' && Object.hasOwn(DESKTOP_ERROR_EN, code)) {
+    return { ok: false, error: DESKTOP_ERROR_EN[code], code };
+  }
+  const message = localizeAppMessage(error?.message || String(error), language);
   return { ok: false, error: message, code };
 }
 
@@ -205,6 +216,7 @@ export async function createDesktopHost({
   providerDiscovery,
   openaiComplete,
   agyComplete,
+  codexComplete = null,
   jobExecutor,
   openExternal,
   ensureDir,
@@ -231,8 +243,10 @@ export async function createDesktopHost({
   const completePort = createDesktopCompletePort({
     getConfig: () => state.config,
     getAgyExecutablePath: () => providerDiscovery.findReadyAgyPath(),
+    getCodexExecutablePath: () => providerDiscovery.findReadyCodexPath?.() || '',
     openaiComplete,
     agyComplete,
+    codexComplete,
     injectedComplete,
   });
   const ctx = createDesktopContext({ session, getRoute, getEffective, jobsService: jobExecutor.asDshJobsService(), disposers });

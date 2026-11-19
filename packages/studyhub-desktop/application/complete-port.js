@@ -2,6 +2,7 @@ import { normalizeBaseUrl } from '../domain/config-policy.js';
 
 const OPENAI_TEST_TIMEOUT_MS = 30_000;
 const AGY_TEST_TIMEOUT_MS = 45_000;
+const CODEX_TEST_TIMEOUT_MS = 60_000;
 
 function pickStr(overrideVal, fallback) {
   return overrideVal !== undefined ? String(overrideVal).trim() : fallback;
@@ -22,35 +23,37 @@ function resolveDraftOpenAi(savedOpenAi, rawOpenAi) {
   };
 }
 
-function resolveDraftAgy(savedAgy, rawAgy) {
-  if (!rawAgy || typeof rawAgy !== 'object') return savedAgy;
+function resolveDraftCli(savedCli, rawCli) {
+  if (!rawCli || typeof rawCli !== 'object') return savedCli;
   return {
-    executablePath: pickStr(rawAgy.executablePath, savedAgy.executablePath),
-    model: pickStr(rawAgy.model, savedAgy.model),
-    effort: pickStr(rawAgy.effort, savedAgy.effort),
+    executablePath: pickStr(rawCli.executablePath, savedCli.executablePath),
+    model: pickStr(rawCli.model, savedCli.model),
+    effort: pickStr(rawCli.effort, savedCli.effort),
   };
 }
 
 function resolveDraftConfig(saved, override) {
   if (!override || typeof override !== 'object') return saved;
-  const mode = override.mode === 'agy' || override.mode === 'openai' ? override.mode : saved.mode;
+  const isKnownMode = override.mode === 'agy' || override.mode === 'codex' || override.mode === 'openai';
+  const mode = isKnownMode ? override.mode : saved.mode;
   return {
     ...saved,
     mode,
     openai: resolveDraftOpenAi(saved.openai, override.openai),
-    agy: resolveDraftAgy(saved.agy, override.agy),
+    agy: resolveDraftCli(saved.agy, override.agy),
+    codex: resolveDraftCli(saved.codex, override.codex),
   };
 }
 
 function formatMissingRunnerMessage(mode, language) {
   if (language === 'en') {
-    return mode === 'agy'
-      ? 'No usable Antigravity CLI (agy) executable was found'
-      : 'Please enter the base URL, model name, and API key first';
+    if (mode === 'codex') return 'No usable Codex CLI executable was found';
+    if (mode === 'agy') return 'No usable Antigravity CLI (agy) executable was found';
+    return 'Please enter the base URL, model name, and API key first';
   }
-  return mode === 'agy'
-    ? '未找到可用的 Antigravity CLI (agy) 可执行文件'
-    : '请先填写完整的接口地址、模型名和 API Key';
+  if (mode === 'codex') return '未找到可用的 Codex CLI 可执行文件';
+  if (mode === 'agy') return '未找到可用的 Antigravity CLI (agy) 可执行文件';
+  return '请先填写完整的接口地址、模型名和 API Key';
 }
 
 function formatTestSuccessMessage(reply, language) {
@@ -61,6 +64,12 @@ function formatTestSuccessMessage(reply, language) {
   return preview ? `连接成功（模型回复：${preview}）` : '连接成功';
 }
 
+function testTimeoutForMode(mode) {
+  if (mode === 'codex') return CODEX_TEST_TIMEOUT_MS;
+  if (mode === 'agy') return AGY_TEST_TIMEOUT_MS;
+  return OPENAI_TEST_TIMEOUT_MS;
+}
+
 /**
  * Thin completion dispatcher producing StudyHub's `complete(system, prompt, execution)`.
  * Does not duplicate ModelGateway, queues, or usage ledgers.
@@ -68,22 +77,27 @@ function formatTestSuccessMessage(reply, language) {
 export function createDesktopCompletePort({
   getConfig,
   getAgyExecutablePath,
+  getCodexExecutablePath = () => '',
   openaiComplete,
   agyComplete,
+  codexComplete = null,
   injectedComplete = null,
 }) {
-  function resolveAgyPath(config) {
-    return config.agy.executablePath || getAgyExecutablePath() || '';
+  function resolveCliRunner(mode, config, options) {
+    if (mode === 'agy') {
+      const executablePath = config.agy.executablePath || getAgyExecutablePath() || '';
+      return executablePath ? agyComplete({ ...config.agy, executablePath }, options) : undefined;
+    }
+    const executablePath = config.codex?.executablePath || getCodexExecutablePath() || '';
+    return executablePath && codexComplete ? codexComplete({ ...config.codex, executablePath }, options) : undefined;
   }
 
   function buildForConfig(config, options = {}) {
     if (injectedComplete && !options.ignoreInjected) {
       return injectedComplete;
     }
-    if (config.mode === 'agy') {
-      const executablePath = resolveAgyPath(config);
-      if (!executablePath) return undefined;
-      return agyComplete({ ...config.agy, executablePath }, options);
+    if (config.mode === 'agy' || config.mode === 'codex') {
+      return resolveCliRunner(config.mode, config, options);
     }
     if (!config.openai.baseUrl || !config.openai.model || !config.openai.apiKey) {
       return undefined;
@@ -99,8 +113,8 @@ export function createDesktopCompletePort({
   async function testConnection(override = null, language = 'zh') {
     const started = Date.now();
     const draft = resolveDraftConfig(getConfig(), override);
-    const timeoutMs = draft.mode === 'agy' ? AGY_TEST_TIMEOUT_MS : OPENAI_TEST_TIMEOUT_MS;
-    const runner = buildForConfig(draft, { timeoutMs });
+    const timeoutMs = testTimeoutForMode(draft.mode);
+    const runner = buildForConfig(draft, { timeoutMs, language });
     if (!runner) {
       return { ok: false, message: formatMissingRunnerMessage(draft.mode, language), latencyMs: Date.now() - started };
     }

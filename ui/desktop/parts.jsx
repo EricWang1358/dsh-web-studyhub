@@ -37,7 +37,7 @@ function modelFact({ reason, label } = {}) {
 function modelSetupSteps() {
   return [
     {
-      text: ui('如果本机已检测到就绪的 agy CLI，可直接点「一键启用本机 agy」；否则选一个国内直连服务商（智谱、硅基流动、DeepSeek）获取 API Key'),
+      text: ui('如果本机已检测到就绪的 agy 或 codex CLI，可直接一键启用本机 CLI；否则选一个国内直连服务商（智谱、硅基流动、DeepSeek）获取 API Key'),
       hint: guideHint(),
       choose: true,
     },

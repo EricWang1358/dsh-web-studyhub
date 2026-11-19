@@ -45,6 +45,23 @@ function joinWinPath(shimDir, rawRelative) {
   return `${base}\\${rel}`;
 }
 
+const NODE_EXE_RE = /(?:^|[\\/])node\.exe$/i;
+
+/**
+ * Find the first quoted `.exe` path matching `pattern` that is not `node.exe`.
+ * Prevents npm `.cmd` shims (`IF EXIST "%dp0%\node.exe"`) from resolving to `node.exe`.
+ * @param {string} text
+ * @param {RegExp} pattern
+ * @returns {string | null}
+ */
+function findNonNodeExe(text, pattern) {
+  for (const match of text.matchAll(pattern)) {
+    const candidate = match[1] || '';
+    if (candidate && !NODE_EXE_RE.test(candidate)) return candidate;
+  }
+  return null;
+}
+
 /**
  * Extract native `.exe` or Node `.js`/`.mjs`/`.cjs` target from a Windows npm `.cmd` shim.
  * Eliminates the need for `shell: true` (CVE-2024-27980 `EINVAL` on Node 22).
@@ -54,21 +71,21 @@ function joinWinPath(shimDir, rawRelative) {
  */
 export function parseCmdShimTarget(content, shimDir) {
   const text = String(content ?? '');
-  const exeMatch = text.match(/"%(?:dp0%|~dp0)[\\/]*([^"]+\.exe)"/i);
-  if (exeMatch?.[1]) {
-    return { kind: 'exe', targetPath: joinWinPath(shimDir, exeMatch[1]) };
-  }
   const scriptMatch = text.match(/"%(?:dp0%|~dp0)[\\/]*([^"]+\.(?:c|m)?js)"/i);
   if (scriptMatch?.[1]) {
     return { kind: 'node-script', targetPath: joinWinPath(shimDir, scriptMatch[1]) };
   }
-  const absExeMatch = text.match(/"([A-Za-z]:\\[^"]+\.exe)"/i);
-  if (absExeMatch?.[1]) {
-    return { kind: 'exe', targetPath: absExeMatch[1] };
+  const relExe = findNonNodeExe(text, /"%(?:dp0%|~dp0)[\\/]*([^"]+\.exe)"/gi);
+  if (relExe) {
+    return { kind: 'exe', targetPath: joinWinPath(shimDir, relExe) };
   }
   const absScriptMatch = text.match(/"([A-Za-z]:\\[^"]+\.(?:c|m)?js)"/i);
   if (absScriptMatch?.[1]) {
     return { kind: 'node-script', targetPath: absScriptMatch[1] };
+  }
+  const absExe = findNonNodeExe(text, /"([A-Za-z]:\\[^"]+\.exe)"/gi);
+  if (absExe) {
+    return { kind: 'exe', targetPath: absExe };
   }
   return null;
 }

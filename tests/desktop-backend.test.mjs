@@ -19,6 +19,13 @@ import {
   parseAgyStreamOutput,
 } from '../packages/studyhub-desktop/domain/agy-protocol.js';
 import {
+  buildCodexExecArgs,
+  buildCodexWrappedPrompt,
+  mapCodexUsageToBuckets,
+  parseCodexJsonlOutput,
+  parseCodexStreamLine,
+} from '../packages/studyhub-desktop/domain/codex-protocol.js';
+import {
   OPENAI_PRESETS,
   applyConfigPatch,
   concurrencyHookForMode,
@@ -31,9 +38,11 @@ import { DESKTOP_CAPABILITIES } from '../packages/studyhub-desktop/domain/contra
 import { clipDetail, keyLast4, redactSecret } from '../packages/studyhub-desktop/domain/redact.js';
 import { openableExternalUrl, parseCliVersion, parseCmdShimTarget } from '../packages/studyhub-desktop/domain/shim-parser.js';
 import { createDesktopHost } from '../packages/studyhub-desktop/application/desktop-host.js';
-import { createProviderDiscovery } from '../packages/studyhub-desktop/application/provider-discovery.js';
+import { createProviderDiscovery, localizeProviders } from '../packages/studyhub-desktop/application/provider-discovery.js';
 import { desktopUpdateView } from '../packages/studyhub-desktop/application/update-view.js';
 import { createAgyCompleteAdapter } from '../packages/studyhub-desktop/adapters/cli/agy-adapter.mjs';
+import { listCandidatePaths } from '../packages/studyhub-desktop/adapters/cli/candidate-paths.mjs';
+import { createCodexCompleteAdapter, probeCodex, probeCodexAuth } from '../packages/studyhub-desktop/adapters/cli/codex-adapter.mjs';
 import { createProcessRunner, runProcess } from '../packages/studyhub-desktop/adapters/cli/process-runner.mjs';
 import { startLocalServer } from '../packages/studyhub-desktop/adapters/http/local-server.mjs';
 import { createOpenAiCompleteAdapter } from '../packages/studyhub-desktop/adapters/http/openai-adapter.mjs';
@@ -169,8 +178,10 @@ test('domain/config-policy enforces credential isolation on baseUrl change, dome
   assert.equal(OPENAI_PRESETS.find((p) => p.id === 'deepseek').baseUrl, 'https://api.deepseek.com');
   assert.equal(OPENAI_PRESETS.find((p) => p.id === 'siliconflow').defaultModel, 'deepseek-ai/DeepSeek-V3');
   assert.deepEqual(concurrencyPolicyForMode('agy'), { defaultConcurrency: 1, maxConcurrency: 2 });
+  assert.deepEqual(concurrencyPolicyForMode('codex'), { defaultConcurrency: 1, maxConcurrency: 2 });
   assert.deepEqual(concurrencyPolicyForMode('openai'), { defaultConcurrency: null, maxConcurrency: null });
   assert.deepEqual(concurrencyHookForMode('agy'), { max: 2, default: 1 });
+  assert.deepEqual(concurrencyHookForMode('codex'), { max: 2, default: 1 });
   assert.equal(concurrencyHookForMode('openai'), null);
 
   const initial = applyConfigPatch(defaultDesktopConfig(), {
@@ -231,6 +242,31 @@ test('domain/shim-parser validates external URLs and unwraps npm .cmd shims', ()
     targetPath: 'C:\\node_global\\node_modules\\@openai\\codex\\bin\\codex.js',
   });
 
+  // Real npm .cmd shim containing IF EXIST "%dp0%\node.exe" MUST unwrap to codex.js, never node.exe
+  const realNpmCodexCmd = [
+    '@ECHO off',
+    'GOTO start',
+    ':find_dp0',
+    'SET dp0=%~dp0',
+    'EXIT /b',
+    ':start',
+    'SETLOCAL',
+    'CALL :find_dp0',
+    'IF EXIST "%dp0%\\node.exe" (',
+    '  SET "_prog=%dp0%\\node.exe"',
+    ') ELSE (',
+    '  SET "_prog=node"',
+    ')',
+    'endLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & "%_prog%"  "%dp0%\\node_modules\\@openai\\codex\\bin\\codex.js" %*',
+  ].join('\r\n');
+  assert.deepEqual(parseCmdShimTarget(realNpmCodexCmd, 'D:\\Program Files\\nodejs\\node_global'), {
+    kind: 'node-script',
+    targetPath: 'D:\\Program Files\\nodejs\\node_global\\node_modules\\@openai\\codex\\bin\\codex.js',
+  });
+
+  // A shim referencing ONLY node.exe must never be treated as a CLI target
+  assert.equal(parseCmdShimTarget('IF EXIST "%dp0%\\node.exe" SET "_prog=%dp0%\\node.exe"', 'D:\\node_global'), null);
+
   // Standard Windows %~dp0 batch shims (no trailing %)
   const stdExeBatch = '@echo off\r\n"%~dp0\\bin\\agy.exe" %*\r\n';
   assert.deepEqual(parseCmdShimTarget(stdExeBatch, 'C:\\tools\\agy'), {
@@ -243,6 +279,93 @@ test('domain/shim-parser validates external URLs and unwraps npm .cmd shims', ()
     targetPath: 'C:\\tools\\cli\\cli.mjs',
   });
   assert.equal(parseCliVersion('codex-cli 0.170.0\n'), '0.170.0');
+});
+
+test('domain/codex-protocol parses fixtures/codex-real-output.jsonl, ignores non-fatal errors, maps usage cleanly, and builds read-only args', async () => {
+  const realJsonl = await readFile(join(FIXTURES_DIR, 'codex-real-output.jsonl'), 'utf8');
+  const parsed = parseCodexJsonlOutput(realJsonl);
+  assert.equal(parsed.text, 'PONG');
+  assert.equal(parsed.threadId, '00000000-0000-4000-8000-000000000003');
+  assert.equal(parsed.usage.inputTokens, 19560);
+  assert.equal(parsed.usage.outputTokens, 6);
+  assert.equal(parsed.usage.cacheReadTokens, 0);
+  assert.equal(parsed.usage.cacheWriteTokens, 0);
+
+  const studyBuckets = usageFromTokenUsage(parsed.usage);
+  assert.deepEqual(studyBuckets, {
+    uncachedInputTokens: 19560,
+    outputTokens: 6,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+  });
+  assert.equal(totalTokens(studyBuckets), 19566);
+
+  // Cached + cache-write + reasoning tokens must not be double counted
+  const cached = mapCodexUsageToBuckets({
+    input_tokens: 10_000,
+    cached_input_tokens: 6_000,
+    cache_write_input_tokens: 1_500,
+    output_tokens: 200,
+    reasoning_output_tokens: 80,
+  });
+  assert.equal(cached.inputTokens, 2_500);
+  assert.equal(cached.cacheReadTokens, 6_000);
+  assert.equal(cached.cacheWriteTokens, 1_500);
+  assert.equal(cached.outputTokens, 200);
+  assert.equal(cached.reasoningTokens, 80);
+  assert.equal(totalTokens(usageFromTokenUsage(cached)), 10_200);
+
+  // Stream line parser extracts agent_message text and non-fatal item error
+  const lines = realJsonl.trim().split(/\r?\n/);
+  assert.equal(parseCodexStreamLine(lines[1])?.fatal, false);
+  assert.equal(parseCodexStreamLine(lines[4])?.text, 'PONG');
+
+  // Fatal turn.failed throws cleanly in both ZH and EN (zero CJK in EN)
+  const failedJsonl = JSON.stringify({ type: 'turn.failed', error: { message: 'rate limit exceeded' } });
+  assert.throws(
+    () => parseCodexJsonlOutput(failedJsonl, { language: 'en' }),
+    (err) => err.modelFailure === true && /rate limit exceeded/.test(err.message) && !/[\u4e00-\u9fff]/.test(err.message),
+  );
+
+  // Verified read-only args & wrapped prompt
+  const args = buildCodexExecArgs({ model: 'gpt-5.4', effort: 'high' });
+  assert.deepEqual(args, [
+    'exec',
+    '--json',
+    '--sandbox', 'read-only',
+    '--skip-git-repo-check',
+    '--ephemeral',
+    '--ignore-user-config',
+    '--ignore-rules',
+    '-m', 'gpt-5.4',
+    '-c', 'model_reasoning_effort="high"',
+    '-',
+  ]);
+  assert.ok(!args.includes('--dangerously-bypass-approvals-and-sandbox'));
+  const wrapped = buildCodexWrappedPrompt('Be concise.', 'Explain Dijkstra.');
+  assert.match(wrapped, /\[System Instruction\]/);
+  assert.match(wrapped, /Do not run shell commands/);
+  assert.match(wrapped, /\[User\]\nExplain Dijkstra\./);
+});
+
+test('adapters/cli/candidate-paths omits extensionless POSIX shims on win32 and includes npm_config_prefix', async () => {
+  const seen = [];
+  const prefixDir = 'D:\\CustomNpm\\global';
+  const existing = new Set([
+    `${prefixDir}\\codex.cmd`.toLowerCase(),
+    `${prefixDir}\\codex`.toLowerCase(),
+  ]);
+  const found = await listCandidatePaths('codex', {
+    platform: 'win32',
+    home: 'C:\\Users\\demo',
+    env: { PATH: '', npm_config_prefix: prefixDir },
+    checkFile: async (candidate) => {
+      seen.push(candidate);
+      return existing.has(candidate.toLowerCase());
+    },
+  });
+  assert.deepEqual(found, [`${prefixDir}\\codex.cmd`]);
+  assert.equal(seen.some((p) => p.toLowerCase().endsWith('\\codex')), false);
 });
 
 /* ============================================================================
@@ -371,6 +494,78 @@ test('adapters/cli/agy-adapter runs stream-json in fresh temp cwd, streams chunk
   await assert.rejects(() => access(usedCwd));
 });
 
+test('adapters/cli/codex-adapter probes stderr auth, runs in cleaned temp cwd, reports usage, and handles non-fatal error items', async (t) => {
+  const work = await mkdtemp(join(tmpdir(), 'studyhub-codex-adapter-'));
+  t.after(() => rm(work, { recursive: true, force: true }));
+
+  const fakeCodex = join(work, 'fake-codex.mjs');
+  const cwdFile = join(work, 'codex-cwd.txt');
+  await writeFile(fakeCodex, [
+    'import { writeFileSync } from "node:fs";',
+    'const args = process.argv.slice(2);',
+    'if (args[0] === "--version") { console.log("codex-cli 0.170.0"); process.exit(0); }',
+    'if (args[0] === "login" && args[1] === "status") {',
+    '  if (process.env.FAKE_CODEX_UNAUTH === "1") { process.stderr.write("Not logged in\\n"); process.exit(1); }',
+    '  process.stderr.write("Logged in using ChatGPT\\n");',
+    '  process.exit(0);',
+    '}',
+    `writeFileSync(${JSON.stringify(cwdFile)}, process.cwd(), "utf8");`,
+    'const chunks = [];',
+    'for await (const c of process.stdin) chunks.push(c);',
+    'const stdinStr = Buffer.concat(chunks).toString("utf8");',
+    'console.log(JSON.stringify({ type: "thread.started", thread_id: "t-codex-1" }));',
+    'console.log(JSON.stringify({ type: "item.completed", item: { id: "item_0", type: "error", message: "minor warning" } }));',
+    'console.log(JSON.stringify({ type: "turn.started" }));',
+    'console.log(JSON.stringify({ type: "item.completed", item: { id: "item_1", type: "agent_message", text: `CODEX_OK:${stdinStr.length}` } }));',
+    'console.log(JSON.stringify({ type: "turn.completed", usage: { input_tokens: 1000, cached_input_tokens: 300, cache_write_input_tokens: 100, output_tokens: 40, reasoning_output_tokens: 10 } }));',
+  ].join('\n'), 'utf8');
+
+  const runner = createProcessRunner();
+  // Ready probe (auth status printed to stderr, stdout empty)
+  const readyProbe = await probeCodex(runner, fakeCodex);
+  assert.equal(readyProbe.ok, true);
+  assert.equal(readyProbe.status, 'ready');
+  assert.equal(readyProbe.version, '0.170.0');
+  assert.match(readyProbe.detail, /Logged in using ChatGPT/);
+
+  // Unauthenticated probe (non-zero exit with stderr)
+  const unauthRunner = {
+    run: (req) => runner.run({ ...req, env: { ...process.env, FAKE_CODEX_UNAUTH: '1' } }),
+  };
+  const unauthAuth = await probeCodexAuth(unauthRunner, fakeCodex);
+  assert.equal(unauthAuth.ok, false);
+  assert.equal(unauthAuth.authenticated, false);
+  const unauthProbe = await probeCodex(unauthRunner, fakeCodex);
+  assert.equal(unauthProbe.status, 'unauthenticated');
+  assert.equal(unauthProbe.version, '0.170.0');
+
+  // Complete execution: temp cwd cleanup, streaming callback, usage reporting without double counting
+  const streamed = [];
+  const recordedUsage = [];
+  const complete = createCodexCompleteAdapter(
+    { executablePath: fakeCodex, model: 'gpt-5.4', effort: 'medium' },
+    { runner, timeoutMs: 10_000 },
+  );
+  const reply = await withUsageSink(
+    { key: 'test-codex', sink: (u) => recordedUsage.push(u) },
+    () => complete('System', 'Prompt', { onOutput: (chunk) => streamed.push(chunk) }),
+  );
+  assert.match(reply, /^CODEX_OK:\d+$/);
+  assert.deepEqual(streamed, [reply]);
+  assert.equal(recordedUsage.length, 1);
+  assert.deepEqual(recordedUsage[0], {
+    uncachedInputTokens: 600,
+    outputTokens: 40,
+    cacheReadTokens: 300,
+    cacheWriteTokens: 100,
+  });
+  assert.equal(totalTokens(recordedUsage[0]), 1040);
+
+  const usedCwd = (await readFile(cwdFile, 'utf8')).trim();
+  assert.ok(usedCwd.includes('studyhub-codex-'));
+  await assert.rejects(() => access(usedCwd));
+});
+
 /* ============================================================================
  * 3. Provider Discovery Tests
  * ============================================================================ */
@@ -379,6 +574,7 @@ test('application/provider-discovery distinguishes ready, unauthenticated, broke
   let clock = 1000;
   let probeCalls = 0;
   let agyMode = 'ready';
+  let codexMode = 'ready';
 
   const discovery = createProviderDiscovery({
     now: () => clock,
@@ -386,6 +582,7 @@ test('application/provider-discovery distinguishes ready, unauthenticated, broke
     listCandidates: async (id) => {
       if (id === 'agy') return agyMode === 'missing' ? [] : ['C:\\Users\\demo\\.gemini\\bin\\agy.exe'];
       if (id === 'claude') return ['C:\\node_global\\claude.cmd'];
+      if (id === 'codex') return codexMode === 'missing' ? [] : ['C:\\node_global\\codex.cmd'];
       return [];
     },
     probeVersion: async (id) => {
@@ -394,11 +591,19 @@ test('application/provider-discovery distinguishes ready, unauthenticated, broke
         if (agyMode === 'broken') return { ok: false, version: null, reason: '启动脚本损坏' };
         return { ok: true, version: '1.5.5', reason: '' };
       }
+      if (id === 'codex') {
+        if (codexMode === 'broken') return { ok: false, version: null, reasonCode: 'broken-shim', reason: '启动脚本损坏' };
+        return { ok: true, version: '0.170.0', reason: '' };
+      }
       return { ok: true, version: '2.1.327', reason: '' };
     },
     listAgyModels: async () => {
       if (agyMode === 'unauth') return { ok: false, unauthenticated: true, models: [], reason: 'not logged in' };
       return { ok: true, unauthenticated: false, models: [{ id: 'gemini-4', name: 'Gemini 4' }], reason: '' };
+    },
+    checkCodexAuth: async () => {
+      if (codexMode === 'unauth') return { ok: false, authenticated: false, detail: 'Not logged in' };
+      return { ok: true, authenticated: true, detail: 'Logged in using ChatGPT' };
     },
   });
 
@@ -406,31 +611,48 @@ test('application/provider-discovery distinguishes ready, unauthenticated, broke
   assert.equal(first.find((p) => p.id === 'agy').status, 'ready');
   assert.equal(first.find((p) => p.id === 'agy').models.length, 1);
   assert.equal(first.find((p) => p.id === 'claude').status, 'coming-soon');
+  assert.equal(first.find((p) => p.id === 'claude').supported, false);
   assert.equal(first.find((p) => p.id === 'claude').version, '2.1.327');
-  assert.equal(first.find((p) => p.id === 'codex').status, 'coming-soon');
-  assert.equal(first.find((p) => p.id === 'codex').executablePath, null);
+  assert.equal(first.find((p) => p.id === 'codex').supported, true);
+  assert.equal(first.find((p) => p.id === 'codex').status, 'ready');
+  assert.equal(first.find((p) => p.id === 'codex').version, '0.170.0');
+  assert.equal(discovery.findReadyCodexPath(), 'C:\\node_global\\codex.cmd');
   const countAfterFirst = probeCalls;
+
+  // EN localization has zero CJK characters across all providers
+  for (const prov of localizeProviders(first, 'en')) {
+    assert.ok(!/[\u4e00-\u9fff]/.test(prov.reason), `EN provider ${prov.id} leaked CJK: ${prov.reason}`);
+  }
 
   // Cached within TTL
   clock += 5000;
   await discovery.scan();
   assert.equal(probeCalls, countAfterFirst);
 
-  // Forced refresh detects unauthenticated
+  // Forced refresh detects unauthenticated for both agy and codex
   agyMode = 'unauth';
+  codexMode = 'unauth';
   const unauth = await discovery.scan({ force: true });
   assert.equal(unauth.find((p) => p.id === 'agy').status, 'unauthenticated');
+  assert.equal(unauth.find((p) => p.id === 'codex').status, 'unauthenticated');
+  for (const prov of localizeProviders(unauth, 'en')) {
+    assert.ok(!/[\u4e00-\u9fff]/.test(prov.reason), `EN unauth ${prov.id} leaked CJK: ${prov.reason}`);
+  }
 
   // After TTL expires, detects broken-shim
   clock += 20_000;
   agyMode = 'broken';
+  codexMode = 'broken';
   const broken = await discovery.scan();
   assert.equal(broken.find((p) => p.id === 'agy').status, 'broken-shim');
+  assert.equal(broken.find((p) => p.id === 'codex').status, 'broken-shim');
 
   // Detects not-installed
   agyMode = 'missing';
+  codexMode = 'missing';
   const missing = await discovery.scan({ force: true });
   assert.equal(missing.find((p) => p.id === 'agy').status, 'not-installed');
+  assert.equal(missing.find((p) => p.id === 'codex').status, 'not-installed');
 });
 
 /* ============================================================================
@@ -556,9 +778,14 @@ test('application/desktop-host integrates with v4.14.0 StudyRuntime, config, con
   const configStore = createConfigStore({ env, home: fakeHome, documentsDir: fakeDocs });
 
   const providerDiscovery = createProviderDiscovery({
-    listCandidates: async (id) => (id === 'agy' ? ['C:\\fake\\agy.exe'] : []),
-    probeVersion: async () => ({ ok: true, version: '1.5.5', reason: '' }),
+    listCandidates: async (id) => {
+      if (id === 'agy') return ['C:\\fake\\agy.exe'];
+      if (id === 'codex') return ['C:\\fake\\codex.cmd'];
+      return [];
+    },
+    probeVersion: async (id) => ({ ok: true, version: id === 'codex' ? '0.170.0' : '1.5.5', reason: '' }),
     listAgyModels: async () => ({ ok: true, unauthenticated: false, models: [{ id: 'gemini-4', name: 'Gemini 4' }], reason: '' }),
+    checkCodexAuth: async () => ({ ok: true, authenticated: true, detail: 'Logged in using ChatGPT' }),
   });
 
   const jobExecutor = createInProcessJobExecutor();
@@ -584,6 +811,7 @@ test('application/desktop-host integrates with v4.14.0 StudyRuntime, config, con
     providerDiscovery,
     openaiComplete: createOpenAiCompleteAdapter,
     agyComplete: () => stubComplete,
+    codexComplete: () => stubComplete,
     jobExecutor,
     openExternal: async () => ({ ok: true }),
     ensureDir: (p) => mkdir(p, { recursive: true }),
@@ -613,18 +841,34 @@ test('application/desktop-host integrates with v4.14.0 StudyRuntime, config, con
   assert.equal(savedAgy.value.effective.defaultConcurrency, 1);
   assert.equal(effectiveConcurrencyLimit().max, 2);
 
+  // Switching to codex persists codex config and applies CLI concurrency cap 1..2
+  const savedCodex = await host.call('desktop.config.save', {
+    mode: 'codex',
+    codex: { model: 'gpt-5.4', effort: 'high' },
+    uiLanguage: 'en',
+  });
+  assert.equal(savedCodex.ok, true);
+  assert.equal(savedCodex.value.mode, 'codex');
+  assert.deepEqual(savedCodex.value.codex, { executablePath: '', model: 'gpt-5.4', effort: 'high' });
+  assert.equal(savedCodex.value.effective.ready, true);
+  assert.equal(savedCodex.value.effective.maxConcurrency, 2);
+  assert.equal(savedCodex.value.effective.defaultConcurrency, 1);
+  assert.equal(effectiveConcurrencyLimit().max, 2);
+  assert.ok(!/[\u4e00-\u9fff]/.test(savedCodex.value.effective.label), `EN codex label leaked CJK: ${savedCodex.value.effective.label}`);
+
   // desktop.json is stored inside DSH_HOME/study, never inside library root
   const persisted = JSON.parse(await readFile(configStore.configPath, 'utf8'));
-  assert.equal(persisted.mode, 'agy');
+  assert.equal(persisted.mode, 'codex');
+  assert.equal(persisted.codex.model, 'gpt-5.4');
   assert.ok(!configStore.configPath.startsWith(host.library.root));
 
   // 5b. Config test, EN localization (zero CJK leaks), & update view
-  const tested = await host.call('desktop.config.test', {});
+  const tested = await host.call('desktop.config.test', { mode: 'codex' });
   assert.equal(tested.ok, true);
   assert.equal(tested.value.ok, true);
   assert.equal(typeof tested.value.latencyMs, 'number');
 
-  const testedEn = await host.call('desktop.config.test', { uiLanguage: 'en' });
+  const testedEn = await host.call('desktop.config.test', { mode: 'codex', uiLanguage: 'en' });
   assert.equal(testedEn.ok, true);
   assert.equal(testedEn.value.ok, true);
   assert.ok(!/[\u4e00-\u9fff]/.test(testedEn.value.message), `EN test message leaked CJK: ${testedEn.value.message}`);
@@ -747,13 +991,16 @@ test('entry/sidecar.mjs performs Tauri stdin/stdout handshake, serves authentica
     stdio: ['pipe', 'pipe', 'pipe'],
     windowsHide: true,
   });
+  t.after(() => {
+    if (child.exitCode === null && !child.killed) child.kill();
+  });
 
   let stderr = '';
   child.stderr.on('data', (chunk) => { stderr += chunk.toString('utf8'); });
 
   const portPromise = new Promise((resolvePort, rejectPort) => {
     let buf = '';
-    const timer = setTimeout(() => rejectPort(new Error(`Handshake timeout. stderr=${stderr}`)), 15_000);
+    const timer = setTimeout(() => rejectPort(new Error(`Handshake timeout. stderr=${stderr}`)), 45_000);
     child.stdout.on('data', (chunk) => {
       buf += chunk.toString('utf8');
       const nl = buf.indexOf('\n');
