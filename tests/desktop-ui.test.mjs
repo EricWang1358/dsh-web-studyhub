@@ -553,6 +553,7 @@ test('the library-place card warns about the system drive and says what a move n
   // The DSH workspace note is the one wording of that fact (DesktopLibraryNotice's), not a second sentence.
   const picked = placeCard({ binding: { libraryPlace: { confirmed: false, onSystemDrive: false }, root: 'D:\\notes\\.dsh-study', pickedRoot: 'D:\\notes' } });
   assert.match(picked, /你选的「D:\\notes」里已有 DSH 插件的学习库/);
+  assert.doesNotMatch(picked, /在 DSH 里用过 StudyHub/, 'a learner already on the DSH workspace is not told to go and pick it');
   assert.doesNotMatch(placeCard({ binding: { libraryPlace: { confirmed: false, onSystemDrive: false } } }), /你选的/);
 });
 

@@ -1045,11 +1045,12 @@ test('application/desktop-host: an existing install is still to confirm, confirm
   });
   const stub = async () => 'OK';
   let codexAuth = { ok: true, authenticated: true, authMethod: 'account', detail: 'Logged in using ChatGPT' };
+  let codexAuthCalls = 0;
   const providerDiscovery = createProviderDiscovery({
     listCandidates: async (id) => (id === 'codex' ? ['C:\\fake\\codex.cmd'] : []),
     probeVersion: async () => ({ ok: true, version: '0.170.0', reason: '' }),
     listAgyModels: async () => ({ ok: true, unauthenticated: false, models: [], reason: '' }),
-    checkCodexAuth: async () => codexAuth,
+    checkCodexAuth: async () => { codexAuthCalls += 1; return codexAuth; },
     ttlMs: 0,
   });
   const start = async (store) => {
@@ -1088,9 +1089,17 @@ test('application/desktop-host: an existing install is still to confirm, confirm
   // codex: how it is signed in decides what the note may say.
   await host.call('desktop.config.save', { mode: 'codex', codex: { model: 'gpt-5.4' } });
   assert.deepEqual((await host.call('binding.get')).value.modelVia, { kind: 'cli', name: 'Codex CLI', billing: 'account' });
+  // The binding is read at every start and after every folder change: it uses the last scan and does not ask the CLI again.
+  const asked = codexAuthCalls;
+  await host.call('binding.get');
+  await host.call('desktop.library.confirm', {});
+  assert.equal(codexAuthCalls, asked, 'reading the binding does not probe codex again');
+  // A new scan (Settings does one; 重新扫描 forces one) is what notices a changed login.
   codexAuth = { ok: true, authenticated: true, authMethod: 'api-key', detail: 'Logged in using an API key' };
+  await host.call('desktop.providers.scan', { force: true });
   assert.deepEqual((await host.call('binding.get')).value.modelVia, { kind: 'cli', name: 'Codex CLI', billing: 'per-use' }, 'a codex signed in with an API key is billed per use');
   codexAuth = { ok: true, authenticated: true, detail: 'Logged in' };
+  await host.call('desktop.providers.scan', { force: true });
   assert.equal((await host.call('binding.get')).value.modelVia.billing, 'unknown', 'a login that names no method promises nothing');
   assert.equal(JSON.stringify((await host.call('binding.get')).value).includes('sk-'), false, 'no key text in the binding');
 });

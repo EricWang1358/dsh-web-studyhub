@@ -47,7 +47,8 @@ export default function DesktopLibraryPlace({ data }) {
     <Panel tone="paper" density="compact" title={ui('先确认学习库放在哪')} className="desktop-library-place" data-desktop-library-place="">
       <p>{ui('资料、题组和复习记录都存在这个文件夹：')}<code translate="no">{binding.root}</code></p>
       <WorkspaceNote binding={binding} />
-      <p>{ui('在 DSH 里用过 StudyHub？选那个工作区文件夹，原来的题组和记录都会出现。')}</p>
+      {/* Said only while it can still help: a learner already on the DSH workspace reads the note above instead. */}
+      {!(binding.pickedRoot && binding.pickedRoot !== binding.root) && <p>{ui('在 DSH 里用过 StudyHub？选那个工作区文件夹，原来的题组和记录都会出现。')}</p>}
       {onSystem && (
         <InlineMessage tone="warning" data-desktop-library-system-drive="">
           {uiFormat('它在系统盘（{0}）。学习库会越用越大，建议放到其他盘。', [driveOf(binding.root)])}

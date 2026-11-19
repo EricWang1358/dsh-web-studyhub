@@ -85,8 +85,10 @@ function buildConfigResponse({ config, providers, configPath, keyDropped, langua
 
 async function buildBindingView({ ctx, state, route, systemDrive, providerDiscovery }) {
   const status = await modelStatus(ctx, route);
-  // Only a codex model needs discovery here (how it is signed in decides what it costs); the others never wait for a probe.
-  const providers = state.config.mode === 'codex' ? await providerDiscovery.scan({ force: false }).catch(() => []) : [];
+  // Only a codex model needs discovery here (how it is signed in decides what it costs), and the last scan answers it however old it is: this view
+  // is read at every start and after every folder change, which must not wait for the CLI each time. Only a process with no scan yet waits, once.
+  const known = state.config.mode === 'codex' ? providerDiscovery.getCached() : [];
+  const providers = state.config.mode === 'codex' && !known.length ? await providerDiscovery.scan({ force: false }).catch(() => []) : known;
   return {
     root: state.library.root,
     // The folder that was asked for: the same as `root`, unless the library is the DSH plugin's `.dsh-study` inside it.
