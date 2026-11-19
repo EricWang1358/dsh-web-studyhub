@@ -10,7 +10,7 @@ export default function DesktopLibraryNotice({ binding }) {
   const problem = binding?.libraryProblem;
   const problemText = problem?.message || problem?.reason || '';
   return (
-    <div className="desktop-library-notice">
+    <div className="desktop-library-note">
       {problemText && (
         <InlineMessage tone="warning" data-desktop-library-problem="">
           {problemText}

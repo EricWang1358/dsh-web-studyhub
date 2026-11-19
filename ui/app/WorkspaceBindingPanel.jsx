@@ -5,6 +5,7 @@ import LibraryUsage from '../LibraryUsage.jsx';
 import ReasoningEffortField from '../ReasoningEffortField.jsx';
 import { AppContext } from './app-context.js';
 import { hostPart } from '../host-parts.js';
+import { libraryPinnedByEnv } from './binding-notice.js';
 
 /* Which folder the library lives in and which model makes the questions: the panel on the empty start page and in Settings.
    The folder and model drafts (the typed-in alternatives to the picker) are its own; everything else is the app's binding.
@@ -38,7 +39,7 @@ function Binding({ app }) {
       core.notify(ui('无法打开目录选择器，请直接输入路径。'));
     }
   }
-  const configLabel = host?.capabilities?.edition === 'desktop' ? ui('环境变量指定') : ui('插件配置指定');
+  const configLabel = host?.capabilities?.edition === 'desktop' ? ui('环境变量指定') : ui('插件配置指定'), pinned = libraryPinnedByEnv(binding, host);
   const where = binding.rootSource === 'default' ? ui('默认位置') : binding.rootSource === 'workspace' ? ui('当前工作区') : binding.rootSource === 'config' ? configLabel : ui('自定义目录');
   const modelNote = binding.modelSource === 'session'
     ? ui('与主会话输入框里选的模型一致，切换后自动生效。生成时所选资料会发送给该模型；复习不调用模型。')
@@ -50,11 +51,12 @@ function Binding({ app }) {
           <span className="binding-label">{ui('学习库')}</span>
           <code className="binding-value" title={binding.root}>{binding.root || '—'}</code>
           <small>{uiFormat('{0} · {1}', [where, ui('资料、题库与复习记录保存在这里')])}</small>
+          {pinned && <small data-library-pinned="">{ui('目录由环境变量 STUDYHUB_LIBRARY 决定；去掉这个变量并重新打开 StudyHub 后，才能在这里更换。')}</small>}
           <LibraryUsage root={binding.root} active={!!data} />
           {hostPart('LibraryNotice') && React.createElement(hostPart('LibraryNotice'), { binding })}
         </div>
         <div className="binding-actions">
-          <Button onClick={chooseRoot} lock={busy}>{ui('更换目录…')}</Button>
+          <Button onClick={chooseRoot} lock={busy} disabled={pinned}>{ui('更换目录…')}</Button>
           {binding.rootSource === 'custom' && <Button lock={busy} onClick={() => updateBinding({ root: '' })}>{binding.defaultRoot ? ui('改回默认位置') : ui('改回当前工作区')}</Button>}
         </div>
       </div>

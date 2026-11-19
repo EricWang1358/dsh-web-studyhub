@@ -90,6 +90,29 @@ export function spawnDetached(command, args = []) {
   child.unref?.();
 }
 
+/**
+ * Start a detached program with one prepared, verbatim argument line (`windowsVerbatimArguments`), still with `shell: false`.
+ * The line is built and checked by `domain/terminal-command.js`; the only caller is `adapters/os/open-terminal.mjs`.
+ * Resolves once the program has started and rejects when it could not be started.
+ */
+export function spawnVerbatimDetached(command, argumentLine, { cwd } = {}) {
+  return new Promise((resolveStarted, rejectStarted) => {
+    const child = spawn(command, [argumentLine], {
+      cwd,
+      detached: true,
+      stdio: 'ignore',
+      shell: false,
+      windowsHide: true,
+      windowsVerbatimArguments: true,
+    });
+    child.once('error', rejectStarted);
+    child.once('spawn', () => {
+      child.unref?.();
+      resolveStarted();
+    });
+  });
+}
+
 function createOutputCollector(maxBytes, onLine) {
   const chunks = [];
   let collected = 0;

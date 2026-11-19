@@ -9,6 +9,7 @@ import {
   redactDesktopConfig,
   resolveEffectiveModel,
 } from '../domain/config-policy.js';
+import { cliLaunchRequest } from '../domain/terminal-command.js';
 import { createDesktopCompletePort } from './complete-port.js';
 import { localizeProviders } from './provider-discovery.js';
 import { desktopUpdateView } from './update-view.js';
@@ -101,7 +102,7 @@ async function buildBindingView({ ctx, state, route }) {
 const langOf = (args) => (args?.uiLanguage === 'en' ? 'en' : 'zh');
 
 function createDesktopActionHandlers(deps) {
-  const { configStore, providerDiscovery, completePort, openExternal, getState, reloadState, getRoute, ctx, forward } = deps;
+  const { configStore, providerDiscovery, completePort, openExternal, openCliTerminal, getState, reloadState, getRoute, ctx, forward } = deps;
   return {
     'desktop.config.get': async (args) => {
       const providers = await providerDiscovery.scan({ force: false });
@@ -128,13 +129,27 @@ function createDesktopActionHandlers(deps) {
       await openExternal(args?.url);
       return { ok: true };
     },
+    // Only the CLI's name is read from the page: the program is the one discovery found ready, the folder is the library.
+    'desktop.cli.open': async (args) => {
+      const request = cliLaunchRequest(await providerDiscovery.scan({ force: false }), args?.provider, getState().library.root);
+      await openCliTerminal(request);
+      return { ok: true, provider: args.provider, cwd: request.cwd };
+    },
     'binding.get': () => buildBindingView({ ctx, state: getState(), route: getRoute() || null }),
     'binding.set': async (args) => {
-      if (typeof args?.root === 'string') await configStore.saveLibraryRoot(args.root);
-      if (typeof args?.reasoningEffort === 'string') {
-        await configStore.save({ ...getState().config, reasoningEffort: args.reasoningEffort.trim() });
+      // getState().config still holds the folder from before this call, so the folder just saved
+      // has to be carried into the second write or it would be put back.
+      try {
+        const libraryRoot = typeof args?.root === 'string'
+          ? await configStore.saveLibraryRoot(args.root)
+          : getState().config.libraryRoot;
+        if (typeof args?.reasoningEffort === 'string') {
+          await configStore.save({ ...getState().config, libraryRoot, reasoningEffort: args.reasoningEffort.trim() });
+        }
+      } finally {
+        // Also after a failed second write: the folder may already be saved, and the state in memory has to match the file.
+        await reloadState();
       }
-      await reloadState();
       return buildBindingView({ ctx, state: getState(), route: getRoute() || null });
     },
     'update.check': async (args) => {
@@ -163,7 +178,17 @@ function buildEffectiveResolver({ getConfig, providerDiscovery, injectedComplete
   };
 }
 
+async function terminalUnavailable() {
+  throw Object.assign(new Error('当前系统暂不支持自动打开命令行'), { code: 'terminal-unsupported' });
+}
+
 const DESKTOP_ERROR_EN = Object.freeze({
+  'invalid-cli': 'This local CLI cannot be opened',
+  'cli-not-ready': 'This local CLI is not ready yet; select Rescan first',
+  'terminal-unsupported': 'Opening a command-line window is not supported on this system yet',
+  'terminal-path-unsafe': 'A path has special characters or is not on a local drive, so the command-line window was not opened. Open a command line yourself, go to the library folder and run the CLI there',
+  'terminal-launch-failed': 'Could not open a command-line window',
+  BROKEN_SHIM: 'The launch script of this CLI is broken or its target file is missing',
   'invalid-config': 'Configuration payload must be an object',
   'invalid-mode': 'Unsupported model provider mode',
   'invalid-effort': 'Invalid reasoning effort value',
@@ -219,6 +244,7 @@ export async function createDesktopHost({
   codexComplete = null,
   jobExecutor,
   openExternal,
+  openCliTerminal = terminalUnavailable,
   ensureDir,
   injectedComplete = null,
 }) {
@@ -264,7 +290,7 @@ export async function createDesktopHost({
   }
 
   const desktopHandlers = createDesktopActionHandlers({
-    configStore, providerDiscovery, completePort, openExternal,
+    configStore, providerDiscovery, completePort, openExternal, openCliTerminal,
     getState: () => state, reloadState, getRoute, ctx, forward,
   });
   const call = createCallDispatcher(desktopHandlers, forward);

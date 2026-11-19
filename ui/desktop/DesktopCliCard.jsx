@@ -107,7 +107,7 @@ function CliTestResult({ result }) {
   return <InlineMessage tone={result.ok ? 'success' : 'error'}>{text}</InlineMessage>;
 }
 
-function CliActionBar({ providerId, active, dirty, working, onActivate, onTest, onScan }) {
+function CliActionBar({ providerId, active, dirty, working, onActivate, onTest, onRescan }) {
   const locked = Boolean(working);
   const saveTag = `save-${providerId}`;
   const testTag = `test-${providerId}`;
@@ -123,9 +123,33 @@ function CliActionBar({ providerId, active, dirty, working, onActivate, onTest, 
       <Button variant="secondary" busy={working === testTag} lock={locked && working !== testTag} onClick={onTest}>
         {ui('测试连通')}
       </Button>
-      <Button variant="quiet" busy={working === 'scan'} lock={locked && working !== 'scan'} onClick={onScan}>
+      <Button variant="quiet" busy={working === 'scan'} lock={locked && working !== 'scan'} onClick={onRescan}>
         {ui('重新扫描')}
       </Button>
+    </div>
+  );
+}
+
+/* 「在学习库里打开 CLI」: the desktop edition has no main chat, so the local CLI in a command-line window of its own is the chat beside StudyHub.
+   Settings only (the first-run and gate cards stay short). The page sends the CLI's name; the program and the folder are the backend's to decide. */
+function CliChatRow({ provider, working, openCli }) {
+  const [opened, setOpened] = useState(false);
+  const tag = `open-${provider.id}`;
+  const open = async () => {
+    setOpened(false);
+    if (await openCli(provider.id)) setOpened(true);
+  };
+  return (
+    <div className="desktop-cli__chat" data-desktop-cli-open={provider.id}>
+      <div className="desktop-model__actions">
+        <Button variant="secondary" icon="external" busy={working === tag} lock={Boolean(working) && working !== tag} onClick={open}>
+          {uiFormat('在学习库里打开 {0}', [provider.id])}
+        </Button>
+      </div>
+      <Hint>
+        {ui('另开一个命令行窗口和它对话，可以和 StudyHub 左右并排（Win + ← / →）。它能直接读写学习库里的文件，这些改动不经过 StudyHub 的检查。')}
+      </Hint>
+      {opened && <InlineMessage tone="success">{uiFormat('已在学习库目录打开 {0}，在新窗口里和它对话。', [provider.id])}</InlineMessage>}
     </div>
   );
 }
@@ -230,14 +254,15 @@ function ReadyCliCard({ readyProviders, otherProviders, mode, configs, actions, 
         onSelect={setSelectedId} locked={Boolean(working)} />
       {!compact && <CliControls provider={selected} draft={draft} setDraft={setDraft} locked={Boolean(working)} />}
       <CliActionBar providerId={selected.id} active={active} dirty={dirty} working={working}
-        onActivate={activate} onTest={testCli} onScan={actions.scan} />
+        onActivate={activate} onTest={testCli} onRescan={actions.scan} />
       <CliTestResult result={testResults[selected.id]} />
+      {!compact && <CliChatRow key={selected.id} provider={selected} working={working} openCli={actions.openCli} />}
       <ReadyCliFooter compact={compact} otherProviders={otherProviders} />
     </ProviderCard>
   );
 }
 
-function QuietCliStrip({ providers, onScan, working }) {
+function QuietCliStrip({ providers, onRescan, working }) {
   const [open, setOpen] = useState(false);
   const locked = Boolean(working);
   return (
@@ -251,7 +276,7 @@ function QuietCliStrip({ providers, onScan, working }) {
       <div className="desktop-cli-strip__body">
         {providers.map((item) => <ProviderStatusRow key={item.id} provider={item} />)}
         <div className="desktop-model__actions">
-          <Button size="sm" variant="secondary" busy={working === 'scan'} lock={locked && working !== 'scan'} onClick={onScan}>
+          <Button size="sm" variant="secondary" busy={working === 'scan'} lock={locked && working !== 'scan'} onClick={onRescan}>
             {ui('重新扫描本机 CLI')}
           </Button>
         </div>
@@ -271,5 +296,5 @@ export default function DesktopCliCard({ providers = [], mode, agy, codex, actio
         configs={cliConfigMap({ agy, codex })} actions={actions} working={working} compact={compact} />
     );
   }
-  return <QuietCliStrip providers={providers} onScan={actions.scan} working={working} />;
+  return <QuietCliStrip providers={providers} onRescan={actions.scan} working={working} />;
 }

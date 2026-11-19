@@ -11,6 +11,7 @@ import { createProcessRunner } from '../adapters/cli/process-runner.mjs';
 import { startLocalServer } from '../adapters/http/local-server.mjs';
 import { createOpenAiCompleteAdapter } from '../adapters/http/openai-adapter.mjs';
 import { openExternalUrl } from '../adapters/os/open-external.mjs';
+import { openCliTerminal } from '../adapters/os/open-terminal.mjs';
 import { createInProcessJobExecutor } from '../adapters/runtime/job-executor.mjs';
 import { createConfigStore } from '../adapters/storage/config-store.mjs';
 
@@ -124,6 +125,7 @@ export async function composeDesktopSidecar({
     codexComplete: (config, opts) => createCodexCompleteAdapter(config, { ...opts, runner }),
     jobExecutor,
     openExternal: (url) => openExternalUrl(url),
+    openCliTerminal: (request) => openCliTerminal(request, { env }),
     ensureDir: (dirPath) => mkdir(dirPath, { recursive: true }),
     injectedComplete,
   });

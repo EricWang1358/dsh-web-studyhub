@@ -63,22 +63,6 @@ function OpenAiBadges({ chosen, active, hasKey }) {
   );
 }
 
-function EndpointSaveActions({ show, active, dirty, working, incomplete, onReset }) {
-  if (!show) return null;
-  return (
-    <div className="desktop-model__actions">
-      <Button type="submit" variant="primary" busy={working === 'save-openai'} disabled={incomplete}>
-        {active ? ui('保存接口和模型') : ui('切换并使用 API Key')}
-      </Button>
-      {dirty && (
-        <Button variant="quiet" lock={Boolean(working)} onClick={onReset}>
-          {ui('取消')}
-        </Button>
-      )}
-    </div>
-  );
-}
-
 function isOpenAiDirty(draft, openai) {
   return draft.baseUrl !== (openai?.baseUrl || '') || draft.model !== (openai?.model || '');
 }
@@ -116,6 +100,7 @@ export default function DesktopOpenAiForm({ openai, active, actions, working, co
     setDraft(picked ? { baseUrl: picked.baseUrl, model: picked.model } : { baseUrl: '', model: '' });
   };
 
+  const resetDraft = () => setDraft(initialOpenAiDraft(openai));
   const saveEndpoint = async (event) => {
     event.preventDefault();
     if (state.incomplete || working) return;
@@ -132,8 +117,15 @@ export default function DesktopOpenAiForm({ openai, active, actions, working, co
           <Select value={state.preset} options={providerOptions()} onChange={choosePreset} />
         </Field>
         <EndpointFields preset={state.preset} chosen={state.chosen} draft={draft} setDraft={setDraft} hasKey={state.hasKey} />
-        <EndpointSaveActions show={state.showSaveActions} active={active} dirty={state.dirty} working={working}
-          incomplete={state.incomplete} onReset={() => setDraft(initialOpenAiDraft(openai))} />
+        {/* The submit stands inside its form in this file, so the icon gate reads what it does from the form's onSubmit (tests/helpers/go-on.mjs). */}
+        {state.showSaveActions && (
+          <div className="desktop-model__actions">
+            <Button type="submit" variant="primary" busy={working === 'save-openai'} disabled={state.incomplete}>
+              {active ? ui('保存接口和模型') : ui('切换并使用 API Key')}
+            </Button>
+            {state.dirty && <Button variant="quiet" lock={Boolean(working)} onClick={resetDraft}>{ui('取消')}</Button>}
+          </div>
+        )}
       </form>
       <span className="sh-field__label" aria-hidden="true">{ui('API Key')}</span>
       <SecretKeyForm name="desktop-openai-key" label={ui('API Key')} placeholder={ui('粘贴服务商的 API Key')}

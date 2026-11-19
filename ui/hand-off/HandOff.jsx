@@ -26,10 +26,21 @@ export function HandOffButton({ shape = 'link', size = 'sm', what = '', label = 
   const canChat = hasChatHost(host);
   const effectiveLabel = !canChat && label === HAND_OFF_LABEL ? COPY_PROMPT_LABEL : label;
   const variant = VARIANT[shape] || 'link', text = ui(effectiveLabel);
-  const button = shape === 'icon'
-    ? <Button variant={variant} size={size} icon={canChat ? 'chat' : 'copy'} className="sh-btn--icon sh-handoff__btn" data-tour="hand-off" aria-label={text} aria-busy={busy || undefined} disabled={disabled || busy} onClick={onClick} {...rest} />
-    : <Button variant={variant} size={size} icon={canChat ? 'external' : 'copy'} className="sh-handoff__btn" data-tour="hand-off" aria-busy={busy || undefined} disabled={disabled || busy} onClick={onClick} {...rest}>{text}</Button>;
+  const chatButton = shape === 'icon'
+    ? <Button variant={variant} size={size} icon="chat" className="sh-btn--icon sh-handoff__btn" data-tour="hand-off" aria-label={text} aria-busy={busy || undefined} disabled={disabled || busy} onClick={onClick} {...rest} />
+    : <Button variant={variant} size={size} icon="external" className="sh-handoff__btn" data-tour="hand-off" aria-busy={busy || undefined} disabled={disabled || busy} onClick={onClick} {...rest}>{text}</Button>;
+  const waiting = { 'aria-busy': busy || undefined, disabled: disabled || busy };
+  const button = canChat ? chatButton : <CopyPromptButton iconOnly={shape === 'icon'} variant={variant} size={size} text={text} onClick={onClick} rest={{ ...waiting, ...rest }} />;
   return <Tooltip layer content={handOffTip(what, canChat)} anchorClassName={anchorClassName}>{button}</Tooltip>;
+}
+
+/* A host with no main chat (the desktop edition) has no window to hand anything to: the same control copies the prompt and the learner stays,
+   so it draws the copy glyph, never the mark of a window outside or the chat glyph. */
+function CopyPromptButton({ iconOnly, variant, size, text, onClick, rest }) {
+  return (
+    <Button variant={variant} size={size} icon="copy" className={iconOnly ? 'sh-btn--icon sh-handoff__btn' : 'sh-handoff__btn'} data-tour="hand-off"
+      aria-label={iconOnly ? text : undefined} onClick={onClick} {...rest}>{iconOnly ? null : text}</Button>
+  );
 }
 
 /**

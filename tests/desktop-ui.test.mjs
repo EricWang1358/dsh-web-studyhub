@@ -6,9 +6,11 @@ import { loadUi } from './helpers/ui-module.mjs';
 
 const h = React.createElement;
 const m = await loadUi(`
-  export { DESKTOP_PARTS } from './ui/desktop/parts.jsx';
+  export { DESKTOP_PARTS, desktopGuideUrl } from './ui/desktop/parts.jsx';
   export { default as DesktopCliCard } from './ui/desktop/DesktopCliCard.jsx';
-  export { createDesktopConfigActions } from './ui/desktop/DesktopModelSetup.jsx';
+  export { createDesktopConfigActions, DesktopSetupBody } from './ui/desktop/DesktopModelSetup.jsx';
+  export { recheckSentence } from './ui/first-run/recheck.js';
+  export { normalizeAppearance } from './ui/appearance-prefs.js';
   export { default as DesktopOpenAiForm } from './ui/desktop/DesktopOpenAiForm.jsx';
   export { default as DesktopLibraryNotice } from './ui/desktop/DesktopLibraryNotice.jsx';
   export { default as DesktopUpgradeGuide } from './ui/desktop/DesktopUpgradeGuide.jsx';
@@ -25,6 +27,7 @@ const m = await loadUi(`
   export { default as GuidancePane } from './ui/settings/GuidancePane.jsx';
   export { GenerationSettingsForm } from './ui/GenerationSettings.jsx';
   export { default as WorkspaceBindingPanel } from './ui/app/WorkspaceBindingPanel.jsx';
+  export { bindingNotice } from './ui/app/binding-notice.js';
   export { UpdateSettings } from './ui/UpdateCenter.jsx';
   export { DiagnosticBar } from './ui/install/DiagnosticActions.jsx';
   export { availableTourSteps, TOUR_STEPS } from './ui/tour/steps.js';
@@ -46,9 +49,50 @@ const render = (node, language = 'zh') => {
   try { return renderToStaticMarkup(node); } finally { m.setUiLanguage('zh'); }
 };
 
-test('DESKTOP_PARTS exposes all 6 host-part slots and renders upgrade & library notices cleanly in zh and en', () => {
+const READY_AGY = { id: 'agy', name: 'Antigravity CLI (agy)', supported: true, status: 'ready', executablePath: 'C:\\agy.exe', version: '1.5.12', reason: '' };
+const READY_CODEX = { id: 'codex', name: 'Codex CLI', supported: true, status: 'ready', executablePath: 'C:\\codex.cmd', version: '0.170.0', reason: '' };
+const setupConfig = (providers) => ({ mode: 'openai', openai: { providerId: 'deepseek', baseUrl: '', model: '', hasKey: false, keyLast4: '' }, agy: {}, codex: {}, providers });
+const setupBody = (props) => render(h(m.DesktopSetupBody, { actions: { saveCli: () => {}, testCli: () => {}, scan: () => {} }, working: '', error: '', onDismissError: () => {}, compact: true, ...props }));
+
+test('the first-run step offers the detected local CLI alone: one card with 一键启用, no API Key form, nothing when no CLI is ready', () => {
+  assert.equal(typeof m.DESKTOP_PARTS.ModelQuickEnable, 'function');
+  const quick = setupBody({ config: setupConfig([READY_AGY, READY_CODEX]), quick: true });
+  assert.match(quick, /data-desktop-cli-card="ready"/);
+  assert.match(quick, /一键启用本机 agy/);
+  assert.match(quick, /data-desktop-cli-switcher/, 'two ready CLIs can be told apart right there');
+  assert.doesNotMatch(quick, /data-desktop-openai-card/, 'the API Key form stays in the settings');
+  assert.equal(setupBody({ config: setupConfig([{ ...READY_AGY, status: 'not-installed' }]), quick: true }), '', 'no ready CLI: the step keeps its link to the settings and draws nothing more');
+  // The gate before a model step keeps both ways, as before.
+  assert.match(setupBody({ config: setupConfig([READY_AGY]) }), /data-desktop-openai-card/);
+});
+
+test('重新检查 on the desktop says where a model is set up here (the settings), not DSH', () => {
+  assert.match(m.recheckSentence('still'), /在 DSH 里配好后/);
+  m.registerHostParts({ recheckNote: m.DESKTOP_PARTS.recheckNote });
+  try {
+    const zh = m.recheckSentence('still');
+    assert.match(zh, /^已重新检查，还没有读到可用的模型。/);
+    assert.match(zh, /一键启用本机 CLI/);
+    assert.doesNotMatch(zh, /DSH/);
+    assert.equal(m.recheckSentence('failed'), '没能重新检查。再点一次「重新检查」试试。', 'a failed read says the same everywhere');
+    m.setUiLanguage('en');
+    try { assert.doesNotMatch(m.recheckSentence('still'), /[㐀-鿿]|DSH/); } finally { m.setUiLanguage('zh'); }
+  } finally { m.registerHostParts({ recheckNote: undefined }); }
+});
+
+test('the desktop makes 跟随窗口 the default 界面大小; a chosen percent still wins and DSH keeps 100%', () => {
+  assert.deepEqual({ ...m.DESKTOP_PARTS.appearanceDefaults }, { scale: 'auto' });
+  assert.equal(m.normalizeAppearance(null).scale, 100);
+  m.registerHostParts({ appearanceDefaults: m.DESKTOP_PARTS.appearanceDefaults });
+  try {
+    assert.equal(m.normalizeAppearance(null).scale, 'auto');
+    assert.equal(m.normalizeAppearance({ scale: 110 }).scale, 110);
+  } finally { m.registerHostParts({ appearanceDefaults: undefined }); }
+});
+
+test('DESKTOP_PARTS exposes its host-part slots and renders upgrade & library notices cleanly in zh and en', () => {
   assert.deepEqual(Object.keys(m.DESKTOP_PARTS).sort(), [
-    'LibraryNotice', 'ModelGateForm', 'ModelSetup', 'UpgradeGuide', 'modelFact', 'modelSetupSteps', 'runningNote',
+    'LibraryNotice', 'ModelGateForm', 'ModelQuickEnable', 'ModelSetup', 'UpgradeGuide', 'appearanceDefaults', 'modelFact', 'modelSetupSteps', 'recheckNote', 'runningNote',
   ]);
   const upgradeZh = render(h(m.DesktopUpgradeGuide, { update: { assetUrl: 'https://example.com/StudyHub.msi', assetName: 'StudyHub.msi' } }), 'zh');
   assert.match(upgradeZh, /SmartScreen/);
@@ -169,6 +213,39 @@ test('DesktopCliCard renders primary ready card when agy or codex is ready, dual
   assert.match(quietHtml, /agy \/ codex/);
 });
 
+test('Settings offers 「在学习库里打开 CLI」 for the ready local CLI; the short first-run and gate cards do not, and the page sends only the CLI name', async () => {
+  const noopActions = { saveCli: () => {}, testCli: () => {}, scan: () => {}, openCli: () => {} };
+  const providers = [
+    { id: 'agy', name: 'Antigravity CLI (agy)', supported: true, status: 'ready', executablePath: 'C:\\agy.exe', version: '1.5.12', reason: '' },
+  ];
+  const card = (props, language) => render(h(m.DesktopCliCard, { providers, mode: 'openai', agy: {}, codex: {}, actions: noopActions, working: '', ...props }), language);
+
+  const settings = card({});
+  assert.match(settings, /data-desktop-cli-open="agy"/);
+  assert.match(settings, /在学习库里打开 agy/);
+  assert.match(settings, /不经过 StudyHub 的检查/, 'says plainly that the CLI can change library files directly');
+  assert.doesNotMatch(card({ compact: true }), /data-desktop-cli-open/, 'the compact card (first run, model gate) stays short');
+  const english = card({}, 'en');
+  assert.match(english, /Open agy in the library/);
+  assert.doesNotMatch(english.replace(/Antigravity CLI \(agy\)/g, ''), /[㐀-鿿]/, 'the English card has no untranslated text');
+
+  const calls = [];
+  const errors = [];
+  const actions = m.createDesktopConfigActions({
+    call: async (action, args) => { calls.push({ action, args }); return { ok: true, provider: args.provider, cwd: 'D:\\Study' }; },
+    refresh: async () => {}, setConfig: () => {}, setError: (text) => errors.push(text), setWorking: () => {},
+  });
+  assert.deepEqual(await actions.openCli('codex'), { ok: true, provider: 'codex', cwd: 'D:\\Study' });
+  assert.deepEqual(calls, [{ action: 'desktop.cli.open', args: { provider: 'codex' } }]);
+
+  const failing = m.createDesktopConfigActions({
+    call: async () => { throw new Error('路径里有特殊字符'); },
+    refresh: async () => {}, setConfig: () => {}, setError: (text) => errors.push(text), setWorking: () => {},
+  });
+  assert.equal(await failing.openCli('agy'), null);
+  assert.equal(errors.at(-1), '路径里有特殊字符', 'a refusal is shown where the other setup errors are');
+});
+
 test('createDesktopConfigActions saves & tests codex mode and syncs effective concurrency cap cleanly', async (t) => {
   t.after(() => {
     m.syncDesktopConcurrency(null);
@@ -230,6 +307,24 @@ test('createDesktopConfigActions saves & tests codex mode and syncs effective co
     assert.doesNotMatch(stepText, /[㐀-鿿]/, 'English modelSetupSteps has zero untranslated Han text');
   } finally {
     m.setUiLanguage('zh');
+  }
+});
+
+test('the desktop guide link follows the UI language and lands on a heading the guide really has', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const githubAnchor = (heading) => heading.trim().toLowerCase().replace(/[^\p{L}\p{N} -]/gu, '').replace(/ /g, '-');
+  for (const [language, file] of [['zh', 'desktop.zh-CN.md'], ['en', 'desktop.md']]) {
+    m.setUiLanguage(language);
+    try {
+      const url = new URL(m.desktopGuideUrl());
+      assert.equal(url.pathname, `/EricWang1358/dsh-web-studyhub/blob/main/docs/${file}`, `${language} opens its own guide`);
+      const guide = await readFile(new URL(`../docs/${file}`, import.meta.url), 'utf8');
+      const anchors = guide.split(/\r?\n/).filter((line) => /^#{1,6} /.test(line)).map((line) => githubAnchor(line.replace(/^#+ /, '')));
+      assert.ok(url.hash.length > 1, `${language} lands on the model section, not the top of the guide`);
+      assert.ok(anchors.includes(decodeURIComponent(url.hash.slice(1))), `${file} has the heading ${decodeURIComponent(url.hash)}`);
+      const hint = renderToStaticMarkup(m.DESKTOP_PARTS.modelSetupSteps()[0].hint);
+      assert.ok(hint.includes(`href="${m.desktopGuideUrl()}"`), 'step 1 links to that address');
+    } finally { m.setUiLanguage('zh'); }
   }
 });
 
@@ -364,6 +459,24 @@ test('chat: false degradation cleanly updates HandOff, GuidancePane, DiagnosticB
   const desktopBinding = render(h(m.AppContext.Provider, { value: fakeApp(DESKTOP_HOST) }, h(m.WorkspaceBindingPanel)));
   assert.match(desktopBinding, /环境变量指定/);
   assert.doesNotMatch(desktopBinding, /插件配置指定/);
+  // While STUDYHUB_LIBRARY decides the folder, a pick here cannot apply: the button is off and the row says what to do.
+  const changeButton = (markup) => markup.match(/<button[^>]*>(?:(?!<\/button>).)*更换目录…/s)?.[0] || '';
+  assert.match(changeButton(desktopBinding), /disabled/);
+  assert.match(desktopBinding, /STUDYHUB_LIBRARY/);
+  const custom = fakeApp(DESKTOP_HOST);
+  custom.connection.binding.rootSource = 'custom';
+  const customBinding = render(h(m.AppContext.Provider, { value: custom }, h(m.WorkspaceBindingPanel)));
+  assert.doesNotMatch(changeButton(customBinding), /disabled/);
+  assert.doesNotMatch(customBinding, /STUDYHUB_LIBRARY/);
+  assert.doesNotMatch(changeButton(render(h(m.AppContext.Provider, { value: fakeApp(DSH_HOST) }, h(m.WorkspaceBindingPanel)))), /disabled/, 'DSH keeps its own rule');
+
+  // What a saved binding change says: a folder that was asked for and did not move never reads 已更新生成模型.
+  assert.equal(m.bindingNotice({ patch: { root: 'D:\\lib' }, moved: true, value: { rootSource: 'custom' }, host: DESKTOP_HOST }), '已切换学习库');
+  assert.match(m.bindingNotice({ patch: { root: 'D:\\lib' }, moved: false, value: { rootSource: 'config' }, host: DESKTOP_HOST }), /STUDYHUB_LIBRARY.*没有生效/);
+  assert.equal(m.bindingNotice({ patch: { root: 'D:\\lib' }, moved: false, value: { rootSource: 'custom' }, host: DESKTOP_HOST }), '学习库目录没有变化。');
+  assert.equal(m.bindingNotice({ patch: { root: '/lib' }, moved: false, value: { rootSource: 'config' }, host: DSH_HOST }), '学习库目录没有变化。');
+  assert.equal(m.bindingNotice({ patch: { reasoningEffort: 'high' }, moved: false, value: {}, host: DSH_HOST }), '已更新推理程度');
+  assert.equal(m.bindingNotice({ patch: { provider: 'p', model: 'm' }, moved: false, value: {}, host: DSH_HOST }), '已更新生成模型');
 
   // Finder strips AI 带学 from setting-guidance when chat: false
   const desktopMarked = m.withAvailability(m.FINDER_ENTRIES, { contexts: ['study'] }, { canChat: false });

@@ -560,7 +560,7 @@ export const FEATURES = Object.freeze([
   feature({ id: 'appearance-scale', area: 'settings', title: '界面大小', page: 'settings', anchors: ['settings-appearance-scale'],
     aliases: ['缩放', '放大', '字太小', '界面缩放', 'scale', 'zoom', 'interface size'],
     path: ['设置', '界面', '界面大小'],
-    what: '放大整个界面（文字、按钮和间距一起），最大 200%。阅读和做题页另有 Aa 可以单独调字号和宽度。' }),
+    what: '放大整个界面（文字、按钮和间距一起），最大 200%；「跟随窗口」在窗口变宽时自动放大一些。阅读和做题页另有 Aa 可以单独调字号和宽度。' }),
   feature({ id: 'appearance-sound', area: 'settings', title: '互动音效', page: 'settings', anchors: ['settings-appearance-sound'],
     aliases: ['音效', '声音', '提示音', '翻卡声', '按键音', '静音', '轻柔', '试听', 'sound', 'sound effects', 'audio feedback', 'mute'],
     path: ['设置', '界面', '互动音效'],

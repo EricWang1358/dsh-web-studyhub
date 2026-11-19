@@ -37,6 +37,8 @@ import {
 import { DESKTOP_CAPABILITIES } from '../packages/studyhub-desktop/domain/contracts.js';
 import { clipDetail, keyLast4, redactSecret } from '../packages/studyhub-desktop/domain/redact.js';
 import { openableExternalUrl, parseCliVersion, parseCmdShimTarget } from '../packages/studyhub-desktop/domain/shim-parser.js';
+import { buildStartCommandLine, cliLaunchRequest } from '../packages/studyhub-desktop/domain/terminal-command.js';
+import { openCliTerminal } from '../packages/studyhub-desktop/adapters/os/open-terminal.mjs';
 import { createDesktopHost } from '../packages/studyhub-desktop/application/desktop-host.js';
 import { createProviderDiscovery, localizeProviders } from '../packages/studyhub-desktop/application/provider-discovery.js';
 import { desktopUpdateView } from '../packages/studyhub-desktop/application/update-view.js';
@@ -761,6 +763,68 @@ test('adapters/http/local-server enforces Host, Origin, X-Study-Token, CORS pref
  * 5. Desktop Host + Real StudyRuntime + In-Process Job Executor Integration
  * ============================================================================ */
 
+const codeOf = (work) => { try { work(); return ''; } catch (error) { return error.code; } };
+const codeOfAsync = async (work) => { try { await work(); return ''; } catch (error) { return error.code; } };
+
+test('domain/terminal-command picks only a ready local CLI and the library folder, and builds one quoted start line or refuses', () => {
+  const providers = [
+    { id: 'agy', supported: true, status: 'ready', executablePath: 'E:\\agy\\bin\\agy.exe' },
+    { id: 'codex', supported: true, status: 'unauthenticated', executablePath: 'D:\\npm\\codex.cmd' },
+    { id: 'claude', supported: false, status: 'coming-soon', executablePath: 'C:\\claude.exe' },
+  ];
+  assert.deepEqual(cliLaunchRequest(providers, 'agy', 'D:\\Study'), { executablePath: 'E:\\agy\\bin\\agy.exe', cwd: 'D:\\Study' });
+  assert.equal(codeOf(() => cliLaunchRequest(providers, 'codex', 'D:\\Study')), 'cli-not-ready', 'a CLI that is not signed in is not opened');
+  assert.equal(codeOf(() => cliLaunchRequest(providers, 'claude', 'D:\\Study')), 'invalid-cli', 'an unsupported CLI is never opened, even when found');
+  assert.equal(codeOf(() => cliLaunchRequest(providers, 'C:\\evil.exe', 'D:\\Study')), 'invalid-cli');
+  assert.equal(codeOf(() => cliLaunchRequest(providers, undefined, 'D:\\Study')), 'invalid-cli');
+
+  assert.equal(
+    buildStartCommandLine({ cwd: 'D:\\My Docs\\学习库', command: 'C:\\App\\node.exe', args: ['D:\\npm\\node_modules\\codex\\bin\\codex.js'] }),
+    '/d /s /c "start "" /d "D:\\My Docs\\学习库" "C:\\App\\node.exe" "D:\\npm\\node_modules\\codex\\bin\\codex.js""',
+  );
+  assert.equal(buildStartCommandLine({ cwd: 'D:\\', command: 'E:\\agy\\bin\\agy.exe' }), '/d /s /c "start "" /d "D:\\" "E:\\agy\\bin\\agy.exe""');
+  const refused = (parts) => codeOf(() => buildStartCommandLine({ cwd: 'D:\\Study', command: 'E:\\agy.exe', args: [], ...parts }));
+  for (const bad of ['D:\\a"b', 'D:\\100%', 'D:\\R&D', 'D:\\a^b', 'D:\\a!b', 'D:\\a|b', 'D:\\a<b', 'D:\\a>b', 'D:\\a\nb', 'D:\\a\u202eb']) {
+    assert.equal(refused({ cwd: bad }), 'terminal-path-unsafe', `refuses the folder ${JSON.stringify(bad)}`);
+    assert.equal(refused({ command: `${bad}\\agy.exe` }), 'terminal-path-unsafe', `refuses the program under ${JSON.stringify(bad)}`);
+  }
+  assert.equal(refused({ cwd: 'Study' }), 'terminal-path-unsafe', 'a relative folder is refused');
+  assert.equal(refused({ cwd: '\\\\server\\share' }), 'terminal-path-unsafe', 'a network folder is refused: start cannot use it as the current folder');
+  assert.equal(refused({ command: 'agy' }), 'terminal-path-unsafe', 'a bare program name is refused: no PATH lookup');
+  assert.equal(refused({ args: ['--dangerously-skip'] }), 'terminal-path-unsafe', 'an argument must be an absolute script path, never a flag');
+  assert.equal(refused({ args: ['D:\\dir\\'] }), 'terminal-path-unsafe', 'an argument ending in a backslash would swallow its closing quote');
+});
+
+test('adapters/os/open-terminal starts cmd.exe once with the verbatim line, unwraps npm shims, and is Windows-only', async () => {
+  const launched = [];
+  const launch = async (command, line, options) => { launched.push({ command, line, options }); };
+  const env = { SystemRoot: 'C:\\Windows' };
+  const plain = async (path) => ({ ok: true, command: path, prefixArgs: [] });
+
+  const opened = await openCliTerminal({ executablePath: 'E:\\agy\\bin\\agy.exe', cwd: 'D:\\Study Hub' }, { platform: 'win32', launch, unwrap: plain, env });
+  assert.deepEqual(opened, { ok: true });
+  assert.deepEqual(launched, [{
+    command: 'C:\\Windows\\System32\\cmd.exe',
+    line: '/d /s /c "start "" /d "D:\\Study Hub" "E:\\agy\\bin\\agy.exe""',
+    options: { cwd: 'D:\\Study Hub' },
+  }]);
+
+  launched.length = 0;
+  const shim = async () => ({ ok: true, command: 'C:\\App\\node.exe', prefixArgs: ['D:\\npm\\codex.js'] });
+  await openCliTerminal({ executablePath: 'D:\\npm\\codex.cmd', cwd: 'D:\\Study' }, { platform: 'win32', launch, unwrap: shim, env });
+  assert.equal(launched[0].line, '/d /s /c "start "" /d "D:\\Study" "C:\\App\\node.exe" "D:\\npm\\codex.js""');
+
+  launched.length = 0;
+  const broken = async () => ({ ok: false, errorCode: 'BROKEN_SHIM', reason: '启动脚本指向的目标文件不存在' });
+  assert.equal(await codeOfAsync(() => openCliTerminal({ executablePath: 'D:\\npm\\codex.cmd', cwd: 'D:\\Study' }, { platform: 'win32', launch, unwrap: broken, env })), 'BROKEN_SHIM');
+  assert.equal(await codeOfAsync(() => openCliTerminal({ executablePath: 'E:\\agy.exe', cwd: 'D:\\R&D' }, { platform: 'win32', launch, unwrap: plain, env })), 'terminal-path-unsafe');
+  assert.equal(await codeOfAsync(() => openCliTerminal({ executablePath: '/usr/bin/agy', cwd: '/home/me' }, { platform: 'linux', launch, unwrap: plain, env })), 'terminal-unsupported');
+  assert.deepEqual(launched, [], 'nothing is started when a request is refused');
+
+  const failing = async () => { throw Object.assign(new Error('spawn ENOENT'), { code: 'ENOENT' }); };
+  assert.equal(await codeOfAsync(() => openCliTerminal({ executablePath: 'E:\\agy.exe', cwd: 'D:\\Study' }, { platform: 'win32', launch: failing, unwrap: plain, env })), 'terminal-launch-failed');
+});
+
 test('application/desktop-host integrates with v4.14.0 StudyRuntime, config, concurrency cap, background generation, and job recovery', async (t) => {
   const work = await mkdtemp(join(tmpdir(), 'studyhub-desktop-host-'));
   const prevDshHome = process.env.DSH_HOME;
@@ -788,6 +852,7 @@ test('application/desktop-host integrates with v4.14.0 StudyRuntime, config, con
     checkCodexAuth: async () => ({ ok: true, authenticated: true, detail: 'Logged in using ChatGPT' }),
   });
 
+  const terminalRequests = [];
   const jobExecutor = createInProcessJobExecutor();
   const stubComplete = async (_system, prompt) => {
     if (prompt.includes('OK?')) return 'OK';
@@ -814,6 +879,7 @@ test('application/desktop-host integrates with v4.14.0 StudyRuntime, config, con
     codexComplete: () => stubComplete,
     jobExecutor,
     openExternal: async () => ({ ok: true }),
+    openCliTerminal: async (request) => { terminalRequests.push(request); return { ok: true }; },
     ensureDir: (p) => mkdir(p, { recursive: true }),
     injectedComplete: stubComplete,
   });
@@ -913,6 +979,42 @@ test('application/desktop-host integrates with v4.14.0 StudyRuntime, config, con
   assert.equal(bindCustom.ok, true);
   assert.equal(bindCustom.value.root, resolve(altLibrary));
   assert.equal(bindCustom.value.rootSource, 'custom');
+
+  // The settings page always sends the folder and the reasoning effort together (ui/app/use-library-connection.js customBinding):
+  // the folder must still move, and a later effort-only change must keep it.
+  const movedLibrary = join(work, 'MovedLibrary');
+  const bindAsUi = await host.call('binding.set', { root: movedLibrary, provider: '', model: '', reasoningEffort: '' });
+  assert.equal(bindAsUi.ok, true);
+  assert.equal(bindAsUi.value.root, resolve(movedLibrary), 'a folder picked in Settings becomes the library');
+  const effortOnly = await host.call('binding.set', { root: movedLibrary, provider: '', model: '', reasoningEffort: 'high' });
+  assert.equal(effortOnly.value.root, resolve(movedLibrary));
+  assert.equal(effortOnly.value.reasoningEffort, 'high');
+  const effortAlone = await host.call('binding.set', { reasoningEffort: 'low' });
+  assert.equal(effortAlone.value.root, resolve(movedLibrary), 'a change of effort with no folder in it keeps the folder');
+  assert.equal(effortAlone.value.reasoningEffort, 'low');
+  const badRoot = await host.call('binding.set', { root: 'not-absolute', reasoningEffort: 'high' });
+  assert.equal(badRoot.ok, false);
+  assert.equal(badRoot.code, 'invalid-library-root');
+  const afterBadRoot = await host.call('binding.get');
+  assert.equal(afterBadRoot.value.root, resolve(movedLibrary), 'a refused folder changes nothing');
+  assert.equal(afterBadRoot.value.reasoningEffort, 'low', 'nor does the effort sent with it');
+  const backToDefault = await host.call('binding.set', { root: '', provider: '', model: '', reasoningEffort: '' });
+  assert.equal(backToDefault.value.rootSource, 'default', 'an empty folder goes back to the default library');
+  assert.equal(backToDefault.value.root, backToDefault.value.defaultRoot);
+  const bindBack = await host.call('binding.set', { root: altLibrary, provider: '', model: '', reasoningEffort: '' });
+  assert.equal(bindBack.value.root, resolve(altLibrary));
+  assert.equal(bindBack.value.reasoningEffort, '');
+
+  // 「在学习库里打开 CLI」: the page names a CLI and nothing else; the program comes from discovery and the folder is the library.
+  const openedCli = await host.call('desktop.cli.open', { provider: 'agy', executablePath: 'C:\\evil.exe', cwd: 'C:\\Windows', args: ['--yolo'] });
+  assert.equal(openedCli.ok, true);
+  assert.deepEqual(openedCli.value, { ok: true, provider: 'agy', cwd: resolve(altLibrary) });
+  assert.deepEqual(terminalRequests, [{ executablePath: 'C:\\fake\\agy.exe', cwd: resolve(altLibrary) }]);
+  const refusedCli = await host.call('desktop.cli.open', { provider: 'claude', uiLanguage: 'en' });
+  assert.equal(refusedCli.ok, false);
+  assert.equal(refusedCli.code, 'invalid-cli');
+  assert.doesNotMatch(refusedCli.error, /[㐀-鿿]/, 'the refusal reads in English when the interface is English');
+  assert.equal(terminalRequests.length, 1, 'a refused request starts nothing');
 
   // 5d. Real StudyRuntime flow: import material (source.add) -> start background generation job (generate)
   const imported = await host.call('source.add', {

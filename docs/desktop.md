@@ -75,6 +75,14 @@ Good to know about CLI backends:
 - If a CLI is not installed or signed out, StudyHub Desktop reports the status honestly and lets you switch to another ready CLI or an API key at any time.
 - **Note on Claude Code CLI (`claude`)**: Anthropic's consumer Terms of Service forbid third-party desktop apps from wrapping consumer subscription OAuth logins, so StudyHub Desktop does not wrap consumer `claude` OAuth.
 
+### Open a local CLI in the library to chat while you study
+
+StudyHub Desktop has no DSH main chat. To talk to an AI, select **Open agy in the library** (or codex) on the local CLI card in **Settings › Library & model**: StudyHub opens a command-line window of its own with your library as the current folder and the CLI ready to chat. Snap it beside StudyHub with `Win + ←` / `Win + →`; what **Copy prompt** puts on the clipboard can be pasted straight into it.
+
+- Only a CLI detected as ready has this button; the program opened is the detected one, and the folder is always the current library.
+- The CLI can read and change the files in your library directly, and StudyHub does not check those changes. Back up the library before you let it edit decks or materials.
+- When the library is on a network drive, or a path contains any of `" % ^ ! & | < >`, the window is not opened; the interface tells you to open a command line yourself, go to the library folder and run the CLI there.
+
 ## Library folder and sharing with DSH
 
 - **Default location**: `Documents\StudyHub` (created automatically on first launch).
@@ -97,3 +105,4 @@ Good to know about CLI backends:
 - **Local-first storage**: All documents, decks, notes, and review history stay on your computer. Only the text sent for AI generation, explanation, or audio transcription leaves your machine to the provider you configured.
 - **Strict loopback isolation**: The desktop UI loads from static bundled assets (`tauri://localhost`), never from `127.0.0.1` HTML. On every launch, the Rust shell generates a fresh 256-bit random token and sends it to the local Node.js sidecar over `stdin` (never in command-line arguments, URLs, or HTML). The sidecar listens only on `127.0.0.1` and rejects requests without that token.
 - **Minimal desktop permissions**: The Tauri shell exposes only three commands to the main window (`get_bootstrap_info`, `pick_directory`, and `open_external`). External links are strictly validated to `http://` or `https://` before opening in your default browser.
+- **One program the app starts for you to see**: "Open agy / codex in the library" starts only the local CLI that detection found ready, only in the current library folder. The page sends the CLI's name and nothing else; paths with characters the Windows command line could read as syntax are refused, not escaped.
