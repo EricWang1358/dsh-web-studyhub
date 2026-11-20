@@ -9,6 +9,7 @@ import { settleJob, until } from './helpers/wait.mjs';
 import { mergedTranscript } from './helpers/merged-transcript.mjs';
 import { clusteringModel } from './helpers/clustering-model.mjs';
 import { requestData } from './helpers/request-data.mjs';
+import { pinStaged } from './helpers/staged-strategy.mjs';
 
 /* The retry accounting of a coverage run counts the sections a round was really ASKED for, not the sections its plan holds (lib/coverage-run.js askedKeys / triedKeys).
    A round of the plan may be asked for part of its sections only: the button 为没覆盖的部分补题 pressed for some of them (`coverage.sectionIds`, lib/coverage-run.js roundOfKeys lands it in
@@ -26,6 +27,7 @@ const textOf = key => { const [, r, p] = /#r(\d+)\.p(\d+)$/.exec(key); return `R
  *  tests/round-asked-keys.test.mjs endsWithoutProgress.) */
 async function open(t, root, coverage, broken = new Set()) {
   const service = new StudyService(root, { coverage });
+  await pinStaged(service);
   t.after(() => service.dispose());
   const model = clusteringModel();
   service.complete = async (system, prompt, context = {}) => {

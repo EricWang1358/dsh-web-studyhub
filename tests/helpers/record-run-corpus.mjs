@@ -10,6 +10,7 @@ import { clusteringModel } from './clustering-model.mjs';
 import { mergedTranscript } from './merged-transcript.mjs';
 import { managedRuntimeOptions } from './runtime-switch.mjs';
 import { settleJob, until } from './wait.mjs';
+import { pinStaged } from './staged-strategy.mjs';
 
 export const corpusWorld = () => mergedTranscript({ recordings: 2, parts: 6, paragraphs: 4 });
 export const CORPUS_ROUND_LIMIT = 8;
@@ -19,6 +20,7 @@ const gate = () => { let open; const promise = new Promise(resolve => { open = r
 
 async function open(options = {}, modelFor) {
   const root = await mkdtemp(join(tmpdir(), 'study-corpus-record-')), service = new StudyService(root, { coverage: { roundLimit: CORPUS_ROUND_LIMIT }, ...options });
+  await pinStaged(service);
   service.light = weighing;
   service.complete = modelFor(service);
   for (const source of world.sources) await service.call('source.add', { id: source.id, title: source.title, text: source.text, audio: source.audio });

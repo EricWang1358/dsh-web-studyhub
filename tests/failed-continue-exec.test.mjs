@@ -10,6 +10,7 @@ import { settleJob, until } from './helpers/wait.mjs';
 import { mergedTranscript } from './helpers/merged-transcript.mjs';
 import { clusteringModel } from './helpers/clustering-model.mjs';
 import { sectionedModel } from './helpers/coverage-fixture.mjs';
+import { pinStaged } from './helpers/staged-strategy.mjs';
 
 /* A run that ended before it was done (the time limit, a refused key, the host) and kept a draft is CONTINUED, not started again: one action, 接着做, on the job's contract
    (`actions.retry` -> job.control retry), which starts a continuation of the SAME draft: every approved question stays, only what is missing is made, the settings are the run's own.
@@ -25,6 +26,7 @@ const TOTAL_MS = 20 * 60 * 1000;
 async function library(t, { model = clusteringModel(), wrap, coverage = { roundLimit: 8 } } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'study-failed-continue-'));
   const service = new StudyService(root, { coverage });
+  await pinStaged(service);
   t.after(async () => { await service.dispose(); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
   service.complete = wrap ? wrap(model.complete, service) : model.complete;
   service.light = async (system, prompt) => JSON.stringify({ sections: JSON.parse(prompt.split('\n\n')[0]).sections.map(item => ({ id: item.id, importance: 3, kind: 'definition', reason: `Reason for ${item.title}` })) });

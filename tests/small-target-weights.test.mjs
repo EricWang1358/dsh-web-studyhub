@@ -9,6 +9,7 @@ import { weighsSections, SMALL_TARGET_QUESTIONS } from '../lib/coverage-plan.js'
 import { settleJob } from './helpers/wait.mjs';
 import { transcriptFixture } from './helpers/coverage-fixture.mjs';
 import { clusteringModel } from './helpers/clustering-model.mjs';
+import { pinStaged } from './helpers/staged-strategy.mjs';
 
 /* Token cost: the importance of every section of a long material is asked of a light model (one call per ~20 sections, lib/section-weights.js). That pays when the run
    spreads many questions over the sections (the weights decide which sections get them). A SMALL custom total (a few questions asked of a long material) does not need
@@ -47,6 +48,7 @@ test('the estimate prices no importance calls for a small custom total, and stil
 async function library(t) {
   const root = await mkdtemp(join(tmpdir(), 'study-small-weights-'));
   const service = new StudyService(root);
+  await pinStaged(service);
   t.after(async () => { await service.dispose(); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
   service.complete = clusteringModel().complete;
   const lightCalls = [];

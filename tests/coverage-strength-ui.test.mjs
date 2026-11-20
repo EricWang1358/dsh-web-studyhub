@@ -43,25 +43,26 @@ test('the control: three levels and 自定义, 标准 on by default, the level s
   for (const level of ['lean', 'full']) assert.match(render(level, null), new RegExp(`aria-pressed="true"[^>]*>${level === 'lean' ? '精简' : '完整'}<`));
 });
 
-test('the consequence line is the real estimate in plain words: 「标准：约 N 道题，覆盖 M/K 个小节，分 R 轮，预计 X–Y tok · A–B 次模型调用」', () => {
+// One pass (出题方式, the default) keeps most of what it plans, not all: the number of questions is a range whose upper end is the plan (lib/one-pass/route.js questionRange).
+test('the consequence line is the real estimate in plain words: 「标准：约 L–N 道题，覆盖 M/K 个小节，分 R 轮，预计 X–Y tok · A–B 次模型调用」', () => {
   for (const level of ['lean', 'standard', 'full']) {
     const estimate = estimateOf({ coverageLevel: level }), c = estimate.coverage;
     const line = lineOf(render(level, estimate));
-    assert.equal(line, `${text(m.copy.levelLabel(level))}：约 ${c.goal} 道题，覆盖 ${c.sections}/${c.leaves} 个小节，分 ${c.rounds} 轮，${text(m.estimateSummary(estimate))}`, level);
-    assert.match(line, /^(精简|标准|完整)：约 \d+ 道题，覆盖 \d+\/81 个小节，分 \d+ 轮，预计 [\d.]+[KM]?–[\d.]+[KM]? tok · \d+–\d+ 次模型调用$/);
+    assert.equal(line, `${text(m.copy.levelLabel(level))}：约 ${c.goalLow}–${c.goal} 道题，覆盖 ${c.sections}/${c.leaves} 个小节，分 ${c.rounds} 轮，${text(m.estimateSummary(estimate))}`, level);
+    assert.match(line, /^(精简|标准|完整)：约 \d+–\d+ 道题，覆盖 \d+\/81 个小节，分 \d+ 轮，预计 [\d.]+[KM]?–[\d.]+[KM]? tok · \d+–\d+ 次模型调用$/);
   }
   const standard = estimateOf({ coverageLevel: 'standard' });
   assert.match(lineOf(render('standard', standard)), /覆盖 81\/81 个小节/);
-  assert.match(text(render('standard', standard)), /精简约 126 题 · 标准约 251 题 · 完整约 419 题/, 'the three levels side by side for the same sources');
+  assert.match(text(render('standard', standard)), /精简约 100–126 题 · 标准约 200–251 题 · 完整约 335–419 题/, 'the three levels side by side for the same sources');
   const custom = estimateOf({ coverageLevel: 'standard', count: 100 });
   const html = render('standard', custom, { customCount: '100' });
-  assert.equal(lineOf(html), `自定义：100 道题，覆盖 ${custom.coverage.sections}/81 个小节，分 4 轮，${text(m.estimateSummary(custom))}`);
+  assert.equal(lineOf(html), `自定义：${custom.coverage.goalLow}–100 道题，覆盖 ${custom.coverage.sections}/81 个小节，分 4 轮，${text(m.estimateSummary(custom))}`);
   assert.match(html, /aria-pressed="true"[^>]*>自定义</, 'a typed number is the choice 自定义');
   assert.doesNotMatch(html, /aria-pressed="true"[^>]*>标准</, 'and 标准 is not shown as chosen next to it');
   assert.match(html, /<input[^>]*id="generate-count"[^>]*value="100"|<input[^>]*value="100"[^>]*id="generate-count"/);
   assert.doesNotMatch(text(html), /精简约/, 'with a custom number the three levels are not offered side by side');
   const one = estimateOf({ coverageLevel: 'standard', count: 20 });
-  assert.match(lineOf(render('standard', one, { customCount: '20' })), /^自定义：20 道题，覆盖 20\/81 个小节，一轮出完，/);
+  assert.match(lineOf(render('standard', one, { customCount: '20' })), /^自定义：16–20 道题，覆盖 20\/81 个小节，一轮出完，/);
 });
 
 test('the line is the same plan the run is planned with: the same function', () => {
@@ -83,13 +84,13 @@ test('before the estimate arrives and when there is nothing selected, the contro
 test('the English control has no Chinese text', () => inLanguage('en', () => {
   const standard = estimateOf({ coverageLevel: 'standard' }), html = render('standard', standard);
   assert.doesNotMatch(text(html), han, text(html).match(/.{0,30}[㐀-鿿].{0,30}/)?.[0]);
-  assert.match(lineOf(html), /^Standard: about 251 questions, covering 81\/81 sections, in 9 rounds. Estimated [\d.]+[KM]?–[\d.]+[KM]? tok · \d+–\d+ model calls$/);
+  assert.match(lineOf(html), /^Standard: about 200–251 questions, covering 81\/81 sections, in 9 rounds. Estimated [\d.]+[KM]?–[\d.]+[KM]? tok · \d+–\d+ model calls$/);
   const labels = [...html.matchAll(/<button[^>]*class="sh-seg__item[^"]*"[^>]*>(.*?)<\/button>/g)].map(match => text(match[1]));
   assert.deepEqual(labels, ['Lean', 'Standard', 'Full', 'Custom']);
-  assert.match(text(html), /Lean about 126 · Standard about 251 · Full about 419/);
+  assert.match(text(html), /Lean about 100–126 · Standard about 200–251 · Full about 335–419/);
   const custom = render('standard', estimateOf({ coverageLevel: 'full', count: 100 }), { customCount: '100' });
   assert.doesNotMatch(text(custom), han);
-  assert.match(lineOf(custom), /^Custom: 100 questions, covering 81\/81 sections, in 4 rounds. Estimated /);
+  assert.match(lineOf(custom), /^Custom: 80–100 questions, covering 81\/81 sections, in 4 rounds. Estimated /);
 }));
 
 test('the started notice says whether the rest of a plan of several rounds goes on by itself, and says the total only on the form', () => {

@@ -11,6 +11,7 @@ import { estimateFromState, compactEstimate, stageTotals, calibrateEstimate } fr
 import { calibrationDir, calibrationFor, calibrationModel, createCalibration, learningOff, observedByStage, roundCalibrationModel, stageOfStep, stampStepModel } from "../lib/estimate-calibration.js";
 import { DEFAULT_OUTPUT_PER_CALL } from "../lib/stage-usage.js";
 import { stageSystem } from "../lib/prompt-order.js";
+import { pinStaged } from './helpers/staged-strategy.mjs';
 
 /** No assumed thinking allowance: the tests that check the arithmetic of the ratios alone (production always has the allowance, lib/token-estimate.js). */
 const NO_ASSUMPTION = Object.freeze({ stages: {}, samples: 0, defaults: {} });
@@ -279,6 +280,7 @@ test("a coverage run of several rounds teaches what its first round used, not th
   process.env.DSH_HOME = home;
   delete process.env.STUDY_NO_CALIBRATION;
   const service = new StudyService(root, { coverage: { roundLimit: 8 } });
+  await pinStaged(service);
   t.after(async () => {
     await service.dispose();
     for (const [key, value] of [["DSH_HOME", saved.home], ["STUDY_NO_CALIBRATION", saved.off]]) if (value === undefined) delete process.env[key]; else process.env[key] = value;
@@ -438,6 +440,7 @@ test("a planned coverage run records calibration right after round 1 finishes, b
     ...(globalThis.STUDY_RUNTIME_MATRIX_ON ? { model: { provider: "deepseek", model: "deepseek-v4.1-flash" } } : {}),
     jobModelHost: { route: () => ({ provider: "deepseek", model: "deepseek-v4.1-flash" }) },
   });
+  await pinStaged(service);
   let onRoundTwo, releaseRoundTwo;
   const reachedRoundTwo = new Promise((resolve) => { onRoundTwo = resolve; });
   const allowRoundTwo = new Promise((resolve) => { releaseRoundTwo = resolve; });
@@ -504,6 +507,7 @@ test("model-keyed runs isolate two models across generate and usage.estimate whi
   let activeRoute = null;
   let usage = { uncachedInputTokens: 1_000, outputTokens: 100 };
   const service = new StudyService(root, { jobModelHost: { route: () => activeRoute } });
+  await pinStaged(service);
   const setRoute = (route) => {
     activeRoute = route;
     if (globalThis.STUDY_RUNTIME_MATRIX_ON) service.model = route ?? "follow";
@@ -667,6 +671,7 @@ for (const mode of ["legacy", "runtime"]) {
       ...switched,
       jobModelHost: { ...(switched.jobModelHost || { ctx: {} }), route: () => hostRoute, complete, light },
     });
+    await pinStaged(service);
     t.after(async () => {
       releaseReview?.();
       await service.dispose();
@@ -735,6 +740,7 @@ for (const mode of ["legacy", "runtime"]) {
       ...switched,
       jobModelHost: { ...(switched.jobModelHost || { ctx: {} }), route: () => hostRoute, complete, light },
     });
+    await pinStaged(service);
     t.after(async () => {
       releasePlan?.();
       await service.dispose();
@@ -803,6 +809,7 @@ test("runtime: retrying a failed run after switching the host model prices and r
     ...managedA,
     jobModelHost: { ...managedA.jobModelHost, route: () => routeA, complete: completeA },
   });
+  await pinStaged(serviceA);
   const serviceB = new StudyService(root, {
     runtime: serviceA.runtime,
     storage: serviceA.store,

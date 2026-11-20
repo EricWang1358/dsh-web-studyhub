@@ -10,6 +10,7 @@ import { shortfallOf } from '../lib/shortfall.js';
 import { settleJob } from './helpers/wait.mjs';
 import { mergedTranscript } from './helpers/merged-transcript.mjs';
 import { clusteringModel } from './helpers/clustering-model.mjs';
+import { pinStaged } from './helpers/staged-strategy.mjs';
 
 /* The owner's decision of 2026-10-06: a deck published at 9% coverage is topped up as a NEW DRAFT (never in place) whose targets are exactly the document's sections without a question, in
    rounds of at most the round limit until it is covered; when the learner publishes it into the deck its questions are the deck's SECOND PART (`part: 2` on each), and practice, mastery and
@@ -21,6 +22,7 @@ const PLAIN = { kind: 'quiz', count: 6, performance: { concurrency: 1, batchSize
 async function library(t, { coverage = { roundLimit: 8 } } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'study-deck-parts-'));
   const service = new StudyService(root, { coverage });
+  await pinStaged(service);
   t.after(async () => { await service.dispose(); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
   service.complete = clusteringModel().complete;
   for (const source of world.sources) await service.call('source.add', { id: source.id, title: source.title, text: source.text, audio: source.audio });

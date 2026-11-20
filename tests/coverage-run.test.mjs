@@ -9,6 +9,7 @@ import { mergedTranscript } from './helpers/merged-transcript.mjs';
 import { clusteringModel } from './helpers/clustering-model.mjs';
 import { sectionKey } from '../lib/coverage.js';
 import { sectionsOf } from '../lib/sections.js';
+import { pinStaged } from './helpers/staged-strategy.mjs';
 
 /* A coverage run through the service: the form's request (coverageLevel, optionally a total), the plan the job makes (importance weights from the light model, the first round of the plan),
    the spec the draft keeps and what the coverage view says about it. The planner clusters on purpose. */
@@ -18,6 +19,7 @@ async function library(t, { light = true, weightOf } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'study-coverage-run-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const service = new StudyService(root), model = clusteringModel();
+  await pinStaged(service);
   service.complete = model.complete;
   const rated = [];
   if (light) service.light = async (system, prompt) => {
@@ -100,6 +102,7 @@ test('the selection bound: a request with a plan reads a selection over 600 000 
   const root = await mkdtemp(join(tmpdir(), 'study-coverage-big-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const service = new StudyService(root);
+  await pinStaged(service);
   service.complete = clusteringModel().complete;
   for (const source of big.sources) await service.call('source.add', { id: source.id, title: source.title, text: source.text, audio: source.audio });
   const ids = big.sources.map(source => source.id), chars = big.sources.reduce((sum, source) => sum + source.text.length, 0);

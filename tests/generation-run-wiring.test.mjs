@@ -12,6 +12,7 @@ import { SELECTION_CHARS } from '../lib/limits.js';
 import { clusteringModel } from './helpers/clustering-model.mjs';
 import { settleJob, until } from './helpers/wait.mjs';
 import { corpusWorld, CORPUS_ROUND_LIMIT, weighing } from './helpers/record-run-corpus.mjs';
+import { pinStaged } from './helpers/staged-strategy.mjs';
 
 const world = corpusWorld(), PLAN = 'Plan a source-grounded assessment';
 
@@ -19,6 +20,7 @@ const world = corpusWorld(), PLAN = 'Plan a source-grounded assessment';
 async function open(t, model = (_service, inner) => inner) {
   const root = await mkdtemp(join(tmpdir(), 'study-run-wiring-')), inner = clusteringModel().complete;
   const service = new StudyService(root, { coverage: { roundLimit: CORPUS_ROUND_LIMIT } });
+  await pinStaged(service);
   service.light = weighing;
   service.complete = model(service, inner);
   t.after(async () => { await service.dispose(); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });

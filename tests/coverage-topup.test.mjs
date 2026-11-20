@@ -10,6 +10,7 @@ import { chunkSources, planGeneration } from '../lib/batch.js';
 import { sliceRangeOf } from '../lib/sections.js';
 import { estimateRun, createTextMeasure } from '../lib/token-estimate.js';
 import { transcriptFixture, sectionedModel } from './helpers/coverage-fixture.mjs';
+import { pinStaged } from './helpers/staged-strategy.mjs';
 
 /* 为没覆盖的部分补题: ONE top-up for the sections of a material that have no question. It targets exactly those sections (planned-and-failed first, then never planned,
    in reading order, up to the generation limit of questions), writes the planned targets that failed again as they were instead of planning them again, plans only the uncovered
@@ -154,6 +155,7 @@ async function library(t, model) {
   const root = await mkdtemp(join(tmpdir(), 'study-topup-')), previousHome = process.env.DSH_HOME;
   process.env.DSH_HOME = join(root, 'home');
   const service = new StudyService(root, { complete: model.complete, coach: false, language: 'zh' });
+  await pinStaged(service);
   t.after(async () => {
     await service.dispose();
     if (previousHome === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = previousHome;

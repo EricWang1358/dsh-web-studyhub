@@ -9,6 +9,7 @@ import { clusteringModel } from './helpers/clustering-model.mjs';
 import { qualityReview } from './helpers/assessment.mjs';
 import { gate, openLibrary, soon } from './helpers/generation-baseline.mjs';
 import { requestData } from './helpers/request-data.mjs';
+import { pinStaged } from './helpers/staged-strategy.mjs';
 
 /* S3-0 baseline, how a generation-family job ENDS as the public contract says it (lib/job-contract.js): complete, partial, failed, stopped by the learner, stopped by the owner unloading.
    The first three are distinct today. The last two are NOT: the unload of the generation plugin sets `cancelRequestedAt` like a click on stop does, so the contract says
@@ -24,6 +25,7 @@ async function library(t, { model = sectionedModel(), wrap } = {}) {
   const hold = gate(), box = {};
   const complete = wrap ? wrap(model.complete, hold, box) : model.complete;
   const opened = await openLibrary(t, { model: complete, hold, options: { coverage: { roundLimit: 8 } } });
+  await pinStaged(opened.service);
   box.service = opened.service;
   opened.service.light = async (_system, prompt) => JSON.stringify({ sections: JSON.parse(prompt.split('\n\n')[0]).sections.map(item => ({ id: item.id, importance: 3, kind: 'definition', reason: 'r' })) });
   for (const source of world.sources) await opened.service.call('source.add', { id: source.id, title: source.title, text: source.text, audio: source.audio });

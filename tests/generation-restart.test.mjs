@@ -11,6 +11,7 @@ import { clusteringModel } from './helpers/clustering-model.mjs';
 import { roundList } from '../lib/coverage-run.js';
 import { stageSystem } from '../lib/prompt-order.js';
 import { requestData } from './helpers/request-data.mjs';
+import { pinStaged } from './helpers/staged-strategy.mjs';
 
 /* S3-3: a generation run survives a restart (switch `generationRestart`). The runtime keeps the request and its own record of the job on disk; the draft stays the
    one checkpoint. After the restart the job is the same logical job, interrupted and visible, nothing is asked of a model by itself, and its retry is a new Attempt
@@ -26,6 +27,7 @@ const contractOf = async (service, id) => (await jobsOf(service)).find(job => jo
 async function dying(t, at, { seed } = {}) {
   const hold = gate(), model = authoring(hold, at, 'first');
   const opened = await openLibrary(t, { model, hold, options: hostOf(model) });
+  await pinStaged(opened.service);
   await opened.service.call('source.add', { id: 'p1', title: 'Page 1', text: evidence });
   await opened.service.call('source.add', { id: 'p2', title: 'Page 2', text: other });
   if (seed) await seed(opened.service);
@@ -204,6 +206,7 @@ test('a coverage run killed in round 2 is the same job after the restart; its re
     return model.complete(system, prompt, context);
   };
   const first = await openLibrary(t, { model: complete, hold, options: { coverage: { roundLimit: 8 }, completeLight: weighing, ...hostOf(complete) } });
+  await pinStaged(first.service);
   live = first.service;
   for (const source of world.sources) await first.service.call('source.add', { id: source.id, title: source.title, text: source.text, audio: source.audio });
   const ids = world.sources.map(source => source.id);
@@ -239,6 +242,7 @@ test('without the restart switch a cancelled run can still be retried in the pro
   const complete = (...args) => model(...args);
   const { starts: _starts, ...options } = managedRuntimeOptions({ complete, paths: ['generation'] });
   const opened = await openLibrary(t, { model: complete, hold, options });
+  await pinStaged(opened.service);
   await opened.service.call('source.add', { id: 'p1', title: 'Page 1', text: evidence });
   const started = await opened.service.call('generate', { sourceIds: ['p1'], count: 3, kind: 'flashcard', performance: ONE_BY_ONE });
   await soon(() => hold.entered, 'the second part to be at the model');

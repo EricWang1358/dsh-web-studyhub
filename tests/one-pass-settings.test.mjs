@@ -28,8 +28,6 @@ test('a run is resolved with the strategy of the settings, and an explicit perfo
   assert.equal(resolveGenerationRequest({}, {}).performance.strategy, 'one-pass');
   assert.equal(resolveGenerationRequest({ strategy: 'staged' }, {}).performance.strategy, 'staged');
   assert.equal(resolveGenerationRequest({}, { performance: { strategy: 'staged' } }).performance.strategy, 'staged');
-  // A draft written before the setting existed is continued by the default.
-  assert.equal(resolveGenerationRequest({}, {}, { continuation: { kind: 'quiz', performance: { concurrency: 2 } } }).performance.strategy, 'one-pass');
 });
 
 test('one pass writes a coverage run of multiple-choice questions; everything else falls back to the staged pipeline', () => {
@@ -49,4 +47,12 @@ test('the forecast of a one-pass run is a range: the plan is the upper end, the 
   assert.deepEqual(questionRange(40), { low: Math.floor(40 * ONE_PASS_LIMITS.forecastKeepShare), high: 40 });
   assert.deepEqual(questionRange(1), { low: 1, high: 1 }, 'never below one question when one is planned');
   assert.deepEqual(questionRange(0), { low: 0, high: 0 });
+});
+
+test('a continuation keeps the strategy its draft was written with; a draft recorded before the setting existed was written staged and goes on staged', () => {
+  assert.equal(resolveGenerationRequest({}, {}, { continuation: { performance: { strategy: 'one-pass' } } }).performance.strategy, 'one-pass');
+  assert.equal(resolveGenerationRequest({ strategy: 'one-pass' }, {}, { continuation: { performance: { strategy: 'staged' } } }).performance.strategy, 'staged');
+  assert.equal(resolveGenerationRequest({}, {}, { continuation: { performance: { concurrency: 2 } } }).performance.strategy, 'staged', 'an old draft');
+  assert.equal(resolveGenerationRequest({}, {}, { continuation: { kind: 'quiz' } }).performance.strategy, 'staged', 'an old draft with no performance at all');
+  assert.equal(resolveGenerationRequest({}, { performance: { strategy: 'one-pass' } }, { continuation: { performance: {} } }).performance.strategy, 'one-pass', 'unless the request chooses');
 });
