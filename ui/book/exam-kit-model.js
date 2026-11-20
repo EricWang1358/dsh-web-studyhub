@@ -1,16 +1,35 @@
 /* The exam answer kit's words as the page draws them (ui/book/BookExamKit.jsx): a template cut into its words and its [slots], a fill cut into its slot names
-   and values ("Seeds: prescriptions ｜ Capability: open APIs"). Pure, no React. */
+   and values ("Seeds: prescriptions ｜ Capability: open APIs"). KaTeX math (`$...$`, `$$...$$`, `\[...\]`, `\(...\)`), code spans, footnotes (`[^1]`), and
+   Markdown links/images are never split as slots. Pure, no React. */
 
 const SLOT = /\[[^\][\n]{1,80}\]/g;
+const PROTECTED = [/```[\s\S]*?```/g, /~~~[\s\S]*?~~~/g, /`[^`\n]+`/g, /\$\$[\s\S]*?\$\$/g, /\\\[[\s\S]*?\\\]/g, /\\\([\s\S]*?\\\)/g, /(?<!\\)\$(?!\$)(?:\\.|[^$\\\n])+\$/g];
 
-/** -> [{ text, slot? }]: the template's words, each [slot] a part of its own. */
+function protectedRanges(text) {
+  const ranges = [];
+  for (const re of PROTECTED) {
+    for (const found of text.matchAll(re)) ranges.push([found.index, found.index + found[0].length]);
+  }
+  return ranges;
+}
+
+const inProtected = (ranges, start, end) => ranges.some(([a, b]) => start < b && end > a);
+
+/** -> [{ text, slot? }]: the template's words, each [slot] a part of its own, safely preserving KaTeX math and Markdown syntax. */
 export function templateParts(template) {
   const parts = [], text = String(template ?? '');
+  if (!text) return parts;
+  const blocked = protectedRanges(text);
   let at = 0;
   for (const found of text.matchAll(SLOT)) {
-    if (found.index > at) parts.push({ text: text.slice(at, found.index) });
+    const start = found.index, end = start + found[0].length, inner = found[0].slice(1, -1);
+    if (inProtected(blocked, start, end)) continue;
+    if (inner.startsWith('^')) continue;
+    if (start > 0 && text[start - 1] === '!') continue;
+    if (text[end] === '(' || text[end] === '[') continue;
+    if (start > at) parts.push({ text: text.slice(at, start) });
     parts.push({ text: found[0], slot: true });
-    at = found.index + found[0].length;
+    at = end;
   }
   if (at < text.length) parts.push({ text: text.slice(at) });
   return parts;

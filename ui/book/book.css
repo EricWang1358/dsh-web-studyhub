@@ -786,6 +786,43 @@
     .book-flip__explain {
       min-width: 0;
     }
+    .book-flip__recall {
+      display: grid;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-3);
+      border: 1px dashed var(--line-soft);
+      border-radius: var(--radius-sm);
+      background: var(--bg-raised);
+      min-width: 0;
+    }
+    .book-flip__recall-body {
+      display: grid;
+      gap: var(--space-1-5);
+      min-width: 0;
+    }
+    .book-flip__takeaway {
+      margin: 0;
+      font-size: var(--fs-sm);
+      line-height: var(--lh-body);
+    }
+    .book-flip__terms {
+      display: grid;
+      gap: var(--space-1);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      font-size: var(--fs-sm);
+    }
+    .book-flip__term {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+    .book-flip__recall-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1-5);
+    }
     /* The reading column is a reading block (ui/reading-settings: the Aa size, width, face and paper): its text elements follow the reading size. The labels and
        quiet lines around the text are not reading text, so they keep their own size (reading.css's rule weighs three classes; these four). They stay here, with
        their classes (one owning stylesheet per class, tests/css-ownership.test.mjs). */
