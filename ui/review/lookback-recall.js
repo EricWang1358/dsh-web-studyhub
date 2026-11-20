@@ -46,6 +46,32 @@ export function toggleRowReason(map, key, reasonId) {
   return current;
 }
 
+/** Seed initial mistake-reason map from persisted `attempt.errorReason` values projected onto look-back rows. */
+export function seedReasonsFromRows(rows = []) {
+  /** @type {Record<string, string>} */
+  const map = {};
+  if (!Array.isArray(rows)) return map;
+  for (const row of rows) {
+    if (!row || row.status !== 'wrong') continue;
+    const reasonId = typeof row.errorReason === 'string' ? row.errorReason.trim() : '';
+    if (!reasonLabelOf(reasonId)) continue;
+    const key = rowReasonKey(row);
+    if (key) map[key] = reasonId;
+  }
+  return map;
+}
+
+/** Persist a toggled mistake reason onto the underlying attempt via `attempt.errorReason.set` (narrow `attempts` lock). */
+export function persistRowReason(call, row, runId, reasonId) {
+  if (typeof call !== 'function' || !row?.deckId || !row?.cardId) return Promise.resolve(null);
+  return Promise.resolve(call('attempt.errorReason.set', {
+    deckId: row.deckId,
+    cardId: row.cardId,
+    ...(runId ? { runId } : {}),
+    errorReason: reasonId || null,
+  })).catch(() => null);
+}
+
 /** Unique playable `{ deckId, cardId }` refs for wrong rows tagged with `reasonId`. */
 export function refsForReason(rows = [], map = {}, reasonId) {
   if (!Array.isArray(rows) || !map || !reasonLabelOf(reasonId)) return [];
