@@ -22,13 +22,19 @@ const range = (low, high) => ({ low, high });
 const estimate = { feature: "generate", totalTokens: range(432000, 697000), calls: range(14, 16), inputTokens: range(420000, 680000), outputTokens: range(12000, 17000) };
 const reported = { uncachedInputTokens: 42, outputTokens: 44628, cacheReadTokens: 0, cacheWriteTokens: 720802, calls: 14 };
 
-test("a run that used more than its estimate says by how much, and why that can happen", () => {
-  const notes = format.usageNotes({ tokenUsage: reported, estimate });
-  assert.equal(notes.length, 2);
-  assert.match(notes[0], /超出了预计上限/);
-  assert.match(notes[0], /10%/, "765,472 is 9.8% above 697K");
-  assert.match(notes[1], /没有命中缓存/);
-  assert.match(notes[1], /各自独立/);
+test("a run that used more than its estimate says by how much, and distinguishes direct vs subagent cache-miss causes", () => {
+  const directNotes = format.usageNotes({ tokenUsage: reported, estimate, execution: { mode: "direct" } });
+  assert.equal(directNotes.length, 2);
+  assert.match(directNotes[0], /超出了预计上限/);
+  assert.match(directNotes[0], /10%/, "765,472 is 9.8% above 697K");
+  assert.match(directNotes[1], /没有命中缓存/);
+  assert.match(directNotes[1], /服务商|阈值|过期/);
+  assert.doesNotMatch(directNotes[1], /各自独立/);
+
+  const subagentNotes = format.usageNotes({ tokenUsage: reported, estimate, steps: [{ runtime: "subagent" }] });
+  assert.equal(subagentNotes.length, 2);
+  assert.match(subagentNotes[1], /没有命中缓存/);
+  assert.match(subagentNotes[1], /各自独立/);
 });
 
 test("a run inside its estimate, or one that read from the cache, has nothing to apologise for", () => {

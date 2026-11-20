@@ -69,7 +69,10 @@ export function cardModel({ write = () => goodCard(), review = () => [], fail = 
   const calls = [];
   let writes = 0;
   const complete = async (system, prompt) => {
-    const kind = system.startsWith('You independently review an answer card') ? 'review' : prompt.includes('\n\nREPAIR:') ? 'repair' : system.startsWith('You write the model answer') ? 'write' : 'other';
+    const kind = (system.startsWith('You independently review an answer card') || /\nSTAGE: review\b/.test(prompt)) ? 'review'
+      : prompt.includes('\n\nREPAIR:') ? 'repair'
+      : (system.startsWith('You write the model answer') || /\nSTAGE: write\b/.test(prompt)) ? 'write'
+      : 'other';
     calls.push({ kind, system, prompt, data: kind === 'other' ? null : data(prompt) });
     if (held && calls.length === held.at) await held.gate.promise;
     if (fail(calls.length)) throw new Error('provider down');

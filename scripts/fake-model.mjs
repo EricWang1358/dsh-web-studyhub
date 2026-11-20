@@ -588,9 +588,12 @@ function answerCardReply(input) {
 const HANDLERS = [
   // 分析题答案卡 (lib/contexts/generation/answer-card): a card whose quotes are real sentences of the case and of the first material, every key point earned
   // by one of its sentences, no number at all; the independent review finds nothing. The repair call (same system) is answered the same way.
-  { name: 'answer.card', match: (s) => s.startsWith('You write the model answer of a case / analysis exam question'),
+  { name: 'answer.card', match: (s, _input, prompt) => s.startsWith('You write the model answer of a case / analysis exam question')
+      || (s.startsWith('You work on a structured model answer card') && /\nSTAGE: write\b/.test(prompt || '')),
     reply: ({ prompt }) => answerCardReply(after(prompt.split('\n\nREPAIR:')[0], 'REQUEST DATA:\n')) },
-  { name: 'answer.card.review', match: (s) => s.startsWith('You independently review an answer card'), reply: () => ({ issues: [], summary: 'Preview: nothing found.' }) },
+  { name: 'answer.card.review', match: (s, _input, prompt) => s.startsWith('You independently review an answer card')
+      || (s.startsWith('You work on a structured model answer card') && /\nSTAGE: review\b/.test(prompt || '')),
+    reply: () => ({ issues: [], summary: 'Preview: nothing found.' }) },
   // 复习全书 补术语卡 (lib/contexts/generation/book/card-prompt.js, #710 S6): a card for every listed item of every point, related to the next item of the request.
   { name: 'book.cards', match: (s) => s.startsWith('You make the term cards of a review book'),
     reply: ({ prompt }) => {
@@ -648,9 +651,11 @@ const HANDLERS = [
       return { card: { ...input.card, explanation: `${input.card?.explanation || ""}（预览修复：补充了判断依据。）`,
         ...(quote ? { citations: [{ sourceId: source.id, quote }] } : {}) } };
     } },
-  { name: "case.author", slow: true, match: (s) => s.startsWith("You write original case-study exam papers"),
+  { name: "case.author", slow: true, match: (s, _input, prompt) => s.startsWith("You write original case-study exam papers")
+      || (s.startsWith("You work on case-study exam papers") && /\nSTAGE: case-author\b/.test(prompt || "")),
     reply: ({ prompt }) => authorCasePaper(payload(prompt)) },
-  { name: "case.review", slow: true, match: (s) => s.startsWith("You independently review a case-study exam paper"),
+  { name: "case.review", slow: true, match: (s, _input, prompt) => s.startsWith("You independently review a case-study exam paper")
+      || (s.startsWith("You work on case-study exam papers") && /\nSTAGE: case-review\b/.test(prompt || "")),
     reply: ({ prompt }) => reviewCasePaper(payload(prompt).candidate) },
   { name: "case.criteria", match: (s) => s.startsWith("You write marking criteria and model answers"),
     reply: ({ prompt }) => importedCriteria(payload(prompt)) },
@@ -1037,7 +1042,7 @@ export function createFakeModel({ latencyMs = 0, generationLatencyMs = latencyMs
   const nextNumber = () => ++counter;
   return async function fakeComplete(system, prompt, options = {}) {
     const input = data(prompt);
-    const handler = HANDLERS.find((entry) => entry.match(stageSystem(system, prompt), input));
+    const handler = HANDLERS.find((entry) => entry.match(stageSystem(system, prompt), input, prompt));
     log.push({ system, prompt, handler: handler?.name || null, stage: options?.stage });
     await wait(handler?.slow ? (handler.name === "generation.review" ? Math.round(generationLatencyMs / 2) : generationLatencyMs) : latencyMs,
       options?.signal);

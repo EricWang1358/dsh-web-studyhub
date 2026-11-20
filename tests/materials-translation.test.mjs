@@ -209,7 +209,8 @@ test('an answer that is a refusal is retried once; a good second answer is kept,
   const retried = await f.call('translate', { documentId, passages: [passage(source, A)] });
   assert.equal(retried.results[0].status, 'translated');
   assert.equal(model.calls.length, 2);
-  assert.match(model.calls[1].system, /rejected \(/);
+  assert.equal(model.calls[1].system, model.calls[0].system, 'retry keeps the system prompt byte-identical for prompt caching');
+  assert.match(model.calls[1].data.retryNote, /rejected \(/);
   const bad = fakeModel({ answer: data => JSON.stringify({ translations: data.passages.map(item => ({ id: item.id, text: '' })) }) });
   const g = await fixture(t, { model: bad }), second = await g.imported();
   const rejected = await g.call('translate', { documentId: second.documentId, passages: [passage(second.source, A)] });

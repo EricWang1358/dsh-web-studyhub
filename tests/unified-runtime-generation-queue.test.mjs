@@ -78,7 +78,7 @@ test('every model call is a gateway step; the level, the mode and the usage are 
   assert.equal((await runtime.call('job.wait', { jobId: started.jobId, timeoutSeconds: 30 }, services('a'))).status, 'complete');
   const { calls } = (await snapshotOf(runtime, started.jobId, services('a'))).contract;
   assert.ok(calls.length >= 4 && calls.every(call => call.observation.boundary === 'host-attempt'), 'plan, blueprint, author and review all went through the gateway');
-  assert.ok(calls.every(call => call.feature === 'generate' && call.executionMode === 'agent-preferred'));
+  assert.ok(calls.every(call => call.feature === 'generate' && call.executionMode === 'direct'));
   const byKind = Object.fromEntries(calls.map(call => [call.kind, call.requestedEffort]));
   assert.deepEqual([byKind.plan, byKind.review, byKind.author], ['follow', 'highest', 'lowest']);
   assert.equal(new Set(calls.map(call => call.callId)).size, calls.length);

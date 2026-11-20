@@ -49,20 +49,24 @@ const settle = f => { for (const request of [...f.pending.values()]) request.res
 test('a slow window never idles the other slots: a finished window is replaced at once', async t => {
   const f = fixture(t), work = f.run();
   work.catch(() => {});
-  await until(() => f.pending.size === 3, 'the first three windows');
-  assert.deepEqual(open(f), ['proofread:1', 'proofread:2', 'proofread:3']);
-  // Window 1 is the slow one; the others finish and each is replaced the moment it ends.
-  f.pending.get('proofread:2').resolve();
-  await until(() => f.pending.has('proofread:4'), 'window 4 to take the freed slot');
-  assert.equal(f.active, 3, 'three windows in flight while window 1 is still running');
+  // Window #1 is staggered to warm the prefix cache before windows 2..4 run in parallel.
+  await until(() => f.pending.has('proofread:1'), 'warm-up window 1');
+  assert.equal(f.pending.size, 1);
+  f.pending.get('proofread:1').resolve();
+  await until(() => f.pending.size === 3, 'the next three windows');
+  assert.deepEqual(open(f), ['proofread:2', 'proofread:3', 'proofread:4']);
+  // Window 2 is the slow one; the others finish and each is replaced the moment it ends.
   f.pending.get('proofread:3').resolve();
   await until(() => f.pending.has('proofread:5'), 'window 5 to take the freed slot');
-  f.pending.get('proofread:5').resolve(); f.pending.get('proofread:4').resolve();
-  await until(() => f.pending.has('proofread:7') && f.pending.has('proofread:6'), 'windows 6 and 7');
+  assert.equal(f.active, 3, 'three windows in flight while window 2 is still running');
+  f.pending.get('proofread:4').resolve();
+  await until(() => f.pending.has('proofread:6'), 'window 6 to take the freed slot');
+  f.pending.get('proofread:6').resolve(); f.pending.get('proofread:5').resolve();
+  await until(() => f.pending.has('proofread:8') && f.pending.has('proofread:7'), 'windows 7 and 8');
   assert.equal(f.active, 3);
-  f.pending.get('proofread:6').resolve(); f.pending.get('proofread:7').resolve();
-  await until(() => f.pending.has('proofread:9') && f.pending.has('proofread:8'), 'windows 8 and 9');
-  assert.deepEqual(open(f), ['proofread:1', 'proofread:8', 'proofread:9']);
+  f.pending.get('proofread:7').resolve();
+  await until(() => f.pending.has('proofread:9'), 'window 9');
+  assert.deepEqual(open(f), ['proofread:2', 'proofread:8', 'proofread:9']);
   assert.ok(!f.timeline.some(item => item.event === 'start' && item.key.startsWith('translate')), 'translation waits for all corrected text');
   assert.equal(f.maximum, 3);
   // Release the rest: translation then runs on the same pool.
@@ -80,32 +84,36 @@ test('a slow window never idles the other slots: a finished window is replaced a
 test('corrections found by finished windows reach windows that start later, whichever order they finished in', async _t => {
   const seen = [], controller = new AbortController(), release = new Map();
   const hold = key => new Promise(resolve => release.set(key, resolve));
-  const work = finishTranscript({ paragraphs: paragraphs.slice(0, 5), filename: 'lecture.wav', settings: {}, signal: controller.signal,
+  const work = finishTranscript({ paragraphs: paragraphs.slice(0, 6), filename: 'lecture.wav', settings: {}, signal: controller.signal,
     saved: { get: async () => null, set: async () => {} }, keys: { raw: 'r', text: 't' },
     complete: async (system, prompt, options) => {
       if (options.kind !== 'proofread') return answer(prompt, options);
       const input = JSON.parse(prompt), n = options.part;
       seen.push([n, input.knownFixes.map(item => item.right)]);
-      if (n === 1) await hold('first');
+      // Window 1 warms the cache and passes its fix to windows 2..4; window 2 stays slow while 3..6 run past it.
+      if (n === 2) await hold('second');
       return JSON.stringify({ corrections: [{ wrong: `Window ${n}`, right: `Section ${n}`, context: `Window ${n}: lecture evidence`, reason: 'term', confidence: 'high' }] });
     } });
-  await until(() => release.has('first') && seen.length >= 5, 'the pool to run past the slow first window');
-  assert.deepEqual(seen.slice(0, 3).map(([n]) => n), [1, 2, 3]);
-  const four = seen.find(([n]) => n === 4)[1], five = seen.find(([n]) => n === 5)[1];
-  assert.ok(four.every(right => ['Section 2', 'Section 3'].includes(right)), 'window 4 never sees the unfinished window 1');
-  assert.ok(five.includes('Section 2') && five.includes('Section 3'));
-  release.get('first')();
+  await until(() => release.has('second') && seen.length >= 6, 'the pool to run past the slow second window');
+  assert.deepEqual(seen.slice(0, 4).map(([n]) => n), [1, 2, 3, 4]);
+  assert.deepEqual(seen.find(([n]) => n === 2)[1], ['Section 1'], 'window 2 inherits warm-up window 1 fixes');
+  const five = seen.find(([n]) => n === 5)[1], six = seen.find(([n]) => n === 6)[1];
+  assert.ok(!five.includes('Section 2') && five.includes('Section 1'), 'window 5 never sees the unfinished window 2');
+  assert.ok(six.includes('Section 1') && six.includes('Section 3') && six.includes('Section 4'));
+  release.get('second')();
   const result = await work;
-  assert.equal(result.corrections.applied.length, 5, 'every window is applied, in source order');
-  assert.deepEqual(result.corrections.applied.map(item => item.wrong), [1, 2, 3, 4, 5].map(n => `Window ${n}`));
+  assert.equal(result.corrections.applied.length, 6, 'every window is applied, in source order');
+  assert.deepEqual(result.corrections.applied.map(item => item.wrong), [1, 2, 3, 4, 5, 6].map(n => `Window ${n}`));
 });
 
 test('cancelling mid-pool aborts every window in flight and starts none after it', async t => {
   const f = fixture(t), work = f.run();
   work.catch(() => {});
-  await until(() => f.pending.size === 3, 'first three windows');
-  f.pending.get('proofread:2').resolve();
-  await until(() => f.pending.has('proofread:4'), 'window 4');
+  await until(() => f.pending.has('proofread:1'), 'warm-up window 1');
+  f.pending.get('proofread:1').resolve();
+  await until(() => f.pending.size === 3, 'next three windows');
+  f.pending.get('proofread:3').resolve();
+  await until(() => f.pending.has('proofread:5'), 'window 5');
   const started = f.timeline.filter(item => item.event === 'start').length;
   f.controller.abort(new Error('learner stopped'));
   await assert.rejects(work, /learner stopped/);
@@ -116,13 +124,15 @@ test('cancelling mid-pool aborts every window in flight and starts none after it
 test('a fatal failure in one slot stops the siblings and keeps finished windows reusable', async t => {
   const f = fixture(t), work = f.run();
   work.catch(() => {});
-  await until(() => f.pending.size === 3, 'first three windows');
-  f.pending.get('proofread:2').resolve();
-  await until(() => f.pending.has('proofread:4'), 'window 4');
-  f.pending.get('proofread:1').reject(Object.assign(new Error('invalid key'), { fatal: true }));
-  await assert.rejects(work, /校对第 1\/9 段失败：invalid key/);
+  await until(() => f.pending.has('proofread:1'), 'warm-up window 1');
+  f.pending.get('proofread:1').resolve();
+  await until(() => f.pending.size === 3, 'next three windows');
+  f.pending.get('proofread:3').resolve();
+  await until(() => f.pending.has('proofread:5'), 'window 5');
+  f.pending.get('proofread:2').reject(Object.assign(new Error('invalid key'), { fatal: true }));
+  await assert.rejects(work, /校对第 2\/9 段失败：invalid key/);
   assert.equal(f.active, 0);
-  assert.ok([...f.files.keys()].some(name => name.includes('-1-')), 'window 2 stays saved');
+  assert.ok([...f.files.keys()].some(name => name.includes('-2-')), 'window 3 stays saved');
 });
 
 test('text concurrency is a setting from 1 to 6 (default 3)', async t => {
@@ -187,7 +197,7 @@ async function batch(t, { textConcurrency = 3, files = 3, text = lecture } = {})
         await new Promise((resolve, reject) => { held.set('first', resolve); init.signal?.addEventListener('abort', () => reject(init.signal.reason), { once: true }); });
       }
       // On the runtime each call is first saved as an intent, one write after another: the fake model must be slower than that for calls to overlap.
-      await new Promise(resolve => setTimeout(resolve, SWITCH_MODE === 'runtime' ? 150 : 3));
+      await new Promise(resolve => setTimeout(resolve, SWITCH_MODE === 'runtime' ? 150 : 15));
       if (kind === 'proofread') return reply('{"corrections":[]}');
       const payload = JSON.parse(prompt);
       return reply(JSON.stringify({ titleZh: '标', titleEn: 'T', paragraphs: payload.paragraphs.map(p => ({ n: p.n, zh: 'x' })) }));

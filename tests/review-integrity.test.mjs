@@ -203,7 +203,7 @@ test("an incomplete batch review is retried per card before publication", async 
     prompt: "What guides later evolution?" };
   const draft = await service.call("draft.save", { deck: { id: "d", title: "Architecture", cards: [card(), second] } });
   const result = await service.call("draft.publish", { id: draft.id, draftVersion: draft.draftVersion });
-  assert.equal(calls, 4);
+  assert.equal(calls, 3, "preserves cleanly passing card q and re-inspects only missing card q2");
   assert.deepEqual({ accepted: result.accepted, rejected: result.rejected }, { accepted: 2, rejected: 0 });
 });
 

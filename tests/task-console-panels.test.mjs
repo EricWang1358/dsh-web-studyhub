@@ -135,7 +135,7 @@ test('the output: no call, a call that cannot write on the way, and one that can
   assert.match(streaming, /data-mode="stream"/);
   assert.match(streaming, /role="log"/);
   assert.match(streaming, /等待模型开始输出/);
-  assert.match(streaming, /只保留最近约 8 KB/);
+  assert.match(streaming, /只保留最近约 64 KB/);
   assert.match(streaming, /结束后仍可回看/);
   assert.doesNotMatch(streaming, /输出不保留/);
 });
@@ -156,16 +156,16 @@ test('an ended call: its whole text from memory, the tail of a long one, a full 
   assert.doesNotMatch(whole, /输出不保留|等待模型开始输出/);
 
   const tail = endedHtml({ text: 'the end of a long reply', source: 'memory', partial: true });
-  assert.match(tail, /已结束 · 显示最后约 8 KB/);
+  assert.match(tail, /已结束 · 显示最后约 64 KB/);
   assert.match(tail, /the end of a long reply/);
 
   const tailUnreadable = endedHtml({ text: 'the end', source: 'memory', partial: true, sessionUnreadable: true });
-  assert.match(tailUnreadable, /已结束 · 显示最后约 8 KB/);
+  assert.match(tailUnreadable, /已结束 · 显示最后约 64 KB/);
   assert.match(tailUnreadable, /DSH 会话读取不到，无法补全/);
 
   const session = endedHtml({ text: '{"a": 1}', source: 'session' });
   assert.match(session, /已结束 · 完整回复读取自 DSH 会话/);
-  assert.doesNotMatch(session, /最后约 8 KB/);
+  assert.doesNotMatch(session, /最后约 64 KB/);
 
   const clipped = endedHtml({ text: '{"a": 1}', source: 'session', clipped: true });
   assert.match(clipped, /完整回复读取自 DSH 会话/);
@@ -181,7 +181,7 @@ test('an ended call: its whole text from memory, the tail of a long one, a full 
 });
 
 test('an ended call in English: every new sentence has its translation', () => {
-  assert.match(endedHtml({ text: 'x', source: 'memory', partial: true }, 'en'), /Ended · showing the last ~8 KB/);
+  assert.match(endedHtml({ text: 'x', source: 'memory', partial: true }, 'en'), /Ended · showing the last ~64 KB/);
   assert.match(endedHtml({ text: 'x', source: 'memory' }, 'en'), /Ended · showing everything this step wrote/);
   assert.match(endedHtml({ text: 'x', source: 'session' }, 'en'), /Ended · the full reply is read from the DSH session/);
   assert.match(endedHtml({ text: 'x', source: 'session', clipped: true }, 'en'), /reply is very long, showing the first 200 KB/);
@@ -211,18 +211,18 @@ test('JSON the model wrote is shown indented, finished or still streaming; other
   assert.equal(hostile.includes('<img'), false, 'text is text, never markup');
 });
 
-test('a panel opened late (the host keeps the last ~8 KB) starts mid-JSON: the tail is still laid out by structure, running or ended', () => {
+test('a panel opened late (the host keeps the last ~64 KB) starts mid-JSON: the tail is still laid out by structure, running or ended', () => {
   const text = (markup) => markup.replace(/<[^>]+>/g, '').replace(/&quot;/g, '"');
   const tail = 'ough to see it","citations":[{"sourceId":"src-1","quote":"a b"}],"answerability":{"mode":"recall"}}]}';
   const live = contractOf(audioJob()).calls.find((call) => call.status === 'running');
-  const streaming = html(React.createElement(m.OutputView, { jobId: 'batch', record: live, active: true, view: { phase: 'ready', text: tail, total: 20000, reasoning: 0, supported: true, source: null }, now: Date.parse(at(60)) }));
+  const streaming = html(React.createElement(m.OutputView, { jobId: 'batch', record: live, active: true, view: { phase: 'ready', text: tail, total: 70000, reasoning: 0, supported: true, source: null }, now: Date.parse(at(60)) }));
   assert.ok(text(streaming).includes('\n  "citations": ['), 'running, text shorter than what was written: a fragment');
   assert.match(streaming, /tc-json__key/);
   const whole = html(React.createElement(m.OutputView, { jobId: 'batch', record: live, active: true, view: { phase: 'ready', text: tail, total: tail.length, reasoning: 0, supported: true, source: null }, now: Date.parse(at(60)) }));
   assert.equal(text(whole).includes('\n  "citations"'), false, 'the whole text of a call is not a fragment: nothing to resync');
   const endedTail = endedHtml({ text: tail, source: 'memory', partial: true });
   assert.ok(text(endedTail).includes('\n  "citations": ['), 'ended, only the tail kept: a fragment too');
-  assert.match(endedTail, /已结束 · 显示最后约 8 KB/);
+  assert.match(endedTail, /已结束 · 显示最后约 64 KB/);
 });
 
 test('the console puts the two columns under the controls, with the kind\'s own tab, and a full-screen switch in the header', () => {
