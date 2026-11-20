@@ -44,7 +44,7 @@ export const isBackdropClick = (event, dialog, downTarget) => event.target === d
  * or margins) away from the browser and the host chat.
  */
 export default function Dialog({ title, description, onClose, size = 'md', footer, children, dismissible = true, initialFocus,
-  bodyLabel, closeLabel, busy = false, guardDrops = false, className, headerClassName, titleClassName, bodyClassName, contentClassName, footerClassName, ...rest }) {
+  bodyLabel, closeLabel, busy = false, guardDrops = false, className, headerClassName, titleClassName, bodyClassName, contentClassName, footerClassName, open: _open, ...rest }) {
   useComponentCss(css);
   useComponentCss(overlayCss, 'study-overlays');
   useComponentCss(mediaCss, 'study-dialog-media');
@@ -74,6 +74,9 @@ export default function Dialog({ title, description, onClose, size = 'md', foote
     closing.current = false;
     entry.dialog = dialog;
     if (needsOwnScope(dialog)) setOwn(ownScope());
+    if (dialog.open && typeof dialog.matches === 'function' && !dialog.matches(':modal')) {
+      try { dialog.close(); } catch { dialog.removeAttribute('open'); }
+    }
     if (!dialog.open) {
       try { dialog.showModal(); } catch { dialog.setAttribute('open', ''); }
     }

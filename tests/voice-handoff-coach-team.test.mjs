@@ -338,3 +338,44 @@ test('scripts/study-cli.mjs bridges Codex/agy/external CLIs safely (pack, batch 
     /HB-1/,
   );
 });
+
+test('VoicePackDialog and Dialog never emit a raw non-modal HTML open attribute (preserves showModal top layer & backdrop)', async () => {
+  const React = (await import('react')).default;
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { loadUi } = await import('./helpers/ui-module.mjs');
+  const uiMod = await loadUi(`
+    export { default as Dialog } from './ui/components/Dialog.jsx';
+    export { default as VoicePackDialog } from './ui/VoicePackDialog.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+  `);
+
+  const guarded = renderToStaticMarkup(
+    React.createElement(uiMod.Dialog, { open: true, title: 'Top layer guard', onClose: () => {} }, 'body'),
+  );
+  const dialogTag = guarded.match(/<dialog\b[^>]*>/)?.[0] || '';
+  assert.ok(dialogTag, 'Dialog renders a <dialog> element');
+  assert.doesNotMatch(dialogTag, /\sopen(?:=|\s|>)/, 'Dialog strips open prop so showModal() enters the browser top layer');
+
+  const voiceMarkup = renderToStaticMarkup(
+    React.createElement(
+      uiMod.StudyServicesContext.Provider,
+      {
+        value: {
+          call: async () => ({}),
+          act: async () => undefined,
+          busy: false,
+          notify: () => {},
+          askInChat: () => {},
+          host: { capabilities: { edition: 'desktop', chat: false, agentTasks: false, landing: false } },
+          openSettings: () => {},
+          navigate: () => {},
+          openModal: () => {},
+        },
+      },
+      React.createElement(uiMod.VoicePackDialog, { modal: { course: 'Java 八股' }, onClose: () => {} }),
+    ),
+  );
+  const vpTag = voiceMarkup.match(/<dialog\b[^>]*>/)?.[0] || '';
+  assert.ok(vpTag, 'VoicePackDialog renders a <dialog> element');
+  assert.doesNotMatch(vpTag, /\sopen(?:=|\s|>)/, 'VoicePackDialog must not render non-modal <dialog open>');
+});

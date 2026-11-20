@@ -135,7 +135,6 @@ export default function VoicePackDialog({ modal, onClose }) {
 
   return (
     <Dialog
-      open
       size="md"
       onClose={onClose}
       title={ui('语音带学包')}
@@ -173,7 +172,7 @@ export default function VoicePackDialog({ modal, onClose }) {
               </div>
               {counts && (
                 <div className="vp-summary__stats">
-                  <Badge size="sm" tone="danger">{uiFormat('薄弱 {0}', [counts.weak])}</Badge>
+                  <Badge size="sm" tone="error">{uiFormat('薄弱 {0}', [counts.weak])}</Badge>
                   <Badge size="sm">{uiFormat('未做 {0}', [counts.new])}</Badge>
                   <Badge size="sm" tone="warning">{uiFormat('学习中 {0}', [counts.learning])}</Badge>
                   <Badge size="sm" tone="info">{uiFormat('熟悉 {0}', [counts.familiar])}</Badge>
