@@ -73,6 +73,7 @@ const SECTIONS = {
   pdf: { value: 'convert', label: '转换详情', count: () => '', View: ({ task }) => <div className="tc-scroll"><PdfDetail job={task} /></div> },
   'material-classify': MATERIAL_STEPS_SECTION,
   'material-organize': MATERIAL_STEPS_SECTION,
+  assist: MATERIAL_STEPS_SECTION,
 };
 /** A one-click install (Marker, MinerU; the legacy row or the Job): its steps, done, active, failed or still to come. */
 const INSTALL_SECTION = { value: 'steps', label: '安装步骤', count: (contract) => contract.detail.install.steps.length,
@@ -86,14 +87,15 @@ const BOOK_SECTION = { value: 'points', label: '知识点', count: (contract) =>
 export default function TaskBody({ task, archived = false, marks, focusCall }) {
   const contract = contractOf(task), calls = contract.calls, live = isRunningTask(task), kind = taskKindOf(task);
   const isMaterialTask = kind === 'material-classify' || kind === 'material-organize';
+  const hasStepList = isMaterialTask || kind === 'assist';
   const install = Array.isArray(contract.detail?.install?.steps), index = contract.kind === 'retrieval-index';
   const section = contract.kind === 'audio-live-correction' ? null : contract.kind === 'course-book-build' ? BOOK_SECTION : install ? INSTALL_SECTION : index ? INDEX_SECTION : SECTIONS[kind], left = useId(), right = useId();
-  const [selected, setSelected] = useState(null), [leftTab, setLeftTab] = useState(() => (isMaterialTask && !live ? 'steps' : 'running')), [rightTab, setRightTab] = useState('output');
+  const [selected, setSelected] = useState(null), [leftTab, setLeftTab] = useState(() => (hasStepList && !live ? 'steps' : 'running')), [rightTab, setRightTab] = useState('output');
   // Both tab strips fade the side that still has a panel beyond it (ui/components/scroll-fade.css, #747); the scroll position and the arrow keys are untouched.
   const [leftStrip, leftEdges, measureLeft] = useScrollEdges();
   const [rightStrip, rightEdges, measureRight] = useScrollEdges();
   const running = useMemo(() => runningCalls(calls), [calls]);
-  const fallbackCall = isMaterialTask && !live ? calls.filter((call) => call.kind !== 'wait').at(-1) || null : null;
+  const fallbackCall = hasStepList && !live ? calls.filter((call) => call.kind !== 'wait').at(-1) || null : null;
   const target = calls.find((call) => call.callId === selected) || running.find((call) => call.kind !== 'wait') || fallbackCall;
   const choose = (callId) => { setSelected(callId); setRightTab((cur) => (cur === 'trace' ? 'trace' : 'output')); };
   useEffect(() => { if (focusCall?.id) { setSelected(focusCall.id); setRightTab('output'); } }, [focusCall]);

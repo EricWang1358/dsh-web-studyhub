@@ -13,7 +13,7 @@ import { partTitle } from '../deck-parts.js';
 const KIND_LABEL = {
   audio: '音频批量转写', pdf: 'PDF 转换', translation: '翻译', supplement: '补题', repair: '修题', publish: '发布检查',
   generation: '出题', companion: '交互伴学', 'material-classify': '资料智能分类', 'material-organize': '整理课程归属',
-  extension: '后台任务', coach: '为你定制',
+  assist: '后台助教', extension: '后台任务', coach: '为你定制',
 };
 export const taskKindLabel = (kind) => ui(KIND_LABEL[kind] || KIND_LABEL.extension);
 
@@ -119,6 +119,17 @@ export function stageLabel(stage) {
   if (family === 'install') return stage.text ? uiMessage(stage.text) : ui('进行中');
   // A search-index build says its pages in the producer's words (正在建立索引 3 / 513 页, lib/retrieval-messages.js).
   if (family === 'retrieval') return stage.text ? uiMessage(stage.text) : ui('进行中');
+  if (family === 'study') {
+    const [, sub, step] = String(stage.code).split('.');
+    if (sub === 'terms') {
+      if (step === 'queued') return ui('排队中');
+      if (step === 'running') return ui('正在补齐生词');
+      if (step === 'repair') return ui('正在修复补词格式');
+      if (step === 'cancelled') return ui('已停止');
+      if (step === 'complete') return stage.text ? uiMessage(stage.text) : ui('已完成');
+    }
+    return stage.text ? uiMessage(stage.text) : (BARE_STAGES[step] ? ui(BARE_STAGES[step]) : ui('进行中'));
+  }
   if (stage.text) return stage.text;
   return BARE_STAGES[stage.code] ? ui(BARE_STAGES[stage.code]) : '';
 }
@@ -189,6 +200,9 @@ export function taskLine(job) {
       return beside ? joinMeta([beside, line]) : line;
     }
   }
+  if (taskKind === 'assist' && contract.detail?.mode === 'terms' && isRunningTask(job) && Array.isArray(contract.detail?.terms) && contract.detail.terms.length) {
+    return joinMeta([beside, stageLabel(contract.stage), contract.detail.terms.join('、')]);
+  }
   if (run && isRunningTask(job) && run.rounds > 1) return joinMeta([beside, roundOfText(run.round, run.rounds), stageLabel(contract.stage)]);
   return beside ? joinMeta([beside, stageLabel(contract.stage)]) : stageLabel(contract.stage);
 }
@@ -196,7 +210,10 @@ export function taskLine(job) {
 /** Everything a list row needs. */
 export function taskSummary(job) {
   const contract = contractOf(job), kind = taskKindOf(job);
-  return { id: contract.jobId, kind, kindLabel: kind === 'audio' ? audioKindLabel(contract) : taskKindLabel(kind), title: taskTitle(job), state: taskState(job), percent: taskPercent(job), running: isRunningTask(job), line: taskLine(job), status: contract.status };
+  const kindLabel = kind === 'audio' ? audioKindLabel(contract)
+    : kind === 'assist' && contract.detail?.mode === 'terms' ? ui('补齐生词')
+    : taskKindLabel(kind);
+  return { id: contract.jobId, kind, kindLabel, title: taskTitle(job), state: taskState(job), percent: taskPercent(job), running: isRunningTask(job), line: taskLine(job), status: contract.status };
 }
 
 /** The badge word of a state. */

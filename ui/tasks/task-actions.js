@@ -72,6 +72,12 @@ export function resultOpener(job, app) {
   if (sourceIds.length && app?.learn?.openAudioSources) return { kind: 'source', label: ui('打开资料'), run: () => app.learn.openAudioSources(sourceIds) };
   const deck = refs.find((ref) => ref.kind === 'deck');
   if (deck && app?.intents?.openDeck && data?.decks?.some((item) => item.id === deck.id)) return { label: ui('打开题组'), run: () => app.intents.openDeck(deck.id) };
+  if (contract.kind === 'assist' && contract.status === 'complete' && !isLiveStatus(contract.status)) {
+    const assistDeckId = contract.detail?.deckId;
+    if (assistDeckId && app?.intents?.openDeck && data?.decks?.some((item) => item.id === assistDeckId)) {
+      return { label: ui('打开题组'), run: () => app.intents.openDeck(assistDeckId) };
+    }
+  }
   // The note an AI draft wrote (lib/contexts/notes/jobs/note-generate.js): offered while the note is still there.
   const note = refs.find((ref) => ref.kind === 'note' && Array.isArray(data?.notes) && data.notes.some((item) => item.id === ref.id));
   if (note && app?.learn?.openLearningTarget) return { label: ui('打开笔记'), run: () => app.learn.openLearningTarget({ kind: 'note', id: note.id }) };
