@@ -1,4 +1,4 @@
-import { createContext, useContext } from 'react';
+import React, { createContext, useContext, useMemo, useSyncExternalStore } from 'react';
 
 /* The services nearly every page needs, offered once instead of passed down as call={call} busy={busy} setNotice=… through
    every level (ui-consistency #113). App provides it; a page reads it with `const { call, act, busy } = useStudy()`.
@@ -29,6 +29,48 @@ const standalone = Object.freeze({
 });
 
 export const StudyServicesContext = createContext(null);
+
+/** Dedicated boolean busy context so toggling single-flight `act()` busy state does not re-render non-busy `useStudyServices()` consumers. */
+export const StudyBusyContext = createContext(null);
+
+/** Tiny external store for single-flight busy state so `act()` never triggers a root App re-render. */
+export function createBusyStore(initial = false) {
+  let value = !!initial;
+  const listeners = new Set();
+  return {
+    get: () => value,
+    set(next) {
+      const flag = !!next;
+      if (flag === value) return;
+      value = flag;
+      for (const listener of listeners) listener();
+    },
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+}
+
+/** Subscribes to `busyStore` in an isolated leaf provider so toggling busy never re-renders App or non-busy shell components. */
+export function StudyBusyProvider({ store, study, children }) {
+  const busy = useSyncExternalStore(store.subscribe, store.get, store.get);
+  const value = useMemo(() => (study ? (study.busy === busy ? study : { ...study, busy }) : null), [study, busy]);
+  const inner = study
+    ? <StudyServicesContext.Provider value={value}>{children}</StudyServicesContext.Provider>
+    : children;
+  return <StudyBusyContext.Provider value={busy}>{inner}</StudyBusyContext.Provider>;
+}
+
+/** Stable app services hook. */
+export const useStudyServices = () => useContext(StudyServicesContext) || standalone;
+
+/** Subscribe solely to the app's single-flight `busy` flag (falls back to `StudyServicesContext.busy` in standalone test harnesses). */
+export function useStudyBusy() {
+  const busy = useContext(StudyBusyContext);
+  const services = useContext(StudyServicesContext);
+  return typeof busy === 'boolean' ? busy : !!services?.busy;
+}
 
 /** The app's services; a standalone, harmless set when rendered outside the app (tests, previews). */
 export const useStudy = () => useContext(StudyServicesContext) || standalone;

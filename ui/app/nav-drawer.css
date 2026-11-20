@@ -50,6 +50,21 @@
       color: var(--text-dim);
     }
   }
+  @media (pointer: coarse) {
+    :is(.study-app, .study-seat) {
+      .nav-menu-toggle {
+        width: 44px;
+        height: 44px;
+      }
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :is(.study-app, .study-seat) {
+      .nav-drawer[open] {
+        animation: none;
+      }
+    }
+  }
 }
 
 @keyframes nav-drawer-in {

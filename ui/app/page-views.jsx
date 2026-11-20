@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo } from 'react';
 import { PageBoundary } from './page-boundary.jsx';
+import { useStudyBusy } from '../study-context.jsx';
 import { useDiagnostics } from '../diagnostics.js';
 import { currentStudyHubVersion, currentUpgradeMarker } from '../UpdateCenter.jsx';
 import { ui, uiFormat, setUiLanguage, errorMessage, getUiLanguage } from '../i18n.js';
@@ -52,7 +53,8 @@ import { openCompanionTarget } from '../companions/companion-ref.js';
 
 function LibraryView() {
   const { data, core, nav, lib, set, session, intents, drafts, notebooks, tour, dailyPlan, settingsEntry, learn, connection } = useApp();
-  const { busy, notify } = core;
+  const busy = useStudyBusy();
+  const { notify } = core;
   /* 期末一周 (M7): a course's book at a point, in 翻看 or with 今天读哪几节 open; another course than the current one is made current first (the book
      page shows the current course's book). 练 5 道 practises the point's next five, in a practice round's order. */
   const openCrunchBook = async (course, { target = null, view = null } = {}) => {
@@ -481,6 +483,7 @@ function SettingsView() {
       legacy={settingsEntry.legacy} setLegacy={settingsEntry.setLegacy}
       exportData={exportData} onOpenRef={openProfileRef}
       appearance={{ language, onLanguage: setUiLanguage, ...appearance, onTheme: shell.setTheme,
+        onStyle: (value) => updateAppearance({ style: value }),
         onScience: (value) => shell.setSciencePrefs(normalizeScienceSettings(value)),
         onMotion: (value) => updateAppearance({ motion: value }),
         onContrast: (value) => updateAppearance({ contrast: value }),
@@ -521,50 +524,65 @@ function ReviewView({ feedback }) {
   const run = session.run;
   // A finished round may change what today's plan shows next (practice progress is counted from the answers), so read it again once.
   useEffect(() => { if (run?.complete) dailyPlan.refresh?.(); }, [run?.id, run?.complete]); // eslint-disable-line react-hooks/exhaustive-deps
+  const detour = run && lib.detour && !(lib.detour.runId === run.id && lib.detour.index === run.index) ? lib.detour : null;
+  const links = useMemo(() => {
+    if (!run) return {};
+    const questionRef = questionNoteRef(run);
+    return {
+      onBackToWorkflow: (sessionId) => { set.setWorkflowReturn({ sessionId, nonce: Date.now() }); nav.navigate('workflows'); },
+      onOpenNote: (noteId) => learn.openLearningTarget({ kind: 'note', id: noteId }),
+      onRecapSettings: () => { learn.rememberContext(learn.captureContext()); settingsEntry.setSettingsFocus('settings-daily-recap'); nav.show.page('settings'); },
+      onPracticeSettings: () => { learn.rememberContext(learn.captureContext()); settingsEntry.setSettingsFocus('settings-practice'); nav.show.page('settings'); },
+      onModelSettings: settingsEntry.openModelSettings,
+      // 写笔记 opens today's course study note (appending this question's block when new; #1017) in the page's language.
+      onMakeNote: () => {
+        const origin = learn.captureContext();
+        const noteCourse = questionNoteCourse(run, data?.decks);
+        return core.act('note.create', { title: questionNoteTitle(noteCourse), cards: [questionRef], reuse: true, prefill: true, language: getUiLanguage() },
+          (note) => { learn.rememberContext(origin); nav.show.note(note.id); });
+      },
+      // 存进笔记 under a Q&A: into today's course study note, once per follow-up (note.qa.add); the practice page then reads 已存进笔记 from the note badges.
+      onSaveQaToNote: (followupId) => core.act('note.qa.add', qaToNoteArgs(run, followupId, data?.decks), undefined, { rethrow: true }),
+      onMakeTask: learn.openBoardWithContext,
+      openSkeleton: (id) => learn.openLearningTarget({ kind: 'skeleton', id }),
+      onOpenOutline: pageAvailable(data, 'outline') ? async (place) => {
+        const target = place?.chapter?.key || place?.document?.key || place?.leaf?.key || '';
+        if (!target) return;
+        await openReviewCoursePage({
+          place, data, core, session, learn, nav, targetPage: 'outline',
+          prepare: (targetCourse) => keepOutline(data?.root, targetCourse, { target, leafKey: place?.leaf?.key || null }),
+        });
+      } : undefined,
+      onOpenBookSection: pageAvailable(data, 'book') ? async (place) => {
+        if (!place?.leaf?.built || !place?.leaf?.key) return;
+        await openReviewCoursePage({
+          place, data, core, session, learn, nav, targetPage: 'book',
+          prepare: (targetCourse) => keepBook(data?.root, targetCourse, { target: place.leaf.key }),
+        });
+      } : undefined,
+      onReturnToReading: learn.returnToReading,
+    };
+  }, [run, data, core, session, nav, set, learn, settingsEntry]);
+  const { coach: sessionCoach, continueTo } = session;
+  const coachProps = useMemo(() => (
+    data && run ? { ...sessionCoach, destination: run.complete ? continueTo(dailyPlan) : undefined } : undefined
+  ), [data, run, sessionCoach, continueTo, dailyPlan]);
+  const context = useMemo(() => ({
+    label: learn.trailLabel,
+    onReturn: learn.returnFromContext,
+    detour,
+    onReturnFromDetour: learn.returnFromDetour,
+    kind: learn.trailPage,
+    place: learn.trailPlace,
+    tourRunning: !!tour.tourStep,
+  }), [learn.trailLabel, learn.returnFromContext, detour, learn.returnFromDetour, learn.trailPage, learn.trailPlace, tour.tourStep]);
+  const onBoard = React.useCallback(() => { set.setBoardView('today'); nav.navigate('board'); }, [set, nav]);
   if (!run) return null;
-  const detour = lib.detour && !(lib.detour.runId === run.id && lib.detour.index === run.index) ? lib.detour : null;
-  const questionRef = questionNoteRef(run);
-  const links = {
-    onBackToWorkflow: (sessionId) => { set.setWorkflowReturn({ sessionId, nonce: Date.now() }); nav.navigate('workflows'); },
-
-    onOpenNote: (noteId) => learn.openLearningTarget({ kind: 'note', id: noteId }),
-    onRecapSettings: () => { learn.rememberContext(learn.captureContext()); settingsEntry.setSettingsFocus('settings-daily-recap'); nav.show.page('settings'); },
-    onPracticeSettings: () => { learn.rememberContext(learn.captureContext()); settingsEntry.setSettingsFocus('settings-practice'); nav.show.page('settings'); },
-    onModelSettings: settingsEntry.openModelSettings,
-    // 写笔记 opens today's course study note (appending this question's block when new; #1017) in the page's language.
-    onMakeNote: () => {
-      const origin = learn.captureContext();
-      const noteCourse = questionNoteCourse(run, data?.decks);
-      return core.act('note.create', { title: questionNoteTitle(noteCourse), cards: [questionRef], reuse: true, prefill: true, language: getUiLanguage() },
-        (note) => { learn.rememberContext(origin); nav.show.note(note.id); });
-    },
-    // 存进笔记 under a Q&A: into today's course study note, once per follow-up (note.qa.add); the practice page then reads 已存进笔记 from the note badges.
-    onSaveQaToNote: (followupId) => core.act('note.qa.add', qaToNoteArgs(run, followupId, data?.decks), undefined, { rethrow: true }),
-    onMakeTask: learn.openBoardWithContext,
-    openSkeleton: (id) => learn.openLearningTarget({ kind: 'skeleton', id }),
-    onOpenOutline: pageAvailable(data, 'outline') ? async (place) => {
-      const target = place?.chapter?.key || place?.document?.key || place?.leaf?.key || '';
-      if (!target) return;
-      await openReviewCoursePage({
-        place, data, core, session, learn, nav, targetPage: 'outline',
-        prepare: (targetCourse) => keepOutline(data?.root, targetCourse, { target, leafKey: place?.leaf?.key || null }),
-      });
-    } : undefined,
-    onOpenBookSection: pageAvailable(data, 'book') ? async (place) => {
-      if (!place?.leaf?.built || !place?.leaf?.key) return;
-      await openReviewCoursePage({
-        place, data, core, session, learn, nav, targetPage: 'book',
-        prepare: (targetCourse) => keepBook(data?.root, targetCourse, { target: place.leaf.key }),
-      });
-    } : undefined,
-    onReturnToReading: learn.returnToReading,
-  };
   return (
     <>
-      <RelatedTasks plan={dailyPlan} runId={run.id} onBoard={() => { set.setBoardView('today'); nav.navigate('board'); }} />
+      <RelatedTasks plan={dailyPlan} runId={run.id} onBoard={onBoard} />
       <Review session={session} data={data} shellTitle={shellTitleOf('review', { run, decks: data?.decks })} feedback={feedback}
-        coachProps={data ? { ...session.coach, destination: run.complete ? session.continueTo(dailyPlan) : undefined } : undefined} links={links}
-        context={{ label: learn.trailLabel, onReturn: learn.returnFromContext, detour, onReturnFromDetour: learn.returnFromDetour, kind: learn.trailPage, place: learn.trailPlace, tourRunning: !!tour.tourStep }} />
+        coachProps={coachProps} links={links} context={context} />
     </>
   );
 }
@@ -703,13 +721,14 @@ export function DisabledPage({ page }) {
 /** The start page before a library has loaded: which folder and model, and a retry. */
 export function StartPage() {
   const { core } = useApp();
+  const busy = useStudyBusy();
   return (
     <section className="onboarding">
       <div className="eyebrow">{ui('你的学习空间')}</div>
       <h1>{ui('把资料变成真正会的知识。')}</h1>
       <p className="intro">{ui('学习库还没有打开。它默认放在当前工作区；打不开的话，换一个目录再点「重试」。')}</p>
       <WorkspaceBindingPanel />
-      <Button variant="primary" lock={core.busy} onClick={() => core.refresh().then(() => core.setError(''), (failure) => core.setError(failure.message))}>{ui('重试')}</Button>
+      <Button variant="primary" lock={busy} onClick={() => core.refresh().then(() => core.setError(''), (failure) => core.setError(failure.message))}>{ui('重试')}</Button>
     </section>
   );
 }

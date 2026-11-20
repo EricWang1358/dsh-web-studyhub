@@ -33,7 +33,7 @@ function Brand({ onCollapse }) {
   );
 }
 
-export default function AppSidebar() {
+const AppSidebar = React.memo(function AppSidebar() {
   useInjectCss(css, 'study-app-shell');
   useInjectCss(drawerCss, 'study-nav-drawer');
   const { shell } = useApp();
@@ -59,4 +59,6 @@ export default function AppSidebar() {
       </div>
     </Dialog>
   );
-}
+});
+
+export default AppSidebar;

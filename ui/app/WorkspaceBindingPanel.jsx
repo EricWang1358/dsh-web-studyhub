@@ -7,6 +7,7 @@ import ReasoningEffortField from '../ReasoningEffortField.jsx';
 import { AppContext } from './app-context.js';
 import { hostPart } from '../host-parts.js';
 import { libraryPinnedByEnv } from './binding-notice.js';
+import { useStudyBusy } from '../study-context.jsx';
 
 /* Which folder the library lives in and which model makes the questions: the panel on the empty start page and in Settings.
    The folder and model drafts (the typed-in alternatives to the picker) are its own; everything else is the app's binding.
@@ -18,7 +19,8 @@ export default function WorkspaceBindingPanel() {
 
 function Binding({ app }) {
   const { host, data, core, connection } = app;
-  const { call, busy } = core;
+  const { call } = core;
+  const busy = useStudyBusy();
   const { binding, setBinding, updateBinding } = connection;
   const [rootDraft, setRootDraft] = useState(null), [modelDraft, setModelDraft] = useState(null);
   const modelGroups = host.modelGroups || [];

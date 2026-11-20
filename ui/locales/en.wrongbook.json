@@ -201,5 +201,13 @@
   "同知识点错题": "Same knowledge point",
   "{0} 道错题集中在同一处，推荐做一个 4 页交互实验一次打通": "{0} mistakes point to the same spot — try a 4-slide interactive experiment to clear them together",
   "{0} 道错题集中在同一处，推荐做一个 4 页交互实验一次打通#one": "{0} mistake points to the same spot — try a 4-slide interactive experiment to clear it",
-  "发给主会话后，它会直接编译 3–4 页交互实验并挂回这组错题；挂载好后回到这里刷新就能直接打开，做完关闭窗口仍回到错题本。": "Send this to main chat to compile a 3–4 slide interactive experiment and link it back to this group of mistakes; return here and refresh to open it, and closing the experiment brings you right back to the wrong book."
+  "发给主会话后，它会直接编译 3–4 页交互实验并挂回这组错题；挂载好后回到这里刷新就能直接打开，做完关闭窗口仍回到错题本。": "Send this to main chat to compile a 3–4 slide interactive experiment and link it back to this group of mistakes; return here and refresh to open it, and closing the experiment brings you right back to the wrong book.",
+  "展开全文": "Show full text",
+  "填空上下文": "Fill-in-the-blank context",
+  "所选错项辨析": "Why your choice was wrong",
+  "追问与补充": "Follow-up & reply",
+  "口头评估反馈": "Oral assessment feedback",
+  "关闭清零处方": "Hide clear-out plan",
+  "开启专项清零建议": "Show targeted clear-out plan",
+  "按同页出处、顽固题与单次失误整理（不消耗模型）": "Group by cited page, stubborn cards & single slips (no model used)"
 }

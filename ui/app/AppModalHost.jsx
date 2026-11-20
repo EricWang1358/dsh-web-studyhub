@@ -58,7 +58,7 @@ export function ModalRouter() {
   return render({ modal, app, onClose: () => app.set.setModal(null) });
 }
 
-export default function AppModalHost() {
+const AppModalHost = React.memo(function AppModalHost() {
   const app = useApp();
   const { data, core, nav, lib, set, tour, settingsEntry, intents } = app;
   const { courseSettings, setCourseSettings } = settingsEntry;
@@ -94,4 +94,6 @@ export default function AppModalHost() {
       <ModalRouter />
     </>
   );
-}
+});
+
+export default AppModalHost;

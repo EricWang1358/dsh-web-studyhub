@@ -27,8 +27,33 @@ export function cancelDecision({ cancelable, dismissible }) {
   return cancelable ? 'close' : 'defer';
 }
 
-/** A click closes from the backdrop only if it also started there (not a text selection dragged out). */
-export const isBackdropClick = (event, dialog, downTarget) => event.target === dialog && downTarget === dialog;
+/** A click closes from the backdrop only if it also started there (not a text selection dragged out or a click inside the sheet box). */
+export function isBackdropClick(event, dialog, downTarget) {
+  if (event.target !== dialog || downTarget !== dialog) return false;
+  if (typeof dialog?.getBoundingClientRect === 'function' && Number.isFinite(event.clientX) && Number.isFinite(event.clientY) && (event.clientX !== 0 || event.clientY !== 0)) {
+    const rect = dialog.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0 && event.clientX > rect.left && event.clientX < rect.right && event.clientY > rect.top && event.clientY < rect.bottom) return false;
+  }
+  return true;
+}
+
+const scrollLocks = new WeakMap();
+function lockScroll(dialog) {
+  const app = dialog?.parentElement?.closest?.('.study-app');
+  if (!app) return () => {};
+  const next = (scrollLocks.get(app) || 0) + 1;
+  scrollLocks.set(app, next);
+  if (next === 1) app.setAttribute('data-scroll-locked', 'true');
+  return () => {
+    const left = (scrollLocks.get(app) || 1) - 1;
+    if (left <= 0) {
+      scrollLocks.delete(app);
+      app.removeAttribute('data-scroll-locked');
+    } else {
+      scrollLocks.set(app, left);
+    }
+  };
+}
 
 /**
  * Every modal in StudyHub. A native <dialog> opened with showModal(): it sits
@@ -79,10 +104,14 @@ export default function Dialog({ title, description, onClose, size = 'md', foote
     }
     initialFocus?.current?.focus?.();
     const remove = pushDialog(entry);
+    const unlockScroll = lockScroll(dialog);
     return () => {
       closing.current = true;
+      unlockScroll();
       remove();
-      if (dialog.open) dialog.close();
+      if (dialog.open) {
+        try { dialog.close(); } catch { dialog.removeAttribute('open'); }
+      }
       const active = document.activeElement;
       if (opener?.isConnected && typeof opener.focus === 'function' && (!active || active === document.body || dialog.contains(active)))
         opener.focus({ preventScroll: true });

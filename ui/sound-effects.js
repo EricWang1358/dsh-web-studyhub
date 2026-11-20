@@ -1,7 +1,7 @@
 /* Acoustic Desk sound effects: physical-modeling paper, walnut and felt-mallet transients synthesized offline into memory buffers.
    Defaults to 'off' in appearance-prefs.js: when off, zero AudioContext instances are constructed; automatically mutes whenever
    microphone / live-class audio capture is active (ui/live-audio.js) or the tab is hidden (except for explicit focus timer chimes). */
-import { loadAppearance } from './appearance-prefs.js';
+import { getAppearanceSound, invalidateAppearanceCache, onAppearanceCacheChange } from './appearance-prefs.js';
 import { isAudioCaptureActive } from './audio-capture-state.js';
 
 export const SOUND_CUES = Object.freeze(['tap', 'flip', 'correct', 'levelUp', 'miss', 'complete']);
@@ -321,12 +321,71 @@ const SUSPENDED_STALE_MS = 180;
 let sharedCtx = null;
 let sharedCtxRate = 0;
 let cachedBuffers = new Map();
+const cachedSamples = new Map();
 let lastPlayedAt = 0;
 const lastCueAt = new Map();
 let idleTimer = null;
 let previewTimers = [];
 const activePreviewSources = new Set();
 let pendingSuspendedCue = null;
+let prebakeHandle = null;
+let prebakeQueue = [];
+let prebakeRate = 44100;
+
+function cancelPrebake() {
+  if (prebakeHandle !== null) {
+    try { globalThis.cancelIdleCallback?.(prebakeHandle); } catch { /* ignore */ }
+    prebakeHandle = null;
+  }
+  prebakeQueue = [];
+}
+
+function getSynthesizedSamples(cue, rate) {
+  const key = `${cue}@${rate}`;
+  if (cachedSamples.has(key)) return cachedSamples.get(key);
+  const samples = synthesizeCueSamples(cue, rate);
+  if (samples) cachedSamples.set(key, samples);
+  return samples;
+}
+
+function runPrebakeSlice(deadline) {
+  prebakeHandle = null;
+  if (getAppearanceSound() === 'off') {
+    prebakeQueue = [];
+    return;
+  }
+  while (prebakeQueue.length) {
+    const cue = prebakeQueue.shift();
+    getSynthesizedSamples(cue, prebakeRate);
+    if (sharedCtx && sharedCtx.state !== 'closed' && (sharedCtx.sampleRate || 44100) === prebakeRate) {
+      getBakedBuffer(sharedCtx, cue);
+    }
+    if (deadline && typeof deadline.timeRemaining === 'function' && deadline.timeRemaining() <= 2) break;
+  }
+  if (prebakeQueue.length && typeof globalThis.requestIdleCallback === 'function') {
+    prebakeHandle = globalThis.requestIdleCallback(runPrebakeSlice, { timeout: 2000 });
+  }
+}
+
+/** Schedule idle pre-baking of PCM waveforms when sound is enabled, without constructing AudioContext early. */
+export function scheduleSoundPrebake(sampleRate = sharedCtxRate || 44100) {
+  if (getAppearanceSound() === 'off') return false;
+  if (typeof globalThis.requestIdleCallback !== 'function') return false;
+  const rate = Number.isFinite(sampleRate) && sampleRate >= 8000 ? sampleRate : 44100;
+  prebakeRate = rate;
+  const missing = SOUND_CUES.filter((cue) => !cachedSamples.has(`${cue}@${rate}`));
+  if (!missing.length) return false;
+  prebakeQueue = missing;
+  if (prebakeHandle === null) {
+    prebakeHandle = globalThis.requestIdleCallback(runPrebakeSlice, { timeout: 2000 });
+  }
+  return true;
+}
+
+onAppearanceCacheChange((prefs) => {
+  if (prefs?.sound && prefs.sound !== 'off') scheduleSoundPrebake();
+  else cancelPrebake();
+});
 
 function clearPreviewTimers() {
   for (const timer of previewTimers) clearTimeout(timer);
@@ -369,6 +428,7 @@ function getOrCreateContext() {
     sharedCtx = new AudioCtx();
     sharedCtxRate = sharedCtx.sampleRate || 44100;
     cachedBuffers = new Map();
+    scheduleSoundPrebake(sharedCtxRate);
   }
   return sharedCtx;
 }
@@ -377,7 +437,7 @@ function getBakedBuffer(ctx, cue) {
   const rate = ctx.sampleRate || sharedCtxRate || 44100;
   const key = `${cue}@${rate}`;
   if (cachedBuffers.has(key)) return cachedBuffers.get(key);
-  const samples = synthesizeCueSamples(cue, rate);
+  const samples = getSynthesizedSamples(cue, rate);
   if (!samples || typeof ctx.createBuffer !== 'function') return null;
   const buffer = ctx.createBuffer(1, samples.length, rate);
   if (typeof buffer.copyToChannel === 'function') buffer.copyToChannel(samples, 0);
@@ -441,7 +501,7 @@ export function playSound(cue, options = {}) {
   try {
     if (!SOUND_CUES.includes(cue)) return false;
     if (isAudioCaptureActive()) return false;
-    const mode = options.mode ?? loadAppearance().sound;
+    const mode = options.mode ?? getAppearanceSound();
     if (!options.force && mode === 'off') return false;
     const tier = mode === 'standard' ? 'standard' : 'subtle';
     if (!options.force && tier === 'subtle' && !SUBTLE_CUES.has(cue)) return false;
@@ -471,7 +531,7 @@ export function playSound(cue, options = {}) {
           if (Date.now() - pending.requestedAt > SUSPENDED_STALE_MS) return;
           if (isAudioCaptureActive()) return;
           if (!pending.options.allowHidden && globalThis.document?.hidden === true) return;
-          const latestMode = pending.options.mode ?? loadAppearance().sound;
+          const latestMode = pending.options.mode ?? getAppearanceSound();
           if (!pending.options.force && latestMode === 'off') return;
           const baked = getBakedBuffer(ctx, pending.cue);
           if (!baked) return;
@@ -530,11 +590,14 @@ export function playSoundPreview(mode = 'subtle') {
 /** Release timers, cooldowns and the shared Web Audio context cleanly between unit tests. */
 export function resetSoundEngineForTests() {
   stopSoundPreview();
+  cancelPrebake();
   pendingSuspendedCue = null;
   clearIdleTimer();
   lastPlayedAt = 0;
   lastCueAt.clear();
   cachedBuffers.clear();
+  cachedSamples.clear();
+  invalidateAppearanceCache();
   if (sharedCtx) {
     try { Promise.resolve(sharedCtx.close?.()).catch(() => {}); } catch { /* ignore */ }
     sharedCtx = null;

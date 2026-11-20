@@ -1,6 +1,7 @@
 import { ui, uiFormat } from "../i18n.js";
 import React from "react";
 import Markdown from "../Markdown.jsx";
+import ChoiceFeedback from "../ChoiceFeedback.jsx";
 import Cloze from "../Cloze.jsx";
 import CitationDisclosure from "../CitationDisclosure.jsx";
 import ExplanationFollowup from "../ExplanationFollowup.jsx";
@@ -111,23 +112,27 @@ function LookBackAnswer({ row, mode }) {
   const { card, solution } = row, feedback = row.feedback || {};
   if (mode !== "flashcard" && hasOptions(card.kind) && card.options?.length) {
     const verdict = !!fixedOptionsOf(card.kind);
+    const multiple = Boolean(card.multiple || card.kind === "multi");
     return (
-      <div className="options look-back__options">
-        {card.options.map((option, index) => {
-          const key = solution.options?.find((item) => item.id === option.id);
-          const picked = feedback.selected?.includes(option.id);
-          return (
-            <div key={option.id} className={"option " + (key?.correct ? "correct" : picked ? "incorrect" : "dim")}>
-              <span className="option-letter" aria-hidden={verdict || undefined}><OptionMark card={card} option={option} index={index} /></span>
-              <div>
-                {verdict ? <span className="option-verdict">{fixedOptionLabel(card, option)}</span> : <Markdown text={option.text} links={false} className="md-compact" />}
-                <AnswerState correct={key?.correct} picked={picked} />
-                {key?.explanation && <Markdown text={key.explanation} links={false} className="md-compact option-explanation" />}
+      <>
+        <ChoiceFeedback card={card} options={card.options} feedback={feedback} solution={solution} multiple={multiple} />
+        <div className="options look-back__options">
+          {card.options.map((option, index) => {
+            const key = solution.options?.find((item) => item.id === option.id);
+            const picked = feedback.selected?.includes(option.id);
+            return (
+              <div key={option.id} className={"option " + (key?.correct ? "correct" : picked ? "incorrect" : "dim")}>
+                <span className="option-letter" aria-hidden={verdict || undefined}><OptionMark card={card} option={option} index={index} /></span>
+                <div>
+                  {verdict ? <span className="option-verdict">{fixedOptionLabel(card, option)}</span> : <Markdown text={option.text} links={false} className="md-compact" />}
+                  <AnswerState correct={key?.correct} picked={picked} multiple={multiple} />
+                  {key?.explanation && <Markdown text={key.explanation} links={false} className="md-compact option-explanation" />}
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      </>
     );
   }
   if (mode !== "flashcard" && card.kind === "cloze") return <Cloze card={card} values={feedback.answers || {}} onChange={() => {}} disabled details={feedback.details || null} solution={solution} />;
@@ -156,7 +161,7 @@ function VeiledOptions({ card }) {
 }
 
 /** The read-only look-back of one row. */
-function LookBack({ row, mode, sources, onOpenSource, veiled = false, onReveal, showReasons = false, reasonId = "", onPickReason }) {
+function LookBack({ row, mode, sources, onOpenSource, veiled = false, onReveal, showReasons = false, reasonId = "", onPickReason, onAsk = null, canAskInPlace = false }) {
   if (!row.solution || row.status === "grading") {
     return (
       <div className="look-back__body">
@@ -204,7 +209,16 @@ function LookBack({ row, mode, sources, onOpenSource, veiled = false, onReveal, 
         </div>
       )}
       {onOpenSource && <CitationDisclosure card={row.solution} sources={sources} onOpenSource={onOpenSource} />}
-      <ExplanationFollowup run={{ deckId: row.deckId, card: { id: row.cardId }, solution: row.solution }} readOnly />
+      <ExplanationFollowup
+        run={{ deckId: row.deckId, card: { id: row.cardId }, solution: row.solution }}
+        readOnly={onAsk ? true : !canAskInPlace}
+        onAskMore={onAsk ? () => onAsk(row) : null}
+      />
+      {onAsk && !(row.solution?.followups?.length > 0) && (
+        <div className="look-back__ask">
+          <Button size="sm" variant="quiet" onClick={() => onAsk(row)}>{ui("追问")}</Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -213,11 +227,13 @@ function LookBack({ row, mode, sources, onOpenSource, veiled = false, onReveal, 
  * props: run (the finished run), sources (optional material list for citations and source jumps),
  * onOpenWrongBook(refs) (optional: the wrong book on these questions, where its rescue is; absent when the page is not available).
  */
-export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAck, onPracticeWrong, segment = null, onSegmentChange, collapsible = false, practiceSettings = null }) {
+export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAck, onPracticeWrong, onAsk = null, onFollowup = null, segment = null, onSegmentChange, collapsible = false, practiceSettings = null }) {
   const study = useStudy();
   const appData = React.useContext(AppContext)?.data;
   const courses = appData?.courses;
-  const recallEnabled = lookBackBlindRecall(practiceSettings ?? appData?.settings?.practice);
+  const settingRecall = lookBackBlindRecall(practiceSettings ?? appData?.settings?.practice);
+  const askHandler = onAsk || onFollowup || null;
+  const canAskInPlace = !askHandler && typeof study?.call === "function";
   const openSource = study?.openModal ? (source, quote, peekPage) => {
     if (source) study.openModal({ type: "source", source, quote, peekPage, back: true });
   } : null;
@@ -236,21 +252,34 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAc
   const [hesitantOnly, setHesitantOnly] = React.useState(false);
   const view = chosen ?? (corrections.length ? "pending" : needsLook.length ? "some" : "all"), all = view === "all";
   const [open, setOpen] = React.useState(() => new Set());
-  const [veilActive, setVeilActive] = React.useState(recallEnabled);
+  const [veilActive, setVeilActive] = React.useState(settingRecall);
+  const [recallTried, setRecallTried] = React.useState(settingRecall);
   const [revealedRows, setRevealedRows] = React.useState(() => new Set());
   const [reasonsByKey, setReasonsByKey] = React.useState(() => seedReasonsFromRows(rows));
+  const recallEnabled = settingRecall || recallTried;
   const rowsRef = React.useRef(rows);
   rowsRef.current = rows;
   const rowReasonsSignature = rows.map((row) => `${rowReasonKey(row)}=${row?.errorReason || ""}`).join("|");
-  const resetKey = `${run.id}\0${recallEnabled ? 1 : 0}\0${rowReasonsSignature}`;
+  const resetKey = `${run.id}\0${settingRecall ? 1 : 0}\0${rowReasonsSignature}`;
   const lastResetKeyRef = React.useRef(resetKey);
   React.useEffect(() => {
     if (lastResetKeyRef.current === resetKey) return;
     lastResetKeyRef.current = resetKey;
-    setVeilActive(recallEnabled);
+    setVeilActive(settingRecall);
+    setRecallTried(settingRecall);
     setRevealedRows(new Set());
     setReasonsByKey(seedReasonsFromRows(rowsRef.current));
-  }, [resetKey, recallEnabled]);
+  }, [resetKey, settingRecall]);
+  const toggleBlindRecall = () => {
+    setVeilActive((prev) => {
+      const next = !prev;
+      if (next) {
+        setRecallTried(true);
+        setRevealedRows(new Set());
+      }
+      return next;
+    });
+  };
   React.useEffect(() => { if (segment) setHesitantOnly(false); }, [segment]);
   const shown = hesitantOnly
     ? hesitantRows
@@ -358,7 +387,8 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAc
                 const nextReason = reasonsByKey[rKey] === reasonId ? null : reasonId;
                 setReasonsByKey((prev) => toggleRowReason(prev, rKey, reasonId));
                 void persistRowReason(study?.call, row, run.id, nextReason);
-              }} />
+              }}
+              onAsk={askHandler} canAskInPlace={canAskInPlace} />
             {!isVeiled && row.feedback && <CorrectionCard feedback={row.feedback} withRubric={!!row.feedback.rubric && row.card?.kind !== "task"}
               onAck={row.correctionPending && onAck ? () => Promise.resolve(onAck(row)).then(() => invalidate("review.lookBack")) : undefined} />}
             {!isVeiled && (companionTarget || place || (row.status === "wrong" && onOpenWrongBook)) && (
@@ -411,10 +441,10 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAc
             )}
           </div>
         )}
-        {(hesitantRows.length > 0 || shown.length >= 2 || (onPracticeWrong && wrong >= 1) || (recallEnabled && wrong >= 1) || taggedReasons.length > 0 || withSolution.length > 0) && (
+        {(hesitantRows.length > 0 || shown.length >= 2 || (onPracticeWrong && wrong >= 1) || wrong >= 1 || taggedReasons.length > 0 || withSolution.length > 0) && (
           <div className="round-look-back__tools">
-            {recallEnabled && wrong >= 1 && (
-              <Button variant="quiet" size="sm" aria-pressed={veilActive} onClick={() => setVeilActive((prev) => !prev)}>
+            {wrong >= 1 && (
+              <Button variant="quiet" size="sm" aria-pressed={veilActive} onClick={toggleBlindRecall}>
                 {ui("先遮答案自测")}
               </Button>
             )}
@@ -456,7 +486,7 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAc
     return (
       <details className="round-look-back round-look-back--compact sh-paper-card" aria-label={ui("本轮题目")} onKeyDown={onKeyDown}>
         <summary className="round-look-back__summary">
-          <h3>{ui("本轮题目")}</h3>
+          <span className="round-look-back__title">{ui("本轮题目")}</span>
           <span className="muted small">{uiFormat("全部过关 · 共 {0} 题", [rows.length])}</span>
         </summary>
         <div className="round-look-back__content">

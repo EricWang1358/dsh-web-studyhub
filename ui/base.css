@@ -34,6 +34,7 @@
     }
     & button {
       cursor: pointer;
+      touch-action: manipulation;
       color: inherit;
       background: color-mix(in srgb, var(--text) 5%, transparent);
       border: 1px solid var(--line);
@@ -174,10 +175,15 @@
     overflow: auto;
     /* Reserve the scrollbar lane so short and long pages centre identically. */
     scrollbar-gutter: stable;
+    /* Keep keyboard Tab focus clear of the sticky 51px top bar (WCAG 2.4.11). */
+    scroll-padding-top: calc(var(--space-9) + var(--space-1));
     position: relative;
     container-type: inline-size;
     isolation: isolate;
     container-name: study;
+  }
+  .study-app[data-scroll-locked="true"] {
+    overflow: hidden;
   }
   :where(.study-app, .study-seat) {
     .icon {

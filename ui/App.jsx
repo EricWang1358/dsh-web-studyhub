@@ -21,7 +21,7 @@ import { CourseActiveProvider } from './CourseActive.jsx';
 import { QuickActionsContext } from './quick-actions.js';
 import { ToastContext } from './components/Feedback.jsx';
 import { LoadingState } from './components/Loading.jsx';
-import { StudyServicesContext } from './study-context.jsx';
+import { StudyBusyProvider } from './study-context.jsx';
 import { ModelSettingsContext } from './ModelErrorNote.jsx';
 import { useInjectCss } from './shared.js';
 import sideGroupsCss from './side-groups.css';
@@ -116,8 +116,11 @@ export default function App({ call: transportCall, host = NO_HOST }) {
   useInitialLanding({ loading: connection.loading, data, boardState, nav, setBoardView: set.setBoardView, navigationCount: () => core.refs.navigation.current, restoredPage: warmEntry.restoredPage });
   const liveReady = useWarmSync({ host, placement: warmEntry.placement, loading: connection.loading, root: connection.binding.root, board: boardState.board, page: nav.page, boardView: lib.boardView });
   // Cards due today or overdue light the badge, so a deadline shows from any page.
-  const board = { state: boardState, count: boardState.board?.columns.reduce((total, column) => total + (column.done ? 0 : column.cardIds.filter((id) => !isMemoCard(boardState.board.cards?.[id])).length), 0),
-    due: boardState.board ? dueSummary(boardState.board) : { overdue: 0, today: 0 } };
+  const board = useMemo(() => ({
+    state: boardState,
+    count: boardState.board?.columns.reduce((total, column) => total + (column.done ? 0 : column.cardIds.filter((id) => !isMemoCard(boardState.board.cards?.[id])).length), 0),
+    due: boardState.board ? dueSummary(boardState.board) : { overdue: 0, today: 0 },
+  }), [boardState]);
   const dailyPlan = useDailyPlan({ call: core.call, root: data && pageAvailable(data, 'review') ? data.root : null, navigation: () => core.refs.navigation.current,
     progressKey: session.run ? `${session.run.id}:${session.run.answered}:${session.run.complete}` : '',
     visible: ['library', 'board', 'review', 'workflows'].includes(nav.page) || readerOpen(lib.modal),
@@ -126,11 +129,14 @@ export default function App({ call: transportCall, host = NO_HOST }) {
     onLaunch: async (result) => { if (result.run) session.enterRun(result.run); else if (result.studyRef) await learn.openBoardReference(result.studyRef); },
     onChanged: () => boardState.refresh({ force: true }) });
 
-  const study = useMemo(() => ({ call: core.call, act: core.act, busy: core.busy, notify: core.notify, askInChat: core.askInChat, host,
+  const study = useMemo(() => ({ call: core.call, act: core.act, busy: false, notify: core.notify, askInChat: core.askInChat, host,
     openSettings: settingsEntry.openSettings, navigate: nav.navigate, openModal: set.setModal }),
-  [core.call, core.act, core.busy, core.notify, core.askInChat, host, settingsEntry.openSettings, nav.navigate, set.setModal]);
-  const app = { language, host, data, canChat: host.capabilities?.chat ?? !!host.askInChat, connection, core, shell, nav, lib, set, session, learn, intents, drafts,
-    notebooks, inbox, sources, tour, finder, settingsEntry, dailyPlan, board, selectionNotices, resetLibraryState };
+  [core.call, core.act, core.notify, core.askInChat, host, settingsEntry.openSettings, nav.navigate, set.setModal]);
+  const canChat = host.capabilities?.chat ?? !!host.askInChat;
+  const app = useMemo(() => ({ language, host, data, canChat, connection, core, shell, nav, lib, set, session, learn, intents, drafts,
+    notebooks, inbox, sources, tour, finder, settingsEntry, dailyPlan, board, selectionNotices, resetLibraryState }),
+  [language, host, data, canChat, connection, core, shell, nav, lib, set, session, learn, intents, drafts,
+    notebooks, inbox, sources, tour, finder, settingsEntry, dailyPlan, board, selectionNotices, resetLibraryState]);
 
   const runningJobs = Array.isArray(data?.jobs) ? data.jobs.filter(isActiveJob).length : 0;
   const activePageTitle = shellTitleOf(nav.page, { run: session.run, decks: data?.decks });
@@ -144,7 +150,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
       <QuickActionsContext.Provider value={core.quickApi}>
         <CourseActiveProvider value={courseActive}>
           <ToastContext.Provider value={core.toast}>
-            <StudyServicesContext.Provider value={study}>
+            <StudyBusyProvider store={core.busyStore} study={study}>
             <ModelSettingsContext.Provider value={settingsEntry.openModelSettings}>
               <AppContext.Provider value={app}>
                 <div className="study-app" {...shell.appearanceAttrs} style={{ ...scienceVars(shell.sciencePrefs), ...appearanceStyle(shell.appearance) }}
@@ -203,7 +209,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
                 </div>
               </AppContext.Provider>
             </ModelSettingsContext.Provider>
-            </StudyServicesContext.Provider>
+            </StudyBusyProvider>
           </ToastContext.Provider>
         </CourseActiveProvider>
       </QuickActionsContext.Provider>

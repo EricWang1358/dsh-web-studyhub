@@ -67,7 +67,7 @@ export function isEarnedLevelClimb(feedback, telemetry = null) {
   return Boolean(promoted && meta.beforeLevel !== 'new');
 }
 
-export function NextDue({ feedback, telemetry = null, now = Date.now() }) {
+export function NextDue({ feedback, telemetry = null, now = Date.now(), hideWhy = false, whyOnly = false, className = '', role }) {
   if (!feedback) return null;
   const meta = telemetry || feedback;
   const promoted = meta.beforeLevel && feedback.level && (LEVEL_RANK[feedback.level] ?? -1) > (LEVEL_RANK[meta.beforeLevel] ?? -1)
@@ -93,12 +93,51 @@ export function NextDue({ feedback, telemetry = null, now = Date.now() }) {
   const gap = nextDueGap(feedback, now);
   // The numbers behind the date: shown only when the learner asks, each with its plain meaning.
   const hasWhy = !!(promoted || gapChip || lit > 0 || feedback.nextDue || meta.examAligned);
+  const whyDisclosure = hasWhy ? (
+    <Disclosure className="next-due__why" summary={gap ? uiFormat('为什么是 {0}', [gap]) : ui('为什么是这个时间')}>
+      <div className="next-due__telemetry" data-testid="fsrs-telemetry">
+        {feedback.nextDue && <span className="next-due__chip">{uiFormat('下次复习 {0}', [date(feedback.nextDue)])}</span>}
+        {promoted && (
+          <span className="next-due__chip next-due__chip--up">
+            {uiFormat('{0} → {1}', [ui(LEVEL_WORDS[meta.beforeLevel]), ui(LEVEL_WORDS[feedback.level])])}
+          </span>
+        )}
+        {gapChip && <span className="next-due__chip">{gapChip}</span>}
+        {meta.examAligned && <span className="next-due__chip">{ui('考试当天或之前先回来一次')}</span>}
+        {lit > 0 && (
+          <span className="next-due__chip next-due__chip--stability">
+            <span>{uiFormat('稳定度 {0} 天', [meta.stability])}</span>
+            <span className="next-due__pips" aria-hidden="true">
+              {[1, 2, 3, 4, 5].map((step) => <i key={step} data-lit={step <= lit ? 'true' : undefined} />)}
+            </span>
+          </span>
+        )}
+      </div>
+      <p className="muted small next-due__explain">
+        {aligned
+          ? ui('记忆间隔：按这次作答，这道题本可以隔这么多天再出现，掌握程度按它算。考前对齐让它在考试当天或更早先回来一次。')
+          : ui('复习间隔：这道题隔多少天再出现。答对会拉长，答错会缩短。')}
+        {lit > 0 && <>{' '}{ui('稳定度：系统估计你能把这道题记住多久，越稳，下次隔得越久。')}</>}
+      </p>
+    </Disclosure>
+  ) : null;
+  if (whyOnly) {
+    if (!whyDisclosure) return null;
+    return (
+      <div className={`next-due next-due--why${feedback.correct || selfReported ? '' : ' retry'}${className ? ` ${className}` : ''}`} data-level={feedback.level || undefined}>
+        {whyDisclosure}
+      </div>
+    );
+  }
+  const leadHeadline = feedback.nextDue || !hideWhy
+    ? uiFormat('{0} · {1}', [nextDueWord(feedback), nextDueWhen(feedback, now)])
+    : nextDueWord(feedback);
   return (
-    <div className={`next-due${feedback.correct || selfReported ? '' : ' retry'}`} data-level={feedback.level || undefined}>
+    <div className={`next-due${feedback.correct || selfReported ? '' : ' retry'}${className ? ` ${className}` : ''}`} data-level={feedback.level || undefined} role={role}>
       <p className="next-due__lead">
         {nextDueIcon(feedback) && <Icon name={nextDueIcon(feedback)} className="next-due__icon sh-icon--inline" />}
         <span className="next-due__words">
-          {uiFormat('{0} · {1}', [nextDueWord(feedback), nextDueWhen(feedback, now)])}
+          {leadHeadline}
           {feedback.retryQueued && <span>{' · '}{ui('这道题放到了本轮最后，会再出现一次')}</span>}
           {feedback.hintGraded && <span>{' · '}{ui('用了提示，按「勉强答对」安排，这道题会更早回来')}</span>}
         </span>
@@ -119,34 +158,7 @@ export function NextDue({ feedback, telemetry = null, now = Date.now() }) {
           )}
         </div>
       )}
-      {hasWhy && (
-        <Disclosure className="next-due__why" summary={gap ? uiFormat('为什么是 {0}', [gap]) : ui('为什么是这个时间')}>
-          <div className="next-due__telemetry" data-testid="fsrs-telemetry">
-            {feedback.nextDue && <span className="next-due__chip">{uiFormat('下次复习 {0}', [date(feedback.nextDue)])}</span>}
-            {promoted && (
-              <span className="next-due__chip next-due__chip--up">
-                {uiFormat('{0} → {1}', [ui(LEVEL_WORDS[meta.beforeLevel]), ui(LEVEL_WORDS[feedback.level])])}
-              </span>
-            )}
-            {gapChip && <span className="next-due__chip">{gapChip}</span>}
-            {meta.examAligned && <span className="next-due__chip">{ui('考试当天或之前先回来一次')}</span>}
-            {lit > 0 && (
-              <span className="next-due__chip next-due__chip--stability">
-                <span>{uiFormat('稳定度 {0} 天', [meta.stability])}</span>
-                <span className="next-due__pips" aria-hidden="true">
-                  {[1, 2, 3, 4, 5].map((step) => <i key={step} data-lit={step <= lit ? 'true' : undefined} />)}
-                </span>
-              </span>
-            )}
-          </div>
-          <p className="muted small next-due__explain">
-            {aligned
-              ? ui('记忆间隔：按这次作答，这道题本可以隔这么多天再出现，掌握程度按它算。考前对齐让它在考试当天或更早先回来一次。')
-              : ui('复习间隔：这道题隔多少天再出现。答对会拉长，答错会缩短。')}
-            {lit > 0 && <>{' '}{ui('稳定度：系统估计你能把这道题记住多久，越稳，下次隔得越久。')}</>}
-          </p>
-        </Disclosure>
-      )}
+      {!hideWhy && whyDisclosure}
     </div>
   );
 }

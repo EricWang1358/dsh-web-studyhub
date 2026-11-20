@@ -24,13 +24,14 @@ import SubmitBlanksDialog from './SubmitBlanksDialog.jsx';
 const bandName = { strong: "回答扎实", developing: "有待补充", weak: "需要巩固" };
 const bandTone = { strong: "success", developing: "warning", weak: "error" };
 const FIELDS = ['answer', 'followupAnswer'];
+const ORAL_DRAFT_DEBOUNCE_MS = 500;
 
 export default function OralExam({ data, onExit, onStartRun, initialRunId, onLocation, header, recent, onSetupModel, course = '*', selection = { course } }) {
   useInjectCss(css, "study-oral-exam");
   useInjectCss(resultCss, "review-results");
   useInjectCss(examCss, "study-exam");
   const { call } = useStudy();
-  const exam = useExamRun({ kind: 'oral', call, initialRunId, onLocation });
+  const exam = useExamRun({ kind: 'oral', call, initialRunId, onLocation, tick: false });
   const { run, report, busy, error, loading } = exam;
   const [count, setCount] = React.useState(5);
   const [answer, setAnswer] = React.useState("");
@@ -38,6 +39,37 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
   const [confirmSubmitOpen, setConfirmSubmitOpen] = React.useState(false);
   const [weakOnly, setWeakOnly] = React.useState(false);
   const current = React.useRef({ run: null, answer: '', followupAnswer: '' });
+  const draftTimers = React.useRef({});
+  const pendingDrafts = React.useRef(new Map());
+  const { setError } = exam;
+  const flushDraft = React.useCallback((key) => {
+    const flushOne = (k) => {
+      if (draftTimers.current[k]) {
+        clearTimeout(draftTimers.current[k]);
+        delete draftTimers.current[k];
+      }
+      if (!pendingDrafts.current.has(k)) return;
+      const value = pendingDrafts.current.get(k);
+      pendingDrafts.current.delete(k);
+      try { writeDraft(k, value); }
+      catch { setError(ui('浏览器暂存不可用，请及时保存草稿。')); }
+    };
+    if (key !== undefined) { flushOne(key); return; }
+    for (const k of [...pendingDrafts.current.keys()]) flushOne(k);
+  }, [setError]);
+  const cancelDrafts = React.useCallback(() => {
+    for (const timer of Object.values(draftTimers.current)) clearTimeout(timer);
+    draftTimers.current = {};
+    pendingDrafts.current.clear();
+  }, []);
+  React.useEffect(() => {
+    const onHide = () => flushDraft();
+    window.addEventListener?.('pagehide', onHide);
+    return () => {
+      window.removeEventListener?.('pagehide', onHide);
+      flushDraft();
+    };
+  }, [flushDraft]);
   React.useEffect(() => { setConfirmSubmitOpen(false); }, [run?.id]);
   React.useEffect(() => { setWeakOnly(false); }, [report?.runId]);
   const availableDecks = decksInCourse(data, course, selection.includeInactive === true).filter(deck => deck.available &&
@@ -45,6 +77,7 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
 
   /** Put a run on screen with the answers the browser still holds for its question (else what the server saved). */
   function showRun(next) {
+    flushDraft();
     const recovered = field => next?.entry
       ? readDraft(draftKey(data.root, 'oral', [next.id, next.entry.cardId, field]))?.value ?? next.entry[field] ?? '' : '';
     const answer = recovered('answer'), followupAnswer = recovered('followupAnswer');
@@ -55,6 +88,7 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
   }
 
   const forgetDrafts = (finished) => {
+    cancelDrafts();
     for (const entry of finished.entries || []) for (const field of FIELDS) clearDraft(draftKey(data.root, 'oral', [finished.runId, entry.cardId, field]));
   };
 
@@ -62,8 +96,11 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
     current.current = { ...current.current, [field]: value };
     (field === 'answer' ? setAnswer : setFollowupAnswer)(value);
     const active = current.current.run;
-    try { writeDraft(draftKey(data.root, 'oral', [active.id, active.entry.cardId, field]), value); }
-    catch { exam.setError(ui('浏览器暂存不可用，请及时保存草稿。')); }
+    if (!active?.entry) return;
+    const key = draftKey(data.root, 'oral', [active.id, active.entry.cardId, field]);
+    pendingDrafts.current.set(key, value);
+    if (draftTimers.current[key]) clearTimeout(draftTimers.current[key]);
+    draftTimers.current[key] = setTimeout(() => flushDraft(key), ORAL_DRAFT_DEBOUNCE_MS);
   }
 
   // Voice (#1031) is a way to fill the box: the text is appended for editing, then saved by oral.answer like typing.
@@ -87,6 +124,7 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
 
   /** Send what is typed that the server does not have yet; resolves the run as the server now knows it. */
   async function saveAnswers() {
+    flushDraft();
     const submitted = current.current, active = submitted.run;
     if (!active?.entry) return active;
     let next = active;
@@ -175,13 +213,13 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
           {run.entry.options.map((option) => <li key={option.id}><Markdown text={option.text} links={false} /></li>)}
         </ul></details>}
         <VoiceButton voice={answerVoice} />
-        <label className="oral-answer-label">{ui("你的口述要点")}<textarea className="oral-answer-input" value={answer} disabled={busy} onChange={(event) => editAnswer('answer', event.target.value)} onKeyDown={onAnswerKeyDown} maxLength={8000}
+        <label className="oral-answer-label">{ui("你的口述要点")}<textarea className="oral-answer-input" value={answer} disabled={busy} onChange={(event) => editAnswer('answer', event.target.value)} onBlur={() => flushDraft()} onKeyDown={onAnswerKeyDown} maxLength={8000}
             placeholder={ui("写下你刚才口头回答的要点；这里不会立即判分。")} />
         </label>
         {run.entry.followup && <div className="oral-followup">
           <strong>{ui("面试官追问")}</strong><p>{run.entry.followup}</p>
           <VoiceButton voice={followupVoice} />
-          <label className="oral-answer-label">{ui("补充回答")}<textarea className="oral-answer-input" value={followupAnswer} disabled={busy} maxLength={8000} onChange={(event) => editAnswer('followupAnswer', event.target.value)} onKeyDown={onAnswerKeyDown}
+          <label className="oral-answer-label">{ui("补充回答")}<textarea className="oral-answer-input" value={followupAnswer} disabled={busy} maxLength={8000} onChange={(event) => editAnswer('followupAnswer', event.target.value)} onBlur={() => flushDraft()} onKeyDown={onAnswerKeyDown}
               placeholder={ui("补充回答后继续下一题。")} />
           </label>
         </div>}

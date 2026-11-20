@@ -13,7 +13,7 @@ import DailyRecap from './DailyRecap.jsx';
 import { Badge, Button, PageHeader, Tooltip } from "./components/index.js";
 import { cx } from "./components/css.js";
 import { uiRich } from "./i18n-rich.jsx";
-import { StudyServicesContext, useStudy } from "./study-context.jsx";
+import { StudyServicesContext, useStudyBusy, useStudyServices } from "./study-context.jsx";
 import { AppContext, readerOpen } from "./app/app-context.js";
 import { HandOff } from "./hand-off/HandOff.jsx";
 import reviewCss from "./review/review.css";
@@ -91,8 +91,9 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
   useInjectCss(reviewCss, "study-review");
   const { run, choice, actions } = session;
   const { reviewAct } = actions;
-  const study = useStudy();
-  const { call, act, busy, host, navigate, openSettings, notify } = study;
+  const study = useStudyServices();
+  const busy = useStudyBusy();
+  const { call, act, host, navigate, openSettings, notify } = study;
   const cardPlace = useCardPlace({ call, run });
   const [lookBackSegmentState, setLookBackSegmentState] = React.useState({ runId: null, segment: null });
   const lookBackSegment = lookBackSegmentState.runId === run?.id ? lookBackSegmentState.segment : null;
@@ -301,7 +302,8 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               onContinue={coachProps.onContinue}
               destination={coachProps.destination}
               onReviewWeak={coachProps.onReviewWeak}
-              nextShown={!!nextStep} plain={backHere} onwardShown={!!onward}
+              ctaMode={destination?.kind === "original" ? "none" : nextStep ? "secondary-suggestion" : backHere ? "secondary" : "primary"}
+              suppressNextPromise={backHere && !onward}
               debriefModel={practice.debrief}
               onSettings={goPracticeSettings} onProfileSettings={() => openSettings("settings-profile")}
             />

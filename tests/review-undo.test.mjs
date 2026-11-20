@@ -221,9 +221,10 @@ test('review.undo restores brand-new & reviewed FSRS snapshots, removes tail ret
   await service.call('review.draft.save', { runId: run.id, cardId: 'c1', draft: { text: 'My scratchpad thought' } });
   await service.call('review.reveal', { runId: run.id, cardId: 'c1' });
 
-  // Grade c1 poorly (grade 1) with advanceOnSelfGrade -> queues a tail retry AND advances to c2.
+  // Grade c1 poorly (grade 1) with advanceOnSelfGrade -> queues a tail retry and STAYS on c1 (low grades < 3 do not auto-skip).
   run = await service.call('review.answer', { runId: run.id, cardId: 'c1', grade: 1, advanceOnSelfGrade: true });
-  assert.equal(run.card.id, 'c2', 'advanceOnSelfGrade moved directly to c2');
+  assert.equal(run.card.id, 'c1', 'low grade (< 3) stays on c1 even with advanceOnSelfGrade');
+  assert.equal(run.feedback?.grade, 1);
   assert.equal(run.navigation.length, 3, 'wrong grade queued a tail retry');
   assert.equal(run.navigation[2].retry, true);
   assert.equal(run.undoable?.cardId, 'c1');

@@ -5,12 +5,14 @@ import wrongCss from "./wrongbook.css";
 import overlayCss from "./components/overlays.css";
 import { useInjectCss, plainPrompt } from "./shared.js";
 import Markdown from "./Markdown.jsx";
+import Cloze from "./Cloze.jsx";
 import StudyInline from "./StudyInline.jsx";
 import StudyMath from "./StudyMath.jsx";
 import { splitStudyMath } from "./study-media.js";
 import { usePolling } from "./use-polling.js";
 import EmptyStudyActions from "./EmptyStudyActions.jsx";
-import { RubricSkills } from "./CaseResult.jsx";
+import { RubricResult, RubricSkills } from "./CaseResult.jsx";
+import CorrectionCard from "./review/CorrectionCard.jsx";
 import PageScope, { decksInCourse, usePageScope, useShowInactive, scopeArgs } from './PageScope.jsx';
 import { Badge, Banner, Button, ChunkedRows, Combobox, DisclosureToggle, foldLabel, EmptyState, ErrorState, Icon, InlineMessage, LoadingState, PageHeader, SegmentedControl, Spinner, TextInput, Tooltip, Chip, highlightParts, useToast } from './components/index.js';
 import { scrollToAnchor } from './tour/anchor.js';
@@ -258,10 +260,32 @@ function RecRow({ rec, shortName, open, onToggle, onPractice, disabled }) {
   );
 }
 
+const LONG_DETAIL_CHARS = 420;
+const LONG_MISCONCEPTION_CHARS = 240;
+
+/** Renders study text or plain learner text, collapsing long blocks with an accessible expand/collapse toggle instead of silently slicing them. */
+function ExpandableText({ text, plain = false, threshold = LONG_DETAIL_CHARS }) {
+  const [open, setOpen] = useState(false);
+  const raw = String(text ?? "");
+  const isLong = raw.length > threshold;
+  const content = plain ? <StudyInline text={raw} /> : <Markdown text={raw} links={false} />;
+  if (!isLong) return content;
+  return (
+    <div className={"wb-expandable" + (open ? " is-open" : "")} data-expandable={open ? "open" : "collapsed"}>
+      <div className="wb-expandable__body">{content}</div>
+      <Button variant="link" size="sm" className="wb-expandable__toggle" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+        {open ? ui("收起") : ui("展开全文")}
+      </Button>
+    </div>
+  );
+}
+
 /** One fact of an opened mistake. The correct answer, the explanation and the pitfall are study text: drawn as Markdown, so formulas are formulas. What the
  * learner typed (`plain`) is theirs: only its formulas are drawn, no Markdown marks change it. */
-function DetailLine({ label, children, plain = false }) {
-  const shown = typeof children !== "string" ? children : plain ? <StudyInline text={children} /> : <Markdown text={children} links={false} />;
+function DetailLine({ label, children, plain = false, collapseAt = LONG_DETAIL_CHARS }) {
+  const shown = typeof children !== "string"
+    ? children
+    : <ExpandableText text={children} plain={plain} threshold={collapseAt} />;
   return children ? <div className="wb-fact"><dt>{label}</dt><dd>{shown}</dd></div> : null;
 }
 
@@ -276,23 +300,29 @@ function renderHighlightedText(text, query) {
   ));
 }
 
-function PromptPreview({ text, query }) {
+const PromptPreview = memo(function PromptPreview({ text, query }) {
   const trimmed = String(query ?? "").trim();
-  if (!trimmed) return <StudyInline text={text} />;
-  const plain = plainPrompt(text);
-  const pieces = splitStudyMath(plain);
-  if (pieces.every((piece) => typeof piece === "string")) return renderHighlightedText(plain, trimmed);
-  return pieces.map((piece, at) => {
+  const parsed = useMemo(() => {
+    if (!trimmed) return null;
+    const plain = plainPrompt(text);
+    const pieces = splitStudyMath(plain).map((piece) => (typeof piece === "string" || piece.raw.startsWith("\\begin{")
+      ? piece
+      : { ...piece, display: false }));
+    return { plain, pieces, hasMath: pieces.some((piece) => typeof piece !== "string") };
+  }, [text, trimmed]);
+  if (!trimmed || !parsed) return <StudyInline text={text} />;
+  if (!parsed.hasMath) return renderHighlightedText(parsed.plain, trimmed);
+  return parsed.pieces.map((piece, at) => {
     if (typeof piece === "string") return <React.Fragment key={at}>{renderHighlightedText(piece, trimmed)}</React.Fragment>;
     if (piece.raw.startsWith("\\begin{")) return <React.Fragment key={at}>{piece.raw.replace(/\s+/g, " ")}</React.Fragment>;
-    return <StudyMath key={at} formula={{ ...piece, display: false }} />;
+    return <StudyMath key={at} formula={piece} />;
   });
-}
+});
 
-function resolveCardSourceTarget(item, decks = [], sources = []) {
+function resolveCardSourceTarget(item, { deckById, cardByRef, sourceById, sources = [] } = {}) {
   if (!item || !Array.isArray(sources) || !sources.length) return null;
-  const deck = Array.isArray(decks) ? decks.find((d) => d.id === item.deckId) : null;
-  const card = Array.isArray(deck?.cards) ? deck.cards.find((c) => c.id === item.cardId) : null;
+  const deck = deckById?.get(item.deckId) || null;
+  const card = cardByRef?.get(`${item.deckId}\0${item.cardId}`) || null;
   if (card) {
     const usable = usableCitations(card, sources);
     const pick = usable.find((citation) => citation.selection) || usable[0];
@@ -304,8 +334,8 @@ function resolveCardSourceTarget(item, decks = [], sources = []) {
       };
     }
     if (card.sourceId) {
-      const src = sources.find((s) => s.id === card.sourceId && !isJsonCardSource(s));
-      if (src) return { source: src, quote: card.quote || "", peekPage: card.page ?? undefined };
+      const src = sourceById?.get(card.sourceId);
+      if (src && !isJsonCardSource(src)) return { source: src, quote: card.quote || "", peekPage: card.page ?? undefined };
     }
     return null;
   }
@@ -313,39 +343,79 @@ function resolveCardSourceTarget(item, decks = [], sources = []) {
   if (itemCited) return { ...itemCited, peekPage: itemCited.source?.selection?.page ?? itemCited.source?.document?.page ?? item.page ?? undefined };
   const fallbackId = item.sourceId || (!deck?.cards ? (deck?.sourceId || deck?.case?.sourceId) : null);
   if (fallbackId) {
-    const src = sources.find((s) => s.id === fallbackId && !isJsonCardSource(s));
-    if (src) return { source: src, quote: item.quote || "", peekPage: item.page ?? undefined };
+    const src = sourceById?.get(fallbackId);
+    if (src && !isJsonCardSource(src)) return { source: src, quote: item.quote || "", peekPage: item.page ?? undefined };
   }
   return null;
 }
 
 function RowDetail({ id, item, course, detail, variants, recs, shortName, rescuePrompt, rescuing, experimentState, initialOtherOpen, canOpenModel, canOpenSettings, onPractice, onRescue, onStartExperiment, onDismissRescue, onOpenModel, onOpenProfileSettings, onOpenSource, companionTarget, onOpenCompanion, disabled }) {
-  const yourAnswerText = detail && detail !== "loading" && !detail?.error
+  const ready = detail && detail !== "loading" && !detail?.error;
+  const yourAnswerText = ready
     ? (detail.selfGrade !== null && detail.selfGrade !== undefined ? uiFormat("自评 {0} 分", [detail.selfGrade]) : detail.yourAnswer)
     : "";
-  const hasCompare = Boolean(yourAnswerText && detail?.correctAnswer);
+  const hasClozeContext = Boolean(ready && detail.cloze?.text);
+  const distractors = ready && Array.isArray(detail.distractorExplanations) ? detail.distractorExplanations : [];
+  const joinedDistractors = distractors.length ? distractors.map((d) => d.explanation).join(" ") : "";
+  const showExplanation = Boolean(ready && detail.explanation && (!joinedDistractors || detail.explanation !== joinedDistractors));
+  const oralCorrection = ready ? detail.oralFeedback?.correction || null : null;
+  const standaloneCorrection = ready && detail.correction && detail.correction !== oralCorrection ? detail.correction : null;
+  const hasCompare = Boolean(!hasClozeContext && yourAnswerText && detail?.correctAnswer);
   return (
     <div className="wb-detail" id={id}>
       {item.similarWin && <p className="muted" data-similar-win="">{similarWinLine()}</p>}
       {detail === "loading" || detail === undefined ? <LoadingState label={ui("正在读取详情…")} />
         : detail?.error ? <InlineMessage tone="error">{ui("没能读取这道题的详情。收起这道题再点开，就会重新读取。")}</InlineMessage>
           : (
-            <dl className="wb-facts">
-              <DetailLine label={ui("上次答错")}>{detail.missedAt ? formatDateTime(detail.missedAt, "stamp") : ""}</DetailLine>
-              {hasCompare ? (
-                <div className="wb-compare">
-                  <DetailLine label={ui("你的答案")} plain>{yourAnswerText}</DetailLine>
-                  <DetailLine label={ui("正确答案")}>{detail.correctAnswer}</DetailLine>
-                </div>
-              ) : (
-                <>
-                  <DetailLine label={ui("你的答案")} plain>{yourAnswerText}</DetailLine>
-                  <DetailLine label={ui("正确答案")}>{detail.correctAnswer}</DetailLine>
-                </>
-              )}
-              <DetailLine label={ui("解析")}>{detail.explanation}</DetailLine>
-              <DetailLine label={ui("易错点")}>{detail.misconception}</DetailLine>
-            </dl>
+            <>
+              <dl className="wb-facts">
+                <DetailLine label={ui("上次答错")}>{detail.missedAt ? formatDateTime(detail.missedAt, "stamp") : ""}</DetailLine>
+                {hasClozeContext ? (
+                  <DetailLine label={ui("填空上下文")}>
+                    <Cloze card={{ kind: "cloze", cloze: detail.cloze }} values={detail.clozeAnswers || {}} onChange={() => {}} disabled
+                      details={detail.clozeDetails || null} solution={{ cloze: detail.cloze }} />
+                  </DetailLine>
+                ) : hasCompare ? (
+                  <div className="wb-compare">
+                    <DetailLine label={ui("你的答案")} plain>{yourAnswerText}</DetailLine>
+                    <DetailLine label={ui("正确答案")}>{detail.correctAnswer}</DetailLine>
+                  </div>
+                ) : (
+                  <>
+                    <DetailLine label={ui("你的答案")} plain>{yourAnswerText}</DetailLine>
+                    <DetailLine label={ui("正确答案")}>{detail.correctAnswer}</DetailLine>
+                  </>
+                )}
+                {distractors.length > 0 && (
+                  <DetailLine label={ui("所选错项辨析")}>
+                    <ul className="wb-distractors">
+                      {distractors.map((entry, idx) => (
+                        <li key={entry.id || idx}>
+                          {entry.text && <strong className="wb-distractors__choice"><StudyInline text={entry.text} /></strong>}
+                          <ExpandableText text={entry.explanation} threshold={LONG_DETAIL_CHARS} />
+                        </li>
+                      ))}
+                    </ul>
+                  </DetailLine>
+                )}
+                {detail.oralFollowup?.question && (
+                  <DetailLine label={ui("追问与补充")}>
+                    <div className="wb-oral-followup">
+                      <p>{detail.oralFollowup.question}</p>
+                      <p className="muted"><StudyInline text={detail.oralFollowup.answer || ui("未答")} /></p>
+                    </div>
+                  </DetailLine>
+                )}
+                {detail.oralFeedback?.reason && (
+                  <DetailLine label={ui("口头评估反馈")}>{detail.oralFeedback.reason}</DetailLine>
+                )}
+                {showExplanation && <DetailLine label={ui("解析")}>{detail.explanation}</DetailLine>}
+                <DetailLine label={ui("易错点")} collapseAt={LONG_MISCONCEPTION_CHARS}>{detail.misconception}</DetailLine>
+              </dl>
+              {detail.rubric && <RubricResult rubric={detail.rubric} compact />}
+              {oralCorrection && <CorrectionCard feedback={{ correction: oralCorrection }} />}
+              {standaloneCorrection && <CorrectionCard feedback={{ correction: standaloneCorrection }} />}
+            </>
           )}
       {item.leech && onRescue && (
         <LeechRescue item={item} course={course} detail={detail} companionTarget={companionTarget} experimentState={experimentState}
@@ -516,7 +586,7 @@ function HeadItem({ first, children }) {
 function WrongBookClinic({
   lanes, filterLeech, loading, canOpenSource, canPractice, course = '', canChat = true, canOpenModel = false,
   experimentJobs = {}, rescuePrompt = null, onOpenSource, onOpenCompanion, onPracticeScope, onToggleLeech,
-  onRescueCluster, onDismissRescue, onOpenModel,
+  onRescueCluster, onDismissRescue, onOpenModel, onHideClinic = null, togglingClinic = false,
 }) {
   const { busy } = useStudy();
   if (!lanes.length) return null;
@@ -552,6 +622,11 @@ function WrongBookClinic({
       <div className="wb-clinic-head">
         <h2 id="wb-clinic-title">{ui("靶向清零处方")}<span className="wb-free">{ui("不消耗模型")}</span></h2>
         <span className="muted wb-clinic-lead">{ui("按引用位置与作答记录整理，可回看原文或直接专项重练。")}</span>
+        {onHideClinic && (
+          <Button variant="quiet" size="sm" className="wb-clinic-hide" aria-pressed={true} lock={togglingClinic || busy} onClick={onHideClinic}>
+            {ui("关闭清零处方")}
+          </Button>
+        )}
       </div>
       <ul className="wb-clinic-list">
         {lanes.map((lane) => {
@@ -719,7 +794,7 @@ export function wrongBookHeadline({ isHistory, counts, historyCount = 0, status 
 export function WrongBookView({
   data, course, onCourse, showInactive, onShowInactive, items, counts, view = "weak", onView, viewCounts, loading, err, page = 0, pageSize = PAGE_SIZE, hasMore, onReload, onPage,
   recs, recsLoading = false, coach, details = {}, onLoadDetail, onPractice, onPracticePrepared, onGenerate, onOpenSettings, onSettings,
-  onLibrary, onCreate, onSources, onRescue, onStartExperiment, onStartClusterExperiment, experimentJobs = null, onNotify, arrival, openKey, initial = {}, filterMin = FILTER_MIN,
+  onLibrary, onCreate, onSources, onRescue, onStartExperiment, onStartClusterExperiment, experimentJobs = null, onNotify, onToggleClinic = null, arrival, openKey, initial = {}, filterMin = FILTER_MIN,
 }) {
   const { busy, openModal, host } = useStudy();
   const canChat = hasChatHost(host);
@@ -786,15 +861,48 @@ export function WrongBookView({
     () => sortGroupRows(groupRows(shown, groupBy, data?.decks), sortBy, { decks: data?.decks, wrongCounts }),
     [shown, groupBy, data?.decks, sortBy, wrongCounts]
   );
-  const sourceTargetByCard = useMemo(() => {
+  const deckById = useMemo(() => new Map((data?.decks || []).map((deck) => [deck.id, deck])), [data?.decks]);
+  const cardByRef = useMemo(() => {
     const map = new Map();
-    if (!data?.sources?.length) return map;
-    for (const item of rows) {
-      const target = resolveCardSourceTarget(item, data?.decks, data.sources);
-      if (target) map.set(item.cardId, target);
+    for (const deck of data?.decks || []) {
+      if (!deck?.id || !Array.isArray(deck.cards)) continue;
+      for (const card of deck.cards) {
+        if (card?.id) map.set(`${deck.id}\0${card.id}`, card);
+      }
     }
     return map;
-  }, [rows, data?.decks, data?.sources]);
+  }, [data?.decks]);
+  const sourceById = useMemo(() => new Map((data?.sources || []).map((src) => [src.id, src])), [data?.sources]);
+  const rowByCardId = useMemo(() => new Map(rows.map((row) => [row.cardId, row])), [rows]);
+  const courseOfDeck = useMemo(() => new Map((data?.decks || []).map((deck) => [deck.id, deck.course ?? deck.folder ?? ''])), [data?.decks]);
+  const resolveSourceForRow = useCallback(
+    (item) => resolveCardSourceTarget(item, { deckById, cardByRef, sourceById, sources: data?.sources }),
+    [deckById, cardByRef, sourceById, data?.sources],
+  );
+  const resolveCompanionForRow = useCallback((item) => {
+    if (!item) return null;
+    const card = cardByRef.get(`${item.deckId}\0${item.cardId}`) || item;
+    return resolveCompanionTarget({
+      card,
+      courses: data?.courses,
+      sources: data?.sources,
+      fallbackCourse: courseOfDeck.get(item.deckId) || '',
+    });
+  }, [cardByRef, data?.courses, data?.sources, courseOfDeck]);
+  const expandedTargets = useMemo(() => {
+    const sourcesMap = new Map();
+    const companionsMap = new Map();
+    if (!expanded.size) return { sources: sourcesMap, companions: companionsMap };
+    for (const cardId of expanded) {
+      const item = rowByCardId.get(cardId);
+      if (!item) continue;
+      const src = resolveSourceForRow(item);
+      if (src) sourcesMap.set(cardId, src);
+      const comp = resolveCompanionForRow(item);
+      if (comp) companionsMap.set(cardId, comp);
+    }
+    return { sources: sourcesMap, companions: companionsMap };
+  }, [expanded, rowByCardId, resolveSourceForRow, resolveCompanionForRow]);
   const choices = useMemo(() => deckChoices(rows, data?.decks), [rows, data?.decks]);
   const filtering = filterActive(applied);
   const kindsHere = useMemo(() => statusCounts(rows), [rows]);
@@ -803,22 +911,6 @@ export function WrongBookView({
   const limits = useMemo(() => leechLimits(data?.settings?.practice), [data?.settings?.practice]);
   const leechShown = useMemo(() => leechCount(filterRows(rows, { ...applied, leech: false, only: null })), [rows, applied]);
   const onlyShown = useMemo(() => (Array.isArray(applied.only) ? filterRows(rows, { ...NO_FILTER, only: applied.only }).length : 0), [rows, applied]);
-  const courseOfDeck = useMemo(() => new Map((data?.decks || []).map((deck) => [deck.id, deck.course ?? deck.folder ?? ''])), [data?.decks]);
-  const companionTargetByCard = useMemo(() => {
-    const map = new Map();
-    for (const item of rows) {
-      const deck = Array.isArray(data?.decks) ? data.decks.find((d) => d.id === item.deckId) : null;
-      const card = Array.isArray(deck?.cards) ? deck.cards.find((c) => c.id === item.cardId) : null;
-      const target = resolveCompanionTarget({
-        card: card || item,
-        courses: data?.courses,
-        sources: data?.sources,
-        fallbackCourse: courseOfDeck.get(item.deckId) || '',
-      });
-      if (target) map.set(item.cardId, target);
-    }
-    return map;
-  }, [rows, data?.decks, data?.courses, data?.sources, courseOfDeck]);
   // The result page of a round asked to open on exactly its 顽固题 (ui/Review.jsx; the container read the request once): applied when the list of that scope has come, with
   // the groups holding them open, so the rows shown are the ones the line counted. The chip below widens it to every 顽固题.
   const appliedArrival = useRef(null);
@@ -846,23 +938,40 @@ export function WrongBookView({
   const canGenerate = hasCoach && coach.enabled && !!onGenerate;
   const rowIds = new Set(rows.map((row) => row.cardId));
   const readyHere = (coach?.readyCards || []).filter((variant) => rowIds.has(variant.originCardId));
-  const hidTargetByCard = useMemo(() => {
-    const map = new Map();
-    for (const item of rows) {
-      const deck = Array.isArray(data?.decks) ? data.decks.find((d) => d.id === item.deckId) : null;
-      const card = Array.isArray(deck?.cards) ? deck.cards.find((c) => c.id === item.cardId) : null;
-      const hid = String(card?.hid || item?.hid || '').trim();
-      if (hid) map.set(item.cardId, { hid, title: String(card?.pointTitle || item?.pointTitle || item?.topic || '').trim() });
+  const settingClinicOn = wrongbookClinic(data?.settings?.practice);
+  const [clinicOverride, setClinicOverride] = useState(null);
+  const [togglingClinic, setTogglingClinic] = useState(false);
+  useEffect(() => { setClinicOverride(null); }, [settingClinicOn]);
+  const clinicOn = clinicOverride ?? settingClinicOn;
+  const handleToggleClinic = async (next) => {
+    if (typeof onToggleClinic !== "function" || togglingClinic) return;
+    setClinicOverride(next);
+    setTogglingClinic(true);
+    try {
+      const ok = await onToggleClinic(next);
+      if (ok === false) setClinicOverride(null);
+    } catch {
+      setClinicOverride(null);
+    } finally {
+      setTogglingClinic(false);
     }
-    return map;
-  }, [rows, data?.decks]);
-  const clinicOn = wrongbookClinic(data?.settings?.practice);
-  const clinicLanes = useMemo(
-    () => (clinicOn && !isHistory && rows.length >= 2
-      ? buildWrongbookClinic({ rows, sourceTargetByCard, companionTargetByCard, hidTargetByCard, wrongCounts })
-      : []),
-    [clinicOn, isHistory, rows, sourceTargetByCard, companionTargetByCard, hidTargetByCard, wrongCounts],
-  );
+  };
+  const clinicLanes = useMemo(() => {
+    if (!clinicOn || isHistory || rows.length < 2) return [];
+    const sourceTargetByCard = new Map();
+    const companionTargetByCard = new Map();
+    const hidTargetByCard = new Map();
+    for (const item of rows) {
+      const src = resolveSourceForRow(item);
+      if (src) sourceTargetByCard.set(item.cardId, src);
+      const comp = resolveCompanionForRow(item);
+      if (comp) companionTargetByCard.set(item.cardId, comp);
+      const card = cardByRef.get(`${item.deckId}\0${item.cardId}`) || null;
+      const hid = String(card?.hid || item?.hid || '').trim();
+      if (hid) hidTargetByCard.set(item.cardId, { hid, title: String(card?.pointTitle || item?.pointTitle || item?.topic || '').trim() });
+    }
+    return buildWrongbookClinic({ rows, sourceTargetByCard, companionTargetByCard, hidTargetByCard, wrongCounts });
+  }, [clinicOn, isHistory, rows, resolveSourceForRow, resolveCompanionForRow, cardByRef, wrongCounts]);
   const stateOf = (cardId) => variantState(coach, cardId, pending);
   const eligible = (list) => list.filter((row) => stateOf(row.cardId).kind === "none" || stateOf(row.cardId).kind === "failed");
   const toggle = (set, setter, key) => setter((previous) => {
@@ -1107,7 +1216,8 @@ export function WrongBookView({
     }
     if (event.key === "o" || event.key === "O") {
       const cardId = toggleEl.dataset?.cardId;
-      const srcTarget = cardId ? sourceTargetByCard.get(cardId) : null;
+      const item = cardId ? rowByCardId.get(cardId) : null;
+      const srcTarget = item ? resolveSourceForRow(item) : null;
       if (srcTarget?.source && openModal) {
         event.preventDefault();
         handlers.openSource(srcTarget);
@@ -1199,7 +1309,17 @@ export function WrongBookView({
           onPracticeScope={(refs) => practiceScope(refs)}
           onToggleLeech={() => patchFilter({ leech: !filter.leech })}
           onRescueCluster={(onStartClusterExperiment || onStartExperiment) ? triggerClusterExperiment : undefined}
-          onDismissRescue={dismissRescue} onOpenModel={openModel} />
+          onDismissRescue={dismissRescue} onOpenModel={openModel}
+          onHideClinic={typeof onToggleClinic === "function" ? () => handleToggleClinic(false) : null}
+          togglingClinic={togglingClinic} />
+      )}
+      {!isHistory && !clinicOn && rows.length >= 2 && typeof onToggleClinic === "function" && (
+        <div className="wb-plan-offer" data-wrongbook-plan-toggle="">
+          <Button variant="quiet" size="sm" aria-pressed={false} lock={togglingClinic || busy} onClick={() => handleToggleClinic(true)}>
+            {ui("开启专项清零建议")}
+          </Button>
+          <span className="muted wb-plan-offer__hint">{ui("按同页出处、顽固题与单次失误整理（不消耗模型）")}</span>
+        </div>
       )}
 
       {showRecs && (
@@ -1282,7 +1402,7 @@ export function WrongBookView({
                 options={[{ value: '', label: ui("全部题组") },
                   ...choices.map((choice) => ({ value: choice.value, label: choice.label, hint: uiFormat("{0} 题", [choice.count]) })),
                   ...(filter.deck && !choices.some((choice) => choice.value === filter.deck)
-                    ? [{ value: filter.deck, label: shortName((data?.decks || []).find((deck) => deck.id === filter.deck)?.title) || filter.deck }] : [])]} />
+                    ? [{ value: filter.deck, label: shortName(deckById.get(filter.deck)?.title) || filter.deck }] : [])]} />
             </div>
             <label className="wb-search">
               <Icon name="search" size={16} className="wb-search-icon" />
@@ -1434,8 +1554,8 @@ export function WrongBookView({
                   <Row key={it.cardId} it={it} metaText={group.mode === "topic" ? shortName(it.deckTitle) : it.topic || ui("未分类")}
                     query={applied.query.trim()}
                     isOpen={expanded.has(it.cardId)} state={stateOf(it.cardId)} detail={details[it.cardId]}
-                    sourceTarget={expanded.has(it.cardId) ? (sourceTargetByCard.get(it.cardId) || null) : null}
-                    companionTarget={expanded.has(it.cardId) ? (companionTargetByCard.get(it.cardId) || null) : null}
+                    sourceTarget={expanded.has(it.cardId) ? (expandedTargets.sources.get(it.cardId) || null) : null}
+                    companionTarget={expanded.has(it.cardId) ? (expandedTargets.companions.get(it.cardId) || null) : null}
                     experimentState={activeExperimentJobs[it.cardId] || null}
                     initialOtherOpen={Array.isArray(initial.rescueOtherOpen) ? initial.rescueOtherOpen.includes(it.cardId) : Boolean(initial.rescueOtherOpen)}
                     recItems={recItems} shortName={shortName}
@@ -1696,12 +1816,18 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
       });
   }, [call, view]);
 
+  const toggleClinic = useCallback(async (next) => {
+    if (typeof act !== "function") return false;
+    const res = await act("settings.practice.set", { patch: { wrongbookClinic: next ? true : null } });
+    return res !== undefined;
+  }, [act]);
+
   return (
     <WrongBookView data={data} course={course} onCourse={chooseCourse} showInactive={showInactive} onShowInactive={chooseInactive} items={items} counts={counts}
       view={view} onView={setView} viewCounts={current?.viewCounts || knownViewCounts} loading={loading} err={err}
       page={page} pageSize={PAGE_SIZE} hasMore={counts.total > PAGE_SIZE} onReload={load} onPage={load}
       recs={recs?.key === key ? recs : null} recsLoading={view === "weak" && !!items?.length && recs?.key !== key} coach={coach} details={details} onLoadDetail={loadDetail}
       onPractice={onPractice} onPracticePrepared={onPracticePrepared} onGenerate={generate} onOpenSettings={onOpenSettings} onSettings={openSettings}
-      onLibrary={onLibrary} onCreate={onCreate} onSources={onSources} onRescue={rescue} onStartExperiment={startExperiment} onStartClusterExperiment={startClusterExperiment} experimentJobs={experimentJobs} onNotify={(text) => toast.info(text)} arrival={arrived ? arrival : null} openKey={`study-wrongbook-open:v1:${data?.root || ""}`} />
+      onLibrary={onLibrary} onCreate={onCreate} onSources={onSources} onRescue={rescue} onStartExperiment={startExperiment} onStartClusterExperiment={startClusterExperiment} experimentJobs={experimentJobs} onNotify={(text) => toast.info(text)} onToggleClinic={toggleClinic} arrival={arrived ? arrival : null} openKey={`study-wrongbook-open:v1:${data?.root || ""}`} />
   );
 }
