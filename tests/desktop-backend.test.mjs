@@ -47,6 +47,7 @@ import { openCliTerminal } from '../packages/studyhub-desktop/adapters/os/open-t
 import { createDesktopHost } from '../packages/studyhub-desktop/application/desktop-host.js';
 import { createProviderDiscovery, localizeProviders } from '../packages/studyhub-desktop/application/provider-discovery.js';
 import { desktopUpdateView } from '../packages/studyhub-desktop/application/update-view.js';
+import { buildUpdaterManifest, packPortableZip } from '../packages/studyhub-desktop/scripts/pack-zip.mjs';
 import { createAgyCompleteAdapter } from '../packages/studyhub-desktop/adapters/cli/agy-adapter.mjs';
 import { listCandidatePaths } from '../packages/studyhub-desktop/adapters/cli/candidate-paths.mjs';
 import { createCodexCompleteAdapter, probeCodex, probeCodexAuth, probeCodexModels } from '../packages/studyhub-desktop/adapters/cli/codex-adapter.mjs';
@@ -1308,6 +1309,8 @@ test('application/desktop-host integrates with v4.14.0 StudyRuntime, config, con
   assert.equal(updateView.install.available, false);
   assert.equal(updateView.install.host, 'desktop');
   assert.equal('pendingRestart' in updateView, false);
+  assert.match(updateView.setupUrl, /StudyHub-Desktop-4\.15\.0-win-x64-setup\.exe$/);
+  assert.equal(updateView.assetUrl, updateView.setupUrl);
   assert.match(updateView.installerUrl, /StudyHub-Desktop-4\.15\.0-win-x64\.msi$/);
   assert.match(updateView.zipUrl, /StudyHub-Desktop-4\.15\.0-win-x64\.zip$/);
 
@@ -1638,4 +1641,67 @@ test('desktop completion adapters (openai, agy, codex) honor execution.timeoutMs
   assert.equal(codexErr?.name, 'TimeoutError', 'codex timeout error is stamped TimeoutError');
   assert.equal(codexErr?.modelFailure, true);
   assert.equal(callOutcomeOf(codexErr, { signal: new AbortController().signal, stepTimeout: null, budgetMs: 0 }).reason, 'timeout');
+});
+
+test('pack-zip packages NSIS setup.exe, .sig, latest.json updater manifest, .msi, portable .zip, and SHA256SUMS', async (t) => {
+  const work = await mkdtemp(join(tmpdir(), 'studyhub-pack-zip-'));
+  t.after(() => rm(work, { recursive: true, force: true }));
+
+  const runtimeDir = join(work, 'runtime');
+  const msiDir = join(work, 'bundle', 'msi');
+  const nsisDir = join(work, 'bundle', 'nsis');
+  const outdir = join(work, 'out');
+  const exePath = join(work, 'StudyHub.exe');
+
+  await mkdir(join(runtimeDir, 'lib'), { recursive: true });
+  await mkdir(msiDir, { recursive: true });
+  await mkdir(nsisDir, { recursive: true });
+  await writeFile(join(runtimeDir, 'lib', 'stub.js'), 'export const ok = true;\n', 'utf8');
+  await writeFile(exePath, 'FAKE_EXE_BYTES', 'utf8');
+  await writeFile(join(msiDir, 'StudyHub_5.2.0_x64_en-US.msi'), 'FAKE_MSI_BYTES', 'utf8');
+  await writeFile(join(nsisDir, 'StudyHub_5.2.0_x64-setup.exe'), 'FAKE_NSIS_SETUP_BYTES', 'utf8');
+  await writeFile(join(nsisDir, 'StudyHub_5.2.0_x64-setup.exe.sig'), 'dW50cnVzdGVkLXNpZw==\n', 'utf8');
+
+  const packed = await packPortableZip({
+    outdir,
+    runtimeDir,
+    exePath,
+    version: '5.2.0',
+    msiDir,
+    nsisDir,
+    repo: 'EricWang1358/dsh-web-studyhub',
+    pubDate: '2026-11-21T00:00:00Z',
+  });
+
+  assert.equal(packed.version, '5.2.0');
+  assert.equal(packed.updaterManifest, 'latest.json');
+  assert.deepEqual(
+    packed.artifacts.map((item) => item.name),
+    [
+      'StudyHub-Desktop-5.2.0-win-x64-setup.exe',
+      'StudyHub-Desktop-5.2.0-win-x64.msi',
+      'StudyHub-Desktop-5.2.0-win-x64.zip',
+    ],
+  );
+
+  const sums = await readFile(join(outdir, 'SHA256SUMS-Desktop-5.2.0.txt'), 'utf8');
+  assert.match(sums, /StudyHub-Desktop-5\.2\.0-win-x64-setup\.exe/);
+  assert.match(sums, /StudyHub-Desktop-5\.2\.0-win-x64\.msi/);
+  assert.match(sums, /StudyHub-Desktop-5\.2\.0-win-x64\.zip/);
+
+  const sigCopy = (await readFile(join(outdir, 'StudyHub-Desktop-5.2.0-win-x64-setup.exe.sig'), 'utf8')).trim();
+  assert.equal(sigCopy, 'dW50cnVzdGVkLXNpZw==');
+
+  const manifest = JSON.parse(await readFile(join(outdir, 'latest.json'), 'utf8'));
+  assert.deepEqual(
+    manifest,
+    buildUpdaterManifest({
+      version: '5.2.0',
+      signature: 'dW50cnVzdGVkLXNpZw==',
+      downloadUrl: 'https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v5.2.0/StudyHub-Desktop-5.2.0-win-x64-setup.exe',
+      pubDate: '2026-11-21T00:00:00Z',
+    }),
+  );
+  assert.equal(manifest.platforms['windows-x86_64'].signature, 'dW50cnVzdGVkLXNpZw==');
+  assert.equal(manifest.platforms['windows-x86_64-nsis'].url, manifest.platforms['windows-x86_64'].url);
 });

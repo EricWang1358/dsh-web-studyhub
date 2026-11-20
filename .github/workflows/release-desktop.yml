@@ -155,11 +155,14 @@ jobs:
           npm --prefix packages/studyhub-desktop run build:ui
           npm --prefix packages/studyhub-desktop run stage:runtime
 
-      - name: Build Tauri Windows MSI installer
+      - name: Build Tauri Windows installers (NSIS + MSI)
         working-directory: packages/studyhub-desktop
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
         run: npx tauri build
 
-      - name: Pack portable ZIP and SHA256SUMS
+      - name: Pack portable ZIP, updater manifest, and SHA256SUMS
         run: npm --prefix packages/studyhub-desktop run bundle:zip
 
       - name: Pack Desktop Retrieval bundle and SHA256SUMS
@@ -182,17 +185,23 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           $files = Get-ChildItem -Path "packages/studyhub-desktop/dist/release" -File |
-            Where-Object { $_.Name -match '\.(msi|zip)$|^SHA256SUMS-Desktop-.*\.txt$' }
+            Where-Object { $_.Name -match '\.(exe|exe\.sig|msi|zip)$|^latest\.json$|^SHA256SUMS-Desktop-.*\.txt$' }
           $assets = $files | ForEach-Object { $_.FullName }
+          $hasSetupExe = $files | Where-Object { $_.Name -match '^StudyHub-Desktop-.*-win-x64-setup\.exe$' }
+          $hasSetupSig = $files | Where-Object { $_.Name -match '^StudyHub-Desktop-.*-win-x64-setup\.exe\.sig$' }
+          $hasLatestJson = $files | Where-Object { $_.Name -eq 'latest.json' }
+          $hasMsi = $files | Where-Object { $_.Name -match '^StudyHub-Desktop-.*-win-x64\.msi$' }
+          $hasPortableZip = $files | Where-Object { $_.Name -match '^StudyHub-Desktop-.*-win-x64\.zip$' }
+          $hasDesktopSums = $files | Where-Object { $_.Name -match '^SHA256SUMS-Desktop-[0-9].*\.txt$' }
           $hasRetrievalZip = $files | Where-Object { $_.Name -match '^StudyHub-Desktop-Retrieval-.*-win-x64\.zip$' }
           $hasRetrievalSums = $files | Where-Object { $_.Name -match '^SHA256SUMS-Desktop-Retrieval-.*\.txt$' }
-          if ($assets.Count -lt 5 -or -not $hasRetrievalZip -or -not $hasRetrievalSums) {
-            throw "Expected desktop .msi, .zip, retrieval .zip, and SHA256SUMS assets, found $($assets.Count): $($files.Name -join ', ')"
+          if (-not $hasSetupExe -or -not $hasSetupSig -or -not $hasLatestJson -or -not $hasMsi -or -not $hasPortableZip -or -not $hasDesktopSums -or -not $hasRetrievalZip -or -not $hasRetrievalSums) {
+            throw "Expected desktop setup.exe, setup.exe.sig, latest.json, .msi, .zip, retrieval .zip, and SHA256SUMS assets, found $($assets.Count): $($files.Name -join ', ')"
           }
           gh release view $env:TAG -R $env:REPO *> $null
           if ($LASTEXITCODE -eq 0) {
             gh release upload $env:TAG @assets -R $env:REPO --clobber
           } else {
             $version = $env:TAG.TrimStart('v')
-            gh release create $env:TAG @assets -R $env:REPO --verify-tag --title "StudyHub $version" --notes "StudyHub Desktop $version Windows x64 installer (.msi), portable archive (.zip), optional Desktop Retrieval bundle, and SHA-256 checksums."
+            gh release create $env:TAG @assets -R $env:REPO --verify-tag --title "StudyHub $version" --notes "StudyHub Desktop $version Windows x64 setup installer (.exe, zero-UAC auto-update), MSI installer (.msi), portable archive (.zip), optional Desktop Retrieval bundle, updater manifest (latest.json), and SHA-256 checksums."
           }

@@ -18,7 +18,7 @@ const m = await loadUi(`
   export { chooseLibraryFolder } from './ui/app/ChangeFolderButton.jsx';
   export { default as DesktopUpgradeGuide } from './ui/desktop/DesktopUpgradeGuide.jsx';
   export { MODEL_PRESETS, presetOf } from './ui/desktop/presets.js';
-  export { createDesktopHost, loadBootstrapInfo, safeExternalUrl, syncDesktopConcurrency, readDesktopConcurrency } from './ui/desktop/ipc.js';
+  export { createDesktopHost, loadBootstrapInfo, safeExternalUrl, syncDesktopConcurrency, readDesktopConcurrency, checkDesktopUpdate, installDesktopUpdate } from './ui/desktop/ipc.js';
   export { effectiveConcurrencyLimit, registerHostConcurrencyCap } from './lib/generation-settings.js';
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { AppContext } from './ui/app/app-context.js';
@@ -642,4 +642,71 @@ test('the desktop says how the model is paid for: its own key, the account of th
     assert.equal(note(cli('unknown')), 'Called through Codex CLI on this computer; whether that uses its account quota or the API key it signed in with depends on how it is logged in.');
     for (const billing of ['account', 'per-use', 'unknown']) assert.doesNotMatch(note(cli(billing)), /[㐀-鿿]/);
   } finally { m.setUiLanguage('zh'); }
+});
+
+test('DesktopUpgradeGuide shows one-click signed auto-update when host.updater is present, and IPC wires updater events cleanly', async (t) => {
+  t.after(() => { delete globalThis.__TAURI_INTERNALS__; });
+
+  const update = {
+    latest: '5.2.0',
+    setupName: 'StudyHub-Desktop-5.2.0-win-x64-setup.exe',
+    setupUrl: 'https://example.com/StudyHub-Desktop-5.2.0-win-x64-setup.exe',
+    installerUrl: 'https://example.com/StudyHub-Desktop-5.2.0-win-x64.msi',
+    zipUrl: 'https://example.com/StudyHub-Desktop-5.2.0-win-x64.zip',
+  };
+  const autoHost = { ...DESKTOP_HOST, updater: { check: async () => ({ available: true }), install: async () => ({ status: 'up-to-date' }) } };
+
+  const autoZh = render(h(m.DesktopUpgradeGuide, { update, host: autoHost }), 'zh');
+  assert.match(autoZh, /data-desktop-auto-update="idle"/);
+  assert.match(autoZh, /立即下载并更新到 5\.2\.0/);
+  assert.match(autoZh, /Ed25519/);
+  assert.match(autoZh, /改用手动下载/);
+  assert.match(autoZh, /StudyHub-Desktop-5\.2\.0-win-x64-setup\.exe/);
+
+  const autoEn = render(h(m.DesktopUpgradeGuide, { update, host: autoHost }), 'en');
+  assert.match(autoEn, /Download and update to 5\.2\.0/);
+  assert.doesNotMatch(autoEn.replace(/<[^>]+>/g, ' '), /[㐀-鿿]/, 'English auto-update guide has zero untranslated Han text');
+
+  // IPC bridge: exposes updater only when Tauri bridge is present, listens & cleans up progress events
+  assert.equal('updater' in m.createDesktopHost(async () => ({})), false);
+
+  const listeners = new Map();
+  let nextCbId = 1;
+  const invokeCalls = [];
+  const unregistered = [];
+  globalThis.__TAURI_INTERNALS__ = {
+    transformCallback: (fn) => {
+      const id = nextCbId++;
+      listeners.set(id, fn);
+      return id;
+    },
+    unregisterCallback: (id) => {
+      unregistered.push(id);
+      listeners.delete(id);
+    },
+    invoke: async (cmd, args) => {
+      invokeCalls.push({ cmd, args });
+      if (cmd === 'plugin:event|listen') return 42;
+      if (cmd === 'desktop_check_update') return { available: true, currentVersion: '5.1.0', version: '5.2.0' };
+      if (cmd === 'desktop_install_update') {
+        for (const fn of listeners.values()) fn({ payload: { phase: 'downloading', downloaded: 50, total: 100, percent: 50 } });
+        return { status: 'up-to-date', version: '5.2.0' };
+      }
+      return null;
+    },
+  };
+
+  const tauriHost = m.createDesktopHost(async () => ({}));
+  assert.equal(typeof tauriHost.updater?.check, 'function');
+  assert.equal(typeof tauriHost.updater?.install, 'function');
+  const checked = await tauriHost.updater.check();
+  assert.equal(checked.available, true);
+
+  const progressEvents = [];
+  const receipt = await tauriHost.updater.install((evt) => progressEvents.push(evt));
+  assert.equal(receipt.status, 'up-to-date');
+  assert.deepEqual(progressEvents, [{ phase: 'downloading', downloaded: 50, total: 100, percent: 50 }]);
+  assert.ok(invokeCalls.some((c) => c.cmd === 'plugin:event|listen' && c.args.event === 'desktop-update-progress'));
+  assert.ok(invokeCalls.some((c) => c.cmd === 'plugin:event|unlisten' && c.args.eventId === 42));
+  assert.deepEqual(unregistered, [1]);
 });
