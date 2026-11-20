@@ -10,6 +10,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { parseSkill } from '../lib/study-skills.js';
 import { StudyService } from '../lib/service.js';
+import { companionCompilePanelIntent } from '../lib/index.js';
 
 const compiled = await build({
   stdin: {
@@ -519,4 +520,121 @@ test('study-tutor SKILL.md authorizes zero-key rescue companion.compile after 2 
     if (action === 'panel.open') continue; // panel.open is handled by the host bridge in lib/index.js
     assert.ok(study.runtime.hasAction(action), `study-tutor action ${action} must be registered`);
   }
+});
+
+test('companion.compile return shape queues studyRef kind:companion workbench intent in rescue mode only', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'study-rescue-intent-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const study = new StudyService(root);
+  t.after(() => study.dispose?.());
+
+  await study.call('course.save', { name: 'Analysis' });
+  const rescueLesson = {
+    schema: 'studyhub-lesson/1',
+    id: 'rescue-uniform-conv',
+    mode: 'rescue',
+    hid: 'h-41',
+    targetCardIds: ['c1'],
+    title: 'Why Pointwise Convergence Fails the Integral Swap',
+    lead: 'Pointwise limits can lose mass even when every function vanishes at every point.',
+    course: 'Analysis',
+    language: 'en',
+    minutes: 4,
+    needs: ['Pointwise convergence'],
+    after: ['Check uniform convergence before swapping limit and integral'],
+    terms: { 'Uniform convergence': 'Supremum distance shrinks to zero across the whole domain.' },
+    slides: [
+      {
+        id: 's1',
+        title: 'Predict Before Checking',
+        blocks: [
+          {
+            t: 'predict',
+            id: 'pred-swap',
+            q: 'For tall narrow spikes with area 1 shrinking toward 0, does the limit of integrals equal the integral of the pointwise limit?',
+            options: ['Yes, pointwise convergence is enough', 'No, the integrals stay 1 while the pointwise limit is 0'],
+            answer: 1,
+            say: 'Commit to your prediction before testing the parameter.',
+          },
+        ],
+      },
+      {
+        id: 's2',
+        title: 'Watch the Spike Mass',
+        blocks: [
+          {
+            t: 'sandbox',
+            knobs: [{ id: 'n', label: 'Index $n$', min: 1, max: 20, step: 1, default: 2 }],
+            domain: { variable: 'x', min: 0, max: 1, steps: 60, label: '$x$' },
+            series: [{ id: 'f', label: '$f_n(x)$', expr: 'n * exp(-n * x)' }],
+            say: 'Drag $n$ upward and watch the peak grow while the tail flattens.',
+          },
+          {
+            t: 'reveal',
+            of: 'pred-swap',
+            say: 'The peak concentrates area near zero so the limit of integrals does not drop to zero.',
+          },
+        ],
+      },
+      {
+        id: 's3',
+        title: 'Unseen Boundary Check',
+        blocks: [
+          {
+            t: 'quiz',
+            q: 'Which condition guarantees swapping limit and Riemann integral on $[0, 1]$?',
+            options: [
+              { label: 'Pointwise convergence alone', correct: false, why: 'Moving spikes converge pointwise to 0 while keeping area 1.' },
+              { label: 'Uniform convergence on $[0, 1]$', correct: true, why: 'Uniform convergence bounds the supremum error across the entire interval.' },
+              { label: 'Convergence at rational points only', correct: false, why: 'Values on rationals do not control the integral.' },
+              { label: 'Every $f_n$ is nonnegative', correct: false, why: 'Nonnegative spikes still keep area 1.' },
+            ],
+            say: 'Check the boundary condition on a fresh statement.',
+          },
+        ],
+      },
+    ],
+  };
+
+  const compiledRes = await study.call('companion.compile', {
+    course: 'Analysis',
+    attach: true,
+    mode: 'rescue',
+    hid: 'h-41',
+    targetCardIds: ['c1'],
+    mountMode: 'companion-only',
+    grounded: false,
+    lesson: rescueLesson,
+  });
+  assert.equal(compiledRes.attached, true);
+  assert.match(compiledRes.companion.id, /^comp-/);
+  assert.equal(compiledRes.companion.lessonMode, 'rescue');
+
+  const intent = companionCompilePanelIntent(
+    { course: 'Analysis', attach: true, mode: 'rescue', lesson: rescueLesson },
+    compiledRes,
+    root,
+  );
+  assert.deepEqual(intent, {
+    type: 'studyRef',
+    studyRef: {
+      root,
+      kind: 'companion',
+      id: compiledRes.companion.id,
+      course: 'Analysis',
+      slide: 1,
+      title: 'Why Pointwise Convergence Fails the Integral Swap',
+    },
+  });
+
+  // Detached or non-rescue compiles do not auto-queue unless openInWorkbench is explicit
+  assert.equal(companionCompilePanelIntent({ attach: false, mode: 'rescue' }, compiledRes, root), null);
+  assert.equal(
+    companionCompilePanelIntent(
+      { attach: true, mode: 'full' },
+      { attached: true, companion: { id: 'full-1', course: 'Analysis', title: 'Full Lesson', lessonMode: 'full' } },
+      root,
+    ),
+    null,
+  );
 });

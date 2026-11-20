@@ -518,7 +518,7 @@ function HeadItem({ first, children }) {
 function WrongBookClinic({
   lanes, filterLeech, loading, canOpenSource, canPractice, course = '', canChat = true, canOpenModel = false,
   experimentJobs = {}, rescuePrompt = null, onOpenSource, onOpenCompanion, onPracticeScope, onToggleLeech,
-  onStartClusterExperiment, onDismissRescue, onOpenModel,
+  onRescueCluster, onDismissRescue, onOpenModel,
 }) {
   const { busy } = useStudy();
   if (!lanes.length) return null;
@@ -564,7 +564,7 @@ function WrongBookClinic({
             const readyCompanion = expState?.status === 'ready' && expState?.companionId
               ? { companionId: expState.companionId, course: expState.course || course, slide: 1, anchor: '#1', companionTitle: expState.title || '', lessonMode: 'rescue' }
               : null;
-            const showRescue = Boolean(lane.recommendRescue && onStartClusterExperiment);
+            const showRescue = Boolean(lane.recommendRescue && onRescueCluster);
             const jumpTarget = lane.kind === "companion" ? lane.target : (lane.sourceTarget || (lane.kind === "source" ? lane.target : null));
             const hasJump = Boolean(canOpenSource && jumpTarget && (lane.kind === "companion" || jumpTarget.source));
             const promptForCluster = rescuePrompt?.cardId === jobKey ? rescuePrompt : null;
@@ -591,7 +591,7 @@ function WrongBookClinic({
                     <Tooltip layer content={rescueTip('experiment')}>
                       <Button variant="secondary" size="sm" wrap icon="sparkle" data-clinic-rescue="start"
                         busy={expRunning} disabled={busy || loading || expRunning}
-                        onClick={() => onStartClusterExperiment(lane, jobKey)}>
+                        onClick={() => onRescueCluster(lane, jobKey)}>
                         {ui("做一个 4 页交互实验")}
                       </Button>
                     </Tooltip>
@@ -614,7 +614,7 @@ function WrongBookClinic({
                     )}
                     {expState?.status === 'failed' && (
                       <InlineMessage className="wb-leech__notice" tone="error" boxed
-                        action={!busy && onStartClusterExperiment ? { label: ui("重试"), onClick: () => onStartClusterExperiment(lane, jobKey) } : undefined}>
+                        action={!busy && onRescueCluster ? { label: ui("重试"), onClick: () => onRescueCluster(lane, jobKey) } : undefined}>
                         {expState.message || ui("这次没能生成交互实验，可以重试或展开「其他办法」。")}
                       </InlineMessage>
                     )}
@@ -1200,7 +1200,7 @@ export function WrongBookView({
           onOpenSource={openCardSource} onOpenCompanion={openCardCompanion}
           onPracticeScope={(refs) => practiceScope(refs)}
           onToggleLeech={() => patchFilter({ leech: !filter.leech })}
-          onStartClusterExperiment={(onStartClusterExperiment || onStartExperiment) ? triggerClusterExperiment : undefined}
+          onRescueCluster={(onStartClusterExperiment || onStartExperiment) ? triggerClusterExperiment : undefined}
           onDismissRescue={dismissRescue} onOpenModel={openModel} />
       )}
 
