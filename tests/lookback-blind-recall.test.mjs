@@ -300,19 +300,35 @@ test('RoundLookBack keeps baseline untouched when off, and enables blind recall 
 
   uiMod.setUiLanguage('zh');
   try {
-    // 1. Default OFF: no veil controls or reason pills
+    // 1. Default OFF: answers stay directly visible with no veil/reason pills, while an in-page 先遮答案自测 toggle lets learners opt in
     uiMod.setQueryData('review.lookBack', { runId: runOff.id }, { rows: sampleRows });
     const appOff = mountSync(services);
     const propsOff = { run: runOff, onPracticeWrong: (refs) => practiced.push(refs) };
     let tree = appOff.render(uiMod.RoundLookBack, propsOff);
     let expandBtn = null;
-    walkTree(tree, (n) => { if (!expandBtn && typeof n.type !== 'string' && typeof n.props?.onClick === 'function' && textOf(n).trim() === '全部展开') expandBtn = n; });
+    let offVeilToggle = null;
+    walkTree(tree, (n) => {
+      if (typeof n.type === 'string' || typeof n.props?.onClick !== 'function') return;
+      const label = textOf(n).trim();
+      if (!expandBtn && label === '全部展开') expandBtn = n;
+      if (!offVeilToggle && label === '先遮答案自测') offVeilToggle = n;
+    });
     assert.ok(expandBtn);
+    assert.ok(offVeilToggle, 'in-page blind recall toggle is discoverable even when setting defaults off');
+    assert.equal(offVeilToggle.props['aria-pressed'], false);
     expandBtn.props.onClick();
     tree = appOff.render(uiMod.RoundLookBack, propsOff);
     const offHtml = htmlOfElement(tree, services, null);
-    assert.doesNotMatch(offHtml, /先遮答案自测|揭晓答案与解析|错因归类/);
+    assert.match(offHtml, /aria-pressed="false"[^>]*>先遮答案自测/);
+    assert.doesNotMatch(offHtml, /揭晓答案与解析|错因归类/);
     assert.match(offHtml, /Hidden explanation secret/);
+    // Clicking the in-page toggle activates blind recall without changing global settings
+    offVeilToggle.props.onClick();
+    tree = appOff.render(uiMod.RoundLookBack, propsOff);
+    const triedOnHtml = htmlOfElement(tree, services, null);
+    assert.match(triedOnHtml, /aria-pressed="true"[^>]*>先遮答案自测/);
+    assert.match(triedOnHtml, /揭晓答案与解析/);
+    assert.doesNotMatch(triedOnHtml, /Hidden explanation secret/);
     appOff.unmount();
 
     // 2. Opt-in ON via settings.practice.lookBackBlindRecall

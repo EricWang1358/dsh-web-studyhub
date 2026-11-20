@@ -24,8 +24,8 @@ const cloze = (id) => ({ ...base, id, kind: 'cloze', prompt: `Fill ${id}`, cloze
 
 const DECKS = {
   'deck-open': [open('o1')], 'deck-hint': [quiz('q-hint')], 'deck-alone': [quiz('q-alone')], 'deck-multi': [quiz('m1', 'multi')], 'deck-cloze': [cloze('c1')],
-  'deck-flash': [flash('f1')], 'deck-fail': [open('o-fail')], 'deck-order': [open('o-a'), open('o-b')], 'deck-ask': [flash('f-ask')],
-  'deck-queue': [open('o-q1'), open('o-q2')], 'deck-extra': [flash('x1')], 'deck-hang': [open('o-hang')],
+  'deck-flash': [flash('f1')], 'deck-fail': [open('o-fail'), open('o-fail-2')], 'deck-order': [open('o-a'), open('o-b')], 'deck-ask': [flash('f-ask')],
+  'deck-queue': [open('o-q1'), open('o-q2')], 'deck-extra': [flash('x1')], 'deck-hang': [open('o-hang'), open('o-hang-2')],
   'deck-move': [open('o-m1'), open('o-m2')], 'deck-pre': [flash('pre')], 'deck-branch': [{ ...open('o-branch'), requires: [{ deckId: 'deck-pre', cardId: 'pre' }] }],
 };
 
@@ -176,8 +176,8 @@ test('the real practice page saves, restores, clears and waits for the unsubmitt
     assert.equal(attempt.assistance.hintUsed, true);
     assert.equal(attempt.assistance.used, true);
     assert.equal(attempt.grade, 3, 'right with the hint is 勉强答对 (#883)');
-    const order = helped.calls.map((call) => call.action);
-    assert.ok(order.indexOf('review.draft.save') > -1 && order.indexOf('review.draft.save') < order.indexOf('review.answer'), 'saved before the answer');
+    const answerCall = helped.calls.findLast((call) => call.action === 'review.answer');
+    assert.equal(answerCall?.args?.assistance?.hintUsed, true, 'help signal rides inline on review.answer without a serial draft waterfall');
     await helped.close();
   });
 
@@ -217,19 +217,26 @@ test('the real practice page saves, restores, clears and waits for the unsubmitt
     const box = view.page.locator('.response-label textarea');
     await box.fill('do not lose me');
     await view.page.getByRole('button', { name: '提示', exact: true }).click();
-    // Flip is not blocked (it is not a step that leaves the question), so the blocked step here is the grade after it.
-    await view.page.getByRole('button', { name: FLIP }).click();
-    const grade = view.page.locator('[data-usage="review.grade"]').nth(4);
-    await grade.waitFor();
     await until(() => view.saves().length >= 1, 'a save attempt');
-    const answersBefore = view.calls.filter((call) => call.action === 'review.answer').length;
-    await grade.click();
+    // Leaving the question (`review.move` via 更多 › 先跳过) waits for `review.draft.save` and refuses to move when the save fails.
+    const clickSkip = async () => {
+      await view.page.locator('.review-more-trigger').click();
+      await view.page.getByRole('menuitem', { name: /先跳过/ }).click();
+    };
+    const movesBefore = view.calls.filter((call) => call.action === 'review.move').length;
+    await clickSkip();
     await view.page.getByText('没能保存你写的内容').first().waitFor({ timeout: 8000 });
-    assert.equal(view.calls.filter((call) => call.action === 'review.answer').length, answersBefore, 'review.answer was not sent');
-    assert.equal((await attemptsOf(service, 'o-fail')).length, 0);
+    assert.equal(view.calls.filter((call) => call.action === 'review.move').length, movesBefore, 'review.move was not sent');
+    assert.equal(await box.inputValue(), 'do not lose me');
     refuse = false;
-    await grade.click();
-    await until(async () => (await attemptsOf(service, 'o-fail')).length, 'the attempt once it can save');
+    await clickSkip();
+    await view.page.getByText('Explain o-fail-2?').first().waitFor({ timeout: 8000 });
+    await view.page.locator('[data-usage="review.prev"]').click();
+    await view.page.getByText('Explain o-fail?').first().waitFor({ timeout: 8000 });
+    assert.equal(await box.inputValue(), 'do not lose me', 'words restored after moving back');
+    await view.page.getByRole('button', { name: FLIP }).click();
+    await view.page.locator('[data-usage="review.grade"]').nth(2).click();
+    await until(async () => (await attemptsOf(service, 'o-fail')).length, 'the attempt once graded');
     const [attempt] = await attemptsOf(service, 'o-fail');
     assert.equal(attempt.assistance.hintUsed, true, 'the signal that could not be saved at first reached the attempt');
     await view.close();
@@ -241,7 +248,7 @@ test('the real practice page saves, restores, clears and waits for the unsubmitt
     const firstCard = await view.page.locator('.response-label textarea').count();
     assert.equal(firstCard, 1);
     await view.page.getByRole('button', { name: FLIP }).click();
-    await view.page.locator('[data-usage="review.grade"]').nth(4).click();
+    await view.page.locator('[data-usage="review.grade"]').nth(2).click();
     await view.page.locator('[data-usage="review.next"]:not([disabled])').click();
     const box = view.page.locator('.response-label textarea');
     await box.waitFor();
@@ -261,11 +268,11 @@ test('the real practice page saves, restores, clears and waits for the unsubmitt
     // The path puts a question's unlearned prerequisite first; past it, the question itself still offers it again.
     if (!(await branch.page.locator('.response-label textarea').count())) {
       await branch.page.getByRole('button', { name: FLIP }).click();
-      await branch.page.locator('[data-usage="review.grade"]').nth(4).click();
+      await branch.page.locator('[data-usage="review.grade"]').nth(2).click();
       await branch.page.locator('[data-usage="review.next"]:not([disabled])').click();
     }
     await branch.page.locator('.response-label textarea').fill('before the prerequisite');
-    await branch.page.locator('.prereq-strip summary').getByRole('button').click();
+    await branch.page.locator('.prereq-strip__action').click();
     const started = branch.calls.indexOf(await until(() => branch.calls.find((call) => call.action === 'review.start' && call.args.returnTo), 'the prerequisite round'));
     const saved = branch.calls.findIndex((call) => call.action === 'review.draft.save' && call.args.draft.text === 'before the prerequisite');
     assert.ok(saved > -1 && saved < started, 'saved before the round starts');
@@ -304,17 +311,18 @@ test('the real practice page saves, restores, clears and waits for the unsubmitt
       else await route.continue();
     });
     await view.page.locator('.response-label textarea').fill('do not lose me either');
-    await view.page.getByRole('button', { name: FLIP }).click();
-    const grade = view.page.locator('[data-usage="review.grade"]').nth(4);
-    await grade.waitFor();
-    const answersBefore = view.calls.filter((call) => call.action === 'review.answer').length;
-    await grade.click();
+    const clickSkip = async () => {
+      await view.page.locator('.review-more-trigger').click();
+      await view.page.getByRole('menuitem', { name: /先跳过/ }).click();
+    };
+    const movesBefore = view.calls.filter((call) => call.action === 'review.move').length;
+    await clickSkip();
     await view.page.getByText('没能保存你写的内容').first().waitFor({ timeout: 12000 });
-    assert.equal(view.calls.filter((call) => call.action === 'review.answer').length, answersBefore, 'review.answer was not sent');
+    assert.equal(view.calls.filter((call) => call.action === 'review.move').length, movesBefore, 'review.move was not sent');
     hang = false;
     await Promise.all(held.map((route) => route.continue()));
-    await grade.click();
-    await until(async () => (await attemptsOf(service, 'o-hang')).length, 'the attempt once it can save');
+    await clickSkip();
+    await until(() => view.calls.filter((call) => call.action === 'review.move').length > movesBefore, 'the move once it can save');
     await view.close();
   });
 
@@ -325,7 +333,7 @@ test('the real practice page saves, restores, clears and waits for the unsubmitt
     const box = view.page.locator('.response-label textarea');
     await box.fill('typed before grading');
     await view.page.getByRole('button', { name: FLIP }).click();
-    await view.page.locator('[data-usage="review.grade"]').nth(4).click();
+    await view.page.locator('[data-usage="review.grade"]').nth(2).click();
     await view.page.locator('[data-usage="review.next"]:not([disabled])').waitFor();
     const answered = await previewCall(server, 'review.get', { runId });
     assert.ok(answered.feedback);

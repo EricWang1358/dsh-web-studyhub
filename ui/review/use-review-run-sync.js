@@ -55,13 +55,14 @@ export function useAutopilotPause({ session, coachProps, reviewBodyRef }) {
   const autoAdvanceMs = coachProps?.autoAdvance > 0 ? coachProps.autoAdvance : session.autoAdvanceActive ? AUTO_ADVANCE_MS : 0;
   const autoAdvanceActive = Boolean(session.autoAdvanceActive || autoAdvanceMs > 0);
   const autoAdvancePaused = Boolean(session.autoAdvancePaused);
+  const setAutoAdvancePaused = session.setAutoAdvancePaused;
   const hoverPauseRef = React.useRef({ card: false, explanation: false });
   const selectionPauseRef = React.useRef(false);
   const markingPaused = !!session.markingTerms;
   const syncAutoPause = React.useCallback(() => {
-    const paused = hoverPauseRef.current.card || hoverPauseRef.current.explanation || selectionPauseRef.current || !!session.markingTerms;
-    session.setAutoAdvancePaused?.(paused);
-  }, [session]);
+    const paused = hoverPauseRef.current.card || hoverPauseRef.current.explanation || selectionPauseRef.current || markingPaused;
+    setAutoAdvancePaused?.(paused);
+  }, [markingPaused, setAutoAdvancePaused]);
 
   React.useEffect(() => {
     if (autoAdvanceActive) syncAutoPause();
@@ -95,10 +96,11 @@ export function useAutopilotPause({ session, coachProps, reviewBodyRef }) {
 export function useAssistWatch({ session, assistTasks, cardId }) {
   const watchedRef = React.useRef("");
   const ended = finishedTask(watchedRef.current, assistTasks, cardId);
+  const pollNow = session.pollNow || session.pollRun;
   React.useEffect(() => {
     watchedRef.current = ended.watch;
-    if (ended.done) (session.pollNow || session.pollRun)?.();
-  }, [ended.watch, ended.done, session]);
+    if (ended.done) pollNow?.();
+  }, [ended.watch, ended.done, pollNow]);
 }
 
 /** Synchronize persisted case-study highlights for the current review run. */
@@ -107,9 +109,9 @@ export function useCaseHighlights({ run, data, call }) {
   const caseSource = caseDeck ? data?.sources?.find((source) => source.id === caseDeck.caseSourceId) : null;
   const [caseHighlights, setCaseHighlights] = React.useState(run.highlights || []);
   React.useEffect(() => { setCaseHighlights(run.highlights || []); }, [run.id]); // eslint-disable-line react-hooks/exhaustive-deps
-  const saveHighlights = (next) => {
+  const saveHighlights = React.useCallback((next) => {
     setCaseHighlights(next);
     Promise.resolve(call?.("review.highlights", { runId: run.id, highlights: next })).catch(() => {});
-  };
+  }, [call, run.id]);
   return { caseSource, caseHighlights, saveHighlights };
 }

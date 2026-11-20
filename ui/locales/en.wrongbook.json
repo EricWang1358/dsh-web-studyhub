@@ -214,5 +214,13 @@
   "按 FSRS 正常排程复习即可，暂不需要额外补救。": "FSRS scheduling is enough here — no extra rescue needed right now.",
   "先针对漏看条件做一次 3–4 页交互实验，理清边界再练：": "Try a 3–4 slide interactive experiment focused on the missed condition first:",
   "先针对推导卡点做一次 3–4 页交互实验，理顺步骤再练：": "Try a 3–4 slide interactive experiment focused on the derivation step first:",
-  "返回本轮结果": "Back to round results"
+  "返回本轮结果": "Back to round results",
+  "展开全文": "Show full text",
+  "填空上下文": "Fill-in-the-blank context",
+  "所选错项辨析": "Why your choice was wrong",
+  "追问与补充": "Follow-up & reply",
+  "口头评估反馈": "Oral assessment feedback",
+  "关闭清零处方": "Hide clear-out plan",
+  "开启专项清零建议": "Show targeted clear-out plan",
+  "按同页出处、顽固题与单次失误整理（不消耗模型）": "Group by cited page, stubborn cards & single slips (no model used)"
 }

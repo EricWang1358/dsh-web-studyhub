@@ -11,7 +11,7 @@ import { EXAM_SETTING_LIMITS } from "../lib/courses.js";
 import { Badge, Button, Checkbox, Disclosure, InlineMessage, PageHeader, Panel, RadioCard, SegmentedControl, Spinner, Tooltip, useToast } from "./components/index.js";
 import ModelSetupGate, { gateTitle } from "./ModelSetupGate.jsx";
 import { formatClock, joinMeta } from "./format.js";
-import { useExamRun } from "./exam/useExamRun.js";
+import { useExamRun, useExamClock } from "./exam/useExamRun.js";
 import SubmitBlanksDialog from "./SubmitBlanksDialog.jsx";
 import { ExamSetupCard } from "./ExamShell.jsx";
 import {
@@ -56,7 +56,7 @@ function textOffset(container, node, offset) {
  * The case text with numbered paragraphs. With the highlighter on, selecting
  * text marks it in the chosen colour; a mark opens recolour, note and remove.
  */
-export function ScenarioPanel({ title, text, highlights = [], onChange, readOnly = false, className = "", label, ...rest }) {
+export const ScenarioPanel = React.memo(function ScenarioPanel({ title, text, highlights = [], onChange, readOnly = false, className = "", label, ...rest }) {
   useInjectCss(css, "study-case-workspace");
   const paragraphs = useMemo(() => scenarioParagraphs(text), [text]);
   const [color, setColor] = useState("yellow");
@@ -161,9 +161,13 @@ export function ScenarioPanel({ title, text, highlights = [], onChange, readOnly
       {!paragraphs.length && <p className="muted">{ui("案例原文已被删除，题目仍可作答。")}</p>}
     </section>
   );
-}
+});
 
 /* ---------- a rubric question in review ---------- */
+
+const DRAFT_PERSIST_MS = 600;
+const CASE_PERSIST_MS = 800;
+const TIMING_FLUSH_MS = 15000;
 
 /**
  * An open question with rubric criteria: write the answer, then 提交批改 (a
@@ -181,23 +185,51 @@ export function RubricAnswer({ run, data, value = "", onChange, onSubmit, task, 
     const saved = readSession(data?.root, key)?.checkedIds;
     return Array.isArray(saved) ? saved : [];
   });
+  const persistTimer = useRef(null);
+  const pendingPersist = useRef(null);
+  const flushPersist = useCallback(() => {
+    if (persistTimer.current) {
+      clearTimeout(persistTimer.current);
+      persistTimer.current = null;
+    }
+    const pending = pendingPersist.current;
+    if (!pending) return;
+    pendingPersist.current = null;
+    const payload = {};
+    if (pending.answer) payload.answer = pending.answer;
+    if (pending.checked?.length) payload.checkedIds = pending.checked;
+    writeSession(pending.root, pending.key, Object.keys(payload).length ? payload : null);
+  }, []);
   useEffect(() => {
+    flushPersist();
     const saved = readSession(data?.root, key);
     setDraft(value || saved?.answer || "");
     setCheckedIds(Array.isArray(saved?.checkedIds) ? saved.checkedIds : []);
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const onHide = () => flushPersist();
+    window.addEventListener?.("pagehide", onHide);
+    return () => {
+      window.removeEventListener?.("pagehide", onHide);
+      flushPersist();
+    };
+  }, [flushPersist]);
   useEffect(() => { if (value !== undefined && value !== draft) setDraft(value); }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
-  const persistSession = (nextAnswer, nextChecked) => {
-    const payload = {};
-    if (nextAnswer) payload.answer = nextAnswer;
-    if (nextChecked?.length) payload.checkedIds = nextChecked;
-    writeSession(data?.root, key, Object.keys(payload).length ? payload : null);
+  const schedulePersist = (nextAnswer, nextChecked, { immediate = false } = {}) => {
+    pendingPersist.current = { root: data?.root, key, answer: nextAnswer, checked: nextChecked };
+    if (immediate) { flushPersist(); return; }
+    if (persistTimer.current) clearTimeout(persistTimer.current);
+    persistTimer.current = setTimeout(flushPersist, DRAFT_PERSIST_MS);
   };
-  const change = (next) => { setDraft(next); onChange?.(next); persistSession(next, checkedIds); };
+  const change = (next) => { setDraft(next); onChange?.(next); schedulePersist(next, checkedIds); };
   const toggleCriterion = (id, checked) => {
     const next = checked ? (checkedIds.includes(id) ? checkedIds : [...checkedIds, id]) : checkedIds.filter((item) => item !== id);
     setCheckedIds(next);
-    persistSession(draft, next);
+    schedulePersist(draft, next, { immediate: true });
+  };
+  const submitDraft = () => {
+    flushPersist();
+    onSubmit?.(draft);
   };
   const marks = Number(card.marks) || 0;
   return (
@@ -238,12 +270,13 @@ export function RubricAnswer({ run, data, value = "", onChange, onSubmit, task, 
             <textarea className="rubric-editor__input" rows={10} value={draft} readOnly={grading} maxLength={30000}
               placeholder={ui("写出建议，并用案例里的事实说明理由；案例没说的地方先写假设，再说明为什么不选另一种方案。支持 Markdown。")}
               onChange={(event) => change(event.target.value)}
+              onBlur={flushPersist}
               onKeyDown={(event) => {
                 if (event.nativeEvent?.isComposing || event.isComposing || event.keyCode === 229) return;
                 if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && !event.shiftKey && !event.altKey) {
                   if (model.ready && !busy && !grading && draft.trim()) {
                     event.preventDefault();
-                    onSubmit?.(draft);
+                    submitDraft();
                   }
                 }
               }} />
@@ -251,7 +284,7 @@ export function RubricAnswer({ run, data, value = "", onChange, onSubmit, task, 
           <div className="rubric-answer__foot">
             <small className="muted">{uiFormat("{0} 字/词 · 篇幅不等于得分", [countWords(draft)])}</small>
             {model.ready
-              ? <Button variant="primary" icon="sparkle" busy={grading} disabled={busy || grading || !draft.trim()} onClick={() => onSubmit?.(draft)}>
+              ? <Button variant="primary" icon="sparkle" busy={grading} disabled={busy || grading || !draft.trim()} onClick={submitDraft}>
                 {grading ? ui("正在批改…") : ui("提交批改")}</Button>
               : <ModelSetupGate variant="inline" feature="grade" model={model} onOpenSettings={onSetupModel} />}
           </div>
@@ -308,6 +341,58 @@ export async function submitCasePaperGrades({ call, report, answers = {}, uiLang
   return { errors, tasks, gradedDirect };
 }
 
+/** Leaf 1-second clock & live pace badge for a running case paper: ticks without re-rendering the scenario or textareas. */
+const CasePaperClockStatus = React.memo(function CasePaperClockStatus({
+  run, session, plan, answersRef, activeRef, timingRef, currentStep, autoSubmitReady, onStepChange, onAutoSubmit, onPeriodicFlush,
+}) {
+  const { now } = useExamClock(run, { enabled: !!session });
+  const lastFlushRef = useRef(now);
+  const step = paperPhase(session, now);
+  const remaining = phaseRemaining(session, now);
+  const pace = step === "writing" ? livePace(plan, session, answersRef.current, now) : null;
+  const callbacksRef = useRef(null);
+  callbacksRef.current = { onStepChange, onAutoSubmit, onPeriodicFlush, autoSubmitReady };
+
+  useEffect(() => {
+    if (!session) return;
+    const timing = timingRef.current;
+    const delta = now - timing.lastTick;
+    if (delta > 0) {
+      timing.lastTick = now;
+      if (step === "writing") {
+        timing.perQuestion = tickQuestion(timing.perQuestion, activeRef.current, delta);
+        timing.dirty = true;
+      } else if (step === "transcribe") {
+        timing.transcribeMs = (timing.transcribeMs || 0) + Math.min(delta, 5000);
+        timing.dirty = true;
+      }
+    }
+    if (step !== currentStep) callbacksRef.current.onStepChange?.(step);
+    if (step === "over" && callbacksRef.current.autoSubmitReady?.()) callbacksRef.current.onAutoSubmit?.();
+    if (timing.dirty && now - lastFlushRef.current >= TIMING_FLUSH_MS) {
+      lastFlushRef.current = now;
+      timing.dirty = false;
+      callbacksRef.current.onPeriodicFlush?.();
+    }
+  }, [now, session, step, currentStep, timingRef, activeRef]);
+
+  return (
+    <>
+      {["reading", "writing"].includes(step) && <span className="case-paper__clock" aria-live="off">{formatClock(remaining)}</span>}
+      {pace && <Badge size="sm" tone={pace === "behind" ? "warning" : pace === "ahead" ? "success" : "neutral"}>{paceLabel(pace)}</Badge>}
+    </>
+  );
+});
+
+/** Leaf per-question minute counter: updates only for the active question at a coarse interval instead of every second across all questions. */
+const QuestionTimeBadge = React.memo(function QuestionTimeBadge({ run, cardId, budget, active, writing, timingRef }) {
+  useExamClock(run, { enabled: active && writing, intervalMs: TIMING_FLUSH_MS });
+  const spent = timingRef.current?.perQuestion?.[cardId] || 0;
+  return <Badge size="sm" tone={spent > budget ? "warning" : "neutral"}>{uiFormat("{0}/{1} 分钟", [Math.round(spent / 60000), Math.round(budget / 60000)])}</Badge>;
+});
+
+const sessionPhaseKey = (s) => (s ? `${s.startedAt || ""}|${s.readingEndedAt || ""}|${s.writingEndedAt || ""}|${s.submittedAt || ""}` : "");
+
 export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, onLocation, header, recent, course: courseProp, onSetupModel }) {
   const { call, act } = useStudy();
   useInjectCss(css, "study-case-workspace");
@@ -326,18 +411,21 @@ export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, on
   const [settings, setSettings] = useState(() => ({ minutesPerMark: profile.exam.minutesPerMark || DEFAULT_MINUTES_PER_MARK,
     readingMinutes: Number.isFinite(profile.exam.readingMinutes) ? profile.exam.readingMinutes : null, handwriting: false }));
   const [answers, setAnswers] = useState({}), [highlights, setHighlights] = useState([]), [session, setSession] = useState(null);
+  const [stepState, setStepState] = useState(null);
   const [activeId, setActiveId] = useState(null), [view, setView] = useState("questions");
   const [confirming, setConfirming] = useState(false), [gradingErrors, setGradingErrors] = useState([]);
   const [submittingGrade, setSubmittingGrade] = useState(false), [localGradeTasks, setLocalGradeTasks] = useState([]);
   const [syncedDoneStamp, setSyncedDoneStamp] = useState("");
   const shouldPollRef = useRef(false);
   // A typed paper is submitted when its time is up; paper practice moves on to transcription instead. The report follows active background grading.
-  const exam = useExamRun({ kind: "case", call, initialRunId, onLocation, pollReport: (value) => !!value?.case?.pending && shouldPollRef.current,
-    autoSubmit: { when: () => currentPhase === "over", run: () => submit() } });
-  const { phase, run, report, busy, error, now } = exam;
-  const writes = useRef(createWriteQueue()), savedHighlights = useRef(""), lastTick = useRef(Date.now());
+  const exam = useExamRun({ kind: "case", call, initialRunId, onLocation, tick: false, pollReport: (value) => !!value?.case?.pending && shouldPollRef.current });
+  const { phase, run, report, busy, error, refreshReport } = exam;
+  const writes = useRef(createWriteQueue()), savedHighlights = useRef("");
+  const timingRef = useRef({ perQuestion: {}, transcribeMs: 0, lastTick: Date.now(), dirty: false });
   const activeRef = useRef(activeId);
   activeRef.current = activeId;
+  const answersRef = useRef(answers);
+  answersRef.current = answers;
   const model = modelReadiness(data);
   useEffect(() => { setLocalGradeTasks([]); }, [data?.assist]);
   const assistTasks = useMemo(() => {
@@ -362,11 +450,11 @@ export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, on
   useEffect(() => {
     if (phase !== "report" || !doneStamp || doneStamp === syncedDoneStamp) return;
     let cancelled = false;
-    void Promise.resolve(exam.refreshReport()).finally(() => {
+    void Promise.resolve(refreshReport()).finally(() => {
       if (!cancelled) setSyncedDoneStamp(doneStamp);
     });
     return () => { cancelled = true; };
-  }, [phase, doneStamp, syncedDoneStamp, exam]);
+  }, [phase, doneStamp, syncedDoneStamp, refreshReport]);
   useEffect(() => {
     if (phase === "report" && report) setAnswers((current) => hydrateReportAnswers(report, current));
   }, [phase, report]);
@@ -384,15 +472,66 @@ export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, on
     return (data?.sources || []).find((source) => source.id === summary?.caseSourceId) || null;
   }, [data, run?.paper?.deckId, deck?.id]);
 
+  const localPersistTimer = useRef(null);
+  const localDraftRef = useRef({ root: data?.root, runId: null, phase: "setup", answers: {}, highlights: [], session: null });
+  localDraftRef.current = { root: data?.root, runId: run?.id || null, phase, answers, highlights, session };
+
+  const mergedSessionNow = useCallback((baseSession) => (
+    baseSession
+      ? { ...baseSession, perQuestion: { ...timingRef.current.perQuestion }, transcribeMs: timingRef.current.transcribeMs || 0 }
+      : null
+  ), []);
+
+  const cancelLocalPersist = useCallback(() => {
+    if (localPersistTimer.current) {
+      clearTimeout(localPersistTimer.current);
+      localPersistTimer.current = null;
+    }
+  }, []);
+
+  const flushLocalSession = useCallback(() => {
+    cancelLocalPersist();
+    const snap = localDraftRef.current;
+    if (!snap.runId || snap.phase !== "running" || !snap.session) return;
+    timingRef.current.dirty = false;
+    writeSession(snap.root, snap.runId, {
+      answers: snap.answers,
+      highlights: snap.highlights,
+      session: mergedSessionNow(snap.session),
+    });
+  }, [cancelLocalPersist, mergedSessionNow]);
+
+  const scheduleLocalSession = useCallback(() => {
+    if (localPersistTimer.current) clearTimeout(localPersistTimer.current);
+    localPersistTimer.current = setTimeout(flushLocalSession, CASE_PERSIST_MS);
+  }, [flushLocalSession]);
+
   /** What the page holds for a paper that is being sat: the answers (server, then this browser), the highlights and the clock's bookkeeping. */
   function setUpPaper(value) {
+    cancelLocalPersist();
     const stored = readSession(data?.root, value.id);
     const fromServer = Object.fromEntries((value.responses || []).map((item) => [item.cardId, item.response || ""]));
     setAnswers({ ...fromServer, ...(stored?.answers || {}) });
     setHighlights(value.highlights?.length ? value.highlights : stored?.highlights || []);
     savedHighlights.current = JSON.stringify(value.highlights || []);
-    setSession({ startedAt: value.startedAt, readingMinutes: value.paper.readingMinutes, writingMinutes: value.paper.writingMinutes,
-      handwriting: value.paper.handwriting, perQuestion: {}, transcribeMs: 0, ...stored?.session });
+    const storedSession = stored?.session || {};
+    timingRef.current = {
+      perQuestion: { ...(storedSession.perQuestion || {}) },
+      transcribeMs: storedSession.transcribeMs || 0,
+      lastTick: Date.now(),
+      dirty: false,
+    };
+    const nextSession = {
+      startedAt: value.startedAt,
+      readingMinutes: value.paper.readingMinutes,
+      writingMinutes: value.paper.writingMinutes,
+      handwriting: value.paper.handwriting,
+      ...(storedSession.readingEndedAt ? { readingEndedAt: storedSession.readingEndedAt } : {}),
+      ...(storedSession.writingEndedAt ? { writingEndedAt: storedSession.writingEndedAt } : {}),
+      ...(storedSession.submittedAt ? { submittedAt: storedSession.submittedAt } : {}),
+    };
+    setSession(nextSession);
+    setStepState({ key: sessionPhaseKey(nextSession), step: paperPhase(nextSession, Date.now()) });
     setActiveId(value.paperCards?.[0]?.id || null);
     writes.current = createWriteQueue();
   }
@@ -415,24 +554,27 @@ export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, on
       onError: () => "continue" });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* the clock: phases, time per question, transcription time */
-  const currentPhase = phase === "running" && session ? paperPhase(session, now) : phase;
-  useEffect(() => { lastTick.current = Date.now(); }, [phase]);
-  // The seconds that passed since the last tick belong to the question being written or to transcription.
+  /* the clock: phase transitions & debounced local draft persistence (flushed on blur/switch/pagehide/unmount/submit) */
+  const sKey = sessionPhaseKey(session);
+  const currentPhase = phase === "running" && session
+    ? (stepState?.key === sKey ? stepState.step : paperPhase(session, Date.now()))
+    : phase;
+  useEffect(() => { timingRef.current.lastTick = Date.now(); }, [phase]);
   useEffect(() => {
-    if (phase !== "running") return;
-    const delta = now - lastTick.current;
-    if (delta <= 0) return;
-    lastTick.current = now;
-    setSession((current) => {
-      if (!current) return current;
-      const step = paperPhase(current, now);
-      if (step === "writing") return { ...current, perQuestion: tickQuestion(current.perQuestion, activeRef.current, delta) };
-      if (step === "transcribe") return { ...current, transcribeMs: (current.transcribeMs || 0) + Math.min(delta, 5000) };
-      return current;
-    });
-  }, [now, phase]);
-  useEffect(() => { if (run && phase === "running") writeSession(data?.root, run.id, { answers, highlights, session }); }, [answers, highlights, session]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (run && phase === "running" && session) scheduleLocalSession();
+  }, [answers, highlights, session, run, phase, scheduleLocalSession]);
+  useEffect(() => {
+    const onHide = () => flushLocalSession();
+    window.addEventListener?.("pagehide", onHide);
+    return () => {
+      window.removeEventListener?.("pagehide", onHide);
+      flushLocalSession();
+    };
+  }, [flushLocalSession]);
+  const selectActiveQuestion = useCallback((nextId) => {
+    if (activeRef.current && activeRef.current !== nextId) flushLocalSession();
+    setActiveId(nextId);
+  }, [flushLocalSession]);
 
   /* saving: answers per question, highlights on the run */
   const saveTimers = useRef({});
@@ -478,15 +620,16 @@ export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, on
         setLocalGradeTasks((prev) => [...prev.filter((item) => !result.tasks.some((next) => next.id === item.id)), ...result.tasks]);
         void act("snapshot", { compact: true });
       }
-      if (result.gradedDirect) await exam.refreshReport();
+      if (result.gradedDirect) await refreshReport();
       setGradingErrors(result.errors);
     } finally {
       setSubmittingGrade(false);
     }
-  }, [act, call, exam]);
+  }, [act, call, refreshReport]);
 
   function submit() {
     setConfirming(false);
+    cancelLocalPersist();
     if (model.ready) setSubmittingGrade(true);
     return exam.submit({
       before: async () => {
@@ -495,14 +638,22 @@ export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, on
         await writes.current.flush();
         if (JSON.stringify(highlights) !== savedHighlights.current) await call("review.highlights", { runId: run.id, highlights }).catch(() => {});
       },
-      args: () => ({ timings: paperTimings(session, Date.now()) }),
+      args: () => ({ timings: paperTimings(mergedSessionNow(session), Date.now()) }),
       after: async (value) => {
+        cancelLocalPersist();
         writeSession(data?.root, run.id, null);
         if (model.ready) await grade(value, answers);
         else setGradingErrors([uiFormat("{0}，答案已保存；配置模型后点「重新提交批改」。", [gateTitle("inline")])]);
       },
     }).finally(() => setSubmittingGrade(false));
   }
+
+  const submitRef = useRef(submit);
+  submitRef.current = submit;
+  const handleAutoSubmit = useCallback(() => submitRef.current(), []);
+  const handleStepChange = useCallback((nextStep) => {
+    setStepState({ key: sKey, step: nextStep });
+  }, [sKey]);
 
   const drills = (criteria) => exam.perform(async () => {
     const value = await call("case.drills", { deckId: report.case.deckId, ...(criteria ? { criteria } : {}) });
@@ -532,33 +683,32 @@ export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, on
   );
 
   if (phase === "running" && run && session) {
-    const remaining = phaseRemaining(session, now), typing = canType(currentPhase, session.handwriting);
-    const pace = currentPhase === "writing" ? livePace(plan, session, answers, now) : null;
+    const typing = canType(currentPhase, session.handwriting);
     const blanks = blankQuestions(plan.questions, answers);
     const questions = (
       <div className="case-paper__questions" aria-label={ui("题目")}>
         {currentPhase === "reading" && <p className="case-paper__lock" role="status">{ui("阅读时间：先通读案例和题目，用不同颜色标出线索。作答区在阅读结束后开放。")}</p>}
         {currentPhase === "transcribe" && <p className="case-paper__lock is-open" role="status">{ui("纸上作答时间已到。现在把要点录入或粘贴进来批改，录入时间不计入考试时间。")}</p>}
         {paperCards.map((card, index) => {
-          const spent = session.perQuestion?.[card.id] || 0, budget = questionMinutes(card.marks, run.paper.minutesPerMark) * 60000;
+          const budget = questionMinutes(card.marks, run.paper.minutesPerMark) * 60000;
           return (
             <Panel as="article" key={card.id} data-case-question={card.id} className={"case-question" + (activeId === card.id ? " is-active" : "")}>
               <header className="case-question__head">
                 <strong>{uiFormat("第 {0} 题", [index + 1])}</strong>
                 <Badge size="sm">{uiFormat("{0} 分", [card.marks])}</Badge>
-                <Badge size="sm" tone={spent > budget ? "warning" : "neutral"}>{uiFormat("{0}/{1} 分钟", [Math.round(spent / 60000), Math.round(budget / 60000)])}</Badge>
+                <QuestionTimeBadge run={run} cardId={card.id} budget={budget} active={activeId === card.id} writing={currentPhase === "writing"} timingRef={timingRef} />
               </header>
               <Markdown text={card.prompt} />
               <p className="case-question__hint">{lengthHintLabel(card.marks)}</p>
               {session.handwriting && currentPhase === "writing" ? (
                 <button type="button" className={"case-paper__write" + (activeId === card.id ? " is-active" : "")} aria-pressed={activeId === card.id}
-                  onClick={() => setActiveId(card.id)}>{activeId === card.id ? ui("正在纸上写这一题") : ui("切到这一题（计时）")}</button>
+                  onClick={() => selectActiveQuestion(card.id)}>{activeId === card.id ? ui("正在纸上写这一题") : ui("切到这一题（计时）")}</button>
               ) : (
                 <label className="rubric-editor">
                   <span className="sh-visually-hidden">{uiFormat("第 {0} 题的回答", [index + 1])}</span>
                   <textarea className="rubric-editor__input" rows={8} value={answers[card.id] || ""} readOnly={!typing} aria-readonly={!typing} maxLength={30000}
                     placeholder={typing ? ui("写出建议、案例依据、假设和取舍。") : ui("阅读结束后开放作答")}
-                    onFocus={() => setActiveId(card.id)} onChange={(event) => typing && answer(card.id, event.target.value)} />
+                    onFocus={() => selectActiveQuestion(card.id)} onBlur={flushLocalSession} onChange={(event) => typing && answer(card.id, event.target.value)} />
                   <small className="muted">{uiFormat("{0} 字/词", [countWords(answers[card.id] || "")])}</small>
                 </label>
               )}
@@ -576,8 +726,9 @@ export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, on
             <span className="eyebrow">{ui("案例分析卷")}</span>
             <strong>{phaseLabel(currentPhase, session.handwriting)}</strong>
           </div>
-          {["reading", "writing"].includes(currentPhase) && <span className="case-paper__clock" aria-live="off">{formatClock(remaining)}</span>}
-          {pace && <Badge size="sm" tone={pace === "behind" ? "warning" : pace === "ahead" ? "success" : "neutral"}>{paceLabel(pace)}</Badge>}
+          <CasePaperClockStatus run={run} session={session} plan={plan} answersRef={answersRef} activeRef={activeRef}
+            timingRef={timingRef} currentStep={currentPhase} autoSubmitReady={exam.autoSubmitReady}
+            onStepChange={handleStepChange} onAutoSubmit={handleAutoSubmit} onPeriodicFlush={flushLocalSession} />
           <div className="case-paper__bar-actions">
             {currentPhase === "reading" && <Button size="sm" variant="secondary" onClick={() => setSession({ ...session, readingEndedAt: new Date().toISOString() })}>{ui("提前开始作答")}</Button>}
             {currentPhase === "writing" && session.handwriting && <Button size="sm" variant="secondary" onClick={() => setSession({ ...session, writingEndedAt: new Date().toISOString() })}>{ui("我写完了，开始录入")}</Button>}

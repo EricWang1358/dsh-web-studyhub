@@ -36,7 +36,7 @@ export function ScrollEdgeWrap({ className = "", scrollClassName = "", children 
     observerRef.current.observe(element);
     if (element.firstElementChild) observerRef.current.observe(element.firstElementChild);
   }, [measure]);
-  useIsoLayoutEffect(() => { measure(); });
+  useIsoLayoutEffect(() => { measure(); }, [measure, children]);
   return (
     <div
       className={className}
@@ -441,10 +441,12 @@ function list(items, options, key) {
     `resolveLink(href, label, key, text)`: a `studyhub://` link is drawn by the page that knows it (the review book's question links, ui/book/BookLinks.jsx);
     null leaves it plain text. Any other link stays as before. `headingAnchor(text)` -> { text, props } | null: a heading's own attributes (its id) and
     the text to show. */
-export default function Markdown({ text, links = true, mediaInteractive = links, className = "", onTerm, askedTerms, onCite, citePreview, resolveLink, headingAnchor, rootRef }) {
+const Markdown = React.memo(function Markdown({ text, links = true, mediaInteractive = links, className = "", onTerm, askedTerms, onCite, citePreview, resolveLink, headingAnchor, rootRef }) {
   const content = React.useMemo(() => {
     const { value, formulas } = prepareStudyMath(typeof text === "string" ? text : "");
     return blocks(prepare(value), { links, mediaInteractive, formulas, onTerm, askedTerms, onCite, citePreview, resolveLink, headingAnchor });
   }, [text, links, mediaInteractive, onTerm, askedTerms, onCite, citePreview, resolveLink, headingAnchor]);
   return <div ref={rootRef} className={("md " + className).trim()}>{content}</div>;
-}
+});
+
+export default Markdown;

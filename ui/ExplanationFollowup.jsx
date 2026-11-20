@@ -113,7 +113,7 @@ export default function ExplanationFollowup({ run, readOnly = false, onDerive, o
         return (
         <details className="followup-item" key={item.id} open={openIds.has(item.id)}
           onToggle={(event) => toggle(item.id, event.currentTarget.open)}>
-          <summary><Badge size="sm" tone="accent" className="en-mark">Q&amp;A</Badge><h4>{title}</h4>
+          <summary><Badge size="sm" tone="accent" className="en-mark">Q&amp;A</Badge><span className="followup-item__title">{title}</span>
             <span className="followup-state" aria-hidden="true">{openIds.has(item.id) ? ui("收起") : ui("展开")}</span></summary>
           <Markdown text={item.answer} />
           {(withBook || noteQa || canReadBookSection) && (

@@ -22,7 +22,7 @@ const LEVELS = [["recall", "记忆"], ["concept", "概念辨析"], ["apply", "�
 const LEVEL_DOT = { recall: "decor-faint", concept: "warn", apply: "ok" };
 const COUNTDOWN = RESULT_COUNTDOWN_SECONDS;
 
-export default function CoachDebrief({ run, initial, autopilot, onPractice, onContinue, onReviewWeak, destination, nextShown = false, onwardShown = false, plain = false, debriefModel = true, onSettings, onProfileSettings }) {
+export default function CoachDebrief({ run, initial, autopilot, onPractice, onContinue, onReviewWeak, destination, ctaMode, suppressNextPromise, nextShown = false, onwardShown = false, plain = false, debriefModel = true, onSettings, onProfileSettings }) {
   useInjectCss(css, "study-coach");
   const { call, busy } = useStudy();
   const [debrief, setDebrief] = useState(initial || null),
@@ -54,14 +54,15 @@ export default function CoachDebrief({ run, initial, autopilot, onPractice, onCo
   const onward = destination?.go || onContinue;
   const action = next === "original" ? destination.go : next === "practice_prepared" ? onPractice
     : next === "review_weak" ? onReviewWeak : next === "continue_path" ? onward : null;
-  /* `nextShown`: the page already offers the way on above this card (ui/Review.jsx), so the card keeps a button only for a suggestion of its own
-     (定制题 or 补薄弱, secondary then); the autopilot countdown below still takes the way on. */
+  /* Explicit CTA mode ('primary' | 'secondary' | 'secondary-suggestion' | 'none'); falls back to legacy nextShown/plain props for compatibility. */
   const suggestion = next === "practice_prepared" || next === "review_weak";
-  // `plain`: the page's one filled button is elsewhere (the way back to the book), so this card's buttons are plain whether or not it repeats the way on.
-  const quiet = nextShown || plain;
+  const effectiveCtaMode = back ? "none" : (ctaMode || (nextShown ? "secondary-suggestion" : plain ? "secondary" : "primary"));
+  const showActionButton = !!action && (effectiveCtaMode === "primary" || effectiveCtaMode === "secondary" || (effectiveCtaMode === "secondary-suggestion" && suggestion));
+  const actionVariant = effectiveCtaMode === "primary" ? "primary" : "secondary";
   /* The rules' fallback headline promises 「接着学下一批」: with a way back as the page's one button and no way on anywhere (the card has none of its own either), it says something neutral. */
-  const ownButton = !!action && !back && !nextShown;
-  const promisesNext = plain && !onwardShown && !ownButton && /接着学下一批/.test(debrief?.headline || "");
+  const ownButton = !!action && !back && effectiveCtaMode !== "secondary-suggestion" && effectiveCtaMode !== "none";
+  const noForwardCta = suppressNextPromise ?? (plain && !onwardShown && !ownButton);
+  const promisesNext = noForwardCta && !showActionButton && /接着学下一批/.test(debrief?.headline || "");
   const label = next === "practice_prepared" ? uiFormat("刷 {0} 道为你定制的题", [ready]) : next === "review_weak" ? ui("先补薄弱点") : destination?.label || ui("继续学习");
 
   // Autopilot: count down, then take the suggested step; any click cancels.
@@ -169,11 +170,11 @@ export default function CoachDebrief({ run, initial, autopilot, onPractice, onCo
       )}
       <div className="coach-actions">
         {next === "wait" && (
-          <Button variant={quiet ? "secondary" : "primary"} disabled>{ui("正在为你备应用题…")}</Button>
+          <Button variant={actionVariant} disabled>{ui("正在为你备应用题…")}</Button>
         )}
-        {action && !back && (!nextShown || suggestion) && (
+        {showActionButton && (
           <Button
-            variant={quiet ? "secondary" : "primary"}
+            variant={actionVariant}
             iconEnd="arrow-right"
             lock={busy}
             onClick={() => {

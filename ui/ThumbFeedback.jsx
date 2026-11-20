@@ -9,9 +9,9 @@ import { useStudy } from "./study-context.jsx";
 import { CourseRuleConfirm } from "./course-rules/CourseRuleAdd.jsx";
 import { ruleTextsForTags } from "./course-rules/tag-rules.js";
 
-/* 👍/👎 一键反馈。👎 立即记录并展开标签，停手 1.2 秒把新选的标签一次提交，
-   服务端据此备更难/更基础的题；改题类标签交给复习页的「修题」（onFix），不再静默改题。G/B 与标签数字键由这里自己处理，
-   是否响应快捷键由 App 的 canShortcut 判断（焦点在面板、不在输入框）。 */
+/* 👍/👎 一键反馈。👎 立即记录并展开标签，不会在尚未选标签时自动收起或静默提交；选好标签后可在托盘内从容多选，
+   点「提交标签」/收起托盘/切题时提交，或指针与焦点都离开托盘后停手 4 秒再提交。改题类标签交给复习页的「修题」（onFix），不再静默改题。
+   G/B 与标签数字键由这里自己处理，是否响应快捷键由 App 的 canShortcut 判断（焦点在面板、不在输入框）。 */
 
 const TAGS = [
   ["stem-vague", "题干太空"],
@@ -22,7 +22,7 @@ const TAGS = [
   ["unclear-explanation", "解析不清"],
   ["source-recall", "只问资料怎么说"],
 ];
-const IDLE_MS = 1200;
+const IDLE_MS = 4000;
 
 /* On the practice page the two thumbs are items of the toolbar's 更多 menu (ui/ReviewToolbar.jsx, #671): it passes `buttons={false}`, and this component then keeps
    the vote, the tag tray and the G / B keys, and hands the menu two calls through `ref` ({ up(), down() }) and the vote through `onVote`.
@@ -40,6 +40,8 @@ export default forwardRef(function ThumbFeedback({ run, canShortcut, onSent, onF
   const callbacks = useRef({});
   callbacks.current = { toast, onFix, onSent, onInteract };
   const rootRef = useRef(null);
+  const trayHovered = useRef(false);
+  const trayFocused = useRef(false);
   const sent = useRef(new Set(run.vote?.tags || [])),
     submitting = useRef(new Set()),
     saved = useRef({ vote: run.vote?.vote || null, tags: run.vote?.tags || [] }),
@@ -48,31 +50,40 @@ export default forwardRef(function ThumbFeedback({ run, canShortcut, onSent, onF
     flushRef = useRef(null),
     cardKey = `${run.id}:${run.card?.id}`;
   const activeKey = useRef(cardKey);
+  const cardMeta = useRef({ deckId: run.deckId, cardId: run.card?.id, key: cardKey });
   // Each card starts from its own recorded vote.
   useEffect(() => {
-    // Leaving a card mid-selection still submits what was picked for it.
+    // Leaving a card mid-selection still submits what was explicitly picked for it.
     if (flushRef.current) flushRef.current();
+    cardMeta.current = { deckId: run.deckId, cardId: run.card?.id, key: cardKey };
     setVote(run.vote?.vote || null);
     setTags(run.vote?.tags || []);
     sent.current = new Set(run.vote?.tags || []);
     submitting.current = new Set();
     saved.current = { vote: run.vote?.vote || null, tags: run.vote?.tags || [] };
+    trayHovered.current = false;
+    trayFocused.current = false;
     setOpen(false);
     setError("");
     setRuleTexts(null);
     activeKey.current = cardKey;
     clearTimeout(timer.current);
+    timer.current = null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardKey]);
   useEffect(() => () => {
     clearTimeout(timer.current);
+    timer.current = null;
     flushRef.current?.();
   }, []);
 
   // `implicit`: the bare 👎 fallback, which only records (no tag was picked, so there is nothing to hand to 修题).
-  const post = (args, key = cardKey, implicit = false) => {
+  const post = (args, meta = cardMeta.current, implicit = false) => {
+    const key = typeof meta === "string" ? meta : meta.key;
+    const deckId = typeof meta === "string" ? run.deckId : meta.deckId;
+    const cardId = typeof meta === "string" ? run.card?.id : meta.cardId;
     pending.current = pending.current.catch(() => {}).then(() =>
-      call("coach.feedback", { deckId: run.deckId, cardId: run.card.id, ...(callbacks.current.onFix ? { rewriteVia: "assist" } : {}), ...args }));
+      call("coach.feedback", { deckId, cardId, ...(callbacks.current.onFix ? { rewriteVia: "assist" } : {}), ...args }));
     return pending.current
       .then((r) => {
         if (activeKey.current === key) {
@@ -106,33 +117,64 @@ export default forwardRef(function ThumbFeedback({ run, canShortcut, onSent, onF
     if (fix.length) callbacks.current.onFix?.(fix);
     if (note) callbacks.current.toast.info(note);
   }
+  const tagsRef = useRef(tags);
+  tagsRef.current = tags;
+  const clearIdleTimer = () => {
+    clearTimeout(timer.current);
+    timer.current = null;
+  };
+  const pendingTags = () => tagsRef.current.filter((t) => !sent.current.has(t) && !submitting.current.has(t));
+  const flushPickedTags = (meta = cardMeta.current) => {
+    clearIdleTimer();
+    flushRef.current = null;
+    const fresh = pendingTags();
+    if (!fresh.length) return;
+    fresh.forEach((tag) => submitting.current.add(tag));
+    post({ vote: "down", tags: fresh }, meta);
+  };
+  const scheduleIdleSubmit = () => {
+    clearIdleTimer();
+    if (!pendingTags().length) {
+      flushRef.current = null;
+      return;
+    }
+    const meta = { ...cardMeta.current };
+    const flush = () => flushPickedTags(meta);
+    flushRef.current = flush;
+    // Pause auto-submit while the learner's pointer or keyboard focus is inside the tag tray.
+    if (trayHovered.current || trayFocused.current) return;
+    timer.current = setTimeout(() => {
+      timer.current = null;
+      flush();
+      setOpen(false);
+    }, IDLE_MS);
+  };
+  const closeTray = () => {
+    trayHovered.current = false;
+    trayFocused.current = false;
+    flushPickedTags();
+    setOpen(false);
+  };
   function thumb(next) {
     callbacks.current.onInteract?.();
     setVote(next);
     setError("");
     if (next === "up") {
-      clearTimeout(timer.current);
+      clearIdleTimer();
       flushRef.current = null;
+      trayHovered.current = false;
+      trayFocused.current = false;
       setOpen(false);
       setTags([]);
     } else {
+      clearIdleTimer();
+      flushRef.current = null;
       setOpen(true);
-      clearTimeout(timer.current);
-      const fallback = () => {
-        if (flushRef.current !== fallback) return;
-        flushRef.current = null;
-        if (!tagsRef.current.length) post({ vote: "down", tags: ["general-quality"] }, cardKey, true);
-        setOpen(false);
-      };
-      flushRef.current = fallback;
-      timer.current = setTimeout(fallback, IDLE_MS);
     }
     post({ vote: next, tags: [] });
     // A stem that asks what the source says is already known to be the problem: the reason is picked for the learner (it can still be unpicked before it is sent).
     if (next === "down" && asksWhatTheSourceSays(run.card?.prompt) && !sent.current.has("source-recall") && !submitting.current.has("source-recall") && !tagsRef.current.includes("source-recall")) toggle("source-recall");
   }
-  const tagsRef = useRef(tags);
-  tagsRef.current = tags;
   function toggle(tag) {
     if (sent.current.has(tag) || submitting.current.has(tag)) return;
     callbacks.current.onInteract?.();
@@ -141,32 +183,21 @@ export default forwardRef(function ThumbFeedback({ run, canShortcut, onSent, onF
     tagsRef.current = nextList;
     setTags(nextList);
     setVote("down");
-    clearTimeout(timer.current);
-    const flush = () => {
-      flushRef.current = null;
-      const fresh = nextList.filter((t) => !sent.current.has(t));
-      fresh.forEach((tag) => submitting.current.add(tag));
-      if (fresh.length) post({ vote: "down", tags: fresh });
-    };
-    flushRef.current = flush;
-    timer.current = setTimeout(() => {
-      flush();
-      setOpen(false);
-    }, IDLE_MS);
+    scheduleIdleSubmit();
   }
 
   const latest = useRef({});
-  latest.current = { open, thumb, toggle, canShortcut };
-  useImperativeHandle(ref, () => ({ up: () => latest.current.thumb("up"), down: () => (latest.current.open ? (callbacks.current.onInteract?.(), setOpen(false)) : latest.current.thumb("down")) }), []);
+  latest.current = { open, thumb, toggle, closeTray, canShortcut };
+  useImperativeHandle(ref, () => ({ up: () => latest.current.thumb("up"), down: () => (latest.current.open ? (callbacks.current.onInteract?.(), latest.current.closeTray()) : latest.current.thumb("down")) }), []);
   useEffect(() => { onVote?.(vote, tags); }, [vote, tags]); // eslint-disable-line react-hooks/exhaustive-deps -- the menu and tips read the vote and tags; the callback is not a trigger
   useEffect(() => {
     function key(e) {
-      const { open, thumb, toggle, canShortcut } = latest.current;
+      const { open, thumb, toggle, closeTray, canShortcut } = latest.current;
       if (e.key === "Escape" && open) {
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation?.();
-        setOpen(false);
+        closeTray();
         const root = rootRef.current;
         const target = root?.closest?.(".review-body")?.querySelector?.(".question-card") || root?.closest?.(".study-app");
         target?.focus?.({ preventScroll: true });
@@ -180,7 +211,7 @@ export default forwardRef(function ThumbFeedback({ run, canShortcut, onSent, onF
       } else if (k === "b") {
         e.preventDefault();
         callbacks.current.onInteract?.();
-        if (open) setOpen(false);
+        if (open) closeTray();
         else thumb("down");
       } else if (open && /^[1-7]$/.test(e.key)) {
         // Capture phase: the tray owns digits while it is open.
@@ -193,6 +224,8 @@ export default forwardRef(function ThumbFeedback({ run, canShortcut, onSent, onF
     return () => window.removeEventListener("keydown", key, true);
   }, []);
 
+  const hasUnsentTags = tags.some((t) => !sent.current.has(t) && !submitting.current.has(t));
+
   return (
     <span ref={rootRef} className="thumbs" data-tour={buttons ? "review-thumbs" : undefined} onPointerUp={(e) => {
       // Pointer feedback should leave Enter available for the next question.
@@ -200,16 +233,33 @@ export default forwardRef(function ThumbFeedback({ run, canShortcut, onSent, onF
       e.currentTarget.closest(".study-app")?.focus({ preventScroll: true });
     }}>
       {buttons && <button className="tool-icon thumbs__button" aria-label={ui("这题不错")} aria-pressed={vote === "up"} aria-keyshortcuts="G" title={ui("这题不错（G）")} onClick={() => thumb("up")}><Icon name="thumb-up" /></button>}
-      {buttons && <button className="tool-icon thumbs__button" aria-label={ui("这题有问题")} data-vote={vote === "down" ? "on" : undefined} aria-expanded={open} aria-controls={open ? trayId : undefined} aria-describedby={vote === "down" ? voteId : undefined} aria-keyshortcuts="B" title={ui("这题有问题（B），选标签说明哪里不好")} onClick={() => (open ? setOpen(false) : thumb("down"))}><Icon name="thumb-down" /></button>}
+      {buttons && <button className="tool-icon thumbs__button" aria-label={ui("这题有问题")} data-vote={vote === "down" ? "on" : undefined} aria-expanded={open} aria-controls={open ? trayId : undefined} aria-describedby={vote === "down" ? voteId : undefined} aria-keyshortcuts="B" title={ui("这题有问题（B），选标签说明哪里不好")} onClick={() => (open ? closeTray() : thumb("down"))}><Icon name="thumb-down" /></button>}
       {vote === "down" && <span id={voteId} className="sh-visually-hidden">{ui("已标记这题有问题")}</span>}
       {error && <InlineMessage tone="error" className="thumbs__error">{error}</InlineMessage>}
       {open && (
-        <span id={trayId} className="thumb-tray" role="group" aria-label={ui("哪里不好")}>
+        <span
+          id={trayId}
+          className="thumb-tray"
+          role="group"
+          aria-label={ui("哪里不好")}
+          onMouseEnter={() => { trayHovered.current = true; clearIdleTimer(); }}
+          onMouseLeave={() => { trayHovered.current = false; scheduleIdleSubmit(); }}
+          onFocusCapture={() => { trayFocused.current = true; clearIdleTimer(); }}
+          onBlurCapture={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget)) {
+              trayFocused.current = false;
+              scheduleIdleSubmit();
+            }
+          }}
+        >
           {TAGS.map(([id, label], i) => (
             <Chip key={id} selected={tags.includes(id)} disabled={sent.current.has(id) || submitting.current.has(id)} onClick={() => toggle(id)}>
               <kbd>{i + 1}</kbd>{ui(label)}
             </Chip>
           ))}
+          {hasUnsentTags && (
+            <Button variant="secondary" size="sm" onClick={closeTray}>{ui("提交标签")}</Button>
+          )}
           <small className="thumb-tray__keys">{ui("按 1–7 选标签，Esc 收起")}</small>
           <small>{ui("选好停一下就自动提交；已提交的标签不能撤销。改题类问题会带到下方的「修题」。")}</small>
           {courseRules?.course && ruleTextsForTags(tags).length > 0 && (

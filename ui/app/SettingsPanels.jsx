@@ -2,6 +2,7 @@ import React, { useContext } from 'react';
 import { CourseList } from '../CourseSettings.jsx';
 import { OnboardingPanel } from '../tour/SampleControls.jsx';
 import { AppContext } from './app-context.js';
+import { useStudyBusy } from '../study-context.jsx';
 
 /* The parts of Settings that are the app's own wiring: the course list (opens the course panel) and the sample/tour controls.
    Each Settings pane renders its own, so the page's layout stays with Settings (ui-consistency #113). They read the app's
@@ -25,10 +26,11 @@ export function CoursesPanel() {
 /** 学习画像与导览: the sample library and tour controls. */
 export function OnboardingControls() {
   const app = useContext(AppContext);
+  const busy = useStudyBusy();
   if (!app) return null;
-  const { data, core, tour } = app;
+  const { data, tour } = app;
   return (
-    <OnboardingPanel sample={data.sample} progress={tour.tourResume} busy={core.busy || tour.sampleBusy} onTour={() => tour.startTour()}
+    <OnboardingPanel sample={data.sample} progress={tour.tourResume} busy={busy || tour.sampleBusy} onTour={() => tour.startTour()}
       onRestart={() => tour.startTour({ restart: true })} onFullTour={tour.startFullTour} onLoad={data.sample ? tour.loadSampleOnly : undefined} onRemove={() => tour.setRemovingSample(true)} />
   );
 }
