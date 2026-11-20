@@ -1,31 +1,85 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ui, uiFormat, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Chip, InlineMessage, Switch, Tooltip } from './components/index.js';
+import { Button, Checkbox, Chip, Disclosure, InlineMessage, Switch, Tooltip } from './components/index.js';
 import { useStudy } from './study-context.jsx';
 import { useLiveEffect } from './use-async.js';
-import { BOOK_PARTS } from '../lib/custom-plan.js';
+import { BOOK_PARTS, isExamScopeUnconfirmed } from '../lib/custom-plan.js';
 import CustomReadiness from './CustomReadiness.jsx';
-import { customSummary, estimateLine, lockedPartIds, partTip, partWord, saveArgs, setPlan, setQuestions, setVariants, togglePart, unknownChaptersText } from './custom-plan-model.js';
+import { customSummary, estimateLine, examChapterHint, examScopeChapters, examScopeSummaryText, initialExamSelection, lockedPartIds, partTip, partWord, saveArgs, setExamResolvedChapters, setPlan, setQuestions, setVariants, toggleExamChapter, togglePart, unknownChaptersText } from './custom-plan-model.js';
 import { useHandOff } from './hand-off/use-hand-off.js';
 import css from './custom-plan-card.css';
+
+/* Conditional exam-scope review & confirmation block (StudyHub 5.0.0 · Evolution 2 #4): shown ONLY when scope.kind === 'exam'.
+   Lists matched chapters and unmatched exam topics on the same screen so the learner can toggle chapters before confirming
+   `scope.resolvedChapters`. Generation stays gated until confirmed. Zero persistent controls added for other scopes. */
+function ExamScopeConfirm({ custom, preview, disabled, onConfirm }) {
+  const examScope = preview?.examScope;
+  const chapters = examScopeChapters(preview);
+  const orderedIds = chapters.map(ch => ch.id);
+  const unconfirmed = isExamScopeUnconfirmed(custom.scope);
+  const seedKey = JSON.stringify([custom.updatedAt ?? '', custom.scope.resolvedChapters ?? null, (examScope?.matchedChapters || []).map(ch => ch.id)]);
+  const [selected, setSelected] = useState(() => initialExamSelection(custom, preview));
+  useEffect(() => { setSelected(initialExamSelection(custom, preview)); }, [seedKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!examScope) return null;
+  const unmatched = Array.isArray(examScope.unmatchedTopics) ? examScope.unmatchedTopics : [];
+  const summary = examScopeSummaryText(examScope, selected.length);
+  const changed = unconfirmed
+    || selected.length !== (custom.scope.resolvedChapters?.length ?? 0)
+    || selected.some((id, at) => id !== custom.scope.resolvedChapters?.[at]);
+
+  const body = <div className="custom-card__exam-body">
+    <p className="custom-card__exam-note">{summary}</p>
+    {unmatched.length > 0 && <div className="custom-card__unmatched" role="region" aria-label={ui('未匹配的考试主题')}>
+      <p className="custom-card__unmatched-title">{ui('未匹配的考试主题（请核对是否需要手动勾选对应章节）')}</p>
+      <ul className="custom-card__unmatched-list">
+        {unmatched.map(topic => <li key={topic} className="custom-card__unmatched-item">{topic}</li>)}
+      </ul>
+    </div>}
+    {chapters.length > 0 && <ul className="custom-card__exam-chapters" aria-label={ui('考试范围章节')}>
+      {chapters.map(chapter => {
+        const checked = selected.includes(chapter.id), hint = examChapterHint(chapter);
+        return <li key={chapter.id} className={chapter.matched ? 'custom-card__exam-row is-matched' : 'custom-card__exam-row'}>
+          <Checkbox label={chapter.title} hint={hint || undefined} checked={checked} disabled={disabled}
+            onChange={() => setSelected(current => toggleExamChapter(current, chapter.id, orderedIds))} />
+        </li>;
+      })}
+    </ul>}
+    <div className="custom-card__exam-actions">
+      <Button size="sm" variant={unconfirmed ? 'primary' : 'secondary'} disabled={disabled || !selected.length || !changed}
+        onClick={() => onConfirm(selected)}>
+        {unconfirmed ? uiFormat('确认考试范围（{0} 章）', [selected.length]) : uiFormat('更新考试范围（{0} 章）', [selected.length])}
+      </Button>
+    </div>
+  </div>;
+
+  if (unconfirmed) {
+    return <div className="custom-card__exam-scope is-unconfirmed" role="region" aria-label={ui('确认考试范围')}>
+      <strong className="custom-card__exam-head">{ui('确认考试范围章节')}</strong>
+      {body}
+    </div>;
+  }
+  return <Disclosure className="custom-card__exam-disclosure" summary={ui('调整考试范围章节')} meta={summary}>
+    {body}
+  </Disclosure>;
+}
 
 /* 「你的定制」 on the course settings (深度定制, lib/custom-plan.js): the course's 定制方案 in one sentence, the rough cost under it (calls and tokens, never a price; read
    from course.custom.preview, again after every change), and one switch for each part of the book, for the questions, the variants and the plan. Every switch saves the
    whole record through course.save {custom} (the app's single-flight write) and shows a refusal on the card. Under them, the chapters' readiness and 补齐
    (ui/CustomReadiness.jsx). A course with no 定制方案 has no card: the main chat makes one. */
-export default function CustomPlanCard({ course }) {
+export default function CustomPlanCard({ course, initialPreview = null }) {
   useInjectCss(css, 'study-custom-card');
   const { call, act, busy } = useStudy();
   const handOff = useHandOff();
   const custom = course?.custom ?? null;
-  const [preview, setPreview] = useState(null), [error, setError] = useState(''), [working, setWorking] = useState(false);
+  const [preview, setPreview] = useState(initialPreview), [error, setError] = useState(''), [working, setWorking] = useState(false);
   useLiveEffect(live => {
     if (!custom) return;
     Promise.resolve().then(() => call('course.custom.preview', { course: course.name })).then(value => { if (live()) setPreview(value ?? null); }).catch(() => {});
   }, [call, course?.name, custom?.updatedAt]);
   if (!custom) return null;
-  const disabled = busy || working, locked = lockedPartIds(custom);
+  const disabled = busy || working, locked = lockedPartIds(custom), examPending = isExamScopeUnconfirmed(custom.scope);
   const save = async next => {
     setWorking(true); setError('');
     try { await act('course.save', saveArgs(course, next), undefined, { rethrow: true }); } catch (caught) { setError(errorMessage(caught)); } finally { setWorking(false); }
@@ -35,6 +89,7 @@ export default function CustomPlanCard({ course }) {
     <h3 id="custom-card-title">{ui('你的定制')}</h3>
     <p className="custom-card__summary">{customSummary(custom)}</p>
     {line && <p className="custom-card__estimate" role="status">{line}</p>}
+    {custom.scope.kind === 'exam' && <ExamScopeConfirm custom={custom} preview={preview} disabled={disabled} onConfirm={ids => save(setExamResolvedChapters(custom, ids))} />}
     {/* A plan whose chapters moved: the chat is where the plan was made, so the card says it once and gives the one action that re-picks them (#758). */}
     {unknown && <InlineMessage tone="warning" secondary={handOff.action('custom.start', { course: course.name, hasCustom: true }, { what: '让主会话重新选这几章' })}>{unknown}</InlineMessage>}
     <ul className="custom-card__parts" aria-label={ui('复习全书的部分')}>
@@ -58,6 +113,6 @@ export default function CustomPlanCard({ course }) {
       </Tooltip>
     </div>
     {error && <InlineMessage tone="error">{error}</InlineMessage>}
-    <CustomReadiness course={course} />
+    {!examPending && <CustomReadiness course={course} />}
   </section>;
 }

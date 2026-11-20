@@ -30,14 +30,23 @@ function chapterNumbers(ids) {
   return [...new Set(parsed.map(item => item.n))].sort((a, b) => a - b);
 }
 
-function scopeText(scope) {
-  if (scope.kind === 'all') return ui('全部章节');
-  if (scope.kind === 'exam') return ui('考试范围');
-  const numbers = chapterNumbers(scope.chapters);
+function chapterRangeText(ids) {
+  const numbers = chapterNumbers(ids);
   if (numbers && numbers.length === 1) return uiFormat('第 {0} 章', [numbers[0]]);
   if (numbers && numbers[numbers.length - 1] - numbers[0] + 1 === numbers.length) return uiFormat('第 {0}–{1} 章', [numbers[0], numbers[numbers.length - 1]]);
   if (numbers && numbers.length <= 4) return uiFormat('第 {0} 章', [formatList(numbers)]);
-  return uiFormat('{0} 章', [scope.chapters.length]);
+  return uiFormat('{0} 章', [ids.length]);
+}
+
+function scopeText(scope) {
+  if (scope.kind === 'all') return ui('全部章节');
+  if (scope.kind === 'exam') {
+    if (Array.isArray(scope.resolvedChapters) && scope.resolvedChapters.length) {
+      return uiFormat('考试范围（{0}）', [chapterRangeText(scope.resolvedChapters)]);
+    }
+    return ui('考试范围');
+  }
+  return chapterRangeText(scope.chapters);
 }
 
 function bookText(book) {
@@ -94,3 +103,72 @@ export const setPlan = (custom, make) => ({ ...custom, plan: { ...custom.plan, m
 
 /** What course.save takes: the course by id and the whole record. */
 export const saveArgs = (course, custom) => ({ id: course.id, name: course.name, custom });
+
+/* ---------- exam-scope confirmation (StudyHub 5.0.0 · Evolution 2 #4) ---------- */
+
+/** Ordered selectable chapters of a preview's skeleton annotated with examScope match info. */
+export function examScopeChapters(preview) {
+  const skeleton = preview?.skeleton;
+  if (!skeleton) return [];
+  const hits = new Map((preview?.examScope?.matchedChapters || []).map(item => [item.id, item]));
+  if (skeleton.basis === 'outline') {
+    return (skeleton.outline?.chapters || []).map(ch => {
+      const hit = hits.get(ch.id);
+      return { id: ch.id, title: ch.title, pages: null, points: ch.points, matched: Boolean(hit), confidence: hit?.confidence ?? null, matchedTopics: hit?.matchedTopics ?? [] };
+    });
+  }
+  const taught = (skeleton.documents || []).filter(doc => !doc.paper && !doc.copyOf);
+  const multiDoc = taught.length > 1;
+  return taught.flatMap(doc => (doc.chapters || []).map(ch => {
+    const hit = hits.get(ch.id);
+    return { id: ch.id, title: ch.title, docTitle: multiDoc ? doc.title : '', pages: ch.pages ?? null, points: null, matched: Boolean(hit), confidence: hit?.confidence ?? null, matchedTopics: hit?.matchedTopics ?? [] };
+  }));
+}
+
+/** Initial chapter selection for the exam-scope confirmation step: confirmed ids if saved, else candidate matched ids. */
+export function initialExamSelection(custom, preview) {
+  if (custom?.scope?.kind === 'exam' && Array.isArray(custom.scope.resolvedChapters) && custom.scope.resolvedChapters.length) {
+    return [...custom.scope.resolvedChapters];
+  }
+  return (preview?.examScope?.matchedChapters || []).map(item => item.id);
+}
+
+/** Toggle one chapter id in the selection while keeping skeleton reading order. */
+export function toggleExamChapter(selectedIds, chapterId, orderedIds) {
+  const next = new Set(Array.isArray(selectedIds) ? selectedIds : []);
+  if (next.has(chapterId)) next.delete(chapterId);
+  else next.add(chapterId);
+  return orderedIds.filter(id => next.has(id));
+}
+
+/** Save confirmed exam-scope chapters onto the custom plan (drops old titles so course.save pins fresh ones). */
+export function setExamResolvedChapters(custom, resolvedChapters) {
+  const nextScope = { kind: 'exam', ...(custom.scope?.note ? { note: custom.scope.note } : {}), resolvedChapters: [...new Set(resolvedChapters)] };
+  return { ...custom, scope: nextScope };
+}
+
+/** One-line localized status for the exam-scope confirmation panel. */
+export function examScopeSummaryText(examScope, selectedCount = 0) {
+  if (!examScope) return '';
+  const matched = examScope.matchedChapters?.length ?? 0;
+  const total = examScope.totalChapters ?? 0;
+  const unmatched = examScope.unmatchedTopics?.length ?? 0;
+  if (examScope.confirmed) {
+    return unmatched > 0
+      ? uiFormat('已确认 {0} / {1} 章（另有 {2} 个主题未自动匹配）', [selectedCount, total, unmatched])
+      : uiFormat('已确认 {0} / {1} 章', [selectedCount, total]);
+  }
+  if (matched > 0 && unmatched > 0) return uiFormat('匹配到 {0} / {1} 章，另有 {2} 个主题未匹配；请核对并勾选章节，确认后再开始生成。', [matched, total, unmatched]);
+  if (matched > 0) return uiFormat('匹配到 {0} / {1} 章；请核对章节，确认后再开始生成。', [matched, total]);
+  if (unmatched > 0) return uiFormat('未自动匹配到章节（共 {0} 章），有 {1} 个主题需手动勾选对应章节后再开始生成。', [total, unmatched]);
+  return uiFormat('尚未匹配到章节（共 {0} 章）；请先手动勾选考试范围章节，确认后再开始生成。', [total]);
+}
+
+/** Meta line beside a chapter checkbox in the exam-scope confirmation list. */
+export function examChapterHint(chapter) {
+  const parts = [];
+  if (chapter.docTitle) parts.push(chapter.docTitle);
+  if (Array.isArray(chapter.pages) && chapter.pages.length === 2) parts.push(uiFormat('第 {0}–{1} 页', [chapter.pages[0], chapter.pages[1]]));
+  if (chapter.matchedTopics?.length) parts.push(uiFormat('匹配：{0}', [formatList(chapter.matchedTopics)]));
+  return joinMeta(parts);
+}

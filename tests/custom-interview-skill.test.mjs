@@ -113,6 +113,7 @@ test('after the confirm the skill calls course.custom.apply once and reads out s
   const only = body.slice(body.indexOf('## 只记录'), body.indexOf('## 已有定制'));
   for (const applied of ['只对选定章节出题', '按每周几章排的计划（备考计划需要考试日期）', '变式题（做错题时由应用自己准备）', '单独去掉某一部分'])
     assert.ok(!only.includes(applied) && !body.includes(applied), `「${applied}」 is applied now, not only recorded`);
-  for (const stillRecorded of ['考试范围']) assert.ok(only.includes(stillRecorded), `「${stillRecorded}」 is still only recorded`);
+  assert.match(body, /resolvedChapters/, 'exam scope now confirms resolvedChapters before generation');
+  assert.match(only, /resolvedChapters/, 'recorded-only section explains exam scope is enforced once confirmed');
   assert.doesNotMatch(body, /`generate \{"sourceIds"/, 'the skill no longer starts the question runs by hand');
 });
