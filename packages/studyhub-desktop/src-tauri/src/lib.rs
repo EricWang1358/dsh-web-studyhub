@@ -11,7 +11,7 @@
 mod sidecar;
 
 use std::path::Path;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 
 use serde::Serialize;
@@ -136,11 +136,30 @@ async fn desktop_check_update(app: AppHandle) -> Result<DesktopUpdateInfo, Strin
     }
 }
 
+static UPDATE_INSTALL_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
+
+struct UpdateInstallGuard(&'static AtomicBool);
+
+impl UpdateInstallGuard {
+    fn try_acquire(flag: &'static AtomicBool) -> Result<Self, String> {
+        flag.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .map(|_| Self(flag))
+            .map_err(|_| "desktop update installation is already in progress".to_string())
+    }
+}
+
+impl Drop for UpdateInstallGuard {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::SeqCst);
+    }
+}
+
 #[tauri::command]
 async fn desktop_install_update(
     app: AppHandle,
     window: WebviewWindow,
 ) -> Result<DesktopInstallReceipt, String> {
+    let _install_guard = UpdateInstallGuard::try_acquire(&UPDATE_INSTALL_IN_PROGRESS)?;
     let current_version = app.package_info().version.to_string();
     let exit_app = app.clone();
     let updater = app
@@ -316,5 +335,19 @@ mod tests {
                 "expected URL to be rejected: {candidate}"
             );
         }
+    }
+
+    #[test]
+    fn update_install_guard_prevents_reentrancy_and_releases_on_drop() -> Result<(), String> {
+        static TEST_FLAG: AtomicBool = AtomicBool::new(false);
+        {
+            let _first = UpdateInstallGuard::try_acquire(&TEST_FLAG)?;
+            assert!(TEST_FLAG.load(Ordering::SeqCst));
+            let second = UpdateInstallGuard::try_acquire(&TEST_FLAG);
+            assert!(second.is_err());
+        }
+        assert!(!TEST_FLAG.load(Ordering::SeqCst));
+        let _third = UpdateInstallGuard::try_acquire(&TEST_FLAG)?;
+        Ok(())
     }
 }
