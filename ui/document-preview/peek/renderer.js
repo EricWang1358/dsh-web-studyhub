@@ -1,9 +1,9 @@
 import * as pdfjs from 'pdfjs-dist/build/pdf.mjs';
 import { WorkerMessageHandler } from 'pdfjs-dist/build/pdf.worker.mjs';
 import { peekCanvasSize, undecodedImages } from './peek-logic.js';
-import { createBinaryDataFactory, peekDocumentOptions } from './pdf-assets.js';
+import { createBinaryDataFactory, peekDocumentOptions, peekRangeDocumentOptions } from './pdf-assets.js';
 import { peekAssetLoaders } from './pdf-asset-data.js';
-import { createPagedRenderer } from './paged-renderer.js';
+import { createPagedRenderer, createRangeTransport, RANGE_CHUNK_SIZE, RANGE_LRU_CHUNKS } from './paged-renderer.js';
 
 /* 看原页: pdf.js behind a tiny interface. This module (pdf.js, about a megabyte, and its worker) is only ever imported by PagePeek.jsx,
    which the viewer loads lazily on the first peek, never with the reader; the worker runs on the main thread (the page is a bundle with no worker file to point at). One document is open
@@ -20,15 +20,14 @@ function loadPdfjs() {
 /** True when an error only says a render was cancelled (the page changed or the peek closed). */
 export const isCancelled = error => error?.name === 'RenderingCancelledException' || error?.name === 'AbortException' || error?.name === 'AbortError';
 
-/**
- * Open `bytes` (a Uint8Array of a PDF) for peeking: { numPages, pageSize(n), render(n, { scale, signal }), destroy() }. A page source of a PAGED original (peek/paged-original.js,
- * `{ kind: 'pages' }`) is opened the same way: its pages are fetched one at a time (peek/paged-renderer.js).
- * pageSize -> { width, height } in PDF units. render -> ImageBitmap no larger than 2000 px on its long edge; `onReport({ undecoded })` is
- * called when the page is drawn, with how many of its images pdf.js could not decode (a scan whose decoder did not load is blank otherwise).
- * deps (tests): { pdfjs, loaders } stand in for pdf.js and for the wasm/CMap/font chunks.
- */
-export async function createPeekRenderer(bytes, deps = {}) {
-  if (bytes?.kind === 'pages') return createPagedRenderer(bytes, pageBytes => createPeekRenderer(pageBytes, deps));
+/** True only when `materials.document.range` itself is unsupported by an older host (never for a missing/changed/encrypted file). */
+function isRangeActionUnsupported(error) {
+  if (!error || error.reason) return false;
+  if (error.code === 'range-unsupported') return true;
+  return /unknown action|capability unavailable|not implemented|unsupported action/i.test(String(error.message || ''));
+}
+
+async function openPdfRenderer(source, deps, { pdfjsLib, mode }) {
   const rawLoaders = deps.loaders || peekAssetLoaders;
   let assetClock = 0, assetActive = 0;
   const timedLoaders = {};
@@ -42,18 +41,55 @@ export async function createPeekRenderer(bytes, deps = {}) {
     };
   }
   const BinaryDataFactory = createBinaryDataFactory(timedLoaders);
-  const task = (deps.pdfjs || loadPdfjs()).getDocument(peekDocumentOptions(bytes, BinaryDataFactory));
+  let transport = null, task = null, transportError = null, rejectTransport;
+  const transportFailed = new Promise((_, reject) => { rejectTransport = reject; });
+  transportFailed.catch(() => {});
+
+  const options = mode === 'range'
+    ? (() => {
+        const rangeChunkSize = source.rangeChunkSize || RANGE_CHUNK_SIZE;
+        transport = createRangeTransport(pdfjsLib, source, {
+          chunkSize: rangeChunkSize,
+          maxCachedChunks: deps.maxCachedChunks ?? RANGE_LRU_CHUNKS,
+          onError: error => {
+            if (!transportError) {
+              transportError = error;
+              rejectTransport(error);
+              void task?.destroy?.().catch(() => {});
+            }
+          },
+        });
+        return peekRangeDocumentOptions(transport, { length: source.bytes, rangeChunkSize }, BinaryDataFactory);
+      })()
+    : peekDocumentOptions(source, BinaryDataFactory);
+
+  task = pdfjsLib.getDocument(options);
   let doc;
-  try { doc = await task.promise; }
-  catch (error) { await task.destroy().catch(() => {}); throw error; }
+  try {
+    doc = await (mode === 'range' ? Promise.race([task.promise, transportFailed]) : task.promise);
+  } catch (error) {
+    transport?.abort();
+    await task.destroy().catch(() => {});
+    if (error?.name === 'PasswordException') source?.recordFailure?.('encrypted');
+    throw error;
+  }
+  const guard = promise => {
+    if (!transport) return promise;
+    if (transportError) return Promise.reject(transportError);
+    return Promise.race([promise, transportFailed]);
+  };
   const sizes = new Map();
   return {
     numPages: doc.numPages,
     cachedPageSize(number) { return sizes.get(number) || null; },
-    assetStats() { return { totalMs: assetClock, active: assetActive }; },
+    assetStats() {
+      const io = transport?.stats();
+      return { totalMs: assetClock + (io?.totalMs || 0), active: assetActive + (io?.active || 0) };
+    },
+    ...(transport ? { rangeStats: () => transport.stats() } : {}),
     async pageSize(number) {
       if (!sizes.has(number)) {
-        const page = await doc.getPage(number);
+        const page = await guard(doc.getPage(number));
         const unit = page.getViewport({ scale: 1 });
         sizes.set(number, { width: unit.width, height: unit.height });
         page.cleanup();
@@ -61,7 +97,7 @@ export async function createPeekRenderer(bytes, deps = {}) {
       return sizes.get(number);
     },
     async render(number, { scale, signal, onReport }) {
-      const page = await doc.getPage(number);
+      const page = await guard(doc.getPage(number));
       try {
         signal?.throwIfAborted();
         const unit = page.getViewport({ scale: 1 });
@@ -72,7 +108,7 @@ export async function createPeekRenderer(bytes, deps = {}) {
         const render = page.render({ canvas, canvasContext: canvas.getContext('2d'), viewport: page.getViewport({ scale: size.scale }) });
         const cancel = () => render.cancel();
         signal?.addEventListener('abort', cancel, { once: true });
-        try { await render.promise; } finally { signal?.removeEventListener('abort', cancel); }
+        try { await guard(render.promise); } finally { signal?.removeEventListener('abort', cancel); }
         signal?.throwIfAborted();
         onReport?.({ undecoded: undecodedImages(page.objs, page.commonObjs).length }); // before cleanup() lets the page's objects go
         const bitmap = await createImageBitmap(canvas);
@@ -82,20 +118,45 @@ export async function createPeekRenderer(bytes, deps = {}) {
     },
     /* The words of a page over its picture, so they can be selected (原始 PDF, PdfPageView.jsx): `container` is emptied and filled when this is still the current turn. -> the layer, with cancel(). */
     async textLayer(number, { scale, container, signal, current = () => true }) {
-      const page = await doc.getPage(number), viewport = page.getViewport({ scale });
+      const page = await guard(doc.getPage(number)), viewport = page.getViewport({ scale });
       try {
         if (signal?.aborted || !current()) return null;
         const next = document.createElement('div');
         next.style.setProperty('--total-scale-factor', String(scale));
         next.className = 'reader-pdf-text__page';
-        const layer = new pdfjs.TextLayer({ textContentSource: page.streamTextContent({ disableNormalization: true }), container: next, viewport });
+        const TextLayerCtor = pdfjsLib.TextLayer || pdfjs.TextLayer;
+        const layer = new TextLayerCtor({ textContentSource: page.streamTextContent({ disableNormalization: true }), container: next, viewport });
         const cancel = () => layer.cancel();
         signal?.addEventListener('abort', cancel, { once: true });
-        try { await layer.render(); } finally { signal?.removeEventListener('abort', cancel); }
+        try { await guard(layer.render()); } finally { signal?.removeEventListener('abort', cancel); }
         if (!signal?.aborted && current()) container.replaceChildren(next);
         return layer;
       } finally { page.cleanup(); }
     },
-    async destroy() { sizes.clear(); try { await task.destroy(); } catch { /* already gone */ } },
+    async destroy() { sizes.clear(); transport?.abort(); try { await task.destroy(); } catch { /* already gone */ } },
   };
+}
+
+/**
+ * Open `bytes` (a Uint8Array of a PDF) for peeking: { numPages, pageSize(n), render(n, { scale, signal }), destroy() }. A page source of a PAGED original (peek/paged-original.js,
+ * `{ kind: 'pages' }`) uses pdf.js `PDFDataRangeTransport` (`materials.document.range`, 64 KB chunks + 32-chunk LRU) when available, and falls back to `createPagedRenderer`
+ * (`materials.document.pages`) for older hosts or sources without `fetchRange`.
+ * pageSize -> { width, height } in PDF units. render -> ImageBitmap no larger than 2000 px on its long edge; `onReport({ undecoded })` is
+ * called when the page is drawn, with how many of its images pdf.js could not decode (a scan whose decoder did not load is blank otherwise).
+ * deps (tests): { pdfjs, loaders } stand in for pdf.js and for the wasm/CMap/font chunks.
+ */
+export async function createPeekRenderer(bytes, deps = {}) {
+  const pdfjsLib = deps.pdfjs || loadPdfjs();
+  if (bytes?.kind === 'pages') {
+    const canRange = typeof bytes.fetchRange === 'function' && Number.isSafeInteger(bytes.bytes) && bytes.bytes > 0 && typeof pdfjsLib?.PDFDataRangeTransport === 'function';
+    if (canRange) {
+      try {
+        return await openPdfRenderer(bytes, deps, { pdfjsLib, mode: 'range' });
+      } catch (error) {
+        if (!isRangeActionUnsupported(error)) throw error;
+      }
+    }
+    return createPagedRenderer(bytes, pageBytes => createPeekRenderer(pageBytes, deps));
+  }
+  return openPdfRenderer(bytes, deps, { pdfjsLib, mode: 'bytes' });
 }

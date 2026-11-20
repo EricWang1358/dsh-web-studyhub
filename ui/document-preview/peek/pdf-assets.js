@@ -80,3 +80,22 @@ export function createBinaryDataFactory(loaders) {
 export function peekDocumentOptions(bytes, BinaryDataFactory) {
   return { data: bytes, isEvalSupported: false, useSystemFonts: true, enableXfa: false, useWasm: true, useWorkerFetch: false, BinaryDataFactory, verbosity: 0 };
 }
+
+/** The options pdf.js is opened with for byte-range streaming via PDFDataRangeTransport (large PDFs read on demand without loading the whole file). */
+export function peekRangeDocumentOptions(range, { length, rangeChunkSize = 65536 } = {}, BinaryDataFactory) {
+  return {
+    range,
+    length,
+    rangeChunkSize,
+    disableAutoFetch: true,
+    disableStream: true,
+    disableRange: false,
+    isEvalSupported: false,
+    useSystemFonts: true,
+    enableXfa: false,
+    useWasm: true,
+    useWorkerFetch: false,
+    BinaryDataFactory,
+    verbosity: 0,
+  };
+}
