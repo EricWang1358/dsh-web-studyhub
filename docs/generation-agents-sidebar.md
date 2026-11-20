@@ -24,11 +24,11 @@ Generation tasks appear on the **Study library** page. Each task card shows:
 
 - the current stage, and how many questions are saved out of how many you asked for;
 - **Stop**, which stops generating and keeps the saved questions in the draft;
-- **Show the steps**, which lists each step with its status (**Starting**, **In progress**, **Finishing**, **Completed** or **Failed**), its tokens and how long it took. Click **View background assistant** to open that step's DSH subagent session;
+- **Show the steps**, which lists each step with its status (**Starting**, **In progress**, **Finishing**, **Completed** or **Failed**), its tokens (and cache hit rate) and how long it took. When a step ran as a DSH subagent, click **View background assistant** to open its subagent session;
 - **Check the draft**, once the task has ended and a draft exists;
 - if the task failed, the reason and how to fix it, with **Set up a model** when the model is the problem. The raw error is under **Technical details**.
 
-At the end of the step list, open **Method, usage and technical details** to see, for each stage, whether it ran as a **DSH subagent** or a **Direct model call**, its reasoning effort and its subagent session ID. The token usage of the whole task is there too.
+At the end of the step list, open **Method, usage and technical details** to see, for each stage, whether it ran as a **Direct model call** (the default for generation, sharing a job-scoped prompt-cache session `cacheSessionId`) or a **DSH subagent**, its reasoning effort and (when applicable) its subagent session ID. The token usage and per-stage cache breakdown of the whole task are there too.
 
 Generation tasks in one library run one at a time. A later task waits in the queue until the earlier one ends. In **Jobs**, a queued task offers **Run in parallel**: it starts now, beside the one ahead, which is faster but more likely to hit a model rate limit; if the model returns an error, parallel tasks go back to the queue first and continue by themselves (see the job contract). Tasks that write the same draft or deck cannot run in parallel, and with the unified-runtime switches on the control is hidden. A task started before StudyHub recorded steps has no step list; start a new task to see one.
 
@@ -139,8 +139,8 @@ StudyHub's model work uses, in this order:
 
 ### How StudyHub uses DSH subagents
 
-- **Capability check** (`lib/host-capabilities.js`). A step runs as a subagent when DSH offers the official `spawn` provider with `toolFilter`, `agentOptions` support when a model is chosen, and either a running parent agent or the desktop coordinator below. Otherwise it runs as a direct model call and the step says so. Local structure and quote checks never create a subagent.
-- **Plugin-owned steps** use one-shot subagents with `toolFilter: {allow: []}`. These are deck generation (including **Add questions from sources**), publication review, generation from a selection, translation and audio steps. The plugin collects their JSON, so it never flows into the main chat. (`lib/generation-agent.js`)
+- **Direct model calls with job-scoped cache sessions (default for one-shot pipelines).** Deck generation (including **Add questions from sources**), publication review, generation from a selection, translation, audio text steps, and one-shot background help/corrections default to direct model calls on the host LLM client carrying a job-scoped `cacheSessionId` (`study-job:<jobId>`). Keeping these calls direct avoids per-step child-session overhead and lets providers reuse prompt-cache prefixes across stages and batches. (`lib/jobs/gateway.js`, `lib/runtime/host-model.js`)
+- **Capability check for subagent steps** (`lib/host-capabilities.js`). Steps that require or opt into a subagent (continuable draft repair and multi-turn **Help me understand**) run as a subagent when DSH offers the official `spawn` provider with `toolFilter`, `agentOptions` support when a model is chosen, and either a running parent agent or the desktop coordinator below. Otherwise they fall back to a direct model call and the step says so. Local structure and quote checks never create a subagent.
 - **Background repair of a draft** runs each stage as a continuable subagent when the parent agent is running and DSH offers `startContinuable`, `sendMessage`, `drainContinuableChildren`, the `subagent/end` event and `send_message` in the parent's scope. The child may use only `send_message`, and only to its parent. (`lib/generation-continuable.js`)
 - **Background help** uses `toolFilter: {allow: []}`. The subagent cannot write to the library; the service validates and saves its JSON. (`lib/assist.js`, `lib/assist-child.js`)
 - **Output** counts only when the subagent ends as `completed`. Failed or interrupted output is never treated as a final answer, and every handle is released afterwards.

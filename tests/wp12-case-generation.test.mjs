@@ -98,7 +98,7 @@ test("the review flags a question whose criteria do not match it; the draft keep
   const fake = createFakeModel();
   const complete = async (system, prompt, options) => {
     const reply = await fake(system, prompt, options);
-    return system.startsWith("You write original case-study exam papers") ? JSON.stringify(mismatch(JSON.parse(reply))) : reply;
+    return (system.startsWith("You write original case-study exam papers") || prompt.includes("\nSTAGE: case-author")) ? JSON.stringify(mismatch(JSON.parse(reply))) : reply;
   };
   const { job, state } = await generated(t, { options: { complete } });
   assert.equal(job.status, "complete", job.stage);
@@ -114,7 +114,7 @@ test("a paper whose cues are not in the scenario is re-written once and then rej
   let authored = 0;
   const complete = async (system, prompt, options) => {
     const reply = await fake(system, prompt, options);
-    if (!system.startsWith("You write original case-study exam papers")) return reply;
+    if (!system.startsWith("You write original case-study exam papers") && !prompt.includes("\nSTAGE: case-author")) return reply;
     authored++;
     const paper = JSON.parse(reply);
     paper.cues = [{ id: "cue1", paragraph: 2, quote: "A sentence that never appears anywhere in the scenario text.", implies: "nothing" }];

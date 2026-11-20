@@ -6,6 +6,7 @@ import { usePolling } from '../use-polling.js';
 import AgentLink from '../AgentLink.jsx';
 import { reasoningNote } from '../EffortSelect.jsx';
 import { formatExactTokens } from '../../lib/token-usage.js';
+import { compactCacheSummary } from '../token-usage.js';
 import { formatElapsed, formatNumber, joinMeta } from '../format.js';
 import { callLabel, runnerLabel, outputMode } from './call-model.js';
 import { waitState, waitNote } from './output-wait.js';
@@ -16,12 +17,12 @@ import { prettyParts } from './json-pretty.js';
    RUNNING call: asked from job.output with a cursor, about four times a second, only while this panel is open, the call is running and the page is visible
    (usePolling stops on a hidden page); only the new text comes back. Before the first character the panel says what is known: thinking (reasoning is counted,
    never shown), or a sub-agent that has worked a while without text (output-wait.js). A call that cannot write on the way says so.
-   ENDED call (2.6.1): asked ONCE (no polling) with cursor 0. The host answers with the tail it kept in memory (about 8 KB), or with the full final reply read from the
+   ENDED call (2.6.1): asked ONCE (no polling) with cursor 0. The host answers with the tail it kept in memory (about 64 KB), or with the full final reply read from the
    DSH session when the tail is not all of it; the panel says which of the two it shows, and says so plainly when nothing readable is left.
    JSON the model wrote (reviews, plans, blueprints, corrections) is shown indented (json-pretty.js), also while it streams; other text as it was. */
 
-const POLL_MS = 250, KEEP_CHARS = 48000;
-// A streamed text is kept whole up to KEEP_CHARS (the indenting needs its beginning); the host only buffers the last ~8 KB, so a panel opened late starts from that tail.
+const POLL_MS = 250, KEEP_CHARS = 65536;
+// A streamed text is kept whole up to KEEP_CHARS (the indenting needs its beginning); the host buffers the last ~64 KB, so a panel opened late starts from that tail.
 const tail = (text) => (text.length > KEEP_CHARS ? text.slice(-KEEP_CHARS) : text);
 const blank = (mode) => ({ phase: mode === 'ended' ? 'loading' : 'ready', text: '', total: 0, reasoning: 0, supported: true, ended: mode === 'ended', source: null, partial: false, clipped: false, sessionUnreadable: false });
 
@@ -70,7 +71,9 @@ export function OutputText({ text, fragment = false }) {
 /** What is known about a call without opening its session, as one line: what the reasoning setting did, how big its prompt was, what it used, the start of its answer. */
 export function callFacts(call) {
   return joinMeta([reasoningNote(call), call.inputChars > 0 ? uiFormat('输入约 {0} 字', [formatNumber(call.inputChars)]) : '',
-    call.tokens > 0 ? uiFormat('用量：{0} tok', [formatExactTokens(call.tokens)]) : '', call.outputPreview ? uiFormat('最近输出：{0}', [call.outputPreview]) : '']);
+    call.tokens > 0 ? uiFormat('用量：{0} tok', [formatExactTokens(call.tokens)]) : '',
+    compactCacheSummary(call.tokenUsage),
+    call.outputPreview ? uiFormat('最近输出：{0}', [call.outputPreview]) : '']);
 }
 
 /** What the footer says about an ended call: where the text shown comes from, and what could not be read. */
@@ -79,7 +82,7 @@ export function endedNote(view) {
   const unreadable = view.sessionUnreadable ? ui('DSH 会话读取不到，无法补全') : '';
   if (!view.text) return view.sessionUnreadable ? ui('DSH 会话读取不到') : '';
   if (view.source === 'session') return joinMeta([ui('已结束 · 完整回复读取自 DSH 会话'), view.clipped ? ui('回复很长，只显示前 200 KB') : '']);
-  return joinMeta([view.partial ? ui('已结束 · 显示最后约 8 KB') : ui('已结束 · 显示这一步写下的全部输出'), unreadable]);
+  return joinMeta([view.partial ? ui('已结束 · 显示最后约 64 KB') : ui('已结束 · 显示这一步写下的全部输出'), unreadable]);
 }
 
 /** The panel's drawing, from the state of the output (a plain object, so every state can be shown without a host). */
@@ -105,7 +108,7 @@ export function OutputView({ record: call, active, view, now }) {
   const quietText = ended ? (view.phase === 'error' ? ui('没能读取这一步的输出。') : ui('已结束；这一步没有留下可读的输出'))
     : call.runner === 'saved' ? reuseWhy() + ' ' + ui('没有向转写服务发请求。')
     : call.runner === 'gemini' ? ui('这一步由转写服务直接处理，不提供中间输出；完成后会在日志里记一条，并显示用时。') : ui('这一步不提供中间输出。');
-  const foot = ended ? endedNote(view) : mode === 'stream' && !quiet ? ui('只保留最近约 8 KB · 关掉这个面板就不再更新 · 任务结束后仍可回看') : '';
+  const foot = ended ? endedNote(view) : mode === 'stream' && !quiet ? ui('只保留最近约 64 KB · 关掉这个面板就不再更新 · 任务结束后仍可回看') : '';
   return (
     <div className="tc-output" data-mode={quiet ? 'none' : mode}>
       <div className="tc-output__head">

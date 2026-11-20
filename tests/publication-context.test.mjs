@@ -6,6 +6,9 @@ import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { saveWorkflow, startSession } from '../lib/workflows.js';
 import { importExample } from '../ui/json-prompts.js';
+import { GENERATION_SYSTEM, LEAD_SOURCE_CHARS } from '../lib/prompt-order.js';
+import { qualityReview } from './helpers/assessment.mjs';
+import { requestData } from './helpers/request-data.mjs';
 
 async function setup(t, complete) {
   const root = await mkdtemp(join(tmpdir(), 'study-publication-context-'));
@@ -272,3 +275,84 @@ for (const action of ['draft.publish.quick', 'draft.publish', 'draft.publish.sta
     assert.deepEqual(state.workflowSessions.find(item => item.id === unrelated.id), unrelated);
   });
 }
+
+test('publication batch-review fallback preserves cleanly attributed/passing cards and passes synthetic cacheSessionId + stageRequest on no-jobId path', async t => {
+  const bigText = Array.from({ length: Math.ceil((LEAD_SOURCE_CHARS + 1200) / 80) }, (_, i) =>
+    `Principle ${i}: architecture sets rules that guide system design and evolution ${i}.`).join(' ');
+  const calls = [];
+  const service = await setup(t, async (system, prompt, options) => {
+    const data = requestData(prompt);
+    const candidate = data.candidate;
+    calls.push({ ids: candidate.cards.map(c => c.id), system, options });
+    const review = qualityReview(candidate);
+    if (candidate.cards.length === 5) {
+      // Card c1 has an attributed failure; c2, c3, c4 pass cleanly; c5 is missing a check -> only c5 should be re-inspected!
+      review.checks[0].answerLeak = 'fail';
+      review.issues = ['c1: hint reveals the answer'];
+      review.checks.pop();
+    }
+    return JSON.stringify(review);
+  });
+  await service.call('source.add', { id: 'big-src', title: 'Architecture notes', text: bigText });
+  const cards = Array.from({ length: 5 }, (_, i) => ({
+    id: `c${i + 1}`,
+    kind: 'flashcard',
+    topic: `Topic ${i + 1}`,
+    objective: `Explain principle ${i + 1}`,
+    prompt: `How does principle ${i + 1} constrain system design?`,
+    answer: `Principle ${i + 1} guides design choices.`,
+    hint: `Focus on rule ${i + 1}.`,
+    explanation: `Principle ${i + 1} governs evolution and design trade-offs.`,
+    misconception: `Thinking principle ${i + 1} is only documentation.`,
+    citations: [{ sourceId: 'big-src', quote: bigText.slice(0, 60) }],
+  }));
+  const saved = await service.call('draft.save', { deck: { id: 'pub-narrow', title: 'Architecture', cards } });
+  const result = await service.call('draft.publish', { id: saved.id, draftVersion: saved.draftVersion });
+
+  // 2 batch calls (initial + 1 malformed-checks re-ask from modelReviewDeck) + ONLY 1 single-card call for missing c5 (NOT 5 sequential calls!).
+  assert.deepEqual(calls.map(c => c.ids), [['c1', 'c2', 'c3', 'c4', 'c5'], ['c1', 'c2', 'c3', 'c4', 'c5'], ['c5']]);
+  assert.equal(result.accepted, 4, 'c2, c3, c4 preserved from batch + c5 approved on single re-inspect');
+  assert.equal(result.rejected, 1, 'attributed rejection on c1 preserved without re-inspecting c1');
+  for (const call of calls) {
+    assert.equal(call.system, GENERATION_SYSTEM, 'no-jobId publication review applies stageRequest to use shared GENERATION_SYSTEM on large sources');
+    assert.equal(call.options?.cacheSessionId, `study-publish:${saved.id}`, 'no-jobId publication review sends synthetic cacheSessionId');
+  }
+});
+
+test('publication batch-review fallback with unattributed issue preserves already-rejected cards and re-inspects only ambiguous passing cards', async t => {
+  const quote = 'Architecture sets principles that guide how a system is designed and changed.';
+  const calls = [];
+  const service = await setup(t, async (_system, prompt) => {
+    const data = requestData(prompt);
+    const candidate = data.candidate;
+    calls.push({ ids: candidate.cards.map(c => c.id), concerns: data.priorBatchConcerns });
+    const review = qualityReview(candidate);
+    if (candidate.cards.length === 4) {
+      // c1 and c2 are cleanly attributed rejections; only c3 and c4 need isolation for the unattributed concern.
+      review.checks[0].answerLeak = 'fail';
+      review.issues = ['c1: answerLeak', 'c2: weak explanation', 'One remaining card lacks support'];
+    } else if (candidate.cards[0].id === 'c4') {
+      review.checks[0].sourceSupport = 'fail';
+    }
+    return JSON.stringify(review);
+  });
+  await service.call('source.add', { id: 'small-src', title: 'Notes', text: quote });
+  const cards = Array.from({ length: 4 }, (_, i) => ({
+    id: `c${i + 1}`,
+    kind: 'flashcard',
+    topic: `Topic ${i + 1}`,
+    objective: `Explain principle ${i + 1}`,
+    prompt: `How does principle ${i + 1} work?`,
+    answer: `Principle ${i + 1} guides choices.`,
+    hint: `Rule ${i + 1}.`,
+    explanation: `Principle ${i + 1} governs evolution.`,
+    misconception: `Not only layout ${i + 1}.`,
+    citations: [{ sourceId: 'small-src', quote }],
+  }));
+  const saved = await service.call('draft.save', { deck: { id: 'pub-unattr', title: 'Architecture', cards } });
+  const result = await service.call('draft.publish', { id: saved.id, draftVersion: saved.draftVersion });
+
+  assert.deepEqual(calls.map(c => c.ids), [['c1', 'c2', 'c3', 'c4'], ['c3'], ['c4']]);
+  assert.deepEqual(calls[1].concerns, ['One remaining card lacks support']);
+  assert.deepEqual({ accepted: result.accepted, rejected: result.rejected }, { accepted: 1, rejected: 3 });
+});

@@ -91,14 +91,12 @@ async function fixture(t, complete) {
   return { root, service, assist, children, start: (ctx = {}, extra = {}) => assist.startAssist(ctx, { root, service, sessionId: 'parent', mode: 'ask', ref: { deckId: 'd', cardId: 'c' }, text: 'Explain it', helpChoices: ['example'], card, deckTitle: 'Patterns', route: { provider: 'p', model: 'm' }, ...extra }), task: () => assist.assistView(root).tasks.at(-1) };
 }
 
-test('cold desktop help and improvement use real children and release their own coordinator', async t => {
-  for (const mode of ['ask', 'improve']) {
+test('cold desktop help uses a reusable native child while one-shot improve runs direct with a stable synthetic cacheSessionId', async t => {
+  {
     let direct = 0;
     const f = await fixture(t, async () => { direct++; throw new Error('unexpected direct call'); });
-    const output = mode === 'ask' ? { answer: 'Two independent dimensions.' } :
-      { patch: { explanation: 'Abstraction and implementation vary independently.' }, reason: 'Clarify.' };
-    const { ctx, calls } = desktopHost(f.root, JSON.stringify(output));
-    const task = await f.start(ctx, { mode, helpChoices: [] });
+    const { ctx, calls } = desktopHost(f.root, JSON.stringify({ answer: 'Two independent dimensions.' }));
+    const task = await f.start(ctx, { mode: 'ask', helpChoices: [] });
     assert.equal(task.runtime, 'subagent');
     await until(() => f.task().status !== 'running');
     assert.equal(f.task().status, 'done', f.task().message);
@@ -110,6 +108,20 @@ test('cold desktop help and improvement use real children and release their own 
     assert.notEqual(calls.created[0].sessionId, 'parent');
     assert.deepEqual(calls.started[0].toolFilter, { allow: [] });
     assert.deepEqual(calls.disposed, ['child', 'coordinator']);
+  }
+  {
+    const directOptions = [];
+    const output = { patch: { explanation: 'Abstraction and implementation vary independently.' }, reason: 'Clarify.' };
+    const f = await fixture(t, async (_s, _p, opts) => { directOptions.push(opts); return JSON.stringify(output); });
+    const { ctx, calls } = desktopHost(f.root, JSON.stringify(output));
+    const task = await f.start(ctx, { mode: 'improve', helpChoices: [] });
+    assert.equal(task.runtime, 'direct');
+    await until(() => f.task().status !== 'running');
+    assert.equal(f.task().status, 'done', f.task().message);
+    assert.equal(f.task().childId, undefined);
+    assert.equal(calls.started.length, 0, 'one-shot improve must not spawn a subagent');
+    assert.equal(directOptions.length, 1);
+    assert.match(directOptions[0].cacheSessionId, /^study-job:/);
   }
 });
 
@@ -396,18 +408,25 @@ test('historical transcript correction uses a bounded direct request when the ho
   assert.equal(result, '{"items":[]}'); assert.equal(calls, 1);
 });
 
-test('native help uses the selected route, no tools, commits a validated change and preserves undo', async t => {
-  let dispatched, disposed = 0, fallback = 0;
-  const f = await fixture(t, async () => { fallback++; return '{}'; });
+test('one-shot improve runs direct with the selected route, commits a validated change and preserves undo', async t => {
+  let spawned = 0;
+  const seen = [];
+  const f = await fixture(t, async (_s, _p, opts) => {
+    seen.push(opts);
+    return JSON.stringify({ patch: { explanation: 'Abstraction and implementation vary independently.' }, reason: 'Clarified the two dimensions.' });
+  });
   const ctx = { get: key => key === 'agents' ? { get: () => ({ id: 'parent' }) } : {
     getProvider: () => ({ capabilities: { toolFilter: true, agentOptions: true } }),
-    start: async (_kind, request) => { dispatched = request; return { id: 'native-child', result: Promise.resolve({ stopReason: 'completed', output: [{ type: 'text', text: JSON.stringify({ patch: { explanation: 'Abstraction and implementation vary independently.' }, reason: 'Clarified the two dimensions.' }) }] }), dispose: async () => { disposed++; } }; },
+    start: async () => { spawned++; throw new Error('unexpected subagent spawn'); },
   } };
   await f.start(ctx, { mode: 'improve', helpChoices: [], text: 'Clarify the explanation' });
   await until(() => f.task().status !== 'running');
-  assert.equal(f.task().status, 'done'); assert.equal(f.task().childId, 'native-child');
-  assert.deepEqual(dispatched.toolFilter.allow, []); assert.deepEqual(dispatched.agentOptions, { provider: 'p', model: 'm' });
-  assert.equal(disposed, 1); assert.equal(fallback, 0);
+  assert.equal(f.task().status, 'done'); assert.equal(f.task().runtime, 'direct'); assert.equal(f.task().childId, undefined);
+  assert.equal(spawned, 0);
+  assert.equal(seen.length, 1);
+  if (SWITCH_MODE === 'runtime') assert.equal(seen[0].route?.provider, 'fixture');
+  else assert.deepEqual(seen[0].route, { provider: 'p', model: 'm' });
+  assert.match(seen[0].cacheSessionId, /^study-job:/);
   assert.match((await f.service.store.read()).decks[0].cards[0].explanation, /Abstraction/);
   await f.service.call('card.revert', { deckId: 'd', cardId: 'c' });
   assert.equal((await f.service.store.read()).decks[0].cards[0].explanation, card.explanation);

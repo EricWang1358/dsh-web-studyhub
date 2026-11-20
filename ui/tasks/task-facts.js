@@ -205,11 +205,13 @@ const noticesOf = (contract) => (Array.isArray(contract.detail?.notices) ? contr
 
 /** 为你定制 by the day: what was written and kept, what was practised and how well, the tokens in / out / from cache, what was skipped. */
 function coachFacts(contract) {
-  const { metrics = {}, tokens = {} } = contract.detail, any = (tokens.input || 0) + (tokens.output || 0) + (tokens.cache || 0) > 0;
+  const { metrics = {}, tokens = {} } = contract.detail;
+  const inputTotal = (tokens.input || 0) + (tokens.cacheWrite || 0), output = tokens.output || 0, cacheRead = tokens.cache || 0;
+  const any = inputTotal + output + cacheRead > 0;
   return [
     { key: 'primary', label: ui('备好 / 写出'), value: `${metrics.passed ?? 0} / ${metrics.generated ?? 0}` },
     { key: 'elapsed', label: ui('练习 · 正确率'), value: metrics.practised > 0 ? `${metrics.practised} · ${metrics.accuracy}%` : dash },
-    { key: 'calls', label: ui('令牌 入/出/缓存'), value: any ? [tokens.input, tokens.output, tokens.cache].map((value) => formatCompactTokens(value || 0)).join('/') : dash },
+    { key: 'calls', label: ui('令牌 入/出/缓存'), value: any ? [inputTotal, output, cacheRead].map((value) => formatCompactTokens(value)).join('/') : dash },
     { key: 'warnings', label: ui('跳过 · 过期'), value: metrics.skippedExpired > 0 ? formatNumber(metrics.skippedExpired) : dash },
   ];
 }

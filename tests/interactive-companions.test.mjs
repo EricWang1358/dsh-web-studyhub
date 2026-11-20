@@ -473,9 +473,9 @@ test('Layer 3: 4-stage generation.companion.build Job (estimate, Stage 3 auto-re
           act2Slides: act2Slides.map((s, i) => ({ slide: i + 9, beat: s.beat, title: s.title })),
         });
       }
-      if (system.startsWith('You are authoring Act I ')) return JSON.stringify({ slides: act1Slides });
-      if (system.startsWith('You are authoring Act II ')) return JSON.stringify({ slides: act2Slides });
-      if (system.includes('repairing specific validation errors')) return JSON.stringify(fixedFull);
+      if (prompt.includes('You are authoring Act I ')) return JSON.stringify({ slides: act1Slides });
+      if (prompt.includes('You are authoring Act II ')) return JSON.stringify({ slides: act2Slides });
+      if (prompt.includes('repairing specific validation errors')) return JSON.stringify(fixedFull);
       throw new Error(`Unexpected prompt: ${system.slice(0, 60)}`);
     };
 
@@ -785,7 +785,7 @@ test('Wave 1 Companion Core: smart high-signal source chunking, deterministic pr
     const a1 = offByOneSpec.slides.slice(0, 8);
     const a2 = offByOneSpec.slides.slice(8);
     let calls = 0;
-    const mockModel = async system => {
+    const mockModel = async (system, prompt) => {
       calls++;
       if (system.includes('curriculum architect')) {
         return JSON.stringify({
@@ -801,8 +801,8 @@ test('Wave 1 Companion Core: smart high-signal source chunking, deterministic pr
           act2Slides: a2.map((s, i) => ({ slide: i + 9, beat: s.beat, title: s.title })),
         });
       }
-      if (system.startsWith('You are authoring Act I ')) return JSON.stringify({ slides: a1 });
-      if (system.startsWith('You are authoring Act II ')) return JSON.stringify({ slides: a2 });
+      if (prompt.includes('You are authoring Act I ')) return JSON.stringify({ slides: a1 });
+      if (prompt.includes('You are authoring Act II ')) return JSON.stringify({ slides: a2 });
       throw new Error(`Stage 3 LLM repair should NOT be called for off-by-one line index: ${system.slice(0, 60)}`);
     };
     const svc = new StudyService(join(tmp, 'lib'), {

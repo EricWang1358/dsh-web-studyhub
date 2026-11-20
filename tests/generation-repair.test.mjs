@@ -125,8 +125,11 @@ test("a weak distractor is repaired by rewriting only that option; the correct o
   assert.equal(patched.options.length, 3);
   assert.equal(patched.hint, original.hint);
   assert.deepEqual(model.log.patchPrompts[0].cards[0].allowed, ["options"]);
-  const reviewedAgain = model.log.reviewed[1].blueprint.items[0];
-  assert.match(reviewedAgain.options.find((option) => option.id === "c").text, /^Principles apply only/, "the reviewer sees the blueprint that matches the repaired card");
+  assert.ok(Array.isArray(model.log.patchPrompts[0].cards[0].options), "option repair carries options on card");
+  assert.equal(model.log.patchPrompts[0].cards[0].blueprint.options, undefined, "identical options are not duplicated on blueprint");
+  const reviewedAgainCard = model.log.reviewed[1].cards[0];
+  assert.match(reviewedAgainCard.options.find((option) => option.id === "c").text, /^Principles apply only/, "the reviewer sees the repaired option on the candidate card");
+  assert.equal(model.log.reviewed[1].blueprint[0].options, undefined, "review answerBlueprint does not duplicate candidate options");
   assert.equal(result.editorial.repairedInRun, 1);
 });
 

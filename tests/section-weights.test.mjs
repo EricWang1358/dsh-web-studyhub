@@ -46,17 +46,16 @@ test('one call per chunk of about 20 sections, over titles, positions, sizes and
   assert.deepEqual(result.weights.map(item => item.sectionId), leaves.map(item => item.key), 'reading order, section keys');
 });
 
-test('the prompt puts the system text and the evidence first and the instructions after (a stable, cache-friendly prefix)', () => {
+test('the prompt puts instructions and focus topics in shared system and evidence first in prompt (a stable, cache-friendly prefix)', () => {
   const { system, prompt } = weightsPrompts(leaves.slice(0, 3).map((section, index) => ({ id: `s${index + 1}`, title: section.title || `Part ${index + 1}`, position: `${index + 1}/81`, chars: section.chars, head: 'x' })), { language: 'zh' });
   assert.match(system, /untrusted/i, 'the sections are data, not instructions');
+  assert.match(system, /importance/);
+  assert.match(system, /definition/);
+  assert.match(system, /JSON/);
   assert.ok(prompt.startsWith('{"sections":['), 'the evidence is the first thing in the prompt');
-  const instructions = prompt.slice(prompt.indexOf('\n\n') + 2);
-  assert.match(instructions, /importance/);
-  assert.match(instructions, /definition/);
-  assert.match(instructions, /JSON/);
+  assert.doesNotMatch(prompt, /importance 5:/, 'instructions live in shared system, not repeated per chunk prompt');
   const again = weightsPrompts([{ id: 's1', title: 'Other', position: '1/1', chars: 5, head: 'y' }], { language: 'zh' });
   assert.equal(again.system, system, 'the system text does not depend on the chunk');
-  assert.equal(again.prompt.slice(again.prompt.indexOf('\n\n')), prompt.slice(prompt.indexOf('\n\n')), 'nor do the instructions');
 });
 
 test('a model reply gives importance, kind and a one-line reason for each section; invalid values are made safe', async () => {

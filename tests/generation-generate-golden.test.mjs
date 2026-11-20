@@ -3,6 +3,7 @@
    marked (tests/helpers/generate-golden.mjs), so what is left is what the code decided. tests/fixtures/generation-generate-golden*.json were recorded from the code before the split and must not move
    with a refactoring; a deliberate change records again (STUDY_RECORD_GOLDEN=1) and the diff of the file is the review. Run it on the runtime with STUDY_RUNTIME_MATRIX=generation and --import ./tests/helpers/runtime-matrix-preload.mjs (a fixture of its own). */
 import test from 'node:test';
+import { stageSystem } from '../lib/prompt-order.js';
 import { createFakeModel } from '../scripts/fake-model.mjs';
 import { clusteringModel } from './helpers/clustering-model.mjs';
 import { goldenLibrary, pinned } from './helpers/generate-golden.mjs';
@@ -102,7 +103,7 @@ test('a plain draft cut short goes on by count; extra sources add to it', async 
   let failing = true, authors = 0;
   const inner = clusteringModel({ readsExisting: true }).complete;
   const lib = await goldenLibrary(t, { model: async (system, prompt, context) => {
-    if (failing && system.startsWith('You author') && ++authors > 1) throw new Error('the model is unavailable');
+    if (failing && stageSystem(system, prompt).startsWith('You author') && ++authors > 1) throw new Error('the model is unavailable');
     return inner(system, prompt, context);
   } });
   pinned('continue.first', await lib.press('generate', { sourceIds: lib.ids, kind: 'quiz', count: 8, performance: ONE_BY_ONE }));
@@ -117,7 +118,7 @@ test('a draft of several kinds goes on with the kinds it still owes', async t =>
   let failing = true, authors = 0;
   const inner = createFakeModel();
   const lib = await goldenLibrary(t, { model: async (system, prompt, context) => {
-    if (failing && system.startsWith('You author') && ++authors > 1) throw new Error('the model is unavailable');
+    if (failing && stageSystem(system, prompt).startsWith('You author') && ++authors > 1) throw new Error('the model is unavailable');
     return inner(system, prompt, context);
   } });
   pinned('continue.kinds.first', await lib.press('generate', { sourceIds: lib.ids, kind: 'mixed', kinds: ['quiz', 'flashcard'], count: 8, performance: ONE_BY_ONE }));
@@ -161,9 +162,9 @@ test('a run that ends otherwise: a refused key, a failing round, a cancel', asyn
   pinned('end.plainRefused', await plain.press('generate', { sourceIds: plain.ids, ...PLAIN }));
   let wrote = 0;
   const inner = clusteringModel().complete;
-  const authorThen = complete => async (system, prompt, context) => { if (system.startsWith('You author')) wrote += 1; return complete(system, prompt, context); };
+  const authorThen = complete => async (system, prompt, context) => { if (stageSystem(system, prompt).startsWith('You author')) wrote += 1; return complete(system, prompt, context); };
   const run = await goldenLibrary(t, { model: authorThen(async (system, prompt, context) => {
-    if (wrote > 0 && system.startsWith('Plan a source-grounded')) throw refusal;
+    if (wrote > 0 && stageSystem(system, prompt).startsWith('Plan a source-grounded')) throw refusal;
     return inner(system, prompt, context);
   }) });
   pinned('end.runRefused', await run.press('generate', { sourceIds: run.ids, coverageLevel: 'standard', kind: 'quiz', performance: ONE_BY_ONE }));
@@ -172,7 +173,7 @@ test('a run that ends otherwise: a refused key, a failing round, a cancel', asyn
   wrote = 0;
   let failedOnce = false;
   const flaky = await goldenLibrary(t, { model: authorThen(async (system, prompt, context) => {
-    if (wrote > 0 && !failedOnce && system.startsWith('Plan a source-grounded')) { failedOnce = true; throw new Error('the model is unavailable'); }
+    if (wrote > 0 && !failedOnce && stageSystem(system, prompt).startsWith('Plan a source-grounded')) { failedOnce = true; throw new Error('the model is unavailable'); }
     return inner(system, prompt, context);
   }) });
   pinned('end.roundFails', await flaky.press('generate', { sourceIds: flaky.ids, coverageLevel: 'standard', kind: 'quiz', performance: ONE_BY_ONE }));
@@ -203,7 +204,7 @@ test('a supplement at its time limit publishes what passed', async t => {
   let blueprints = 0;
   const inner = clusteringModel({ readsExisting: true }).complete;
   const lib = await goldenLibrary(t, { model: async (system, prompt, context = {}) => {
-    if (strike && system.startsWith('Prepare supported answers') && ++blueprints > 1 && context.signal) {
+    if (strike && stageSystem(system, prompt).startsWith('Prepare supported answers') && ++blueprints > 1 && context.signal) {
       const stopped = new Promise((_, reject) => context.signal.addEventListener('abort', () => reject(context.signal.reason)));
       strike();
       await stopped;
@@ -228,7 +229,7 @@ test('a host that stops under a coverage run leaves it interrupted, its draft sa
   const stopped = new Promise(resolve => { release = resolve; });
   const inner = clusteringModel().complete;
   lib.service.complete = async (system, prompt, context = {}) => {
-    if (system.startsWith('You author') && ++authors > 1) await stopped;
+    if (stageSystem(system, prompt).startsWith('You author') && ++authors > 1) await stopped;
     return inner(system, prompt, context);
   };
   const { jobId } = await lib.service.call('generate', { sourceIds: lib.ids, coverageLevel: 'standard', kind: 'quiz', performance: ONE_BY_ONE });
