@@ -6,7 +6,8 @@ import { ONE_PASS_LIMITS } from '../lib/one-pass/limits.js';
 
 /* The estimate of a round written in one pass is priced as one pass runs it (lib/batch.js, lib/one-pass/portion.js), not as the staged pipeline:
    per portion ONE write call and one review call per batch of at most `reviewBatch` cards, plus ONE same-fact merge call per round. The rewrite of the
-   options (at most one call per portion) is an allowance of the upper end only: the low end does not count it, the high end does. */
+   options (at most one call per portion), the re-ask of a section left without a card (at most one per section, a write over that section alone) and the second try
+   of a review batch are an allowance of the upper end only: the low end does not count them, the high end does (gate round 2). */
 
 const text = 'The heart pumps blood through the body. '.repeat(1500);
 const sources = [{ id: 'doc', title: 'Doc', text }];
@@ -16,7 +17,7 @@ const assignments = Array.from({ length: 12 }, (_, index) => ({ key: `doc#s${ind
 const count = assignments.reduce((sum, item) => sum + item.quota, 0);
 const stage = (estimate, id) => estimate.stages.find(item => item.id === id);
 
-test('one pass is priced per portion: one write, ceil(cards / 7) reviews, one merge per round; the rewrite only in the high end', () => {
+test('one pass is priced per portion: one write, ceil(cards / 7) reviews, one merge per round; the rewrite, re-asks and second reviews only in the high end', () => {
   const portions = packPortions(assignments);
   assert.ok(portions.length >= 3, `${portions.length} portions`);
   const reviews = portions.reduce((sum, portion) => sum + Math.ceil(portion.questions / ONE_PASS_LIMITS.reviewBatch), 0);
@@ -26,10 +27,14 @@ test('one pass is priced per portion: one write, ceil(cards / 7) reviews, one me
   assert.equal(stage(estimate, 'author').calls, portions.length, 'one write call per portion');
   assert.equal(stage(estimate, 'review').calls, reviews + 1, 'the review batches and the one merge');
   assert.equal(estimate.calls.low, portions.length + reviews + 1);
-  assert.equal(estimate.calls.high, estimate.calls.low + portions.length, 'a rewrite per portion at most');
-  assert.equal(stage(estimate, 'author').callsHigh, portions.length * 2);
-  assert.ok(stage(estimate, 'author').inputTokens.high > stage(estimate, 'author').inputTokens.low, 'the rewrite adds to the high end');
-  assert.ok(stage(estimate, 'author').inputTokens.high < stage(estimate, 'author').inputTokens.low * 2, 'a rewrite carries the options, not the material');
+  assert.equal(estimate.calls.high, estimate.calls.low + portions.length + assignments.length + reviews, 'a rewrite per portion, a re-ask per section, a second try per review batch');
+  assert.equal(stage(estimate, 'author').callsHigh, portions.length * 2 + assignments.length);
+  assert.equal(stage(estimate, 'review').callsHigh, reviews * 2 + 1, 'the merge is not tried twice');
+  assert.ok(stage(estimate, 'author').inputTokens.high > stage(estimate, 'author').inputTokens.low, 'the allowance adds to the high end');
+  // A re-ask carries one section's text, a rewrite the options: neither costs more than an average portion write.
+  const write = stage(estimate, 'author').inputTokens, perWrite = write.low / portions.length;
+  assert.ok(write.high <= write.low + (assignments.length + portions.length) * perWrite, 'a re-ask carries one section, not the portion');
+  assert.ok(stage(estimate, 'review').inputTokens.high > stage(estimate, 'review').inputTokens.low * 1.5, 'the second tries of the reviews are in the high end');
   assert.equal(estimate.totalTokens.high, estimate.stages.reduce((sum, item) => sum + item.inputTokens.high + item.outputTokens.high, 0), 'the stages add up to the high end');
   assert.equal(estimate.totalTokens.low, estimate.stages.reduce((sum, item) => sum + item.inputTokens.low + item.outputTokens.low, 0), 'and to the low end');
 });
@@ -49,4 +54,17 @@ test('a top-up that also writes failed targets again prices those as the staged 
   const estimate = estimateRun('generate', { sources, count, assignments, reuse, kind: 'quiz', performance: { strategy: 'one-pass' } });
   assert.equal(stage(estimate, 'blueprint').calls, 1, 'the target written again is designed');
   assert.equal(stage(estimate, 'author').calls, packPortions(assignments).length + 1);
+});
+
+// Gate round 2: the machine's calibration ratios are learned from staged runs (a one-pass run records none, lib/contexts/generation/generate/execute.js). Applied to a
+// one-pass estimate they could pull the shown upper end far below what the run costs, so they are not applied to it; the thinking allowance (which only raises) still is.
+test('staged calibration ratios are not applied to an estimate priced for one pass; they still correct a staged one', async () => {
+  const { calibrateEstimate } = await import('../lib/token-estimate.js');
+  const factors = { stages: { plan: 0.4, blueprint: 0.4, author: 0.4, review: 0.4 }, samples: 9 }, none = { stages: {}, samples: 0, defaults: {} };
+  const onePass = estimateRun('generate', { sources, count, assignments, kind: 'quiz', performance: { strategy: 'one-pass' } });
+  assert.equal(onePass.onePass, true);
+  assert.equal(estimateRun('generate', { sources, count, assignments, kind: 'quiz', performance: { strategy: 'staged' } }).onePass, undefined);
+  assert.deepEqual(calibrateEstimate(onePass, factors, none).totalTokens, calibrateEstimate(onePass, null, none).totalTokens);
+  const staged = estimateRun('generate', { sources, count, assignments, kind: 'quiz', performance: { strategy: 'staged' } });
+  assert.ok(calibrateEstimate(staged, factors, none).totalTokens.high < staged.totalTokens.high, 'a staged estimate is still corrected');
 });
