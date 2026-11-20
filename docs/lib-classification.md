@@ -248,7 +248,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/course-route.js`: context library; 1 other lib file
 - `lib/coverage-materials.js`: context generation; 4 other lib files
 - `lib/coverage-plan.js`: context generation; 2 other lib files
-- `lib/coverage-round.js`: context generation; 4 other lib files
+- `lib/coverage-round.js`: context generation; 5 other lib files
 - `lib/custom-apply.js`: context library
 - `lib/custom-fill.js`: context library
 - `lib/custom-preview.js`: context library
@@ -331,7 +331,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 
 ## Used by none of these (other lib files, entry points, scripts and tests only) (116)
 
-- `lib/assigned-plan.js`: 5 other lib files
+- `lib/assigned-plan.js`: 6 other lib files
 - `lib/assist-child.js`: 1 other lib file
 - `lib/assist-content.js`: 2 other lib files
 - `lib/assist.js`: 1 other lib file
