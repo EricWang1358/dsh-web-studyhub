@@ -46,7 +46,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/course-rules.js`: 3 ui files; context authoring; 3 other lib files
 - `lib/course-setup.js`: 1 ui file
 - `lib/course-tree.js`: 8 ui files; contexts generation, library, materials; 14 other lib files
-- `lib/courses.js`: 10 ui files; contexts authoring, coach, courses, generation, library; 13 other lib files
+- `lib/courses.js`: 11 ui files; contexts authoring, coach, courses, generation, library; 13 other lib files
 - `lib/coverage-run.js`: 6 ui files; contexts generation, library; 4 other lib files
 - `lib/coverage-strength.js`: 4 ui files; context generation; 5 other lib files
 - `lib/coverage.js`: 3 ui files; 5 other lib files
