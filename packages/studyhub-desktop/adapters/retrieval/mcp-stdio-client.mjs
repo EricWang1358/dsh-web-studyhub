@@ -1,66 +1,31 @@
+import {
+  MCP_LATEST_PROTOCOL_VERSION,
+  MCP_SUPPORTED_PROTOCOL_VERSIONS,
+  buildCancelledNotification,
+  buildInitializeParams,
+  createMcpAbortError,
+  formatCancellationReason,
+  makeMcpError,
+  negotiateProtocolVersion,
+  normalizeMcpToolResult,
+  normalizeMcpTools,
+  shouldSendCancellationNotification,
+} from '../../domain/mcp-protocol.js';
 import { spawnPersistent as defaultSpawnPersistent } from '../cli/process-runner.mjs';
+import {
+  createLineWriter,
+  createStderrRing,
+  createStdoutLineHandler,
+  gracefulTerminate,
+} from './mcp-stdio-transport.mjs';
 
 const DEFAULT_INIT_TIMEOUT_MS = 30_000;
 const DEFAULT_CALL_TIMEOUT_MS = 90_000;
+const DEFAULT_CLOSE_GRACE_MS = 300;
 const DEFAULT_MAX_STDERR_BYTES = 16 * 1024;
-const MCP_PROTOCOL_VERSION = '2024-11-05';
-
-function createStderrRing(maxBytes) {
-  let chunks = [];
-  let total = 0;
-
-  function push(raw) {
-    const buf = Buffer.isBuffer(raw) ? raw : Buffer.from(String(raw), 'utf8');
-    if (!buf.length) return;
-    chunks.push(buf);
-    total += buf.length;
-    while (total > maxBytes && chunks.length > 1) {
-      total -= chunks.shift().length;
-    }
-    if (total > maxBytes) {
-      const only = chunks[0];
-      chunks = [only.subarray(only.length - maxBytes)];
-      total = chunks[0].length;
-    }
-  }
-
-  return {
-    push,
-    read: () => Buffer.concat(chunks, total).toString('utf8').trim(),
-  };
-}
-
-function makeMcpError(errPayload) {
-  const message = typeof errPayload?.message === 'string' && errPayload.message
-    ? errPayload.message
-    : 'MCP server returned an error';
-  const error = new Error(message);
-  if (errPayload?.code !== undefined) error.code = errPayload.code;
-  if (errPayload?.data !== undefined) error.mcpData = errPayload.data;
-  return error;
-}
-
-function normalizeTools(rawTools) {
-  if (!Array.isArray(rawTools)) return [];
-  return rawTools
-    .filter((tool) => tool && typeof tool.name === 'string' && tool.name)
-    .map((tool) => ({
-      name: tool.name,
-      description: typeof tool.description === 'string' ? tool.description : '',
-      inputSchema: tool.inputSchema && typeof tool.inputSchema === 'object'
-        ? tool.inputSchema
-        : { type: 'object', properties: {} },
-    }));
-}
-
-function normalizeToolResult(result) {
-  const content = Array.isArray(result?.content) ? result.content : [];
-  return {
-    content,
-    ...(result?.structuredContent !== undefined ? { structuredContent: result.structuredContent } : {}),
-    ...(result?.isError ? { isError: true } : {}),
-  };
-}
+const DEFAULT_MAX_LINE_BYTES = 16 * 1024 * 1024;
+const DEFAULT_MAX_WRITE_BUFFER_BYTES = 4 * 1024 * 1024;
+const MAX_TOOL_LIST_PAGES = 20;
 
 function buildExitError(outcome, stderrText) {
   const detail = outcome?.error?.message
@@ -72,20 +37,6 @@ function buildExitError(outcome, stderrText) {
   );
 }
 
-function createAbortError(signal) {
-  const reason = signal?.reason;
-  if (reason instanceof Error) return reason;
-  const message = typeof reason === 'string' && reason ? reason : 'Retrieval tool call aborted';
-  return Object.assign(new Error(message), { name: 'AbortError', code: 'ABORT_ERR' });
-}
-
-function writeJsonLine(proc, payload) {
-  if (!proc?.stdin || proc.stdin.destroyed || !proc.stdin.writable) {
-    throw Object.assign(new Error('Retrieval MCP stdin is not writable'), { code: 'retrieval-start-failed' });
-  }
-  proc.stdin.write(`${JSON.stringify(payload)}\n`, 'utf8');
-}
-
 function rejectAllPending(pending, error) {
   for (const [id, entry] of pending.entries()) {
     pending.delete(id);
@@ -94,16 +45,33 @@ function rejectAllPending(pending, error) {
   }
 }
 
+function emitCancelled(state, id, method, error) {
+  if (!state.running || !state.writer || !shouldSendCancellationNotification(method)) return;
+  try {
+    state.writer.send(buildCancelledNotification(id, formatCancellationReason(error)));
+  } catch { /* ignore closed pipe or backpressure while cancelling */ }
+}
+
+function cancelInFlightRequests(state) {
+  for (const [id, entry] of state.pending.entries()) {
+    emitCancelled(state, id, entry.method, 'Retrieval MCP client closing');
+  }
+}
+
+function sendClientResponse(state, msg) {
+  if (!state.writer) return;
+  const reply = msg.method === 'ping'
+    ? { jsonrpc: '2.0', id: msg.id, result: {} }
+    : { jsonrpc: '2.0', id: msg.id, error: { code: -32601, message: `Unsupported client method: ${msg.method}` } };
+  try {
+    state.writer.send(reply);
+  } catch { /* ignore closed pipe */ }
+}
+
 function handleJsonMessage(state, msg) {
   if (!msg || typeof msg !== 'object') return;
   if (Object.hasOwn(msg, 'id') && typeof msg.method === 'string') {
-    try {
-      writeJsonLine(state.proc, {
-        jsonrpc: '2.0',
-        id: msg.id,
-        error: { code: -32601, message: `Unsupported client method: ${msg.method}` },
-      });
-    } catch { /* ignore closed pipe */ }
+    sendClientResponse(state, msg);
     return;
   }
   if (!Object.hasOwn(msg, 'id') || !state.pending.has(msg.id)) return;
@@ -114,26 +82,19 @@ function handleJsonMessage(state, msg) {
   else entry.resolve(msg.result);
 }
 
-function onStdoutChunk(state, chunk) {
-  state.lineBuffer += chunk.toString('utf8');
-  const parts = state.lineBuffer.split('\n');
-  state.lineBuffer = parts.pop() || '';
-  for (const rawLine of parts) {
-    const trimmed = rawLine.trim();
-    if (!trimmed) continue;
-    try {
-      handleJsonMessage(state, JSON.parse(trimmed));
-    } catch {
-      state.stderrRing.push(`[non-json stdout] ${trimmed.slice(0, 200)}\n`);
-    }
+function handleRawStdoutLine(state, trimmed) {
+  try {
+    handleJsonMessage(state, JSON.parse(trimmed));
+  } catch {
+    state.stderrRing.push(`[non-json stdout] ${trimmed.slice(0, 200)}\n`);
   }
 }
 
 function sendJsonRpc(state, method, params, { signal, timeoutMs } = {}) {
-  if (!state.running || !state.proc) {
+  if (!state.running || !state.writer) {
     return Promise.reject(Object.assign(new Error('Retrieval MCP client is not running'), { code: 'retrieval-start-failed' }));
   }
-  if (signal?.aborted) return Promise.reject(createAbortError(signal));
+  if (signal?.aborted) return Promise.reject(createMcpAbortError(signal));
 
   const id = state.nextId++;
   return new Promise((resolve, reject) => {
@@ -142,50 +103,112 @@ function sendJsonRpc(state, method, params, { signal, timeoutMs } = {}) {
       if (timer) clearTimeout(timer);
       if (onAbort) signal?.removeEventListener('abort', onAbort);
     };
-    const fail = (error) => {
+    const fail = (error, notifyCancel = false) => {
       if (!state.pending.has(id)) return;
       state.pending.delete(id);
       cleanup();
+      if (notifyCancel) emitCancelled(state, id, method, error);
       reject(error);
     };
-    const onAbort = signal ? () => fail(createAbortError(signal)) : null;
+    const onAbort = signal ? () => fail(createMcpAbortError(signal), true) : null;
     if (onAbort) signal.addEventListener('abort', onAbort, { once: true });
 
     if (Number.isFinite(timeoutMs) && timeoutMs > 0) {
       timer = setTimeout(() => {
-        fail(Object.assign(new Error(`MCP request "${method}" timed out after ${timeoutMs}ms`), { code: 'retrieval-call-timeout' }));
+        const timeoutErr = Object.assign(
+          new Error(`MCP request "${method}" timed out after ${timeoutMs}ms`),
+          { code: 'retrieval-call-timeout' }
+        );
+        fail(timeoutErr, true);
       }, timeoutMs);
       timer.unref?.();
     }
 
-    state.pending.set(id, { resolve, reject, cleanup });
+    state.pending.set(id, { method, resolve, reject, cleanup });
     try {
-      writeJsonLine(state.proc, { jsonrpc: '2.0', id, method, params });
+      state.writer.send({ jsonrpc: '2.0', id, method, params });
     } catch (error) {
-      fail(error);
+      fail(error, false);
     }
   });
 }
 
-async function runHandshake(state, initTimeoutMs) {
-  await sendJsonRpc(
+async function listAllTools(state, initTimeoutMs) {
+  const allTools = [];
+  let cursor = undefined;
+  for (let page = 0; page < MAX_TOOL_LIST_PAGES; page += 1) {
+    const params = cursor ? { cursor } : {};
+    const listed = await sendJsonRpc(state, 'tools/list', params, { timeoutMs: initTimeoutMs });
+    allTools.push(...normalizeMcpTools(listed?.tools));
+    cursor = typeof listed?.nextCursor === 'string' && listed.nextCursor ? listed.nextCursor : undefined;
+    if (!cursor) break;
+  }
+  return allTools;
+}
+
+async function runHandshake(state, { initTimeoutMs, protocolVersion, supportedProtocolVersions }) {
+  const initResult = await sendJsonRpc(
     state,
     'initialize',
-    {
-      protocolVersion: MCP_PROTOCOL_VERSION,
-      capabilities: {},
-      clientInfo: { name: 'studyhub-desktop', version: '1.0.0' },
-    },
+    buildInitializeParams({ protocolVersion }),
     { timeoutMs: initTimeoutMs }
   );
-  writeJsonLine(state.proc, { jsonrpc: '2.0', method: 'notifications/initialized' });
-  const listed = await sendJsonRpc(state, 'tools/list', {}, { timeoutMs: initTimeoutMs });
-  state.cachedTools = normalizeTools(listed?.tools);
+  const negotiated = negotiateProtocolVersion(initResult?.protocolVersion, supportedProtocolVersions);
+  if (!negotiated.ok) {
+    throw Object.assign(new Error(negotiated.reason), { code: 'retrieval-protocol-unsupported' });
+  }
+  state.protocolVersion = negotiated.protocolVersion;
+  state.writer.send({ jsonrpc: '2.0', method: 'notifications/initialized' });
+  state.cachedTools = await listAllTools(state, initTimeoutMs);
   return state.cachedTools;
 }
 
+function shutdownClientState(state, error, closeGraceMs) {
+  if (state.closePromise) return state.closePromise;
+  state.closing = true;
+  cancelInFlightRequests(state);
+  state.running = false;
+  state.writer?.clear();
+  state.writer = null;
+  rejectAllPending(state.pending, error);
+  const target = state.proc;
+  state.proc = null;
+  state.closePromise = gracefulTerminate(target, closeGraceMs).then(() => undefined);
+  return state.closePromise;
+}
+
+function wireProcessStreams({ state, proc, maxLineBytes, closeGraceMs, onExit }) {
+  const onOverflow = () => {
+    const msg = `Retrieval MCP stdout line exceeded maximum allowed size (${maxLineBytes} bytes)`;
+    state.stderrRing.push(`[stdout-overflow] ${msg}\n`);
+    void shutdownClientState(state, Object.assign(new Error(msg), { code: 'retrieval-protocol-error' }), closeGraceMs);
+  };
+  const onStdout = createStdoutLineHandler({
+    isRunning: () => state.running,
+    getStdout: () => proc.stdout,
+    maxLineBytes,
+    onLine: (line) => handleRawStdoutLine(state, line),
+    onOverflow,
+  });
+  const onStderr = (chunk) => state.stderrRing.push(chunk);
+  proc.stdout?.on('data', onStdout);
+  proc.stderr?.on('data', onStderr);
+  proc.exited.then((outcome) => {
+    proc.stdout?.off?.('data', onStdout);
+    proc.stderr?.off?.('data', onStderr);
+    const wasClosing = state.closing;
+    state.running = false;
+    state.writer?.clear();
+    state.writer = null;
+    rejectAllPending(state.pending, buildExitError(outcome, state.stderrRing.read()));
+    if (!wasClosing && typeof onExit === 'function') {
+      onExit({ ...outcome, stderr: state.stderrRing.read() });
+    }
+  });
+}
+
 /**
- * Create a lightweight JSON-RPC 2.0 NDJSON stdio MCP client backed by `spawnPersistent`.
+ * Create a JSON-RPC 2.0 NDJSON stdio MCP client (2024-11-05 / 2025-03-26) backed by `spawnPersistent`.
  */
 export function createMcpStdioClient({
   command,
@@ -195,52 +218,45 @@ export function createMcpStdioClient({
   spawnPersistent = defaultSpawnPersistent,
   initTimeoutMs = DEFAULT_INIT_TIMEOUT_MS,
   defaultCallTimeoutMs = DEFAULT_CALL_TIMEOUT_MS,
+  closeGraceMs = DEFAULT_CLOSE_GRACE_MS,
   maxStderrBytes = DEFAULT_MAX_STDERR_BYTES,
+  maxLineBytes = DEFAULT_MAX_LINE_BYTES,
+  maxWriteBufferBytes = DEFAULT_MAX_WRITE_BUFFER_BYTES,
+  protocolVersion = MCP_LATEST_PROTOCOL_VERSION,
+  supportedProtocolVersions = MCP_SUPPORTED_PROTOCOL_VERSIONS,
   onExit = null,
 }) {
   const state = {
     stderrRing: createStderrRing(maxStderrBytes),
     pending: new Map(),
     proc: null,
+    writer: null,
     running: false,
     closing: false,
     nextId: 1,
-    lineBuffer: '',
     cachedTools: [],
+    protocolVersion: null,
     closePromise: null,
   };
 
   function close() {
-    if (state.closePromise) return state.closePromise;
-    state.closing = true;
-    state.running = false;
-    rejectAllPending(state.pending, Object.assign(new Error('Retrieval MCP client closed'), { code: 'retrieval-closed' }));
-    const target = state.proc;
-    state.proc = null;
-    state.closePromise = target ? target.terminate().then(() => undefined) : Promise.resolve();
-    return state.closePromise;
+    const closedErr = Object.assign(new Error('Retrieval MCP client closed'), { code: 'retrieval-closed' });
+    return shutdownClientState(state, closedErr, closeGraceMs);
   }
 
   async function start() {
     if (state.running) return state.cachedTools;
     state.closing = false;
-    state.lineBuffer = '';
-    state.proc = spawnPersistent({ command, args, cwd, env });
+    state.closePromise = null;
+    state.protocolVersion = null;
+    const proc = spawnPersistent({ command, args, cwd, env });
+    state.proc = proc;
+    state.writer = createLineWriter(proc, maxWriteBufferBytes);
     state.running = true;
-
-    state.proc.stdout?.on('data', (chunk) => onStdoutChunk(state, chunk));
-    state.proc.stderr?.on('data', (chunk) => state.stderrRing.push(chunk));
-    state.proc.exited.then((outcome) => {
-      const wasClosing = state.closing;
-      state.running = false;
-      rejectAllPending(state.pending, buildExitError(outcome, state.stderrRing.read()));
-      if (!wasClosing && typeof onExit === 'function') {
-        onExit({ ...outcome, stderr: state.stderrRing.read() });
-      }
-    });
+    wireProcessStreams({ state, proc, maxLineBytes, closeGraceMs, onExit });
 
     try {
-      return await runHandshake(state, initTimeoutMs);
+      return await runHandshake(state, { initTimeoutMs, protocolVersion, supportedProtocolVersions });
     } catch (error) {
       const stderr = state.stderrRing.read();
       await close();
@@ -258,7 +274,7 @@ export function createMcpStdioClient({
       { name, arguments: toolArgs ?? {} },
       { signal, timeoutMs }
     );
-    return normalizeToolResult(result);
+    return normalizeMcpToolResult(result);
   }
 
   return Object.freeze({
@@ -267,6 +283,7 @@ export function createMcpStdioClient({
     callTool,
     listTools: () => [...state.cachedTools],
     isRunning: () => state.running,
+    getProtocolVersion: () => state.protocolVersion,
     getStderr: () => state.stderrRing.read(),
     get pid() { return state.proc?.pid ?? null; },
   });

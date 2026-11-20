@@ -22,7 +22,8 @@ use tauri_plugin_updater::UpdaterExt;
 use url::Url;
 
 use crate::sidecar::{
-    resolve_runtime_paths, sidecar_startup_timeout, BootstrapInfo, SidecarHandle, SidecarManager,
+    resolve_runtime_paths, sidecar_startup_timeout, BootstrapInfo, RestartPolicy, SidecarEvent,
+    SidecarHealth, SidecarManager,
 };
 
 #[derive(Debug, Clone, Serialize)]
@@ -49,6 +50,21 @@ struct DesktopUpdateProgress {
 struct DesktopInstallReceipt {
     status: &'static str,
     version: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SidecarRestartedPayload {
+    base_url: String,
+    token: String,
+    restart_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SidecarCrashPayload {
+    restart_count: usize,
+    error: String,
 }
 
 fn progress_percent(downloaded: u64, total: Option<u64>) -> Option<u8> {
@@ -88,6 +104,11 @@ fn file_path_to_string(path: FilePath) -> Result<String, String> {
 #[tauri::command]
 fn get_bootstrap_info(state: State<'_, SidecarManager>) -> Result<BootstrapInfo, String> {
     state.bootstrap_info()
+}
+
+#[tauri::command]
+fn get_sidecar_health(state: State<'_, SidecarManager>) -> Result<SidecarHealth, String> {
+    state.health()
 }
 
 #[tauri::command]
@@ -154,18 +175,32 @@ impl Drop for UpdateInstallGuard {
     }
 }
 
+fn ensure_sidecar_ready_for_update(app_handle: &AppHandle) -> Result<(), String> {
+    if let Some(manager) = app_handle.try_state::<SidecarManager>() {
+        manager.ensure_ready_for_update()?;
+    }
+    Ok(())
+}
+
+fn prepare_sidecar_for_update_exit(app_handle: &AppHandle) {
+    if let Some(manager) = app_handle.try_state::<SidecarManager>() {
+        manager.prepare_for_update_exit();
+    }
+}
+
 #[tauri::command]
 async fn desktop_install_update(
     app: AppHandle,
     window: WebviewWindow,
 ) -> Result<DesktopInstallReceipt, String> {
     let _install_guard = UpdateInstallGuard::try_acquire(&UPDATE_INSTALL_IN_PROGRESS)?;
+    ensure_sidecar_ready_for_update(&app)?;
     let current_version = app.package_info().version.to_string();
     let exit_app = app.clone();
     let updater = app
         .updater_builder()
         .on_before_exit(move || {
-            shutdown_managed_sidecar(&exit_app);
+            prepare_sidecar_for_update_exit(&exit_app);
         })
         .build()
         .map_err(|err| format!("desktop updater unavailable: {err}"))?;
@@ -226,18 +261,58 @@ async fn desktop_install_update(
         .await
         .map_err(|err| format!("failed to download desktop update: {err}"))?;
 
-    // On Windows, `install` invokes `on_before_exit` (stopping the sidecar), launches NSIS with `/P /UPDATE /R`, and exits.
+    // Guard against racing an installer launch with an active window-close / shutdown sequence.
+    ensure_sidecar_ready_for_update(&app)?;
+
+    // On Windows, `install` invokes `on_before_exit` (stopping the sidecar & supervisor), launches NSIS with `/P /UPDATE /R`, and exits.
     update
         .install(&bytes)
         .map_err(|err| format!("failed to install desktop update: {err}"))?;
 
-    shutdown_managed_sidecar(&app);
+    prepare_sidecar_for_update_exit(&app);
     app.restart();
 }
 
 fn shutdown_managed_sidecar(app_handle: &AppHandle) {
     if let Some(manager) = app_handle.try_state::<SidecarManager>() {
         manager.shutdown();
+    }
+}
+
+fn emit_sidecar_event(app_handle: &AppHandle, event: SidecarEvent) {
+    match event {
+        SidecarEvent::Restarted {
+            bootstrap,
+            restart_count,
+        } => {
+            eprintln!(
+                "[studyhub-sidecar] recovered after unexpected exit (restart #{restart_count}, url={})",
+                bootstrap.base_url
+            );
+            let _ = app_handle.emit(
+                "desktop-sidecar-restarted",
+                SidecarRestartedPayload {
+                    base_url: bootstrap.base_url,
+                    token: bootstrap.token,
+                    restart_count,
+                },
+            );
+        }
+        SidecarEvent::RestartExhausted {
+            restart_count,
+            last_error,
+        } => {
+            eprintln!(
+                "[studyhub-sidecar] crash-loop restart budget exhausted after {restart_count} attempts: {last_error}"
+            );
+            let _ = app_handle.emit(
+                "desktop-sidecar-crashed",
+                SidecarCrashPayload {
+                    restart_count,
+                    error: last_error,
+                },
+            );
+        }
     }
 }
 
@@ -255,9 +330,15 @@ pub fn run() -> Result<(), String> {
             let paths =
                 resolve_runtime_paths(resource_dir.as_deref(), exe_dir.as_deref(), dev_mode)
                     .map_err(std::io::Error::other)?;
-            let handle = SidecarHandle::spawn(&paths, sidecar_startup_timeout())
-                .map_err(std::io::Error::other)?;
-            app.manage(SidecarManager::new(handle));
+            let event_app = app.handle().clone();
+            let manager = SidecarManager::spawn_supervised(
+                paths,
+                sidecar_startup_timeout(),
+                RestartPolicy::default(),
+                move |event| emit_sidecar_event(&event_app, event),
+            )
+            .map_err(std::io::Error::other)?;
+            app.manage(manager);
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -272,6 +353,7 @@ pub fn run() -> Result<(), String> {
         })
         .invoke_handler(tauri::generate_handler![
             get_bootstrap_info,
+            get_sidecar_health,
             pick_directory,
             open_external,
             desktop_check_update,

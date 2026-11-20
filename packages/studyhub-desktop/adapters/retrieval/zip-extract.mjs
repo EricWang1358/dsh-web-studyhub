@@ -1,5 +1,5 @@
 import { createReadStream, createWriteStream } from 'node:fs';
-import { chmod, mkdir, open, stat } from 'node:fs/promises';
+import { chmod, mkdir, open, rm, stat } from 'node:fs/promises';
 import { dirname, isAbsolute, relative, resolve } from 'node:path';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -243,6 +243,9 @@ async function streamEntryToFile({ source, entry, targetPath, maxRemainingBytes 
     await empty.close();
     return 0;
   }
+  if (compressedSize === 0) {
+    throw zipError('extension-extract', `ZIP size mismatch while extracting ${name}`);
+  }
   if (method !== 0 && method !== 8) {
     throw zipError('extension-extract', `Unsupported ZIP compression method ${method} for ${name}`);
   }
@@ -256,11 +259,15 @@ async function streamEntryToFile({ source, entry, targetPath, maxRemainingBytes 
   const input = source.createSliceStream(dataStart, compressedSize);
   const output = createWriteStream(targetPath);
   const streams = method === 8 ? [input, createInflateRaw(), verify, output] : [input, verify, output];
-  await pipeline(...streams);
-
-  if (written !== uncompressedSize) throw zipError('extension-extract', `ZIP size mismatch while extracting ${name}`);
-  if ((actualCrc >>> 0) !== (expectedCrc >>> 0)) {
-    throw zipError('extension-extract', `ZIP CRC32 mismatch while extracting ${name}`);
+  try {
+    await pipeline(...streams);
+    if (written !== uncompressedSize) throw zipError('extension-extract', `ZIP size mismatch while extracting ${name}`);
+    if ((actualCrc >>> 0) !== (expectedCrc >>> 0)) {
+      throw zipError('extension-extract', `ZIP CRC32 mismatch while extracting ${name}`);
+    }
+  } catch (error) {
+    await rm(targetPath, { force: true }).catch(() => {});
+    throw error;
   }
   return written;
 }
