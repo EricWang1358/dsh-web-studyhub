@@ -65,13 +65,13 @@
   "旧备份可以手动删除：{0}（程序不会自动删除）；自动恢复点滚动保留近 7 天加 4 周": "Old backups can be deleted by hand: {0} (nothing is deleted automatically); automatic restore points keep the last 7 days plus 4 weeks",
   "自动恢复点": "Automatic restore points",
   "共额外占用 {0}": "{0} extra in total",
-  "跨天修改学习库时自动留存前一日清单快照，滚动保留最近 {0} 天和 {1} 个周点；你手动导出的备份文件永远不会自动删除。": "Before the first change on a new day, StudyHub saves the previous day's manifest snapshot and keeps the last {0} days plus {1} weekly points; backups you export yourself are never deleted automatically.",
+  "跨天修改学习库时自动留存前一天的题库与进度快照，滚动保留最近 {0} 天和 {1} 个周点；你手动导出的备份文件永远不会自动删除。": "Before the first change on a new day, StudyHub saves the previous day’s question-bank and progress snapshot and keeps the last {0} days plus {1} weekly points; backups you export yourself are never deleted automatically.",
   "恢复点涵盖课程、资料文字、题组、作答记录与排程；原附件、复习全书历史与骨架图示保持不变，跨电脑迁移请用上方「导出学习库」。": "Restore points cover courses, extracted material text, decks, answer records and schedules; original attachments, review-book history and outline diagrams stay as they are. To move to another computer, use Export library above.",
   "跨天继续使用学习库后，这里会自动列出可回退的日期恢复点。": "As you use the library across days, daily and weekly restore points appear here automatically.",
   "前天 · {0}": "2 days ago · {0}",
   "周恢复点": "Weekly",
   "额外 {0}": "+{0} extra",
-  "修订 {0}": "Rev {0}",
+  "保存次数 {0}": "Saves {0}",
   "恢复到这一天": "Restore to this day",
   "恢复到 {0}？": "Restore to {0}?",
   "确认恢复到这一天": "Confirm restore",
@@ -79,5 +79,9 @@
   "无效的恢复点日期": "Invalid restore point date",
   "这个恢复点已经不在了，请刷新后重新选择": "This restore point is no longer available; refresh and choose another",
   "恢复点文件已损坏，当前学习库保持不变": "The restore point file is damaged; the current library was not changed",
-  "恢复点格式无效，当前学习库保持不变": "The restore point format is invalid; the current library was not changed"
+  "恢复点格式无效，当前学习库保持不变": "The restore point format is invalid; the current library was not changed",
+  "API 密钥与外观设置不在备份内；如需把外观带到另一台电脑，请在「设置 › 界面」导出外观配置。": "API keys and appearance settings are not included in backups; to move your appearance to another computer, export it in Settings › Interface.",
+  "文件名形如 {0}，保存到系统下载文件夹（或你选择的保存位置）。": "The file is named like {0} and saved to your system downloads folder (or the folder you choose).",
+  "默认 90%（70%–97%），超过 93% 每日题量会明显增加": "Default 90% (70%–97%); above 93% daily review load rises sharply",
+  "默认不设上限，仅影响之后作答；备考请在「课程」填考试日期，无需调小这里": "No limit by default, applies to future answers only; for exams set an exam date in Courses instead of lowering this"
 }

@@ -146,5 +146,10 @@
   "回到这里，点「按校准方案立即出题」": "Come back here and click \"Generate from calibrated spec now\"",
   "按校准方案出题需要先配置模型；离线校准和证据核对照常可用。": "Generating from a calibrated spec requires an AI model; offline calibration and evidence checks remain available.",
   "可以先完成考察校准、配额调整和能力证据核对；批量生成前需要先配置模型。": "You can calibrate tasks, adjust quotas, and inspect capability evidence first; configure an AI model before batch generation.",
-  "去教练先校准考法": "Calibrate in Exam coach first"
+  "去教练先校准考法": "Calibrate in Exam coach first",
+  "学习画像与陪学": "Study profile & coach",
+  "画像与学习偏好会用于陪学、讲解、划词追问、错题变式以及发给主会话的消息，调整讲解措辞与侧重；不进出题提示词，也不改间隔复习排期。": "Your profile and study preferences guide the coach, explanations, passage follow-ups, mistake variants, and messages sent to the main chat to shape wording and focus. They never enter question-generation prompts or change spaced-repetition scheduling.",
+  "画像与学习偏好会用于陪学、讲解、划词追问与错题变式，调整讲解措辞与侧重；不进出题提示词，也不改间隔复习排期。": "Your profile and study preferences guide the coach, explanations, passage follow-ups, and mistake variants to shape wording and focus. They never enter question-generation prompts or change spaced-repetition scheduling.",
+  "答错或出现薄弱点时，在后台用最低推理档位预备 1–2 道变式题（消耗少量模型用量），出现在复盘与错题本里；关掉后仅手动触发。": "When you miss a question or show a weak spot, prepares 1–2 variant questions in the background at the lowest reasoning level (uses a small amount of model quota) and shows them in debriefs and Mistakes; turn off to trigger only manually.",
+  "自由写下你喜欢的讲解或练习方式，用来调整讲解措辞与侧重。": "Write how you like concepts explained or practised in your own words to shape explanation style and focus."
 }

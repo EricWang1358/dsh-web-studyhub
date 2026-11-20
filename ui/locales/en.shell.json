@@ -1,5 +1,10 @@
 {
-  "画像与学习偏好会随数据围栏发给陪学、讲解与划词追问以及发给主会话的消息，调整讲解措辞与侧重；不进出题提示词，也不改间隔复习排期。": "The profile and study preferences travel inside data fences to the coach, explanation and passage follow-ups, and messages sent to the main chat to shape explanations and focus. They never enter question-generation prompts or change spaced-repetition scheduling.",
+  "资料、题库、复习节奏与模型，由你掌控。": "Your materials, decks, review pace and model — all under your control.",
+  "没能写入剪贴板，可以改用「下载为文件」。": "Could not write to the clipboard. Try Save as file instead.",
+  "恢复外观与音效（含折叠内选项），不改界面语言。": "Resets appearance and sound effects (including folded options) without changing the interface language.",
+  "更偏紧凑工具风格：按钮更矮、顶栏和说明字稍小、浅色下边框更清晰；可与上方密度和圆角叠加。「标准」保持原版设计不变。": "A tighter tool-style look: shorter buttons, slightly smaller header and hint text, and crisper light borders; combines with density and corners above. Standard keeps the original design.",
+  "可让标题跟随上方所选的界面字体，或继续保持系统默认字体。": "Let headings follow the interface font chosen above, or keep the system default font.",
+  "修改上方「界面字体」后生效；当前使用系统默认字体时切换不会有视觉变化。": "Takes effect after changing Interface font above; switching has no visible effect while System default is selected.",
   "提示语气与例子会贴近这个目标。": "The coach’s tone and examples follow this goal.",
   "画像": "Profile",
   "上次更新 {0}": "Updated {0}",

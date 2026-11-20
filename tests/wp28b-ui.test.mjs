@@ -78,7 +78,7 @@ test('running: the index builder leads, naming the course, the first-run model d
   assert.match(html, /操作系统/);
   assert.match(html, /48 页/);
   assert.match(html, /首次需要下载约 90 MB 的检索模型/);
-  assert.match(html, /主要针对英文/);
+  assert.match(html, /偏英文/);
   assert.match(html, /sh-btn--primary/);
 });
 
@@ -223,7 +223,7 @@ test('the catalogue says what each route needs', () => {
 
 test('Settings: the extension is the first thing in the section; the choice of other tools and the download address are under 高级', () => {
   const html = render(h(ExtensionsSettings, { initialStatus: fresh, call: noop, courses: ['操作系统'] }));
-  assert.match(html, /<legend class="settings-section__title">扩展：文档转换与检索<\/legend>/);
+  assert.match(html, /<legend class="settings-section__title">检索扩展<\/legend>/);
   assert.ok(at(html, /安装检索扩展/) > 0);
   assert.ok(at(html, /安装检索扩展/) < at(html, /高级/));
   assert.match(html, /模型下载地址/);

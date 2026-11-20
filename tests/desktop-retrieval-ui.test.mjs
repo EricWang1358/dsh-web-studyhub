@@ -325,6 +325,7 @@ test('ExtensionNotStarted in StudyHub Desktop replaces DSH restart/tray copy wit
   };
   const zh = render(h(m.ExtensionNotStarted, { status: stopped, refresh: noop, repair: async () => {}, restart: async () => stopped }));
   assert.match(zh, /检索扩展装好了，但检索服务没有启动/);
+  assert.match(zh, /先点「重试启动」（不清空索引）/);
   assert.match(zh, /自动重置索引并重启检索服务/);
   assert.equal(zh.match(/>重试启动</g)?.length, 1);
   assert.equal(zh.match(/>修复</g)?.length, 1);

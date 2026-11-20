@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { errorMessage, ui, useUiLanguage } from '../i18n.js';
-import { InlineMessage } from '../components/index.js';
+import { Hint, InlineMessage } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
 import { useLiveEffect } from '../use-async.js';
 import { AppContext } from '../app/app-context.js';
@@ -87,9 +87,9 @@ export function DesktopSetupBody({ config, actions, working, error, onDismissErr
       {readyCli ? <>{cliCard}{openAiCard}</> : <>{openAiCard}{cliCard}</>}
       {error && <InlineMessage tone="error" onDismiss={onDismissError}>{error}</InlineMessage>}
       {!compact && config.configPath && (
-        <InlineMessage tone="info">
+        <Hint className="desktop-model__note" data-desktop-config-path="">
           {ui('配置文件位置：')}{' '}<code translate="no">{config.configPath}</code>
-        </InlineMessage>
+        </Hint>
       )}
     </div>
   );

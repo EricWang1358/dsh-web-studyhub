@@ -93,7 +93,7 @@ test('the card can open the settings section', () => {
 
 test('Settings lists what DSH exposes and recommends the rest, without claiming anything is installed', () => {
   const empty = render(h(ExtensionsSettings, { initialStatus: none, call() {} }));
-  assert.match(empty, /<legend class="settings-section__title">扩展：文档转换与检索<\/legend>/);
+  assert.match(empty, /<legend class="settings-section__title">检索扩展<\/legend>/);
   assert.match(empty, /没有检测到检索工具/);
   assert.match(empty, /MinerU/);
   assert.doesNotMatch(empty, /<select/);

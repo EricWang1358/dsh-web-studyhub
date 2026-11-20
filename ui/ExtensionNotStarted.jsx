@@ -68,7 +68,7 @@ export default function ExtensionNotStarted({ status, refresh, repair: runRepair
           : <>
             {reset && <p className="extension-panel__reason">{resetLine(reset)}</p>}
             <p className="extension-panel__reason">{isDesktopApp
-              ? ui('可以点「修复」自动重置索引并重启检索服务；如果仍无法启动，请复制诊断信息排查运行环境。')
+              ? ui('先点「重试启动」（不清空索引）；仍无法启动再点「修复」自动重置索引并重启检索服务，或复制诊断信息排查运行环境。')
               : awaitingRestart
                 ? (desktop
                   ? ui('已修复。请完全退出 DSH 桌面版（包括托盘图标）后重新打开，然后重新建立索引。')

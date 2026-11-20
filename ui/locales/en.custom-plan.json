@@ -60,5 +60,9 @@
   "已开始补齐，进度在「任务」里。": "Started; follow it in Jobs.",
   "有 {0} 章在资料里找不到了，需要重新选": "{0} chapters are no longer in the material and must be picked again",
   "有 {0} 章在资料里找不到了，需要重新选#one": "{0} chapter is no longer in the material and must be picked again",
-  "让主会话重新选这几章": "Have the main chat pick those chapters again"
+  "让主会话重新选这几章": "Have the main chat pick those chapters again",
+  "复制重新选定章节的提示词": "Copy prompt to pick those chapters again",
+  "以下各项切换后立即生效，不用点底部保存。": "Changes here apply immediately without pressing Save below.",
+  "已锁定的部分（{0}）被其他已选部分依赖，先关闭依赖它的部分才能取消。": "Locked parts ({0}) are required by other selected parts; turn off what uses them first.",
+  "开启上方「出题」后才能开启变式题；只有答错的题才会写，现在不占调用。": "Turn on Questions above to enable variants; variants are only written for wrong answers, so they take no calls now."
 }

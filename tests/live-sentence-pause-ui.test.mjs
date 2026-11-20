@@ -32,13 +32,15 @@ test('the field sits with the live engine choice: label, three segments (the cur
   assert.match(html, /aria-pressed="true"[^>]*>短 · 讲得快</, 'the saved value is the pressed one');
   assert.equal((html.match(/aria-pressed="true"/g) || []).length, 1);
   assert.match(text, /讲课很快、几乎不停顿时选『短』：停顿更短就断句，润色和出题更早能用。/);
+  const visible = textOf(html.replace(/<span[^>]*role="tooltip"[\s\S]*?<\/span>/g, ''));
+  for (const part of [/切成两句/, /开始实录/, /接着录/]) assert.match(visible, part, 'side-effect and next-start timing stay visible in the hint');
   // After the engine cards, before the local engine's own card.
   assert.ok(html.indexOf('live-provider') < html.indexOf('settings-live-pause'));
-  // The words behind it are a Tooltip (role=tooltip, tied to the control with aria-describedby), never a title attribute on text.
+  // The engine thresholds live in a Tooltip (role=tooltip, tied to the control with aria-describedby), never a title attribute on text.
   const tip = html.match(/role="tooltip"[^>]*>([\s\S]*?)<\/span>/);
   assert.ok(tip, 'a tooltip is in the markup');
   const tipText = textOf(tip[1]);
-  for (const part of [/Gemini/, /0\.7 \/ 1\.5 \/ 2\.5 秒/, /本地/, /0\.25 \/ 0\.5 \/ 0\.8 秒/, /切成两句/, /开始实录/, /接着录/]) assert.match(tipText, part);
+  for (const part of [/Gemini/, /0\.7 \/ 1\.5 \/ 2\.5 秒/, /本地/, /0\.25 \/ 0\.5 \/ 0\.8 秒/]) assert.match(tipText, part);
   assert.match(html, /aria-describedby="[^"]*"/);
   assert.doesNotMatch(html.replace(/title="[^"]*"/g, m => (/断句|停顿/.test(m) ? 'BAD' : '')), /BAD/, 'no title= on the field');
 });

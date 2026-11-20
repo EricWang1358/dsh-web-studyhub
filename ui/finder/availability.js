@@ -22,5 +22,6 @@ export function finderAvailability(entry, data, { canChat = true } = {}) {
 export const withAvailability = (entries, data, options) => entries.map((entry) => ({
   ...entry,
   ...(options?.canChat === false && entry.id === 'setting-guidance' ? { what: '各处提示和引导什么时候出现' } : {}),
+  ...(options?.canChat === false && entry.id === 'setting-model' ? { what: '选学习库放在哪个文件夹，也配置本机 CLI 或 API Key 模型来出题' } : {}),
   unavailable: finderAvailability(entry, data, options),
 }));

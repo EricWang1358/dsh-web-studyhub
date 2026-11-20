@@ -144,7 +144,7 @@
   "需要手动转换时可用这个脚本。完成后把分页 Markdown 拖进「添加资料」。": "Use this optional script for manual conversion, then drop the paginated Markdown into Add materials.",
   "在 StudyHub 所在电脑运行，结果自动导入。": "Runs on the computer hosting StudyHub and imports the result automatically.",
   "分段与页码详情": "Chunking and page details",
-  "此安装未启用 PDF 解析组件。启用 StudyHub 的音频组件后可在应用内解析；也可用下面的脚本手动转换。": "PDF conversion is disabled in this installation. Enable the StudyHub audio component to convert in the app, or use the script below for manual conversion.",
+  "当前环境未启用应用内 PDF 解析服务；也可以先用下面的脚本手动转换，再拖进「添加资料」。": "In-app PDF conversion is not enabled in this environment; you can convert manually with the script below and drag the result into Add materials.",
   "「{0}」正在后台用 {2} 解析（{1} 页），进度在资料页": "“{0}” is being parsed with {2} in the background ({1} pages); progress is on Materials",
   "「{0}」正在后台用 {2} 解析（{1} 页），进度在资料页#one:1": "“{0}” is being parsed with {2} in the background ({1} page); progress is on Materials",
   "{0} 份 PDF 正在后台用 {1} 解析，进度在资料页": "{0} PDFs are being parsed with {1} in the background; progress is on Materials",

@@ -234,7 +234,7 @@ export function kindSplitLine(list, count, kindCounts) {
 }
 
 /** One line on what the chosen question type (or combination of types) is; `count` is the total the combination is shared out of, when known. */
-export function kindNote(list, count, kindCounts) {
+export function kindNote(list, count, kindCounts, { canChat = true } = {}) {
   if (list.length > 1) return `${kindsLabel(list)} · ${kindSplitLine(list, count, kindCounts)} ${ui('合并为一个待审题组，每种题型各按自己的规则出题和审阅。')}`;
   return ({
     quiz: ui('单选题：一个正确答案，干扰项逐项解释。'),
@@ -243,7 +243,9 @@ export function kindNote(list, count, kindCounts) {
     flashcard: ui('闪卡：先想一想，再翻面看答案。'),
     open: ui('开放问答：用自己的话作答，对照评分要点。'),
     cloze: ui('填空卡：句子里挖掉关键词，补全它。'),
-    task: ui('动手任务：给出明确任务、验收标准和参考实现，完成后在主会话做静态验收（不跑测试）。'),
+    task: canChat
+      ? ui('动手任务：给出明确任务、验收标准和参考实现，完成后在主会话做静态验收（不跑测试）。')
+      : ui('动手任务：给出明确任务、验收标准和参考实现，完成后可对照验收标准自检，或复制提示词到外部 AI 做静态验收（不跑测试）。'),
   })[list[0]] || '';
 }
 

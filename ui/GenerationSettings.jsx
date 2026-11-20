@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from './i18n.js';
-import { Button, Checkbox, Field, Hint, NumberInput, Select, SettingsSection, TextArea, useToast } from './components/index.js';
+import { Button, Checkbox, Disclosure, Field, Hint, NumberInput, Select, SettingsSection, TextArea, useToast } from './components/index.js';
 import KindPicker from './KindPicker.jsx';
-import { COVERAGE_LEVELS, kindNote, kindsPatch, levelNote } from './generate-form.js';
+import { COVERAGE_LEVELS, difficultyNote, kindNote, kindsPatch, levelNote, notationNote } from './generate-form.js';
 import { GENERATION_SETTINGS_DEFAULTS, GENERATION_SETTINGS_LIMITS, GENERATION_LANGUAGES,
   GENERATION_DIFFICULTIES, GENERATION_NOTATIONS, clampConcurrency, effectiveConcurrencyLimit, normalizeGenerationSettings, validateGenerationPatch } from '../lib/generation-settings.js';
 import { lightModelOf, modelKey } from '../lib/job-model.js';
@@ -81,6 +81,10 @@ export function GenerationSettingsForm({ root, saved, efforts = null, session, m
   };
   const errors = generationFormErrors(editor.values, capOptions), invalid = Object.keys(errors).length > 0;
   const dirty = !same(numbers(editor.values), editor.baseline), disabled = busy || working;
+  const advancedKeys = ['concurrency', 'batchSize', 'jobTimeoutMinutes', 'fillRounds', 'lightModel', ...EFFORT_STAGES.map(effortKey)];
+  const advancedHasError = advancedKeys.some(key => Boolean(errors[key]));
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  useEffect(() => { if (advancedHasError) setAdvancedOpen(true); }, [advancedHasError]);
   useEffect(() => {
     if (!dirty || typeof document === 'undefined') return;
     const active = document.activeElement, bar = saveRef.current;
@@ -116,40 +120,55 @@ export function GenerationSettingsForm({ root, saved, efforts = null, session, m
     const limit = key === 'concurrency' ? effectiveConcurrencyLimit(capOptions) : GENERATION_SETTINGS_LIMITS[key];
     return field(key, <NumberInput {...propsFor(key)} required inputMode="numeric" step="1" min={limit.min} max={limit.max} />, note);
   };
-  const choiceField = (key, choices, label) => field(key, <Select {...propsFor(key)} onChange={value => edit(key, value)} options={choices.map(value => ({ value, label: label(value) }))} />);
+  const choiceField = (key, choices, label, note) => field(key, <Select {...propsFor(key)} onChange={value => edit(key, value)} options={choices.map(value => ({ value, label: label(value) }))} />, note);
   const availableGroups = modelGroups ?? host?.modelGroups;
+  const hasModelGroups = Array.isArray(availableGroups) && availableGroups.some(group => group?.id && Array.isArray(group.models) && group.models.length > 0);
+  const showLightModel = hasModelGroups || Boolean(lightModelOf(editor.values.lightModel));
   const canChat = host?.capabilities?.chat !== false;
+  const showStageEfforts = canChat || (Array.isArray(efforts) && efforts.length > 0);
+  const concurrencyLimit = effectiveConcurrencyLimit(capOptions);
+  const concurrencyDefault = clampConcurrency(undefined, capOptions);
+  const concurrencyCapped = concurrencyLimit.max < GENERATION_SETTINGS_LIMITS.concurrency.max;
+  const withRange = (min, max, fallback, note) => uiFormat('范围 {0}–{1}（默认 {2}）。{3}', [min, max, fallback, note]);
+  const concurrencyHint = concurrencyCapped
+    ? uiFormat('范围 {0}–{1}（默认 {2}）。当前本机 CLI 接入将并发上限限制为 {1}，避免并发过高导致限流或排队超时。', [concurrencyLimit.min, concurrencyLimit.max, concurrencyDefault])
+    : withRange(concurrencyLimit.min, concurrencyLimit.max, concurrencyDefault, ui('同时处理更多批次通常更快；服务容易限流时可以调低。'));
   return <form ref={formRef} className="settings-form" onSubmit={save}>
     <SettingsSection className="generation-settings" tour="settings-generation" disabled={disabled} title={ui('出题偏好')}
       lead={ui('保存在当前学习库，作为新出题任务的默认值。每次出题时仍可单独调整；已开始的任务不受影响。')}>
       {field('kinds', <KindPicker name="kinds" value={editor.values.kinds} disabled={disabled} onChange={list => edit('kinds', list, kindsPatch(list))} />,
-        kindNote(editor.values.kinds), true)}
+        kindNote(editor.values.kinds, undefined, undefined, { canChat }), true)}
       {/* The one default the 创建题组 page plans by (it also decides whether the rounds go on by themselves); selectionCount is for reader passage supplements, and count below is for main-chat requests without a level. */}
       {field('coverageLevel', <Select {...propsFor('coverageLevel')} onChange={value => edit('coverageLevel', value)} options={COVERAGE_LEVELS.map(({ value, label }) => ({ value, label }))} />,
         levelNote(editor.values.coverageLevel))}
       {numberField('selectionCount', ui('在资料阅读器里选中一段文字「补充到现有题组」时的默认题数；每次补题仍可在「更多设置」里临时调整。'))}
       {choiceField('language', GENERATION_LANGUAGES, value => ui(languages[value]))}
-      {choiceField('difficulty', GENERATION_DIFFICULTIES, value => ui(difficulties[value]))}
-      {choiceField('notation', GENERATION_NOTATIONS, value => ui(notations[value]))}
+      {choiceField('difficulty', GENERATION_DIFFICULTIES, value => ui(difficulties[value]), difficultyNote(editor.values.difficulty))}
+      {choiceField('notation', GENERATION_NOTATIONS, value => ui(notations[value]), notationNote())}
       {field('focus', <TextArea {...propsFor('focus')} rows={3} maxLength={GENERATION_SETTINGS_LIMITS.focus.max}
         placeholder={ui('例如：重点解释成立条件，再比较相似概念。')} />, ui('可留空；这次出题的侧重点可以覆盖这里的默认值。'))}
       {canChat && numberField('count', ui('只在让助手在主会话里出题、又没说题数时用；创建题组页按「覆盖强度」出题，不用它。与每批题数分别设置。'))}
-      <h3 className="settings-subtitle">{ui('生成安排')}</h3>
-      {numberField('concurrency', ui('同时处理更多批次通常更快；服务容易限流时可以调低。'))}
-      {numberField('batchSize', ui('小批更早保存已核验题目，但会增加调用次数。'))}
-      {numberField('jobTimeoutMinutes', ui('从这一轮开始运行计时，不含排队。出题计划的每一轮各自计时，整个计划没有总时限；一轮用时较长（慢模型）可以调到 180 分钟。达到时限会保留已核验题目。'))}
-      {numberField('fillRounds', ui('题数不够时自动再补几轮，每轮只补缺的题，并避开已被拒绝的考点；填 0 表示不自动补。'))}
-      <h3 className="settings-subtitle">{ui('各阶段的推理程度')}</h3>
-      <Hint>{ui('规划和审阅决定题目对不对，值得多想；按答案设计写题、写替换题和改措辞可以少想，更快也更省。按模型实际提供的档位取最接近的一档，没有对应档位时会在生成详情里注明。')}</Hint>
-      {EFFORT_STAGES.map(stage => <EffortSelect key={stage} follow session={session} name={effortKey(stage)} label={ui(labels[effortKey(stage)])} value={editor.values[effortKey(stage)]}
-        efforts={efforts} disabled={disabled} error={errors[effortKey(stage)]} onChange={value => edit(effortKey(stage), value)} />)}
-      {field('lightModel', <Select {...propsFor('lightModel')} onChange={value => edit('lightModel', value)}
-        options={lightModelOptions(editor.values.lightModel, availableGroups)} />,
-        ui('可选。只用于不共享原文前缀缓存的机械步骤（评估小节权重、单题措辞修补、未过审题改写）；规划、答案设计、出题和审阅仍用出题模型以保留缓存与质量。'))}
-      <h3 className="settings-subtitle">{ui('审阅建议')}</h3>
-      <Checkbox name="applySuggestions" label={ui(labels.applySuggestions)} checked={editor.values.applySuggestions === true} disabled={disabled}
-        hint={ui('审阅已通过、但附了优化建议的题，多花一次改写和一次复核来采纳建议；复核不过就保持原题。会多用 token 和时间，默认关闭；任务运行中也可以在「即时控制」里随时开关。')}
-        onChange={value => edit('applySuggestions', value === true)} />
+      <Disclosure className="settings-disclosure" summaryClassName="settings-disclosure__summary" bodyClassName="settings-disclosure__body"
+        summary={ui('高级生成控制')} meta={ui('并发、批次、推理程度与审阅')} open={advancedOpen} onToggle={setAdvancedOpen}>
+        <h3 className="settings-subtitle">{ui('生成安排')}</h3>
+        {numberField('concurrency', concurrencyHint)}
+        {numberField('batchSize', withRange(GENERATION_SETTINGS_LIMITS.batchSize.min, GENERATION_SETTINGS_LIMITS.batchSize.max, GENERATION_SETTINGS_DEFAULTS.batchSize, ui('小批更早保存已核验题目，但会增加调用次数。')))}
+        {numberField('jobTimeoutMinutes', withRange(GENERATION_SETTINGS_LIMITS.jobTimeoutMinutes.min, GENERATION_SETTINGS_LIMITS.jobTimeoutMinutes.max, GENERATION_SETTINGS_DEFAULTS.jobTimeoutMinutes, ui('从这一轮开始运行计时，不含排队。出题计划的每一轮各自计时，整个计划没有总时限；一轮用时较长（慢模型）可以调到 180 分钟。达到时限会保留已核验题目。')))}
+        {numberField('fillRounds', withRange(GENERATION_SETTINGS_LIMITS.fillRounds.min, GENERATION_SETTINGS_LIMITS.fillRounds.max, GENERATION_SETTINGS_DEFAULTS.fillRounds, ui('题数不够时自动再补几轮，每轮只补缺的题，并避开已被拒绝的考点；填 0 表示不自动补。')))}
+        <h3 className="settings-subtitle">{ui('各阶段的推理程度')}</h3>
+        {showStageEfforts ? <>
+          <Hint>{ui('规划和审阅决定题目对不对，值得多想；按答案设计写题、写替换题和改措辞可以少想，更快也更省。按模型实际提供的档位取最接近的一档，没有对应档位时会在生成详情里注明。')}</Hint>
+          {EFFORT_STAGES.map(stage => <EffortSelect key={stage} follow={canChat ? true : 'model'} session={session} name={effortKey(stage)} label={ui(labels[effortKey(stage)])} value={editor.values[effortKey(stage)]}
+            efforts={efforts} disabled={disabled} error={errors[effortKey(stage)]} onChange={value => edit(effortKey(stage), value)} />)}
+        </> : <Hint>{ui('当前模型暂不支持按出题阶段单独调整推理强度；如使用本机 CLI 模型，可在「学习库与模型」里统一设置推理强度。')}</Hint>}
+        {showLightModel && field('lightModel', <Select {...propsFor('lightModel')} onChange={value => edit('lightModel', value)}
+          options={lightModelOptions(editor.values.lightModel, availableGroups)} />,
+          ui('可选：给评估小节权重、修补措辞等简单步骤单独换更快更省的模型；规划、出题和审阅仍用主出题模型以保证质量。'))}
+        <h3 className="settings-subtitle">{ui('审阅建议')}</h3>
+        <Checkbox name="applySuggestions" label={ui(labels.applySuggestions)} checked={editor.values.applySuggestions === true} disabled={disabled}
+          hint={ui('审阅已通过、但附了优化建议的题，多花一次改写和一次复核来采纳建议；复核不过就保持原题。会多用 token 和时间，默认关闭；任务运行中也可以在「即时控制」里随时开关。')}
+          onChange={value => edit('applySuggestions', value === true)} />
+      </Disclosure>
       {error && <Hint tone="error" role="alert">{error}</Hint>}
       <div ref={saveRef} className="generation-settings__save" data-dirty={dirty ? 'true' : undefined}>
         <div className="settings-actions">

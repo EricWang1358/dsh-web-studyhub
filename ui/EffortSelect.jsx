@@ -39,13 +39,18 @@ export function reasoningNote(task) {
 export function effortSelectModel({ value, efforts = null, follow = false, session }) {
   const known = Array.isArray(efforts);
   const choices = effortChoices(known ? efforts : []);
-  const options = [...(follow ? [followOption(session)] : []),
+  const followChoice = follow === 'model'
+    ? { value: 'follow', label: ui('跟随模型设置') }
+    : follow ? followOption(session) : null;
+  const options = [...(followChoice ? [followChoice] : []),
     ...choices.map(choice => ({ value: choice.value, label: choice.value === 'default' ? ui('模型默认') : choice.name }))];
   const choice = known && value !== 'follow' ? chooseEffort(efforts, value) : null;
   // The level in force, not the one the model lacks: the select shows what will be used.
   const shown = choice && !choice.exact ? choice.applied : value;
   // Before the levels are known the saved strength stays visible as what it is.
-  if (!options.some(option => option.value === shown)) options.push({ value: shown, label: ui(STRENGTH_LABEL[shown] || shown) });
+  if (!options.some(option => option.value === shown)) {
+    options.push({ value: shown, label: shown === 'follow' ? ui('跟随模型设置') : ui(STRENGTH_LABEL[shown] || shown) });
+  }
   return { options, shown, note: choice ? effortNote(choice) : null };
 }
 

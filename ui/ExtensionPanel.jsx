@@ -1,7 +1,7 @@
 import React, { useContext, useEffect, useId, useRef, useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, ConfirmDialog, Hint, InlineMessage, ProgressBar, Select, Tooltip } from './components/index.js';
+import { Button, ConfirmDialog, Hint, Icon, InlineMessage, ProgressBar, Select, Tooltip } from './components/index.js';
 import { usePolling } from './use-polling.js';
 import { indexProgress, restartDone, runInstall, runUninstall, startIndex } from './retrieval-extension-flow.js';
 import { courseScopeLine, indexAction } from './index-scope.js';
@@ -13,6 +13,7 @@ import IndexNote from './IndexNote.jsx';
 import { useStudy } from './study-context.jsx';
 import { AppContext } from './app/app-context.js';
 import { HandOff } from './hand-off/HandOff.jsx';
+import { hasChatHost } from './hand-off/use-hand-off.js';
 import { DiagnosticBar } from './install/DiagnosticActions.jsx';
 import { SETUP_FAILED_WHAT, extensionDiagnostic } from './install/install-diagnostics.js';
 
@@ -69,11 +70,13 @@ function useExtensionInstall({ onStatus, initialApproval = null, initialDone = n
   return { busy, error, approval, restart, done, boot, install, setApproval };
 }
 
-function ApprovalDialog({ approval, busy, install, close }) {
+function ApprovalDialog({ approval, busy, install, close, isDesktopApp = false }) {
   if (!approval) return null;
   // install() reports its own errors and closes the approval; the dialog only keeps the learner from asking twice.
   return <ConfirmDialog tone="primary" title={ui('允许安装组件的脚本？')} confirmLabel={ui('允许并继续')} busy={busy}
-    description={ui('检索扩展依赖的这些组件，安装时要运行自带的脚本（用来取得适合你电脑的运行文件）。DSH 默认会拦下它们，需要你确认。')}
+    description={isDesktopApp
+      ? ui('检索扩展依赖的这些组件，安装时要运行自带的脚本（用来取得适合你电脑的运行文件）。StudyHub 桌面版默认会先征得你确认。')
+      : ui('检索扩展依赖的这些组件，安装时要运行自带的脚本（用来取得适合你电脑的运行文件）。DSH 默认会拦下它们，需要你确认。')}
     onConfirm={() => install(approval)} onDone={() => {}} onClose={close}>
     <ul className="extension-panel__pending">{approval.map(name => <li key={name}><code>{name}</code>
       <small className="extension-panel__purpose">{ui(COMPONENTS[name] || COMPONENT_UNKNOWN)}</small></li>)}</ul>
@@ -85,11 +88,11 @@ function ApprovalDialog({ approval, busy, install, close }) {
  *  Pending-restart and failed-restart markers come from the host (`extension.pendingRestart`, `extension.restartFailed`), so switching tabs
  *  or closing the window to the tray never loses the restart notice. */
 export function ExtensionUpdateNotice({ status, onStatus, initialDone = null }) {
-  const { call } = useStudy();
+  const { call, host } = useStudy();
   const flow = useExtensionInstall({ onStatus, initialDone });
   const extension = status?.extension;
   const desktop = !!extension?.desktop;
-  const isDesktopApp = !!extension?.desktopHost;
+  const isDesktopApp = !!extension?.desktopHost || host?.capabilities?.edition === 'desktop';
   const reusingDsh = isDesktopApp && extension?.source === 'dsh';
   const canUpdate = extension?.canInstall !== false;
   const { data: shared } = useRetrievalStatus({ call, enabled: false });
@@ -138,7 +141,7 @@ export function ExtensionUpdateNotice({ status, onStatus, initialDone = null }) 
         <InlineMessage boxed title={ui('没能完成')}>{flow.error}</InlineMessage>
         {diagRow(flow.error, () => extensionDiagnostic({ status, stage: 'update', code: 'extension-update-failed', error: flow.error }))}
       </>}
-      <ApprovalDialog approval={flow.approval} busy={flow.busy} install={flow.install} close={() => flow.setApproval(null)} />
+      <ApprovalDialog approval={flow.approval} busy={flow.busy} install={flow.install} close={() => flow.setApproval(null)} isDesktopApp={isDesktopApp} />
     </div>
   );
   return (
@@ -162,7 +165,7 @@ export function ExtensionUpdateNotice({ status, onStatus, initialDone = null }) 
         <InlineMessage boxed title={ui('没能完成')}>{flow.error}</InlineMessage>
         {diagRow(flow.error, () => extensionDiagnostic({ status, stage: 'update', code: 'extension-update-failed', error: flow.error }))}
       </>}
-      <ApprovalDialog approval={flow.approval} busy={flow.busy} install={flow.install} close={() => flow.setApproval(null)} />
+      <ApprovalDialog approval={flow.approval} busy={flow.busy} install={flow.install} close={() => flow.setApproval(null)} isDesktopApp={isDesktopApp} />
     </div>
   );
 }
@@ -178,7 +181,8 @@ const names = courses => (courses || []).map(course => (typeof course === 'strin
 const FINISHED = new Set(['complete', 'failed', 'cancelled']);
 
 function IndexBuilder({ status, courses, defaultCourse, onDone, initialPlan, initialRun, document }) {
-  const { call } = useStudy();
+  const { call, host } = useStudy();
+  const canChat = hasChatHost(host);
   const list = names(courses);
   const [course, setCourse] = useState(defaultCourse && list.includes(defaultCourse) ? defaultCourse : '');
   const [plan, setPlan] = useState(initialPlan), [run, setRun] = useState(initialRun), [starting, setStarting] = useState(false), [problem, setProblem] = useState('');
@@ -224,8 +228,11 @@ function IndexBuilder({ status, courses, defaultCourse, onDone, initialPlan, ini
       </div>
       {/* The line keeps its room before the plan arrives, so the card does not grow under the reader. */}
       {!running && (plan
-        ? <Tooltip layer anchorClassName="extension-panel__tip" content={`${ui('课程范围：这门课下所有资料的页（笔记、录音逐字稿每段算一页），检索目录按课程来建。')}\n${ui('所以下面的按钮补建的是整门课还缺的页，不只是某一份资料。')}`}>
-          <p className="extension-panel__plan" role="status" tabIndex={0}>{courseScopeLine(plan, course)}</p></Tooltip>
+        ? <>
+          <Tooltip layer anchorClassName="extension-panel__tip" content={`${ui('课程范围：这门课下所有资料的页（笔记、录音逐字稿每段算一页），检索目录按课程来建。')}\n${ui('所以下面的按钮补建的是整门课还缺的页，不只是某一份资料。')}`}>
+            <p className="extension-panel__plan" role="status" tabIndex={0}>{courseScopeLine(plan, course)}{' '}<Icon name="info" className="sh-icon--inline" /></p></Tooltip>
+          {plan.pages > 0 && <Hint>{ui('页数按课程累计，含 PDF 页、笔记与录音分段。')}</Hint>}
+        </>
         : typeof call === 'function' && <p className="extension-panel__plan extension-panel__plan--waiting" aria-hidden="true" />)}
       {!running && action.note && <p className="extension-panel__plan extension-panel__plan--note">{action.note}</p>}
       {!running && <IndexNote firstRun={!!plan?.firstRun && !upToDate} modelMb={plan?.modelMb ?? 90} />}
@@ -242,7 +249,9 @@ function IndexBuilder({ status, courses, defaultCourse, onDone, initialPlan, ini
         {diagRow(problem, () => extensionDiagnostic({ status, stage: 'index-start', course, error: problem }))}
       </>}
       {run?.status === 'complete' && <InlineMessage tone="success" boxed>
-        {uiFormat('已为「{0}」建立索引：新增 {1} 页，移除 {2} 页，{3} 页无需更新。出题和 AI 带学现在会用它挑选相关页面。', [run.course || ui('全部资料'), run.added ?? 0, run.removed ?? 0, run.unchanged ?? 0])}
+        {canChat
+          ? uiFormat('已为「{0}」建立索引：新增 {1} 页，移除 {2} 页，{3} 页无需更新。出题和 AI 带学现在会用它挑选相关页面。', [run.course || ui('全部资料'), run.added ?? 0, run.removed ?? 0, run.unchanged ?? 0])
+          : uiFormat('已为「{0}」建立索引：新增 {1} 页，移除 {2} 页，{3} 页无需更新。出题时现在会用它挑选相关页面。', [run.course || ui('全部资料'), run.added ?? 0, run.removed ?? 0, run.unchanged ?? 0])}
         {run.skipped > 0 && ` ${uiFormat('{0} 页无检索文字（跳过）。', [run.skipped])}`}
         {run.failedCount > 0 && ` ${uiFormat('{0} 页没能写入索引，下次建立时会重试。', [run.failedCount])}`}
       </InlineMessage>}
@@ -266,7 +275,7 @@ function IndexBuilder({ status, courses, defaultCourse, onDone, initialPlan, ini
  */
 export default function ExtensionPanel({ status, onStatus, courses = [], defaultCourse = '', document, initialApproval = null, initialPlan, initialRun }) {
   useInjectCss(css, 'study-large-documents');
-  const { call } = useStudy();
+  const { call, host } = useStudy();
   const { busy, error, approval, done, install, setApproval } = useExtensionInstall({ onStatus, initialApproval });
   const [confirmRemove, setConfirmRemove] = useState(false);
   const extension = status?.extension;
@@ -279,7 +288,7 @@ export default function ExtensionPanel({ status, onStatus, courses = [], default
     if (result.phase === 'error') throw new Error(result.message);
     if (result.status) { setRetrievalStatus(result.status); onStatus?.(result.status); }
   }
-  const isDesktopApp = !!extension.desktopHost;
+  const isDesktopApp = !!extension.desktopHost || host?.capabilities?.edition === 'desktop';
   const reusingDsh = isDesktopApp && extension.source === 'dsh';
   const canUninstall = isDesktopApp ? extension.canUninstall === true : extension.canInstall;
   const showStandaloneInstall = isDesktopApp && reusingDsh && extension.canInstallStandalone === true && !extension.outdated;
@@ -324,7 +333,7 @@ export default function ExtensionPanel({ status, onStatus, courses = [], default
       {extension.installed && canUninstall && <div>
         <Button size="sm" variant="quiet" lock={busy} onClick={() => setConfirmRemove(true)}>{ui('卸载检索扩展')}</Button>
       </div>}
-      <ApprovalDialog approval={approval} busy={busy} install={install} close={() => setApproval(null)} />
+      <ApprovalDialog approval={approval} busy={busy} install={install} close={() => setApproval(null)} isDesktopApp={isDesktopApp} />
       {confirmRemove && <ConfirmDialog title={ui('卸载检索扩展？')} confirmLabel={ui('卸载')} onConfirm={remove} onClose={() => setConfirmRemove(false)}
         description={isDesktopApp
           ? ui('检索扩展会从 StudyHub 桌面版移除。已建好的索引和下载的检索模型仍留在本地目录里，重新安装后可以继续用。')
