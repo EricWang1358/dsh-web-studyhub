@@ -99,3 +99,178 @@ test('TeX-wrapped numeric answers and options are unwrapped before checking and 
     assert.equal(checkCalculation(plain, { answer }).status, 'not_checked', answer);
   }
 });
+
+test('expanded SI & physics/chemistry units convert accurately and catch dimensional mismatches', () => {
+  // Volume & area conversions: L, mL, dm^3, cm^3, m^3, ha
+  assert.equal(check('v', 1500, 'mL', { variables: { v: { value: 1.5, unit: 'L' } } }).status, 'agreement');
+  assert.equal(check('v', 1500, 'cm^3', { variables: { v: { value: 1.5, unit: 'L' } } }).status, 'agreement');
+  assert.equal(check('v', 0.0015, 'm^3', { variables: { v: { value: 1.5, unit: 'L' } } }).status, 'agreement');
+  assert.equal(check('a*b', 2, 'ha', { variables: { a: { value: 200, unit: 'm' }, b: { value: 100, unit: 'm' } } }).status, 'agreement');
+  assert.equal(check('v', 1500, 'm^2', { variables: { v: { value: 1.5, unit: 'L' } } }).status, 'mismatch');
+
+  // Force, Energy, Power, Pressure: N, kN, J, kJ, eV, W, kW, Pa, kPa, MPa, bar, atm
+  assert.equal(
+    check('m*a', 2.5, 'kN', { variables: { m: { value: 500, unit: 'kg' }, a: { value: 5, unit: 'm/s^2' } } }).status,
+    'agreement',
+  );
+  assert.equal(
+    check('f*d', 1.2, 'kJ', { variables: { f: { value: 400, unit: 'N' }, d: { value: 3, unit: 'm' } } }).status,
+    'agreement',
+  );
+  assert.equal(
+    check('e/t', 2.5, 'kW', { variables: { e: { value: 5000, unit: 'J' }, t: { value: 2, unit: 's' } } }).status,
+    'agreement',
+  );
+  assert.equal(
+    check('p*t', 3.6, 'MJ', { variables: { p: { value: 1, unit: 'kW' }, t: { value: 1, unit: 'h' } } }).status,
+    'agreement',
+  );
+  assert.equal(
+    check('f/area', 50, 'kPa', { variables: { f: { value: 100, unit: 'kN' }, area: { value: 2, unit: 'm^2' } } }).status,
+    'agreement',
+  );
+  assert.equal(
+    check('p', 100, 'kPa', { variables: { p: { value: 1, unit: 'bar' } } }).status,
+    'agreement',
+  );
+  assert.equal(
+    check('p', 101.325, 'kPa', { variables: { p: { value: 1, unit: 'atm' } } }).status,
+    'agreement',
+  );
+  assert.equal(
+    check('p', 1, 'MPa', { variables: { p: { value: 10, unit: 'bar' } } }).status,
+    'agreement',
+  );
+  // Tiny energy unit eV must convert accurately AND reject mismatched eV values (no SI absolute-tolerance washout).
+  assert.equal(
+    check('e', 1.602176634e-19, 'J', { variables: { e: { value: 1, unit: 'eV' } } }).status,
+    'agreement',
+  );
+  assert.equal(
+    check('e', 2, 'eV', { variables: { e: { value: 1, unit: 'eV' } } }).status,
+    'mismatch',
+    '1 eV must never falsely agree with 2 eV',
+  );
+  assert.equal(
+    check('e', 0, 'eV', { variables: { e: { value: 1, unit: 'eV' } } }).status,
+    'mismatch',
+    '1 eV must never falsely agree with 0 eV',
+  );
+
+  // Electrical: V, mV, A, mA, Ω, kΩ + Ohm's law & electrical power
+  assert.equal(
+    check('v/r', 3, 'mA', { variables: { v: { value: 12, unit: 'V' }, r: { value: 4, unit: 'kΩ' } } }).status,
+    'agreement',
+  );
+  assert.equal(
+    check('i*r', 600, 'mV', { variables: { i: { value: 20, unit: 'mA' }, r: { value: 30, unit: 'Ω' } } }).status,
+    'agreement',
+  );
+  assert.equal(
+    check('v*i', 2.4, 'W', { variables: { v: { value: 12, unit: 'V' }, i: { value: 200, unit: 'mA' } } }).status,
+    'agreement',
+  );
+  assert.equal(
+    check('v^2/r', 0.036, 'W', { variables: { v: { value: 12, unit: 'V' }, r: { value: 4, unit: 'kΩ' } } }).status,
+    'agreement',
+  );
+  assert.equal(
+    check('v/r', 3, 'V', { variables: { v: { value: 12, unit: 'V' }, r: { value: 4, unit: 'kΩ' } } }).status,
+    'mismatch',
+  );
+
+  // Frequency: Hz, kHz, MHz
+  assert.equal(
+    check('1/t', 0.5, 'kHz', { variables: { t: { value: 2, unit: 'ms' } } }).status,
+    'agreement',
+  );
+  assert.equal(
+    check('c/lambda', 600, 'MHz', { variables: { c: { value: 3e8, unit: 'm/s' }, lambda: { value: 0.5, unit: 'm' } } }).status,
+    'agreement',
+  );
+
+  // Amount of substance & molarity: mol, mmol, M (= mol/L)
+  assert.equal(
+    check('c*v', 100, 'mmol', { variables: { c: { value: 0.5, unit: 'M' }, v: { value: 200, unit: 'mL' } } }).status,
+    'agreement',
+  );
+  assert.equal(
+    check('n/v', 0.5, 'M', { variables: { n: { value: 0.25, unit: 'mol' }, v: { value: 500, unit: 'mL' } } }).status,
+    'agreement',
+  );
+  assert.equal(
+    check('n/v', 0.5, 'mol/L', { variables: { n: { value: 0.25, unit: 'mol' }, v: { value: 500, unit: 'mL' } } }).status,
+    'agreement',
+  );
+
+  // Angle: rad, deg (with explicit angle dimension preventing false agreement with Hz or dimensionless)
+  assert.equal(
+    check('theta', 3.141593, 'rad', { variables: { theta: { value: 180, unit: 'deg' } }, decimalPlaces: 6 }).status,
+    'agreement',
+  );
+  assert.equal(
+    check('theta', 3.1415926536, 'rad', { variables: { theta: { value: 180, unit: 'deg' } }, decimalPlaces: 10 }).status,
+    'agreement',
+  );
+  assert.equal(
+    check('omega*t', 90, 'deg', { variables: { omega: { value: 0.5 * Math.PI, unit: 'rad/s' }, t: { value: 1, unit: 's' } } }).status,
+    'agreement',
+  );
+  assert.equal(
+    check('theta', 180, '', { variables: { theta: { value: 180, unit: 'deg' } } }).status,
+    'mismatch',
+  );
+  assert.equal(
+    check('f', 10, 'rad/s', { variables: { f: { value: 10, unit: 'Hz' } } }).status,
+    'mismatch',
+  );
+});
+
+test('temperature K and °C handle affine offset conversions and reject compound °C cleanly', () => {
+  assert.equal(check('t', 298.15, 'K', { variables: { t: { value: 25, unit: '°C' } } }).status, 'agreement');
+  assert.equal(check('t', 26.85, '°C', { variables: { t: { value: 300, unit: 'K' } } }).status, 'agreement');
+  assert.equal(check('t', 0, 'K', { variables: { t: { value: -273.15, unit: '°C' } } }).status, 'agreement');
+  assert.equal(check('t', 25, 'K', { variables: { t: { value: 25, unit: '°C' } } }).status, 'mismatch');
+  assert.equal(check('t2-t1', 80, 'K', { variables: { t2: { value: 100, unit: '°C' }, t1: { value: 20, unit: '°C' } } }).status, 'agreement');
+  // Ideal gas law PV = nRT with T in °C, P in kPa, V in L
+  assert.equal(
+    check('n*R*T/P', 24.95, 'L', {
+      variables: {
+        n: { value: 1, unit: 'mol' },
+        R: { value: 8.314, unit: 'J/mol/K' },
+        T: { value: 27, unit: '°C' },
+        P: { value: 100, unit: 'kPa' },
+      },
+      decimalPlaces: 2,
+    }).status,
+    'agreement',
+  );
+  // Compound units with °C stay conservatively not_checked (must use K)
+  assert.equal(check('1', 1, 'J/kg/°C').status, 'not_checked');
+  assert.equal(check('1', 1, '°C^2').status, 'not_checked');
+});
+
+test('TeX unwrapping supports \\pu, \\Omega, ^\\circ\\mathrm{C}, and ^\\circ without false positives', () => {
+  const tempEv = { expression: 't', result: { value: 25, unit: '°C' }, variables: { t: { value: 298.15, unit: 'K' } } };
+  for (const answer of ['$25^{\\circ}\\mathrm{C}$', '$25^\\circ\\text{C}$', '$25\\,\\text{°C}$', '$\\pu{25 °C}$', '$25\\,\\celsius$']) {
+    assert.equal(checkCalculation(tempEv, { answer }).status, 'agreement', answer);
+  }
+  assert.equal(checkCalculation(tempEv, { answer: '$30^{\\circ}\\mathrm{C}$' }).status, 'mismatch');
+
+  const ohmEv = { expression: 'v/i', result: { value: 4, unit: 'kΩ' }, variables: { v: { value: 12, unit: 'V' }, i: { value: 3, unit: 'mA' } } };
+  for (const answer of ['$4\\,\\mathrm{k\\Omega}$', '$4\\,\\text{k}\\Omega$', '$4000\\,\\Omega$', '$\\pu{4 kΩ}$', '$\\SI{4}{k\\Omega}$']) {
+    assert.equal(checkCalculation(ohmEv, { answer }).status, 'agreement', answer);
+  }
+  assert.equal(checkCalculation(ohmEv, { answer: '$4\\,\\mathrm{kV}$' }).status, 'mismatch');
+
+  const angleEv = { expression: 'theta', result: { value: 90, unit: 'deg' }, variables: { theta: { value: Math.PI / 2, unit: 'rad' } } };
+  for (const answer of ['$90^\\circ$', '$90^{\\circ}$', '90°', '$\\pu{90 deg}$']) {
+    assert.equal(checkCalculation(angleEv, { answer }).status, 'agreement', answer);
+  }
+  assert.equal(checkCalculation(angleEv, { answer: '$45^\\circ$' }).status, 'mismatch');
+
+  const energyEv = { expression: 'f*d', result: { value: 12, unit: 'kJ' }, variables: { f: { value: 4, unit: 'kN' }, d: { value: 3, unit: 'm' } } };
+  assert.equal(checkCalculation(energyEv, { answer: '$\\pu{12 kJ}$' }).status, 'agreement');
+  assert.equal(checkCalculation(energyEv, { answer: '$\\pu{12000 J}$' }).status, 'agreement');
+  assert.equal(checkCalculation(energyEv, { answer: '$\\pu{12 kW}$' }).status, 'mismatch');
+});

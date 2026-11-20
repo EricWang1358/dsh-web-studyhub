@@ -72,11 +72,102 @@ test('ambiguous balances are not guessed or sampled', () => {
   }
 });
 
-test('ions, isotope labels, hydrates, symbolic coefficients and alternate arrows are outside the grammar', () => {
+test('reversible arrows (<=>, ⇌, \\rightleftharpoons, \\leftrightarrow) balance and mark reversible', () => {
+  for (const [input, coefficients, equation] of [
+    ['H2 + O2 <=> H2O', [2, 1, 2], '2 H2 + O2 <=> 2 H2O'],
+    ['N2(g) + H2(g) <=> NH3(g)', [1, 3, 2], 'N2(g) + 3 H2(g) <=> 2 NH3(g)'],
+    ['SO2(g) + O2(g) ⇌ SO3(g)', [2, 1, 2], '2 SO2(g) + O2(g) ⇌ 2 SO3(g)'],
+    [String.raw`N2(g) + H2(g) \rightleftharpoons NH3(g)`, [1, 3, 2], 'N2(g) + 3 H2(g) ⇌ 2 NH3(g)'],
+    [String.raw`CH3COOH(aq) \leftrightarrow CH3COO-(aq) + H+(aq)`, [1, 1, 1], 'CH3COOH(aq) ⇌ CH3COO-(aq) + H+(aq)'],
+    [String.raw`\ce{H2O(l) <=> H+(aq) + OH-(aq)}`, [1, 1, 1], 'H2O(l) <=> H+(aq) + OH-(aq)'],
+    [String.raw`\ce{N2(g) + H2(g) \rightleftharpoons NH3(g)}`, [1, 3, 2], 'N2(g) + 3 H2(g) ⇌ 2 NH3(g)'],
+  ]) {
+    const result = balanceEquation(input);
+    assert.equal(result.status, 'balanced', input + ': ' + result.reason);
+    assert.equal(result.reversible, true, input);
+    assert.deepEqual(result.coefficients, coefficients, input);
+    assert.equal(result.equation, equation, input);
+  }
+  assert.equal(balanceEquation('H2 + O2 -> H2O').reversible, false);
+});
+
+test('ionic equations enforce exact atom AND net charge conservation', () => {
+  for (const [input, coefficients, equation, charge] of [
+    ['Na+ + Cl- -> NaCl', [1, 1, 1], 'Na+ + Cl- -> NaCl', 0],
+    ['H+ + OH- -> H2O', [1, 1, 1], 'H+ + OH- -> H2O', 0],
+    ['Fe^{2+} + SO4^{2-} -> FeSO4', [1, 1, 1], 'Fe^{2+} + SO4^{2-} -> FeSO4', 0],
+    ['Cu + Ag+ -> Cu^{2+} + Ag', [1, 2, 1, 2], 'Cu + 2 Ag+ -> Cu^{2+} + 2 Ag', 2],
+    ['Fe^{3+} + I- -> Fe^{2+} + I2', [2, 2, 2, 1], '2 Fe^{3+} + 2 I- -> 2 Fe^{2+} + I2', 4],
+    ['Fe^{2+} + Cl2 -> Fe^{3+} + Cl-', [2, 1, 2, 2], '2 Fe^{2+} + Cl2 -> 2 Fe^{3+} + 2 Cl-', 4],
+    [
+      'Fe^{2+} + MnO4- + H+ -> Fe^{3+} + Mn^{2+} + H2O',
+      [5, 1, 8, 5, 1, 4],
+      '5 Fe^{2+} + MnO4- + 8 H+ -> 5 Fe^{3+} + Mn^{2+} + 4 H2O',
+      17,
+    ],
+    [
+      'Cr2O7^{2-} + Fe^{2+} + H+ -> Cr^{3+} + Fe^{3+} + H2O',
+      [1, 6, 14, 2, 6, 7],
+      'Cr2O7^{2-} + 6 Fe^{2+} + 14 H+ -> 2 Cr^{3+} + 6 Fe^{3+} + 7 H2O',
+      24,
+    ],
+    [
+      String.raw`\ce{Fe^{2+}(aq) + MnO4-(aq) + H+(aq) -> Fe^{3+}(aq) + Mn^{2+}(aq) + H2O(l)}`,
+      [5, 1, 8, 5, 1, 4],
+      '5 Fe^{2+}(aq) + MnO4-(aq) + 8 H+(aq) -> 5 Fe^{3+}(aq) + Mn^{2+}(aq) + 4 H2O(l)',
+      17,
+    ],
+    ['Fe^2+ + Cl2 -> Fe^3+ + Cl-', [2, 1, 2, 2], '2 Fe^2+ + Cl2 -> 2 Fe^3+ + 2 Cl-', 4],
+    ['Al^{3+}(aq) + OH-(aq) -> Al(OH)3(s)↓', [1, 3, 1], 'Al^{3+}(aq) + 3 OH-(aq) -> Al(OH)3(s)↓', 0],
+  ]) {
+    const result = balanceEquation(input);
+    assert.equal(result.status, 'balanced', input + ': ' + result.reason);
+    assert.deepEqual(result.coefficients, coefficients, input);
+    assert.equal(result.equation, equation, input);
+    assert.deepEqual(result.chargeConservation, { reactants: charge, products: charge }, input);
+  }
+
+  // Charge-violating equations are proven impossible (`not_balanced`), even when atoms match.
   for (const input of [
-    'Na+ + Cl- -> NaCl', 'Fe^3+ + e- -> Fe^2+', 'SO4^{2-} -> SO4', '[Fe(CN)6] -> FeC6N6',
+    'SO4^{2-} -> SO4',
+    'Fe^{2+} -> Fe^{3+}',
+    'Fe^{2+} + Cl- -> Fe^{3+} + Cl2',
+    'Na+ + Cl- -> NaCl + H+',
+  ]) {
+    const result = balanceEquation(input);
+    assert.equal(result.status, 'not_balanced', input + ': ' + JSON.stringify(result));
+    assert.equal(result.coefficients, undefined);
+  }
+});
+
+test('phase markers (aq, s, g, l) and precipitate/gas arrows (↑, ↓) are preserved accurately', () => {
+  const gas = balanceEquation('CaCO3(s) + HCl(aq) -> CaCl2(aq) + H2O(l) + CO2(g)↑');
+  assert.equal(gas.status, 'balanced');
+  assert.deepEqual(gas.coefficients, [1, 2, 1, 1, 1]);
+  assert.equal(gas.equation, 'CaCO3(s) + 2 HCl(aq) -> CaCl2(aq) + H2O(l) + CO2(g)↑');
+
+  const precip = balanceEquation('Ag+(aq) + Cl-(aq) -> AgCl(s)↓');
+  assert.equal(precip.status, 'balanced');
+  assert.deepEqual(precip.coefficients, [1, 1, 1]);
+  assert.equal(precip.equation, 'Ag+(aq) + Cl-(aq) -> AgCl(s)↓');
+  assert.deepEqual(precip.chargeConservation, { reactants: 0, products: 0 });
+
+  const bareArrows = balanceEquation('Zn(s) + H+(aq) -> Zn^{2+}(aq) + H2↑');
+  assert.equal(bareArrows.status, 'balanced');
+  assert.deepEqual(bareArrows.coefficients, [1, 2, 1, 1]);
+  assert.equal(bareArrows.equation, 'Zn(s) + 2 H+(aq) -> Zn^{2+}(aq) + H2↑');
+
+  const baSo4 = balanceEquation('Ba^{2+}(aq) + SO4^{2-}(aq) -> BaSO4↓');
+  assert.equal(baSo4.status, 'balanced');
+  assert.equal(baSo4.equation, 'Ba^{2+}(aq) + SO4^{2-}(aq) -> BaSO4↓');
+});
+
+test('free electrons, complexes, hydrates, isotopes, ambiguous bare charges, symbolic coefficients and unsupported arrows stay outside the grammar', () => {
+  for (const input of [
+    'Fe^3+ + e- -> Fe^2+', '[Fe(CN)6] -> FeC6N6',
     'CuSO4.5H2O -> CuSO4 + H2O', 'CuSO4·5H2O -> CuSO4 + H2O', '^13C -> C',
-    'nH2 + O2 -> H2O', 'H2 + O2 <=> H2O', 'H2 + O2 = H2O', 'H2 + O2 → H2O',
+    'nH2 + O2 -> H2O', 'H2 + O2 = H2O', 'H2 + O2 → H2O', 'H2 + O2 --> H2O', 'H2 + O2 <-> H2O',
+    'Fe2+ + Cl2 -> Fe3+ + Cl-', 'Ba2+ + SO42- -> BaSO4', 'H2↑↑ -> H2',
   ]) assert.equal(balanceEquation(input).status, 'not_checked', input);
 });
 

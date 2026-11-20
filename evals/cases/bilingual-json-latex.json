@@ -1,0 +1,221 @@
+{
+  "suite": "bilingual-json-latex",
+  "description": "Bilingual purity & JSON/LaTeX tolerance contract: single-backslash \\ce/\\pu repair, control-char restoration, Tier-2 jsonrepair fallback & safety rails, authored-card salvage, English/bilingual language boundaries, and STEM \\pu/\\ce verifier integration.",
+  "cases": [
+    {
+      "id": "json-tex-single-backslash-ce-pu",
+      "contract": "json-latex.tex_escape_repair",
+      "title": "parseJson repairs single-backslash \\ce, \\pu, \\alpha and restores silently consumed JSON control chars (\\frac, \\theta, \\beta) inside math",
+      "evaluator": "json_parse_contract",
+      "input": {
+        "raw": "{\"prompt\":\"Compute $\\frac{1}{2}$ of $\\ce{H2SO4}$ at $\\pu{25 kJ/mol}$ with angle $\\theta$ and $\\alpha$\",\"note\":\"keep\\nreal newline outside math\"}",
+        "singleBackslash": true,
+        "options": {}
+      },
+      "expect": {
+        "shouldParse": true,
+        "fieldEquals": {
+          "prompt": "Compute $\\frac{1}{2}$ of $\\ce{H2SO4}$ at $\\pu{25 kJ/mol}$ with angle $\\theta$ and $\\alpha$",
+          "note": "keep\nreal newline outside math"
+        }
+      }
+    },
+    {
+      "id": "json-tier2-jsonrepair-trailing-comma-and-truncated",
+      "contract": "json-latex.tier2.jsonrepair",
+      "title": "Tier-2 jsonrepair rescues trailing commas and truncated JSON (when allowTruncated: true), while rejecting truncated JSON when allowTruncated: false",
+      "evaluator": "json_tier2_contract",
+      "input": {
+        "trailingCommaRaw": "{\"deck\":{\"title\":\"Thermo\",\"cards\":[{\"id\":\"c1\",\"prompt\":\"State $\\ce{H2O}$ phase\",},],},}",
+        "truncatedRaw": "{\"deck\":{\"title\":\"Thermo\",\"cards\":[{\"id\":\"c1\",\"prompt\":\"State $\\pu{101.325 kPa}$"
+      },
+      "expect": {
+        "trailingCommaParses": true,
+        "truncatedAllowedParses": true,
+        "truncatedDisallowedThrows": true
+      }
+    },
+    {
+      "id": "json-tier2-rejects-prose-dangling-and-bad-escape",
+      "contract": "json-latex.tier2.safety_rails",
+      "title": "parseJson never fabricates valid JSON from plain prose, dangling-colon stubs, or illegal non-TeX escapes",
+      "evaluator": "json_reject_contract",
+      "input": {
+        "malformedSamples": [
+          "Sure! Here is my explanation of thermodynamics without JSON.",
+          "{\"issues\":",
+          "{\"prompt\":\"illegal escape \\q in text\"}",
+          ""
+        ]
+      },
+      "expect": {
+        "allThrow": true
+      }
+    },
+    {
+      "id": "json-salvage-authored-cards-ce-pu",
+      "contract": "json-latex.salvage.cards",
+      "title": "salvageAuthoredCards recovers complete cards with single-backslash \\ce and \\pu from a mid-stream truncated reply",
+      "evaluator": "salvage_cards_contract",
+      "input": {
+        "brokenReply": "{\"deck\":{\"cards\":[{\"targetId\":\"t-1\",\"kind\":\"flashcard\",\"prompt\":\"写出 $\\ce{Fe^{2+}}$ 被氧化时的电势 $\\pu{0.77 V}$\",\"explanation\":\"亚铁离子失去一个电子\"},{\"targetId\":\"t-2\",\"kind\":\"flashcard\",\"prompt\":\"truncated mid-stream"
+      },
+      "expect": {
+        "recoveredCount": 1,
+        "firstPromptIncludes": ["$\\ce{Fe^{2+}}$", "$\\pu{0.77 V}$"]
+      }
+    },
+    {
+      "id": "bilingual-en-purity-passes-clean-and-gloss",
+      "contract": "bilingual.english.clean_with_gloss",
+      "title": "English content check passes pure English cards with LaTeX formulas (\\ce/\\pu), code blocks, and a single parenthesized source gloss",
+      "evaluator": "language_issues_contract",
+      "input": {
+        "language": "English",
+        "deck": {
+          "cards": [
+            {
+              "kind": "quiz",
+              "topic": "Chemical Equilibrium",
+              "prompt": "For $\\ce{N2(g) + 3 H2(g) <=> 2 NH3(g)}$ at $\\pu{25 °C}$, how does increasing pressure shift equilibrium (化学平衡)?",
+              "answer": "Toward ammonia because the product side has fewer gas moles.",
+              "hint": "Compare total gas moles on both sides using `Le Chatelier`.",
+              "explanation": "Reactants have 4 mol gas while products have 2 mol gas, so higher pressure favors $\\ce{NH3}$.",
+              "misconception": "Assuming pressure only affects liquid volume.",
+              "options": [
+                { "id": "a", "text": "Shifts right toward $\\ce{NH3}$", "correct": true, "explanation": "Fewer moles of gas on the right." },
+                { "id": "b", "text": "Shifts left toward $\\ce{N2}$", "correct": false, "explanation": "Left side has 4 gas moles vs 2." }
+              ]
+            }
+          ]
+        }
+      },
+      "expect": {
+        "issueCount": 0
+      }
+    },
+    {
+      "id": "bilingual-en-purity-catches-han-leak",
+      "contract": "bilingual.english.han_leak",
+      "title": "English content check catches Chinese prose leaks in prompt/explanation/options and rejects CJK brackets in English tutor copy",
+      "evaluator": "language_issues_contract",
+      "input": {
+        "language": "English",
+        "deck": {
+          "cards": [
+            {
+              "kind": "quiz",
+              "topic": "Thermodynamics",
+              "prompt": "根据热力学第二定律，孤立系统的熵变化方向是什么？",
+              "answer": "Entropy never decreases in an isolated system.",
+              "explanation": "在孤立系统中自发过程总是朝着熵增的方向进行。",
+              "options": [
+                { "id": "a", "text": "Entropy increases or stays constant", "correct": true, "explanation": "Correct statement." },
+                { "id": "b", "text": "孤立系统的总熵必然持续减小", "correct": false, "explanation": "Violates the second law." }
+              ]
+            }
+          ]
+        },
+        "englishCopySamples": {
+          "bad": "Next step: review 《Thermodynamics》 and click 「Continue」.",
+          "good": "Next step: review \"Thermodynamics\" and click \"Continue\"."
+        }
+      },
+      "expect": {
+        "minIssueCount": 3,
+        "issueFields": ["prompt", "explanation", "option b"],
+        "badCopyFlagged": true,
+        "goodCopyClean": true
+      }
+    },
+    {
+      "id": "bilingual-zh-en-dual-stem-contract",
+      "contract": "bilingual.dual_language.stem",
+      "title": "Bilingual (中英双语) check passes dual-language quiz stems, flags monolingual quiz stems, and exempts flashcard/cloze stems",
+      "evaluator": "language_issues_contract",
+      "input": {
+        "language": "中英双语",
+        "deck": {
+          "cards": [
+            {
+              "kind": "quiz",
+              "prompt": "什么是闭包？(What is a closure in JavaScript?)",
+              "answer": "函数与其词法环境的组合"
+            },
+            {
+              "kind": "quiz",
+              "prompt": "只写了中文而漏掉了英文翻译的选择题题干是什么？",
+              "answer": "缺少英文"
+            },
+            {
+              "kind": "flashcard",
+              "prompt": "闭包",
+              "answer": "函数与其词法环境"
+            },
+            {
+              "kind": "cloze",
+              "prompt": "孤立系统的熵不会自发{{b1}}。",
+              "answer": "减小"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "issueCount": 1,
+        "issueMustContain": "Card 2: prompt"
+      }
+    },
+    {
+      "id": "bilingual-content-language-rule-injection",
+      "contract": "bilingual.rule_injection",
+      "title": "withContentLanguage injects deterministic English, Chinese, and Bilingual rules while keeping verbatim citation quotes untouched",
+      "evaluator": "content_language_rule",
+      "input": {
+        "baseSystem": "You author study questions.",
+        "languages": ["English", "中文", "中英双语"]
+      },
+      "expect": {
+        "English": ["Content language: English", "Only citation quotes stay verbatim"],
+        "中文": ["Content language: Chinese (中文)", "Simplified Chinese"],
+        "中英双语": ["Content language: Chinese with English (中英双语)", "English translation"]
+      }
+    },
+    {
+      "id": "stem-latex-pu-and-ce-integration",
+      "contract": "bilingual.stem_latex.integration",
+      "title": "STEM verifiers interoperate cleanly with LaTeX \\pu / °C / k\\Omega and \\ce reversible ionic equations",
+      "evaluator": "stem_latex_integration",
+      "input": {
+        "calculation": {
+          "evidence": {
+            "variables": {
+              "v": { "value": 12, "unit": "V" },
+              "r": { "value": 4, "unit": "kΩ" }
+            },
+            "expression": "v/r",
+            "result": { "value": 3, "unit": "mA" }
+          },
+          "answer": "$\\pu{3 mA}$"
+        },
+        "tempCalculation": {
+          "evidence": {
+            "variables": { "t": { "value": 298.15, "unit": "K" } },
+            "expression": "t",
+            "result": { "value": 25, "unit": "°C" }
+          },
+          "answer": "$25^{\\circ}\\mathrm{C}$"
+        },
+        "ionicEquation": "\\ce{Fe^{2+}(aq) + MnO4-(aq) + H+(aq) -> Fe^{3+}(aq) + Mn^{2+}(aq) + H2O(l)}",
+        "reversibleEquation": "\\ce{N2(g) + H2(g) \\rightleftharpoons NH3(g)}"
+      },
+      "expect": {
+        "calcStatus": "agreement",
+        "tempStatus": "agreement",
+        "ionicCoefficients": [5, 1, 8, 5, 1, 4],
+        "ionicCharge": 17,
+        "reversibleCoefficients": [1, 3, 2],
+        "reversibleFlag": true
+      }
+    }
+  ]
+}
