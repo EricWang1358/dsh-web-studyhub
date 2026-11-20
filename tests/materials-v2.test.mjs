@@ -222,16 +222,17 @@ test('materials retains original TXT bytes and resolves whitespace to authoritat
   assert.equal(selected.selection.quote, 'A  precise\tpassage.');
 });
 
-test('materials resolves rendered Markdown table cells, links and entities rather than markup', async t => {
+test('materials preserves normalized Markdown headings, tables, code fences and LaTeX without HTML stripping', async t => {
   const { call } = await fixture(t);
-  const markdown = '# Heading\n\n| Concept | Meaning |\n| --- | --- |\n| **Bounded context** | [Shared contract](https://example.org) &amp; ownership |\n';
+  const markdown = '# Heading\r\n\r\n| Concept | Meaning |\r\n| --- | --- |\r\n| **Bounded context** | [Shared contract](https://example.org) &amp; ownership |\r\n\r\n\\[E = mc^2\\]\r\n';
   const imported = await call('materials.document.import', { filename: 'table.md', dataBase64: Buffer.from(markdown).toString('base64') });
   const document = await call('materials.document.get', { id: imported.documentId });
   assert.equal(await readFile(document.preview.path, 'utf8'), markdown);
-  const selected = await call('materials.selection.resolve', { documentId: document.id, quote: 'Shared contract & ownership', revision: document.revision });
+  assert.ok(document.revision.endsWith('-md-md2'), 'plain Markdown uses upgraded md2 revision suffix');
+  assert.equal(document.sources[0].text.startsWith('# Heading\n\n| Concept | Meaning |'), true);
+  assert.equal(document.sources[0].text.includes('\\[E = mc^2\\]'), true);
+  const selected = await call('materials.selection.resolve', { documentId: document.id, quote: 'Bounded context', revision: document.revision });
   assert.equal(selected.status, 'resolved');
-  assert.equal(selected.selection.quote, 'Shared contract & ownership');
-  assert.equal(document.sources[0].text.includes('https://example.org'), false);
 });
 
 test('materials extracts HTML through a parser, decodes entities and excludes inert content', async t => {
@@ -390,13 +391,15 @@ test('an opened historical retained path preserves its visible revision after re
 
 test('the same original bytes in different formats retain separate projections', async t => {
   const { call } = await fixture(t);
-  const dataBase64 = Buffer.from('# Heading\n\nA passage.').toString('base64');
+  const dataBase64 = Buffer.from('# Heading\r\n\r\nA passage.\r\n').toString('base64');
   const text = await call('materials.document.import', { filename: 'mixed.txt', dataBase64 });
   const markdown = await call('materials.document.import', { filename: 'mixed.md', dataBase64 });
   assert.notEqual(text.documentId, markdown.documentId);
   assert.notEqual(text.revision, markdown.revision);
-  assert.equal(text.document.sources[0].text, '# Heading\n\nA passage.');
-  assert.equal(markdown.document.sources[0].text, 'Heading\nA passage.');
+  assert.ok(text.revision.endsWith('-txt-text1'));
+  assert.ok(markdown.revision.endsWith('-md-md2'));
+  assert.equal(text.document.sources[0].text, '# Heading\r\n\r\nA passage.\r\n');
+  assert.equal(markdown.document.sources[0].text, '# Heading\n\nA passage.');
 });
 
 test('links resolve existing card JSON and asking uses the request model and cancellation', async t => {

@@ -376,7 +376,7 @@ test('plan lists the paragraphs of some sources with what is done, what is to do
   await f.call('translate', { documentId, passages: [passage(source, A)] });
   const plan = await f.call('plan', { documentId, scope: { sourceIds: [source.id] } });
   const states = plan.passages.map(entry => [entry.text.slice(0, 12), entry.state]);
-  assert.deepEqual(states, [['Notes', 'todo'], ['Architecture', 'done'], [ZH.slice(0, 12), 'skip'], ['Quality attr', 'todo'], ['A CQRS desig', 'todo']]);
+  assert.deepEqual(states, [['# Notes', 'todo'], ['Architecture', 'done'], [ZH.slice(0, 12), 'skip'], ['Quality attr', 'todo'], ['A CQRS desig', 'todo']]);
   assert.deepEqual([plan.counts.todo, plan.counts.done, plan.counts.skipped, plan.counts.paragraphs], [3, 1, 1, 5]);
   assert.ok(plan.counts.chars > 100);
   assert.ok(plan.passages.every(entry => entry.key === paragraphKey(entry.sourceId, entry)));
@@ -446,7 +446,7 @@ test('a chapter is read through the effective segmentation: the chapters a kept 
   await f.ops.handlers['materials.outline.save']({ documentId, entries: [{ title: 'Part one', level: 1, startBlock: 0 }, { title: 'Part two', level: 1, startBlock: 3 }], segmentLevel: 1 });
   const one = await f.call('plan', { documentId, scope: { chapter: 0 } });
   assert.deepEqual(one.chapters.map(chapter => [chapter.index, chapter.title]), [[0, 'Part one'], [1, 'Part two']]);
-  assert.deepEqual(one.passages.map(entry => entry.text.slice(0, 12)), ['Notes', 'Architecture'.slice(0, 12), B.slice(0, 12)]);
+  assert.deepEqual(one.passages.map(entry => entry.text.slice(0, 12)), ['# Notes', 'Architecture'.slice(0, 12), B.slice(0, 12)]);
   const two = await f.call('plan', { documentId, scope: { chapter: 1 } });
   assert.deepEqual(two.passages.map(entry => entry.text), [C, 'The fourth paragraph closes the second part of the notes.']);
   assert.deepEqual(two.sourceIds, [source.id]);
