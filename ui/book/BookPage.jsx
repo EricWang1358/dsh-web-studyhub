@@ -294,7 +294,7 @@ export default function BookPage({ data, onBack, backLabel = '', onReturnBack = 
         confusables: [pair],
         course: course || undefined,
         ...(hid ? { hid } : {}),
-        language: getUiLanguage() === 'en' ? 'en' : 'zh',
+        language: getUiLanguage(),
         mountMode: 'companion-only',
       });
       if (res?.companion?.id && openModal) {

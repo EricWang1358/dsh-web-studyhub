@@ -55,7 +55,7 @@ export default function BookGapHint({ node, course = '', handlers }) {
       )}
       {rescueState?.status === 'failed' && (
         <InlineMessage
-          className="book-point__rescue-notice"
+          className="book-point__rescue-msg"
           tone="error"
           boxed
           action={hint ? { label: ui('重试'), onClick: (event) => handlers?.actGapHint?.(node, { ...hint, kind: 'rescue_experiment' }, event.currentTarget) } : undefined}
@@ -90,7 +90,7 @@ export default function BookGapHint({ node, course = '', handlers }) {
       )}
       {rescuePrompt?.type === 'no-model' && (
         <InlineMessage
-          className="book-point__rescue-notice"
+          className="book-point__rescue-msg"
           tone="warning"
           boxed
           actionsBelow

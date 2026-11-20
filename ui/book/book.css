@@ -377,7 +377,7 @@
       align-items: center;
       gap: var(--space-1) var(--space-2);
     }
-    .book-point__rescue-notice {
+    .book-point__rescue-msg {
       margin: 0;
     }
     .book-step__nav {
