@@ -23,6 +23,7 @@ import { withStudy } from './helpers/study-services.mjs';
 const uiMod = await loadUi(`
   export { WrongBookView } from './ui/WrongBook.jsx';
   export { default as RoundLookBack } from './ui/review/RoundLookBack.jsx';
+  export { useRescueExperiments } from './ui/companions/use-rescue-experiments.js';
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { AppContext } from './ui/app/app-context.js';
   export { setQueryData } from './ui/host-query.js';
@@ -744,6 +745,202 @@ test('RoundLookBack reactive triage: zero remediation UI for fsrs_only, instant 
   } finally {
     uiMod.setUiLanguage('zh');
   }
+});
+
+test('mistake-triage P1 regressions: PDF per-page source resolution in wrongBook, persisted prerequisite/bad_question in RoundLookBack, multi-deck run disambiguation, and errorReason forwarding to companion.build', async () => {
+  // 1. Per-page PDF source ({ id: 'src-p14', document: { id: 'doc-1', format: 'pdf', page: 14 } }) without card.page/card.hid
+  const pdfState = {
+    settings: { practice: { leechFailures: 3, leechWindow: 5, leechRate: 60 } },
+    courses: [{ id: 'c-pdf', name: 'Physics' }],
+    sources: [
+      { id: 'src-p14', title: 'Lecture PDF p.14', courses: ['Physics'], document: { id: 'doc-1', format: 'pdf', page: 14 } },
+      {
+        id: 'book-pdf',
+        provenance: COURSE_BOOK_DOC_PROVENANCE,
+        courses: ['Physics'],
+        bookDoc: {
+          course: 'Physics',
+          revision: 1,
+          manifest: { nodes: [{ id: 'leaf-heat', hid: 'h14', leaf: true, title: 'Heat vs Work' }] },
+        },
+      },
+      {
+        id: 'notes-pdf',
+        provenance: COURSE_NOTES_PROVENANCE,
+        courses: ['Physics'],
+        courseNotes: {
+          course: 'Physics',
+          leaves: [
+            {
+              id: 'leaf-heat',
+              title: 'Heat vs Work',
+              body: {
+                units: [{
+                  cards: [
+                    { item: 'it-q', name: 'Heat', relations: [{ kind: 'parallel', item: 'it-w', name: 'Work' }] },
+                    { item: 'it-w', name: 'Work', relations: [{ kind: 'parallel', item: 'it-q', name: 'Heat' }] },
+                  ],
+                }],
+                cites: [{ sourceId: 'src-p14' }],
+              },
+            },
+          ],
+          confusables: [
+            {
+              items: ['it-q', 'it-w'],
+              print: 'fedcba9876543210',
+              rows: [{ aspect: 'what', cells: ['Thermal energy transfer', 'Mechanical energy transfer'] }],
+            },
+          ],
+        },
+      },
+    ],
+    decks: [
+      {
+        id: 'd-pdf',
+        title: 'Thermo Deck',
+        course: 'Physics',
+        cards: [
+          {
+            id: 'c-pdf-1',
+            kind: 'quiz',
+            topic: 'First Law',
+            prompt: 'Path-dependent transfer?',
+            citations: [{ sourceId: 'src-p14', quote: 'Heat and work are path functions.' }],
+            options: [{ id: 'a', text: 'Path function', correct: true }, { id: 'b', text: 'State function', correct: false }],
+          },
+        ],
+      },
+      {
+        id: 'd-other',
+        title: 'Other Deck',
+        course: 'Physics',
+        cards: [
+          {
+            id: 'c-dup',
+            kind: 'quiz',
+            topic: 'Other',
+            prompt: 'Other deck dup card',
+            options: [{ id: 'a', text: 'Right', correct: true }, { id: 'b', text: 'Heat', correct: false }],
+          },
+        ],
+      },
+      {
+        id: 'd-clean',
+        title: 'Clean Deck',
+        course: 'Physics',
+        cards: [
+          {
+            id: 'c-dup',
+            kind: 'quiz',
+            topic: 'Clean',
+            prompt: 'Clean deck dup card',
+            options: [{ id: 'a', text: 'Right', correct: true }, { id: 'b', text: 'Unrelated choice', correct: false }],
+          },
+        ],
+      },
+    ],
+    runs: [
+      {
+        id: 'run-multi',
+        deckId: 'd-clean',
+        mode: 'path',
+        entries: [
+          {
+            deckId: 'd-clean',
+            card: { id: 'c-dup', kind: 'quiz', options: [{ id: 'a', text: 'Right', correct: true }, { id: 'b', text: 'Unrelated choice', correct: false }] },
+            feedback: { grade: 1, selected: ['b'] },
+          },
+          {
+            deckId: 'd-other',
+            card: { id: 'c-dup', kind: 'quiz', options: [{ id: 'a', text: 'Right', correct: true }, { id: 'b', text: 'Heat', correct: false }] },
+            feedback: { grade: 1, selected: ['b'] },
+          },
+        ],
+      },
+    ],
+    attempts: [
+      { deckId: 'd-pdf', quiz_id: 'c-pdf-1', grade: 1, timestamp: '2026-11-20T02:00:00Z' },
+      { deckId: 'd-clean', quiz_id: 'c-dup', runId: 'run-multi', grade: 1, timestamp: '2026-11-20T02:01:00Z' },
+    ],
+  };
+
+  const wb = wrongBook(pdfState, { course: 'Physics' });
+  const pdfItem = wb.items.find(item => item.cardId === 'c-pdf-1');
+  assert.ok(pdfItem);
+  assert.equal(pdfItem.hid, 'h14', 'wrongBook resolves hid from per-page PDF source document.page');
+  assert.equal(pdfItem.triage.route, 'confusable_contrast', 'wrongBook matches C001 by PDF source page');
+  assert.equal(pdfItem.triage.confusable.id, 'C001');
+
+  const cleanDupItem = wb.items.find(item => item.deckId === 'd-clean' && item.cardId === 'c-dup');
+  assert.equal(cleanDupItem.triage.route, 'fsrs_only', 'multi-deck run disambiguates by deckId and never borrows wrongOptions from d-other');
+
+  // 2. RoundLookBack preserves persisted prerequisite / bad_question routes when not in #1156 4-tag map
+  const prereqRow = {
+    number: 1,
+    entryIndex: 0,
+    deckId: 'd1',
+    cardId: 'c-pre',
+    kind: 'quiz',
+    status: 'wrong',
+    errorReason: 'prerequisite',
+    card: { id: 'c-pre', kind: 'quiz', prompt: 'Prereq miss?', options: [{ id: 'a', text: 'A' }, { id: 'b', text: 'B' }] },
+    feedback: { selected: ['b'] },
+    solution: { explanation: 'Needs base concept', options: [{ id: 'a', correct: true }] },
+    triage: { route: 'prereq_branch', reason: 'prerequisite', source: 'explicit', tokens: 'zero', prereq: { deckId: 'd1', cardId: 'p1' }, prereqRefs: [{ deckId: 'd1', cardId: 'p1' }] },
+    triageByReason: {
+      default: { route: 'fsrs_only', reason: null, source: 'default', tokens: 'zero' },
+      concept: { route: 'fsrs_only', reason: 'concept', source: 'explicit', tokens: 'zero', fallback: true },
+      condition: { route: 'rescue_companion', reason: 'condition', source: 'explicit', tokens: 'light', rescueFocus: 'condition' },
+      derivation: { route: 'rescue_companion', reason: 'derivation', source: 'explicit', tokens: 'light', rescueFocus: 'derivation' },
+      slip: { route: 'fsrs_only', reason: 'slip', source: 'explicit', tokens: 'zero' },
+    },
+  };
+  const badQRow = {
+    ...prereqRow,
+    number: 2,
+    entryIndex: 1,
+    cardId: 'c-bad',
+    errorReason: 'bad_question',
+    triage: { route: 'fix_question', reason: 'bad_question', source: 'explicit', tokens: 'light' },
+  };
+  assert.equal(uiMod.resolveRowTriage(prereqRow, '').route, 'prereq_branch');
+  assert.equal(uiMod.resolveRowTriage(badQRow, '').route, 'fix_question');
+  assert.equal(uiMod.resolveRowTriage(prereqRow, 'slip').route, 'fsrs_only');
+
+  const runPersisted = { id: 'run-persisted', mode: 'path', navigation: [{ answered: true }, { answered: true }], correctionsPending: 0 };
+  const services = { call: async () => ({ ok: true }), act: noop, busy: false, notify: noop, openModal: noop };
+  uiMod.setUiLanguage('zh');
+  uiMod.setQueryData('review.lookBack', { runId: runPersisted.id }, { rows: [prereqRow, badQRow] });
+  const mounted = mountSync(services, { settings: { practice: { lookBackBlindRecall: false } } });
+  let tree = mounted.render(uiMod.RoundLookBack, { run: runPersisted, onPracticeWrong: noop });
+  let expandBtn = null;
+  walkTree(tree, n => { if (!expandBtn && typeof n.type !== 'string' && typeof n.props?.onClick === 'function' && textOf(n).trim() === '全部展开') expandBtn = n; });
+  assert.ok(expandBtn);
+  expandBtn.props.onClick();
+  tree = mounted.render(uiMod.RoundLookBack, { run: runPersisted, onPracticeWrong: noop });
+  const persistedHtml = htmlOfElement(tree, services, null);
+  assert.match(persistedHtml, /data-triage-route="prereq_branch"/);
+  assert.match(persistedHtml, /data-triage-route="fix_question"/);
+  mounted.unmount();
+
+  // 3. useRescueExperiments forwards errorReason to generation.companion.build
+  const buildCalls = [];
+  let hookApi = null;
+  function Probe() {
+    hookApi = uiMod.useRescueExperiments({
+      call: async (action, args) => { buildCalls.push({ action, args }); return { jobId: 'job-1' }; },
+    });
+    return null;
+  }
+  const hookHost = mountSync(services, null);
+  hookHost.render(Probe, {});
+  await hookApi.start('c1', { course: 'Physics', deckId: 'd-pdf', cardIds: ['c-pdf-1'], hid: 'h14', errorReason: 'condition' });
+  hookHost.unmount();
+  assert.equal(buildCalls.length, 1);
+  assert.equal(buildCalls[0].action, 'generation.companion.build');
+  assert.equal(buildCalls[0].args.mode, 'rescue');
+  assert.equal(buildCalls[0].args.errorReason, 'condition');
 });
 
 test('mistake-triage source invariants: <= 200 lines and zero direct ui/ -> lib/evidence/mistake-triage.js imports', () => {
