@@ -1,5 +1,5 @@
-import { ui, uiFormat, errorMessage } from "./i18n.js";
-import React, { memo, useCallback, useDeferredValue, useEffect, useId, useMemo, useRef, useState } from "react";
+import { ui, uiFormat, errorMessage, getUiLanguage } from "./i18n.js";
+import React, { memo, useCallback, useContext, useDeferredValue, useEffect, useId, useMemo, useRef, useState } from "react";
 import css from "./views.css";
 import wrongCss from "./wrongbook.css";
 import overlayCss from "./components/overlays.css";
@@ -12,10 +12,12 @@ import { usePolling } from "./use-polling.js";
 import EmptyStudyActions from "./EmptyStudyActions.jsx";
 import { RubricSkills } from "./CaseResult.jsx";
 import PageScope, { decksInCourse, usePageScope, useShowInactive, scopeArgs } from './PageScope.jsx';
-import { Badge, Banner, Button, ChunkedRows, Combobox, DisclosureToggle, foldLabel, EmptyState, ErrorState, Icon, InlineMessage, LoadingState, PageHeader, SegmentedControl, TextInput, Tooltip, Chip, highlightParts, useToast } from './components/index.js';
+import { Badge, Banner, Button, ChunkedRows, Combobox, DisclosureToggle, foldLabel, EmptyState, ErrorState, Icon, InlineMessage, LoadingState, PageHeader, SegmentedControl, Spinner, TextInput, Tooltip, Chip, highlightParts, useToast } from './components/index.js';
 import { scrollToAnchor } from './tour/anchor.js';
 import { HandOff } from './hand-off/HandOff.jsx';
+import { hasChatHost } from './hand-off/use-hand-off.js';
 import { leechLimits } from '../lib/leech.js';
+import { isActiveJob } from '../lib/job-status.js';
 import { wrongbookClinic } from '../lib/practice-settings.js';
 import { isJsonCardSource } from '../lib/source-provenance.js';
 import { firstCitation, usableCitations } from './document-preview/practice/citations.js';
@@ -24,8 +26,9 @@ import { modelReadiness } from './generation-status.js';
 import { similarWinLine } from './review/similar-words.js';
 import { buildWrongbookClinic } from './wrongbook-clinic.js';
 import { FILTER_MIN, NO_FILTER, PRACTICE_SCOPE_CAP, RECS_PREVIEW, SORT_KINDS, STATUS_KINDS, VARIANT_BATCH_CAP, capPracticeScope, deckChoices, filterActive, filterRows, groupRows, groupSummaryText, leechCount, leechRetellNote, leechWords, practiceCappedText, readGroupBy, readOpenGroups, readSortBy, reasonText, retrainOptions,
-  sameVariantState, saveGroupBy, saveSortBy, sortGroupRows, rescueCall, rescueGate, rescueNote, takeArrival, undoPauseCall, readSignature, rowsAwaitingDetail, saveOpenGroups, scopedFilter, shortDeckNames, statusCounts, statusLabel, statusOf, variantFailureText, variantState } from './wrongbook-model.js';
+  sameVariantState, saveGroupBy, saveSortBy, sortGroupRows, rescueCall, rescueExperimentStatusText, rescueGate, rescueNote, takeArrival, undoPauseCall, readSignature, rowsAwaitingDetail, saveOpenGroups, scopedFilter, shortDeckNames, statusCounts, statusLabel, statusOf, variantFailureText, variantState } from './wrongbook-model.js';
 import { useStudy } from './study-context.jsx';
+import { AppContext } from './app/app-context.js';
 import { peekQuery, refreshQuery, setQueryData, useHostQuery } from './host-query.js';
 import { formatDateTime, joinMeta } from "./format.js";
 import { companionSlideButtonLabel, openCompanionTarget, resolveCompanionTarget } from "./companions/companion-ref.js";
@@ -88,27 +91,85 @@ function LeechMark({ limits }) {
 }
 
 /** What each rescue action does, said where its button is. */
-const rescueTip = (kind) => kind === 'fix'
-  ? tip(ui('记下「这题有问题」，由后台助教检查并修这道题；没有可用模型时会提示先配好模型。有模型时会调用轻量模型，出错时最多再试 2 次。'), ui('会直接改这张卡；完成时信箱会提醒你，在信箱里可以一步撤销。'))
-  : kind === 'easier'
-    ? tip(ui('记下「太难」，写一张更基础的前置小卡（调用轻量模型）；没有可用模型时会提示先配好模型，未开启后台准备时会先在这里请你确认。'), ui('写好后放进「为你定制」。'))
-    : tip(ui('暂停后，这道题不再出现在练习和错题里，也不调用模型。'), ui('在题组的管理页点「恢复学习」可以恢复。'));
+const rescueTip = (kind) => kind === 'experiment'
+  ? tip(ui('围绕你上次选错的点做一个 3–4 页交互实验（约 15–30 秒，1–2 次模型调用）；没配生成模型时可走主会话零密钥编译。'), ui('做完关闭窗口后会直接回到这道题。'))
+  : kind === 'fix'
+    ? tip(ui('记下「这题有问题」，由后台助教检查并修这道题；没有可用模型时会提示先配好模型。有模型时会调用轻量模型，出错时最多再试 2 次。'), ui('会直接改这张卡；完成时信箱会提醒你，在信箱里可以一步撤销。'))
+    : kind === 'easier'
+      ? tip(ui('记下「太难」，写一张更基础的前置小卡（调用轻量模型）；没有可用模型时会提示先配好模型，未开启后台准备时会先在这里请你确认。'), ui('写好后放进「为你定制」。'))
+      : tip(ui('暂停后，这道题不再出现在练习和错题里，也不调用模型。'), ui('在题组的管理页点「恢复学习」可以恢复。'));
 
-/** The four ways out for a question that keeps being failed: the actions that exist elsewhere, called from here (the opened row only; a collapsed row has no menu, #675). */
-function LeechRescue({ item, course, disabled, rescuePrompt, rescuing, canOpenModel, canOpenSettings, onRescue, onDismissRescue, onOpenModel, onOpenProfileSettings }) {
+/** Highlighted single recommendation + collapsed "Other ways" disclosure for a question that keeps being failed (5.0.0 §2.1 control budget). */
+function LeechRescue({ item, course, detail, companionTarget, experimentState, disabled, rescuePrompt, rescuing, canOpenModel, canOpenSettings, initialOtherOpen = false, onRescue, onStartExperiment, onOpenExperiment, onDismissRescue, onOpenModel, onOpenProfileSettings }) {
+  const { host } = useStudy();
+  const canChat = hasChatHost(host);
+  const [otherOpen, setOtherOpen] = useState(Boolean(initialOtherOpen));
+  const otherId = useId();
   const retellNote = leechRetellNote(item?.retell);
+  const experimentRunning = experimentState?.status === 'starting' || experimentState?.status === 'running';
+  const readyCompanion = experimentState?.status === 'ready' && experimentState?.companionId
+    ? { companionId: experimentState.companionId, course: experimentState.course || course, slide: 1, anchor: '#1', companionTitle: experimentState.title || '', lessonMode: 'rescue' }
+    : (companionTarget?.lessonMode === 'rescue' ? companionTarget : null);
+  const hasDetail = detail && detail !== 'loading' && !detail?.error;
   return (
     <div className="wb-sub wb-leech">
       <h4>{ui("这道题总是答错")}</h4>
-      <p className="muted">{ui("反复答错，常常是题目本身有问题。先试试这几个办法，再决定要不要接着练：")}</p>
+      <p className="muted">{ui("先做一次针对你上次选错点的 4 页交互实验，再决定要不要接着练：")}</p>
       {retellNote && <p className="muted wb-leech__retell" data-retell-signal={retellNote.signal}>{retellNote.text}</p>}
-      <div className="wb-leech__actions">
-        <Tooltip layer content={rescueTip('fix')}><Button variant="quiet" size="sm" data-rescue="fix" disabled={disabled} lock={rescuing} onClick={() => onRescue('fix', item)}>{ui("这题有问题，交给后台修")}</Button></Tooltip>
-        <Tooltip layer content={rescueTip('easier')}><Button variant="quiet" size="sm" data-rescue="easier" disabled={disabled} lock={rescuing} onClick={() => onRescue('easier', item)}>{ui("太难了，补一张前置小卡")}</Button></Tooltip>
-        <HandOff id="question.stubborn" shape="quiet" what="让主会话和你一起看这道题：是你还没弄懂，还是题目本身有问题" disabled={disabled || rescuing}
-          input={{ course, deckId: item.deckId, cardId: item.cardId, topic: item.topic || '', prompt: plainPrompt(item.prompt) }} />
-        <Tooltip layer content={rescueTip('pause')}><Button variant="quiet" size="sm" data-rescue="pause" disabled={disabled} lock={rescuing} onClick={() => onRescue('pause', item)}>{ui("暂停此题")}</Button></Tooltip>
+      <div className="wb-leech__primary">
+        {readyCompanion && onOpenExperiment ? (
+          <Button variant="secondary" size="sm" icon="sparkle" iconEnd="arrow-right" data-rescue="experiment-open" disabled={disabled}
+            onClick={() => onOpenExperiment(readyCompanion)}>{ui("打开 4 页交互实验")}</Button>
+        ) : (
+          <Tooltip layer content={rescueTip('experiment')}>
+            <Button variant="secondary" size="sm" icon="sparkle" data-rescue="experiment" busy={experimentRunning}
+              disabled={disabled || experimentRunning} lock={rescuing}
+              onClick={() => onStartExperiment?.(item, hasDetail ? detail : null)}>{ui("做一个 4 页交互实验")}</Button>
+          </Tooltip>
+        )}
+        <Button variant="quiet" size="sm" className="wb-leech__more-toggle" data-rescue-other-toggle=""
+          aria-expanded={otherOpen} aria-controls={otherId} onClick={() => setOtherOpen((open) => !open)}>
+          {otherOpen ? ui("收起其他办法") : ui("其他办法")}
+        </Button>
       </div>
+      {experimentRunning && (
+        <div className="wb-leech__status" role="status" aria-live="polite" data-rescue-status={experimentState.status}>
+          <Spinner size="sm" />
+          <span>{rescueExperimentStatusText(experimentState.stage || experimentState.status)}</span>
+        </div>
+      )}
+      {experimentState?.status === 'ready' && (
+        <div className="wb-leech__status is-ready" role="status" aria-live="polite" data-rescue-status="ready">
+          <Icon name="success" className="sh-icon--inline" />
+          <span>{ui("4 页交互实验已做好，做完关闭窗口就会回到这道题。")}</span>
+        </div>
+      )}
+      {experimentState?.status === 'failed' && (
+        <InlineMessage className="wb-leech__notice" tone="error" boxed
+          action={!disabled && onStartExperiment ? { label: ui("重试"), onClick: () => onStartExperiment(item, hasDetail ? detail : null) } : undefined}>
+          {experimentState.message || ui("这次没能生成交互实验，可以重试或展开「其他办法」。")}
+        </InlineMessage>
+      )}
+      {rescuePrompt?.type === "rescue-handoff" && (
+        <div className="wb-consent wb-leech__handoff" role="group" aria-label={ui("由主会话生成 4 页交互实验")}>
+          <strong>{ui("未配置生成模型 · 可用主会话零密钥生成")}</strong>
+          <p>{ui("发给主会话后，它会直接编译 3–4 页交互实验并挂回这道题；挂载好后回到这里刷新就能直接打开，做完关闭窗口仍回到这道题。")}</p>
+          <div className="wb-consent-actions">
+            <HandOff id="companion.rescue" shape="secondary" what="让主会话零密钥编译一个 3–4 页急救交互实验并挂回这道题"
+              input={{
+                course,
+                deckId: item.deckId,
+                cardId: item.cardId,
+                topic: item.topic || '',
+                prompt: plainPrompt(item.prompt),
+                yourAnswer: hasDetail ? (detail.yourAnswer || '') : '',
+                correctAnswer: hasDetail ? (detail.correctAnswer || '') : '',
+              }} />
+            {canOpenModel && <Button iconEnd="arrow-right" variant="link" size="sm" onClick={onOpenModel}>{ui("打开模型设置")}</Button>}
+            <Button variant="quiet" size="sm" onClick={onDismissRescue}>{ui("取消")}</Button>
+          </div>
+        </div>
+      )}
       {rescuePrompt?.type === "consent" && (
         <div className="wb-consent" role="group" aria-label={ui("确认补一张前置小卡")}>
           <strong>{ui("要开启后台准备并补一张前置小卡吗？")}</strong>
@@ -125,8 +186,17 @@ function LeechRescue({ item, course, disabled, rescuePrompt, rescuing, canOpenMo
         <InlineMessage className="wb-leech__notice" tone="warning" boxed actionsBelow
           action={canOpenModel ? { label: ui("打开模型设置"), iconEnd: "arrow-right", onClick: onOpenModel } : undefined}
           onDismiss={onDismissRescue}>
-          {rescueGate(rescuePrompt.kind, { modelReady: false }).text}
+          {rescuePrompt.text || rescueGate(rescuePrompt.kind, { modelReady: false, canChat }).text}
         </InlineMessage>
+      )}
+      {otherOpen && (
+        <div id={otherId} className="wb-leech__actions wb-leech__other" data-rescue-other="">
+          <Tooltip layer content={rescueTip('fix')}><Button variant="quiet" size="sm" data-rescue="fix" disabled={disabled} lock={rescuing} onClick={() => onRescue('fix', item)}>{ui("这题有问题，交给后台修")}</Button></Tooltip>
+          <Tooltip layer content={rescueTip('easier')}><Button variant="quiet" size="sm" data-rescue="easier" disabled={disabled} lock={rescuing} onClick={() => onRescue('easier', item)}>{ui("太难了，补一张前置小卡")}</Button></Tooltip>
+          <HandOff id="question.stubborn" shape="quiet" what="让主会话和你一起看这道题：是你还没弄懂，还是题目本身有问题" disabled={disabled || rescuing}
+            input={{ course, deckId: item.deckId, cardId: item.cardId, topic: item.topic || '', prompt: plainPrompt(item.prompt) }} />
+          <Tooltip layer content={rescueTip('pause')}><Button variant="quiet" size="sm" data-rescue="pause" disabled={disabled} lock={rescuing} onClick={() => onRescue('pause', item)}>{ui("暂停此题")}</Button></Tooltip>
+        </div>
       )}
     </div>
   );
@@ -249,7 +319,7 @@ function resolveCardSourceTarget(item, decks = [], sources = []) {
   return null;
 }
 
-function RowDetail({ id, item, course, detail, variants, recs, shortName, rescuePrompt, rescuing, canOpenModel, canOpenSettings, onPractice, onRescue, onDismissRescue, onOpenModel, onOpenProfileSettings, onOpenSource, companionTarget, onOpenCompanion, disabled }) {
+function RowDetail({ id, item, course, detail, variants, recs, shortName, rescuePrompt, rescuing, experimentState, initialOtherOpen, canOpenModel, canOpenSettings, onPractice, onRescue, onStartExperiment, onDismissRescue, onOpenModel, onOpenProfileSettings, onOpenSource, companionTarget, onOpenCompanion, disabled }) {
   const yourAnswerText = detail && detail !== "loading" && !detail?.error
     ? (detail.selfGrade !== null && detail.selfGrade !== undefined ? uiFormat("自评 {0} 分", [detail.selfGrade]) : detail.yourAnswer)
     : "";
@@ -278,9 +348,11 @@ function RowDetail({ id, item, course, detail, variants, recs, shortName, rescue
             </dl>
           )}
       {item.leech && onRescue && (
-        <LeechRescue item={item} course={course} disabled={disabled} rescuePrompt={rescuePrompt} rescuing={rescuing}
+        <LeechRescue item={item} course={course} detail={detail} companionTarget={companionTarget} experimentState={experimentState}
+          disabled={disabled} rescuePrompt={rescuePrompt} rescuing={rescuing} initialOtherOpen={initialOtherOpen}
           canOpenModel={canOpenModel} canOpenSettings={canOpenSettings}
-          onRescue={onRescue} onDismissRescue={onDismissRescue} onOpenModel={onOpenModel} onOpenProfileSettings={onOpenProfileSettings} />
+          onRescue={onRescue} onStartExperiment={onStartExperiment} onOpenExperiment={onOpenCompanion}
+          onDismissRescue={onDismissRescue} onOpenModel={onOpenModel} onOpenProfileSettings={onOpenProfileSettings} />
       )}
       {variants.length > 0 && (
         <div className="wb-sub">
@@ -312,7 +384,7 @@ function RowDetail({ id, item, course, detail, variants, recs, shortName, rescue
       <div className="wb-detail__foot">
         <small className="muted">{shortName(item.deckTitle)}</small>
         {companionTarget && onOpenCompanion && (
-          <Button variant="quiet" size="sm" iconEnd="arrow-right" onClick={onOpenCompanion}>
+          <Button variant="quiet" size="sm" iconEnd="arrow-right" onClick={() => onOpenCompanion(companionTarget)}>
             {companionSlideButtonLabel(companionTarget)}
           </Button>
         )}
@@ -327,7 +399,7 @@ const sameRow = (a, b) => Object.keys(a).every((key) => (key === 'state' ? sameV
 
 /* One question. Memoised, so opening a group, typing in the search box or a status poll redraws only the rows whose own props changed (the
    `handlers` are stable). */
-const Row = memo(function Row({ it, metaText, query = "", isOpen, state, detail, sourceTarget = null, companionTarget = null, recItems, shortName, canGenerate, canPracticePrepared, disabled, variantDisabled, handlers, limits, course, rescuePrompt = null, rescuing = false, canOpenModel = false, canOpenSettings = false, history = false, mistake = "", showPractice = true }) {
+const Row = memo(function Row({ it, metaText, query = "", isOpen, state, detail, sourceTarget = null, companionTarget = null, experimentState = null, initialOtherOpen = false, recItems, shortName, canGenerate, canPracticePrepared, disabled, variantDisabled, handlers, limits, course, rescuePrompt = null, rescuing = false, canOpenModel = false, canOpenSettings = false, history = false, mistake = "", showPractice = true }) {
   const detailId = `wb-detail-${it.cardId}`;
   const recs = useMemo(() => (isOpen ? relatedTo(recItems, it.cardId) : []), [isOpen, recItems, it.cardId]);
   const fullPrompt = plainPrompt(it.prompt);
@@ -368,14 +440,15 @@ const Row = memo(function Row({ it, metaText, query = "", isOpen, state, detail,
       </div>
       {isOpen && (
         <RowDetail id={detailId} item={it} course={course} detail={detail} shortName={shortName} disabled={disabled}
-          rescuePrompt={rescuePrompt} rescuing={rescuing} canOpenModel={canOpenModel} canOpenSettings={canOpenSettings}
+          rescuePrompt={rescuePrompt} rescuing={rescuing} experimentState={experimentState} initialOtherOpen={initialOtherOpen}
+          canOpenModel={canOpenModel} canOpenSettings={canOpenSettings}
           variants={state.kind === "ready" ? state.prompts : []}
           recs={recs}
-          onPractice={handlers.practiceRec} onRescue={handlers.rescue}
+          onPractice={handlers.practiceRec} onRescue={handlers.rescue} onStartExperiment={handlers.startExperiment}
           onDismissRescue={handlers.dismissRescue} onOpenModel={handlers.openModel} onOpenProfileSettings={handlers.openProfileSettings}
           onOpenSource={sourceTarget ? () => handlers.openSource(sourceTarget) : undefined}
           companionTarget={companionTarget}
-          onOpenCompanion={companionTarget ? () => handlers.openCompanion(companionTarget) : undefined} />
+          onOpenCompanion={handlers.openCompanion} />
       )}
     </li>
   );
@@ -570,9 +643,10 @@ export function wrongBookHeadline({ isHistory, counts, historyCount = 0, status 
 export function WrongBookView({
   data, course, onCourse, showInactive, onShowInactive, items, counts, view = "weak", onView, viewCounts, loading, err, page = 0, pageSize = PAGE_SIZE, hasMore, onReload, onPage,
   recs, recsLoading = false, coach, details = {}, onLoadDetail, onPractice, onPracticePrepared, onGenerate, onOpenSettings, onSettings,
-  onLibrary, onCreate, onSources, onRescue, onNotify, arrival, openKey, initial = {}, filterMin = FILTER_MIN,
+  onLibrary, onCreate, onSources, onRescue, onStartExperiment, experimentJobs = null, onNotify, arrival, openKey, initial = {}, filterMin = FILTER_MIN,
 }) {
-  const { busy, openModal } = useStudy();
+  const { busy, openModal, host } = useStudy();
+  const canChat = hasChatHost(host);
   useInjectCss(css, "study-views");
   useInjectCss(wrongCss, "study-wrongbook");
   // The distribution's tooltip is the shared point tooltip surface (.sh-tooltip--point, ui/components/overlays.css).
@@ -681,14 +755,17 @@ export function WrongBookView({
   }, [arrival, items, scopeKey, groupBy, data?.decks]);
   const hasCoach = !!coach;
   const hasModelField = data?.model !== undefined || data?.modelReady !== undefined;
-  const modelReady = (hasModelField ? modelReadiness(data).ready : true) && (!hasCoach || !!coach.enabled);
+  const generationModelReady = hasModelField ? modelReadiness(data).ready : true;
+  const modelReady = generationModelReady && (!hasCoach || !!coach.enabled);
   const openModel = onOpenSettings || (onSettings ? () => onSettings("settings-model") : undefined);
   const openProfileSettings = onSettings ? () => onSettings("settings-profile") : undefined;
   const activeRescuePrompt = rescuePrompt
-    && !(rescuePrompt.type === "no-model" && modelReady)
+    && !(rescuePrompt.type === "rescue-handoff" && generationModelReady)
+    && !(rescuePrompt.type === "no-model" && (rescuePrompt.kind === "experiment" ? generationModelReady : modelReady))
     && !(rescuePrompt.type === "consent" && coach?.consent === true)
     ? rescuePrompt
     : null;
+  const activeExperimentJobs = experimentJobs || initial.experimentJobs || {};
   const gated = hasCoach && !coach.enabled;
   const canGenerate = hasCoach && coach.enabled && !!onGenerate;
   const rowIds = new Set(rows.map((row) => row.cardId));
@@ -829,7 +906,7 @@ export function WrongBookView({
   );
   const triggerRescue = async (kind, item, options) => {
     if (!options?.consent) {
-      const gate = rescueGate(kind, { modelReady, consent: !hasCoach || coach?.consent === true });
+      const gate = rescueGate(kind, { modelReady, consent: !hasCoach || coach?.consent === true, canChat });
       if (gate.type !== "run") {
         setRescuePrompt({ cardId: item.cardId, ...gate });
         return;
@@ -844,6 +921,16 @@ export function WrongBookView({
       setRescuingCard(null);
     }
   };
+  const triggerExperiment = async (item, detail) => {
+    const gate = rescueGate('experiment', { modelReady: generationModelReady, canChat });
+    if (gate.type !== 'run') {
+      setRescuePrompt({ cardId: item.cardId, ...gate });
+      return;
+    }
+    setRescuePrompt(null);
+    if (!onStartExperiment) return;
+    await onStartExperiment(item, detail, courseOfDeck.get(item.deckId) || (course && course !== '*' ? course : ''));
+  };
   const dismissRescue = () => setRescuePrompt(null);
   const openCardSource = (target) => {
     if (!target?.source || !openModal) return;
@@ -857,7 +944,7 @@ export function WrongBookView({
   };
   const openCardCompanion = (target) => {
     if (!target || !openModal) return;
-    openCompanionTarget(openModal, target);
+    openCompanionTarget(openModal, target, { returnLabel: ui("返回错题"), from: "wrongbook" });
   };
   const toggleGroupDetails = (capRows, allExpanded) => {
     setExpanded((previous) => {
@@ -923,7 +1010,7 @@ export function WrongBookView({
   };
   // The handlers every row shares; the row itself is memoised, so these must keep their identity from render to render.
   const latest = useRef(null);
-  latest.current = { openRow, generate, onPractice, onPracticePrepared, practiceRec, triggerRescue, dismissRescue, openModel, openProfileSettings, openCardSource, openCardCompanion };
+  latest.current = { openRow, generate, onPractice, onPracticePrepared, practiceRec, triggerRescue, triggerExperiment, dismissRescue, openModel, openProfileSettings, openCardSource, openCardCompanion };
   const handlers = useMemo(() => ({
     open: (item) => latest.current.openRow(item),
     generate: (item) => latest.current.generate([item]),
@@ -931,6 +1018,7 @@ export function WrongBookView({
     practicePrepared: (item) => latest.current.onPracticePrepared({ originCardIds: [item.cardId] }),
     practiceRec: (rec) => latest.current.practiceRec(rec),
     rescue: (kind, item, options) => latest.current.triggerRescue(kind, item, options),
+    startExperiment: (item, detail) => latest.current.triggerExperiment(item, detail),
     dismissRescue: () => latest.current.dismissRescue(),
     openModel: () => latest.current.openModel?.(),
     openProfileSettings: () => latest.current.openProfileSettings?.(),
@@ -1238,6 +1326,8 @@ export function WrongBookView({
                     isOpen={expanded.has(it.cardId)} state={stateOf(it.cardId)} detail={details[it.cardId]}
                     sourceTarget={expanded.has(it.cardId) ? (sourceTargetByCard.get(it.cardId) || null) : null}
                     companionTarget={expanded.has(it.cardId) ? (companionTargetByCard.get(it.cardId) || null) : null}
+                    experimentState={activeExperimentJobs[it.cardId] || null}
+                    initialOtherOpen={Array.isArray(initial.rescueOtherOpen) ? initial.rescueOtherOpen.includes(it.cardId) : Boolean(initial.rescueOtherOpen)}
                     recItems={recItems} shortName={shortName}
                     canGenerate={!isHistory && canGenerate} canPracticePrepared={!!onPracticePrepared} disabled={busy} variantDisabled={busy || working} handlers={handlers} limits={limits} course={courseOfDeck.get(it.deckId) || ''} showPractice={isHistory || total !== 1}
                     rescuePrompt={activeRescuePrompt?.cardId === it.cardId ? activeRescuePrompt : null} rescuing={rescuingCard === it.cardId}
@@ -1261,6 +1351,8 @@ export function WrongBookView({
 
 export default function WrongBook({ data, onPractice, onPracticePrepared, onOpenSettings, onLibrary, onCreate, onSources }) {
   const { call, act, openSettings, busy } = useStudy();
+  const app = useContext(AppContext);
+  const [experimentJobs, setExperimentJobs] = useState({});
   const [pinnedCourse, setCourse] = usePageScope(data?.root, 'wrongbook', data?.focus?.course ?? '*');
   const [pinnedInactive, setShowInactive] = useShowInactive(data?.root, 'wrongbook');
   // The result page's line about 顽固题 asked this page to open on exactly those questions (ui/Review.jsx). The request waits under the library's root, so it is read in
@@ -1404,6 +1496,85 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
   const preparing = !!coach?.preparing;
   usePolling(coachQuery.refresh, { intervalMs: POLL_MS, enabled: preparing });
 
+  // Track inline row-level 3–4 slide rescue experiment builds non-blockingly via job.status.
+  const runningExperiments = useMemo(
+    () => Object.entries(experimentJobs).filter(([, entry]) => entry?.status === 'running' && entry.jobId),
+    [experimentJobs],
+  );
+  const pollExperiments = useCallback(async () => {
+    if (!runningExperiments.length) return { unchanged: true };
+    let changed = false;
+    let completedAny = false;
+    const nextPatch = {};
+    for (const [cardId, entry] of runningExperiments) {
+      let job;
+      try { job = await call('job.status', { jobId: entry.jobId }); } catch { continue; }
+      const status = job?.status ?? job?.contract?.status;
+      if (!status) continue;
+      const stage = job?.legacy?.companionStage
+        || job?.companionStage
+        || String(job?.contract?.stage?.code || '').replace(/^companion\./, '')
+        || entry.stage;
+      if (isActiveJob({ status })) {
+        if (stage !== entry.stage) {
+          nextPatch[cardId] = { ...entry, stage };
+          changed = true;
+        }
+        continue;
+      }
+      changed = true;
+      if (status === 'complete') {
+        const companionRef = (job?.contract?.result?.refs || []).find((ref) => ref?.kind === 'companion');
+        const companionId = job?.contract?.detail?.companionId || job?.detail?.companionId || companionRef?.id || '';
+        nextPatch[cardId] = {
+          status: 'ready',
+          jobId: entry.jobId,
+          companionId,
+          course: companionRef?.course || entry.course || '',
+          title: companionRef?.title || '',
+        };
+        completedAny = true;
+      } else {
+        const message = job?.error?.message || job?.contract?.error?.message || ui('这次没能生成交互实验，可以重试或展开「其他办法」。');
+        nextPatch[cardId] = { status: 'failed', jobId: entry.jobId, message: errorMessage(message) };
+      }
+    }
+    if (changed) setExperimentJobs((prev) => ({ ...prev, ...nextPatch }));
+    if (completedAny) {
+      Promise.resolve(app?.core?.refresh?.()).catch(() => {});
+      void load(pageRef.current, { quiet: true });
+    }
+    return changed ? {} : { unchanged: true };
+  }, [app?.core, call, load, runningExperiments]);
+  usePolling(pollExperiments, { intervalMs: 1500, enabled: runningExperiments.length > 0 });
+
+  const startExperiment = useCallback(async (item, _detail, itemCourse) => {
+    const cardId = item.cardId;
+    setExperimentJobs((prev) => ({ ...prev, [cardId]: { status: 'starting', stage: 'queued', course: itemCourse || '' } }));
+    try {
+      const started = await call('generation.companion.build', {
+        mode: 'rescue',
+        ...(itemCourse ? { course: itemCourse } : {}),
+        deckId: item.deckId,
+        cardIds: [cardId],
+        language: getUiLanguage(),
+      });
+      if (!started?.jobId) {
+        setExperimentJobs((prev) => ({ ...prev, [cardId]: { status: 'failed', message: ui('这次没能启动交互实验，可以重试或展开「其他办法」。') } }));
+        return;
+      }
+      setExperimentJobs((prev) => ({
+        ...prev,
+        [cardId]: { status: 'running', jobId: started.jobId, stage: 'queued', course: itemCourse || '' },
+      }));
+    } catch (failure) {
+      setExperimentJobs((prev) => ({
+        ...prev,
+        [cardId]: { status: 'failed', message: errorMessage(failure) },
+      }));
+    }
+  }, [call]);
+
   // Starting variants is a write that starts background work: it goes the app's write way (act), which reads the library again after it, so the 任务
   // console and its badge show the day's 为你定制 row at once instead of after the next quiet poll.
   const generate = useCallback(async (cards, { consent } = {}) => {
@@ -1475,6 +1646,6 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
       page={page} pageSize={PAGE_SIZE} hasMore={counts.total > PAGE_SIZE} onReload={load} onPage={load}
       recs={recs?.key === key ? recs : null} recsLoading={view === "weak" && !!items?.length && recs?.key !== key} coach={coach} details={details} onLoadDetail={loadDetail}
       onPractice={onPractice} onPracticePrepared={onPracticePrepared} onGenerate={generate} onOpenSettings={onOpenSettings} onSettings={openSettings}
-      onLibrary={onLibrary} onCreate={onCreate} onSources={onSources} onRescue={rescue} onNotify={(text) => toast.info(text)} arrival={arrived ? arrival : null} openKey={`study-wrongbook-open:v1:${data?.root || ""}`} />
+      onLibrary={onLibrary} onCreate={onCreate} onSources={onSources} onRescue={rescue} onStartExperiment={startExperiment} experimentJobs={experimentJobs} onNotify={(text) => toast.info(text)} arrival={arrived ? arrival : null} openKey={`study-wrongbook-open:v1:${data?.root || ""}`} />
   );
 }

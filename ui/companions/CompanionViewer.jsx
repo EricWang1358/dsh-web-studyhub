@@ -104,7 +104,12 @@ export default function CompanionViewer({ modal, onClose, inlinePractice = null 
   const [feedbackSeq, setFeedbackSeq] = useState(0);
   const [feedbackState, setFeedbackState] = useState(() => modal?.initialFeedbackState || { loading: false, total: 0, open: 0, items: [], error: '' });
   const [inlineRound, setInlineRound] = useState(null);
-  useEffect(() => { setInlineRound(null); }, [companionId]);
+  const [completedNow, setCompletedNow] = useState(false);
+  useEffect(() => { setInlineRound(null); setCompletedNow(false); }, [companionId]);
+  const handleClose = useCallback(() => {
+    flushPendingProgress();
+    onClose?.();
+  }, [flushPendingProgress, onClose]);
 
   const askLabel = ui('记疑问');
   const selectionLabel = ui('就这句提问');
@@ -187,6 +192,7 @@ export default function CompanionViewer({ modal, onClose, inlinePractice = null 
           };
         });
         setAskError('');
+        if (msg.completed) setCompletedNow(true);
         const progressPayload = {
           id: companionId,
           course: state.companion?.course || course,
@@ -604,10 +610,24 @@ export default function CompanionViewer({ modal, onClose, inlinePractice = null 
       description={state.companion?.grounded === false
         ? ui('AI 推演伴学页（隔离沙箱运行，未绑定原讲义）')
         : ui('隔离沙箱交互伴学舞台 · 划选文字或点右上角可随时查前置、问导师、存防混卡')}
-      onClose={onClose}
+      onClose={handleClose}
       footer={state.status === 'ready' && (
         <div className="sh-comp-foot">
           <div className="sh-comp-foot__actions">
+            {modal?.returnLabel && (
+              <Button
+                size="sm"
+                variant={completedNow ? 'primary' : 'secondary'}
+                icon="arrow-left"
+                data-companion-return=""
+                onClick={handleClose}
+              >
+                {modal.returnLabel}
+              </Button>
+            )}
+            {modal?.returnLabel && completedNow && (
+              <Badge tone="success">{ui('实验已完成')}</Badge>
+            )}
             <div className="sh-comp-foot__nav" role="group" aria-label={ui('快速跳转伴学页')}>
               <IconButton
                 size="sm"

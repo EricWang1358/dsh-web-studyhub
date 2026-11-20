@@ -263,9 +263,13 @@
     .wb-sub .wb-sub-rec .wb-prompt { flex: 1 1 14em; }
     .wb-sub .wb-why { flex: 1 1 14em; white-space: normal; overflow: visible; }
     .wb-why-list { color: var(--accent-text); font-size: var(--fs-sm); }
-    /* The four ways out for a question that keeps being failed: one line of words, then the actions in a row that wraps. */
+    /* Highlighted single recommendation + collapsed "Other ways" disclosure for stubborn questions (5.0.0 §2.1). */
     .wb-leech .wb-leech__retell { margin-top: var(--space-1); }
+    .wb-leech__primary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); margin-top: var(--space-2); }
+    .wb-leech__status { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-body); }
+    .wb-leech__status.is-ready { color: var(--ok-ink); font-weight: var(--fw-medium); }
     .wb-leech__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); margin-top: var(--space-2); }
+    .wb-leech__other { padding-top: var(--space-2); border-top: 1px dashed var(--line-soft); }
     .wb-leech > .wb-consent, .wb-leech > .wb-leech__notice { margin: var(--space-3) 0 0; }
     .wb-pages { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-2); color: var(--text-muted); font-size: var(--fs-md); font-variant-numeric: tabular-nums; }
     /* ── 薄弱点分布 (#748) ──────────────────────────────────────────────────

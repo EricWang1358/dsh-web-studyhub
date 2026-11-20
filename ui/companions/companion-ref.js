@@ -58,6 +58,7 @@ export function resolveCompanionTarget({ card, solution, courses, sources, fallb
 
   let resolvedCourse = sourceCourse || String(fallbackCourse || '').trim();
   let companionTitle = '';
+  let lessonMode = typeof explicit?.mode === 'string' ? explicit.mode.trim() : '';
   if (Array.isArray(courses) && courses.some(c => Array.isArray(c?.companions))) {
     let matchedCourse = null;
     let matchedCompanion = null;
@@ -72,6 +73,9 @@ export function resolveCompanionTarget({ card, solution, courses, sources, fallb
     if (!matchedCompanion) return null;
     if (matchedCourse?.name) resolvedCourse = matchedCourse.name;
     companionTitle = typeof matchedCompanion.title === 'string' ? matchedCompanion.title : '';
+    if (typeof matchedCompanion.lessonMode === 'string' && matchedCompanion.lessonMode.trim()) {
+      lessonMode = matchedCompanion.lessonMode.trim();
+    }
     if (slide >= 1 && Number(matchedCompanion.slideCount) > 0) {
       slide = Math.min(slide, Math.floor(Number(matchedCompanion.slideCount)));
     }
@@ -85,18 +89,22 @@ export function resolveCompanionTarget({ card, solution, courses, sources, fallb
     anchor: finalAnchor,
     label,
     companionTitle,
+    ...(lessonMode ? { lessonMode } : {}),
   };
 }
 
 /** Label for a flashcard / card detail deep-link button (`Open slide {slide} in companion` or `Open companion`). */
 export function companionSlideButtonLabel(target) {
+  if (target?.lessonMode === 'rescue') return ui('打开 4 页交互实验');
   if (target?.slide >= 1) return uiFormat('打开伴学课第 {0} 页', [target.slide]);
   return ui('打开伴学页');
 }
 
 /** Open `CompanionViewer` directly on `target` (passing `initialSlide` and `slide` for exact-slide deep-linking). */
-export function openCompanionTarget(openModal, target) {
+export function openCompanionTarget(openModal, target, extra = {}) {
   if (typeof openModal !== 'function' || !target?.companionId) return;
+  const returnLabel = extra.returnLabel || target.returnLabel || '';
+  const from = extra.from || target.from || '';
   openModal({
     type: 'companion',
     id: target.companionId,
@@ -104,6 +112,8 @@ export function openCompanionTarget(openModal, target) {
     ...(target.slide >= 1 ? { slide: target.slide, initialSlide: target.slide } : {}),
     ...(target.anchor ? { anchor: target.anchor } : {}),
     ...(target.companionTitle || target.label ? { title: target.companionTitle || target.label } : {}),
+    ...(returnLabel ? { returnLabel } : {}),
+    ...(from ? { from } : {}),
   });
 }
 
