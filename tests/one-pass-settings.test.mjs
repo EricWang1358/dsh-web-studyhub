@@ -56,3 +56,15 @@ test('a continuation keeps the strategy its draft was written with; a draft reco
   assert.equal(resolveGenerationRequest({}, {}, { continuation: { kind: 'quiz' } }).performance.strategy, 'staged', 'an old draft with no performance at all');
   assert.equal(resolveGenerationRequest({}, { performance: { strategy: 'one-pass' } }, { continuation: { performance: {} } }).performance.strategy, 'one-pass', 'unless the request chooses');
 });
+
+// Gate S8: a learner who turned on 采纳审阅建议 chose quality over speed before 出题方式 existed. One pass does not use that setting, so their library stays staged
+// until they choose; everyone else gets one pass. A strategy saved by the learner is kept as it is, whatever else is on.
+test('a library that saved applySuggestions on and no strategy resolves to the staged pipeline; a saved strategy wins', () => {
+  assert.equal(normalizeGenerationSettings({ applySuggestions: true }).strategy, 'staged');
+  assert.equal(normalizeGenerationPerformance({ applySuggestions: true }).strategy, 'staged');
+  assert.equal(resolveGenerationRequest({ applySuggestions: true }, {}).performance.strategy, 'staged');
+  assert.equal(normalizeGenerationSettings({ applySuggestions: true, strategy: 'one-pass' }).strategy, 'one-pass');
+  assert.equal(normalizeGenerationSettings({ applySuggestions: false }).strategy, 'one-pass');
+  assert.equal(normalizeGenerationSettings({ applySuggestions: true, strategy: 'nonsense' }).strategy, 'staged', 'a corrupt strategy is no choice');
+  assert.equal(resolveGenerationRequest({ applySuggestions: true }, { performance: { strategy: 'one-pass' } }).performance.strategy, 'one-pass', 'a request may still choose');
+});
