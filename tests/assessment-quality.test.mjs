@@ -26,7 +26,8 @@ test('model JSON control-character repair preserves strings and rejects unrelate
   for (const broken of ['{"answer":"A\\qB\n"}', '{"answer":"A\\\nB"}', 'not json at all'])
     assert.throws(() => parseJson(broken), SyntaxError);
   assert.deepEqual(parseJson('{"answer":"A\nB",}'), { answer: 'A\nB' });
-  assert.deepEqual(parseJson('{"answer":"Unclosed\n'), { answer: 'Unclosed' });
+  assert.throws(() => parseJson('{"answer":"Unclosed\n'), SyntaxError);
+  assert.deepEqual(parseJson('{"answer":"Unclosed\n', { allowTruncated: true }), { answer: 'Unclosed' });
   assert.deepEqual(parseJson('{"answer":"say "SOLID" principles"}'), { answer: 'say "SOLID" principles' });
 });
 const request = { count: 1, kind: "flashcard", sources: [source] };
