@@ -67,6 +67,10 @@ test('the same-fact merge: one call with every one-pass card; in a group the fir
   assert.deepEqual(merged[2].deck.cards.map(item => item.objective), ['Objective 6', 'Objective 7', 'Objective 8', 'Objective 9']);
   const [omitted] = merged[2].deck.editorial.omitted;
   assert.deepEqual([omitted.objective, omitted.reasons[0], omitted.coveredBy], ['Objective 5', SAME_FACT_REASON, outcomes[0].deck.cards[4].id]);
+  // The whole card is kept with its omission (gate round 2): options, explanation and citations, not only what it asked.
+  assert.deepEqual(omitted.card, outcomes[2].deck.cards[0]);
+  assert.ok(omitted.card.options.length === 3 && omitted.card.explanation && omitted.card.citations.length === 1);
+  assert.notEqual(omitted.card, outcomes[2].deck.cards[0], 'a copy, not the card itself');
   assert.equal(merged[2].deck.editorial.audit.checks.length, 4);
   assert.equal(outcomes[2].deck.cards.length, 5, 'the outcome given is not changed in place');
 });
@@ -84,11 +88,12 @@ test('bounds: a group of sections that are not adjacent, a group larger than sam
   assert.equal(kept(fine).length, 10, 'the accepted group of adjacent sections still goes through');
 });
 
-test('bounds: a reply that would remove more than sameFactShare of the round is ignored whole, and every card stays', async () => {
+test('bounds: a reply that would remove more than sameFactShare (10%) of the round is ignored whole, and every card stays', async () => {
   const { planned, outcomes } = round(), share = Math.max(1, Math.floor(10 * ONE_PASS_LIMITS.sameFactShare));
-  assert.equal(share, 2);
-  assert.equal(kept(await mergeSameFacts(planned, outcomes, replying([[0, 1], [2, 3]]))).length, 9, 'two of the ten one-pass cards may go (the staged card stays)');
-  assert.deepEqual(await mergeSameFacts(planned, outcomes, replying([[0, 1], [2, 3], [4, 5]])), outcomes, 'three of ten would be too many: nothing goes');
+  assert.equal(ONE_PASS_LIMITS.sameFactShare, 0.1);
+  assert.equal(share, 1);
+  assert.equal(kept(await mergeSameFacts(planned, outcomes, replying([[0, 1]]))).length, 10, 'one of the ten one-pass cards may go (the staged card stays)');
+  assert.deepEqual(await mergeSameFacts(planned, outcomes, replying([[0, 1], [2, 3]])), outcomes, 'two of ten would be too many: nothing goes');
 });
 
 test('a broken reply is asked again once; a reply with no groups, fewer than two cards or more than the limit leave the run as it is', async () => {
