@@ -2,6 +2,10 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 5.2.1 — 2026-11-21
+
+- **Fixed the Voice Study Pack modal rendering behind page content and without a backdrop.** `VoicePackDialog` previously passed an `open` prop that leaked onto the native `<dialog open>` element before `Dialog`'s `showModal()` could run, leaving the modal in normal document flow beneath home-page cards; `VoicePackDialog` now omits `open` (and fixes its weak-card badge tone to `error` plus responsive count/time controls), and `Dialog` itself now strips any stray `open` prop and promotes non-modal open dialogs into the browser top layer. Not verified: live visual inspection inside a newly built Tauri window after releasing `v5.2.1` (verified via SSR regression tests and full guardrail suites).
+
 ## 5.2.0 — 2026-11-21
 
 - **One-click in-app auto-updates for StudyHub Desktop via signed per-user NSIS installers.** StudyHub Desktop now ships a per-user (`currentUser`) Windows `Setup.exe` installer alongside `.msi` and portable `.zip`, integrates Tauri v2 `tauri-plugin-updater` with embedded Ed25519 signature verification and `latest.json` manifest generation, shuts down the bundled Node sidecar cleanly before passive update installation, and adds a one-click update button with live download progress and collapsible manual fallback inside the upgrade dialog. Not verified: live Windows Rust compilation/linking and end-to-end signed updater relaunch on this host (no local MSVC Build Tools installed; verified in GitHub Actions `release-desktop.yml`).
