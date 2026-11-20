@@ -25,14 +25,7 @@ function installerError(code, detail = '') {
   return Object.assign(new Error(formatRetrievalError(code, 'zh', detail)), { code });
 }
 
-async function exists(targetPath) {
-  try {
-    await access(targetPath);
-    return true;
-  } catch {
-    return false;
-  }
-}
+const exists = (targetPath) => access(targetPath).then(() => true, () => false);
 
 function normalizeForCompare(pathValue, platform) {
   const abs = resolve(pathValue);
@@ -249,12 +242,13 @@ function resolvePrefix(env, explicitPrefix) {
   return envPrefix || releaseDownloadPrefix();
 }
 
-async function downloadVerifiedBundleToFile({ release, netOptions, maxZipBytes }) {
+async function downloadVerifiedBundleToFile({ release, netOptions, maxZipBytes, tempDir }) {
   const sumsBytes = await fetchSmallBytes({ url: release.sha256Url, limit: MAX_CHECKSUMS_BYTES, ...netOptions });
   const expectedSha = parseSha256SumsLine(sumsBytes.toString('utf8'), release.name);
   if (!expectedSha) throw installerError('extension-checksum', `missing ${release.name}`);
 
-  const zipPath = join(tmpdir(), `studyhub-retrieval-${randomUUID()}.zip`);
+  await mkdir(tempDir, { recursive: true });
+  const zipPath = join(tempDir, `studyhub-retrieval-${randomUUID()}.zip`);
   try {
     const bytes = await downloadAssetToFile({ url: release.assetUrl, destPath: zipPath, limit: maxZipBytes, ...netOptions });
     const actualSha = await hashFileSha256(zipPath);
@@ -297,6 +291,7 @@ export function createRetrievalInstaller({
   sleep,
   timeoutMs = DOWNLOAD_TIMEOUT_MS,
   maxZipBytes = MAX_RETRIEVAL_ZIP_BYTES,
+  tempDir = tmpdir(),
   validateDir = validateRetrievalDir,
 } = {}) {
   const targetDir = resolve(desktopDir);
@@ -317,6 +312,7 @@ export function createRetrievalInstaller({
       release,
       netOptions: { httpFetch, attempts, sleep, timeoutMs },
       maxZipBytes,
+      tempDir,
     });
     try {
       const checked = await stageValidateAndSwap({ zipPath, targetDir, validateDir, beforeSwap, platform });
