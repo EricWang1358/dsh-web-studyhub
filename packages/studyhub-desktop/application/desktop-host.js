@@ -1,6 +1,5 @@
 import { createHostHandler, jsonSafe, modelStatus } from '../../../lib/host.js';
 import { registerHostConcurrencyCap } from '../../../lib/generation-settings.js';
-import { localizeAppMessage } from '../../../lib/application-messages.js';
 import { DESKTOP_CAPABILITIES } from '../domain/contracts.js';
 import {
   OPENAI_PRESETS,
@@ -13,12 +12,14 @@ import {
 import { libraryPlaceOf } from '../domain/library-place.js';
 import { cliLaunchRequest } from '../domain/terminal-command.js';
 import { createDesktopCompletePort } from './complete-port.js';
+import { formatCallError, formatForwardAnswer } from './desktop-errors.js';
 import { localizeProviders } from './provider-discovery.js';
+import { createRetrievalActionHandlers, prepareRetrievalForAction } from './retrieval-actions.js';
 import { desktopUpdateView } from './update-view.js';
 
 export const DESKTOP_SESSION_ID = 'desktop';
 
-function createDesktopContext({ session, getRoute, getEffective, jobsService, disposers }) {
+function createDesktopContext({ session, getRoute, getEffective, jobsService, toolsService, disposers }) {
   const desktopAgent = Object.freeze({ id: DESKTOP_SESSION_ID });
   const agents = new Map([[DESKTOP_SESSION_ID, desktopAgent]]);
   const sessions = new Map([[DESKTOP_SESSION_ID, session]]);
@@ -39,6 +40,7 @@ function createDesktopContext({ session, getRoute, getEffective, jobsService, di
     get(name) {
       if (name === 'agents') return agents;
       if (name === 'jobs') return jobsService;
+      if (name === 'tools' && toolsService) return toolsService;
       if (name === 'agentDefaultModel') return { currentSelection: getRoute };
       if (name === 'llm') return { listProviders, listConfigurableProviders };
       if (name === 'settings') {
@@ -204,39 +206,7 @@ async function terminalUnavailable() {
   throw Object.assign(new Error('当前系统暂不支持自动打开命令行'), { code: 'terminal-unsupported' });
 }
 
-const DESKTOP_ERROR_EN = Object.freeze({
-  'invalid-cli': 'This local CLI cannot be opened',
-  'cli-not-ready': 'This local CLI is not ready yet; select Rescan first',
-  'terminal-unsupported': 'Opening a command-line window is not supported on this system yet',
-  'terminal-path-unsafe': 'A path has special characters or is not on a local drive, so the command-line window was not opened. Open a command line yourself, go to the library folder and run the CLI there',
-  'terminal-launch-failed': 'Could not open a command-line window',
-  BROKEN_SHIM: 'The launch script of this CLI is broken or its target file is missing',
-  'invalid-config': 'Configuration payload must be an object',
-  'invalid-mode': 'Unsupported model provider mode',
-  'invalid-effort': 'Invalid reasoning effort value',
-  'model-url-invalid': 'Invalid base URL; please provide a full http:// or https:// URL',
-  'model-key-invalid': 'Invalid API key format; spaces and control characters are not allowed',
-});
-
-function formatCallError(error, language) {
-  const code = typeof error?.code === 'string' && error.code ? error.code : 'STUDY_ERROR';
-  if (language === 'en' && Object.hasOwn(DESKTOP_ERROR_EN, code)) {
-    return { ok: false, error: DESKTOP_ERROR_EN[code], code };
-  }
-  const message = localizeAppMessage(error?.message || String(error), language);
-  return { ok: false, error: message, code };
-}
-
-function formatForwardAnswer(answer) {
-  if (answer.ok) return { ok: true, value: answer.value };
-  return {
-    ok: false,
-    error: answer.error?.message || 'Study request failed',
-    code: answer.error?.code || 'STUDY_ERROR',
-  };
-}
-
-function createCallDispatcher(desktopHandlers, forward) {
+function createCallDispatcher(desktopHandlers, forward, retrievalRuntime) {
   return async function call(action, args = {}) {
     const language = args?.uiLanguage === 'en' ? 'en' : 'zh';
     try {
@@ -246,6 +216,7 @@ function createCallDispatcher(desktopHandlers, forward) {
       if (Object.hasOwn(desktopHandlers, action)) {
         return { ok: true, value: jsonSafe(await desktopHandlers[action](args)) };
       }
+      await prepareRetrievalForAction(retrievalRuntime, action);
       return formatForwardAnswer(await forward(action, args));
     } catch (error) {
       return formatCallError(error, language);
@@ -269,12 +240,14 @@ export async function createDesktopHost({
   openCliTerminal = terminalUnavailable,
   ensureDir,
   injectedComplete = null,
+  retrievalRuntime = null,
   systemDrive = '',
 }) {
   let state = await configStore.load();
   await ensureDir(state.library.root);
 
   const disposers = [];
+  if (retrievalRuntime) disposers.push(() => retrievalRuntime.dispose());
   const session = { header: { cwd: state.library.root } };
   const handlerConfig = { libraryRoot: state.library.root };
 
@@ -298,7 +271,10 @@ export async function createDesktopHost({
     codexComplete,
     injectedComplete,
   });
-  const ctx = createDesktopContext({ session, getRoute, getEffective, jobsService: jobExecutor.asDshJobsService(), disposers });
+  const toolsService = retrievalRuntime ? retrievalRuntime.asDshToolsService() : null;
+  const ctx = createDesktopContext({
+    session, getRoute, getEffective, jobsService: jobExecutor.asDshJobsService(), toolsService, disposers,
+  });
   const handle = createHostHandler(ctx, handlerConfig, () => completePort.makeComplete(), {
     owner: ctx,
     capabilities: DESKTOP_CAPABILITIES,
@@ -312,11 +288,14 @@ export async function createDesktopHost({
     handlerConfig.libraryRoot = state.library.root;
   }
 
-  const desktopHandlers = createDesktopActionHandlers({
-    configStore, providerDiscovery, completePort, openExternal, openCliTerminal,
-    getState: () => state, reloadState, getRoute, ctx, forward, systemDrive,
-  });
-  const call = createCallDispatcher(desktopHandlers, forward);
+  const desktopHandlers = {
+    ...createDesktopActionHandlers({
+      configStore, providerDiscovery, completePort, openExternal, openCliTerminal,
+      getState: () => state, reloadState, getRoute, ctx, forward, systemDrive,
+    }),
+    ...createRetrievalActionHandlers({ retrievalRuntime, forward }),
+  };
+  const call = createCallDispatcher(desktopHandlers, forward, retrievalRuntime);
 
   let disposing = null;
   function dispose() {

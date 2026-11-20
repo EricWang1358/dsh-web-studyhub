@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createDesktopHost } from '../application/desktop-host.js';
 import { createProviderDiscovery } from '../application/provider-discovery.js';
+import { createRetrievalRuntime } from '../application/retrieval-runtime.js';
 import { createAgyCompleteAdapter, probeAgyModels, probeCliVersion } from '../adapters/cli/agy-adapter.mjs';
 import { createCodexCompleteAdapter, probeCodexAuth, probeCodexModels } from '../adapters/cli/codex-adapter.mjs';
 import { listCandidatePaths } from '../adapters/cli/candidate-paths.mjs';
@@ -12,6 +13,7 @@ import { startLocalServer } from '../adapters/http/local-server.mjs';
 import { createOpenAiCompleteAdapter } from '../adapters/http/openai-adapter.mjs';
 import { openExternalUrl } from '../adapters/os/open-external.mjs';
 import { openCliTerminal } from '../adapters/os/open-terminal.mjs';
+import { createRetrievalRuntimePorts } from '../adapters/retrieval/runtime-ports.mjs';
 import { createInProcessJobExecutor } from '../adapters/runtime/job-executor.mjs';
 import { createConfigStore } from '../adapters/storage/config-store.mjs';
 
@@ -103,11 +105,15 @@ export async function composeDesktopSidecar({
   injectDevToken = false,
   env = process.env,
   injectedComplete = null,
+  retrievalRuntime: injectedRetrievalRuntime = null,
 } = {}) {
   const configStore = createConfigStore({ env });
   const runner = createProcessRunner();
   const jobExecutor = createInProcessJobExecutor();
   const currentCustomPaths = { agy: '', codex: '' };
+  const retrievalRuntime = injectedRetrievalRuntime || createRetrievalRuntime(
+    createRetrievalRuntimePorts({ env, dshHome: configStore.dshHome, runner })
+  );
 
   const providerDiscovery = createProviderDiscovery({
     listCandidates: (id, opts) => listCandidatePaths(id, { ...opts, env }),
@@ -129,6 +135,7 @@ export async function composeDesktopSidecar({
     openCliTerminal: (request) => openCliTerminal(request, { env }),
     ensureDir: (dirPath) => mkdir(dirPath, { recursive: true }),
     injectedComplete,
+    retrievalRuntime,
     // The drive Windows is installed on; the default is the usual one when the variable is missing.
     systemDrive: env.SystemDrive || 'C:',
   });
