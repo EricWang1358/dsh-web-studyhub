@@ -60,18 +60,18 @@ export const GUIDANCE_ITEMS = Object.freeze([
   { id: 'setup.later', kind: 'card', where: '学习库首页 · 课程准备', title: '课程准备里点了「稍后」的步骤', trigger: '课程准备清单里点「稍后」的步骤会先收起来。', again: '下次打开学习库首页的课程准备时', memory: local(SETUP_LATER_PREFIX, 'prefix'), dismiss: 'until-condition', proactive: false },
   { id: 'setup.done', kind: 'card', where: '学习库首页 · 课程准备', title: '课程准备「全部完成」', trigger: '一门课的准备步骤都做完时，说一次就收起。', again: '这门课的准备都做完后，下次打开学习库首页时', memory: local(SETUP_DONE_PREFIX, 'prefix'), dismiss: 'forever', proactive: false },
   { id: hintItem(READER_HINTS.page), kind: 'tip', where: '阅读 · 原始 PDF', title: '提问的是哪一页', trigger: '第一次在原始 PDF 旁提问时，说明问的是哪一页、怎么换页。', again: '下次在原始 PDF 旁提问时', memory: local(HINTS_KEY, 'list', READER_HINTS.page), dismiss: 'forever', proactive: true },
-  { id: hintItem(READER_HINTS.presets), kind: 'tip', where: '阅读 · 原始 PDF', title: '预设问题和发给主会话', trigger: '第一次看到预设问题时，说明点一下就提问，图表或扫描页可以发给主会话。', again: '下次在原始 PDF 旁看到预设问题时', memory: local(HINTS_KEY, 'list', READER_HINTS.presets), dismiss: 'forever', proactive: true },
+  { id: hintItem(READER_HINTS.presets), kind: 'tip', where: '阅读 · 原始 PDF', title: '预设问题和发给主会话', trigger: '第一次看到预设问题时，说明点一下就提问，图表或扫描页可以发给主会话。', desktop: { title: '预设问题和复制提示词', trigger: '第一次看到预设问题时，说明点一下就提问，图表或扫描页可以复制提示词交给外部 AI。' }, again: '下次在原始 PDF 旁看到预设问题时', memory: local(HINTS_KEY, 'list', READER_HINTS.presets), dismiss: 'forever', proactive: true },
   // The three first-use tips under a practice question (#948): each on a control that is already there, after the learner acted, once. Proactive (the switches apply), but not the daily
   // budget's (ui/guidance/practice-tips.js says why); the rule that picks one is practiceTipFor, the memory is one list like the reader's hints.
   { id: PRACTICE_TIP.help, kind: 'tip', where: '练习', title: '答错后提示「帮我弄懂」', trigger: '第一次答错一道题（闪卡：自评没掌握）、看到解析时，在「帮我弄懂」旁提示：讲解会直接出现在这道题下面。', again: '下次答错一道题时', memory: local(PRACTICE_TIPS_KEY, 'list', 'help-first'), dismiss: 'forever', proactive: true },
   { id: PRACTICE_TIP.fix, kind: 'tip', where: '练习', title: '标记「这题有问题」后提示「修题」', trigger: '第一次标记「这题有问题」时，在「修题」旁提示：助教直接改这张卡，改完可以在信箱里一步撤销。', again: '下次标记「这题有问题」时', memory: local(PRACTICE_TIPS_KEY, 'list', 'fix-first'), dismiss: 'forever', proactive: true },
   { id: PRACTICE_TIP.prereq, kind: 'tip', where: '练习', title: '看到讲解后提示「出成前置题」', trigger: '第一次在题目下看到讲解（帮我弄懂或追问的回答）时，在讲解下面的「出成前置题」旁提示它能做什么。', again: '下次在题目下看到讲解时', memory: local(PRACTICE_TIPS_KEY, 'list', 'prereq-first'), dismiss: 'forever', proactive: true },
-  { id: PRACTICE_OFFER.chapterBasics, kind: 'tip', where: '练习', title: '补词到底时提示「先读这一章」', trigger: '在一道题上点「补齐」仍引出更底层前置词，或在同一道题上第二次点「补齐」时，在生词行下方提示先读这一章或发给主会话讲。', again: '下次补词到底或同一题第二次点「补齐」时', memory: session(CHAPTER_HINT_KEY), dismiss: 'per-session', proactive: true },
+  { id: PRACTICE_OFFER.chapterBasics, kind: 'tip', where: '练习', title: '补词到底时提示「先读这一章」', trigger: '在一道题上点「补齐」刚完成、仍引出更底层前置词，或在同一道题上第二次点「补齐」时，在生词行下方提示先读这一章或发给主会话讲。', desktop: { trigger: '在一道题上点「补齐」刚完成、仍引出更底层前置词，或在同一道题上第二次点「补齐」时，在生词行下方提示先读这一章或复制提示词请外部 AI 讲。' }, again: '下次补齐刚完成且仍有更底层前置词，或同一题第二次点「补齐」时', memory: session(CHAPTER_HINT_KEY), dismiss: 'per-session', proactive: true },
   { id: 'reader.original-notice', kind: 'card', where: '阅读页', title: '「补全原文件」的说明', trigger: '打开只保存了文字的资料时，说明可以补上原文件；关掉后缩成一行。', again: '下次打开只保存了文字的资料时', memory: local(NOTICE_KEY), dismiss: 'forever', proactive: true },
   { id: 'library.topic-groups', kind: 'nudge', where: '学习库首页', title: '主题还没归入主题组', trigger: '主题多、还没归入主题组时提醒；点「稍后」后，等未归组的主题有变化再提醒。', again: '还有主题没归入主题组时，下次打开学习库首页时', memory: local(TOPIC_GROUP_LATER_PREFIX, 'prefix'), dismiss: 'until-condition', proactive: true },
   // Not proactive: a warning about losing text, not a tip; 3.5 以下 cannot be stopped from here (#487), so the tips' switches do not turn it off. 再显示一次 here brings it back.
   { id: 'book.backup', kind: 'card', where: '学习库首页', title: '备份学习库的提醒', trigger: '这个学习库第一次有复习全书时说一次：想退回旧版前，先把学习库文件夹复制一份。', again: '下次打开学习库首页时', memory: local(BOOK_BACKUP_PREFIX, 'prefix'), dismiss: 'forever', proactive: false },
-  { id: 'skeleton.archify', kind: 'card', where: '知识骨架', title: '推荐用 Archify 画图', trigger: '在知识骨架页推荐开源插件 Archify；点「以后再说」后不再出现。', again: '下次打开知识骨架页时', memory: local(ARCHIFY_CARD_PREFIX, 'prefix'), dismiss: 'forever', proactive: true },
+  { id: 'skeleton.archify', kind: 'card', where: '知识骨架', title: '推荐用 Archify 画图', trigger: '在知识骨架页推荐开源画图工具 Archify；点「以后再说」后不再出现。', again: '下次打开知识骨架页时', memory: local(ARCHIFY_CARD_PREFIX, 'prefix'), dismiss: 'forever', proactive: true, needs: 'dsh' },
   { id: 'book.moves', kind: 'card', where: '复习全书', title: '笔记换了位置', trigger: '总纲重新整理后，说一次哪些笔记移到了新位置；点「知道了」后收成一行，列表随时能看。下次重新整理还会再说。', again: '总纲重新整理过、有笔记换了位置时，下次打开复习全书时', memory: local(BOOK_MOVES_PREFIX, 'prefix'), dismiss: 'until-condition', proactive: true },
   // The sidebar's reorder line (ui/nav-reorder-hint.js), said in the first row tooltip the learner opens and then never again. Not proactive: it is part of a
   // tooltip the learner asked for, so the switches and the daily budget do not apply; the keys stay in the shortcut sheet.
@@ -80,9 +80,16 @@ export const GUIDANCE_ITEMS = Object.freeze([
 ]);
 
 /** The entries this learner can meet: one that `needs: 'experimental'` only while 显示实验性功能 is on AND the host has the system component (the
-    gate of the 实验性功能 category, ui/settings-groups.js), so a hidden experiment leaves no trace in Settings and 重新显示全部提示 leaves its memory alone. */
-export const guidanceItemsFor = ({ experimental = false, system = false } = {}, items = GUIDANCE_ITEMS) =>
-  items.filter(item => item.needs !== 'experimental' || (experimental === true && system === true));
+    gate of the 实验性功能 category, ui/settings-groups.js), and one that `needs: 'dsh'` only outside Desktop / chat-less hosts, so hidden
+    items leave no trace in Settings and 重新显示全部提示 leaves their memory alone. When `!canChat`, entries carrying desktop overrides use them. */
+export const guidanceItemsFor = ({ experimental = false, system = false, canChat = true, isDesktop = false } = {}, items = GUIDANCE_ITEMS) =>
+  items
+    .filter(item => {
+      if (item.needs === 'experimental') return experimental === true && system === true;
+      if (item.needs === 'dsh') return !isDesktop && canChat !== false;
+      return true;
+    })
+    .map(item => (canChat === false && item.desktop ? { ...item, ...item.desktop } : item));
 
 /** Can the entry appear again in this library? Not 首页的入门三步 once the library has a deck of its own (ui/first-run/line.js shows it only before). */
 export const canComeBack = (item, { ownDeck = false } = {}) => !(item.until === 'own-deck' && ownDeck);
@@ -153,7 +160,7 @@ export function entryProblems(item) {
   if (!GUIDANCE_KINDS.includes(item.kind)) problems.push(`kind "${item.kind}"`);
   if (!GUIDANCE_DISMISS.includes(item.dismiss)) problems.push(`dismiss "${item.dismiss}"`);
   if (typeof item.proactive !== 'boolean') problems.push('proactive is not a boolean');
-  if (item.needs !== undefined && item.needs !== 'experimental') problems.push(`needs "${item.needs}"`);
+  if (item.needs !== undefined && !['experimental', 'dsh'].includes(item.needs)) problems.push(`needs "${item.needs}"`);
   if (item.until !== undefined && item.until !== 'own-deck') problems.push(`until "${item.until}"`);
   for (const field of ['where', 'title', 'trigger', 'again']) if (typeof item[field] !== 'string' || !item[field].trim()) problems.push(`no ${field}`);
   const memory = item.memory;

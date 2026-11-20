@@ -141,6 +141,8 @@ export default function QuestionPlace({ data, run, place: placeProp, onOpenOutli
         iconEnd="arrow-right"
         className="review-context__part review-place review-place-link"
         data-review-place=""
+        data-usage="review.place"
+        data-tour="review-place"
         onClick={() => onOpenOutline(place)}
       >
         {label}

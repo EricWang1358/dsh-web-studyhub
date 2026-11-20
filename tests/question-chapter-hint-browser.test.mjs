@@ -7,6 +7,7 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
+import { followupDigest } from '../lib/followup.js';
 import { buildPreview } from '../scripts/build.mjs';
 import { createPreviewServer, previewCall } from '../scripts/preview-server.mjs';
 import { createFakeModel } from '../scripts/fake-model.mjs';
@@ -196,10 +197,16 @@ async function takeShot(page, name) {
   await page.screenshot({ path: join(SHOTS, `${name}.png`) });
 }
 
+async function chooseMore(page, item) {
+  await page.locator('.review-more-trigger').click();
+  await page.getByRole('menuitem', { name: item }).click();
+}
+
 async function triggerTermsFill(page, { rootSelector, phrase, expectedFollowups = 1 }) {
   const termsBtn = page.locator('[data-usage="review.terms"]');
   await termsBtn.waitFor({ timeout: 15000 });
   if ((await termsBtn.getAttribute('aria-pressed')) !== 'true') await termsBtn.click();
+  await settleAnimations(page);
   await dragPhrase(page, rootSelector, phrase, 0);
   await page.locator('.term-strip__fill').waitFor({ timeout: 10000 });
   await page.keyboard.press('Escape');
@@ -435,6 +442,119 @@ test('chapter basics hint (#1191, #1193): deeper trigger, source dock/dialog, ha
       await settleAnimations(page);
       await takeShot(page, 'chapter-hint-en-1280');
       assert.deepEqual(errors.filter((e) => !REFUSED.test(e)), [], `en@1280 errors: ${errors.join(' | ')}`);
+    } finally {
+      await context.close();
+      await running.close();
+    }
+  }
+
+  // 5. ZH @ 1280 (#1216): fresh completion shows hint; leaving & returning in same round does NOT re-show; ending round & starting a new round on same card does NOT show historical deeper
+  {
+    const running = await startLateServer({ distDir: dist, lang: 'zh', seed: (root) => seedLibrary(root, 'zh') });
+    const { context, page, errors } = await openPage(browser, running, { lang: 'zh', theme: 'light', width: 1280, height: 900 });
+    try {
+      await page.goto(running.server.url);
+      await page.locator('[data-usage="home.start"]').first().click({ timeout: 30000 });
+      await page.locator('.question-toolbar').waitFor({ timeout: 30000 });
+      await page.locator('[data-usage="review.flip"]').click();
+      await page.locator('.flip-back[aria-hidden="false"]').waitFor({ timeout: 10000 });
+      await settleAnimations(page);
+
+      // Fresh fill with deeper shows hint.
+      await triggerTermsFill(page, { rootSelector: '.flip-back[aria-hidden="false"] .flash-prompt', phrase: '底层前置', expectedFollowups: 1 });
+      const hint = page.locator('[data-chapter-hint]');
+      await hint.waitFor({ timeout: 15000 });
+
+      // Leave Card 1 via 先跳过 and come back via 上一题 in the same round -> must NOT show hint.
+      await chooseMore(page, /先跳过/);
+      await page.locator('.options .option:not([disabled])').first().waitFor({ timeout: 15000 });
+      await page.locator('[data-usage="review.prev"]').click();
+      await page.locator('.flip-back[aria-hidden="false"]').waitFor({ timeout: 15000 });
+      await settleAnimations(page);
+      assert.match(await page.locator('.flip-back[aria-hidden="false"]').innerText(), /底层前置/);
+      assert.equal(await hint.count(), 0, 'leaving and returning in the same round does not re-show chapter hint');
+
+      // End Round 1 via 到此为止 and start Round 2 in the same session -> historical deeper does NOT show on open.
+      await chooseMore(page, /到此为止…/);
+      await page.locator('.round-end-confirm').waitFor({ timeout: 10000 });
+      await page.getByRole('button', { name: '到此为止，看结果' }).click();
+      await page.locator('.result-page').waitFor({ timeout: 15000 });
+      const navLibrary = await revealNavRow(page, 'library');
+      await navLibrary.dispatchEvent('click');
+      await page.locator('[data-usage="home.start"]').first().click({ timeout: 30000 });
+      await page.locator('.question-toolbar').waitFor({ timeout: 30000 });
+      const topicTicks = page.locator('.review-navigator .review-tick[aria-label*="分层存储基础"]');
+      const tickCount = await topicTicks.count();
+      for (let i = tickCount - 1; i >= 0; i -= 1) {
+        if (await page.evaluate(() => /上层存储引擎/.test(document.querySelector('.question-card')?.textContent || ''))) break;
+        const tick = topicTicks.nth(i);
+        if ((await tick.getAttribute('aria-current')) !== 'step') {
+          await tick.click();
+          await settleAnimations(page);
+        }
+      }
+      await page.waitForFunction(() => /上层存储引擎/.test(document.querySelector('.question-card')?.textContent || ''), null, { timeout: 15000 });
+      await page.locator('[data-usage="review.flip"]').click();
+      await page.locator('.flip-back[aria-hidden="false"]').waitFor({ timeout: 10000 });
+      await settleAnimations(page);
+      await page.locator('[data-tour="review-hint"]').click();
+      await page.locator('.explanation-followup .followup-item').first().waitFor({ timeout: 15000 });
+      await settleAnimations(page);
+      assert.equal(await hint.count(), 0, 'starting a new round on the same card does not re-show historical deeper hint');
+      assert.deepEqual(errors.filter((e) => !REFUSED.test(e)), [], `zh@1280 revisit/new-round errors: ${errors.join(' | ')}`);
+    } finally {
+      await context.close();
+      await running.close();
+    }
+  }
+
+  // 6. ZH @ 1280 (#1216): pre-existing historical deeper followup (at < enteredAt) never triggers on open, while a fresh 补齐 completion on that card does
+  {
+    const running = await startLateServer({
+      distDir: dist,
+      lang: 'zh',
+      seed: async (root) => {
+        await seedLibrary(root, 'zh');
+        const service = new StudyService(root);
+        await service.call('snapshot');
+        await service.store.update((state) => {
+          const card = state.decks.find((d) => d.id === 'd')?.cards?.[0];
+          if (!card) return;
+          card.followups = [{
+            id: 'f-old-terms',
+            at: '2026-10-01T00:00:00.000Z',
+            digest: followupDigest(card),
+            kind: 'terms',
+            source: 'assistant',
+            terms: ['页帧布局'],
+            deeper: ['二进制与底层前置'],
+            question: '补词：页帧布局',
+            answer: '### **页帧布局**\n- 问题：历史补词记录',
+          }];
+        });
+        service.dispose?.();
+      },
+    });
+    const { context, page, errors } = await openPage(browser, running, { lang: 'zh', theme: 'light', width: 1280, height: 900 });
+    try {
+      await page.goto(running.server.url);
+      await page.locator('[data-usage="home.start"]').first().click({ timeout: 30000 });
+      await page.locator('.question-toolbar').waitFor({ timeout: 30000 });
+      await page.locator('[data-usage="review.flip"]').click();
+      await page.locator('.flip-back[aria-hidden="false"]').waitFor({ timeout: 10000 });
+      await settleAnimations(page);
+      await page.locator('[data-tour="review-hint"]').click();
+      await page.locator('.explanation-followup .followup-item').first().waitFor({ timeout: 15000 });
+      assert.match(await page.locator('.explanation-followup .followup-item').first().innerText(), /页帧布局/);
+      await settleAnimations(page);
+
+      const hint = page.locator('[data-chapter-hint]');
+      assert.equal(await hint.count(), 0, 'opening a card with pre-existing historical deeper followup does not show hint');
+
+      await triggerTermsFill(page, { rootSelector: '.flip-back[aria-hidden="false"] .flash-prompt', phrase: '底层前置', expectedFollowups: 2 });
+      await hint.waitFor({ timeout: 15000 });
+      assert.match(await hint.innerText(), /第 1 章 底层存储/, 'fresh completion on the card shows chapter hint');
+      assert.deepEqual(errors.filter((e) => !REFUSED.test(e)), [], `zh@1280 historical+fresh errors: ${errors.join(' | ')}`);
     } finally {
       await context.close();
       await running.close();

@@ -206,6 +206,8 @@
     "tests/convert-edit-browser.test.mjs",
     "tests/convert-edit.test.mjs",
     "tests/course-book-export-pandoc.test.mjs",
+    "tests/desktop-architecture-boundaries.test.mjs",
+    "tests/desktop-backend.test.mjs",
     "tests/documents.test.mjs",
     "tests/exam-blueprint-material.test.mjs",
     "tests/extract-release.test.mjs",

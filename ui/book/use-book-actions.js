@@ -10,6 +10,9 @@ import { UNDO_TIMEOUT } from '../undoable.js';
 import { showBlock, showWords } from './ai-anchors.js';
 import { cardShown, showCard } from './term-card-go.js';
 import { bookStartedText, readMoreStartedText } from '../outline/words.js';
+import { resolveBookGapHint } from '../evidence-hint.js';
+import { findPointCompanion, openCompanionTarget } from '../companions/companion-ref.js';
+import { rescueGate } from '../wrongbook-model.js';
 
 /* What the review book page does besides placing the reader (ui/book/BookPage.jsx): the 期末一周 plan, the 备考计划, the export's page estimate, the handlers every
    point reads, and the book's structure (改名 / 移动到… / 删除这个知识点…, one compare-and-set write each; ui/book/BookStructure.jsx). The AI tasks and
@@ -53,6 +56,21 @@ export function useCoursePlan({ call, course, book, revision }) {
   return { answer, refresh };
 }
 
+/** Unified hid evidence summary (course.evidence.summary, 0-token): Map(hid -> PointEvidence) for conditional point-header gap hints. */
+export function useCourseEvidence({ call, course, book, revision }) {
+  const [byHid, setByHid] = useState(() => new Map());
+  const [ticket, setTicket] = useState(0);
+  useLiveEffect(isLive => {
+    if (book?.status !== 'ok' || !course) { setByHid(new Map()); return; }
+    call('course.evidence.summary', { course, date: localDate() }).then(
+      next => { if (isLive()) setByHid(new Map((next?.points || []).map(point => [point.hid, point]))); },
+      () => { if (isLive()) setByHid(new Map()); },
+    );
+  }, [call, course, book?.revision, book?.status, revision, ticket]);
+  const refresh = useCallback(() => setTicket(value => value + 1), []);
+  return { byHid, refresh };
+}
+
 /** 导出's estimate against the page limit (settings.book.pageLimit): the A4 pages of the book, or null until known (and without a book). */
 export function useBookPages({ call, course, book }) {
   const [pages, setPages] = useState(null);
@@ -70,10 +88,16 @@ async function copyText(text) {
 
 /** The handlers every point reads (ui/book/PointBody.jsx and below). ai: the stable ctions of ui/book/use-book-ai.js (the lines themselves reach the points
     through BookAiContext, so a line or the 问 AI panel never gives every point new handlers). */
-export function useBookHandlers({ call, act, course, notify, book, setBook, rows, reload, remember, onPractice, onCreate, onOpenSource, modelReady = true, model, onBack, ai, foldAi, onPlace, goTo, inlinePractice = null }) {
+export function useBookHandlers({
+  call, act, course, notify, book, setBook, rows, reload, remember, onPractice, onCreate, onOpenSource,
+  modelReady = true, model, onBack, ai, foldAi, onPlace, goTo, inlinePractice = null, evidenceByHid = null, onEvidenceChanged = null,
+  courses = null, decks = null, sources = null, openModal = null, openModel = null, canChat = true, rescueJobs = null, onStartRescue = null,
+}) {
   const [qa, setQa] = useState(() => new Set());
   const [retell, setRetell] = useState(() => new Set());
   const [choosing, setChoosing] = useState(false);
+  const [rescuePrompt, setRescuePrompt] = useState(null);
+  const activeRescuePrompt = rescuePrompt && !modelReady ? rescuePrompt : null;
   return useMemo(() => ({
     gone: goneSet(book?.missing),
     qaOpen: heading => qa.has(heading),
@@ -81,6 +105,81 @@ export function useBookHandlers({ call, act, course, notify, book, setBook, rows
     // 用自己的话讲一遍 of a point (#1016, ui/review/RetellPanel.jsx): which points have it open; `model` is the readiness its gate shows.
     retellOpen: heading => retell.has(heading),
     toggleRetell: heading => setRetell(current => { const next = new Set(current); if (next.has(heading)) next.delete(heading); else next.add(heading); return next; }),
+    gapHintOf: nodeOrHid => {
+      const node = nodeOrHid && typeof nodeOrHid === 'object' ? nodeOrHid : null;
+      const hid = node ? node.hid : nodeOrHid;
+      if (!hid) return null;
+      const ev = evidenceByHid?.get?.(hid) ?? null;
+      const nodeId = node?.key ? String(node.key).replace(/^bk:/, '') : (ev?.nodeId || '');
+      const linkedCompanion = findPointCompanion({
+        hid,
+        nodeId,
+        questions: node?.questions || [],
+        course,
+        courses,
+        decks,
+        sources,
+      });
+      return resolveBookGapHint(ev, { linkedCompanion, rescueState: rescueJobs?.[hid] ?? null });
+    },
+    rescueStateOf: hid => rescueJobs?.[hid] ?? null,
+    rescuePromptOf: hid => (activeRescuePrompt?.hid === hid ? activeRescuePrompt : null),
+    dismissRescuePrompt: () => setRescuePrompt(null),
+    openModel,
+    onEvidenceChanged,
+    actGapHint: async (node, hint, element) => {
+      if (!hint || !node) return;
+      if (hint.kind === 'companion_open' && hint.companionId) {
+        openCompanionTarget(openModal, hint, { returnLabel: ui('返回复习全书'), from: 'book' });
+        return;
+      }
+      if (hint.kind === 'rescue_experiment') {
+        const gate = rescueGate('experiment', { modelReady, canChat });
+        if (gate.type !== 'run') {
+          setRescuePrompt({ hid: node.hid, ...gate });
+          return;
+        }
+        setRescuePrompt(null);
+        if (onStartRescue) {
+          const questions = Array.isArray(node.questions) ? node.questions : [];
+          const cardIds = [...new Set(questions.map(q => q?.cardId).filter(Boolean))].slice(0, 4);
+          const deckIds = [...new Set(questions.map(q => q?.deckId).filter(Boolean))];
+          await onStartRescue(node.hid, {
+            course,
+            hid: node.hid,
+            topic: node.title || '',
+            cardIds,
+            ...(deckIds.length === 1 ? { deckId: deckIds[0] } : {}),
+          });
+        }
+        return;
+      }
+      if (hint.kind === 'prereq' && hint.targetHid) {
+        const exists = rowOf(rows, hint.targetHid) || Boolean(book?.files?.[`${hint.targetHid}.gen`]);
+        if (!exists) { notify(ui('前置知识点还未生成复习全书内容。')); return; }
+        goTo?.(hint.targetHid);
+        return;
+      }
+      if (hint.kind === 'retell' || hint.kind === 'retell_gap') {
+        setRetell(current => { const next = new Set(current); next.add(node.hid); return next; });
+        if (typeof requestAnimationFrame === 'function' && typeof document !== 'undefined') {
+          requestAnimationFrame(() => {
+            const safeHid = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(node.hid) : node.hid;
+            const panel = document.querySelector(`[data-book-retell="${safeHid}"], [data-point="${safeHid}"] .retell-panel, .retell-panel`);
+            panel?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+          });
+        }
+        return;
+      }
+      const row = rowOf(rows, node.hid);
+      if (!row) { notify(ui('这一节已不在总纲里。')); return; }
+      try {
+        const { practice } = await call('course.outline', { course, pick: { keys: [row.key] } });
+        const scope = practice?.scope.slice(0, 5) || [];
+        if (!scope.length) { notify(ui('这个知识点还没有题。先到「创建题组」从资料出题。')); return; }
+        onPractice(scope, { resume: true, place: remember(node.hid, element) });
+      } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
+    },
     inlineOpen: inlinePractice?.isOpen,
     inlineShown: inlinePractice?.shown ?? true,
     inlineRunFor: inlinePractice?.runFor,
@@ -169,5 +268,5 @@ export function useBookHandlers({ call, act, course, notify, book, setBook, rows
     aiWords: id => showWords(id),
     // A 术语卡's link (#710): its point opened when the card is not drawn, then the card shown (ui/book/term-card-go.js).
     goCard: (hid, code) => { if (!cardShown(code)) goTo?.(hid); showCard(code); },
-  }), [book, qa, retell, rows, call, course, notify, onCreate, onOpenSource, onPractice, remember, choosing, setBook, modelReady, model, onBack, ai, foldAi, reload, act, onPlace, goTo, inlinePractice]);
+  }), [book, qa, retell, rows, call, course, notify, onCreate, onOpenSource, onPractice, remember, choosing, setBook, modelReady, model, onBack, ai, foldAi, reload, act, onPlace, goTo, inlinePractice, evidenceByHid, onEvidenceChanged, courses, decks, sources, openModal, openModel, canChat, rescueJobs, onStartRescue, activeRescuePrompt]);
 }

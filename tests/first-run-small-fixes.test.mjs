@@ -11,7 +11,11 @@ import { inApp } from './helpers/fake-app.mjs';
 const m = await loadUi(`
   export { AppContext } from './ui/app/app-context.js';
   export { StudyServicesContext } from './ui/study-context.jsx';
-  export { default as AppTopbar, openLibrarySettings } from './ui/app/AppTopbar.jsx';
+  export { default as AppTopbar, ModelChip, openLibrarySettings } from './ui/app/AppTopbar.jsx';
+  export { registerHostParts } from './ui/host-parts.js';
+  export { firstRunLine } from './ui/first-run/line.js';
+  export { stepSentence } from './ui/first-run/FirstRunLine.jsx';
+  export { modelReadiness } from './ui/generation-status.js';
   export { withoutSelfReturn } from './ui/learning-navigation.js';
   export { setUiLanguage } from './ui/i18n.js';
 `);
@@ -194,3 +198,64 @@ test('in English the button names its destination in English', () => {
   assert.doesNotMatch(button, han);
 });
 
+/* The top bar names the model every question, explanation and grading goes to (ModelChip), so nobody spends on a model by accident: a quiet button beside the
+   library chip, with the shared Tooltip (never a title) for what it means. */
+const chipOf = (html) => /<button[^>]*\bmodel-in-use\b[\s\S]*?<\/button>/.exec(html)?.[0] || '';
+const tipsOf = (html) => [...html.matchAll(/<span[^>]*role="tooltip"[^>]*>([^<]*)<\/span>/g)].map((hit) => hit[1].replaceAll('&#x27;', "'"));
+const LABEL = 'agy · gemini-4-hydrogen-high';
+const modelData = { root: '/lib', inbox: [], model: { ready: true, label: LABEL } };
+
+test('the model chip shows only for a ready model with a label, says 模型：<label>, and opens Settings like the library chip', () => {
+  const html = bar({ data: modelData });
+  const chip = chipOf(html);
+  assert.match(chip, /^<button type="button" class="[^"]*\blibrary-location\b[^"]*\bmodel-in-use\b/, 'it is a library-chip look-alike, so the narrow-pane rules are the same');
+  assert.match(chip, /模型：agy · gemini-4-hydrogen-high</);
+  assert.match(chip, /aria-label="当前模型：agy · gemini-4-hydrogen-high。打开设置可更换"/);
+  assert.doesNotMatch(chip, /\stitle=/, 'the full text is the Tooltip, never a title attribute');
+  assert.ok(html.indexOf('library-location') < html.indexOf('model-in-use'), 'it sits beside the library chip, after it');
+  for (const data of [{ root: '/lib', inbox: [], model: { ready: true } }, { root: '/lib', inbox: [], model: { ready: false, label: LABEL } },
+    { root: '/lib', inbox: [], modelReady: true }, { root: '/lib', inbox: [] }, null]) {
+    assert.equal(chipOf(bar({ data })), '', JSON.stringify(data));
+  }
+  assert.equal(label(bar({ data: { root: '/lib', inbox: [], model: { ready: false, label: LABEL } } })), '还没配模型', 'the status of a missing model is unchanged');
+  let opened = 0;
+  m.ModelChip({ label: LABEL, onOpen: () => opened++ }).props.children.props.onClick();
+  assert.equal(opened, 1);
+});
+
+test('the model chip explains itself in the Tooltip: DSH says the first sentence only, a host with a cost note adds its sentence', () => {
+  assert.deepEqual(tipsOf(bar({ data: modelData })).filter(Boolean), ['出题、讲解和批改都会调用这个模型。']);
+  m.registerHostParts({ modelCostNote: (binding) => (binding.modelVia?.kind === 'cli' ? '通过本机 agy 调用。' : '按用量计费。') });
+  try {
+    const cli = bar({ data: modelData, connection: { binding: { root: '/lib', modelVia: { kind: 'cli', name: 'agy' } } } });
+    assert.deepEqual(tipsOf(cli).filter(Boolean), ['出题、讲解和批改都会调用这个模型。通过本机 agy 调用。']);
+  } finally { m.registerHostParts({ modelCostNote: undefined }); }
+});
+
+test('in English the model chip has no Chinese', () => {
+  const html = bar({ data: modelData, language: 'en' });
+  const chip = chipOf(html);
+  assert.match(chip, /Model: agy · gemini-4-hydrogen-high</);
+  assert.match(chip, /aria-label="Current model: agy · gemini-4-hydrogen-high\. Open Settings to change it"/);
+  assert.doesNotMatch(chip, han);
+  assert.deepEqual(tipsOf(html).filter(Boolean), ['Questions, explanations and grading all call this model.']);
+});
+test('the English chip names the model in English: the host\'s Chinese provider names are translated, and the home says the same words', () => {
+  const named = (label) => ({ root: '/lib', inbox: [], sources: [], decks: [], model: { ready: true, reason: 'ok', label } });
+  for (const [label, english] of [['智谱 GLM · glm-4-flash', 'Zhipu GLM · glm-4-flash'], ['硅基流动 · deepseek-ai/DeepSeek-V3', 'SiliconFlow · deepseek-ai/DeepSeek-V3'],
+    ['OpenAI 兼容接口 · my-model', 'OpenAI-compatible · my-model'], ['DeepSeek · deepseek-chat', 'DeepSeek · deepseek-chat'], ['agy · default', 'agy · default']]) {
+    const data = named(label);
+    const chip = chipOf(bar({ data, language: 'en' }));
+    assert.ok(chip.includes(`>Model: ${english}<`), `${label}: ${chip}`);
+    assert.doesNotMatch(chip, han, `${label}: no Chinese in an English chip`);
+    assert.ok(chipOf(bar({ data })).includes(`>模型：${label}<`), `${label}: the Chinese page keeps the host's words`);
+    // The home's 已连接 line takes its label from the same place, so the two name the model in the same words.
+    m.setUiLanguage('en');
+    try {
+      assert.equal(m.modelReadiness(data).label, english);
+      assert.equal(m.firstRunLine(data).steps[0].label, english);
+      assert.ok(m.stepSentence(m.firstRunLine(data).steps[0]).includes(english), 'the first-run line says it');
+    } finally { m.setUiLanguage('zh'); }
+    assert.equal(m.modelReadiness(data).label, label);
+  }
+});

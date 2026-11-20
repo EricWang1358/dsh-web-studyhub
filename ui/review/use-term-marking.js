@@ -2,7 +2,7 @@ import React from "react";
 import { reviewEntryKey } from "../async.js";
 import { isPassed } from "./session-logic.js";
 import { ui, uiLocale } from "../i18n.js";
-import { MAX_MARKED_TERMS, mergeAdjacent, normalizeTerm, toggleTerm, wordAt } from "./term-marks.js";
+import { MAX_MARKED_TERMS, clearCompletedTermEntries, filterCandidateTerms, mergeAdjacent, normalizeTerm, toggleTerm, wordAt } from "./term-marks.js";
 
 export const TERM_HIGHLIGHT_NAME = "study-term-mark";
 export const SEEN_TERM_HIGHLIGHT_NAME = "study-term-seen";
@@ -313,6 +313,7 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
   const cacheRef = React.useRef({ runId: null, byCourse: new Map() });
   const inflightRef = React.useRef(new Map());
   const touchedDuringFetchRef = React.useRef(new Map());
+  const visitAddedRef = React.useRef(new Map());
   const seenDoneTasksRef = React.useRef(new Set());
   const [courseTerms, setCourseTerms] = React.useState([]);
   const [loadingCourseTerms, setLoadingCourseTerms] = React.useState(false);
@@ -326,6 +327,7 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
       cacheRef.current = { runId: null, byCourse: new Map() };
       inflightRef.current.clear();
       touchedDuringFetchRef.current.clear();
+      visitAddedRef.current.clear();
       setCourseTerms([]);
       setCourseTermsError("");
     }
@@ -358,6 +360,7 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
     if (!targetCourse) return;
     if (cacheRef.current.runId !== cacheRunKeyRef.current) {
       cacheRef.current = { runId: cacheRunKeyRef.current, byCourse: new Map() };
+      visitAddedRef.current.clear();
     }
     const prev = cacheRef.current.byCourse.get(targetCourse) || [];
     const next = updater(prev);
@@ -376,6 +379,7 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
     }
     if (cacheRef.current.runId !== cacheRunKey) {
       cacheRef.current = { runId: cacheRunKey, byCourse: new Map() };
+      visitAddedRef.current.clear();
     }
     if (!force && cacheRef.current.byCourse.has(resolvedCourse)) {
       const cached = cacheRef.current.byCourse.get(resolvedCourse) || [];
@@ -396,20 +400,32 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
     const request = Promise.resolve(callRef.current("course.terms.get", { course: resolvedCourse }))
       .then((res) => {
         const fetched = Array.isArray(res?.items) ? res.items : [];
-        if (cacheRef.current.runId !== cacheRunKey) return fetched;
+        if (cacheRef.current.runId !== cacheRunKey || inflightRef.current.get(flightKey) !== request) {
+          return cacheRef.current.byCourse.get(resolvedCourse) || fetched;
+        }
         const current = cacheRef.current.byCourse.get(resolvedCourse) || [];
         let merged = fetched;
         if (touched.size) {
+          const attachedKeys = new Set(
+            fetched.filter((item) => item?.card && item?.term).map((item) => item.term.toLowerCase()),
+          );
           const removed = new Set();
           const added = [];
           for (const [k, op] of touched.entries()) {
-            if (op === "remove") removed.add(k);
-            else if (op === "add") {
+            if (op === "remove") {
+              if (!attachedKeys.has(k)) removed.add(k);
+            } else if (op === "add") {
               const found = current.find((item) => item.term.toLowerCase() === k);
               if (found && !fetched.some((item) => item.term.toLowerCase() === k)) added.push(found);
             }
           }
           merged = [...fetched.filter((item) => !removed.has(item.term.toLowerCase())), ...added];
+        }
+        const visitSet = visitAddedRef.current.get(resolvedCourse);
+        if (visitSet?.size) {
+          for (const item of fetched) {
+            if (item?.card && item?.term) visitSet.delete(item.term.toLowerCase());
+          }
         }
         cacheRef.current.byCourse.set(resolvedCourse, merged);
         if (resolvedCourseRef.current === resolvedCourse && cacheRunKeyRef.current === cacheRunKey) {
@@ -418,16 +434,22 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
         return merged;
       })
       .catch((error) => {
-        if (resolvedCourseRef.current === resolvedCourse && cacheRunKeyRef.current === cacheRunKey) {
+        if (
+          inflightRef.current.get(flightKey) === request &&
+          resolvedCourseRef.current === resolvedCourse &&
+          cacheRunKeyRef.current === cacheRunKey
+        ) {
           setCourseTermsError(error?.message || "");
         }
         return cacheRef.current.byCourse.get(resolvedCourse) || [];
       })
       .finally(() => {
-        inflightRef.current.delete(flightKey);
-        touchedDuringFetchRef.current.delete(flightKey);
-        if (resolvedCourseRef.current === resolvedCourse && cacheRunKeyRef.current === cacheRunKey) {
-          setLoadingCourseTerms(false);
+        if (inflightRef.current.get(flightKey) === request) {
+          inflightRef.current.delete(flightKey);
+          touchedDuringFetchRef.current.delete(flightKey);
+          if (resolvedCourseRef.current === resolvedCourse && cacheRunKeyRef.current === cacheRunKey) {
+            setLoadingCourseTerms(false);
+          }
         }
       });
 
@@ -446,6 +468,12 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
     );
     if (!newlyDone.length) return;
     for (const task of newlyDone) seenDoneTasksRef.current.add(task.id);
+    // Clear completed terms in memory only: never call course.terms.unmark, since their check cards & course records are now saved.
+    const nextEntries = clearCompletedTermEntries(entriesByKeyRef.current, newlyDone);
+    if (nextEntries !== entriesByKeyRef.current) {
+      entriesByKeyRef.current = nextEntries;
+      setEntriesByKey(nextEntries);
+    }
     loadCourseTerms({ force: true });
   }, [assistTasks, loadCourseTerms]);
 
@@ -453,8 +481,26 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
     const clean = (Array.isArray(rawTerms) ? rawTerms : []).map(normalizeTerm).filter(Boolean);
     const targetCourse = resolvedCourseRef.current;
     if (!clean.length || !targetCourse) return;
+    if (cacheRef.current.runId !== cacheRunKeyRef.current) {
+      cacheRef.current = { runId: cacheRunKeyRef.current, byCourse: new Map() };
+      visitAddedRef.current.clear();
+    }
+    const beforeCache = cacheRef.current.byCourse.get(targetCourse) || [];
+    const beforeKeys = new Set(beforeCache.map((item) => item.term.toLowerCase()));
+    let visitSet = visitAddedRef.current.get(targetCourse);
+    for (const term of clean) {
+      const key = term.toLowerCase();
+      if (beforeKeys.has(key)) continue;
+      beforeKeys.add(key);
+      if (!visitSet) {
+        visitSet = new Set();
+        visitAddedRef.current.set(targetCourse, visitSet);
+      }
+      visitSet.add(key);
+    }
     const fromCard = fromCardRef.current;
-    const flightKey = `${cacheRunKeyRef.current}\0${targetCourse}`;
+    const runKeyAtCall = cacheRunKeyRef.current;
+    const flightKey = `${runKeyAtCall}\0${targetCourse}`;
     const touched = touchedDuringFetchRef.current.get(flightKey);
     const now = new Date().toISOString();
     updateCourseCache(targetCourse, (prev) => {
@@ -482,7 +528,17 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
           terms: clean,
           ...(fromCard ? { from: { deckId: fromCard.deckId, cardId: fromCard.cardId } } : {}),
         }),
-      ).catch(() => {});
+      )
+        .then((res) => {
+          if (cacheRunKeyRef.current !== runKeyAtCall) return;
+          const items = Array.isArray(res?.items) ? res.items : [];
+          const visit = visitAddedRef.current.get(targetCourse);
+          if (!visit?.size) return;
+          for (const item of items) {
+            if (item?.card && item?.term) visit.delete(item.term.toLowerCase());
+          }
+        })
+        .catch(() => {});
     }
   }, [updateCourseCache]);
 
@@ -490,8 +546,13 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
     const clean = (Array.isArray(rawTerms) ? rawTerms : []).map(normalizeTerm).filter(Boolean);
     const targetCourse = resolvedCourseRef.current;
     if (!clean.length || !targetCourse) return;
-    const removeKeys = new Set(clean.map((term) => term.toLowerCase()));
-    const flightKey = `${cacheRunKeyRef.current}\0${targetCourse}`;
+    const visitSet = visitAddedRef.current.get(targetCourse);
+    const removable = clean.filter((term) => visitSet?.has(term.toLowerCase()));
+    if (!removable.length) return;
+    const removeKeys = new Set(removable.map((term) => term.toLowerCase()));
+    for (const key of removeKeys) visitSet.delete(key);
+    const runKeyAtCall = cacheRunKeyRef.current;
+    const flightKey = `${runKeyAtCall}\0${targetCourse}`;
     const touched = touchedDuringFetchRef.current.get(flightKey);
     if (touched) {
       for (const key of removeKeys) touched.set(key, "remove");
@@ -504,11 +565,26 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
       Promise.resolve(
         callRef.current("course.terms.unmark", {
           course: targetCourse,
-          terms: clean,
+          terms: removable,
+          onlyUnattached: true,
         }),
-      ).catch(() => {});
+      )
+        .then((res) => {
+          if (cacheRunKeyRef.current !== runKeyAtCall) return;
+          const items = Array.isArray(res?.items) ? res.items : [];
+          const keptAttached = items.filter((item) => item?.card && removeKeys.has(item.term?.toLowerCase()));
+          if (keptAttached.length) {
+            for (const item of keptAttached) {
+              visitAddedRef.current.get(targetCourse)?.delete(item.term.toLowerCase());
+            }
+            if (targetCourse === resolvedCourseRef.current) {
+              loadCourseTerms({ force: true });
+            }
+          }
+        })
+        .catch(() => {});
     }
-  }, [updateCourseCache]);
+  }, [loadCourseTerms, updateCourseCache]);
 
   const notifyLimit = React.useCallback(() => {
     notify?.({ text: ui("一次最多补 6 个词，先补这几个"), tone: "warning" });
@@ -541,6 +617,7 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
       await callRef.current("course.terms.unmark", { course: targetCourse, terms: [clean] });
     }
     const dropKey = clean.toLowerCase();
+    visitAddedRef.current.get(targetCourse)?.delete(dropKey);
     updateCourseCache(targetCourse, (prev) => prev.filter((item) => item.term.toLowerCase() !== dropKey));
     const currentEntries = entriesByKeyRef.current;
     let changed = false;
@@ -570,6 +647,7 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
     if (typeof callRef.current === "function") {
       await callRef.current("course.terms.clear", { course: targetCourse });
     }
+    visitAddedRef.current.delete(targetCourse);
     const clearedKeys = new Set(previous.map((item) => item.term.toLowerCase()));
     updateCourseCache(targetCourse, () => []);
     if (clearedKeys.size) {
@@ -703,27 +781,10 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
       .map((item) => item.term);
   }, [courseTerms, terms]);
 
-  const candidateTerms = React.useMemo(() => {
-    if (!sessionCandidates.length) return [];
-    const activeKeys = new Set(terms.map((item) => item.toLowerCase()));
-    const knownKeys = new Set(
-      courseTerms
-        .filter((item) => item?.state === "known" || item?.state === "learned")
-        .map((item) => item?.term?.toLowerCase())
-        .filter(Boolean),
-    );
-    const seen = new Set();
-    const out = [];
-    for (const raw of sessionCandidates) {
-      const clean = normalizeTerm(raw);
-      if (!clean) continue;
-      const key = clean.toLowerCase();
-      if (seen.has(key) || activeKeys.has(key) || knownKeys.has(key)) continue;
-      seen.add(key);
-      out.push(clean);
-    }
-    return out;
-  }, [sessionCandidates, courseTerms, terms]);
+  const candidateTerms = React.useMemo(
+    () => filterCandidateTerms(sessionCandidates, terms, courseTerms),
+    [sessionCandidates, courseTerms, terms],
+  );
 
   // Paint all occurrences via CSS Custom Highlight API and keep ranges fresh on DOM changes.
   React.useEffect(() => {

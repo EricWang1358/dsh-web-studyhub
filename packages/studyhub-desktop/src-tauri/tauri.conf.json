@@ -1,0 +1,53 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "StudyHub",
+  "version": "4.15.1",
+  "identifier": "com.ericwang1358.studyhub.desktop",
+  "build": {
+    "frontendDist": "../dist/ui"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "StudyHub",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 860,
+        "minHeight": 600,
+        "resizable": true,
+        "center": true
+      }
+    ],
+    "security": {
+      "dangerousDisableAssetCspModification": ["style-src"],
+      "csp": "default-src 'self' tauri: http://tauri.localhost https://tauri.localhost; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data: blob:; img-src 'self' data: blob: http://127.0.0.1:*; media-src 'self' data: blob: http://127.0.0.1:*; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:*; frame-src 'self' blob: data:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msi"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "resources/runtime/": "resources/runtime/"
+    },
+    "publisher": "ericwang1358",
+    "shortDescription": "Local-first study workbench for lecture slides, review books, and spaced repetition.",
+    "longDescription": "StudyHub Desktop turns lecture slides and notes into cited questions, review books, Interactive Companions, and FSRS-6 spaced review without requiring DSH or a separate Node.js installation.",
+    "category": "Education",
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "wix": {
+        "language": "en-US"
+      }
+    }
+  }
+}

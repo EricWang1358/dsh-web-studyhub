@@ -7,6 +7,7 @@
    The allowed values are also the whitelist for what an import may set. */
 import { FONT_IDS, FONT_PRESETS, TITLE_MODES, cleanFontName, customFontStack } from './font-presets.js';
 import { browserStorage } from './storage.js';
+import { hostPart } from './host-parts.js';
 
 export const THEME_KEY = 'study-theme';
 export const INTERFACE_KEY = 'study-interface';
@@ -21,8 +22,14 @@ export const CRAFTS = Object.freeze(['standard', 'refined']);
 export const MOTIONS = Object.freeze(['auto', 'full', 'reduced', 'off']);
 /** Tactile acoustic feedback levels in 设置 › 界面: off by default so quiet rooms stay silent unless opted in. */
 export const SOUNDS = Object.freeze(['off', 'subtle', 'standard']);
-/** The sizes of the whole interface, in percent (CSS zoom on the app: text, controls and spacing scale together), and the typefaces of its text. */
-export const SCALES = Object.freeze([90, 100, 110, 125, 150, 175, 200]);
+/** The sizes of the whole interface, in percent (CSS zoom on the app: text, controls and spacing scale together), and the typefaces of its text.
+    `auto` (跟随窗口) takes the percent of the widest AUTO_SCALE_STEPS entry the window reaches: a wider window shows a slightly larger interface. */
+export const SCALES = Object.freeze(['auto', 90, 100, 110, 125, 150, 175, 200]);
+/** [window width in CSS px, percent], widest first; below the last one the interface stays at 100%. */
+export const AUTO_SCALE_STEPS = Object.freeze([[3000, 150], [2000, 125], [1600, 110]]);
+export const autoScaleQuery = (width) => `(min-width: ${width}px)`;
+/** The percent 跟随窗口 gives a window this wide. */
+export const autoScaleFor = (width) => AUTO_SCALE_STEPS.find(([min]) => width >= min)?.[1] ?? 100;
 /** The presets of ui/font-presets.js, then `custom`: the name of an installed font typed in `fontCustom` (gated by cleanFontName). */
 export const FONTS = Object.freeze([...FONT_IDS, 'custom']);
 /** The accent colours (强调色, ui/accent.css): cinnabar is the default and needs no override; there is no free colour picker, so contrast stays verifiable. */
@@ -37,6 +44,7 @@ export const APPEARANCE_LABELS = Object.freeze({
   theme: { auto: '跟随系统', dark: '深色', light: '浅色', oled: '纯黑 OLED', paper: '护眼纸色' },
   motion: { auto: '跟随系统', full: '标准', reduced: '减弱', off: '无动画' },
   sound: { off: '无音效', subtle: '轻柔', standard: '标准' },
+  scale: { auto: '跟随窗口' },
   font: { ...Object.fromEntries(FONT_IDS.map(id => [id, FONT_PRESETS[id].label])), custom: '本机字体' },
   fontTitle: { follow: '跟随正文', system: '保持系统' },
   accent: { cinnabar: '朱砂', jade: '青玉', ochre: '赭石', graphite: '墨灰', plum: '梅紫' },
@@ -48,15 +56,23 @@ export const APPEARANCE_LABELS = Object.freeze({
 
 const KEYS = Object.keys(APPEARANCE_DEFAULTS);
 const same = (a, b) => KEYS.every(key => a[key] === b[key]);
+const choiceOf = (key, value) => APPEARANCE_OPTIONS[key]?.find(option => typeof option === 'number' ? option === Number(value) : option === value);
+
+/** The defaults of this host: APPEARANCE_DEFAULTS, with what the host registered (hostPart('appearanceDefaults'), e.g. the desktop's 跟随窗口) where
+    that is one of the allowed values. DSH registers none. */
+export function appearanceDefaults() {
+  const own = hostPart('appearanceDefaults'), out = { ...APPEARANCE_DEFAULTS };
+  if (own && typeof own === 'object') for (const key of KEYS) { const choice = GATES[key] ? undefined : choiceOf(key, own[key]); if (choice !== undefined) out[key] = choice; }
+  return out;
+}
 
 /** Anything in, a complete and valid set out: unknown values and unknown settings are dropped, a number stored as text still counts. */
 export function normalizeAppearance(value) {
-  const stored = value && typeof value === 'object' ? value : {};
+  const stored = value && typeof value === 'object' ? value : {}, defaults = appearanceDefaults();
   const out = {};
   for (const key of KEYS) {
     if (GATES[key]) { out[key] = GATES[key](stored[key]); continue; }
-    const choice = APPEARANCE_OPTIONS[key].find(option => typeof option === 'number' ? option === Number(stored[key]) : option === stored[key]);
-    out[key] = choice ?? APPEARANCE_DEFAULTS[key];
+    out[key] = choiceOf(key, stored[key]) ?? defaults[key];
   }
   return out;
 }
@@ -93,7 +109,7 @@ export function appearanceAttrs(value, system = systemNow()) {
     'data-theme': prefs.theme === 'auto' ? (system.light ? 'light' : 'dark') : BASE_MODE[prefs.theme] ?? prefs.theme,
     'data-palette': BASE_MODE[prefs.theme] ? prefs.theme : 'standard',
     'data-motion': effectiveMotion(prefs.motion, system.reducedMotion),
-    'data-ui-scale': prefs.scale,
+    'data-ui-scale': prefs.scale === 'auto' ? system.autoScale ?? 100 : prefs.scale,
     // `custom` with no valid name is the system typeface, so the DOM never names a typeface it cannot show.
     'data-ui-font': prefs.font === 'custom' && !prefs.fontCustom ? 'system' : prefs.font,
     'data-ui-title': prefs.fontTitle,
@@ -120,7 +136,9 @@ export const LIGHT_QUERY = '(prefers-color-scheme: light)';
 export const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 export const CONTRAST_QUERY = '(prefers-contrast: more)';
 const matches = query => typeof matchMedia === 'function' && matchMedia(query).matches;
-export const systemNow = () => ({ light: matches(LIGHT_QUERY), reducedMotion: matches(REDUCED_MOTION_QUERY), contrast: matches(CONTRAST_QUERY) });
+/** The percent 跟随窗口 gives the window right now, asked the same way the live hook listens (media queries), so both always agree. */
+export const autoScaleNow = () => AUTO_SCALE_STEPS.find(([min]) => matches(autoScaleQuery(min)))?.[1] ?? 100;
+export const systemNow = () => ({ light: matches(LIGHT_QUERY), reducedMotion: matches(REDUCED_MOTION_QUERY), contrast: matches(CONTRAST_QUERY), autoScale: autoScaleNow() });
 
 /** A small JSON text for moving the look to another computer or sharing it. */
 export const exportAppearance = value => JSON.stringify({ studyhubAppearance: 1, ...normalizeAppearance(value) });
@@ -150,7 +168,7 @@ export function createAppearanceStore({ storage } = {}) {
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     update,
     /** 恢复默认外观. */
-    reset: () => update(APPEARANCE_DEFAULTS),
+    reset: () => update(appearanceDefaults()),
     /** Read the stored value again (another tab changed it): nothing is written back. */
     reload: () => { set(loadAppearance(storage)); },
   };

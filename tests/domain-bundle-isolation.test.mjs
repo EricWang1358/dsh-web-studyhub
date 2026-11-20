@@ -10,6 +10,9 @@ import { Context } from '@deepseek-ai/cordis';
 import * as hostModel from '../lib/runtime/host-model.js';
 import * as workbenchEntry from '../lib/index.js';
 import * as materialsPlugin from '../lib/plugins/materials.js';
+import { Store } from '../lib/store.js';
+import { createRunStore } from '../lib/generation-run-store.js';
+import { parseWindow } from '../lib/mineru-local.js';
 
 const repoRoot = fileURLToPath(new URL('../', import.meta.url));
 const DOMAIN_PLUGINS = ['runtime', 'materials', 'bank', 'study', 'generation', 'audio'];
@@ -73,6 +76,10 @@ test('domain plugin module graphs exclude lib/index.js, lib/client*.js, and UI-o
 
   for (const uiDep of UI_ONLY_DEPENDENCIES) {
     assert.equal(externalPackages.has(uiDep), false, `UI-only package ${uiDep} must not be imported by domain plugins`);
+    assert.equal(uiDep in (manifest.dependencies || {}), false,
+      `UI-only package ${uiDep} must be in devDependencies rather than runtime dependencies`);
+    assert.equal(uiDep in (manifest.devDependencies || {}), true,
+      `UI-only package ${uiDep} remains declared in devDependencies for client bundle builds`);
   }
   const undeclared = [...externalPackages].filter(pkg => !retainedDeps.has(pkg));
   assert.deepEqual(undeclared, [], `Every external import of domain plugins must remain declared in dependencies/peerDependencies: ${undeclared.join(', ')}`);
@@ -172,3 +179,40 @@ test('all 6 domain plugins load and execute from an isolated package tree withou
   assert.equal(imported.sourceIds.length, 1);
 });
 
+test('Store, createRunStore, and parseWindow reject path-traversal shard/run/output names and never delete outside their directories', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'study-supply-chain-guards-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+
+  const outsideFile = join(dir, 'outside.json');
+  await writeFile(outsideFile, JSON.stringify({ id: 'keep-me', title: 'Untouched' }), 'utf8');
+
+  // 1. Store: tampered shard names in study-workspace.json must be flagged as storageIssues and never read or collected outside shards/.
+  const libraryDir = join(dir, 'library');
+  const store = new Store(libraryDir);
+  await store.update(state => {
+    state.sources.push({ id: 's1', title: 'Valid Source', text: 'content' });
+  });
+  const manifestPath = join(libraryDir, 'study-workspace.json');
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+  manifest.shards.sources.push('../outside.json');
+  await writeFile(manifestPath, JSON.stringify(manifest, null, 2));
+
+  const readBack = await store.read();
+  assert.equal(readBack.sources.some(s => s?.id === 'keep-me'), false, 'tampered shard path outside shards/ is never parsed into state');
+  assert.ok(readBack.storageIssues?.some(issue => issue.file.includes('../outside.json')), 'tampered shard path is isolated as a storage issue');
+  await assert.rejects(store.update(state => { state.sources = []; }), /损坏文件/);
+  assert.equal(JSON.parse(await readFile(outsideFile, 'utf8')).id, 'keep-me', 'outside file remains untouched');
+
+  // 2. createRunStore: traversal run IDs must be rejected on open and ignored by forget without deleting outside generation-runs/.
+  const runStore = createRunStore({ root: libraryDir, read: () => store.read(), definitionRef: () => 'v1' });
+  await assert.rejects(runStore.open({ run: '../outside' }), error => error?.code === 'input-unavailable');
+  await runStore.forget('../outside');
+  assert.equal(JSON.parse(await readFile(outsideFile, 'utf8')).id, 'keep-me', 'forget(../outside) never deletes outside generation-runs/');
+
+  // 3. parseWindow: non-markdown output paths are rejected before invoking the CLI or touching the filesystem.
+  await assert.rejects(
+    parseWindow({ cli: { file: process.execPath, prefix: [] }, pdf: 'doc.pdf', tier: 'basic', startPage: 1, endPage: 1, totalPages: 1, outFile: outsideFile }),
+    error => error?.code === 'invalid-output-path',
+  );
+  assert.equal(JSON.parse(await readFile(outsideFile, 'utf8')).id, 'keep-me', 'parseWindow never deletes non-.md target');
+});

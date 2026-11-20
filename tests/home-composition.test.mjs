@@ -13,12 +13,12 @@ import { mapProps } from './helpers/study-map-props.mjs';
 const han = /[㐀-鿿]/;
 const require = createRequire(import.meta.url);
 const compiled = await build({
-  stdin: { contents: "export { default as StudyMap } from './ui/StudyMap.jsx'; export * from './ui/mastery-terms.js'; export { setUiLanguage } from './ui/i18n.js';", resolveDir: process.cwd() },
+  stdin: { contents: "export { default as StudyMap } from './ui/StudyMap.jsx'; export * from './ui/mastery-terms.js'; export { setUiLanguage } from './ui/i18n.js'; export { registerHostParts } from './ui/host-parts.js';", resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], loader: { '.css': 'text' }, logLevel: 'silent',
 });
 const mod = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, mod, mod.exports);
-const { StudyMap, TERMS, setUiLanguage } = mod.exports;
+const { StudyMap, TERMS, setUiLanguage, registerHostParts } = mod.exports;
 
 const deck = { id: 'd1', title: 'Behavioural patterns', folder: 'CS3219', course: 'CS3219', topics: ['Memento'], available: 5, count: 5, quizCount: 3, createdAt: '2026-09-01T00:00:00Z' };
 const progress = { d1: { counts: { mastered: 1, familiar: 1, learning: 1, weak: 1, new: 1 }, total: 5, mastery: 60, due: 1, status: 'active', topics: [] } };
@@ -114,4 +114,28 @@ test('App no longer draws the personalised-questions card; the sidebar row and t
   assert.match(app, /<CoachNavItem\b/);
   assert.match(app, /onCoachPractice:/, 'the home action bag carries the personalised-questions link');
   assert.match(app, /onWeakPoints:/);
+});
+
+/* The home asks the host for one part, HomeLead (ui/host-parts.js), at the top of the page: the desktop's first-use card. The DSH plugin registers none. */
+test('the home draws the host\'s HomeLead once, first on the page, on the first-run page and on the normal home; with none it draws what it always drew', () => {
+  setUiLanguage('zh');
+  const empty = { decks: [], progress: {}, today: { due: 0, weak: 0, new: 0, size: 0 }, next: null, coach: { ready: 0 }, sources: [], focus: { mode: 'class', course: 'CS3219', courses: [{ name: 'CS3219' }], fresh: [] } };
+  const cases = { 'first-run page': () => render(empty, { firstRun: { form: 'page' } }), 'first-run card': () => render(empty), 'normal home': () => render() };
+  const before = Object.fromEntries(Object.entries(cases).map(([name, draw]) => [name, draw()]));
+  assert.match(before['first-run page'], /first-run-page/, 'the fixture really is the first-run page');
+  for (const [name, html] of Object.entries(before)) assert.doesNotMatch(html, /data-home-lead/, `${name}: no part, no lead`);
+  const seen = [];
+  registerHostParts({ HomeLead: (props) => { seen.push(props.data.root); return React.createElement('i', { 'data-home-lead': '' }); } });
+  try {
+    for (const [name, draw] of Object.entries(cases)) {
+      const html = draw();
+      assert.equal(count(html, /data-home-lead/g), 1, `${name}: asked for once`);
+      assert.match(html, /^<section[^>]*><i data-home-lead=""><\/i>/, `${name}: the first thing on the page`);
+      assert.equal(html.replace('<i data-home-lead=""></i>', ''), before[name], `${name}: nothing else moved`);
+    }
+    assert.equal(seen.length, 3);
+    assert.deepEqual([...new Set(seen)], ['/tmp/lib'], 'the part gets the snapshot');
+    registerHostParts({ HomeLead: () => null });
+    assert.equal(render(), before['normal home'], 'a part that draws nothing leaves the page as it was');
+  } finally { registerHostParts({ HomeLead: undefined }); }
 });

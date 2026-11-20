@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ui, getUiLanguage, errorMessage } from '../i18n.js';
+import { ui, uiFormat, getUiLanguage, errorMessage } from '../i18n.js';
 import { reviewEntryKey } from '../async.js';
 import { submitAssist } from '../assist-request.js';
 import { readTeachingDraft, saveTeachingDraft } from '../teaching-draft.js';
@@ -13,7 +13,7 @@ import { describeModelError, modelReadiness } from '../generation-status.js';
 import { practiceArgs } from '../learning-navigation.js';
 import {
   AUTO_ADVANCE_MS, SELF_GRADE_ADVANCE_KEY, advanceKeyOf, assistRunningOn, autopilotPlan, gradeRunning, gradesOutstanding, isSelfGradedRun, keepAutopilotHold, continueDestination, createFlightSet, emptyEntry, entryForRun, isCurrentEntry, isPassed, pressedGradeOf, reviewChoiceKind,
-  keysElsewhere, mergeReviewPollWithFollowups, reviewPollResult, shortcutAction, shortcutGate, shouldResetEntry, skipTarget,
+  keysElsewhere, mergeReviewPollWithFollowups, reviewPollResult, shouldAdvanceOnSelfGrade, shortcutAction, shortcutGate, shouldResetEntry, skipTarget,
 } from './session-logic.js';
 import { continueLabel, continueNote } from './continue-labels.js';
 import { createDraftSaver, draftKey, draftPayloadOf, draftable, entrySignature, keepTyped, savedSignature } from './draft-persistence.js';
@@ -47,6 +47,8 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   showBackRef.current = showBack;
   const [showEn, setShowEn] = usePersistentState(EN_KEY, false, flag('1', '0'));
   const [autoTerms, setAutoTerms] = usePersistentState(CANDIDATE_TERMS_KEY, false, flag('1', '0'));
+  const autoTermsRef = useRef(autoTerms);
+  autoTermsRef.current = autoTerms;
   const [selfGradeAdvance, setSelfGradeAdvance] = usePersistentState(SELF_GRADE_ADVANCE_KEY, true, flag('1', '0'));
   const selfGradeAdvanceRef = useRef(selfGradeAdvance);
   selfGradeAdvanceRef.current = selfGradeAdvance;
@@ -258,7 +260,14 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     const current = runRef.current;
     if (!current?.id) return Promise.resolve();
     const resolvedArgs = action === 'review.answer' && isSelfGradedRun(current) && Number.isInteger(args.grade) && args.advanceOnSelfGrade === undefined
-      ? { ...args, advanceOnSelfGrade: selfGradeAdvanceRef.current !== false }
+      ? {
+          ...args,
+          advanceOnSelfGrade: shouldAdvanceOnSelfGrade({
+            selfGradeAdvance: selfGradeAdvanceRef.current,
+            autoTerms: autoTermsRef.current,
+            grade: args.grade,
+          }),
+        }
       : args;
     const step = () => {
       const latest = runRef.current || current;
@@ -585,13 +594,27 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   // `quiet`: the caller shows the state itself (a spoken answer's 正在批改 under the question, #1031), so no toast covers the page.
   const assistCard = useCallback(async (mode, text, helpChoices = [], extra = undefined, { quiet = false } = {}) => {
     const current = runRef.current;
-    if (!current?.card || (!text.trim() && !(mode === 'ask' && helpChoices.length) && !(mode === 'derive' && extra?.followupId) && !(mode === 'terms' && Array.isArray(extra?.terms) && extra.terms.length))) return false;
+    const rawNote = mode === 'ask' && typeof extra?.thinkingNote === 'string' ? extra.thinkingNote.trim().slice(0, 200) : '';
+    const trimmedText = String(text || '').trim();
+    if (!current?.card || (!trimmedText && !(mode === 'ask' && (helpChoices.length || rawNote)) && !(mode === 'derive' && extra?.followupId) && !(mode === 'terms' && Array.isArray(extra?.terms) && extra.terms.length))) return false;
     // Asking or filling marked terms helps understand before answering; 修题 and 出成题 change the bank, and 批改 grades the written answer.
     if (mode === 'ask' || mode === 'terms') { noteAssistance('askedTutorBeforeAnswer'); patch({ explain: true }); }
     if (mode === 'grade' && !(await flushDraft())) return false;
+    // Persist optional 1-sentence thinkingNote onto the underlying attempt (narrow `attempts` lock; ignores missing attempt cleanly).
+    if (rawNote) {
+      Promise.resolve(call('attempt.errorReason.set', {
+        deckId: current.deckId,
+        cardId: current.card.id,
+        runId: current.id,
+        thinkingNote: rawNote,
+      })).catch(() => {});
+    }
+    const mergedAskText = mode === 'ask' && rawNote
+      ? (trimmedText ? `${trimmedText}\n\n${uiFormat('刚才卡住的思路：{0}', [rawNote])}` : rawNote)
+      : trimmedText;
     try {
       await submitAssist(call, { deckId: current.deckId, cardId: current.card.id, runId: current.id,
-        mode, text: text.trim(), helpChoices,
+        mode, text: mergedAskText.slice(0, 1000), helpChoices,
         ...(mode === 'derive' && extra ? { derive: extra } : {}),
         ...(mode === 'terms' && extra?.terms ? { terms: extra.terms } : {}),
         uiLanguage: getUiLanguage() });

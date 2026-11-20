@@ -80,7 +80,7 @@ test('the Animation setting is in 设置 › 界面 with its four choices, in bo
 
 test('interface size and typeface: a fixed list of sizes up to 200%, the registry typefaces, and anything else falls back', async () => {
   const { SCALES, FONTS, normalizeInterface: normalize } = await import('../ui/interface-prefs.js');
-  assert.deepEqual(SCALES, [90, 100, 110, 125, 150, 175, 200]);
+  assert.deepEqual(SCALES, ['auto', 90, 100, 110, 125, 150, 175, 200], '跟随窗口 first, then the fixed sizes');
   assert.deepEqual(FONTS, ['system', 'serif', 'kai', 'round', 'mono', 'custom']);
   assert.equal(INTERFACE_DEFAULTS.scale, 100);
   assert.equal(INTERFACE_DEFAULTS.font, 'system');

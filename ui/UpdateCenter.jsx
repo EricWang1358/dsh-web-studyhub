@@ -1,5 +1,5 @@
 /* WP15 · update check and upgrade. One shared store per page: the first App
-   that mounts asks `update.check` (cached on the host for 12 h); the sidebar
+   that mounts asks `update.check` (cached on the host for 6 h); the sidebar
    chip, the 关于与更新 settings section and the upgrade dialog read it.
    An automatic check that fails is silent; a manual one says so, with a retry. The dialog upgrades in one click when the host
    reports DSH's plugin manager (`update.install`), otherwise it guides a
@@ -18,6 +18,7 @@ import css from './update.css';
 import { setRetrievalStatus, useRetrievalStatus } from './retrieval-status.js';
 import { useStudy } from './study-context.jsx';
 import { useDiagnostics } from './diagnostics.js';
+import { hostPart } from './host-parts.js';
 
 let snapshot = { update: null, checking: false };
 const listeners = new Set();
@@ -173,6 +174,9 @@ function CopyAddress({ address }) {
 }
 
 function GuidedUpgrade({ update, host, address = update.assetUrl || update.url }) {
+  // A host that is not DSH upgrades its own way (ui/host-parts.js).
+  const Own = hostPart('UpgradeGuide');
+  if (Own) return <Own update={update} host={host} />;
   return (
     <section className="update-guided" aria-label={ui('手动升级')}>
       <p className="update-lead">{ui('DSH 插件不会自动更新。按下面 4 步换成新版本，学习库和设置都会保留：')}</p>
@@ -184,7 +188,7 @@ function GuidedUpgrade({ update, host, address = update.assetUrl || update.url }
         <li><strong>{ui('重启 DSH')}</strong><span>{ui('桌面版完全退出后重新打开；网页版重启 DSH 服务后刷新页面。')}</span></li>
       </ol>
       {host?.openPluginManager && <Button variant="secondary" size="sm" icon="external" onClick={() => host.openPluginManager()}>{ui('打开插件管理')}</Button>}
-      <p className="update-note">{ui('桌面版提示：在插件管理里操作无需退出；若改用命令行安装，必须先完全退出桌面版（包括托盘图标）。')}</p>
+      <p className="update-note">{ui('桌面版提示：在插件管理里操作无需退出；若改用命令行安装，请先完全退出桌面版（包括托盘图标）。')}</p>
     </section>
   );
 }
@@ -300,7 +304,7 @@ export function UpdateDialog({ update, onClose, initialPhase = null }) {
 
 /** Settings › 关于与更新. */
 export function UpdateSettings({ update, onOpen, checking = false, extension, retrievalStatus = null, onExtension, onCheck, diagnostic, initialCheckError = '', initialSaveError = '' }) {
-  const { call } = useStudy();
+  const { call, host } = useStudy();
   useInjectCss(css, 'study-update');
   const [saving, setSaving] = useState(false), [checkError, setCheckError] = useState(initialCheckError), [saveError, setSaveError] = useState(initialSaveError);
   const resolvedRetrieval = retrievalStatus || (extension ? { extension } : null);
@@ -338,7 +342,9 @@ export function UpdateSettings({ update, onOpen, checking = false, extension, re
       <legend className="settings-section__title">{ui('关于与更新')}</legend>
       <dl className="update-facts">
         <div><dt>{ui('当前版本')}</dt><dd>{update?.current || '—'}</dd></div>
-        <div><dt>{ui('已安装版本')}</dt><dd>{update?.installed || update?.pendingRestart || update?.current || '—'}</dd></div>
+        {host?.capabilities?.edition !== 'desktop' && (
+          <div><dt>{ui('已安装版本')}</dt><dd>{update?.installed || update?.pendingRestart || update?.current || '—'}</dd></div>
+        )}
         <div><dt>{ui('最新已知版本')}</dt><dd>{update?.latest || '—'}</dd></div>
         <div><dt>{ui('上次检查')}</dt><dd>{update?.checkedAt ? formatDateTime(update.checkedAt) : ui('尚未检查')}</dd></div>
       </dl>
@@ -356,7 +362,9 @@ export function UpdateSettings({ update, onOpen, checking = false, extension, re
       <p className="settings-section__lead">{ui('自动检查通常间隔 6 小时，失败后稍后重试；手动检查立即查询，不自动安装，也不发送学习数据。')}</p>
       {diagnostic && <div className="update-settings__diagnostic" data-tour="settings-diagnostic">
         <CopyDiagnosticsButton describe={diagnostic} variant="secondary" />
-        <Hint className="update-settings__hint">{ui('报问题时点「复制诊断信息」，把文字贴给开发者；点「看看会复制什么」可以先读一遍。里面只有版本、界面语言、页面、出错类型、程序自带的报错短句、出错位置的函数名、任务类型和状态、资料/题组/题目的数量、实验性功能是否开启，以及本次打开期间换页的快慢、卡顿次数和数据更新的耗时（只存在内存里，关掉就没了）；别的报错内容不会复制，只写字数。DSH 版本请自己补上。')}</Hint>
+        <Hint className="update-settings__hint">{host?.capabilities?.edition === 'desktop'
+          ? ui('报问题时点「复制诊断信息」发给开发者，可先点「看看会复制什么」预览。只含版本、页面、报错摘要与基础计数，不含资料与题目内容。')
+          : ui('报问题时点「复制诊断信息」发给开发者，可先点「看看会复制什么」预览。只含版本、页面、报错摘要与基础计数，不含资料与题目内容。DSH 版本请自己补上。')}</Hint>
       </div>}
     </fieldset>
   );

@@ -155,6 +155,7 @@
   "闪卡：先想一想，再翻面看答案。": "Flashcards: think first, then flip to check.",
   "开放问答：用自己的话作答，对照评分要点。": "Open questions: answer in your own words, then compare with the marking points.",
   "填空卡：句子里挖掉关键词，补全它。": "Cloze: a key term is blanked out of a sentence; fill it in.",
+  "动手任务：给出明确任务、验收标准和参考实现，完成后可对照验收标准自检，或复制提示词到外部 AI 做静态验收（不跑测试）。": "Hands-on task: gives a clear brief, acceptance criteria and a reference solution; self-check against the criteria when done, or copy a prompt to an external AI for static review (no tests run).",
   "1 份资料": "1 source",
   "{0} 份资料": "{0} sources",
   "1 题": "1 question",

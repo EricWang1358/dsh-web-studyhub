@@ -27,7 +27,7 @@ import { describeModelError, modelReadiness, plainAssistFailure } from "../gener
 import { readableQualityIssue } from "../quality.js";
 import { ReadingBlock, useReadingProps } from "../reading-settings/ReadingSettings.jsx";
 import AnswerState from "./AnswerState.jsx";
-import { Banner, Button, Chip, Icon, InlineMessage, Popover, ProgressBar, SegmentedControl, Spinner, Tooltip } from "../components/index.js";
+import { Banner, Button, Chip, Icon, InlineMessage, Popover, ProgressBar, SegmentedControl, Spinner, TextInput, Tooltip } from "../components/index.js";
 import { useStudy } from "../study-context.jsx";
 import { HELP_CHOICES } from "../agent-prompts/card.js";
 import { FixPhraseChips, FixPhraseSave, appendFixPhrase } from "./FixPhrases.jsx";
@@ -133,7 +133,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const thumbsRef = React.useRef(null);
   const [thumbState, setThumbState] = React.useState({ vote: null, tags: [] });
   const thumbVote = thumbState.vote;
-  const [assistText, setAssistText] = React.useState("");
+  const [assistText, setAssistText] = React.useState(""), [thinkingNote, setThinkingNote] = React.useState("");
   const [dismissedTaskId, setDismissedTaskId] = React.useState("");
   const hasSessionExplainHidden = typeof session.explainHidden === "boolean";
   const [localExplainHidden, setLocalExplainHidden] = React.useState(false);
@@ -154,9 +154,10 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const { autoAdvanceMs, autoAdvanceActive, autoAdvancePaused, hoverPauseRef, syncAutoPause } = useAutopilotPause({ session, coachProps, reviewBodyRef });
   const fixPhrases = useFixPhrases(data);
   const ruleDeck = data?.decks?.find((deck) => deck.id === run.deckId);
-  const termCourseName = ruleDeck?.course ?? ruleDeck?.folder ?? run?.course ?? "";
+  const termCourseName = ruleDeck?.course ?? ruleDeck?.folder ?? (typeof run?.course === "string" ? run.course : run?.course?.name) ?? "";
   const courseRules = useCourseRules(data, ruleDeck?.course ?? ruleDeck?.folder ?? "");
   const termMarks = useTermMarking({ session, reviewBodyRef, notify, call, courseName: termCourseName, assistTasks });
+  const openTermListDialog = () => { termMarks.refreshCourseTerms(); setTermListOpen(true); };
   const chapterHint = useChapterHint({ run, cardPlace, allFollowups, currentTerms: termMarks.terms, tipShown: practiceTip.tip, tourRunning: !!tourRunning });
   const applyMarkedTerms = (terms) => {
     if (!terms?.length) return;
@@ -167,7 +168,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
     chapterHint.noteFillTerms();
     assistCard("terms", "", [], { terms });
   };
-  React.useEffect(() => { setAssistMode(""); setAssistText(""); setHelpChoices([]); setDeriveRelation("prerequisite"); setClozeFocusTick(0); setTermListOpen(false); }, [run.id, run.index, run.card?.id]);
+  React.useEffect(() => { setAssistMode(""); setAssistText(""); setThinkingNote(""); setHelpChoices([]); setDeriveRelation("prerequisite"); setClozeFocusTick(0); setTermListOpen(false); }, [run.id, run.index, run.card?.id]);
   const cardTasks = (assistTasks || []).filter((task) => task.cardId === run.card?.id);
   const runningTask = cardTasks.find((task) => task.status === "running" && task.mode !== "grade");
   const lastTask = cardTasks.filter((task) => task.mode !== "grade").at(-1);
@@ -455,7 +456,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             data-level={run.feedback.level || undefined} role="status">{nextDueIcon(run.feedback) && <Icon name={nextDueIcon(run.feedback)} className="sh-icon--inline sh-icon--lead" />}{nextDueWord(run.feedback)}</p>}
           {canOpenBookSection && run.feedback && !run.feedback.selfReported && !isPassed(run) && (
             <div className="question-book-link">
-              <Button variant="link" size="sm" iconEnd="arrow-right" data-book-section-link="feedback" lock={busy}
+              <Button variant="link" size="sm" iconEnd="arrow-right" data-usage="review.book-section" data-tour="review-book-section" data-book-section-link="feedback" lock={busy}
                 onClick={() => onOpenBookSection(cardPlace)}>
                 {ui("读全书这一节")}
               </Button>
@@ -484,6 +485,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             onAsk={() => setAssistMode((m) => (m === "ask" ? "" : "ask"))}
             onImprove={() => setAssistMode((m) => (m === "improve" ? "" : "improve"))}
             onDerive={() => setAssistMode((m) => (m === "derive" ? "" : "derive"))}
+            onTermList={run.mode !== "exam" && termMarks.courseName ? openTermListDialog : undefined}
             onSlay={slayCard} onToggleFocus={run.mode !== "exam" ? toggleCardFocus : undefined}
             onDeferUnstudiedPages={canDeferPages ? deferUnstudiedPages : undefined}
             onReviewAction={reviewAct}
@@ -524,14 +526,14 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           onRemove={termMarks.removeTerm}
           onMarkCandidate={termMarks.markCandidate}
           onFill={applyMarkedTerms}
-          onTermList={termCourseName ? () => { termMarks.refreshCourseTerms(); setTermListOpen(true); } : undefined}
-          hasCourse={Boolean(termCourseName)}
+          onTermList={run.mode !== "exam" && termMarks.courseName ? openTermListDialog : undefined}
+          hasCourse={Boolean(termMarks.courseName)}
           busy={busy || !!runningTask}
           running={runningTask?.mode === "terms"}
         />
-        {termListOpen && termCourseName && (
+        {termListOpen && termMarks.courseName && (
           <TermListDialog
-            courseName={termCourseName}
+            courseName={termMarks.courseName}
             items={termMarks.courseTerms}
             loading={termMarks.loadingCourseTerms}
             error={termMarks.courseTermsError}
@@ -551,16 +553,15 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
               </div>
             </div>
           ) : (() => {
-            const canSubmitAssist = !!assistText.trim() || (assistMode === "ask" && helpChoices.length > 0);
+            const trimmedNote = assistMode === "ask" ? thinkingNote.trim().slice(0, 200) : "";
+            const canSubmitAssist = !!assistText.trim() || (assistMode === "ask" && (helpChoices.length > 0 || !!trimmedNote));
             const submitAssist = async () => {
               const mode = assistMode;
-              if (!assistText.trim() && !(mode === "ask" && helpChoices.length)) return;
-              if (await assistCard(mode, assistText.trim(), mode === "ask" ? helpChoices : [], mode === "derive" ? { relation: deriveRelation } : undefined)) {
-                if (mode === "ask" && helpChoices.includes("prerequisite") && run.prerequisites?.length)
-                  studyPrerequisites(run.prerequisites);
-                setAssistMode("");
-                setAssistText("");
-                setHelpChoices([]);
+              if (!assistText.trim() && !(mode === "ask" && (helpChoices.length || trimmedNote))) return;
+              const extra = mode === "derive" ? { relation: deriveRelation } : (mode === "ask" && trimmedNote ? { thinkingNote: trimmedNote } : undefined);
+              if (await assistCard(mode, assistText.trim(), mode === "ask" ? helpChoices : [], extra)) {
+                if (mode === "ask" && helpChoices.includes("prerequisite") && run.prerequisites?.length) studyPrerequisites(run.prerequisites);
+                setAssistMode(""); setAssistText(""); setThinkingNote(""); setHelpChoices([]);
               }
             };
             return (
@@ -614,6 +615,9 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                       }
                     }} />
                 </label>
+                {assistMode === "ask" && (<label className="assist-form__field assist-form__thinking">{ui("刚才卡在哪一步 / 是怎么想的？（选填）")}
+                  <TextInput type="text" className="assist-form__thinking-input" data-thinking-note="" value={thinkingNote} maxLength={200}
+                    placeholder={ui("用一句话记下刚才卡住的思路，便于后续精准提醒")} onChange={(event) => setThinkingNote(event.target.value)} /></label>)}
                 {assistMode === "improve" && <FixPhraseSave phrases={fixPhrases.phrases} text={assistText} onSave={fixPhrases.add} />}
                 {assistMode === "improve" && <CourseRuleAdd courseRules={courseRules} text={assistText} />}
                 <div className="action-feedback-slot assist-form__feedback">{feedback}</div>

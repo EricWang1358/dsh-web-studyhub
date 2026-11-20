@@ -130,6 +130,103 @@ export function toggleTerm(list, term, limit = MAX_MARKED_TERMS) {
   };
 }
 
+function parseReviewEntryCardId(key) {
+  if (typeof key !== "string") return "";
+  try {
+    const parsed = JSON.parse(key);
+    return Array.isArray(parsed) && parsed[2] != null && parsed[2] !== "" ? String(parsed[2]) : "";
+  } catch {
+    return "";
+  }
+}
+
+function entryCardId(key, entry) {
+  if (entry && entry.cardId != null && entry.cardId !== "") return String(entry.cardId);
+  return parseReviewEntryCardId(key);
+}
+
+/**
+ * Remove completed `terms` assist-task terms (case-insensitively) from matching card entries in `entriesByKey`.
+ * Clears both `terms` and matching `hits` in memory, preserves terms marked after the task started, and leaves
+ * unrelated cards and non-`done` tasks untouched.
+ */
+export function clearCompletedTermEntries(entriesByKey, tasks) {
+  if (!entriesByKey || typeof entriesByKey !== "object" || !Array.isArray(tasks) || !tasks.length) {
+    return entriesByKey;
+  }
+  const dropByCard = new Map();
+  for (const task of tasks) {
+    if (task?.mode !== "terms" || task?.status !== "done" || task?.cardId == null || task.cardId === "") continue;
+    const cardId = String(task.cardId);
+    for (const rawTerm of Array.isArray(task.terms) ? task.terms : []) {
+      const clean = normalizeTerm(rawTerm);
+      if (!clean) continue;
+      let set = dropByCard.get(cardId);
+      if (!set) {
+        set = new Set();
+        dropByCard.set(cardId, set);
+      }
+      set.add(clean.toLowerCase());
+    }
+  }
+  if (!dropByCard.size) return entriesByKey;
+
+  let changed = false;
+  const nextEntries = {};
+  for (const [key, entry] of Object.entries(entriesByKey)) {
+    if (!entry || typeof entry !== "object") {
+      nextEntries[key] = entry;
+      continue;
+    }
+    const dropKeys = dropByCard.get(entryCardId(key, entry));
+    if (!dropKeys?.size) {
+      nextEntries[key] = entry;
+      continue;
+    }
+    const prevTerms = Array.isArray(entry.terms) ? entry.terms : [];
+    const prevHits = Array.isArray(entry.hits) ? entry.hits : [];
+    const nextTerms = prevTerms.filter((item) => !dropKeys.has(normalizeTerm(item).toLowerCase()));
+    const nextHits = prevHits.filter((hit) => !dropKeys.has(normalizeTerm(hit?.term).toLowerCase()));
+    if (nextTerms.length !== prevTerms.length || nextHits.length !== prevHits.length) {
+      changed = true;
+      nextEntries[key] = { ...entry, terms: nextTerms, hits: nextHits };
+    } else {
+      nextEntries[key] = entry;
+    }
+  }
+  return changed ? nextEntries : entriesByKey;
+}
+
+/**
+ * Filter candidate unfamiliar terms so only normalized, unique terms not currently in `activeTerms`
+ * and not present anywhere in `courseTerms` (regardless of `state`: `'unknown'`, `'learned'`, `'known'`, etc.)
+ * are shown as dashed candidates. Matching is case-insensitive.
+ */
+export function filterCandidateTerms(candidates, activeTerms = [], courseTerms = []) {
+  if (!Array.isArray(candidates) || !candidates.length) return [];
+  const excluded = new Set();
+  for (const raw of Array.isArray(activeTerms) ? activeTerms : []) {
+    const clean = normalizeTerm(raw);
+    if (clean) excluded.add(clean.toLowerCase());
+  }
+  for (const entry of Array.isArray(courseTerms) ? courseTerms : []) {
+    const rawTerm = typeof entry === "string" ? entry : entry?.term;
+    const clean = normalizeTerm(rawTerm);
+    if (clean) excluded.add(clean.toLowerCase());
+  }
+  const seen = new Set();
+  const out = [];
+  for (const raw of candidates) {
+    const clean = normalizeTerm(raw);
+    if (!clean) continue;
+    const key = clean.toLowerCase();
+    if (seen.has(key) || excluded.has(key)) continue;
+    seen.add(key);
+    out.push(clean);
+  }
+  return out;
+}
+
 /** Format marked unknown terms into the question prompt sent to assist via `uiFormat` and the active locale. */
 export function fillQuestion(terms, language = getUiLanguage()) {
   const clean = [];

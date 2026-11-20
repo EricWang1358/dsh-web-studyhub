@@ -7,6 +7,7 @@ import PointBody from './PointBody.jsx';
 import { pointSummary } from './point-parts.js';
 import { BookReadContext } from './reading.js';
 import { AskRow } from './BookAsk.jsx';
+import BookGapHint from './BookGapHint.jsx';
 
 /* One chapter of the review book (a top node of the 总纲, or 未归位) in 整章滚动. Only an open chapter renders its files (I8: a big book stays light); a closed
    one is its heading. Inside an open chapter each knowledge point is folded to its title and one line (its takeaway) except the one being read; an open
@@ -29,6 +30,7 @@ function BookNode({ node, course, handlers }) {
     <div className="book-node" data-depth={Math.min(4, node.depth)} data-book-folded={open ? undefined : 'true'}>
       {/* An open point has 问 AI at the right of its title, as in 逐节读. */}
       {node.leaf && open && handlers.ask ? <AskRow onAsk={element => handlers.ask(node, element)}>{heading}</AskRow> : heading}
+      {node.leaf && open && <BookGapHint node={node} course={course} handlers={handlers} />}
       {!open ? <p className="book-node__summary">{pointSummary(node.gen) || ui('展开读这一节')}</p>
         : node.leaf ? <PointBody node={node} course={course} handlers={handlers} level={Math.min(6, node.depth + 2)} />
           : node.children.map(child => <BookNode key={child.hid} node={child} course={course} handlers={handlers} />)}
@@ -46,6 +48,7 @@ export default memo(function BookChapter({ node, open, onToggle, course, handler
           {node.number && <span className="book-node__number">{node.number}</span>} {node.title}
         </Button>
       </h2>
+      {node.leaf && open && <BookGapHint node={node} course={course} handlers={handlers} />}
       {open && (node.hid === 'unplaced' ? <UnplacedBody node={node} handlers={handlers} />
         : node.leaf ? <PointBody node={node} course={course} handlers={handlers} level={3} /> : node.children.map(child => <BookNode key={child.hid} node={child} course={course} handlers={handlers} />))}
     </section>

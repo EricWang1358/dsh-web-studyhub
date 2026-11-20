@@ -49,6 +49,7 @@ export function RecoveryBanner() {
 export function ContextReturn() {
   const { nav, learn, core } = useApp();
   if (!learn.hasTrail || ['review', 'notes'].includes(nav.page)) return null;
+  if (['book', 'outline'].includes(nav.page) && learn.trailPage === 'review') return null;
   return (
     <div className="context-return">
       <Button variant="link" size="sm" icon="arrow-left" lock={core.busy} onClick={learn.returnFromContext}>{learn.trailLabel}</Button>

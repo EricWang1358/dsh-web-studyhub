@@ -208,7 +208,8 @@ test("the footer's 帮助 holds 快捷键 and 名词解释, and 快捷键 opens 
   assert.match(source, /data-usage="nav\.shortcut"/, "a visible entry, and a marked control");
   assert.match(source, /session\.actions\.openShortcutHelp\(\)/, "it opens the sheet the ? key opens");
   assert.match(source, /名词解释/, "the glossary has a visible entry too");
-  assert.match(source, /purpose=\{glossaryText\(\)\}/, "the glossary is the row's Tooltip words, not a second panel");
+  // canChat: an edition with no main chat (the desktop one) leaves 主会话 out of the words.
+  assert.match(source, /purpose=\{glossaryText\(canChat\)\}/, "the glossary is the row's Tooltip words, not a second panel");
   const footer = (await readFile(new URL("../ui/app/SidebarFooter.jsx", import.meta.url), "utf8")).replace(/\r/g, "");
   const help = footer.slice(footer.indexOf('<NavFold id="help"'), footer.indexOf("</NavFold>"));
   for (const tour of ["tour-reopen", "nav-shortcuts", "nav-glossary"]) assert.match(help, new RegExp(`data-tour="${tour}"`), `${tour} is inside 帮助`);

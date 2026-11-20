@@ -51,10 +51,14 @@ const edit = (view, key, value) => { const { props } = control(view, key); retur
 const submit = view => view.render().props.onSubmit({ preventDefault() {} });
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
 
-test('the generation settings section renders twenty-four usable controls (seven of them the question types) with shared limits in both languages', () => {
+test('the generation settings section renders twenty-three controls without model groups (hiding lightModel) and twenty-four with model groups, with shared limits in both languages', () => {
+  const groups = [{ id: 'preview', name: 'Preview', models: [{ id: 'fast', name: 'Fast' }] }];
   for (const language of ['zh', 'en']) {
     ssr.setUiLanguage(language);
-    const html = renderToStaticMarkup(React.createElement(ssr.GenerationSettings, { root: '/temporary/library', act: noop }));
+    const htmlNoGroups = renderToStaticMarkup(React.createElement(ssr.GenerationSettings, { root: '/temporary/library', act: noop }));
+    assert.equal((htmlNoGroups.match(/<(?:input|select|textarea)\b/g) || []).length, 23, `${language}: hides lightModel when no modelGroups`);
+    assert.doesNotMatch(htmlNoGroups, /name="lightModel"/);
+    const html = renderToStaticMarkup(React.createElement(ssr.GenerationSettings, { root: '/temporary/library', act: noop, modelGroups: groups }));
     assert.match(html, /data-tour="settings-generation"/);
     assert.match(html, /data-tour="settings-generation-time"[^>]*>(?:(?!<div class="sh-field).)*name="jobTimeoutMinutes"/, 'the Jobs page links to the field of the time limit');
     assert.equal((html.match(/<(?:input|select|textarea)\b/g) || []).length, 24);

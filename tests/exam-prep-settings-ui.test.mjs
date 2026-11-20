@@ -52,7 +52,7 @@ test('the page is on by default: one switch is on, one line says so, and no text
   assert.match(words(html), /开启备考补习/);
   assert.match(words(html), /可以去「备考补习」页新建考点清单/);
   assert.doesNotMatch(words(html), /插件管理器|还没有开启/);
-  assert.match(words(html), /runtime\.pilot\.examBlueprint/, 'the host switch is named once, as a hint for deployments');
+  assert.doesNotMatch(words(html), /runtime\.pilot\.examBlueprint|插件/, 'internal deployment switch and forbidden word 插件 are kept out of learner settings');
 });
 
 test('turned off by the learner: the switch shows it, the defaults are still there, and nothing says to ask DSH', () => {
@@ -66,7 +66,8 @@ test('turned off by the learner: the switch shows it, the defaults are still the
 test('forced on by the host configuration: the pane says so and has no switch to flip', () => {
   ssr.setUiLanguage('zh');
   const html = pane({ data: { settings: { examPrep: { enabled: false } }, features: { examBlueprint: true, examBlueprintByHost: true } } });
-  assert.match(words(html), /已经由 DSH 的配置开启/);
+  assert.match(words(html), /已由当前环境开启/);
+  assert.doesNotMatch(words(html), /DSH/);
   assert.equal(input(html, 'enabled'), '');
   assert.match(words(html), /自动识别资料用途/);
 });
@@ -106,8 +107,12 @@ test('saved choices are shown, and 恢复默认 is available', () => {
   assert.match(html, /<option[^>]*value="en"[^>]*selected|<option[^>]*selected[^>]*value="en"/);
   assert.equal((html.match(/class="sh-chip /g) || []).length, 2);
   assert.ok(words(html).includes('练习卷') && words(html).includes('drill'));
-  assert.match(html, /aria-label="移除「练习卷」"/);
+  assert.match(input(html, 'paperWord'), /disabled/, 'extra paper-word input is disabled when autoRoles is off');
+  assert.match(words(html), /开启「自动识别资料用途」后生效/);
   assert.doesNotMatch(html.match(/<button[^>]*>(?:(?!<\/button>).)*恢复默认/)[0], /disabled/);
+  const activeHtml = pane({ data: { settings: { examPrep: { ...examPrep, autoRoles: true } }, features: { examBlueprint: true } } });
+  assert.match(activeHtml, /aria-label="移除「练习卷」"/);
+  assert.doesNotMatch(input(activeHtml, 'paperWord'), /disabled/);
 });
 
 test('the pane is one section of the shared settings primitives, with no raw colours', async () => {

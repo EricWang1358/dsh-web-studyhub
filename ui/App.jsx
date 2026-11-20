@@ -105,7 +105,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
   const settingsEntry = useSettingsEntry({ nav, host });
   const notebooks = useNotebooks({ core, lib: handle, nav, host, root: connection.binding.root });
   const sources = useSourceImport({ core, lib: handle, nav, drafts, intents, data });
-  const tour = useTour({ core, lib: handle, nav, session, drafts, intents, data, rootRef: shell.rootRef });
+  const tour = useTour({ core, lib: handle, nav, session, drafts, intents, data, rootRef: shell.rootRef, canChat: host.capabilities?.chat !== false });
   const finder = useFinder({ nav, settingsEntry, core, tour, rootRef: shell.rootRef, learn });
   const selectionNotices = useSelectionNotices({ core, learn, data });
   const { courseActive } = useHostLinks({ host, core, nav, session, learn, lib: handle, rootRef: shell.rootRef, data, loading: connection.loading });

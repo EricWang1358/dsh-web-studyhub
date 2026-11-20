@@ -10,7 +10,9 @@ const {
   setUiLanguage,
   MAX_MARKED_TERMS,
   MAX_TERM_LENGTH,
+  clearCompletedTermEntries,
   fillQuestion,
+  filterCandidateTerms,
   mergeAdjacent,
   normalizeTerm,
   toggleTerm,
@@ -236,4 +238,114 @@ test("TermChips renders labelled chips, SVG close buttons without text glyphs, a
   } finally {
     setUiLanguage(prev);
   }
+});
+
+test("clearCompletedTermEntries clears completed terms & hits case-insensitively per cardId while keeping mid-task and other-card marks (#1214)", () => {
+  const keyC1 = JSON.stringify(["run-1", 0, "c1", 0, 0]);
+  const keyC1Rev = JSON.stringify(["run-1", 0, "c1", 0, 2]);
+  const keyC2 = JSON.stringify(["run-1", 1, "c2", 0, 0]);
+  const keyCustom = "custom-entry-key";
+  const node1 = { id: "n1" };
+  const node2 = { id: "n2" };
+
+  const initial = {
+    [keyC1]: {
+      terms: ["Linearizability", "Quorum", "Consensus"],
+      hits: [
+        { node: node1, start: 0, end: 15, term: "Linearizability" },
+        { node: node1, start: 17, end: 23, term: "Quorum" },
+        { node: node1, start: 28, end: 37, term: "Consensus" },
+      ],
+    },
+    [keyC1Rev]: {
+      terms: ["linearizability"],
+      hits: [{ node: node1, start: 0, end: 15, term: "linearizability" }],
+    },
+    [keyC2]: {
+      terms: ["Linearizability", "Mutex"],
+      hits: [
+        { node: node2, start: 0, end: 15, term: "Linearizability" },
+        { node: node2, start: 20, end: 25, term: "Mutex" },
+      ],
+    },
+    [keyCustom]: {
+      cardId: "c1",
+      terms: ["Quorum", "Idempotency"],
+      hits: [
+        { node: node1, start: 17, end: 23, term: "Quorum" },
+        { node: node1, start: 40, end: 51, term: "Idempotency" },
+      ],
+    },
+  };
+
+  // Non-done and non-terms tasks do not modify anything (returns original reference).
+  const unchanged = clearCompletedTermEntries(initial, [
+    { id: "t-run", mode: "terms", status: "running", cardId: "c1", terms: ["Linearizability"] },
+    { id: "t-fail", mode: "terms", status: "failed", cardId: "c1", terms: ["Linearizability"] },
+    { id: "t-err", mode: "terms", status: "error", cardId: "c1", terms: ["Linearizability"] },
+    { id: "t-ask", mode: "ask", status: "done", cardId: "c1", terms: ["Linearizability"] },
+  ]);
+  assert.equal(unchanged, initial);
+
+  // Completing task on c1 for ["linearizability", "quorum"] preserves "Consensus" and "Idempotency" on c1, and leaves c2 untouched.
+  const next = clearCompletedTermEntries(initial, [
+    { id: "t-done", mode: "terms", status: "done", cardId: "c1", terms: ["linearizability", "quorum"] },
+  ]);
+  assert.notEqual(next, initial);
+  assert.deepEqual(next[keyC1].terms, ["Consensus"]);
+  assert.deepEqual(next[keyC1].hits, [{ node: node1, start: 28, end: 37, term: "Consensus" }]);
+  assert.deepEqual(next[keyC1Rev], { terms: [], hits: [] });
+  assert.equal(next[keyC2], initial[keyC2]);
+  assert.deepEqual(next[keyCustom], {
+    cardId: "c1",
+    terms: ["Idempotency"],
+    hits: [{ node: node1, start: 40, end: 51, term: "Idempotency" }],
+  });
+
+  // Orphan hit range without matching entry in `terms` is also cleaned up.
+  const orphanState = {
+    [keyC1]: { terms: [], hits: [{ node: node1, start: 0, end: 6, term: "Quorum" }] },
+  };
+  const cleanedOrphan = clearCompletedTermEntries(orphanState, [
+    { id: "t-orphan", mode: "terms", status: "done", cardId: "c1", terms: ["quorum"] },
+  ]);
+  assert.deepEqual(cleanedOrphan[keyC1], { terms: [], hits: [] });
+});
+
+test("filterCandidateTerms excludes all courseTerms states and activeTerms case-insensitively (#1242)", () => {
+  const courseTerms = [
+    { term: "Linearizability", state: "unknown" },
+    { term: "Quorum", state: "learned" },
+    { term: "Idempotency", state: "known" },
+    { term: "乐观锁", state: "unknown" },
+  ];
+  const activeTerms = ["  Mutex  ", "互斥量"];
+  const candidates = [
+    "linearizability", // unknown in courseTerms -> excluded
+    "QUORUM",          // learned in courseTerms -> excluded
+    "idempotency",     // known in courseTerms -> excluded
+    "  乐观锁 ",        // unknown in courseTerms (with spaces) -> excluded
+    "mutex",           // in activeTerms (case-insensitive) -> excluded
+    "互斥量",           // in activeTerms -> excluded
+    "  Serializability  ", // not in courseTerms or activeTerms -> kept & normalized
+    "serializability", // duplicate (case-insensitive) -> excluded
+    "Consensus",       // kept
+    "最终一致性",       // kept
+    "   ",             // blank -> dropped
+    "line1\nline2",    // multiline -> dropped
+    "x".repeat(61),    // > MAX_TERM_LENGTH -> dropped
+  ];
+
+  assert.deepEqual(
+    filterCandidateTerms(candidates, activeTerms, courseTerms),
+    ["Serializability", "Consensus", "最终一致性"],
+  );
+
+  // Handles missing/empty inputs and courseTerms entries without an explicit state cleanly.
+  assert.deepEqual(filterCandidateTerms(null, activeTerms, courseTerms), []);
+  assert.deepEqual(filterCandidateTerms([], activeTerms, courseTerms), []);
+  assert.deepEqual(
+    filterCandidateTerms(["Raft", "Paxos"], undefined, [{ term: "raft" }]),
+    ["Paxos"],
+  );
 });

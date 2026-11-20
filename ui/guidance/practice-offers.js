@@ -44,6 +44,17 @@ export function chapterHintFor({ deeper, refill = false, exam = false, tourRunni
   return Boolean((Array.isArray(deeper) && deeper.length > 0) || refill === true);
 }
 
+/** Return `latestTerms.deeper` only when that `kind: 'terms'` followup completed at or after `enteredAt` (#1216). Pure. */
+export function freshTermsDeeper(latestTerms, enteredAt) {
+  if (!latestTerms || !Array.isArray(latestTerms.deeper) || !latestTerms.deeper.length) return [];
+  if (!Number.isFinite(enteredAt) || enteredAt <= 0) return [];
+  const rawAt = latestTerms.at;
+  const atMs = typeof rawAt === 'number'
+    ? (Number.isFinite(rawAt) ? rawAt : NaN)
+    : (typeof rawAt === 'string' && rawAt.trim() ? Date.parse(rawAt) : NaN);
+  return Number.isFinite(atMs) && atMs >= enteredAt ? latestTerms.deeper : [];
+}
+
 /* ---- Browser session memory + Settings › 引导 wiring ---- */
 
 const sessionSeen = new Map();

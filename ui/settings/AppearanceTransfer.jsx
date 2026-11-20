@@ -50,7 +50,7 @@ export default function AppearanceTransfer({ appearance }) {
       <div className="settings-actions">
         {appearance.onExport && <Button icon="copy" onClick={async () => setNote(await copy()
           ? { tone: 'success', text: ui('已复制外观设置，可以粘贴到另一台电脑。') }
-          : { tone: 'error', text: ui('没能复制：浏览器不让写剪贴板。可以改用「下载为文件」。') })}>{ui('复制外观设置')}</Button>}
+          : { tone: 'error', text: ui('没能写入剪贴板，可以改用「下载为文件」。') })}>{ui('复制外观设置')}</Button>}
         {appearance.onExport && <Button icon="download" variant="quiet" onClick={() => { downloadText(FILE_NAME, exported, 'application/json'); setNote({ tone: 'success', text: ui('已下载外观设置文件。') }); }}>{ui('下载为文件')}</Button>}
         {appearance.onImport && <Button icon="upload" variant="quiet" onClick={() => { setNote(null); setImporting(true); }}>{ui('导入外观')}</Button>}
       </div>

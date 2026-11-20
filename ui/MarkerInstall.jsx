@@ -202,7 +202,7 @@ export default function MarkerInstall({ disabled = false, markerReady = false, m
       </div>
       {showStart && ((plan && !plan.ok) || needsDocker) && diagRow()}
       {moving && <Hint>{ui('新环境装好并通过检测后，才会删除旧的那个；失败时旧的保持可用。')}</Hint>}
-      {showStart && <Hint>{ui('只在你点击后才会安装；marker-pdf 用 pip 下载，需要联网。')}</Hint>}
+      {showStart && <Hint>{ui('只在你点击后才会安装运行环境（需联网）；第一次解析 PDF 时会自动联网下载 Marker 模型（通常几分钟），之后可离线使用。')}</Hint>}
     </div>;
   };
 

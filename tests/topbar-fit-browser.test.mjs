@@ -16,6 +16,9 @@ import { frames, openPage, seedWrongBookLibrary, until } from '../scripts/qa/lay
    the status label is drawn whole wherever it is drawn as words (the steady state and the English labels fold into their dot at phone width), the mailbox button
    stays inside the bar, and the page does not scroll sideways. The state is made at the network edge (page.route). */
 
+const LONG_MODEL = 'Codex CLI · GPT-6-Luna';
+// The desktop window is at least 860 px wide: from there the model chip shows its whole name beside the library chip, the page title kept whole.
+const READABLE_FROM = 860;
 const NO_MODEL = { model: { ready: false, reason: 'no-route' }, modelReady: false };
 const STATES = {
   steady: {},
@@ -23,11 +26,13 @@ const STATES = {
   busy: { hold: ['review.start', 'review.resume', 'review.open', 'review.get'], click: '.today-go, [data-usage="home.start"]' },
   failed: { failAfterLoad: '读取失败' },
   reconnecting: { failAfterLoad: 'Failed to fetch' },
+  // The model chip with a long label (the owner reads the model at a glance): see READABLE_FROM below.
+  'long model': { patch: (value) => { value.model = { ready: true, reason: 'ok', label: LONG_MODEL }; value.modelReady = true; } },
   'no model': { shows: /还没配模型|No model yet/, patch: (value) => Object.assign(value, NO_MODEL) },
 };
 // Two realistic folder names: the chip beside the status says the folder, and a long one is the worst case for the room of the page title.
 const FOLDERS = ['dsh-daily-flashcard', 'SWE5001 Software Engineering'];
-const WIDTHS = [320, 360, 390, 420, 450, 480, 520, 600, 640, 700, 768, 900];
+const WIDTHS = [320, 360, 390, 420, 450, 480, 520, 600, 640, 700, 768, 860, 900, 1100];
 
 let shared;
 async function environment(t) {
@@ -89,14 +94,15 @@ const measure = (page) => page.evaluate(() => {
     labelEllipsis: label ? getComputedStyle(label).textOverflow === 'ellipsis' && label.scrollWidth > label.clientWidth : false,
     labelFolded: label ? getComputedStyle(label).position === 'absolute' : false,
     overflow: document.documentElement.scrollWidth - window.innerWidth,
+    model: (() => { const chip = document.querySelector('.model-in-use'); if (!chip || getComputedStyle(chip.parentElement).display === 'none') return null; const name = chip.querySelector('span'); const shown = !!name && getComputedStyle(name).display !== 'none'; return { shown, text: shown ? name.innerText : '', clipped: shown ? name.scrollWidth > name.clientWidth + 1 : false, width: chip.getBoundingClientRect().width }; })(),
     chip: (() => { const chip = document.querySelector('.library-location'); if (!chip || getComputedStyle(chip).display === 'none') return null; return { width: chip.getBoundingClientRect().width, minWidth: parseFloat(getComputedStyle(chip).minWidth) || 0, name: !!chip.querySelector('span') && getComputedStyle(chip.querySelector('span')).display !== 'none' }; })(),
   };
 });
 
 for (const folder of FOLDERS) for (const lang of ['zh', 'en']) for (const [name, spec] of Object.entries(STATES)) {
   // The first folder only walks the states that hold the fewest and the most words beside the title; the long one walks them all.
-  if (folder === FOLDERS[0] && !['steady', 'failed'].includes(name)) continue;
-  test(`the top bar fits from 320 to 900 px (${folder} · ${lang} · ${name}): page title kept, label whole or folded, mailbox inside bar, no sideways scroll`, { timeout: 240000 }, async (t) => {
+  if (folder === FOLDERS[0] && !['steady', 'failed', 'long model'].includes(name)) continue;
+  test(`the top bar fits from 320 to 1100 px (${folder} · ${lang} · ${name}): page title kept, label whole or folded, mailbox inside bar, no sideways scroll`, { timeout: 240000 }, async (t) => {
     const running = await environment(t);
     if (!running) return;
     const server = running.servers[folder];
@@ -127,7 +133,8 @@ for (const folder of FOLDERS) for (const lang of ['zh', 'en']) for (const [name,
         assert.ok(m.text.length > 0, `${tag}: a label`);
         // Two labels fold into their dot on purpose and stay in the page for screen readers: the steady one in a narrow pane (640 px and narrower), and an English one at
         // phone width (320 px), where its longer words would take the room of the page title. Every label that is drawn as words is drawn whole, at every width.
-        const folded = (name === 'steady' && width <= 640) || (lang === 'en' && width <= 340 && name !== 'steady');
+        const steady = name === 'steady' || name === 'long model'; // the idle status: a long model name does not make it busier
+        const folded = (steady && width <= 640) || (lang === 'en' && width <= 340 && !steady);
         assert.equal(m.labelFolded, folded, `${tag}: the label is ${folded ? 'folded into its dot' : 'drawn as words'}`);
         if (!folded) assert.ok(!m.labelClipped && !m.labelEllipsis, `${tag}: the label "${m.text}" is drawn whole: ${JSON.stringify(m)}`);
         // The page title never goes to nothing, and is whole wherever there is room for it.
@@ -138,7 +145,13 @@ for (const folder of FOLDERS) for (const lang of ['zh', 'en']) for (const [name,
         if (width <= 390) assert.equal(m.chip, null, `${tag}: no chip at phone width`);
         if (width >= 420 && width <= 450) assert.ok(m.chip && !m.chip.name, `${tag}: the chip is its icon (${JSON.stringify(m.chip)})`);
         if (width >= 480 && width <= 640) assert.ok(m.chip?.name && m.chip.minWidth >= 60 && m.chip.width >= 60, `${tag}: the chip keeps a readable minimum width (${JSON.stringify(m.chip)})`);
-        if (width >= 700) assert.ok(m.chip?.name && m.chip.width >= 100, `${tag}: the whole chip (${JSON.stringify(m.chip)})`);
+        // With the model's name drawn beside it (above 800 px) the folder's chip is the one that gives way, down to the readable minimum it has in a narrow pane.
+        if (width >= 700) assert.ok(m.chip?.name && m.chip.width >= (m.model?.shown ? 60 : 100), `${tag}: the whole chip (${JSON.stringify(m.chip)})`);
+        if (name === 'long model' && width >= READABLE_FROM) {
+          assert.ok(m.model?.shown && !m.model.clipped, `${tag}: the model chip reads "${LONG_MODEL}" whole (${JSON.stringify(m.model)})`);
+          assert.ok(m.model.text.includes(lang === 'en' ? 'Model: ' + LONG_MODEL : '模型：' + LONG_MODEL), `${tag}: ${m.model.text}`);
+          assert.ok(!m.titleClipped, `${tag}: the page title stays whole beside it`);
+        }
         assert.ok(m.mailbox, `${tag}: the mailbox button is there`);
         assert.ok(m.mailbox.right <= m.bar.right + 0.5 && m.mailbox.left >= m.bar.left, `${tag}: the mailbox (${m.mailbox.left}–${m.mailbox.right}) stays inside the bar (${m.bar.left}–${m.bar.right})`);
         assert.ok(m.status.right <= m.mailbox.left + 0.5, `${tag}: the status ends before the mailbox`);

@@ -145,19 +145,20 @@ test('the quiet link for a card or a history row: its label and hover, only whil
 
 /* ---------- the panel and the badge say it too ---------- */
 
-test('the panel note: local, no tokens, what it is for, and the one-time download; the English-model remark is only a hover', () => {
+test('the panel note: local, no tokens, what it is for, the one-time download, and the visible English-bias / Chinese keyword-matching caveat', () => {
   const html = render(h(m.IndexNote, { firstRun: true, modelMb: 90 }));
   assert.match(html, /在这台电脑上建索引：不调用 AI、不耗 token，资料不离开电脑。建好后，整本书出题只读相关页面。/);
   assert.match(html, /首次需要下载约 90 MB 的检索模型，只下载一次，之后可以离线使用。/);
   const visible = html.replace(/<span[^>]*role="tooltip"[\s\S]*?<\/span>/g, '');
-  assert.doesNotMatch(visible, /主要针对英文/, 'not in the visible line');
-  assert.match(html, /role="tooltip"[^>]*>[^]*主要针对英文/, 'in the hover');
+  assert.match(visible, /偏英文/, 'visible directly without hover');
+  assert.match(visible, /关键词匹配/, 'visible Chinese matching guidance');
   const later = render(h(m.IndexNote, { firstRun: false, modelMb: 90 }));
   assert.doesNotMatch(later, /首次需要下载/, 'the model is already on this computer');
   assert.match(later, /不耗 token/);
   const english = render(h(m.IndexNote, { firstRun: true, modelMb: 90 }), 'en');
   assert.match(english, /uses no tokens/);
   assert.match(english, /about 90 MB/);
+  assert.match(english, /favours English/);
   assert.doesNotMatch(english.replace(/<[^>]+>/g, ' '), han);
 });
 

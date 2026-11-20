@@ -16,7 +16,7 @@ import { useCopyFeedback } from "../use-copy-feedback.js";
 import CorrectionCard from "./CorrectionCard.jsx";
 import { companionSlideButtonLabel, openCompanionTarget, resolveCompanionTarget } from "../companions/companion-ref.js";
 import { lookBackBlindRecall } from "../../lib/practice-settings.js";
-import { LOOKBACK_ERROR_REASONS, maskedClozeTextOf, maskedPromptOf, reasonGroups, reasonLabelOf, rowReasonKey, toggleRowReason } from "./lookback-recall.js";
+import { LOOKBACK_ERROR_REASONS, maskedClozeTextOf, maskedPromptOf, persistRowReason, reasonGroups, reasonLabelOf, rowReasonKey, seedReasonsFromRows, toggleRowReason } from "./lookback-recall.js";
 
 /* 本轮题目 on the result page (#1009): one row per question of the round, read once when the page opens with review.lookBack {runId}
    (lib/contexts/study/round-look-back.js; a read the main chat is refused, so a chat's tool results of the round stay small), and a press on a row opens a
@@ -238,12 +238,14 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAc
   const [open, setOpen] = React.useState(() => new Set());
   const [veilActive, setVeilActive] = React.useState(recallEnabled);
   const [revealedRows, setRevealedRows] = React.useState(() => new Set());
-  const [reasonsByKey, setReasonsByKey] = React.useState({});
+  const [reasonsByKey, setReasonsByKey] = React.useState(() => seedReasonsFromRows(rows));
+  const rowReasonsSignature = rows.map((row) => `${rowReasonKey(row)}=${row?.errorReason || ""}`).join("|");
   React.useEffect(() => {
     setVeilActive(recallEnabled);
     setRevealedRows(new Set());
-    setReasonsByKey({});
-  }, [run.id, recallEnabled]);
+    setReasonsByKey(seedReasonsFromRows(rows));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset per round / persisted row snapshot
+  }, [run.id, recallEnabled, rowReasonsSignature]);
   React.useEffect(() => { if (segment) setHesitantOnly(false); }, [segment]);
   const shown = hesitantOnly
     ? hesitantRows
@@ -347,7 +349,11 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAc
             <LookBack row={row} mode={run.mode} sources={sources} onOpenSource={openSource}
               veiled={isVeiled} onReveal={revealRow} showReasons={recallEnabled}
               reasonId={reasonsByKey[rKey] || ""}
-              onPickReason={(reasonId) => setReasonsByKey((prev) => toggleRowReason(prev, rKey, reasonId))} />
+              onPickReason={(reasonId) => {
+                const nextReason = reasonsByKey[rKey] === reasonId ? null : reasonId;
+                setReasonsByKey((prev) => toggleRowReason(prev, rKey, reasonId));
+                void persistRowReason(study?.call, row, run.id, nextReason);
+              }} />
             {!isVeiled && row.feedback && <CorrectionCard feedback={row.feedback} withRubric={!!row.feedback.rubric && row.card?.kind !== "task"}
               onAck={row.correctionPending && onAck ? () => Promise.resolve(onAck(row)).then(() => invalidate("review.lookBack")) : undefined} />}
             {!isVeiled && (companionTarget || place || (row.status === "wrong" && onOpenWrongBook)) && (

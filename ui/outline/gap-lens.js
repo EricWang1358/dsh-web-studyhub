@@ -4,8 +4,10 @@ import { UNPLACED, filterOutline, outlineRows } from './model.js';
 export const OUTLINE_GAP_FILTERS = Object.freeze(['all', 'weak-due', 'untested']);
 const GENERATABLE_KINDS = new Set(['part', 'section', 'point', 'document', 'chapter']);
 
-/** Whether a node has at least one weak or already-learned due card in its summary. */
-export const isWeakOrDueNode = node => ((node?.summary?.weak ?? 0) > 0) || ((node?.summary?.due ?? 0) > 0);
+/** Whether a node has at least one weak or already-learned due card in its summary, or PointEvidence marks it shaky. */
+export const isWeakOrDueNode = node => ((node?.summary?.weak ?? 0) > 0) || ((node?.summary?.due ?? 0) > 0) || node?.evidence?.overall === 'shaky';
+/** Conditional actionable hint from PointEvidence (only present on weak or exam-near points). */
+export const gapHintOfNode = node => node?.evidence?.gapHint ?? null;
 /** Whether a node already has unpublished draft questions counted in its summary. */
 export const hasDraftCards = node => (node?.summary?.draftCards ?? 0) > 0;
 /** Whether a non-pending node has neither published questions nor unpublished drafts yet. */

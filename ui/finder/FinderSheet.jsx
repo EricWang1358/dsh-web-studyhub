@@ -112,7 +112,8 @@ export default function FinderSheet({ data, entries = FINDER_ENTRIES, initialQue
   const hasQuery = query.trim().length >= 1;
   const browsing = !hasQuery;
   const eligibleForContent = shouldSearchContent(query);
-  const marked = useMemo(() => withAvailability(entries, data), [entries, data]);
+  const canChat = services?.host?.capabilities?.chat !== false;
+  const marked = useMemo(() => withAvailability(entries, data, { canChat }), [entries, data, canChat]);
   const found = useMemo(() => searchFeatures(marked, query, { translate: ui }), [marked, query]);
   const libraryHits = useMemo(() => (hasQuery ? searchLibraryHits(data, query) : []), [hasQuery, data, query]);
   const shownContentHits = eligibleForContent ? contentHits : [];

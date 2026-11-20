@@ -120,7 +120,7 @@ test("the features that are about to be folded away or are hard to find today al
   const required = ["translation", "original-file", "practice-pages", "original-pdf", "selection-ask", "selection-quiz", "generate-from-source", "archive", "organize-courses",
     "pdf-convert", "json-import", "case-exam", "coverage", "custom-count", "budget", "difficulty", "question-language", "notation", "generate-focus", "generate-assist",
     "reference-questions", "target-role", "top-up", "publish-draft", "draft-advanced", "hint", "help-me-understand", "autopilot", "en-toggle", "font-size", "thumbs", "write-note",
-    "slay", "retrain", "similar", "variants", "recommend", "exam-formats", "course-settings", "daily-recap", "task-controls", "mailbox", "library-folder", "choose-model",
+    "slay", "retrain", "similar", "variants", "recommend", "exam-formats", "course-settings", "daily-recap", "task-controls", "mailbox", "library-folder", "choose-model", "model-in-use",
     "audio-keys", "live-local", "retrieval", "appearance-theme", "appearance-accent", "appearance-scale", "appearance-font", "appearance-density", "appearance-radius",
     "appearance-motion", "appearance-contrast", "appearance-transfer", "ui-language", "shortcuts", "tour", "glossary", "sample-remove", "backup", "legacy-import", "update",
     "usage-record", "experimental", "hand-off", "finder"];
@@ -139,6 +139,16 @@ test("the words a learner types for the old names and the English words are alia
   assert.equal(byId.get("material-facets").anchors[0], "source-filters");
 });
 
+test("where the library lives and which model is in use can both be looked up: the folder entry answers the words for moving it off the system drive, the top-bar model chip has its own entry", () => {
+  const words = (id) => byId.get(id).aliases.map((alias) => alias.toLowerCase());
+  for (const word of ["放在哪", "系统盘", "c 盘", "已有学习库", "确认学习库", "system drive", "existing library"]) assert.ok(words("library-folder").includes(word), `library-folder: ${word}`);
+  const model = byId.get("model-in-use");
+  for (const word of ["当前模型", "用哪个模型", "费用", "which model", "billing"]) assert.ok(words("model-in-use").includes(word), `model-in-use: ${word}`);
+  assert.deepEqual(model.anchors, ["topbar-model"]);
+  assert.deepEqual(model.path, ["页面顶栏", "模型：…"]);
+  assert.equal(model.page, null, "every page has the top bar");
+});
+
 test("the tags say what an entry needs, never hide it", () => {
   assert.deepEqual(entryTags({ needs: { model: true } }), ["需要 AI 模型"]);
   assert.deepEqual(entryTags({ needs: { flag: "examBlueprint" } }), ["需要 DSH 开启备考补习"]);
@@ -147,4 +157,35 @@ test("the tags say what an entry needs, never hide it", () => {
   assert.deepEqual(entryTags({}), []);
   assert.ok(byId.get("translation").needs.model, "translation needs a model");
   assert.equal(byId.get("page-examprep").needs.flag, "examBlueprint");
+});
+
+test("course-term-list targets 更多 › 生词表… with run-more prepare so it works with 0 marked terms (#1221)", () => {
+  const entry = byId.get("course-term-list");
+  assert.ok(entry);
+  assert.deepEqual(entry.path, ["练习", "题目下方", "更多", "生词表…"]);
+  assert.deepEqual(entry.anchors, ["review-more"]);
+  assert.equal(entry.prepare, "run-more");
+});
+
+test("question-place and read-book-section are registered with conditional anchors and aliases (#1222)", () => {
+  const place = byId.get("question-place");
+  assert.ok(place);
+  assert.equal(place.title, "这道题的出处");
+  assert.equal(place.page, "review");
+  assert.deepEqual(place.anchors, ["review-place", "review-question"]);
+  assert.equal(place.prepare, "run-place");
+  for (const word of ["出处", "出自哪一章", "在总纲里的位置"]) assert.ok(place.aliases.includes(word), `question-place alias: ${word}`);
+  assert.match(place.what, /页头/);
+  assert.match(place.what, /总纲/);
+
+  const section = byId.get("read-book-section");
+  assert.ok(section);
+  assert.equal(section.title, "读全书这一节");
+  assert.equal(section.page, "review");
+  assert.deepEqual(section.anchors, ["review-book-section", "review-question"]);
+  assert.equal(section.prepare, "run-book-section");
+  for (const word of ["对应的全书", "读讲解"]) assert.ok(section.aliases.includes(word), `read-book-section alias: ${word}`);
+  assert.match(section.what, /已经写好/);
+  assert.match(section.what, /反馈下面/);
+  assert.match(section.what, /问答下面/);
 });

@@ -1,4 +1,5 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { ui, uiFormat } from '../i18n.js';
 import { MAIN_LIMIT, PAGES, sectionLabelOf } from '../pages.js';
 import { pageAvailable } from '../capabilities.js';
@@ -69,10 +70,14 @@ export default function SidebarNav({ alert, reason, tasks }) {
         return mark?.top === next?.top && mark?.height === next?.height ? mark : next;
       });
     };
-    measure();
-    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
-    observer?.observe(element);
-    return () => observer?.disconnect();
+    /* A ResizeObserver reports once for an element it starts to watch, after the browser has laid the page out: the rows are read there, for
+       nothing. Reading them here instead made the browser lay out the whole new page in the middle of the commit, on every page change (about
+       58 ms of each switch with 300 资料). Where there is no observer the rows are read here, as before. flushSync: the report comes before the
+       paint, and the highlight has to be in that same paint (a row that becomes current again must not show one frame without it). */
+    if (typeof ResizeObserver !== 'function') { measure(); return undefined; }
+    const observer = new ResizeObserver(() => flushSync(measure));
+    observer.observe(element);
+    return () => observer.disconnect();
   }, [page, pageTarget, busy, !!data, data?.lastRun?.id, data?.lastRun?.index, order, more, shell.navDrawer]); // eslint-disable-line react-hooks/exhaustive-deps
   /* 复习全书: the book of the current course when it has been written, else the 总纲 page, which offers to organise the course and write it. */
   const openBookEntry = async () => {
@@ -81,6 +86,10 @@ export default function SidebarNav({ alert, reason, tasks }) {
     gotoPage(nav, target);
   };
   const shown = (group) => order[group].filter((id) => pageAvailable(data, id));
+  /* The number on 资料. Counting groups every page of every material into its document, so it is done once per snapshot of the library:
+     the sidebar renders several times on each page change, and with 300 资料 each count took a few milliseconds of it. */
+  const sources = data?.sources;
+  const documentCount = useMemo(() => (sources ? countDocuments(sources) : 0), [sources]);
   const row = (id) => {
     const news = id === 'tasks' ? tasks : null;
     return (
@@ -89,7 +98,7 @@ export default function SidebarNav({ alert, reason, tasks }) {
         glyph={PAGES[id].glyph} label={ui(PAGES[id].label)} purpose={ui(PAGES[id].purpose)} alert={alert?.id === id ? reason : undefined}
         tail={reorderHint.show ? ui('长按并拖动可调整顺序（键盘：Alt+↑/↓）') : undefined} onTipChange={reorderHint.tipChange}
         onClick={() => (id === 'book' ? openBookEntry() : gotoPage(nav, id))} disabled={!data && id !== 'board'}
-        hint={id === 'board' ? board.count : id === 'sources' && data ? countDocuments(data.sources) : news?.total > 0 ? news.total : undefined}
+        hint={id === 'board' ? board.count : id === 'sources' && data ? documentCount : news?.total > 0 ? news.total : undefined}
         hintClass={news?.running > 0 ? 'nav-count is-live' : 'nav-count'}
         hintTitle={news?.total > 0 ? taskBadgeTitle(news) : undefined} />
     );

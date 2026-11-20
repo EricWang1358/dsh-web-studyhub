@@ -1,6 +1,6 @@
 import React from 'react';
 import { ui } from './i18n.js';
-import { Checkbox } from './components/index.js';
+import { Checkbox, Tooltip } from './components/index.js';
 import { kinds } from './shared.js';
 import { BASIC_KINDS } from '../lib/generation-settings.js';
 import { toggleKind } from './generate-form.js';
@@ -13,8 +13,14 @@ export default function KindPicker({ value, onChange, disabled = false, name = '
     <div role="group" aria-label={ui('题型')} className={['sh-check-group', className].filter(Boolean).join(' ')} {...rest}>
       {BASIC_KINDS.map(kind => {
         const on = ticked.includes(kind), last = on && ticked.length === 1;
-        return <Checkbox key={kind} name={`${name}-${kind}`} label={kinds[kind]} checked={on} disabled={disabled || last}
-          title={last ? ui('至少保留一种题型') : undefined} onChange={checked => onChange?.(toggleKind(ticked, kind, checked))} />;
+        return (
+          <Tooltip key={kind} layer content={last ? ui('至少保留一种题型') : ''}>
+            <span>
+              <Checkbox name={`${name}-${kind}`} label={kinds[kind]} checked={on} disabled={disabled || last}
+                onChange={checked => onChange?.(toggleKind(ticked, kind, checked))} />
+            </span>
+          </Tooltip>
+        );
       })}
     </div>
   );

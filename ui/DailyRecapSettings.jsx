@@ -44,21 +44,28 @@ export function DailyRecapSettingsForm({ root, saved }) {
     } catch (cause) { if (live()) setError(errorMessage(cause)); }
     finally { if (live()) { pending.current = null; setWorking(false); } }
   }
+  const dirty = JSON.stringify(editor.values) !== editor.baseline;
+  const sameTimeZone = editor.values.timeZone === deviceTimeZone;
   return <form className="settings-form" onSubmit={save}>
-    <SettingsSection tour="settings-daily-recap" disabled={busy || working} title={ui('每日错题讲解合集')}
-      lead={ui('同一天、同一课程只保留一篇合集，累计完成 10 道不同题目才生成；错题不足 10 道也可以，重复重练不重复计数。')}>
-      <Checkbox name="automatic" label={ui('自动准备并生成每日合集')} checked={editor.values.automatic} onChange={automatic => edit({ automatic })} />
-      <Hint>{ui('默认关闭。开启后会使用当前 AI 模型：做题时逐步准备讲解，章节结束后统一整理语言和顺序。你的手动修改会保留。')}</Hint>
+    <SettingsSection tour="settings-daily-recap" disabled={busy || working} title={ui('每日讲解合集')}
+      lead={ui('同一天同一门课答满 10 道不同题才生成，重点讲错题（错题不足 10 道也会总结要点，重复重练不重复计数）；开启后自动调用当前模型。')}>
+      <Checkbox name="automatic" label={ui('自动准备并生成每日合集')} checked={editor.values.automatic} onChange={automatic => edit({ automatic })}
+        hint={ui('默认关闭。开启后答满 10 道不同题会自动调用当前模型准备并整理合集，重点讲错题；你的手动修改会保留。')} />
       <Field label={ui('默认讲解口吻')} hint={ui('亲切：像一起复盘的助教；专业：简洁、严谨地讲清判断依据。手动生成时可单独调整。')}>
         <Select name="tone" value={editor.values.tone} onChange={tone => edit({ tone })}
           options={[{ value: 'friendly', label: ui('亲切') }, { value: 'professional', label: ui('专业') }]} />
       </Field>
-      <Hint>{ui('每天按保存的时区划分；继续做新题会更新今天的同一篇合集。')}</Hint>
-      <Field group label={uiFormat('当天统计时区：{0}', [timeZoneName])}>
-        {editor.values.timeZone !== deviceTimeZone && <Button onClick={() => edit({ timeZone: deviceTimeZone })}>{ui('使用当前设备时区')}</Button>}
+      <Field group label={uiFormat('当天统计时区：{0}', [timeZoneName])}
+        hint={ui('每天按保存的时区划分；继续做新题会更新今天的同一篇合集。')}>
+        {sameTimeZone
+          ? <Hint>{ui('与当前设备一致；跨时区后可在这里同步。')}</Hint>
+          : <Button onClick={() => edit({ timeZone: deviceTimeZone })}>{ui('使用当前设备时区')}</Button>}
       </Field>
       {error && <Hint tone="error" role="alert">{error}</Hint>}
-      <div className="settings-actions"><Button type="submit" variant="primary" disabled={JSON.stringify(editor.values) === editor.baseline} lock={busy || working}>{ui(working ? '保存中…' : '保存每日合集设置')}</Button></div>
+      <div className="settings-actions">
+        <Button type="submit" variant="primary" disabled={!dirty} busy={working} busyLabel={ui('保存中…')} lock={busy}>{ui('保存每日合集设置')}</Button>
+      </div>
+      <Hint role="status">{ui(dirty ? '有未保存的修改；保存后对之后的合集生效。' : '改动后点上方按钮保存。')}</Hint>
     </SettingsSection>
   </form>;
 }

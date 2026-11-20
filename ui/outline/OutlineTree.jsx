@@ -5,7 +5,8 @@ import { useStudy } from '../study-context.jsx';
 import { LEVEL_LABEL, plainPrompt } from '../shared.js';
 import { MasteryLine } from '../document-preview/practice/MasteryMark.jsx';
 import { cardTicked, outlineKey } from './model.js';
-import { canGenerateRow } from './gap-lens.js';
+import { canGenerateRow, gapHintOfNode } from './gap-lens.js';
+import { gapHintLabel } from '../evidence-hint.js';
 import { displayTitle } from '../../lib/document-title.js';
 import LeafNotes from './LeafNotes.jsx';
 import { moreText, numberText, otherText, practiceLabel, reasonText, rowTitle, tierText, unfiledText } from './words.js';
@@ -41,9 +42,11 @@ function Questions({ data, holders, pick, onPickCard }) {
   );
 }
 
-const Row = memo(function Row({ row, data, tabStop, bodyId, pick, papers, unbuilt, modelReady = true, onPick, onPickCard, onPractice, onGoGenerateRow, onOpenSources, onOpenSource, onOpenBook, onReadMore }) {
+const Row = memo(function Row({ row, data, tabStop, bodyId, pick, papers, unbuilt, modelReady = true, onPick, onPickCard, onPractice, onGapHint, onGoGenerateRow, onOpenSources, onOpenSource, onOpenBook, onReadMore }) {
   const { busy } = useStudy();
   const { node } = row, title = rowTitle(row);
+  const gapHint = row.kind === 'point' ? gapHintOfNode(node) : null;
+  const gapLabel = gapHintLabel(gapHint);
   // Every row above this one on screen holds its questions too (an AI outline nests up to five rows deep).
   const above = row.ancestors || (row.parentKey ? [row.parentKey] : []), holders = [row.key, ...above];
   const inPickedRow = above.some(key => pick.keys.has(key));
@@ -64,6 +67,13 @@ const Row = memo(function Row({ row, data, tabStop, bodyId, pick, papers, unbuil
         {node.total > 0 && <Button size="sm" variant="secondary" iconEnd="arrow-right" className="outline-row__practice" lock={busy} onClick={() => onPractice(row)}>{practiceLabel(node.resume)}</Button>}
         {onGoGenerateRow && canGenerateRow(row) && <Button size="sm" variant="link" iconEnd="arrow-right" className="outline-row__generate" lock={busy} onClick={() => onGoGenerateRow(row)}>{ui('去出题')}</Button>}
       </div>
+      {gapLabel && (
+        <p className="outline-row__gap-hint" data-gap-hint={gapHint.kind}>
+          <Button variant="link" size="sm" wrap iconEnd="arrow-right" lock={busy} onClick={() => (onGapHint ? onGapHint(row, gapHint) : onPractice?.(row))}>
+            {gapLabel}
+          </Button>
+        </p>
+      )}
       {node.intro && (row.kind === 'part' || row.kind === 'section' || row.kind === 'point') && <p className="outline-row__intro">{node.intro}</p>}
       {row.kind === 'point' && row.expanded && data?.notes && <LeafNotes notes={data.notes} modelReady={modelReady} onOpenSource={onOpenSource} onReadMore={onReadMore} />}
       {row.kind === 'point' && row.expanded && onOpenBook && <Button size="sm" variant="link" iconEnd="arrow-right" className="outline-row__book" onClick={() => onOpenBook(row.key)}>{ui('打开书页')}</Button>}
@@ -83,7 +93,7 @@ const Row = memo(function Row({ row, data, tabStop, bodyId, pick, papers, unbuil
     chapter ids of a book of some chapters not built yet (#708, their rows say 未生成);
     onToggle(key, open), onPick(key, on), onPickCard(ref, on), onPractice(row), onOpenSources() (the 资料 page), onOpenSource(sourceId, quote) (a 角标 of a point's notes),
     onOpenBook(key) (the 复习全书 page at an opened point; absent without a book), onReadMore(nodeId, level) (读更多 of a point's notes). */
-export default function OutlineTree({ rows, details, pick, papers = 0, unbuilt, modelReady = true, onToggle, onPick, onPickCard, onPractice, onGoGenerateRow, onOpenSources, onOpenSource, onOpenBook, onReadMore, label }) {
+export default function OutlineTree({ rows, details, pick, papers = 0, unbuilt, modelReady = true, onToggle, onPick, onPickCard, onPractice, onGapHint, onGoGenerateRow, onOpenSources, onOpenSource, onOpenBook, onReadMore, label }) {
   const [active, setActive] = useState(null);
   const listId = useId();
   const stop = useMemo(() => (rows.some(row => row.key === active) ? active : rows[0]?.key), [rows, active]);
@@ -109,7 +119,7 @@ export default function OutlineTree({ rows, details, pick, papers = 0, unbuilt, 
   return (
     <ul className={rows.some(row => row.ancestors) ? 'outline-tree outline-tree--book' : 'outline-tree'} aria-label={label} onClick={onClick} onKeyDown={onKeyDown}>
       {rows.map((row, index) => <Row key={row.key} row={row} data={details[row.key]} tabStop={row.key === stop} bodyId={`${listId}-${index}`}
-        pick={pick} papers={papers} unbuilt={unbuilt} modelReady={modelReady} onPick={onPick} onPickCard={onPickCard} onPractice={onPractice} onGoGenerateRow={onGoGenerateRow}
+        pick={pick} papers={papers} unbuilt={unbuilt} modelReady={modelReady} onPick={onPick} onPickCard={onPickCard} onPractice={onPractice} onGapHint={onGapHint} onGoGenerateRow={onGoGenerateRow}
         onOpenSources={onOpenSources} onOpenSource={onOpenSource} onOpenBook={onOpenBook} onReadMore={onReadMore} />)}
     </ul>
   );

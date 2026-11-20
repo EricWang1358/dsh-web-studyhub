@@ -62,13 +62,13 @@ export function EditView({ book, step, theme, root, onChanged, onDirty, onSaving
 }
 
 /** 翻看: the points in the plan's order, their 易错点 first; a point's 「在书里看这个知识点」 goes back to reading at it. */
-export function FlipView({ book, crunch, course, handlers, aiFold, onMark, onGo, onMockStarted, onDone }) {
+export function FlipView({ book, crunch, course, handlers, aiFold, drill = false, onMark, onMarkStuck, onGo, onMockStarted, onDone }) {
   return (
     <section className="book-mode" aria-label={ui('翻看')}>
       <ModeBar title={ui('翻看 · 易错点多的在前')} onDone={onDone} />
       {/* Drawn once the plan is read, so its order does not change under the learner (nor under the way back after practice). */}
-      {crunch ? <AiFoldContext.Provider value={aiFold}><BookFlip book={book} crunch={crunch} course={course} handlers={handlers} onMark={onMark} onGo={onGo}
-        onMockStarted={onMockStarted} /></AiFoldContext.Provider> : <LoadingState label={ui('正在排期末一周…')} />}
+      {crunch ? <AiFoldContext.Provider value={aiFold}><BookFlip book={book} crunch={crunch} course={course} handlers={handlers} drill={drill} onMark={onMark}
+        onMarkStuck={onMarkStuck} onGo={onGo} onMockStarted={onMockStarted} /></AiFoldContext.Provider> : <LoadingState label={ui('正在排期末一周…')} />}
     </section>
   );
 }
@@ -95,20 +95,21 @@ export function TodayPanel({ course, crunch, day, points, onRead, onPractice, on
 
 /** 速查页 in a dialog (without its 目录, which the page has): a code opens the reading surface at that point (a 术语卡's number: at that card) and closes the dialog.
     `parts`: the parts the course's 定制方案 asks for (./book-parts.js; null: every part). */
-export function LookupDialog({ book, parts = null, confusableDrill = false, onGo, onCard, onClose }) {
+export function LookupDialog({ book, parts = null, confusableDrill = false, onGo, onCard, onCompileLab, onMarkStuck, stuckHids = null, onClose }) {
   const lookup = useMemo(() => plannedLookup(bookLookup(book, book), parts), [book, parts]);
   return (
     <Dialog title={ui('速查页')} size="lg" className="book-lookup-dialog" onClose={onClose}>
-      {lookup && <BookLookup lookup={lookup} toc={false} confusableDrill={confusableDrill} onGo={hid => { onClose(); onGo(hid); }} onCard={onCard && ((hid, code) => { onClose(); onCard(hid, code); })} />}
+      {lookup && <BookLookup lookup={lookup} toc={false} confusableDrill={confusableDrill} onCompileLab={onCompileLab} onMarkStuck={onMarkStuck} stuckHids={stuckHids}
+        onGo={hid => { onClose(); onGo(hid); }} onCard={onCard && ((hid, code) => { onClose(); onCard(hid, code); })} />}
     </Dialog>
   );
 }
 
 /** 答题模板 in a dialog, next to 速查页 (#710 S4): a point code opens the reading surface at that point and closes the dialog. */
-export function KitDialog({ book, onGo, onClose }) {
+export function KitDialog({ book, drill = false, onGo, onMarkStuck, stuckHids = null, onClose }) {
   return (
     <Dialog title={ui('答题模板')} size="lg" className="book-kit-dialog" onClose={onClose}>
-      <BookExamKit book={book} onGo={hid => { onClose(); onGo(hid); }} />
+      <BookExamKit book={book} drill={drill} onMarkStuck={onMarkStuck} stuckHids={stuckHids} onGo={hid => { onClose(); onGo(hid); }} />
     </Dialog>
   );
 }

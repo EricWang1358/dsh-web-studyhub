@@ -1,0 +1,123 @@
+# StudyHub 桌面版（StudyHub Desktop）
+
+[English](desktop.md) · 简体中文
+
+**StudyHub 桌面版**是独立运行的 Windows 桌面应用。安装包自带便携版 Node.js 运行时和本地服务，**不需要先装 DeepSeek Harness（DSH），也不需要单独安装 Node.js**。你的讲义资料、题组、复习手册、Interactive Companions 和 FSRS-6 复习记录都保存在本地文件夹里，格式与 DSH 插件版完全一致。
+
+## 选择安装包
+
+每次发布在 [GitHub 发布页](https://github.com/EricWang1358/dsh-web-studyhub/releases/latest)提供两个 Windows 64 位（x64）包，并附带 `SHA256SUMS-Desktop-<version>.txt` 校验文件：
+
+| 安装包 | 适合谁 | 说明 |
+| --- | --- | --- |
+| `StudyHub-Desktop-<version>-win-x64.msi` | 大多数 Windows 10 / 11 用户 | 标准安装器，提供开始菜单快捷方式、控制面板卸载入口，并内置 Windows 10 的 WebView2 引导程序。 |
+| `StudyHub-Desktop-<version>-win-x64.zip` | 绿色便携 / 免安装使用 | 解压到任意可写目录，双击 `StudyHub.exe` 即可运行。**不会**自动安装 WebView2。 |
+| `StudyHub-Desktop-Retrieval-<version>-win-x64.zip` | 可选大文档检索扩展包 | 预构建的 Windows x64 本地检索服务组件（附带 `SHA256SUMS-Desktop-Retrieval-<version>.txt`）。在应用内 **「设置 › 检索扩展」** 一键下载安装，无需手动解压。 |
+
+### 方式一：使用 `.msi` 安装器（推荐）
+
+1. 在发布页下载 `StudyHub-Desktop-<version>-win-x64.msi` 和 `SHA256SUMS-Desktop-<version>.txt`。
+2. 核对文件的 SHA-256 校验值（见下方[Windows SmartScreen 未签名提示](#windows-smartscreen-未签名提示)）。
+3. 双击 `.msi` 文件并按向导完成安装。
+4. 从开始菜单打开 **StudyHub**。
+
+### 方式二：使用便携版 `.zip`
+
+1. 在发布页下载 `StudyHub-Desktop-<version>-win-x64.zip` 和 `SHA256SUMS-Desktop-<version>.txt`。
+2. 核对 SHA-256 校验值后，解压到一个固定的可写文件夹（例如 `D:\Apps\StudyHub-Desktop`），不要解压到 `C:\Program Files` 下。
+3. 保持 `StudyHub.exe` 与同目录下的 `resources\runtime\` 文件夹在一起，不要单独移走主程序。
+4. 双击 `StudyHub.exe` 启动。
+
+## Windows 10 的 WebView2 要求
+
+StudyHub 桌面版使用系统自带的 **Microsoft Edge WebView2 运行时**渲染界面：
+
+- **Windows 11**：系统已预装 WebView2，`.msi` 和 `.zip` 都可以直接运行。
+- **Windows 10 使用 `.msi`**：安装器内置了微软官方 WebView2 引导程序（`downloadBootstrapper`）。如果电脑尚未安装 WebView2，安装过程中会自动联网下载并安装（首次安装需要联网）。
+- **Windows 10 使用便携版 `.zip`**：压缩包**不包含** WebView2 安装步骤。如果启动时提示缺少 WebView2，请先手动安装微软官方 [Microsoft Edge WebView2 Evergreen 运行时](https://developer.microsoft.com/zh-cn/microsoft-edge/webview2/)，再重新运行 `StudyHub.exe`。
+
+## Windows SmartScreen 未签名提示
+
+当前的 StudyHub 桌面版构建**尚未使用付费的 Windows Authenticode 代码签名证书进行签名**。因此，首次运行 `.msi` 安装器或 `StudyHub.exe` 时，Windows Defender SmartScreen 通常会弹出蓝色的**「Windows 已保护你的电脑」**提示。
+
+请**不要**在未核验来源的情况下直接跳过提示。建议先核对发布页提供的校验值：
+
+1. 在下载目录打开 PowerShell，计算文件 SHA-256：
+
+   ```powershell
+   Get-FileHash .\StudyHub-Desktop-<version>-win-x64.msi -Algorithm SHA256
+   ```
+
+2. 将输出的哈希值与 GitHub 发布页上 `SHA256SUMS-Desktop-<version>.txt` 中对应行逐字核对。
+3. 确认哈希完全一致后，在 SmartScreen 弹窗中点击**「更多信息」**，再点击**「仍要运行」**。
+
+如果你不希望运行未签名的桌面二进制文件，可以从本仓库源码自行编译，或继续使用 DSH 插件版 StudyHub。
+
+## 配置模型
+
+浏览资料、体验示例导览和复习已有卡片都不需要模型，可完全离线使用。生成题目、讲解、制作复习手册、音频校对和翻译需要连接模型。
+
+在桌面版中打开 **「设置 › 学习库与模型」**，支持以下两种连接方式：
+
+### 1. OpenAI 兼容 API Key（批量出题推荐）
+
+1. 打开 **「设置 › 学习库与模型」**（或在需要模型的功能页面直接按引导填写）。
+2. 选择内置服务商预设 —— **DeepSeek**、**智谱 GLM**、**硅基流动（SiliconFlow）** 或 **OpenAI**，也可以选择**自定义**填写任意 OpenAI 兼容接口地址和模型 ID。
+3. 粘贴 API Key，点击**「保存并测试」**。
+
+API Key 仅保存在本机桌面配置目录中，绝不会写入你的学习库、备份文件或导出包。
+
+### 2. 自动检测本机 CLI（`agy` / `codex`）
+
+如果你的电脑上已经安装并登录了 **Google Antigravity CLI（`agy`）** 或 **OpenAI Codex CLI（`codex`）**，StudyHub 桌面版会在启动时自动探测并识别它们。你可以直接在 **「设置 › 学习库与模型」** 中切换已就绪的本机 CLI、按需指定模型与推理强度（低 / 中 / 高），并一键启用或测试连通，无需复制粘贴 API Key。
+
+使用 CLI 后端需要了解：
+- 由于每次调用都会启动独立的 CLI 子进程，`agy` 与 `codex` 后端默认限制较低的并发数（默认 `1`，上限 `2`），以保护本机资源与限额。
+- 如果本机 CLI 未安装或未登录，设置页会如实说明原因，你随时可以改用其他就绪 CLI 或 API Key。
+- **关于 Claude Code CLI（`claude`）**：由于 Anthropic 消费者服务条款禁止第三方桌面应用封装消费者订阅的 OAuth 登录，StudyHub 桌面版不会封装消费者 `claude` OAuth 登录。
+
+### 在学习库里打开本机 CLI，边聊边学
+
+桌面版没有 DSH 的主会话。想和 AI 对话时，在 **「设置 › 学习库与模型」** 的本机 CLI 卡片里点 **「在学习库里打开 agy」**（或 codex）：StudyHub 会另开一个命令行窗口，当前目录就是你选的学习库文件夹，CLI 直接进入对话。用 `Win + ←` / `Win + →` 可以把它和 StudyHub 左右并排；页面上「复制提示词」得到的内容可以直接粘贴进去。
+
+- 只有检测为「本机已就绪」的 CLI 才有这个按钮；打开的程序是检测到的那一个，目录固定是当前学习库。
+- CLI 能直接读写学习库里的文件，这些改动不经过 StudyHub 的检查。让它改题库或资料前，建议先备份学习库。
+- 学习库在网络盘上，或者路径里有 `" % ^ ! & | < >` 这些字符时不会自动打开，界面会提示你自己打开命令行、进入学习库目录后运行 CLI。
+
+## 学习库位置与和 DSH 共用
+
+- **默认位置**：`文档\StudyHub`（首次启动时自动创建）。
+- **更换目录**：在 **「设置 › 学习库与模型 › 学习库」** 点击**「更换目录…」**，通过 Windows 原生文件夹选择器指定任意目录。
+- **确认学习库放在哪（第一次使用）**：这个功能出现后，第一次打开桌面版（更新后也一样），首页顶部会出现**「先确认学习库放在哪」**。在 DSH 里用过 StudyHub 的，选那个工作区文件夹，原来的题组和记录就会出现。学习库在系统盘（通常是 `C:`）时，卡片会写明并建议放到其他盘，因为学习库会越用越大。**「更换目录…」**就是设置里的那个文件夹选择器；**「就用这里」**表示按现在的位置用。原来保存的文件夹打不开、StudyHub 暂时改用了备用文件夹时，卡片先不显示，等问题消失再出现。换文件夹不会搬动已有内容：要搬，先退出 StudyHub，把整个文件夹移到新位置，再回来选它。选了其中任何一个，卡片就消失，不会再出现。如果文件夹由环境变量 `STUDYHUB_LIBRARY` 决定，就没有可选的，卡片也不会出现。
+- **现在用的是哪个模型**：配好模型后，每个页面的顶栏在学习库文件夹旁边会显示**「模型：…」**。把鼠标放上去或用键盘聚焦，能看到出题、讲解和批改都会调用这个模型，以及它怎么计费：按你填的 API Key 按用量计费，还是用本机 CLI 登录账号的额度（CLI 若是用 API Key 登录的，则按用量计费）；点它就打开**「设置 › 学习库与模型」**。窗口窄时它缩成一个图标，再窄就不显示。
+- **与 DSH（或 ZCode）共用同一个学习库**：可以安全共用。DSH 插件把学习库放在工作区里的 `.dsh-study` 文件夹；在桌面版里直接选那个**工作区文件夹**即可，桌面版会认出并使用里面的 `.dsh-study`，原来的题组和记录都在。每次写入都会通过文件锁（`proper-lockfile`）协调，两个程序不会互相覆盖或损坏数据；一方写入后，另一方刷新即可读到最新内容。
+- **后台任务说明**：正在进行的后台任务（批量出题、复习手册构建、音频转写等）属于启动它的那个程序。另一个程序可以看到任务记录，但无法暂停或终止它。关闭 StudyHub 桌面版会停止其正在运行的后台任务；已完成的部分会保留，下次打开后可继续。
+
+## 大文档检索扩展（桌面版检索）
+
+在 StudyHub 桌面版里可以直接为大部头教材和长讲义建立本地检索索引，**不需要安装 DSH，也不需要另装 Node.js 或 npm**。
+
+桌面版采用自动复用与独立安装结合的方案：
+
+- **已装 DSH 检索扩展时自动复用**：如果这台电脑的 DSH 里已经装过 StudyHub 检索扩展，桌面版会自动识别并直接复用（只读复用，绝不会改动或删除 DSH 目录里的任何文件）。如果需要与 DSH 完全解耦，也可以在 **「设置 › 检索扩展」** 里点击**「独立安装到桌面版」**。
+- **零门槛一键独立安装**：打开 **「设置 › 检索扩展」**，点击**「安装检索扩展」**。桌面版会自动从对应版本的 GitHub 发布页下载预构建的 `StudyHub-Desktop-Retrieval-<version>-win-x64.zip`，先按 `SHA256SUMS-Desktop-Retrieval-<version>.txt` 严格校验 SHA-256，再解压到 `%LOCALAPPDATA%\StudyHub\tools\retrieval` 并自动拉起本地检索服务。
+- **与 DSH 共用索引和检索模型目录**：桌面版与 DSH 插件版共用 `<DSH home>\study\retrieval`（默认 `%USERPROFILE%\.dsh\study\retrieval`）保存 LanceDB 索引与下载好的向量模型。两边已建好的索引和模型直接互通，写入索引时通过跨进程文件锁协调，避免同时建索引损坏数据。
+- **即时热重启，无需重启应用**：安装、更新、卸载扩展，修改模型下载地址（`HF_ENDPOINT`），或点击**「修复索引」**时，桌面版只会重启后台检索子进程并立即生效，无需重启 StudyHub 桌面版。
+
+## 与 DSH 插件版的差异
+
+| 功能 | DSH 插件版 | StudyHub 桌面版 |
+| --- | --- | --- |
+| 运行前提 | 需要先安装 DSH 桌面版或网页版 | 独立 `.msi` 或 `.zip`（内置 Node.js 22） |
+| 模型配置 | 复用 DSH 里配好的模型 | 内置 API Key 预设 + 自动检测 `agy` / `codex` CLI |
+| 大文档检索扩展 | 通过 DSH 插件管理安装（通常需重启 DSH） | 自动复用 DSH 扩展或在设置中一键独立安装（后台热重启，无需重启应用） |
+| 选择学习库文件夹 | DSH 工作区 / 路径选择 | Windows 原生文件夹选择器 |
+| 「发给主会话」/ 对话联动 | 直接填入 DSH 聊天输入框 | 将结构化提示词复制到剪贴板，可粘贴到任意 AI 对话工具 |
+| 版本更新 | 在 DSH 插件管理中更新 | 从 GitHub 发布页下载新版 `.msi` 或 `.zip` |
+
+## 隐私与安全说明
+
+- **本地优先**：资料原文、题组、笔记和复习历史全部保存在你的电脑上；只有触发 AI 出题、讲解或转写时，相关内容才会发送到你配置的模型服务商。
+- **严格的本机回环隔离**：桌面界面从内置静态资源（`tauri://localhost`）加载，不加载 `127.0.0.1` 的 HTML。每次启动时，Rust 壳层生成一次性 256 位随机令牌，并通过 `stdin` 管道传给本地 Node.js 后端（绝不出现在命令行参数、URL 或 HTML 中）；后端只监听 `127.0.0.1` 且拒绝缺少有效令牌的请求。
+- **最小桌面权限**：Tauri 壳层只向主窗口暴露 3 个命令（`get_bootstrap_info`、`pick_directory`、`open_external`）；所有外部链接都会严格校验为 `http://` 或 `https://` 后再交由系统默认浏览器打开。
+- **唯一会替你打开的可见程序**：「在学习库里打开 agy / codex」只启动检测为就绪的那个本机 CLI，目录只会是当前学习库。界面只传 CLI 的名字；路径里有可能被 Windows 命令行当成语法的字符时直接拒绝，不做转义。

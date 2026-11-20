@@ -296,7 +296,7 @@ test('#892: BackupSection renders restore points in Chinese & English (zero Han 
   assert.match(zhHtml, /自动恢复点/);
   assert.match(zhHtml, /昨天 · 2026-11-16/);
   assert.match(zhHtml, /周恢复点/);
-  assert.match(zhHtml, /修订 18 · 2 门课程 · 5 份资料 · 3 个题组（42 道题） · 120 条作答记录/);
+  assert.match(zhHtml, /保存次数 18 · 2 门课程 · 5 份资料 · 3 个题组（42 道题） · 120 条作答记录/);
   assert.match(zhHtml, /额外 16 KB/);
   assert.match(zhHtml, /共额外占用 48 KB/);
   assert.match(zhHtml, /恢复到这一天/);

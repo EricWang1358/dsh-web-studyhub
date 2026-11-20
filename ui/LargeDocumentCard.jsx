@@ -12,6 +12,8 @@ import { LARGE_DOCUMENT_LIMITS, TOOLS, VERIFIED_AT, mcpConfigSnippet } from '../
 import ExtensionPanel from './ExtensionPanel.jsx';
 import PdfConversion from './PdfConversion.jsx';
 import { HandOff } from './hand-off/HandOff.jsx';
+import { hasChatHost } from './hand-off/use-hand-off.js';
+import { useStudy } from './study-context.jsx';
 import css from './large-documents.css';
 
 /* 大教材建议 (WP28, WP28b). StudyHub does not index a 1000-page textbook itself, and
@@ -23,7 +25,7 @@ import css from './large-documents.css';
    is what the host reported (retrieval.status). */
 
 const SUMMARY = {
-  'mineru-local': () => ui('在「设置 › PDF 转换（MinerU）」点「一键安装」：StudyHub 把程序、Python 和模型装进一个文件夹（默认不在 C 盘），之后在本机解析，不上传文档。'),
+  'mineru-local': () => ui('在「设置 › PDF 转换（MinerU / Marker）」点「一键安装」：StudyHub 把程序、Python 和模型装进一个文件夹（默认不在 C 盘），之后在本机解析，不上传文档。'),
   mineru: () => <>{ui('桌面客户端目前也反馈不可用，优先使用上面的本地模型；客户端恢复后可再尝试。')}{' '}{ui('手动路线：有图形界面的桌面客户端（Windows / macOS），或本地命令行 mineru parse --pages。导出带页码的 JSON 再拖进来。')}</>,
   docling: () => ui('开源（MIT），输出带页码的 JSON，适合愿意用命令行或 Python 的人。导入时选它输出的 .json。'),
   'mcp-local-rag': () => ui('在本机检索，文档不出电脑；读 PDF、Word、Markdown 和纯文本。默认的向量模型偏英文，中文教材要换多语言模型。'),
@@ -86,9 +88,13 @@ const byId = id => TOOLS.find(tool => tool.id === id);
 
 /** N10's Tooltip, honest for the PDF it is about: a too large or too long one is split into files (StudyHub refuses it whatever `pages` says), a scanned one
  *  needs text recognition, which the chat asks about first. */
-export const converterHandOffWhat = scanned => scanned
-  ? '让主会话看这份扫描件怎么转成文字再导入，要装文字识别工具时先问你；文件在输入框里用 @ 选'
-  : '让主会话把这份 PDF 按章拆成几个文件再导入，不用装转换工具；文件在输入框里用 @ 选';
+export const converterHandOffWhat = (scanned, canChat = true) => (canChat
+  ? (scanned
+    ? '让主会话看这份扫描件怎么转成文字再导入，要装文字识别工具时先问你；文件在输入框里用 @ 选'
+    : '让主会话把这份 PDF 按章拆成几个文件再导入，不用装转换工具；文件在输入框里用 @ 选')
+  : (scanned
+    ? '复制提示词，方便你在外部 AI 工具里把这份扫描件转成文字后再导入'
+    : '复制提示词，方便你在外部 AI 工具里把这份 PDF 按章拆分后再导入'));
 
 /**
  * The leading converter: StudyHub runs local MinerU or shows its setup. With `runnable` the whole flow is here (it asks the host through useStudy);
@@ -99,6 +105,8 @@ export const converterHandOffWhat = scanned => scanned
  */
 export function ConverterMain({ available = true, runnable = false, file = null, courses = [], jobs, onOpenSettings, onStarted, why = '', scanned = false }) {
   const [picked, setPicked] = useState(null);
+  const { host } = useStudy();
+  const canChat = hasChatHost(host);
   return (
     <div className="large-doc__group" data-role="converter">
       <h3 className="large-doc__group-title">{ui('转换：把 PDF 变成带页码的文字')}</h3>
@@ -107,7 +115,7 @@ export function ConverterMain({ available = true, runnable = false, file = null,
         : <div className="large-doc__tools"><ToolCard tool={byId('mineru-local')} /></div>}
       <Hint>{ui('转换结果带页码，StudyHub 才能按页引用；大书会按这台电脑的速度分段处理。')}</Hint>
       {why && <HandOff id="import.file" input={{ purpose: 'material', area: '添加资料', error: why, files: [file?.name || picked?.name].filter(Boolean), facts: courses.length ? { courses } : null }}
-        lead="不想装转换工具：" shape="quiet" what={converterHandOffWhat(scanned)} />}
+        lead="不想装转换工具：" shape="quiet" what={converterHandOffWhat(scanned, canChat)} />}
     </div>
   );
 }
@@ -133,11 +141,15 @@ function ManualConfig() {
 }
 
 /** The routes that need a terminal, Docker or a configuration file: kept, but out of the way. */
-export function AdvancedTools() {
+export function AdvancedTools({ desktopHost = false } = {}) {
   return (
-    <Disclosure summary={ui('高级：其他方式（桌面客户端、命令行、Docker）')} meta={ui('给熟悉命令行的人')} className="large-doc__more large-doc__advanced">
-      <div className="large-doc__tools"><ToolCard tool={byId('mineru')} /><ToolCard tool={byId('docling')} /><ToolCard tool={byId('ragflow')} /></div>
-      <ManualConfig />
+    <Disclosure summary={ui(desktopHost ? '高级：其他转换方式（桌面客户端、命令行）' : '高级：其他方式（桌面客户端、命令行、Docker）')} meta={ui('给熟悉命令行的人')} className="large-doc__more large-doc__advanced">
+      <div className="large-doc__tools">
+        <ToolCard tool={byId('mineru')} />
+        <ToolCard tool={byId('docling')} />
+        {!desktopHost && <ToolCard tool={byId('ragflow')} />}
+      </div>
+      {!desktopHost && <ManualConfig />}
     </Disclosure>
   );
 }
@@ -177,6 +189,8 @@ export default function LargeDocumentCard({ reason, detail = {}, document, retri
   conversionAvailable, courseNames = [], jobs, onConversionStarted, initialPlan, initialRun, initialApproval, className, ...rest }) {
   useInjectCss(css, 'study-large-documents');
   const app = useContext(AppContext);
+  const { host } = useStudy();
+  const isDesktopApp = !!retrieval?.extension?.desktopHost || host?.capabilities?.edition === 'desktop' || app?.host?.capabilities?.edition === 'desktop';
   const canConvert = conversionAvailable ?? hasContext(app?.data, 'audio');
   const canRetrieve = runnable && hasContext(app?.data, 'generation');
   const titleId = useId();
@@ -209,7 +223,7 @@ export default function LargeDocumentCard({ reason, detail = {}, document, retri
         {search}
         <Disclosure summary={ui('还没有转换过 PDF？')} meta={ui('转换工具')} className="large-doc__more"><ConverterMain available={canConvert} runnable={runnable && canConvert} courses={courseNames} jobs={jobs} onOpenSettings={onOpenSettings} onStarted={onConversionStarted} /></Disclosure>
       </>}
-      <AdvancedTools />
+      <AdvancedTools desktopHost={isDesktopApp} />
       <DetectionLine retrieval={retrieval} onOpenSettings={onOpenSettings} />
       <p className="large-doc__verified">{uiFormat('渠道与协议于 {0} 核对；以各项目官方页面为准。', [VERIFIED_AT])}</p>
     </section>

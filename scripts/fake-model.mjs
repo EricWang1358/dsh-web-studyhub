@@ -726,21 +726,28 @@ const HANDLERS = [
               prompt: english ? `In formal terms, what role does ${term} play in ${topic}?` : `用正式的说法讲一遍，「${term}」解决什么界定问题？`,
               answer: english ? `${term} defines the formal criterion for evaluating ${topic}.` : `「${term}」用于在「${topic}」中界定成立条件与判断边界。`,
               hint: english ? `Recall the formal definition of ${term}.` : `先想「${term}」的正式说法和适用前提。`,
-              explanation: english ? `Grounded check on ${term}.` : `围绕「${term}」的正式定义作答。`,
               misconception: english ? `Confusing ${term} with its everyday metaphor.` : `把「${term}」和日常比喻混为一谈，漏掉适用条件。`,
               citations: [{ sourceId, quote }],
             },
             ...(note ? { note } : {}),
           };
         };
+        const hasCard = Array.isArray(input.terms?.hasCard)
+          ? input.terms.hasCard.filter((item) => typeof item === "string" && item.trim())
+          : [];
+        const hasCardSet = new Set(hasCard.map((item) => item.toLowerCase()));
         const baseName = english ? "Foundational premise" : "前置前提";
-        const includeLayer2 = unknown.length > 0 && !unknown.some((item) => item.toLowerCase() === baseName.toLowerCase());
+        const includeLayer2 = unknown.length > 0
+          && !unknown.some((item) => item.toLowerCase() === baseName.toLowerCase())
+          && !hasCardSet.has(baseName.toLowerCase());
         const ladder = [];
         if (includeLayer2) {
           ladder.push(buildStep({ term: baseName, alt: english ? "baseline" : "baseline", layer: 2, needs: [] }));
         }
         unknown.forEach((term, index) => {
-          const needs = index === 0 ? (includeLayer2 ? [baseName] : []) : [unknown[index - 1]];
+          const needs = index === 0
+            ? [...(includeLayer2 ? [baseName] : []), ...(hasCard.length ? [hasCard[0]] : [])]
+            : [unknown[index - 1]];
           ladder.push(buildStep({ term, layer: 1, needs }));
         });
         const needsDeeper = unknown.some((item) => /底层|深层|deeper|primitive/i.test(item));

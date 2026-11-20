@@ -243,8 +243,9 @@
       margin-bottom: var(--space-1);
     }
   }
-  /* Beside a long folder name and a status word the decorative "Study ›" would take the room of the page title (measured at 768 px): it goes below 800 px. */
-  @container study (max-width: 800px) {
+  /* Beside a long folder name, a model name and a status word the decorative "Study ›" would take the room of the page title (measured at 768 px, and at 860 px with
+     "Codex CLI · GPT-6-Luna" in the top bar, which the learner has to read whole): it goes below 960 px. */
+  @container study (max-width: 960px) {
     :where(.study-app, .study-seat) {
       .crumbs > .crumb:first-child,
       .crumbs > .breadcrumb {
@@ -278,6 +279,21 @@
       /* The label is short on purpose (a long sentence is its hover text) and keeps its width; the library chip beside it, which has a title of its own, is what ends in an ellipsis. */
       .top-status-anchor:not(.is-idle) {
         flex-shrink: 0;
+      }
+    }
+  }
+  /* Wider than that the bar gives way in the same order, now that the model chip stands beside the library chip (library-location.css): the page title keeps its room and
+     the chips shrink, to a readable minimum, before the title is squeezed. */
+  @container study (min-width: 641px) {
+    :where(.study-app, .study-seat) {
+      .crumbs {
+        flex-shrink: 0;
+        min-width: 5em;
+        max-width: 50%;
+      }
+      .topbar .top-right {
+        flex-shrink: 1;
+        min-width: 0;
       }
     }
   }

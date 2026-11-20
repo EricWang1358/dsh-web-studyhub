@@ -43,12 +43,12 @@ const withData = (language, extra = {}) => ({ status: { ...base.status, enabled:
 
 test('the privacy contract is spelled out before the switch, in plain words, in both languages', () => {
   const zh = usagePrivacyPoints().join('\n');
-  for (const needle of [/记录.*哪些控件.*多少次/s, /不记录.*输入.*读.*答/s, /只保存在这台电脑/, /随时.*查看.*导出.*暂停.*删除/s, /不会.*发送/]) assert.match(zh, needle);
+  for (const needle of [/记录.*哪些功能与操作.*多少次/s, /不记录.*输入.*读.*答/s, /只保存在这台电脑/, /随时.*查看.*导出.*暂停.*删除/s, /不会.*发送/]) assert.match(zh, needle);
   setUiLanguage('en');
   const en = usagePrivacyPoints().join('\n');
   setUiLanguage('zh');
   assert.ok(!han.test(en), en);
-  for (const needle of [/which controls you use and how often/i, /never what you typed, read or answered/i, /file, course or source name/i, /stays on this computer/i, /view, export, pause and delete/i, /never sent anywhere/i]) assert.match(en, needle);
+  for (const needle of [/which features and actions you use and how often/i, /never what you typed, read or answered/i, /file, course or source name/i, /stays on this computer/i, /view, export, pause and delete/i, /never sent anywhere/i]) assert.match(en, needle);
   const html = view();
   assert.ok(html.indexOf('只保存在这台电脑') < html.indexOf('type="checkbox"'), 'the contract comes before the switch');
 });
@@ -89,8 +89,8 @@ test('on with data: the report is there, folded until opened, with a period sele
   assert.match(html, /aria-pressed="true"[^>]*>最近 30 天|最近 30 天[^<]*<\/button>/);
   assert.match(html, /有记录的天数/);
   assert.match(html, /互动次数/);
-  assert.match(html, /用过的控件/);
-  assert.match(html, /最常用的控件/);
+  assert.match(html, /用过的功能/);
+  assert.match(html, /最常用的功能/);
   // ranked rows: plain name, the count and the share as text, and a named progress bar
   assert.match(html, /<li[^>]*class="[^"]*usage-rank__row[^"]*"[^]*?学习库[^]*?140[^]*?<div[^>]*class="sh-progress[^"]*usage-share__meter[^"]*"[^>]*role="progressbar"/);
   assert.match(html, /\d+(\.\d)?%/);
@@ -172,7 +172,7 @@ test('English is complete: every state and the whole report read without Han (th
   const html = states[2];
   assert.match(html, /My usage report/);
   assert.match(html, /Last 7 days/);
-  assert.match(html, /Most used controls/);
+  assert.match(html, /Most used features/);
   assert.match(html, /Never used/i);
   assert.match(html, /Study library/);
   assert.match(html, /optional/i);

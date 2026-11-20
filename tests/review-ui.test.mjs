@@ -527,7 +527,7 @@ test("QuestionPlace shows source document/chapter in normal mode, hides in exam/
     onOpenOutline: () => {}, openSkeleton: () => {},
   }));
   assert.match(clickableHtml, /data-review-place=""/);
-  assert.match(clickableHtml, /<button[^>]*data-review-place=""[^>]*>/);
+  assert.match(clickableHtml, /<button[^>]*data-review-place=""[^>]*data-usage="review\.place"[^>]*data-tour="review-place"[^>]*>/);
   assert.match(clickableHtml, /出处 ·/);
   assert.match(clickableHtml, /Architecture Guide › Core Layers/);
   assert.doesNotMatch(clickableHtml, /<[^>]*data-review-place=""[^>]*\btitle=/);
@@ -552,6 +552,7 @@ test("QuestionPlace shows source document/chapter in normal mode, hides in exam/
   }));
   assert.match(staticHtml, /<span[^>]*review-place-static[^>]*data-review-place=""[^>]*>/);
   assert.doesNotMatch(staticHtml, /<button[^>]*data-review-place=""/);
+  assert.doesNotMatch(staticHtml, /data-usage="review\.place"/);
 
   const unplacedHtml = renderToStaticMarkup(reviewEl({
     run: { id: "r-null", index: 0, total: 2, card: { id: "q-n", kind: "quiz", topic: "Arch", prompt: "Prompt?", options: [{ id: "a", text: "A" }] },
@@ -642,8 +643,8 @@ test("QuestionRun and ExplanationFollowup show 「读全书这一节」 only whe
       feedback: { correct: false, chosen: ["b"] },
       solution: { answer: "Domain", explanation: "Domain is core.", followups },
     });
-    assert.match(wrongQuizHtml, /data-book-section-link="feedback">读全书这一节<svg class="sh-icon"/);
-    assert.match(wrongQuizHtml, /data-book-section-link="followup">读全书这一节<svg class="sh-icon"/);
+    assert.match(wrongQuizHtml, /<button[^>]*data-usage="review\.book-section"[^>]*data-tour="review-book-section"[^>]*data-book-section-link="feedback">读全书这一节<svg class="sh-icon"/);
+    assert.match(wrongQuizHtml, /<button[^>]*data-usage="review\.book-section"[^>]*data-tour="review-book-section"[^>]*data-book-section-link="followup">读全书这一节<svg class="sh-icon"/);
 
     // 2. Built leaf + wrong flashcard (grade < 3) -> link below verdict
     const wrongFlashHtml = renderQuestion({
@@ -725,6 +726,9 @@ test("QuestionRun and ExplanationFollowup show 「读全书这一节」 only whe
     const returnHeader = renderHeader({ backLabel: bookUi.ui("回到这道题") });
     assert.match(returnHeader, /sh-page-header__back"><svg class="sh-icon"[^>]*>.*?<\/svg>回到这道题/);
     assert.doesNotMatch(returnHeader, /回到总纲/);
+    const trailHeader = renderHeader({ backLabel: "回到之前的第 1 题" });
+    assert.match(trailHeader, /sh-page-header__back"><svg class="sh-icon"[^>]*>.*?<\/svg>回到之前的第 1 题/);
+    assert.doesNotMatch(trailHeader, /回到总纲/);
     bookUi.setUiLanguage("en");
     const enReturnHeader = renderHeader({ backLabel: bookUi.ui("回到这道题") });
     assert.match(enReturnHeader, /Back to this question/);

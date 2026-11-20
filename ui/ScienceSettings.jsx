@@ -70,16 +70,22 @@ function SymbolicTool() {
 export default function ScienceSettings({ onChange }) {
   const settings = useSciencePreferences();
   const choose = (key, value) => onChange?.({ ...settings, [key]: value });
-  const switches = [['imageCaptions', '显示图片说明'], ['imageEnlarge', '点击图片放大'], ['localImages', '启用本地图片插入'], ['chemistry', '启用化学自动配平'], ['symbolic', '启用代数恒等式证明']];
+  const switches = [
+    ['imageCaptions', '显示图片说明', '在题目、解析和笔记里的图片下方显示说明文字。'],
+    ['imageEnlarge', '点击图片放大', '在阅读、做题和笔记里点击图片可放大查看。'],
+    ['localImages', '启用本地图片插入', '在草稿编题和学习笔记里显示插入图片按钮；关掉不影响已插入的图片。'],
+    ['chemistry', '在本页显示化学配平工具', '只在当前设置页底部展开或收起本地化学方程式配平工具，不影响出题和批改。'],
+    ['symbolic', '在本页显示代数恒等式验证工具', '只在当前设置页底部展开或收起本地代数恒等式验证工具，不影响出题和批改。'],
+  ];
   return <SettingsSection className="science-settings" tour="settings-science" title={ui('公式、图片与计算工具')}
-    lead={ui('修改立即生效并保存在当前浏览器；独立于阅读字号。配平和证明在本地计算，不调用模型。')}>
+    lead={ui('修改立即生效并保存在当前设备；独立于阅读字号。配平和证明在本地计算，不调用模型。')}>
     <Field label={ui('公式大小')} width="sm"><Select value={settings.formulaScale} onChange={value => choose('formulaScale', value)}
       options={FORMULA_SCALES.map(value => ({ value, label: `${value}%` }))} /></Field>
     <Field label={ui('公式对齐')} width="sm"><Select value={settings.formulaAlign} onChange={value => choose('formulaAlign', value)}
       options={[{ value: 'center', label: ui('居中') }, { value: 'left', label: ui('靠左') }]} /></Field>
     <Field label={ui('图片最大高度')} width="sm"><Select value={settings.imageHeight} onChange={value => choose('imageHeight', value)}
       options={IMAGE_HEIGHTS.map(value => ({ value, label: `${value} px` }))} /></Field>
-    {switches.map(([key, title]) => <Checkbox key={key} label={ui(title)} checked={settings[key]} onChange={checked => choose(key, checked)} />)}
+    {switches.map(([key, title, hint]) => <Checkbox key={key} label={ui(title)} hint={ui(hint)} checked={settings[key]} onChange={checked => choose(key, checked)} />)}
     <div className="settings-actions"><Button variant="quiet" onClick={() => onChange?.({ ...SCIENCE_DEFAULTS })}>{ui('恢复默认')}</Button></div>
     <div className="science-preview"><Hint as="span">{ui('公式预览')}</Hint><Markdown text={String.raw`$$\frac{x^2 + 2x + 1}{2}$$`} /></div>
     {settings.chemistry && <ChemistryTool />}

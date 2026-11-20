@@ -114,7 +114,7 @@ export default function LiveLocalCard({ call: given, settings = false, initialSt
       options={LOCAL_MODELS.map(model => ({ value: model.id, label: `${ui(model.tier === 'speed' ? '速度档' : '质量档')} · ${model.name} · ${sizeLabel(model.modelMb)}` }))}
       onChange={value => { modelEpoch.current += 1; skipPlan.current = false; setModelId(value); setStatus(null); setPlan(null); setLocation(''); setChoosing(false); setError(''); }} />
     <Hint>{displayedModel === 'whisper-turbo'
-      ? ui('更大的多语种模型，内存和 CPU 占用更高，可能跟不上实时播放。自然停顿或每 15 秒提交文字，临时文字预览关闭。本机合成语音测试内存峰值约 1.6 GiB，真实网课效果仍需对比。')
+      ? ui('识别更准，但内存和 CPU 占用更高（峰值约 1.6 GB），老电脑可能跟不上实时播放；每 15 秒或自然停顿时出字，关闭临时逐字预览。')
       : ui('较小的模型，优先速度，支持普通话、英语、粤语、日语和韩语。识别质量取决于口音、噪音和专业术语。')}</Hint>
     {status?.ready && <div className="mineru-install__row">{status.modelId === status.selectedModelId
       ? <Badge size="sm" tone="success">{ui('新实录使用此模型')}</Badge>
@@ -179,6 +179,7 @@ export default function LiveLocalCard({ call: given, settings = false, initialSt
 
   return <section className={['live-local-card', className].filter(Boolean).join(' ')} data-state={shown.state} aria-label={ui('本地转写（声音不上传）')}>
     {head}
+    <Hint>{ui('原文完全在本机离线生成，声音不上传；开启翻译或润色时，转出的文字仍会发给生成模型。')}</Hint>
     {modelChoice}
     {line}
     {body}

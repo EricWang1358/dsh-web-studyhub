@@ -1,6 +1,6 @@
 {
   "校对与翻译的并行数": "Proofreading and translation in parallel",
-  "同时发给 DSH 模型的校对或翻译窗口数，一批录音共用这个数；结果仍按原顺序合并，已完成的部分可以复用。模型回复太频繁或并发太多时会自动降低，稳定后再逐步回升。": "How many proofreading or translation windows are sent to the DSH model at once; a whole batch of recordings shares this number. Results are still merged in source order and finished parts are reused. If the model pushes back (too many requests or too many at once) it is lowered automatically and raised again step by step once it is stable.",
+  "同时发给生成模型的校对或翻译窗口数，一批录音共用这个数；结果仍按原顺序合并，已完成的部分可以复用。模型回复太频繁或并发太多时会自动降低，稳定后再逐步回升。": "How many proofreading or translation windows are sent to the generation model at once; a whole batch of recordings shares this number. Results are still merged in source order and finished parts are reused. If the model pushes back (too many requests or too many at once) it is lowered automatically and raised again step by step once it is stable.",
   "转写的并行数": "Transcriptions in parallel",
   "同时向转写服务商发送的录音数。免费额度和每分钟限流有限，默认 1 个；后一个录音的转写本来就会和前一个录音的校对、翻译同时进行。": "How many recordings are sent to the transcription provider at once. Free quotas and per-minute limits are small, so the default is 1; the next recording is transcribed while the previous one is being proofread and translated anyway.",
   "并行 {0}": "{0} in parallel",
