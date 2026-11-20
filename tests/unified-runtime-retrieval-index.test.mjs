@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { INDEX_TOOLS, readManifest, retrievalHome, sourceKey } from '../lib/retrieval-index.js';
+import { retrievalRootId } from '../lib/retrieval-settings.js';
 import { dshJobExecutor } from '../lib/jobs/executor.js';
 import { INDEX_TEXT } from '../lib/retrieval-messages.js';
 import { localizeAppMessage } from '../lib/application-messages.js';
@@ -82,7 +83,8 @@ test('unchanged pages are reused, an edited page is written again under its own 
   await lib.service.call('retrieval.index.start', { course: 'OS' });
   const next = await lib.finished('the third build');
   assert.deepEqual([next.added, next.removed, next.unchanged], [1, 1, PAGES - 2]);
-  assert.deepEqual(fake.ingested(), [sourceKey(edited)]); assert.deepEqual(fake.deleted(), [sourceKey(removed)]);
+  const libId = retrievalRootId(lib.root);
+  assert.deepEqual(fake.ingested(), [sourceKey(edited, libId)]); assert.deepEqual(fake.deleted(), [sourceKey(removed, libId)]);
   assert.equal(fake.index.size, PAGES - 1);
 });
 
@@ -97,7 +99,7 @@ test('cancel stops further writes and says which page was in flight: its outcome
   assert.equal(stopped.status, 'cancelled');
   assert.equal(fake.ingested().length, 2, 'no write after the cancel');
   assert.equal(stopped.unconfirmed.length, 1);
-  assert.equal(sourceKey(stopped.unconfirmed[0]), fake.ingested()[1]);
+  assert.equal(sourceKey(stopped.unconfirmed[0], retrievalRootId(lib.root)), fake.ingested()[1]);
   assert.equal(Object.keys((await readManifest(lib.root)).sources).length, 1, 'only the finished page is recorded');
   const [{ contract }] = await lib.jobs();
   assert.equal(contract.status, 'cancelled'); assert.equal(contract.calls[0].status, 'cancelled');
