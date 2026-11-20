@@ -26,23 +26,28 @@ export function locateQuote(text, quote, anchor = {}) {
  * the same way. Resolved as { status: 'fuzzy', start, end, quote } where `quote` is the text's own words between the offsets; a quote that
  * matches in two places is 'ambiguous' (never silently the first one), one that matches nowhere 'missing'.
  */
-export function locateFuzzy(text, quote) {
-  const first = createLocator(text)(quote);
-  if (!first) return { status: 'missing' };
-  if (createLocator(text.slice(first.end))(quote)) return { status: 'ambiguous' };
+export function locateFuzzy(text, quote, anchor = {}) {
+  const locator = createLocator(text);
+  const first = locator.detailed(quote, { prefix: anchor.prefix, suffix: anchor.suffix });
+  if (first.status === 'missing' || first.status === 'ambiguous') return { status: first.status };
+  if (first.status !== 'approx' && createLocator(text.slice(first.end))(quote, { approx: false })) return { status: 'ambiguous' };
   return { status: 'fuzzy', start: first.start, end: first.end, quote: text.slice(first.start, first.end) };
 }
 
 /** locateQuote, then locateFuzzy when the quote is not in the text as written. */
 export function resolveQuote(text, quote, anchor = {}) {
   const strict = locateQuote(text, quote, anchor);
-  return strict.status === 'missing' && quote ? locateFuzzy(text, quote) : strict;
+  return strict.status === 'missing' && quote ? locateFuzzy(text, quote, anchor) : strict;
 }
 
 /** A quote that has a place in the text (as written or by its letters), so the reader scrolls to it and not to the page it is on. */
 export const isPlaced = status => status === 'resolved' || status === 'fuzzy';
 
-const stripMarkdownInline = value => String(value || '').replace(/[\s*_\\`~]/g, '');
+const stripMarkdownInline = value => String(value || '')
+  .replace(/^[ \t]*(?:(?:>[ \t]?)+|#{1,6}[ \t]+|(?:[-*+]|\d+[.)])[ \t]+)/gm, '')
+  .replace(/^[ \t]*\|?(?:\s*:?-{3,}:?\s*\|)+\s*:?-{3,}:?\s*\|?[ \t]*$/gm, '')
+  .replace(/(?<!!)\[([^\]]+)\]\([^)\s]+\)/g, '$1')
+  .replace(/[\s*_\\`~|]/g, '');
 
 /** Renderer whitespace differs from source projection separators; map only a unique contextual match. */
 export function locateVisibleQuote(text, anchor) {
@@ -58,7 +63,7 @@ export function locateVisibleQuote(text, anchor) {
   if (!plainQuote || !/[\p{L}\p{N}]/u.test(plainQuote)) return hit;
   const plainMap = [], plainChars = [];
   for (let index = 0; index < characters.length; index++) {
-    if (!/[*_\\`~]/.test(characters[index])) { plainMap.push(map[index]); plainChars.push(characters[index]); }
+    if (!/[*_\\`~|]/.test(characters[index])) { plainMap.push(map[index]); plainChars.push(characters[index]); }
   }
   const plainHit = locateQuote(plainChars.join(''), plainQuote, { prefix: stripMarkdownInline(anchor.prefix), suffix: stripMarkdownInline(anchor.suffix) });
   return plainHit.status === 'resolved' ? { status: 'resolved', start: plainMap[plainHit.start], end: plainMap[plainHit.end - 1] + 1 } : plainHit;

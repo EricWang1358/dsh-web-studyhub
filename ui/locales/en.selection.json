@@ -5,6 +5,8 @@
   "用浏览器的查看器": "Use the browser’s viewer",
   "这份文件在这里画不出来，已换成浏览器的查看器。": "This file cannot be drawn here, so the browser’s viewer is shown instead.",
   "这份文件单页绘制太慢，已换成浏览器的查看器，避免翻页卡顿。": "This file draws too slowly here, so the browser’s viewer is shown instead to keep page turns responsive.",
+  "这一页绘制太慢；大文件按需读取，没法切到浏览器的查看器。你可以取消耗时限制继续绘制，或翻到其他页。": "This page draws too slowly; large files are read on demand and cannot switch to the browser’s viewer. You can lift the time limit to keep drawing, or turn to another page.",
+  "继续绘制这一页": "Keep drawing this page",
   "独立审阅中": "Independent review",
   "正在保存到题组": "Saving to the deck",
   "已通过 {0} / 共 {1}": "Passed {0} of {1}",

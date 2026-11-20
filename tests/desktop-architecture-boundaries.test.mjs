@@ -359,7 +359,7 @@ test('the desktop package carries the release version everywhere it is written',
   }, { desktopPackage: version, tauriConf: version, cargoToml: version, cargoLock: version });
 });
 
-test('the desktop CSP allows blob: in script-src so AudioWorklet voice capture loads in WebView2', async () => {
+test('the desktop CSP hardens object/base/form/frame-ancestors, forbids unsafe-eval, and allows blob: for WebView2 AudioWorklet', async () => {
   const conf = JSON.parse(await readFile(join(REPOSITORY, `${DESKTOP_ROOT}/src-tauri/tauri.conf.json`), 'utf8'));
   const csp = String(conf?.app?.security?.csp || '');
   const directives = Object.fromEntries(
@@ -368,6 +368,11 @@ test('the desktop CSP allows blob: in script-src so AudioWorklet voice capture l
       return [name, sources];
     }),
   );
+  assert.ok(!csp.includes("'unsafe-eval'"), `CSP must never allow unsafe-eval, got: ${csp}`);
+  assert.deepEqual(directives['object-src'], ["'none'"]);
+  assert.deepEqual(directives['base-uri'], ["'self'"]);
+  assert.deepEqual(directives['form-action'], ["'none'"]);
+  assert.deepEqual(directives['frame-ancestors'], ["'none'"]);
   // Chromium / WebView2 checks AudioWorklet.addModule(blob:...) against script-src, not worker-src.
   assert.ok(directives['script-src']?.includes('blob:'), `expected script-src to include blob:, got: ${csp}`);
   assert.ok(directives['worker-src']?.includes('blob:'), `expected worker-src to include blob:, got: ${csp}`);

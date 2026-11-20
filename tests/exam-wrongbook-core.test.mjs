@@ -197,7 +197,7 @@ test('wrongDetail returns full untruncated explanation/misconception, distractor
   assert.equal(caseDetail.correctAnswer.length, 600, 'reference answer is not silently clipped at 400 chars');
   assert.deepEqual(caseDetail.rubric, rubric);
 
-  // 4. Oral assessment returns oral answer, follow-up, reason, and correction
+  // 4. Oral assessment returns oral answer, follow-up, reason, and correction using real createOralRun() entry shape (`entry.card.id`, no top-level `cardId`)
   const oralCard = { id: 'c-oral', kind: 'flashcard', topic: 'Sys', prompt: 'Explain Raft', answer: 'Leader election + log replication.' };
   const oralCorrection = { keywordExpansion: 'Tie leader lease to term checks.' };
   const oralState = {
@@ -208,7 +208,8 @@ test('wrongDetail returns full untruncated explanation/misconception, distractor
       id: 'o1',
       entries: [{
         deckId: 'd1',
-        cardId: 'c-oral',
+        deckTitle: 'Distributed Systems',
+        card: structuredClone(oralCard),
         answer: 'Nodes vote for leader.',
         followup: 'What about split brain?',
         followupAnswer: 'Quorum prevents it.',
@@ -220,6 +221,26 @@ test('wrongDetail returns full untruncated explanation/misconception, distractor
   assert.equal(oralDetail.yourAnswer, 'Nodes vote for leader.');
   assert.deepEqual(oralDetail.oralFollowup, { question: 'What about split brain?', answer: 'Quorum prevents it.' });
   assert.deepEqual(oralDetail.oralFeedback, { band: 'weak', reason: 'Missing log safety rule.', correction: oralCorrection });
+
+  // Also preserves compatibility with legacy oral entries carrying top-level `cardId`
+  const legacyOralState = {
+    ...oralState,
+    oralRuns: [{
+      id: 'o1',
+      entries: [{
+        deckId: 'd1',
+        cardId: 'c-oral',
+        answer: 'Legacy oral answer.',
+        followup: 'Legacy follow-up?',
+        followupAnswer: 'Legacy follow-up answer.',
+        assessment: { band: 'weak', reason: 'Legacy reason.' },
+      }],
+    }],
+  };
+  const legacyOralDetail = wrongDetail(legacyOralState, { deckId: 'd1', cardId: 'c-oral' });
+  assert.equal(legacyOralDetail.yourAnswer, 'Legacy oral answer.');
+  assert.deepEqual(legacyOralDetail.oralFollowup, { question: 'Legacy follow-up?', answer: 'Legacy follow-up answer.' });
+  assert.deepEqual(legacyOralDetail.oralFeedback, { band: 'weak', reason: 'Legacy reason.' });
 });
 
 test('en.exam.json and en.wrongbook.json parse cleanly and have zero conflicting translations with other locale files', async () => {

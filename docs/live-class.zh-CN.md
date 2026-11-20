@@ -27,7 +27,7 @@
 
 在本地转写卡片里选择档位，装好后点「新实录使用此模型」。两档使用独立的安装目录和下载进度，可分别暂停、继续、修复和删除。原有安装继续使用 SenseVoice，新实录采用你的选择，「接着录」保留课堂原来的模型。
 
-质量档模型约 989 MB，Windows 首次安装下载约 999 MB、占用约 1013 MB，默认目录是 `StudyHub\LiveLocalWhisperTurbo`。它使用修复中文 BPE 字节处理的 sherpa-onnx 2.0.1，速度档保留 1.13.8。质量档在自然停顿或连续语音约 15 秒时提交定稿，关闭反复解码的临时预览。Ryzen 9 7945HX 上的中文合成语音测试内存峰值约 1.6 GiB，真实网课和普通笔记本的效果仍需对比，模型更大也会有同音词和术语错误。Whisper 文件从固定 ModelScope 版本下载，下载无进展或失败时尝试固定 Hugging Face 备用源，使用相同 SHA256 校验。原始 Whisper 权重使用上游 MIT 许可。[Whisper 模型说明](https://huggingface.co/openai/whisper-large-v3-turbo)、[引擎中文处理修复](https://github.com/csukuangfj/sherpa-onnx/blob/af2d8d81/sherpa-onnx/csrc/offline-recognizer-whisper-impl.h#L175)
+质量档模型约 989 MB，Windows 首次安装下载约 999 MB、占用约 1013 MB，默认目录是 `StudyHub\LiveLocalWhisperTurbo`。它使用修复中文 BPE 字节处理的 sherpa-onnx 2.0.1，速度档保留 1.13.8。课堂实录中，质量档通过 `LocalAgreement-2` 实时流式提交算法（`lib/contexts/audio/local-streaming.js`）在滑动重叠音频窗口（12 秒窗长、3 秒重叠、2 秒基础步进）上连续解码，仅提交连续两轮一致的最长公共词元前缀并在自然停顿或结束时冲刷尾句，消除 15 秒静默等待与切分边界丢词。Ryzen 9 7945HX 上的中文合成语音测试内存峰值约 1.6 GiB，真实网课和普通笔记本的效果仍需对比，模型更大也会有同音词和术语错误。Whisper 文件从固定 ModelScope 版本下载，下载无进展或失败时尝试固定 Hugging Face 备用源，使用相同 SHA256 校验。原始 Whisper 权重使用上游 MIT 许可。[Whisper 模型说明](https://huggingface.co/openai/whisper-large-v3-turbo)、[引擎中文处理修复](https://github.com/csukuangfj/sherpa-onnx/blob/af2d8d81/sherpa-onnx/csrc/offline-recognizer-whisper-impl.h#L175)
 
 以下大小与默认位置说明对应速度档。
 
@@ -268,7 +268,7 @@
 - **采音**：浏览器的 AudioWorklet 把输入混成单声道，转换为 16 kHz、16-bit 小端 PCM，约 100 ms 一帧。麦克风开启回声消除和降噪。采音工作线程的源码写成字面量，避免生产构建压缩时被改名破坏。
 - **连接**：由 StudyHub 后端持有到 Gemini Live 的 WebSocket，收到 Google 的 setup 完成确认后才发送音频。单个连接最长 10 分钟，StudyHub 在第 8 分 45 秒（或 Google 提前通知断开时）开新连接；旧连接最后的文字收齐后，才显示新连接的文字。
 - **重连**：切换连接不是服务端会话恢复，故障时仍可能丢失尚未最终确认的词。断线后 StudyHub 以逐渐拉长的间隔重连，期间最多缓存最近 30 秒的声音。重连失败时状态变为「连接中断」，已有文字已保存，可以点「接着录」。
-- **本地引擎**：识别在一个工作线程里运行。一个本地回环连接讲和 Gemini Live 一样的消息，所以实录会话、页面和保存的课堂都照旧。语音检测在设定的停顿后结束一句，连续讲话达到约 15 秒时会主动提交一段。正在说的那句约每 0.6 秒解码一次，显示为灰色的临时文字。结束实录会等待已收到的声音识别完；识别长时间没有进展时，会明确提示未确认处理完成的时长。没有 10 分钟限制，也不需要换连接。
+- **本地引擎**：识别在工作线程（`lib/live-local-worker.mjs`）里按动态 CPU 线程数运行（`recommendedNumThreads`，默认 2–6 线程）。一个本地回环连接讲和 Gemini Live 一样的消息，所以实录会话、页面和保存的课堂都照旧。速度档（SenseVoice）在设定的停顿后结束一句，连续讲话约每 15 秒提交一段，正在说的那句约每 0.6 秒解码一次显示为灰色临时文字。质量档（Whisper）使用 `LocalAgreement-2` 实时流式提交（`lib/contexts/audio/local-streaming.js`，12 秒滑动窗口、3 秒重叠、2 秒基础步进）配合自适应背压（`createBackpressureController`），连续两轮一致的词元前缀实时定稿，停顿或结束时冲刷尾句。短语音作答片段（`audio.clip.transcribe`）通过常驻本地 ASR 池（`createLocalClipPool`，`lib/contexts/audio/clip.js`，3 分钟空闲回收、支持 `keepAlive` 重置 VAD/状态）复用已加载模型，避免每次冷加载 230 MB–1 GB ONNX 权重，并在切换模型或卸载前干净排空。结束实录会等待已收到的声音识别完；识别长时间没有进展时，会明确提示未确认处理完成的时长。没有 10 分钟限制，也不需要换连接。
 - **时间标记**：句子旁的时间是已录音频的累计时长，不含暂停。用来定位课堂位置，不是逐字时间戳。
 - **翻译**：按顺序翻译，每次最多 6 句或 900 个字符，并附上前 3 句已有译文作上下文；每句最多尝试 3 次。翻译提示要求关键术语第一次出现时写成“中文（English term）”。
 

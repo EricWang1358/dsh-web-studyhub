@@ -148,6 +148,11 @@ export default [
     languageOptions: { globals: { ...globals.browser } },
   },
   {
+    // Modular browser runtime embedded into offline companion HTML documents.
+    files: ["lib/companion-template/runtime/**/*.js"],
+    languageOptions: { globals: { ...globals.browser } },
+  },
+  {
     files: ["ui/**/*.jsx", "ui/**/*.js"],
     languageOptions: {
       ecmaVersion: 2024,

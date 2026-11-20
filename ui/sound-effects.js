@@ -9,11 +9,10 @@
    or the tab is hidden (except for explicit focus timer chimes). */
 import { getAppearanceSound, invalidateAppearanceCache, onAppearanceCacheChange } from './appearance-prefs.js';
 import { isAudioCaptureActive } from './audio-capture-state.js';
-import { BAKED_SAMPLE_DATA_URIS, BAKED_SAMPLE_GAINS } from './sound-effects-assets.js';
 
 export const SOUND_CUES = Object.freeze(['tap', 'flip', 'correct', 'levelUp', 'miss', 'complete']);
 const SUBTLE_CUES = new Set(['flip', 'correct', 'levelUp', 'miss', 'complete']);
-const SAMPLE_CUES = new Set(Object.keys(BAKED_SAMPLE_DATA_URIS));
+const SAMPLE_CUES = new Set(['tap', 'flip', 'correct']);
 
 const IDLE_SUSPEND_MS = 15_000;
 const CUE_COOLDOWN_MS = 45;
@@ -146,7 +145,7 @@ function addStereoMicroRoom(mono, sampleRate, wet = 0.22, spreadMs = 11) {
   return [left, right];
 }
 
-function normalizeStereo(left, right, targetPeak) {
+function normalizeStereo(left, right, targetPeak, sampleRate = 44100) {
   let peak = 0;
   for (let i = 0; i < left.length; i += 1) {
     const absL = Math.abs(left[i]);
@@ -161,8 +160,8 @@ function normalizeStereo(left, right, targetPeak) {
       right[i] *= scale;
     }
   }
-  shapeEnvelope(left, 44100, 0.4, 8);
-  shapeEnvelope(right, 44100, 0.4, 8);
+  shapeEnvelope(left, sampleRate, 0.4, 8);
+  shapeEnvelope(right, sampleRate, 0.4, 8);
   return [left, right];
 }
 
@@ -207,7 +206,7 @@ function buildTapStereo(sampleRate) {
   }
   applyBiquad(mono, sampleRate, 'highpass', 800, 0.7);
   shapeEnvelope(mono, sampleRate, 0.3, 6);
-  return normalizeStereo(...addStereoMicroRoom(mono, sampleRate, 0.06), 0.30);
+  return normalizeStereo(...addStereoMicroRoom(mono, sampleRate, 0.06), 0.30, sampleRate);
 }
 
 function buildFlipStereo(sampleRate) {
@@ -242,7 +241,7 @@ function buildFlipStereo(sampleRate) {
   applyBiquad(right, sampleRate, 'highpass', 580, 0.7);
   shapeEnvelope(left, sampleRate, 6, 36);
   shapeEnvelope(right, sampleRate, 6, 36);
-  return normalizeStereo(left, right, 0.34);
+  return normalizeStereo(left, right, 0.34, sampleRate);
 }
 
 function buildCorrectStereo(sampleRate) {
@@ -255,7 +254,7 @@ function buildCorrectStereo(sampleRate) {
   addCelestaNote(mono, sampleRate, { startSec: 0.096, freqHz: 880.00, amp: 0.26, tau: 0.24, shimmer: 1.0, rand });
   applyBiquad(mono, sampleRate, 'highpass', 220, 0.7);
   shapeEnvelope(mono, sampleRate, 0.6, 55);
-  return normalizeStereo(...addStereoMicroRoom(mono, sampleRate, 0.24), 0.40);
+  return normalizeStereo(...addStereoMicroRoom(mono, sampleRate, 0.24), 0.40, sampleRate);
 }
 
 function buildLevelUpStereo(sampleRate) {
@@ -268,7 +267,7 @@ function buildLevelUpStereo(sampleRate) {
   addCelestaNote(mono, sampleRate, { startSec: 0.128, freqHz: 1174.66, amp: 0.28, tau: 0.26, shimmer: 1.15, rand });
   applyBiquad(mono, sampleRate, 'highpass', 220, 0.7);
   shapeEnvelope(mono, sampleRate, 0.5, 55);
-  return normalizeStereo(...addStereoMicroRoom(mono, sampleRate, 0.28), 0.44);
+  return normalizeStereo(...addStereoMicroRoom(mono, sampleRate, 0.28), 0.44, sampleRate);
 }
 
 function buildMissStereo(sampleRate) {
@@ -281,7 +280,7 @@ function buildMissStereo(sampleRate) {
   applyBiquad(mono, sampleRate, 'highpass', 180, 0.7);
   applyBiquad(mono, sampleRate, 'lowpass', 3000, 0.7);
   shapeEnvelope(mono, sampleRate, 0.8, 30);
-  return normalizeStereo(...addStereoMicroRoom(mono, sampleRate, 0.16), 0.34);
+  return normalizeStereo(...addStereoMicroRoom(mono, sampleRate, 0.16), 0.34, sampleRate);
 }
 
 function buildCompleteStereo(sampleRate) {
@@ -300,7 +299,7 @@ function buildCompleteStereo(sampleRate) {
   }
   applyBiquad(mono, sampleRate, 'highpass', 180, 0.7);
   shapeEnvelope(mono, sampleRate, 0.8, 85);
-  return normalizeStereo(...addStereoMicroRoom(mono, sampleRate, 0.30), 0.45);
+  return normalizeStereo(...addStereoMicroRoom(mono, sampleRate, 0.30), 0.45, sampleRate);
 }
 
 const STEREO_BUILDERS = Object.freeze({
@@ -404,6 +403,8 @@ let cachedBuffers = new Map();
 let cachedDspBuffers = new Map();
 const cachedStereoSamples = new Map();
 let sampleDecodePromises = new Map();
+let bakedAssets = null;
+let bakedAssetsPromise = null;
 let lastPlayedAt = 0;
 const lastCueAt = new Map();
 let idleTimer = null;
@@ -432,6 +433,25 @@ function getOrSynthesizeStereo(cue, rate) {
   return pair;
 }
 
+function loadBakedAssets() {
+  if (bakedAssets) return Promise.resolve(bakedAssets);
+  if (!bakedAssetsPromise) {
+    bakedAssetsPromise = import('./sound-effects-assets.js')
+      .then((mod) => {
+        bakedAssets = {
+          uris: mod?.BAKED_SAMPLE_DATA_URIS || {},
+          gains: mod?.BAKED_SAMPLE_GAINS || {},
+        };
+        return bakedAssets;
+      })
+      .catch(() => {
+        bakedAssetsPromise = null;
+        return null;
+      });
+  }
+  return bakedAssetsPromise;
+}
+
 function decodeSampleBuffer(ctx, cue) {
   if (!SAMPLE_CUES.has(cue) || typeof ctx?.decodeAudioData !== 'function') return null;
   const rate = ctx.sampleRate || sharedCtxRate || 44100;
@@ -439,20 +459,24 @@ function decodeSampleBuffer(ctx, cue) {
   if (cachedBuffers.has(key)) return Promise.resolve(cachedBuffers.get(key));
   if (sampleDecodePromises.has(key)) return sampleDecodePromises.get(key);
 
-  const dataUri = BAKED_SAMPLE_DATA_URIS[cue];
-  const raw = dataUri ? decodeBase64ToArrayBuffer(dataUri) : null;
-  if (!raw) return null;
-
-  const promise = Promise.resolve()
-    .then(() => ctx.decodeAudioData(raw.slice(0)))
+  const promise = loadBakedAssets()
+    .then((assets) => {
+      if (ctx !== sharedCtx) return null;
+      const dataUri = assets?.uris?.[cue];
+      const raw = dataUri ? decodeBase64ToArrayBuffer(dataUri) : null;
+      if (!raw) return null;
+      return ctx.decodeAudioData(raw.slice(0));
+    })
     .then((decoded) => {
-      if (ctx !== sharedCtx || !decoded) return null;
+      if (ctx !== sharedCtx) return null;
+      sampleDecodePromises.delete(key);
+      if (!decoded) return null;
       const trimmed = trimDecodedEncoderPadding(ctx, decoded);
-      cachedBuffers.set(key, { buffer: trimmed, isSample: true });
-      sampleDecodePromises.delete(key);
-      return cachedBuffers.get(key);
+      const entry = { buffer: trimmed, isSample: true };
+      cachedBuffers.set(key, entry);
+      return entry;
     }, () => {
-      sampleDecodePromises.delete(key);
+      if (ctx === sharedCtx) sampleDecodePromises.delete(key);
       return null;
     });
   sampleDecodePromises.set(key, promise);
@@ -596,7 +620,7 @@ function getOrCreateContext() {
 function resolveCueGain(cue, tier, isSample) {
   const tierScale = TIER_SCALE[tier] ?? TIER_SCALE.subtle;
   if (isSample) {
-    const sampleScale = BAKED_SAMPLE_GAINS[cue] ?? 0.5;
+    const sampleScale = bakedAssets?.gains?.[cue] ?? 0.5;
     return Math.min(1.0, sampleScale * tierScale);
   }
   return (DSP_CUE_GAINS[cue] ?? 0.85) * tierScale;
@@ -779,6 +803,8 @@ export function resetSoundEngineForTests() {
   cachedDspBuffers.clear();
   cachedStereoSamples.clear();
   sampleDecodePromises.clear();
+  bakedAssets = null;
+  bakedAssetsPromise = null;
   invalidateAppearanceCache();
   if (sharedCtx) {
     try { Promise.resolve(sharedCtx.close?.()).catch(() => {}); } catch { /* ignore */ }

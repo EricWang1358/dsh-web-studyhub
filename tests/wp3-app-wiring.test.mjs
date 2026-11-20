@@ -56,7 +56,7 @@ test('App wires the hub into the dialog and the empty state, and counts document
   // Counted once per snapshot (useMemo), not in every render of the sidebar: tests/page-switch-jank.test.mjs.
   assert.match(source, /const documentCount = useMemo\(\(\) => \(sources \? countDocuments\(sources\) : 0\), \[sources\]\)/, 'the count is of documents, not pages');
   assert.match(source, /hint=\{[^}]*documentCount/, 'the 资料 row shows its document count as its trailing hint');
-  assert.match(source, /highlight=\{lib\.sourceHighlight\}/);
+  assert.match(source, /highlight=\{(?:lib\.)?sourceHighlight\}/);
   assert.match(source, /onComplete=\{sources\.finishImport\}/);
   assert.match(source, /documentSourceIds\(data\.sources, source\.id\)/, 'the source dialog generates from the whole document');
 });

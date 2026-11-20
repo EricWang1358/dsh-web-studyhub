@@ -3,7 +3,9 @@ import { reviewEntryKey } from "../async.js";
 import { isPassed } from "./session-logic.js";
 import { ui, uiLocale } from "../i18n.js";
 import { MAX_MARKED_TERMS, clearCompletedTermEntries, filterCandidateTerms, mergeAdjacent, normalizeTerm, toggleTerm, wordAt } from "./term-marks.js";
+import { collectAllHighlightEntries, collectBlockSegments, isAllowedTextNode, isExcludedElement } from "./term-marking-dom.js";
 
+export { collectAllHighlightEntries, collectBlockSegments };
 export const TERM_HIGHLIGHT_NAME = "study-term-mark";
 export const SEEN_TERM_HIGHLIGHT_NAME = "study-term-seen";
 export const CANDIDATE_TERM_HIGHLIGHT_NAME = "study-term-candidate";
@@ -18,171 +20,8 @@ function promptExcerpt(raw) {
   return clean.length > PROMPT_EXCERPT_MAX ? `${clean.slice(0, PROMPT_EXCERPT_MAX - 1).trimEnd()}…` : clean;
 }
 
-const EXCLUDED_SELECTOR = [
-  ".katex",
-  "code",
-  "pre",
-  "a",
-  "input",
-  "textarea",
-  "select",
-  "img",
-  "svg",
-  "summary",
-  "button:not(.option)",
-  ".term-strip",
-  "dialog",
-  ".sh-dialog",
-  ".question-toolbar",
-  ".review-sticky-bar",
-  ".assist-area",
-  ".grading",
-  ".question-header",
-  ".flip-control",
-  ".option-letter",
-  ".answer-state",
-  ".practice-tip",
-  ".chapter-hint",
-  ".choice-feedback-wrap",
-  ".sh-comp-card-jump",
-  ".question-live-mastery",
-  ".question-card__autopilot-bar",
-  ".citation-disclosure",
-  ".followup-head",
-  ".followup-book",
-  ".followup-actions",
-  ".followup-derive",
-  ".followup-picker",
-  ".note-qa-button",
-  ".question-book-link",
-  '[aria-hidden="true"]',
-].join(", ");
-
-const BLOCK_SELECTOR = "p, li, h1, h2, h3, h4, h5, h6, div, blockquote, dd, dt, td, th, button.option, article, section";
-const ASCII_WORD_CHAR = /[A-Za-z0-9_]/;
-
 function supportsHighlights() {
   return typeof CSS !== "undefined" && !!CSS.highlights && typeof Highlight === "function";
-}
-
-function isClosedDetailsContent(element) {
-  const closed = element?.closest?.("details:not([open])");
-  if (!closed) return false;
-  const summary = element.closest("summary");
-  return !summary || !closed.contains(summary);
-}
-
-function isExcludedElement(element, body) {
-  if (!element || !body?.contains(element)) return true;
-  if (element === body) return false;
-  const match = element.closest(EXCLUDED_SELECTOR);
-  if (match && body.contains(match) && match !== body) return true;
-  return isClosedDetailsContent(element);
-}
-
-function isAllowedTextNode(node, body) {
-  if (!node || node.nodeType !== Node.TEXT_NODE || !node.data) return false;
-  const parent = node.parentElement;
-  return !!parent && !isExcludedElement(parent, body);
-}
-
-function collectBlockSegments(body) {
-  const segments = [];
-  let current = null;
-  const flush = () => {
-    if (current && current.text) segments.push(current);
-    current = null;
-  };
-  const walk = (node) => {
-    if (node.nodeType === Node.TEXT_NODE) {
-      if (!node.data) return;
-      if (!current) current = { text: "", runs: [] };
-      const textStart = current.text.length;
-      current.text += node.data;
-      current.runs.push({ node, textStart, textEnd: current.text.length });
-      return;
-    }
-    if (node.nodeType !== Node.ELEMENT_NODE) return;
-    if (node !== body && node.matches?.(EXCLUDED_SELECTOR)) {
-      flush();
-      return;
-    }
-    if (node.tagName === "DETAILS" && !node.open) {
-      flush();
-      return;
-    }
-    if (node.tagName === "BR") {
-      flush();
-      return;
-    }
-    const isBlock = node !== body && node.matches?.(BLOCK_SELECTOR);
-    if (isBlock) flush();
-    for (const child of node.childNodes) walk(child);
-    if (isBlock) flush();
-  };
-  walk(body);
-  flush();
-  return segments;
-}
-
-function hasAsciiBoundaries(text, start, end, term) {
-  if (ASCII_WORD_CHAR.test(term[0]) && start > 0 && ASCII_WORD_CHAR.test(text[start - 1])) return false;
-  if (ASCII_WORD_CHAR.test(term[term.length - 1]) && end < text.length && ASCII_WORD_CHAR.test(text[end])) return false;
-  return true;
-}
-
-function locateInRuns(runs, pos) {
-  for (const run of runs) {
-    if (pos >= run.textStart && pos <= run.textEnd) {
-      return { node: run.node, offset: pos - run.textStart };
-    }
-  }
-  return null;
-}
-
-function spanSlicesForMatch(runs, matchStart, matchEnd, term) {
-  const slices = [];
-  for (const run of runs) {
-    if (run.textEnd <= matchStart || run.textStart >= matchEnd) continue;
-    slices.push({
-      node: run.node,
-      start: Math.max(0, matchStart - run.textStart),
-      end: Math.min(run.node.data.length, matchEnd - run.textStart),
-      term,
-    });
-  }
-  return slices;
-}
-
-function collectHighlightEntries(doc, body, terms, { caseInsensitive = false } = {}) {
-  if (!doc || !body || !terms.length) return { ranges: [], spans: [] };
-  const segments = collectBlockSegments(body);
-  const ranges = [];
-  const spans = [];
-  for (const term of terms) {
-    if (!term) continue;
-    const needle = caseInsensitive ? term.toLowerCase() : term;
-    for (const seg of segments) {
-      const haystack = caseInsensitive ? seg.text.toLowerCase() : seg.text;
-      let from = 0;
-      while (from <= haystack.length - needle.length) {
-        const at = haystack.indexOf(needle, from);
-        if (at < 0) break;
-        const end = at + needle.length;
-        from = at + 1;
-        if (!hasAsciiBoundaries(seg.text, at, end, term)) continue;
-        const startPos = locateInRuns(seg.runs, at);
-        const endPos = locateInRuns(seg.runs, end);
-        if (!startPos || !endPos) continue;
-        const range = doc.createRange();
-        range.setStart(startPos.node, startPos.offset);
-        range.setEnd(endPos.node, endPos.offset);
-        ranges.push(range);
-        spans.push(...spanSlicesForMatch(seg.runs, at, end, term));
-      }
-    }
-  }
-  return { ranges, spans };
 }
 
 function caretAt(doc, x, y) {
@@ -805,13 +644,11 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
     }
 
     const sync = () => {
-      const active = terms.length ? collectHighlightEntries(body.ownerDocument, body, terms) : { ranges: [], spans: [] };
-      const seen = seenUnknownTerms.length
-        ? collectHighlightEntries(body.ownerDocument, body, seenUnknownTerms, { caseInsensitive: true })
-        : { ranges: [], spans: [] };
-      const cand = candidateTerms.length
-        ? collectHighlightEntries(body.ownerDocument, body, candidateTerms, { caseInsensitive: true })
-        : { ranges: [], spans: [] };
+      const { active, seen, cand } = collectAllHighlightEntries(body.ownerDocument, body, {
+        activeTerms: terms,
+        seenTerms: seenUnknownTerms,
+        candidateTerms,
+      });
       activeSpansRef.current = active.spans;
       seenSpansRef.current = seen.spans;
       candidateSpansRef.current = cand.spans;

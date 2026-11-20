@@ -114,38 +114,131 @@ test('the writer slot spans maintenance and queries wait for refreshed search da
   assert.equal(server.queries, 1);
 });
 
-test('maintenance failure remains visible alongside committed results and restores ordinary writes', async () => {
-  const server = new Server(), entered = deferred(), release = deferred();
+test('maintenance failure remains visible on the failed write batch without deadlocking read-only queries, and auto-recovers after cooldown', async () => {
+  let clock = 1_000;
+  const TimedServer = createBatchRAGServer(FakeRAGServer, {
+    invalidInput: message => new TypeError(message),
+    parseIngestDataInput(value) {
+      if (!value?.metadata?.source || !value.content) throw new TypeError('invalid page');
+      return structuredClone(value);
+    },
+    maintenanceRetryCooldownMs: 5_000,
+    now: () => clock,
+  });
+  const server = new TimedServer(), entered = deferred(), release = deferred();
   server.onOptimize = async () => { entered.resolve(); await release.promise; throw new Error('maintenance failed'); };
   const batch = server.call(BATCH_TOOL.name, { items: [item('a')] });
   await entered.promise;
   const query = server.call('query_documents', { query: 'a' });
   release.resolve();
   const result = (await batch).structuredContent;
-  await assert.rejects(query, /maintenance failed/);
-  assert.equal(server.queries, 0);
   assert.deepEqual(result.results, [{ source: 'a', status: 'indexed' }]);
   assert.equal(result.maintenanceError, 'maintenance failed');
   assert.equal(server.held, false);
-  await assert.rejects(server.call('query_documents', { query: 'after the failed batch' }), /maintenance failed/);
-  assert.equal(server.queries, 0);
-  server.onOptimize = null;
-  await server.call('ingest_data', item('b'));
-  assert.equal(server.maintenance, 2);
-  await server.call('query_documents', { query: 'after ordinary maintenance succeeds' });
+  assert.equal(server.getMaintenanceStatus().healthy, false);
+
+  // Read-only queries are NOT deadlocked by a write-side maintenance failure.
+  assert.equal((await query).content[0].text, 'query result');
   assert.equal(server.queries, 1);
+
+  // During the cooldown window, read-only queries run without spamming optimize() retries.
+  clock += 2_000;
+  await server.call('query_documents', { query: 'during cooldown' });
+  assert.equal(server.queries, 2);
+  assert.equal(server.maintenance, 1, 'no premature optimize retry during cooldown');
+
+  // Once cooldown elapses and storage is healthy again, the next query auto-recovers maintenance state.
+  server.onOptimize = null;
+  clock += 4_000;
+  await server.call('query_documents', { query: 'after cooldown recovery' });
+  assert.equal(server.queries, 3);
+  assert.equal(server.maintenance, 2, 'optimize retried once cooldown elapsed');
+  assert.equal(server.getMaintenanceStatus().healthy, true);
+  assert.equal(server.maintenanceFailure, null);
 });
 
-test('successful batch maintenance reopens queries after an earlier maintenance failure', async () => {
-  const server = new Server();
-  server.onOptimize = async () => { throw new Error('maintenance failed'); };
-  await server.call(BATCH_TOOL.name, { items: [item('a')] });
-  await assert.rejects(server.call('query_documents', { query: 'unmaintained index' }), /maintenance failed/);
-  server.onOptimize = null;
-  await server.call(BATCH_TOOL.name, { items: [item('a')] });
-  await server.call('query_documents', { query: 'repaired index' });
-  assert.equal(server.queries, 1);
+test('failed maintenance recovery backs off exponentially while keeping read-only queries unblocked, and successful write clears it immediately', async () => {
+  let clock = 10_000;
+  const TimedServer = createBatchRAGServer(FakeRAGServer, {
+    invalidInput: message => new TypeError(message),
+    parseIngestDataInput(value) {
+      if (!value?.metadata?.source || !value.content) throw new TypeError('invalid page');
+      return structuredClone(value);
+    },
+    maintenanceRetryCooldownMs: 1_000,
+    maxMaintenanceCooldownMs: 8_000,
+    now: () => clock,
+  });
+  const server = new TimedServer();
+  server.onOptimize = async () => { throw new Error('transient lock'); };
+  const failedBatch = (await server.call(BATCH_TOOL.name, { items: [item('a')] })).structuredContent;
+  assert.equal(failedBatch.maintenanceError, 'transient lock');
+  assert.equal(server.maintenance, 1);
+  assert.equal(server.getMaintenanceStatus().attempts, 1);
+
+  // Cooldown 1 (1s) elapses -> retry still fails -> backs off to 2s, query STILL succeeds!
+  clock += 1_000;
+  await server.call('query_documents', { query: 'retry 1' });
   assert.equal(server.maintenance, 2);
+  assert.equal(server.queries, 1);
+  assert.equal(server.getMaintenanceStatus().attempts, 2);
+
+  // After 1.5s (< 2s backoff), no retry occurs; query still succeeds.
+  clock += 1_500;
+  await server.call('query_documents', { query: 'within backed-off cooldown' });
+  assert.equal(server.maintenance, 2);
+  assert.equal(server.queries, 2);
+
+  // A subsequent successful write immediately clears maintenance failure regardless of cooldown.
+  server.onOptimize = null;
+  await server.call('ingest_data', item('b'));
+  assert.equal(server.maintenance, 3);
+  assert.equal(server.getMaintenanceStatus().healthy, true);
+  await server.call('query_documents', { query: 'after ordinary maintenance succeeds' });
+  assert.equal(server.queries, 3);
+});
+
+test('query_documents optionally filters by sourcePrefix with oversampling and strips extra args before upstream handler', async () => {
+  const seenArgs = [];
+  class ScopedFakeRAGServer extends FakeRAGServer {
+    setupHandlers() {
+      this.server.setRequestHandler(schema('tools/list'), async () => ({
+        tools: [
+          { name: 'ingest_data', inputSchema: { type: 'object', properties: {} } },
+          { name: 'query_documents', inputSchema: { type: 'object', properties: { query: { type: 'string' }, limit: { type: 'integer' } }, required: ['query'] } },
+        ],
+      }));
+      this.server.setRequestHandler(schema('tools/call'), async (request) => {
+        const { name, arguments: args } = request.params;
+        if (name === 'query_documents') {
+          seenArgs.push(structuredClone(args));
+          // Simulate 45 foreign hits followed by 5 hits from target library
+          const allHits = [
+            ...Array.from({ length: 45 }, (_, i) => ({ text: `foreign ${i}`, filePath: `studyhub://lib/other/source/p${i}`, score: 0.99 - i * 0.001 })),
+            ...Array.from({ length: 5 }, (_, i) => ({ text: `mine ${i}`, filePath: `studyhub://lib/libA/source/p${i}`, score: 0.5 - i * 0.01 })),
+          ];
+          return { content: [{ type: 'text', text: JSON.stringify(allHits.slice(0, args.limit || 10)) }] };
+        }
+        return { content: [{ type: 'text', text: 'ok' }] };
+      });
+    }
+  }
+  const ScopedServer = createBatchRAGServer(ScopedFakeRAGServer, {
+    invalidInput: message => new TypeError(message),
+    parseIngestDataInput: value => value,
+  });
+  const server = new ScopedServer();
+  const listed = await server.handlers.get('tools/list')();
+  const queryTool = listed.tools.find(t => t.name === 'query_documents');
+  assert.equal(queryTool.inputSchema.properties.sourcePrefix.type, 'string');
+  assert.deepEqual(queryTool.inputSchema.required, ['query'], 'sourcePrefix remains optional');
+
+  const reply = await server.call('query_documents', { query: 'deadlock', limit: 3, sourcePrefix: 'studyhub://lib/libA/source/' });
+  const hits = JSON.parse(reply.content[0].text);
+  assert.equal(hits.length, 3);
+  assert.ok(hits.every(h => h.filePath.startsWith('studyhub://lib/libA/source/')));
+  assert.equal(seenArgs.length, 2, 'oversampled a second pass when first 40 were all foreign');
+  assert.ok(seenArgs.every(a => !('sourcePrefix' in a)), 'sourcePrefix is stripped before upstream handler');
 });
 
 test('a batch waits for an earlier query through embedding and database reads', async () => {

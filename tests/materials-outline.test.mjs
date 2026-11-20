@@ -19,8 +19,11 @@ const reply = entries => JSON.stringify({ outline: entries });
 /** The outline a careful model would write for the fixture: the title, then each part. */
 function fakeOutline(prompt) {
   const { blocks } = JSON.parse(prompt);
-  return reply(blocks.filter(block => block.text === '平台经济课堂实录' || block.text.startsWith('第')).map(block =>
-    ({ title: block.text, level: block.text.startsWith('第') ? 2 : 1, startBlock: block.index })));
+  return reply(blocks.flatMap(block => {
+    const clean = block.text.replace(/^#{1,6}\s+/, '');
+    if (clean !== '平台经济课堂实录' && !clean.startsWith('第')) return [];
+    return [{ title: clean, level: clean.startsWith('第') ? 2 : 1, startBlock: block.index }];
+  }));
 }
 const withUsage = (run, sink) => withUsageSink({ key: 'test', sink }, run);
 const usage = { uncachedInputTokens: 1800, outputTokens: 420, cacheReadTokens: 0, cacheWriteTokens: 0 };

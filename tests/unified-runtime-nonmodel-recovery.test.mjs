@@ -13,6 +13,7 @@ import { fakeIndexPort } from './helpers/index-port.mjs';
 import { markerInstallStatePath, venvLayout } from '../lib/marker-install.js';
 import { readMarkerSettings } from '../lib/marker-settings.js';
 import { sourceKey } from '../lib/retrieval-index.js';
+import { retrievalRootId } from '../lib/retrieval-settings.js';
 import { mkdir, stat, writeFile } from 'node:fs/promises';
 import { announceEnd } from '../lib/contexts/audio/convert-card.js';
 import { dirname, join } from 'node:path';
@@ -153,7 +154,7 @@ test('Index · stop not confirmed: while the write the extension has not answere
   const stopped = await lib.finished('the stop');
   assert.equal(stopped.status, 'cancelled');
   assert.equal(fake.ingested().length, 2, 'nothing after the stop');
-  assert.equal(sourceKey(stopped.unconfirmed[0]), fake.ingested()[1], 'the page whose answer never came is not claimed written or unwritten');
+  assert.equal(sourceKey(stopped.unconfirmed[0], retrievalRootId(lib.root)), fake.ingested()[1], 'the page whose answer never came is not claimed written or unwritten');
 });
 
 test('PDF · terminal and notice after the checkpoint: a notice written again after a resume is still one letter for that conversion, with the same sources', async t => {

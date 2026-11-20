@@ -318,10 +318,15 @@ export function useMaterialClassify({ items = [], course = '' } = {}) {
   }, [jobBacked, appData?.jobs, matchesScope]);
 
   const pending = useMemo(() => {
+    const byCourse = appData?.settings?.materialClassifyPendingByCourse;
+    if (byCourse && typeof byCourse === 'object') {
+      const scoped = scopeCourse ? (byCourse[scopeCourse] || byCourse['*']) : byCourse['*'];
+      if (scoped && Array.isArray(scoped.suggestions)) return scoped;
+    }
     const raw = appData?.settings?.materialClassifyPending;
     if (!raw || !Array.isArray(raw.suggestions)) return null;
     return matchesScope(raw.course) ? raw : null;
-  }, [appData?.settings?.materialClassifyPending, matchesScope]);
+  }, [appData?.settings?.materialClassifyPending, appData?.settings?.materialClassifyPendingByCourse, scopeCourse, matchesScope]);
 
   useEffect(() => {
     if (!optimisticJob) return;

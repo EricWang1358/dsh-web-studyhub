@@ -9,7 +9,7 @@ import { useHandOff } from '../hand-off/use-hand-off.js';
 import { AppContext } from '../app/app-context.js';
 import { companionSlideCheck } from '../../lib/practice-settings.js';
 import { selectCompanionPracticeCards } from './companion-cards.js';
-import { DiagramFrame } from '../diagram-frame.js';
+import { createCompanionChannel, DiagramFrame } from '../diagram-frame.js';
 import Markdown from '../Markdown.jsx';
 import { Badge, Button, Checkbox, Dialog, Disclosure, Field, IconButton, InlineMessage, LoadingState, Select, TextArea, TextInput } from '../components/index.js';
 import css from './companions.css';
@@ -59,6 +59,13 @@ export default function CompanionViewer({ modal, onClose, inlinePractice = null 
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
   const [channelToken] = useState(makeToken);
+  const channelRef = useRef(null);
+  if (!channelRef.current) {
+    channelRef.current = createCompanionChannel({
+      token: channelToken,
+      getTargetWindow: () => frameRef.current?.contentWindow || null,
+    });
+  }
   const checkResultsRef = useRef({});
   const progressTimerRef = useRef(0);
   const pendingProgressRef = useRef(null);
@@ -81,6 +88,12 @@ export default function CompanionViewer({ modal, onClose, inlinePractice = null 
 
   const [state, setState] = useState(() => (modal?.initialState?.status === 'ready' ? modal.initialState : { status: 'loading' }));
   const [attempt, setAttempt] = useState(0);
+  const frameDocKey = state.status === 'ready' ? `${companionId || ''}:${attempt}:${state.html?.length || 0}` : '';
+  const lastFrameDocKeyRef = useRef(frameDocKey);
+  if (lastFrameDocKeyRef.current !== frameDocKey) {
+    lastFrameDocKeyRef.current = frameDocKey;
+    channelRef.current.reset({ clearQueue: !frameDocKey });
+  }
   const [drawerOpen, setDrawerOpen] = useState(Boolean(modal?.openDrawer));
   const [expanded, setExpanded] = useState(Boolean(modal?.expanded));
   const [inquiryFocusSeq, setInquiryFocusSeq] = useState(0);
@@ -165,9 +178,8 @@ export default function CompanionViewer({ modal, onClose, inlinePractice = null 
 
   useEffect(() => {
     function onMessage(event) {
-      if (!frameRef.current || event.source !== frameRef.current.contentWindow) return;
-      const msg = event.data;
-      if (!msg || msg.protocol !== 'studyhub-companion/1' || msg.token !== channelToken) return;
+      const msg = channelRef.current?.handleMessage(event);
+      if (!msg || msg.kind === 'ready') return;
 
       if (msg.kind === 'self-check' && typeof msg.slot === 'string') {
         checkResultsRef.current = { ...checkResultsRef.current, [msg.slot]: Boolean(msg.correct) };
@@ -248,7 +260,7 @@ export default function CompanionViewer({ modal, onClose, inlinePractice = null 
     }
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [call, channelToken, companionId, course, notify, refresh, state.companion?.course, state.lesson?.slides]);
+  }, [call, companionId, course, notify, refresh, state.companion?.course, state.lesson?.slides]);
 
   useEffect(() => {
     if (!drawerOpen || !inquiryFocusSeq) return undefined;
@@ -297,14 +309,14 @@ export default function CompanionViewer({ modal, onClose, inlinePractice = null 
   }, [call, companionId, courseName, notify, refresh]);
 
   const postToFrame = useCallback(payload => {
-    const win = frameRef.current?.contentWindow;
-    if (!win) return;
-    win.postMessage({
-      protocol: 'studyhub-companion/1',
-      token: channelToken,
-      ...payload,
-    }, '*');
-  }, [channelToken]);
+    channelRef.current?.send(payload);
+  }, []);
+
+  const handleFrameLoad = useCallback(() => {
+    if (channelRef.current && !channelRef.current.isReady()) {
+      channelRef.current.ping();
+    }
+  }, []);
 
   const jumpToSlide = useCallback(rawSlide => {
     const total = Math.max(1, Number(slideCtx.slideTotal) || 1);
@@ -337,12 +349,9 @@ export default function CompanionViewer({ modal, onClose, inlinePractice = null 
   }, [companionId, jumpToSlide, requestedSlide, state.status]);
 
   useEffect(() => {
-    const iframe = frameRef.current;
-    if (state.status !== 'ready' || !iframe || requestedSlide < 1) return undefined;
-    const syncInitialSlide = () => postToFrame({ kind: 'goto', slide: requestedSlide });
-    iframe.addEventListener('load', syncInitialSlide);
-    return () => iframe.removeEventListener('load', syncInitialSlide);
-  }, [postToFrame, requestedSlide, state.status]);
+    if (!frameDocKey || state.status !== 'ready' || requestedSlide < 1) return;
+    postToFrame({ kind: 'goto', slide: requestedSlide });
+  }, [frameDocKey, postToFrame, requestedSlide, state.status]);
 
   useEffect(() => {
     if (state.status !== 'ready' || typeof document === 'undefined') return undefined;
@@ -733,6 +742,7 @@ export default function CompanionViewer({ modal, onClose, inlinePractice = null 
           <div className="sh-comp-viewer__stage">
             <DiagramFrame
               frameRef={frameRef}
+              onLoad={handleFrameLoad}
               className="sh-comp-viewer__frame"
               html={state.html}
               title={state.companion?.title || ui('交互伴学页')}

@@ -122,6 +122,14 @@
     .board-card.is-done { opacity: 0.66; }
     .board-card.is-done .board-card__title { text-decoration: line-through; text-decoration-color: var(--decor-faint); color: var(--text-dim); }
     .board-card__head { display: flex; align-items: flex-start; gap: var(--space-2); }
+    .board-card__handle {
+      flex: none; width: var(--space-5); height: var(--space-6); display: inline-grid; place-items: center;
+      margin-left: calc(var(--space-1) * -1); border-radius: var(--radius-xs);
+      color: var(--text-muted); cursor: grab; touch-action: none;
+      transition: color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease);
+    }
+    .board-card__handle:hover { color: var(--text); background: var(--bg-hover); }
+    .board-card.is-dragging .board-card__handle { cursor: grabbing; }
     .board-check, .board-check:hover:not(:disabled) {
       flex: none; width: var(--space-6); height: var(--space-6); margin: 0; padding: 0; display: inline-grid; place-items: center;
       border: 1.5px solid var(--decor-faint); border-radius: 50%; background: transparent; color: transparent;

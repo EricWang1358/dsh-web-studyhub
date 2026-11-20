@@ -91,10 +91,13 @@ export default function BookToc({ entries, here, onGo, narrow, onClose, returnRe
   // A row goes there, and closes the slide-over (one handler, so the memoised list is not drawn again for nothing).
   const go = useCallback(id => { onGo(id); if (narrow) onClose(); }, [onGo, narrow, onClose]);
   const found = useCallback((row, words) => { onFound?.(row, words); if (narrow) onClose(); }, [onFound, narrow, onClose]);
-  // The index is made once for a book, when the first words are typed; typing stays ahead of the list.
+  // The index is made once per book on the first search and retained when the query is cleared, so re-searching avoids rebuilding it.
   const typed = useDeferredValue(query), searching = !!typed.trim();
-  const index = useMemo(() => (searching ? searchIndex(book) : null), [book, searching]);
-  const results = useMemo(() => (index ? searchBook(index, typed) : null), [index, typed]);
+  const [indexedBook, setIndexedBook] = useState(() => (searching ? book : null));
+  const needsIndex = searching || indexedBook === book;
+  if (searching && indexedBook !== book) setIndexedBook(book);
+  const index = useMemo(() => (needsIndex ? searchIndex(book) : null), [book, needsIndex]);
+  const results = useMemo(() => (searching && index ? searchBook(index, typed) : null), [searching, index, typed]);
   const weakLens = useMemo(() => (weakPoints ? filterWeakTocEntries(entries, weakPoints) : { weakCount: 0, entries: [] }), [entries, weakPoints]);
   const [localLens, setLocalLens] = useState('all');
   const lens = controlledLens ?? localLens;
