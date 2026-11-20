@@ -1,9 +1,10 @@
-import { createContext, useContext } from 'react';
+import { use, useContext } from 'react';
 import { createStore, useStore } from 'zustand';
-import { AppStoreContext } from './store.js';
+import { AppContext, AppStoreContext } from './store.js';
 
 export {
   APP_SLICE_KEYS,
+  AppContext,
   AppStoreContext,
   AppStoreProvider,
   createAppStore,
@@ -17,13 +18,9 @@ export {
   useAppSession,
   useAppShell,
   useAppSlice,
+  useAppStore,
+  useOptionalAppSelector,
 } from './store.js';
-
-/* The controller App builds from its hooks and hands to the shell's own parts (sidebar, top bar, dialogs, page adapters).
-   It is the app's internal wiring, so it is not for pages: a page reads the public services with useStudy()
-   (ui/study-context.jsx). Fields: language, host, data, connection, core, shell, nav, lib (state), set (setters), session, learn,
-   intents, drafts, notebooks, tour, inbox, sources, settingsEntry, dailyPlan, board. */
-export const AppContext = createContext(null);
 
 const EMPTY_STORE = createStore(() => null);
 const IDENTITY = (state) => state;
@@ -34,14 +31,15 @@ export const readerOpen = (modal) => modal?.type === 'source';
 /**
  * Backward-compatible facade returning the full app controller (or a selected slice when
  * passed a `selector` function). Reads from the Zustand `AppStoreContext` when mounted inside
- * `<App>`, and falls back seamlessly to `AppContext` for standalone component tests.
+ * `<App>` without subscribing to `AppContext`, and falls back seamlessly to `AppContext` for
+ * standalone component tests.
  */
 export function useApp(selector) {
   const store = useContext(AppStoreContext);
-  const legacy = useContext(AppContext);
   const pick = typeof selector === 'function' ? selector : IDENTITY;
   const fromStore = useStore(store ?? EMPTY_STORE, store ? pick : IDENTITY);
   if (store) return fromStore;
+  const legacy = use(AppContext);
   if (!legacy) throw new Error('useApp must be used inside <App>');
   return pick(legacy);
 }

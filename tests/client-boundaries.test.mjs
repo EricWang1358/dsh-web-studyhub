@@ -157,10 +157,11 @@ test('generated native modules resolve through classic chunk factories and share
   // Sound-effect MP3 assets (ui/sound-effects-assets.js) are also split into their own lazily loaded chunk, reached only via dynamic import when sound plays.
   const soundAssets = Object.entries(result.metafile.outputs).find(([, record]) => Object.keys(record.inputs).some(path => /ui[/]sound-effects-assets\.js$/.test(path)));
   assert.ok(soundAssets, 'the sound-effect assets have a chunk of their own');
+  assert.ok(!loadedAtBoot.includes(`${packageId}/${basename(soundAssets[0])}`), 'sound-effect assets stay optional at host activation');
   assert.ok(Object.values(result.metafile.outputs).every(record => !record.imports.some(edge => edge.kind !== 'dynamic-import' && basename(edge.path) === basename(soundAssets[0]))),
     'only a dynamic import reaches sound-effect assets');
   const loadedSoundAssets = await asyncModule(`./${basename(soundAssets[0])}`);
-  assert.ok(Object.keys(loadedSoundAssets).length > 0, 'the sound-effect chunk carries its audio assets');
+  assert.ok(Object.keys(loadedSoundAssets.BAKED_SAMPLE_DATA_URIS || {}).length > 0, 'the sound-effect chunk carries its audio assets');
   // StudyMath imports from its effect rather than React.lazy. Exercise that
   // package-local factory path and its shared engine before counting modules.
   const math = await asyncModule(`./${mathName}`);

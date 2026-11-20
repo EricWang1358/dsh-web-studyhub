@@ -1,6 +1,6 @@
 import { ui, uiFormat, uiLocale, errorMessage } from "./i18n.js";
 import { formatNumber, formatDay } from "./format.js";
-import React, { memo, useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
+import React, { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { AudioJobs } from "./audio/AudioJobs.jsx";
 import { PdfConvertHistory, PdfConvertJobs } from './PdfConvertJob.jsx';
 import CourseField, { parseCourses } from './CourseField.jsx';
@@ -62,7 +62,7 @@ import css from "./sources.css";
 import PermanentDeleteDialog from './components/PermanentDeleteDialog.jsx';
 import { idsOfDocuments, offerDocumentsArchived } from './archive-entries.js';
 import { useStudy } from './study-context.jsx';
-import { AppContext } from './app/app-context.js';
+import { useOptionalAppSelector } from './app/app-context.js';
 import { hasContext } from './capabilities.js';
 import { useRetrievalStatus } from './retrieval-status.js';
 import { HandOff } from './hand-off/HandOff.jsx';
@@ -419,7 +419,7 @@ const removePluginWarning = () => ui('删除资料前请启用题库和学习组
 
 export function RemoveDialog({ item, onClose, onRemoved, canRemove: canRemoveProp }) {
   const { busy, act } = useStudy();
-  const appData = useContext(AppContext)?.data;
+  const appData = useOptionalAppSelector((s) => s.data);
   const canRemove = canRemoveProp !== undefined ? Boolean(canRemoveProp) : (hasContext(appData, 'bank') && hasContext(appData, 'study'));
   const blocked = item.usedBy.length > 0 || !item.archived || !canRemove;
   async function confirm() {
@@ -443,7 +443,7 @@ export function RemoveDialog({ item, onClose, onRemoved, canRemove: canRemovePro
 
 export function BatchRemoveDialog({ items, onClose, onRemoved, canRemove: canRemoveProp }) {
   const { busy, act } = useStudy();
-  const appData = useContext(AppContext)?.data;
+  const appData = useOptionalAppSelector((s) => s.data);
   if (items.length === 1) return <RemoveDialog item={items[0]} onClose={onClose} onRemoved={item => onRemoved([item])} canRemove={canRemoveProp} />;
   const canRemove = canRemoveProp !== undefined ? Boolean(canRemoveProp) : (hasContext(appData, 'bank') && hasContext(appData, 'study'));
   const cited = items.filter(item => item.usedBy.length > 0);
@@ -477,8 +477,8 @@ function GroupHead({ expanded, onToggle, className = '', children }) {
 
 export default function Sources({ data, setModal, sourceForm, openAgent, onGenerate, onPractice, onOpenSources, onLegacyRetry, onOpenSettings, onBuildIndex, highlight }) {
   const { busy, act, call } = useStudy();
-  const app = useContext(AppContext);
-  const refresh = app?.core?.refresh;
+  const refresh = useOptionalAppSelector((s) => s.core?.refresh);
+  const showTask = useOptionalAppSelector((s) => s.nav?.show?.task);
   useInjectCss(css, "study-sources");
   const toast = useToast();
   const [scope, setScope] = usePageScope(data.root, 'sources', data.focus?.course ?? '*');
@@ -1132,9 +1132,9 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
                   {uiFormat('正在整理课程归属（{0} / {1}）…', [organizeDone, organizeTotal])}
                 </span>
                 <div className="source-organize-progress__actions">
-                  {activeOrganizeJob?.id && app?.nav?.show?.task && (
+                  {activeOrganizeJob?.id && showTask && (
                     <Button size="sm" variant="quiet" iconEnd="arrow-right" data-open-organize-task
-                      onClick={() => app.nav.show.task(activeOrganizeJob.id)}>{ui('查看任务')}</Button>
+                      onClick={() => showTask(activeOrganizeJob.id)}>{ui('查看任务')}</Button>
                   )}
                   <Button size="sm" variant="quiet" lock={busy} data-stop-organize onClick={stopOrganizeJob}>{ui('停止')}</Button>
                 </div>

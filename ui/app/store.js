@@ -4,8 +4,11 @@
    their own slice changes, while preserving the backward-compatible `useApp()`
    facade in `ui/app/app-context.js` for existing pages and tests. */
 
-import React, { createContext, useContext } from 'react';
+import React, { createContext, use, useContext, useLayoutEffect, useState } from 'react';
 import { createStore, useStore } from 'zustand';
+
+const EMPTY_STORE = createStore(() => undefined);
+const NOOP_SELECTOR = () => undefined;
 
 export const APP_SLICE_KEYS = Object.freeze([
   'language',
@@ -64,8 +67,20 @@ export function syncAppStore(store, nextSlices) {
   return true;
 }
 
+/** Legacy monolithic AppContext retained for standalone test harnesses that do not mount <AppStoreProvider>. */
+export const AppContext = createContext(null);
+
 /** Stable React context carrying the Zustand store API (reference never changes across renders). */
 export const AppStoreContext = createContext(null);
+
+/** Create and keep one per-<App> Zustand store synced with changed slice references. */
+export function useAppStore(slices) {
+  const [store] = useState(() => createAppStore(slices));
+  useLayoutEffect(() => {
+    syncAppStore(store, slices);
+  }, [store, slices]);
+  return store;
+}
 
 /** Provider convenience wrapper for tests and shell entry points. */
 export function AppStoreProvider({ store, children }) {
@@ -74,12 +89,29 @@ export function AppStoreProvider({ store, children }) {
 
 /**
  * Fine-grained Zustand selector hook: subscribes ONLY to `selector(state)` without
- * subscribing to the monolithic `AppContext`.
+ * subscribing to the monolithic `AppContext` when mounted inside `<App>` / `<AppStoreProvider>`.
+ * Falls back cleanly to `AppContext` (via React 19 conditional `use()`) in standalone legacy tests.
  */
 export function useAppSelector(selector) {
   const store = useContext(AppStoreContext);
-  if (!store) throw new Error('useAppSelector must be used inside <App> or <AppStoreProvider>');
-  return useStore(store, selector);
+  const selected = useStore(store ?? EMPTY_STORE, store ? selector : NOOP_SELECTOR);
+  if (store) return selected;
+  const legacy = use(AppContext);
+  if (!legacy) throw new Error('useAppSelector must be used inside <App> or <AppStoreProvider>');
+  return selector(legacy);
+}
+
+/**
+ * Optional fine-grained Zustand selector hook for components that may also render
+ * outside `<App>` (e.g. unit tests rendering a dialog or page directly).
+ * Subscribes ONLY to `selector(state)` inside `<App>` with zero `AppContext` coupling.
+ */
+export function useOptionalAppSelector(selector) {
+  const store = useContext(AppStoreContext);
+  const selected = useStore(store ?? EMPTY_STORE, store ? selector : NOOP_SELECTOR);
+  if (store) return selected;
+  const legacy = use(AppContext);
+  return legacy ? selector(legacy) : undefined;
 }
 
 /** Subscribe to a single top-level slice by key (e.g. `useAppSlice('nav')`, `useAppSlice('shell')`). */
