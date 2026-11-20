@@ -43,7 +43,8 @@ test('before the run: the estimate says how many materials get a question, and a
 
 test('before the run: more materials than one round holds, rounds waiting for the learner: the rest is named with the round they wait for', () => {
   const many = notes(40, 700), state = stateOf(many);
-  const estimate = estimateFromState('generate', { sourceIds: many.map(source => source.id), coverageLevel: 'full', autoComplete: false }, state, { language: 'zh' });
+  // At the staged density (完整, 10 per 10 000 characters) each 700-character note asks for one question: a round of 30 holds 30 of them.
+  const estimate = estimateFromState('generate', { sourceIds: many.map(source => source.id), coverageLevel: 'full', autoComplete: false, performance: { strategy: 'staged' } }, state, { language: 'zh' });
   const forecast = estimate.coverage.materials;
   assert.equal(forecast.selected, 40);
   assert.equal(forecast.planned, 30);

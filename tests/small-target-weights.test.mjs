@@ -18,7 +18,8 @@ import { pinStaged } from './helpers/staged-strategy.mjs';
 const fx = transcriptFixture();
 const state = { sources: fx.sources, decks: [], drafts: [], settings: {} };
 const ids = fx.sources.map(source => source.id);
-const planned = (args) => estimateFromState('generate', { sourceIds: ids, ...args }, state, { language: 'zh' });
+// The staged pipeline: a planning call per group of sections beside the importance calls (one pass, the default, has no planning call: the last test below).
+const planned = (args) => estimateFromState('generate', { sourceIds: ids, performance: { strategy: 'staged' }, ...args }, state, { language: 'zh' });
 
 test('the rule: a custom total of at most 10 questions, or fewer than a quarter of the sections, is not weighed by the model', () => {
   assert.equal(SMALL_TARGET_QUESTIONS, 10);
@@ -43,6 +44,9 @@ test('the estimate prices no importance calls for a small custom total, and stil
   // The same total, but with enough of the material asked for that the weights are worth their calls.
   const many = planned({ coverageLevel: 'standard', count: 40 });
   assert.ok(many.stages.find(item => item.id === 'plan').calls >= 5, 'a total of 40 over 81 sections is weighed');
+  // In one pass the only 'plan' calls are the importance calls: none for a small total, one per chunk of 20 sections for a level.
+  const quick = args => planned({ ...args, performance: { strategy: 'one-pass' } }).stages.find(item => item.id === 'plan')?.calls ?? 0;
+  assert.deepEqual([quick({ coverageLevel: 'standard', count: 4 }), quick({ coverageLevel: 'standard' })], [0, 5]);
 });
 
 async function library(t) {
