@@ -110,6 +110,7 @@ test('the setting chooses: strategy "staged", or a kind one pass does not write,
     assert.ok(model.log.asks.length >= 1, 'planned first');
     assert.ok(!seen.some(system => system.includes('every card in one pass')));
     assert.ok(deck.cards.length >= 1);
+    assert.equal(deck.editorial.generation.performance.strategy, 'staged', 'the draft records the strategy that wrote it, not the setting');
   }
 });
 

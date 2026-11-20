@@ -10,8 +10,8 @@ import { createFakeModel } from '../scripts/fake-model.mjs';
 const EFFORTS = { effortPlanning: 'follow', effortReview: 'follow', effortWriting: 'low', effortRepair: 'low', applySuggestions: false };
 const original = { kind: 'flashcard', count: 7, language: 'English', difficulty: 'foundation', focus: 'Explain independent deployment',
   concurrency: 1, batchSize: 2, jobTimeoutMinutes: 5, fillRounds: 2, ...EFFORTS, notation: 'auto' };
-// 出题方式: a new run takes the default (one pass); a draft recorded before the setting existed goes on staged (lib/generation-settings.js).
-const performance = ({ concurrency, batchSize, jobTimeoutMinutes, fillRounds = 2, strategy = 'one-pass' }) => ({ concurrency, batchSize, jobTimeoutMinutes, fillRounds, ...EFFORTS, strategy });
+// 出题方式: the draft records the strategy that wrote it; these runs ask for a number of questions, which one pass does not serve, so they are written staged.
+const performance = ({ concurrency, batchSize, jobTimeoutMinutes, fillRounds = 2, strategy = 'staged' }) => ({ concurrency, batchSize, jobTimeoutMinutes, fillRounds, ...EFFORTS, strategy });
 const text = 'Microservices split a system into independently deployable services that own their data. ' +
   'Event-driven architecture lets services react to events published by others, which decouples producers from consumers. ' +
   'Relational databases give ACID transactions for payments and settlements. ';

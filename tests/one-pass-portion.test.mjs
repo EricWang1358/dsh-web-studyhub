@@ -180,6 +180,17 @@ test('a stop in one review call is passed on only after its sibling calls have s
   assert.equal(siblingDone, true, 'the sibling review had finished when the portion failed');
 });
 
+test('a rewrite that moves which option is correct is not taken: the program checks the correct option stayed where it was', async () => {
+  const world = material({ sections: 1, quota: 1 });
+  const long = card => ({ ...card, options: card.options.map(option => option.correct ? { ...option, text: `${option.text}, as the rule for this exact reading and every later reading requires` } : option) });
+  const model = onePassModel({ write: data => writeAll(data).map(long),
+    // Even lengths, but the reply keys the SECOND option as correct.
+    rewrite: data => ({ cards: data.cards.map(card => ({ index: card.index, options: card.options.map((option, index) => ({ ...option, text: option.correct ? 'It keeps the value below its limit' : option.text, correct: index === 1 })) })) }) });
+  const result = await run(model, world);
+  assert.equal(result.deck.cards.length, 0, 'the rewrite is refused, so the answer still stands out and the card is dropped');
+  assert.match(result.deck.editorial.omitted[0].reasons.join(' '), /option cue \(length\)/);
+});
+
 test('a portion that kept nothing because its review calls failed is written again by a fill round, not a final quality failure', async () => {
   const world = material({ sections: 1, sentences: 4, quota: 3 });
   const model = onePassModel({ raw: { review: () => { throw transient(); } } });
