@@ -193,3 +193,6 @@
 16. **设置放在「高级生成控制」**（现有的更多设置折叠区）的「生成安排」第一项，说明用悬停 Tooltip，不用 `title=`。
 17. **golden 测试固定 `strategy: 'staged'`**（它们测的是逐题精出的行为），fixture 只多了 `strategy` 这一键。其他测逐题精出机制的测试（assigned-batch、plain-failure-exec、reviewed-fingerprint、rounds-isolate-failures）同样固定为 staged。
 18. 所有调参数字在 lib/one-pass/limits.js 一处。
+19. **写题提示词默认用情景式（owner 2026-11-21）**：原型 6 的 WHAT TO TEST / HOW TO ASK / EXPLANATION 三段替换第三轮那句「能放进小情景就放进去」。写法的文字只放在 lib/one-pass/write-style.js 一处，按 style 键选（`scenario` 默认，`quick` 是第三轮的原句），`writePrompts(…, { style })` 取用；还没有对应的设置、界面或预设（密度 × 深度的预设留给后续改动）。原型里的「用简体中文写」没有搬过来，仍按请求的内容语言写。
+20. **最后一次「考同一事实」合并调用**（原型 5/6）：程序按考点和引文合并之后，再把全部保留下来的一次写完的题（考点 + 题干）一次发给模型分组，每组按阅读顺序留第一道，其余记为 omitted（原因 `…tests the same fact`）。它是这一轮的一个审阅步骤（stage 为 Reviewing…，`unit: merge`，不属于任何 Part）。少于 2 道题、多于 `sameFactCards`（600）道题、或 token 上限已用完时不调用（避免已完成的运行被预算停止）；回复读不出来时再问一次，仍失败或调用失败就保留全部题，只有运行本身被停止才按停止处理。逐题精出的题不送去合并。
+21. **回复是坏 JSON 时再问一次**（lib/one-pass/reply.js askJson，写题、改写、审阅、合并都用）和**一题都没有的小节单独再问一次**（第 5 条）在这之前已经实现。
