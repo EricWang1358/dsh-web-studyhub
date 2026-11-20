@@ -51,17 +51,17 @@ const edit = (view, key, value) => { const { props } = control(view, key); retur
 const submit = view => view.render().props.onSubmit({ preventDefault() {} });
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
 
-test('the generation settings section renders twenty-four controls without model groups (hiding lightModel) and twenty-five with model groups, with shared limits in both languages', () => {
+test('the generation settings section renders twenty-five controls without model groups (hiding lightModel) and twenty-six with model groups, with shared limits in both languages', () => {
   const groups = [{ id: 'preview', name: 'Preview', models: [{ id: 'fast', name: 'Fast' }] }];
   for (const language of ['zh', 'en']) {
     ssr.setUiLanguage(language);
     const htmlNoGroups = renderToStaticMarkup(React.createElement(ssr.GenerationSettings, { root: '/temporary/library', act: noop }));
-    assert.equal((htmlNoGroups.match(/<(?:input|select|textarea)\b/g) || []).length, 24, `${language}: hides lightModel when no modelGroups`);
+    assert.equal((htmlNoGroups.match(/<(?:input|select|textarea)\b/g) || []).length, 25, `${language}: hides lightModel when no modelGroups`);
     assert.doesNotMatch(htmlNoGroups, /name="lightModel"/);
     const html = renderToStaticMarkup(React.createElement(ssr.GenerationSettings, { root: '/temporary/library', act: noop, modelGroups: groups }));
     assert.match(html, /data-tour="settings-generation"/);
     assert.match(html, /data-tour="settings-generation-time"[^>]*>(?:(?!<div class="sh-field).)*name="jobTimeoutMinutes"/, 'the Jobs page links to the field of the time limit');
-    assert.equal((html.match(/<(?:input|select|textarea)\b/g) || []).length, 25);
+    assert.equal((html.match(/<(?:input|select|textarea)\b/g) || []).length, 26);
     const types = [...html.matchAll(/<input[^>]*type="checkbox"[^>]*name="kinds-(\w+)"[^>]*>/g)];
     assert.deepEqual(types.map(match => match[1]), ['quiz', 'multi', 'truefalse', 'flashcard', 'open', 'cloze', 'task'], 'the default question types are seven checkboxes, not a select');
     assert.deepEqual(types.map(match => /checked/.test(match[0])), [true, false, false, false, false, false, false], 'single choice is ticked by default');
@@ -249,4 +249,20 @@ test('lightModel offers following the generation model by default, lists host mo
   edit(view, 'lightModel', JSON.stringify(['preview', 'fast-model']));
   await submit(view);
   assert.equal(calls[0].args.generation.lightModel, JSON.stringify(['preview', 'fast-model']));
+});
+
+test('出题方式 is a choice of two under the advanced controls, one pass by default, explained by a hover card and never a title attribute', () => {
+  for (const [language, labels, tip] of [['zh', ['快速铺题（默认）', '逐题精出'], /快速铺题：每段资料一次写完/], ['en', ['Quick pass (default)', 'Step by step'], /Quick pass: each part of the material/]]) {
+    ssr.setUiLanguage(language);
+    const markup = renderToStaticMarkup(React.createElement(ssr.GenerationSettings, { root: '/temporary/library', act: noop }));
+    const select = markup.match(/<select[^>]*name="strategy"[^>]*>(.*?)<\/select>/);
+    assert.ok(select, `${language}: the select is there`);
+    assert.deepEqual([...select[1].matchAll(/<option[^>]*value="([^"]+)"[^>]*>([^<]*)</g)].map(match => [match[1], match[2]]), [['one-pass', labels[0]], ['staged', labels[1]]]);
+    assert.match(select[0], /value="one-pass"[^>]*selected|selected[^>]*value="one-pass"/, `${language}: one pass is chosen by default`);
+    assert.match(markup, tip, `${language}: the hover card says what each way does`);
+    assert.doesNotMatch(select[0], /\btitle=/);
+    const advanced = markup.indexOf(language === 'zh' ? '高级生成控制' : 'Advanced generation controls');
+    assert.ok(advanced > 0 && markup.indexOf('name="strategy"') > advanced, `${language}: not on the main path, inside the advanced controls`);
+  }
+  ssr.setUiLanguage('zh');
 });

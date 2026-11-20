@@ -32,7 +32,7 @@ test('a coverage estimate says what the level means and prices every round, the 
   const [lean, full] = [estimate({ coverageLevel: 'lean' }), estimate({ coverageLevel: 'full' })];
   assert.ok(lean.coverage.goal < standard.coverage.goal && standard.coverage.goal < full.coverage.goal);
   assert.ok(lean.totalTokens.low < standard.totalTokens.low && standard.totalTokens.low < full.totalTokens.low, 'more questions cost more tokens');
-  assert.deepEqual(standard.coverage.levels.lean, { goal: lean.coverage.goal, sections: lean.coverage.sections });
+  assert.deepEqual(standard.coverage.levels.lean, { goal: lean.coverage.goal, goalLow: lean.coverage.goalLow, sections: lean.coverage.sections });
   assert.equal(JSON.stringify(estimate({ coverageLevel: 'standard' })), JSON.stringify(standard), 'deterministic');
 });
 
@@ -102,4 +102,16 @@ test('#945: multi-round coverage estimation prices planned rounds and fillRounds
 
   const withThinking = calibrateEstimate(autoAll, null, null);
   assert.ok(withThinking.totalTokens.high >= 10_000_000, `197-question 7-round high bound (${withThinking.totalTokens.high}) covers ~10M actual trajectory (#945)`);
+});
+
+test('a run written in one pass forecasts a range of questions: the plan is the upper end; the staged pipeline and other kinds keep the one number', () => {
+  const quick = estimate({ coverageLevel: 'standard' });
+  assert.ok(quick.coverage.goalLow >= 1 && quick.coverage.goalLow < quick.coverage.goal, 'the lower end allows for dropped questions');
+  assert.equal(quick.coverage.goalLow, Math.floor(quick.coverage.goal * 0.8));
+  assert.ok(Object.values(quick.coverage.levels).every(level => level.goalLow < level.goal));
+  for (const other of [estimate({ coverageLevel: 'standard', performance: { strategy: 'staged' } }), estimate({ coverageLevel: 'standard', kinds: ['flashcard'] }),
+    estimate({ coverageLevel: 'standard' }, { settings: { generation: { strategy: 'staged' } } })]) {
+    assert.equal(other.coverage.goalLow, undefined);
+    assert.equal(other.coverage.goal, quick.coverage.goal, 'the same plan');
+  }
 });

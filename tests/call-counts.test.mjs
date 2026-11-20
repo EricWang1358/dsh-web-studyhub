@@ -76,3 +76,9 @@ test('the runtime gateway keeps the counts on the call, set before the call ends
   assert.ok(plain);
   assert.equal(record.calls[1].counts, undefined);
 });
+
+test('a one-pass review reply counts its verdicts', () => {
+  const reply = JSON.stringify({ reviews: [{ index: 0, verdict: 'pass', blocker: 0, issue: '' }, { index: 1, verdict: 'fail', blocker: 3, issue: 'The hint gives it away.' }, { index: 2, verdict: 'maybe' }] });
+  assert.deepEqual(replyCounts('review', reply), { reviewed: 2, passed: 1, flagged: 1 });
+  assert.equal(replyCounts('review', JSON.stringify({ reviews: [] })), undefined);
+});

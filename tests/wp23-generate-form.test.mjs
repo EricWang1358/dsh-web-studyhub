@@ -93,6 +93,21 @@ test("the three levels, their words and the line that says what a choice means f
   } finally { setUiLanguage("zh"); }
 });
 
+test("a one-pass forecast is a range in every line that says the count; a forecast without a lower end keeps its one number", () => {
+  const coverage = { level: "standard", goal: 30, goalLow: 24, sections: 9, leaves: 9, units: "part", rounds: 1, levels: { lean: { goal: 15, goalLow: 12, sections: 5 }, standard: { goal: 30, goalLow: 24, sections: 9 }, full: { goal: 1, goalLow: 1, sections: 1 } } };
+  assert.equal(form.coverageLead(coverage), "标准：约 24–30 道题，覆盖 9/9 个小节，一轮出完，");
+  assert.equal(form.coverageLead({ ...coverage, custom: true }), "自定义：24–30 道题，覆盖 9/9 个小节，一轮出完，");
+  assert.equal(form.levelsLine(coverage), "精简约 12–15 题 · 标准约 24–30 题 · 完整约 1 题", "a range that would read 1–1 is one number");
+  assert.equal(form.summaryLine({ materials: 2, count: 30, low: 24 }), "将从 2 份资料出 24–30 题 · 混合难度 · 中文");
+  assert.equal(form.summaryLine({ materials: 2, count: 30 }), "将从 2 份资料出 30 题 · 混合难度 · 中文");
+  try {
+    setUiLanguage("en");
+    assert.equal(form.coverageLead(coverage), "Standard: about 24–30 questions, covering 9/9 sections, in one round. ");
+    assert.equal(form.levelsLine(coverage), "Lean about 12–15 · Standard about 24–30 · Full about 1");
+    assert.match(form.summaryLine({ materials: 2, count: 30, low: 24 }), /24–30 questions/);
+  } finally { setUiLanguage("zh"); }
+});
+
 test("selectionStats counts documents, PDF pages and plain-text size", () => {
   const sources = [
     ...[1, 2, 3].map((page) => ({ id: `p${page}`, title: `a.pdf · p.${page}`, text: "x".repeat(500), document: { id: "h".repeat(64), format: "pdf", page } })),

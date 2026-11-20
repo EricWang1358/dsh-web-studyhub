@@ -170,9 +170,15 @@ export function coverageLead(coverage) {
   if (!coverage?.goal) return '';
   const rounds = coverage.rounds > 1 ? uiFormat('分 {0} 轮', [coverage.rounds]) : ui('一轮出完');
   const parts = countOf(coverage.units, coverage.leaves);
+  // A run written in one pass says a range (lib/one-pass/route.js questionRange): its plan is the upper end, some questions may be dropped.
+  if (rangeOf(coverage)) return coverage.custom ? uiFormat('自定义：{0}–{1} 道题，覆盖 {2}/{3}，{4}，', [coverage.goalLow, coverage.goal, coverage.sections, parts, rounds])
+    : uiFormat('{0}：约 {1}–{2} 道题，覆盖 {3}/{4}，{5}，', [levelLabel(coverage.level), coverage.goalLow, coverage.goal, coverage.sections, parts, rounds]);
   return coverage.custom ? uiFormat('自定义：{0} 道题，覆盖 {1}/{2}，{3}，', [coverage.goal, coverage.sections, parts, rounds])
     : uiFormat('{0}：约 {1} 道题，覆盖 {2}/{3}，{4}，', [levelLabel(coverage.level), coverage.goal, coverage.sections, parts, rounds]);
 }
+
+/** Whether a forecast of questions is a range: a one-pass run's lower end (`goalLow`) below its plan (`goal`). */
+const rangeOf = (forecast) => Number.isInteger(forecast?.goalLow) && forecast.goalLow >= 1 && forecast.goalLow < forecast.goal;
 
 /** The same estimate without the level and the count (the form's summary line says those, once): 「覆盖 81/81 个小节，分 12 轮，」 (the estimate's tokens and calls follow). */
 export function coverageStructure(coverage) {
@@ -185,7 +191,8 @@ export function coverageStructure(coverage) {
 /** The three levels side by side for the same sources: 「精简约 172 题 · 标准约 343 题 · 完整约 500 题」. */
 export function levelsLine(coverage) {
   if (!coverage?.levels) return '';
-  return LEVELS.filter(level => coverage.levels[level]).map(level => uiFormat('{0}约 {1} 题', [levelLabel(level), coverage.levels[level].goal])).join(META_DOT);
+  return LEVELS.filter(level => coverage.levels[level]).map(level => { const forecast = coverage.levels[level];
+    return rangeOf(forecast) ? uiFormat('{0}约 {1}–{2} 题', [levelLabel(level), forecast.goalLow, forecast.goal]) : uiFormat('{0}约 {1} 题', [levelLabel(level), forecast.goal]); }).join(META_DOT);
 }
 
 /** One line on what the chosen difficulty means. */
@@ -263,12 +270,13 @@ export function chosenOptions(gen = {}, plain = {}) {
 }
 
 /** The sentence above the submit button: what will be made, from what, and about how long it takes. `count` is the number of questions the plan makes (the estimate's goal); without it the sentence leaves the number out.
+ *  `low`: the lower end of a one-pass run's range (the estimate's goalLow): the sentence then says 「出 8–10 题」.
  *  `choices: false` leaves out the difficulty and the language: 创建题组's bar says the count, and those two are the form's own settings (#1082). The pieces are joined by 「 · 」. */
-export function summaryLine({ materials = 0, pages = 0, count = null, difficulty = 'mixed', language = '中文', minutes = null } = {}, { choices = true } = {}) {
+export function summaryLine({ materials = 0, pages = 0, count = null, low = null, difficulty = 'mixed', language = '中文', minutes = null } = {}, { choices = true } = {}) {
   if (!(materials > 0)) return '';
   const sources = materials === 1 ? ui('1 份资料') : uiFormat('{0} 份资料', [materials]);
   const total = Number.isFinite(Number(count)) && Number(count) >= 1 ? clampCount(count) : null;
-  const questions = total === null ? '' : total === 1 ? ui('1 题') : uiFormat('{0} 题', [total]);
+  const questions = total === null ? '' : rangeOf({ goal: total, goalLow: low }) ? uiFormat('{0}–{1} 题', [low, total]) : total === 1 ? ui('1 题') : uiFormat('{0} 题', [total]);
   const size = pages > 0 ? (pages === 1 ? ui('约 1 页') : uiFormat('约 {0} 页', [pages])) : '';
   const what = total === null ? (size ? uiFormat('将从 {0}（{1}）出题', [sources, size]) : uiFormat('将从 {0}出题', [sources]))
     : size ? uiFormat('将从 {0}（{1}）出 {2}', [sources, size, questions]) : uiFormat('将从 {0}出 {1}', [sources, questions]);

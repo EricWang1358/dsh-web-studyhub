@@ -195,7 +195,7 @@ export default function Generate({
   const plannedCoverage = planned.status === 'ready' ? planned.estimate?.coverage : null, plannedGoal = plannedCoverage?.goal ?? null;
   // A summary promises questions: not for a button that is off (the reason is said below), and for the steps it is their own total.
   const blocked = !pathMode && advice.blocked;
-  const summary = pathMode ? pathSummary(path.included) : blocked ? '' : summaryLine({ ...stats, count: plannedGoal, difficulty: gen.difficulty, language: gen.language, minutes: plannedGoal ? estimateMinutes(data.jobs, plannedGoal) : null }, { choices: false });
+  const summary = pathMode ? pathSummary(path.included) : blocked ? '' : summaryLine({ ...stats, count: plannedGoal, low: plannedCoverage?.goalLow ?? null, difficulty: gen.difficulty, language: gen.language, minutes: plannedGoal ? estimateMinutes(data.jobs, plannedGoal) : null }, { choices: false });
   // The plan is priced for these materials: the tokens in the bar, the rest of the plan under it.
   const estimating = !pathMode && !blocked && selectedSources.length > 0 && !referenceState.reason;
   const barRoom = useStickyRoom('--generate-bar-room');

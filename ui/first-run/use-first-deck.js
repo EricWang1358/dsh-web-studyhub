@@ -28,10 +28,10 @@ export function firstDeckBlock({ sources = [], sourceIds = [], gen = {} } = {}) 
 }
 
 /** The one line of what will be made: 创建题组's summary sentence (materials, the planned count once known, difficulty, language, time from earlier runs) and the types. */
-export function firstDeckSummary({ data, gen, sourceIds, goal = null }) {
+export function firstDeckSummary({ data, gen, sourceIds, goal = null, low = null }) {
   if (!sourceIds.length) return '';
   const stats = selectionStats(data?.sources || [], sourceIds);
-  const sentence = summaryLine({ ...stats, count: goal, difficulty: gen.difficulty, language: gen.language, minutes: goal ? estimateMinutes(data?.jobs, goal) : null });
+  const sentence = summaryLine({ ...stats, count: goal, low, difficulty: gen.difficulty, language: gen.language, minutes: goal ? estimateMinutes(data?.jobs, goal) : null });
   return [sentence, kindsLabel(kindsOfForm(gen))].filter(Boolean).join(META_DOT);
 }
 
@@ -52,7 +52,8 @@ export function useFirstDeck({ data, gen, setGen, deck, reasoningEffort = '', se
   // A selection that cannot be sent as it is (block) is neither summed up nor estimated, as 创建题组 says no summary over a button that is off: the line says why.
   const estimate = useUsageEstimate(call, request, { enabled: ready && sourceIds.length > 0 && !block });
   const goal = estimate.status === 'ready' ? estimate.estimate?.coverage?.goal ?? null : null;
-  const summary = ready && !block ? firstDeckSummary({ data, gen, sourceIds, goal }) : '';
+  const low = estimate.status === 'ready' ? estimate.estimate?.coverage?.goalLow ?? null : null;
+  const summary = ready && !block ? firstDeckSummary({ data, gen, sourceIds, goal, low }) : '';
   const start = () => (ready && !block && sourceIds.length && act ? startGeneration({ act, notify, setGen, data, gen, course, sourceIds }) : undefined);
   return { summary, estimate, block, start, sourceIds };
 }
