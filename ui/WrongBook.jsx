@@ -1,4 +1,4 @@
-import { ui, uiFormat, errorMessage } from "./i18n.js";
+import { ui, uiFormat, errorMessage, getUiLanguage } from "./i18n.js";
 import React, { memo, useCallback, useContext, useDeferredValue, useEffect, useId, useMemo, useRef, useState } from "react";
 import css from "./views.css";
 import wrongCss from "./wrongbook.css";
@@ -24,7 +24,7 @@ import ModelSetupGate from './ModelSetupGate.jsx';
 import { modelReadiness } from './generation-status.js';
 import { similarWinLine } from './review/similar-words.js';
 import { buildWrongbookClinic } from './wrongbook-clinic.js';
-import { FILTER_MIN, NO_FILTER, PRACTICE_SCOPE_CAP, RECS_PREVIEW, SORT_KINDS, STATUS_KINDS, VARIANT_BATCH_CAP, capPracticeScope, deckChoices, filterActive, filterRows, groupRows, groupSummaryText, leechCount, leechRetellNote, leechWords, practiceCappedText, readGroupBy, readOpenGroups, readSortBy, reasonText, retrainOptions,
+import { FILTER_MIN, NO_FILTER, PRACTICE_SCOPE_CAP, RECS_PREVIEW, SORT_KINDS, STATUS_KINDS, VARIANT_BATCH_CAP, capPracticeScope, deckChoices, filterActive, filterRows, groupRows, groupSummaryText, leechCount, leechRetellNote, leechTriageView, leechWords, practiceCappedText, readGroupBy, readOpenGroups, readSortBy, reasonText, retrainOptions,
   sameVariantState, saveGroupBy, saveSortBy, sortGroupRows, rescueCall, rescueExperimentStatusText, rescueGate, rescueNote, takeArrival, undoPauseCall, readSignature, rowsAwaitingDetail, saveOpenGroups, scopedFilter, shortDeckNames, statusCounts, statusLabel, statusOf, variantFailureText, variantState } from './wrongbook-model.js';
 import { useStudy } from './study-context.jsx';
 import { AppContext } from './app/app-context.js';
@@ -99,34 +99,62 @@ const rescueTip = (kind) => kind === 'experiment'
       ? tip(ui('记下「太难」，写一张更基础的前置小卡（调用轻量模型）；没有可用模型时会提示先配好模型，未开启后台准备时会先在这里请你确认。'), ui('写好后放进「为你定制」。'))
       : tip(ui('暂停后，这道题不再出现在练习和错题里，也不调用模型。'), ui('在题组的管理页点「恢复学习」可以恢复。'));
 
-/** Highlighted single recommendation + collapsed "Other ways" disclosure for a question that keeps being failed (5.0.0 §2.1 control budget). */
-function LeechRescue({ item, course, detail, companionTarget, experimentState, disabled, rescuePrompt, rescuing, canOpenModel, canOpenSettings, initialOtherOpen = false, onRescue, onStartExperiment, onOpenExperiment, onDismissRescue, onOpenModel, onOpenProfileSettings }) {
+/** Highlighted single recommendation + collapsed "Other ways" disclosure for a question that keeps being failed (5.0.0 §2.1 & §3.5.3 #2). */
+function LeechRescue({ item, course, detail, companionTarget, experimentState, disabled, rescuePrompt, rescuing, canOpenModel, canOpenSettings, initialOtherOpen = false, onRescue, onStartExperiment, onOpenExperiment, onOpenConfusable, onOpenBook, onPracticePrereq, onDismissRescue, onOpenModel, onOpenProfileSettings }) {
   const { host } = useStudy();
   const canChat = hasChatHost(host);
   const [otherOpen, setOtherOpen] = useState(Boolean(initialOtherOpen));
+  const [confusableBusy, setConfusableBusy] = useState(false);
   const otherId = useId();
   const retellNote = leechRetellNote(item?.retell);
+  const rec = leechTriageView(item);
   const experimentRunning = experimentState?.status === 'starting' || experimentState?.status === 'running';
   const readyCompanion = experimentState?.status === 'ready' && experimentState?.companionId
     ? { companionId: experimentState.companionId, course: experimentState.course || course, slide: 1, anchor: '#1', companionTitle: experimentState.title || '', lessonMode: 'rescue' }
     : (companionTarget?.lessonMode === 'rescue' ? companionTarget : null);
   const hasDetail = detail && detail !== 'loading' && !detail?.error;
+  const runConfusable = async () => {
+    if (!onOpenConfusable || confusableBusy) return;
+    setConfusableBusy(true);
+    try { await onOpenConfusable(rec.triage, item, rec.triage.course || course); } finally { setConfusableBusy(false); }
+  };
+  const experimentBtn = (variant) => (readyCompanion && onOpenExperiment ? (
+    <Button variant={variant} size="sm" iconEnd="arrow-right" data-rescue="experiment-open" disabled={disabled}
+      onClick={() => onOpenExperiment(readyCompanion)}>{ui("打开 4 页交互实验")}</Button>
+  ) : (
+    <Tooltip layer content={rescueTip('experiment')}>
+      <Button variant={variant} size="sm" icon="sparkle" data-rescue="experiment" busy={experimentRunning}
+        disabled={disabled || experimentRunning} lock={rescuing}
+        onClick={() => onStartExperiment?.(item, hasDetail ? detail : null)}>{ui("做一个 4 页交互实验")}</Button>
+    </Tooltip>
+  ));
+  const prereqRefs = rec.triage.prereqRefs?.length ? rec.triage.prereqRefs : (rec.triage.prereq ? [rec.triage.prereq] : []);
   return (
-    <div className="wb-sub wb-leech">
+    <div className="wb-sub wb-leech" data-triage-route={rec.route}>
       <h4>{ui("这道题总是答错")}</h4>
-      <p className="muted">{ui("先做一次针对你上次选错点的 4 页交互实验，再决定要不要接着练：")}</p>
+      <p className="muted" data-rescue-lead={rec.route}>{rec.lead}</p>
       {retellNote && <p className="muted wb-leech__retell" data-retell-signal={retellNote.signal}>{retellNote.text}</p>}
       <div className="wb-leech__primary">
-        {readyCompanion && onOpenExperiment ? (
-          <Button variant="secondary" size="sm" iconEnd="arrow-right" data-rescue="experiment-open" disabled={disabled}
-            onClick={() => onOpenExperiment(readyCompanion)}>{ui("打开 4 页交互实验")}</Button>
-        ) : (
-          <Tooltip layer content={rescueTip('experiment')}>
-            <Button variant="secondary" size="sm" icon="sparkle" data-rescue="experiment" busy={experimentRunning}
-              disabled={disabled || experimentRunning} lock={rescuing}
-              onClick={() => onStartExperiment?.(item, hasDetail ? detail : null)}>{ui("做一个 4 页交互实验")}</Button>
+        {rec.route === 'confusable_contrast' && (
+          <Button variant="secondary" size="sm" iconEnd="arrow-right" data-rescue="confusable" busy={confusableBusy}
+            disabled={disabled || !onOpenConfusable}
+            onClick={runConfusable}>{rec.actionLabel}</Button>
+        )}
+        {rec.route === 'book_retell' && (
+          <Button variant="secondary" size="sm" iconEnd="arrow-right" data-rescue="book-retell" disabled={disabled || !onOpenBook}
+            onClick={() => onOpenBook?.({ course: rec.triage.course || course, hid: rec.triage.hid || item.hid || '' })}>{rec.actionLabel}</Button>
+        )}
+        {rec.route === 'prereq_branch' && (
+          <Button variant="secondary" size="sm" iconEnd="arrow-right" data-rescue="prereq" disabled={disabled || !prereqRefs.length || !onPracticePrereq}
+            onClick={() => onPracticePrereq?.(prereqRefs, item)}>{rec.actionLabel}</Button>
+        )}
+        {rec.route === 'fix_question' && (
+          <Tooltip layer content={rescueTip('fix')}>
+            <Button variant="secondary" size="sm" data-rescue="fix" disabled={disabled} lock={rescuing}
+              onClick={() => onRescue('fix', item)}>{rec.actionLabel}</Button>
           </Tooltip>
         )}
+        {rec.route === 'rescue_companion' && experimentBtn('secondary')}
         <Button variant="quiet" size="sm" className="wb-leech__more-toggle" data-rescue-other-toggle=""
           aria-expanded={otherOpen} aria-controls={otherId} onClick={() => setOtherOpen((open) => !open)}>
           {otherOpen ? ui("收起其他办法") : ui("其他办法")}
@@ -191,7 +219,10 @@ function LeechRescue({ item, course, detail, companionTarget, experimentState, d
       )}
       {otherOpen && (
         <div id={otherId} className="wb-leech__actions wb-leech__other" data-rescue-other="">
-          <Tooltip layer content={rescueTip('fix')}><Button variant="quiet" size="sm" data-rescue="fix" disabled={disabled} lock={rescuing} onClick={() => onRescue('fix', item)}>{ui("这题有问题，交给后台修")}</Button></Tooltip>
+          {rec.route !== 'rescue_companion' && experimentBtn('quiet')}
+          {rec.route !== 'fix_question' && (
+            <Tooltip layer content={rescueTip('fix')}><Button variant="quiet" size="sm" data-rescue="fix" disabled={disabled} lock={rescuing} onClick={() => onRescue('fix', item)}>{ui("这题有问题，交给后台修")}</Button></Tooltip>
+          )}
           <Tooltip layer content={rescueTip('easier')}><Button variant="quiet" size="sm" data-rescue="easier" disabled={disabled} lock={rescuing} onClick={() => onRescue('easier', item)}>{ui("太难了，补一张前置小卡")}</Button></Tooltip>
           <HandOff id="question.stubborn" shape="quiet" what="让主会话和你一起看这道题：是你还没弄懂，还是题目本身有问题" disabled={disabled || rescuing}
             input={{ course, deckId: item.deckId, cardId: item.cardId, topic: item.topic || '', prompt: plainPrompt(item.prompt) }} />
@@ -319,7 +350,7 @@ function resolveCardSourceTarget(item, decks = [], sources = []) {
   return null;
 }
 
-function RowDetail({ id, item, course, detail, variants, recs, shortName, rescuePrompt, rescuing, experimentState, initialOtherOpen, canOpenModel, canOpenSettings, onPractice, onRescue, onStartExperiment, onDismissRescue, onOpenModel, onOpenProfileSettings, onOpenSource, companionTarget, onOpenCompanion, disabled }) {
+function RowDetail({ id, item, course, detail, variants, recs, shortName, rescuePrompt, rescuing, experimentState, initialOtherOpen, canOpenModel, canOpenSettings, onPractice, onRescue, onStartExperiment, onOpenConfusable, onOpenBook, onPracticePrereq, onDismissRescue, onOpenModel, onOpenProfileSettings, onOpenSource, companionTarget, onOpenCompanion, disabled }) {
   const yourAnswerText = detail && detail !== "loading" && !detail?.error
     ? (detail.selfGrade !== null && detail.selfGrade !== undefined ? uiFormat("自评 {0} 分", [detail.selfGrade]) : detail.yourAnswer)
     : "";
@@ -352,6 +383,7 @@ function RowDetail({ id, item, course, detail, variants, recs, shortName, rescue
           disabled={disabled} rescuePrompt={rescuePrompt} rescuing={rescuing} initialOtherOpen={initialOtherOpen}
           canOpenModel={canOpenModel} canOpenSettings={canOpenSettings}
           onRescue={onRescue} onStartExperiment={onStartExperiment} onOpenExperiment={onOpenCompanion}
+          onOpenConfusable={onOpenConfusable} onOpenBook={onOpenBook} onPracticePrereq={onPracticePrereq}
           onDismissRescue={onDismissRescue} onOpenModel={onOpenModel} onOpenProfileSettings={onOpenProfileSettings} />
       )}
       {variants.length > 0 && (
@@ -399,7 +431,7 @@ const sameRow = (a, b) => Object.keys(a).every((key) => (key === 'state' ? sameV
 
 /* One question. Memoised, so opening a group, typing in the search box or a status poll redraws only the rows whose own props changed (the
    `handlers` are stable). */
-const Row = memo(function Row({ it, metaText, query = "", isOpen, state, detail, sourceTarget = null, companionTarget = null, experimentState = null, initialOtherOpen = false, recItems, shortName, canGenerate, canPracticePrepared, disabled, variantDisabled, handlers, limits, course, rescuePrompt = null, rescuing = false, canOpenModel = false, canOpenSettings = false, history = false, mistake = "", showPractice = true }) {
+const Row = memo(function Row({ it, metaText, query = "", isOpen, state, detail, sourceTarget = null, companionTarget = null, experimentState = null, initialOtherOpen = false, recItems, shortName, canGenerate, canPracticePrepared, disabled, variantDisabled, handlers, limits, course, rescuePrompt = null, rescuing = false, canOpenModel = false, canOpenSettings = false, canOpenBook = false, canOpenConfusable = false, canPracticePrereq = false, history = false, mistake = "", showPractice = true }) {
   const detailId = `wb-detail-${it.cardId}`;
   const recs = useMemo(() => (isOpen ? relatedTo(recItems, it.cardId) : []), [isOpen, recItems, it.cardId]);
   const fullPrompt = plainPrompt(it.prompt);
@@ -445,6 +477,9 @@ const Row = memo(function Row({ it, metaText, query = "", isOpen, state, detail,
           variants={state.kind === "ready" ? state.prompts : []}
           recs={recs}
           onPractice={handlers.practiceRec} onRescue={handlers.rescue} onStartExperiment={handlers.startExperiment}
+          onOpenConfusable={canOpenConfusable ? handlers.openConfusable : undefined}
+          onOpenBook={canOpenBook ? handlers.openBook : undefined}
+          onPracticePrereq={canPracticePrereq ? handlers.practicePrereq : undefined}
           onDismissRescue={handlers.dismissRescue} onOpenModel={handlers.openModel} onOpenProfileSettings={handlers.openProfileSettings}
           onOpenSource={sourceTarget ? () => handlers.openSource(sourceTarget) : undefined}
           companionTarget={companionTarget}
@@ -719,9 +754,9 @@ export function wrongBookHeadline({ isHistory, counts, historyCount = 0, status 
 export function WrongBookView({
   data, course, onCourse, showInactive, onShowInactive, items, counts, view = "weak", onView, viewCounts, loading, err, page = 0, pageSize = PAGE_SIZE, hasMore, onReload, onPage,
   recs, recsLoading = false, coach, details = {}, onLoadDetail, onPractice, onPracticePrepared, onGenerate, onOpenSettings, onSettings,
-  onLibrary, onCreate, onSources, onRescue, onStartExperiment, onStartClusterExperiment, experimentJobs = null, onNotify, arrival, openKey, initial = {}, filterMin = FILTER_MIN,
+  onLibrary, onCreate, onSources, onOpenBook, onRescue, onStartExperiment, onStartClusterExperiment, onOpenConfusable, experimentJobs = null, onNotify, arrival, openKey, initial = {}, filterMin = FILTER_MIN,
 }) {
-  const { busy, openModal, host } = useStudy();
+  const { busy, call, openModal, host } = useStudy();
   const canChat = hasChatHost(host);
   useInjectCss(css, "study-views");
   useInjectCss(wrongCss, "study-wrongbook");
@@ -1052,6 +1087,40 @@ export function WrongBookView({
     if (!target || !openModal) return;
     openCompanionTarget(openModal, target, { returnLabel: ui("返回错题"), from: "wrongbook" });
   };
+  const openConfusable = async (triage, item, itemCourse) => {
+    if (onOpenConfusable) { await onOpenConfusable(triage, item, itemCourse); return; }
+    const pair = triage?.confusable;
+    const targetCourse = itemCourse || courseOfDeck.get(item?.deckId) || (course && course !== '*' ? course : '');
+    const hid = triage?.hid || pair?.hids?.find(Boolean) || item?.hid || '';
+    if (pair?.rows?.length && call && openModal) {
+      try {
+        const res = await call('companion.compile', {
+          confusables: [pair],
+          course: targetCourse || undefined,
+          ...(hid ? { hid } : {}),
+          language: getUiLanguage(),
+          mountMode: 'companion-only',
+        });
+        if (res?.companion?.id) {
+          openCompanionTarget(openModal, {
+            companionId: res.companion.id,
+            course: res.companion.course || targetCourse || '',
+            companionTitle: res.companion.title || '',
+            returnLabel: ui("返回错题"),
+            from: "wrongbook",
+          });
+          return;
+        }
+      } catch (failure) {
+        if (!onOpenBook) { setMessage({ tone: "error", text: errorMessage(failure) }); return; }
+      }
+    }
+    onOpenBook?.({ course: targetCourse, hid, view: 'lookup' });
+  };
+  const practicePrereq = (refs) => {
+    if (!Array.isArray(refs) || !refs.length || !onPractice) return;
+    practiceScope(refs);
+  };
   const toggleGroupDetails = (capRows, allExpanded) => {
     setExpanded((previous) => {
       const next = new Set(previous);
@@ -1116,7 +1185,7 @@ export function WrongBookView({
   };
   // The handlers every row shares; the row itself is memoised, so these must keep their identity from render to render.
   const latest = useRef(null);
-  latest.current = { openRow, generate, onPractice, onPracticePrepared, practiceRec, triggerRescue, triggerExperiment, dismissRescue, openModel, openProfileSettings, openCardSource, openCardCompanion };
+  latest.current = { openRow, generate, onPractice, onPracticePrepared, practiceRec, triggerRescue, triggerExperiment, openConfusable, onOpenBook, practicePrereq, dismissRescue, openModel, openProfileSettings, openCardSource, openCardCompanion };
   const handlers = useMemo(() => ({
     open: (item) => latest.current.openRow(item),
     generate: (item) => latest.current.generate([item]),
@@ -1125,6 +1194,9 @@ export function WrongBookView({
     practiceRec: (rec) => latest.current.practiceRec(rec),
     rescue: (kind, item, options) => latest.current.triggerRescue(kind, item, options),
     startExperiment: (item, detail) => latest.current.triggerExperiment(item, detail),
+    openConfusable: (triage, item, itemCourse) => latest.current.openConfusable(triage, item, itemCourse),
+    openBook: (target) => latest.current.onOpenBook?.(target),
+    practicePrereq: (refs) => latest.current.practicePrereq(refs),
     dismissRescue: () => latest.current.dismissRescue(),
     openModel: () => latest.current.openModel?.(),
     openProfileSettings: () => latest.current.openProfileSettings?.(),
@@ -1442,6 +1514,7 @@ export function WrongBookView({
                     canGenerate={!isHistory && canGenerate} canPracticePrepared={!!onPracticePrepared} disabled={busy} variantDisabled={busy || working} handlers={handlers} limits={limits} course={courseOfDeck.get(it.deckId) || ''} showPractice={isHistory || total !== 1}
                     rescuePrompt={activeRescuePrompt?.cardId === it.cardId ? activeRescuePrompt : null} rescuing={rescuingCard === it.cardId}
                     canOpenModel={!!openModel} canOpenSettings={!!openProfileSettings}
+                    canOpenBook={!!onOpenBook} canOpenConfusable={Boolean(onOpenConfusable || (call && openModal) || onOpenBook)} canPracticePrereq={!!onPractice}
                     history={isHistory} mistake={isHistory ? joinMeta([uiFormat("答错 {0} 次", [it.wrongCount ?? 0]), uiFormat("最近答错 {0}", [formatDateTime(it.lastWrongAt, "stamp")])]) : ""} />
                 )} />
               </ul>
@@ -1459,7 +1532,7 @@ export function WrongBookView({
   );
 }
 
-export default function WrongBook({ data, onPractice, onPracticePrepared, onOpenSettings, onLibrary, onCreate, onSources }) {
+export default function WrongBook({ data, onPractice, onPracticePrepared, onOpenSettings, onLibrary, onCreate, onSources, onOpenBook }) {
   const { call, act, openSettings, busy } = useStudy();
   const app = useContext(AppContext);
   const [pinnedCourse, setCourse] = usePageScope(data?.root, 'wrongbook', data?.focus?.course ?? '*');
@@ -1613,11 +1686,13 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
   const { jobs: experimentJobs, start: startRescueJob } = useRescueExperiments({ call, onCompleted: onRescueCompleted });
 
   const startExperiment = useCallback(async (item, _detail, itemCourse) => {
+    const errorReason = item.errorReason || item.triage?.reason || '';
     await startRescueJob(item.cardId, {
       course: itemCourse || '',
       deckId: item.deckId,
       cardIds: [item.cardId],
       ...(item.hid ? { hid: item.hid } : {}),
+      ...(errorReason ? { errorReason } : {}),
     });
   }, [startRescueJob]);
 
@@ -1702,6 +1777,6 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
       page={page} pageSize={PAGE_SIZE} hasMore={counts.total > PAGE_SIZE} onReload={load} onPage={load}
       recs={recs?.key === key ? recs : null} recsLoading={view === "weak" && !!items?.length && recs?.key !== key} coach={coach} details={details} onLoadDetail={loadDetail}
       onPractice={onPractice} onPracticePrepared={onPracticePrepared} onGenerate={generate} onOpenSettings={onOpenSettings} onSettings={openSettings}
-      onLibrary={onLibrary} onCreate={onCreate} onSources={onSources} onRescue={rescue} onStartExperiment={startExperiment} onStartClusterExperiment={startClusterExperiment} experimentJobs={experimentJobs} onNotify={(text) => toast.info(text)} arrival={arrived ? arrival : null} openKey={`study-wrongbook-open:v1:${data?.root || ""}`} />
+      onLibrary={onLibrary} onCreate={onCreate} onSources={onSources} onOpenBook={onOpenBook} onRescue={rescue} onStartExperiment={startExperiment} onStartClusterExperiment={startClusterExperiment} experimentJobs={experimentJobs} onNotify={(text) => toast.info(text)} arrival={arrived ? arrival : null} openKey={`study-wrongbook-open:v1:${data?.root || ""}`} />
   );
 }

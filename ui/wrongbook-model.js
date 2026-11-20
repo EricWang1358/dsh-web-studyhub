@@ -232,6 +232,41 @@ export function leechRetellNote(retell) {
     : { signal, text: ui('上次「用自己的话讲一遍」已经讲清楚，问题可能出在题干表述本身（AI 反馈，不计入评分）。') };
 }
 
+const LEECH_TRIAGE_ROUTES = new Set(['confusable_contrast', 'book_retell', 'rescue_companion', 'prereq_branch', 'fix_question', 'fsrs_only']);
+
+/** Resolve the single highlighted recommendation for a stubborn row from its projected 0-token triage route (5.0.0 §3.5.3 #2). */
+export function leechTriageView(item) {
+  const raw = item?.triage;
+  const route = LEECH_TRIAGE_ROUTES.has(raw?.route) ? raw.route : 'rescue_companion';
+  const triage = raw && LEECH_TRIAGE_ROUTES.has(raw.route) ? raw : { route, reason: null, source: 'default', tokens: 'light' };
+  if (route === 'confusable_contrast') {
+    const cid = triage.confusable?.id || '';
+    const names = Array.isArray(triage.confusable?.names) ? triage.confusable.names.filter(Boolean) : [];
+    const lead = names.length >= 2 && cid
+      ? uiFormat('这道题与「{0} / {1}」容易混淆（{2}），先做一次 0-token 对比辨析：', [names[0], names[1], cid])
+      : uiFormat('这道题命中了复习全书的易混对（{0}），先做一次 0-token 对比辨析：', [cid || 'C001']);
+    return { route, triage, lead, actionLabel: cid ? uiFormat('对比辨析 {0}', [cid]) : ui('对比辨析易混概念') };
+  }
+  if (route === 'book_retell') {
+    return { route, triage, lead: ui('先回到复习全书对应知识点，用自己的话讲一遍：'), actionLabel: ui('去全书讲一遍') };
+  }
+  if (route === 'prereq_branch') {
+    return { route, triage, lead: ui('这道题有未稳的前置题，先练前置打牢基础再回来：'), actionLabel: ui('先练前置题') };
+  }
+  if (route === 'fix_question') {
+    return { route, triage, lead: ui('这道题被标为题目本身存疑，建议先交给后台检查并修题：'), actionLabel: ui('这题有问题，交给后台修') };
+  }
+  if (route === 'fsrs_only') {
+    return { route, triage, lead: ui('按 FSRS 正常排程复习即可，暂不需要额外补救。'), actionLabel: '' };
+  }
+  const lead = triage.reason === 'condition'
+    ? ui('先针对漏看条件做一次 3–4 页交互实验，理清边界再练：')
+    : triage.reason === 'derivation'
+      ? ui('先针对推导卡点做一次 3–4 页交互实验，理顺步骤再练：')
+      : ui('先做一次针对你上次选错点的 4 页交互实验，再决定要不要接着练：');
+  return { route: 'rescue_companion', triage, lead, actionLabel: ui('做一个 4 页交互实验') };
+}
+
 /** Whether a 顽固题 rescue click can run right now, or should first offer inline model setup / main-chat hand-off / inline background-prep consent (#963, 5.0.0). */
 export function rescueGate(kind, { modelReady = true, consent = false, canChat = true } = {}) {
   if (kind === 'pause') return { type: 'run' };
