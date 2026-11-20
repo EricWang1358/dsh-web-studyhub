@@ -465,9 +465,9 @@ async function runProbe(ctx, config, report) {
   } finally {
     clearTimeout(timeout);
     if (!signal.aborted) controller.abort(new Error('S1-0 evidence work finished'));
-    if (parent && agents.get(parent.id) === parent) { try { parent.cancel({ kind: 'user' }); } catch {} }
+    if (parent && agents.get(parent.id) === parent) { try { parent.cancel({ kind: 'user' }); } catch { /* it has already ended */ } }
     for (const stop of producers) stop();
-    for (const stop of subscriptions.reverse()) { try { await stop(); } catch {} }
+    for (const stop of subscriptions.reverse()) { try { await stop(); } catch { /* teardown goes on to the next one */ } }
     // Cleanup is separately bounded; a timeout is failure, never quiescence proof.
     let cleanupTimer;
     const cleanupLimit = new Promise((_, reject) => { cleanupTimer = setTimeout(() => reject(new Error('S1-0 cleanup did not converge within 10 seconds')), 10_000); });

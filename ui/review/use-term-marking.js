@@ -279,9 +279,8 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
       ? run.solution.terms
       : []
   ), [candidates, session?.autoTerms, run]);
-  const resolvedCourse = typeof (courseName || run?.course) === "string"
-    ? (courseName || run?.course).replace(/\s+/g, " ").trim()
-    : "";
+  const courseText = courseName || run?.course;
+  const resolvedCourse = typeof courseText === "string" ? courseText.replace(/\s+/g, " ").trim() : "";
 
   const hasSessionMarking = typeof session?.markingTerms === "boolean";
   const [localMarking, setLocalMarking] = React.useState(false);
@@ -823,7 +822,7 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
         else CSS.highlights.delete(CANDIDATE_TERM_HIGHLIGHT_NAME);
         if (active.ranges.length) {
           const highlight = new Highlight(...active.ranges);
-          try { highlight.priority = 1; } catch {}
+          try { highlight.priority = 1; } catch { /* a browser without highlight priority draws in registration order */ }
           CSS.highlights.set(TERM_HIGHLIGHT_NAME, highlight);
         } else {
           CSS.highlights.delete(TERM_HIGHLIGHT_NAME);

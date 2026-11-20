@@ -139,7 +139,7 @@ test('a damaged engine reads 需要修复 with 修复 as its one button, in 课�
 });
 
 test('moving to another folder sends removePrevious; installing where it already is does not', () => {
-  assert.deepEqual(installArgs({ location: 'E:\StudyHub\LiveLocal', current: FOLDER }), { confirm: true, location: 'E:\StudyHub\LiveLocal', removePrevious: true });
+  assert.deepEqual(installArgs({ location: 'E:\\StudyHub\\LiveLocal', current: FOLDER }), { confirm: true, location: 'E:\\StudyHub\\LiveLocal', removePrevious: true });
   assert.deepEqual(installArgs({ location: FOLDER, current: FOLDER }), { confirm: true, location: FOLDER });
   assert.deepEqual(installArgs({ location: FOLDER.toLowerCase(), current: FOLDER }), { confirm: true, location: FOLDER.toLowerCase() });
   assert.deepEqual(installArgs({ location: FOLDER }), { confirm: true, location: FOLDER }, 'a first install has nothing to remove');

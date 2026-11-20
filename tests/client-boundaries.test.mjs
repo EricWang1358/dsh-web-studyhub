@@ -134,7 +134,7 @@ test('generated native modules resolve through classic chunk factories and share
   // A lazily loaded view may declare its own (the review-book editor inside the review book): load until no new boundary appears.
   for (let loaded = 0; loaded < lazyLoads.length;) { const batch = lazyLoads.slice(loaded); loaded = lazyLoads.length; await Promise.all(batch.map(load => load())); }
   // 看原页 asks pdf.js's wasm decoders, CMaps and fonts from its own lazily loaded chunks (assets/*.js); load each the way the peek does.
-  const assetOutputs = Object.entries(result.metafile.outputs).filter(([, record]) => Object.keys(record.inputs).some(path => /document-preview[\/]peek[\/]assets[\/]/.test(path)));
+  const assetOutputs = Object.entries(result.metafile.outputs).filter(([, record]) => Object.keys(record.inputs).some(path => /document-preview[/]peek[/]assets[/]/.test(path)));
   assert.equal(assetOutputs.length, 7, 'jbig2, openjpeg, the standard fonts and the CMaps of four scripts');
   for (const [path] of assetOutputs) {
     const asset = await asyncModule(`./${basename(path)}`);
@@ -142,15 +142,15 @@ test('generated native modules resolve through classic chunk factories and share
   }
   // The bundled Inter (ui/fonts/inter-face.js) is a data: URI in a chunk of its own, reached by a dynamic import when StudyHub opens;
   // load it the way the installer does and check it carries the woff2.
-  const fontOutput = Object.entries(result.metafile.outputs).find(([, record]) => Object.keys(record.inputs).some(path => /ui[\/]fonts[\/]inter-data\.js$/.test(path)));
+  const fontOutput = Object.entries(result.metafile.outputs).find(([, record]) => Object.keys(record.inputs).some(path => /ui[/]fonts[/]inter-data\.js$/.test(path)));
   assert.ok(fontOutput, 'the font has a chunk of its own');
   assert.ok(Object.entries(result.metafile.outputs).some(([, record]) => record.imports.some(edge => edge.kind === 'dynamic-import' && basename(edge.path) === basename(fontOutput[0]))), 'only a dynamic import reaches it');
   assert.match((await asyncModule(`./${basename(fontOutput[0])}`)).default, /^data:font\/woff2;base64,d09GMg/, 'the chunk carries the woff2');
   // The formula fonts (#996) likewise: a chunk of their own, reached only by the dynamic import in ui/study-math-render.js at the first formula,
   // so a view that only might show a formula (the book, the reader, workflows, notes) never fetches them.
-  const mathFonts = Object.entries(result.metafile.outputs).find(([, record]) => Object.keys(record.inputs).some(path => /ui[\/]fonts[\/]math-data\.js$/.test(path)));
+  const mathFonts = Object.entries(result.metafile.outputs).find(([, record]) => Object.keys(record.inputs).some(path => /ui[/]fonts[/]math-data\.js$/.test(path)));
   assert.ok(mathFonts, 'the formula fonts have a chunk of their own');
-  assert.ok(!Object.keys(mathEntry[1].inputs).some(path => /ui[\/]fonts[\/]math-data\.js$/.test(path)), 'not inside the renderer');
+  assert.ok(!Object.keys(mathEntry[1].inputs).some(path => /ui[/]fonts[/]math-data\.js$/.test(path)), 'not inside the renderer');
   assert.ok(Object.values(result.metafile.outputs).every(record => !record.imports.some(edge => edge.kind !== 'dynamic-import' && basename(edge.path) === basename(mathFonts[0]))),
     'only a dynamic import reaches it');
   assert.match((await asyncModule(`./${basename(mathFonts[0])}`)).default, /@font-face\{font-family:KaTeX_[\s\S]*data:font\/woff2;base64,d09GMg/, 'the chunk carries the fonts');

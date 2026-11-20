@@ -111,7 +111,7 @@ test('review.queue.edit adds after the current question and removes later ones, 
   await assert.rejects(tool('review.queue.edit', { runId: run.id, queueVersion: 0, add: [{ deckId: 'd1', cardId: 'c12' }] }), /changed since/,
     'an edit made on an older view of the round is refused');
   const deck = (await tool('deck.get', { id: 'd1' }));
-  assert.equal((deck.cards || deck.deck?.cards).length, 12, 'nothing left the library');
+  assert.equal((deck.cards || deck.deck?.cards)?.length, 12, 'nothing left the library');
 });
 
 test('the panel area spells out whole rounds and queue edits, and learning points to it', async () => {

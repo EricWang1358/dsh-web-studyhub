@@ -82,7 +82,7 @@ test('a repair that still leaves a quote unfound saves the card as 部分未核�
   assert.equal(card.status, 'partial');
   assert.deepEqual([card.concepts[0].verified, card.concepts[0].reason], [false, 'ellipsis']);
   assert.match(renderAnswerCard(card, 'zh'), /（未核实）/);
-  const noReview = await world(t, { ...cardModel(), complete: async (system, prompt) => (system.startsWith('You independently review') ? 'not json' : JSON.stringify(goodCard())), calls: [] });
+  const noReview = await world(t, { ...cardModel(), complete: async (system, _prompt) => (system.startsWith('You independently review') ? 'not json' : JSON.stringify(goodCard())), calls: [] });
   await noReview.finish();
   const unreviewed = (await noReview.live()).answerCard;
   assert.deepEqual([unreviewed.status, unreviewed.checks.review.ran], ['partial', false]);

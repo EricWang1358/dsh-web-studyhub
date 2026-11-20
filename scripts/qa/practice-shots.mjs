@@ -54,7 +54,7 @@ try {
   const draft = (await api("snapshot")).drafts[0];
   await api("draft.publish", { id: draft.id, draftVersion: draft.draftVersion });
   const deck = (await api("snapshot")).decks.find((item) => !item.systemKind);
-  let run = await api("review.start", { deckId: deck.id, mode: "quiz" });
+  const run = await api("review.start", { deckId: deck.id, mode: "quiz" });
   facts.citedSourceIds = run.sourceIds?.length;
 
   const context = await browser.newContext({ viewport: { width, height: 900 }, deviceScaleFactor: 1, locale: lang === "en" ? "en-US" : "zh-CN", colorScheme: theme });

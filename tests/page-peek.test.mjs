@@ -324,7 +324,7 @@ test('the single-page PDF budget counts CPU render work only (not asset download
 });
 
 test('#55 PagePeek and PagePeekView support ArrowLeft/ArrowRight paging at fit zoom, Ctrl/Meta wheel zoom, and canvas double-click toggle', async () => {
-  let hooks = [], cursor = 0, tree = null;
+  const hooks = []; let cursor = 0, tree = null;
   const hLocal = (type, p, ...children) => ({ $$type: type, props: { ...(p || {}), ...(children.length === 1 ? { children: children[0] } : children.length > 1 ? { children } : {}) } });
   const reactShim = {
     default: null, Fragment: Symbol('Fragment'), createElement: hLocal,

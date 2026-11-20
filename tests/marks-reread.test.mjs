@@ -307,7 +307,7 @@ test('#11, #15, #58, #60 useSourceReader & useReaderMarks: question-note append,
     assert.equal(formatQuoteForNote({ quote: '  ' }), '');
 
     // #11 & #60 useSourceReader
-    let noteMarkdown = '# 已有内容', noteRevision = 3, savedNotes = [], modalSets = [], refreshed = 0;
+    let noteMarkdown = '# 已有内容', noteRevision = 3; const savedNotes = [], modalSets = []; let refreshed = 0;
     const s1 = { id: 'book-p1', title: 'Patterns · p. 1', text: 'Page one explains the caretaker.', document: { materialId: 'doc-1', title: 'Patterns', page: 1 } };
     const s2 = { id: 'book-p2', title: 'Patterns · p. 2', text: 'Page two explains the originator.', document: { materialId: 'doc-1', title: 'Patterns', page: 2 } };
     const call = async (name, params) => {

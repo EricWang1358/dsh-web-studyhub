@@ -54,7 +54,7 @@ const english = (fn) => {
 };
 
 function renderWithHooks(fn, { services = {} } = {}) {
-  let active = { cursor: 0, slots: [], effects: [] };
+  const active = { cursor: 0, slots: [], effects: [] };
   const hook = (init) => {
     const i = active.cursor++;
     if (!(i in active.slots)) active.slots[i] = typeof init === 'function' ? init() : init;

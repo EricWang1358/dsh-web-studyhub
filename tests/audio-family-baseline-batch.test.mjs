@@ -77,7 +77,7 @@ test('one batch of [B, A]: per-file request order, one combined source id, usage
 });
 
 test('a batch retry with skip: the new attempt keeps the batch id, drops the failed file from the combined source and asks the model for nothing', async t => {
-  let broken = true;
+  const broken = true;
   const lib = await batchLibrary(t, { failTranslate: name => broken && name === 'B' });
   const first = await lib.service.call('audio.import', { files: [{ path: lib.a }, { path: lib.b }] });
   const failed = await settleJob(lib.service, first.jobId);

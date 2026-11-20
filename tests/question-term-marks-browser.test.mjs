@@ -720,6 +720,23 @@ async function seedCandidateTermsDeck(root, lang) {
               misconception: "Ignoring wall-clock precedence.",
               citations: [],
             },
+            {
+              id: "cand-q3",
+              kind: "quiz",
+              topic: "Replication",
+              objective: "Recall quorum replication",
+              prompt: "Which statement describes quorum replication?",
+              answer: "A write commits once a majority of replicas acknowledge it.",
+              options: [
+                { id: "a", text: "A write commits after a majority acknowledges", correct: true, explanation: "A quorum is a majority of the replicas." },
+                { id: "b", text: "A single follower decides every commit", correct: false, explanation: "One follower is not a quorum." },
+                { id: "c", text: "Writes commit before any replica responds", correct: false, explanation: "That is asynchronous replication." },
+              ],
+              hint: "Count the acknowledgements.",
+              explanation: "Quorum replication waits for a majority before a write counts as committed.",
+              misconception: "Treating one acknowledgement as enough.",
+              citations: [],
+            },
           ]
         : [
             {
@@ -754,6 +771,23 @@ async function seedCandidateTermsDeck(root, lang) {
               hint: "想想实时先后顺序。",
               explanation: "线性一致性要求操作在完成瞬间立即可见，满足全局原子序。",
               misconception: "把线性一致性混同最终一致性。",
+              citations: [],
+            },
+            {
+              id: "cand-q3",
+              kind: "quiz",
+              topic: "副本复制",
+              objective: "说出多数派复制的提交条件",
+              prompt: "下列哪项描述了多数派复制的提交条件？",
+              answer: "写入获得多数副本确认后才算提交。",
+              options: [
+                { id: "a", text: "写入获得多数副本确认后提交", correct: true, explanation: "多数派指超过半数的副本。" },
+                { id: "b", text: "由单个从节点决定每次提交", correct: false, explanation: "单个从节点不构成多数派。" },
+                { id: "c", text: "任何副本响应之前就提交写入", correct: false, explanation: "这是异步复制的做法。" },
+              ],
+              hint: "数一数确认的副本。",
+              explanation: "多数派复制要等超过半数的副本确认，写入才算提交。",
+              misconception: "以为一个副本确认就够了。",
               citations: [],
             },
           ],
@@ -886,6 +920,19 @@ test("candidate unfamiliar words after wrong answers, 1-click mark, and 420px la
         await settleAnimations(page);
         assert.equal(cardTermsCalls, 1, `${tag}: right answer does NOT call card.terms even when toggle is ON`);
         assert.equal(await page.locator(".term-strip .term-strip__candidate").count(), 0, `${tag}: no candidate chips on right answer`);
+
+        // 5. Card 3 with the toggle already ON, answer WRONG -> the session asks for this card's words by itself, once.
+        await page.locator('[data-usage="review.next"]').click();
+        await page.locator(".options .option:not([disabled])").first().waitFor({ timeout: 10000 });
+        await page.locator(".options .option", {
+          hasText: lang === "en" ? "A single follower decides every commit" : "由单个从节点决定每次提交",
+        }).click();
+        await page.locator(".options .option.incorrect, .next-due").first().waitFor({ state: "visible", timeout: 10000 });
+        await page.locator(".term-strip .term-strip__candidate").first().waitFor({ state: "visible", timeout: 15000 });
+        await settleAnimations(page);
+        assert.equal(cardTermsCalls, 2, `${tag}: a wrong answer with the toggle ON calls card.terms once, without a click on the toggle`);
+        await page.waitForTimeout(1500);
+        assert.equal(cardTermsCalls, 2, `${tag}: later polls of the run do not ask again`);
 
         assert.deepEqual(errors, [], `${tag}: unexpected console/page errors: ${errors.join(" | ")}`);
       } finally {

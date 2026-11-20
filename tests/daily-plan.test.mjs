@@ -78,14 +78,14 @@ test('start resumes an exact task run and answering drives progress without clos
   const proposal=await service.call('daily.plan.suggest',{date,minutes:10});
   const accepted=await service.call('daily.plan.accept',{date,proposalId:proposal.proposal.id});
   const taskId=accepted.tasks[0].id;
-  let started=await service.call('daily.plan.start',{date,taskId});
+  const started=await service.call('daily.plan.start',{date,taskId});
   assert.equal(started.run.total,5);
   assert.equal((await service.call('daily.plan.start',{date,taskId})).run.id,started.run.id);
   assert.equal((await service.call('review.get',{runId:ordinary.id})).closed,false);
   assert.equal((await service.call('daily.plan.get',{date})).tasks[0].progress.done,0);
   await assert.rejects(service.call('daily.plan.complete',{date,taskId}),/实际完成/);
   for(let i=0;i<5;i++) {
-    let run=await service.call('review.get',{runId:started.run.id});
+    const run=await service.call('review.get',{runId:started.run.id});
     await service.call('review.reveal',{runId:run.id,cardId:run.card.id});
     await service.call('review.answer',{runId:run.id,cardId:run.card.id,grade:4});
     if(i<4) await service.call('review.move',{runId:run.id,direction:1});
@@ -224,7 +224,7 @@ test('slow competing suggestions cannot overwrite a newer accepted plan', () => 
 
 test('English local suggestions and AI request include saved exam dates', () => isolated(async service=> {
   service.language='en';
-  let proposed=await service.call('daily.plan.suggest',{date,minutes:20});
+  const proposed=await service.call('daily.plan.suggest',{date,minutes:20});
   assert.match(proposed.proposal.items[0].title,/Learn Probability/);
   assert.match(proposed.proposal.items[0].reason,/Build a foundation/);
   assert.match(proposed.proposal.warnings[0],/local suggestion/);
@@ -361,7 +361,7 @@ test('archived and deleted completed work retains budget and timed habit history
   const accepted=await service.call('daily.plan.accept',{date,proposalId:suggestion.proposal.id});
   const taskId=accepted.tasks[0].id;
   await service.call('daily.plan.complete',{date,taskId,minutes:12});
-  let board=await boardAction('board.get');
+  const board=await boardAction('board.get');
   await boardAction('board.card.archive',{revision:board.revision,id:taskId});
   let state=await service.call('daily.plan.get',{date});
   assert.equal(state.spentMinutes,12);

@@ -290,7 +290,7 @@ test('#14 & #57 outline shows weak-question read hints, 只看未读 filter chip
   assert.doesNotMatch(allRead, /下一未读章/);
 
   // Interactive harness for 只看未读 toggle & 下一未读章 wrap-around jump.
-  let hooks = [], cursor = 0, tree = null, compProps = {};
+  const hooks = []; let cursor = 0, tree = null, compProps = {};
   const hLocal = (type, p, ...children) => ({ $$type: type, props: { ...(p || {}), ...(children.length === 1 ? { children: children[0] } : children.length > 1 ? { children } : {}) } });
   const reactShim = {
     default: null,

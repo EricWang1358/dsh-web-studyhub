@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Button, Checkbox, Chip, Disclosure, Hint, InlineMessage, Switch, Tooltip } from './components/index.js';
@@ -19,8 +19,15 @@ function ExamScopeConfirm({ custom, preview, disabled, onConfirm }) {
   const orderedIds = chapters.map(ch => ch.id);
   const unconfirmed = isExamScopeUnconfirmed(custom.scope);
   const seedKey = JSON.stringify([custom.updatedAt ?? '', custom.scope.resolvedChapters ?? null, (examScope?.matchedChapters || []).map(ch => ch.id)]);
+  const seedInputRef = useRef({ custom, preview });
+  seedInputRef.current = { custom, preview };
+  const lastSeedKeyRef = useRef(seedKey);
   const [selected, setSelected] = useState(() => initialExamSelection(custom, preview));
-  useEffect(() => { setSelected(initialExamSelection(custom, preview)); }, [seedKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (lastSeedKeyRef.current === seedKey) return;
+    lastSeedKeyRef.current = seedKey;
+    setSelected(initialExamSelection(seedInputRef.current.custom, seedInputRef.current.preview));
+  }, [seedKey]);
   if (!examScope) return null;
   const unmatched = Array.isArray(examScope.unmatchedTopics) ? examScope.unmatchedTopics : [];
   const summary = examScopeSummaryText(examScope, selected.length);

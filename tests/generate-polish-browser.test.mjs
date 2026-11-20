@@ -74,7 +74,7 @@ const answers = () => {
 /** 创建题组 with the index answer held until `release()` (or given at once with `now`). */
 async function openGenerate({ lang, theme = 'dark', width, height = 860, answer, now = false }) {
   const opened = await openPage(browser, { server }, { lang, theme, width, height });
-  let release, held = new Promise(done => { release = done; }), asked = false;
+  let release; const held = new Promise(done => { release = done; }); let asked = false;
   if (now) release();
   await opened.page.route('**/api/call', async route => {
     let action = '';

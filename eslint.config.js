@@ -49,6 +49,44 @@ const contextBoundaries = {
   },
 };
 
+/* Cheap correctness rules (code audit, 2026-11): each had few or no violations when it was switched on, and those were fixed, so every
+   one is an error from here on. Fix the code a rule points at. An exception is a line in this file with its reason, never an inline
+   eslint-disable: tests/lint-guard.test.mjs fails on one outside ui/, and ui/ holds its old ones on a ratchet that may only fall
+   (rule lintDisable in scripts/qa/guardrail-baseline.mjs). */
+const cheapRules = {
+  // A trailing parameter nobody reads is deleted or named _like, so a signature says what the function uses.
+  "no-unused-vars": [
+    "error",
+    { args: "after-used", argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_", ignoreRestSiblings: true },
+  ],
+  "no-undef": "error",
+  // A repeated key silently drops the earlier value (message tables merged from several lanes).
+  "no-dupe-keys": "error",
+  // An empty block hides a failure: handle it, or say in a comment inside the block why nothing is done.
+  "no-empty": "error",
+  // Not flagged: a name declared ahead of a closure that reads it (`let timer; const stop = () => clearTimeout(timer); timer = …`),
+  // and a destructuring where only some of the names are reassigned.
+  "prefer-const": ["error", { destructuring: "all", ignoreReadBeforeAssign: true }],
+  "no-var": "error",
+  eqeqeq: ["error", "always", { null: "ignore" }],
+  // In a string, "\d" or "\." is only "d" or ".": the author nearly always meant "\\d". Check which before deleting the backslash.
+  "no-useless-escape": "error",
+  "no-useless-catch": "error",
+  "no-unreachable": "error",
+  "no-unused-expressions": ["error", { allowShortCircuit: true, allowTernary: true, allowTaggedTemplates: true, enforceForJSX: true }],
+  "no-constant-condition": ["error", { checkLoops: "allExceptWhileTrue" }],
+  "no-fallthrough": "error",
+  "no-case-declarations": "error",
+  "no-prototype-builtins": "error",
+  "no-async-promise-executor": "error",
+  "no-self-assign": "error",
+  "no-unsafe-optional-chaining": "error",
+  "no-cond-assign": "error",
+  "no-loss-of-precision": "error",
+  "no-sparse-arrays": "error",
+  "no-misleading-character-class": "error",
+};
+
 /* Lint guards against real bugs (unused vars, stale hooks deps, undefined
    globals); style is deliberately not enforced — formatting stays manual. */
 export default [
@@ -68,6 +106,8 @@ export default [
       "scripts/snap-*.mjs",
     ],
   },
+  // A disable comment that silences nothing is a leftover: it goes when the code it excused is fixed.
+  { linterOptions: { reportUnusedDisableDirectives: "error" } },
   {
     files: ["lib/**/*.js", "scripts/**/*.mjs", "tests/**/*.mjs", "packages/**/*.js", "packages/**/*.mjs", "eslint.config.js"],
     languageOptions: {
@@ -75,15 +115,7 @@ export default [
       sourceType: "module",
       globals: { ...globals.node },
     },
-    rules: {
-      "no-unused-vars": [
-        "error",
-        { args: "none", varsIgnorePattern: "^_", ignoreRestSiblings: true },
-      ],
-      "no-undef": "error",
-      // A repeated key silently drops the earlier value (message tables merged from several lanes).
-      "no-dupe-keys": "error",
-    },
+    rules: cheapRules,
   },
   {
     files: ["lib/contexts/**/*.js"],
@@ -124,13 +156,10 @@ export default [
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
     plugins: { react, "react-hooks": reactHooks },
-    settings: { react: { version: "detect" } },
+    // The host seeds React 18. Spelled out: "detect" calls an API ESLint 10 removed, and the rules that read the version crash on it.
+    settings: { react: { version: "18.3" } },
     rules: {
-      "no-unused-vars": [
-        "error",
-        { args: "none", varsIgnorePattern: "^_", ignoreRestSiblings: true },
-      ],
-      "no-undef": "error",
+      ...cheapRules,
       "react/jsx-uses-react": "error",
       "react/jsx-uses-vars": "error",
       "react-hooks/rules-of-hooks": "error",
@@ -138,6 +167,10 @@ export default [
       "react/jsx-key": "error",
       "react/react-in-jsx-scope": "off",
       "react/prop-types": "off",
+      // A component declared inside another is a new type on every render: its subtree remounts and loses state and focus.
+      // A render prop is a function the component calls, not a component: `trigger` is the one of Menu and Popover.
+      "react/no-unstable-nested-components": ["error", { propNamePattern: "{render*,trigger}" }],
+      "react/jsx-no-useless-fragment": "error",
     },
   },
   // M0 Anti-Bad-Smell & DDD Guardrails for StudyHub Desktop (built-in rules only; no custom ESLint plugin).

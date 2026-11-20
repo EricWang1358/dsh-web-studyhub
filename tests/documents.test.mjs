@@ -107,7 +107,7 @@ export function pdfFixture(pages) {
     objects.push(`<< /Length ${Buffer.byteLength(stream)} >>\nstream\n${stream}\nendstream`);
   }
   objects[1] = `<< /Type /Pages /Count ${pages.length} /Kids [${kids.join(" ")}] >>`;
-  let body = "%PDF-1.7\n", offsets = [0];
+  let body = "%PDF-1.7\n"; const offsets = [0];
   objects.forEach((object, i) => { offsets.push(Buffer.byteLength(body)); body += `${i + 1} 0 obj\n${object}\nendobj\n`; });
   const xref = Buffer.byteLength(body);
   body += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;

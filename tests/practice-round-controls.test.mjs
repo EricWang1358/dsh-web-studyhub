@@ -158,7 +158,7 @@ test('a finished round carries every question for the look-back: answer, solutio
   const { service, run } = await library(t);
   await service.store.update((s) => { const card = s.decks[0].cards[0]; card.followups = [{ id: 'f1', question: 'Why?', answer: 'Because.', digest: followupDigest(card), createdAt: new Date().toISOString() }]; });
   await answer(service, run, ['b']);
-  let current = await service.call('review.move', { runId: run.id, direction: 1 });
+  const current = await service.call('review.move', { runId: run.id, direction: 1 });
   await answer(service, current);
   assert.deepEqual((await service.call('review.lookBack', { runId: run.id })).rows, [], 'nothing while the round is open');
   const ended = await service.call('review.end', { runId: run.id });
@@ -222,7 +222,7 @@ test('review.lookBack exposes answer-safe source metadata for cited questions wi
     const cited = (id, sourceId, quote) => ({ ...quiz(id), citations: [{ sourceId, quote }] });
     s.decks.push({ id: 'd', title: 'D', course: 'C', cards: [cited('c1', 's1-p5', 'Alpha'), cited('c2', 's-plain', 'Delta'), quiz('c3')] });
   });
-  let current = await service.call('review.start', { mode: 'path', fresh: true, scope: ['c1', 'c2', 'c3'].map((cardId) => ({ deckId: 'd', cardId })) });
+  const current = await service.call('review.start', { mode: 'path', fresh: true, scope: ['c1', 'c2', 'c3'].map((cardId) => ({ deckId: 'd', cardId })) });
   await answer(service, current, ['b']);
   await service.call('review.move', { runId: current.id, direction: 1 });
   // Leave c2 unanswered to verify quote stays private; c3 has no citation.

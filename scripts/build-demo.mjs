@@ -46,7 +46,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   <body><div id="root"></div><noscript>This interactive demo requires JavaScript.</noscript><script type="module" src="./app.js"></script></body></html>`);
   await writeFile(resolve(target,'dist/icon.svg'),'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#211f1b"/><path d="M18 14h28v38H18z" fill="#ede7db"/><path d="M18 14h5v38h-5z" fill="#bd6049"/><path d="M29 26h11M29 34h11M29 42h7" stroke="#211f1b" stroke-width="3"/></svg>');
   const manifestPath=resolve(target,'.openai/hosting.json');
-  let manifest={};try {manifest=JSON.parse(await readFile(manifestPath,'utf8'));}catch{}
+  let manifest={};try {manifest=JSON.parse(await readFile(manifestPath,'utf8'));}catch{ /* the first build has no manifest */ }
   await mkdir(resolve(target,'.openai'),{recursive:true});
   await writeFile(manifestPath,JSON.stringify({...manifest,static:{directory:'dist'}},null,2)+'\n');
   await writeFile(resolve(target,'README.md'),'# StudyHub interactive demo\n\nStatic browser build. English by default with Chinese switching. No API keys, API requests, private course files, or backend. Progress stays in browser local storage.\n\nBuilt from the plugin’s study service and explicit public sample fixtures. AI-like content is prerecorded.\n');

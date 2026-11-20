@@ -102,7 +102,7 @@ const costOf = (copies) => {
     for (let window = 0; window < 3; window++) {
       const before = process.cpuUsage();
       let scans = 0;
-      do { scanUi(dir); scans += 1; const used = process.cpuUsage(before); if ((used.user + used.system) / 1000 >= WINDOW_MS) break; } while (true);
+      for (;;) { scanUi(dir); scans += 1; const used = process.cpuUsage(before); if ((used.user + used.system) / 1000 >= WINDOW_MS) break; }
       const used = process.cpuUsage(before);
       best = Math.min(best, (used.user + used.system) / scans);
     }
@@ -178,7 +178,10 @@ test('a synthetic tree trips every rule (the guard rails can fail)', () => {
       'const handoff = () => <div><Child call={call} busy={busy} /><Button busy={busy}>ok</Button></div>;',
       'const chat = () => askInChat("hi"); // askInChat in a comment is not counted',
       // The old names for the main chat: two counted; one in a comment and 「在新对话中打开」 (a new conversation) are not.
-      'const old = () => <p>{ui("交给主对话")}<b>{ui("让对话归并主题")}</b>{ui("在新对话中打开")}</p>; // 主对话 in a comment', '',
+      'const old = () => <p>{ui("交给主对话")}<b>{ui("让对话归并主题")}</b>{ui("在新对话中打开")}</p>; // 主对话 in a comment',
+      // A lint rule switched off in a comment: the line, next-line and block forms are counted (three); the comment that switches it back on is not.
+      'useEffect(() => { go(); }, []); // eslint-' + 'disable-line react-hooks/exhaustive-deps',
+      '// eslint-' + 'disable-next-line no-empty', 'try { go(); } catch {}', '/* eslint-' + 'disable no-undef */ nope(); /* eslint-' + 'enable no-undef */', '',
     ].join('\n'));
     writeFileSync(join(root, 'ui', 'components', 'Ok.jsx'), 'export const B = () => <button className="primary">z</button>;\n');
     // The shared unit and the files that wire the service (App.jsx puts it in the services bag) may name askInChat; nothing else may.
@@ -190,7 +193,7 @@ test('a synthetic tree trips every rule (the guard rails can fail)', () => {
     assert.deepEqual(Object.fromEntries(Object.keys(RULES).map((rule) => [rule, total(rule)])), {
       rawButton: 3, legacyButtonClass: 3, glyphIcon: 2, fontSizePx: 2, fontWeightNumeric: 2, radiusPx: 1, radius999: 1,
       zIndexNumeric: 1, important: 1, rawColor: 2, spacingPx: 1, longLine: 0, serviceHandoff: 2, elementSelector: 1, rawChoiceInput: 2, radiusCard: 2, busyLabelSwap: 1, bareBusyDisabled: 3, hostTitle: 1, chatHandOff: 1, chatOldWording: 2,
-      handSwitch: 1, legacySwitchClass: 2, accentFill: 3,
+      handSwitch: 1, legacySwitchClass: 2, accentFill: 3, lintDisable: 3,
     });
     assert.deepEqual(found.duplicateKeyframes.map((k) => k.name), ['spin']);
     assert.equal(found.cjkContent.length, 1);

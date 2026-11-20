@@ -83,7 +83,7 @@ export function endedNote(view) {
 }
 
 /** The panel's drawing, from the state of the output (a plain object, so every state can be shown without a host). */
-export function OutputView({ jobId, record: call, active, view, now }) {
+export function OutputView({ record: call, active, view, now }) {
   const { host } = useApp();
   const mode = outputMode(call);
   const bodyRef = useRef(null), follow = useRef(true);
