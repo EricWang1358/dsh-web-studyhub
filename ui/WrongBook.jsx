@@ -118,7 +118,7 @@ function LeechRescue({ item, course, detail, companionTarget, experimentState, d
       {retellNote && <p className="muted wb-leech__retell" data-retell-signal={retellNote.signal}>{retellNote.text}</p>}
       <div className="wb-leech__primary">
         {readyCompanion && onOpenExperiment ? (
-          <Button variant="secondary" size="sm" icon="sparkle" iconEnd="arrow-right" data-rescue="experiment-open" disabled={disabled}
+          <Button variant="secondary" size="sm" iconEnd="arrow-right" data-rescue="experiment-open" disabled={disabled}
             onClick={() => onOpenExperiment(readyCompanion)}>{ui("打开 4 页交互实验")}</Button>
         ) : (
           <Tooltip layer content={rescueTip('experiment')}>
