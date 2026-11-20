@@ -411,3 +411,134 @@ test('RoundLookBack keeps baseline untouched when off, and enables blind recall 
     uiMod.setUiLanguage('zh');
   }
 });
+
+test('RoundLookBack preserves revealed rows and veil state when review.lookBack refreshes with updated errorReason', () => {
+  const baseRows = [
+    {
+      number: 1,
+      entryIndex: 0,
+      deckId: 'd1',
+      cardId: 'c1',
+      kind: 'quiz',
+      status: 'wrong',
+      card: {
+        id: 'c1',
+        kind: 'quiz',
+        prompt: 'Which law governs entropy increase?',
+        options: [{ id: 'a', text: 'Second Law' }, { id: 'b', text: 'First Law' }],
+      },
+      feedback: { selected: ['b'] },
+      solution: {
+        explanation: 'Row1 explanation stays visible',
+        options: [{ id: 'a', correct: true }],
+      },
+    },
+    {
+      number: 2,
+      entryIndex: 1,
+      deckId: 'd1',
+      cardId: 'c2',
+      kind: 'quiz',
+      status: 'wrong',
+      card: {
+        id: 'c2',
+        kind: 'quiz',
+        prompt: 'What is Bayes rule?',
+        options: [{ id: 'a', text: 'Posterior formula' }, { id: 'b', text: 'Prior only' }],
+      },
+      feedback: { selected: ['b'] },
+      solution: {
+        explanation: 'Row2 explanation stays hidden until revealed',
+        options: [{ id: 'a', correct: true }],
+      },
+    },
+  ];
+  const runA = { id: 'run-refresh-a', mode: 'path', navigation: [{ answered: true }, { answered: true }], correctionsPending: 0 };
+  const runB = { id: 'run-refresh-b', mode: 'path', navigation: [{ answered: true }, { answered: true }], correctionsPending: 0 };
+  const services = { call: async () => ({ rows: baseRows }), act: noop, busy: false, notify: noop, openModal: noop };
+  const onSettings = { settings: { practice: { lookBackBlindRecall: true } } };
+
+  uiMod.setUiLanguage('zh');
+  const app = mountSync(services, onSettings);
+  try {
+    uiMod.setQueryData('review.lookBack', { runId: runA.id }, { rows: baseRows });
+    const propsA = { run: runA, onPracticeWrong: noop, practiceSettings: { lookBackBlindRecall: true } };
+    let tree = app.render(uiMod.RoundLookBack, propsA);
+
+    // Expand all rows, then reveal only row 1.
+    let expandBtn = null;
+    walkTree(tree, (n) => {
+      if (!expandBtn && typeof n.type !== 'string' && typeof n.props?.onClick === 'function' && textOf(n).trim() === '全部展开') expandBtn = n;
+    });
+    assert.ok(expandBtn);
+    expandBtn.props.onClick();
+    tree = app.render(uiMod.RoundLookBack, propsA);
+
+    const lookBacksBefore = [];
+    walkTree(tree, (n) => { if (typeof n.type === 'function' && n.type.name === 'LookBack') lookBacksBefore.push(n); });
+    assert.equal(lookBacksBefore.length, 2);
+    assert.equal(lookBacksBefore[0].props.veiled, true);
+    assert.equal(lookBacksBefore[1].props.veiled, true);
+
+    lookBacksBefore[0].props.onReveal();
+    tree = app.render(uiMod.RoundLookBack, propsA);
+
+    // Simulate review.lookBack invalidation returning refreshed rows with persisted errorReason on row 1.
+    const refreshedRows = [
+      { ...baseRows[0], errorReason: 'condition' },
+      { ...baseRows[1] },
+    ];
+    uiMod.setQueryData('review.lookBack', { runId: runA.id }, { rows: refreshedRows });
+    tree = app.render(uiMod.RoundLookBack, propsA);
+    // Render one more tick so state updates flushed by the reasons sync effect are reflected.
+    tree = app.render(uiMod.RoundLookBack, propsA);
+
+    const lookBacksAfter = [];
+    walkTree(tree, (n) => { if (typeof n.type === 'function' && n.type.name === 'LookBack') lookBacksAfter.push(n); });
+    assert.equal(lookBacksAfter.length, 2);
+    assert.equal(lookBacksAfter[0].props.veiled, false, 'already revealed row must stay revealed after errorReason refresh');
+    assert.equal(lookBacksAfter[0].props.reasonId, 'condition', 'refreshed errorReason must sync into reasonsByKey');
+    assert.equal(lookBacksAfter[1].props.veiled, true, 'unrevealed row stays veiled');
+
+    const htmlAfterRefresh = htmlOfElement(tree, services, onSettings);
+    assert.match(htmlAfterRefresh, /Row1 explanation stays visible/);
+    assert.doesNotMatch(htmlAfterRefresh, /Row2 explanation stays hidden until revealed/);
+
+    // Toggle global veil off, then refresh rows again with another errorReason -> veil must stay off.
+    let veilToggle = null;
+    walkTree(tree, (n) => {
+      if (!veilToggle && typeof n.type !== 'string' && typeof n.props?.onClick === 'function' && textOf(n).trim() === '先遮答案自测') veilToggle = n;
+    });
+    assert.ok(veilToggle);
+    assert.equal(veilToggle.props['aria-pressed'], true);
+    veilToggle.props.onClick();
+    tree = app.render(uiMod.RoundLookBack, propsA);
+
+    const refreshedAgain = [
+      { ...baseRows[0], errorReason: 'concept' },
+      { ...baseRows[1], errorReason: 'slip' },
+    ];
+    uiMod.setQueryData('review.lookBack', { runId: runA.id }, { rows: refreshedAgain });
+    tree = app.render(uiMod.RoundLookBack, propsA);
+    tree = app.render(uiMod.RoundLookBack, propsA);
+
+    let veilToggleAfter = null;
+    walkTree(tree, (n) => {
+      if (!veilToggleAfter && typeof n.type !== 'string' && typeof n.props?.onClick === 'function' && textOf(n).trim() === '先遮答案自测') veilToggleAfter = n;
+    });
+    assert.equal(veilToggleAfter?.props['aria-pressed'], false, 'manually lifted veil must stay off after errorReason refresh');
+
+    // Switching to a different run.id MUST reset veilActive back to recallEnabled and clear revealedRows.
+    uiMod.setQueryData('review.lookBack', { runId: runB.id }, { rows: baseRows });
+    const propsB = { run: runB, onPracticeWrong: noop, practiceSettings: { lookBackBlindRecall: true } };
+    tree = app.render(uiMod.RoundLookBack, propsB);
+    tree = app.render(uiMod.RoundLookBack, propsB);
+    const lookBacksRunB = [];
+    walkTree(tree, (n) => { if (typeof n.type === 'function' && n.type.name === 'LookBack') lookBacksRunB.push(n); });
+    assert.equal(lookBacksRunB[0].props.veiled, true, 'switching to a new run re-enables the blind-recall veil');
+    assert.equal(lookBacksRunB[0].props.reasonId, '', 'switching to a new run resets synced reasons');
+  } finally {
+    app.unmount();
+    uiMod.setUiLanguage('zh');
+  }
+});

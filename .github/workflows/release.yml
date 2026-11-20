@@ -108,4 +108,16 @@ jobs:
               --latest
           fi
           gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json tagName,name,isDraft,url,assets \
-            --jq 'if (.isDraft == false) and ((.assets | length) == 11) then {tagName, name, url, assetCount: (.assets | length)} else error("Release verification failed") end'
+            | node --input-type=module -e '
+              import { readFileSync } from "node:fs";
+              const expected = process.argv.slice(1);
+              const rel = JSON.parse(readFileSync(0, "utf8"));
+              const assets = Array.isArray(rel.assets) ? rel.assets : [];
+              const have = new Set(assets.map((asset) => asset.name));
+              const missing = expected.filter((name) => !have.has(name));
+              if (rel.isDraft !== false || assets.length < 11 || missing.length) {
+                console.error("Release verification failed", { isDraft: rel.isDraft, assetCount: assets.length, missing });
+                process.exit(1);
+              }
+              console.log(JSON.stringify({ tagName: rel.tagName, name: rel.name, url: rel.url, assetCount: assets.length }));
+            ' -- "${ASSETS[@]##*/}"
