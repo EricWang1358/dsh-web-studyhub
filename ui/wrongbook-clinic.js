@@ -14,6 +14,7 @@ import { capPracticeScope } from './wrongbook-model.js';
  * @param {Array<Record<string, any>>} [input.rows]
  * @param {Map<string, any>} [input.sourceTargetByCard]
  * @param {Map<string, any>} [input.companionTargetByCard]
+ * @param {Map<string, any>} [input.hidTargetByCard]
  * @param {Map<string, number> | null} [input.wrongCounts]
  * @returns {Array<Record<string, any>>}
  */
@@ -21,6 +22,7 @@ export function buildWrongbookClinic({
   rows = [],
   sourceTargetByCard = new Map(),
   companionTargetByCard = new Map(),
+  hidTargetByCard = new Map(),
   wrongCounts = null,
 } = {}) {
   if (!Array.isArray(rows) || rows.length < 2) return [];
@@ -29,32 +31,49 @@ export function buildWrongbookClinic({
   const lanes = [];
   const refOf = (item) => ({ deckId: item.deckId, cardId: item.cardId });
 
-  // 1. Companion slide or source page cluster (>= 2 cards pointing at the same material anchor).
-  /** @type {Map<string, { key: string, kind: 'companion' | 'source', target: any, items: Array<Record<string, any>>, latest: string }>} */
+  // 1. Companion slide, knowledge-point `hid`, or source page cluster (>= 2 cards pointing at the same anchor).
+  /** @type {Map<string, { key: string, kind: 'companion' | 'hid' | 'source', target: any, sourceTarget: any, hid: string, pointTitle: string, items: Array<Record<string, any>>, latest: string }>} */
   const clusters = new Map();
   for (const item of rows) {
     if (!item?.deckId || !item?.cardId) continue;
     const comp = companionTargetByCard instanceof Map ? companionTargetByCard.get(item.cardId) : null;
     const src = sourceTargetByCard instanceof Map ? sourceTargetByCard.get(item.cardId) : null;
+    const hidInfo = hidTargetByCard instanceof Map ? hidTargetByCard.get(item.cardId) : null;
+    const cardHid = typeof hidInfo?.hid === 'string' && hidInfo.hid.trim()
+      ? hidInfo.hid.trim()
+      : (typeof item.hid === 'string' && item.hid.trim() ? item.hid.trim() : '');
     let key = '';
-    /** @type {'companion' | 'source' | null} */
+    /** @type {'companion' | 'hid' | 'source' | null} */
     let kind = null;
     let target = null;
+    let sourceTarget = null;
+    let hid = '';
+    let pointTitle = '';
     if (comp?.companionId) {
       key = `comp:${comp.companionId}:${comp.slide || 0}`;
       kind = 'companion';
       target = comp;
+    } else if (cardHid) {
+      key = `hid:${cardHid}`;
+      kind = 'hid';
+      hid = cardHid;
+      pointTitle = String(hidInfo?.title || item.pointTitle || item.topic || '').trim();
+      sourceTarget = src?.source?.id ? src : null;
+      target = sourceTarget || { hid: cardHid, title: pointTitle };
     } else if (src?.source?.id) {
       key = `src:${src.source.id}:${src.peekPage ?? ''}`;
       kind = 'source';
       target = src;
+      sourceTarget = src;
     }
     if (!key || !kind) continue;
     let bucket = clusters.get(key);
     if (!bucket) {
-      bucket = { key, kind, target, items: [], latest: '' };
+      bucket = { key, kind, target, sourceTarget, hid, pointTitle, items: [], latest: '' };
       clusters.set(key, bucket);
     }
+    if (!bucket.sourceTarget && sourceTarget) bucket.sourceTarget = sourceTarget;
+    if (!bucket.pointTitle && pointTitle) bucket.pointTitle = pointTitle;
     bucket.items.push(item);
     const at = String(item.lastWrongAt || item.lastAt || '');
     if (at > bucket.latest) bucket.latest = at;
@@ -67,21 +86,29 @@ export function buildWrongbookClinic({
   if (bestCluster) {
     const refs = bestCluster.items.map(refOf);
     const scope = capPracticeScope(refs);
-    const sourceTitle = bestCluster.target?.source?.title || '';
-    const page = bestCluster.target?.peekPage ?? null;
+    const srcTarget = bestCluster.sourceTarget || (bestCluster.kind === 'source' ? bestCluster.target : null);
+    const sourceTitle = srcTarget?.source?.title || '';
+    const page = srcTarget?.peekPage ?? null;
     const companionTitle = bestCluster.target?.companionTitle || bestCluster.target?.label || '';
     const slide = bestCluster.target?.slide >= 1 ? bestCluster.target.slide : null;
     lanes.push({
       id: 'cluster',
       kind: bestCluster.kind,
+      clusterKey: bestCluster.key,
       count: bestCluster.items.length,
       refs,
+      cardIds: bestCluster.items.map((item) => item.cardId),
+      deckIds: [...new Set(bestCluster.items.map((item) => item.deckId))],
       scope,
       target: bestCluster.target,
+      sourceTarget: srcTarget,
       sourceTitle,
       page,
       companionTitle,
       slide,
+      hid: bestCluster.hid || '',
+      pointTitle: bestCluster.pointTitle || '',
+      recommendRescue: bestCluster.kind !== 'companion',
     });
   }
 

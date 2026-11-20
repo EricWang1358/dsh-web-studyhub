@@ -1,4 +1,4 @@
-import { ui, uiFormat, errorMessage, getUiLanguage } from "./i18n.js";
+import { ui, uiFormat, errorMessage } from "./i18n.js";
 import React, { memo, useCallback, useContext, useDeferredValue, useEffect, useId, useMemo, useRef, useState } from "react";
 import css from "./views.css";
 import wrongCss from "./wrongbook.css";
@@ -17,7 +17,6 @@ import { scrollToAnchor } from './tour/anchor.js';
 import { HandOff } from './hand-off/HandOff.jsx';
 import { hasChatHost } from './hand-off/use-hand-off.js';
 import { leechLimits } from '../lib/leech.js';
-import { isActiveJob } from '../lib/job-status.js';
 import { wrongbookClinic } from '../lib/practice-settings.js';
 import { isJsonCardSource } from '../lib/source-provenance.js';
 import { firstCitation, usableCitations } from './document-preview/practice/citations.js';
@@ -32,6 +31,7 @@ import { AppContext } from './app/app-context.js';
 import { peekQuery, refreshQuery, setQueryData, useHostQuery } from './host-query.js';
 import { formatDateTime, joinMeta } from "./format.js";
 import { companionSlideButtonLabel, openCompanionTarget, resolveCompanionTarget } from "./companions/companion-ref.js";
+import { useRescueExperiments } from "./companions/use-rescue-experiments.js";
 
 // One page of this view holds ten pages of the service (which gives at most 100), so a filter sees every mistake of a normal library.
 const FETCH_LIMIT = 100;
@@ -515,7 +515,11 @@ function HeadItem({ first, children }) {
   return <>{!first && " "}<span className="wb-headline__item">{!first && <><span className="wb-headline__dot" aria-hidden="true">·</span>{" "}</>}{children}</span></>;
 }
 
-function WrongBookClinic({ lanes, filterLeech, loading, canOpenSource, canPractice, onOpenSource, onOpenCompanion, onPracticeScope, onToggleLeech }) {
+function WrongBookClinic({
+  lanes, filterLeech, loading, canOpenSource, canPractice, course = '', canChat = true, canOpenModel = false,
+  experimentJobs = {}, rescuePrompt = null, onOpenSource, onOpenCompanion, onPracticeScope, onToggleLeech,
+  onRescueCluster, onDismissRescue, onOpenModel,
+}) {
   const { busy } = useStudy();
   if (!lanes.length) return null;
   const clusterTitle = (lane) => {
@@ -525,16 +529,19 @@ function WrongBookClinic({ lanes, filterLeech, loading, canOpenSource, canPracti
       }
       return lane.slide ? uiFormat("伴学同页 · 第 {0} 页", [lane.slide]) : ui("伴学同课");
     }
+    if (lane.kind === "hid") {
+      return lane.pointTitle ? uiFormat("同知识点错题 · 「{0}」", [lane.pointTitle]) : ui("同知识点错题");
+    }
     const hasPage = lane.page != null && lane.page !== "";
     if (lane.sourceTitle) {
       return hasPage ? uiFormat("同页错题 · 《{0}》第 {1} 页", [lane.sourceTitle, lane.page]) : uiFormat("同源错题 · 《{0}》", [lane.sourceTitle]);
     }
     return hasPage ? uiFormat("同页错题 · 第 {0} 页", [lane.page]) : ui("同源错题");
   };
-  const practiceBtn = (lane, label) => {
+  const practiceBtn = (lane, label, variant = "secondary") => {
     if (!canPractice) return null;
     const btn = (
-      <Button variant="secondary" size="sm" wrap iconEnd="arrow-right" lock={busy || loading} onClick={() => onPracticeScope(lane.refs)}>
+      <Button variant={variant} size="sm" wrap iconEnd="arrow-right" lock={busy || loading} onClick={() => onPracticeScope(lane.refs)}>
         {label}
       </Button>
     );
@@ -551,23 +558,94 @@ function WrongBookClinic({ lanes, filterLeech, loading, canOpenSource, canPracti
       <ul className="wb-clinic-list">
         {lanes.map((lane) => {
           if (lane.id === "cluster") {
-            const hasJump = Boolean(canOpenSource && lane.target);
+            const jobKey = lane.clusterKey ? `clinic:${lane.clusterKey}` : 'clinic:cluster';
+            const expState = lane.recommendRescue ? (experimentJobs?.[jobKey] || null) : null;
+            const expRunning = expState?.status === 'starting' || expState?.status === 'running';
+            const readyCompanion = expState?.status === 'ready' && expState?.companionId
+              ? { companionId: expState.companionId, course: expState.course || course, slide: 1, anchor: '#1', companionTitle: expState.title || '', lessonMode: 'rescue' }
+              : null;
+            const showRescue = Boolean(lane.recommendRescue && onRescueCluster);
+            const jumpTarget = lane.kind === "companion" ? lane.target : (lane.sourceTarget || (lane.kind === "source" ? lane.target : null));
+            const hasJump = Boolean(canOpenSource && jumpTarget && (lane.kind === "companion" || jumpTarget.source));
+            const promptForCluster = rescuePrompt?.cardId === jobKey ? rescuePrompt : null;
             return (
-              <li key={lane.id} className="wb-clinic-item" data-clinic-lane={lane.id}>
+              <li key={lane.id} className="wb-clinic-item" data-clinic-lane={lane.id} data-clinic-kind={lane.kind}>
                 <div className="wb-clinic-copy">
                   <span className="wb-clinic-name">{clusterTitle(lane)}</span>
                   <span className="muted wb-clinic-meta">
-                    {hasJump ? uiFormat("{0} 道错题集中在同一处，可先回看再连练", [lane.count]) : uiFormat("{0} 道错题集中在同一处，可集中连练", [lane.count])}
+                    {showRescue
+                      ? uiFormat("{0} 道错题集中在同一处，推荐做一个 4 页交互实验一次打通", [lane.count])
+                      : (hasJump ? uiFormat("{0} 道错题集中在同一处，可先回看再连练", [lane.count]) : uiFormat("{0} 道错题集中在同一处，可集中连练", [lane.count]))}
                   </span>
                 </div>
                 <div className="wb-clinic-actions">
                   {hasJump && (
-                    <Button variant="quiet" size="sm" wrap iconEnd="arrow-right" onClick={() => (lane.kind === "companion" ? onOpenCompanion(lane.target) : onOpenSource(lane.target))}>
-                      {lane.kind === "companion" ? companionSlideButtonLabel(lane.target) : ui("先看原文")}
+                    <Button variant="quiet" size="sm" wrap iconEnd="arrow-right" onClick={() => (lane.kind === "companion" ? onOpenCompanion(jumpTarget) : onOpenSource(jumpTarget))}>
+                      {lane.kind === "companion" ? companionSlideButtonLabel(jumpTarget) : ui("先看原文")}
                     </Button>
                   )}
-                  {practiceBtn(lane, uiFormat("练这 {0} 题", [lane.scope.scope.length]))}
+                  {showRescue && (readyCompanion ? (
+                    <Button variant="secondary" size="sm" wrap iconEnd="arrow-right" data-clinic-rescue="open"
+                      onClick={() => onOpenCompanion?.(readyCompanion)}>{ui("打开 4 页交互实验")}</Button>
+                  ) : (
+                    <Tooltip layer content={rescueTip('experiment')}>
+                      <Button variant="secondary" size="sm" wrap icon="sparkle" data-clinic-rescue="start"
+                        busy={expRunning} disabled={busy || loading || expRunning}
+                        onClick={() => onRescueCluster(lane, jobKey)}>
+                        {ui("做一个 4 页交互实验")}
+                      </Button>
+                    </Tooltip>
+                  ))}
+                  {practiceBtn(lane, uiFormat("练这 {0} 题", [lane.scope.scope.length]), showRescue ? "quiet" : "secondary")}
                 </div>
+                {(expRunning || expState?.status === 'ready' || expState?.status === 'failed' || promptForCluster) && (
+                  <div className="wb-clinic-feedback">
+                    {expRunning && (
+                      <div className="wb-leech__status" role="status" aria-live="polite" data-clinic-rescue-status={expState.status}>
+                        <Spinner size="sm" />
+                        <span>{rescueExperimentStatusText(expState.stage || expState.status)}</span>
+                      </div>
+                    )}
+                    {expState?.status === 'ready' && (
+                      <div className="wb-leech__status is-ready" role="status" aria-live="polite" data-clinic-rescue-status="ready">
+                        <Icon name="success" className="sh-icon--inline" />
+                        <span>{ui("4 页交互实验已做好，做完关闭窗口就会回到这道题。")}</span>
+                      </div>
+                    )}
+                    {expState?.status === 'failed' && (
+                      <InlineMessage className="wb-leech__notice" tone="error" boxed
+                        action={!busy && onRescueCluster ? { label: ui("重试"), onClick: () => onRescueCluster(lane, jobKey) } : undefined}>
+                        {expState.message || ui("这次没能生成交互实验，可以重试或展开「其他办法」。")}
+                      </InlineMessage>
+                    )}
+                    {promptForCluster?.type === "rescue-handoff" && (
+                      <div className="wb-consent wb-leech__handoff" role="group" aria-label={ui("由主会话生成 4 页交互实验")}>
+                        <strong>{ui("未配置生成模型 · 可用主会话零密钥生成")}</strong>
+                        <p>{ui("发给主会话后，它会直接编译 3–4 页交互实验并挂回这组错题；挂载好后回到这里刷新就能直接打开，做完关闭窗口仍回到错题本。")}</p>
+                        <div className="wb-consent-actions">
+                          <HandOff id="companion.rescue" shape="secondary" what="让主会话零密钥编译一个 3–4 页急救交互实验并挂回这道题"
+                            input={{
+                              course: promptForCluster.course || course,
+                              ...(lane.deckIds?.length === 1 ? { deckId: lane.deckIds[0] } : {}),
+                              cardId: lane.cardIds?.[0] || '',
+                              cardIds: lane.cardIds || [],
+                              hid: lane.hid || '',
+                              topic: lane.pointTitle || lane.sourceTitle || '',
+                            }} />
+                          {canOpenModel && <Button iconEnd="arrow-right" variant="link" size="sm" onClick={onOpenModel}>{ui("打开模型设置")}</Button>}
+                          <Button variant="quiet" size="sm" onClick={onDismissRescue}>{ui("取消")}</Button>
+                        </div>
+                      </div>
+                    )}
+                    {promptForCluster?.type === "no-model" && (
+                      <InlineMessage className="wb-leech__notice" tone="warning" boxed actionsBelow
+                        action={canOpenModel ? { label: ui("打开模型设置"), iconEnd: "arrow-right", onClick: onOpenModel } : undefined}
+                        onDismiss={onDismissRescue}>
+                        {promptForCluster.text || rescueGate('experiment', { modelReady: false, canChat }).text}
+                      </InlineMessage>
+                    )}
+                  </div>
+                )}
               </li>
             );
           }
@@ -643,7 +721,7 @@ export function wrongBookHeadline({ isHistory, counts, historyCount = 0, status 
 export function WrongBookView({
   data, course, onCourse, showInactive, onShowInactive, items, counts, view = "weak", onView, viewCounts, loading, err, page = 0, pageSize = PAGE_SIZE, hasMore, onReload, onPage,
   recs, recsLoading = false, coach, details = {}, onLoadDetail, onPractice, onPracticePrepared, onGenerate, onOpenSettings, onSettings,
-  onLibrary, onCreate, onSources, onRescue, onStartExperiment, experimentJobs = null, onNotify, arrival, openKey, initial = {}, filterMin = FILTER_MIN,
+  onLibrary, onCreate, onSources, onRescue, onStartExperiment, onStartClusterExperiment, experimentJobs = null, onNotify, arrival, openKey, initial = {}, filterMin = FILTER_MIN,
 }) {
   const { busy, openModal, host } = useStudy();
   const canChat = hasChatHost(host);
@@ -770,12 +848,22 @@ export function WrongBookView({
   const canGenerate = hasCoach && coach.enabled && !!onGenerate;
   const rowIds = new Set(rows.map((row) => row.cardId));
   const readyHere = (coach?.readyCards || []).filter((variant) => rowIds.has(variant.originCardId));
+  const hidTargetByCard = useMemo(() => {
+    const map = new Map();
+    for (const item of rows) {
+      const deck = Array.isArray(data?.decks) ? data.decks.find((d) => d.id === item.deckId) : null;
+      const card = Array.isArray(deck?.cards) ? deck.cards.find((c) => c.id === item.cardId) : null;
+      const hid = String(card?.hid || item?.hid || '').trim();
+      if (hid) map.set(item.cardId, { hid, title: String(card?.pointTitle || item?.pointTitle || item?.topic || '').trim() });
+    }
+    return map;
+  }, [rows, data?.decks]);
   const clinicOn = wrongbookClinic(data?.settings?.practice);
   const clinicLanes = useMemo(
     () => (clinicOn && !isHistory && rows.length >= 2
-      ? buildWrongbookClinic({ rows, sourceTargetByCard, companionTargetByCard, wrongCounts })
+      ? buildWrongbookClinic({ rows, sourceTargetByCard, companionTargetByCard, hidTargetByCard, wrongCounts })
       : []),
-    [clinicOn, isHistory, rows, sourceTargetByCard, companionTargetByCard, wrongCounts],
+    [clinicOn, isHistory, rows, sourceTargetByCard, companionTargetByCard, hidTargetByCard, wrongCounts],
   );
   const stateOf = (cardId) => variantState(coach, cardId, pending);
   const eligible = (list) => list.filter((row) => stateOf(row.cardId).kind === "none" || stateOf(row.cardId).kind === "failed");
@@ -930,6 +1018,26 @@ export function WrongBookView({
     setRescuePrompt(null);
     if (!onStartExperiment) return;
     await onStartExperiment(item, detail, courseOfDeck.get(item.deckId) || (course && course !== '*' ? course : ''));
+  };
+  const triggerClusterExperiment = async (lane, jobKey) => {
+    const clusterCourse = (lane.deckIds?.length ? courseOfDeck.get(lane.deckIds[0]) : '') || (course && course !== '*' ? course : '');
+    const gate = rescueGate('experiment', { modelReady: generationModelReady, canChat });
+    if (gate.type !== 'run') {
+      setRescuePrompt({ cardId: jobKey, course: clusterCourse, ...gate });
+      return;
+    }
+    setRescuePrompt(null);
+    if (onStartClusterExperiment) {
+      await onStartClusterExperiment(lane, jobKey, clusterCourse);
+      return;
+    }
+    if (onStartExperiment && lane.refs?.[0]) {
+      await onStartExperiment(
+        { deckId: lane.refs[0].deckId, cardId: lane.refs[0].cardId, hid: lane.hid || '', topic: lane.pointTitle || lane.sourceTitle || '' },
+        null,
+        clusterCourse,
+      );
+    }
   };
   const dismissRescue = () => setRescuePrompt(null);
   const openCardSource = (target) => {
@@ -1086,10 +1194,14 @@ export function WrongBookView({
 
       {!isHistory && clinicLanes.length > 0 && (
         <WrongBookClinic lanes={clinicLanes} filterLeech={!!filter.leech} loading={loading}
+          course={course && course !== '*' ? course : ''} canChat={canChat} canOpenModel={!!openModel}
           canOpenSource={!!openModal} canPractice={!!onPractice}
+          experimentJobs={activeExperimentJobs} rescuePrompt={activeRescuePrompt}
           onOpenSource={openCardSource} onOpenCompanion={openCardCompanion}
           onPracticeScope={(refs) => practiceScope(refs)}
-          onToggleLeech={() => patchFilter({ leech: !filter.leech })} />
+          onToggleLeech={() => patchFilter({ leech: !filter.leech })}
+          onRescueCluster={(onStartClusterExperiment || onStartExperiment) ? triggerClusterExperiment : undefined}
+          onDismissRescue={dismissRescue} onOpenModel={openModel} />
       )}
 
       {showRecs && (
@@ -1352,7 +1464,6 @@ export function WrongBookView({
 export default function WrongBook({ data, onPractice, onPracticePrepared, onOpenSettings, onLibrary, onCreate, onSources }) {
   const { call, act, openSettings, busy } = useStudy();
   const app = useContext(AppContext);
-  const [experimentJobs, setExperimentJobs] = useState({});
   const [pinnedCourse, setCourse] = usePageScope(data?.root, 'wrongbook', data?.focus?.course ?? '*');
   const [pinnedInactive, setShowInactive] = useShowInactive(data?.root, 'wrongbook');
   // The result page's line about 顽固题 asked this page to open on exactly those questions (ui/Review.jsx). The request waits under the library's root, so it is read in
@@ -1496,120 +1607,31 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
   const preparing = !!coach?.preparing;
   usePolling(coachQuery.refresh, { intervalMs: POLL_MS, enabled: preparing });
 
-  // Track inline row-level 3–4 slide rescue experiment builds non-blockingly via job.status.
-  const runningExperiments = useMemo(
-    () => Object.entries(experimentJobs).filter(([, entry]) => entry?.status === 'running' && entry.jobId),
-    [experimentJobs],
-  );
-  const startingExperimentsRef = useRef(new Set());
-  const pollExperiments = useCallback(async () => {
-    if (!runningExperiments.length) return { unchanged: true };
-    let changed = false;
-    let completedAny = false;
-    const nextPatch = {};
-    for (const [cardId, entry] of runningExperiments) {
-      let job;
-      try {
-        job = await call('job.status', { jobId: entry.jobId });
-      } catch (err) {
-        const misses = (entry.pollErrors || 0) + 1;
-        const gone = /not\s*found|unknown\s*job|找不到|不存在/i.test(String(err?.message || err || ''));
-        changed = true;
-        nextPatch[cardId] = gone || misses >= 3
-          ? { status: 'failed', jobId: entry.jobId, message: ui('这次没能生成交互实验，可以重试或展开「其他办法」。') }
-          : { ...entry, pollErrors: misses };
-        continue;
-      }
-      const status = job?.status ?? job?.contract?.status;
-      if (!status) {
-        const misses = (entry.pollErrors || 0) + 1;
-        changed = true;
-        nextPatch[cardId] = misses >= 3
-          ? { status: 'failed', jobId: entry.jobId, message: ui('这次没能生成交互实验，可以重试或展开「其他办法」。') }
-          : { ...entry, pollErrors: misses };
-        continue;
-      }
-      const stage = job?.legacy?.companionStage
-        || job?.companionStage
-        || String(job?.contract?.stage?.code || '').replace(/^companion\./, '')
-        || entry.stage;
-      if (isActiveJob({ status })) {
-        if (stage !== entry.stage || entry.pollErrors) {
-          nextPatch[cardId] = { ...entry, stage, pollErrors: 0 };
-          changed = true;
-        }
-        continue;
-      }
-      changed = true;
-      if (status === 'complete') {
-        const companionRef = (job?.contract?.result?.refs || []).find((ref) => ref?.kind === 'companion');
-        const companionId = job?.contract?.detail?.companionId || job?.detail?.companionId || companionRef?.id || '';
-        if (companionId) {
-          nextPatch[cardId] = {
-            status: 'ready',
-            jobId: entry.jobId,
-            companionId,
-            course: companionRef?.course || entry.course || '',
-            title: companionRef?.title || '',
-          };
-          completedAny = true;
-        } else {
-          nextPatch[cardId] = { status: 'failed', jobId: entry.jobId, message: ui('这次没能生成交互实验，可以重试或展开「其他办法」。') };
-        }
-      } else {
-        const message = job?.error?.message || job?.contract?.error?.message || ui('这次没能生成交互实验，可以重试或展开「其他办法」。');
-        nextPatch[cardId] = { status: 'failed', jobId: entry.jobId, message: errorMessage(message) };
-      }
-    }
-    if (changed) {
-      setExperimentJobs((prev) => {
-        let updated = null;
-        for (const [cardId, patch] of Object.entries(nextPatch)) {
-          if (prev[cardId]?.jobId !== patch.jobId) continue;
-          if (!updated) updated = { ...prev };
-          updated[cardId] = patch;
-        }
-        return updated || prev;
-      });
-    }
-    if (completedAny) {
-      Promise.resolve(app?.core?.refresh?.()).catch(() => {});
-      void load(pageRef.current, { quiet: true });
-    }
-    return changed ? {} : { unchanged: true };
-  }, [app?.core, call, load, runningExperiments]);
-  usePolling(pollExperiments, { intervalMs: 1500, enabled: runningExperiments.length > 0 });
+  // Track inline row-level & clinic cluster 3–4 slide rescue experiment builds non-blockingly via shared poller.
+  const onRescueCompleted = useCallback(() => {
+    Promise.resolve(app?.core?.refresh?.()).catch(() => {});
+    void load(pageRef.current, { quiet: true });
+  }, [app?.core, load]);
+  const { jobs: experimentJobs, start: startRescueJob } = useRescueExperiments({ call, onCompleted: onRescueCompleted });
 
   const startExperiment = useCallback(async (item, _detail, itemCourse) => {
-    const cardId = item.cardId;
-    if (startingExperimentsRef.current.has(cardId)) return;
-    startingExperimentsRef.current.add(cardId);
-    setExperimentJobs((prev) => ({ ...prev, [cardId]: { status: 'starting', stage: 'queued', course: itemCourse || '' } }));
-    try {
-      const started = await call('generation.companion.build', {
-        mode: 'rescue',
-        ...(itemCourse ? { course: itemCourse } : {}),
-        deckId: item.deckId,
-        cardIds: [cardId],
-        language: getUiLanguage(),
-      });
-      if (!started?.jobId) {
-        setExperimentJobs((prev) => ({ ...prev, [cardId]: { status: 'failed', message: ui('这次没能启动交互实验，可以重试或展开「其他办法」。') } }));
-        return;
-      }
-      setExperimentJobs((prev) => ({
-        ...prev,
-        [cardId]: { status: 'running', jobId: started.jobId, stage: 'queued', course: itemCourse || '', pollErrors: 0 },
-      }));
-    } catch (failure) {
-      setExperimentJobs((prev) => ({
-        ...prev,
-        [cardId]: { status: 'failed', message: errorMessage(failure) },
-      }));
-    } finally {
-      startingExperimentsRef.current.delete(cardId);
-    }
-  }, [call]);
+    await startRescueJob(item.cardId, {
+      course: itemCourse || '',
+      deckId: item.deckId,
+      cardIds: [item.cardId],
+      ...(item.hid ? { hid: item.hid } : {}),
+    });
+  }, [startRescueJob]);
+
+  const startClusterExperiment = useCallback(async (lane, jobKey, clusterCourse) => {
+    await startRescueJob(jobKey, {
+      course: clusterCourse || '',
+      ...(lane.deckIds?.length === 1 ? { deckId: lane.deckIds[0] } : {}),
+      cardIds: Array.isArray(lane.cardIds) ? lane.cardIds.slice(0, 4) : [],
+      ...(lane.hid ? { hid: lane.hid } : {}),
+      ...(lane.pointTitle || lane.sourceTitle ? { topic: lane.pointTitle || lane.sourceTitle } : {}),
+    });
+  }, [startRescueJob]);
 
   // Starting variants is a write that starts background work: it goes the app's write way (act), which reads the library again after it, so the 任务
   // console and its badge show the day's 为你定制 row at once instead of after the next quiet poll.
@@ -1682,6 +1704,6 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
       page={page} pageSize={PAGE_SIZE} hasMore={counts.total > PAGE_SIZE} onReload={load} onPage={load}
       recs={recs?.key === key ? recs : null} recsLoading={view === "weak" && !!items?.length && recs?.key !== key} coach={coach} details={details} onLoadDetail={loadDetail}
       onPractice={onPractice} onPracticePrepared={onPracticePrepared} onGenerate={generate} onOpenSettings={onOpenSettings} onSettings={openSettings}
-      onLibrary={onLibrary} onCreate={onCreate} onSources={onSources} onRescue={rescue} onStartExperiment={startExperiment} experimentJobs={experimentJobs} onNotify={(text) => toast.info(text)} arrival={arrived ? arrival : null} openKey={`study-wrongbook-open:v1:${data?.root || ""}`} />
+      onLibrary={onLibrary} onCreate={onCreate} onSources={onSources} onRescue={rescue} onStartExperiment={startExperiment} onStartClusterExperiment={startClusterExperiment} experimentJobs={experimentJobs} onNotify={(text) => toast.info(text)} arrival={arrived ? arrival : null} openKey={`study-wrongbook-open:v1:${data?.root || ""}`} />
   );
 }

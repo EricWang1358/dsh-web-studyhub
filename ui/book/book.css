@@ -323,10 +323,62 @@
       line-height: var(--lh-tight);
       scroll-margin-top: var(--space-6);
     }
+    .book-point__gap-wrap {
+      display: grid;
+      gap: var(--space-2);
+      min-width: 0;
+    }
     .book-point__gap-hint {
       margin: var(--space-1) 0 0;
       font-size: var(--fs-sm);
       color: var(--text-muted);
+    }
+    .book-point__rescue-status {
+      display: flex;
+      align-items: flex-start;
+      flex-wrap: nowrap;
+      gap: var(--space-2);
+      color: var(--text-dim);
+      font-size: var(--fs-sm);
+      line-height: var(--lh-body);
+    }
+    .book-point__rescue-status > :first-child {
+      flex-shrink: 0;
+      margin-top: 0.15em;
+    }
+    .book-point__rescue-status > span {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+    .book-point__rescue-status.is-ready {
+      color: var(--ok-ink);
+      font-weight: var(--fw-medium);
+    }
+    .book-point__rescue-handoff {
+      display: grid;
+      gap: var(--space-2);
+      padding: var(--space-3);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--bg-surface);
+      font-size: var(--fs-sm);
+      line-height: var(--lh-body);
+    }
+    .book-point__rescue-handoff strong {
+      font-weight: var(--fw-medium);
+    }
+    .book-point__rescue-handoff p {
+      margin: 0;
+      color: var(--text-dim);
+    }
+    .book-point__rescue-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1) var(--space-2);
+    }
+    .book-point__rescue-notice {
+      margin: 0;
     }
     .book-step__nav {
       display: grid;

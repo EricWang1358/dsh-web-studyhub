@@ -348,6 +348,8 @@
     .wb-clinic-name { font-size: var(--fs-md); font-weight: var(--fw-medium); overflow-wrap: anywhere; }
     .wb-clinic-meta { font-size: var(--fs-sm); line-height: var(--lh-body); overflow-wrap: anywhere; }
     .wb-clinic-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1) var(--space-2); min-width: 0; }
+    .wb-clinic-feedback { flex: 1 1 100%; min-width: 0; display: grid; gap: var(--space-2); }
+    .wb-clinic-feedback .wb-consent, .wb-clinic-feedback .wb-leech__notice { margin: 0; }
   }
   @container study (max-width: 640px) {
     :where(.study-app, .study-seat) {
