@@ -13,7 +13,7 @@ import accentCss from "../accent.css";
 import bridgeCss from "../panel-bridge.css";
 import audioDashboardCss from '../audio-dashboard.css';
 import hostCss from './studyhub.css';
-import { createStudyCall } from "../transport.js";
+import { createLibraryEventWaitSubscription, createStudyCall } from "../transport.js";
 import { sessionFileAddress } from '../document-preview/selection.js';
 import { canOpenBackgroundAgent, openBackgroundAgent } from './open-agent.js';
 import { createPoller } from "../use-polling.js";
@@ -235,6 +235,10 @@ export function createWorkspaceHost(ctx, { effect = (fn, label) => ctx.effect(fn
       if (!modelGroups?.length) models?.catalog?.load?.().catch(() => {});
     }, [models, modelGroups?.length]);
     const workspace = ctx.get("uiWorkspace");
+    const subscribeLibraryEvents = React.useMemo(
+      () => createLibraryEventWaitSubscription(call),
+      [call],
+    );
     const host = React.useMemo(
       () => {
         // The conversation tab switches views; the top-level page reveals the Conversation panel.
@@ -245,6 +249,7 @@ export function createWorkspaceHost(ctx, { effect = (fn, label) => ctx.effect(fn
         warmKey: sessionId || "",
         placement,
         capabilities: PLUGIN_CAPABILITIES,
+        subscribeLibraryEvents,
         pickDirectory: workspace?.pickDirectory
           ? () => workspace.pickDirectory()
           : undefined,
@@ -391,7 +396,7 @@ export function createWorkspaceHost(ctx, { effect = (fn, label) => ctx.effect(fn
         },
         };
       },
-      [workspace, modelGroups, sessionModel, sessionId, hasOpenView, placement, call, models],
+      [workspace, modelGroups, sessionModel, sessionId, hasOpenView, placement, call, models, subscribeLibraryEvents],
     );
     const seat = (
       <div className="study-seat" {...seatLook}><StudyBoundary>

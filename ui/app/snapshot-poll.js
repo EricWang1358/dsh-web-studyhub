@@ -33,16 +33,40 @@ export function createSnapshotPoll({ refresh, readData, readToken, setSyncIssue,
   };
 }
 
+function normalizeLibraryPath(value) {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim().replaceAll('\\', '/').replace(/\/+$/, '');
+  return /^[a-z]:\//i.test(trimmed) ? trimmed.toLowerCase() : trimmed;
+}
+
+/** Decide whether a pushed `study:library-changed` event should trigger a snapshot refresh for the active library. */
+export function shouldHandleLibraryEvent(event, { currentRoot = '', currentRevision = null } = {}) {
+  if (!event || typeof event !== 'object') return false;
+  const eventRoot = normalizeLibraryPath(event.root);
+  const activeRoot = normalizeLibraryPath(currentRoot);
+  if (eventRoot && activeRoot && eventRoot !== activeRoot) return false;
+  if (event.reason !== 'explicit' && Number.isSafeInteger(event.revision) && Number.isSafeInteger(currentRevision) && event.revision <= currentRevision) {
+    return false;
+  }
+  return true;
+}
+
 /** Activity in the panel, or coming back to it, restores the quick rhythm at once. Returns the function that takes the listeners off. */
-export function attachWake(poll, { win = window, doc = document } = {}) {
+export function attachWake(poll, { win = window, doc = document, onFocus } = {}) {
   const wake = () => poll.wake();
   const visible = () => { if (!doc.hidden) poll.wake(); };
+  const focused = () => {
+    poll.wake();
+    if (!doc.hidden) onFocus?.();
+  };
   win.addEventListener('pointerdown', wake, true);
   win.addEventListener('keydown', wake, true);
+  win.addEventListener('focus', focused);
   doc.addEventListener('visibilitychange', visible);
   return () => {
     win.removeEventListener('pointerdown', wake, true);
     win.removeEventListener('keydown', wake, true);
+    win.removeEventListener('focus', focused);
     doc.removeEventListener('visibilitychange', visible);
   };
 }

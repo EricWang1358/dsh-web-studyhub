@@ -1,4 +1,5 @@
 import { registerHostConcurrencyCap } from '../../lib/generation-settings.js';
+export { createDesktopEventSubscription, parseSseFrames } from './events.js';
 
 /* Tauri v2 IPC + HTTP RPC bridge for StudyHub Desktop.
    Falls back gracefully in plain browser QA when window.__TAURI_INTERNALS__ is absent. */
@@ -187,7 +188,7 @@ export function subscribeDesktopConcurrency(listener) {
 }
 
 /** Build the StudyHub Desktop host object matching the 4-field PLUGIN_HOST capabilities contract. */
-export function createDesktopHost(desktopCall, concurrency = concurrencyState) {
+export function createDesktopHost(desktopCall, concurrency = concurrencyState, subscribeLibraryEvents = null) {
   return {
     capabilities: DESKTOP_CAPABILITIES,
     ...(hasTauriBridge() ? {
@@ -198,6 +199,7 @@ export function createDesktopHost(desktopCall, concurrency = concurrencyState) {
       },
     } : {}),
     openExternal: (url) => openExternalUrl(url, desktopCall),
+    ...(typeof subscribeLibraryEvents === 'function' ? { subscribeLibraryEvents } : {}),
     ...(concurrency?.maxConcurrency ? { maxConcurrency: concurrency.maxConcurrency } : {}),
     ...(concurrency?.defaultConcurrency ? { defaultConcurrency: concurrency.defaultConcurrency } : {}),
   };

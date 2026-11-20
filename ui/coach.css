@@ -178,8 +178,7 @@
       color: var(--text-dim);
       font-size: var(--fs-md);
     }
-    .assist-form .assist-form__input,
-    .assist-form .assist-form__thinking-input {
+    .assist-form .assist-form__input {
       width: 100%;
       box-sizing: border-box;
       font-size: var(--fs-md);
@@ -214,6 +213,8 @@
       min-width: 0;
       max-width: 100%;
     }
+    .assist-actions > div[data-phase]:not([data-phase="idle"]),
+    .assist-actions > div[data-phase]:has(> :nth-child(2)),
     .assist-actions > div:has([data-phase]:not([data-phase="idle"]), [data-phase] > :nth-child(2)) {
       order: -1;
       flex: 1 0 100%;

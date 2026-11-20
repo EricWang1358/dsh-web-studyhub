@@ -22,7 +22,7 @@ export default function VoiceButton({ voice, label = '语音作答', shortcut, c
   }, [setup, closeSetup]);
   // Shift+V opens the 帮我弄懂 box and puts the cursor in it, so "press again to send" lands in a text box: while recording, that press ends the recording
   // instead of typing a capital V (the page's key handler leaves keys in a text box alone). Elsewhere the page's handler does it.
-  const { phase, toggle } = voice;
+  const { phase, starting: voiceStarting, toggle, cancel } = voice;
   React.useEffect(() => {
     if (phase !== 'recording' || !/^Shift\+/.test(shortcut || '')) return undefined;
     const send = (event) => {
@@ -34,6 +34,18 @@ export default function VoiceButton({ voice, label = '语音作答', shortcut, c
     document.addEventListener('keydown', send);
     return () => document.removeEventListener('keydown', send);
   }, [phase, toggle, shortcut]);
+  // Esc cancels an active recording, mic startup, or in-flight transcription in capture phase so outer forms do not close underneath it.
+  React.useEffect(() => {
+    if (phase !== 'recording' && phase !== 'sending' && !voiceStarting) return undefined;
+    const onEscape = (event) => {
+      if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing || event.keyCode === 229) return;
+      event.preventDefault();
+      event.stopPropagation();
+      cancel();
+    };
+    document.addEventListener('keydown', onEscape, true);
+    return () => document.removeEventListener('keydown', onEscape, true);
+  }, [phase, voiceStarting, cancel]);
   // Pressing V can happen with the button below the fold: bring the recording (or the setup guide that took its place) into view, so a key press is never a silent one.
   const root = React.useRef(null), guide = React.useRef(null);
   React.useEffect(() => {
@@ -64,9 +76,12 @@ export default function VoiceButton({ voice, label = '语音作答', shortcut, c
   }, [phase === 'recording', !!setup]); // eslint-disable-line react-hooks/exhaustive-deps
   if (voice.unavailable) return null;
   const recording = voice.phase === 'recording', sending = voice.phase === 'sending';
+  const starting = !!voice.starting && voice.phase === 'idle';
+  const level = Math.max(0, Math.min(100, Math.round(Number(voice.level) || 0)));
   const button = (
     <Button size="sm" variant={recording ? 'primary' : 'secondary'} icon={recording ? 'stop' : 'microphone'} className="voice-button"
-      aria-keyshortcuts={shortcut || undefined} aria-pressed={recording} busy={sending} busyLabel={ui('正在转写…')} onClick={voice.toggle}>
+      aria-keyshortcuts={shortcut || undefined} aria-pressed={recording} busy={sending || starting}
+      busyLabel={starting ? ui('正在开启麦克风…') : ui('正在转写…')} onClick={voice.toggle}>
       {recording ? uiFormat('说完了 · 剩 {0}', [formatElapsed(voice.left * 1000)]) : ui(label)}
     </Button>
   );
@@ -75,10 +90,26 @@ export default function VoiceButton({ voice, label = '语音作答', shortcut, c
       <div className="voice-input__row">
         {/* No card while the setup guide is open: an open card takes the first Esc (the shared Tooltip closes first), so the guide would need a second one. */}
         {shortcut && !recording ? <Tooltip layer content={setup ? '' : uiFormat('快捷键 {0}：开始说，再按一次发送', [shortcut])}>{button}</Tooltip> : button}
-        {recording && <Button size="sm" variant="quiet" onClick={voice.cancel}>{ui('取消')}</Button>}
-        {recording && <span className="voice-input__live" role="status">{ui('正在听…说完按「说完了」，录音转成文字后立刻删除')}</span>}
+        {(recording || sending) && <Button size="sm" variant="quiet" onClick={voice.cancel}>{ui('取消')}</Button>}
+        {recording && (
+          <span className="voice-input__meter" aria-hidden="true" style={{ '--voice-level': String(level) }}>
+            <span className="voice-input__dot" />
+            <span className="voice-input__bars">
+              <span className="voice-input__bar" />
+              <span className="voice-input__bar" />
+              <span className="voice-input__bar" />
+              <span className="voice-input__bar" />
+              <span className="voice-input__bar" />
+            </span>
+          </span>
+        )}
+        {recording && (
+          <span className="voice-input__live" role="status" aria-label={ui('正在听…说完按「说完了」，录音转成文字后立刻删除')}>
+            {ui('正在听…')}
+          </span>
+        )}
       </div>
-      {voice.error && <InlineMessage onDismiss={voice.clearError}>{voice.error}</InlineMessage>}
+      {voice.error && <InlineMessage boxed onDismiss={voice.clearError}>{voice.error}</InlineMessage>}
       {voice.setup && <div ref={guide} className="voice-input__setup">
         <React.Suspense fallback={null}><VoiceSetup reason={voice.setup.reason} onSaved={voice.recheck} /></React.Suspense>
         <Button size="sm" variant="quiet" onClick={voice.closeSetup}>{ui('先不用语音')}</Button>
