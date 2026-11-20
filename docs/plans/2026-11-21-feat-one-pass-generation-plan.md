@@ -176,7 +176,7 @@
 简报没说到、实现时自己定下的事，按出现顺序记下，供评审逐条否决。
 
 1. **题数沿用现有覆盖计划**（lib/coverage-strength.js 的 assignments），不另立配额。标准档约每万字 6 题（每段 1–6 题），原型按约每 700 字 1 题，所以产品里每段题数比原型少；要改密度，改覆盖强度表，不在一次写完里改。
-2. **出题方式是一项 performance 设置**（`strategy`: `one-pass` | `staged`，默认 `one-pass`，lib/generation-settings.js 校验）。旧草稿续出、旧设置没有这一项时按默认值，即一次写完。
+2. **出题方式是一项 performance 设置**（`strategy`: `one-pass` | `staged`，默认 `one-pass`，lib/generation-settings.js 校验）。旧设置没有这一项时按默认值，即一次写完；**续出沿用草稿当时的出题方式**，在这个设置出现之前记录的草稿是逐题精出写的，续出也走逐题精出（改于全量测试之后，见第 22 条）。
 3. **只有单选题（quiz）走一次写完**；多选、判断、填空、问答、动手任务、闪卡、混合题型、案例题都自动走逐题精出。按题数出题（没有覆盖计划的 assignments）也走逐题精出。补题时重写已失败考点（preplan/reuse 部分）仍由逐题精出写。
 4. **小节只在自身题数超过 12 时切开**，切成连续等长几段、共享题数（`key/1`、`key/2`…）；否则小节从不切开，单独超过 9,000 字的小节自成一份。
 5. **只有一题都没有的小节才单独再问一次**（简报原话）；有题但不够数的小节不再问，直接记为 plan-short 失败部分（与逐题精出 planAssignedGroup 同一记录格式），在覆盖视图里是「计划了但失败」的小节，并在失败原因里写明。
@@ -196,3 +196,5 @@
 19. **写题提示词默认用情景式（owner 2026-11-21）**：原型 6 的 WHAT TO TEST / HOW TO ASK / EXPLANATION 三段替换第三轮那句「能放进小情景就放进去」。写法的文字只放在 lib/one-pass/write-style.js 一处，按 style 键选（`scenario` 默认，`quick` 是第三轮的原句），`writePrompts(…, { style })` 取用；还没有对应的设置、界面或预设（密度 × 深度的预设留给后续改动）。原型里的「用简体中文写」没有搬过来，仍按请求的内容语言写。
 20. **最后一次「考同一事实」合并调用**（原型 5/6）：程序按考点和引文合并之后，再把全部保留下来的一次写完的题（考点 + 题干）一次发给模型分组，每组按阅读顺序留第一道，其余记为 omitted（原因 `…tests the same fact`）。它是这一轮的一个审阅步骤（stage 为 Reviewing…，`unit: merge`，不属于任何 Part）。少于 2 道题、多于 `sameFactCards`（600）道题、或 token 上限已用完时不调用（避免已完成的运行被预算停止）；回复读不出来时再问一次，仍失败或调用失败就保留全部题，只有运行本身被停止才按停止处理。逐题精出的题不送去合并。
 21. **回复是坏 JSON 时再问一次**（lib/one-pass/reply.js askJson，写题、改写、审阅、合并都用）和**一题都没有的小节单独再问一次**（第 5 条）在这之前已经实现。
+22. **默认改为一次写完后，测逐题精出运行机制的测试固定为 staged**：覆盖运行的轮次、补题轮、暂停/取消、重启、校准、录制的运行语料（coverage-run-exec、generation-run-wiring、generation-run-corpus、generation-calibration、round-asked-keys-exec、honest-run-exec、coverage-run、deck-parts-exec、failed-continue-exec、generation-restart、progress-honest-exec、run-left-exec、coverage-topup、generation-family-baseline-terminals、gen-all-materials-run、small-target-weights、generation-content-language-paths）。它们的模拟模型只会回答逐题精出的提示词，测的也是那条流水线；做法是像学习者一样把库的默认出题方式存成 staged（tests/helpers/staged-strategy.mjs）。**这些运行机制还没有在一次写完下测过**（只在 one-pass-run / one-pass-service 里测了单轮与标准覆盖运行）。
+23. 一次写完的 lib/one-pass/reply.js 是新的「模型形状调用点」，已登记进 s1-7-legacy-exceptions.json、s6-0-coverage.md 和 s6-7-acceptance.md 的数量（41 行 / 103 处 / exception 83）。
