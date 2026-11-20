@@ -26,7 +26,8 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["msi"],
+    "createUpdaterArtifacts": true,
+    "targets": ["nsis", "msi"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -45,8 +46,24 @@
       "webviewInstallMode": {
         "type": "downloadBootstrapper"
       },
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["SimpChinese", "English"],
+        "displayLanguageSelector": false
+      },
       "wix": {
         "language": "en-US"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDcwNTg3MDc0QTM0RDQ0NDEKUldSQlJFMmpkSEJZY0ZpQk1GYW1NbW5pWXdJZUdmT2xLZlppMUFLY2dtU1l6R0lRaUJyWjh0Z3gK",
+      "endpoints": [
+        "https://github.com/EricWang1358/dsh-web-studyhub/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
       }
     }
   }

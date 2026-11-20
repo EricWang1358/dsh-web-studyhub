@@ -11,15 +11,52 @@
 mod sidecar;
 
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
-use tauri::{AppHandle, Manager, RunEvent, State, WindowEvent};
+use serde::Serialize;
+use tauri::{AppHandle, Emitter, Manager, RunEvent, State, WebviewWindow, WindowEvent};
 use tauri_plugin_dialog::{DialogExt, FilePath};
 use tauri_plugin_opener::OpenerExt;
+use tauri_plugin_updater::UpdaterExt;
 use url::Url;
 
 use crate::sidecar::{
     resolve_runtime_paths, sidecar_startup_timeout, BootstrapInfo, SidecarHandle, SidecarManager,
 };
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopUpdateInfo {
+    available: bool,
+    current_version: String,
+    version: Option<String>,
+    notes: Option<String>,
+    pub_date: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopUpdateProgress {
+    phase: &'static str,
+    downloaded: u64,
+    total: Option<u64>,
+    percent: Option<u8>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopInstallReceipt {
+    status: &'static str,
+    version: String,
+}
+
+fn progress_percent(downloaded: u64, total: Option<u64>) -> Option<u8> {
+    let total_bytes = total.filter(|value| *value > 0)?;
+    let clamped = downloaded.min(total_bytes);
+    let pct = clamped.saturating_mul(100) / total_bytes;
+    u8::try_from(pct.min(100)).ok()
+}
 
 pub fn validate_external_url(raw: &str) -> Result<Url, String> {
     let trimmed = raw.trim();
@@ -71,6 +108,114 @@ fn open_external(app: AppHandle, url: String) -> Result<(), String> {
         .map_err(|err| format!("failed to open external URL: {err}"))
 }
 
+#[tauri::command]
+async fn desktop_check_update(app: AppHandle) -> Result<DesktopUpdateInfo, String> {
+    let current_version = app.package_info().version.to_string();
+    let updater = app
+        .updater()
+        .map_err(|err| format!("desktop updater unavailable: {err}"))?;
+    let maybe_update = updater
+        .check()
+        .await
+        .map_err(|err| format!("failed to check for desktop update: {err}"))?;
+    match maybe_update {
+        Some(update) => Ok(DesktopUpdateInfo {
+            available: true,
+            current_version,
+            version: Some(update.version),
+            notes: update.body,
+            pub_date: update.date.map(|date| date.to_string()),
+        }),
+        None => Ok(DesktopUpdateInfo {
+            available: false,
+            current_version,
+            version: None,
+            notes: None,
+            pub_date: None,
+        }),
+    }
+}
+
+#[tauri::command]
+async fn desktop_install_update(
+    app: AppHandle,
+    window: WebviewWindow,
+) -> Result<DesktopInstallReceipt, String> {
+    let current_version = app.package_info().version.to_string();
+    let exit_app = app.clone();
+    let updater = app
+        .updater_builder()
+        .on_before_exit(move || {
+            shutdown_managed_sidecar(&exit_app);
+        })
+        .build()
+        .map_err(|err| format!("desktop updater unavailable: {err}"))?;
+    let Some(update) = updater
+        .check()
+        .await
+        .map_err(|err| format!("failed to check for desktop update: {err}"))?
+    else {
+        return Ok(DesktopInstallReceipt {
+            status: "up-to-date",
+            version: current_version,
+        });
+    };
+
+    let downloaded_bytes = Arc::new(AtomicU64::new(0));
+    let progress_counter = Arc::clone(&downloaded_bytes);
+    let progress_window = window.clone();
+    let finish_window = window.clone();
+
+    let _ = window.emit(
+        "desktop-update-progress",
+        DesktopUpdateProgress {
+            phase: "downloading",
+            downloaded: 0,
+            total: None,
+            percent: Some(0),
+        },
+    );
+
+    let bytes = update
+        .download(
+            move |chunk_length, content_length| {
+                let added = u64::try_from(chunk_length).unwrap_or(0);
+                let total_so_far = progress_counter.fetch_add(added, Ordering::Relaxed) + added;
+                let _ = progress_window.emit(
+                    "desktop-update-progress",
+                    DesktopUpdateProgress {
+                        phase: "downloading",
+                        downloaded: total_so_far,
+                        total: content_length,
+                        percent: progress_percent(total_so_far, content_length),
+                    },
+                );
+            },
+            move || {
+                let final_bytes = downloaded_bytes.load(Ordering::Relaxed);
+                let _ = finish_window.emit(
+                    "desktop-update-progress",
+                    DesktopUpdateProgress {
+                        phase: "installing",
+                        downloaded: final_bytes,
+                        total: Some(final_bytes),
+                        percent: Some(100),
+                    },
+                );
+            },
+        )
+        .await
+        .map_err(|err| format!("failed to download desktop update: {err}"))?;
+
+    // On Windows, `install` invokes `on_before_exit` (stopping the sidecar), launches NSIS with `/P /UPDATE /R`, and exits.
+    update
+        .install(&bytes)
+        .map_err(|err| format!("failed to install desktop update: {err}"))?;
+
+    shutdown_managed_sidecar(&app);
+    app.restart();
+}
+
 fn shutdown_managed_sidecar(app_handle: &AppHandle) {
     if let Some(manager) = app_handle.try_state::<SidecarManager>() {
         manager.shutdown();
@@ -81,6 +226,7 @@ pub fn run() -> Result<(), String> {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let resource_dir = app.path().resource_dir().ok();
             let exe_dir = std::env::current_exe()
@@ -108,7 +254,9 @@ pub fn run() -> Result<(), String> {
         .invoke_handler(tauri::generate_handler![
             get_bootstrap_info,
             pick_directory,
-            open_external
+            open_external,
+            desktop_check_update,
+            desktop_install_update
         ])
         .build(tauri::generate_context!())
         .map_err(|err| format!("failed to build Tauri application: {err}"))?;
@@ -125,6 +273,14 @@ pub fn run() -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn progress_percent_clamps_and_handles_missing_total() {
+        assert_eq!(progress_percent(0, None), None);
+        assert_eq!(progress_percent(50, Some(0)), None);
+        assert_eq!(progress_percent(25, Some(100)), Some(25));
+        assert_eq!(progress_percent(150, Some(100)), Some(100));
+    }
 
     #[test]
     fn validate_external_url_allows_http_and_https() -> Result<(), String> {

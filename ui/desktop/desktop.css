@@ -149,5 +149,53 @@
       align-items: center;
       gap: var(--space-2);
     }
+
+    /* In-app signed auto-updater card and collapsible manual fallback (DesktopUpgradeGuide.jsx). */
+    .desktop-updater {
+      display: grid;
+      gap: var(--space-3);
+      margin-bottom: var(--space-3);
+    }
+
+    .desktop-updater__actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .desktop-updater__status {
+      display: grid;
+      gap: var(--space-2);
+    }
+
+    .desktop-updater__caption {
+      margin: 0;
+      font-size: var(--fs-sm);
+      color: var(--text-dim);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .desktop-updater__manual {
+      border-top: 1px solid var(--line);
+      padding-top: var(--space-3);
+    }
+
+    .desktop-updater__manual-summary {
+      cursor: pointer;
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-medium);
+      color: var(--text-dim);
+    }
+
+    .desktop-updater__manual-body {
+      margin-top: var(--space-3);
+    }
+
+    .desktop-updater__alt-links {
+      display: inline-flex;
+      gap: var(--space-2);
+      margin-inline-start: var(--space-2);
+    }
   }
 }

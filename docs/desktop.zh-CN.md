@@ -6,22 +6,32 @@
 
 ## 选择安装包
 
-每次发布在 [GitHub 发布页](https://github.com/EricWang1358/dsh-web-studyhub/releases/latest)提供两个 Windows 64 位（x64）包，并附带 `SHA256SUMS-Desktop-<version>.txt` 校验文件：
+每次发布在 [GitHub 发布页](https://github.com/EricWang1358/dsh-web-studyhub/releases/latest)提供三个 Windows 64 位（x64）包，并附带 `SHA256SUMS-Desktop-<version>.txt` 校验文件与自动更新清单 `latest.json`：
 
 | 安装包 | 适合谁 | 说明 |
 | --- | --- | --- |
-| `StudyHub-Desktop-<version>-win-x64.msi` | 大多数 Windows 10 / 11 用户 | 标准安装器，提供开始菜单快捷方式、控制面板卸载入口，并内置 Windows 10 的 WebView2 引导程序。 |
+| `StudyHub-Desktop-<version>-win-x64-setup.exe` | **推荐**（绝大多数 Windows 10 / 11 用户） | 当前用户（`currentUser`）安装器，**无需管理员权限（零 UAC 弹窗）**，支持**应用内一键自动更新**（含 Ed25519 签名校验与自动重启），内置 Windows 10 的 WebView2 引导程序。 |
+| `StudyHub-Desktop-<version>-win-x64.msi` | 需要传统 MSI 部署的用户 | 标准 Windows Installer（`.msi`），提供开始菜单快捷方式、控制面板卸载入口和 WebView2 引导程序。 |
 | `StudyHub-Desktop-<version>-win-x64.zip` | 绿色便携 / 免安装使用 | 解压到任意可写目录，双击 `StudyHub.exe` 即可运行。**不会**自动安装 WebView2。 |
 | `StudyHub-Desktop-Retrieval-<version>-win-x64.zip` | 可选大文档检索扩展包 | 预构建的 Windows x64 本地检索服务组件（附带 `SHA256SUMS-Desktop-Retrieval-<version>.txt`）。在应用内 **「设置 › 检索扩展」** 一键下载安装，无需手动解压。 |
 
-### 方式一：使用 `.msi` 安装器（推荐）
+### 方式一：使用 `Setup.exe` 安装器（推荐，支持应用内一键自动更新）
+
+1. 在发布页下载 `StudyHub-Desktop-<version>-win-x64-setup.exe` 和 `SHA256SUMS-Desktop-<version>.txt`。
+2. 核对文件的 SHA-256 校验值（见下方[Windows SmartScreen 未签名提示](#windows-smartscreen-未签名提示)）。
+3. 双击 `Setup.exe` 并按向导完成安装（装在当前用户目录，无需管理员 UAC 确认）。
+4. 从开始菜单打开 **StudyHub**。以后发布新版本时，直接在应用内的更新弹窗点击**「立即下载并更新」**即可自动校验 Ed25519 签名、静默覆盖并重启。
+
+> 如果此前装过旧版 `.msi`（装在 `Program Files` 或自定义盘符的管理员目录），建议先在「应用和功能」卸载旧版 `.msi` 再安装一次 `Setup.exe`（你的学习库目录、模型配置与设置都在独立用户目录，不会被删除）。
+
+### 方式二：使用 `.msi` 安装器
 
 1. 在发布页下载 `StudyHub-Desktop-<version>-win-x64.msi` 和 `SHA256SUMS-Desktop-<version>.txt`。
-2. 核对文件的 SHA-256 校验值（见下方[Windows SmartScreen 未签名提示](#windows-smartscreen-未签名提示)）。
+2. 核对文件的 SHA-256 校验值。
 3. 双击 `.msi` 文件并按向导完成安装。
 4. 从开始菜单打开 **StudyHub**。
 
-### 方式二：使用便携版 `.zip`
+### 方式三：使用便携版 `.zip`
 
 1. 在发布页下载 `StudyHub-Desktop-<version>-win-x64.zip` 和 `SHA256SUMS-Desktop-<version>.txt`。
 2. 核对 SHA-256 校验值后，解压到一个固定的可写文件夹（例如 `D:\Apps\StudyHub-Desktop`），不要解压到 `C:\Program Files` 下。
@@ -113,11 +123,11 @@ API Key 仅保存在本机桌面配置目录中，绝不会写入你的学习库
 | 大文档检索扩展 | 通过 DSH 插件管理安装（通常需重启 DSH） | 自动复用 DSH 扩展或在设置中一键独立安装（后台热重启，无需重启应用） |
 | 选择学习库文件夹 | DSH 工作区 / 路径选择 | Windows 原生文件夹选择器 |
 | 「发给主会话」/ 对话联动 | 直接填入 DSH 聊天输入框 | 将结构化提示词复制到剪贴板，可粘贴到任意 AI 对话工具 |
-| 版本更新 | 在 DSH 插件管理中更新 | 从 GitHub 发布页下载新版 `.msi` 或 `.zip` |
+| 版本更新 | 在 DSH 插件管理中更新 | 应用内一键自动更新（校验 Ed25519 签名、免 UAC 静默覆盖并重启），亦提供手动安装包 |
 
 ## 隐私与安全说明
 
 - **本地优先**：资料原文、题组、笔记和复习历史全部保存在你的电脑上；只有触发 AI 出题、讲解或转写时，相关内容才会发送到你配置的模型服务商。
 - **严格的本机回环隔离**：桌面界面从内置静态资源（`tauri://localhost`）加载，不加载 `127.0.0.1` 的 HTML。每次启动时，Rust 壳层生成一次性 256 位随机令牌，并通过 `stdin` 管道传给本地 Node.js 后端（绝不出现在命令行参数、URL 或 HTML 中）；后端只监听 `127.0.0.1` 且拒绝缺少有效令牌的请求。
-- **最小桌面权限**：Tauri 壳层只向主窗口暴露 3 个命令（`get_bootstrap_info`、`pick_directory`、`open_external`）；所有外部链接都会严格校验为 `http://` 或 `https://` 后再交由系统默认浏览器打开。
+- **最小桌面权限**：Tauri 壳层只向主窗口暴露 5 个命令（`get_bootstrap_info`、`pick_directory`、`open_external`、`desktop_check_update`、`desktop_install_update`）；外部链接会严格校验为 `http://` 或 `https://` 后再交由系统默认浏览器打开，应用内更新在安装前会使用内置 Ed25519 公钥强制验证更新包签名。
 - **唯一会替你打开的可见程序**：「在学习库里打开 agy / codex」只启动检测为就绪的那个本机 CLI，目录只会是当前学习库。界面只传 CLI 的名字；路径里有可能被 Windows 命令行当成语法的字符时直接拒绝，不做转义。

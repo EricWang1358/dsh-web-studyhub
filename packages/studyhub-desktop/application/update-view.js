@@ -1,13 +1,15 @@
 import { releaseDownloadPrefix } from '../../../lib/update-check.js';
 
 /**
- * Compute Desktop `.msi`, `.zip`, and `SHA256SUMS` release URLs for a given version.
+ * Compute Desktop NSIS `.exe`, `.msi`, `.zip`, and `SHA256SUMS` release URLs for a given version.
  */
 export function desktopReleaseAssets(latest, prefix = releaseDownloadPrefix()) {
   if (!latest) {
     return {
       assetName: null,
       assetUrl: null,
+      setupName: null,
+      setupUrl: null,
       installerName: null,
       installerUrl: null,
       zipName: null,
@@ -16,11 +18,14 @@ export function desktopReleaseAssets(latest, prefix = releaseDownloadPrefix()) {
     };
   }
   const base = `${prefix}v${latest}/`;
+  const setupName = `StudyHub-Desktop-${latest}-win-x64-setup.exe`;
   const installerName = `StudyHub-Desktop-${latest}-win-x64.msi`;
   const zipName = `StudyHub-Desktop-${latest}-win-x64.zip`;
   return {
-    assetName: installerName,
-    assetUrl: `${base}${installerName}`,
+    assetName: setupName,
+    assetUrl: `${base}${setupName}`,
+    setupName,
+    setupUrl: `${base}${setupName}`,
     installerName,
     installerUrl: `${base}${installerName}`,
     zipName,

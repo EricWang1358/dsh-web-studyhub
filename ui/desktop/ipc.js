@@ -27,6 +27,49 @@ export async function tauriInvoke(command, args) {
   return invoke(command, args);
 }
 
+/** Subscribe to a Tauri v2 event via __TAURI_INTERNALS__ without static @tauri-apps/api coupling. */
+export async function listenTauriEvent(eventName, handler) {
+  const internals = globalThis.__TAURI_INTERNALS__;
+  if (typeof internals?.invoke !== 'function' || typeof internals?.transformCallback !== 'function') {
+    return () => {};
+  }
+  const callbackId = internals.transformCallback((event) => {
+    handler(event?.payload ?? event);
+  });
+  let eventId;
+  try {
+    eventId = await internals.invoke('plugin:event|listen', {
+      event: eventName,
+      target: { kind: 'Any' },
+      handler: callbackId,
+    });
+  } catch {
+    internals.unregisterCallback?.(callbackId);
+    return () => {};
+  }
+  return () => {
+    void internals.invoke('plugin:event|unlisten', { event: eventName, eventId }).catch(() => {});
+    internals.unregisterCallback?.(callbackId);
+  };
+}
+
+/** Check for a signed desktop update via Tauri `desktop_check_update`. */
+export async function checkDesktopUpdate() {
+  return tauriInvoke('desktop_check_update');
+}
+
+/** Download, verify signature, install, and restart StudyHub Desktop via Tauri `desktop_install_update`. */
+export async function installDesktopUpdate({ onProgress } = {}) {
+  const unlisten = typeof onProgress === 'function'
+    ? await listenTauriEvent('desktop-update-progress', onProgress)
+    : () => {};
+  try {
+    return await tauriInvoke('desktop_install_update');
+  } finally {
+    unlisten();
+  }
+}
+
 /** Read sidecar connection info from Tauri IPC, or browser QA fallback globals. */
 export async function loadBootstrapInfo() {
   if (hasTauriBridge()) {
@@ -147,7 +190,13 @@ export function subscribeDesktopConcurrency(listener) {
 export function createDesktopHost(desktopCall, concurrency = concurrencyState) {
   return {
     capabilities: DESKTOP_CAPABILITIES,
-    ...(hasTauriBridge() ? { pickDirectory: () => tauriInvoke('pick_directory') } : {}),
+    ...(hasTauriBridge() ? {
+      pickDirectory: () => tauriInvoke('pick_directory'),
+      updater: {
+        check: () => checkDesktopUpdate(),
+        install: (onProgress) => installDesktopUpdate({ onProgress }),
+      },
+    } : {}),
     openExternal: (url) => openExternalUrl(url, desktopCall),
     ...(concurrency?.maxConcurrency ? { maxConcurrency: concurrency.maxConcurrency } : {}),
     ...(concurrency?.defaultConcurrency ? { defaultConcurrency: concurrency.defaultConcurrency } : {}),

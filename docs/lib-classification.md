@@ -91,7 +91,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/math-scan.js`: 1 ui file; 3 other lib files
 - `lib/mineru-install-text.js`: 1 ui file; context audio; 1 other lib file
 - `lib/model-effort.js`: 4 ui files; contexts audio, generation; 9 other lib files
-- `lib/model-text.js`: 1 ui file; context bank; 1 other lib file
+- `lib/model-text.js`: 1 ui file; contexts bank, study; 1 other lib file
 - `lib/notation.js`: 1 ui file; context generation; 12 other lib files
 - `lib/passage-translation.js`: 2 ui files; contexts generation, materials; 1 other lib file
 - `lib/plain-reason.js`: 2 ui files; 2 other lib files

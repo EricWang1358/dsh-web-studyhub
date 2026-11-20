@@ -6,22 +6,32 @@ English · [简体中文](desktop.zh-CN.md)
 
 ## Choose a package
 
-Each release on the [GitHub release page](https://github.com/EricWang1358/dsh-web-studyhub/releases/latest) provides two Windows x64 packages plus `SHA256SUMS-Desktop-<version>.txt`:
+Each release on the [GitHub release page](https://github.com/EricWang1358/dsh-web-studyhub/releases/latest) provides three Windows x64 packages plus `SHA256SUMS-Desktop-<version>.txt` and the signed updater manifest `latest.json`:
 
 | Package | Best for | Notes |
 | --- | --- | --- |
-| `StudyHub-Desktop-<version>-win-x64.msi` | Most Windows 10 / 11 users | Standard installer with Start Menu shortcut, clean uninstall, and a WebView2 bootstrapper for Windows 10. |
+| `StudyHub-Desktop-<version>-win-x64-setup.exe` | **Recommended** (most Windows 10 / 11 users) | Per-user (`currentUser`) NSIS installer with **zero UAC prompts**, **one-click in-app auto-update** (Ed25519 signature verification + automatic restart), and a WebView2 bootstrapper for Windows 10. |
+| `StudyHub-Desktop-<version>-win-x64.msi` | Traditional MSI deployments | Standard Windows Installer (`.msi`) with Start Menu shortcut, clean uninstall, and a WebView2 bootstrapper for Windows 10. |
 | `StudyHub-Desktop-<version>-win-x64.zip` | Portable / no-installer use | Extract to any writable folder and run `StudyHub.exe`. Does **not** install WebView2 automatically. |
 | `StudyHub-Desktop-Retrieval-<version>-win-x64.zip` | Optional large-document search extension | Prebuilt Windows x64 search server bundle (with `SHA256SUMS-Desktop-Retrieval-<version>.txt`). Installed automatically in-app from **Settings › Search extension**; you do not need to extract it by hand. |
 
-### Option 1: Install with `.msi` (recommended)
+### Option 1: Install with `Setup.exe` (recommended, one-click auto-update)
+
+1. Download `StudyHub-Desktop-<version>-win-x64-setup.exe` and `SHA256SUMS-Desktop-<version>.txt` from the release page.
+2. Verify the SHA-256 checksum (see [SmartScreen and checksum verification](#windows-smartscreen-unsigned-executable-warning) below).
+3. Double-click `Setup.exe` and follow the wizard (installs per-user with no UAC prompt).
+4. Launch **StudyHub** from the Start Menu. Future releases can be installed in one click directly from the in-app update dialog (verifies the Ed25519 signature, updates passively, and restarts automatically).
+
+> If you previously installed an older per-machine `.msi`, uninstall the old `.msi` once before installing `Setup.exe`. Your library folder, model configuration, and settings are stored separately and remain untouched.
+
+### Option 2: Install with `.msi`
 
 1. Download `StudyHub-Desktop-<version>-win-x64.msi` and `SHA256SUMS-Desktop-<version>.txt` from the release page.
-2. Verify the SHA-256 checksum (see [SmartScreen and checksum verification](#windows-smartscreen-unsigned-executable-warning) below).
+2. Verify the SHA-256 checksum.
 3. Double-click the `.msi` file and follow the wizard.
 4. Launch **StudyHub** from the Start Menu.
 
-### Option 2: Run the portable `.zip`
+### Option 3: Run the portable `.zip`
 
 1. Download `StudyHub-Desktop-<version>-win-x64.zip` and `SHA256SUMS-Desktop-<version>.txt` from the release page.
 2. Verify the SHA-256 checksum, then extract the archive to a permanent writable folder (for example `D:\Apps\StudyHub-Desktop`). Do not extract it under `C:\Program Files`.
@@ -113,11 +123,11 @@ StudyHub Desktop uses a hybrid setup that works smoothly both standalone and alo
 | Large-document search extension | Installed via DSH plugin manager (requires restart) | Auto-reuses DSH extension or one-click standalone install in Settings (hot-restarts with no app restart) |
 | Folder selection | DSH workspace / picker | Native Windows folder picker |
 | "Send to main chat" / AI chat hand-off | Sends directly into DSH's chat input | Copies the structured prompt to your clipboard so you can paste it into any chat tool |
-| Updates | DSH plugin manager | Download the new `.msi` or `.zip` from GitHub Releases |
+| Updates | DSH plugin manager | One-click in-app auto-update (Ed25519 signature verified, zero-UAC passive install & restart), plus manual downloads |
 
 ## Security and privacy
 
 - **Local-first storage**: All documents, decks, notes, and review history stay on your computer. Only the text sent for AI generation, explanation, or audio transcription leaves your machine to the provider you configured.
 - **Strict loopback isolation**: The desktop UI loads from static bundled assets (`tauri://localhost`), never from `127.0.0.1` HTML. On every launch, the Rust shell generates a fresh 256-bit random token and sends it to the local Node.js sidecar over `stdin` (never in command-line arguments, URLs, or HTML). The sidecar listens only on `127.0.0.1` and rejects requests without that token.
-- **Minimal desktop permissions**: The Tauri shell exposes only three commands to the main window (`get_bootstrap_info`, `pick_directory`, and `open_external`). External links are strictly validated to `http://` or `https://` before opening in your default browser.
+- **Minimal desktop permissions**: The Tauri shell exposes only five commands to the main window (`get_bootstrap_info`, `pick_directory`, `open_external`, `desktop_check_update`, and `desktop_install_update`). External links are strictly validated to `http://` or `https://` before opening in your default browser, and in-app updates require a valid Ed25519 signature checked against the embedded public key before installation.
 - **One program the app starts for you to see**: "Open agy / codex in the library" starts only the local CLI that detection found ready, only in the current library folder. The page sends the CLI's name and nothing else; paths with characters the Windows command line could read as syntax are refused, not escaped.

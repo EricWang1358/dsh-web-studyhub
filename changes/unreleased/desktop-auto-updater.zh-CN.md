@@ -1,0 +1,1 @@
+- **StudyHub 桌面版新增签名校验的应用内一键自动更新。** 桌面版在保留 `.msi` 与便携版 `.zip` 的同时新增当前用户级（`currentUser`、免 UAC）NSIS `Setup.exe` 安装包，集成 Tauri v2 `tauri-plugin-updater` 与内置 Ed25519 公钥签名校验及 `latest.json` 清单发布；应用内更新弹窗支持一键下载、实时进度条、静默关闭本地 Node 服务后覆盖安装并自动重启，并保留可折叠的手动下载备选。未验证：本机未安装 MSVC Build Tools，因此未在本地完成 Rust 链接编译与真机跨版本自动重启实测（由 GitHub Actions `release-desktop.yml` 流水线验证）。
