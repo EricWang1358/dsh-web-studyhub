@@ -151,5 +151,19 @@
   "画像与学习偏好会用于陪学、讲解、划词追问、错题变式以及发给主会话的消息，调整讲解措辞与侧重；不进出题提示词，也不改间隔复习排期。": "Your profile and study preferences guide the coach, explanations, passage follow-ups, mistake variants, and messages sent to the main chat to shape wording and focus. They never enter question-generation prompts or change spaced-repetition scheduling.",
   "画像与学习偏好会用于陪学、讲解、划词追问与错题变式，调整讲解措辞与侧重；不进出题提示词，也不改间隔复习排期。": "Your profile and study preferences guide the coach, explanations, passage follow-ups, and mistake variants to shape wording and focus. They never enter question-generation prompts or change spaced-repetition scheduling.",
   "答错或出现薄弱点时，在后台用最低推理档位预备 1–2 道变式题（消耗少量模型用量），出现在复盘与错题本里；关掉后仅手动触发。": "When you miss a question or show a weak spot, prepares 1–2 variant questions in the background at the lowest reasoning level (uses a small amount of model quota) and shows them in debriefs and Mistakes; turn off to trigger only manually.",
-  "自由写下你喜欢的讲解或练习方式，用来调整讲解措辞与侧重。": "Write how you like concepts explained or practised in your own words to shape explanation style and focus."
+  "自由写下你喜欢的讲解或练习方式，用来调整讲解措辞与侧重。": "Write how you like concepts explained or practised in your own words to shape explanation style and focus.",
+  "返回设置": "Back to Settings",
+  "学习画像要点": "Study profile bullets",
+  "新增画像要点": "Add profile bullet",
+  "补充一条易错规律或学习注意点…": "Add a recurring pitfall or study note…",
+  "添加要点": "Add bullet",
+  "手动记录": "Added by you",
+  "复述归纳": "From retell",
+  "陪学归纳": "From coach",
+  "旧版画像摘要": "Legacy profile summary",
+  "原题 · {0}": "Question · {0}",
+  "全书 · {0} {1}": "Review book · {0} {1}",
+  "全书 · {0}": "Review book · {0}",
+  "伴学 · 第 {0} 页": "Companion · Slide {0}",
+  "{0} · 伴学第 {1} 页": "{0} · Slide {1}"
 }

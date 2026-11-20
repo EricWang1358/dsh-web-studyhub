@@ -45,6 +45,7 @@ import { qaToNoteArgs, questionNoteCourse, questionNoteRef, questionNoteTitle } 
 import { appendFocus } from '../generate-form.js';
 import { retryForm, retryNotice } from './retry-generation.js';
 import { practiseRound } from './practise-round.js';
+import { openCompanionTarget } from '../companions/companion-ref.js';
 
 /* One adapter per page: the registry (ui/pages.js) names the page, this file maps it to the component and says which of the app's
    state and verbs the component is given. A page owned by someone else keeps its props; the adapter is the only place that knows them. */
@@ -422,9 +423,43 @@ function DraftView() {
 
 /** Settings reads the services from useStudy() and its panes draw the binding panel, the course list and the sample controls themselves. */
 function SettingsView() {
-  const { data, language, core, shell, lib, nav, set, tour, settingsEntry, resetLibraryState } = useApp();
+  const { data, language, core, shell, lib, nav, set, tour, settingsEntry, resetLibraryState, learn, session } = useApp();
   const { call, setError, notify } = core;
   const { appearance, updateAppearance } = shell;
+  async function openProfileRef(ref) {
+    if (!ref || typeof ref !== 'object') return;
+    if (ref.kind === 'card' && ref.deckId && ref.cardId) {
+      await learn.openLearningTarget({ kind: 'card', deckId: ref.deckId, cardId: ref.cardId });
+      return;
+    }
+    if (ref.kind === 'hid' && ref.hid && pageAvailable(data, 'book')) {
+      await openReviewCoursePage({
+        place: { course: ref.course }, data, core, session, learn, nav, targetPage: 'book',
+        prepare: (targetCourse) => keepBook(data?.root, targetCourse, { target: ref.hid }),
+      });
+      return;
+    }
+    if (ref.kind === 'companion' && ref.companionId) {
+      let matchedCourse = '';
+      let matchedTitle = '';
+      for (const courseItem of data?.courses || []) {
+        const hit = (courseItem?.companions || []).find((item) => item?.id === ref.companionId);
+        if (hit) {
+          matchedCourse = courseItem.name || '';
+          matchedTitle = hit.title || '';
+          break;
+        }
+      }
+      openCompanionTarget(set.setModal, {
+        companionId: ref.companionId,
+        ...(ref.slide >= 1 ? { slide: ref.slide } : {}),
+        ...(matchedCourse ? { course: matchedCourse } : {}),
+        ...(matchedTitle ? { companionTitle: matchedTitle } : {}),
+        returnLabel: ui('返回设置'),
+        from: 'settings',
+      });
+    }
+  }
   async function exportData() {
     try {
       const backup = await call('export');
@@ -444,7 +479,7 @@ function SettingsView() {
   return (
     <Settings data={data} nav={nav} settings={lib.settings} setSettings={set.setSettings}
       legacy={settingsEntry.legacy} setLegacy={settingsEntry.setLegacy}
-      exportData={exportData}
+      exportData={exportData} onOpenRef={openProfileRef}
       appearance={{ language, onLanguage: setUiLanguage, ...appearance, onTheme: shell.setTheme,
         onScience: (value) => shell.setSciencePrefs(normalizeScienceSettings(value)),
         onMotion: (value) => updateAppearance({ motion: value }),
