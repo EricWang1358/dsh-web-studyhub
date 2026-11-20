@@ -14,6 +14,7 @@ import { registerHostParts } from './host-parts.js';
 import { DESKTOP_PARTS } from './desktop/parts.jsx';
 import {
   createDesktopCall,
+  createDesktopEventSubscription,
   createDesktopHost,
   installExternalLinkHandler,
   loadBootstrapInfo,
@@ -31,7 +32,7 @@ registerHostParts(DESKTOP_PARTS);
 
 function DesktopRoot() {
   useComponentCss(GLOBAL_CSS, 'study-desktop-globals');
-  const [boot, setBoot] = useState({ status: 'loading', rpc: null, error: '' });
+  const [boot, setBoot] = useState({ status: 'loading', rpc: null, subscribeLibraryEvents: null, error: '' });
   const [concurrency, setConcurrency] = useState(() => readDesktopConcurrency());
 
   useEffect(() => subscribeDesktopConcurrency(setConcurrency), []);
@@ -43,6 +44,7 @@ function DesktopRoot() {
       .then(async (info) => {
         if (!active) return;
         const rpc = createDesktopCall(info);
+        const subscribeLibraryEvents = createDesktopEventSubscription(info);
         cleanupLinks = installExternalLinkHandler(rpc);
         try {
           const cfg = await rpc('desktop.config.get', {});
@@ -50,10 +52,10 @@ function DesktopRoot() {
         } catch {
           // Sidecar config probe is best-effort during bootstrap.
         }
-        if (active) setBoot({ status: 'ready', rpc, error: '' });
+        if (active) setBoot({ status: 'ready', rpc, subscribeLibraryEvents, error: '' });
       })
       .catch((failure) => {
-        if (active) setBoot({ status: 'error', rpc: null, error: failure?.message || ui('无法连接到 StudyHub 桌面版引擎。') });
+        if (active) setBoot({ status: 'error', rpc: null, subscribeLibraryEvents: null, error: failure?.message || ui('无法连接到 StudyHub 桌面版引擎。') });
       });
     return () => {
       active = false;
@@ -61,7 +63,10 @@ function DesktopRoot() {
     };
   }, []);
 
-  const host = useMemo(() => createDesktopHost(boot.rpc, concurrency), [boot.rpc, concurrency]);
+  const host = useMemo(
+    () => createDesktopHost(boot.rpc, concurrency, boot.subscribeLibraryEvents),
+    [boot.rpc, concurrency, boot.subscribeLibraryEvents],
+  );
 
   if (boot.status === 'loading') {
     return (

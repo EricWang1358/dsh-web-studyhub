@@ -15,6 +15,7 @@ import { createDesktopCompletePort } from './complete-port.js';
 import { formatCallError, formatForwardAnswer } from './desktop-errors.js';
 import { localizeProviders } from './provider-discovery.js';
 import { createRetrievalActionHandlers, prepareRetrievalForAction } from './retrieval-actions.js';
+import { createDesktopLibrarySync } from './library-sync.js';
 import { desktopUpdateView } from './update-view.js';
 
 export const DESKTOP_SESSION_ID = 'desktop';
@@ -116,7 +117,7 @@ async function buildBindingView({ ctx, state, route, systemDrive, providerDiscov
 const langOf = (args) => (args?.uiLanguage === 'en' ? 'en' : 'zh');
 
 function createDesktopActionHandlers(deps) {
-  const { configStore, providerDiscovery, completePort, openExternal, openCliTerminal, getState, reloadState, getRoute, ctx, forward, systemDrive } = deps;
+  const { configStore, providerDiscovery, completePort, openExternal, openCliTerminal, getState, reloadState, getRoute, ctx, forward, systemDrive, notifyLibraryChanged } = deps;
   const bindingView = () => buildBindingView({ ctx, state: getState(), route: getRoute() || null, systemDrive, providerDiscovery });
   return {
     'desktop.config.get': async (args) => {
@@ -182,6 +183,8 @@ function createDesktopActionHandlers(deps) {
       return desktopUpdateView(answer.value);
     },
     'update.install': () => ({ status: 'failed', code: 'UPDATE_NO_INSTALLER' }),
+    'library.notifyChanged': async (args) => notifyLibraryChanged(args),
+    'ui.refresh': async (args) => notifyLibraryChanged(args),
   };
 }
 
@@ -241,6 +244,7 @@ export async function createDesktopHost({
   ensureDir,
   injectedComplete = null,
   retrievalRuntime = null,
+  libraryEvents = null,
   systemDrive = '',
 }) {
   let state = await configStore.load();
@@ -280,35 +284,31 @@ export async function createDesktopHost({
     capabilities: DESKTOP_CAPABILITIES,
   });
   const forward = (action, args) => handle('call', { sessionId: DESKTOP_SESSION_ID, action, args });
-
-  async function reloadState() {
+  const librarySync = createDesktopLibrarySync({ libraryEvents, getRoot: () => state.library.root, forward });
+  disposers.push(() => librarySync.dispose());
+  const reloadState = async () => {
     state = await configStore.load();
     await ensureDir(state.library.root);
     session.header = { cwd: state.library.root };
     handlerConfig.libraryRoot = state.library.root;
-  }
-
+    librarySync.syncWatcher();
+  };
   const desktopHandlers = {
     ...createDesktopActionHandlers({
       configStore, providerDiscovery, completePort, openExternal, openCliTerminal,
       getState: () => state, reloadState, getRoute, ctx, forward, systemDrive,
+      notifyLibraryChanged: (args) => librarySync.notifyChanged(args),
     }),
     ...createRetrievalActionHandlers({ retrievalRuntime, forward }),
   };
   const call = createCallDispatcher(desktopHandlers, forward, retrievalRuntime);
-
   let disposing = null;
-  function dispose() {
-    disposing ||= (async () => {
-      registerHostConcurrencyCap(null);
-      for (const fn of [...disposers].reverse()) await fn();
-    })();
-    return disposing;
-  }
-
+  const dispose = () => (disposing ||= (async () => {
+    registerHostConcurrencyCap(null);
+    for (const fn of [...disposers].reverse()) await fn();
+  })());
   return Object.freeze({
-    call,
-    dispose,
+    call, subscribeEvents: librarySync.subscribeEvents, dispose,
     get config() { return state.config; },
     get library() { return state.library; },
   });

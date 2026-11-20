@@ -58,3 +58,94 @@ export function createStudyCall(connection, sessionId) {
 /** Errors worth retrying on their own: the plugin route or host connection is not up yet. */
 export const isTransientStudyError = (e) =>
   e?.code === "STUDY_UNAVAILABLE" || /Study connection is unavailable|Failed to fetch|NetworkError|ECONNREFUSED/i.test(e?.message || "");
+
+const unsupportedWaitError = (e) =>
+  /Unknown study action|Capability unavailable|Unknown endpoint/i.test(String(e?.message || ""));
+
+/**
+ * Subscribe to `study:library-changed` events over the host's authenticated `library.events.wait`
+ * RPC (backed by `fs.watch` on the server, zero polling while idle). Pauses while hidden and
+ * degrades silently on older hosts that lack `library.events.wait`.
+ * @param {(action: string, args?: Record<string, any>) => Promise<any>} call
+ * @param {{ timeoutMs?: number, retryMs?: number, doc?: Document | null }} [options]
+ * @returns {(onEvent: (event: Record<string, any>) => void) => () => void}
+ */
+export function createLibraryEventWaitSubscription(
+  call,
+  { timeoutMs = 25000, retryMs = 2000, doc = typeof document !== "undefined" ? document : null } = {},
+) {
+  return (onEvent) => {
+    if (typeof call !== "function" || typeof onEvent !== "function") return () => {};
+    let stopped = false;
+    let running = false;
+    /** @type {string | null} */
+    let sinceStamp = null;
+    /** @type {number | null} */
+    let sinceRevision = null;
+    /** @type {any} */
+    let retryTimer = null;
+
+    const clearRetry = () => {
+      if (retryTimer !== null) {
+        clearTimeout(retryTimer);
+        retryTimer = null;
+      }
+    };
+
+    const hidden = () => doc?.hidden === true;
+
+    const loop = async () => {
+      if (stopped || running || hidden()) return;
+      running = true;
+      try {
+        while (!stopped && !hidden()) {
+          /** @type {Record<string, any>} */
+          const args = { timeoutMs };
+          if (sinceStamp) args.sinceStamp = sinceStamp;
+          if (typeof sinceRevision === "number") args.sinceRevision = sinceRevision;
+          const result = await call("library.events.wait", args);
+          if (stopped) return;
+          if (result && typeof result === "object") {
+            if (typeof result.stamp === "string" && result.stamp) sinceStamp = result.stamp;
+            if (Number.isSafeInteger(result.revision)) sinceRevision = result.revision;
+            if (result.changed === true) {
+              onEvent({
+                type: "study:library-changed",
+                root: result.root || "",
+                revision: result.revision ?? null,
+                stamp: result.stamp ?? null,
+                reason: result.reason || "disk",
+                at: result.at || Date.now(),
+              });
+            }
+          }
+        }
+      } catch (error) {
+        if (stopped || unsupportedWaitError(error)) return;
+        clearRetry();
+        retryTimer = setTimeout(() => {
+          retryTimer = null;
+          void loop();
+        }, retryMs);
+        retryTimer?.unref?.();
+      } finally {
+        running = false;
+      }
+    };
+
+    const onVisibility = () => {
+      if (!stopped && !hidden()) {
+        clearRetry();
+        void loop();
+      }
+    };
+    doc?.addEventListener?.("visibilitychange", onVisibility);
+    void loop();
+
+    return () => {
+      stopped = true;
+      clearRetry();
+      doc?.removeEventListener?.("visibilitychange", onVisibility);
+    };
+  };
+}

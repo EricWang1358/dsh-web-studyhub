@@ -16,6 +16,7 @@ import { openCliTerminal } from '../adapters/os/open-terminal.mjs';
 import { createRetrievalRuntimePorts } from '../adapters/retrieval/runtime-ports.mjs';
 import { createInProcessJobExecutor } from '../adapters/runtime/job-executor.mjs';
 import { createConfigStore } from '../adapters/storage/config-store.mjs';
+import { createDesktopLibraryEvents } from '../adapters/storage/library-watcher.mjs';
 
 const desktopRoot = fileURLToPath(new URL('../', import.meta.url));
 const HANDSHAKE_TIMEOUT_MS = 15_000;
@@ -106,6 +107,7 @@ export async function composeDesktopSidecar({
   env = process.env,
   injectedComplete = null,
   retrievalRuntime: injectedRetrievalRuntime = null,
+  libraryEvents: injectedLibraryEvents = null,
 } = {}) {
   const configStore = createConfigStore({ env });
   const runner = createProcessRunner();
@@ -114,6 +116,7 @@ export async function composeDesktopSidecar({
   const retrievalRuntime = injectedRetrievalRuntime || createRetrievalRuntime(
     createRetrievalRuntimePorts({ env, dshHome: configStore.dshHome, runner })
   );
+  const libraryEvents = injectedLibraryEvents || createDesktopLibraryEvents();
 
   const providerDiscovery = createProviderDiscovery({
     listCandidates: (id, opts) => listCandidatePaths(id, { ...opts, env }),
@@ -136,6 +139,7 @@ export async function composeDesktopSidecar({
     ensureDir: (dirPath) => mkdir(dirPath, { recursive: true }),
     injectedComplete,
     retrievalRuntime,
+    libraryEvents,
     // The drive Windows is installed on; the default is the usual one when the variable is missing.
     systemDrive: env.SystemDrive || 'C:',
   });
@@ -154,6 +158,7 @@ export async function composeDesktopSidecar({
   const server = await startLocalServer({
     token,
     onCall,
+    onSubscribeEvents: host.subscribeEvents,
     port,
     serveUiDir,
     injectDevToken,

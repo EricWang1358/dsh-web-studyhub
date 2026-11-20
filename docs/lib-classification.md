@@ -27,7 +27,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/board-model.js`: 17 ui files; 9 other lib files
 - `lib/book-flip.js`: 1 ui file; 1 other lib file
 - `lib/book-settings.js`: 6 ui files; contexts generation, system; 7 other lib files
-- `lib/card-kinds.js`: 13 ui files; contexts generation, library, recording, study; 25 other lib files
+- `lib/card-kinds.js`: 14 ui files; contexts generation, library, recording, study; 25 other lib files
 - `lib/case-study.js`: 5 ui files; contexts generation, library, study; 10 other lib files
 - `lib/chemistry-balance.js`: 1 ui file
 - `lib/cloze-text.js`: 3 ui files; 2 other lib files
@@ -191,7 +191,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/translation-source.js`: contexts authoring, study; 4 other lib files
 - `lib/update-check.js`: contexts generation, system; 4 other lib files
 - `lib/usage-scope.js`: contexts authoring, coach, generation, materials, study, workflows; 9 other lib files
-- `lib/util.js`: contexts audio, authoring, bank, coach, generation, jobs, library, materials, notes, recording, skeleton, study; 48 other lib files
+- `lib/util.js`: contexts audio, authoring, bank, coach, generation, jobs, library, materials, notes, recording, skeleton, study; 49 other lib files
 
 ## Used by exactly one context (133)
 
