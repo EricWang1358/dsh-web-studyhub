@@ -122,7 +122,10 @@ function formatFailureMessage(zh, en, language) {
 function buildFailureError(result, timeoutMs, language) {
   if (result.timedOut) {
     const secs = Math.round(timeoutMs / 1000);
-    return formatFailureMessage(`Codex CLI 在 ${secs} 秒内没有回复`, `Codex CLI did not reply within ${secs}s`, language);
+    return Object.assign(
+      formatFailureMessage(`Codex CLI 在 ${secs} 秒内没有回复`, `Codex CLI did not reply within ${secs}s`, language),
+      { name: 'TimeoutError' },
+    );
   }
   if (result.errorCode) {
     const detail = result.errorMessage || result.errorCode;
@@ -158,6 +161,12 @@ function assertCodexRunOk(result, execution, { timeoutMs, language }) {
   }
 }
 
+function resolveTimeoutMs(execution, defaultTimeoutMs) {
+  const requested = execution?.timeoutMs;
+  if (requested === undefined || requested === null) return defaultTimeoutMs;
+  return Number.isFinite(requested) && requested >= 0 ? requested : defaultTimeoutMs;
+}
+
 /**
  * Create a StudyHub `complete(system, prompt, execution)` backed by `codex exec --json`.
  * Always executes inside a fresh empty temp `cwd` cleaned up in `finally`.
@@ -172,6 +181,7 @@ export function createCodexCompleteAdapter(codexConfig, {
   if (!executablePath) return undefined;
 
   return async function codexComplete(system, prompt, execution = {}) {
+    const effectiveTimeoutMs = resolveTimeoutMs(execution, timeoutMs);
     const tempDir = await mkdtemp(join(tmpdir(), 'studyhub-codex-'));
     try {
       const args = buildCodexExecArgs({ model: codexConfig.model, effort: codexConfig.effort });
@@ -181,11 +191,11 @@ export function createCodexCompleteAdapter(codexConfig, {
         args,
         cwd: tempDir,
         stdinText,
-        timeoutMs,
+        timeoutMs: effectiveTimeoutMs,
         signal: execution?.signal,
         onStdoutLine: buildLineTextHandler(execution),
       });
-      assertCodexRunOk(result, execution, { timeoutMs, language });
+      assertCodexRunOk(result, execution, { timeoutMs: effectiveTimeoutMs, language });
       const parsed = parseCodexJsonlOutput(result.stdout, { language });
       report?.(parsed.usage, execution);
       return parsed.text;

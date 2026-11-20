@@ -95,7 +95,7 @@ export async function probeAgyModels(runner, executablePath, { timeoutMs = MODEL
 
 function buildFailureError(result, timeoutMs) {
   if (result.timedOut) {
-    return Object.assign(new Error(`Antigravity CLI 在 ${Math.round(timeoutMs / 1000)} 秒内没有回复`), { modelFailure: true });
+    return Object.assign(new Error(`Antigravity CLI 在 ${Math.round(timeoutMs / 1000)} 秒内没有回复`), { name: 'TimeoutError', modelFailure: true });
   }
   if (result.errorCode) {
     return Object.assign(new Error(`无法启动 Antigravity CLI：${result.errorMessage || result.errorCode}`), { modelFailure: true });
@@ -125,6 +125,12 @@ function assertAgyRunOk(result, execution, timeoutMs) {
   }
 }
 
+function resolveTimeoutMs(execution, defaultTimeoutMs) {
+  const requested = execution?.timeoutMs;
+  if (requested === undefined || requested === null) return defaultTimeoutMs;
+  return Number.isFinite(requested) && requested >= 0 ? requested : defaultTimeoutMs;
+}
+
 /**
  * Create a StudyHub `complete(system, prompt, execution)` backed by `agy` CLI `stream-json`.
  * Always executes inside a fresh empty temp `cwd` cleaned up in `finally`.
@@ -138,20 +144,21 @@ export function createAgyCompleteAdapter(agyConfig, {
   if (!executablePath) return undefined;
 
   return async function agyComplete(system, prompt, execution = {}) {
+    const effectiveTimeoutMs = resolveTimeoutMs(execution, timeoutMs);
     const tempDir = await mkdtemp(join(tmpdir(), 'studyhub-agy-'));
     try {
-      const args = buildAgyStreamArgs({ timeoutMs, model: agyConfig.model, effort: agyConfig.effort });
+      const args = buildAgyStreamArgs({ timeoutMs: effectiveTimeoutMs, model: agyConfig.model, effort: agyConfig.effort });
       const stdinText = buildAgyUserMessageLine(buildAgyWrappedPrompt(system, prompt));
       const result = await runner.run({
         command: executablePath,
         args,
         cwd: tempDir,
         stdinText,
-        timeoutMs,
+        timeoutMs: effectiveTimeoutMs,
         signal: execution?.signal,
         onStdoutLine: buildLineDeltaHandler(execution),
       });
-      assertAgyRunOk(result, execution, timeoutMs);
+      assertAgyRunOk(result, execution, effectiveTimeoutMs);
       const parsed = parseAgyStreamOutput(result.stdout);
       report?.(parsed.usage, execution);
       return parsed.text;

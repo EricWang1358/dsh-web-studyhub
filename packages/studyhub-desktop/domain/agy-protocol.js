@@ -27,12 +27,15 @@ export function buildAgyWrappedPrompt(system, prompt) {
  * @returns {string[]}
  */
 export function buildAgyStreamArgs(options = {}) {
-  const timeoutSec = Math.max(5, Math.ceil((Number(options.timeoutMs) || 600_000) / 1000));
+  const rawTimeout = options.timeoutMs;
+  const printTimeout = rawTimeout === 0
+    ? '0s'
+    : `${Math.max(5, Math.ceil((Number(rawTimeout) || 600_000) / 1000))}s`;
   const args = [
     '--input-format', 'stream-json',
     '--output-format', 'stream-json',
     '--disable-slash-commands',
-    '--print-timeout', `${timeoutSec}s`,
+    '--print-timeout', printTimeout,
   ];
   const model = typeof options.model === 'string' ? options.model.trim() : '';
   if (model) args.push('--model', model);

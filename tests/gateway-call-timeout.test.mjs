@@ -14,7 +14,7 @@ const ui = await loadUi(`
 
 const ctxHost = { llm: { resolveModelInfo: async () => ({ reasoning: { efforts: [{ id: 'low' }, { id: 'high' }], defaultEffort: 'low' } }) } };
 
-function makeGateway(answer) {
+function makeGateway(answer, lightAnswer = answer) {
   const record = structuredClone(goldenRuntimeContracts.running);
   record.calls = [];
   record.runtime.steps = [];
@@ -24,6 +24,7 @@ function makeGateway(answer) {
     sessionId: 'fixture',
     route: () => ({ provider: 'p', model: 'm' }),
     complete: (system, prompt, request) => answer(request, system, prompt),
+    light: (system, prompt, request) => lightAnswer(request, system, prompt),
   };
   const context = {
     jobId: record.jobId,
@@ -136,4 +137,53 @@ test('failed gateway calls record safe, input-free reasons (silent cut, host tim
   await assert.rejects(s3.gateway.step('inv:t', { purpose: 'inventory', feature: 'book', requestedEffort: 'default', executionMode: 'direct', budget: null },
     { labels: { stage: 'inventory', part: 4, parts: 10 } }).complete('s', 'p'));
   assert.match(ui.logLines({ status: 'running', calls: s3.record.calls, events: [] })[0].text, /原因：.*超时.*8 分钟/);
+});
+
+test('light-lane gateway steps without an explicit budget omit timeoutMs so host.light keeps its default 90s timeout, while heavy unlimited steps pass 0', async t => {
+  const heavyRequests = [];
+  const lightRequests = [];
+  const { gateway } = makeGateway(
+    async (request) => { heavyRequests.push(request); return '{"ok":true}'; },
+    async (request) => { lightRequests.push(request); return '{"ok":true}'; },
+  );
+
+  // Light-lane step with budget: null (e.g. coach lightStep) must NOT send timeoutMs: 0.
+  await gateway.step('coach:light-default', { purpose: 'coach', feature: 'coach', requestedEffort: 'low', executionMode: 'direct', budget: null }, { model: 'light' }).complete('s', 'p');
+  assert.equal('timeoutMs' in lightRequests[0], false, 'light step with no explicit budget omits timeoutMs so host.light default applies');
+
+  // Light-lane step with explicit positive budget passes it through.
+  await gateway.step('coach:light-explicit', { purpose: 'coach', feature: 'coach', requestedEffort: 'low', executionMode: 'direct', budget: { timeoutMs: 45_000 } }, { model: 'light' }).complete('s', 'p');
+  assert.equal(lightRequests[1].timeoutMs, 45_000, 'light step with explicit timeoutMs passes it through');
+
+  // Heavy/outline/book step with budget: null still passes timeoutMs: 0 (unlimited).
+  await gateway.step('book:heavy-unlimited', { purpose: 'inventory', feature: 'book', requestedEffort: 'default', executionMode: 'direct', budget: null }).complete('s', 'p');
+  assert.equal(heavyRequests[0].timeoutMs, 0, 'heavy unlimited step keeps timeoutMs: 0');
+
+  // Verify end-to-end with modelCompletion({ light: true }): omitted timeoutMs arms the 90s light timeout.
+  let plugin;
+  try { plugin = await import('../lib/index.js'); } catch (e) {
+    if (e.code === 'ERR_MODULE_NOT_FOUND' && e.message.includes('@deepseek-ai')) return;
+    throw e;
+  }
+  if (!plugin?.modelCompletion) return;
+  const timeouts = [];
+  const origTimeout = AbortSignal.timeout;
+  AbortSignal.timeout = (ms) => { timeouts.push(ms); return origTimeout(ms); };
+  t.after(() => { AbortSignal.timeout = origTimeout; });
+
+  const lightComplete = plugin.modelCompletion({
+    llm: {
+      resolveModelInfo: async () => ({}),
+      resolveCallConfig: async (c) => c,
+      stream: async function* () {
+        yield { type: 'block-start', index: 0, blockType: 'text' };
+        yield { type: 'text-delta', index: 0, text: '{"ok":true}' };
+        yield { type: 'block-end', index: 0, block: { type: 'text', text: '{"ok":true}' } };
+        yield { type: 'finish', reason: { kind: 'stop' } };
+      },
+    },
+  }, () => ({ provider: 'p', model: 'm' }), 's', { light: true });
+
+  await lightComplete('sys', 'prompt', { ...lightRequests[0], hedge: false });
+  assert.deepEqual(timeouts, [90_000], 'light lane keeps its 90s default timeout when gateway omits timeoutMs');
 });
