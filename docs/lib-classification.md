@@ -51,7 +51,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/coverage-strength.js`: 4 ui files; context generation; 5 other lib files
 - `lib/coverage.js`: 3 ui files; 5 other lib files
 - `lib/crunch-plan.js`: 1 ui file; 11 other lib files
-- `lib/custom-plan.js`: 2 ui files; contexts courses, generation; 6 other lib files
+- `lib/custom-plan.js`: 2 ui files; contexts courses, generation; 7 other lib files
 - `lib/deck-format.js`: 1 ui file; 1 other lib file
 - `lib/deck-parts.js`: 2 ui files; contexts authoring, generation, library; 1 other lib file
 - `lib/document-title.js`: 19 ui files; contexts generation, materials; 10 other lib files
