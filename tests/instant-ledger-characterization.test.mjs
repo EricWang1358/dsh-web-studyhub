@@ -28,7 +28,7 @@ const PINNED = {
   "focus.suggest": {"coach":[1,88,1,0,0]},
   "oral.followup": {"coach":[1,105,9,0,0]}, // was [1,88,9,0,0]: the follow-up instruction says to ask what the course JD would need (#1031)
   "coach.nudge": {"coach":[1,235,43,0,0]},
-  "teach.start": {"coach":[1,396,52,0,0]}, // was [1,424,52,0,0]: question payload strips non-content card fields via cardQuestionContent (#1240)
+  "teach.start": {"coach":[1,386,52,0,0]}, // was [1,396,52,0,0]: startTeaching trims cited sources via evidenceWindows instead of sending full source records
   "materials.outline.suggest": {"other":[1,438,14,0,0]},
   "materials.translation.translate (immediate passage)": {"other":[2,430,2,302,0]}, // was [2,728,2,0,0]: retryNote moved from system to prompt JSON, turning retry call into a 302-token cache hit (#1261)
   "materials.selection.ask": {"coach":[1,254,21,0,0]},

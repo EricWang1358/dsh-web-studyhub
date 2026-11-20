@@ -354,3 +354,48 @@ test('#1240: teach.start sends stripped question content without terms, translat
   }
 });
 
+test('teach.start trims large cited sources via evidenceWindows instead of sending the full source text', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'study-teach-window-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const captured = [];
+  const service = new StudyService(root, {
+    complete: async (system, prompt) => {
+      captured.push({ system, payload: JSON.parse(prompt) });
+      return JSON.stringify(captured.length === 1 ? genericPlan : plan());
+    },
+  });
+  const hugePrefix = 'A'.repeat(25_000);
+  const hugeSuffix = 'B'.repeat(25_000);
+  const fullText = `${hugePrefix} ${quote} ${hugeSuffix}`;
+  await service.store.update(s => {
+    s.sources.push({ id: 'source', title: 'Big Textbook', text: fullText, courses: ['Physics'] });
+    s.decks.push({
+      id: 'deck',
+      title: 'Motion',
+      cards: [{
+        id: 'card',
+        kind: 'flashcard',
+        prompt: 'At 3 m/s for 4 s, how far?',
+        answer: '12 m',
+        citations: [{ sourceId: 'source', quote }],
+      }],
+    });
+  });
+  const run = await service.call('review.start', { deckId: 'deck', mode: 'flashcard' });
+  await service.call('review.reveal', { runId: run.id, cardId: run.card.id });
+  await service.call('review.answer', { runId: run.id, cardId: run.card.id, grade: 2 });
+
+  await service.call('teach.start', { runId: run.id, mode: 'understanding', language: 'zh' });
+  await service.call('teach.start', { runId: run.id, mode: 'calculation', language: 'en' });
+
+  assert.equal(captured.length, 2);
+  assert.match(captured[0].system, /Use the requested language\./);
+  for (const call of captured) {
+    assert.equal(call.payload.sources.length, 1);
+    assert.equal(call.payload.sources[0].id, 'source');
+    assert.ok(call.payload.sources[0].text.includes(quote), 'evidence window keeps the cited quote verbatim');
+    assert.ok(call.payload.sources[0].text.length <= 8000, `expected trimmed evidence window <= 8000 chars, got ${call.payload.sources[0].text.length}`);
+    assert.ok(call.payload.sources[0].text.length < fullText.length / 5, 'did not send full 50KB source text');
+  }
+});
+

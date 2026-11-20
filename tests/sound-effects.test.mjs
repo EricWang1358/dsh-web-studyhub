@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { loadUi } from './helpers/ui-module.mjs';
+import { buildHostClient } from '../scripts/build.mjs';
 
 const mod = await loadUi(`
   export { SOUND_CUES, synthesizeCueSamples, playSound, playTimerChime, playSoundPreview, stopSoundPreview, resetSoundEngineForTests } from './ui/sound-effects.js';
@@ -509,4 +511,33 @@ test('baked studio MP3 assets decode cleanly via decodeAudioData and fall back t
   } finally {
     env.restore();
   }
+});
+
+test('synthesizeCueSamples scales micro-room envelope cleanly across 44.1kHz, 48kHz and 96kHz sample rates', () => {
+  for (const rate of [44100, 48000, 96000]) {
+    for (const cue of SOUND_CUES) {
+      const samples = synthesizeCueSamples(cue, rate);
+      assert.ok(samples instanceof Float32Array);
+      assert.equal(samples[0], 0, `${cue}@${rate} starts at zero`);
+      assert.equal(samples[samples.length - 1], 0, `${cue}@${rate} ends at zero`);
+      assert.ok(samples.length >= Math.floor(0.03 * rate), `${cue}@${rate} length scales with sampleRate`);
+    }
+  }
+});
+
+test('sound-effects lazy-loads sound-effects-assets via dynamic import and keeps 40KB MP3 payload out of static initial UI chunks', async () => {
+  const source = await readFile(new URL('../ui/sound-effects.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /import\s+[^;]*from\s+['"]\.\/sound-effects-assets\.js['"]/, 'must not statically import sound-effects-assets.js');
+  assert.match(source, /import\(['"]\.\/sound-effects-assets\.js['"]\)/, 'lazy-loads sound-effects-assets.js via dynamic import()');
+  assert.doesNotMatch(source, /shapeEnvelope\((?:left|right),\s*44100\b/, 'normalizeStereo must pass dynamic sampleRate to shapeEnvelope');
+
+  const built = await buildHostClient({ write: false });
+  const outputs = Object.entries(built.metafile.outputs);
+  const assetsChunks = outputs.filter(([, meta]) => Object.keys(meta.inputs || {}).some((p) => p.endsWith('ui/sound-effects-assets.js')));
+  assert.equal(assetsChunks.length, 1, 'sound-effects-assets.js is emitted in a dedicated chunk');
+  const [assetsOutPath, assetsMeta] = assetsChunks[0];
+  assert.deepEqual(Object.keys(assetsMeta.inputs), ['ui/sound-effects-assets.js'], 'assets chunk contains only sound-effects-assets.js');
+  const assetsFile = assetsOutPath.split(/[\\/]/).pop();
+  const staticImporters = outputs.filter(([, meta]) => (meta.imports || []).some((edge) => edge.kind === 'import-statement' && edge.path.endsWith(assetsFile)));
+  assert.equal(staticImporters.length, 0, 'no chunk statically imports the baked MP3 assets chunk');
 });

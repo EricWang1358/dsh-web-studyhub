@@ -21,6 +21,9 @@ import {
   normalizeErrorReason,
   normalizeThinkingNote,
 } from '../lib/contexts/study/error-reason.js';
+import { TRIAGE_REASONS } from '../lib/evidence/mistake-triage.js';
+import { projectTrapLedger, TRAP_ERROR_REASONS } from '../lib/contexts/study/trap-projection.js';
+import { buildCompactScene } from '../lib/study-scene.js';
 import { parseSkill } from '../lib/study-skills.js';
 import {
   persistRowReason,
@@ -129,9 +132,13 @@ function findNodes(tree, pred) {
 
 test('domain contract narrows attempt.errorReason.set write lock strictly to attempts', () => {
   assert.deepEqual(writesFor('study', 'attempt.errorReason.set'), ['attempts']);
-  assert.deepEqual([...ERROR_REASONS], ['concept', 'condition', 'derivation', 'slip']);
+  assert.deepEqual([...ERROR_REASONS], ['concept', 'condition', 'derivation', 'slip', 'prerequisite', 'bad_question']);
+  assert.equal(ERROR_REASONS, TRIAGE_REASONS);
+  assert.equal(TRAP_ERROR_REASONS, TRIAGE_REASONS);
   assert.equal(THINKING_NOTE_MAX_CHARS, 200);
   assert.equal(normalizeErrorReason('condition'), 'condition');
+  assert.equal(normalizeErrorReason('prerequisite'), 'prerequisite');
+  assert.equal(normalizeErrorReason('bad_question'), 'bad_question');
   assert.equal(normalizeErrorReason(''), null);
   assert.equal(normalizeErrorReason(null), null);
   assert.throws(() => normalizeErrorReason('bogus'), { code: 'invalid-error-reason' });
@@ -217,6 +224,30 @@ test('StudyService attempt.errorReason.set persists errorReason + thinkingNote w
   assert.equal(lookBack.rows.length, 1);
   assert.equal(lookBack.rows[0].errorReason, 'condition');
   assert.equal(lookBack.rows[0].thinkingNote, saved.thinkingNote);
+
+  // Persist the 2 extended 6-state triage reasons (`prerequisite` and `bad_question`) end-to-end through store, trapLedger, and study-scene.
+  for (const extendedReason of ['prerequisite', 'bad_question']) {
+    const extSaved = await study.call('attempt.errorReason.set', {
+      deckId,
+      cardId,
+      runId: run.id,
+      errorReason: extendedReason,
+    });
+    assert.equal(extSaved.ok, true);
+    assert.equal(extSaved.errorReason, extendedReason);
+
+    const extState = await study.store.read();
+    const extCard = extState.decks.find((d) => d.id === deckId).cards[0];
+    const trap = projectTrapLedger(extState, { card: extCard, cardId, course: 'CS2030' });
+    assert.equal(trap.cue.latestErrorReason, extendedReason);
+    assert.equal(trap.cue.errorReasons[extendedReason], 1);
+    assert.match(trap.cue.trapCue, new RegExp(`${extendedReason}x1`));
+
+    const fallbackScene = buildCompactScene(extState);
+    assert.equal(fallbackScene.recentAttempts.at(-1).errorReason, extendedReason);
+    assert.equal(fallbackScene.trapLedger.latestErrorReason, extendedReason);
+    assert.equal(fallbackScene.trapLedger.errorReasons[extendedReason], 1);
+  }
 
   // Clearing errorReason preserves thinkingNote; invalid errorReason rejects cleanly.
   const cleared = await study.call('attempt.errorReason.set', { deckId, cardId, runId: run.id, errorReason: null });

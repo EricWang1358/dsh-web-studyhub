@@ -10,6 +10,7 @@ import { StudyService } from '../lib/service.js';
 import { assistantRefusal } from '../lib/assistant-boundary.js';
 import { SHIPPED_SKILLS, studySkills } from '../lib/study-skills.js';
 import { cardLevel, latestOutcomes } from '../lib/mastery.js';
+import { loadUi } from './helpers/ui-module.mjs';
 
 const execFileAsync = promisify(execFile);
 const STUDY_CLI = fileURLToPath(new URL('../scripts/study-cli.mjs', import.meta.url));
@@ -337,4 +338,111 @@ test('scripts/study-cli.mjs bridges Codex/agy/external CLIs safely (pack, batch 
     execFileAsync(process.execPath, [STUDY_CLI, 'call', 'review.answer', '{}', '--root', root]),
     /HB-1/,
   );
+});
+
+test('coach.debrief hand-off composes cleanly in zh and en without crashing, and composeMessage rejects unknown tail keys', async () => {
+  const ui = await loadUi(`
+    export { handOffText } from './ui/agent-prompts/index.js';
+    export { coachDebriefPrompt } from './ui/agent-prompts/coach-team.js';
+    export { MESSAGE_TAILS, composeMessage, messageParts, withLearnerFence } from './ui/agent-prompts/message.js';
+  `);
+  assert.equal(ui.MESSAGE_TAILS.debrief, '以下是本次语音 / 外部对话记录：');
+  assert.equal(ui.coachDebriefPrompt({ course: 'OS' }, 'zh').tail, 'debrief');
+  assert.equal(ui.coachDebriefPrompt({ course: 'OS' }, 'en').tail, 'debrief');
+
+  const zh = ui.handOffText('coach.debrief', { course: 'OS', deckTitle: 'Memory' }, 'zh');
+  assert.ok(zh.endsWith('\n\n以下是本次语音 / 外部对话记录：'), zh);
+  assert.equal(ui.messageParts(zh, 'zh').tail, '以下是本次语音 / 外部对话记录：');
+  assert.ok(ui.withLearnerFence(zh, { goal: '应付考试' }, 'zh').endsWith('\n\n以下是本次语音 / 外部对话记录：'));
+
+  const en = ui.handOffText('coach.debrief', { course: 'OS', deckTitle: 'Memory' }, 'en');
+  assert.ok(en.endsWith('\n\nPaste your voice / external chat transcript below:'), en);
+  assert.equal(ui.messageParts(en, 'en').tail, 'Paste your voice / external chat transcript below:');
+  assert.ok(ui.withLearnerFence(en, { goal: 'Pass an exam' }, 'en').endsWith('\n\nPaste your voice / external chat transcript below:'));
+
+  assert.throws(
+    () => ui.composeMessage({ ask: 'Hello', tail: 'not-a-valid-tail-key' }, { language: 'en' }),
+    /Unknown message tail/,
+  );
+});
+
+test('study.voicePack maps learner.goal="explore" cleanly in English and card.review.batch supports batchId/idempotencyKey and atomic validation', async (t) => {
+  const { service, deck, cardIds } = await setupLibrary(t);
+  const [cHandshake, cSyn, cUdp, cWhois] = cardIds;
+
+  // 1. GOAL_LABELS_EN maps `explore` -> `Personal interest` instead of falling back to raw `explore`
+  await service.call('coach.goal', { goal: 'explore' });
+  const enPack = await service.call('study.voicePack', { deckId: deck.id, language: 'en' });
+  assert.equal(enPack.progress.learnerGoal, 'Personal interest');
+  assert.match(enPack.markdown, /Learner goal\*\*: Personal interest/);
+
+  // 2. Idempotent batchId retry does not double-push FSRS, duplicate attempts, or spam inbox notifications
+  const firstBatch = await service.call('card.review.batch', {
+    batchId: 'voice-debrief-2026-11-21-01',
+    sessionTitle: 'Voice Debrief #1',
+    items: [
+      { cardId: cHandshake, grade: 4, evidence: 'Explained 3-way handshake clearly' },
+      { cardId: cWhois, grade: 5, slay: true, evidence: 'Knew TCP/43 immediately' },
+    ],
+  });
+  assert.equal(firstBatch.batchId, 'voice-debrief-2026-11-21-01');
+  assert.equal(firstBatch.graded, 2);
+  assert.equal(firstBatch.deduplicated, 0);
+  assert.equal(firstBatch.slain, 1);
+
+  const stateAfterFirst = await service.store.read();
+  const reviewAfterFirst = structuredClone(stateAfterFirst.decks.find((d) => d.id === deck.id).cards.find((c) => c.id === cHandshake).review);
+  const attemptsAfterFirst = stateAfterFirst.attempts.length;
+  const inboxAfterFirst = stateAfterFirst.inbox.length;
+
+  // Retry exact same batch using `idempotencyKey` alias
+  const retryBatch = await service.call('card.review.batch', {
+    idempotencyKey: 'voice-debrief-2026-11-21-01',
+    sessionTitle: 'Voice Debrief #1',
+    items: [
+      { cardId: cHandshake, grade: 4, evidence: 'Explained 3-way handshake clearly' },
+      { cardId: cWhois, grade: 5, slay: true, evidence: 'Knew TCP/43 immediately' },
+    ],
+  });
+  assert.equal(retryBatch.graded, 0, 'retry must not push FSRS a second time');
+  assert.equal(retryBatch.deduplicated, 2);
+  assert.equal(retryBatch.failed, 0);
+  assert.equal(retryBatch.results[0].gradeDuplicate, true);
+  assert.equal(retryBatch.results[1].gradeDuplicate, true);
+  assert.equal(retryBatch.results[1].alreadySlain, true);
+
+  const stateAfterRetry = await service.store.read();
+  assert.deepEqual(
+    stateAfterRetry.decks.find((d) => d.id === deck.id).cards.find((c) => c.id === cHandshake).review,
+    reviewAfterFirst,
+    'FSRS review state stays byte-identical on idempotent retry',
+  );
+  assert.equal(stateAfterRetry.attempts.length, attemptsAfterFirst, 'no duplicate attempts appended');
+  assert.equal(stateAfterRetry.inbox.length, inboxAfterFirst, 'no duplicate inbox notification on replay');
+
+  // 3. Intra-item atomicity: invalid followup must NOT leave `focus` partially mutated on the same card
+  const partialRes = await service.call('card.review.batch', {
+    items: [
+      { cardId: cSyn, focus: true, followup: { question: 'Why SYN queue?', answer: '   ' } },
+    ],
+  });
+  assert.equal(partialRes.failed, 1);
+  assert.equal(partialRes.focusChanged, 0);
+  const synAfterFail = (await service.store.read()).decks.find((d) => d.id === deck.id).cards.find((c) => c.id === cSyn);
+  assert.equal(Boolean(synAfterFail.focus), false, 'failed item must not partially mutate card.focus');
+
+  // 4. `atomic: true` rejects the entire batch before mutating any card when any item fails validation
+  await assert.rejects(
+    () => service.call('card.review.batch', {
+      atomic: true,
+      items: [
+        { cardId: cUdp, grade: 4, focus: true },
+        { cardId: 'non-existent-card', grade: 3 },
+      ],
+    }),
+    /批量校验失败/,
+  );
+  const udpAfterAtomicAbort = (await service.store.read()).decks.find((d) => d.id === deck.id).cards.find((c) => c.id === cUdp);
+  assert.equal(Boolean(udpAfterAtomicAbort.focus), false, 'atomic abort leaves earlier valid items untouched');
+  assert.equal((await service.store.read()).attempts.length, attemptsAfterFirst, 'atomic abort adds zero attempts');
 });
