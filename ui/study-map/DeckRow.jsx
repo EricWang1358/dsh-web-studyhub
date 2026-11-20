@@ -24,13 +24,15 @@ export default function DeckRow({ deck: d, progress: p, open, tree, runFor, acti
   const { busy } = useStudy();
   const handOff = useHandOff();
   if (d.archived) return <ArchivedDeckRow deck={d} onRestore={actions.restoreDeck} onRemove={actions.removeDeck} onManage={actions.manage} />;
-  const { start, resume, manage, archiveDeck, runsOn } = actions;
+  const { start, resume, manage, archiveDeck, openVoicePack, runsOn } = actions;
   const key = topicKey(d.id), whole = tree.selected.has(key), run = runFor([{ deckId: d.id }]);
   const choose = {
     new: () => start({ deckId: d.id, mode: 'new', fresh: true }),
     flashcard: () => start({ deckId: d.id, mode: 'flashcard' }),
     quiz: () => start({ deckId: d.id, mode: 'quiz' }),
     wrong: () => start({ deckId: d.id, mode: 'wrong' }),
+    voicePack: () => openVoicePack?.({ deckId: d.id, deckTitle: d.title, course: d.course || d.folder || '' }),
+    coachDebrief: () => handOff.send('coach.debrief', { deckTitle: d.title, course: d.course || d.folder || '' }),
     manage: () => manage(d.id),
     archive: () => archiveDeck(d),
   };
@@ -41,6 +43,8 @@ export default function DeckRow({ deck: d, progress: p, open, tree, runFor, acti
     { id: 'flashcard', label: ui('闪卡翻看'), disabled: busy || !d.available },
     { id: 'quiz', label: ui('测验'), disabled: busy || !d.quizCount },
     { id: 'wrong', label: uiFormat('待巩固重练 {0}', [d.wrong || 0]), disabled: busy || !d.wrong },
+    ...(openVoicePack ? [{ id: 'voicePack', label: ui('语音带学包…'), disabled: busy || !d.available }] : []),
+    { id: 'coachDebrief', label: ui('回传语音记录给主教练结算'), disabled: busy },
     { ...handOff.item('deck.ask', { deckTitle: d.title }), disabled: busy },
     { id: 'manage', label: ui('管理题组'), disabled: busy },
     ...(archive ? [archive] : []),

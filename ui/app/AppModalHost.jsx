@@ -3,6 +3,7 @@ import { ui } from '../i18n.js';
 import RemoveDeckDialog from '../RemoveDeckDialog.jsx';
 import CourseSettings from '../CourseSettings.jsx';
 import FocusIntakeDialog from '../FocusIntakeDialog.jsx';
+import VoicePackDialog from '../VoicePackDialog.jsx';
 import { RemoveSampleDialog } from '../tour/SampleControls.jsx';
 import AddSourceDialog from './modals/AddSourceDialog.jsx';
 import FlagDialog from './modals/FlagDialog.jsx';
@@ -29,6 +30,7 @@ const DIALOGS = {
   source: ({ modal, onClose }) => <SourceReaderDialog modal={modal} onClose={onClose} />,
   companion: ({ modal, onClose }) => <CompanionModal modal={modal} onClose={onClose} />,
   companionBuild: ({ modal, onClose }) => <CompanionBuildDialog key={modal.course || 'companionBuild'} modal={modal} onClose={onClose} />,
+  voicePack: ({ modal, onClose }) => <VoicePackDialog key={modal.deckId || modal.course || 'voicePack'} modal={modal} onClose={onClose} />,
   focusIntake: ({ modal, onClose, app }) => (
     <FocusIntakeDialog
       data={app.data}

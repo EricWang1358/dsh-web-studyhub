@@ -21,6 +21,7 @@ import { methodDraftMaterialPrompt, methodEditPrompt, methodExplainPrompt, metho
 import { taskCheckPrompt } from './task.js';
 import { companionAskPrompt, companionRescuePrompt } from './companion.js';
 import { chapterBasicsPrompt } from './card.js';
+import { coachDebriefPrompt } from './coach-team.js';
 
 /* The registry of 「发给主会话」 messages (the hand-off plan, section 1.3): every message a StudyHub page hands to the main chat has an id here, and
    ui/hand-off/ sends only ids from it. An entry's builder returns the parts of one message (ui/agent-prompts/message.js: the learner's sentence, the notes
@@ -78,6 +79,8 @@ export const HAND_OFFS = Object.freeze({
   'companion.rescue': { build: (input, language) => companionRescuePrompt(input, language), skill: 'study-companion' },
   // 补词到底提示「先读这一章 · 发给主会话讲」 (#1193): build up from foundational section concepts step by step.
   'question.basics': { build: (input, language) => chapterBasicsPrompt(input, language), skill: 'study-tutor' },
+  // 语音/外部对话学完回馈结算: Head Coach + 4 specialist TAs debrief (QA pre-fill, gap supplement, prerequisites, mastery sync, curated drill).
+  'coach.debrief': { build: (input, language) => coachDebriefPrompt(input, language), skill: 'study-coach-team' },
 });
 
 /** Whether `id` names a registered hand-off. */

@@ -4,6 +4,7 @@ import { Combobox, PageHeader } from '../components/index.js';
 import { ExamCountdown } from '../CourseSettings.jsx';
 import { courseEntries } from '../course-picker-entries.js';
 import { useStudy } from '../study-context.jsx';
+import { useHandOff } from '../hand-off/use-hand-off.js';
 
 /** The current course as a heading-size course switcher (the home's heading and the review book's title share it): a searchable Combobox ranked like every course
     picker, its trigger the text passed as children. onFocus({ course }) makes another course current (the whole app follows). */
@@ -21,6 +22,7 @@ export const CourseSwitch = forwardRef(function CourseSwitch({ data, onFocus, ac
  */
 export default function CourseHeading({ data, headline, onFocus, onCourseSettings, aside }) {
   const { openModal } = useStudy();
+  const handOff = useHandOff();
   const focus = data.focus || {};
   const courses = focus.courses || [];
   const frame = (title, titleProps) => <PageHeader className="course-header" textClassName="course-header__text" title={title} titleProps={titleProps} actions={aside} />;
@@ -28,6 +30,8 @@ export default function CourseHeading({ data, headline, onFocus, onCourseSetting
   // Ranked like every course picker (current, recently used, busiest) with "Course / Chapter" names as a tree; parked courses stay reachable, last.
   const actions = [
     ...(focus.course ? [{ id: 'focus-intake', label: ui('录入重点…'), icon: 'sparkle', onSelect: () => openModal({ type: 'focusIntake', course: focus.course }) }] : []),
+    ...(typeof openModal === 'function' && focus.course ? [{ id: 'voice-pack', label: ui('语音带学包…'), icon: 'download', onSelect: () => openModal({ type: 'voicePack', course: focus.course }) }] : []),
+    ...(focus.course ? [{ id: 'coach-debrief', label: ui('回传语音记录给主教练结算'), icon: 'external', onSelect: () => handOff.send('coach.debrief', { course: focus.course }) }] : []),
     ...(typeof openModal === 'function' ? [{ id: 'companion-build', label: ui('新建交互伴学课…'), icon: 'plus', onSelect: () => openModal({ type: 'companionBuild', course: focus.course || '' }) }] : []),
     ...(onCourseSettings && focus.courseId ? [{ id: 'course-settings', label: ui('课程设置…'), icon: 'settings', onSelect: () => onCourseSettings(focus.courseId) }] : []),
   ];

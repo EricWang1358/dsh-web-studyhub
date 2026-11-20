@@ -4,13 +4,16 @@ import { Button } from '../components/index.js';
 import { useStudy } from '../study-context.jsx';
 
 /** What is ticked in the tree: clear it, see it as a graph, or study exactly it. */
-export default function SelectionBar({ scope, run, onClear, onShowGraph, onStart, onResume }) {
+export default function SelectionBar({ scope, run, onClear, onShowGraph, onStart, onResume, onOpenVoicePack }) {
   const { busy } = useStudy();
   if (!scope.length) return null;
   return (
     <div className="selection-bar" role="region" aria-label={ui('已选内容')}>
       <span>{uiFormat('已选 {0} 项', [scope.length])}</span>
       <Button size="sm" onClick={onClear}>{ui('清除')}</Button>
+      {onOpenVoicePack && (
+        <Button size="sm" icon="download" lock={busy} title={ui('配置并导出所选范围的防跑偏语音带学包，供外部语音 AI 使用')} onClick={() => onOpenVoicePack(scope)}>{ui('语音带学包')}</Button>
+      )}
       <Button size="sm" iconEnd="arrow-right" lock={busy} title={ui('用整块画布打开所选范围的知识结构图或学习路径图（可缩放、拖拽）')} onClick={() => onShowGraph?.(scope, { canvas: true })}>{ui('查看图谱')}</Button>
       <Button variant="primary" size="sm" iconEnd="arrow-right" lock={busy} onClick={() => (run ? onResume(run.id) : onStart({ mode: 'path', scope }))}>
         {run ? uiFormat('继续 {0}/{1}', [run.index + 1, run.total]) : ui('学习所选内容')}

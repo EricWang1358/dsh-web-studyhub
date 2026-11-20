@@ -50,6 +50,7 @@
     "lib",
     "skills",
     "scripts/prepare.mjs",
+    "scripts/study-cli.mjs",
     "references",
     "docs/assets/studyhub-qq-group.jpg",
     "docs/architecture.md",
@@ -155,6 +156,7 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
+    "study:cli": "node scripts/study-cli.mjs",
     "prepare": "node scripts/prepare.mjs",
     "build:demo": "node scripts/build-demo.mjs",
     "test": "node scripts/test.mjs",
