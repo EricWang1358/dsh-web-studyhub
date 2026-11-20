@@ -366,5 +366,10 @@
   "编排：按 studyhub-lesson/1（mode: \"rescue\"）设计 3–4 页急救舞台：第 1 页 predict 紧扣我选错的思路，第 2 页用 sandbox、matrix、schematic 或 lanes 配 reveal 演示机理，有可指认的错误步骤时补第 3 页 spot，末页放 1 道换情境边界 quiz。": "Authoring: design a 3–4 slide studyhub-lesson/1 (mode: \"rescue\") stage: Slide 1 predict grounded in my wrong answer, Slide 2 sandbox/matrix/schematic/lanes + reveal unpacking the mechanism, optional Slide 3 spot only if there is a clickable flawed step, and a final boundary transfer quiz.",
   "挂载：直接调用零密钥 companion.compile（带上 mode: \"rescue\"、targetCardIds 与对应的 hid），挂载完成后告诉我回到错题本这一行直接打开。": "Mount: compile directly via zero-key companion.compile (passing mode: \"rescue\", targetCardIds, and the matching hid), then tell me to return to this row in Mistakes & weak points to open it.",
   "顽固错题": "Stubborn question",
-  "上次选错的答案": "Previous wrong answer"
+  "上次选错的答案": "Previous wrong answer",
+  "我刚在外部语音/对话里学完了 {0}，下面贴上聊天记录，请主教练带 4 位助教帮我做学完回馈结算。": "I just finished studying {0} in an external voice/chat session. Here is the transcript — please run the Head Coach + 4-TA post-session debrief.",
+  "我刚在外部语音/对话里学完了一批内容，下面贴上聊天记录，请主教练带 4 位助教帮我做学完回馈结算。": "I just finished an external voice/chat study session. Here is the transcript — please run the Head Coach + 4-TA post-session debrief.",
+  "分工：1) 把卡壳点的大白话解释提前写进题目 QA（card.followup.add）；2) 核查讲到但题库没涉及的缺口（supplement / capture）；3) 理顺前置题与学习顺序（card.link.batch）；4) 按原话证据同步掌握度（card.review.batch）并挑 5–12 道高质量课后验收题推到面板（panel.open）。": "4-TA split: 1) pre-fill plain-language explanations for shaky points into card QA (card.followup.add); 2) audit genuinely missing concepts (supplement / capture); 3) fix prerequisite order (card.link.batch); 4) sync mastery from transcript evidence (card.review.batch) and open 5–12 high-signal verification questions in StudyHub (panel.open).",
+  "确认：除非我明确说「直接执行」，先给我看一屏精简变更表再落库。": "Confirmation: show me one compact summary table before committing unless I explicitly say auto-apply.",
+  "以下是本次语音 / 外部对话记录：": "Paste your voice / external chat transcript below:"
 }

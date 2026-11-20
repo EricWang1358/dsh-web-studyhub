@@ -133,7 +133,8 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   const drafts = data.drafts || [];
   const showNotebooks = data.decks.length > 0 || (notebooks?.notebooks?.notebooks || []).some((notebook) => !notebook.current);
   const selectedRun = tree.scope.length ? runFor(tree.scope) : null;
-  const deckActions = { start, resume, manage, restoreDeck, removeDeck, archiveDeck, runsOn: (deckId) => data.decks.find((deck) => deck.id === deckId)?.openRuns ?? openRunsOn(runs, deckId) };
+  const openVoicePack = typeof openModal === "function" ? (opts) => openModal({ type: "voicePack", ...opts }) : undefined;
+  const deckActions = { start, resume, manage, restoreDeck, removeDeck, archiveDeck, openVoicePack, runsOn: (deckId) => data.decks.find((deck) => deck.id === deckId)?.openRuns ?? openRunsOn(runs, deckId) };
   const line = useFirstRunLine(data);
   /* The one 下一步 card (ui/study-map/next-step.js): worked out from the snapshot alone. Before a first deck of the learner's own its three states are the first-run line
      (drawn below, as the whole first screen or as the compact card), so this draws only the states after it; 「今天先不」 hides it for the local day. */
@@ -215,7 +216,8 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
       {/* Cross-workspace notebooks are for people with decks, or with notebooks elsewhere (P12). */}
       {showNotebooks && <NotebookDirectory notebooks={notebooks?.notebooks} error={notebooks?.notebookError} onPublish={notebooks?.publish}
         onUnpublish={notebooks?.unpublish} onOpen={notebooks?.open} refresh={notebooks?.loadNotebooks} onSearch={notebooks?.search} />}
-      <SelectionBar scope={tree.scope} run={selectedRun} onClear={tree.clearSelection} onShowGraph={onShowGraph} onStart={start} onResume={resume} />
+      <SelectionBar scope={tree.scope} run={selectedRun} onClear={tree.clearSelection} onShowGraph={onShowGraph} onStart={start} onResume={resume}
+        onOpenVoicePack={openVoicePack ? (scope) => openVoicePack({ scope }) : undefined} />
     </section>
   );
 }

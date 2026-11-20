@@ -23,7 +23,7 @@ Read the study library's current state once, explain in 3–5 plain sentences wh
 
 - Write 3–5 crisp sentences, one fact per sentence:
   1. **What is here right now** (`N` sources, `N` decks, `N` drafts, courses).
-  2. **What StudyHub can do** (import materials, generate cited flashcards & quizzes, build or mount cross-discipline **Interactive Companions** via `generation.companion.build` / `companion.attach` — self-contained HTML lessons with parametric sandboxes, counterexample matrices, schematics, and execution traces — review due cards, practice `Mistakes & weak`, or build a course outline & review book).
+  2. **What StudyHub can do** (import materials, generate cited flashcards & quizzes, build or mount cross-discipline **Interactive Companions** via `generation.companion.build` / `companion.attach` — self-contained HTML lessons with parametric sandboxes, counterexample matrices, schematics, and execution traces — export an anti-drift **Voice Study Pack** with live mastery progress for external voice AI and debrief transcripts back through the **Head Coach + 4-TA Team** (`study-coach-team`), review due cards, practice `Mistakes & weak`, or build a course outline & review book).
   3. **The single best next step** given what the library holds right now.
 - Quote only exact counts returned by `library.context`; if something is zero, say there are none yet—never guess or pad numbers.
 - Keep the tone direct, warm, and unhurried (in Chinese use 「你」, never 「您」; avoid filler like "for now" or "please wait").

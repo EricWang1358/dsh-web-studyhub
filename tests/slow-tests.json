@@ -283,6 +283,7 @@
     "tests/unified-runtime-pdf-convert.test.mjs",
     "tests/unified-runtime-process-console.test.mjs",
     "tests/unified-runtime-rebind-race.test.mjs",
+    "tests/voice-handoff-coach-team.test.mjs",
     "tests/wp0-qa-tools.test.mjs",
     "tests/wp28b-companion.test.mjs",
     "tests/wp6-m4a.test.mjs"
