@@ -323,6 +323,138 @@ test('the voice button is a microphone, and a stop mark while it records (the sa
   const recording = renderToStaticMarkup(React.createElement(VoiceButton, { voice: voice({ phase: 'recording', left: 75 }) }));
   assert.ok(recording.includes(ICON_PATHS.stop), 'recording: the stop mark, the button now ends the recording');
   assert.ok(!recording.includes(ICON_PATHS.microphone));
+  assert.match(recording, /class="voice-input__meter"[^>]*aria-hidden="true"/, 'recording renders the live audio meter');
+  assert.match(recording, /--voice-level:0/);
+  const loud = renderToStaticMarkup(React.createElement(VoiceButton, { voice: voice({ phase: 'recording', left: 70, level: 64 }) }));
+  assert.match(loud, /--voice-level:64/, 'live meter reflects current audio level');
+  const starting = renderToStaticMarkup(React.createElement(VoiceButton, { voice: voice({ phase: 'idle', starting: true }) }));
+  assert.match(starting, /正在开启麦克风…/, 'starting state shows immediate feedback while opening the mic');
+  const sending = renderToStaticMarkup(React.createElement(VoiceButton, { voice: voice({ phase: 'sending' }) }));
+  assert.match(sending, /正在转写…/);
+  assert.match(sending, />取消</, 'sending renders 取消 so learners can abort a slow upload/transcription');
+  const errored = renderToStaticMarkup(React.createElement(VoiceButton, { voice: voice({ error: '麦克风断开了，请再录一次' }) }));
+  assert.match(errored, /sh-inline--boxed/, 'errors render inside a boxed InlineMessage');
+  assert.match(errored, /麦克风断开了，请再录一次/);
+});
+
+test('onLevel emits 0..100 audio levels and resets to 0 on finish and cancel without altering onState phase sequence', async () => {
+  const capture = fakeCapture(), states = [], levels = [];
+  const recorder = createVoiceRecorder({
+    call: async (action) => (action === 'audio.clip.transcribe' ? { text: '好的' } : {}),
+    capture: capture.fn,
+    upload: async () => 'u-level',
+    onState: (state) => states.push(state.phase),
+    onLevel: (level) => levels.push(level),
+  });
+  await recorder.start();
+  capture.push(new Array(2000).fill(0));
+  capture.push(new Array(4000).fill(2000));
+  const text = await recorder.finish();
+  assert.equal(text, '好的');
+  assert.deepEqual(states, ['recording', 'sending', 'idle'], 'onState phase sequence stays strictly recording -> sending -> idle');
+  assert.equal(levels[0], 0, 'silence is 0');
+  assert.ok(Number.isInteger(levels[1]) && levels[1] > 0 && levels[1] <= 100, `speech frame emits 0..100 integer level: ${levels[1]}`);
+  assert.equal(levels.at(-1), 0, 'finish resets level to 0');
+
+  const cancelCapture = fakeCapture(), cancelLevels = [];
+  const cancelled = createVoiceRecorder({
+    call: async () => ({}),
+    capture: cancelCapture.fn,
+    upload: async () => 'u-cancel',
+    onLevel: (level) => cancelLevels.push(level),
+  });
+  await cancelled.start();
+  cancelCapture.push(new Array(4000).fill(4000));
+  assert.ok(cancelLevels[0] > 0 && cancelLevels[0] <= 100);
+  await cancelled.cancel();
+  assert.equal(cancelLevels.at(-1), 0, 'cancel resets level to 0');
+});
+
+test('cancelling during sending (upload or transcribe) never flashes an AbortError or returns stale text', async () => {
+  const uploadErrors = [];
+  const c1 = fakeCapture();
+  const r1 = createVoiceRecorder({
+    capture: c1.fn,
+    onState: ({ error }) => { if (error) uploadErrors.push(error); },
+    call: async () => ({}),
+    upload: async (_call, _ns, _file, { signal }) => {
+      await r1.cancel();
+      signal.throwIfAborted();
+      return 'never';
+    },
+  });
+  await r1.start();
+  c1.push(new Array(4000).fill(1000));
+  await assert.rejects(r1.finish(), (e) => e?.name === 'AbortError');
+  assert.deepEqual(uploadErrors, [], 'cancelling upload emits no error to UI');
+
+  const transcribeErrors = [];
+  const c2 = fakeCapture();
+  const r2 = createVoiceRecorder({
+    capture: c2.fn,
+    onState: ({ error }) => { if (error) transcribeErrors.push(error); },
+    upload: async () => 'u-transcribe',
+    call: async (action) => {
+      if (action === 'audio.clip.transcribe') {
+        await r2.cancel();
+        return { text: '已取消但迟到的文字' };
+      }
+      return {};
+    },
+  });
+  await r2.start();
+  c2.push(new Array(4000).fill(1000));
+  await assert.rejects(r2.finish(), (e) => e?.name === 'AbortError', 'cancelled transcription never resolves stale text');
+  assert.deepEqual(transcribeErrors, [], 'cancelling transcription emits no error to UI');
+});
+
+test('useVoiceInput maps raw AudioWorklet errors to friendly Chinese while preserving existing Chinese errors', async () => {
+  const { build } = await import('esbuild');
+  const reactStandIn = `
+    let slots = [], index = 0, pending = [];
+    export const __begin = () => { index = 0; pending = []; };
+    export const __flush = () => { for (const run of pending) run(); };
+    export const useState = (initial) => { const slot = index++; slots[slot] ??= { value: initial };
+      return [slots[slot].value, (value) => { slots[slot].value = typeof value === 'function' ? value(slots[slot].value) : value; }]; };
+    export const useRef = (initial) => { const slot = index++; return slots[slot] ??= { current: initial }; };
+    export const useCallback = (fn) => { index++; return fn; };
+    export const useSyncExternalStore = (subscribe, get) => get();
+    export const useEffect = (effect, deps) => {
+      const slot = index++, before = slots[slot];
+      if (before && deps.every((dep, i) => Object.is(dep, before.deps[i]))) return;
+      pending.push(() => { before?.cleanup?.(); slots[slot] = { deps, cleanup: effect() }; });
+    };`;
+  const fakes = {
+    react: reactStandIn,
+    'live-audio': `export const captureAudio = (...args) => globalThis.__voiceWorkletFake.capture(...args);`,
+    upload: `export const uploadInChunks = async () => 'u-1';`,
+  };
+  const compiled = await build({
+    stdin: { contents: "export { useVoiceInput, forgetVoiceReadiness } from './ui/voice/useVoiceInput.js'; export { __begin, __flush } from 'react';", resolveDir: process.cwd() },
+    bundle: true, write: false, platform: 'node', format: 'cjs', logLevel: 'silent', loader: { '.json': 'json' },
+    plugins: [{ name: 'stand-ins', setup(b) {
+      b.onResolve({ filter: /^react$|\/live-audio\.js$|\/upload\.js$/ }, (args) => ({ path: args.path === 'react' ? 'react' : args.path.includes('live-audio') ? 'live-audio' : 'upload', namespace: 'stand-in' }));
+      b.onLoad({ filter: /.*/, namespace: 'stand-in' }, (args) => ({ contents: fakes[args.path], loader: 'js' }));
+    } }],
+  });
+  const mod = { exports: {} };
+  new Function('module', 'exports', 'require', compiled.outputFiles[0].text)(mod, mod.exports, (await import('node:module')).createRequire(import.meta.url));
+  const { useVoiceInput, forgetVoiceReadiness, __begin, __flush } = mod.exports;
+  let hook = null;
+  globalThis.__voiceWorkletFake = { capture: async () => { throw new Error('Failed to load worklet module'); } };
+  try {
+    const call = async (action) => (action === 'audio.preflight' ? { transcription: true } : {});
+    const render = () => { __begin(); const h = useVoiceInput({ call, scope: 'q1', onText: () => {} }); __flush(); return h; };
+    forgetVoiceReadiness();
+    hook = render();
+    assert.equal(hook.starting, false);
+    assert.equal(hook.level, 0);
+    await hook.start();
+    hook = render();
+    assert.equal(hook.starting, false);
+    assert.equal(hook.phase, 'idle');
+    assert.match(hook.error, /浏览器没能启动录音组件/);
+  } finally { hook?.cancel(); delete globalThis.__voiceWorkletFake; forgetVoiceReadiness(); }
 });
 
 test('a rewrite that every criterion repeats is shown once after the criteria; different rewrites stay with their criterion', async () => {

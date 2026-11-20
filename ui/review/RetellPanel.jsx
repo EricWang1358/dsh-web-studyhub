@@ -8,7 +8,7 @@ import { useStudy } from "../study-context.jsx";
 import { browserSession, readText, removeKey, writeText } from "../storage.js";
 import { useInjectCss } from "../shared.js";
 import VoiceButton from "../voice/VoiceButton.jsx";
-import { useVoiceInput } from "../voice/useVoiceInput.js";
+import { focusInputEnd, useVoiceInput } from "../voice/useVoiceInput.js";
 import css from "./learning-loop.css";
 
 /* 用自己的话讲一遍 (#1016): the learner explains a question (teach.retell) or a 复习全书 point (book.retell) in their own words, and the AI says what was right,
@@ -74,6 +74,7 @@ export default function RetellPanel({ op, args, draftKey, model, onModelSettings
     onText: (spoken) => {
       const current = textRef.current;
       edit(current.trim() ? `${current.trimEnd()} ${spoken}` : spoken);
+      focusInputEnd(inputRef);
     },
   });
 

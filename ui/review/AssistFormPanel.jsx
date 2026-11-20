@@ -5,6 +5,9 @@ import { Button, Chip, SegmentedControl } from "../components/index.js";
 import { HELP_CHOICES } from "../agent-prompts/card.js";
 import { FixPhraseChips, FixPhraseSave, appendFixPhrase } from "./FixPhrases.jsx";
 import { CourseRuleAdd } from "../course-rules/CourseRuleAdd.jsx";
+import { useStudyServices } from "../study-context.jsx";
+import VoiceButton from "../voice/VoiceButton.jsx";
+import { focusInputEnd, useVoiceInput } from "../voice/useVoiceInput.js";
 
 const EMPTY_ASSIST_SEED = { mode: "", text: "", choices: [], relation: "prerequisite", nonce: 0 };
 
@@ -60,6 +63,7 @@ export function AssistFormPanelView({
   const [thinkingNote, setThinkingNote] = React.useState("");
   const [helpChoices, setHelpChoices] = React.useState(seed.choices || []);
   const [deriveRelation, setDeriveRelation] = React.useState(seed.relation || "prerequisite");
+  const inputRef = React.useRef(null);
   const lastNonceRef = React.useRef(seed.nonce);
   React.useEffect(() => {
     if (lastNonceRef.current === seed.nonce) return;
@@ -71,8 +75,12 @@ export function AssistFormPanelView({
   }, [seed]);
   React.useEffect(() => {
     if (!textSetterRef) return undefined;
-    textSetterRef.current = setAssistText;
-    return () => { if (textSetterRef.current === setAssistText) textSetterRef.current = null; };
+    const setFromVoice = (updater) => {
+      setAssistText(updater);
+      focusInputEnd(inputRef);
+    };
+    textSetterRef.current = setFromVoice;
+    return () => { if (textSetterRef.current === setFromVoice) textSetterRef.current = null; };
   }, [textSetterRef]);
 
   if (!mode) return null;
@@ -131,7 +139,7 @@ export function AssistFormPanelView({
       {renderThinkingField(mode, thinkingNote, setThinkingNote, (
         <label className="assist-form__field">
           {mode === "ask" ? ui("补充你自己的疑问（可选）") : mode === "derive" ? ui("根据哪个知识点出题？写下来，后台助教会出成一道题，放进同一题组") : copy.improveLabel()}
-          <textarea className="assist-form__input" autoFocus rows={2} value={assistText} maxLength={1000}
+          <textarea ref={inputRef} className="assist-form__input" autoFocus rows={2} value={assistText} maxLength={1000}
             placeholder={mode === "ask" ? ui("例如：不懂为什么重试会放大负载") : mode === "derive" ? ui("例如：什么是聚合根；为什么重试要幂等") : ui("例如：选项 B 和 C 说的是一回事；解析没说清为什么 A 错")}
             onChange={(event) => setAssistText(event.target.value)}
             onKeyDown={(event) => {
@@ -179,10 +187,25 @@ const INLINE_ASK_CHIPS = HELP_CHOICES.filter((c) => ["plain", "example", "steps"
 export function InlineExplanationAskView({
   open, hasFollowups, hasFeedback, entryKey, activeEntryKeyRef, model, modelSettings, assistAct, onExpand, onClose,
 }) {
+  const { call } = useStudyServices();
   const [text, setText] = React.useState("");
   const [choices, setChoices] = React.useState([]);
   const [submitting, setSubmitting] = React.useState(false);
   const inputRef = React.useRef(null);
+  const voice = useVoiceInput({
+    call,
+    scope: entryKey,
+    onText: (spoken) => {
+      setText((current) => (current.trim() ? `${current.trimEnd()} ${spoken}` : spoken));
+      focusInputEnd(inputRef);
+    },
+  });
+  const { cancel: cancelVoice } = voice;
+  const prevOpenRef = React.useRef(open);
+  React.useEffect(() => {
+    if (prevOpenRef.current && !open) cancelVoice();
+    prevOpenRef.current = open;
+  }, [open, cancelVoice]);
   React.useEffect(() => {
     if (open) requestAnimationFrame(() => inputRef.current?.focus?.({ preventScroll: true }));
   }, [open]);
@@ -254,6 +277,7 @@ export function InlineExplanationAskView({
       <div className="assist-actions">
         <Button type="submit" variant="primary" size="sm" busy={submitting} disabled={!canSubmit}>{ui("提交追问")}</Button>
         <Button size="sm" variant="quiet" onClick={onClose}>{ui("取消")}</Button>
+        <VoiceButton voice={voice} label="语音提问" />
       </div>
     </form>
   );
