@@ -4,8 +4,8 @@
 import { seedLibrary } from "./perf-seed.mjs";
 import { parseQaArgs, runQa, sleep } from "./harness.mjs";
 
-const options = parseQaArgs(process.argv.slice(2), "ui-profile", { page: "generate", visits: "3", sources: "300", production: "false" });
-if (options.production === "true") { const { buildPreview } = await import("../build.mjs"); await buildPreview({ production: true }); console.log("preview rebuilt with React's production build"); }
+// readable: with --production the bundle is React's production build with its names kept, so the table names real functions (a minified one names `K` and `cL`).
+const options = parseQaArgs(process.argv.slice(2), "ui-profile", { page: "generate", visits: "3", sources: "300", production: "false", readable: "true" });
 await runQa({
   name: "ui-profile", options,
   seed: (root) => seedLibrary(root, { sources: Number(options.sources), decks: 14, cardsPerDeck: 30, runs: 24, attempts: 1200, courses: 8, largeSources: 4, largeSourceChars: 30000 }),

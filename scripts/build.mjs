@@ -167,10 +167,10 @@ export async function buildHostClient({ outdir = resolve(root, 'lib'), write = t
   return result;
 }
 
-/** `production`: minified with React's production build, the way the shipped client modules are built. The default stays the readable development build the journeys debug against; speed is measured with `production` (scripts/qa/ui-motion.mjs --production). */
-export async function buildPreview({ outdir = resolve(root, 'dist'), write = true, production = false } = {}) {
+/** `production`: minified with React's production build, the way the shipped client modules are built. The default stays the readable development build the journeys debug against; `readable` keeps the names of a production build (React's production code, not minified), for a CPU profile a person can read; speed is measured with `production` (scripts/qa/ui-motion.mjs --production). */
+export async function buildPreview({ outdir = resolve(root, 'dist'), write = true, production = false, readable = false } = {}) {
   const targetDir = resolve(outdir);
-  const cacheFile = cacheEnabled() ? resolve(buildCacheDir, `preview-${production ? 'prod' : 'dev'}-${await sourceTreeDigest()}.json`) : null;
+  const cacheFile = cacheEnabled() ? resolve(buildCacheDir, `preview-${production ? (readable ? 'prod-readable' : 'prod') : 'dev'}-${await sourceTreeDigest()}.json`) : null;
   let files = cacheFile ? await readFile(cacheFile, 'utf8').then(JSON.parse, () => null) : null;
   if (!Array.isArray(files)) {
     // The local preview server exposes app.js/app.css only. Its single IIFE
@@ -178,7 +178,7 @@ export async function buildPreview({ outdir = resolve(root, 'dist'), write = tru
     const built = await build({
       absWorkingDir: root, entryPoints: ['ui/dev.jsx'], plugins: [shimJsxRuntime],
       bundle: true, outdir: targetDir, write: false, entryNames: 'app', platform: 'browser',
-      format: 'iife', loader: { '.css': 'css' }, minify: production,
+      format: 'iife', loader: { '.css': 'css' }, minify: production && !readable,
       ...(production ? { define: { 'process.env.NODE_ENV': '"production"' } } : {}),
     });
     files = built.outputFiles.map(file => ({ name: basename(file.path), text: file.text }));
