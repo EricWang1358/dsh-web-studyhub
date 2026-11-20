@@ -2,6 +2,10 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 5.2.0 — 2026-11-21
+
+- **One-click in-app auto-updates for StudyHub Desktop via signed per-user NSIS installers.** StudyHub Desktop now ships a per-user (`currentUser`) Windows `Setup.exe` installer alongside `.msi` and portable `.zip`, integrates Tauri v2 `tauri-plugin-updater` with embedded Ed25519 signature verification and `latest.json` manifest generation, shuts down the bundled Node sidecar cleanly before passive update installation, and adds a one-click update button with live download progress and collapsible manual fallback inside the upgrade dialog. Not verified: live Windows Rust compilation/linking and end-to-end signed updater relaunch on this host (no local MSVC Build Tools installed; verified in GitHub Actions `release-desktop.yml`).
+
 ## 5.1.0 — 2026-11-20
 
 - **Voice study packs and the Head Coach 4-TA debrief let you study hands-free in external voice chats and sync everything back.** Open **Voice study pack…** from the course menu, a deck's `⋯` menu, or the multi-selection bar to preview your current mastery snapshot, pick cram/weak/new/focus/due selection, question count, time budget, and anti-drift pacing (per-turn progress heartbeat plus a 3-turn circuit breaker per item), then copy the prompt or download a `.md` pack for Gemini, ChatGPT, or Doubao; afterwards, click **Send voice recap to Head Coach** (or run the bundled universal CLI bridge from Codex CLI, `agy` CLI, or Claude Code) to pre-fill plain-language QAs, supplement missing questions, fix prerequisite order, batch-sync FSRS mastery, and open a curated verification round. Not verified: live voice sessions inside external third-party Gemini/ChatGPT/Doubao apps beyond local prompt, CLI, and UI verification.
