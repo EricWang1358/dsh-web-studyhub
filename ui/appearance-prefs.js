@@ -80,16 +80,74 @@ export function normalizeAppearance(value) {
 const read = (storage, key) => { try { return storage?.getItem(key) ?? null; } catch { return null; } };
 const write = (storage, key, text) => { try { storage?.setItem(key, text); } catch { /* storage is blocked: the choice still applies for this session */ } };
 
+let cachedStorage = null;
+let cachedAppearance = null;
+let storageListenerInstalled = false;
+const cacheListeners = new Set();
+
+function notifyCache(next) {
+  for (const listener of cacheListeners) {
+    try { listener(next); } catch { /* ignore */ }
+  }
+}
+
+function ensureStorageListener() {
+  if (storageListenerInstalled || typeof window === 'undefined' || typeof window.addEventListener !== 'function') return;
+  storageListenerInstalled = true;
+  window.addEventListener('storage', (event) => {
+    if (event.key === null || event.key === THEME_KEY || event.key === INTERFACE_KEY) {
+      cachedAppearance = null;
+      cachedStorage = null;
+      if (cacheListeners.size) notifyCache(getCachedAppearance());
+    }
+  });
+}
+
 export function loadAppearance(storage = browserStorage()) {
   let rest = null;
   try { rest = JSON.parse(read(storage, INTERFACE_KEY) || 'null'); } catch { /* corrupt: defaults */ }
   return normalizeAppearance({ ...(rest && typeof rest === 'object' ? rest : null), theme: read(storage, THEME_KEY) });
 }
 
+/** Memory-cached read of appearance prefs for hot paths (e.g. playSound), kept fresh on saveAppearance() and cross-tab storage events. */
+export function getCachedAppearance(storage = browserStorage()) {
+  ensureStorageListener();
+  if (cachedAppearance && cachedStorage === storage) return cachedAppearance;
+  cachedStorage = storage;
+  cachedAppearance = loadAppearance(storage);
+  return cachedAppearance;
+}
+
+/** O(1) sound preference lookup without repeated localStorage + JSON.parse on every click. */
+export function getAppearanceSound(storage = browserStorage()) {
+  return getCachedAppearance(storage).sound;
+}
+
+/** Subscribe to cached appearance updates (e.g. sound mode turned on/off). */
+export function onAppearanceCacheChange(listener) {
+  ensureStorageListener();
+  cacheListeners.add(listener);
+  return () => cacheListeners.delete(listener);
+}
+
+/** Reset the in-memory appearance cache (for unit tests that swap localStorage directly). */
+export function invalidateAppearanceCache() {
+  cachedAppearance = null;
+  cachedStorage = null;
+}
+
 export function saveAppearance(value, storage = browserStorage()) {
-  const { theme, ...rest } = normalizeAppearance(value);
+  const normalized = normalizeAppearance(value);
+  const { theme, ...rest } = normalized;
   write(storage, THEME_KEY, theme);
   write(storage, INTERFACE_KEY, JSON.stringify(rest));
+  const defaultStorage = browserStorage();
+  if (storage === defaultStorage) {
+    const prev = cachedAppearance;
+    cachedStorage = storage;
+    cachedAppearance = normalized;
+    if (!prev || !same(prev, normalized)) notifyCache(normalized);
+  }
 }
 
 /** What actually runs: 'full' | 'reduced' | 'off'. 'auto' follows the system's "reduce motion" setting; an explicit choice wins over it. */
@@ -170,6 +228,13 @@ export function createAppearanceStore({ storage } = {}) {
     /** 恢复默认外观. */
     reset: () => update(appearanceDefaults()),
     /** Read the stored value again (another tab changed it): nothing is written back. */
-    reload: () => { set(loadAppearance(storage)); },
+    reload: () => {
+      const next = loadAppearance(storage);
+      if (!storage || storage === browserStorage()) {
+        cachedStorage = storage ?? browserStorage();
+        cachedAppearance = next;
+      }
+      set(next);
+    },
   };
 }

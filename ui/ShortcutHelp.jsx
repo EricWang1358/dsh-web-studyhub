@@ -5,8 +5,10 @@ import { CloseButton, useDismiss, useTopDialog } from "./components/index.js";
 /* 快捷键速查（按 ? 打开）。只列当前页面用得上的，避免一屏说明书。 */
 const REVIEW = [
   ["1–6", "选择选项"],
+  ["0 / Backspace", "多选题：清空已选选项"],
   ["1–7", "「这题有问题」标签展开时：选标签"],
   ["0–5", "闪卡 / 开放题自评"],
+  ["Z / Ctrl+Z", "撤销上一题评分"],
   ["Enter", "下一题 · 提交多选/填空 · 翻卡"],
   ["Space", "翻卡"],
   ["← →", "上一题 / 下一题"],
@@ -19,6 +21,7 @@ const REVIEW = [
   ["N", "写笔记"],
   ["F", "标为重点 / 取消重点"],
   ["O", "打开这道题出自的资料页"],
+  ["Alt+`", "资料对照栏：在题目与资料之间切换焦点"],
   // Voice answering (#1031): an input method, so only where the answer is typed (flashcard, open question, cloze).
   ["W", "标生词：点选或拖选不认识的词，Esc 退出"],
   ["V", "语音作答：闪卡、开放题、填空题；再按一次发送"],

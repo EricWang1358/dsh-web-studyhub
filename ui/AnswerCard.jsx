@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import Markdown, { ScrollEdgeWrap } from './Markdown.jsx';
@@ -91,12 +91,32 @@ export function AnswerCardView({ card, actions = null, flat = false, embedded = 
 
 /** 加入复习全书 / 已加入 · 撤回 of an answer card; only where the course has a book. */
 function BookButton({ deckId, cardId, book }) {
-  const [working, setWorking] = useState(false), [error, setError] = useState('');
+  const itemKey = `${deckId ?? ''}:${cardId ?? ''}`;
+  const activeKeyRef = useRef(itemKey);
+  activeKeyRef.current = itemKey;
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
+  const reqSeqRef = useRef(0);
+  const [status, setStatus] = useState(() => ({ key: itemKey, working: false, error: '' }));
+  const working = status.key === itemKey && status.working;
+  const error = status.key === itemKey ? status.error : '';
   if (!book.ready || !book.courses.size) return null;
   const added = book.cards.has(cardId);
   const run = async () => {
-    setWorking(true); setError('');
-    try { if (added) await book.removeCard(cardId); else await book.addCard({ deckId, cardId }); } catch (failure) { setError(errorMessage(failure)); } finally { setWorking(false); }
+    const originKey = itemKey;
+    const seq = ++reqSeqRef.current;
+    setStatus({ key: originKey, working: true, error: '' });
+    try {
+      if (added) await book.removeCard(cardId);
+      else await book.addCard({ deckId, cardId });
+      if (mountedRef.current && activeKeyRef.current === originKey && reqSeqRef.current === seq) {
+        setStatus({ key: originKey, working: false, error: '' });
+      }
+    } catch (failure) {
+      if (mountedRef.current && activeKeyRef.current === originKey && reqSeqRef.current === seq) {
+        setStatus({ key: originKey, working: false, error: errorMessage(failure) });
+      }
+    }
   };
   return (
     <span className="answer-card__book">
@@ -117,23 +137,41 @@ export default function AnswerCardSection({ run, data, onSetupModel, flat = true
   const book = useBookQa();
   const model = modelReadiness(data);
   const card = run.solution?.answerCard, deckId = run.deckId, cardId = run.card?.id;
-  const [task, setTask] = useState(null);
+  const cardKey = `${deckId ?? ''}:${cardId ?? ''}`;
+  const activeKeyRef = useRef(cardKey);
+  activeKeyRef.current = cardKey;
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
+  const reqSeqRef = useRef(0);
+  const [taskState, setTaskState] = useState(null);
+  const task = taskState && taskState.key === cardKey ? taskState : null;
   const start = useCallback(async again => {
-    setTask({ status: 'starting' });
+    const originKey = `${deckId ?? ''}:${cardId ?? ''}`;
+    const seq = ++reqSeqRef.current;
+    setTaskState({ key: originKey, status: 'starting', seq });
     try {
       const started = await call('generation.answerCard.build', { deckId, cardId, ...(again ? { again: true } : {}) });
-      setTask({ status: 'running', jobId: started.jobId });
+      if (!mountedRef.current) return;
       notify?.({ text: ui('已开始生成答题卡：写好后出现在这里；任务页可以看进度。'), tone: 'success' });
-    } catch (failure) { setTask({ status: 'failed', message: errorMessage(failure) }); }
+      if (activeKeyRef.current !== originKey || reqSeqRef.current !== seq) return;
+      setTaskState({ key: originKey, status: 'running', jobId: started.jobId, seq });
+    } catch (failure) {
+      if (!mountedRef.current || activeKeyRef.current !== originKey || reqSeqRef.current !== seq) return;
+      setTaskState({ key: originKey, status: 'failed', message: errorMessage(failure), seq });
+    }
   }, [call, notify, deckId, cardId]);
   // The task is looked at now and then until it ends; the practice page reads the question again by itself, the card then in place.
   usePolling(async () => {
     if (task?.status !== 'running') return;
+    const originKey = task.key, jobId = task.jobId, seq = task.seq;
     let job;
-    try { job = await call('job.status', { jobId: task.jobId }); } catch { return; }
+    try { job = await call('job.status', { jobId }); } catch { return; }
+    if (!mountedRef.current || activeKeyRef.current !== originKey || reqSeqRef.current !== seq) return;
     const status = job?.status ?? job?.contract?.status;
     if (!status || isActiveJob({ status })) return;
-    setTask(status === 'failed' ? { status: 'failed', message: job?.error?.message || job?.contract?.error?.message || ui('答题卡没有写成，可以在任务页重试。') } : null);
+    setTaskState(status === 'failed'
+      ? { key: originKey, status: 'failed', message: job?.error?.message || job?.contract?.error?.message || ui('答题卡没有写成，可以在任务页重试。'), seq }
+      : null);
   }, { intervalMs: 1500, enabled: task?.status === 'running' });
   const running = task?.status === 'running' || task?.status === 'starting';
   const generate = again => (model.ready

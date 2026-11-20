@@ -159,3 +159,66 @@ test('the new themes keep the desk hierarchy and the cinnabar accent', () => {
   assert.ok(luminance(paper['--bg-canvas']) < luminance(paper['--bg-surface']), 'paper surfaces sit lighter than the desk');
   assert.equal(oled['--accent'] ?? dark['--accent'], dark['--accent'], 'oled keeps the same accent');
 });
+
+const clamp = x => Math.min(255, Math.max(0, x));
+function rgba(value, scope) {
+  value = value.trim();
+  const ref = value.match(/^var\((--[\w-]+)\)$/);
+  if (ref) { assert.ok(scope[ref[1]], `${ref[1]} is defined`); return rgba(scope[ref[1]], scope); }
+  if (value === 'transparent') return [0, 0, 0, 0];
+  if (value === 'black') return [0, 0, 0, 1];
+  const hex = value.match(/^#([0-9a-f]{6})([0-9a-f]{2})?$/i);
+  if (hex) return [0, 2, 4].map(i => parseInt(hex[1].slice(i, i + 2), 16)).concat(hex[2] ? parseInt(hex[2], 16) / 255 : 1);
+  const mixed = value.match(/^color-mix\(in srgb,\s*(.+?)\s+(\d+(?:\.\d+)?)%\s*,\s*(.+)\)$/);
+  assert.ok(mixed, `unreadable colour expression: ${value}`);
+  const p = Number(mixed[2]) / 100, [a, b] = [rgba(mixed[1], scope), rgba(mixed[3], scope)];
+  const alpha = a[3] * p + b[3] * (1 - p);
+  return [0, 1, 2].map(i => (alpha ? (a[i] * a[3] * p + b[i] * b[3] * (1 - p)) / alpha : 0)).concat(alpha);
+}
+const over = (fg, bg) => [0, 1, 2].map(i => fg[i] * fg[3] + bg[i] * (1 - fg[3]));
+const lumRgb = ([r, g, b]) => 0.2126 * channel(clamp(r)) + 0.7152 * channel(clamp(g)) + 0.0722 * channel(clamp(b));
+const contrastRgb = (a, b) => { const [hi, lo] = [lumRgb(a), lumRgb(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
+
+test('paper-card semantic tone inks reach WCAG AA (4.5:1) on tinted backgrounds and --ok-ink passes on --ok-halo in every theme', () => {
+  const allThemes = [['dark', dark], ['light', lightScope], ...scopes];
+  const failures = [];
+  for (const [name, theme] of allThemes) {
+    const scope = { ...theme, ...card, ...(name.includes('high') ? highCard : {}) };
+    const paperRgb = rgba('var(--bg-raised)', scope);
+    for (const tone of ['ok', 'warn', 'bad', 'info']) {
+      const ink = rgba(`var(--${tone}-ink)`, scope);
+      const bg = over(rgba(`var(--${tone}-bg)`, scope), paperRgb);
+      const r = contrastRgb(ink, bg);
+      if (r < 4.5) failures.push(`${name} card --${tone}-ink on --${tone}-bg: ${r.toFixed(2)}`);
+    }
+    const okInk = rgba('var(--ok-ink)', scope);
+    const okHalo = over(rgba('var(--ok-halo)', scope), paperRgb);
+    const haloRatio = contrastRgb(okInk, okHalo);
+    if (haloRatio < 4.5) failures.push(`${name} card --ok-ink on --ok-halo: ${haloRatio.toFixed(2)}`);
+  }
+  assert.deepEqual(failures, []);
+});
+
+test('accent foreground text uses --accent-text rather than --accent-soft or raw --accent', async () => {
+  /* Existing decorative icons/markers and legacy non-Batch-3 sheets (counts may only shrink).
+     Fixed sheets (review-results.css, coach.css, review/source-split.css) stay strictly at 0. */
+  const ACCENT_SOFT_COLOR_ALLOW = {
+    'audio-import.css': 1,       // large decorative upload icon
+    'markdown.css': 1,           // list ::marker glyph
+    'review/question.css': 2,    // decorative note svg & hover arrow glyph
+    'skeleton.css': 4,           // legacy skeleton accents
+    'study-map/catalog.css': 1,  // row-end arrow glyph
+    'study-map/desk.css': 1,     // legacy draft row-end label
+  };
+  const files = (await readdir('ui', { recursive: true })).map(name => name.replace(/\\/g, '/')).filter(name => name.endsWith('.css')).sort();
+  const problems = [];
+  for (const name of files) {
+    const source = (await readFile(`ui/${name}`, 'utf8')).replace(/\/\*[\s\S]*?\*\//g, '');
+    const count = (source.match(/(?<![-\w])color\s*:\s*var\(--accent-soft\)/g) || []).length;
+    const allowed = ACCENT_SOFT_COLOR_ALLOW[name] ?? 0;
+    if (count > allowed) problems.push(`${name}: ${count} color: var(--accent-soft) (${allowed} allowed) — use var(--accent-text) for readable foreground text`);
+  }
+  const splitCss = (await readFile('ui/review/source-split.css', 'utf8')).replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.match(splitCss, /\.source-column__head\s+\[aria-pressed="true"\]\s*\{[^}]*color:\s*var\(--accent-text\)/, 'pinned source button uses AA --accent-text');
+  assert.deepEqual(problems, []);
+});

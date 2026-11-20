@@ -1,13 +1,21 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
-import { plainPrompt } from '../shared.js';
+import { plainPrompt, useInjectCss } from '../shared.js';
 import { Badge, Button, ErrorState, PageHeader, ProgressBar, Tooltip } from '../components/index.js';
 import { formatDuration } from '../format.js';
 import { examPostmortemBridge } from '../../lib/practice-settings.js';
+import { fixedOptionsOf } from '../../lib/card-kinds.js';
+import { fixedOptionLabel } from '../option-label.js';
+import OptionMark from '../OptionMark.jsx';
+import AnswerState from '../review/AnswerState.jsx';
+import ChoiceFeedback from '../ChoiceFeedback.jsx';
+import CitationDisclosure from '../CitationDisclosure.jsx';
+import Markdown from '../Markdown.jsx';
 import ResultBreakdown from '../ResultBreakdown.jsx';
 import { ReadingBlock, ReadingSettingsButton } from '../reading-settings/ReadingSettings.jsx';
 import { buildExamPostmortem } from './exam-postmortem.js';
 import { kindName, scoreChange } from './exam-written.js';
+import reportCss from './written-report.css';
 
 /* The written exam's report: the score and where it went, the weak topics, what to do next, and the details
    (by topic, deck and kind, the wrong and the skipped questions). Props come from Exam.jsx; nothing is fetched here. */
@@ -23,7 +31,64 @@ function BarRow({ label, row, soft }) {
   );
 }
 
-function QuestionList({ title, items, empty, citationsByCard = null, lock = false, disabled = false, onOpenSource = null, onPracticeItem = null }) {
+function QuestionQaDetail({ item, sources = null, onOpenSource = null }) {
+  const hasOptions = Array.isArray(item.options) && item.options.length > 0;
+  const hasCitations = Boolean(onOpenSource && ((Array.isArray(item.citations) && item.citations.length > 0) || (Array.isArray(item.selections) && item.selections.length > 0)));
+  const hasDetail = Boolean(hasOptions || item.answer || item.explanation || item.misconception || hasCitations);
+  if (!hasDetail) return null;
+  const isMulti = Boolean(item.multiple || item.kind === 'multi');
+  const verdict = Boolean(fixedOptionsOf(item.kind));
+  const selected = Array.isArray(item.selected) ? item.selected : [];
+  const selectedSet = new Set(selected);
+  const cardShape = { kind: item.kind, multiple: isMulti, options: item.options || [] };
+  return (
+    <details className="exam-wrong-qa" data-exam-qa-detail="">
+      <summary>{ui('查看答案与解析')}</summary>
+      <div className="exam-wrong-qa__body">
+        <div className="exam-wrong-qa__prompt"><Markdown text={item.prompt} links={false} /></div>
+        {hasOptions && (
+          <>
+            <div className="exam-wrong-qa__feedback">
+              <ChoiceFeedback card={cardShape} options={item.options} feedback={{ selected }} solution={{ options: item.options }} multiple={isMulti} />
+            </div>
+            <div className="exam-wrong-qa__options">
+              {item.options.map((option, idx) => {
+                const picked = selectedSet.has(option.id);
+                return (
+                  <div key={option.id} className={'exam-wrong-qa__option ' + (option.correct ? 'is-correct' : picked ? 'is-incorrect' : 'is-dim')}>
+                    <span className="exam-wrong-qa__mark" aria-hidden={verdict || undefined}><OptionMark card={cardShape} option={option} index={idx} /></span>
+                    <div className="exam-wrong-qa__option-body">
+                      {verdict ? <span className="exam-wrong-qa__verdict">{fixedOptionLabel(cardShape, option)}</span> : <Markdown text={option.text} links={false} className="md-compact" />}
+                      <AnswerState correct={option.correct} picked={picked} multiple={isMulti} />
+                      {option.explanation && <Markdown text={option.explanation} links={false} className="md-compact exam-wrong-qa__option-note" />}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+        {!hasOptions && item.answer && (
+          <div className="exam-wrong-qa__ref">
+            <h4>{ui('参考答案')}</h4>
+            <Markdown text={item.answer} links={false} />
+          </div>
+        )}
+        {(item.explanation || item.misconception) && (
+          <div className="exam-wrong-qa__explanation">
+            {item.explanation && <><h4>{ui('理解这道题')}</h4><Markdown text={item.explanation} links={false} /></>}
+            {item.misconception && <><h4>{ui('容易混淆的地方')}</h4><Markdown text={item.misconception} links={false} /></>}
+          </div>
+        )}
+        {hasCitations && (
+          <CitationDisclosure card={item} sources={sources || []} onOpenSource={(source, quote) => { if (source?.id) onOpenSource(source.id, quote); }} />
+        )}
+      </div>
+    </details>
+  );
+}
+
+function QuestionList({ title, items, empty, sources = null, citationsByCard = null, lock = false, disabled = false, onOpenSource = null, onPracticeItem = null, onCiteSource = null }) {
   if (!items) return null;
   return (
     <div className="exam-wrong">
@@ -32,8 +97,9 @@ function QuestionList({ title, items, empty, citationsByCard = null, lock = fals
         <ul>{items.map((item, index) => {
           const cite = citationsByCard?.get(`${item.deckId}:${item.cardId}`) || null;
           const showActions = Boolean((cite && onOpenSource) || onPracticeItem);
+          const hasQa = Boolean((Array.isArray(item.options) && item.options.length > 0) || item.answer || item.explanation || item.misconception || (onCiteSource && ((Array.isArray(item.citations) && item.citations.length > 0) || (Array.isArray(item.selections) && item.selections.length > 0))));
           return (
-            <li key={`${item.deckId}:${item.cardId}:${index}`} className="exam-wrong-row" data-has-actions={showActions ? 'true' : undefined}>
+            <li key={`${item.deckId}:${item.cardId}:${index}`} className={'exam-wrong-row' + (hasQa ? ' exam-wrong-row--qa' : '')} data-has-actions={showActions ? 'true' : undefined} data-has-qa={hasQa ? 'true' : undefined}>
               <Badge tone="info">{item.topic || ui('未分类')}</Badge>
               <Tooltip layer content={plainPrompt(item.prompt)} anchorClassName="exam-wrong-prompt-tip">
                 <span className="exam-wrong-prompt" tabIndex={0}>{plainPrompt(item.prompt)}</span>
@@ -54,6 +120,7 @@ function QuestionList({ title, items, empty, citationsByCard = null, lock = fals
                   )}
                 </span>
               )}
+              {hasQa && <QuestionQaDetail item={item} sources={sources} onOpenSource={onCiteSource} />}
             </li>
           );
         })}</ul>
@@ -65,7 +132,8 @@ function QuestionList({ title, items, empty, citationsByCard = null, lock = fals
 /** The name of a topic row: the deck is named only when the same topic name also stands in another deck. */
 const topicLabel = (report, row) => (report.byTopic.filter((other) => other.topic === row.topic).length > 1 ? `${row.deckTitle} · ` : '') + (row.topic || ui('未分类'));
 
-export default function WrittenReport({ report, busy, pathNote, error, practiceSettings = null, decks = null, sources = null, onQueueWeak, onPracticeTopic, onPracticeScope = null, onOpenSource = null, onExit, onAgain }) {
+export default function WrittenReport({ report, busy, pathNote, error, practiceSettings = null, decks = null, sources = null, onQueueWeak, onPracticeTopic, onPracticeScope = null, onOpenSource = null, onTogglePostmortem = null, onExit, onAgain }) {
+  useInjectCss(reportCss, 'study-written-report');
   const weakTopicRows = (report.byTopic || [])
     .filter((topic) => topic.total > topic.correct)
     .sort((a, b) => (b.total - b.correct) - (a.total - a.correct))
@@ -76,7 +144,26 @@ export default function WrittenReport({ report, busy, pathNote, error, practiceS
   const scoreDelta = report.comparison && Number.isFinite(report.comparison.scorePct)
     ? Math.round(report.scorePct ?? 0) - Math.round(report.comparison.scorePct)
     : 0;
-  const bridgeOn = examPostmortemBridge(practiceSettings);
+  const settingBridgeOn = examPostmortemBridge(practiceSettings);
+  const [bridgeOverride, setBridgeOverride] = useState(null);
+  const [togglingBridge, setTogglingBridge] = useState(false);
+  useEffect(() => { setBridgeOverride(null); }, [settingBridgeOn]);
+  const bridgeOn = bridgeOverride ?? settingBridgeOn;
+  const handleToggleBridge = async () => {
+    if (typeof onTogglePostmortem !== 'function' || togglingBridge) return;
+    const next = !bridgeOn;
+    setBridgeOverride(next);
+    setTogglingBridge(true);
+    try {
+      const ok = await onTogglePostmortem(next);
+      if (ok === false) setBridgeOverride(null);
+    } catch {
+      setBridgeOverride(null);
+    } finally {
+      setTogglingBridge(false);
+    }
+  };
+  const hasMissedOrSkipped = (report.wrong?.length || 0) > 0 || (report.skipped?.length || 0) > 0;
   const unansweredCount = Array.isArray(report.skipped) ? report.skipped.length : (Number(report.unanswered) || 0);
   const postmortem = useMemo(
     () => (bridgeOn ? buildExamPostmortem(report, { decks, sources }) : null),
@@ -128,6 +215,14 @@ export default function WrittenReport({ report, busy, pathNote, error, practiceS
               onClick={() => onPracticeScope(postmortem.skippedScope)}>{uiFormat('补做未答（{0}）', [postmortem.skippedScope.length])}</Button>
           </div>
         )}
+        {typeof onTogglePostmortem === 'function' && hasMissedOrSkipped && (
+          <div className="exam-postmortem-toggle" data-exam-postmortem-toggle="">
+            <Button variant="quiet" size="sm" aria-pressed={bridgeOn} lock={togglingBridge || busy} onClick={handleToggleBridge}>
+              {bridgeOn ? ui('收起错题拆分') : ui('拆分答错与未答')}
+            </Button>
+            {!bridgeOn && <span className="muted small">{ui('显示已作答正确率、分练答错/未答与原出处（不消耗模型）')}</span>}
+          </div>
+        )}
         {pathNote && <p className="muted exam-path-note">{pathNote}</p>}
       </div>
 
@@ -153,11 +248,11 @@ export default function WrittenReport({ report, busy, pathNote, error, practiceS
           {report.byKind.map((row) => <BarRow key={row.kind} soft row={row} label={kindName(row.kind)} />)}
         </div>}
         <QuestionList title={uiFormat('答错 · {0}', [report.wrong?.length || 0])} items={report.wrong || []} empty={ui('已答的题目没有答错。')}
-          citationsByCard={postmortem?.citationsByCard} lock={busy} disabled={!!pathNote}
-          onOpenSource={bridgeOn ? onOpenSource : null} onPracticeItem={bridgeOn ? onPracticeScope : null} />
+          sources={sources} citationsByCard={postmortem?.citationsByCard} lock={busy} disabled={!!pathNote}
+          onOpenSource={bridgeOn ? onOpenSource : null} onPracticeItem={bridgeOn ? onPracticeScope : null} onCiteSource={onOpenSource} />
         {report.skipped?.length > 0 && <QuestionList title={uiFormat('未答 · {0}', [report.skipped.length])} items={report.skipped}
-          citationsByCard={postmortem?.citationsByCard} lock={busy} disabled={!!pathNote}
-          onOpenSource={bridgeOn ? onOpenSource : null} onPracticeItem={bridgeOn ? onPracticeScope : null} />}
+          sources={sources} citationsByCard={postmortem?.citationsByCard} lock={busy} disabled={!!pathNote}
+          onOpenSource={bridgeOn ? onOpenSource : null} onPracticeItem={bridgeOn ? onPracticeScope : null} onCiteSource={onOpenSource} />}
       </details>
       {error && <ErrorState error={error} />}
     </ReadingBlock>

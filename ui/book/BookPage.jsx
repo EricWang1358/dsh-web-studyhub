@@ -102,6 +102,7 @@ export default function BookPage({ data, onBack, backLabel = '', onReturnBack = 
     if (legacy !== null) removeKey(`study-book-mode:${root}:${course}`);
     if (where.kept?.view === 'flip' || (legacy === 'flip' && !where.kept?.target)) setView('flip');
     if (where.kept?.view === 'today') setTodayOpen(true);
+    if (where.kept?.view === 'lookup') setDialog('lookup');
     keepBook(root, course, { view: null, switched: false });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const plan = useBookCrunch({ call, course, book, notify });

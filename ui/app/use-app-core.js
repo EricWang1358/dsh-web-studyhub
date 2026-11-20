@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { ui, uiMessage, getUiLanguage } from '../i18n.js';
 import { localizeRunResponse } from '../run-titles.js';
 import { createActRunner } from '../act-runner.js';
+import { createBusyStore } from '../study-context.jsx';
 import { useQuickActionsController } from '../quick-actions.js';
 import { createToastApi } from '../components/Feedback.jsx';
 import { deliverToChat } from '../hand-off/use-hand-off.js';
@@ -15,7 +16,11 @@ export function useAppCore(transportCall, host, warm = null) {
   const dataRef = useRef(warm?.data ?? null), snapshotKey = useRef(warm?.snapshotKey ? { ...warm.snapshotKey } : {}), leaveTimer = useRef(0), examLocation = useRef(null), bindingRoot = useRef(warm?.binding?.root ?? '');
   const actRunner = useRef(null), actDeps = useRef(null), refreshRef = useRef(null), noticeRef = useRef(() => {}), hostRef = useRef(host);
   hostRef.current = host;
-  const [error, setError] = useState(''), [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const busyStoreRef = useRef(null);
+  busyStoreRef.current ||= createBusyStore(false);
+  const busyStore = busyStoreRef.current;
+  const setBusy = useCallback((next) => busyStore.set(next), [busyStore]);
   const call = useCallback(async (action, args = {}) => {
     const started = epoch.current;
     let result;
@@ -42,6 +47,10 @@ export function useAppCore(transportCall, host, warm = null) {
   const askInChat = useCallback((prompt, { said = '', picture } = {}) => deliverToChat({ host: hostRef.current, prompt: withLearnerFence(prompt, dataRef.current?.learner, getUiLanguage()), said, picture, notify, openSheet: setHandOffSheet }), [notify]);
   // One stable bag: hooks list it as a dependency and it must never change identity.
   const refs = useMemo(() => ({ epoch, navigation, requestSequence, notebookRequest, dataRef, snapshotKey, leaveTimer, examLocation, bindingRoot, actRunner, refreshRef, noticeRef }), []);
-  return { refs,
-    call, act, refresh, notify, toast, askInChat, handOffSheet, closeHandOffSheet, error, setError, busy, setBusy, quick, quickApi, quickStamp };
+  return useMemo(() => ({
+    refs,
+    call, act, refresh, notify, toast, askInChat, handOffSheet, closeHandOffSheet, error, setError,
+    get busy() { return busyStore.get(); },
+    busyStore, setBusy, quick, quickApi, quickStamp,
+  }), [refs, call, act, refresh, notify, toast, askInChat, handOffSheet, closeHandOffSheet, error, busyStore, setBusy, quick, quickApi, quickStamp]);
 }

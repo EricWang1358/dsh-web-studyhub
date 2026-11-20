@@ -151,8 +151,8 @@
       align-items: center;
       justify-content: center;
       width: 36px;
-      height: 16px;
-      min-height: 16px;
+      height: 24px;
+      min-height: 24px;
       padding: 0;
       border: 0;
       border-radius: var(--radius-xs);
@@ -174,6 +174,9 @@
       transition: transform 180ms ease, border-color 250ms ease;
     }
     .review-tick[data-answered="true"] .review-tick-line { transform: scaleX(calc(13 / 22)); }
+    /* Answered ticks subtly adopt this round's pass/fail hue for peripheral rhythm feedback, consistent with RoundPending. */
+    .review-tick[data-answered="true"][data-outcome="right"] .review-tick-line { border-top-color: var(--ok); }
+    .review-tick[data-answered="true"][data-outcome="wrong"] .review-tick-line { border-top-color: var(--bad); }
     .review-tick:hover:not(:disabled) { background: var(--bg-hover); }
     .review-tick:hover .review-tick-line { transform: scaleX(calc(15 / 22)); }
     .review-tick[aria-current="step"] .review-tick-line { transform: none; }
@@ -182,11 +185,22 @@
     .review-tick[data-retry="true"] .review-tick-line { border-top-style: dotted; }
     /* A stop skipped with 先跳过 stays dashed while still unanswered. */
     .review-tick[data-skipped="true"] .review-tick-line { border-top-style: dashed; }
+    /* ChoiceFeedback head verdict (ui/ChoiceFeedback.jsx): crisp pass/fail signal at the top eye-landing spot. */
+    .choice-feedback__verdict {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
+      font-weight: var(--fw-medium);
+    }
+    .choice-feedback__verdict--ok { color: var(--ok-ink); }
+    .choice-feedback__verdict--bad { color: var(--bad-ink); }
+    .choice-feedback__mark { transform: translateY(-0.25px); }
     /* 到此为止 at the tail of the column (#1008): a quiet stop mark under the last tick, the width of a tick. */
     .review-end-tick { width: 36px; min-height: 28px; margin-top: var(--space-2); color: var(--text-dim); }
     /* 「N 题待答」 (ui/review/RoundPending.jsx) does the column's work where the column is gone: hidden while the column is drawn. */
     .round-pending { display: none; }
-    .round-pending__trigger { min-height: 0; padding: 0 var(--space-2); color: var(--accent-text); }
+    .round-pending__trigger { position: relative; min-height: 0; padding: 0 var(--space-2); color: var(--accent-text); }
+    .round-pending__trigger::after { content: ''; position: absolute; inset: calc(var(--space-2) * -1) 0; }
     /* 「待看订正 N」 sits in the header line: as tall as the text beside it, so its appearing never makes the line taller (and moves the card). */
     .corrections-pending { min-height: 0; padding: 0 var(--space-2); }
     /* ...and still a finger's height to tap: an invisible strip above and below takes the press without taking room. */

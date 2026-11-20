@@ -2,6 +2,7 @@ import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Banner, Button } from '../components/index.js';
 import { useApp } from './app-context.js';
+import { useStudyBusy } from '../study-context.jsx';
 
 /* The messages that stay until their cause is gone, all as the one Banner (ui-consistency #87): a recording in progress,
    files the library could not read, and the stashed edit of this window. None of them is accent-coloured: cinnabar is for the
@@ -10,11 +11,12 @@ import { useApp } from './app-context.js';
 /** 录题中: the conversation is adding questions to a deck; the learner can stop it from here. */
 export function IngestBanner() {
   const { data, core } = useApp();
+  const busy = useStudyBusy();
   if (!data?.ingest) return null;
   const { deckTitle, added } = data.ingest;
   return (
     <Banner role="status" tone="info" title={ui('录题中')} className="app-banner"
-      action={{ label: ui('停止录题'), disabled: core.busy, onClick: () => core.act('ingest.stop', {}, (result) => core.notify(uiFormat('已停止录题，本次录入 {0} 题。', [result.added]))) }}>
+      action={{ label: ui('停止录题'), disabled: busy, onClick: () => core.act('ingest.stop', {}, (result) => core.notify(uiFormat('已停止录题，本次录入 {0} 题。', [result.added]))) }}>
       <p>{uiFormat('题组「{0}」· 已录入 {1} 题', [deckTitle, added])}</p>
       <p className="app-banner__hint">{ui('在主会话里直接贴题目或截图即可')}</p>
     </Banner>
@@ -47,12 +49,13 @@ export function RecoveryBanner() {
 
 /** The way back after following a link out of a page (the trail the learning navigation keeps). */
 export function ContextReturn() {
-  const { nav, learn, core } = useApp();
+  const { nav, learn } = useApp();
+  const busy = useStudyBusy();
   if (!learn.hasTrail || ['review', 'notes'].includes(nav.page)) return null;
   if (['book', 'outline'].includes(nav.page) && learn.trailPage === 'review') return null;
   return (
     <div className="context-return">
-      <Button variant="link" size="sm" icon="arrow-left" lock={core.busy} onClick={learn.returnFromContext}>{learn.trailLabel}</Button>
+      <Button variant="link" size="sm" icon="arrow-left" lock={busy} onClick={learn.returnFromContext}>{learn.trailLabel}</Button>
     </div>
   );
 }

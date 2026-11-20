@@ -2,7 +2,7 @@ import { ui, uiFormat } from "./i18n.js";
 import React, { useEffect, useMemo, useRef } from "react";
 import css from "./graph.css";
 import { useInjectCss } from "./shared.js";
-import { Icon, Tooltip } from "./components/index.js";
+import { Button, Icon, Tooltip } from "./components/index.js";
 import MathText from "./MathText.jsx";
 import { clozeRuns } from "../lib/cloze-text.js";
 import { clozeBlankKeyAction } from "./review/session-logic.js";
@@ -23,7 +23,7 @@ const chLen = (s) => {
   return w;
 };
 
-export default function Cloze({ card, values, onChange, onSubmit, focusRequest = 0, disabled, details, solution }) {
+export default function Cloze({ card, values, onChange, onSubmit, focusRequest = 0, disabled, details, solution, onMarkEquivalent, equivalentBusy = false }) {
   useInjectCss(css, "study-graph");
   const cloze = card?.cloze;
   const text = typeof cloze?.text === "string" ? cloze.text : "";
@@ -56,6 +56,12 @@ export default function Cloze({ card, values, onChange, onSubmit, focusRequest =
   if (!card || !cloze || !text)
     return <p className="cloze cloze-missing">{ui("这张卡片没有可填写的空位。")}</p>;
 
+  const gradedDetails = Array.isArray(details) ? details.filter((d) => d && d.id != null) : [];
+  const gradedCount = gradedDetails.length;
+  const correctCount = gradedDetails.filter((d) => d.correct).length;
+  const passed = gradedCount > 0 && correctCount === gradedCount;
+  const showSummary = gradedCount > 1 || (gradedCount > 0 && !passed && typeof onMarkEquivalent === "function");
+
   let nth = 0;
   return (
     <div className="cloze">
@@ -66,6 +72,28 @@ export default function Cloze({ card, values, onChange, onSubmit, focusRequest =
             : blankIds.length > 1
               ? <>{ui("把空格补全 · 按 Enter 跳到下一空或提交 · Esc 退回题目")}{" · "}{ui("Shift+Enter 回上一空")}</>
               : ui("把空格补全 · 按 Enter 提交 · Esc 退回题目")}
+        </div>
+      )}
+      {showSummary && (
+        <div className="cloze-summary" role="status">
+          {gradedCount > 1 && (
+            <span className={"cloze-summary__count " + (passed ? "cloze-summary__count--ok" : "cloze-summary__count--bad")} data-passed={passed ? "true" : "false"}>
+              <Icon className="sh-icon--inline" name={passed ? "check" : "close"} />
+              {uiFormat("答对 {0}/{1} 空", [correctCount, gradedCount])}
+            </span>
+          )}
+          {!passed && typeof onMarkEquivalent === "function" && (
+            <Button
+              size="sm"
+              variant="secondary"
+              className="cloze-equivalent-btn"
+              busy={equivalentBusy}
+              disabled={equivalentBusy}
+              onClick={() => onMarkEquivalent()}
+            >
+              {ui("表述等价 · 算我答对")}
+            </Button>
+          )}
         </div>
       )}
       <div className="cloze-text">
@@ -89,9 +117,22 @@ export default function Cloze({ card, values, onChange, onSubmit, focusRequest =
             ) : (
               <Tooltip key={i} layer content={ui("回答错误")}>
                 <span tabIndex={0} className="cloze-blank cloze-wrong">
-                  <span className="cloze-expected">{detail.expected == null ? "—" : <MathText text={String(detail.expected)} />}</span>
-                  <span className="cloze-mark" role="img" aria-label={ui("回答错误")}><Icon className="sh-icon--inline" name="close" /></span>
-                  {Object.hasOwn(values || {}, id) && <span className="cloze-yours">{ui("你的答案：")}{val || ui("未填写")}</span>}
+                  {Object.hasOwn(values || {}, id) && (
+                    <span className="cloze-yours">
+                      <span className="cloze-mark cloze-mark--wrong" role="img" aria-label={ui("回答错误")}>
+                        <Icon className="sh-icon--inline" name="close" />
+                      </span>
+                      <span className="cloze-yours__text" data-empty={!val ? "true" : undefined}>
+                        {ui("你的答案：")}{val || ui("未填写")}
+                      </span>
+                    </span>
+                  )}
+                  <span className="cloze-expected-row">
+                    <span className="cloze-mark cloze-mark--right" aria-hidden="true">
+                      <Icon className="sh-icon--inline" name="check" />
+                    </span>
+                    <span className="cloze-expected">{detail.expected == null ? "—" : <MathText text={String(detail.expected)} />}</span>
+                  </span>
                 </span>
               </Tooltip>
             );
@@ -104,6 +145,9 @@ export default function Cloze({ card, values, onChange, onSubmit, focusRequest =
               }}
               className="cloze-blank cloze-blank--input"
               type="text"
+              autoComplete="off"
+              autoCapitalize="off"
+              spellCheck={false}
               value={val}
               disabled={disabled}
               style={{ width: `${Math.min(40, Math.max(6, chLen(val) + 2))}ch` }}
