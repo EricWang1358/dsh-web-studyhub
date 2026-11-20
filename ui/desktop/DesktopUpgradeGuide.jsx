@@ -85,7 +85,8 @@ function AutoUpdateFeedback({ phase, progress, error }) {
   if (phase === 'error') {
     return (
       <InlineMessage tone="error" boxed title={ui('自动更新没有完成')}>
-        {error || ui('无法下载或校验更新包，请重试或改用下方手动下载。')}
+        <p>{error || ui('无法下载或校验更新包，请重试或改用下方手动下载。')}</p>
+        <p>{ui('若提示「无法打开要写入的文件」或安装写入被拦截，请下载下方 Setup.exe 后右键选择「以管理员身份运行」重试。')}</p>
       </InlineMessage>
     );
   }
@@ -127,7 +128,7 @@ function ManualSteps({ update, showLead }) {
         </li>
         <li>
           <strong>{ui('安装或解压覆盖')}</strong>
-          <span>{ui('运行新版 Setup.exe（或 .msi）覆盖安装，或将便携版 .zip 解压到固定目录后启动 StudyHub.exe。')}</span>
+          <span>{ui('运行新版 Setup.exe（或 .msi）覆盖安装，或将便携版 .zip 解压到固定目录后启动 StudyHub.exe。若安装报错无法写入文件，请右键 Setup.exe 选择「以管理员身份运行」重试。')}</span>
         </li>
       </ol>
       <p className="update-note">
