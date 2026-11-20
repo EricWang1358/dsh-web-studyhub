@@ -27,6 +27,7 @@ import { openReaderForPages, readableMaterialItems } from "./document-preview/pr
 import { currentMethodStage, resolveRoundCourse, roundEndAlternative, useMethodAlternativeOpen } from "./method-alternatives.js";
 import { pageAvailable } from "./capabilities.js";
 import { askForLeeches } from "./wrongbook-model.js";
+import { keepBook } from "./book/model.js";
 import RoundLookBack from "./review/RoundLookBack.jsx";
 import { gradesOutstanding } from "./review/session-logic.js";
 import RoundSetup from "./review/RoundSetup.jsx";
@@ -381,6 +382,13 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             segment={lookBackSegment} onSegmentChange={setLookBackSegment}
             onPracticeWrong={(refs) => act("review.start", practiceArgs(refs), enterRun)}
             onAck={(row) => actions.reviewAct("review.correction.ack", { entryIndex: row.entryIndex, cardId: row.cardId })}
+            onOpenBook={pageAvailable(data, "book") ? ({ course: targetCourse, hid, view } = {}) => {
+              const chosen = targetCourse || data?.focus?.course || null;
+              app?.learn?.rememberContext?.(app.learn.captureContext());
+              keepBook(data?.root, chosen, { target: hid || null, ...(view ? { view } : {}) });
+              if (targetCourse && targetCourse !== data?.focus?.course) void act("focus.set", { course: targetCourse });
+              navigate("book");
+            } : undefined}
             onOpenWrongBook={pageAvailable(data, "wrongbook") ? (refs) => { askForLeeches(data?.root, refs); navigate("wrongbook"); } : undefined} />
           <details key={run.id} className="result-details">
             <summary>{ui("更多结果与练习")}</summary>

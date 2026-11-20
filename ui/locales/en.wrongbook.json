@@ -201,5 +201,18 @@
   "同知识点错题": "Same knowledge point",
   "{0} 道错题集中在同一处，推荐做一个 4 页交互实验一次打通": "{0} mistakes point to the same spot — try a 4-slide interactive experiment to clear them together",
   "{0} 道错题集中在同一处，推荐做一个 4 页交互实验一次打通#one": "{0} mistake points to the same spot — try a 4-slide interactive experiment to clear it",
-  "发给主会话后，它会直接编译 3–4 页交互实验并挂回这组错题；挂载好后回到这里刷新就能直接打开，做完关闭窗口仍回到错题本。": "Send this to main chat to compile a 3–4 slide interactive experiment and link it back to this group of mistakes; return here and refresh to open it, and closing the experiment brings you right back to the wrong book."
+  "发给主会话后，它会直接编译 3–4 页交互实验并挂回这组错题；挂载好后回到这里刷新就能直接打开，做完关闭窗口仍回到错题本。": "Send this to main chat to compile a 3–4 slide interactive experiment and link it back to this group of mistakes; return here and refresh to open it, and closing the experiment brings you right back to the wrong book.",
+  "这道题与「{0} / {1}」容易混淆（{2}），先做一次 0-token 对比辨析：": "This question confuses “{0}” and “{1}” ({2}) — run a 0-token contrast check first:",
+  "这道题命中了复习全书的易混对（{0}），先做一次 0-token 对比辨析：": "This question matches a confusable pair ({0}) in the review book — run a 0-token contrast check first:",
+  "对比辨析 {0}": "Contrast {0}",
+  "对比辨析易混概念": "Contrast confusable pair",
+  "先回到复习全书对应知识点，用自己的话讲一遍：": "Go back to this point in the review book and explain it in your own words first:",
+  "去全书讲一遍": "Retell in review book",
+  "这道题有未稳的前置题，先练前置打牢基础再回来：": "This question has shaky prerequisites — practise them first, then come back:",
+  "先练前置题": "Practise prerequisites first",
+  "这道题被标为题目本身存疑，建议先交给后台检查并修题：": "This question was flagged as questionable — send it to background repair first:",
+  "按 FSRS 正常排程复习即可，暂不需要额外补救。": "FSRS scheduling is enough here — no extra rescue needed right now.",
+  "先针对漏看条件做一次 3–4 页交互实验，理清边界再练：": "Try a 3–4 slide interactive experiment focused on the missed condition first:",
+  "先针对推导卡点做一次 3–4 页交互实验，理顺步骤再练：": "Try a 3–4 slide interactive experiment focused on the derivation step first:",
+  "返回本轮结果": "Back to round results"
 }
