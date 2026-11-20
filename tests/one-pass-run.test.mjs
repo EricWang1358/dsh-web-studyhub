@@ -33,7 +33,7 @@ test('the first round of a standard plan in one pass: one write per portion, rev
   for (const write of writes) assert.ok(write.data.sections.every(item => Number.isInteger(item.quota)) && write.data.count === undefined);
   for (const call of model.calls) {
     assert.ok(Number.isInteger(call.context.part) && call.context.attempt === 1, 'every call is a step of its part');
-    assert.match(call.context.stage, new RegExp(`^Part \\d+/\\d+ · (${STAGE.authoring}|${STAGE.reviewing})$`));
+    assert.match(call.context.stage, new RegExp(`^Part \\d+/${portions.length} · (${STAGE.authoring}|${STAGE.reviewing})$`), 'every portion is a part from the start');
   }
   assert.equal(deck.cards.length, first.questions);
   const covered = coverage(deck).sections.filter(section => section.state === COVERED).map(keyOf).sort();

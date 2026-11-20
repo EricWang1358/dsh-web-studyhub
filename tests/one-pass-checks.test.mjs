@@ -42,6 +42,16 @@ test('a quote in another section of the portion is credited to the section it re
   assert.equal(target.sectionId, 'doc#b');
 });
 
+test('a sentence that stands in two sections is credited to the section the model named', () => {
+  const twice = 'Both sections end with this shared closing sentence.';
+  const doubled = `Alpha section. ${twice}\n\nBeta section. ${twice}`, beta = doubled.indexOf('Beta section.'), source2 = { id: 'twin', title: 'Twin', text: doubled };
+  const both = [{ key: 'twin#a', sectionId: 'twin#a', sourceId: 'twin', start: 0, end: beta, quota: 1 }, { key: 'twin#b', sectionId: 'twin#b', sourceId: 'twin', start: beta, end: doubled.length, quota: 1 }]
+    .map((assignment, index) => ({ ...assignment, label: `S${index + 1}`, pieces: pieceOfAssignment(assignment, [source2], `S${index + 1}`) }));
+  const place = createPlacer({ slots: both });
+  assert.equal(place(written({ section: 'S2', objective: 'Second', quote: twice })).target.sectionId, 'twin#b');
+  assert.equal(place(written({ section: 'S1', objective: 'First', quote: twice })).target.sectionId, 'twin#a');
+});
+
 test('at most the quota per section: the card past it is dropped as over-quota', () => {
   const place = createPlacer({ slots });
   assert.ok(place(written({ section: 'S2', objective: 'One', quote: 'An index lets a database find rows' })).target);

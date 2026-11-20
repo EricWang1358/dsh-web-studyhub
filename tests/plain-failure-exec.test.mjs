@@ -56,7 +56,7 @@ test('a model that refuses the section is recorded as refused (and a reply that 
 
 test('the part that records a short section keeps the numbers on the draft (additive: a part without them is as it was)', async () => {
   const assignments = [...assign([leaves[0]], 2), ...assign([leaves.find(section => section.continued)], 2), ...assign([leaves[2]], 1)];
-  const deck = await generateBatched(clusteringModel().complete, { kind: 'quiz', sources: fx.sources, assignments, count: 5, performance: { concurrency: 2, batchSize: 5, fillRounds: 0 } });
+  const deck = await generateBatched(clusteringModel().complete, { kind: 'quiz', sources: fx.sources, assignments, count: 5, performance: { concurrency: 2, batchSize: 5, fillRounds: 0, strategy: 'staged' } });
   const failed = deck.editorial.partPlans.find(plan => plan.reason === 'plan-short');
   assert.ok(failed.short.length >= 1);
   const row = failed.short[0];
@@ -82,7 +82,7 @@ async function library(t, model) {
 test('a run whose planner refuses one section: the plan keeps what it needed and got and the rounds it was tried in; the log names the section, the retry and the stop', async (t) => {
   const refuse = asked => asked.sources.length === 1 && asked.sources[0].text.includes('[Part 2: Preview Passage 2]');
   const { service, ids } = await library(t, clusteringModel({ refuse }));
-  const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'standard', kind: 'quiz' });
+  const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'standard', kind: 'quiz', performance: { strategy: 'staged' } });
   const job = await settleJob(service, started.jobId);
   assert.equal(job.status, 'complete', job.stage);
   const state = await service.call('export'), draft = state.drafts[0], spec = draft.editorial.coverageSpec, run = draft.editorial.coverageRun;
