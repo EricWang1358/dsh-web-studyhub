@@ -160,8 +160,19 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
   const openBoardReference = useCallback(async (reference) => {
     if (sameRoot(reference.root) !== sameRoot(refs.dataRef.current?.root))
       throw new Error(ui('这条待办来自另一个学习库。请先在设置中切换到其学习库，再打开关联内容。'));
+    if (reference?.kind === 'companion' && reference.id) {
+      await refresh();
+      setModal({
+        type: 'companion',
+        id: reference.id,
+        ...(reference.course ? { course: reference.course } : {}),
+        ...(reference.slide >= 1 ? { slide: reference.slide, initialSlide: reference.slide } : {}),
+        ...(reference.title ? { title: reference.title } : {}),
+      });
+      return;
+    }
     await openLearningTarget(reference, { throwOnError: true });
-  }, [openLearningTarget, refs]);
+  }, [openLearningTarget, refresh, refs, setModal]);
   const openBoardWithContext = useCallback(() => {
     const reference = currentStudyReference();
     // 「加入待办」 is the learner asking for a card about this: the board opens its composer with the link attached.

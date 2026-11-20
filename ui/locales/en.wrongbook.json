@@ -196,5 +196,10 @@
   "未配置生成模型 · 可用主会话零密钥生成": "No generation model configured · Build in main chat without an API key",
   "发给主会话后，它会直接编译 3–4 页交互实验并挂回这道题；挂载好后回到这里刷新就能直接打开，做完关闭窗口仍回到这道题。": "Send this to main chat to compile a 3–4 slide interactive experiment and link it back to this question; return here and refresh to open it, and closing the experiment brings you right back here.",
   "让主会话零密钥编译一个 3–4 页急救交互实验并挂回这道题": "have the main chat compile a 3–4 slide rescue interactive experiment with zero API key and link it back to this question",
-  "返回错题": "Back to mistake"
+  "返回错题": "Back to mistake",
+  "同知识点错题 · 「{0}」": "Same knowledge point · \"{0}\"",
+  "同知识点错题": "Same knowledge point",
+  "{0} 道错题集中在同一处，推荐做一个 4 页交互实验一次打通": "{0} mistakes point to the same spot — try a 4-slide interactive experiment to clear them together",
+  "{0} 道错题集中在同一处，推荐做一个 4 页交互实验一次打通#one": "{0} mistake points to the same spot — try a 4-slide interactive experiment to clear it",
+  "发给主会话后，它会直接编译 3–4 页交互实验并挂回这组错题；挂载好后回到这里刷新就能直接打开，做完关闭窗口仍回到错题本。": "Send this to main chat to compile a 3–4 slide interactive experiment and link it back to this group of mistakes; return here and refresh to open it, and closing the experiment brings you right back to the wrong book."
 }

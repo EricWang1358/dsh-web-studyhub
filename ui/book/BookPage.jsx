@@ -1,8 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Button, EmptyState, ErrorState, LoadingState } from '../components/index.js';
 import { usePersistentState, readText, removeKey } from '../storage.js';
 import { useStudy } from '../study-context.jsx';
+import { AppContext } from '../app/app-context.js';
+import { hasChatHost } from '../hand-off/use-hand-off.js';
+import { useRescueExperiments } from '../companions/use-rescue-experiments.js';
 import { useInjectCss } from '../shared.js';
 import { useNarrow } from '../use-narrow.js';
 import ModelSetupGate from '../ModelSetupGate.jsx';
@@ -70,7 +73,10 @@ export function handleBookFindShortcut(event, { view, ready, inOverlay, onOpen }
 export default function BookPage({ data, onBack, backLabel = '', onReturnBack = null, onPractice, inlinePractice = null, onOpenSource, onCreate, onOpenTask, onExamRun, onCourseSettings, onBuildIndex, theme, holdLeave, paragraphIndex = null, searchQuery = '' }) {
   useInjectCss(css, 'study-book');
   useInjectCss(aiCss, 'study-book-ai');
-  const { call, act, notify } = useStudy();
+  const { call, act, notify, openModal, openSettings, host } = useStudy();
+  const app = useContext(AppContext);
+  const canChat = hasChatHost(host);
+  const openModel = useMemo(() => (openSettings ? () => openSettings('settings-model') : undefined), [openSettings]);
   const course = data?.focus?.course ?? null, root = data?.root || '';
   const pageRef = useRef(null), tocRef = useRef(null), narrow = useNarrow(pageRef);
   // The view: the reading surface, or the editor / 翻看 that take its place until 「完成 · 回到阅读」. Never remembered, except the old 翻看 mode once (below).
@@ -100,6 +106,15 @@ export default function BookPage({ data, onBack, backLabel = '', onReturnBack = 
   const plan = useBookCrunch({ call, course, book, notify });
   const period = useCoursePlan({ call, course, book, revision: data?.revision });
   const evidence = useCourseEvidence({ call, course, book, revision: data?.revision });
+  const onRescueCompleted = useCallback(() => {
+    evidence.refresh?.();
+    Promise.resolve(app?.core?.refresh?.()).catch(() => {});
+  }, [app?.core, evidence]);
+  const rescue = useRescueExperiments({
+    call,
+    onCompleted: onRescueCompleted,
+    failMessage: ui('这次没能生成交互实验，可以重试或先做本节的题。'),
+  });
   // 备考计划's fold is kept in this browser per library and course (open at first: it is the page's plan).
   const [planOpen, setPlanOpen] = usePersistentState(`study-book-plan:${root}:${course}`, true, { parse: value => value !== 'closed', serialize: value => (value ? 'open' : 'closed') });
   const pages = useBookPages({ call, course, book }), pageLimit = resolveBookSettings(data?.settings?.book).pageLimit;
@@ -149,7 +164,9 @@ export default function BookPage({ data, onBack, backLabel = '', onReturnBack = 
     };
   }, [inlinePracticeOn, inlinePractice, inlineShown, inlineState, clearInlineRun]);
   const handlers = useBookHandlers({ call, act, course, notify, book, setBook, rows, reload, remember: where.remember, onPractice, onCreate, onOpenSource,
-    modelReady: model.ready, model, onBack, ai: ai.actions, foldAi: aiFold.fold, onPlace: placeSection, goTo: where.goTo, inlinePractice: inlineController, evidenceByHid: evidence.byHid, onEvidenceChanged: evidence.refresh });
+    modelReady: model.ready, model, onBack, ai: ai.actions, foldAi: aiFold.fold, onPlace: placeSection, goTo: where.goTo, inlinePractice: inlineController,
+    evidenceByHid: evidence.byHid, onEvidenceChanged: evidence.refresh, courses: data?.courses, decks: data?.decks, sources: data?.sources,
+    openModal, openModel, canChat, rescueJobs: rescue.jobs, onStartRescue: rescue.start });
   // 在书里找 (the 目录's box, ui/book/book-search.js): what is typed stays while a narrow 目录 is closed; `found` is the point a row went to, its words marked while it is drawn.
   const initialSearchRef = useRef(
     (where.kept?.query || where.kept?.snippet || Number.isInteger(where.kept?.paragraphIndex))

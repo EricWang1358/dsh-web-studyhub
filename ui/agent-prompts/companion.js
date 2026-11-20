@@ -78,6 +78,7 @@ export function companionRescuePrompt(
     course = '',
     deckId = '',
     cardId = '',
+    cardIds = [],
     hid = '',
     topic = '',
     prompt = '',
@@ -89,6 +90,9 @@ export function companionRescuePrompt(
   const cleanCourse = String(course || '').trim();
   const cleanDeck = String(deckId || '').trim();
   const cleanCard = String(cardId || '').trim();
+  const cleanCardIds = Array.isArray(cardIds)
+    ? [...new Set(cardIds.map(id => String(id || '').trim()).filter(Boolean))].slice(0, 6)
+    : [];
   const cleanHid = String(hid || '').trim();
   const cleanTopic = String(topic || '').trim();
   const cleanPrompt = String(prompt || '').trim();
@@ -97,10 +101,10 @@ export function companionRescuePrompt(
   const ask = cleanCourse
     ? say(language, '帮我为课程 {0} 的这道顽固错题做一个 3–4 页交互急救实验，直接挂载回这道题。', [nameData(cleanCourse)])
     : say(language, '帮我为这道顽固错题做一个 3–4 页交互急救实验，直接挂载回这道题。');
-  const ref = cleanDeck || cleanCard || cleanHid
+  const ref = cleanDeck || cleanCard || cleanCardIds.length || cleanHid
     ? JSON.stringify({
         ...(cleanDeck ? { deckId: cleanDeck } : {}),
-        ...(cleanCard ? { cardId: cleanCard } : {}),
+        ...(cleanCardIds.length > 1 ? { targetCardIds: cleanCardIds } : (cleanCard ? { cardId: cleanCard } : (cleanCardIds.length === 1 ? { cardId: cleanCardIds[0] } : {}))),
         ...(cleanHid ? { hid: cleanHid } : {}),
       })
     : '';
