@@ -7,7 +7,7 @@ import { StudyService } from '../lib/service.js';
 import { roundList } from '../lib/coverage-run.js';
 import { leafSectionsFor } from '../lib/coverage-state.js';
 import { WRITE_SYSTEM, REVIEW_SYSTEM } from '../lib/one-pass/prompts.js';
-import { SAME_FACT_SYSTEM, SAME_FACT_REASON } from '../lib/one-pass/merge.js';
+import { SAME_FACT_SYSTEM, SAME_FACT_REASON, DUPLICATE_REASON } from '../lib/one-pass/merge.js';
 import { createFakeModel } from '../scripts/fake-model.mjs';
 import { mergedTranscript } from './helpers/merged-transcript.mjs';
 import { settleJob, sleep, until } from './helpers/wait.mjs';
@@ -194,4 +194,56 @@ test('the same-fact merge removes a section\'s only question while 自动补到�
   const askedAgain = rounds.slice(1).filter(round => (round.askedKeys || round.sectionIds || []).includes(merged.key));
   assert.deepEqual(askedAgain, [], 'no later round asked for the merged section');
   assert.equal(draft.editorial.coverageRun.state, 'complete');
+});
+
+// Gate S5 (round 2): what a stopped or timed-out round leaves is the checkpoint of its portions, and the checkpoint has already had the program's merge (lib/batch.js snapshot):
+// two portions of one round that wrote the same objective never both reach the draft, even when the round ends while its same-fact call is still out.
+const SAME = 'Explain the one rule both portions of round 1 wrote about';
+const sameObjectiveInRound1 = (complete, service, state) => async (system, prompt, context = {}) => {
+  const reply = await complete(system, prompt, context);
+  // The first two writes are the two portions of round 1 (the draft, and so its rounds, is saved only once a portion has settled).
+  if (!system.startsWith(WRITE_SYSTEM) || (state.writes = (state.writes || 0) + 1) > 2) return reply;
+  const parsed = JSON.parse(reply);
+  if (parsed.cards?.[0]) parsed.cards[0].objective = SAME;
+  return JSON.stringify(parsed);
+};
+const hangSameFact = (state, inner) => (complete, service) => {
+  const writes = inner(complete, service, state);
+  return async (system, prompt, context = {}) => {
+    if (system.startsWith(SAME_FACT_SYSTEM) && state.hang) { state.entered = true; await untilAbort(context.signal); }
+    return writes(system, prompt, context);
+  };
+};
+const checkpointMerged = draft => {
+  assert.equal(draft.cards.filter(card => card.objective === SAME).length, 1, 'one card of the two that wrote the same objective');
+  assert.ok((draft.editorial.omitted || []).some(item => item.objective === SAME && (item.reasons || []).includes(DUPLICATE_REASON) && item.coveredBy), JSON.stringify(draft.editorial.omitted));
+};
+
+test('a round cancelled while its same-fact call is out keeps a checkpoint that has had the program merge', async t => {
+  const state = { hang: true };
+  const { service, ids } = await library(t, { wrap: hangSameFact(state, sameObjectiveInRound1) });
+  const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'standard', kind: 'quiz', language: 'English' });
+  await until(() => state.entered, 'the same-fact call of round 1 to be in flight');
+  await service.call('job.control', { jobId: started.jobId, action: 'cancel' });
+  const job = await settleJob(service, started.jobId, { timeoutMs: 20_000 });
+  assert.equal(job.status, 'cancelled', job.stage);
+  checkpointMerged(await draftOf(service));
+});
+
+test('a round that runs out of time while its same-fact call is out keeps a checkpoint that has had the program merge', async t => {
+  const ROUND_MS = 876_543, real = globalThis.setTimeout, armed = [];
+  globalThis.setTimeout = (fn, ms, ...rest) => { const handle = real(fn, ms, ...rest); if (ms === ROUND_MS) armed.push({ fn, handle }); return handle; };
+  t.after(() => { globalThis.setTimeout = real; });
+  const state = { hang: true };
+  const { service, ids } = await library(t, { wrap: hangSameFact(state, sameObjectiveInRound1), coverage: { roundLimit: 16, roundTimeoutMs: ROUND_MS } });
+  const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'standard', kind: 'quiz', language: 'English', autoComplete: false });
+  await until(() => state.entered, 'the same-fact call of round 1 to be in flight');
+  const { fn, handle } = armed.at(-1);
+  clearTimeout(handle);
+  fn();
+  const job = await settleJob(service, started.jobId, { timeoutMs: 30_000 });
+  assert.equal(job.status, 'failed', job.stage);
+  const draft = await draftOf(service);
+  assert.equal(draft.editorial.coverageSpec.rounds[0].reason, 'timeout', JSON.stringify(draft.editorial.coverageSpec.rounds[0]));
+  checkpointMerged(draft);
 });
