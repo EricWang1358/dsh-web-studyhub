@@ -97,6 +97,8 @@ export async function runStagedRuntimeSmoke() {
     const stagedEntry = join(runtimeDir, 'packages', 'studyhub-desktop', 'entry', 'sidecar.mjs');
     const token = randomBytes(32).toString('hex');
 
+    const retrievalDir = join(tempRoot, 'retrieval-tools');
+    const localAppData = join(tempRoot, 'localappdata');
     const stderrChunks = [];
     proc = spawnPipeProcess({
       command: stagedNode,
@@ -107,6 +109,8 @@ export async function runStagedRuntimeSmoke() {
         NODE_PATH: '',
         DSH_HOME: homeDir,
         STUDYHUB_LIBRARY: libraryDir,
+        STUDYHUB_DESKTOP_RETRIEVAL_DIR: retrievalDir,
+        LOCALAPPDATA: localAppData,
       },
     });
     proc.stderr?.on('data', (chunk) => stderrChunks.push(Buffer.from(chunk)));
@@ -125,6 +129,7 @@ export async function runStagedRuntimeSmoke() {
     await rpcCall(baseUrl, token, 'snapshot');
     await rpcCall(baseUrl, token, 'desktop.config.get', { uiLanguage: 'zh' });
     await rpcCall(baseUrl, token, 'desktop.providers.scan', { uiLanguage: 'en' });
+    await rpcCall(baseUrl, token, 'retrieval.status');
 
     const exitStart = Date.now();
     proc.stdin?.end();

@@ -10,6 +10,8 @@ const DEFAULT_NODE_VERSION = '22.22.3';
 const CLIENT_BUNDLE_RE = /^client(?:\.[A-Za-z0-9][A-Za-z0-9._-]*)?\.js$/;
 // Host-provided runtime dependencies imported statically by lib/** (devDependencies in root package.json because DSH provides them).
 const REQUIRED_HOST_RUNTIME_DEPS = ['@deepseek-ai/cordis'];
+// Fallback retrieval index-heal helpers referenced by desktop retrieval runtime when an installation lacks them.
+const RETRIEVAL_HELPER_FILES = ['heal.js', 'check-index.mjs'];
 
 async function pathExists(target) {
   return access(target).then(() => true, () => false);
@@ -135,6 +137,20 @@ async function stageDesktopBackend(runtimeDir, allowIncomplete) {
   return copied;
 }
 
+async function stageRetrievalHelpers(runtimeDir) {
+  const srcDir = join(repoRoot, 'packages', 'studyhub-retrieval');
+  const destDir = join(runtimeDir, 'packages', 'studyhub-retrieval');
+  const staged = [];
+  for (const name of RETRIEVAL_HELPER_FILES) {
+    const src = join(srcDir, name);
+    if (!(await pathExists(src))) continue;
+    await mkdir(destDir, { recursive: true });
+    await copyFile(src, join(destDir, name));
+    staged.push(name);
+  }
+  return staged;
+}
+
 function buildRuntimePackageJson(rootPkg) {
   return {
     name: rootPkg.name,
@@ -181,11 +197,13 @@ export async function stageRuntime({
 
   const packages = await stageProductionNodeModules(runtimeDir, rootPkg);
   const desktopLayers = await stageDesktopBackend(runtimeDir, allowIncomplete);
+  const retrievalHelpers = await stageRetrievalHelpers(runtimeDir);
   const manifest = {
     version: rootPkg.version,
     node: nodeInfo,
     productionPackages: packages.length,
     desktopLayers,
+    retrievalHelpers,
   };
   await writeFile(
     join(runtimeDir, 'runtime-manifest.json'),

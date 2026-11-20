@@ -297,10 +297,42 @@ export function spawnPipeProcess({ command, args = [], cwd, env }) {
   });
 }
 
+/**
+ * Spawn a persistent stdio child process (`shell: false`, `windowsHide: true`)
+ * with graceful + tree-kill `terminate()` that waits for process exit.
+ */
+export function spawnPersistent({ command, args = [], cwd, env }) {
+  const proc = spawnPipeProcess({ command, args, cwd, env });
+  let exited = false;
+  proc.exited.then(() => { exited = true; });
+
+  async function terminate(graceMs = KILL_GRACE_MS) {
+    if (exited) return proc.exited;
+    try { proc.stdin?.end(); } catch { /* stdin may already be closed */ }
+    proc.kill();
+    const waitMs = Math.max(200, Number(graceMs) || KILL_GRACE_MS) + 1500;
+    let timer = null;
+    try {
+      return await Promise.race([
+        proc.exited,
+        new Promise((resolve) => {
+          timer = setTimeout(() => resolve({ code: null, signal: 'SIGKILL', error: null }), waitMs);
+          timer.unref?.();
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  return Object.freeze({ ...proc, terminate });
+}
+
 export function createProcessRunner() {
   return Object.freeze({
     run: runProcess,
     spawnDetached,
     spawnPipeProcess,
+    spawnPersistent,
   });
 }

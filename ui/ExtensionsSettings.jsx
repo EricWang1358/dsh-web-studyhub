@@ -20,7 +20,12 @@ export { providerLabel };
 const NOTHING = { selected: 'builtin', effective: 'builtin', hostCanSearch: false, providers: [], otherTools: [] };
 const stripTool = value => String(value ?? '').replace(/^mcp:/, '');
 
-export function endpointSavedMessage(endpoint, desktop = false) {
+export function endpointSavedMessage(endpoint, desktop = false, desktopHost = false) {
+  if (desktopHost) {
+    return endpoint
+      ? ui('已保存模型下载地址并立即生效。')
+      : ui('已恢复默认的模型下载地址并立即生效。');
+  }
   if (desktop) {
     return endpoint
       ? ui('已保存模型下载地址。完全退出 DSH 桌面版（包括托盘图标）后重新打开生效。')
@@ -34,7 +39,7 @@ export function endpointSavedMessage(endpoint, desktop = false) {
 /** Props: initialStatus (skips the first read; tests and previews), courses + defaultCourse (the index). */
 export default function ExtensionsSettings({ initialStatus = null, courses = [], defaultCourse = '', onStatus, initialPlan, initialRun }) {
   const toast = useToast();
-  const { call } = useStudy();
+  const { call, host } = useStudy();
   useInjectCss(css, 'study-large-documents');
   const query = useRetrievalStatus({ call, initialData: initialStatus ?? undefined, enabled: !initialStatus });
   const status = query.data ?? (query.error ? NOTHING : null);
@@ -45,6 +50,7 @@ export default function ExtensionsSettings({ initialStatus = null, courses = [],
   const accept = value => { if (!value) return; setRetrievalStatus(value); onStatus?.(value); };
   const endpoint = typedEndpoint ?? query.data?.hfEndpoint ?? '';
   const current = status || NOTHING;
+  const isDesktopApp = !!current.extension?.desktopHost || host?.capabilities?.edition === 'desktop';
   const choose = provider => { setProbe(null); return run('choose', async () => {
     accept(await call('retrieval.set', { provider }));
     toast.success(provider === 'builtin' ? ui('已改为不使用检索。') : ui('已选择检索工具。出题时，超过 15 万字的选择会先用它挑出相关页面。'));
@@ -53,7 +59,8 @@ export default function ExtensionsSettings({ initialStatus = null, courses = [],
   const saveEndpoint = () => run('endpoint', async () => {
     const next = await call('retrieval.endpoint.set', { endpoint });
     accept(next);
-    toast.success(endpointSavedMessage(endpoint, !!(next?.extension?.desktop ?? current.extension?.desktop)));
+    const nextExt = next?.extension ?? current.extension;
+    toast.success(endpointSavedMessage(endpoint, !!nextExt?.desktop, !!(nextExt?.desktopHost || isDesktopApp)));
   });
   const mcpOthers = current.otherTools || [];
   const canChoose = current.providers.length > 0 || mcpOthers.length > 0;
@@ -68,9 +75,11 @@ export default function ExtensionsSettings({ initialStatus = null, courses = [],
       <DetectionLine retrieval={current} />
       {/* A provider that is really gone; the search extension whose service did not start says so in its own panel above. */}
       {current.missing && !(current.companion?.notStarted && current.missing === current.companion.id) && <InlineMessage tone="warning" boxed title={uiFormat('之前选择的检索工具「{0}」现在找不到', [stripTool(current.missing)])}>
-        {ui('已暂时改为不使用检索。请确认它在 DSH 里已启用，或在下面重新选择。')}
+        {isDesktopApp
+          ? ui('已暂时改为不使用检索。请先安装或启动检索扩展，或在下面重新选择。')
+          : ui('已暂时改为不使用检索。请确认它在 DSH 里已启用，或在下面重新选择。')}
       </InlineMessage>}
-      <Disclosure summary={ui('高级')} meta={ui('其他检索工具 · 模型下载地址 · 手动配置')} defaultOpen={!!current.missing}>
+      <Disclosure summary={ui('高级')} meta={isDesktopApp ? (canChoose ? ui('检索工具 · 模型下载地址') : ui('模型下载地址')) : ui('其他检索工具 · 模型下载地址 · 手动配置')} defaultOpen={!!current.missing}>
         <div className="extensions-settings__advanced">
           {canChoose && <div className="extensions-settings__choice">
             <Field className="extensions-settings__choice-field" label={ui('用哪个工具检索')}>
@@ -90,14 +99,16 @@ export default function ExtensionsSettings({ initialStatus = null, courses = [],
           {probe && !probe.ok && probe.reason !== 'builtin' && <InlineMessage className="extensions-settings__result">{probe.message || ui('检索工具没有回应。')}</InlineMessage>}
           <div className="extensions-settings__endpoint">
             <Field className="extensions-settings__endpoint-field" label={ui('模型下载地址')} width="full"
-              hint={current.extension?.desktop
-                ? ui('检索扩展第一次建立索引时，从这个地址下载检索模型。默认地址在你的网络里打不开时，可以改成别的地址；留空就是默认地址。改动在完全退出 DSH 桌面版（包括托盘图标）后重新打开时生效。')
-                : ui('检索扩展第一次建立索引时，从这个地址下载检索模型。默认地址在你的网络里打不开时，可以改成别的地址；留空就是默认地址。改动在重启 DSH 后生效。')}>
+              hint={isDesktopApp
+                ? ui('检索扩展第一次建立索引时，从这个地址下载检索模型。默认地址在你的网络里打不开时，可以改成别的地址；留空就是默认地址。保存后会立即生效。')
+                : current.extension?.desktop
+                  ? ui('检索扩展第一次建立索引时，从这个地址下载检索模型。默认地址在你的网络里打不开时，可以改成别的地址；留空就是默认地址。改动在完全退出 DSH 桌面版（包括托盘图标）后重新打开时生效。')
+                  : ui('检索扩展第一次建立索引时，从这个地址下载检索模型。默认地址在你的网络里打不开时，可以改成别的地址；留空就是默认地址。改动在重启 DSH 后生效。')}>
               <TextInput type="url" value={endpoint} placeholder="https://huggingface.co" disabled={!!working} onChange={event => setEndpoint(event.target.value)} />
             </Field>
             <Button size="sm" variant="secondary" busy={working === 'endpoint'} disabled={!!working} onClick={saveEndpoint}>{ui('保存下载地址')}</Button>
           </div>
-          <AdvancedTools />
+          {!isDesktopApp && <AdvancedTools />}
         </div>
       </Disclosure>
     </SettingsSection>

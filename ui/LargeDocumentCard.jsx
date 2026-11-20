@@ -12,6 +12,7 @@ import { LARGE_DOCUMENT_LIMITS, TOOLS, VERIFIED_AT, mcpConfigSnippet } from '../
 import ExtensionPanel from './ExtensionPanel.jsx';
 import PdfConversion from './PdfConversion.jsx';
 import { HandOff } from './hand-off/HandOff.jsx';
+import { useStudy } from './study-context.jsx';
 import css from './large-documents.css';
 
 /* 大教材建议 (WP28, WP28b). StudyHub does not index a 1000-page textbook itself, and
@@ -133,11 +134,15 @@ function ManualConfig() {
 }
 
 /** The routes that need a terminal, Docker or a configuration file: kept, but out of the way. */
-export function AdvancedTools() {
+export function AdvancedTools({ desktopHost = false } = {}) {
   return (
-    <Disclosure summary={ui('高级：其他方式（桌面客户端、命令行、Docker）')} meta={ui('给熟悉命令行的人')} className="large-doc__more large-doc__advanced">
-      <div className="large-doc__tools"><ToolCard tool={byId('mineru')} /><ToolCard tool={byId('docling')} /><ToolCard tool={byId('ragflow')} /></div>
-      <ManualConfig />
+    <Disclosure summary={ui(desktopHost ? '高级：其他转换方式（桌面客户端、命令行）' : '高级：其他方式（桌面客户端、命令行、Docker）')} meta={ui('给熟悉命令行的人')} className="large-doc__more large-doc__advanced">
+      <div className="large-doc__tools">
+        <ToolCard tool={byId('mineru')} />
+        <ToolCard tool={byId('docling')} />
+        {!desktopHost && <ToolCard tool={byId('ragflow')} />}
+      </div>
+      {!desktopHost && <ManualConfig />}
     </Disclosure>
   );
 }
@@ -177,6 +182,8 @@ export default function LargeDocumentCard({ reason, detail = {}, document, retri
   conversionAvailable, courseNames = [], jobs, onConversionStarted, initialPlan, initialRun, initialApproval, className, ...rest }) {
   useInjectCss(css, 'study-large-documents');
   const app = useContext(AppContext);
+  const { host } = useStudy();
+  const isDesktopApp = !!retrieval?.extension?.desktopHost || host?.capabilities?.edition === 'desktop' || app?.host?.capabilities?.edition === 'desktop';
   const canConvert = conversionAvailable ?? hasContext(app?.data, 'audio');
   const canRetrieve = runnable && hasContext(app?.data, 'generation');
   const titleId = useId();
@@ -209,7 +216,7 @@ export default function LargeDocumentCard({ reason, detail = {}, document, retri
         {search}
         <Disclosure summary={ui('还没有转换过 PDF？')} meta={ui('转换工具')} className="large-doc__more"><ConverterMain available={canConvert} runnable={runnable && canConvert} courses={courseNames} jobs={jobs} onOpenSettings={onOpenSettings} onStarted={onConversionStarted} /></Disclosure>
       </>}
-      <AdvancedTools />
+      <AdvancedTools desktopHost={isDesktopApp} />
       <DetectionLine retrieval={retrieval} onOpenSettings={onOpenSettings} />
       <p className="large-doc__verified">{uiFormat('渠道与协议于 {0} 核对；以各项目官方页面为准。', [VERIFIED_AT])}</p>
     </section>
