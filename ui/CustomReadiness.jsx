@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useContext, useState } from 'react';
 import { ui, uiFormat, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Badge, Button, InlineConfirm, ProgressBar, Tooltip } from './components/index.js';
 import { useStudy } from './study-context.jsx';
+import { AppContext } from './app/app-context.js';
 import { useLiveEffect } from './use-async.js';
+import { keepBook } from './book/model.js';
 import { barName, chapterShare, countsLine, fillCalls, fillParts, hasTodo, isUnbuilt, qualityLine, shareText, solidMeaning, startedNotice } from './custom-readiness-model.js';
 import { gapHintLabel } from './evidence-hint.js';
 import css from './custom-readiness.css';
@@ -15,7 +17,22 @@ import css from './custom-readiness.css';
 export default function CustomReadiness({ course }) {
   useInjectCss(css, 'study-custom-readiness');
   const { call, act, busy, notify, navigate } = useStudy();
+  const app = useContext(AppContext);
   const [data, setData] = useState(null), [stamp, setStamp] = useState(0), [pending, setPending] = useState(null), [working, setWorking] = useState(false);
+  const openGapTarget = async chapter => {
+    const appData = app?.core?.data;
+    const targetCourse = course?.name;
+    if (targetCourse && appData?.focus?.course && appData.focus.course !== targetCourse) {
+      try { await act('focus.set', { course: targetCourse }); } catch { /* navigate anyway */ }
+    }
+    if (chapter.built) {
+      const target = chapter.gapHint?.targetHid || chapter.gapHint?.hid || null;
+      if (target && appData?.root) keepBook(appData.root, targetCourse || appData.focus?.course || null, { target });
+      navigate('book');
+    } else {
+      navigate('outline');
+    }
+  };
   useLiveEffect(live => {
     Promise.resolve().then(() => call('course.custom.readiness', { course: course.name })).then(value => { if (live()) setData(value); }).catch(() => {});
   }, [call, course?.name, course?.custom?.updatedAt, stamp]);
@@ -56,7 +73,7 @@ export default function CustomReadiness({ course }) {
           </Tooltip>
           {isUnbuilt(chapter, counted) && <Badge size="sm" tone="neutral" className="custom-readiness__flag">{ui('未生成')}</Badge>}
           {hasTodo(chapter) && <Button variant="quiet" size="sm" className="custom-readiness__fill" lock={locked} disabled={!!pending} onClick={() => ask([chapter.id], uiFormat('「{0}」', [chapter.title]))}>{ui('补齐')}</Button>}
-          {gapLabel && <Button variant="link" size="sm" wrap iconEnd="arrow-right" className="custom-readiness__gap" data-gap-hint={chapter.gapHint.kind} onClick={() => navigate('book')}>{gapLabel}</Button>}
+          {gapLabel && <Button variant="link" size="sm" wrap iconEnd="arrow-right" className="custom-readiness__gap" data-gap-hint={chapter.gapHint.kind} onClick={() => openGapTarget(chapter)}>{gapLabel}</Button>}
         </li>;
       })}
     </ul>

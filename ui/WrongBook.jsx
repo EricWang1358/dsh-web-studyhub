@@ -383,7 +383,7 @@ function RowDetail({ id, item, course, detail, variants, recs, shortName, rescue
       )}
       <div className="wb-detail__foot">
         <small className="muted">{shortName(item.deckTitle)}</small>
-        {companionTarget && onOpenCompanion && (
+        {companionTarget && onOpenCompanion && !(item.leech && onRescue && companionTarget.lessonMode === 'rescue') && (
           <Button variant="quiet" size="sm" iconEnd="arrow-right" onClick={() => onOpenCompanion(companionTarget)}>
             {companionSlideButtonLabel(companionTarget)}
           </Button>
@@ -1501,6 +1501,7 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
     () => Object.entries(experimentJobs).filter(([, entry]) => entry?.status === 'running' && entry.jobId),
     [experimentJobs],
   );
+  const startingExperimentsRef = useRef(new Set());
   const pollExperiments = useCallback(async () => {
     if (!runningExperiments.length) return { unchanged: true };
     let changed = false;
@@ -1508,16 +1509,33 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
     const nextPatch = {};
     for (const [cardId, entry] of runningExperiments) {
       let job;
-      try { job = await call('job.status', { jobId: entry.jobId }); } catch { continue; }
+      try {
+        job = await call('job.status', { jobId: entry.jobId });
+      } catch (err) {
+        const misses = (entry.pollErrors || 0) + 1;
+        const gone = /not\s*found|unknown\s*job|找不到|不存在/i.test(String(err?.message || err || ''));
+        changed = true;
+        nextPatch[cardId] = gone || misses >= 3
+          ? { status: 'failed', jobId: entry.jobId, message: ui('这次没能生成交互实验，可以重试或展开「其他办法」。') }
+          : { ...entry, pollErrors: misses };
+        continue;
+      }
       const status = job?.status ?? job?.contract?.status;
-      if (!status) continue;
+      if (!status) {
+        const misses = (entry.pollErrors || 0) + 1;
+        changed = true;
+        nextPatch[cardId] = misses >= 3
+          ? { status: 'failed', jobId: entry.jobId, message: ui('这次没能生成交互实验，可以重试或展开「其他办法」。') }
+          : { ...entry, pollErrors: misses };
+        continue;
+      }
       const stage = job?.legacy?.companionStage
         || job?.companionStage
         || String(job?.contract?.stage?.code || '').replace(/^companion\./, '')
         || entry.stage;
       if (isActiveJob({ status })) {
-        if (stage !== entry.stage) {
-          nextPatch[cardId] = { ...entry, stage };
+        if (stage !== entry.stage || entry.pollErrors) {
+          nextPatch[cardId] = { ...entry, stage, pollErrors: 0 };
           changed = true;
         }
         continue;
@@ -1526,20 +1544,34 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
       if (status === 'complete') {
         const companionRef = (job?.contract?.result?.refs || []).find((ref) => ref?.kind === 'companion');
         const companionId = job?.contract?.detail?.companionId || job?.detail?.companionId || companionRef?.id || '';
-        nextPatch[cardId] = {
-          status: 'ready',
-          jobId: entry.jobId,
-          companionId,
-          course: companionRef?.course || entry.course || '',
-          title: companionRef?.title || '',
-        };
-        completedAny = true;
+        if (companionId) {
+          nextPatch[cardId] = {
+            status: 'ready',
+            jobId: entry.jobId,
+            companionId,
+            course: companionRef?.course || entry.course || '',
+            title: companionRef?.title || '',
+          };
+          completedAny = true;
+        } else {
+          nextPatch[cardId] = { status: 'failed', jobId: entry.jobId, message: ui('这次没能生成交互实验，可以重试或展开「其他办法」。') };
+        }
       } else {
         const message = job?.error?.message || job?.contract?.error?.message || ui('这次没能生成交互实验，可以重试或展开「其他办法」。');
         nextPatch[cardId] = { status: 'failed', jobId: entry.jobId, message: errorMessage(message) };
       }
     }
-    if (changed) setExperimentJobs((prev) => ({ ...prev, ...nextPatch }));
+    if (changed) {
+      setExperimentJobs((prev) => {
+        let updated = null;
+        for (const [cardId, patch] of Object.entries(nextPatch)) {
+          if (prev[cardId]?.jobId !== patch.jobId) continue;
+          if (!updated) updated = { ...prev };
+          updated[cardId] = patch;
+        }
+        return updated || prev;
+      });
+    }
     if (completedAny) {
       Promise.resolve(app?.core?.refresh?.()).catch(() => {});
       void load(pageRef.current, { quiet: true });
@@ -1550,6 +1582,8 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
 
   const startExperiment = useCallback(async (item, _detail, itemCourse) => {
     const cardId = item.cardId;
+    if (startingExperimentsRef.current.has(cardId)) return;
+    startingExperimentsRef.current.add(cardId);
     setExperimentJobs((prev) => ({ ...prev, [cardId]: { status: 'starting', stage: 'queued', course: itemCourse || '' } }));
     try {
       const started = await call('generation.companion.build', {
@@ -1565,13 +1599,15 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
       }
       setExperimentJobs((prev) => ({
         ...prev,
-        [cardId]: { status: 'running', jobId: started.jobId, stage: 'queued', course: itemCourse || '' },
+        [cardId]: { status: 'running', jobId: started.jobId, stage: 'queued', course: itemCourse || '', pollErrors: 0 },
       }));
     } catch (failure) {
       setExperimentJobs((prev) => ({
         ...prev,
         [cardId]: { status: 'failed', message: errorMessage(failure) },
       }));
+    } finally {
+      startingExperimentsRef.current.delete(cardId);
     }
   }, [call]);
 

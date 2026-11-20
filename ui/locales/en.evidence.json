@@ -7,5 +7,8 @@
   "还差：不看提示独立做一遍": "Still needed: solve once without hints",
   "还差：没用自己的话讲过": "Still needed: explain in your own words",
   "还差：独立做一道未见题": "Still needed: solve an unseen question",
-  "还差：做几道题巩固": "Still needed: practise a few questions"
+  "还差：做几道题巩固": "Still needed: practise a few questions",
+  "前置知识点还未生成复习全书内容。": "The prerequisite point has no review book section yet.",
+  "先生成复习全书后，才能在这里用自己的话讲一遍。": "Build the review book first to explain this point in your own words here.",
+  "这个知识点还没有题，也没有生成复习全书。": "This point has no questions and no review book section yet."
 }

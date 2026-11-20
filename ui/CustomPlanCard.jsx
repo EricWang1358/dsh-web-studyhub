@@ -73,11 +73,13 @@ export default function CustomPlanCard({ course, initialPreview = null }) {
   const { call, act, busy } = useStudy();
   const handOff = useHandOff();
   const custom = course?.custom ?? null;
+  const focusKey = JSON.stringify(course?.focusTopics || []);
+  const guidanceKey = JSON.stringify(course?.guidanceSourceIds || []);
   const [preview, setPreview] = useState(initialPreview), [error, setError] = useState(''), [working, setWorking] = useState(false);
   useLiveEffect(live => {
     if (!custom) return;
     Promise.resolve().then(() => call('course.custom.preview', { course: course.name })).then(value => { if (live()) setPreview(value ?? null); }).catch(() => {});
-  }, [call, course?.name, custom?.updatedAt]);
+  }, [call, course?.name, custom?.updatedAt, focusKey, guidanceKey]);
   if (!custom) return null;
   const disabled = busy || working, locked = lockedPartIds(custom), examPending = isExamScopeUnconfirmed(custom.scope);
   const save = async next => {

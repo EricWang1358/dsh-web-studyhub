@@ -56,6 +56,8 @@ export default function CompanionViewer({ modal, onClose, inlinePractice = null 
   const questionRef = useRef(null);
   const callRef = useRef(call);
   callRef.current = call;
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
   const [channelToken] = useState(makeToken);
   const checkResultsRef = useRef({});
   const progressTimerRef = useRef(0);
@@ -69,7 +71,12 @@ export default function CompanionViewer({ modal, onClose, inlinePractice = null 
     const pending = pendingProgressRef.current;
     if (!pending) return;
     pendingProgressRef.current = null;
-    Promise.resolve(callRef.current('companion.progress', pending)).catch(() => {});
+    const shouldRefresh = Boolean(pending.completed || Object.keys(pending.checkResults || {}).length > 0);
+    Promise.resolve(callRef.current('companion.progress', pending))
+      .then(res => {
+        if (shouldRefresh || res?.firstPassCredited > 0) Promise.resolve(refreshRef.current?.()).catch(() => {});
+      })
+      .catch(() => {});
   }, []);
 
   const [state, setState] = useState(() => (modal?.initialState?.status === 'ready' ? modal.initialState : { status: 'loading' }));
@@ -209,10 +216,13 @@ export default function CompanionViewer({ modal, onClose, inlinePractice = null 
           const toSend = pendingProgressRef.current;
           pendingProgressRef.current = null;
           if (!toSend) return;
+          const shouldRefresh = Boolean(toSend.completed || Object.keys(toSend.checkResults || {}).length > 0);
           call('companion.progress', toSend).then(res => {
             if (res?.firstPassCredited > 0) {
               notify({ text: uiFormat('已完成本节交互推演，{0} 张关联卡片已采信首学记录并排入后续复习。', [res.firstPassCredited]), tone: 'success' });
-              Promise.resolve(refresh?.()).catch(() => {});
+            }
+            if (shouldRefresh || res?.firstPassCredited > 0) {
+              Promise.resolve(refreshRef.current?.()).catch(() => {});
             }
           }).catch(() => {});
         }, msg.completed ? 50 : 600);

@@ -100,9 +100,21 @@ export function useBookHandlers({ call, act, course, notify, book, setBook, rows
     onEvidenceChanged,
     actGapHint: async (node, hint, element) => {
       if (!hint || !node) return;
-      if (hint.kind === 'prereq' && hint.targetHid) { goTo?.(hint.targetHid); return; }
+      if (hint.kind === 'prereq' && hint.targetHid) {
+        const exists = rowOf(rows, hint.targetHid) || Boolean(book?.files?.[`${hint.targetHid}.gen`]);
+        if (!exists) { notify(ui('前置知识点还未生成复习全书内容。')); return; }
+        goTo?.(hint.targetHid);
+        return;
+      }
       if (hint.kind === 'retell' || hint.kind === 'retell_gap') {
         setRetell(current => { const next = new Set(current); next.add(node.hid); return next; });
+        if (typeof requestAnimationFrame === 'function' && typeof document !== 'undefined') {
+          requestAnimationFrame(() => {
+            const safeHid = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(node.hid) : node.hid;
+            const panel = document.querySelector(`[data-book-retell="${safeHid}"], [data-point="${safeHid}"] .retell-panel, .retell-panel`);
+            panel?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+          });
+        }
         return;
       }
       const row = rowOf(rows, node.hid);

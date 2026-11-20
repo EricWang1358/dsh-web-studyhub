@@ -48,6 +48,8 @@ function BookNode({ node, course, handlers }) {
 
 /** node: a top node of course.book.open's tree, or { hid: 'unplaced', title, text } for 未归位; open, onToggle(open); handlers: ui/book/BookPage.jsx. */
 export default memo(function BookChapter({ node, open, onToggle, course, handlers }) {
+  const gapHint = node.leaf && open ? handlers.gapHintOf?.(node.hid) : null;
+  const gapLabel = gapHintLabel(gapHint);
   return (
     <section className="book-chapter" data-chapter={node.hid} aria-labelledby={`book-${node.hid}`}>
       <h2 id={`book-${node.hid}`} className="book-chapter__heading" data-book-heading={node.hid} tabIndex={-1}>
@@ -56,6 +58,13 @@ export default memo(function BookChapter({ node, open, onToggle, course, handler
           {node.number && <span className="book-node__number">{node.number}</span>} {node.title}
         </Button>
       </h2>
+      {gapLabel && (
+        <p className="book-point__gap-hint" data-gap-hint={gapHint.kind}>
+          <Button variant="link" size="sm" wrap iconEnd="arrow-right" onClick={event => handlers.actGapHint?.(node, gapHint, event.currentTarget)}>
+            {gapLabel}
+          </Button>
+        </p>
+      )}
       {open && (node.hid === 'unplaced' ? <UnplacedBody node={node} handlers={handlers} />
         : node.leaf ? <PointBody node={node} course={course} handlers={handlers} level={3} /> : node.children.map(child => <BookNode key={child.hid} node={child} course={course} handlers={handlers} />))}
     </section>

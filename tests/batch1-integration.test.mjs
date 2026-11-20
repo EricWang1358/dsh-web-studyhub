@@ -7,6 +7,11 @@ import { StudyService } from '../lib/service.js';
 import { switchOptions } from './helpers/runtime-switch.mjs';
 import { learnerFacts } from '../lib/learner-facts.js';
 import { cardLevel } from '../lib/mastery.js';
+import { evaluatePointEvidence } from '../lib/evidence/point-evidence.js';
+import { pointEvidenceForCard } from '../lib/evidence/course-evidence.js';
+import { sliceExamScope } from '../lib/contexts/generation/contracts.js';
+import { customPreview } from '../lib/custom-preview.js';
+import { planCompanionBuild } from '../lib/contexts/generation/companion/plan.js';
 import { courseOutlineMaterial, materialsFingerprint } from '../lib/course-outline-book.js';
 import { courseNotesMaterial } from '../lib/course-book.js';
 import { buildOutlineIndex } from '../lib/course-outline-index.js';
@@ -398,4 +403,69 @@ test('Batch 1 A+B integration: confirmed exam scope slices outline-basis course.
   assert.equal(readiness.basis, 'outline');
   assert.deepEqual(readiness.chapters.map(ch => ch.id), ['ch-2'], 'outline-basis readiness strictly slices to confirmed exam resolvedChapters');
   assert.ok(readiness.chapters[0].gapHint, 'sliced exam chapter carries PointEvidence conditional gapHint for weak point');
+});
+
+test('Batch 1 audit regressions: predict coin-flip cannot override failed quiz, empty course falls back, Ch3/Lec/Roman refs, preview empty resolvedChapters, uncited card lookup', () => {
+  // 1. Slide 1 predict:true + failed final quiz check:0:false must NOT verify comprehension; solo predict:true also stays unverified.
+  const baseCard = { deckId: 'd1', cardId: 'c1', level: 'learning', solid: false, weak: false, answered: true, assistedOnly: false, slowCorrect: 0, unseenTransferPassed: false };
+  const predictThenFailedQuiz = evaluatePointEvidence({
+    hid: 'H1',
+    cards: [baseCard],
+    companions: [{ id: 'c1', hid: 'H1', progress: { slide: 3, slideTotal: 3, completed: true, checkResults: { 'predict:p1': true, 'check:0': false } } }],
+  });
+  assert.equal(predictThenFailedQuiz.facets.comprehension, 'unverified');
+
+  const soloPredict = evaluatePointEvidence({
+    hid: 'H1',
+    cards: [baseCard],
+    companions: [{ id: 'c1', hid: 'H1', progress: { slide: 1, slideTotal: 3, completed: false, checkResults: { 'predict:p1': true } } }],
+  });
+  assert.equal(soloPredict.facets.comprehension, 'unverified');
+
+  // 2. planCompanionBuild with empty string args.course falls back to the card's resolved course.
+  const miniState = {
+    courses: [{ id: 'c-phys', name: 'Physics' }],
+    sources: [{ id: 's1', title: 'Lecture 2 Kinematics', text: 'Velocity and acceleration.', format: 'md', courses: ['Physics'] }],
+    decks: [{
+      id: 'd-phys',
+      title: 'Physics Deck',
+      course: 'Physics',
+      cards: [{ id: 'card-1', kind: 'quiz', topic: 'Kinematics', prompt: 'What is acceleration?', answer: 'dv/dt', review: { reps: 3, lapses: 3 } }],
+    }],
+    attempts: [],
+    runs: [],
+  };
+  const rescuePlan = planCompanionBuild(miniState, { mode: 'rescue', course: '', deckId: 'd-phys', cardIds: ['card-1'] });
+  assert.equal(rescuePlan.course, 'Physics');
+
+  // 3. Exam-scope slicing handles Ch3, Ch.3, Lec 2, 第2讲, Roman numerals, and avoids false-matching "chi-square".
+  const lecState = {
+    courses: [{ id: 'c-stat', name: 'Stats', focusTopics: ['Ch3', 'Lec 2', 'Chapter IV', 'chi-square test'] }],
+    sources: [
+      { id: 's1', title: 'Lec 1 Intro', text: 'Intro', format: 'md', courses: ['Stats'] },
+      { id: 's2', title: '第2讲 概率分布', text: 'Distribution', format: 'md', courses: ['Stats'] },
+      { id: 's3', title: 'Ch.3 Hypothesis Testing', text: 'Testing', format: 'md', courses: ['Stats'] },
+      { id: 's4', title: 'Chapter IV Regression', text: 'Regression', format: 'md', courses: ['Stats'] },
+    ],
+    decks: [{ id: 'd-stat', title: 'Manual Deck', course: 'Stats', cards: [{ id: 'manual-1', kind: 'flashcard', topic: 'Extra Notes', prompt: 'Q', answer: 'A' }] }],
+    attempts: [],
+    documents: [],
+  };
+  const sliced = sliceExamScope(lecState, 'Stats', { language: 'en' });
+  const matchedTitles = sliced.matchedChapters.map(c => c.title);
+  assert.ok(matchedTitles.some(t => t.includes('第2讲')));
+  assert.ok(matchedTitles.some(t => t.includes('Ch.3')));
+  assert.ok(matchedTitles.some(t => t.includes('Chapter IV')));
+  assert.ok(!matchedTitles.some(t => t.includes('Lec 1')), 'chi-square must not falsely match Chapter I');
+  assert.ok(sliced.unmatchedTopics.includes('chi-square test'));
+
+  // 4. customPreview treats empty resolvedChapters: [] as unconfirmed rather than throwing.
+  const preview = customPreview(lecState, { course: 'Stats', custom: { purpose: 'review', scope: { kind: 'exam', resolvedChapters: [] } } });
+  assert.equal(preview.status, 'ok');
+  assert.equal(preview.examScope.confirmed, false);
+
+  // 5. pointEvidenceForCard finds manual/uncited cards even when the course has documents without an AI outline.
+  const manualEv = pointEvidenceForCard(lecState, { course: 'Stats', deckId: 'd-stat', cardId: 'manual-1' });
+  assert.ok(manualEv, 'uncited manual card has PointEvidence in document-fallback course');
+  assert.equal(manualEv.hid, 'topic:d-stat:Extra Notes');
 });

@@ -266,7 +266,9 @@
     /* Highlighted single recommendation + collapsed "Other ways" disclosure for stubborn questions (5.0.0 §2.1). */
     .wb-leech .wb-leech__retell { margin-top: var(--space-1); }
     .wb-leech__primary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); margin-top: var(--space-2); }
-    .wb-leech__status { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-body); }
+    .wb-leech__status { display: flex; align-items: flex-start; flex-wrap: nowrap; gap: var(--space-2); margin-top: var(--space-2); color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-body); }
+    .wb-leech__status > :first-child { flex-shrink: 0; margin-top: 0.15em; }
+    .wb-leech__status > span { min-width: 0; overflow-wrap: anywhere; }
     .wb-leech__status.is-ready { color: var(--ok-ink); font-weight: var(--fw-medium); }
     .wb-leech__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); margin-top: var(--space-2); }
     .wb-leech__other { padding-top: var(--space-2); border-top: 1px dashed var(--line-soft); }

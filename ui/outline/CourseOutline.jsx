@@ -235,13 +235,25 @@ export default function CourseOutline({ data, backLabel = '', onBack, onCreate, 
     } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
   }, [call, course, deckId, notify, onPractice]);
   const onPracticeRow = useCallback(row => practise({ keys: [row.key] }, { resume: !!row.node.resume }), [practise]);
+  const bookReady = Boolean(outline?.book?.notes);
   const onGapHint = useCallback((row, hint) => {
     if (!hint) return;
-    if (hint.kind === 'prereq' && hint.targetHid && onOpenBook) { onOpenBook(hint.targetHid); return; }
-    if ((hint.kind === 'retell' || hint.kind === 'retell_gap') && onOpenBook) { onOpenBook(row.key); return; }
+    if (hint.kind === 'prereq' && hint.targetHid) {
+      if (bookReady && onOpenBook) { onOpenBook(hint.targetHid); return; }
+      const targetKey = hint.targetHid.startsWith('bk:') ? hint.targetHid : `bk:${hint.targetHid}`;
+      practise({ keys: [targetKey] }, { resume: false });
+      return;
+    }
+    if ((hint.kind === 'retell' || hint.kind === 'retell_gap')) {
+      if (bookReady && onOpenBook) { onOpenBook(row.key); return; }
+      if (row.node?.total > 0) { onPracticeRow(row); return; }
+      notify(ui('先生成复习全书后，才能在这里用自己的话讲一遍。'));
+      return;
+    }
     if (row.node?.total > 0) { onPracticeRow(row); return; }
-    if (onOpenBook) onOpenBook(row.key);
-  }, [onOpenBook, onPracticeRow]);
+    if (bookReady && onOpenBook) { onOpenBook(row.key); return; }
+    notify(ui('这个知识点还没有题，也没有生成复习全书。'));
+  }, [bookReady, notify, onOpenBook, onPracticeRow, practise]);
 
   const gapLensEnabled = outlineGapLens(data?.settings?.practice);
   return <CourseOutlineView course={course} outline={outline} details={details} error={error} open={open} deckId={deckId} filterQuery={filterQuery} pick={pick} picked={picked}

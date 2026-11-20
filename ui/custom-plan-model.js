@@ -125,9 +125,13 @@ export function examScopeChapters(preview) {
   }));
 }
 
-/** Initial chapter selection for the exam-scope confirmation step: confirmed ids if saved, else candidate matched ids. */
+/** Initial chapter selection for the exam-scope confirmation step: confirmed ids (filtered to live skeleton ids) if saved, else candidate matched ids. */
 export function initialExamSelection(custom, preview) {
   if (custom?.scope?.kind === 'exam' && Array.isArray(custom.scope.resolvedChapters) && custom.scope.resolvedChapters.length) {
+    if (preview?.skeleton) {
+      const validIds = new Set(examScopeChapters(preview).map(ch => ch.id));
+      return custom.scope.resolvedChapters.filter(id => validIds.has(id));
+    }
     return [...custom.scope.resolvedChapters];
   }
   return (preview?.examScope?.matchedChapters || []).map(item => item.id);

@@ -166,7 +166,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/job-structure.js`: contexts jobs, library
 - `lib/learner-facts.js`: contexts coach, library; 2 other lib files
 - `lib/learning-scope.js`: contexts skeleton, study; 5 other lib files
-- `lib/mastery.js`: contexts courses, generation, library, study; 28 other lib files
+- `lib/mastery.js`: contexts courses, generation, library, study; 29 other lib files
 - `lib/mineru-history.js`: contexts audio, jobs, materials; 1 other lib file
 - `lib/mineru-job.js`: contexts audio, jobs; 1 other lib file
 - `lib/model-retry.js`: contexts coach, generation; 7 other lib files
@@ -240,7 +240,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/course-book-term-cards.js`: context generation; 2 other lib files
 - `lib/course-book-writer.js`: context library; 2 other lib files
 - `lib/course-outline-book-view.js`: context library; 7 other lib files
-- `lib/course-outline-index.js`: context generation; 9 other lib files
+- `lib/course-outline-index.js`: context generation; 10 other lib files
 - `lib/course-outline-qa.js`: context library
 - `lib/course-outline.js`: context library; 6 other lib files
 - `lib/course-plan.js`: context library
