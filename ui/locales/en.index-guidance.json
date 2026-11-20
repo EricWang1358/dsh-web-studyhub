@@ -6,5 +6,6 @@
   "在这台电脑上建索引：不调用 AI、不耗 token，资料不离开电脑。建好后，整本书出题只读相关页面。": "The index is built on this computer: no AI is called, it uses no tokens, and your material never leaves the computer. Once built, a whole-book run reads only the relevant pages.",
   "点这里去建立索引（本机计算，不耗 token）": "Click to go and build the index (runs on this computer, no tokens)",
   "先建立检索索引…": "Build the search index first…",
-  "本机 · 不耗 token": "On this computer · no tokens"
+  "本机 · 不耗 token": "On this computer · no tokens",
+  "默认检索模型偏英文；中文教材结合关键词匹配，提问时尽量写原文术语。": "The default search model favours English; Chinese materials rely more on keyword matching, so use exact terms from the text in your topic."
 }

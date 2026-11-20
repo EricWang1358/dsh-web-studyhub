@@ -14,6 +14,9 @@ import { fixedOptionLabel } from "../option-label.js";
 import OptionMark from "../OptionMark.jsx";
 import ThumbFeedback from "../ThumbFeedback.jsx";
 import PracticeTip from "./PracticeTip.jsx";
+import TermChips from "./TermChips.jsx";
+import TermListDialog from "./TermListDialog.jsx";
+import { useTermMarking } from "./use-term-marking.js";
 import { usePracticeTip } from "./use-practice-tip.js";
 import { voteTipMoments } from "../guidance/practice-tips.js";
 import { reviewEntryKey } from "../async.js";
@@ -24,7 +27,7 @@ import { describeModelError, modelReadiness, plainAssistFailure } from "../gener
 import { readableQualityIssue } from "../quality.js";
 import { ReadingBlock, useReadingProps } from "../reading-settings/ReadingSettings.jsx";
 import AnswerState from "./AnswerState.jsx";
-import { Banner, Button, Chip, Icon, InlineMessage, Popover, ProgressBar, SegmentedControl, Spinner, Tooltip } from "../components/index.js";
+import { Banner, Button, Chip, Icon, InlineMessage, Popover, ProgressBar, SegmentedControl, Spinner, TextInput, Tooltip } from "../components/index.js";
 import { useStudy } from "../study-context.jsx";
 import { HELP_CHOICES } from "../agent-prompts/card.js";
 import { FixPhraseChips, FixPhraseSave, appendFixPhrase } from "./FixPhrases.jsx";
@@ -53,6 +56,10 @@ import { ClozeQuestion, OpenResponseField, PostAnswerDetails, QuestionLiveMaster
 import { useAssistWatch, useAutopilotPause, useBookQaSync, useCaseHighlights } from "./use-review-run-sync.js";
 import { companionSlideButtonLabel, openCompanionTarget, resolveCompanionTarget } from "../companions/companion-ref.js";
 import companionsCss from "../companions/companions.css";
+import { useCardPlace } from "./QuestionPlace.jsx";
+import { isPassed } from "./session-logic.js";
+import ChapterHint from "./ChapterHint.jsx";
+import { useChapterHint } from "./use-chapter-hint.js";
 
 export { formatAssistTaskSummary };
 
@@ -82,13 +89,13 @@ function AssistFailure({ task, modelReady = false, onSettings, onResubmit, onEdi
   );
 }
 
-export default function QuestionRun({ session, data, coachProps, links = {}, context = {}, feedback, inline = false }) {
+export default function QuestionRun({ session, data, coachProps, links = {}, context = {}, feedback, place: placeProp, inline = false }) {
   useInjectCss(reviewCss, "study-review");
   useInjectCss(coachCss, "study-coach");
   useInjectCss(companionsCss, "study-companions");
-  const { run, entry, showBack, showEn, enBusyKey, keyGrade, choice, isCloze, autopilot, actions } = session;
+  const { run, entry, showBack, showEn, autoTerms, enBusyKey, autoTermsBusyKey, keyGrade, choice, isCloze, autopilot, actions } = session;
   const { selected, hint, explain, response, clozeValues } = entry;
-  const { reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, toggleEn } = actions;
+  const { reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, toggleEn, toggleAutoTerms } = actions;
   const { call, act, busy, openModal, openSettings, notify } = useStudy();
   const toggleCardFocus = React.useCallback(() => {
     if (!run?.card?.id) return;
@@ -103,7 +110,10 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
     () => runDeferUnstudiedPages({ run, sources: data?.sources, openModal, reviewAct, notify }),
     [data?.sources, notify, openModal, reviewAct, run],
   );
-  const { onOpenNote, onMakeNote, onMakeTask, onModelSettings, onSaveQaToNote } = links;
+  const { onOpenNote, onMakeNote, onMakeTask, onModelSettings, onSaveQaToNote, onOpenBookSection } = links;
+  const fetchedPlace = useCardPlace({ call, run, enabled: placeProp === undefined && run?.mode !== "exam" });
+  const cardPlace = placeProp !== undefined ? placeProp : fetchedPlace;
+  const canOpenBookSection = run?.mode !== "exam" && !run?.complete && cardPlace?.leaf?.built === true && typeof onOpenBookSection === "function";
   // `inHeader`: the page's header already carries the way back (the review book's or the 总纲's, ui/Review.jsx), so it is not said a second time under the card.
   const { label: contextLabel, onReturn: onReturnContext, detour, onReturnFromDetour, inHeader, tourRunning } = context;
   const contextReturnLabel = inHeader ? '' : contextLabel;
@@ -123,7 +133,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const thumbsRef = React.useRef(null);
   const [thumbState, setThumbState] = React.useState({ vote: null, tags: [] });
   const thumbVote = thumbState.vote;
-  const [assistText, setAssistText] = React.useState("");
+  const [assistText, setAssistText] = React.useState(""), [thinkingNote, setThinkingNote] = React.useState("");
   const [dismissedTaskId, setDismissedTaskId] = React.useState("");
   const hasSessionExplainHidden = typeof session.explainHidden === "boolean";
   const [localExplainHidden, setLocalExplainHidden] = React.useState(false);
@@ -135,16 +145,30 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const voteMoments = voteTipMoments(thumbVote, thumbState.tags, !!run.feedback);
   // The three first-use tips under the question (#948): which one shows, if any, is ui/guidance/practice-tips.js; it says nothing before the learner has acted.
   const practiceTip = usePracticeTip({ run, assistMode, tourRunning: !!tourRunning, modelReady: model.ready, votedDown: voteMoments.votedDown, tooHard: voteMoments.tooHard,
-    answerShown: run.mode !== "exam" && ((showSolution && (run.solution?.followups?.length ?? 0) > 0) || showUnansweredFollowups) });
+    answerShown: run.mode !== "exam" && ((showSolution && (run.solution?.followups?.some((item) => item?.kind !== "terms") ?? false)) || (showUnansweredFollowups && (run.followups?.some((item) => item?.kind !== "terms") ?? false))) });
   const [helpChoices, setHelpChoices] = React.useState([]);
   const [clozeFocusTick, setClozeFocusTick] = React.useState(0);
   const [deriveRelation, setDeriveRelation] = React.useState("prerequisite");
+  const [termListOpen, setTermListOpen] = React.useState(false);
   const reviewBodyRef = React.useRef(null);
   const { autoAdvanceMs, autoAdvanceActive, autoAdvancePaused, hoverPauseRef, syncAutoPause } = useAutopilotPause({ session, coachProps, reviewBodyRef });
   const fixPhrases = useFixPhrases(data);
   const ruleDeck = data?.decks?.find((deck) => deck.id === run.deckId);
+  const termCourseName = ruleDeck?.course ?? ruleDeck?.folder ?? (typeof run?.course === "string" ? run.course : run?.course?.name) ?? "";
   const courseRules = useCourseRules(data, ruleDeck?.course ?? ruleDeck?.folder ?? "");
-  React.useEffect(() => { setAssistMode(""); setAssistText(""); setHelpChoices([]); setDeriveRelation("prerequisite"); setClozeFocusTick(0); }, [run.id, run.index, run.card?.id]);
+  const termMarks = useTermMarking({ session, reviewBodyRef, notify, call, courseName: termCourseName, assistTasks });
+  const openTermListDialog = () => { termMarks.refreshCourseTerms(); setTermListOpen(true); };
+  const chapterHint = useChapterHint({ run, cardPlace, allFollowups, currentTerms: termMarks.terms, tipShown: practiceTip.tip, tourRunning: !!tourRunning });
+  const applyMarkedTerms = (terms) => {
+    if (!terms?.length) return;
+    if (!model.ready) {
+      setAssistMode("ask");
+      return;
+    }
+    chapterHint.noteFillTerms();
+    assistCard("terms", "", [], { terms });
+  };
+  React.useEffect(() => { setAssistMode(""); setAssistText(""); setThinkingNote(""); setHelpChoices([]); setDeriveRelation("prerequisite"); setClozeFocusTick(0); setTermListOpen(false); }, [run.id, run.index, run.card?.id]);
   const cardTasks = (assistTasks || []).filter((task) => task.cardId === run.card?.id);
   const runningTask = cardTasks.find((task) => task.status === "running" && task.mode !== "grade");
   const lastTask = cardTasks.filter((task) => task.mode !== "grade").at(-1);
@@ -207,7 +231,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
     </details>
   );
   return (
-    <div className="review-body" ref={reviewBodyRef}>
+    <div className={"review-body" + (termMarks.marking ? " is-marking" : "")} ref={reviewBodyRef}>
       <div
         className={
           "question-area " +
@@ -430,6 +454,14 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           {voice.correction}
           {run.feedback && <p className={"next-due next-due--verdict" + (run.feedback.correct || run.feedback.selfReported ? "" : " retry")}
             data-level={run.feedback.level || undefined} role="status">{nextDueIcon(run.feedback) && <Icon name={nextDueIcon(run.feedback)} className="sh-icon--inline sh-icon--lead" />}{nextDueWord(run.feedback)}</p>}
+          {canOpenBookSection && run.feedback && !run.feedback.selfReported && !isPassed(run) && (
+            <div className="question-book-link">
+              <Button variant="link" size="sm" iconEnd="arrow-right" data-usage="review.book-section" data-tour="review-book-section" data-book-section-link="feedback" lock={busy}
+                onClick={() => onOpenBookSection(cardPlace)}>
+                {ui("读全书这一节")}
+              </Button>
+            </div>
+          )}
           {autoAdvanceActive && (
             <div className={"question-card__autopilot" + (autoAdvancePaused ? " is-paused" : "")}
               key={"card-auto:" + (session.advanceKey || run.index)}
@@ -446,11 +478,14 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           <ReviewToolbar
             key={session.advanceKey || `${run.id}:${run.index}:${run.card?.id}`}
             assistMode={assistMode}
+            markingTerms={termMarks.marking}
+            onToggleMarkTerms={termMarks.toggleMarking}
             run={run} expanded={(run.revealed || showBack) ? explain : hint} revealed={!!(run.revealed || showBack)}
             onToggleHelp={actions.toggleHelp}
             onAsk={() => setAssistMode((m) => (m === "ask" ? "" : "ask"))}
             onImprove={() => setAssistMode((m) => (m === "improve" ? "" : "improve"))}
             onDerive={() => setAssistMode((m) => (m === "derive" ? "" : "derive"))}
+            onTermList={run.mode !== "exam" && termMarks.courseName ? openTermListDialog : undefined}
             onSlay={slayCard} onToggleFocus={run.mode !== "exam" ? toggleCardFocus : undefined}
             onDeferUnstudiedPages={canDeferPages ? deferUnstudiedPages : undefined}
             onReviewAction={reviewAct}
@@ -459,6 +494,9 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             enOn={enOn}
             enBusy={!!enBusyKey && enBusyKey === reviewEntryKey(run)}
             onToggleEn={toggleEn}
+            autoTerms={!!autoTerms}
+            autoTermsBusy={!!autoTermsBusyKey && autoTermsBusyKey === reviewEntryKey(run)}
+            onToggleAutoTerms={toggleAutoTerms}
             autopilot={autopilot} onToggleAutopilot={actions.toggleAutopilot}
             selfGradeAdvance={session.selfGradeAdvance} onToggleSelfGradeAdvance={actions.toggleSelfGradeAdvance}
             onUndo={actions.undoAnswer}
@@ -482,6 +520,29 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             <Button variant="link" size="sm" data-usage="review.voice-fix" lock={busy} onClick={() => assistCard("improve", ui(SOURCE_VOICE_FIX))}>{ui("改成概念或情景题")}</Button>
           </p>
         )}
+        <TermChips
+          terms={termMarks.terms}
+          candidates={termMarks.candidates}
+          onRemove={termMarks.removeTerm}
+          onMarkCandidate={termMarks.markCandidate}
+          onFill={applyMarkedTerms}
+          onTermList={run.mode !== "exam" && termMarks.courseName ? openTermListDialog : undefined}
+          hasCourse={Boolean(termMarks.courseName)}
+          busy={busy || !!runningTask}
+          running={runningTask?.mode === "terms"}
+        />
+        {termListOpen && termMarks.courseName && (
+          <TermListDialog
+            courseName={termMarks.courseName}
+            items={termMarks.courseTerms}
+            loading={termMarks.loadingCourseTerms}
+            error={termMarks.courseTermsError}
+            onRemove={termMarks.removeCourseTerm}
+            onClear={termMarks.clearCourseTerms}
+            onClose={() => setTermListOpen(false)}
+          />
+        )}
+        {chapterHint.visible && <ChapterHint run={run} sources={data?.sources} decks={data?.decks} openModal={openModal} cardPlace={cardPlace} terms={chapterHint.terms} deeper={chapterHint.deeper} onDismiss={chapterHint.dismiss} onDismissForever={chapterHint.mute} />}
         <SmoothHeight className="assist-area">
           {assistMode && (!model.ready ? (
             <div className="assist-form assist-gate">
@@ -492,16 +553,15 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
               </div>
             </div>
           ) : (() => {
-            const canSubmitAssist = !!assistText.trim() || (assistMode === "ask" && helpChoices.length > 0);
+            const trimmedNote = assistMode === "ask" ? thinkingNote.trim().slice(0, 200) : "";
+            const canSubmitAssist = !!assistText.trim() || (assistMode === "ask" && (helpChoices.length > 0 || !!trimmedNote));
             const submitAssist = async () => {
               const mode = assistMode;
-              if (!assistText.trim() && !(mode === "ask" && helpChoices.length)) return;
-              if (await assistCard(mode, assistText.trim(), mode === "ask" ? helpChoices : [], mode === "derive" ? { relation: deriveRelation } : undefined)) {
-                if (mode === "ask" && helpChoices.includes("prerequisite") && run.prerequisites?.length)
-                  studyPrerequisites(run.prerequisites);
-                setAssistMode("");
-                setAssistText("");
-                setHelpChoices([]);
+              if (!assistText.trim() && !(mode === "ask" && (helpChoices.length || trimmedNote))) return;
+              const extra = mode === "derive" ? { relation: deriveRelation } : (mode === "ask" && trimmedNote ? { thinkingNote: trimmedNote } : undefined);
+              if (await assistCard(mode, assistText.trim(), mode === "ask" ? helpChoices : [], extra)) {
+                if (mode === "ask" && helpChoices.includes("prerequisite") && run.prerequisites?.length) studyPrerequisites(run.prerequisites);
+                setAssistMode(""); setAssistText(""); setThinkingNote(""); setHelpChoices([]);
               }
             };
             return (
@@ -555,6 +615,9 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                       }
                     }} />
                 </label>
+                {assistMode === "ask" && (<label className="assist-form__field assist-form__thinking">{ui("刚才卡在哪一步 / 是怎么想的？（选填）")}
+                  <TextInput type="text" className="assist-form__thinking-input" data-thinking-note="" value={thinkingNote} maxLength={200}
+                    placeholder={ui("用一句话记下刚才卡住的思路，便于后续精准提醒")} onChange={(event) => setThinkingNote(event.target.value)} /></label>)}
                 {assistMode === "improve" && <FixPhraseSave phrases={fixPhrases.phrases} text={assistText} onSave={fixPhrases.add} />}
                 {assistMode === "improve" && <CourseRuleAdd courseRules={courseRules} text={assistText} />}
                 <div className="action-feedback-slot assist-form__feedback">{feedback}</div>
@@ -577,7 +640,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             <p className="assist-status" role="status">
               <span className="assist-status__spinner" aria-hidden="true"><Spinner size="sm" /></span>
               <span className="assist-status__text">
-                {uiFormat(runningTask.mode === "ask" ? "后台助教正在解答：{0}" : runningTask.mode === "derive" ? "后台助教正在出新题：{0}" : "后台助教正在改题：{0}", [formatAssistTaskSummary(runningTask)])}
+                {uiFormat(runningTask.mode === "ask" ? "后台助教正在解答：{0}" : runningTask.mode === "derive" ? "后台助教正在出新题：{0}" : runningTask.mode === "terms" ? "后台助教正在补词：{0}" : "后台助教正在改题：{0}", [formatAssistTaskSummary(runningTask)])}
               </span>
             </p>
           )}
@@ -588,7 +651,8 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             if (!runningTask && lastTask?.status === "failed") {
               return <AssistFailure task={lastTask} modelReady={model.ready} onSettings={modelSettings}
                 onResubmit={() => assistCard(lastTask.mode, lastTask.question || "", lastTask.mode === "ask" ? lastTask.choices || [] : [],
-                  lastTask.mode === "derive" ? { relation: lastTask.relation, followupId: lastTask.followupId } : undefined)}
+                  lastTask.mode === "derive" ? { relation: lastTask.relation, followupId: lastTask.followupId }
+                    : lastTask.mode === "terms" ? { terms: lastTask.terms || [] } : undefined)}
                 onEdit={editLastTask} />;
             }
             if (!runningTask && !assistMode && lastTask?.status === "done" && (lastTask.outcome === "no-change" || lastTask.outcome === "unlinked") && dismissedTaskId !== lastTask.id) {
@@ -652,7 +716,8 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
               onDerive={(followupId, relation) => assistCard("derive", "", [], { relation, followupId })} deriving={!!runningTask}
               onAskMore={(event) => { const body = event?.currentTarget?.closest?.(".review-body"); setAssistMode("ask"); requestAnimationFrame(() => { body?.querySelector(".assist-area")?.scrollIntoView?.({ behavior: "smooth", block: "nearest" }); body?.querySelector(".assist-form__input")?.focus(); }); }}
               bookQa={{ course: bookCourse, mode: qaToBook, onMode: setQaToBook, book, note: bookNote }}
-              noteQa={onSaveQaToNote ? { savedIn: (followupId) => cardNotes.find((note) => note.qa && note.followupIds?.includes(followupId))?.noteId || "", onSave: onSaveQaToNote, onOpen: onOpenNote } : null} />}
+              noteQa={onSaveQaToNote ? { savedIn: (followupId) => cardNotes.find((note) => note.qa && note.followupIds?.includes(followupId))?.noteId || "", onSave: onSaveQaToNote, onOpen: onOpenNote } : null}
+              onOpenBookSection={canOpenBookSection ? () => onOpenBookSection(cardPlace) : undefined} />}
             {showSolution && (allFollowups.length > 0 || (run.solution?.explanation?.length || 0) >= 280) && (
               <div className="explanation-foot">
                 <Button variant="quiet" size="sm" onClick={() => {

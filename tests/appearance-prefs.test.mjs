@@ -13,12 +13,38 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import * as appearance from '../ui/appearance-prefs.js';
 import { readAppSource } from './helpers/app-source.mjs';
 import * as legacy from '../ui/interface-prefs.js';
+import { registerHostParts } from '../ui/host-parts.js';
 
 const { APPEARANCE_DEFAULTS, APPEARANCE_OPTIONS, APPEARANCE_LABELS, THEME_KEY, normalizeAppearance, loadAppearance, saveAppearance, appearanceAttrs,
   exportAppearance, importAppearance, createAppearanceStore } = appearance;
 const han = /[㐀-鿿]/;
 const memory = (initial = {}) => { const map = new Map(Object.entries(initial)); return { getItem: key => map.has(key) ? map.get(key) : null, setItem: (key, value) => map.set(key, String(value)), map }; };
 const blocked = { getItem() { throw new Error('blocked'); }, setItem() { throw new Error('blocked'); } };
+
+/* ---------- 跟随窗口 ---------- */
+
+test('界面大小 has 跟随窗口: the size follows the window width, a chosen percent wins, and a host may make it the default', () => {
+  const { autoScaleFor } = appearance, dark = { light: false, reducedMotion: false, contrast: false };
+  assert.equal(APPEARANCE_OPTIONS.scale[0], 'auto');
+  assert.equal(APPEARANCE_LABELS.scale.auto, '跟随窗口');
+  assert.equal(normalizeAppearance({ scale: 'auto' }).scale, 'auto');
+  for (const [width, scale] of [[1280, 100], [1599, 100], [1600, 110], [1999, 110], [2000, 125], [2560, 125], [3000, 150], [3840, 150]]) assert.equal(autoScaleFor(width), scale, `${width}px`);
+  assert.equal(autoScaleFor(undefined), 100, 'no window to measure: 100%');
+  assert.equal(appearanceAttrs({ scale: 'auto' }, { ...dark, autoScale: 125 })['data-ui-scale'], 125);
+  assert.equal(appearanceAttrs({ scale: 'auto' }, dark)['data-ui-scale'], 100);
+  assert.equal(appearanceAttrs({ scale: 100 }, { ...dark, autoScale: 125 })['data-ui-scale'], 100, 'a chosen percent wins over the window');
+  assert.equal(importAppearance(exportAppearance({ scale: 'auto' })).scale, 'auto');
+  registerHostParts({ appearanceDefaults: { scale: 'auto', theme: 'bogus' } });
+  try {
+    assert.equal(normalizeAppearance(null).scale, 'auto');
+    assert.equal(normalizeAppearance(null).theme, 'auto', 'a host default outside the list is ignored');
+    assert.equal(normalizeAppearance({ scale: 125 }).scale, 125);
+    const store = createAppearanceStore({ storage: memory({ 'study-interface': JSON.stringify({ scale: 150 }) }) });
+    store.reset();
+    assert.equal(store.get().scale, 'auto', '恢复默认外观 goes back to this host\'s default');
+  } finally { registerHostParts({ appearanceDefaults: undefined }); }
+  assert.equal(normalizeAppearance(null).scale, 100, 'DSH keeps 100%');
+});
 
 /* ---------- one definition ---------- */
 

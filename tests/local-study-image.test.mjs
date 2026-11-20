@@ -22,7 +22,7 @@ test('selected raster image embeds portable Markdown with bounded readable filen
   assert.equal(JSON.parse(JSON.stringify({ prompt: markdown })).prompt, markdown, 'embedded bytes survive serialization/reopening');
   assert.equal(localImageAlt(' '.repeat(10)), '图片');
   assert.equal(localImageAlt('a'.repeat(200) + '.png').length, 120);
-  assert.doesNotMatch(localImageAlt('line\n[bracket].png'), /[\n\[\]]/);
+  assert.doesNotMatch(localImageAlt('line\n[bracket].png'), /[\n[\]]/);
 });
 
 test('raster validator requires canonical base64, matching MIME magic and bounded decoded bytes', () => {

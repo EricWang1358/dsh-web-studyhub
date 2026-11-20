@@ -61,8 +61,9 @@ test('every Settings section is a settings-section with the same title treatment
   const legends = html.match(/<legend[^>]*>/g) || [];
   assert.equal(legends.length, fieldsets.length);
   for (const tag of legends) assert.match(tag, /class="settings-section__title"/, tag);
-  for (const title of ['学习库与模型', '课程', '上手与示例', '陪学', '导入 study-lib-spar', '间隔复习 · FSRS-6', '数据备份与恢复'])
+  for (const title of ['学习库与模型', '课程', '上手与示例', '学习画像与陪学', '间隔复习 · FSRS-6', '数据备份与恢复'])
     assert.match(html, new RegExp(`<legend class="settings-section__title">${title}</legend>`), title);
+  assert.match(html, /从旧版 study-lib-spar 导入/);
   assert.deepEqual(html.match(/<button(?![^>]*class="sh-)[^>]*>/g) || [], [], 'every button is a shared Button');
 });
 
@@ -111,7 +112,7 @@ const coach = (props = {}, language) => render(h(CoachSection, { profile, busy: 
 
 test('陪学 says exactly where the profile is used', () => {
   const html = coach();
-  assert.match(html, /画像与学习偏好会随数据围栏发给陪学、讲解与划词追问以及发给主会话的消息，调整讲解措辞与侧重；不进出题提示词，也不改间隔复习排期。/);
+  assert.match(html, /画像与学习偏好会用于陪学、讲解、划词追问、错题变式以及发给主会话的消息，调整讲解措辞与侧重；不进出题提示词，也不改间隔复习排期。/);
   assert.match(html, /提示语气与例子会贴近这个目标/);
 });
 

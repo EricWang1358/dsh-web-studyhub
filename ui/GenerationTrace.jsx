@@ -4,6 +4,7 @@ import { Disclosure, useNow } from "./components/index.js";
 import AgentLink from "./AgentLink.jsx";
 import { legacyStageText, stageUsageRows, stepLabel } from "./generation-status.js";
 import { JobUsage } from "./TokenUsage.jsx";
+import { compactCacheSummary } from "./token-usage.js";
 import { formatExactTokens, totalTokens } from "../lib/token-usage.js";
 import { retrievalSummary } from "./large-document-advice.js";
 import { isActiveJob } from "../lib/job-status.js";
@@ -35,6 +36,7 @@ export default function GenerationTrace({ job, openAgent, defaultOpen = false })
       <strong>{stepLabel(step, job)}</strong>
       <small>{joinMeta([status[step.status] || step.status,
         step.tokenUsage ? `${formatExactTokens(totalTokens(step.tokenUsage))} tok` : "",
+        compactCacheSummary(step.tokenUsage),
         step.queuedMs >= 1000 ? uiFormat("排队 {0} 秒", [Math.round(step.queuedMs / 1000)]) : "",
         step.startedAt && (step.finishedAt ? uiFormat("{0} 秒", [seconds(step.startedAt, Date.parse(step.finishedAt))])
           : uiFormat("已等待 {0} 秒", [seconds(step.startedAt, now)]))])}
@@ -55,7 +57,11 @@ export default function GenerationTrace({ job, openAgent, defaultOpen = false })
         <ul>{stageRows.map((row) => <li key={row.code}>{row.estimate
           ? uiFormat("{0} {1} tok（预计 {2}–{3}）", [row.label, formatExactTokens(row.tokens), formatExactTokens(row.estimate.low), formatExactTokens(row.estimate.high)])
           : uiFormat("{0} {1} tok", [row.label, formatExactTokens(row.tokens)])}
-          {(row.seconds >= 1 || row.waited >= 1) && <small>{joinMeta([row.seconds >= 1 ? uiFormat("调用 {0} 秒", [Math.round(row.seconds)]) : "", row.waited >= 1 ? uiFormat("排队 {0} 秒", [Math.round(row.waited)]) : ""])}</small>}</li>)}</ul>
+          {(row.seconds >= 1 || row.waited >= 1 || compactCacheSummary(row)) && <small>{joinMeta([
+            row.seconds >= 1 ? uiFormat("调用 {0} 秒", [Math.round(row.seconds)]) : "",
+            row.waited >= 1 ? uiFormat("排队 {0} 秒", [Math.round(row.waited)]) : "",
+            compactCacheSummary(row),
+          ])}</small>}</li>)}</ul>
         {job.throttle?.events > 0 && <p className="muted" data-throttle>{uiFormat("模型服务限流了 {0} 次，同时调用数已自动降到 {1}（设置的是 {2}），之后会随调用顺利逐步恢复。", [job.throttle.events, job.throttle.lowest, job.throttle.configured])}</p>}
         {job.estimate?.calibration?.deviates && <p className="muted">{ui("这个学习库里的实际用量长期比预计高出一半以上；预计已按最近几次的实际用量调高，审阅重试和较高的推理程度是常见原因。")}</p>}
       </div>}

@@ -48,11 +48,16 @@ export const freshGeneration = (gen = {}, saved, language = getUiLanguage()) => 
       : generationFormDefaults(saved, language)), role: gen.role ?? '', title: '', course: undefined };
 };
 
+/** A model's label as the host words it, "<provider> · <model>", in the page's language: the desktop names a provider from its Chinese presets (智谱 GLM, 硅基流动,
+    OpenAI 兼容接口), which an English page translates part by part; model ids and the plugin's own provider ids pass through as they are. One place, so the top bar's
+    chip and the first-run line say the same words. */
+const labelInUiLanguage = (label) => (label ? String(label).split(' · ').map((part) => ui(part)).join(' · ') : '');
+
 /** Plan contract C3 first (`data.model`), then the legacy `modelReady` flag. */
 export function modelReadiness(data) {
   const model = data?.model;
   if (model && typeof model === 'object' && typeof model.ready === 'boolean')
-    return { ready: model.ready, reason: model.reason || (model.ready ? 'ok' : 'unknown'), label: model.label || '' };
+    return { ready: model.ready, reason: model.reason || (model.ready ? 'ok' : 'unknown'), label: labelInUiLanguage(model.label) };
   const ready = !!data?.modelReady;
   return { ready, reason: ready ? 'ok' : 'no-route', label: '' };
 }

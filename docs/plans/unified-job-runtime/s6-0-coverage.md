@@ -110,6 +110,7 @@
 | `lib/contexts/generation/jobs/generation.js:42`、`lib/contexts/generation/translation/jobs/translation.js:40` | Job 把取消控制器登记进旧表，控制台控件读它 | 仍走 | 保留例外：控制适配（S6-5 改读内核） |
 | `lib/job-control.js:43`（`setInterval`） | 暂停边界轮询 | 仍走 | 保留例外：控制适配（S6-5） |
 | `lib/contexts/generation/translation-jobs.js:132-134` | 旧翻译卡运行 | 不走（`:38,124` 分派） | S6-2 删除 |
+| `lib/contexts/materials/classify-jobs.js`（`ownWork`、`jobs.set`、`generationControllers.set`） | 资料 AI 智能分类（`source.folder.classify`）与课程归属整理（`source.organize.start`）后台任务及其取消控制器（经 `host-model` 在冷面板与活跃对话下优先唤起 `study-worker` 子代理并记录步骤/流式输出，不可用时自动回退直连） | 仍走 | 保留例外：领域结构（#1181） |
 | `lib/contexts/materials/translation-operations.js:30`（`inflight`） | 读者翻译调用的取消句柄 | 仍走 | 保留例外：领域结构 |
 
 ### 3.4 为你定制、每日总结、学习流、助教、笔记
@@ -170,8 +171,10 @@
 | `lib/workflow-teaching.js:115` | 不走（`workflow` 打开后由 Job 执行） | S6-2 删除 | 进程内讲解调用 |
 | **新增** `lib/contexts/authoring/publication.js:87` | 仍走（学习者或助手自己调 `draft.publish` 的那次审阅） | 保留例外：即时请求（`draft.publish.review`，经 `lib/runtime/instant.js`：用量记一次、`instant-text` 租约，S3-6d）；任务里的审阅走网关（`a.ask`）或随旧任务的 `startLegacy` 在 S6-2 删除 | 发布前审阅，随 `draft.publish` |
 | **新增** `lib/contexts/generation/operations.js:161` | 仍走 | `generate.suggest` 即时请求（例外）；`draft.repair` 的模型调用已搬到 `draft-repair.js`，经网关一步（S3-5） | |
+| **新增** `lib/contexts/materials/classify-jobs.js`、`lib/contexts/materials/course-suggest.js` | 仍走 | 例外：共享流水线 | 资料 AI 智能分类（`source.folder.classify`）与课程归属整理（`source.organize.start` / `source.organize.suggest`）经注入宿主模型路由运行（#1181） |
 | **新增→已更新** `lib/contexts/notes/note-generation.js` | 仍走 | 例外：共享流水线 | S4-10 把 `note.generate` 的模型调用抽到这里，模型由调用方传入（网关步骤 `note:1`） |
 | **新增** `lib/contexts/recording/operations.js:54` | 仍走 | 例外：即时请求 | `capture` 的宿主模型调用 |
+| **新增** `lib/contexts/study/card-terms.js:90` | 仍走 | 例外：共享流水线 | `card.terms` 即时提取候选生词，模型由调用方传入（经 `lib/runtime/instant.js` 计量） |
 | **新增** `lib/contexts/study/operations.js:134` | 仍走 | 例外：即时请求 | `card.grade` |
 
 ## 5. 发现的缺口（本步不修，登记并给出去向）

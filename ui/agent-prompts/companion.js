@@ -67,3 +67,61 @@ export function companionAskPrompt(
     ],
   };
 }
+
+/**
+ * 'companion.rescue': Zero-key fallback from WrongBook stubborn card when StudyHub has no generation model configured.
+ * Guides DSH main chat (`study-companion`) to compile and mount a 3-4 slide `mode: "rescue"` interactive experiment
+ * via `companion.compile` linked back to `targetCardIds`.
+ */
+export function companionRescuePrompt(
+  {
+    course = '',
+    deckId = '',
+    cardId = '',
+    cardIds = [],
+    hid = '',
+    topic = '',
+    prompt = '',
+    yourAnswer = '',
+    correctAnswer = '',
+  } = {},
+  language = getUiLanguage(),
+) {
+  const cleanCourse = String(course || '').trim();
+  const cleanDeck = String(deckId || '').trim();
+  const cleanCard = String(cardId || '').trim();
+  const cleanCardIds = Array.isArray(cardIds)
+    ? [...new Set(cardIds.map(id => String(id || '').trim()).filter(Boolean))].slice(0, 6)
+    : [];
+  const cleanHid = String(hid || '').trim();
+  const cleanTopic = String(topic || '').trim();
+  const cleanPrompt = String(prompt || '').trim();
+  const cleanYourAnswer = String(yourAnswer || '').trim();
+  const cleanCorrectAnswer = String(correctAnswer || '').trim();
+  const ask = cleanCourse
+    ? say(language, '帮我为课程 {0} 的这道顽固错题做一个 3–4 页交互急救实验，直接挂载回这道题。', [nameData(cleanCourse)])
+    : say(language, '帮我为这道顽固错题做一个 3–4 页交互急救实验，直接挂载回这道题。');
+  const ref = cleanDeck || cleanCard || cleanCardIds.length || cleanHid
+    ? JSON.stringify({
+        ...(cleanDeck ? { deckId: cleanDeck } : {}),
+        ...(cleanCardIds.length > 1 ? { targetCardIds: cleanCardIds } : (cleanCard ? { cardId: cleanCard } : (cleanCardIds.length === 1 ? { cardId: cleanCardIds[0] } : {}))),
+        ...(cleanHid ? { hid: cleanHid } : {}),
+      })
+    : '';
+  const questionBlock = [cleanTopic ? `[${cleanTopic}]` : '', cleanPrompt].filter(Boolean).join(' ');
+  return {
+    ask,
+    notes: [
+      say(language, '规范：先用 study_workspace 读 library.context {"area":"companions"}，再用 card.get 读取这道题的完整题干、解析与引用原文。'),
+      say(language, '编排：按 studyhub-lesson/1（mode: "rescue"）设计 3–4 页急救舞台：第 1 页 predict 紧扣我选错的思路，第 2 页用 sandbox、matrix、schematic 或 lanes 配 reveal 演示机理，有可指认的错误步骤时补第 3 页 spot，末页放 1 道换情境边界 quiz。'),
+      say(language, '挂载：直接调用零密钥 companion.compile（带上 mode: "rescue"、targetCardIds 与对应的 hid），挂载完成后告诉我回到错题本这一行直接打开。'),
+    ],
+    data: [
+      ['目标课程', cleanCourse],
+      ['题库定位', ref],
+      ['顽固错题', questionBlock],
+      ['上次选错的答案', cleanYourAnswer],
+      ['正确答案', cleanCorrectAnswer],
+    ],
+  };
+}

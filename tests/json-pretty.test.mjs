@@ -13,7 +13,7 @@ const review = {
   ],
   coverage: { targets: ['t1', 't2'], missing: [], ratio: 0.75, empty: {}, none: [] },
   ok: false,
-  note: 'Escapes: \\ backslash, \" quote, \n newline, \u4e2d unicode.',
+  note: 'Escapes: \\ backslash, " quote, \n newline, \u4e2d unicode.',
 };
 const compact = JSON.stringify(review), indented = JSON.stringify(review, null, 2);
 const strip = (value) => value.replace(/\s+/g, '');

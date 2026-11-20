@@ -100,10 +100,17 @@ test('a course name said whole draws no hover card, so a shut row with a course 
   assert.ok(one, 'one row');
   assert.doesNotMatch(one, /role="tooltip"/, 'no hover card on a name that is not cut');
   assert.ok(elements(one) <= 16, `a shut row with a course drew ${elements(one)} elements`);
-  // round 11: a course with a figure and a 「 · 」 part is cut on whole words, with one word box more than round 8 at most
+  // round 11: a course with a figure and a 「 · 」 part is cut on whole words, with one word box more than round 8 at most; round 14: and the course said
+  // once more, out of sight, for the checkbox's name (below), so such a row draws one element more than any other shut row
   const figured = rowOf(renderToStaticMarkup(h(SourcePicker, { sources: [1, 2, 3].map(n => page(n, ['分布式系统与网络协议（2026 秋季学期 · 周三晚班）'])), selected: [], onChange: noop })));
   assert.ok(figured, 'one row with a figured course');
-  assert.ok(elements(figured) <= 16, `a shut row with a figured course drew ${elements(figured)} elements`);
+  assert.ok(elements(figured) <= 17, `a shut row with a figured course drew ${elements(figured)} elements`);
+  // round 14 (rv33): the checkbox's name took that course from an aria-label on a plain <span>, which ARIA 1.2 prohibits (a generic element has no name).
+  // The course is said once as written, in text of its own the checkbox's name reads, and its drawn words (boxed: 「协议 （2026」) are hidden from it.
+  assert.doesNotMatch(figured, /<span[^>]*\saria-label=/, 'no aria-label on a span');
+  assert.match(figured, /data-name="first"[^>]*aria-hidden="true"|aria-hidden="true"[^>]*data-name="first"/, 'the drawn words are hidden from the checkbox\'s name');
+  assert.equal((figured.match(/>· 分布式系统与网络协议（2026 秋季学期 · 周三晚班）</g) || []).length, 1, 'the course is said once, whole, as one run of text');
+  assert.ok(elements(figured) <= elements(one) + 2, `a figured course draws two elements more than a plain one at most (${elements(figured)} vs ${elements(one)})`);
   const three = rowOf(renderToStaticMarkup(h(SourcePicker, { sources: [1, 2, 3].map(n => page(n, ['分布式系统与网络协议', 'Course 2', 'Course 3'])), selected: [], onChange: noop })));
   assert.match(three.replace(/<[^>]+>/g, ''), /PDF · 3 页 · \S+ 字符 · 分布式系统与网络协议 · Course 2 · Course 3/, 'the facts read as one line of words, every course in them');
   assert.ok(elements(three) <= 18, `a shut row with three courses drew ${elements(three)} elements`);

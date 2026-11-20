@@ -112,10 +112,37 @@ export function timingRows(stats) {
 }
 export const timingText = (stats) => joinRows(timingRows(stats));
 
+/** Compact cache-hit summary for one step, stage or call (no currency/price). Empty when no prompt input was metered. */
+export function compactCacheSummary(usage) {
+  if (!usage) return '';
+  const hit = cacheHitPercent(usage);
+  if (hit === null) return '';
+  const read = Number(usage.cacheReadTokens) || 0;
+  const write = Number(usage.cacheWriteTokens) || 0;
+  if (read > 0 && write > 0) return uiFormat('缓存命中 {0}%（读 {1} / 写 {2}）', [hit, formatCompactTokens(read), formatCompactTokens(write)]);
+  if (read > 0) return uiFormat('缓存命中 {0}%（读 {1}）', [hit, formatCompactTokens(read)]);
+  if (write > 0) return uiFormat('缓存命中 {0}%（写 {1}）', [hit, formatCompactTokens(write)]);
+  return uiFormat('缓存命中 {0}%', [hit]);
+}
+
+function ranAsSubagent(job) {
+  const mode = job?.execution?.mode || job?.contract?.execution?.mode;
+  if (mode === 'subagent') return true;
+  if (mode === 'direct') return false;
+  const items = [
+    ...(Array.isArray(job?.steps) ? job.steps : []),
+    ...(Array.isArray(job?.calls) ? job.calls : []),
+    ...(Array.isArray(job?.contract?.calls) ? job.contract.calls : []),
+    ...(Array.isArray(job?.tasks) ? job.tasks : []),
+  ];
+  const runners = items.map((item) => item?.runtime || item?.runner).filter((runner) => runner === 'subagent' || runner === 'direct');
+  return runners.length > 0 && runners.some((runner) => runner === 'subagent');
+}
+
 /**
  * What a finished job should say about its own numbers: when it used more than its estimate's upper bound, and when no
- * call read from the cache. Each helper of a run is its own one-off DSH session, so calls do not share a cache with each
- * other; the estimate does not count on one either. Empty when there is nothing unusual to say.
+ * call read from the cache. Subagent runs explain session isolation; direct runs explain real provider-cache causes.
+ * Empty when there is nothing unusual to say.
  */
 export function usageNotes(job) {
   const usage = job?.tokenUsage, estimate = job?.estimate, notes = [];
@@ -123,8 +150,11 @@ export function usageNotes(job) {
   const total = totalTokens(usage), high = estimate?.totalTokens?.high;
   if (high > 0 && total > high)
     notes.push(uiFormat('实际用量超出了预计上限（多 {0}%）。预计只按提示词本身估算；模型实际的分词、推理和出错重试会让它偏高。', [Math.round((total / high - 1) * 100)]));
-  if (usage.calls > 1 && promptTokens(usage) > 0 && !(usage.cacheReadTokens > 0))
-    notes.push(ui('这次没有命中缓存：每个出题、审阅步骤都是各自独立的会话，彼此不共享缓存；预计用量本来就不指望缓存。'));
+  if (usage.calls > 1 && promptTokens(usage) > 0 && !(usage.cacheReadTokens > 0)) {
+    notes.push(ranAsSubagent(job)
+      ? ui('这次没有命中缓存：每个出题、审阅步骤都是各自独立的会话，彼此不共享缓存；预计用量本来就不指望缓存。')
+      : ui('这次没有命中缓存：可能是当前模型服务商未启用或未上报提示词缓存、共享前缀未达到最低缓存阈值，或缓存已过期；预计用量本来就不指望缓存。'));
+  }
   return notes;
 }
 

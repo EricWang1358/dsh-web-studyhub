@@ -21,6 +21,7 @@ import WrongBook from '../WrongBook.jsx';
 import DailyPlan, { RelatedTasks } from '../DailyPlan.jsx';
 import Sources from '../Sources.jsx';
 import { keepBook } from '../book/model.js';
+import { keepOutline } from '../outline/model.js';
 import CrunchCard from '../book/CrunchCard.jsx';
 import WeeklyCard from '../book/WeeklyCard.jsx';
 import BookInlineRun from './modals/BookInlineRun.jsx';
@@ -44,6 +45,7 @@ import { qaToNoteArgs, questionNoteCourse, questionNoteRef, questionNoteTitle } 
 import { appendFocus } from '../generate-form.js';
 import { retryForm, retryNotice } from './retry-generation.js';
 import { practiseRound } from './practise-round.js';
+import { openCompanionTarget } from '../companions/companion-ref.js';
 
 /* One adapter per page: the registry (ui/pages.js) names the page, this file maps it to the component and says which of the app's
    state and verbs the component is given. A page owned by someone else keeps its props; the adapter is the only place that knows them. */
@@ -296,7 +298,23 @@ function OutlineView() {
   };
   // 打开书页: the 复习全书 of the course, at the point the learner opened (its 总纲 key), or where they were in it.
   const onOpenBook = (key) => { keepBook(data.root, data.focus?.course ?? null, { target: key || null }); nav.navigate('book'); };
-  return <CourseOutline key={`${data.root}:${data.focus?.course}`} data={data} onBack={() => nav.navigate('library')} onCreate={() => intents.goGenerate()}
+  const onGoGenerateTopic = (topic) => {
+    const course = data.focus?.course;
+    intents.goGenerate({
+      genPatch: (cur) => ({
+        ...cur,
+        ...(course ? { course } : {}),
+        ...(topic ? { focus: appendFocus(cur.focus, topic) } : {}),
+      }),
+      remember: true,
+    });
+  };
+  const fromReview = learn.hasTrail && learn.trailPage === 'review';
+  return <CourseOutline key={`${data.root}:${data.focus?.course}`} data={data}
+    backLabel={fromReview ? learn.trailLabel : undefined}
+    onBack={fromReview ? learn.returnFromContext : () => nav.navigate('library')}
+    onCreate={() => intents.goGenerate()}
+    onGoGenerateTopic={onGoGenerateTopic}
     onOpenSources={pageAvailable(data, 'sources') ? () => nav.navigate('sources') : undefined} onPractice={onPractice} onOpenTask={nav.show.task}
     onOpenSource={(id, quote) => learn.openLearningTarget({ kind: 'source', id, quote })} onOpenBook={onOpenBook} />;
 }
@@ -325,7 +343,10 @@ function BookView() {
   }, [data.root, data.focus?.course, intents, learn]);
   // A mock paper started in the book (M7) is the ordinary exam; its way back is the book.
   const onExamRun = (run) => { learn.rememberContext(learn.captureContext()); session.enterRun(run); };
-  return <BookPage key={`${data.root}:${data.focus?.course}`} data={data} theme={shell.resolvedTheme} onBack={() => nav.navigate('outline')} onPractice={onPractice} inlinePractice={inlinePractice} onOpenTask={nav.show.task}
+  const fromReview = learn.hasTrail && learn.trailPage === 'review';
+  return <BookPage key={`${data.root}:${data.focus?.course}`} data={data} theme={shell.resolvedTheme} onBack={() => nav.navigate('outline')}
+    backLabel={fromReview ? learn.trailLabel : ''} onReturnBack={fromReview ? learn.returnFromContext : undefined}
+    onPractice={onPractice} inlinePractice={inlinePractice} onOpenTask={nav.show.task}
     onCreate={() => intents.goGenerate()} onOpenSource={(id, quote) => learn.openLearningTarget({ kind: 'source', id, quote })} onExamRun={onExamRun}
     onCourseSettings={settingsEntry.setCourseSettings} onBuildIndex={(name) => openIndexBuilder(settingsEntry.openSettings, name)} holdLeave={nav.holdLeave} />;
 }
@@ -402,9 +423,43 @@ function DraftView() {
 
 /** Settings reads the services from useStudy() and its panes draw the binding panel, the course list and the sample controls themselves. */
 function SettingsView() {
-  const { data, language, core, shell, lib, nav, set, tour, settingsEntry, resetLibraryState } = useApp();
+  const { data, language, core, shell, lib, nav, set, tour, settingsEntry, resetLibraryState, learn, session } = useApp();
   const { call, setError, notify } = core;
   const { appearance, updateAppearance } = shell;
+  async function openProfileRef(ref) {
+    if (!ref || typeof ref !== 'object') return;
+    if (ref.kind === 'card' && ref.deckId && ref.cardId) {
+      await learn.openLearningTarget({ kind: 'card', deckId: ref.deckId, cardId: ref.cardId });
+      return;
+    }
+    if (ref.kind === 'hid' && ref.hid && pageAvailable(data, 'book')) {
+      await openReviewCoursePage({
+        place: { course: ref.course }, data, core, session, learn, nav, targetPage: 'book',
+        prepare: (targetCourse) => keepBook(data?.root, targetCourse, { target: ref.hid }),
+      });
+      return;
+    }
+    if (ref.kind === 'companion' && ref.companionId) {
+      let matchedCourse = '';
+      let matchedTitle = '';
+      for (const courseItem of data?.courses || []) {
+        const hit = (courseItem?.companions || []).find((item) => item?.id === ref.companionId);
+        if (hit) {
+          matchedCourse = courseItem.name || '';
+          matchedTitle = hit.title || '';
+          break;
+        }
+      }
+      openCompanionTarget(set.setModal, {
+        companionId: ref.companionId,
+        ...(ref.slide >= 1 ? { slide: ref.slide } : {}),
+        ...(matchedCourse ? { course: matchedCourse } : {}),
+        ...(matchedTitle ? { companionTitle: matchedTitle } : {}),
+        returnLabel: ui('返回设置'),
+        from: 'settings',
+      });
+    }
+  }
   async function exportData() {
     try {
       const backup = await call('export');
@@ -424,7 +479,7 @@ function SettingsView() {
   return (
     <Settings data={data} nav={nav} settings={lib.settings} setSettings={set.setSettings}
       legacy={settingsEntry.legacy} setLegacy={settingsEntry.setLegacy}
-      exportData={exportData}
+      exportData={exportData} onOpenRef={openProfileRef}
       appearance={{ language, onLanguage: setUiLanguage, ...appearance, onTheme: shell.setTheme,
         onScience: (value) => shell.setSciencePrefs(normalizeScienceSettings(value)),
         onMotion: (value) => updateAppearance({ motion: value }),
@@ -447,6 +502,18 @@ function SettingsView() {
           : ui('学习库已恢复。原数据已自动保存到当前学习库的 backups 文件夹。'), tone: 'success', persistent: true });
       }} />
   );
+}
+
+export async function openReviewCoursePage({ place, data, core, session, learn, nav, targetPage, prepare }) {
+  if (await session.flushDraft?.() === false) return;
+  const previousCourse = data?.focus?.course ?? null;
+  const targetCourse = typeof place?.course === 'string' ? place.course : previousCourse;
+  const switched = typeof place?.course === 'string' && place.course !== previousCourse;
+  const origin = learn.captureContext(switched ? { course: previousCourse, courseSwitched: true } : {});
+  if (switched && !await core.act('focus.set', { course: place.course })) return;
+  learn.rememberContext(origin);
+  prepare(targetCourse);
+  nav.navigate(targetPage);
 }
 
 function ReviewView({ feedback }) {
@@ -475,6 +542,21 @@ function ReviewView({ feedback }) {
     onSaveQaToNote: (followupId) => core.act('note.qa.add', qaToNoteArgs(run, followupId, data?.decks), undefined, { rethrow: true }),
     onMakeTask: learn.openBoardWithContext,
     openSkeleton: (id) => learn.openLearningTarget({ kind: 'skeleton', id }),
+    onOpenOutline: pageAvailable(data, 'outline') ? async (place) => {
+      const target = place?.chapter?.key || place?.document?.key || place?.leaf?.key || '';
+      if (!target) return;
+      await openReviewCoursePage({
+        place, data, core, session, learn, nav, targetPage: 'outline',
+        prepare: (targetCourse) => keepOutline(data?.root, targetCourse, { target, leafKey: place?.leaf?.key || null }),
+      });
+    } : undefined,
+    onOpenBookSection: pageAvailable(data, 'book') ? async (place) => {
+      if (!place?.leaf?.built || !place?.leaf?.key) return;
+      await openReviewCoursePage({
+        place, data, core, session, learn, nav, targetPage: 'book',
+        prepare: (targetCourse) => keepBook(data?.root, targetCourse, { target: place.leaf.key }),
+      });
+    } : undefined,
     onReturnToReading: learn.returnToReading,
   };
   return (
@@ -488,12 +570,13 @@ function ReviewView({ feedback }) {
 }
 
 function NotesView() {
-  const { data, nav, lib, set, shell, learn, settingsEntry } = useApp();
+  const { data, nav, lib, set, shell, learn, settingsEntry, intents, session } = useApp();
   return (
     <BlogNotes key={data.root} data={data} theme={shell.resolvedTheme} onModelSettings={settingsEntry.openModelSettings}
       onRecapSettings={() => { learn.rememberContext(learn.captureContext()); settingsEntry.setSettingsFocus('settings-daily-recap'); nav.show.page('settings'); }}
       initialId={lib.noteInitialId} onSelect={set.setNoteInitialId} onOpenCard={(reference) => learn.openLearningTarget({ kind: 'card', ...reference })}
       onOpenSource={(id, quote) => learn.openLearningTarget({ kind: 'source', id, quote })}
+      onPracticeCards={pageAvailable(data, 'review') ? (scope) => practiseRound({ intents, learn, session }, scope) : undefined}
       backLabel={learn.trailLabel} onBack={learn.hasTrail ? learn.returnFromContext : () => { set.setNoteInitialId(''); nav.navigate('library'); }} />
   );
 }

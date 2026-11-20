@@ -42,7 +42,7 @@ async function reopen(t, crashed) {
   t.after(async () => { await service.dispose(); if (previous === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = previous; });
   return service;
 }
-const lettersOf = async (service, batchId) => (await service.store.read()).inbox.filter(item => ['audio-result', 'audio-failed'].includes(item.kind)).map(item => item.kind);
+const lettersOf = async (service, _batchId) => (await service.store.read()).inbox.filter(item => ['audio-result', 'audio-failed'].includes(item.kind)).map(item => item.kind);
 const rowsOf = async service => (await service.call('snapshot')).jobs.map(job => ({ id: job.id, status: job.status, retry: job.contract?.actions?.retry?.available ?? job.retryable, sourceIds: job.sourceIds }));
 
 test('a batch the older version finished is a finished card after rolling forward, and its runtime record is not touched', async t => {

@@ -12,6 +12,7 @@ import { usePolling } from './use-polling.js';
 import InstallStages from './install/InstallStages.jsx';
 import LocationChooser from './install/LocationChooser.jsx';
 import { HandOff } from './hand-off/HandOff.jsx';
+import { hasChatHost } from './hand-off/use-hand-off.js';
 import { DiagnosticBar } from './install/DiagnosticActions.jsx';
 import { SETUP_FAILED_WHAT, mineruDiagnostic } from './install/install-diagnostics.js';
 import css from './mineru-install.css';
@@ -50,6 +51,7 @@ export default function MineruInstallCard({ call: given, compact = false, onOpen
   // `call` is the page's when it hands one (Settings, previews); inside the app the card asks the host itself (ui/study-context.jsx).
   const services = useContext(StudyServicesContext), call = given || services?.call;
   const toast = useToast(), study = useStudy(), pick = pickDirectory || study.host?.pickDirectory;
+  const canChat = hasChatHost(study.host);
   const usable = typeof call === 'function';
   const { local, setLocal } = useMineruState({ call, initialLocal, enabled: usable });
   const [working, setWorking] = useState(''), [error, setError] = useState('');
@@ -156,7 +158,7 @@ export default function MineruInstallCard({ call: given, compact = false, onOpen
   };
   // `ours`: the failure is StudyHub's own install's (its unfinished install, or the MinerU it installed); another MinerU's folders are never changed (#942 M1).
   const ours = shown.origin === 'install' || !view?.origin || view.origin === 'installed';
-  const failure = shown.state === 'error' ? { context: { attempts: install?.attempts || 1, source: install?.source?.id || plan?.source?.id, external: !!view?.external, origin: shown.origin, ours,
+  const failure = shown.state === 'error' ? { context: { attempts: install?.attempts || 1, source: install?.source?.id || plan?.source?.id, external: !!view?.external, origin: shown.origin, ours, canChat,
     linked: (shown.origin === 'install' ? install?.homeLinked : view?.lastError?.linked) || 0 } } : null;
   if (failure) failure.action = fixFor(shown.code, failure.context);
 
@@ -291,7 +293,7 @@ export default function MineruInstallCard({ call: given, compact = false, onOpen
   else if (failure) {
     const { action, context } = failure;
     // One hint: what the change of tier keeps, or the failure's own hint and, after the same fix failed, what to try next.
-    const said = changeLine || [errorHint(shown.code, context), retryNote({ action, failedTimes, menu: !!menu })].filter(Boolean).join(' ');
+    const said = changeLine || [errorHint(shown.code, context), retryNote({ action, failedTimes, menu: !!menu, canChat })].filter(Boolean).join(' ');
     const diagArgs = { view, install, plan, shown, summary: errorReason(view, shown.code, shown.origin), stageLabel: install?.stage ? stageName(install.stage) : '' };
     const button = changeButton || <Button variant="primary" icon={action.icon} busy={['start', 'service', 'recheck'].includes(working)} disabled={!!working}
       onClick={() => void pressFix(action)}>{action.label}</Button>;
@@ -321,14 +323,15 @@ export default function MineruInstallCard({ call: given, compact = false, onOpen
   const more = !compact && <Disclosure summary={ui('更多')} className="mineru-install__more" open={moreOpen} onToggle={setMoreOpen}>
     {moreOpen && <div className="mineru-install__more-body">
       <RadioCardGroup legend={ui('模型档位')} className="mineru-install__choices">
-        <RadioCard name="mineru-install-tier" value="basic" checked={chosenTier === 'basic'} onSelect={setTier} disabled={!!working} title="basic"
-          hint={ui('模型约 0.8 GB · 每页约 1.6 秒（估算）')} />
-        <RadioCard name="mineru-install-tier" value="standard" checked={chosenTier === 'standard'} onSelect={setTier} disabled={!!working} title="standard"
+        <RadioCard name="mineru-install-tier" value="basic" checked={chosenTier === 'basic'} onSelect={setTier} disabled={!!working} title={ui('basic · 速度优先（推荐）')}
+          hint={ui('模型约 0.8 GB · 每页约 1.6 秒（估算）· 适合以文字、公式、表格为主的教材与讲义')} />
+        <RadioCard name="mineru-install-tier" value="standard" checked={chosenTier === 'standard'} onSelect={setTier} disabled={!!working} title={ui('standard · 复杂版面更准')}
           badges={ram !== null && ram < 16 ? <Badge size="sm" tone="warning">{ui('内存可能不够')}</Badge> : null}
-          hint={uiFormat('模型约 2 GB · 每页约 2.5 秒（估算）· 建议 16 GB 内存（这台电脑 {0} GB）', [ram ?? '?'])} />
+          hint={uiFormat('模型约 2 GB · 每页约 2.5 秒（估算）· 复杂多栏版面理解更好，建议 16 GB 内存（这台电脑 {0} GB）', [ram ?? '?'])} />
       </RadioCardGroup>
       {installed && installedTier && chosenTier !== installedTier && <div className="mineru-install__row">
         <Button variant="secondary" busy={working === 'start'} disabled={!!working} onClick={() => void start({ tier: chosenTier, location: installedFolder })}>{uiFormat('换成 {0} 档', [chosenTier])}</Button>
+        <Hint as="span">{ui('旧档模型会留在磁盘上，卸载本机 MinerU 时会一并清理。')}</Hint>
       </div>}
       <RadioCardGroup legend={ui('下载源')} className="mineru-install__choices">
         <RadioCard name="mineru-install-source" value="auto" checked={!source || source === 'auto'} onSelect={() => setSource('')} disabled={!!working} title={ui('自动（推荐）')}

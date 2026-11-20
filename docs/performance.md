@@ -205,12 +205,35 @@ Not measured: a real library, a real DSH window, memory, and `scripts/qa/page-sw
 - `mineru.local.status` took 8.6-10.3 s on this Windows machine when Settings opened (probing a local MinerU install). It is MinerU code being changed elsewhere and was only observed.
 - `review.answer` still copies and rewrites every deck (a `decks: 'all'` hint): ~0.9 MB parsed, ~100 ms. A precise hint (the answered deck plus its prerequisite decks) would cut it; the click is already 1.7x faster and its snapshot 5.6x.
 - Client bundle (`npm run build`: 3.45 MB in 27 files; `client.workspace` 1.0 MB, KaTeX 628 KB, the English dictionary 563 KB load at start): KaTeX and the dictionary are candidates for lazy loading but sit in the reader and i18n code. The preview's `dist/app.js` is 6.7 MB unminified.
-- `content-visibility: auto` on source rows was rejected: its paint containment would clip the row's "more" menu and the new-import glow. The sources page with every group expanded was 6 155 nodes then; since #900 a group draws its rows in chunks (see above).
+- `content-visibility: auto` on source rows was first rejected (its paint containment would clip the row's "more" menu and the new-import glow) and is on since 2026-11-18: the glow is gone, and the containment is lifted while the pointer or the focus is in a row and while its menu is open (`ui/sources.css`, `source-doc--menu`). See "Page switches, 2026-11-18" below.
 - A second hour-long growth run: the 10-minute loops show a flat heap, not a proof for a day.
 
 ## UI smoothness: how to measure it (2.5.5)
 
-- `node scripts/qa/ui-motion.mjs --production` records frame times (requestAnimationFrame deltas), long tasks and the share of frames over 24 ms for the everyday interactions on a seeded heavy library (`--sources 300` by default): opening each page, going through a review (flip, next), opening the reader, scrolling the **Sources** list. `--production` rebuilds `dist/` with React's production build first (the development build validates every prop and is several times slower: never judge speed on it); run `node scripts/build.mjs` afterwards to get the development preview back.
-- `node scripts/qa/ui-profile.mjs --page generate --production` is the companion: a CPU profile of a few visits to one page, printed as the functions with the most self time (says WHY, where ui-motion says WHICH).
+- `node scripts/qa/ui-motion.mjs --production` records frame times (requestAnimationFrame deltas), long tasks and the share of frames over 24 ms for the everyday interactions on a seeded heavy library (`--sources 300` by default): opening each page, going through a review (flip, next), opening the reader, scrolling the **Sources** list. With `--production` the harness builds the bundle it serves with React's production build (the development build validates every prop and is several times slower: never judge speed on it); the repository's `dist/` is left alone. Until 2026-11-18 the flag rebuilt `dist/` that way and then measured the harness's own development bundle, so numbers recorded with it before that date are development-build numbers.
+- `node scripts/qa/ui-profile.mjs --page generate --production` is the companion: a CPU profile of a few visits to one page, printed as the functions with the most self time (says WHY, where ui-motion says WHICH). Its production bundle keeps its names (`--readable true`, the default here; `page-switch-perf.mjs` takes the same flag to name the code behind a forced layout).
 - Headless Chromium has no GPU compositor, so absolute numbers are pessimistic and noisy (a few ms either way); compare before and after on the same machine.
 - 2.5.5, production build, 300 materials, three visits per page: long tasks while opening Create deck 4 (259 ms) before and 1 (85 ms) after the page entrance became one animated block instead of a staggered layer per block; Sources 1 (59 ms) before, 0 after; review flip/next, reader open and list scroll showed no long tasks before or after.
+
+### Page switches, 2026-11-18
+
+`node scripts/qa/page-switch-perf.mjs --widths 1440 --rounds 3 --production true --sources 300 --trace true`, one run before and one after on the same machine (headless Chromium, 21 switches over 7 pages):
+
+| | before | after |
+|---|---|---|
+| long tasks | 16, 1948 ms | 13, 996 ms |
+| worst frame entering Sources | 208 ms | 125 ms |
+| worst frame entering Create deck | 325 ms | 167 ms |
+| script time | 2814 ms | 2221 ms |
+| forced layout (trace) | 1270 ms | 340 ms |
+| press to next frame, median | 15.7 ms | 12.0 ms |
+
+What changed:
+
+- Sources rows far from the window are not laid out (`content-visibility: auto`). One layout of the 38 drawn rows was 82-88 ms of the 136-150 ms task that opens the page; it is 12-16 ms now, and the rows on screen are styled in a second, shorter task.
+- A segmented control measured its items after writing the thumb's size (four layouts per placement), and did so in every render. It reads first, and with a resize observer only a newly chosen item is placed during the commit.
+- The sidebar highlight read `offsetTop` in a layout effect on every page change, and the number on Sources was counted in every render of the sidebar. The observer measures the highlight now, and the count is once per snapshot.
+
+What this did not change: moving a forced layout out of an effect only helps where it removes a layout. A new page needs one layout whoever asks for it first, so after the first fix the same 80-120 ms showed up under the next reader (`use-narrow`, then the auto-height of the focus box). The long tasks that remain on these two pages are that one layout plus 40-58 ms of React rendering.
+
+Not measured: a real DSH window, a real library, 420 px (the script's sidebar locator is stale at that width), and run-to-run spread (single runs; three earlier runs during the work agreed on the direction).

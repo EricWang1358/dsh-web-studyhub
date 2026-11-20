@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from '../i18n.js';
-import { Button, Checkbox, Combobox, Disclosure, EmptyState, ErrorState, LoadingState, PageHeader, Select, TextInput, Tooltip } from '../components/index.js';
+import { Button, Checkbox, Combobox, Disclosure, EmptyState, ErrorState, LoadingState, PageHeader, SegmentedControl, Select, TextInput, Tooltip } from '../components/index.js';
 import { useStudy } from '../study-context.jsx';
 import { useInjectCss } from '../shared.js';
 import { useLiveEffect } from '../use-async.js';
@@ -10,6 +10,7 @@ import { modelReadiness } from '../generation-status.js';
 import { displayTitle } from '../../lib/document-title.js';
 import { groupSourcesByDocument } from '../../lib/source-groups.js';
 import { COVERAGE_DEFAULT, bookCoverage } from '../../lib/book-settings.js';
+import { outlineGapLens } from '../../lib/practice-settings.js';
 import OutlineTree from './OutlineTree.jsx';
 import BookSample from '../book/BookSample.jsx';
 import BookPick, { hasUnbuiltParts, unbuiltText } from './BookPick.jsx';
@@ -18,10 +19,11 @@ import { customGateOf } from '../custom-entry.js';
 import { courseNamesOf } from '../PageScope.jsx';
 import { scopeFilter } from '../SourcePicker.jsx';
 import { useHandOff } from '../hand-off/use-hand-off.js';
-import { BOOK_BUILD_KIND, bookDefaultOpen, emptyPick, filterOutline, isPicked, keepView, keptView, mainAction, outlineRows, paperChoices, pickArgs, pickCard, pickRow, runningBuild } from './model.js';
+import { BOOK_BUILD_KIND, bookDefaultOpen, clearOutlineTarget, emptyPick, filterOutline, isPicked, keepView, keptOutlineTarget, keptView, mainAction, outlineRows, outlineTargetExpandKeys, paperChoices, pickArgs, pickCard, pickRow, resolveOutlineDeckFilter, runningBuild } from './model.js';
+import { collectOutlineGapStats, filterOutlineWithLens } from './gap-lens.js';
 import CourseCompanionsBar from '../companions/CourseCompanionsBar.jsx';
 import { basisText, bookCostTipText, bookCoverageText, bookIntroText, bookScalePointsText, bookScaleTokensText, bookStartedText, bookWhatText, cappedText, courseLine, levelOptions,
-  levelsText, offerText, pickedText, readMoreStartedText, rebuildTipText, runningText, startPickedText, startedText, usedPapersText, whatText, writingText } from './words.js';
+  levelsText, offerText, pickedText, readMoreStartedText, rebuildTipText, rowTitle, runningText, startPickedText, startedText, usedPapersText, whatText, writingText } from './words.js';
 import css from './outline.css';
 
 /* 总纲 (course outline): the current course's materials as a tree (资料 → 章节) with the questions placed where they point (course.outline,
@@ -86,36 +88,90 @@ export const REBUILD_OUTLINE = Object.freeze({ rebuildOutline: true, confirm: tr
 /** 生成其余 of a waiting sample (#710): the build keeps the sample's points and writes the rest in their style. */
 export const SAMPLE_CONFIRM = Object.freeze({ sample: 'confirm' });
 
-export default function CourseOutline({ data, onBack, onCreate, onOpenSources, onPractice, onOpenTask, onOpenSource, onOpenBook }) {
+export default function CourseOutline({ data, backLabel = '', onBack, onCreate, onGoGenerateTopic, onOpenSources, onPractice, onOpenTask, onOpenSource, onOpenBook }) {
   const { call, act, notify } = useStudy();
   const course = data?.focus?.course ?? null, root = data?.root || '';
   const kept = keptView(root, course);
-  const [open, setOpen] = useState(() => new Set(kept?.open || []));
-  const [deckId, setDeckId] = useState(kept?.deckId || '');
+  const initialTarget = keptOutlineTarget(root, course);
+  const [pendingTarget, setPendingTarget] = useState(() => initialTarget);
+  const [open, setOpen] = useState(() => new Set([...(kept?.open || []), ...outlineTargetExpandKeys(initialTarget)]));
+  const [deckId, setDeckId] = useState(() => resolveOutlineDeckFilter(kept, initialTarget));
   const [filterQuery, setFilterQuery] = useState('');
   const [pick, setPick] = useState(emptyPick);
-  const scopeKeyRef = useRef(`${root}\n${course ?? ''}`);
+  const scopeRef = useRef({ root, course, key: `${root}\n${course ?? ''}` });
+  const liveScopeRef = useRef({ root, course });
+  liveScopeRef.current = { root, course };
+  const pageRef = useRef(null);
   const { outline, details, error, retry } = useOutline({ call, course, deckId, open, revision: data?.revision });
   const picked = usePicked({ call, course, deckId, pick });
   // An outline seen for the first time opens its chapters (章 open, 节 closed); the view the learner left is kept otherwise.
   const bookId = outline?.book?.id ?? null, seen = useRef(kept?.bookId ?? null);
   useEffect(() => {
     const nextScope = `${root}\n${course ?? ''}`;
-    if (scopeKeyRef.current === nextScope) return;
-    scopeKeyRef.current = nextScope;
+    if (scopeRef.current.key === nextScope) return;
+    clearOutlineTarget(scopeRef.current.root, scopeRef.current.course);
+    scopeRef.current = { root, course, key: nextScope };
     const restored = keptView(root, course);
+    const nextTarget = keptOutlineTarget(root, course);
     seen.current = restored?.bookId ?? null;
-    setOpen(new Set(restored?.open || []));
-    setDeckId(restored?.deckId || '');
+    setPendingTarget(nextTarget);
+    setOpen(new Set([...(restored?.open || []), ...outlineTargetExpandKeys(nextTarget)]));
+    setDeckId(resolveOutlineDeckFilter(restored, nextTarget));
     setFilterQuery('');
     setPick(emptyPick());
   }, [root, course]);
+  useEffect(() => () => clearOutlineTarget(liveScopeRef.current.root, liveScopeRef.current.course), []);
+  useEffect(() => {
+    if (!error || !pendingTarget) return;
+    clearOutlineTarget(root, course);
+    setPendingTarget(null);
+  }, [course, error, pendingTarget, root]);
   useEffect(() => {
     if (!bookId || seen.current === bookId) return;
     seen.current = bookId;
     setOpen(current => new Set([...current, ...bookDefaultOpen(outline.book)]));
   }, [bookId]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { keepView(root, course, { open, deckId, bookId: seen.current }); }, [root, course, open, deckId, bookId]);
+  useEffect(() => {
+    if (!pendingTarget || !outline?.book) return;
+    const needed = outlineTargetExpandKeys(pendingTarget, outline.book);
+    if (!needed.length) return;
+    setOpen(current => {
+      const next = new Set(current);
+      let added = false;
+      for (const key of needed) if (!next.has(key)) { next.add(key); added = true; }
+      return added ? next : current;
+    });
+  }, [outline?.book, pendingTarget]);
+  useEffect(() => {
+    if (!pendingTarget || !outline) return undefined;
+    if ('course' in outline && outline.course !== course) return undefined;
+    if (outline.status === 'empty') {
+      notify?.(ui('没有在总纲里找到这道题的出处'));
+      clearOutlineTarget(root, course);
+      setPendingTarget(null);
+      return undefined;
+    }
+    const needed = outlineTargetExpandKeys(pendingTarget, outline.book);
+    const parentKeys = needed.filter(key => key !== pendingTarget.target);
+    if (parentKeys.some(key => !(key in details))) return undefined;
+    if (!(pendingTarget.target in details) && open.has(pendingTarget.target)) return undefined;
+    const escapeCss = key => (typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(key) : key.replace(/"/g, '\\"'));
+    const frame = requestAnimationFrame(() => {
+      const container = pageRef.current || (typeof document !== 'undefined' ? document : null);
+      const rowEl = container?.querySelector?.(`[data-key="${escapeCss(pendingTarget.target)}"]`)
+        || (pendingTarget.leafKey ? container?.querySelector?.(`[data-key="${escapeCss(pendingTarget.leafKey)}"]`) : null);
+      if (rowEl) rowEl.scrollIntoView?.({ block: 'center' });
+      else notify?.(ui('没有在总纲里找到这道题的出处'));
+      clearOutlineTarget(root, course);
+      setPendingTarget(null);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [course, details, notify, open, outline, pendingTarget, root]);
+  const hasOutline = !!outline;
+  useEffect(() => {
+    if (pendingTarget || !hasOutline) return;
+    keepView(root, course, { open, deckId, bookId: seen.current });
+  }, [root, course, open, deckId, bookId, pendingTarget, hasOutline]);
   const organise = useCallback(async papers => {
     try {
       // The interface language goes with every request (uiLanguage), so the task speaks it without being told here.
@@ -179,11 +235,35 @@ export default function CourseOutline({ data, onBack, onCreate, onOpenSources, o
     } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
   }, [call, course, deckId, notify, onPractice]);
   const onPracticeRow = useCallback(row => practise({ keys: [row.key] }, { resume: !!row.node.resume }), [practise]);
+  const bookReady = Boolean(outline?.book?.notes);
+  const onGapHint = useCallback((row, hint) => {
+    if (!hint) return;
+    if (hint.kind === 'prereq' && hint.targetHid) {
+      if (bookReady && onOpenBook) { onOpenBook(hint.targetHid); return; }
+      const targetKey = hint.targetHid.startsWith('bk:') ? hint.targetHid : `bk:${hint.targetHid}`;
+      practise({ keys: [targetKey] }, { resume: false });
+      return;
+    }
+    if ((hint.kind === 'retell' || hint.kind === 'retell_gap')) {
+      if (bookReady && onOpenBook) { onOpenBook(row.key); return; }
+      if (row.node?.total > 0) { onPracticeRow(row); return; }
+      notify(ui('先生成复习全书后，才能在这里用自己的话讲一遍。'));
+      return;
+    }
+    if (row.node?.total > 0) { onPracticeRow(row); return; }
+    if (bookReady && onOpenBook) { onOpenBook(row.key); return; }
+    notify(ui('这个知识点还没有题，也没有生成复习全书。'));
+  }, [bookReady, notify, onOpenBook, onPracticeRow, practise]);
 
+  const gapLensEnabled = outlineGapLens(data?.settings?.practice);
   return <CourseOutlineView course={course} outline={outline} details={details} error={error} open={open} deckId={deckId} filterQuery={filterQuery} pick={pick} picked={picked}
     running={runningBuild(data?.jobs, course)} writing={runningBuild(data?.jobs, course, BOOK_BUILD_KIND)} model={modelReadiness(data)} coverage={coverage} gate={gate} bookScale={bookScale}
+    gapLensEnabled={gapLensEnabled} pageRef={pageRef}
     companionsSlot={<CourseCompanionsBar course={course || data?.focus?.course || ''} data={data} />}
-    actions={{ onBack, onCreate, onOpenSources, onOpenTask, onOpenSource, onOpenBook, organise, writeBook, readMore, setCoverage, pickScale, startCustom, gateScale, retry, toggle, onPick, onPickCard, onPracticeRow, clearPick: () => setPick(emptyPick()), practisePicked: () => practise(pickArgs(pick)),
+    actions={{ backLabel, onBack, onCreate, onOpenSources, onOpenTask, onOpenSource, onOpenBook, organise, writeBook, readMore, setCoverage, pickScale, startCustom, gateScale, retry, toggle, onPick, onPickCard, onPracticeRow, onGapHint,
+      onPracticeWeakDue: keys => practise({ keys }),
+      onGoGenerateRow: row => (onGoGenerateTopic ? onGoGenerateTopic(rowTitle(row)) : onCreate?.()),
+      clearPick: () => setPick(emptyPick()), practisePicked: () => practise(pickArgs(pick)),
       onFilterChange: setFilterQuery,
       chooseDeck: value => { setDeckId(value); setPick(emptyPick()); } }} />;
 }
@@ -284,13 +364,17 @@ function Organise({ book, documents, running, writing, model, quiet, coverage, g
  * onOpenSource(sourceId, quote), organise(papers), writeBook(papers), retry, toggle(key, open), onPick, onPickCard, onPracticeRow(row), clearPick, practisePicked,
  * chooseDeck(id).
  */
-export function CourseOutlineView({ course, outline, details = {}, error = null, open, deckId = '', filterQuery, pick, picked = null, running = null, writing = null, model = { ready: true },
-  coverage = COVERAGE_DEFAULT, gate = null, bookScale = null, companionsSlot = null, actions }) {
+export function CourseOutlineView({ course, outline, details = {}, error = null, open, deckId = '', filterQuery, gapLensEnabled = false, gapFilter, pick, picked = null, running = null, writing = null, model = { ready: true },
+  coverage = COVERAGE_DEFAULT, gate = null, bookScale = null, companionsSlot = null, pageRef = null, actions }) {
   useInjectCss(css, 'study-outline');
   const { busy } = useStudy();
   const [localQuery, setLocalQuery] = useState('');
+  const [localGapFilter, setLocalGapFilter] = useState('all');
   const activeQuery = filterQuery !== undefined ? filterQuery : localQuery;
   const setQuery = actions?.onFilterChange || setLocalQuery;
+  const activeGapFilter = gapLensEnabled ? (gapFilter !== undefined ? gapFilter : localGapFilter) : 'all';
+  const setGapFilter = actions?.onGapFilterChange || setLocalGapFilter;
+  useEffect(() => { setLocalGapFilter('all'); }, [course]);
   const filterBarRef = useRef(null);
   useEffect(() => {
     const bar = filterBarRef.current;
@@ -311,7 +395,13 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
     };
   }, [outline?.status]);
   const allRows = useMemo(() => outlineRows(outline, details, open), [outline, details, open]);
-  const filtered = useMemo(() => filterOutline(outline, details, open, activeQuery), [outline, details, open, activeQuery]);
+  const gapStats = useMemo(() => (gapLensEnabled ? collectOutlineGapStats(outline, details) : null), [gapLensEnabled, outline, details]);
+  const filtered = useMemo(
+    () => (gapLensEnabled
+      ? filterOutlineWithLens(outline, details, open, activeQuery, activeGapFilter, gapStats)
+      : filterOutline(outline, details, open, activeQuery)),
+    [gapLensEnabled, outline, details, open, activeQuery, activeGapFilter, gapStats],
+  );
   const rows = filtered.rows;
   // The chapters of a book of some chapters not built yet (#708): their rows say 未生成.
   const unbuilt = useMemo(() => new Set(outline?.book?.notes ? (outline.book.parts || []).filter(part => !part.written).map(part => part.id) : []), [outline]);
@@ -320,7 +410,7 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
     options={[{ value: '', label: ui('全部题组') }, ...outline.decks.map(deck => ({ value: deck.id, label: deck.title, hint: uiFormat('{0} 题', [deck.total]) }))]}
     searchPlaceholder={ui('搜索题组')} emptyText={query => uiFormat('没有叫「{0}」的题组', [query])} /> : null;
   const header = (
-    <PageHeader className="outline-header" back={{ label: ui('返回学习库'), onClick: actions.onBack }} title={course === null ? ui('总纲') : uiFormat('总纲 · {0}', [courseName])}
+    <PageHeader className="outline-header" back={{ label: actions?.backLabel || ui('返回学习库'), onClick: actions.onBack }} title={course === null ? ui('总纲') : uiFormat('总纲 · {0}', [courseName])}
       titleProps={{ tabIndex: -1, 'data-context-heading': true }}>
       {outline && <p className="outline-summary">
         <MasteryLine summary={outline.summary} title={courseName || ui('总纲')} />
@@ -343,7 +433,7 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
   // With an outline the book is the main action, so 创建题组 of a course without questions is the quiet one.
   const create = { label: ui('创建题组'), iconEnd: 'arrow-right', onClick: actions.onCreate };
   return (
-    <section className="page outline-page">
+    <section ref={pageRef} className="page outline-page">
       {header}
       {companionsSlot}
       {!book?.notes && outline.status === 'ok' && outline.documents.length > 0 && <p className="outline-book-intro">{bookIntroText()}</p>}
@@ -367,7 +457,7 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
       </section>}
       {nothing && <EmptyState icon="book" title={outline.status === 'empty' ? ui('还没有课程') : ui('这门课还没有题')}
         description={ui('在「创建题组」里从资料出题，题目会按资料的章节排进总纲。')} primary={book ? undefined : create} secondary={book ? create : undefined} />}
-      {(allRows.length > 0 || deckSelect || filtered.filtering) && <div ref={filterBarRef} className="outline-filter-bar" role="search" aria-label={ui('筛选总纲')}>
+      {(allRows.length > 0 || deckSelect || filtered.filtering || activeGapFilter !== 'all') && <div ref={filterBarRef} className="outline-filter-bar" role="search" aria-label={ui('筛选总纲')}>
         <TextInput type="search" className="outline-filter-bar__search" value={activeQuery} onChange={event => setQuery(event.target.value)}
           placeholder={ui('搜索章节、知识点或题目…')} aria-label={ui('搜索章节、知识点或题目')} autoComplete="off" spellCheck={false} />
         {deckSelect}
@@ -375,10 +465,30 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
           <span className="outline-filter-bar__meta" aria-live="polite">{uiFormat('共 {0} 项匹配', [filtered.matchCount])}</span>
           <Button size="sm" variant="quiet" onClick={() => setQuery('')}>{ui('清除筛选')}</Button>
         </>}
+        {gapLensEnabled && gapStats && (allRows.length > 0 || activeGapFilter !== 'all') && <div className="outline-gap-bar">
+          <SegmentedControl size="sm" label={ui('缺口筛选')} value={activeGapFilter} onChange={setGapFilter} options={[
+            { value: 'all', label: ui('全部') },
+            { value: 'weak-due', label: uiFormat('薄弱与到期 ({0})', [gapStats.weakOrDueCount]) },
+            { value: 'untested', label: uiFormat('尚无题目 ({0})', [gapStats.untestedCount]) },
+          ]} />
+          {gapStats.weakOrDueCount > 0 && actions.onPracticeWeakDue && (
+            <Button size="sm" variant="secondary" iconEnd="arrow-right" className="outline-gap-bar__practice" lock={busy}
+              onClick={() => actions.onPracticeWeakDue(gapStats.weakOrDueKeys)}>
+              {uiFormat('专练薄弱与到期 ({0} 处)', [gapStats.weakOrDueCount])}
+            </Button>
+          )}
+        </div>}
       </div>}
-      {filtered.filtering && rows.length === 0 && <p className="outline-filter-empty" role="status">{ui('没有匹配的章节或题目。')}</p>}
+      {rows.length === 0 && activeGapFilter !== 'all' && (
+        <div className="outline-filter-empty" role="status">
+          <span>{activeGapFilter === 'weak-due' ? ui('当前筛选下没有薄弱或到期的小节。') : ui('当前筛选下没有尚未出题的章节或知识点。')}</span>
+          <Button size="sm" variant="quiet" onClick={() => setGapFilter('all')}>{ui('显示全部')}</Button>
+        </div>
+      )}
+      {rows.length === 0 && activeGapFilter === 'all' && filtered.filtering && <p className="outline-filter-empty" role="status">{ui('没有匹配的章节或题目。')}</p>}
       {rows.length > 0 && <OutlineTree rows={rows} details={details} pick={pick} papers={book?.papers || 0} unbuilt={unbuilt} modelReady={model.ready} onToggle={actions.toggle} onPick={actions.onPick} onPickCard={actions.onPickCard}
-        onPractice={actions.onPracticeRow} onOpenSources={actions.onOpenSources} onOpenSource={actions.onOpenSource} onOpenBook={book?.notes ? actions.onOpenBook : undefined}
+        onPractice={actions.onPracticeRow} onGapHint={actions.onGapHint} onGoGenerateRow={gapLensEnabled ? actions.onGoGenerateRow : undefined}
+        onOpenSources={actions.onOpenSources} onOpenSource={actions.onOpenSource} onOpenBook={book?.notes ? actions.onOpenBook : undefined}
         onReadMore={actions.readMore} label={ui('总纲')} />}
       {isPicked(pick) && <div className="outline-bar" role="region" aria-label={ui('已选的题')}>
         {picked ? <span className="outline-bar__count" aria-live="polite">{pickedText(picked.total)}</span> : <LoadingState inline className="outline-bar__count" label={ui('正在计算…')} />}

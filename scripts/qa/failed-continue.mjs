@@ -132,7 +132,7 @@ export async function runContinueQa(options) {
             assert.ok(consoleView.text.includes(doing), `the console's strip says what it does: ${consoleView.text.slice(0, 600)}`);
             assert.ok(consoleView.buttons.includes(continueWord), `the console's header continues: ${consoleView.buttons}`);
             assert.ok(consoleView.buttons.includes(topUpWord), `and keeps the top-up beside it: ${consoleView.buttons}`);
-            assert.ok(!new RegExp(`${KEPT} / (?!${ASKED}\b)\d`).test(consoleView.text), "no other goal");
+            assert.ok(!new RegExp(`${KEPT} / (?!${ASKED}\\b)\\d`).test(consoleView.text), "no other goal");
             assert.ok(page2.text.includes(doing), `the draft page says it: ${page2.text.slice(0, 500)}`);
             assert.ok(page2.buttons.includes(continueWord) && page2.buttons.includes(topUpWord), `the draft page offers both: ${page2.buttons}`);
             assert.match(page2.path, new RegExp(t("^覆盖现在 \\d+/\\d+ 个小节（\\d+%）→ 本轮后约 \\d+% → 目标 100%，还要 \\d+ 轮、约 \\d+ 题$", "^Coverage now \\d+/\\d+ sections \\(\\d+%\\) → about \\d+% after this round → target 100%, \\d+ more rounds?, about \\d+ questions$")), page2.path);

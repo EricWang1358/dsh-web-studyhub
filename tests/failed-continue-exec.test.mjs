@@ -42,7 +42,7 @@ function shortLimit(t) {
   return limit;
 }
 /** A model that writes the first batch of a plain run and then waits for ever for the second (until the run is aborted): the time limit stops it with 13 of 15 kept. */
-const hangsAfterFirstBatch = (complete, service) => async (system, prompt, context = {}) => {
+const hangsAfterFirstBatch = (complete, _service) => async (system, prompt, context = {}) => {
   if (/^Prepare supported/.test(system) && /^Part [2-9]\//.test(context.stage || '') && context.signal) await new Promise((_, reject) => { context.signal.addEventListener('abort', () => reject(context.signal.reason), { once: true }); });
   return complete(system, prompt, context);
 };

@@ -209,3 +209,323 @@ test('the home: the 总纲 is a real secondary button beside the course title, a
   assert.doesNotMatch(textOf(wording), han, textOf(wording).match(/.{0,30}[㐀-鿿].{0,30}/)?.[0]);
   assert.match(textOf(wording), /Course outline Find questions by the chapters of your materials/);
 });
+
+function mountOutlineSync(Component, initialProps, overrideServices = services) {
+  const internals = React.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
+  const hooks = [];
+  const effectRecords = [];
+  let cursor = 0;
+  let dirty = false;
+  let unmounted = false;
+  let currentProps = initialProps;
+  let tree = null;
+  const sameDeps = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, i) => Object.is(v, b[i]));
+
+  const renderPass = () => {
+    if (unmounted) return tree;
+    dirty = false;
+    cursor = 0;
+    const pendingEffects = [];
+    const prevH = internals.H;
+    internals.H = {
+      useContext: ctx => (ctx === ui.StudyServicesContext ? overrideServices : ctx._currentValue),
+      useState: init => {
+        const idx = cursor++;
+        if (!(idx in hooks)) {
+          const setter = next => {
+            if (unmounted) return;
+            const prevVal = hooks[idx][0];
+            const nextVal = typeof next === 'function' ? next(prevVal) : next;
+            if (!Object.is(prevVal, nextVal)) {
+              hooks[idx][0] = nextVal;
+              dirty = true;
+            }
+          };
+          hooks[idx] = [typeof init === 'function' ? init() : init, setter];
+        }
+        return hooks[idx];
+      },
+      useRef: init => {
+        const idx = cursor++;
+        if (!(idx in hooks)) hooks[idx] = { current: init };
+        return hooks[idx];
+      },
+      useMemo: (fn, deps) => {
+        const idx = cursor++;
+        if (!(idx in hooks) || deps === undefined || !sameDeps(hooks[idx].deps, deps)) hooks[idx] = { deps, value: fn() };
+        return hooks[idx].value;
+      },
+      useCallback: (fn, deps) => internals.H.useMemo(() => fn, deps),
+      useEffect: (fn, deps) => {
+        const idx = cursor++;
+        const prev = hooks[idx];
+        if (!prev || deps === undefined || !sameDeps(prev.deps, deps)) pendingEffects.push({ idx, fn, deps });
+      },
+      useLayoutEffect: (fn, deps) => internals.H.useEffect(fn, deps),
+      useInsertionEffect: (fn, deps) => internals.H.useEffect(fn, deps),
+      useId: () => {
+        const idx = cursor++;
+        if (!(idx in hooks)) hooks[idx] = `:outline-test-${idx}:`;
+        return hooks[idx];
+      },
+      useMemoCache: size => {
+        const idx = cursor++;
+        if (!(idx in hooks)) hooks[idx] = new Array(size);
+        return hooks[idx];
+      },
+    };
+    try {
+      tree = Component(currentProps);
+    } finally {
+      internals.H = prevH;
+    }
+    for (const eff of pendingEffects) {
+      const prevRecord = effectRecords[eff.idx];
+      prevRecord?.cleanup?.();
+      const cleanup = eff.fn();
+      hooks[eff.idx] = { deps: eff.deps };
+      effectRecords[eff.idx] = { fn: eff.fn, deps: eff.deps, cleanup: typeof cleanup === 'function' ? cleanup : null };
+    }
+    return tree;
+  };
+
+  const settle = () => {
+    for (let i = 0; i < 6 && dirty && !unmounted; i += 1) renderPass();
+    return tree;
+  };
+
+  renderPass();
+  settle();
+
+  return {
+    getTree: () => tree,
+    rerender: nextProps => { currentProps = nextProps; renderPass(); return settle(); },
+    flush: async () => {
+      for (let i = 0; i < 8; i += 1) await Promise.resolve();
+      return settle();
+    },
+    simulateStrictModeDoubleEffect: () => {
+      for (const rec of effectRecords) if (rec?.cleanup) { rec.cleanup(); rec.cleanup = null; }
+      for (const rec of effectRecords) if (rec?.fn) {
+        const cleanup = rec.fn();
+        rec.cleanup = typeof cleanup === 'function' ? cleanup : null;
+      }
+      return settle();
+    },
+    unmount: () => {
+      unmounted = true;
+      for (const rec of effectRecords) if (rec?.cleanup) { rec.cleanup(); rec.cleanup = null; }
+    },
+  };
+}
+
+function withFakeRaf(fn) {
+  const prevRaf = globalThis.requestAnimationFrame;
+  const prevCaf = globalThis.cancelAnimationFrame;
+  let nextId = 1;
+  const queue = new Map();
+  globalThis.requestAnimationFrame = cb => {
+    const id = nextId++;
+    queue.set(id, cb);
+    return id;
+  };
+  globalThis.cancelAnimationFrame = id => { queue.delete(id); };
+  const flushRaf = () => {
+    const callbacks = [...queue.values()];
+    queue.clear();
+    for (const cb of callbacks) cb(0);
+  };
+  return Promise.resolve().then(() => fn(flushRaf)).finally(() => {
+    globalThis.requestAnimationFrame = prevRaf;
+    globalThis.cancelAnimationFrame = prevCaf;
+  });
+}
+
+test('outline one-shot targets expire after 15s, delete on clear/expiry, and resolveOutlineDeckFilter clears filter only when targeted (#1224, #1226)', () => {
+  assert.equal(ui.OUTLINE_TARGET_TTL_MS, 15000);
+  ui.clearOutlineTarget('/ttl', 'Databases');
+
+  ui.keepOutline('/ttl', 'Databases', { target: 'pdf:book#1', leafKey: 'bk:p1' }, 1000);
+  assert.deepEqual(ui.keptOutlineTarget('/ttl', 'Databases', 1000), { target: 'pdf:book#1', leafKey: 'bk:p1' });
+  assert.deepEqual(ui.keptOutlineTarget('/ttl', 'Databases', 16000), { target: 'pdf:book#1', leafKey: 'bk:p1' }, 'still valid at exact 15s boundary');
+  assert.equal(ui.keptOutlineTarget('/ttl', 'Databases', 16001), null, 'expired after 15s');
+  assert.equal(ui.keptOutlineTarget('/ttl', 'Databases', 1000), null, 'expired target was deleted from the in-memory map');
+
+  ui.keepOutline('/ttl', 'Databases', { target: 'pdf:book#0' }, NaN);
+  assert.equal(ui.keptOutlineTarget('/ttl', 'Databases', 1000), null, 'non-finite timestamp expires and deletes');
+
+  ui.keepOutline('/ttl', 'Databases', { target: 'pdf:book#0' }, 5000);
+  ui.clearOutlineTarget('/ttl', 'Databases');
+  assert.equal(ui.keptOutlineTarget('/ttl', 'Databases', 5001), null, 'clearOutlineTarget deletes entry');
+
+  ui.keepOutline('/ttl', 'Databases', { target: 'pdf:book#0' }, 5000);
+  ui.keepOutline('/ttl', 'Databases', { target: null }, 5001);
+  assert.equal(ui.keptOutlineTarget('/ttl', 'Databases', 5002), null, 'keepOutline with null target clears entry');
+
+  assert.equal(ui.resolveOutlineDeckFilter({ deckId: 'd1' }, { target: 'pdf:book#0' }), '');
+  assert.equal(ui.resolveOutlineDeckFilter({ deckId: 'd1' }, true), '');
+  assert.equal(ui.resolveOutlineDeckFilter({ deckId: 'd1' }, null), 'd1');
+  assert.equal(ui.resolveOutlineDeckFilter({ deckId: 'd1' }, false), 'd1');
+  assert.equal(ui.resolveOutlineDeckFilter(null, null), '');
+});
+
+test('CourseOutline resets stale deck filter on target, notifies when target row is missing (zh & en), restores filter without target, and survives React 18 StrictMode double-effect (#1224, #1226)', async () => {
+  await withFakeRaf(async (flushRaf) => {
+    const root = '/outline-target-test';
+    const course = 'Databases';
+    ui.keepView(root, course, { open: new Set(['pdf:book']), deckId: 'd1' });
+
+    // 1. Missing target row resets deckId filter to '' and notifies in Chinese and English (zero Han in English).
+    for (const [lang, expected] of [['zh', '没有在总纲里找到这道题的出处'], ['en', 'Could not find where this question is in the course outline']]) {
+      ui.setUiLanguage(lang);
+      try {
+        ui.keepView(root, course, { open: new Set(['pdf:book']), deckId: 'd1' });
+        ui.keepOutline(root, course, { target: 'pdf:missing#2' });
+        const notices = [];
+        const callArgs = [];
+        const testServices = {
+          ...services,
+          notify: value => notices.push(value),
+          call: async (action, args) => {
+            callArgs.push([action, args]);
+            if (action === 'course.outline') return { ...outline, open: {} };
+            return {};
+          },
+        };
+        const mounted = mountOutlineSync(ui.CourseOutline, {
+          data: { root, revision: 1, focus: { course }, sources: [], jobs: [], settings: {} },
+          onBack: noop, onCreate: noop, onPractice: noop,
+        }, testServices);
+        assert.equal(mounted.getTree().props.deckId, '', `${lang}: arriving with target resets deck filter`);
+        assert.equal(callArgs[0][1].deckId, undefined, `${lang}: course.outline is requested without stale deckId`);
+        await mounted.flush();
+        flushRaf();
+        await mounted.flush();
+        assert.deepEqual(notices, [expected]);
+        if (lang === 'en') assert.doesNotMatch(notices[0], han);
+        assert.equal(ui.keptOutlineTarget(root, course), null, `${lang}: target cleared after missing notice`);
+        mounted.unmount();
+      } finally {
+        ui.setUiLanguage('zh');
+      }
+    }
+
+    // 2. React 18 StrictMode double-effect clears Map on simulated cleanup, yet pendingTarget in state still scrolls when outline loads.
+    ui.keepView(root, course, { open: new Set(), deckId: 'd2' });
+    ui.keepOutline(root, course, { target: 'pdf:book#0' });
+    const scrolled = [];
+    const strictNotices = [];
+    let resolveOutline;
+    const strictServices = {
+      ...services,
+      notify: value => strictNotices.push(value),
+      call: async action => {
+        if (action === 'course.outline') {
+          return new Promise(resolve => { resolveOutline = resolve; });
+        }
+        return {};
+      },
+    };
+    const strictMounted = mountOutlineSync(ui.CourseOutline, {
+      data: { root, revision: 1, focus: { course }, sources: [], jobs: [], settings: {} },
+      onBack: noop, onCreate: noop, onPractice: noop,
+    }, strictServices);
+    assert.equal(strictMounted.getTree().props.deckId, '');
+    strictMounted.simulateStrictModeDoubleEffect();
+    assert.equal(ui.keptOutlineTarget(root, course), null, 'StrictMode cleanup cleared module map');
+    strictMounted.getTree().props.pageRef.current = {
+      querySelector: selector => (selector === '[data-key="pdf:book#0"]'
+        ? { scrollIntoView: opts => scrolled.push(opts) }
+        : null),
+    };
+    resolveOutline({
+      ...outline,
+      open: { 'pdf:book': details['pdf:book'], 'pdf:book#0': details['pdf:book#0'] },
+    });
+    await strictMounted.flush();
+    flushRaf();
+    await strictMounted.flush();
+    assert.deepEqual(scrolled, [{ block: 'center' }], 'pendingTarget state still scrolls after StrictMode effect re-run');
+    assert.deepEqual(strictNotices, [], 'no missing-target notice when row is found');
+    strictMounted.unmount();
+
+    // 3. Normal mount without target restores saved deckId filter.
+    ui.keepView(root, course, { open: new Set(['pdf:book']), deckId: 'd2' });
+    ui.clearOutlineTarget(root, course);
+    const normalMounted = mountOutlineSync(ui.CourseOutline, {
+      data: { root, revision: 1, focus: { course }, sources: [], jobs: [], settings: {} },
+      onBack: noop, onCreate: noop, onPractice: noop,
+    });
+    assert.equal(normalMounted.getTree().props.deckId, 'd2', 'normal mount without target restores saved deck filter');
+    normalMounted.unmount();
+  });
+});
+
+test('CourseOutline clears pending target on load error, early unmount, and course switch without polluting keptView (#1224, #1226)', async () => {
+  await withFakeRaf(async () => {
+    // 1. Load failure clears target and preserves prior keptView.
+    const errRoot = '/err-root';
+    ui.keepView(errRoot, 'Databases', { open: new Set(), deckId: 'd1' });
+    ui.keepOutline(errRoot, 'Databases', { target: 'pdf:book#1' });
+    const errMounted = mountOutlineSync(ui.CourseOutline, {
+      data: { root: errRoot, revision: 1, focus: { course: 'Databases' }, sources: [], jobs: [], settings: {} },
+      onBack: noop, onCreate: noop, onPractice: noop,
+    }, {
+      ...services,
+      call: async action => {
+        if (action === 'course.outline') throw new Error('outline boom');
+        return {};
+      },
+    });
+    await errMounted.flush();
+    assert.ok(errMounted.getTree().props.error, 'error state recorded');
+    assert.equal(ui.keptOutlineTarget(errRoot, 'Databases'), null, 'error clears one-shot target');
+    assert.deepEqual(ui.keptView(errRoot, 'Databases'), { open: [], deckId: 'd1' }, 'failed load does not overwrite keptView');
+    errMounted.unmount();
+
+    // 2. Unmount before load settles clears target and preserves prior keptView.
+    const abortRoot = '/abort-root';
+    ui.keepView(abortRoot, 'Databases', { open: new Set(), deckId: 'd2' });
+    ui.keepOutline(abortRoot, 'Databases', { target: 'pdf:book#1' });
+    const abortMounted = mountOutlineSync(ui.CourseOutline, {
+      data: { root: abortRoot, revision: 1, focus: { course: 'Databases' }, sources: [], jobs: [], settings: {} },
+      onBack: noop, onCreate: noop, onPractice: noop,
+    }, {
+      ...services,
+      call: () => new Promise(() => {}),
+    });
+    abortMounted.unmount();
+    assert.equal(ui.keptOutlineTarget(abortRoot, 'Databases'), null, 'unmount clears pending target');
+    assert.deepEqual(ui.keptView(abortRoot, 'Databases'), { open: [], deckId: 'd2' }, 'aborted load does not overwrite keptView');
+
+    // 3. Course switch clears previous course target and resets/restores next course deckId appropriately.
+    const swRoot = '/switch-root';
+    ui.keepView(swRoot, 'CourseA', { open: new Set(), deckId: 'dA' });
+    ui.keepView(swRoot, 'CourseB', { open: new Set(), deckId: 'dB' });
+    ui.keepView(swRoot, 'CourseC', { open: new Set(), deckId: 'dC' });
+    ui.keepOutline(swRoot, 'CourseA', { target: 'docA#1' });
+    ui.keepOutline(swRoot, 'CourseB', { target: 'docB#2' });
+    ui.clearOutlineTarget(swRoot, 'CourseC');
+
+    const swMounted = mountOutlineSync(ui.CourseOutline, {
+      data: { root: swRoot, revision: 1, focus: { course: 'CourseA' }, sources: [], jobs: [], settings: {} },
+      onBack: noop, onCreate: noop, onPractice: noop,
+    });
+    assert.equal(swMounted.getTree().props.deckId, '');
+
+    swMounted.rerender({
+      data: { root: swRoot, revision: 1, focus: { course: 'CourseB' }, sources: [], jobs: [], settings: {} },
+      onBack: noop, onCreate: noop, onPractice: noop,
+    });
+    assert.equal(ui.keptOutlineTarget(swRoot, 'CourseA'), null, 'switching course clears previous course target');
+    assert.equal(swMounted.getTree().props.deckId, '', 'CourseB target resets CourseB deck filter');
+
+    swMounted.rerender({
+      data: { root: swRoot, revision: 1, focus: { course: 'CourseC' }, sources: [], jobs: [], settings: {} },
+      onBack: noop, onCreate: noop, onPractice: noop,
+    });
+    assert.equal(ui.keptOutlineTarget(swRoot, 'CourseB'), null, 'switching again clears CourseB target');
+    assert.equal(swMounted.getTree().props.deckId, 'dC', 'CourseC without target restores CourseC deck filter');
+    swMounted.unmount();
+  });
+});

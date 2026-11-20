@@ -18,6 +18,9 @@ const clipAssistSummary = (text, max = 96) => {
 
 /** Summarize an in-flight assist request into selected chip labels plus user note (never raw prompt instructions). */
 export function formatAssistTaskSummary(task) {
+  if (Array.isArray(task?.terms) && task.terms.length > 0) {
+    return clipAssistSummary(task.terms.join(ui("、")));
+  }
   const labelFor = (id) => {
     const choice = HELP_CHOICES.find((item) => item.id === id);
     return choice ? ui(choice.label) : "";

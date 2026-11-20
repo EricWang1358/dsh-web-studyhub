@@ -60,7 +60,7 @@ test('job.message names a running generation Job by its logical jobId', async t 
   const held = gate();
   t.after(() => held.release());
   let started; const beginning = new Promise(resolve => { started = resolve; });
-  const complete = withQualityStages(async (system, prompt) => {
+  const complete = withQualityStages(async (system, _prompt) => {
     if (system.startsWith('You author')) { started(); await held.promise; return JSON.stringify({ id: 'd', title: 'Deck', cards: [structuredClone(card)] }); }
     return JSON.stringify({ issues: [], summary: 'Checked' });
   });

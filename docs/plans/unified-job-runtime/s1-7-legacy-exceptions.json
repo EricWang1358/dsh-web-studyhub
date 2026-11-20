@@ -352,6 +352,48 @@
       ]
     },
     {
+      "file": "lib/contexts/materials/classify-jobs.js",
+      "calls": [
+        {
+          "callee": "complete",
+          "count": 1
+        }
+      ],
+      "owner": "materials family",
+      "reason": "Material AI folder classification and course organization background jobs invoke the injected host model route (`complete(..., { jobId, stage, resultOwner: 'plugin' })`) so cold-panel and live-session DSH `study-worker` subagents run with step telemetry, streaming output, and direct fallback",
+      "removeAt": "retained: material background jobs route through host-model subagent adapter",
+      "evidence": "tests/material-classify-jobs-backend.test.mjs; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "runJobStep complete(..., { jobId, stage, resultOwner: 'plugin' }) for material-classify and material-organize steps",
+          "disposition": "exception",
+          "kind": "shared-pipeline",
+          "reached": true
+        }
+      ]
+    },
+    {
+      "file": "lib/contexts/materials/course-suggest.js",
+      "calls": [
+        {
+          "callee": "complete",
+          "count": 1
+        }
+      ],
+      "owner": "materials family",
+      "reason": "The course-organization suggestion pipeline takes its model runner as an argument (used by both background `source.organize.start` jobs via `runStep` and foreground `source.organize.suggest` requests)",
+      "removeAt": "retained: shared pipeline",
+      "evidence": "tests/material-classify-jobs-backend.test.mjs; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "injected complete fallback of the shared course-suggest pipeline",
+          "disposition": "exception",
+          "kind": "shared-pipeline",
+          "reached": true
+        }
+      ]
+    },
+    {
       "file": "lib/contexts/notes/daily-generation.js",
       "calls": [
         {
@@ -410,6 +452,27 @@
           "what": "placement and authoring of a captured question",
           "disposition": "exception",
           "kind": "foreground-request",
+          "reached": true
+        }
+      ]
+    },
+    {
+      "file": "lib/contexts/study/card-terms.js",
+      "calls": [
+        {
+          "callee": "complete",
+          "count": 1
+        }
+      ],
+      "owner": "existing domain maintainer",
+      "reason": "card.terms: shared pipeline called by instant action card.terms via injected light gateway step",
+      "removeAt": "retained: shared pipeline",
+      "evidence": "s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "injected complete of card candidate term extraction",
+          "disposition": "exception",
+          "kind": "shared-pipeline",
           "reached": true
         }
       ]
@@ -1325,6 +1388,33 @@
           "what": "job.* : history rows of the runtime restored into the job table, read-only",
           "disposition": "exception",
           "kind": "read-adapter",
+          "reached": true
+        }
+      ]
+    },
+    {
+      "file": "lib/contexts/materials/classify-jobs.js",
+      "calls": [
+        {
+          "callee": "generationControllers.set",
+          "count": 2
+        },
+        {
+          "callee": "jobs.set",
+          "count": 2
+        },
+        {
+          "callee": "ownWork",
+          "count": 2
+        }
+      ],
+      "owner": "materials family",
+      "evidence": "tests/material-classify-jobs-backend.test.mjs; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "source.folder.classify and source.organize.start register their job rows, cancel controllers, and work ownership on work.jobs so cold-panel and live-session DSH study-worker subagents run with step telemetry and stop support",
+          "disposition": "exception",
+          "kind": "domain-structure",
           "reached": true
         }
       ]

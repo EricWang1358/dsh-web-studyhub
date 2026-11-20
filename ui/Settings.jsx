@@ -88,6 +88,7 @@ export default function Settings({
   legacy,
   setLegacy,
   exportData,
+  onOpenRef = null,
   onRestored,
   initialProfile = null,
   appearance = null,
@@ -152,6 +153,7 @@ export default function Settings({
     const seek = () => {
       const anchor = document.querySelector(`[data-tour="${focusSection}"]`);
       if (!anchor && tries++ < 120) { frame = requestAnimationFrame(seek); return; }
+      for (let el = anchor?.parentElement; el; el = el.parentElement) if (el.tagName === 'DETAILS' && !el.open) el.open = true;
       anchor?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
       onFocused?.();
     };
@@ -161,11 +163,11 @@ export default function Settings({
   }, [focusSection]);
   // Everything a pane may need. Panes take what they use and nothing else.
   const services = { data, nav, busy, act, host, settings, setSettings, legacy, setLegacy,
-    exportData, onRestored, appearance, profile, setProfile, capabilities, status, openSchedule };
+    exportData, onOpenRef, onRestored, appearance, profile, setProfile, capabilities, status, openSchedule };
   const selected = available.find((item) => item.id === active) || available[0];
   return (
     <section className="page settings-page">
-      <PageHeader title={ui('设置')} description={ui('资料、题库、调度与模型，由你掌控。')} />
+      <PageHeader title={ui('设置')} description={ui('资料、题库、复习节奏与模型，由你掌控。')} />
       {tourActive ? (
         /* The tour points at sections anywhere on the page: show every category, one after another. */
         <div className="settings-all">{available.map((item) => <Pane key={item.id} category={item} services={services} />)}</div>

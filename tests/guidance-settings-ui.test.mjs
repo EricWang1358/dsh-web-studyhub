@@ -59,12 +59,12 @@ test('nothing seen: the master switch is on and says exactly what it hides and l
   assert.match(master, /checked/);
   assert.match(master, /role="switch"/);
   assert.match(words(html), /显示引导提示/);
-  // Every proactive item is named by the master switch's hint; what it leaves is named too.
+  // The master switch hint summarizes proactive entries by category and names what stays visible.
   const hint = words(html).match(/关掉后，[^。]*。/)[0];
-  for (const phrase of ['阅读页的两条提示', '练习页答题之后的三条提示', '「补全原文件」的说明', '主题组提醒', 'Archify 推荐卡', '「笔记换了位置」']) assert.ok(hint.includes(phrase), phrase);
+  assert.ok(hint.includes('下方标有「主动出现」的提示与提醒都不再自动出现'), hint);
   assert.deepEqual(ssr.GUIDANCE_ITEMS.filter(item => item.proactive).map(item => item.id).sort(),
-    ['book.moves', 'library.topic-groups', 'practice.fix-first', 'practice.help-first', 'practice.prereq-first', 'reader.original-notice', 'reader.page-presets', 'reader.pdf-page', 'skeleton.archify'], 'the hint lists exactly these');
-  for (const phrase of ['首页的入门三步', '首页顶部的「下一步」卡', '模型设置的引导', '出错和空页面的说明', '课程准备「全部完成」那句']) assert.ok(hint.includes(phrase), `${phrase} stays`);
+    ['book.moves', 'library.topic-groups', 'practice.chapter-basics', 'practice.fix-first', 'practice.help-first', 'practice.prereq-first', 'reader.original-notice', 'reader.page-presets', 'reader.pdf-page', 'skeleton.archify'], 'proactive entries stay in sync');
+  for (const phrase of ['首页的入门三步', '「下一步」卡', '模型设置的引导', '出错与空页面的说明', '课程准备「全部完成」']) assert.ok(hint.includes(phrase), `${phrase} stays`);
   const primaries = html.match(/<button[^>]*sh-btn--primary[^>]*>/g) || [];
   assert.equal(primaries.length, 1, 'one primary button on the page');
   assert.match(primaries[0], /disabled/);
@@ -273,7 +273,7 @@ test('the master switch and an item switch write the one guidance key; 再显示
   const render = view({ storages });
   find(render(), node => node.props?.name === 'guidanceOn').props.onChange(false);
   assert.equal(JSON.parse(storages.local.getItem(ssr.GUIDANCE_KEY)).off, true);
-  assert.match(lastToast(), /^引导提示已关闭：阅读页的两条提示、练习页答题之后的三条提示、「补全原文件」的说明、主题组提醒、Archify 推荐卡和「笔记换了位置」不再出现。$/);
+  assert.match(lastToast(), /^引导提示已关闭：下方标有「主动出现」的提示与提醒将不再自动出现。$/);
   assert.equal(find(render(), node => node.props?.name === 'guidance-reader.pdf-page').props.disabled, true);
   find(render(), node => node.props?.name === 'guidanceOn').props.onChange(true);
   find(render(), node => node.props?.name === 'guidance-library.topic-groups').props.onChange(false);

@@ -12,10 +12,10 @@ import { liveScope } from './use-async.js';
            cut with 「…」 and its whole name on hover where it is longer: a course cut to two characters after a long format would say neither.
    The names are the first of a short list, most said first, that every row has room for, each row with its size in pages where it has pages and in
    characters where it has none ('first' in 全部课程: without its characters). In 全部课程 the first name is the course the row belongs to, the one thing
-   the scope does not say for it, so every row keeps it, and its format with it where the course keeps 6em.
+   the scope does not say for it, so every row keeps it, and its format with it where the course keeps 6em; round 14: a size never cuts it there (below).
    The sizes (#1135; round 11: one Markdown note no longer takes the characters of every Text note) are decided for the rows of a kind, `data-size-group`:
    the rows with pages are one group, a row without pages is in its format's group. A group says its characters where every row of it has room for them
-   beside the names, else none of its rows does (`data-chars-off` lists the groups that do not), so a size is said whole or not at all and the rows of
+   beside the names (in 全部课程, round 14: beside its whole course, so a size never cuts the course one row further than its neighbours), else none of its rows does (`data-chars-off` lists the groups that do not), so a size is said whole or not at all and the rows of
    a kind read alike. `data-unit="short"`: while a group without pages has no room for its characters in their long words (「180 characters」), the list
    says them all in their short words (「180 chars」, en 320), and the long words come back for every row at once when every such group has room for them
    (one change of words while the window widens, not one each time a kind gains its size); the long words stay in the checkbox's name. A document with
@@ -46,17 +46,19 @@ export const sizeGroup = (format, paged) => (paged ? 'paged' : SIZE_GROUPS.inclu
  * space between two pieces, `em` the line's font size; `everyCourse` keeps the first name on every row (全部课程).
  */
 export function decideFacts(rows, { room, gap, em, everyCourse = false, spare = SPARE }) {
-  const named = (row, names) => (!row.first || names === 'none' ? 0
-    : gap + (names === 'all' ? row.first + row.later.reduce((sum, name) => sum + gap + name, 0) : row.shortened ? Math.min(row.first, 6 * em) : row.first));
-  const fits = (row, names, chars) => row.kind + (names === 'kind' ? 0 : row.pages + chars) + named(row, names) <= room(row) - spare;
+  // `whole`: the first name is said whole, not shortened to 6em
+  const named = (row, names, whole) => (!row.first || names === 'none' ? 0
+    : gap + (names === 'all' ? row.first + row.later.reduce((sum, name) => sum + gap + name, 0) : row.shortened && !whole ? Math.min(row.first, 6 * em) : row.first));
+  const fits = (row, names, chars, whole = false) => row.kind + (names === 'kind' ? 0 : row.pages + chars) + named(row, names, whole) <= room(row) - spare;
   const choices = everyCourse ? EVERY_COURSE : IN_SCOPE;
   const names = choices.find((which, at) => at === choices.length - 1
     || rows.every(row => fits(row, which, row.pages || (everyCourse && which === 'first') ? 0 : row.size)));
   const sized = names !== 'kind' && names !== 'alone';
-  // which groups have room for their characters, in the long words and in the short ones
+  // which groups have room for their characters, in the long words and in the short ones. Round 14: in 全部课程 the course is the one fact the scope
+  // does not give, so a group says its characters only where every row of it still says its course as the names alone leave it: whole beside them.
   const fitting = width => {
     const said = new Map();
-    for (const row of rows) said.set(row.group, (said.get(row.group) ?? true) && sized && fits(row, names, width(row)));
+    for (const row of rows) said.set(row.group, (said.get(row.group) ?? true) && sized && fits(row, names, width(row), everyCourse));
     return said;
   };
   const long = fitting(row => row.size), short = fitting(row => row.short);

@@ -1,8 +1,20 @@
-import React, { memo, useCallback, useId, useMemo, useRef, useState } from 'react';
+import React, { memo, useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { AddSourceButton, Button, CheckboxInput, EmptyState, ScrollWindow, Tooltip, addSourceAction, filterItems } from './components/index.js';
 import PageScope from './PageScope.jsx';
+import MaterialCategoryBar from './MaterialCategoryBar.jsx';
+import { AppContext } from './app/app-context.js';
+import {
+  ALL_FACET,
+  buildMaterialCategoryOptions,
+  buildMaterialTypeOptions,
+  buildSourceFlags,
+  filterMaterialsByFacets,
+  hasFacetOption,
+  itemFolderName,
+  resolveMaterialFolders,
+} from './material-facets.js';
 import { groupSourcesByDocument, isLegacyExtraction, sourceFormat } from '../lib/source-groups.js';
 import { isAiDraftedSource } from '../lib/source-provenance.js';
 import { courseScope } from '../lib/course-tree.js';
@@ -111,11 +123,21 @@ export function documentNotes(item) {
     isAiDraftedSource(item) && ui('AI 撰写 · 未核对')].filter(Boolean);
 }
 
-/** What the picker's filter searches: title, file name, the title before a rename, courses and format. */
-export const documentSearchText = item => [item.title, item.filename, item.renamedFrom, ...(item.courses || []), sourceFormatLabel(item)].filter(Boolean).join(' ');
+/** What the picker's filter searches: title, file name, the title before a rename, courses, content folder and format. */
+export const documentSearchText = (item, materialFolders = null) =>
+  [item.title, item.filename, item.renamedFrom, ...(item.courses || []), itemFolderName(item, materialFolders), sourceFormatLabel(item)].filter(Boolean).join(' ');
 
 /* The filter appears once the list is longer than a screenful of rows. */
 const FILTER_AFTER = 6;
+
+/** The name of a facet's chosen option, without its count (「PDF (3)」 → 「PDF」), for the line that says a filter is in use. */
+function facetName(options, value) {
+  for (const option of options) {
+    const name = option.options ? facetName(option.options, value) : option.value === value ? String(option.label).replace(/\s*\(\d+\)$/, '') : '';
+    if (name) return name;
+  }
+  return '';
+}
 
 const pageLabel = (item, page) => isPagedFormat(item.format)
   ? uiFormat('第 {0} 页', [page.page]) + (page.legacy ? ` · ${ui('旧版提取')}` : '')
@@ -167,16 +189,19 @@ const parted = words => <>{words[0]}{words.slice(1).map((word, at) => <span key=
 /* The first course on a row, shortened where its row is short of room (ui/source-picker.css): only while it is cut (measured with the shared observer of
    ui/use-cut.js) is it wrapped in the shared Tooltip with its whole name; a name said whole is one element and has no card (round 8 review, #565). The
    anchor takes the name's place in the line (the same size), so the name is cut the same with it and without. A box that does not start at a space puts
-   one into the checkbox's name (「协议 （2026」), so such a name gives its whole words as its label. The name is cut as soon as its words overflow at
-   all: a word box past its end is hidden behind the 「…」 by a pixel's overflow too, which the default rounding of ui/use-cut.js lets pass. */
+   one into the checkbox's name (「协议 （2026」), so such a name's drawn words are hidden from that name and the name is said once more, as written, out of
+   sight beside them (round 14: no aria-label on a plain span, which ARIA 1.2 prohibits; see-through and out of the line's flow, as a piece the line
+   leaves out). The name is cut as soon as its words overflow at all: a word box past its end is hidden behind the 「…」 by a pixel's overflow too,
+   which the default rounding of ui/use-cut.js lets pass. */
 const wordsCut = element => element.scrollWidth > element.clientWidth
   || [...element.querySelectorAll('.source-picker__part')].some(word => word.getBoundingClientRect().right > element.getBoundingClientRect().right + 0.01);
 
 function CourseName({ name }) {
-  const ref = useRef(null), cut = useCut(ref, name, wordsCut), words = nameWords(`· ${name}`);
-  const said = <span ref={ref} className="source-picker__fact source-picker__fact--name source-picker__fact--short" data-name="first"
-    aria-label={words.slice(1).some(word => !/^\s/.test(word)) ? `· ${name}` : undefined}>{parted(words)}</span>;
-  return cut ? <Tooltip layer group="index-badge" anchorClassName="source-picker__fact-anchor" content={name}>{said}</Tooltip> : said;
+  const ref = useRef(null), cut = useCut(ref, name, wordsCut), words = nameWords(`· ${name}`), boxed = words.slice(1).some(word => !/^\s/.test(word));
+  const drawn = <span ref={ref} className="source-picker__fact source-picker__fact--name source-picker__fact--short" data-name="first"
+    aria-hidden={boxed ? 'true' : undefined}>{parted(words)}</span>;
+  const shown = cut ? <Tooltip layer group="index-badge" anchorClassName="source-picker__fact-anchor" content={name}>{drawn}</Tooltip> : drawn;
+  return boxed ? <>{shown}<span className="source-picker__said">{`· ${name}`}</span></> : shown;
 }
 
 /**
@@ -311,21 +336,62 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
  * beside 添加资料 under the list when there is one (a line that is there anyway, so a late answer moves nothing), else above the list; none without it. The row badges only show the
  * state, #1084), indexPending (the coverage answer is still coming: every row holds the badge's slot until it is in). Extra props land on the root.
  * The list scrolls in a bounded window with a filter (WP14), so a course with
- * hundreds of materials never pushes the page down.
+ * hundreds of materials never pushes the page down. With a course scope (onScopeChange) and that filter, the list's filter line also holds one button that
+ * opens the type and category filters with AI 智能分类 (#1177) under it: shut by default, off the main path (#1182); while shut, a filter in use is said
+ * on that line's next line with 「清除筛选」, so no row goes missing unexplained.
  */
 export default function SourcePicker({ sources = [], selected = [], onChange, courses = [], scope = '*', onScopeChange, disabled = false,
-  onAdd, defaultQuery = '', defaultOpenKey = '', maxHeight = 420, className, indexCoverage = null, indexPending = false, onIndex, ...rest }) {
+  onAdd, defaultQuery = '', defaultOpenKey = '', maxHeight = 420, className, indexCoverage = null, indexPending = false, onIndex,
+  materialFolders: materialFoldersProp, modelReady, ...rest }) {
   useInjectCss(css, 'study-source-picker');
+  const appData = useContext(AppContext)?.data;
   const [query, setQuery] = useState(defaultQuery);
+  const [typeScope, setTypeScope] = useState(ALL_FACET);
+  const [categoryScope, setCategoryScope] = useState(ALL_FACET);
+  const [facetsOpen, setFacetsOpen] = useState(false);
+  const facetsId = useId();
   const root = useRef(null);
   const items = useMemo(() => groupSourcesByDocument(sources).filter(item => !item.archived), [sources]);
+  const sourceFlags = useMemo(() => buildSourceFlags(sources), [sources]);
+  const resolvedMaterialFolders = useMemo(
+    () => resolveMaterialFolders(materialFoldersProp, appData),
+    [materialFoldersProp, appData],
+  );
   const bigKeys = useMemo(() => new Set(indexCoverage ? bigDocuments(items).map(item => item.key) : []), [items, indexCoverage]);
   const effectiveScope = onScopeChange ? scope : '*';
   const known = useMemo(() => courses.map(course => typeof course === 'string' ? course : course?.name).filter(Boolean), [courses]);
-  const visible = useMemo(() => items.filter(scopeFilter(effectiveScope, known)), [items, effectiveScope, known]);
+  const scoped = useMemo(() => items.filter(scopeFilter(effectiveScope, known)), [items, effectiveScope, known]);
+  // The type and category filters come with the name filter, once the scope is longer than a screenful (#1182: a few rows need no filter).
+  const showCategoryBar = Boolean(onScopeChange) && scoped.length > FILTER_AFTER;
+  const typeOptions = useMemo(
+    () => (showCategoryBar ? buildMaterialTypeOptions(scoped, sourceFlags) : []),
+    [showCategoryBar, scoped, sourceFlags],
+  );
+  const categoryOptions = useMemo(
+    () => (showCategoryBar ? buildMaterialCategoryOptions(scoped, resolvedMaterialFolders) : []),
+    [showCategoryBar, scoped, resolvedMaterialFolders],
+  );
+  const activeTypeScope = showCategoryBar && hasFacetOption(typeOptions, typeScope) ? typeScope : ALL_FACET;
+  const activeCategoryScope = showCategoryBar && hasFacetOption(categoryOptions, categoryScope) ? categoryScope : ALL_FACET;
+  useEffect(() => {
+    if (typeScope !== ALL_FACET && !hasFacetOption(typeOptions, typeScope)) setTypeScope(ALL_FACET);
+  }, [typeOptions, typeScope]);
+  useEffect(() => {
+    if (categoryScope !== ALL_FACET && !hasFacetOption(categoryOptions, categoryScope)) setCategoryScope(ALL_FACET);
+  }, [categoryOptions, categoryScope]);
+  const visible = useMemo(
+    () => filterMaterialsByFacets(scoped, {
+      typeScope: activeTypeScope,
+      categoryScope: activeCategoryScope,
+      materialFolders: resolvedMaterialFolders,
+      sourceFlags,
+    }),
+    [scoped, activeTypeScope, activeCategoryScope, resolvedMaterialFolders, sourceFlags],
+  );
+  const searchMatch = useCallback(item => documentSearchText(item, resolvedMaterialFolders), [resolvedMaterialFolders]);
   const visibleIds = useMemo(() => new Set(visible.flatMap(item => item.sourceIds)), [visible]);
   const filtering = !!query.trim();
-  const shown = filtering ? filterItems(visible, query, documentSearchText) : visible;
+  const shown = filtering ? filterItems(visible, query, searchMatch) : visible;
   const chosen = new Set(selected);
   const chosenDocuments = items.filter(item => item.sourceIds.some(id => chosen.has(id))).length;
   const outside = selected.some(id => !visibleIds.has(id));
@@ -359,6 +425,27 @@ export default function SourcePicker({ sources = [], selected = [], onChange, co
   }), [visible, scope, relations]);
   useFactsFit(root, nameRows, scope === '*');
   const indexColumn = !!onIndex || indexPending || !!indexCoverage;
+  const facetsOn = activeTypeScope !== ALL_FACET || activeCategoryScope !== ALL_FACET;
+  const facetsSaid = [[typeOptions, activeTypeScope], [categoryOptions, activeCategoryScope]].filter(([, value]) => value !== ALL_FACET)
+    .map(([options, value]) => facetName(options, value)).filter(Boolean);
+  // On the filter's line, beside 「筛选资料…」: a button of the line's height, so the filters cost the first screen nothing while shut (#1182).
+  const facetsToggle = showCategoryBar ? <Tooltip layer anchorClassName="source-picker__facets-tip" content={ui('按类型或内容分类筛选资料；AI 智能分类也在这里。')}>
+    <Button size="sm" variant="quiet" icon="filter" className={`sh-btn--icon source-picker__facets-toggle${facetsOn ? ' is-on' : ''}`} aria-label={ui('类型与分类')}
+      aria-expanded={facetsOpen} aria-controls={facetsId} data-material-filters-toggle data-tour="source-filters" onClick={() => setFacetsOpen(open => !open)} />
+  </Tooltip> : null;
+  const facetsBelow = showCategoryBar ? <>
+    <MaterialCategoryBar id={facetsId} open={facetsOpen} className="source-picker__filters" items={scoped} targetItems={visible}
+      course={effectiveScope === '*' || effectiveScope === '' ? '' : effectiveScope}
+      materialFolders={resolvedMaterialFolders} sourceFlags={sourceFlags}
+      typeOptions={typeOptions} categoryOptions={categoryOptions}
+      typeScope={activeTypeScope} onTypeScopeChange={setTypeScope}
+      categoryScope={activeCategoryScope} onCategoryScopeChange={setCategoryScope}
+      disabled={disabled} modelReady={modelReady} />
+    {!facetsOpen && facetsOn && <p className="source-picker__facets-on" data-material-filters-on>
+      <span className="source-picker__facets-said">{uiFormat('只显示：{0}', [facetsSaid.join(' · ')])}</span>
+      <Button variant="link" size="sm" onClick={() => { setTypeScope(ALL_FACET); setCategoryScope(ALL_FACET); }}>{ui('清除筛选')}</Button>
+    </p>}
+  </> : null;
   if (!items.length) return (
     <div ref={root} className={`source-picker${className ? ` ${className}` : ''}`} {...rest}>
       <EmptyState size="sm" icon="file" title={ui('还没有资料')} description={ui('先添加讲义或笔记，再用它们出题。')}
@@ -378,10 +465,12 @@ export default function SourcePicker({ sources = [], selected = [], onChange, co
       </div>
       {outside && <p className="source-picker__note">{ui('已选资料包含其他范围，生成时仍会保留。')}</p>}
       {gap && !onAdd && <IndexGapLine count={gap.count} canIndex={canIndex} onGo={() => goIndex(gap.course)} />}
-      {visible.length ? <ScrollWindow className="source-picker__window" label={ui('资料列表')} items={visible} itemKey={item => item.key}
-        match={documentSearchText} query={query} onQueryChange={setQuery} filterable={visible.length > FILTER_AFTER || filtering}
+      {/* A filter that leaves no row keeps the list's window (its filter line, the button and 「清除筛选」), with the empty line inside it. */}
+      {scoped.length ? <ScrollWindow className={`source-picker__window${showCategoryBar ? ' source-picker__window--facets' : ''}`} label={ui('资料列表')} items={visible} itemKey={item => item.key} toolbar={facetsToggle} below={facetsBelow}
+        match={searchMatch} query={query} onQueryChange={setQuery}
+        filterable={scoped.length > FILTER_AFTER || activeTypeScope !== ALL_FACET || activeCategoryScope !== ALL_FACET || filtering}
         filterPlaceholder={ui('筛选资料…')} maxHeight={maxHeight} renderLimit={SOURCE_PICKER_FIRST_ROWS} listClassName="source-picker__list" itemClassName="source-picker__entry"
-        empty={uiFormat('没有匹配“{0}”的资料', [query.trim()])}
+        empty={visible.length ? uiFormat('没有匹配“{0}”的资料', [query.trim()]) : ui('当前类型与分类组合下没有匹配的资料，可调整筛选条件。')}
         renderItem={item => <DocumentRow item={item} selected={selected} apply={apply} disabled={disabled} defaultOpen={item.key === defaultOpenKey}
           indexInfo={infos.get(item.key) ?? null} indexPending={indexPending && !indexCoverage} canIndex={canIndex} relation={relations.get(item.key) ?? null} scope={scope} indexColumn={indexColumn} />} />
         : <p className="source-picker__note">{ui('这个范围还没有资料。可切换到全部课程查看。')}</p>}

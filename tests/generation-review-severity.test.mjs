@@ -69,7 +69,7 @@ test("suggest is a severity the shared review shape knows, and it is not an erro
 });
 
 test("a card whose review only gave suggestions stays, and the suggestions are recorded (the owner's q1)", async () => {
-  const m = model((candidate) => ({
+  const m = model((_candidate) => ({
     checks: { q1: { answerLeak: "suggest", optionQuality: "suggest", explanation: "q1：该题的 hint 已直接提示…虽未泄漏具体条目、尚不构成完全给分，但该提示已接近公布判定要点，建议改为只说明判断维度。" } },
     issues: [], suggestions: ["q1：选项 a…建议把选项压缩为一句话。", "q3：建议把提问收敛到一个判定点。"] }));
   const result = await generate(m);

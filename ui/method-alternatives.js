@@ -218,7 +218,7 @@ export function stageAlternatives(data, course, stage, options = {}) {
     const spec = ACTIVITY_SPECS[activity];
     const practiceReady = activity === 'practice' && counts.cards > 0;
     const entry = ENTRY_BY_ID.get(practiceReady ? spec.readyEntryId : spec.entryId);
-    if (!entry || finderAvailability(entry, data)) continue;
+    if (!entry || finderAvailability(entry, data, { canChat: options.canChat })) continue;
     const needsModel = Boolean(entry.needs?.model || (activity === 'practice' && !practiceReady));
     if (needsModel && !modelReady) continue;
     const blocked = prerequisiteBlock(activity, counts);

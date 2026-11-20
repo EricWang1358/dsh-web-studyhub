@@ -73,8 +73,10 @@ test('verified evidence precedes concrete answers and scenarios, and authors can
     }
     calls.push('review');
     const reviewInput = JSON.parse(prompt);
-    assert.deepEqual(reviewInput.assessmentPlan.targets[0].citations, planned.targets[0].citations);
-    assert.deepEqual(reviewInput.answerBlueprint.items, blueprint.items);
+    assert.deepEqual(reviewInput.assessmentPlan, [{ targetId: planned.targets[0].targetId, knowledge: planned.targets[0].knowledge }]);
+    assert.deepEqual(reviewInput.answerBlueprint, [{ targetId: blueprint.items[0].targetId, reasoning: blueprint.items[0].reasoning, scenario: blueprint.items[0].scenario, comparisonAxis: blueprint.items[0].comparisonAxis }]);
+    assert.deepEqual(reviewInput.candidate.cards[0].citations, planned.targets[0].citations);
+    assert.deepEqual(reviewInput.candidate.cards[0].options, blueprint.items[0].options);
     return JSON.stringify(qualityReview(reviewInput.candidate));
   }, req);
   assert.deepEqual(calls, ['evidence', 'blueprint', 'author', 'review']);
@@ -232,21 +234,52 @@ test('author cards in a different order bind by explicit target reference rather
   assert.equal(result.cards[1].answer, card.answer);
 });
 
-test("author examples include only the fields of the requested question kind", () => {
-  for (const kind of ["flashcard", "quiz", "multi", "open", "cloze"]) {
-    const { prompt } = authorPrompts({ ...request, kind }, qualityPlan({ ...request, kind }));
-    const example = JSON.parse(prompt.split("Match this JSON structure: ")[1].split("\n\nThen revisit")[0]).cards[0];
-    assert.equal(example.kind, kind);
-    assert.equal(Object.hasOwn(example, "options"), ["quiz", "multi"].includes(kind), kind);
-    assert.equal(Object.hasOwn(example, "rubric"), kind === "open", kind);
-    assert.equal(Object.hasOwn(example, "cloze"), kind === "cloze", kind);
-    if (example.options) {
-      assert.equal(example.options.length, 3);
-      assert.equal(new Set(example.options.map(option => option.id)).size, 3);
-      assert.equal(example.options.filter(option => option.correct).length, kind === "multi" ? 2 : 1);
-    }
-    if (kind === "cloze") assert.equal(example.prompt, example.cloze.text);
+test("author examples include only author-owned fields and drop bound fields and checks/changes", () => {
+  for (const kind of ["flashcard", "quiz", "multi", "open", "cloze", "truefalse", "task"]) {
+    const { system, prompt } = authorPrompts({ ...request, kind }, qualityPlan({ ...request, kind }));
+    const example = parseJson(prompt.split("Match this JSON structure: ")[1]).cards[0];
+    assert.equal(Object.hasOwn(example, "id"), true, kind);
+    assert.equal(Object.hasOwn(example, "targetId"), true, kind);
+    assert.equal(Object.hasOwn(example, "topic"), true, kind);
+    assert.equal(Object.hasOwn(example, "hint"), true, kind);
+    assert.equal(Object.hasOwn(example, "explanation"), true, kind);
+    assert.equal(Object.hasOwn(example, "misconception"), true, kind);
+    assert.equal(Object.hasOwn(example, "prompt"), !["cloze", "truefalse"].includes(kind), kind);
+    for (const bound of ["kind", "objective", "citations", "answer", "options", "rubric", "rubricCriteria", "marks", "cloze"])
+      assert.equal(Object.hasOwn(example, bound), false, `${kind}: bound field ${bound} omitted from slim S3 schema`);
+    assert.equal(prompt.includes('"checks"'), false, `${kind}: S3 drops unused checks wrapper`);
+    assert.equal(prompt.includes('"changes"'), false, `${kind}: S3 drops changes wrapper`);
+    assert.equal(system.includes("Content Quality Protocol"), false, "content-quality.md removed from S3 system");
   }
+  const recruitOpen = authorPrompts({ ...request, kind: "open", role: "Backend SWE" }, qualityPlan({ ...request, kind: "open" }));
+  const recruitExample = parseJson(recruitOpen.prompt.split("Match this JSON structure: ")[1]).cards[0];
+  assert.equal(Object.hasOwn(recruitExample, "followUp"), true, "recruitment open includes followUp");
+  assert.equal(Object.hasOwn(recruitExample, "debrief"), true, "recruitment open includes debrief");
+  assert.ok(recruitOpen.system.includes("## Recruitment Quiz"), "recruitment system includes Recruitment Quiz section");
+  assert.equal(recruitOpen.system.includes("## Recruitment Sparring"), false, "recruitment system omits non-quiz sections");
+  assert.equal(recruitOpen.system.includes("## Role Card"), false, "recruitment system omits Role Card section");
+});
+
+test("slim S3 cards without bound fields or cloze/truefalse prompt salvage and bind cleanly", async () => {
+  const clozeText = "Architecture includes {{b1}} guiding a system's design and evolution.";
+  const slimCloze = { id: "c1", targetId: "target-1", topic: "Architecture", hint: "Think of guiding rules.", explanation: "The definition names principles as the guide for design and evolution.", misconception: "Only components." };
+  const malformedCloze = `{"deck":{"title":"Arch","cards":[${JSON.stringify(slimCloze)},{"targetId":"broken`;
+  assert.deepEqual(salvageAuthoredCards(malformedCloze)?.deck.cards, [slimCloze], "salvageAuthoredCards recovers slim cloze card without prompt or kind");
+
+  const req = { ...request, kind: "cloze" };
+  const plan = qualityPlan(req);
+  const bp = { items: [{ targetId: "target-1", answer: "principles", reasoning: "The source states architecture includes principles.", scenario: { kind: "none", facts: [], decisiveConditions: [] }, comparisonAxis: "core element", cloze: { text: clozeText, answers: [{ id: "b1", value: "principles" }] } }] };
+  const out = await generateDeck(async (system, prompt) => {
+    if (system.startsWith("Plan")) return JSON.stringify(plan);
+    if (system.startsWith("Prepare supported answers")) return JSON.stringify(bp);
+    if (system.startsWith("You author")) return JSON.stringify({ deck: { title: "Arch", cards: [slimCloze] } });
+    return JSON.stringify(qualityReview(requestData(prompt).candidate));
+  }, req);
+  assert.equal(out.cards.length, 1);
+  assert.equal(out.cards[0].kind, "cloze");
+  assert.equal(out.cards[0].prompt, clozeText);
+  assert.equal(out.cards[0].answer, "principles");
+  assert.deepEqual(out.cards[0].citations, plan.targets[0].citations);
 });
 
 test("approved generated cards with non-applicable null fields save as editable drafts", async t => {

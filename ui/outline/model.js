@@ -237,3 +237,57 @@ export function keepView(root, course, view, storage) {
   }
   writeJSON(outlineViewKey(root, course), payload, explicitStorage ? storage : browserStorage());
 }
+
+/* One-shot target for opening 总纲 at a specific document or chapter (e.g. from 题目页「出处」), kept in memory only and never written to localStorage. */
+const outlineTargets = new Map();
+/** Maximum age of an unused one-shot outline target before it expires on read (ms). */
+export const OUTLINE_TARGET_TTL_MS = 15000;
+
+/** Resolve the initial or switched deck filter: arriving with a one-shot target shows all decks instead of a stale deck filter. */
+export const resolveOutlineDeckFilter = (kept, target) => (target ? '' : kept?.deckId || '');
+
+function pathToBookKey(nodes, key) {
+  for (const node of Array.isArray(nodes) ? nodes : []) {
+    if (node.key === key) return [node.key];
+    if (node.children?.length) {
+      const childPath = pathToBookKey(node.children, key);
+      if (childPath.length) return [node.key, ...childPath];
+    }
+  }
+  return [];
+}
+
+/** Expand keys needed to reveal `targetInfo` (`target`, optional `leafKey`) inside `outline` (either document tree or AI outline tree). */
+export function outlineTargetExpandKeys(targetInfo, book = null) {
+  const target = targetInfo?.target;
+  if (typeof target !== 'string' || !target) return [];
+  const hashAt = target.indexOf('#');
+  const docKey = hashAt > 0 ? target.slice(0, hashAt) : null;
+  const bookPath = book?.nodes && targetInfo?.leafKey ? pathToBookKey(book.nodes, targetInfo.leafKey) : [];
+  return [...new Set([...(bookPath || []), ...(docKey ? [docKey] : []), target])];
+}
+
+export function keepOutline(root, course, { target = null, leafKey = null } = {}, now = Date.now()) {
+  const memKey = JSON.stringify([root ?? '', course ?? '']);
+  if (!target) {
+    outlineTargets.delete(memKey);
+    return;
+  }
+  outlineTargets.set(memKey, { target, ...(leafKey ? { leafKey } : {}), at: now });
+  if (outlineTargets.size > 20) outlineTargets.delete(outlineTargets.keys().next().value);
+}
+
+export function keptOutlineTarget(root, course, now = Date.now()) {
+  const memKey = JSON.stringify([root ?? '', course ?? '']);
+  const entry = outlineTargets.get(memKey);
+  if (!entry) return null;
+  if (!Number.isFinite(entry.at) || now - entry.at > OUTLINE_TARGET_TTL_MS) {
+    outlineTargets.delete(memKey);
+    return null;
+  }
+  return { target: entry.target, ...(entry.leafKey ? { leafKey: entry.leafKey } : {}) };
+}
+
+export function clearOutlineTarget(root, course) {
+  outlineTargets.delete(JSON.stringify([root ?? '', course ?? '']));
+}

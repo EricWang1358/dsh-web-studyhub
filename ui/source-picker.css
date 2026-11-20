@@ -5,6 +5,55 @@
     /* SourcePicker (WP3): one row per document, pages on demand. Tokens only. */
     /* One column the width of the page: a part wider than a 320 px page (the scope's row) does not widen the list with it (#1082). */
     .source-picker { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); min-width: 0; }
+    .source-picker__filters { min-width: 0; }
+    /* #1182: the type and category filters (#1177) are behind one button on the list's filter line, beside 「筛选资料…」, so they cost the first screen
+       nothing while shut. The button is quiet; open, it is pressed in; a filter in use marks it with a dot in the strong ink (the accent is the primary action's, #658)
+       and is said on the line under it. */
+    .source-picker__facets-tip { display: inline-flex; flex: none; }
+    /* The filter gives the button its room, so the count stays on the filter's line wherever it was before (en 375: 220 + 32 + 49 px and two gaps fill 325). */
+    .source-picker__window--facets { --sh-scroll-filter-basis: 12rem; }
+    .source-picker__facets-toggle { position: relative; flex: none; color: var(--text-muted); }
+    .source-picker__facets-toggle[aria-expanded="true"] { color: var(--text); background: var(--bg-sunken); }
+    .source-picker__facets-toggle.is-on { color: var(--text); }
+    .source-picker__facets-toggle.is-on::after { content: ""; position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--text); pointer-events: none; }
+    .material-category-bar[hidden], .material-category-bar__controls[hidden] { display: none; }
+    /* Open, in the picker: the labels in one column and the selects with AI 智能分类 under them in the next, every label on its select's line at every width. */
+    .source-picker__filters .material-category-bar__controls { display: grid; grid-template-columns: max-content minmax(0, 20rem); justify-content: start; align-items: center; gap: var(--space-2) var(--space-3); }
+    .source-picker__filters .material-category-bar__field { display: contents; }
+    .source-picker__filters .material-category-bar__select { width: 100%; max-width: none; min-width: 0; }
+    .source-picker__filters :is(.material-category-bar__ai-btn, .material-category-bar__ai-gate) { grid-column: 2; justify-self: start; }
+    .source-picker__facets-on { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-2); margin: 0; min-width: 0; font-size: var(--fs-sm); color: var(--text-muted); }
+    .source-picker__facets-said { min-width: 0; overflow-wrap: anywhere; }
+    .material-category-bar { display: grid; gap: var(--space-2); min-width: 0; }
+    .material-category-bar__controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); min-width: 0; }
+    .material-category-bar__field { display: flex; flex-wrap: nowrap; align-items: center; gap: var(--space-2); flex: 0 1 auto; min-width: 0; max-width: 100%; }
+    .material-category-bar__label { display: block; flex: none; margin: 0; font-size: var(--fs-sm); font-weight: var(--fw-medium); line-height: var(--lh-snug); color: var(--text-muted); white-space: nowrap; cursor: pointer; }
+    .material-category-bar__select { flex: 1 1 9.5rem; width: 12.5rem; max-width: 100%; min-width: 6.5rem; min-height: 34px; font-size: var(--fs-sm); font-weight: var(--fw-regular); }
+    .material-category-bar__ai-btn { flex: none; white-space: nowrap; }
+    .material-category-bar__ai-gate { display: inline-flex; flex: none; }
+    .material-classify-progress { display: grid; gap: var(--space-1-5); padding: var(--space-2-5) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-surface); min-width: 0; }
+    .material-classify-progress__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); min-width: 0; }
+    .material-classify-progress__text { font-size: var(--fs-sm); color: var(--text-dim); font-variant-numeric: tabular-nums; }
+    .material-classify-progress__actions { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); }
+    .material-classify-error { margin: 0; }
+    .material-classify-review { display: grid; gap: var(--space-2-5); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); min-width: 0; }
+    .material-classify-review__intro { margin: 0; font-size: var(--fs-sm); color: var(--text-muted); }
+    .material-classify-review__list { display: grid; gap: var(--space-1-5); max-height: 22rem; overflow-y: auto; padding-inline-end: var(--space-1); min-width: 0; }
+    .material-classify-group { padding: var(--space-1-5) var(--space-2); border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--bg-sunken); min-width: 0; }
+    .material-classify-group.is-excluded { opacity: 0.65; }
+    .material-classify-group__row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; }
+    .material-classify-group__check { flex: none; margin: 0; }
+    .material-classify-group__input { flex: 1 1 9rem; width: auto; min-width: 0; min-height: 32px; padding: var(--space-1) var(--space-2-5); font-size: var(--fs-sm); }
+    .material-classify-group__details { flex: none; min-width: 0; margin: 0; }
+    .material-classify-group__details[open] { flex: 1 0 100%; }
+    .material-classify-group__summary { display: inline-flex; align-items: center; gap: var(--space-1); cursor: pointer; list-style: none; user-select: none; color: var(--text-muted); --sh-summary-marker: none; }
+    .material-classify-group__summary::-webkit-details-marker { display: none; }
+    .material-classify-group__caret { transition: transform var(--dur-fast) var(--ease); }
+    .material-classify-group__details[open] > .material-classify-group__summary > .material-classify-group__caret { transform: rotate(90deg); }
+    .material-classify-group__items { list-style: none; margin: var(--space-1-5) 0 0; padding: var(--space-1-5) 0 0 var(--space-5); border-top: 1px solid var(--line-soft); display: grid; gap: var(--space-1); max-height: 9rem; overflow-y: auto; }
+    .material-classify-group__item { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-1) var(--space-2); font-size: var(--fs-sm); color: var(--text-dim); min-width: 0; }
+    .material-classify-group__from { margin: 0; font-size: var(--fs-sm); color: var(--text-muted); }
+    .material-classify-review__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
     .source-picker__bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-3); }
     .source-picker__count { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); }
     .source-picker__actions { display: flex; flex-wrap: wrap; gap: var(--space-1); }
@@ -91,6 +140,8 @@
     .source-picker[data-names="alone"] :is(.source-picker__fact--lead, .source-picker__names, .source-picker__notes),
     .source-picker[data-names="kind"] .source-picker__part--pages,
     .source-picker[data-unit="short"] .source-picker__part--size { position: absolute; opacity: 0; pointer-events: none; }
+    /* A course whose drawn words are boxed (「协议」「（2026 …）」) is said once more as written for the checkbox's name, out of sight (round 14, SourcePicker.jsx). */
+    .source-picker__said { position: absolute; opacity: 0; pointer-events: none; }
     /* The short words of the characters (the lead's data-short), said after the lead where the list says them; not in the checkbox's name. */
     .source-picker[data-unit="short"] .source-picker__fact--lead::after { content: attr(data-short); content: attr(data-short) / ""; white-space: pre; }
     /* A size group that leaves its characters out (data-chars-off), in the long words and the short; a row with pages still says its pages. */
@@ -113,10 +164,13 @@
     .source-picker__expand { grid-column: 3; grid-row: 1; justify-self: end;
       margin-block: calc((var(--fs-md) * var(--lh-snug) - var(--picker-expand-h)) / 2); }
     :where(.source-picker--index) .source-picker__expand { grid-column: 3 / -1; }
-    /* There the facts line runs on under 选择页面 (round 11), so its box is no taller than the title line and the row's gaps: it ends where the facts line
-       starts, its words still on the title line's middle, and its hover box or focus ring never covers the facts' end. */
-    .source-picker--index .source-picker__row .source-picker__expand { --picker-expand-h: calc(var(--fs-md) * var(--lh-snug) + 2 * var(--space-half));
+    /* There the facts line runs on under 选择页面 (round 11), so its box is as tall as the title line, 24px at least, its words on that line's middle: it ends
+       above the facts line (round 14: it ended where that line starts, and its focus ring, 2px out and a 3px shadow, and its hover fill reached the 已索引
+       pill under it on a one-line title). Its focus ring is drawn inside its box, at every width (one look for the button), so neither ever covers the pill
+       or the facts' end. */
+    .source-picker--index .source-picker__row .source-picker__expand { --picker-expand-h: max(24px, var(--fs-md) * var(--lh-snug));
       min-height: var(--picker-expand-h); padding-block: 0; }
+    .source-picker--index .source-picker__row .source-picker__expand:focus-visible { outline-offset: -2px; box-shadow: none; }
     .source-picker__row.has-expand .source-picker__text strong { grid-column: 2; }
     .source-picker__expand .source-picker__chevron { transition: transform 0.18s var(--ease); }
     .source-picker__expand[aria-expanded="true"] .source-picker__chevron { transform: rotate(90deg); }
@@ -153,6 +207,8 @@
       .source-picker__expand { grid-column: 2 / -1; grid-row: auto; justify-self: start; margin-block: 0; margin-inline-start: calc((var(--sh-btn-px) + var(--hairline)) * -1); }
       .source-picker--index .source-picker__row .source-picker__expand { min-height: var(--control-h-sm, 32px); padding-block: var(--space-1); }
       .source-picker__pages { padding-left: var(--space-6); }
+      .material-category-bar__field { flex: 1 1 100%; }
+      .material-category-bar__select { flex: 1 1 auto; width: auto; min-width: 0; }
     }
   }
 }

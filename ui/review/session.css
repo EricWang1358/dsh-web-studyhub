@@ -60,6 +60,27 @@
     .review-context__where { display: inline-flex; align-items: baseline; gap: var(--space-1); min-width: 0; }
     .review-context__more { flex: none; color: var(--text-muted); font-size: var(--fs-sm); }
     .review-context__label { color: var(--text-muted); }
+    .review-place__anchor,
+    .review-place {
+      min-width: 0;
+      max-width: 100%;
+    }
+    .review-place-static {
+      display: inline-flex;
+      align-items: baseline;
+    }
+    .review-place-link {
+      color: var(--text-dim);
+      --sh-btn-px: var(--space-2);
+    }
+    .review-place__text {
+      flex: 0 1 auto;
+      min-width: 0;
+      max-width: 56ch;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
   }
   @container study (max-width:720px) {
     :where(.study-app, .study-seat) {

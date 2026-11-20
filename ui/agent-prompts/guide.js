@@ -8,6 +8,6 @@ import { say } from './say.js';
 const ASK = '我刚打开 StudyHub，还不太清楚自己现在有什么、能做什么。先看一眼我的学习库，用几句话告诉我现在的情况，再给我两三个可以马上开始的方向。';
 
 /** input: none. */
-export function guideStartPrompt(input = {}, language = getUiLanguage()) {
+export function guideStartPrompt(_input = {}, language = getUiLanguage()) {
   return { ask: say(language, ASK) };
 }

@@ -341,7 +341,7 @@ test('keyboard activation counts once: Enter on a button is the button\'s click;
 test('OFF: no listener is installed, no timer runs, nothing is sent: the controller only asks for the status once', async () => {
   const root = fakeRoot(), timers = fakeTimers(), calls = [], lifecycle = fakeRoot();
   const controller = m.createUsageController({ root, lifecycle, now: Date.now, setTimer: timers.set, clearTimer: timers.clear,
-    call: async (action, args) => { calls.push(action); return action === 'usage.frequency.status' ? { enabled: false, paused: false } : {}; } });
+    call: async (action, _args) => { calls.push(action); return action === 'usage.frequency.status' ? { enabled: false, paused: false } : {}; } });
   await controller.refresh();
   assert.deepEqual(calls, ['usage.frequency.status']);
   assert.equal(controller.active, false);

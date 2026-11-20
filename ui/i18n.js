@@ -43,10 +43,10 @@ const browserLanguage = () => {
   return /^zh(?:-|$)/i.test(preferred) ? 'zh' : 'en';
 };
 let language = browserLanguage();
-try { const saved = localStorage.getItem(KEY); if (['en', 'zh'].includes(saved)) language = saved; } catch {}
+try { const saved = localStorage.getItem(KEY); if (['en', 'zh'].includes(saved)) language = saved; } catch { /* storage is blocked: the default language stays */ }
 // The language last asked for: a switch to English waits for the catalogue, and a switch back meanwhile wins.
 let wanted = language;
-const warnUnloaded = error => { try { console.warn('StudyHub: the English interface could not be loaded; staying in Chinese', error); } catch {} };
+const warnUnloaded = error => { try { console.warn('StudyHub: the English interface could not be loaded; staying in Chinese', error); } catch { /* no console to warn on */ } };
 /* An English interface never shows a sentence before its English is here: the language becomes English only once the catalogue is loaded. */
 function switchLanguage(next, persist) {
   wanted = next;
@@ -55,7 +55,7 @@ function switchLanguage(next, persist) {
     return;
   }
   language = next;
-  if (persist) try { localStorage.setItem(KEY, next); } catch {}
+  if (persist) try { localStorage.setItem(KEY, next); } catch { /* storage is blocked: the choice lasts for this visit */ }
   listeners.forEach(fn => fn());
 }
 // At boot an English interface fetches its catalogue at once; the host awaits uiLanguageReady() before StudyHub's first render.

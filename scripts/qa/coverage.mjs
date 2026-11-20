@@ -78,7 +78,7 @@ export async function runCoverageQa(options) {
       // The question run whose two batches fail.
       const started = await call("generate", { sourceIds: ids, count: 15, kind: "quiz", title: t("覆盖演示", "Coverage demo"), performance: { fillRounds: 0 } });
       await idle();
-      let snapshot = await call("snapshot", {});
+      const snapshot = await call("snapshot", {});
       const job = snapshot.jobs.find((item) => item.id === started.jobId), draft = snapshot.drafts[0];
       facts.run = { status: job.status, stage: job.stage, parts: job.parts, cards: draft.cards.length, requested: draft.editorial.requested };
       const before = await call("coverage.get", { draftId: draft.id }), doc = await call("coverage.get", { sourceId: ids[0] });

@@ -94,7 +94,7 @@ test('English: every word of the line and its explanation is English', () => {
   assert.match(rows, /No questions/);
 });
 
-test('English reads as a sentence, with the singular, not two counts glued together (#1130: \"Focus topics 1: No questions 1\")', () => {
+test('English reads as a sentence, with the singular, not two counts glued together (#1130: "Focus topics 1: No questions 1")', () => {
   const one = { ...progress, total: 1, done: 0, weak: 0, none: 1, weakScope: [], topics: progress.topics.filter(topic => topic.status === 'none').slice(0, 1) };
   const en = visible(render(h(m.FocusProgressLine, { progress: one, courseId: 'c', start: noop }), 'en'));
   assert.match(en, /1 focus topic: 1 without a question/);

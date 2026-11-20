@@ -176,9 +176,9 @@ test('collectHeadings numbers h1–h4 relative to the shallowest one and tags ea
 
 test('collectHeadings titles a heading with a formula by its stored text, not the drawn glyphs', () => {
   const drawn = { remove() { drawn.removed = true; } };
-  const node = { ...heading('H2', '激活 $\sigma(z)$σ(z)σ(z)'), querySelector: () => drawn,
-    cloneNode: () => ({ querySelectorAll: () => [drawn], get textContent() { return drawn.removed ? '激活 $\sigma(z)$' : 'junk'; } }) };
-  assert.deepEqual(collectHeadings({ querySelectorAll: () => [node] }).map(item => item.title), ['激活 $\sigma(z)$']);
+  const node = { ...heading('H2', '激活 $\\sigma(z)$σ(z)σ(z)'), querySelector: () => drawn,
+    cloneNode: () => ({ querySelectorAll: () => [drawn], get textContent() { return drawn.removed ? '激活 $\\sigma(z)$' : 'junk'; } }) };
+  assert.deepEqual(collectHeadings({ querySelectorAll: () => [node] }).map(item => item.title), ['激活 $\\sigma(z)$']);
 });
 
 test('pickActive follows the scroll position, neighbours give previous and next, progress is clamped', () => {
@@ -407,7 +407,7 @@ test('#12, #56, #60 DocumentViewer: jump-back pill + Alt+ArrowLeft + 8s expiry, 
   const prevWin = globalThis.window, prevDoc = globalThis.document, prevLS = globalThis.localStorage;
   const prevRaf = globalThis.requestAnimationFrame, prevSetTimeout = globalThis.setTimeout, prevClearTimeout = globalThis.clearTimeout;
   const hooksByPath = new Map();
-  let curHooks = [], cursor = 0, pendingEffects = [], rafQueue = [], timers = [], nextTimerId = 1;
+  let curHooks = [], cursor = 0, pendingEffects = []; const rafQueue = [], timers = []; let nextTimerId = 1;
   const h = (type, p, ...children) => ({ $$type: type, props: { ...(p || {}), ...(children.length === 1 ? { children: children[0] } : children.length > 1 ? { children } : {}) } });
   const domNode = extra => ({
     scrollTop: 0, clientHeight: 500, focus: () => {}, querySelector: () => null, querySelectorAll: () => [],
@@ -743,7 +743,7 @@ test('#12, #56, #60 DocumentViewer: jump-back pill + Alt+ArrowLeft + 8s expiry, 
     findAll(tree, n => String(n.props?.className || '').includes('study-document-viewer'))[0]
       .props.onKeyDown({ ctrlKey: true, altKey: false, key: 'f', target: {}, preventDefault: () => {} });
     tree = render();
-    let findBarRoot = findAll(tree, n => n.props?.className === 'reader-find')[0];
+    const findBarRoot = findAll(tree, n => n.props?.className === 'reader-find')[0];
     assert.ok(findBarRoot);
     assert.equal(findAll(tree, n => String(n.props?.className || '').includes('reader-find__case'))[0].props['aria-pressed'], false);
     findBarRoot.props.onKeyDown({ altKey: true, ctrlKey: false, metaKey: false, key: 'c', preventDefault: () => {}, stopPropagation: () => {} });

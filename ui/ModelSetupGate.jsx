@@ -2,6 +2,7 @@ import React, { useContext } from 'react';
 import { ui, uiFormat, uiIsEnglish } from './i18n.js';
 import { Banner, Button, Hint, Icon, InlineMessage, SetupRequired } from './components/index.js';
 import { ModelSettingsContext, useModelSettingsLabel } from './ModelErrorNote.jsx';
+import { hostPart } from './host-parts.js';
 
 /* "There is no AI model yet", said in one place. Every page that needs a model shows this gate instead of its own wording:
      block    a whole step is replaced by it (the submit area of a form, the model pane of Settings): why, the exact steps, the one button
@@ -25,6 +26,7 @@ const say = (...parts) => parts.filter(Boolean).join(uiIsEnglish() ? ' ' : '');
  * model: the readiness ({ ready, reason, label }, see modelReadiness). A reason the host did not give claims nothing.
  */
 export function modelFact({ reason, label } = {}) {
+  if (hostPart('modelFact')) return hostPart('modelFact')({ reason, label });
   if (reason === 'no-credential') return label ? uiFormat('已选择「{0}」，但 DSH 里还没有它的 API Key。', [label]) : ui('已选择模型，但 DSH 里还没有它的 API Key。');
   if (!label) return '';
   if (reason === 'unknown') return uiFormat('已选择「{0}」，但这个 DSH 没有开放模型调用给 StudyHub，所以现在用不了它。可以先对照安装说明，确认 DSH 的版本符合要求。', [label]);
@@ -48,6 +50,8 @@ const keyHint = () => <>{ui('去哪拿 Key、要不要充值：看')}<a href={ke
  * `pick` is how this page lets the learner choose a model (the pane of Settings has the choice right there).
  */
 function setupSteps({ reason, label } = {}, pick) {
+  // A host that keeps its own model setup says its own steps (ui/host-parts.js).
+  if (hostPart('modelSetupSteps')) return hostPart('modelSetupSteps')({ reason, label }, pick);
   const choose = { text: pick || ui('选一个模型：用主会话输入框里的模型选择器，或到 StudyHub「设置 › 学习库与模型」的「生成模型」里选'), choose: true };
   if (reason === 'no-credential') {
     const provider = providerOf(label);
@@ -269,8 +273,8 @@ export default function ModelSetupGate({ variant = 'block', feature = 'generate'
   if (variant === 'compact') return <Hint tone="warning" role="status" className={className} data-model-gate="compact" {...rest}>{copy.line}{open && <>{' '}<Button variant="link" size="sm" onClick={open.onClick}>{open.label}</Button></>}</Hint>;
   if (variant === 'inline') return <InlineMessage tone="warning" title={gateTitle('inline')} action={open} className={className} {...rest}>{copy.line}</InlineMessage>;
   if (variant === 'banner') return <Banner tone="warning" title={gateTitle('banner')} action={open} className={className} {...rest}>{copy.note}</Banner>;
-  const setup = setupSteps(model || {}, copy.pick);
+  const setup = setupSteps(model || {}, copy.pick), Form = feature !== 'settings' ? hostPart('ModelGateForm') : undefined;
   return <SetupRequired icon="model" tone={feature === 'grade' ? 'warning' : 'neutral'} badge={copy.badge} title={gateTitle('block')} why={say(modelFact(model || {}), copy.why)}
     steps={setup.length ? [...setup, { text: copy.then }] : []} primary={open && { ...open, icon: 'model', variant: quiet ? 'secondary' : 'primary' }}
-    secondary={onRecheck ? { label: checking ? ui('正在检查…') : ui('重新检查'), icon: 'refresh', disabled: checking, onClick: onRecheck } : undefined} className={className} {...rest} />;
+    secondary={onRecheck ? { label: checking ? ui('正在检查…') : ui('重新检查'), icon: 'refresh', disabled: checking, onClick: onRecheck } : undefined} className={className} {...rest}>{rest.children}{Form && <Form feature={feature} />}</SetupRequired>;
 }

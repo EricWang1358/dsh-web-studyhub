@@ -3,14 +3,15 @@
    (ui/pages.js, ui/capabilities.js), and what the entry itself needs (a settings category's `needs`, a feature's `needs`). Pure. */
 import { PAGES } from '../pages.js';
 import { hasContext } from '../capabilities.js';
-import { uiFormat } from '../i18n.js';
+import { ui, uiFormat } from '../i18n.js';
 
 const list = (value) => (Array.isArray(value) ? value : value ? [value] : []);
 
 /** The reason (source text through ui()) this host cannot take the learner to `entry`, or '' when it can. A term has nowhere to go and is never unavailable. */
-export function finderAvailability(entry, data) {
+export function finderAvailability(entry, data, { canChat = true } = {}) {
   if (!entry || entry.kind === 'term') return '';
   const page = entry.page ? PAGES[entry.page] : null, needs = entry.needs || {};
+  if (needs.chat && canChat === false) return ui('当前版本没有主会话，不支持此功能');
   const flag = needs.flag || page?.flag;
   if (flag && data?.features?.[flag] !== true) return uiFormat('这个 DSH 里没有开启{0}', [Object.values(PAGES).find((item) => item.flag === flag)?.label || flag]);
   const missing = [...new Set([...list(needs.capability), ...list(page?.needs)])].filter((context) => !hasContext(data, context));
@@ -18,4 +19,9 @@ export function finderAvailability(entry, data) {
 }
 
 /** The entries with `unavailable` set to the reason (or ''), for the sheet. */
-export const withAvailability = (entries, data) => entries.map((entry) => ({ ...entry, unavailable: finderAvailability(entry, data) }));
+export const withAvailability = (entries, data, options) => entries.map((entry) => ({
+  ...entry,
+  ...(options?.canChat === false && entry.id === 'setting-guidance' ? { what: '各处提示和引导什么时候出现' } : {}),
+  ...(options?.canChat === false && entry.id === 'setting-model' ? { what: '选学习库放在哪个文件夹，也配置本机 CLI 或 API Key 模型来出题' } : {}),
+  unavailable: finderAvailability(entry, data, options),
+}));

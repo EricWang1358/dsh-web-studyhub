@@ -75,6 +75,13 @@
     .result-page .result-next { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin: var(--space-5) 0 var(--space-4); }
     .result-page .summary-topics h3 { margin: 0 0 var(--space-3); font-size: var(--fs-lg); }
     .result-page .summary-method-alt, .result-page .summary-leech { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1-5); margin: var(--space-3) 0; color: var(--text-muted); font-size: var(--fs-md); }
+    .result-page .summary-course { margin: var(--space-3) 0; color: var(--text-dim); font-size: var(--fs-md); }
+    .result-page .summary-course__text { margin: 0; }
+    .result-page .summary-course__bar { display: flex; gap: var(--space-1); height: var(--space-1-5); margin-top: var(--space-2); }
+    .result-page .summary-course__seg { flex: 1 1 0; min-width: 0; border-radius: var(--radius-xs); background: var(--line); }
+    .result-page .summary-course__seg.is-done { background: var(--ok); }
+    .result-page .summary-course__seg.is-started { background: var(--warn); }
+    .result-page .summary-course__seg.is-upcoming { background: var(--line); }
     .result-page .result-details,
     .exam-report .result-details { border: 1px solid var(--line); border-radius: var(--radius); padding: var(--space-4) var(--space-5); margin-top: var(--space-4-5); }
     .result-details > summary { cursor: pointer; font-weight: var(--fw-medium); }
@@ -99,6 +106,36 @@
     .look-back__explanation { margin: 0; }
     .look-back__reference h4 { margin: var(--space-2) 0 var(--space-1); }
     .look-back__actions { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); align-items: center; margin-top: var(--space-2); }
+    .look-back__veil {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2) var(--space-3);
+      padding: var(--space-3) var(--space-3-5);
+      border: 1px dashed var(--line-strong);
+      border-radius: var(--radius-sm);
+      background: var(--bg-sunken);
+    }
+    .look-back__veil-options { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--space-1-5); }
+    .look-back__veil-option {
+      display: flex;
+      align-items: baseline;
+      gap: var(--space-2);
+      padding: var(--space-1-5) var(--space-2-5);
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius-sm);
+      color: var(--text-dim);
+    }
+    .look-back__veil-mark { flex: none; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+    .look-back__reasons {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1-5);
+      padding-top: var(--space-2);
+      border-top: 1px solid var(--line-soft);
+    }
     .result-details[open] > summary { margin-bottom: var(--space-4-5); }
     .exam-report .result-hero { margin-bottom: var(--space-1); }
     .exam-report .result-weak { padding: var(--space-5) var(--space-6); border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
@@ -127,6 +164,7 @@
     :where(.study-app, .study-seat) {
       .result-hero { grid-template-columns: 1fr; padding: var(--space-5-5); gap: var(--space-6); }
       .round-look-back__tools { margin-inline-start: 0; }
+      .look-back__veil { flex-direction: column; align-items: stretch; }
       .result-page.result-page { margin-top: var(--space-6-5); padding: 0 var(--space-3-5); }
     }
   }

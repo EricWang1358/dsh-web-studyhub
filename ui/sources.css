@@ -29,6 +29,7 @@
     .sources-filter__figures > *, .sources-filter__figures::after { grid-area: 1 / 1; }
     .sources-filter__figures::after { content: attr(data-widest); visibility: hidden; }
     .sources-view-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin: 0 0 var(--space-3); }
+    .sources-facets { margin: 0 0 var(--space-3); }
     .sources-view-bar__sort { flex: 0 0 auto; width: auto; min-width: 8.5em; }
     .source-groups { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
     .source-group-head-row { display: flex; align-items: center; gap: var(--space-2); min-width: 0; border-bottom: 1px solid var(--line); margin-bottom: var(--space-1); }
@@ -40,11 +41,21 @@
     .source-course-extra { margin-inline-start: var(--space-1); vertical-align: baseline; }
     .source-folder-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-2); }
     .source-folder-actions__select { min-width: 11em; }
+    .source-organize-progress { display: grid; gap: var(--space-1-5); margin: var(--space-3) 0; padding: var(--space-2-5) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-surface); min-width: 0; }
+    .source-organize-progress__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); min-width: 0; }
+    .source-organize-progress__text { font-size: var(--fs-sm); color: var(--text-dim); font-variant-numeric: tabular-nums; }
+    .source-organize-progress__actions { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); }
+    .source-organize-error { margin: var(--space-2) 0; }
     .source-folder-dialog__chips { display: flex; flex-wrap: wrap; gap: var(--space-1-5); margin: var(--space-2) 0; }
     & .source-group-head small { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
     /* A material is a row on the desk under its day's rule, not a card in a box (#570, ui/DESIGN.md "the card is the only physical object"): no border, no stock,
        three lines (title, facts, status) so a 900px window shows five or more. */
     /* --source-doc-lead: the icon and the gap after it, so a line under the title starts where the title's text does. */
+    /* A row far from the window is not laid out until it scrolls near (its last height is remembered; 80px before the first time, a row without a page list at full width). Laying out every row of
+       a long library in the frame the page opened in was most of the pause on entering 资料. The containment this brings clips what a row draws outside
+       itself, so it is lifted while the pointer or the focus is in the row (a tooltip) and while its 更多 menu is open (ui/Sources.jsx). */
+    .source-doc { content-visibility: auto; contain-intrinsic-size: auto 80px; }
+    .source-doc:is(:hover, :focus-within, .source-doc--menu) { content-visibility: visible; }
     .source-doc { --source-doc-lead: calc(20px + var(--space-3)); display: block; margin: 0; padding: var(--space-2); border: 0; border-radius: var(--radius-sm); background: transparent; }
     /* A row is a small grid: the text (title and facts, after the checkbox while organizing) beside the actions, then the status line under both, as wide as the
        row. The actions (the row's one action and 更多, ui/Sources.jsx) are always there, in a column as wide as they are (at most half the row), so they never

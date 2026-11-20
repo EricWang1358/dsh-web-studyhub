@@ -9,8 +9,9 @@
     /* focuses like a .sh-input (an input with its own class loses the base focus rules to the primitives layer) */
     .sh-scroll__filter:focus { border-color: var(--accent-soft); background: var(--bg-surface); box-shadow: var(--ring); outline: none; }
     .sh-scroll__filter:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: -1px; }
+    /* Its basis can be set by the list that puts a control beside it (--sh-scroll-filter-basis, e.g. the picker's filters button, #1182). */
     .sh-scroll__filter {
-      flex: 1 1 220px;
+      flex: 1 1 var(--sh-scroll-filter-basis, 220px);
       width: auto;
       min-width: 0;
       max-width: 420px;

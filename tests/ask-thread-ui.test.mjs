@@ -26,7 +26,7 @@ const selection = { sourceId: 's1', documentId: 'doc', revision: 'r1', quote: 'W
 const panel = (extra = {}) => ({ capture: { quote: selection.quote }, resolution: { status: 'resolved', selection }, question: '', thread: emptyThread(),
   deckId: 'd', decks: [{ id: 'd', title: 'Deck' }], askReady: true, generateReady: true, modelReady: true, jobs: [], now: 0, call() {}, saveReady: true, ...extra });
 const built = () => {
-  let thread = answerNode(addNode(emptyThread(), { id: 'n1', parentId: null, question: '没听懂' }), 'n1', '这段在讲 [[ELK]] 和 [[日志]]。');
+  const thread = answerNode(addNode(emptyThread(), { id: 'n1', parentId: null, question: '没听懂' }), 'n1', '这段在讲 [[ELK]] 和 [[日志]]。');
   return answerNode(addNode(thread, { id: 'n2', parentId: 'n1', question: 'what is ELK', term: 'ELK' }), 'n2', 'ELK 是 [[Kibana]] 的上游。');
 };
 

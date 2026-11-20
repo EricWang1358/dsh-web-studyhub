@@ -248,16 +248,20 @@ test('the service overlaps plugin-owned host children and tracks each child sepa
   const started = await start('long.wav');
   await until(() => calls.transcribe === 1, 'transcription');
   release();
-  await until(() => pending.size === 3, 'three host children');
-  const running = (await service.call('snapshot')).jobs.find(job => job.id === started.jobId).tasks.filter(task => task.kind === 'proofread');
+  // Window #1 is staggered to warm the prefix cache, then windows 2..4 run in parallel.
+  await until(() => pending.size === 1, 'warm-up host child');
+  for (const resume of [...pending.values()]) resume();
+  await until(() => pending.size === 3, 'three parallel host children');
+  const running = (await service.call('snapshot')).jobs.find(job => job.id === started.jobId).tasks.filter(task => task.kind === 'proofread' && task.status === 'running');
   assert.equal(running.length, 3);
   assert.equal(new Set(running.map(task => task.childId)).size, 3);
   assert.ok(running.every(task => task.runtime === 'subagent' && task.status === 'running'));
-  for (let wave = 0; wave < 4; wave++) {
-    await until(() => pending.size === (wave % 2 === 0 ? 3 : 1), `text wave ${wave}`);
-    for (const resume of [...pending.values()].toReversed()) resume();
-    await new Promise(resolve => setTimeout(resolve, 10));
-  }
+  for (const resume of [...pending.values()].toReversed()) resume();
+  // Translation also staggers window #1, then runs windows 2..4 in parallel.
+  await until(() => pending.size === 1, 'translate warm-up child');
+  for (const resume of [...pending.values()]) resume();
+  await until(() => pending.size === 3, 'three parallel translate children');
+  for (const resume of [...pending.values()].toReversed()) resume();
   const done = await service.call('job.wait', { jobId: started.jobId, timeoutSeconds: 10 });
   assert.equal(done.status, 'complete', done.stage);
   assert.equal(maximum, 3);

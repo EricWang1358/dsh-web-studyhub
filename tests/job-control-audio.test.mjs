@@ -61,7 +61,7 @@ test('a batch: more transcription at once from the next recording on, text steps
   assert.deepEqual(calls, ['transcribe:B'], 'one transcription at a time to begin with');
 
   const running = (await jobOf(started.jobId)).contract;
-  assert.deepEqual(running.actions.set.settings.map((item) => [item.key, item.value]), [['textConcurrency', 3], ['transcribeConcurrency', 1], ['proofreadReasoning', 'default'], ['translateReasoning', 'low'], ['autoBackoff', true]]);
+  assert.deepEqual(running.actions.set.settings.map((item) => [item.key, item.value]), [['textConcurrency', 3], ['transcribeConcurrency', 1], ['proofreadReasoning', 'low'], ['translateReasoning', 'low'], ['autoBackoff', true]]);
   assert.equal(running.actions.set.settings[0].max, 6);
   assert.equal(running.actions.set.settings[1].max, 3);
   assert.equal(running.actions.pause.available, true);

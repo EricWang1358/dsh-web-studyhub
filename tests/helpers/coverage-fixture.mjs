@@ -56,7 +56,7 @@ export function sectionedModel({ failReview = () => false, onPlan } = {}) {
         answerability: { mode: 'recall', requiredContextAvailable: true, answerOnlyInSourceList: false, criteriaWouldRevealAnswer: false },
         citations: [{ sourceId: item.sourceId, quote: item.quote }] })) });
     }
-    const cardOf = (target, index) => ({ id: `q${++serial}`, targetId: target.targetId, kind: 'quiz', topic: 'Scope', objective: target.objective,
+    const cardOf = (target, _index) => ({ id: `q${++serial}`, targetId: target.targetId, kind: 'quiz', topic: 'Scope', objective: target.objective,
       prompt: `Which statement follows from "${target.citations[0].quote.slice(0, 50)}"?`, answer: 'The first option.', hint: 'Compare the options with the passage.', explanation: 'The passage supports the first option.',
       misconception: 'Mixing scopes.', citations: target.citations,
       options: [{ id: 'a', text: 'The first option.', correct: true, explanation: 'Supported.' }, { id: 'b', text: 'The second option.', correct: false, explanation: 'Not supported.' }, { id: 'c', text: 'The third option.', correct: false, explanation: 'Not supported.' }] });

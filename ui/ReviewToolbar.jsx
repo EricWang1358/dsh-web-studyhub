@@ -11,10 +11,10 @@ const NEXT_HINT_ID = "review-next-hint";
  * The tools under a question, kept to six controls: 提示 / 讲解, 帮我弄懂, 修题, 更多 and the previous / next buttons (#671 kept five; 修题 came out of 更多 on the
  * learner's word: fixing a question is a step of practising, and the box it opens has the learner's own phrases). Everything that is not needed on every question
  * is in 更多 (a menu), each with its key where it has one: 显示英文, 答对后自动下一题 (A), 字号与版心, 这题不错 (G) / 这题有问题 (B), then the actions on the question
- * (mark it, note, task, derive a prerequisite, slay). `moreDefaultOpen` opens the menu at first render.
+ * (mark it, note, task, derive a prerequisite, term list, slay). `moreDefaultOpen` opens the menu at first render.
  * `onThumb('up' | 'down')` and `thumbVote` are the page's 评价: its ThumbFeedback keeps the vote and the keys; `thumbs` is that component (it draws only the tag tray).
  */
-export default function ReviewToolbar({ run, expanded, revealed, onToggleHelp, onAsk, onImprove, onDerive, onSlay, onToggleFocus, onDeferUnstudiedPages, onNote, onTask, onReviewAction, thumbs, onThumb, thumbVote, enOn, enBusy, onToggleEn, assistMode, autopilot, onToggleAutopilot, selfGradeAdvance, onToggleSelfGradeAdvance, onUndo, autoAdvanceActive = false, autoAdvancePaused = false, autoAdvanceMs = 0, onSkip, onEndRound, moreDefaultOpen = false }) {
+export default function ReviewToolbar({ run, expanded, revealed, onToggleHelp, onAsk, onImprove, onDerive, onTermList, onSlay, onToggleFocus, onDeferUnstudiedPages, onNote, onTask, onReviewAction, thumbs, onThumb, thumbVote, enOn, enBusy, onToggleEn, autoTerms, autoTermsBusy, onToggleAutoTerms, assistMode, markingTerms = false, onToggleMarkTerms, autopilot, onToggleAutopilot, selfGradeAdvance, onToggleSelfGradeAdvance, onUndo, autoAdvanceActive = false, autoAdvancePaused = false, autoAdvanceMs = 0, onSkip, onEndRound, moreDefaultOpen = false }) {
   const { busy } = useStudy();
   const [readingOpen, setReadingOpen] = React.useState(false);
   // Say why 下一题 is unavailable instead of leaving a dim button: an unanswered question waits for its answer (one whose AI grade is on its way is answered: the grade lands on it later, #1031); a pending step is still saving.
@@ -35,6 +35,9 @@ export default function ReviewToolbar({ run, expanded, revealed, onToggleHelp, o
     { heading: true, label: ui("显示与节奏") },
     !exam && { id: "en", label: ui("显示英文"), checked: !!enOn, disabled: !!enBusy && !enOn, hint: enBusy ? "EN…" : undefined,
       run: onToggleEn },
+    !exam && { id: "terms-auto", label: ui("答错后列出生词"), hint: ui("打开后，每道答错的题第一次会多一次轻量调用"),
+      checked: !!autoTerms, disabled: !!autoTermsBusy && !autoTerms,
+      attrs: { "data-usage": "review.terms-auto" }, run: onToggleAutoTerms },
     // 自动驾驶, in plain words: the setting of 设置 › 练习 (default off), switchable here and with the A key; it only flips a setting, so a saving step does not block it.
     !exam && onToggleAutopilot && { id: "autopilot", label: ui("自动跳下一步"), checked: !!autopilot, hint: "A",
       attrs: { "aria-keyshortcuts": "A" }, run: onToggleAutopilot },
@@ -56,8 +59,15 @@ export default function ReviewToolbar({ run, expanded, revealed, onToggleHelp, o
     { id: "note", label: ui("写笔记"), hint: onNote ? "N" : undefined, attrs: onNote ? { "aria-keyshortcuts": "N" } : undefined, disabled: busy, run: onNote },
     onTask && { id: "task", label: ui("记待办"), disabled: busy, run: onTask },
     onDerive && { id: "derive", label: ui("出前置题…"), attrs: { "data-usage": "review.derive" }, run: onDerive },
+    !exam && onTermList && { id: "term-list", label: ui("生词表…"), attrs: { "data-usage": "review.term-list" }, run: onTermList },
     { id: "slay", label: ui("斩掉此题"), disabled: busy, danger: true, run: onSlay },
   ].filter(Boolean);
+  const handleToggleMarkTerms = (event) => {
+    if (event?.detail > 0) {
+      event.currentTarget.closest(".review-body")?.querySelector(".question-card")?.focus?.({ preventScroll: true });
+    }
+    onToggleMarkTerms?.();
+  };
   return (
     <div className="question-toolbar">
       <div className="question-tools">
@@ -66,6 +76,20 @@ export default function ReviewToolbar({ run, expanded, revealed, onToggleHelp, o
         </Button>}
         <Button variant="quiet" icon="sparkle" className="tool-action tool-help" data-tour="review-help" data-usage="review.help" aria-expanded={assistMode === "ask"} onClick={onAsk}>{ui("帮我弄懂")}</Button>
         <Button variant="quiet" icon="edit" className="tool-action" data-tour="review-improve" data-usage="review.improve" aria-expanded={assistMode === "improve"} onClick={onImprove}>{ui("修题")}</Button>
+        {!exam && !run.complete && (
+          <Button
+            variant="quiet"
+            icon="highlighter"
+            className="tool-action"
+            data-tour="review-terms"
+            data-usage="review.terms"
+            aria-pressed={!!markingTerms}
+            aria-keyshortcuts="W"
+            onClick={handleToggleMarkTerms}
+          >
+            {ui("标生词")}
+          </Button>
+        )}
         {canUndo && !run.feedback && <Button variant="quiet" className="tool-action review-undo" data-usage="review.undo" aria-keyshortcuts="Z" lock={busy} onClick={onUndo}>{ui("已记分 · 撤销 (Z)")}</Button>}
         {thumbs}
       </div>

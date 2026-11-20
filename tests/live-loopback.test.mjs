@@ -535,10 +535,10 @@ test('Windows integration: compiles LIVE_LOOPBACK_CS_SOURCE with real csc.exe, r
   let stderr = '';
   child.stderr.on('data', chunk => { stderr += chunk.toString('utf8'); });
   const exitCode = await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => { try { child.kill(); } catch {} reject(new Error(`helper timed out; stderr=${stderr}`)); }, 4000);
+    const timer = setTimeout(() => { try { child.kill(); } catch { /* it has already exited */ } reject(new Error(`helper timed out; stderr=${stderr}`)); }, 4000);
     child.stderr.on('data', () => {
       if (stderr.includes('STATE:')) {
-        try { child.stdin.end(); } catch {}
+        try { child.stdin.end(); } catch { /* the pipe is already closed */ }
       }
     });
     child.on('error', err => { clearTimeout(timer); reject(err); });

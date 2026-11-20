@@ -351,5 +351,20 @@
   "编排：按 studyhub-lesson/1 规范组织逐句舞台（含离线 LaTeX 公式与 sandbox、matrix、schematic 或 lanes 互动组件），直接调用 companion.compile 挂载到课程，或在已配好模型时调用 generation.companion.build。": "Authoring: structure a progressive studyhub-lesson/1 stage (with offline LaTeX math and sandbox, matrix, schematic or lanes blocks) and mount it directly via companion.compile, or start generation.companion.build when a model is configured.",
   "交互母版": "interactive archetype",
   "导题模式": "card sync mode",
-  "参考讲义 ID": "reference sourceIds"
+  "参考讲义 ID": "reference sourceIds",
+  "我在做下面这道题时卡住了，想先从 {0} 最底层的概念学起，再回来做题。": "I got stuck on this question and want to learn from the most foundational concepts in {0} first before returning to the questions.",
+  "我在做下面这道题时卡住了，想先从这一部分最底层的概念学起，再回来做题。": "I got stuck on this question and want to learn from the most foundational concepts in this section first before returning to the questions.",
+  "背景：学生在这道题上卡住，标了下面这些不认识的词，补了一轮词后还引出了更底层的前置概念（必要时可用 study_workspace 的 card.get 读原题，用 source.search 查出处）。": "Context: the learner got stuck on this question, marked the unfamiliar terms below, and after one round of filling terms even deeper prerequisite concepts came up (read the card with study_workspace card.get and check sources with source.search if needed).",
+  "讲法：请从这一部分最基础的概念讲起：先讲每个概念解决什么问题，再给出名字和正式说法。": "Method: start from the most foundational concepts of this section: first explain what problem each concept solves, then give its name and formal definition.",
+  "节奏：每讲完一小步问一个检查问题，等我回答后再继续。": "Pace: ask one check question after each small step and wait for my reply before continuing.",
+  "避免：不要一次讲完，不要让我死记硬背。": "Avoid: dumping everything at once, and never ask me to memorize by rote.",
+  "所在资料": "Source",
+  "还缺的底层词": "Deeper prerequisite terms",
+  "帮我为课程 {0} 的这道顽固错题做一个 3–4 页交互急救实验，直接挂载回这道题。": "Please build a 3–4 slide interactive rescue experiment for this stubborn question in course {0} and link it back to this question.",
+  "帮我为这道顽固错题做一个 3–4 页交互急救实验，直接挂载回这道题。": "Please build a 3–4 slide interactive rescue experiment for this stubborn question and link it back to this question.",
+  "规范：先用 study_workspace 读 library.context {\"area\":\"companions\"}，再用 card.get 读取这道题的完整题干、解析与引用原文。": "Spec: read library.context {\"area\":\"companions\"} with study_workspace first, then call card.get to inspect the full question, explanation, and source citations.",
+  "编排：按 studyhub-lesson/1（mode: \"rescue\"）设计 3–4 页急救舞台：第 1 页 predict 紧扣我选错的思路，第 2 页用 sandbox、matrix、schematic 或 lanes 配 reveal 演示机理，有可指认的错误步骤时补第 3 页 spot，末页放 1 道换情境边界 quiz。": "Authoring: design a 3–4 slide studyhub-lesson/1 (mode: \"rescue\") stage: Slide 1 predict grounded in my wrong answer, Slide 2 sandbox/matrix/schematic/lanes + reveal unpacking the mechanism, optional Slide 3 spot only if there is a clickable flawed step, and a final boundary transfer quiz.",
+  "挂载：直接调用零密钥 companion.compile（带上 mode: \"rescue\"、targetCardIds 与对应的 hid），挂载完成后告诉我回到错题本这一行直接打开。": "Mount: compile directly via zero-key companion.compile (passing mode: \"rescue\", targetCardIds, and the matching hid), then tell me to return to this row in Mistakes & weak points to open it.",
+  "顽固错题": "Stubborn question",
+  "上次选错的答案": "Previous wrong answer"
 }

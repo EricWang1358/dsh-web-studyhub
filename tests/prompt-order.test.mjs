@@ -57,7 +57,7 @@ test('by default the sources lead every stage of a part, and the instructions fo
   sourcesFirst(false, () => {
     const off = part(big, 4);
     assert.ok(off.plan.startsWith('STAGE 1') && off.blueprint.startsWith('STAGE 2') && off.author.startsWith('STAGE 3'));
-    assert.ok(off.review.startsWith('{"task"'));
+    assert.ok(off.review.startsWith('{"kind"'));
   });
 });
 
@@ -82,9 +82,11 @@ test('a prompt that leads with its sources is sent with the shared system text a
   assert.ok(data > 0 && data < own && own < instruction, 'data, then the stage system text, then the instructions');
   assert.ok(sentPrompt.endsWith(note), 'the correction stays at the very end');
   assert.deepEqual(requestData(sentPrompt), requestData(prompt), 'the data reads back whole');
-  // The review payload has no instructions of its own: its system text follows the data.
+  // The review payload has no instructions of its own: its system text follows the data (with QUALITY_CRITERIA deduplicated against GENERATION_SYSTEM).
   const review = part(big, 4).review, sentReview = stageRequest(SYSTEMS.review, review).prompt;
-  assert.equal(sentReview, `${review}\n\n${SYSTEMS.review}`);
+  assert.ok(sentReview.endsWith(`\n\n${SYSTEMS.review}`), 'review system text follows the data');
+  assert.deepEqual(requestData(sentReview).sources, requestData(review).sources, 'review sources stay intact');
+  assert.equal(sentReview.includes(JSON.stringify('Evaluate each card on six dimensions:').slice(1, -1)), false, 'duplicated QUALITY_CRITERIA is stripped once hoisted into GENERATION_SYSTEM');
 });
 
 test('a prompt that does not lead with its sources (small sources, other features) is sent exactly as before', () => {
@@ -119,7 +121,7 @@ test('small sources keep the instructions first, as before', () => {
   const all = part(small, 4);
   assert.ok(all.plan.startsWith('STAGE 1') && all.blueprint.startsWith('STAGE 2') && all.author.startsWith('STAGE 3'));
   for (const stage of ['plan', 'blueprint', 'author']) assert.ok(all[stage].includes(`\n${REQUEST_DATA}{`), `${stage} keeps the REQUEST DATA marker before its data`);
-  assert.ok(all.review.startsWith('{"task"'), 'the review payload is a JSON object, its stable text first');
+  assert.ok(all.review.startsWith('{"kind"'), 'the review payload is a JSON object, its shared stable fields first');
 });
 
 for (const [name, sources, lead] of [['big', big, false], ['small', small, false], ['big, sources first', big, true]]) {

@@ -1,0 +1,22 @@
+{
+  "name": "@ericwang1358/studyhub-desktop",
+  "version": "4.15.1",
+  "private": true,
+  "type": "module",
+  "description": "StudyHub Desktop: standalone Tauri v2 desktop edition of StudyHub.",
+  "license": "MIT",
+  "scripts": {
+    "generate:icons": "node scripts/generate-icons.mjs",
+    "build:ui": "node scripts/build-ui.mjs",
+    "stage:runtime": "node scripts/stage-runtime.mjs",
+    "smoke:runtime": "node scripts/smoke-staged-runtime.mjs",
+    "bundle:zip": "node scripts/pack-zip.mjs",
+    "pack:retrieval": "node scripts/pack-retrieval.mjs",
+    "verify": "node scripts/smoke-staged-runtime.mjs && cargo fmt --manifest-path src-tauri/Cargo.toml --check && cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings && cargo test --manifest-path src-tauri/Cargo.toml",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "npm run build:ui && npm run stage:runtime && tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.5.0"
+  }
+}

@@ -35,7 +35,7 @@ export async function tourAfterSample({ refresh, seen, start, setError }) {
    Whether the first-run line was put away (以后再说), the sample course (sample.* host actions, C6) and the feature tour that switches to
    each key page. Hosts without sample support send no `sample` in the snapshot; then the tour still runs and the steps that
    need sample data are left out. */
-export function useTour({ core, lib, nav, session, drafts, intents, data, rootRef }) {
+export function useTour({ core, lib, nav, session, drafts, intents, data, rootRef, canChat = true }) {
   const { call, act, setError, notify, refresh, refs } = core;
   const { setModal, setDraft, setSelectedSources, setSkeletonFocus } = lib.set;
   const [tourStep, setTourStep] = useState(null), [sampleBusy, setSampleBusy] = useState(false);
@@ -52,7 +52,7 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
   const modelState = data ? data.model || { ready: !!data.modelReady } : null;
   /** The steps of the short tour or of the full one, for what this library and host can show; while the first-run line is up (the sample never counts in it),
       the short tour ends on its step 2. */
-  const stepsFor = (full) => data ? availableTourSteps(TOUR_STEPS, { sample: data.sample, full, line: firstRunLine(data).show,
+  const stepsFor = (full) => data ? availableTourSteps(TOUR_STEPS, { sample: data.sample, full, line: firstRunLine(data).show, canChat,
     pageAvailable: (id) => pageAvailable(data, id), hasContext: (id) => hasContext(data, id) }) : [];
   const savedTour = data?.root && !tourStep ? readTourProgress(data.root) : null;
   // While paused, the tour on offer is the one that was paused (the sidebar says "继续 3/8" for it).

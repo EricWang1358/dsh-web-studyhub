@@ -4,6 +4,9 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { StudyService } from "../lib/service.js";
+import { NON_CONTENT_CARD_FIELDS } from "../lib/card-content.js";
+import { currentFollowups, followupDigest } from "../lib/followup.js";
+import { translateSource } from "../lib/translation-source.js";
 import { reviewedCardFingerprint, reviewedCardStatus } from "../lib/review-integrity.js";
 import { repairSourcesForCard } from "../lib/repair-evidence.js";
 import { qualityReview } from "./helpers/assessment.mjs";
@@ -200,7 +203,7 @@ test("an incomplete batch review is retried per card before publication", async 
     prompt: "What guides later evolution?" };
   const draft = await service.call("draft.save", { deck: { id: "d", title: "Architecture", cards: [card(), second] } });
   const result = await service.call("draft.publish", { id: draft.id, draftVersion: draft.draftVersion });
-  assert.equal(calls, 4);
+  assert.equal(calls, 3, "preserves cleanly passing card q and re-inspects only missing card q2");
   assert.deepEqual({ accepted: result.accepted, rejected: result.rejected }, { accepted: 2, rejected: 0 });
 });
 
@@ -727,8 +730,7 @@ test("an edit that duplicates an unchanged published card stays pending", async 
 test("a concurrent edit invalidates a completed publication review", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "study-recheck-race-"));
   t.after(() => rm(root, { recursive: true, force: true }));
-  let service;
-  service = new StudyService(root, { complete: async (_system, prompt) => {
+  const service = new StudyService(root, { complete: async (_system, prompt) => {
     const state = await service.call("export");
     const draft = state.drafts[0];
     await service.call("draft.save", { deck: { ...draft, title: "Changed while reviewing" } });
@@ -738,4 +740,139 @@ test("a concurrent edit invalidates a completed publication review", async (t) =
   const saved = await service.call("draft.save", { deck: { id: "d", title: "Architecture", cards: [card()] } });
   await assert.rejects(service.call("draft.publish", { id: "d", draftVersion: saved.draftVersion }), /Draft changed/);
   assert.equal((await service.call("export")).drafts.length, 1);
+});
+
+/* ---------- #1241: deck.edit -> non-content writes -> draft.publish ---------- */
+
+const cardTranslationEn = {
+  prompt: "What guides later system design?",
+  answer: "Architectural principles.",
+  explanation: "The notes say principles guide design and change.",
+};
+
+async function setupReviewedDeck(t) {
+  const root = await mkdtemp(join(tmpdir(), "study-edit-meta-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const service = new StudyService(root, {
+    completeLight: async (_system, _prompt, options) => {
+      if (options?.task === "card.translate") return JSON.stringify(cardTranslationEn);
+      if (options?.task === "card.followup.suggest") return JSON.stringify({ questions: ["Why principles?", "How do they evolve?", "What breaks them?"] });
+      return JSON.stringify({ terms: ["Architecture", "principles"] });
+    },
+  });
+  await service.call("source.add", source);
+  const initial = await service.call("draft.save", { deck: { id: "d", title: "Architecture", cards: [card()] } });
+  await service.call("draft.publish", { id: initial.id, draftVersion: initial.draftVersion });
+  const run = await service.call("review.start", { deckId: "d", mode: "flashcard" });
+  await service.call("review.reveal", { runId: run.id, cardId: "q" });
+  await service.call("review.answer", { runId: run.id, cardId: "q", grade: 4 });
+  await service.call("review.end", { runId: run.id });
+  const liveBefore = (await service.call("deck.get", { id: "d" })).cards[0];
+  assert.ok(liveBefore.review.repetitions >= 1 || liveBefore.review.reps >= 1, "card has review progress before edit");
+  return { service, reviewBefore: structuredClone(liveBefore.review) };
+}
+
+test("#1241: followup, translation and candidate terms written while editing preserve review progress on publish", async (t) => {
+  for (const kind of ["followup", "translate", "terms"]) {
+    const { service, reviewBefore } = await setupReviewedDeck(t);
+    const edit = await service.call("deck.edit", { id: "d" });
+    if (kind === "followup") {
+      await service.call("card.followup.add", { deckId: "d", cardId: "q", question: "Why principles?", answer: "They keep trade-offs consistent." });
+    } else if (kind === "translate") {
+      await service.call("card.translate", { deckId: "d", cardId: "q" });
+    } else {
+      await service.call("card.terms", { deckId: "d", cardId: "q" });
+    }
+    await service.call("draft.publish", { id: edit.id, draftVersion: edit.draftVersion });
+    const published = (await service.call("deck.get", { id: "d" })).cards[0];
+    assert.deepEqual(published.review, reviewBefore, `review progress preserved after ${kind}`);
+  }
+});
+
+test("#1241: publishing an unchanged card preserves followups, followupSuggestions, focus, and matching translation/terms", async (t) => {
+  const { service, reviewBefore } = await setupReviewedDeck(t);
+  const edit = await service.call("deck.edit", { id: "d" });
+  await service.call("card.followup.add", { deckId: "d", cardId: "q", question: "Why principles?", answer: "They align future changes." });
+  await service.call("card.followup.suggest", { deckId: "d", cardId: "q" });
+  await service.call("card.translate", { deckId: "d", cardId: "q" });
+  await service.call("card.terms", { deckId: "d", cardId: "q" });
+  await service.call("card.focus", { deckId: "d", cardId: "q", focus: true });
+  const liveBeforePublish = (await service.call("deck.get", { id: "d" })).cards[0];
+
+  await service.call("draft.publish", { id: edit.id, draftVersion: edit.draftVersion });
+  const published = (await service.call("deck.get", { id: "d" })).cards[0];
+  assert.deepEqual(published.review, reviewBefore);
+  assert.deepEqual(published.followups, liveBeforePublish.followups);
+  assert.equal(published.followups[0].staleFrom, undefined);
+  assert.deepEqual(published.followupSuggestions, liveBeforePublish.followupSuggestions);
+  assert.deepEqual(published.translation, liveBeforePublish.translation);
+  assert.deepEqual(published.terms, liveBeforePublish.terms);
+  assert.equal(published.focus, true);
+});
+
+test("#1241: editing the answer resets review, migrates followups as stale, and drops stale translation/terms/suggestions", async (t) => {
+  const { service, reviewBefore } = await setupReviewedDeck(t);
+  await service.call("card.followup.add", { deckId: "d", cardId: "q", question: "Why principles?", answer: "They align future changes." });
+  await service.call("card.followup.suggest", { deckId: "d", cardId: "q" });
+  await service.call("card.translate", { deckId: "d", cardId: "q" });
+  await service.call("card.terms", { deckId: "d", cardId: "q" });
+  await service.call("card.focus", { deckId: "d", cardId: "q", focus: true });
+
+  const edit = await service.call("deck.edit", { id: "d" });
+  const saved = await service.call("draft.save", {
+    deck: {
+      ...edit,
+      cards: [{ ...edit.cards[0], answer: "Documented architectural principles and design constraints." }],
+    },
+  });
+  await service.call("draft.publish", { id: saved.id, draftVersion: saved.draftVersion });
+  const published = (await service.call("deck.get", { id: "d" })).cards[0];
+  assert.notDeepEqual(published.review, reviewBefore, "review progress resets when the answer changes");
+  assert.equal(published.review.repetitions ?? published.review.reps ?? 0, 0);
+  assert.equal(published.followups.length, 1, "follow-up is retained across content edits");
+  assert.equal(published.followups[0].digest, followupDigest(published), "follow-up digest migrates to the updated card");
+  assert.equal(currentFollowups(published).length, 1, "migrated follow-up stays visible");
+  assert.ok(published.followups[0].staleFrom, "follow-up is flagged as based on an earlier version");
+  assert.equal(published.translation, undefined, "stale translation cache is dropped");
+  assert.equal(published.terms, undefined, "stale candidate terms cache is dropped");
+  assert.equal(published.followupSuggestions, undefined, "stale follow-up suggestions are dropped");
+  assert.equal(published.focus, true, "learner focus marker is preserved");
+});
+
+test("#1241 regression guard: mutating any field in NON_CONTENT_CARD_FIELDS during deck.edit preserves review progress on publish", async (t) => {
+  const sampleValue = (field, liveCard) => {
+    const digest = translateSource(liveCard).digest;
+    switch (field) {
+      case "review": return { ...liveCard.review, repetitions: (liveCard.review.repetitions ?? 0) + 1, reps: (liveCard.review.reps ?? 0) + 1 };
+      case "flag": return "needs review";
+      case "suspended": return true;
+      case "requires": return [{ deckId: "other", cardId: "p1" }];
+      case "revisions": return [{ at: "2026-11-19T00:00:00.000Z", reason: "fix", content: { prompt: "old" } }];
+      case "part": return 2;
+      case "retell": return { tries: 1, passes: 1, gap: "none", at: "2026-11-19T00:00:00.000Z" };
+      case "followups": return [{ id: "fu-1", at: "2026-11-19T00:00:00.000Z", digest: followupDigest(liveCard), originalQuestion: "Q?", question: "Q?", answer: "A." }];
+      case "followupSuggestions": return { digest: "d", questions: ["Q1?", "Q2?", "Q3?"] };
+      case "translation": return { lang: "en", at: "2026-11-19T00:00:00.000Z", digest, ...cardTranslationEn };
+      case "terms": return { at: "2026-11-19T00:00:00.000Z", digest, items: ["Architecture"] };
+      case "focus": return true;
+      case "autoRubric": return { criteria: [{ id: "c1", label: "Core", marks: 2, keyPoints: ["principles"] }], basis: "basis", at: "2026-11-19T00:00:00.000Z" };
+      case "addedAt": return "2026-11-19T00:00:00.000Z";
+      case "slain": return { deckId: "d", deckTitle: "Architecture", suspended: false, at: "2026-11-19T00:00:00.000Z" };
+      default: return { sentinel: field };
+    }
+  };
+
+  for (const field of NON_CONTENT_CARD_FIELDS) {
+    const { service, reviewBefore } = await setupReviewedDeck(t);
+    const edit = await service.call("deck.edit", { id: "d" });
+    let expectedReview = reviewBefore;
+    await service.store.update((s) => {
+      const live = s.decks.find((d) => d.id === "d").cards[0];
+      live[field] = sampleValue(field, live);
+      if (field === "review") expectedReview = structuredClone(live.review);
+    });
+    await service.call("draft.publish", { id: edit.id, draftVersion: edit.draftVersion });
+    const published = (await service.call("deck.get", { id: "d" })).cards[0];
+    assert.deepEqual(published.review, expectedReview, `mutating non-content field "${field}" must not reset review progress`);
+  }
 });

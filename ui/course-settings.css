@@ -36,6 +36,12 @@
     .course-rules__list { margin: 0; padding-left: var(--space-5); display: grid; gap: var(--space-1); }
     .course-rules__row, .course-rules__add { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
     .course-rules__input { flex: 1; min-width: 0; }
+    /* 符号与术语口径 (5.0.0 Evolution 2 #6): compact two-column override rows, stacking on narrow screens. */
+    .course-notation { display: grid; gap: var(--space-2); min-width: 0; }
+    .course-notation__list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+    .course-notation__row { display: flex; align-items: flex-start; gap: var(--space-2); padding: var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-surface); min-width: 0; }
+    .course-notation__add { display: grid; gap: var(--space-2); justify-items: start; }
+    .course-notation__fields { flex: 1; width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-1-5); min-width: 0; }
     .course-settings__section-row { display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
     .course-settings__section-head { display: flex; align-items: center; justify-content: space-between; font-size: var(--fs-sm); color: var(--text-dim); }
     .course-settings .sh-inline p { margin: var(--space-1) 0 0; }
@@ -97,6 +103,7 @@
     :is(.study-app, .study-seat) {
       .course-settings__rename { flex-direction: column; align-items: stretch; }
       .course-settings__grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+      .course-notation__fields { grid-template-columns: minmax(0, 1fr); }
       .course-list__item { padding-left: var(--space-3); }
       .course-list__chapters .course-list__item { padding-left: calc(var(--space-2) + var(--space-5)); }
       .course-list__chapters .course-list__chapter--nested .course-list__item { padding-left: calc(var(--space-2) + var(--space-5) + var(--space-3) * var(--depth, 1)); }

@@ -34,7 +34,7 @@ test('a pass asked for some sections of a round leaves the round pending, owing 
 });
 
 test('a section tried and failed is not asked again by its round: it is a fill round\'s; a failed pass owes what it never asked, and a whole round that failed is failed', () => {
-  let spec = finishRound(markRound(two(), 1, 'running', { asked: ['c', 'd'] }), 1, { asked: ['c', 'd'], left: new Set(['c', 'd', 'e']) });
+  const spec = finishRound(markRound(two(), 1, 'running', { asked: ['c', 'd'] }), 1, { asked: ['c', 'd'], left: new Set(['c', 'd', 'e']) });
   assert.equal(spec.rounds[1].status, 'pending');
   assert.deepEqual(nextPlannedKeys(spec, new Set(['c', 'd', 'e'])).keys, ['e'], 'c and d were tried: the round asks for e only');
   const failed = finishRound(markRound(two(), 1, 'running', { asked: ['c'] }), 1, { status: 'failed', code: 'review-protocol', asked: ['c'], left: new Set(['c', 'd', 'e']) });

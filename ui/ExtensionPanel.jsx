@@ -1,7 +1,7 @@
 import React, { useContext, useEffect, useId, useRef, useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, ConfirmDialog, Hint, InlineMessage, ProgressBar, Select, Tooltip } from './components/index.js';
+import { Button, ConfirmDialog, Hint, Icon, InlineMessage, ProgressBar, Select, Tooltip } from './components/index.js';
 import { usePolling } from './use-polling.js';
 import { indexProgress, restartDone, runInstall, runUninstall, startIndex } from './retrieval-extension-flow.js';
 import { courseScopeLine, indexAction } from './index-scope.js';
@@ -13,6 +13,7 @@ import IndexNote from './IndexNote.jsx';
 import { useStudy } from './study-context.jsx';
 import { AppContext } from './app/app-context.js';
 import { HandOff } from './hand-off/HandOff.jsx';
+import { hasChatHost } from './hand-off/use-hand-off.js';
 import { DiagnosticBar } from './install/DiagnosticActions.jsx';
 import { SETUP_FAILED_WHAT, extensionDiagnostic } from './install/install-diagnostics.js';
 
@@ -36,14 +37,16 @@ const COMPONENTS = {
 };
 const COMPONENT_UNKNOWN = '检索扩展依赖的组件；脚本用来准备适合你电脑的文件。';
 
-/** Installed but not running: ask the learner to restart DSH, and meanwhile check quietly in case it comes up anyway. */
-function StartupWait({ desktop = false, refresh }) {
+/** Installed but not running: ask the learner to restart DSH (or wait for StudyHub Desktop's service), and meanwhile check quietly in case it comes up anyway. */
+function StartupWait({ desktop = false, desktopHost = false, refresh }) {
   usePolling(() => refresh(), { intervalMs: 3000 });
   return (
     <p className="extension-panel__lead" role="status">
-      {desktop
-        ? ui('检索扩展已安装。请完全退出 DSH 桌面版（包括托盘图标）后重新打开，检索扩展才会启动。')
-        : ui('检索扩展已安装。请手动重启 DSH 以应用。')}
+      {desktopHost
+        ? ui('检索扩展已安装，正在启动检索服务…')
+        : desktop
+          ? ui('检索扩展已安装。请完全退出 DSH 桌面版（包括托盘图标）后重新打开，检索扩展才会启动。')
+          : ui('检索扩展已安装。请手动重启 DSH 以应用。')}
     </p>
   );
 }
@@ -67,11 +70,13 @@ function useExtensionInstall({ onStatus, initialApproval = null, initialDone = n
   return { busy, error, approval, restart, done, boot, install, setApproval };
 }
 
-function ApprovalDialog({ approval, busy, install, close }) {
+function ApprovalDialog({ approval, busy, install, close, isDesktopApp = false }) {
   if (!approval) return null;
   // install() reports its own errors and closes the approval; the dialog only keeps the learner from asking twice.
   return <ConfirmDialog tone="primary" title={ui('允许安装组件的脚本？')} confirmLabel={ui('允许并继续')} busy={busy}
-    description={ui('检索扩展依赖的这些组件，安装时要运行自带的脚本（用来取得适合你电脑的运行文件）。DSH 默认会拦下它们，需要你确认。')}
+    description={isDesktopApp
+      ? ui('检索扩展依赖的这些组件，安装时要运行自带的脚本（用来取得适合你电脑的运行文件）。StudyHub 桌面版默认会先征得你确认。')
+      : ui('检索扩展依赖的这些组件，安装时要运行自带的脚本（用来取得适合你电脑的运行文件）。DSH 默认会拦下它们，需要你确认。')}
     onConfirm={() => install(approval)} onDone={() => {}} onClose={close}>
     <ul className="extension-panel__pending">{approval.map(name => <li key={name}><code>{name}</code>
       <small className="extension-panel__purpose">{ui(COMPONENTS[name] || COMPONENT_UNKNOWN)}</small></li>)}</ul>
@@ -83,10 +88,13 @@ function ApprovalDialog({ approval, busy, install, close }) {
  *  Pending-restart and failed-restart markers come from the host (`extension.pendingRestart`, `extension.restartFailed`), so switching tabs
  *  or closing the window to the tray never loses the restart notice. */
 export function ExtensionUpdateNotice({ status, onStatus, initialDone = null }) {
-  const { call } = useStudy();
+  const { call, host } = useStudy();
   const flow = useExtensionInstall({ onStatus, initialDone });
   const extension = status?.extension;
   const desktop = !!extension?.desktop;
+  const isDesktopApp = !!extension?.desktopHost || host?.capabilities?.edition === 'desktop';
+  const reusingDsh = isDesktopApp && extension?.source === 'dsh';
+  const canUpdate = extension?.canInstall !== false;
   const { data: shared } = useRetrievalStatus({ call, enabled: false });
   const restarted = restartDone(flow.boot, status?.boot ?? shared?.boot);
   const stuck = (!flow.done || restarted) ? extension?.restartFailed || null : null;
@@ -96,49 +104,68 @@ export function ExtensionUpdateNotice({ status, onStatus, initialDone = null }) 
   const appliedNow = flow.done && !flow.restart;
   usePolling(() => refreshRetrievalStatus(call), { intervalMs: 5000, enabled: !!pendingRestart && typeof call === 'function' });
   if (!extension?.installed || (!extension.outdated && !pendingRestart && !appliedNow && !stuck)) return null;
+  const busyHint = isDesktopApp
+    ? ui('正在下载并安装检索扩展，通常需要几分钟。期间可以继续学习，不要关闭 StudyHub。')
+    : ui('正在下载并安装检索扩展，通常几分钟。期间可以继续学习，不要关闭 DSH。');
   if (pendingRestart || appliedNow) return (
     <div className="extension-panel__update">
       <InlineMessage tone={pendingRestart ? 'warning' : 'success'} boxed title={ui('检索扩展已更新')}>
-        {pendingRestart ? (desktop
-          ? <Tooltip layer content={`${ui('只关掉窗口不会换上新版检索扩展，旧服务还在后台运行。完全退出 DSH 桌面版（包括托盘图标）后重新打开，新版才会接手；在此之前旧版本继续运行，建索引和检索都照常可用。')}\n${ui('重启之后这条提示就会消失。')}`}>
-            <span tabIndex={0}>{ui('这次更新要完全退出 DSH 桌面版（包括托盘图标）后重新打开才会生效。')}</span></Tooltip>
-          : <Tooltip layer content={`${ui('重启 DSH 才会换上刚更新的检索扩展；在此之前旧版本继续运行，建索引和检索都照常可用。')}\n${ui('重启之后这条提示就会消失。')}`}>
-            <span tabIndex={0}>{ui('这次更新要重启 DSH 之后才会生效。')}</span></Tooltip>)
-          : ui('已更新，无需重启。')}
+        {pendingRestart ? (isDesktopApp
+          ? ui('正在应用更新并重启检索服务…')
+          : desktop
+            ? <Tooltip layer content={`${ui('只关掉窗口不会换上新版检索扩展，旧服务还在后台运行。完全退出 DSH 桌面版（包括托盘图标）后重新打开，新版才会接手；在此之前旧版本继续运行，建索引和检索都照常可用。')}\n${ui('重启之后这条提示就会消失。')}`}>
+              <span tabIndex={0}>{ui('这次更新要完全退出 DSH 桌面版（包括托盘图标）后重新打开才会生效。')}</span></Tooltip>
+            : <Tooltip layer content={`${ui('重启 DSH 才会换上刚更新的检索扩展；在此之前旧版本继续运行，建索引和检索都照常可用。')}\n${ui('重启之后这条提示就会消失。')}`}>
+              <span tabIndex={0}>{ui('这次更新要重启 DSH 之后才会生效。')}</span></Tooltip>)
+          : (isDesktopApp ? ui('已更新并生效，无需重启。') : ui('已更新，无需重启。'))}
       </InlineMessage>
     </div>
   );
   if (stuck) return (
     <div className="extension-panel__update">
       <InlineMessage tone="warning" boxed title={uiFormat('检索扩展 {0} 没有生效', [stuck.pending])}>
-        <p>{stuck.running
-          ? uiFormat('DSH 重新启动过，现在安装的仍是检索扩展 {0}（之前安装过 {1}）。', [stuck.running, stuck.pending])
-          : uiFormat('DSH 重新启动过，但检索扩展 {0} 没有装上。', [stuck.pending])}</p>
-        <p>{ui('可能的原因：更新装进了这台电脑上的另一份 DSH 配置，这一份还是旧的；或者新版文件没有真正换上。点下面的按钮在这份 DSH 里重新安装。')}</p>
+        {isDesktopApp ? (
+          <p>{canUpdate
+            ? uiFormat('检索扩展 {0} 没有生效，请点下面的按钮重新安装。', [stuck.pending])
+            : uiFormat('检索扩展 {0} 没有生效，且当前系统不支持一键重新安装。', [stuck.pending])}</p>
+        ) : <>
+          <p>{stuck.running
+            ? uiFormat('DSH 重新启动过，现在安装的仍是检索扩展 {0}（之前安装过 {1}）。', [stuck.running, stuck.pending])
+            : uiFormat('DSH 重新启动过，但检索扩展 {0} 没有装上。', [stuck.pending])}</p>
+          <p>{ui('可能的原因：更新装进了这台电脑上的另一份 DSH 配置，这一份还是旧的；或者新版文件没有真正换上。点下面的按钮在这份 DSH 里重新安装。')}</p>
+        </>}
       </InlineMessage>
-      <div><Button variant="primary" icon="download" busy={flow.busy} disabled={flow.busy} onClick={() => flow.install()}>{flow.busy ? ui('正在更新…') : ui('重新安装检索扩展')}</Button></div>
-      {flow.busy && <Hint role="status">{ui('正在下载并安装检索扩展，通常几分钟。期间可以继续学习，不要关闭 DSH。')}</Hint>}
+      {canUpdate && <div><Button variant="primary" icon="download" busy={flow.busy} disabled={flow.busy} onClick={() => flow.install()}>{flow.busy ? ui('正在更新…') : ui('重新安装检索扩展')}</Button></div>}
+      {flow.busy && <Hint role="status">{busyHint}</Hint>}
       {flow.error && <>
         <InlineMessage boxed title={ui('没能完成')}>{flow.error}</InlineMessage>
         {diagRow(flow.error, () => extensionDiagnostic({ status, stage: 'update', code: 'extension-update-failed', error: flow.error }))}
       </>}
-      <ApprovalDialog approval={flow.approval} busy={flow.busy} install={flow.install} close={() => flow.setApproval(null)} />
+      <ApprovalDialog approval={flow.approval} busy={flow.busy} install={flow.install} close={() => flow.setApproval(null)} isDesktopApp={isDesktopApp} />
     </div>
   );
   return (
     <div className="extension-panel__update">
       <InlineMessage tone="warning" boxed title={ui('检索扩展需要更新')}>
-        {desktop
-          ? uiFormat('这一版 StudyHub 带了更新过的检索扩展（已安装 {0}，新版 {1}）。更新后要完全退出 DSH 桌面版（包括托盘图标）后重新打开。', [extension.version, extension.expected])
-          : uiFormat('这一版 StudyHub 带了更新过的检索扩展（已安装 {0}，新版 {1}）。更新后要重启 DSH。', [extension.version, extension.expected])}
+        {reusingDsh
+          ? (canUpdate
+            ? uiFormat('本机 DSH 里的检索扩展版本较旧（当前 {0}，新版 {1}）。更新会在 StudyHub 桌面版独立安装新版并立即生效，不影响 DSH。', [extension.version, extension.expected])
+            : uiFormat('本机 DSH 里的检索扩展版本较旧（当前 {0}，新版 {1}），请在 DSH 里更新检索扩展。', [extension.version, extension.expected]))
+          : isDesktopApp
+            ? (canUpdate
+              ? uiFormat('这一版 StudyHub 带了更新过的检索扩展（已安装 {0}，新版 {1}）。更新后会自动生效，无需重启。', [extension.version, extension.expected])
+              : uiFormat('这一版 StudyHub 带了更新过的检索扩展（已安装 {0}，新版 {1}），当前系统不支持应用内一键更新。', [extension.version, extension.expected]))
+            : desktop
+              ? uiFormat('这一版 StudyHub 带了更新过的检索扩展（已安装 {0}，新版 {1}）。更新后要完全退出 DSH 桌面版（包括托盘图标）后重新打开。', [extension.version, extension.expected])
+              : uiFormat('这一版 StudyHub 带了更新过的检索扩展（已安装 {0}，新版 {1}）。更新后要重启 DSH。', [extension.version, extension.expected])}
       </InlineMessage>
-      <div><Button variant="primary" icon="download" busy={flow.busy} disabled={flow.busy} onClick={() => flow.install()}>{flow.busy ? ui('正在更新…') : ui('更新检索扩展')}</Button></div>
-      {flow.busy && <Hint role="status">{ui('正在下载并安装检索扩展，通常几分钟。期间可以继续学习，不要关闭 DSH。')}</Hint>}
+      {canUpdate && <div><Button variant="primary" icon="download" busy={flow.busy} disabled={flow.busy} onClick={() => flow.install()}>{flow.busy ? ui('正在更新…') : ui('更新检索扩展')}</Button></div>}
+      {flow.busy && <Hint role="status">{busyHint}</Hint>}
       {flow.error && <>
         <InlineMessage boxed title={ui('没能完成')}>{flow.error}</InlineMessage>
         {diagRow(flow.error, () => extensionDiagnostic({ status, stage: 'update', code: 'extension-update-failed', error: flow.error }))}
       </>}
-      <ApprovalDialog approval={flow.approval} busy={flow.busy} install={flow.install} close={() => flow.setApproval(null)} />
+      <ApprovalDialog approval={flow.approval} busy={flow.busy} install={flow.install} close={() => flow.setApproval(null)} isDesktopApp={isDesktopApp} />
     </div>
   );
 }
@@ -154,7 +181,8 @@ const names = courses => (courses || []).map(course => (typeof course === 'strin
 const FINISHED = new Set(['complete', 'failed', 'cancelled']);
 
 function IndexBuilder({ status, courses, defaultCourse, onDone, initialPlan, initialRun, document }) {
-  const { call } = useStudy();
+  const { call, host } = useStudy();
+  const canChat = hasChatHost(host);
   const list = names(courses);
   const [course, setCourse] = useState(defaultCourse && list.includes(defaultCourse) ? defaultCourse : '');
   const [plan, setPlan] = useState(initialPlan), [run, setRun] = useState(initialRun), [starting, setStarting] = useState(false), [problem, setProblem] = useState('');
@@ -200,8 +228,11 @@ function IndexBuilder({ status, courses, defaultCourse, onDone, initialPlan, ini
       </div>
       {/* The line keeps its room before the plan arrives, so the card does not grow under the reader. */}
       {!running && (plan
-        ? <Tooltip layer anchorClassName="extension-panel__tip" content={`${ui('课程范围：这门课下所有资料的页（笔记、录音逐字稿每段算一页），检索目录按课程来建。')}\n${ui('所以下面的按钮补建的是整门课还缺的页，不只是某一份资料。')}`}>
-          <p className="extension-panel__plan" role="status" tabIndex={0}>{courseScopeLine(plan, course)}</p></Tooltip>
+        ? <>
+          <Tooltip layer anchorClassName="extension-panel__tip" content={`${ui('课程范围：这门课下所有资料的页（笔记、录音逐字稿每段算一页），检索目录按课程来建。')}\n${ui('所以下面的按钮补建的是整门课还缺的页，不只是某一份资料。')}`}>
+            <p className="extension-panel__plan" role="status" tabIndex={0}>{courseScopeLine(plan, course)}{' '}<Icon name="info" className="sh-icon--inline" /></p></Tooltip>
+          {plan.pages > 0 && <Hint>{ui('页数按课程累计，含 PDF 页、笔记与录音分段。')}</Hint>}
+        </>
         : typeof call === 'function' && <p className="extension-panel__plan extension-panel__plan--waiting" aria-hidden="true" />)}
       {!running && action.note && <p className="extension-panel__plan extension-panel__plan--note">{action.note}</p>}
       {!running && <IndexNote firstRun={!!plan?.firstRun && !upToDate} modelMb={plan?.modelMb ?? 90} />}
@@ -218,7 +249,9 @@ function IndexBuilder({ status, courses, defaultCourse, onDone, initialPlan, ini
         {diagRow(problem, () => extensionDiagnostic({ status, stage: 'index-start', course, error: problem }))}
       </>}
       {run?.status === 'complete' && <InlineMessage tone="success" boxed>
-        {uiFormat('已为「{0}」建立索引：新增 {1} 页，移除 {2} 页，{3} 页无需更新。出题和 AI 带学现在会用它挑选相关页面。', [run.course || ui('全部资料'), run.added ?? 0, run.removed ?? 0, run.unchanged ?? 0])}
+        {canChat
+          ? uiFormat('已为「{0}」建立索引：新增 {1} 页，移除 {2} 页，{3} 页无需更新。出题和 AI 带学现在会用它挑选相关页面。', [run.course || ui('全部资料'), run.added ?? 0, run.removed ?? 0, run.unchanged ?? 0])
+          : uiFormat('已为「{0}」建立索引：新增 {1} 页，移除 {2} 页，{3} 页无需更新。出题时现在会用它挑选相关页面。', [run.course || ui('全部资料'), run.added ?? 0, run.removed ?? 0, run.unchanged ?? 0])}
         {run.skipped > 0 && ` ${uiFormat('{0} 页无检索文字（跳过）。', [run.skipped])}`}
         {run.failedCount > 0 && ` ${uiFormat('{0} 页没能写入索引，下次建立时会重试。', [run.failedCount])}`}
       </InlineMessage>}
@@ -242,7 +275,7 @@ function IndexBuilder({ status, courses, defaultCourse, onDone, initialPlan, ini
  */
 export default function ExtensionPanel({ status, onStatus, courses = [], defaultCourse = '', document, initialApproval = null, initialPlan, initialRun }) {
   useInjectCss(css, 'study-large-documents');
-  const { call } = useStudy();
+  const { call, host } = useStudy();
   const { busy, error, approval, done, install, setApproval } = useExtensionInstall({ onStatus, initialApproval });
   const [confirmRemove, setConfirmRemove] = useState(false);
   const extension = status?.extension;
@@ -255,23 +288,35 @@ export default function ExtensionPanel({ status, onStatus, courses = [], default
     if (result.phase === 'error') throw new Error(result.message);
     if (result.status) { setRetrievalStatus(result.status); onStatus?.(result.status); }
   }
+  const isDesktopApp = !!extension.desktopHost || host?.capabilities?.edition === 'desktop';
+  const reusingDsh = isDesktopApp && extension.source === 'dsh';
+  const canUninstall = isDesktopApp ? extension.canUninstall === true : extension.canInstall;
+  const showStandaloneInstall = isDesktopApp && reusingDsh && extension.canInstallStandalone === true && !extension.outdated;
   const running = status.companion?.running === true;
-  // Installed, DSH has been up a while and the service is still not there (retrieval.status companion.notStarted); right after an install it is only starting.
+  // Installed, host has been up a while and the service is still not there (retrieval.status companion.notStarted); right after an install it is only starting.
   const stopped = !running && status.companion?.notStarted === true && !done;
   const reset = status.companion?.reset;
   return (
-    <div className="extension-panel" data-state={!extension.canInstall ? 'unsupported' : !extension.installed ? 'available' : running ? 'running' : stopped ? 'not-started' : 'starting'}>
-      {!extension.canInstall && <InlineMessage tone="info" boxed>{ui('当前 DSH 不能在应用内安装插件，所以没有一键安装。可以展开「高级：手动配置」自己连接检索工具。')}</InlineMessage>}
-      {extension.canInstall && !extension.installed && <>
-        <p className="extension-panel__lead">{ui('一次点击：下载检索扩展，由 DSH 自己安装并运行。不需要命令行，也不需要另装其他软件；会下载一些组件，通常几分钟。')}</p>
+    <div className="extension-panel" data-state={!extension.installed ? (extension.canInstall ? 'available' : 'unsupported') : running ? 'running' : stopped ? 'not-started' : 'starting'}>
+      {!extension.installed && !extension.canInstall && <InlineMessage tone="info" boxed>{isDesktopApp
+        ? ui('当前系统不支持一键安装检索扩展。')
+        : ui('当前 DSH 不能在应用内安装插件，所以没有一键安装。可以展开「高级：手动配置」自己连接检索工具。')}</InlineMessage>}
+      {!extension.installed && extension.canInstall && <>
+        <p className="extension-panel__lead">{isDesktopApp
+          ? ui('一次点击：下载并安装检索扩展，由 StudyHub 桌面版直接运行。不需要命令行，也不需要另装其他软件；组件较大，通常需要几分钟。')
+          : ui('一次点击：下载检索扩展，由 DSH 自己安装并运行。不需要命令行，也不需要另装其他软件；会下载一些组件，通常几分钟。')}</p>
         <IndexNote />
         <div><Button variant="primary" icon="download" busy={busy} onClick={() => install()}>{ui('安装检索扩展')}</Button></div>
+        {busy && isDesktopApp && <Hint role="status">{ui('正在下载并安装检索扩展，通常需要几分钟。期间可以继续学习，不要关闭 StudyHub。')}</Hint>}
       </>}
-      {extension.canInstall && extension.installed && <>
-        {running ? <p className="extension-panel__lead extension-panel__lead--ok">{ui('检索扩展已安装并在运行。')}</p>
+      {extension.installed && (isDesktopApp || extension.canInstall) && <>
+        {running ? <p className="extension-panel__lead extension-panel__lead--ok">{reusingDsh
+          ? ui('正在复用本机 DSH 已安装的检索扩展，已建索引和检索模型通用。')
+          : ui('检索扩展已安装并在运行。')}</p>
           : (extension.outdated || extension.pendingRestart || extension.restartFailed) ? null
-            : stopped ? <ExtensionNotStarted status={status} refresh={refresh} repair={() => call('retrieval.index.repair', {})} />
-              : <StartupWait desktop={!!extension.desktop} refresh={refresh} />}
+            : stopped ? <ExtensionNotStarted status={status} refresh={refresh} repair={() => call('retrieval.index.repair', {})}
+                restart={isDesktopApp ? () => call('retrieval.extension.restart', {}) : undefined} />
+              : <StartupWait desktop={!!extension.desktop} desktopHost={isDesktopApp} refresh={refresh} />}
         {running && reset?.pages > 0 && <InlineMessage tone="warning">{resetLine(reset)}</InlineMessage>}
         <ExtensionUpdateNotice status={status} onStatus={onStatus} />
       </>}
@@ -280,12 +325,19 @@ export default function ExtensionPanel({ status, onStatus, courses = [], default
         {diagRow(error, () => extensionDiagnostic({ status, stage: 'install', code: 'extension-install-failed', error }))}
       </>}
       {running && <IndexBuilder status={status} courses={courses} defaultCourse={defaultCourse} document={document} onDone={() => refresh()} initialPlan={initialPlan} initialRun={initialRun} />}
-      {extension.canInstall && extension.installed && <div>
+      {showStandaloneInstall && <>
+        <div><Button size="sm" variant="secondary" icon="download" busy={busy} onClick={() => install()}>{ui('独立安装到桌面版')}</Button></div>
+        {busy && <Hint role="status">{ui('正在下载并安装检索扩展，通常需要几分钟。期间可以继续学习，不要关闭 StudyHub。')}</Hint>}
+        <Hint>{ui('独立安装后不再依赖本机 DSH，已建索引和检索模型仍会保留。')}</Hint>
+      </>}
+      {extension.installed && canUninstall && <div>
         <Button size="sm" variant="quiet" lock={busy} onClick={() => setConfirmRemove(true)}>{ui('卸载检索扩展')}</Button>
       </div>}
-      <ApprovalDialog approval={approval} busy={busy} install={install} close={() => setApproval(null)} />
+      <ApprovalDialog approval={approval} busy={busy} install={install} close={() => setApproval(null)} isDesktopApp={isDesktopApp} />
       {confirmRemove && <ConfirmDialog title={ui('卸载检索扩展？')} confirmLabel={ui('卸载')} onConfirm={remove} onClose={() => setConfirmRemove(false)}
-        description={ui('检索扩展会从 DSH 移除。已建好的索引和下载的检索模型仍留在 DSH 主目录里，重新安装后可以继续用。')} />}
+        description={isDesktopApp
+          ? ui('检索扩展会从 StudyHub 桌面版移除。已建好的索引和下载的检索模型仍留在本地目录里，重新安装后可以继续用。')
+          : ui('检索扩展会从 DSH 移除。已建好的索引和下载的检索模型仍留在 DSH 主目录里，重新安装后可以继续用。')} />}
     </div>
   );
 }

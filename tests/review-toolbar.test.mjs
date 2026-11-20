@@ -81,7 +81,7 @@ test("更多 is a menu (#79): a button with aria-haspopup, not a details element
   assert.match(closed, /<button[^>]*aria-haspopup="menu"[^>]*aria-expanded="false"[^>]*>更多<\/button>|<button[^>]*aria-expanded="false"[^>]*aria-haspopup="menu"[^>]*>更多<\/button>/);
   const open = render({ feedback: null }, { moreDefaultOpen: true });
   assert.match(open, /role="menu"/);
-  assert.deepEqual([...open.matchAll(/<span class="sh-menu__label">([^<]*)<\/span>/g)].map((match) => match[1]), ["显示英文", "字号与版心…", "写笔记", "斩掉此题"], "修题 is no item of 更多 any more: it is a button on the toolbar");
+  assert.deepEqual([...open.matchAll(/<span class="sh-menu__label">([^<]*)<\/span>/g)].map((match) => match[1]), ["显示英文", "答错后列出生词", "字号与版心…", "写笔记", "斩掉此题"], "修题 is no item of 更多 any more: it is a button on the toolbar");
   assert.match(open, /<button[^>]*role="menuitem"[^>]*class="sh-menu__item is-danger"[^>]*>(?:(?!<\/button>).)*斩掉此题/, 'slaying is marked as the dangerous one');
   const withTask = render({ feedback: null }, { onTask() {}, moreDefaultOpen: true });
   assert.ok(withTask.indexOf("记待办") > withTask.indexOf("写笔记") && withTask.indexOf("记待办") < withTask.indexOf("斩掉此题"));
@@ -116,12 +116,12 @@ test("自动跳下一步 is an item of 更多 with its key A, bound to what the 
   assert.doesNotMatch(menuOf({ mode: "exam", feedback: null }, { autopilot: true, onToggleAutopilot() {} }), /自动跳下一步/, "a mock exam does not move on by itself");
 });
 
-test("the toolbar keeps six controls (提示, 帮我弄懂, 修题, 更多, 上一题, 下一题), and every folded one is an item of 更多 with its key", () => {
+test("the toolbar keeps at most seven controls (提示, 帮我弄懂, 修题, 标生词, 更多, 上一题, 下一题), and every folded one is an item of 更多 with its key", () => {
   setUiLanguage("zh");
   const props = { autopilot: false, onToggleAutopilot() {}, onThumb() {}, thumbVote: null, onToggleEn() {} };
   const closed = render({ feedback: null }, props);
   const buttons = [...closed.matchAll(/<button\b[^>]*>/g)].map((match) => match[0]);
-  assert.ok(buttons.length <= 6, `${buttons.length} controls: ${buttons.join(" ")}`);
+  assert.ok(buttons.length <= 7, `${buttons.length} controls: ${buttons.join(" ")}`);
   const open = menuOf({ feedback: null }, props);
   for (const label of ["显示英文", "自动跳下一步", "字号与版心…", "这题不错", "这题有问题…"]) assert.match(open, new RegExp(`>${label}<`), `${label} is in 更多`);
   assert.match(item(open, "这题不错"), /aria-keyshortcuts="G"/);
@@ -182,4 +182,78 @@ test("autopilot countdown renders a progress bar on 下一题 and freezes with .
   const paused = render({ feedback: { correct: true } }, { autopilot: true, onToggleAutopilot() {}, autoAdvanceActive: true, autoAdvancePaused: true, autoAdvanceMs: 900 });
   assert.match(paused, /class="[^"]*next-question[^"]*is-autopilot[^"]*is-paused/);
   assert.match(paused, /--autopilot-ms:900ms/);
+});
+
+const termsButton = (html) => html.match(/<button[^>]*data-usage="review\.terms"[^>]*>(?:(?!<\/button>).)*<\/button>/)?.[0] || "";
+
+test("标生词 sits after 修题, reflects aria-pressed and W shortcut, and stays hidden in exam or complete runs (#1192)", () => {
+  setUiLanguage("zh");
+  const idle = render({ feedback: null });
+  const btn = termsButton(idle);
+  assert.match(btn, />标生词<\/button>$/);
+  assert.match(btn, /data-tour="review-terms"/);
+  assert.match(btn, /class="[^"]*sh-btn--quiet[^"]*tool-action/);
+  assert.match(btn, /aria-pressed="false"/);
+  assert.match(btn, /aria-keyshortcuts="W"/);
+  assert.doesNotMatch(btn, /arrow-right/);
+  assert.ok(idle.indexOf('data-usage="review.improve"') < idle.indexOf('data-usage="review.terms"') && idle.indexOf('data-usage="review.terms"') < idle.indexOf("review-more"));
+
+  const pressed = render({ feedback: null }, { markingTerms: true });
+  assert.match(termsButton(pressed), /aria-pressed="true"/);
+
+  assert.equal(termsButton(render({ mode: "exam", feedback: null })), "");
+  assert.equal(termsButton(render({ complete: true, feedback: null })), "");
+
+  setUiLanguage("en");
+  try {
+    assert.match(termsButton(render({ feedback: null })), />Mark words<\/button>$/);
+  } finally { setUiLanguage("zh"); }
+});
+
+test("答错后列出生词 sits in 更多 below 显示英文, reflects aria-checked/busy/exam, and translates to English (#1204)", () => {
+  setUiLanguage("zh");
+  const off = menuOf({ feedback: null }, { autoTerms: false, onToggleAutoTerms() {} });
+  const offBtn = item(off, "答错后列出生词");
+  assert.match(offBtn, /aria-checked="false"/);
+  assert.match(offBtn, /data-usage="review\.terms-auto"/);
+  assert.match(offBtn, /打开后，每道答错的题第一次会多一次轻量调用/);
+  assert.ok(off.indexOf("显示英文") < off.indexOf("答错后列出生词"), "after 显示英文");
+
+  const on = menuOf({ feedback: null }, { autoTerms: true, onToggleAutoTerms() {} });
+  assert.match(item(on, "答错后列出生词"), /aria-checked="true"/);
+
+  const busy = menuOf({ feedback: null }, { autoTerms: false, autoTermsBusy: true, onToggleAutoTerms() {} });
+  assert.match(item(busy, "答错后列出生词"), /\bdisabled\b/);
+
+  assert.doesNotMatch(menuOf({ mode: "exam", feedback: null }, { autoTerms: true }), /答错后列出生词/);
+
+  setUiLanguage("en");
+  try {
+    const english = menuOf({ feedback: null }, { autoTerms: false, onToggleAutoTerms() {} });
+    assert.match(english, />List unfamiliar words after wrong answers</);
+    assert.match(english, />When on, the first wrong answer on a question runs one light model call</);
+    assert.doesNotMatch(english.replace(/data-usage="[^"]*"/g, ""), han);
+  } finally { setUiLanguage("zh"); }
+});
+
+test("the More menu has 生词表… beside 出前置题… (only for non-exam runs with onTermList), in both languages (#1221)", () => {
+  setUiLanguage("zh");
+  const withIt = render({ feedback: null }, { onDerive() {}, onTermList() {}, moreDefaultOpen: true });
+  assert.match(withIt, /<button[^>]*data-usage="review\.term-list"[^>]*>(?:(?!<\/button>).)*生词表…<\/span><\/button>/);
+  assert.ok(
+    withIt.indexOf("出前置题…") < withIt.indexOf("生词表…") && withIt.indexOf("生词表…") < withIt.indexOf("斩掉此题"),
+    "beside 出前置题… and before 斩掉此题",
+  );
+  assert.doesNotMatch(render({ feedback: null }, { moreDefaultOpen: true }), /生词表/, "no course / handler, no entry");
+  assert.doesNotMatch(
+    render({ mode: "exam", feedback: null }, { onTermList() {}, moreDefaultOpen: true }),
+    /生词表/,
+    "mock exam hides term list",
+  );
+  setUiLanguage("en");
+  try {
+    const english = render({ feedback: null }, { onDerive() {}, onTermList() {}, moreDefaultOpen: true });
+    assert.match(english, />Word list…</);
+    assert.doesNotMatch(english.replace(/data-usage="[^"]*"/g, ""), han);
+  } finally { setUiLanguage("zh"); }
 });

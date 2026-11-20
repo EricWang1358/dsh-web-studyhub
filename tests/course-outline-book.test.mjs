@@ -141,7 +141,7 @@ test('under a point, materials of one name (four notes called 补充笔记 · Re
 });
 
 test('a document\'s questions outside its chapters go with the leaf that holds its first claimed chapter; its unclaimed chapters go to 其他', () => {
-  const chapter = (key, nodes) => ({ key, kind: 'chapter', nodes: [key] });
+  const chapter = (key, _nodes) => ({ key, kind: 'chapter', nodes: [key] });
   const doc = { key: 'D', kind: 'document', item: {}, chapters: [chapter('D#0'), chapter('D#1'), { key: 'D#rest', kind: 'rest', nodes: ['D#rest'] }], nodes: ['D#0', 'D#1', 'D#rest'] };
   const layout = new Map([['D', doc], ...doc.chapters.map(row => [row.key, row])]);
   const book = bookLayout(layout, { nodes: [{ id: 'a', title: 'A', anchors: ['D#1'] }], other: { anchors: [] } });

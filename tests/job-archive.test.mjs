@@ -112,7 +112,7 @@ test('remove drops records by either id, tells which were removed and is harmles
 
 test('the archive keeps the newest 200 records: the oldest fall off and are handed back so their working folders can be cleaned', async (t) => {
   const root = await temp(t);
-  let now = Date.UTC(2026, 9, 5);
+  const now = Date.UTC(2026, 9, 5);
   const archive = createJobArchive(root, { now: () => now, maxRecords: 5 });
   for (let n = 1; n <= 5; n++) await archive.add([archiveRecordOf(audio(n), { at: new Date(now + n * 1000).toISOString() })]);
   const result = await archive.add([archiveRecordOf(audio(6), { at: new Date(now + 6000).toISOString() }), archiveRecordOf(audio(7), { at: new Date(now + 7000).toISOString() })]);

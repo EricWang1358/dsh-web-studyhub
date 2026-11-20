@@ -1,7 +1,7 @@
 import { ui, uiFormat, errorMessage } from "./i18n.js";
 import React from "react";
 import Markdown from "./Markdown.jsx";
-import { Badge, Button, InlineMessage, Tooltip } from "./components/index.js";
+import { Badge, Button, InlineMessage, TextInput, Tooltip } from "./components/index.js";
 import { useStudy } from "./study-context.jsx";
 import BookQaButton, { BookQaAuto } from "./book/BookQaButton.jsx";
 
@@ -10,14 +10,16 @@ import BookQaButton, { BookQaAuto } from "./book/BookQaButton.jsx";
    the practice page (ui/review/QuestionRun.jsx), which is on screen even while this list is folded away; `note` says when one failed.
    noteQa (optional): { savedIn(followupId) -> noteId | '', onSave(followupId), onOpen(noteId) } — 「存进笔记」 under each Q&A (#1017): into this question's
    learning note once (note.qa.add); saved, it reads 已存进笔记 · 打开. Needs no review book. */
-export default function ExplanationFollowup({ run, readOnly = false, onDerive, onAskMore = null, deriving = false, bookQa = null, noteQa = null, cardNotes = [] }) {
+export default function ExplanationFollowup({ run, readOnly = false, onDerive, onAskMore = null, deriving = false, bookQa = null, noteQa = null, cardNotes = [], onOpenBookSection = null }) {
   const { call } = useStudy();
   const book = bookQa?.book;
   const withBook = !!book && book.ready && book.courses.has(bookQa.course ?? "");
+  const canReadBookSection = run?.mode !== "exam" && !run?.complete && typeof onOpenBookSection === "function";
   const [open, setOpen] = React.useState(false);
   const [questions, setQuestions] = React.useState([]);
   const [custom, setCustom] = React.useState(false);
   const [question, setQuestion] = React.useState("");
+  const [thinkingNote, setThinkingNote] = React.useState("");
   const customTriggerRef = React.useRef(null);
   const [added, setAdded] = React.useState([]);
   const [pending, setPending] = React.useState("");
@@ -61,16 +63,29 @@ export default function ExplanationFollowup({ run, readOnly = false, onDerive, o
     finally { lock.current = false; setPending(""); }
   }
 
-  async function ask(text) {
-    if (lock.current || !text.trim()) return;
+  async function ask(text, noteText = "") {
+    const cleanText = String(text || "").trim();
+    const cleanNote = String(noteText || "").trim().slice(0, 200);
+    if (lock.current || (!cleanText && !cleanNote)) return;
     lock.current = true;
     setPending("answer");
     setError("");
+    if (cleanNote) {
+      Promise.resolve(call("attempt.errorReason.set", {
+        ...ref,
+        ...(run.id ? { runId: run.id } : {}),
+        thinkingNote: cleanNote,
+      })).catch(() => {});
+    }
+    const mergedQuestion = cleanNote
+      ? (cleanText ? `${cleanText}\n\n${uiFormat("刚才卡住的思路：{0}", [cleanNote])}` : cleanNote)
+      : cleanText;
     try {
-      const result = await call("card.followup", { ...ref, question: text.trim() });
+      const result = await call("card.followup", { ...ref, question: mergedQuestion.slice(0, 1000) });
       setAdded((previous) => [...previous.filter((item) => item.id !== result.item.id), result.item]);
       setQuestions([]);
       setQuestion("");
+      setThinkingNote("");
       setCustom(false);
       setOpen(false);
     } catch (e) { setError(e.message); }
@@ -91,14 +106,27 @@ export default function ExplanationFollowup({ run, readOnly = false, onDerive, o
           </Button>
         </div>
       )}
-      {items.map((item) => (
+      {items.map((item) => {
+        const title = item.kind === "terms" && Array.isArray(item.terms) && item.terms.length
+          ? uiFormat("补词：{0}", [item.terms.join(ui("、"))])
+          : item.question;
+        return (
         <details className="followup-item" key={item.id} open={openIds.has(item.id)}
           onToggle={(event) => toggle(item.id, event.currentTarget.open)}>
-          <summary><Badge size="sm" tone="accent" className="en-mark">Q&amp;A</Badge><h4>{item.question}</h4>
+          <summary><Badge size="sm" tone="accent" className="en-mark">Q&amp;A</Badge><h4>{title}</h4>
             <span className="followup-state" aria-hidden="true">{openIds.has(item.id) ? ui("收起") : ui("展开")}</span></summary>
           <Markdown text={item.answer} />
-          {withBook && <BookQaButton refOf={{ ...ref, followupId: item.id }} book={book} />}
-          {noteQa && <NoteQaButton followupId={item.id} noteQa={noteQa} cardNotes={cardNotes} />}
+          {(withBook || noteQa || canReadBookSection) && (
+            <div className="followup-actions">
+              {withBook && <BookQaButton refOf={{ ...ref, followupId: item.id }} book={book} />}
+              {noteQa && <NoteQaButton followupId={item.id} noteQa={noteQa} cardNotes={cardNotes} />}
+              {canReadBookSection && (
+                <Button variant="link" size="sm" iconEnd="arrow-right" className="book-section-button" data-usage="review.book-section" data-tour="review-book-section" data-book-section-link="followup" onClick={onOpenBookSection}>
+                  {ui("读全书这一节")}
+                </Button>
+              )}
+            </div>
+          )}
           {/* A long answer can be folded from its end, landing back on its question. */}
           {/* 出成题: this Q&A becomes a question of its own, as a prerequisite of this card or standalone (a background task, the result goes to the deck and the inbox). */}
           {onDerive && <div className="followup-derive" role="group" aria-label={ui("用这个问答出题")}>
@@ -111,7 +139,8 @@ export default function ExplanationFollowup({ run, readOnly = false, onDerive, o
             requestAnimationFrame(() => summary?.scrollIntoView({ block: "nearest" }));
           }}>{ui("收起")}</Button>
         </details>
-      ))}
+        );
+      })}
       {readOnly && onAskMore && items.length > 0 && (
         <Button size="sm" variant="secondary" onClick={onAskMore}>{ui("继续追问")}</Button>
       )}
@@ -129,20 +158,20 @@ export default function ExplanationFollowup({ run, readOnly = false, onDerive, o
           <Button ref={customTriggerRef} className="followup-picker__choice" size="sm" lock={pending === "answer"} aria-expanded={custom}
             onClick={() => setCustom(!custom)}>{ui("你的疑问")}</Button>
           {custom && (
-            <form onSubmit={(event) => { event.preventDefault(); ask(question); }}>
+            <form onSubmit={(event) => { event.preventDefault(); ask(question, thinkingNote); }}>
               <label className="followup-picker__field">{ui("你的疑问")}<textarea className="followup-picker__input" autoFocus value={question} maxLength={1000} rows={3} disabled={pending === "answer"}
                   placeholder={ui("写下你想弄清楚的地方，也可以接着上面的回答问…")}
                   onChange={(event) => setQuestion(event.target.value)}
                   onKeyDown={(event) => {
                     if (event.nativeEvent?.isComposing || event.isComposing || event.keyCode === 229) return;
                     if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && !event.shiftKey && !event.altKey) {
-                      if (!pending && question.trim()) {
+                      if (!pending && (question.trim() || thinkingNote.trim())) {
                         event.preventDefault();
-                        ask(question);
+                        ask(question, thinkingNote);
                       }
                       return;
                     }
-                    if (event.key === "Escape" && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey && !question.trim()) {
+                    if (event.key === "Escape" && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey && !question.trim() && !thinkingNote.trim()) {
                       event.preventDefault();
                       event.stopPropagation();
                       const cardEl = event.currentTarget.closest?.(".question-card");
@@ -154,8 +183,20 @@ export default function ExplanationFollowup({ run, readOnly = false, onDerive, o
                     }
                   }} />
               </label>
+              <label className="followup-picker__field">
+                {ui("刚才卡在哪一步 / 是怎么想的？（选填）")}
+                <TextInput
+                  type="text"
+                  data-thinking-note=""
+                  value={thinkingNote}
+                  maxLength={200}
+                  disabled={pending === "answer"}
+                  placeholder={ui("用一句话记下刚才卡住的思路，便于后续精准提醒")}
+                  onChange={(event) => setThinkingNote(event.target.value)}
+                />
+              </label>
               <div className="followup-picker__actions">
-                <Button className="followup-picker__submit" type="submit" variant="primary" size="sm" busy={pending === "answer"} disabled={!!pending || !question.trim()}>{ui("解答并添加")}</Button>
+                <Button className="followup-picker__submit" type="submit" variant="primary" size="sm" busy={pending === "answer"} disabled={!!pending || (!question.trim() && !thinkingNote.trim())}>{ui("解答并添加")}</Button>
                 <Button variant="quiet" size="sm" lock={pending === "answer"} onClick={() => {
                   setCustom(false);
                   requestAnimationFrame(() => { customTriggerRef.current?.focus?.({ preventScroll: true }); });

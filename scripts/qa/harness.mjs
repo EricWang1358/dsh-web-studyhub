@@ -40,7 +40,9 @@ export async function runQa({ name, options, seed, run, model = "fake", localSto
   const library = join(options.out, "work", "library");
   const distDir = resolveQaDistDir(options);
   await mkdir(library, { recursive: true });
-  if (!options.distDir) await buildPreview({ outdir: distDir });
+  // `--production true` is measured on the bundle built here: the speed scripts used to rebuild the repository's dist/ with React's production build
+  // and then measure this development one, several times slower.
+  if (!options.distDir) await buildPreview({ outdir: distDir, production: options.production === "true", readable: options.readable === "true" });
   await seed(library);
   const server = await createPreviewServer({ libraryRoot: library, home: join(options.out, "work", "home"), distDir, port: 0, ...(coverage ? { coverage } : {}),
     model: model === "none" ? null : typeof model === "function" ? model : createFakeModel({ latencyMs, usage: true }) });

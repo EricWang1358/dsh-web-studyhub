@@ -105,17 +105,17 @@ test('an ended call whose whole reply fit in the kept tail: the tail, from memor
   assert.equal(reply.truncated, false);
   assert.equal(reply.nextCursor, 15);
   assert.equal(reply.partial, undefined, 'the tail is the whole reply');
-  assert.deepEqual(reply.retention, { unit: 'chars', limit: 8192, persisted: false, endedCalls: 60 });
+  assert.deepEqual(reply.retention, { unit: 'chars', limit: 65536, persisted: false, endedCalls: 60 });
   assert.equal(store.seen.includes('child-0'), false, 'no session read when the memory has all of it');
 });
 
 test('an ended call whose reply was longer than the kept tail: the full final reply is read from the DSH session, and replaces what the reader has', async (t) => {
-  const long = '{"plan": "' + 'a'.repeat(20000) + '"}';
-  const { service, store, jobId, calls } = await finishedJob(t, { written: ['x'.repeat(20000)], sessions: { 'child-0': [assistant(text('draft')), assistant(text(long))] } });
+  const long = '{"plan": "' + 'a'.repeat(70000) + '"}';
+  const { service, store, jobId, calls } = await finishedJob(t, { written: ['x'.repeat(70000)], sessions: { 'child-0': [assistant(text('draft')), assistant(text(long))] } });
   const first = calls.find((call) => call.childId === 'child-0');
   const reply = await service.call('job.output', { jobId, callId: first.callId, cursor: 0 });
   assert.deepEqual([reply.ended, reply.source, reply.text === long, reply.truncated, reply.retained], [true, 'session', true, true, true]);
-  assert.equal(reply.nextCursor, 20000, 'the cursor still counts what was written');
+  assert.equal(reply.nextCursor, 70000, 'the cursor still counts what was written');
   assert.equal(reply.sessionUnreadable, undefined);
   assert.deepEqual(store.seen.filter((id) => id === 'child-0'), ['child-0']);
   const again = await service.call('job.output', { jobId, callId: first.callId, cursor: reply.nextCursor });
@@ -136,10 +136,10 @@ test('an ended call with no tail left (older than the kept ones, or a restart) i
 });
 
 test('an unreadable session is not an error: the reply says so, and keeps whatever tail there is', async (t) => {
-  const { service, jobId, calls } = await finishedJob(t, { written: ['k'.repeat(20000), 'tiny'], sessions: { 'child-0': new Error('store busy') } });
+  const { service, jobId, calls } = await finishedJob(t, { written: ['k'.repeat(70000), 'tiny'], sessions: { 'child-0': new Error('store busy') } });
   const long = await service.call('job.output', { jobId, callId: calls.find((call) => call.childId === 'child-0').callId, cursor: 0 });
   assert.deepEqual([long.ended, long.source, long.retained, long.partial, long.sessionUnreadable], [true, 'memory', true, true, true]);
-  assert.equal(long.text.length, 8192, 'the kept tail is still shown');
+  assert.equal(long.text.length, 65536, 'the kept tail is still shown');
   const none = await service.call('job.output', { jobId, callId: calls.find((call) => call.childId === 'child-1').callId, cursor: 0 });
   assert.equal(none.text, 'tiny', 'a short reply has nothing to look for in the session');
   service.runtime.work.jobOutputs.dropJob(jobId);
@@ -164,11 +164,11 @@ test('the session is NEVER read for a running call', async (t) => {
   let release;
   const gate = new Promise((resolve) => { release = resolve; });
   t.after(() => release());
-  service.complete = async (system, prompt, options) => { options.onEvent?.({ childId: 'child-0', runtime: 'subagent' }); options.onOutput?.('x'.repeat(20000)); await gate; throw new Error('stop'); };
+  service.complete = async (system, prompt, options) => { options.onEvent?.({ childId: 'child-0', runtime: 'subagent' }); options.onOutput?.('x'.repeat(70000)); await gate; throw new Error('stop'); };
   const job = await service.call('generate', { sourceIds: [source.id], count: 1, kind: 'flashcard' });
   const running = await until(async () => ((await service.call('snapshot')).jobs.find((item) => item.id === job.jobId)?.contract.calls || []).find((call) => call.status === 'running' && call.childId === 'child-0'), 'a running sub-agent call');
   const reply = await service.call('job.output', { jobId: job.jobId, callId: running.callId, cursor: 0 });
   assert.deepEqual([reply.live, reply.ended, reply.source], [true, undefined, undefined]);
-  assert.equal(reply.text.length, 8192);
+  assert.equal(reply.text.length, 65536);
   assert.deepEqual(store.seen, [], 'a running call is read from the live buffer only');
 });

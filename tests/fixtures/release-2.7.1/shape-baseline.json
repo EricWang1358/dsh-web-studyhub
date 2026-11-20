@@ -1,6 +1,6 @@
 {
   "release": "2.7.1",
-  "digest": "db99ce84bd762069",
+  "digest": "9e184389692a6362",
   "paths": [
     "job.checkpoint",
     "job.checkpoint.digest",
@@ -40,6 +40,7 @@
     "job.contract.calls[].budget",
     "job.contract.calls[].callId",
     "job.contract.calls[].endedAt",
+    "job.contract.calls[].error",
     "job.contract.calls[].executionMode",
     "job.contract.calls[].feature",
     "job.contract.calls[].jobId",

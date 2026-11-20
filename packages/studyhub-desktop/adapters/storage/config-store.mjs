@@ -1,0 +1,173 @@
+import { randomUUID } from 'node:crypto';
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { homedir as osHomedir } from 'node:os';
+import { isAbsolute, join, resolve, sep } from 'node:path';
+import { workspaceLibrary } from '../../../../lib/host.js';
+import { defaultDesktopConfig, normalizeDesktopConfig } from '../../domain/config-policy.js';
+
+function resolveStudyHubHome(env, home) {
+  const override = typeof env.DSH_HOME === 'string' ? env.DSH_HOME.trim() : '';
+  if (override) {
+    return isAbsolute(override) ? resolve(override) : resolve(home, override);
+  }
+  return join(home, '.dsh');
+}
+
+function isInsidePath(childPath, parentPath) {
+  const child = resolve(childPath);
+  const parent = resolve(parentPath);
+  const normalizeCase = process.platform === 'win32' ? (v) => v.toLowerCase() : (v) => v;
+  const c = normalizeCase(child);
+  const p = normalizeCase(parent);
+  return c === p || c.startsWith(p.endsWith(sep) ? p : `${p}${sep}`);
+}
+
+async function verifyWritableDirectory(dirPath) {
+  const target = resolve(dirPath);
+  await mkdir(target, { recursive: true });
+  const probe = join(target, `.studyhub-write-check-${randomUUID()}.tmp`);
+  await writeFile(probe, 'ok', 'utf8');
+  await rm(probe, { force: true });
+  return target;
+}
+
+async function atomicWriteJson(filePath, data) {
+  const target = resolve(filePath);
+  await mkdir(resolve(target, '..'), { recursive: true });
+  const temp = `${target}.${randomUUID()}.tmp`;
+  await writeFile(temp, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+  try {
+    await rename(temp, target);
+  } catch (error) {
+    await rm(temp, { force: true }).catch(() => {});
+    throw error;
+  }
+}
+
+async function readStoredConfig(configPath) {
+  try {
+    const raw = await readFile(configPath, 'utf8');
+    return normalizeDesktopConfig(JSON.parse(raw));
+  } catch (error) {
+    if (error?.code === 'ENOENT') return defaultDesktopConfig();
+    return defaultDesktopConfig();
+  }
+}
+
+/**
+ * The library a folder holds. The DSH plugin keeps a workspace's library in the `.dsh-study` folder inside it (lib/host.js workspaceLibrary is
+ * its rule), so a learner who picks that workspace here means the library in it, not a new empty one beside it. A folder with a library of its
+ * own, or with none anywhere, is the library itself.
+ */
+async function libraryHeldBy(folder) {
+  const inner = await workspaceLibrary(folder);
+  if (inner === folder) return folder;
+  return (await workspaceLibrary(inner)) === inner ? inner : folder;
+}
+
+async function resolveLibraryCandidate({ candidate, source, defaultRoot, fallbackRoot, configPath }) {
+  if (isInsidePath(configPath, candidate)) {
+    return { ok: false, reason: '学习库目录不能包含配置文件所在目录' };
+  }
+  try {
+    const pickedRoot = await verifyWritableDirectory(candidate);
+    const held = await libraryHeldBy(pickedRoot);
+    const root = held === pickedRoot ? pickedRoot : await verifyWritableDirectory(held);
+    return { ok: true, root, pickedRoot, rootSource: source, defaultRoot, problem: null };
+  } catch (error) {
+    return { ok: false, reason: error?.message || '目录不可写', fallbackRoot };
+  }
+}
+
+function formatProblemMessage(problem, fallbackRoot) {
+  return `无法打开学习库目录「${problem.root}」（${problem.reason}），已暂时改用「${fallbackRoot}」`;
+}
+
+async function resolveLibraryRoot({ config, env, defaultRoot, fallbackRoot, configPath }) {
+  const envLibrary = typeof env.STUDYHUB_LIBRARY === 'string' ? env.STUDYHUB_LIBRARY.trim() : '';
+  const candidates = [];
+  if (envLibrary) candidates.push({ path: resolve(envLibrary), source: 'config' });
+  if (config.libraryRoot) candidates.push({ path: resolve(config.libraryRoot), source: 'custom' });
+  candidates.push({ path: defaultRoot, source: 'default' });
+  candidates.push({ path: fallbackRoot, source: 'default' });
+
+  let firstProblem = null;
+  for (const item of candidates) {
+    const checked = await resolveLibraryCandidate({
+      candidate: item.path, source: item.source, defaultRoot, fallbackRoot, configPath,
+    });
+    if (checked.ok) {
+      const problem = firstProblem ? { ...firstProblem, message: formatProblemMessage(firstProblem, checked.root) } : null;
+      return { root: checked.root, pickedRoot: checked.pickedRoot, rootSource: checked.rootSource, defaultRoot, problem };
+    }
+    firstProblem ||= { root: item.path, source: item.source, reason: checked.reason };
+  }
+  throw new Error('无法创建或写入默认学习库目录');
+}
+
+/**
+ * Create atomic JSON config persistence for StudyHub Desktop.
+ * Persists `desktop.json` strictly under StudyHub home (`<DSH_HOME || ~/.dsh>/study/desktop.json`),
+ * never inside the study library root.
+ */
+export function createConfigStore({
+  env = process.env,
+  home = osHomedir(),
+  documentsDir = join(home, 'Documents'),
+} = {}) {
+  const dshHome = resolveStudyHubHome(env, home);
+  process.env.DSH_HOME = dshHome;
+
+  const studyHome = join(dshHome, 'study');
+  const configPath = join(studyHome, 'desktop.json');
+  const defaultRoot = resolve(documentsDir, 'StudyHub');
+  const fallbackRoot = join(studyHome, 'library');
+
+  async function load() {
+    const config = await readStoredConfig(configPath);
+    const library = await resolveLibraryRoot({ config, env, defaultRoot, fallbackRoot, configPath });
+    return { config, library };
+  }
+
+  async function save(nextConfig) {
+    const normalized = normalizeDesktopConfig(nextConfig);
+    await atomicWriteJson(configPath, normalized);
+    return normalized;
+  }
+
+  async function saveLibraryRoot(rawRoot) {
+    const trimmed = String(rawRoot ?? '').trim();
+    const current = await readStoredConfig(configPath);
+    // Saving a folder, the default one included, is the learner settling where the library lives.
+    if (!trimmed) {
+      await atomicWriteJson(configPath, { ...current, libraryRoot: '', libraryPlaceConfirmed: true });
+      return '';
+    }
+    if (!isAbsolute(trimmed)) {
+      throw Object.assign(new Error('请选择绝对路径的学习库目录'), { code: 'invalid-library-root' });
+    }
+    const target = resolve(trimmed);
+    if (isInsidePath(configPath, target)) {
+      throw Object.assign(new Error('学习库目录不能包含配置文件目录'), { code: 'invalid-library-root' });
+    }
+    await verifyWritableDirectory(target);
+    await atomicWriteJson(configPath, { ...current, libraryRoot: target, libraryPlaceConfirmed: true });
+    return target;
+  }
+
+  /** The learner accepts the library where it is. Written on a fresh read of the file, so a folder saved a moment ago is not put back. */
+  async function confirmLibraryPlace() {
+    const current = await readStoredConfig(configPath);
+    await atomicWriteJson(configPath, { ...current, libraryPlaceConfirmed: true });
+  }
+
+  return Object.freeze({
+    dshHome,
+    configPath,
+    defaultRoot,
+    load,
+    save,
+    saveLibraryRoot,
+    confirmLibraryPlace,
+  });
+}

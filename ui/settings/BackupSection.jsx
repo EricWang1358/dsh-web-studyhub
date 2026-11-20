@@ -76,7 +76,8 @@ export function RestorePreview({ file, busy, blocked = false, onConfirm, onCance
     job will stop the restore. The host still refuses at the end, so a job that starts after the preview, or one the snapshot has not shown yet, comes back
     as an error inside the confirmation with the same 查看任务 on it. */
 export function BackupSection({ root, exportData, onRestored, jobs = [], nav, initialRestorePoints = null, now }) {
-  const { busy, act, call } = useStudy();
+  const { busy, act, call, host } = useStudy();
+  const isDesktop = host?.capabilities?.edition === 'desktop';
   const [file, setFile] = useState(null), [error, setError] = useState(''), [confirm, setConfirm] = useState(false);
   const [restorePoints, setRestorePoints] = useState(() => initialRestorePoints);
   const [confirmPointId, setConfirmPointId] = useState(null), [pointError, setPointError] = useState(''), [restoringPoint, setRestoringPoint] = useState(false);
@@ -156,13 +157,16 @@ export function BackupSection({ root, exportData, onRestored, jobs = [], nav, in
           <h3 id={exportId} className="settings-subtitle">{ui('导出')}</h3>
           <p>{ui('下载一个完整的 JSON 备份：资料、题组、复习进度和作答记录都在里面。')}</p>
           <Hint>{ui('已复制到资料库的原文件会放进备份；只记了路径的原文件留在你的电脑上，不在备份里，换电脑后需要重新指定。')}</Hint>
-          <Hint>{uiFormat('文件名形如 {0}，保存到浏览器的下载文件夹。', [backupFileName()])}</Hint>
+          <Hint>{ui('API 密钥与外观设置不在备份内；如需把外观带到另一台电脑，请在「设置 › 界面」导出外观配置。')}</Hint>
+          <Hint>{isDesktop
+            ? uiFormat('文件名形如 {0}，保存到系统下载文件夹（或你选择的保存位置）。', [backupFileName()])
+            : uiFormat('文件名形如 {0}，保存到浏览器的下载文件夹。', [backupFileName()])}</Hint>
           <div className="settings-actions"><Button variant="primary" icon="download" data-usage="settings.export" lock={busy} onClick={exportData}>{ui('导出学习库')}</Button></div>
         </section>
         <section className="backup-block" aria-labelledby={restoreId}>
           <h3 id={restoreId} className="settings-subtitle">{ui('恢复')}</h3>
           <p>{ui('用一份完整备份替换当前学习库。替换前，当前数据会自动另存一份到：')}</p>
-          <code className="backup-path" title={folder}>{folder || ui('当前学习库的 backups 文件夹')}</code>
+          <code className="backup-path">{folder || ui('当前学习库的 backups 文件夹')}</code>
           {/* Said before the learner picks a file: the restore cannot run now, and the reason is a task they can open. */}
           {blockers.length > 0 && <InlineMessage tone="warning" action={openTask ? { label: ui('查看任务'), iconEnd: 'arrow-right', onClick: openTask } : undefined}>
             {ui(RUNNING_JOB)}
@@ -178,7 +182,7 @@ export function BackupSection({ root, exportData, onRestored, jobs = [], nav, in
           <h3 id={pointsId} className="settings-subtitle">{ui('自动恢复点')}</h3>
           {points.length > 0 && <small className="restore-points-usage">{uiFormat('共额外占用 {0}', [formatBytes(totalExtraBytes)])}</small>}
         </div>
-        <p>{uiFormat('跨天修改学习库时自动留存前一日清单快照，滚动保留最近 {0} 天和 {1} 个周点；你手动导出的备份文件永远不会自动删除。', [retention.daily, retention.weekly])}</p>
+        <p>{uiFormat('跨天修改学习库时自动留存前一天的题库与进度快照，滚动保留最近 {0} 天和 {1} 个周点；你手动导出的备份文件永远不会自动删除。', [retention.daily, retention.weekly])}</p>
         <Hint>{ui('恢复点涵盖课程、资料文字、题组、作答记录与排程；原附件、复习全书历史与骨架图示保持不变，跨电脑迁移请用上方「导出学习库」。')}</Hint>
         {points.length === 0 ? (
           <p className="restore-points-empty">{ui('跨天继续使用学习库后，这里会自动列出可回退的日期恢复点。')}</p>
@@ -199,7 +203,7 @@ export function BackupSection({ root, exportData, onRestored, jobs = [], nav, in
                     </div>
                     <p className="restore-point-row__meta">
                       {[
-                        uiFormat('修订 {0}', [summary.revision ?? 0]),
+                        uiFormat('保存次数 {0}', [summary.revision ?? 0]),
                         uiFormat('{0} 门课程', [summary.courses ?? 0]),
                         uiFormat('{0} 份资料', [summary.sources ?? 0]),
                         uiFormat('{0} 个题组（{1} 道题）', [summary.decks ?? 0, summary.cards ?? 0]),

@@ -772,7 +772,7 @@ test("a wrong question kind is corrected from the bound blueprint, with no extra
 });
 test("teaching stores conclusions only and cannot advance a failed check or add SM2 attempts", async () => {
   const service = await ready();
-  let responses = [
+  const responses = [
     {
       diagnosis: "variation",
       rungs: [

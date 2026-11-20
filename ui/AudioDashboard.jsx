@@ -23,8 +23,8 @@ export function dashboardVisible(settings, usage) {
 
 export function AudioDashboardView({ data, settings, busy, refresh, save, error, efforts = null, modelName = '' }) {
   const providers = [...data.providers].sort((a, b) => AUDIO_TIERS.indexOf(a.tier) - AUDIO_TIERS.indexOf(b.tier));
-  const sum = field => providers.reduce((n, provider) => n + provider.today[field], 0);
-  const total = sum('requests');
+  const sum = field => providers.reduce((n, provider) => n + (provider.today[field] || 0), 0);
+  const total = sum('requests'), cachedInput = sum('cachedInputTokens');
   const freeQuota = providers.filter(p => p.tier !== 'paid' && p.configured).flatMap(p => p.models.map(model => ({ ...model, tier: p.tier }))).find(model => model.limit !== null && model.limit > 0);
   const usedQuota = freeQuota ? freeQuota.limit - freeQuota.remaining : 0;
   const share = freeQuota ? Math.max(0, Math.min(100, Math.round(usedQuota / freeQuota.limit * 100))) : 0;
@@ -44,7 +44,7 @@ export function AudioDashboardView({ data, settings, busy, refresh, save, error,
       <div className="audio-dashboard-metrics">
         <div><span>{ui('今日模型请求')}</span><strong>{fmt(total)}<small>{ui('次')}</small></strong></div>
         <div><span>{ui('已转录音频')}</span><strong>{fmt(sum('audioSeconds') / 60)}<small>min</small></strong></div>
-        <div><span>{ui('输入 / 输出 Token')}</span><strong className="audio-token-count">{fmt(sum('inputTokens'))}<Tooltip layer content={sum('outputUnknown') ? ui('部分请求未报告输出 Token') : ''}><small tabIndex={sum('outputUnknown') ? 0 : undefined}> / {sum('outputUnknown') ? (sum('outputTokens') ? `≥${fmt(sum('outputTokens'))}` : '—') : fmt(sum('outputTokens'))}</small></Tooltip></strong></div>
+        <div><span>{ui('输入 / 输出 Token')}</span><strong className="audio-token-count">{fmt(sum('inputTokens'))}<Tooltip layer content={sum('outputUnknown') ? ui('部分请求未报告输出 Token') : ''}><small tabIndex={sum('outputUnknown') ? 0 : undefined}> / {sum('outputUnknown') ? (sum('outputTokens') ? `≥${fmt(sum('outputTokens'))}` : '—') : fmt(sum('outputTokens'))}</small></Tooltip>{cachedInput > 0 && <small className="audio-token-cached"> · {uiFormat('含缓存 {0}', [fmt(cachedInput)])}</small>}</strong></div>
         <div><span>{ui('限流 / 其他失败')}</span><strong>{fmt(sum('limited'))}<small> / {fmt(sum('failures') - sum('limited'))}</small></strong></div>
       </div>
     </div>

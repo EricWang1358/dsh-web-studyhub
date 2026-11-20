@@ -51,6 +51,12 @@ test("an old name or a synonym still finds the entry; a page is found by its sid
   assert.equal(ids("学习库")[0], "page-library");
   assert.equal(ids("错题与待巩固")[0], "page-wrongbook");
   assert.equal(ids("MinerU").includes("pdf-convert"), true);
+  assert.equal(ids("出处")[0], "question-place");
+  assert.equal(ids("出自哪一章")[0], "question-place");
+  assert.equal(ids("在总纲里的位置")[0], "question-place");
+  assert.equal(ids("读全书这一节")[0], "read-book-section");
+  assert.equal(ids("对应的全书")[0], "read-book-section");
+  assert.equal(ids("读讲解")[0], "read-book-section");
 });
 
 test("ranking: exact title, title prefix, alias exact, title substring, alias substring, path, sentence", () => {

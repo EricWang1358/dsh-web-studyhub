@@ -34,7 +34,7 @@ function capGroups(groups, limit) {
 export function planTabItem(contract) {
   const count = planCount(contract), full = ui('目标与知识点'), label = count === '' ? full : `${full} ${count}`;
   return { value: 'plan', ariaLabel: label, tooltip: ui(EXPLAIN), attrs: { 'data-plan-tab': '', ...(full.length > 8 ? { 'data-long': '' } : {}) },
-    content: <><span className="sh-tab__label"><span className="tc-tab__full">{full}</span><span className="tc-tab__short" aria-hidden="true">{ui('目标')}</span>{count === '' ? '' : <> <span className="tc-tab__count">{count}</span></>}</span></> };
+    content: <span className="sh-tab__label"><span className="tc-tab__full">{full}</span><span className="tc-tab__short" aria-hidden="true">{ui('目标')}</span>{count === '' ? '' : <> <span className="tc-tab__count">{count}</span></>}</span> };
 }
 
 const sameRow = (a, b) => a.canOpen === b.canOpen && a.row.state === b.row.state && a.row.reason === b.row.reason && a.row.objective === b.row.objective && a.row.part === b.row.part

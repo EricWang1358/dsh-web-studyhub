@@ -11,7 +11,7 @@ export function ExperimentalSection({ enabled, onChange, children }) {
   const { busy } = useStudy();
   return (
     <SettingsSection className="experimental-settings" tour="settings-experimental" title={ui('实验性功能')}
-      lead={ui('还在试验的功能，可能出错、效果没有经过验证。默认不显示。')}>
+      lead={ui('还在试验的功能，可能出错、效果没有经过验证，默认不显示。目前包含：Jev 第三方判断服务（需另配密钥，普通学习无需开启）。')}>
       <Switch name="show-experimental" data-usage="settings.experimental" label={ui('显示实验性功能')}
         hint={ui('关掉后，它们全部隐藏并停止；里面已有的选择会保留，但不再生效。')} checked={!!enabled} disabled={busy} onChange={onChange} />
       {enabled && children}

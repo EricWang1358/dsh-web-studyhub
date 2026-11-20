@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   AUTO_ADVANCE_MS, emptyEntry, entryForRun, shouldResetEntry, isPassed, advanceKeyOf, autopilotPlan, shortcutGate, shortcutAction,
-  isCurrentEntry, createFlightSet, pressedGradeOf, reviewChoiceKind,
+  isCurrentEntry, createFlightSet, pressedGradeOf, reviewChoiceKind, shouldAdvanceOnSelfGrade,
 } from '../ui/review/session-logic.js';
 
 // UI wave 2 · WP-F (#112): the practice session's rules, away from the DOM.
@@ -44,6 +44,20 @@ test('what counts as a pass: a grade of 3 or more, or a correct choice', () => {
   assert.equal(isPassed(run({ feedback: { correct: false } })), false);
   assert.equal(isPassed(run()), false);
   assert.equal(isPassed(null), false);
+});
+
+test('shouldAdvanceOnSelfGrade holds low grades only when autoTerms is on (#1246)', () => {
+  for (const grade of [0, 1, 2, 3, 4, 5]) {
+    assert.equal(shouldAdvanceOnSelfGrade({ selfGradeAdvance: true, autoTerms: false, grade }), true);
+    assert.equal(shouldAdvanceOnSelfGrade({ selfGradeAdvance: false, autoTerms: false, grade }), false);
+    assert.equal(shouldAdvanceOnSelfGrade({ selfGradeAdvance: false, autoTerms: true, grade }), false);
+  }
+  for (const grade of [0, 1, 2]) {
+    assert.equal(shouldAdvanceOnSelfGrade({ selfGradeAdvance: true, autoTerms: true, grade }), false);
+  }
+  for (const grade of [3, 4, 5]) {
+    assert.equal(shouldAdvanceOnSelfGrade({ selfGradeAdvance: true, autoTerms: true, grade }), true);
+  }
 });
 
 test('autopilot moves on by itself only after a pass, on the practice page, and only until the learner touches something', () => {
@@ -212,4 +226,22 @@ test('shortcuts: H switches from hint to explain once feedback is recorded even 
   assert.deepEqual(act(key('h'), { run: run({ revealed: false, feedback: null }) }).action, { type: 'hint' });
   assert.deepEqual(act(key('h'), { run: run({ revealed: false, feedback: { correct: true } }) }).action, { type: 'explain' });
   assert.deepEqual(act(key('h'), { run: run({ revealed: true, feedback: null }) }).action, { type: 'explain' });
+});
+
+test('shortcuts: W toggles term marking outside exam/complete and Escape exits marking while Space/Enter keep flipping (#1192)', () => {
+  assert.deepEqual(act(key('w'), {}).action, { type: 'mark-terms' });
+  assert.deepEqual(act(key('W'), {}).action, { type: 'mark-terms' });
+  assert.equal(act(key('w'), { run: run({ mode: 'exam' }) }).action, null);
+  assert.equal(act(key('w'), { run: run({ complete: true }) }).action, null);
+  assert.equal(act(key('w'), { busy: true }).action, null);
+  assert.equal(act(key('w'), { page: 'decks' }).action, null);
+  assert.equal(act(key('w', { inEditable: true }), {}), null);
+
+  assert.equal(act(key('Escape'), {}).action, null);
+  assert.deepEqual(act(key('Escape'), { markingTerms: true }), { cancelAuto: true, preventDefault: true, action: { type: 'mark-terms-exit' } });
+  assert.deepEqual(act(key('Escape'), { markingTerms: true, endAsked: true }).action, { type: 'end-cancel' });
+  assert.deepEqual(act(key('Escape'), { markingTerms: true, shortcutHelp: true }).action, { type: 'help-close' });
+
+  assert.deepEqual(act(key(' ', { code: 'Space' }), { markingTerms: true }).action, { type: 'flip' });
+  assert.deepEqual(act(key('Enter'), { markingTerms: true }).action, { type: 'flip' });
 });
