@@ -22,8 +22,12 @@ test('model JSON control-character repair preserves strings and rejects unrelate
   assert.deepEqual(parseJson(malformed), value);
   assert.deepEqual(parseJson('Result:\n```json\n' + malformed + '\n```\nEnd.'), value);
   assert.deepEqual(parseJson('{\n"answer":"A\r\nB\tC"\n}'), { answer: 'A\r\nB\tC' });
-  for (const broken of ['{"answer":"Unclosed\n', '{"answer":"A\\qB\n"}', '{"answer":"A\\\nB"}', '{"answer":"A\nB",}'])
+  // Invalid non-TeX escapes and non-JSON prose still throw SyntaxError; tier-2 jsonrepair rescues trailing commas, truncated JSON, and unescaped interior quotes.
+  for (const broken of ['{"answer":"A\\qB\n"}', '{"answer":"A\\\nB"}', 'not json at all'])
     assert.throws(() => parseJson(broken), SyntaxError);
+  assert.deepEqual(parseJson('{"answer":"A\nB",}'), { answer: 'A\nB' });
+  assert.deepEqual(parseJson('{"answer":"Unclosed\n'), { answer: 'Unclosed' });
+  assert.deepEqual(parseJson('{"answer":"say "SOLID" principles"}'), { answer: 'say "SOLID" principles' });
 });
 const request = { count: 1, kind: "flashcard", sources: [source] };
 const card = { id: "q", kind: "flashcard", topic: "Architecture decisions", objective: "Recognize the role of architectural constraints",

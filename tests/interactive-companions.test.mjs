@@ -652,29 +652,31 @@ test('Layer 4: DiagramFrame universal companion shim & zero-Chinese English UI S
 });
 
 test('Wave 1 Stage Engine: university STEM & modal logic MathML, sandbox crosshair/threshold & schematic feedback Bezier curves', () => {
-  // 1. Extended W3C MathML: cases, integrals, sums/limits, braces, norms/inner products, formal/modal logic, primes & text subscripts
+  // 1. Extended W3C MathML (Temml): cases, integrals, sums/limits, braces, norms/inner products, formal/modal logic, primes & text subscripts
   const casesMml = renderTexToMathMl('\\begin{cases} x^2 & x \\ge 0 \\\\ -x & x < 0 \\end{cases}', true);
-  assert.match(casesMml, /<mtable columnalign="left">/);
-  assert.match(casesMml, /<mo stretchy="true">\{<\/mo>/);
+  assert.match(casesMml, /<mtable\b[^>]*>[\s\S]*tml-left/);
+  assert.match(casesMml, /<mo\b[^>]*stretchy="true"[^>]*>\{<\/mo>/);
 
   const calcMml = renderTexToMathMl('\\int_a^b f\'\'(x)\\,dx + \\oint_C \\vec{F}\\cdot d\\vec{r} + \\sum_{i=1}^n a_i + \\lim_{x\\to 0} \\frac{\\sin x}{x}', true);
-  assert.match(calcMml, /<msubsup><mo>∫<\/mo>/);
-  assert.match(calcMml, /<mo>′′<\/mo>/);
-  assert.match(calcMml, /<mo>∮<\/mo>/);
-  assert.match(calcMml, /<munderover><mo>∑<\/mo>/);
-  assert.match(calcMml, /<munder><mi mathvariant="normal">lim<\/mi>/);
+  assert.match(calcMml, /<msubsup><mo\b[^>]*>∫<\/mo>/);
+  assert.match(calcMml, /′[\s\S]*′/);
+  assert.match(calcMml, /<mo\b[^>]*>∮<\/mo>/);
+  assert.match(calcMml, /<munderover><mo\b[^>]*>∑<\/mo>/);
+  assert.match(calcMml, /<munder><mi\b[^>]*>lim<\/mi>/);
 
   const structMml = renderTexToMathMl('\\overbrace{a+b}^{k} + \\underbrace{x+y}_{m} + \\overline{z} + \\underline{w} + \\|x\\| + \\langle u, v \\rangle', true);
   assert.match(structMml, /⏞/);
   assert.match(structMml, /⏟/);
-  assert.match(structMml, /<mo>‖<\/mo>/);
-  assert.match(structMml, /<mo>⟨<\/mo>/);
-  assert.match(structMml, /<mo>⟩<\/mo>/);
+  assert.match(structMml, /‖/);
+  assert.match(structMml, /<mo\b[^>]*>⟨<\/mo>/);
+  assert.match(structMml, /<mo\b[^>]*>⟩<\/mo>/);
 
   const logicMml = renderTexToMathMl('\\Gamma \\vdash \\Box P \\implies \\Diamond P, \\quad \\mathcal{M} \\models \\top \\equiv \\neg\\bot \\iff Q_{\\text{net gain}}', false);
-  for (const sym of ['⊢', '□', '⟹', '◇', '⊨', '⊤', '≡', '⊥', '⇔', 'net gain']) {
+  for (const sym of ['⊢', '□', '⟹', '⊨', '⊤', '≡', '⊥', '⟺']) {
     assert.ok(logicMml.includes(sym), `Expected "${sym}" in logic MathML: ${logicMml}`);
   }
+  assert.match(logicMml, /[◇◊]/);
+  assert.match(logicMml, /net[\s\u00A0]gain/);
 
   // Malformed TeX falls back safely without crashing or leaking raw HTML tags
   const malformedMml = renderTexToMathMl('\\frac{1}{ + \\left( x + } <script>alert(1)</script>', false);
@@ -1170,9 +1172,9 @@ test('Wave 5 & 6: </script>+U+2028 lossless round-trip, advanced MathML, LLM ali
   assert.ok(roundTripped.slides[6].blocks[0].source.includes(trickyPayload), 'Hostile payload + U+2028/U+2029 must round-trip losslessly');
 
   const advMml = renderTexToMathMl('\\binom{n}{k} + \\sum_{\\substack{i \\ge 1 \\\\ j \\le n}} \\overset{!}{=} \\cancel{x}', true);
-  assert.match(advMml, /linethickness="0"/);
-  assert.match(advMml, /sh-substack/);
-  assert.match(advMml, /menclose/);
+  assert.match(advMml, /linethickness="0(?:px)?"/);
+  assert.match(advMml, /<mtable\b[^>]*class="tml-small"/);
+  assert.match(advMml, /<menclose\b/);
   const deepBraces = renderTexToMathMl('{'.repeat(1200) + 'x', false);
   assert.ok(deepBraces.startsWith('<math') && deepBraces.endsWith('</math>'));
 
