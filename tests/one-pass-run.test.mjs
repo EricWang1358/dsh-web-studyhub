@@ -92,7 +92,13 @@ test('portions written at the same time that test the same objective: the later 
   assert.equal(deck.cards.filter(card => card.objective === 'Recall the first point of the recording').length, 1);
   const merged = (deck.editorial.omitted || []).filter(item => /duplicate learning target/.test(item.reasons.join(' ')));
   assert.equal(merged.length, 1);
-  assert.equal(deck.editorial.partPlans.flatMap(plan => plan.targets).filter(target => target.status === 'omitted').length, 1, 'its target is on record as omitted');
+  const targets = deck.editorial.partPlans.flatMap(plan => plan.targets);
+  assert.equal(targets.filter(target => target.status === 'omitted').length, 0, 'a merged-away target is not owed again');
+  const covering = targets.filter(target => target.coveredBy);
+  assert.equal(covering.length, 1, 'its target is on record as covered by the card that stays');
+  assert.equal(covering[0].status, 'kept');
+  assert.ok(deck.cards.some(card => card.id === covering[0].coveredBy));
+  assert.deepEqual(coverage(deck).sections.filter(section => section.state === PLANNED_FAILED).map(keyOf), [], 'its section is covered, not planned-failed: no fill round writes the fact again');
   assert.equal(deck.cards.length + merged.length, first.questions);
 });
 
@@ -128,4 +134,15 @@ test('the final same-fact merge omits the later card of a group; a broken merge 
   assert.equal(capped.calls.filter(call => call.stage === 'same').length, 0, 'no merge call once the ceiling is spent');
   assert.equal(stopped, 0, 'and no budget stop of a run whose work is done');
   assert.equal(deck.cards.length, total);
+});
+
+test('every checkpoint of a one-pass run is merged: a run stopped after its portions keeps no duplicate the program would have merged', async () => {
+  const model = onePassModel({ write: (data, number) => writeAll(data).map((card, index) => (index === 0 && number <= 2 ? { ...card, objective: `Recall the FIRST point of the recording${number === 2 ? '!' : ''}` } : card)) });
+  const saved = [];
+  await generateBatched(model.complete, { kind: 'quiz', language: 'English', sources: fx.sources, assignments: first.assignments,
+    count: first.questions, performance: { concurrency: 4, fillRounds: 0 } }, () => {}, async deck => { saved.push(deck); });
+  const last = saved.at(-1);
+  assert.ok(last, 'the run checkpointed');
+  assert.ok((last.editorial.omitted || []).some(item => item.coveredBy), 'the checkpoint itself carries the merge, not only the final result');
+  for (const deck of saved) assert.equal(new Set(deck.cards.map(card => card.objective.toLowerCase().replace(/!$/, ''))).size, deck.cards.length);
 });
