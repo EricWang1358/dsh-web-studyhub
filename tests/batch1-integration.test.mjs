@@ -604,3 +604,169 @@ test('Wave 2 cross-part integration: 0-token C001 dialectic compile -> companion
   const afterPt = after.points.find(p => p.hid === hid);
   assert.equal(afterPt?.facets?.comprehension, 'verified');
 });
+
+test('Wave 3 cross-part integration: attempt.errorReason.set -> trapLedger anti-spoiling -> explicit release askedTutorBeforeAnswer -> PointEvidence assisted + learner.bullets CAS', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'studyhub-wave3-int-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+
+  const service = new StudyService(root, { runJobs: false });
+  t.after(() => service.dispose?.());
+
+  await service.call('course.save', { name: 'Linear Algebra' });
+  await service.store.update(state => {
+    state.sources.push({
+      id: 'src-la-1',
+      title: 'Lecture 5 Diagonalization',
+      text: 'A matrix is diagonalizable iff it has n linearly independent eigenvectors.',
+      format: 'md',
+      courses: ['Linear Algebra'],
+    });
+    const docKey = groupSourcesByDocument(state.sources)[0].key;
+    const fp = materialsFingerprint(buildOutlineIndex({ ...state, documents: [], drafts: [], attempts: [] }, { course: 'Linear Algebra' }).allDocuments);
+    const outlineSrc = {
+      ...courseOutlineMaterial({
+        title: 'Linear Algebra · Outline',
+        course: 'Linear Algebra',
+        orderBasis: { codes: ['numbering'] },
+        fingerprint: fp,
+        language: 'en',
+        nodes: [{
+          id: 'ch-eig',
+          title: 'Eigenvalues',
+          children: [{ id: 'tp-diag', title: 'Diagonalizability Criterion', anchors: [docKey] }],
+        }],
+        other: { anchors: [] },
+        counts: { units: 1, leftover: 0, invalid: 0, repeated: 0 },
+      }),
+      createdAt: '2026-10-01T00:00:00Z',
+    };
+    state.sources.push(outlineSrc);
+    state.sources.push({
+      ...courseNotesMaterial({
+        title: 'Linear Algebra · Review Book',
+        course: 'Linear Algebra',
+        outlineId: outlineSrc.id,
+        language: 'en',
+        papers: [],
+        counts: {},
+        leaves: [{
+          id: 'tp-diag',
+          title: 'Diagonalizability Criterion',
+          anchors: [docKey],
+          body: {
+            fingerprint: 'b'.repeat(16),
+            points: ['Diagonalizability requires n linearly independent eigenvectors [^1].'],
+            explain: 'Distinct eigenvalues are sufficient but not necessary.',
+            cites: [{ n: 1, sourceId: 'src-la-1', quote: 'A matrix is diagonalizable iff it has n linearly independent eigenvectors.', start: 0, end: 72 }],
+          },
+        }],
+      }),
+      createdAt: '2026-10-01T00:01:00Z',
+    });
+    state.decks.push({
+      id: 'deck-la-1',
+      title: 'LA Deck',
+      course: 'Linear Algebra',
+      cards: [{
+        id: 'card-la-1',
+        kind: 'quiz',
+        topic: 'Diagonalizability Criterion',
+        prompt: 'What is the necessary and sufficient condition for an n x n matrix to be diagonalizable?',
+        options: [
+          { id: 'opt-wrong', text: 'All n eigenvalues are distinct', correct: false },
+          { id: 'opt-right', text: 'CANARY_SECRET_EIGENVECTORS_SPAN', correct: true },
+        ],
+        answer: 'CANARY_SECRET_EIGENVECTORS_SPAN',
+        explanation: 'CANARY_EXPLANATION_GEOMETRIC_MULT',
+        answerCard: {
+          conclusion: 'CANARY_CONCLUSION_ALGEBRAIC_EQ_GEOMETRIC',
+          pitfalls: ['Confusing distinct eigenvalues with n independent eigenvectors'],
+        },
+        sourceId: 'src-la-1',
+        citations: [{ sourceId: 'src-la-1', quote: 'A matrix is diagonalizable iff it has n linearly independent eigenvectors.' }],
+      }],
+    });
+    state.attempts.push({
+      id: 'att-la-fail-1',
+      deckId: 'deck-la-1',
+      quiz_id: 'card-la-1',
+      runId: 'run-prev',
+      grade: 1,
+      correct: false,
+      feedback: { selected: ['opt-wrong'] },
+      timestamp: '2026-10-02T10:00:00Z',
+    });
+  });
+
+  const opened = await service.call('course.book.open', { course: 'Linear Algebra' });
+  const hid = opened.nodes[0].children[0].hid;
+  assert.ok(hid);
+
+  // 1. Wave 3C: persist errorReason & thinkingNote via narrow ['attempts'] action
+  const tagged = await service.call('attempt.errorReason.set', {
+    deckId: 'deck-la-1',
+    cardId: 'card-la-1',
+    runId: 'run-prev',
+    errorReason: 'condition',
+    thinkingNote: 'Forgot repeated eigenvalues can still have full geometric multiplicity',
+  });
+  assert.equal(tagged.ok, true);
+  assert.equal(tagged.errorReason, 'condition');
+
+  // Start an active review run + study session on card-la-1 (unrevealed)
+  const startedRun = await service.call('review.start', { mode: 'path', scope: [{ deckId: 'deck-la-1', cardId: 'card-la-1' }] });
+  const runId = startedRun.id || startedRun.runId;
+  const session = await service.call('study.session.start', { courseId: 'Linear Algebra', title: 'Diagonalizability', sourceRefs: [] });
+  await service.call('study.session.update', {
+    sessionId: session.id,
+    focus: { kind: 'card', deckId: 'deck-la-1', id: 'card-la-1', runId },
+  });
+
+  // 2. Wave 3A: study.scene.get before reveal exposes trapCue/errorReason/thinkingNote and strips ALL answer canaries
+  const cueScene = await service.call('study.scene.get', { sessionId: session.id });
+  const cueJson = JSON.stringify(cueScene);
+  assert.equal(cueScene.trapLedger.disclosureTier, 'cue_only');
+  assert.equal(cueScene.trapLedger.latestErrorReason, 'condition');
+  assert.ok(cueScene.trapLedger.thinkingNotes.some(n => n.includes('geometric multiplicity')));
+  assert.ok(!cueJson.includes('CANARY_EXPLANATION_GEOMETRIC_MULT'), 'explanation must not leak in cue_only');
+  assert.ok(!cueJson.includes('CANARY_CONCLUSION_ALGEBRAIC_EQ_GEOMETRIC'), 'answerCard conclusion must not leak in cue_only');
+  assert.ok(cueScene.focusObject.options.every(o => !Object.hasOwn(o, 'correct')), 'option correct flags must be stripped');
+  assert.ok(Buffer.byteLength(cueJson, 'utf8') <= 4096, 'scene must stay <= 4096 UTF-8 bytes');
+
+  // 3. Wave 3A + 3C: explicit release unlocks full tier in same turn & records askedTutorBeforeAnswer receipt
+  const releasedScene = await service.call('study.scene.get', { sessionId: session.id, releaseAnswer: true });
+  assert.equal(releasedScene.trapLedger.disclosureTier, 'full');
+  assert.equal(releasedScene.assistanceReceipt?.recorded, true);
+  assert.equal(releasedScene.assistanceReceipt?.assistance?.askedTutorBeforeAnswer, true);
+  assert.equal(releasedScene.focusObject.answer, 'CANARY_SECRET_EIGENVECTORS_SPAN');
+
+  // 4. Answering right after release marks PointEvidence assisted (not solid)
+  await service.call('review.answer', { runId, cardId: 'card-la-1', selected: ['opt-right'] });
+  const evSummary = await service.call('course.evidence.summary', { course: 'Linear Algebra' });
+  const pointEv = evSummary.points.find(p => p.hid === hid);
+  assert.ok(pointEv);
+  assert.notEqual(pointEv.overall, 'solid', 'assisted pass after releaseAnswer must not count as solid');
+
+  // 5. Wave 3B: traceable learner.bullets with memoryRevision CAS protection & forget anti-resurrection
+  const initialProfile = await service.call('coach.profile', {});
+  const rev0 = initialProfile.memoryRevision;
+  const added = await service.call('coach.profile', {
+    expectedRevision: rev0,
+    addBullet: {
+      text: 'Check geometric vs algebraic multiplicity before rejecting diagonalizability.',
+      course: 'Linear Algebra',
+      refs: [{ kind: 'card', deckId: 'deck-la-1', cardId: 'card-la-1' }, { kind: 'hid', course: 'Linear Algebra', hid }],
+    },
+  });
+  assert.equal(added.bullets.length, 1);
+  assert.equal(added.memoryRevision, rev0 + 1);
+
+  await assert.rejects(
+    () => service.call('coach.profile', { expectedRevision: rev0, addBullet: { text: 'Stale write' } }),
+    err => err?.code === 'MEMORY_REVISION_CONFLICT',
+  );
+  await service.call('coach.forget', {});
+  const forgotten = await service.call('coach.profile', {});
+  assert.equal(forgotten.bullets.length, 0);
+  assert.ok(forgotten.memoryRevision > added.memoryRevision);
+});
