@@ -40,7 +40,7 @@ Options (`custom.purpose`):
 
 Options (`custom.scope.kind`):
 - **Whole book** (`"all"`, 全书)
-- **Exam scope only** (`"exam"`, 考试范围) — ask the learner to paste the syllabus/scope note or share scope slides/screenshots; import and merge into `focusTopics` following skill `study-import`, then store the source title in `scope.note` with `scope.kind: "exam"`.
+- **Exam scope only** (`"exam"`, 考试范围) — ask the learner to paste the syllabus/scope note or share scope slides/screenshots; import and merge into `focusTopics` (and `guidanceSourceIds` when saved as guidance) following skill `study-import`, store the scope note in `scope.note` with `scope.kind: "exam"`, and call `course.custom.preview` to inspect `examScope` (`matchedChapters`, `unmatchedTopics`, `coverageNote`). **Show `matchedChapters` and `unmatchedTopics` together on the same message** so the learner can review and adjust chapters (especially for any unmatched topics—never silently drop them). Do NOT start generation before the learner confirms the chapter list; write the confirmed chapter IDs into `scope.resolvedChapters`.
 - **Pick specific chapters** (`"chapters"`, 挑几章) — list numbered chapter titles from `skeleton` (up to 40 first, noting the rest can be chosen by number) and accept ranges like `"Ch. 3–7"`, `"1,4,9"`, or `"Part II"`; store resolved chapter IDs in `scope.chapters` (ask if ambiguous).
 
 ## 问题 3 · Question 3: Review book sections
@@ -98,8 +98,8 @@ Summarize in at most 8 lines: purpose, chapter scope, review-book sections & dep
 
 ## 只记录 · Recorded-only choices
 
-- Choices returned in `recorded` are stored in the custom plan (`只记在定制方案里`) without chapter-filtering enforcement: **Exam scope (`scope.kind: "exam"`, 考试范围)** currently builds across the whole course rather than slicing chapters from free-text scope notes. Review-book `parts`, by contrast, ARE honoured directly (unticked parts are skipped).
-- State clearly at the end what has started running vs what is recorded only—**never say recorded-only items were built** (不要说已经做了).
+- **Exam scope (`scope.kind: "exam"`) is enforced once confirmed:** `course.custom.preview` matches `focusTopics`, `scope.note`, and `guidanceSourceIds` against chapters (`examScope.matchedChapters` and `examScope.unmatchedTopics`); after the learner confirms `scope.resolvedChapters`, both review-book generation and question generation slice strictly to those chapters (if unconfirmed, `course.custom.apply` pauses in `waiting` and starts nothing). Review-book `parts` ARE also honoured directly (unticked parts are skipped).
+- Any choice returned in `recorded` (such as an unpaged single-text source that cannot be cut per chapter) is stored in the custom plan (`只记在定制方案里`) without separate enforcement—state clearly at the end what has started running vs what is recorded only, and **never say recorded-only items were built** (不要说已经做了).
 
 ## 已有定制 · Updating an existing custom plan
 

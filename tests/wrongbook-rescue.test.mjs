@@ -136,7 +136,7 @@ test('rescueGate, rescueCall and rescueNote: inline consent, model-setup gating,
 
 test('WrongBookView rescue UI: inline consent for easier, inline 打开模型设置 when unconfigured, and English translations', () => {
   setUiLanguage('zh');
-  const defaultOpen = render([row('c1')], { initial: { expanded: ['c1'] } });
+  const defaultOpen = render([row('c1')], { initial: { expanded: ['c1'], rescueOtherOpen: ['c1'] } });
   const defaultText = text(defaultOpen);
   assert.ok(defaultText.indexOf('直接改这张卡') < defaultText.indexOf('完成时信箱会提醒你'), 'fix tooltip states 直接改这张卡 before Inbox');
 

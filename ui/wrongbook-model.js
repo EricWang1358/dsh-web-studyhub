@@ -232,9 +232,18 @@ export function leechRetellNote(retell) {
     : { signal, text: ui('上次「用自己的话讲一遍」已经讲清楚，问题可能出在题干表述本身（AI 反馈，不计入评分）。') };
 }
 
-/** Whether a 顽固题 rescue click can run right now, or should first offer inline model setup / inline background-prep consent (#963). */
-export function rescueGate(kind, { modelReady = true, consent = false } = {}) {
+/** Whether a 顽固题 rescue click can run right now, or should first offer inline model setup / main-chat hand-off / inline background-prep consent (#963, 5.0.0). */
+export function rescueGate(kind, { modelReady = true, consent = false, canChat = true } = {}) {
   if (kind === 'pause') return { type: 'run' };
+  if (kind === 'experiment') {
+    if (modelReady) return { type: 'run' };
+    if (canChat) return { type: 'rescue-handoff', kind: 'experiment' };
+    return {
+      type: 'no-model',
+      kind: 'experiment',
+      text: ui('还没有可用的 AI 模型，先配好模型或本地 CLI 就能直接生成 4 页交互实验；配好后回到这里再点一次。'),
+    };
+  }
   if (!modelReady) {
     return {
       type: 'no-model',
@@ -246,6 +255,21 @@ export function rescueGate(kind, { modelReady = true, consent = false } = {}) {
   }
   if (kind === 'easier' && consent !== true) return { type: 'consent', kind: 'easier' };
   return { type: 'run' };
+}
+
+/** Concise inline waiting copy for a row-level 3–4 slide rescue experiment build. */
+export function rescueExperimentStatusText(stage = '') {
+  switch (stage) {
+    case 'verify':
+    case 'repair':
+      return ui('正在校验交互公式与结构，马上就好…');
+    case 'saving':
+      return ui('正在编译并挂载到这道题…');
+    case 'rescue-author':
+      return ui('正在生成 3–4 页交互实验（约 15–30 秒）… 可先看其他题，做好后会直接出现「打开 4 页交互实验」');
+    default:
+      return ui('正在启动 4 页交互实验（约 15–30 秒）… 可先看其他题，做好后会直接出现「打开 4 页交互实验」');
+  }
 }
 
 /** The service call of each of 顽固题's rescue actions, each one that already exists elsewhere: the 👎 record that starts the background repair (no `rewriteVia`: this

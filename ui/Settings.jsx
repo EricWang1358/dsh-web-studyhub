@@ -88,6 +88,7 @@ export default function Settings({
   legacy,
   setLegacy,
   exportData,
+  onOpenRef = null,
   onRestored,
   initialProfile = null,
   appearance = null,
@@ -162,7 +163,7 @@ export default function Settings({
   }, [focusSection]);
   // Everything a pane may need. Panes take what they use and nothing else.
   const services = { data, nav, busy, act, host, settings, setSettings, legacy, setLegacy,
-    exportData, onRestored, appearance, profile, setProfile, capabilities, status, openSchedule };
+    exportData, onOpenRef, onRestored, appearance, profile, setProfile, capabilities, status, openSchedule };
   const selected = available.find((item) => item.id === active) || available[0];
   return (
     <section className="page settings-page">

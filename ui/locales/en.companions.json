@@ -140,5 +140,7 @@
   "第 {0} 页 · {1}": "Slide {0} · {1}",
   "单题自测": "Single question",
   "随堂自测": "Self-check",
-  "练配套题 ({0})": "Practise linked ({0})"
+  "练配套题 ({0})": "Practise linked ({0})",
+  "打开 4 页交互实验": "Open 4-slide interactive experiment",
+  "实验已完成": "Experiment complete"
 }

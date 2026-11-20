@@ -158,6 +158,12 @@
     .outline-row__practice {
       flex: none;
     }
+    .outline-row__gap-hint {
+      margin: var(--space-1) 0 0;
+      padding-left: var(--space-6);
+      font-size: var(--fs-sm);
+      color: var(--text-muted);
+    }
     .outline-row__hint {
       display: flex;
       flex-wrap: wrap;

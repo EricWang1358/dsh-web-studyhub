@@ -27,7 +27,7 @@ function Part({ id, title, children }) {
 }
 
 /** lookup: bookLookup's answer; onGo(hid) opens the book there; onCard(hid, code) goes to a 术语卡; toc: false leaves the 目录 part out (the book page has its own 目录). */
-export default memo(function BookLookup({ lookup, onGo, onCard, toc = true, confusableDrill = false }) {
+export default memo(function BookLookup({ lookup, onGo, onCard, toc = true, confusableDrill = false, onCompileLab, onMarkStuck, stuckHids = null }) {
   const places = new Map(lookup.places.map(place => [place.hid, place]));
   return (
     <div className="book-lookup">
@@ -89,7 +89,8 @@ export default memo(function BookLookup({ lookup, onGo, onCard, toc = true, conf
         </li>)}</ul>
       </Part>}
       {lookup.confusables?.length > 0 && <Part id="confusables" title={ui('易混概念')}>
-        <BookConfusables confusables={lookup.confusables} drill={confusableDrill} onGo={onGo} onCard={onCard} />
+        <BookConfusables confusables={lookup.confusables} drill={confusableDrill} onGo={onGo} onCard={onCard}
+          onCompileLab={onCompileLab} onMarkStuck={onMarkStuck} stuckHids={stuckHids} />
       </Part>}
       <Part id="concepts" title={ui('按概念')}>
         {lookup.concepts.length ? <ul className="book-lookup__concepts">{lookup.concepts.map(item => <li key={item.term}>

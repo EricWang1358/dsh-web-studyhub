@@ -4,6 +4,7 @@ import { Button } from '../components/index.js';
 import PointBody from './PointBody.jsx';
 import { UnplacedBody } from './BookChapter.jsx';
 import { AskButton } from './BookAsk.jsx';
+import BookGapHint from './BookGapHint.jsx';
 
 /* 逐节读 (复习全书, docs/review-book.md "Reading a point"): ONE knowledge point of the book, under its chapter and section path, with 上一个知识点 /
    下一个知识点 below it (with the neighbour's title; on the first point the first card is off). Where it is in the book and ‹ › are the book bar's (ui/book/BookBar.jsx); the ← / → keys do the
@@ -29,6 +30,7 @@ export default function BookStep({ steps, at, onGo, course, handlers }) {
         </h2>
         {step.hid !== 'unplaced' && handlers.ask && <AskButton onAsk={element => handlers.ask(node, element)} />}
       </div>
+      {step.hid !== 'unplaced' && <BookGapHint node={node} course={course} handlers={handlers} />}
       {step.hid === 'unplaced' ? <UnplacedBody node={node} handlers={handlers} /> : <PointBody node={node} course={course} handlers={handlers} level={3} />}
       {/* Named like the bar's ‹ › (知识点), one word for the unit the learner steps through. */}
       <nav className="book-step__nav" aria-label={ui('上一个与下一个知识点')}>

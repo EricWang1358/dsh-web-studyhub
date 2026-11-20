@@ -235,13 +235,32 @@ export default function CourseOutline({ data, backLabel = '', onBack, onCreate, 
     } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
   }, [call, course, deckId, notify, onPractice]);
   const onPracticeRow = useCallback(row => practise({ keys: [row.key] }, { resume: !!row.node.resume }), [practise]);
+  const bookReady = Boolean(outline?.book?.notes);
+  const onGapHint = useCallback((row, hint) => {
+    if (!hint) return;
+    if (hint.kind === 'prereq' && hint.targetHid) {
+      if (bookReady && onOpenBook) { onOpenBook(hint.targetHid); return; }
+      const targetKey = hint.targetHid.startsWith('bk:') ? hint.targetHid : `bk:${hint.targetHid}`;
+      practise({ keys: [targetKey] }, { resume: false });
+      return;
+    }
+    if ((hint.kind === 'retell' || hint.kind === 'retell_gap')) {
+      if (bookReady && onOpenBook) { onOpenBook(row.key); return; }
+      if (row.node?.total > 0) { onPracticeRow(row); return; }
+      notify(ui('先生成复习全书后，才能在这里用自己的话讲一遍。'));
+      return;
+    }
+    if (row.node?.total > 0) { onPracticeRow(row); return; }
+    if (bookReady && onOpenBook) { onOpenBook(row.key); return; }
+    notify(ui('这个知识点还没有题，也没有生成复习全书。'));
+  }, [bookReady, notify, onOpenBook, onPracticeRow, practise]);
 
   const gapLensEnabled = outlineGapLens(data?.settings?.practice);
   return <CourseOutlineView course={course} outline={outline} details={details} error={error} open={open} deckId={deckId} filterQuery={filterQuery} pick={pick} picked={picked}
     running={runningBuild(data?.jobs, course)} writing={runningBuild(data?.jobs, course, BOOK_BUILD_KIND)} model={modelReadiness(data)} coverage={coverage} gate={gate} bookScale={bookScale}
     gapLensEnabled={gapLensEnabled} pageRef={pageRef}
     companionsSlot={<CourseCompanionsBar course={course || data?.focus?.course || ''} data={data} />}
-    actions={{ backLabel, onBack, onCreate, onOpenSources, onOpenTask, onOpenSource, onOpenBook, organise, writeBook, readMore, setCoverage, pickScale, startCustom, gateScale, retry, toggle, onPick, onPickCard, onPracticeRow,
+    actions={{ backLabel, onBack, onCreate, onOpenSources, onOpenTask, onOpenSource, onOpenBook, organise, writeBook, readMore, setCoverage, pickScale, startCustom, gateScale, retry, toggle, onPick, onPickCard, onPracticeRow, onGapHint,
       onPracticeWeakDue: keys => practise({ keys }),
       onGoGenerateRow: row => (onGoGenerateTopic ? onGoGenerateTopic(rowTitle(row)) : onCreate?.()),
       clearPick: () => setPick(emptyPick()), practisePicked: () => practise(pickArgs(pick)),
@@ -468,7 +487,7 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
       )}
       {rows.length === 0 && activeGapFilter === 'all' && filtered.filtering && <p className="outline-filter-empty" role="status">{ui('没有匹配的章节或题目。')}</p>}
       {rows.length > 0 && <OutlineTree rows={rows} details={details} pick={pick} papers={book?.papers || 0} unbuilt={unbuilt} modelReady={model.ready} onToggle={actions.toggle} onPick={actions.onPick} onPickCard={actions.onPickCard}
-        onPractice={actions.onPracticeRow} onGoGenerateRow={gapLensEnabled ? actions.onGoGenerateRow : undefined}
+        onPractice={actions.onPracticeRow} onGapHint={actions.onGapHint} onGoGenerateRow={gapLensEnabled ? actions.onGoGenerateRow : undefined}
         onOpenSources={actions.onOpenSources} onOpenSource={actions.onOpenSource} onOpenBook={book?.notes ? actions.onOpenBook : undefined}
         onReadMore={actions.readMore} label={ui('总纲')} />}
       {isPicked(pick) && <div className="outline-bar" role="region" aria-label={ui('已选的题')}>

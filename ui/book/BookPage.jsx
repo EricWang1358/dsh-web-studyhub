@@ -1,8 +1,12 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ui, uiFormat } from '../i18n.js';
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { errorMessage, getUiLanguage, ui, uiFormat } from '../i18n.js';
 import { Button, EmptyState, ErrorState, LoadingState } from '../components/index.js';
 import { usePersistentState, readText, removeKey } from '../storage.js';
 import { useStudy } from '../study-context.jsx';
+import { AppContext } from '../app/app-context.js';
+import { hasChatHost } from '../hand-off/use-hand-off.js';
+import { openCompanionTarget } from '../companions/companion-ref.js';
+import { useRescueExperiments } from '../companions/use-rescue-experiments.js';
 import { useInjectCss } from '../shared.js';
 import { useNarrow } from '../use-narrow.js';
 import ModelSetupGate from '../ModelSetupGate.jsx';
@@ -31,7 +35,7 @@ import { useBookRebuild } from './use-book-rebuild.js';
 import { useFoundMarks } from './use-found-marks.js';
 import BookRebuildPreview from './BookRebuildPreview.jsx';
 import BookSample from './BookSample.jsx';
-import { startBookBuild, useBookCrunch, useBookHandlers, useBookPages, useCoursePlan } from './use-book-actions.js';
+import { startBookBuild, useBookCrunch, useBookHandlers, useBookPages, useCourseEvidence, useCoursePlan } from './use-book-actions.js';
 import { startCardPass, useCardPass } from './use-card-pass.js';
 import { useMoreActions } from './more-actions.js';
 import useIndexCoverage from '../use-index-coverage.js';
@@ -70,7 +74,10 @@ export function handleBookFindShortcut(event, { view, ready, inOverlay, onOpen }
 export default function BookPage({ data, onBack, backLabel = '', onReturnBack = null, onPractice, inlinePractice = null, onOpenSource, onCreate, onOpenTask, onExamRun, onCourseSettings, onBuildIndex, theme, holdLeave, paragraphIndex = null, searchQuery = '' }) {
   useInjectCss(css, 'study-book');
   useInjectCss(aiCss, 'study-book-ai');
-  const { call, act, notify } = useStudy();
+  const { call, act, notify, openModal, openSettings, host } = useStudy();
+  const app = useContext(AppContext);
+  const canChat = hasChatHost(host);
+  const openModel = useMemo(() => (openSettings ? () => openSettings('settings-model') : undefined), [openSettings]);
   const course = data?.focus?.course ?? null, root = data?.root || '';
   const pageRef = useRef(null), tocRef = useRef(null), narrow = useNarrow(pageRef);
   // The view: the reading surface, or the editor / 翻看 that take its place until 「完成 · 回到阅读」. Never remembered, except the old 翻看 mode once (below).
@@ -99,6 +106,16 @@ export default function BookPage({ data, onBack, backLabel = '', onReturnBack = 
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const plan = useBookCrunch({ call, course, book, notify });
   const period = useCoursePlan({ call, course, book, revision: data?.revision });
+  const evidence = useCourseEvidence({ call, course, book, revision: data?.revision });
+  const onRescueCompleted = useCallback(() => {
+    evidence.refresh?.();
+    Promise.resolve(app?.core?.refresh?.()).catch(() => {});
+  }, [app?.core, evidence]);
+  const rescue = useRescueExperiments({
+    call,
+    onCompleted: onRescueCompleted,
+    failMessage: ui('这次没能生成交互实验，可以重试或先做本节的题。'),
+  });
   // 备考计划's fold is kept in this browser per library and course (open at first: it is the page's plan).
   const [planOpen, setPlanOpen] = usePersistentState(`study-book-plan:${root}:${course}`, true, { parse: value => value !== 'closed', serialize: value => (value ? 'open' : 'closed') });
   const pages = useBookPages({ call, course, book }), pageLimit = resolveBookSettings(data?.settings?.book).pageLimit;
@@ -120,7 +137,8 @@ export default function BookPage({ data, onBack, backLabel = '', onReturnBack = 
     setInlineState(null);
     plan.refresh?.();
     period.refresh?.();
-  }, [plan, period]);
+    evidence.refresh?.();
+  }, [plan, period, evidence]);
   // The 问 AI panel belongs to the point it was opened on: in 逐节读 another point closes it, and so does another view or reading mode. In 整章连着读 the place
   // read (the top heading on screen) changes with every scroll, so scrolling keeps the panel (and what is typed in it); it closes there only when its point is folded or no longer drawn.
   useEffect(() => { ai.closeAsk(); clearInlineRun(); }, [reading.mode === 'step' ? where.current : -1, reading.mode, view]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -147,7 +165,9 @@ export default function BookPage({ data, onBack, backLabel = '', onReturnBack = 
     };
   }, [inlinePracticeOn, inlinePractice, inlineShown, inlineState, clearInlineRun]);
   const handlers = useBookHandlers({ call, act, course, notify, book, setBook, rows, reload, remember: where.remember, onPractice, onCreate, onOpenSource,
-    modelReady: model.ready, model, onBack, ai: ai.actions, foldAi: aiFold.fold, onPlace: placeSection, goTo: where.goTo, inlinePractice: inlineController });
+    modelReady: model.ready, model, onBack, ai: ai.actions, foldAi: aiFold.fold, onPlace: placeSection, goTo: where.goTo, inlinePractice: inlineController,
+    evidenceByHid: evidence.byHid, onEvidenceChanged: evidence.refresh, courses: data?.courses, decks: data?.decks, sources: data?.sources,
+    openModal, openModel, canChat, rescueJobs: rescue.jobs, onStartRescue: rescue.start });
   // 在书里找 (the 目录's box, ui/book/book-search.js): what is typed stays while a narrow 目录 is closed; `found` is the point a row went to, its words marked while it is drawn.
   const initialSearchRef = useRef(
     (where.kept?.query || where.kept?.snippet || Number.isInteger(where.kept?.paragraphIndex))
@@ -265,6 +285,32 @@ export default function BookPage({ data, onBack, backLabel = '', onReturnBack = 
   const needsIndex = !!onBuildIndex && !!indexHintFor(courseDocs, indexCoverage, { once: false });
   const more = useMoreActions({ step, course, book, notify, aiFold, reading, where, openView, setDialog, setTodayOpen, onCreate, onCourseSettings, courseRecord, onStructure: openStructure, onOutline: onBack,
     onCards: () => startCardPass({ act, course, notify }), onBuildIndex });
+  const stuckHids = useMemo(() => new Set((plan.crunch?.points || []).filter(point => point.stuck).map(point => point.id)), [plan.crunch]);
+  const markStuck = useCallback((hid, on) => plan.mark(hid, 'stuck', on), [plan]);
+  const compileConfusableLab = useCallback(async pair => {
+    try {
+      const hid = pair?.hids?.find(Boolean) || undefined;
+      const res = await call('companion.compile', {
+        confusables: [pair],
+        course: course || undefined,
+        ...(hid ? { hid } : {}),
+        language: getUiLanguage(),
+        mountMode: 'companion-only',
+      });
+      if (res?.companion?.id && openModal) {
+        setDialog(null);
+        openCompanionTarget(openModal, {
+          companionId: res.companion.id,
+          course: res.companion.course || course || '',
+          companionTitle: res.companion.title || '',
+          returnLabel: ui('返回复习全书'),
+          from: 'book',
+        });
+      }
+    } catch (failure) {
+      notify({ text: errorMessage(failure), tone: 'error' });
+    }
+  }, [call, course, notify, openModal]);
   if (error && !book) return <section className="page book-page" ref={pageRef}>{header}<ErrorState error={error} title={ui('没能打开复习全书')} onRetry={reload} /></section>;
   if (!book) return <section className="page book-page" ref={pageRef}>{header}<LoadingState label={ui('正在打开复习全书…')} /></section>;
   // A rebuilt outline that would move the learner's own text: nothing moved yet, the list comes first (#461).
@@ -298,8 +344,8 @@ export default function BookPage({ data, onBack, backLabel = '', onReturnBack = 
     kit={!!book.examKit?.types?.length} cheat={offerCheat} cardPass={cardPass} index={needsIndex} />;
   const dialogs = <>
     {dialog === 'export' && <BookExport course={course} pageLimit={pageLimit} book={offerCheat ? book : null} onClose={() => setDialog(null)} />}
-    {dialog === 'lookup' && <LookupDialog book={book} parts={parts} confusableDrill={confusableDrillOn} onGo={where.goTo} onCard={handlers.goCard} onClose={() => setDialog(null)} />}
-    {dialog === 'kit' && book.examKit && <KitDialog book={book} onGo={where.goTo} onClose={() => setDialog(null)} />}
+    {dialog === 'lookup' && <LookupDialog book={book} parts={parts} confusableDrill={confusableDrillOn} onCompileLab={compileConfusableLab} onMarkStuck={markStuck} stuckHids={stuckHids} onGo={where.goTo} onCard={handlers.goCard} onClose={() => setDialog(null)} />}
+    {dialog === 'kit' && book.examKit && <KitDialog book={book} drill={confusableDrillOn} onMarkStuck={markStuck} stuckHids={stuckHids} onGo={where.goTo} onClose={() => setDialog(null)} />}
     {dialog === 'history' && <HistoryDialog book={book} step={step} onChanged={setBook} onClose={() => setDialog(null)} />}
     {dialog === 'mock' && <MockDialog course={course} pointIds={plan.day ? plan.points.map(point => point.id) : undefined} onStarted={onExamRun} onClose={() => setDialog(null)} />}
   </>;
@@ -307,7 +353,8 @@ export default function BookPage({ data, onBack, backLabel = '', onReturnBack = 
     <EditView book={book} step={step} theme={theme} root={root} onChanged={setBook} onDirty={setDirty} onSaving={onSaving} leaving={!!leaving} onStay={() => setLeaving(null)}
       onLeave={() => { const then = leaving; back(); then?.(); }} onDone={finishEdit} /></section>;
   if (view === 'flip') return <section className="page book-page" ref={pageRef}>{header}
-    <BookAiContext.Provider value={ai.lines}><FlipView book={book} crunch={plan.crunch} course={course} handlers={handlers} aiFold={aiFold} onMark={(hid, on) => plan.mark(hid, 'seen', on)}
+    <BookAiContext.Provider value={ai.lines}><FlipView book={book} crunch={plan.crunch} course={course} handlers={handlers} aiFold={aiFold} drill={confusableDrillOn}
+      onMark={(hid, on) => plan.mark(hid, 'seen', on)} onMarkStuck={markStuck}
       onGo={hid => { setView('read'); where.goTo(hid); }} onMockStarted={onExamRun} onDone={() => setView('read')} /></BookAiContext.Provider>{askPanel}{dialogs}</section>;
   if (view === 'cheat') return <section className="page book-page" ref={pageRef}>{header}
     <CheatView book={book} onGo={hid => { setView('read'); where.goTo(hid); }} onDone={() => setView('read')} />{dialogs}</section>;

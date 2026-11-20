@@ -698,5 +698,21 @@
   "出处：{0}\n点此打开总纲定位到这一处": "Source: {0}\nClick to open this chapter in the course outline",
   "没有在总纲里找到这道题的出处": "Could not find where this question is in the course outline",
   "已回到原位置，但没能切回之前的课程。可以在学习库重新切换当前课程。": "Returned to where you were, but could not switch back to the previous course. You can switch the current course again in the Study library.",
-  "已回到原位置，但没能切回之前的课程：{0}。可以在学习库重新切换当前课程。": "Returned to where you were, but could not switch back to the previous course: {0}. You can switch the current course again in the Study library."
+  "已回到原位置，但没能切回之前的课程：{0}。可以在学习库重新切换当前课程。": "Returned to where you were, but could not switch back to the previous course: {0}. You can switch the current course again in the Study library.",
+  "遮概念名": "Mask names",
+  "遮关键区别": "Mask differences",
+  "遮常见误区": "Mask traps",
+  "遮盖方式": "Masking mode",
+  "揭晓内容": "Reveal content",
+  "卡住了": "Stuck",
+  "已记卡住": "Marked stuck",
+  "转为辩证对比实验": "Turn into contrast lab",
+  "正在生成实验…": "Building contrast lab…",
+  "返回复习全书": "Back to review book",
+  "槽位 {0}": "Slot {0}",
+  "揭晓槽位": "Reveal slots",
+  "术语卡定义": "Term card definitions",
+  "先合书回忆一句话要点与术语定义（{0}），再点揭晓。": "Recall the one-sentence takeaway and term definitions ({0}) first, then reveal.",
+  "先合书回忆这个知识点的一句话要点，再点揭晓。": "Recall this point’s one-sentence takeaway first, then reveal.",
+  "揭晓要点": "Reveal takeaway"
 }

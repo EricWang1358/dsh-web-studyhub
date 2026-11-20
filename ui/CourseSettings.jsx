@@ -8,6 +8,7 @@ import FocusProgressList from './FocusProgressList.jsx';
 import CustomPlanCard from './CustomPlanCard.jsx';
 import CourseMethodCard from './CourseMethodCard.jsx';
 import CourseRulesEditor from './course-rules/CourseRulesEditor.jsx';
+import CourseNotationEditor from './course-rules/CourseNotationEditor.jsx';
 import GuidanceSuggestions, { guidanceSuggestions } from './GuidanceSuggestions.jsx';
 import { splitTopics } from './course-topics.js';
 import { useStudy } from './study-context.jsx';
@@ -45,6 +46,12 @@ export function draftFromCourse(course = {}) {
     focusTopics: (course.focusTopics || []).join('; '), guidanceSourceIds: [...(course.guidanceSourceIds || [])],
     interviewRole: course.interview?.role || '', interviewJd: course.interview?.jd || '',
     generationRules: [...(course.generationRules || [])],
+    notationOverrides: (course.notationOverrides || []).map(entry => ({
+      canonical: entry?.canonical || '',
+      symbol: entry?.symbol || '',
+      aliases: Array.isArray(entry?.aliases) ? entry.aliases.join('; ') : '',
+      meaning: entry?.meaning || '',
+    })),
     aiGradeFlashcards: course.practice?.aiGradeFlashcards === true,
   };
 }
@@ -63,12 +70,22 @@ export function payloadFromDraft(course, draft) {
   const interviewPayload = role || jd
     ? { ...(role ? { role } : {}), ...(jd ? { jd } : {}), ...(migratedFromFocus ? { migratedFromFocus: true } : {}) }
     : (migratedFromFocus ? { migratedFromFocus: true } : null);
+  const notationOverrides = (draft.notationOverrides || [])
+    .filter(entry => String(entry?.canonical ?? '').trim())
+    .map(entry => ({
+      canonical: String(entry.canonical).trim(),
+      ...(String(entry.symbol ?? '').trim() ? { symbol: String(entry.symbol).trim() } : {}),
+      aliases: splitTopics(entry.aliases),
+      meaning: String(entry.meaning ?? '').trim(),
+    }));
   return { id: course.id, name: course.name,
     ...(stated ? { exam: { format: draft.format, ...numbers, ...(draft.date ? { date: draft.date } : {}), sections } } : {}),
     ...(hasInterview ? { interview: interviewPayload } : {}),
     guidanceSourceIds: draft.guidanceSourceIds, focusTopics: splitTopics(draft.focusTopics),
     // 出题守则 (#889): sent when the course has some or the form added some; [] removes them.
     ...(course.generationRules?.length || draft.generationRules?.length ? { generationRules: draft.generationRules || [] } : {}),
+    // 符号与术语口径 (5.0.0 Evolution 2 #6): sent when the course has some or the form added some; [] clears them.
+    ...(course.notationOverrides?.length || notationOverrides.length ? { notationOverrides } : {}),
     // AI grading of flashcards (#1031): sent when the course has it or the form turned it on; false removes it.
     ...(course.practice || draft.aiGradeFlashcards ? { practice: { aiGradeFlashcards: draft.aiGradeFlashcards === true } } : {}) };
 }
@@ -76,7 +93,8 @@ export function payloadFromDraft(course, draft) {
 /** Does the course already carry anything the fold holds (everything but the exam date)? Then the fold is open when the panel opens. */
 const hasMoreValues = draft => draft.format !== 'other' || ['totalMarks', 'writingMinutes', 'readingMinutes', 'minutesPerMark'].some(key => draft[key] !== '')
   || draft.sections.length > 0 || splitTopics(draft.focusTopics).length > 0 || draft.guidanceSourceIds.length > 0
-  || Boolean(String(draft.interviewRole ?? '').trim() || String(draft.interviewJd ?? '').trim()) || draft.generationRules.length > 0;
+  || Boolean(String(draft.interviewRole ?? '').trim() || String(draft.interviewJd ?? '').trim()) || draft.generationRules.length > 0
+  || (draft.notationOverrides || []).length > 0;
 
 /** The learner's weakest topics of a course, from their own answers (local, no model): offered as suggestions for the focus topics, never added by themselves. */
 function useWeakTopics(course) {
@@ -447,6 +465,12 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
         <Disclosure className="course-settings__disclosure" bodyClassName="course-settings__disclosure-body" summary={ui('出题守则')}
           meta={draft.generationRules.length ? uiFormat('{0} 条守则', [draft.generationRules.length]) : ui('未设置')} defaultOpen={draft.generationRules.length > 0}>
           <CourseRulesEditor value={draft.generationRules} disabled={disabled} onChange={generationRules => change({ generationRules })} />
+        </Disclosure>
+
+        <Disclosure className="course-settings__disclosure" bodyClassName="course-settings__disclosure-body" summary={ui('符号与术语口径')}
+          meta={(draft.notationOverrides || []).length ? uiFormat('{0} 条覆写', [draft.notationOverrides.length]) : ui('未设置')}
+          defaultOpen={(draft.notationOverrides || []).length > 0}>
+          <CourseNotationEditor value={draft.notationOverrides || []} disabled={disabled} onChange={notationOverrides => change({ notationOverrides })} />
         </Disclosure>
 
         <section className="course-settings__block" aria-labelledby="course-settings-interview">
