@@ -22,7 +22,7 @@ Each release on the [GitHub release page](https://github.com/EricWang1358/dsh-we
 3. Double-click `Setup.exe` and follow the wizard (installs per-user with no UAC prompt).
 4. Launch **StudyHub** from the Start Menu. Future releases can be installed in one click directly from the in-app update dialog (verifies the Ed25519 signature, updates passively, and restarts automatically).
 
-> If you previously installed an older per-machine `.msi`, uninstall the old `.msi` once before installing `Setup.exe`. Your library folder, model configuration, and settings are stored separately and remain untouched.
+> If you previously installed an older per-machine `.msi`, uninstall the old `.msi` once before installing `Setup.exe`. Your library folder, model configuration, and settings are stored separately and remain untouched. If the installer reports a file-write or permission error (for example on a custom drive or under security software), right-click `Setup.exe` and choose **Run as administrator** to retry.
 
 ### Option 2: Install with `.msi`
 
