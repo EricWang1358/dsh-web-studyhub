@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { errorMessage, ui, uiFormat } from '../i18n.js';
-import { Button, Field, Hint, InlineMessage, NumberInput, Select, Switch, useToast } from '../components/index.js';
+import { Button, Disclosure, Field, Hint, InlineMessage, NumberInput, Select, Switch, useToast } from '../components/index.js';
 import { useAsyncAction } from '../use-async.js';
 import { useStudy } from '../study-context.jsx';
 
@@ -110,8 +110,8 @@ export default function WebGeminiSection({ initialStatus = null, initialProbe = 
   return (
     <section className="web-gemini" data-tour="settings-web-gemini">
       <div className="web-gemini__head">
-        <h3 className="settings-subtitle">{ui('网页 Gemini 代理（ask-gemini-mcp）')}</h3>
-        <Hint>{ui('将无需调用工具的非并发单次子代理任务（知识骨架、讲解生成、每日合集、生成笔记、书籍 AI、案例卡与助教）交给网页 Gemini MCP 执行。并发批量出题、逐块翻译、音频与轻量提示仍走原模型。')}</Hint>
+        <h3 className="settings-subtitle">{ui('网页 Gemini 代理')}</h3>
+        <Hint>{ui('用浏览器里已登录的网页版 Gemini 跑讲解、笔记、知识骨架、助教等单次任务，省 API 额度；批量出题、逐块翻译和音频仍走原模型。开启后如网页未打开或超时，会直接报错，不会自动退回原模型。')}</Hint>
       </div>
 
       {status && current.missing && (
@@ -134,52 +134,61 @@ export default function WebGeminiSection({ initialStatus = null, initialProbe = 
 
       <Switch
         name="webGeminiEnabled"
-        label={ui('将非并发单次无工具子代理任务交给网页 Gemini')}
-        hint={ui('开启后，优先通过 DSH 中的 ask-gemini-mcp 网页端执行上述单次任务。')}
+        label={ui('用网页版 Gemini 执行单次任务')}
+        hint={ui('开启后，讲解、笔记、骨架和助教优先走浏览器的 Gemini 网页端，按顺序排队发送，不自动回退原模型。')}
         checked={current.enabled === true}
         disabled={!!working}
         onChange={toggleEnabled}
       />
 
-      <div className="web-gemini__controls">
-        <Field label={ui('网页 MCP 工具')} hint={ui('默认自动识别 ask_gemini_web；如注册了自定义 MCP 工具名称，可在这里手动指定。')}>
-          <Select value={current.toolName || ''} disabled={!!working} options={toolOptions} onChange={selectTool} />
-        </Field>
-
-        <form className="web-gemini__wait-form" onSubmit={saveWait}>
-          <Field
-            label={ui('等待回答超时时长')}
-            error={waitDraft !== null && !validWait ? uiFormat('请填写 {0}–{1} 之间的整数秒', [minWait, maxWait]) : undefined}
-            hint={ui('网页普通模式建议 180 秒，开启 Extended Thinking 深度思考建议设为 600 秒及以上。')}
-          >
-            {({ id, describedBy, invalid }) => (
-              <div className="web-gemini__wait-row">
-                <div className="web-gemini__wait-field">
-                  <NumberInput
-                    id={id}
-                    name="webGeminiWaitSeconds"
-                    min={minWait}
-                    max={maxWait}
-                    step={10}
-                    suffix={ui('秒')}
-                    value={shownWait}
-                    disabled={!!working}
-                    invalid={invalid}
-                    aria-describedby={describedBy}
-                    onChange={event => setWaitDraft(event.target.value)}
-                  />
-                </div>
-                <Button variant="secondary" type="submit" busy={working === 'wait'} disabled={!!working || !dirtyWait || !validWait}>
-                  {ui('保存等待时长')}
-                </Button>
-              </div>
-            )}
+      <Disclosure
+        className="settings-disclosure web-gemini__advanced"
+        summaryClassName="settings-disclosure__summary"
+        bodyClassName="settings-disclosure__body"
+        summary={ui('工具选择与超时设置')}
+        meta={uiFormat('当前超时 {0} 秒', [current.waitSeconds ?? 600])}
+        defaultOpen={current.enabled === true || Boolean(current.missing)}
+      >
+        <div className="web-gemini__controls">
+          <Field label={ui('网页 MCP 工具')} hint={ui('默认自动识别 ask_gemini_web；如注册了自定义 MCP 工具名称，可在这里手动指定。')}>
+            <Select value={current.toolName || ''} disabled={!!working} options={toolOptions} onChange={selectTool} />
           </Field>
-        </form>
-      </div>
+
+          <form className="web-gemini__wait-form" onSubmit={saveWait}>
+            <Field
+              label={ui('等待回答超时时长')}
+              error={waitDraft !== null && !validWait ? uiFormat('请填写 {0}–{1} 之间的整数秒', [minWait, maxWait]) : undefined}
+              hint={ui('普通模式建议 180 秒；开启深度思考模式时建议设为 600 秒及以上。')}
+            >
+              {({ id, describedBy, invalid }) => (
+                <div className="web-gemini__wait-row">
+                  <div className="web-gemini__wait-field">
+                    <NumberInput
+                      id={id}
+                      name="webGeminiWaitSeconds"
+                      min={minWait}
+                      max={maxWait}
+                      step={10}
+                      suffix={ui('秒')}
+                      value={shownWait}
+                      disabled={!!working}
+                      invalid={invalid}
+                      aria-describedby={describedBy}
+                      onChange={event => setWaitDraft(event.target.value)}
+                    />
+                  </div>
+                  <Button variant="secondary" type="submit" busy={working === 'wait'} disabled={!!working || !dirtyWait || !validWait}>
+                    {ui('保存等待时长')}
+                  </Button>
+                </div>
+              )}
+            </Field>
+          </form>
+        </div>
+      </Disclosure>
 
       <div className="web-gemini__actions">
-        <Button variant="primary" busy={working === 'test'} disabled={!!working} onClick={testConnection}>
+        <Button variant="secondary" busy={working === 'test'} disabled={!!working} onClick={testConnection}>
           {ui('手动测试连通与回答')}
         </Button>
         <Button variant="secondary" busy={working === 'refresh'} disabled={!!working} onClick={refresh}>

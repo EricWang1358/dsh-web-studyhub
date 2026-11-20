@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useId, useState } from 'react';
 import { ui, uiFormat, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Badge, Button, InlineMessage } from './components/index.js';
+import { Badge, Button, InlineMessage, Tooltip } from './components/index.js';
 import { courseScope } from '../lib/course-tree.js';
 import css from './course-active.css';
 
@@ -76,8 +76,10 @@ export function ActiveSwitch({ course, courses = [], disabled = false, compact =
   const toggle = () => parked ? set(true) : subs.length ? setState(current => ({ ...current, confirm: true })) : set(false);
   return <div className={`course-active${compact ? ' is-compact' : ''}${parked ? ' is-parked' : ''}`}>
     <div className="course-active__row">
-      <button type="button" role="switch" className="course-active__switch" aria-checked={!parked} id={id}
-        aria-label={compact ? `${ui('有效课程')} · ${nameOf(course)}` : ui('有效课程')} title={sentence(course)} disabled={disabled || state.working} onClick={toggle} />
+      <Tooltip layer content={compact ? sentence(course) : ''}>
+        <button type="button" role="switch" className="course-active__switch" aria-checked={!parked} id={id}
+          aria-label={compact ? `${ui('有效课程')} · ${nameOf(course)}` : ui('有效课程')} disabled={disabled || state.working} onClick={toggle} />
+      </Tooltip>
       {!compact && <label className="course-active__text" htmlFor={id}>
         <strong>{ui('有效课程')}</strong>
         <small>{sentence(course)}</small>
@@ -107,9 +109,11 @@ export function ParkedChip({ course, className = '' }) {
     try { await api.activate(course); setState({ working: false, error: '' }); }
     catch (error) { setState({ working: false, error: errorMessage(error) }); }
   };
-  return <Badge size="sm" className={`course-parked ${className}`.trim()} title={sentence(course)}>
-    <span>{ui('未激活')}</span>
-    {api && <Button variant="link" size="sm" busy={state.working} onClick={activate}>{ui('激活')}</Button>}
-    {state.error && <span role="alert" className="course-parked__error">{state.error}</span>}
-  </Badge>;
+  return <Tooltip layer content={sentence(course)}>
+    <Badge size="sm" className={`course-parked ${className}`.trim()}>
+      <span>{ui('未激活')}</span>
+      {api && <Button variant="link" size="sm" busy={state.working} onClick={activate}>{ui('激活')}</Button>}
+      {state.error && <span role="alert" className="course-parked__error">{state.error}</span>}
+    </Badge>
+  </Tooltip>;
 }

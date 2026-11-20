@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ui } from '../i18n.js';
 import { APPEARANCE_LABELS, APPEARANCE_OPTIONS } from '../appearance-prefs.js';
 import { FONT_NAME_MAX, cleanFontName } from '../font-presets.js';
-import { Button, Disclosure, Field, InlineMessage, SegmentedControl, SettingsSection, TextInput } from '../components/index.js';
+import { Button, Disclosure, Field, Hint, InlineMessage, SegmentedControl, SettingsSection, TextInput } from '../components/index.js';
 import { playSound, playSoundPreview, stopSoundPreview } from '../sound-effects.js';
 import AppearanceTransfer from './AppearanceTransfer.jsx';
 
@@ -31,6 +31,7 @@ function AppearanceReset({ onReset }) {
   return (
     <div className="appearance-backup" data-tour="settings-appearance-reset">
       <div className="settings-actions"><Button variant="quiet" icon="undo" className="appearance-reset" onClick={() => { onReset(); setNote({ tone: 'success', text: ui('已恢复默认外观。') }); }}>{ui('恢复默认外观')}</Button></div>
+      <Hint>{ui('恢复外观与音效（含折叠内选项），不改界面语言。')}</Hint>
       {note && <InlineMessage tone={note.tone}>{note.text}</InlineMessage>}
     </div>
   );
@@ -82,7 +83,10 @@ export default function AppearanceSection({ appearance }) {
         summary={ui('更多外观选项')} meta={ui('字体、动画、对比度等')}>
       {appearance.onFont && <Choice data-tour="settings-appearance-font" label={ui('界面字体')} value={appearance.font} onChange={appearance.onFont} kind="font" />}
       {appearance.onFont && appearance.font === 'custom' && appearance.onFontCustom && <CustomFontField value={appearance.fontCustom || ''} onChange={appearance.onFontCustom} />}
-      {appearance.onFontTitle && <Choice label={ui('标题字体')} value={appearance.fontTitle} onChange={appearance.onFontTitle} kind="fontTitle" />}
+      {appearance.onFontTitle && <Choice label={ui('标题字体')} value={appearance.fontTitle} onChange={appearance.onFontTitle} kind="fontTitle"
+        hint={appearance.font && appearance.font !== 'system'
+          ? ui('可让标题跟随上方所选的界面字体，或继续保持系统默认字体。')
+          : ui('修改上方「界面字体」后生效；当前使用系统默认字体时切换不会有视觉变化。')} />}
       {appearance.onMotion && <Choice data-tour="settings-appearance-motion" label={ui('动画')} value={appearance.motion} onChange={appearance.onMotion} kind="motion"
         hint={ui('减弱只保留很短的淡入淡出；无动画则不再有页面切换和卡片动画（转圈提示仍会转）。页面切换卡顿时可以试试。')} />}
       {appearance.onContrast && <Choice data-tour="settings-appearance-contrast" label={ui('对比度')} value={appearance.contrast} onChange={appearance.onContrast} kind="contrast"
@@ -90,7 +94,7 @@ export default function AppearanceSection({ appearance }) {
       {appearance.onDensity && <Choice data-tour="settings-appearance-density" label={ui('界面密度')} value={appearance.density} onChange={appearance.onDensity} kind="density" hint={ui('密度只改间距和行距，不改字号。')} />}
       {appearance.onRadius && <Choice data-tour="settings-appearance-radius" label={ui('圆角')} value={appearance.radius} onChange={appearance.onRadius} kind="radius" />}
       {appearance.onCraft && <Choice data-tour="settings-appearance-craft" label={ui('控件与字阶')} value={appearance.craft} onChange={appearance.onCraft} kind="craft"
-        hint={ui('收紧按钮高度与圆角比例、将顶栏与次要说明降至较小字阶，并拉开浅色灰阶与禁用态对比；「标准」保持原版设计不变。')} />}
+        hint={ui('更偏紧凑工具风格：按钮更矮、顶栏和说明字稍小、浅色下边框更清晰；可与上方密度和圆角叠加。「标准」保持原版设计不变。')} />}
       <AppearanceTransfer appearance={appearance} />
       </Disclosure>
     </SettingsSection>

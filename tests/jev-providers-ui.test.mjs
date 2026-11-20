@@ -62,13 +62,13 @@ test('the key-source row says where the key comes from, shows only the variable 
   assert.doesNotMatch(found, /••••/);
   const missing = render(view(zenFree));
   assert.match(missing, /OPENCODE_GO_API_KEY_2（未找到）/);
-  assert.match(missing, /DSH 可能没有把它传给插件/);
+  assert.match(missing, /DSH 可能没有把它传给 StudyHub/);
   assert.match(missing, /粘贴密钥/);
   assert.match(missing, /启动 DSH/);
   const en = render(view(zenFound), 'en'), enMissing = render(view(zenFree), 'en');
   assert.match(en, /Key from environment variable OPENCODE_GO_API_KEY_2 \(found\)/);
   assert.match(enMissing, /OPENCODE_GO_API_KEY_2 \(not found\)/);
-  assert.match(enMissing, /DSH may not pass it on to the plugin/);
+  assert.match(enMissing, /DSH may not pass it on to StudyHub/);
   assert.match(enMissing, /paste a key/i);
   assert.match(enMissing, /start DSH with the variable set/i);
   noHan(en, 'found'); noHan(enMissing, 'missing');

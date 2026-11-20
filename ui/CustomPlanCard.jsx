@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ui, uiFormat, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, Checkbox, Chip, Disclosure, InlineMessage, Switch, Tooltip } from './components/index.js';
+import { Button, Checkbox, Chip, Disclosure, Hint, InlineMessage, Switch, Tooltip } from './components/index.js';
 import { useStudy } from './study-context.jsx';
 import { useLiveEffect } from './use-async.js';
 import { BOOK_PARTS, isExamScopeUnconfirmed } from '../lib/custom-plan.js';
@@ -72,6 +72,7 @@ export default function CustomPlanCard({ course, initialPreview = null }) {
   useInjectCss(css, 'study-custom-card');
   const { call, act, busy } = useStudy();
   const handOff = useHandOff();
+  const canChat = handOff.canChat;
   const custom = course?.custom ?? null;
   const focusKey = JSON.stringify(course?.focusTopics || []);
   const guidanceKey = JSON.stringify(course?.guidanceSourceIds || []);
@@ -82,6 +83,7 @@ export default function CustomPlanCard({ course, initialPreview = null }) {
   }, [call, course?.name, custom?.updatedAt, focusKey, guidanceKey]);
   if (!custom) return null;
   const disabled = busy || working, locked = lockedPartIds(custom), examPending = isExamScopeUnconfirmed(custom.scope);
+  const lockedNames = BOOK_PARTS.filter(id => custom.book.parts.includes(id) && locked.has(id)).map(partWord);
   const save = async next => {
     setWorking(true); setError('');
     try { await act('course.save', saveArgs(course, next), undefined, { rethrow: true }); } catch (caught) { setError(errorMessage(caught)); } finally { setWorking(false); }
@@ -92,27 +94,28 @@ export default function CustomPlanCard({ course, initialPreview = null }) {
     <p className="custom-card__summary">{customSummary(custom)}</p>
     {line && <p className="custom-card__estimate" role="status">{line}</p>}
     {custom.scope.kind === 'exam' && <ExamScopeConfirm custom={custom} preview={preview} disabled={disabled} onConfirm={ids => save(setExamResolvedChapters(custom, ids))} />}
+    <Hint>{ui('以下各项切换后立即生效，不用点底部保存。')}</Hint>
     {/* A plan whose chapters moved: the chat is where the plan was made, so the card says it once and gives the one action that re-picks them (#758). */}
-    {unknown && <InlineMessage tone="warning" secondary={handOff.action('custom.start', { course: course.name, hasCustom: true }, { what: '让主会话重新选这几章' })}>{unknown}</InlineMessage>}
+    {unknown && <InlineMessage tone="warning" secondary={handOff.action('custom.start', { course: course.name, hasCustom: true }, { what: canChat ? '让主会话重新选这几章' : '复制重新选定章节的提示词' })}>{unknown}</InlineMessage>}
     <ul className="custom-card__parts" aria-label={ui('复习全书的部分')}>
       {BOOK_PARTS.map(id => {
         const on = custom.book.parts.includes(id), stuck = on && locked.has(id);
         return <li key={id}>
-          <Tooltip content={stuck ? uiFormat('先关掉要用到它的部分，才能关掉{0}', [partWord(id)]) : partTip(id)}>
+          <Tooltip layer content={stuck ? uiFormat('先关掉要用到它的部分，才能关掉{0}', [partWord(id)]) : partTip(id)}>
             <Chip size="sm" selected={on} disabled={disabled || stuck} onClick={() => save(togglePart(custom, id))}>{partWord(id)}</Chip>
           </Tooltip>
         </li>;
       })}
     </ul>
+    {lockedNames.length > 0 && <Hint>{uiFormat('已锁定的部分（{0}）被其他已选部分依赖，先关闭依赖它的部分才能取消。', [lockedNames.join(ui('、'))])}</Hint>}
     <div className="custom-card__switches">
       <Switch label={ui('出题')} checked={custom.questions.make} disabled={disabled} onChange={make => save(setQuestions(custom, make))} />
-      <Tooltip content={ui('只有答错的题才会写变式题，所以现在不占调用。')}>
-        <span><Switch label={ui('变式题')} checked={custom.questions.make && custom.questions.variants} disabled={disabled || !custom.questions.make}
-          onChange={variants => save(setVariants(custom, variants))} /></span>
-      </Tooltip>
-      <Tooltip content={ui('按你的节奏排每天读哪几节，由程序排，不需要调用模型。')}>
-        <span><Switch label={ui('学习计划')} checked={custom.plan.make} disabled={disabled} onChange={make => save(setPlan(custom, make))} /></span>
-      </Tooltip>
+      <Switch label={ui('变式题')} checked={custom.questions.make && custom.questions.variants} disabled={disabled || !custom.questions.make}
+        hint={custom.questions.make ? ui('只有答错的题才会写变式题，所以现在不占调用。') : ui('开启上方「出题」后才能开启变式题；只有答错的题才会写，现在不占调用。')}
+        onChange={variants => save(setVariants(custom, variants))} />
+      <Switch label={ui('学习计划')} checked={custom.plan.make} disabled={disabled}
+        hint={ui('按你的节奏排每天读哪几节，由程序排，不需要调用模型。')}
+        onChange={make => save(setPlan(custom, make))} />
     </div>
     {error && <InlineMessage tone="error">{error}</InlineMessage>}
     {!examPending && <CustomReadiness course={course} />}

@@ -37,7 +37,7 @@
   "安装到这个位置并删除旧环境": "Install here and delete the old environment",
   "一键安装 Marker": "One-click install Marker",
   "新环境装好并通过检测后，才会删除旧的那个；失败时旧的保持可用。": "The old environment is deleted only after the new one is installed and passes the check; if it fails, the old one stays usable.",
-  "只在你点击后才会安装；marker-pdf 用 pip 下载，需要联网。": "Nothing is installed until you press the button; marker-pdf is downloaded with pip, which needs a network connection.",
+  "只在你点击后才会安装运行环境（需联网）；第一次解析 PDF 时会自动联网下载 Marker 模型（通常几分钟），之后可离线使用。": "Only the runtime environment is installed after you click (network required); your first PDF conversion automatically downloads Marker's models online (usually a few minutes), after which it works offline.",
   "正在安装 Marker": "Installing Marker",
   "第 {0}/{1} 步 · {2} · {3}": "Step {0}/{1} · {2} · {3}",
   "Marker 安装进度": "Marker install progress",

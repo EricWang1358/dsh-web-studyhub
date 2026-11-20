@@ -142,12 +142,13 @@ export default function LiveLoopbackCard({ call: given, settings = false, hideUn
       <div className="mineru-install__row">{action.tip ? <Tooltip layer content={action.tip}>{button}</Tooltip> : button}
         {shown.state === 'repair' && settings && <Button variant="quiet" size="sm" lock={!!working} onClick={() => setAsking(true)}>{ui('卸载电脑声音组件')}</Button>}
         {diag}</div></div>;
-  } else if (shown.state === 'unsupported') body = <Hint>{ui('macOS 与 Linux 请在独立浏览器窗口里选「标签页共享」，或改用「麦克风」。')}</Hint>;
+  } else if (shown.state === 'unsupported') body = <Hint>{ui('macOS 与 Linux 暂不支持直采系统声音，请改用「麦克风」或在浏览器打开时选「标签页共享」。')}</Hint>;
   else if (shown.state === 'ready' && settings) body = <div className="mineru-install__row">
     <Button variant="quiet" size="sm" lock={!!working} onClick={() => setAsking(true)}>{ui('卸载电脑声音组件')}</Button></div>;
 
   return <section className={['live-local-card', className].filter(Boolean).join(' ')} data-loopback-state={shown.state} data-state={shown.state} aria-label={ui('电脑声音直采组件（热插拔）')}>
     {head}
+    <Hint>{ui('上网课或看录播时，直接采集电脑播放的讲课声（不用外放给麦克风）；只在需要录电脑声音时安装。')}</Hint>
     {line}
     {body}
     {error && <>

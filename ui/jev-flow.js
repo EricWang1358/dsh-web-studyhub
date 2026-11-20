@@ -42,9 +42,9 @@ export const JEV_FEATURE_META = [
     hint: () => ui('在「资料 › 整理课程归属」里多一个「Jev 建议」按钮，给出每门课的概率；把握够高才填入，仍要你点「应用」。') },
   { id: 'preReview', label: () => ui('出题预审'),
     hint: () => ui('出题时，在独立复审之前先让 Jev 粗筛每道题（题干是否泄露答案、脱离资料能否看懂等）；明显有问题的先改写一次。它只是信号，独立复审仍是最后一关。') },
-  { id: 'outlineNoise', label: () => ui('目录噪声判断'),
+  { id: 'outlineNoise', devOnly: true, label: () => ui('目录噪声判断'),
     hint: () => ui('判断目录条目是章节标题、小节标签、页眉页脚还是其他。接口已就绪，阅读器接入后才会生效。') },
-  { id: 'levelCheck', label: () => ui('题目认知层次对照'),
+  { id: 'levelCheck', devOnly: true, label: () => ui('题目认知层次对照'),
     hint: () => ui('用 Jev 判断题目是记忆、概念辨析还是应用分析，与代码的判断对照；只在开发者面板里显示一致与不一致的数量。') },
 ];
 
@@ -85,14 +85,16 @@ export function privacyPoints(providerId, { host = '' } = {}) {
  * environment variable `key.envName`), 'env-missing' (no key and an OpenCode preset: that variable was not found) or 'none'. Only the
  * variable's NAME is ever shown, never any part of its value.
  */
-export function keySourceText(settings) {
+export function keySourceText(settings, { isDesktop = false } = {}) {
   const key = settings?.key || {}, name = key.envName || jevProvider(settings?.provider).defaultKeyEnv;
   if (key.set && key.source === 'file') return { state: 'file', text: uiFormat('已保存 {0}', [key.hint]),
     note: key.envFound ? uiFormat('粘贴的密钥优先于环境变量 {0}。', [name]) : '' };
   if (key.set && key.source === 'env') return { state: 'env-found', text: uiFormat('密钥来自环境变量 {0}（已找到）', [name]),
     note: ui('这个密钥只在发送请求时读取，不会被保存到任何文件，也不会显示在界面上。') };
   if (jevProvider(settings?.provider).family !== 'typesafe') return { state: 'env-missing', text: uiFormat('环境变量 {0}（未找到）', [name]),
-    note: ui('DSH 可能没有把它传给插件进程：可以在下面粘贴密钥，或在设置好这个变量的环境里启动 DSH。') };
+    note: isDesktop
+      ? ui('StudyHub 桌面版可能没有读到这个环境变量：可以在下面粘贴密钥，或在设置好这个变量的环境里启动 StudyHub。')
+      : ui('DSH 可能没有把它传给 StudyHub：可以在下面粘贴密钥，或在设置好这个变量的环境里启动 DSH。') };
   return { state: 'none', text: ui('未配置'), note: '' };
 }
 

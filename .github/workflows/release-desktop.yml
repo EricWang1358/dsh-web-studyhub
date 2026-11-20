@@ -60,7 +60,10 @@ jobs:
           $tests = @(
             "tests/desktop-architecture-boundaries.test.mjs",
             "tests/desktop-backend.test.mjs",
-            "tests/desktop-ui.test.mjs"
+            "tests/desktop-ui.test.mjs",
+            "tests/desktop-retrieval.test.mjs",
+            "tests/desktop-retrieval-ui.test.mjs",
+            "tests/desktop-retrieval-pack.test.mjs"
           ) | Where-Object { Test-Path $_ }
           $desktopTests = Get-ChildItem -Path "packages/studyhub-desktop" -Recurse -File -ErrorAction SilentlyContinue |
             Where-Object {
@@ -94,11 +97,11 @@ jobs:
           cargo test
 
   build-release:
-    name: build windows installer & portable zip
+    name: build windows installer, portable zip & retrieval bundle
     needs: [verify]
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - name: Resolve release version metadata
         id: meta
@@ -145,6 +148,9 @@ jobs:
       - name: Pack portable ZIP and SHA256SUMS
         run: npm --prefix packages/studyhub-desktop run bundle:zip
 
+      - name: Pack Desktop Retrieval bundle and SHA256SUMS
+        run: npm --prefix packages/studyhub-desktop run pack:retrieval -- --verify
+
       - name: Upload desktop build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -161,16 +167,18 @@ jobs:
           TAG: ${{ steps.meta.outputs.tag }}
           REPO: ${{ github.repository }}
         run: |
-          $assets = Get-ChildItem -Path "packages/studyhub-desktop/dist/release" -File |
-            Where-Object { $_.Name -match '\.(msi|zip)$|^SHA256SUMS-Desktop-.*\.txt$' } |
-            ForEach-Object { $_.FullName }
-          if ($assets.Count -lt 3) {
-            throw "Expected .msi, .zip, and SHA256SUMS desktop assets, found $($assets.Count)"
+          $files = Get-ChildItem -Path "packages/studyhub-desktop/dist/release" -File |
+            Where-Object { $_.Name -match '\.(msi|zip)$|^SHA256SUMS-Desktop-.*\.txt$' }
+          $assets = $files | ForEach-Object { $_.FullName }
+          $hasRetrievalZip = $files | Where-Object { $_.Name -match '^StudyHub-Desktop-Retrieval-.*-win-x64\.zip$' }
+          $hasRetrievalSums = $files | Where-Object { $_.Name -match '^SHA256SUMS-Desktop-Retrieval-.*\.txt$' }
+          if ($assets.Count -lt 5 -or -not $hasRetrievalZip -or -not $hasRetrievalSums) {
+            throw "Expected desktop .msi, .zip, retrieval .zip, and SHA256SUMS assets, found $($assets.Count): $($files.Name -join ', ')"
           }
           gh release view $env:TAG -R $env:REPO *> $null
           if ($LASTEXITCODE -eq 0) {
             gh release upload $env:TAG @assets -R $env:REPO --clobber
           } else {
             $version = $env:TAG.TrimStart('v')
-            gh release create $env:TAG @assets -R $env:REPO --verify-tag --title "StudyHub $version" --notes "StudyHub Desktop $version Windows x64 installer (.msi), portable archive (.zip), and SHA-256 checksums."
+            gh release create $env:TAG @assets -R $env:REPO --verify-tag --title "StudyHub $version" --notes "StudyHub Desktop $version Windows x64 installer (.msi), portable archive (.zip), optional Desktop Retrieval bundle, and SHA-256 checksums."
           }

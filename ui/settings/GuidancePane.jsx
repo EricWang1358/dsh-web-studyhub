@@ -15,15 +15,16 @@ import { useStudy } from '../study-context.jsx';
 
 const KIND = { tip: '一句提示', card: '卡片', tour: '导览', nudge: '小提醒' };
 const PROACTIVE_TIP = '没有点它也会出现。总开关和它自己的开关都能让它不再出现；以后新加的这类提示，每天最多出现一条，做题时不出现（练习页答题之后的三条提示与补词到底时的先读章节提示除外：它们不占这一条）。';
-/* What the master switch hides and what it leaves, said in full (tests/guidance-settings-ui.test.mjs keeps this list equal to the proactive entries). */
-const MASTER_HINT = '关掉后，阅读页的两条提示、练习页答题之后的三条提示、补词到底时的先读章节提示、「补全原文件」的说明、主题组提醒、Archify 推荐卡和「笔记换了位置」都不再出现；首页的入门三步、首页顶部的「下一步」卡、模型设置的引导、出错和空页面的说明，以及课程准备「全部完成」那句照常显示。';
-const MASTER_OFF_TOAST = '引导提示已关闭：阅读页的两条提示、练习页答题之后的三条提示、补词到底时的先读章节提示、「补全原文件」的说明、主题组提醒、Archify 推荐卡和「笔记换了位置」不再出现。';
+/* What the master switch hides and what it leaves, by category. */
+const MASTER_HINT = '关掉后，下方标有「主动出现」的提示与提醒都不再自动出现；首页的入门三步、「下一步」卡、模型设置的引导、出错与空页面的说明，以及课程准备「全部完成」照常显示。';
+const MASTER_OFF_TOAST = '引导提示已关闭：下方标有「主动出现」的提示与提醒将不再自动出现。';
 
 /** Of the shared settings services the pane reads `data` (an experiment's entry, and whether 入门三步 can still appear) and `capabilities`; the
     switches live in this browser. `storages` is for tests. */
 export default function GuidancePane({ data, capabilities, storages }) {
   const { host } = useStudy();
   const canChat = host?.capabilities?.chat !== false;
+  const isDesktop = host?.capabilities?.edition === 'desktop';
   const toast = useToast();
   const offNoteId = useId();
   const [, setVersion] = useState(0);
@@ -34,11 +35,13 @@ export default function GuidancePane({ data, capabilities, storages }) {
   const stored = readGuidanceState(local) !== null;
   const masterOn = guidanceOn(local);
   const context = { ownDeck: !!data && hasOwnDeck(data) };
-  const items = guidanceItemsFor({ experimental: experimentalShown(data), system: !!capabilities?.system });
+  const items = guidanceItemsFor({ experimental: experimentalShown(data), system: !!capabilities?.system, canChat, isDesktop });
   const seen = items.filter((item) => itemSeen(item, where));
   const returnable = seen.filter((item) => canComeBack(item, context));
   const muted = (item) => itemMuted(item.id, local);
-  const refused = () => setError(ui('没能保存：这个浏览器现在不让保存设置，这次的改动没有生效。'));
+  const refused = () => setError(isDesktop
+    ? ui('没能保存：这台电脑的本地设置现在无法写入，这次的改动没有生效。')
+    : ui('没能保存：这个浏览器现在不让保存设置，这次的改动没有生效。'));
   const quoted = (item) => uiFormat('「{0}」', [ui(item.title)]);
   const names = (list) => list.map(quoted).join(ui('、'));
 
@@ -83,7 +86,9 @@ export default function GuidancePane({ data, capabilities, storages }) {
   return (
     <>
       <SettingsSection tour="settings-guidance" title={ui('引导')}
-        lead={ui('第一次用到某个功能时，StudyHub 会给一句提示或一张卡片。这里可以把它们关掉，或让看过的再出现一次。这些选择只存在这个浏览器里。')}>
+        lead={isDesktop
+          ? ui('第一次用到某个功能时，StudyHub 会给一句提示或一张卡片。这里可以把它们关掉，或让看过的再出现一次。这些选择只保存在这台电脑的本地设置里。')
+          : ui('第一次用到某个功能时，StudyHub 会给一句提示或一张卡片。这里可以把它们关掉，或让看过的再出现一次。这些选择只存在这个浏览器里。')}>
         <Switch name="guidanceOn" label={ui('显示引导提示')} checked={masterOn} onChange={setMaster} hint={ui(MASTER_HINT)} />
         {!masterOn && <Hint id={offNoteId} data-guidance="master-off">{ui('「显示引导提示」关着时，下面每一项的开关暂时不起作用；打开后恢复各自的设置。')}</Hint>}
         <div className="settings-actions">
@@ -92,7 +97,9 @@ export default function GuidancePane({ data, capabilities, storages }) {
         <Hint>{returnable.length
           ? uiFormat('有 {0} 项可以重新显示。重新显示后，不会马上弹出来，而是在各自该出现的时候再出现。', [returnable.length])
           : ui('现在没有可以重新显示的提示。')}</Hint>
-        {!stored && <Hint tone="warning" data-guidance="no-storage">{ui('这个浏览器现在不能保存设置（比如无痕窗口），这一页的改动记不住。')}</Hint>}
+        {!stored && <Hint tone="warning" data-guidance="no-storage">{isDesktop
+          ? ui('这台电脑的本地设置现在无法保存，这一页的改动记不住。')
+          : ui('这个浏览器现在不能保存设置（比如无痕窗口），这一页的改动记不住。')}</Hint>}
         {error && <Hint tone="error" role="alert">{error}</Hint>}
       </SettingsSection>
       {/* AI 带学 (issue 549): what to say to start, and what a guided session leaves off until the learner agrees. Nothing here is a switch of this browser. */}

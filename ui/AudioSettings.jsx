@@ -13,6 +13,7 @@ import { useInjectCss } from './shared.js';
 import css from './audio-settings.css';
 import { setQueryData, useHostQuery } from './host-query.js';
 import { useStudy } from './study-context.jsx';
+import { hasChatHost } from './hand-off/use-hand-off.js';
 
 export { audioFocusPending, requestAudioSettingsFocus };
 
@@ -25,7 +26,7 @@ export { audioFocusPending, requestAudioSettingsFocus };
    lib/audio-providers.js), the field's placeholder and a note. Names, badges and every link come from the registry. */
 const CARD_COPY = Object.freeze({
   siliconflow: { steps: [{ text: '打开硅基流动，用手机号注册并登录', link: 'consoleUrl' }, { text: '在「API 密钥」页新建一个密钥并复制', link: 'keyUrl' }, { text: '粘贴到下面，点「保存并验证」' }],
-    placeholder: '粘贴硅基流动的 API 密钥（sk-…）', note: '只用于转写；校对和翻译仍由 DSH 的模型完成。' },
+    placeholder: '粘贴硅基流动的 API 密钥（sk-…）', note: '只用于转写；校对和翻译仍由 StudyHub 设置的生成模型完成。' },
   groq: { steps: [{ text: '在 Groq 控制台注册并登录', link: 'consoleUrl' }, { text: '在「API Keys」页创建一个密钥并复制', link: 'keyUrl' }, { text: '粘贴到下面，点「保存并验证」' }],
     placeholder: '粘贴 Groq 的 API 密钥（gsk_…）', note: '每分钟和每天都有免费上限，用完会自动换下一个服务。' },
   free: { steps: [{ text: '用 Google 账号登录 AI Studio', link: 'consoleUrl' }, { text: '在「Get API key」页创建一个密钥（这个项目不要开通计费）', link: 'keyUrl' }, { text: '粘贴到下面，点「保存并验证」' }],
@@ -109,6 +110,7 @@ export function LiveEngineChoice({ view, disabled = false, onSave, initialLocal 
   const choice = view.liveProvider || 'auto';
   return <div className="audio-live-engine">
     <h4 className="settings-subtitle">{ui('课堂实录的转写')}</h4>
+    <Hint>{ui('仅用于课堂实录边听边转写；导入录音文件请使用上方云端转写服务。')}</Hint>
     <RadioCardGroup legend={ui('课堂实录用哪个引擎')}>
       <RadioCard name="live-provider" value="auto" checked={choice === 'auto'} disabled={disabled} onSelect={value => onSave({ liveProvider: value })}
         title={ui('自动（推荐）')} hint={ui('填了 Gemini 密钥就用 Gemini；没有密钥时用本地转写。')} />
@@ -117,11 +119,10 @@ export function LiveEngineChoice({ view, disabled = false, onSave, initialLocal 
       <RadioCard name="live-provider" value="gemini" checked={choice === 'gemini'} disabled={disabled} onSelect={value => onSave({ liveProvider: value })}
         title={ui('Gemini（云端）')} hint={ui('需要 Gemini 密钥和海外网络；声音发给 Google。')} />
     </RadioCardGroup>
-    {/* 断句停顿: one choice for both engines (LIVE_PAUSE, lib/audio-settings.js); the words behind it are a Tooltip, hidden until hover or focus. */}
-    <Field group label={ui('断句停顿')} hint={ui('讲课很快、几乎不停顿时选『短』：停顿更短就断句，润色和出题更早能用。')} data-tour="settings-live-pause">
+    {/* 断句停顿: one choice for both engines (LIVE_PAUSE, lib/audio-settings.js); side-effect and next-start timing stay visible in the hint, engine thresholds live in the Tooltip. */}
+    <Field group label={ui('断句停顿')} hint={ui('讲课很快、几乎不停顿时选『短』：停顿更短就断句，润色和出题更早能用。选得太短可能把一句话切成两句；下次点「开始实录」或「接着录」时生效，正在录的课不变。')} data-tour="settings-live-pause">
       {({ describedBy }) => <Tooltip layer content={<>{ui('Gemini：多久没有新文字，就算一句话说完。短 / 标准 / 长 = 0.7 / 1.5 / 2.5 秒。')}<br />
-        {ui('本地转写：多久没有声音，就算一句话说完。短 / 标准 / 长 = 0.25 / 0.5 / 0.8 秒。')}<br />
-        {ui('选得太短，可能把一句话切成两句。')}<br />{ui('下次点「开始实录」或「接着录」时生效；正在录的课不变。')}</>}>
+        {ui('本地转写：多久没有声音，就算一句话说完。短 / 标准 / 长 = 0.25 / 0.5 / 0.8 秒。')}</>}>
         <SegmentedControl label={ui('断句停顿')} value={['short', 'long'].includes(view.liveSentencePause) ? view.liveSentencePause : 'standard'} disabled={disabled}
           aria-describedby={describedBy} onChange={value => onSave({ liveSentencePause: value })}
           options={[{ value: 'short', label: ui('短 · 讲得快') }, { value: 'standard', label: ui('标准') }, { value: 'long', label: ui('长 · 讲得慢') }]} />
@@ -133,7 +134,8 @@ export function LiveEngineChoice({ view, disabled = false, onSave, initialLocal 
 }
 
 export default function AudioSettings({ initialView = null, initialLocal = null, initialLoopback = null }) {
-  const { busy, act, call } = useStudy();
+  const { busy, act, call, host } = useStudy();
+  const canChat = hasChatHost(host);
   const toast = useToast();
   useInjectCss(css, 'study-audio-settings');
   const language = useUiLanguage();
@@ -170,13 +172,19 @@ export default function AudioSettings({ initialView = null, initialLocal = null,
   return (
     <SettingsSection className="audio-settings" tour="settings-audio" ref={section} title={ui('音频转写')}
       lead={ui('录音要先转成文字。配一个服务就能用；配了几个时，按 Gemini 免费 → 硅基流动 → Groq → Gemini 付费 的顺序尝试，前一个不行自动换下一个。')}>
-      {!configured && <InlineMessage tone="warning">{ui('还没有配置任何转写服务：从下面任选一个，约 2 分钟。')}</InlineMessage>}
+      {!configured && <InlineMessage tone="warning">{ui('导入录音文件需先配置下方任一云端转写密钥（约 2 分钟）；若只用课堂实录，可直接装下方的本地转写引擎，不需要密钥。')}</InlineMessage>}
+      <h4 className="settings-subtitle">{ui('云端转写密钥（用于导入录音文件）')}</h4>
+      <Hint>{ui('硅基流动与 Groq 仅用于导入录音文件；Gemini 既可用于导入录音，也可用于课堂实录。')}</Hint>
       <ProviderGrid>
         {providerOrder(language).map((tier, index) => <KeyCard key={tier} provider={PROVIDERS[tier]} state={view[PROVIDERS[tier].field]}
           onSaved={saved} recommended={index === 0} />)}
       </ProviderGrid>
       <LiveEngineChoice view={view} disabled={!!busy} onSave={patch => save(patch)} initialLocal={initialLocal} initialLoopback={initialLoopback} />
-      <Hint className="audio-settings-path">{uiFormat('密钥只保存在这台电脑：{0}，不会进入学习库、备份或主会话。贴进主会话的内容会被模型看到，所以密钥只在这里填。', [view.settingsFile || '~/.dsh/study/audio.json'])}</Hint>
+      <Hint className="audio-settings-path">{canChat
+        ? uiFormat('密钥只保存在这台电脑：{0}，不会进入学习库、备份或主会话。贴进主会话的内容会被模型看到，所以密钥只在这里填。', [view.settingsFile || '~/.dsh/study/audio.json'])
+        : view.settingsFile
+          ? uiFormat('密钥只保存在这台电脑：{0}，不会进入学习库或备份。', [view.settingsFile])
+          : ui('密钥只保存在这台电脑的本机配置目录里，不会进入学习库或备份。')}</Hint>
       <Disclosure className="audio-advanced settings-disclosure" summaryClassName="settings-disclosure__summary" bodyClassName="settings-disclosure__body" summary={ui('高级')} meta={ui('校对与翻译的推理强度、付费密钥、模型')}>
         <AudioReasoning settings={view} busy={busy} onSave={save} efforts={model.options} modelName={model.model} />
         <div className="audio-paid">
@@ -189,23 +197,24 @@ export default function AudioSettings({ initialView = null, initialLocal = null,
             hint={ui('添加录音时，「更多设置」里的「只用付费密钥」会默认勾上，每次仍可单独改。需要先填写上面的付费密钥。')} />
         </div>
         <Disclosure className="audio-expert settings-disclosure" summaryClassName="settings-disclosure__summary" bodyClassName="settings-disclosure__body audio-expert__body" summary={ui('专家选项')} meta={ui('模型、并发')}>
+          <Hint>{ui('一般保持默认即可；填错模型名会导致对应步骤失败，清空保存可恢复默认。')}</Hint>
           <Field label={ui('校对与翻译用哪个模型')}>
             <Select value={view.textProvider} disabled={busy} onChange={(value) => save({ textProvider: value })} options={[
               { value: 'auto', label: ui('自动（有生成模型就用它，否则用 Gemini）') },
               { value: 'gemini', label: ui('Gemini（同样先免费后付费）') },
-              { value: 'host', label: ui('StudyHub 的生成模型（默认跟随主会话）') }]} />
+              { value: 'host', label: canChat ? ui('StudyHub 的生成模型（默认跟随主会话）') : ui('StudyHub 设置的生成模型') }]} />
           </Field>
-          {modelField('transcribeModel', '转写模型')}
+          {modelField('transcribeModel', 'Gemini 转写模型')}
           {view.textProvider !== 'host' && modelField('textModel', 'Gemini 文本模型')}
           {modelField('siliconflowTranscribeModel', '硅基流动转写模型')}
           {modelField('groqTranscribeModel', 'Groq 转写模型')}
           {view.textProvider !== 'host' && modelField('groqTextModel', 'Groq 文本模型')}
           {modelField('liveModel', '课堂实时转写模型')}
           {view.textProvider !== 'host' && modelField('liveTranslateModel', '课堂实时翻译模型')}
-          <EffortSelect label={ui('课堂实录的上下文校正推理强度')} value={view.liveCorrectionReasoning || 'low'} efforts={model.options} disabled={busy}
+          <EffortSelect label={ui('课堂实录的上下文校正推理强度')} description={ui('课堂实录整理时用来修正专业术语和断句；档位越高越细致，但耗时更长。')} value={view.liveCorrectionReasoning || 'low'} efforts={model.options} disabled={busy}
             onChange={value => save({ liveCorrectionReasoning: value })} />
           <Field label={ui('校对与翻译的并行数')}
-            hint={ui('同时发给 DSH 模型的校对或翻译窗口数，一批录音共用这个数；结果仍按原顺序合并，已完成的部分可以复用。模型回复太频繁或并发太多时会自动降低，稳定后再逐步回升。')}>
+            hint={ui('同时发给生成模型的校对或翻译窗口数，一批录音共用这个数；结果仍按原顺序合并，已完成的部分可以复用。模型回复太频繁或并发太多时会自动降低，稳定后再逐步回升。')}>
             <Select value={view.textConcurrency ?? 3} disabled={busy} onChange={(value) => save({ textConcurrency: value })}
               options={[1, 2, 3, 4, 5, 6].map((count) => ({ value: count, label: count === 3 ? uiFormat('{0} 个（默认）', [count]) : uiFormat('{0} 个', [count]) }))} />
           </Field>

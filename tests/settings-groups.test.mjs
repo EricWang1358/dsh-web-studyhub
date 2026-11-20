@@ -116,8 +116,9 @@ test('the page is the category list and ONE category: the first one by default, 
   assert.doesNotMatch(notACategory, /数据备份与恢复/, 'an anchor that is not a category does not open one');
   const tour = page({ tourActive: true, appearance });
   assert.doesNotMatch(tour, /settings-nav/, 'the tour shows the sections one after another, without the list');
-  for (const title of ['学习库与模型', '课程', '上手与示例', '陪学', '导入 study-lib-spar', '间隔复习 · FSRS-6', '数据备份与恢复'])
+  for (const title of ['学习库与模型', '课程', '上手与示例', '学习画像与陪学', '间隔复习 · FSRS-6', '数据备份与恢复'])
     assert.match(tour, new RegExp(`<legend class="settings-section__title">${title}</legend>`), title);
+  assert.match(tour, /从旧版 study-lib-spar 导入/);
   for (const anchor of ['settings-model', 'settings-extensions', 'settings-update', 'settings-sample'])
     assert.match(tour, new RegExp(`data-tour="${anchor}"`), `${anchor} stays`);
 });

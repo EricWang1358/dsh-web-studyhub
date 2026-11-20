@@ -1,6 +1,6 @@
 import React, { useContext, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
-import { Button, Select } from '../components/index.js';
+import { Button, Select, Tooltip } from '../components/index.js';
 import ChangeFolderButton from './ChangeFolderButton.jsx';
 import LibraryUsage from '../LibraryUsage.jsx';
 import ReasoningEffortField from '../ReasoningEffortField.jsx';
@@ -40,11 +40,14 @@ function Binding({ app }) {
       <div className="binding-row">
         <div className="binding-main">
           <span className="binding-label">{ui('学习库')}</span>
-          <code className="binding-value" title={binding.root}>{binding.root || '—'}</code>
+          <Tooltip layer content={binding.root || ''}>
+            <code className="binding-value">{binding.root || '—'}</code>
+          </Tooltip>
           <small>{uiFormat('{0} · {1}', [where, ui('资料、题库与复习记录保存在这里')])}</small>
+          {!hostPart('LibraryNotice') && !pinned && <small>{ui('更换目录只切换读取位置，不会搬动原文件夹里的内容；需要迁移请手动移动文件夹后再选择。')}</small>}
           {pinned && <small data-library-pinned="">{ui('目录由环境变量 STUDYHUB_LIBRARY 决定；去掉这个变量并重新打开 StudyHub 后，才能在这里更换。')}</small>}
           <LibraryUsage root={binding.root} active={!!data} />
-          {hostPart('LibraryNotice') && React.createElement(hostPart('LibraryNotice'), { binding })}
+          {hostPart('LibraryNotice') && React.createElement(hostPart('LibraryNotice'), { binding, data })}
         </div>
         <div className="binding-actions">
           <ChangeFolderButton disabled={pinned} onUnavailable={() => setRootDraft(binding.root || '')}>{ui('更换目录…')}</ChangeFolderButton>

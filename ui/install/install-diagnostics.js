@@ -173,7 +173,13 @@ export function extensionDiagnostic({ status: raw, run, stage = '', code = '', s
   const reset = comp.reset?.reason ? `reset (${comp.reset.reason})` : '';
   return buildSetupDiagnostic({
     tool: 'retrieval-extension', label: 'RetrievalExtension', status: state, stage: stage || run?.stage || '', code: resolvedCode, summary: cause,
-    facts: [['version', version], ['course', course || run?.course || ''], ['external', comp.id || '']],
-    logs: [reset, error && summary ? error : '', run?.failed?.map(item => `${item.id}: ${item.message}`)],
+    facts: [
+      ['version', version],
+      ['source', ext.source || ''],
+      ['host', ext.desktopHost ? 'desktop' : ''],
+      ['course', course || run?.course || ''],
+      ['external', comp.id || ''],
+    ],
+    logs: [reset, ext.errorDetail, error && summary ? error : '', run?.failed?.map(item => `${item.id}: ${item.message}`)],
   });
 }

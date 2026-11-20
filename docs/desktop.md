@@ -12,6 +12,7 @@ Each release on the [GitHub release page](https://github.com/EricWang1358/dsh-we
 | --- | --- | --- |
 | `StudyHub-Desktop-<version>-win-x64.msi` | Most Windows 10 / 11 users | Standard installer with Start Menu shortcut, clean uninstall, and a WebView2 bootstrapper for Windows 10. |
 | `StudyHub-Desktop-<version>-win-x64.zip` | Portable / no-installer use | Extract to any writable folder and run `StudyHub.exe`. Does **not** install WebView2 automatically. |
+| `StudyHub-Desktop-Retrieval-<version>-win-x64.zip` | Optional large-document search extension | Prebuilt Windows x64 search server bundle (with `SHA256SUMS-Desktop-Retrieval-<version>.txt`). Installed automatically in-app from **Settings › Search extension**; you do not need to extract it by hand. |
 
 ### Option 1: Install with `.msi` (recommended)
 
@@ -92,12 +93,24 @@ StudyHub Desktop has no DSH main chat. To talk to an AI, select **Open agy in th
 - **Sharing one library with DSH (or ZCode)**: You can point StudyHub Desktop and DSH at the exact same library folder. The DSH plugin keeps a workspace's library in the `.dsh-study` folder inside it; pick that **workspace folder** in StudyHub Desktop and it uses the `.dsh-study` inside, with your decks and records as they were. Every write takes an OS-level file lock (`proper-lockfile`), so changes written by one app are visible to the other without corrupting files.
 - **Background tasks caveat**: A running background job (question generation, review-book build, audio transcription) runs inside the app that started it. The other app can see the recorded job status, but cannot pause or cancel it. Closing StudyHub Desktop stops its active background tasks; completed items are preserved so you can resume later.
 
+## Large-document search extension (Desktop Retrieval)
+
+Large textbooks and course packets can be indexed locally for full-text and semantic retrieval in StudyHub Desktop — without installing DSH, Node.js, or `npm`.
+
+StudyHub Desktop uses a hybrid setup that works smoothly both standalone and alongside DSH:
+
+- **Automatic reuse of DSH's extension**: If you already installed the StudyHub search extension inside DSH on the same computer, StudyHub Desktop automatically detects and reuses it (read-only — StudyHub Desktop never modifies or deletes files inside DSH's profile directory). You can still click **Install standalone copy in Desktop** in **Settings › Search extension** if you want Desktop to run its own copy independently.
+- **One-click standalone install**: Open **Settings › Search extension** and click **Install search extension**. StudyHub Desktop downloads the prebuilt `StudyHub-Desktop-Retrieval-<version>-win-x64.zip` asset from the matching GitHub release, verifies its SHA-256 digest against `SHA256SUMS-Desktop-Retrieval-<version>.txt`, extracts it into `%LOCALAPPDATA%\StudyHub\tools\retrieval`, and starts the local search service automatically.
+- **Shared index and embedding model with DSH**: Both StudyHub Desktop and the DSH plugin store the LanceDB index and downloaded embedding model under `<DSH home>\study\retrieval` (default `%USERPROFILE%\.dsh\study\retrieval`). Indexes built in one app are immediately usable in the other, and cross-process file locking coordinates writes so concurrent indexing does not corrupt the index.
+- **Hot-restart without restarting the app**: Installing, updating, uninstalling, changing the model download endpoint (`HF_ENDPOINT`), or running **Repair index** restarts only the background search subprocess — you never need to restart StudyHub Desktop.
+
 ## Differences from the DSH plugin
 
 | Feature | DSH plugin | StudyHub Desktop |
 | --- | --- | --- |
 | Runtime prerequisites | Requires DSH desktop or web | Standalone `.msi` or `.zip` (bundles Node.js 22) |
 | Model configuration | Uses DSH's configured models | Built-in API key presets + automatic `agy` & `codex` CLI detection |
+| Large-document search extension | Installed via DSH plugin manager (requires restart) | Auto-reuses DSH extension or one-click standalone install in Settings (hot-restarts with no app restart) |
 | Folder selection | DSH workspace / picker | Native Windows folder picker |
 | "Send to main chat" / AI chat hand-off | Sends directly into DSH's chat input | Copies the structured prompt to your clipboard so you can paste it into any chat tool |
 | Updates | DSH plugin manager | Download the new `.msi` or `.zip` from GitHub Releases |

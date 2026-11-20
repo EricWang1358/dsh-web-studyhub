@@ -13,8 +13,10 @@ import { ExamAlignmentSwitch } from './ExamAlignmentSwitch.jsx';
    explanation in a hover Tooltip. */
 const FIELDS = [
   { key: 'request_retention', label: '目标记忆率', unit: '%', scale: 100, ...LIMITS.request_retention,
+    hint: '默认 90%（70%–97%），超过 93% 每日题量会明显增加',
     tip: '下次复习时，希望还有多大把握记得这道题。调高：复习更勤，记得更牢；调低：复习更少，忘得也更多。默认 90%，可设 70%–97%。' },
   { key: 'maximum_interval', label: '最长间隔', unit: '天', scale: 1, ...LIMITS.maximum_interval,
+    hint: '默认不设上限，仅影响之后作答；备考请在「课程」填考试日期，无需调小这里',
     tip: '两次复习之间最多隔几天。之后排出的间隔都不会超过它。已经排好的复习日期不会提前，要等那道题下次作答时才按新的上限排。给课程填了考试日期后，考前的安排由「考前对齐」负责，不用为考试调小它。默认 36500 天，相当于不设上限。' },
 ];
 const numbers = (settings = {}) => Object.fromEntries(FIELDS.map(({ key }) => [key, Number(settings[key])]));
@@ -100,7 +102,7 @@ export function ScheduleSection({ root, settings = {}, saved = {}, setSettings }
     <form className="settings-form" onSubmit={save}>
       <SettingsSection className="sm2-settings" tour="settings-data" title={ui('间隔复习 · FSRS-6')} lead={ui('每次作答后，按上次复习到现在实际隔了几天、这次答得怎样，估算这道题还能记多久，在预计还记得的把握降到目标时安排下一次复习。答错会缩短间隔，但不一定回到 1 天。')}>
         <div className="sm2-fields">
-          {FIELDS.map(field => <Field key={field.key} width="sm" label={<>{ui(field.label)}{' '}<Tooltip layer content={ui(field.tip)}>
+          {FIELDS.map(field => <Field key={field.key} width="sm" hint={ui(field.hint)} label={<>{ui(field.label)}{' '}<Tooltip layer content={ui(field.tip)}>
               <span tabIndex={0} className="sm2-field-tip" aria-label={uiFormat('「{0}」是什么', [ui(field.label)])}><Icon className="sh-icon--inline" name="info" /></span>
             </Tooltip></>}>
             <NumberInput required min={field.min * field.scale} max={field.max * field.scale} step="1" suffix={field.unit === '%' ? '%' : ui(field.unit)} value={shown(field, settings[field.key])} disabled={busy}

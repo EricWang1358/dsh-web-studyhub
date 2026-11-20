@@ -31,7 +31,7 @@ export default function DesktopUpgradeGuide({ update }) {
         </li>
       </ol>
       <p className="update-note">
-        {ui('安全提示：开源桌面版暂未购买商业代码签名证书。若 Windows SmartScreen 弹出提醒，请先对照发布页的 SHA256SUMS 核对校验值，确认一致后点「更多信息 → 仍要运行」。')}
+        {ui('安全提示：开源桌面版暂未购买商业代码签名证书。若 Windows SmartScreen 弹出提醒，请先点左下角「查看发布页」对照 SHA256SUMS 核对校验值，确认一致后点「更多信息 → 仍要运行」。')}
       </p>
     </section>
   );

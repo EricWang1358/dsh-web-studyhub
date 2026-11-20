@@ -24,12 +24,17 @@ export default function ModelStatus({ data, host, refresh }) {
     const result = await runRecheck(refresh);
     if (live.current) { setOutcome(result); setChecking(false); }
   });
+  const isDesktop = host?.capabilities?.edition === 'desktop';
   if (model.ready && model.reason === 'ok')
     return <InlineMessage tone="success" boxed data-model-status="connected" title={model.label ? uiFormat('模型已连接：{0}', [model.label]) : ui('模型已连接')}>
-      {ui('出题与讲解用的就是它；密钥是否有效，要到真正用的时候才会知道。')}</InlineMessage>;
+      {isDesktop
+        ? ui('出题、讲解和批改用的就是它；要确认可用，可以在下方点「测试连通」或「测试」。')
+        : ui('出题与讲解用的就是它；密钥是否有效，要到真正用的时候才会知道。')}</InlineMessage>;
   if (model.ready)
     return <InlineMessage tone="info" boxed data-model-status="unverified" title={model.label ? uiFormat('已选择模型：{0}', [model.label]) : ui('已选择模型')}>
-      {ui('这个 DSH 没有告诉 StudyHub 密钥是否已配置，所以还不能确认可用；第一次用到时才会知道。')}</InlineMessage>;
+      {isDesktop
+        ? ui('当前暂时无法提前确认模型可用，第一次用到时才会知道。')
+        : ui('这个 DSH 没有告诉 StudyHub 密钥是否已配置，所以还不能确认可用；第一次用到时才会知道。')}</InlineMessage>;
   return (
     <ModelSetupGate variant="block" feature="settings" model={model} data-model-status="missing" onRecheck={recheck} checking={checking}
       onOpenSettings={host?.openModelSettings ? () => host.openModelSettings() : false}>

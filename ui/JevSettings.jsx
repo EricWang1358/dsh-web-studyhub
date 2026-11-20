@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { ui, uiFormat, uiMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Badge, Button, Checkbox, Field, Hint, InlineMessage, LoadingState, ProviderCard, SecretKeyForm, SettingsSection, Select, Switch, TextInput, useToast } from './components/index.js';
+import { Badge, Button, Checkbox, Disclosure, Field, Hint, InlineMessage, LoadingState, ProviderCard, SecretKeyForm, SettingsSection, Select, Switch, TextInput, useToast } from './components/index.js';
 import { useAsyncAction } from './use-async.js';
 import { TokenUsage } from './TokenUsage.jsx';
 import JevLevelCheck from './JevLevelCheck.jsx';
@@ -119,21 +119,23 @@ export function JevReplaceList({ settings, onToggle, onGoto, initialBlocked = ''
         <Button size="sm" variant="secondary" className="jev-prereq__btn" data-goto={step} onClick={() => onGoto?.(step)}>{need.go()}</Button>
       </div>}
       {blocked && !ready && <p className="jev-prereq__blocked" role="alert">{uiFormat('先完成上面的步骤，才能打开「{0}」。', [JEV_REPLACE_META.find(site => site.id === blocked)?.label() ?? ''])}</p>}
-      <Hint className="jev-replace__compare">{ui('想知道在你的资料上差多少？用评估脚本把 Jev 和现在的模型对比：node scripts/eval-jev.mjs（见 docs/jev-experimental.md）。')}</Hint>
     </fieldset>
   );
 }
 
 /** The controls of one saved state. `settings` is jev.settings.get, `usage` is jev.usage's `usage`; `failure` its last failure. */
 export function JevSettingsView({ settings, usage, failure, working, result, error, onKey, onVerify, onClearKey, onConfirm, onEnabled, onFeature, onThreshold, onProvider, onKeyEnv, onReplace, onCustom, onGoto }) {
-  const { busy } = useStudy();
+  const { busy, host } = useStudy();
+  const isDesktop = host?.capabilities?.edition === 'desktop';
   const [envName, setEnvName] = useState(settings.keyEnv || '');
   const [endpoint, setEndpoint] = useState(settings.custom?.endpoint || ''), [model, setModel] = useState(settings.custom?.model || '');
   const step = setupStep(settings), ready = step === 'ready';
   const locked = busy || !!working;
   const provider = providerOf(settings), meta = settings.providers?.find(item => item.id === provider);
   const family = meta?.family ?? (provider === 'typesafe' ? 'typesafe' : 'opencode'), outside = family !== 'typesafe', custom = family === 'custom';
-  const source = keySourceText(settings);
+  const source = keySourceText(settings, { isDesktop });
+  const userFeatures = JEV_FEATURE_META.filter(feature => !feature.devOnly);
+  const devFeatures = JEV_FEATURE_META.filter(feature => feature.devOnly);
   const useVariable = event => { event.preventDefault(); onKeyEnv?.(envName.trim()); };
   const saveCustom = event => { event.preventDefault(); onCustom?.({ customEndpoint: endpoint.trim(), customModel: model.trim() }); };
   const resultText = outcome => (outcome.ok ? TEST_STATE.valid() : uiMessage(outcome.message || failureCode('unexpected', provider)));
@@ -168,7 +170,10 @@ export function JevSettingsView({ settings, usage, failure, working, result, err
           <Hint>{ui('只会发送到这个地址。需要 https（本机可以用 http）；地址里不要带用户名、密码或查询参数。')}</Hint>
           {settings.custom?.host && <Hint className="jev-provider__where">{uiFormat('当前发送到 {0}，模型 {1}。', [settings.custom.host, settings.custom.model])}</Hint>}
         </form>}
-        <Hint>{ui('Jev 有多个服务商可以配置：TypeSafe 自己的接口；OpenCode Go（订阅，jev-1.13，接口地址和 Go 的模型列表没有核实是否包含 Jev，未验证）；OpenCode Zen（付费的 jev-1.13，以及限时免费的 jev-1.13-free）；也可以填一个自定义端点（接口地址、模型名、存放密钥的环境变量名），给提供同样接口的其他网关用。据报道 OpenRouter、AIML、Netlify AI Gateway 也提供 Jev，但它们的接口格式我们没有核实（未验证）。服务商和密钥来源由你选，我们不推荐其中某一家；免费模型 jev-1.13-free 是否保留提示词或用于训练，OpenCode 的文档没有说明。换服务商要重新确认下面的隐私说明；一个服务商的密钥不会发给另一个。')}</Hint>
+        <Disclosure className="jev-provider-notes settings-disclosure" summaryClassName="settings-disclosure__summary" bodyClassName="settings-disclosure__body"
+          summary={ui('各服务商与网关说明（含未验证项）')}>
+          <Hint>{ui('Jev 有多个服务商可以配置：TypeSafe 自己的接口；OpenCode Go（订阅，jev-1.13，接口地址和 Go 的模型列表没有核实是否包含 Jev，未验证）；OpenCode Zen（付费的 jev-1.13，以及限时免费的 jev-1.13-free）；也可以填一个自定义端点（接口地址、模型名、存放密钥的环境变量名），给提供同样接口的其他网关用。据报道 OpenRouter、AIML、Netlify AI Gateway 也提供 Jev，但它们的接口格式我们没有核实（未验证）。服务商和密钥来源由你选，我们不推荐其中某一家；免费模型 jev-1.13-free 是否保留提示词或用于训练，OpenCode 的文档没有说明。换服务商要重新确认下面的隐私说明；一个服务商的密钥不会发给另一个。')}</Hint>
+        </Disclosure>
       </div>
       <JevPrivacy confirmed={settings.confirmed} disabled={locked} onChange={onConfirm} privacyUrl={settings.privacyUrl} provider={provider} host={custom ? settings.custom?.host : ''} />
       <ProviderCard layout="stack" className="jev-card" data-key-source={source.state} set={!!settings.key.set} title={ui('Jev 密钥')}
@@ -181,7 +186,7 @@ export function JevSettingsView({ settings, usage, failure, working, result, err
           onSave={onKey} onVerify={onVerify} onClear={onClearKey}
           footnote={<>
             {step === 'confirm' && <Hint>{ui('先确认上面的隐私说明，才能验证密钥或使用任何 Jev 功能。')}</Hint>}
-            <Hint>{ui('验证只发一句不含你内容的话；密钥只保存在 DSH 主目录里，不进学习库、备份或快照。')}</Hint>
+            <Hint>{ui('验证只发一句不含你内容的话；密钥只保存在这台电脑的配置目录里，不进学习库、备份或快照。')}</Hint>
           </>} />
         {custom && keyEnvForm}
         {outside && !custom && <details className="jev-keyenv">
@@ -189,21 +194,27 @@ export function JevSettingsView({ settings, usage, failure, working, result, err
           {keyEnvForm}
         </details>}
       </ProviderCard>
-      <JevReplaceList settings={settings} disabled={busy} onToggle={onReplace} onGoto={onGoto} />
       <fieldset className="jev-switches" disabled={!ready || locked}>
         <legend>{ui('实验功能开关')}</legend>
         {!ready && <Hint>{ui('保存密钥并确认隐私说明之后才能打开。')}</Hint>}
         <Switch className="jev-switches__master" data-usage="settings.jev" label={ui('启用 Jev 实验功能（总开关）')} hint={ui('关掉它就停用下面所有功能，立即生效；各项开关的选择会保留。')}
           checked={!!settings.enabled} onChange={onEnabled} />
-        <Hint className="jev-signals__note">{ui('下面这些只给出参考信号，不替换任何模型调用。')}</Hint>
-        {JEV_FEATURE_META.map(feature => <Switch key={feature.id} data-feature={feature.id} label={feature.label()} hint={feature.hint()}
-          checked={!!settings.features[feature.id]} onChange={checked => onFeature(feature.id, checked)} />)}
         <Field label={ui('自动填入所需的把握')} width="sm" hint={ui('Jev 的把握低于这条线时，建议只展示概率，留给你决定；替换模型调用时，低于这条线的判断改交给原来的模型。默认 80%。')}>
           <Select value={settings.threshold} onChange={onThreshold}
             options={thresholdChoices(settings.threshold).map(choice => ({ value: choice, label: percentText(choice) }))} />
         </Field>
+        <Hint className="jev-signals__note">{ui('下面这些只给出参考信号，不替换任何模型调用。')}</Hint>
+        {userFeatures.map(feature => <Switch key={feature.id} data-feature={feature.id} label={feature.label()} hint={feature.hint()}
+          checked={!!settings.features[feature.id]} onChange={checked => onFeature(feature.id, checked)} />)}
       </fieldset>
-      {settings.enabled && settings.features.levelCheck && ready && <details className="jev-dev"><summary>{ui('开发者面板：题目认知层次对照')}</summary><JevLevelCheck /></details>}
+      <JevReplaceList settings={settings} disabled={busy} onToggle={onReplace} onGoto={onGoto} />
+      <Disclosure className="jev-dev-tools settings-disclosure" summaryClassName="settings-disclosure__summary" bodyClassName="settings-disclosure__body"
+        summary={ui('开发者与调试选项')} meta={ui('未接入占位开关、认知层次对照与评估脚本')}>
+        {devFeatures.map(feature => <Switch key={feature.id} data-feature={feature.id} label={feature.label()} hint={feature.hint()}
+          checked={!!settings.features[feature.id]} disabled={!ready || locked} onChange={checked => onFeature(feature.id, checked)} />)}
+        {settings.enabled && settings.features.levelCheck && ready && <details className="jev-dev"><summary>{ui('开发者面板：题目认知层次对照')}</summary><JevLevelCheck /></details>}
+        <Hint className="jev-replace__compare">{ui('想知道在你的资料上差多少？用评估脚本把 Jev 和现在的模型对比：node scripts/eval-jev.mjs（见 docs/jev-experimental.md）。')}</Hint>
+      </Disclosure>
       {failure && <InlineMessage tone="warning" className="jev-failure">{uiMessage(failureCode(failure.reason, failure.provider))}</InlineMessage>}
       <JevUsageView usage={usage} />
       {error && <InlineMessage tone="error">{uiMessage(error)}</InlineMessage>}
@@ -239,7 +250,7 @@ export default function JevSettings({ initial = null, initialResult = null }) {
   return (
     <SettingsSection className="jev-settings" tour="settings-jev" data-experimental="true" ref={section}
       title={<>{ui('实验性 · Jev 判断服务')}<ExperimentalBadge /></>}
-      lead={ui('Jev 是 TypeSafe AI 的「System One」模型：按服务商的说法又快又便宜（我们没有核实），擅长做选择题式的判断，比如一份资料属于哪门课、一道题有没有问题。默认全部关闭；它给出的只是参考信号，不会替你做决定，出错或不可用时一切照旧。它在本插件里始终只是实验功能，其他功能都不依赖它。')}>
+      lead={ui('适合想尝试用第三方快速判断服务分担部分审核与分类步骤的进阶用户；普通学习完全不需要开启。Jev 主要针对英文优化，对中文支持较弱。默认全部关闭；它给出的只是参考信号，不会替你做决定，出错或不可用时一切照旧。它在 StudyHub 里始终只是实验功能，其他功能都不依赖它。')}>
       {!settings && !error && <LoadingState label={ui('正在读取 Jev 设置…')} />}
       {settings && <JevSettingsView settings={settings} usage={usage} failure={failure} working={working} result={result} error={error}
         onKey={key => change('save', { key }, async next => { setResult(null); if (next.confirmed) await verify(); })}
