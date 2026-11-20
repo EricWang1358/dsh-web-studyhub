@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ui } from "../i18n.js";
 import { Button, InlineMessage, Spinner, Tooltip } from "../components/index.js";
 import ModelSetupGate from "../ModelSetupGate.jsx";
@@ -28,6 +28,11 @@ export default function SimilarTry({ session, data, model, onModelSettings }) {
   const { run, actions } = session;
   const key = reviewEntryKey(run);
   const [state, setState] = useState({ key: "", kind: "idle", message: "" });
+  const activeKeyRef = useRef(key);
+  activeKeyRef.current = key;
+  const mountedRef = useRef(true);
+  const reqIdRef = useRef(0);
+  useEffect(() => () => { mountedRef.current = false; }, []);
   const here = state.key === key ? state : { kind: "idle", message: "" };
   if (!answeredWrong(run) || run.mode === "exam" || run.returnTo) return null;
   const origin = { deckId: run.deckId, cardId: run.card.id };
@@ -38,19 +43,26 @@ export default function SimilarTry({ session, data, model, onModelSettings }) {
   const variantMissed = !!variant && !variantReady && !variantRunning;
 
   async function find() {
-    setState({ key, kind: "finding", message: "" });
+    const originKey = key;
+    const reqId = ++reqIdRef.current;
+    setState({ key: originKey, kind: "finding", message: "" });
     try {
       const { item } = await call("review.similar", { runId: run.id, cardId: run.card.id });
-      if (item) { setState({ key, kind: "idle", message: "" }); await detour(item.cardId, item.deckId); }
-      else setState({ key, kind: "none", message: "" });
+      if (!mountedRef.current || activeKeyRef.current !== originKey || reqIdRef.current !== reqId) return;
+      if (item) { setState({ key: originKey, kind: "idle", message: "" }); await detour(item.cardId, item.deckId); }
+      else setState({ key: originKey, kind: "none", message: "" });
     } catch (failure) {
-      setState({ key, kind: "failed", message: failure?.message || ui("没能查找同类题，可以再试一次。") });
+      if (!mountedRef.current || activeKeyRef.current !== originKey || reqIdRef.current !== reqId) return;
+      setState({ key: originKey, kind: "failed", message: failure?.message || ui("没能查找同类题，可以再试一次。") });
     }
   }
   async function generate() {
-    if (!model?.ready) { setState({ key, kind: "gate", message: "" }); return; }
+    const originKey = key;
+    if (!model?.ready) { setState({ key: originKey, kind: "gate", message: "" }); return; }
+    const reqId = ++reqIdRef.current;
     await actions.assistCard("derive", ui("出一道和这道题考同一知识点的变式题：换一个情境或数字，不要照抄原题。"), [], { relation: "standalone" });
-    setState({ key, kind: "none", message: "" });
+    if (!mountedRef.current || activeKeyRef.current !== originKey || reqIdRef.current !== reqId) return;
+    setState({ key: originKey, kind: "none", message: "" });
   }
 
   const tryButton = (

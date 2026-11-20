@@ -4,7 +4,7 @@
   :where(.study-app, .study-seat) {
     .result-page .result-kicker,
     .exam-report .result-kicker {
-      color: var(--accent-soft);
+      color: var(--accent-text);
       font-size: var(--fs-md);
       font-weight: var(--fw-medium);
       letter-spacing: .17em;
@@ -22,19 +22,15 @@
     }
     .result-page .result-mastery[data-rose="true"] {
       border-color: var(--ok-line);
-      background-image: radial-gradient(circle at 0 0, var(--ok-halo), transparent 65%);
     }
     .result-hero {
       display: grid;
       grid-template-columns: minmax(190px, .75fr) 1.4fr;
       gap: var(--space-6);
       align-items: center;
-      background-image: radial-gradient(circle at 0 0, var(--bg-sunken), transparent 55%);
-      background-origin: border-box;
     }
     .result-hero[data-all-correct="true"] {
       border-color: var(--ok-line);
-      background-image: radial-gradient(circle at 0 0, var(--ok-halo), transparent 58%);
     }
     .result-hero[data-all-correct="true"] .result-headline strong { color: var(--ok-ink); }
     .result-hero__badges {
@@ -88,7 +84,7 @@
     /* 本轮题目 (ui/review/RoundLookBack.jsx, #1009): a row per question, its read-only look-back opening under it. */
     .round-look-back { margin-top: var(--space-4-5); }
     .round-look-back__summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-3); cursor: pointer; }
-    .round-look-back__summary h3 { margin: 0; font-size: var(--fs-lg); }
+    .round-look-back__summary :is(h3, .round-look-back__title) { margin: 0; font-size: var(--fs-lg); font-weight: var(--fw-medium); }
     .round-look-back--compact[open] > .round-look-back__summary { margin-bottom: var(--space-3); }
     .round-look-back__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-2) var(--space-3); }
     .round-look-back__lead { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-3); min-width: 0; }
@@ -141,7 +137,6 @@
     .exam-report .result-weak { padding: var(--space-5) var(--space-6); border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
     .exam-report .result-weak[data-all-correct="true"] {
       border-color: var(--ok-line);
-      background-image: radial-gradient(circle at 0 0, var(--ok-halo), transparent 62%);
     }
     .exam-report .result-weak[data-all-correct="true"] h2 { color: var(--ok-ink); }
     .exam-report .result-weak h2 { margin: 0 0 var(--space-3); font-size: var(--fs-xl); }

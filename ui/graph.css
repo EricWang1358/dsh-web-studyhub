@@ -292,6 +292,26 @@
     .cloze-blank--input:disabled {
       opacity: 0.65;
     }
+    .cloze-summary {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2) var(--space-3);
+      font-size: var(--fs-sm);
+    }
+    .cloze-summary__count {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
+      font-weight: var(--fw-medium);
+      font-variant-numeric: tabular-nums;
+    }
+    .cloze-summary__count--ok {
+      color: var(--ok-ink);
+    }
+    .cloze-summary__count--bad {
+      color: var(--bad-ink);
+    }
     .cloze-right,
     .cloze-wrong {
       border-radius: var(--radius-sm);
@@ -304,6 +324,10 @@
       background: var(--ok-bg);
     }
     .cloze-wrong {
+      display: inline-flex;
+      flex-direction: column;
+      gap: var(--space-half);
+      vertical-align: middle;
       color: var(--bad-ink);
       border: 1px solid var(--bad-line);
       background: var(--bad-bg);
@@ -311,14 +335,37 @@
     .cloze-mark {
       margin-left: var(--space-1);
     }
+    .cloze-mark--wrong,
+    .cloze-mark--right {
+      margin-left: 0;
+      flex: none;
+    }
+    .cloze-mark--wrong {
+      color: var(--bad-ink);
+    }
+    .cloze-mark--right {
+      color: var(--ok-ink);
+    }
     .cloze-yours {
-      display: block;
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
       font-size: var(--fs-sm);
       line-height: 1.5;
-      color: var(--text-dim);
+      color: var(--bad-ink);
+    }
+    .cloze-yours__text:not([data-empty="true"]) {
+      text-decoration: line-through;
+    }
+    .cloze-expected-row {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
+      line-height: 1.5;
     }
     .cloze-expected {
-      color: var(--text);
+      color: var(--ok-ink);
+      font-weight: var(--fw-medium);
     }
     .cloze-missing {
       margin: 0;

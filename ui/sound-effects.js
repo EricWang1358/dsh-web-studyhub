@@ -7,7 +7,7 @@
    Defaults to 'off' in appearance-prefs.js: when off, zero AudioContext instances are constructed;
    automatically mutes whenever microphone / live-class audio capture is active (ui/live-audio.js)
    or the tab is hidden (except for explicit focus timer chimes). */
-import { loadAppearance } from './appearance-prefs.js';
+import { getAppearanceSound, invalidateAppearanceCache, onAppearanceCacheChange } from './appearance-prefs.js';
 import { isAudioCaptureActive } from './audio-capture-state.js';
 import { BAKED_SAMPLE_DATA_URIS, BAKED_SAMPLE_GAINS } from './sound-effects-assets.js';
 
@@ -496,7 +496,7 @@ function getReadyBufferEntry(ctx, cue) {
 
 function runPrebakeSlice(deadline) {
   prebakeHandle = null;
-  if (loadAppearance().sound === 'off') {
+  if (getAppearanceSound() === 'off') {
     prebakeQueue = [];
     return;
   }
@@ -521,7 +521,7 @@ function runPrebakeSlice(deadline) {
 
 /** Schedule idle pre-baking of waveforms when sound is enabled, without constructing AudioContext early. */
 export function scheduleSoundPrebake(sampleRate = sharedCtxRate || 44100) {
-  if (loadAppearance().sound === 'off') return false;
+  if (getAppearanceSound() === 'off') return false;
   if (typeof globalThis.requestIdleCallback !== 'function') return false;
   const rate = Number.isFinite(sampleRate) && sampleRate >= 8000 ? sampleRate : 44100;
   prebakeRate = rate;
@@ -537,6 +537,11 @@ export function scheduleSoundPrebake(sampleRate = sharedCtxRate || 44100) {
   }
   return true;
 }
+
+onAppearanceCacheChange((prefs) => {
+  if (prefs?.sound && prefs.sound !== 'off') scheduleSoundPrebake();
+  else cancelPrebake();
+});
 
 function clearPreviewTimers() {
   for (const timer of previewTimers) clearTimeout(timer);
@@ -654,7 +659,7 @@ function canPlayDeferred(ctx, requestedAt, options, capturedPreviewGen) {
   if (options.preview && capturedPreviewGen !== previewGeneration) return false;
   if (isAudioCaptureActive()) return false;
   if (!options.allowHidden && globalThis.document?.hidden === true) return false;
-  const latestMode = options.mode ?? loadAppearance().sound;
+  const latestMode = options.mode ?? getAppearanceSound();
   if (!options.force && latestMode === 'off') return false;
   return true;
 }
@@ -682,7 +687,7 @@ export function playSound(cue, options = {}) {
   try {
     if (!SOUND_CUES.includes(cue)) return false;
     if (isAudioCaptureActive()) return false;
-    const mode = options.mode ?? loadAppearance().sound;
+    const mode = options.mode ?? getAppearanceSound();
     if (!options.force && mode === 'off') return false;
     const tier = mode === 'standard' ? 'standard' : 'subtle';
     if (!options.force && tier === 'subtle' && !SUBTLE_CUES.has(cue)) return false;
@@ -774,6 +779,7 @@ export function resetSoundEngineForTests() {
   cachedDspBuffers.clear();
   cachedStereoSamples.clear();
   sampleDecodePromises.clear();
+  invalidateAppearanceCache();
   if (sharedCtx) {
     try { Promise.resolve(sharedCtx.close?.()).catch(() => {}); } catch { /* ignore */ }
     sharedCtx = null;

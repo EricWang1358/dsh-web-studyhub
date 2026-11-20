@@ -2,7 +2,7 @@ import { ui, uiFormat } from "./i18n.js";
 import React from "react";
 import { Button, Menu } from "./components/index.js";
 import { ReadingSettingsDialog } from "./reading-settings/ReadingSettings.jsx";
-import { useStudy } from "./study-context.jsx";
+import { useStudyBusy } from "./study-context.jsx";
 import { roundAt } from "./review/round-words.js";
 
 const NEXT_HINT_ID = "review-next-hint";
@@ -15,7 +15,7 @@ const NEXT_HINT_ID = "review-next-hint";
  * `onThumb('up' | 'down')` and `thumbVote` are the page's 评价: its ThumbFeedback keeps the vote and the keys; `thumbs` is that component (it draws only the tag tray).
  */
 export default function ReviewToolbar({ run, expanded, revealed, onToggleHelp, onAsk, onImprove, onDerive, onTermList, onSlay, onToggleFocus, onDeferUnstudiedPages, onNote, onTask, onReviewAction, thumbs, onThumb, thumbVote, enOn, enBusy, onToggleEn, autoTerms, autoTermsBusy, onToggleAutoTerms, assistMode, markingTerms = false, onToggleMarkTerms, autopilot, onToggleAutopilot, selfGradeAdvance, onToggleSelfGradeAdvance, onUndo, autoAdvanceActive = false, autoAdvancePaused = false, autoAdvanceMs = 0, onSkip, onEndRound, moreDefaultOpen = false }) {
-  const { busy } = useStudy();
+  const busy = useStudyBusy();
   const [readingOpen, setReadingOpen] = React.useState(false);
   // Say why 下一题 is unavailable instead of leaving a dim button: an unanswered question waits for its answer (one whose AI grade is on its way is answered: the grade lands on it later, #1031); a pending step is still saving.
   const needsAnswer = !run.feedback && !run.grading && run.mode !== "exam";
@@ -42,6 +42,7 @@ export default function ReviewToolbar({ run, expanded, revealed, onToggleHelp, o
     !exam && onToggleAutopilot && { id: "autopilot", label: ui("自动跳下一步"), checked: !!autopilot, hint: "A",
       attrs: { "aria-keyshortcuts": "A" }, run: onToggleAutopilot },
     !exam && onToggleSelfGradeAdvance && { id: "self-grade-advance", label: ui("评分后自动下一题"), checked: selfGradeAdvance !== false,
+      tip: ui("自评 3–5 分达标后自动进入下一题；0–2 分会留在当前题看解析"),
       run: onToggleSelfGradeAdvance },
     { id: "reading", label: ui("字号与版心…"), run: () => setReadingOpen(true) },
     onThumb && { heading: true, label: ui("评价这道题") },

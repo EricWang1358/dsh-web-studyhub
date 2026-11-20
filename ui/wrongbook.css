@@ -193,6 +193,12 @@
       white-space: nowrap;
       font-size: var(--fs-md);
     }
+    .wb-row.is-open .wb-prompt {
+      white-space: normal;
+      overflow: visible;
+      display: block;
+      -webkit-line-clamp: unset;
+    }
     .wb-prompt[tabindex]:focus-visible, .wb-why[tabindex]:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; border-radius: var(--radius-xs); }
     .wb-grade { display: inline-flex; align-items: center; gap: var(--space-1); flex: none; color: var(--bad-ink); font-size: var(--fs-md); border-radius: var(--radius-sm); cursor: help; }
     .wb-grade:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
@@ -244,6 +250,17 @@
     .wb-fact { display: grid; grid-template-columns: 6em minmax(0, 1fr); gap: var(--space-3); }
     .wb-fact dt { color: var(--text-muted); }
     .wb-fact dd { margin: 0; overflow-wrap: anywhere; line-height: var(--lh-body); }
+    .wb-expandable { display: grid; gap: var(--space-1); }
+    .wb-expandable:not(.is-open) .wb-expandable__body {
+      max-height: 9.5em;
+      overflow: hidden;
+      mask-image: linear-gradient(to bottom, currentColor 68%, transparent);
+    }
+    .wb-expandable__toggle { justify-self: start; }
+    .wb-distractors { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+    .wb-distractors li { display: grid; gap: var(--space-half); }
+    .wb-distractors__choice { font-weight: var(--fw-medium); color: var(--text); }
+    .wb-oral-followup { display: grid; gap: var(--space-1); }
     .wb-detail__foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
     /* The sentence about the open list, under the view switch (#1086): the controls above it never move when it changes length. */
     .wb-headline { max-width: 68ch; margin: var(--space-3) 0 0; color: var(--text-dim); font-size: var(--fs-md); line-height: var(--lh-body); overflow-wrap: anywhere; }
@@ -283,11 +300,11 @@
     .wb-dist-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-3); }
     .wb-dist-head h2 { margin: 0; font-size: var(--fs-md); font-weight: var(--fw-strong); }
     .wb-dist-head small { font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
-    .wb-dist-bar { position: relative; display: flex; gap: var(--space-half); min-height: 26px; }
+    .wb-dist-bar { position: relative; display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-half); min-height: 28px; }
     /* A shared Button (the raw-button ratchet): the segment is its look, the grid of the bar is its box. */
     .wb-dist-seg {
-      flex-basis: 0; min-width: 4px; min-height: 26px;
-      padding: 0; border: 0; border-radius: var(--radius-xs); box-shadow: none;
+      flex-basis: 0; min-width: 24px; min-height: 28px;
+      padding: 0; border: 0; border-radius: var(--radius-xs);
       background: var(--bad-tint); color: var(--bad-ink); box-shadow: inset 0 0 0 1px var(--bad-line);
       font-size: var(--fs-sm); line-height: 1; font-variant-numeric: tabular-nums; overflow: hidden;
       display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding-inline: var(--space-2);
@@ -303,7 +320,6 @@
       border: 1px solid var(--ok-line);
       border-radius: var(--radius);
       background: var(--ok-bg);
-      background-image: radial-gradient(circle at 50% 0, var(--ok-halo), transparent 68%);
     }
     .wb-cleared-history { display: flex; justify-content: center; margin-top: var(--space-2-5); font-variant-numeric: tabular-nums; }
     /* ── 靶向清零处方 (opt-in via settings.practice.wrongbookClinic) ── */
@@ -333,6 +349,14 @@
       font-weight: var(--fw-medium);
     }
     .wb-clinic-lead { font-size: var(--fs-sm); }
+    .wb-clinic-hide { margin-inline-start: auto; }
+    .wb-plan-offer {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+    }
+    .wb-plan-offer__hint { font-size: var(--fs-sm); }
     .wb-clinic-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
     .wb-clinic-item {
       display: flex;
@@ -355,11 +379,14 @@
     :where(.study-app, .study-seat) {
       .wb-clinic-actions { flex: 1 1 100%; }
       .wb-retrain { align-items: stretch; }
+      .wb-retrain-copy { min-width: 0; }
       .wb-retrain > .wb-retrain__btn { width: 100%; }
       .wb-retrain .wb-retrain__seg, .wb-retrain-pick { width: 100%; }
-      .wb-retrain .wb-retrain__seg-item { flex: 1 1 100%; justify-content: flex-start; white-space: normal; text-align: left; }
+      .wb-retrain .wb-retrain__seg-item { flex: 1 1 100%; min-width: 0; justify-content: flex-start; white-space: normal; text-align: left; }
+      .wb-recs-spacer { display: none; }
       .wb-meta { width: auto; max-width: 9em; }
       .wb-row-line .wb-prompt, .wb-rec-line .wb-prompt { white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+      .wb-row.is-open .wb-row-line .wb-prompt { display: block; -webkit-line-clamp: unset; overflow: visible; }
       .wb-row-toggle { flex-wrap: wrap; align-items: flex-start; }
       .wb-row-toggle .wb-prompt { flex: 1 1 100%; padding-left: var(--space-6); }
       .wb-row-toggle .wb-meta { flex: 1 1 auto; }

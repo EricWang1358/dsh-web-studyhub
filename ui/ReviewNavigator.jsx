@@ -28,12 +28,14 @@ export default function ReviewNavigator({ run, onJump, onEnd, skippedIndices }) 
       {run.navigation.map((item) => {
         const current = item.index === run.index;
         const isSkipped = !item.answered && skippedSet.has(item.index);
+        const outcome = item.answered ? (item.passed === false || item.correct === false ? "wrong" : "right") : undefined;
         const baseLabel = tickWords(item, levelWord(item.level));
         const label = isSkipped ? uiFormat("{0} · 先跳过待答", [baseLabel]) : baseLabel;
         return <Tooltip key={item.index} layer placement="right-start" group="review-ticks" content={label} anchorClassName="review-tick-tip">
           <button
             className="review-tick" aria-label={label}
             data-answered={item.answered ? "true" : undefined}
+            data-outcome={outcome}
             data-retry={item.retry ? "true" : undefined}
             data-skipped={isSkipped ? "true" : undefined}
             aria-current={current ? "step" : undefined} disabled={busy}

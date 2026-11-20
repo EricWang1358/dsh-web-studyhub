@@ -484,6 +484,18 @@
       padding-left: var(--space-4);
     }
   }
+  @media (prefers-reduced-motion: reduce) {
+    :where(.study-app, .study-seat) {
+      .top-status .dot.busy {
+        animation: none;
+        box-shadow: 0 0 0 3px var(--warn-mid);
+      }
+      .nav-mark {
+        animation: none;
+        transition: none;
+      }
+    }
+  }
 }
 
 @keyframes dot-pulse {

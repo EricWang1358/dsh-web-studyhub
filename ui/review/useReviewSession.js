@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { ui, uiFormat, getUiLanguage, errorMessage } from '../i18n.js';
 import { reviewEntryKey } from '../async.js';
 import { submitAssist } from '../assist-request.js';
@@ -13,23 +13,66 @@ import { describeModelError, modelReadiness } from '../generation-status.js';
 import { practiceArgs } from '../learning-navigation.js';
 import {
   AUTO_ADVANCE_MS, SELF_GRADE_ADVANCE_KEY, advanceKeyOf, assistRunningOn, autopilotPlan, gradeRunning, gradesOutstanding, isSelfGradedRun, keepAutopilotHold, continueDestination, createFlightSet, emptyEntry, entryForRun, isCurrentEntry, isPassed, pressedGradeOf, reviewChoiceKind,
-  keysElsewhere, mergeReviewPollWithFollowups, reviewPollResult, shouldAdvanceOnSelfGrade, shortcutAction, shortcutGate, shouldResetEntry, skipTarget,
+  keysElsewhere, mergeReviewPollWithFollowups, shouldAdvanceOnSelfGrade, shortcutAction, shortcutGate, shouldResetEntry, skipTarget,
 } from './session-logic.js';
 import { continueLabel, continueNote } from './continue-labels.js';
 import { createDraftSaver, draftKey, draftPayloadOf, draftable, entrySignature, keepTyped, savedSignature } from './draft-persistence.js';
 import { hiddenMsOf, noteVisibility, openClock } from './hidden-time.js';
 import { playSound } from '../sound-effects.js';
-import { isEarnedLevelClimb } from '../NextDue.jsx';
+import { isEarnedLevelClimb, nextDueGap } from '../NextDue.jsx';
 
-// These steps read the entry on the host (review.answer takes the help recorded there) or leave the question: what was typed goes first, and must arrive.
-const SAVES_FIRST = new Set(['review.answer', 'review.move']);
+// Leaving an unanswered question flushes any pending draft first; `review.answer` carries assistance/draft inline and discards pending draft timers to avoid a serial RPC waterfall.
+const SAVES_FIRST = new Set(['review.move']);
 // How long a number key's grade button wears its press (#745): long enough to be seen, short enough never to look stuck.
 const KEY_PRESS_MS = 220;
+// Debounce for teaching scratchpad persistence so typing does not synchronously write sessionStorage per keystroke.
+const TEACH_DRAFT_DEBOUNCE_MS = 300;
 // The practice page asks for the open question every 4 s, slower while nothing changes (#1011). Right after a helper task is sent it keeps the quick rhythm this long, until the library lists the task as running.
 const REVIEW_POLL_MS = 4000;
 const ASSIST_SENT_FAST_MS = 20000;
 
 export { mergeReviewPollWithFollowups } from './session-logic.js';
+
+function createLiveSessionStore() {
+  let state = {
+    entry: emptyEntry(),
+    keyGrade: null,
+    autoAdvancePaused: false,
+    explainHidden: false,
+    pendingAnswer: null,
+  };
+  const listeners = new Set();
+  return {
+    get: () => state,
+    set(patch) {
+      const next = { ...state, ...patch };
+      if (
+        next.entry === state.entry
+        && next.keyGrade === state.keyGrade
+        && next.autoAdvancePaused === state.autoAdvancePaused
+        && next.explainHidden === state.explainHidden
+        && next.pendingAnswer === state.pendingAnswer
+      ) return;
+      state = next;
+      for (const listener of listeners) listener();
+    },
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+}
+
+const NOOP_SUBSCRIBE = () => () => {};
+const RETURN_NULL = () => null;
+
+/** Subscribe to high-frequency review input & transient state inside QuestionRun without re-rendering App on keystrokes. */
+export function useLiveSession(session) {
+  const subscribe = session?.subscribeLive || NOOP_SUBSCRIBE;
+  const get = session?.getLive || RETURN_NULL;
+  const live = useSyncExternalStore(subscribe, get, get);
+  return useMemo(() => (live ? { ...session, ...live } : session), [session, live]);
+}
 
 /* The practice session (ui-consistency #112): the open run, what the learner has typed on its question, the teaching
    panel, the EN translation, the autopilot and the keyboard. It used to live in App, which re-rendered it on every
@@ -39,9 +82,14 @@ export { mergeReviewPollWithFollowups } from './session-logic.js';
    embeddedIn (optional): the name of another page that mounts <QuestionRun> (ui/review/QuestionRun.jsx) with this session. The question is
    then "on screen" while nav.page is that page, and enterRun leaves nav.page alone instead of going to 'review'. Without it, nothing changes. */
 export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, embeddedIn }) {
-  const { call, act, notify, setError, busy, refs } = core;
+  const { call, act, notify, setError, refs } = core;
+  const isBusy = useCallback(() => (core.busyStore ? core.busyStore.get() : !!core.busy), [core]);
   const [run, setRun] = useState(null);
-  const [entry, setEntry] = useState(emptyEntry);
+  const liveStoreRef = useRef(null);
+  liveStoreRef.current ||= createLiveSessionStore();
+  const liveStore = liveStoreRef.current;
+  // Rare boolean flags derived from `entry` that App-level hooks (`useInbox`, autopilot) actually observe; typing never flips these.
+  const [entrySignal, setEntrySignal] = useState({ explain: false, askedTutor: false, hasTeaching: false });
   const [showBack, setShowBack] = useState(false);
   const showBackRef = useRef(showBack);
   showBackRef.current = showBack;
@@ -72,35 +120,81 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
       .catch((failure) => { setAutopilotChoice(null); setError(errorMessage(failure)); });
   }, [call, core, setError]);
   const [autoAdvance, setAutoAdvance] = useState('');
-  const [autoAdvancePaused, setAutoAdvancePausedState] = useState(false);
-  const [explainHidden, setExplainHidden] = useState(false);
+  const setAutoAdvancePausedState = useCallback((paused) => liveStore.set({ autoAdvancePaused: !!paused }), [liveStore]);
+  const setExplainHidden = useCallback((next) => {
+    const cur = liveStore.get().explainHidden;
+    const value = typeof next === 'function' ? !!next(cur) : !!next;
+    liveStore.set({ explainHidden: value });
+  }, [liveStore]);
   const [skippedIndices, setSkippedIndices] = useState(() => new Set());
   const [shortcutHelp, setShortcutHelp] = useState(false);
   const [markingTerms, setMarkingTerms] = useState(false);
   /* A number key answers straight from here, so no <button> is ever seen going down (#745): the grade button the key names wears the same press for a
      moment. The one key handler below is the only writer; the view only reads it. */
-  const [keyGrade, setKeyGrade] = useState(null);
   const keyGradeTimer = useRef(null);
   const markKeyGrade = useCallback((grade) => {
     if (grade === null || grade === undefined) return;
     clearTimeout(keyGradeTimer.current);
-    setKeyGrade(grade);
-    keyGradeTimer.current = setTimeout(() => { keyGradeTimer.current = null; setKeyGrade(null); }, KEY_PRESS_MS);
-  }, []);
+    liveStore.set({ keyGrade: grade });
+    keyGradeTimer.current = setTimeout(() => { keyGradeTimer.current = null; liveStore.set({ keyGrade: null }); }, KEY_PRESS_MS);
+  }, [liveStore]);
   useEffect(() => () => clearTimeout(keyGradeTimer.current), []);
   const [teachingPending, setTeachingPending] = useState({});
   const { setPage } = nav;
   // The rules below (and session-logic.js) call the page that shows the question 'review', whichever page that is.
   const page = nav.page === (embeddedIn || 'review') ? 'review' : nav.page;
-  const runRef = useRef(run), pageRef = useRef(page), entryRef = useRef(entry), busyRef = useRef(busy);
+  const runRef = useRef(run), pageRef = useRef(page), entryRef = useRef(liveStore.get().entry);
   runRef.current = run;
   pageRef.current = page;
-  entryRef.current = entry;
-  busyRef.current = busy;
-  const patch = useCallback((change) => setEntry((current) => ({ ...current, ...(typeof change === 'function' ? change(current) : change) })), []);
+  entryRef.current = liveStore.get().entry;
+  const dataRoot = useCallback(() => refs.dataRef.current?.root, [refs]);
+  const teachDraftTimer = useRef(null);
+  const flushTeachingDraft = useCallback(() => {
+    if (teachDraftTimer.current) {
+      clearTimeout(teachDraftTimer.current);
+      teachDraftTimer.current = null;
+    }
+    const cur = entryRef.current;
+    if (cur?.teaching) saveTeachingDraft(dataRoot(), cur.teaching, cur.teachAnswer);
+  }, [dataRoot]);
+  const syncDraftRef = useRef(() => {});
+  const setEntry = useCallback((nextOrFn) => {
+    const prev = liveStore.get().entry;
+    const next = typeof nextOrFn === 'function' ? nextOrFn(prev) : nextOrFn;
+    if (next === prev) return;
+    entryRef.current = next;
+    liveStore.set({ entry: next });
+    if (next.selected !== prev.selected || next.response !== prev.response || next.clozeValues !== prev.clozeValues || next.assistance !== prev.assistance) {
+      syncDraftRef.current();
+    }
+    if (next.teaching !== prev.teaching || next.teachAnswer !== prev.teachAnswer) {
+      if (next.teaching !== prev.teaching) {
+        flushTeachingDraft();
+        if (next.teaching) saveTeachingDraft(dataRoot(), next.teaching, next.teachAnswer);
+      } else if (next.teaching) {
+        clearTimeout(teachDraftTimer.current);
+        teachDraftTimer.current = setTimeout(() => {
+          teachDraftTimer.current = null;
+          saveTeachingDraft(dataRoot(), entryRef.current.teaching, entryRef.current.teachAnswer);
+        }, TEACH_DRAFT_DEBOUNCE_MS);
+      }
+    }
+    const nextExplain = !!next.explain;
+    const nextAsked = !!next.assistance?.askedTutorBeforeAnswer;
+    const nextTeaching = !!next.teaching;
+    setEntrySignal((cur) => (
+      cur.explain === nextExplain && cur.askedTutor === nextAsked && cur.hasTeaching === nextTeaching
+        ? cur
+        : { explain: nextExplain, askedTutor: nextAsked, hasTeaching: nextTeaching }
+    ));
+  }, [liveStore, dataRoot, flushTeachingDraft]);
+  const patch = useCallback((change) => setEntry((current) => {
+    const delta = typeof change === 'function' ? change(current) : change;
+    if (!delta || typeof delta !== 'object' || Object.keys(delta).length === 0) return current;
+    return { ...current, ...delta };
+  }), [setEntry]);
   const kind = reviewChoiceKind(run);
   const { choice, isCloze, rubricCard } = kind;
-  const dataRoot = () => refs.dataRef.current?.root;
 
   /* ── the unsubmitted answer, saved on the run (#537): plain call()s that never touch `busy`, whose results change no state, so typing is never in their way ── */
   const callRef = useRef(call);
@@ -122,7 +216,6 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     draftBase.current.signature = signature;
     draftSaver.current.schedule({ key, root, args: { runId: current.id, cardId: current.card.id, index: current.index, queueVersion: current.queueVersion || 0, ...draftPayloadOf(entryRef.current) } });
   }, [refs]);
-  const syncDraftRef = useRef(syncDraft);
   syncDraftRef.current = syncDraft;
   /** Sends what is waiting and waits for it. False: it could not be saved, and the learner has been told. */
   const flushDraft = useCallback(async () => {
@@ -138,7 +231,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   }, [patch]);
   useEffect(() => {
     // The page may be closing: best effort, nobody can wait for it. Steps and links wait in flushDraft.
-    const leave = () => { syncDraftRef.current(); draftSaver.current.flush(); };
+    const leave = () => { syncDraftRef.current(); draftSaver.current.flush(); flushTeachingDraft(); };
     const hidden = () => { if (document.visibilityState === 'hidden') leave(); };
     window.addEventListener('pagehide', leave);
     document.addEventListener('visibilitychange', hidden);
@@ -147,7 +240,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
       document.removeEventListener('visibilitychange', hidden);
       leave();
     };
-  }, []);
+  }, [flushTeachingDraft]);
 
   /* ── time away (#883): how long the page was hidden while this question was open, sent with its answer so the recorded time leaves it out ── */
   const questionKey = draftKey(refs.dataRef.current?.root, run);
@@ -180,7 +273,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     if (!embeddedIn && nav.page !== 'guided') setPage('review');
     const opened = entryForRun(next, input, { draft: (teaching) => readTeachingDraft(refs.dataRef.current?.root, teaching) });
     setEntry(same ? keepTyped(opened, entryRef.current) : opened);
-  }, [nav.show, setPage, refs, embeddedIn, nav.page, syncDraft]);
+  }, [nav.show, setPage, refs, embeddedIn, nav.page, syncDraft, setEntry]);
   const enterMovedRun = useCallback((next, input) => enterRun(next, input, true), [enterRun]);
   const revealFlights = useRef(new Map());
   const revealKeyOf = (r) => (r?.card?.id ? `${r.id}:${r.index}:${r.card.id}:${r.queueVersion || 0}` : '');
@@ -190,7 +283,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     setMarkingTerms((value) => !value);
   }, []);
   const exitMarkTerms = useCallback(() => setMarkingTerms(false), []);
-  const reset = useCallback(() => { revealFlights.current.clear(); draftSaver.current.discard(); draftBase.current = { key: '', signature: '' }; setRun(null); setShowBack(false); setMarkingTerms(false); setEntry(emptyEntry()); }, []);
+  const reset = useCallback(() => { revealFlights.current.clear(); draftSaver.current.discard(); draftBase.current = { key: '', signature: '' }; liveStore.set({ pendingAnswer: null, keyGrade: null, autoAdvancePaused: false, explainHidden: false }); setRun(null); setShowBack(false); setMarkingTerms(false); setEntry(emptyEntry()); }, [liveStore, setEntry]);
   const clearRun = useCallback(() => { setMarkingTerms(false); setRun(null); }, []);
   const patchRun = useCallback((change) => setRun(change), []);
 
@@ -211,9 +304,8 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   useEffect(() => {
     if (page !== 'review' || !run?.card || run?.complete || run?.mode === 'exam') setMarkingTerms(false);
   }, [page, run?.card, run?.complete, run?.mode]);
-  // After the rebuilt queue's reset above, so a new question's first pass sees its own entry.
-  useEffect(() => { syncDraft(); }, [run, entry.selected, entry.response, entry.clozeValues, entry.assistance, syncDraft]);
-  useEffect(() => { saveTeachingDraft(dataRoot(), entry.teaching, entry.teachAnswer); }, [entry.teaching, entry.teachAnswer]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Re-anchor draft base when the active run/card changes; per-keystroke syncing runs directly in setEntry without App re-renders.
+  useEffect(() => { syncDraft(); }, [run, syncDraft]);
   // Each card mounts on the side matching its state; flipping after that is local.
   useEffect(() => { setShowBack(!!run?.revealed); }, [run?.id, run?.card?.id, run?.index, run?.queueVersion, run?.revealed]);
 
@@ -224,12 +316,15 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     const current = runRef.current;
     if (!current?.id) return undefined;
     const next = await call('review.get', { runId: current.id });
-    const inFlightReveal = revealFlights.current.has(revealKeyOf(runRef.current));
+    const active = runRef.current;
+    if (!active || active.id !== current.id) return undefined;
+    const inFlightReveal = revealFlights.current.has(revealKeyOf(active));
     const reconciled = inFlightReveal && next && !next.revealed ? { ...next, revealed: true } : next;
-    const running = assistRunningOn(refs.dataRef.current?.assist, runRef.current?.card?.id) || Date.now() - assistSentAt.current < ASSIST_SENT_FAST_MS;
-    const result = reviewPollResult(runRef.current, reconciled, running);
-    if (!result.unchanged) setRun((existing) => mergeReviewPollWithFollowups(existing, reconciled));
-    return result;
+    const running = assistRunningOn(refs.dataRef.current?.assist, active?.card?.id) || Date.now() - assistSentAt.current < ASSIST_SENT_FAST_MS;
+    const merged = mergeReviewPollWithFollowups(active, reconciled);
+    if (merged === active) return { unchanged: true, running };
+    setRun((existing) => (existing === active ? merged : mergeReviewPollWithFollowups(existing, reconciled)));
+    return { running };
   }, [call, refs]);
   // A finished round keeps asking while a grade is on its way (#1031): it lands on the result page, not on the next visit. Corrections waiting to be
   // read change only when the learner reads them (here, or in another window: the round is read again when this window comes back).
@@ -256,51 +351,98 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
 
   /* ── one step of the round ── */
   const stepWaiting = useRef(false);
+  const pendingTokenRef = useRef(null);
   const reviewAct = useCallback((action, args = {}) => {
     const current = runRef.current;
     if (!current?.id) return Promise.resolve();
-    const resolvedArgs = action === 'review.answer' && isSelfGradedRun(current) && Number.isInteger(args.grade) && args.advanceOnSelfGrade === undefined
+    const isAnswer = action === 'review.answer';
+    // Passing self-grades (3–5) may auto-advance; low grades (0–2) always stay on the current card so the learner can close the error loop.
+    let resolvedArgs = isAnswer && isSelfGradedRun(current) && Number.isInteger(args.grade) && args.advanceOnSelfGrade === undefined
       ? {
           ...args,
-          advanceOnSelfGrade: shouldAdvanceOnSelfGrade({
+          advanceOnSelfGrade: args.grade >= 3 && shouldAdvanceOnSelfGrade({
             selfGradeAdvance: selfGradeAdvanceRef.current,
             autoTerms: autoTermsRef.current,
             grade: args.grade,
           }),
         }
       : args;
+    // Piggyback local assistance & dirty draft directly on `review.answer` and cancel pending debounced `review.draft.save` to eliminate the serial RPC waterfall.
+    if (isAnswer && current.mode !== 'exam') {
+      const localEntry = entryRef.current;
+      const inline = {};
+      if (localEntry.assistance && resolvedArgs.assistance === undefined) inline.assistance = localEntry.assistance;
+      if (resolvedArgs.draft === undefined && (draftSaver.current.dirty() || (localEntry.response && localEntry.response.trim()))) {
+        inline.draft = draftPayloadOf(localEntry).draft;
+      }
+      if (Object.keys(inline).length) resolvedArgs = { ...inline, ...resolvedArgs };
+      draftSaver.current.discard(draftKey(refs.dataRef.current?.root, current));
+    }
+    const optimisticToken = isAnswer ? {} : null;
+    if (isAnswer) {
+      pendingTokenRef.current = optimisticToken;
+      const entryKey = reviewEntryKey(current);
+      const pending = Array.isArray(resolvedArgs.selected)
+        ? { key: entryKey, kind: 'choice', selected: resolvedArgs.selected }
+        : Number.isInteger(resolvedArgs.grade)
+          ? { key: entryKey, kind: 'grade', grade: resolvedArgs.grade }
+          : resolvedArgs.answers
+            ? { key: entryKey, kind: 'cloze' }
+            : { key: entryKey, kind: 'other' };
+      liveStore.set({ pendingAnswer: pending });
+    }
+    const clearPending = () => {
+      if (optimisticToken && pendingTokenRef.current === optimisticToken) {
+        pendingTokenRef.current = null;
+        liveStore.set({ pendingAnswer: null });
+      }
+    };
     const step = () => {
       const latest = runRef.current || current;
-      return act(action, { runId: latest.id, cardId: latest.card?.id, queueVersion: latest.queueVersion || 0, ...resolvedArgs, ...awayArgs(action, latest) }, (result) => {
+      return Promise.resolve(act(action, { runId: latest.id, cardId: latest.card?.id, queueVersion: latest.queueVersion || 0, ...resolvedArgs, ...awayArgs(action, latest) }, (result) => {
         const fb = result?.feedback || result?.gradedFeedback;
         if (latest?.mode !== 'exam' && result?.mode !== 'exam' && !latest?.complete && result?.complete && (result.answered || 0) > 0) {
           playSound('complete');
-        } else if (action === 'review.answer' && fb && latest?.mode !== 'exam') {
+        } else if ((action === 'review.answer' || (action === 'review.grade.adjust' && resolvedArgs.clozeEquivalent)) && fb && latest?.mode !== 'exam') {
           if (fb.selfReported || fb.assessment === 'self-report') playSound('correct');
           else if (fb.correct) playSound(isEarnedLevelClimb(fb, result.feedbackTelemetry) ? 'levelUp' : 'correct');
           else playSound('miss');
         } else if (action === 'review.reveal' && !latest?.revealed && result?.revealed) {
           playSound('flip');
         }
+        clearPending();
         enterRun(result, undefined, action === 'review.move' || !!result?.selfGradeAdvanced || action === 'review.undo');
+        if (action === 'review.answer' && result?.selfGradeAdvanced && result?.gradedFeedback && latest?.mode !== 'exam') {
+          const gap = nextDueGap(result.gradedFeedback);
+          const scope = reviewNoticeScope(refs.bindingRoot.current, 'review', result);
+          notify({
+            text: gap
+              ? uiFormat('已记 {0} 分 · {1}后再见', [result.gradedFeedback.grade, gap])
+              : uiFormat('已记 {0} 分 · 今天内再见', [result.gradedFeedback.grade]),
+            scope,
+            tone: 'info',
+            timeout: 2600,
+          });
+        }
       },
         // Practice steps return the run they changed; the snapshot catches up on the next poll.
         // Only a finished round (including self-grade advance on the final card) reloads the library.
-        { refreshAfter: (result) => !!result?.complete || action === 'review.undo' || (action !== 'review.move' && action !== 'review.answer' && action !== 'review.reveal') });
+        { refreshAfter: (result) => !!result?.complete || action === 'review.undo' || (action !== 'review.move' && action !== 'review.answer' && action !== 'review.reveal') }))
+        .finally(clearPending);
     };
-    const pendingReveal = action === 'review.answer' ? revealFlights.current.get(revealKeyOf(current)) : null;
+    const pendingReveal = isAnswer ? revealFlights.current.get(revealKeyOf(current)) : null;
     const needsDraftFlush = SAVES_FIRST.has(action) && (syncDraft(), draftSaver.current.dirty());
     if (!pendingReveal && !needsDraftFlush) return step();
     // Like act() itself: one step at a time, a second click while this one waits for its reveal/save is dropped.
-    if (stepWaiting.current) return Promise.resolve();
+    if (stepWaiting.current) { clearPending(); return Promise.resolve(); }
     stepWaiting.current = true;
     const rKey = revealKeyOf(current);
     return Promise.all([
       pendingReveal ? pendingReveal.then((res) => res !== null) : true,
       needsDraftFlush ? flushDraft() : true,
     ]).then(([revealedOk, savedOk]) => (revealedOk && savedOk && revealKeyOf(runRef.current) === rKey ? step() : undefined))
-      .finally(() => { stepWaiting.current = false; });
-  }, [act, awayArgs, enterRun, flushDraft, syncDraft]);
+      .finally(() => { stepWaiting.current = false; clearPending(); });
+  }, [act, awayArgs, enterRun, flushDraft, liveStore, notify, refs, syncDraft]);
   const reviewActRef = useRef(reviewAct);
   reviewActRef.current = reviewAct;
 
@@ -341,7 +483,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   const [endAsked, setEndAsked] = useState(false);
   const hasFeedback = !!run?.feedback;
   useEffect(() => { setEndAsked(false); }, [run?.id, run?.complete]);
-  useEffect(() => { setExplainHidden(false); }, [run?.id, run?.index, run?.card?.id, hasFeedback]);
+  useEffect(() => { setExplainHidden(false); }, [run?.id, run?.index, run?.card?.id, hasFeedback, setExplainHidden]);
   const endRound = useCallback(async () => {
     if (!runRef.current?.id || runRef.current.complete || runRef.current.mode === 'exam') return;
     // A dropped call (another step holds act(), or it failed) resolves with nothing: the question stays asked, so the press is not lost.
@@ -394,12 +536,12 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   }, [setError]);
   const choose = useCallback((id) => {
     const current = runRef.current;
-    if (busyRef.current || current.feedback) return;
+    if (isBusy() || !current || current.feedback) return;
     if (current.card.kind === 'multi') {
       playSound('tap');
       patch((value) => ({ selected: value.selected.includes(id) ? value.selected.filter((item) => item !== id) : [...value.selected, id] }));
     } else reviewActRef.current('review.answer', { selected: [id] });
-  }, [patch]);
+  }, [isBusy, patch]);
 
   /* ── autopilot: after a pass, move on by itself unless the learner touches anything during the short countdown ── */
   const autoTimer = useRef(null), autoSkipped = useRef('');
@@ -417,7 +559,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
       setAutoAdvance('');
       reviewActRef.current('review.move', { direction: 1 });
     }, ms);
-  }, []);
+  }, [setAutoAdvancePausedState]);
   const setAutoAdvancePaused = useCallback((paused) => {
     const next = !!paused;
     if (!autoKeyRef.current) return;
@@ -434,7 +576,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     } else if (autopilotRef.current && autoKeyRef.current && autoSkipped.current !== autoKeyRef.current && autoHold.current !== autoKeyRef.current) {
       scheduleAutoTimer(Math.max(autoRemainingRef.current, 450));
     }
-  }, [scheduleAutoTimer]);
+  }, [scheduleAutoTimer, setAutoAdvancePausedState]);
   const cancelAutoAdvance = useCallback(() => {
     if (!autoTimer.current && !autoKeyRef.current) return;
     clearTimeout(autoTimer.current);
@@ -444,7 +586,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     autoRemainingRef.current = 0;
     setAutoAdvancePausedState(false);
     setAutoAdvance((key) => { autoSkipped.current = key; return ''; });
-  }, []);
+  }, [setAutoAdvancePausedState]);
   const cancelRef = useRef(cancelAutoAdvance);
   cancelRef.current = cancelAutoAdvance;
   /* The question the learner was taken to read (showExplanation, below): the autopilot leaves it alone until another question is on screen (keepAutopilotHold). */
@@ -453,7 +595,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     clearTimeout(autoTimer.current);
     autoTimer.current = null;
     autoHold.current = keepAutopilotHold(autoHold.current, advanceKey);
-    const plan = autopilotPlan({ autopilot, page, passed, grading: !!run?.grading, complete: run?.complete, teaching: !!entry.teaching, skippedKey: autoSkipped.current, advanceKey, holdKey: autoHold.current });
+    const plan = autopilotPlan({ autopilot, page, passed, grading: !!run?.grading, complete: run?.complete, teaching: entrySignal.hasTeaching, skippedKey: autoSkipped.current, advanceKey, holdKey: autoHold.current });
     if (!plan.schedule) {
       autoKeyRef.current = '';
       autoPausedRef.current = false;
@@ -469,7 +611,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     setAutoAdvance(plan.key);
     scheduleAutoTimer(plan.ms);
     return () => { clearTimeout(autoTimer.current); autoTimer.current = null; };
-  }, [autopilot, page, passed, !!run?.grading, advanceKey, run?.complete, !!entry.teaching, holdTick, scheduleAutoTimer]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [autopilot, page, passed, !!run?.grading, advanceKey, run?.complete, entrySignal.hasTeaching, holdTick, scheduleAutoTimer, setAutoAdvancePausedState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── EN: one translate per card entry, a second click joins the in-flight call ── */
   const enFlights = useRef(createFlightSet());
@@ -594,12 +736,16 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   // `quiet`: the caller shows the state itself (a spoken answer's 正在批改 under the question, #1031), so no toast covers the page.
   const assistCard = useCallback(async (mode, text, helpChoices = [], extra = undefined, { quiet = false } = {}) => {
     const current = runRef.current;
+    const originKey = reviewEntryKey(current);
     const rawNote = mode === 'ask' && typeof extra?.thinkingNote === 'string' ? extra.thinkingNote.trim().slice(0, 200) : '';
     const trimmedText = String(text || '').trim();
-    if (!current?.card || (!trimmedText && !(mode === 'ask' && (helpChoices.length || rawNote)) && !(mode === 'derive' && extra?.followupId) && !(mode === 'terms' && Array.isArray(extra?.terms) && extra.terms.length))) return false;
+    if (!current?.card || !originKey || (!trimmedText && !(mode === 'ask' && (helpChoices.length || rawNote)) && !(mode === 'derive' && extra?.followupId) && !(mode === 'terms' && Array.isArray(extra?.terms) && extra.terms.length))) return false;
     // Asking or filling marked terms helps understand before answering; 修题 and 出成题 change the bank, and 批改 grades the written answer.
     if (mode === 'ask' || mode === 'terms') { noteAssistance('askedTutorBeforeAnswer'); patch({ explain: true }); }
-    if (mode === 'grade' && !(await flushDraft())) return false;
+    if (mode === 'grade') {
+      if (!(await flushDraft())) return false;
+      if (!isCurrentEntry(runRef.current, originKey)) return false;
+    }
     // Persist optional 1-sentence thinkingNote onto the underlying attempt (narrow `attempts` lock; ignores missing attempt cleanly).
     if (rawNote) {
       Promise.resolve(call('attempt.errorReason.set', {
@@ -629,13 +775,17 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
       core.refresh().catch(() => {});
       return true;
     } catch (failure) {
-      setError(failure.message || ui('这次没有提交成功，也没有拿到具体原因。可以再提交一次。'));
+      if (isCurrentEntry(runRef.current, originKey)) {
+        setError(failure.message || ui('这次没有提交成功，也没有拿到具体原因。可以再提交一次。'));
+      }
       return false;
     }
   }, [call, notify, setError, core, noteAssistance, patch, flushDraft]);
   // Slaying is one click next to other tools; offer an immediate undo instead of sending the learner to the slay deck in 管理题组.
   const slayCard = useCallback(async () => {
-    const current = runRef.current, ref = { deckId: current.deckId, cardId: current.card.id };
+    const current = runRef.current;
+    if (!current?.card) return;
+    const ref = { deckId: current.deckId, cardId: current.card.id };
     const next = await reviewActRef.current('card.slay', { deckId: ref.deckId });
     if (!next) return;
     const scope = reviewNoticeScope(refs.bindingRoot.current, 'review', next);
@@ -647,9 +797,13 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   const returnInput = useRef(null);
   // `extra`: more of review.start, e.g. similarFor (试一道同类题, #1015: which question the detour is for).
   const studyPrerequisites = useCallback(async (list, extra = {}) => {
+    const origin = runRef.current;
+    const originKey = reviewEntryKey(origin);
+    if (!origin?.id || !originKey) return undefined;
     if (!(await flushDraft())) return undefined;
-    returnInput.current = { runId: runRef.current.id, input: { key: reviewEntryKey(runRef.current), ...entryRef.current } };
-    return act('review.start', practiceArgs(list.map(({ deckId, cardId }) => ({ deckId, cardId })), { returnTo: runRef.current.id, ...extra }), enterRun);
+    if (!isCurrentEntry(runRef.current, originKey)) return undefined;
+    returnInput.current = { runId: origin.id, input: { key: originKey, ...entryRef.current } };
+    return act('review.start', practiceArgs(list.map(({ deckId, cardId }) => ({ deckId, cardId })), { returnTo: origin.id, ...extra }), enterRun);
   }, [act, enterRun, flushDraft]);
 
   /* ── hint and explanation: the hint is help the answer got, once it is opened and has something to show (#542) ── */
@@ -682,12 +836,13 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   const eventShape = (event) => ({ key: event.key, code: event.code, shiftKey: event.shiftKey, repeat: event.repeat, defaultPrevented: event.defaultPrevented,
     ctrlKey: event.ctrlKey, metaKey: event.metaKey, altKey: event.altKey,
     inEditable: !!event.target.closest?.('input,textarea,select,[contenteditable]') || keysElsewhere(event.target, rootRef.current), onButton: !!event.target.closest?.('button') });
-  const canShortcut = (event) => shortcutGate(eventShape(event), gateContext()) && !event.defaultPrevented && !event.repeat && !event.shiftKey && page === 'review' && !!run?.card;
+  const canShortcut = useCallback((event) => shortcutGate(eventShape(event), gateContext()) && !event.defaultPrevented && !event.repeat && !event.shiftKey && pageRef.current === 'review' && !!runRef.current?.card, [modalOpen, rootRef]); // eslint-disable-line react-hooks/exhaustive-deps
   keyHandler.current = (event) => {
     const shape = eventShape(event);
     const k = shape.key?.toLowerCase();
     if ((k === 'g' || k === 'b') && !shape.repeat && !shape.shiftKey && page === 'review' && run?.card && shortcutGate(shape, gateContext())) cancelAutoAdvance();
-    const outcome = shortcutAction(shape, { ...gateContext(), page, run, busy, showBack: showBackRef.current, shortcutHelp, endAsked, markingTerms, choice, isCloze, rubricCard, selected: entry.selected, clozeValues: entry.clozeValues });
+    const liveEntry = entryRef.current;
+    const outcome = shortcutAction(shape, { ...gateContext(), page, run, busy: isBusy(), showBack: showBackRef.current, shortcutHelp, endAsked, markingTerms, choice, isCloze, rubricCard, selected: liveEntry.selected, clozeValues: liveEntry.clozeValues });
     if (!outcome) return;
     cancelAutoAdvance();
     if (outcome.preventDefault) event.preventDefault();
@@ -756,12 +911,20 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     return { ...destination, label: continueLabel(destination), note: continueNote(destination), go };
   }, [run, act, enterRun, refs]);
   const activeAutoAdvance = Boolean(autoAdvance && autoAdvance === advanceKey);
-  const coach = {
-    autopilot, onStatus: () => core.refresh().catch(() => {}), onPractice: onCoachPractice,
+  const coach = useMemo(() => ({
+    autopilot,
+    onStatus: () => core.refresh().catch(() => {}),
+    onPractice: onCoachPractice,
     onContinue: () => continueTo(null).go(),
-    onReviewWeak: () => act('review.weak.start', { runId: run.id }, enterRun),
-    canShortcut, cancelAutoAdvance, autoAdvance: activeAutoAdvance ? AUTO_ADVANCE_MS : 0, autoAdvanceActive: activeAutoAdvance, autoAdvancePaused, setAutoAdvancePaused, debrief: null,
-  };
+    onReviewWeak: () => act('review.weak.start', { runId: runRef.current?.id }, enterRun),
+    canShortcut,
+    cancelAutoAdvance,
+    autoAdvance: activeAutoAdvance ? AUTO_ADVANCE_MS : 0,
+    autoAdvanceActive: activeAutoAdvance,
+    get autoAdvancePaused() { return liveStore.get().autoAdvancePaused; },
+    setAutoAdvancePaused,
+    debrief: null,
+  }), [autopilot, core, onCoachPractice, continueTo, act, enterRun, canShortcut, cancelAutoAdvance, activeAutoAdvance, liveStore, setAutoAdvancePaused]);
   const actions = useMemo(() => ({
     reviewAct, choose, clearChoice: () => patch({ selected: [] }), flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, toggleAutoTerms,
     toggleHelp: () => { if (runRef.current?.feedback) setExplainHidden((value) => !value); else if (runRef.current?.revealed) patch((value) => ({ explain: !value.explain })); else toggleHint(); },
@@ -784,7 +947,27 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     toggleMarkTerms,
     exitMarkTerms,
     endRound,
-  }), [reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, toggleAutoTerms, patch, toggleAutopilot, toggleSelfGradeAdvance, undoAnswer, setAutoAdvancePaused, toggleHint, noteAssistance, skipQuestion, toggleMarkTerms, exitMarkTerms, endRound]);
-  return { run, entry, showBack, showEn, autoTerms, selfGradeAdvance, enBusyKey, autoTermsBusyKey, teachingBusy: !!teachingPending[reviewEntryKey(run)], teachingError: teachingFailure[reviewEntryKey(run)]?.message || '', autopilot, autoAdvance, autoAdvanceActive: activeAutoAdvance, autoAdvancePaused, setAutoAdvancePaused, advanceKey,
-    explainHidden, skippedIndices, shortcutHelp, markingTerms, keyGrade, endAsked, questionKeys, ...kind, coach, continueTo, onCoachPractice, enterRun, enterMovedRun, reset, clearRun, patchRun, pollRun, pollNow, actions, flushDraft };
+  }), [reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, toggleAutoTerms, patch, setExplainHidden, toggleAutopilot, toggleSelfGradeAdvance, undoAnswer, setAutoAdvancePaused, toggleHint, noteAssistance, skipQuestion, toggleMarkTerms, exitMarkTerms, endRound]);
+  const currentEntryKey = reviewEntryKey(run);
+  const teachingBusy = !!teachingPending[currentEntryKey];
+  const teachingError = teachingFailure[currentEntryKey]?.message || '';
+  return useMemo(() => ({
+    run,
+    subscribeLive: liveStore.subscribe,
+    getLive: liveStore.get,
+    get entry() { return liveStore.get().entry; },
+    get keyGrade() { return liveStore.get().keyGrade; },
+    get autoAdvancePaused() { return liveStore.get().autoAdvancePaused; },
+    get explainHidden() { return liveStore.get().explainHidden; },
+    get pendingAnswer() { return liveStore.get().pendingAnswer; },
+    showBack, showEn, autoTerms, selfGradeAdvance, enBusyKey, autoTermsBusyKey, teachingBusy, teachingError,
+    autopilot, autoAdvance, autoAdvanceActive: activeAutoAdvance, setAutoAdvancePaused, advanceKey,
+    skippedIndices, shortcutHelp, markingTerms, endAsked, questionKeys, choice, isCloze, rubricCard,
+    coach, continueTo, onCoachPractice, enterRun, enterMovedRun, reset, clearRun, patchRun, pollRun, pollNow, actions, flushDraft,
+  }), [
+    run, liveStore, showBack, showEn, autoTerms, selfGradeAdvance, enBusyKey, autoTermsBusyKey, teachingBusy, teachingError,
+    autopilot, autoAdvance, activeAutoAdvance, setAutoAdvancePaused, advanceKey,
+    skippedIndices, shortcutHelp, markingTerms, endAsked, choice, isCloze, rubricCard,
+    coach, continueTo, onCoachPractice, enterRun, enterMovedRun, reset, clearRun, patchRun, pollRun, pollNow, actions, flushDraft,
+  ]);
 }

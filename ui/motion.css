@@ -21,12 +21,26 @@
       .question-card .cloze,
       :is(.page, .review-page),
       :is(.page, .review-page) > *,
-      .nav-mark {
+      .nav-mark,
+      .review-detour {
         animation: none !important;
       }
-      * {
-        transition-duration: 0.01ms !important;
+      .nav-mark,
+      .nav .icon {
+        transition: none;
       }
+      .nav:hover:not(:disabled):not([aria-current="page"]) .icon {
+        transform: none;
+      }
+      & main > :is(.page, .review-page, .board-page) {
+        transition: opacity var(--dur-fast) ease-in;
+      }
+      & main.is-leaving > :is(.page, .review-page, .board-page) {
+        transform: none;
+      }
+    }
+    .study-app {
+      scroll-behavior: auto;
     }
   }
   /* 动画 (设置 › 界面): the learner's motion choice is stamped on the app root (data-motion = full | reduced | off; "auto" resolves to one of them from the

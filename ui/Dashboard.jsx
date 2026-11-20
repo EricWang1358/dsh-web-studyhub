@@ -28,6 +28,21 @@ function heatLevel(count, max) {
   return Math.min(4, 1 + Math.floor(((count - 1) / Math.max(1, max)) * 4));
 }
 
+/** Roving-focus navigation for the 7-row column-major activity heatmap (1 Tab stop total). */
+export function nextHeatmapIndex(current, key, length, rows = 7) {
+  if (!Number.isInteger(length) || length <= 0) return null;
+  const idx = Number.isInteger(current) ? Math.max(0, Math.min(length - 1, current)) : length - 1;
+  switch (key) {
+    case "ArrowDown": return Math.min(length - 1, idx + 1);
+    case "ArrowUp": return Math.max(0, idx - 1);
+    case "ArrowRight": return Math.min(length - 1, idx + rows);
+    case "ArrowLeft": return Math.max(0, idx - rows);
+    case "Home": return 0;
+    case "End": return length - 1;
+    default: return null;
+  }
+}
+
 /* "Including inactive courses" only when parked courses exist inside the page's scope (the stats say `included` for any view that left nothing out). */
 const showsParked = (data, course) => (data?.focus?.courses || []).some((item) => item?.active === false && (item.count ?? 0) > 0) && course === "*";
 
@@ -145,6 +160,27 @@ export function StatsView({
     return list;
   }, [stats?.weakScope, weak]);
   const heatRef = useRef(null);
+  const [activeHeatIndex, setActiveHeatIndex] = useState(-1);
+  const rovingHeatIndex = shownHeat.length
+    ? (activeHeatIndex >= 0 && activeHeatIndex < shownHeat.length ? activeHeatIndex : shownHeat.length - 1)
+    : -1;
+  const heatWeeks = Math.round(shownHeat.length / 7);
+  const heatActiveDays = shownHeat.reduce((count, day) => count + ((day.count || 0) > 0 ? 1 : 0), 0);
+  const heatTotalCount = shownHeat.reduce((sum, day) => sum + (day.count || 0), 0);
+  const heatBaseLabel = uiFormat("近 {0} 周的每日作答次数热力图", [heatWeeks]);
+  const heatLabel = heatTotalCount > 0
+    ? uiFormat("{0}：{1}，用方向键查看每天记录", [heatBaseLabel, uiFormat("{0} 个活跃日 · 累计作答 {1} 次", [heatActiveDays, heatTotalCount])])
+    : heatBaseLabel;
+  const handleHeatKeyDown = (event) => {
+    if (!shownHeat.length) return;
+    const cellEl = event.target?.closest?.("[data-heat-index]");
+    const current = cellEl ? Number(cellEl.dataset.heatIndex) : rovingHeatIndex;
+    const next = nextHeatmapIndex(current, event.key, shownHeat.length, 7);
+    if (next == null) return;
+    event.preventDefault();
+    setActiveHeatIndex(next);
+    heatRef.current?.querySelector?.(`[data-heat-index="${next}"]`)?.focus?.();
+  };
   useIsomorphicLayoutEffect(() => {
     if (heatRef.current) heatRef.current.scrollLeft = heatRef.current.scrollWidth;
   }, [shownHeat.length]);
@@ -172,23 +208,32 @@ export function StatsView({
           <div
             ref={heatRef}
             className="dash-heat"
-            role="img"
-            aria-label={uiFormat("近 {0} 周的每日作答次数热力图", [Math.round(shownHeat.length / 7)])}
+            role="group"
+            aria-label={heatLabel}
+            onKeyDown={handleHeatKeyDown}
           >
-            {shownHeat.map((d) => (
-              <Tooltip
-                key={d.date}
-                layer
-                group="dash-heat"
-                anchorClassName={"dash-heat-cell l" + heatLevel(d.count, maxCount)}
-                content={d.count ? uiFormat("{0} · 作答 {1} 次", [d.date, d.count]) : uiFormat("{0} · 无作答", [d.date])}
-              >
-                <span tabIndex={0} />
-              </Tooltip>
-            ))}
+            {shownHeat.map((d, index) => {
+              const cellLabel = d.count ? uiFormat("{0} · 作答 {1} 次", [d.date, d.count]) : uiFormat("{0} · 无作答", [d.date]);
+              return (
+                <Tooltip
+                  key={d.date}
+                  layer
+                  group="dash-heat"
+                  anchorClassName={"dash-heat-cell l" + heatLevel(d.count, maxCount)}
+                  content={cellLabel}
+                >
+                  <span
+                    tabIndex={index === rovingHeatIndex ? 0 : -1}
+                    data-heat-index={index}
+                    aria-label={cellLabel}
+                    onFocus={() => setActiveHeatIndex(index)}
+                  />
+                </Tooltip>
+              );
+            })}
           </div>
           <div className="dash-heat-legend" aria-hidden="true">
-            <span>{uiFormat("近 {0} 周", [Math.round(shownHeat.length / 7)])}</span>
+            <span>{uiFormat("近 {0} 周", [heatWeeks])}</span>
             <span className="dash-heat-scale">{ui("少")}{[0, 1, 2, 3, 4].map((l) => (
                 <i key={l} className={"dash-heat-cell l" + l} />
               ))}{ui("多")}</span>

@@ -927,26 +927,8 @@
   }
   /* ── Dialog ─────────────────────────────────────────────────────────── */
   /* `&.sh-dialog`: a dialog outside every study surface is the surface itself (see Dialog.jsx, ownScope). */
-  :is(.study-app, .study-seat).sh-dialog {
-    --sh-dialog-width: 680px;
-    box-sizing: border-box;
-    position: fixed;
-    inset: 0;
-    width: min(var(--sh-dialog-width), calc(100vw / var(--study-ui-scale, 1) - 32px));
-    max-width: none;
-    height: fit-content;
-    max-height: min(calc(100dvh / var(--study-ui-scale, 1) - 48px), 960px);
-    margin: auto;
-    padding: 0;
-    overflow: hidden;
-    border: 1px solid var(--line-strong);
-    border-radius: var(--radius-card);
-    background: var(--bg-raised);
-    color: var(--text);
-    box-shadow: var(--shadow-dialog);
-    container-type: inline-size;
-  }
   :is(.study-app, .study-seat) {
+    &.sh-dialog,
     .sh-dialog {
       --sh-dialog-width: 680px;
       box-sizing: border-box;
@@ -959,42 +941,36 @@
       margin: auto;
       padding: 0;
       overflow: hidden;
+      overscroll-behavior: contain;
       border: 1px solid var(--line-strong);
       border-radius: var(--radius-card);
       background: var(--bg-raised);
       color: var(--text);
-      box-shadow: var(--shadow-dialog);
       container-type: inline-size;
     }
-  }
-  :is(.study-app, .study-seat).sh-dialog[open] {
-    display: flex;
-    flex-direction: column;
-    animation: sh-dialog-in var(--dur) var(--ease-out);
-  }
-  :is(.study-app, .study-seat) {
+    /* Standalone and descendant dialog scopes each declare the elevation token so tests/surface-details.test.mjs verifies both. */
+    &.sh-dialog { box-shadow: var(--shadow-dialog); }
+    .sh-dialog { box-shadow: var(--shadow-dialog); }
+    &.sh-dialog[open],
     .sh-dialog[open] {
       display: flex;
       flex-direction: column;
       animation: sh-dialog-in var(--dur) var(--ease-out);
     }
-  }
-  :is(.study-app, .study-seat).sh-dialog::backdrop {
-    background: var(--scrim);
-    animation: sh-fade-in 0.18s ease;
-  }
-  :is(.study-app, .study-seat) {
+    &.sh-dialog:modal,
+    .sh-dialog:modal {
+      overscroll-behavior: contain;
+    }
+    &.sh-dialog::backdrop,
     .sh-dialog::backdrop {
       background: var(--scrim);
+      overflow: hidden;
+      overscroll-behavior: contain;
       animation: sh-fade-in 0.18s ease;
     }
-  }
-  :is(.study-app, .study-seat).sh-dialog--sm { --sh-dialog-width: 460px; }
-  :is(.study-app, .study-seat) {
+    &.sh-dialog--sm,
     .sh-dialog--sm { --sh-dialog-width: 460px; }
-  }
-  :is(.study-app, .study-seat).sh-dialog--lg { --sh-dialog-width: 940px; }
-  :is(.study-app, .study-seat) {
+    &.sh-dialog--lg,
     .sh-dialog--lg { --sh-dialog-width: 940px; }
     .sh-dialog--full {
       width: calc(100vw / var(--study-ui-scale, 1));
@@ -1106,11 +1082,13 @@
     }
   }
   @media (max-width: 600px) {
-    :is(.study-app, .study-seat).sh-dialog:not(.sh-dialog--full) { width: calc(100vw / var(--study-ui-scale, 1) - 16px); max-height: calc(100dvh / var(--study-ui-scale, 1) - 16px); border-radius: var(--radius); }
-  }
-  @media (max-width: 600px) {
     :is(.study-app, .study-seat) {
-      .sh-dialog:not(.sh-dialog--full) { width: calc(100vw / var(--study-ui-scale, 1) - 16px); max-height: calc(100dvh / var(--study-ui-scale, 1) - 16px); border-radius: var(--radius); }
+      &.sh-dialog:not(.sh-dialog--full),
+      .sh-dialog:not(.sh-dialog--full) {
+        width: calc(100vw / var(--study-ui-scale, 1) - var(--space-4));
+        max-height: calc(100dvh / var(--study-ui-scale, 1) - var(--space-4));
+        border-radius: var(--radius);
+      }
       .sh-dialog__header { padding: var(--space-4) var(--space-3) var(--space-2) var(--space-4); }
       .sh-dialog__body { padding: var(--space-2) var(--space-4) var(--space-4); }
       .sh-dialog__footer { padding: var(--space-3) var(--space-4); }
@@ -1119,11 +1097,12 @@
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    :is(.study-app, .study-seat).sh-dialog[open], :is(.study-app, .study-seat).sh-dialog::backdrop { animation: none; }
-  }
-  @media (prefers-reduced-motion: reduce) {
     :is(.study-app, .study-seat) {
-      .sh-toast, .sh-dialog[open], .sh-dialog::backdrop { animation: none; }
+      &.sh-dialog[open],
+      .sh-dialog[open],
+      &.sh-dialog::backdrop,
+      .sh-dialog::backdrop { animation: none; }
+      .sh-toast { animation: none; }
       .sh-spinner { animation-duration: 2.4s; }
       .sh-btn, .sh-drop__icon, .sh-disclosure__chevron { transition: none; }
       .sh-seg__thumb, .sh-seg__item, .sh-disclosure::details-content { transition: none; }
