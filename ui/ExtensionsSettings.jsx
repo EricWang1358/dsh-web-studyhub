@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, Disclosure, Field, InlineMessage, Select, SettingsSection, TextInput, useToast } from './components/index.js';
-import { AdvancedTools, ConverterMain, DetectionLine, providerLabel } from './LargeDocumentCard.jsx';
+import { Button, Disclosure, Field, Hint, InlineMessage, Select, SettingsSection, TextInput, useToast } from './components/index.js';
+import { AdvancedTools, DetectionLine, providerLabel } from './LargeDocumentCard.jsx';
 import ExtensionPanel from './ExtensionPanel.jsx';
 import { setRetrievalStatus, useRetrievalStatus } from './retrieval-status.js';
 import { useAsyncAction } from './use-async.js';
@@ -65,9 +65,11 @@ export default function ExtensionsSettings({ initialStatus = null, courses = [],
   const mcpOthers = current.otherTools || [];
   const canChoose = current.providers.length > 0 || mcpOthers.length > 0;
   return (
-    <SettingsSection className="extensions-settings" tour="settings-extensions" title={ui('扩展：文档转换与检索')}
-      lead={ui('大教材（上百页的 PDF）按三步用：先把 PDF 转成带页码的文字，导入后按章节选；整本书都要用时，安装检索扩展并为课程建立索引，出题时只用相关页面。StudyHub 不会替你改任何配置文件。')}>
-      <ConverterMain />
+    <SettingsSection className="extensions-settings" tour="settings-extensions" title={ui('检索扩展')}
+      lead={isDesktopApp
+        ? ui('适合上百页教材，或笔记、讲义累计很多的课程。单次出题选中超过 15 万字并填写「这次想练什么？」时自动先挑相关页面；不超过 15 万字时默认直接发全文，更完整也无需检索。')
+        : ui('适合上百页教材，或笔记、讲义累计很多的课程。单次出题选中超过 15 万字并填写「这次想练什么？」时自动先挑相关页面；不超过 15 万字时默认直接发全文，更完整也无需检索。StudyHub 不会替你改任何配置文件。')}>
+      <Hint>{ui('还没把扫描件或大 PDF 转成带页码的文字？先在「设置 › PDF 转换（MinerU / Marker）」里安装转换工具，导入后再来建索引。')}</Hint>
       <div className="large-doc__group" data-role="retrieval">
         <h3 className="large-doc__group-title">{ui('检索：只让 AI 看相关页面')}</h3>
         <ExtensionPanel status={status} onStatus={accept} courses={courses} defaultCourse={defaultCourse} initialPlan={initialPlan} initialRun={initialRun} />
@@ -82,7 +84,8 @@ export default function ExtensionsSettings({ initialStatus = null, courses = [],
       <Disclosure summary={ui('高级')} meta={isDesktopApp ? (canChoose ? ui('检索工具 · 模型下载地址') : ui('模型下载地址')) : ui('其他检索工具 · 模型下载地址 · 手动配置')} defaultOpen={!!current.missing}>
         <div className="extensions-settings__advanced">
           {canChoose && <div className="extensions-settings__choice">
-            <Field className="extensions-settings__choice-field" label={ui('用哪个工具检索')}>
+            <Field className="extensions-settings__choice-field" label={ui('用哪个工具检索')}
+              hint={ui('选「不使用检索」时会把选中资料全文发给 AI；单次超过 60 万字会受长度上限阻断，需按章节缩小选择或启用检索。')}>
               <Select className="extensions-settings__select" value={current.effective} disabled={!!working} onChange={choose} options={[
                 { value: 'builtin', label: ui('不使用检索（把选中的资料全部交给 AI）') },
                 ...current.providers.map(provider => ({ value: provider.id, label: providerLabel(provider) })),
@@ -100,10 +103,10 @@ export default function ExtensionsSettings({ initialStatus = null, courses = [],
           <div className="extensions-settings__endpoint">
             <Field className="extensions-settings__endpoint-field" label={ui('模型下载地址')} width="full"
               hint={isDesktopApp
-                ? ui('检索扩展第一次建立索引时，从这个地址下载检索模型。默认地址在你的网络里打不开时，可以改成别的地址；留空就是默认地址。保存后会立即生效。')
+                ? ui('检索扩展第一次建立索引时，从这个地址下载检索模型。默认地址打不开时可填 Hugging Face 兼容镜像（例如 https://hf-mirror.com），留空恢复默认。保存后会立即生效。')
                 : current.extension?.desktop
-                  ? ui('检索扩展第一次建立索引时，从这个地址下载检索模型。默认地址在你的网络里打不开时，可以改成别的地址；留空就是默认地址。改动在完全退出 DSH 桌面版（包括托盘图标）后重新打开时生效。')
-                  : ui('检索扩展第一次建立索引时，从这个地址下载检索模型。默认地址在你的网络里打不开时，可以改成别的地址；留空就是默认地址。改动在重启 DSH 后生效。')}>
+                  ? ui('检索扩展第一次建立索引时，从这个地址下载检索模型。默认地址打不开时可填 Hugging Face 兼容镜像（例如 https://hf-mirror.com），留空恢复默认。改动在完全退出 DSH 桌面版（包括托盘图标）后重新打开时生效。')
+                  : ui('检索扩展第一次建立索引时，从这个地址下载检索模型。默认地址打不开时可填 Hugging Face 兼容镜像（例如 https://hf-mirror.com），留空恢复默认。改动在重启 DSH 后生效。')}>
               <TextInput type="url" value={endpoint} placeholder="https://huggingface.co" disabled={!!working} onChange={event => setEndpoint(event.target.value)} />
             </Field>
             <Button size="sm" variant="secondary" busy={working === 'endpoint'} disabled={!!working} onClick={saveEndpoint}>{ui('保存下载地址')}</Button>

@@ -63,7 +63,7 @@ export default function MarkerSettings({ disabled = false, available = true }) {
   );
   return <div className="marker-settings">
     <p>{ui('选好 PDF 后，StudyHub 会调用本机 Marker，显示进度并自动导入结果。')}</p>
-    {!available && <InlineMessage tone="info">{ui('此安装未启用 PDF 解析组件。启用 StudyHub 的音频组件后可在应用内解析；也可用下面的脚本手动转换。')}</InlineMessage>}
+    {!available && <InlineMessage tone="info">{ui('当前环境未启用应用内 PDF 解析服务；也可以先用下面的脚本手动转换，再拖进「添加资料」。')}</InlineMessage>}
     {available && call && <MarkerInstall disabled={disabled} markerReady={status?.state === 'ready'} markerStatus={status} onChanged={reload} />}
     <div className="marker-settings__manual">
     <h4>{ui('已经有 Marker？手动指定程序路径')}</h4>

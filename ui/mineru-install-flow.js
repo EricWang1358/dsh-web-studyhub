@@ -122,9 +122,11 @@ const HINT = {
   // Inside an install the repair continues it (the service's own line already says the location is fine and the button says the rest). Another MinerU's
   // folder is not StudyHub's to repair: a restart, then the hand-off.
   // `linked`: files the last repair left alone because they are hard links (lib/mineru-local.js secureMineruHome): that repair was not complete.
-  'home-permissions': ({ origin = '', ours = true, linked = 0 } = {}) => [
+  'home-permissions': ({ origin = '', ours = true, linked = 0, canChat = true } = {}) => [
     origin === 'install' ? ui('点「修复权限」会修好这些文件的权限，再从停下的那一步接着装；已下载的不会重下。')
-      : !ours ? ui('可以先点「重新启动服务」再试；还是不行就点「发给主会话」。') : '',
+      : !ours ? (canChat
+        ? ui('可以先点「重新启动服务」再试；还是不行就点「发给主会话」。')
+        : ui('可以先点「重新启动服务」再试；还是不行就点「复制提示词」，把诊断信息贴给外部 AI 帮你排查。')) : '',
     ours && linked > 0 ? uiFormat('有 {0} 个文件同时链接在别的位置，StudyHub 为了不改到别处的文件没有动它们，所以这次修复不完整。', [linked]) : '',
   ].filter(Boolean).join(' '),
 };
@@ -185,9 +187,13 @@ export const VC_REDIST_URL = 'https://aka.ms/vs/17/release/vc_redist.x64.exe';
  * What the card adds when the same fix was pressed and the same failure came back (`failedTimes`): a repair of permissions that did not help says so and
  * points to 发给主会话 (#936); any fix that failed twice points to the ⋯ menu beside it, when there is one (#938). '' otherwise.
  */
-export function retryNote({ action, failedTimes = 0, menu = false } = {}) {
+export function retryNote({ action, failedTimes = 0, menu = false, canChat = true } = {}) {
   const notes = [];
-  if (action?.id === 'repair-permissions' && failedTimes >= 1) notes.push(ui('修复权限后还是不行：点「发给主会话」，让主会话帮你查是哪个文件、谁改了它的权限。'));
+  if (action?.id === 'repair-permissions' && failedTimes >= 1) {
+    notes.push(canChat
+      ? ui('修复权限后还是不行：点「发给主会话」，让主会话帮你查是哪个文件、谁改了它的权限。')
+      : ui('修复权限后还是不行：点「复制提示词」，把诊断信息贴给外部 AI 帮你查是哪个文件、谁改了它的权限。'));
+  }
   if (menu && failedTimes >= 2) notes.push(ui('同一个修复已经失败两次：可以试试右边「⋯」里的其他办法。'));
   return notes.join(' ');
 }

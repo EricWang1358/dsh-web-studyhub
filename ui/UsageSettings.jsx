@@ -17,7 +17,7 @@ import { useStudy } from './study-context.jsx';
 
 /** The promises, in the order they are made. Also read by the docs test. */
 export const usagePrivacyPoints = () => [
-  ui('只记录你用了哪些控件、各用了多少次（按天累计）。'),
+  ui('只记录你用了哪些功能与操作、各用了多少次（按天累计）。'),
   ui('不记录你输入、阅读或回答的任何内容，也不记录任何文件、课程或资料的名字。'),
   ui('只保存在这台电脑上，不在学习库里（备份和导出学习库都不带它）；StudyHub 不会把它发送到任何地方。'),
   ui('你可以随时查看、导出、暂停和删除。'),
@@ -25,7 +25,7 @@ export const usagePrivacyPoints = () => [
 
 const ROLES = {
   button: ['按钮', 'a button'], link: ['链接', 'a link'], disclosure: ['展开项', 'a disclosure'], tab: ['标签页', 'a tab'], checkbox: ['复选框', 'a checkbox'], radio: ['单选框', 'a radio button'],
-  select: ['下拉框', 'a dropdown'], switch: ['开关', 'a switch'], menuitem: ['菜单项', 'a menu item'], input: ['输入控件', 'an input'], file: ['文件选择', 'a file chooser'], range: ['滑块', 'a slider'],
+  select: ['下拉框', 'a dropdown'], switch: ['开关', 'a switch'], menuitem: ['菜单项', 'a menu item'], input: ['输入框', 'an input'], file: ['文件选择', 'a file chooser'], range: ['滑块', 'a slider'],
   combobox: ['组合框', 'a combo box'], option: ['选项', 'an option'], treeitem: ['树节点', 'a tree item'], slider: ['滑块', 'a slider'], spinbutton: ['数字框', 'a number box'],
 };
 const BARE = /^(tour|testid|id)\./;
@@ -37,7 +37,7 @@ const BARE = /^(tour|testid|id)\./;
 export function usageRowName(row, language = getUiLanguage()) {
   if (row.name) return row.name;
   const en = language === 'en';
-  if (row.key === 'other') return en ? 'Everything else (folded together)' : '其他控件（合并计数）';
+  if (row.key === 'other') return en ? 'Everything else (folded together)' : '其他操作（合并计数）';
   if (BARE.test(row.key)) return row.key;
   const [area, role, ...rest] = row.key.split('/');
   if (!USAGE_AREAS.some(item => item.id === area) || !ROLES[role]) return row.key;
@@ -100,10 +100,10 @@ export function UsageReportView({ report, period, onPeriod, language = getUiLang
       <dl className="usage-summary">
         <div><dt>{ui('有记录的天数')}</dt><dd>{report.summary.daysWithData}</dd></div>
         <div><dt>{ui('互动次数')}</dt><dd>{report.summary.interactions}</dd></div>
-        <div><dt>{ui('用过的控件')}</dt><dd>{report.summary.distinctControls}</dd></div>
+        <div><dt>{ui('用过的功能')}</dt><dd>{report.summary.distinctControls}</dd></div>
       </dl>
       <section className="usage-block">
-        <h4 className="settings-subtitle">{ui('最常用的控件')}</h4>
+        <h4 className="settings-subtitle">{ui('最常用的功能')}</h4>
         {report.ranking.length === 0 ? <Hint>{ui('这段时间没有记录。')}</Hint>
           : <ol className="usage-rank">{report.ranking.map(row => <li key={row.key} className="usage-rank__row">
             <span className="usage-rank__name">{usageRowName(row, language)}</span>
@@ -112,8 +112,8 @@ export function UsageReportView({ report, period, onPeriod, language = getUiLang
           </li>)}</ol>}
       </section>
       <div className="usage-pair">
-        <ShareList title={ui('按页面')} note={ui('用到这些控件时，你正在哪个页面。')} rows={report.byArea} nameOf={row => row.name} />
-        <ShareList title={ui('按使用时机')} note={ui('按每个控件本来在什么时候用来归类：每天、阶段性、一次性。')} rows={report.byTier.filter(row => row.count > 0 || row.tier !== 'other')} nameOf={row => row.name} />
+        <ShareList title={ui('按页面')} note={ui('用到这些功能时，你正在哪个页面。')} rows={report.byArea} nameOf={row => row.name} />
+        <ShareList title={ui('按使用时机')} note={ui('按每个功能本来在什么时候用来归类：每天、阶段性、一次性。')} rows={report.byTier.filter(row => row.count > 0 || row.tier !== 'other')} nameOf={row => row.name} />
       </div>
       <Rhythm rhythm={report.rhythm} period={period} />
       <details className="usage-never">
@@ -152,16 +152,21 @@ export function UsageSettingsView({ status, report, period, working = '', error 
   }[state];
   return (
     <SettingsSection className="usage-settings" data-usage-ignore data-state={state} tour="settings-usage" title={ui('使用频率记录')}
-      lead={ui('记下你用了哪些控件、各用了多少次，帮你看清自己的使用习惯。默认关闭，打开之前什么都不会记。')}>
+      lead={ui('记下你用了哪些功能与操作、各用了多少次，帮你看清自己的使用习惯。默认关闭，打开之前什么都不会记。')}>
       <ul className="usage-promises">{usagePrivacyPoints().map(point => <li key={point}>{point}</li>)}</ul>
-      <Switch name="usage-frequency" label={ui('记录使用频率')} hint={ui('关掉后，已有的记录保留，可以继续查看、导出或删除。')}
+      <Switch name="usage-frequency" label={ui('记录使用频率')} hint={ui('彻底关闭后不再记录；已有的记录保留，随时可以查看、导出或删除。')}
         checked={!!status.enabled} disabled={busy || !!working} onChange={onSwitch} />
       <p className="usage-status" role="status">{line}</p>
       {error && <InlineMessage>{error}</InlineMessage>}
       {state !== 'off' && state !== 'off-data' && (
-        <div className="settings-actions">
-          <Button variant="secondary" size="sm" disabled={!!working} lock={busy} onClick={onPause}>{status.paused ? ui('继续记录') : ui('暂停记录')}</Button>
-        </div>
+        <>
+          <div className="settings-actions">
+            <Button variant="secondary" size="sm" disabled={!!working} lock={busy} onClick={onPause}>{status.paused ? ui('继续记录') : ui('暂停记录')}</Button>
+          </div>
+          <Hint>{status.paused
+            ? ui('当前为临时暂停状态；点「继续记录」可立即恢复，不用重新开关上面的总开关。')
+            : ui('临时不想记录（例如演示或整理资料）时点「暂停记录」，之后点「继续记录」即可恢复，不用反复开关上面的总开关。')}</Hint>
+        </>
       )}
       {status.hasData && (
         <details className="usage-report" onToggle={event => onReportToggle?.(event.currentTarget.open)}>

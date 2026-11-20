@@ -1,7 +1,7 @@
 import React, { useContext, useState } from 'react';
 import { ui, uiFormat, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Badge, Button, Chip, Field, HelpTip, Icon, IconButton, InlineMessage, SegmentedControl, Select, TextInput, Tooltip } from './components/index.js';
+import { Badge, Button, Chip, Field, HelpTip, Hint, Icon, IconButton, InlineMessage, SegmentedControl, Select, TextInput, Tooltip } from './components/index.js';
 import { cx } from './components/css.js';
 import { useStudy } from './study-context.jsx';
 import { AppContext } from './app/app-context.js';
@@ -145,6 +145,7 @@ export function MethodForm({ draft, own, disabled, working, onChange, onStage, o
   const activityOptions = ACTIVITIES.map(activity => ({ value: activity, label: ui(ACTIVITY_LABELS[activity]) }));
   return <div className="course-method__form">
     <Field label={ui('学法名称')} width="full"><TextInput value={draft.name} maxLength={NAME_MAX} disabled={disabled} onChange={event => onChange({ name: event.target.value })} /></Field>
+    <Hint>{ui('过关宽严：松一点（答过八成）、适中（答对八成）、严格一点（全部答对）。「也可以」是在当前阶段主活动之外，顺手提供的 1–2 个可选辅助方式。')}</Hint>
     <ol className="course-method__stages course-method__stages--edit">
       {draft.stages.map((stage, index) => <li key={index}
         className={cx('course-method__stage-edit', dragIndex === index && 'is-dragging', overIndex === index && dragIndex !== index && 'is-drop-target')}
@@ -222,16 +223,22 @@ export function MethodForm({ draft, own, disabled, working, onChange, onStage, o
       <Button variant="quiet" size="sm" lock={working} onClick={onCancel}>{ui('取消')}</Button>
       {own && <Button variant="quiet" size="sm" lock={disabled} onClick={onReset}>{ui('恢复默认学法')}</Button>}
     </div>
+    <Hint>{ui('学法单独保存，不会随底部「保存课程信息」一起提交。')}</Hint>
   </div>;
 }
 
-export default function CourseMethodCard({ course, readout = null, data = null, onClose, initialNote = '' }) {
+export default function CourseMethodCard({ course, readout = null, data = null, onClose, initialNote = '', onEditingChange }) {
   useInjectCss(css, 'study-course-method');
-  const { act, call, busy, navigate } = useStudy();
+  const { act, call, busy, navigate, host } = useStudy();
   const app = useContext(AppContext);
+  const canChat = (host?.capabilities?.chat ?? app?.host?.capabilities?.chat) !== false;
   const resolvedData = data ?? app?.data ?? null;
   const openAlt = useMethodAlternativeOpen({ data: resolvedData, onClose });
   const [draft, setDraft] = useState(null), [error, setError] = useState(''), [working, setWorking] = useState(false);
+  const setEditingDraft = nextDraft => {
+    setDraft(nextDraft);
+    onEditingChange?.(Boolean(nextDraft));
+  };
   const [noteOpen, setNoteOpen] = useState(Boolean(initialNote)), [note, setNote] = useState(initialNote);
   const [remoteView, setRemoteView] = useState(null);
   const own = Boolean(course?.method);
@@ -296,11 +303,11 @@ export default function CourseMethodCard({ course, readout = null, data = null, 
         }) : null)))
     : null;
   const activeStage = current >= 0 ? shown.stages[current] : (resolvedData ? currentMethodStage(resolvedData, course)?.stage : null);
-  const altItems = !draft && resolvedData && activeStage ? stageAlternatives(resolvedData, course, activeStage, { guidedSession: app?.lib?.guidedSession, canChat: app?.host?.capabilities?.chat !== false }) : [];
+  const altItems = !draft && resolvedData && activeStage ? stageAlternatives(resolvedData, course, activeStage, { guidedSession: app?.lib?.guidedSession, canChat }) : [];
   const write = async method => {
     setWorking(true); setError('');
     const payload = method ? clampMethodStageIndices(method) : null;
-    try { await act('course.save', { id: course.id, name: course.name, method: payload }, undefined, { rethrow: true }); setDraft(null); }
+    try { await act('course.save', { id: course.id, name: course.name, method: payload }, undefined, { rethrow: true }); setEditingDraft(null); }
     catch (caught) { setError(errorMessage(caught)); } finally { setWorking(false); }
   };
   const activeSwitchIndex = current >= 0 ? current : (Number.isInteger(shown.stageIndex) ? shown.stageIndex : 0);
@@ -336,9 +343,13 @@ export default function CourseMethodCard({ course, readout = null, data = null, 
       {!draft && <span className="course-method__name">{shown.name}</span>}
       {!draft && !own && <Badge size="sm">{ui('默认')}</Badge>}
       <HelpTip label={ui('学法是什么')}>{own
-        ? ui('这门课自己的学法：主会话带学时照着它走。随时可以改，也可以恢复默认。')
-        : ui('默认学法就是现在的流程：导入资料、出题按批练、到期复习。不改也照常学；想按自己的阶段学，点「改学法」，或在主会话里说。')}</HelpTip>
-      {!draft && <Button variant="quiet" size="sm" className="course-method__edit" lock={disabled} onClick={() => { setDraft(shown); setError(''); }}>{ui('改学法')}</Button>}
+        ? ui(canChat
+          ? '这门课自己的学法：主会话带学时照着它走。随时可以改，也可以恢复默认。'
+          : '这门课自己的学法：首页和学习步骤会照着它走。随时可以改，也可以恢复默认。')
+        : ui(canChat
+          ? '默认学法就是现在的流程：导入资料、出题按批练、到期复习。不改也照常学；想按自己的阶段学，点「改学法」，或在主会话里说。'
+          : '默认学法就是现在的流程：导入资料、出题按批练、到期复习。不改也照常学；想按自己的阶段学，点「改学法」，或复制改学法提示词给外部 AI。')}</HelpTip>
+      {!draft && <Button variant="quiet" size="sm" className="course-method__edit" lock={disabled} onClick={() => { setEditingDraft(shown); setError(''); }}>{ui('改学法')}</Button>}
     </div>
     {!draft && <ol className="course-method__stages">
       {shown.stages.map((stage, index) => {
@@ -365,8 +376,11 @@ export default function CourseMethodCard({ course, readout = null, data = null, 
               onClick={() => openCourseMaterialImport({ data: resolvedData, course, navigate, appSet: app?.set, onClose })}>
               {ui('导入')}
             </Button>{ui('，或')}</span>
-            <HandOff id="method.draftMaterial" shape="link" label="请主会话起草"
-              what="让主会话按这一阶段的目标起草一份 Markdown 讲义并导入（标为「AI 撰写 · 未核对」）"
+            <HandOff id="method.draftMaterial" shape="link"
+              label={canChat ? '请主会话起草' : '复制起草讲义提示词'}
+              what={canChat
+                ? '让主会话按这一阶段的目标起草一份 Markdown 讲义并导入（标为「AI 撰写 · 未核对」）'
+                : '复制按这一阶段目标起草 Markdown 讲义的提示词，生成后再导入（标为「AI 撰写 · 未核对」）'}
               input={{ course: course.name, stage: stage.name, stageIndex: index + 1, methodName: shown.name, note: note.trim() }}
               disabled={disabled}
               onSent={outcome => { if (outcome === 'filled') onClose?.('draft-material'); }} />
@@ -397,8 +411,11 @@ export default function CourseMethodCard({ course, readout = null, data = null, 
           </Button>
         )}
         {effectiveGate && !effectiveGate.checkPassed && effectiveGate.missed?.length > 0 && (
-          <HandOff id="method.missed" shape="quiet" label="带着错题回主会话"
-            what="把这一阶段还没过关的题目带回主会话讲透，讲完再回 StudyHub 重测"
+          <HandOff id="method.missed" shape="quiet"
+            label={canChat ? '带着错题回主会话' : '复制错题讲解提示词'}
+            what={canChat
+              ? '把这一阶段还没过关的题目带回主会话讲透，讲完再回 StudyHub 重测'
+              : '把这一阶段还没过关的题目整理成讲解提示词，讲透后再回 StudyHub 重测'}
             input={{ course: course.name, stage: activeStage?.name || '', missed: effectiveGate.missed, note: note.trim() }}
             disabled={disabled}
             onSent={outcome => { if (outcome === 'filled') onClose?.('method-missed'); }} />
@@ -426,8 +443,11 @@ export default function CourseMethodCard({ course, readout = null, data = null, 
     {!draft && shown.targetDate && <p className="course-settings__note course-method__note">{uiFormat('目标日期：{0}', [shown.targetDate])}</p>}
     {!draft && <div className="course-method__chat">
       <div className="course-method__chat-row">
-        <HandOff id="method.edit" shape="quiet" label="和主会话改学法"
-          what="把当前学法发给主会话，按你的目标和习惯一起调整；确认之前不会保存"
+        <HandOff id="method.edit" shape="quiet"
+          label={canChat ? '和主会话改学法' : '复制改学法提示词'}
+          what={canChat
+            ? '把当前学法发给主会话，按你的目标和习惯一起调整；确认之前不会保存'
+            : '把当前学法整理成调整提示词，按你的目标和习惯请外部 AI 修改后再回这里填写'}
           input={{ course: course.name, method: shown, note: note.trim() }} disabled={disabled}
           onSent={outcome => { if (outcome === 'filled') onClose?.('method-edit'); }} />
         <Button variant="link" size="sm" aria-expanded={noteOpen} lock={disabled} onClick={() => setNoteOpen(open => !open)}>
@@ -435,7 +455,9 @@ export default function CourseMethodCard({ course, readout = null, data = null, 
         </Button>
       </div>
       {noteOpen && <Field className="course-method__note-field" label={ui('想怎么学（可选）')} width="full"
-        hint={ui('写下你的目标、习惯或特殊学法想法，点「和主会话改学法」或「请主会话起草」时会一起带上。')}>
+        hint={ui(canChat
+          ? '写下你的目标、习惯或特殊学法想法，点「和主会话改学法」或「请主会话起草」时会一起带上。'
+          : '写下你的目标、习惯或特殊学法想法，点「复制改学法提示词」或「复制起草讲义提示词」时会一起带上。')}>
         <TextInput value={note} maxLength={300} disabled={disabled}
           placeholder={ui('例如：每周只有周末有空，考前两周想多做口头抽查')}
           onChange={event => setNote(event.target.value)} />
@@ -445,7 +467,7 @@ export default function CourseMethodCard({ course, readout = null, data = null, 
       onMove={(from, to) => { setDraft(prev => remapMethodOnStageMove(prev, from, to)); setError(''); }}
       onAdd={() => change({ stages: addStage(draft.stages) })}
       onRemove={index => { setDraft(prev => remapMethodOnStageRemove(prev, index)); setError(''); }}
-      onSave={() => write(draft)} onCancel={() => { setDraft(null); setError(''); }} onReset={() => write(null)} />}
+      onSave={() => write(draft)} onCancel={() => { setEditingDraft(null); setError(''); }} onReset={() => write(null)} />}
     {error && <InlineMessage role="alert">{error}</InlineMessage>}
   </section>;
 }

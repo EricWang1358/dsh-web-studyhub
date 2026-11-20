@@ -83,11 +83,13 @@ test('Settings › Advanced › Experimental features holds a single switch, off
 
 /* ---- hidden: identical to a build without Jev -------------------------------------------------------------------------- */
 
-test('Settings with the switch off draws no Jev at all, in either language (the one-time group, the advanced group, the tour anchors included)', () => {
+test('Settings with the switch off draws no Jev panel or traces, while ExperimentalSection previews what it contains', () => {
+  const JEV_INTERNAL_TRACE = /jev-|settings-jev|data-experimental|jev\.|正在读取 Jev|Reading the Jev/;
   for (const language of ['zh', 'en']) for (const experimental of [undefined, false]) {
     const html = render(settingsPage({ experimental }), language);
-    assert.doesNotMatch(html, JEV_TRACE, `${language}/${experimental}`);
-    assert.doesNotMatch(html, /正在读取 Jev|Reading the Jev/);
+    assert.doesNotMatch(html, JEV_INTERNAL_TRACE, `${language}/${experimental}`);
+    const other = render(settingsPage({ experimental }, { tourActive: false, focusSection: 'settings-model' }), language);
+    assert.doesNotMatch(other, JEV_TRACE, `${language}/${experimental} non-experimental pane`);
   }
 });
 
@@ -143,13 +145,13 @@ test('the pieces that mark Jev’s decisions are experimental-labelled and plain
 
 /* ---- the guided flow --------------------------------------------------------------------------------------------------- */
 
-test('the guided block runs in this order: the walk-through, the provider and its key, the per-site switches', () => {
+test('the guided block runs in this order: the walk-through, the provider and its key, the master switch, then the per-site replace switches', () => {
   const html = render(view(ready));
   const at = pattern => html.search(pattern);
   assert.ok(at(/jev-guide/) >= 0 && at(/name="jev-provider"/) > at(/jev-guide/), 'guide before provider');
   assert.ok(at(/name="jev-key"/) > at(/name="jev-provider"/), 'provider before key');
-  assert.ok(at(/class="jev-replace"|class="[^"]*jev-replace[^"]*"/) > at(/name="jev-key"/), 'key before the switches');
-  assert.ok(at(/jev-switches/) > at(/jev-replace/), 'the master switch sits with the switches');
+  assert.ok(at(/jev-switches/) > at(/name="jev-key"/), 'key before the master switch');
+  assert.ok(at(/class="jev-replace"|class="[^"]*jev-replace[^"]*"/) > at(/jev-switches/), 'the master switch sits above the replace switches');
 });
 
 test('the walk-through goes site by site with next/back/skip, says what is replaced and the trade-off, and shows nowhere else', () => {

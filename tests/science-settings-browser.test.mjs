@@ -55,17 +55,17 @@ test('science settings apply, persist and run exact local tools in the real app'
   await page.getByRole('button', { name: 'Verify identity', exact: true }).click();
   await page.getByText('The expansions differ: this is not an identity.', { exact: true }).waitFor();
   await page.screenshot({ path: join(out, 'desktop.png') });
-  await page.getByRole('checkbox', { name: 'Enable chemical balancing', exact: true }).uncheck();
+  await page.getByRole('checkbox', { name: /Show chemical balancing tool on this page/ }).uncheck();
   assert.equal(await page.getByRole('button', { name: 'Balance equation', exact: true }).count(), 0);
   await page.reload(); await page.locator('[data-usage="nav.settings"]').click(); await open();
   assert.equal((await page.getByRole('combobox', { name: 'Formula size', exact: true }).textContent()).trim(), '150%');
-  assert.equal(await page.getByRole('checkbox', { name: 'Enable chemical balancing', exact: true }).isChecked(), false);
+  assert.equal(await page.getByRole('checkbox', { name: /Show chemical balancing tool on this page/ }).isChecked(), false);
   await page.setViewportSize({ width: 390, height: 900 });
   assert.ok(await page.locator('.science-settings').evaluate(el => el.scrollWidth <= el.clientWidth + 1));
   await page.screenshot({ path: join(out, 'mobile.png') });
   await page.locator('.science-settings').getByRole('button', { name: 'Reset', exact: true }).click();
   assert.equal((await page.getByRole('combobox', { name: 'Formula size', exact: true }).textContent()).trim(), '100%');
-  assert.equal(await page.getByRole('checkbox', { name: 'Enable chemical balancing', exact: true }).isChecked(), true);
+  assert.equal(await page.getByRole('checkbox', { name: /Show chemical balancing tool on this page/ }).isChecked(), true);
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.getByRole('button', { name: 'Study library', exact: true }).click();
   // No published deck yet: dismiss the first-run line if shown and open the folded drafts section (3.6 D2).

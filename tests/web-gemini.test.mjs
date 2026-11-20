@@ -342,13 +342,13 @@ test('WebGeminiSection and ModelPane render controls in zh and en without untran
   };
 
   const zh = render(h(m.WebGeminiSection, { initialStatus: status }), 'zh');
-  assert.match(zh, /网页 Gemini 代理（ask-gemini-mcp）/);
+  assert.match(zh, /网页 Gemini 代理/);
   assert.match(zh, /手动测试连通与回答/);
   assert.match(zh, /name="webGeminiWaitSeconds"[^>]*value="600"/);
   assert.match(zh, /role="switch"/);
 
   const en = render(h(m.WebGeminiSection, { initialStatus: status }), 'en');
-  assert.match(en, /Web Gemini bridge \(ask-gemini-mcp\)/);
+  assert.match(en, /Web Gemini bridge/);
   assert.match(en, /Test connection &amp; answer/);
   assert.doesNotMatch(en.replace(/<[^>]+>/g, ' '), han, 'English rendering has zero Han characters');
 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
-import { Badge, Button, Field, Hint, ProviderCard, SecretKeyForm, Select, StepList, TextInput } from '../components/index.js';
+import { Badge, Button, Field, Hint, InlineMessage, ProviderCard, SecretKeyForm, Select, StepList, TextInput } from '../components/index.js';
 import { MODEL_PRESETS, presetById, presetOf } from './presets.js';
 
 const RESULT_TEXT = (result) => {
@@ -128,6 +128,11 @@ export default function DesktopOpenAiForm({ openai, active, actions, working, co
         )}
       </form>
       <span className="sh-field__label" aria-hidden="true">{ui('API Key')}</span>
+      {state.incomplete && (
+        <InlineMessage tone="info" data-desktop-openai-incomplete="">
+          {ui('先填好上面的接口地址和模型，再保存 API Key。')}
+        </InlineMessage>
+      )}
       <SecretKeyForm name="desktop-openai-key" label={ui('API Key')} placeholder={ui('粘贴服务商的 API Key')}
         saved={state.savedKey} verifyLabel={ui('测试')} saveLabel={ui('保存并测试')} resultText={RESULT_TEXT}
         busy={Boolean(working) || state.incomplete}

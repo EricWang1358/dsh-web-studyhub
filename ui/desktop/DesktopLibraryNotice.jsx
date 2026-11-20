@@ -28,6 +28,9 @@ export default function DesktopLibraryNotice({ binding }) {
           {problemText}
         </InlineMessage>
       )}
+      <Hint data-desktop-library-move="">
+        {ui('换文件夹不会搬动已有内容；要搬，先退出 StudyHub，把整个文件夹移到新位置，再回来选它。')}
+      </Hint>
       <Hint>
         {ui('想接着用 DSH 插件里的学习库，选那个工作区文件夹就行；两边通过文件锁共用同一份资料与题库。如需同时运行，建议避开两边同时执行批量写入。')}
       </Hint>

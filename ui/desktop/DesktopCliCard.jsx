@@ -90,7 +90,8 @@ function CliControls({ provider, draft, setDraft, locked }) {
             onChange={(event) => setDraft({ ...draft, model: event.target.value })} />
         )}
       </Field>
-      <Field label={ui('推理强度（可选）')} width="full">
+      <Field label={ui('推理强度（可选）')} width="full"
+        hint={ui('档位越高思考越深，速度越慢、耗额度也越多；日常用 CLI 默认即可。')}>
         <Select value={draft.effort} disabled={locked}
           options={EFFORT_OPTIONS.map((item) => ({ value: item.value, label: ui(item.label) }))}
           onChange={(value) => setDraft({ ...draft, effort: value })} />
@@ -117,6 +118,7 @@ function CliActionBar({ providerId, active, dirty, working, onActivate, onTest, 
   return (
     <div className="desktop-model__actions">
       <Button variant={active && !dirty ? 'secondary' : 'primary'} busy={working === saveTag}
+        disabled={active && !dirty}
         lock={locked && working !== saveTag} onClick={onActivate}>
         {activateLabel}
       </Button>
