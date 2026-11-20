@@ -52,3 +52,15 @@ test('a coverage run written in one pass teaches the staged calibration nothing;
   assert.equal(slow.status, 'complete', slow.stage);
   assert.equal((await runs()).length, 1, 'the staged run recorded its first round');
 });
+
+// Gate N2 (round 2): what decides is how the round was WRITTEN, not what the setting says. A round of a one-pass run that has no section to write in one pass (a top-up
+// whose parts are all targets written again, which stay staged parts: lib/batch.js) is written by the staged pipeline, and teaches the staged calibration as staged.
+test('a round is written in one pass only when it has sections to write that way: a round of only targets written again is staged', async () => {
+  const { roundInOnePass } = await import('../lib/one-pass/route.js');
+  const request = { kind: 'quiz', performance: { strategy: 'one-pass' } }, assignments = [{ key: 's1', sectionId: 's1', sourceId: 'doc', start: 0, end: 100, quota: 2 }];
+  assert.equal(roundInOnePass(request, assignments), true);
+  assert.equal(roundInOnePass(request, []), false, 'only targets written again: staged');
+  assert.equal(roundInOnePass(request, undefined), false);
+  assert.equal(roundInOnePass({ ...request, performance: { strategy: 'staged' } }, assignments), false);
+  assert.equal(roundInOnePass({ ...request, kind: 'flashcard' }, assignments), false);
+});
