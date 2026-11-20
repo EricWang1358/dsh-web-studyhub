@@ -6,13 +6,14 @@ import { requestData } from './request-data.mjs';
    as many cards as its quota, each quoting a different sentence of that section; a rewrite evens the options; a review passes every card. Each answer can be
    replaced per test (`write`, `rewrite`, `review`), and every call is kept in `calls` with the stage it was, its data and its context. */
 
-const sentencesOf = text => String(text).split(/(?<=\.)\s+/).map(item => item.trim()).filter(item => item.length >= 20 && !item.startsWith('#'));
+// The sentences of a text, one line at a time; a heading line ("## …", "【…】", "[…]") is not a sentence.
+const sentencesOf = text => String(text).split(/(?<=\.)\s+|\n+/).map(item => item.trim()).filter(item => item.length >= 20 && !/^[#【[]/.test(item));
 const EVEN = ['It keeps the value below the stated limit', 'It doubles the value at every single step', 'It resets the value when a reading fails', 'It ignores the value until the week ends'];
 
 /** The card a write call returns for sentence `quote` of section `label` (the `n`-th card of the reply): four options of equal length, the first correct. */
 export function cardFor(label, quote, n) {
   return { section: label, topic: `Limits ${label}`, objective: `Apply rule ${n} of ${label}: ${quote.slice(0, 40)}`, quote,
-    prompt: `A technician checks reading ${n} in section ${label}. Which statement describes what must happen?`, hint: 'Compare each option with the rule for that reading.',
+    prompt: `A technician checks reading ${n} in section ${label} against the rule of ${quote.slice(0, 40)}. Which statement describes what must happen?`, hint: 'Compare each option with the rule for that reading.',
     options: EVEN.map((text, index) => ({ text, correct: index === 0, explanation: index === 0 ? 'The rule sets exactly this limit for the reading.' : 'A common confusion with another rule.' })),
     explanation: 'The rule caps the reading below its limit, so the value must stay under it; the other options describe behaviour the rule never states. Reusable rule: read the limit first, then compare.',
     misconception: 'Thinking the rule changes the value instead of capping it.' };
