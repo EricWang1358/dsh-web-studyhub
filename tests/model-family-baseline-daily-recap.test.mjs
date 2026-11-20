@@ -53,6 +53,7 @@ test('a generation superseded by a course change is not the one that writes: its
 
 test('the recap is not a task of the console and has no host child: it runs as one plain model call with only an abort signal, and says so when no model is chosen', async t => {
   const fake = model(); fake.gates.set(0, gate());
+  t.after(() => fake.gates.get(0).release());
   const service = await seeded(t, { complete: fake.complete });
   await answer(service, 10);
   const started = await service.call('note.daily.generate', { course });
@@ -61,7 +62,7 @@ test('the recap is not a task of the console and has no host child: it runs as o
   // signal, and the generation is a row of the 任务 console like every other background job (its note state, note.generation, is unchanged).
   const rows = (await service.call('snapshot', {})).jobs;
   if (SWITCH_MODE === 'runtime') {
-    assert.ok(Object.keys(fake.calls[0].options).includes('signal') && fake.calls[0].options.task === 'assist');
+    assert.ok(Object.keys(fake.calls[0].options).includes('signal') && fake.calls[0].options.task === 'gateway');
     assert.deepEqual(rows.map(job => [job.type, job.status]), [['daily-recap', 'running']]);
   } else {
     assert.deepEqual(Object.keys(fake.calls[0].options), ['signal'], 'no jobId, stage, task or reasoning: lib/index.js sends this to the plain completion');

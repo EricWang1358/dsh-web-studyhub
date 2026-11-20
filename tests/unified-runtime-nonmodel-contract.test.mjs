@@ -58,7 +58,7 @@ test('G-10: a step budget is the per-operation timeout of a non-model task; no j
     return { refs: [] };
   });
   const job = await f.port.submit('persist', {}), end = await f.port.wait(job.jobId);
-  assert.equal(end.status, 'failed'); assert.equal(end.calls[0].status, 'cancelled'); assert.equal(end.calls[0].reason, 'aborted');
+  assert.equal(end.status, 'failed'); assert.equal(end.calls[0].status, 'failed'); assert.equal(end.calls[0].reason, 'call-timeout'); assert.equal(end.calls[0].timeoutSeconds, 1);
   assert.deepEqual((await f.store.load()).requestIntents, [], 'a side-effect-free request leaves nothing that could block a retry');
 });
 

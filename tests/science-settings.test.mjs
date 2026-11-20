@@ -46,8 +46,10 @@ test('text model routes and correction workers omit local image bytes and preser
   await services.complete.spawnCorrection('Answer using evidence', prompt, { stage: 'test' });
   for (const record of records) {
     assert.doesNotMatch(record.prompt, /iVBOR|data:image/);
-    assert.match(record.system, /do not infer/);
-    assert.match(JSON.parse(record.prompt).text, /figure.*omitted/);
+    assert.doesNotMatch(record.system, /do not infer/);
+    assert.match(record.prompt, /do not infer/);
+    const [jsonPart] = record.prompt.split('\nLocal image bytes are omitted.');
+    assert.match(JSON.parse(jsonPart).text, /figure.*omitted.*\$x\^2\$/);
   }
   assert.equal(omitLocalImagePayloads('No image $x$'), 'No image $x$');
 });
