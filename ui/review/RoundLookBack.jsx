@@ -482,7 +482,9 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onOp
               onPickReason={(reasonId) => {
                 const nextReason = reasonsByKey[rKey] === reasonId ? null : reasonId;
                 setReasonsByKey((prev) => toggleRowReason(prev, rKey, reasonId));
-                void persistRowReason(study?.call, row, run.id, nextReason);
+                void persistRowReason(study?.call, row, run.id, nextReason).then((res) => {
+                  if (res?.updated) invalidate("review.lookBack", { runId: run.id });
+                });
               }} />
             {!isVeiled && row.feedback && <CorrectionCard feedback={row.feedback} withRubric={!!row.feedback.rubric && row.card?.kind !== "task"}
               onAck={row.correctionPending && onAck ? () => Promise.resolve(onAck(row)).then(() => invalidate("review.lookBack")) : undefined} />}
