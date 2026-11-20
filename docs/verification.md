@@ -1,5 +1,14 @@
 # Verification — 2026-09-12 (updated 2026-09-13 for 0.3.0/0.4.0)
 
+## 2026-11-21 — v5.2.1 component overhaul gates (offline prompt contract evals & fast NFR gate)
+
+- **Offline Prompt & Skill contract evaluation gate (`node evals/run-contract-evals.mjs`).** Runs 36 deterministic contract cases across 4 suites (`evals/cases/*.json`, 9 cases each: `anti-spoiling-tutor`, `voice-study-pack`, `coach-team-guardrails`, `bilingual-json-latex`) with zero API keys required (`--json` emits a structured pass/fail report for CI). `tests/prompt-contract-evals.test.mjs` pins the suite manifest, 100% deterministic pass rate, standalone CLI execution with cleared provider key variables, guardrail helpers (`detectAnswerLeak`, `auditVoiceTurns`, `auditCircuitBreaker`, `auditCoachCommitPlan`), and the schema validity of `evals/promptfooconfig.yaml` (the optional Promptfoo template for live-provider evaluation).
+- **Fast (`< 2 s`) NFR performance & boot-transition gate (`tests/perf-nfr-fast.test.mjs`).** Kept deliberately outside `tests/slow-tests.json` so it runs on every `npm run test:fast` invocation, whereas the heavier full-library budget suite (`tests/perf-budget.test.mjs`) remains in `tests/slow-tests.json` (`cli`) for `npm test`. `tests/perf-nfr-fast.test.mjs` pins three regression invariants:
+  1. FSRS-6 `retrievabilityAt` hoists `computeDecayFactor` out of the per-card hot loop (`<= 1.1x` `Math.pow` calls across 3,000 overdue cards in `planPath`);
+  2. `createLocator` (`lib/quote-locate.js`) reuses its bounded LRU normalized index and approximate-match cache across 50 repeated snapshot rebuilds on unchanged source text (`< 100 ms` total);
+  3. `useAppStore` (`ui/app/store.js`) stages updated slices synchronously (`stageSlices`) before child mount and flushes subscriber notifications once in `useLayoutEffect` (`flushPending`), preventing stale `data: null` boot renders without mid-render listener notifications.
+- Measured host A/B and Chromium production page-switch benchmarks for `feat/v521-component-overhaul` are recorded in `docs/performance.md` in the repository.
+
 ## 2026-09-30 — 1.4.6 one review and budget checkpoint publication
 
 - User reports implicated both original generation and supplementation, which share `generateBatched`/`generateDeck`. Before the policy change an attributed rejection started repair and a second independent review; the repair prompt also retained the original exact-count instruction. The user selected a single audit policy. RED/GREEN evidence: `output/generation-single-review-red.log`; each part now writes/self-checks then makes one independent review call, with no repair, second audit or refill loop. Explicit later draft repair is a separate action.
