@@ -9,7 +9,7 @@ import { clusteringModel } from './helpers/clustering-model.mjs';
 import { goldenLibrary, pinned } from './helpers/generate-golden.mjs';
 import { settleJob, until } from './helpers/wait.mjs';
 
-const ONE_BY_ONE = { concurrency: 1, batchSize: 4, jobTimeoutMinutes: 20, fillRounds: 0, effortPlanning: 'follow', effortReview: 'follow', effortWriting: 'low', effortRepair: 'low' };
+const ONE_BY_ONE = { concurrency: 1, batchSize: 4, jobTimeoutMinutes: 20, fillRounds: 0, effortPlanning: 'follow', effortReview: 'follow', effortWriting: 'low', effortRepair: 'low', strategy: 'staged' };
 const PLAIN = { kind: 'quiz', count: 4, performance: ONE_BY_ONE };
 const firstDraft = async service => (await service.call('export')).drafts[0];
 const continues = (draft, more = {}) => ({ resumeDraftId: draft.id, draftVersion: draft.draftVersion, performance: ONE_BY_ONE, ...more });

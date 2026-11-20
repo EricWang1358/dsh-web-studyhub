@@ -170,3 +170,26 @@
 - 盲评用的是同一个模型，不是人。我只人工抽看了几道题。
 - 每种配置只跑了一遍，没有重复测量波动。
 - 公式、代码类资料。
+
+## 11. 实现时的决定记录（feat/one-pass-generation）
+
+简报没说到、实现时自己定下的事，按出现顺序记下，供评审逐条否决。
+
+1. **题数沿用现有覆盖计划**（lib/coverage-strength.js 的 assignments），不另立配额。标准档约每万字 6 题（每段 1–6 题），原型按约每 700 字 1 题，所以产品里每段题数比原型少；要改密度，改覆盖强度表，不在一次写完里改。
+2. **出题方式是一项 performance 设置**（`strategy`: `one-pass` | `staged`，默认 `one-pass`，lib/generation-settings.js 校验）。旧草稿续出、旧设置没有这一项时按默认值，即一次写完。
+3. **只有单选题（quiz）走一次写完**；多选、判断、填空、问答、动手任务、闪卡、混合题型、案例题都自动走逐题精出。按题数出题（没有覆盖计划的 assignments）也走逐题精出。补题时重写已失败考点（preplan/reuse 部分）仍由逐题精出写。
+4. **小节只在自身题数超过 12 时切开**，切成连续等长几段、共享题数（`key/1`、`key/2`…）；否则小节从不切开，单独超过 9,000 字的小节自成一份。
+5. **只有一题都没有的小节才单独再问一次**（简报原话）；有题但不够数的小节不再问，直接记为 plan-short 失败部分（与逐题精出 planAssignedGroup 同一记录格式），在覆盖视图里是「计划了但失败」的小节，并在失败原因里写明。
+6. **引文先在模型声称的小节里找**，找不到再在整份资料里找；同一句话出现在几个小节时记在模型说的那个小节。
+7. **改写选项用主出题模型**，不用轻量模型；改写回复读不出来或改得不合格，题照原样，仍偏长就舍去。
+8. **程序自检**：用现有 autofixDeck 填空字段，再逐题跑 cardLocalIssues（结构、题型、依赖原文的题干、答案泄露、公式、语言、选项提示）；有问题直接舍去，不修。
+9. **审阅回复读不出来**（问一次再问一次仍读不出）：这一批题记为 Review protocol failed 舍去；**调用本身失败**（网络、限流重试用尽）：整份失败，补题轮按原样重写这一份。
+10. **一份资料写出的题全部被舍去**：这一部分记为 Quality gate failed 且不在本轮补题轮重写（final）；覆盖计划的下一轮会重新安排这些小节。调用失败才在补题轮重写。
+11. **跨份合并**在所有份写完后、出草稿前做：按归一化的考点和引文，阅读顺序靠前的留下，后面的记为 omitted（原因含 duplicate learning target）。被合并掉的考点在计划记录里是 omitted；若它所在小节没有别的题，这个小节会显示为计划了但失败，之后的补题可能再出它。
+12. **每次调用都经过运行原有的 limitedComplete**（并发、429 退避、暂停、token 上限、时限），stage 写成 `Part k/n · Writing and self-checking questions` / `Reviewing ambiguity and source support` / `Repairing flagged questions within this run`，所以控制台的步骤类型是 author / review / repair；再问一次带 `retry: 1`，单独再问的小节带 `unit: section-Sx`，审阅批次带 `unit: batch-n`。
+13. **所有份在第一份开始前就登记为部分**，控制台从一开始就显示 `Part 1/N`。
+14. **实验性的 Jev 与侧重点难度升级不用于一次写完**。
+15. **token 预估仍按逐题精出计算**（会高估一次写完）；题数预估改为范围：上限是计划题数，下限是上限的 80%（`forecastKeepShare`），只有一次写完的运行显示范围。
+16. **设置放在「高级生成控制」**（现有的更多设置折叠区）的「生成安排」第一项，说明用悬停 Tooltip，不用 `title=`。
+17. **golden 测试固定 `strategy: 'staged'`**（它们测的是逐题精出的行为），fixture 只多了 `strategy` 这一键。其他测逐题精出机制的测试（assigned-batch、plain-failure-exec、reviewed-fingerprint、rounds-isolate-failures）同样固定为 staged。
+18. 所有调参数字在 lib/one-pass/limits.js 一处。
