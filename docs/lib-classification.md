@@ -180,7 +180,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/skeleton-diagrams.js`: contexts library, skeleton; 3 other lib files
 - `lib/skeleton.js`: contexts library, skeleton; 3 other lib files
 - `lib/slay.js`: contexts bank, coach, study; 1 other lib file
-- `lib/solution-exposure.js`: contexts jobs, study; 4 other lib files
+- `lib/solution-exposure.js`: contexts jobs, study; 5 other lib files
 - `lib/source-query.js`: contexts bank, library
 - `lib/study-state.js`: contexts authoring, library, recording, study; 2 other lib files
 - `lib/teaching.js`: contexts library, study; 1 other lib file
