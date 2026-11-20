@@ -175,7 +175,7 @@
 
 简报没说到、实现时自己定下的事，按出现顺序记下，供评审逐条否决。
 
-1. **题数沿用现有覆盖计划**（lib/coverage-strength.js 的 assignments），不另立配额。标准档约每万字 6 题（每段 1–6 题），原型按约每 700 字 1 题，所以产品里每段题数比原型少；要改密度，改覆盖强度表，不在一次写完里改。
+1. **题数沿用现有覆盖计划**（lib/coverage-strength.js 的 assignments），不另立配额。标准档约每万字 6 题（每段 1–6 题），原型按约每 700 字 1 题，所以产品里每段题数比原型少；要改密度，改覆盖强度表，不在一次写完里改。**（已被第 33 条取代：一次写完有自己的密度。）**
 2. **出题方式是一项 performance 设置**（`strategy`: `one-pass` | `staged`，默认 `one-pass`，lib/generation-settings.js 校验）。旧设置没有这一项时按默认值，即一次写完；**续出沿用草稿当时的出题方式**，在这个设置出现之前记录的草稿是逐题精出写的，续出也走逐题精出（改于全量测试之后，见第 22 条）。
 3. **只有单选题（quiz）走一次写完**；多选、判断、填空、问答、动手任务、闪卡、混合题型、案例题都自动走逐题精出。按题数出题（没有覆盖计划的 assignments）也走逐题精出。补题时重写已失败考点（preplan/reuse 部分）仍由逐题精出写。
 4. **小节只在自身题数超过 12 时切开**，切成连续等长几段、共享题数（`key/1`、`key/2`…）；否则小节从不切开，单独超过 9,000 字的小节自成一份。
@@ -183,18 +183,35 @@
 6. **引文先在模型声称的小节里找**，找不到再在整份资料里找；同一句话出现在几个小节时记在模型说的那个小节。
 7. **改写选项用主出题模型**，不用轻量模型；改写回复读不出来或改得不合格，题照原样，仍偏长就舍去。
 8. **程序自检**：用现有 autofixDeck 填空字段，再逐题跑 cardLocalIssues（结构、题型、依赖原文的题干、答案泄露、公式、语言、选项提示）；有问题直接舍去，不修。
-9. **审阅回复读不出来**（问一次再问一次仍读不出）：这一批题记为 Review protocol failed 舍去；**调用本身失败**（网络、限流重试用尽）：整份失败，补题轮按原样重写这一份。
-10. **一份资料写出的题全部被舍去**：这一部分记为 Quality gate failed 且不在本轮补题轮重写（final）；覆盖计划的下一轮会重新安排这些小节。调用失败才在补题轮重写。
-11. **跨份合并**在所有份写完后、出草稿前做：按归一化的考点和引文，阅读顺序靠前的留下，后面的记为 omitted（原因含 duplicate learning target）。被合并掉的考点在计划记录里是 omitted；若它所在小节没有别的题，这个小节会显示为计划了但失败，之后的补题可能再出它。
+9. **审阅回复读不出来**（问一次再问一次仍读不出）：这一批题记为 Review protocol failed 舍去；**调用本身失败**（网络、限流重试用尽）：整份失败，补题轮按原样重写这一份。**（已被第 26 条取代。）**
+10. **一份资料写出的题全部被舍去**：这一部分记为 Quality gate failed 且不在本轮补题轮重写（final）；覆盖计划的下一轮会重新安排这些小节。调用失败才在补题轮重写。**（审阅失败造成的全部舍去见第 27 条。）**
+11. **跨份合并**在所有份写完后、出草稿前做：按归一化的考点和引文，阅读顺序靠前的留下，后面的记为 omitted（原因含 duplicate learning target）。被合并掉的考点在计划记录里是 omitted；若它所在小节没有别的题，这个小节会显示为计划了但失败，之后的补题可能再出它。**（已被第 28、29 条取代。）**
 12. **每次调用都经过运行原有的 limitedComplete**（并发、429 退避、暂停、token 上限、时限），stage 写成 `Part k/n · Writing and self-checking questions` / `Reviewing ambiguity and source support` / `Repairing flagged questions within this run`，所以控制台的步骤类型是 author / review / repair；再问一次带 `retry: 1`，单独再问的小节带 `unit: section-Sx`，审阅批次带 `unit: batch-n`。
 13. **所有份在第一份开始前就登记为部分**，控制台从一开始就显示 `Part 1/N`。
 14. **实验性的 Jev 与侧重点难度升级不用于一次写完**。
-15. **token 预估仍按逐题精出计算**（会高估一次写完）；题数预估改为范围：上限是计划题数，下限是上限的 80%（`forecastKeepShare`），只有一次写完的运行显示范围。
+15. **token 预估仍按逐题精出计算**（会高估一次写完；**已被第 34 条取代**）；题数预估改为范围：上限是计划题数，下限是上限的 80%（`forecastKeepShare`），只有一次写完的运行显示范围。
 16. **设置放在「高级生成控制」**（现有的更多设置折叠区）的「生成安排」第一项，说明用悬停 Tooltip，不用 `title=`。
 17. **golden 测试固定 `strategy: 'staged'`**（它们测的是逐题精出的行为），fixture 只多了 `strategy` 这一键。其他测逐题精出机制的测试（assigned-batch、plain-failure-exec、reviewed-fingerprint、rounds-isolate-failures）同样固定为 staged。
 18. 所有调参数字在 lib/one-pass/limits.js 一处。
 19. **写题提示词默认用情景式（owner 2026-11-21）**：原型 6 的 WHAT TO TEST / HOW TO ASK / EXPLANATION 三段替换第三轮那句「能放进小情景就放进去」。写法的文字只放在 lib/one-pass/write-style.js 一处，按 style 键选（`scenario` 默认，`quick` 是第三轮的原句），`writePrompts(…, { style })` 取用；还没有对应的设置、界面或预设（密度 × 深度的预设留给后续改动）。原型里的「用简体中文写」没有搬过来，仍按请求的内容语言写。
-20. **最后一次「考同一事实」合并调用**（原型 5/6）：程序按考点和引文合并之后，再把全部保留下来的一次写完的题（考点 + 题干）一次发给模型分组，每组按阅读顺序留第一道，其余记为 omitted（原因 `…tests the same fact`）。它是这一轮的一个审阅步骤（stage 为 Reviewing…，`unit: merge`，不属于任何 Part）。少于 2 道题、多于 `sameFactCards`（600）道题、或 token 上限已用完时不调用（避免已完成的运行被预算停止）；回复读不出来时再问一次，仍失败或调用失败就保留全部题，只有运行本身被停止才按停止处理。逐题精出的题不送去合并。
+20. **最后一次「考同一事实」合并调用**（原型 5/6）：程序按考点和引文合并之后，再把全部保留下来的一次写完的题（考点 + 题干）一次发给模型分组，每组按阅读顺序留第一道，其余记为 omitted（原因 `…tests the same fact`）。它是这一轮的一个审阅步骤（stage 为 Reviewing…，`unit: merge`，不属于任何 Part）。少于 2 道题、多于 `sameFactCards`（600）道题、或 token 上限已用完时不调用（避免已完成的运行被预算停止）；回复读不出来时再问一次，仍失败或调用失败就保留全部题，只有运行本身被停止才按停止处理。逐题精出的题不送去合并。**（回复能删多少题的界限见第 24 条。）**
 21. **回复是坏 JSON 时再问一次**（lib/one-pass/reply.js askJson，写题、改写、审阅、合并都用）和**一题都没有的小节单独再问一次**（第 5 条）在这之前已经实现。
-22. **默认改为一次写完后，测逐题精出运行机制的测试固定为 staged**：覆盖运行的轮次、补题轮、暂停/取消、重启、校准、录制的运行语料（coverage-run-exec、generation-run-wiring、generation-run-corpus、generation-calibration、round-asked-keys-exec、honest-run-exec、coverage-run、deck-parts-exec、failed-continue-exec、generation-restart、progress-honest-exec、run-left-exec、coverage-topup、generation-family-baseline-terminals、gen-all-materials-run、small-target-weights、generation-content-language-paths）。它们的模拟模型只会回答逐题精出的提示词，测的也是那条流水线；做法是像学习者一样把库的默认出题方式存成 staged（tests/helpers/staged-strategy.mjs）。**这些运行机制还没有在一次写完下测过**（只在 one-pass-run / one-pass-service 里测了单轮与标准覆盖运行）。
+22. **默认改为一次写完后，测逐题精出运行机制的测试固定为 staged**：覆盖运行的轮次、补题轮、暂停/取消、重启、校准、录制的运行语料（coverage-run-exec、generation-run-wiring、generation-run-corpus、generation-calibration、round-asked-keys-exec、honest-run-exec、coverage-run、deck-parts-exec、failed-continue-exec、generation-restart、progress-honest-exec、run-left-exec、coverage-topup、generation-family-baseline-terminals、gen-all-materials-run、small-target-weights、generation-content-language-paths）。它们的模拟模型只会回答逐题精出的提示词，测的也是那条流水线；做法是像学习者一样把库的默认出题方式存成 staged（tests/helpers/staged-strategy.mjs）。**这些运行机制还没有在一次写完下测过**（只在 one-pass-run / one-pass-service 里测了单轮与标准覆盖运行）。**（第 37 条补上了五项。）**
 23. 一次写完的 lib/one-pass/reply.js 是新的「模型形状调用点」，已登记进 s1-7-legacy-exceptions.json、s6-0-coverage.md 和 s6-7-acceptance.md 的数量（41 行 / 103 处 / exception 83）。
+
+### 评审后的修改（gate review 与 owner 2026-11-21 密度决定）
+
+24. **「考同一事实」合并有界（B1）**：程序只接受同一小节或相邻小节、最多 `sameFactGroup`（3）道题的组；组里有道题找不到所在小节（引文没有已核对的位置）整组不收；一次回复要删的题超过整轮 `sameFactShare`（20%，至少允许删 1 道）就整个不用、全部保留。数字在 lib/one-pass/limits.js。
+25. **合并只在每轮最后做一次模型调用（S5）**：程序按考点和引文的合并在每份资料定稿后、每次保存草稿前都做（保存的是合并后的样子，幂等）；模型的「考同一事实」调用每轮只在最后一次。
+26. **审阅调用失败（S1）**：一批先再审一次（`unit: batch-n-again`），仍失败只舍去这一批，记 `Review call failed after a second try`；所有批次的调用都 allSettled 后才结束这一份，单独再问的小节同样，停止和被拒的 key 等这一份所有调用结束后再抛出。没有哪个调用活得比它所属的部分久。
+27. **一份资料因审阅失败一道题都没留下（S6）**：记为这一份的错误，但不是 final，补题轮会重写这一份；审阅判不合格造成的全部舍去仍是 final 的 Quality gate failed。
+28. **被合并掉的考点算作被留下的那道题覆盖（S4）**：omitted 记录带 `coveredBy`（留下的题的 id），计划记录里这个考点是 kept + coveredBy，覆盖视图里这个小节是已覆盖（lib/coverage.js 的 `merged`），不会再被补题轮或下一轮要题。
+29. 第 28 条对程序合并和模型合并都成立。
+30. **N2–N5**：一次写完的题型只在 `ONE_PASS_KINDS` 一处；文本比较只有 checks.js 的一个 `sameText`；切成几段的小节，各段的缺题记录相加，同一段的后一次记录替换前一次；改写选项不得改变正确选项的位置；草稿记下写它的出题方式（`performance.strategy`），逐题精出写的记 staged。
+31. **出题方式提示（S3）**：设置里的说明不再说「补题仍逐题精出」，改为：其他题型和按题数出题总是逐题精出；已有题组接着做或补题时按它开始时的方式出（早于这个设置的是逐题精出）；补题时重写没通过的题总是逐题精出。
+32. **默认值的迁移（S8）**：保存过 `applySuggestions: true` 又没保存过出题方式的学习库，按逐题精出解析（lib/generation-settings.js normalizeGenerationSettings），直到学习者自己选；保存过的出题方式照旧。更新日志写明默认值变了、一次写完不用哪三项设置、在哪里改回。
+33. **一次写完有自己的密度（owner 2026-11-21）**：覆盖强度表 `STRENGTH` 每档加 `onePassPerTenK`（精简 7、标准 14、完整 23，每万字），逐题精出的 3 / 6 / 10 不变；`densityOf(level, { onePass })` 是唯一的读法。由「这次会用哪种方式写」决定（lib/one-pass/route.js `writesInOnePass`）：计划（plan-seed、first-round）、题数范围、token 预估、覆盖记录、表单的说明和建议题数、深度定制的分批（lib/custom-questions.js）读同一个数。**精简和完整的 7 与 23 是按 3 : 6 : 10 的比例推算的，没有实测。** 每档选哪些小节（share、minChars）和每段题数上下限（标准 1–6）不变。合计 500、同一份资料 400 的上限不变，标准档约 35 万字就会碰到；封顶的计划照旧写明 `capped`、`dropped`（tests/one-pass-density.test.mjs）。题多了以后一份资料常常先碰到 12 道题的上限，资料按字数和题数两条线切份（同一测试）。按题数出题、闪卡、混合题型等仍走逐题精出的运行用逐题精出的密度。
+34. **一次写完自己的 token 预估（S7a）**：每份资料一次写题、每 7 道题一次审阅、每轮一次合并；改写选项（每份最多一次）只算进上限（`withAllowance`，不放大写题调用）。小节单独再问、审阅再审一次不算进次数，归在已有的「重试」说明里。补题里重写已失败考点的部分仍按逐题精出计价。仍按 owner 的「一个数、取上限」显示。
+35. **校准（S2）**：本机的预估校准按阶段 id 学比例，比例来自逐题精出；一次写完的覆盖运行不记录校准（execute.js `teaches`），避免把逐题精出的比例带偏。仍然存在的偏差：已学到的逐题精出比例目前也会套到一次写完的预估上（没有按出题方式分开存）。
+36. **深度定制的调用数**：一次写完时按每 12 道题一次写题、每 7 道一次审阅、每 30 道一轮一次合并估算（lib/custom-estimate.js）。
+37. **一次写完下的运行机制测试（B2，tests/one-pass-run-mechanics.test.mjs）**：写题时暂停、恢复后完成且没有哪一轮或哪一份跑两次；暂停中取消保留已通过的题、记为学习者停止；第 2 轮第 2 份审阅时到达本轮时限：第 1 份保留，这一轮记为 timeout，接着做从下一轮继续（与逐题精出相同：超时那一轮的缺口留给补题轮）；重启后第二个服务恢复为中断，接着做按草稿记录继续用一次写完（即使库的设置已改成逐题精出）；自动补到完整时合并删掉某小节唯一的题，这个小节仍算已覆盖、不再被要题。
