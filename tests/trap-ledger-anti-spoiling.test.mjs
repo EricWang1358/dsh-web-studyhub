@@ -225,6 +225,7 @@ function buildRichFixture() {
       timestamp: '2026-11-19T09:00:00.000Z',
       grade: 4,
       correct: true,
+      feedback: { selected: ['opt-a'] },
       elapsed_ms: 75_000,
       assistance: { used: false },
     },
@@ -336,6 +337,14 @@ test('anti-spoiling security gate: revealed === false strips all answers, correc
     assert.ok(!serialized.includes(canary), `unrevealed scene leaked ${name}`);
   }
   assert.ok(!JSON.stringify(scene.focusObject.options).includes('"correct"'), 'unrevealed options leaked correct marker');
+  // Prior correct attempt & partial-right multi-select attempt must NEVER leak correct option id 'opt-a' via recentAttempts.selected before reveal.
+  const att2 = scene.recentAttempts.find(a => a.id === 'att-2');
+  const att3 = scene.recentAttempts.find(a => a.id === 'att-3');
+  assert.deepEqual(att2?.selected, ['opt-c'], 'partial-right wrong attempt keeps only wrong option IDs');
+  assert.equal(att3?.selected, null, 'prior correct attempt strips selected before reveal');
+  for (const att of scene.recentAttempts) {
+    assert.ok(!(Array.isArray(att.selected) && att.selected.includes('opt-a')), `recentAttempts[${att.id}] leaked correct option id opt-a`);
+  }
   assert.ok(Buffer.byteLength(serialized, 'utf8') <= MAX_SCENE_BYTES, `scene exceeded 4KB: ${Buffer.byteLength(serialized, 'utf8')} bytes`);
 });
 
@@ -480,6 +489,7 @@ test('study.scene.get runtime end-to-end: anti-spoiling -> hint -> explicit rele
   assert.equal(fullScene.focusObject.answer, CANARIES.refAnswer);
   assert.equal(fullScene.focusObject.explanation, CANARIES.explanation);
   assert.equal(fullScene.focusObject.options.find(o => o.id === 'opt-a')?.correct, true);
+  assert.deepEqual(fullScene.recentAttempts.find(a => a.id === 'att-3')?.selected, ['opt-a'], 'prior correct selection unlocked once disclosureTier is full');
   assert.equal(fullScene.trapLedger.full.answerCardConclusion, CANARIES.answerCardConclusion);
   assert.equal(fullScene.trapLedger.full.qaAnswers.length, 2);
   assert.equal(fullScene.assistanceReceipt?.recorded, true);
