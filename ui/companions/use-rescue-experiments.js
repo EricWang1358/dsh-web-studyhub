@@ -99,13 +99,14 @@ export function useRescueExperiments({ call, onCompleted, failMessage } = {}) {
 
   usePolling(poll, { intervalMs: 1500, enabled: running.length > 0 });
 
-  const start = useCallback(async (key, { course = '', deckId = '', cardIds = [], hid = '', topic = '' } = {}) => {
+  const start = useCallback(async (key, { course = '', deckId = '', cardIds = [], hid = '', topic = '', errorReason = '' } = {}) => {
     if (!key || startingRef.current.has(key)) return null;
     startingRef.current.add(key);
     const cleanCourse = String(course || '').trim();
     const cleanDeck = String(deckId || '').trim();
     const cleanHid = String(hid || '').trim();
     const cleanTopic = String(topic || '').trim();
+    const cleanReason = String(errorReason || '').trim();
     const cleanCardIds = Array.isArray(cardIds) ? [...new Set(cardIds.filter(Boolean))].slice(0, 4) : [];
     setJobs((prev) => ({
       ...prev,
@@ -119,6 +120,7 @@ export function useRescueExperiments({ call, onCompleted, failMessage } = {}) {
         ...(cleanCardIds.length ? { cardIds: cleanCardIds } : {}),
         ...(cleanHid ? { hid: cleanHid } : {}),
         ...(cleanTopic ? { topic: cleanTopic } : {}),
+        ...(cleanReason ? { errorReason: cleanReason } : {}),
         language: getUiLanguage(),
       });
       if (!started?.jobId) {

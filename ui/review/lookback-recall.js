@@ -102,7 +102,11 @@ export function resolveRowTriage(row, activeReasonId = '') {
   const byReason = row.triageByReason && typeof row.triageByReason === 'object' ? row.triageByReason : null;
   if (byReason) {
     if (reason && byReason[reason]) return byReason[reason];
-    if (!reason && byReason.default) return byReason.default;
+    if (!reason) {
+      const persisted = typeof row.errorReason === 'string' ? row.errorReason.trim() : '';
+      if (persisted && !reasonLabelOf(persisted) && row.triage && typeof row.triage === 'object') return row.triage;
+      if (byReason.default) return byReason.default;
+    }
   }
   if (row.triage && typeof row.triage === 'object') {
     if (reason === 'slip') return { route: 'fsrs_only', reason: 'slip', source: 'explicit', tokens: 'zero' };
