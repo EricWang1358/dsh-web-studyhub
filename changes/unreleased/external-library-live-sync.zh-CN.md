@@ -1,0 +1,1 @@
+- **外部修改 `.dsh-study` 学习库时自动侦测并实时推送界面刷新。** StudyHub 桌面版（通过本地服务 SSE 事件流）与 DSH 插件版现已持续侦测 `.dsh-study` 清单版本变化：当另一端（如 DSH、桌面版或 `scripts/study-cli.mjs` 外部 CLI）提交改动后，界面会自动同步最新题组、掌握度与复习记录，无需手动刷新。未验证：在打包后的真实双端同时高并发写入的实机体感（已通过 `tests/library-external-sync.test.mjs` 自动化同步集成测试验证）。

@@ -5,7 +5,7 @@ English · [简体中文](generation-agents-sidebar.zh-CN.md)
 StudyHub runs model work in the background, so you can keep practising or chatting while it works. Background tasks include:
 
 - generating a deck with **Generate from sources** or **Add questions from sources**, and **Send for background repair** on a draft;
-- **Help me understand**, **Improve question**, making a new question from a Q&A, and rubric grading of an open answer;
+- **Help me understand**, **Improve question**, **Fill terms**, making a new question from a Q&A, and rubric grading of an open answer;
 - correcting earlier sentences of a **Live class** transcript.
 
 This page shows where to follow these tasks, what each one saves, and what to do when one fails.
@@ -79,6 +79,7 @@ These actions start a background assistant for the current question:
 | **Improve question** | A button under the question | An edit to the question. The old version stays in the question's history, and you can undo the change. The box offers common problems and your own saved phrases. |
 | **Make a prerequisite question** | **More** menu | One new flashcard about a knowledge point you type, as a prerequisite of this question or as a separate question. |
 | **Make a prerequisite question** / **Make a separate question** | Under a saved Q&A | One new flashcard built from that Q&A. See [Follow-up questions](followup.md). |
+| **Fill terms** | Term bar while practising or viewing answers | Runs as a **Jobs** console task (preferring a bounded tool-less DSH subagent and falling back automatically) with live output, stop control, and an **Open deck** action on completion. |
 
 How these tasks behave:
 
