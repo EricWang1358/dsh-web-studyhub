@@ -18,14 +18,16 @@ const KIND_LABEL = { transcribe: '转写', proofread: '校对', translate: '翻�
   index: '写入检索索引' };
 /** The review book's review and repair are of explanations, not questions: their calls say so (their stage label is exactly the word). */
 const STAGE_LABEL = { review: '审阅讲解', repair: '修复讲解', place: '概念归位',
-  taxonomy: '归纳主题目录', 'classify-batch': '按内容整理分类', 'organize-batch': '整理课程归属' };
+  taxonomy: '归纳主题目录', 'classify-batch': '按内容整理分类', 'organize-batch': '整理课程归属',
+  terms: '补齐生词', 'terms-repair': '修复补词格式' };
 
 /** The calls each kind of audio job can make, in the order the work goes: what its timeline legend may name. A task of the original path is one kind for all of them. */
 const AUDIO_CALLS = { 'audio-subtitles': ['proofread', 'translate'], 'audio-review': ['proofread'], 'audio-live-save': ['proofread', 'translate'], 'audio-live-correction': ['live.correct'] };
 export const audioCallKinds = (contractKind) => AUDIO_CALLS[contractKind] || ['transcribe', 'proofread', 'translate'];
 const LEGEND = { generation: ['plan', 'author', 'review', 'repair'], coach: ['prep'], 'course-book-build': ['inventory', 'outline', 'write', 'review', 'repair'],
   'course-outline-build': ['inventory', 'outline'], 'companion-lesson-build': ['plan', 'author', 'repair'],
-  'material-classify': ['taxonomy', 'classify-batch', 'other'], 'material-organize': ['organize-batch', 'other'] };
+  'material-classify': ['taxonomy', 'classify-batch', 'other'], 'material-organize': ['organize-batch', 'other'],
+  assist: ['other', 'repair'] };
 const LEGEND_LABEL = { plan: '规划', author: '出题', review: '审阅', repair: '修复', prep: '备题', inventory: '清点', outline: '归纳', write: '写',
   taxonomy: '归纳', 'classify-batch': '分类', 'organize-batch': '归属', other: '调用' };
 /** The legend of the parallel timeline for a family of tasks (and, for audio, for the kind): [[call kind, label]]. */

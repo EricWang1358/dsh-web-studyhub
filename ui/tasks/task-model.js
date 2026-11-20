@@ -27,7 +27,7 @@ export function contractOf(job) {
 
 const KINDS = { ...Object.fromEntries(AUDIO_JOB_TYPES.map((type) => [type, 'audio'])), 'pdf-convert': 'pdf', translation: 'translation', generation: 'generation', supplement: 'supplement',
   'draft-repair': 'repair', 'draft-publish': 'publish', 'coach-daily': 'coach', 'companion-lesson-build': 'companion',
-  'material-classify': 'material-classify', 'material-organize': 'material-organize' };
+  'material-classify': 'material-classify', 'material-organize': 'material-organize', assist: 'assist' };
 /**
  * The kind of a job, for its label and for the job-type section of the detail pane.
  * @param {SnapshotJob} job

@@ -647,5 +647,10 @@
   "执行步骤": "Execution steps",
   "查看后台助手：{0}": "View background assistant: {0}",
   "查看分类建议": "View category suggestions",
-  "查看归属建议": "View course suggestions"
+  "查看归属建议": "View course suggestions",
+  "后台助教": "Background assistant",
+  "补齐生词": "Fill in terms",
+  "正在补齐生词": "Filling in unfamiliar terms",
+  "正在修复补词格式": "Repairing term-ladder format",
+  "修复补词格式": "Repair term-ladder format"
 }
