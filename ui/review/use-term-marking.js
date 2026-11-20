@@ -60,6 +60,13 @@ const EXCLUDED_SELECTOR = [
 
 const BLOCK_SELECTOR = "p, li, h1, h2, h3, h4, h5, h6, div, blockquote, dd, dt, td, th, button.option, article, section";
 const ASCII_WORD_CHAR = /[A-Za-z0-9_]/;
+const ELEMENT_NODE_TYPE = typeof Node !== "undefined" ? Node.ELEMENT_NODE : 1;
+const TEXT_NODE_TYPE = typeof Node !== "undefined" ? Node.TEXT_NODE : 3;
+const SHOW_ELEMENT_MASK = typeof NodeFilter !== "undefined" ? NodeFilter.SHOW_ELEMENT : 1;
+const SHOW_TEXT_MASK = typeof NodeFilter !== "undefined" ? NodeFilter.SHOW_TEXT : 4;
+const FILTER_ACCEPT = typeof NodeFilter !== "undefined" ? NodeFilter.FILTER_ACCEPT : 1;
+const FILTER_REJECT = typeof NodeFilter !== "undefined" ? NodeFilter.FILTER_REJECT : 2;
+const FILTER_SKIP = typeof NodeFilter !== "undefined" ? NodeFilter.FILTER_SKIP : 3;
 
 function supportsHighlights() {
   return typeof CSS !== "undefined" && !!CSS.highlights && typeof Highlight === "function";
@@ -86,32 +93,74 @@ function isAllowedTextNode(node, body) {
   return !!parent && !isExcludedElement(parent, body);
 }
 
-function collectBlockSegments(body) {
+export function collectBlockSegments(body, doc = body?.ownerDocument) {
+  if (!body) return [];
   const segments = [];
   let current = null;
   const flush = () => {
     if (current && current.text) segments.push(current);
     current = null;
   };
+  const appendText = (node) => {
+    if (!node.data) return;
+    if (!current) current = { text: "", runs: [] };
+    const textStart = current.text.length;
+    current.text += node.data;
+    current.runs.push({ node, textStart, textEnd: current.text.length });
+  };
+
+  if (typeof doc?.createTreeWalker === "function") {
+    const openBlocks = [];
+    const walker = doc.createTreeWalker(body, SHOW_ELEMENT_MASK | SHOW_TEXT_MASK, {
+      acceptNode(node) {
+        if (node.nodeType === TEXT_NODE_TYPE) {
+          return node.data ? FILTER_ACCEPT : FILTER_SKIP;
+        }
+        if (node.nodeType !== ELEMENT_NODE_TYPE) return FILTER_SKIP;
+        const tag = String(node.tagName || "").toUpperCase();
+        if (node !== body && (node.matches?.(EXCLUDED_SELECTOR) || (tag === "DETAILS" && !node.open))) {
+          flush();
+          return FILTER_REJECT;
+        }
+        if (tag === "BR") return FILTER_ACCEPT;
+        if (node !== body && node.matches?.(BLOCK_SELECTOR)) return FILTER_ACCEPT;
+        return FILTER_SKIP;
+      },
+    });
+    for (let node; (node = walker.nextNode()); ) {
+      while (openBlocks.length && !openBlocks[openBlocks.length - 1].contains(node)) {
+        openBlocks.pop();
+        flush();
+      }
+      if (node.nodeType === ELEMENT_NODE_TYPE) {
+        flush();
+        if (String(node.tagName || "").toUpperCase() !== "BR") {
+          openBlocks.push(node);
+        }
+        continue;
+      }
+      appendText(node);
+    }
+    flush();
+    return segments;
+  }
+
   const walk = (node) => {
-    if (node.nodeType === Node.TEXT_NODE) {
-      if (!node.data) return;
-      if (!current) current = { text: "", runs: [] };
-      const textStart = current.text.length;
-      current.text += node.data;
-      current.runs.push({ node, textStart, textEnd: current.text.length });
+    if (node.nodeType === TEXT_NODE_TYPE) {
+      appendText(node);
       return;
     }
-    if (node.nodeType !== Node.ELEMENT_NODE) return;
+    if (node.nodeType !== ELEMENT_NODE_TYPE) return;
+    const tag = String(node.tagName || "").toUpperCase();
     if (node !== body && node.matches?.(EXCLUDED_SELECTOR)) {
       flush();
       return;
     }
-    if (node.tagName === "DETAILS" && !node.open) {
+    if (tag === "DETAILS" && !node.open) {
       flush();
       return;
     }
-    if (node.tagName === "BR") {
+    if (tag === "BR") {
       flush();
       return;
     }
@@ -154,16 +203,15 @@ function spanSlicesForMatch(runs, matchStart, matchEnd, term) {
   return slices;
 }
 
-function collectHighlightEntries(doc, body, terms, { caseInsensitive = false } = {}) {
-  if (!doc || !body || !terms.length) return { ranges: [], spans: [] };
-  const segments = collectBlockSegments(body);
+function matchTermsInSegments(doc, segments, terms, { caseInsensitive = false } = {}) {
+  if (!doc || !segments.length || !terms.length) return { ranges: [], spans: [] };
   const ranges = [];
   const spans = [];
   for (const term of terms) {
     if (!term) continue;
     const needle = caseInsensitive ? term.toLowerCase() : term;
     for (const seg of segments) {
-      const haystack = caseInsensitive ? seg.text.toLowerCase() : seg.text;
+      const haystack = caseInsensitive ? (seg.lowerText ??= seg.text.toLowerCase()) : seg.text;
       let from = 0;
       while (from <= haystack.length - needle.length) {
         const at = haystack.indexOf(needle, from);
@@ -183,6 +231,20 @@ function collectHighlightEntries(doc, body, terms, { caseInsensitive = false } =
     }
   }
   return { ranges, spans };
+}
+
+/** Collect active, seen-unknown, and candidate term highlights from a single DOM TreeWalker scan. */
+export function collectAllHighlightEntries(doc, body, { activeTerms = [], seenTerms = [], candidateTerms = [] } = {}) {
+  const empty = () => ({ ranges: [], spans: [] });
+  if (!doc || !body || (!activeTerms.length && !seenTerms.length && !candidateTerms.length)) {
+    return { active: empty(), seen: empty(), cand: empty() };
+  }
+  const segments = collectBlockSegments(body, doc);
+  return {
+    active: activeTerms.length ? matchTermsInSegments(doc, segments, activeTerms) : empty(),
+    seen: seenTerms.length ? matchTermsInSegments(doc, segments, seenTerms, { caseInsensitive: true }) : empty(),
+    cand: candidateTerms.length ? matchTermsInSegments(doc, segments, candidateTerms, { caseInsensitive: true }) : empty(),
+  };
 }
 
 function caretAt(doc, x, y) {
@@ -805,13 +867,11 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
     }
 
     const sync = () => {
-      const active = terms.length ? collectHighlightEntries(body.ownerDocument, body, terms) : { ranges: [], spans: [] };
-      const seen = seenUnknownTerms.length
-        ? collectHighlightEntries(body.ownerDocument, body, seenUnknownTerms, { caseInsensitive: true })
-        : { ranges: [], spans: [] };
-      const cand = candidateTerms.length
-        ? collectHighlightEntries(body.ownerDocument, body, candidateTerms, { caseInsensitive: true })
-        : { ranges: [], spans: [] };
+      const { active, seen, cand } = collectAllHighlightEntries(body.ownerDocument, body, {
+        activeTerms: terms,
+        seenTerms: seenUnknownTerms,
+        candidateTerms,
+      });
       activeSpansRef.current = active.spans;
       seenSpansRef.current = seen.spans;
       candidateSpansRef.current = cand.spans;

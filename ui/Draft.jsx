@@ -43,6 +43,52 @@ import { useSimilarQuestions } from "./draft-similar.js";
    parseDraft 同时被恢复暂存的 JSON 校验使用。 */
 /** A draft of more questions than this draws its questions in chunks of this many (ChunkedRows); a question is a fold with its whole editor inside, so a chunk is smaller than a list's. */
 const DRAFT_CHUNK = 80;
+const DIRTY_RECONCILE_MS = 250;
+
+/**
+ * Tracks whether a draft has unsaved changes without running synchronous full-object `JSON.stringify` on every keystroke.
+ * - On initial load or baseline change (`draftLoaded` / `draft.id`), runs one exact comparison.
+ * - On form edits (`draft` reference changes), sets an immediate optimistic dirty flag and debounces exact reconciliation
+ *   so reverting an edit back to the saved state clears the dirty flag without blocking typing.
+ * - In JSON mode, memoizes the formatted baseline once per `draft` reference so typing in the textarea never re-stringifies.
+ */
+export function useDraftDirty({ draft, draftLoaded, draftText, jsonMode, debounceMs = DIRTY_RECONCILE_MS }) {
+  const draftPretty = React.useMemo(
+    () => (jsonMode ? JSON.stringify(draft, null, 2) : null),
+    [jsonMode, draft],
+  );
+  const jsonDirty = Boolean(jsonMode && draftText !== draftPretty);
+
+  const baselineRef = React.useRef({ draftLoaded: undefined, draftId: undefined, draft: undefined, dirty: false });
+  const [reconciled, setReconciled] = React.useState(null);
+
+  const baselineChanged = baselineRef.current.draftLoaded !== draftLoaded || baselineRef.current.draftId !== draft?.id;
+  let formDirty;
+  let needsReconcile = false;
+  if (baselineChanged) {
+    formDirty = JSON.stringify(draft) !== draftLoaded;
+    baselineRef.current = { draftLoaded, draftId: draft?.id, draft, dirty: formDirty };
+  } else if (draft === baselineRef.current.draft) {
+    formDirty = baselineRef.current.dirty;
+  } else if (reconciled && reconciled.draft === draft && reconciled.draftLoaded === draftLoaded) {
+    formDirty = reconciled.dirty;
+  } else {
+    formDirty = true;
+    needsReconcile = true;
+  }
+
+  React.useEffect(() => {
+    if (!needsReconcile) return undefined;
+    const timer = setTimeout(() => {
+      const dirty = JSON.stringify(draft) !== draftLoaded;
+      baselineRef.current = { draftLoaded, draftId: draft?.id, draft, dirty };
+      setReconciled({ draft, draftLoaded, dirty });
+    }, debounceMs);
+    return () => clearTimeout(timer);
+  }, [needsReconcile, draft, draftLoaded, debounceMs]);
+
+  return formDirty || jsonDirty;
+}
 
 /** Sorted 0-based indices of draft cards with quality issues or rejection notes. */
 export function collectFlaggedCardIndices(draft) {
@@ -173,8 +219,7 @@ export default function Draft({
   // Behind the library, not merely different: right after a save the page is AHEAD of the snapshot until it refreshes, and loading that older copy would put the learner's edit back.
   const staleDraft = !!latestDraft && Number(latestDraft.draftVersion) > (Number(draft.draftVersion) || 0);
   const updatingDraft = generating || repairRunning || !!publishJob || !!work;
-  const unsavedDraft = JSON.stringify(draft) !== draftLoaded ||
-    (jsonMode && draftText !== JSON.stringify(draft, null, 2));
+  const unsavedDraft = useDraftDirty({ draft, draftLoaded, draftText, jsonMode });
   // 覆盖: which sections of the material have a question (the saved draft's own, asked again whenever the library or the draft changes).
   const covered = useCoverage(draft.draftVersion > 0 && !missingDraft ? { draftId: draft.id } : null, { version: `${data.revision}:${draft.draftVersion}` });
   // Questions that are near-duplicates of another one of the same kind, in this draft or the course's decks (#890): asked with the draft, again when it changes.
@@ -200,7 +245,7 @@ export default function Draft({
     try {
       d = jsonMode ? parseDraft(draftText) : draft;
     } catch (e) {
-      toast.error("JSON 格式不正确：" + e.message);
+      toast.error(uiFormat("JSON 格式不正确：{0}", [e.message]));
       return;
     }
     act("draft.save", { deck: d }, openDraft);
@@ -693,7 +738,7 @@ export default function Draft({
           try {
             d = jsonMode ? parseDraft(draftText) : draft;
           } catch (e) {
-            toast.error("JSON 格式不正确：" + e.message);
+            toast.error(uiFormat("JSON 格式不正确：{0}", [e.message]));
             return;
           }
           // The same quick publication as 发布并开始练 on the finished card of a run (ui/app/use-drafts.js).

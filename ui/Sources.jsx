@@ -255,6 +255,14 @@ export function RowMenuItems({ item, onPracticeUrgent, onPractice, onGenerate, o
 }
 
 const sameRelation = (a, b) => a === b || (!!a && !!b && a.role === b.role && a.of === b.of && a.derived === b.derived && a.count === b.count);
+const sameCompanionTarget = (a, b) => a === b || (!!a && !!b
+  && a.companionId === b.companionId
+  && a.course === b.course
+  && a.slide === b.slide
+  && a.anchor === b.anchor
+  && a.label === b.label
+  && a.companionTitle === b.companionTitle
+  && a.lessonMode === b.lessonMode);
 /**
  * Below this width of the 资料 page's own column (its content box, not the window: the sidebar may take 212px of it) the page is narrow: a row's facts break in
  * two, its actions take their own line under it, and the header keeps 添加资料 with one 更多 (#1083). This is the one place the width is decided; the page
@@ -269,18 +277,17 @@ const ROW_PROPS = ['item', 'source', 'isNew', 'organizing', 'selected', 'mastery
  * one stable `actions` object that reads the latest state itself.
  */
 export function sourceRowPropsEqual(a, b) {
-  return ROW_PROPS.every(key => a[key] === b[key]) && sameIndexInfo(a.indexInfo, b.indexInfo) && sameRelation(a.relation, b.relation);
+  return ROW_PROPS.every(key => a[key] === b[key])
+    && sameIndexInfo(a.indexInfo, b.indexInfo)
+    && sameRelation(a.relation, b.relation)
+    && sameCompanionTarget(a.companionTarget, b.companionTarget);
 }
 
 /* `slot`: the index badge's place at the end of the status line is kept from the first paint, so a coverage answer that arrives later fills it instead of making the
    row taller (#229). The status line is the row's own line under the title and the facts, as wide as the row: a wide row's actions sit beside the title and the
    facts only, so they never narrow it, and a narrow row's actions take the line after it (ui/sources.css). The badge never competes with the buttons (#1083). */
-const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing, selected, actions, canGenerate, canPractice, canSegment, canRename, mastery, coverage = null, topUp = false, indexInfo = null, canIndex, indexLink = false, slot = false, relation = null, advice = false, retrieval = null, courses, defaultCourse, pinned = false, pinFirst = false, pinLast = false, dragging = false, dropMark = '', custom = null, showExtraCourseBadges = false, folderDrag = false, canMoveFolder = false }) {
+export const DocumentRow = memo(function DocumentRow({ item, source, companionTarget = null, isNew, organizing, selected, actions, canGenerate, canPractice, canSegment, canRename, mastery, coverage = null, topUp = false, indexInfo = null, canIndex, indexLink = false, slot = false, relation = null, advice = false, retrieval = null, courses, defaultCourse, pinned = false, pinFirst = false, pinLast = false, dragging = false, dropMark = '', custom = null, showExtraCourseBadges = false, folderDrag = false, canMoveFolder = false }) {
   const { busy, openModal } = useStudy();
-  const appData = useContext(AppContext)?.data;
-  const companionTarget = !item.archived && source
-    ? resolveSourceCompanionTarget({ source, courses: appData?.courses, sources: appData?.sources })
-    : null;
   const [pagesOpen, setPagesOpen] = useState(false), [editing, setEditing] = useState(false);
   // The open 更多 menu hangs below the row: the row tells its stylesheet, which otherwise clips a row to itself (ui/sources.css).
   const [menuOpen, setMenuOpen] = useState(false);
@@ -410,10 +417,10 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
 
 const removePluginWarning = () => ui('删除资料前请启用题库和学习组件，以检查已保存题目与学习记录的引用');
 
-export function RemoveDialog({ item, onClose, onRemoved }) {
+export function RemoveDialog({ item, onClose, onRemoved, canRemove: canRemoveProp }) {
   const { busy, act } = useStudy();
   const appData = useContext(AppContext)?.data;
-  const canRemove = hasContext(appData, 'bank') && hasContext(appData, 'study');
+  const canRemove = canRemoveProp !== undefined ? Boolean(canRemoveProp) : (hasContext(appData, 'bank') && hasContext(appData, 'study'));
   const blocked = item.usedBy.length > 0 || !item.archived || !canRemove;
   async function confirm() {
     const result = await removeDocument(item, { act });
@@ -434,11 +441,11 @@ export function RemoveDialog({ item, onClose, onRemoved }) {
   );
 }
 
-export function BatchRemoveDialog({ items, onClose, onRemoved }) {
+export function BatchRemoveDialog({ items, onClose, onRemoved, canRemove: canRemoveProp }) {
   const { busy, act } = useStudy();
   const appData = useContext(AppContext)?.data;
-  if (items.length === 1) return <RemoveDialog item={items[0]} onClose={onClose} onRemoved={item => onRemoved([item])} />;
-  const canRemove = hasContext(appData, 'bank') && hasContext(appData, 'study');
+  if (items.length === 1) return <RemoveDialog item={items[0]} onClose={onClose} onRemoved={item => onRemoved([item])} canRemove={canRemoveProp} />;
+  const canRemove = canRemoveProp !== undefined ? Boolean(canRemoveProp) : (hasContext(appData, 'bank') && hasContext(appData, 'study'));
   const cited = items.filter(item => item.usedBy.length > 0);
   const unarchived = items.filter(item => !item.archived);
   const blocked = cited.length > 0 || unarchived.length > 0 || !canRemove;
@@ -953,13 +960,32 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
     offerCache.current = next;
     return next;
   }, [items, data.courses, showArchived]);
+  // Companion deep-link target per row, derived once in the parent with identity stability so DocumentRow never subscribes to AppContext.
+  const companionTargetCache = useRef(new Map());
+  const companionTargets = useMemo(() => {
+    const next = new Map();
+    if (!showArchived) {
+      for (const item of items) {
+        const src = byId.get(item.sourceIds[0]);
+        const target = src
+          ? resolveSourceCompanionTarget({ source: src, courses: data.courses, sources: data.sources })
+          : null;
+        if (!target) continue;
+        const before = companionTargetCache.current.get(item.key);
+        next.set(item.key, before && sameCompanionTarget(before, target) ? before : target);
+      }
+    }
+    companionTargetCache.current = next;
+    return next;
+  }, [items, byId, data.courses, data.sources, showArchived]);
+  const canRemoveSources = hasContext(data, 'bank') && hasContext(data, 'study');
   // A group draws its rows in chunks (ChunkedRows); the rows something goes to are drawn even past the first chunk: the new import, and the 深度定制 button 找功能 looks for.
   // A new course scope, filter query, grouping mode, sort mode or archive toggle starts every group from its first chunk again.
   const chunkKey = `${scope}|${activeTypeScope}|${activeCategoryScope}|${showArchived}|${activeReviewFilter}|${query.trim()}|${groupMode}|${sortBy}`;
   const rowOf = (rows, keys) => rows.findIndex(item => keys.has(item.key));
   const anchorsOf = rows => ({ 'custom-book-row': rowOf(rows, offers) });
   // One row, in a group or in the pinned group (`pin`: where it stands among the pinned rows).
-  const renderRow = (item, pin = {}) => <DocumentRow key={item.key} item={item} source={byId.get(item.sourceIds[0])}
+  const renderRow = (item, pin = {}) => <DocumentRow key={item.key} item={item} source={byId.get(item.sourceIds[0])} companionTarget={companionTargets.get(item.key) ?? null}
     isNew={fresh.has(item.key)} organizing={organizing} selected={selected.includes(item.key)} actions={actions}
     canGenerate={!showArchived && !!onGenerate} canPractice={!showArchived && !!onPractice} canSegment={typeof call === 'function'} canRename={!!renameFor}
     canMoveFolder={!!(act || call)} showExtraCourseBadges={groupMode === 'course'} folderDrag={groupMode === 'folder' && !showArchived}
@@ -1245,9 +1271,9 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
       {renamingFolder && <RenameFolderDialog folder={renamingFolder} onClose={() => setRenamingFolder(null)} />}
       {deletingFolder && <DeleteFolderDialog folder={deletingFolder.folder} count={deletingFolder.count} onClose={() => setDeletingFolder(null)} />}
       {segmenting && <OutlineDialog item={segmenting} onClose={() => setSegmenting(null)} />}
-      {removing && <RemoveDialog item={removing} onClose={closeRemoving}
+      {removing && <RemoveDialog item={removing} canRemove={canRemoveSources} onClose={closeRemoving}
         onRemoved={item => { setRemoving(null); toast.success(uiFormat("已永久删除「{0}」", [displayTitle(item.title)])); }} />}
-      {removingBatch && <BatchRemoveDialog items={removingBatch} onClose={() => setRemovingBatch(null)}
+      {removingBatch && <BatchRemoveDialog items={removingBatch} canRemove={canRemoveSources} onClose={() => setRemovingBatch(null)}
         onRemoved={removed => {
           setRemovingBatch(null);
           finish();
