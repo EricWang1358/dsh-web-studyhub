@@ -7,10 +7,23 @@
     .voice-input { display: grid; gap: var(--space-2); margin-block: var(--space-2); }
     :is(.assist-form, .assist-actions, .retell-panel, .retell-panel__actions, .oral-question) .voice-input { margin-block: 0; }
     .voice-input__row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-    .voice-input__live { color: var(--text-muted); font-size: var(--fs-sm); }
+    .voice-input__live { color: var(--text-muted); font-size: var(--fs-sm); white-space: nowrap; }
+    .voice-input__meter { --voice-level: 0; display: inline-flex; align-items: center; gap: var(--space-1-5); height: var(--space-5); }
+    .voice-input__dot { width: 7px; height: 7px; border-radius: var(--radius-pill); background: var(--bad); animation: voice-dot-pulse 1.4s ease-in-out infinite; }
+    .voice-input__bars { display: inline-flex; align-items: center; gap: var(--space-half); height: 14px; }
+    .voice-input__bar { --voice-bar-weight: 1; width: 2.5px; height: 100%; border-radius: var(--radius-pill); background: var(--ok); transform-origin: center; transform: scaleY(clamp(0.18, calc(0.16 + (var(--voice-level) / 100) * 0.92 * var(--voice-bar-weight)), 1)); transition: transform 90ms linear; }
+    .voice-input__bar:nth-child(1) { --voice-bar-weight: 0.52; }
+    .voice-input__bar:nth-child(2) { --voice-bar-weight: 0.86; }
+    .voice-input__bar:nth-child(3) { --voice-bar-weight: 1; }
+    .voice-input__bar:nth-child(4) { --voice-bar-weight: 0.78; }
+    .voice-input__bar:nth-child(5) { --voice-bar-weight: 0.46; }
     .voice-input[data-phase="recording"] .voice-button { animation: voice-breath 1.6s ease-in-out infinite; }
     .voice-input__setup { display: grid; gap: var(--space-2); justify-items: start; }
-    @media (prefers-reduced-motion: reduce) { .voice-input[data-phase="recording"] .voice-button { animation: none; } }
+    @media (prefers-reduced-motion: reduce) {
+      .voice-input[data-phase="recording"] .voice-button,
+      .voice-input__dot { animation: none; }
+      .voice-input__bar { transition: none; }
+    }
 
     /* While the answer is being graded the box shows what was sent and is not editable. */
     .response-sent { cursor: default; opacity: 0.8; }
@@ -30,3 +43,4 @@
   }
 }
 @keyframes voice-breath { 50% { box-shadow: 0 0 0 4px var(--accent-soft); } }
+@keyframes voice-dot-pulse { 50% { opacity: 0.4; } }

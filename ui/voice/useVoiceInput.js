@@ -27,21 +27,42 @@ export function voiceReadiness(call, again = false) {
 /** Forget the answer, so the next recording asks again (after a setup failure: the settings changed since). */
 export function forgetVoiceReadiness() { readiness = null; }
 
+/** Focus a ref'd text input/textarea without scrolling and place its caret at the end (after a voice transcript fills it). */
+export function focusInputEnd(ref) {
+  const apply = () => {
+    const el = ref?.current;
+    if (!el || el.isConnected === false) return;
+    el.focus?.({ preventScroll: true });
+    const end = el.value?.length ?? 0;
+    el.setSelectionRange?.(end, end);
+  };
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(apply);
+  else apply();
+}
+
 const IDLE = { phase: 'idle', left: VOICE_MAX_SECONDS, error: '', code: '' };
+const WORKLET_ERROR = /failed to load worklet|audioworklet|worklet['’]?s module|unable to load.*worklet|study-pcm|audiocontext.*not allowed/i;
+const WORKLET_ERROR_ZH = '浏览器没能启动录音组件，请刷新页面或换用最新版 Chrome / Edge 后再试。';
+const voiceErrorText = (error) => {
+  const raw = typeof error === 'string' ? error : String(error?.message || error || '');
+  return WORKLET_ERROR.test(raw) ? errorMessage(WORKLET_ERROR_ZH) : errorMessage(error);
+};
 
 export function useVoiceInput({ call, onText, scope = '' }) {
   const [state, setState] = useState(IDLE);
+  const [starting, setStarting] = useState(false);
+  const [level, setLevel] = useState(0);
   const [setup, setSetup] = useState(null);
   const [unavailable, setUnavailable] = useState(false);
   const onTextRef = useRef(onText);
   onTextRef.current = onText;
   const scopeRef = useRef(scope);
   scopeRef.current = scope;
-  const recorder = useRef(null), mounted = useRef(true);
+  const recorder = useRef(null), mounted = useRef(true), startingRef = useRef(false);
   useEffect(() => {
     mounted.current = true;
     voiceReadiness(call).then((status) => { if (mounted.current) setUnavailable(!!status.unavailable); });
-    return () => { mounted.current = false; recorder.current?.cancel(); };
+    return () => { mounted.current = false; startingRef.current = false; recorder.current?.cancel(); };
   }, [call]);
   // Another question while recording: the microphone stops now, not when the learner presses again (ui/voice/mic.js moved()).
   useEffect(() => { void recorder.current?.moved(); }, [scope]);
@@ -52,29 +73,43 @@ export function useVoiceInput({ call, onText, scope = '' }) {
     } catch (error) {
       if (!mounted.current) return;
       if (error?.name === 'AbortError') return; // the learner cancelled
-      if (error?.code === 'AUDIO_SETUP') { forgetVoiceReadiness(); setSetup({ reason: error.reason || 'no-provider' }); setState(IDLE); }
-      else setState((current) => ({ ...current, error: errorMessage(error), code: error?.code || '' }));
+      if (error?.code === 'AUDIO_SETUP') { forgetVoiceReadiness(); setSetup({ reason: error.reason || 'no-provider' }); setLevel(0); setState(IDLE); }
+      else setState((current) => ({ ...current, error: voiceErrorText(error), code: error?.code || '' }));
     }
   }, []);
   const start = useCallback(async () => {
-    if (recorder.current && recorder.current.phase !== 'idle') return;
-    const status = await voiceReadiness(call);
-    if (!mounted.current) return;
-    if (status.unavailable) { setUnavailable(true); return; }
-    if (!status.ready) { setSetup({ reason: status.reason }); return; }
-    setSetup(null);
-    recorder.current = createVoiceRecorder({ call, language: getUiLanguage(), scope: () => scopeRef.current,
-      onState: ({ phase, left, error }) => { if (mounted.current) setState((current) => ({ phase, left, error: error === undefined ? current.error : error ? errorMessage(error) : '', code: error ? current.code : '' })); },
-      onLimit: deliver });
-    try { await recorder.current.start(); } catch { /* the error is in the state already */ }
+    if (startingRef.current || (recorder.current && recorder.current.phase !== 'idle')) return;
+    const startScope = scopeRef.current;
+    startingRef.current = true;
+    setStarting(true);
+    try {
+      const status = await voiceReadiness(call);
+      if (!mounted.current || !startingRef.current || scopeRef.current !== startScope) return;
+      if (status.unavailable) { setUnavailable(true); return; }
+      if (!status.ready) { setSetup({ reason: status.reason }); return; }
+      setSetup(null);
+      recorder.current = createVoiceRecorder({ call, language: getUiLanguage(), scope: () => scopeRef.current,
+        onState: ({ phase, left, error }) => {
+          if (!mounted.current) return;
+          if (phase !== 'recording') setLevel(0);
+          setState((current) => ({ phase, left, error: error === undefined ? current.error : error ? voiceErrorText(error) : '', code: error ? current.code : '' }));
+        },
+        onLevel: (next) => { if (mounted.current) setLevel(next); },
+        onLimit: deliver });
+      try { await recorder.current.start(); } catch { /* the error is in the state already */ }
+      if (!mounted.current || !startingRef.current || scopeRef.current !== startScope) { void recorder.current?.cancel(); return; }
+    } finally {
+      startingRef.current = false;
+      if (mounted.current) setStarting(false);
+    }
   }, [call, deliver]);
   const finish = useCallback(() => (recorder.current?.phase === 'recording' ? deliver(recorder.current.finish()) : undefined), [deliver]);
-  const cancel = useCallback(() => { recorder.current?.cancel(); setState(IDLE); }, []);
-  /** The key and the button: start when idle, send when recording, nothing while sending. */
-  const toggle = useCallback(() => (state.phase === 'recording' ? finish() : state.phase === 'idle' ? start() : undefined), [state.phase, finish, start]);
+  const cancel = useCallback(() => { startingRef.current = false; setStarting(false); setLevel(0); recorder.current?.cancel(); setState(IDLE); }, []);
+  /** The key and the button: start when idle, send when recording, nothing while sending or starting. */
+  const toggle = useCallback(() => (state.phase === 'recording' ? finish() : state.phase === 'idle' && !startingRef.current ? start() : undefined), [state.phase, finish, start]);
   const recheck = useCallback(async () => {
     const status = await voiceReadiness(call, true);
     if (mounted.current && status.ready) setSetup(null);
   }, [call]);
-  return { ...state, setup, unavailable, start, finish, cancel, toggle, recheck, closeSetup: () => setSetup(null), clearError: () => setState(IDLE) };
+  return { ...state, starting, level, setup, unavailable, start, finish, cancel, toggle, recheck, closeSetup: () => setSetup(null), clearError: () => setState(IDLE) };
 }

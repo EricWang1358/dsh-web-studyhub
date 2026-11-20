@@ -1,4 +1,5 @@
 import { captureAudio } from '../live-audio.js';
+import { LiveAudioHealth } from '../live-audio-health.js';
 import { holdAudioCapture } from '../audio-capture-state.js';
 import { uploadInChunks } from '../upload.js';
 import { VOICE_MAX_SECONDS, wavBytes } from './wav.js';
@@ -21,9 +22,10 @@ const repeat = (fn, ms) => {
 };
 
 export function createVoiceRecorder({ call, language, capture = captureAudio, upload = uploadInChunks, maxSeconds = VOICE_MAX_SECONDS,
-  now = () => Date.now(), every = repeat, onState, onLimit, scope = () => '' } = {}) {
+  now = () => Date.now(), every = repeat, onState, onLevel, onLimit, scope = () => '' } = {}) {
   let phase = 'idle', handle = null, chunks = [], startedAt = 0, stopTimer = null, aborted = null, startedIn = '';
   let releaseCaptureGuard = null;
+  const health = onLevel ? new LiveAudioHealth(now) : null;
   const emit = (extra = {}) => onState?.({ phase, left: phase === 'recording' ? Math.max(0, Math.ceil(maxSeconds - (now() - startedAt) / 1000)) : maxSeconds, ...extra });
   const release = async () => {
     releaseCaptureGuard?.();
@@ -32,6 +34,8 @@ export function createVoiceRecorder({ call, language, capture = captureAudio, up
     const current = handle;
     handle = null;
     if (current) await Promise.resolve(current.stop()).catch(() => {});
+    health?.phase('idle');
+    onLevel?.(0);
   };
   const recorder = {
     get phase() { return phase; },
@@ -40,9 +44,15 @@ export function createVoiceRecorder({ call, language, capture = captureAudio, up
       chunks = []; startedAt = now(); phase = 'recording'; startedIn = scope();
       releaseCaptureGuard?.();
       releaseCaptureGuard = holdAudioCapture();
+      health?.phase('running');
       try {
-        handle = await capture('microphone', (buffer) => { if (buffer?.byteLength) chunks.push(new Int16Array(buffer)); },
-          () => { if (phase === 'recording') { void release(); phase = 'idle'; emit({ error: '麦克风断开了，请再录一次' }); } });
+        handle = await capture('microphone', (buffer) => {
+          if (!buffer?.byteLength) return;
+          chunks.push(new Int16Array(buffer));
+          if (health) { health.frame(buffer); onLevel(health.getSnapshot().level); }
+        }, () => {
+          if (phase === 'recording') { void release(); phase = 'idle'; health?.phase('idle'); onLevel?.(0); emit({ error: '麦克风断开了，请再录一次' }); }
+        });
       } catch (error) { phase = 'idle'; await release(); emit({ error }); throw error; }
       emit({ error: '' });
       stopTimer = every(() => {
@@ -74,13 +84,14 @@ export function createVoiceRecorder({ call, language, capture = captureAudio, up
         // Cancelled while the last chunk was on its way: the clip is complete on the server, so it is deleted there now, not left for the daily prune.
         if (signal.aborted) { await Promise.resolve(call('audio.upload.cancel', { uploadId })).catch(() => {}); signal.throwIfAborted(); }
         const result = await call('audio.clip.transcribe', { uploadId, ...(language ? { language } : {}) });
+        if (signal.aborted) signal.throwIfAborted();
         const text = String(result?.text ?? '').trim();
         if (scope() !== startedIn) throw movedAway();
         if (!text) throw new Error('没有听清，请再说一次');
         phase = 'idle'; emit({ error: '' });
         return text;
       } catch (error) {
-        phase = 'idle'; emit({ error });
+        phase = 'idle'; emit({ error: error?.name === 'AbortError' || aborted?.signal?.aborted ? '' : error });
         throw error;
       } finally { aborted = null; }
     },
