@@ -363,7 +363,7 @@ test('desktop without a running parent saves help in the background and sends th
   const task = await f.start();
   assert.equal(task.status, 'running'); assert.equal(task.runtime, 'direct');
   release.resolve(); await until(() => f.task().status !== 'running');
-  assert.equal(f.task().status, 'done'); assert.equal(options.task, 'assist');
+  assert.equal(f.task().status, 'done'); assert.equal(options.task, SWITCH_MODE === 'runtime' ? 'gateway' : 'assist');
   const state = await f.service.store.read();
   assert.equal(state.decks[0].cards[0].followups[0].answer, 'Think of two independent dimensions.');
   assert.equal(state.inbox.at(-1).kind, 'followup');
