@@ -22,6 +22,13 @@ test('invalid TeX escapes in model JSON are doubled so the formula survives; oth
   assert.equal(parseJson(String.raw`{"a":"é \u00e9 \n \" \\ \/"}`).a, 'é é \n " \\ /', 'valid escapes keep their meaning');
 });
 
+test('chemistry and unit macros (\\ce, \\pu, \\textdegree) survive single-backslash model JSON', () => {
+  const chemJson = String.raw`{"p":"$\ce{H2SO4}$ + $\ce{SO4^2-}$ and $\ce{N2 + 3H2 <=> 2NH3}$ at $25\,\textdegree$ with $\pu{9.8 m/s^2}$ and $\degree$"}`;
+  const parsed = parseJson(chemJson);
+  assert.equal(parsed.p, String.raw`$\ce{H2SO4}$ + $\ce{SO4^2-}$ and $\ce{N2 + 3H2 <=> 2NH3}$ at $25\,\textdegree$ with $\pu{9.8 m/s^2}$ and $\degree$`);
+  assert.deepEqual(bareMath('反应物 \\ce{H2SO4} 与 \\pu{10 J}'), ['\\ce', '\\pu']);
+});
+
 test('TeX commands that JSON escapes silently turned into control characters are restored inside math only', () => {
   const single = String.raw`{"p":"$\theta$ $\beta$ $\frac{a}{b}$ $\tau \times \text{x}$ $\nabla f \neq \nu$ $\rho \right) \rightarrow$ $\bar x \binom{n}{k}$"}`;
   const parsed = JSON.parse(single);

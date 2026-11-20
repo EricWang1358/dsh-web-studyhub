@@ -1,4 +1,4 @@
-import { createElement } from 'react';
+import { createElement, memo, useMemo } from 'react';
 
 /* The one place an HTML diagram or interactive companion that StudyHub did not write is put on screen (docs/companions.md, "Threat note").
 
@@ -7,13 +7,16 @@ import { createElement } from 'react';
      page, its storage, its cookies or its DOM, and `parent.document` throws. Without the other flags it cannot navigate the page
      (allow-top-navigation), submit forms, open popups, download, show dialogs or lock the pointer.
    · srcdoc, not a URL of this origin, so nothing is fetched from the app's server and no address leaks.
-   · referrerpolicy="no-referrer" and csp="connect-src 'none' …": it cannot call out with fetch, XHR, WebSocket or beacons (an
-     image or font request is still possible, which is how an offline page with an external font works; it carries nothing of ours).
+   · referrerpolicy="no-referrer", csp="…" AND an injected `<meta http-equiv="Content-Security-Policy">` inside the srcdoc `<head>`
+     so Chromium, Firefox and Safari all enforce the egress policy on inline srcdoc documents (no fetch, XHR, WebSocket or beacons).
    · One small click guard goes at the top of the head: a link that leaves the page is stopped, an in-page #link still works.
      That is for the person looking at the diagram, not a security boundary: the sandbox is the boundary. */
 
 export const FRAME_SANDBOX = 'allow-scripts';
 export const FRAME_CSP = "connect-src 'none'; form-action 'none'; object-src 'none'; base-uri 'none'";
+export const COMPANION_META_CSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; form-action 'none'; object-src 'none'; base-uri 'none'";
+
+const metaCspTag = (policy) => `<meta http-equiv="Content-Security-Policy" content="${policy}">`;
 
 const GUARD = "<script>document.addEventListener('click',function(e){var a=e.target&&e.target.closest&&e.target.closest('a[href]');"
   + "if(a&&!/^#/.test(a.getAttribute('href')||''))e.preventDefault()},true)</script>";
@@ -48,19 +51,29 @@ const UNIVERSAL_COMPANION_SHIM = `<script>(function(){try{`
   + `var cEl=document.getElementById('count');if(cEl){var timer=0;new MutationObserver(function(){clearTimeout(timer);timer=setTimeout(function(){var p=curSlide();post({kind:'progress',slide:p.slide,slideTotal:p.total,completed:p.slide>=p.total});},400);}).observe(cEl,{childList:true,characterData:true,subtree:true});}`
   + `});}catch(e){}})();</script>`;
 
+/**
+ * Serialize JSON safely for embedding inside `<script id="sh-companion-boot" type="application/json">`.
+ * Mirrors `safeJsonForScript` in `lib/companion-template/render-html.js`: standard RFC 8259 `\uXXXX`
+ * escapes so `</script>` and `<!--` never break out of `<script>` or produce invalid JSON escapes.
+ */
 function safeBootJson(value) {
-  return JSON.stringify(value).replace(/<\//g, '<\\/').replace(/<!--/g, '<\\!--');
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
 }
 
 /**
  * The document as it is shown:
- * - Without `companion`, the file is unchanged except for the one click guard right after `<head>` (preserving byte-for-byte Archify framing).
- * - With `companion` (`{ channelToken, theme, initialAnchor, memory, language }`), injects the read-only boot payload and bridge shim,
- *   and strips unresolvable external relative `study-notes.js` script tags.
+ * - Without `companion`, injects the `<meta http-equiv="Content-Security-Policy">` tag and click guard right after `<head>`.
+ * - With `companion` (`{ channelToken, theme, initialAnchor, memory, language }`), injects the strict offline CSP meta tag,
+ *   click guard, read-only boot payload and bridge shim, and strips unresolvable external relative `study-notes.js` script tags.
  */
 export function framedDocument(html, companion) {
   let text = String(html ?? '');
-  let headInsert = GUARD;
+  let headInsert = metaCspTag(FRAME_CSP) + GUARD;
   if (companion && typeof companion === 'object' && companion.channelToken) {
     text = text.replace(/<script\b[^>]*\bsrc=["'][^"']*study-notes\.js["'][^>]*>\s*<\/script>/gi, '');
     const slideNum = Math.floor(Number(companion.initialSlide) || 0);
@@ -77,7 +90,7 @@ export function framedDocument(html, companion) {
       askLabel: typeof companion.askLabel === 'string' && companion.askLabel ? companion.askLabel : '+ Ask / Note',
       selectionLabel: typeof companion.selectionLabel === 'string' && companion.selectionLabel ? companion.selectionLabel : 'Ask about selection',
     })}</script>`;
-    headInsert = GUARD + bootTag + UNIVERSAL_COMPANION_SHIM;
+    headInsert = metaCspTag(COMPANION_META_CSP) + GUARD + bootTag + UNIVERSAL_COMPANION_SHIM;
   }
   for (const opening of [/<head(?:\s[^>]*)?>/i, /<html(?:\s[^>]*)?>/i, /^\s*(?:﻿)?<!doctype[^>]*>/i]) {
     const found = opening.exec(text);
@@ -87,14 +100,15 @@ export function framedDocument(html, companion) {
 }
 
 /** The isolated frame. `title` names it for assistive technology; `className` is for the layout only. */
-export function DiagramFrame({ html, title, className = 'sk-diagram-frame', companion, frameRef }) {
+export const DiagramFrame = memo(function DiagramFrame({ html, title, className = 'sk-diagram-frame', companion, frameRef }) {
+  const srcDoc = useMemo(() => framedDocument(html, companion), [html, companion]);
   return createElement('iframe', {
     ...(frameRef ? { ref: frameRef } : {}),
     className,
     title,
     sandbox: FRAME_SANDBOX,
-    srcDoc: framedDocument(html, companion),
+    srcDoc,
     referrerPolicy: 'no-referrer',
     csp: FRAME_CSP,
   });
-}
+});
