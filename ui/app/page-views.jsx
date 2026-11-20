@@ -221,11 +221,18 @@ function ExamView() {
 }
 
 function WrongBookView() {
-  const { data, core, nav, session, intents, settingsEntry } = useApp();
+  const { data, core, nav, session, learn, intents, settingsEntry } = useApp();
+  const onOpenBook = pageAvailable(data, 'book') ? ({ course: targetCourse, hid, view } = {}) => {
+    const chosen = targetCourse || data.focus?.course || null;
+    learn.rememberContext(learn.captureContext());
+    keepBook(data.root, chosen, { target: hid || null, ...(view ? { view } : {}) });
+    if (targetCourse && targetCourse !== data.focus?.course) void core.act('focus.set', { course: targetCourse });
+    nav.navigate('book');
+  } : undefined;
   return (
     <WrongBook data={data} onPracticePrepared={(args) => core.act('coach.practice', args || {}, session.enterRun)}
       onOpenSettings={settingsEntry.openModelSettings} onPractice={(scope) => intents.practice(scope)} onStart={() => intents.practice(undefined, { fresh: false })}
-      onLibrary={() => nav.navigate('library')} onCreate={() => intents.goGenerate()} onSources={() => nav.navigate('sources')} />
+      onLibrary={() => nav.navigate('library')} onCreate={() => intents.goGenerate()} onSources={() => nav.navigate('sources')} onOpenBook={onOpenBook} />
   );
 }
 
@@ -343,9 +350,9 @@ function BookView() {
   }, [data.root, data.focus?.course, intents, learn]);
   // A mock paper started in the book (M7) is the ordinary exam; its way back is the book.
   const onExamRun = (run) => { learn.rememberContext(learn.captureContext()); session.enterRun(run); };
-  const fromReview = learn.hasTrail && learn.trailPage === 'review';
+  const hasReturnTrail = learn.hasTrail && (learn.trailPage === 'review' || learn.trailPage === 'wrongbook');
   return <BookPage key={`${data.root}:${data.focus?.course}`} data={data} theme={shell.resolvedTheme} onBack={() => nav.navigate('outline')}
-    backLabel={fromReview ? learn.trailLabel : ''} onReturnBack={fromReview ? learn.returnFromContext : undefined}
+    backLabel={hasReturnTrail ? learn.trailLabel : ''} onReturnBack={hasReturnTrail ? learn.returnFromContext : undefined}
     onPractice={onPractice} inlinePractice={inlinePractice} onOpenTask={nav.show.task}
     onCreate={() => intents.goGenerate()} onOpenSource={(id, quote) => learn.openLearningTarget({ kind: 'source', id, quote })} onExamRun={onExamRun}
     onCourseSettings={settingsEntry.setCourseSettings} onBuildIndex={(name) => openIndexBuilder(settingsEntry.openSettings, name)} holdLeave={nav.holdLeave} />;

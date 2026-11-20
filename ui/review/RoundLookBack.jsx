@@ -1,4 +1,4 @@
-import { ui, uiFormat } from "../i18n.js";
+import { ui, uiFormat, errorMessage, getUiLanguage } from "../i18n.js";
 import React from "react";
 import Markdown from "../Markdown.jsx";
 import Cloze from "../Cloze.jsx";
@@ -15,8 +15,11 @@ import { AppContext } from "../app/app-context.js";
 import { useCopyFeedback } from "../use-copy-feedback.js";
 import CorrectionCard from "./CorrectionCard.jsx";
 import { companionSlideButtonLabel, openCompanionTarget, resolveCompanionTarget } from "../companions/companion-ref.js";
+import { useRescueExperiments } from "../companions/use-rescue-experiments.js";
+import { modelReadiness } from "../generation-status.js";
+import { rescueGate, rescueNote } from "../wrongbook-model.js";
 import { lookBackBlindRecall } from "../../lib/practice-settings.js";
-import { LOOKBACK_ERROR_REASONS, maskedClozeTextOf, maskedPromptOf, persistRowReason, reasonGroups, reasonLabelOf, rowReasonKey, seedReasonsFromRows, toggleRowReason } from "./lookback-recall.js";
+import { isActionableTriage, LOOKBACK_ERROR_REASONS, maskedClozeTextOf, maskedPromptOf, persistRowReason, reasonGroups, reasonLabelOf, resolveRowTriage, rowReasonKey, seedReasonsFromRows, toggleRowReason } from "./lookback-recall.js";
 
 /* 本轮题目 on the result page (#1009): one row per question of the round, read once when the page opens with review.lookBack {runId}
    (lib/contexts/study/round-look-back.js; a read the main chat is refused, so a chat's tool results of the round stay small), and a press on a row opens a
@@ -213,11 +216,19 @@ function LookBack({ row, mode, sources, onOpenSource, veiled = false, onReveal, 
  * props: run (the finished run), sources (optional material list for citations and source jumps),
  * onOpenWrongBook(refs) (optional: the wrong book on these questions, where its rescue is; absent when the page is not available).
  */
-export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAck, onPracticeWrong, segment = null, onSegmentChange, collapsible = false, practiceSettings = null }) {
+export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onOpenBook, onPracticePrereq, onFixQuestion, onAck, onPracticeWrong, segment = null, onSegmentChange, collapsible = false, practiceSettings = null }) {
   const study = useStudy();
-  const appData = React.useContext(AppContext)?.data;
+  const app = React.useContext(AppContext);
+  const appData = app?.data;
   const courses = appData?.courses;
   const recallEnabled = lookBackBlindRecall(practiceSettings ?? appData?.settings?.practice);
+  const hasModelField = appData?.model !== undefined || appData?.modelReady !== undefined;
+  const generationModelReady = hasModelField ? modelReadiness(appData).ready : true;
+  const [compilingConfusable, setCompilingConfusable] = React.useState(null);
+  const onRescueCompleted = React.useCallback(() => {
+    Promise.resolve(app?.core?.refresh?.()).catch(() => {});
+  }, [app?.core]);
+  const { jobs: rescueJobs, start: startRescueJob } = useRescueExperiments({ call: study?.call, onCompleted: onRescueCompleted });
   const openSource = study?.openModal ? (source, quote, peekPage) => {
     if (source) study.openModal({ type: "source", source, quote, peekPage, back: true });
   } : null;
@@ -243,9 +254,11 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAc
   React.useEffect(() => {
     setVeilActive(recallEnabled);
     setRevealedRows(new Set());
+  }, [run.id, recallEnabled]);
+  React.useEffect(() => {
     setReasonsByKey(seedReasonsFromRows(rows));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset per round / persisted row snapshot
-  }, [run.id, recallEnabled, rowReasonsSignature]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync persisted reasons without re-veiling already revealed rows
+  }, [run.id, rowReasonsSignature]);
   React.useEffect(() => { if (segment) setHesitantOnly(false); }, [segment]);
   const shown = hesitantOnly
     ? hesitantRows
@@ -311,6 +324,63 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAc
       }
     }
   };
+  const openConfusable = async (triage, row, key) => {
+    const pair = triage?.confusable;
+    const targetCourse = triage?.course || "";
+    const hid = triage?.hid || pair?.hids?.find(Boolean) || row?.hid || "";
+    if (pair?.rows?.length && study?.call && study?.openModal) {
+      setCompilingConfusable(key);
+      try {
+        const res = await study.call("companion.compile", {
+          confusables: [pair],
+          course: targetCourse || undefined,
+          ...(hid ? { hid } : {}),
+          language: getUiLanguage(),
+          mountMode: "companion-only",
+        });
+        if (res?.companion?.id) {
+          openCompanionTarget(study.openModal, {
+            companionId: res.companion.id,
+            course: res.companion.course || targetCourse || "",
+            companionTitle: res.companion.title || "",
+            returnLabel: ui("返回本轮结果"),
+            from: "review",
+          });
+          return;
+        }
+      } catch (failure) {
+        if (!onOpenBook) { study?.notify?.({ tone: "error", text: errorMessage(failure) }); return; }
+      } finally {
+        setCompilingConfusable(null);
+      }
+    }
+    onOpenBook?.({ course: targetCourse, hid, view: "lookup" });
+  };
+  const rescueTriageRow = async (triage, row) => {
+    if (generationModelReady && study?.call) {
+      await startRescueJob(row.cardId, {
+        course: triage?.course || "",
+        deckId: row.deckId,
+        cardIds: [row.cardId],
+        ...(triage?.hid || row.hid ? { hid: triage?.hid || row.hid } : {}),
+        ...(triage?.reason ? { errorReason: triage.reason } : {}),
+      });
+      return;
+    }
+    const gate = rescueGate("experiment", { modelReady: false, canChat: false });
+    study?.notify?.({ tone: "warning", text: gate.text });
+  };
+  const fixTriageRow = async (row) => {
+    if (onFixQuestion) { await onFixQuestion(row); return; }
+    if (!study?.call) return;
+    try {
+      const res = await study.call("coach.feedback", { deckId: row.deckId, cardId: row.cardId, vote: "down", tags: ["general-quality"] });
+      const note = rescueNote("fix", res);
+      study?.notify?.({ tone: note.tone, text: note.text });
+    } catch (failure) {
+      study?.notify?.({ tone: "error", text: errorMessage(failure) });
+    }
+  };
   const taggedReasons = recallEnabled && onPracticeWrong ? reasonGroups(rows, reasonsByKey) : [];
   const render = (row) => {
     const words = STATUS[row.status] || STATUS.unanswered;
@@ -326,6 +396,57 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAc
     const companionTarget = expanded && row.solution && !isVeiled && study?.openModal
       ? resolveCompanionTarget({ card: row.card, solution: row.solution, courses, sources })
       : null;
+    const activeTriage = expanded && !isVeiled && row.status === "wrong"
+      ? resolveRowTriage(row, reasonsByKey[rKey] || "")
+      : null;
+    const showTriage = isActionableTriage(activeTriage);
+    const rescueState = showTriage && activeTriage.route === "rescue_companion" ? (rescueJobs[row.cardId] || null) : null;
+    const rescueRunning = rescueState?.status === "starting" || rescueState?.status === "running";
+    const readyRescue = rescueState?.status === "ready" && rescueState?.companionId
+      ? { companionId: rescueState.companionId, course: rescueState.course || activeTriage?.course || "", slide: 1, anchor: "#1", companionTitle: rescueState.title || "", lessonMode: "rescue" }
+      : (companionTarget?.lessonMode === "rescue" ? companionTarget : null);
+    const prereqPractice = onPracticePrereq || onPracticeWrong;
+    const prereqRefs = activeTriage?.prereqRefs?.length ? activeTriage.prereqRefs : (activeTriage?.prereq ? [activeTriage.prereq] : []);
+    const triageButton = !showTriage ? null
+      : activeTriage.route === "confusable_contrast" ? (
+        <Button variant="quiet" size="sm" iconEnd="arrow-right" data-triage-route="confusable_contrast"
+          busy={compilingConfusable === rKey} lock={study?.busy} disabled={!study?.call && !onOpenBook}
+          onClick={() => openConfusable(activeTriage, row, rKey)}>
+          {activeTriage.confusable?.id ? uiFormat("对比辨析 {0}", [activeTriage.confusable.id]) : ui("对比辨析易混概念")}
+        </Button>
+      ) : activeTriage.route === "rescue_companion" ? (
+        readyRescue && study?.openModal ? (
+          <Button variant="quiet" size="sm" iconEnd="arrow-right" data-triage-route="rescue_companion"
+            onClick={() => openCompanionTarget(study.openModal, readyRescue, { returnLabel: ui("返回本轮结果"), from: "review" })}>
+            {ui("打开 4 页交互实验")}
+          </Button>
+        ) : (
+          <Button variant="quiet" size="sm" icon="sparkle" data-triage-route="rescue_companion"
+            busy={rescueRunning} lock={study?.busy}
+            onClick={() => rescueTriageRow(activeTriage, row)}>
+            {ui("做一个 4 页交互实验")}
+          </Button>
+        )
+      ) : activeTriage.route === "book_retell" ? (
+        <Button variant="quiet" size="sm" iconEnd="arrow-right" data-triage-route="book_retell"
+          lock={study?.busy} disabled={!onOpenBook}
+          onClick={() => onOpenBook?.({ course: activeTriage.course || "", hid: activeTriage.hid || row.hid || "" })}>
+          {ui("去全书讲一遍")}
+        </Button>
+      ) : activeTriage.route === "prereq_branch" ? (
+        <Button variant="quiet" size="sm" iconEnd="arrow-right" data-triage-route="prereq_branch"
+          lock={study?.busy} disabled={!prereqRefs.length || !prereqPractice}
+          onClick={() => (onPracticePrereq ? onPracticePrereq(prereqRefs, row) : onPracticeWrong?.(prereqRefs))}>
+          {ui("先练前置题")}
+        </Button>
+      ) : activeTriage.route === "fix_question" ? (
+        <Button variant="quiet" size="sm" data-triage-route="fix_question"
+          lock={study?.busy}
+          onClick={() => fixTriageRow(row)}>
+          {ui("这题有问题，交给后台修")}
+        </Button>
+      ) : null;
+    const showPlainCompanion = companionTarget && !(showTriage && activeTriage.route === "rescue_companion" && companionTarget.lessonMode === "rescue");
     return (
       <li key={row.number} className="look-back__row" data-status={row.status} data-number={row.number}>
         <Button variant="quiet" className="look-back__line" align="start" aria-expanded={expanded} aria-controls={expanded ? regionId : undefined} onClick={() => toggle(row.number)}>
@@ -356,9 +477,10 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAc
               }} />
             {!isVeiled && row.feedback && <CorrectionCard feedback={row.feedback} withRubric={!!row.feedback.rubric && row.card?.kind !== "task"}
               onAck={row.correctionPending && onAck ? () => Promise.resolve(onAck(row)).then(() => invalidate("review.lookBack")) : undefined} />}
-            {!isVeiled && (companionTarget || place || (row.status === "wrong" && onOpenWrongBook)) && (
+            {!isVeiled && (triageButton || showPlainCompanion || place || (row.status === "wrong" && onOpenWrongBook)) && (
               <div className="look-back__actions">
-                {companionTarget && (
+                {triageButton}
+                {showPlainCompanion && (
                   <Button variant="quiet" size="sm" iconEnd="arrow-right" onClick={() => openCompanionTarget(study.openModal, companionTarget)}>
                     {companionSlideButtonLabel(companionTarget)}
                   </Button>
