@@ -62,15 +62,16 @@ test('the frame is isolated: scripts may run, and nothing else is granted', () =
   assert.deepEqual(names, ['class', 'csp', 'referrerpolicy', 'sandbox', 'srcdoc', 'title'], 'exactly these attributes');
 });
 
-test('the document is wrapped, not rewritten: one click guard goes in the head, the rest is the file as it was', () => {
+test('the document is wrapped, not rewritten: one CSP meta and one click guard go in the head, the rest is the file as it was', () => {
   const file = '<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><title>t</title></head><body><a href="https://example.org/x">out</a><a href="#n1">in</a></body></html>';
   const framed = m.framedDocument(file);
-  assert.ok(framed.startsWith('<!doctype html>\n<html lang="en"><head><script>'), 'after the opening head tag, so the doctype stays first');
-  assert.equal(framed.replace(/<script>[\s\S]*?<\/script>/, ''), file, 'only the guard was added');
+  assert.ok(framed.startsWith('<!doctype html>\n<html lang="en"><head><meta http-equiv="Content-Security-Policy" '), 'after the opening head tag, so the doctype stays first');
+  assert.equal(framed.replace(/<meta http-equiv="Content-Security-Policy"[^>]*><script>[\s\S]*?<\/script>/, ''), file, 'only the CSP meta and guard were added');
+  assert.match(framed, /connect-src 'none'/);
   assert.match(framed, /preventDefault/);
   assert.match(framed, /\^#/, 'in-page # links keep working');
-  assert.ok(m.framedDocument('<html><body>x</body></html>').startsWith('<html><script>'), 'no head: after the html tag');
-  assert.ok(m.framedDocument('<!doctype html><p>x').startsWith('<!doctype html><script>'), 'neither: right after the doctype');
+  assert.ok(m.framedDocument('<html><body>x</body></html>').startsWith('<html><meta http-equiv="Content-Security-Policy" '), 'no head: after the html tag');
+  assert.ok(m.framedDocument('<!doctype html><p>x').startsWith('<!doctype html><meta http-equiv="Content-Security-Policy" '), 'neither: right after the doctype');
 });
 
 test('the guard script runs: an outside link is stopped and a # link is not', () => {

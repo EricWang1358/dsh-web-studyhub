@@ -60,3 +60,42 @@ test('power underflow cannot claim agreement with zero for a nonzero base', () =
   for (const expression of ['0^2', '0^12', '(-0)^11'])
     assert.equal(check(expression, 0).status, 'agreement', expression);
 });
+
+test('TeX-wrapped numeric answers and options are unwrapped before checking and cannot bypass mismatch', () => {
+  const plain = evidence('3*4', 12);
+  for (const answer of ['$12$', '$$12$$', '\\(12\\)', '\\[12\\]', '\\text{12}', '$+12$']) {
+    assert.equal(checkCalculation(plain, { answer, options: [{ correct: true, text: answer }] }).status, 'agreement', answer);
+  }
+  // Wrong TeX-wrapped numeric answers/options MUST trigger mismatch instead of falling back to not_checked.
+  assert.equal(checkCalculation(plain, { answer: '$24$' }).status, 'mismatch');
+  assert.equal(checkCalculation(plain, { answer: '\\(24\\)' }).status, 'mismatch');
+  assert.equal(checkCalculation(plain, { answer: '$12$', options: [{ correct: true, text: '$24$' }] }).status, 'mismatch');
+
+  // Negative numbers including Unicode minus U+2212.
+  assert.equal(checkCalculation(evidence('-3*4', -12), { answer: '$-12$' }).status, 'agreement');
+  assert.equal(checkCalculation(evidence('-3*4', -12), { answer: '$−12$' }).status, 'agreement');
+
+  // LaTeX-wrapped SI units, spacing macros, percent and braced exponents.
+  const dist = {
+    expression: 'speed*time',
+    result: { value: 1.2, unit: 'km' },
+    variables: { speed: { value: 36, unit: 'km/h' }, time: { value: 2, unit: 'min' } },
+  };
+  for (const answer of ['$1.2\\text{ km}$', '$1.2\\,\\mathrm{km}$', '$1200\\,\\text{m}$', '$1.2$ km', '1.2 $\\mathrm{km}$']) {
+    assert.equal(checkCalculation(dist, { answer }).status, 'agreement', answer);
+  }
+  assert.equal(checkCalculation(dist, { answer: '$1200\\text{ s}$' }).status, 'mismatch');
+  assert.equal(checkCalculation(evidence('0.25', 25, '%'), { answer: '$25\\%$' }).status, 'agreement');
+  assert.equal(
+    checkCalculation(
+      { expression: 'm*d/t^2', result: { value: 2, unit: 'kg*m/s^2' }, variables: { m: { value: 1, unit: 'kg' }, d: { value: 8, unit: 'm' }, t: { value: 2, unit: 's' } } },
+      { answer: '$2\\,\\mathrm{kg}\\cdot\\mathrm{m}/\\mathrm{s}^{2}$' },
+    ).status,
+    'agreement',
+  );
+
+  // Non-numeric symbolic expressions remain not_checked (never false agreement or false mismatch).
+  for (const answer of ['$5\\sqrt{2}$', '$x + 1$', '$3 + 9$']) {
+    assert.equal(checkCalculation(plain, { answer }).status, 'not_checked', answer);
+  }
+});

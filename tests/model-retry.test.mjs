@@ -21,6 +21,49 @@ test("a light call with no first chunk races a second request and keeps the firs
   assert.equal(signals[0].aborted, true, "the stalled request is cancelled");
 });
 
+test("hedgeFirstChunk aborts the slower request immediately on first chunk (not waiting for full completion)", async () => {
+  const signals = [];
+  let abortedAtFirstChunk = false;
+  let releaseWinner;
+  const winnerDone = new Promise((r) => { releaseWinner = r; });
+
+  const pending = hedgeFirstChunk(async (signal, onChunk) => {
+    const idx = signals.push(signal);
+    if (idx === 1) {
+      await new Promise((_, reject) => signal.addEventListener("abort", () => reject(new Error("aborted"))));
+    }
+    onChunk();
+    // Winner has NOT finished streaming yet, but attempt #1 must ALREADY be aborted.
+    abortedAtFirstChunk = signals[0].aborted;
+    await winnerDone;
+    return "fast-stream";
+  }, { hedgeMs: 15 });
+
+  await sleep(40);
+  assert.equal(abortedAtFirstChunk, true, "slower attempt must be aborted immediately upon first chunk");
+  releaseWinner();
+  assert.equal(await pending, "fast-stream");
+});
+
+test("hedgeFirstChunk surfaces the leader's real error if the leader fails mid-stream after aborting the slower attempt", async () => {
+  const signals = [];
+  const err = Object.assign(new Error("stream closed prematurely"), { code: "TRANSPORT" });
+  await assert.rejects(
+    hedgeFirstChunk(async (signal, onChunk) => {
+      const idx = signals.push(signal);
+      if (idx === 1) {
+        await new Promise((_, reject) => signal.addEventListener("abort", () => {
+          setTimeout(() => reject(Object.assign(new Error("aborted"), { name: "AbortError" })), 15);
+        }));
+      }
+      onChunk();
+      throw err;
+    }, { hedgeMs: 15 }),
+    (caught) => caught === err,
+  );
+  assert.equal(signals[0].aborted, true);
+});
+
 test("a streaming request is not hedged, and a lone early failure is reported as is", async () => {
   let launches = 0;
   const text = await hedgeFirstChunk(async (_signal, onChunk) => {
