@@ -2,7 +2,7 @@
    Contributed by ericwang1358 (https://github.com/EricWang1358).
    App composes: its hooks (ui/app/use-*.js, ui/review/useReviewSession.js) own the state and the verbs, the shell parts
    (ui/app/App*.jsx) draw the sidebar, top bar and dialogs, and ui/app/page-views.jsx maps each page of ui/pages.js to its component. */
-import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { Board, LiveClass } from './workspace-views.jsx';
 import { pageAvailable } from './capabilities.js';
 import { ui, uiFormat, useUiLanguage } from './i18n.js';
@@ -29,7 +29,7 @@ import quickCss from './quick-actions.css';
 import coachCss from './coach.css';
 import libraryChipCss from './library-location.css';
 import localeCss from './language.css';
-import { AppContext, AppStoreContext, createAppStore, syncAppStore } from './app/app-context.js';
+import { AppContext, AppStoreContext, useAppStore } from './app/app-context.js';
 import { practiseRound } from './app/practise-round.js';
 import { useAppShell } from './app/use-app-shell.js';
 import { useAppCore } from './app/use-app-core.js';
@@ -137,10 +137,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
     notebooks, inbox, sources, tour, finder, settingsEntry, dailyPlan, board, selectionNotices, resetLibraryState }),
   [language, host, data, canChat, connection, core, shell, nav, lib, set, session, learn, intents, drafts,
     notebooks, inbox, sources, tour, finder, settingsEntry, dailyPlan, board, selectionNotices, resetLibraryState]);
-  const [appStore] = useState(() => createAppStore(app));
-  useLayoutEffect(() => {
-    syncAppStore(appStore, app);
-  }, [appStore, app]);
+  const appStore = useAppStore(app);
 
   const runningJobs = Array.isArray(data?.jobs) ? data.jobs.filter(isActiveJob).length : 0;
   const activePageTitle = shellTitleOf(nav.page, { run: session.run, decks: data?.decks });
