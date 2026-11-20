@@ -146,3 +146,13 @@ test('every checkpoint of a one-pass run is merged: a run stopped after its port
   assert.ok((last.editorial.omitted || []).some(item => item.coveredBy), 'the checkpoint itself carries the merge, not only the final result');
   for (const deck of saved) assert.equal(new Set(deck.cards.map(card => card.objective.toLowerCase().replace(/!$/, ''))).size, deck.cards.length);
 });
+
+test('a portion whose review calls all failed is written again by a fill round, and its own first objectives do not stop it', async () => {
+  const assignments = first.assignments.slice(0, 2), total = assignments.reduce((sum, item) => sum + item.quota, 0);
+  let failing = true;
+  const model = onePassModel({ raw: { review: () => { if (failing) throw Object.assign(new Error('503 Service Unavailable'), { status: 503 }); return null; },
+    write: () => { if (model.calls.filter(call => call.stage === 'review').length) failing = false; return null; } } });
+  const deck = await run(model, assignments, { performance: { concurrency: 1, fillRounds: 1 } });
+  assert.equal(deck.cards.length, total, 'the fill round wrote and kept every question');
+  assert.ok(model.calls.some(call => call.stage === 'write' && call.context.attempt === 2), 'written again in the fill round');
+});

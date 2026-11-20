@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { writePortion } from '../lib/one-pass/portion.js';
+import { settledPortion } from '../lib/one-pass/settle.js';
 import { ONE_PASS_LIMITS } from '../lib/one-pass/limits.js';
 import { onePassModel, material, writeAll, cardFor } from './helpers/one-pass-model.mjs';
 
@@ -113,8 +114,9 @@ test('a card the review fails is dropped (no repair in this slice) with the revi
   const model = onePassModel({ raw: { review: (data, number) => (number >= 2 ? 'not json at all' : null) },
     review: data => ({ reviews: data.cards.map(card => ({ index: card.index, verdict: card.index === 1 ? 'fail' : 'pass', blocker: card.index === 1 ? 3 : 0, issue: card.index === 1 ? 'The hint gives the answer away.' : '' })) }) });
   const result = await run(model, world);
-  assert.equal(model.calls.filter(call => call.stage === 'review').length, 3, 'the unreadable batch was asked again once');
-  assert.equal(model.calls.at(-1).context.retry, 1);
+  const reviews = model.calls.filter(call => call.stage === 'review');
+  assert.deepEqual(reviews.map(call => [call.context.unit, call.context.retry]), [['batch-1', undefined], ['batch-2', undefined], ['batch-2', 1], ['batch-2-again', undefined], ['batch-2-again', 1]],
+    'the unreadable batch was asked again, then reviewed once more (also asked again)');
   assert.equal(result.deck.cards.length, 6, '7 reviewed, 1 failed; the 2 of the unreadable batch are not kept');
   const reasons = result.deck.editorial.omitted.map(item => item.reasons.join(' '));
   assert.ok(reasons.some(line => /Editorial review still found issues: .*hint gives the answer away/.test(line)), reasons.join(' | '));
@@ -140,4 +142,53 @@ test('objectives the library holds are not written again: they are given to the 
   const result = await run(model, world, { existing: [writeAll({ sections: [{ section: 'S1', quota: 1 }], sources: [{ section: 'S1', text: world.text }] })[0].objective, first.objective] });
   assert.ok(Array.isArray(model.calls[0].data.existing) && model.calls[0].data.existing.length === 2);
   assert.equal(result.deck.cards.length, 1);
+});
+
+/* A review call that fails for a passing reason (a 5xx, a timeout) costs only its batch: the batch is reviewed once more, and dropped only if that fails too; the
+   portion never fails because of one review call, and no call of a portion outlives it (every sibling call has settled before a stop is passed on). */
+const transient = () => Object.assign(new Error('503 Service Unavailable'), { status: 503 });
+const refused = () => Object.assign(new Error('401 Unauthorized: Invalid API key'), { status: 401 });
+
+test('a review call that fails once is made again for its batch alone, and the portion keeps every card', async () => {
+  const world = material({ sections: 2, sentences: 6, quota: [5, 4] });
+  const model = onePassModel({ raw: { review: (data, number) => { if (number === 2) throw transient(); return null; } } });
+  const result = await run(model, world);
+  assert.deepEqual(model.calls.filter(call => call.stage === 'review').map(call => call.context.unit), ['batch-1', 'batch-2', 'batch-2-again']);
+  assert.equal(result.deck.cards.length, 9);
+  assert.equal(result.reviewLost, 0);
+});
+
+test('a review call that fails twice drops only its batch, said as a review call failure; the other batches keep their cards', async () => {
+  const world = material({ sections: 2, sentences: 6, quota: [5, 4] });
+  const model = onePassModel({ raw: { review: (data, number) => { if (number >= 2) throw transient(); return null; } } });
+  const result = await run(model, world);
+  assert.equal(result.deck.cards.length, ONE_PASS_LIMITS.reviewBatch);
+  assert.equal(result.reviewLost, 2);
+  const reasons = result.deck.editorial.omitted.map(item => item.reasons.join(' '));
+  assert.equal(reasons.filter(line => /Review call failed after a second try: 503/.test(line)).length, 2, reasons.join(' | '));
+});
+
+test('a stop in one review call is passed on only after its sibling calls have settled: no call outlives its portion', async () => {
+  const world = material({ sections: 2, sentences: 6, quota: [5, 4] });
+  let siblingDone = false;
+  const model = onePassModel({ raw: { review: (data, number) => { if (number === 1) throw refused(); return null; } } });
+  const complete = async (system, prompt, context = {}) => {
+    if (context.unit === 'batch-2') { await new Promise(resolve => setTimeout(resolve, 50)); const value = await model.complete(system, prompt, context); siblingDone = true; return value; }
+    return model.complete(system, prompt, context);
+  };
+  await assert.rejects(writePortion({ complete, request: { kind: 'quiz', language: 'English', sources: [world.source] }, assignments: world.assignments, random: () => 0.5 }), /401/);
+  assert.equal(siblingDone, true, 'the sibling review had finished when the portion failed');
+});
+
+test('a portion that kept nothing because its review calls failed is written again by a fill round, not a final quality failure', async () => {
+  const world = material({ sections: 1, sentences: 4, quota: 3 });
+  const model = onePassModel({ raw: { review: () => { throw transient(); } } });
+  const result = await run(model, world);
+  assert.equal(result.deck.cards.length, 0);
+  assert.equal(result.reviewLost, 3);
+  const settled = settledPortion(result, [world.source]);
+  assert.match(settled.outcome.error, /review could not be had/);
+  assert.notEqual(settled.outcome.final, true, 'a fill round writes it again');
+  const judged = await run(onePassModel({ review: data => ({ reviews: data.cards.map(card => ({ index: card.index, verdict: 'fail', blocker: 1, issue: 'wrong' })) }) }), world);
+  assert.equal(settledPortion(judged, [world.source]).outcome.final, true, 'a portion the review judged and failed stays a final quality failure');
 });
