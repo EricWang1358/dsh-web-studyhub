@@ -5,7 +5,7 @@ import { useInjectCss } from './shared.js';
 import { useLiveEffect } from './use-async.js';
 import { useHandOff } from './hand-off/use-hand-off.js';
 import { downloadVoicePackMarkdown } from './voice-pack-download.js';
-import { Badge, Button, Chip, Dialog, Field, InlineMessage, SegmentedControl, Spinner, TextInput, useToast } from './components/index.js';
+import { Badge, Button, Chip, Dialog, Field, Icon, InlineMessage, SegmentedControl, Spinner, TextInput, useToast } from './components/index.js';
 import css from './voice-pack.css';
 
 const MODE_OPTIONS = [
@@ -250,9 +250,9 @@ export default function VoicePackDialog({ modal, onClose }) {
         </div>
 
         <div className="vp-guardrails">
-          <span>{ui('✓ 每轮带 [进度 k/N · 本题第 t/3 轮] 心跳')}</span>
-          <span>{ui('✓ 单题最多 3 轮自动熔断推进')}</span>
-          <span>{ui('✓ 支持口令：跳过 / 快进模式 / 今天先到这，给我结算')}</span>
+          <span className="vp-guardrail"><Icon name="check" size={14} className="sh-icon--inline" />{ui('每轮带 [进度 k/N · 本题第 t/3 轮] 心跳')}</span>
+          <span className="vp-guardrail"><Icon name="check" size={14} className="sh-icon--inline" />{ui('单题最多 3 轮自动熔断推进')}</span>
+          <span className="vp-guardrail"><Icon name="check" size={14} className="sh-icon--inline" />{ui('支持口令：跳过 / 快进模式 / 今天先到这，给我结算')}</span>
         </div>
 
         {pack?.cards?.length > 0 && (

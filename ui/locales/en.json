@@ -1827,11 +1827,13 @@
   "正在生成进度快照与题单…": "Building progress snapshot and checklist…",
   "当前范围掌握度": "Current scope mastery",
   "本次导出 {0} / {1} 题": "Exporting {0} / {1} questions",
+  "本次导出 {0} / {1} 题#one:1": "Exporting {0} / {1} question",
   "未做 {0}": "New {0}",
   "熟悉 {0}": "Familiar {0}",
   "到期 {0}": "Due {0}",
   "考试日 {0}": "Exam {0}",
   "课程重点 {0} 条": "{0} course focus topics",
+  "课程重点 {0} 条#one": "{0} course focus topic",
   "当前筛选下没有可导出的题目，请切换抽题策略。": "No questions match this filter — try another selection mode.",
   "抽题策略": "Selection mode",
   "速成优先": "Cram priority",
@@ -1846,8 +1848,9 @@
   "纯硬核零跑题": "Strict, zero tangents",
   "本次速成目标（可选）": "Session goal (optional)",
   "例如：3 周速成 React 面试，今天先过核心机制": "e.g., 3-week React interview cram, core mechanics first",
-  "✓ 每轮带 [进度 k/N · 本题第 t/3 轮] 心跳": "✓ Per-turn [Progress k/N · Turn t/3] heartbeat",
-  "✓ 单题最多 3 轮自动熔断推进": "✓ 3-turn circuit breaker per item",
-  "✓ 支持口令：跳过 / 快进模式 / 今天先到这，给我结算": "✓ Spoken cues: Skip / Fast-forward / Wrap up today",
-  "预览已抽出的前 {0} 题（共 {1} 题）": "Preview first {0} of {1} selected questions"
+  "每轮带 [进度 k/N · 本题第 t/3 轮] 心跳": "Per-turn [Progress k/N · Turn t/3] heartbeat",
+  "单题最多 3 轮自动熔断推进": "3-turn circuit breaker per item",
+  "支持口令：跳过 / 快进模式 / 今天先到这，给我结算": "Spoken cues: Skip / Fast-forward / Wrap up today",
+  "预览已抽出的前 {0} 题（共 {1} 题）": "Preview first {0} of {1} selected questions",
+  "预览已抽出的前 {0} 题（共 {1} 题）#one:1": "Preview first {0} of {1} selected question"
 }

@@ -186,7 +186,7 @@ function layoutClassComponent(skeleton, { direction = "down", spacing = 1, compa
 /** Viewport filtering leaves an overscan margin and keeps the active node.
  * Layout and relationships remain complete; only offscreen DOM is omitted. */
 export function visibleClasses(boxes, edges, view, viewport, keepId, overscan = 180) {
-  if (boxes.size <= 120 || !viewport.w || !viewport.h) return { boxes: [...boxes.values()], edges };
+  if (!viewport.w || !viewport.h) return { boxes: [...boxes.values()], edges };
   const left = (-view.x - overscan) / view.k, top = (-view.y - overscan) / view.k;
   const right = (viewport.w - view.x + overscan) / view.k, bottom = (viewport.h - view.y + overscan) / view.k;
   const overlaps = (x1, y1, x2, y2) => x2 >= left && x1 <= right && y2 >= top && y1 <= bottom;
