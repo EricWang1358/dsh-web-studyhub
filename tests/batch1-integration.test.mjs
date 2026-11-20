@@ -469,3 +469,138 @@ test('Batch 1 audit regressions: predict coin-flip cannot override failed quiz, 
   assert.ok(manualEv, 'uncited manual card has PointEvidence in document-fallback course');
   assert.equal(manualEv.hid, 'topic:d-stat:Extra Notes');
 });
+
+test('Wave 2 cross-part integration: 0-token C001 dialectic compile -> companion.progress -> PointEvidence verified + findPointCompanion + course notationOverrides', async (t) => {
+  const { build } = await import('esbuild');
+  const bundled = await build({
+    entryPoints: ['ui/companions/companion-ref.js'],
+    bundle: true,
+    write: false,
+    format: 'esm',
+    platform: 'node',
+  });
+  const { findPointCompanion } = await import(`data:text/javascript;base64,${Buffer.from(bundled.outputFiles[0].text).toString('base64')}`);
+  const root = await mkdtemp(join(tmpdir(), 'studyhub-wave2-int-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+
+  const service = new StudyService(root, { runJobs: false });
+  t.after(() => service.dispose?.());
+
+  await service.call('course.save', {
+    name: 'Real Analysis',
+    notationOverrides: [{ canonical: 'Uniform Convergence', symbol: '\\rightrightarrows', meaning: 'sup_x |f_n(x)-f(x)| -> 0' }],
+  });
+
+  await service.store.update(state => {
+    state.sources.push({ id: 'src-ra-1', title: 'Lecture 4', text: 'Pointwise vs uniform convergence.', format: 'md', courses: ['Real Analysis'] });
+    const docKey = groupSourcesByDocument(state.sources)[0].key;
+    const fp = materialsFingerprint(buildOutlineIndex({ ...state, documents: [], drafts: [], attempts: [] }, { course: 'Real Analysis' }).allDocuments);
+    const outlineSrc = {
+      ...courseOutlineMaterial({
+        title: 'Real Analysis · Outline',
+        course: 'Real Analysis',
+        orderBasis: { codes: ['numbering'] },
+        fingerprint: fp,
+        language: 'en',
+        nodes: [{
+          id: 'ch-1',
+          title: 'Function Sequences',
+          children: [{ id: 'tp-uc', title: 'Pointwise vs Uniform Convergence', anchors: [docKey] }],
+        }],
+        other: { anchors: [] },
+        counts: { units: 1, leftover: 0, invalid: 0, repeated: 0 },
+      }),
+      createdAt: '2026-10-01T00:00:00Z',
+    };
+    state.sources.push(outlineSrc);
+    state.sources.push({
+      ...courseNotesMaterial({
+        title: 'Real Analysis · Review Book',
+        course: 'Real Analysis',
+        outlineId: outlineSrc.id,
+        language: 'en',
+        papers: [],
+        counts: {},
+        leaves: [{
+          id: 'tp-uc',
+          title: 'Pointwise vs Uniform Convergence',
+          anchors: [docKey],
+          body: {
+            fingerprint: 'a'.repeat(16),
+            points: ['Uniform convergence allows swapping limit and integral [^1].'],
+            explain: 'Pointwise convergence alone is insufficient for integral exchange.',
+            cites: [{ n: 1, sourceId: 'src-ra-1', quote: 'Pointwise vs uniform convergence.', start: 0, end: 32 }],
+          },
+        }],
+      }),
+      createdAt: '2026-10-01T00:01:00Z',
+    });
+    state.decks.push({
+      id: 'deck-ra-1',
+      title: 'RA Deck',
+      course: 'Real Analysis',
+      cards: [{
+        id: 'card-ra-1',
+        kind: 'quiz',
+        topic: 'Pointwise vs Uniform Convergence',
+        prompt: 'Does pointwise convergence allow swapping limit and integral?',
+        answer: 'No, uniform convergence is needed.',
+        sourceId: 'src-ra-1',
+        citations: [{ sourceId: 'src-ra-1', quote: 'Pointwise vs uniform convergence.' }],
+        review: { reps: 2, lapses: 2 },
+      }],
+    });
+  });
+
+  const opened = await service.call('course.book.open', { course: 'Real Analysis' });
+  assert.equal(opened.status, 'ok');
+  const hid = opened.nodes[0].children[0].hid;
+  assert.ok(hid);
+
+  // Before compile: comprehension is unverified and no companion matches hid
+  const before = await service.call('course.evidence.summary', { course: 'Real Analysis' });
+  const beforePt = before.points.find(p => p.hid === hid);
+  assert.equal(beforePt?.facets?.comprehension, 'unverified');
+
+  // Wave 2A: 0-token C001 dialectic compile anchored to hid
+  const compiled = await service.call('companion.compile', {
+    course: 'Real Analysis',
+    hid,
+    language: 'en',
+    mountMode: 'companion-only',
+    confusables: [{
+      id: 'C001',
+      items: ['K001', 'K002'],
+      names: ['Pointwise Convergence', 'Uniform Convergence'],
+      hids: [hid],
+      rows: [
+        { aspect: 'what', cells: ['Convergence for each fixed x separately', 'Single N(eps) works for all x simultaneously'] },
+        { aspect: 'difference', cells: ['N depends on both eps and x', 'N depends only on eps, independent of x'] },
+        { aspect: 'mistake', cells: ['Swapping limit and integral under pointwise only', 'Assuming boundedness implies uniform convergence'] },
+      ],
+    }],
+  });
+  assert.equal(compiled.attached, true);
+  assert.ok(compiled.companion?.id);
+
+  // Wave 2C: findPointCompanion locates the compiled dialectic companion by hid
+  const afterCompileState = await service.store.read();
+  const raCourse = afterCompileState.courses.find(c => c.name === 'Real Analysis');
+  assert.equal(raCourse.notationOverrides?.length, 1);
+  assert.equal(raCourse.notationOverrides[0].symbol, '\\rightrightarrows');
+  const found = findPointCompanion({ courses: afterCompileState.courses, course: 'Real Analysis', hid, nodeId: 'tp-uc', questions: [] });
+  assert.equal(found?.companionId, compiled.companion.id);
+
+  // Batch 1A: completing check inside compiled dialectic lab flips PointEvidence comprehension -> verified
+  await service.call('companion.progress', {
+    id: compiled.companion.id,
+    course: 'Real Analysis',
+    slide: 4,
+    slideTotal: 4,
+    completed: true,
+    checkResults: { 'check:0': true },
+  });
+  const after = await service.call('course.evidence.summary', { course: 'Real Analysis' });
+  const afterPt = after.points.find(p => p.hid === hid);
+  assert.equal(afterPt?.facets?.comprehension, 'verified');
+});
