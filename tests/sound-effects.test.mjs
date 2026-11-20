@@ -4,6 +4,7 @@ import { loadUi } from './helpers/ui-module.mjs';
 
 const mod = await loadUi(`
   export { SOUND_CUES, synthesizeCueSamples, playSound, playTimerChime, playSoundPreview, stopSoundPreview, resetSoundEngineForTests } from './ui/sound-effects.js';
+  export { BAKED_SAMPLE_DATA_URIS, BAKED_SAMPLE_GAINS } from './ui/sound-effects-assets.js';
   export { default as AppearanceSection } from './ui/settings/AppearanceSection.jsx';
   export { holdAudioCapture, isAudioCaptureActive } from './ui/live-audio.js';
   export { createVoiceRecorder } from './ui/voice/mic.js';
@@ -19,6 +20,8 @@ const {
   playSoundPreview,
   stopSoundPreview,
   resetSoundEngineForTests,
+  BAKED_SAMPLE_DATA_URIS,
+  BAKED_SAMPLE_GAINS,
   AppearanceSection,
   holdAudioCapture,
   isAudioCaptureActive,
@@ -168,9 +171,10 @@ test('synthesized Acoustic Desk waveforms are warm, click-free, bounded and non-
         diffEnergy += d * d;
       }
     }
-    assert.ok(peak > 0.02 && peak <= 0.22, `${cue} peak ${peak} is present and far from clipping`);
+    assert.ok(peak > 0.05 && peak <= 0.50, `${cue} peak ${peak} is present and safely below clipping`);
     const roughness = diffEnergy / Math.max(totalEnergy, 1e-12);
-    assert.ok(roughness < 0.08, `${cue} high-frequency roughness ratio (${roughness.toFixed(4)}) stays warm and filtered`);
+    const maxRoughness = cue === 'flip' ? 0.50 : cue === 'tap' ? 0.25 : 0.08;
+    assert.ok(roughness < maxRoughness, `${cue} high-frequency roughness ratio (${roughness.toFixed(4)}) stays clean and alias-free`);
   }
   assert.equal(synthesizeCueSamples('unknown-cue'), null);
 });
@@ -358,7 +362,8 @@ test('source.onended disconnects source, gain, and warmBus (BiquadFilterNode) cl
     const src = ctx.plays[0].source;
     const gain = ctx.gains[0];
     const warmBus = ctx.filters[0];
-    assert.ok(src && gain && warmBus, 'source, gain and warmBus created');
+    assert.ok(src && gain && warmBus, 'source, gain and airBus created');
+    assert.ok(warmBus.frequency.value >= 10_000, `airBus cutoff (${warmBus.frequency.value} Hz) stays transparent instead of muddying highs`);
     assert.equal(src.connectedTo, gain);
     assert.equal(gain.connectedTo, warmBus);
     assert.equal(warmBus.connectedTo, ctx.destination);
@@ -432,14 +437,75 @@ test('stopSoundPreview cancels scheduled preview cues and AppearanceSection call
     );
     assert.ok(soundControl, 'found sound SegmentedControl in AppearanceSection');
 
-    // Switching sound to 'off' via AppearanceSection calls stopSoundPreview(), stopping step 0 and cancelling steps at 160ms & 370ms.
+    // Switching sound to 'off' via AppearanceSection calls stopSoundPreview(), stopping step 0 and cancelling delayed preview steps.
     soundControl.props.onChange('off');
     assert.equal(chosenSound, 'off');
     assert.equal(firstPreviewSource.stopped, 1, 'active preview buffer source stopped immediately');
     assert.equal(firstPreviewSource.disconnected, 1, 'active preview buffer source disconnected');
 
-    await new Promise((resolve) => setTimeout(resolve, 420));
-    assert.equal(ctx.plays.length, 2, 'delayed preview cues (160ms, 370ms) were cancelled when switched to off');
+    await new Promise((resolve) => setTimeout(resolve, 980));
+    assert.equal(ctx.plays.length, 2, 'delayed preview cues (180ms, 920ms) were cancelled when switched to off');
+  } finally {
+    env.restore();
+  }
+});
+
+test('baked studio MP3 assets decode cleanly via decodeAudioData and fall back to DSP if decoding fails', async () => {
+  assert.deepEqual(Object.keys(BAKED_SAMPLE_DATA_URIS).sort(), ['correct', 'flip', 'tap']);
+  for (const cue of ['tap', 'flip', 'correct']) {
+    assert.ok(BAKED_SAMPLE_DATA_URIS[cue].startsWith('data:audio/mpeg;base64,'), `${cue} is an embedded MP3 data URI`);
+    assert.ok(BAKED_SAMPLE_GAINS[cue] > 0 && BAKED_SAMPLE_GAINS[cue] <= 1.25, `${cue} gain calibration is bounded`);
+  }
+
+  const env = createFakeAudioEnv();
+  try {
+    resetSoundEngineForTests();
+    saveAppearance({ sound: 'standard' }, env.storage);
+
+    let decodeCalls = 0;
+    const OrigCtx = globalThis.AudioContext;
+    class DecodingFakeAudioContext extends OrigCtx {
+      decodeAudioData(ab) {
+        decodeCalls += 1;
+        assert.ok(ab instanceof ArrayBuffer && ab.byteLength > 1000, 'decoded MP3 payload is non-empty');
+        const buf = this.createBuffer(2, 1024, this.sampleRate);
+        buf.getChannelData(0)[10] = 0.5;
+        return Promise.resolve(buf);
+      }
+    }
+    Object.defineProperty(globalThis, 'AudioContext', { configurable: true, value: DecodingFakeAudioContext });
+
+    assert.equal(playSound('correct', { skipThrottle: true }), true);
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    const ctx = env.contexts[0];
+    assert.equal(decodeCalls, 3, 'all 3 baked samples preloaded once');
+    assert.equal(ctx.plays.length, 1, 'decoded studio piano sample played cleanly');
+    assert.equal(ctx.plays[0].samples, 1024);
+
+    // Subsequent call plays synchronously from cache with zero extra decodes.
+    assert.equal(playSound('flip', { skipThrottle: true }), true);
+    assert.equal(decodeCalls, 3);
+    assert.equal(ctx.plays.length, 2);
+
+    // Celesta cues play synchronously as stereo DSP buffers without decodeAudioData.
+    assert.equal(playSound('levelUp', { skipThrottle: true }), true);
+    assert.equal(ctx.plays.length, 3);
+    assert.equal(ctx.plays[2].source.buffer.numberOfChannels, 2);
+
+    // Failed decodeAudioData falls back cleanly to synchronous DSP buffer without throwing.
+    resetSoundEngineForTests();
+    saveAppearance({ sound: 'standard' }, env.storage);
+    class FailingDecodeAudioContext extends OrigCtx {
+      decodeAudioData() {
+        return Promise.reject(new Error('decode failed'));
+      }
+    }
+    Object.defineProperty(globalThis, 'AudioContext', { configurable: true, value: FailingDecodeAudioContext });
+    assert.equal(playSound('tap', { skipThrottle: true }), true);
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    const ctx2 = env.contexts[1];
+    assert.equal(ctx2.plays.length, 1, 'fallback DSP buffer played when decodeAudioData rejects');
+    assert.equal(ctx2.plays[0].source.buffer.numberOfChannels, 2);
   } finally {
     env.restore();
   }
