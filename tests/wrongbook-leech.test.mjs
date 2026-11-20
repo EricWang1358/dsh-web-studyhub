@@ -76,16 +76,26 @@ test('a collapsed row gains no control: the page has exactly as many controls wi
   assert.doesNotMatch(text(render(stubborn)), /交给后台修|补一张前置|暂停此题/, 'the actions are not on the page until a row is opened');
 });
 
-test('an opened leech row shows its four existing actions as one short group with a one-line explanation', () => {
+test('an opened leech row highlights 1 recommended experiment and collapses the 4 other actions behind 其他办法 (5.0.0 §2.1 control budget)', () => {
   setUiLanguage('zh');
   const html = render([row('c1', true), row('c2', false)], { initial: { expanded: ['c1'] }, details: detail });
   const t = text(html);
   assert.match(t, /这道题总是答错/);
-  for (const label of ['这题有问题，交给后台修', '太难了，补一张前置小卡', '发给主会话', '暂停此题']) assert.ok(t.includes(label), label);
+  assert.match(t, /做一个 4 页交互实验/);
+  assert.match(t, /其他办法/);
+  for (const label of ['这题有问题，交给后台修', '太难了，补一张前置小卡', '暂停此题']) {
+    assert.ok(!t.includes(label), `${label} stays collapsed under 其他办法 by default`);
+  }
   const group = html.match(/<div class="wb-sub wb-leech"[\s\S]*?<\/div>\s*<\/div>/)?.[0] ?? html.match(/<div class="wb-sub wb-leech"[\s\S]*/)?.[0] ?? '';
   assert.ok(group, 'one group');
-  assert.equal((group.match(/<button\b/g) || []).length, 4, 'four buttons in the group');
+  assert.equal((group.match(/<button\b/g) || []).length, 2, 'only 2 visible buttons by default: 1 recommended action + 1 其他办法 toggle (net -2 controls)');
   assert.equal((group.match(/<p\b/g) || []).length, 1, 'one explanation line');
+
+  // Expanding 其他办法 reveals all 4 legacy actions
+  const expandedHtml = render([row('c1', true), row('c2', false)], { initial: { expanded: ['c1'], rescueOtherOpen: ['c1'] }, details: detail });
+  const expandedText = text(expandedHtml);
+  for (const label of ['这题有问题，交给后台修', '太难了，补一张前置小卡', '发给主会话', '暂停此题']) assert.ok(expandedText.includes(label), label);
+
   // an opened row that is no leech has none of it
   assert.doesNotMatch(text(render([row('c2', false)], { initial: { expanded: ['c2'] }, details: { c2: detail.c1 } })), /这道题总是答错|暂停此题/);
 });
@@ -93,8 +103,10 @@ test('an opened leech row shows its four existing actions as one short group wit
 test('the actions of the group call the page\'s handler with the kind and the row; nothing is called by drawing the page', async () => {
   setUiLanguage('zh');
   const calls = [];
-  const html = render([row('c1', true)], { initial: { expanded: ['c1'] }, details: detail, onRescue: (...args) => calls.push(args) });
+  const html = render([row('c1', true)], { initial: { expanded: ['c1'], rescueOtherOpen: ['c1'] }, details: detail, onRescue: (...args) => calls.push(args) });
   assert.equal(calls.length, 0);
+  assert.match(html, /data-rescue="experiment"/);
+  assert.match(html, /data-rescue-other-toggle/);
   assert.match(html, /data-rescue="fix"/);
   assert.match(html, /data-rescue="easier"/);
   assert.match(html, /data-rescue="pause"/);
@@ -116,10 +128,12 @@ test('English: the mark, the group, the chip and the actions are translated', ()
   setUiLanguage('en');
   try {
     const items = Array.from({ length: 12 }, (_, n) => row(`c${n}`, n % 4 === 0, { topic: `T${n}`, prompt: `Q${n}?`, deckTitle: 'Deck' }));
-    const html = render(items, { initial: { expanded: ['c0'], groups: 'all' }, details: { c0: { deckId: 'd4', cardId: 'c0', correctAnswer: 'A', explanation: 'because', yourAnswer: 'B' } } });
+    const html = render(items, { initial: { expanded: ['c0'], rescueOtherOpen: ['c0'], groups: 'all' }, details: { c0: { deckId: 'd4', cardId: 'c0', correctAnswer: 'A', explanation: 'because', yourAnswer: 'B' } } });
     assert.doesNotMatch(text(html).replace(/期末综合卷04|主题\d+/g, ''), han);
     assert.match(text(html), /Stubborn 3/);
     assert.match(text(html), /keeps being missed/i);
+    assert.match(text(html), /Try a 4-slide interactive experiment/);
+    assert.match(text(html), /Hide other ways/);
     assert.match(text(html), /Suspend question/);
   } finally { setUiLanguage('zh'); }
 });
@@ -155,7 +169,7 @@ test('the note after a rescue click says what really happened, never more', () =
 
 test('the rescue note and tooltip do not promise a model call that may not happen', () => {
   setUiLanguage('zh');
-  const html = render([row('c1', true)], { initial: { expanded: ['c1'] }, details: detail });
+  const html = render([row('c1', true)], { initial: { expanded: ['c1'], rescueOtherOpen: ['c1'] }, details: detail });
   assert.match(text(html), /没有可用模型时会提示先配好模型/, 'the fix tooltip says what happens without a model');
   assert.doesNotMatch(text(html), /检查并修这道题，约 1 次/, 'and no longer states a count it cannot keep');
   assert.match(leechWords({ failures: 4, window: 5, rate: 60 }).sentence, /3 次以上/);

@@ -75,7 +75,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/jev-providers.js`: 1 ui file; 3 other lib files
 - `lib/job-contract.js`: 4 ui files; contexts audio, generation, jobs; 3 other lib files
 - `lib/job-model.js`: 3 ui files; context generation; 4 other lib files
-- `lib/job-status.js`: 28 ui files; contexts audio, jobs, library; 5 other lib files
+- `lib/job-status.js`: 29 ui files; contexts audio, jobs, library; 5 other lib files
 - `lib/job-timing.js`: 1 ui file
 - `lib/large-documents.js`: 10 ui files; context generation; 6 other lib files
 - `lib/learner.js`: 1 ui file; context coach; 4 other lib files
@@ -111,7 +111,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/sm2.js`: 2 ui files; 6 other lib files
 - `lib/source-courses.js`: 7 ui files; contexts audio, bank, courses, generation, library, materials, recording; 24 other lib files
 - `lib/source-groups.js`: 29 ui files; contexts generation, library, materials; 9 other lib files
-- `lib/source-provenance.js`: 7 ui files; contexts library, materials; 6 other lib files
+- `lib/source-provenance.js`: 7 ui files; contexts generation, library, materials; 6 other lib files
 - `lib/source-relations.js`: 2 ui files
 - `lib/stage-effort.js`: 1 ui file; context generation; 3 other lib files
 - `lib/stage-usage.js`: 1 ui file; context generation; 2 other lib files
@@ -134,7 +134,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/capture.js`: contexts recording, study; 2 other lib files
 - `lib/card-content.js`: contexts authoring, coach, study; 4 other lib files
 - `lib/coach-daily.js`: contexts coach, jobs, library
-- `lib/coach.js`: contexts coach, study; 10 other lib files
+- `lib/coach.js`: contexts coach, generation, study; 10 other lib files
 - `lib/course-active.js`: contexts generation, library; 11 other lib files
 - `lib/course-book-files.js`: contexts generation, library; 14 other lib files
 - `lib/course-book.js`: contexts generation, library, study; 8 other lib files
