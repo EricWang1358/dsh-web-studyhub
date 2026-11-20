@@ -13,6 +13,18 @@ import { SETUP_FAILED_WHAT, extensionDiagnostic } from './install/install-diagno
 /** The one wording of "the index was reset" (`reset`: retrieval.status companion.reset): broken and reset by the extension, or reset by 修复. */
 export const resetLine = (reset) => (reset?.reason === 'repair' ? ui('索引已经重置，需要重新建立索引。') : ui('索引坏了，已经重置，需要重新建立索引。'));
 
+function notStartedReason({ isDesktopApp, awaitingRestart, desktop }) {
+  if (isDesktopApp) return ui('先点「重试启动」（不清空索引）；仍无法启动再点「修复」自动重置索引并重启检索服务，或复制诊断信息排查运行环境。');
+  if (awaitingRestart) {
+    return desktop
+      ? ui('已修复。请完全退出 DSH 桌面版（包括托盘图标）后重新打开，然后重新建立索引。')
+      : ui('已修复。请重启 DSH，然后重新建立索引。');
+  }
+  return desktop
+    ? ui('先完全退出 DSH 桌面版（包括托盘图标）后重新打开再看；还不行就点修复。')
+    : ui('重启 DSH 后再看；还不行就点修复。');
+}
+
 /** Props: status (retrieval.status), refresh() (reads the status again), repair() (retrieval.index.repair), restart() (optional desktop hot-restart). */
 export default function ExtensionNotStarted({ status, refresh, repair: runRepair, restart: runRestart }) {
   const [confirm, setConfirm] = useState(false), [repaired, setRepaired] = useState(false), [retrying, setRetrying] = useState(false);
@@ -67,15 +79,7 @@ export default function ExtensionNotStarted({ status, refresh, repair: runRepair
             : ui('上次已重置过索引并重启了 DSH，检索服务还是没有启动，说明问题不在索引损坏。请点下面的「发给主会话」或复制诊断信息排查运行环境。')}</p>
           : <>
             {reset && <p className="extension-panel__reason">{resetLine(reset)}</p>}
-            <p className="extension-panel__reason">{isDesktopApp
-              ? ui('先点「重试启动」（不清空索引）；仍无法启动再点「修复」自动重置索引并重启检索服务，或复制诊断信息排查运行环境。')
-              : awaitingRestart
-                ? (desktop
-                  ? ui('已修复。请完全退出 DSH 桌面版（包括托盘图标）后重新打开，然后重新建立索引。')
-                  : ui('已修复。请重启 DSH，然后重新建立索引。'))
-                : (desktop
-                  ? ui('先完全退出 DSH 桌面版（包括托盘图标）后重新打开再看；还不行就点修复。')
-                  : ui('重启 DSH 后再看；还不行就点修复。'))}</p>
+            <p className="extension-panel__reason">{notStartedReason({ isDesktopApp, awaitingRestart, desktop })}</p>
           </>}
         <DiagnosticBar row resetKey={repairFailed ? 'repair-failed' : awaitingRestart ? 'repair-pending' : reset?.reason || 'not-started'}
           diagnostic={() => extensionDiagnostic({

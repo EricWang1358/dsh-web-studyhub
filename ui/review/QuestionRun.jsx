@@ -133,14 +133,12 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const thumbsRef = React.useRef(null);
   const [thumbState, setThumbState] = React.useState({ vote: null, tags: [] });
   const thumbVote = thumbState.vote;
-  const [assistText, setAssistText] = React.useState("");
-  const [thinkingNote, setThinkingNote] = React.useState("");
+  const [assistText, setAssistText] = React.useState(""), [thinkingNote, setThinkingNote] = React.useState("");
   const [dismissedTaskId, setDismissedTaskId] = React.useState("");
   const hasSessionExplainHidden = typeof session.explainHidden === "boolean";
   const [localExplainHidden, setLocalExplainHidden] = React.useState(false);
   const hasFeedback = !!run.feedback;
   React.useEffect(() => { setLocalExplainHidden(false); }, [run.id, run.index, run.card?.id, hasFeedback]);
-  React.useEffect(() => { setThinkingNote(""); }, [run.id, run.index, run.card?.id]);
   const isFeedbackHidden = hasSessionExplainHidden ? session.explainHidden : localExplainHidden;
   const showSolution = !!(run.solution && (run.feedback ? !isFeedbackHidden : explain));
   const showUnansweredFollowups = !run.revealed && !showSolution && run.mode !== "exam" && !!(explain || entry.assistance?.askedTutorBeforeAnswer) && (run.followups?.length ?? 0) > 0;
@@ -560,16 +558,10 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             const submitAssist = async () => {
               const mode = assistMode;
               if (!assistText.trim() && !(mode === "ask" && (helpChoices.length || trimmedNote))) return;
-              const extra = mode === "derive"
-                ? { relation: deriveRelation }
-                : (mode === "ask" && trimmedNote ? { thinkingNote: trimmedNote } : undefined);
+              const extra = mode === "derive" ? { relation: deriveRelation } : (mode === "ask" && trimmedNote ? { thinkingNote: trimmedNote } : undefined);
               if (await assistCard(mode, assistText.trim(), mode === "ask" ? helpChoices : [], extra)) {
-                if (mode === "ask" && helpChoices.includes("prerequisite") && run.prerequisites?.length)
-                  studyPrerequisites(run.prerequisites);
-                setAssistMode("");
-                setAssistText("");
-                setThinkingNote("");
-                setHelpChoices([]);
+                if (mode === "ask" && helpChoices.includes("prerequisite") && run.prerequisites?.length) studyPrerequisites(run.prerequisites);
+                setAssistMode(""); setAssistText(""); setThinkingNote(""); setHelpChoices([]);
               }
             };
             return (
@@ -623,20 +615,9 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                       }
                     }} />
                 </label>
-                {assistMode === "ask" && (
-                  <label className="assist-form__field assist-form__thinking">
-                    {ui("刚才卡在哪一步 / 是怎么想的？（选填）")}
-                    <TextInput
-                      type="text"
-                      className="assist-form__thinking-input"
-                      data-thinking-note=""
-                      value={thinkingNote}
-                      maxLength={200}
-                      placeholder={ui("用一句话记下刚才卡住的思路，便于后续精准提醒")}
-                      onChange={(event) => setThinkingNote(event.target.value)}
-                    />
-                  </label>
-                )}
+                {assistMode === "ask" && (<label className="assist-form__field assist-form__thinking">{ui("刚才卡在哪一步 / 是怎么想的？（选填）")}
+                  <TextInput type="text" className="assist-form__thinking-input" data-thinking-note="" value={thinkingNote} maxLength={200}
+                    placeholder={ui("用一句话记下刚才卡住的思路，便于后续精准提醒")} onChange={(event) => setThinkingNote(event.target.value)} /></label>)}
                 {assistMode === "improve" && <FixPhraseSave phrases={fixPhrases.phrases} text={assistText} onSave={fixPhrases.add} />}
                 {assistMode === "improve" && <CourseRuleAdd courseRules={courseRules} text={assistText} />}
                 <div className="action-feedback-slot assist-form__feedback">{feedback}</div>
