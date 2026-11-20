@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import assert from 'node:assert/strict';
 import { after } from 'node:test';
 import { StudyService } from '../../lib/service.js';
+import { stageRequest, stageSystem } from '../../lib/prompt-order.js';
 import { clusteringModel } from './clustering-model.mjs';
 import { corpusWorld, CORPUS_ROUND_LIMIT, weighing } from './record-run-corpus.mjs';
 import { settleJob, until } from './wait.mjs';
@@ -74,7 +75,14 @@ export async function goldenLibrary(t, { model = clusteringModel().complete, lan
   };
   // In a prompt an id is only a mark: which one was seen first differs between the two sides of the switch, and a prompt says nothing about that.
   const sealed = text => clean.text(text.replace(UUID, '<id>'));
-  const record = (kind, system, prompt, context = {}) => calls.push([kind, stageOf(system), context.part ?? '', context.round ?? '', digest(sealed(system)), digest(sealed(prompt)), prompt.length, clean.text(String(context.stage ?? ''))].join(' | '));
+  // Legacy calls `stageRequest` inside the host model adapter while the runtime calls it in `gateway-model.js` (and appends the session interface language preference in `lib/runtime/models.js`).
+  // Canonicalize both sides to the exact ordered request that reaches the provider so `pinned()` compares identical calls across legacy and runtime.
+  const stripLangPref = text => { const at = text.indexOf('\n\nApplication language preference: '); return at < 0 ? text : text.slice(0, at); };
+  const record = (kind, system, prompt, context = {}) => {
+    const cleanSys = stripLangPref(system);
+    const ordered = kind === 'main' ? stageRequest(cleanSys, prompt) : { system: cleanSys, prompt };
+    calls.push([kind, stageOf(stageSystem(ordered.system, ordered.prompt)), context.part ?? '', context.round ?? '', digest(sealed(ordered.system)), digest(sealed(ordered.prompt)), ordered.prompt.length, clean.text(String(context.stage ?? ''))].join(' | '));
+  };
   service.complete = async (system, prompt, context = {}) => { record('main', system, prompt, context); await held(); return model(system, prompt, context); };
   if (light) service.light = async (system, prompt, context = {}) => { record('light', system, prompt, context); await held(); return light(system, prompt, context); };
   t.after(async () => { gate.open?.(); await service.dispose(); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });

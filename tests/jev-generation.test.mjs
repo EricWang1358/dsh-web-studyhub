@@ -22,7 +22,7 @@ async function harness(t, { jev = {}, experimental = true } = {}) {
   process.env.DSH_HOME = home; delete process.env.JEV_API_KEY; delete process.env.JEV_BASE_URL;
   const fake = await startFakeJev({ answer: (name, question, state) => ({ type: 'noul', noul: state.question.startsWith('Leaky') && name === 'stemLeaksAnswer' ? 0.97 : name === 'stemLeaksAnswer' || name === 'needsSource' ? 0.05 : 0.95 }), ...jev });
   const models = [];
-  const complete = withQualityStages(async (system, prompt) => {
+  const complete = withQualityStages(async (system, _prompt) => {
     models.push(system.slice(0, 30));
     if (system.startsWith('Rewrite')) return JSON.stringify({ cards: [card('x2', 'What does Bridge let two dimensions do?', 'Objective two')] });
     return JSON.stringify({ title: 'Bridge', cards: [card('x1', 'Why use Bridge for reports and renderers?', 'Objective one'), card('x2', 'Leaky: Bridge separates abstraction and implementation, true?', 'Objective two')] });

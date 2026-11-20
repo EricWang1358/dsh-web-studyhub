@@ -128,7 +128,7 @@ async function library(t) {
 }
 
 test('generate.weakTopics lists the course\'s weakest topics from the learner\'s own answers, with no model call and nothing written', async t => {
-  let calls = 0;
+  const calls = 0;
   const service = await library(t);
   const before = JSON.stringify(await service.call('snapshot'));
   const found = await service.call('generate.weakTopics', { course: 'SWE5001' });

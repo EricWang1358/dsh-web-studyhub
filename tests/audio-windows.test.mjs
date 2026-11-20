@@ -55,29 +55,34 @@ test('two-window mode caps active calls in both text phases', async t => {
 test('cancelling a recording cancels all active children and starts no later window', async t => {
   const f = fixture(t), work = f.run();
   work.catch(() => {});
+  // Window #1 is staggered to warm the prefix cache before windows 2..4 run in parallel.
+  await until(() => f.pending.has('proofread:1'));
+  f.pending.get('proofread:1').resolve();
   await until(() => f.pending.size === 3);
   f.controller.abort(new Error('learner stopped'));
   await assert.rejects(work, /learner stopped/);
   assert.equal(f.active, 0);
-  assert.equal(f.calls.length, 3);
-  assert.equal(f.files.size, 0);
+  assert.equal(f.calls.length, 4);
+  assert.equal(f.files.size, 1);
 });
 
 test('a fatal child failure stops siblings while completed checkpoints remain reusable', async t => {
   const f = fixture(t), work = f.run();
   work.catch(() => {});
+  await until(() => f.pending.has('proofread:1'));
+  f.pending.get('proofread:1').resolve();
   await until(() => f.pending.size === 3);
-  f.pending.get('proofread:2').resolve();
-  await until(() => f.files.size === 1);
-  f.pending.get('proofread:1').reject(Object.assign(new Error('invalid key'), { fatal: true }));
-  await assert.rejects(work, /校对第 1\/7 段失败：invalid key/);
+  f.pending.get('proofread:3').resolve();
+  await until(() => f.files.size === 2);
+  f.pending.get('proofread:2').reject(Object.assign(new Error('invalid key'), { fatal: true }));
+  await assert.rejects(work, /校对第 2\/7 段失败：invalid key/);
   assert.equal(f.active, 0);
-  assert.equal(f.calls.length, 4, 'window 2 finished, so window 4 took its slot before the failure');
+  assert.equal(f.calls.length, 5, 'window 3 finished, so window 5 took its slot before the failure');
   const retried = [];
   await finishTranscript({ paragraphs, filename: 'lecture.wav', settings: {}, saved: f.saved, keys: { raw: 'r', text: 't' },
     complete: async (system, prompt, options) => { retried.push(`${options.kind}:${options.part}`); return answer(prompt, options); } });
-  assert.ok(!retried.includes('proofread:2'), 'successful sibling does not need another request');
-  assert.equal(retried.filter(key => key.startsWith('proofread')).length, 6);
+  assert.ok(!retried.includes('proofread:1') && !retried.includes('proofread:3'), 'completed siblings do not need another request');
+  assert.equal(retried.filter(key => key.startsWith('proofread')).length, 5);
 });
 
 test('a legacy recording-parallelism value is ignored and the limits of both concurrencies hold', async t => {
@@ -115,6 +120,9 @@ for (const phase of ['proofread', 'translate']) test(`managed ${phase} pause dra
     keys: { raw: 'r', text: 't' }, pauseRequested: () => paused,
     pauseBoundary: async value => { boundary = value; assert.equal(active, 0); throw marker; } });
   run.catch(() => {});
+  // Let warm-up window #1 settle, then pause once 2 parallel windows are open.
+  await until(() => pending.length === 1);
+  pending.shift()();
   await until(() => pending.length === 2); paused = true;
   // Resolve all later windows too on the old implementation, so the red test
   // reports its missing boundary rather than hanging indefinitely.
@@ -122,8 +130,8 @@ for (const phase of ['proofread', 'translate']) test(`managed ${phase} pause dra
   try {
     await assert.rejects(run, error => error === marker);
     assert.equal(boundary, phase);
-    assert.equal(calls.filter(value => value.startsWith(phase + ':')).length, 2);
-    assert.equal([...files.keys()].filter(name => name.startsWith(phase === 'proofread' ? 'proof-' : 'part-')).length, 2);
+    assert.equal(calls.filter(value => value.startsWith(phase + ':')).length, 3);
+    assert.equal([...files.keys()].filter(name => name.startsWith(phase === 'proofread' ? 'proof-' : 'part-')).length, 3);
     assert.equal(calls.some(value => value.startsWith('title:')), false);
   } finally { clearInterval(drain); }
 });

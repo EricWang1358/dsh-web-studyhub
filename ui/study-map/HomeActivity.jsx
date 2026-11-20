@@ -73,7 +73,7 @@ function DraftRow({ draft: d, data, modelReady, openDraft, topUpDraft }) {
    home (P26): a job started from 创建题组 is in view when the learner lands
    here, and a failure shows up where they are looking (P15). `jobs` are the
    ones to show, running first. */
-export default function HomeActivity({ sectionRef, jobs, drafts, data, modelReady, start, manage, openDraft, openAgent, cancelJob, dismissJob, retryGeneration, openModelSettings, topUpDraft }) {
+export default function HomeActivity({ sectionRef, jobs, drafts, data, modelReady, start, manage, openDraft, cancelJob, dismissJob, retryGeneration, openModelSettings, topUpDraft }) {
   const quick = useQuickActions(), toast = useToast();
   if (!jobs.length) return null;
   // One card per deck: the older jobs of a draft fold into its newest job's card.

@@ -13,7 +13,7 @@ const RUNTIME = SWITCH_MODE === 'runtime';
 /* S2-0 characterization of `audio.subtitles.import` (lib/contexts/audio/operations.js, lib/subtitle-job.js) on the code as it is.
    Already covered elsewhere: the happy path with corrections and review (subtitle-review-flow), cue parsing (subtitles). */
 
-const SOURCE_ID = 'subtitle-2d6df86b';
+const SOURCE_ID = 'subtitle-572feda7';
 const calls = (n, sum = REPORTED) => ({ uncachedInputTokens: n * sum.uncachedInputTokens, outputTokens: n * sum.outputTokens, cacheReadTokens: 0, cacheWriteTokens: 0, calls: n });
 const withoutCount = ({ calls: _count, ...buckets }) => buckets;
 const jobOf = async (service, id) => (await service.call('snapshot')).jobs.find(job => job.id === id);

@@ -250,15 +250,24 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onOp
   const [veilActive, setVeilActive] = React.useState(recallEnabled);
   const [revealedRows, setRevealedRows] = React.useState(() => new Set());
   const [reasonsByKey, setReasonsByKey] = React.useState(() => seedReasonsFromRows(rows));
+  const rowsRef = React.useRef(rows);
+  rowsRef.current = rows;
   const rowReasonsSignature = rows.map((row) => `${rowReasonKey(row)}=${row?.errorReason || ""}`).join("|");
+  const veilResetKey = `${run.id}\0${recallEnabled ? 1 : 0}`;
+  const lastVeilResetKeyRef = React.useRef(veilResetKey);
   React.useEffect(() => {
+    if (lastVeilResetKeyRef.current === veilResetKey) return;
+    lastVeilResetKeyRef.current = veilResetKey;
     setVeilActive(recallEnabled);
     setRevealedRows(new Set());
-  }, [run.id, recallEnabled]);
+  }, [veilResetKey, recallEnabled]);
+  const reasonsSyncKey = `${run.id}\0${rowReasonsSignature}`;
+  const lastReasonsSyncKeyRef = React.useRef(reasonsSyncKey);
   React.useEffect(() => {
-    setReasonsByKey(seedReasonsFromRows(rows));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync persisted reasons without re-veiling already revealed rows
-  }, [run.id, rowReasonsSignature]);
+    if (lastReasonsSyncKeyRef.current === reasonsSyncKey) return;
+    lastReasonsSyncKeyRef.current = reasonsSyncKey;
+    setReasonsByKey(seedReasonsFromRows(rowsRef.current));
+  }, [reasonsSyncKey]);
   React.useEffect(() => { if (segment) setHesitantOnly(false); }, [segment]);
   const shown = hesitantOnly
     ? hesitantRows

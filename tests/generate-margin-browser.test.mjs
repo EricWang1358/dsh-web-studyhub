@@ -129,7 +129,7 @@ const answers = (all = ids) => ({
 /** 创建题组 with the index answer held until `release()` (or given at once with `now`). */
 async function openGenerate({ lang, theme = 'light', width, height = 860, answer = answers()['no index'], now = true, on = server }) {
   const opened = await openPage(browser, { server: on }, { lang, theme, width, height });
-  let release, held = new Promise(done => { release = done; }), asked = false;
+  let release; const held = new Promise(done => { release = done; }); let asked = false;
   if (now) release();
   await opened.page.route('**/api/call', async route => {
     let action = '';
@@ -508,7 +508,7 @@ test('#1082: the estimate under 帮我想想 is as tall while it is coming as wh
   for (const [lang, width] of [['en', 320], ['en', 420], ['zh', 320], ['zh', 420], ['en', 1440]]) {
     const tag = `${lang} ${width}`;
     const { page, errors, context } = await openGenerate({ lang, width, height: 1400 });
-    let release, held = new Promise(done => { release = done; });
+    let release; const held = new Promise(done => { release = done; });
     await page.route('**/api/call', async route => {
       let body = {};
       try { body = JSON.parse(route.request().postData() || '{}'); } catch { /* not JSON */ }

@@ -213,7 +213,7 @@ test('changing the skeleton marks its diagrams as possibly out of date, and the 
   const summary = (await service.call('skeleton.list', {})).skeletons.find(item => item.id === skeletonId);
   assert.equal(summary.diagrams, 1, 'the page learns of a new diagram from the list');
   const saved = await service.call('skeleton.save', { skeleton: { id: skeletonId, title: '可用性 2', scope: skeleton.scope, overview: 'o', nodes: skeleton.nodes, relations: [] } });
-  assert.equal((saved.diagrams ?? saved.skeleton?.diagrams).length, 1, 'a full re-save keeps them too');
+  assert.equal((saved.diagrams ?? saved.skeleton?.diagrams)?.length, 1, 'a full re-save keeps them too');
 });
 
 test('deleting a skeleton deletes its diagram folder', async t => {

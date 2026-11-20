@@ -160,3 +160,44 @@ test('控件与字阶 reads the choice from the seat and the glyph, never from a
   assert.match(craft, /> :is\(\.sh-icon, \.sh-spinner\):first-child/);
   assert.doesNotMatch(craft, /:has\(> \.study-app\[data-craft/);
 });
+
+/* 2026-11-18, measured with page-switch-perf on React's production build (300 资料, 1440 px, 21 switches): long tasks 1948 ms -> 996 ms, the
+   worst frame entering 资料 208 -> 125 ms and entering 创建题组 325 -> 167 ms (docs/performance.md). What made the difference is pinned below:
+   each is a read of the layout in the middle of building a page, or a list that laid out rows nobody could see. */
+const source = (file) => readFileSync(join(ROOT, file), 'utf8');
+
+test('the sidebar highlight is measured by the resize observer, after the browser laid the page out, and lands in the same paint', () => {
+  const nav = source('ui/app/SidebarNav.jsx');
+  assert.match(nav, /if \(typeof ResizeObserver !== 'function'\) \{ measure\(\); return undefined; \}/, 'rows are read in the commit only where there is no observer');
+  assert.match(nav, /new ResizeObserver\(\(\) => flushSync\(measure\)\)/, 'the report is committed before the paint (tests/nav-layout.test.mjs measures it)');
+  assert.match(nav, /useMemo\(\(\) => \(sources \? countDocuments\(sources\) : 0\), \[sources\]\)/, 'the number on 资料 is counted once per snapshot');
+  assert.doesNotMatch(nav, /hint=\{[^}]*countDocuments\(/, 'not in every render of every row');
+});
+
+test('a segmented control reads before it writes, and only places a newly chosen item during the commit', () => {
+  const seg = source('ui/components/SegmentedControl.jsx');
+  const place = seg.slice(seg.indexOf('const place = useCallback('), seg.indexOf('const mounted = useRef(false)'));
+  const writes = place.slice(place.indexOf("mark.style.transition = 'none'"));
+  assert.ok(place.length > 0 && writes.length > 0, 'the placement code is still found');
+  assert.doesNotMatch(writes, /item\.offset/, 'no measurement of the item after the first write (each one was a layout of the page)');
+  assert.match(seg, /const watched = typeof ResizeObserver !== 'undefined' && \(!mounted\.current \|\| active\.current === activeIndex\)/);
+  assert.match(seg, /if \(!watched\) place\(moved\)/, 'with an observer, a render that chose nothing new measures nothing');
+  assert.match(seg, /new ResizeObserver\(\(\) => place\(false, true\)\)/, 'the first placement and every resize are the observer\'s');
+  assert.doesNotMatch(seg, /fonts\?\.ready/, 'reading document.fonts.ready lays the page out on the spot: the loadingdone event is listened to instead');
+  assert.match(seg, /addEventListener\?\.\('loadingdone', refit\)/);
+});
+
+test('a 资料 row far from the window is not laid out, and a row never clips its own open menu or tooltip', () => {
+  const css = source('ui/sources.css');
+  assert.match(css, /\.source-doc \{ content-visibility: auto; contain-intrinsic-size: auto \d+px; \}/);
+  assert.match(css, /\.source-doc:is\(:hover, :focus-within, \.source-doc--menu\) \{ content-visibility: visible; \}/, 'the containment is lifted where a row draws outside itself');
+  const rows = source('ui/Sources.jsx');
+  assert.match(rows, /<details className="source-row-actions" onToggle=\{event => setMenuOpen\(event\.currentTarget\.open\)\}>/, 'the row knows its menu is open');
+  assert.match(rows, /\(menuOpen \? " source-doc--menu" : ""\)/);
+});
+
+test('--production measures the bundle the harness serves, and leaves the repository dist/ alone', () => {
+  assert.match(source('scripts/qa/harness.mjs'), /buildPreview\(\{ outdir: distDir, production: options\.production === "true", readable: options\.readable === "true" \}\)/);
+  for (const file of ['scripts/qa/page-switch-perf.mjs', 'scripts/qa/ui-motion.mjs', 'scripts/qa/ui-profile.mjs'])
+    assert.doesNotMatch(source(file), /buildPreview\(\{ production: true \}\)/, `${file} used to rebuild dist/ for production and then measure the harness's development bundle`);
+});

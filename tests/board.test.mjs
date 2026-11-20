@@ -21,7 +21,7 @@ test("board is global across workspaces and isolated by DSH_HOME", () => isolate
   const initial = await boardAction("board.get");
   assert.equal(initial.revision, 0);
   assert.deepEqual(initial.columns.map((column) => column.title), ["待办", "进行中", "已完成"]);
-  let board = await boardAction("board.card.add", { revision: 0, title: "Read", labels: ["study", "study"], due: "2028-02-29" }, "C:\\courses\\module");
+  const board = await boardAction("board.card.add", { revision: 0, title: "Read", labels: ["study", "study"], due: "2028-02-29" }, "C:\\courses\\module");
   const id = board.columns[0].cardIds[0];
   assert.deepEqual(board.cards[id].origin, { workspace: "C:\\courses\\module", workspaceTitle: "module" });
   assert.deepEqual(board.cards[id].labels, ["study"]);

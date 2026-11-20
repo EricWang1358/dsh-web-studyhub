@@ -190,7 +190,7 @@ test('uploadPdf hands the file over in pieces, reports progress, and cancels the
   assert.equal(progress.at(-1), 1);
   assert.ok(progress.every((value, index) => index === 0 || value >= progress[index - 1]));
   const failing = []; let seen = 0;
-  const broken = async (action, args) => { failing.push(action); if (action === 'mineru.upload.chunk' && ++seen === 2) throw new Error('disk full'); return action === 'mineru.upload.start' ? { uploadId: 'u2', chunkBytes: 3 * 1024 * 1024 } : {}; };
+  const broken = async (action, _args) => { failing.push(action); if (action === 'mineru.upload.chunk' && ++seen === 2) throw new Error('disk full'); return action === 'mineru.upload.start' ? { uploadId: 'u2', chunkBytes: 3 * 1024 * 1024 } : {}; };
   await assert.rejects(uploadPdf(broken, upload), /disk full/);
   assert.equal(failing.at(-1), 'mineru.upload.cancel', 'a half-read upload does not stay behind');
 });

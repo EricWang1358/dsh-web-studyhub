@@ -447,7 +447,7 @@ test('Browser E2E: AI 智能分类 & 整理课程归属 (>100 items) survive pag
   let classifyStartArgs = null;
   let organizeStartArgs = null;
   let organizeDismissed = false;
-  let cancelledJobIds = [];
+  const cancelledJobIds = [];
 
   await page.route('**/*', async route => {
     const req = route.request();

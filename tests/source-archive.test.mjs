@@ -45,7 +45,7 @@ test('bulk deletion checks every source before removing any evidence', async t =
   assert.equal((await call('export')).sources.length, 0);
 });
 
-test('archive expands a PDF page to its entire document and preserves identities', async t => {
+test('archive expands a PDF page to its entire document and preserves identities', async _t => {
   const { archiveSources } = await import('../lib/source-archive.js');
   const sources = [1, 2].map(page => ({ id: `p${page}`, title: `Book · p. ${page}`, text: `Page ${page}`, document: { id: 'book', page } }));
   const state = { sources, documents: [] };

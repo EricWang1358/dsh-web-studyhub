@@ -138,7 +138,7 @@ test('prompts: chemistry in \\ce, ions with a caret, equations in one \\ce, and 
   }
 });
 
-test('the plain-text notation (公式写法 text) keeps Unicode math as written and turns chemistry and TeX into Unicode: nothing is wrapped, flagged or prompted for \ce', async () => {
+test('the plain-text notation (公式写法 text) keeps Unicode math as written and turns chemistry and TeX into Unicode: nothing is wrapped, flagged or prompted for \\ce', async () => {
   const options = [opt('a', '5√4', false), opt('b', '√26', false), opt('c', '5√2', true)];
   const card = goodCard({ answer: '5√2', options, prompt: '化简 √8+√18，当 x≠1 时，H2SO4 的 a/b。', explanation: '得到 x^2 与 TeX a^{2}。' });
   const { deck } = autofixDeck({ title: 't', cards: [card] }, { assessmentPlan: plan(), answerBlueprint: blueprint(options, '5√2'), expectedKind: 'quiz', language: 'English', notation: 'text' });

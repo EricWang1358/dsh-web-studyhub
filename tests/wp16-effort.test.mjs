@@ -232,7 +232,7 @@ test('a native generation child runs on the preferred level', async (t) => {
   };
   const nativeCtx = { ...ctx, get: (name) => name === 'subagents' ? subagents : name === 'agents' ? { get: () => parent } : undefined };
   const marked = effort.withEffortPreference({ provider: 'p', model: 'm', reasoningEffort: 'low' }, 'high');
-  await plugin.modelCompletion(nativeCtx, () => marked, 's')('sys', 'prompt', { jobId: 'job1234', stage: 'Writing', onEvent() {}, signal: new AbortController().signal });
+  await plugin.modelCompletion(nativeCtx, () => marked, 's')('sys', 'prompt', { jobId: 'job1234', stage: 'Writing', executionMode: 'subagent', onEvent() {}, signal: new AbortController().signal });
   assert.equal(started[0].agentOptions.reasoningEffort, 'high');
   assert.deepEqual(Object.getOwnPropertySymbols(started[0].agentOptions), [], 'the child never sees the marker');
 });

@@ -23,7 +23,7 @@ test('a translation is one Job in the library queue: a Step per batch, the parag
   assert.deepEqual([contract.kind, contract.status, contract.result.completeness, contract.runtime.attempts.length], ['translation', 'complete', 'complete', 1]);
   assert.deepEqual(contract.result.refs, [{ kind: 'source', id: a.sourceId }]);
   assert.equal(contract.calls.length, f.fake.calls.length);
-  assert.ok(contract.calls.every(call => call.kind === 'translate' && call.feature === 'other' && call.executionMode === 'agent-preferred'));
+  assert.ok(contract.calls.every(call => call.kind === 'translate' && call.feature === 'other' && call.executionMode === 'direct' && call.requestedEffort === 'low'));
   assert.deepEqual(contract.capabilities.executionModes, ['direct', 'subagent']);
 });
 

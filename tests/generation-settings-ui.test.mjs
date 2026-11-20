@@ -51,17 +51,17 @@ const edit = (view, key, value) => { const { props } = control(view, key); retur
 const submit = view => view.render().props.onSubmit({ preventDefault() {} });
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
 
-test('the generation settings section renders twenty-three controls without model groups (hiding lightModel) and twenty-four with model groups, with shared limits in both languages', () => {
+test('the generation settings section renders twenty-four controls without model groups (hiding lightModel) and twenty-five with model groups, with shared limits in both languages', () => {
   const groups = [{ id: 'preview', name: 'Preview', models: [{ id: 'fast', name: 'Fast' }] }];
   for (const language of ['zh', 'en']) {
     ssr.setUiLanguage(language);
     const htmlNoGroups = renderToStaticMarkup(React.createElement(ssr.GenerationSettings, { root: '/temporary/library', act: noop }));
-    assert.equal((htmlNoGroups.match(/<(?:input|select|textarea)\b/g) || []).length, 23, `${language}: hides lightModel when no modelGroups`);
+    assert.equal((htmlNoGroups.match(/<(?:input|select|textarea)\b/g) || []).length, 24, `${language}: hides lightModel when no modelGroups`);
     assert.doesNotMatch(htmlNoGroups, /name="lightModel"/);
     const html = renderToStaticMarkup(React.createElement(ssr.GenerationSettings, { root: '/temporary/library', act: noop, modelGroups: groups }));
     assert.match(html, /data-tour="settings-generation"/);
     assert.match(html, /data-tour="settings-generation-time"[^>]*>(?:(?!<div class="sh-field).)*name="jobTimeoutMinutes"/, 'the Jobs page links to the field of the time limit');
-    assert.equal((html.match(/<(?:input|select|textarea)\b/g) || []).length, 24);
+    assert.equal((html.match(/<(?:input|select|textarea)\b/g) || []).length, 25);
     const types = [...html.matchAll(/<input[^>]*type="checkbox"[^>]*name="kinds-(\w+)"[^>]*>/g)];
     assert.deepEqual(types.map(match => match[1]), ['quiz', 'multi', 'truefalse', 'flashcard', 'open', 'cloze', 'task'], 'the default question types are seven checkboxes, not a select');
     assert.deepEqual(types.map(match => /checked/.test(match[0])), [true, false, false, false, false, false, false], 'single choice is ticked by default');
@@ -69,7 +69,7 @@ test('the generation settings section renders twenty-three controls without mode
     assert.equal((html.match(/name="kind"/g) || []).length, 0);
     const check = html.match(/<input[^>]*name="applySuggestions"[^>]*>/);
     assert.ok(check && /type="checkbox"/.test(check[0]) && !/checked/.test(check[0]), 'applying the review suggestions is a checkbox, off by default');
-    for (const [name, min, max] of [['selectionCount', 1, 20], ['count', 1, 500], ['concurrency', 1, 8], ['batchSize', 1, 5], ['jobTimeoutMinutes', 5, 180], ['fillRounds', 0, 4]]) {
+    for (const [name, min, max] of [['selectionCount', 1, 20], ['count', 1, 500], ['concurrency', 1, 8], ['batchSize', 1, 5], ['jobTimeoutMinutes', 0, 180], ['bookCallTimeoutMinutes', 0, 180], ['fillRounds', 0, 4]]) {
       const input = html.match(new RegExp(`<input[^>]*name="${name}"[^>]*>`))[0];
       assert.match(input, new RegExp(`min="${min}"`)); assert.match(input, new RegExp(`max="${max}"`));
     }

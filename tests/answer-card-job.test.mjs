@@ -40,8 +40,9 @@ test('2 calls: write, the program\'s checks, one clean review; the card is saved
   assert.deepEqual(write.question.rubric.flatMap(criterion => criterion.keyPoints.map(point => point.id)), ['c1.k1', 'c1.k2', 'c2.k1']);
   assert.equal(write.likelyType, 'availability');
   assert.ok(write.questionTypes.some(type => type.id === 'risk') && write.materials[0].ref === 'M1', 'the catalogue and the deck\'s own materials');
-  assert.match(w.fake.calls[0].system, /Write in English/, 'the card is written in the deck\'s language');
-  assert.match(w.fake.calls[1].system, /^You independently review an answer card/);
+  assert.match(w.fake.calls[0].prompt, /in English/, 'the card is written in the deck\'s language');
+  assert.equal(w.fake.calls[0].system, w.fake.calls[1].system, 'write and review share identical system prompt for caching');
+  assert.match(w.fake.calls[1].prompt, /Independently review this answer card/);
   const card = await w.live();
   assert.equal(card.answer, before.answer, 'the answer of an existing card is never changed');
   assert.deepEqual(card.review, before.review, 'SM-2 is not reset');
@@ -82,7 +83,7 @@ test('a repair that still leaves a quote unfound saves the card as 部分未核�
   assert.equal(card.status, 'partial');
   assert.deepEqual([card.concepts[0].verified, card.concepts[0].reason], [false, 'ellipsis']);
   assert.match(renderAnswerCard(card, 'zh'), /（未核实）/);
-  const noReview = await world(t, { ...cardModel(), complete: async (system, prompt) => (system.startsWith('You independently review') ? 'not json' : JSON.stringify(goodCard())), calls: [] });
+  const noReview = await world(t, { ...cardModel(), complete: async (system, prompt) => ((system.startsWith('You independently review') || /\nSTAGE: review\b/.test(prompt)) ? 'not json' : JSON.stringify(goodCard())), calls: [] });
   await noReview.finish();
   const unreviewed = (await noReview.live()).answerCard;
   assert.deepEqual([unreviewed.status, unreviewed.checks.review.ran], ['partial', false]);

@@ -9,7 +9,7 @@ const sentence = (recording, part, index) => [1, 2, 3, 4].map(k => `Recording ${
 const chinese = (recording, part, index) => [1, 2, 3, 4].map(k => `录音${recording}，第${part}段，第${index + 1}点.${k}：我们讨论平台团队，以及每个产品组必须构建什么，还有这个选择对复用它的团队意味着怎样的成本。`).join('');
 
 /** `{ volumes: [text, text], sources: [{ id, text, title, audio }], parts: 80, recordings: 5 }` */
-export function mergedTranscript({ recordings = 5, parts = 16, paragraphs = 8, language = 'zh', limit = 400_000 } = {}) {
+export function mergedTranscript({ recordings = 5, parts = 16, paragraphs = 8, language = 'zh' } = {}) {
   const members = RECORDING_NAMES.slice(0, recordings).map((filename, index) => ({ filename, index }));
   const results = members.map((member, at) => ({ documents: buildDocuments({ filename: member.filename, titleEn: `Preview Lecture Recording ${at + 1}`, language, limit: Infinity,
     parts: Array.from({ length: parts }, (_, part) => ({ titleZh: `预览段落 ${part + 1}`, titleEn: `Preview Passage ${part + 1}`,

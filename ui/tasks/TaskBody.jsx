@@ -103,7 +103,7 @@ export default function TaskBody({ task, archived = false, marks, focusCall }) {
   const leftItems = [...(callFree ? [] : [{ value: 'running', label: uiFormat('正在进行 {0}', [running.length]) }]), ...(section ? [{ value: section.value, label: `${ui(section.label)} ${section.count(contract)}`.trim() }] : [])];
   // 目标与知识点: a question run or a top-up lists the points its plan holds (ui/tasks/PlanTable.jsx), as a third tab beside the two.
   const planned = kind === 'generation' || kind === 'supplement';
-  const hasRequestTrace = planned || kind === 'repair';
+  const hasRequestTrace = planned || kind === 'repair' || contract.kind === 'course-book-build' || contract.kind === 'companion-lesson-build';
   if (planned) leftItems.push(planTabItem(contract));
   const tab = leftItems.some((item) => item.value === leftTab) ? leftTab : leftItems[0].value;
   const rightItems = [

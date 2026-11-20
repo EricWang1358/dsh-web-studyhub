@@ -174,7 +174,7 @@ test('a missing folder is an empty history', async t => {
   assert.equal((await clearRecords(root)).removed, 0);
 });
 
-test('a failure reason carries no file path, no token and no long secret-looking text', async t => {
+test('a failure reason carries no file path, no token and no long secret-looking text', async _t => {
   const token = 'eyJ0eXBlIjoiSldUIn0.fake_MINERU_token_0000000000000001.sig-test';
   const text = plainReason(`ENOENT: no such file C:\\Users\\Eric\\.dsh\\study\\tmp\\pdf-convert\\abcd\\jobs\\x\\source.pdf and /home/eric/.dsh/study/tmp/pdf-convert/a/b.pdf; Authorization: Bearer ${token}; token=${token}`, { secrets: [token] });
   assert.doesNotMatch(text, /Users|\.dsh|\/home|eyJ|fake_MINERU|Bearer ey/);

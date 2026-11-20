@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
+import React, { useCallback, useLayoutEffect, useRef } from 'react';
 import css from './components.css';
 import variantsCss from './button-variants.css';
 import { useComponentCss, cx } from './css.js';
@@ -31,8 +31,9 @@ export default function SegmentedControl({ label, value, options = [], onChange,
   const signature = `${size}|${options.map(option => `${option.value}:${option.label}`).join('|')}`;
 
   /* Move the thumb to the active item. Re-measuring an unchanged layout writes
-     nothing, so a parent re-render never cuts a slide short. */
-  const place = useCallback(animate => {
+     nothing, so a parent re-render never cuts a slide short. laidOut: called by the
+     resize observer, when the browser has just laid the page out. */
+  const place = useCallback((animate, laidOut = false) => {
     const group = root.current, mark = thumb.current;
     if (!group || !mark) return;
     const item = active.current >= 0 ? group.querySelectorAll(ITEMS)[active.current] : null;
@@ -45,32 +46,50 @@ export default function SegmentedControl({ label, value, options = [], onChange,
     const [x0, y0, w0, h0] = rect.current ? rect.current.split(',').map(Number) : [];
     rect.current = next;
     const instant = !animate || !on;
-    /* Only transform moves: the thumb takes the new size at once, is scaled back to the old one, then released (FLIP). */
+    /* Only transform moves: the thumb takes the new size at once, is scaled back to the old one, then released (FLIP).
+       Every measurement is taken before the first write: one taken after a write makes the browser lay the page out again, and a
+       placement used to do that four times. */
+    const width = `${item.offsetWidth}px`, height = `${item.offsetHeight}px`;
+    const to = `translate(${item.offsetLeft}px, ${item.offsetTop}px)`;
+    const from = instant || !(w0 > 0 && h0 > 0) ? to : `translate(${x0}px, ${y0}px) scale(${w0 / item.offsetWidth}, ${h0 / item.offsetHeight})`;
     mark.style.transition = 'none';
-    mark.style.width = `${item.offsetWidth}px`;
-    mark.style.height = `${item.offsetHeight}px`;
-    mark.style.transform = instant || !(w0 > 0 && h0 > 0) ? `translate(${item.offsetLeft}px, ${item.offsetTop}px)`
-      : `translate(${x0}px, ${y0}px) scale(${w0 / item.offsetWidth}, ${h0 / item.offsetHeight})`;
+    mark.style.width = width;
+    mark.style.height = height;
+    mark.style.transform = from;
     group.setAttribute('data-thumb', 'on');
+    /* Nothing slides and the browser is between layout and paint: this frame is drawn without a transition anyway, so the transition
+       comes back at the start of the next frame instead of through one more forced layout here. */
+    if (instant && laidOut && typeof requestAnimationFrame === 'function') { requestAnimationFrame(() => { mark.style.transition = ''; }); return; }
     void mark.offsetWidth;
     mark.style.transition = '';
-    mark.style.transform = `translate(${item.offsetLeft}px, ${item.offsetTop}px)`;
+    mark.style.transform = to;
   }, []);
 
+  /* With a resize observer, only a newly chosen item is placed here, where the slide has to start. The first placement and every change
+     of size are the observer's: it reports once for each element it starts to watch and whenever one changes size, each time after the
+     browser's own layout, so measuring costs nothing there. Measuring in every render made each control lay the page out again while
+     the page was still being built. */
+  const mounted = useRef(false);
   useLayoutEffect(() => {
     const moved = placed.current !== -2 && placed.current !== activeIndex;
+    const watched = typeof ResizeObserver !== 'undefined' && (!mounted.current || active.current === activeIndex);
+    mounted.current = true;
     active.current = activeIndex;
-    place(moved);
+    if (!watched) place(moved);
   });
 
-  useEffect(() => {
+  // A layout effect, so the first report comes before the first paint of the control.
+  useLayoutEffect(() => {
     const group = root.current;
     if (!group || typeof ResizeObserver === 'undefined') return undefined;
-    const observer = new ResizeObserver(() => place(false));
+    const observer = new ResizeObserver(() => place(false, true));
     observer.observe(group);
     group.querySelectorAll(ITEMS).forEach(item => observer.observe(item));
-    document.fonts?.ready?.then(() => place(false));
-    return () => observer.disconnect();
+    /* A font that arrives later can change the words without changing a box the observer watches. The event, not document.fonts.ready:
+       reading `ready` makes the browser lay the whole page out on the spot, here in the middle of building it. */
+    const fonts = document.fonts, refit = () => place(false);
+    fonts?.addEventListener?.('loadingdone', refit);
+    return () => { observer.disconnect(); fonts?.removeEventListener?.('loadingdone', refit); };
   }, [signature, place]);
 
   const handleKeyDown = event => {

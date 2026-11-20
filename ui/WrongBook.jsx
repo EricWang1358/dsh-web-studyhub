@@ -518,8 +518,7 @@ export function WeaknessBar({ groups = [], onPick }) {
         <small className="muted">{uiFormat("{0} 组 · 共 {1} 题", [groups.length, total])}</small>
       </div>
       {groups.length === 0 ? <p className="wb-dist-empty">{ui("当前筛选下没有错题")}</p> : (
-        <>
-          <div className="wb-dist-bar" ref={bar} role="group" aria-label={ui("每组错题数占全部的比例")}>
+        <div className="wb-dist-bar" ref={bar} role="group" aria-label={ui("每组错题数占全部的比例")}>
             {groups.map((group, index) => {
               const words = facts(group);
               return (
@@ -537,7 +536,6 @@ export function WeaknessBar({ groups = [], onPick }) {
               {shown.facts.slice(1).map((fact, at) => <span key={at}>{fact}</span>)}
             </span>}
           </div>
-        </>
       )}
     </section>
   );

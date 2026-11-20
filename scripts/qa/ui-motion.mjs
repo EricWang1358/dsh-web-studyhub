@@ -41,8 +41,8 @@ const round = (value) => Math.round(value * 10) / 10;
 
 export async function runMotionQa(options) {
   const results = [];
-  // Speed is only meaningful on React's production build (the development one validates every prop and is several times slower): --production rebuilds dist/ that way first. Run `node scripts/build.mjs` afterwards to get the development preview back.
-  if (options.production === "true") { const { buildPreview } = await import("../build.mjs"); await buildPreview({ production: true }); console.log("preview rebuilt with React's production build"); }
+  // Speed is only meaningful on React's production build (the development one validates every prop and is several times slower): with --production the
+  // harness builds the bundle it serves that way (scripts/qa/harness.mjs). The repository's own dist/ is left alone.
   const summary = await runQa({
     name: "ui-motion", options,
     seed: (root) => seedLibrary(root, { sources: Number(options.sources), decks: 14, cardsPerDeck: 30, runs: 24, attempts: 1200, courses: 8, largeSources: 4, largeSourceChars: 30000 }),

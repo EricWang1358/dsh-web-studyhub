@@ -119,7 +119,7 @@ test('a switch flipped while a recording is being transcribed does not change th
 
 test('the correction of a class keeps the side it started on: a switch turned off mid-class stops nothing and re-arms nothing, a cancelled one stays stopped', async t => {
   const log = [], { options, set } = board(hostModel(log));
-  const answer = async (system, prompt, request) => { const input = JSON.parse(prompt), last = input.items.at(-1).n; log.push('correct'); return JSON.stringify({ items: [], note: { text: '知识点', refs: [last] }, memory: { text: '摘要', refs: [last] }, followups: [] }); };
+  const answer = async (system, prompt, _request) => { const input = JSON.parse(prompt), last = input.items.at(-1).n; log.push('correct'); return JSON.stringify({ items: [], note: { text: '知识点', refs: [last] }, memory: { text: '摘要', refs: [last] }, followups: [] }); };
   const lib = await library(t, { settings: { textProvider: 'host' }, complete: answer, completeLight: answer, ...options });
   await savedClass(lib, CLASS_A); await savedClass(lib, CLASS_B);
   set(true, 'audioLiveCorrection');

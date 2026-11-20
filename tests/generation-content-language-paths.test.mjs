@@ -25,10 +25,11 @@ const LESSON = [
   '可串行化隔离级别通过严格并发控制阻止脏读、不可重复读与幻读，使并发事务结果等价于某种串行执行顺序。',
   '快照隔离在事务启动时读取一致快照，并在提交阶段执行首写者胜冲突检测，但若两个事务读取交集并分别写入不相交集合，仍可能出现写偏序异常。',
 ].join('\n\n');
-const stageOf = (system) => system.startsWith('Plan ') ? 'plan' : system.startsWith('Prepare supported') ? 'blueprint' : system.startsWith('You author') ? 'author'
+const stageOf = (system, prompt = '') => system.startsWith('Plan ') ? 'plan' : system.startsWith('Prepare supported') ? 'blueprint' : system.startsWith('You author') ? 'author'
   : system.startsWith('Act as a strict assessment editor') ? 'review' : system.startsWith('Rewrite only the wording') ? 'patch'
-  : system.startsWith('Repair one draft card') ? 'repair' : system.startsWith('You write original case-study') ? 'case-author'
-  : system.startsWith('You independently review a case-study') ? 'case-review' : 'other';
+  : system.startsWith('Repair one draft card') ? 'repair'
+  : (system.startsWith('You write original case-study') || prompt.includes('\nSTAGE: case-author')) ? 'case-author'
+  : (system.startsWith('You independently review a case-study') || prompt.includes('\nSTAGE: case-review')) ? 'case-review' : 'other';
 
 async function englishLibrary(t) {
   const root = await mkdtemp(join(tmpdir(), 'study-1002-'));
@@ -36,7 +37,7 @@ async function englishLibrary(t) {
   const calls = [];
   // A Chinese interface: every call also carries the Chinese interface preference (lib/language.js), which the content rule outranks.
   const service = new StudyService(root, { coach: false, language: 'zh', complete: async (system, prompt, ctx) => {
-    calls.push({ stage: stageOf(stageSystem(system, prompt)), text: `${system}\n${prompt}` });
+    calls.push({ stage: stageOf(stageSystem(system, prompt), prompt), text: `${system}\n${prompt}` });
     return fake(system, prompt, ctx);
   } });
   t.after(async () => { await service.dispose(); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });

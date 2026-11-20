@@ -860,8 +860,8 @@ test('unverified self-report NEVER counts as verified pass in creditPrerequisite
     },
   });
   let stateForGate = await service.store.read();
-  let progMedium = methodProgress(stateForGate, 'CS4224');
-  let gateMedium = stageGate(stateForGate, 'CS4224', progMedium);
+  const progMedium = methodProgress(stateForGate, 'CS4224');
+  const gateMedium = stageGate(stateForGate, 'CS4224', progMedium);
   assert.equal(progMedium.counts.right, 0, 'self-report does not count as right in methodProgress');
   assert.equal(progMedium.counts.answered, 0, 'self-report does not count as verified answered in methodProgress');
   assert.equal(gateMedium.passed, 0, 'medium stageGate passed stays 0');

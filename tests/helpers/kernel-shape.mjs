@@ -13,8 +13,7 @@ export const fingerprint = paths => createHash('sha256').update(paths.join('\n')
 /** Requests of each kind (answered, of unknown outcome, refused, a wait), a checkpoint and a delivered notice: every part of the manifest is written at least once. */
 export async function manifestPaths(t) {
   const seen = [];
-  let f;
-  f = await durableFixture(t, async context => {
+  const f = await durableFixture(t, async context => {
     const asks = [[1, { boundary: 'external-request', kind: 'author' }, () => ({ value: 'text', status: 200 })],
       [2, { boundary: 'external-request', kind: 'create', sideEffect: true }, () => { throw new Error('refused'); }],
       [3, { boundary: 'host-attempt', kind: 'proofread', sideEffect: false }, () => ({ value: 'ok', status: 200 })],

@@ -482,7 +482,7 @@ const RECAP_TEXT = {
     })[kind],
     rule: (friendly, text) => friendly ? `**判断的尺子**：${text}` : `**判断依据**：${text}`,
     example: (friendly, question, answer) => friendly ? `**一个例子**：${question}。正确思路是：${answer}。` : `**示例**：${question}；正确答案：${answer}。`,
-    opening: (input, friendly, topics, stuck, solid) => friendly
+    opening: (input, friendly, topics, stuck, _solid) => friendly
       ? `今天你一共练了 ${input.answeredCount} 道不同的题，主线是把「${topics}」一步步串起来。${stuck ? `大部分题你都有不错的把握，有 ${stuck} 处值得停一停，下面一处一处看。` : '这些题你都答得不错，下面不用停在错处，把要点再串一遍就好。'}`
       : `今日完成 ${input.answeredCount} 道不同题目，涉及：${topics}。${stuck ? `需要巩固的要点共 ${stuck} 处，依次说明判断依据如下。` : '未发现需要巩固的要点，以下回顾已掌握的内容。'}`,
     pending: (count, friendly) => friendly ? `另外有 ${count} 道作答还在等批改，先回顾内容，不急着判断对错。` : `另有 ${count} 道作答待批改，仅回顾内容，不据此判断对错。`,
@@ -531,7 +531,7 @@ function dailyRecapReply(input, system) {
   if (stage === 'rewrite') // keep every passage that reads naturally, drop the ones that recite internal bookkeeping
     return String(input.markdown || '').split(/\n{2,}/).filter((paragraph) => !recapLeaks(paragraph).length).join('\n\n');
   const sectionOf = (title, ...paragraphs) => `## ${title}\n\n${paragraphs.join('\n\n')}`;
-  let stuck = [], solid = [], uncovered = [], pending = input.unassessedCount || 0, topics = [];
+  const stuck = [], solid = [], uncovered = []; let pending = input.unassessedCount || 0, topics = [];
   if (stage === 'consolidate') {
     for (const text of input.sections || []) for (const block of String(text).split(/^## /m).slice(1)) {
       const title = block.split('\n')[0].trim();
@@ -588,9 +588,12 @@ function answerCardReply(input) {
 const HANDLERS = [
   // 分析题答案卡 (lib/contexts/generation/answer-card): a card whose quotes are real sentences of the case and of the first material, every key point earned
   // by one of its sentences, no number at all; the independent review finds nothing. The repair call (same system) is answered the same way.
-  { name: 'answer.card', match: (s) => s.startsWith('You write the model answer of a case / analysis exam question'),
+  { name: 'answer.card', match: (s, _input, prompt) => s.startsWith('You write the model answer of a case / analysis exam question')
+      || (s.startsWith('You work on a structured model answer card') && /\nSTAGE: write\b/.test(prompt || '')),
     reply: ({ prompt }) => answerCardReply(after(prompt.split('\n\nREPAIR:')[0], 'REQUEST DATA:\n')) },
-  { name: 'answer.card.review', match: (s) => s.startsWith('You independently review an answer card'), reply: () => ({ issues: [], summary: 'Preview: nothing found.' }) },
+  { name: 'answer.card.review', match: (s, _input, prompt) => s.startsWith('You independently review an answer card')
+      || (s.startsWith('You work on a structured model answer card') && /\nSTAGE: review\b/.test(prompt || '')),
+    reply: () => ({ issues: [], summary: 'Preview: nothing found.' }) },
   // 复习全书 补术语卡 (lib/contexts/generation/book/card-prompt.js, #710 S6): a card for every listed item of every point, related to the next item of the request.
   { name: 'book.cards', match: (s) => s.startsWith('You make the term cards of a review book'),
     reply: ({ prompt }) => {
@@ -648,9 +651,11 @@ const HANDLERS = [
       return { card: { ...input.card, explanation: `${input.card?.explanation || ""}（预览修复：补充了判断依据。）`,
         ...(quote ? { citations: [{ sourceId: source.id, quote }] } : {}) } };
     } },
-  { name: "case.author", slow: true, match: (s) => s.startsWith("You write original case-study exam papers"),
+  { name: "case.author", slow: true, match: (s, _input, prompt) => s.startsWith("You write original case-study exam papers")
+      || (s.startsWith("You work on case-study exam papers") && /\nSTAGE: case-author\b/.test(prompt || "")),
     reply: ({ prompt }) => authorCasePaper(payload(prompt)) },
-  { name: "case.review", slow: true, match: (s) => s.startsWith("You independently review a case-study exam paper"),
+  { name: "case.review", slow: true, match: (s, _input, prompt) => s.startsWith("You independently review a case-study exam paper")
+      || (s.startsWith("You work on case-study exam papers") && /\nSTAGE: case-review\b/.test(prompt || "")),
     reply: ({ prompt }) => reviewCasePaper(payload(prompt).candidate) },
   { name: "case.criteria", match: (s) => s.startsWith("You write marking criteria and model answers"),
     reply: ({ prompt }) => importedCriteria(payload(prompt)) },
@@ -1037,7 +1042,7 @@ export function createFakeModel({ latencyMs = 0, generationLatencyMs = latencyMs
   const nextNumber = () => ++counter;
   return async function fakeComplete(system, prompt, options = {}) {
     const input = data(prompt);
-    const handler = HANDLERS.find((entry) => entry.match(stageSystem(system, prompt), input));
+    const handler = HANDLERS.find((entry) => entry.match(stageSystem(system, prompt), input, prompt));
     log.push({ system, prompt, handler: handler?.name || null, stage: options?.stage });
     await wait(handler?.slow ? (handler.name === "generation.review" ? Math.round(generationLatencyMs / 2) : generationLatencyMs) : latencyMs,
       options?.signal);

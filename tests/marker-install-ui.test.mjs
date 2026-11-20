@@ -167,7 +167,7 @@ test('the install button starts the job with the chosen folder and mirror, and c
   const call = async (action, args) => { calls.push({ action, args }); if (action === 'marker.install.status') return idle; if (action === 'marker.install.plan') return plan({ mirror: args.mirror }); if (action === 'marker.install.start') return running; return {}; };
   const mounted = await mount({ call, initialMirror: 'tsinghua', pickDirectory: async () => 'D:\\Tools' });
   mounted.render(); await flush(); await flush();
-  let tree = mounted.render();
+  const tree = mounted.render();
   assert.deepEqual(calls.map(item => item.action).slice(0, 2), ['marker.install.status', 'marker.install.plan']);
   await find(tree, named('一键安装 Marker')).props.onClick(); await flush();
   assert.deepEqual(calls.find(item => item.action === 'marker.install.start').args, { confirm: true, mirror: 'tsinghua' });
@@ -268,7 +268,7 @@ test('python-too-new shows the found version, download channels (mainland first)
   assert.doesNotMatch(failureHint('pip-build', {}), /\{\d\}|undefined/, 'no plan yet: no placeholder left in the words');
 });
 
-test('failed Marker install offers 复制诊断信息 (with credential redaction) and 发给主会话; cancelled install does not', async t => {
+test('failed Marker install offers 复制诊断信息 (with credential redaction) and 发给主会话; cancelled install does not', async _t => {
   const errHtml = render({ initialInstall: failed, initialPlan: plan() });
   assert.match(textOf(errHtml), /复制诊断信息/);
   assert.match(textOf(errHtml), /发给主会话/);

@@ -64,6 +64,7 @@ test('gatewayModels applies stageRequest on unified-runtime direct and subagent 
       outputs: { open() {}, append() {}, reasoning() {}, close() {} }, jobId: () => 'j1', refresh() {} });
     for (const [kind, stage, system, prompt] of prompts) await models.call(system, prompt, { kind, stage, part: 1, signal: controller.signal });
     assert.equal(seen.length, 4);
+    assert.ok(record.calls.every(call => call.executionMode === 'direct' && call.runner === 'direct'), 'generation defaults to direct execution');
     for (const call of seen) {
       assert.equal(call.system, GENERATION_SYSTEM);
       assert.ok(call.prompt.startsWith(expectedDataPrefix), 'prompt leads with identical REQUEST DATA + sources prefix');
@@ -91,7 +92,7 @@ test('gatewayModels applies stageRequest on unified-runtime direct and subagent 
     const context = { jobId: record.jobId, attemptId: record.attemptId, signal: controller.signal, assertCurrent() {} };
     const gateway = createModelGateway({ context, record, host });
     const models = gatewayModels({ gateway, control: { values: {} }, performance: {}, feature: 'generate',
-      outputs: { open() {}, append() {}, reasoning() {}, close() {} }, jobId: () => 'j1', refresh() {} });
+      outputs: { open() {}, append() {}, reasoning() {}, close() {} }, jobId: () => 'j1', refresh() {}, executionMode: 'agent-preferred' });
     for (const [kind, stage, system, prompt] of prompts) await models.call(system, prompt, { kind, stage, part: 1, signal: controller.signal });
     assert.equal(childTexts.length, 4);
     const expectedSubagentPrefix = `${GENERATION_SYSTEM}\n\n${expectedDataPrefix}`;
@@ -176,7 +177,7 @@ function createRoutingHarness({ providers = ['preview'], efforts = null, onCall 
       return JSON.stringify({ cards: data.cards.map(card => ({ id: card.id, prompt: `${card.prompt} (reworded)` })) });
     }
     if (stage === 'draft-repair') {
-      const input = JSON.parse(prompt);
+      const input = requestData(prompt);
       return JSON.stringify({ card: { ...input.card, explanation: `Repaired explanation: ${input.card.explanation}` } });
     }
     throw new Error(`Unexpected stage: ${stage}`);

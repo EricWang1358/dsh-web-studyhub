@@ -229,7 +229,7 @@ test('implicit credits never count and weak evidence remains after a correct ret
   await ready(service, start.id);
   assert.equal(input.answeredCount, 10);
   assert.equal(input.wrongCount, 1);
-  assert.deepEqual(input.questions.find(question => question.cardId === 'd-9').attempts[0].selected, ['b']);
+  assert.deepEqual(input.questions.find(question => question.question === '题目 9').attempts[0].selected, ['b']);
 });
 
 test('run scope includes all today course attempts and keeps previous-day feedback accessible after midnight', async t => {
@@ -437,8 +437,8 @@ test('rubric feedback refreshes an already summarized submitted answer without c
   await ready(service, first.noteId);
   assert.equal(prompt.answeredCount, 10);
   assert.equal(prompt.unassessedCount, 0);
-  assert.equal(prompt.questions.find(question => question.cardId === 'd-9').attempts.length, 1);
-  assert.equal(prompt.questions.find(question => question.cardId === 'd-9').attempts[0].learnerAnswer, '先核对条件，再解释推理。');
+  assert.equal(prompt.questions.find(question => question.question === '题目 9').attempts.length, 1);
+  assert.equal(prompt.questions.find(question => question.question === '题目 9').attempts[0].learnerAnswer, '先核对条件，再解释推理。');
 });
 
 test('merged history with more than thirty questions keeps local writing and remains editable after public linking', async t => {
@@ -499,14 +499,14 @@ test('completed explanation batches survive a later failure and are reused after
   let firstBatchCalls = 0;
   const service = await fixture(t, { complete: async (_system, input) => {
     const payload = JSON.parse(input);
-    if (payload.questions?.[0]?.cardId === 'd-0') { firstBatchCalls++; return writing; }
+    if (payload.questions?.[0]?.question === '题目 0') { firstBatchCalls++; return writing; }
     throw new Error('second batch unavailable');
   } });
   await answers(service, 35);
   const started = await service.call('note.daily.generate', { course: '数学' });
   assert.equal((await settled(service, started.id)).generation.status, 'failed');
   const reopened = new StudyService(service.store.root, { complete: async (_system, input) => {
-    if (JSON.parse(input).questions?.[0]?.cardId === 'd-0') firstBatchCalls++;
+    if (JSON.parse(input).questions?.[0]?.question === '题目 0') firstBatchCalls++;
     return writing;
   } });
   t.after(() => reopened.dispose());
@@ -527,7 +527,7 @@ test('generation progress follows completed explanation batches and cancellation
     const payload = JSON.parse(input);
     stages.push(payload.stage);
     if (payload.stage === 'consolidate') { organizingSignal = options.signal; await organizing; }
-    else if (payload.questions[0].cardId === 'd-0') await first;
+    else if (payload.questions[0].question === '题目 0') await first;
     else await second;
     return writing;
   } });

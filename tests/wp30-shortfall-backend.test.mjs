@@ -55,7 +55,7 @@ test("the batched draft collects every part's dropped questions with their part 
     if (system.startsWith("Act as a strict assessment editor")) {
       const candidate = requestData(prompt).candidate, review = qualityReview(candidate);
       // The reserve target and the fill rounds' replacements the part now tops up from (lib/generation-yield.js) are rejected too: this test is about what a dropped candidate reports.
-      review.checks.forEach((check) => { if (check.cardId === "q2" || /^(reserve|fill\d+)-/.test(check.cardId)) check.optionQuality = "na", check.sourceSupport = "fail"; });
+      review.checks.forEach((check) => { if (check.cardId === "q2" || /^(reserve|fill\d+)-/.test(check.cardId)) { check.optionQuality = "na"; check.sourceSupport = "fail"; } });
       return JSON.stringify(review);
     }
     const request = requestData(prompt);
@@ -131,7 +131,7 @@ test("a generation in a big library tells the model only about targets its mater
       objective: "Explain how architecture holds principles guiding design and evolution", prompt: "Arch?", answer: "a", citations: [] }] });
   });
   const requests = [];
-  const staged = withQualityStages(async (system, prompt) => {
+  const staged = withQualityStages(async (system, _prompt) => {
     if (system.includes("editor")) return JSON.stringify({ issues: [] });
     return JSON.stringify({ title: "T", cards: [card(9)] });
   });

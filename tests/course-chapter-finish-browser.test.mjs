@@ -128,7 +128,7 @@ test("summary-course renders newly finished chapter highlight and 3-state segmen
     servers.push(running);
     const { context, page, errors } = await openPage(browser, running, { lang, theme: "dark", width, height: 900 });
     await page.addInitScript(() => {
-      try { localStorage.setItem("study-autopilot", "off"); } catch {}
+      try { localStorage.setItem("study-autopilot", "off"); } catch { /* a page without storage keeps the default */ }
     });
     await page.goto(running.server.url);
 

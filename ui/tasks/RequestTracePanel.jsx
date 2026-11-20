@@ -4,6 +4,8 @@ import { Button, InlineMessage, LoadingState } from '../components/index.js';
 import { useApp } from '../app/app-context.js';
 import { useInjectCss } from '../shared.js';
 import { joinMeta } from '../format.js';
+import { formatExactTokens, totalTokens } from '../../lib/token-usage.js';
+import { compactCacheSummary } from '../token-usage.js';
 import { useLiveEffect } from '../use-async.js';
 import traceCss from './request-trace.css';
 
@@ -158,7 +160,7 @@ export default function RequestTracePanel({ jobId, selectedCallId = null, callCo
                 aria-pressed={c.callId === activeId}
                 onClick={() => setPickedId(c.callId)}
               >
-                {`${idx + 1}. ${c.stage || c.purpose || c.callId}${c.containsSolution ? ` · ${ui('含解法')}` : ''}`}
+                {`${idx + 1}. ${c.stage || c.purpose || c.callId}${c.cacheHitPercent != null ? ` · ${uiFormat('缓存 {0}%', [c.cacheHitPercent])}` : ''}${c.containsSolution ? ` · ${ui('含解法')}` : ''}`}
               </Button>
             ))}
           </div>
@@ -167,6 +169,9 @@ export default function RequestTracePanel({ jobId, selectedCallId = null, callCo
             <div className="tc-scroll">
               <p className="tc-trace__meta">
                 {joinMeta([
+                  entry.model ? uiFormat('模型 {0}', [entry.model]) : '',
+                  entry.tokenUsage ? uiFormat('用量 {0} tok', [formatExactTokens(totalTokens(entry.tokenUsage))]) : '',
+                  compactCacheSummary(entry.tokenUsage),
                   wrapperNote(entry.wrapperBoundary),
                   entry.reordered ? ui('已按证据前缀重排（缓存友好）') : '',
                   entry.truncated ? ui('超长请求已头尾截断保留') : '',

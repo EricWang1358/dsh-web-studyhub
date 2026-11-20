@@ -62,7 +62,7 @@ test('pause ends the attempt at a file boundary and resume carries on with the f
 });
 
 test('a skip retry that cannot start puts the skipped marks back, and one that can start leaves the file out', async t => {
-  let broken = true;
+  const broken = true;
   const lib = await runtimeBatch(t, { failTranslate: name => broken && name === 'B' });
   const first = await lib.service.call('audio.import', { files: [{ path: lib.a }, { path: lib.b }] });
   const failed = await settleJob(lib.service, first.jobId);

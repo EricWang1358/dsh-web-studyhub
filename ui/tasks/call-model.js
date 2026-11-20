@@ -294,6 +294,9 @@ export function callDetail(call, contract) {
 }
 
 const CALL_STATUS = (status) => ({ ok: ui('完成'), failed: ui('失败'), cancelled: ui('已取消'), skipped: ui('已跳过') })[status] || '';
+const fallbackCallError = (call) => call?.error ? callErrorText(call.error)
+  : call?.reason === 'call-timeout' ? ui('到了单次模型调用时限，可在「设置 › 出题偏好」调高或设为无上限')
+  : call?.reason === 'no-output' ? uiFormat('连续 {0} 分钟没有任何输出，已自动截断', [3]) : '';
 
 /**
  * The log, newest first: the producer's own events and one line per finished call, a warning that repeats as ONE line with its count.
@@ -336,10 +339,11 @@ export function logLines(contract, filter = 'all') {
     const failed = call.status === 'failed', detail = callDetail(call, contract);
     // A question run's call names its batch on the second line, so the step's own name does not repeat it.
     const label = callLabel(detail === undefined ? call : { ...call, part: null, parts: null }, { file: true });
-    lines.push({ id: `call:${call.callId}`, at: call.endedAt, level: call.status === 'ok' ? 'step' : failed ? 'warn' : 'info', kind: 'call', tag: call.kind, ...(detail !== undefined ? { detail } : {}),
+      const why = failed ? fallbackCallError(call) : '';
+      lines.push({ id: `call:${call.callId}`, at: call.endedAt, level: call.status === 'ok' ? 'step' : failed ? 'warn' : 'info', kind: 'call', tag: call.kind, ...(detail !== undefined ? { detail } : {}),
       text: joinMeta([`${label} ${CALL_STATUS(call.status)}`.trim(), took,
         call.reused ? ui('音频内容和转写设置与之前相同') : '',
-        failed && call.error ? uiFormat('原因：{0}', [callErrorText(call.error)]) : '', failed ? retryNote(call, contract.calls) : '']) });
+        why ? uiFormat('原因：{0}', [why]) : '', failed ? retryNote(call, contract.calls) : '']) });
   }
   for (const line of lines) if (line.count > 1) line.text = `${line.text} ×${line.count}`;
   const ordered = lines.map((line, index) => ({ line, index })).sort((a, b) => (Date.parse(b.line.at) || 0) - (Date.parse(a.line.at) || 0) || b.index - a.index).map(({ line }) => line);

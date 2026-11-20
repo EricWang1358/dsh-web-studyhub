@@ -227,7 +227,7 @@ test('the learner stops a SECOND pass of a round: the round is pending again, ow
   await service.call('job.control', { jobId: job.jobId, action: 'cancel' });
   hold.open();
   assert.equal((await settleJob(service, job.jobId)).status, 'cancelled');
-  let after = await draftOf(service), round = after.editorial.coverageSpec.rounds[1];
+  let after = await draftOf(service); const round = after.editorial.coverageSpec.rounds[1];
   assert.equal(after.editorial.coverageRun.stop.reason, 'learner');
   assert.equal(round.status, 'pending', 'not "failed": the sections of the stopped pass were never really asked');
   assert.deepEqual(round.triedKeys, [chosen]);
@@ -251,7 +251,7 @@ test('the learner stops the FIRST pass of a press for one section: the round owe
   await service.call('job.control', { jobId: job.jobId, action: 'cancel' });
   hold.open();
   assert.equal((await settleJob(service, job.jobId)).status, 'cancelled');
-  let after = await draftOf(service), round = after.editorial.coverageSpec.rounds[1];
+  let after = await draftOf(service); const round = after.editorial.coverageSpec.rounds[1];
   assert.equal(round.status, 'pending');
   assert.deepEqual(owedKeys(round), planned, 'the stopped pass counts nothing as tried');
   assert.equal(Object.keys(after.editorial.coverageSpec.attempts || {}).length, 0);

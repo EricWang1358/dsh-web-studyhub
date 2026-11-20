@@ -22,11 +22,14 @@ const transcribing = async () => reply(LECTURE);
  */
 function fakeHost({ capacity = Infinity, failFirst } = {}) {
   const answer = hostModel([]), stats = { active: 0, peak: 0, refused: 0, calls: [] }, failed = new Set(), crowd = Promise.withResolvers();
+  let seen = 0;
   const complete = async (system, prompt, options = {}) => {
+    const callNumber = ++seen;
     stats.active++;
     try {
+      // Window #1 is staggered to warm the prefix cache; hold windows 2..N until `capacity + 1` overlap so the pool hits 429 pushback.
       if (stats.active > capacity) crowd.resolve();
-      if (capacity < Infinity) await crowd.promise;
+      if (capacity < Infinity && callNumber > 1) await crowd.promise;
       if (stats.active > capacity) { stats.refused++; throw Object.assign(new Error('429 Too Many Requests'), { status: 429 }); }
       const text = await answer(system, prompt, options);
       const kind = system.startsWith('You translate') ? 'translate' : system.startsWith('You proofread') ? 'proofread' : 'title';

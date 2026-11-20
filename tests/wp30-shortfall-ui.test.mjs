@@ -192,7 +192,7 @@ test("home: an active top-up exposes saved progress and stop; its execution and 
     steps: [{ id: "s", stage: "Planning evidence and learning targets", stageCode: "planning", status: "running" }] };
   const html = home({ drafts: [legacyDraft()], jobs: [job] });
   assert.match(html, /role="progressbar"[^>]*aria-valuenow="0"/, "a top-up that has just started is at 0, whatever its draft held");
-  assert.match(html, /本次已保存 0\/10 题/, "it counts the questions it writes over the ones it was asked for; the draft row says 10\/20");
+  assert.match(html, /本次已保存 0\/10 题/, "it counts the questions it writes over the ones it was asked for; the draft row says 10/20");
   assert.match(html, /<button[^>]*>[^]*?停止<\/button>/, "the stop control is the card's");
   assert.doesNotMatch(html, /generation-trace|生成方式、用量与技术详情/, "the execution and usage details are in the console");
   assert.match(html, /查看详情/);

@@ -88,18 +88,21 @@ test('a switch moves its own family and no other; the translation overlaps the g
   assert.equal(serialModel.peak.all, 1, 'one model call at a time in the library');
 });
 
-test('with the policies on, the recap and the translation ask a host sub-agent through the one gateway, and the usage is still counted once', async t => {
+test('with the policies on, the recap asks a host sub-agent while one-shot translation runs direct through the one gateway, and usage is still counted once', async t => {
   const host = childHost({ replyFor: childReply }), model = mixedModel(), f = await mixedLibrary(t, { model, host });
   const first = await f.translate(); await settleJob(f.service, first.jobId);
   await f.recap(); await until(async () => (await rowsOf(f.service)).find(row => row.type === 'daily-recap')?.contract.finishedAt, 'the recap to end');
   const rows = await rowsOf(f.service);
   assert.deepEqual(rows.map(row => [row.type, row.status]), [['translation', 'complete'], ['daily-recap', 'complete']]);
-  const calls = rows.flatMap(row => row.contract.calls);
-  assert.ok(calls.length > 0 && calls.every(call => call.runner === 'subagent' && call.executionMode === 'agent-preferred' && call.parentId === 'parent' && call.childId), 'every call was a child of the host');
-  assert.equal(model.calls.length, 0, 'the direct model was not asked');
-  assert.equal(host.started.length, calls.length);
-  assert.equal(host.disposed.length, calls.length, 'every child was released');
-  assert.ok(rows.every(row => row.contract.execution.mode === 'subagent'));
+  const translationRow = rows.find(row => row.type === 'translation');
+  const recapRow = rows.find(row => row.type === 'daily-recap');
+  assert.ok(translationRow.contract.calls.length > 0 && translationRow.contract.calls.every(call => call.runner === 'direct' && call.executionMode === 'direct'), 'one-shot translation runs direct');
+  assert.ok(recapRow.contract.calls.length > 0 && recapRow.contract.calls.every(call => call.runner === 'subagent' && call.executionMode === 'agent-preferred' && call.parentId === 'parent' && call.childId), 'recap calls ran as children of the host');
+  assert.equal(model.calls.length, translationRow.contract.calls.length, 'direct model served only translation calls');
+  assert.equal(host.started.length, recapRow.contract.calls.length);
+  assert.equal(host.disposed.length, recapRow.contract.calls.length, 'every child was released');
+  assert.equal(translationRow.contract.execution.mode, 'direct');
+  assert.equal(recapRow.contract.execution.mode, 'subagent');
 });
 
 test('going back: a library whose switches are turned off keeps what the Jobs made, starts nothing by itself, and runs new work the in-process way', async t => {

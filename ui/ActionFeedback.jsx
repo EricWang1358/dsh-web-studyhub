@@ -15,7 +15,7 @@ export function pageOfScope(scope) {
   try {
     const parsed = JSON.parse(scope);
     if (Array.isArray(parsed)) return JSON.stringify(parsed.slice(0, 2));
-  } catch {}
+  } catch { /* not a JSON scope: it is used whole, below */ }
   return String(scope ?? '');
 }
 

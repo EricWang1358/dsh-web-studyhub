@@ -126,7 +126,7 @@ test('the permission case of the real repair: scoped to the tool\'s own folder i
 
 test('home-permissions (the MinerU card of #942): the card own 修复权限 first, the chat by hand only if that failed, and only inside the install location', () => {
   for (const [status, button] of [['error (install)', '修复权限'], ['error (service)', '修复权限并重启']]) {
-    const input = { tool: 'mineru', status, code: 'home-permissions', folder: 'D:\StudyHub\MinerU' };
+    const input = { tool: 'mineru', status, code: 'home-permissions', folder: 'D:\\StudyHub\\MinerU' };
     assert.deepEqual(ui.repairIdsFor('mineru', 'home-permissions'), ['home-perms']);
     assert.match(bullet(input, 'zh', '修复：'), new RegExp(`先让我点卡片上的「${button}」.*只有这个按钮已经点过、卡片说还是没修好，才由你动手.*安装位置之内这个配置文件夹.*不要动安装位置以外的任何东西（包括用户主目录里的其他文件）.*不要放宽任何文件夹的权限`), status);
     assert.match(bullet(input, 'en', 'Repairs:'), /first I press “Repair permissions( and restart)?” on the card.*only if that was already pressed and the card says it did not help.*never touch anything outside the install location.*never loosen a folder/is, status);
@@ -400,7 +400,7 @@ test('the size of our own text in the prompt is bounded for every tool and every
   const log = 'PermissionError: [Errno 13] Permission denied';
   const worst = { zh: [0, ''], en: [0, ''] };
   for (const tool of TOOLS) for (const code of [...Object.keys(ui.TOOL_REPAIRS[tool]), 'unknown-code']) for (const installedBy of ['studyhub', 'other']) {
-    const input = { tool, status: tool === 'marker' ? 'failed' : 'error (install)', stage: '5/6 enable', code, summary: 'Permission denied on the home folder', folder: 'D:\StudyHub\MinerU', tier: 'basic', source: 'mainland', python: '3.11', version: '4.0.12', log, installedBy };
+    const input = { tool, status: tool === 'marker' ? 'failed' : 'error (install)', stage: '5/6 enable', code, summary: 'Permission denied on the home folder', folder: 'D:\\StudyHub\\MinerU', tier: 'basic', source: 'mainland', python: '3.11', version: '4.0.12', log, installedBy };
     for (const language of ['zh', 'en']) {
       const length = outsideFences(prompt(input, language)).outside.join(' ').length;
       if (length > worst[language][0]) worst[language] = [length, `${tool}/${code}`];

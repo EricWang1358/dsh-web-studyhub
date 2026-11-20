@@ -65,7 +65,7 @@ test('the transcription cannot stream and says so; the host-model proofreading s
   const first = await service.call('job.output', { jobId: started.jobId, callId: proofread.callId, cursor: 0 });
   assert.equal(first.supported, true);
   assert.equal(first.text, '{"corrections": [');
-  assert.equal(first.retention.limit, 8192);
+  assert.equal(first.retention.limit, 65536);
   releaseProof();
   await settleJob(service, started.jobId);
   const after = await service.call('job.output', { jobId: started.jobId, callId: proofread.callId, cursor: first.nextCursor });

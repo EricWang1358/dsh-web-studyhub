@@ -308,7 +308,7 @@ export async function submitCasePaperGrades({ call, report, answers = {}, uiLang
   return { errors, tasks, gradedDirect };
 }
 
-export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, onLocation, header, recent, course: courseProp, onCourseChange, onSetupModel }) {
+export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, onLocation, header, recent, course: courseProp, onSetupModel }) {
   const { call, act } = useStudy();
   useInjectCss(css, "study-case-workspace");
   const toast = useToast();

@@ -83,7 +83,7 @@ test("mergeAdjacent merges contiguous hits inside the same text node up to 60 ch
   const nodeA = { id: "a" };
   const nodeB = { id: "b" };
 
-  let entries = [{ node: nodeA, start: 0, end: 2, term: "逆否" }];
+  const entries = [{ node: nodeA, start: 0, end: 2, term: "逆否" }];
   const res1 = mergeAdjacent(entries, { node: nodeA, start: 2, end: 4, term: "命题" });
   assert.equal(res1.merged, true);
   assert.deepEqual(res1.replaced, ["逆否"]);

@@ -10,9 +10,9 @@ The report moves nothing (#902): it is the data for deciding what could later go
 | Class | Modules |
 | --- | ---: |
 | Used by ui | 105 |
-| Used by several contexts | 67 |
+| Used by several contexts | 68 |
 | Used by exactly one context | 133 |
-| Used by none of these (other lib files, entry points, scripts and tests only) | 117 |
+| Used by none of these (other lib files, entry points, scripts and tests only) | 116 |
 
 ## Used by ui (105)
 
@@ -62,7 +62,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/exam-prep-settings.js`: 2 ui files; contexts generation, system; 2 other lib files
 - `lib/exam-timing.js`: 3 ui files; context study; 2 other lib files
 - `lib/fix-phrases.js`: 2 ui files; 2 other lib files
-- `lib/focus-points.js`: 1 ui file; contexts generation, study; 17 other lib files
+- `lib/focus-points.js`: 1 ui file; contexts generation, study; 18 other lib files
 - `lib/footnote-html.js`: 3 ui files; 3 other lib files
 - `lib/footnote-syntax.js`: 2 ui files; 1 other lib file
 - `lib/generation-failure.js`: 2 ui files; context generation; 6 other lib files
@@ -74,7 +74,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/jev-messages.js`: 1 ui file; 5 other lib files
 - `lib/jev-providers.js`: 1 ui file; 3 other lib files
 - `lib/job-contract.js`: 4 ui files; contexts audio, generation, jobs; 3 other lib files
-- `lib/job-model.js`: 3 ui files; context generation; 4 other lib files
+- `lib/job-model.js`: 3 ui files; contexts generation, materials; 4 other lib files
 - `lib/job-status.js`: 29 ui files; contexts audio, jobs, library; 5 other lib files
 - `lib/job-timing.js`: 1 ui file
 - `lib/large-documents.js`: 10 ui files; context generation; 6 other lib files
@@ -92,7 +92,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/mineru-install-text.js`: 1 ui file; context audio; 1 other lib file
 - `lib/model-effort.js`: 4 ui files; contexts audio, generation; 9 other lib files
 - `lib/model-text.js`: 1 ui file; context bank; 1 other lib file
-- `lib/notation.js`: 1 ui file; context generation; 11 other lib files
+- `lib/notation.js`: 1 ui file; context generation; 12 other lib files
 - `lib/passage-translation.js`: 2 ui files; contexts generation, materials; 1 other lib file
 - `lib/plain-reason.js`: 2 ui files; 2 other lib files
 - `lib/plan-weekly.js`: 1 ui file; 2 other lib files
@@ -119,10 +119,10 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/study-image-policy.js`: 2 ui files; 2 other lib files
 - `lib/study-progress.js`: 2 ui files; context study; 5 other lib files
 - `lib/symbolic-proof.js`: 1 ui file
-- `lib/token-usage.js`: 8 ui files; contexts audio, generation, materials; 10 other lib files
+- `lib/token-usage.js`: 9 ui files; contexts audio, generation, jobs, materials, study; 13 other lib files
 - `lib/usage-registry.js`: 1 ui file; 2 other lib files
 
-## Used by several contexts (67)
+## Used by several contexts (68)
 
 - `lib/assessment-quality.js`: contexts authoring, generation; 7 other lib files
 - `lib/audio-messages.js`: contexts audio, jobs; 4 other lib files
@@ -174,6 +174,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/model-retry.js`: contexts coach, generation; 7 other lib files
 - `lib/oral-exam.js`: contexts library, study; 1 other lib file
 - `lib/prereq.js`: contexts bank, coach, library, notes, recording, study; 11 other lib files
+- `lib/prompt-order.js`: contexts authoring, generation; 4 other lib files
 - `lib/publication-fingerprint.js`: contexts authoring, generation
 - `lib/query-input.js`: contexts bank, library
 - `lib/recommend.js`: contexts library, study; 2 other lib files
@@ -189,7 +190,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/token-estimate.js`: contexts generation, library, materials; 5 other lib files
 - `lib/translation-source.js`: contexts authoring, study; 4 other lib files
 - `lib/update-check.js`: contexts generation, system; 4 other lib files
-- `lib/usage-scope.js`: contexts authoring, coach, generation, materials, workflows; 6 other lib files
+- `lib/usage-scope.js`: contexts authoring, coach, generation, materials, study, workflows; 9 other lib files
 - `lib/util.js`: contexts audio, authoring, bank, coach, generation, jobs, library, materials, notes, recording, skeleton, study; 48 other lib files
 
 ## Used by exactly one context (133)
@@ -259,12 +260,13 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/deck-merge-suggestions.js`: context bank
 - `lib/exam-blueprint-material.js`: context generation; 1 other lib file
 - `lib/exam-coach.js`: context coach
+- `lib/existing-scope.js`: context generation; 2 other lib files
 - `lib/gemini.js`: context audio; 5 other lib files
 - `lib/generation-limits.js`: context generation; 3 other lib files
 - `lib/generation-report.js`: context generation; 2 other lib files
 - `lib/generation-run-store.js`: context generation
 - `lib/guided-qa.js`: context study
-- `lib/host-capabilities.js`: context study; 9 other lib files
+- `lib/host-capabilities.js`: context study; 10 other lib files
 - `lib/ingest.js`: context recording; 1 other lib file
 - `lib/insights.js`: context library
 - `lib/jev-course-suggest.js`: context library; 2 other lib files
@@ -291,14 +293,13 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/material-mastery.js`: context library; 3 other lib files
 - `lib/mineru-install.js`: context audio
 - `lib/mineru-local.js`: context audio; 2 other lib files
-- `lib/model-usage.js`: context generation; 5 other lib files
+- `lib/model-usage.js`: context generation; 6 other lib files
 - `lib/note-material.js`: context notes
 - `lib/part-plan.js`: context generation; 3 other lib files
 - `lib/pdf-chunker.js`: context audio; 1 other lib file
 - `lib/pdf-text.js`: context materials; 1 other lib file
 - `lib/plan-record.js`: context generation; 3 other lib files
 - `lib/plan-targets.js`: context generation; 2 other lib files
-- `lib/prompt-order.js`: context generation; 3 other lib files
 - `lib/rate-limit.js`: context generation; 3 other lib files
 - `lib/reading-return.js`: context study; 1 other lib file
 - `lib/repeated-lines.js`: context materials; 1 other lib file
@@ -328,7 +329,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/workflows.js`: context workflows; 4 other lib files
 - `lib/wrong-detail.js`: context library
 
-## Used by none of these (other lib files, entry points, scripts and tests only) (117)
+## Used by none of these (other lib files, entry points, scripts and tests only) (116)
 
 - `lib/assigned-plan.js`: 2 other lib files
 - `lib/assist-child.js`: 1 other lib file
@@ -369,7 +370,6 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/custom-sources.js`: 1 other lib file
 - `lib/effort-rejection.js`: 1 other lib file
 - `lib/exam-day-band.js`: 1 other lib file
-- `lib/existing-scope.js`: 2 other lib files
 - `lib/focus-image-stage.js`: 1 other lib file
 - `lib/generation-agent.js`: 1 other lib file
 - `lib/generation-continuable.js`: 1 other lib file
@@ -405,7 +405,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/mineru-paths.js`: 2 other lib files
 - `lib/notebooks.js`: 2 other lib files
 - `lib/npm-tarball.js`: 1 other lib file
-- `lib/option-cues.js`: 3 other lib files
+- `lib/option-cues.js`: 4 other lib files
 - `lib/oral-exam-service.js`: 1 other lib file
 - `lib/panel-bridge.js`: 1 other lib file
 - `lib/pdf-runtime.js`: 1 other lib file

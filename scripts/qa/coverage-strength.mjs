@@ -37,7 +37,7 @@ export async function runStrengthQa(options) {
   return runQa({ name: "coverage-strength", options, model: createFakeModel({ latencyMs: 40, usage: true }), latencyMs: 40,
     localStorageSeed: { "study-interface": JSON.stringify({ accent: options.accent }) },
     seed: async (root) => { options.ids = await seed(root); },
-    async run({ page, server, t, step, check, summary }) {
+    async run({ page, server, step, check, summary }) {
       const call = (action, args = {}) => previewCall(server, action, { ...args, uiLanguage: options.lang });
       const ids = options.ids, facts = {}, zh = options.lang === "zh";
       summary.facts = facts;

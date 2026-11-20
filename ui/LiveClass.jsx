@@ -51,7 +51,7 @@ export function SentenceMark({ segment, checked }) {
  * One sentence. A sentence that is Chinese already is shown once (the polished text when it was corrected, with the recognised original behind 查看识别原稿);
  * an English one has its translation under it. Spacing and punctuation are tidied for display only. `skipReason` is why the polish gave up on it, if it did.
  */
-export const Sentence = memo(function Sentence({ segment, selected, generated, checked, skipReason, onToggle, language }) {
+export const Sentence = memo(function Sentence({ segment, selected, generated, checked, skipReason, onToggle }) {
   const chinese = isChinese(segment);
   return <article className={`live-sentence${selected ? ' live-sentence--selected' : ''}${segment.correctedAt ? ' polished' : ''}`} data-segment-id={segment.id} tabIndex={-1}>
     <label className="live-select"><CheckboxInput checked={selected} onChange={() => onToggle(segment.id)}
