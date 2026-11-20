@@ -178,7 +178,8 @@
       color: var(--text-dim);
       font-size: var(--fs-md);
     }
-    .assist-form .assist-form__input {
+    .assist-form .assist-form__input,
+    .assist-form .assist-form__thinking-input {
       width: 100%;
       box-sizing: border-box;
       font-size: var(--fs-md);

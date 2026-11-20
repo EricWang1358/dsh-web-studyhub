@@ -27,7 +27,7 @@ import { describeModelError, modelReadiness, plainAssistFailure } from "../gener
 import { readableQualityIssue } from "../quality.js";
 import { ReadingBlock, useReadingProps } from "../reading-settings/ReadingSettings.jsx";
 import AnswerState from "./AnswerState.jsx";
-import { Banner, Button, Chip, Icon, InlineMessage, Popover, ProgressBar, SegmentedControl, Spinner, Tooltip } from "../components/index.js";
+import { Banner, Button, Chip, Icon, InlineMessage, Popover, ProgressBar, SegmentedControl, Spinner, TextInput, Tooltip } from "../components/index.js";
 import { useStudy } from "../study-context.jsx";
 import { HELP_CHOICES } from "../agent-prompts/card.js";
 import { FixPhraseChips, FixPhraseSave, appendFixPhrase } from "./FixPhrases.jsx";
@@ -134,11 +134,13 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const [thumbState, setThumbState] = React.useState({ vote: null, tags: [] });
   const thumbVote = thumbState.vote;
   const [assistText, setAssistText] = React.useState("");
+  const [thinkingNote, setThinkingNote] = React.useState("");
   const [dismissedTaskId, setDismissedTaskId] = React.useState("");
   const hasSessionExplainHidden = typeof session.explainHidden === "boolean";
   const [localExplainHidden, setLocalExplainHidden] = React.useState(false);
   const hasFeedback = !!run.feedback;
   React.useEffect(() => { setLocalExplainHidden(false); }, [run.id, run.index, run.card?.id, hasFeedback]);
+  React.useEffect(() => { setThinkingNote(""); }, [run.id, run.index, run.card?.id]);
   const isFeedbackHidden = hasSessionExplainHidden ? session.explainHidden : localExplainHidden;
   const showSolution = !!(run.solution && (run.feedback ? !isFeedbackHidden : explain));
   const showUnansweredFollowups = !run.revealed && !showSolution && run.mode !== "exam" && !!(explain || entry.assistance?.askedTutorBeforeAnswer) && (run.followups?.length ?? 0) > 0;
@@ -168,7 +170,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
     chapterHint.noteFillTerms();
     assistCard("terms", "", [], { terms });
   };
-  React.useEffect(() => { setAssistMode(""); setAssistText(""); setHelpChoices([]); setDeriveRelation("prerequisite"); setClozeFocusTick(0); setTermListOpen(false); }, [run.id, run.index, run.card?.id]);
+  React.useEffect(() => { setAssistMode(""); setAssistText(""); setThinkingNote(""); setHelpChoices([]); setDeriveRelation("prerequisite"); setClozeFocusTick(0); setTermListOpen(false); }, [run.id, run.index, run.card?.id]);
   const cardTasks = (assistTasks || []).filter((task) => task.cardId === run.card?.id);
   const runningTask = cardTasks.find((task) => task.status === "running" && task.mode !== "grade");
   const lastTask = cardTasks.filter((task) => task.mode !== "grade").at(-1);
@@ -553,15 +555,20 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
               </div>
             </div>
           ) : (() => {
-            const canSubmitAssist = !!assistText.trim() || (assistMode === "ask" && helpChoices.length > 0);
+            const trimmedNote = assistMode === "ask" ? thinkingNote.trim().slice(0, 200) : "";
+            const canSubmitAssist = !!assistText.trim() || (assistMode === "ask" && (helpChoices.length > 0 || !!trimmedNote));
             const submitAssist = async () => {
               const mode = assistMode;
-              if (!assistText.trim() && !(mode === "ask" && helpChoices.length)) return;
-              if (await assistCard(mode, assistText.trim(), mode === "ask" ? helpChoices : [], mode === "derive" ? { relation: deriveRelation } : undefined)) {
+              if (!assistText.trim() && !(mode === "ask" && (helpChoices.length || trimmedNote))) return;
+              const extra = mode === "derive"
+                ? { relation: deriveRelation }
+                : (mode === "ask" && trimmedNote ? { thinkingNote: trimmedNote } : undefined);
+              if (await assistCard(mode, assistText.trim(), mode === "ask" ? helpChoices : [], extra)) {
                 if (mode === "ask" && helpChoices.includes("prerequisite") && run.prerequisites?.length)
                   studyPrerequisites(run.prerequisites);
                 setAssistMode("");
                 setAssistText("");
+                setThinkingNote("");
                 setHelpChoices([]);
               }
             };
@@ -616,6 +623,20 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                       }
                     }} />
                 </label>
+                {assistMode === "ask" && (
+                  <label className="assist-form__field assist-form__thinking">
+                    {ui("刚才卡在哪一步 / 是怎么想的？（选填）")}
+                    <TextInput
+                      type="text"
+                      className="assist-form__thinking-input"
+                      data-thinking-note=""
+                      value={thinkingNote}
+                      maxLength={200}
+                      placeholder={ui("用一句话记下刚才卡住的思路，便于后续精准提醒")}
+                      onChange={(event) => setThinkingNote(event.target.value)}
+                    />
+                  </label>
+                )}
                 {assistMode === "improve" && <FixPhraseSave phrases={fixPhrases.phrases} text={assistText} onSave={fixPhrases.add} />}
                 {assistMode === "improve" && <CourseRuleAdd courseRules={courseRules} text={assistText} />}
                 <div className="action-feedback-slot assist-form__feedback">{feedback}</div>
