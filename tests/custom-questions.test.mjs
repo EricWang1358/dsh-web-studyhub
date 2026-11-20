@@ -4,6 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { HEADROOM, fitUnits, packRuns } from '../lib/custom-questions.js';
 import { LIMITS, goalOfChars, strengthPlan } from '../lib/coverage-strength.js';
+import { estimateCustom } from '../lib/custom-estimate.js';
 
 const unit = (id, chars, sourceIds) => ({ id, title: id, chars, ...(sourceIds ? { sourceIds } : {}) });
 const ROOM = Math.floor(LIMITS.total * HEADROOM);
@@ -46,4 +47,27 @@ test('a chapter over the cap by itself is cut into parts of its own pages; one t
   assert.deepEqual(cut.map(part => part.id), cut.map((_, at) => `big~${at + 1}`));
   assert.equal(fitUnits([unit('one', 1200000, ['only'])], 'full', { charsOf }).length, 1, 'one source cannot be cut: its run is capped by the run itself');
   assert.equal(fitUnits([unit('est', 1200000)], 'full').length, Math.ceil(goalOfChars(1200000, 'full') / ROOM), 'with no sources (the estimate) it is cut by characters');
+});
+
+// One pass writes about 14 questions per 10 000 characters at 标准 (owner 2026-11-21): the runs of a 定制方案 are packed at the density of the strategy that will write
+// them, so a run is not planned past its cap by the run's own plan (lib/contexts/generation/generate/plan-seed.js reads the same density).
+test('the runs are packed at the one-pass density when the runs will be written in one pass', () => {
+  const units = Array.from({ length: 15 }, (_, index) => unit(`c${index + 1}`, 30000));
+  const staged = packRuns(fitUnits(units, 'standard'), 'standard'), onePass = packRuns(fitUnits(units, 'standard', { onePass: true }), 'standard', { onePass: true });
+  assert.equal(staged.reduce((sum, run) => sum + run.goal, 0), goalOfChars(30000, 'standard') * 15);
+  assert.equal(onePass.reduce((sum, run) => sum + run.goal, 0), goalOfChars(30000, 'standard', { onePass: true }) * 15);
+  assert.ok(onePass.length > staged.length, `${onePass.length} runs against ${staged.length}`);
+  assert.ok(onePass.every(run => run.goal <= ROOM));
+  assert.equal(fitUnits([unit('big', 400000, ['a', 'b', 'c'])], 'standard', { onePass: true, charsOf: () => 400000 / 3 }).length, 2, 'a chapter over the cap at this density is cut');
+});
+
+test('the 定制方案 estimate counts the questions and calls of the strategy that will write them', () => {
+  const chosen = Array.from({ length: 4 }, (_, index) => ({ id: `c${index + 1}`, doc: 'doc', index, chars: 30000 }));
+  const custom = { book: { make: false, parts: [] }, questions: { make: true, kinds: ['quiz'], strength: 'standard' } };
+  const onePass = estimateCustom({ chosen, paperChars: 0 }, custom, { strategy: 'one-pass' }).questions, staged = estimateCustom({ chosen, paperChars: 0 }, custom, { strategy: 'staged' }).questions;
+  assert.equal(onePass.count, goalOfChars(30000, 'standard', { onePass: true }) * 4);
+  assert.equal(staged.count, goalOfChars(30000, 'standard') * 4);
+  assert.equal(onePass.calls, Math.ceil(168 / 12) + Math.ceil(168 / 7) + Math.ceil(168 / 30), 'writes, reviews and a merge per round');
+  // flashcards are written step by step whatever 出题方式 says
+  assert.equal(estimateCustom({ chosen, paperChars: 0 }, { ...custom, questions: { ...custom.questions, kinds: ['flashcard'] } }, { strategy: 'one-pass' }).questions.count, staged.count);
 });
