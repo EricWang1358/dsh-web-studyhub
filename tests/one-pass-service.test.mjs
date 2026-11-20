@@ -11,7 +11,7 @@ import { settleJob } from './helpers/wait.mjs';
 /* A coverage run through the service, as the learner starts it (one pass is the default): every planned section gets a question, the model is asked only the
    one-pass prompts, and every call is a step of the job with its stage (write, review) and its token usage, as the 任务 console lists them. */
 
-const world = mergedTranscript({ recordings: 2, parts: 4, paragraphs: 8 });
+const world = mergedTranscript({ recordings: 2, parts: 4, paragraphs: 8, distinct: true });
 
 async function library(t) {
   const root = await mkdtemp(join(tmpdir(), 'study-one-pass-'));

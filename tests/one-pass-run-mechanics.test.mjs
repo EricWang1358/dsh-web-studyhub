@@ -17,7 +17,7 @@ import { pinStaged } from './helpers/staged-strategy.mjs';
    pipeline's own tests (coverage-run-exec, failed-continue-exec) pin the staged strategy; these are the same mechanics with the one-pass calls, through the service,
    with the fake model of scripts/fake-model.mjs. Every world here plans rounds of 12 questions written in two portions each. */
 
-const world = mergedTranscript({ recordings: 2, parts: 4, paragraphs: 8 });
+const world = mergedTranscript({ recordings: 2, parts: 4, paragraphs: 8, distinct: true });
 const gate = () => { let open; const promise = new Promise(resolve => { open = resolve; }); return { promise, open, entered: false }; };
 const untilAbort = signal => new Promise((_, reject) => { signal.addEventListener('abort', () => reject(signal.reason), { once: true }); });
 

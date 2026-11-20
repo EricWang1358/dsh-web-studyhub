@@ -34,8 +34,11 @@ test('a coverage estimate says what the level means and prices every round, the 
   assert.ok(stage('author').calls >= standard.coverage.rounds);
   assert.deepEqual(Object.keys(standard.coverage.levels), ['lean', 'standard', 'full']);
   const [lean, full] = [estimate({ coverageLevel: 'lean' }), estimate({ coverageLevel: 'full' })];
-  assert.ok(lean.coverage.goal < standard.coverage.goal && standard.coverage.goal < full.coverage.goal);
-  assert.ok(lean.totalTokens.low < standard.totalTokens.low && standard.totalTokens.low < full.totalTokens.low, 'more questions cost more tokens');
+  // At the one-pass density these 570 000 characters ask more than the 500 questions one run is planned for at 标准 and 完整: both are capped, and say so.
+  assert.ok(lean.coverage.goal < standard.coverage.goal && standard.coverage.goal <= full.coverage.goal);
+  assert.deepEqual([standard.coverage.capped, full.coverage.capped], [['total'], ['total']]);
+  assert.ok(lean.totalTokens.low < standard.totalTokens.low, 'more questions cost more tokens');
+  assert.ok(Math.abs(full.totalTokens.low / standard.totalTokens.low - 1) < 0.15, 'the same capped number of questions costs about the same');
   assert.deepEqual(standard.coverage.levels.lean, { goal: lean.coverage.goal, goalLow: lean.coverage.goalLow, sections: lean.coverage.sections });
   assert.equal(JSON.stringify(estimate({ coverageLevel: 'standard' })), JSON.stringify(standard), 'deterministic');
 });
