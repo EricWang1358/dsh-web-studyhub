@@ -15,6 +15,91 @@ import { createElement, memo, useMemo } from 'react';
 export const FRAME_SANDBOX = 'allow-scripts';
 export const FRAME_CSP = "connect-src 'none'; form-action 'none'; object-src 'none'; base-uri 'none'";
 export const COMPANION_META_CSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; form-action 'none'; object-src 'none'; base-uri 'none'";
+export const COMPANION_PROTOCOL = 'studyhub-companion/1';
+
+const COALESCABLE_KINDS = new Set(['theme', 'labels', 'goto']);
+
+/**
+ * Sandpack-style host ↔ iframe message channel with `ready` handshake and pre-ready buffering.
+ * Outbound messages sent before the iframe signals `ready` are buffered in FIFO order (coalescing
+ * idempotent state-sync kinds `theme`, `labels`, `goto` so the latest value wins) and flushed
+ * atomically once `ready` (or any valid protocol message from an older companion) arrives.
+ */
+export function createCompanionChannel({ token, getTargetWindow, maxQueue = 32 }) {
+  let ready = false;
+  const queue = [];
+
+  function rawPost(payload) {
+    const win = typeof getTargetWindow === 'function' ? getTargetWindow() : null;
+    if (!win || typeof win.postMessage !== 'function') return false;
+    try {
+      win.postMessage({ protocol: COMPANION_PROTOCOL, token, ...payload }, '*');
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function enqueue(payload) {
+    if (COALESCABLE_KINDS.has(payload.kind)) {
+      const idx = queue.findIndex(item => item.kind === payload.kind);
+      if (idx >= 0) queue.splice(idx, 1);
+    }
+    if (queue.length >= maxQueue) queue.shift();
+    queue.push(payload);
+  }
+
+  function flush() {
+    if (!ready || !queue.length) return 0;
+    let sent = 0;
+    while (queue.length) {
+      const next = queue[0];
+      if (!rawPost(next)) break;
+      queue.shift();
+      sent++;
+    }
+    return sent;
+  }
+
+  function send(payload) {
+    if (!payload || typeof payload !== 'object') return false;
+    if (ready && rawPost(payload)) return true;
+    enqueue(payload);
+    return false;
+  }
+
+  function ping() {
+    if (ready) return false;
+    return rawPost({ kind: 'ping' });
+  }
+
+  function handleMessage(event) {
+    const win = typeof getTargetWindow === 'function' ? getTargetWindow() : null;
+    if (!win || event?.source !== win) return null;
+    const msg = event?.data;
+    if (!msg || msg.protocol !== COMPANION_PROTOCOL || msg.token !== token) return null;
+    if (!ready && (msg.kind === 'ready' || msg.kind === 'progress' || msg.kind === 'self-check' || msg.kind === 'inquiry')) {
+      ready = true;
+      flush();
+    }
+    return msg;
+  }
+
+  function reset({ clearQueue = false } = {}) {
+    ready = false;
+    if (clearQueue) queue.length = 0;
+  }
+
+  return {
+    send,
+    ping,
+    flush,
+    handleMessage,
+    reset,
+    isReady: () => ready,
+    pendingCount: () => queue.length,
+  };
+}
 
 const metaCspTag = (policy) => `<meta http-equiv="Content-Security-Policy" content="${policy}">`;
 
@@ -41,6 +126,7 @@ const UNIVERSAL_COMPANION_SHIM = `<script>(function(){try{`
   + `document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!pill.hidden)pill.hidden=true;});`
   + `document.addEventListener('selectionchange',function(){var sel=window.getSelection&&window.getSelection();var t=sel?sel.toString().trim():'';if(!t||t.length<2||!sel.rangeCount){pill.hidden=true;return;}var r=sel.getRangeAt(0).getBoundingClientRect();if(!r.width&&!r.height){pill.hidden=true;return;}pill.hidden=false;pill.style.left=Math.max(8,Math.min(window.innerWidth-160,r.left+r.width/2-60))+'px';pill.style.top=Math.max(8,r.top-38)+'px';});`
   + `window.addEventListener('message',function(ev){var d=ev&&ev.data;if(!d||d.protocol!=='studyhub-companion/1'||d.token!==boot.channelToken)return;`
+  + `if(d.kind==='ping'){post({kind:'ready',version:1,shim:true,replyToPing:true});return;}`
   + `if(d.kind==='theme'&&(d.theme==='dark'||d.theme==='light')){var curDark=document.documentElement.getAttribute('data-theme')==='dark'||(!document.documentElement.getAttribute('data-theme')&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);var tBtn=document.getElementById('theme');if(tBtn&&curDark!==(d.theme==='dark')){try{tBtn.click();}catch(e){}}document.documentElement.setAttribute('data-theme',d.theme);}`
   + `else if(d.kind==='labels'){if(askBtn&&typeof d.askLabel==='string'&&d.askLabel)askBtn.textContent=d.askLabel;if(pill&&typeof d.selectionLabel==='string'&&d.selectionLabel)pill.textContent=d.selectionLabel;}`
   + `else if(d.kind==='goto'){var cur=curSlide(),tot=Math.max(1,cur.total||1),tgt=Math.max(1,Math.min(tot,Math.floor(Number(d.slide)||1)));if(cur.slide===tgt)return;try{location.hash='#'+tgt;}catch(e){}if(curSlide().slide===tgt)return;`
@@ -49,6 +135,7 @@ const UNIVERSAL_COMPANION_SHIM = `<script>(function(){try{`
   + `if(backed&&pv){if(tgt>1){while(curSlide().slide===tgt&&!pv.disabled&&g++<40){pv.click();}while(nx&&curSlide().slide<tgt&&!nx.disabled&&g++<10){nx.click();}}else{while(!pv.disabled&&g++<40){pv.click();}}}}`
   + `});`
   + `var cEl=document.getElementById('count');if(cEl){var timer=0;new MutationObserver(function(){clearTimeout(timer);timer=setTimeout(function(){var p=curSlide();post({kind:'progress',slide:p.slide,slideTotal:p.total,completed:p.slide>=p.total});},400);}).observe(cEl,{childList:true,characterData:true,subtree:true});}`
+  + `post({kind:'ready',version:1,shim:true});`
   + `});}catch(e){}})();</script>`;
 
 /**
@@ -81,7 +168,7 @@ export function framedDocument(html, companion) {
       ? companion.initialAnchor
       : (slideNum >= 1 ? `#${slideNum}` : '');
     const bootTag = `<script id="sh-companion-boot" type="application/json">${safeBootJson({
-      protocol: 'studyhub-companion/1',
+      protocol: COMPANION_PROTOCOL,
       channelToken: String(companion.channelToken),
       theme: companion.theme === 'dark' ? 'dark' : 'light',
       initialAnchor: resolvedAnchor,
@@ -100,10 +187,11 @@ export function framedDocument(html, companion) {
 }
 
 /** The isolated frame. `title` names it for assistive technology; `className` is for the layout only. */
-export const DiagramFrame = memo(function DiagramFrame({ html, title, className = 'sk-diagram-frame', companion, frameRef }) {
+export const DiagramFrame = memo(function DiagramFrame({ html, title, className = 'sk-diagram-frame', companion, frameRef, onLoad }) {
   const srcDoc = useMemo(() => framedDocument(html, companion), [html, companion]);
   return createElement('iframe', {
     ...(frameRef ? { ref: frameRef } : {}),
+    ...(onLoad ? { onLoad } : {}),
     className,
     title,
     sandbox: FRAME_SANDBOX,
