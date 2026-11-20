@@ -322,6 +322,7 @@ test('every failure code the tools raise is in the table or on an explicit allow
   const ALLOWED = {
     'bad-python': 'a bad value passed to the plan', 'bad-source': 'a bad value passed to the plan', 'bad-tier': 'a bad value passed to the plan', 'bad-mirror': 'a bad value passed to the plan',
     busy: 'another job holds the tool: wait', 'conversion-running': 'a conversion holds the tool: wait', 'live-running': 'a live class holds the tool: wait',
+    'retrieval-index-locked': 'another process holds the retrieval index lock: wait',
     'non-ascii': 'a warning about the path, not a failure', cancelled: 'the learner paused: no hand-off', interrupted: 'StudyHub was closed: no hand-off',
     'not-ours': 'an uninstall refused on a folder StudyHub did not make: not a failed install', 'need-confirm': 'an uninstall asked without its confirmation: not a failed install',
     ready: 'the healthy state of marker_single: not a failure',

@@ -18,8 +18,14 @@ const KEPT = {
   'lib/audio-dashboard.js#flushAudioUsage': 'waits for the pending usage-ledger write; the audio suites and their fixtures await it in teardown before the temporary home goes',
   'lib/audio-file.js#splitWav': 'the whole-file WAV splitter; the quiet-cut one is what production calls, and audio.test.mjs pins the plain one',
   'lib/audio-import.js#plainModel': 'a pass-through wrapper that audio-retry.test.mjs pins',
+  'lib/coach-daily.js#consolidateDailyLearnerMemory': 'offline incremental atomic learner-memory consolidation API; learner-atomic-memory.test.mjs pins consent gating and merge/decay',
+  'lib/coach-daily.js#extractDailyAtomicFacts': 'pure daily recap extractor for atomic learner facts; pinned by learner-atomic-memory.test.mjs',
+  'lib/coach-daily.js#learnerMemoryConsolidationAllowed': 'privacy consent gate helper for daily memory consolidation; pinned by learner-atomic-memory.test.mjs',
   'lib/contexts/audio/clip.js#localClipPoolStats': 'reads the default local ASR clip pool worker state; audio-and-desktop-p0.test.mjs pins worker spawn and drain invariants',
   'lib/contexts/jobs/contracts.js#JOB_STAGE_CODES': 'the vocabulary of stage codes; wp4-stage-codes.test.mjs asserts it is complete',
+  'lib/contexts/study/load-balance.js#dateStringOfDay': 'local calendar day formatting helper for deterministic load-balance windows; pinned by load-balance-and-siblings.test.mjs',
+  'lib/contexts/study/load-balance.js#disperseReviewQueue': 'pure sibling-dispersal queue reorderer; pinned by load-balance-and-siblings.test.mjs',
+  'lib/contexts/study/load-balance.js#siblingGroupKey': 'canonical sibling-group key helper; pinned by load-balance-and-siblings.test.mjs',
   'lib/coverage-run.js#RUN_STATES': 'the vocabulary of run states, pinned by a test',
   'lib/draft-continuation.js#extraQuestionDefault': 'the default of a top-up, pinned by a test',
   'lib/generation-failure.js#FAILURE_CODES': 'the vocabulary of failure codes, pinned by tests',
@@ -29,7 +35,6 @@ const KEPT = {
   'lib/live.js#listSaved': 'the saved classes of a library with no live class in front; the live and audio suites list through it',
   'lib/mineru-history.js#pruneRecords': 'the history trim the suites call directly (the service trims through the same function)',
   'lib/retrieval-index.js#indexLockPath': 'returns the retrieval index lockfile path; docs-and-store-p0-fixes.test.mjs pins its location under retrievalHome()',
-  'lib/retrieval-index.js#sourceIdFromKey': 'the inverse of the source key, pinned by tests',
   'lib/shortfall.js#SHORTFALL_STATES': 'the vocabulary of shortfall states, pinned by a test',
 };
 
