@@ -44,7 +44,54 @@ export function createAppStore(initial = {}) {
   for (const key of APP_SLICE_KEYS) {
     seed[key] = Object.hasOwn(initial, key) ? initial[key] : undefined;
   }
-  return createStore(() => seed);
+  const base = createStore(() => seed);
+  let state = base.getState();
+  let pendingPrev = null;
+  const listeners = new Set();
+  return {
+    getState: () => state,
+    getInitialState: () => seed,
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    setState: (partial, replace) => {
+      const next = typeof partial === 'function' ? partial(state) : partial;
+      const merged = replace ? next : { ...state, ...next };
+      if (Object.is(merged, state)) return;
+      const prev = state;
+      state = merged;
+      pendingPrev = null;
+      base.setState(merged, true);
+      for (const listener of listeners) listener(state, prev);
+    },
+    stageSlices: (nextSlices) => {
+      if (!nextSlices || typeof nextSlices !== 'object') return false;
+      let patch = null;
+      for (const key of APP_SLICE_KEYS) {
+        if (!Object.hasOwn(nextSlices, key)) continue;
+        const nextValue = nextSlices[key];
+        if (!Object.is(state[key], nextValue)) {
+          if (!patch) patch = {};
+          patch[key] = nextValue;
+        }
+      }
+      if (!patch) return false;
+      if (pendingPrev === null) pendingPrev = state;
+      state = { ...state, ...patch };
+      return true;
+    },
+    flushPending: () => {
+      if (pendingPrev === null) return false;
+      const prev = pendingPrev;
+      pendingPrev = null;
+      base.setState(state, true);
+      for (const listener of listeners) listener(state, prev);
+      return true;
+    },
+  };
 }
 
 /**
@@ -74,11 +121,18 @@ export const AppContext = createContext(null);
 /** Stable React context carrying the Zustand store API (reference never changes across renders). */
 export const AppStoreContext = createContext(null);
 
-/** Create and keep one per-<App> Zustand store synced with changed slice references. */
+/**
+ * Create and keep one per-<App> Zustand store synced with changed slice references.
+ * Stages slice updates synchronously during render so newly mounted subtrees (such as
+ * `<PageView>` mounting on the exact render `data` transitions from `null` to loaded)
+ * never observe a stale pre-effect `null` snapshot, then flushes subscriber notifications
+ * in `useLayoutEffect` so memoized siblings update before paint without mid-render setState warnings.
+ */
 export function useAppStore(slices) {
   const [store] = useState(() => createAppStore(slices));
+  store.stageSlices(slices);
   useLayoutEffect(() => {
-    syncAppStore(store, slices);
+    store.flushPending();
   }, [store, slices]);
   return store;
 }
