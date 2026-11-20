@@ -250,9 +250,9 @@ export default function VoicePackDialog({ modal, onClose }) {
         </div>
 
         <div className="vp-guardrails">
-          <span className="vp-guardrail"><Icon name="check" size={14} className="sh-icon--inline" />{ui('每轮带 [进度 k/N · 本题第 t/3 轮] 心跳')}</span>
-          <span className="vp-guardrail"><Icon name="check" size={14} className="sh-icon--inline" />{ui('单题最多 3 轮自动熔断推进')}</span>
-          <span className="vp-guardrail"><Icon name="check" size={14} className="sh-icon--inline" />{ui('支持口令：跳过 / 快进模式 / 今天先到这，给我结算')}</span>
+          <span className="vp-guardrail"><Icon name="check" className="sh-icon--inline" />{ui('每轮带 [进度 k/N · 本题第 t/3 轮] 心跳')}</span>
+          <span className="vp-guardrail"><Icon name="check" className="sh-icon--inline" />{ui('单题最多 3 轮自动熔断推进')}</span>
+          <span className="vp-guardrail"><Icon name="check" className="sh-icon--inline" />{ui('支持口令：跳过 / 快进模式 / 今天先到这，给我结算')}</span>
         </div>
 
         {pack?.cards?.length > 0 && (

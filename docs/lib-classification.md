@@ -147,7 +147,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/daily-recap-settings.js`: contexts notes, system; 2 other lib files
 - `lib/deck-organization.js`: contexts authoring, bank
 - `lib/deck-title.js`: contexts bank, library; 3 other lib files
-- `lib/document-outline.js`: contexts generation, library, materials; 3 other lib files
+- `lib/document-outline.js`: contexts library, materials; 3 other lib files
 - `lib/documents.js`: contexts library, materials; 1 other lib file
 - `lib/domain.js`: contexts authoring, bank, coach, generation, recording, study, system; 25 other lib files
 - `lib/estimate-calibration.js`: contexts generation, library; 1 other lib file

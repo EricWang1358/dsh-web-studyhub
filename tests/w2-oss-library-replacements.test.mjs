@@ -105,8 +105,8 @@ test('3. jsonrepair tier-2 fallback: rescues trailing commas, unescaped quotes, 
     prompt: 'Explain the "Single Responsibility" principle',
   });
 
-  // Truncated JSON container rescued cleanly.
-  assert.deepEqual(parseJson('{"title": "Deck", "cards": [{"id": "q1", "prompt": "What is O(n)?"'), {
+  // Truncated JSON container rescued cleanly when explicitly allowed.
+  assert.deepEqual(parseJson('{"title": "Deck", "cards": [{"id": "q1", "prompt": "What is O(n)?"', { allowTruncated: true }), {
     title: 'Deck',
     cards: [{ id: 'q1', prompt: 'What is O(n)?' }],
   });

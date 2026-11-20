@@ -1,6 +1,9 @@
-import { use, useContext } from 'react';
-import { createStore, useStore } from 'zustand';
-import { AppContext, AppStoreContext } from './store.js';
+import { useContext } from 'react';
+import { useStore } from 'zustand';
+import { AppContext, AppStoreContext, isZustandStore } from './store.js';
+
+const subscribeStore = useStore;
+const readContext = useContext;
 
 export {
   APP_SLICE_KEYS,
@@ -22,7 +25,6 @@ export {
   useOptionalAppSelector,
 } from './store.js';
 
-const EMPTY_STORE = createStore(() => null);
 const IDENTITY = (state) => state;
 
 /** Is the reader (a material full-size) the open dialog of `modal` (lib.modal)? The daily plan listens while it is; the 对照栏 of the practice page gives way to it (one reader at a time, #1012). */
@@ -35,11 +37,10 @@ export const readerOpen = (modal) => modal?.type === 'source';
  * standalone component tests.
  */
 export function useApp(selector) {
-  const store = useContext(AppStoreContext);
+  const raw = useContext(AppStoreContext);
   const pick = typeof selector === 'function' ? selector : IDENTITY;
-  const fromStore = useStore(store ?? EMPTY_STORE, store ? pick : IDENTITY);
-  if (store) return fromStore;
-  const legacy = use(AppContext);
+  if (isZustandStore(raw)) return subscribeStore(raw, pick);
+  const legacy = raw || readContext(AppContext);
   if (!legacy) throw new Error('useApp must be used inside <App>');
   return pick(legacy);
 }

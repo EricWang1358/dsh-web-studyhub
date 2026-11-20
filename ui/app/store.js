@@ -4,11 +4,12 @@
    their own slice changes, while preserving the backward-compatible `useApp()`
    facade in `ui/app/app-context.js` for existing pages and tests. */
 
-import React, { createContext, use, useContext, useLayoutEffect, useState } from 'react';
+import React, { createContext, useContext, useLayoutEffect, useState } from 'react';
 import { createStore, useStore } from 'zustand';
 
-const EMPTY_STORE = createStore(() => undefined);
-const NOOP_SELECTOR = () => undefined;
+export const isZustandStore = (value) => Boolean(value && typeof value.getState === 'function' && typeof value.subscribe === 'function');
+const subscribeStore = useStore;
+const readContext = useContext;
 
 export const APP_SLICE_KEYS = Object.freeze([
   'language',
@@ -93,10 +94,9 @@ export function AppStoreProvider({ store, children }) {
  * Falls back cleanly to `AppContext` (via React 19 conditional `use()`) in standalone legacy tests.
  */
 export function useAppSelector(selector) {
-  const store = useContext(AppStoreContext);
-  const selected = useStore(store ?? EMPTY_STORE, store ? selector : NOOP_SELECTOR);
-  if (store) return selected;
-  const legacy = use(AppContext);
+  const raw = useContext(AppStoreContext);
+  if (isZustandStore(raw)) return subscribeStore(raw, selector);
+  const legacy = raw || readContext(AppContext);
   if (!legacy) throw new Error('useAppSelector must be used inside <App> or <AppStoreProvider>');
   return selector(legacy);
 }
@@ -107,10 +107,9 @@ export function useAppSelector(selector) {
  * Subscribes ONLY to `selector(state)` inside `<App>` with zero `AppContext` coupling.
  */
 export function useOptionalAppSelector(selector) {
-  const store = useContext(AppStoreContext);
-  const selected = useStore(store ?? EMPTY_STORE, store ? selector : NOOP_SELECTOR);
-  if (store) return selected;
-  const legacy = use(AppContext);
+  const raw = useContext(AppStoreContext);
+  if (isZustandStore(raw)) return subscribeStore(raw, selector);
+  const legacy = raw || readContext(AppContext);
   return legacy ? selector(legacy) : undefined;
 }
 
