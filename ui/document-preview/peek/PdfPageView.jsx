@@ -55,7 +55,7 @@ async function renderWithinBudget(opened, page, scale, { turn, gate, budgetMs, s
  * shown is always the page the panel asks about. The text layer keeps the words selectable. Rapid page turns coalesce onto the latest target page so intermediate pages are
  * never drawn one by one. Heavy scanned pages that exceed `budgetMs` on the main thread (or stall) call `onSlow()`, and files that cannot be drawn truly call `onFail()`.
  */
-export default function PdfPageView({ loadBytes, page, totalPages = 0, zoom = 1, budgetMs = SLOW_PAGE_MS, coalesceMs = TURN_COALESCE_MS, openRenderer, onPage, onSlow, onFail }) {
+export default function PdfPageView({ loadBytes, page, totalPages = 0, zoom = 1, budgetMs = SLOW_PAGE_MS, coalesceMs = TURN_COALESCE_MS, retryKey = 0, openRenderer, onPage, onSlow, onFail }) {
   const [ready, setReady] = useState(false), [fitKey, setFitKey] = useState(0);
   const area = useRef(null), canvas = useRef(null), textLayer = useRef(null), renderer = useRef(null);
   const callbacks = useRef({ onFail, onSlow });
@@ -148,7 +148,7 @@ export default function PdfPageView({ loadBytes, page, totalPages = 0, zoom = 1,
     if (delay > 0) waitTimer = setTimeout(runRender, delay);
     else runRender();
     return () => { clearTimeout(waitTimer); clearTimeout(stallTimer); gate.current?.cancelAll(); };
-  }, [ready, page, zoom, fitKey, totalPages, budgetMs, coalesceMs]);
+  }, [ready, page, zoom, fitKey, totalPages, budgetMs, coalesceMs, retryKey]);
 
   // The reader's width changed (the panel opened, the window moved): draw again once it settles.
   useEffect(() => {
