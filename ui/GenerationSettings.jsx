@@ -6,6 +6,7 @@ import { COVERAGE_LEVELS, difficultyNote, kindNote, kindsPatch, levelNote, notat
 import { GENERATION_SETTINGS_DEFAULTS, GENERATION_SETTINGS_LIMITS, GENERATION_LANGUAGES,
   GENERATION_DIFFICULTIES, GENERATION_NOTATIONS, GENERATION_STRATEGIES, UNLIMITED_TIMEOUT_KEYS, clampConcurrency, effectiveConcurrencyLimit, normalizeGenerationSettings, validateGenerationPatch } from '../lib/generation-settings.js';
 import { lightModelOf, modelKey } from '../lib/job-model.js';
+import { writesInOnePass } from '../lib/one-pass/route.js';
 import { EFFORT_STAGES, effortKey } from '../lib/stage-effort.js';
 import { EffortSelect } from './EffortSelect.jsx';
 import { useStudy } from './study-context.jsx';
@@ -149,7 +150,7 @@ export function GenerationSettingsForm({ root, saved, efforts = null, session, m
         kindNote(editor.values.kinds, undefined, undefined, { canChat }), true)}
       {/* The one default the 创建题组 page plans by (it also decides whether the rounds go on by themselves); selectionCount is for reader passage supplements, and count below is for main-chat requests without a level. */}
       {field('coverageLevel', <Select {...propsFor('coverageLevel')} onChange={value => edit('coverageLevel', value)} options={COVERAGE_LEVELS.map(({ value, label }) => ({ value, label }))} />,
-        levelNote(editor.values.coverageLevel))}
+        levelNote(editor.values.coverageLevel, { onePass: writesInOnePass({ kinds: editor.values.kinds, performance: editor.values }) }))}
       {numberField('selectionCount', ui('在资料阅读器里选中一段文字「补充到现有题组」时的默认题数；每次补题仍可在「更多设置」里临时调整。'))}
       {choiceField('language', GENERATION_LANGUAGES, value => ui(languages[value]))}
       {choiceField('difficulty', GENERATION_DIFFICULTIES, value => ui(difficulties[value]), difficultyNote(editor.values.difficulty))}
@@ -160,7 +161,7 @@ export function GenerationSettingsForm({ root, saved, efforts = null, session, m
       <Disclosure className="settings-disclosure" summaryClassName="settings-disclosure__summary" bodyClassName="settings-disclosure__body"
         summary={ui('高级生成控制')} meta={ui('并发、批次、推理程度与审阅')} open={advancedOpen} onToggle={setAdvancedOpen}>
         <h3 className="settings-subtitle">{ui('生成安排')}</h3>
-        <Field key="strategy" label={ui(labels.strategy)} hint={ui('只用于按覆盖强度出的单选题；其他题型、按题数出题和补题仍逐题精出。')} error={errors.strategy}>
+        <Field key="strategy" label={ui(labels.strategy)} hint={ui('只用于按覆盖强度出的单选题；其他题型和按题数出题总是逐题精出。已有题组接着做或补题时，按它开始时的方式出（早于这个设置的题组是逐题精出）；补题时重写没通过的题总是逐题精出。')} error={errors.strategy}>
           {({ id, describedBy }) => <Tooltip layer content={ui(STRATEGY_TIP)}>
             <Select id={id} aria-describedby={describedBy} {...propsFor('strategy')} onChange={value => edit('strategy', value)}
               options={GENERATION_STRATEGIES.map(value => ({ value, label: ui(strategies[value]) }))} />

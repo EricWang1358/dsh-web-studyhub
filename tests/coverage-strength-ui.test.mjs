@@ -38,7 +38,11 @@ test('the control: three levels and 自定义, 标准 on by default, the level s
   const labels = [...html.matchAll(/<button[^>]*class="sh-seg__item[^"]*"[^>]*>(.*?)<\/button>/g)].map(match => text(match[1]));
   assert.deepEqual(labels, ['精简', '标准', '完整', '自定义']);
   assert.match(html, /aria-pressed="true"[^>]*>标准</);
+  // The words say the density of the strategy that writes the run (lib/coverage-strength.js densityOf): one pass (the default) about 14 per 10 000 characters, the staged pipeline 6.
+  assert.match(text(render('standard', null, { onePass: true })), /标准：每个不少于 600 字的小节都出题，更长、更重要的小节题更多，每万字约 14 题。/);
   assert.match(text(html), /标准：每个不少于 600 字的小节都出题，更长、更重要的小节题更多，每万字约 6 题。/);
+  assert.equal(m.form.suggestCount({ chars: 70000 }, 'standard', { onePass: true }), 98);
+  assert.equal(m.form.suggestCount({ chars: 70000 }, 'standard'), 42);
   assert.doesNotMatch(html, /cov-strength__custom|id="generate-count"/, 'no number field while a level is the choice');
   for (const level of ['lean', 'full']) assert.match(render(level, null), new RegExp(`aria-pressed="true"[^>]*>${level === 'lean' ? '精简' : '完整'}<`));
 });
@@ -53,7 +57,8 @@ test('the consequence line is the real estimate in plain words: 「标准：约 
   }
   const standard = estimateOf({ coverageLevel: 'standard' });
   assert.match(lineOf(render('standard', standard)), /覆盖 81\/81 个小节/);
-  assert.match(text(render('standard', standard)), /精简约 100–126 题 · 标准约 200–251 题 · 完整约 335–419 题/, 'the three levels side by side for the same sources');
+  // 完整 at the one-pass density asks for more than the 500 in all (lib/coverage-strength.js LIMITS.total) for these 570 000 characters: it is capped, and barely above 标准.
+  assert.match(text(render('standard', standard)), /精简约 156–196 题 · 标准约 388–486 题 · 完整约 397–497 题/, 'the three levels side by side for the same sources');
   const custom = estimateOf({ coverageLevel: 'standard', count: 100 });
   const html = render('standard', custom, { customCount: '100' });
   assert.equal(lineOf(html), `自定义：${custom.coverage.goalLow}–100 道题，覆盖 ${custom.coverage.sections}/81 个小节，分 4 轮，${text(m.estimateSummary(custom))}`);
@@ -68,7 +73,7 @@ test('the consequence line is the real estimate in plain words: 「标准：约 
 test('the line is the same plan the run is planned with: the same function', () => {
   const leaves = leafSectionsFor(state, fx.sources);
   for (const level of ['lean', 'standard', 'full']) {
-    const planned = coveragePlan({ leaves, weights: [], level }), c = estimateOf({ coverageLevel: level }).coverage;
+    const planned = coveragePlan({ leaves, weights: [], level, onePass: true }), c = estimateOf({ coverageLevel: level }).coverage;
     assert.deepEqual([c.goal, c.sections, c.rounds, c.firstRound], [planned.plan.goal, planned.plan.mustCover, planned.rounds.length, planned.rounds[0].questions], level);
   }
 });
@@ -84,10 +89,10 @@ test('before the estimate arrives and when there is nothing selected, the contro
 test('the English control has no Chinese text', () => inLanguage('en', () => {
   const standard = estimateOf({ coverageLevel: 'standard' }), html = render('standard', standard);
   assert.doesNotMatch(text(html), han, text(html).match(/.{0,30}[㐀-鿿].{0,30}/)?.[0]);
-  assert.match(lineOf(html), /^Standard: about 200–251 questions, covering 81\/81 sections, in 9 rounds. Estimated [\d.]+[KM]?–[\d.]+[KM]? tok · \d+–\d+ model calls$/);
+  assert.match(lineOf(html), /^Standard: about 388–486 questions, covering 81\/81 sections, in 17 rounds. Estimated [\d.]+[KM]?–[\d.]+[KM]? tok · \d+–\d+ model calls$/);
   const labels = [...html.matchAll(/<button[^>]*class="sh-seg__item[^"]*"[^>]*>(.*?)<\/button>/g)].map(match => text(match[1]));
   assert.deepEqual(labels, ['Lean', 'Standard', 'Full', 'Custom']);
-  assert.match(text(html), /Lean about 100–126 · Standard about 200–251 · Full about 335–419/);
+  assert.match(text(html), /Lean about 156–196 · Standard about 388–486 · Full about 397–497/);
   const custom = render('standard', estimateOf({ coverageLevel: 'full', count: 100 }), { customCount: '100' });
   assert.doesNotMatch(text(custom), han);
   assert.match(lineOf(custom), /^Custom: 80–100 questions, covering 81\/81 sections, in 4 rounds. Estimated /);

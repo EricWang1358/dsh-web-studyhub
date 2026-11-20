@@ -38,6 +38,7 @@ import {
   NOTATION_CHOICES, caseEvidence, chosenOptions, difficultyNote, estimateMinutes, estimateRequestOf, importDialog, kindNote, kindsOfForm, kindsPatch, extraValuesOf, moreValuesOf, notationNote, courseLine, roleOpenByDefault, selectionStats, summaryLine,
 } from './generate-form.js';
 import { DEFAULT_LEVEL, levelOf } from '../lib/coverage-strength.js';
+import { writesInOnePass } from '../lib/one-pass/route.js';
 import homeCss from './generate-home.css';
 import formCss from './generate-form.css';
 import focusIntakeCss from './focus-intake.css';
@@ -191,6 +192,8 @@ export default function Generate({
   // What the chosen 覆盖强度 means for the chosen materials: the backend's plan, priced from the real prompts (lib/token-estimate.js), asked once the choice settles.
   const level = levelOf(gen.coverageLevel ?? DEFAULT_LEVEL), custom = customCountOf(gen);
   const estimateRequest = estimateRequestOf(gen, { course: generationCourse, sourceIds: selectedSources, reasoningEffort });
+  // Whether the run will be written in one pass (出题方式 in 设置, and the kinds chosen here): the level's words say that strategy's density.
+  const onePass = writesInOnePass({ ...estimateRequest, performance: data.settings?.generation });
   const planned = useUsageEstimate(call, estimateRequest, { enabled: selectedSources.length > 0 && !referenceState.reason && !pathMode });
   const plannedCoverage = planned.status === 'ready' ? planned.estimate?.coverage : null, plannedGoal = plannedCoverage?.goal ?? null;
   // A summary promises questions: not for a button that is off (the reason is said below), and for the steps it is their own total.
@@ -269,7 +272,7 @@ export default function Generate({
                   <p className="generate-note">{kindNote(kindsOfForm(gen), undefined, gen.kindCounts)}</p>
                 </FormRow>
                 {!pathMode && <FormRow label={ui("覆盖强度")} data-tour="generate-coverage">
-                  <CoverageStrength compact part="choice" level={level} customCount={gen.customCount ?? ''} state={planned} stats={stats} enabled={selectedSources.length > 0 && !referenceState.reason} disabled={busy}
+                  <CoverageStrength compact part="choice" level={level} customCount={gen.customCount ?? ''} state={planned} stats={stats} enabled={selectedSources.length > 0 && !referenceState.reason} disabled={busy} onePass={onePass}
                     onChoice={(patch) => setGen({ ...gen, ...patch })} onCustom={(customCount) => setGen({ ...gen, customCount })}
                     auto={autoOf({ ...gen, coverageLevel: level })} onAuto={(autoComplete) => setGen({ ...gen, autoComplete })} />
                 </FormRow>}

@@ -5,7 +5,7 @@ import { ui, uiFormat } from './i18n.js';
 import { sourceFormat } from '../lib/source-groups.js';
 import { documentCount } from './generation-status.js';
 import { normalizeNotation } from '../lib/notation.js';
-import { LEVELS, DEFAULT_LEVEL, STRENGTH, levelOf, autoCompleteOf } from '../lib/coverage-strength.js';
+import { LEVELS, DEFAULT_LEVEL, STRENGTH, levelOf, autoCompleteOf, densityOf } from '../lib/coverage-strength.js';
 import { parseTokenBudget } from '../lib/coverage-run.js';
 import { GOAL_QUESTIONS_MAX } from '../lib/limits.js';
 import { nonEvidenceRanges } from '../lib/sections.js';
@@ -26,9 +26,9 @@ export const COUNT_PRESETS = Object.freeze([10, 30, 60, 100]);
 export const COVERAGE_LEVELS = Object.freeze(LEVELS.map(value => Object.freeze({ value, get label() { return levelLabel(value); } })));
 export { DEFAULT_LEVEL, levelLabel };
 
-/** One line on what a level means (the numbers are the table of lib/coverage-strength.js). */
-export function levelNote(value) {
-  const level = levelOf(value), config = STRENGTH[level];
+/** One line on what a level means (the numbers are the table of lib/coverage-strength.js). `onePass`: the run is written in one pass (lib/one-pass/route.js writesInOnePass), which has its own density. */
+export function levelNote(value, { onePass = false } = {}) {
+  const level = levelOf(value), config = { ...STRENGTH[level], perTenK: densityOf(level, { onePass }) };
   return ({
     lean: uiFormat('精简：只给最重要的小节出题（合计约占内容的六成，每段录音至少一处），每万字约 {0} 题，适合考前过一遍；默认只出第 1 轮，覆盖的小节不多是设计如此，要继续就勾选「自动补到完整」。', [config.perTenK]),
     standard: uiFormat('标准：每个不少于 {0} 字的小节都出题，更长、更重要的小节题更多，每万字约 {1} 题。', [config.minChars, config.perTenK]),
@@ -62,10 +62,10 @@ export function selectionStats(sources = [], selectedIds = []) {
 const CHARS_PER_PAGE = 1800;
 /** What a coverage level means in questions for a selection of this size, before the sections are known: the density of the level (questions per 10 000 characters, lib/coverage-strength.js)
     over its characters, a PDF page counting as about 1 800. Never cut to a small number; null when nothing is selected. The exact plan is the backend's (the line under the choice). */
-export function suggestCount({ pages = 0, chars = 0 } = {}, level = DEFAULT_LEVEL) {
+export function suggestCount({ pages = 0, chars = 0 } = {}, level = DEFAULT_LEVEL, { onePass = false } = {}) {
   const total = pages * CHARS_PER_PAGE + chars;
   if (!(total > 0)) return null;
-  return Math.min(COUNT_MAX, Math.max(1, Math.round(STRENGTH[levelOf(level)].perTenK * total / 10000)));
+  return Math.min(COUNT_MAX, Math.max(1, Math.round(densityOf(levelOf(level), { onePass }) * total / 10000)));
 }
 
 /* ---------- time ---------- */
