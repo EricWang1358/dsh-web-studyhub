@@ -12,6 +12,7 @@ import { reportUsage } from "../lib/usage-scope.js";
 import { dshSystemTokens, dshUserTokens } from "../lib/token-estimate.js";
 import { recapLeaks } from "../lib/daily-recap.js";
 import { WRITE_SYSTEM, REWRITE_SYSTEM, REVIEW_SYSTEM } from "../lib/one-pass/prompts.js";
+import { SAME_FACT_SYSTEM } from "../lib/one-pass/merge.js";
 
 /** The route a preview reports for this model. */
 export const FAKE_MODEL_ROUTE = Object.freeze({ provider: "preview", model: "fake-model" });
@@ -675,6 +676,8 @@ const HANDLERS = [
     reply: ({ input }) => ({ cards: (input.cards || []).map((card) => ({ index: card.index, options: card.options })) }) },
   { name: "generation.one-pass.review", slow: true, match: (s) => s.startsWith(REVIEW_SYSTEM),
     reply: ({ input }) => ({ reviews: (input.cards || []).map((card) => ({ index: card.index, verdict: "pass", blocker: 0, issue: "" })) }) },
+  // The final same-fact merge of a one-pass run: every fake card is on its own passage, so nothing is grouped.
+  { name: "generation.one-pass.merge", match: (s) => s.startsWith(SAME_FACT_SYSTEM), reply: () => ({ groups: [] }) },
   { name: "generation.repair", match: (s) => s.startsWith("Repair one draft card"),
     reply: ({ input }) => {
       const source = (input.sources || [])[0];

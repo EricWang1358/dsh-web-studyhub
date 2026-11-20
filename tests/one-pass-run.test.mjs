@@ -31,7 +31,11 @@ test('the first round of a standard plan in one pass: one write per portion, rev
   assert.equal(reviews.length, portions.reduce((sum, portion) => sum + Math.ceil(portion.questions / ONE_PASS_LIMITS.reviewBatch), 0));
   assert.deepEqual(model.calls.filter(call => call.stage === 'other'), [], 'no staged call (plan, blueprint, author, editor)');
   for (const write of writes) assert.ok(write.data.sections.every(item => Number.isInteger(item.quota)) && write.data.count === undefined);
-  for (const call of model.calls) {
+  const same = model.calls.filter(call => call.stage === 'same');
+  assert.equal(same.length, 1, 'one final same-fact merge over the whole run');
+  assert.equal(same[0].data.cards.length, first.questions);
+  assert.deepEqual([same[0].context.stage, same[0].context.unit, same[0].context.part], [STAGE.reviewing, 'merge', null], 'a review step of the run, not of a part');
+  for (const call of model.calls.filter(item => item.stage !== 'same')) {
     assert.ok(Number.isInteger(call.context.part) && call.context.attempt === 1, 'every call is a step of its part');
     assert.match(call.context.stage, new RegExp(`^Part \\d+/${portions.length} · (${STAGE.authoring}|${STAGE.reviewing})$`), 'every portion is a part from the start');
   }
@@ -101,4 +105,27 @@ test('the setting chooses: strategy "staged", or a kind one pass does not write,
     assert.ok(!seen.some(system => system.includes('every card in one pass')));
     assert.ok(deck.cards.length >= 1);
   }
+});
+
+test('the final same-fact merge omits the later card of a group; a broken merge reply or a spent token ceiling leaves every card', async () => {
+  const assignments = first.assignments.slice(0, 3), total = assignments.reduce((sum, item) => sum + item.quota, 0);
+  const grouped = await run(onePassModel({ same: () => ({ groups: [[0, 1]] }) }), assignments);
+  assert.equal(grouped.cards.length, total - 1);
+  assert.ok(grouped.editorial.omitted.some(item => /same fact/.test(item.reasons.join(' '))), 'the omission says why');
+
+  const broken = onePassModel({ raw: { same: () => 'not json' } });
+  const kept = await run(broken, assignments);
+  assert.equal(broken.calls.filter(call => call.stage === 'same').length, 2, 'asked again once');
+  assert.equal(kept.cards.length, total);
+
+  const plain = onePassModel();
+  await run(plain, assignments);
+  const before = plain.calls.length - 1;
+  let stopped = 0;
+  const capped = onePassModel();
+  const tokenCap = { limit: before, used: () => capped.calls.length, stop: () => { stopped++; return new Error('stopped'); } };
+  const deck = await run(capped, assignments, { tokenCap });
+  assert.equal(capped.calls.filter(call => call.stage === 'same').length, 0, 'no merge call once the ceiling is spent');
+  assert.equal(stopped, 0, 'and no budget stop of a run whose work is done');
+  assert.equal(deck.cards.length, total);
 });

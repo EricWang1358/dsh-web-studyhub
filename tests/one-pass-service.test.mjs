@@ -36,7 +36,7 @@ test('a standard coverage run in one pass: every planned section covered, only o
   assert.deepEqual(draft.editorial.failures, []);
 
   const generation = log.filter(entry => entry.handler?.startsWith('generation.'));
-  assert.deepEqual([...new Set(generation.map(entry => entry.handler))].sort(), ['generation.one-pass.review', 'generation.one-pass.write']);
+  assert.deepEqual([...new Set(generation.map(entry => entry.handler))].sort(), ['generation.one-pass.merge', 'generation.one-pass.review', 'generation.one-pass.write']);
   const writes = generation.filter(entry => entry.handler === 'generation.one-pass.write').length;
   assert.equal(writes, draft.editorial.partPlans.length, 'one write per portion, no section asked again');
   assert.deepEqual(draft.editorial.previousFailures ?? [], [], 'no part of any round failed on the way');
@@ -46,6 +46,9 @@ test('a standard coverage run in one pass: every planned section covered, only o
   const calls = contract.calls.filter(call => call.kind !== 'plan');
   assert.equal(calls.length, generation.length, 'every model call is a step of the job');
   assert.deepEqual([...new Set(calls.map(call => call.kind))].sort(), ['author', 'review']);
-  assert.ok(calls.every(call => /^Part \d+\/\d+ · /.test(call.stage)), 'each step carries its part and stage');
+  const merges = generation.filter(entry => entry.handler === 'generation.one-pass.merge').length;
+  assert.ok(merges >= 1, 'every round ends with its same-fact merge');
+  assert.equal(calls.filter(call => !/^Part \d+\/\d+ · /.test(call.stage)).length, merges, 'each other step carries its part and stage');
+  assert.ok(calls.filter(call => !/^Part /.test(call.stage)).every(call => call.kind === 'review'), 'the merge is a review step of the run');
   assert.ok(calls.every(call => Number.isInteger(call.tokens) && call.tokens > 0), 'and its token usage');
 });

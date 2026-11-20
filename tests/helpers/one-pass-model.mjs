@@ -1,10 +1,12 @@
 import { stageSystem } from '../../lib/prompt-order.js';
 import { WRITE_SYSTEM, REWRITE_SYSTEM, REVIEW_SYSTEM } from '../../lib/one-pass/prompts.js';
+import { SAME_FACT_SYSTEM } from '../../lib/one-pass/merge.js';
 import { requestData } from './request-data.mjs';
 
-/* A recording fake model for one pass (lib/one-pass/). It answers the three prompts from what they carry: a write call gets, for every section it is given,
-   as many cards as its quota, each quoting a different sentence of that section; a rewrite evens the options; a review passes every card. Each answer can be
-   replaced per test (`write`, `rewrite`, `review`), and every call is kept in `calls` with the stage it was, its data and its context. */
+/* A recording fake model for one pass (lib/one-pass/). It answers the four prompts from what they carry: a write call gets, for every section it is given,
+   as many cards as its quota, each quoting a different sentence of that section; a rewrite evens the options; a review passes every card; the final same-fact
+   merge groups nothing. Each answer can be replaced per test (`write`, `rewrite`, `review`, `same`), and every call is kept in `calls` with the stage it was,
+   its data and its context. */
 
 // The sentences of a text, one line at a time; a heading line ("## …", "【…】", "[…]") is not a sentence.
 const sentencesOf = text => String(text).split(/(?<=\.)\s+|\n+/).map(item => item.trim()).filter(item => item.length >= 20 && !/^[#【[]/.test(item));
@@ -28,10 +30,11 @@ export function writeAll(data) {
   });
 }
 
-const stageOf = system => (system.startsWith(WRITE_SYSTEM) ? 'write' : system.startsWith(REWRITE_SYSTEM) ? 'rewrite' : system.startsWith(REVIEW_SYSTEM) ? 'review' : 'other');
+const stageOf = system => (system.startsWith(WRITE_SYSTEM) ? 'write' : system.startsWith(REWRITE_SYSTEM) ? 'rewrite' : system.startsWith(REVIEW_SYSTEM) ? 'review'
+  : system.startsWith(SAME_FACT_SYSTEM) ? 'same' : 'other');
 
 export function onePassModel({ write = writeAll, rewrite = data => ({ cards: data.cards.map(card => ({ index: card.index, options: card.options })) }),
-  review = data => ({ reviews: data.cards.map(card => ({ index: card.index, verdict: 'pass', blocker: 0, issue: '' })) }), raw = {} } = {}) {
+  review = data => ({ reviews: data.cards.map(card => ({ index: card.index, verdict: 'pass', blocker: 0, issue: '' })) }), same = () => ({ groups: [] }), raw = {} } = {}) {
   const calls = [];
   const complete = async (system, prompt, context = {}) => {
     const stage = stageOf(stageSystem(system, prompt)), data = requestData(prompt), number = calls.filter(call => call.stage === stage).length + 1;
@@ -40,6 +43,7 @@ export function onePassModel({ write = writeAll, rewrite = data => ({ cards: dat
     if (stage === 'write') return JSON.stringify({ cards: write(data, number) });
     if (stage === 'rewrite') return JSON.stringify(rewrite(data, number));
     if (stage === 'review') return JSON.stringify(review(data, number));
+    if (stage === 'same') return JSON.stringify(same(data, number));
     return '{}';
   };
   return { complete, calls };
