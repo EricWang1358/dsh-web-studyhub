@@ -273,6 +273,23 @@ const phaseLabel = (phase, handwriting) => ({ reading: ui("阅读时间"), writi
   transcribe: ui("录入答案（不计时）"), over: ui("时间到"), submitted: ui("已交卷") })[phase] || "";
 const paceLabel = (pace) => ({ ahead: ui("节奏从容"), "on-track": ui("节奏正常"), behind: ui("时间偏紧：先保证每题都写到") })[pace];
 
+const CASE_RETRY_SUBMIT_MS = 5000;
+
+/** Snapshot the learner's latest typed answers for every question in a case paper. */
+export function caseSubmitResponses(paperCards = [], answers = {}) {
+  return Object.fromEntries((paperCards || []).map((card) => [card.id, typeof answers?.[card.id] === "string" ? answers[card.id] : ""]));
+}
+
+/** Clear pending autosave timers and drain in-flight writes without letting an expired review.answer block final exam.submit. */
+export async function flushCaseBeforeSubmit({ saveTimers, writes, flushHighlights } = {}) {
+  for (const timer of Object.values(saveTimers || {})) clearTimeout(timer);
+  if (saveTimers && typeof saveTimers === "object") {
+    for (const key of Object.keys(saveTimers)) delete saveTimers[key];
+  }
+  if (writes?.flush) await writes.flush().catch(() => {});
+  if (typeof flushHighlights === "function") await flushHighlights().catch(() => {});
+}
+
 /** Answers from a saved case report fill in missing browser state without overwriting newer edits. */
 export function hydrateReportAnswers(report, current = {}) {
   let next = current;
@@ -332,7 +349,7 @@ export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, on
   const [syncedDoneStamp, setSyncedDoneStamp] = useState("");
   const shouldPollRef = useRef(false);
   // A typed paper is submitted when its time is up; paper practice moves on to transcription instead. The report follows active background grading.
-  const exam = useExamRun({ kind: "case", call, initialRunId, onLocation, pollReport: (value) => !!value?.case?.pending && shouldPollRef.current,
+  const exam = useExamRun({ kind: "case", call, initialRunId, onLocation, retryMs: CASE_RETRY_SUBMIT_MS, pollReport: (value) => !!value?.case?.pending && shouldPollRef.current,
     autoSubmit: { when: () => currentPhase === "over", run: () => submit() } });
   const { phase, run, report, busy, error, now } = exam;
   const writes = useRef(createWriteQueue()), savedHighlights = useRef(""), lastTick = useRef(Date.now());
@@ -488,17 +505,19 @@ export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, on
   function submit() {
     setConfirming(false);
     if (model.ready) setSubmittingGrade(true);
+    const finalResponses = caseSubmitResponses(paperCards, answers);
     return exam.submit({
-      before: async () => {
-        for (const timer of Object.values(saveTimers.current)) clearTimeout(timer);
-        for (const card of paperCards) writes.current.enqueue(() => call("review.answer", { runId: run.id, cardId: card.id, response: answers[card.id] || "" }));
-        await writes.current.flush();
-        if (JSON.stringify(highlights) !== savedHighlights.current) await call("review.highlights", { runId: run.id, highlights }).catch(() => {});
-      },
-      args: () => ({ timings: paperTimings(session, Date.now()) }),
+      before: () => flushCaseBeforeSubmit({
+        saveTimers: saveTimers.current,
+        writes: writes.current,
+        flushHighlights: JSON.stringify(highlights) !== savedHighlights.current
+          ? () => call("review.highlights", { runId: run.id, highlights })
+          : null,
+      }),
+      args: () => ({ timings: paperTimings(session, Date.now()), responses: finalResponses }),
       after: async (value) => {
         writeSession(data?.root, run.id, null);
-        if (model.ready) await grade(value, answers);
+        if (model.ready) await grade(value, finalResponses);
         else setGradingErrors([uiFormat("{0}，答案已保存；配置模型后点「重新提交批改」。", [gateTitle("inline")])]);
       },
     }).finally(() => setSubmittingGrade(false));
