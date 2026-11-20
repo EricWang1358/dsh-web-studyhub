@@ -5,6 +5,7 @@ import { Badge, Button, InlineConfirm, ProgressBar, Tooltip } from './components
 import { useStudy } from './study-context.jsx';
 import { useLiveEffect } from './use-async.js';
 import { barName, chapterShare, countsLine, fillCalls, fillParts, hasTodo, isUnbuilt, qualityLine, shareText, solidMeaning, startedNotice } from './custom-readiness-model.js';
+import { gapHintLabel } from './evidence-hint.js';
 import css from './custom-readiness.css';
 
 /* 「章节准备度」 in the 「你的定制」 card (深度定制 S5): each chapter of the plan with a thin bar of how ready it is (course.custom.readiness), its four counts and what the review
@@ -13,7 +14,7 @@ import css from './custom-readiness.css';
    an outline: the chapters have no points yet. */
 export default function CustomReadiness({ course }) {
   useInjectCss(css, 'study-custom-readiness');
-  const { call, act, busy, notify } = useStudy();
+  const { call, act, busy, notify, navigate } = useStudy();
   const [data, setData] = useState(null), [stamp, setStamp] = useState(0), [pending, setPending] = useState(null), [working, setWorking] = useState(false);
   useLiveEffect(live => {
     Promise.resolve().then(() => call('course.custom.readiness', { course: course.name })).then(value => { if (live()) setData(value); }).catch(() => {});
@@ -44,6 +45,7 @@ export default function CustomReadiness({ course }) {
     <ul className="custom-readiness__list">
       {chapters.map(chapter => {
         const tip = [countsLine(chapter, counted), qualityLine(chapter), solidMeaning()].filter(Boolean);
+        const gapLabel = gapHintLabel(chapter.gapHint);
         return <li key={chapter.id} className="custom-readiness__row">
           <span className="custom-readiness__title">{chapter.title}</span>
           <Tooltip content={<>{tip.map((line, at) => <span key={at} className="custom-readiness__tip">{line}</span>)}</>} placement="bottom-start" anchorClassName="custom-readiness__anchor">
@@ -54,6 +56,7 @@ export default function CustomReadiness({ course }) {
           </Tooltip>
           {isUnbuilt(chapter, counted) && <Badge size="sm" tone="neutral" className="custom-readiness__flag">{ui('未生成')}</Badge>}
           {hasTodo(chapter) && <Button variant="quiet" size="sm" className="custom-readiness__fill" lock={locked} disabled={!!pending} onClick={() => ask([chapter.id], uiFormat('「{0}」', [chapter.title]))}>{ui('补齐')}</Button>}
+          {gapLabel && <Button variant="link" size="sm" wrap iconEnd="arrow-right" className="custom-readiness__gap" data-gap-hint={chapter.gapHint.kind} onClick={() => navigate('book')}>{gapLabel}</Button>}
         </li>;
       })}
     </ul>

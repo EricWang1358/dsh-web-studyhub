@@ -31,7 +31,7 @@ import { useBookRebuild } from './use-book-rebuild.js';
 import { useFoundMarks } from './use-found-marks.js';
 import BookRebuildPreview from './BookRebuildPreview.jsx';
 import BookSample from './BookSample.jsx';
-import { startBookBuild, useBookCrunch, useBookHandlers, useBookPages, useCoursePlan } from './use-book-actions.js';
+import { startBookBuild, useBookCrunch, useBookHandlers, useBookPages, useCourseEvidence, useCoursePlan } from './use-book-actions.js';
 import { startCardPass, useCardPass } from './use-card-pass.js';
 import { useMoreActions } from './more-actions.js';
 import useIndexCoverage from '../use-index-coverage.js';
@@ -99,6 +99,7 @@ export default function BookPage({ data, onBack, backLabel = '', onReturnBack = 
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const plan = useBookCrunch({ call, course, book, notify });
   const period = useCoursePlan({ call, course, book, revision: data?.revision });
+  const evidence = useCourseEvidence({ call, course, book, revision: data?.revision });
   // 备考计划's fold is kept in this browser per library and course (open at first: it is the page's plan).
   const [planOpen, setPlanOpen] = usePersistentState(`study-book-plan:${root}:${course}`, true, { parse: value => value !== 'closed', serialize: value => (value ? 'open' : 'closed') });
   const pages = useBookPages({ call, course, book }), pageLimit = resolveBookSettings(data?.settings?.book).pageLimit;
@@ -120,7 +121,8 @@ export default function BookPage({ data, onBack, backLabel = '', onReturnBack = 
     setInlineState(null);
     plan.refresh?.();
     period.refresh?.();
-  }, [plan, period]);
+    evidence.refresh?.();
+  }, [plan, period, evidence]);
   // The 问 AI panel belongs to the point it was opened on: in 逐节读 another point closes it, and so does another view or reading mode. In 整章连着读 the place
   // read (the top heading on screen) changes with every scroll, so scrolling keeps the panel (and what is typed in it); it closes there only when its point is folded or no longer drawn.
   useEffect(() => { ai.closeAsk(); clearInlineRun(); }, [reading.mode === 'step' ? where.current : -1, reading.mode, view]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -147,7 +149,7 @@ export default function BookPage({ data, onBack, backLabel = '', onReturnBack = 
     };
   }, [inlinePracticeOn, inlinePractice, inlineShown, inlineState, clearInlineRun]);
   const handlers = useBookHandlers({ call, act, course, notify, book, setBook, rows, reload, remember: where.remember, onPractice, onCreate, onOpenSource,
-    modelReady: model.ready, model, onBack, ai: ai.actions, foldAi: aiFold.fold, onPlace: placeSection, goTo: where.goTo, inlinePractice: inlineController });
+    modelReady: model.ready, model, onBack, ai: ai.actions, foldAi: aiFold.fold, onPlace: placeSection, goTo: where.goTo, inlinePractice: inlineController, evidenceByHid: evidence.byHid, onEvidenceChanged: evidence.refresh });
   // 在书里找 (the 目录's box, ui/book/book-search.js): what is typed stays while a narrow 目录 is closed; `found` is the point a row went to, its words marked while it is drawn.
   const initialSearchRef = useRef(
     (where.kept?.query || where.kept?.snippet || Number.isInteger(where.kept?.paragraphIndex))

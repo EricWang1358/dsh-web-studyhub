@@ -323,6 +323,11 @@
       line-height: var(--lh-tight);
       scroll-margin-top: var(--space-6);
     }
+    .book-point__gap-hint {
+      margin: var(--space-1) 0 0;
+      font-size: var(--fs-sm);
+      color: var(--text-muted);
+    }
     .book-step__nav {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));

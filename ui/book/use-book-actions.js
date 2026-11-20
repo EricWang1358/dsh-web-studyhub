@@ -53,6 +53,21 @@ export function useCoursePlan({ call, course, book, revision }) {
   return { answer, refresh };
 }
 
+/** Unified hid evidence summary (course.evidence.summary, 0-token): Map(hid -> PointEvidence) for conditional point-header gap hints. */
+export function useCourseEvidence({ call, course, book, revision }) {
+  const [byHid, setByHid] = useState(() => new Map());
+  const [ticket, setTicket] = useState(0);
+  useLiveEffect(isLive => {
+    if (book?.status !== 'ok' || !course) { setByHid(new Map()); return; }
+    call('course.evidence.summary', { course, date: localDate() }).then(
+      next => { if (isLive()) setByHid(new Map((next?.points || []).map(point => [point.hid, point]))); },
+      () => { if (isLive()) setByHid(new Map()); },
+    );
+  }, [call, course, book?.revision, book?.status, revision, ticket]);
+  const refresh = useCallback(() => setTicket(value => value + 1), []);
+  return { byHid, refresh };
+}
+
 /** 导出's estimate against the page limit (settings.book.pageLimit): the A4 pages of the book, or null until known (and without a book). */
 export function useBookPages({ call, course, book }) {
   const [pages, setPages] = useState(null);
@@ -70,7 +85,7 @@ async function copyText(text) {
 
 /** The handlers every point reads (ui/book/PointBody.jsx and below). ai: the stable ctions of ui/book/use-book-ai.js (the lines themselves reach the points
     through BookAiContext, so a line or the 问 AI panel never gives every point new handlers). */
-export function useBookHandlers({ call, act, course, notify, book, setBook, rows, reload, remember, onPractice, onCreate, onOpenSource, modelReady = true, model, onBack, ai, foldAi, onPlace, goTo, inlinePractice = null }) {
+export function useBookHandlers({ call, act, course, notify, book, setBook, rows, reload, remember, onPractice, onCreate, onOpenSource, modelReady = true, model, onBack, ai, foldAi, onPlace, goTo, inlinePractice = null, evidenceByHid = null, onEvidenceChanged = null }) {
   const [qa, setQa] = useState(() => new Set());
   const [retell, setRetell] = useState(() => new Set());
   const [choosing, setChoosing] = useState(false);
@@ -81,6 +96,24 @@ export function useBookHandlers({ call, act, course, notify, book, setBook, rows
     // 用自己的话讲一遍 of a point (#1016, ui/review/RetellPanel.jsx): which points have it open; `model` is the readiness its gate shows.
     retellOpen: heading => retell.has(heading),
     toggleRetell: heading => setRetell(current => { const next = new Set(current); if (next.has(heading)) next.delete(heading); else next.add(heading); return next; }),
+    gapHintOf: heading => evidenceByHid?.get?.(heading)?.gapHint ?? null,
+    onEvidenceChanged,
+    actGapHint: async (node, hint, element) => {
+      if (!hint || !node) return;
+      if (hint.kind === 'prereq' && hint.targetHid) { goTo?.(hint.targetHid); return; }
+      if (hint.kind === 'retell' || hint.kind === 'retell_gap') {
+        setRetell(current => { const next = new Set(current); next.add(node.hid); return next; });
+        return;
+      }
+      const row = rowOf(rows, node.hid);
+      if (!row) { notify(ui('这一节已不在总纲里。')); return; }
+      try {
+        const { practice } = await call('course.outline', { course, pick: { keys: [row.key] } });
+        const scope = practice?.scope.slice(0, 5) || [];
+        if (!scope.length) { notify(ui('这个知识点还没有题。先到「创建题组」从资料出题。')); return; }
+        onPractice(scope, { resume: true, place: remember(node.hid, element) });
+      } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
+    },
     inlineOpen: inlinePractice?.isOpen,
     inlineShown: inlinePractice?.shown ?? true,
     inlineRunFor: inlinePractice?.runFor,
@@ -169,5 +202,5 @@ export function useBookHandlers({ call, act, course, notify, book, setBook, rows
     aiWords: id => showWords(id),
     // A 术语卡's link (#710): its point opened when the card is not drawn, then the card shown (ui/book/term-card-go.js).
     goCard: (hid, code) => { if (!cardShown(code)) goTo?.(hid); showCard(code); },
-  }), [book, qa, retell, rows, call, course, notify, onCreate, onOpenSource, onPractice, remember, choosing, setBook, modelReady, model, onBack, ai, foldAi, reload, act, onPlace, goTo, inlinePractice]);
+  }), [book, qa, retell, rows, call, course, notify, onCreate, onOpenSource, onPractice, remember, choosing, setBook, modelReady, model, onBack, ai, foldAi, reload, act, onPlace, goTo, inlinePractice, evidenceByHid, onEvidenceChanged]);
 }

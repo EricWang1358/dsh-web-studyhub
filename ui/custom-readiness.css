@@ -11,6 +11,7 @@
     /* Fixed columns for the flag and the button, so every bar is as long as the others (the button stays in the last column when the flag is absent). */
     .custom-readiness__flag { grid-column: 3; justify-self: end; }
     .custom-readiness__fill { grid-column: 4; justify-self: end; }
+    .custom-readiness__gap { grid-column: 1 / -1; justify-self: start; font-size: var(--fs-sm); color: var(--text-muted); }
     .custom-readiness__title { min-width: 0; overflow-wrap: anywhere; font-size: var(--fs-sm); line-height: var(--lh-snug); color: var(--text); }
     /* The Tooltip's wrapper is the grid item: it fills the column, so the bar does. */
     .custom-readiness__anchor { display: block; min-width: 0; }
