@@ -3,6 +3,7 @@ import { readFile, stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { extname, resolve, sep } from 'node:path';
 import { MAX_REQUEST_BYTES } from '../../../../lib/documents.js';
+import { serveSseEvents } from './sse-events.mjs';
 
 export const MAX_RESTORE_REQUEST_BYTES = 64 * 1024 * 1024;
 
@@ -57,7 +58,7 @@ function isAllowedOrigin(originHeader, boundPort) {
 function applyCorsHeaders(res, origin) {
   if (!origin) return;
   res.setHeader('Access-Control-Allow-Origin', origin);
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Study-Token');
   res.setHeader('Vary', 'Origin');
 }
@@ -199,6 +200,18 @@ async function handleApiCall({ req, res, origin, expectedDigest, onCall, maxRequ
   sendJson(res, 200, result, origin);
 }
 
+function handleApiEvents({ req, res, origin, expectedDigest, onSubscribeEvents, activeStreams }) {
+  if (!tokensMatch(expectedDigest, req.headers['x-study-token'])) {
+    sendJson(res, 403, { ok: false, error: 'Forbidden', code: 'forbidden' }, origin);
+    return;
+  }
+  if (typeof onSubscribeEvents !== 'function') {
+    sendJson(res, 404, { ok: false, error: 'Events unavailable', code: 'not-found' }, origin);
+    return;
+  }
+  serveSseEvents({ req, res, origin, applyCorsHeaders, onSubscribeEvents, activeStreams });
+}
+
 function validateHostAndOrigin(req, res, boundPort) {
   if (!isAllowedHost(req.headers.host, boundPort)) {
     sendJson(res, 403, { ok: false, error: 'Forbidden host', code: 'forbidden-host' });
@@ -212,29 +225,25 @@ function validateHostAndOrigin(req, res, boundPort) {
   return origin;
 }
 
-async function routeIncomingRequest({ req, res, boundPort, expectedDigest, onCall, uiRoot, token, injectDevToken, maxRequestBytes, maxRestoreBytes }) {
+const PREFLIGHT_PATHS = new Set(['/api/call', '/api/events']);
+
+async function routeIncomingRequest(ctx) {
+  const { req, res, boundPort, expectedDigest, onCall, onSubscribeEvents, activeStreams, uiRoot, token, injectDevToken, maxRequestBytes, maxRestoreBytes } = ctx;
   const origin = validateHostAndOrigin(req, res, boundPort);
   if (origin === null) return;
 
-  const url = new URL(req.url || '/', `http://127.0.0.1:${boundPort}`);
-  if (req.method === 'OPTIONS' && url.pathname === '/api/call') {
+  const { pathname } = new URL(req.url || '/', `http://127.0.0.1:${boundPort}`);
+  const routeKey = `${req.method} ${pathname}`;
+  if (req.method === 'OPTIONS' && PREFLIGHT_PATHS.has(pathname)) {
     applyCorsHeaders(res, origin);
     res.writeHead(204);
     res.end();
     return;
   }
-  if (req.method === 'GET' && url.pathname === '/health') {
-    sendJson(res, 200, { ok: true }, origin);
-    return;
-  }
-  if (req.method === 'POST' && url.pathname === '/api/call') {
-    await handleApiCall({ req, res, origin, expectedDigest, onCall, maxRequestBytes, maxRestoreBytes });
-    return;
-  }
-  if (req.method === 'GET' && uiRoot) {
-    await serveStaticFile({ res, pathname: url.pathname, uiRoot, token, injectDevToken });
-    return;
-  }
+  if (routeKey === 'GET /health') { sendJson(res, 200, { ok: true }, origin); return; }
+  if (routeKey === 'GET /api/events') { handleApiEvents({ req, res, origin, expectedDigest, onSubscribeEvents, activeStreams }); return; }
+  if (routeKey === 'POST /api/call') { await handleApiCall({ req, res, origin, expectedDigest, onCall, maxRequestBytes, maxRestoreBytes }); return; }
+  if (req.method === 'GET' && uiRoot) { await serveStaticFile({ res, pathname, uiRoot, token, injectDevToken }); return; }
   sendJson(res, 404, { ok: false, error: 'Not found', code: 'not-found' }, origin);
 }
 
@@ -245,6 +254,7 @@ async function routeIncomingRequest({ req, res, boundPort, expectedDigest, onCal
 export async function startLocalServer({
   token,
   onCall,
+  onSubscribeEvents = null,
   port = 0,
   serveUiDir = '',
   injectDevToken = false,
@@ -256,11 +266,12 @@ export async function startLocalServer({
   }
   const expectedDigest = sha256(token);
   const uiRoot = serveUiDir ? resolve(serveUiDir) : '';
+  const activeStreams = new Set();
   let boundPort = port;
 
   const server = createServer((req, res) => {
     void routeIncomingRequest({
-      req, res, boundPort, expectedDigest, onCall, uiRoot, token, injectDevToken, maxRequestBytes, maxRestoreBytes,
+      req, res, boundPort, expectedDigest, onCall, onSubscribeEvents, activeStreams, uiRoot, token, injectDevToken, maxRequestBytes, maxRestoreBytes,
     }).catch(() => {
       if (!res.headersSent) sendJson(res, 500, { ok: false, error: 'Internal server error', code: 'internal-error' });
     });
@@ -280,6 +291,9 @@ export async function startLocalServer({
   return {
     port: boundPort,
     baseUrl: `http://127.0.0.1:${boundPort}`,
-    close: () => new Promise((resolveClose) => server.close(() => resolveClose())),
+    close: () => {
+      for (const closeStream of [...activeStreams]) closeStream();
+      return new Promise((resolveClose) => server.close(() => resolveClose()));
+    },
   };
 }

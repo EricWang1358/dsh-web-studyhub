@@ -8,6 +8,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { assistantArgsRefusal, assistantRefusal } from '../lib/assistant-boundary.js';
+import { writeRefreshSignal } from '../lib/runtime/library-watch.js';
 
 const BINDING_FILE = '.dsh-study-binding.json';
 
@@ -15,6 +16,7 @@ function usage() {
   return [
     'Usage:',
     '  node scripts/study-cli.mjs root [--cwd <dir>] [--root <dir>]',
+    '  node scripts/study-cli.mjs refresh [--cwd <dir>] [--root <dir>]',
     '  node scripts/study-cli.mjs pack [--course <name>] [--deck <id>] [--topic <name>] [--only cram|weak|new|due|focus|all] [--banter light|strict] [--limit <1-100>] [--minutes <n>] [--goal <text>] [--lang zh|en] [--out <file.md>] [--root <dir>]',
     '  node scripts/study-cli.mjs call <action> [json] [--file <payload.json> | --stdin] [--out <file>] [--raw <field>] [--lang zh|en] [--root <dir>] [--cwd <dir>]',
     '',
@@ -127,6 +129,11 @@ async function main() {
   const root = await resolveLibraryRoot({ root: flags.root, cwd: flags.cwd });
   if (command === 'root') {
     console.log(JSON.stringify({ root }));
+    return;
+  }
+  if (command === 'refresh') {
+    const result = await writeRefreshSignal(root, { source: 'study-cli', reason: 'explicit' });
+    console.log(JSON.stringify(result, null, 2));
     return;
   }
 

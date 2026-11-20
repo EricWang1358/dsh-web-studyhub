@@ -10,7 +10,7 @@ import { GENERATION_DEFAULTS, generationFormDefaults, syncGenerationDefaults } f
 import { isActiveJob, isCancellable } from '../job-visibility.js';
 import { JOB_TYPES } from '../../lib/job-status.js';
 import { uiFormat } from '../i18n.js';
-import { attachWake, createSnapshotPoll } from './snapshot-poll.js';
+import { attachWake, createSnapshotPoll, shouldHandleLibraryEvent } from './snapshot-poll.js';
 import { applyLiveJobs } from './live-jobs.js';
 import { flushUndoable } from '../undoable.js';
 import { sessionPerformance, snapshotChars } from '../session-performance.js';
@@ -182,8 +182,31 @@ export function useLibraryConnection({ core, libApi, resetLibraryState, session,
   useEffect(() => { pollToken.current = {}; return () => { pollToken.current = {}; }; }, [binding.root]);
   const poll = useMemo(() => createSnapshotPoll({ refresh: () => refs.refreshRef.current(), readData: () => refs.dataRef.current, readToken: () => pollToken.current,
     setSyncIssue, same: sameExceptFingerprint, isWorking: () => workingRef.current }), [refs, setSyncIssue]);
-  usePolling(poll.run, { intervalMs: POLL_FAST_MS, enabled: !!binding.root, backoff: true });
-  useEffect(() => (binding.root ? attachWake(poll) : undefined), [binding.root, poll]);
+  const { refresh: refreshPoller } = usePolling(poll.run, { intervalMs: POLL_FAST_MS, enabled: !!binding.root, backoff: true });
+  const lastFocusCheckRef = useRef(0);
+  const subscribeLibraryEvents = host.subscribeLibraryEvents;
+  useEffect(() => {
+    if (!binding.root) return undefined;
+    return attachWake(poll, {
+      onFocus() {
+        const now = Date.now();
+        if (now - lastFocusCheckRef.current < 350) return;
+        lastFocusCheckRef.current = now;
+        void refreshPoller();
+      },
+    });
+  }, [binding.root, poll, refreshPoller]);
+  useEffect(() => {
+    if (!binding.root || typeof subscribeLibraryEvents !== 'function') return undefined;
+    return subscribeLibraryEvents((event) => {
+      if (!shouldHandleLibraryEvent(event, {
+        currentRoot: bindingRef.current?.root,
+        currentRevision: refs.dataRef.current?.revision,
+      })) return;
+      poll.wake();
+      void refreshPoller();
+    });
+  }, [binding.root, subscribeLibraryEvents, poll, refreshPoller, refs]);
 
   /* The folder and model the library runs on. Moving the folder is a library switch: everything of the old one is dropped. */
   const customBinding = (patch) => ({

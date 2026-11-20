@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { backoffDelay } from './poll-schedule.js';
 
 /* One polling loop for the panel (see poll-schedule.js for the rhythm). It asks, waits for the answer, then waits the
@@ -61,8 +61,13 @@ export function createPoller({ run, intervalMs, backoff, pauseWhenHidden = true,
       unsubscribe?.();
       unsubscribe = null;
     },
-    /** Ask now and restart the wait; a call already in flight is not doubled. */
-    refresh() { clear(); return tick(); },
+    /** Ask now and restart the wait; a call already in flight queues one immediate follow-up instead of dropping the request. */
+    refresh() {
+      if (!started || hidden()) return;
+      if (busy) { wakeAgain = true; return; }
+      clear();
+      return tick();
+    },
     /** Forget the unchanged streak and wait the base interval again, without asking now (something new is on screen: the practice page's next question). */
     restart() { unchanged = 0; if (!busy) schedule(); },
   };
@@ -85,5 +90,8 @@ export function usePolling(fn, { intervalMs, enabled = true, pauseWhenHidden = t
     loop.start();
     return () => { loop.stop(); if (poller.current === loop) poller.current = null; };
   }, [enabled, intervalMs, pauseWhenHidden, immediate]);
-  return { refresh: () => poller.current?.refresh(), restart: () => poller.current?.restart() };
+  return useMemo(() => ({
+    refresh: () => poller.current?.refresh(),
+    restart: () => poller.current?.restart(),
+  }), []);
 }
