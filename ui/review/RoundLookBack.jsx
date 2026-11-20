@@ -239,13 +239,18 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAc
   const [veilActive, setVeilActive] = React.useState(recallEnabled);
   const [revealedRows, setRevealedRows] = React.useState(() => new Set());
   const [reasonsByKey, setReasonsByKey] = React.useState(() => seedReasonsFromRows(rows));
+  const rowsRef = React.useRef(rows);
+  rowsRef.current = rows;
   const rowReasonsSignature = rows.map((row) => `${rowReasonKey(row)}=${row?.errorReason || ""}`).join("|");
+  const resetKey = `${run.id}\0${recallEnabled ? 1 : 0}\0${rowReasonsSignature}`;
+  const lastResetKeyRef = React.useRef(resetKey);
   React.useEffect(() => {
+    if (lastResetKeyRef.current === resetKey) return;
+    lastResetKeyRef.current = resetKey;
     setVeilActive(recallEnabled);
     setRevealedRows(new Set());
-    setReasonsByKey(seedReasonsFromRows(rows));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset per round / persisted row snapshot
-  }, [run.id, recallEnabled, rowReasonsSignature]);
+    setReasonsByKey(seedReasonsFromRows(rowsRef.current));
+  }, [resetKey, recallEnabled]);
   React.useEffect(() => { if (segment) setHesitantOnly(false); }, [segment]);
   const shown = hesitantOnly
     ? hesitantRows
