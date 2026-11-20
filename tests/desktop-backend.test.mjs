@@ -56,6 +56,7 @@ import { createOpenAiCompleteAdapter } from '../packages/studyhub-desktop/adapte
 import { createInProcessJobExecutor } from '../packages/studyhub-desktop/adapters/runtime/job-executor.mjs';
 import { createConfigStore } from '../packages/studyhub-desktop/adapters/storage/config-store.mjs';
 import { effectiveConcurrencyLimit, registerHostConcurrencyCap } from '../lib/generation-settings.js';
+import { callOutcomeOf } from '../lib/jobs/gateway-policy.js';
 import { totalTokens, usageFromTokenUsage } from '../lib/token-usage.js';
 import { withUsageSink } from '../lib/usage-scope.js';
 
@@ -1525,4 +1526,116 @@ test('entry/sidecar.mjs performs Tauri stdin/stdout handshake, serves authentica
     child.stdin.end();
   });
   assert.equal(exitCode, 0, `Expected clean exit 0, got ${exitCode}. stderr=${stderr}`);
+});
+
+test('desktop completion adapters (openai, agy, codex) honor execution.timeoutMs (0 = unlimited, >0 = override, undefined = default) and stamp TimeoutError', async (t) => {
+  const timeouts = [];
+  const origTimeout = AbortSignal.timeout;
+  AbortSignal.timeout = (ms) => { timeouts.push(ms); return origTimeout(ms); };
+  t.after(() => { AbortSignal.timeout = origTimeout; });
+
+  const okOpenAiResponse = () => ({
+    ok: true,
+    status: 200,
+    text: async () => JSON.stringify({ choices: [{ message: { content: 'OPENAI_OK' } }] }),
+  });
+
+  // 1. OpenAI adapter: 0 -> no timer, >0 -> override, undefined -> default, timeout -> name === 'TimeoutError'
+  const seenOpenAiSignals = [];
+  const openai = createOpenAiCompleteAdapter(
+    { baseUrl: 'https://api.example.invalid/v1', model: 'm', apiKey: 'sk-test' },
+    {
+      timeoutMs: 12_345,
+      fetch: async (_url, init) => { seenOpenAiSignals.push(init.signal); return okOpenAiResponse(); },
+    },
+  );
+  const callerCtl = new AbortController();
+  assert.equal(await openai('s', 'p', { timeoutMs: 0, signal: callerCtl.signal }), 'OPENAI_OK');
+  assert.deepEqual(timeouts, [], 'openai timeoutMs=0 arms no AbortSignal.timeout');
+  assert.equal(seenOpenAiSignals[0], callerCtl.signal, 'openai timeoutMs=0 relies directly on execution.signal');
+
+  assert.equal(await openai('s', 'p', { timeoutMs: 77_000 }), 'OPENAI_OK');
+  assert.deepEqual(timeouts, [77_000], 'openai execution.timeoutMs overrides default');
+
+  assert.equal(await openai('s', 'p', {}), 'OPENAI_OK');
+  assert.deepEqual(timeouts, [77_000, 12_345], 'openai undefined execution.timeoutMs uses adapter default');
+
+  const slowOpenAi = createOpenAiCompleteAdapter(
+    { baseUrl: 'https://api.example.invalid/v1', model: 'm', apiKey: 'sk-test' },
+    {
+      timeoutMs: 5_000,
+      fetch: (_url, init) => new Promise((_resolve, reject) => {
+        const keepAlive = setTimeout(() => {}, 5_000);
+        init.signal.addEventListener('abort', () => { clearTimeout(keepAlive); reject(init.signal.reason); }, { once: true });
+      }),
+    },
+  );
+  const openaiErr = await slowOpenAi('s', 'p', { timeoutMs: 25 }).catch((e) => e);
+  assert.equal(openaiErr?.name, 'TimeoutError', 'openai timeout error is stamped TimeoutError');
+  assert.equal(openaiErr?.modelFailure, true);
+  assert.equal(callOutcomeOf(openaiErr, { signal: new AbortController().signal, stepTimeout: null, budgetMs: 0 }).reason, 'timeout');
+
+  // 2. Agy adapter: honors 0 / >0 / undefined in both runner.run and --print-timeout, stamps TimeoutError
+  const agyRuns = [];
+  const agyOkStdout = JSON.stringify({ event: 'result', result: { status: 'SUCCESS', response: 'AGY_OK' } });
+  const agy = createAgyCompleteAdapter(
+    { executablePath: 'fake-agy', model: 'gemini-test', effort: 'low' },
+    {
+      timeoutMs: 15_000,
+      runner: {
+        run: async (req) => {
+          agyRuns.push(req);
+          if (req.timeoutMs === 30) return { code: null, stdout: '', stderr: '', timedOut: true, aborted: false };
+          return { code: 0, stdout: agyOkStdout, stderr: '', timedOut: false, aborted: false };
+        },
+      },
+    },
+  );
+  assert.equal(await agy('s', 'p', { timeoutMs: 0 }), 'AGY_OK');
+  assert.equal(agyRuns[0].timeoutMs, 0);
+  assert.equal(agyRuns[0].args[agyRuns[0].args.indexOf('--print-timeout') + 1], '0s');
+
+  assert.equal(await agy('s', 'p', { timeoutMs: 1_200_000 }), 'AGY_OK');
+  assert.equal(agyRuns[1].timeoutMs, 1_200_000);
+  assert.equal(agyRuns[1].args[agyRuns[1].args.indexOf('--print-timeout') + 1], '1200s');
+
+  assert.equal(await agy('s', 'p', {}), 'AGY_OK');
+  assert.equal(agyRuns[2].timeoutMs, 15_000);
+  assert.equal(agyRuns[2].args[agyRuns[2].args.indexOf('--print-timeout') + 1], '15s');
+
+  const agyErr = await agy('s', 'p', { timeoutMs: 30 }).catch((e) => e);
+  assert.equal(agyErr?.name, 'TimeoutError', 'agy timeout error is stamped TimeoutError');
+  assert.equal(agyErr?.modelFailure, true);
+  assert.equal(callOutcomeOf(agyErr, { signal: new AbortController().signal, stepTimeout: null, budgetMs: 0 }).reason, 'timeout');
+
+  // 3. Codex adapter: honors 0 / >0 / undefined in runner.run, stamps TimeoutError
+  const codexRuns = [];
+  const codexOkStdout = JSON.stringify({ type: 'item.completed', item: { id: 'i1', type: 'agent_message', text: 'CODEX_OK' } });
+  const codex = createCodexCompleteAdapter(
+    { executablePath: 'fake-codex', model: 'gpt-5.4', effort: 'medium' },
+    {
+      timeoutMs: 25_000,
+      language: 'en',
+      runner: {
+        run: async (req) => {
+          codexRuns.push(req);
+          if (req.timeoutMs === 35) return { code: null, stdout: '', stderr: '', timedOut: true, aborted: false };
+          return { code: 0, stdout: codexOkStdout, stderr: '', timedOut: false, aborted: false };
+        },
+      },
+    },
+  );
+  assert.equal(await codex('s', 'p', { timeoutMs: 0 }), 'CODEX_OK');
+  assert.equal(codexRuns[0].timeoutMs, 0);
+
+  assert.equal(await codex('s', 'p', { timeoutMs: 900_000 }), 'CODEX_OK');
+  assert.equal(codexRuns[1].timeoutMs, 900_000);
+
+  assert.equal(await codex('s', 'p', {}), 'CODEX_OK');
+  assert.equal(codexRuns[2].timeoutMs, 25_000);
+
+  const codexErr = await codex('s', 'p', { timeoutMs: 35 }).catch((e) => e);
+  assert.equal(codexErr?.name, 'TimeoutError', 'codex timeout error is stamped TimeoutError');
+  assert.equal(codexErr?.modelFailure, true);
+  assert.equal(callOutcomeOf(codexErr, { signal: new AbortController().signal, stepTimeout: null, budgetMs: 0 }).reason, 'timeout');
 });

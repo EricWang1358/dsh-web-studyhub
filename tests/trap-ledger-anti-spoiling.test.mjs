@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { StudyService } from '../lib/service.js';
+import { createOperations } from '../lib/contexts/study/operations.js';
 import { buildCompactScene, MAX_SCENE_BYTES } from '../lib/study-scene.js';
 import { projectTrapLedger } from '../lib/contexts/study/trap-projection.js';
 import { pointEvidenceForCard } from '../lib/evidence/course-evidence.js';
@@ -511,4 +512,119 @@ test('study.scene.get runtime end-to-end: anti-spoiling -> hint -> explicit rele
   const ev = pointEvidenceForCard(afterState, { deckId: f.deck.id, cardId: f.card.id });
   assert.ok(ev, 'PointEvidence computed for card');
   assert.notEqual(ev.facets.retention, 'solid', 'assisted pass after explicit tutor release cannot make retention solid');
+});
+
+test('study.scene.get fails closed to cue_only when review.draft.save returns non-ok or throws', async (t) => {
+  const f = buildRichFixture();
+  const baseStorage = {
+    view: async () => f.state,
+    read: async () => f.state,
+  };
+
+  // 1. Non-ok return from review.draft.save (e.g. stale run/question) must deny both hint and full escalation.
+  const opsNonOk = createOperations({
+    state: baseStorage,
+    call: async (action) => {
+      if (action === 'review.draft.save') return { ok: false, stale: 'run', runId: f.run.id, cardId: f.card.id };
+      throw new Error(`unexpected call: ${action}`);
+    },
+  });
+
+  const baselineCue = await opsNonOk.handlers['study.scene.get']({ sessionId: f.session.id });
+  assert.equal(baselineCue.focusObject.disclosureTier, 'cue_only');
+
+  for (const request of [
+    { sessionId: f.session.id, sinceFingerprint: baselineCue.fingerprint, hintTier: 1 },
+    { sessionId: f.session.id, sinceFingerprint: baselineCue.fingerprint, disclosureTier: 'hint' },
+    { sessionId: f.session.id, sinceFingerprint: baselineCue.fingerprint, releaseAnswer: true },
+    { sessionId: f.session.id, sinceFingerprint: baselineCue.fingerprint, disclosureTier: 'full' },
+  ]) {
+    const scene = await opsNonOk.handlers['study.scene.get'](request);
+    assert.equal(scene.unchanged, false, 'denied escalation must not short-circuit as unchanged');
+    assert.equal(scene.focusObject.disclosureTier, 'cue_only');
+    assert.equal(scene.trapLedger.disclosureTier, 'cue_only');
+    assert.equal(scene.trapLedger.cueOnly, true);
+    assert.equal(scene.trapLedger.hint, undefined);
+    assert.equal(scene.trapLedger.full, undefined);
+    assert.equal(scene.focusObject.answer, undefined);
+    assert.equal(scene.focusObject.explanation, undefined);
+    assert.equal(scene.focusObject.askedTutorBeforeAnswer, undefined);
+    assert.equal(scene.assistanceReceipt?.recorded, false);
+    assert.equal(scene.assistanceReceipt?.denied, true);
+    assert.equal(scene.assistanceReceipt?.disclosureTier, 'cue_only');
+    const serialized = JSON.stringify(scene);
+    for (const [name, canary] of Object.entries(CANARIES)) {
+      assert.ok(!serialized.includes(canary), `fail-closed non-ok scene leaked ${name}`);
+    }
+    assert.ok(!JSON.stringify(scene.focusObject.options).includes('"correct"'), 'fail-closed non-ok options leaked correct marker');
+  }
+
+  // 2. Thrown error from review.draft.save must also fail closed to cue_only with assistanceReceipt.recorded === false.
+  const opsThrows = createOperations({
+    state: baseStorage,
+    call: async (action) => {
+      if (action === 'review.draft.save') throw new Error('disk write failed');
+      throw new Error(`unexpected call: ${action}`);
+    },
+  });
+  const thrownScene = await opsThrows.handlers['study.scene.get']({
+    sessionId: f.session.id,
+    sinceFingerprint: baselineCue.fingerprint,
+    releaseAnswer: true,
+  });
+  assert.equal(thrownScene.unchanged, false);
+  assert.equal(thrownScene.focusObject.disclosureTier, 'cue_only');
+  assert.equal(thrownScene.trapLedger.disclosureTier, 'cue_only');
+  assert.equal(thrownScene.trapLedger.hint, undefined);
+  assert.equal(thrownScene.trapLedger.full, undefined);
+  assert.equal(thrownScene.focusObject.answer, undefined);
+  assert.equal(thrownScene.focusObject.explanation, undefined);
+  assert.equal(thrownScene.assistanceReceipt?.recorded, false);
+  assert.equal(thrownScene.assistanceReceipt?.denied, true);
+  assert.equal(thrownScene.assistanceReceipt?.reason, 'persistence-error');
+  const thrownSerialized = JSON.stringify(thrownScene);
+  for (const [name, canary] of Object.entries(CANARIES)) {
+    assert.ok(!thrownSerialized.includes(canary), `fail-closed thrown scene leaked ${name}`);
+  }
+  assert.ok(!JSON.stringify(thrownScene.focusObject.options).includes('"correct"'));
+
+  // 3. End-to-end StudyService: a closed/stale unrevealed run makes review.draft.save return { ok: false, stale: 'run' } -> fail-closed.
+  const root = await mkdtemp(join(tmpdir(), 'study-trap-fail-closed-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const service = new StudyService(root);
+  await service.store.update((s) => {
+    s.sources.push(f.source, f.outline, f.notes, f.bookDoc);
+    s.decks.push(f.deck, f.catchupDeck);
+    s.attempts.push(...f.attempts);
+  });
+  const session = await service.call('study.session.start', {
+    courseId: f.course,
+    scope: [{ kind: 'deck', id: f.deck.id }],
+  });
+  const started = await service.call('review.start', {
+    mode: 'path',
+    scope: [{ deckId: f.deck.id, cardId: f.card.id }],
+  });
+  const runId = started.id || started.runId;
+  await service.call('study.session.update', {
+    sessionId: session.id,
+    focus: { kind: 'card', id: f.card.id, deckId: f.deck.id, runId },
+  });
+  await service.call('review.end', { runId });
+
+  const staleFull = await service.call('study.scene.get', { sessionId: session.id, releaseAnswer: true });
+  assert.equal(staleFull.focusObject.disclosureTier, 'cue_only');
+  assert.equal(staleFull.trapLedger.disclosureTier, 'cue_only');
+  assert.equal(staleFull.trapLedger.full, undefined);
+  assert.equal(staleFull.focusObject.answer, undefined);
+  assert.equal(staleFull.assistanceReceipt?.recorded, false);
+  assert.equal(staleFull.assistanceReceipt?.reason, 'run');
+  for (const [name, canary] of Object.entries(CANARIES)) {
+    assert.ok(!JSON.stringify(staleFull).includes(canary), `stale run scene leaked ${name}`);
+  }
+
+  // 4. Direct unit callers of buildCompactScene without failed persistence remain backward compatible.
+  const directFull = buildCompactScene(f.state, { sessionId: f.session.id, releaseAnswer: true });
+  assert.equal(directFull.focusObject.disclosureTier, 'full');
+  assert.equal(directFull.focusObject.answer, CANARIES.refAnswer);
 });

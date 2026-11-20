@@ -68,6 +68,7 @@ function createFakeDshHost({ cwd, sessionId = 'panel-session-1', mode = 'cold-pa
   const childSessions = new Map();
   const spawnedSpecs = [];
   const restrictedTools = [];
+  const directSessions = [];
   let coordinatorSeq = 0;
   let directCalls = 0;
 
@@ -203,16 +204,22 @@ function createFakeDshHost({ cwd, sessionId = 'panel-session-1', mode = 'cold-pa
     async resolveCallConfig(cfg) {
       return cfg;
     },
-    async *stream({ system, messages, signal }) {
+    async *stream({ system, messages, signal, sessionId: streamSessionId }) {
       directCalls += 1;
+      directSessions.push(streamSessionId);
       await new Promise(resolve => setImmediate(resolve));
       signal?.throwIfAborted();
       const userPrompt = messages?.[0]?.content?.[0]?.text || '';
       const answer = await replyFor(`${system}\n\n${userPrompt}`, { direct: true, signal });
       signal?.throwIfAborted();
-      yield { type: 'text-delta', text: answer };
+      const mid = Math.max(1, Math.floor(answer.length / 2));
+      yield { type: 'reasoning-delta', text: 'thinking...' };
+      yield { type: 'block-start', index: 0, blockType: 'text' };
+      yield { type: 'text-delta', index: 0, text: answer.slice(0, mid) };
+      yield { type: 'text-delta', index: 0, text: answer.slice(mid) };
+      yield { type: 'block-end', index: 0, block: { type: 'text', text: answer } };
       yield { type: 'usage', usage: { inputTokens: 210, outputTokens: 64, cacheReadTokens: 0, cacheWriteTokens: 0 } };
-      yield { type: 'finish', kind: 'stop' };
+      yield { type: 'finish', reason: { kind: 'stop' } };
     },
   };
 
@@ -241,6 +248,7 @@ function createFakeDshHost({ cwd, sessionId = 'panel-session-1', mode = 'cold-pa
     sessionQuery,
     spawnedSpecs,
     restrictedTools,
+    directSessions,
     getDirectCalls: () => directCalls,
   };
 }
@@ -283,9 +291,9 @@ test('domain contracts & capability budgets: classify/organize actions declare s
   }
 });
 
-/* ---------- 2. Real DSH Subagents (cold panel + live session) & automatic direct fallback ---------- */
+/* ---------- 2. Direct cache-session default + explicit DSH subagent routing (cold panel + live session) & fallback ---------- */
 
-test('DSH subagents: cold-panel coordinator, live-session parent, streaming job.output, token folding, and automatic direct fallback', async t => {
+test('direct execution default with job-scoped cacheSessionId, streaming job.output, token folding, and explicit DSH subagent opt-in/fallback', async t => {
   const folderReply = promptText => {
     const payload = parseFirstJsonObject(promptText);
     if (promptText.includes('{"folders":["Topic 1","Topic 2"]}') && !promptText.includes('"assignments"')) {
@@ -300,9 +308,9 @@ test('DSH subagents: cold-panel coordinator, live-session parent, streaming job.
     });
   };
 
-  // A. Cold StudyHub panel (no live parent chat; spawns idle coordinator + tool-less study-worker subagents)
+  // A. Default classify runs 100% direct with shared synthetic study-job:<jobId> cacheSessionId (#1261), streaming job.output, and folded usage
   {
-    const root = await mkdtemp(join(tmpdir(), 'study-cold-panel-subagent-'));
+    const root = await mkdtemp(join(tmpdir(), 'study-cold-panel-direct-'));
     const host = createFakeDshHost({ cwd: root, sessionId: 'cold-panel-sess', mode: 'cold-panel', replyFor: folderReply });
     const service = new StudyService(root, { complete: host.complete, sessionQuery: host.sessionQuery });
     t.after(async () => {
@@ -331,62 +339,88 @@ test('DSH subagents: cold-panel coordinator, live-session parent, streaming job.
     assert.equal(settled.phase, 'done');
     assert.equal(settled.done, 65);
     assert.equal(settled.total, 65);
-    assert.equal(host.getDirectCalls(), 0, 'ran 100% via DSH subagents');
-    assert.equal(host.spawnedSpecs.length, 3, '1 taxonomy + 2 batches of 60 and 5');
-    for (const spec of host.spawnedSpecs) {
-      assert.equal(spec.agentPreset, WORKER_PRESET);
-      assert.equal(spec.delivery, 'caller');
-    }
-    assert.equal(host.restrictedTools.length, 3, 'every child had host tools restricted to allow: []');
+    assert.equal(host.getDirectCalls(), 3, '1 taxonomy + 2 batches of 60 and 5 run direct by default (#1261)');
+    assert.equal(host.spawnedSpecs.length, 0, 'no DSH subagent spawned by default');
+    assert.deepEqual(
+      host.directSessions,
+      Array(3).fill(`study-job:${started.job.id}`),
+      'all steps share the job-scoped synthetic cacheSessionId without colliding with cold-panel-sess',
+    );
 
     const snap = await service.call('snapshot');
     const snapJob = snap.jobs.find(j => j.id === started.job.id);
     assert.ok(snapJob);
     assert.equal(snapJob.contract.kind, 'material-classify');
-    assert.equal(snapJob.contract.execution.mode, 'subagent');
+    assert.equal(snapJob.contract.execution.mode, 'direct');
     assert.deepEqual(snapJob.contract.result.refs, [{ kind: 'material-classify' }]);
-    assert.ok(snapJob.contract.usage.tokens > 0, 'child session tokens folded onto job');
+    assert.ok(snapJob.contract.usage.tokens > 0, 'direct step tokens folded onto job');
 
     assert.equal(snapJob.steps.length, 3);
     assert.equal(snapJob.steps[0].stage, 'taxonomy');
     assert.equal(snapJob.steps[0].label, '归纳主题目录');
     for (const step of snapJob.steps) {
       assert.equal(step.status, 'complete');
-      assert.equal(step.runtime, 'subagent');
-      assert.ok(typeof step.childId === 'string' && step.childId.length > 0);
-      assert.ok(typeof step.parentId === 'string' && step.parentId.length > 0);
-      assert.notEqual(step.parentId, 'cold-panel-sess', 'cold panel uses dedicated idle coordinator parent');
+      assert.equal(step.runtime, 'direct');
       assert.ok(step.usage?.outputTokens > 0);
       assert.ok(typeof step.startedAt === 'string' && typeof step.completedAt === 'string');
     }
 
-    // Live / retained output buffer captured streamed subagent deltas
+    // Live / retained output buffer captured streamed direct deltas
     const out = await service.call('job.output', { jobId: started.job.id, callId: snapJob.steps[0].id, cursor: 0 });
     assert.equal(out.supported, true);
     assert.match(out.text, /JVM 与内存/);
     assert.ok(out.reasoningChars > 0);
   }
 
-  // B. Live chat session (`parentId` matches the live chat session)
+  // B. Explicit executionMode: 'subagent' still routes via cold-panel coordinator and live-session parent with tool restriction
   {
-    const root = await mkdtemp(join(tmpdir(), 'study-live-sess-subagent-'));
-    const host = createFakeDshHost({ cwd: root, sessionId: 'live-chat-42', mode: 'live-session', replyFor: folderReply });
-    const service = new StudyService(root, { complete: host.complete, sessionQuery: host.sessionQuery });
+    const root = await mkdtemp(join(tmpdir(), 'study-cold-panel-subagent-'));
+    const host = createFakeDshHost({ cwd: root, sessionId: 'cold-panel-sess', mode: 'cold-panel', replyFor: folderReply });
     t.after(async () => {
-      await service.dispose();
       await disposeIdleCoordinators(host.ctx);
       await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
     });
-
-    await service.call('source.add', { id: 'lv-1', title: 'AQS 并发锁', text: '# AQS\n独占锁与共享锁', courses: ['Java 八股'] });
-    const { job } = await service.call('source.folder.classify', { course: 'Java 八股' });
-    const done = await service.call('job.wait', { jobId: job.id });
-    assert.equal(done.status, 'complete');
-    assert.equal(done.steps[0].runtime, 'subagent');
-    assert.equal(done.steps[0].parentId, 'live-chat-42');
+    const events = [];
+    const reply = await host.complete('system', '{"folders":["Topic 1","Topic 2"]}', {
+      jobId: 'explicit-subagent-cold',
+      stage: 'taxonomy',
+      resultOwner: 'plugin',
+      reasoningEffort: 'lowest',
+      executionMode: 'subagent',
+      onEvent: e => events.push(e),
+    });
+    assert.match(reply, /JVM 与内存/);
+    assert.equal(host.getDirectCalls(), 0);
+    assert.equal(host.spawnedSpecs.length, 1);
+    assert.equal(host.spawnedSpecs[0].agentPreset, WORKER_PRESET);
+    assert.equal(host.spawnedSpecs[0].delivery, 'caller');
+    assert.equal(host.restrictedTools.length, 1, 'child had host tools restricted to allow: []');
+    const subEvent = events.find(e => e.childId);
+    assert.ok(subEvent?.parentId && subEvent.parentId !== 'cold-panel-sess', 'cold panel uses dedicated idle coordinator parent');
+  }
+  {
+    const root = await mkdtemp(join(tmpdir(), 'study-live-sess-subagent-'));
+    const host = createFakeDshHost({ cwd: root, sessionId: 'live-chat-42', mode: 'live-session', replyFor: folderReply });
+    t.after(async () => {
+      await disposeIdleCoordinators(host.ctx);
+      await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    });
+    const events = [];
+    await host.complete('system', '{"folders":["Topic 1","Topic 2"]}', {
+      jobId: 'explicit-subagent-live',
+      stage: 'taxonomy',
+      resultOwner: 'plugin',
+      reasoningEffort: 'lowest',
+      executionMode: 'subagent',
+      onEvent: e => events.push(e),
+    });
+    assert.equal(host.getDirectCalls(), 0);
+    const subEvent = events.find(e => e.childId);
+    assert.equal(subEvent?.runtime, 'subagent');
+    assert.equal(subEvent?.parentId, 'live-chat-42');
   }
 
-  // C. Direct model fallback when DSH subagents are unavailable
+  // C. Direct model fallback when DSH subagents are unavailable (even if executionMode: 'subagent' is requested)
   {
     const root = await mkdtemp(join(tmpdir(), 'study-direct-fallback-'));
     const host = createFakeDshHost({ cwd: root, sessionId: 'no-subagent-sess', mode: 'direct-only', replyFor: folderReply });

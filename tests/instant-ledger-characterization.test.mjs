@@ -30,10 +30,10 @@ const PINNED = {
   "coach.nudge": {"coach":[1,235,43,0,0]},
   "teach.start": {"coach":[1,396,52,0,0]}, // was [1,424,52,0,0]: question payload strips non-content card fields via cardQuestionContent (#1240)
   "materials.outline.suggest": {"other":[1,438,14,0,0]},
-  "materials.translation.translate (immediate passage)": {"other":[2,728,2,0,0]},
+  "materials.translation.translate (immediate passage)": {"other":[2,430,2,302,0]}, // was [2,728,2,0,0]: retryNote moved from system to prompt JSON, turning retry call into a 302-token cache hit (#1261)
   "materials.selection.ask": {"coach":[1,254,21,0,0]},
   "card.grade": {"case":[1,901,191,0,0]},
-  "draft.publish (foreground review)": {"repair":[1,1940,83,395,0]}, // was [1,1865,83,377,0]: the review criteria carry the option rule (+366 characters, lib/option-cues.js)
+  "draft.publish (foreground review)": {"repair":[1,1951,83,395,0]}, // was [1,1940,83,395,0]: reviewPrompts uses canonical sharedBefore key order for cross-stage prefix caching (#1261)
 };
 
 const rows = async root => (await usageLedger(root).summary({ days: 1 })).byFeature;

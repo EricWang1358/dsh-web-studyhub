@@ -242,15 +242,21 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAc
   const rowsRef = React.useRef(rows);
   rowsRef.current = rows;
   const rowReasonsSignature = rows.map((row) => `${rowReasonKey(row)}=${row?.errorReason || ""}`).join("|");
-  const resetKey = `${run.id}\0${recallEnabled ? 1 : 0}\0${rowReasonsSignature}`;
-  const lastResetKeyRef = React.useRef(resetKey);
+  const veilResetKey = `${run.id}\0${recallEnabled ? 1 : 0}`;
+  const lastVeilResetKeyRef = React.useRef(veilResetKey);
   React.useEffect(() => {
-    if (lastResetKeyRef.current === resetKey) return;
-    lastResetKeyRef.current = resetKey;
+    if (lastVeilResetKeyRef.current === veilResetKey) return;
+    lastVeilResetKeyRef.current = veilResetKey;
     setVeilActive(recallEnabled);
     setRevealedRows(new Set());
+  }, [veilResetKey, recallEnabled]);
+  const reasonsSyncKey = `${run.id}\0${rowReasonsSignature}`;
+  const lastReasonsSyncKeyRef = React.useRef(reasonsSyncKey);
+  React.useEffect(() => {
+    if (lastReasonsSyncKeyRef.current === reasonsSyncKey) return;
+    lastReasonsSyncKeyRef.current = reasonsSyncKey;
     setReasonsByKey(seedReasonsFromRows(rowsRef.current));
-  }, [resetKey, recallEnabled]);
+  }, [reasonsSyncKey]);
   React.useEffect(() => { if (segment) setHesitantOnly(false); }, [segment]);
   const shown = hesitantOnly
     ? hesitantRows

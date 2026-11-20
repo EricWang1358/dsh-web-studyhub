@@ -74,8 +74,8 @@ async function sendOpenAiRequest({ fetch, baseUrl, apiKey, body, signal, deadlin
     });
   } catch (error) {
     if (callerSignal?.aborted) throw error;
-    if (deadline.aborted) {
-      throw Object.assign(new Error(`模型服务 ${Math.round(timeoutMs / 1000)} 秒内没有回复`), { modelFailure: true });
+    if (deadline?.aborted) {
+      throw Object.assign(new Error(`模型服务 ${Math.round(timeoutMs / 1000)} 秒内没有回复`), { name: 'TimeoutError', modelFailure: true });
     }
     const rawDetail = error?.cause?.code || error?.message || error;
     const safeMsg = clipDetail(redactSecret(rawDetail, apiKey));
@@ -117,6 +117,18 @@ function readEndpointConfig(config) {
   return baseUrl && model && apiKey ? { baseUrl, model, apiKey } : null;
 }
 
+function resolveTimeoutMs(execution, defaultTimeoutMs) {
+  const requested = execution?.timeoutMs;
+  if (requested === undefined || requested === null) return defaultTimeoutMs;
+  return Number.isFinite(requested) && requested >= 0 ? requested : defaultTimeoutMs;
+}
+
+function buildRequestSignal(effectiveTimeoutMs, callerSignal) {
+  const deadline = effectiveTimeoutMs > 0 ? AbortSignal.timeout(effectiveTimeoutMs) : null;
+  if (deadline && callerSignal) return { deadline, signal: AbortSignal.any([deadline, callerSignal]) };
+  return { deadline, signal: deadline || callerSignal || undefined };
+}
+
 /**
  * Create a StudyHub `complete(system, prompt, execution)` over an OpenAI-compatible `/chat/completions` endpoint.
  */
@@ -129,12 +141,12 @@ export function createOpenAiCompleteAdapter(config, {
   if (!endpoint) return undefined;
 
   return async function openaiComplete(system, prompt, execution = {}) {
-    const deadline = AbortSignal.timeout(timeoutMs);
+    const effectiveTimeoutMs = resolveTimeoutMs(execution, timeoutMs);
     const callerSignal = execution?.signal;
-    const signal = callerSignal ? AbortSignal.any([deadline, callerSignal]) : deadline;
+    const { deadline, signal } = buildRequestSignal(effectiveTimeoutMs, callerSignal);
     const body = buildChatBody({ model: endpoint.model, system, prompt, maxTokens: execution?.maxTokens });
     const response = await sendOpenAiRequest({
-      fetch, baseUrl: endpoint.baseUrl, apiKey: endpoint.apiKey, body, signal, deadline, timeoutMs, callerSignal,
+      fetch, baseUrl: endpoint.baseUrl, apiKey: endpoint.apiKey, body, signal, deadline, timeoutMs: effectiveTimeoutMs, callerSignal,
     });
     const data = await parseOpenAiResponse(response, endpoint.apiKey);
     const usage = mapOpenAiUsage(data?.usage);
