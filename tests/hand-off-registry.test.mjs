@@ -63,6 +63,7 @@ const FIXTURES = {
   'companion.ask': { input: { course: 'Concurrency', title: 'CAS and ABA', slide: 13, slideTitle: 'Swimlane trace', quote: 'compareAndSet(19, 19)', contextText: 'Slide 13 swimlane', question: 'Why does CAS miss the intermediate 9?' }, fenced: ['course', 'title', 'slideTitle', 'quote', 'contextText', 'question'] },
   'companion.rescue': { input: { course: 'Real Analysis', deckId: 'd1', cardId: 'c1', hid: 'H12', topic: 'Uniform convergence', prompt: 'When can limit and integral be swapped?', yourAnswer: 'Pointwise convergence is enough', correctAnswer: 'Uniform convergence' }, fenced: ['course', 'topic', 'prompt', 'yourAnswer', 'correctAnswer'] },
   'question.basics': { input: { deckTitle: 'Architecture', documentTitle: 'CSAPP', chapterTitle: 'Chapter 2 Data Representation', card: { id: 'c1', deckId: 'd1', topic: 'IEEE 754', prompt: 'Why does exponent use bias?', options: [{ id: 'a', text: 'Unsigned compare' }] }, terms: ['exponent bias'], deeper: ['two complement'] }, fenced: ['deckTitle', 'documentTitle', 'chapterTitle', 'terms', 'deeper'] },
+  'coach.debrief': { input: { course: 'OS', deckTitle: 'Memory' }, fenced: ['deckTitle'] },
 };
 // Inside a note on purpose in both languages: the book's own marker for text from outside the materials, in the book's language.
 const KEPT_CHINESE = /（资料以外）/g;
@@ -92,7 +93,7 @@ for (const [id, { input }] of Object.entries(FIXTURES)) {
       const bullets = parts.notes.filter(line => line.startsWith('- '));
       assert.ok(bullets.length > 0, `${id}/${language}: notes`);
       // one labelled bullet a line, a whole sentence: 「标签：…。」 / "Label: lowercase … ."
-      for (const bullet of bullets) assert.match(bullet, language === 'zh' ? /^- [^：]+?：.*。$/ : /^- [A-Z][^:]{0,40}: (?![A-Z][a-z]).*\.$/, `${id}/${language}: ${bullet}`);
+      for (const bullet of bullets) assert.match(bullet, language === 'zh' ? /^- [^：]+?：.*。$/ : /^- [A-Z0-9][^:]{0,40}: (?![A-Z][a-z]).*\.$/, `${id}/${language}: ${bullet}`);
       assert.doesNotMatch(text, /Always reply|languagePreference|This overrides generic language defaults|Reply in English\./, `${id}/${language}: no second language instruction`);
     }
   });

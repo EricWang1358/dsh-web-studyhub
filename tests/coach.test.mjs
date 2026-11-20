@@ -828,3 +828,43 @@ test("learner.preferences stores deduplicated free-form preferences, clears on c
   const chipsBlock = crossLangHtml.match(/<div class="coach-prefs__chips">[\s\S]*?<\/div>/)?.[0] || "";
   assert.doesNotMatch(chipsBlock, /Intuition and examples before derivation/, "raw zh preference suppresses duplicate translated idea chip");
 });
+
+test("nudgeFor does not emit duplicate inbox notification when another nudge landed while model call was in flight", async (t) => {
+  const { service, light } = await setup(t);
+  const run = await service.call("review.start", { deckId: "d", mode: "quiz" });
+  await service.call("review.answer", { runId: run.id, cardId: run.card.id, selected: ["b"] });
+
+  const started = Promise.withResolvers();
+  const release = Promise.withResolvers();
+  service.light = async (...args) => {
+    started.resolve();
+    await release.promise;
+    return light(...args);
+  };
+
+  const pending = service.call("coach.nudge", { runId: run.id, index: run.index });
+  await started.promise;
+  try {
+    // Simulate a concurrent/pre-existing nudge arriving in store before `nudgeFor` commits.
+    await service.store.update((st) => {
+      st.coach.push({
+        id: "existing-nudge",
+        type: "nudge",
+        runId: run.id,
+        entryIndex: run.index,
+        deckId: "d",
+        cardId: run.card.id,
+        point: "Existing nudge point",
+        explain: "Already recorded",
+        createdAt: new Date().toISOString(),
+      });
+    });
+  } finally {
+    release.resolve();
+  }
+
+  await pending;
+  const st = await service.store.read();
+  assert.equal(st.coach.filter((n) => n.type === "nudge" && n.runId === run.id && n.entryIndex === run.index).length, 1);
+  assert.equal(st.inbox.filter((item) => item.kind === "coach" && item.cardId === run.card.id).length, 0, "skipped duplicate nudge must not push a duplicate coach inbox notification");
+});
