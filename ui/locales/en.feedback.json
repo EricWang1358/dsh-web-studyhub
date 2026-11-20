@@ -26,5 +26,11 @@
   "图谱加载失败": "The graph could not be loaded",
   "这个页面没能打开": "This page could not be opened",
   "这部分显示出了错。先点「{0}」；还不行就刷新页面（已保存的内容不会因此丢失）。": "This part ran into an error. Press \"{0}\" first; if that does not help, refresh the page (what you saved is not lost).",
-  "这部分显示出了错。刷新页面再试（已保存的内容不会因此丢失）。": "This part ran into an error. Refresh the page and try again (what you saved is not lost)."
+  "这部分显示出了错。刷新页面再试（已保存的内容不会因此丢失）。": "This part ran into an error. Refresh the page and try again (what you saved is not lost).",
+  "多选题：清空已选选项": "Multi-select: clear selected options",
+  "资料对照栏：在题目与资料之间切换焦点": "Source split: switch focus between question and source",
+  "提交标签": "Submit tags",
+  "答对 {0}/{1} 空": "Got {0}/{1} blanks right",
+  "答对 {0}/{1} 空#one:1": "Got {0}/{1} blank right",
+  "表述等价 · 算我答对": "Equivalent phrasing · count as right"
 }

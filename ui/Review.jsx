@@ -13,7 +13,7 @@ import DailyRecap from './DailyRecap.jsx';
 import { Badge, Button, PageHeader, Tooltip } from "./components/index.js";
 import { cx } from "./components/css.js";
 import { uiRich } from "./i18n-rich.jsx";
-import { StudyServicesContext, useStudy } from "./study-context.jsx";
+import { StudyServicesContext, useStudyBusy, useStudyServices } from "./study-context.jsx";
 import { AppContext, readerOpen } from "./app/app-context.js";
 import { HandOff } from "./hand-off/HandOff.jsx";
 import reviewCss from "./review/review.css";
@@ -27,6 +27,7 @@ import { openReaderForPages, readableMaterialItems } from "./document-preview/pr
 import { currentMethodStage, resolveRoundCourse, roundEndAlternative, useMethodAlternativeOpen } from "./method-alternatives.js";
 import { pageAvailable } from "./capabilities.js";
 import { askForLeeches } from "./wrongbook-model.js";
+import { keepBook } from "./book/model.js";
 import RoundLookBack from "./review/RoundLookBack.jsx";
 import { gradesOutstanding } from "./review/session-logic.js";
 import RoundSetup from "./review/RoundSetup.jsx";
@@ -91,8 +92,9 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
   useInjectCss(reviewCss, "study-review");
   const { run, choice, actions } = session;
   const { reviewAct } = actions;
-  const study = useStudy();
-  const { call, act, busy, host, navigate, openSettings, notify } = study;
+  const study = useStudyServices();
+  const busy = useStudyBusy();
+  const { call, act, host, navigate, openSettings, notify } = study;
   const cardPlace = useCardPlace({ call, run });
   const [lookBackSegmentState, setLookBackSegmentState] = React.useState({ runId: null, segment: null });
   const lookBackSegment = lookBackSegmentState.runId === run?.id ? lookBackSegmentState.segment : null;
@@ -301,7 +303,8 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               onContinue={coachProps.onContinue}
               destination={coachProps.destination}
               onReviewWeak={coachProps.onReviewWeak}
-              nextShown={!!nextStep} plain={backHere} onwardShown={!!onward}
+              ctaMode={destination?.kind === "original" ? "none" : nextStep ? "secondary-suggestion" : backHere ? "secondary" : "primary"}
+              suppressNextPromise={backHere && !onward}
               debriefModel={practice.debrief}
               onSettings={goPracticeSettings} onProfileSettings={() => openSettings("settings-profile")}
             />
@@ -381,6 +384,13 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             segment={lookBackSegment} onSegmentChange={setLookBackSegment}
             onPracticeWrong={(refs) => act("review.start", practiceArgs(refs), enterRun)}
             onAck={(row) => actions.reviewAct("review.correction.ack", { entryIndex: row.entryIndex, cardId: row.cardId })}
+            onOpenBook={pageAvailable(data, "book") ? ({ course: targetCourse, hid, view } = {}) => {
+              const chosen = targetCourse || data?.focus?.course || null;
+              app?.learn?.rememberContext?.(app.learn.captureContext());
+              keepBook(data?.root, chosen, { target: hid || null, ...(view ? { view } : {}) });
+              if (targetCourse && targetCourse !== data?.focus?.course) void act("focus.set", { course: targetCourse });
+              navigate("book");
+            } : undefined}
             onOpenWrongBook={pageAvailable(data, "wrongbook") ? (refs) => { askForLeeches(data?.root, refs); navigate("wrongbook"); } : undefined} />
           <details key={run.id} className="result-details">
             <summary>{ui("更多结果与练习")}</summary>

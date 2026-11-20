@@ -12,6 +12,7 @@ import { usePersistentState } from '../storage.js';
 import { Button } from '../components/index.js';
 import { flag } from './use-app-shell.js';
 import { useApp } from './app-context.js';
+import { useStudyBusy } from '../study-context.jsx';
 
 /* The rows of the sidebar (#654): 回到题目 (and 为你定制 when it has questions ready), the main list, and 「更多」 with the other pages in sections
    by what they are about. Which page sits where comes from ui/pages.js through ui/nav-order.js; nothing here lists pages. */
@@ -36,7 +37,8 @@ function movedText(announce) {
 
 export default function SidebarNav({ alert, reason, tasks }) {
   const { data, core, shell, nav, session, intents, board } = useApp();
-  const { busy, notify } = core;
+  const busy = useStudyBusy();
+  const { notify } = core;
   const { navPage, pageTarget, page } = nav;
   const navRef = useRef(null), [navMark, setNavMark] = useState(null);
   const navOrder = useNavOrder(NAV_DEFAULTS, navRef);

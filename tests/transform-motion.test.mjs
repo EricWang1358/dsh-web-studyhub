@@ -11,7 +11,6 @@ const LAYOUT_PROP = /(?<![\w-])(width|height|left|top|right|bottom|max-height|ma
 /* file | selector -> why */
 const ALLOWED = {
   'ui/review/question.css | .flip-inner': 'the card grows to the height of the face that is up while it turns; the height is content-driven (FlipCard measures it)',
-  'ui/review/question.css | .smooth-height': 'the response area under a card eases to its content height (auto height, no fixed size to scale from)',
   'ui/skeleton.css | .skc-class': 'focus-view boxes of the structure canvas glide to positions the layout engine writes as left/top; dragging switches the transition off',
 };
 
@@ -40,6 +39,14 @@ test('the converted surfaces keep their reduced-motion switch-off', () => {
   assert.match(session, /prefers-reduced-motion: reduce\)[^]*\.review-tick-line\s*\{\s*transition:\s*none/, 'review tick');
   const tour = readFileSync(join(ROOT, 'ui/tour/tour.css'), 'utf8');
   assert.match(tour, /@media \(prefers-reduced-motion: no-preference\)[^]*\.tour-spot\s*\{\s*transition:/, 'tour transitions are only declared for no-preference');
+  const motion = readFileSync(join(ROOT, 'ui/motion.css'), 'utf8');
+  assert.doesNotMatch(motion, /@media \(prefers-reduced-motion: reduce\)[^@]*\*\s*\{\s*transition-duration:\s*0\.01ms\s*!important/, 'prefers-reduced-motion keeps intentional opacity fades (e.g. flip-face) instead of nuking all transitions');
+  const question = readFileSync(join(ROOT, 'ui/review/question.css'), 'utf8');
+  assert.match(question, /prefers-reduced-motion: reduce\)[^]*\.flip-loading\s*\{[^}]*animation:\s*none/, 'flip loading shimmer stops under reduced motion');
+  const shell = readFileSync(join(ROOT, 'ui/shell.css'), 'utf8');
+  assert.match(shell, /prefers-reduced-motion: reduce\)[^]*\.top-status \.dot\.busy\s*\{[^}]*animation:\s*none/, 'status busy pulse stops under reduced motion');
+  const drawer = readFileSync(join(ROOT, 'ui/app/nav-drawer.css'), 'utf8');
+  assert.match(drawer, /prefers-reduced-motion: reduce\)[^]*\.nav-drawer\[open\]\s*\{[^}]*animation:\s*none/, 'nav drawer slide-in stops under reduced motion');
 });
 
 test('the review ticks and the tour spotlight are moved by transform', () => {

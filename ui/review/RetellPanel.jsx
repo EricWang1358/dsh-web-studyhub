@@ -48,8 +48,26 @@ export default function RetellPanel({ op, args, draftKey, model, onModelSettings
   const inputRef = React.useRef(null);
   const textRef = React.useRef(text);
   textRef.current = text;
+  const mountedRef = React.useRef(true);
+  const activeKeyRef = React.useRef(storeKey);
+  activeKeyRef.current = storeKey;
+  const prevStoreKeyRef = React.useRef(storeKey);
+  const reqIdRef = React.useRef(0);
+  React.useEffect(() => () => { mountedRef.current = false; }, []);
+  React.useEffect(() => {
+    if (prevStoreKeyRef.current === storeKey) return;
+    prevStoreKeyRef.current = storeKey;
+    reqIdRef.current += 1;
+    const nextDraft = readText(storeKey, "", browserSession());
+    textRef.current = nextDraft;
+    setText(nextDraft);
+    setLastSubmittedText("");
+    setChecking(false);
+    setAnswer(null);
+    setFailure("");
+  }, [storeKey]);
   const unread = ui("这次没有拿到 AI 的反馈，写的内容还在，可以再试一次。");
-  const edit = (value) => { setText(value); if (value) writeText(storeKey, value, browserSession()); else removeKey(storeKey, browserSession()); };
+  const edit = (value) => { textRef.current = value; setText(value); if (value) writeText(storeKey, value, browserSession()); else removeKey(storeKey, browserSession()); };
   const voice = useVoiceInput({
     call,
     scope: storeKey,
@@ -61,21 +79,30 @@ export default function RetellPanel({ op, args, draftKey, model, onModelSettings
 
   async function submit(event) {
     event?.preventDefault();
-    const submitted = text.trim();
+    const submitted = textRef.current.trim();
     if (!submitted || checking) return;
+    const originKey = storeKey;
+    const reqId = ++reqIdRef.current;
     setChecking(true);
     setFailure("");
     try {
       const result = await call(op, { ...args, text: submitted, language: uiLocale().startsWith("en") ? "en" : "zh" });
+      if (!mountedRef.current || activeKeyRef.current !== originKey || reqIdRef.current !== reqId) return;
       setLastSubmittedText(submitted);
       setAnswer(result);
-      // Checked: the words leave this tab too.
-      removeKey(storeKey, browserSession());
-      setText("");
+      // Only clear the draft if the learner did not edit it while checking was in flight.
+      if (textRef.current.trim() === submitted) {
+        removeKey(originKey, browserSession());
+        textRef.current = "";
+        setText("");
+      }
       onDone?.(result);
     } catch (error) {
+      if (!mountedRef.current || activeKeyRef.current !== originKey || reqIdRef.current !== reqId) return;
       setFailure(error?.message || unread);
-    } finally { setChecking(false); }
+    } finally {
+      if (mountedRef.current && activeKeyRef.current === originKey && reqIdRef.current === reqId) setChecking(false);
+    }
   }
 
   if (!model?.ready) return <div className="retell-panel"><ModelSetupGate variant="inline" feature="welcome" model={model} onOpenSettings={onModelSettings} /></div>;

@@ -108,7 +108,7 @@
     .skeleton.s { height: 12px; width: 55%; }
     /* ── Library offer ───────────────────────────────────────────────────── */
     /* ── Sidebar entry: shows on every page while 定制题 are ready ─────────── */
-    .coach-nav > span:first-child { color: var(--accent-soft); }
+    .coach-nav > span:first-child { color: var(--accent-text); }
     .nav-badge {
       flex: none;
       margin-left: auto;
@@ -116,7 +116,7 @@
       padding: 0 var(--space-2);
       border-radius: var(--radius-pill);
       border: 1px solid var(--line-strong);
-      color: var(--accent-soft);
+      color: var(--accent-text);
       font-size: var(--fs-md);
       font-weight: var(--fw-strong);
       line-height: 1.4;

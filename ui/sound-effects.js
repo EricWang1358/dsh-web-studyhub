@@ -1,29 +1,51 @@
-/* Acoustic Desk sound effects: physical-modeling paper, walnut and felt-mallet transients synthesized offline into memory buffers.
-   Defaults to 'off' in appearance-prefs.js: when off, zero AudioContext instances are constructed; automatically mutes whenever
-   microphone / live-class audio capture is active (ui/live-audio.js) or the tab is hidden (except for explicit focus timer chimes). */
-import { loadAppearance } from './appearance-prefs.js';
+/* StudyHub interaction sound effects:
+   - tap / flip / correct: pre-baked studio stereo MP3 recordings (Clatterbox tactile keycap CC0,
+     Kenney slow book flip CC0, Yamaha C5 Salamander D-major piano arpeggio CC BY 3.0) decoded into
+     cached Web Audio buffers with synchronous stereo DSP fallbacks.
+   - levelUp / miss / complete: D-major stereo Crystal Celesta synthesized offline with micro-room
+     reflections so every harmonic cue shares one coherent acoustic space.
+   Defaults to 'off' in appearance-prefs.js: when off, zero AudioContext instances are constructed;
+   automatically mutes whenever microphone / live-class audio capture is active (ui/live-audio.js)
+   or the tab is hidden (except for explicit focus timer chimes). */
+import { getAppearanceSound, invalidateAppearanceCache, onAppearanceCacheChange } from './appearance-prefs.js';
 import { isAudioCaptureActive } from './audio-capture-state.js';
+import { BAKED_SAMPLE_DATA_URIS, BAKED_SAMPLE_GAINS } from './sound-effects-assets.js';
 
 export const SOUND_CUES = Object.freeze(['tap', 'flip', 'correct', 'levelUp', 'miss', 'complete']);
 const SUBTLE_CUES = new Set(['flip', 'correct', 'levelUp', 'miss', 'complete']);
+const SAMPLE_CUES = new Set(Object.keys(BAKED_SAMPLE_DATA_URIS));
 
 const IDLE_SUSPEND_MS = 15_000;
 const CUE_COOLDOWN_MS = 45;
 const GLOBAL_COOLDOWN_MS = 25;
-const MAX_BUFFER_PEAK = 0.21;
+const SUSPENDED_STALE_MS = 180;
+const MAX_DSP_PEAK = 0.48;
+const AIR_BUS_CUTOFF_HZ = 12_000;
 
-const CUE_GAINS = Object.freeze({
-  subtle: Object.freeze({ flip: 0.55, correct: 0.52, levelUp: 0.56, miss: 0.50, complete: 0.58 }),
-  standard: Object.freeze({ tap: 0.50, flip: 0.68, correct: 0.66, levelUp: 0.70, miss: 0.58, complete: 0.70 }),
+// Tier multipliers tuned to match the auditioned v2 balance across all 6 cues.
+const TIER_SCALE = Object.freeze({
+  subtle: 0.72,
+  standard: 0.88,
 });
 
+// Relative cue gains when playing synthesized stereo DSP buffers.
+const DSP_CUE_GAINS = Object.freeze({
+  tap: 0.85,
+  flip: 0.85,
+  correct: 0.85,
+  levelUp: 0.85,
+  miss: 0.85,
+  complete: 0.85,
+});
+
+// Gentle organic pitch micro-variation only on mechanical/paper foley; harmonic piano & celesta stay concert-tuned.
 const CUE_JITTER = Object.freeze({
-  tap: 0.025,
-  flip: 0.028,
-  miss: 0.02,
-  correct: 0.003,
-  levelUp: 0.003,
-  complete: 0.0025,
+  tap: 0.015,
+  flip: 0.012,
+  correct: 0,
+  levelUp: 0,
+  miss: 0,
+  complete: 0,
 });
 
 function mulberry32(seed) {
@@ -36,8 +58,8 @@ function mulberry32(seed) {
   };
 }
 
-/** Raised-cosine fade-in + gentle cosine release so sample[0] === 0 and sample[last] === 0 with zero DC click. */
-function shapeEnvelope(samples, sampleRate, fadeInMs = 2, fadeOutMs = 10) {
+/** Raised-cosine fade-in + cosine release so sample[0] === 0 and sample[last] === 0 with zero DC click. */
+function shapeEnvelope(samples, sampleRate, fadeInMs = 1, fadeOutMs = 12) {
   const n = samples.length;
   if (!n) return samples;
   samples[0] = 0;
@@ -56,18 +78,25 @@ function shapeEnvelope(samples, sampleRate, fadeInMs = 2, fadeOutMs = 10) {
   return samples;
 }
 
-/** Causal 2nd-order Butterworth lowpass to roll off brittle electronic highs while keeping tactile body. */
-function applyLowpass2(samples, sampleRate, cutoffHz, q = Math.SQRT1_2) {
-  const fc = Math.max(120, Math.min(cutoffHz, sampleRate * 0.42));
+/** Causal 2nd-order RBJ biquad filter (lowpass / highpass / bandpass). */
+function applyBiquad(samples, sampleRate, type, cutoffHz, q = Math.SQRT1_2) {
+  const fc = Math.max(40, Math.min(cutoffHz, sampleRate * 0.45));
   const w0 = (2 * Math.PI * fc) / sampleRate;
-  const cosW0 = Math.cos(w0);
-  const alpha = Math.sin(w0) / (2 * q);
-  const a0 = 1 + alpha;
-  const b0 = ((1 - cosW0) / 2) / a0;
-  const b1 = (1 - cosW0) / a0;
-  const b2 = b0;
-  const a1 = (-2 * cosW0) / a0;
-  const a2 = (1 - alpha) / a0;
+  const cos = Math.cos(w0);
+  const sin = Math.sin(w0);
+  const alpha = sin / (2 * q);
+  let b0, b1, b2, a0, a1, a2;
+  if (type === 'bandpass') {
+    b0 = alpha; b1 = 0; b2 = -alpha;
+    a0 = 1 + alpha; a1 = -2 * cos; a2 = 1 - alpha;
+  } else if (type === 'highpass') {
+    b0 = (1 + cos) / 2; b1 = -(1 + cos); b2 = (1 + cos) / 2;
+    a0 = 1 + alpha; a1 = -2 * cos; a2 = 1 - alpha;
+  } else {
+    b0 = (1 - cos) / 2; b1 = 1 - cos; b2 = (1 - cos) / 2;
+    a0 = 1 + alpha; a1 = -2 * cos; a2 = 1 - alpha;
+  }
+  b0 /= a0; b1 /= a0; b2 /= a0; a1 /= a0; a2 /= a0;
   let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
   for (let i = 0; i < samples.length; i += 1) {
     const x0 = samples[i];
@@ -81,252 +110,438 @@ function applyLowpass2(samples, sampleRate, cutoffHz, q = Math.SQRT1_2) {
   return samples;
 }
 
-/** 1st-order highpass to keep sub-bass thump clean and DC-free. */
-function applyHighpass1(samples, sampleRate, cutoffHz) {
-  const dt = 1 / sampleRate;
-  const rc = 1 / (2 * Math.PI * Math.max(20, cutoffHz));
-  const alpha = rc / (rc + dt);
-  let prevX = 0, prevY = 0;
-  for (let i = 0; i < samples.length; i += 1) {
-    const x = samples[i];
-    const y = alpha * (prevY + x - prevX);
-    prevX = x;
-    prevY = y;
-    samples[i] = y;
+/** Add subtle studio desk early reflections for natural stereo width without muddiness. */
+function addStereoMicroRoom(mono, sampleRate, wet = 0.22, spreadMs = 11) {
+  const n = mono.length;
+  const left = new Float32Array(n);
+  const right = new Float32Array(n);
+  const tapsL = [
+    [Math.round(sampleRate * 0.009), 0.48],
+    [Math.round(sampleRate * 0.019), 0.30],
+    [Math.round(sampleRate * 0.031), 0.18],
+    [Math.round(sampleRate * 0.047), 0.10],
+  ];
+  const tapsR = [
+    [Math.round(sampleRate * (0.009 + (spreadMs / 1000) * 0.35)), 0.46],
+    [Math.round(sampleRate * 0.023), 0.28],
+    [Math.round(sampleRate * 0.037), 0.17],
+    [Math.round(sampleRate * 0.053), 0.09],
+  ];
+  for (let i = 0; i < n; i += 1) {
+    let rl = 0;
+    let rr = 0;
+    for (let t = 0; t < tapsL.length; t += 1) {
+      const d = tapsL[t][0];
+      if (i >= d) rl += mono[i - d] * tapsL[t][1];
+    }
+    for (let t = 0; t < tapsR.length; t += 1) {
+      const d = tapsR[t][0];
+      if (i >= d) rr += mono[i - d] * tapsR[t][1];
+    }
+    left[i] = mono[i] + rl * wet;
+    right[i] = mono[i] + rr * wet;
   }
-  return samples;
+  applyBiquad(left, sampleRate, 'lowpass', 7800, 0.7);
+  applyBiquad(right, sampleRate, 'lowpass', 7800, 0.7);
+  return [left, right];
 }
 
-function normalizePeak(samples, targetPeak) {
+function normalizeStereo(left, right, targetPeak) {
   let peak = 0;
-  for (let i = 0; i < samples.length; i += 1) {
-    const abs = Math.abs(samples[i]);
-    if (abs > peak) peak = abs;
+  for (let i = 0; i < left.length; i += 1) {
+    const absL = Math.abs(left[i]);
+    const absR = Math.abs(right[i]);
+    if (absL > peak) peak = absL;
+    if (absR > peak) peak = absR;
   }
   if (peak > 1e-6) {
-    const scale = Math.min(targetPeak / peak, 1.5 * (targetPeak / peak));
-    for (let i = 0; i < samples.length; i += 1) samples[i] *= scale;
+    const scale = targetPeak / peak;
+    for (let i = 0; i < left.length; i += 1) {
+      left[i] *= scale;
+      right[i] *= scale;
+    }
   }
-  return samples;
+  shapeEnvelope(left, 44100, 0.4, 8);
+  shapeEnvelope(right, 44100, 0.4, 8);
+  return [left, right];
 }
 
-/** Add a struck felt-mallet acoustic bar/string voice using four gently inharmonic damped partials. */
-function addFeltNote(samples, sampleRate, {
+/** Add one Crystal Celesta note: fast-decaying bright partials + subtle detuned shimmer bloom. */
+function addCelestaNote(samples, sampleRate, {
   startSec = 0,
   freqHz,
-  amp = 0.16,
-  tausSec = [0.062, 0.034, 0.018, 0.009],
-  partialAmps = [1.0, 0.34, 0.12, 0.04],
-  contactMs = 2.6,
+  amp = 0.28,
+  tau = 0.26,
+  shimmer = 1.0,
   rand,
 }) {
   const startIdx = Math.max(0, Math.round(startSec * sampleRate));
-  const contactSec = contactMs / 1000;
-  let brown = 0;
+  const ratios = [1.0, 2.001, 3.004, 4.012, 5.42];
+  const partialAmps = [1.0, 0.42 * shimmer, 0.18 * shimmer, 0.09 * shimmer, 0.05 * shimmer];
+  const partialTaus = [tau, tau * 0.55, tau * 0.28, tau * 0.14, tau * 0.06];
   for (let i = startIdx; i < samples.length; i += 1) {
     const t = (i - startIdx) / sampleRate;
-    const malletEnv = t < contactSec ? 0.5 * (1 - Math.cos((Math.PI * t) / contactSec)) : 1;
+    const attack = t < 0.0007 ? t / 0.0007 : 1;
     let body = 0;
-    for (let k = 0; k < partialAmps.length; k += 1) {
-      const harmonic = k + 1;
-      const inharmonicHz = freqHz * harmonic * Math.sqrt(1 + 0.0004 * harmonic * harmonic);
-      const decay = Math.exp(-t / tausSec[k]);
-      body += partialAmps[k] * decay * Math.sin(2 * Math.PI * inharmonicHz * t + 0.18 * k);
+    for (let k = 0; k < ratios.length; k += 1) {
+      const detune = k === 0
+        ? 0.12 * Math.sin(2 * Math.PI * (freqHz * 1.0025) * t) * Math.exp(-t / (tau * 0.9))
+        : 0;
+      body += partialAmps[k] * Math.exp(-t / partialTaus[k]) * Math.sin(2 * Math.PI * freqHz * ratios[k] * t) + detune;
     }
-    // Brief felt-skin contact whisper only over the first ~6 ms of attack.
-    const white = rand() * 2 - 1;
-    brown = 0.91 * brown + 0.09 * white;
-    const feltBrush = Math.exp(-t / 0.0032) * brown * 0.28;
-    samples[i] += amp * (malletEnv * body + feltBrush);
+    const ping = Math.exp(-t / 0.0016) * (rand() * 2 - 1) * 0.15;
+    samples[i] += amp * attack * (body + ping);
   }
 }
 
-function buildTapCue(sampleRate) {
-  const n = Math.max(64, Math.round(0.036 * sampleRate));
-  const out = new Float32Array(n);
-  const rand = mulberry32(0x1105a1);
-  const modes = [290, 790, 1480];
-  const taus = [0.009, 0.0045, 0.0022];
-  const amps = [0.68, 0.34, 0.14];
-  let brown = 0;
+function buildTapStereo(sampleRate) {
+  const n = Math.max(64, Math.round(0.032 * sampleRate));
+  const mono = new Float32Array(n);
   for (let i = 0; i < n; i += 1) {
     const t = i / sampleRate;
-    const impulseEnv = t < 0.003 ? Math.sin((Math.PI * t) / 0.003) : 0;
-    const white = rand() * 2 - 1;
-    brown = 0.88 * brown + 0.12 * white;
-    let wood = 0;
-    for (let m = 0; m < modes.length; m += 1) {
-      wood += amps[m] * Math.exp(-t / taus[m]) * Math.sin(2 * Math.PI * modes[m] * t);
-    }
-    const attackRise = Math.min(1, t / 0.0016);
-    out[i] = 0.16 * (attackRise * wood + impulseEnv * brown * 0.65);
+    const attack = t < 0.0003 ? t / 0.0003 : 1;
+    mono[i] = attack * (
+      Math.exp(-t / 0.0024) * Math.sin(2 * Math.PI * 2250 * t) * 0.72
+      + Math.exp(-t / 0.0011) * Math.sin(2 * Math.PI * 4500 * t) * 0.30
+    );
   }
-  applyHighpass1(out, sampleRate, 95);
-  applyLowpass2(out, sampleRate, 1850, 0.68);
-  normalizePeak(out, 0.17);
-  return shapeEnvelope(out, sampleRate, 1.5, 8);
+  applyBiquad(mono, sampleRate, 'highpass', 800, 0.7);
+  shapeEnvelope(mono, sampleRate, 0.3, 6);
+  return normalizeStereo(...addStereoMicroRoom(mono, sampleRate, 0.06), 0.30);
 }
 
-function buildFlipCue(sampleRate) {
-  const durSec = 0.072;
+function buildFlipStereo(sampleRate) {
+  // Unhurried 3-stage natural paper arc fallback (fingertip lift -> air glide -> gentle settle) with right->left pan.
+  const durSec = 0.30;
   const n = Math.max(64, Math.round(durSec * sampleRate));
-  const out = new Float32Array(n);
   const rand = mulberry32(0x2207b3);
-  // Paul Kellet pink-noise state + resonant 1-pole paper bandpass sweep.
-  let b0 = 0, b1 = 0, b2 = 0;
-  let bp1 = 0, bp2 = 0;
+  const lift = new Float32Array(n);
+  const glide = new Float32Array(n);
+  const settle = new Float32Array(n);
   for (let i = 0; i < n; i += 1) {
-    const t = i / sampleRate;
-    const u = Math.min(1, t / durSec);
+    const u = i / n;
     const white = rand() * 2 - 1;
-    b0 = 0.997 * b0 + white * 0.029;
-    b1 = 0.985 * b1 + white * 0.032;
-    b2 = 0.950 * b2 + white * 0.048;
-    const pink = (b0 + b1 + b2 + white * 0.055) * 0.36;
-    const sweepHz = 620 + 500 * Math.sin(Math.PI * u);
-    const omega = (2 * Math.PI * sweepHz) / sampleRate;
-    bp1 += omega * (pink - bp1) * 0.55;
-    bp2 += omega * (bp1 - bp2) * 0.55;
-    const paperSwish = Math.pow(Math.sin(Math.PI * u), 1.35) * (bp1 - bp2 * 0.55);
-    const settleT = Math.max(0, t - 0.014);
-    const settle = t >= 0.014
-      ? (0.28 * Math.exp(-settleT / 0.009) * Math.sin(2 * Math.PI * 195 * settleT)
-        + 0.14 * Math.exp(-settleT / 0.005) * Math.sin(2 * Math.PI * 455 * settleT))
-      : 0;
-    out[i] = 0.24 * (paperSwish + settle * 0.35);
+    lift[i] = u < 0.28 ? white * Math.pow(Math.sin((Math.PI * u) / 0.28), 1.3) : 0;
+    glide[i] = u > 0.16 && u < 0.84 ? white * Math.pow(Math.sin((Math.PI * (u - 0.16)) / 0.68), 1.5) : 0;
+    settle[i] = u > 0.60 ? white * Math.pow(Math.sin((Math.PI * (u - 0.60)) / 0.40), 1.8) : 0;
   }
-  applyHighpass1(out, sampleRate, 160);
-  applyLowpass2(out, sampleRate, 2400, 0.65);
-  normalizePeak(out, 0.18);
-  return shapeEnvelope(out, sampleRate, 3, 12);
-}
-
-function buildCorrectCue(sampleRate) {
-  const n = Math.max(64, Math.round(0.185 * sampleRate));
-  const out = new Float32Array(n);
-  addFeltNote(out, sampleRate, {
-    startSec: 0,
-    freqHz: 329.63, // E4
-    amp: 0.16,
-    tausSec: [0.062, 0.034, 0.018, 0.009],
-    partialAmps: [1.0, 0.34, 0.12, 0.04],
-    contactMs: 2.8,
-    rand: mulberry32(0x3309c5),
-  });
-  applyHighpass1(out, sampleRate, 80);
-  applyLowpass2(out, sampleRate, 2300, 0.68);
-  normalizePeak(out, 0.18);
-  return shapeEnvelope(out, sampleRate, 2.5, 20);
-}
-
-function buildLevelUpCue(sampleRate) {
-  const n = Math.max(64, Math.round(0.275 * sampleRate));
-  const out = new Float32Array(n);
-  const rand = mulberry32(0x440bd7);
-  // Open fifth D4 -> A4: calm mastery climb without fanfare.
-  addFeltNote(out, sampleRate, {
-    startSec: 0,
-    freqHz: 293.66, // D4
-    amp: 0.13,
-    tausSec: [0.068, 0.038, 0.020, 0.010],
-    partialAmps: [1.0, 0.32, 0.11, 0.03],
-    contactMs: 2.8,
-    rand,
-  });
-  addFeltNote(out, sampleRate, {
-    startSec: 0.058,
-    freqHz: 440.00, // A4
-    amp: 0.15,
-    tausSec: [0.088, 0.046, 0.024, 0.011],
-    partialAmps: [1.0, 0.35, 0.12, 0.04],
-    contactMs: 2.8,
-    rand,
-  });
-  applyHighpass1(out, sampleRate, 80);
-  applyLowpass2(out, sampleRate, 2450, 0.68);
-  normalizePeak(out, 0.19);
-  return shapeEnvelope(out, sampleRate, 2.5, 24);
-}
-
-function buildMissCue(sampleRate) {
-  const n = Math.max(64, Math.round(0.092 * sampleRate));
-  const out = new Float32Array(n);
-  const rand = mulberry32(0x550de9);
-  // Calm muted wood/paper settle: zero harsh buzzer or punitive drop.
-  let brown = 0;
+  applyBiquad(lift, sampleRate, 'bandpass', 3400, 1.35);
+  applyBiquad(glide, sampleRate, 'bandpass', 2100, 0.9);
+  applyBiquad(settle, sampleRate, 'bandpass', 1200, 1.1);
+  const left = new Float32Array(n);
+  const right = new Float32Array(n);
   for (let i = 0; i < n; i += 1) {
-    const t = i / sampleRate;
-    const white = rand() * 2 - 1;
-    brown = 0.93 * brown + 0.07 * white;
-    const brush = Math.exp(-t / 0.0055) * brown * 0.42;
-    const wood = 0.72 * Math.exp(-t / 0.019) * Math.sin(2 * Math.PI * 208 * t)
-      + 0.45 * Math.exp(-t / 0.015) * Math.sin(2 * Math.PI * 174 * t + 0.4);
-    out[i] = 0.16 * (wood + brush);
+    const u = i / n;
+    const panR = Math.cos(u * Math.PI * 0.5) * 0.45 + 0.55;
+    const panL = Math.sin(u * Math.PI * 0.5) * 0.45 + 0.55;
+    const sample = lift[i] * 0.55 + glide[i] * 0.95 + settle[i] * 0.50;
+    left[i] = sample * panL;
+    right[i] = sample * panR;
   }
-  applyHighpass1(out, sampleRate, 70);
-  applyLowpass2(out, sampleRate, 920, 0.65);
-  normalizePeak(out, 0.16);
-  return shapeEnvelope(out, sampleRate, 3.5, 16);
+  applyBiquad(left, sampleRate, 'highpass', 580, 0.7);
+  applyBiquad(right, sampleRate, 'highpass', 580, 0.7);
+  shapeEnvelope(left, sampleRate, 6, 36);
+  shapeEnvelope(right, sampleRate, 6, 36);
+  return normalizeStereo(left, right, 0.34);
 }
 
-function buildCompleteCue(sampleRate) {
-  const n = Math.max(64, Math.round(0.43 * sampleRate));
-  const out = new Float32Array(n);
-  const rand = mulberry32(0x660ffb);
-  // Serene open fifth + octave fifth: C4 -> G4 -> D5.
-  const notes = [
-    { startSec: 0, freqHz: 261.63, amp: 0.12, tausSec: [0.135, 0.070, 0.036, 0.016] },
-    { startSec: 0.078, freqHz: 392.00, amp: 0.13, tausSec: [0.140, 0.074, 0.038, 0.018] },
-    { startSec: 0.158, freqHz: 587.33, amp: 0.11, tausSec: [0.150, 0.078, 0.040, 0.018] },
+function buildCorrectStereo(sampleRate) {
+  // D-major arpeggio fallback (D5 -> F#5 -> A5) matching the baked Yamaha C5 piano arpeggio.
+  const n = Math.max(64, Math.round(0.68 * sampleRate));
+  const mono = new Float32Array(n);
+  const rand = mulberry32(0x3309c5);
+  addCelestaNote(mono, sampleRate, { startSec: 0, freqHz: 587.33, amp: 0.20, tau: 0.16, shimmer: 0.85, rand });
+  addCelestaNote(mono, sampleRate, { startSec: 0.048, freqHz: 739.99, amp: 0.22, tau: 0.18, shimmer: 0.90, rand });
+  addCelestaNote(mono, sampleRate, { startSec: 0.096, freqHz: 880.00, amp: 0.26, tau: 0.24, shimmer: 1.0, rand });
+  applyBiquad(mono, sampleRate, 'highpass', 220, 0.7);
+  shapeEnvelope(mono, sampleRate, 0.6, 55);
+  return normalizeStereo(...addStereoMicroRoom(mono, sampleRate, 0.24), 0.40);
+}
+
+function buildLevelUpStereo(sampleRate) {
+  // D-major Crystal Celesta mastery climb: D5 -> A5 -> D6.
+  const n = Math.max(64, Math.round(0.75 * sampleRate));
+  const mono = new Float32Array(n);
+  const rand = mulberry32(7 * 7717 + 19);
+  addCelestaNote(mono, sampleRate, { startSec: 0, freqHz: 587.33, amp: 0.20, tau: 0.16, shimmer: 0.9, rand });
+  addCelestaNote(mono, sampleRate, { startSec: 0.062, freqHz: 880.00, amp: 0.24, tau: 0.19, shimmer: 1.0, rand });
+  addCelestaNote(mono, sampleRate, { startSec: 0.128, freqHz: 1174.66, amp: 0.28, tau: 0.26, shimmer: 1.15, rand });
+  applyBiquad(mono, sampleRate, 'highpass', 220, 0.7);
+  shapeEnvelope(mono, sampleRate, 0.5, 55);
+  return normalizeStereo(...addStereoMicroRoom(mono, sampleRate, 0.28), 0.44);
+}
+
+function buildMissStereo(sampleRate) {
+  // Calm, clear non-punitive downward celesta interval: A4 -> F4.
+  const n = Math.max(64, Math.round(0.32 * sampleRate));
+  const mono = new Float32Array(n);
+  const rand = mulberry32(4 * 7717 + 19);
+  addCelestaNote(mono, sampleRate, { startSec: 0, freqHz: 440.00, amp: 0.22, tau: 0.075, shimmer: 0.45, rand });
+  addCelestaNote(mono, sampleRate, { startSec: 0.068, freqHz: 349.23, amp: 0.20, tau: 0.095, shimmer: 0.35, rand });
+  applyBiquad(mono, sampleRate, 'highpass', 180, 0.7);
+  applyBiquad(mono, sampleRate, 'lowpass', 3000, 0.7);
+  shapeEnvelope(mono, sampleRate, 0.8, 30);
+  return normalizeStereo(...addStereoMicroRoom(mono, sampleRate, 0.16), 0.34);
+}
+
+function buildCompleteStereo(sampleRate) {
+  // Luminous D-major completion arpeggio: D5 -> F#5 -> A5 -> D6.
+  const n = Math.max(64, Math.round(1.05 * sampleRate));
+  const mono = new Float32Array(n);
+  const rand = mulberry32(8 * 7717 + 19);
+  const chord = [
+    [0.000, 587.33, 0.18, 0.28],
+    [0.078, 739.99, 0.20, 0.30],
+    [0.156, 880.00, 0.22, 0.32],
+    [0.240, 1174.66, 0.25, 0.38],
   ];
-  for (const note of notes) {
-    addFeltNote(out, sampleRate, {
-      ...note,
-      partialAmps: [1.0, 0.28, 0.09, 0.03],
-      contactMs: 3.2,
-      rand,
-    });
+  for (const [startSec, freqHz, amp, tau] of chord) {
+    addCelestaNote(mono, sampleRate, { startSec, freqHz, amp, tau, shimmer: 1.0, rand });
   }
-  applyHighpass1(out, sampleRate, 70);
-  applyLowpass2(out, sampleRate, 2500, 0.68);
-  normalizePeak(out, 0.20);
-  return shapeEnvelope(out, sampleRate, 3, 32);
+  applyBiquad(mono, sampleRate, 'highpass', 180, 0.7);
+  shapeEnvelope(mono, sampleRate, 0.8, 85);
+  return normalizeStereo(...addStereoMicroRoom(mono, sampleRate, 0.30), 0.45);
 }
 
-const CUE_BUILDERS = Object.freeze({
-  tap: buildTapCue,
-  flip: buildFlipCue,
-  correct: buildCorrectCue,
-  levelUp: buildLevelUpCue,
-  miss: buildMissCue,
-  complete: buildCompleteCue,
+const STEREO_BUILDERS = Object.freeze({
+  tap: buildTapStereo,
+  flip: buildFlipStereo,
+  correct: buildCorrectStereo,
+  levelUp: buildLevelUpStereo,
+  miss: buildMissStereo,
+  complete: buildCompleteStereo,
 });
 
-/** Synthesize a click-free, warm mono Float32Array PCM buffer for `cue` at `sampleRate`. */
-export function synthesizeCueSamples(cue, sampleRate = 44100) {
-  const builder = CUE_BUILDERS[cue];
-  if (!builder) return null;
-  const safeRate = Number.isFinite(sampleRate) && sampleRate >= 8000 ? sampleRate : 44100;
-  const samples = builder(safeRate);
-  for (let i = 0; i < samples.length; i += 1) {
-    if (!Number.isFinite(samples[i])) samples[i] = 0;
-    else if (samples[i] > MAX_BUFFER_PEAK) samples[i] = MAX_BUFFER_PEAK;
-    else if (samples[i] < -MAX_BUFFER_PEAK) samples[i] = -MAX_BUFFER_PEAK;
+function clampChannel(channel) {
+  for (let i = 0; i < channel.length; i += 1) {
+    if (!Number.isFinite(channel[i])) channel[i] = 0;
+    else if (channel[i] > MAX_DSP_PEAK) channel[i] = MAX_DSP_PEAK;
+    else if (channel[i] < -MAX_DSP_PEAK) channel[i] = -MAX_DSP_PEAK;
   }
-  return samples;
+  channel[0] = 0;
+  channel[channel.length - 1] = 0;
+  return channel;
 }
 
-const SUSPENDED_STALE_MS = 180;
+function synthesizeStereoCue(cue, sampleRate = 44100) {
+  const builder = STEREO_BUILDERS[cue];
+  if (!builder) return null;
+  const safeRate = Number.isFinite(sampleRate) && sampleRate >= 8000 ? sampleRate : 44100;
+  const [left, right] = builder(safeRate);
+  return [clampChannel(left), clampChannel(right)];
+}
+
+/** Synthesize a click-free, bounded mono Float32Array PCM buffer for `cue` at `sampleRate`. */
+export function synthesizeCueSamples(cue, sampleRate = 44100) {
+  const pair = synthesizeStereoCue(cue, sampleRate);
+  if (!pair) return null;
+  const [left, right] = pair;
+  const mono = new Float32Array(left.length);
+  for (let i = 0; i < left.length; i += 1) mono[i] = 0.5 * (left[i] + right[i]);
+  return clampChannel(mono);
+}
+
+function decodeBase64ToArrayBuffer(dataUri) {
+  const comma = dataUri.indexOf(',');
+  const b64 = comma >= 0 ? dataUri.slice(comma + 1) : dataUri;
+  if (typeof globalThis.atob === 'function') {
+    const bin = globalThis.atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
+    return bytes.buffer;
+  }
+  if (typeof globalThis.Buffer === 'function') {
+    const buf = globalThis.Buffer.from(b64, 'base64');
+    return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+  }
+  return null;
+}
+
+/** Trim any tiny MP3 encoder leading frame padding (<= 35 ms) so studio samples fire with zero lag. */
+function trimDecodedEncoderPadding(ctx, buffer) {
+  if (!buffer || typeof buffer.getChannelData !== 'function' || typeof ctx.createBuffer !== 'function') return buffer;
+  const chs = buffer.numberOfChannels || 1;
+  const len = buffer.length || 0;
+  const sr = buffer.sampleRate || 44100;
+  if (len < 128) return buffer;
+  let peak = 0;
+  for (let c = 0; c < chs; c += 1) {
+    const d = buffer.getChannelData(c);
+    for (let i = 0; i < len; i += 1) {
+      const a = Math.abs(d[i]);
+      if (a > peak) peak = a;
+    }
+  }
+  if (peak < 1e-5) return buffer;
+  const thresh = peak * 0.015;
+  const maxTrim = Math.min(len - 64, Math.round(sr * 0.035));
+  let onset = 0;
+  outer: for (let i = 0; i < maxTrim; i += 1) {
+    for (let c = 0; c < chs; c += 1) {
+      if (Math.abs(buffer.getChannelData(c)[i]) >= thresh) {
+        onset = i;
+        break outer;
+      }
+    }
+  }
+  const start = Math.max(0, onset - Math.round(sr * 0.002));
+  if (start < 32) return buffer;
+  const nextLen = len - start;
+  const out = ctx.createBuffer(chs, nextLen, sr);
+  const fadeIn = Math.min(nextLen, Math.round(sr * 0.0015));
+  for (let c = 0; c < chs; c += 1) {
+    const src = buffer.getChannelData(c).subarray(start);
+    const dst = out.getChannelData(c);
+    dst.set(src);
+    for (let i = 0; i < fadeIn; i += 1) dst[i] *= i / fadeIn;
+  }
+  return out;
+}
 
 let sharedCtx = null;
 let sharedCtxRate = 0;
 let cachedBuffers = new Map();
+let cachedDspBuffers = new Map();
+const cachedStereoSamples = new Map();
+let sampleDecodePromises = new Map();
 let lastPlayedAt = 0;
 const lastCueAt = new Map();
 let idleTimer = null;
+let prebakeHandle = null;
+let prebakeQueue = [];
+let prebakeRate = 44100;
 let previewTimers = [];
+let previewGeneration = 0;
 const activePreviewSources = new Set();
 let pendingSuspendedCue = null;
+
+function cancelPrebake() {
+  if (prebakeHandle === null) return;
+  if (typeof globalThis.cancelIdleCallback === 'function') {
+    try { globalThis.cancelIdleCallback(prebakeHandle); } catch { /* ignore */ }
+  }
+  prebakeHandle = null;
+  prebakeQueue = [];
+}
+
+function getOrSynthesizeStereo(cue, rate) {
+  const key = `${cue}@${rate}`;
+  if (cachedStereoSamples.has(key)) return cachedStereoSamples.get(key);
+  const pair = synthesizeStereoCue(cue, rate);
+  if (pair) cachedStereoSamples.set(key, pair);
+  return pair;
+}
+
+function decodeSampleBuffer(ctx, cue) {
+  if (!SAMPLE_CUES.has(cue) || typeof ctx?.decodeAudioData !== 'function') return null;
+  const rate = ctx.sampleRate || sharedCtxRate || 44100;
+  const key = `${cue}@${rate}`;
+  if (cachedBuffers.has(key)) return Promise.resolve(cachedBuffers.get(key));
+  if (sampleDecodePromises.has(key)) return sampleDecodePromises.get(key);
+
+  const dataUri = BAKED_SAMPLE_DATA_URIS[cue];
+  const raw = dataUri ? decodeBase64ToArrayBuffer(dataUri) : null;
+  if (!raw) return null;
+
+  const promise = Promise.resolve()
+    .then(() => ctx.decodeAudioData(raw.slice(0)))
+    .then((decoded) => {
+      if (ctx !== sharedCtx || !decoded) return null;
+      const trimmed = trimDecodedEncoderPadding(ctx, decoded);
+      cachedBuffers.set(key, { buffer: trimmed, isSample: true });
+      sampleDecodePromises.delete(key);
+      return cachedBuffers.get(key);
+    }, () => {
+      sampleDecodePromises.delete(key);
+      return null;
+    });
+  sampleDecodePromises.set(key, promise);
+  return promise;
+}
+
+function preloadSampleBuffers(ctx) {
+  if (!ctx || typeof ctx.decodeAudioData !== 'function') return;
+  for (const cue of SAMPLE_CUES) decodeSampleBuffer(ctx, cue);
+}
+
+function getDspBuffer(ctx, cue) {
+  const rate = ctx.sampleRate || sharedCtxRate || 44100;
+  const key = `${cue}@${rate}`;
+  if (cachedDspBuffers.has(key)) return cachedDspBuffers.get(key);
+  const pair = getOrSynthesizeStereo(cue, rate);
+  if (!pair || typeof ctx.createBuffer !== 'function') return null;
+  const [left, right] = pair;
+  const buffer = ctx.createBuffer(2, left.length, rate);
+  if (typeof buffer.copyToChannel === 'function') {
+    buffer.copyToChannel(left, 0);
+    buffer.copyToChannel(right, 1);
+  } else {
+    buffer.getChannelData?.(0)?.set?.(left);
+    if ((buffer.numberOfChannels || 1) > 1) buffer.getChannelData?.(1)?.set?.(right);
+  }
+  const entry = { buffer, isSample: false };
+  cachedDspBuffers.set(key, entry);
+  return entry;
+}
+
+function getReadyBufferEntry(ctx, cue) {
+  const rate = ctx.sampleRate || sharedCtxRate || 44100;
+  const key = `${cue}@${rate}`;
+  if (SAMPLE_CUES.has(cue) && typeof ctx.decodeAudioData === 'function') {
+    if (cachedBuffers.has(key)) return cachedBuffers.get(key);
+    return null;
+  }
+  return getDspBuffer(ctx, cue);
+}
+
+function runPrebakeSlice(deadline) {
+  prebakeHandle = null;
+  if (getAppearanceSound() === 'off') {
+    prebakeQueue = [];
+    return;
+  }
+  const rate = sharedCtxRate || prebakeRate || 44100;
+  while (prebakeQueue.length) {
+    const cue = prebakeQueue.shift();
+    const key = `${cue}@${rate}`;
+    if (!SAMPLE_CUES.has(cue)) {
+      if (!cachedStereoSamples.has(key)) getOrSynthesizeStereo(cue, rate);
+      if (sharedCtx && sharedCtx.state !== 'closed' && sharedCtx.sampleRate === rate && !cachedDspBuffers.has(key)) {
+        getDspBuffer(sharedCtx, cue);
+      }
+    } else if (sharedCtx && sharedCtx.state !== 'closed') {
+      decodeSampleBuffer(sharedCtx, cue);
+    }
+    if (deadline && typeof deadline.timeRemaining === 'function' && deadline.timeRemaining() <= 2) break;
+  }
+  if (prebakeQueue.length && typeof globalThis.requestIdleCallback === 'function') {
+    prebakeHandle = globalThis.requestIdleCallback(runPrebakeSlice, { timeout: 2000 });
+  }
+}
+
+/** Schedule idle pre-baking of waveforms when sound is enabled, without constructing AudioContext early. */
+export function scheduleSoundPrebake(sampleRate = sharedCtxRate || 44100) {
+  if (getAppearanceSound() === 'off') return false;
+  if (typeof globalThis.requestIdleCallback !== 'function') return false;
+  const rate = Number.isFinite(sampleRate) && sampleRate >= 8000 ? sampleRate : 44100;
+  prebakeRate = rate;
+  const missing = SOUND_CUES.filter((cue) => (
+    SAMPLE_CUES.has(cue)
+      ? !cachedBuffers.has(`${cue}@${rate}`)
+      : !cachedStereoSamples.has(`${cue}@${rate}`)
+  ));
+  if (!missing.length) return false;
+  prebakeQueue = missing;
+  if (prebakeHandle === null) {
+    prebakeHandle = globalThis.requestIdleCallback(runPrebakeSlice, { timeout: 2000 });
+  }
+  return true;
+}
+
+onAppearanceCacheChange((prefs) => {
+  if (prefs?.sound && prefs.sound !== 'off') scheduleSoundPrebake();
+  else cancelPrebake();
+});
 
 function clearPreviewTimers() {
   for (const timer of previewTimers) clearTimeout(timer);
@@ -335,6 +550,7 @@ function clearPreviewTimers() {
 
 /** Cancel any queued or in-flight Settings › Appearance sound preview cues. */
 export function stopSoundPreview() {
+  previewGeneration += 1;
   clearPreviewTimers();
   if (pendingSuspendedCue?.options?.preview) pendingSuspendedCue = null;
   for (const entry of [...activePreviewSources]) {
@@ -369,46 +585,47 @@ function getOrCreateContext() {
     sharedCtx = new AudioCtx();
     sharedCtxRate = sharedCtx.sampleRate || 44100;
     cachedBuffers = new Map();
+    cachedDspBuffers = new Map();
+    sampleDecodePromises = new Map();
+    preloadSampleBuffers(sharedCtx);
+    scheduleSoundPrebake(sharedCtxRate);
   }
   return sharedCtx;
 }
 
-function getBakedBuffer(ctx, cue) {
-  const rate = ctx.sampleRate || sharedCtxRate || 44100;
-  const key = `${cue}@${rate}`;
-  if (cachedBuffers.has(key)) return cachedBuffers.get(key);
-  const samples = synthesizeCueSamples(cue, rate);
-  if (!samples || typeof ctx.createBuffer !== 'function') return null;
-  const buffer = ctx.createBuffer(1, samples.length, rate);
-  if (typeof buffer.copyToChannel === 'function') buffer.copyToChannel(samples, 0);
-  else buffer.getChannelData?.(0)?.set?.(samples);
-  cachedBuffers.set(key, buffer);
-  return buffer;
+function resolveCueGain(cue, tier, isSample) {
+  const tierScale = TIER_SCALE[tier] ?? TIER_SCALE.subtle;
+  if (isSample) {
+    const sampleScale = BAKED_SAMPLE_GAINS[cue] ?? 0.5;
+    return Math.min(1.0, sampleScale * tierScale);
+  }
+  return (DSP_CUE_GAINS[cue] ?? 0.85) * tierScale;
 }
 
-function startCuePlayback(ctx, buffer, cue, tier, options = {}) {
+function startCuePlayback(ctx, entry, cue, tier, options = {}) {
+  const buffer = entry?.buffer;
   const source = ctx.createBufferSource?.();
   const gain = ctx.createGain?.();
-  if (!source || !gain || !ctx.destination) return false;
+  if (!buffer || !source || !gain || !ctx.destination) return false;
 
-  const targetGain = CUE_GAINS[tier]?.[cue] ?? 0.52;
+  const targetGain = resolveCueGain(cue, tier, !!entry.isSample);
   const startAt = ctx.currentTime || 0;
   source.buffer = buffer;
   if (source.playbackRate) {
     const jitter = CUE_JITTER[cue] || 0;
-    source.playbackRate.value = 1 + (Math.random() * 2 - 1) * jitter;
+    source.playbackRate.value = jitter ? 1 + (Math.random() * 2 - 1) * jitter : 1;
   }
   gain.gain?.setValueAtTime?.(targetGain, startAt);
 
-  let warmBus = null;
+  let airBus = null;
   source.connect(gain);
   if (typeof ctx.createBiquadFilter === 'function') {
-    warmBus = ctx.createBiquadFilter();
-    warmBus.type = 'lowpass';
-    warmBus.frequency?.setValueAtTime?.(2550, startAt);
-    warmBus.Q?.setValueAtTime?.(0.65, startAt);
-    gain.connect(warmBus);
-    warmBus.connect(ctx.destination);
+    airBus = ctx.createBiquadFilter();
+    airBus.type = 'lowpass';
+    airBus.frequency?.setValueAtTime?.(AIR_BUS_CUTOFF_HZ, startAt);
+    airBus.Q?.setValueAtTime?.(Math.SQRT1_2, startAt);
+    gain.connect(airBus);
+    airBus.connect(ctx.destination);
   } else {
     gain.connect(ctx.destination);
   }
@@ -421,8 +638,8 @@ function startCuePlayback(ctx, buffer, cue, tier, options = {}) {
     if (previewEntry) activePreviewSources.delete(previewEntry);
     try { source.disconnect?.(); } catch { /* ignore */ }
     try { gain.disconnect?.(); } catch { /* ignore */ }
-    if (warmBus) {
-      try { warmBus.disconnect?.(); } catch { /* ignore */ }
+    if (airBus) {
+      try { airBus.disconnect?.(); } catch { /* ignore */ }
     }
   };
   if (options.preview) {
@@ -436,12 +653,41 @@ function startCuePlayback(ctx, buffer, cue, tier, options = {}) {
   return true;
 }
 
-/** Play one Acoustic Desk cue respecting the learner's sound mode, mic mute guard, tab visibility and cooldowns. */
+function canPlayDeferred(ctx, requestedAt, options, capturedPreviewGen) {
+  if (ctx !== sharedCtx || ctx.state !== 'running') return false;
+  if (Date.now() - requestedAt > SUSPENDED_STALE_MS) return false;
+  if (options.preview && capturedPreviewGen !== previewGeneration) return false;
+  if (isAudioCaptureActive()) return false;
+  if (!options.allowHidden && globalThis.document?.hidden === true) return false;
+  const latestMode = options.mode ?? getAppearanceSound();
+  if (!options.force && latestMode === 'off') return false;
+  return true;
+}
+
+function playResolvedOrDecoded(ctx, cue, tier, options, requestedAt, capturedPreviewGen) {
+  const ready = getReadyBufferEntry(ctx, cue);
+  if (ready) return startCuePlayback(ctx, ready, cue, tier, options);
+
+  const decoding = decodeSampleBuffer(ctx, cue);
+  if (decoding) {
+    decoding.then((entry) => {
+      if (!canPlayDeferred(ctx, requestedAt, options, capturedPreviewGen)) return;
+      const resolved = entry || getDspBuffer(ctx, cue);
+      if (resolved) startCuePlayback(ctx, resolved, cue, tier, options);
+    });
+    return true;
+  }
+
+  const fallback = getDspBuffer(ctx, cue);
+  return fallback ? startCuePlayback(ctx, fallback, cue, tier, options) : false;
+}
+
+/** Play one study cue respecting the learner's sound mode, mic mute guard, tab visibility and cooldowns. */
 export function playSound(cue, options = {}) {
   try {
     if (!SOUND_CUES.includes(cue)) return false;
     if (isAudioCaptureActive()) return false;
-    const mode = options.mode ?? loadAppearance().sound;
+    const mode = options.mode ?? getAppearanceSound();
     if (!options.force && mode === 'off') return false;
     const tier = mode === 'standard' ? 'standard' : 'subtle';
     if (!options.force && tier === 'subtle' && !SUBTLE_CUES.has(cue)) return false;
@@ -454,28 +700,22 @@ export function playSound(cue, options = {}) {
     }
 
     const ctx = getOrCreateContext();
-    if (!ctx || !ctx.destination) return false;
-    const buffer = getBakedBuffer(ctx, cue);
-    if (!buffer || typeof ctx.createBufferSource !== 'function' || typeof ctx.createGain !== 'function') return false;
+    if (!ctx || !ctx.destination || typeof ctx.createBufferSource !== 'function' || typeof ctx.createGain !== 'function') {
+      return false;
+    }
 
+    const capturedPreviewGen = previewGeneration;
     if (ctx.state === 'suspended') {
       lastPlayedAt = nowMs;
       lastCueAt.set(cue, nowMs);
-      pendingSuspendedCue = { cue, tier, options, requestedAt: nowMs };
+      pendingSuspendedCue = { cue, tier, options, requestedAt: nowMs, previewGen: capturedPreviewGen };
       const resuming = Promise.resolve(ctx.resume?.());
       if (ctx.state === 'suspended') {
         resuming.then(() => {
           const pending = pendingSuspendedCue;
           pendingSuspendedCue = null;
-          if (!pending || ctx !== sharedCtx || ctx.state !== 'running') return;
-          if (Date.now() - pending.requestedAt > SUSPENDED_STALE_MS) return;
-          if (isAudioCaptureActive()) return;
-          if (!pending.options.allowHidden && globalThis.document?.hidden === true) return;
-          const latestMode = pending.options.mode ?? loadAppearance().sound;
-          if (!pending.options.force && latestMode === 'off') return;
-          const baked = getBakedBuffer(ctx, pending.cue);
-          if (!baked) return;
-          startCuePlayback(ctx, baked, pending.cue, pending.tier, pending.options);
+          if (!pending || !canPlayDeferred(ctx, pending.requestedAt, pending.options, pending.previewGen)) return;
+          playResolvedOrDecoded(ctx, pending.cue, pending.tier, pending.options, pending.requestedAt, pending.previewGen);
         }, () => {
           pendingSuspendedCue = null;
         });
@@ -486,13 +726,13 @@ export function playSound(cue, options = {}) {
 
     lastPlayedAt = nowMs;
     lastCueAt.set(cue, nowMs);
-    return startCuePlayback(ctx, buffer, cue, tier, options);
+    return playResolvedOrDecoded(ctx, cue, tier, options, nowMs, capturedPreviewGen);
   } catch {
     return false;
   }
 }
 
-/** Gentle three-note chime for TodayTimer (allowed in background tabs unless mic/tab capture is active). */
+/** Luminous D-major chime for TodayTimer (allowed in background tabs unless mic/tab capture is active). */
 export function playTimerChime() {
   return playSound('complete', { force: true, allowHidden: true, skipThrottle: true });
 }
@@ -505,12 +745,12 @@ export function playSoundPreview(mode = 'subtle') {
   const sequence = tier === 'standard'
     ? [
       { delayMs: 0, cue: 'tap' },
-      { delayMs: 160, cue: 'flip' },
-      { delayMs: 370, cue: 'correct' },
+      { delayMs: 180, cue: 'flip' },
+      { delayMs: 920, cue: 'correct' },
     ]
     : [
       { delayMs: 0, cue: 'flip' },
-      { delayMs: 220, cue: 'correct' },
+      { delayMs: 740, cue: 'correct' },
     ];
   let started = false;
   for (const step of sequence) {
@@ -530,11 +770,16 @@ export function playSoundPreview(mode = 'subtle') {
 /** Release timers, cooldowns and the shared Web Audio context cleanly between unit tests. */
 export function resetSoundEngineForTests() {
   stopSoundPreview();
+  cancelPrebake();
   pendingSuspendedCue = null;
   clearIdleTimer();
   lastPlayedAt = 0;
   lastCueAt.clear();
   cachedBuffers.clear();
+  cachedDspBuffers.clear();
+  cachedStereoSamples.clear();
+  sampleDecodePromises.clear();
+  invalidateAppearanceCache();
   if (sharedCtx) {
     try { Promise.resolve(sharedCtx.close?.()).catch(() => {}); } catch { /* ignore */ }
     sharedCtx = null;

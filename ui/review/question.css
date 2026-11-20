@@ -121,7 +121,7 @@
     }
     .question-live-mastery[data-rose='true'] {
       border-color: var(--ok-line);
-      background: var(--ok-halo);
+      background: var(--ok-bg);
       color: var(--ok-ink);
     }
     .question-live-mastery__delta {
@@ -235,8 +235,8 @@
       white-space: pre-wrap;
     }
     .option-letter {
-      transition: background-color var(--dur-slow) var(--ease), box-shadow var(--dur-slow) var(--ease), color var(--dur-slow) var(--ease);
-      transition-delay: calc(var(--reveal-index, 0) * 50ms);
+      transition: background-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease), color var(--dur) var(--ease);
+      transition-delay: calc(var(--reveal-index, 0) * 24ms);
       display: inline-grid;
       place-items: center;
       flex-shrink: 0;
@@ -275,6 +275,9 @@
     .option--selected {
       background: var(--bg-selected);
     }
+    .option--pending {
+      box-shadow: inset 0 0 0 1px var(--line-strong);
+    }
     /* 判断题: two large 对 / 错 buttons side by side. Once answered they are ruled rows like any option, so each verdict has room for its explanation. */
     .options--verdict:not(.options--answered) {
       flex-direction: row;
@@ -297,29 +300,19 @@
       font-weight: var(--fw-medium);
       line-height: 1.3;
     }
-    /* After answering, each option's verdict and explanation grow open from zero
-       height, staggered down the list, so the card lengthens smoothly. */
+    /* After answering, each option's verdict and explanation fade/settle in on the compositor without per-frame layout reflow. */
     .option-reveal {
-      display: grid;
-      grid-template-rows: 1fr;
-      animation: option-reveal 0.46s var(--ease-out) both;
-      animation-delay: calc(var(--reveal-index, 0) * 50ms);
+      animation: option-reveal var(--dur) var(--ease-out) both;
+      animation-delay: calc(var(--reveal-index, 0) * 24ms);
     }
     .option-reveal > div {
       min-height: 0;
-      overflow: hidden;
-      animation: option-ink 0.46s var(--ease-out) both;
-      animation-delay: calc(var(--reveal-index, 0) * 50ms + 40ms);
     }
     .choice-feedback-wrap {
-      display: grid;
-      grid-template-rows: 1fr;
       margin: calc(var(--space-3) * -1) 0 var(--space-3-5);
-      animation: option-reveal 0.36s var(--ease-out) both;
+      animation: option-reveal var(--dur) var(--ease-out) both;
     }
     .choice-feedback-wrap > .choice-feedback {
-      min-height: 0;
-      overflow: hidden;
       margin: 0;
     }
     .draft-generation-details .quality-note {
@@ -342,7 +335,7 @@
   @media (prefers-reduced-motion: reduce) {
     :where(.study-app, .study-seat) {
       .option-reveal, .option-reveal > div, .choice-feedback-wrap, .next-due__telemetry, .question-live-mastery__delta { animation: none; }
-      .option-letter { transition: none; }
+      .option-letter, .question-area > .explanation { transition: none; }
     }
   }
   :where(.study-app, .study-seat) {
@@ -470,8 +463,9 @@
       margin: var(--space-4) 0;
     }
     .next-due.next-due--verdict {
-      width: fit-content;
       margin: var(--space-3-5) 0 var(--space-3);
+    }
+    .next-due.next-due--verdict .next-due__lead {
       font-weight: var(--fw-medium);
     }
     .next-due.next-due--verdict:has(+ .question-book-link) {
@@ -483,6 +477,38 @@
       align-items: center;
       gap: var(--space-2);
       margin: 0 0 var(--space-2);
+    }
+    .next-due.next-due--why {
+      margin: 0 0 var(--space-3);
+    }
+    .stubborn-cue {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1-5) var(--space-3);
+      margin: 0 0 var(--space-3);
+      padding-top: var(--space-2);
+      border-top: 1px solid var(--line-soft);
+      font-size: var(--fs-sm);
+      color: var(--warn-ink);
+    }
+    .stubborn-cue__actions {
+      display: inline-flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2);
+    }
+    .post-answer-wrong-try {
+      margin-top: var(--space-3);
+    }
+    .explanation-inline-ask {
+      margin-top: var(--space-3);
+    }
+    .explanation-inline-ask--open {
+      display: grid;
+      gap: var(--space-2-5);
+      padding-top: var(--space-3);
+      border-top: 1px solid var(--line-soft);
     }
     /* The icon has its own column: a lead line that wraps starts its second line under the words, not under the icon. */
     .next-due__lead { display: flex; align-items: flex-start; gap: var(--space-1-5); margin: 0; }
@@ -548,10 +574,10 @@
       margin-top: var(--space-5-5);
     }
     /* Feynman recall veil: softly frost the explanation above while drafting in 用自己的话讲一遍, lifting on hover, focus or after feedback. */
-    .review-body > .explanation {
+    .question-area > .explanation {
       transition: filter var(--dur) var(--ease), opacity var(--dur) var(--ease);
     }
-    .review-body > .explanation:has(~ [data-retell-drafting]):not(:hover, :focus-within) {
+    .question-area:has([data-retell-drafting]) > .explanation:not(:hover, :focus-within) {
       filter: blur(5px);
       opacity: 0.42;
     }
@@ -655,9 +681,15 @@
       font-variant-numeric: tabular-nums;
     }
     .submit-clear {
+      position: relative;
       min-height: 0;
       padding: 0;
       font-size: var(--fs-sm);
+    }
+    .submit-clear::after {
+      content: "";
+      position: absolute;
+      inset: calc(var(--space-1) * -1);
     }
     .flash-area {
       margin-top: var(--space-9);
@@ -881,11 +913,20 @@
       color: var(--text-muted);
       overflow-wrap: anywhere;
     }
-    /* Area under the card: response box → grading → nothing, eased not snapped. */
+    /* Area under the card: response box → grading → nothing, eased natively via interpolate-size where supported. */
     .smooth-height {
-      transition: height 0.32s var(--ease);
+      interpolate-size: allow-keywords;
+      block-size: auto;
       overflow: clip;
       overflow-clip-margin: 12px;
+    }
+    .smooth-height:has(> .smooth-height-inner:empty) {
+      block-size: 0;
+    }
+    @supports (interpolate-size: allow-keywords) {
+      .smooth-height {
+        transition: block-size var(--dur-slow) var(--ease);
+      }
     }
     .smooth-height-inner {
       display: flow-root;
@@ -954,17 +995,22 @@
     .flash-area .prereq-strip {
       margin: var(--space-4) var(--space-3) 0;
     }
-    .prereq-strip > summary {
+    .prereq-strip > summary,
+    .prereq-strip__head {
       display: flex;
       align-items: center;
       gap: var(--space-2-5);
       --sh-summary-marker-gap: 0;
       padding: var(--space-2) var(--space-2-5) var(--space-2) var(--space-3-5);
-      cursor: pointer;
       color: var(--text-dim);
     }
+    .prereq-strip > summary { cursor: pointer; }
     /* The count beside the chevron, the action at the end of the line. */
-    .prereq-strip > summary > span { flex: 1 1 auto; min-width: 0; }
+    .prereq-strip > summary > span,
+    .prereq-strip__label { flex: 1 1 auto; min-width: 0; }
+    .prereq-strip__label { cursor: pointer; }
+    .prereq-strip__toggle { flex: none; }
+    .prereq-strip__action { flex: none; }
     .prereq-strip ul {
       list-style: none;
       margin: 0;
@@ -1050,6 +1096,10 @@
       .flash-follow .response-label {
         animation: none;
       }
+      .flip-loading {
+        animation: none;
+        background: var(--line);
+      }
       .flip-face {
         transition: opacity var(--dur);
       }
@@ -1100,15 +1150,35 @@
     }
     .grade-scale {
       display: grid;
-      grid-template-columns: repeat(6, minmax(0, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-4);
+    }
+    .grade-group {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1-5);
+      min-width: 0;
+      padding-top: var(--space-2);
+      border-top: 1px solid var(--line-soft);
+    }
+    .grade-group__label {
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-medium);
+      color: var(--text-muted);
+    }
+    .grade-group--fail .grade-group__label { color: var(--bad-ink); }
+    .grade-group--pass .grade-group__label { color: var(--ok-ink); }
+    .grade-group__buttons {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: var(--space-1);
     }
     /* Each cell is the tooltip's anchor (#745), so the button fills the cell the grid measured and the scale looks unchanged. */
-    .grade-scale > .grade-tip {
+    .grade-group__buttons > .grade-tip {
       display: flex;
       min-width: 0;
     }
-    .grade-scale > .grade-tip > .grade {
+    .grade-group__buttons > .grade-tip > .grade {
       flex: 1;
     }
     .grade {
@@ -1138,7 +1208,7 @@
     .grade.high {
       color: var(--ok-ink);
     }
-    .grade-scale > .grade-tip:nth-child(4) .grade {
+    .grade.warn {
       color: var(--warn-ink);
     }
     .grade strong {
@@ -1175,7 +1245,7 @@
   }
   @container grading (max-width: 640px) {
     :where(.study-app, .study-seat) {
-      .grade-scale { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .grade-scale { grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
     }
   }
   :where(.study-app, .study-seat) {
@@ -1323,6 +1393,8 @@
   @container study (max-width: 600px) {
     :where(.study-app, .study-seat) {
       .review-body > .question-area { width: 100%; min-width: 0; }
+      /* In split-pane mode (.has-source), .review-body is its own <=600px container while .review-page has no narrow gutter: keep breathing room from the rail and divider. */
+      .review-page.has-source > .review-body > .question-area { width: min(var(--review-column, 700px), calc(100% - 2 * var(--space-4))); }
     }
   }
   @container study (max-width: 980px) {
@@ -1351,13 +1423,10 @@
 }
 @keyframes option-reveal {
   from {
-    grid-template-rows: 0fr;
     opacity: 0;
+    transform: translateY(-4px);
   }
 }
 @keyframes sh-telemetry-in {
   from { opacity: 0; transform: translateY(3px); }
-}
-@keyframes option-ink {
-  from { transform: translateY(-6px); }
 }

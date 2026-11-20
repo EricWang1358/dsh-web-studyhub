@@ -6,6 +6,7 @@ import Inbox from '../Inbox.jsx';
 import { Button, Icon, IconBox, Tooltip } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
 import { useApp } from './app-context.js';
+import { useStudyBusy } from '../study-context.jsx';
 import { useNavAlert } from './use-nav-alert.js';
 import { hostPart } from '../host-parts.js';
 import { modelReadiness } from '../generation-status.js';
@@ -90,15 +91,11 @@ function NavMenuButton() {
   );
 }
 
-/** The top bar: the crumb for the page on screen, where the library lives, whether the host is working, and the mailbox. */
-export default function AppTopbar({ title }) {
-  useInjectCss(css, 'study-app-shell');
-  const { data, core, nav, connection, inbox, settingsEntry, shell } = useApp();
-  const { busy, act, quick, quickApi } = core;
-  const { binding, running, publishing, syncIssue, syncTransient } = connection;
+/** Leaf status indicator subscribing to `busy` alone so AppTopbar does not re-render on every single-flight RPC. */
+function TopbarStatus({ data, core, running, publishing, syncIssue, syncTransient, onOpenLibrary }) {
+  const busy = useStudyBusy() || !!core?.busy;
   const labelId = React.useId();
   // 已连接 is about the library (the chip beside it names the folder); with no model to run the questions the bar says so (and keeps its words in a narrow pane: it is not the steady state).
-  const model = modelReadiness(data);
   const noModel = !!data && (data.model ? data.model.ready === false : data.modelReady === false);
   const hint = statusHint({ busy, running, publishing, syncIssue, syncTransient });
   const idle = !busy && !running && !syncIssue && data && !noModel;
@@ -106,9 +103,27 @@ export default function AppTopbar({ title }) {
   // looks exactly like the words it replaced, so the bar does not move. A failing read or a running action keeps its own words and is not a button.
   const fixModel = noModel && !busy && !running && !syncIssue;
   const words = statusText({ busy, running, publishing, syncIssue, syncTransient, data, noModel });
-  const openLibrary = () => openLibrarySettings(settingsEntry, nav);
   const dot = <i className={`dot ${busy || running ? 'busy' : data && !syncIssue && !noModel ? 'is-online' : ''}`} aria-hidden="true" />;
   const label = <span className="top-status-label" id={labelId}>{words}</span>;
+  return (
+    <Tooltip layer content={hint} anchorClassName={'top-status-anchor' + (idle ? ' is-idle' : '')}>
+      <span className={'top-status' + (idle ? ' idle' : '')} role="status" tabIndex={hint ? 0 : undefined} aria-labelledby={hint ? labelId : undefined}>
+        {fixModel
+          ? <Button variant="quiet" size="sm" className="top-status__fix" aria-label={uiFormat('{0}。打开「学习库与模型」设置', [words])} onClick={onOpenLibrary}>{dot}{label}</Button>
+          : <>{dot}{label}</>}
+      </span>
+    </Tooltip>
+  );
+}
+
+/** The top bar: the crumb for the page on screen, where the library lives, whether the host is working, and the mailbox. */
+const AppTopbar = React.memo(function AppTopbar({ title }) {
+  useInjectCss(css, 'study-app-shell');
+  const { data, core, nav, connection, inbox, settingsEntry, shell } = useApp();
+  const { act, quick, quickApi } = core;
+  const { binding, running, publishing, syncIssue, syncTransient } = connection;
+  const model = modelReadiness(data);
+  const openLibrary = React.useCallback(() => openLibrarySettings(settingsEntry, nav), [settingsEntry, nav]);
   return (
     <header className="topbar">
       {shell?.navDrawer && <NavMenuButton />}
@@ -120,13 +135,7 @@ export default function AppTopbar({ title }) {
       <div className="top-right">
         <LibraryChip root={binding.root} onOpen={openLibrary} />
         <ModelChip label={model.ready ? model.label : ''} note={hostPart('modelCostNote')?.(binding)} onOpen={openLibrary} />
-        <Tooltip layer content={hint} anchorClassName={'top-status-anchor' + (idle ? ' is-idle' : '')}>
-          <span className={'top-status' + (idle ? ' idle' : '')} role="status" tabIndex={hint ? 0 : undefined} aria-labelledby={hint ? labelId : undefined}>
-            {fixModel
-              ? <Button variant="quiet" size="sm" className="top-status__fix" aria-label={uiFormat('{0}。打开「学习库与模型」设置', [words])} onClick={openLibrary}>{dot}{label}</Button>
-              : <>{dot}{label}</>}
-          </span>
-        </Tooltip>
+        <TopbarStatus data={data} core={core} running={running} publishing={publishing} syncIssue={syncIssue} syncTransient={syncTransient} onOpenLibrary={openLibrary} />
         {data && (
           <Inbox inbox={data.inbox} onOpen={inbox.openInboxItem} onReadAll={() => markInboxRead(quick)}
             onToggleRead={(letter) => (letter.read ? markInboxUnread(quick, { ids: [letter.id] }) : markInboxRead(quick, { ids: [letter.id] }))}
@@ -137,4 +146,6 @@ export default function AppTopbar({ title }) {
       </div>
     </header>
   );
-}
+});
+
+export default AppTopbar;

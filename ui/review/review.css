@@ -152,6 +152,11 @@
     .review-sticky-bar[data-answered="true"],
     .review-sticky-bar[data-grading="true"] {
       bottom: 0;
+      border-top: 1px solid var(--line-soft);
+    }
+    /* Keep keyboard Tab focus clear of the sticky bottom review toolbar (WCAG 2.4.11). */
+    &:has(.review-sticky-bar[data-answered="true"], .review-sticky-bar[data-grading="true"]) {
+      scroll-padding-bottom: calc(var(--space-9) + var(--space-7));
     }
     .review-undo {
       color: var(--accent-text);

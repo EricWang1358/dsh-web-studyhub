@@ -4,7 +4,7 @@ import Cloze from "../Cloze.jsx";
 import EnBlock from "../EnBlock.jsx";
 import Markdown from "../Markdown.jsx";
 import { Badge, Button, Tooltip } from "../components/index.js";
-import { useStudy } from "../study-context.jsx";
+import { useStudyBusy } from "../study-context.jsx";
 import { MasteryMark } from "../document-preview/practice/MasteryMark.jsx";
 import { fixedOptionLabel, optionMark } from "../option-label.js";
 import QuestionSourcePage from "./QuestionSourcePage.jsx";
@@ -109,11 +109,11 @@ export function QuestionMetaBadges({ run, sources, cardNotes = [], onOpenNote })
 }
 
 /** Secondary post-answer disclosure: schedule details, non-picked option notes, misconception/rubric, and guided learning actions. */
-export function PostAnswerDetails({ session, data, model, onModelSettings, openModal, showSolution, verdict = false, enOn = false, enAnswer = null, defaultOpen = false, nextDueNode = null }) {
+export function PostAnswerDetails({ session, data, model, onModelSettings, openModal, showSolution, verdict = false, enOn = false, enAnswer = null, defaultOpen = false, nextDueNode = null, misconceptionShownAbove = false }) {
   const { run, choice } = session;
   const key = reviewEntryKey(run);
-  const [isOpen, setIsOpen] = React.useState(!!defaultOpen);
-  React.useEffect(() => { setIsOpen(!!defaultOpen); }, [key, defaultOpen]);
+  const [openState, setOpenState] = React.useState({ key, open: !!defaultOpen });
+  const isOpen = openState.key === key ? openState.open : !!defaultOpen;
   if (!run?.feedback || run.mode === "exam") return null;
   const otherOptions = choice && Array.isArray(run.card?.options) && Array.isArray(run.solution?.options)
     ? run.card.options.flatMap((option, index) => {
@@ -130,9 +130,12 @@ export function PostAnswerDetails({ session, data, model, onModelSettings, openM
       }];
     })
     : [];
+  const summaryLabel = otherOptions.length > 0
+    ? uiFormat("更多解析与巩固方式（含 {0} 个干扰项辨析）", [otherOptions.length])
+    : ui("更多解析与巩固方式");
   return (
-    <details className="post-answer-more" open={isOpen || undefined} onToggle={(event) => setIsOpen(event.currentTarget.open)}>
-      <summary className="post-answer-more__summary">{ui("更多解析与巩固方式")}</summary>
+    <details className="post-answer-more" open={isOpen || undefined} onToggle={(event) => setOpenState({ key, open: event.currentTarget.open })}>
+      <summary className="post-answer-more__summary">{summaryLabel}</summary>
       <div className="post-answer-more__body">
         {isOpen && nextDueNode}
         {otherOptions.length > 0 && (
@@ -151,7 +154,7 @@ export function PostAnswerDetails({ session, data, model, onModelSettings, openM
             </ul>
           </div>
         )}
-        {showSolution && run.solution?.misconception && (
+        {showSolution && !misconceptionShownAbove && run.solution?.misconception && (
           <div className="post-answer-more__section">
             <h4>{ui("容易混淆的地方")}</h4>
             <Markdown text={run.solution.misconception} />
@@ -170,11 +173,12 @@ export function PostAnswerDetails({ session, data, model, onModelSettings, openM
 }
 
 /** Cloze stem, optional bilingual blocks, voice input slot, and submit row with progress count. */
-export function ClozeQuestion({ run, clozeValues, clozeFocusTick, enOn, enStem, enAnswer, voiceAnswer, actions }) {
-  const { busy } = useStudy();
+export function ClozeQuestion({ run, clozeValues, clozeFocusTick, enOn, enStem, enAnswer, voiceAnswer, actions, pendingCloze = false }) {
+  const busy = useStudyBusy();
   const { reviewAct, setClozeValue } = actions;
   const clozeIds = clozeRuns(run.card?.cloze?.text || "").filter((part) => part.t === "blank").map((part) => part.id);
   const filledCloze = clozeIds.filter((id) => String(clozeValues?.[id] ?? "").trim()).length;
+  const canMarkEquivalent = run.mode !== "exam" && !run.retry && !run.complete && !!run.feedback && !run.feedback.correct;
   return (
     <>
       <Cloze
@@ -187,6 +191,8 @@ export function ClozeQuestion({ run, clozeValues, clozeFocusTick, enOn, enStem, 
         disabled={busy || !!run.feedback}
         details={run.feedback?.details || null}
         solution={run.solution}
+        onMarkEquivalent={canMarkEquivalent ? () => reviewAct("review.grade.adjust", { entryIndex: run.index, clozeEquivalent: true }) : undefined}
+        equivalentBusy={busy}
       />
       {enOn && (enStem?.clozeText || enStem?.prompt) && (
         <EnBlock text={String(enStem.clozeText || enStem.prompt).replace(/\{\{[^{}]+\}\}/g, "＿＿")} />
@@ -200,7 +206,7 @@ export function ClozeQuestion({ run, clozeValues, clozeFocusTick, enOn, enStem, 
           {clozeIds.length >= 2 && (
             <span className="submit-hint" role="status">{uiFormat("已填 {0}/{1} 空", [filledCloze, clozeIds.length])}</span>
           )}
-          <Button variant="primary" className="submit-answer" data-usage="review.submit" disabled={!Object.values(clozeValues).some((v) => String(v).trim())} lock={busy}
+          <Button variant="primary" className="submit-answer" data-usage="review.submit" disabled={!Object.values(clozeValues).some((v) => String(v).trim())} busy={pendingCloze} lock={busy}
             onClick={() => reviewAct("review.answer", { answers: clozeValues })}>{ui("提交答案")}</Button>
         </div>
       )}

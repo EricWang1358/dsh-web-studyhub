@@ -12,11 +12,11 @@ import { CasePaper } from './CaseWorkspace.jsx';
 import SubmitBlanksDialog from './SubmitBlanksDialog.jsx';
 import caseCss from './case-study.css';
 import examCss from './exam.css';
-import { Badge, Button, ErrorState, LoadingState, PageHeader, Panel, Tooltip } from './components/index.js';
+import { Badge, Button, ErrorState, LoadingState, PageHeader, Panel, Tooltip, focusQuietly } from './components/index.js';
 import { ExamHeader, RecentExams } from './ExamShell.jsx';
 import { defaultExamFormat, isExamFormat, recentExams, shortDeckTitles } from './exam-format.js';
 import { formatClock, joinMeta } from './format.js';
-import { useExamRun } from './exam/useExamRun.js';
+import { useExamRun, useExamClock } from './exam/useExamRun.js';
 import { DEFAULT_COUNT, cardKindName, clampCount, firstUnansweredIndex, picksFromRun, typeAvailableOf, unansweredCount } from './exam/exam-written.js';
 import { fixedOptionLabel } from './option-label.js';
 import OptionMark from './OptionMark.jsx';
@@ -33,9 +33,69 @@ import { useStudy } from './study-context.jsx';
 
 const RETRY_SUBMIT_MS = 5000;
 const LOW_TIME_MS = 5 * 60 * 1000;
+const FINAL_MINUTE_MS = 60 * 1000;
+
+/** Determine discrete countdown warning milestones for assertive screen-reader announcements. */
+export function examTimeWarning(remainingMs, expired) {
+  if (expired || remainingMs <= 0) return { key: "expired", text: ui("考试时间已到，正在自动交卷。") };
+  if (remainingMs <= FINAL_MINUTE_MS) return { key: "1m", text: ui("考试剩余不足 1 分钟。") };
+  if (remainingMs < LOW_TIME_MS) return { key: "5m", text: ui("考试剩余不足 5 分钟。") };
+  return { key: "", text: "" };
+}
+
+/** Leaf 1-second timer for written exams: keeps the countdown ticking without re-rendering the exam paper or option list. */
+const WrittenExamClock = React.memo(function WrittenExamClock({ run, limitMs, active, autoSubmitReady, onExpire, onAutoSubmit }) {
+  const timing = useExamClock(run, { enabled: active, limitMs });
+  const hasLimit = Number.isFinite(limitMs) && limitMs > 0;
+  const remainingMs = hasLimit ? Math.max(0, limitMs - timing.elapsedMs) : 0;
+  const lowTime = hasLimit && remainingMs < LOW_TIME_MS;
+  const warning = active && hasLimit ? examTimeWarning(remainingMs, timing.expired) : { key: "", text: "" };
+  const warnedRef = useRef({ runId: run?.id || "", key: "" });
+  const [urgentWarning, setUrgentWarning] = useState("");
+  const onExpireRef = useRef(onExpire);
+  onExpireRef.current = onExpire;
+  const onAutoSubmitRef = useRef(onAutoSubmit);
+  onAutoSubmitRef.current = onAutoSubmit;
+  useEffect(() => {
+    const runId = run?.id || "";
+    if (!active || !hasLimit) {
+      if (warnedRef.current.key) {
+        warnedRef.current = { runId, key: "" };
+        setUrgentWarning("");
+      }
+      return;
+    }
+    if (warnedRef.current.runId !== runId) {
+      warnedRef.current = { runId, key: "" };
+      setUrgentWarning("");
+    }
+    if (warning.key && warnedRef.current.key !== warning.key) {
+      warnedRef.current = { runId, key: warning.key };
+      setUrgentWarning(warning.text);
+    }
+  }, [active, hasLimit, run?.id, warning.key, warning.text]);
+  useEffect(() => {
+    if (active && timing.expired) onExpireRef.current?.();
+  }, [active, timing.expired]);
+  useEffect(() => {
+    if (active && timing.expired && autoSubmitReady?.()) onAutoSubmitRef.current?.();
+  }, [active, timing.expired, timing.elapsedMs, autoSubmitReady]);
+  return (
+    <>
+      <Tooltip layer content={hasLimit ? uiFormat("已用时 {0}", [formatClock(timing.elapsedMs)]) : ui("已用时")}>
+        <span className={"exam-timer exam-countdown" + (lowTime ? " is-low" : "")} tabIndex={0}>
+          {hasLimit ? uiFormat("剩余时间 {0}", [formatClock(remainingMs)]) : uiFormat("已用时 {0}", [formatClock(timing.elapsedMs)])}
+        </span>
+      </Tooltip>
+      <span className="sh-visually-hidden" role="alert" aria-live="assertive" aria-atomic="true" data-live-announcer="exam-timer">
+        {urgentWarning}
+      </span>
+    </>
+  );
+});
 
 export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun, onSetupModel, onOpenSource, initialRunId, initialKind = 'exam', onLocation }) {
-  const { call } = useStudy();
+  const { call, act } = useStudy();
   useInjectCss(css, "study-views");
   useInjectCss(caseCss, "study-case-workspace");
   useInjectCss(examCss, "study-exam");
@@ -55,25 +115,44 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
     [confirming, setConfirming] = useState(false),
     [pathNote, setPathNote] = useState("");
   const picksRef = useRef({}), writes = useRef(createWriteQueue());
-  const exam = useExamRun({ kind: 'exam', call, initialRunId, onLocation, limitMs: (current) => examLimitMs(current) ?? Infinity, retryMs: RETRY_SUBMIT_MS, locate: examMode === 'written',
-    autoSubmit: { when: (timing) => examMode === 'written' && timing.expired, run: () => submit() } });
-  const { phase, run, report, busy, error: err, elapsedMs, startMs, expired } = exam;
+  const [expiredRunId, setExpiredRunId] = useState(null);
+  const exam = useExamRun({ kind: 'exam', call, initialRunId, onLocation, limitMs: (current) => examLimitMs(current) ?? Infinity, retryMs: RETRY_SUBMIT_MS, locate: examMode === 'written', tick: false });
+  const { phase, run, report, busy, error: err, startMs } = exam;
+  const expired = Boolean(phase === 'running' && run?.id && (exam.expired || expiredRunId === run.id));
   const count = clampCount(countDraft);
   // How long this paper lasts: what the run says once it is running; before that, the learner's choice for this course, else the course's own time.
   const runLimitMs = examLimitMs(run) ?? Infinity;
-  const hasLimit = Number.isFinite(runLimitMs) && runLimitMs > 0;
-  const remainingMs = hasLimit ? Math.max(0, runLimitMs - elapsedMs) : 0;
-  const lowTime = hasLimit && remainingMs < LOW_TIME_MS;
   const limitDefault = defaultLimitMinutes(data, course);
   const savedLimit = useMemo(() => { try { return JSON.parse(limitChoice); } catch { return null; } }, [limitChoice]);
   const limitMinutes = savedLimit?.course === course && Number.isInteger(savedLimit.minutes) && savedLimit.minutes >= LIMIT_MINUTES.min && savedLimit.minutes <= LIMIT_MINUTES.max
     ? savedLimit.minutes : limitDefault.minutes;
   const pageRef = useRef(null);
+  const examPromptRef = useRef(null);
+  const [statusAnnouncement, setStatusAnnouncement] = useState("");
+  const prevExamViewRef = useRef({ phase, cardId: phase === "running" ? (run?.card?.id || "") : "" });
   useEffect(() => {
     if (!initialRunId || !['running', 'report'].includes(phase)) return;
     const heading = pageRef.current?.querySelector('h1');
     if (heading) { heading.tabIndex = -1; heading.focus(); }
   }, [initialRunId, phase]);
+  useEffect(() => {
+    const cardId = phase === "running" ? (run?.card?.id || "") : "";
+    const prev = prevExamViewRef.current;
+    if (prev.phase === phase && prev.cardId === cardId) return;
+    prevExamViewRef.current = { phase, cardId };
+    if (prev.phase !== "running" && phase === "running" && run?.total) {
+      setStatusAnnouncement(uiFormat("模拟考试已开始，共 {0} 题", [run.total]));
+    } else if (prev.phase === "running" && phase === "report") {
+      setStatusAnnouncement(ui("模拟考试已交卷，成绩报告已生成"));
+    } else if (phase === "setup") {
+      setStatusAnnouncement("");
+    }
+    const switchedQuestion = prev.phase === "running" && prev.cardId && prev.cardId !== cardId;
+    const enteredFromSetup = prev.phase === "setup" && phase === "running";
+    if (phase === "running" && cardId && (switchedQuestion || enteredFromSetup) && !confirming && examPromptRef.current) {
+      focusQuietly(examPromptRef.current, { preventScroll: true });
+    }
+  }, [phase, run?.card?.id, run?.total, confirming]);
 
   function applyPicks(next) {
     picksRef.current = next;
@@ -286,10 +365,20 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
     setOpenRun({ kind: item.kind, runId: item.runId }); setPicked(item.kind); setSavedFormat(item.kind);
   }
 
+  const togglePostmortem = useCallback(async (next) => {
+    if (typeof act !== 'function') return false;
+    const res = await act('settings.practice.set', { patch: { examPostmortemBridge: next ? true : null } });
+    return res !== undefined;
+  }, [act]);
+
   // One page, one switch (WP25): the header, the format's own setup card and the shared recent list.
+  const recentItems = useMemo(
+    () => (examMode !== 'written' || phase === 'setup' ? recentExams(data) : null),
+    [data, examMode, phase],
+  );
   const header = <ExamHeader courses={data?.focus?.courses} course={course} onCourse={chooseCourse} format={examMode} onFormat={chooseFormat}
     showInactive={showInactive} onShowInactive={show => { setShowInactive(show); setDeckChoice(''); }} />;
-  const recent = <RecentExams items={recentExams(data)} format={examMode} onOpen={openRecent} busy={busy} />;
+  const recent = recentItems ? <RecentExams items={recentItems} format={examMode} onOpen={openRecent} busy={busy} /> : null;
   const deepRun = (kind) => openRun?.kind === kind ? openRun.runId : initialKind === kind ? initialRunId : undefined;
   // 案例分析卷 (WP12): a timed case paper on the same exam runs, timer and report.
   if (examMode === "case") return <CasePaper key={`case:${deepRun("case") || ""}`} data={data} onExit={onExit}
@@ -304,6 +393,9 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
 
   return (
     <section ref={pageRef} className="page exam">
+      <div className="sh-visually-hidden" role="status" aria-live="polite" aria-atomic="true" data-live-announcer="exam-status">
+        {statusAnnouncement}
+      </div>
       {phase === "setup" && <WrittenSetup data={data} header={header} recent={recent} decks={decks} deckNames={deckNames} picked={pickedDecks}
         onPick={setPickedDecks} kinds={pickedKinds} typeMode={typeMode} onTypeMode={setTypeMode} count={count}
         onCount={(next) => setCountDraft(String(next))} busy={busy} error={err} flashOnly={flashOnly}
@@ -314,11 +406,10 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
         <>
           <PageHeader eyebrow={ui("模拟考试进行中")} title={run.title || ui("模拟考试")}
             actions={<>
-              <Tooltip layer content={hasLimit ? uiFormat("已用时 {0}", [formatClock(elapsedMs)]) : ui("已用时")}>
-                <span className={"exam-timer exam-countdown" + (lowTime ? " is-low" : "")} tabIndex={0}>
-                  {hasLimit ? uiFormat("剩余时间 {0}", [formatClock(remainingMs)]) : uiFormat("已用时 {0}", [formatClock(elapsedMs)])}
-                </span>
-              </Tooltip>
+              <WrittenExamClock run={run} limitMs={runLimitMs} active={examMode === 'written' && phase === 'running'}
+                autoSubmitReady={exam.autoSubmitReady}
+                onExpire={() => { if (run?.id) setExpiredRunId(run.id); }}
+                onAutoSubmit={submit} />
               <span className="exam-progress">{run.index + 1} / {run.total}</span>
             </>} />
           {run.total > 1 && <nav className="exam-jump" aria-label={ui("题目跳转与掌握程度")}>
@@ -345,7 +436,7 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
                 {run.card.multiple ? ui("选出所有符合条件的选项") : run.card.kind === "truefalse" ? ui("判断这句话对不对") : ui("选出一项")}
               </span>
             </div>
-            <div className="exam-prompt">
+            <div ref={examPromptRef} className="exam-prompt" role="heading" aria-level={2} tabIndex={-1}>
               <Markdown text={run.card.prompt} links={false} />
             </div>
             <div className="exam-options">
@@ -393,6 +484,7 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
       {phase === "report" && report && <WrittenReport report={report} busy={busy} pathNote={pathNote} error={err}
         practiceSettings={data?.settings?.practice} decks={data?.decks} sources={data?.sources}
         onQueueWeak={queueWeak} onPracticeTopic={practiceTopic} onPracticeScope={practiceScope} onOpenSource={onOpenSource}
+        onTogglePostmortem={togglePostmortem}
         onExit={onExit} onAgain={() => { setPathNote(""); exam.leave({ clear: false }); }} />}
     </section>
   );

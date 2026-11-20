@@ -94,3 +94,37 @@ export function reasonGroups(rows = [], map = {}) {
     .map((item) => ({ ...item, refs: refsForReason(rows, map, item.id) }))
     .filter((group) => group.refs.length > 0);
 }
+
+/** Resolve the active 0-token triage route for a missed look-back row, updating reactively as `#1156` reasons toggle. */
+export function resolveRowTriage(row, activeReasonId = '') {
+  if (!row || row.status !== 'wrong') return null;
+  const reason = typeof activeReasonId === 'string' ? activeReasonId.trim() : '';
+  const byReason = row.triageByReason && typeof row.triageByReason === 'object' ? row.triageByReason : null;
+  if (byReason) {
+    if (reason && byReason[reason]) return byReason[reason];
+    if (!reason) {
+      const persisted = typeof row.errorReason === 'string' ? row.errorReason.trim() : '';
+      if (persisted && !reasonLabelOf(persisted) && row.triage && typeof row.triage === 'object') return row.triage;
+      if (byReason.default) return byReason.default;
+    }
+  }
+  if (row.triage && typeof row.triage === 'object') {
+    if (reason === 'slip') return { route: 'fsrs_only', reason: 'slip', source: 'explicit', tokens: 'zero' };
+    if (reason === 'condition' || reason === 'derivation') {
+      return {
+        route: 'rescue_companion',
+        reason,
+        source: 'explicit',
+        tokens: 'light',
+        rescueFocus: reason,
+        ...(row.triage.course ? { course: row.triage.course } : {}),
+        ...(row.triage.hid || row.hid ? { hid: row.triage.hid || row.hid } : {}),
+      };
+    }
+    return row.triage;
+  }
+  return null;
+}
+
+/** Whether a triage decision calls for a conditional inline next-step action (false for `fsrs_only`). */
+export const isActionableTriage = (triage) => Boolean(triage && triage.route && triage.route !== 'fsrs_only');

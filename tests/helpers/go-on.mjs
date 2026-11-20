@@ -133,6 +133,7 @@ export const IN_PLACE = [
   { file: 'ui/document-preview/translation/TranslationMenu.jsx', handler: 'onStart', why: 'the confirm of a menu panel: it starts a background translation of this page' },
   { file: 'ui/DailyPlan.jsx', handler: 'onAdjust', why: 'opens the 调整今天 editor in the card (choose(\'adjust\')); only that handler\'s 查看待办 branch goes to the board' },
   { file: 'ui/book/BookEditor.jsx', handler: 'save', why: 'saves the book\'s text in the editor, which stays open; only a 完成 · 回到阅读 pressed while the save runs leaves after it (BookPage onSaving)' },
+  { file: 'ui/ExplanationFollowup.jsx', handler: 'onAskMore', why: 'opens the in-place follow-up composer under the same explanation; the learner stays on this question' },
 ];
 
 /* ---- What a click does: read from its handler, never from its words -----------------------------------------------------------------------------------------
