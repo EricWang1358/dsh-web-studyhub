@@ -127,6 +127,7 @@ const unavailableAsync = async () => unavailable();
 export const open = unavailableAsync, readdir = unavailableAsync, stat = unavailableAsync, lstat = unavailableAsync, readFile = unavailableAsync, realpath = unavailableAsync;
 export const access = unavailableAsync, chmod = unavailableAsync, cp = unavailableAsync, rmdir = unavailableAsync, statfs = unavailableAsync, unlink = unavailableAsync;
 export const createReadStream = unavailable, createWriteStream = unavailable, spawn = unavailable, openPdfDocument = unavailableAsync, getDocument = unavailable, TextLayer = unavailable;
+export const createRequire = unavailable, watch = unavailable;
 export const WorkerMessageHandler = {};
 export const readFileSync = p => String(p).includes('package.json') ? '{"version":"4.11.0"}' : unavailable();
 export const existsSync = () => false;

@@ -100,6 +100,10 @@ import polishShellCopy from './locales/en.polish-shell.json';
 import companionsCopy from './locales/en.companions.json';
 import desktopCopy from './locales/en.desktop.json';
 import evidenceCopy from './locales/en.evidence.json';
+import inkGardenCopy from './locales/en.ink-garden.json';
+import deskAtelierCopy from './locales/en.desk-atelier.json';
+import sealPressCopy from './locales/en.seal-press.json';
+import deskPlayCopy from './locales/en.desk-play.json';
 import appMessages from '../lib/application-messages-en.js';
 
 export const ENGLISH_SOURCES = {
@@ -198,6 +202,10 @@ export const ENGLISH_SOURCES = {
   'en.companions.json': companionsCopy,
   'en.desktop.json': desktopCopy,
   'en.evidence.json': evidenceCopy,
+  'en.ink-garden.json': inkGardenCopy,
+  'en.desk-atelier.json': deskAtelierCopy,
+  'en.seal-press.json': sealPressCopy,
+  'en.desk-play.json': deskPlayCopy,
 };
 
 /** The English of lib/application-messages.js (localizeAppMessage), handed to it once this module is here. */
