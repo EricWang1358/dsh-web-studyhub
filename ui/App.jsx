@@ -2,7 +2,7 @@
    Contributed by ericwang1358 (https://github.com/EricWang1358).
    App composes: its hooks (ui/app/use-*.js, ui/review/useReviewSession.js) own the state and the verbs, the shell parts
    (ui/app/App*.jsx) draw the sidebar, top bar and dialogs, and ui/app/page-views.jsx maps each page of ui/pages.js to its component. */
-import React, { useMemo, useRef } from 'react';
+import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Board, LiveClass } from './workspace-views.jsx';
 import { pageAvailable } from './capabilities.js';
 import { ui, uiFormat, useUiLanguage } from './i18n.js';
@@ -29,7 +29,7 @@ import quickCss from './quick-actions.css';
 import coachCss from './coach.css';
 import libraryChipCss from './library-location.css';
 import localeCss from './language.css';
-import { AppContext } from './app/app-context.js';
+import { AppContext, AppStoreContext, createAppStore, syncAppStore } from './app/app-context.js';
 import { practiseRound } from './app/practise-round.js';
 import { useAppShell } from './app/use-app-shell.js';
 import { useAppCore } from './app/use-app-core.js';
@@ -137,6 +137,10 @@ export default function App({ call: transportCall, host = NO_HOST }) {
     notebooks, inbox, sources, tour, finder, settingsEntry, dailyPlan, board, selectionNotices, resetLibraryState }),
   [language, host, data, canChat, connection, core, shell, nav, lib, set, session, learn, intents, drafts,
     notebooks, inbox, sources, tour, finder, settingsEntry, dailyPlan, board, selectionNotices, resetLibraryState]);
+  const [appStore] = useState(() => createAppStore(app));
+  useLayoutEffect(() => {
+    syncAppStore(appStore, app);
+  }, [appStore, app]);
 
   const runningJobs = Array.isArray(data?.jobs) ? data.jobs.filter(isActiveJob).length : 0;
   const activePageTitle = shellTitleOf(nav.page, { run: session.run, decks: data?.decks });
@@ -152,6 +156,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
           <ToastContext.Provider value={core.toast}>
             <StudyBusyProvider store={core.busyStore} study={study}>
             <ModelSettingsContext.Provider value={settingsEntry.openModelSettings}>
+              <AppStoreContext.Provider value={appStore}>
               <AppContext.Provider value={app}>
                 <div className="study-app" {...shell.appearanceAttrs} style={{ ...scienceVars(shell.sciencePrefs), ...appearanceStyle(shell.appearance) }}
                   lang={LANG_ATTR[language]} ref={shell.attachRoot} data-usage-area={page} tabIndex={-1} onKeyDown={finder.onKeyDown}
@@ -208,6 +213,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
                   {core.handOffSheet && <HandOffSheet key={core.handOffSheet.text} sheet={core.handOffSheet} onClose={core.closeHandOffSheet} />}
                 </div>
               </AppContext.Provider>
+              </AppStoreContext.Provider>
             </ModelSettingsContext.Provider>
             </StudyBusyProvider>
           </ToastContext.Provider>

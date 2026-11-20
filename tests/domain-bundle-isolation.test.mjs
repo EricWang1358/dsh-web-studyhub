@@ -17,12 +17,14 @@ import { parseWindow } from '../lib/mineru-local.js';
 const repoRoot = fileURLToPath(new URL('../', import.meta.url));
 const DOMAIN_PLUGINS = ['runtime', 'materials', 'bank', 'study', 'generation', 'audio'];
 const UI_ONLY_DEPENDENCIES = [
+  '@atlaskit/pragmatic-drag-and-drop',
   '@base-ui/react',
   '@codemirror/lang-markdown',
   '@uiw/react-codemirror',
   'dompurify',
   'katex',
   'markdown-it-texmath',
+  'zustand',
 ];
 
 const builtins = new Set([
