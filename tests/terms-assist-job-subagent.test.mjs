@@ -265,3 +265,196 @@ test('TaskConsole helpers render assist terms kind, stages, calls, and deck open
   assert.equal(taskUi.callLabel(job.contract.calls[0]), 'Fill in terms');
   assert.equal(taskUi.callLabel({ kind: 'repair', stage: 'terms-repair' }), 'Repair term-ladder format');
 });
+
+const makeTermReply = (term, prompt) => JSON.stringify({
+  ladder: [
+    {
+      term,
+      layer: 1,
+      needs: [],
+      problem: `${term}解决编译或运行期的重复计算与调用开销问题。`,
+      plain: `${term}就是编译器提前把能算或能展开的地方直接替换掉。`,
+      formal: `${term}是编译器在编译期执行的经典静态优化技术之一。`,
+      example: `例如对 final 常量表达式应用${term}，可直接生成目标值。`,
+      card: {
+        kind: 'flashcard',
+        topic: `${term} 检查`,
+        objective: `掌握${term}的核心定义`,
+        prompt,
+        answer: `${term}在编译期完成对应静态替换优化。`,
+        hint: `回忆${term}发生的阶段。`,
+        misconception: `以为${term}只在运行期动态解释时才生效。`,
+        citations: [{ sourceId: 's', quote: evidence }],
+      },
+    },
+  ],
+  deeper: [],
+  skipped: [],
+});
+
+test('concurrent mode=terms jobs on the same card run in parallel without blocking and persist both terms without clobbering', async t => {
+  const hold1 = gate();
+  const hold2 = gate();
+  const requestedTerms = [];
+  const f = await seedLibrary(t, {
+    complete: async (_sys, prompt) => {
+      const parsed = JSON.parse(prompt);
+      const reqTerms = parsed.request?.terms || [];
+      requestedTerms.push(reqTerms);
+      if (reqTerms.includes('常量折叠')) {
+        await hold1.promise;
+        return makeTermReply('常量折叠', '编译期常量折叠的核心作用是什么？');
+      }
+      if (reqTerms.includes('内联')) {
+        await hold2.promise;
+        return makeTermReply('内联', '编译期方法或常量内联的核心作用是什么？');
+      }
+      throw new Error(`Unexpected requested terms: ${JSON.stringify(reqTerms)}`);
+    },
+    pilot: { assist: false },
+  });
+
+  // 1. Start Job 1 for 常量折叠 and wait until its model call is in-flight.
+  const task1 = await f.assist.startAssist({}, termsRequest(f.service, f.root, { terms: ['常量折叠'] }));
+  await until(() => requestedTerms.length === 1, 'first term job to enter model call');
+  assert.deepEqual(task1.terms, ['常量折叠']);
+  assert.equal(f.assist.assistView(f.root).tasks.filter(item => item.status === 'running').length, 1);
+
+  // 2. While Job 1 is still running, start Job 2 for 内联 -> must NOT be blocked or collapsed onto Job 1.
+  const task2 = await f.assist.startAssist({}, termsRequest(f.service, f.root, { terms: ['内联'] }));
+  await until(() => requestedTerms.length === 2, 'second term job to enter model call in parallel');
+  assert.notEqual(task2.id, task1.id);
+  assert.deepEqual(task2.terms, ['内联']);
+
+  const runningJobs = jobsOf(f.service);
+  assert.equal(runningJobs.length, 2, 'both term-fill jobs are live in work.jobs concurrently');
+  assert.notEqual(runningJobs[0].contract.jobId, runningJobs[1].contract.jobId);
+  assert.deepEqual(runningJobs.map(j => j.contract.detail.terms), [['常量折叠'], ['内联']]);
+
+  // 3. Release both concurrently and verify both settle complete and persist safely into the store.
+  hold1.release();
+  hold2.release();
+  await until(
+    () => f.assist.assistView(f.root).tasks.every(item => item.status !== 'running'),
+    'both concurrent term-fill tasks to finish',
+  );
+  const job1 = await settledJob(f.service, 0);
+  const job2 = await settledJob(f.service, 1);
+  assert.equal(job1.contract.status, 'complete');
+  assert.equal(job2.contract.status, 'complete');
+
+  const finalTasks = f.assist.assistView(f.root).tasks;
+  assert.equal(finalTasks.length, 2);
+  assert.ok(finalTasks.every(item => item.status === 'done' && item.outcome === 'linked'));
+
+  const state = await f.service.store.read();
+  const deck = state.decks.find(d => d.id === 'd');
+  const orig = deck.cards.find(c => c.id === 'c');
+  const foldCard = deck.cards.find(c => c.topic === '常量折叠 检查');
+  const inlineCard = deck.cards.find(c => c.topic === '内联 检查');
+  assert.ok(foldCard, '常量折叠 check card persisted');
+  assert.ok(inlineCard, '内联 check card persisted');
+  assert.ok(orig.requires?.some(r => r.cardId === foldCard.id), '常量折叠 linked as prerequisite');
+  assert.ok(orig.requires?.some(r => r.cardId === inlineCard.id), '内联 linked as prerequisite');
+  assert.equal(orig.followups?.filter(item => item.kind === 'terms').length, 2, 'both term-fill followups preserved');
+
+  const course = state.courses.find(item => item.name === 'Software');
+  const foldTerm = course?.terms?.items?.find(item => item.term === '常量折叠');
+  const inlineTerm = course?.terms?.items?.find(item => item.term === '内联');
+  assert.equal(foldTerm?.card?.cardId, foldCard.id, '常量折叠 attached in course terms');
+  assert.equal(inlineTerm?.card?.cardId, inlineCard.id, '内联 attached in course terms');
+});
+
+test('overlapping mode=terms submissions dedupe in-flight terms cleanly while starting new terms in parallel', async t => {
+  const hold1 = gate();
+  const hold2 = gate();
+  const requestedTerms = [];
+  const f = await seedLibrary(t, {
+    complete: async (_sys, prompt) => {
+      const parsed = JSON.parse(prompt);
+      const reqTerms = parsed.request?.terms || [];
+      requestedTerms.push(reqTerms);
+      if (reqTerms.includes('常量折叠')) {
+        await hold1.promise;
+        return makeTermReply('常量折叠', '什么是常量折叠优化？');
+      }
+      if (reqTerms.includes('内联')) {
+        await hold2.promise;
+        return makeTermReply('内联', '什么是内联优化？');
+      }
+      throw new Error(`Unexpected requested terms: ${JSON.stringify(reqTerms)}`);
+    },
+    pilot: { assist: false },
+  });
+
+  // Start Job 1 for 常量折叠.
+  const task1 = await f.assist.startAssist({}, termsRequest(f.service, f.root, { terms: ['常量折叠'] }));
+  await until(() => requestedTerms.length === 1, 'Job 1 running');
+
+  // Exact overlap returns existing running task without spawning a duplicate job.
+  const dup = await f.assist.startAssist({}, termsRequest(f.service, f.root, { terms: ['常量折叠'] }));
+  assert.equal(dup.id, task1.id);
+  assert.equal(jobsOf(f.service).length, 1);
+
+  // Partial overlap strips already-in-flight 常量折叠 and starts a fresh Job 2 for only 内联.
+  const task2 = await f.assist.startAssist({}, termsRequest(f.service, f.root, { terms: ['常量折叠', '内联'] }));
+  await until(() => requestedTerms.length === 2, 'Job 2 running for 内联 only');
+  assert.notEqual(task2.id, task1.id);
+  assert.deepEqual(task2.terms, ['内联']);
+  assert.deepEqual(requestedTerms, [['常量折叠'], ['内联']]);
+
+  hold1.release();
+  hold2.release();
+  await until(
+    () => f.assist.assistView(f.root).tasks.every(item => item.status !== 'running'),
+    'both deduplicated term jobs to settle',
+  );
+  await settledJob(f.service, 0);
+  await settledJob(f.service, 1);
+  assert.equal(f.assist.assistView(f.root).tasks.length, 2);
+  assert.ok(f.assist.assistView(f.root).tasks.every(item => item.status === 'done'));
+});
+
+test('simultaneous Promise.all overlapping mode=terms calls dedupe synchronously before store read completes', async t => {
+  const hold1 = gate();
+  const hold2 = gate();
+  const requestedTerms = [];
+  const f = await seedLibrary(t, {
+    complete: async (_sys, prompt) => {
+      const parsed = JSON.parse(prompt);
+      const reqTerms = parsed.request?.terms || [];
+      requestedTerms.push(reqTerms);
+      if (reqTerms.includes('常量折叠')) {
+        await hold1.promise;
+        return makeTermReply('常量折叠', '常量折叠在何时执行？');
+      }
+      if (reqTerms.includes('内联')) {
+        await hold2.promise;
+        return makeTermReply('内联', '内联在何时执行？');
+      }
+      throw new Error(`Unexpected requested terms: ${JSON.stringify(reqTerms)}`);
+    },
+    pilot: { assist: false },
+  });
+
+  const [t1, tDup, t2] = await Promise.all([
+    f.assist.startAssist({}, termsRequest(f.service, f.root, { terms: ['常量折叠'] })),
+    f.assist.startAssist({}, termsRequest(f.service, f.root, { terms: ['常量折叠'] })),
+    f.assist.startAssist({}, termsRequest(f.service, f.root, { terms: ['常量折叠', '内联'] })),
+  ]);
+  assert.equal(tDup.id, t1.id, 'concurrent duplicate joins first task');
+  assert.notEqual(t2.id, t1.id, 'partial overlap spawns independent task for new term');
+  assert.deepEqual(t1.terms, ['常量折叠']);
+  assert.deepEqual(t2.terms, ['内联']);
+
+  await until(() => requestedTerms.length === 2, 'both unique requests started');
+  hold1.release();
+  hold2.release();
+  await until(
+    () => f.assist.assistView(f.root).tasks.every(item => item.status !== 'running'),
+    'all simultaneous term tasks to settle',
+  );
+  await settledJob(f.service, 0);
+  await settledJob(f.service, 1);
+  assert.equal(requestedTerms.length, 2);
+});

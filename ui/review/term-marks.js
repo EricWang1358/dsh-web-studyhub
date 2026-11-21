@@ -198,6 +198,53 @@ export function clearCompletedTermEntries(entriesByKey, tasks) {
 }
 
 /**
+ * Collect unique terms currently being filled across all running `terms` assist tasks for `cardId`,
+ * plus any extra optimistic terms for the same card. Preserves first-seen casing and order.
+ */
+export function collectInFlightTerms(assistTasks, cardId, extraTerms = []) {
+  const seen = new Set();
+  const out = [];
+  const push = (raw) => {
+    const clean = normalizeTerm(raw);
+    if (!clean) return;
+    const key = clean.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(clean);
+  };
+  if (cardId && Array.isArray(assistTasks)) {
+    const targetCardId = String(cardId);
+    for (const task of assistTasks) {
+      if (task?.status !== "running" || task?.mode !== "terms" || String(task?.cardId ?? "") !== targetCardId) continue;
+      for (const raw of Array.isArray(task.terms) ? task.terms : []) push(raw);
+    }
+  }
+  for (const raw of Array.isArray(extraTerms) ? extraTerms : []) push(raw);
+  return out;
+}
+
+/**
+ * Partition marked `terms` into `inFlightTerms` (already running in background, matched case-insensitively)
+ * and `pendingTerms` (not yet in-flight and eligible to start a new term-fill job).
+ */
+export function partitionMarkedTerms(terms = [], activeInFlight = []) {
+  const inFlightKeys = new Set();
+  for (const raw of Array.isArray(activeInFlight) ? activeInFlight : []) {
+    const clean = normalizeTerm(raw);
+    if (clean) inFlightKeys.add(clean.toLowerCase());
+  }
+  const inFlightTerms = [];
+  const pendingTerms = [];
+  for (const raw of Array.isArray(terms) ? terms : []) {
+    const clean = normalizeTerm(raw);
+    if (!clean) continue;
+    if (inFlightKeys.has(clean.toLowerCase())) inFlightTerms.push(clean);
+    else pendingTerms.push(clean);
+  }
+  return { inFlightTerms, pendingTerms, inFlightKeys };
+}
+
+/**
  * Filter candidate unfamiliar terms so only normalized, unique terms not currently in `activeTerms`
  * and not present anywhere in `courseTerms` (regardless of `state`: `'unknown'`, `'learned'`, `'known'`, etc.)
  * are shown as dashed candidates. Matching is case-insensitive.
