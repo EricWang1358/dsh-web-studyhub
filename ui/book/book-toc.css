@@ -158,6 +158,32 @@
       border-start-start-radius: 0;
       border-end-start-radius: 0;
     }
+    .book-toc__gap-count {
+      margin-inline-start: auto;
+      padding-inline-start: var(--space-1-5);
+      color: var(--text-faint);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-regular);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .book-toc__gap-count[data-has-gaps] {
+      color: var(--warn-ink, var(--text-muted));
+    }
+    .book-toc__gap-dot {
+      display: inline-block;
+      flex: none;
+      width: 6px;
+      height: 6px;
+      margin-inline-start: auto;
+      border-radius: 50%;
+      border: 1.5px solid var(--warn-ink, var(--text-muted));
+      background: transparent;
+    }
+    .book-toc__gap-dot[data-gap-state='drafted'] {
+      border-color: var(--decor-faint);
+      background: var(--decor-faint);
+    }
   }
   @media (prefers-reduced-motion: reduce) {
     :where(.study-app, .study-seat) {

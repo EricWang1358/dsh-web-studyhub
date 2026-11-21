@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { ui, errorMessage } from '../i18n.js';
+import { ui, uiFormat, errorMessage } from '../i18n.js';
 import { useLiveEffect } from '../use-async.js';
 import { localDate } from '../../lib/board-model.js';
 import { goneSet, rowOf } from './model.js';
@@ -23,6 +23,23 @@ import { rescueGate } from '../wrongbook-model.js';
 export async function startBookBuild({ act, course, notify, extra = {} }) {
   try { await act('generation.courseBook.build', { course, ...extra }, result => notify({ text: bookStartedText(result?.alreadyRunning), tone: 'success' }), { rethrow: true }); }
   catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
+}
+
+/** 补这些知识点 from the Review Book: starts a course-level point top-up into a new reviewed draft, surfacing refusals clearly. */
+export async function startCoursePointTopUp({ act, course, courseName, pointIds, notify, options = {} }) {
+  if (!Array.isArray(pointIds) || !pointIds.length) return null;
+  const label = options.label || courseName || course || ui('未分类课程');
+  const title = options.title || uiFormat('{0} · 补知识点', [label]);
+  const fallbackNotice = (name, started) => uiFormat('已开始为「{0}」补 {1} 个知识点，约 {2} 题；通过检查后会保存为新草稿。',
+    [name, pointIds.length, started?.coverage?.questions ?? options.questions ?? pointIds.length]);
+  try {
+    return await act('generate', { course, title, coverage: { pointIds } },
+      started => notify({ text: (options.notice ?? fallbackNotice)(label, started), tone: 'success' }),
+      { rethrow: true });
+  } catch (failure) {
+    notify({ text: errorMessage(failure), tone: 'error' });
+    return null;
+  }
 }
 
 /** 期末一周 (M7, book.crunch): the plan of the course's last days, asked again when the book changes or a mark is set. -> { crunch, day, points, mark }. */
@@ -92,6 +109,7 @@ export function useBookHandlers({
   call, act, course, notify, book, setBook, rows, reload, remember, onPractice, onCreate, onOpenSource,
   modelReady = true, model, onBack, ai, foldAi, onPlace, goTo, inlinePractice = null, evidenceByHid = null, onEvidenceChanged = null,
   courses = null, decks = null, sources = null, openModal = null, openModel = null, canChat = true, rescueJobs = null, onStartRescue = null,
+  onTopUpPoints = null, pointGapBusy = false,
 }) {
   const [qa, setQa] = useState(() => new Set());
   const [retell, setRetell] = useState(() => new Set());
@@ -263,10 +281,24 @@ export function useBookHandlers({
     },
     aiFollow: (node, block, question) => ai.start({ heading: node.hid, mode: 'follow', words: block.about || node.title, instruction: question, after: block.id }),
     aiCancel: ai.cancel, aiRetry: ai.retry, aiDismiss: ai.dismiss, aiUndo: ai.restore, aiForget: ai.forget,
+    pointGapOf: node => {
+      if (!node?.hid || book?.pointGaps?.status !== 'ok') return null;
+      return book.pointGaps.leaves?.[node.hid] ?? null;
+    },
+    pointGapBusy,
+    fillPointGap: onTopUpPoints ? (node, pointGap) => {
+      if (!pointGap?.id || !pointGap.coverable) return;
+      if (!modelReady) { openModel?.(); return; }
+      onTopUpPoints([pointGap.id], {
+        title: uiFormat('{0} · 补知识点', [node?.title || course || ui('未分类课程')]),
+        label: node?.title || course || ui('未分类课程'),
+        questions: pointGap.quota,
+      });
+    } : null,
     // The fold of the blocks (kept in this browser), and the two ways between a block and its dashed words (ui/book/ai-anchors.js): open the block, then show it.
     aiOpen: id => { flushSync(() => foldAi(id, false)); showBlock(id); },
     aiWords: id => showWords(id),
     // A 术语卡's link (#710): its point opened when the card is not drawn, then the card shown (ui/book/term-card-go.js).
     goCard: (hid, code) => { if (!cardShown(code)) goTo?.(hid); showCard(code); },
-  }), [book, qa, retell, rows, call, course, notify, onCreate, onOpenSource, onPractice, remember, choosing, setBook, modelReady, model, onBack, ai, foldAi, reload, act, onPlace, goTo, inlinePractice, evidenceByHid, onEvidenceChanged, courses, decks, sources, openModal, openModel, canChat, rescueJobs, onStartRescue, activeRescuePrompt]);
+  }), [book, qa, retell, rows, call, course, notify, onCreate, onOpenSource, onPractice, remember, choosing, setBook, modelReady, model, onBack, ai, foldAi, reload, act, onPlace, goTo, inlinePractice, evidenceByHid, onEvidenceChanged, courses, decks, sources, openModal, openModel, canChat, rescueJobs, onStartRescue, activeRescuePrompt, onTopUpPoints, pointGapBusy]);
 }

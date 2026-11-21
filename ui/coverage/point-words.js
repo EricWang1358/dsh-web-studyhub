@@ -4,12 +4,22 @@ import { ui, uiFormat } from '../i18n.js';
    when it starts, and the one quiet line when the course has an outline that cannot be counted by (`coverage.get`'s `points`, lib/evidence/point-report.js). A
    course with no outline at all says nothing here: the draft page is not where an outline is built. */
 
-/** 「这份草稿的资料讲到 70 个知识点，17 个还没有题」, or 「…，都有题了」: the points are this draft's materials', the questions the whole course's. */
-export const pointsLine = (report) => (report.uncovered > 0 ? uiFormat('这份草稿的资料讲到 {0} 个知识点，{1} 个还没有题', [report.points, report.uncovered])
-  : uiFormat('这份草稿的资料讲到 {0} 个知识点，都有题了', [report.points]));
+/** 「这份草稿的资料讲到 70 个知识点，17 个还没有题」 (draft) or 「这本书共有 70 个知识点，17 个还没有题」 (course / review book). */
+export const pointsLine = (report, scope = 'draft') => {
+  if (scope === 'course') {
+    return report.uncovered > 0
+      ? uiFormat('这本书共有 {0} 个知识点，{1} 个还没有题', [report.points, report.uncovered])
+      : uiFormat('这本书共有 {0} 个知识点，都有题了', [report.points]);
+  }
+  return report.uncovered > 0
+    ? uiFormat('这份草稿的资料讲到 {0} 个知识点，{1} 个还没有题', [report.points, report.uncovered])
+    : uiFormat('这份草稿的资料讲到 {0} 个知识点，都有题了', [report.points]);
+};
 
 /** How a question is counted for a knowledge point (the HelpTip beside the line). */
-export const pointsTip = () => ui('知识点来自这门课的总纲，这里只算这份草稿的资料讲到的。“有题”算的是整门课所有题组和草稿里的题，不只这份草稿。一道题的出处落在某个知识点清点出的原文上，就算它有题；落不到的，算给出处所在页的知识点。');
+export const pointsTip = (scope = 'draft') => (scope === 'course'
+  ? ui('知识点来自这门课的总纲。“有题”算的是整门课所有题组和草稿里的题。一道题的出处落在某个知识点清点出的原文上，就算它有题；落不到的，算给出处所在页的知识点。')
+  : ui('知识点来自这门课的总纲，这里只算这份草稿的资料讲到的。“有题”算的是整门课所有题组和草稿里的题，不只这份草稿。一道题的出处落在某个知识点清点出的原文上，就算它有题；落不到的，算给出处所在页的知识点。'));
 
 /** Why the action is not offered while rounds of the draft's plan have not run (a point round would take a planned section's place). */
 export const plannedHoldLine = () => ui('这份草稿的计划还有轮次没跑完：先接着做完，再按知识点补。');
@@ -24,8 +34,8 @@ export const prereqTip = (point) => uiFormat('有 {0} 个知识点建立在它�
 /** What a point rests on. */
 export const restsOnLine = (point) => uiFormat('先学：{0}', [point.prereqs.join(ui('、'))]);
 
-/** A point with no verified text in this draft's materials. */
-export const noTextLine = () => ui('资料里找不到它的原文，补不了');
+/** A point with no verified text in the materials. */
+export const noTextLine = (scope = 'draft') => (scope === 'course' ? ui('课程资料里找不到它的原文，补不了') : ui('资料里找不到它的原文，补不了'));
 
 /** The points left out of the list. */
 export const moreLine = (more) => uiFormat('还有 {0} 个没列出，补完上面的再看。', [more]);
@@ -39,9 +49,13 @@ export const topUpPlan = (topUp, uncovered) => (topUp.pointIds.length < uncovere
   ? uiFormat('补其中 {0} 个，约 {1} 题；一轮补不完的下次再补。', [topUp.pointIds.length, topUp.questions])
   : uiFormat('补 {0} 个知识点，约 {1} 题。', [topUp.pointIds.length, topUp.questions]));
 
-/** What is said once it has started (ui/coverage/top-up.js topUpArgs `notice`). */
+/** What is said once it has started (ui/coverage/top-up.js topUpArgs `notice`, draft scope). */
 export const pointsNotice = (count) => (draft, started) => uiFormat('已开始为「{0}」补 {1} 个知识点，约 {2} 题；通过检查后会保存到同一份草稿。',
   [draft.title, count, started?.coverage?.questions ?? 0]);
+
+/** What is said once a course-level point top-up starts from the Review Book. */
+export const coursePointsNotice = (count) => (title, started) => uiFormat('已开始为「{0}」补 {1} 个知识点，约 {2} 题；通过检查后会保存为新草稿。',
+  [title, count, started?.coverage?.questions ?? 0]);
 
 /** Why an outline the course has gives no numbers, and where to fix it (the 总纲 page); nothing for no outline or an unreadable record. */
 export const unavailableLine = (reason) => ({

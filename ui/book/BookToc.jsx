@@ -6,6 +6,7 @@ import { levelsText } from '../outline/words.js';
 import { codeOf } from '../../lib/course-book-lookup.js';
 import { searchBook, searchIndex, SEARCH_ROWS } from './book-search.js';
 import { filterWeakTocEntries } from './book-weak-lens.js';
+import { filterGapTocEntries, isGapLeafStatus, tocGapMeta } from './book-gap-lens.js';
 import css from './book-toc.css';
 
 /* The review book's live 目录 (docs/review-book.md "The contents"): every heading of the stitched book (lib/course-book-links.js bookIndex), indented by level.
@@ -20,7 +21,7 @@ export const TOC_FOLD_ABOVE = 120;
 
 /** entries: [{ id, level, title, chapter }] (the book's own title left out); here: the heading id being read; onGo(id); opened: the chapters open when the 目录 folds (a Set; none: it does not),
     parents: the chapters with something to open, onToggle(chapter); hidden: the chapter folded over the heading being read, which takes its mark. */
-export const BookTocList = memo(function BookTocList({ entries, here, onGo, opened, parents, onToggle, hidden = null }) {
+export const BookTocList = memo(function BookTocList({ entries, here, onGo, opened, parents, onToggle, hidden = null, gapMeta = null }) {
   // One tab stop for the list (hundreds of rows otherwise): the row last moved to, else the one being read, else the first. The arrows, Home and End walk the rows; a chapter's caret stays its own stop.
   const [moved, setMoved] = useState(null), marked = hidden ?? here;
   const stop = entries.some(entry => entry.id === moved) ? moved : entries.some(entry => entry.id === marked) ? marked : entries[0]?.id;
@@ -34,17 +35,28 @@ export const BookTocList = memo(function BookTocList({ entries, here, onGo, open
   };
   return (
     <ol className="book-toc__list" onKeyDown={walk}>
-      {entries.map(entry => (
-        <li key={entry.id} className="book-toc__item" data-level={Math.min(4, entry.level)}>
-          {parents?.has(entry.id) && <IconButton size="sm" className="book-toc__fold" aria-expanded={opened.has(entry.id)} data-open={opened.has(entry.id) ? '' : undefined}
-            icon={<Icon name="caret" size={14} />} label={opened.has(entry.id) ? ui('收起这一章') : ui('展开这一章')} onClick={() => onToggle(entry.id)} />}
-          <Tooltip layer placement="right-start" group="book-toc" content={uiFormat('编号 {0}', [codeOf(entry.id)])} anchorClassName="book-toc__anchor">
-            <Button variant="quiet" size="sm" wrap className="book-toc__go" tabIndex={entry.id === stop ? 0 : -1} aria-current={entry.id === marked ? 'location' : undefined} onClick={() => onGo(entry.id)}>
-              {entry.title}
-            </Button>
-          </Tooltip>
-        </li>
-      ))}
+      {entries.map(entry => {
+        const meta = gapMeta?.get?.(entry.id) ?? null;
+        return (
+          <li key={entry.id} className="book-toc__item" data-level={Math.min(4, entry.level)} data-gap-state={meta?.kind === 'leaf' ? meta.status : undefined}>
+            {parents?.has(entry.id) && <IconButton size="sm" className="book-toc__fold" aria-expanded={opened.has(entry.id)} data-open={opened.has(entry.id) ? '' : undefined}
+              icon={<Icon name="caret" size={14} />} label={opened.has(entry.id) ? ui('收起这一章') : ui('展开这一章')} onClick={() => onToggle(entry.id)} />}
+            <Tooltip layer placement="right-start" group="book-toc" content={uiFormat('编号 {0}', [codeOf(entry.id)])} anchorClassName="book-toc__anchor">
+              <Button variant="quiet" size="sm" wrap className="book-toc__go" tabIndex={entry.id === stop ? 0 : -1} aria-current={entry.id === marked ? 'location' : undefined} onClick={() => onGo(entry.id)}>
+                {entry.title}
+                {meta?.kind === 'group' && (
+                  <span className="book-toc__gap-count" data-has-gaps={meta.uncovered > 0 ? '' : undefined}>
+                    {meta.covered}/{meta.points}
+                  </span>
+                )}
+                {meta?.kind === 'leaf' && (isGapLeafStatus(meta.status) || meta.status === 'drafted') && (
+                  <span className="book-toc__gap-dot" data-gap-state={meta.status} aria-hidden="true" />
+                )}
+              </Button>
+            </Tooltip>
+          </li>
+        );
+      })}
     </ol>
   );
 });
@@ -81,7 +93,7 @@ export function handleSearchKeyDown(event, { query, onQuery, narrow, onClose }) 
 
 /** The 目录 itself: the book's coverage line on top (quiet, explained on hover), 在书里找, optional weak-point lens, then the list. narrow: it is the slide-over (onClose closes it, the focus goes
     back to `returnRef`); coverage: course.book.open's `coverage` or null; book, query, onQuery(text), onFound(row, query): the search (the page keeps what is typed while a narrow 目录 is closed). */
-export default function BookToc({ entries, here, onGo, narrow, onClose, returnRef, coverage, book, query = '', onQuery, onFound, searchRef, showWeakLens = false, weakPoints = null, lens: controlledLens, onLens }) {
+export default function BookToc({ entries, here, onGo, narrow, onClose, returnRef, coverage, book, query = '', onQuery, onFound, searchRef, showWeakLens = false, weakPoints = null, pointGaps = null, lens: controlledLens, onLens }) {
   useInjectCss(css, 'study-book-toc');
   const panel = useRef(null);
   const setSearchInput = useCallback(node => {
@@ -99,12 +111,23 @@ export default function BookToc({ entries, here, onGo, narrow, onClose, returnRe
   const index = useMemo(() => (needsIndex ? searchIndex(book) : null), [book, needsIndex]);
   const results = useMemo(() => (searching && index ? searchBook(index, typed) : null), [searching, index, typed]);
   const weakLens = useMemo(() => (weakPoints ? filterWeakTocEntries(entries, weakPoints) : { weakCount: 0, entries: [] }), [entries, weakPoints]);
+  const gapLens = useMemo(() => (pointGaps?.status === 'ok' ? filterGapTocEntries(entries, pointGaps) : { gapCount: 0, entries: [] }), [entries, pointGaps]);
+  const gapMeta = useMemo(() => (pointGaps?.status === 'ok' ? tocGapMeta(pointGaps) : null), [pointGaps]);
   const [localLens, setLocalLens] = useState('all');
   const lens = controlledLens ?? localLens;
   const setLens = onLens ?? setLocalLens;
   const lensLoaded = Array.isArray(weakPoints);
-  const lensEnabled = showWeakLens || lensLoaded;
-  const activeLens = lensEnabled && lensLoaded && lens === 'weak' && weakLens.weakCount > 0 ? 'weak' : 'all';
+  const weakEnabled = showWeakLens || lensLoaded;
+  const gapsEnabled = pointGaps?.status === 'ok' && pointGaps.points > 0;
+  const lensEnabled = weakEnabled || gapsEnabled;
+  const activeLens = gapsEnabled && lens === 'gaps' && gapLens.gapCount > 0 ? 'gaps'
+    : weakEnabled && lensLoaded && lens === 'weak' && weakLens.weakCount > 0 ? 'weak'
+      : 'all';
+  const lensOptions = [
+    { value: 'all', label: ui('全部') },
+    ...(gapsEnabled ? [{ value: 'gaps', label: uiFormat('缺题 ({0})', [gapLens.gapCount]), disabled: gapLens.gapCount === 0 }] : []),
+    ...(weakEnabled ? [{ value: 'weak', label: lensLoaded ? uiFormat('薄弱节 ({0})', [weakLens.weakCount]) : ui('薄弱节'), disabled: !lensLoaded || weakLens.weakCount === 0 }] : []),
+  ];
   // A big book: chapters, and the one being read open, unless the learner said otherwise.
   const folds = entries.length > TOC_FOLD_ABOVE;
   const hereChapter = useMemo(() => entries.find(entry => entry.id === here)?.chapter ?? null, [entries, here]);
@@ -142,17 +165,15 @@ export default function BookToc({ entries, here, onGo, narrow, onClose, returnRe
       </div>}
       {lensEnabled && !searching && (
         <div className="book-toc__lens">
-          <SegmentedControl size="sm" label={ui('目录范围')} value={activeLens} onChange={setLens}
-            options={[
-              { value: 'all', label: ui('全部') },
-              { value: 'weak', label: lensLoaded ? uiFormat('薄弱节 ({0})', [weakLens.weakCount]) : ui('薄弱节'), disabled: !lensLoaded || weakLens.weakCount === 0 },
-            ]} />
+          <SegmentedControl size="sm" label={ui('目录范围')} value={activeLens} onChange={setLens} options={lensOptions} />
         </div>
       )}
       {results ? <FoundList results={results} query={typed} onFound={found} />
-        : activeLens === 'weak'
-          ? <BookTocList entries={weakLens.entries} here={here} onGo={go} />
-          : <BookTocList entries={shown} here={here} onGo={go} opened={opened} parents={parents} onToggle={toggle} hidden={opened && hereChapter && !opened.has(hereChapter) && hereChapter !== here ? hereChapter : null} />}
+        : activeLens === 'gaps'
+          ? <BookTocList entries={gapLens.entries} here={here} onGo={go} gapMeta={gapMeta} />
+          : activeLens === 'weak'
+            ? <BookTocList entries={weakLens.entries} here={here} onGo={go} gapMeta={gapMeta} />
+            : <BookTocList entries={shown} here={here} onGo={go} opened={opened} parents={parents} onToggle={toggle} hidden={opened && hereChapter && !opened.has(hereChapter) && hereChapter !== here ? hereChapter : null} gapMeta={gapMeta} />}
     </nav>
   </>;
 }

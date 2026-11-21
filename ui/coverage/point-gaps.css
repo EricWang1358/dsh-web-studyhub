@@ -8,6 +8,7 @@
     .cov-points__list { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
     .cov-points__row { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-half) var(--space-2); min-width: 0; }
     .cov-points__name { min-width: 0; color: var(--text); font-size: var(--fs-sm); overflow-wrap: anywhere; }
+    .cov-points__jump { justify-content: flex-start; text-align: start; padding-inline: 0; }
     .cov-points__why, .cov-points__note, .cov-points__plan, .cov-points__quiet { min-width: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
     .cov-points__note { margin: var(--space-1) 0 0; }
     .cov-points__quiet { margin: 0; }

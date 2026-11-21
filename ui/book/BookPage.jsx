@@ -35,7 +35,8 @@ import { useBookRebuild } from './use-book-rebuild.js';
 import { useFoundMarks } from './use-found-marks.js';
 import BookRebuildPreview from './BookRebuildPreview.jsx';
 import BookSample from './BookSample.jsx';
-import { startBookBuild, useBookCrunch, useBookHandlers, useBookPages, useCourseEvidence, useCoursePlan } from './use-book-actions.js';
+import BookPointGaps from './BookPointGaps.jsx';
+import { startBookBuild, startCoursePointTopUp, useBookCrunch, useBookHandlers, useBookPages, useCourseEvidence, useCoursePlan } from './use-book-actions.js';
 import { startCardPass, useCardPass } from './use-card-pass.js';
 import { useMoreActions } from './more-actions.js';
 import useIndexCoverage from '../use-index-coverage.js';
@@ -74,7 +75,7 @@ export function handleBookFindShortcut(event, { view, ready, inOverlay, onOpen }
 export default function BookPage({ data, onBack, backLabel = '', onReturnBack = null, onPractice, inlinePractice = null, onOpenSource, onCreate, onOpenTask, onExamRun, onCourseSettings, onBuildIndex, theme, holdLeave, paragraphIndex = null, searchQuery = '' }) {
   useInjectCss(css, 'study-book');
   useInjectCss(aiCss, 'study-book-ai');
-  const { call, act, notify, openModal, openSettings, host } = useStudy();
+  const { call, act, busy, notify, openModal, openSettings, host } = useStudy();
   const app = useContext(AppContext);
   const canChat = hasChatHost(host);
   const openModel = useMemo(() => (openSettings ? () => openSettings('settings-model') : undefined), [openSettings]);
@@ -165,10 +166,27 @@ export default function BookPage({ data, onBack, backLabel = '', onReturnBack = 
       close: clearInlineRun,
     };
   }, [inlinePracticeOn, inlinePractice, inlineShown, inlineState, clearInlineRun]);
+  const courseName = course === '' ? ui('未分类课程') : course || '';
+  const fillingJob = useMemo(() => (data?.jobs || []).find(job => (
+    job && (!job.type || job.type === 'generation') && job.course === course && job.coverage && (job.status === 'running' || job.status === 'queued')
+  )) ?? null, [data?.jobs, course]);
+  const prevFillingId = useRef(null);
+  useEffect(() => {
+    const prev = prevFillingId.current;
+    prevFillingId.current = fillingJob?.id ?? null;
+    if (prev && !fillingJob && view !== 'edit') {
+      place.current?.hold();
+      reload();
+      evidence.refresh?.();
+    }
+  }, [fillingJob, view, reload, evidence]);
+  const onTopUpPoints = useCallback((pointIds, options = {}) => startCoursePointTopUp({ act, course, courseName, pointIds, notify, options }),
+    [act, course, courseName, notify]);
   const handlers = useBookHandlers({ call, act, course, notify, book, setBook, rows, reload, remember: where.remember, onPractice, onCreate, onOpenSource,
     modelReady: model.ready, model, onBack, ai: ai.actions, foldAi: aiFold.fold, onPlace: placeSection, goTo: where.goTo, inlinePractice: inlineController,
     evidenceByHid: evidence.byHid, onEvidenceChanged: evidence.refresh, courses: data?.courses, decks: data?.decks, sources: data?.sources,
-    openModal, openModel, canChat, rescueJobs: rescue.jobs, onStartRescue: rescue.start });
+    openModal, openModel, canChat, rescueJobs: rescue.jobs, onStartRescue: rescue.start,
+    onTopUpPoints, pointGapBusy: busy || !!fillingJob });
   // 在书里找 (the 目录's box, ui/book/book-search.js): what is typed stays while a narrow 目录 is closed; `found` is the point a row went to, its words marked while it is drawn.
   const initialSearchRef = useRef(
     (where.kept?.query || where.kept?.snippet || Number.isInteger(where.kept?.paragraphIndex))
@@ -262,7 +280,6 @@ export default function BookPage({ data, onBack, backLabel = '', onReturnBack = 
   const openView = useCallback(next => { place.current?.hold(); setView(next); }, []);
   // A save that lands in a pending rebuild (#461): the editor is done, so a later read is not dropped as "an editor is open", and applying leads to reading.
   useEffect(() => { if (book?.status === 'rebuild-pending' && view === 'edit') back(); }, [book?.status, view, back]);
-  const courseName = course === '' ? ui('未分类课程') : course || '';
   const courseRecord = (data?.courses || []).find(item => item.name === course);
   // The parts the course's 定制方案 asks for (深度定制 S2, ./book-parts.js): a part left out is not offered (速查表, the 速查页's formula page and A–Z).
   const parts = bookParts(courseRecord), offerCheat = hasCheat && showsPart(parts, 'cheatSheet');
@@ -379,8 +396,10 @@ export default function BookPage({ data, onBack, backLabel = '', onReturnBack = 
         onRead={point => { if (plan.day.mode === 'flip') { openView('flip'); return; } where.goTo(point.id); }}
         onPractice={(point, element) => handlers.practice(point.id, 5, point.id, element)} onMarkRead={(point, on) => plan.mark(point.id, 'read', on)}
         onFlip={() => openView('flip')} onMockStarted={onExamRun} />}
+      {book.pointGaps && <BookPointGaps course={course} report={book.pointGaps} disabled={busy || !model.ready} modelReady={model.ready} fillingJob={fillingJob}
+        onTopUp={onTopUpPoints} onGo={where.goTo} onOutline={onBack} onOpenTask={onOpenTask} />}
       <div className={tocOpen && !narrow ? 'book-layout book-layout--toc' : 'book-layout'}>
-        {tocOpen && <BookToc entries={toc} here={where.here} onGo={where.goTo} narrow={narrow} onClose={closeToc} returnRef={tocRef} coverage={book.coverage ?? null} book={book} query={findQuery} onQuery={onFindQuery} onFound={onFound} searchRef={tocSearchRef} showWeakLens={inlinePracticeOn} weakPoints={inlinePracticeOn ? plan.crunch?.points ?? null : null} lens={tocLens} onLens={setTocLens} />}
+        {tocOpen && <BookToc entries={toc} here={where.here} onGo={where.goTo} narrow={narrow} onClose={closeToc} returnRef={tocRef} coverage={book.coverage ?? null} book={book} query={findQuery} onQuery={onFindQuery} onFound={onFound} searchRef={tocSearchRef} showWeakLens={inlinePracticeOn} weakPoints={inlinePracticeOn ? plan.crunch?.points ?? null : null} pointGaps={book.pointGaps ?? null} lens={tocLens} onLens={setTocLens} />}
         <ReadingBlock className="book-read" measure>
           <AiFoldContext.Provider value={aiFold}><BookAiContext.Provider value={ai.lines}><BookReadContext.Provider value={reading}>
             {reading.mode === 'step' ? <BookStep steps={steps} at={where.stepAt} onGo={index => where.go(index - where.stepAt)} course={course} handlers={handlers} />
