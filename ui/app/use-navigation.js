@@ -13,7 +13,7 @@ export function useNavigation({ core, lib, motion, rootRef, initialPage = 'libra
   const rawSetPage = useCallback((id) => { markPageSwitch(id); setPageState(id); }, []);
   const [pageTarget, setPageTarget] = useState(null);
   const { setError } = core;
-  const { setContextTrail, setExamRunId, setExamKind, setBoardStudyRef, setBoardCompose, setNoteInitialId, setGraphScope, setSkeletonFocus, setManagedDeck,
+  const { setContextTrail, setExamRunId, setExamKind, setBoardStudyRef, setBoardCompose, setNoteInitialId, setGraphScope, setGraphMode, setSkeletonFocus, setManagedDeck,
     setFolderDraft, setWorkflowReturn, setTaskFocus } = lib.set;
   const motionRef = useRef(motion), pageRef = useRef(page), referenceRef = useRef(() => null);
   motionRef.current = motion;
@@ -38,7 +38,7 @@ export function useNavigation({ core, lib, motion, rootRef, initialPage = 'libra
         // The sidebar keeps where the learner was for a card they choose to add, but opens nothing by itself (#576).
         openBoardFresh: () => { setBoardStudyRef(reference); setBoardCompose(false); },
         clearNote: () => setNoteInitialId(''),
-        clearGraphScope: () => setGraphScope(null),
+        clearGraphScope: () => { setGraphScope(null); setGraphMode('structure'); },
       };
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps

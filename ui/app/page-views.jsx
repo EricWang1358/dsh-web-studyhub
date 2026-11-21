@@ -112,7 +112,8 @@ function LibraryView() {
           onCoachPractice: pageAvailable(data, 'review') ? session.onCoachPractice : undefined,
           onWeakPoints: pageAvailable(data, 'wrongbook') ? () => nav.navigate('wrongbook') : undefined,
           onOpenExamBook: pageAvailable(data, 'book') ? (course) => openCrunchBook(course, { view: 'today' }) : undefined,
-          onShowGraph: (scope, options) => { set.setGraphScope(scope ?? null); set.setGraphCanvas(options?.canvas !== false); nav.navigate('graph'); },
+          onShowGraph: (scope, options) => { set.setGraphScope(scope ?? null); set.setGraphCanvas(options?.canvas !== false); set.setGraphMode(options?.mode || 'structure'); nav.navigate('graph'); },
+          onOpenMasteryMap: pageAvailable(data, 'graph') ? () => { set.setGraphScope(null); set.setGraphCanvas(false); set.setGraphMode('mastery'); nav.navigate('graph'); } : undefined,
           onCourseSettings: settingsEntry.setCourseSettings,
           onGenerateFocus: (topics, course) => intents.goGenerate({ genPatch: (cur) => ({ ...cur, ...(course ? { course } : {}), focus: appendFocus(cur.focus, topics) }), remember: true }),
           onShowOutline: pageAvailable(data, 'outline') ? () => nav.navigate('outline') : undefined,
@@ -239,10 +240,42 @@ function WrongBookView() {
 }
 
 function GraphView() {
-  const { data, nav, lib, set, intents } = useApp();
+  const { data, core, nav, lib, set, session, learn, intents } = useApp();
+  const onPracticeScope = (practiceScope, { resume = false } = {}) => {
+    const origin = learn.captureContext();
+    intents.practice(practiceScope, { fresh: !resume, then: (run) => { learn.rememberContext(origin); session.enterRun(run); } });
+  };
+  const onOpenOutline = pageAvailable(data, 'outline') ? async (targetCourse) => {
+    if (typeof targetCourse === 'string' && targetCourse !== data.focus?.course) {
+      if (!await core.act('focus.set', { course: targetCourse })) return;
+    }
+    nav.navigate('outline');
+  } : undefined;
+  const onOpenBook = pageAvailable(data, 'book') ? async (key, targetCourse) => {
+    const chosen = typeof targetCourse === 'string' ? targetCourse : (data.focus?.course ?? null);
+    if (typeof targetCourse === 'string' && targetCourse !== data.focus?.course) {
+      if (!await core.act('focus.set', { course: targetCourse })) return;
+    }
+    keepBook(data.root, chosen, { target: key || null });
+    nav.navigate('book');
+  } : undefined;
+  const onGoGenerateTopic = pageAvailable(data, 'generate') ? (topics, targetCourse) => {
+    intents.goGenerate({
+      genPatch: (cur) => ({
+        ...cur,
+        ...(targetCourse ? { course: targetCourse } : {}),
+        focus: appendFocus(cur.focus, topics),
+      }),
+      remember: true,
+    });
+  } : undefined;
   return (
-    <Graph scope={lib.graphScope} library={data} canvasWanted={lib.graphCanvas} onCanvasHandled={() => set.setGraphCanvas(false)}
-      onClose={() => nav.navigate('library')} onStudyCard={({ deckId, cardId }) => intents.practice([{ deckId, cardId }])} />
+    <Graph scope={lib.graphScope} library={data} defaultMode={lib.graphMode} canvasWanted={lib.graphCanvas} onCanvasHandled={() => set.setGraphCanvas(false)}
+      onClose={() => nav.navigate('library')} onStudyCard={({ deckId, cardId }) => intents.practice([{ deckId, cardId }])}
+      onPracticeScope={onPracticeScope} onResumeRun={intents.openRun} onManageDeck={intents.openDeck}
+      onOpenOutline={onOpenOutline} onOpenBook={onOpenBook}
+      onOpenWrongBook={pageAvailable(data, 'wrongbook') ? () => nav.navigate('wrongbook') : undefined}
+      onGoGenerateTopic={onGoGenerateTopic} />
   );
 }
 
@@ -308,13 +341,19 @@ function TasksView() {
 
 /** 总纲: the current course's materials as a tree with their questions. A round started here comes back here (回到总纲); 接着练 resumes the row's unfinished round. */
 function OutlineView() {
-  const { data, nav, session, learn, intents } = useApp();
+  const { data, nav, set, session, learn, intents } = useApp();
   const onPractice = (scope, { resume = false } = {}) => {
     const origin = learn.captureContext();
     intents.practice(scope, { fresh: !resume, then: (run) => { learn.rememberContext(origin); session.enterRun(run); } });
   };
   // 打开书页: the 复习全书 of the course, at the point the learner opened (its 总纲 key), or where they were in it.
   const onOpenBook = (key) => { keepBook(data.root, data.focus?.course ?? null, { target: key || null }); nav.navigate('book'); };
+  const onOpenMasteryMap = pageAvailable(data, 'graph') ? () => {
+    set.setGraphScope(null);
+    set.setGraphCanvas(false);
+    set.setGraphMode('mastery');
+    nav.navigate('graph');
+  } : undefined;
   const onGoGenerateTopic = (topic) => {
     const course = data.focus?.course;
     intents.goGenerate({
@@ -332,6 +371,7 @@ function OutlineView() {
     onBack={fromReview ? learn.returnFromContext : () => nav.navigate('library')}
     onCreate={() => intents.goGenerate()}
     onGoGenerateTopic={onGoGenerateTopic}
+    onOpenMasteryMap={onOpenMasteryMap}
     onOpenSources={pageAvailable(data, 'sources') ? () => nav.navigate('sources') : undefined} onPractice={onPractice} onOpenTask={nav.show.task}
     onOpenSource={(id, quote) => learn.openLearningTarget({ kind: 'source', id, quote })} onOpenBook={onOpenBook} />;
 }
