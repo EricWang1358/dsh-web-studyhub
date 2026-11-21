@@ -543,7 +543,7 @@ export default function MasteryMap({
           <div
             ref={gridRef}
             className="mm-grid"
-            role="list"
+            role="group"
             aria-label={ui('章节掌握热力矩阵')}
             onKeyDown={handleGridKeyDown}
           >
@@ -562,7 +562,6 @@ export default function MasteryMap({
                   key={ch.id}
                   variant="quiet"
                   className="mm-cell"
-                  role="listitem"
                   data-mm-chapter={ch.id}
                   data-mm-grid-index={idx}
                   data-tier={ch.tier}

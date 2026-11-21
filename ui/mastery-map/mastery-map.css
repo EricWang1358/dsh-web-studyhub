@@ -817,7 +817,8 @@
     }
   }
 
-  :where(.study-app[data-motion="reduced"], .study-seat[data-motion="reduced"]) {
+  :is(.study-app, .study-seat)[data-motion="reduced"],
+  :is(.study-app, .study-seat)[data-motion="off"] {
     .mm-cell,
     .mm-spine__fill,
     .mm-point__bar-fill {

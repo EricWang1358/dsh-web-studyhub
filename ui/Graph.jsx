@@ -170,6 +170,7 @@ export default function Graph({
       return;
     }
     const n = ++outlineSeq.current;
+    setOutlineData((prev) => (prev && prev.course === course ? prev : null));
     setOutlineLoading(true);
     setOutlineError("");
     try {
@@ -536,7 +537,7 @@ export default function Graph({
       {isMastery ? (
         <div className="graph-mastery-body">
           <MasteryMap
-            outline={initialOutline ?? outlineData}
+            outline={initialOutline ?? (outlineData && outlineData.course === course ? outlineData : null)}
             decks={masteryDecks}
             progress={library?.progress || {}}
             course={course}

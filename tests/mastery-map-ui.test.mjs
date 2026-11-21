@@ -384,6 +384,8 @@ test('MasteryMap scales to 30+ chapters cleanly with INITIAL_VISIBLE_CHAPTERS wi
   const renderedCells = (html.match(/data-mm-chapter="/g) || []).length;
   assert.equal(renderedCells, 24, 'initially renders 24 chapter cells for high-density scan');
   assert.match(html, /展开全部 30 章/);
+  assert.match(html, /class="mm-grid" role="group"/, 'chapter grid uses role="group"');
+  assert.doesNotMatch(html, /role="listitem"[^>]*aria-pressed=/, 'chapter buttons preserve native button role for aria-pressed');
 });
 
 test('Graph integrates mastery mode cleanly while keeping structure mode default', () => {
@@ -458,6 +460,7 @@ test('MasteryMap modules obey client boundaries (zero lib/ imports) and CSS toke
   assert.match(css, /@layer study\.features/);
   assert.match(css, /prefers-reduced-motion:\s*reduce/);
   assert.match(css, /data-motion="reduced"/);
+  assert.match(css, /data-motion="off"/);
   assert.doesNotMatch(css, /#[0-9a-fA-F]{3,8}\b/);
   assert.doesNotMatch(css, /\b(?:rgba?|hsla?)\(/i);
   assert.doesNotMatch(css, /var\(--fw-strong\)/);
