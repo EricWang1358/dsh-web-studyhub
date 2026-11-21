@@ -157,6 +157,20 @@ test('applyRound1PointPlan: preserves unpointed sections, keeps Round 1 total bu
   assert.deepEqual(multiApplied.rounds.slice(1), multi.rounds.slice(1), 'rounds 2..N are untouched');
   const r1SectionSet = new Set(multi.rounds[0].assignments.map(a => a.sectionId));
   assert.ok(multiApplied.rounds[0].assignments.every(a => r1SectionSet.has(a.sectionId)), 'Round 1 never steals sections from later rounds');
+
+  // Staged mode where one long section spans Round 1 and Round 2 (quota > roundLimit): sum(plan.quotas) stays equal to plan.goal.
+  const longLeaves = [{ id: 's0', key: 'long#s0', sourceId: 'long', chars: 24000, leaf: true, start: 0, end: 24000, title: 'Long Chapter' }];
+  const stagedSplit = coveragePlan({ leaves: longLeaves, weights: [], level: 'standard', goalCount: 12, onePass: false, limit: 6 });
+  assert.ok(stagedSplit.rounds.length >= 2, 'single long section splits across Round 1 and Round 2 in staged mode');
+  assert.equal(stagedSplit.rounds[0].assignments[0].sectionId, stagedSplit.rounds[1].assignments[0].sectionId);
+  const splitPts = { points: [
+    mkPoint('lp1', { order: 0, sectionKey: 'long#s0', sourceId: 'long', start: 0, end: 4000, items: 10, places: 10 }),
+    mkPoint('lp2', { order: 1, sectionKey: 'long#s0', sourceId: 'long', start: 4000, end: 8000, items: 10, places: 10 }),
+  ] };
+  const splitApplied = applyRound1PointPlan(stagedSplit, { leaves: longLeaves, points: splitPts });
+  assert.equal(splitApplied.plan.quotas.reduce((sum, q) => sum + q.quota, 0), splitApplied.plan.goal, 'sum(plan.quotas) === plan.goal across split rounds');
+  assert.equal(splitApplied.rounds.reduce((sum, r) => sum + r.questions, 0), splitApplied.plan.goal);
+  assert.deepEqual(splitApplied.rounds[0].pointIds, ['lp1', 'lp2']);
 });
 
 test('preset matrix interaction & estimateFromState: all 9 cells (density x depth) + custom count allocate Round 1 points consistently', () => {
