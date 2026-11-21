@@ -1,6 +1,6 @@
 import { ui, uiFormat, uiIsEnglish } from '../i18n.js';
 import { kindsOfLegacyKind } from '../../lib/generation-settings.js';
-import { DEPTHS, depthApplies } from '../../lib/generation-presets.js';
+import { DEPTHS, depthApplies } from '../../lib/contexts/generation/presets.js';
 import { isLevel } from '../../lib/coverage-strength.js';
 import { formatList } from '../format.js';
 import { kindsPatch } from '../generate-form.js';

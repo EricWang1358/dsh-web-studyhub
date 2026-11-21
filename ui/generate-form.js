@@ -14,7 +14,7 @@ import { META_DOT } from './format.js';
 import { kinds as kindNames } from './shared.js';
 import { BASIC_KINDS, kindsOfLegacyKind, legacyKindOf, requestKinds, splitCount } from '../lib/generation-settings.js';
 import { isGenerationRun } from '../lib/job-status.js';
-import { DEPTHS, performanceOfDepth } from '../lib/generation-presets.js';
+import { DEPTHS, performanceOfDepth } from '../lib/contexts/generation/presets.js';
 
 export const COUNT_MIN = 1;
 /** The most questions a request may ask for (lib/limits.js GOAL_QUESTIONS_MAX): what does not fit in one round of 30 becomes rounds. */
@@ -140,7 +140,7 @@ export function coverageChoicePatch(choice, { suggested } = {}) {
   return { coverageLevel: levelOf(choice), customCount: '' };
 }
 
-/** The performance keys of the form's 出题深度 (`gen.depth`, lib/generation-presets.js): sent with this run only, over the saved settings; nothing for a form without one. */
+/** The performance keys of the form's 出题深度 (`gen.depth`, lib/contexts/generation/presets.js): sent with this run only, over the saved settings; nothing for a form without one. */
 const depthPerformance = (gen) => (DEPTHS.includes(gen?.depth) ? { performance: performanceOfDepth(gen.depth) } : {});
 
 /** The generation request the form sends: the form as typed, the 覆盖强度, the 出题深度 and, only when the learner typed one, a total number of questions. A request without a count is planned by its level. */

@@ -4,7 +4,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
 
-/* 创建题组, the short main path (#667): sources, 题型, 出题方式 (the three presets 快问 / 情境题 / 逐题精出, lib/generation-presets.js), one line of where the new deck goes (课程, #665)
+/* 创建题组, the short main path (#667): sources, 题型, 出题方式 (the three presets 快问 / 情境题 / 逐题精出, lib/contexts/generation/presets.js), one line of where the new deck goes (课程, #665)
    with 前往设置, and the one button. Every optional control (覆盖强度 with 自定义 and 自动补到完整, 出题深度, 想练什么, 重点, 参考样题, 难度, 语言, 公式写法, 花费上限, 名称, 目标岗位 / 面试方向 #666)
    is inside 更多选项, in groups by purpose. Static markup here; the opening state,
    the estimate and the clicks are in tests/generate-short-browser.test.mjs. */

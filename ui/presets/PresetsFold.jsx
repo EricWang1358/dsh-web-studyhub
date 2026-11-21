@@ -4,16 +4,18 @@ import { HelpTip, SegmentedControl } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
 import { depthLabel } from './depth-label.js';
 import { depthNote, depthTip } from './depth-copy.js';
+import { costLoading, costTip, costWords, matrixWords } from './cost-words.js';
 import css from './presets-fold.css';
 
-/* The part of 出题方式 that lives in 更多选项 (ui/presets/Presets.jsx has the presets of the main path): 出题深度 beside the 覆盖强度, and the matrix of the rough
-   cost of every cell. 创建题组 loads this file on its own (deferredView), after the first screen: the fold is shut when the page opens, so the workspace's first
-   load does not carry it (tests/workspace-closure-pages.test.mjs). It reaches nothing in lib/: the form hands it the depths and the matrix in words
-   (ui/presets/copy.js matrixWords), so loading it apart splits none of the first load's chunks (that test's count of waves). */
+/* The parts of 出题方式 that wait for their own chunk (ui/presets/Presets.jsx has the presets of the main path): 出题深度 beside the 覆盖强度 in 更多选项, the
+   matrix of the rough cost of every cell, and the line of rough costs beside the presets. 创建题组 loads this file on its own (deferredView), after the first
+   screen, so the workspace's first load does not carry it (tests/workspace-closure-pages.test.mjs). It reaches nothing in lib/: the form hands it the depths,
+   the columns and the costs, so loading it apart splits none of the first load's chunks (that test's count of waves). */
 
-/** 出题深度 in 更多选项 (`depths`: lib/generation-presets.js DEPTHS; `offReason`: why it does nothing for these question types), with the matrix under it once
-    the costs are in (`matrix`: matrixWords, or null). */
-export default function PresetsFold({ depth, depths, applies, offReason, disabled = false, onDepth, matrix }) {
+/** 出题深度 in 更多选项 (`depths`: lib/contexts/generation/presets.js DEPTHS; `offReason`: why it does nothing for these question types), with the matrix under it
+    once there is something to price (`costs`: ui/presets/cost.js cellCosts of every cell, or null; `cell`: the form's; `columns`: ui/presets/copy.js matrixColumns). */
+export default function PresetsFold({ depth, depths, applies, offReason, disabled = false, onDepth, costs, cell, columns }) {
+  const matrix = costs ? matrixWords(costs, cell, { columns, depths }) : null;
   return <>
     <DepthChoice depth={depth} depths={depths} applies={applies} offReason={offReason} disabled={disabled} onDepth={onDepth} />
     {matrix && <CostMatrix matrix={matrix} />}
@@ -31,6 +33,18 @@ export function DepthChoice({ depth, depths, applies, offReason, disabled = fals
     </span>
     <p className="generate-note" data-depth-note>{applies ? depthNote(depth) : offReason}</p>
   </div>;
+}
+
+/** 「大致花费 ⓘ 快问 约 ×0.3（26–33 题） · 情境题 ×1 · 逐题精出 约 ×0.7（28 题）」 (情境题 chosen) beside the presets: `items` { label, cost, current } a preset
+    each, `lead` the words the main path already shows before them; nothing when the default cell could not be estimated. */
+export function CostLine({ items, lead }) {
+  const ready = items.every(item => item.cost?.ready), base = items.find(item => item.cost?.base)?.cost;
+  if (ready && !(base?.ratio > 0)) return null;
+  return <p className="generate-note presets__cost" data-preset-cost data-status={ready ? 'ready' : 'loading'}>
+    <span className="presets__cost-lead">{lead}</span>
+    <HelpTip label={ui('大致花费是怎么算的')}>{costTip()}</HelpTip>
+    <span className="presets__cost-items">{ready ? items.map(costWords).join(' · ') : costLoading()}</span>
+  </p>;
 }
 
 /** The matrix in 更多选项: a row per depth, a column per 覆盖强度, each cell its rough cost and questions; the form's own cell is marked. Read only: the two

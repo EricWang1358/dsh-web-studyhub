@@ -166,7 +166,7 @@ export const FEATURES = Object.freeze([
     aliases: ['案例', '案例题', '案例卷', '长案例', '评分标准', 'case study', 'case', 'rubric'],
     path: ['创建题组', '案例分析题'],
     what: '长案例加开放题，按评分标准逐项批改；这门课考案例题时，在这里出题。' }),
-  // 出题方式 (lib/generation-presets.js): three presets on the main path; its two axes (覆盖强度 × 出题深度) and the rough cost of each combination in 更多选项.
+  // 出题方式 (lib/contexts/generation/presets.js): three presets on the main path; its two axes (覆盖强度 × 出题深度) and the rough cost of each combination in 更多选项.
   feature({ id: 'generation-preset', area: 'generate', title: '出题方式', page: 'generate', anchors: ['generate-preset', 'generate-from-sources'], prepare: 'materials',
     aliases: ['快问', '情境题', '逐题精出', '预设', '省钱', 'preset', 'quick', 'scenario'],
     path: ['创建题组', '出题方式'],

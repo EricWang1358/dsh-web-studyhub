@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DENSITIES, DEPTHS, PRESETS, DEFAULT_PRESET, DEFAULT_CELL, performanceOfDepth, depthOf, settingsOfCell, presetOf, presetCell, depthApplies, costRatio }
-  from '../lib/generation-presets.js';
+  from '../lib/contexts/generation/presets.js';
 import { levelOf } from '../lib/coverage-strength.js';
 import { GENERATION_COVERAGE_LEVELS, GENERATION_SETTINGS_DEFAULTS, normalizeGenerationSettings } from '../lib/generation-settings.js';
 

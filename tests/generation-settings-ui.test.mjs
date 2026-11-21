@@ -251,7 +251,7 @@ test('lightModel offers following the generation model by default, lists host mo
   assert.equal(calls[0].args.generation.lightModel, JSON.stringify(['preview', 'fast-model']));
 });
 
-// 出题深度 (lib/generation-presets.js) is the ONE control for the saved strategy and write style: 快问 / 情境题 / 逐题精出, where 出题方式 was a choice of two.
+// 出题深度 (lib/contexts/generation/presets.js) is the ONE control for the saved strategy and write style: 快问 / 情境题 / 逐题精出, where 出题方式 was a choice of two.
 test('出题深度 is a choice of three under the advanced controls, 情境题 by default, explained by a hover card and never a title attribute', () => {
   for (const [language, labels, tip] of [['zh', ['快问', '情境题（默认）', '逐题精出'], /快问：每段资料一次写完这一段的题/], ['en', ['Quick', 'Scenario (default)', 'Step by step'], /Quick: each part of the material gets its questions in one call/]]) {
     ssr.setUiLanguage(language);

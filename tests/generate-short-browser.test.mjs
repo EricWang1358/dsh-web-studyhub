@@ -15,7 +15,7 @@ import { StudyService } from '../lib/service.js';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* 创建题组 in the browser preview on a seeded library: the page opens with the current course's documents that have no question ticked and says why, the main path is the question types,
-   出题方式 (three presets 快问 / 情境题 / 逐题精出 with their rough costs, lib/generation-presets.js) and one line for the course (更改 opens the one field of it, #665) with 前往设置, the plan
+   出题方式 (three presets 快问 / 情境题 / 逐题精出 with their rough costs, lib/contexts/generation/presets.js) and one line for the course (更改 opens the one field of it, #665) with 前往设置, the plan
    (rounds, tokens) is said once under the form, everything optional is in 更多选项 (with 覆盖强度: 精简 / 标准 / 完整 / 自定义, one on at a time, #664; 出题深度; the matrix of rough costs)
    and the page is at most about one and a half screens before it is opened (#667), and 前往设置 lands on 出题偏好.
    At 1280 and 420 px, no sideways scroll, no layout shift. EXAM_PREP_SHOTS-style switch: GENERATE_SHOTS=<dir> writes screenshots. */

@@ -9,8 +9,9 @@ import { loadUi } from './helpers/ui-module.mjs';
 
 const m = await loadUi(`
   export * from './ui/presets/Presets.jsx';
-  export { DepthChoice, CostMatrix } from './ui/presets/PresetsFold.jsx';
-  export { DEPTHS, DEFAULT_PRESET, PRESETS } from './lib/generation-presets.js';
+  export { DepthChoice, CostMatrix, CostLine } from './ui/presets/PresetsFold.jsx';
+  export * as words from './ui/presets/cost-words.js';
+  export { DEPTHS, DEFAULT_PRESET, PRESETS } from './lib/contexts/generation/presets.js';
   export { askCells } from './ui/presets/use-cell-estimates.js';
   export { estimateRequestOf, generationRequest } from './ui/generate-form.js';
   export { generationFormDefaults } from './ui/generation-status.js';
@@ -45,21 +46,25 @@ test('cell costs: each upper end over the default cell\'s; unknown while asked, 
 
 test('ratio words: 「约 ×0.3」, the default cell 「×1」, nothing without a ratio', () => {
   m.setUiLanguage('zh');
-  assert.equal(m.copy.ratioText(0.2849), '约 ×0.3');
-  assert.equal(m.copy.ratioText(1.75), '约 ×1.8');
-  assert.equal(m.copy.ratioText(1, { base: true }), '×1');
-  assert.equal(m.copy.ratioText(null), '');
-  assert.equal(m.copy.ratioText(0.62, { bare: true }), '×0.6', 'without 约 where the heading says the costs are rough');
-  assert.equal(m.copy.questionsText({ goal: 66, goalLow: 53 }), '53–66 题');
-  assert.equal(m.copy.questionsText({ goal: 28 }), '28 题');
-  assert.equal(m.copy.questionsText(null), '');
+  assert.equal(m.words.ratioText(0.2849), '约 ×0.3');
+  assert.equal(m.words.ratioText(1.75), '约 ×1.8');
+  assert.equal(m.words.ratioText(1, { base: true }), '×1');
+  assert.equal(m.words.ratioText(null), '');
+  assert.equal(m.words.ratioText(0.62, { bare: true }), '×0.6', 'without 约 where the heading says the costs are rough');
+  assert.equal(m.words.questionsText({ goal: 66, goalLow: 53 }), '53–66 题');
+  assert.equal(m.words.questionsText({ goal: 28 }), '28 题');
+  assert.equal(m.words.questionsText(null), '');
 });
 
 test('the presets say each rough cost and how many questions the others make; the form\'s own cell says no count (the summary does)', () => {
   m.setUiLanguage('zh');
   const costs = m.cost.cellCosts(ANSWERS, m.cost.PRESET_CELLS);
-  const html = renderToStaticMarkup(React.createElement(m.PresetPicker, { cell: { density: 'standard', depth: 'scenario' }, applies: true, costs, onPick: () => {} }));
-  assert.match(html, /data-preset="scenario"/);
+  const picker = renderToStaticMarkup(React.createElement(m.PresetPicker, { cell: { density: 'standard', depth: 'scenario' }, applies: true, costs, onPick: () => {} }));
+  assert.match(picker, /data-preset="scenario"/);
+  // Until its chunk arrives the line holds its place with its lead (ui/presets/Presets.jsx); the line itself is drawn by CostLine.
+  assert.match(picker, /data-preset-cost[^>]*data-status="loading"[^>]*><span class="presets__cost-lead">大致花费<\/span><\/p>/);
+  const items = m.cost.PRESET_CELLS.map(cell => ({ label: m.copy.presetLabel(cell.depth), cost: costs.get(m.cost.cellKey(cell)), current: m.cost.cellKey(cell) === 'standard:scenario' }));
+  const html = renderToStaticMarkup(React.createElement(m.CostLine, { items, lead: m.copy.costLead() }));
   const line = /data-preset-cost[^>]*data-status="ready"[^>]*>([\s\S]*?)<\/p>/.exec(html)?.[1] || '';
   assert.match(text(line), /^大致花费 快问 约 ×0\.3（26–33 题） · 情境题 ×1 · 逐题精出 约 ×0\.7（28 题）$/);
   assert.match(html, /role="tooltip"[^>]*>[^<]*只是粗略比较，不是固定倍数/, 'a hover card says the ratio is rough and depends on the model');
@@ -88,7 +93,7 @@ test('the matrix: a row per depth, a column per 覆盖强度, the form\'s cell m
   m.setUiLanguage('zh');
   const answers = new Map(m.cost.MATRIX_CELLS.map((cell, at) => [m.cost.cellKey(cell), estimate(50000 + at * 10000, 10 + at)]));
   answers.set('standard:scenario', estimate(100000, 66, 53));
-  const html = renderToStaticMarkup(React.createElement(m.CostMatrix, { matrix: m.copy.matrixWords(m.cost.cellCosts(answers, m.cost.MATRIX_CELLS), { density: 'lean', depth: 'quick' }) }));
+  const html = renderToStaticMarkup(React.createElement(m.CostMatrix, { matrix: m.words.matrixWords(m.cost.cellCosts(answers, m.cost.MATRIX_CELLS), { density: 'lean', depth: 'quick' }, { columns: m.copy.matrixColumns(), depths: m.DEPTHS }) }));
   assert.deepEqual([...html.matchAll(/<thead>[\s\S]*?<\/thead>/g)].map(match => text(match[0])), ['出题深度 精简 标准 完整']);
   assert.deepEqual([...html.matchAll(/<th scope="row">(.*?)<\/th>/g)].map(match => match[1]), ['快问', '情境题', '逐题精出']);
   const current = /<td[^>]*data-current="true"[^>]*>([\s\S]*?)<\/td>/.exec(html);
@@ -100,12 +105,12 @@ test('the matrix: a row per depth, a column per 覆盖强度, the form\'s cell m
 
 test('the matrix in words: loading cells say no figure, and nothing is drawn when the default cell could not be estimated', () => {
   m.setUiLanguage('zh');
-  const asking = m.copy.matrixWords(m.cost.cellCosts(new Map(), m.cost.MATRIX_CELLS), { density: 'standard', depth: 'scenario' });
+  const asking = m.words.matrixWords(m.cost.cellCosts(new Map(), m.cost.MATRIX_CELLS), { density: 'standard', depth: 'scenario' }, { columns: m.copy.matrixColumns(), depths: m.DEPTHS });
   assert.equal(asking.ready, false);
   assert.ok(asking.rows.every(row => row.cells.every(cell => !cell.ready && cell.ratio === '' && cell.questions === '')));
   const failed = new Map(m.cost.MATRIX_CELLS.map(cell => [m.cost.cellKey(cell), estimate(1000, 1)]));
   failed.set('standard:scenario', null);
-  assert.equal(m.copy.matrixWords(m.cost.cellCosts(failed, m.cost.MATRIX_CELLS), { density: 'standard', depth: 'scenario' }), null);
+  assert.equal(m.words.matrixWords(m.cost.cellCosts(failed, m.cost.MATRIX_CELLS), { density: 'standard', depth: 'scenario' }, { columns: m.copy.matrixColumns(), depths: m.DEPTHS }), null);
 });
 
 test('the part of 更多选项 reaches nothing in lib/: loading it apart must not split the chunks of the first load', async () => {
@@ -132,11 +137,12 @@ test('the same words in English have no Chinese', () => {
     const answers = new Map(m.cost.MATRIX_CELLS.map(cell => [m.cost.cellKey(cell), estimate(80000, 20)]));
     const html = [
       renderToStaticMarkup(React.createElement(m.PresetPicker, { cell: { density: 'standard', depth: 'scenario' }, applies: true, costs, onPick: () => {} })),
+      renderToStaticMarkup(React.createElement(m.CostLine, { lead: m.copy.costLead(), items: m.cost.PRESET_CELLS.map(cell => ({ label: m.copy.presetLabel(cell.depth), cost: costs.get(m.cost.cellKey(cell)), current: false })) })),
       renderToStaticMarkup(React.createElement(m.PresetPicker, { cell: { density: 'full', depth: 'quick' }, applies: true, costs: null, onPick: () => {} })),
       renderToStaticMarkup(React.createElement(m.PresetPicker, { cell: { density: 'full', depth: 'quick' }, applies: false, costs: null, onPick: () => {} })),
       renderToStaticMarkup(React.createElement(m.DepthChoice, { depth: 'blueprint', depths: m.DEPTHS, applies: true, offReason: m.copy.depthOffReason(), onDepth: () => {} })),
       renderToStaticMarkup(React.createElement(m.DepthChoice, { depth: 'quick', depths: m.DEPTHS, applies: false, offReason: m.copy.depthOffReason(), onDepth: () => {} })),
-      renderToStaticMarkup(React.createElement(m.CostMatrix, { matrix: m.copy.matrixWords(m.cost.cellCosts(answers, m.cost.MATRIX_CELLS), { density: 'full', depth: 'quick' }) })),
+      renderToStaticMarkup(React.createElement(m.CostMatrix, { matrix: m.words.matrixWords(m.cost.cellCosts(answers, m.cost.MATRIX_CELLS), { density: 'full', depth: 'quick' }, { columns: m.copy.matrixColumns(), depths: m.DEPTHS }) })),
     ].join('');
     assert.doesNotMatch(html.replace(/<[^>]+>/g, ' '), han);
     assert.match(html, /Quick about ×0\.3/);
@@ -145,11 +151,11 @@ test('the same words in English have no Chinese', () => {
 
 test('a ratio under 0.05 is never 「×0」: it says it is under ×0.1', () => {
   m.setUiLanguage('zh');
-  assert.equal(m.copy.ratioText(0.04), '不到 ×0.1');
-  assert.equal(m.copy.ratioText(0.04, { bare: true }), '<×0.1');
-  assert.equal(m.copy.ratioText(0.05), '约 ×0.1', '0.05 rounds to 0.1 as before');
+  assert.equal(m.words.ratioText(0.04), '不到 ×0.1');
+  assert.equal(m.words.ratioText(0.04, { bare: true }), '<×0.1');
+  assert.equal(m.words.ratioText(0.05), '约 ×0.1', '0.05 rounds to 0.1 as before');
   m.setUiLanguage('en');
-  try { assert.equal(m.copy.ratioText(0.01), 'under ×0.1'); } finally { m.setUiLanguage('zh'); }
+  try { assert.equal(m.words.ratioText(0.01), 'under ×0.1'); } finally { m.setUiLanguage('zh'); }
 });
 
 test('a typed number of questions: the presets read 自定义 with that number (never a level\'s amount), and no rough cost is shown', () => {
@@ -209,13 +215,13 @@ test('the form\'s 出题深度 is sent as performance with this run and its esti
   assert.equal('performance' in m.generationRequest({ ...plain, depth: 'loud' }, where), false, 'an unknown depth is not sent');
 });
 
-test('the copy names the default preset only where lib/generation-presets.js says it is the default', () => {
+test('the copy names the default preset only where lib/contexts/generation/presets.js says it is the default', () => {
   m.setUiLanguage('zh');
   // The copy says 「情境题（默认）」 and prices against 「情境题」: if DEFAULT_PRESET moves, this fails until the words move with it.
   assert.equal(m.DEFAULT_PRESET, 'scenario');
   for (const { id } of m.PRESETS) assert.equal(/（默认）/.test(m.copy.presetNote(id)), id === m.DEFAULT_PRESET, `${id}: 默认 only on the default`);
   const label = m.copy.presetLabel(m.DEFAULT_PRESET);
-  assert.ok(m.copy.costTip().includes(`「${label}」`), 'the hover card prices against the default');
-  const matrix = m.copy.matrixWords(m.cost.cellCosts(new Map(), m.cost.MATRIX_CELLS), { density: 'standard', depth: 'scenario' });
+  assert.ok(m.words.costTip().includes(`「${label}」`), 'the hover card prices against the default');
+  const matrix = m.words.matrixWords(m.cost.cellCosts(new Map(), m.cost.MATRIX_CELLS), { density: 'standard', depth: 'scenario' }, { columns: m.copy.matrixColumns(), depths: m.DEPTHS });
   assert.ok(matrix.caption.includes(`「${label}」`), 'and so does the caption of the matrix');
 });

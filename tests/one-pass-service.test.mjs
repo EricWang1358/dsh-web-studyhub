@@ -53,12 +53,12 @@ test('a standard coverage run in one pass: every planned section covered, only o
   assert.ok(calls.every(call => Number.isInteger(call.tokens) && call.tokens > 0), 'and its token usage');
 });
 
-/* The 出题深度 picked on 创建题组 (ui/generate-form.js: `performance` of lib/generation-presets.js) is this run's only: it reaches every write call through the
+/* The 出题深度 picked on 创建题组 (ui/generate-form.js: `performance` of lib/contexts/generation/presets.js) is this run's only: it reaches every write call through the
    `generate` action, the draft records it, and the saved default is what it was. */
 test('the form\'s per-run depth reaches the run: 快问 writes in the quick style, and the saved 情境题 stays the default', async t => {
   const { service, log, ids } = await library(t);
   const { WRITE_STYLES } = await import('../lib/one-pass/write-style.js');
-  const { performanceOfDepth } = await import('../lib/generation-presets.js');
+  const { performanceOfDepth } = await import('../lib/contexts/generation/presets.js');
   const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'lean', kind: 'quiz', language: 'English', performance: performanceOfDepth('quick') });
   const job = await settleJob(service, started.jobId);
   assert.equal(job.status, 'complete', job.stage);

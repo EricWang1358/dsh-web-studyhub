@@ -7,7 +7,7 @@ import { isActiveJob, supplementJobLabel } from './job-visibility.js';
 import { JOB_STATUS, JOB_TYPES } from '../lib/job-status.js';
 import { countDocuments } from '../lib/source-groups.js';
 import { GENERATION_SETTINGS_DEFAULTS, normalizeGenerationSettings, resolveGenerationRequest } from '../lib/generation-settings.js';
-import { depthOf } from '../lib/generation-presets.js';
+import { depthOf } from '../lib/contexts/generation/presets.js';
 import { DIMENSIONS, issueCode, reasonLabel } from './quality-reasons.js';
 import { classifyFailure } from '../lib/generation-failure.js';
 import { formatClauses } from './format.js';
@@ -19,7 +19,7 @@ export const GENERATION_DEFAULTS = Object.freeze({ kind: GENERATION_SETTINGS_DEF
   difficulty: GENERATION_SETTINGS_DEFAULTS.difficulty, focus: GENERATION_SETTINGS_DEFAULTS.focus, notation: GENERATION_SETTINGS_DEFAULTS.notation, role: '',
   // 覆盖强度 (lib/coverage-strength.js): the form plans by level; a number of questions is only sent when the learner types one (`customCount`).
   coverageLevel: GENERATION_SETTINGS_DEFAULTS.coverageLevel, customCount: '',
-  // 出题深度 (lib/generation-presets.js): the form's depth starts as the saved one; a choice on the form is sent with that run only (generate-form.js generationRequest).
+  // 出题深度 (lib/contexts/generation/presets.js): the form's depth starts as the saved one; a choice on the form is sent with that run only (generate-form.js generationRequest).
   depth: depthOf(GENERATION_SETTINGS_DEFAULTS),
   // 花费上限 is typed as 800K / 2.5M (lib/coverage-run.js parseTokenBudget) and optional. (自动补到完整 has no default of its own: it follows the level until the learner ticks it, `gen.autoComplete`.)
   tokenBudget: '' });

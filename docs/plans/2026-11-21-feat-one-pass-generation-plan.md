@@ -372,7 +372,7 @@ owner（2026-11-21）：查缺还应复用于复习全书和知识点掌握度�
 按第 7 节第 6 条（owner 2026-11-21）做的第二个改动：两根轴，密度（少 / 标准 / 密，就是现有覆盖强度的精简 / 标准 / 完整，数字不变）× 深度（快问 / 情境题 / 逐题精出）。
 
 做了什么：
-- lib/generation-presets.js 写明两根轴、三个预设，以及格子与设置之间的换算。格子与 `{ coverageLevel, performance: { strategy, writeStyle } }` 互相换算，不是预设的格子叫「自定义」。表单、设置页和后端都读它。
+- lib/contexts/generation/presets.js 写明两根轴、三个预设，以及格子与设置之间的换算。格子与 `{ coverageLevel, performance: { strategy, writeStyle } }` 互相换算，不是预设的格子叫「自定义」。表单、设置页和后端都读它。
 - `writeStyle` 成了 performance 里一项校验过的设置，和 `strategy` 并列，默认 `scenario`。一次写完的草稿会记下它，续出和补题沿用；旧的一次写完草稿按 scenario 处理。每一次写题调用都带上它。
 - 创建题组的主路径上，原来的「覆盖强度」换成三个预设的「出题方式」，每个预设旁写着大致花费。覆盖强度（连同自定义题数和自动补到完整）、出题深度和九格花费表，都放进「更多选项」新的第一组「出题方式与题量」。
 - 设置页「高级生成控制」里，原来的「出题方式」下拉换成一个「出题深度」下拉。
@@ -380,7 +380,7 @@ owner（2026-11-21）：查缺还应复用于复习全书和知识点掌握度�
 
 决定（接第 16 节编号，供评审逐条否决；71 条是留给 owner 的问题）：
 
-52. **一个模块定预设**：lib/generation-presets.js。格子是 `{ density, depth }`，深度换成设置是 `{ strategy, writeStyle }`。逐题精出也带上 `writeStyle: 'scenario'`，这样三种深度设置同样两个键；逐题精出不读它。`depthOf` 先经过设置自己的归一化：坏值按默认处理；S8 迁移的学习库（采纳审阅建议开、没存 strategy）读成逐题精出；staged 不管 writeStyle 是什么都读成逐题精出。
+52. **一个模块定预设**：lib/contexts/generation/presets.js。格子是 `{ density, depth }`，深度换成设置是 `{ strategy, writeStyle }`。逐题精出也带上 `writeStyle: 'scenario'`，这样三种深度设置同样两个键；逐题精出不读它。`depthOf` 先经过设置自己的归一化：坏值按默认处理；S8 迁移的学习库（采纳审阅建议开、没存 strategy）读成逐题精出；staged 不管 writeStyle 是什么都读成逐题精出。
 53. **名称沿用现有说法，一个事实一种说法**：深度叫「快问 / 情境题 / 逐题精出」，「逐题精出」沿用原来的叫法，不用「先定蓝图再写」；密度沿用「精简 / 标准 / 完整」。预设以它的深度命名。英文是 Quick / Scenario / Step by step。原来设置里的「快速铺题（默认）」这个名称取消，one-pass-generation 的更新说明里也改成「一次写完」。
 54. **表单的深度是 `gen.depth`**，只对这一次出题有效：表单默认值取保存的深度（`generationFormDefaults`）；出题请求（`generationRequest`）和用量预估（`estimateRequestOf`）把它换成 `performance: { strategy, writeStyle }` 发出，盖过保存的设置；出完题表单回到保存的值（`freshGeneration`）。表单没有自己的 depth 时（旧的表单状态）什么都不发，后端按保存的设置走，出题和预估一致。按学习路径分步出题（`queueSteps`）不带 depth，步骤按题数出，总是逐题精出。
 55. **选一个预设会同时设好覆盖强度和深度，并清掉手填的题数**；「自动补到完整」保留手动的选择。
@@ -451,7 +451,7 @@ owner（2026-11-21）：查缺还应复用于复习全书和知识点掌握度�
     - 按覆盖强度出的单选新题组，记录里多了 `depth`，这是有意的变化：coverage.standard / smallTarget / budget / noLight、run.waiting、end.runRefused / firstRoundFails / roundFails / cancelledBeforeDraft / hostStopped。三份记录（generation-generate-golden.json、.generation.json、.all.json）用 `STUDY_RECORD_GOLDEN=1` 重新录制。运行时那两份的 contract 摘要也跟着变；关掉这条记录时，它们和旧记录完全一致。
     - 测试：tests/retry-generation.test.mjs（表单补丁、提示，以及经过后端 `generate` 的记录）。
 73. **手填题数就是「自定义」**：
-    - lib/generation-presets.js `presetOf`：带 `count` 的格子不是预设。表单的格子带上手填的题数。
+    - lib/contexts/generation/presets.js `presetOf`：带 `count` 的格子不是预设。表单的格子带上手填的题数。
     - 主路径不亮任何预设，说明写「自定义：40 题 × 情境题」，不说哪一档的题量。
     - 选这个而不是「只改说明」：一个事实一种说法，而且只改一处。
 74. **手填题数时不显示倍数和九格表**：
@@ -472,5 +472,16 @@ owner（2026-11-21）：查缺还应复用于复习全书和知识点掌握度�
     - ui/presets 里「情境题（默认）」和「相对『情境题』」写死了默认预设。
     - tests/generation-presets-ui.test.mjs 检查：只有 `DEFAULT_PRESET` 的说明带「（默认）」，花费说明和九格表的标题都以它为基准。默认一改，测试就失败。
     - 首屏：3,949,580 / 3,950,000 字节，6 轮，余量约 400 字节。
+80. **预设模块放进 generation 上下文**：
+    - `lib/generation-presets.js` 移到 `lib/contexts/generation/presets.js`。tests/lib-top-level.test.mjs 规定 lib/ 顶层的 .js 文件数只减不增（上限 422），新模块放在 lib/contexts/<上下文>/ 下。上限没有调高。
+    - 界面照旧直接引用这个文件（lib/contexts/generation/book/plan-parts.js 也是这样）；ui-lib 允许清单和 docs/lib-classification.md 由 `npm run lib-graph` 重新生成。本文件里提到的旧路径一并改成新路径。
+    - 改动说明里的「未验证」改成 changelog 检查要求的写法（「Not verified: …」/「未验证：…」）。
+    - 这两项检查当时没发现：tests/lib-top-level.test.mjs 和 tests/changelog-fragments.test.mjs 都在 tests/slow-tests.json 里，`node scripts/test.mjs --fast` 不跑它们。
+81. **合并 main 之后首屏又超了上限**：
+    - main 自己长到 3,940,430 字节，加上这条分支，合并后是 3,951,430，超过 3,950,000。上限没有调高。
+    - 主路径上花费那一行的文字（主要是悬停说明）和九格表的文字搬进「更多选项」那个 chunk：ui/presets/cost-words.js 放倍数、题数、悬停说明和九格表的文字，ui/presets/PresetsFold.jsx 画花费那一行（`CostLine`，Presets.jsx 用 deferredView 加载）。
+    - chunk 到达之前，那一行先占好位置，只显示「大致花费」，下面的内容不移动。花费本来要等每格的估算回来才有，所以看不出差别。
+    - 格子的键单独放在 ui/presets/cell-key.js，cost.js 和 cost-words.js 共用，不用为它引用 lib/。九格表的列名由主路径算好传进去（copy.js `matrixColumns`）。
+    - 结果：3,949,429 字节，6 轮，余量约 570 字节。tests/client-boundaries.test.mjs 的延迟加载数加一（22 + 每个设置分类一个）。
 
 未验证：快问、九格表和倍数都没有接真实模型跑过；快问的题数和花费都是预估。

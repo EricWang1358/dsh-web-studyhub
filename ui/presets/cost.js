@@ -1,9 +1,10 @@
-/* The rough cost of each cell of 出题方式 (lib/generation-presets.js) for the chosen materials: no number of its own, only the token estimate the form already asks
+/* The rough cost of each cell of 出题方式 (lib/contexts/generation/presets.js) for the chosen materials: no number of its own, only the token estimate the form already asks
    for (`usage.estimate`, lib/token-estimate.js), asked once per cell with that cell's level and depth, divided by the default cell's (costRatio). No React here:
    ui/presets/use-cell-estimates.js asks, the components say it. */
-import { DENSITIES, DEPTHS, PRESETS, DEFAULT_CELL, settingsOfCell, costRatio } from '../../lib/generation-presets.js';
+import { DENSITIES, DEPTHS, PRESETS, DEFAULT_CELL, settingsOfCell, costRatio } from '../../lib/contexts/generation/presets.js';
+import { cellKey } from './cell-key.js';
 
-export const cellKey = ({ density, depth }) => `${density}:${depth}`;
+export { cellKey };
 const BASE_KEY = cellKey(DEFAULT_CELL);
 /** The cells of the three presets of the main path. */
 export const PRESET_CELLS = Object.freeze(PRESETS.map(({ density, depth }) => Object.freeze({ density, depth })));

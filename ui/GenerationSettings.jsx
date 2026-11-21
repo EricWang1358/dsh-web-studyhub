@@ -7,7 +7,7 @@ import { GENERATION_SETTINGS_DEFAULTS, GENERATION_SETTINGS_LIMITS, GENERATION_LA
   GENERATION_DIFFICULTIES, GENERATION_NOTATIONS, UNLIMITED_TIMEOUT_KEYS, clampConcurrency, effectiveConcurrencyLimit, normalizeGenerationSettings, validateGenerationPatch } from '../lib/generation-settings.js';
 import { lightModelOf, modelKey } from '../lib/job-model.js';
 import { writesInOnePass } from '../lib/one-pass/route.js';
-import { DEPTHS, depthOf, performanceOfDepth } from '../lib/generation-presets.js';
+import { DEPTHS, depthOf, performanceOfDepth } from '../lib/contexts/generation/presets.js';
 import { depthHint, depthOption, depthTip } from './presets/depth-copy.js';
 import { EFFORT_STAGES, effortKey } from '../lib/stage-effort.js';
 import { EffortSelect } from './EffortSelect.jsx';
@@ -160,7 +160,7 @@ export function GenerationSettingsForm({ root, saved, efforts = null, session, m
       <Disclosure className="settings-disclosure" summaryClassName="settings-disclosure__summary" bodyClassName="settings-disclosure__body"
         summary={ui('高级生成控制')} meta={ui('并发、批次、推理程度与审阅')} open={advancedOpen} onToggle={setAdvancedOpen}>
         <h3 className="settings-subtitle">{ui('生成安排')}</h3>
-        {/* 出题深度 (lib/generation-presets.js): ONE control for the saved strategy and write style (快问 / 情境题 / 逐题精出); a saved strategy reads as its depth. */}
+        {/* 出题深度 (lib/contexts/generation/presets.js): ONE control for the saved strategy and write style (快问 / 情境题 / 逐题精出); a saved strategy reads as its depth. */}
         <Field key="depth" label={ui(labels.depth)} hint={depthHint()} error={errors.strategy || errors.writeStyle}>
           {({ id, describedBy }) => <Tooltip layer content={depthTip()}>
             <Select id={id} aria-describedby={describedBy} name="depth" value={depthOf(editor.values)} disabled={disabled}
