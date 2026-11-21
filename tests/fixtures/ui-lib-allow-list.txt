@@ -61,6 +61,7 @@ lib/footnote-syntax.js
 lib/generation-failure.js
 lib/generation-modules.js
 lib/generation-path.js
+lib/generation-presets.js
 lib/generation-settings.js
 lib/import-errors.js
 lib/inbox-kinds.js

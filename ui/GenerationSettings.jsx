@@ -8,7 +8,7 @@ import { GENERATION_SETTINGS_DEFAULTS, GENERATION_SETTINGS_LIMITS, GENERATION_LA
 import { lightModelOf, modelKey } from '../lib/job-model.js';
 import { writesInOnePass } from '../lib/one-pass/route.js';
 import { DEPTHS, depthOf, performanceOfDepth } from '../lib/generation-presets.js';
-import { depthHint, depthOption, depthTip } from './presets/copy.js';
+import { depthHint, depthOption, depthTip } from './presets/depth-copy.js';
 import { EFFORT_STAGES, effortKey } from '../lib/stage-effort.js';
 import { EffortSelect } from './EffortSelect.jsx';
 import { useStudy } from './study-context.jsx';

@@ -39,8 +39,10 @@ import {
 } from './generate-form.js';
 import { DEFAULT_LEVEL, levelOf } from '../lib/coverage-strength.js';
 import { writesInOnePass } from '../lib/one-pass/route.js';
-import { depthApplies, depthOf, performanceOfDepth, presetCell } from '../lib/generation-presets.js';
-import { CostMatrix, DepthChoice, PresetPicker } from './presets/Presets.jsx';
+import { DEPTHS, depthApplies, depthOf, performanceOfDepth, presetCell } from '../lib/generation-presets.js';
+import { depthOffReason, matrixWords } from './presets/copy.js';
+import { PresetPicker } from './presets/Presets.jsx';
+import { deferredView } from './deferred-view.jsx';
 import { MATRIX_CELLS, PRESET_CELLS, cellCosts } from './presets/cost.js';
 import { useCellEstimates } from './presets/use-cell-estimates.js';
 import homeCss from './generate-home.css';
@@ -53,6 +55,10 @@ import { FormGroup, FormRow } from './generate-rows.jsx';
 import { referenceSelection } from './reference-questions.js';
 import { useLiveEffect } from './use-async.js';
 import { settingsSectionOr } from './settings-groups.js';
+
+// 出题深度 and the matrix of rough costs stand in 更多选项, shut when the page opens: they arrive after the first screen, not with the workspace's first load
+// (tests/workspace-closure-pages.test.mjs). Nothing holds their place while the chunk comes: the fold is shut by then, or opens on a row that fills in.
+const PresetsFold = deferredView(() => import('./presets/PresetsFold.jsx'), { loading: () => null });
 
 /* 创建题组 (D1): generating from the learner's own materials comes first;
    importing questions that already exist is the second way in. Generation is
@@ -311,8 +317,8 @@ export default function Generate({
                       auto={autoOf({ ...gen, coverageLevel: level })} onAuto={(autoComplete) => setGen({ ...gen, autoComplete })} />
                   </FormRow>
                   <FormRow label={ui("出题深度")} data-tour="generate-depth">
-                    <DepthChoice depth={depth} applies={applies} disabled={busy} onDepth={(value) => setGen({ ...gen, depth: value })} />
-                    {foldOpen && costs && <CostMatrix cell={cell} costs={costs} />}
+                    <PresetsFold depth={depth} depths={DEPTHS} applies={applies} offReason={depthOffReason()} disabled={busy} onDepth={(value) => setGen({ ...gen, depth: value })}
+                      matrix={foldOpen && costs ? matrixWords(costs, cell) : null} />
                   </FormRow>
                 </FormGroup>}
                 <FormGroup title={ui("想练什么")}>

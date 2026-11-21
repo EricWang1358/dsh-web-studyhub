@@ -25,6 +25,9 @@ function render(patch = {}, props = {}) {
   return renderToStaticMarkup(React.createElement(m.Generate, { data, busy: false, running: false, act: noop, call: noop, openDraft: noop, setPage: noop, setNotice: noop,
     genSource: 'files', setGenSource: noop, gen, setGen: noop, selectedSources: ['a'], setSelectedSources: noop, setModal: noop, askInChat: noop, openModelSettings: noop, ...props }));
 }
+// 出题深度 and the matrix arrive in a chunk of their own (deferredView): one render asks for it, and once it is in every render below draws it, whichever test runs first.
+render();
+await new Promise(resolve => setTimeout(resolve, 0));
 const text = html => html.replace(/<[^>]+>/g, ' ').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
 const FOLD = '<details class="sh-disclosure generate-more';
 const parts = html => {

@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DENSITIES, DEPTHS, PRESETS, DEFAULT_PRESET, DEFAULT_CELL, performanceOfDepth, depthOf, cellOf, settingsOfCell, presetOf, presetCell, depthApplies, costRatio }
+import { DENSITIES, DEPTHS, PRESETS, DEFAULT_PRESET, DEFAULT_CELL, performanceOfDepth, depthOf, settingsOfCell, presetOf, presetCell, depthApplies, costRatio }
   from '../lib/generation-presets.js';
+import { levelOf } from '../lib/coverage-strength.js';
 import { GENERATION_COVERAGE_LEVELS, GENERATION_SETTINGS_DEFAULTS, normalizeGenerationSettings } from '../lib/generation-settings.js';
 
 /* The preset matrix of 出题方式 (owner 2026-11-21, plan §7 item 6): two axes, density (the 覆盖强度 levels) × depth (快问 / 情境题 / 逐题精出); the main path offers three
@@ -23,6 +24,9 @@ test('three presets: 快问 (lean × quick), 情境题 (standard × scenario, th
   assert.deepEqual(presetCell('quick'), { density: 'lean', depth: 'quick' });
   assert.equal(presetCell('nope'), null);
 });
+
+// The cell of saved settings or of a request, as the form and 设置 read it.
+const cellOf = ({ coverageLevel, performance } = {}) => ({ density: levelOf(coverageLevel), depth: depthOf(performance) });
 
 test('the default preset is today\'s default exactly: the saved defaults read as 情境题', () => {
   const saved = normalizeGenerationSettings({});

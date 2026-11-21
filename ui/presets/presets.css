@@ -2,25 +2,11 @@
 
 @layer study.features {
   :is(.study-app, .study-seat) {
-    /* 出题方式 (ui/presets/Presets.jsx): the three presets of the 创建题组 main path, the depth in 更多选项 and the matrix of rough costs. Injected by the components
-       (useInjectCss 'study-presets'). Tokens only; the matrix keeps to the pane at 420 px (four short columns). */
-    .presets, .presets-depth { display: grid; gap: var(--space-2); min-width: 0; justify-items: start; }
+    /* 出题方式 (ui/presets/Presets.jsx): the three presets of the 创建题组 main path and their rough costs. Injected by the component (useInjectCss 'study-presets').
+       Tokens only. The depth and the matrix of 更多选项 are presets-fold.css. */
+    .presets { display: grid; gap: var(--space-2); min-width: 0; justify-items: start; }
     .presets__cost { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-half) var(--space-1); font-variant-numeric: tabular-nums; }
     .presets__cost-lead { color: var(--text-dim); }
     .presets__cost-items { min-width: 0; overflow-wrap: anywhere; }
-    .presets-depth__choice { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); min-width: 0; }
-    .presets-matrix { width: 100%; max-width: 32em; border-collapse: collapse; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
-    /* The caption stays a table caption (a flex caption drops into the first cell in Chromium); its words and the ⓘ sit in one inline row inside it. */
-    .presets-matrix caption { padding-bottom: var(--space-1-5); color: var(--text-dim); font-size: var(--fs-sm); text-align: start; }
-    .presets-matrix__caption { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); }
-    .presets-matrix th, .presets-matrix td { padding: var(--space-1) var(--space-1-5); border-bottom: 1px solid var(--line); text-align: start; vertical-align: top; }
-    .presets-matrix thead th { color: var(--text-muted); font-weight: var(--fw-medium); }
-    .presets-matrix tbody th { color: var(--text-dim); font-weight: var(--fw-medium); }
-    .presets-matrix td { color: var(--text-muted); }
-    .presets-matrix td small { display: block; color: var(--text-faint); font-size: var(--fs-xs); }
-    .presets-matrix__ratio { color: var(--text-dim); white-space: nowrap; }
-    /* The form's own cell: an outline and the ink of the page, never a colour alone (its name is also said to a screen reader). */
-    .presets-matrix td[data-current='true'] { box-shadow: inset 0 0 0 1px var(--line-strong); background: var(--bg-sunken); }
-    .presets-matrix td[data-current='true'] .presets-matrix__ratio { color: var(--text); font-weight: var(--fw-medium); }
   }
 }

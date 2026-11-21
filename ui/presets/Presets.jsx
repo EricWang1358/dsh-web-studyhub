@@ -2,14 +2,13 @@ import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { HelpTip, SegmentedControl } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
-import { DENSITIES, DEPTHS, PRESETS, presetOf } from '../../lib/generation-presets.js';
-import { levelLabel } from '../coverage/copy.js';
+import { PRESETS, presetOf } from '../../lib/generation-presets.js';
 import { cellKey, PRESET_CELLS } from './cost.js';
-import { costLead, costLoading, costTip, customNote, depthLabel, depthNote, depthOffReason, depthTip, presetLabel, presetNote, questionsText, ratioText } from './copy.js';
+import { costLead, costLoading, costTip, customNote, depthOffReason, presetLabel, presetNote, questionsText, ratioText } from './copy.js';
 import css from './presets.css';
 
-/* 出题方式 on the 创建题组 form (lib/generation-presets.js): the three presets of the main path, and in 更多选项 the depth beside the 覆盖强度 with the rough cost of every
-   cell of the matrix. Every rough cost is read from the token estimate of the chosen materials (ui/presets/cost.js); with nothing to estimate there is none.
+/* 出题方式 on the 创建题组 form (lib/generation-presets.js): the three presets of the main path (the depth and the matrix of 更多选项 are ui/presets/PresetsFold.jsx,
+   loaded after the first screen). Every rough cost is read from the token estimate of the chosen materials (ui/presets/cost.js); with nothing to estimate there is none.
    `cell` is the form's { density, depth }; `applies` whether the depth means anything for the chosen question types (depthApplies); `costs` key → { ratio,
    coverage, base, ready } (cellCosts), or null when nothing is estimated. */
 
@@ -40,37 +39,4 @@ function CostLine({ items }) {
     <HelpTip label={ui('大致花费是怎么算的')}>{costTip()}</HelpTip>
     <span className="presets__cost-items">{ready ? items.map(costWords).join(' · ') : costLoading()}</span>
   </p>;
-}
-
-/** 出题深度 in 更多选项: the depth alone, what it does, and why it does nothing for other question types. */
-export function DepthChoice({ depth, applies, disabled = false, onDepth }) {
-  useInjectCss(css, 'study-presets');
-  return <div className="presets-depth" data-depth={applies ? depth : 'off'}>
-    <span className="presets-depth__choice">
-      <SegmentedControl label={ui('出题深度')} value={applies ? depth : ''} disabled={disabled || !applies}
-        options={DEPTHS.map(value => ({ value, label: depthLabel(value) }))} onChange={onDepth} />
-      <HelpTip label={ui('出题深度是什么')}>{depthTip()}</HelpTip>
-    </span>
-    <p className="generate-note" data-depth-note>{applies ? depthNote(depth) : depthOffReason()}</p>
-  </div>;
-}
-
-/** The matrix in 更多选项: a row per depth, a column per 覆盖强度, each cell its rough cost and questions; the form's own cell is marked. Read only: the two controls above choose. */
-export function CostMatrix({ cell, costs }) {
-  useInjectCss(css, 'study-presets');
-  const ready = [...costs.values()].every(cost => cost.ready), base = [...costs.values()].find(cost => cost.base);
-  if (ready && !(base?.ratio > 0)) return null;
-  return <table className="presets-matrix" data-preset-matrix data-status={ready ? 'ready' : 'loading'}>
-    <caption><span className="presets-matrix__caption"><span>{ui('各组合的大致花费（相对「情境题」）')}</span><HelpTip label={ui('大致花费是怎么算的')}>{costTip()}</HelpTip></span></caption>
-    <thead><tr><th scope="col"><span className="sh-visually-hidden">{ui('出题深度')}</span></th>{DENSITIES.map(density => <th scope="col" key={density}>{levelLabel(density)}</th>)}</tr></thead>
-    <tbody>{DEPTHS.map(depth => <tr key={depth}><th scope="row">{depthLabel(depth)}</th>{DENSITIES.map((density) => {
-      const cost = costs.get(cellKey({ density, depth })), current = cell.density === density && cell.depth === depth;
-      return <td key={density} data-cell={cellKey({ density, depth })} data-current={current ? 'true' : undefined}>
-        {/* While asked: a mark the width of a figure, 正在估算 said to a screen reader only (in each of nine narrow cells it would push the table past 320 px). */}
-        {!cost?.ready ? <><span className="presets-matrix__ratio" aria-hidden="true">…</span><span className="sh-visually-hidden">{costLoading()}</span></> : <><span className="presets-matrix__ratio">{ratioText(cost.ratio, { base: cost.base, bare: true }) || '—'}</span>
-          {!current && questionsText(cost.coverage) && <small>{questionsText(cost.coverage)}</small>}</>}
-        {current && <span className="sh-visually-hidden">{ui('（当前）')}</span>}
-      </td>;
-    })}</tr>)}</tbody>
-  </table>;
 }

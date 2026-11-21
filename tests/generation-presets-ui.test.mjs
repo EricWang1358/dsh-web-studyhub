@@ -9,6 +9,8 @@ import { loadUi } from './helpers/ui-module.mjs';
 
 const m = await loadUi(`
   export * from './ui/presets/Presets.jsx';
+  export { DepthChoice, CostMatrix } from './ui/presets/PresetsFold.jsx';
+  export { DEPTHS } from './lib/generation-presets.js';
   export * as cost from './ui/presets/cost.js';
   export * as copy from './ui/presets/copy.js';
   export { setUiLanguage } from './ui/i18n.js';`);
@@ -83,7 +85,7 @@ test('the matrix: a row per depth, a column per 覆盖强度, the form\'s cell m
   m.setUiLanguage('zh');
   const answers = new Map(m.cost.MATRIX_CELLS.map((cell, at) => [m.cost.cellKey(cell), estimate(50000 + at * 10000, 10 + at)]));
   answers.set('standard:scenario', estimate(100000, 66, 53));
-  const html = renderToStaticMarkup(React.createElement(m.CostMatrix, { cell: { density: 'lean', depth: 'quick' }, costs: m.cost.cellCosts(answers, m.cost.MATRIX_CELLS) }));
+  const html = renderToStaticMarkup(React.createElement(m.CostMatrix, { matrix: m.copy.matrixWords(m.cost.cellCosts(answers, m.cost.MATRIX_CELLS), { density: 'lean', depth: 'quick' }) }));
   assert.deepEqual([...html.matchAll(/<thead>[\s\S]*?<\/thead>/g)].map(match => text(match[0])), ['出题深度 精简 标准 完整']);
   assert.deepEqual([...html.matchAll(/<th scope="row">(.*?)<\/th>/g)].map(match => match[1]), ['快问', '情境题', '逐题精出']);
   const current = /<td[^>]*data-current="true"[^>]*>([\s\S]*?)<\/td>/.exec(html);
@@ -91,6 +93,33 @@ test('the matrix: a row per depth, a column per 覆盖强度, the form\'s cell m
   assert.equal(text(current[1]), '×0.5 （当前）', 'its ratio (the caption says the costs are rough) and 当前, not its count');
   assert.match(text(/<td[^>]*data-cell="standard:scenario"[^>]*>([\s\S]*?)<\/td>/.exec(html)[1]), /^×1 53–66 题$/);
   assert.equal((html.match(/data-current="true"/g) || []).length, 1);
+});
+
+test('the matrix in words: loading cells say no figure, and nothing is drawn when the default cell could not be estimated', () => {
+  m.setUiLanguage('zh');
+  const asking = m.copy.matrixWords(m.cost.cellCosts(new Map(), m.cost.MATRIX_CELLS), { density: 'standard', depth: 'scenario' });
+  assert.equal(asking.ready, false);
+  assert.ok(asking.rows.every(row => row.cells.every(cell => !cell.ready && cell.ratio === '' && cell.questions === '')));
+  const failed = new Map(m.cost.MATRIX_CELLS.map(cell => [m.cost.cellKey(cell), estimate(1000, 1)]));
+  failed.set('standard:scenario', null);
+  assert.equal(m.copy.matrixWords(m.cost.cellCosts(failed, m.cost.MATRIX_CELLS), { density: 'standard', depth: 'scenario' }), null);
+});
+
+test('the part of 更多选项 reaches nothing in lib/: loading it apart must not split the chunks of the first load', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const seen = new Set(), pending = ['ui/presets/PresetsFold.jsx'];
+  while (pending.length) {
+    const file = pending.pop();
+    if (seen.has(file)) continue;
+    seen.add(file);
+    const source = await readFile(file, 'utf8'), dir = file.slice(0, file.lastIndexOf('/'));
+    for (const [, spec] of source.matchAll(/^import [^;]*?from '(\.[^']+)'/gm)) {
+      const path = new URL(spec, `file:///${dir}/`).pathname.slice(1);
+      assert.doesNotMatch(path, /^lib\//, `${file} imports ${spec}`);
+      if (path.startsWith('ui/presets/')) pending.push(path);
+    }
+  }
+  assert.ok(seen.has('ui/presets/depth-copy.js') && seen.has('ui/presets/depth-label.js'));
 });
 
 test('the same words in English have no Chinese', () => {
@@ -102,9 +131,9 @@ test('the same words in English have no Chinese', () => {
       renderToStaticMarkup(React.createElement(m.PresetPicker, { cell: { density: 'standard', depth: 'scenario' }, applies: true, costs, onPick: () => {} })),
       renderToStaticMarkup(React.createElement(m.PresetPicker, { cell: { density: 'full', depth: 'quick' }, applies: true, costs: null, onPick: () => {} })),
       renderToStaticMarkup(React.createElement(m.PresetPicker, { cell: { density: 'full', depth: 'quick' }, applies: false, costs: null, onPick: () => {} })),
-      renderToStaticMarkup(React.createElement(m.DepthChoice, { depth: 'blueprint', applies: true, onDepth: () => {} })),
-      renderToStaticMarkup(React.createElement(m.DepthChoice, { depth: 'quick', applies: false, onDepth: () => {} })),
-      renderToStaticMarkup(React.createElement(m.CostMatrix, { cell: { density: 'full', depth: 'quick' }, costs: m.cost.cellCosts(answers, m.cost.MATRIX_CELLS) })),
+      renderToStaticMarkup(React.createElement(m.DepthChoice, { depth: 'blueprint', depths: m.DEPTHS, applies: true, offReason: m.copy.depthOffReason(), onDepth: () => {} })),
+      renderToStaticMarkup(React.createElement(m.DepthChoice, { depth: 'quick', depths: m.DEPTHS, applies: false, offReason: m.copy.depthOffReason(), onDepth: () => {} })),
+      renderToStaticMarkup(React.createElement(m.CostMatrix, { matrix: m.copy.matrixWords(m.cost.cellCosts(answers, m.cost.MATRIX_CELLS), { density: 'full', depth: 'quick' }) })),
     ].join('');
     assert.doesNotMatch(html.replace(/<[^>]+>/g, ' '), han);
     assert.match(html, /Quick about ×0\.3/);

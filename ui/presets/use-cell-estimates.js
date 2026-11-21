@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
+import { useLiveEffect } from '../use-async.js';
 import { cellKey, cellRequest, cellsToAsk } from './cost.js';
 
 /* Ask `usage.estimate` for each cell (ui/presets/cost.js cellRequest) once the form settles, one after another, and keep each answer by its request, so a cell the
@@ -12,22 +13,22 @@ export function useCellEstimates(call, base, cells, { enabled = true, delay = 45
   const answers = useRef(new Map()), callRef = useRef(call);
   callRef.current = call;
   const [, setAnswered] = useState(0);
-  useEffect(() => {
+  // The effect reads the cells from `signature` (the same list, as text), so its one dependency that changes is that text.
+  useLiveEffect((isLive) => {
     if (!enabled || typeof callRef.current !== 'function') return undefined;
-    let live = true;
     const timer = setTimeout(async () => {
-      for (const [, request] of asked) {
-        if (!live) return;
+      for (const [, request] of JSON.parse(signature)) {
+        if (!isLive()) return;
         if (answers.current.has(request)) continue;
         let estimate = null;
         try { estimate = await callRef.current('usage.estimate', JSON.parse(request)); } catch { estimate = null; }
-        if (!live) return;
+        if (!isLive()) return;
         if (answers.current.size >= KEEP) answers.current.clear();
         answers.current.set(request, estimate?.totalTokens ? estimate : null);
         setAnswered(n => n + 1);
       }
     }, delay);
-    return () => { live = false; clearTimeout(timer); };
-  }, [signature, enabled, delay]); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => clearTimeout(timer);
+  }, [signature, enabled, delay]);
   return new Map(asked.map(([key, request]) => [key, answers.current.get(request)]));
 }
