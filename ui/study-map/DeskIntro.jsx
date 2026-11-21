@@ -15,7 +15,7 @@ import { useStudy } from '../study-context.jsx';
 import LetterpressNumber from '../letterpress/LetterpressNumber.jsx';
 
 /** The mastery of the current course (and the whole library when it differs), with what the words mean on hover. */
-function DeskMastery({ mastery }) {
+function DeskMastery({ mastery, onOpenMasteryMap }) {
   const { primary, course, whole, name, others } = mastery;
   const title = `${course ? uiFormat('「{0}」的掌握度 {1}%（{2} 题）', [name || ui('未分类课程'), course.value, course.cards]) : uiFormat('所有课程的掌握度 {0}%', [primary.value])}\n${ui(TERMS.mastery.hint)}\n${ui(TERMS.mastered.hint)}`;
   return (
@@ -23,6 +23,7 @@ function DeskMastery({ mastery }) {
       <span className="desk-mastery-value">{typeof primary.value === 'number' && Number.isFinite(primary.value) ? <LetterpressNumber value={primary.value} /> : primary.value}<small>%</small></span>
       <span className="desk-mastery-label">{ui(TERMS.mastery.label)}</span>
       <MasteryBar node={primary.node} />
+      {onOpenMasteryMap && <Button variant="link" size="sm" iconEnd="arrow-right" onClick={onOpenMasteryMap}>{ui('掌握图谱')}</Button>}
       {others && whole && <span className="desk-mastery-all"><Tooltip layer content={uiFormat('全部课程合计 {0} 题', [whole.cards])}><span tabIndex={0}>{ui('所有课程')}{' '}<strong>{whole.value}%</strong></span></Tooltip></span>}
     </div>
   );
@@ -51,7 +52,7 @@ function OtherRuns({ runs, otherCourse, resume, endRun }) {
 }
 
 /** The left of the home desk: the course heading, the way to the 总纲 beside the course title, the course route, method, mastery, the next step and the other ways to start. */
-export default function DeskIntro({ data, home, mastery, start, resume, endRun, onFocus, onCourseSettings, onGenerateFocus, onShowOutline }) {
+export default function DeskIntro({ data, home, mastery, start, resume, endRun, onFocus, onCourseSettings, onGenerateFocus, onShowOutline, onOpenMasteryMap }) {
   const { busy } = useStudy();
   const { route, starter, headline, plan, alternatives, otherRuns, otherCourse } = home;
   const currentEntry = (data.focus?.courses || []).find((course) => course.name === data.focus?.course);
@@ -64,7 +65,7 @@ export default function DeskIntro({ data, home, mastery, start, resume, endRun, 
       {route && <CourseRoute route={route} />}
       <MethodLine method={data.focus?.method} courseId={data.focus?.courseId} onCourseSettings={onCourseSettings} />
       <FocusProgressLine progress={data.focus?.progress} courseId={data.focus?.courseId} lock={busy} start={start} onCourseSettings={onCourseSettings} onGenerateFocus={onGenerateFocus} />
-      {mastery.primary && <DeskMastery mastery={mastery} />}
+      {mastery.primary && <DeskMastery mastery={mastery} onOpenMasteryMap={onOpenMasteryMap} />}
       <p className="desk-next">
         {data.next ? (
           <>

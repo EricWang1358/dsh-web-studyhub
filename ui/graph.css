@@ -89,6 +89,11 @@
       font-size: var(--fs-sm);
       color: var(--warn-ink);
     }
+    .graph-mastery-body {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+    }
     /* The viewport pans and zooms the WHOLE drawing (the shared canvas kit moves
        .graph-plane with a transform). In the panel it is bounded so the page stays
        navigable; in the canvas it takes every remaining pixel. */

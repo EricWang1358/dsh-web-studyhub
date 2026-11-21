@@ -2,8 +2,9 @@ import { ui, uiFormat, errorMessage } from "./i18n.js";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import css from "./graph.css";
 import sketchCss from "./graph-sketch/graph-sketch.css";
-import PageScope, { usePageScope, useShowInactive, scopeArgs } from './PageScope.jsx';
+import PageScope, { decksInCourse, usePageScope, useShowInactive, scopeArgs } from './PageScope.jsx';
 import { Button, ErrorState, Hint, LoadingState, SegmentedControl, useToast } from './components/index.js';
+import MasteryMap from './mastery-map/MasteryMap.jsx';
 import { FullscreenButton, ZoomControls, useCanvasFullscreen, usePanZoom } from "./canvas/index.js";
 import { useInjectCss, LEVEL_LABEL, LEVELS } from "./shared.js";
 import { usePersistentState } from "./storage.js";
@@ -86,10 +87,19 @@ export default function Graph({
   library,
   onClose,
   onStudyCard,
+  onPracticeScope,
+  onResumeRun,
+  onManageDeck,
+  onOpenOutline,
+  onOpenBook,
+  onOpenWrongBook,
+  onGoGenerateTopic,
   canvasWanted,
   onCanvasHandled,
+  defaultMode = "structure",
   defaultStyle = "crisp",
   initialData = null,
+  initialOutline = null,
   roughGenerator = null,
 }) {
   const { call, busy } = useStudy();
@@ -100,15 +110,20 @@ export default function Graph({
   const [showInactive, setShowInactive] = useShowInactive(library?.root, 'graph');
   const [browse, setBrowse] = useState(false);
   const objectScope = scope != null && !browse;
-  const [mode, setMode] = useState("structure");
+  const validMode = defaultMode === "mastery" || defaultMode === "path" ? defaultMode : "structure";
+  const [mode, setMode] = useState(validMode);
+  useEffect(() => { setMode(validMode); }, [validMode]);
   const [styleMode, setStyleMode] = usePersistentState(
     GRAPH_STYLE_KEY,
     GRAPH_STYLE_SET.has(defaultStyle) ? defaultStyle : "crisp",
     { parse: parseGraphStyle },
   );
   const [data, setData] = useState(initialData);
-  const [loading, setLoading] = useState(!initialData);
+  const [loading, setLoading] = useState(!initialData && validMode !== "mastery");
   const [error, setError] = useState("");
+  const [outlineData, setOutlineData] = useState(initialOutline);
+  const [outlineLoading, setOutlineLoading] = useState(false);
+  const [outlineError, setOutlineError] = useState("");
   const [spotlightId, setSpotlightId] = useState(null);
   const fullscreen = useCanvasFullscreen();
   const svgRef = useRef(null);
@@ -119,10 +134,13 @@ export default function Graph({
     maxFit: FIT_MAX, minInitial: 0, zoomMin: ZOOM_MIN, zoomMax: ZOOM_MAX,
   });
   const seq = useRef(0);
+  const outlineSeq = useRef(0);
   const autoTried = useRef(false);
   const scopeKey = JSON.stringify(objectScope ? { scope } : scopeArgs(course, showInactive));
+  const isMastery = mode === "mastery";
 
   const load = useCallback(async () => {
+    if (mode === "mastery") return;
     const n = ++seq.current;
     setLoading(true);
     setError("");
@@ -142,6 +160,104 @@ export default function Graph({
   useEffect(() => {
     load();
   }, [load]);
+
+  const loadOutline = useCallback(async () => {
+    if (mode !== "mastery" || initialOutline) return;
+    if (course === "*" || typeof course !== "string") {
+      setOutlineData(null);
+      setOutlineLoading(false);
+      setOutlineError("");
+      return;
+    }
+    const n = ++outlineSeq.current;
+    setOutlineLoading(true);
+    setOutlineError("");
+    try {
+      const res = await call("course.outline", { course });
+      if (outlineSeq.current !== n) return;
+      setOutlineData(res);
+    } catch (e) {
+      if (outlineSeq.current !== n) return;
+      setOutlineError(errorMessage(e));
+      setOutlineData(null);
+    } finally {
+      if (outlineSeq.current === n) setOutlineLoading(false);
+    }
+  }, [call, course, initialOutline, mode]);
+
+  useEffect(() => {
+    loadOutline();
+  }, [loadOutline, library?.revision]);
+
+  const masteryDecks = useMemo(() => {
+    const inScope = decksInCourse(library, course, showInactive);
+    if (objectScope && Array.isArray(scope) && scope.length) {
+      const wanted = new Set(scope.map((item) => item?.deckId).filter(Boolean));
+      if (wanted.size) return inScope.filter((deck) => wanted.has(deck.id));
+    }
+    return inScope;
+  }, [library, course, showInactive, objectScope, scope]);
+
+  const practiseOutlineKeys = useCallback(async (keys, { resume = false } = {}) => {
+    if (!keys?.length || !onPracticeScope) return;
+    try {
+      const targetCourse = course !== "*" ? course : (library?.focus?.course ?? null);
+      const res = await call("course.outline", { course: targetCourse, pick: { keys } });
+      const pickedScope = res?.practice?.scope || [];
+      if (!pickedScope.length) {
+        toast.info(ui("这里还没有题。可以先在「创建题组」里出题。"));
+        return;
+      }
+      onPracticeScope(pickedScope, { resume });
+    } catch (e) {
+      toast.error(errorMessage(e));
+    }
+  }, [call, course, library?.focus?.course, onPracticeScope, toast]);
+
+  const handlePracticeChapter = useCallback((chapter) => {
+    if (!chapter) return;
+    if (chapter.resume?.runId && onResumeRun) {
+      onResumeRun(chapter.resume.runId);
+      return;
+    }
+    if (chapter.key) {
+      void practiseOutlineKeys([chapter.key], { resume: Boolean(chapter.resume) });
+      return;
+    }
+    if (chapter.deckId && onPracticeScope) {
+      onPracticeScope([{ deckId: chapter.deckId }]);
+    }
+  }, [onPracticeScope, onResumeRun, practiseOutlineKeys]);
+
+  const handlePracticePoint = useCallback((point) => {
+    if (!point) return;
+    if (point.resume?.runId && onResumeRun) {
+      onResumeRun(point.resume.runId);
+      return;
+    }
+    if (point.key) {
+      void practiseOutlineKeys([point.key], { resume: Boolean(point.resume) });
+      return;
+    }
+    if (point.deckId && onPracticeScope) {
+      onPracticeScope([point.topic ? { deckId: point.deckId, topic: point.topic } : { deckId: point.deckId }]);
+    }
+  }, [onPracticeScope, onResumeRun, practiseOutlineKeys]);
+
+  const handlePracticeWeakAll = useCallback(({ keys = [], scopes = [] } = {}) => {
+    if (keys.length) {
+      void practiseOutlineKeys(keys);
+      return;
+    }
+    if (scopes.length && onPracticeScope) {
+      onPracticeScope(scopes);
+    }
+  }, [onPracticeScope, practiseOutlineKeys]);
+
+  const handleGapFill = useCallback((topics) => {
+    if (!onGoGenerateTopic || !Array.isArray(topics) || !topics.length) return;
+    onGoGenerateTopic(topics, course !== "*" ? course : undefined);
+  }, [course, onGoGenerateTopic]);
 
   useEffect(() => {
     viewRef.current?.focus?.({ preventScroll: true });
@@ -364,17 +480,27 @@ export default function Graph({
     >
       <div className="graph-toolbar">
         <SegmentedControl size="sm" label={ui("视图模式")} value={mode} disabled={busy} onChange={setMode}
-          options={[{ value: "structure", label: ui("知识结构") }, { value: "path", label: ui("学习路径") }]} />
-        <SegmentedControl size="sm" label={ui("画风")} value={styleMode} disabled={busy} onChange={setStyleMode}
-          options={[{ value: "crisp", label: ui("精密") }, { value: "sketch", label: ui("手绘墨线") }]} />
-        <div className="graph-zoom" role="group" aria-label={ui("缩放")}>
-          <ZoomControls variant="quiet" zoomAt={zoomAt} fit={() => fit()} percent={Math.round(view.k * 100)} disabled={!layout}
-            fitTitle={ui("缩放到刚好看到整张图（0）")} />
-        </div>
+          options={[
+            { value: "structure", label: ui("知识结构") },
+            { value: "path", label: ui("学习路径") },
+            { value: "mastery", label: ui("掌握图谱") },
+          ]} />
+        {!isMastery && (
+          <SegmentedControl size="sm" label={ui("画风")} value={styleMode} disabled={busy} onChange={setStyleMode}
+            options={[{ value: "crisp", label: ui("精密") }, { value: "sketch", label: ui("手绘墨线") }]} />
+        )}
+        {!isMastery && (
+          <div className="graph-zoom" role="group" aria-label={ui("缩放")}>
+            <ZoomControls variant="quiet" zoomAt={zoomAt} fit={() => fit()} percent={Math.round(view.k * 100)} disabled={!layout}
+              fitTitle={ui("缩放到刚好看到整张图（0）")} />
+          </div>
+        )}
         <div className="graph-actions">
-          <Button variant="quiet" size="sm" icon="download" disabled={!layout || !layout.placed.length} onClick={handleExportSvg}>
-            {ui("导出 SVG")}
-          </Button>
+          {!isMastery && (
+            <Button variant="quiet" size="sm" icon="download" disabled={!layout || !layout.placed.length} onClick={handleExportSvg}>
+              {ui("导出 SVG")}
+            </Button>
+          )}
           <FullscreenButton full={fullscreen.full} variant={fullscreen.full ? "secondary" : "primary"} onToggle={fullscreen.toggle}
             title={fullscreen.full ? ui("回到面板中查看（Esc）") : ui("用整个屏幕看这张图，可缩放、拖拽")} />
           <Button size="sm" onClick={onClose}>{ui("关闭")}</Button>
@@ -386,36 +512,62 @@ export default function Graph({
           selectedLabel={objectScope && scope.length ? uiFormat('已选 {0} 项范围', [scope.length]) : undefined}
           onChange={value => { if (value !== '@selected') { setBrowse(true); setCourse(value); } }}
           showInactive={showInactive} onShowInactive={objectScope ? undefined : setShowInactive} />
-        <span className="graph-scope">
-          {joinMeta([scopeLabel, nodeCount ? uiFormat("{0} 个节点", [nodeCount]) : "", layout?.columns ? uiFormat("{0} 列", [layout.columns]) : ""])}
-        </span>
-        <div className="graph-legend" aria-label={ui("图例")}>
-          {LEVELS.map((l) => (
-            <span key={l} className="graph-legend-item">
-              <i className={`graph-swatch gn-${l}`} />
-              {LEVEL_LABEL[l]}
+        {!isMastery && (
+          <>
+            <span className="graph-scope">
+              {joinMeta([scopeLabel, nodeCount ? uiFormat("{0} 个节点", [nodeCount]) : "", layout?.columns ? uiFormat("{0} 列", [layout.columns]) : ""])}
             </span>
-          ))}
-          <span className="graph-legend-item">
-            <svg className="graph-line-demo" width="26" height="8" aria-hidden="true">
-              <line x1="1" y1="4" x2="25" y2="4" className="gn-prereq" />
-            </svg>{ui("前置（虚线箭头）")}</span>
-        </div>
+            <div className="graph-legend" aria-label={ui("图例")}>
+              {LEVELS.map((l) => (
+                <span key={l} className="graph-legend-item">
+                  <i className={`graph-swatch gn-${l}`} />
+                  {LEVEL_LABEL[l]}
+                </span>
+              ))}
+              <span className="graph-legend-item">
+                <svg className="graph-line-demo" width="26" height="8" aria-hidden="true">
+                  <line x1="1" y1="4" x2="25" y2="4" className="gn-prereq" />
+                </svg>{ui("前置（虚线箭头）")}</span>
+            </div>
+          </>
+        )}
       </div>
 
-      {!!data?.truncated && (
-        <div className="graph-truncated">{ui("题目超过 400 张，画布只画前 400 张；在目录里选定范围可查看全部。")}</div>
-      )}
+      {isMastery ? (
+        <div className="graph-mastery-body">
+          <MasteryMap
+            outline={initialOutline ?? outlineData}
+            decks={masteryDecks}
+            progress={library?.progress || {}}
+            course={course}
+            loading={outlineLoading}
+            error={outlineError}
+            onRetry={loadOutline}
+            onPracticeChapter={onPracticeScope || onResumeRun ? handlePracticeChapter : undefined}
+            onPracticePoint={onPracticeScope || onResumeRun ? handlePracticePoint : undefined}
+            onPracticeWeakAll={onPracticeScope ? handlePracticeWeakAll : undefined}
+            onGoGenerate={onGoGenerateTopic ? handleGapFill : undefined}
+            onOpenDeck={onManageDeck}
+            onOpenOutline={onOpenOutline ? () => onOpenOutline(course !== "*" ? course : undefined) : undefined}
+            onOpenBook={onOpenBook ? (key) => onOpenBook(key, course !== "*" ? course : undefined) : undefined}
+            onOpenWrongBook={onOpenWrongBook}
+          />
+        </div>
+      ) : (
+        <>
+          {!!data?.truncated && (
+            <div className="graph-truncated">{ui("题目超过 400 张，画布只画前 400 张；在目录里选定范围可查看全部。")}</div>
+          )}
 
-      <div
-        className={`graph-viewport${isSketch ? " graph-sketch-surface" : ""}`}
-        ref={viewRef}
-        role="group"
-        tabIndex={0}
-        aria-label={ui("知识图谱，方向键平移，加减号缩放，0 适应")}
-        data-full={fullscreen.full ? "1" : undefined}
-        {...panHandlers}
-      >
+          <div
+            className={`graph-viewport${isSketch ? " graph-sketch-surface" : ""}`}
+            ref={viewRef}
+            role="group"
+            tabIndex={0}
+            aria-label={ui("知识图谱，方向键平移，加减号缩放，0 适应")}
+            data-full={fullscreen.full ? "1" : undefined}
+            {...panHandlers}
+          >
         {loading ? (
           <GraphStatus loading />
         ) : error ? (
@@ -525,19 +677,21 @@ export default function Graph({
         )}
       </div>
 
-      <div className="graph-hint">
-        {fullscreen.full
-          ? ui("拖拽平移 · Ctrl/⌘+滚轮缩放 · Esc 退出全屏")
-          : uiFormat("拖拽平移 · Ctrl/⌘+滚轮缩放 · 缩放范围 {0}–{1}%", [Math.round(ZOOM_MIN * 100), Math.round(ZOOM_MAX * 100)])}
-        {lineage && (lineage.upstreamCount > 0 || lineage.downstreamCount > 0) && (
-          <>
-            {" · "}
-            <span className="graph-sketch-lineage" data-testid="graph-lineage-hint">
-              {uiFormat("前置 {0} 项 · 后续 {1} 项", [lineage.upstreamCount, lineage.downstreamCount])}
-            </span>
-          </>
-        )}
-      </div>
+          <div className="graph-hint">
+            {fullscreen.full
+              ? ui("拖拽平移 · Ctrl/⌘+滚轮缩放 · Esc 退出全屏")
+              : uiFormat("拖拽平移 · Ctrl/⌘+滚轮缩放 · 缩放范围 {0}–{1}%", [Math.round(ZOOM_MIN * 100), Math.round(ZOOM_MAX * 100)])}
+            {lineage && (lineage.upstreamCount > 0 || lineage.downstreamCount > 0) && (
+              <>
+                {" · "}
+                <span className="graph-sketch-lineage" data-testid="graph-lineage-hint">
+                  {uiFormat("前置 {0} 项 · 后续 {1} 项", [lineage.upstreamCount, lineage.downstreamCount])}
+                </span>
+              </>
+            )}
+          </div>
+        </>
+      )}
     </section>
   );
 }
