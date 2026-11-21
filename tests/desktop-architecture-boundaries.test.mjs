@@ -375,5 +375,7 @@ test('the desktop CSP hardens object/base/form/frame-ancestors, forbids unsafe-e
   assert.deepEqual(directives['frame-ancestors'], ["'none'"]);
   // Chromium / WebView2 checks AudioWorklet.addModule(blob:...) against script-src, not worker-src.
   assert.ok(directives['script-src']?.includes('blob:'), `expected script-src to include blob:, got: ${csp}`);
+  assert.ok(directives['script-src']?.includes("'wasm-unsafe-eval'"), `expected script-src to include 'wasm-unsafe-eval', got: ${csp}`);
+  assert.ok(directives['connect-src']?.includes('blob:'), `expected connect-src to include blob:, got: ${csp}`);
   assert.ok(directives['worker-src']?.includes('blob:'), `expected worker-src to include blob:, got: ${csp}`);
 });

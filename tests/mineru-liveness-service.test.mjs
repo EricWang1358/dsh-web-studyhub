@@ -158,9 +158,10 @@ test('nothing is asked while no window runs: not before the job, not after it, a
   assert.equal((await idle.log()).filter(isProbe).length, after, 'nothing after the window ended');
   const off = await harness(t, { cliState: { trackParses: true, delayMs: 1200 }, limits: { ...quick, livenessMs: 0 } });
   await off.start();
+  const beforeOffWindow = (await off.log()).filter(isProbe).length;
   const { seen } = await off.watch();
   assert.deepEqual(seen, [], 'switched off: the card has no state to show');
-  assert.deepEqual((await off.log()).filter(isProbe), []);
+  assert.equal((await off.log()).filter(isProbe).length, beforeOffWindow, 'no liveness probes run while the window runs');
 });
 
 test('by default a window that ends within a few seconds is never asked about', async t => {
@@ -171,11 +172,12 @@ test('by default a window that ends within a few seconds is never asked about', 
   for (let attempt = 0; attempt < 6 && !ended; attempt++) {
     const h = await harness(t, { cliState: { delayMs: 300 } });
     await h.start();
+    const beforeWindow = (await h.log()).filter(isProbe).length;
     const began = Date.now(); // after the upload: from here to the end is the window and nothing else
     await h.watch();
     if (Date.now() - began > LOCAL.livenessFirstMs * 0.9) continue;
     ended = true;
-    assert.deepEqual((await h.log()).filter(isProbe), []);
+    assert.equal((await h.log()).filter(isProbe).length, beforeWindow, 'no liveness probes run for a quick window');
   }
   if (!ended) t.diagnostic(`no window ended within ${LOCAL.livenessFirstMs} ms on this machine just now; the stopped-clock test covers it`);
 });

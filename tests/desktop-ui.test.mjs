@@ -18,7 +18,7 @@ const m = await loadUi(`
   export { chooseLibraryFolder } from './ui/app/ChangeFolderButton.jsx';
   export { default as DesktopUpgradeGuide } from './ui/desktop/DesktopUpgradeGuide.jsx';
   export { MODEL_PRESETS, presetOf } from './ui/desktop/presets.js';
-  export { createDesktopHost, loadBootstrapInfo, safeExternalUrl, syncDesktopConcurrency, readDesktopConcurrency, checkDesktopUpdate, installDesktopUpdate } from './ui/desktop/ipc.js';
+  export { createDesktopHost, createDesktopCall, createDesktopEventSubscription, createSidecarConnection, installExternalLinkHandler, loadBootstrapInfo, safeExternalUrl, syncDesktopConcurrency, readDesktopConcurrency, checkDesktopUpdate, installDesktopUpdate } from './ui/desktop/ipc.js';
   export { effectiveConcurrencyLimit, registerHostConcurrencyCap } from './lib/generation-settings.js';
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { AppContext } from './ui/app/app-context.js';
@@ -711,4 +711,133 @@ test('DesktopUpgradeGuide shows one-click signed auto-update when host.updater i
   assert.ok(invokeCalls.some((c) => c.cmd === 'plugin:event|listen' && c.args.event === 'desktop-update-progress'));
   assert.ok(invokeCalls.some((c) => c.cmd === 'plugin:event|unlisten' && c.args.eventId === 42));
   assert.deepEqual(unregistered, [1]);
+});
+
+test('DesktopUpgradeGuide disables NSIS auto-update for MSI/portable flavors and IPC handles sidecar restart, details, pickFile, warmKey, and window.open cleanup', async (t) => {
+  const origFetch = globalThis.fetch;
+  const origWindow = globalThis.window;
+  const origDocument = globalThis.document;
+  t.after(() => {
+    delete globalThis.__TAURI_INTERNALS__;
+    globalThis.fetch = origFetch;
+    if (origWindow === undefined) delete globalThis.window; else globalThis.window = origWindow;
+    if (origDocument === undefined) delete globalThis.document; else globalThis.document = origDocument;
+  });
+
+  // 1. MSI & portable flavors hide one-click NSIS auto-update in both zh and en
+  const update = { latest: '5.3.0', setupName: 'StudyHub-setup.exe', setupUrl: 'https://example.com/setup.exe' };
+  for (const flavor of ['msi', 'portable']) {
+    const host = { ...DESKTOP_HOST, updater: { check: async () => ({}), install: async () => ({}), installFlavor: flavor } };
+    const zh = render(h(m.DesktopUpgradeGuide, { update, host }), 'zh');
+    assert.doesNotMatch(zh, /data-desktop-auto-update/);
+    assert.match(zh, /MSI 或便携版/);
+    const en = render(h(m.DesktopUpgradeGuide, { update, host }), 'en');
+    assert.doesNotMatch(en, /data-desktop-auto-update/);
+    assert.doesNotMatch(en.replace(/<[^>]+>/g, ' '), /[㐀-鿿]/, `${flavor} English guide has zero Han characters`);
+  }
+
+  // 2. Reactive sidecar connection updates RPC endpoint/token & preserves error.details
+  const seenFetch = [];
+  globalThis.fetch = async (url, init) => {
+    seenFetch.push({ url, token: init.headers['X-Study-Token'] });
+    if (seenFetch.length === 1) {
+      return {
+        status: 200,
+        async json() { return { ok: false, error: 'conflict', code: 'CONFLICT', details: { id: 'x1' } }; },
+      };
+    }
+    return { status: 200, async json() { return { ok: true, value: { ok: 1 } }; } };
+  };
+  const conn = m.createSidecarConnection({ baseUrl: 'http://127.0.0.1:4100', token: 'tok-1' });
+  const rpc = m.createDesktopCall(conn, { timeoutMs: 5000 });
+  await assert.rejects(() => rpc('state.get', {}), (err) => {
+    assert.equal(err.code, 'CONFLICT');
+    assert.deepEqual(err.details, { id: 'x1' });
+    return true;
+  });
+  conn.update({ baseUrl: 'http://127.0.0.1:4200/', token: 'tok-2' });
+  assert.deepEqual(await rpc('state.get', {}), { ok: 1 });
+  assert.deepEqual(seenFetch, [
+    { url: 'http://127.0.0.1:4100/api/call', token: 'tok-1' },
+    { url: 'http://127.0.0.1:4200/api/call', token: 'tok-2' },
+  ]);
+
+  // 3. SSE subscription follows connection.update immediately to the new port/token
+  const sseUrls = [];
+  let firstAbortResolve;
+  const sub = m.createDesktopEventSubscription({
+    connection: conn,
+    reconnectBaseMs: 5000,
+    fetchImpl: async (url, init) => {
+      sseUrls.push({ url, token: init.headers['X-Study-Token'] });
+      if (sseUrls.length === 1) {
+        return new Promise((_resolve, reject) => {
+          init.signal.addEventListener('abort', () => {
+            firstAbortResolve?.();
+            reject(new Error('aborted'));
+          }, { once: true });
+        });
+      }
+      const frame = Buffer.from('event: study:library-changed\ndata: {"root":"D:/Lib","revision":2}\n\n', 'utf8');
+      let sent = false;
+      return {
+        ok: true,
+        status: 200,
+        body: {
+          getReader: () => ({
+            read: async () => (sent ? new Promise(() => {}) : ((sent = true), { value: frame, done: false })),
+          }),
+        },
+      };
+    },
+  });
+  const gotEvents = [];
+  const aborted = new Promise((resolve) => { firstAbortResolve = resolve; });
+  const unsub = sub((evt) => gotEvents.push(evt));
+  await new Promise((r) => setTimeout(r, 10));
+  conn.update({ baseUrl: 'http://127.0.0.1:4300', token: 'tok-3' });
+  await aborted;
+  await new Promise((r) => setTimeout(r, 20));
+  unsub();
+  assert.deepEqual(sseUrls, [
+    { url: 'http://127.0.0.1:4200/api/events', token: 'tok-2' },
+    { url: 'http://127.0.0.1:4300/api/events', token: 'tok-3' },
+  ]);
+  assert.deepEqual(gotEvents, [{ root: 'D:/Lib', revision: 2 }]);
+
+  // 4. installExternalLinkHandler restores window.open & passes through non-http URLs
+  const origOpenCalls = [];
+  const fakeOrigOpen = (...args) => { origOpenCalls.push(args); return { closed: false }; };
+  const docListeners = new Map();
+  globalThis.window = { open: fakeOrigOpen, location: { origin: 'http://tauri.localhost', href: 'http://tauri.localhost/' } };
+  globalThis.document = {
+    addEventListener: (k, fn) => docListeners.set(k, fn),
+    removeEventListener: (k) => docListeners.delete(k),
+  };
+  const openedExternal = [];
+  const cleanup = m.installExternalLinkHandler(async (_action, args) => { openedExternal.push(args.url); return { ok: true }; });
+  assert.notEqual(globalThis.window.open, fakeOrigOpen);
+  assert.deepEqual(globalThis.window.open(''), { closed: false });
+  assert.deepEqual(globalThis.window.open('blob:http://tauri.localhost/abc'), { closed: false });
+  assert.equal(globalThis.window.open('https://example.com/docs'), null);
+  await new Promise((r) => setTimeout(r, 10));
+  assert.deepEqual(openedExternal, ['https://example.com/docs']);
+  assert.equal(origOpenCalls.length, 2);
+  cleanup();
+  assert.equal(globalThis.window.open, fakeOrigOpen);
+
+  // 5. createDesktopHost exposes warmKey, pickFile, and installFlavor
+  const invokes = [];
+  globalThis.__TAURI_INTERNALS__ = {
+    invoke: async (cmd, args) => {
+      invokes.push({ cmd, args });
+      if (cmd === 'pick_file') return { path: 'D:\\book.pdf', size: 1234 };
+      return null;
+    },
+  };
+  const host = m.createDesktopHost(async () => ({}), {}, null, { installFlavor: 'nsis' });
+  assert.equal(host.warmKey, 'studyhub-desktop');
+  assert.equal(host.updater.installFlavor, 'nsis');
+  assert.deepEqual(await host.pickFile({ extensions: ['pdf'] }), { path: 'D:\\book.pdf', size: 1234 });
+  assert.deepEqual(invokes, [{ cmd: 'pick_file', args: { extensions: ['pdf'] } }]);
 });

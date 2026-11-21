@@ -16,8 +16,9 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 const TOKEN_BYTES: usize = 32;
 const DEFAULT_STARTUP_TIMEOUT_SECS: u64 = 20;
-const GRACEFUL_EXIT_POLLS: usize = 5;
-const GRACEFUL_EXIT_POLL_MS: u64 = 30;
+const GRACEFUL_EXIT_TIMEOUT: Duration = Duration::from_millis(3_000);
+const GRACEFUL_EXIT_POLL_INTERVAL: Duration = Duration::from_millis(50);
+const MAX_STRAY_HANDSHAKE_LINES: usize = 64;
 const DEFAULT_MAX_RESTARTS_IN_WINDOW: usize = 3;
 const DEFAULT_RESTART_WINDOW_SECS: u64 = 60;
 const DEFAULT_BASE_BACKOFF_MS: u64 = 250;
@@ -183,6 +184,42 @@ pub fn parse_handshake_response(line: &str) -> Result<u16, String> {
         return Err("sidecar reported invalid port 0".to_string());
     }
     Ok(parsed.port)
+}
+
+pub fn read_handshake_port<R: BufRead>(reader: &mut R) -> Result<u16, String> {
+    let mut line = String::new();
+    let mut stray_lines = 0usize;
+    let mut last_error: Option<String> = None;
+    loop {
+        line.clear();
+        match reader.read_line(&mut line) {
+            Ok(0) => {
+                return Err(last_error.unwrap_or_else(|| {
+                    "sidecar closed stdout before completing handshake".to_string()
+                }));
+            }
+            Ok(_) => {
+                let trimmed = line.trim();
+                if trimmed.is_empty() {
+                    continue;
+                }
+                match parse_handshake_response(trimmed) {
+                    Ok(port) => return Ok(port),
+                    Err(err) => {
+                        eprintln!("[studyhub-sidecar] ignoring pre-handshake stdout line: {trimmed}");
+                        last_error = Some(err);
+                        stray_lines = stray_lines.saturating_add(1);
+                        if stray_lines >= MAX_STRAY_HANDSHAKE_LINES {
+                            return Err(last_error.unwrap_or_else(|| {
+                                "sidecar emitted too many non-handshake stdout lines".to_string()
+                            }));
+                        }
+                    }
+                }
+            }
+            Err(err) => return Err(format!("failed reading sidecar stdout: {err}")),
+        }
+    }
 }
 
 pub fn sidecar_startup_timeout() -> Duration {
@@ -352,10 +389,26 @@ fn configure_hidden_command(command: &mut Command) {
     }
 }
 
+#[cfg(windows)]
+fn resolve_taskkill_path() -> PathBuf {
+    if let Some(sys_root) = std::env::var_os("SystemRoot") {
+        let candidate = PathBuf::from(sys_root)
+            .join("System32")
+            .join("taskkill.exe");
+        if candidate.is_file() {
+            return candidate;
+        }
+    }
+    PathBuf::from("taskkill")
+}
+
 fn kill_process_tree(pid: u32) {
+    if pid == 0 {
+        return;
+    }
     #[cfg(windows)]
     {
-        let mut cmd = Command::new("taskkill");
+        let mut cmd = Command::new(resolve_taskkill_path());
         cmd.args(["/PID", &pid.to_string(), "/T", "/F"])
             .stdin(Stdio::null())
             .stdout(Stdio::null())
@@ -380,20 +433,53 @@ fn kill_process_tree(pid: u32) {
     }
 }
 
-fn terminate_child(child: &mut Child, stdin: &mut Option<ChildStdin>) {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TerminationOutcome {
+    AlreadyExited,
+    GracefulExit,
+    ForcedKill,
+}
+
+fn terminate_child_with_timeout(
+    child: &mut Child,
+    stdin: &mut Option<ChildStdin>,
+    grace_timeout: Duration,
+    poll_interval: Duration,
+) -> TerminationOutcome {
+    if matches!(child.try_wait(), Ok(Some(_))) {
+        drop(stdin.take());
+        return TerminationOutcome::AlreadyExited;
+    }
     drop(stdin.take());
     if matches!(child.try_wait(), Ok(Some(_))) {
-        return;
+        return TerminationOutcome::GracefulExit;
     }
-    for _ in 0..GRACEFUL_EXIT_POLLS {
-        thread::sleep(Duration::from_millis(GRACEFUL_EXIT_POLL_MS));
+    let deadline = Instant::now() + grace_timeout;
+    let step = poll_interval.max(Duration::from_millis(1));
+    while let Some(remaining) = deadline.checked_duration_since(Instant::now()) {
+        if remaining.is_zero() {
+            break;
+        }
+        thread::sleep(step.min(remaining));
         if matches!(child.try_wait(), Ok(Some(_))) {
-            return;
+            return TerminationOutcome::GracefulExit;
         }
     }
     kill_process_tree(child.id());
-    let _ = child.kill();
+    if !matches!(child.try_wait(), Ok(Some(_))) {
+        let _ = child.kill();
+    }
     let _ = child.wait();
+    TerminationOutcome::ForcedKill
+}
+
+fn terminate_child(child: &mut Child, stdin: &mut Option<ChildStdin>) {
+    let _ = terminate_child_with_timeout(
+        child,
+        stdin,
+        GRACEFUL_EXIT_TIMEOUT,
+        GRACEFUL_EXIT_POLL_INTERVAL,
+    );
 }
 
 pub struct SidecarHandle {
@@ -458,41 +544,16 @@ impl SidecarHandle {
             return Err(format!("failed to write handshake to sidecar stdin: {err}"));
         }
 
-        let (tx, rx) = mpsc::channel::<Result<String, String>>();
+        let (tx, rx) = mpsc::channel::<Result<u16, String>>();
         let spawn_reader = thread::Builder::new()
             .name("studyhub-sidecar-stdout".to_string())
             .spawn(move || {
                 let mut reader = BufReader::new(stdout_pipe);
-                let mut sent = false;
-                let mut line = String::new();
-                loop {
-                    line.clear();
-                    match reader.read_line(&mut line) {
-                        Ok(0) => {
-                            if !sent {
-                                let _ = tx
-                                    .send(Err("sidecar closed stdout before completing handshake"
-                                        .to_string()));
-                            }
-                            break;
-                        }
-                        Ok(_) => {
-                            if !sent {
-                                let trimmed = line.trim();
-                                if !trimmed.is_empty() {
-                                    let _ = tx.send(Ok(trimmed.to_string()));
-                                    sent = true;
-                                }
-                            }
-                        }
-                        Err(err) => {
-                            if !sent {
-                                let _ =
-                                    tx.send(Err(format!("failed reading sidecar stdout: {err}")));
-                            }
-                            break;
-                        }
-                    }
+                let handshake = read_handshake_port(&mut reader);
+                let _ = tx.send(handshake);
+                let mut drain = String::new();
+                while matches!(reader.read_line(&mut drain), Ok(n) if n > 0) {
+                    drain.clear();
                 }
             });
 
@@ -501,8 +562,8 @@ impl SidecarHandle {
             return Err(format!("failed to start sidecar stdout reader: {err}"));
         }
 
-        let response_line = match rx.recv_timeout(timeout) {
-            Ok(Ok(line)) => line,
+        let port = match rx.recv_timeout(timeout) {
+            Ok(Ok(port)) => port,
             Ok(Err(err)) => {
                 terminate_child(&mut child, &mut stdin);
                 return Err(err);
@@ -517,14 +578,6 @@ impl SidecarHandle {
             Err(mpsc::RecvTimeoutError::Disconnected) => {
                 terminate_child(&mut child, &mut stdin);
                 return Err("sidecar stdout reader disconnected before handshake".to_string());
-            }
-        };
-
-        let port = match parse_handshake_response(&response_line) {
-            Ok(port) => port,
-            Err(err) => {
-                terminate_child(&mut child, &mut stdin);
-                return Err(err);
             }
         };
 
@@ -1310,6 +1363,21 @@ mod tests {
     }
 
     #[test]
+    fn read_handshake_port_skips_pre_handshake_noise_and_rejects_eof() -> Result<(), String> {
+        let mut cursor = std::io::Cursor::new(
+            b"\n[dotenv] loaded .env\n{\"debug\":true}\n{\"port\":4188}\n".as_slice(),
+        );
+        assert_eq!(read_handshake_port(&mut cursor)?, 4188);
+
+        let mut empty = std::io::Cursor::new(b"".as_slice());
+        assert!(read_handshake_port(&mut empty).is_err());
+
+        let mut only_noise = std::io::Cursor::new(b"booting...\nnot json\n".as_slice());
+        assert!(read_handshake_port(&mut only_noise).is_err());
+        Ok(())
+    }
+
+    #[test]
     fn strip_windows_verbatim_prefix_normalizes_drive_and_unc_paths() {
         assert_eq!(
             strip_windows_verbatim_prefix_str(
@@ -1329,5 +1397,91 @@ mod tests {
             strip_windows_verbatim_prefix_str(r"\\?\Volume{01234567}\foo"),
             r"\\?\Volume{01234567}\foo"
         );
+    }
+
+    fn spawn_node_script(script: &str) -> Result<(Child, Option<ChildStdin>), String> {
+        let mut cmd = Command::new(node_binary_name());
+        cmd.args(["-e", script])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null());
+        configure_hidden_command(&mut cmd);
+        let mut child = cmd
+            .spawn()
+            .map_err(|err| format!("failed to spawn node test process: {err}"))?;
+        let stdin = child.stdin.take();
+        if let Some(stdout) = child.stdout.take() {
+            let mut reader = BufReader::new(stdout);
+            let mut line = String::new();
+            reader
+                .read_line(&mut line)
+                .map_err(|err| format!("failed waiting for node test process readiness: {err}"))?;
+        }
+        Ok((child, stdin))
+    }
+
+    #[test]
+    fn graceful_exit_defaults_allow_realistic_windows_shutdown() {
+        assert!(GRACEFUL_EXIT_TIMEOUT >= Duration::from_millis(2_500));
+        assert!(GRACEFUL_EXIT_TIMEOUT <= Duration::from_millis(5_000));
+        assert!(GRACEFUL_EXIT_POLL_INTERVAL >= Duration::from_millis(20));
+        assert!(GRACEFUL_EXIT_POLL_INTERVAL <= Duration::from_millis(100));
+    }
+
+    #[test]
+    fn terminate_child_waits_for_graceful_exit_on_stdin_eof() -> Result<(), String> {
+        // Exits 200ms after stdin EOF (longer than the previous 150ms cutoff) to prove
+        // graceful shutdown completes cleanly without falling through to forced tree kill.
+        let (mut child, mut stdin) = spawn_node_script(
+            "process.stdin.resume(); process.stdin.once('end', () => setTimeout(() => process.exit(0), 200)); console.log('ready');",
+        )?;
+        let outcome = terminate_child_with_timeout(
+            &mut child,
+            &mut stdin,
+            Duration::from_millis(2_000),
+            Duration::from_millis(25),
+        );
+        assert_eq!(outcome, TerminationOutcome::GracefulExit);
+        assert!(stdin.is_none());
+        let status = child.try_wait().map_err(|err| err.to_string())?;
+        assert!(matches!(status, Some(code) if code.success()));
+        Ok(())
+    }
+
+    #[test]
+    fn terminate_child_force_kills_unresponsive_process_after_timeout() -> Result<(), String> {
+        let (mut child, mut stdin) = spawn_node_script(
+            "process.stdin.resume(); console.log('ready'); setInterval(() => {}, 10_000);",
+        )?;
+        let started = Instant::now();
+        let outcome = terminate_child_with_timeout(
+            &mut child,
+            &mut stdin,
+            Duration::from_millis(120),
+            Duration::from_millis(20),
+        );
+        let elapsed = started.elapsed();
+        assert_eq!(outcome, TerminationOutcome::ForcedKill);
+        assert!(stdin.is_none());
+        assert!(elapsed >= Duration::from_millis(100));
+        assert!(child.try_wait().map_err(|err| err.to_string())?.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn terminate_child_returns_already_exited_without_waiting() -> Result<(), String> {
+        let (mut child, mut stdin) = spawn_node_script("process.exit(0);")?;
+        let _ = child.wait().map_err(|err| err.to_string())?;
+        let started = Instant::now();
+        let outcome = terminate_child_with_timeout(
+            &mut child,
+            &mut stdin,
+            Duration::from_secs(3),
+            Duration::from_millis(50),
+        );
+        assert_eq!(outcome, TerminationOutcome::AlreadyExited);
+        assert!(stdin.is_none());
+        assert!(started.elapsed() < Duration::from_millis(500));
+        Ok(())
     }
 }

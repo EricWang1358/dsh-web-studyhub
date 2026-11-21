@@ -84,11 +84,23 @@ else if (command === 'config' && sub === 'show') {
   save(); out('ok');
 } else if (command === 'server' && sub === 'status' && argv.includes('--json')) {
   // What the real CLI's `server status --json` shows about the workers (read-only): a stopped service says so and exits non-zero.
-  if (!state.running) { out('服务未在运行。'); process.exit(state.statusExitsZero ? 0 : 1); }
+  if (state.stillStartingOnce) {
+    const text = typeof state.stillStartingOnce === 'string' ? state.stillStartingOnce : '服务仍在启动中(PID 12345)。';
+    delete state.stillStartingOnce; save();
+    out(text); process.exit(0);
+  }
+  if (!state.running && !state.statusStuck) { out('服务未在运行。'); process.exit(state.statusExitsZero ? 0 : 1); }
   if (state.statusJsonFails) fail('unexpected failure while reading the status', 2);
+  let isStarting = !!state.starting;
+  if (state.startingPolls > 0) {
+    state.startingPolls -= 1;
+    if (state.startingPolls === 0) state.starting = false;
+    save();
+    isStarting = true;
+  }
   const active = !state.idleParses && state.active ? state.active : null;
   out(JSON.stringify({ running: true, pid: 12345, workers: { parse_running: active?.status === 'parsing' ? 1 : 0, parse_queue_length: active?.status === 'pending' ? 1 : 0 },
-    parse_server: { local: { healthy: !state.unhealthy, starting: !!state.starting } } }, null, 2));
+    parse_server: { local: { healthy: !state.unhealthy && !isStarting, starting: isStarting } } }, null, 2));
 } else if (command === 'server' && sub === 'status') {
   if (state.stillStartingOnce) {
     const text = typeof state.stillStartingOnce === 'string' ? state.stillStartingOnce : '服务仍在启动中(PID 12345)。';
@@ -116,8 +128,15 @@ else if (command === 'config' && sub === 'show') {
   // A service that crashes as it starts: what a learner must never read (a Python traceback in English).
   if (state.startTraceback) fail('Traceback (most recent call last):\n  File "mineru\\cli\\server.py", line 88, in start\n    raise RuntimeError("worker exited with code 3")\nRuntimeError: worker exited with code 3');
   if (state.startBlocksMs) await new Promise(resolve => setTimeout(resolve, state.startBlocksMs));
+  // Real MinerU: if doclib is already running with a dead parse-server, plain `server start` reports already running without reviving parse-server.
+  if (sub === 'start' && state.running && state.unhealthy) { out('服务已在运行。'); process.exit(0); }
   state.running = true; state.starts = (state.starts || 0) + 1; save(); out('server started');
-} else if (command === 'server' && sub === 'stop') { state.running = false; save(); out('server stopped'); }
+} else if (command === 'server' && sub === 'stop') {
+  state.running = false;
+  if (state.unhealthy && !state.persistUnhealthy) state.unhealthy = false;
+  if (state.starting && !state.persistStarting) state.starting = false;
+  save(); out('server stopped');
+}
 else if (command === 'list' && sub === 'parses') {
   if (!state.running) fail(SERVICE_DOWN);
   if (state.listFails) fail('unexpected failure while listing parses', 2);
@@ -126,6 +145,10 @@ else if (command === 'list' && sub === 'parses') {
   out(JSON.stringify({ parses: rows, coverage: null, total: rows.length, limit: 50, offset: 0 }, null, 2));
 } else if (command === 'parse') {
   if (!state.running) fail("本地 mineru 服务未运行。请先运行 'mineru server start'");
+  if (state.unhealthy || state.starting) {
+    out(JSON.stringify({ error: { type: 'engine_error', code: 'engine_unavailable', message: 'Local parse-server is not ready. Please wait or check server status.' } }));
+    process.exit(1);
+  }
   const pdf = argv[1], output = flag('-o');
   // `totalFromPdf`: the page count of the PDF itself, for a test that converts books of different lengths with one fake.
   if (state.totalFromPdf) state.total = (await (await import('pdf-lib')).PDFDocument.load(readFileSync(pdf), { updateMetadata: false })).getPageCount();

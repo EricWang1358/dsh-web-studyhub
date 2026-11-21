@@ -94,8 +94,17 @@ async function invokeRetrievalTool(state, ports, { name, rawArgs, signal }) {
   }
   const rawName = name.slice(RETRIEVAL_TOOL_PREFIX.length);
   const args = parseCallArguments(rawArgs);
-  const runCall = () => state.client.callTool(rawName, args, { signal, timeoutMs: TOOL_CALL_TIMEOUT_MS });
-  const mcpResult = WRITE_TOOL_SET.has(rawName) && typeof ports.withIndexLock === 'function'
+  const isWrite = WRITE_TOOL_SET.has(rawName);
+  const runCall = async () => {
+    try {
+      return await state.client.callTool(rawName, args, { signal, timeoutMs: TOOL_CALL_TIMEOUT_MS });
+    } catch (error) {
+      const abortedOrTimedOut = Boolean(signal?.aborted || error?.code === 'ABORT_ERR' || error?.code === 'retrieval-call-timeout');
+      if (isWrite && abortedOrTimedOut) await stopActiveClient(state);
+      throw error;
+    }
+  };
+  const mcpResult = isWrite && typeof ports.withIndexLock === 'function'
     ? await ports.withIndexLock(runCall, { signal })
     : await runCall();
   return {
@@ -172,10 +181,7 @@ async function ensureCandidateRunning(state, ports, { allowStart, forceRediscove
     };
   }
 
-  state.startPromise = startCandidateClient(state, ports, selected).finally(() => {
-    state.startPromise = null;
-  });
-  return state.startPromise;
+  return startCandidateClient(state, ports, selected);
 }
 
 function runSerialized(state, kind, work) {
@@ -274,7 +280,10 @@ export function createRetrievalRuntime(ports) {
   async function ensureReady({ allowStart = true, forceRediscover = false } = {}) {
     if (state.disposed) return { running: false, candidate: null, notStarted: false };
     if (state.startPromise) return state.startPromise;
-    return ensureCandidateRunning(state, ports, { allowStart, forceRediscover });
+    state.startPromise = ensureCandidateRunning(state, ports, { allowStart, forceRediscover }).finally(() => {
+      state.startPromise = null;
+    });
+    return state.startPromise;
   }
 
   async function ensureReadyIfConfigured() {

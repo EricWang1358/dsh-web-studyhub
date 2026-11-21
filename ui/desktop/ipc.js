@@ -78,6 +78,7 @@ export async function loadBootstrapInfo() {
     return {
       baseUrl: String(info?.baseUrl || '').replace(/\/+$/, ''),
       token: String(info?.token || ''),
+      ...(info?.installFlavor ? { installFlavor: String(info.installFlavor) } : {}),
     };
   }
   return {
@@ -86,17 +87,53 @@ export async function loadBootstrapInfo() {
   };
 }
 
+function normalizeEndpointInfo(info) {
+  return Object.freeze({
+    baseUrl: String(info?.baseUrl || '').replace(/\/+$/, ''),
+    token: String(info?.token || ''),
+  });
+}
+
+/** Reactive sidecar endpoint holder updated when Tauri's watchdog restarts the sidecar on a new port/token. */
+export function createSidecarConnection(initialInfo = {}) {
+  let current = normalizeEndpointInfo(initialInfo);
+  const listeners = new Set();
+  return {
+    get: () => current,
+    update: (next) => {
+      const normalized = normalizeEndpointInfo(next);
+      if (normalized.baseUrl === current.baseUrl && normalized.token === current.token) return current;
+      current = normalized;
+      for (const listener of listeners) listener(current);
+      return current;
+    },
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+}
+
+const DEFAULT_RPC_TIMEOUT_MS = 200_000;
+
 /** Create the StudyHub HTTP RPC transport (`POST ${baseUrl}/api/call` + `X-Study-Token`). */
-export function createDesktopCall({ baseUrl = '', token = '' } = {}) {
-  const endpoint = `${String(baseUrl).replace(/\/+$/, '')}/api/call`;
+export function createDesktopCall(connectionOrInfo = {}, { timeoutMs = DEFAULT_RPC_TIMEOUT_MS } = {}) {
+  const getTarget = typeof connectionOrInfo?.get === 'function'
+    ? () => connectionOrInfo.get()
+    : () => normalizeEndpointInfo(connectionOrInfo);
   return async (action, args = {}) => {
-    const response = await fetch(endpoint, {
+    const { baseUrl, token } = getTarget();
+    const signal = timeoutMs > 0 && typeof AbortSignal?.timeout === 'function'
+      ? { signal: AbortSignal.timeout(timeoutMs) }
+      : {};
+    const response = await fetch(`${baseUrl}/api/call`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'X-Study-Token': token,
       },
       body: JSON.stringify({ action, args }),
+      ...signal,
     });
     let envelope = null;
     try {
@@ -110,6 +147,7 @@ export function createDesktopCall({ baseUrl = '', token = '' } = {}) {
     if (!envelope.ok) {
       const error = new Error(envelope.error || 'StudyHub request failed');
       if (envelope.code) error.code = envelope.code;
+      if (envelope.details !== undefined) error.details = envelope.details;
       throw error;
     }
     return envelope.value;
@@ -118,8 +156,10 @@ export function createDesktopCall({ baseUrl = '', token = '' } = {}) {
 
 /** Validate an http(s) URL before handing it to the OS browser. */
 export function safeExternalUrl(href) {
+  const raw = String(href ?? '').trim();
+  if (!raw) return null;
   try {
-    const parsed = new URL(String(href ?? ''), globalThis.location?.href || 'https://localhost/');
+    const parsed = new URL(raw, globalThis.location?.href || 'https://localhost/');
     if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return parsed.href;
     return null;
   } catch {
@@ -144,6 +184,7 @@ export async function openExternalUrl(url, desktopCall) {
 /** Intercept external link clicks and window.open so Tauri WebView opens them in the system browser. */
 export function installExternalLinkHandler(desktopCall) {
   if (typeof document === 'undefined' || typeof window === 'undefined') return () => {};
+  const origOpen = window.open;
   const open = (href) => {
     void openExternalUrl(href, desktopCall).catch(() => {});
   };
@@ -158,12 +199,18 @@ export function installExternalLinkHandler(desktopCall) {
     open(href);
   };
   document.addEventListener('click', onClick, true);
-  window.open = (url) => {
-    const href = safeExternalUrl(url);
-    if (href) open(href);
-    return null;
+  window.open = (...args) => {
+    const href = safeExternalUrl(args[0]);
+    if (href) {
+      open(href);
+      return null;
+    }
+    return typeof origOpen === 'function' ? origOpen.apply(window, args) : null;
   };
-  return () => document.removeEventListener('click', onClick, true);
+  return () => {
+    document.removeEventListener('click', onClick, true);
+    window.open = origOpen;
+  };
 }
 
 /** Sync host concurrency cap from `desktop.config.get` / `desktop.config.save` effective info. */
@@ -187,17 +234,26 @@ export function subscribeDesktopConcurrency(listener) {
   return () => concurrencyListeners.delete(listener);
 }
 
+function buildTauriBridgeCapabilities(installFlavor) {
+  if (!hasTauriBridge()) return {};
+  return {
+    pickDirectory: () => tauriInvoke('pick_directory'),
+    pickFile: (pickerOptions) => tauriInvoke('pick_file', { extensions: pickerOptions?.extensions || [] }),
+    updater: {
+      check: () => checkDesktopUpdate(),
+      install: (onProgress) => installDesktopUpdate({ onProgress }),
+      ...(installFlavor ? { installFlavor } : {}),
+    },
+  };
+}
+
 /** Build the StudyHub Desktop host object matching the 4-field PLUGIN_HOST capabilities contract. */
-export function createDesktopHost(desktopCall, concurrency = concurrencyState, subscribeLibraryEvents = null) {
+export function createDesktopHost(desktopCall, concurrency = concurrencyState, subscribeLibraryEvents = null, options = {}) {
+  const installFlavor = options?.installFlavor ? String(options.installFlavor) : undefined;
   return {
     capabilities: DESKTOP_CAPABILITIES,
-    ...(hasTauriBridge() ? {
-      pickDirectory: () => tauriInvoke('pick_directory'),
-      updater: {
-        check: () => checkDesktopUpdate(),
-        install: (onProgress) => installDesktopUpdate({ onProgress }),
-      },
-    } : {}),
+    warmKey: 'studyhub-desktop',
+    ...buildTauriBridgeCapabilities(installFlavor),
     openExternal: (url) => openExternalUrl(url, desktopCall),
     ...(typeof subscribeLibraryEvents === 'function' ? { subscribeLibraryEvents } : {}),
     ...(concurrency?.maxConcurrency ? { maxConcurrency: concurrency.maxConcurrency } : {}),

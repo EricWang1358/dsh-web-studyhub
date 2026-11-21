@@ -144,10 +144,12 @@ function buildFailureError(result, timeoutMs, language) {
 
 function buildLineTextHandler(execution) {
   const emitChunk = execution?.onOutput || execution?.onChunk;
-  if (!emitChunk) return undefined;
+  const emitReasoning = execution?.onReasoning;
+  if (!emitChunk && !emitReasoning) return undefined;
   return (line) => {
     const item = parseCodexStreamLine(line);
-    if (item?.text) emitChunk(item.text);
+    if (item?.text && emitChunk) emitChunk(item.text);
+    if (item?.reasoningText && emitReasoning) emitReasoning(item.reasoningText.length);
   };
 }
 
@@ -167,6 +169,11 @@ function resolveTimeoutMs(execution, defaultTimeoutMs) {
   return Number.isFinite(requested) && requested >= 0 ? requested : defaultTimeoutMs;
 }
 
+function resolveEffort(codexConfig, execution) {
+  const raw = execution?.reasoningEffort ?? execution?.route?.reasoningEffort ?? codexConfig.effort;
+  return typeof raw === 'string' ? raw.trim() : '';
+}
+
 /**
  * Create a StudyHub `complete(system, prompt, execution)` backed by `codex exec --json`.
  * Always executes inside a fresh empty temp `cwd` cleaned up in `finally`.
@@ -184,7 +191,8 @@ export function createCodexCompleteAdapter(codexConfig, {
     const effectiveTimeoutMs = resolveTimeoutMs(execution, timeoutMs);
     const tempDir = await mkdtemp(join(tmpdir(), 'studyhub-codex-'));
     try {
-      const args = buildCodexExecArgs({ model: codexConfig.model, effort: codexConfig.effort });
+      const effort = resolveEffort(codexConfig, execution);
+      const args = buildCodexExecArgs({ model: codexConfig.model, effort });
       const stdinText = buildCodexWrappedPrompt(system, prompt);
       const result = await runner.run({
         command: executablePath,
@@ -196,11 +204,22 @@ export function createCodexCompleteAdapter(codexConfig, {
         onStdoutLine: buildLineTextHandler(execution),
       });
       assertCodexRunOk(result, execution, { timeoutMs: effectiveTimeoutMs, language });
-      const parsed = parseCodexJsonlOutput(result.stdout, { language });
+      let parsed;
+      try {
+        parsed = parseCodexJsonlOutput(result.stdout, { language });
+      } catch (error) {
+        if (result.truncated) {
+          const msg = language === 'en'
+            ? 'Codex CLI output exceeded buffer cap and was truncated'
+            : 'Codex CLI 输出超出上限被截断，未能读取最终结果';
+          throw Object.assign(new Error(msg), { modelFailure: true });
+        }
+        throw error;
+      }
       report?.(parsed.usage, execution);
       return parsed.text;
     } finally {
-      await rm(tempDir, { recursive: true, force: true }).catch(() => {});
+      await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }).catch(() => {});
     }
   };
 }

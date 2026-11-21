@@ -31,25 +31,44 @@ async function verifyWritableDirectory(dirPath) {
   return target;
 }
 
+const RENAME_RETRY_CODES = new Set(['EBUSY', 'EPERM', 'EACCES']);
+const RENAME_MAX_ATTEMPTS = 6;
+
+async function renameWithRetry(fromPath, toPath) {
+  let lastError = null;
+  for (let attempt = 0; attempt < RENAME_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      await rename(fromPath, toPath);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (!RENAME_RETRY_CODES.has(error?.code) || attempt + 1 >= RENAME_MAX_ATTEMPTS) throw error;
+      await new Promise((done) => setTimeout(done, 40 * (attempt + 1)));
+    }
+  }
+  throw lastError;
+}
+
 async function atomicWriteJson(filePath, data) {
   const target = resolve(filePath);
   await mkdir(resolve(target, '..'), { recursive: true });
   const temp = `${target}.${randomUUID()}.tmp`;
-  await writeFile(temp, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+  await writeFile(temp, `${JSON.stringify(data, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
   try {
-    await rename(temp, target);
+    await renameWithRetry(temp, target);
   } catch (error) {
     await rm(temp, { force: true }).catch(() => {});
     throw error;
   }
 }
 
-async function readStoredConfig(configPath) {
+async function readStoredConfig(configPath, { strictIo = false } = {}) {
   try {
     const raw = await readFile(configPath, 'utf8');
     return normalizeDesktopConfig(JSON.parse(raw));
   } catch (error) {
     if (error?.code === 'ENOENT') return defaultDesktopConfig();
+    if (strictIo && RENAME_RETRY_CODES.has(error?.code)) throw error;
     return defaultDesktopConfig();
   }
 }
@@ -123,42 +142,55 @@ export function createConfigStore({
   const defaultRoot = resolve(documentsDir, 'StudyHub');
   const fallbackRoot = join(studyHome, 'library');
 
+  let writeQueue = Promise.resolve();
+  const serializeWrite = (work) => {
+    const next = writeQueue.then(work);
+    writeQueue = next.catch(() => {});
+    return next;
+  };
+
   async function load() {
     const config = await readStoredConfig(configPath);
     const library = await resolveLibraryRoot({ config, env, defaultRoot, fallbackRoot, configPath });
     return { config, library };
   }
 
-  async function save(nextConfig) {
-    const normalized = normalizeDesktopConfig(nextConfig);
-    await atomicWriteJson(configPath, normalized);
-    return normalized;
+  function save(nextConfig) {
+    return serializeWrite(async () => {
+      const normalized = normalizeDesktopConfig(nextConfig);
+      await atomicWriteJson(configPath, normalized);
+      return normalized;
+    });
   }
 
-  async function saveLibraryRoot(rawRoot) {
-    const trimmed = String(rawRoot ?? '').trim();
-    const current = await readStoredConfig(configPath);
-    // Saving a folder, the default one included, is the learner settling where the library lives.
-    if (!trimmed) {
-      await atomicWriteJson(configPath, { ...current, libraryRoot: '', libraryPlaceConfirmed: true });
-      return '';
-    }
-    if (!isAbsolute(trimmed)) {
-      throw Object.assign(new Error('请选择绝对路径的学习库目录'), { code: 'invalid-library-root' });
-    }
-    const target = resolve(trimmed);
-    if (isInsidePath(configPath, target)) {
-      throw Object.assign(new Error('学习库目录不能包含配置文件目录'), { code: 'invalid-library-root' });
-    }
-    await verifyWritableDirectory(target);
-    await atomicWriteJson(configPath, { ...current, libraryRoot: target, libraryPlaceConfirmed: true });
-    return target;
+  function saveLibraryRoot(rawRoot) {
+    return serializeWrite(async () => {
+      const trimmed = String(rawRoot ?? '').trim();
+      const current = await readStoredConfig(configPath, { strictIo: true });
+      // Saving a folder, the default one included, is the learner settling where the library lives.
+      if (!trimmed) {
+        await atomicWriteJson(configPath, { ...current, libraryRoot: '', libraryPlaceConfirmed: true });
+        return '';
+      }
+      if (!isAbsolute(trimmed)) {
+        throw Object.assign(new Error('请选择绝对路径的学习库目录'), { code: 'invalid-library-root' });
+      }
+      const target = resolve(trimmed);
+      if (isInsidePath(configPath, target)) {
+        throw Object.assign(new Error('学习库目录不能包含配置文件目录'), { code: 'invalid-library-root' });
+      }
+      await verifyWritableDirectory(target);
+      await atomicWriteJson(configPath, { ...current, libraryRoot: target, libraryPlaceConfirmed: true });
+      return target;
+    });
   }
 
   /** The learner accepts the library where it is. Written on a fresh read of the file, so a folder saved a moment ago is not put back. */
-  async function confirmLibraryPlace() {
-    const current = await readStoredConfig(configPath);
-    await atomicWriteJson(configPath, { ...current, libraryPlaceConfirmed: true });
+  function confirmLibraryPlace() {
+    return serializeWrite(async () => {
+      const current = await readStoredConfig(configPath, { strictIo: true });
+      await atomicWriteJson(configPath, { ...current, libraryPlaceConfirmed: true });
+    });
   }
 
   return Object.freeze({
