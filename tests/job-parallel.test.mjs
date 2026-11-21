@@ -160,7 +160,8 @@ test('job.parallel is refused for a job that writes what an active job writes, n
 
 test('a rate limit in the job that did not ask for parallel sends the parallel job back to the queue first; it goes on by itself when the first job is over', async t => {
   const { model, generate, job, runtime } = await library(t);
-  const a = await generate('s1'), holdA = model.hold(a.jobId, 'plan');
+  // Hold job `a` at `review` too so full-jitter 429 retry cannot finish `a` (and legitimately release `b`) before the held-state assertions below.
+  const a = await generate('s1'), holdA = model.hold(a.jobId, 'plan'), holdReview = model.hold(a.jobId, 'review');
   const b = await generate('s2'), holdB = model.hold(b.jobId, 'plan');
   await soon(() => holdA.entered, 'the first job at the model');
   await runtime.call('job.parallel', { jobId: b.jobId });
@@ -186,6 +187,7 @@ test('a rate limit in the job that did not ask for parallel sends the parallel j
   await sleep(250);
   assert.deepEqual(model.callsOf(b.jobId), ['plan'], 'a held job admits no new call');
   assert.equal((await job(b.jobId)).status, 'queued');
+  holdReview.open();
   const endedA = await settleJob(runtime, a.jobId);
   assert.equal(endedA.status, 'complete');
   const endedB = await settleJob(runtime, b.jobId);
@@ -231,7 +233,7 @@ test('a failure that is not pressure (a refused key) sends nobody back', async t
 
 test('a job can be stopped while it is held in the queue', async t => {
   const { model, generate, job, runtime } = await library(t);
-  const a = await generate('s1'), holdA = model.hold(a.jobId, 'plan');
+  const a = await generate('s1'), holdA = model.hold(a.jobId, 'plan'), holdReview = model.hold(a.jobId, 'review');
   const b = await generate('s2'), holdB = model.hold(b.jobId, 'plan');
   await soon(() => holdA.entered, 'the first job at the model');
   await runtime.call('job.parallel', { jobId: b.jobId });
@@ -244,6 +246,7 @@ test('a job can be stopped while it is held in the queue', async t => {
   await runtime.call('job.control', { jobId: b.jobId, action: 'cancel' });
   assert.equal((await settleJob(runtime, b.jobId)).status, 'cancelled');
   assert.deepEqual(model.callsOf(b.jobId), ['plan'], 'nothing was asked after the stop');
+  holdReview.open();
   assert.equal((await settleJob(runtime, a.jobId)).status, 'complete', 'the first job is not affected');
 });
 
