@@ -24,7 +24,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/assist-contract.js`: 2 ui files; 1 other lib file
 - `lib/audio-formats.js`: 4 ui files; 3 other lib files
 - `lib/audio-providers.js`: 4 ui files; context audio; 3 other lib files
-- `lib/board-model.js`: 17 ui files; 9 other lib files
+- `lib/board-model.js`: 21 ui files; 9 other lib files
 - `lib/book-flip.js`: 1 ui file; 1 other lib file
 - `lib/book-settings.js`: 6 ui files; contexts generation, system; 7 other lib files
 - `lib/card-kinds.js`: 14 ui files; contexts generation, library, recording, study; 26 other lib files
