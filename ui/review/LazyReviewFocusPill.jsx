@@ -26,17 +26,17 @@ export default function LazyReviewFocusPill(props) {
     return () => { cancelled = true; };
   }, [Pill]);
 
-  if (Pill) return <Pill {...props} initialOpen={props.initialOpen || pendingOpen} />;
+  if (!props.boardState) return null;
+  if (Pill) return <Pill {...props} defaultOpen={props.defaultOpen || pendingOpen} />;
   const prefs = resolveTimerPrefs(props.boardState?.board);
   const togglePending = () => setPendingOpen(true);
   return (
     <Button
       size="sm"
-      variant="quiet"
+      variant="secondary"
       icon="clock"
-      className="review-focus-pill"
       data-testid="review-focus-pill"
-      aria-label={ui('专注番茄钟与今日目标')}
+      aria-label={ui('专注计时与今日目标')}
       onClick={togglePending}
     >
       {uiFormat('番茄 {0}+{1}', [prefs.workMinutes, prefs.breakMinutes])}
