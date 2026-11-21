@@ -24,10 +24,12 @@ const STAMP = '2026-10-01T08:00:00.000Z';
 const body = n => `## 第 ${n} 节\n\n${`数据库索引加快查找，事务保证一致性，范式减少冗余。第 ${n} 节的内容。`.repeat(60)}`;
 const note = (id, title, courses, n) => ({ id, title, text: body(n), createdAt: STAMP, courses, chars: body(n).length, excerpt: body(n).slice(0, 160) });
 
-async function seed(root) {
+async function seed(root, { staged = false } = {}) {
   await mkdir(root, { recursive: true });
   const service = new StudyService(root);
   await service.call('snapshot');
+  // 逐题精出 chosen under 高级生成控制 (one pass, the default, says a range).
+  if (staged) await service.call('settings', { generation: { strategy: 'staged' } });
   await service.store.update(state => {
     state.sources.push(note('n1', '索引与查询.md', ['数据库'], 1), note('n2', '事务与并发.md', ['数据库'], 2), note('n3', '范式.md', ['数据库'], 3), note('n4', '路由.md', ['网络'], 4));
     // 范式.md already has questions: a published deck cites it.
@@ -38,11 +40,11 @@ async function seed(root) {
   service.dispose?.();
 }
 
-async function start(distDir) {
+async function start(distDir, options) {
   scrubProcessEnv();
   const base = await mkdtemp(join(tmpdir(), 'study-generate-short-'));
   const root = join(base, 'library');
-  await seed(root);
+  await seed(root, options);
   const server = await createPreviewServer({ libraryRoot: root, home: join(base, 'home'), port: 0, model: createFakeModel({ latencyMs: 20 }), distDir });
   return { server, base, close: async () => { await server.close(); await rm(base, { recursive: true, force: true, maxRetries: 20, retryDelay: 150 }); } };
 }
@@ -147,8 +149,10 @@ test('创建题组 opens ticked with a reason, the main path is one line, the pl
       // the plan, said once: the estimate and the count under the form, not in the fold
       await until(async () => (await page.locator('[data-generate-estimate] [data-token-estimate][data-status="ready"]').count()) > 0, 'the estimate', { timeoutMs: 60000 });
       const summary = await page.locator('.generate-summary').innerText();
-      const count = /出 (\d+) 题/.exec(summary)?.[1];
-      assert.ok(count, `the summary line says how many questions: ${summary}`);
+      // One pass (the default) keeps most of what it plans, not all: the count is a range whose upper end is the plan (lib/one-pass/route.js questionRange).
+      const said = /出 (\d+)–(\d+) 题/.exec(summary);
+      assert.ok(said && Number(said[1]) < Number(said[2]), `the summary line says how many questions, as a range: ${summary}`);
+      const count = `${said[1]}–${said[2]}`;
       const formText = await page.locator('.generate-page form').innerText();
       assert.equal((formText.match(new RegExp(`(?<![\\d.])${count} (?:题|道题)`, 'g')) || []).length, 1, `the planned ${count} questions are said once on the page`);
       // the tokens in the bar beside the count, the rest of the plan under it (#1082)
@@ -185,5 +189,16 @@ test('创建题组 opens ticked with a reason, the main path is one line, the pl
       assert.deepEqual(errors, []);
       await context.close();
     }
+    // 逐题精出 (staged) keeps what it plans: the same line says one number.
+    const staged = await start(dist, { staged: true });
+    try {
+      const { page, context } = await openApp(browser, staged, { width: 1280 });
+      await goGenerate(page);
+      await until(async () => (await page.locator('[data-generate-estimate] [data-token-estimate][data-status="ready"]').count()) > 0, 'the staged estimate', { timeoutMs: 60000 });
+      const line = await page.locator('.generate-summary').innerText();
+      assert.match(line, /出 \d+ 题/, `a staged run says one number: ${line}`);
+      assert.doesNotMatch(line, /出 \d+–\d+ 题/, 'not a range');
+      await context.close();
+    } finally { await staged.close(); }
   } finally { await running.close(); await browser.close(); await rm(dist, { recursive: true, force: true }); }
 });
