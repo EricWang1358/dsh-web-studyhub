@@ -68,3 +68,25 @@ test('staged calibration ratios are not applied to an estimate priced for one pa
   const staged = estimateRun('generate', { sources, count, assignments, kind: 'quiz', performance: { strategy: 'staged' } });
   assert.ok(calibrateEstimate(staged, factors, none).totalTokens.high < staged.totalTokens.high, 'a staged estimate is still corrected');
 });
+
+/* 写法 (writeStyle): the estimate prices the write calls with the prompt of the style, and sizes their output by the style's factor (lib/one-pass/write-style.js
+   WRITE_STYLE_OUTPUT: the sample cards cannot tell the styles apart, and `quick` is not measured). The factor also scales the thinking a write call is assumed to
+   write, so the figure the form shows (and the cost ratio read from it) tells a quick run from a scenario run. */
+test('a quick run is priced with the quick prompt and the quick output factor, below a scenario run; the reviews are the same', async () => {
+  const { calibrateEstimate } = await import('../lib/token-estimate.js');
+  const { WRITE_STYLE_OUTPUT } = await import('../lib/one-pass/write-style.js');
+  const priced = writeStyle => estimateRun('generate', { sources, count, assignments, kind: 'quiz', performance: { strategy: 'one-pass', writeStyle } });
+  const quick = priced('quick'), scenario = priced('scenario'), plain = estimateRun('generate', { sources, count, assignments, kind: 'quiz', performance: { strategy: 'one-pass' } });
+  assert.deepEqual(plain.totalTokens, scenario.totalTokens, 'the default is the scenario style');
+  assert.ok(WRITE_STYLE_OUTPUT.quick < 1 && WRITE_STYLE_OUTPUT.scenario === 1);
+  assert.ok(stage(quick, 'author').inputTokens.low < stage(scenario, 'author').inputTokens.low, 'the quick wording is shorter');
+  assert.ok(stage(quick, 'author').outputTokens.high < stage(scenario, 'author').outputTokens.high);
+  assert.deepEqual(stage(quick, 'review'), stage(scenario, 'review'));
+  const assumed = { stages: {}, samples: 0 };
+  const shown = estimate => calibrateEstimate(estimate, null, assumed).totalTokens.high;
+  assert.ok(shown(quick) < shown(scenario), `the shown upper end tells them apart: ${shown(quick)} < ${shown(scenario)}`);
+  const author = estimate => calibrateEstimate(estimate, null, assumed).stages.find(item => item.id === 'author').outputTokens.high;
+  assert.ok(Math.abs(author(quick) / author(scenario) - WRITE_STYLE_OUTPUT.quick) < 0.05, 'the write output, thinking included, by the factor');
+  assert.deepEqual(estimateRun('generate', { sources, count, assignments, kind: 'quiz', performance: { strategy: 'staged', writeStyle: 'quick' } }).totalTokens,
+    estimateRun('generate', { sources, count, assignments, kind: 'quiz', performance: { strategy: 'staged' } }).totalTokens, 'the staged pipeline has no style');
+});
