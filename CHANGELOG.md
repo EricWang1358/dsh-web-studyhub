@@ -2,6 +2,10 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 5.3.1 — 2026-11-21
+
+- **StudyHub Desktop 5.3 is published with this version.** 5.3.0 was released for the DSH plugin only: its desktop installer was not built, because one desktop test was broken (the test, not the app), so desktop users go from 5.2.1 straight to 5.3.1. Everything listed under 5.3.0 is in this version. Nothing else changed. Not verified: the 5.3.1 installer on a real computer, and the in-app update from 5.2.1 to 5.3.1.
+
 ## 5.3.0 — 2026-11-21
 
 - **Deterministic 0-token mistake triage routes WrongBook and Round Look-Back misses directly to the right recovery action.** Depending on mistake history, linked review-book confusables, prerequisites, and error reasons, each missed card now offers a targeted next step (0-token confusable contrast, review-book retell, prerequisite practice, background question fix, or a 3–4 slide rescue experiment) without extra model calls. Not verified: live third-party model generation during rescue experiment compilation beyond mocked host and UI tests.

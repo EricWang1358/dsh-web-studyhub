@@ -389,6 +389,8 @@ test('ExtensionNotStarted repair() awaits refresh() before marking repaired so s
   const hooks = {
     ...React,
     useId: () => 'ens',
+    useMemo: factory => factory(),
+    useCallback: fn => fn,
     useContext: () => null,
     useSyncExternalStore: (_sub, get) => get(),
     useRef: initial => refs[refAt++] ||= { current: initial },
