@@ -481,7 +481,7 @@ test('collectAllHighlightEntries scans the DOM with a single TreeWalker pass for
     return el;
   };
 
-  // Tree with inline spans, excluded .katex / <code> / closed <details>, and block breaks.
+  // Tree with inline spans, inline <code>, fenced <pre><code>, excluded .katex / .md-code-head / closed <details>, and block breaks.
   const body = mkEl('div', {
     children: [
       mkEl('p', {
@@ -499,6 +499,19 @@ test('collectAllHighlightEntries scans the DOM with a single TreeWalker pass for
           mkText('Word and '),
           mkEl('code', { children: [mkText('idempotency')] }),
           mkText(' plus Idempotency'),
+        ],
+      }),
+      mkEl('div', {
+        classes: ['md-code-block'],
+        children: [
+          mkEl('div', {
+            classes: ['md-code-head'],
+            children: [mkEl('span', { classes: ['md-code-lang'], children: [mkText('Consensus')] })],
+          }),
+          mkEl('pre', {
+            classes: ['md-code'],
+            children: [mkEl('code', { children: [mkText('s3.intern();')] })],
+          }),
         ],
       }),
       mkEl('details', { open: false, children: [mkText('Consensus hidden')] }),
@@ -536,15 +549,15 @@ test('collectAllHighlightEntries scans the DOM with a single TreeWalker pass for
   };
 
   const result = collectAllHighlightEntries(doc, body, {
-    activeTerms: ['Linearizability', 'SplitWord', 'LineALineB'],
+    activeTerms: ['Linearizability', 'intern', 'SplitWord', 'LineALineB'],
     seenTerms: ['consensus'],
     candidateTerms: ['idempotency'],
   });
 
   assert.equal(walkerCalls, 1, 'all 3 highlight passes share exactly 1 TreeWalker DOM scan');
-  assert.equal(result.active.ranges.length, 1, 'matches Linearizability across inline spans, does not glue across .katex or <br>');
-  assert.equal(result.seen.ranges.length, 1, 'matches Consensus case-insensitively and skips closed <details>');
-  assert.equal(result.cand.ranges.length, 1, 'matches Idempotency case-insensitively and skips <code>');
+  assert.equal(result.active.ranges.length, 2, 'matches Linearizability across inline spans and intern inside <pre><code>, without gluing across .katex or <br>');
+  assert.equal(result.seen.ranges.length, 1, 'matches Consensus case-insensitively and skips .md-code-head and closed <details>');
+  assert.equal(result.cand.ranges.length, 2, 'matches Idempotency case-insensitively in both prose and inline <code>');
 });
 
 /* ---------- 5. ui/book/BookToc.jsx: retain search index on query clear ---------- */
