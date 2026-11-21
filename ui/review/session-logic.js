@@ -86,14 +86,14 @@ export const reviewPollResult = (current, next, running = false) =>
     through this poll (a 批改 too), so the poll keeps the quick rhythm while it runs. */
 export const assistRunningOn = (tasks, cardId) => !!cardId && (tasks || []).some((task) => task.cardId === cardId && task.status === 'running');
 
-/** The task on this question the page watches (`watch`: the running one, any mode) and whether the one it watched has just ended with a result
+/** The task(s) on this question the page watches (`watch`: comma-joined running task ids, any mode) and whether any watched task has just ended with a result
     (`done`): then the page asks for the question at once instead of waiting out a slowed-down poll. */
 export function finishedTask(watched, tasks, cardId) {
   const own = (tasks || []).filter((task) => task.cardId === cardId);
-  const running = own.find((task) => task.status === 'running');
-  if (running) return { watch: running.id, done: false };
-  const ended = watched ? own.find((task) => task.id === watched) : null;
-  return { watch: '', done: ended?.status === 'done' };
+  const runningIds = own.filter((task) => task.status === 'running').map((task) => task.id);
+  const prevIds = watched ? String(watched).split(',').filter(Boolean) : [];
+  const done = prevIds.some((id) => own.some((task) => task.id === id && task.status === 'done'));
+  return { watch: runningIds.join(','), done };
 }
 
 /* ── 先跳过 and the questions still waiting (#1008) ── */
