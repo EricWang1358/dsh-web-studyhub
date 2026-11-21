@@ -155,7 +155,10 @@ pub fn detect_install_flavor_from_dir(exe_dir: Option<&Path>, is_windows: bool) 
             }
         }
     }
-    let normalized = dir.to_string_lossy().to_ascii_lowercase().replace('/', "\\");
+    let normalized = dir
+        .to_string_lossy()
+        .to_ascii_lowercase()
+        .replace('/', "\\");
     if normalized.contains("\\program files\\") || normalized.contains("\\program files (x86)\\") {
         return "msi";
     }
