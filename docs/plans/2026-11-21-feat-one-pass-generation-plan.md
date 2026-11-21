@@ -445,8 +445,10 @@ owner（2026-11-21）：查缺还应复用于复习全书和知识点掌握度�
 门禁复核之后的修改（第 72–79 条）：
 
 72. **重试带回出题深度**：
-    - 出题任务的 `asked` 记下这次出题用的深度（表单选的，没选就是设置里的），只在深度起作用时记（全是单选、不是案例卷）。lib/contexts/generation/generate/job-seed.js。
-    - 「按原资料重新设置」把它放回表单（`patch.depth`）。早于这个记录的单选题组：表单不带自己的深度（用设置里的），提示里写「出题深度当时没有记录」。其他题型不提深度。
+    - 出题任务的 `asked` 记下这次出题用的深度（表单选的，没选就是设置里的），只在深度起作用时记：按覆盖强度出的新题组，而且全是单选（`wantsCoverage && depthApplies`）。只按题数出的题、案例卷、续出和补题都不记：前两种总是逐题精出，续出和补题沿用草稿记下的方式。lib/contexts/generation/generate/job-seed.js。
+    - 「按原资料重新设置」把它放回表单（`patch.depth`）。早于这个记录、按覆盖强度出的单选题组：表单不带自己的深度（用设置里的），提示里写「出题深度当时没有记录」。其他题型和只按题数出的题不提深度。
+    - 第一版只看题型，只按题数出的单选题也记了深度（全套快测发现，tests/generation-generate-golden.test.mjs 的 plain.* 等）。这是代码错误，已改，没有改那些记录。
+    - 按覆盖强度出的单选新题组，记录里多了 `depth`，这是有意的变化：coverage.standard / smallTarget / budget / noLight、run.waiting、end.runRefused / firstRoundFails / roundFails / cancelledBeforeDraft / hostStopped。三份记录（generation-generate-golden.json、.generation.json、.all.json）用 `STUDY_RECORD_GOLDEN=1` 重新录制。运行时那两份的 contract 摘要也跟着变；关掉这条记录时，它们和旧记录完全一致。
     - 测试：tests/retry-generation.test.mjs（表单补丁、提示，以及经过后端 `generate` 的记录）。
 73. **手填题数就是「自定义」**：
     - lib/generation-presets.js `presetOf`：带 `count` 的格子不是预设。表单的格子带上手填的题数。
