@@ -53,7 +53,7 @@ export default function ReviewFocusPill({
   today: todayProp,
   nowMs: nowProp,
   goal: controlledGoal,
-  onGoalChange,
+  onGoalChange: saveGoal,
   onBoardChanged,
   defaultOpen = false,
 }) {
@@ -74,9 +74,9 @@ export default function ReviewFocusPill({
   const goal = controlledGoal !== undefined ? controlledGoal : ownGoal;
   const updateGoal = useCallback((next) => {
     const normalized = normalizeDailyGoal(next);
-    if (onGoalChange) onGoalChange(normalized);
+    if (saveGoal) saveGoal(normalized);
     else setOwnGoal(normalized);
-  }, [onGoalChange, setOwnGoal]);
+  }, [saveGoal, setOwnGoal]);
 
   const [open, setOpen] = useState(defaultOpen);
   const [offerBreak, setOfferBreak] = useState(false);

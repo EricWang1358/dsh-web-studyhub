@@ -37,7 +37,7 @@ import { useSourceDock } from "./review/use-source-dock.jsx";
 import InkMark from "./seal-press/InkMark.jsx";
 import LazyRoundSealSection from "./seal-press/LazyRoundSealSection.jsx";
 import LetterpressNumber from "./letterpress/LetterpressNumber.jsx";
-import ReviewFocusPill from "./review/ReviewFocusPill.jsx";
+import LazyReviewFocusPill from "./review/LazyReviewFocusPill.jsx";
 import { computeTodayPace, formatTodayPaceLine, useDailyGoal } from "./review/today-pace.js";
 import { resolveTimerPrefs } from "../lib/board-model.js";
 import PaceMeta from "./pace/PaceMeta.jsx";
@@ -267,7 +267,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
         title={[shellTitle, run.mode === "flashcard" && ui("闪卡"), run.retry && !run.complete && ui("本轮重练")].filter(Boolean).join(" · ")}
         actions={<>
           {run.mode !== "exam" && boardState && (
-            <ReviewFocusPill
+            <LazyReviewFocusPill
               boardState={boardState}
               attempts={data?.attempts}
               focusTitle={shellTitle}

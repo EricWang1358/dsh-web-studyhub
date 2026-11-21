@@ -17,6 +17,7 @@ import {
   spacingProfile,
 } from "../lib/pace-forecast.js";
 import { StudyService } from "../lib/service.js";
+import { schedule } from "../lib/sm2.js";
 import { seedLibrary } from "../scripts/qa/perf-seed.mjs";
 
 const NOW = Date.parse("2026-11-22T12:00:00Z");
@@ -297,4 +298,42 @@ test("buildRevisionBase caches compact paceForecast (< 5 KB) and skips it on tim
   // Compact agent snapshot omits paceForecast
   const compact = await service.call("snapshot", { compact: true });
   assert.equal(Object.hasOwn(compact, "paceForecast"), false, "compact snapshot omits paceForecast");
+});
+
+test("sm2.schedule same-day spaced_reps and Easy->Good last_grade=5 integrate cleanly with pace-forecast", () => {
+  // 1. 5x same-day Good(4) caps spaced_reps at 1 -> pace-forecast still counts 2 remaining spaced passes.
+  let sameDayReview = null;
+  for (let i = 0; i < 5; i++) {
+    sameDayReview = schedule(sameDayReview, 4, new Date(NOW + i * 60_000));
+  }
+  assert.equal(sameDayReview.spaced_reps, 1);
+  assert.equal(cardSpacedReps({ id: "c-same", review: sameDayReview }, 4), 1);
+
+  // 2. Easy(5) followed by same-day Good(4) preserves last_grade=5 -> pace-forecast keeps card mastered (3/3).
+  let easyThenGood = schedule(null, 5, new Date(NOW));
+  easyThenGood = schedule(easyThenGood, 4, new Date(NOW + 120_000));
+  assert.equal(easyThenGood.last_grade, 5);
+  assert.equal(cardSpacedReps({ id: "c-easy", review: easyThenGood }, 4), TARGET_SPACED_REPS);
+
+  // 3. Combined deck forecast reports mastered=1, total=2, remaining=1 (2 spaced passes left).
+  const state = {
+    decks: [{
+      id: "d-int",
+      course: "Algo",
+      cards: [
+        { id: "c-same", review: sameDayReview },
+        { id: "c-easy", review: easyThenGood },
+      ],
+    }],
+    attempts: [
+      { deck_id: "d-int", quiz_id: "c-same", grade: 4, elapsed_ms: 40_000, timestamp: new Date(NOW).toISOString() },
+      { deck_id: "d-int", quiz_id: "c-easy", grade: 4, elapsed_ms: 40_000, timestamp: new Date(NOW + 120_000).toISOString() },
+    ],
+    settings: {},
+    courses: [{ name: "Algo" }],
+  };
+  const forecast = libraryPaceForecast(state, { now: NOW + 180_000 });
+  assert.equal(forecast.decks["d-int"].total, 2);
+  assert.equal(forecast.decks["d-int"].remaining, 1);
+  assert.equal(forecast.decks["d-int"].passes, 2);
 });
