@@ -33,9 +33,9 @@ export function retryForm(job, { sources } = {}) {
   else lost.push(ui('题型'));
   const level = isLevel(asked?.coverageLevel) ? asked.coverageLevel : isLevel(job?.coveragePlan?.level) ? job.coveragePlan.level : null;
   if (level) patch.coverageLevel = level;
-  // 出题深度, where it means anything (single-choice kinds): the one the run was asked with. A job from before it was recorded leaves the form without one
-  // (the saved depth applies) and the notice says so.
-  if (kinds && depthApplies({ kind: job?.kind, kinds })) {
+  // 出题深度, where it means anything (a run by a coverage plan, single-choice kinds): the one the run was asked with. A job from before it was recorded leaves
+  // the form without one (the saved depth applies) and the notice says so. A plain run by count never had a depth.
+  if (level && kinds && depthApplies({ kind: job?.kind, kinds })) {
     patch.depth = DEPTHS.includes(asked?.depth) ? asked.depth : undefined;
     if (!patch.depth && asked) lost.push(ui('出题深度'));
   }

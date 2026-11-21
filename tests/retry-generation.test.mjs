@@ -170,4 +170,14 @@ test('the generation job records the 出题深度 a single-choice run was asked 
   assert.equal((await run({})).asked.depth, 'scenario', 'without a pick, the saved depth it ran with');
   const open = await run({ kind: 'open', kinds: ['open'] });
   assert.ok(!('depth' in open.asked), 'another question type has no depth to record');
+  // A run by a number of questions alone (no 覆盖强度: the main chat, the API) is written by the staged pipeline whatever the depth says: nothing to record.
+  const counted = await run({ coverageLevel: undefined, count: 3, performance: { strategy: 'one-pass', writeStyle: 'quick' } });
+  assert.ok(!('depth' in counted.asked), 'a plain run by count has no depth to record');
+});
+
+test('a single-choice job that was a plain run by count says nothing about 出题深度 on the retry', () => {
+  const { patch, lost } = m.retryForm({ kind: 'quiz', kinds: ['quiz'], sourceIds: ['a'], count: 4,
+    asked: { focus: '', difficulty: 'mixed', language: '中文', notation: 'auto', referenceSourceIds: [], referenceFormat: 'balanced' } });
+  assert.deepEqual(lost, []);
+  assert.ok(!('depth' in patch), 'the depth never applied to it');
 });
