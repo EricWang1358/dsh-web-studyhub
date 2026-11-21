@@ -168,16 +168,21 @@ test('uninstall and start-index report their outcome without throwing', async ()
 const card = (props, language) => render(h(LargeDocumentCard, { reason: 'selection', detail: { chars: 700000 }, retrieval: fresh, runnable: true, courses: ['操作系统'], ...props }), language);
 const at = (html, pattern) => html.search(pattern);
 
-test('the card leads with the one-click MinerU route that StudyHub runs; the desktop client and the rest are under 高级', () => {
-  const html = card({ reason: 'pdf-size', detail: { name: 'book.pdf' } });
+test('the card leads with local MinerU and PaddleOCR online as Option 2; Marker, the desktop client and the rest stay folded', () => {
+  const html = card({ reason: 'pdf-size', detail: { name: 'book.pdf', file: { name: 'book.pdf', size: 10_000_000 } } });
   // The old primary card said "download and install the MinerU client, export, drag back"; that is now one of the manual routes.
+  assert.match(html, /方案一：本机一键解析/);
   assert.match(html, /开始本地解析/);
+  assert.match(html, /方案二：PaddleOCR 在线解析/);
+  assert.match(html, /https:\/\/www\.paddleocr\.ai/);
+  assert.match(html, /<details class="sh-disclosure mineru-more"(?![^>]* open )[\s\S]*换用其他本机引擎：Marker/, 'Marker stays folded by default');
   assert.doesNotMatch(html, /用 MinerU 解析/, 'the step names the button the card really has');
   assert.doesNotMatch(html, /下载并安装 MinerU 客户端/);
   assert.ok(at(html, /安装检索扩展/) > 0);
   const advanced = at(html, /高级：其他方式（桌面客户端、命令行、Docker）/);
   assert.ok(advanced > 0, 'a disclosure holds the harder routes');
   assert.ok(at(html, /MinerU/) < advanced, 'MinerU comes first');
+  assert.ok(at(html, /PaddleOCR 在线解析/) < advanced, 'PaddleOCR online comes before the advanced section');
   assert.ok(at(html, /安装检索扩展/) < advanced, 'the one-click install comes before the advanced part');
   for (const word of ['Docling', 'RAGFlow', 'mcp-local-rag', 'MinerU 桌面客户端 / 本地命令行']) assert.ok(at(html, new RegExp(word)) > advanced, `${word} is under 高级`);
   assert.match(html, /需要命令行/);

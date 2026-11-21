@@ -69,7 +69,7 @@ export default function ExtensionsSettings({ initialStatus = null, courses = [],
       lead={isDesktopApp
         ? ui('适合上百页教材，或笔记、讲义累计很多的课程。单次出题选中超过 15 万字并填写「这次想练什么？」时自动先挑相关页面；不超过 15 万字时默认直接发全文，更完整也无需检索。')
         : ui('适合上百页教材，或笔记、讲义累计很多的课程。单次出题选中超过 15 万字并填写「这次想练什么？」时自动先挑相关页面；不超过 15 万字时默认直接发全文，更完整也无需检索。StudyHub 不会替你改任何配置文件。')}>
-      <Hint>{ui('还没把扫描件或大 PDF 转成带页码的文字？先在「设置 › PDF 转换（MinerU / Marker）」里安装转换工具，导入后再来建索引。')}</Hint>
+      <Hint>{ui('还没把扫描件或大 PDF 转成带页码的文字？先在「设置 › PDF 转换」里安装转换工具，导入后再来建索引。')}</Hint>
       <div className="large-doc__group" data-role="retrieval">
         <h3 className="large-doc__group-title">{ui('检索：只让 AI 看相关页面')}</h3>
         <ExtensionPanel status={status} onStatus={accept} courses={courses} defaultCourse={defaultCourse} initialPlan={initialPlan} initialRun={initialRun} />

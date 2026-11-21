@@ -141,20 +141,22 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
     <RouteCard group={`${radioId}-converter`} id={`${radioId}-mineru`} value="mineru" current={converter} title="MinerU" onSelect={setConverter} chips={mineruChip}><Hint as="span">{ui('在本机解析，不上传')}</Hint></RouteCard>
     <RouteCard group={`${radioId}-converter`} id={`${radioId}-marker`} value="marker" current={converter} title="Marker" onSelect={setConverter} chips={marker?.state === 'ready' ? chip(ui('可用'), 'success') : chip(ui('需要设置'))}><Hint as="span">{review ? ui('调用本机 Marker，转换好后先等你改') : ui('调用本机 Marker，自动导入')}</Hint></RouteCard>
   </RadioCardGroup>;
+  const showSwitcherInline = isMarker || marker?.state === 'ready';
+  const compactSwitcher = <SegmentedControl className="mineru-tools" label={ui('解析工具')} value={converter} disabled={starting} onChange={setConverter}
+    options={[{ value: 'mineru', label: 'MinerU' }, { value: 'marker', label: 'Marker' }]} />;
   return (
     <section className={`mineru-route-panel${compact ? ' is-compact' : ''}${className ? ` ${className}` : ''}`} aria-label={ui('PDF 解析方案')} data-route={route} {...rest}>
       {!compact && <header className="mineru-route-panel__head">
         <Icon name="file" size={20} className="mineru-route-panel__icon" />
         <div>
           <h3>{ui('解析 PDF')}</h3>
-          <p>{review ? ui('选择 PDF 和解析工具，转换好后先等你改，再存为资料。') : ui('选择 PDF 和解析工具，完成后自动存为资料。')}</p>
+          <p>{review ? ui('选择 PDF，默认用本机 MinerU 解析，转换好后先等你改再存为资料。') : ui('选择 PDF，默认用本机 MinerU 解析，完成后自动存为资料。')}</p>
         </div>
       </header>}
 
       {!available && gate}
 
-      {compact ? <SegmentedControl className="mineru-tools" label={ui('解析工具')} value={converter} disabled={starting} onChange={setConverter}
-        options={[{ value: 'mineru', label: 'MinerU' }, { value: 'marker', label: 'Marker' }]} /> : tools}
+      {showSwitcherInline && (compact ? compactSwitcher : tools)}
       {!picked && <div className="mineru-pick">
         {nativeOn ? <Button variant="primary" icon="upload" className="mineru-route-panel__btn" data-pick="native" disabled={!available} onClick={chooseNative}>{ui('选择 PDF…')}</Button> : <>
           <input ref={picker} type="file" accept={ACCEPT} className="sh-visually-hidden" tabIndex={-1} aria-hidden="true"
@@ -211,6 +213,10 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
           {(onFile || own) && <Button variant="quiet" className="mineru-route-panel__btn" lock={starting} onClick={() => { setOwn(null); onFile?.(null); }}>{ui('换一份 PDF')}</Button>}
         </div>
       </>}
+
+      {!showSwitcherInline && <Disclosure summary={ui('换用其他本机引擎：Marker')} meta={ui('备选')} className="mineru-more">
+        {compact ? compactSwitcher : tools}
+      </Disclosure>}
 
       {!compact && available && <PdfConvertHistory jobs={jobs} collapsible defaultOpen={historyOpen} initialRecords={initialHistory} now={historyNow}
         onOpenSources={onOpenSources} onOpenJob={onOpenJob} onOpenSettings={onOpenSettings} onChanged={onChanged} className="mineru-history" />}

@@ -133,9 +133,100 @@ test('DoclingDocument JSON: body tree in reading order, prov.page_no (1-based), 
   assert.equal(book.title, 'ml-book');
 });
 
-test('unreadable JSON or a converter file without text is refused in plain words', () => {
-  assert.throws(() => parseConvertedDocument('{"a":1}', { filename: 'x.json' }), /MinerU|Docling|not.*converter|转换/i);
+const paddleApi = {
+  logId: 'req-001', errorCode: 0, errorMsg: 'Success',
+  result: {
+    dataInfo: { type: 'pdf', numPages: 4 },
+    layoutParsingResults: [
+      {
+        markdown: {
+          text: '# 操作系统导论\n\n## 第一章 进程与线程\n\n进程是资源分配的基本单位。\n\n<div style="text-align: center;"><img src="imgs/img_0.jpg" alt="Image" width="42%" /></div>',
+          images: { 'imgs/img_0.jpg': 'base64...' },
+        },
+        prunedResult: { parsing_res_list: [] },
+      },
+      {
+        markdown: { text: '<div style="text-align: center;"><img src="imgs/only_pic.jpg" /></div>' },
+        prunedResult: { parsing_res_list: [{ block_label: 'image', block_content: '' }, { block_label: 'number', block_content: '2' }] },
+      },
+      {
+        markdown: {
+          text: '## 第二章 内存管理\n\n<html><body><table><tr><th>方式</th><th>特点</th></tr><tr><td>分页</td><td>无外部碎片</td></tr></table></body></html>\n\n<div style="text-align: center;">表 1 内存分配</div>',
+        },
+      },
+      {
+        prunedResult: {
+          parsing_res_list: [
+            { block_label: 'header', block_content: '操作系统导论' },
+            { block_label: 'paragraph_title', block_content: '第三章 文件系统' },
+            { block_label: 'text', block_content: '索引节点保存文件元数据。' },
+            { block_label: 'display_formula', block_content: 'T = T_{seek} + T_{rot}' },
+            { block_label: 'algorithm', block_content: 'def read_inode(id):\n    return table[id]' },
+            { block_label: 'footer', block_content: '第 4 页' },
+            { block_label: 'seal', block_content: '内部资料' },
+          ],
+        },
+      },
+    ],
+  },
+};
+
+test('PaddleOCR cloud API JSON (layoutParsingResults): markdown + HTML tables + parsing_res_list fallback; images and furniture stripped', () => {
+  const raw = JSON.stringify(paddleApi);
+  assert.equal(detectConvertedFormat(raw), 'paddleocr-json');
+  assert.equal(looksLikeConvertedJson(raw), true);
+  const book = parseConvertedDocument(raw, { filename: 'os.json' });
+  assert.equal(book.converter, 'paddleocr');
+  assert.equal(book.inputFormat, 'paddleocr-json');
+  assert.equal(book.totalPages, 4);
+  assert.deepEqual(book.pages.map(page => page.page), [1, 3, 4]);
+  assert.deepEqual(book.skippedPages, [2]);
+  assert.equal(book.title, '操作系统导论');
+  assert.doesNotMatch(book.pages[0].text, /<img|<div/);
+  assert.match(book.pages[1].text, /\| 方式 \| 特点 \|/);
+  assert.match(book.pages[1].text, /\| 分页 \| 无外部碎片 \|/);
+  assert.match(book.pages[1].text, /表 1 内存分配/);
+  assert.doesNotMatch(book.pages[1].text, /<html>|<body>|<div/);
+  assert.match(book.pages[2].text, /^## 第三章 文件系统/m);
+  assert.match(book.pages[2].text, /\$\$\s*T = T_\{seek\} \+ T_\{rot\}\s*\$\$/);
+  assert.match(book.pages[2].text, /```\ndef read_inode/);
+  assert.doesNotMatch(book.pages[2].text, /第 4 页|内部资料/);
+  assert.deepEqual(book.chapters.map(chapter => [chapter.title, chapter.startPage, chapter.endPage]),
+    [['第一章 进程与线程', 1, 2], ['第二章 内存管理', 3, 3], ['第三章 文件系统', 4, 4]]);
+});
+
+test('PaddleOCR async JSONL and per-page parsing_res_list JSON arrays preserve 0-based page_index and sequence', () => {
+  const jsonl = [
+    JSON.stringify({ result: { layoutParsingResults: [{ markdown: { text: '# 第一章 极限\n\n数列极限定义。' } }] } }),
+    JSON.stringify({ result: { layoutParsingResults: [{ markdown: { text: '# 第二章 导数\n\n导数是瞬时变化率。' } }] } }),
+  ].join('\n');
+  assert.equal(detectConvertedFormat(jsonl), 'paddleocr-json');
+  assert.equal(looksLikeConvertedJson(jsonl), true);
+  const fromJsonl = parseConvertedDocument(jsonl, { filename: 'calculus.json' });
+  assert.equal(fromJsonl.converter, 'paddleocr');
+  assert.equal(fromJsonl.totalPages, 2);
+  assert.deepEqual(fromJsonl.pages.map(page => page.page), [1, 2]);
+  assert.deepEqual(fromJsonl.chapters.map(chapter => chapter.title), ['第一章 极限', '第二章 导数']);
+
+  const perPage = [
+    { page_index: 0, parsing_res_list: [{ block_label: 'doc_title', block_content: '概率论' }, { block_label: 'text', block_content: '样本空间与事件。' }] },
+    { page_index: 2, parsing_res_list: [{ block_label: 'paragraph_title', block_content: '条件概率' }, { block_label: 'text', block_content: '贝叶斯公式。' }, { block_label: 'number', block_content: '3' }] },
+  ];
+  assert.equal(detectConvertedFormat(JSON.stringify(perPage)), 'paddleocr-json');
+  const fromPages = parseConvertedDocument(JSON.stringify(perPage), { filename: 'prob.json' });
+  assert.equal(fromPages.converter, 'paddleocr');
+  assert.equal(fromPages.totalPages, 3);
+  assert.deepEqual(fromPages.pages.map(page => page.page), [1, 3]);
+  assert.deepEqual(fromPages.skippedPages, [2]);
+  assert.doesNotMatch(fromPages.pages[1].text, /^3$/m);
+});
+
+test('unreadable JSON, non-PaddleOCR JSONL, or a converter file without text is refused in plain words', () => {
+  assert.throws(() => parseConvertedDocument('{"a":1}', { filename: 'x.json' }), /MinerU|Docling|PaddleOCR|not.*converter|转换/i);
+  assert.equal(detectConvertedFormat('{"a":1}\n{"b":2}'), null);
+  assert.equal(looksLikeConvertedJson('{"a":1}\n{"b":2}'), false);
   assert.throws(() => parseConvertedDocument(JSON.stringify([{ type: 'image', page_idx: 0 }]), { filename: 'x.json' }), /text|文字/i);
+  assert.throws(() => parseConvertedDocument(JSON.stringify({ result: { layoutParsingResults: [] } }), { filename: 'empty.json' }), /text|文字/i);
 });
 
 test('chapters come from the shallowest heading level that splits the book; a lone title does not count', () => {

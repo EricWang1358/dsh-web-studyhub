@@ -24,6 +24,18 @@
       border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--bg-surface);
     }
     .large-doc__tool-head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+    .large-doc__online {
+      display: grid; gap: var(--space-2); min-width: 0;
+      padding: var(--space-3) var(--space-4);
+      border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--bg-sunken);
+    }
+    .large-doc__online-steps {
+      margin: 0; padding-left: var(--space-5); display: grid; gap: var(--space-1);
+      color: var(--text); font-size: var(--fs-sm); line-height: var(--lh-snug);
+    }
+    .large-doc__online-steps li::marker { color: var(--accent-text); font-weight: var(--fw-medium); }
+    .large-doc__online-steps a { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--accent-text); font-weight: var(--fw-medium); }
+    .large-doc__online-steps code { font-family: var(--font-stack-mono); font-size: 0.92em; font-variant-ligatures: none; }
     .large-doc__summary { margin: 0; font-size: var(--fs-sm); line-height: var(--lh-snug); color: var(--text); }
     .large-doc__meta { margin: 0; font-size: var(--fs-sm); line-height: var(--lh-snug); color: var(--text-muted); overflow-wrap: anywhere; }
     .large-doc__channels { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-half); }
