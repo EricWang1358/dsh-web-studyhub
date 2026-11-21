@@ -94,6 +94,9 @@ test('a failed run with a stopped service names it, and 接着做 starts the ser
   assert.match(html, /role="tooltip"[^>]*>会先启动本机 MinerU 服务，再从停下的那一段接着解析。/);
   const other = render(jobs([job({ status: 'failed', retryable: true, errorCode: 'parse-failed', finishedAt: new Date(now).toISOString() })]));
   assert.doesNotMatch(other, /会先启动本机 MinerU 服务/, 'only when the service stopped');
+  const busyStopped = render(jobs([job({ status: 'failed', retryable: true, errorCode: 'engine-busy', service: { state: 'stopped', basis: 'probe', at: new Date(now).toISOString() }, finishedAt: new Date(now).toISOString() })]));
+  assert.match(busyStopped, /role="tooltip"[^>]*>会先启动本机 MinerU 服务，再从停下的那一段接着解析。/);
+  assert.match(busyStopped, /本地服务已停止/);
 });
 
 test('an old cloud run says what did the work: MinerU, the model version, the language, the piece limits; nothing about a token', () => {

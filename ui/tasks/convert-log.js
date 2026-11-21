@@ -18,11 +18,32 @@ function windowsText(windows) {
 export function convertEventText(event) {
   const a = event.args || {};
   switch (event.code) {
+    case 'service-start': return ui('正在启动本机 MinerU 服务');
+    case 'service-started': return a.tier ? uiFormat('本机 MinerU 服务已启动（{0} 档）', [a.tier]) : ui('本机 MinerU 服务已启动');
+    case 'service-restart': return a.reason === 'unhealthy'
+      ? (Number.isInteger(a.index) ? uiFormat('第 {0} 段检测到本机 MinerU 解析服务异常，正在自动重启', [a.index]) : ui('检测到本机 MinerU 解析服务异常，正在自动重启'))
+      : (Number.isInteger(a.index) ? uiFormat('第 {0} 段正在重启本机 MinerU 服务', [a.index]) : ui('正在重启本机 MinerU 服务'));
+    case 'service-restarted': return joinMeta([
+      a.tier ? uiFormat('本机 MinerU 服务已重启（{0} 档）', [a.tier]) : ui('本机 MinerU 服务已重启'),
+      Number.isInteger(a.index) ? uiFormat('继续第 {0} 段', [a.index]) : '',
+    ]);
+    case 'service-restart-failed': return joinMeta([
+      Number.isInteger(a.index) ? uiFormat('第 {0} 段自动重启本机 MinerU 服务失败', [a.index]) : ui('自动重启本机 MinerU 服务失败'),
+      event.text ? uiMessage(event.text) : '',
+    ]);
     case 'convert-start': return joinMeta([uiFormat('开始转换 · 共 {0} 页', [a.pages]), (TOOL[a.converter === 'marker' ? 'marker' : a.route === 'local' ? 'local' : 'cloud'])(),
       ORIGIN[a.origin]?.() || '', a.version ? (a.converter === 'marker' ? uiFormat('Marker {0}', [a.version]) : uiFormat('MinerU {0}', [a.version])) : '',
       a.python ? uiFormat('Python {0}', [a.python]) : '', windowsText(a.windows)]);
     case 'reused': return uiFormat('复用之前转换好的 {0} 页（{1} 段），不再重做', [a.pages, a.windows]);
     case 'window-start': return uiFormat('第 {0} 段开始：第 {1}–{2} 页（{3} 页）', [a.index, a.start, a.end, a.pages]);
+    case 'engine-busy-wait': return joinMeta([
+      a.starting
+        ? (Number.isInteger(a.index) ? uiFormat('第 {0} 段等待本机解析服务启动就绪', [a.index]) : ui('等待本机解析服务启动就绪'))
+        : (Number.isInteger(a.index) ? uiFormat('第 {0} 段等待本机解析引擎就绪', [a.index]) : ui('等待本机解析引擎就绪')),
+      Number.isInteger(a.attempt) && Number.isInteger(a.maxAttempts) ? uiFormat('第 {0}/{1} 次重试', [a.attempt, a.maxAttempts])
+        : Number.isInteger(a.attempt) ? uiFormat('第 {0} 次重试', [a.attempt]) : '',
+      event.text ? uiMessage(event.text) : '',
+    ]);
     case 'window-end': return joinMeta([uiFormat('第 {0} 段完成：第 {1}–{2} 页，用时 {3}', [a.index, a.start, a.end, took(a.seconds)]), uiFormat('已完成 {0}/{1} 页', [a.done, a.total]),
       Number.isFinite(a.etaSeconds) ? uiFormat('预计还需约 {0}', [took(a.etaSeconds)]) : '']);
     case 'window-failed': return joinMeta([uiFormat('第 {0} 段没有完成：第 {1}–{2} 页，用时 {3}', [a.index, a.start, a.end, took(a.seconds)]),

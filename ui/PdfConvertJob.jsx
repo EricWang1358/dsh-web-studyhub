@@ -31,7 +31,7 @@ import { hintDocOf } from './index-hint.js';
 
 /** What 接着做 does first when the local service stopped under the run: said on hover and focus, as on the history row. */
 const SERVICE_STOPPED = ['server-stopped', 'server-start-failed'];
-const retryTip = job => (job.converter !== 'marker' && SERVICE_STOPPED.includes(job.errorCode || job.failure?.code) ? ui('会先启动本机 MinerU 服务，再从停下的那一段接着解析。') : undefined);
+const retryTip = job => (job.converter !== 'marker' && (SERVICE_STOPPED.includes(job.errorCode || job.failure?.code) || job.service?.state === 'stopped') ? ui('会先启动本机 MinerU 服务，再从停下的那一段接着解析。') : undefined);
 
 /** What a card action came to. The app's act() resolves undefined when it did NOT run (another write held the lock) or failed (it shows the error itself), and
     { ok: false } is a refusal: only anything else is done, so the card never says 「已归档 · 撤销」 for an archive that did not happen. */
