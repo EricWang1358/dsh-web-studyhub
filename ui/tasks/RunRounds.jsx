@@ -11,6 +11,10 @@ import { roundKeys } from '../../lib/coverage-run.js';
 
 const DOT = { pending: 'queued', running: 'run', done: 'done', failed: 'fail', skipped: 'stopped' };
 
+/** What a round did; a round of knowledge points 接着做 could not finish (its points changed while the host was down: lib/contexts/generation/generate/point-round.js
+    settlePointRounds) says so here, in this chunk: the words of the first load (ui/coverage/copy.js) stay as they are. */
+const resultOf = (round) => (round.status === 'skipped' && round.reason === 'points-changed' ? ui('知识点已变，这一轮没有做完') : roundResult(round));
+
 /** The sections a round holds, by name and state: [{ key, name, state }], from the draft's plan and the coverage view. */
 export function sectionsOfRound(draft, round, coverage) {
   const planned = draft?.editorial?.coverageSpec?.rounds?.[round.index ?? round.round - 1];
@@ -33,7 +37,7 @@ export default function RunRounds({ run, draft, coverage }) {
             <li key={index} data-round={round.round} data-status={round.status}>
               <Button variant="quiet" block className="tc-round" aria-expanded={open === index} onClick={() => setOpen(open === index ? null : index)}>
                 <span className="tc-dot" data-state={DOT[round.status] || 'queued'} aria-hidden="true" />
-                <span className="tc-round__name">{roundTitle(round)}<span className="tc-round__result">{roundResult(round)}</span></span>
+                <span className="tc-round__name">{roundTitle(round)}<span className="tc-round__result">{resultOf(round)}</span></span>
                 <span className="tc-num" data-round-status={round.status}>{roundStatusWord(round.status)}</span>
               </Button>
               {open === index && <ul className="tc-round__sections">

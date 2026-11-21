@@ -243,9 +243,9 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/course-book-term-cards.js`: context generation; 2 other lib files
 - `lib/course-book-writer.js`: context library; 2 other lib files
 - `lib/course-outline-book-view.js`: context library; 8 other lib files
-- `lib/course-outline-index.js`: context generation; 11 other lib files
+- `lib/course-outline-index.js`: context generation; 12 other lib files
 - `lib/course-outline-qa.js`: context library
-- `lib/course-outline.js`: context library; 7 other lib files
+- `lib/course-outline.js`: context library; 6 other lib files
 - `lib/course-plan.js`: context library
 - `lib/course-route.js`: context library; 1 other lib file
 - `lib/coverage-materials.js`: context generation; 4 other lib files

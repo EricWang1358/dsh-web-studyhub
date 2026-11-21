@@ -94,6 +94,19 @@ test('S4: 复习全书 readiness counts drafted questions by the same link as th
   assert.deepEqual([outline.pa, outline.pb], [0, 1]);
 });
 
+test('decision 85, corrected: an outline built from the inventory but not linked (out of date) counts a draft question inside a page-range leaf, on the outline page and in 复习全书 alike', () => {
+  const p = pointLibrary().sources;
+  const draft = { id: 'dq', title: 'Draft', course: COURSE, cards: [cardOn('d1', p.p2, SENTENCES.c)], editorial: {} };
+  const { state } = pointLibrary({ cards: [], drafts: [draft] });
+  state.sources.find(source => source.id === 'doc-p2').text += '\n\nA paragraph added after the outline was built.';
+  const outline = courseOutline(state, { course: COURSE });
+  assert.equal(outline.book.stale, true, 'out of date, so not linked (S3)');
+  const pc = outline.book.nodes.flatMap(node => node.children).find(leaf => leaf.id === 'pc');
+  assert.equal(pc.summary.draftCards ?? 0, 1, 'C is anchored to page 2 (a page range): its drafted question counts by the page');
+  const ch2 = customReadiness(state, { course: COURSE }).chapters.find(item => item.id === 'ch2');
+  assert.equal(ch2.drafted, 1, 'the same number in 章节准备度');
+});
+
 test('S5: the gap check reads the link the rows were given, it does not place the questions again', () => {
   const outline = { nodes: [{ id: 'pa', title: 'A', items: ['i1'] }, { id: 'pb', title: 'B', items: ['i2'] }] };
   const inventory = { items: [{ id: 'i1', places: [{ sourceId: 's', start: 0, end: 10, verified: true }] }, { id: 'i2', places: [{ sourceId: 's', start: 20, end: 30, verified: true }] }] };
@@ -121,6 +134,20 @@ test('a malformed inventory gives a reason code, never a failed answer', () => {
   const inventory = state.sources.find(source => source.courseInventory).courseInventory;
   Object.defineProperty(inventory, 'items', { get() { throw new TypeError('broken record'); } });
   assert.deepEqual(draftPointReport(state, draft), { status: 'unavailable', reason: 'unreadable' });
+});
+
+test('R2: the error behind "unreadable" is reported in the host log ([study] …), once per cause and reader, by the report and by the round alike', t => {
+  const warned = t.mock.method(console, 'warn', () => {});
+  const { state, draft } = withDraft(draftOf());
+  const inventory = state.sources.find(source => source.courseInventory).courseInventory;
+  Object.defineProperty(inventory, 'items', { get() { throw new TypeError('broken record R2'); } });
+  assert.equal(draftPointReport(state, draft).reason, 'unreadable');
+  assert.equal(draftPointReport(state, draft).reason, 'unreadable');
+  assert.deepEqual(pointTopUpRound(state, draft, { pointIds: ['pc'] }).round, { error: 'points-unavailable', reason: 'unreadable' });
+  const lines = warned.mock.calls.map(call => call.arguments.join(' ')).filter(line => line.includes('broken record R2'));
+  assert.equal(lines.length, 2, `once by each reader, not once per call: ${JSON.stringify(lines)}`);
+  assert.match(lines[0], /^\[study\] knowledge points: the draft report .*broken record R2/);
+  assert.match(lines[1], /^\[study\] knowledge points: the point round .*broken record R2/);
 });
 
 test('the passage a point is written from is its verified text alone: a question quoting any of it is credited to the point', () => {

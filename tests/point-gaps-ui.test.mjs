@@ -20,6 +20,7 @@ const m = await loadUi(`
   export { default as PointGaps } from './ui/coverage/PointGaps.jsx';
   export { topUpArgs, topUpNotice } from './ui/coverage/top-up.js';
   export { roundTitle } from './ui/coverage/copy.js';
+  export { default as RunRounds } from './ui/tasks/RunRounds.jsx';
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { setUiLanguage } from './ui/i18n.js';`);
 const source = await readFile(new URL('../ui/coverage/PointGaps.jsx', import.meta.url), 'utf8');
@@ -117,6 +118,16 @@ test('the 任务 console names a round of knowledge points by its points, not it
   assert.equal(m.roundTitle(row), '补做 · 第 3 轮 · 2 题 · 2 个知识点');
   assert.equal(inLanguage('en', () => m.roundTitle({ ...row, points: 1 })).includes('1 knowledge point'), true);
   assert.match(m.roundTitle({ round: 2, fill: true, questions: 4, sections: 3 }), /3 个小节$/, 'a round of sections is unchanged');
+});
+
+test('a round of knowledge points skipped because the points changed says so on its row, in zh and en', () => {
+  const run = { done: 1, total: 2, list: [{ round: 1, questions: 2, status: 'done', fill: false, sections: 2, kept: 2, covered: 2 },
+    { round: 2, questions: 1, status: 'skipped', fill: true, sections: 1, points: 1, reason: 'points-changed' }] };
+  const rows = language => text(inLanguage(language, () => renderToStaticMarkup(withStudy(m.StudyServicesContext, React.createElement(m.RunRounds, { run, draft })))));
+  assert.match(rows('zh'), /补做 · 第 2 轮 · 1 题 · 1 个知识点\s*知识点已变，这一轮没有做完/);
+  assert.match(rows('en'), /The knowledge points changed; this round was not finished/);
+  const covered = text(renderToStaticMarkup(withStudy(m.StudyServicesContext, React.createElement(m.RunRounds, { run: { ...run, list: [{ ...run.list[1], reason: 'covered' }] }, draft }))));
+  assert.doesNotMatch(covered, /知识点已变/, 'a round whose points got questions elsewhere keeps the usual words');
 });
 
 test('the draft page passes the action only for a draft that can be topped up (view.canTopUp)', async () => {

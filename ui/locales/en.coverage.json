@@ -153,6 +153,7 @@
   "这次只出一轮，没有可以暂停的地方；可以停止，已通过的题会保留。": "This run makes one round only, so there is nowhere to pause; you can stop it, and the questions that passed are kept.",
   "中断于第 {0} 轮 · 点「接着做」继续": "Interrupted at round {0} · press Continue to go on",
   "出题计划的轮次": "Rounds of the plan",
+  "知识点已变，这一轮没有做完": "The knowledge points changed; this round was not finished",
   "{0}/{1} 轮已完成": "{0}/{1} rounds done",
   "{0}/{1} 轮已完成#one:1": "{0}/{1} round done",
   "这一轮的小节在草稿保存后才能查看。": "The sections of this round can be seen once the draft is saved.",
