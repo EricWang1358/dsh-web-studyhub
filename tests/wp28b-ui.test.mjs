@@ -167,6 +167,8 @@ test('uninstall and start-index report their outcome without throwing', async ()
 
 const card = (props, language) => render(h(LargeDocumentCard, { reason: 'selection', detail: { chars: 700000 }, retrieval: fresh, runnable: true, courses: ['操作系统'], ...props }), language);
 const at = (html, pattern) => html.search(pattern);
+/* The converter in the card is a deferred view (ui/pdf-conversion-lazy.jsx): the first draw asks for its chunk and shows nothing in its place; wait for it, so every draw below is the card the learner sees once it has loaded. */
+card({}); await new Promise(resolve => setTimeout(resolve, 20));
 
 test('the card leads with local MinerU and PaddleOCR online as Option 2; Marker, the desktop client and the rest stay folded', () => {
   const html = card({ reason: 'pdf-size', detail: { name: 'book.pdf', file: { name: 'book.pdf', size: 10_000_000 } } });

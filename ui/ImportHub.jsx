@@ -6,7 +6,7 @@ import CourseField, { parseCourses } from './CourseField.jsx';
 import { coursesForFile } from './import-course.js';
 import { sourceFormatLabel } from './SourcePicker.jsx';
 import LargeDocumentCard, { ConverterMain } from './LargeDocumentCard.jsx';
-import PdfConversion from './PdfConversion.jsx';
+import { PdfConversion } from './pdf-conversion-lazy.jsx';
 import { looksLikeConvertedJson } from '../lib/converted-document.js';
 import { LARGE_DOCUMENT_LIMITS, classifyImportFailure } from '../lib/large-documents.js';
 import { MAX_OFFICE_BYTES, MAX_TEXT_DOCUMENT_BYTES, isPagedFormat, isSlideFormat, maxBytesFor, megabytes } from '../lib/office/limits.js';
