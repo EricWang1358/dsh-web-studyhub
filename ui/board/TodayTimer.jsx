@@ -424,16 +424,10 @@ export default function TodayTimer({
             <p className="board-timer__meta">
               {uiFormat('番茄 {0} 分钟 · 休息 {1} 分钟', [prefs.workMinutes, prefs.breakMinutes])}
             </p>
-            <p className="board-timer__hint">
-              {ui('点卡片上的「开始专注」才开始计时。')}
-              {!readOnly && onStartFreeFocus && (
-                <span className="desk-free-focus__sub">{ui('也可直接开启一段自由专注。')}</span>
-              )}
-            </p>
             {!readOnly && onStartFreeFocus && (
               <div className="desk-free-focus">
                 <Button
-                  variant="secondary"
+                  variant="primary"
                   size="sm"
                   icon="play"
                   onClick={() => handleFreeFocus(false)}
@@ -441,7 +435,7 @@ export default function TodayTimer({
                   {ui('自由专注')}
                 </Button>
                 <Button
-                  variant="quiet"
+                  variant="secondary"
                   size="sm"
                   icon="fit"
                   onClick={() => handleFreeFocus(true)}
@@ -450,6 +444,12 @@ export default function TodayTimer({
                 </Button>
               </div>
             )}
+            <p className="board-timer__hint">
+              {ui('点卡片上的「开始专注」才开始计时。')}
+              {!readOnly && onStartFreeFocus && (
+                <span className="desk-free-focus__sub">{ui('也可直接开启一段自由专注。')}</span>
+              )}
+            </p>
             {offerBreak && !readOnly && (
               <div className="board-timer__break-offer">
                 <Button

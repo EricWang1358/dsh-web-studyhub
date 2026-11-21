@@ -35,7 +35,6 @@ const mod = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, mod, mod.exports);
 const m = mod.exports;
 const h = React.createElement;
-const HAN = /[\u3400-\u9fff]/;
 
 test('LetterpressNumber renders plain formatted text on SSR (zero Shadow DOM) and handles non-finite fallbacks', () => {
   assert.equal(m.formatPlainNumber(42), '42');
@@ -129,54 +128,21 @@ test('TodayCard, DeskIntro, and Review result hero preserve exact numeric SSR ma
   assert.doesNotMatch(reviewHtml, /number-flow-react/i);
 });
 
-test('reader moreItems exposes 毛笔草稿纸 inside 更多 under 工具 without adding a top-level toolbar button', () => {
-  const calls = [];
+test('reader moreItems and DocumentViewer stay uncluttered after InkScratchpad removal', () => {
   const base = {
     view: 'read', format: 'pdf', fileUrl: true, localMode: false, find: { on: false },
-    translate: true, display: true, scratchpad: true, tools: { on: false, count: 0 },
+    translate: true, display: true, tools: { on: false, count: 0 },
     quality: null, assist: false, download: false, hostPreview: false, attach: false, extra: [],
   };
   const handlers = {
     setView: () => {}, find: () => {}, translate: () => {}, display: () => {},
-    scratchpad: () => calls.push('scratchpad'),
     tools: () => {}, quality: () => {}, assist: () => {}, download: () => {}, hostPreview: () => {}, attach: () => {},
   };
 
   m.setUiLanguage('zh');
   const zhItems = m.moreItems(base, handlers);
-  const toolsHeadingIdx = zhItems.findIndex((item) => item.heading && item.label === '工具');
-  const padIdx = zhItems.findIndex((item) => item.id === 'scratchpad');
-  assert.ok(toolsHeadingIdx >= 0 && padIdx > toolsHeadingIdx, 'scratchpad sits under 工具 heading');
-  assert.equal(zhItems[padIdx].icon, 'note');
-  assert.equal(zhItems[padIdx].label, '毛笔草稿纸');
-  zhItems[padIdx].run();
-  assert.deepEqual(calls, ['scratchpad']);
+  assert.equal(zhItems.some((item) => item.id === 'scratchpad'), false);
 
-  // Also available in original PDF view so STEM readers can sketch while reading slides/PDFs.
-  const pdfItems = m.moreItems({ ...base, view: 'original' }, handlers);
-  assert.ok(pdfItems.some((item) => item.id === 'scratchpad'));
-
-  // Backward compatible: omitted flag keeps legacy callers' item list unchanged.
-  assert.equal(m.moreItems({ ...base, scratchpad: false }, handlers).some((item) => item.id === 'scratchpad'), false);
-
-  m.setUiLanguage('en');
-  try {
-    const enItems = m.moreItems(base, handlers);
-    const enPad = enItems.find((item) => item.id === 'scratchpad');
-    assert.equal(enPad.label, 'Ink scratchpad');
-    assert.doesNotMatch(enPad.label, HAN);
-  } finally {
-    m.setUiLanguage('zh');
-  }
-
-  // Verify DocumentViewer respects the 2026-11-06 toolbar slimming decision (no scratchpad button in .reader-toolbar__actions).
   const viewerSrc = readFileSync(new URL('../ui/document-preview/DocumentViewer.jsx', import.meta.url), 'utf8');
-  const actionsStart = viewerSrc.indexOf('<div className="reader-toolbar__actions">');
-  const actionsEnd = viewerSrc.indexOf('</div>', actionsStart);
-  assert.ok(actionsStart > 0 && actionsEnd > actionsStart);
-  assert.doesNotMatch(viewerSrc.slice(actionsStart, actionsEnd), /scratchpad|毛笔草稿纸/i);
-  assert.match(viewerSrc, /LazyInkScratchpadDialog/, 'mounts existing lazy scratchpad dialog');
-  assert.match(viewerSrc, /event\.code !== 'KeyD'/, 'DocumentViewer listens for Alt+Shift+D studio shortcut');
-  assert.match(viewerSrc, /window\.document\.querySelectorAll\('dialog\[open\]'\)/, 'DocumentViewer uses window.document (unshadowed) to check open dialogs');
-  assert.match(viewerSrc, /window\.document\.querySelector\('\.question-toolbar'\)/, 'docked DocumentViewer avoids double-opening alongside ReviewToolbar');
+  assert.doesNotMatch(viewerSrc, /LazyInkScratchpadDialog|scratchpadOpen|毛笔草稿纸/);
 });

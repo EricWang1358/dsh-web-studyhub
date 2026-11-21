@@ -19,7 +19,7 @@ import {
   ZOOM_MAX,
 } from "./graph-layout.js";
 import { useStudy } from "./study-context.jsx";
-import { useGardenPalette } from "./ink-garden/seed-prng.js";
+import { useInkPalette } from "./graph-sketch/ink-palette.js";
 import {
   GRAPH_STYLES,
   buildGraphFilename,
@@ -112,7 +112,7 @@ export default function Graph({
   const [spotlightId, setSpotlightId] = useState(null);
   const fullscreen = useCanvasFullscreen();
   const svgRef = useRef(null);
-  const palette = useGardenPalette(fullscreen.ref);
+  const palette = useInkPalette(fullscreen.ref);
   const roughGen = useGraphRoughGenerator(styleMode === "sketch", roughGenerator);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const { viewRef, view, viewport, fit, zoomAt, panHandlers } = usePanZoom(size.w, size.h, {

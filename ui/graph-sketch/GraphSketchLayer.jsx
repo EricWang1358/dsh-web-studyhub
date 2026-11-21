@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { ui } from '../i18n.js';
 import { useInjectCss } from '../shared.js';
 import { useLiveEffect } from '../use-async.js';
-import { hashString } from '../ink-garden/seed-prng.js';
+import { hashString } from './ink-palette.js';
 import { edgeKey, sketchBezierEdge, sketchNodePaths, sketchOrderCurve } from './graph-sketch.js';
 import sketchCss from './graph-sketch.css';
 

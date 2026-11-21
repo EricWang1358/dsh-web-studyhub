@@ -180,9 +180,8 @@ test('generated native modules resolve through classic chunk factories and share
     verify(await asyncModule(`./${name}`));
   }
   // Optional artistic/tactile libraries load on demand via dynamic import() only when the learner opens the
-  // ink gallery, scratchpad, editorial marks, or milestone celebrations — never at host activation.
+  // sketchy graph/tide, editorial marks, or milestone celebrations — never at host activation.
   for (const [label, pattern, verify] of [
-    ['perfect-freehand', /node_modules[/\\]perfect-freehand[/\\]/, module => assert.equal(typeof (module.getStroke ?? module.default), 'function')],
     ['rough-notation', /node_modules[/\\]rough-notation[/\\]/, module => assert.equal(typeof module.annotate, 'function')],
     ['canvas-confetti', /node_modules[/\\]canvas-confetti[/\\]/, module => assert.equal(typeof (module.default ?? module), 'function')],
     ['roughjs', /node_modules[/\\]roughjs[/\\]/, module => assert.equal(typeof (module.default?.generator ?? module.generator), 'function')],
@@ -210,6 +209,10 @@ test('generated native modules resolve through classic chunk factories and share
   for (const [entryPoint, verify] of [
     ['ui/desk-atelier/DeskAtelierPanel.jsx', module => assert.equal(typeof module.default, 'function')],
     ['ui/desk-atelier/DeskChimeDialog.jsx', module => assert.equal(typeof module.default, 'function')],
+    ['ui/desk-atelier/soundscape-assets.js', module => {
+      assert.equal(Object.keys(module.SOUNDSCAPE_DATA_URIS || {}).length, 5, 'all 5 CC0 ambient channels are present');
+      assert.equal(Object.keys(module.SOUNDSCAPE_CHANNEL_GAINS || {}).length, 5, 'all 5 ambient channel gains are present');
+    }],
     ['ui/seal-press/seal-press-runtime.js', module => {
       assert.equal(typeof module.FlowSealCue, 'function');
       assert.equal(typeof module.RoundSealSection, 'function');
@@ -218,7 +221,6 @@ test('generated native modules resolve through classic chunk factories and share
     ['ui/seal-press/SealAlbumDialog.jsx', module => assert.equal(typeof module.default, 'function')],
     ['ui/seal-press/WrongBookClearStamp.jsx', module => assert.equal(typeof module.default, 'function')],
     ['ui/desk-play/DeskPlayStrip.jsx', module => assert.equal(typeof module.default, 'function')],
-    ['ui/desk-play/InkScratchpadDialog.jsx', module => assert.equal(typeof module.default, 'function')],
     ['ui/letterpress/letterpress-runtime.jsx', module => assert.equal(typeof module.default, 'function')],
   ]) {
     const output = Object.entries(result.metafile.outputs).find(([, record]) => record.entryPoint === entryPoint);

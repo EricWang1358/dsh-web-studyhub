@@ -4,7 +4,7 @@ import { useInjectCss } from '../shared.js';
 import { useLiveEffect } from '../use-async.js';
 import { useStudyBusy } from '../study-context.jsx';
 import { dateLabel } from './chart-math.js';
-import { clamp, hashString, round1, useGardenPalette } from '../ink-garden/seed-prng.js';
+import { clamp, hashString, round1, useInkPalette } from '../graph-sketch/ink-palette.js';
 import tideCss from './forecast-tide.css';
 
 /* FSRS «墨潮 · Ink Tide» Horizon for ForecastPanel.
@@ -186,7 +186,7 @@ export default function ForecastInkTide({
   const titleId = useId();
   const gradId = useId();
   const [loadedRough, setLoadedRough] = useState(null);
-  const palette = useGardenPalette(plotRef);
+  const palette = useInkPalette(plotRef);
 
   useLiveEffect((isLive) => {
     if (roughGenerator) return;

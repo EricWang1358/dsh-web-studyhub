@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { boardAction } from '../lib/board.js';
+import { SOUNDSCAPE_DATA_URIS, SOUNDSCAPE_CHANNEL_GAINS } from '../ui/desk-atelier/soundscape-assets.js';
 import { loadUi } from './helpers/ui-module.mjs';
 
 const mod = await loadUi(`
@@ -31,6 +32,7 @@ const mod = await loadUi(`
     BAMBOO_PENTATONIC_HZ,
     CHANNEL_LOOP_SECONDS,
     synthesizeSoundscapeChannel,
+    buildSeamlessSampleBuffer,
     startSoundscape,
     stopSoundscape,
     toggleSoundscape,
@@ -69,6 +71,7 @@ const {
   sharedAtelierStore,
   BAMBOO_PENTATONIC_HZ,
   synthesizeSoundscapeChannel,
+  buildSeamlessSampleBuffer,
   startSoundscape,
   stopSoundscape,
   toggleSoundscape,
@@ -603,8 +606,12 @@ test('Wave 3: board.timer.start supports cardless Free Focus and TodayTimer idle
       onStartFreeFocus: () => true,
     }));
     assert.match(zhIdle, /点卡片上的「开始专注」才开始计时/);
-    assert.match(zhIdle, /自由专注/);
-    assert.match(zhIdle, /全屏专注/);
+    assert.match(zhIdle, /sh-btn--primary[^>]*>[\s\S]*?自由专注/);
+    assert.match(zhIdle, /sh-btn--secondary[^>]*>[\s\S]*?全屏专注/);
+    assert.ok(
+      zhIdle.indexOf('desk-free-focus') < zhIdle.indexOf('board-timer__hint'),
+      'Free Focus primary actions sit directly beneath the dial, above the secondary hint',
+    );
 
     const roIdle = renderToStaticMarkup(React.createElement(TodayTimer, {
       board: idleBoard,
@@ -628,5 +635,121 @@ test('Wave 3: board.timer.start supports cardless Free Focus and TodayTimer idle
     if (prevHome === undefined) delete process.env.DSH_HOME;
     else process.env.DSH_HOME = prevHome;
     await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('CC0 baked soundscape assets, LAME 50ms trim + 1.6s seamless fold, and decodeAudioData/fallback lifecycle work cleanly', async () => {
+  // 1. All 5 channels ship valid CC0 base64 MP3 data URIs with calibration gains, loaded lazily via dynamic import().
+  assert.ok(Object.isFrozen(SOUNDSCAPE_DATA_URIS));
+  assert.ok(Object.isFrozen(SOUNDSCAPE_CHANNEL_GAINS));
+  for (const id of ATELIER_CHANNEL_IDS) {
+    const uri = SOUNDSCAPE_DATA_URIS[id];
+    assert.equal(typeof uri, 'string', `${id} has a data URI`);
+    assert.match(uri, /^data:audio\/mpeg;base64,[A-Za-z0-9+/=]+$/, `${id} is a valid base64 MP3 data URI`);
+    const bytes = Buffer.from(uri.slice(uri.indexOf(',') + 1), 'base64');
+    assert.ok(bytes.length > 50_000, `${id} baked MP3 (${bytes.length} B) holds full multi-second stereo audio`);
+    // MP3 frame sync (0xFF 0xE0..0xFF) or ID3 header.
+    assert.equal(bytes[0], 0xff, `${id} starts directly on an MP3 frame sync (ID3/Xing stripped)`);
+    assert.ok(SOUNDSCAPE_CHANNEL_GAINS[id] > 0.5 && SOUNDSCAPE_CHANNEL_GAINS[id] <= 1.2, `${id} gain bounded`);
+  }
+
+  const engineSrc = await readFile(new URL('../ui/desk-atelier/soundscape-engine.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(engineSrc, /import\s+[^;]*from\s+['"]\.\/soundscape-assets\.js['"]/, 'soundscape-assets.js must never be statically imported');
+  assert.match(engineSrc, /import\(['"]\.\/soundscape-assets\.js['"]\)/, 'soundscape-assets.js is loaded lazily via dynamic import()');
+  assert.doesNotMatch(engineSrc, /\bsetInterval\s*\(/, 'soundscape-engine.js must not use setInterval');
+
+  // 2. buildSeamlessSampleBuffer strips 50ms LAME head/tail padding & folds 1.6s tail cleanly onto head.
+  const rate = 22050;
+  const totalSec = 10;
+  const totalLen = rate * totalSec;
+  const trimLen = Math.round(rate * 0.05);
+  const rawL = new Float32Array(totalLen);
+  const rawR = new Float32Array(totalLen);
+  for (let i = 0; i < totalLen; i += 1) {
+    // Artificial LAME padding silence + spike inside first/last 50ms; steady warm tone inside middle.
+    if (i < trimLen || i >= totalLen - trimLen) {
+      rawL[i] = i === 0 || i === totalLen - 1 ? 0.99 : 0;
+      rawR[i] = rawL[i];
+    } else {
+      rawL[i] = 0.28 * Math.sin((2 * Math.PI * 220 * i) / rate);
+      rawR[i] = 0.26 * Math.cos((2 * Math.PI * 220 * i) / rate);
+    }
+  }
+  const fakeDecoded = {
+    sampleRate: rate,
+    numberOfChannels: 2,
+    length: totalLen,
+    getChannelData: (ch) => (ch === 0 ? rawL : rawR),
+  };
+  const fakeCtx = {
+    sampleRate: rate,
+    createBuffer(chs, len, sr) {
+      const data = Array.from({ length: chs }, () => new Float32Array(len));
+      return {
+        numberOfChannels: chs,
+        length: len,
+        sampleRate: sr,
+        copyToChannel: (src, ch) => data[ch].set(src),
+        getChannelData: (ch) => data[ch],
+      };
+    },
+  };
+  const seamless = buildSeamlessSampleBuffer(fakeCtx, fakeDecoded);
+  assert.ok(seamless, 'seamless buffer built');
+  const expectedLen = totalLen - trimLen * 2 - Math.round(rate * 1.6);
+  assert.equal(seamless.length, expectedLen, 'trims 50ms head + 50ms tail and folds 1.6s tail');
+  const outL = seamless.getChannelData(0);
+  const outR = seamless.getChannelData(1);
+  let peak = 0;
+  for (let i = 0; i < outL.length; i += 1) {
+    assert.ok(Number.isFinite(outL[i]) && Number.isFinite(outR[i]));
+    peak = Math.max(peak, Math.abs(outL[i]), Math.abs(outR[i]));
+  }
+  assert.ok(peak > 0.2 && peak <= 0.94, `seamless peak (${peak.toFixed(3)}) bounded and audible`);
+  assert.ok(Math.abs(outL[0] - outL[outL.length - 1]) < 0.08, 'L loop seam is smooth');
+  assert.ok(Math.abs(outR[0] - outR[outR.length - 1]) < 0.08, 'R loop seam is smooth');
+
+  // 3. Successful decodeAudioData loads & loops decoded CC0 buffers; failure falls back cleanly to DSP.
+  const env = createFakeAudioEnv();
+  try {
+    resetSoundscapeEngineForTests();
+    const OrigAudio = globalThis.AudioContext;
+    let decodeSuccesses = 0;
+    Object.defineProperty(globalThis, 'AudioContext', {
+      configurable: true,
+      value: class DecodingAudioContext extends OrigAudio {
+        decodeAudioData(ab) {
+          assert.ok(ab instanceof ArrayBuffer && ab.byteLength > 50_000, 'passed real MP3 ArrayBuffer');
+          decodeSuccesses += 1;
+          return Promise.resolve(fakeDecoded);
+        }
+      },
+    });
+    startSoundscape();
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    assert.ok(decodeSuccesses >= 3, 'decoded active CC0 channels in parallel');
+    assert.ok(env.contexts[0].sources.length >= 3, 'mounted looping CC0 sample sources');
+    assert.ok(env.contexts[0].sources.every((s) => s.loop === true && s.buffer.length === expectedLen));
+    stopSoundscape({ immediate: true });
+
+    resetSoundscapeEngineForTests();
+    let decodeAttempts = 0;
+    Object.defineProperty(globalThis, 'AudioContext', {
+      configurable: true,
+      value: class FailingDecodeAudioContext extends OrigAudio {
+        decodeAudioData() {
+          decodeAttempts += 1;
+          return Promise.reject(new Error('Simulated codec failure'));
+        }
+      },
+    });
+    startSoundscape();
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    assert.ok(decodeAttempts >= 1, 'attempted lazy CC0 decodeAudioData');
+    assert.ok(env.contexts[1].sources.length >= 3, 'fell back cleanly to looping procedural DSP buffers');
+    stopSoundscape({ immediate: true });
+  } finally {
+    resetSoundscapeEngineForTests();
+    env.restore();
   }
 });

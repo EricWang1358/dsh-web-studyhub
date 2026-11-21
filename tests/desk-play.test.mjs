@@ -5,8 +5,6 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { getStroke } from 'perfect-freehand';
-import rough from 'roughjs';
 import { nativeSelects } from './helpers/native-selects.mjs';
 
 const require = createRequire(import.meta.url);
@@ -15,11 +13,8 @@ const compiled = await build({
     contents: `
       export * from './ui/desk-play/lucky-card.js';
       export * from './ui/desk-play/desk-play-storage.js';
-      export * from './ui/desk-play/ink-engine.js';
       export { default as OrigamiMark } from './ui/desk-play/OrigamiMark.jsx';
       export { default as DeskPlayStrip } from './ui/desk-play/DeskPlayStrip.jsx';
-      export { default as InkScratchpadDialog } from './ui/desk-play/InkScratchpadDialog.jsx';
-      export { default as ReviewToolbar } from './ui/ReviewToolbar.jsx';
       export { default as StudyMap } from './ui/StudyMap.jsx';
       export { default as ShortcutHelp } from './ui/ShortcutHelp.jsx';
       export { StudyServicesContext } from './ui/study-context.jsx';
@@ -31,7 +26,7 @@ const compiled = await build({
   write: false,
   platform: 'node',
   format: 'cjs',
-  external: ['react', 'react-dom', 'perfect-freehand', 'roughjs'],
+  external: ['react', 'react-dom'],
   plugins: [nativeSelects],
   loader: { '.css': 'text' },
   logLevel: 'silent',
@@ -142,91 +137,16 @@ test('pickRandomCard skips suspended cards and avoids immediate repeat; extractS
   assert.equal(clozeSlip.answer, 'determinant');
 });
 
-test('desk-play storage persists hide preference and sanitizes session scratchpad strokes safely', () => {
+test('desk-play storage persists hide preference safely and recovers from malformed JSON', () => {
   const local = memoryStorage();
   assert.equal(dp.readDeskPlayPrefs(local).hidden, false);
   dp.writeDeskPlayPrefs({ hidden: true }, local);
   assert.equal(dp.readDeskPlayPrefs(local).hidden, true);
   local.setItem(dp.DESK_PLAY_STORAGE_KEY, '{bad-json');
   assert.equal(dp.readDeskPlayPrefs(local).hidden, false);
-
-  const session = memoryStorage();
-  dp.writeScratchpadSession({
-    tool: 'arrow',
-    ink: 'cinnabar',
-    weight: 'broad',
-    paper: 'grid',
-    strokes: [
-      { id: 'b1', kind: 'brush', ink: 'ink', weight: 'medium', points: [[10.25, 20.75, 0.7], ['bad']] },
-      { id: 'a1', kind: 'arrow', ink: 'cinnabar', weight: 'fine', seed: 9, x1: 12, y1: 14, x2: 120, y2: 88 },
-      { id: 'bad', kind: 'unknown' },
-    ],
-  }, session);
-
-  const loaded = dp.readScratchpadSession(session);
-  assert.equal(loaded.tool, 'arrow');
-  assert.equal(loaded.ink, 'cinnabar');
-  assert.equal(loaded.paper, 'grid');
-  assert.equal(loaded.strokes.length, 2);
-  assert.deepEqual(loaded.strokes[0].points, [[10.3, 20.8, 0.7]]);
-
-  const cleared = dp.clearScratchpadSession(session);
-  assert.deepEqual(cleared.strokes, []);
-  assert.equal(cleared.paper, 'grid');
 });
 
-test('ink-engine builds perfect-freehand brush paths, roughjs shapes, snapped endpoints, and standalone SVG export', () => {
-  const strokeD = dp.strokePathData(getStroke, [[20, 20, 0.5], [60, 45, 0.7], [110, 80, 0.4]], 'medium');
-  assert.match(strokeD, /^M\s[\d.-]+\s[\d.-]+.*Z$/);
-
-  const dotD = dp.strokePathData(getStroke, [[50, 50, 0.6]], 'fine');
-  assert.match(dotD, /^M\s.*Z$/);
-
-  const roughGenerator = rough.generator();
-  const box = dp.shapePaths(roughGenerator, { kind: 'box', weight: 'medium', seed: 42, x1: 20, y1: 30, x2: 140, y2: 90 }, '#201b15');
-  assert.ok(box.length >= 1 && box[0].d.length > 10);
-
-  const circle = dp.shapePaths(roughGenerator, { kind: 'circle', weight: 'fine', seed: 7, x1: 50, y1: 50, x2: 150, y2: 120 }, '#1c613f');
-  assert.ok(circle.length >= 1 && circle[0].d.length > 10);
-
-  const arrow = dp.shapePaths(roughGenerator, { kind: 'arrow', weight: 'broad', seed: 13, x1: 30, y1: 40, x2: 200, y2: 160 }, '#c03a1f');
-  assert.equal(arrow.length, 3, 'arrow renders shaft plus 2 arrowhead barbs');
-
-  assert.deepEqual(dp.snapShapeEnd('box', 10, 10, 40, 90, true), { x2: 90, y2: 90 });
-  const snappedArrow = dp.snapShapeEnd('arrow', 0, 0, 100, 12, true);
-  assert.ok(Math.abs(snappedArrow.y2) < 1e-6, 'near-horizontal arrow snaps cleanly to 0 deg');
-
-  // Pointer mapping handles both getScreenCTM().inverse() and letterboxed fallback accurately.
-  const ctmSvg = {
-    getScreenCTM: () => ({ inverse: () => ({ a: 2, d: 2, e: -20, f: -10 }) }),
-    createSVGPoint: () => ({
-      x: 0,
-      y: 0,
-      matrixTransform(m) { return { x: this.x * m.a + m.e, y: this.y * m.d + m.f }; },
-    }),
-  };
-  assert.deepEqual(dp.clientToCanvasPoint(ctmSvg, 60, 45), [100, 80]);
-
-  // Letterboxed 4:3 container (480x360) holding a 960x560 viewBox: drawn height is 280 centered at y=40.
-  const letterboxSvg = { getBoundingClientRect: () => ({ left: 10, top: 20, width: 480, height: 360 }) };
-  assert.deepEqual(dp.clientToCanvasPoint(letterboxSvg, 250, 200), [480, 280]);
-  assert.deepEqual(dp.clientToCanvasPoint(letterboxSvg, 10, 60), [0, 0]);
-
-  const strokes = [
-    { id: 's1', kind: 'brush', ink: 'ink', weight: 'medium', points: [[20, 20, 0.5], [80, 60, 0.6], [140, 40, 0.4]] },
-    { id: 's2', kind: 'arrow', ink: 'cinnabar', weight: 'fine', seed: 5, x1: 100, y1: 100, x2: 260, y2: 180 },
-  ];
-  for (const paper of ['blank', 'grid', 'ruled']) {
-    const svg = dp.buildExportSvg({ paper, strokes, getStrokeFn: getStroke, roughGenerator });
-    assert.match(svg, /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="0 0 960 560"/);
-    assert.match(svg, /<\/svg>$/);
-    assert.ok((svg.match(/<path /g) || []).length >= 4, `${paper}: includes brush and roughjs paths`);
-    if (paper === 'grid') assert.match(svg, /id="sh-export-grid"/);
-    if (paper === 'ruled') assert.match(svg, /id="sh-export-ruled"/);
-  }
-});
-
-test('OrigamiMark, DeskPlayStrip, InkScratchpadDialog, and ReviewToolbar render cleanly in zh and en without Han leaks', () => {
+test('OrigamiMark, DeskPlayStrip, and StudyMap render cleanly in zh and en without Han leaks', () => {
   const sampleDeck = { id: 'd1', title: 'Patterns', folder: 'CS3219', course: 'CS3219', topics: ['Memento'], available: 5, count: 5, quizCount: 3, createdAt: '2026-09-01T00:00:00Z' };
   const sampleData = {
     root: '/tmp/lib',
@@ -257,18 +177,14 @@ test('OrigamiMark, DeskPlayStrip, InkScratchpadDialog, and ReviewToolbar render 
   const stripZh = renderToStaticMarkup(h(dp.StudyServicesContext.Provider, { value: { call: async () => sampleDeck } },
     h(dp.DeskPlayStrip, { data: sampleData, onPracticeDeck: noop })));
   assert.match(stripZh, /随手抽一签/);
-  assert.match(stripZh, /毛笔草稿纸/);
+  assert.match(stripZh, /今日折纸/);
+  assert.doesNotMatch(stripZh, /草稿纸/, 'scratchpad launcher is removed from DeskPlayStrip');
   assert.doesNotMatch(stripZh, /<h1\b/, 'strip never adds a competing h1');
   assert.doesNotMatch(stripZh, /sh-btn--primary/, 'strip never competes with TodayCard primary CTA');
 
   const emptyStripZh = renderToStaticMarkup(h(dp.StudyServicesContext.Provider, { value: { call: async () => null } },
     h(dp.DeskPlayStrip, { data: { ...sampleData, decks: [] }, onPracticeDeck: noop })));
   assert.match(emptyStripZh, /发布第一组题后/);
-
-  const dialogZh = renderToStaticMarkup(h(dp.InkScratchpadDialog, { onClose: noop, contextLabel: 'Thermodynamics' }));
-  assert.match(dialogZh, /毛笔草稿纸/);
-  assert.match(dialogZh, /导出 SVG/);
-  assert.match(dialogZh, /导出 PNG/);
 
   // Deterministic SSR on StudyMap with DeskPlayStrip mounted
   const mapA = renderToStaticMarkup(h(dp.StudyServicesContext.Provider, { value: { call: async () => sampleDeck, act: async () => {}, host: {}, openModal: noop } },
@@ -282,36 +198,22 @@ test('OrigamiMark, DeskPlayStrip, InkScratchpadDialog, and ReviewToolbar render 
     const stripEn = renderToStaticMarkup(h(dp.StudyServicesContext.Provider, { value: { call: async () => sampleDeck } },
       h(dp.DeskPlayStrip, { data: sampleData, onPracticeDeck: noop })));
     assert.match(stripEn, /Serendipity slip/);
-    assert.match(stripEn, /Ink scratchpad/);
+    assert.match(stripEn, /Daily origami/);
+    assert.doesNotMatch(stripEn, /scratchpad/i);
     assert.doesNotMatch(stripEn, HAN, 'zero Han in English DeskPlayStrip');
-
-    const dialogEn = renderToStaticMarkup(h(dp.InkScratchpadDialog, { onClose: noop, contextLabel: 'Thermodynamics' }));
-    assert.match(dialogEn, /Ink scratchpad/);
-    assert.match(dialogEn, /Export SVG/);
-    assert.match(dialogEn, /Export PNG/);
-    assert.doesNotMatch(dialogEn, HAN, 'zero Han in English InkScratchpadDialog');
-
-    const toolbarEn = renderToStaticMarkup(h(dp.StudyServicesContext.Provider, { value: { busy: false } },
-      h(dp.ReviewToolbar, {
-        run: { id: 'r1', index: 0, total: 2, mode: 'path', card: { id: 'q1', kind: 'quiz', topic: 'Kinetics', prompt: 'P?', options: [] }, feedback: null },
-        onToggleHelp: noop, onAsk: noop, onImprove: noop, onSlay: noop, onNote: noop, onReviewAction: noop,
-      })));
-    assert.match(toolbarEn, />Scratchpad</);
-    assert.match(toolbarEn, /aria-keyshortcuts="Alt\+Shift\+D"/);
-    assert.doesNotMatch(toolbarEn.replace(/data-usage="[^"]*"/g, ''), HAN, 'zero Han in English ReviewToolbar');
   } finally {
     dp.setUiLanguage('zh');
   }
 });
 
-test('Wave 3 studio polish: ShortcutHelp documents Alt+Shift+A/D, hosts guard Alt+Shift+D, and origami/pigment CSS tokens hold', () => {
+test('ShortcutHelp keeps Alt+Shift+A in zh and en without Han leaks, and origami accent CSS holds', () => {
   const noop = () => {};
 
   dp.setUiLanguage('zh');
   for (const page of ['home', 'review']) {
     const helpZh = renderToStaticMarkup(h(dp.ShortcutHelp, { page, onClose: noop }));
     assert.match(helpZh, /<kbd>Alt\+Shift\+A<\/kbd><\/dt><dd>打开 \/ 关闭书房声景与光影<\/dd>/);
-    assert.match(helpZh, /<kbd>Alt\+Shift\+D<\/kbd><\/dt><dd>学习库 \/ 练习 \/ 阅读资料时：打开毛笔草稿纸<\/dd>/);
+    assert.doesNotMatch(helpZh, /Alt\+Shift\+D|毛笔草稿纸/);
   }
 
   dp.setUiLanguage('en');
@@ -319,30 +221,13 @@ test('Wave 3 studio polish: ShortcutHelp documents Alt+Shift+A/D, hosts guard Al
     for (const page of ['home', 'review']) {
       const helpEn = renderToStaticMarkup(h(dp.ShortcutHelp, { page, onClose: noop }));
       assert.match(helpEn, /<kbd>Alt\+Shift\+A<\/kbd><\/dt><dd>Toggle desk soundscape &amp; lighting<\/dd>/);
-      assert.match(helpEn, /<kbd>Alt\+Shift\+D<\/kbd><\/dt><dd>Home \/ practice \/ reader: toggle ink scratchpad<\/dd>/);
+      assert.doesNotMatch(helpEn, /Alt\+Shift\+D|scratchpad/i);
       assert.doesNotMatch(helpEn, HAN, `zero Han in English ShortcutHelp (${page})`);
     }
   } finally {
     dp.setUiLanguage('zh');
   }
 
-  const stripSrc = readFileSync(new URL('../ui/desk-play/DeskPlayStrip.jsx', import.meta.url), 'utf8');
-  assert.match(stripSrc, /event\.code !== 'KeyD'/, 'DeskPlayStrip listens for Alt+Shift+D');
-  assert.match(stripSrc, /dialog\[open\]/, 'DeskPlayStrip yields when another modal dialog is open');
-  assert.match(stripSrc, /aria-keyshortcuts="Alt\+Shift\+D"/, 'DeskPlayStrip exposes shortcut metadata');
-  const collapsedStart = stripSrc.indexOf('if (hidden)');
-  const collapsedEnd = stripSrc.indexOf('return (\n    <section className="desk-play"');
-  assert.ok(collapsedStart > 0 && collapsedEnd > collapsedStart);
-  assert.match(stripSrc.slice(collapsedStart, collapsedEnd), /scratchpadDialog/, 'collapsed DeskPlayStrip still renders scratchpad dialog on Alt+Shift+D');
-
-  const toolbarSrc = readFileSync(new URL('../ui/ReviewToolbar.jsx', import.meta.url), 'utf8');
-  assert.match(toolbarSrc, /event\.code !== "KeyD"/, 'ReviewToolbar listens for Alt+Shift+D');
-  assert.match(toolbarSrc, /dialog\[open\]/, 'ReviewToolbar yields when another modal dialog is open');
-  assert.match(toolbarSrc, /\.study-document-viewer/, 'ReviewToolbar yields to docked reader when focus is inside reader');
-
   const deskCss = readFileSync(new URL('../ui/desk-play/desk-play.css', import.meta.url), 'utf8');
   assert.match(deskCss, /\.desk-play-origami__accent-fold\s*\{[\s\S]*stroke:\s*var\(--accent\)/);
-
-  const padCss = readFileSync(new URL('../ui/desk-play/desk-play-scratchpad.css', import.meta.url), 'utf8');
-  assert.match(padCss, /\.desk-play-ink-btn\s*\{[\s\S]*padding-inline:\s*var\(--space-3\)/);
 });

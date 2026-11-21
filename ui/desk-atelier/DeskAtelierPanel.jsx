@@ -90,7 +90,7 @@ export default function DeskAtelierPanel({ onToggleChime } = {}) {
     ? ui('录音中已静音')
     : state.playing
       ? uiFormat('{0} · 播放中', [presetTitle])
-      : ui('本机离线合成 · 默认静音');
+      : ui('自然声景离线播放 · 默认静音');
 
   return (
     <div className="desk-atelier__body">
@@ -225,7 +225,7 @@ export default function DeskAtelierPanel({ onToggleChime } = {}) {
             );
           })}
         </div>
-        <p className="desk-atelier__footnote">{ui('轻度环境光晕，高对比度下自动关闭；全部声景纯本机离线合成。')}</p>
+        <p className="desk-atelier__footnote">{ui('轻度环境光晕，高对比度下自动关闭；全部自然声景本机离线播放。')}</p>
         <div className="desk-atelier__chime-row">
           <span className="desk-atelier__chime-note">{ui('课间休憩 · D 大调五声弦音')}</span>
           <Button

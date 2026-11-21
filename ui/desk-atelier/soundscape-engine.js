@@ -1,6 +1,9 @@
-/* 100% Offline Procedural Web Audio Soundscape Engine for StudyHub Desk Atelier.
-   - Zero MP3 bundles, zero CDN fetches, zero AudioWorklet blob URLs (strict web-demo CSP safe).
-   - Pre-renders seamlessly equal-power crossfaded stereo AudioBuffer loops on demand (low CPU).
+/* Offline Web Audio Soundscape Engine for StudyHub Desk Atelier.
+   - Plays lazily loaded CC0 1.0 stereo field-recorded MP3 loops (ui/desk-atelier/soundscape-assets.js) via decodeAudioData.
+   - 0 B workspace boot cost, zero network fetch, zero AudioWorklet blob URLs (strict web-demo CSP safe).
+   - Trims 50 ms LAME head/tail padding and equal-power crossfades 1.6 s tail onto head for mathematically zero-click loops.
+   - Layers sparse jittered D-major pentatonic felt-mallet chime accents on the bamboo wind channel.
+   - Retains procedural stereo DSP synthesis as synchronous fallback (for mock AudioContext unit tests or decode failure).
    - Default OFF: zero AudioContext constructed until the learner explicitly enables playback.
    - Auto-mutes immediately whenever Live Class or Voice Mic capture is active (ui/audio-capture-state.js). */
 import { isAudioCaptureActive } from '../audio-capture-state.js';
@@ -8,9 +11,13 @@ import { ATELIER_CHANNEL_IDS, hasActiveChannel } from './atelier-presets.js';
 import { sharedAtelierStore } from './atelier-storage.js';
 
 const MAX_CHANNEL_PEAK = 0.44;
-const MASTER_HEADROOM = 0.62;
+const MASTER_HEADROOM = 0.74;
 const AIR_BUS_CUTOFF_HZ = 11_500;
 const CAPTURE_POLL_MS = 250;
+const SAMPLE_TRIM_SEC = 0.05;
+const SAMPLE_XFADE_SEC = 1.6;
+const BAMBOO_CHIME_MIN_MS = 4000;
+const BAMBOO_CHIME_MAX_MS = 8000;
 
 // Coprime-like loop durations (seconds) so layered channels never phase-lock or feel repetitive.
 export const CHANNEL_LOOP_SECONDS = Object.freeze({
@@ -461,16 +468,88 @@ export function synthesizeSoundscapeChannel(channelId, sampleRate = 44100, optio
   return { left, right, sampleRate: safeRate, durationSec };
 }
 
+// ── Baked CC0 Asset Decoding & Zero-Click Seamless Loop Processing ──────────
+
+function decodeBase64ToArrayBuffer(dataUri) {
+  if (typeof dataUri !== 'string' || !dataUri) return null;
+  const comma = dataUri.indexOf(',');
+  const b64 = comma >= 0 ? dataUri.slice(comma + 1) : dataUri;
+  if (typeof globalThis.atob === 'function') {
+    const bin = globalThis.atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
+    return bytes.buffer;
+  }
+  if (typeof globalThis.Buffer === 'function') {
+    const buf = globalThis.Buffer.from(b64, 'base64');
+    return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+  }
+  return null;
+}
+
+/** Trim fixed LAME encoder head/tail padding (default 50 ms each) and fold the remaining tail
+    (default 1.6 s) onto the head using equal-power sine/cosine crossfade for click-free looping. */
+export function buildSeamlessSampleBuffer(ctx, decoded, {
+  trimSec = SAMPLE_TRIM_SEC,
+  fadeSec = SAMPLE_XFADE_SEC,
+  maxPeak = 0.94,
+} = {}) {
+  if (!ctx || typeof ctx.createBuffer !== 'function' || !decoded || typeof decoded.getChannelData !== 'function') {
+    return null;
+  }
+  const rate = decoded.sampleRate || ctx.sampleRate || 44100;
+  const srcLen = decoded.length || 0;
+  if (srcLen < 256) return decoded;
+
+  const trim = srcLen > Math.round(rate * trimSec * 2) + 256 ? Math.round(rate * trimSec) : 0;
+  const trimmedLen = srcLen - trim * 2;
+  const srcL = decoded.getChannelData(0).subarray(trim, trim + trimmedLen);
+  const srcR = (decoded.numberOfChannels || 1) > 1
+    ? decoded.getChannelData(1).subarray(trim, trim + trimmedLen)
+    : srcL;
+
+  const fadeLen = Math.min(Math.round(rate * fadeSec), Math.floor(trimmedLen * 0.28));
+  const loopLen = Math.max(128, trimmedLen - fadeLen);
+
+  const left = crossfadeSeamlessLoop(srcL, loopLen, fadeLen);
+  const right = crossfadeSeamlessLoop(srcR, loopLen, fadeLen);
+  for (let i = 0; i < loopLen; i += 1) {
+    const l = Number.isFinite(left[i]) ? left[i] : 0;
+    const r = Number.isFinite(right[i]) ? right[i] : 0;
+    left[i] = Math.max(-maxPeak, Math.min(maxPeak, l));
+    right[i] = Math.max(-maxPeak, Math.min(maxPeak, r));
+  }
+
+  const out = ctx.createBuffer(2, loopLen, rate);
+  if (typeof out.copyToChannel === 'function') {
+    out.copyToChannel(left, 0);
+    out.copyToChannel(right, 1);
+  } else {
+    out.getChannelData?.(0)?.set?.(left);
+    if ((out.numberOfChannels || 1) > 1) out.getChannelData?.(1)?.set?.(right);
+  }
+  return out;
+}
+
 // ── Live Web Audio Graph Singleton ───────────────────────────────────────────
 
 let audioCtx = null;
 let masterGain = null;
 let airBus = null;
-let cachedBuffers = new Map();
-const activeChannels = new Map(); // channelId -> { source, gain }
+let cachedDspBuffers = new Map();
+let decodedSampleBuffers = new Map(); // channelId@rate -> { buffer, gain }
+let sampleDecodePromises = new Map(); // channelId@rate -> Promise
+let cachedBambooNoteBuffers = new Map(); // noteIdx@rate -> AudioBuffer
+let bakedAssets = null;
+let bakedAssetsPromise = null;
+const activeChannels = new Map(); // channelId -> { source, gain, isSample, calGain }
+const activeAccentVoices = new Set();
 let captureWatchTimer = null;
 let suspendTimer = null;
+let bambooChimeTimer = null;
+let lastBambooNoteIdx = -1;
 let unloadHookInstalled = false;
+let visibilityHookInstalled = false;
 
 function clearSuspendTimer() {
   if (suspendTimer !== null) {
@@ -486,9 +565,39 @@ function stopCaptureWatcher() {
   }
 }
 
+function stopBambooChimes() {
+  if (bambooChimeTimer !== null) {
+    clearTimeout(bambooChimeTimer);
+    bambooChimeTimer = null;
+  }
+  for (const voice of [...activeAccentVoices]) {
+    try { voice.source.stop?.(); } catch { /* ignore */ }
+    voice.disconnect();
+  }
+}
+
+function loadBakedSoundscapeAssets() {
+  if (bakedAssets) return Promise.resolve(bakedAssets);
+  if (!bakedAssetsPromise) {
+    bakedAssetsPromise = import('./soundscape-assets.js')
+      .then((mod) => {
+        bakedAssets = {
+          uris: mod?.SOUNDSCAPE_DATA_URIS || {},
+          gains: mod?.SOUNDSCAPE_CHANNEL_GAINS || {},
+        };
+        return bakedAssets;
+      })
+      .catch(() => {
+        bakedAssetsPromise = null;
+        return null;
+      });
+  }
+  return bakedAssetsPromise;
+}
+
 function rampParam(param, target, now, rampSec) {
   if (!param) return;
-  const clamped = Math.max(0, Math.min(1, Number.isFinite(target) ? target : 0));
+  const clamped = Math.max(0, Math.min(1.5, Number.isFinite(target) ? target : 0));
   if (typeof param.cancelScheduledValues === 'function') {
     param.cancelScheduledValues(now);
   }
@@ -510,10 +619,10 @@ function effectiveMasterGain(masterLevel) {
   return level * level * MASTER_HEADROOM;
 }
 
-function effectiveChannelGain(channelLevel) {
+function effectiveChannelGain(channelLevel, calGain = 1) {
   const level = Math.max(0, Math.min(1, Number(channelLevel) || 0));
   // Smooth perceptual curve so low slider values remain subtle and usable.
-  return Math.pow(level, 1.35);
+  return Math.pow(level, 1.35) * calGain;
 }
 
 function ensureUnloadHook() {
@@ -526,12 +635,29 @@ function ensureUnloadHook() {
   globalThis.window.addEventListener('beforeunload', silenceOnUnload);
 }
 
+function ensureVisibilityHook() {
+  if (visibilityHookInstalled || typeof globalThis.document === 'undefined' || typeof globalThis.document.addEventListener !== 'function') return;
+  visibilityHookInstalled = true;
+  globalThis.document.addEventListener('visibilitychange', () => {
+    const state = sharedAtelierStore.get();
+    if (!state.playing || state.captureMuted) return;
+    if (globalThis.document.hidden) {
+      stopBambooChimes();
+    } else if ((state.channels?.bamboo || 0) > 0.005 && audioCtx) {
+      syncBambooChimeScheduler(audioCtx, state.channels);
+    }
+  });
+}
+
 function getOrCreateAudioGraph() {
   const AudioCtx = globalThis.AudioContext || globalThis.webkitAudioContext;
   if (typeof AudioCtx !== 'function') return null;
   if (!audioCtx || audioCtx.state === 'closed') {
     audioCtx = new AudioCtx();
-    cachedBuffers = new Map();
+    cachedDspBuffers = new Map();
+    decodedSampleBuffers = new Map();
+    sampleDecodePromises = new Map();
+    cachedBambooNoteBuffers = new Map();
     activeChannels.clear();
     masterGain = audioCtx.createGain?.() || null;
     if (!masterGain || !audioCtx.destination) {
@@ -552,14 +678,15 @@ function getOrCreateAudioGraph() {
       masterGain.connect(audioCtx.destination);
     }
     ensureUnloadHook();
+    ensureVisibilityHook();
   }
   return audioCtx;
 }
 
-function getOrBuildAudioBuffer(ctx, channelId) {
+function getOrBuildDspBuffer(ctx, channelId) {
   const rate = ctx.sampleRate || 44100;
   const key = `${channelId}@${rate}`;
-  if (cachedBuffers.has(key)) return cachedBuffers.get(key);
+  if (cachedDspBuffers.has(key)) return cachedDspBuffers.get(key);
   if (typeof ctx.createBuffer !== 'function') return null;
   const synth = synthesizeSoundscapeChannel(channelId, rate);
   if (!synth) return null;
@@ -571,22 +698,177 @@ function getOrBuildAudioBuffer(ctx, channelId) {
     buffer.getChannelData?.(0)?.set?.(synth.left);
     if ((buffer.numberOfChannels || 1) > 1) buffer.getChannelData?.(1)?.set?.(synth.right);
   }
-  cachedBuffers.set(key, buffer);
+  cachedDspBuffers.set(key, buffer);
   return buffer;
 }
 
-function stopChannelNode(channelId) {
+function getOrBuildBambooNoteBuffer(ctx, noteIdx) {
+  const rate = ctx.sampleRate || 44100;
+  const key = `${noteIdx}@${rate}`;
+  if (cachedBambooNoteBuffers.has(key)) return cachedBambooNoteBuffers.get(key);
+  if (typeof ctx.createBuffer !== 'function') return null;
+  const freqHz = BAMBOO_PENTATONIC_HZ[noteIdx];
+  if (!freqHz) return null;
+  const len = Math.max(256, Math.round(rate * 2.1));
+  const left = new Float32Array(len);
+  const right = new Float32Array(len);
+  const pan = 0.25 + (noteIdx / Math.max(1, BAMBOO_PENTATONIC_HZ.length - 1)) * 0.5;
+  addFeltBambooNote(left, right, rate, { startSec: 0.004, freqHz, amp: 0.36, tau: 0.68, pan });
+  const buffer = ctx.createBuffer(2, len, rate);
+  if (typeof buffer.copyToChannel === 'function') {
+    buffer.copyToChannel(left, 0);
+    buffer.copyToChannel(right, 1);
+  } else {
+    buffer.getChannelData?.(0)?.set?.(left);
+    if ((buffer.numberOfChannels || 1) > 1) buffer.getChannelData?.(1)?.set?.(right);
+  }
+  cachedBambooNoteBuffers.set(key, buffer);
+  return buffer;
+}
+
+function triggerBambooChimeAccent(ctx) {
+  const state = sharedAtelierStore.get();
+  const level = Number(state.channels?.bamboo) || 0;
+  if (!state.playing || state.captureMuted || level <= 0.005) return;
+  if (isAudioCaptureActive() || globalThis.document?.hidden === true) return;
+  if (ctx !== audioCtx || !masterGain || ctx.state !== 'running') return;
+
+  const count = BAMBOO_PENTATONIC_HZ.length;
+  let nextIdx = Math.floor(Math.random() * count);
+  if (nextIdx === lastBambooNoteIdx) nextIdx = (nextIdx + 1 + Math.floor(Math.random() * (count - 1))) % count;
+  lastBambooNoteIdx = nextIdx;
+
+  const buffer = getOrBuildBambooNoteBuffer(ctx, nextIdx);
+  const source = ctx.createBufferSource?.();
+  const gain = ctx.createGain?.();
+  if (!buffer || !source || !gain) return;
+  const now = ctx.currentTime || 0;
+  source.buffer = buffer;
+  gain.gain?.setValueAtTime?.(effectiveChannelGain(level, 0.34), now);
+  source.connect(gain);
+  gain.connect(masterGain);
+
+  let disconnected = false;
+  const voice = {
+    source,
+    disconnect() {
+      if (disconnected) return;
+      disconnected = true;
+      activeAccentVoices.delete(voice);
+      try { source.disconnect?.(); } catch { /* ignore */ }
+      try { gain.disconnect?.(); } catch { /* ignore */ }
+    },
+  };
+  activeAccentVoices.add(voice);
+  source.onended = () => voice.disconnect();
+  source.start(now);
+}
+
+function syncBambooChimeScheduler(ctx, channels) {
+  const level = Number(channels?.bamboo) || 0;
+  const state = sharedAtelierStore.get();
+  if (!state.playing || state.captureMuted || level <= 0.005 || globalThis.document?.hidden === true) {
+    stopBambooChimes();
+    return;
+  }
+  if (bambooChimeTimer !== null) return;
+  const schedule = (delayMs) => {
+    bambooChimeTimer = setTimeout(() => {
+      bambooChimeTimer = null;
+      const live = sharedAtelierStore.get();
+      if (!live.playing || live.captureMuted || (live.channels?.bamboo || 0) <= 0.005 || ctx !== audioCtx) {
+        return;
+      }
+      if (globalThis.document?.hidden === true) return;
+      // Only layer separate chime accents when playing the real CC0 wind sample (procedural fallback already has chimes baked in).
+      const activeBamboo = activeChannels.get('bamboo');
+      if (activeBamboo?.isSample) {
+        triggerBambooChimeAccent(ctx);
+      }
+      const nextDelay = Math.round(BAMBOO_CHIME_MIN_MS + Math.random() * (BAMBOO_CHIME_MAX_MS - BAMBOO_CHIME_MIN_MS));
+      schedule(nextDelay);
+    }, delayMs);
+    bambooChimeTimer.unref?.();
+  };
+  schedule(Math.round(1800 + Math.random() * 1600));
+}
+
+function ensureDecodedChannelSample(ctx, channelId) {
+  if (typeof ctx?.decodeAudioData !== 'function') return null;
+  const rate = ctx.sampleRate || 44100;
+  const key = `${channelId}@${rate}`;
+  if (decodedSampleBuffers.has(key)) return Promise.resolve(decodedSampleBuffers.get(key));
+  if (sampleDecodePromises.has(key)) return sampleDecodePromises.get(key);
+
+  const promise = loadBakedSoundscapeAssets()
+    .then((assets) => {
+      if (ctx !== audioCtx) return null;
+      const dataUri = assets?.uris?.[channelId];
+      const raw = dataUri ? decodeBase64ToArrayBuffer(dataUri) : null;
+      if (!raw) return null;
+      return Promise.resolve(ctx.decodeAudioData(raw.slice(0))).then((decoded) => ({
+        decoded,
+        calGain: Number.isFinite(assets?.gains?.[channelId]) ? assets.gains[channelId] : 1,
+      }));
+    })
+    .then((payload) => {
+      if (ctx !== audioCtx) return null;
+      sampleDecodePromises.delete(key);
+      if (!payload?.decoded) return null;
+      const seamless = buildSeamlessSampleBuffer(ctx, payload.decoded);
+      if (!seamless) return null;
+      const entry = { buffer: seamless, calGain: payload.calGain, isSample: true };
+      decodedSampleBuffers.set(key, entry);
+      return entry;
+    }, () => {
+      if (ctx === audioCtx) sampleDecodePromises.delete(key);
+      return null;
+    });
+
+  sampleDecodePromises.set(key, promise);
+  return promise;
+}
+
+function stopChannelNode(channelId, { fadeSec = 0 } = {}) {
   const node = activeChannels.get(channelId);
   if (!node) return;
   activeChannels.delete(channelId);
-  try { node.source.stop?.(); } catch { /* ignore */ }
-  try { node.source.disconnect?.(); } catch { /* ignore */ }
-  try { node.gain.disconnect?.(); } catch { /* ignore */ }
+  const cleanup = () => {
+    try { node.source.stop?.(); } catch { /* ignore */ }
+    try { node.source.disconnect?.(); } catch { /* ignore */ }
+    try { node.gain.disconnect?.(); } catch { /* ignore */ }
+  };
+  if (fadeSec > 0 && audioCtx && node.gain?.gain) {
+    const now = audioCtx.currentTime || 0;
+    rampParam(node.gain.gain, 0, now, fadeSec);
+    const timer = setTimeout(cleanup, Math.round(fadeSec * 1000) + 40);
+    timer.unref?.();
+    return;
+  }
+  cleanup();
+}
+
+function mountChannelSource(ctx, channelId, buffer, { targetLevel, calGain = 1, isSample = false, rampSec = 0.25 } = {}) {
+  if (!buffer || !masterGain || ctx !== audioCtx) return false;
+  const source = ctx.createBufferSource?.();
+  const gain = ctx.createGain?.();
+  if (!source || !gain) return false;
+  const now = ctx.currentTime || 0;
+  source.buffer = buffer;
+  source.loop = true;
+  gain.gain?.setValueAtTime?.(0, now);
+  source.connect(gain);
+  gain.connect(masterGain);
+  source.start(now);
+  rampParam(gain.gain, effectiveChannelGain(targetLevel, calGain), now, Math.max(rampSec, 0.18));
+  activeChannels.set(channelId, { source, gain, isSample, calGain });
+  return true;
 }
 
 function teardownGraph({ immediate = false } = {}) {
   clearSuspendTimer();
   stopCaptureWatcher();
+  stopBambooChimes();
   if (!audioCtx) return;
   const ctx = audioCtx;
   const now = ctx.currentTime || 0;
@@ -614,31 +896,70 @@ function teardownGraph({ immediate = false } = {}) {
 
 function syncChannelsToGraph(ctx, channels, rampSec = 0.12) {
   const now = ctx.currentTime || 0;
+  const rate = ctx.sampleRate || 44100;
+  const supportsSampleDecode = typeof ctx.decodeAudioData === 'function';
+
   for (const id of ATELIER_CHANNEL_IDS) {
     const level = Number(channels?.[id]) || 0;
-    const targetGain = effectiveChannelGain(level);
     const existing = activeChannels.get(id);
     if (level <= 0.005) {
       if (existing) rampParam(existing.gain.gain, 0, now, rampSec);
       continue;
     }
     if (existing) {
-      rampParam(existing.gain.gain, targetGain, now, rampSec);
+      rampParam(existing.gain.gain, effectiveChannelGain(level, existing.calGain || 1), now, rampSec);
       continue;
     }
-    const buffer = getOrBuildAudioBuffer(ctx, id);
-    const source = ctx.createBufferSource?.();
-    const gain = ctx.createGain?.();
-    if (!buffer || !source || !gain || !masterGain) continue;
-    source.buffer = buffer;
-    source.loop = true;
-    gain.gain?.setValueAtTime?.(0, now);
-    source.connect(gain);
-    gain.connect(masterGain);
-    source.start(now);
-    rampParam(gain.gain, targetGain, now, Math.max(rampSec, 0.15));
-    activeChannels.set(id, { source, gain });
+
+    const sampleKey = `${id}@${rate}`;
+    const cachedSample = decodedSampleBuffers.get(sampleKey);
+    if (cachedSample) {
+      mountChannelSource(ctx, id, cachedSample.buffer, {
+        targetLevel: level,
+        calGain: cachedSample.calGain,
+        isSample: true,
+        rampSec,
+      });
+      continue;
+    }
+
+    if (supportsSampleDecode) {
+      const decodePromise = ensureDecodedChannelSample(ctx, id);
+      if (decodePromise) {
+        decodePromise.then((entry) => {
+          if (ctx !== audioCtx) return;
+          const live = sharedAtelierStore.get();
+          const liveLevel = Number(live.channels?.[id]) || 0;
+          if (!live.playing || live.captureMuted || liveLevel <= 0.005) return;
+          const current = activeChannels.get(id);
+          if (entry?.buffer) {
+            if (current && !current.isSample) stopChannelNode(id, { fadeSec: 0.2 });
+            if (!activeChannels.has(id)) {
+              mountChannelSource(ctx, id, entry.buffer, {
+                targetLevel: liveLevel,
+                calGain: entry.calGain,
+                isSample: true,
+                rampSec: 0.35,
+              });
+            }
+            if (id === 'bamboo') syncBambooChimeScheduler(ctx, live.channels);
+            return;
+          }
+          // Asset/decode failure -> gracefully fall back to offline procedural DSP synthesis.
+          if (!activeChannels.has(id)) {
+            const fallback = getOrBuildDspBuffer(ctx, id);
+            mountChannelSource(ctx, id, fallback, { targetLevel: liveLevel, calGain: 1, isSample: false, rampSec: 0.25 });
+          }
+        });
+        continue;
+      }
+    }
+
+    const fallback = getOrBuildDspBuffer(ctx, id);
+    mountChannelSource(ctx, id, fallback, { targetLevel: level, calGain: 1, isSample: false, rampSec });
   }
+
+  syncBambooChimeScheduler(ctx, channels);
 }
 
 function startCaptureWatcher() {
@@ -674,11 +995,13 @@ export function syncSoundscapeCaptureGuard() {
   const state = sharedAtelierStore.get();
   if (!state.playing) {
     stopCaptureWatcher();
+    stopBambooChimes();
     if (state.captureMuted) sharedAtelierStore.setCaptureMuted(false);
     return false;
   }
   const capturing = isAudioCaptureActive();
   if (capturing) {
+    stopBambooChimes();
     if (!state.captureMuted) sharedAtelierStore.setCaptureMuted(true);
     if (audioCtx && masterGain) {
       const now = audioCtx.currentTime || 0;
@@ -783,6 +1106,7 @@ export function setDeskAtmosphere(mode) {
 export function resetSoundscapeEngineForTests() {
   clearSuspendTimer();
   stopCaptureWatcher();
+  stopBambooChimes();
   for (const id of [...activeChannels.keys()]) stopChannelNode(id);
   if (audioCtx) {
     try { audioCtx.close?.(); } catch { /* ignore */ }
@@ -790,6 +1114,12 @@ export function resetSoundscapeEngineForTests() {
   audioCtx = null;
   masterGain = null;
   airBus = null;
-  cachedBuffers = new Map();
+  cachedDspBuffers = new Map();
+  decodedSampleBuffers = new Map();
+  sampleDecodePromises = new Map();
+  cachedBambooNoteBuffers = new Map();
+  bakedAssets = null;
+  bakedAssetsPromise = null;
+  lastBambooNoteIdx = -1;
   sharedAtelierStore.resetAllForTests();
 }

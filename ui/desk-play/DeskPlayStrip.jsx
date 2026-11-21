@@ -1,10 +1,9 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { kinds, useInjectCss } from '../shared.js';
 import { Badge, Button, IconButton } from '../components/index.js';
 import { useStudyServices } from '../study-context.jsx';
 import OrigamiMark from './OrigamiMark.jsx';
-import LazyInkScratchpadDialog from './LazyInkScratchpadDialog.jsx';
 import {
   computeTodayOrigami,
   eligibleDecksForSlip,
@@ -14,17 +13,15 @@ import {
 } from './lucky-card.js';
 import {
   readDeskPlayPrefs,
-  readScratchpadSession,
   writeDeskPlayPrefs,
 } from './desk-play-storage.js';
 import css from './desk-play.css';
 
 /**
  * Compact, hideable Desk Play strip tucked cleanly beneath `.desk` on the home page.
- * Holds three quiet companions that never compete with TodayCard's single primary CTA:
+ * Holds two quiet companions that never compete with TodayCard's single primary CTA:
  *  1. 5-stage geometric Origami Progress Mark reflecting today's rhythm
  *  2. Desk Serendipity Slip («随手抽一签») lazily fetching a real card on click via `deck.get`
- *  3. 1-click launcher for the Calligraphic Ink Scratchpad modal
  */
 export default function DeskPlayStrip({ data, onPracticeDeck }) {
   useInjectCss(css, 'study-desk-play');
@@ -32,8 +29,6 @@ export default function DeskPlayStrip({ data, onPracticeDeck }) {
   const deckCacheRef = useRef(new Map());
 
   const [hidden, setHidden] = useState(() => readDeskPlayPrefs().hidden);
-  const [scratchpadOpen, setScratchpadOpen] = useState(false);
-  const [savedStrokes, setSavedStrokes] = useState(() => readScratchpadSession().strokes.length);
   const [slip, setSlip] = useState(null);
   const [revealed, setRevealed] = useState(false);
   const [drawing, setDrawing] = useState(false);
@@ -47,28 +42,6 @@ export default function DeskPlayStrip({ data, onPracticeDeck }) {
     setHidden(nextHidden);
     writeDeskPlayPrefs({ hidden: nextHidden });
   };
-
-  // Studio shortcut Alt+Shift+D toggles the calligraphic scratchpad on the Home Desk,
-  // even when the Desk Play strip is collapsed, while yielding to editable fields and open modals.
-  useEffect(() => {
-    const onKeyDown = (event) => {
-      if (event.defaultPrevented || event.repeat) return;
-      if (!event.altKey || !event.shiftKey || event.ctrlKey || event.metaKey) return;
-      if (event.code !== 'KeyD' && String(event.key || '').toLowerCase() !== 'd') return;
-      const target = event.target;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable || target.closest?.('input,textarea,select,[contenteditable]'))) return;
-      if (scratchpadOpen) {
-        event.preventDefault();
-        setScratchpadOpen(false);
-        return;
-      }
-      if (document.querySelector('dialog[open]')) return;
-      event.preventDefault();
-      setScratchpadOpen(true);
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [scratchpadOpen]);
 
   const drawSlip = async () => {
     if (!eligibleDecks.length || drawing) return;
@@ -110,26 +83,18 @@ export default function DeskPlayStrip({ data, onPracticeDeck }) {
     }
   };
 
-  const scratchpadDialog = scratchpadOpen && (
-    <LazyInkScratchpadDialog
-      onClose={() => setScratchpadOpen(false)}
-      onStrokesChange={setSavedStrokes}
-    />
-  );
-
   if (hidden) {
     return (
       <div className="desk-play-collapsed">
         <Button variant="quiet" size="sm" icon="sparkle" onClick={() => toggleHidden(false)}>
           {ui('展开案头小笺')}
         </Button>
-        {scratchpadDialog}
       </div>
     );
   }
 
   return (
-    <section className="desk-play" aria-label={ui('案头小笺与草稿纸')}>
+    <section className="desk-play" aria-label={ui('案头小笺')}>
       <div className="desk-play__bar">
         <div className="desk-play__origami">
           <OrigamiMark
@@ -173,15 +138,6 @@ export default function DeskPlayStrip({ data, onPracticeDeck }) {
         </div>
 
         <div className="desk-play__tools">
-          <Button
-            variant="secondary"
-            size="sm"
-            icon="note"
-            aria-keyshortcuts="Alt+Shift+D"
-            onClick={() => setScratchpadOpen(true)}
-          >
-            {savedStrokes > 0 ? uiFormat('毛笔草稿纸 · {0}', [savedStrokes]) : ui('毛笔草稿纸')}
-          </Button>
           <IconButton
             size="sm"
             icon="chevron-down"
@@ -255,8 +211,6 @@ export default function DeskPlayStrip({ data, onPracticeDeck }) {
           </div>
         </article>
       )}
-
-      {scratchpadDialog}
     </section>
   );
 }

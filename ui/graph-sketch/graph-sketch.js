@@ -1,4 +1,4 @@
-import { DEFAULT_PALETTE, hashString, round1 } from '../ink-garden/seed-prng.js';
+import { DEFAULT_PALETTE, hashString, round1 } from './ink-palette.js';
 
 /* Pure logic for Knowledge Graph Wave 2 enhancements:
    1. Prerequisite & structural lineage spotlight (Obsidian-style neighborhood focus)

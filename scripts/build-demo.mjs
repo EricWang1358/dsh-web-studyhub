@@ -1,5 +1,5 @@
 import { build } from 'esbuild';
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -42,6 +42,7 @@ const browserService = {
   },
 };
 export async function buildDemoClient({ outdir = resolve(target, 'dist'), write = true } = {}) {
+  if (write) await rm(resolve(outdir, 'chunks'), { recursive: true, force: true });
   const result = await build({ absWorkingDir:root, entryPoints:['web-demo/main.jsx'], bundle:true, format:'esm', platform:'browser',
     outdir, entryNames:'app', chunkNames:'chunks/[name]-[hash]', splitting:true, write,
     plugins:[browserService], minify:true, jsx:'automatic',
