@@ -240,6 +240,37 @@ test('review.answer bounds structuredClone and JSON.stringify to the touched dec
   });
 });
 
+test('concurrent review.move + review.answer across two decks in one run keeps the target deck writable', async () => {
+  await withTempRoot(async root => {
+    const service = await seedBaguLibrary(root, { deckCount: 4, cardsPerDeck: 6, sourceCount: 4, attemptCount: 20 });
+    const started = await service.call('review.start', {
+      mode: 'path',
+      scope: [{ deckId: 'deck-0' }, { deckId: 'deck-1' }],
+      fresh: true,
+    });
+    const runState = (await service.store.read()).runs.find(r => r.id === started.id);
+    const firstDeckId = runState.entries[0].deckId;
+    const otherIdx = runState.entries.findIndex(e => e.deckId && e.deckId !== firstDeckId);
+    assert.ok(otherIdx > 0, 'multi-deck path run must include an entry from a second deck');
+    const otherEntry = runState.entries[otherIdx];
+    const beforeOther = (await service.store.read()).decks
+      .find(d => d.id === otherEntry.deckId).cards
+      .find(c => c.id === otherEntry.card.id).review;
+
+    // Fire review.move (to Deck B) and review.answer (for Deck B's cardId) concurrently before move commits.
+    const [moved, answered] = await Promise.all([
+      service.call('review.move', { runId: started.id, index: otherIdx }),
+      service.call('review.answer', { runId: started.id, cardId: otherEntry.card.id, selected: ['A'] }),
+    ]);
+    assert.equal(moved.index, otherIdx);
+    assert.equal(answered.feedback?.correct, true);
+    const afterOther = (await service.store.read()).decks
+      .find(d => d.id === otherEntry.deckId).cards
+      .find(c => c.id === otherEntry.card.id).review;
+    assert.notEqual(afterOther.last_review, beforeOther.last_review, 'target card in second deck must be updated without frozen-deck error');
+  });
+});
+
 test('card.place reuses cached course document index across review.answer turns and stays accurate & fast', async () => {
   await withTempRoot(async root => {
     const service = await seedBaguLibrary(root, { deckCount: 15, cardsPerDeck: 50, sourceCount: 30, attemptCount: 100 });

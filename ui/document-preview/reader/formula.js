@@ -28,7 +28,10 @@ export const formulaViewHtml = ({ source, display, raw, label }) => {
     formulaViewCache.set(key, hit);
     return hit;
   }
-  const rendered = (renderStudyFormula(source, display) ?? escapeHtml(raw)) + (label ? `<span class="reader-math__label">(${escapeHtml(label)})</span>` : '');
+  const mathHtml = renderStudyFormula(source, display);
+  const labelHtml = label ? `<span class="reader-math__label">(${escapeHtml(label)})</span>` : '';
+  if (mathHtml === null || mathHtml === undefined) return escapeHtml(raw) + labelHtml;
+  const rendered = mathHtml + labelHtml;
   if (cacheable) {
     if (formulaViewCache.size >= FORMULA_CACHE_LIMIT) formulaViewCache.delete(formulaViewCache.keys().next().value);
     formulaViewCache.set(key, rendered);
