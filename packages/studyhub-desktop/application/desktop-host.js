@@ -156,9 +156,9 @@ function createDesktopActionHandlers(deps) {
     'binding.get': bindingView,
     'binding.set': async (args) => {
       try {
-        // A folder saved here is also the learner settling where the library lives (the store writes both), so the state in memory
-        // is read again before the second write, or it would put the folder and that setting back.
-        if (typeof args?.root === 'string') {
+        const shouldSaveRoot = typeof args?.root === 'string'
+          && !(args.root === '' && getState().library.rootSource !== 'custom' && typeof args?.reasoningEffort === 'string');
+        if (shouldSaveRoot) {
           await configStore.saveLibraryRoot(args.root);
           await reloadState();
         }
@@ -166,7 +166,6 @@ function createDesktopActionHandlers(deps) {
           await configStore.save({ ...getState().config, reasoningEffort: args.reasoningEffort.trim() });
         }
       } finally {
-        // Also after a failed second write: the folder may already be saved, and the state in memory has to match the file.
         await reloadState();
       }
       return bindingView();
@@ -177,6 +176,9 @@ function createDesktopActionHandlers(deps) {
       await reloadState();
       return bindingView();
     },
+    'webGemini.status': () => ({ enabled: false, toolName: '', waitSeconds: 600, minWaitSeconds: 30, maxWaitSeconds: 1800, effectiveTool: null, missing: null, available: false, hasToolRegistry: false, tools: [], active: false }),
+    'webGemini.set': () => ({ enabled: false, toolName: '', waitSeconds: 600, minWaitSeconds: 30, maxWaitSeconds: 1800, effectiveTool: null, missing: null, available: false, hasToolRegistry: false, tools: [], active: false }),
+    'webGemini.test': () => ({ ok: false, toolName: '', reason: 'missing', latencyMs: 0, message: 'Desktop edition does not use DSH ask-gemini-mcp.' }),
     'update.check': async (args) => {
       const answer = await forward('update.check', args);
       if (!answer.ok) throw Object.assign(new Error(answer.error?.message || '检查更新失败'), { code: answer.error?.code });
@@ -227,6 +229,15 @@ function createCallDispatcher(desktopHandlers, forward, retrievalRuntime) {
   };
 }
 
+function buildRouteResolver(getEffective, getConfig) {
+  return () => {
+    const effective = getEffective();
+    if (effective.reason === 'no-route' || !effective.provider || !effective.model) return undefined;
+    const effort = getConfig().reasoningEffort || '';
+    return { provider: effective.provider, model: effective.model, ...(effort ? { reasoningEffort: effort } : {}) };
+  };
+}
+
 /**
  * Create the StudyHub Desktop application host.
  * Wires `lib/host.js` (`createHostHandler`), `registerHostConcurrencyCap`,
@@ -253,33 +264,27 @@ export async function createDesktopHost({
   const disposers = [];
   if (retrievalRuntime) disposers.push(() => retrievalRuntime.dispose());
   const session = { header: { cwd: state.library.root } };
-  const handlerConfig = { libraryRoot: state.library.root };
-
+  const handlerConfig = {
+    libraryRoot: state.library.root,
+    reasoningEffort: state.config.reasoningEffort || '',
+    ignoreBindingFile: true,
+    disableWebGemini: true,
+  };
   registerHostConcurrencyCap(() => concurrencyHookForMode(state.config.mode));
 
-  const getEffective = buildEffectiveResolver({
-    getConfig: () => state.config,
-    providerDiscovery,
-    injectedComplete,
-  });
-  const getRoute = () => {
-    const effective = getEffective();
-    return effective.provider && effective.model ? { provider: effective.provider, model: effective.model } : undefined;
-  };
+  const getEffective = buildEffectiveResolver({ getConfig: () => state.config, providerDiscovery, injectedComplete });
+  const getRoute = buildRouteResolver(getEffective, () => state.config);
   const completePort = createDesktopCompletePort({
     getConfig: () => state.config,
     getAgyExecutablePath: () => providerDiscovery.findReadyAgyPath(),
     getCodexExecutablePath: () => providerDiscovery.findReadyCodexPath?.() || '',
-    openaiComplete,
-    agyComplete,
-    codexComplete,
-    injectedComplete,
+    openaiComplete, agyComplete, codexComplete, injectedComplete,
   });
   const toolsService = retrievalRuntime ? retrievalRuntime.asDshToolsService() : null;
   const ctx = createDesktopContext({
     session, getRoute, getEffective, jobsService: jobExecutor.asDshJobsService(), toolsService, disposers,
   });
-  const handle = createHostHandler(ctx, handlerConfig, () => completePort.makeComplete(), {
+  const handle = createHostHandler(ctx, handlerConfig, (route, sessionId, options) => completePort.makeComplete(route, sessionId, options), {
     owner: ctx,
     capabilities: DESKTOP_CAPABILITIES,
   });
@@ -291,6 +296,7 @@ export async function createDesktopHost({
     await ensureDir(state.library.root);
     session.header = { cwd: state.library.root };
     handlerConfig.libraryRoot = state.library.root;
+    handlerConfig.reasoningEffort = state.config.reasoningEffort || '';
     librarySync.syncWatcher();
   };
   const desktopHandlers = {

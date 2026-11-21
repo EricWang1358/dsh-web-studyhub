@@ -120,14 +120,27 @@ export function createInProcessJobExecutor({
   const retired = new Set();
   let seq = 0;
 
+  function startRun(entry, run, face, cancel) {
+    try {
+      const started = typeof run === 'function' ? run(face) : { done: Promise.resolve(), cancel };
+      const donePromise = started && typeof started === 'object' && 'done' in started ? started.done : started;
+      const cancelFn = typeof started?.cancel === 'function' ? started.cancel : cancel;
+      return { donePromise, cancelFn: typeof cancelFn === 'function' ? cancelFn : null };
+    } catch (error) {
+      entry.status = entry.stopped ? 'killed' : 'failed';
+      log(`[studyhub-desktop] background job ${entry.id} threw synchronously:`, error?.stack ?? error);
+      trimSettledHandles(handles, retired);
+      throw error;
+    }
+  }
+
   function launchEntry({ owner, kind, label, run, cancel }) {
     const id = `desktop-${instance.slice(0, 8)}-${(seq += 1)}`;
     const entry = { id, owner, kind, label: label || kind, status: 'running', log: '', offset: 0, cancel: null, stopped: false };
     handles.set(id, entry);
     const face = Object.freeze({ append: (text) => appendRingBuffer(entry, text) });
-    const started = typeof run === 'function' ? run(face) : { done: Promise.resolve(), cancel };
-    const donePromise = started && typeof started === 'object' && 'done' in started ? started.done : started;
-    entry.cancel = typeof started?.cancel === 'function' ? started.cancel : (typeof cancel === 'function' ? cancel : null);
+    const { donePromise, cancelFn } = startRun(entry, run, face, cancel);
+    entry.cancel = cancelFn;
 
     void Promise.resolve(donePromise).then(
       (outcome) => { entry.status = resolveSettlementStatus(outcome, entry.stopped); trimSettledHandles(handles, retired); },

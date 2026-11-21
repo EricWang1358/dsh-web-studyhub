@@ -424,9 +424,8 @@ export function modelViaOf(config, providers = []) {
  * @returns {EffectiveModelState}
  */
 function resolveEffectiveCli(id, cliConfig, providers) {
-  const concurrency = concurrencyPolicyForMode(id);
   const probe = providers.find((item) => item.id === id) || null;
-  const ready = Boolean(cliConfig.executablePath) || probe?.status === 'ready';
+  const ready = probe && probe.status !== 'ready' ? false : Boolean(cliConfig.executablePath) || probe?.status === 'ready';
   const reason = ready ? 'ok' : probe?.status === 'unauthenticated' ? 'no-credential' : 'no-route';
   return {
     ready,
@@ -434,7 +433,7 @@ function resolveEffectiveCli(id, cliConfig, providers) {
     reason,
     provider: id,
     model: cliConfig.model || 'default',
-    ...concurrency,
+    ...concurrencyPolicyForMode(id),
   };
 }
 

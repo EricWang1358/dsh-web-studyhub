@@ -159,26 +159,29 @@ function extractTopLevelError(obj) {
 
 /**
  * @param {Record<string, unknown>} obj
- * @returns {{ kind: 'agent_message' | 'item_error' | 'other', text: string, errorMessage: string }}
+ * @returns {{ kind: 'agent_message' | 'reasoning' | 'item_error' | 'other', text: string, reasoningText: string, errorMessage: string }}
  */
 function parseCompletedItem(obj) {
   if (!obj.item || typeof obj.item !== 'object') {
-    return { kind: 'other', text: '', errorMessage: '' };
+    return { kind: 'other', text: '', reasoningText: '', errorMessage: '' };
   }
   const item = /** @type {Record<string, unknown>} */ (obj.item);
   if (item.type === 'agent_message' && typeof item.text === 'string') {
-    return { kind: 'agent_message', text: item.text, errorMessage: '' };
+    return { kind: 'agent_message', text: item.text, reasoningText: '', errorMessage: '' };
+  }
+  if (item.type === 'reasoning' && typeof item.text === 'string') {
+    return { kind: 'reasoning', text: '', reasoningText: item.text, errorMessage: '' };
   }
   if (item.type === 'error' && typeof item.message === 'string') {
-    return { kind: 'item_error', text: '', errorMessage: item.message.trim() };
+    return { kind: 'item_error', text: '', reasoningText: '', errorMessage: item.message.trim() };
   }
-  return { kind: 'other', text: '', errorMessage: '' };
+  return { kind: 'other', text: '', reasoningText: '', errorMessage: '' };
 }
 
 /**
  * Parse a single JSONL line from `codex exec --json`.
  * @param {string} rawLine
- * @returns {{ type: string, threadId: string, text: string, usage: UsageBuckets | null, errorMessage: string, fatal: boolean } | null}
+ * @returns {{ type: string, threadId: string, text: string, reasoningText?: string, usage: UsageBuckets | null, errorMessage: string, fatal: boolean } | null}
  */
 export function parseCodexStreamLine(rawLine) {
   const obj = parseJsonObjectLine(rawLine);
@@ -190,7 +193,15 @@ export function parseCodexStreamLine(rawLine) {
   }
   if (type === 'item.completed') {
     const item = parseCompletedItem(obj);
-    return { type, threadId: '', text: item.text, usage: null, errorMessage: item.errorMessage, fatal: false };
+    return {
+      type,
+      threadId: '',
+      text: item.text,
+      reasoningText: item.reasoningText,
+      usage: null,
+      errorMessage: item.errorMessage,
+      fatal: false,
+    };
   }
   if (type === 'turn.completed') {
     return { type, threadId: '', text: '', usage: mapCodexUsageToBuckets(obj.usage), errorMessage: '', fatal: false };
@@ -203,10 +214,11 @@ export function parseCodexStreamLine(rawLine) {
 
 /**
  * @param {string} message
- * @returns {Error & { modelFailure: boolean }}
+ * @param {string} [code]
+ * @returns {Error & { modelFailure: boolean, code?: string }}
  */
-function codexFailure(message) {
-  return Object.assign(new Error(message), { modelFailure: true });
+function codexFailure(message, code = '') {
+  return Object.assign(new Error(message), { modelFailure: true, ...(code ? { code } : {}) });
 }
 
 /**
@@ -258,10 +270,11 @@ function collectCodexEvents(trimmed) {
  * @param {string} zh
  * @param {string} en
  * @param {boolean} isEn
- * @returns {Error & { modelFailure: boolean }}
+ * @param {string} [code]
+ * @returns {Error & { modelFailure: boolean, code?: string }}
  */
-function localizedCodexFailure(zh, en, isEn) {
-  return codexFailure(isEn ? en : zh);
+function localizedCodexFailure(zh, en, isEn, code = '') {
+  return codexFailure(isEn ? en : zh, code);
 }
 
 /**
@@ -292,7 +305,7 @@ export function parseCodexJsonlOutput(rawOutput, options = {}) {
   if (!state.sawEvent) {
     throw localizedCodexFailure('无法解析 Codex CLI 输出', 'Could not parse Codex CLI output', isEn);
   }
-  throw localizedCodexFailure('Codex CLI 没有返回文字', 'Codex CLI returned no text', isEn);
+  throw localizedCodexFailure('Codex CLI 没有返回文字', 'Codex CLI returned no text', isEn, 'EMPTY_RESPONSE');
 }
 
 /**

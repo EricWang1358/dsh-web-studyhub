@@ -14,6 +14,7 @@ const CONFIGURED_RETRIEVAL_ACTIONS = new Set([
   'case.drills',
   'course.custom.fill',
   'course.custom.apply',
+  'job.control',
 ]);
 
 function unwrapForwardError(answer, fallbackMessage) {

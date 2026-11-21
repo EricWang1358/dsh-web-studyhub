@@ -2,6 +2,14 @@ import { GENERATION_TIMEOUT_MS } from '../../../../lib/generation-limits.js';
 import { usageFromTokenUsage } from '../../../../lib/token-usage.js';
 import { reportUsage } from '../../../../lib/usage-scope.js';
 import { clipDetail, redactSecret } from '../../domain/redact.js';
+import {
+  extractJsonCompletion,
+  isReasoningModel,
+  longStreamFetch,
+  normalizeReasoningEffort,
+  readOpenAiSseStream,
+  resolveChatCompletionsUrl,
+} from './openai-stream.mjs';
 
 function statusHint(status) {
   if (status === 401 || status === 403) return '密钥不对或没有权限';
@@ -10,12 +18,18 @@ function statusHint(status) {
   return status >= 500 ? '服务暂时出错' : '请求被拒绝';
 }
 
+function statusErrorCode(status) {
+  if (status === 401 || status === 403) return 'AUTHENTICATION';
+  if (status === 429) return 'RATE_LIMIT';
+  if (status >= 500) return 'SERVER_ERROR';
+  return undefined;
+}
+
 /**
- * Resolve `/chat/completions` URL from a base URL (with or without trailing `/chat/completions`).
+ * Resolve `/chat/completions` URL from a base URL (preserving query parameters such as `?api-version=...`).
  */
 export function chatCompletionsUrl(baseUrl) {
-  const clean = String(baseUrl || '').trim().replace(/\/+$/, '');
-  return /\/chat\/completions$/.test(clean) ? clean : `${clean}/chat/completions`;
+  return resolveChatCompletionsUrl(baseUrl);
 }
 
 const isSafeNonNeg = (value) => Number.isSafeInteger(value) && value >= 0;
@@ -49,64 +63,102 @@ function defaultReport(usage, execution) {
   }
 }
 
-function buildChatBody({ model, system, prompt, maxTokens }) {
+function resolveEffort(config, execution) {
+  const raw = execution?.reasoningEffort ?? execution?.route?.reasoningEffort ?? config?.reasoningEffort;
+  return normalizeReasoningEffort(raw);
+}
+
+function buildChatBody({ model, system, prompt, maxTokens, effort, stream, includeStreamOptions }) {
   const payload = {
     model,
-    stream: false,
+    stream,
     messages: [
       { role: 'system', content: String(system ?? '') },
       { role: 'user', content: String(prompt ?? '') },
     ],
   };
+  if (stream && includeStreamOptions) {
+    payload.stream_options = { include_usage: true };
+  }
   if (Number.isSafeInteger(maxTokens) && maxTokens > 0) {
-    payload.max_tokens = maxTokens;
+    if (isReasoningModel(model)) payload.max_completion_tokens = maxTokens;
+    else payload.max_tokens = maxTokens;
+  }
+  if (effort) {
+    payload.reasoning_effort = effort;
   }
   return JSON.stringify(payload);
 }
 
-async function sendOpenAiRequest({ fetch, baseUrl, apiKey, body, signal, deadline, timeoutMs, callerSignal }) {
-  try {
-    return await fetch(chatCompletionsUrl(baseUrl), {
-      method: 'POST',
-      signal,
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
-      body,
+function normalizeTransportError(error, { callerSignal, deadline, timeoutMs, apiKey }) {
+  if (callerSignal?.aborted) return error;
+  if (deadline?.aborted || error?.name === 'TimeoutError') {
+    return Object.assign(new Error(`模型服务 ${Math.round(timeoutMs / 1000)} 秒内没有回复`), {
+      name: 'TimeoutError',
+      modelFailure: true,
     });
-  } catch (error) {
-    if (callerSignal?.aborted) throw error;
-    if (deadline?.aborted) {
-      throw Object.assign(new Error(`模型服务 ${Math.round(timeoutMs / 1000)} 秒内没有回复`), { name: 'TimeoutError', modelFailure: true });
-    }
-    const rawDetail = error?.cause?.code || error?.message || error;
-    const safeMsg = clipDetail(redactSecret(rawDetail, apiKey));
-    throw Object.assign(new Error(`连不上模型服务：${safeMsg}。请检查接口地址和网络`), { modelFailure: true });
   }
+  const rawDetail = error?.cause?.code || error?.message || error;
+  const safeMsg = clipDetail(redactSecret(rawDetail, apiKey));
+  return Object.assign(new Error(`连不上模型服务：${safeMsg}。请检查接口地址和网络`), {
+    code: 'TRANSPORT',
+    modelFailure: true,
+  });
 }
 
-async function parseOpenAiResponse(response, apiKey) {
-  if (!response.ok) {
-    const detail = clipDetail(redactSecret(await response.text().catch(() => ''), apiKey));
+function buildHttpStatusError(status, rawText, apiKey) {
+  const detail = clipDetail(redactSecret(rawText, apiKey));
+  const code = statusErrorCode(status);
+  return Object.assign(
+    new Error(`模型服务回复 HTTP ${status}（${statusHint(status)}）：${detail || '没有返回原因'}`),
+    { modelFailure: true, status, ...(code ? { code } : {}) },
+  );
+}
+
+function isSseResponse(response) {
+  const contentType = String(response?.headers?.get?.('content-type') || '').toLowerCase();
+  return contentType.includes('text/event-stream');
+}
+
+function assertNonEmptyText(text, finishReason) {
+  if (typeof text === 'string' && text.trim()) return text;
+  if (finishReason === 'length') {
     throw Object.assign(
-      new Error(`模型服务回复 HTTP ${response.status}（${statusHint(response.status)}）：${detail || '没有返回原因'}`),
-      { modelFailure: true, status: response.status },
+      new Error('Model returned no text: it reached its output limit before answering'),
+      { code: 'MAX_TOKENS', modelFailure: true },
     );
   }
+  throw Object.assign(new Error('模型没有返回文字'), { code: 'EMPTY_RESPONSE', modelFailure: true });
+}
+
+async function decodeOpenAiResponse(response, { apiKey, onOutput, onReasoning }) {
+  if (!response.ok) {
+    const rawErr = await response.text().catch(() => '');
+    throw buildHttpStatusError(response.status, rawErr, apiKey);
+  }
+  if (isSseResponse(response)) {
+    const streamed = await readOpenAiSseStream(response, { onOutput, onReasoning });
+    return {
+      text: assertNonEmptyText(streamed.text, streamed.finishReason),
+      usage: streamed.usage,
+      alreadyEmitted: true,
+    };
+  }
   const rawBody = await response.text();
+  let data;
   try {
-    return JSON.parse(rawBody);
+    data = JSON.parse(rawBody);
   } catch {
     const safeBody = clipDetail(redactSecret(rawBody, apiKey));
     throw Object.assign(new Error(`模型服务的回复不是 JSON：${safeBody || '空白'}`), { modelFailure: true });
   }
-}
-
-function extractCompletionText(data) {
-  const choices = Array.isArray(data?.choices) ? data.choices : [];
-  const text = choices[0]?.message?.content;
-  if (typeof text !== 'string' || !text.trim()) {
-    throw Object.assign(new Error('模型没有返回文字'), { modelFailure: true });
-  }
-  return text;
+  const { text, finishReason, reasoning } = extractJsonCompletion(data);
+  if (reasoning) onReasoning?.(reasoning.length);
+  return {
+    text: assertNonEmptyText(text, finishReason),
+    usage: data?.usage,
+    alreadyEmitted: false,
+  };
 }
 
 function readEndpointConfig(config) {
@@ -114,7 +166,9 @@ function readEndpointConfig(config) {
   const baseUrl = String(config.baseUrl ?? '').trim();
   const model = String(config.model ?? '').trim();
   const apiKey = String(config.apiKey ?? '').trim();
-  return baseUrl && model && apiKey ? { baseUrl, model, apiKey } : null;
+  if (!baseUrl || !model || !apiKey) return null;
+  const reasoningEffort = normalizeReasoningEffort(config.reasoningEffort);
+  return { baseUrl, model, apiKey, reasoningEffort };
 }
 
 function resolveTimeoutMs(execution, defaultTimeoutMs) {
@@ -129,32 +183,80 @@ function buildRequestSignal(effectiveTimeoutMs, callerSignal) {
   return { deadline, signal: deadline || callerSignal || undefined };
 }
 
+async function sendAndDecode({ httpFetch, endpoint, body, signal, timeoutCtx, callbacks }) {
+  try {
+    const response = await httpFetch(chatCompletionsUrl(endpoint.baseUrl), {
+      method: 'POST',
+      signal,
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${endpoint.apiKey}`,
+      },
+      body,
+    });
+    return await decodeOpenAiResponse(response, { apiKey: endpoint.apiKey, ...callbacks });
+  } catch (error) {
+    if (error?.modelFailure) throw error;
+    throw normalizeTransportError(error, { ...timeoutCtx, apiKey: endpoint.apiKey });
+  }
+}
+
+function shouldRetryWithoutStreamOptions(error, stream, includeStreamOptions) {
+  return Boolean(stream && includeStreamOptions && error?.status === 400 && /stream_options/i.test(String(error?.message || '')));
+}
+
+async function executeWithStreamFallback(executeAttempt, stream) {
+  try {
+    return await executeAttempt(stream);
+  } catch (error) {
+    if (!shouldRetryWithoutStreamOptions(error, stream, true)) throw error;
+    return executeAttempt(false);
+  }
+}
+
 /**
  * Create a StudyHub `complete(system, prompt, execution)` over an OpenAI-compatible `/chat/completions` endpoint.
  */
 export function createOpenAiCompleteAdapter(config, {
-  fetch = globalThis.fetch,
+  fetch: injectedFetch,
   report = defaultReport,
   timeoutMs = GENERATION_TIMEOUT_MS,
 } = {}) {
   const endpoint = readEndpointConfig(config);
   if (!endpoint) return undefined;
+  const httpFetch = injectedFetch || longStreamFetch;
 
   return async function openaiComplete(system, prompt, execution = {}) {
     const effectiveTimeoutMs = resolveTimeoutMs(execution, timeoutMs);
     const callerSignal = execution?.signal;
     const { deadline, signal } = buildRequestSignal(effectiveTimeoutMs, callerSignal);
-    const body = buildChatBody({ model: endpoint.model, system, prompt, maxTokens: execution?.maxTokens });
-    const response = await sendOpenAiRequest({
-      fetch, baseUrl: endpoint.baseUrl, apiKey: endpoint.apiKey, body, signal, deadline, timeoutMs: effectiveTimeoutMs, callerSignal,
-    });
-    const data = await parseOpenAiResponse(response, endpoint.apiKey);
-    const usage = mapOpenAiUsage(data?.usage);
-    if (usage && report) report(usage, execution);
+    const stream = execution?.stream !== false;
+    const effort = resolveEffort(endpoint, execution);
+    const onOutput = execution?.onOutput || execution?.onChunk;
+    const timeoutCtx = { callerSignal, deadline, timeoutMs: effectiveTimeoutMs };
+    const callbacks = { onOutput, onReasoning: execution?.onReasoning };
 
-    const text = extractCompletionText(data);
-    const emitChunk = execution?.onOutput || execution?.onChunk;
-    if (emitChunk) emitChunk(text);
-    return text;
+    const executeAttempt = (includeStreamOptions) => sendAndDecode({
+      httpFetch,
+      endpoint,
+      body: buildChatBody({
+        model: endpoint.model,
+        system,
+        prompt,
+        maxTokens: execution?.maxTokens,
+        effort,
+        stream,
+        includeStreamOptions,
+      }),
+      signal,
+      timeoutCtx,
+      callbacks,
+    });
+
+    const result = await executeWithStreamFallback(executeAttempt, stream);
+    const usage = mapOpenAiUsage(result.usage);
+    if (usage && report) report(usage, execution);
+    if (!result.alreadyEmitted && onOutput) onOutput(result.text);
+    return result.text;
   };
 }

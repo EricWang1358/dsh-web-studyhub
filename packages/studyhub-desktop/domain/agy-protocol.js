@@ -104,10 +104,11 @@ export function mapAgyUsageToBuckets(raw) {
 
 /**
  * @param {string} message
- * @returns {Error & { modelFailure: boolean }}
+ * @param {string} [code]
+ * @returns {Error & { modelFailure: boolean, code?: string }}
  */
-function agyFailure(message) {
-  return Object.assign(new Error(message), { modelFailure: true });
+function agyFailure(message, code = '') {
+  return Object.assign(new Error(message), { modelFailure: true, ...(code ? { code } : {}) });
 }
 
 /**
@@ -136,7 +137,7 @@ export function parseAgyJsonResult(payload) {
   const data = /** @type {Record<string, unknown>} */ (payload);
   assertAgySuccessStatus(data);
   const text = typeof data.response === 'string' ? data.response : '';
-  if (!text.trim()) throw agyFailure('Antigravity CLI 没有返回文字');
+  if (!text.trim()) throw agyFailure('Antigravity CLI 没有返回文字', 'EMPTY_RESPONSE');
   const durationSeconds = typeof data.duration_seconds === 'number' && Number.isFinite(data.duration_seconds)
     ? data.duration_seconds
     : null;
@@ -164,9 +165,19 @@ function parseJsonObjectLine(rawLine) {
 }
 
 /**
+ * @param {Record<string, unknown>} update
+ * @returns {string}
+ */
+function extractThinkingDelta(update) {
+  if (typeof update.thinking_delta === 'string') return update.thinking_delta;
+  if (typeof update.reasoning_delta === 'string') return update.reasoning_delta;
+  return '';
+}
+
+/**
  * Parse a single NDJSON line from `agy --output-format stream-json`.
  * @param {string} rawLine
- * @returns {{ event: string, textDelta: string, result: Record<string, unknown> | null, usage: UsageBuckets | null } | null}
+ * @returns {{ event: string, textDelta: string, reasoningDelta?: string, result: Record<string, unknown> | null, usage: UsageBuckets | null } | null}
  */
 export function parseAgyStreamLine(rawLine) {
   const obj = parseJsonObjectLine(rawLine);
@@ -181,11 +192,12 @@ export function parseAgyStreamLine(rawLine) {
     return {
       event,
       textDelta: isAgentText ? /** @type {string} */ (update.text_delta) : '',
+      reasoningDelta: extractThinkingDelta(update),
       result: null,
       usage: mapAgyUsageToBuckets(update.usage),
     };
   }
-  return { event, textDelta: '', result: null, usage: null };
+  return { event, textDelta: '', reasoningDelta: '', result: null, usage: null };
 }
 
 /**

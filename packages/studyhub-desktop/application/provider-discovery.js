@@ -249,6 +249,9 @@ export function createProviderDiscovery({
     return probeComingSoonProvider({ id, candidates, probeVersion });
   }
 
+  let inFlight = null;
+  let inFlightKey = '';
+
   async function scan({ force = false } = {}) {
     const paths = {
       agy: readCustomPathFor(getCustomPath, 'agy'),
@@ -260,11 +263,23 @@ export function createProviderDiscovery({
       && customKey === cachedCustomKey
       && now() - cachedAt < ttlMs;
     if (cacheValid) return cached;
-    const providers = await Promise.all(ALL_CLI_PROVIDERS.map((id) => scanOne(id, paths[id] || '')));
-    cached = providers;
-    cachedAt = now();
-    cachedCustomKey = customKey;
-    return providers;
+    if (!force && inFlight && inFlightKey === customKey) return inFlight;
+    const run = Promise.all(ALL_CLI_PROVIDERS.map((id) => scanOne(id, paths[id] || ''))).then((providers) => {
+      cached = providers;
+      cachedAt = now();
+      cachedCustomKey = customKey;
+      return providers;
+    });
+    inFlight = run;
+    inFlightKey = customKey;
+    try {
+      return await run;
+    } finally {
+      if (inFlight === run) {
+        inFlight = null;
+        inFlightKey = '';
+      }
+    }
   }
 
   const findReadyPath = (id) => (cached || []).find((item) => item.id === id && item.status === 'ready')?.executablePath || '';
