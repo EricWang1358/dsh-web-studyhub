@@ -1,0 +1,44 @@
+{
+  "name": "@ericwang1358/studyhub-tui",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "High-performance interactive terminal UI (TUI) for StudyHub — React 19 + Ink 8, agy CLI primary + OpenAI-compatible secondary",
+  "license": "MIT",
+  "bin": {
+    "studyhub-tui": "./bin/studyhub-tui.mjs"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "node bin/studyhub-tui.mjs",
+    "dev": "tsx src/cli.tsx",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.mjs",
+    "test:smoke": "node --test tests/smoke.test.mjs",
+    "test:e2e": "node --test tests/xterm-e2e.test.mjs",
+    "bench": "node scripts/bench.mjs"
+  },
+  "dependencies": {
+    "chalk": "^6.0.1",
+    "cli-boxes": "^4.0.0",
+    "cli-highlight": "^2.1.11",
+    "figures": "^6.1.0",
+    "get-east-asian-width": "^1.6.0",
+    "ink": "^8.0.0",
+    "marked": "^18.2.1",
+    "react": "^19.3.1",
+    "signal-exit": "^4.1.0",
+    "strip-ansi": "^7.2.0",
+    "wrap-ansi": "^10.0.2",
+    "zod": "^4.6.7",
+    "zustand": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@types/react": "^19.3.0",
+    "@xterm/headless": "^6.0.0",
+    "esbuild": "^0.25.0",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
+  }
+}

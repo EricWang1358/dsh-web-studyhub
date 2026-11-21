@@ -1,0 +1,587 @@
+import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { Box, Text, useInput } from 'ink';
+import type { HostClient, KeyHint } from '../../types/contracts.js';
+import { t, useTuiStore } from '../../state/store.js';
+import {
+  Badge,
+  ConfirmDialog,
+  EmptyState,
+  MarkdownView,
+  Modal,
+  Panel,
+  Spinner,
+  SplitPane,
+  TextInput,
+  VirtualList,
+  modalContentWidth,
+  useClaimKeys,
+  useFooterHints,
+  useInputCapture,
+  useTheme,
+} from '../../components/index.js';
+import { useShellActions } from '../../shell/actions.js';
+import { truncateDisplay } from '../../render/index.js';
+import { tryAction } from '../../host/sample-actions.js';
+
+export interface DraftEditorProps {
+  host: HostClient;
+  initialDraftId?: string;
+  width: number;
+  height: number;
+  isActive: boolean;
+}
+
+interface DraftCard {
+  id: string;
+  kind?: string;
+  topic?: string;
+  prompt?: string;
+  answer?: string;
+  hint?: string;
+  explanation?: string;
+  options?: Array<{ id?: string; text?: string; correct?: boolean; explanation?: string }>;
+  cloze?: { text?: string; answers?: Array<{ id?: string; value?: string }> };
+  [k: string]: unknown;
+}
+
+interface FullDraft {
+  id: string;
+  title?: string;
+  course?: string;
+  draftVersion?: number;
+  cards: DraftCard[];
+  [k: string]: unknown;
+}
+
+interface SimilarWarning {
+  cardId: string;
+  similarity: number;
+  otherPrompt?: string;
+  where?: string;
+  deckTitle?: string | null;
+}
+
+const KIND_LABELS: Record<string, string> = {
+  quiz: '单选',
+  multi: '多选',
+  truefalse: '判断',
+  cloze: '填空',
+  open: '简答',
+  flashcard: '闪卡',
+  task: '任务',
+};
+
+type DraftOverlay = 'none' | 'pick-draft' | 'edit-card' | 'delete-draft' | 'publish-confirm';
+
+export const DraftEditor = memo(function DraftEditor({
+  host,
+  initialDraftId,
+  width,
+  height,
+  isActive,
+}: DraftEditorProps) {
+  const theme = useTheme();
+  const lang = useTuiStore((s) => s.preferences.language);
+  const mathUnicode = useTuiStore((s) => s.preferences.mathUnicode);
+  const snapshot = useTuiStore((s) => s.snapshot);
+  const navigate = useTuiStore((s) => s.navigate);
+  const notify = useTuiStore((s) => s.notify);
+  const { refresh } = useShellActions();
+
+  const draftsList = useMemo(() => snapshot?.drafts ?? [], [snapshot?.drafts]);
+  const [selectedDraftId, setSelectedDraftId] = useState<string | undefined>(
+    initialDraftId || draftsList[0]?.id,
+  );
+  const [draft, setDraft] = useState<FullDraft | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [cardIndex, setCardIndex] = useState(0);
+  const [draftPickerIdx, setDraftPickerIdx] = useState(0);
+  const [overlay, setOverlay] = useState<DraftOverlay>('none');
+  const [busy, setBusy] = useState(false);
+
+  // Similar card warnings keyed by cardId
+  const [similarMap, setSimilarMap] = useState<Map<string, SimilarWarning>>(new Map());
+
+  // Edit card state
+  const [editField, setEditField] = useState<'prompt' | 'explanation'>('prompt');
+  const [editPrompt, setEditPrompt] = useState('');
+  const [editExplanation, setEditExplanation] = useState('');
+
+  useEffect(() => {
+    if (initialDraftId) setSelectedDraftId(initialDraftId);
+  }, [initialDraftId]);
+
+  useEffect(() => {
+    if (!selectedDraftId && draftsList.length > 0) {
+      setSelectedDraftId(draftsList[0].id);
+    } else if (selectedDraftId && draftsList.length > 0 && !draftsList.some((d) => d.id === selectedDraftId)) {
+      setSelectedDraftId(draftsList[0].id);
+    } else if (draftsList.length === 0) {
+      setSelectedDraftId(undefined);
+      setDraft(null);
+    }
+  }, [draftsList, selectedDraftId]);
+
+  const loadDraft = useCallback(
+    async (id: string) => {
+      setLoading(true);
+      const res = await tryAction<FullDraft>(host, 'draft.get', { id });
+      setLoading(false);
+      if (res.ok && res.value) {
+        setDraft({
+          ...res.value,
+          cards: Array.isArray(res.value.cards) ? res.value.cards : [],
+        });
+        setSimilarMap(new Map());
+      } else {
+        setDraft(null);
+      }
+    },
+    [host],
+  );
+
+  useEffect(() => {
+    if (!selectedDraftId) return;
+    void loadDraft(selectedDraftId);
+  }, [selectedDraftId, loadDraft]);
+
+  useEffect(() => {
+    if (draft && cardIndex >= draft.cards.length) {
+      setCardIndex(Math.max(0, draft.cards.length - 1));
+    }
+  }, [draft, cardIndex]);
+
+  const selectedCard: DraftCard | undefined = draft?.cards[cardIndex];
+
+  const saveDraftCards = useCallback(
+    async (nextCards: DraftCard[], msg: string) => {
+      if (!draft || busy) return;
+      setBusy(true);
+      const updated = { ...draft, cards: nextCards };
+      const res = await tryAction<FullDraft>(host, 'draft.save', { deck: updated });
+      setBusy(false);
+      if (!res.ok) {
+        notify(res.error?.message || t(lang, '保存草稿失败', 'Save draft failed'), 'error');
+        return;
+      }
+      if (res.value && Array.isArray(res.value.cards)) {
+        setDraft(res.value);
+      } else {
+        await loadDraft(draft.id);
+      }
+      await refresh();
+      notify(msg, 'success');
+    },
+    [busy, draft, host, lang, loadDraft, notify, refresh],
+  );
+
+  const checkSimilar = useCallback(async () => {
+    if (!draft || busy) return;
+    setBusy(true);
+    const res = await tryAction<{
+      similar?: Array<{
+        cardId: string;
+        similarity: number;
+        other?: { prompt?: string; where?: string; deckTitle?: string | null };
+      }>;
+    }>(host, 'draft.similar', { id: draft.id });
+    setBusy(false);
+    if (!res.ok) {
+      notify(res.error?.message || t(lang, '查重失败', 'Similarity check failed'), 'error');
+      return;
+    }
+    const map = new Map<string, SimilarWarning>();
+    for (const item of res.value?.similar ?? []) {
+      map.set(item.cardId, {
+        cardId: item.cardId,
+        similarity: item.similarity,
+        otherPrompt: item.other?.prompt,
+        where: item.other?.where,
+        deckTitle: item.other?.deckTitle,
+      });
+    }
+    setSimilarMap(map);
+    notify(
+      map.size > 0
+        ? t(lang, `发现 ${map.size} 道相似题目`, `Found ${map.size} similar card(s)`)
+        : t(lang, '未发现重复/高度相似题目', 'No near-duplicate cards found'),
+      map.size > 0 ? 'warning' : 'success',
+    );
+  }, [busy, draft, host, lang, notify]);
+
+  const publishDraft = useCallback(
+    async (reviewed: boolean) => {
+      if (!draft || busy) return;
+      setBusy(true);
+      const action = reviewed ? 'draft.publish' : 'draft.publish.quick';
+      const res = await tryAction<{ deckId?: string; id?: string; added?: number }>(host, action, {
+        id: draft.id,
+        ...(draft.draftVersion !== undefined ? { draftVersion: draft.draftVersion } : {}),
+      });
+      setBusy(false);
+      setOverlay('none');
+      if (!res.ok) {
+        notify(res.error?.message || t(lang, '发布草稿失败', 'Publish failed'), 'error');
+        return;
+      }
+      await refresh();
+      const targetDeckId = res.value?.deckId || res.value?.id;
+      notify(
+        t(lang, `草稿已发布到题组（新增 ${res.value?.added ?? draft.cards.length} 题）`, `Published draft (${res.value?.added ?? draft.cards.length} cards)`),
+        'success',
+      );
+      if (targetDeckId) {
+        navigate('library', { deckId: targetDeckId });
+      }
+    },
+    [busy, draft, host, lang, navigate, notify, refresh],
+  );
+
+  const deleteDraft = useCallback(async () => {
+    if (!draft || busy) return;
+    setBusy(true);
+    const res = await tryAction(host, 'draft.delete', {
+      id: draft.id,
+      ...(draft.draftVersion !== undefined ? { draftVersion: draft.draftVersion } : {}),
+    });
+    setBusy(false);
+    setOverlay('none');
+    if (!res.ok) {
+      notify(res.error?.message || t(lang, '删除草稿失败', 'Delete draft failed'), 'error');
+      return;
+    }
+    await refresh();
+    notify(t(lang, '草稿已删除', 'Draft deleted'), 'success');
+  }, [busy, draft, host, lang, notify, refresh]);
+
+  const mainListActive = isActive && overlay === 'none';
+  useClaimKeys(['e', 'x', 's', 'P', 'D', 'd', 'n'], mainListActive);
+  useInputCapture(isActive && overlay === 'edit-card');
+
+  const hints: KeyHint[] = useMemo(
+    () => [
+      { key: 'd', label: t(lang, '切换草稿', 'Drafts') },
+      { key: 'e', label: t(lang, '编辑题目', 'Edit') },
+      { key: 'x', label: t(lang, '删除本题', 'Drop Card') },
+      { key: 's', label: t(lang, '相似查重', 'Similar') },
+      { key: 'P', label: t(lang, '发布题组', 'Publish') },
+      { key: 'D', label: t(lang, '删草稿', 'Del Draft') },
+    ],
+    [lang],
+  );
+  useFooterHints(hints, isActive);
+
+  useInput(
+    (input, key) => {
+      if (overlay === 'edit-card') {
+        if (key.ctrl && input === 'n') {
+          setEditField((f) => (f === 'prompt' ? 'explanation' : 'prompt'));
+        } else if (key.ctrl && input === 's' && draft && selectedCard) {
+          const next = draft.cards.map((c, idx) =>
+            idx === cardIndex ? { ...c, prompt: editPrompt, explanation: editExplanation } : c,
+          );
+          setOverlay('none');
+          void saveDraftCards(next, t(lang, '题目修改已保存', 'Card updated'));
+        }
+        return;
+      }
+
+      if (!mainListActive) return;
+
+      if (input === 'd' && draftsList.length > 0) {
+        const idx = Math.max(0, draftsList.findIndex((item) => item.id === selectedDraftId));
+        setDraftPickerIdx(idx);
+        setOverlay('pick-draft');
+        return;
+      }
+
+      if (!draft || !selectedCard) return;
+
+      if (input === 'e') {
+        setEditPrompt(String(selectedCard.prompt || ''));
+        setEditExplanation(String(selectedCard.explanation || ''));
+        setEditField('prompt');
+        setOverlay('edit-card');
+      } else if (input === 'x') {
+        if (draft.cards.length <= 1) {
+          notify(t(lang, '最后一道题请使用 [D] 删除整份草稿', 'Use [D] to delete the whole draft'), 'warning');
+          return;
+        }
+        const next = draft.cards.filter((_, idx) => idx !== cardIndex);
+        void saveDraftCards(next, t(lang, '已移除该题目', 'Removed card from draft'));
+      } else if (input === 's') {
+        void checkSimilar();
+      } else if (input === 'P') {
+        setOverlay('publish-confirm');
+      } else if (input === 'D') {
+        setOverlay('delete-draft');
+      }
+    },
+    { isActive },
+  );
+
+  const cardMarkdown = useMemo(() => {
+    if (!selectedCard) return '';
+    const parts: string[] = [];
+    parts.push(`### ${selectedCard.prompt || ''}`);
+    if (Array.isArray(selectedCard.options) && selectedCard.options.length > 0) {
+      parts.push(
+        selectedCard.options
+          .map((opt, idx) => {
+            const mark = opt.correct ? '✓' : '○';
+            const letter = String.fromCharCode(65 + idx);
+            return `- **${mark} ${letter}.** ${opt.text || ''}`;
+          })
+          .join('\n'),
+      );
+    }
+    if (selectedCard.cloze?.text) {
+      parts.push(`**Cloze:** ${selectedCard.cloze.text}`);
+    }
+    parts.push(`**${t(lang, '参考答案', 'Answer')}:** ${selectedCard.answer || '—'}`);
+    if (selectedCard.hint) {
+      parts.push(`**${t(lang, '提示', 'Hint')}:** ${selectedCard.hint}`);
+    }
+    if (selectedCard.explanation) {
+      parts.push(`---\n**${t(lang, '解析', 'Explanation')}:**\n\n${selectedCard.explanation}`);
+    }
+    return parts.join('\n\n');
+  }, [selectedCard, lang]);
+
+  if (draftsList.length === 0) {
+    return (
+      <EmptyState
+        title={t(lang, '草稿箱为空', 'No drafts yet')}
+        hint={t(lang, '切换到「新建出题任务」从资料生成题组', 'Switch to New Generation tab to create a draft')}
+        width={width}
+        height={height}
+      />
+    );
+  }
+
+  const headerH = 2;
+  const bodyH = Math.max(4, height - headerH);
+
+  const simWarning = selectedCard ? similarMap.get(selectedCard.id) : undefined;
+
+  return (
+    <Box flexDirection="column" width={width} height={height}>
+      {/* Draft Header Bar */}
+      <Box height={headerH} width={width} paddingX={1} flexDirection="column">
+        <Box flexDirection="row" alignItems="center">
+          <Text bold color={theme.primary}>
+            {draft?.title || draftsList.find((d) => d.id === selectedDraftId)?.title || selectedDraftId}
+          </Text>
+          <Text> </Text>
+          {draft?.course ? <Badge label={draft.course} tone="accent" variant="soft" /> : null}
+          <Text> </Text>
+          <Badge label={`${draft?.cards.length ?? 0} ${t(lang, '题', 'cards')}`} tone="info" variant="soft" />
+          <Box flexGrow={1} />
+          {busy ? <Spinner label={t(lang, '处理中…', 'Working…')} /> : (
+            <Text color={theme.dim}>{t(lang, `[d] 切换草稿 (${draftsList.length})  [P] 发布`, `[d] Switch (${draftsList.length})  [P] Publish`)}</Text>
+          )}
+        </Box>
+        <Text color={theme.dim}>
+          {t(lang, '审校草稿题干、选项与解析后按 [P] 发布到学习库', 'Review stems/explanations and press [P] to publish to deck')}
+        </Text>
+      </Box>
+
+      {/* SplitPane */}
+      <Box height={bodyH} width={width}>
+        <SplitPane
+          width={width}
+          height={bodyH}
+          leftWidth={0.4}
+          leftLabel={t(lang, '草稿题目', 'Cards')}
+          rightLabel={t(lang, '题目详情', 'Card Detail')}
+          left={({ width: lw, height: lh }) => (
+            <Panel
+              title={t(lang, '题目列表', 'Draft Cards')}
+              badge={draft?.cards.length ?? 0}
+              width={lw}
+              height={lh}
+              focused={mainListActive}
+            >
+              {loading ? (
+                <Spinner label={t(lang, '加载草稿…', 'Loading draft…')} />
+              ) : (
+                <VirtualList
+                  items={draft?.cards ?? []}
+                  height={Math.max(1, lh - 2)}
+                  width={Math.max(12, lw - 4)}
+                  selectedIndex={cardIndex}
+                  onChange={(idx) => setCardIndex(idx)}
+                  isActive={mainListActive}
+                  keyExtractor={(c, i) => `${c.id}-${i}`}
+                  renderItem={(card, ctx) => {
+                    const kindLabel = KIND_LABELS[String(card.kind || '')] || String(card.kind || '题');
+                    const warn = similarMap.has(card.id) ? '⚠ ' : '';
+                    const prefix = `${ctx.index + 1}. [${kindLabel}] `;
+                    const stemMax = Math.max(8, ctx.width - prefix.length - (warn ? 2 : 0) - 3);
+                    return (
+                      <Box flexDirection="row" width={ctx.width}>
+                        <Text color={ctx.selected ? theme.primary : theme.muted}>{ctx.selected ? '▸ ' : '  '}</Text>
+                        {warn ? <Text color={theme.warning}>{warn}</Text> : null}
+                        <Text color={theme.accent}>{prefix}</Text>
+                        <Text color={theme.text} bold={ctx.selected}>
+                          {truncateDisplay(String(card.prompt || '').replace(/\s+/g, ' '), stemMax)}
+                        </Text>
+                      </Box>
+                    );
+                  }}
+                />
+              )}
+            </Panel>
+          )}
+          right={({ width: rw, height: rh }) => (
+            <Panel
+              title={selectedCard ? `#${cardIndex + 1} ${KIND_LABELS[String(selectedCard.kind || '')] || ''}` : t(lang, '详情', 'Detail')}
+              subtitle={selectedCard?.topic ? String(selectedCard.topic) : undefined}
+              width={rw}
+              height={rh}
+            >
+              {!selectedCard ? (
+                <EmptyState
+                  title={t(lang, '无选中题目', 'No card selected')}
+                  width={Math.max(12, rw - 4)}
+                  height={Math.max(4, rh - 2)}
+                />
+              ) : (
+                <Box flexDirection="column" width={Math.max(12, rw - 4)} height={Math.max(2, rh - 2)}>
+                  {simWarning ? (
+                    <Box marginBottom={1}>
+                      <Text color={theme.warning}>
+                        {`⚠ ${t(lang, '相似题提醒', 'Similar')} (${Math.round(simWarning.similarity * 100)}%): ${simWarning.otherPrompt || ''}`}
+                      </Text>
+                    </Box>
+                  ) : null}
+                  <MarkdownView
+                    markdown={cardMarkdown}
+                    width={Math.max(12, rw - 4)}
+                    height={Math.max(2, rh - 2 - (simWarning ? 2 : 0))}
+                    mathUnicode={mathUnicode}
+                    isActive={false}
+                  />
+                </Box>
+              )}
+            </Panel>
+          )}
+        />
+      </Box>
+
+      {/* Draft Switcher Modal */}
+      {overlay === 'pick-draft' ? (
+        <Modal
+          title={t(lang, '选择草稿', 'Select Draft')}
+          width={64}
+          isActive={isActive}
+          onClose={() => setOverlay('none')}
+          hints={[
+            { key: 'Enter', label: t(lang, '打开', 'Open') },
+            { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+          ]}
+        >
+          <VirtualList
+            items={draftsList}
+            height={Math.min(10, Math.max(3, draftsList.length))}
+            width={modalContentWidth(64) - 2}
+            selectedIndex={draftPickerIdx}
+            onChange={(idx) => setDraftPickerIdx(idx)}
+            onSelect={(item) => {
+              setSelectedDraftId(item.id);
+              setCardIndex(0);
+              setOverlay('none');
+            }}
+            isActive={isActive}
+            keyExtractor={(d) => d.id}
+            renderItem={(d, ctx) => (
+              <Box flexDirection="row" width={ctx.width}>
+                <Text color={ctx.selected ? theme.primary : theme.muted}>{ctx.selected ? '▸ ' : '  '}</Text>
+                <Text bold={ctx.selected} color={theme.text}>
+                  {truncateDisplay(String(d.title || d.id), Math.max(12, ctx.width - 14))}
+                </Text>
+                <Box flexGrow={1} />
+                <Text color={theme.dim}>{`${d.cardCount ?? d.cards?.length ?? 0}题`}</Text>
+              </Box>
+            )}
+          />
+        </Modal>
+      ) : null}
+
+      {/* Edit Card Modal */}
+      {overlay === 'edit-card' && selectedCard ? (
+        <Modal
+          title={t(lang, `编辑第 ${cardIndex + 1} 题`, `Edit Card #${cardIndex + 1}`)}
+          width={72}
+          isActive={isActive}
+          onClose={() => setOverlay('none')}
+          hints={[
+            { key: 'Ctrl+N', label: t(lang, '切换字段', 'Switch field') },
+            { key: 'Ctrl+S', label: t(lang, '保存', 'Save') },
+            { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+          ]}
+        >
+          <Text color={editField === 'prompt' ? theme.primary : theme.muted} bold={editField === 'prompt'}>
+            {t(lang, '题干 (Prompt):', 'Stem (Prompt):')}
+          </Text>
+          <TextInput
+            value={editPrompt}
+            onChange={setEditPrompt}
+            onCancel={() => setOverlay('none')}
+            multiline
+            height={4}
+            width={modalContentWidth(72) - 4}
+            isActive={isActive && editField === 'prompt'}
+          />
+          <Box marginTop={1}>
+            <Text color={editField === 'explanation' ? theme.primary : theme.muted} bold={editField === 'explanation'}>
+              {t(lang, '解析 (Explanation):', 'Explanation:')}
+            </Text>
+          </Box>
+          <TextInput
+            value={editExplanation}
+            onChange={setEditExplanation}
+            onCancel={() => setOverlay('none')}
+            multiline
+            height={5}
+            width={modalContentWidth(72) - 4}
+            isActive={isActive && editField === 'explanation'}
+          />
+        </Modal>
+      ) : null}
+
+      {overlay === 'publish-confirm' && draft ? (
+        <ConfirmDialog
+          title={t(lang, '发布草稿到题组', 'Publish Draft to Deck')}
+          message={t(
+            lang,
+            `确认将「${draft.title || draft.id}」（共 ${draft.cards.length} 道题）发布到学习库吗？`,
+            `Publish "${draft.title || draft.id}" (${draft.cards.length} cards) to your study library?`,
+          )}
+          confirmLabel={t(lang, '立即发布', 'Publish Now')}
+          cancelLabel={t(lang, '取消', 'Cancel')}
+          isActive={isActive}
+          onConfirm={() => void publishDraft(false)}
+          onCancel={() => setOverlay('none')}
+        />
+      ) : null}
+
+      {overlay === 'delete-draft' && draft ? (
+        <ConfirmDialog
+          title={t(lang, '删除草稿', 'Delete Draft')}
+          message={t(
+            lang,
+            `确定永久删除草稿「${draft.title || draft.id}」吗？`,
+            `Permanently delete draft "${draft.title || draft.id}"?`,
+          )}
+          confirmLabel={t(lang, '删除', 'Delete')}
+          cancelLabel={t(lang, '取消', 'Cancel')}
+          danger
+          isActive={isActive}
+          onConfirm={() => void deleteDraft()}
+          onCancel={() => setOverlay('none')}
+        />
+      ) : null}
+    </Box>
+  );
+});

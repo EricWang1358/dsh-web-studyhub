@@ -1,0 +1,1156 @@
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Box, Text, useInput } from 'ink';
+import type { KeyHint, ViewProps } from '../../types/contracts.js';
+import { t, useTuiStore } from '../../state/store.js';
+import { currentCourse } from '../../shell/index.js';
+import { tryAction, type ReviewRun } from '../../host/index.js';
+import {
+  Badge,
+  EmptyState,
+  MarkdownView,
+  Modal,
+  Panel,
+  SelectList,
+  Spinner,
+  SplitPane,
+  TextInput,
+  VirtualList,
+  modalContentWidth,
+  toneColor,
+  useClaimKeys,
+  useFooterHints,
+  useTheme,
+  type PaneSize,
+  type SelectOption,
+  type VirtualListRenderContext,
+} from '../../components/index.js';
+import { displayWidth, renderProgressBar, truncateDisplay } from '../../render/index.js';
+import {
+  ERROR_REASONS,
+  REASON_FILTER_ORDER,
+  TABS,
+  buildDetailMarkdown,
+  errorReasonMeta,
+  gradeRatio,
+  itemKey,
+  plainSnippet,
+  reasonLabel,
+  reasonShort,
+  relatedRecommendations,
+  triageSummary,
+  type ReasonFilterValue,
+} from './helpers.js';
+import type {
+  ErrorReasonId,
+  WrongBookDetail,
+  WrongBookItem,
+  WrongBookRecommendItem,
+  WrongBookRecommendResponse,
+  WrongBookResponse,
+  WrongBookTab,
+} from './types.js';
+
+const PAGE_LIMIT = 100;
+const MAX_FETCH_ITEMS = 300;
+const PRACTICE_BATCH_CAP = 50;
+const CLAIMED_KEYS: readonly string[] = Object.freeze(['t', 'e', 'p', 'o', 'f', 'm']);
+
+type ActiveModal = 'reason' | 'confusable' | 'flag' | null;
+
+async function fetchViewItems(
+  host: ViewProps['host'],
+  course: string | null,
+  view: 'weak' | 'history',
+): Promise<{ items: WrongBookItem[]; counts: { weak: number; history: number }; error?: string }> {
+  const scope = course ? { course } : { course: '*' };
+  const first = await tryAction<WrongBookResponse>(host, 'wrongbook', {
+    ...scope,
+    view,
+    offset: 0,
+    limit: PAGE_LIMIT,
+  });
+  if (!first.ok || !first.value) {
+    return { items: [], counts: { weak: 0, history: 0 }, error: first.error?.message };
+  }
+  const rawFirst = Array.isArray(first.value.items) ? first.value.items : [];
+  const collected: WrongBookItem[] = rawFirst
+    .filter((x) => x && x.deckId && x.cardId && !x.suspended)
+    .map((x) => ({ ...x, _view: view }));
+
+  const total = Math.min(MAX_FETCH_ITEMS, Number(first.value.total ?? collected.length) || 0);
+  let offset = rawFirst.length;
+  while (offset < total && rawFirst.length > 0) {
+    const next = await tryAction<WrongBookResponse>(host, 'wrongbook', {
+      ...scope,
+      view,
+      offset,
+      limit: PAGE_LIMIT,
+    });
+    if (!next.ok || !next.value?.items?.length) break;
+    for (const x of next.value.items) {
+      if (x && x.deckId && x.cardId && !x.suspended) {
+        collected.push({ ...x, _view: view });
+      }
+    }
+    offset += next.value.items.length;
+  }
+
+  return {
+    items: collected,
+    counts: {
+      weak: Number(first.value.counts?.weak ?? (view === 'weak' ? collected.length : 0)) || 0,
+      history: Number(first.value.counts?.history ?? (view === 'history' ? collected.length : 0)) || 0,
+    },
+  };
+}
+
+export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
+  host,
+  width,
+  height,
+  isActive,
+}) {
+  const theme = useTheme();
+  const lang = useTuiStore((s) => s.preferences.language);
+  const mathUnicode = useTuiStore((s) => s.preferences.mathUnicode);
+  const snapshot = useTuiStore((s) => s.snapshot);
+  const notify = useTuiStore((s) => s.notify);
+  const navigate = useTuiStore((s) => s.navigate);
+  const setPreferences = useTuiStore((s) => s.setPreferences);
+  const course = currentCourse(snapshot);
+
+  const [tab, setTab] = useState<WrongBookTab>('weak');
+  const [reasonFilter, setReasonFilter] = useState<ReasonFilterValue>('all');
+  const [selectedIdx, setSelectedIdx] = useState(0);
+  const [activePane, setActivePane] = useState<'left' | 'right'>('left');
+  const [activeModal, setActiveModal] = useState<ActiveModal>(null);
+  const [flagText, setFlagText] = useState('');
+  const [detailScrollTop, setDetailScrollTop] = useState(0);
+
+  const [loading, setLoading] = useState(true);
+  const [busyAction, setBusyAction] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [weakItems, setWeakItems] = useState<WrongBookItem[]>([]);
+  const [historyItems, setHistoryItems] = useState<WrongBookItem[]>([]);
+  const [counts, setCounts] = useState<{ weak: number; history: number }>({ weak: 0, history: 0 });
+  const [recs, setRecs] = useState<WrongBookRecommendItem[]>([]);
+
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detail, setDetail] = useState<WrongBookDetail | null>(null);
+
+  const mountedRef = useRef(true);
+  const listSeqRef = useRef(0);
+  const detailSeqRef = useRef(0);
+  const detailCacheRef = useRef<Map<string, WrongBookDetail>>(new Map());
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const loadWrongBook = useCallback(
+    async (silent = false) => {
+      const seq = ++listSeqRef.current;
+      if (!silent) setLoading(true);
+      setLoadError(null);
+      const recScope = course ? { course } : { course: '*' };
+
+      const [weakRes, historyRes, recRes] = await Promise.all([
+        fetchViewItems(host, course, 'weak'),
+        fetchViewItems(host, course, 'history'),
+        tryAction<WrongBookRecommendResponse>(host, 'wrongbook.recommend', { ...recScope, limit: 15 }),
+      ]);
+
+      if (!mountedRef.current || seq !== listSeqRef.current) return;
+      if (weakRes.error && !weakRes.items.length) {
+        setLoadError(weakRes.error);
+      }
+      setWeakItems(weakRes.items);
+      setHistoryItems(historyRes.items);
+      setCounts({
+        weak: weakRes.counts.weak || weakRes.items.length,
+        history: weakRes.counts.history || historyRes.items.length,
+      });
+      setRecs(recRes.ok && Array.isArray(recRes.value?.items) ? recRes.value.items : []);
+      detailCacheRef.current.clear();
+      setLoading(false);
+    },
+    [host, course],
+  );
+
+  useEffect(() => {
+    void loadWrongBook(false);
+  }, [loadWrongBook]);
+
+  // Combined + filtered items according to active tab and reason sub-filter
+  const allItems = useMemo<WrongBookItem[]>(() => {
+    const seen = new Set<string>();
+    const out: WrongBookItem[] = [];
+    for (const item of weakItems) {
+      const k = `${item.deckId}:${item.cardId}`;
+      if (!seen.has(k)) {
+        seen.add(k);
+        out.push(item);
+      }
+    }
+    for (const item of historyItems) {
+      const k = `${item.deckId}:${item.cardId}`;
+      if (!seen.has(k)) {
+        seen.add(k);
+        out.push(item);
+      }
+    }
+    return out;
+  }, [weakItems, historyItems]);
+
+  const confusableItems = useMemo(
+    () => weakItems.filter((item) => item.triage?.route === 'confusable_contrast'),
+    [weakItems],
+  );
+
+  const visibleItems = useMemo<WrongBookItem[]>(() => {
+    if (tab === 'weak') return weakItems;
+    if (tab === 'confusable') return confusableItems;
+    if (tab === 'all') return allItems;
+    // 'reason' tab: filter weakItems (or allItems if weak has none for that reason) and sort by errorReason
+    const pool = weakItems.length ? weakItems : allItems;
+    const filtered =
+      reasonFilter === 'all'
+        ? pool
+        : reasonFilter === 'unclassified'
+          ? pool.filter((x) => !x.errorReason)
+          : pool.filter((x) => x.errorReason === reasonFilter);
+    return [...filtered].sort((a, b) => {
+      const ra = a.errorReason ?? 'zzz';
+      const rb = b.errorReason ?? 'zzz';
+      if (ra !== rb) return ra.localeCompare(rb);
+      return String(b.lastAt ?? '').localeCompare(String(a.lastAt ?? ''));
+    });
+  }, [tab, weakItems, confusableItems, allItems, reasonFilter]);
+
+  useEffect(() => {
+    setSelectedIdx((idx) => Math.max(0, Math.min(idx, Math.max(0, visibleItems.length - 1))));
+  }, [visibleItems.length]);
+
+  const selectedItem = visibleItems[selectedIdx] ?? null;
+  const selectedKey = selectedItem ? itemKey(selectedItem) : '';
+
+  // Load detail for currently selected card with cache + cancel guard
+  useEffect(() => {
+    setDetailScrollTop(0);
+    if (!selectedItem) {
+      setDetail(null);
+      setDetailLoading(false);
+      return;
+    }
+    const cached = detailCacheRef.current.get(selectedKey);
+    if (cached) {
+      setDetail(cached);
+      setDetailLoading(false);
+      return;
+    }
+    const seq = ++detailSeqRef.current;
+    setDetail(null);
+    setDetailLoading(true);
+    void tryAction<WrongBookDetail>(host, 'wrongbook.detail', {
+      deckId: selectedItem.deckId,
+      cardId: selectedItem.cardId,
+      view: selectedItem._view,
+    }).then((res) => {
+      if (!mountedRef.current || seq !== detailSeqRef.current) return;
+      if (res.ok && res.value) {
+        if (detailCacheRef.current.size > 150) {
+          const oldest = detailCacheRef.current.keys().next().value;
+          if (oldest !== undefined) detailCacheRef.current.delete(oldest);
+        }
+        detailCacheRef.current.set(selectedKey, res.value);
+        setDetail(res.value);
+      }
+      setDetailLoading(false);
+    });
+  }, [host, selectedItem, selectedKey]);
+
+  const relatedRecs = useMemo(
+    () => (selectedItem ? relatedRecommendations(recs, selectedItem.cardId) : []),
+    [recs, selectedItem],
+  );
+
+  const triageInfo = useMemo(
+    () => (selectedItem ? triageSummary(selectedItem, lang) : null),
+    [selectedItem, lang],
+  );
+
+  const detailMarkdown = useMemo(
+    () => (selectedItem ? buildDetailMarkdown(selectedItem, detail, relatedRecs, lang) : ''),
+    [selectedItem, detail, relatedRecs, lang],
+  );
+
+  const launchPractice = useCallback(
+    async (scope: Array<{ deckId: string; cardId: string }>, emptyMsg?: string) => {
+      if (busyAction) return;
+      if (!scope.length) {
+        notify(emptyMsg || t(lang, '当前没有可练习的题目', 'No cards available to practise'), 'warning');
+        return;
+      }
+      setBusyAction(true);
+      const res = await tryAction<ReviewRun>(host, 'review.start', {
+        mode: 'path',
+        scope: scope.slice(0, PRACTICE_BATCH_CAP),
+        fresh: true,
+      });
+      if (!mountedRef.current) return;
+      setBusyAction(false);
+      if (!res.ok || !res.value?.id) {
+        notify(res.error?.message || t(lang, '启动练习失败', 'Failed to start practice'), 'error');
+        return;
+      }
+      navigate('review', { runId: res.value.id });
+    },
+    [busyAction, host, lang, navigate, notify],
+  );
+
+  const setErrorReason = useCallback(
+    async (reason: ErrorReasonId | null) => {
+      if (!selectedItem || busyAction) return;
+      setBusyAction(true);
+      const res = await tryAction(host, 'attempt.errorReason.set', {
+        deckId: selectedItem.deckId,
+        cardId: selectedItem.cardId,
+        errorReason: reason,
+      });
+      if (!mountedRef.current) return;
+      setBusyAction(false);
+      setActiveModal(null);
+      if (!res.ok) {
+        notify(res.error?.message || t(lang, '更新错因失败', 'Failed to update error reason'), 'error');
+        return;
+      }
+      notify(
+        reason
+          ? t(lang, `已标记错因：${reasonLabel(reason, lang)}`, `Reason set: ${reasonLabel(reason, lang)}`)
+          : t(lang, '已清除错因标记', 'Error reason cleared'),
+        'success',
+      );
+      await loadWrongBook(true);
+    },
+    [selectedItem, busyAction, host, lang, notify, loadWrongBook],
+  );
+
+  const submitFlagRepair = useCallback(
+    async (reasonTextValue: string) => {
+      if (!selectedItem || busyAction) return;
+      const reason = reasonTextValue.trim();
+      setBusyAction(true);
+      const res = await tryAction(host, 'card.flag', {
+        deckId: selectedItem.deckId,
+        cardId: selectedItem.cardId,
+        reason,
+      });
+      if (!mountedRef.current) return;
+      setBusyAction(false);
+      setActiveModal(null);
+      if (!res.ok) {
+        notify(res.error?.message || t(lang, '提交修题标记失败', 'Failed to flag card'), 'error');
+        return;
+      }
+      notify(t(lang, '已标记题目待修题核查', 'Question flagged for repair'), 'success');
+    },
+    [selectedItem, busyAction, host, lang, notify],
+  );
+
+  const executeTriageAction = useCallback(() => {
+    if (!selectedItem || !triageInfo) return;
+    const triage = selectedItem.triage;
+    switch (triageInfo.route) {
+      case 'confusable_contrast':
+        setActiveModal('confusable');
+        return;
+      case 'book_retell':
+        navigate('book', {
+          course: triage?.course || course || undefined,
+          deckId: selectedItem.deckId,
+          ...(triage?.hid || selectedItem.hid ? { focusPointKey: triage?.hid || selectedItem.hid } : {}),
+        });
+        return;
+      case 'prereq_branch': {
+        const refs = triage?.prereqRefs?.length
+          ? triage.prereqRefs.map((r) => ({ deckId: r.deckId, cardId: r.cardId }))
+          : triage?.prereq
+            ? [{ deckId: triage.prereq.deckId, cardId: triage.prereq.cardId }]
+            : [];
+        void launchPractice(refs, t(lang, '没有找到未稳的前置题', 'No unresolved prerequisites found'));
+        return;
+      }
+      case 'fix_question':
+        setFlagText(t(lang, '题干或答案表述存疑，需要修题核查', 'Question stem or answer needs review'));
+        setActiveModal('flag');
+        return;
+      default:
+        void launchPractice([{ deckId: selectedItem.deckId, cardId: selectedItem.cardId }]);
+    }
+  }, [selectedItem, triageInfo, navigate, course, launchPractice, lang]);
+
+  const cycleTab = useCallback((dir: 1 | -1) => {
+    setTab((cur) => {
+      const idx = TABS.findIndex((x) => x.id === cur);
+      return TABS[(idx + dir + TABS.length) % TABS.length].id;
+    });
+    setSelectedIdx(0);
+  }, []);
+
+  const cycleReasonFilter = useCallback(() => {
+    setReasonFilter((cur) => {
+      const idx = REASON_FILTER_ORDER.indexOf(cur);
+      return REASON_FILTER_ORDER[(idx + 1) % REASON_FILTER_ORDER.length];
+    });
+    setSelectedIdx(0);
+  }, []);
+
+  const modalOpen = activeModal !== null;
+  const viewInputActive = isActive && !modalOpen;
+  useClaimKeys(CLAIMED_KEYS, viewInputActive);
+
+  const footerHints: KeyHint[] = useMemo(() => {
+    if (tab === 'reason') {
+      return [
+        { key: 'Tab/h/l', label: t(lang, '切换分组', 'Tabs') },
+        { key: 'f', label: t(lang, '筛选错因', 'Filter') },
+        { key: 'e', label: t(lang, '标错因', 'Reason') },
+        { key: 't', label: t(lang, '分流处理', 'Triage') },
+        { key: 'Enter/p', label: t(lang, '重练', 'Practise') },
+      ];
+    }
+    return [
+      { key: 'Tab/h/l', label: t(lang, '切换标签', 'Tabs') },
+      { key: 'e', label: t(lang, '标错因', 'Reason') },
+      { key: 't', label: t(lang, '分流处理', 'Triage') },
+      { key: 'Enter/p', label: t(lang, '重练', 'Practise') },
+      { key: 'P', label: t(lang, '批量练', 'Batch') },
+      { key: 'x', label: t(lang, '同类题', 'Similar') },
+    ];
+  }, [lang, tab]);
+
+  useFooterHints(footerHints, viewInputActive);
+
+  const narrowLayout = width < 90;
+
+  useInput(
+    (input, key) => {
+      if (key.tab) {
+        cycleTab(key.shift ? -1 : 1);
+        return;
+      }
+      if (input === 'h') {
+        cycleTab(-1);
+        return;
+      }
+      if (input === 'l') {
+        cycleTab(1);
+        return;
+      }
+      if (key.rightArrow) {
+        setActivePane('right');
+        return;
+      }
+      if (key.leftArrow || (key.escape && narrowLayout && activePane === 'right')) {
+        setActivePane('left');
+        return;
+      }
+      if (input === 'R') {
+        void loadWrongBook(false);
+        return;
+      }
+      if (input === 'm') {
+        setPreferences({ mathUnicode: !mathUnicode });
+        return;
+      }
+      if (input === 'f') {
+        if (tab !== 'reason') setTab('reason');
+        cycleReasonFilter();
+        return;
+      }
+      if (input === 'J') {
+        setDetailScrollTop((top) => top + 4);
+        return;
+      }
+      if (input === 'K') {
+        setDetailScrollTop((top) => Math.max(0, top - 4));
+        return;
+      }
+      if (input === 'P') {
+        const batch = visibleItems.map((x) => ({ deckId: x.deckId, cardId: x.cardId }));
+        void launchPractice(batch);
+        return;
+      }
+      if (!selectedItem) return;
+      if (input === 'p' || (key.return && (!narrowLayout || activePane === 'right'))) {
+        void launchPractice([{ deckId: selectedItem.deckId, cardId: selectedItem.cardId }]);
+        return;
+      }
+      if (input === 'e') {
+        setActiveModal('reason');
+        return;
+      }
+      if (input === 't') {
+        executeTriageAction();
+        return;
+      }
+      if (input === 'x') {
+        const scope = relatedRecs.length
+          ? relatedRecs.map((r) => ({ deckId: r.deckId, cardId: r.cardId }))
+          : recs.slice(0, 10).map((r) => ({ deckId: r.deckId, cardId: r.cardId }));
+        void launchPractice(scope, t(lang, '暂无推荐同类题', 'No recommended similar cards'));
+        return;
+      }
+      if (input === 'o') {
+        const cit = selectedItem.citations?.find((c) => c?.sourceId);
+        if (cit?.sourceId) {
+          navigate('sources', {
+            sourceId: cit.sourceId,
+            ...(cit.page != null ? { pageNumber: cit.page } : {}),
+          });
+        } else {
+          notify(t(lang, '该题暂无关联原文页码', 'No source citation for this question'), 'info');
+        }
+      }
+    },
+    { isActive: viewInputActive },
+  );
+
+  // Compute header & split layout heights
+  const headerRows = tab === 'reason' ? 3 : 2;
+  const bodyHeight = Math.max(6, height - headerRows);
+
+  const renderListItem = useCallback(
+    (item: WrongBookItem, ctx: VirtualListRenderContext) => {
+      const reasonMeta = errorReasonMeta(item.errorReason);
+      const reasonTag = reasonMeta ? `[${reasonShort(item.errorReason, lang)}]` : '';
+      const errTag = `×${item.wrongCount ?? 1}`;
+      const bar = renderProgressBar(gradeRatio(item.lastGrade), 5, theme, {
+        style: 'block',
+        showPercent: false,
+        color: (item.lastGrade ?? 0) >= 3 ? theme.success : item.leech ? theme.error : theme.warning,
+      });
+      const prefix = item._view === 'history' ? '✓ ' : item.leech ? '◆ ' : '• ';
+      const rightMeta = `${errTag}${reasonTag ? ` ${reasonTag}` : ''} `;
+      const fixedW = displayWidth(prefix) + displayWidth(rightMeta) + 5;
+      const snippetW = Math.max(6, ctx.width - fixedW);
+      const snippet = truncateDisplay(plainSnippet(item.prompt) || item.topic || item.cardId, snippetW);
+      const padW = Math.max(1, ctx.width - displayWidth(prefix) - displayWidth(snippet) - displayWidth(rightMeta) - 5);
+
+      return (
+        <Box width={ctx.width} height={1} overflow="hidden">
+          <Text color={item._view === 'history' ? theme.success : item.leech ? theme.error : theme.warning} bold={ctx.selected}>
+            {prefix}
+          </Text>
+          <Text color={ctx.selected ? theme.selectionFg : theme.text} bold={ctx.selected}>
+            {snippet}
+          </Text>
+          <Text>{' '.repeat(padW)}</Text>
+          <Text color={item.wrongCount && item.wrongCount >= 3 ? theme.error : theme.muted}>{errTag}</Text>
+          {reasonTag ? (
+            <Text color={toneColor(theme, reasonMeta?.tone ?? 'muted')}>{` ${reasonTag}`}</Text>
+          ) : null}
+          <Text>{' '}</Text>
+          <Text>{bar}</Text>
+        </Box>
+      );
+    },
+    [lang, theme],
+  );
+
+  const listActive = viewInputActive && activePane === 'left';
+  const detailScrollActive = viewInputActive && activePane === 'right';
+
+  const renderLeftPane = useCallback(
+    (size: PaneSize) => {
+      const listH = Math.max(1, size.height - 2);
+      const listW = Math.max(10, size.width - 4);
+      return (
+        <Panel
+          title={t(lang, '错题列表', 'Mistakes')}
+          badge={visibleItems.length}
+          badgeTone={tab === 'confusable' ? 'warning' : 'primary'}
+          subtitle={course || t(lang, '全部课程', 'All')}
+          focused={activePane === 'left'}
+          width={size.width}
+          height={size.height}
+        >
+          {loading ? (
+            <Box height={listH} alignItems="center" justifyContent="center">
+              <Spinner label={t(lang, '正在加载错题本…', 'Loading mistakes…')} active={isActive} />
+            </Box>
+          ) : loadError ? (
+            <EmptyState
+              title={t(lang, '加载错题本失败', 'Failed to load mistakes')}
+              hint={loadError}
+              icon="!"
+              actions={[{ key: 'R', label: t(lang, '重试', 'Retry') }]}
+              width={listW}
+              height={listH}
+            />
+          ) : (
+            <VirtualList
+              items={visibleItems}
+              height={listH}
+              width={listW}
+              selectedIndex={selectedIdx}
+              onChange={(idx) => setSelectedIdx(idx)}
+              onSelect={(item) => {
+                if (narrowLayout && activePane === 'left') setActivePane('right');
+                else void launchPractice([{ deckId: item.deckId, cardId: item.cardId }]);
+              }}
+              keyExtractor={(item) => itemKey(item)}
+              renderItem={renderListItem}
+              isActive={listActive}
+              emptyText={
+                tab === 'confusable'
+                  ? t(lang, '当前没有命中易混对的错题', 'No confusable mistakes found')
+                  : t(lang, '暂无错题记录', 'No mistakes recorded')
+              }
+              emptyHint={t(lang, '切换标签或去学习库继续练习', 'Switch tabs or practise from Library')}
+            />
+          )}
+        </Panel>
+      );
+    },
+    [
+      lang,
+      visibleItems,
+      tab,
+      course,
+      activePane,
+      loading,
+      isActive,
+      loadError,
+      selectedIdx,
+      narrowLayout,
+      launchPractice,
+      renderListItem,
+      listActive,
+    ],
+  );
+
+  const renderRightPane = useCallback(
+    (size: PaneSize) => {
+      const innerW = Math.max(12, size.width - 4);
+      const innerH = Math.max(4, size.height - 2);
+
+      if (!selectedItem) {
+        return (
+          <Panel
+            title={t(lang, '错题详情', 'Detail')}
+            focused={activePane === 'right'}
+            width={size.width}
+            height={size.height}
+          >
+            <EmptyState
+              title={t(lang, '选择一道错题查看详情与分流建议', 'Select a mistake to inspect details')}
+              hint={t(lang, '按 P 批量重练或按 R 刷新', 'Press P for batch practice or R to refresh')}
+              width={innerW}
+              height={innerH}
+            />
+          </Panel>
+        );
+      }
+
+      const reasonMeta = errorReasonMeta(selectedItem.errorReason);
+      const triageBoxRows = triageInfo ? 3 : 0;
+      const metaRows = 2;
+      const citationRow = selectedItem.citations?.some((c) => c?.sourceId) ? 1 : 0;
+      const actionBarRow = 1;
+      const mdHeight = Math.max(3, innerH - metaRows - triageBoxRows - citationRow - actionBarRow);
+
+      return (
+        <Panel
+          title={selectedItem.deckTitle}
+          subtitle={selectedItem.topic || selectedItem.kind || ''}
+          focused={activePane === 'right'}
+          width={size.width}
+          height={size.height}
+        >
+          {/* Meta & Status Badges */}
+          <Box height={metaRows} flexDirection="column" overflow="hidden">
+            <Box gap={1} overflow="hidden">
+              <Badge
+                label={selectedItem._view === 'history' ? t(lang, '已订正', 'Fixed') : t(lang, '待巩固', 'Weak')}
+                tone={selectedItem._view === 'history' ? 'success' : 'warning'}
+                variant="solid"
+              />
+              {selectedItem.leech ? (
+                <Badge label={t(lang, '顽固题', 'Stubborn')} tone="error" variant="solid" />
+              ) : null}
+              <Badge
+                label={t(lang, `错 ${selectedItem.wrongCount ?? 1} 次`, `×${selectedItem.wrongCount ?? 1}`)}
+                tone="error"
+                variant="soft"
+              />
+              <Badge
+                label={
+                  reasonMeta
+                    ? t(lang, reasonMeta.zh, reasonMeta.en)
+                    : t(lang, '未归因 [e]', 'No reason [e]')
+                }
+                tone={reasonMeta?.tone ?? 'muted'}
+                variant="outline"
+              />
+              <Text color={theme.muted}>
+                {t(lang, `最近评分 ${selectedItem.lastGrade ?? '-'}/5`, `Grade ${selectedItem.lastGrade ?? '-'}/5`)}
+              </Text>
+            </Box>
+            <Box height={1} overflow="hidden">
+              <Text color={theme.dim}>
+                {truncateDisplay(
+                  `${t(lang, '题型', 'Kind')}: ${selectedItem.kind || '-'}  ·  ${t(lang, '数学符号', 'Math')}: ${mathUnicode ? 'Unicode' : 'LaTeX'} [m]  ·  ${detailScrollActive ? t(lang, 'j/k 滚动  ← 返回列表', 'j/k scroll  ← list') : t(lang, 'J/K 滚详情  → 专注详情', 'J/K scroll  → focus')}`,
+                  innerW,
+                )}
+              </Text>
+            </Box>
+          </Box>
+
+          {/* 0-Token Triage Recommendation Card */}
+          {triageInfo ? (
+            <Box
+              height={triageBoxRows}
+              flexDirection="column"
+              borderStyle="single"
+              borderColor={toneColor(theme, triageInfo.tone)}
+              paddingX={1}
+              overflow="hidden"
+            >
+              <Box height={1} overflow="hidden">
+                <Text color={toneColor(theme, triageInfo.tone)} bold>
+                  {triageInfo.isZeroToken
+                    ? t(lang, '⚡ 0-token 分流建议: ', '⚡ 0-token Triage: ')
+                    : t(lang, '✦ 分流建议: ', '✦ Triage: ')}
+                </Text>
+                <Text color={theme.text}>{truncateDisplay(triageInfo.lead, Math.max(10, innerW - 24))}</Text>
+              </Box>
+            </Box>
+          ) : null}
+
+          {/* Scrollable Detail Markdown */}
+          <Box height={mdHeight} width={innerW} overflow="hidden">
+            {detailLoading && !detail ? (
+              <Box height={mdHeight} alignItems="center" justifyContent="center">
+                <Spinner label={t(lang, '加载题目详情…', 'Loading detail…')} active={isActive} />
+              </Box>
+            ) : (
+              <MarkdownView
+                markdown={detailMarkdown}
+                width={innerW}
+                height={mdHeight}
+                isActive={detailScrollActive}
+                scrollTop={detailScrollTop}
+                onScroll={setDetailScrollTop}
+              />
+            )}
+          </Box>
+
+          {/* Source Citation Bar (optional) */}
+          {citationRow > 0 ? (
+            <Box height={1} overflow="hidden">
+              <Text color={theme.accent}>
+                {truncateDisplay(
+                  (() => {
+                    const cit = selectedItem.citations?.find((c) => c?.sourceId);
+                    return `[o] ${t(lang, '跳转原文', 'Source')}: ${cit?.title || cit?.sourceId || ''}${cit?.page != null ? ` p.${cit.page}` : ''}`;
+                  })(),
+                  innerW,
+                )}
+              </Text>
+            </Box>
+          ) : null}
+
+          {/* Quick Action Strip (single-line width-budgeted so chips never wrap or clip) */}
+          <Box height={1} width={innerW} flexDirection="row" flexWrap="nowrap" overflow="hidden">
+            {(() => {
+              const chips: Array<{
+                id: string;
+                keyLabel: string;
+                textLabel: string;
+                bg: string;
+                fg: string;
+                textColor: string;
+              }> = [
+                {
+                  id: 'practise',
+                  keyLabel: ' Enter/p ',
+                  textLabel: t(lang, '立即重练', 'Practise'),
+                  bg: theme.primary,
+                  fg: theme.dark ? theme.bg : '#ffffff',
+                  textColor: theme.text,
+                },
+                {
+                  id: 'triage',
+                  keyLabel: ' t ',
+                  textLabel: triageInfo?.actionLabel ?? t(lang, '分流', 'Triage'),
+                  bg: theme.surface,
+                  fg: toneColor(theme, triageInfo?.tone ?? 'accent'),
+                  textColor: theme.muted,
+                },
+                {
+                  id: 'reason',
+                  keyLabel: ' e ',
+                  textLabel: t(lang, '错因', 'Reason'),
+                  bg: theme.surface,
+                  fg: theme.accent,
+                  textColor: theme.muted,
+                },
+              ];
+              if (relatedRecs.length > 0) {
+                chips.push({
+                  id: 'similar',
+                  keyLabel: ' x ',
+                  textLabel: t(lang, `同类题(${relatedRecs.length})`, `Similar(${relatedRecs.length})`),
+                  bg: theme.surface,
+                  fg: theme.success,
+                  textColor: theme.muted,
+                });
+              }
+              const visible: typeof chips = [];
+              let used = 0;
+              for (const chip of chips) {
+                const need = displayWidth(chip.keyLabel) + 1 + displayWidth(chip.textLabel) + (visible.length > 0 ? 2 : 0);
+                if (visible.length === 0 || used + need <= innerW) {
+                  visible.push(chip);
+                  used += need;
+                }
+              }
+              return visible.map((chip, idx) => (
+                <Box key={chip.id} flexDirection="row" flexShrink={0} marginRight={idx < visible.length - 1 ? 2 : 0}>
+                  <Text backgroundColor={chip.bg} color={chip.fg} bold>
+                    {chip.keyLabel}
+                  </Text>
+                  <Text color={chip.textColor}>{` ${chip.textLabel}`}</Text>
+                </Box>
+              ));
+            })()}
+          </Box>
+        </Panel>
+      );
+    },
+    [
+      selectedItem,
+      lang,
+      activePane,
+      triageInfo,
+      theme,
+      mathUnicode,
+      detailScrollActive,
+      detailLoading,
+      detail,
+      detailMarkdown,
+      isActive,
+      detailScrollTop,
+      relatedRecs,
+    ],
+  );
+
+  // Reason Modal options
+  const reasonOptions = useMemo<Array<SelectOption<string>>>(() => {
+    const opts: Array<SelectOption<string>> = ERROR_REASONS.map((r) => ({
+      value: r.id,
+      label: t(lang, r.zh, r.en),
+      hint:
+        r.id === 'concept'
+          ? t(lang, '易混概念 → 0-token 对比辨析 / 全书梳理', 'Confusable → 0-token contrast / Book')
+          : r.id === 'prerequisite'
+            ? t(lang, '前置未稳 → 0-token 先练前置题', 'Gap → 0-token prerequisite branch')
+            : r.id === 'slip'
+              ? t(lang, '粗心失误 → 仅按 FSRS 排程', 'Slip → FSRS spacing only')
+              : undefined,
+      badge: reasonShort(r.id, lang),
+      badgeTone: r.tone,
+    }));
+    opts.push({
+      value: '__clear__',
+      label: t(lang, '清除错因标记', 'Clear error reason'),
+      badge: '×',
+      badgeTone: 'muted',
+    });
+    return opts;
+  }, [lang]);
+
+  const reasonCountsSummary = useMemo(() => {
+    const map = new Map<ReasonFilterValue, number>();
+    for (const r of REASON_FILTER_ORDER) map.set(r, 0);
+    const pool = weakItems.length ? weakItems : allItems;
+    map.set('all', pool.length);
+    for (const item of pool) {
+      const k: ReasonFilterValue = item.errorReason ?? 'unclassified';
+      map.set(k, (map.get(k) ?? 0) + 1);
+    }
+    return map;
+  }, [weakItems, allItems]);
+
+  return (
+    <Box flexDirection="column" width={width} height={height}>
+      {/* Top Filter & KPI Strip */}
+      <Box height={1} width={width} paddingX={1} flexDirection="row" flexWrap="nowrap" overflow="hidden">
+        <Box flexShrink={0} marginRight={width < 72 ? 1 : 2}>
+          <Text color={theme.primary} bold>
+            {t(lang, '✕ 错题本', '✕ Mistakes')}
+          </Text>
+        </Box>
+        {TABS.map((tb) => {
+          const active = tab === tb.id;
+          const cnt =
+            tb.id === 'weak'
+              ? counts.weak
+              : tb.id === 'confusable'
+                ? confusableItems.length
+                : tb.id === 'all'
+                  ? allItems.length
+                  : weakItems.length;
+          const compactZh = tb.id === 'confusable' ? '易混' : tb.id === 'reason' ? '错因' : tb.zh;
+          const tabText =
+            width < 72
+              ? ` ${t(lang, compactZh, tb.en)} `
+              : ` ${t(lang, tb.zh, tb.en)} (${cnt}) `;
+          return (
+            <Box key={tb.id} marginRight={width < 72 ? 0 : 1} flexShrink={0}>
+              <Text
+                backgroundColor={active ? theme.primary : theme.surface}
+                color={active ? (theme.dark ? theme.bg : '#ffffff') : theme.muted}
+                bold={active}
+              >
+                {tabText}
+              </Text>
+            </Box>
+          );
+        })}
+        {width >= 88 ? (
+          <>
+            <Box flexGrow={1} />
+            <Box flexShrink={0}>
+              <Text color={theme.muted}>
+                {t(lang, `已订正 ${counts.history}  ·  推荐同类 ${recs.length}`, `Fixed ${counts.history}  ·  Similar ${recs.length}`)}
+              </Text>
+            </Box>
+          </>
+        ) : null}
+      </Box>
+
+      {/* Secondary Sub-filter Bar when "按错因" tab is active */}
+      {tab === 'reason' ? (
+        <Box height={1} width={width} paddingX={1} gap={1} overflow="hidden">
+          <Text color={theme.dim}>{t(lang, '错因筛选 [f]:', 'Reason [f]:')}</Text>
+          {REASON_FILTER_ORDER.map((r) => {
+            const active = reasonFilter === r;
+            const c = reasonCountsSummary.get(r) ?? 0;
+            return (
+              <Text
+                key={r}
+                backgroundColor={active ? theme.accent : undefined}
+                color={active ? (theme.dark ? theme.bg : '#ffffff') : c > 0 ? theme.text : theme.dim}
+                bold={active}
+              >
+                {active ? ` ${reasonLabel(r, lang)}(${c}) ` : `${reasonLabel(r, lang)}(${c})`}
+              </Text>
+            );
+          })}
+        </Box>
+      ) : null}
+
+      <Text color={theme.border}>{'─'.repeat(Math.max(0, width))}</Text>
+
+      {/* Master-Detail SplitPane */}
+      <SplitPane
+        width={width}
+        height={bodyHeight}
+        left={renderLeftPane}
+        right={renderRightPane}
+        leftWidth={0.44}
+        minLeft={28}
+        minRight={36}
+        breakpoint={86}
+        activePane={activePane}
+        narrowMode="tabs"
+        leftLabel={t(lang, '错题列表', 'List')}
+        rightLabel={t(lang, '错题详情', 'Detail')}
+        divider
+      />
+
+      {/* Modal: Error Reason Selector */}
+      {activeModal === 'reason' && selectedItem ? (
+        <Modal
+          title={t(lang, '选择错因分类', 'Set Error Reason')}
+          subtitle={selectedItem.topic || selectedItem.deckTitle}
+          icon="✎"
+          tone="accent"
+          width={Math.min(68, width - 4)}
+          onClose={() => setActiveModal(null)}
+          isActive={isActive}
+          hints={[
+            { key: '1-7', label: t(lang, '选择', 'Pick') },
+            { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+          ]}
+        >
+          <Box marginY={1} flexDirection="column">
+            <SelectList
+              options={reasonOptions}
+              currentValue={selectedItem.errorReason ?? '__clear__'}
+              isActive={isActive}
+              width={modalContentWidth(Math.min(68, width - 4))}
+              onSelect={(opt) => {
+                void setErrorReason(opt.value === '__clear__' ? null : (opt.value as ErrorReasonId));
+              }}
+            />
+          </Box>
+        </Modal>
+      ) : null}
+
+      {/* Modal: 0-Token Confusable Pair Contrast */}
+      {activeModal === 'confusable' && selectedItem ? (
+        <ConfusableContrastModal
+          item={selectedItem}
+          lang={lang}
+          width={Math.min(76, width - 4)}
+          isActive={isActive}
+          relatedRecs={relatedRecs}
+          onClose={() => setActiveModal(null)}
+          onPracticeContrast={() => {
+            setActiveModal(null);
+            const scope = [
+              { deckId: selectedItem.deckId, cardId: selectedItem.cardId },
+              ...relatedRecs.map((r) => ({ deckId: r.deckId, cardId: r.cardId })),
+            ];
+            void launchPractice(scope);
+          }}
+          onOpenBook={() => {
+            setActiveModal(null);
+            navigate('book', {
+              course: selectedItem.triage?.course || course || undefined,
+              deckId: selectedItem.deckId,
+              ...(selectedItem.triage?.hid || selectedItem.hid
+                ? { focusPointKey: selectedItem.triage?.hid || selectedItem.hid }
+                : {}),
+            });
+          }}
+        />
+      ) : null}
+
+      {/* Modal: Flag Question for Repair */}
+      {activeModal === 'flag' && selectedItem ? (
+        <Modal
+          title={t(lang, '标记题目待修题', 'Flag Question for Repair')}
+          subtitle={selectedItem.deckTitle}
+          icon="⚑"
+          tone="error"
+          width={Math.min(68, width - 4)}
+          onClose={() => setActiveModal(null)}
+          isActive={isActive}
+          hints={[
+            { key: 'Enter', label: t(lang, '提交标记', 'Submit') },
+            { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+          ]}
+        >
+          <Box flexDirection="column" marginY={1} gap={1}>
+            <Text color={theme.muted}>
+              {t(lang, '请输入问题描述（将写入 card.flag 供后台检查）：', 'Describe the issue (saved to card.flag):')}
+            </Text>
+            <TextInput
+              value={flagText}
+              onChange={setFlagText}
+              onSubmit={(val) => void submitFlagRepair(val)}
+              onCancel={() => setActiveModal(null)}
+              isActive={isActive}
+              width={modalContentWidth(Math.min(68, width - 4)) - 2}
+              placeholder={t(lang, '例如：选项存在歧义 / 参考答案有误', 'e.g. Ambiguous options / wrong key')}
+            />
+          </Box>
+        </Modal>
+      ) : null}
+    </Box>
+  );
+});
+
+interface ConfusableContrastModalProps {
+  item: WrongBookItem;
+  lang: 'zh' | 'en';
+  width: number;
+  isActive: boolean;
+  relatedRecs: readonly WrongBookRecommendItem[];
+  onClose: () => void;
+  onPracticeContrast: () => void;
+  onOpenBook: () => void;
+}
+
+const ConfusableContrastModal = memo(function ConfusableContrastModal({
+  item,
+  lang,
+  width,
+  isActive,
+  relatedRecs,
+  onClose,
+  onPracticeContrast,
+  onOpenBook,
+}: ConfusableContrastModalProps) {
+  const theme = useTheme();
+  const pair = item.triage?.confusable;
+  const innerW = modalContentWidth(width);
+  const names = (pair?.names ?? []).filter(Boolean);
+  const rows = pair?.rows ?? [];
+
+  useInput(
+    (input, key) => {
+      if (key.return || input === 'p') onPracticeContrast();
+      else if (input === 'b') onOpenBook();
+    },
+    { isActive },
+  );
+
+  return (
+    <Modal
+      title={t(lang, `0-token 易混对比 · ${pair?.id || 'C001'}`, `0-token Contrast · ${pair?.id || 'C001'}`)}
+      subtitle={names.join(' vs ') || item.topic || ''}
+      icon="⇄"
+      tone="warning"
+      width={width}
+      onClose={onClose}
+      isActive={isActive}
+      hints={[
+        { key: 'Enter/p', label: t(lang, `对比练习(${1 + relatedRecs.length})`, `Practise(${1 + relatedRecs.length})`) },
+        { key: 'b', label: t(lang, '打开复习全书', 'Open Book') },
+        { key: 'Esc', label: t(lang, '关闭', 'Close') },
+      ]}
+    >
+      <Box flexDirection="column" marginY={1} gap={1}>
+        {names.length >= 2 ? (
+          <Box gap={1}>
+            <Badge label={names[0]} tone="warning" variant="solid" />
+            <Text color={theme.muted}>vs</Text>
+            <Badge label={names[1]} tone="accent" variant="solid" />
+          </Box>
+        ) : null}
+        {rows.length > 0 ? (
+          <Box flexDirection="column">
+            {rows.slice(0, 8).map((row, idx) => (
+              <Box key={idx} flexDirection="column" marginBottom={0}>
+                <Text color={theme.primary} bold>
+                  {truncateDisplay(`▸ ${row.aspect || t(lang, '对比维度', 'Aspect')}`, innerW)}
+                </Text>
+                {(row.cells ?? []).map((cell, ci) => (
+                  <Text key={ci} color={theme.text}>
+                    {truncateDisplay(`  ${names[ci] ? `${names[ci]}: ` : ''}${cell}`, innerW)}
+                  </Text>
+                ))}
+              </Box>
+            ))}
+          </Box>
+        ) : (
+          <Text color={theme.muted}>
+            {t(
+              lang,
+              '可直接启动此题与同类易混题对比练习，或跳转复习全书查看完整辨析表。',
+              'Launch targeted contrast practice with related cards, or open Review Book.',
+            )}
+          </Text>
+        )}
+      </Box>
+    </Modal>
+  );
+});

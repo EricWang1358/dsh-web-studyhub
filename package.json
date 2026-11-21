@@ -157,6 +157,9 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "study:cli": "node scripts/study-cli.mjs",
+    "tui": "node packages/studyhub-tui/bin/studyhub-tui.mjs",
+    "tui:build": "npm --prefix packages/studyhub-tui run build",
+    "tui:test": "npm --prefix packages/studyhub-tui test",
     "prepare": "node scripts/prepare.mjs",
     "build:demo": "node scripts/build-demo.mjs",
     "test": "node scripts/test.mjs",

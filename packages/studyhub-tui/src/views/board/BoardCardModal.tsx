@@ -1,0 +1,195 @@
+import React, { memo, useCallback, useMemo, useState } from 'react';
+import { Box, Text, useInput } from 'ink';
+import { Modal, modalContentWidth, TextInput, useTheme } from '../../components/index.js';
+import { t } from '../../state/store.js';
+import type { KeyHint, UiLanguage } from '../../types/contracts.js';
+import { BOARD_COLUMNS, type BoardCard, type BoardColumnId } from './board-store.js';
+
+export interface BoardCardModalProps {
+  mode: 'add' | 'edit';
+  lang: UiLanguage;
+  initialColumn: BoardColumnId;
+  initialCourse?: string;
+  card?: BoardCard | null;
+  terminalCols: number;
+  onClose: () => void;
+  onSubmit: (data: { title: string; course: string; dueDate: string; column: BoardColumnId }) => void;
+}
+
+type Field = 'title' | 'course' | 'dueDate' | 'column';
+const FIELDS: readonly Field[] = ['title', 'course', 'dueDate', 'column'];
+
+export const BoardCardModal = memo(function BoardCardModal({
+  mode,
+  lang,
+  initialColumn,
+  initialCourse = '',
+  card,
+  terminalCols,
+  onClose,
+  onSubmit,
+}: BoardCardModalProps) {
+  const theme = useTheme();
+  const frameWidth = Math.max(46, Math.min(68, terminalCols - 6));
+  const innerWidth = modalContentWidth(frameWidth);
+
+  const [title, setTitle] = useState(() => (mode === 'edit' ? card?.title || '' : ''));
+  const [course, setCourse] = useState(() => (mode === 'edit' ? card?.course || '' : initialCourse));
+  const [dueDate, setDueDate] = useState(() => (mode === 'edit' ? card?.dueDate || '' : ''));
+  const [column, setColumn] = useState<BoardColumnId>(() => (mode === 'edit' && card ? card.column : initialColumn));
+  const [field, setField] = useState<Field>('title');
+  const [error, setError] = useState('');
+
+  const handleConfirm = useCallback(() => {
+    const trimmed = title.trim();
+    if (!trimmed) {
+      setError(t(lang, '请输入任务标题', 'Please enter a card title'));
+      setField('title');
+      return;
+    }
+    const cleanDue = dueDate.trim();
+    if (cleanDue && !/^\d{4}-\d{2}-\d{2}$/.test(cleanDue)) {
+      setError(t(lang, '截止日期格式请用 YYYY-MM-DD（或留空）', 'Due date must be YYYY-MM-DD (or leave blank)'));
+      setField('dueDate');
+      return;
+    }
+    onSubmit({
+      title: trimmed,
+      course: course.trim(),
+      dueDate: cleanDue,
+      column,
+    });
+  }, [title, dueDate, course, column, lang, onSubmit]);
+
+  useInput((input, key) => {
+    if (key.ctrl && input === 's') {
+      handleConfirm();
+      return;
+    }
+    if (key.tab || key.downArrow || key.upArrow) {
+      const dir = key.shift || key.upArrow ? -1 : 1;
+      const idx = FIELDS.indexOf(field);
+      setField(FIELDS[(idx + dir + FIELDS.length) % FIELDS.length]);
+      return;
+    }
+    if (field === 'column') {
+      if (key.leftArrow || input === 'h') {
+        const idx = BOARD_COLUMNS.indexOf(column);
+        setColumn(BOARD_COLUMNS[(idx + 2) % 3]);
+      } else if (key.rightArrow || input === 'l') {
+        const idx = BOARD_COLUMNS.indexOf(column);
+        setColumn(BOARD_COLUMNS[(idx + 1) % 3]);
+      } else if (input === '1') setColumn('todo');
+      else if (input === '2') setColumn('doing');
+      else if (input === '3') setColumn('done');
+      else if (key.return) handleConfirm();
+    }
+  });
+
+  const hints: KeyHint[] = useMemo(
+    () => [
+      { key: 'Tab/↑↓', label: t(lang, '切换栏位', 'Next field') },
+      { key: 'Enter', label: t(lang, '确认', 'Save') },
+      { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+    ],
+    [lang],
+  );
+
+  const colLabel = (c: BoardColumnId) =>
+    c === 'todo' ? t(lang, '待办 Todo', 'Todo') : c === 'doing' ? t(lang, '进行中 Doing', 'Doing') : t(lang, '已完成 Done', 'Done');
+
+  return (
+    <Modal
+      title={mode === 'add' ? t(lang, '添加看板任务', 'Add Board Card') : t(lang, '编辑看板任务', 'Edit Board Card')}
+      icon="▦"
+      tone="primary"
+      width={frameWidth}
+      onClose={onClose}
+      hints={hints}
+    >
+      <Box flexDirection="column" gap={0}>
+        <Text color={field === 'title' ? theme.primary : theme.muted} bold>
+          {t(lang, '任务标题 *', 'Title *')}
+        </Text>
+        <TextInput
+          value={title}
+          onChange={setTitle}
+          onSubmit={() => {
+            if (title.trim()) setField('course');
+            else setError(t(lang, '请输入任务标题', 'Please enter a card title'));
+          }}
+          onCancel={onClose}
+          isActive={field === 'title'}
+          width={innerWidth - 2}
+          prompt="› "
+          placeholder={t(lang, '例如：刷完第 5 章矩阵特征值错题', 'e.g. Review Chapter 5 eigenvalue mistakes')}
+          maxLength={300}
+          captureInput={false}
+        />
+
+        <Box marginTop={1} flexDirection="column">
+          <Text color={field === 'course' ? theme.primary : theme.muted} bold>
+            {t(lang, '课程标签（可选）', 'Course Tag (optional)')}
+          </Text>
+          <TextInput
+            value={course}
+            onChange={setCourse}
+            onSubmit={() => setField('dueDate')}
+            onCancel={onClose}
+            isActive={field === 'course'}
+            width={innerWidth - 2}
+            prompt="# "
+            placeholder={t(lang, '例如：线性代数', 'e.g. Linear Algebra')}
+            maxLength={120}
+            captureInput={false}
+          />
+        </Box>
+
+        <Box marginTop={1} flexDirection="column">
+          <Text color={field === 'dueDate' ? theme.primary : theme.muted} bold>
+            {t(lang, '截止日期 YYYY-MM-DD（可选）', 'Due Date YYYY-MM-DD (optional)')}
+          </Text>
+          <TextInput
+            value={dueDate}
+            onChange={setDueDate}
+            onSubmit={handleConfirm}
+            onCancel={onClose}
+            isActive={field === 'dueDate'}
+            width={innerWidth - 2}
+            prompt="◷ "
+            placeholder="2026-11-30"
+            maxLength={20}
+            captureInput={false}
+          />
+        </Box>
+
+        <Box marginTop={1} flexDirection="column">
+          <Text color={field === 'column' ? theme.primary : theme.muted} bold>
+            {t(lang, '所属列（←/→ 或 1/2/3）', 'Column (←/→ or 1/2/3)')}
+          </Text>
+          <Box gap={2} marginTop={0}>
+            {BOARD_COLUMNS.map((c, idx) => {
+              const selected = column === c;
+              return (
+                <Text
+                  key={c}
+                  backgroundColor={selected ? (field === 'column' ? theme.primary : theme.surface) : undefined}
+                  color={selected ? (field === 'column' ? (theme.dark ? theme.bg : '#ffffff') : theme.primary) : theme.muted}
+                  bold={selected}
+                >
+                  {` ${idx + 1}:${colLabel(c)} `}
+                </Text>
+              );
+            })}
+          </Box>
+        </Box>
+
+        {error ? (
+          <Box marginTop={1}>
+            <Text color={theme.error}>{`✕ ${error}`}</Text>
+          </Box>
+        ) : null}
+      </Box>
+    </Modal>
+  );
+});

@@ -1,0 +1,820 @@
+import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { Box, Text, useInput } from 'ink';
+import type { KeyHint, StudySnapshot, ViewProps } from '../../types/contracts.js';
+import { t, useTuiStore } from '../../state/store.js';
+import {
+  Badge,
+  ConfirmDialog,
+  Divider,
+  EmptyState,
+  Panel,
+  ProgressBar,
+  SplitPane,
+  StatusPill,
+  VirtualList,
+  useClaimKeys,
+  useFooterHints,
+  useTheme,
+  type VirtualListRenderContext,
+} from '../../components/index.js';
+import { displayWidth, padDisplay, truncateDisplay } from '../../render/index.js';
+import { currentCourse, dueToday, useShellActions } from '../../shell/index.js';
+import { getSampleStatus, removeSampleCourse, tryAction } from '../../host/index.js';
+import { DeckManageModal } from './DeckManageModal.js';
+import { VoicePackModal } from './VoicePackModal.js';
+
+type DeckItem = NonNullable<StudySnapshot['decks']>[number];
+type DraftItem = NonNullable<StudySnapshot['drafts']>[number];
+type JobItem = NonNullable<StudySnapshot['jobs']>[number];
+
+interface DeckProgressEntry {
+  total?: number;
+  mastery?: number;
+  due?: number;
+  counts?: {
+    new?: number;
+    weak?: number;
+    learning?: number;
+    familiar?: number;
+    mastered?: number;
+  };
+  topics?: Array<{ name: string; total: number; mastery: number; due: number; status: string }>;
+}
+
+interface FocusProgressInfo {
+  total: number;
+  done: number;
+  weak: number;
+  none: number;
+}
+
+type WorkEntry =
+  | { kind: 'draft'; id: string; title: string; course: string; count: number; draft: DraftItem }
+  | { kind: 'job'; id: string; title: string; course: string; status: string; error: string; job: JobItem };
+
+const CLAIMED_LIBRARY_KEYS = ['r', 'a'] as const;
+
+function localDayKey(value: Date | string | number): string {
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function formatDateShort(raw: string | number | undefined | null, lang: 'zh' | 'en'): string {
+  if (raw === undefined || raw === null || raw === '') return t(lang, '尚未学习', 'Never');
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return String(raw);
+  const diffMin = Math.floor((Date.now() - d.getTime()) / 60000);
+  if (diffMin < 1) return t(lang, '刚刚', 'Just now');
+  if (diffMin < 60) return t(lang, `${diffMin} 分钟前`, `${diffMin}m ago`);
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24) return t(lang, `${diffH} 小时前`, `${diffH}h ago`);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function deckStats(deck: DeckItem, progressMap: Record<string, DeckProgressEntry> | undefined) {
+  const p = progressMap?.[deck.id];
+  const total = Number(deck.count ?? p?.total ?? deck.cardCount ?? 0) || 0;
+  const due = Number(deck.due ?? p?.due ?? deck.dueCount ?? 0) || 0;
+  const newCount = Number(p?.counts?.new ?? deck.newCount ?? 0) || 0;
+  const wrong = Number(deck.wrong ?? p?.counts?.weak ?? deck.wrongCount ?? 0) || 0;
+  const mastered = Number(p?.counts?.mastered ?? deck.masteredCount ?? 0) || 0;
+  const familiar = Number(p?.counts?.familiar ?? 0) || 0;
+  const learning = Number(p?.counts?.learning ?? 0) || 0;
+  const mastery =
+    typeof p?.mastery === 'number'
+      ? Math.max(0, Math.min(100, Math.round(p.mastery)))
+      : total > 0
+        ? Math.round((mastered / total) * 100)
+        : 0;
+  const flagged = Number((deck as Record<string, unknown>).flagged ?? 0) || 0;
+  const suspended = Number((deck as Record<string, unknown>).suspended ?? 0) || 0;
+  const lastStudied = (deck.lastStudiedAt ?? deck.updatedAt ?? deck.publishedAt ?? deck.createdAt) as
+    | string
+    | number
+    | undefined;
+  return { total, due, newCount, wrong, mastered, familiar, learning, mastery, flagged, suspended, lastStudied, topics: p?.topics };
+}
+
+function isFailedJob(job: JobItem): boolean {
+  const st = String(job.status ?? '').toLowerCase();
+  return st === 'failed' || st === 'error' || st === 'cancelled' || st === 'interrupted';
+}
+
+export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
+  host,
+  width,
+  height,
+  isActive,
+}) {
+  const theme = useTheme();
+  const actions = useShellActions();
+  const lang = useTuiStore((s) => s.preferences.language);
+  const snapshot = useTuiStore((s) => s.snapshot);
+  const activeRunId = useTuiStore((s) => s.activeRunId);
+  const navigate = useTuiStore((s) => s.navigate);
+  const notify = useTuiStore((s) => s.notify);
+
+  const course = currentCourse(snapshot);
+  const [showArchived, setShowArchived] = useState(false);
+  const [focusSection, setFocusSection] = useState<'decks' | 'work'>('decks');
+  const [deckIndex, setDeckIndex] = useState(0);
+  const [workIndex, setWorkIndex] = useState(0);
+
+  const [manageDeckId, setManageDeckId] = useState<string | null>(null);
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  const [confirmDeleteDeck, setConfirmDeleteDeck] = useState<DeckItem | null>(null);
+  const [busyAction, setBusyAction] = useState(false);
+
+  const [streak, setStreak] = useState<number>(0);
+  const [sampleLoaded, setSampleLoaded] = useState<boolean>(false);
+
+  const modalOpen = Boolean(manageDeckId || voiceOpen || confirmDeleteDeck);
+  const viewActive = isActive && !modalOpen;
+
+  useClaimKeys(CLAIMED_LIBRARY_KEYS, viewActive);
+
+  // Sync streak & sample status cleanly without polluting global store
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const [statsRes, sampleRes] = await Promise.all([
+        tryAction<{ totals?: { streak?: number } }>(host, 'stats', course ? { course } : {}),
+        getSampleStatus(host).catch(() => null),
+      ]);
+      if (!alive) return;
+      if (statsRes.ok && typeof statsRes.value?.totals?.streak === 'number') {
+        setStreak(statsRes.value.totals.streak);
+      } else if (typeof snapshot?.today?.streak === 'number') {
+        setStreak(snapshot.today.streak);
+      }
+      if (sampleRes && typeof sampleRes.loaded === 'boolean') {
+        setSampleLoaded(sampleRes.loaded);
+      } else {
+        setSampleLoaded(Boolean(snapshot?.sample?.loaded || snapshot?.decks?.some((d) => Boolean(d.sample))));
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [host, course, snapshot?.revision, snapshot?.today?.streak, snapshot?.sample?.loaded, snapshot?.decks]);
+
+  const progressMap = snapshot?.progress as Record<string, DeckProgressEntry> | undefined;
+
+  const filteredDecks = useMemo<DeckItem[]>(() => {
+    const all = snapshot?.decks ?? [];
+    return all.filter((d) => {
+      if (!showArchived && d.archived) return false;
+      if ((d as Record<string, unknown>).systemKind) return false;
+      if (course && d.course !== course) return false;
+      return true;
+    });
+  }, [snapshot?.decks, course, showArchived]);
+
+  const workEntries = useMemo<WorkEntry[]>(() => {
+    const list: WorkEntry[] = [];
+    for (const draft of snapshot?.drafts ?? []) {
+      if (course && draft.course && draft.course !== course) continue;
+      const count = Array.isArray(draft.cards) ? draft.cards.length : Number(draft.cardCount ?? 0) || 0;
+      list.push({
+        kind: 'draft',
+        id: draft.id,
+        title: String(draft.title || t(lang, '未命名草稿', 'Untitled Draft')),
+        course: String(draft.course || ''),
+        count,
+        draft,
+      });
+    }
+    for (const job of snapshot?.jobs ?? []) {
+      if (!isFailedJob(job)) continue;
+      if (course && job.course && job.course !== course) continue;
+      list.push({
+        kind: 'job',
+        id: job.id,
+        title: String(job.title || job.type || job.kind || job.id),
+        course: String(job.course || ''),
+        status: String(job.status || 'failed'),
+        error: String(job.error || job.message || ''),
+        job,
+      });
+    }
+    return list;
+  }, [snapshot?.drafts, snapshot?.jobs, course, lang]);
+
+  useEffect(() => {
+    if (deckIndex >= filteredDecks.length) setDeckIndex(Math.max(0, filteredDecks.length - 1));
+  }, [filteredDecks.length, deckIndex]);
+
+  useEffect(() => {
+    if (workIndex >= workEntries.length) setWorkIndex(Math.max(0, workEntries.length - 1));
+    if (workEntries.length === 0 && focusSection === 'work') setFocusSection('decks');
+  }, [workEntries.length, workIndex, focusSection]);
+
+  const selectedDeck = filteredDecks[deckIndex] ?? null;
+  const selectedWork = workEntries[workIndex] ?? null;
+
+  // KPI metrics
+  const kpi = useMemo(() => {
+    const due = dueToday(snapshot);
+    const todayKey = localDayKey(new Date());
+    const reviewedDirect = Number(snapshot?.today?.reviewed);
+    const reviewed = Number.isFinite(reviewedDirect)
+      ? reviewedDirect
+      : (snapshot?.attempts ?? []).filter((a) => {
+          if (!a || (a as Record<string, unknown>).voidedAt) return false;
+          const ts = (a as Record<string, unknown>).timestamp;
+          return typeof ts === 'string' && localDayKey(ts) === todayKey;
+        }).length;
+
+    let totalCards = 0;
+    let weightedMastery = 0;
+    for (const d of filteredDecks) {
+      if (d.archived) continue;
+      const st = deckStats(d, progressMap);
+      totalCards += st.total;
+      weightedMastery += st.mastery * st.total;
+    }
+    const masteryPct = totalCards > 0 ? Math.round(weightedMastery / totalCards) : 0;
+
+    const fpRaw = (snapshot?.focus as Record<string, unknown> | undefined)?.progress as FocusProgressInfo | undefined;
+    const focusProgress = fpRaw && fpRaw.total > 0 ? fpRaw : null;
+
+    return { due, reviewed, streak, masteryPct, focusProgress };
+  }, [snapshot, filteredDecks, progressMap, streak]);
+
+  const resumeRunForDeck = useMemo(() => {
+    const runs = snapshot?.runs ?? [];
+    if (selectedDeck) {
+      const hit = runs.find(
+        (r) =>
+          r.deckId === selectedDeck.id ||
+          (Array.isArray((r as Record<string, unknown>).deckIds) &&
+            ((r as Record<string, unknown>).deckIds as string[]).includes(selectedDeck.id)),
+      );
+      if (hit) return hit.id;
+    }
+    if (activeRunId) return activeRunId;
+    const lastId = (snapshot?.lastRun as Record<string, unknown> | null | undefined)?.id;
+    return typeof lastId === 'string' && lastId ? lastId : null;
+  }, [snapshot?.runs, snapshot?.lastRun, selectedDeck, activeRunId]);
+
+  const handleStartReview = useCallback(
+    (deck: DeckItem) => {
+      if (deck.archived) {
+        notify(t(lang, '请先按 [a] 恢复已归档题组再开始练习', 'Unarchive this deck ([a]) before practicing'), 'warning');
+        return;
+      }
+      navigate('review', { deckId: deck.id, course: deck.course ?? course ?? undefined });
+    },
+    [navigate, notify, lang, course],
+  );
+
+  const handleArchiveToggle = useCallback(
+    async (deck: DeckItem) => {
+      if (busyAction) return;
+      setBusyAction(true);
+      const nextArchived = !deck.archived;
+      const res = await tryAction<{ ok?: boolean; closedRuns?: number }>(host, 'deck.archive', {
+        id: deck.id,
+        archived: nextArchived,
+      });
+      setBusyAction(false);
+      if (!res.ok) {
+        notify(res.error?.message || t(lang, '操作失败', 'Archive action failed'), 'error');
+        return;
+      }
+      await actions.refresh();
+      notify(
+        nextArchived
+          ? t(lang, `已归档「${deck.title ?? deck.id}」`, `Archived "${deck.title ?? deck.id}"`)
+          : t(lang, `已恢复「${deck.title ?? deck.id}」`, `Restored "${deck.title ?? deck.id}"`),
+        'success',
+      );
+    },
+    [busyAction, host, actions, notify, lang],
+  );
+
+  const handleDeleteConfirmed = useCallback(async () => {
+    const target = confirmDeleteDeck;
+    setConfirmDeleteDeck(null);
+    if (!target || busyAction) return;
+    setBusyAction(true);
+    if (!target.archived) {
+      const archRes = await tryAction(host, 'deck.archive', { id: target.id, archived: true });
+      if (!archRes.ok) {
+        setBusyAction(false);
+        notify(archRes.error?.message || t(lang, '归档失败，无法删除', 'Could not archive before delete'), 'error');
+        return;
+      }
+    }
+    const delRes = await tryAction(host, 'deck.remove', { id: target.id, confirm: true });
+    setBusyAction(false);
+    if (!delRes.ok) {
+      notify(delRes.error?.message || t(lang, '删除题组失败', 'Failed to delete deck'), 'error');
+      return;
+    }
+    await actions.refresh();
+    notify(t(lang, `已永久删除「${target.title ?? target.id}」`, `Deleted "${target.title ?? target.id}"`), 'success');
+  }, [confirmDeleteDeck, busyAction, host, actions, notify, lang]);
+
+  const handleSampleToggle = useCallback(async () => {
+    if (busyAction) return;
+    if (sampleLoaded) {
+      setBusyAction(true);
+      try {
+        await removeSampleCourse(host);
+        await actions.refresh();
+        setSampleLoaded(false);
+        notify(t(lang, '已移除示例课程', 'Sample course removed'), 'success');
+      } catch (err) {
+        notify(err instanceof Error ? err.message : String(err), 'error');
+      } finally {
+        setBusyAction(false);
+      }
+    } else {
+      await actions.loadSample();
+      setSampleLoaded(true);
+    }
+  }, [busyAction, sampleLoaded, host, actions, notify, lang]);
+
+  const handleRetryJob = useCallback(
+    async (job: JobItem) => {
+      if (busyAction) return;
+      setBusyAction(true);
+      const res = await tryAction(host, 'job.control', { jobId: job.id, action: 'retry' });
+      setBusyAction(false);
+      if (!res.ok) {
+        notify(res.error?.message || t(lang, '重试任务失败', 'Job retry failed'), 'error');
+        return;
+      }
+      await actions.refresh();
+      notify(t(lang, `已重试任务：${job.title || job.id}`, `Retrying job: ${job.title || job.id}`), 'success');
+    },
+    [busyAction, host, actions, notify, lang],
+  );
+
+  const handleOpenWork = useCallback(
+    (item: WorkEntry) => {
+      if (item.kind === 'draft') {
+        navigate('generate', { draftId: item.id });
+      } else {
+        navigate('tasks', { jobId: item.id });
+      }
+    },
+    [navigate],
+  );
+
+  useInput(
+    (input, key) => {
+      if (busyAction) return;
+      if (key.tab && workEntries.length > 0) {
+        setFocusSection((prev) => (prev === 'decks' ? 'work' : 'decks'));
+        return;
+      }
+      if (input === 'h') {
+        setShowArchived((v) => !v);
+        return;
+      }
+      if (input === 's') {
+        void handleSampleToggle();
+        return;
+      }
+      if (input === 'v') {
+        setVoiceOpen(true);
+        return;
+      }
+      if (input === 'r') {
+        if (resumeRunForDeck) {
+          navigate('review', { runId: resumeRunForDeck });
+        } else if (selectedDeck) {
+          handleStartReview(selectedDeck);
+        } else {
+          navigate('review', course ? { course } : {});
+        }
+        return;
+      }
+      if (focusSection === 'work' && selectedWork) {
+        if (input === 'y' && selectedWork.kind === 'job') {
+          void handleRetryJob(selectedWork.job);
+          return;
+        }
+        if (input === 'o') {
+          handleOpenWork(selectedWork);
+          return;
+        }
+      }
+      if (selectedDeck) {
+        if (input === 'm') {
+          setManageDeckId(selectedDeck.id);
+        } else if (input === 'a') {
+          void handleArchiveToggle(selectedDeck);
+        } else if (input === 'd') {
+          setConfirmDeleteDeck(selectedDeck);
+        }
+      }
+    },
+    { isActive: viewActive },
+  );
+
+  const hints = useMemo<KeyHint[]>(
+    () => [
+      { key: 'Enter', label: focusSection === 'work' ? t(lang, '打开', 'Open') : t(lang, '开始练习', 'Practice') },
+      { key: 'r', label: t(lang, '继续上次', 'Resume') },
+      { key: 'm', label: t(lang, '管理卡片', 'Manage') },
+      { key: 'v', label: t(lang, '语音包', 'Voice Pack') },
+      { key: 'a', label: t(lang, '归档', 'Archive') },
+      { key: 'd', label: t(lang, '删除', 'Delete') },
+      { key: 's', label: sampleLoaded ? t(lang, '移示例', 'Rm Sample') : t(lang, '示例课', 'Sample') },
+    ],
+    [focusSection, lang, sampleLoaded],
+  );
+  useFooterHints(hints, viewActive);
+
+  // Layout geometry
+  const kpiHeight = kpi.focusProgress ? 3 : 2;
+  const bodyHeight = Math.max(6, height - kpiHeight);
+
+  const renderDeckRow = useCallback(
+    (deck: DeckItem, ctx: VirtualListRenderContext) => {
+      const st = deckStats(deck, progressMap);
+      const titleRaw = String(deck.title ?? deck.name ?? deck.id);
+      const showCoursePill = Boolean(deck.course) && ctx.width >= 52 && course == null;
+      const courseTag = showCoursePill && deck.course ? ` [${truncateDisplay(deck.course, 10)}]` : '';
+      const archTag = deck.archived ? ' [归档]' : '';
+      const statsStr = ` ${st.mastery}% · ${t(lang, '待', 'D')}${st.due}/${t(lang, '新', 'N')}${st.newCount}/${t(lang, '错', 'W')}${st.wrong}`;
+      const barW = ctx.width >= 52 ? 8 : 0;
+      const barChunk = barW > 0 ? ' ' : '';
+      const titleBudget = Math.max(8, ctx.width - displayWidth(courseTag) - displayWidth(archTag) - displayWidth(statsStr) - barW - barChunk.length);
+      const titleText = padDisplay(truncateDisplay(titleRaw, titleBudget), titleBudget);
+      const fg = ctx.selected ? theme.selectionFg : deck.archived ? theme.dim : theme.text;
+      return (
+        <Text color={fg} bold={ctx.selected}>
+          {titleText}
+          {courseTag ? <Text color={ctx.selected ? theme.selectionFg : theme.accent}>{courseTag}</Text> : null}
+          {archTag ? <Text color={theme.dim}>{archTag}</Text> : null}
+          {barW > 0 ? ' ' : ''}
+          {barW > 0 ? <ProgressBar ratio={st.mastery / 100} width={barW} showPercent={false} /> : null}
+          <Text color={ctx.selected ? theme.selectionFg : st.due > 0 ? theme.warning : theme.muted}>{statsStr}</Text>
+        </Text>
+      );
+    },
+    [progressMap, lang, theme, course],
+  );
+
+  const renderWorkRow = useCallback(
+    (item: WorkEntry, ctx: VirtualListRenderContext) => {
+      const tag = item.kind === 'draft' ? t(lang, '[草稿]', '[Draft]') : t(lang, '[失败]', '[Failed]');
+      const meta =
+        item.kind === 'draft'
+          ? ` ${item.count}${t(lang, '题', 'q')}`
+          : ` ${item.status}`;
+      const avail = Math.max(8, ctx.width - displayWidth(tag) - displayWidth(meta) - 1);
+      const title = padDisplay(truncateDisplay(item.title, avail), avail);
+      return (
+        <Text color={ctx.selected ? theme.selectionFg : theme.text} bold={ctx.selected}>
+          <Text color={ctx.selected ? theme.selectionFg : item.kind === 'draft' ? theme.info : theme.error}>{tag} </Text>
+          {title}
+          <Text color={ctx.selected ? theme.selectionFg : theme.muted}>{meta}</Text>
+        </Text>
+      );
+    },
+    [lang, theme],
+  );
+
+  const renderLeftPane = useCallback(
+    (size: { width: number; height: number }) => {
+      const hasWork = workEntries.length > 0;
+      const workBoxH = hasWork ? Math.min(Math.max(4, workEntries.length + 3), Math.max(5, Math.floor(size.height * 0.35))) : 0;
+      const deckBoxH = Math.max(4, size.height - workBoxH);
+      const deckListH = Math.max(2, deckBoxH - 2);
+      const deckListW = Math.max(10, size.width - 4);
+      const workListH = Math.max(1, workBoxH - 3);
+
+      return (
+        <Box flexDirection="column" width={size.width} height={size.height}>
+          <Panel
+            title={t(lang, '题组列表', 'Decks')}
+            icon="◈"
+            badge={filteredDecks.length}
+            subtitle={showArchived ? t(lang, '含已归档 [h]', '+Archived [h]') : t(lang, '[h] 含归档', '[h] Archived')}
+            focused={focusSection === 'decks'}
+            width={size.width}
+            height={deckBoxH}
+          >
+            {filteredDecks.length === 0 ? (
+              <EmptyState
+                title={t(lang, '当前范围暂无题组', 'No decks in this scope')}
+                hint={t(lang, '按 [s] 载入示例课程，或按 [3] 从资料生成题目', 'Press [s] for sample course, or [3] to generate')}
+                width={deckListW}
+                height={deckListH}
+              />
+            ) : (
+              <VirtualList
+                items={filteredDecks}
+                height={deckListH}
+                width={deckListW}
+                selectedIndex={deckIndex}
+                onChange={setDeckIndex}
+                onSelect={handleStartReview}
+                isActive={viewActive && focusSection === 'decks'}
+                keyExtractor={(d) => d.id}
+                renderItem={renderDeckRow}
+              />
+            )}
+          </Panel>
+
+          {hasWork ? (
+            <Panel
+              title={t(lang, '草稿与异常任务', 'Drafts & Failed Jobs')}
+              icon="⚑"
+              badge={workEntries.length}
+              badgeTone="warning"
+              subtitle={t(lang, 'Tab 切换 · y 重试 · o 打开', 'Tab focus · y retry · o open')}
+              focused={focusSection === 'work'}
+              width={size.width}
+              height={workBoxH}
+            >
+              <VirtualList
+                items={workEntries}
+                height={workListH}
+                width={deckListW}
+                selectedIndex={workIndex}
+                onChange={setWorkIndex}
+                onSelect={handleOpenWork}
+                isActive={viewActive && focusSection === 'work'}
+                keyExtractor={(w) => `${w.kind}:${w.id}`}
+                renderItem={renderWorkRow}
+              />
+            </Panel>
+          ) : null}
+        </Box>
+      );
+    },
+    [
+      workEntries,
+      lang,
+      filteredDecks,
+      showArchived,
+      focusSection,
+      deckIndex,
+      handleStartReview,
+      viewActive,
+      renderDeckRow,
+      workIndex,
+      handleOpenWork,
+      renderWorkRow,
+    ],
+  );
+
+  const renderRightPane = useCallback(
+    (size: { width: number; height: number }) => {
+      const innerW = Math.max(16, size.width - 4);
+      if (focusSection === 'work' && selectedWork) {
+        return (
+          <Panel
+            title={selectedWork.kind === 'draft' ? t(lang, '草稿详情', 'Draft Detail') : t(lang, '异常任务详情', 'Failed Job Detail')}
+            icon={selectedWork.kind === 'draft' ? '✦' : '▲'}
+            tone={selectedWork.kind === 'draft' ? 'info' : 'error'}
+            focused
+            width={size.width}
+            height={size.height}
+          >
+            <Box flexDirection="column" gap={1}>
+              <Text color={theme.text} bold>{selectedWork.title}</Text>
+              <Box flexDirection="row" gap={1}>
+                {selectedWork.course ? <Badge label={selectedWork.course} tone="accent" variant="soft" /> : null}
+                <StatusPill
+                  label={selectedWork.kind === 'draft' ? `${selectedWork.count} ${t(lang, '道草稿题', 'draft cards')}` : selectedWork.status}
+                  status={selectedWork.kind === 'draft' ? 'idle' : 'error'}
+                />
+              </Box>
+              {selectedWork.kind === 'job' && selectedWork.error ? (
+                <Text color={theme.error} wrap="wrap">{selectedWork.error}</Text>
+              ) : null}
+              <Divider width={innerW} />
+              <Text color={theme.accent}>
+                {selectedWork.kind === 'draft'
+                  ? t(lang, '[Enter / o] 在创建页审核与发布草稿', '[Enter / o] Open draft in Generate view')
+                  : t(lang, '[y] 立即重试该任务   [Enter / o] 打开任务监控', '[y] Retry job   [Enter / o] Open Tasks view')}
+              </Text>
+              <Text color={theme.muted}>{t(lang, '[Tab] 返回题组列表', '[Tab] Return to Decks list')}</Text>
+            </Box>
+          </Panel>
+        );
+      }
+
+      if (!selectedDeck) {
+        return (
+          <Panel title={t(lang, '题组详情', 'Deck Detail')} width={size.width} height={size.height}>
+            <EmptyState
+              title={t(lang, '未选中题组', 'No deck selected')}
+              hint={t(lang, '按 [s] 载入示例课快速体验', 'Press [s] to load the sample course')}
+              width={innerW}
+              height={Math.max(4, size.height - 4)}
+            />
+          </Panel>
+        );
+      }
+
+      const st = deckStats(selectedDeck, progressMap);
+      const topicsLine = (selectedDeck as { topics?: string[] }).topics?.slice(0, 5).join(' · ') || '';
+
+      return (
+        <Panel
+          title={String(selectedDeck.title ?? selectedDeck.name ?? selectedDeck.id)}
+          icon="▤"
+          subtitle={formatDateShort(st.lastStudied, lang)}
+          focused={focusSection === 'decks'}
+          width={size.width}
+          height={size.height}
+        >
+          <Box flexDirection="column" gap={0}>
+            {/* Pills row */}
+            <Box flexDirection="row" gap={1} flexWrap="wrap">
+              <Badge label={selectedDeck.course || t(lang, '未分课', 'General')} tone="accent" variant="soft" />
+              {selectedDeck.archived ? <StatusPill label={t(lang, '已归档', 'Archived')} status="warn" /> : null}
+              {(selectedDeck as Record<string, unknown>).sample ? (
+                <StatusPill label={t(lang, '示例课', 'Sample')} status="ai" />
+              ) : null}
+              {st.due > 0 ? (
+                <StatusPill label={`${st.due} ${t(lang, '题到期', 'due')}`} status="warn" />
+              ) : (
+                <StatusPill label={t(lang, '今日已清', 'Caught up')} status="ok" />
+              )}
+            </Box>
+
+            <Box marginTop={1}>
+              <ProgressBar
+                ratio={st.mastery / 100}
+                width={Math.min(44, innerW)}
+                label={t(lang, '掌握度', 'Mastery')}
+                style="block"
+              />
+            </Box>
+
+            <Divider width={innerW} label={t(lang, '题量分布', 'Breakdown')} />
+
+            <Box flexDirection="row" gap={2} flexWrap="wrap">
+              <Text color={theme.text}>{t(lang, '总题数', 'Total')}: <Text bold>{st.total}</Text></Text>
+              <Text color={theme.success}>{t(lang, '已掌握', 'Mastered')}: <Text bold>{st.mastered}</Text></Text>
+              <Text color={theme.info}>{t(lang, '熟悉/学习中', 'Learning')}: <Text bold>{st.familiar + st.learning}</Text></Text>
+              <Text color={theme.accent}>{t(lang, '新题', 'New')}: <Text bold>{st.newCount}</Text></Text>
+              <Text color={theme.error}>{t(lang, '薄弱/错题', 'Weak')}: <Text bold>{st.wrong}</Text></Text>
+              {st.flagged > 0 ? (
+                <Text color={theme.warning}>{t(lang, '待修标记', 'Flagged')}: <Text bold>{st.flagged}</Text></Text>
+              ) : null}
+            </Box>
+
+            <Box marginTop={0}>
+              <Text color={theme.muted}>
+                {t(lang, '最近学习', 'Last studied')}: <Text color={theme.text}>{formatDateShort(st.lastStudied, lang)}</Text>
+              </Text>
+            </Box>
+
+            {topicsLine ? (
+              <Box marginTop={0}>
+                <Text color={theme.muted}>
+                  {t(lang, '涵盖主题', 'Topics')}: <Text color={theme.text}>{truncateDisplay(topicsLine, Math.max(12, innerW - 12))}</Text>
+                </Text>
+              </Box>
+            ) : null}
+
+            <Divider width={innerW} label={t(lang, '快捷操作', 'Quick Actions')} />
+
+            <Box flexDirection="column">
+              <Text>
+                <Text color={theme.primary} bold>[Enter]</Text>
+                <Text color={theme.text}> {t(lang, '开始练习', 'Start practice')}   </Text>
+                <Text color={theme.accent} bold>[r]</Text>
+                <Text color={theme.text}> {t(lang, '继续上次', 'Resume last')}{resumeRunForDeck ? '' : t(lang, ' (新轮)', ' (new)')}</Text>
+              </Text>
+              <Text>
+                <Text color={theme.accent} bold>[m]</Text>
+                <Text color={theme.text}> {t(lang, '管理题组 / 查看卡片', 'Manage deck / cards')}   </Text>
+                <Text color={theme.ai} bold>[v]</Text>
+                <Text color={theme.text}> {t(lang, '导出语音包', 'Voice Pack')}</Text>
+              </Text>
+              <Text>
+                <Text color={theme.warning} bold>[a]</Text>
+                <Text color={theme.text}> {selectedDeck.archived ? t(lang, '恢复题组', 'Unarchive') : t(lang, '归档', 'Archive')}   </Text>
+                <Text color={theme.error} bold>[d]</Text>
+                <Text color={theme.text}> {t(lang, '删除题组', 'Delete')}   </Text>
+                <Text color={theme.success} bold>[s]</Text>
+                <Text color={theme.text}> {sampleLoaded ? t(lang, '移除示例课', 'Remove sample') : t(lang, '载入示例课', 'Load sample')}</Text>
+              </Text>
+            </Box>
+          </Box>
+        </Panel>
+      );
+    },
+    [focusSection, selectedWork, selectedDeck, lang, theme, progressMap, resumeRunForDeck, sampleLoaded],
+  );
+
+  return (
+    <Box flexDirection="column" width={width} height={height}>
+      {/* KPI Header Strip */}
+      <Box flexDirection="column" width={width} height={kpiHeight} flexShrink={0} paddingX={1}>
+        <Box flexDirection="row" gap={2} height={1} overflow="hidden">
+          <Badge label={course ?? t(lang, '全部课程', 'All Courses')} tone="primary" variant="solid" />
+          <Text color={theme.muted}>
+            {t(lang, '今日到期', 'Due')}: <Text color={kpi.due > 0 ? theme.warning : theme.success} bold>{kpi.due}</Text>
+          </Text>
+          <Text color={theme.muted}>
+            {t(lang, '今日已练', 'Reviewed')}: <Text color={theme.text} bold>{kpi.reviewed}</Text>
+          </Text>
+          <Text color={theme.muted}>
+            {t(lang, '连续天数', 'Streak')}: <Text color={theme.accent} bold>{kpi.streak}{t(lang, '天', 'd')}</Text>
+          </Text>
+          <Text color={theme.muted}>
+            {t(lang, '掌握度', 'Mastery')}: <Text color={theme.success} bold>{kpi.masteryPct}%</Text>
+          </Text>
+        </Box>
+        {kpi.focusProgress ? (
+          <Box height={1} overflow="hidden">
+            <ProgressBar
+              ratio={kpi.focusProgress.done / Math.max(1, kpi.focusProgress.total)}
+              width={Math.min(54, Math.max(20, width - 4))}
+              label={t(
+                lang,
+                `考纲重点 (${kpi.focusProgress.done}/${kpi.focusProgress.total})`,
+                `Exam Focus (${kpi.focusProgress.done}/${kpi.focusProgress.total})`,
+              )}
+              style="line"
+            />
+          </Box>
+        ) : null}
+        <Text color={theme.border}>{'─'.repeat(Math.max(1, width - 2))}</Text>
+      </Box>
+
+      {/* Main Master-Detail Split */}
+      <SplitPane
+        width={width}
+        height={bodyHeight}
+        breakpoint={86}
+        narrowMode="stack"
+        leftWidth={0.44}
+        minLeft={28}
+        minRight={34}
+        activePane="left"
+        left={renderLeftPane}
+        right={renderRightPane}
+      />
+
+      {/* Deck Manage Modal */}
+      {manageDeckId ? (
+        <DeckManageModal
+          host={host}
+          deckId={manageDeckId}
+          isActive={isActive}
+          width={width}
+          height={height}
+          onClose={() => setManageDeckId(null)}
+          onUpdated={() => {
+            void actions.refresh();
+          }}
+        />
+      ) : null}
+
+      {/* Voice Study Pack Modal */}
+      {voiceOpen ? (
+        <VoicePackModal
+          host={host}
+          isActive={isActive}
+          onClose={() => setVoiceOpen(false)}
+          width={width}
+          height={height}
+          initialCourse={course}
+          initialDeckId={selectedDeck?.id ?? null}
+        />
+      ) : null}
+
+      {/* Delete Confirmation Dialog */}
+      {confirmDeleteDeck ? (
+        <ConfirmDialog
+          title={t(lang, '永久删除题组', 'Delete Deck Permanently')}
+          message={
+            confirmDeleteDeck.archived
+              ? t(
+                  lang,
+                  `确定永久删除「${confirmDeleteDeck.title ?? confirmDeleteDeck.id}」？此操作不可恢复。`,
+                  `Permanently delete "${confirmDeleteDeck.title ?? confirmDeleteDeck.id}"? This cannot be undone.`,
+                )
+              : t(
+                  lang,
+                  `将先归档并永久删除「${confirmDeleteDeck.title ?? confirmDeleteDeck.id}」，此操作不可恢复。`,
+                  `Archive and permanently delete "${confirmDeleteDeck.title ?? confirmDeleteDeck.id}"? This cannot be undone.`,
+                )
+          }
+          confirmLabel={t(lang, '确认删除', 'Delete')}
+          cancelLabel={t(lang, '取消', 'Cancel')}
+          danger
+          isActive={isActive}
+          onConfirm={() => {
+            void handleDeleteConfirmed();
+          }}
+          onCancel={() => setConfirmDeleteDeck(null)}
+        />
+      ) : null}
+    </Box>
+  );
+});
