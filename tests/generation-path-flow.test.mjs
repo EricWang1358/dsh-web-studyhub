@@ -41,9 +41,9 @@ test('a step is a plain request with its own count: the form-only fields (spendi
   const calls = [];
   const call = async (action, args) => { calls.push(args); return { jobId: 'j' }; };
   // the form as the 创建题组 page holds it by default: an empty 花费上限, an empty typed count, a 覆盖强度
-  await queueSteps(call, steps, { kind: 'quiz', kinds: ['quiz'], difficulty: 'mixed', language: 'zh', focus: '', notation: 'auto', count: 10, customCount: '', coverageLevel: 'standard', tokenBudget: '' }, { course: 'C' });
+  await queueSteps(call, steps, { kind: 'quiz', kinds: ['quiz'], difficulty: 'mixed', language: 'zh', focus: '', notation: 'auto', count: 10, customCount: '', coverageLevel: 'standard', tokenBudget: '', depth: 'quick' }, { course: 'C' });
   for (const args of calls) {
-    for (const key of ['tokenBudget', 'customCount', 'coverageLevel', 'autoComplete']) assert.equal(key in args, false, `${key} is not sent with a step`);
+    for (const key of ['tokenBudget', 'customCount', 'coverageLevel', 'autoComplete', 'depth', 'performance']) assert.equal(key in args, false, `${key} is not sent with a step`);
     assert.ok(Number.isInteger(args.count) && args.count >= 1, 'the step keeps its own count');
     assert.deepEqual(args.kinds, ['quiz'], 'the kinds of the form carry over');
   }

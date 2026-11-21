@@ -15,8 +15,9 @@ import { StudyService } from '../lib/service.js';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* 创建题组 in the browser preview on a seeded library: the page opens with the current course's documents that have no question ticked and says why, the main path is the question types,
-   the 覆盖强度 (精简 / 标准 / 完整 / 自定义, one on at a time, #664) and one line for the course (更改 opens the one field of it, #665) with 前往设置, the plan (rounds, tokens) is said once under the form,
-   everything optional is in 更多选项 and the page is at most about one and a half screens before it is opened (#667), and 前往设置 lands on 出题偏好.
+   出题方式 (three presets 快问 / 情境题 / 逐题精出 with their rough costs, lib/generation-presets.js) and one line for the course (更改 opens the one field of it, #665) with 前往设置, the plan
+   (rounds, tokens) is said once under the form, everything optional is in 更多选项 (with 覆盖强度: 精简 / 标准 / 完整 / 自定义, one on at a time, #664; 出题深度; the matrix of rough costs)
+   and the page is at most about one and a half screens before it is opened (#667), and 前往设置 lands on 出题偏好.
    At 1280 and 420 px, no sideways scroll, no layout shift. EXAM_PREP_SHOTS-style switch: GENERATE_SHOTS=<dir> writes screenshots. */
 
 const SHOTS = process.env.GENERATE_SHOTS || '';
@@ -95,22 +96,34 @@ test('创建题组 opens ticked with a reason, the main path is one line, the pl
       const reason = page.locator('[data-opening-reason]');
       assert.match(await reason.innerText(), /已选中「数据库」里还没出过题的 2 份资料。\s*没选：已出过题的 1 份。/, 'and the line says why, and what it left out');
 
-      // the main path: the strength is one choice of four, the course is one line with a link, nothing else to fill in
+      // the main path: 出题方式 is one choice of three presets, the course is one line with a link, nothing else to fill in
       const plan = page.locator('[data-generate-plan]');
       assert.match(await plan.innerText(), /新题组放进课程：数据库/);
       assert.equal(await plan.locator('input, select, textarea').count(), 0, 'nothing to fill in on the plan line');
       assert.equal(await page.locator('.generate-page .course-field').count(), 0, 'the field of the deck\'s course waits for 更改: the page has one course field (课程范围)');
-      const strength = page.locator('[data-coverage-strength] .sh-seg__item');
-      const pressed = async () => (await strength.evaluateAll(items => items.filter(item => item.getAttribute('aria-pressed') === 'true').map(item => item.textContent.trim())));
-      assert.deepEqual(await strength.allInnerTexts(), ['精简', '标准', '完整', '自定义']);
-      assert.deepEqual(await pressed(), ['标准']);
-      // #664: back and forth between the four choices, one is on at every step, and the number field is there only for 自定义
-      for (const choice of ['自定义', '完整', '自定义', '精简', '标准']) {
-        await strength.filter({ hasText: choice }).first().click();
-        await until(async () => (await pressed()).join() === choice, `${choice} is the one choice that is on`);
-        assert.equal(await page.locator('#generate-count').count(), choice === '自定义' ? 1 : 0, `the number field is there for 自定义 only (${choice})`);
-        if (choice === '自定义') assert.ok(Number(await page.locator('#generate-count').inputValue()) >= 1, 'and starts from a number');
+      const pressedOf = items => async () => (await items.evaluateAll(list => list.filter(item => item.getAttribute('aria-pressed') === 'true').map(item => item.textContent.trim())));
+      const presets = page.locator('[data-presets] .sh-seg__item'), presetOn = pressedOf(presets), presetNote = page.locator('[data-preset-note]');
+      assert.deepEqual(await presets.allInnerTexts(), ['快问', '情境题', '逐题精出']);
+      assert.deepEqual(await presetOn(), ['情境题'], 'the default preset');
+      assert.match(await presetNote.innerText(), /^情境题（默认）：标准题量/);
+      // each preset with its rough cost, read from the estimate of each for these materials; the chosen one's count is said once, by the summary beside the button
+      const cost = page.locator('[data-preset-cost]');
+      await until(async () => (await cost.getAttribute('data-status')) === 'ready', 'the rough costs of the presets', { timeoutMs: 60000 });
+      assert.match(await cost.innerText(), /^大致花费\s*快问 约 ×\d+(?:\.\d)?（\d+(?:–\d+)? 题） · 情境题 ×1 · 逐题精出 约 ×\d+(?:\.\d)?（\d+ 题）$/);
+      assert.equal(await cost.locator('[title]').count(), 0, 'its explanation is a hover card, not title=');
+      for (const choice of ['快问', '逐题精出', '情境题']) {
+        await presets.filter({ hasText: choice }).first().click();
+        await until(async () => (await presetOn()).join() === choice, `${choice} is the one preset that is on`);
+        assert.match(await presetNote.innerText(), new RegExp(`^${choice}`), `the line under the presets says what ${choice} does`);
       }
+      // another question type: the depth means nothing, so the presets are off and say why; back to 单选测验 alone, they are on again
+      const openKind = page.locator('[data-tour="generate-kinds"]').getByRole('checkbox', { name: '开放问答' });
+      await openKind.click();
+      await until(async () => (await page.locator('[data-presets]').getAttribute('data-preset')) === 'off', 'the presets are off for 开放问答');
+      assert.match(await presetNote.innerText(), /快问和情境题只用于单选题/);
+      assert.equal(await page.locator('[data-presets] .sh-seg__item:disabled').count(), 3);
+      await openKind.click();
+      await until(async () => (await presetOn()).join() === '情境题', 'the presets are back with 情境题 on');
       await plan.getByRole('button', { name: '更改' }).click();
       await page.locator('.generate-page .course-field').waitFor({ timeout: 10000 });
       assert.equal(await page.locator('.generate-page .course-field').count(), 1);
@@ -141,7 +154,7 @@ test('创建题组 opens ticked with a reason, the main path is one line, the pl
       assert.ok(note.lead >= note.detail && note.leadWeight > note.detailWeight, `the headline leads the note: ${JSON.stringify(note)}`);
       assert.equal(await page.getByText('难度', { exact: true }).first().isVisible(), false, 'nor the difficulty');
       // 找功能 keeps every folded control: its anchor is in the page (with a size, so the finder opens the folds around it) while 更多选项 is shut
-      for (const anchor of ['generate-kinds', 'generate-coverage', 'generate-auto', 'generate-course', 'generate-budget', 'generate-difficulty', 'generate-language', 'generate-notation', 'generate-focus', 'generate-reference', 'generate-role', 'generate-extra']) {
+      for (const anchor of ['generate-kinds', 'generate-preset', 'generate-coverage', 'generate-depth', 'generate-auto', 'generate-course', 'generate-budget', 'generate-difficulty', 'generate-language', 'generate-notation', 'generate-focus', 'generate-reference', 'generate-role', 'generate-extra']) {
         const box = await page.locator(`[data-tour="${anchor}"]`).first().boundingBox();
         assert.ok(box && box.width > 0 && box.height > 0, `the anchor ${anchor} is there for 找功能`);
       }
@@ -174,6 +187,33 @@ test('创建题组 opens ticked with a reason, the main path is one line, the pl
       for (const label of ['难度', '语言', '公式写法', '题组名称（可选）']) assert.ok(await page.locator('.generate-more').getByText(label, { exact: false }).first().isVisible(), `${label} is in the fold`);
       assert.ok(await overflow(page) <= 0, `${width}px: no sideways scroll with the fold open`);
       assert.equal(await page.locator('[data-coverage-consequence]').count(), 0, 'the fold repeats no estimate line');
+      // 出题方式与题量: the two axes of the presets, and the rough cost of every combination (the form's own cell marked, its count said once by the summary)
+      const matrix = page.locator('[data-preset-matrix]');
+      await until(async () => (await matrix.getAttribute('data-status')) === 'ready', 'the matrix of rough costs', { timeoutMs: 60000 });
+      assert.equal(await matrix.locator('td[data-cell]').count(), 9);
+      assert.equal(await matrix.locator('td[data-current="true"]').getAttribute('data-cell'), 'standard:scenario');
+      assert.match(await matrix.locator('td[data-cell="standard:scenario"]').innerText(), /^×1/);
+      assert.ok(await matrix.evaluate(table => table.getBoundingClientRect().right <= document.querySelector('.generate-more').getBoundingClientRect().right + 1), `${width}px: the matrix fits the fold`);
+      assert.ok(await matrix.evaluate(table => table.querySelector('caption').getBoundingClientRect().bottom <= table.querySelector('thead').getBoundingClientRect().top + 1), `${width}px: the caption stands above the table, not in its first cell`);
+      const strength = page.locator('[data-coverage-strength] .sh-seg__item'), pressed = pressedOf(strength);
+      assert.deepEqual(await strength.allInnerTexts(), ['精简', '标准', '完整', '自定义']);
+      assert.deepEqual(await pressed(), ['标准']);
+      // #664: back and forth between the four choices, one is on at every step, and the number field is there only for 自定义
+      for (const choice of ['自定义', '完整', '自定义', '精简', '标准']) {
+        await strength.filter({ hasText: choice }).first().click();
+        await until(async () => (await pressed()).join() === choice, `${choice} is the one choice that is on`);
+        assert.equal(await page.locator('#generate-count').count(), choice === '自定义' ? 1 : 0, `the number field is there for 自定义 only (${choice})`);
+        if (choice === '自定义') assert.ok(Number(await page.locator('#generate-count').inputValue()) >= 1, 'and starts from a number');
+      }
+      // a combination that is no preset: the main path says 自定义 and both halves; the depth moves the marked cell
+      const depth = page.locator('[data-depth] .sh-seg__item');
+      await strength.filter({ hasText: '完整' }).first().click();
+      await depth.filter({ hasText: '快问' }).first().click();
+      await until(async () => (await page.locator('[data-presets]').getAttribute('data-preset')) === 'custom', 'the form is 自定义');
+      assert.match(await presetNote.innerText(), /^自定义：完整 × 快问。/);
+      assert.equal(await matrix.locator('td[data-current="true"]').getAttribute('data-cell'), 'full:quick');
+      await presets.filter({ hasText: '情境题' }).first().click();
+      await until(async () => (await pressed()).join() === '标准' && (await pressedOf(depth)()).join() === '情境题', 'a preset sets both halves');
       await shot(page, `fold-${width}`);
       await shotForm(page, `fold-form-${width}`);
 
@@ -181,6 +221,8 @@ test('创建题组 opens ticked with a reason, the main path is one line, the pl
       await page.locator('[data-open-settings="settings-generation"]').click();
       await page.locator('[data-tour="settings-generation"]').waitFor({ state: 'visible', timeout: 30000 });
       assert.equal(await page.locator('select[name="coverageLevel"], [name="coverageLevel"]').count() > 0, true, 'the 覆盖强度 default is on that page');
+      assert.equal(await page.locator('[name="depth"]').count() > 0, true, 'and the 出题深度 default (高级生成控制)');
+      assert.equal(await page.locator('[name="strategy"]').count(), 0, 'one control for the depth, not a second one for the strategy');
       await shot(page, `settings-${width}`);
 
       // back on the page: the choices stand, the line is still true
@@ -194,6 +236,7 @@ test('创建题组 opens ticked with a reason, the main path is one line, the pl
     try {
       const { page, context } = await openApp(browser, staged, { width: 1280 });
       await goGenerate(page);
+      assert.deepEqual(await page.locator('[data-presets] .sh-seg__item[aria-pressed="true"]').allInnerTexts(), ['逐题精出'], 'a library saved on staged reads as the preset 逐题精出');
       await until(async () => (await page.locator('[data-generate-estimate] [data-token-estimate][data-status="ready"]').count()) > 0, 'the staged estimate', { timeoutMs: 60000 });
       const line = await page.locator('.generate-summary').innerText();
       assert.match(line, /出 \d+ 题/, `a staged run says one number: ${line}`);

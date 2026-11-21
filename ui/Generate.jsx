@@ -39,6 +39,10 @@ import {
 } from './generate-form.js';
 import { DEFAULT_LEVEL, levelOf } from '../lib/coverage-strength.js';
 import { writesInOnePass } from '../lib/one-pass/route.js';
+import { depthApplies, depthOf, performanceOfDepth, presetCell } from '../lib/generation-presets.js';
+import { CostMatrix, DepthChoice, PresetPicker } from './presets/Presets.jsx';
+import { MATRIX_CELLS, PRESET_CELLS, cellCosts } from './presets/cost.js';
+import { useCellEstimates } from './presets/use-cell-estimates.js';
 import homeCss from './generate-home.css';
 import formCss from './generate-form.css';
 import focusIntakeCss from './focus-intake.css';
@@ -191,13 +195,22 @@ export default function Generate({
   const caseExam = courseHasCaseExam(activeCourseRecord);
   // What the chosen 覆盖强度 means for the chosen materials: the backend's plan, priced from the real prompts (lib/token-estimate.js), asked once the choice settles.
   const level = levelOf(gen.coverageLevel ?? DEFAULT_LEVEL), custom = customCountOf(gen);
+  // 出题方式 (lib/generation-presets.js): the form's cell is its 覆盖强度 and its 出题深度 (the saved one until the learner picks; a pick is sent with this run only).
+  const depth = gen.depth ?? depthOf(data.settings?.generation), cell = { density: level, depth };
+  const applies = depthApplies({ kind: gen.kind, kinds: kindsOfForm(gen) });
+  // The form's own request (a form without a depth of its own sends none, and the backend reads the saved one, as the run does).
   const estimateRequest = estimateRequestOf(gen, { course: generationCourse, sourceIds: selectedSources, reasoningEffort });
-  // Whether the run will be written in one pass (出题方式 in 设置, and the kinds chosen here): the level's words say that strategy's density.
-  const onePass = writesInOnePass({ ...estimateRequest, performance: data.settings?.generation });
+  // Whether the run will be written in one pass (the depth, and the kinds chosen here): the level's words say that strategy's density.
+  const onePass = writesInOnePass({ ...estimateRequest, performance: performanceOfDepth(depth) });
   const planned = useUsageEstimate(call, estimateRequest, { enabled: selectedSources.length > 0 && !referenceState.reason && !pathMode });
   const plannedCoverage = planned.status === 'ready' ? planned.estimate?.coverage : null, plannedGoal = plannedCoverage?.goal ?? null;
   // A summary promises questions: not for a button that is off (the reason is said below), and for the steps it is their own total.
   const blocked = !pathMode && advice.blocked;
+  // The rough cost of each preset (and, with 更多选项 open, of every cell of the matrix), read from the estimate of each cell for these materials (ui/presets/cost.js).
+  const priced = foldOpen ? MATRIX_CELLS : PRESET_CELLS, pricing = applies && !pathMode && !blocked && selectedSources.length > 0 && !referenceState.reason;
+  const cellEstimates = useCellEstimates(call, estimateRequest, priced, { enabled: pricing });
+  const costs = pricing ? cellCosts(cellEstimates, priced) : null;
+  const pickPreset = (id) => { const chosen = presetCell(id); if (chosen) setGen({ ...gen, coverageLevel: chosen.density, customCount: '', depth: chosen.depth }); };
   const summary = pathMode ? pathSummary(path.included) : blocked ? '' : summaryLine({ ...stats, count: plannedGoal, low: plannedCoverage?.goalLow ?? null, difficulty: gen.difficulty, language: gen.language, minutes: plannedGoal ? estimateMinutes(data.jobs, plannedGoal) : null }, { choices: false });
   // The plan is priced for these materials: the tokens in the bar, the rest of the plan under it.
   const estimating = !pathMode && !blocked && selectedSources.length > 0 && !referenceState.reason;
@@ -271,10 +284,9 @@ export default function Generate({
                   })} />
                   <p className="generate-note">{kindNote(kindsOfForm(gen), undefined, gen.kindCounts)}</p>
                 </FormRow>
-                {!pathMode && <FormRow label={ui("覆盖强度")} data-tour="generate-coverage">
-                  <CoverageStrength compact part="choice" level={level} customCount={gen.customCount ?? ''} state={planned} stats={stats} enabled={selectedSources.length > 0 && !referenceState.reason} disabled={busy} onePass={onePass}
-                    onChoice={(patch) => setGen({ ...gen, ...patch })} onCustom={(customCount) => setGen({ ...gen, customCount })}
-                    auto={autoOf({ ...gen, coverageLevel: level })} onAuto={(autoComplete) => setGen({ ...gen, autoComplete })} />
+                {/* 出题方式: three presets of 覆盖强度 × 出题深度 (lib/generation-presets.js); the two axes themselves are in 更多选项. */}
+                {!pathMode && <FormRow label={ui("出题方式")} data-tour="generate-preset">
+                  <PresetPicker cell={cell} applies={applies} costs={costs} disabled={busy} onPick={pickPreset} />
                 </FormRow>}
               </div>
               {/* One course field: 课程范围 above only filters the list of materials. Where the new deck goes follows it (and the ticked materials) and is said here; 更改 opens the field for the rare other choice (#665). */}
@@ -289,8 +301,20 @@ export default function Generate({
               {/* Shut, its summary says the choices that are not the defaults, each whole (they wrap after a 「·」, ui/generate-form.css); open, its hint on one line,
                   as with none chosen, and the choices are not drawn: a choice picked inside the open fold moves nothing (round 7). */}
               <Disclosure className="generate-more" bodyClassName="generate-more__body" data-tour="generate-more" summary={ui("更多选项")} open={foldOpen} onToggle={setMoreOpen}
-                meta={chosen.length ? <span className="generate-more__meta"><span className="generate-more__hint">{ui("想练什么、难度、花费、额外要求")}</span><span className="generate-more__choices">{chosen.map((choice, at) => <React.Fragment key={at}>{at ? " " : ""}<span className="generate-more__choice">{at < chosen.length - 1 ? `${choice} ·` : choice}</span></React.Fragment>)}</span></span>
-                  : ui("想练什么、难度、花费、额外要求")}>
+                meta={chosen.length ? <span className="generate-more__meta"><span className="generate-more__hint">{ui("题量、想练什么、难度、花费、额外要求")}</span><span className="generate-more__choices">{chosen.map((choice, at) => <React.Fragment key={at}>{at ? " " : ""}<span className="generate-more__choice">{at < chosen.length - 1 ? `${choice} ·` : choice}</span></React.Fragment>)}</span></span>
+                  : ui("题量、想练什么、难度、花费、额外要求")}>
+                {/* The matrix of 出题方式: the 覆盖强度 (with 自定义 and 自动补到完整), the depth, and the rough cost of every combination. */}
+                {!pathMode && <FormGroup title={ui("出题方式与题量")}>
+                  <FormRow label={ui("覆盖强度")} data-tour="generate-coverage">
+                    <CoverageStrength compact part="choice" level={level} customCount={gen.customCount ?? ''} state={planned} stats={stats} enabled={selectedSources.length > 0 && !referenceState.reason} disabled={busy} onePass={onePass}
+                      onChoice={(patch) => setGen({ ...gen, ...patch })} onCustom={(customCount) => setGen({ ...gen, customCount })}
+                      auto={autoOf({ ...gen, coverageLevel: level })} onAuto={(autoComplete) => setGen({ ...gen, autoComplete })} />
+                  </FormRow>
+                  <FormRow label={ui("出题深度")} data-tour="generate-depth">
+                    <DepthChoice depth={depth} applies={applies} disabled={busy} onDepth={(value) => setGen({ ...gen, depth: value })} />
+                    {foldOpen && costs && <CostMatrix cell={cell} costs={costs} />}
+                  </FormRow>
+                </FormGroup>}
                 <FormGroup title={ui("想练什么")}>
                   <FormRow label={ui("这次想练什么？")} htmlFor="generate-focus" data-tour="generate-focus">
                     <textarea id="generate-focus" ref={focusBox} className="generate-focus generate-row__input" rows={2} value={gen.focus}

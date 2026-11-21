@@ -14,6 +14,7 @@ import { META_DOT } from './format.js';
 import { kinds as kindNames } from './shared.js';
 import { BASIC_KINDS, kindsOfLegacyKind, legacyKindOf, requestKinds, splitCount } from '../lib/generation-settings.js';
 import { isGenerationRun } from '../lib/job-status.js';
+import { DEPTHS, performanceOfDepth } from '../lib/generation-presets.js';
 
 export const COUNT_MIN = 1;
 /** The most questions a request may ask for (lib/limits.js GOAL_QUESTIONS_MAX): what does not fit in one round of 30 becomes rounds. */
@@ -139,12 +140,15 @@ export function coverageChoicePatch(choice, { suggested } = {}) {
   return { coverageLevel: levelOf(choice), customCount: '' };
 }
 
-/** The generation request the form sends: the form as typed, the 覆盖强度 and, only when the learner typed one, a total number of questions. A request without a count is planned by its level. */
+/** The performance keys of the form's 出题深度 (`gen.depth`, lib/generation-presets.js): sent with this run only, over the saved settings; nothing for a form without one. */
+const depthPerformance = (gen) => (DEPTHS.includes(gen?.depth) ? { performance: performanceOfDepth(gen.depth) } : {});
+
+/** The generation request the form sends: the form as typed, the 覆盖强度, the 出题深度 and, only when the learner typed one, a total number of questions. A request without a count is planned by its level. */
 export function generationRequest(gen, { course, sourceIds }) {
-  const { count: _saved, customCount: _typed, autoComplete: _chosen, tokenBudget: _budget, kindCounts: _kc, ...rest } = gen, custom = customCountOf(gen), budget = parseTokenBudget(gen.tokenBudget);
+  const { count: _saved, customCount: _typed, autoComplete: _chosen, tokenBudget: _budget, kindCounts: _kc, depth: _depth, ...rest } = gen, custom = customCountOf(gen), budget = parseTokenBudget(gen.tokenBudget);
   const patchedKinds = kindsPatch(kindsOfForm(gen), gen.kindCounts);
   const cleanedKinds = patchedKinds.kindCounts ? patchedKinds : { kind: patchedKinds.kind, kinds: patchedKinds.kinds };
-  return { ...rest, ...cleanedKinds, course, sourceIds, notation: normalizeNotation(gen.notation), coverageLevel: levelOf(gen.coverageLevel), autoComplete: autoOf(gen), ...(budget ? { tokenBudget: budget } : {}), ...(custom ? { count: custom } : {}) };
+  return { ...rest, ...cleanedKinds, course, sourceIds, notation: normalizeNotation(gen.notation), coverageLevel: levelOf(gen.coverageLevel), autoComplete: autoOf(gen), ...depthPerformance(gen), ...(budget ? { tokenBudget: budget } : {}), ...(custom ? { count: custom } : {}) };
 }
 
 /** What `usage.estimate` is asked for the same form and materials: the plan of the chosen 覆盖强度 (or the typed number), priced from the real prompts. The
@@ -153,7 +157,7 @@ export function estimateRequestOf(gen, { course, sourceIds, reasoningEffort = ''
   const custom = customCountOf(gen);
   return { feature: 'generate', sourceIds, referenceSourceIds: gen.referenceSourceIds || [], referenceLimits: gen.referenceLimits, referenceFormat: gen.referenceFormat,
     coverageLevel: levelOf(gen.coverageLevel ?? DEFAULT_LEVEL), ...(custom ? { count: custom } : {}), kind: gen.kind, kinds: kindsOfForm(gen),
-    ...(gen.kindCounts ? { kindCounts: gen.kindCounts } : {}), ...(gen.moduleOverrides ? { moduleOverrides: gen.moduleOverrides } : {}),
+    ...(gen.kindCounts ? { kindCounts: gen.kindCounts } : {}), ...(gen.moduleOverrides ? { moduleOverrides: gen.moduleOverrides } : {}), ...depthPerformance(gen),
     difficulty: gen.difficulty, language: gen.language, course, ...(reasoningEffort ? { reasoningEffort } : {}) };
 }
 
@@ -320,11 +324,14 @@ export const courseLine = (course = '') => uiFormat('新题组放进课程：{0}
 
 /**
  * Does the form carry a choice of its own in the fold (something typed, or a choice that is not the saved default)? Then 更多选项 opens at once, so nothing the learner set is hidden. `defaults` are the
- * form's defaults from Settings (generationFormDefaults). The question types, the 覆盖强度 (with a typed number of questions and 自动补到完整) and the course are not in the fold: they stand on the main path.
+ * form's defaults from Settings (generationFormDefaults). The question types, the preset of 出题方式 and the course stand on the main path; the 覆盖强度 and the 出题深度 of the preset are
+ * in the fold, but the main path says them (the preset, or 自定义 with both), so only a typed number of questions and 自动补到完整 chosen by hand open it.
  */
 export function moreValuesOf(gen = {}, defaults = {}) {
   const typed = key => String(gen[key] ?? '').trim() !== '';
-  if (['focus', 'title', 'role', 'tokenBudget'].some(typed) || (gen.referenceSourceIds || []).length > 0) return true;
+  if (['focus', 'title', 'role', 'tokenBudget', 'customCount'].some(typed) || (gen.referenceSourceIds || []).length > 0) return true;
+  // 自动补到完整 ticked or unticked by hand is in the fold (出题方式与题量); the level and the depth are said on the main path by the preset (or 自定义), so they do not open it.
+  if (typeof gen.autoComplete === 'boolean') return true;
   if (extraValuesOf(gen)) return true;
   if (['difficulty', 'language'].some(key => defaults[key] !== undefined && gen[key] !== undefined && gen[key] !== defaults[key])) return true;
   return (gen.notation ?? 'auto') !== (defaults.notation ?? 'auto');
