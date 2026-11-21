@@ -64,7 +64,9 @@ test('only lib/model-effort.js maps a preference onto model levels', async () =>
   const offenders = [];
   for (const file of files) {
     if (file.replaceAll('\\', '/').endsWith('/lib/model-effort.js')) continue;
-    const text = await readFile(file, 'utf8');
+    const raw = await readFile(file, 'utf8');
+    // Ignore embedded base64 media payloads (e.g. CC0 audio data URIs) whose random bytes can accidentally spell `xhIGh`.
+    const text = raw.replace(/data:[^'"`\s]+;base64,[A-Za-z0-9+/=]+/g, '');
     if (signs.some((sign) => sign.test(text))) offenders.push(file);
   }
   assert.deepEqual(offenders, [], 'a second preference-to-level mapping crept in');

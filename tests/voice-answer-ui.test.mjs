@@ -333,6 +333,7 @@ test('the voice button is a microphone, and a stop mark while it records (the sa
   assert.match(sending, /正在转写…/);
   assert.match(sending, />取消</, 'sending renders 取消 so learners can abort a slow upload/transcription');
   const errored = renderToStaticMarkup(React.createElement(VoiceButton, { voice: voice({ error: '麦克风断开了，请再录一次' }) }));
+  assert.match(errored, /data-expanded="true"/, 'errors mark the voice container expanded without positional :has()');
   assert.match(errored, /sh-inline--boxed/, 'errors render inside a boxed InlineMessage');
   assert.match(errored, /麦克风断开了，请再录一次/);
 });

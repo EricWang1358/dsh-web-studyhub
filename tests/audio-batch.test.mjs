@@ -41,18 +41,22 @@ for (const failure of ['exhausted replacement', 'partial write']) test(`a normal
   const directory = join(root, 'audio-batches', batch.id), file = join(directory, 'manifest.json');
   await mkdir(directory, { recursive: true });
   await saveAudioBatch(root, batch);
-  const committed = await readFile(file, 'utf8'), originalRename = fs.promises.rename, originalWrite = fs.promises.writeFile;
+  const committed = await readFile(file, 'utf8'), originalRename = fs.promises.rename, originalOpen = fs.promises.open;
   const fault = Object.assign(new Error(failure), { code: failure === 'partial write' ? 'ENOSPC' : 'EPERM' });
   let remaining = Infinity, attempts = 0;
   fs.promises.rename = async (from, to) => {
     if (failure === 'exhausted replacement' && to === file && remaining > 0) { remaining--; attempts++; throw fault; }
     return originalRename(from, to);
   };
-  fs.promises.writeFile = async (path, value, options) => {
-    if (failure === 'partial write' && String(path).startsWith(`${file}.`) && remaining > 0) {
-      remaining--; attempts++; await originalWrite(path, value.slice(0, 8), options); throw fault;
+  fs.promises.open = async (...args) => {
+    const handle = await originalOpen(...args);
+    if (failure === 'partial write' && String(args[0]).startsWith(`${file}.`) && remaining > 0) {
+      const originalHandleWrite = handle.writeFile.bind(handle);
+      handle.writeFile = async (value, options) => {
+        remaining--; attempts++; await originalHandleWrite(value.slice(0, 8), options); throw fault;
+      };
     }
-    return originalWrite(path, value, options);
+    return handle;
   };
   const prevRetryMs = process.env.STUDY_FS_RETRY_MS;
   process.env.STUDY_FS_RETRY_MS = '1';
@@ -69,7 +73,7 @@ for (const failure of ['exhausted replacement', 'partial write']) test(`a normal
     assert.equal(attempts, failure === 'exhausted replacement' ? 10 : 1);
   } finally {
     if (prevRetryMs === undefined) delete process.env.STUDY_FS_RETRY_MS; else process.env.STUDY_FS_RETRY_MS = prevRetryMs;
-    fs.promises.rename = originalRename; fs.promises.writeFile = originalWrite; syncBuiltinESMExports();
+    fs.promises.rename = originalRename; fs.promises.open = originalOpen; syncBuiltinESMExports();
   }
 });
 const reply = text => new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text }] } }], usageMetadata: {} }));

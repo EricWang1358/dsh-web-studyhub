@@ -86,7 +86,7 @@ export default function VoiceButton({ voice, label = '语音作答', shortcut, c
     </Button>
   );
   return (
-    <div ref={root} className={`voice-input ${className}`.trim()} data-phase={voice.phase}>
+    <div ref={root} className={`voice-input ${className}`.trim()} data-phase={voice.phase} data-expanded={voice.error || voice.setup ? 'true' : undefined}>
       <div className="voice-input__row">
         {/* No card while the setup guide is open: an open card takes the first Esc (the shared Tooltip closes first), so the guide would need a second one. */}
         {shortcut && !recording ? <Tooltip layer content={setup ? '' : uiFormat('快捷键 {0}：开始说，再按一次发送', [shortcut])}>{button}</Tooltip> : button}
