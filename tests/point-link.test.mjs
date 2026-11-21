@@ -56,13 +56,15 @@ test('a descriptors outline (no items) links nothing by tier 1: the index is emp
   assert.equal(itemPlaceIndex(outline, null).size, 0, 'no inventory: nothing to link by');
 });
 
-test('the text of a point: its verified places, close ones merged, the cluster holding most places first', () => {
+test('the text of a point: its verified places, merged only where they overlap or touch (every character verified), the passage holding most places first', () => {
   const leaf = { id: 'p', items: [id(1), id(2), id(3), id(5)] };
   const spans = pointSpans(leaf, inventory);
-  assert.deepEqual(spans.map(({ sourceId, start, end, places }) => [sourceId, start, end, places]), [['s1', 10, 130, 3]], 'gaps under the limit merge; the unverified place is no text');
-  const far = { items: [item(1, place('s1', 0, 20)), item(2, place('s1', 20 + POINT_LIMITS.gapChars + 1, 40 + POINT_LIMITS.gapChars)),
-    item(3, place('s1', 50 + POINT_LIMITS.gapChars, 60 + POINT_LIMITS.gapChars)), item(4, place('s2', 0, 10))] };
-  assert.deepEqual(pointSpans({ items: [id(1), id(2), id(3), id(4)] }, far).map(span => [span.sourceId, span.start, span.places]), [['s1', 21 + POINT_LIMITS.gapChars, 2], ['s1', 0, 1], ['s2', 0, 1]]);
+  assert.deepEqual(spans.map(({ sourceId, start, end, places }) => [sourceId, start, end, places]), [['s1', 10, 30, 1], ['s1', 40, 60, 1], ['s1', 100, 130, 1]],
+    'places with text between them stay apart; the unverified place is no text');
+  const close = { items: [item(1, place('s1', 0, 20)), item(2, place('s1', 20, 40)), item(3, place('s1', 30, 50)), item(4, place('s2', 0, 10)), item(6, place('s1', 51, 60))] };
+  assert.deepEqual(pointSpans({ items: [id(1), id(2), id(3), id(4), id(6)] }, close).map(span => [span.sourceId, span.start, span.end, span.places]),
+    [['s1', 0, 50, 3], ['s1', 51, 60, 1], ['s2', 0, 10, 1]]);
+  assert.ok(!('gapChars' in POINT_LIMITS) && !('padChars' in POINT_LIMITS), 'no text the link would not credit');
   assert.deepEqual(pointSpans({ items: [id(5)] }, inventory), [], 'a point with no verified place has no text to write from');
 });
 

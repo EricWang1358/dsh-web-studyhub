@@ -1,14 +1,18 @@
 import { ui, uiFormat } from '../i18n.js';
 
 /* The words of 知识点查缺 on the draft page (ui/coverage/PointGaps.jsx), in one file that loads with it: the count line, the list, the one action and what is said
-   when it starts, and the one quiet line when the course has no outline to count by (`coverage.get`'s `points`, lib/evidence/point-report.js). */
+   when it starts, and the one quiet line when the course has an outline that cannot be counted by (`coverage.get`'s `points`, lib/evidence/point-report.js). A
+   course with no outline at all says nothing here: the draft page is not where an outline is built. */
 
-/** 「70 个知识点，17 个还没有题」, or 「70 个知识点都有题了」. */
-export const pointsLine = (report) => (report.uncovered > 0 ? uiFormat('{0} 个知识点，{1} 个还没有题', [report.points, report.uncovered])
-  : uiFormat('{0} 个知识点都有题了', [report.points]));
+/** 「这份草稿的资料讲到 70 个知识点，17 个还没有题」, or 「…，都有题了」: the points are this draft's materials', the questions the whole course's. */
+export const pointsLine = (report) => (report.uncovered > 0 ? uiFormat('这份草稿的资料讲到 {0} 个知识点，{1} 个还没有题', [report.points, report.uncovered])
+  : uiFormat('这份草稿的资料讲到 {0} 个知识点，都有题了', [report.points]));
 
 /** How a question is counted for a knowledge point (the HelpTip beside the line). */
-export const pointsTip = () => ui('知识点来自这门课的总纲。一道题的出处落在某个知识点清点出的原文上，就算它有题；落不到的，算给出处所在页的知识点。整门课的题组和草稿里的题都算。');
+export const pointsTip = () => ui('知识点来自这门课的总纲，这里只算这份草稿的资料讲到的。“有题”算的是整门课所有题组和草稿里的题，不只这份草稿。一道题的出处落在某个知识点清点出的原文上，就算它有题；落不到的，算给出处所在页的知识点。');
+
+/** Why the action is not offered while rounds of the draft's plan have not run (a point round would take a planned section's place). */
+export const plannedHoldLine = () => ui('这份草稿的计划还有轮次没跑完：先接着做完，再按知识点补。');
 
 /** The fold's summary. */
 export const pointsListLabel = () => ui('还没有题的知识点');
@@ -39,9 +43,8 @@ export const topUpPlan = (topUp, uncovered) => (topUp.pointIds.length < uncovere
 export const pointsNotice = (count) => (draft, started) => uiFormat('已开始为「{0}」补 {1} 个知识点，约 {2} 题；通过检查后会保存到同一份草稿。',
   [draft.title, count, started?.coverage?.questions ?? 0]);
 
-/** Why there are no numbers, and where to get them (the 总纲 page). */
+/** Why an outline the course has gives no numbers, and where to fix it (the 总纲 page); nothing for no outline or an unreadable record. */
 export const unavailableLine = (reason) => ({
-  'no-outline': ui('这门课还没有总纲，不能按知识点查缺：到「总纲」页点「生成总纲」。'),
   descriptors: ui('这门课的总纲是按资料名整理的旧版本，不能按知识点查缺：到「总纲」页点「用清点结果重新整理总纲」。'),
   'no-inventory': ui('这门课的总纲缺少清点结果，不能按知识点查缺：到「总纲」页重新整理总纲。'),
   stale: ui('资料有更新，总纲要重新整理后才能按知识点查缺：到「总纲」页重新整理。'),

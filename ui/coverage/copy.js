@@ -491,10 +491,12 @@ export function shortfallTag(s, { reviewed = false } = {}) {
 /** The word of a round's state in the list of rounds. */
 export const roundStatusWord = (status) => ({ pending: ui('待做'), running: ui('进行中'), done: ui('已完成'), failed: ui('没成功'), skipped: ui('已跳过') })[status] || '';
 
-/** One row of the list of rounds: 「第 3 轮 · 8 题 · 5 个部分」 (「补做」 for a round that writes again the sections that did not come out). */
+/** One row of the list of rounds: 「第 3 轮 · 8 题 · 5 个部分」 (「补做」 for a round that writes again the sections that did not come out; 「n 个知识点」 for one of
+    knowledge points). */
 export function roundTitle(round) {
-  return [round.fill ? uiFormat('补做 · 第 {0} 轮', [round.round]) : uiFormat('第 {0} 轮', [round.round]), uiFormat('{0} 题', [round.questions]),
-    round.sections !== undefined ? countOf(round.unit || 'part', round.sections) : round.sectionIds ? countOf('part', round.sectionIds.length) : ''].filter(Boolean).join(META_DOT);
+  const what = round.points > 0 ? uiFormat('{0} 个知识点', [round.points])
+    : round.sections !== undefined ? countOf(round.unit || 'part', round.sections) : round.sectionIds ? countOf('part', round.sectionIds.length) : '';
+  return [round.fill ? uiFormat('补做 · 第 {0} 轮', [round.round]) : uiFormat('第 {0} 轮', [round.round]), uiFormat('{0} 题', [round.questions]), what].filter(Boolean).join(META_DOT);
 }
 
 /** 「2/4 页」 (a round that knows how many sections it tried), else 「2 个小节」: what a round newly covered. */

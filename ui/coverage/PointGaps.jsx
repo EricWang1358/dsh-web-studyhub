@@ -5,12 +5,14 @@ import { useInjectCss } from '../shared.js';
 import { TokenEstimate } from '../TokenUsage.jsx';
 import { useStudy } from '../study-context.jsx';
 import css from './point-gaps.css';
-import { moreLine, noTextLine, pointsLine, pointsListLabel, pointsNotice, pointsTip, prereqMark, prereqTip, restsOnLine, topUpLabel, topUpPlan, unavailableLine,
-  unplacedLine } from './point-words.js';
+import { moreLine, noTextLine, plannedHoldLine, pointsLine, pointsListLabel, pointsNotice, pointsTip, prereqMark, prereqTip, restsOnLine, topUpLabel, topUpPlan,
+  unavailableLine, unplacedLine } from './point-words.js';
 
 /* 知识点查缺 on the draft page, next to the coverage of its sections (ui/coverage/DraftCoverage.jsx): ONE line, 「70 个知识点，17 个还没有题」, the uncovered points
    in a fold (the ones others rest on first, marked 前置), and ONE action, 「补这些知识点」, the same top-up as the page's other ones (estimate first, the draft's own
-   way of writing, a fill round of its own). Without an outline to count by, one quiet line says why and where to build it. `report` is `coverage.get`'s `points`
+   way of writing, a fill round of its own), offered only where the draft can be topped up (`onTopUp`: the page passes it for a draft that can) and while no
+   round of its plan is still to run (`report.hold`, one quiet line). With an outline that cannot be counted by, one quiet line says why and where to fix it;
+   with no outline, nothing. `report` is `coverage.get`'s `points`
    (lib/evidence/point-report.js draftPointReport). The draft page loads this file on its own (deferredView): it reaches nothing in lib/, so the workspace's first
    load does not carry it (tests/workspace-closure-pages.test.mjs). */
 export default function PointGaps({ draft, report, disabled = false, modelReady = true, onTopUp }) {
@@ -39,6 +41,7 @@ export default function PointGaps({ draft, report, disabled = false, modelReady 
       </ul>
       {report.more > 0 && <p className="cov-points__note">{moreLine(report.more)}</p>}
     </Disclosure>}
+    {report.hold === 'planned-rounds' && onTopUp && report.uncovered > 0 && <p className="cov-points__quiet" data-points-held>{plannedHoldLine()}</p>}
     {topUp && onTopUp && <div className="cov-points__act">
       <small className="cov-points__plan" data-points-plan>{topUpPlan(topUp, report.uncovered - report.uncoverable)}</small>
       <Button size="sm" variant="secondary" disabled={disabled} data-points-topup

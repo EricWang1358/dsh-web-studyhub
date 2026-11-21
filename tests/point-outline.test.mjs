@@ -3,12 +3,15 @@ import assert from 'node:assert/strict';
 import { courseOutline } from '../lib/course-outline.js';
 import { courseEvidenceSummary } from '../lib/evidence/course-evidence.js';
 import { collectOutlineGapStats } from '../ui/outline/gap-lens.js';
-import { coursePointReport } from '../lib/evidence/point-report.js';
+import { draftPointReport, pointBasis } from '../lib/evidence/point-report.js';
 import { COURSE, SENTENCES, cardOn, pointLibrary } from './helpers/point-library.mjs';
 
 /* One answer everywhere (知识点查缺 item 2): the 课程总纲 page's per-point counts, its 未出题 lens, the mastery per point and the draft page's point report read
    the SAME link (lib/evidence/point-link.js): a question is about the point whose verified item it quotes; only a question quoting no item goes by its page. */
 
+/** The report of a draft over both pages of the course: the course's whole report. */
+const coursePointReport = state => draftPointReport(state, { id: 'whole', title: 'Whole', course: COURSE, draftVersion: 1, cards: [],
+  editorial: { requested: 1, generation: { sourceIds: ['doc-p1', 'doc-p2'], course: COURSE } } });
 const leaves = outline => outline.book.nodes.flatMap(node => node.children);
 const byId = outline => Object.fromEntries(leaves(outline).map(leaf => [leaf.id, leaf]));
 
@@ -39,7 +42,7 @@ test('drafts count where they point: a draft question on C\'s item leaves 未出
   const outline = courseOutline(state, { course: COURSE });
   assert.equal(byId(outline).pc.summary.draftCards, 1);
   assert.equal(collectOutlineGapStats(outline).untestedCount, 1, 'only D is left');
-  const report = coursePointReport(state, COURSE);
+  const report = coursePointReport(state);
   assert.deepEqual([report.points, report.covered, report.uncovered], [4, 3, 1], 'the draft page says the same');
 });
 
@@ -60,7 +63,7 @@ test('without the inventory, or with an outline of descriptors, every question k
 
 test('the draft page\'s report: counts, the uncovered points with prerequisites first, what can never be written from, and the questions that reach no point', () => {
   const { state } = pointLibrary();
-  const report = coursePointReport(state, COURSE);
+  const report = coursePointReport(state);
   assert.equal(report.status, 'ok');
   assert.deepEqual([report.points, report.covered, report.uncovered, report.unplaced], [4, 2, 2, 0]);
   assert.deepEqual(report.list.map(point => [point.id, point.title, point.coverable, point.quota]), [['pc', 'Point C', true, 1], ['pd', 'Point D', false, 1]]);
@@ -70,11 +73,11 @@ test('the draft page\'s report: counts, the uncovered points with prerequisites 
 });
 
 test('no numbers without a usable outline: why, as a code', () => {
-  assert.deepEqual(coursePointReport(pointLibrary({ from: 'descriptors' }).state, COURSE), { status: 'unavailable', reason: 'descriptors' });
-  assert.deepEqual(coursePointReport(pointLibrary({ withInventory: false }).state, COURSE), { status: 'unavailable', reason: 'no-inventory' });
-  assert.deepEqual(coursePointReport(pointLibrary().state, 'Other course'), { status: 'unavailable', reason: 'no-outline' });
-  assert.deepEqual(coursePointReport(pointLibrary().state, ''), { status: 'unavailable', reason: 'no-outline' });
+  assert.deepEqual(coursePointReport(pointLibrary({ from: 'descriptors' }).state), { status: 'unavailable', reason: 'descriptors' });
+  assert.deepEqual(coursePointReport(pointLibrary({ withInventory: false }).state), { status: 'unavailable', reason: 'no-inventory' });
+  assert.deepEqual(pointBasis(pointLibrary().state, 'Other course'), { status: 'unavailable', reason: 'no-outline' });
+  assert.deepEqual(pointBasis(pointLibrary().state, ''), { status: 'unavailable', reason: 'no-outline' });
   const { state, sources } = pointLibrary();
   sources.p2.text += '\n\nA new paragraph added after the outline was built.';
-  assert.deepEqual(coursePointReport(state, COURSE), { status: 'unavailable', reason: 'stale' });
+  assert.deepEqual(coursePointReport(state), { status: 'unavailable', reason: 'stale' });
 });

@@ -34,8 +34,8 @@ test('the builder: one assignment per point in the existing shape (its passage, 
   assert.equal(found.round.error, undefined, JSON.stringify(found.round));
   const [assignment] = found.request.assignments;
   const at = sources.p2.text.indexOf(SENTENCES.c);
-  assert.deepEqual(assignment, { key: 'point:pc', sectionId: found.round.picks[0].key, sourceId: 'doc-p2', start: Math.max(0, at - POINT_LIMITS.padChars),
-    end: Math.min(sources.p2.text.length, at + SENTENCES.c.length + POINT_LIMITS.padChars), quota: 1, title: 'Point C' });
+  assert.deepEqual(assignment, { key: 'point:pc', sectionId: found.round.picks[0].key, sourceId: 'doc-p2', start: at, end: at + SENTENCES.c.length, quota: 1,
+    title: 'Point C' });
   assert.deepEqual([found.round.questions, found.request.count, found.round.sections], [1, 1, 1]);
   assert.equal(found.request.sources.length, 1, 'the round is written from the point\'s passage only');
   assert.ok(found.request.sources[0].text.includes(SENTENCES.c));
@@ -58,6 +58,8 @@ test('refusals: a stale id, a point that has a question, one with no verified te
   assert.equal(refused(error(['pd'])), say(...POINTS.noText));
   assert.equal(refused({ error: 'too-many', points: 1, limit: 30 }), say(...POINTS.tooMany(30)));
   assert.equal(refused({ error: 'points-unavailable', reason: 'stale' }), say(...POINTS.unavailable.stale));
+  for (const reason of ['cannot-top-up', 'planned-rounds']) assert.equal(refused({ error: 'points-held', reason }), say(...POINTS.held[reason]));
+  assert.equal(refused({ error: 'points-unavailable', reason: 'unreadable' }), say(...POINTS.unavailable.unreadable));
 });
 
 test('a point outside the draft\'s materials is not this draft\'s to top up, and is not in its report', () => {
@@ -95,8 +97,8 @@ test('the draft report counts questions anywhere in the course, the draft\'s own
   assert.deepEqual(draftPointReport(state, state.drafts[0]).list.map(point => point.id), ['pd']);
 });
 
-test('a long passage is cut to the limit from its start; a short one gets its surroundings', () => {
-  assert.deepEqual(passageOf({ start: 1000, end: 1100 }, 'x'.repeat(5000)), { start: 1000 - POINT_LIMITS.padChars, end: 1100 + POINT_LIMITS.padChars });
-  assert.deepEqual(passageOf({ start: 10, end: 20 }, 'x'.repeat(30)), { start: 0, end: 30 });
+test('a long passage is cut to the limit from its start; a short one is itself, nothing around it', () => {
+  assert.deepEqual(passageOf({ start: 1000, end: 1100 }, 'x'.repeat(5000)), { start: 1000, end: 1100 });
+  assert.deepEqual(passageOf({ start: 10, end: 20 }, 'x'.repeat(30)), { start: 10, end: 20 });
   assert.deepEqual(passageOf({ start: 0, end: POINT_LIMITS.maxChars + 10 }, 'x'.repeat(POINT_LIMITS.maxChars * 2)), { start: 0, end: POINT_LIMITS.maxChars });
 });

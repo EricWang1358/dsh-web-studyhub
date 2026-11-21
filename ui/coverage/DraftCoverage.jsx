@@ -24,7 +24,7 @@ export default function DraftCoverage({ draft, view, jobs = [], held = false, un
     lead={<MaterialsReport report={materials} disabled={busy || !!work || held || !modelReady} onTopUp={(keys) => onTopUp(draft, keys, { manual: true })} />}>
     <RunPanel draft={draft} view={view} jobs={jobs} held={held} saveThen={unsaved ? saveThen : undefined} modelReady={modelReady} onOpenSource={onOpenSource} />
     <CoverageTopUp draft={draft} view={view} jobs={jobs} held={held} modelReady={modelReady} onTopUp={onTopUp} />
-    {view.points && <PointGaps draft={draft} report={view.points} disabled={busy || !!work || held || !modelReady} modelReady={modelReady} onTopUp={onTopUp} />}
+    {view.points && <PointGaps draft={draft} report={view.points} disabled={busy || !!work || held || !modelReady} modelReady={modelReady} onTopUp={view.canTopUp ? onTopUp : null} />}
     {!work && (unsaved || held) && view.canTopUp && view.round?.sections > 0 && <Hint as="small">{held ? ui('草稿已在后台更新，先载入最新草稿，再补题。') : ui('补题前会先保存草稿。')}</Hint>}
   </CoverageSummary>;
 }
