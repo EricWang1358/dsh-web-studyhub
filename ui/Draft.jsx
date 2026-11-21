@@ -286,7 +286,7 @@ export default function Draft({
     return act("draft.save", { deck: d }, async (saved, { isCurrent = () => true } = {}) => { if (isCurrent()) openDraft(saved); await next(saved); }, { afterNavigation: true });
   }
   const topUp = (target, sectionIds, options) => (unsavedDraft
-    ? saveThen(async (saved) => toast.success(topUpNotice(saved, await call("generate", topUpArgs(saved, sectionIds, options)))))
+    ? saveThen(async (saved) => toast.success((options?.notice ?? topUpNotice)(saved, await call("generate", topUpArgs(saved, sectionIds, options)))))
     : topUpDraft(target, sectionIds, options));
   const activeReview = draft.editingDeckId && data.runs?.some((run) =>
     run.deckIds?.includes(draft.editingDeckId) || run.deckId === draft.editingDeckId);
