@@ -157,3 +157,25 @@ test('a portion whose review calls all failed is written again by a fill round, 
   assert.equal(deck.cards.length, total, 'the fill round wrote and kept every question');
   assert.ok(model.calls.some(call => call.stage === 'write' && call.context.attempt === 2), 'written again in the fill round');
 });
+
+// 写法 (writeStyle): the run writes every portion in the style of its request, the portion a fill round writes again too, and the draft records the style it was written in.
+test('the write style of the request reaches every write call of the run, the fill round\'s too, and the draft records it', async () => {
+  const assignments = first.assignments.slice(0, 3);
+  let failures = 0;
+  const model = onePassModel({ raw: { write: () => { if (!failures++) throw new Error('Model service unavailable: 503'); return null; } } });
+  const deck = await run(model, assignments, { performance: { concurrency: 2, fillRounds: 1, writeStyle: 'quick' } });
+  const writes = model.calls.filter(call => call.stage === 'write');
+  assert.ok(writes.some(call => call.context.attempt === 2), 'a portion written again by the fill round');
+  for (const write of writes) assert.match(write.prompt, /Where the point allows it, put the learner in a small concrete situation/);
+  assert.equal(deck.editorial.generation.performance.strategy, 'one-pass');
+  assert.equal(deck.editorial.generation.performance.writeStyle, 'quick');
+  const plain = await run(onePassModel(), assignments);
+  assert.equal(plain.editorial.generation.performance.writeStyle, 'scenario', 'the default style, recorded');
+});
+
+test('a draft the staged pipeline wrote records no write style', async () => {
+  const model = clusteringModel();
+  const deck = await run(model, first.assignments.slice(0, 2), { performance: { concurrency: 2, fillRounds: 0, strategy: 'staged', writeStyle: 'quick' } });
+  assert.equal(deck.editorial.generation.performance.strategy, 'staged');
+  assert.equal('writeStyle' in deck.editorial.generation.performance, false);
+});

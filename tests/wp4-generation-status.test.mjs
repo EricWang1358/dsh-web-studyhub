@@ -160,14 +160,14 @@ test("a started generation says nothing the page already says, and resets the fo
   assert.match(rounds.text, /^分 3 轮；这次先出第 1 轮（约 12 题）/);
   assert.doesNotMatch(rounds.text, /已开始生成|索引小测/);
   assert.deepEqual(m.freshGeneration(gen), { kind: "quiz", kinds: ["quiz"], count: 10, title: "", focus: "", language: "English",
-    difficulty: "advanced", role: "后端", notation: "auto", coverageLevel: "standard", customCount: "", tokenBudget: "", course: undefined });
+    difficulty: "advanced", role: "后端", notation: "auto", coverageLevel: "standard", customCount: "", tokenBudget: "", depth: "scenario", course: undefined });
   assert.deepEqual({ kind: m.GENERATION_DEFAULTS.kind, count: m.GENERATION_DEFAULTS.count }, { kind: "quiz", count: 10 });
 });
 
 test("saved generation defaults populate and reset forms without carrying worker overrides", () => {
   const saved = { kind: 'open', count: 7, language: 'auto', difficulty: 'application', focus: 'Explain the tradeoff', concurrency: 1, batchSize: 2 };
   const defaults = m.generationFormDefaults(saved, 'en');
-  assert.deepEqual(defaults, { kind: 'open', kinds: ['open'], count: 7, language: 'English', difficulty: 'application', focus: 'Explain the tradeoff', role: '', notation: 'auto', coverageLevel: 'standard', customCount: '', tokenBudget: '' });
+  assert.deepEqual(defaults, { kind: 'open', kinds: ['open'], count: 7, language: 'English', difficulty: 'application', focus: 'Explain the tradeoff', role: '', notation: 'auto', coverageLevel: 'standard', customCount: '', tokenBudget: '', depth: 'scenario' });
   const reset = m.freshGeneration({ ...defaults, title: 'One deck', course: 'Old course', role: 'Engineer', count: 2 }, saved, 'en');
   assert.deepEqual(reset, { ...defaults, role: 'Engineer', title: '', course: undefined });
   assert.equal(m.generationFormDefaults(saved, 'zh').language, '中文');
@@ -184,6 +184,20 @@ test("the saved 覆盖强度 fills the form, comes back after each deck, follows
   const before = m.generationFormDefaults({}, 'zh'), after = m.generationFormDefaults({ coverageLevel: 'lean' }, 'zh');
   assert.equal(m.syncGenerationDefaults({ ...before }, before, after).coverageLevel, 'lean');
   assert.equal(m.syncGenerationDefaults({ ...before, coverageLevel: 'full' }, before, after).coverageLevel, 'full');
+});
+
+test("the saved 出题深度 fills the form, comes back after each deck, follows a settings update and never overrides a depth the learner picked", () => {
+  assert.equal(m.generationFormDefaults({}, 'zh').depth, 'scenario', 'the default before presets');
+  assert.equal(m.generationFormDefaults({ strategy: 'one-pass', writeStyle: 'quick' }, 'zh').depth, 'quick');
+  assert.equal(m.generationFormDefaults({ strategy: 'staged' }, 'zh').depth, 'blueprint');
+  assert.equal(m.generationFormDefaults({ applySuggestions: true }, 'zh').depth, 'blueprint', 'a library of the S8 migration reads as 逐题精出');
+  assert.equal(m.generationFormDefaults({ writeStyle: 'bogus' }, 'zh').depth, 'scenario', 'a corrupt style is the default');
+  // a depth picked on the form is for that run only: the next deck starts again from the saved one
+  assert.equal(m.freshGeneration({ depth: 'blueprint' }, { strategy: 'one-pass', writeStyle: 'quick' }, 'zh').depth, 'quick');
+  assert.equal(m.freshGeneration({ depth: 'blueprint' }).depth, 'scenario');
+  const before = m.generationFormDefaults({}, 'zh'), after = m.generationFormDefaults({ strategy: 'staged' }, 'zh');
+  assert.equal(m.syncGenerationDefaults({ ...before }, before, after).depth, 'blueprint');
+  assert.equal(m.syncGenerationDefaults({ ...before, depth: 'quick' }, before, after).depth, 'quick');
 });
 
 test("settings snapshots update inherited choices while preserving the typed generation form", () => {

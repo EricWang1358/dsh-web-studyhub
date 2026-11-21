@@ -1,0 +1,12 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* 出题方式 (ui/presets/Presets.jsx): the three presets of the 创建题组 main path and their rough costs. Injected by the component (useInjectCss 'study-presets').
+       Tokens only. The depth and the matrix of 更多选项 are presets-fold.css. */
+    .presets { display: grid; gap: var(--space-2); min-width: 0; justify-items: start; }
+    .presets__cost { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-half) var(--space-1); font-variant-numeric: tabular-nums; }
+    .presets__cost-lead { color: var(--text-dim); }
+    .presets__cost-items { min-width: 0; overflow-wrap: anywhere; }
+  }
+}

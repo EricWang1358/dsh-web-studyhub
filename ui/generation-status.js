@@ -7,6 +7,7 @@ import { isActiveJob, supplementJobLabel } from './job-visibility.js';
 import { JOB_STATUS, JOB_TYPES } from '../lib/job-status.js';
 import { countDocuments } from '../lib/source-groups.js';
 import { GENERATION_SETTINGS_DEFAULTS, normalizeGenerationSettings, resolveGenerationRequest } from '../lib/generation-settings.js';
+import { depthOf } from '../lib/contexts/generation/presets.js';
 import { DIMENSIONS, issueCode, reasonLabel } from './quality-reasons.js';
 import { classifyFailure } from '../lib/generation-failure.js';
 import { formatClauses } from './format.js';
@@ -18,13 +19,16 @@ export const GENERATION_DEFAULTS = Object.freeze({ kind: GENERATION_SETTINGS_DEF
   difficulty: GENERATION_SETTINGS_DEFAULTS.difficulty, focus: GENERATION_SETTINGS_DEFAULTS.focus, notation: GENERATION_SETTINGS_DEFAULTS.notation, role: '',
   // 覆盖强度 (lib/coverage-strength.js): the form plans by level; a number of questions is only sent when the learner types one (`customCount`).
   coverageLevel: GENERATION_SETTINGS_DEFAULTS.coverageLevel, customCount: '',
+  // 出题深度 (lib/contexts/generation/presets.js): the form's depth starts as the saved one; a choice on the form is sent with that run only (generate-form.js generationRequest).
+  depth: depthOf(GENERATION_SETTINGS_DEFAULTS),
   // 花费上限 is typed as 800K / 2.5M (lib/coverage-run.js parseTokenBudget) and optional. (自动补到完整 has no default of its own: it follows the level until the learner ticks it, `gen.autoComplete`.)
   tokenBudget: '' });
 
 export function generationFormDefaults(saved, language = getUiLanguage()) {
   const { performance: _performance, ...content } = resolveGenerationRequest(saved, {}, { language });
   // 覆盖强度 is the form's own default (Settings > 出题偏好): a request resolved for an assistant carries none.
-  return { ...GENERATION_DEFAULTS, ...content, coverageLevel: normalizeGenerationSettings(saved).coverageLevel };
+  const settings = normalizeGenerationSettings(saved);
+  return { ...GENERATION_DEFAULTS, ...content, coverageLevel: settings.coverageLevel, depth: depthOf(settings) };
 }
 
 const sameValue = (left, right) => Object.is(left, right) || (Array.isArray(left) && Array.isArray(right) && left.length === right.length && left.every((item, at) => item === right[at]));
@@ -44,7 +48,7 @@ export function syncGenerationDefaults(current, before, after) {
 export const freshGeneration = (gen = {}, saved, language = getUiLanguage()) => {
   const { autoComplete: _chosen, referenceSourceIds: _refs, referenceLimits: _rl, referenceFormat: _rf, kindCounts: _kc, moduleOverrides: _mo, ...rest } = gen;
   return { ...rest,
-    ...(saved === undefined ? { kind: GENERATION_DEFAULTS.kind, kinds: GENERATION_DEFAULTS.kinds, count: GENERATION_DEFAULTS.count, focus: '', notation: GENERATION_DEFAULTS.notation, coverageLevel: GENERATION_DEFAULTS.coverageLevel, customCount: '', tokenBudget: '' }
+    ...(saved === undefined ? { kind: GENERATION_DEFAULTS.kind, kinds: GENERATION_DEFAULTS.kinds, count: GENERATION_DEFAULTS.count, focus: '', notation: GENERATION_DEFAULTS.notation, coverageLevel: GENERATION_DEFAULTS.coverageLevel, customCount: '', tokenBudget: '', depth: GENERATION_DEFAULTS.depth }
       : generationFormDefaults(saved, language)), role: gen.role ?? '', title: '', course: undefined };
 };
 

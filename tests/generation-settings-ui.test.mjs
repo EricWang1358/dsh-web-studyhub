@@ -251,18 +251,39 @@ test('lightModel offers following the generation model by default, lists host mo
   assert.equal(calls[0].args.generation.lightModel, JSON.stringify(['preview', 'fast-model']));
 });
 
-test('出题方式 is a choice of two under the advanced controls, one pass by default, explained by a hover card and never a title attribute', () => {
-  for (const [language, labels, tip] of [['zh', ['快速铺题（默认）', '逐题精出'], /快速铺题：每段资料一次写完/], ['en', ['Quick pass (default)', 'Step by step'], /Quick pass: each part of the material/]]) {
+// 出题深度 (lib/contexts/generation/presets.js) is the ONE control for the saved strategy and write style: 快问 / 情境题 / 逐题精出, where 出题方式 was a choice of two.
+test('出题深度 is a choice of three under the advanced controls, 情境题 by default, explained by a hover card and never a title attribute', () => {
+  for (const [language, labels, tip] of [['zh', ['快问', '情境题（默认）', '逐题精出'], /快问：每段资料一次写完这一段的题/], ['en', ['Quick', 'Scenario (default)', 'Step by step'], /Quick: each part of the material gets its questions in one call/]]) {
     ssr.setUiLanguage(language);
     const markup = renderToStaticMarkup(React.createElement(ssr.GenerationSettings, { root: '/temporary/library', act: noop }));
-    const select = markup.match(/<select[^>]*name="strategy"[^>]*>(.*?)<\/select>/);
+    const select = markup.match(/<select[^>]*name="depth"[^>]*>(.*?)<\/select>/);
     assert.ok(select, `${language}: the select is there`);
-    assert.deepEqual([...select[1].matchAll(/<option[^>]*value="([^"]+)"[^>]*>([^<]*)</g)].map(match => [match[1], match[2]]), [['one-pass', labels[0]], ['staged', labels[1]]]);
-    assert.match(select[0], /value="one-pass"[^>]*selected|selected[^>]*value="one-pass"/, `${language}: one pass is chosen by default`);
-    assert.match(markup, tip, `${language}: the hover card says what each way does`);
-    assert.doesNotMatch(select[0], /\btitle=/);
+    assert.deepEqual([...select[1].matchAll(/<option[^>]*value="([^"]+)"[^>]*>([^<]*)</g)].map(match => [match[1], match[2]]), [['quick', labels[0]], ['scenario', labels[1]], ['blueprint', labels[2]]]);
+    assert.match(select[0], /value="scenario"[^>]*selected|selected[^>]*value="scenario"/, `${language}: 情境题 is chosen by default`);
+    assert.match(markup, tip, `${language}: the hover card says what each depth does`);
+    assert.doesNotMatch(select[0], /title=/);
+    assert.doesNotMatch(markup, /name="strategy"/, `${language}: no second control for the strategy`);
     const advanced = markup.indexOf(language === 'zh' ? '高级生成控制' : 'Advanced generation controls');
-    assert.ok(advanced > 0 && markup.indexOf('name="strategy"') > advanced, `${language}: not on the main path, inside the advanced controls`);
+    assert.ok(advanced > 0 && markup.indexOf('name="depth"') > advanced, `${language}: not on the main path, inside the advanced controls`);
   }
   ssr.setUiLanguage('zh');
+});
+
+test('a saved strategy reads as its depth, and choosing a depth saves the strategy and the write style together', async () => {
+  const depthSelect = view => { const field = find(view.render(), node => typeof node.props?.children === 'function' && /depth$/.test(String(node.key))); return field.props.children({ id: 'depth', describedBy: '' }).props.children; };
+  const staged = editor({ saved: { ...GENERATION_SETTINGS_DEFAULTS, strategy: 'staged' } });
+  staged.render(); staged.effects();
+  assert.equal(depthSelect(staged).props.value, 'blueprint', 'a library on the staged pipeline reads as 逐题精出');
+  const calls = [];
+  const view = editor({ act: async (action, args, after) => { calls.push(args.generation); after({ generation: args.generation }); } });
+  view.render(); view.effects();
+  assert.equal(depthSelect(view).props.value, 'scenario');
+  depthSelect(view).props.onChange('quick');
+  assert.equal(depthSelect(view).props.value, 'quick');
+  await submit(view);
+  assert.equal(calls[0].strategy, 'one-pass');
+  assert.equal(calls[0].writeStyle, 'quick');
+  depthSelect(view).props.onChange('blueprint');
+  await submit(view);
+  assert.equal(calls[1].strategy, 'staged');
 });

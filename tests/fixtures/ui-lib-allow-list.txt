@@ -19,6 +19,7 @@ lib/case-study.js
 lib/chemistry-balance.js
 lib/cloze-text.js
 lib/contexts/generation/book/plan-parts.js
+lib/contexts/generation/presets.js
 lib/contexts/jobs/contracts.js
 lib/contexts/materials/material-folders.js
 lib/contexts/materials/material-practice.js

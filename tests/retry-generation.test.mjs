@@ -129,3 +129,55 @@ test('the generation job keeps what the learner asked beyond what its card carri
   assert.equal(patch.focus, '取舍');
   assert.equal(patch.difficulty, 'advanced');
 });
+
+test('按原资料重新设置 puts back the 出题深度 the run was asked with; a single-choice job that did not record one says so', () => {
+  const quiz = (asked) => ({ kind: 'quiz', kinds: ['quiz'], sourceIds: ['a'], coveragePlan: { level: 'lean', goal: 20, rounds: 1 },
+    asked: { focus: '', difficulty: 'mixed', language: '中文', notation: 'auto', referenceSourceIds: [], referenceFormat: 'balanced', coverageLevel: 'lean', ...asked } });
+  for (const depth of ['quick', 'scenario', 'blueprint']) {
+    const { patch, lost } = m.retryForm(quiz({ depth }));
+    assert.deepEqual(lost, [], depth);
+    assert.equal(patch.depth, depth, `${depth} comes back on the form`);
+    assert.equal(m.generationRequest({ ...formOf({}), ...patch }, { course: '', sourceIds: ['a'] }).performance.strategy, depth === 'blueprint' ? 'staged' : 'one-pass');
+  }
+  // From before the depth was recorded: the form's own depth is cleared (the saved one applies) and the notice names what was not put back.
+  const old = m.retryForm(quiz({}));
+  assert.ok('depth' in old.patch && old.patch.depth === undefined, 'the form does not keep a depth of its own');
+  assert.deepEqual(old.lost, ['出题深度']);
+  assert.match(m.retryNotice({ lost: old.lost }), /出题深度当时没有记录/);
+  // Where the depth means nothing (another question type), nothing is said about it.
+  const mixed = m.retryForm({ ...quiz({}), kinds: ['quiz', 'open'] });
+  assert.deepEqual(mixed.lost, []);
+  assert.ok(!('depth' in mixed.patch));
+});
+
+test('the generation job records the 出题深度 a single-choice run was asked with: the form\'s pick over the saved one', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'study-retry-depth-'));
+  const service = new StudyService(root);
+  t.after(async () => { service.dispose(); await rm(root, { recursive: true, force: true, maxRetries: 10 }); });
+  await service.call('source.add', { id: 'src', title: 'Notes', text: 'Architecture connects business goals to technical decisions through principles.\n'.repeat(40) });
+  service.complete = async () => { throw new Error('the model is away'); };
+  const run = async (args) => {
+    const started = await service.call('generate', { sourceIds: ['src'], kind: 'quiz', kinds: ['quiz'], language: 'English', coverageLevel: 'lean', ...args });
+    await service.call('job.wait', { jobId: started.jobId, timeoutSeconds: 30 });
+    return (await service.call('snapshot')).jobs.find((item) => item.id === started.jobId);
+  };
+  const quick = await run({ performance: { strategy: 'one-pass', writeStyle: 'quick' } });
+  assert.equal(quick.status, 'failed');
+  assert.equal(quick.asked.depth, 'quick');
+  assert.equal(m.retryForm(quick, { sources: [{ id: 'src' }] }).patch.depth, 'quick', 'the retry puts 快问 back, not the saved 情境题');
+  const staged = await run({ performance: { strategy: 'staged', writeStyle: 'scenario' } });
+  assert.equal(staged.asked.depth, 'blueprint');
+  assert.equal((await run({})).asked.depth, 'scenario', 'without a pick, the saved depth it ran with');
+  const open = await run({ kind: 'open', kinds: ['open'] });
+  assert.ok(!('depth' in open.asked), 'another question type has no depth to record');
+  // A run by a number of questions alone (no 覆盖强度: the main chat, the API) is written by the staged pipeline whatever the depth says: nothing to record.
+  const counted = await run({ coverageLevel: undefined, count: 3, performance: { strategy: 'one-pass', writeStyle: 'quick' } });
+  assert.ok(!('depth' in counted.asked), 'a plain run by count has no depth to record');
+});
+
+test('a single-choice job that was a plain run by count says nothing about 出题深度 on the retry', () => {
+  const { patch, lost } = m.retryForm({ kind: 'quiz', kinds: ['quiz'], sourceIds: ['a'], count: 4,
+    asked: { focus: '', difficulty: 'mixed', language: '中文', notation: 'auto', referenceSourceIds: [], referenceFormat: 'balanced' } });
+  assert.deepEqual(lost, []);
+  assert.ok(!('depth' in patch), 'the depth never applied to it');
+});

@@ -174,7 +174,7 @@ const foldSummary = page => page.evaluate(() => {
   return { height: summary.getBoundingClientRect().height, text: words.join('').replace(/\s+/g, ' ').trim(), starts };
 });
 
-/** The room between 更多选项's summary and its first group's title (「想练什么」): the summary's own band, which a hidden line must not widen. */
+/** The room between 更多选项's summary and its first group's title (「出题方式与题量」): the summary's own band, which a hidden line must not widen. */
 const bandUnderSummary = page => page.evaluate(() => {
   const summary = document.querySelector('.generate-more > summary').getBoundingClientRect(), title = document.querySelector('.generate-more .generate-group__title').getBoundingClientRect();
   return { summary: summary.height, band: title.top - summary.bottom };
@@ -182,7 +182,7 @@ const bandUnderSummary = page => page.evaluate(() => {
 
 test('#1082: 更多选项 open says its hint on one line whatever is chosen (no empty band under it), shut says the chosen pieces, and no line of pieces starts with 「·」', { timeout: 600000 }, async t => {
   if (skip) { t.skip(skip); return; }
-  const hints = { en: 'Focus, difficulty, cost, extras', zh: '想练什么、难度、花费、额外要求' };
+  const hints = { en: 'Count, focus, difficulty, cost, extras', zh: '题量、想练什么、难度、花费、额外要求' };
   for (const [lang, width] of [['en', 420], ['en', 320], ['zh', 420], ['zh', 320]]) {
     const tag = `${lang} ${width}`;
     const { page, errors, context } = await openGenerate({ lang, width });
@@ -199,7 +199,7 @@ test('#1082: 更多选项 open says its hint on one line whatever is chosen (no 
       await frames(page, 4);
       const now = await foldSummary(page), band = await bandUnderSummary(page);
       assert.ok(now.text.includes(hints[lang].slice(0, 8)), `${tag}: open, after picking ${name}, the summary says its hint ("${now.text}")`);
-      // the open summary is the hint's one line: what is chosen (hidden while open) adds no empty band above 「想练什么」
+      // the open summary is the hint's one line: what is chosen (hidden while open) adds no empty band above the first group
       assert.ok(Math.abs(now.height - openPlain.height) <= 0.5, `${tag}: open, after picking ${name}, the summary is as tall as with nothing chosen (${now.height} vs ${openPlain.height})`);
       assert.ok(Math.abs(band.band - bandPlain.band) <= 0.5, `${tag}: open, after picking ${name}, the room under the summary is unchanged (${band.band} vs ${bandPlain.band})`);
     }
