@@ -52,3 +52,26 @@ test('a standard coverage run in one pass: every planned section covered, only o
   assert.ok(calls.filter(call => !/^Part /.test(call.stage)).every(call => call.kind === 'review'), 'the merge is a review step of the run');
   assert.ok(calls.every(call => Number.isInteger(call.tokens) && call.tokens > 0), 'and its token usage');
 });
+
+/* The 出题深度 picked on 创建题组 (ui/generate-form.js: `performance` of lib/generation-presets.js) is this run's only: it reaches every write call through the
+   `generate` action, the draft records it, and the saved default is what it was. */
+test('the form\'s per-run depth reaches the run: 快问 writes in the quick style, and the saved 情境题 stays the default', async t => {
+  const { service, log, ids } = await library(t);
+  const { WRITE_STYLES } = await import('../lib/one-pass/write-style.js');
+  const { performanceOfDepth } = await import('../lib/generation-presets.js');
+  const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'lean', kind: 'quiz', language: 'English', performance: performanceOfDepth('quick') });
+  const job = await settleJob(service, started.jobId);
+  assert.equal(job.status, 'complete', job.stage);
+  const writes = log.filter(entry => entry.handler === 'generation.one-pass.write');
+  assert.ok(writes.length >= 1);
+  for (const entry of writes) {
+    const said = `${entry.system}\n${entry.prompt}`;
+    assert.ok(said.includes(WRITE_STYLES.quick), 'every write call asks in the quick style');
+    assert.ok(!said.includes(WRITE_STYLES.scenario), 'and not in the scenario one');
+  }
+  const draft = (await service.call('export')).drafts[0];
+  assert.deepEqual([draft.editorial.generation.performance.strategy, draft.editorial.generation.performance.writeStyle], ['one-pass', 'quick'], 'the draft records how it was written');
+  const saved = (await service.call('snapshot')).settings.generation;
+  assert.equal(saved.writeStyle ?? 'scenario', 'scenario', 'the saved style is untouched');
+  assert.notEqual(saved.strategy, 'staged');
+});
