@@ -2441,3 +2441,201 @@ test("candidate terms behavioral guards: flashcard 1/4, right quiz, cache revisi
     }
   }
 });
+
+async function seedCodeTermDeck(root) {
+  const service = new StudyService(root);
+  await service.call("snapshot");
+  await service.store.update((state) => {
+    state.decks.push({
+      id: "d-code",
+      title: "Java 字符串常量池",
+      course: "Java基础",
+      folder: "",
+      publishedAt: "2026-10-01T00:00:00.000Z",
+      cards: [
+        {
+          id: "c-code-1",
+          kind: "quiz",
+          topic: "String.intern",
+          objective: "理解字符串常量池与 intern 引用语义",
+          prompt: "执行 `s3.intern()` 时，常量池与堆引用如何变化？",
+          options: [
+            {
+              id: "a",
+              text: "输出 `true, true`：`s1` 首次入池将自身堆引用登记入池，而 `s4` 命中了常量池中已存在的 `\"hello\"`",
+              correct: true,
+              explanation:
+                "JDK 7+ 常量池在堆内，首次出现的 `\"java21\"` 直接登记堆引用故 `s1 == s2`；`\"hello\"` 已在池中，故 `s3.intern()` 返回池中同引用的 `s5`。",
+            },
+            {
+              id: "b",
+              text: "输出 `false, false`：每次调用都会复制新对象",
+              correct: false,
+              explanation: "JDK 7+ 不会在堆中重复复制首次入池的字符串对象。",
+            },
+          ],
+          hint: "观察 `s3.intern()` 返回的引用来源。",
+          explanation: [
+            "完整代码示例：",
+            "",
+            "```java",
+            "String s3 = new String(\"hello\");",
+            "String s5 = s3.intern();",
+            "StringBuilder buf = new StringBuilder(\"java\");",
+            "```",
+          ].join("\n"),
+          misconception: "把 `StringBuilder` 误认为不可变字符串。",
+          citations: [],
+        },
+        {
+          id: "c-code-2",
+          kind: "flashcard",
+          topic: "String.intern 复查",
+          objective: "复查 intern 行为",
+          prompt: "调用 `pool.intern()` 在 JDK 7+ 下返回什么？",
+          answer: "如果池中已存在，则 `pool.intern()` 直接返回池中引用。",
+          hint: "回忆常量池在堆内的行为。",
+          explanation: "与 `s3.intern()` 相同。",
+          misconception: "以为总是新建对象。",
+          citations: [],
+        },
+      ],
+    });
+  });
+}
+
+test("term marking works inside inline <code> and fenced <pre><code> blocks while skipping .md-code-head", async (t) => {
+  let browser;
+  try {
+    browser = await launchChromium();
+  } catch (error) {
+    t.skip(`no Chromium to look with: ${String(error.message).split("\n")[0]}`);
+    return;
+  }
+  const dist = await mkdtemp(join(tmpdir(), "study-term-marks-code-dist-"));
+  await buildPreview({ outdir: dist });
+  t.after(async () => {
+    await browser.close();
+    await rm(dist, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  });
+
+  const running = await startLateServer({ distDir: dist, lang: "zh", seed: (root) => seedCodeTermDeck(root) });
+  const { context, page, errors } = await openPage(browser, running, { lang: "zh", theme: "light", width: 1280, height: 900 });
+  try {
+    await page.goto(running.server.url);
+    await page.locator('[data-usage="home.start"]').first().click({ timeout: 30000 });
+    await page.locator(".question-toolbar").waitFor({ timeout: 30000 });
+    await settleAnimations(page);
+
+    const termsBtn = page.locator('[data-usage="review.terms"]');
+    await termsBtn.click();
+    assert.equal(await termsBtn.getAttribute("aria-pressed"), "true", "marking mode enabled");
+
+    // 1. Clicking inline <code> inside an unanswered quiz option marks it without submitting the answer.
+    await clickWord(page, ".options", "s1", 0);
+    assert.deepEqual(await chipTexts(page), ["s1"], "inline <code> inside unanswered option is markable");
+    assert.equal(
+      await page.locator(".options .option.correct, .options .option.incorrect, .next-due").count(),
+      0,
+      "clicking <code> inside unanswered option in marking mode does not answer the quiz",
+    );
+    // Click again to toggle off.
+    await clickWord(page, ".options", "s1", 0);
+    assert.equal(await page.locator(".term-strip").count(), 0, "clicking marked inline <code> word toggles it off");
+
+    // 2. Exit marking mode, answer the quiz to reveal option explanation (inside disabled option button) + fenced code block explanation.
+    await page.keyboard.press("Escape");
+    await page.locator(".options .option", { hasText: "true, true" }).click();
+    await page.locator(".option-explanation code").first().waitFor({ state: "visible", timeout: 10000 });
+    await page.locator(".explanation .md-code-block pre.md-code code").waitFor({ state: "visible", timeout: 10000 });
+    await settleAnimations(page);
+
+    await termsBtn.click();
+
+    // 3. Exact repro: drag substring `intern` inside inline <code>s3.intern()</code> in disabled option's explanation.
+    await dragPhrase(page, ".option-explanation", "intern", 0);
+    const leftoverAfterInlineDrag = await page.evaluate(() => window.getSelection()?.toString() || "");
+    assert.equal(leftoverAfterInlineDrag, "", "browser selection cleared after dragging inside inline <code>");
+    assert.deepEqual(await chipTexts(page), ["intern"], "dragged substring inside inline <code> added to chips");
+
+    const internHlTexts = await highlightTexts(page, "study-term-mark");
+    if (internHlTexts !== null) {
+      assert.ok(
+        internHlTexts.length >= 3 && internHlTexts.every((text) => text === "intern"),
+        `intern highlighted across stem inline <code>, option explanation <code>, and fenced <pre><code> (${internHlTexts.join(", ")})`,
+      );
+    }
+
+    // Clicking the highlighted `intern` inside <code> toggles it off cleanly.
+    await clickWord(page, ".option-explanation", "intern", 0);
+    assert.equal(await page.locator(".term-strip").count(), 0, "clicking highlighted substring inside inline <code> removes it");
+
+    // 4. Drag full inline code `s3.intern()` inside option explanation.
+    await dragPhrase(page, ".option-explanation", "s3.intern()", 0);
+    assert.deepEqual(await chipTexts(page), ["s3.intern()"], "full inline <code> expression marked");
+    const fullExprTexts = await highlightTexts(page, "study-term-mark");
+    if (fullExprTexts !== null) {
+      assert.ok(
+        fullExprTexts.length >= 2 && fullExprTexts.every((text) => text === "s3.intern()"),
+        `full inline code highlighted cleanly (${fullExprTexts.join(", ")})`,
+      );
+    }
+
+    // 5. Mark inside fenced <pre class="md-code"><code>:
+    //    (a) clicking `s3.intern()` inside <pre><code> toggles off the active `s3.intern()` mark
+    //    (b) clicking `intern` inside <pre><code> marks `intern`
+    //    (c) dragging intra-identifier substring `Builder` inside `StringBuilder` marks & highlights `Builder`
+    await clickWord(page, ".explanation .md-code-block pre.md-code code", "intern", 0);
+    assert.equal(await page.locator(".term-strip").count(), 0, "clicking highlighted expression inside <pre><code> toggles it off");
+
+    await clickWord(page, ".explanation .md-code-block pre.md-code code", "intern", 0);
+    assert.deepEqual(await chipTexts(page), ["intern"], "clicking word inside fenced <pre><code> marks it");
+
+    await dragPhrase(page, ".explanation .md-code-block pre.md-code code", "Builder", 0);
+    assert.deepEqual(
+      await chipTexts(page),
+      ["intern", "Builder"],
+      "dragging intra-identifier substring inside fenced <pre><code> marks it",
+    );
+    const afterBuilderTexts = await highlightTexts(page, "study-term-mark");
+    if (afterBuilderTexts !== null) {
+      assert.ok(afterBuilderTexts.includes("Builder"), "explicitly dragged intra-identifier substring inside <pre><code> is highlighted");
+    }
+    // Click highlighted `Builder` inside <pre><code> to toggle it off.
+    await clickWord(page, ".explanation .md-code-block pre.md-code code", "Builder", 0);
+    assert.deepEqual(await chipTexts(page), ["intern"], "clicking highlighted intra-identifier substring removes it");
+
+    // 6. Clicking .md-code-lang in .md-code-head must NOT mark `java` or highlight .md-code-head.
+    await clickWord(page, ".explanation .md-code-head .md-code-lang", "java", 0);
+    assert.deepEqual(await chipTexts(page), ["intern"], ".md-code-head language badge stays excluded");
+
+    // Mark `java` inside <pre><code> body -> highlights body occurrence only, never .md-code-head.
+    await clickWord(page, ".explanation .md-code-block pre.md-code code", "java", 0);
+    assert.deepEqual(await chipTexts(page), ["intern", "java"], "marking `java` inside <pre><code> body succeeds");
+    const headHighlighted = await page.evaluate(() => {
+      if (typeof CSS === "undefined" || !CSS.highlights) return false;
+      const head = document.querySelector(".explanation .md-code-head");
+      const hl = CSS.highlights.get("study-term-mark");
+      if (!head || !hl) return false;
+      return [...hl].some((range) => head.contains(range.startContainer) || head.contains(range.endContainer));
+    });
+    assert.equal(headHighlighted, false, ".md-code-head is never highlighted even when its language label is a marked term");
+
+    // 7. Advance to Card 2 -> persisted `intern` paints as pale study-term-seen inside <code>, and clicking stages it.
+    await page.locator('[data-usage="review.next"]').click();
+    await page.locator(".flashcard").waitFor({ state: "visible", timeout: 10000 });
+    await settleAnimations(page);
+    const seenOnCard2 = await highlightTexts(page, "study-term-seen");
+    if (seenOnCard2 !== null) {
+      assert.ok(seenOnCard2.some((text) => text.toLowerCase() === "intern"), `seen term highlights inside Card 2 <code> (${seenOnCard2.join(", ")})`);
+    }
+    await termsBtn.click();
+    await clickWord(page, '.flip-front[aria-hidden="false"] code', "intern", 0);
+    assert.deepEqual(await chipTexts(page), ["intern"], "clicking pale seen term inside <code> stages it into term strip");
+
+    assert.deepEqual(errors, [], `code term marking unexpected console/page errors: ${errors.join(" | ")}`);
+  } finally {
+    await context.close();
+    await running.close();
+  }
+});

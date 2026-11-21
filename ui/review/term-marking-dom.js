@@ -1,7 +1,8 @@
+import { normalizeTerm } from "./term-marks.js";
+
 const EXCLUDED_SELECTOR = [
   ".katex",
-  "code",
-  "pre",
+  ".md-code-head",
   "a",
   "input",
   "textarea",
@@ -38,7 +39,7 @@ const EXCLUDED_SELECTOR = [
   '[aria-hidden="true"]',
 ].join(", ");
 
-const BLOCK_SELECTOR = "p, li, h1, h2, h3, h4, h5, h6, div, blockquote, dd, dt, td, th, button.option, article, section";
+const BLOCK_SELECTOR = "p, li, h1, h2, h3, h4, h5, h6, div, blockquote, pre, dd, dt, td, th, button.option, article, section";
 const ASCII_WORD_CHAR = /[A-Za-z0-9_]/;
 const ELEMENT_NODE_TYPE = typeof Node !== "undefined" ? Node.ELEMENT_NODE : 1;
 const TEXT_NODE_TYPE = typeof Node !== "undefined" ? Node.TEXT_NODE : 3;
@@ -48,23 +49,49 @@ const FILTER_ACCEPT = typeof NodeFilter !== "undefined" ? NodeFilter.FILTER_ACCE
 const FILTER_REJECT = typeof NodeFilter !== "undefined" ? NodeFilter.FILTER_REJECT : 2;
 const FILTER_SKIP = typeof NodeFilter !== "undefined" ? NodeFilter.FILTER_SKIP : 3;
 
-function isClosedDetailsContent(element) {
-  const closed = element?.closest?.("details:not([open])");
-  if (!closed) return false;
-  const summary = element.closest("summary");
-  return !summary || !closed.contains(summary);
+function closestExcluded(element, body) {
+  if (typeof element?.closest === "function") {
+    const match = element.closest(EXCLUDED_SELECTOR);
+    return match && body.contains(match) && match !== body ? match : null;
+  }
+  for (let el = element; el && el !== body; el = el.parentElement) {
+    if (el.matches?.(EXCLUDED_SELECTOR)) return el;
+  }
+  return null;
+}
+
+function isClosedDetailsContent(element, body) {
+  if (typeof element?.closest === "function") {
+    const closed = element.closest("details:not([open])");
+    if (!closed) return false;
+    const summary = element.closest("summary");
+    return !summary || !closed.contains(summary);
+  }
+  let inSummary = false;
+  for (let el = element; el && el !== body; el = el.parentElement) {
+    const tag = String(el.tagName || "").toUpperCase();
+    if (tag === "SUMMARY") inSummary = true;
+    else if (tag === "DETAILS" && !el.open) return !inSummary;
+  }
+  return false;
+}
+
+function enclosingCodeElement(node, body) {
+  for (let el = node?.parentElement; el && el !== body; el = el.parentElement) {
+    if (String(el.tagName || "").toUpperCase() === "CODE") return el;
+  }
+  return null;
 }
 
 export function isExcludedElement(element, body) {
   if (!element || !body?.contains(element)) return true;
   if (element === body) return false;
-  const match = element.closest(EXCLUDED_SELECTOR);
-  if (match && body.contains(match) && match !== body) return true;
-  return isClosedDetailsContent(element);
+  if (closestExcluded(element, body)) return true;
+  return isClosedDetailsContent(element, body);
 }
 
 export function isAllowedTextNode(node, body) {
-  if (!node || node.nodeType !== Node.TEXT_NODE || !node.data) return false;
+  if (!node || node.nodeType !== TEXT_NODE_TYPE || !node.data) return false;
   const parent = node.parentElement;
   return !!parent && !isExcludedElement(parent, body);
 }
@@ -82,7 +109,12 @@ export function collectBlockSegments(body, doc = body?.ownerDocument) {
     if (!current) current = { text: "", runs: [] };
     const textStart = current.text.length;
     current.text += node.data;
-    current.runs.push({ node, textStart, textEnd: current.text.length });
+    current.runs.push({
+      node,
+      textStart,
+      textEnd: current.text.length,
+      codeEl: enclosingCodeElement(node, body),
+    });
   };
 
   if (typeof doc?.createTreeWalker === "function") {
@@ -150,15 +182,31 @@ export function collectBlockSegments(body, doc = body?.ownerDocument) {
   return segments;
 }
 
-function hasAsciiBoundaries(text, start, end, term) {
-  if (ASCII_WORD_CHAR.test(term[0]) && start > 0 && ASCII_WORD_CHAR.test(text[start - 1])) return false;
-  if (ASCII_WORD_CHAR.test(term[term.length - 1]) && end < text.length && ASCII_WORD_CHAR.test(text[end])) return false;
+function charRunAt(runs, pos) {
+  for (const run of runs) {
+    if (pos >= run.textStart && pos < run.textEnd) return run;
+  }
+  return null;
+}
+
+function hasAsciiBoundaries(seg, start, end, term) {
+  const { text, runs } = seg;
+  if (ASCII_WORD_CHAR.test(term[0]) && start > 0 && ASCII_WORD_CHAR.test(text[start - 1])) {
+    const prevRun = charRunAt(runs, start - 1);
+    const currRun = charRunAt(runs, start);
+    if (!prevRun || !currRun || prevRun.codeEl === currRun.codeEl) return false;
+  }
+  if (ASCII_WORD_CHAR.test(term[term.length - 1]) && end < text.length && ASCII_WORD_CHAR.test(text[end])) {
+    const currRun = charRunAt(runs, end - 1);
+    const nextRun = charRunAt(runs, end);
+    if (!currRun || !nextRun || currRun.codeEl === nextRun.codeEl) return false;
+  }
   return true;
 }
 
-function locateInRuns(runs, pos) {
+function locateInRuns(runs, pos, isEnd = false) {
   for (const run of runs) {
-    if (pos >= run.textStart && pos <= run.textEnd) {
+    if (isEnd ? pos > run.textStart && pos <= run.textEnd : pos >= run.textStart && pos < run.textEnd) {
       return { node: run.node, offset: pos - run.textStart };
     }
   }
@@ -194,9 +242,9 @@ function matchTermsInSegments(doc, segments, terms, { caseInsensitive = false } 
         if (at < 0) break;
         const end = at + needle.length;
         from = at + 1;
-        if (!hasAsciiBoundaries(seg.text, at, end, term)) continue;
-        const startPos = locateInRuns(seg.runs, at);
-        const endPos = locateInRuns(seg.runs, end);
+        if (!hasAsciiBoundaries(seg, at, end, term)) continue;
+        const startPos = locateInRuns(seg.runs, at, false);
+        const endPos = locateInRuns(seg.runs, end, true);
         if (!startPos || !endPos) continue;
         const range = doc.createRange();
         range.setStart(startPos.node, startPos.offset);
@@ -209,15 +257,48 @@ function matchTermsInSegments(doc, segments, terms, { caseInsensitive = false } 
   return { ranges, spans };
 }
 
+function appendExplicitHits(doc, body, active, activeTerms, activeHits) {
+  if (!doc || !body || !activeTerms.length || !activeHits.length) return;
+  const activeSet = new Set(activeTerms);
+  for (const hit of activeHits) {
+    if (!hit || !activeSet.has(hit.term)) continue;
+    const { node, start, end, term } = hit;
+    if (!node || node.nodeType !== TEXT_NODE_TYPE || typeof node.data !== "string") continue;
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end <= start || end > node.data.length) continue;
+    if (!body.contains(node) || !isAllowedTextNode(node, body)) continue;
+    let hitStart = start;
+    let hitEnd = end;
+    while (hitStart < hitEnd && /\s/.test(node.data[hitStart])) hitStart += 1;
+    while (hitEnd > hitStart && /\s/.test(node.data[hitEnd - 1])) hitEnd -= 1;
+    if (hitEnd <= hitStart) continue;
+    if (normalizeTerm(node.data.slice(hitStart, hitEnd)) !== term) continue;
+    const alreadyCovered = active.spans.some(
+      (span) => span.node === node && span.start <= hitStart && span.end >= hitEnd && span.term === term,
+    );
+    if (alreadyCovered) continue;
+    const range = doc.createRange();
+    range.setStart(node, hitStart);
+    range.setEnd(node, hitEnd);
+    active.ranges.push(range);
+    active.spans.push({ node, start: hitStart, end: hitEnd, term });
+  }
+}
+
 /** Collect active, seen-unknown, and candidate term highlights from a single DOM TreeWalker scan. */
-export function collectAllHighlightEntries(doc, body, { activeTerms = [], seenTerms = [], candidateTerms = [] } = {}) {
+export function collectAllHighlightEntries(
+  doc,
+  body,
+  { activeTerms = [], activeHits = [], seenTerms = [], candidateTerms = [] } = {},
+) {
   const empty = () => ({ ranges: [], spans: [] });
   if (!doc || !body || (!activeTerms.length && !seenTerms.length && !candidateTerms.length)) {
     return { active: empty(), seen: empty(), cand: empty() };
   }
   const segments = collectBlockSegments(body, doc);
+  const active = activeTerms.length ? matchTermsInSegments(doc, segments, activeTerms) : empty();
+  if (activeHits.length) appendExplicitHits(doc, body, active, activeTerms, activeHits);
   return {
-    active: activeTerms.length ? matchTermsInSegments(doc, segments, activeTerms) : empty(),
+    active,
     seen: seenTerms.length ? matchTermsInSegments(doc, segments, seenTerms, { caseInsensitive: true }) : empty(),
     cand: candidateTerms.length ? matchTermsInSegments(doc, segments, candidateTerms, { caseInsensitive: true }) : empty(),
   };

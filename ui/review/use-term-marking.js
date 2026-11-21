@@ -646,6 +646,7 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
     const sync = () => {
       const { active, seen, cand } = collectAllHighlightEntries(body.ownerDocument, body, {
         activeTerms: terms,
+        activeHits: currentEntry.hits,
         seenTerms: seenUnknownTerms,
         candidateTerms,
       });
@@ -689,7 +690,7 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
       if (rafId) cancelAnimationFrame(rafId);
       clearHighlight();
     };
-  }, [disabledForState, reviewBodyRef, terms, seenUnknownTerms, candidateTerms, entryKey, run?.revealed, run?.feedback, session?.showBack]);
+  }, [disabledForState, reviewBodyRef, terms, currentEntry.hits, seenUnknownTerms, candidateTerms, entryKey, run?.revealed, run?.feedback, session?.showBack]);
 
   React.useEffect(() => {
     if (!marking) pointerDownRef.current = null;
@@ -714,8 +715,8 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
       if (event.button !== 0 || !markingRef.current) return;
       const down = pointerDownRef.current;
       pointerDownRef.current = null;
-      if (!down && !body.contains(event.target)) return;
-      if (body.contains(event.target) && isExcludedElement(event.target, body)) return;
+      const excludedTarget = body.contains(event.target) && isExcludedElement(event.target, body);
+      if (!down && (!body.contains(event.target) || excludedTarget)) return;
 
       const win = doc?.defaultView || window;
       const sel = win?.getSelection?.();
@@ -736,17 +737,22 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
           );
         if (allowedEnds && raw) {
           sel.removeAllRanges();
-          const singleNodeRange =
-            range.startContainer === range.endContainer && range.startContainer.nodeType === Node.TEXT_NODE
-              ? { node: range.startContainer, start: range.startOffset, end: range.endOffset }
-              : null;
+          let singleNodeRange = null;
+          if (range.startContainer === range.endContainer && range.startContainer.nodeType === Node.TEXT_NODE) {
+            let start = range.startOffset;
+            let end = range.endOffset;
+            const text = range.startContainer.data || "";
+            while (start < end && /\s/.test(text[start])) start += 1;
+            while (end > start && /\s/.test(text[end - 1])) end -= 1;
+            if (end > start) singleNodeRange = { node: range.startContainer, start, end };
+          }
           handlersRef.current.applySelectedText(raw, singleNodeRange);
           suppressClickUntilRef.current = Date.now() + 250;
           return;
         }
       }
 
-      if (moved > 6) return;
+      if (excludedTarget || moved > 6) return;
       const pointHit = charOffsetAtPoint(doc, event.clientX, event.clientY, body);
       if (!pointHit) return;
       suppressClickUntilRef.current = Date.now() + 250;
