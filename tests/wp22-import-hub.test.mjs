@@ -48,13 +48,13 @@ test('the drop zone hint names the new formats and one limit per format, in both
   setUiLanguage('zh');
   const zh = render({ audio: React.createElement('div') });
   assert.match(zh, /PDF · Word · PowerPoint · Markdown/);
-  assert.match(zh, /PDF 与文本最大 8 MB，Word \/ PPT 最大 40 MB/);
+  assert.match(zh, /PDF 与文本最大 8 MB，Word \/ PPT \/ 转换 JSON 最大 40 MB/);
   assert.match(zh, /accept="\.pdf,\.docx,\.pptx,\.ppt,/);
   setUiLanguage('en');
   try {
     const en = render({ audio: React.createElement('div') }).replace(/<[^>]+>/g, ' ');
     assert.match(en, /Word · PowerPoint/);
-    assert.match(en, /PDF and text up to 8 MB, Word \/ PPT up to 40 MB/);
+    assert.match(en, /PDF (&|&amp;) text up to 8 MB, Word \/ PPT \/ converted JSON up to 40 MB/);
     assert.doesNotMatch(en.replace(/操作系统/g, ''), han);
   } finally { setUiLanguage('zh'); }
 });
