@@ -299,6 +299,6 @@ export function useBookHandlers({
     aiOpen: id => { flushSync(() => foldAi(id, false)); showBlock(id); },
     aiWords: id => showWords(id),
     // A 术语卡's link (#710): its point opened when the card is not drawn, then the card shown (ui/book/term-card-go.js).
-    goCard: (hid, code) => { if (!cardShown(code)) goTo?.(hid); showCard(code); },
+    goCard: (hid, code) => { if (!cardShown(code)) goTo?.(hid, { hold: false }); showCard(code); },
   }), [book, qa, retell, rows, call, course, notify, onCreate, onOpenSource, onPractice, remember, choosing, setBook, modelReady, model, onBack, ai, foldAi, reload, act, onPlace, goTo, inlinePractice, evidenceByHid, onEvidenceChanged, courses, decks, sources, openModal, openModel, canChat, rescueJobs, onStartRescue, activeRescuePrompt, onTopUpPoints, pointGapBusy]);
 }

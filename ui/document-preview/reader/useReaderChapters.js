@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { adjacentChapters, chapterAt, readerChapters } from './chapters.js';
-import { scrollToNode } from './useReadingPosition.js';
+import { anchorScroll, cancelAnchorScroll } from './useReadingPosition.js';
 
 const escape = value => String(value).replace(/["\\]/g, '\\$&');
 
@@ -52,8 +52,8 @@ export function useChapterGoal({ goal, reached, scroller, body, ready, drawn }) 
   useEffect(() => {
     if (!goal || !ready) return;
     const area = scroller.current;
-    if (goal.top) area?.scrollTo?.({ top: 0, behavior: 'auto' });
-    else scrollToNode(area, goalNode(body.current, goal), { smooth: false });
+    if (goal.top) { cancelAnchorScroll(area); area?.scrollTo?.({ top: 0, behavior: 'auto' }); }
+    else anchorScroll(area, goalNode(body.current, goal), { smooth: false });
     reached(goal);
   }, [goal, ready, drawn, scroller, body, reached]);
 }

@@ -16,12 +16,133 @@ const instant = (scroller, top) => scroller.scrollTo({ top, behavior: 'instant' 
 
 /** The element that scrolls the page (the app's own scroller in the browser). */
 export const scrollerOf = element => {
+  const getStyle = typeof getComputedStyle === 'function' ? getComputedStyle : typeof window !== 'undefined' ? window.getComputedStyle : null;
   for (let node = element?.parentElement; node; node = node.parentElement) {
-    const style = window.getComputedStyle(node);
-    if (/(auto|scroll)/.test(style.overflowY) && node.scrollHeight > node.clientHeight) return node;
+    const style = getStyle?.(node);
+    if (style && /(auto|scroll)/.test(style.overflowY) && node.scrollHeight > node.clientHeight) return node;
   }
-  return document.scrollingElement;
+  return typeof document !== 'undefined' ? document.scrollingElement : null;
 };
+
+/** CSS zoom scale between `getBoundingClientRect()` (screen px) and `scrollTop` / layout px on `node` (1 in unzoomed or mock DOMs). */
+function zoomScale(node) {
+  if (!node) return 1;
+  const rect = node.getBoundingClientRect?.();
+  if (node.offsetHeight > 0 && rect?.height > 0) return rect.height / node.offsetHeight;
+  if (node.offsetWidth > 0 && rect?.width > 0) return rect.width / node.offsetWidth;
+  return 1;
+}
+
+/** Measure `target` (Element or Range), skipping zero-size leading rects on multi-line Ranges. */
+export function targetBox(target) {
+  if (!target) return null;
+  if (typeof target.getClientRects === 'function') {
+    const rects = [...target.getClientRects()].filter(r => r && (r.width > 0 || r.height > 0));
+    if (rects.length) {
+      const top = Math.min(...rects.map(r => r.top));
+      const bottom = Math.max(...rects.map(r => r.bottom));
+      return { top, bottom, height: bottom - top };
+    }
+  }
+  const rect = target.getBoundingClientRect?.();
+  if (!rect) return null;
+  const height = rect.height ?? ((rect.bottom ?? rect.top) - rect.top);
+  return { top: rect.top, bottom: rect.bottom ?? (rect.top + height), height };
+}
+
+/** Model `.topbar`'s height and bottom offset (in unzoomed scroller CSS px) at any `scrollTop`. */
+function topbarModel(app, scroller, scrollerTopScreen, isDoc, scale) {
+  const topbar = app?.querySelector?.('.topbar') ?? null;
+  const hasTopbar = Boolean(topbar && (isDoc || !scroller.contains || scroller.contains(topbar)));
+  if (!hasTopbar) return { max: 0, at: () => 0 };
+  const topbarRect = topbar.getBoundingClientRect?.();
+  if (!topbarRect) return { max: 0, at: () => 0 };
+  const appRect = app?.getBoundingClientRect?.();
+  const appTopScreen = (appRect?.top ?? scrollerTopScreen) + (app?.clientTop || 0) * scale;
+  const topbarH = Math.max(0, Math.round((topbarRect.height ?? (topbarRect.bottom - topbarRect.top)) / scale));
+  const pos = (typeof getComputedStyle === 'function' ? getComputedStyle(topbar)?.position : null) || 'sticky';
+  const scrollNow = scroller.scrollTop || 0;
+  if (pos === 'fixed') {
+    const cur = Math.max(0, Math.round((topbarRect.bottom - appTopScreen) / scale));
+    return { max: Math.max(topbarH, cur), at: () => cur };
+  }
+  if (pos === 'sticky') {
+    const parentRect = topbar.parentElement?.getBoundingClientRect?.();
+    if (parentRect && Number.isFinite(parentRect.bottom)) {
+      const parentBottomAt0 = scrollNow + (parentRect.bottom - appTopScreen) / scale;
+      return { max: topbarH, at: scrollTop => Math.max(0, Math.min(topbarH, Math.round(parentBottomAt0 - scrollTop))) };
+    }
+    const cur = Math.max(0, Math.round((topbarRect.bottom - appTopScreen) / scale));
+    return { max: Math.max(topbarH, cur), at: () => cur };
+  }
+  const bottomAt0 = scrollNow + (topbarRect.bottom - appTopScreen) / scale;
+  return { max: topbarH, at: scrollTop => Math.max(0, Math.min(topbarH, Math.round(bottomAt0 - scrollTop))) };
+}
+
+/**
+ * Compute the target `scrollTop` for `target` (Element or Range) so it lands cleanly below `.topbar` + `.book-bar`
+ * at the destination scroll position (never using an unstuck `.book-bar` rect from `scrollTop === 0`, never
+ * ignoring `.topbar` re-appearing when scrolling up, and converting zoomed `getBoundingClientRect()` coordinates
+ * back to `scroller.scrollTop` CSS px). When `center` is true, centers within the remaining viewport below the
+ * sticky bar, clamped so a tall target's top never hides behind the sticky bar.
+ */
+export function scrollTargetTop({ target, scroller, page = null, margin = 16, center = false } = {}) {
+  const targetRect = targetBox(target);
+  if (!scroller || !targetRect) return null;
+  const isDoc = typeof document !== 'undefined' && scroller === document.scrollingElement;
+  const scale = isDoc ? 1 : zoomScale(scroller);
+  const scrollerRect = isDoc ? null : scroller.getBoundingClientRect?.();
+  const scrollerTopScreen = (scrollerRect?.top ?? 0) + (scroller.clientTop || 0) * scale;
+  const scrollerHeight = isDoc ? (typeof window !== 'undefined' ? window.innerHeight : 0)
+    : (scroller.clientHeight || (scrollerRect ? scrollerRect.height / scale : 0) || 0);
+  const scrollNow = scroller.scrollTop || 0;
+  const targetTopAt0 = scrollNow + (targetRect.top - scrollerTopScreen) / scale;
+  const targetHeight = targetRect.height / scale;
+  const bar = page ? stickBar(page) : null;
+  const hasBar = Boolean(bar && (isDoc || !scroller.contains || scroller.contains(bar)));
+  const barRect = hasBar ? bar.getBoundingClientRect?.() : null;
+  const rawBarH = barRect ? (barRect.height ?? (barRect.top !== undefined ? barRect.bottom - barRect.top : undefined)) : undefined;
+  const barH = rawBarH !== undefined && Number.isFinite(rawBarH) ? rawBarH / scale : undefined;
+  const app = (hasBar ? bar : page)?.closest?.('.study-app, .study-seat')
+    ?? (scroller?.matches?.('.study-app, .study-seat') ? scroller : null);
+  const topbar = topbarModel(app, scroller, scrollerTopScreen, isDoc, scale);
+
+  const landingFor = stickTop => {
+    let underOffset;
+    if (hasBar && barRect) {
+      const barBottom = barH !== undefined ? stickTop + barH : Math.max(0, (barRect.bottom - scrollerTopScreen) / scale);
+      underOffset = Math.max(12, barBottom + margin);
+    } else if (topbar.max > 0) {
+      underOffset = Math.max(24, stickTop + margin);
+    } else {
+      underOffset = Math.max(24, margin);
+    }
+    if (center && scrollerHeight > 0) {
+      const avail = Math.max(0, scrollerHeight - underOffset);
+      return underOffset + Math.max(0, (avail - targetHeight) / 2);
+    }
+    return underOffset;
+  };
+
+  const withoutTopbar = Math.max(0, targetTopAt0 - landingFor(0));
+  if (topbar.max === 0 || topbar.at(withoutTopbar) === 0) return withoutTopbar;
+  return Math.max(0, targetTopAt0 - landingFor(topbar.max));
+}
+
+/** Scroll `element` into view cleanly below `.topbar` + `.book-bar` (centering within the usable viewport when `center` is true). */
+export function scrollUnderBar(element, { center = true, margin = 16, behavior = 'instant' } = {}) {
+  if (!element) return false;
+  const page = element.closest?.('.book-page') ?? null;
+  const scroller = scrollerOf(element);
+  const nextTop = scrollTargetTop({ target: element, scroller, page, margin, center });
+  if (nextTop !== null && typeof scroller?.scrollTo === 'function') {
+    scroller.scrollTo({ top: nextTop, behavior });
+    if (page) stickBar(page);
+    return true;
+  }
+  element.scrollIntoView?.({ block: center ? 'center' : 'start', behavior });
+  return true;
+}
 
 /** The place written for the next visit, from what was last measured: measure() reads the heading being read and where it is on screen (null when it is not
     drawn: keeps the last one), write() writes that last measure without touching the page, save() does both, keep(place) writes a place found another way
@@ -48,8 +169,12 @@ const foldsOpen = point => (point ? [...point.querySelectorAll('details')].flatM
 export function holdPlace(element, page, at) {
   const check = () => {
     if (!element.isConnected) { stop(); return; }
+    const scroller = scrollerOf(element);
+    if (!scroller) return;
+    const isDoc = typeof document !== 'undefined' && scroller === document.scrollingElement;
+    const scale = isDoc ? 1 : zoomScale(scroller);
     const off = element.getBoundingClientRect().top - at;
-    if (Math.abs(off) > HOLD_WITHIN) { const scroller = scrollerOf(element); instant(scroller, scroller.scrollTop + off); }
+    if (Math.abs(off) > HOLD_WITHIN * scale) instant(scroller, Math.max(0, scroller.scrollTop + off / scale));
   };
   const sizes = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(check);
   const frame = requestAnimationFrame(check), timer = setTimeout(() => stop(), HOLD_FOR);
@@ -113,15 +238,23 @@ export function useBookPlace({ root, course, book, rows, toc, steps, chapters, r
     }
     // The page is still rising into place (shell.css page-in: a few pixels of translateY), which moves every rectangle measured below by what is left of it.
     element.closest('.page')?.getAnimations?.().forEach(animation => animation.finish());
-    const scroller = scrollerOf(element), top = scroller === document.scrollingElement ? 0 : scroller.getBoundingClientRect().top;
-    if (wanted.offset !== null && wanted.offset !== undefined) instant(scroller, scroller.scrollTop + element.getBoundingClientRect().top - wanted.offset);
-    else {
-      // A jump: the point just under the book bar, which sticks once the page has scrolled (put where it sticks now and measured after the first move: the
-      // app's top bar may have come back or gone). One jump, not smooth.
-      instant(scroller, scroller.scrollTop + element.getBoundingClientRect().top - top);
+    const scroller = scrollerOf(element);
+    const isDoc = typeof document !== 'undefined' && scroller === document.scrollingElement;
+    const scale = isDoc ? 1 : zoomScale(scroller);
+    if (wanted.offset !== null && wanted.offset !== undefined) {
+      instant(scroller, Math.max(0, scroller.scrollTop + (element.getBoundingClientRect().top - wanted.offset) / scale));
+      stickBar(page);
+    } else {
+      // A jump: land the point cleanly under the sticky book bar at the destination scroll position (accounting for `.topbar` returning when scrolling up),
+      // then sync the sticky bar and verify clearance before `holdPlace` captures the target `top`. One jump, not smooth.
+      const nextTop = scrollTargetTop({ target: element, scroller, page, margin: 12 });
+      if (nextTop !== null) instant(scroller, nextTop);
       const under = stickBar(page)?.getBoundingClientRect().bottom;
-      const covered = under === undefined ? 0 : under + 12 - element.getBoundingClientRect().top;
-      if (covered > 0) instant(scroller, scroller.scrollTop - covered);
+      const covered = under === undefined ? 0 : (under + 12 * scale - element.getBoundingClientRect().top) / scale;
+      if (covered > 0) {
+        instant(scroller, Math.max(0, scroller.scrollTop - covered));
+        stickBar(page);
+      }
     }
     if (wanted.focus) {
       // The app puts the focus on a page's heading after an arrival (ui/app/use-learning-navigation.js); this one is named so it is the one, and nothing scrolls.

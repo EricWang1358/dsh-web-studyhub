@@ -10,15 +10,172 @@ const outlineNode = (root, id) => {
 };
 /** The pixels below the top of the reading area at which an entry becomes the current one (outline.js pickActive's threshold). */
 export const ACTIVE_LINE_PX = 24;
+/** Minimum top breathing room (px) inside `.reader-scroll` when aligning near top vs centering. */
+export const TOP_BREATHING_PX = 16;
+export const CENTER_TOP_BREATHING_PX = 24;
 /* Far enough above the reading area that every entry scrolled past still counts as passed (a long chapter is tens of thousands of pixels). */
 const PASSED_PX = 10_000_000;
+const SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' ']);
+const activeAnchors = new WeakMap();
 
-/** Scroll `node` to the top of the scroll area (a little below it), or to its middle. */
-export function scrollToNode(scroller, node, { center = false, smooth = true } = {}) {
-  if (!scroller || !node) return;
-  const box = scroller.getBoundingClientRect(), rect = node.getBoundingClientRect();
-  const offset = center ? (box.height - rect.height) / 2 : 12;
-  scroller.scrollTo({ top: Math.max(0, scroller.scrollTop + rect.top - box.top - offset), behavior: smooth && !reducedMotion() ? 'smooth' : 'auto' });
+/** Cancel any active post-jump re-anchoring on `scroller`. */
+export function cancelAnchorScroll(scroller) {
+  if (!scroller) return;
+  activeAnchors.get(scroller)?.();
+}
+
+/** Bounding rect of an Element or Range; for a Range with client rects, skips empty leading rects so tall/multi-line quotes align at their first visible text. */
+export function targetRect(node) {
+  if (!node) return null;
+  if (node.nodeType !== 1 && typeof node.getClientRects === 'function') {
+    const rawRects = Array.from(node.getClientRects() || []);
+    const rects = rawRects.filter(r => r && r.width > 0 && r.height > 0);
+    if (rects.length > 0) {
+      const top = Math.min(...rects.map(r => r.top));
+      const bottom = Math.max(...rects.map(r => r.bottom));
+      const left = Math.min(...rects.map(r => r.left));
+      const right = Math.max(...rects.map(r => r.right));
+      return { top, bottom, left, right, width: Math.max(0, right - left), height: Math.max(0, bottom - top) };
+    }
+    const fallback = rawRects.find(r => r && (r.width > 0 || r.height > 0));
+    if (fallback) return fallback;
+  }
+  const rect = node.getBoundingClientRect?.();
+  if (!rect) return null;
+  if (rect.width === 0 && rect.height === 0 && typeof node.getClientRects === 'function') {
+    const fallback = Array.from(node.getClientRects() || []).find(r => r && (r.width > 0 || r.height > 0));
+    if (fallback) return fallback;
+  }
+  return rect;
+}
+
+function rectHeight(rect) {
+  return rect.height ?? (rect.bottom != null && rect.top != null ? Math.max(0, rect.bottom - rect.top) : 0);
+}
+
+/** Visual zoom factor of `scroller` (`getBoundingClientRect()` px per unzoomed CSS px, e.g. `.study-app { zoom }`). */
+export function scrollerScale(scroller, box = scroller?.getBoundingClientRect?.()) {
+  if (!scroller || !box) return 1;
+  const boxH = rectHeight(box);
+  if (scroller.offsetHeight > 0 && boxH > 0) return boxH / scroller.offsetHeight;
+  const boxW = box.width ?? (box.right != null && box.left != null ? Math.max(0, box.right - box.left) : 0);
+  if (scroller.offsetWidth > 0 && boxW > 0) return boxW / scroller.offsetWidth;
+  return 1;
+}
+
+function targetScrollTop(scroller, node, { center = false, minTop } = {}) {
+  if (!scroller || !node) return null;
+  const box = scroller.getBoundingClientRect?.(), rect = targetRect(node);
+  if (!box || !rect || box.top == null || rect.top == null) return null;
+  const scale = scrollerScale(scroller, box) || 1;
+  const boxH = rectHeight(box) / scale, nodeH = rectHeight(rect) / scale;
+  const floor = minTop ?? (center ? CENTER_TOP_BREATHING_PX : TOP_BREATHING_PX);
+  const offset = center ? Math.max(floor, (boxH - nodeH) / 2) : floor;
+  const raw = Math.max(0, (scroller.scrollTop || 0) + (rect.top - box.top) / scale - offset);
+  if (Number.isFinite(scroller.scrollHeight) && Number.isFinite(scroller.clientHeight) && scroller.scrollHeight > scroller.clientHeight) {
+    return Math.min(raw, scroller.scrollHeight - scroller.clientHeight);
+  }
+  return raw;
+}
+
+/** Scroll `node` (Element or Range) to the top of the scroll area (with breathing room), or to its middle. */
+export function scrollToNode(scroller, node, { center = false, smooth = true, minTop } = {}) {
+  cancelAnchorScroll(scroller);
+  const top = targetScrollTop(scroller, node, { center, minTop });
+  if (top === null) return false;
+  scroller.scrollTo?.({ top, behavior: smooth && !reducedMotion() ? 'smooth' : 'auto' });
+  return true;
+}
+
+const isConnectedTarget = node => (node?.nodeType === 1 ? node.isConnected !== false : node?.startContainer ? node.startContainer.isConnected !== false : !!node);
+
+/**
+ * Scroll to `node` (Element or Range) and keep it anchored through brief post-jump layout shifts
+ * (async notices, lazy formulas, image loads, bilingual blocks) until settled or the user manually scrolls.
+ * Returns a cleanup function that cancels re-anchoring.
+ */
+export function anchorScroll(scroller, node, { center = false, smooth = false, minTop, settleMs = 700 } = {}) {
+  cancelAnchorScroll(scroller);
+  if (!scroller || !node) return () => {};
+  let active = true, raf1 = 0, raf2 = 0, timer = 0, observer = null, anchoring = false;
+  let lastTop = scroller.scrollTop || 0;
+  let lastScrollHeight = scroller.scrollHeight, lastClientHeight = scroller.clientHeight;
+  let lastBoxTop = scroller.getBoundingClientRect?.().top ?? 0;
+
+  const stop = () => {
+    if (!active) return;
+    active = false;
+    if (activeAnchors.get(scroller) === stop) activeAnchors.delete(scroller);
+    if (raf1 && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(raf1);
+    if (raf2 && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(raf2);
+    if (timer) clearTimeout(timer);
+    observer?.disconnect?.();
+    scroller.removeEventListener?.('wheel', onUserScroll);
+    scroller.removeEventListener?.('touchstart', onUserScroll);
+    scroller.removeEventListener?.('pointerdown', onUserScroll);
+    scroller.removeEventListener?.('keydown', onKeyDown);
+    scroller.removeEventListener?.('scroll', onScroll);
+  };
+
+  activeAnchors.set(scroller, stop);
+
+  const apply = () => {
+    if (!active) return;
+    if (!isConnectedTarget(node)) { stop(); return; }
+    const nextTop = targetScrollTop(scroller, node, { center, minTop });
+    if (nextTop === null) return;
+    const currentTop = scroller.scrollTop || 0;
+    if (Math.abs(nextTop - currentTop) > 1) {
+      anchoring = true;
+      scroller.scrollTo?.({ top: nextTop, behavior: smooth && !reducedMotion() ? 'smooth' : 'auto' });
+      anchoring = false;
+    }
+    lastTop = scroller.scrollTop || 0;
+    lastScrollHeight = scroller.scrollHeight;
+    lastClientHeight = scroller.clientHeight;
+    lastBoxTop = scroller.getBoundingClientRect?.().top ?? 0;
+  };
+
+  const onUserScroll = () => stop();
+  const onKeyDown = event => { if (SCROLL_KEYS.has(event?.key)) stop(); };
+  const onScroll = () => {
+    if (!active || anchoring) return;
+    const currentTop = scroller.scrollTop || 0;
+    if (Math.abs(currentTop - lastTop) <= 2) return;
+    const boxTop = scroller.getBoundingClientRect?.().top ?? 0;
+    const layoutChanged = scroller.scrollHeight !== lastScrollHeight
+      || scroller.clientHeight !== lastClientHeight
+      || Math.abs(boxTop - lastBoxTop) > 1;
+    if (!layoutChanged) stop();
+  };
+
+  apply();
+
+  if (smooth && !reducedMotion()) return stop;
+
+  scroller.addEventListener?.('wheel', onUserScroll, { passive: true });
+  scroller.addEventListener?.('touchstart', onUserScroll, { passive: true });
+  scroller.addEventListener?.('pointerdown', onUserScroll, { passive: true });
+  scroller.addEventListener?.('keydown', onKeyDown);
+  scroller.addEventListener?.('scroll', onScroll, { passive: true });
+
+  if (typeof requestAnimationFrame === 'function') {
+    raf1 = requestAnimationFrame(() => {
+      raf1 = 0;
+      apply();
+      if (!active) return;
+      raf2 = requestAnimationFrame(() => { raf2 = 0; apply(); });
+    });
+  }
+
+  if (typeof ResizeObserver !== 'undefined') {
+    observer = new ResizeObserver(() => { apply(); });
+    observer.observe(scroller);
+    if (scroller.firstElementChild) observer.observe(scroller.firstElementChild);
+  }
+
+  if (settleMs > 0) timer = setTimeout(stop, settleMs);
+  return stop;
 }
 
 /** The drawn targets of the entries, in the entries' order: one query of the reading area, not one per entry. */

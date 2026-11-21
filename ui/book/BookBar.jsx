@@ -25,7 +25,11 @@ const SCROLL_KEYS = new Set(['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'End'
 /** Where the bar sticks, in px from the top of the app's scroller: under the app's top bar while it is on screen, else 0. */
 const stickAt = bar => {
   const app = bar.closest('.study-app, .study-seat'), topbar = app?.querySelector('.topbar');
-  return topbar ? Math.max(0, Math.round(topbar.getBoundingClientRect().bottom - app.getBoundingClientRect().top - app.clientTop)) : 0;
+  if (!topbar) return 0;
+  const appRect = app.getBoundingClientRect();
+  const scale = app.offsetHeight > 0 && appRect.height > 0 ? appRect.height / app.offsetHeight
+    : app.offsetWidth > 0 && appRect.width > 0 ? appRect.width / app.offsetWidth : 1;
+  return Math.max(0, Math.round((topbar.getBoundingClientRect().bottom - appRect.top) / scale - (app.clientTop || 0)));
 };
 /** Puts the bar of `page` (the .book-page) where it sticks now (--book-bar-top), at once: a jump measures the bar right after it scrolls. -> the bar or null. */
 export function stickBar(page) {
