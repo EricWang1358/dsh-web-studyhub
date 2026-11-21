@@ -153,10 +153,11 @@ test('the 大教材建议 card leads with the one-click local MinerU; the deskto
   assert.match(html, /<span class="sh-badge[^"]*"[^>]*data-tone="info"[^>]*>推荐<\/span>/);
 });
 
-test('the catalogue recommends the one-click local MinerU and Docling; the desktop client is kept without a recommendation; there is no cloud entry', () => {
+test('the catalogue recommends local MinerU, PaddleOCR online and Docling; the desktop client is kept without a recommendation; there is no MinerU cloud entry', () => {
   const converters = TOOLS.filter(tool => tool.role === 'converter');
-  assert.deepEqual(converters.filter(tool => tool.recommended).map(tool => tool.id), ['mineru-local', 'docling']);
+  assert.deepEqual(converters.filter(tool => tool.recommended).map(tool => tool.id), ['mineru-local', 'paddleocr', 'docling']);
   assert.equal(TOOLS.find(tool => tool.id === 'mineru-local').needs, 'one-click');
+  assert.equal(TOOLS.find(tool => tool.id === 'paddleocr').needs, 'online');
   assert.equal(TOOLS.find(tool => tool.id === 'mineru-cloud'), undefined);
   const desktop = TOOLS.find(tool => tool.id === 'mineru');
   assert.equal(desktop.recommended, false);

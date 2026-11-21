@@ -29,19 +29,21 @@ const active = { ...found, selected: 'mcp:mcp__rag__query_documents', effective:
 
 /* ---------- the card ---------- */
 
-test('too-large PDF: a calm card with the recommended converters, download channels incl. mainland ones, and the steps', () => {
+test('too-large PDF: a calm card with local MinerU, PaddleOCR online Option 2, download channels incl. mainland ones', () => {
   const html = render(h(LargeDocumentCard, { reason: 'pdf-size', detail: { name: '操作系统.pdf' }, retrieval: none }));
   assert.match(html, /大教材建议/);
   assert.match(html, /操作系统\.pdf/);
   assert.match(html, /8 MB/);
-  for (const name of ['MinerU', 'Docling']) assert.match(html, new RegExp(name));
+  for (const name of ['MinerU', 'PaddleOCR', 'Docling']) assert.match(html, new RegExp(name));
+  assert.match(html, /href="https:\/\/www\.paddleocr\.ai"/);
+  assert.match(html, /会上传文件/);
+  assert.equal((html.match(/<ol class="large-doc__online-steps">[\s\S]*?<\/ol>/)[0].match(/<li>/g) || []).length, 3, 'three clear steps for PaddleOCR online');
   assert.match(html, /href="https:\/\/mineru\.net\/client"/);
   assert.match(html, /桌面客户端目前也反馈不可用/, 'the standalone advanced tools also warn about the client');
   assert.match(html, /href="https:\/\/www\.modelscope\.cn\/organization\/OpenDataLab"/);
   assert.match(html, /国内可用/);
   assert.match(html, /MIT/);
   assert.match(html, /rel="noreferrer"/);
-  assert.equal((html.match(/<li class="large-doc__step"/g) || []).length, 4, 'convert, import the result, choose chapters, optional retrieval');
   assert.doesNotMatch(html, /已安装|已检测到.*MinerU/, 'never claims a tool is installed');
   assert.match(html, /没有检测到检索工具/);
   assert.doesNotMatch(html, /<button(?![^>]*class="sh-)[^>]*>/, 'shared buttons only');

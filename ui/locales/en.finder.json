@@ -114,7 +114,6 @@
   "列出每门课；点开一门课可以记下考试形式、日期、总分和重点知识点，也能把两门课合并": "Lists every course; open one to record the exam format, date, total marks and key topics, or merge two courses",
   "备考补习的个人默认值：是否自动识别资料用途、清单语言，以及是否默认列出其它课程的资料": "Your defaults for Exam prep: whether material roles are recognised automatically, the checklist language and whether materials of other courses are listed by default",
   "填转写用的密钥（Gemini 或国内能直连的硅基流动），也选课堂实录用云端还是本地转写": "Enter a transcription API key (Groq, Gemini, or SiliconFlow for mainland China) and choose whether live class uses cloud or offline local transcription",
-  "把扫描件、公式多或很大的 PDF 先在本机解析成带页码的文字：安装 MinerU，或接入 Marker": "Parse scanned, formula-heavy or very large PDFs on this computer into text with page numbers: install MinerU or connect Marker",
   "给上百页的大教材用：装好后，整本书出题时只挑出相关页面给 AI 看": "For textbooks of hundreds of pages: once installed, making questions from a whole book shows the AI only the relevant pages",
   "载入或移除示例课程、重新看功能导览，也管理陪学的学习画像": "Load or remove the sample course, retake the feature tour and manage the study-coach profile",
   "各处提示和引导什么时候出现，以及 AI 带学的默认设置": "When each tip and guide appears, and the default settings of AI-guided study",
