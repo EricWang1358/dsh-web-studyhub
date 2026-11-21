@@ -207,6 +207,16 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
       : ((run.answered || 0) > (run.correct || 0) && run.weakTopics?.length > 0 ? run.weakTopics.map((topic) => ({ topic, prompt: topic })) : []))
     : [];
   // 顽固题 of this round that the wrong book still holds (lib/leech.js, computed with the run): one line, and it opens the wrong book on them.
+  const materialCount = React.useMemo(
+    () => countMaterials(data?.sources, run.sourceIds),
+    [data?.sources, run.sourceIds],
+  );
+  const hasReadableMaterials = React.useMemo(
+    () => !run.complete && !run.reading && run.mode !== "exam" && readableMaterialItems(data?.sources, run.sourceIds).length > 0,
+    [run.complete, run.reading, run.mode, data?.sources, run.sourceIds],
+  );
+  const onNavigatorJump = React.useCallback((index) => reviewAct("review.move", { index }), [reviewAct]);
+  const questionContext = React.useMemo(() => ({ ...context, inHeader: !!wayBack }), [context, wayBack]);
   const leechCount = run.complete && run.mode !== "exam" && pageAvailable(data, "wrongbook") ? (run.leechCards || []).length : 0;
   const methodAlt = run.complete && !flow && run.mode !== "exam" ? roundEndAlternative(data, roundCourse, { guidedSession: app?.lib?.guidedSession, canChat: app?.host?.capabilities?.chat !== false }) : null;
   const roundTotal = run.questions ?? run.total ?? 0;
@@ -220,7 +230,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
     >
       {/* The rail is a full-height column of the page, not of the question body,
           so it is pinned from the first frame instead of sliding up to stick. */}
-      {rail && <ReviewNavigator run={run} skippedIndices={session.skippedIndices} onJump={(index) => reviewAct("review.move", { index })} onEnd={run.mode !== "exam" ? actions.askEnd : undefined} />}
+      {rail && <ReviewNavigator run={run} skippedIndices={session.skippedIndices} onJump={onNavigatorJump} onEnd={run.mode !== "exam" ? actions.askEnd : undefined} />}
       <PageHeader className="review-heading" compact
         eyebrow={flow ? [ui("学习流"), flow.stepIndex >= 0 && uiFormat("第 {0}/{1} 步", [flow.stepIndex + 1, flow.stepCount]), flow.stepTitle].filter(Boolean).join(" · ") : undefined}
         title={[shellTitle, run.mode === "flashcard" && ui("闪卡"), run.retry && !run.complete && ui("本轮重练")].filter(Boolean).join(" · ")}
@@ -238,8 +248,8 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
           </Button>}
         </>}>
         <div className="review-heading-links">
-          <Button variant="quiet" size="sm" onClick={() => openModal({ type: "sources" })}>{uiFormat("查看 {0} 份资料", [countMaterials(data?.sources, run.sourceIds)])}</Button>
-          {!run.complete && !run.reading && run.mode !== "exam" && readableMaterialItems(data?.sources, run.sourceIds).length > 0 && (
+          <Button variant="quiet" size="sm" onClick={() => openModal({ type: "sources" })}>{uiFormat("查看 {0} 份资料", [materialCount])}</Button>
+          {hasReadableMaterials && (
             <Tooltip layer content={ui("打开资料阅读器，翻到已学章节或页码后点「做这几页的题」，避开还没学到的后续页。")}>
               <Button iconEnd="arrow-right" variant="quiet" size="sm" onClick={() => openReaderForPages({ sources: data?.sources, sourceIds: run.sourceIds, openModal: study.openModal, back: true })}>
                 {ui("去资料选页做题")}
@@ -415,7 +425,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
           </details>
         </div>
       ) : (
-        <QuestionRun key="body" session={session} data={data} coachProps={coachProps} links={links} place={cardPlace} context={{ ...context, inHeader: !!wayBack }} feedback={feedback} />
+        <QuestionRun key="body" session={session} data={data} coachProps={coachProps} links={links} place={cardPlace} context={questionContext} feedback={feedback} />
       )}
       {dock.column}
     </section>

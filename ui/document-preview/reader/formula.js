@@ -13,9 +13,28 @@ const escapeHtml = text => String(text).replace(/[&<>"']/g, char => ESCAPES[char
 
 export const formulaClass = display => `reader-math${display ? ' reader-math--display' : ''}`;
 
+const FORMULA_CACHE_LIMIT = 512;
+const FORMULA_CACHE_MAX_LEN = 2000;
+const formulaViewCache = new Map();
+
 /** The drawing of { source, display, raw } as MathML (the raw text when the TeX cannot be drawn); `label` is a Markdown equation number. */
-export const formulaViewHtml = ({ source, display, raw, label }) =>
-  (renderStudyFormula(source, display) ?? escapeHtml(raw)) + (label ? `<span class="reader-math__label">(${escapeHtml(label)})</span>` : '');
+export const formulaViewHtml = ({ source, display, raw, label }) => {
+  const src = String(source ?? ''), lbl = label ? String(label) : '';
+  const cacheable = src.length <= FORMULA_CACHE_MAX_LEN;
+  const key = cacheable ? `${display ? '1' : '0'}:${lbl}:${src}` : '';
+  if (cacheable && formulaViewCache.has(key)) {
+    const hit = formulaViewCache.get(key);
+    formulaViewCache.delete(key);
+    formulaViewCache.set(key, hit);
+    return hit;
+  }
+  const rendered = (renderStudyFormula(source, display) ?? escapeHtml(raw)) + (label ? `<span class="reader-math__label">(${escapeHtml(label)})</span>` : '');
+  if (cacheable) {
+    if (formulaViewCache.size >= FORMULA_CACHE_LIMIT) formulaViewCache.delete(formulaViewCache.keys().next().value);
+    formulaViewCache.set(key, rendered);
+  }
+  return rendered;
+};
 
 /** The whole unit as markup: the hidden source (RAW, escaped) and the drawing marker. */
 export const formulaHtml = formula => `<span class="${formulaClass(formula.display)}"><span class="sh-visually-hidden reader-math__source" aria-hidden="true">${escapeHtml(formula.raw)}</span>`

@@ -47,10 +47,24 @@ export function activeOf(targets, passed, fallback = null) {
  * the position really changed. Without IntersectionObserver the entries are measured on scroll, as before.
  * Returns [{ activeId, progress }, jump(id)].
  */
-export function useReadingPosition(scroller, items, watch) {
+export function useReadingPosition(scroller, items, watch, { onProgress } = {}) {
   const [position, setPosition] = useState({ activeId: items[0]?.id ?? null, progress: 0 });
   const last = useRef(position);
+  const lastProgress = useRef(-1);
+  const onProgressRef = useRef(onProgress);
+  onProgressRef.current = onProgress;
   const publish = useCallback(next => {
+    const progressSink = onProgressRef.current;
+    if (progressSink) {
+      if (lastProgress.current < 0 || Math.abs(lastProgress.current - next.progress) >= 0.002) {
+        lastProgress.current = next.progress;
+        progressSink(next.progress);
+      }
+      if (last.current.activeId === next.activeId) return;
+      last.current = next;
+      setPosition(next);
+      return;
+    }
     if (last.current.activeId === next.activeId && Math.abs(last.current.progress - next.progress) < 0.004) return;
     last.current = next;
     setPosition(next);
