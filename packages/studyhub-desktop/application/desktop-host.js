@@ -286,6 +286,7 @@ export async function createDesktopHost({
   });
   const handle = createHostHandler(ctx, handlerConfig, (route, sessionId, options) => completePort.makeComplete(route, sessionId, options), {
     owner: ctx,
+    libraryEvents,
     capabilities: DESKTOP_CAPABILITIES,
   });
   const forward = (action, args) => handle('call', { sessionId: DESKTOP_SESSION_ID, action, args });

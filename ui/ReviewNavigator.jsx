@@ -9,7 +9,7 @@ import { levelWord, tickWords } from "./review/round-words.js";
    (「第 2 题 · 主题 · 答对了 · 掌握程度：学习中」) and jumps to its question. On a narrow window the column is gone (the card's own progress bar says where
    the learner is) so it takes no width from the card (#673); 「N 题待答」 beside the question number does the jumping there (ui/review/RoundPending.jsx).
    `onEnd` (optional): 到此为止 at the tail of the column (#1008), which asks first under the question. */
-export default function ReviewNavigator({ run, onJump, onEnd, skippedIndices }) {
+export default React.memo(function ReviewNavigator({ run, onJump, onEnd, skippedIndices }) {
   const { busy } = useStudy();
   const rail = useRef(null);
   const skippedSet = skippedIndices instanceof Set ? skippedIndices : new Set(Array.isArray(skippedIndices) ? skippedIndices : []);
@@ -49,4 +49,4 @@ export default function ReviewNavigator({ run, onJump, onEnd, skippedIndices }) 
       </Tooltip>}
     </nav>
   );
-}
+});

@@ -403,6 +403,23 @@ test('a poll that changes nothing says so, and a helper task on the open questio
   assert.deepEqual(finishedTask('t1', [{ ...own[0], status: 'done' }], 'g'), { watch: '', done: true }, 'it ended: ask now');
   assert.deepEqual(finishedTask('t1', [{ ...own[0], status: 'failed' }], 'g'), { watch: '', done: false }, 'a failed task brings nothing to show');
   assert.deepEqual(finishedTask('', [], 'g'), { watch: '', done: false });
+
+  // Concurrent tasks on the same card: completing t1 while t2 is still running triggers an immediate poll while keeping t2 watched.
+  const twoRunning = [
+    { id: 't1', cardId: 'g', status: 'running', mode: 'terms' },
+    { id: 't2', cardId: 'g', status: 'running', mode: 'terms' },
+  ];
+  assert.deepEqual(finishedTask('', twoRunning, 'g'), { watch: 't1,t2', done: false });
+  assert.deepEqual(
+    finishedTask('t1,t2', [{ ...twoRunning[0], status: 'done' }, twoRunning[1]], 'g'),
+    { watch: 't2', done: true },
+    'completing t1 while t2 still runs immediately signals done and keeps watching t2',
+  );
+  assert.deepEqual(
+    finishedTask('t2', [{ ...twoRunning[0], status: 'done' }, { ...twoRunning[1], status: 'done' }], 'g'),
+    { watch: '', done: true },
+    'completing t2 afterwards signals done again',
+  );
 });
 
 test('Cloze Shift+Enter steps back through blanks cleanly and ignores modifiers/IME (#32)', () => {

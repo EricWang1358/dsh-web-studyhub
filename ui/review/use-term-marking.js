@@ -2,7 +2,7 @@ import React from "react";
 import { reviewEntryKey } from "../async.js";
 import { isPassed } from "./session-logic.js";
 import { ui, uiLocale } from "../i18n.js";
-import { MAX_MARKED_TERMS, clearCompletedTermEntries, filterCandidateTerms, mergeAdjacent, normalizeTerm, toggleTerm, wordAt } from "./term-marks.js";
+import { MAX_MARKED_TERMS, clearCompletedTermEntries, collectInFlightTerms, filterCandidateTerms, mergeAdjacent, normalizeTerm, toggleTerm, wordAt } from "./term-marks.js";
 import { collectAllHighlightEntries, collectBlockSegments, isAllowedTextNode, isExcludedElement } from "./term-marking-dom.js";
 
 export { collectAllHighlightEntries, collectBlockSegments };
@@ -194,6 +194,10 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
   fromCardRef.current = run?.deckId && run?.card?.id
     ? { deckId: run.deckId, cardId: run.card.id, prompt: promptExcerpt(run.card?.prompt) }
     : null;
+  const inFlightKeysRef = React.useRef(new Set());
+  inFlightKeysRef.current = new Set(
+    collectInFlightTerms(assistTasks, run?.card?.id).map((item) => item.toLowerCase()),
+  );
 
   const updateCourseCache = React.useCallback((targetCourse, updater) => {
     if (!targetCourse) return;
@@ -438,7 +442,7 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
 
   const removeTerm = React.useCallback((term) => {
     const clean = normalizeTerm(term);
-    if (!clean) return;
+    if (!clean || inFlightKeysRef.current.has(clean.toLowerCase())) return;
     const current = entryKey ? entriesByKeyRef.current[entryKey] || EMPTY_ENTRY : EMPTY_ENTRY;
     if (!current.terms.includes(clean)) return;
     commitEntry({
@@ -522,6 +526,7 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
       return;
     }
     if (result.removed) {
+      if (inFlightKeysRef.current.has(clean.toLowerCase())) return;
       commitEntry({
         terms: result.terms,
         hits: current.hits.filter((hit) => hit.term !== clean),
@@ -581,6 +586,7 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
     if (!hit) return;
 
     if (current.terms.includes(hit.term)) {
+      if (inFlightKeysRef.current.has(hit.term.toLowerCase())) return;
       commitEntry({
         terms: current.terms.filter((item) => item !== hit.term),
         hits: current.hits.filter((item) => item.term !== hit.term),
@@ -590,11 +596,13 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
     }
 
     const nextHit = { node, start: hit.start, end: hit.end, term: hit.term };
-    const merged = mergeAdjacent(current.hits, nextHit);
+    const mergeableHits = current.hits.filter((item) => !inFlightKeysRef.current.has(normalizeTerm(item?.term).toLowerCase()));
+    const lockedHits = current.hits.filter((item) => inFlightKeysRef.current.has(normalizeTerm(item?.term).toLowerCase()));
+    const merged = mergeAdjacent(mergeableHits, nextHit);
     if (merged.merged) {
       commitEntry({
         terms: replaceMergedTerms(current.terms, merged.replaced, merged.entry.term),
-        hits: merged.entries,
+        hits: [...lockedHits, ...merged.entries],
       });
       persistUnmark(merged.replaced);
       persistMark([merged.entry.term]);
@@ -607,7 +615,7 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
       return;
     }
     if (!result.added) return;
-    commitEntry({ terms: result.terms, hits: merged.entries });
+    commitEntry({ terms: result.terms, hits: [...lockedHits, ...merged.entries] });
     persistMark([hit.term]);
   }, [addPhraseTerm, commitEntry, entryKey, notifyLimit, persistMark, persistUnmark, removeTerm]);
 
@@ -646,6 +654,7 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
     const sync = () => {
       const { active, seen, cand } = collectAllHighlightEntries(body.ownerDocument, body, {
         activeTerms: terms,
+        activeHits: currentEntry.hits,
         seenTerms: seenUnknownTerms,
         candidateTerms,
       });
@@ -689,7 +698,7 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
       if (rafId) cancelAnimationFrame(rafId);
       clearHighlight();
     };
-  }, [disabledForState, reviewBodyRef, terms, seenUnknownTerms, candidateTerms, entryKey, run?.revealed, run?.feedback, session?.showBack]);
+  }, [disabledForState, reviewBodyRef, terms, currentEntry.hits, seenUnknownTerms, candidateTerms, entryKey, run?.revealed, run?.feedback, session?.showBack]);
 
   React.useEffect(() => {
     if (!marking) pointerDownRef.current = null;
@@ -714,8 +723,8 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
       if (event.button !== 0 || !markingRef.current) return;
       const down = pointerDownRef.current;
       pointerDownRef.current = null;
-      if (!down && !body.contains(event.target)) return;
-      if (body.contains(event.target) && isExcludedElement(event.target, body)) return;
+      const excludedTarget = body.contains(event.target) && isExcludedElement(event.target, body);
+      if (!down && (!body.contains(event.target) || excludedTarget)) return;
 
       const win = doc?.defaultView || window;
       const sel = win?.getSelection?.();
@@ -736,17 +745,22 @@ export function useTermMarking({ session, reviewBodyRef, notify, call, courseNam
           );
         if (allowedEnds && raw) {
           sel.removeAllRanges();
-          const singleNodeRange =
-            range.startContainer === range.endContainer && range.startContainer.nodeType === Node.TEXT_NODE
-              ? { node: range.startContainer, start: range.startOffset, end: range.endOffset }
-              : null;
+          let singleNodeRange = null;
+          if (range.startContainer === range.endContainer && range.startContainer.nodeType === Node.TEXT_NODE) {
+            let start = range.startOffset;
+            let end = range.endOffset;
+            const text = range.startContainer.data || "";
+            while (start < end && /\s/.test(text[start])) start += 1;
+            while (end > start && /\s/.test(text[end - 1])) end -= 1;
+            if (end > start) singleNodeRange = { node: range.startContainer, start, end };
+          }
           handlersRef.current.applySelectedText(raw, singleNodeRange);
           suppressClickUntilRef.current = Date.now() + 250;
           return;
         }
       }
 
-      if (moved > 6) return;
+      if (excludedTarget || moved > 6) return;
       const pointHit = charOffsetAtPoint(doc, event.clientX, event.clientY, body);
       if (!pointHit) return;
       suppressClickUntilRef.current = Date.now() + 250;

@@ -12,7 +12,8 @@ import { promisify } from 'node:util';
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const MODULES = ['lib/course-outline.js', 'lib/evidence/point-rows.js', 'lib/evidence/point-report.js', 'lib/custom-readiness.js', 'lib/evidence/course-evidence.js',
-  'lib/course-outline-index.js', 'lib/contexts/generation/generate/point-round.js', 'lib/token-estimate.js', 'lib/course-outline-book.js'];
+  'lib/course-outline-index.js', 'lib/contexts/generation/generate/point-allocate.js', 'lib/contexts/generation/generate/point-plan.js',
+  'lib/contexts/generation/generate/point-round.js', 'lib/token-estimate.js', 'lib/course-outline-book.js'];
 const run = promisify(execFile);
 
 for (const file of MODULES) {

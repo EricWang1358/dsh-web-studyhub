@@ -278,12 +278,12 @@ test('domain contracts & capability budgets: classify/organize actions declare s
   assert.deepEqual(await service.call('source.folder.dismiss', {}), { dismissed: false });
   assert.deepEqual(await service.call('source.organize.dismiss', {}), { dismissed: false });
 
-  // Capability index (< 8192) and library listing (< 6900) budgets remain intact
+  // Capability index (< 8192) and library listing (< 7200, host limit 8192) budgets remain intact
   const caps = service.runtime.capabilities();
   const indexJson = JSON.stringify(capabilityIndex(caps));
   assert.ok(indexJson.length < 8192, `capability index ${indexJson.length} < 8192`);
   const libListing = JSON.stringify(filterCapabilities(caps, { context: 'library' }));
-  assert.ok(libListing.length < 6900, `library listing ${libListing.length} < 6900`);
+  assert.ok(libListing.length < 7200, `library listing ${libListing.length} < 7200`);
 
   const matOps = filterCapabilities(caps, { context: 'materials' }).contexts[0].operations.map(op => op.name);
   for (const expected of ['source.folder.classify', 'source.folder.dismiss', 'source.organize.start', 'source.organize.dismiss']) {

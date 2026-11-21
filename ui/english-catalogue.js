@@ -104,6 +104,7 @@ import inkGardenCopy from './locales/en.ink-garden.json';
 import deskAtelierCopy from './locales/en.desk-atelier.json';
 import sealPressCopy from './locales/en.seal-press.json';
 import deskPlayCopy from './locales/en.desk-play.json';
+import masteryMapCopy from './locales/en.mastery-map.json';
 import appMessages from '../lib/application-messages-en.js';
 
 export const ENGLISH_SOURCES = {
@@ -206,6 +207,7 @@ export const ENGLISH_SOURCES = {
   'en.desk-atelier.json': deskAtelierCopy,
   'en.seal-press.json': sealPressCopy,
   'en.desk-play.json': deskPlayCopy,
+  'en.mastery-map.json': masteryMapCopy,
 };
 
 /** The English of lib/application-messages.js (localizeAppMessage), handed to it once this module is here. */

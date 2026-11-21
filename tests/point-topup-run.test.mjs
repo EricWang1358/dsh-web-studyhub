@@ -59,7 +59,8 @@ async function topUpB(service, draft) {
 test('a one-pass draft: B is topped up in one pass, its assignment named and counted, and leaves the list', async t => {
   const { service, log } = await library(t);
   const ids = ['doc-p1', 'doc-p2'];
-  const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'lean', kind: 'quiz', language: 'English', course: COURSE });
+  // count: 1 keeps round 1 to one question (allocated to A, the prerequisite), leaving B open on page 1 so 补这些知识点 tops up B.
+  const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'lean', count: 1, kind: 'quiz', language: 'English', course: COURSE });
   assert.equal((await settleJob(service, started.jobId)).status, 'complete');
   const draft = (await service.call('export')).drafts[0];
   assert.equal(draft.editorial.generation.performance.strategy, 'one-pass');
@@ -91,7 +92,7 @@ test('a staged draft keeps its strategy: B is written step by step and leaves th
 
 test('a question the review drops does not count: the point stays on the list', async t => {
   const { service, review, log } = await library(t);
-  const started = await service.call('generate', { sourceIds: ['doc-p1', 'doc-p2'], coverageLevel: 'lean', kind: 'quiz', language: 'English', course: COURSE });
+  const started = await service.call('generate', { sourceIds: ['doc-p1', 'doc-p2'], coverageLevel: 'lean', count: 1, kind: 'quiz', language: 'English', course: COURSE });
   assert.equal((await settleJob(service, started.jobId)).status, 'complete');
   const draft = (await service.call('export')).drafts[0];
   const before = await reportOf(service, draft.id);
@@ -124,7 +125,7 @@ test('a host stop in a point round: the round keeps its points, and 接着做 wr
   await service.runtime.invoke('materials.v1', 'sources.ingest', { sources: pointPages({ spread: true }) });
   const { outline, inventory } = pointRecords(await service.call('export'));
   await service.runtime.invoke('materials.v1', 'sources.ingest', { sources: [outline, inventory] });
-  const started = await service.call('generate', { sourceIds: ['doc-p1', 'doc-p2'], coverageLevel: 'lean', kind: 'quiz', language: 'English', course: COURSE });
+  const started = await service.call('generate', { sourceIds: ['doc-p1', 'doc-p2'], coverageLevel: 'lean', count: 1, kind: 'quiz', language: 'English', course: COURSE });
   await settleJob(service, started.jobId);
   const draft = (await service.call('export')).drafts[0];
   hang = true;
@@ -162,7 +163,7 @@ test('a host stop in a point round, then the outline is rebuilt with new ids: �
   await service.runtime.invoke('materials.v1', 'sources.ingest', { sources: pointPages({ spread: true }) });
   const { outline, inventory } = pointRecords(await service.call('export'));
   await service.runtime.invoke('materials.v1', 'sources.ingest', { sources: [outline, inventory] });
-  const started = await service.call('generate', { sourceIds: ['doc-p1', 'doc-p2'], coverageLevel: 'lean', kind: 'quiz', language: 'English', course: COURSE });
+  const started = await service.call('generate', { sourceIds: ['doc-p1', 'doc-p2'], coverageLevel: 'lean', count: 1, kind: 'quiz', language: 'English', course: COURSE });
   await settleJob(service, started.jobId);
   const draft = (await service.call('export')).drafts[0];
   hang = true;

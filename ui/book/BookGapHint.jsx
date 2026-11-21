@@ -13,18 +13,47 @@ export default function BookGapHint({ node, course = '', handlers }) {
   if (!node || node.hid === 'unplaced') return null;
   const hint = handlers?.gapHintOf?.(node) ?? null;
   const label = gapHintLabel(hint);
+  const pointGap = handlers?.pointGapOf?.(node) ?? null;
+  const showPointGap = pointGap && pointGap.status !== 'covered';
   const rescueState = handlers?.rescueStateOf?.(node.hid) ?? null;
   const rescuePrompt = handlers?.rescuePromptOf?.(node.hid) ?? null;
   const running = rescueState?.status === 'starting' || rescueState?.status === 'running';
-  if (!label && !running && !rescueState?.status && !rescuePrompt) return null;
+  if (!label && !showPointGap && !running && !rescueState?.status && !rescuePrompt) return null;
 
   const questionRefs = Array.isArray(node.questions) ? node.questions : [];
   const cardIds = [...new Set(questionRefs.map((q) => q?.cardId).filter(Boolean))].slice(0, 4);
   const deckIds = [...new Set(questionRefs.map((q) => q?.deckId).filter(Boolean))];
   const isRescueLaunch = hint?.kind === 'rescue_experiment';
+  const addPointGap = () => handlers.fillPointGap(node, pointGap);
 
   return (
     <div className="book-point__gap-wrap">
+      {showPointGap && (
+        <p className="book-point__question-gap" data-point-question-gap={pointGap.status}>
+          {pointGap.status === 'uncovered' && (
+            <>
+              <span>{ui('这个知识点还没有题')}</span>
+              {handlers?.fillPointGap && (
+                <Button
+                  variant="link"
+                  size="sm"
+                  disabled={!!handlers.pointGapBusy}
+                  data-point-fill-one={pointGap.id}
+                  onClick={addPointGap}
+                >
+                  {ui('补这个知识点')}
+                </Button>
+              )}
+            </>
+          )}
+          {pointGap.status === 'uncoverable' && (
+            <span>{ui('这个知识点还没有题 · 课程资料里找不到它的原文，补不了')}</span>
+          )}
+          {pointGap.status === 'drafted' && (
+            <span>{ui('已有草稿题待发布，发布后会出现在本节练习里。')}</span>
+          )}
+        </p>
+      )}
       {label && (
         <p className="book-point__gap-hint" data-gap-hint={hint.kind}>
           <Button

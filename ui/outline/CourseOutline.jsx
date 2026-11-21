@@ -88,7 +88,7 @@ export const REBUILD_OUTLINE = Object.freeze({ rebuildOutline: true, confirm: tr
 /** 生成其余 of a waiting sample (#710): the build keeps the sample's points and writes the rest in their style. */
 export const SAMPLE_CONFIRM = Object.freeze({ sample: 'confirm' });
 
-export default function CourseOutline({ data, backLabel = '', onBack, onCreate, onGoGenerateTopic, onOpenSources, onPractice, onOpenTask, onOpenSource, onOpenBook }) {
+export default function CourseOutline({ data, backLabel = '', onBack, onCreate, onGoGenerateTopic, onOpenMasteryMap, onOpenSources, onPractice, onOpenTask, onOpenSource, onOpenBook }) {
   const { call, act, notify } = useStudy();
   const course = data?.focus?.course ?? null, root = data?.root || '';
   const kept = keptView(root, course);
@@ -260,7 +260,7 @@ export default function CourseOutline({ data, backLabel = '', onBack, onCreate, 
     running={runningBuild(data?.jobs, course)} writing={runningBuild(data?.jobs, course, BOOK_BUILD_KIND)} model={modelReadiness(data)} coverage={coverage} gate={gate} bookScale={bookScale}
     gapLensEnabled={gapLensEnabled} pageRef={pageRef}
     companionsSlot={<CourseCompanionsBar course={course || data?.focus?.course || ''} data={data} />}
-    actions={{ backLabel, onBack, onCreate, onOpenSources, onOpenTask, onOpenSource, onOpenBook, organise, writeBook, readMore, setCoverage, pickScale, startCustom, gateScale, retry, toggle, onPick, onPickCard, onPracticeRow, onGapHint,
+    actions={{ backLabel, onBack, onCreate, onOpenSources, onOpenTask, onOpenSource, onOpenBook, onOpenMasteryMap, organise, writeBook, readMore, setCoverage, pickScale, startCustom, gateScale, retry, toggle, onPick, onPickCard, onPracticeRow, onGapHint,
       onPracticeWeakDue: keys => practise({ keys }),
       onGoGenerateRow: row => (onGoGenerateTopic ? onGoGenerateTopic(rowTitle(row)) : onCreate?.()),
       clearPick: () => setPick(emptyPick()), practisePicked: () => practise(pickArgs(pick)),
@@ -409,9 +409,11 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
   const deckSelect = outline?.decks?.length > 1 ? <Combobox className="outline-deck" label={ui('按题组筛选')} aria-label={ui('按题组筛选')} value={deckId} onChange={actions.chooseDeck}
     options={[{ value: '', label: ui('全部题组') }, ...outline.decks.map(deck => ({ value: deck.id, label: deck.title, hint: uiFormat('{0} 题', [deck.total]) }))]}
     searchPlaceholder={ui('搜索题组')} emptyText={query => uiFormat('没有叫「{0}」的题组', [query])} /> : null;
+  const canOpenMasteryMap = Boolean(actions?.onOpenMasteryMap && outline?.status === 'ok' && (outline.book?.nodes?.length || outline.documents?.length));
   const header = (
     <PageHeader className="outline-header" back={{ label: actions?.backLabel || ui('返回学习库'), onClick: actions.onBack }} title={course === null ? ui('总纲') : uiFormat('总纲 · {0}', [courseName])}
-      titleProps={{ tabIndex: -1, 'data-context-heading': true }}>
+      titleProps={{ tabIndex: -1, 'data-context-heading': true }}
+      actions={canOpenMasteryMap ? <Button size="sm" variant="secondary" iconEnd="arrow-right" onClick={actions.onOpenMasteryMap}>{ui('掌握图谱')}</Button> : undefined}>
       {outline && <p className="outline-summary">
         <MasteryLine summary={outline.summary} title={courseName || ui('总纲')} />
         <span className="outline-summary__line">{courseLine(outline)}</span>

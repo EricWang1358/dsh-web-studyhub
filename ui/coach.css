@@ -214,8 +214,8 @@
       max-width: 100%;
     }
     .assist-actions > div[data-phase]:not([data-phase="idle"]),
-    .assist-actions > div[data-phase]:has(> :nth-child(2)),
-    .assist-actions > div:has([data-phase]:not([data-phase="idle"]), [data-phase] > :nth-child(2)) {
+    .assist-actions > div[data-phase][data-expanded="true"],
+    .assist-actions > div:has([data-phase]:not([data-phase="idle"]), [data-phase][data-expanded="true"]) {
       order: -1;
       flex: 1 0 100%;
       margin-inline-start: 0;

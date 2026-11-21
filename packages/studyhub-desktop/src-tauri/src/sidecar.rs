@@ -206,7 +206,9 @@ pub fn read_handshake_port<R: BufRead>(reader: &mut R) -> Result<u16, String> {
                 match parse_handshake_response(trimmed) {
                     Ok(port) => return Ok(port),
                     Err(err) => {
-                        eprintln!("[studyhub-sidecar] ignoring pre-handshake stdout line: {trimmed}");
+                        eprintln!(
+                            "[studyhub-sidecar] ignoring pre-handshake stdout line: {trimmed}"
+                        );
                         last_error = Some(err);
                         stray_lines = stray_lines.saturating_add(1);
                         if stray_lines >= MAX_STRAY_HANDSHAKE_LINES {

@@ -87,6 +87,33 @@ const PagePeek = lazy(() => import('./peek/PagePeek.jsx'));
 /* Within this many pixels of the first chapter's top, the learner is at the material's start: 上次读到 is forgotten, not kept. */
 const START_PX = 80;
 
+const READER_HTML_CACHE_LIMIT = 16;
+const readerHtmlCache = new Map();
+function cachedMarkdownHtml(content, markdownImages) {
+  const text = String(content || '');
+  if (!text) return '';
+  const key = `${markdownImages ? '1' : '0'}:${text}`;
+  if (readerHtmlCache.has(key)) {
+    const hit = readerHtmlCache.get(key);
+    readerHtmlCache.delete(key);
+    readerHtmlCache.set(key, hit);
+    return hit;
+  }
+  const rendered = safeDocumentHtml(renderReaderMarkdown(text), { markdownImages });
+  if (readerHtmlCache.size >= READER_HTML_CACHE_LIMIT) readerHtmlCache.delete(readerHtmlCache.keys().next().value);
+  readerHtmlCache.set(key, rendered);
+  return rendered;
+}
+
+const groupedSourcesCache = new WeakMap();
+function cachedGroupSources(sources) {
+  if (!Array.isArray(sources)) return [];
+  if (groupedSourcesCache.has(sources)) return groupedSourcesCache.get(sources);
+  const grouped = groupSourcesByDocument(sources);
+  groupedSourcesCache.set(sources, grouped);
+  return grouped;
+}
+
 /** HTML is inert reading content. Only Markdown already filtered by renderNoteMarkdown may keep its safe images. */
 export function safeDocumentHtml(text, { markdownImages = false } = {}) {
   return DOMPurify.sanitize(String(text || ''), { USE_PROFILES: { html: true, mathMl: true },
@@ -201,7 +228,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const [pickPagesGuide, setPickPagesGuide] = useState(!!pickPages);
   useEffect(() => { setPickPagesGuide(!!pickPages); }, [pickPages, source.id]);
   useEffect(() => { setSyncedTarget(null); }, [source.id]);
-  const root = useRef(null), body = useRef(null), scroller = useRef(null), findInput = useRef(null), ranges = useRef([]), openedAt = useRef('');
+  const root = useRef(null), body = useRef(null), scroller = useRef(null), progressBarRef = useRef(null), findInput = useRef(null), ranges = useRef([]), openedAt = useRef('');
   // Narrow panes (under NARROW px of the viewer, ui/use-narrow.js): the outline and the learning panel slide over the text instead of sitting beside it.
   const narrow = useNarrow(root), compact = useNarrow(root, COMPACT_TOOLBAR);
   const outlineId = useId(), toolsId = useId();
@@ -219,18 +246,25 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
         const value = await call('materials.document.get', getArgs);
         if (!current) return;
         setDocument(value);
-        const backlink = await call('materials.links.list', { documentId: value.documentId || value.id });
-        if (current) setLinks(backlink.links || []);
+        // Load backlinks in parallel with original bytes (or while rendering extracted text) instead of serializing the open path.
+        const linksPromise = call('materials.links.list', { documentId: value.documentId || value.id })
+          .then(backlink => { if (current) setLinks(backlink.links || []); });
         const original = originalHandling(value);
-        if (original === 'download' || original === 'none') setContent(value.sources?.find(item => item.id === source.id)?.text || value.sources?.[0]?.text || source.text);
-        else {
+        if (original === 'download' || original === 'none') {
+          setContent(value.sources?.find(item => item.id === source.id)?.text || value.sources?.[0]?.text || source.text);
+        } else {
           const bytes = await call('materials.document.bytes', { documentId: value.documentId || value.id, revision: value.revision });
           if (!current) return;
-          if (bytes.status === 'paged') { setFileUrl(pagedFileUrl(call, bytes.paged)); return; } // too big to send whole: its pages are asked for as they are drawn
+          if (bytes.status === 'paged') {
+            setFileUrl(pagedFileUrl(call, bytes.paged));
+            await linksPromise;
+            return; // too big to send whole: its pages are asked for as they are drawn
+          }
           if (!bytes.dataBase64) {
             // The original is not there (a referenced file moved or changed): say so, and keep reading the stored text.
             setDocument({ ...value, originalAvailable: false, original: { ...value.original, status: bytes.reason === 'none' ? 'none' : bytes.reason === 'missing' || bytes.reason === 'unreadable' ? bytes.reason : 'changed', reason: bytes.reason, ...(bytes.path ? { path: bytes.path } : {}) } });
             setContent(value.sources?.find(item => item.id === source.id)?.text || value.sources?.[0]?.text || source.text);
+            await linksPromise;
             return;
           }
           const data = Uint8Array.from(atob(bytes.dataBase64), char => char.charCodeAt(0));
@@ -238,6 +272,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
             objectUrl = URL.createObjectURL(new Blob([data], { type: bytes.mime })); setFileUrl(objectUrl);
           } else setContent(new TextDecoder().decode(data));
         }
+        await linksPromise;
       } catch (e) {
         if (current) { setError(e.message); setContent(source.text || ''); }
       } finally { if (current) setLoading(false); }
@@ -335,18 +370,18 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   // In 原始 PDF the reading panel shows only its 补题 job cards (it holds and polls them, once), above the page panel; the rest of it waits for 阅读.
   const learningPanels = [{ scope: 'selection', hidden: false, props: { capture, annotation, jobsOnly: view === 'original' } },
     ...(pagePanel && pageScope ? [{ scope: 'page', hidden: view !== 'original', props: { capture: null, scope: pageScope, pageTotal: totalPages, onPage: goToPage, onRange: askThrough, pageImages } }] : [])];
-  const html = useMemo(() => !reading ? '' : format === 'md' ? safeDocumentHtml(renderReaderMarkdown(content), { markdownImages: localMode })
+  const html = useMemo(() => !reading ? '' : format === 'md' ? cachedMarkdownHtml(content, localMode)
     : format === 'html' ? safeDocumentHtml(content) : '', [content, format, reading, localMode]);
   const allSections = useMemo(() => (reading && !html) || paged ? readingSections({ paged, sources, text: sources[0]?.text || content, sourceId: sources[0]?.id }) : [],
     [reading, html, paged, sources, content]);
   // One chapter at a time (reader/chapters.js): the document's own chapters, the 「查看 N 章」 list of its 资料 row (groupSourcesByDocument), else blocks of pages.
   const documentChapters = useMemo(() => {
     if (!paged || localMode) return null;
-    const items = groupSourcesByDocument(sources);
+    const items = cachedGroupSources(sources);
     return (items.find(item => item.sourceIds.includes(source.id)) || items[0])?.chapters ?? null;
   }, [paged, localMode, sources, source.id]);
   // The material this source belongs to (its 资料 row).
-  const documentItem = useMemo(() => data?.sources ? groupSourcesByDocument(data.sources).find(item => item.sourceIds.includes(source.id)) || null : null, [data?.sources, source.id]);
+  const documentItem = useMemo(() => data?.sources ? cachedGroupSources(data.sources).find(item => item.sourceIds.includes(source.id)) || null : null, [data?.sources, source.id]);
   // 上次读到 (reader/useLastRead.js): opened plainly from its 资料 row, a material goes back to where it was last read; the reader keeps that place while the learner reads.
   const materialKey = lastReadKey(data?.root, documentItem?.key);
   const lastReadOpening = useLastReadOpening({ key: materialKey, sourceId: source.id, firstSourceId: documentItem?.sourceIds?.[0], quote, resume: resumeProp, peekPage, localMode,
@@ -390,7 +425,10 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const outlineItems = aiOn ? aiItems : autoOutline;
   // The chapters of the reader fold their pages themselves (outline.js defaultExpanded); a page heading met in many chapters is no label.
   const outline = useMemo(() => structureOutline(outlineItems, { fold: !aiOn && !chapterEntries }), [outlineItems, aiOn, chapterEntries]);
-  const [position, jump] = useReadingPosition(scroller, outline, `${view}:${html.length}:${sections.length}:${aiItems.length}:${chapter.current?.id ?? ''}`);
+  const handleScrollProgress = useCallback(progress => {
+    if (progressBarRef.current) progressBarRef.current.style.transform = `scaleX(${view === 'original' ? 0 : progress})`;
+  }, [view]);
+  const [position, jump] = useReadingPosition(scroller, outline, `${view}:${html.length}:${sections.length}:${aiItems.length}:${chapter.current?.id ?? ''}`, { onProgress: handleScrollProgress });
   const activeId = view === 'original' ? textOutline.find(item => item.page === pdfPage)?.id ?? null : position.activeId;
   // Previous / next walk the sections; once the learner has applied the outline as the document's chapters, they walk the chapters.
   const chapterLevel = aiOn && aiOutline?.segmentation?.level;
@@ -825,10 +863,9 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   useEffect(() => { if (canPeek && peekOnOpen.current) { openPeek(peekOnOpen.current, { figure: true }); peekOnOpen.current = 0; } }, [canPeek, openPeek]);
   const peekBytes = async () => fileUrl ? originalBytes(fileUrl) : null;
 
-  // 思维导图: the current chapter drawn from its headings, no model (reader/mind-map.js). A page-based document is read from the heading paragraphs of the pages drawn;
-  // text, and a kept AI outline, from the branch of the outline around the current entry.
+  // 思维导图: the current chapter drawn from its headings, no model (reader/mind-map.js). Built lazily when the popover opens.
   const chapterPages = chapter.current ? { from: chapter.current.startPage, to: chapter.current.endPage } : null;
-  const mindMap = useMemo(() => {
+  const buildCurrentMindMap = useCallback(() => {
     if (paged && !aiOn) {
       const ids = new Set(sections.map(section => section.id));
       return buildMindMap({ title: chapter.current ? chapterTitle(chapter.current) : materialName, sections, outline: outline.filter(item => ids.has(item.id)) });
@@ -917,7 +954,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
         {!localMode && !onGenerate && view !== 'original' && onPracticePages && <ReadingPractice loop={loop} unit={unit} busy={generateDisabled} onStart={practise} onStartHere={inlinePractice ? practiseHere : undefined} onGenerate={generatePages} onOpenDraft={onOpenDraftPages ? openDraftPages : undefined} />}
         {!localMode && document && call && canStudyBank && <WrongPanel read={readWrong} cards={loop.cards} entryOf={loop.entryOf} drawn={drawnIds} chapterTitle={chapter.current ? chapterTitle(chapter.current) : ''}
           disabled={loop.status !== 'ready'} onPractice={practiseRow} onSeek={seekRow} openRequest={wrongRequest} onOpenRequested={() => setWrongRequest(false)} />}
-        {!loading && <MindMapPanel map={mindMap} document={materialName} pages={chapterPages} onJump={jumpMap} />}
+        {!loading && <MindMapPanel buildMap={buildCurrentMindMap} document={materialName} pages={chapterPages} onJump={jumpMap} />}
         {marks.chip}
       </div>
       <p className="reader-toolbar__where">{where ? <Tooltip layer content={where}><span tabIndex={0}>{where}</span></Tooltip> : null}</p>
@@ -930,7 +967,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
         <ReaderMore items={menu} attention={(!!capture && !toolsOn) || marks.moreItems.length > 0} />
       </div>
     </div>
-    <div className="reader-progress" aria-hidden="true"><span style={{ transform: `scaleX(${view === 'original' ? 0 : position.progress})` }} /></div>
+    <div className="reader-progress" aria-hidden="true"><span ref={progressBarRef} style={{ transform: `scaleX(${view === 'original' ? 0 : position.progress})` }} /></div>
     {finding && view !== 'original' && <FindBar query={query} onQuery={setQuery} total={total} index={Math.min(match, Math.max(total - 1, 0))} elsewhere={elsewhere}
       caseSensitive={caseSensitive} onCaseSensitive={setCaseSensitive} onStep={stepFind} onClose={closeFind} inputRef={findInput} />}
     <div className="study-document-notices reader-notices">{notices}</div>

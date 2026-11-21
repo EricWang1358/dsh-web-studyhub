@@ -810,6 +810,9 @@
     .term-strip__fill {
       flex: 0 0 auto;
     }
+    .term-strip__chip--filling {
+      opacity: 0.72;
+    }
     .term-strip .term-strip__candidate.term-strip__candidate {
       border-style: dashed;
       border-color: var(--line-strong);

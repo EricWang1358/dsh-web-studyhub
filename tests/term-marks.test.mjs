@@ -11,18 +11,25 @@ const {
   MAX_MARKED_TERMS,
   MAX_TERM_LENGTH,
   clearCompletedTermEntries,
+  collectInFlightTerms,
   fillQuestion,
   filterCandidateTerms,
   mergeAdjacent,
   normalizeTerm,
+  partitionMarkedTerms,
   toggleTerm,
   wordAt,
+  collectAllHighlightEntries,
+  collectBlockSegments,
+  isAllowedTextNode,
+  isExcludedElement,
   TermChips,
   ExplanationFollowup,
   formatAssistTaskSummary,
 } = await loadUi(`
   export * from "./ui/i18n.js";
   export * from "./ui/review/term-marks.js";
+  export * from "./ui/review/term-marking-dom.js";
   export { default as TermChips } from "./ui/review/TermChips.jsx";
   export { default as ExplanationFollowup } from "./ui/ExplanationFollowup.jsx";
   export { formatAssistTaskSummary } from "./ui/review/assist-summary.js";
@@ -348,4 +355,233 @@ test("filterCandidateTerms excludes all courseTerms states and activeTerms case-
     filterCandidateTerms(["Raft", "Paxos"], undefined, [{ term: "raft" }]),
     ["Paxos"],
   );
+});
+
+test("term-marking-dom allows inline <code> and fenced <pre><code> while keeping .md-code-head and .katex excluded", () => {
+  const mkText = (data) => ({ nodeType: 3, data, parentElement: null });
+  const mkEl = (tagName, { classes = [], attrs = {}, open = false, children = [] } = {}) => {
+    const el = {
+      nodeType: 1,
+      tagName: tagName.toUpperCase(),
+      open,
+      parentElement: null,
+      childNodes: children,
+      matches(selector) {
+        return selector.split(",").map((s) => s.trim()).some((part) => {
+          if (part.startsWith(".")) return classes.includes(part.slice(1));
+          if (part === '[aria-hidden="true"]') return attrs["aria-hidden"] === "true";
+          if (part === "button:not(.option)") return el.tagName === "BUTTON" && !classes.includes("option");
+          if (part === "button.option") return el.tagName === "BUTTON" && classes.includes("option");
+          return el.tagName === part.toUpperCase();
+        });
+      },
+      contains(target) {
+        if (target === el) return true;
+        for (const child of el.childNodes) {
+          if (child === target) return true;
+          if (child.nodeType === 1 && child.contains(target)) return true;
+        }
+        return false;
+      },
+    };
+    for (const child of children) child.parentElement = el;
+    return el;
+  };
+  const doc = {
+    createRange() {
+      const r = { startContainer: null, startOffset: 0, endContainer: null, endOffset: 0 };
+      r.setStart = (n, o) => { r.startContainer = n; r.startOffset = o; };
+      r.setEnd = (n, o) => { r.endContainer = n; r.endOffset = o; };
+      return r;
+    },
+  };
+
+  const inlineCodeText = mkText("s3.intern()");
+  const inlineCode = mkEl("code", { children: [inlineCodeText] });
+  const builderCodeText = mkText("StringBuilder");
+  const builderCode = mkEl("code", { children: [builderCodeText] });
+  const langText = mkText("java");
+  const langSpan = mkEl("span", { classes: ["md-code-lang"], children: [langText] });
+  const copyBtn = mkEl("button", { classes: ["md-code-copy"], children: [mkText("复制")] });
+  const codeHead = mkEl("div", { classes: ["md-code-head"], children: [langSpan, copyBtn] });
+  const fencedText = mkText('String s3 = new String("hello");\ns3.intern();\njava.lang.String');
+  const fencedCode = mkEl("code", { children: [fencedText] });
+  const fencedPre = mkEl("pre", { classes: ["md-code"], children: [fencedCode] });
+  const secondPreText = mkText("pool.intern()");
+  const secondPre = mkEl("pre", { classes: ["md-code"], children: [mkEl("code", { children: [secondPreText] })] });
+  const katexText = mkText("intern");
+  const katexSpan = mkEl("span", { classes: ["katex"], children: [katexText] });
+
+  const body = mkEl("div", {
+    children: [
+      mkEl("p", {
+        children: [mkText("JDK7"), inlineCode, mkText("now and "), builderCode, katexSpan],
+      }),
+      mkEl("div", {
+        classes: ["md-code-block"],
+        children: [codeHead, fencedPre],
+      }),
+      secondPre,
+    ],
+  });
+
+  // Inline code and fenced code are allowed; header chrome and KaTeX stay excluded.
+  assert.equal(isExcludedElement(inlineCode, body), false);
+  assert.equal(isAllowedTextNode(inlineCodeText, body), true);
+  assert.equal(isExcludedElement(fencedPre, body), false);
+  assert.equal(isExcludedElement(fencedCode, body), false);
+  assert.equal(isAllowedTextNode(fencedText, body), true);
+  assert.equal(isExcludedElement(codeHead, body), true);
+  assert.equal(isExcludedElement(langSpan, body), true);
+  assert.equal(isAllowedTextNode(langText, body), false);
+  assert.equal(isExcludedElement(copyBtn, body), true);
+  assert.equal(isExcludedElement(katexSpan, body), true);
+  assert.equal(isAllowedTextNode(katexText, body), false);
+
+  // Separate <pre> blocks produce distinct block segments.
+  const segments = collectBlockSegments(body, doc);
+  assert.equal(segments.length, 3);
+  assert.equal(segments[1].text, fencedText.data);
+  assert.equal(segments[2].text, secondPreText.data);
+
+  // Full inline code adjacent to ASCII letters ("JDK7" + <code>s3.intern()</code> + "now") matches strictly inside <code>.
+  const fullCodeRes = collectAllHighlightEntries(doc, body, { activeTerms: ["s3.intern()"] });
+  assert.equal(fullCodeRes.active.ranges.length, 2);
+  assert.equal(fullCodeRes.active.ranges[0].startContainer, inlineCodeText);
+  assert.equal(fullCodeRes.active.ranges[0].startOffset, 0);
+  assert.equal(fullCodeRes.active.ranges[0].endContainer, inlineCodeText);
+  assert.equal(fullCodeRes.active.ranges[0].endOffset, "s3.intern()".length);
+  assert.equal(fullCodeRes.active.ranges[1].startContainer, fencedText);
+
+  // Substring "intern" matches in inline <code> and both <pre><code> blocks, skips .katex.
+  // "java" matches inside <pre><code> but skips .md-code-head (.md-code-lang).
+  const subRes = collectAllHighlightEntries(doc, body, {
+    activeTerms: ["intern", "java"],
+    seenTerms: ["intern"],
+  });
+  assert.equal(subRes.active.ranges.length, 4); // 3x intern + 1x java in <pre><code>
+  assert.equal(subRes.seen.ranges.length, 3);
+  assert.equal(subRes.active.spans.some((s) => s.node === langText), false);
+  assert.equal(subRes.active.spans.some((s) => s.node === katexText), false);
+
+  // Explicit single-node drag hit highlights an intra-identifier substring ("Builder" in "StringBuilder")
+  // without breaking ASCII boundary protection for unrelated words ("in" inside "intern").
+  const hitRes = collectAllHighlightEntries(doc, body, {
+    activeTerms: ["Builder", "in"],
+    activeHits: [{ node: builderCodeText, start: 6, end: 13, term: "Builder" }],
+  });
+  assert.equal(hitRes.active.ranges.length, 1);
+  assert.equal(hitRes.active.ranges[0].startContainer, builderCodeText);
+  assert.equal(hitRes.active.ranges[0].startOffset, 6);
+  assert.equal(hitRes.active.ranges[0].endOffset, 13);
+});
+
+test("collectInFlightTerms and partitionMarkedTerms separate in-flight terms from newly marked pending terms across concurrent jobs", () => {
+  const assistTasks = [
+    { id: "t1", mode: "terms", status: "running", cardId: "c1", terms: ["常量折叠"] },
+    { id: "t2", mode: "terms", status: "running", cardId: "c1", terms: ["内联", "常量折叠"] },
+    { id: "t3", mode: "terms", status: "done", cardId: "c1", terms: ["逃逸分析"] },
+    { id: "t4", mode: "terms", status: "running", cardId: "c2", terms: ["其他卡词"] },
+    { id: "t5", mode: "ask", status: "running", cardId: "c1", terms: ["非补词"] },
+  ];
+
+  assert.deepEqual(collectInFlightTerms(assistTasks, "c1"), ["常量折叠", "内联"]);
+  assert.deepEqual(collectInFlightTerms(assistTasks, "c1", ["内联", "栈上分配"]), ["常量折叠", "内联", "栈上分配"]);
+  assert.deepEqual(collectInFlightTerms(assistTasks, "c2"), ["其他卡词"]);
+
+  const part = partitionMarkedTerms(["常量折叠", "内联", "JIT"], ["常量折叠", "jit"]);
+  assert.deepEqual(part.inFlightTerms, ["常量折叠", "JIT"]);
+  assert.deepEqual(part.pendingTerms, ["内联"]);
+});
+
+test("TermChips stays enabled for newly marked pending terms while earlier terms fill in background and submits only pendingTerms", async () => {
+  await loadEnglishCatalogue();
+  const prev = getUiLanguage();
+  try {
+    setUiLanguage("zh");
+
+    // 1. Only 常量折叠 is marked and already filling -> button is disabled/spinning with count 1; chip has no remove button.
+    const allInFlightHtml = renderToStaticMarkup(
+      React.createElement(TermChips, {
+        terms: ["常量折叠"],
+        inFlightTerms: ["常量折叠"],
+        running: true,
+      }),
+    );
+    assert.match(allInFlightHtml, /data-filling="true"/);
+    assert.doesNotMatch(allInFlightHtml, /移除生词「常量折叠」/);
+    assert.match(allInFlightHtml, /<button[^>]*term-strip__fill[^>]*disabled=""[^>]*aria-busy="true"/);
+    assert.match(allInFlightHtml, />补齐这 1 个词</);
+
+    // 2. While 常量折叠 is filling, user marks 内联 -> button stays ENABLED (not spinning), shows count 1, and submits ONLY ["内联"].
+    const mixedEl = React.createElement(TermChips, {
+      terms: ["常量折叠", "内联"],
+      inFlightTerms: ["常量折叠"],
+      candidates: ["逃逸分析"],
+      running: true,
+    });
+    const mixedHtml = renderToStaticMarkup(mixedEl);
+    assert.match(mixedHtml, /data-filling="true"[^>]*>.*常量折叠/);
+    assert.doesNotMatch(mixedHtml, /移除生词「常量折叠」/);
+    assert.match(mixedHtml, /移除生词「内联」/);
+    assert.match(mixedHtml, /term-strip__candidate/);
+    assert.doesNotMatch(mixedHtml, /term-strip__fill[^>]*disabled=""/);
+    assert.doesNotMatch(mixedHtml, /term-strip__fill[^>]*aria-busy="true"/);
+    assert.match(mixedHtml, />补齐这 1 个词</);
+
+    // Verify clicking the fill button targets ONLY pendingTerms (["内联"]), not ["常量折叠", "内联"].
+    const submitted = [];
+    const capturedButtons = [];
+    const cjsReact = (await import("node:module")).createRequire(import.meta.url)("react");
+    const origCreateElement = cjsReact.createElement;
+    cjsReact.createElement = (type, props, ...children) => {
+      if (props?.className === "term-strip__fill") capturedButtons.push(props);
+      return origCreateElement(type, props, ...children);
+    };
+    try {
+      renderToStaticMarkup(
+        origCreateElement(TermChips, {
+          terms: ["常量折叠", "内联"],
+          inFlightTerms: ["常量折叠"],
+          running: true,
+          onFill: (list) => submitted.push(list),
+        }),
+      );
+    } finally {
+      cjsReact.createElement = origCreateElement;
+    }
+    const fillBtnProps = capturedButtons[0];
+    assert.ok(fillBtnProps, "fill button props captured during React render");
+    assert.equal(fillBtnProps.busy, false);
+    assert.equal(fillBtnProps.disabled, false);
+    fillBtnProps.onClick();
+    assert.deepEqual(submitted, [["内联"]]);
+
+    // 3. Once 内联 is also submitted (both inFlight) -> button becomes disabled/spinning again with count 2.
+    const bothInFlightHtml = renderToStaticMarkup(
+      React.createElement(TermChips, {
+        terms: ["常量折叠", "内联"],
+        inFlightTerms: ["常量折叠", "内联"],
+        running: true,
+      }),
+    );
+    assert.match(bothInFlightHtml, /<button[^>]*term-strip__fill[^>]*disabled=""[^>]*aria-busy="true"/);
+    assert.match(bothInFlightHtml, />补齐这 2 个词</);
+    assert.equal(formatAssistTaskSummary({ mode: "terms", terms: ["常量折叠", "内联"] }), "常量折叠、内联");
+
+    // 4. English locale singular/plural counts stay accurate.
+    setUiLanguage("en");
+    const enMixedHtml = renderToStaticMarkup(
+      React.createElement(TermChips, {
+        terms: ["constant folding", "inlining"],
+        inFlightTerms: ["constant folding"],
+        running: true,
+      }),
+    );
+    assert.doesNotMatch(enMixedHtml, /term-strip__fill[^>]*disabled=""/);
+    assert.match(enMixedHtml, />Fill in this 1 word</);
+    assert.equal(formatAssistTaskSummary({ mode: "terms", terms: ["constant folding", "inlining"] }), "constant folding, inlining");
+  } finally {
+    setUiLanguage(prev);
+  }
 });

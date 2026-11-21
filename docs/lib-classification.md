@@ -10,9 +10,9 @@ The report moves nothing (#902): it is the data for deciding what could later go
 | Class | Modules |
 | --- | ---: |
 | Used by ui | 105 |
-| Used by several contexts | 70 |
+| Used by several contexts | 71 |
 | Used by exactly one context | 133 |
-| Used by none of these (other lib files, entry points, scripts and tests only) | 114 |
+| Used by none of these (other lib files, entry points, scripts and tests only) | 113 |
 
 ## Used by ui (105)
 
@@ -99,7 +99,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/practice-settings.js`: 20 ui files; contexts coach, study, system; 11 other lib files
 - `lib/question-references.js`: 3 ui files; context generation; 6 other lib files
 - `lib/question-voice.js`: 3 ui files; 3 other lib files
-- `lib/quote-locate.js`: 1 ui file; context generation; 12 other lib files
+- `lib/quote-locate.js`: 1 ui file; contexts generation, library; 12 other lib files
 - `lib/recommend-text.js`: 2 ui files; 1 other lib file
 - `lib/release-notes.js`: 1 ui file; 1 other lib file
 - `lib/repair-evidence.js`: 1 ui file; context generation
@@ -122,7 +122,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/token-usage.js`: 9 ui files; contexts audio, generation, jobs, materials, study; 13 other lib files
 - `lib/usage-registry.js`: 1 ui file; 2 other lib files
 
-## Used by several contexts (70)
+## Used by several contexts (71)
 
 - `lib/assessment-quality.js`: contexts authoring, generation; 9 other lib files
 - `lib/atomic-json.js`: contexts generation, library; 19 other lib files
@@ -142,6 +142,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/course-book-files.js`: contexts generation, library; 14 other lib files
 - `lib/course-book.js`: contexts generation, library, study; 8 other lib files
 - `lib/course-outline-book.js`: contexts generation, library; 11 other lib files
+- `lib/course-outline-index.js`: contexts generation, library; 12 other lib files
 - `lib/coverage-state.js`: contexts generation, library; 2 other lib files
 - `lib/custom-skeleton.js`: contexts courses, generation; 4 other lib files
 - `lib/daily-recap-settings.js`: contexts notes, system; 2 other lib files
@@ -222,6 +223,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/bulk-import.js`: context authoring; 2 other lib files
 - `lib/call-counts.js`: context generation
 - `lib/card-autofix.js`: context generation; 3 other lib files
+- `lib/card-places.js`: context library; 7 other lib files
 - `lib/card-schedule.js`: context study; 9 other lib files
 - `lib/case-types.js`: context generation; 3 other lib files
 - `lib/converted-chapter-stamps.js`: context materials; 3 other lib files
@@ -243,7 +245,6 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/course-book-term-cards.js`: context generation; 2 other lib files
 - `lib/course-book-writer.js`: context library; 2 other lib files
 - `lib/course-outline-book-view.js`: context library; 8 other lib files
-- `lib/course-outline-index.js`: context generation; 12 other lib files
 - `lib/course-outline-qa.js`: context library
 - `lib/course-outline.js`: context library; 6 other lib files
 - `lib/course-plan.js`: context library
@@ -331,7 +332,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/workflows.js`: context workflows; 4 other lib files
 - `lib/wrong-detail.js`: context library
 
-## Used by none of these (other lib files, entry points, scripts and tests only) (114)
+## Used by none of these (other lib files, entry points, scripts and tests only) (113)
 
 - `lib/assigned-plan.js`: 6 other lib files
 - `lib/assist-child.js`: 1 other lib file
@@ -356,7 +357,6 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/book-parked-text.js`: 3 other lib files
 - `lib/calculation-check.js`: 2 other lib files
 - `lib/calculation-teaching.js`: 1 other lib file
-- `lib/card-places.js`: 7 other lib files
 - `lib/chem-text.js`: 3 other lib files
 - `lib/code-comment.js`: 2 other lib files
 - `lib/course-book-cards.js`: 2 other lib files

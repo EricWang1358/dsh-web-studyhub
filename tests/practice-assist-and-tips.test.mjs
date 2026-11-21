@@ -56,7 +56,7 @@ const compiled = await build({
       export * from './ui/app/use-inbox.js';
       export { StudyServicesContext } from './ui/study-context.jsx';
       export { ModelSettingsContext } from './ui/ModelErrorNote.jsx';
-      export { setUiLanguage } from './ui/i18n.js';
+      export { setUiLanguage, loadEnglishCatalogue } from './ui/i18n.js';
     `,
     resolveDir: process.cwd(),
   },
@@ -554,4 +554,54 @@ test("#965 CitationDisclosure shows provenance badges on collapsed summary and �
     assert.deepEqual(openedCalls, [[pdfSource, "PDF quote.", 5]]);
   }
   m.setUiLanguage("zh");
+});
+
+test("QuestionRun consolidates concurrent running term-fill tasks in status and passes inFlightTerms to TermChips (zh & en)", async () => {
+  await m.loadEnglishCatalogue();
+  try {
+    const assistCalls = [];
+    const baseData = {
+      sources: [{ id: "s1", title: "DB Notes", text: "B-tree indexes keep keys in sorted order for fast lookup." }],
+      model: { ready: true, reason: "ok", label: "DeepSeek" },
+      assist: [
+        { id: "t1", mode: "terms", status: "running", cardId: "c1", terms: ["常量折叠"] },
+        { id: "t2", mode: "terms", status: "running", cardId: "c1", terms: ["内联"] },
+      ],
+    };
+
+    m.setUiLanguage("zh");
+    const zh = mountRun({
+      run: { id: "r1", deckId: "d1", index: 0, card: sampleCard },
+      data: baseData,
+      assistCard: (...args) => { assistCalls.push(args); return Promise.resolve(true); },
+    });
+    assert.ok(zh.html.includes("后台助教正在补词：常量折叠、内联"), "zh status shows all concurrent active terms");
+    const termChipsEl = zh.elements.find((el) => el.type?.name === "TermChips");
+    assert.ok(termChipsEl, "TermChips rendered");
+    assert.deepEqual(termChipsEl.props.inFlightTerms, ["常量折叠", "内联"]);
+    assert.equal(termChipsEl.props.busy, undefined, "QuestionRun does not hand busy prop down to TermChips");
+
+    // Calling onFill with a mix of already-in-flight and new terms submits ONLY the new term.
+    await termChipsEl.props.onFill(["常量折叠", "内联", "逃逸分析"]);
+    assert.equal(assistCalls.length, 1);
+    assert.deepEqual(assistCalls[0], ["terms", "", [], { terms: ["逃逸分析"] }]);
+
+    m.setUiLanguage("en");
+    const en = mountRun({
+      run: { id: "r1", deckId: "d1", index: 0, card: sampleCard },
+      data: {
+        ...baseData,
+        assist: [
+          { id: "t1", mode: "terms", status: "running", cardId: "c1", terms: ["constant folding"] },
+          { id: "t2", mode: "terms", status: "running", cardId: "c1", terms: ["inlining"] },
+        ],
+      },
+    });
+    assert.ok(
+      en.html.includes("Background assistant is filling terms: constant folding, inlining"),
+      "en status shows all concurrent active terms",
+    );
+  } finally {
+    m.setUiLanguage("zh");
+  }
 });

@@ -16,6 +16,7 @@ export function createDesktopLibraryEvents(options = {}) {
   return Object.freeze({
     subscribe: (root, listener) => bus.subscribe(root, listener),
     publish: (root, payload) => bus.publish(root, payload),
+    acknowledgeWrite: (root, payload) => bus.acknowledgeWrite(root, payload),
     waitForChange: (root, waitOptions) => bus.waitForChange(root, waitOptions),
     readMeta: (root) => readLibraryMeta(root, { includeRevision: true }),
     writeSignal: (root, signalOptions) => writeRefreshSignal(root, signalOptions),
