@@ -37,6 +37,8 @@ import { useSourceDock } from "./review/use-source-dock.jsx";
 import InkMark from "./seal-press/InkMark.jsx";
 import LazyRoundSealSection from "./seal-press/LazyRoundSealSection.jsx";
 import LetterpressNumber from "./letterpress/LetterpressNumber.jsx";
+import PaceMeta from "./pace/PaceMeta.jsx";
+import { buildSliceForecast } from "./pace/format-pace.js";
 
 /* 复习视图：quiz/multi 选项作答、cloze 填空、闪卡翻面与开放问答自评，
    附前置题条、逐步讲解面板与薄弱主题收尾。会话状态（run）与本地作答
@@ -221,6 +223,19 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
   const methodAlt = run.complete && !flow && run.mode !== "exam" ? roundEndAlternative(data, roundCourse, { guidedSession: app?.lib?.guidedSession, canChat: app?.host?.capabilities?.chat !== false }) : null;
   const roundTotal = run.questions ?? run.total ?? 0;
   const allCorrect = Boolean(run.complete && roundTotal > 0 && (run.answered || 0) >= roundTotal && run.correct === roundTotal);
+  const summaryPace = React.useMemo(() => {
+    if (!run.complete || run.mode === "exam" || !data?.paceForecast || roundTotal <= 0) return null;
+    const singleDeckId = run.deckId || (Array.isArray(run.scope) && run.scope.length === 1 ? run.scope[0]?.deckId : null);
+    const deckEntry = singleDeckId ? data.paceForecast.decks?.[singleDeckId] : null;
+    if (deckEntry?.status === "mastered") return { ...deckEntry, isSlice: true };
+    return buildSliceForecast({
+      count: roundTotal,
+      passedCount: run.correct ?? 0,
+      paceForecast: data.paceForecast,
+      deckId: singleDeckId,
+      course: roundCourse || data?.focus?.course || null,
+    });
+  }, [run.complete, run.mode, run.deckId, run.scope, run.correct, roundTotal, roundCourse, data?.paceForecast, data?.focus?.course]);
   return (
     <StudyServicesContext.Provider value={dock.services}>
     <section
@@ -275,6 +290,9 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
           {/* The mastery of this round's questions before the first answer and now, in the run itself (lib/run-mastery.js), so it is drawn with the page.
               A reader round says it about its pages, in its own card with the way back. */}
           {readingBack ? <ReadingResult run={run} busy={busy} onReturn={onReturnToReading} /> : <MasteryChange kind="round" change={run.mastery} className="result-mastery" />}
+          {summaryPace && (
+            <PaceMeta variant="slice" forecast={summaryPace} pace={data?.paceForecast?.pace} asOf={data?.paceForecast?.asOf} />
+          )}
           <div className="result-hero sh-paper-card sh-paper-card--roomy" data-all-correct={allCorrect ? "true" : undefined}>
             <div className="result-headline">
               <strong>{typeof run.correct === "number" && Number.isFinite(run.correct) ? <LetterpressNumber value={run.correct} animateOnMount mountKey={run.id} /> : run.correct}</strong>

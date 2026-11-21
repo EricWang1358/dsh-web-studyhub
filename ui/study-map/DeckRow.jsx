@@ -9,6 +9,8 @@ import { dotLevel, topicKey } from './map-model.js';
 import { HandOff } from '../hand-off/HandOff.jsx';
 import { useHandOff } from '../hand-off/use-hand-off.js';
 import { useStudy } from '../study-context.jsx';
+import { useOptionalAppSelector } from '../app/app-context.js';
+import PaceMeta from '../pace/PaceMeta.jsx';
 
 /** The inside of a play slot: the ▶ of a row with no open run, 「继续 →」 of one with a run. A row without a run keeps the room of 「继续 →」 in an invisible twin, so every slot is as wide as
     its widest face in the language of the page (「Continue →」 is wider than 「继续 →」, and a fixed width cut it) and the bars of the rows still line up. */
@@ -20,10 +22,13 @@ function PlaySlot({ run }) {
 }
 
 /** One deck of the tree: its fold, selection, mastery, play button and ⋯ menu (with 发给主会话), and its topics when open (each with a 发给主会话 icon). */
-export default function DeckRow({ deck: d, progress: p, open, tree, runFor, actions }) {
+export default function DeckRow({ deck: d, progress: p, open, tree, runFor, actions, paceForecast: propPaceForecast }) {
   const { busy } = useStudy();
   const handOff = useHandOff();
+  const storePaceForecast = useOptionalAppSelector((state) => state.data?.paceForecast);
+  const paceForecast = propPaceForecast ?? storePaceForecast;
   if (d.archived) return <ArchivedDeckRow deck={d} onRestore={actions.restoreDeck} onRemove={actions.removeDeck} onManage={actions.manage} />;
+  const deckPace = !d.systemKind ? paceForecast?.decks?.[d.id] ?? null : null;
   const { start, resume, manage, archiveDeck, openVoicePack, runsOn } = actions;
   const key = topicKey(d.id), whole = tree.selected.has(key), run = runFor([{ deckId: d.id }]);
   const choose = {
@@ -66,6 +71,7 @@ export default function DeckRow({ deck: d, progress: p, open, tree, runFor, acti
               d.selfCited ? uiFormat('{0} 题仅有导入题目引用', [d.selfCited]) : '',
               d.archived ? ui('已归档') : ''].filter(Boolean).join(' · ')}
           </small>
+          {deckPace && <PaceMeta variant="deck" inline hideMastered forecast={deckPace} pace={paceForecast?.pace} asOf={paceForecast?.asOf} />}
         </button>
         {p && <MasteryBar node={p} />}
         <button className={`map-play${run ? ' is-run' : ''}`} disabled={busy || d.archived || !d.available}

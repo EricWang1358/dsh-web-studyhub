@@ -1,0 +1,35 @@
+/* Quiet, typographic 1-line mastery ETA copy (ui/pace/PaceMeta.jsx).
+   Follows ui/DESIGN.md: regular weight, --fs-sm body meta scale, muted desk ink,
+   tabular numerals, zero boxes or anxious countdown styling. */
+
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    .pace-meta {
+      margin: 0;
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-regular);
+      line-height: var(--lh-snug);
+      color: var(--text-dim);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .pace-meta--inline {
+      display: block;
+      margin-top: var(--space-half);
+    }
+
+    .pace-meta--mastered {
+      color: var(--ok-ink);
+    }
+
+    .pace-meta--exam {
+      color: var(--warn-ink);
+    }
+
+    .pace-meta__text {
+      display: inline;
+    }
+  }
+}

@@ -5,7 +5,8 @@ import { cx } from '../components/css.js';
 import { useInjectCss } from '../shared.js';
 import { useStudy } from '../study-context.jsx';
 import { ROUND_SIZE_LIMITS, isRoundSize, resolvePracticeSettings } from '../../lib/practice-settings.js';
-import { chaptersOf, estimateRoundMinutes, rememberPatch, roundArgs, roundChoice, roundDefaults, roundKey, sameRound } from './round-setup.js';
+import { chaptersOf, estimateRoundMinutes, estimateSlicePace, rememberPatch, roundArgs, roundChoice, roundDefaults, roundKey, sameRound } from './round-setup.js';
+import PaceMeta from '../pace/PaceMeta.jsx';
 import css from './round-setup.css';
 
 /* 本轮设置 (#1010): the small popover beside a start button (the home's 开始今日学习, the result page's next round). It is optional: the button beside it
@@ -70,6 +71,14 @@ function Form({ data, context, chapterRefs, onStart, close }) {
   const estimateLabel = minMinutes === maxMinutes
     ? uiFormat('预计约 {0} 分钟', [minMinutes])
     : uiFormat('预计约 {0}–{1} 分钟', [minMinutes, maxMinutes]);
+  const slicePace = estimateSlicePace({
+    size: picked.size,
+    range: picked.range,
+    chapter: picked.chapter,
+    data,
+    course: context.course,
+    scope: context.scope || chapterRefs,
+  });
   return <form className="round-setup__form" onSubmit={go} data-round-setup noValidate>
     <Field group label={ui('题数')} width="full">
       <SegmentedControl size="sm" fill label={ui('题数')} value={PRESETS.includes(picked.size) && sizeOk ? picked.size : null} onChange={setSize}
@@ -96,6 +105,9 @@ function Form({ data, context, chapterRefs, onStart, close }) {
       </Field>
     )}
     <Hint size="xs" className="round-setup__estimate" aria-live="polite">{estimateLabel}</Hint>
+    {slicePace && (
+      <PaceMeta variant="slice" forecast={slicePace} pace={data?.paceForecast?.pace} asOf={data?.paceForecast?.asOf} />
+    )}
     <div className="round-setup__actions">
       {differs && <Button size="sm" variant="quiet" onClick={() => { const fresh = roundDefaults(practice, context); setChoice(fresh); setText(String(fresh.size)); }}>{ui('恢复默认')}</Button>}
       <Button iconEnd="arrow-right" type="submit" variant="primary" className="round-setup__start" busy={starting} lock={busy} disabled={!sizeOk} data-usage="round.setup.start">{ui('开始本轮')}</Button>
