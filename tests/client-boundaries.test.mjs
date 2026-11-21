@@ -195,7 +195,7 @@ test('generated native modules resolve through classic chunk factories and share
       `only a dynamic import reaches ${label}`);
     verify(await asyncModule(`./${name}`));
   }
-  // Optional Wave 1 artistic UI panels/dialogs also load on demand via runtime dynamic import() (outside React.lazy)
+  // Optional Wave 1 & Wave 2 artistic UI panels/dialogs also load on demand via runtime dynamic import() (outside React.lazy)
   // so they stay out of the workspace first-load closure; materialize their static dependency graph first as loadExpression does.
   const outputByName = new Map(Object.entries(result.metafile.outputs).map(([path, record]) => [basename(path), record]));
   async function loadDynamicBoundary(name, visiting = new Set()) {
@@ -209,13 +209,17 @@ test('generated native modules resolve through classic chunk factories and share
   }
   for (const [entryPoint, verify] of [
     ['ui/desk-atelier/DeskAtelierPanel.jsx', module => assert.equal(typeof module.default, 'function')],
+    ['ui/desk-atelier/DeskChimeDialog.jsx', module => assert.equal(typeof module.default, 'function')],
     ['ui/seal-press/seal-press-runtime.js', module => {
       assert.equal(typeof module.FlowSealCue, 'function');
       assert.equal(typeof module.RoundSealSection, 'function');
     }],
     ['ui/seal-press/PostcardStudioDialog.jsx', module => assert.equal(typeof module.default, 'function')],
+    ['ui/seal-press/SealAlbumDialog.jsx', module => assert.equal(typeof module.default, 'function')],
+    ['ui/seal-press/WrongBookClearStamp.jsx', module => assert.equal(typeof module.default, 'function')],
     ['ui/desk-play/DeskPlayStrip.jsx', module => assert.equal(typeof module.default, 'function')],
     ['ui/desk-play/InkScratchpadDialog.jsx', module => assert.equal(typeof module.default, 'function')],
+    ['ui/letterpress/letterpress-runtime.jsx', module => assert.equal(typeof module.default, 'function')],
   ]) {
     const output = Object.entries(result.metafile.outputs).find(([, record]) => record.entryPoint === entryPoint);
     assert.ok(output, `missing optional UI boundary for ${entryPoint}`);

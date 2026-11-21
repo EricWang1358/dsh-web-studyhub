@@ -71,7 +71,49 @@ export const SEAL_CATALOG = Object.freeze({
     englishEmblem: 'ROUND DONE',
     defaultStyle: 'yin',
   }),
+  'wrongbook-cleared': Object.freeze({
+    id: 'wrongbook-cleared',
+    chars: ['错', '题', '清', '零'],
+    titleKey: '错题清零印',
+    englishEmblem: 'MISTAKES CLEARED',
+    defaultStyle: 'yang',
+  }),
 });
+
+/** The five classic round seals displayed on the Seal Album Gallery specimen shelf. */
+export const SPECIMEN_SEALS = Object.freeze([
+  Object.freeze({ id: 'clean-sweep', hintKey: '单轮满 3 题全部过关' }),
+  Object.freeze({ id: 'leech-cleared', hintKey: '本轮攻克反复出错的顽固题' }),
+  Object.freeze({ id: 'night-study', hintKey: '深夜或凌晨完成一轮练习' }),
+  Object.freeze({ id: 'steady-rise', hintKey: '单轮正确率达到八成以上' }),
+  Object.freeze({ id: 'round-done', hintKey: '稳稳完成任意一轮练习' }),
+]);
+
+/** Derive a dignified 4-character clearance seal when the WrongBook active ledger is cleared. */
+export function deriveWrongBookClearSeal({ clearedCount = 0, course = '' } = {}) {
+  const count = Math.max(1, Math.round(Number(clearedCount) || 0));
+  const kind = SEAL_CATALOG['wrongbook-cleared'];
+  const scope = String(course || '').trim();
+  return {
+    id: kind.id,
+    chars: [...kind.chars],
+    titleKey: kind.titleKey,
+    englishEmblem: kind.englishEmblem,
+    reasonKey: '已累计攻克并订正 {0} 道待巩固错题，错题本清零',
+    reasonArgs: [count],
+    defaultStyle: kind.defaultStyle,
+    seed: hashSeed(`wrongbook-cleared:${scope || 'all'}:${count}`),
+    stats: {
+      answered: count,
+      total: count,
+      correct: count,
+      accuracy: 100,
+      allCorrect: true,
+      masteryDelta: null,
+      conqueredLeechCount: count,
+    },
+  };
+}
 
 /**
  * Derive an honest procedural traditional seal from real session facts.
@@ -245,8 +287,11 @@ export function buildSealInnerMarkup(seal, options = {}) {
   const seed = (Number(seal?.seed) || hashSeed((seal?.chars || ['笃', '行']).join(''))) ^ (isYin ? 0x9e3779b9 : 0x517cc1b7);
   const rng = mulberry32(seed);
   const chars = Array.isArray(seal?.chars) && seal.chars.length >= 2 ? seal.chars : ['笃', '行'];
+  const isQuad = chars.length >= 4;
   const firstChar = escapeXml(chars[0]);
   const secondChar = escapeXml(chars[1]);
+  const thirdChar = isQuad ? escapeXml(chars[2]) : '';
+  const fourthChar = isQuad ? escapeXml(chars[3]) : '';
   const outerPath = carvedBorderPath(9, 9, 102, 102, rng, 1.1, 7);
   const innerPath = carvedBorderPath(16, 16, 88, 88, rng, 0.55, 4);
   const glyphFill = isYin ? paper : ink;
@@ -261,8 +306,14 @@ export function buildSealInnerMarkup(seal, options = {}) {
     'M 27 99 L 21 99 L 21 93',
   ].map((d) => `<path d="${d}" fill="none" stroke="${escapeXml(lineColor)}" stroke-width="1.3" stroke-linecap="square" opacity="${isYin ? '0.62' : '0.48'}" />`).join('');
 
-  // Subtle central column hairline echoing classic two-character seal symmetry
-  const divider = `<line x1="60" y1="22" x2="60" y2="98" stroke="${escapeXml(lineColor)}" stroke-width="1.15" stroke-dasharray="3 2.5" opacity="${isYin ? '0.46' : '0.34'}" />`;
+  // Subtle central column hairline (and cross hairline for 4-character square seals)
+  const dividerOpacity = isYin ? '0.46' : '0.34';
+  const divider = isQuad
+    ? [
+      `<line x1="60" y1="22" x2="60" y2="98" stroke="${escapeXml(lineColor)}" stroke-width="1.05" stroke-dasharray="3 2.5" opacity="${dividerOpacity}" />`,
+      `<line x1="22" y1="60" x2="98" y2="60" stroke="${escapeXml(lineColor)}" stroke-width="1.05" stroke-dasharray="3 2.5" opacity="${dividerOpacity}" />`,
+    ].join('')
+    : `<line x1="60" y1="22" x2="60" y2="98" stroke="${escapeXml(lineColor)}" stroke-width="1.15" stroke-dasharray="3 2.5" opacity="${dividerOpacity}" />`;
 
   const body = isYin
     ? [
@@ -278,14 +329,22 @@ export function buildSealInnerMarkup(seal, options = {}) {
       divider,
     ].join('');
 
-  // Traditional seal reading order: right column first character, left column second character,
-  // stretched slightly tall for archaic Zhuanshu monumental proportions.
-  const typography = [
-    `<g fill="${escapeXml(glyphFill)}" font-family="${escapeXml(fontStack)}" font-weight="700" text-anchor="middle">`,
-    `<text x="80" y="65" font-size="38" transform="translate(80 60) scale(0.86 1.24) translate(-80 -60)">${firstChar}</text>`,
-    `<text x="40" y="65" font-size="38" transform="translate(40 60) scale(0.86 1.24) translate(-40 -60)">${secondChar}</text>`,
-    '</g>',
-  ].join('');
+  // Traditional seal reading order: right column top-to-bottom, then left column top-to-bottom.
+  const typography = isQuad
+    ? [
+      `<g fill="${escapeXml(glyphFill)}" font-family="${escapeXml(fontStack)}" font-weight="700" text-anchor="middle">`,
+      `<text x="79" y="51" font-size="27" transform="translate(79 42) scale(0.92 1.08) translate(-79 -42)">${firstChar}</text>`,
+      `<text x="79" y="88" font-size="27" transform="translate(79 79) scale(0.92 1.08) translate(-79 -79)">${secondChar}</text>`,
+      `<text x="41" y="51" font-size="27" transform="translate(41 42) scale(0.92 1.08) translate(-41 -42)">${thirdChar}</text>`,
+      `<text x="41" y="88" font-size="27" transform="translate(41 79) scale(0.92 1.08) translate(-41 -79)">${fourthChar}</text>`,
+      '</g>',
+    ].join('')
+    : [
+      `<g fill="${escapeXml(glyphFill)}" font-family="${escapeXml(fontStack)}" font-weight="700" text-anchor="middle">`,
+      `<text x="80" y="65" font-size="38" transform="translate(80 60) scale(0.86 1.24) translate(-80 -60)">${firstChar}</text>`,
+      `<text x="40" y="65" font-size="38" transform="translate(40 60) scale(0.86 1.24) translate(-40 -60)">${secondChar}</text>`,
+      '</g>',
+    ].join('');
 
   const distress = buildDistressElements(rng, { isYin, inkColor: ink, chipColor: paper });
 

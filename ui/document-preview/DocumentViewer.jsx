@@ -71,6 +71,7 @@ import { useNarrow } from '../use-narrow.js';
 import { hasContext } from '../capabilities.js';
 import { useStudy } from '../study-context.jsx';
 import { openCompanionTarget, resolveSourceCompanionTarget } from '../companions/companion-ref.js';
+import LazyInkScratchpadDialog from '../desk-play/LazyInkScratchpadDialog.jsx';
 
 /** Under this width of the viewer the toolbar's controls fill one row (reader-slim.css, @container reader 520px): 待出题 moves into 更多. */
 const COMPACT_TOOLBAR = 520;
@@ -198,6 +199,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const [summaryOpen, setSummaryOpen] = useState(false); // 批注与划线汇总
   const [peek, setPeek] = useState(null); // 看原页 (peek/PagePeek.jsx): { page, figure }
   const [displayOpen, setDisplayOpen] = useState(false); // 更多 › 显示设置…
+  const [scratchpadOpen, setScratchpadOpen] = useState(false); // 更多 › 毛笔草稿纸
   const [pickPagesGuide, setPickPagesGuide] = useState(!!pickPages);
   useEffect(() => { setPickPagesGuide(!!pickPages); }, [pickPages, source.id]);
   useEffect(() => { setSyncedTarget(null); }, [source.id]);
@@ -889,10 +891,12 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
       run: syncExternalOriginal,
     }] : []),
   ];
-  const menu = moreItems({ view, format, fileUrl: !!fileUrl, localMode, translate: bilingual.supported, display: true, tools: localMode ? null : { on: toolsOn, count: groups.length },
+  const scratchpadPlace = where || (chapter.current ? chapterTitle(chapter.current) : (view === 'original' && pdfPage ? pageLabel(pdfPage) : ''));
+  const scratchpadContext = [materialName || localContent?.title || source.title || '', scratchpadPlace].filter(Boolean).join(' · ') || undefined;
+  const menu = moreItems({ view, format, fileUrl: !!fileUrl, localMode, translate: bilingual.supported, display: true, scratchpad: true, tools: localMode ? null : { on: toolsOn, count: groups.length },
     quality: qualityText && canOutline ? { text: qualityText } : null, assist: !!(assistTarget && call && view !== 'original'), download: originalHandling(document) === 'download',
     hostPreview: !!(document?.preview?.kind === 'file' && host?.openDocument), attach: !localMode && format !== 'pdf' && originalNone, extra: [...lifecycleMoreItems, ...marks.moreItems, ...(extraItems || [])] },
-  { setView: chooseView, find: openFind, translate: bilingual.openDialog, display: () => setDisplayOpen(true), tools: () => toggle('tools'), quality: () => openOutlineAnd(),
+  { setView: chooseView, find: openFind, translate: bilingual.openDialog, display: () => setDisplayOpen(true), scratchpad: () => setScratchpadOpen(true), tools: () => toggle('tools'), quality: () => openOutlineAnd(),
     assist: () => openOutlineAnd('.reader-outline__foot button'), download: downloadOriginal, hostPreview: () => host.openDocument(document.preview.path), attach: () => setAttaching('attach') });
 
   return <div className="study-document-viewer reader" ref={root} data-usage-area="reader" data-mode={view} data-tone={settings.tone} data-face={settings.face}
@@ -1010,6 +1014,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     {summaryOpen && marksSummary && <MarksSummaryDialog open={summaryOpen} summary={marksSummary} onClose={() => setSummaryOpen(false)}
       onJump={jumpSummaryEntry} onOpenAnnotation={openAnnotation} />}
     {displayOpen && <DisplayDialog settings={settings} onChange={updateSettings} onReset={resetSettings} underline={!localMode} extra={bilingual.displayRow} onClose={() => setDisplayOpen(false)} />}
+    {scratchpadOpen && <LazyInkScratchpadDialog contextLabel={scratchpadContext} onClose={() => setScratchpadOpen(false)} />}
     {peek && canPeek && <Suspense fallback={null}><PagePeek key={document.revision} page={peek.page} figure={peek.figure} totalPages={Math.max(0, ...sources.map(item => item.document?.totalPages || 0))}
       status={peekStatus({ available: !!fileUrl, original: document.original })} loadBytes={peekBytes} onClose={() => setPeek(null)} onAttach={kind => { setPeek(null); setAttaching(kind); }}
       onShowOriginal={page => { setPeek(null); if (page) setPdfPage(page); setMode('original'); }} /></Suspense>}

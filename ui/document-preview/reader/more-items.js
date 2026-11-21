@@ -9,8 +9,8 @@ const PDF_TOOLS_TIP = '在原始 PDF 里按页提问；要问选中的一段，�
 
 /**
  * The items. state: { view ('read' | 'text' | 'original'), format, fileUrl (the original PDF is there), localMode, find, translate (offered), display (offered),
- * tools ({ on, count } | null), quality ({ text } | null), assist, download, hostPreview, attach (a text-only document: 补全原文件 is an item of its own), extra (items the
- * dialog adds: rename, today's tasks, the question sets) }; handlers: { setView(value), find, translate, display, tools, quality, assist, download, hostPreview, attach }.
+ * scratchpad (offered), tools ({ on, count } | null), quality ({ text } | null), assist, download, hostPreview, attach (a text-only document: 补全原文件 is an item of its own), extra (items the
+ * dialog adds: rename, today's tasks, the question sets) }; handlers: { setView(value), find, translate, display, scratchpad, tools, quality, assist, download, hostPreview, attach }.
  */
 export function moreItems(state, handlers) {
   const { view, format, fileUrl, localMode, tools, quality, extra = [] } = state, original = view === 'original';
@@ -22,6 +22,7 @@ export function moreItems(state, handlers) {
   if (!original) items.push({ id: 'find', icon: 'search', label: ui('在文中查找'), hint: 'Ctrl/⌘ F', run: handlers.find });
   if (state.translate && !original) items.push({ id: 'translate', icon: 'nav-language', label: ui('翻译…'), attrs: { 'data-usage': 'reader.translate' }, run: handlers.translate });
   if (state.display && !original) items.push({ id: 'display', icon: 'type', label: ui('显示设置…'), attrs: { 'data-usage': 'reader.display' }, run: handlers.display });
+  if (state.scratchpad) items.push({ id: 'scratchpad', icon: 'note', label: ui('毛笔草稿纸'), run: handlers.scratchpad });
   if (tools) items.push({ id: 'tools', icon: 'panel', label: ui('学习工具'), checked: !!tools.on, ...(tools.count > 0 ? { hint: String(tools.count) } : {}), ...(original ? { tip: ui(PDF_TOOLS_TIP) } : {}), run: handlers.tools });
   if (quality) items.push({ id: 'quality', icon: 'success', label: ui('掌握度与覆盖'), hint: quality.text, run: handlers.quality });
   if (state.assist) items.push({ id: 'assist', icon: 'sparkle', label: ui('AI 整理目录…'), run: handlers.assist });

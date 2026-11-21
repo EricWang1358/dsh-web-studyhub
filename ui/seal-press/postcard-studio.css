@@ -212,16 +212,166 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+
+    /* ── Cross-Surface Seal Album Gallery & 5-Seal Specimen Shelf ── */
+    .sh-seal-gallery {
+      display: grid;
+      gap: var(--space-4);
+    }
+
+    .sh-seal-shelf {
+      display: grid;
+      gap: var(--space-3);
+      padding: var(--space-3-5) var(--space-4);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--bg-surface);
+    }
+
+    .sh-seal-shelf__head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: var(--space-2);
+    }
+
+    .sh-seal-shelf__title {
+      margin: 0;
+      color: var(--text);
+      font-family: var(--font-display);
+      font-size: var(--fs-md);
+      font-weight: var(--fw-medium);
+      line-height: var(--lh-tight);
+    }
+
+    .sh-seal-shelf__progress {
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .sh-seal-shelf__grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: var(--space-2-5);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .sh-seal-shelf__card {
+      width: 100%;
+      height: 100%;
+      padding: var(--space-3) var(--space-2);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--bg-sunken);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      gap: var(--space-1-5);
+      text-align: center;
+      white-space: normal;
+      transition: transform var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease);
+    }
+
+    .sh-seal-shelf__card.is-earned {
+      border-color: var(--line-strong);
+      background: var(--bg-raised);
+      box-shadow: var(--shadow-item);
+    }
+
+    .sh-seal-shelf__card.is-unearned {
+      border-style: dashed;
+      opacity: 0.86;
+    }
+
+    .sh-seal-shelf__card:hover {
+      transform: translateY(-1px);
+      opacity: 1;
+    }
+
+    .sh-seal-shelf__card[aria-pressed="true"] {
+      border-style: solid;
+      border-color: var(--line-strong);
+      background: var(--bg-selected);
+      box-shadow: var(--shadow-item);
+      opacity: 1;
+    }
+
+    .sh-seal-shelf__seal-wrap {
+      width: 56px;
+      height: 56px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: none;
+    }
+
+    .sh-seal-shelf__img {
+      display: block;
+      width: 56px;
+      height: 56px;
+      user-select: none;
+      transform: rotate(-2deg);
+    }
+
+    .sh-seal-shelf__silhouette {
+      width: 56px;
+      height: 56px;
+      border: 1px dashed var(--line-strong);
+      border-radius: var(--radius-sm);
+      background: var(--bg-surface);
+      opacity: 0.62;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: none;
+      user-select: none;
+    }
+
+    .sh-seal-shelf__name {
+      color: var(--text);
+      font-family: var(--font-display);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-medium);
+      line-height: var(--lh-tight);
+    }
+
+    .sh-seal-shelf__hint {
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      line-height: var(--lh-snug);
+    }
+
+    .sh-seal-gallery__filters {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1-5);
+    }
+  }
+
+  @container study (max-width: 640px) {
+    :where(.study-app, .study-seat) {
+      .sh-seal-shelf__grid {
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      }
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {
     :where(.study-app, .study-seat) {
       .sh-seal-album__item-btn,
+      .sh-seal-shelf__card,
       .sh-postcard-stage__sheen {
         transition: none !important;
       }
 
-      .sh-seal-album__item-btn:hover {
+      .sh-seal-album__item-btn:hover,
+      .sh-seal-shelf__card:hover {
         transform: none !important;
       }
 
@@ -233,7 +383,8 @@
 
   :is(.study-app, .study-seat)[data-motion="reduced"],
   :is(.study-app, .study-seat)[data-motion="off"] {
-    .sh-seal-album__item-btn:hover {
+    .sh-seal-album__item-btn:hover,
+    .sh-seal-shelf__card:hover {
       transform: none !important;
     }
 

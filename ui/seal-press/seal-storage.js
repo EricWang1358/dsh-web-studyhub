@@ -4,15 +4,30 @@
 import { browserSession, browserStorage, readJSON, writeJSON } from '../storage.js';
 
 export const SEAL_ALBUM_KEY = 'study-seal-album';
+export const SEAL_ALBUM_CHANGE_EVENT = 'study-seal-album-change';
 export const MAX_ALBUM_ENTRIES = 60;
 const CONQUERED_SESSION_KEY = 'study-seal-conquered-leeches';
 const MAX_TRACKED_RUNS = 24;
 
 const VALID_EDITIONS = new Set(['letterpress', 'risograph', 'archival-slip']);
 const VALID_SEAL_STYLES = new Set(['yang', 'yin']);
-const VALID_SEAL_IDS = new Set(['clean-sweep', 'leech-cleared', 'night-study', 'steady-rise', 'round-done']);
+const VALID_SEAL_IDS = new Set([
+  'clean-sweep',
+  'leech-cleared',
+  'night-study',
+  'steady-rise',
+  'round-done',
+  'wrongbook-cleared',
+]);
 
 const conqueredByRun = new Map();
+
+function notifyAlbumChange(count, storage) {
+  if (typeof window === 'undefined' || storage !== browserStorage()) return;
+  try {
+    window.dispatchEvent(new CustomEvent(SEAL_ALBUM_CHANGE_EVENT, { detail: { count } }));
+  } catch { /* ignore in restricted environments */ }
+}
 
 function sanitizeText(value, maxLen) {
   return String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, maxLen);
@@ -27,7 +42,11 @@ export function normalizeAlbumEntry(raw) {
   const sealStyle = VALID_SEAL_STYLES.has(raw.sealStyle) ? raw.sealStyle : 'yang';
   const edition = VALID_EDITIONS.has(raw.edition) ? raw.edition : 'letterpress';
   const rawChars = Array.isArray(raw.sealChars) ? raw.sealChars.map((c) => String(c || '').slice(0, 2)).filter(Boolean) : [];
-  const sealChars = rawChars.length >= 2 ? [rawChars[0], rawChars[1]] : ['笃', '行'];
+  const sealChars = rawChars.length >= 4
+    ? [rawChars[0], rawChars[1], rawChars[2], rawChars[3]]
+    : rawChars.length >= 2
+      ? [rawChars[0], rawChars[1]]
+      : ['笃', '行'];
   const answered = Math.max(0, Math.round(Number(raw.answered) || 0));
   const total = Math.max(answered, Math.round(Number(raw.total) || 0));
   const correct = Math.max(0, Math.min(total || answered, Math.round(Number(raw.correct) || 0)));
@@ -81,6 +100,7 @@ export function saveSealAlbumEntry(entry, storage = browserStorage()) {
   if (!clean) return current;
   const next = [clean, ...current.filter((item) => item.id !== clean.id)].slice(0, MAX_ALBUM_ENTRIES);
   writeJSON(SEAL_ALBUM_KEY, next, storage);
+  notifyAlbumChange(next.length, storage);
   return next;
 }
 
@@ -90,7 +110,10 @@ export function removeSealAlbumEntry(id, storage = browserStorage()) {
   const current = loadSealAlbum(storage);
   if (!target) return current;
   const next = current.filter((item) => item.id !== target);
-  if (next.length !== current.length) writeJSON(SEAL_ALBUM_KEY, next, storage);
+  if (next.length !== current.length) {
+    writeJSON(SEAL_ALBUM_KEY, next, storage);
+    notifyAlbumChange(next.length, storage);
+  }
   return next;
 }
 

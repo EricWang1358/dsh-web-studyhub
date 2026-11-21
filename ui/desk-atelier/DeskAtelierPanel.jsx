@@ -1,7 +1,8 @@
-import React, { useId } from 'react';
+import React, { useId, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Button, InlineMessage, Tooltip } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
+import { useLiveEffect } from '../use-async.js';
 import {
   ATELIER_CHANNELS,
   ATELIER_PRESETS,
@@ -76,10 +77,29 @@ function ChannelGlyph({ id }) {
   );
 }
 
+let cachedChimeDialog = null;
+
 export default function DeskAtelierPanel() {
   useInjectCss(css, 'study-desk-atelier');
   const state = useAtelierState();
   const baseId = useId();
+  const [chimeOpen, setChimeOpen] = useState(false);
+  const [ChimeDialog, setChimeDialog] = useState(() => cachedChimeDialog);
+
+  useLiveEffect((isLive) => {
+    if (!chimeOpen || ChimeDialog) return undefined;
+    import('./DeskChimeDialog.jsx')
+      .then((mod) => {
+        cachedChimeDialog = mod?.default || null;
+        if (!isLive()) return;
+        if (cachedChimeDialog) setChimeDialog(() => cachedChimeDialog);
+        else setChimeOpen(false);
+      })
+      .catch(() => {
+        if (isLive()) setChimeOpen(false);
+      });
+    return undefined;
+  }, [chimeOpen, ChimeDialog]);
   const activePreset = getPresetById(state.preset);
   const presetTitle = activePreset ? ui(activePreset.label) : ui('自定义混音');
   const masterPct = Math.round(state.master * 100);
@@ -226,7 +246,21 @@ export default function DeskAtelierPanel() {
           })}
         </div>
         <p className="desk-atelier__footnote">{ui('轻度环境光晕，高对比度下自动关闭；全部声景纯本机离线合成。')}</p>
+        <div className="desk-atelier__chime-row">
+          <span className="desk-atelier__chime-note">{ui('课间休憩 · D 大调五声弦音')}</span>
+          <Button
+            variant="quiet"
+            size="sm"
+            icon="sparkle"
+            onClick={() => setChimeOpen(true)}
+          >
+            {ui('五声风铃')}
+          </Button>
+        </div>
       </section>
+      {chimeOpen && ChimeDialog && (
+        <ChimeDialog onClose={() => setChimeOpen(false)} />
+      )}
     </div>
   );
 }

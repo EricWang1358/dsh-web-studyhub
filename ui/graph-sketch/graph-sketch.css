@@ -1,0 +1,78 @@
+/* ui/graph-sketch/graph-sketch.css — Hand-drawn sketch mode & prerequisite lineage
+   spotlight for ui/Graph.jsx. Injected via useInjectCss(css, 'study-graph-sketch'). */
+
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    .graph-sketch-surface {
+      background: color-mix(in srgb, var(--bg-surface) 92%, var(--bg-sunken));
+    }
+
+    .graph-sketch-node {
+      pointer-events: none;
+    }
+
+    .graph-sketch-hit {
+      fill: transparent;
+      stroke: none;
+    }
+
+    .graph-sketch-edge {
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .gn-spotlight-item {
+      transition: opacity var(--dur-fast) var(--ease-out);
+    }
+
+    .gn-spotlight-dim {
+      opacity: 0.22;
+    }
+
+    .gn-spotlight-edge {
+      transition: opacity var(--dur-fast) var(--ease-out);
+    }
+
+    .gn-spotlight-edge-dim {
+      opacity: 0.14;
+    }
+
+    .gn-spotlight-edge-active {
+      opacity: 1;
+    }
+
+    .graph-sketch-lineage {
+      color: var(--text-dim);
+      font-weight: var(--fw-medium);
+      font-variant-numeric: tabular-nums;
+    }
+  }
+
+  .study-app[data-motion="reduced"] .gn-spotlight-item,
+  .study-app[data-motion="off"] .gn-spotlight-item,
+  .study-app[data-motion="reduced"] .gn-spotlight-edge,
+  .study-app[data-motion="off"] .gn-spotlight-edge {
+    transition: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :where(.study-app, .study-seat) {
+      .gn-spotlight-item,
+      .gn-spotlight-edge {
+        transition: none;
+      }
+    }
+  }
+
+  @media (forced-colors: active) {
+    :where(.study-app, .study-seat) {
+      .gn-spotlight-dim,
+      .gn-spotlight-edge-dim {
+        opacity: 0.4;
+      }
+    }
+  }
+}

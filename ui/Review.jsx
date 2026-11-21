@@ -36,6 +36,7 @@ import { similarWinsText } from "./review/similar-words.js";
 import { useSourceDock } from "./review/use-source-dock.jsx";
 import InkMark from "./seal-press/InkMark.jsx";
 import LazyRoundSealSection from "./seal-press/LazyRoundSealSection.jsx";
+import LetterpressNumber from "./letterpress/LetterpressNumber.jsx";
 
 /* 复习视图：quiz/multi 选项作答、cloze 填空、闪卡翻面与开放问答自评，
    附前置题条、逐步讲解面板与薄弱主题收尾。会话状态（run）与本地作答
@@ -266,7 +267,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
           {readingBack ? <ReadingResult run={run} busy={busy} onReturn={onReturnToReading} /> : <MasteryChange kind="round" change={run.mastery} className="result-mastery" />}
           <div className="result-hero sh-paper-card sh-paper-card--roomy" data-all-correct={allCorrect ? "true" : undefined}>
             <div className="result-headline">
-              <strong>{run.correct}</strong>
+              <strong>{typeof run.correct === "number" && Number.isFinite(run.correct) ? <LetterpressNumber value={run.correct} animateOnMount mountKey={run.id} /> : run.correct}</strong>
               <span>{uiFormat(scoreWording(run), [run.questions ?? run.total])}</span>
               {allCorrect && (
                 <InkMark type="underline" tone="success" padding={3} strokeWidth={1.8}>

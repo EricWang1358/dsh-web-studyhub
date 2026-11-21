@@ -3,7 +3,11 @@ import { ui, uiFormat, uiLabels } from '../i18n.js';
 import { formatDateTime } from '../format.js';
 import { Button, Icon, IconButton, NumberInput, Panel, ProgressBar, SegmentedControl, Tooltip } from '../components/index.js';
 import { useStudy } from '../study-context.jsx';
+import { useInjectCss } from '../shared.js';
+import { usePersistentState } from '../storage.js';
 import { dateLabel, evenTicks, fillTrend, linePath, linearScale, niceTicks, trendTicks } from './chart-math.js';
+import ForecastInkTide from './ForecastInkTide.jsx';
+import tideCss from './forecast-tide.css';
 import { MEASURES, THIN_DATA } from '../mastery-terms.js';
 import { CARD_KIND_LIST } from '../../lib/card-kinds.js';
 import { ACTUAL_MINUTES_MAX, summarizeFocusDuration } from '../../lib/board-model.js';
@@ -161,9 +165,26 @@ export function TrendPanel({ trend = [], today, defaultRange = 30 }) {
 
 /* ── Due forecast ────────────────────────────────────────────────────── */
 
-export function ForecastPanel({ forecast, onStart, parked }) {
+const FORECAST_VIEWS = new Set(['bar', 'tide']);
+const FORECAST_VIEW_KEY = 'study-forecast-view';
+function parseForecastView(raw) {
+  try {
+    const parsed = JSON.parse(raw);
+    return FORECAST_VIEWS.has(parsed) ? parsed : undefined;
+  } catch {
+    return FORECAST_VIEWS.has(raw) ? raw : undefined;
+  }
+}
+
+export function ForecastPanel({ forecast, onStart, parked, defaultView = 'bar', roughGenerator = null }) {
+  useInjectCss(tideCss, 'study-forecast-tide');
   const { busy } = useStudy();
   const [boxRef, width] = useChartWidth();
+  const [view, setView] = usePersistentState(
+    FORECAST_VIEW_KEY,
+    FORECAST_VIEWS.has(defaultView) ? defaultView : 'bar',
+    { parse: parseForecastView },
+  );
   // What the card counts: the active courses; what sits in parked ones (lib/course-active.js) is named, never silently dropped.
   const parkedCount = forecast?.hidden?.count || 0;
   const scopeNote = parkedCount ? uiFormat('仅有效课程 · 另有 {0} 题在未激活的课程里', [parkedCount]) : parked?.included ? ui('含未激活的课程') : '';
@@ -196,10 +217,34 @@ export function ForecastPanel({ forecast, onStart, parked }) {
     return { x: L + band * (active + 0.5), y: y(d.count) - 6, title: summary(d, active), lines };
   })();
 
+  const showViewToggle = total > 0 && Boolean(onStart || defaultView === 'tide');
+  const showTodayBtn = Boolean(onStart && today?.cards?.length > 0);
+  const actionsNode = showViewToggle || showTodayBtn ? (
+    <div className="forecast-tide__head-actions">
+      {showViewToggle && (
+        <SegmentedControl
+          size="sm"
+          label={ui('视图形式')}
+          value={view}
+          onChange={(next) => { setView(next); setActive(null); }}
+          options={[
+            { value: 'bar', label: ui('柱状') },
+            { value: 'tide', label: ui('墨潮') },
+          ]}
+        />
+      )}
+      {showTodayBtn && (
+        <Button variant="secondary" size="sm" iconEnd="arrow-right" lock={busy} onClick={() => practiseDue(today.cards)}>
+          {ui('开始今日复习')}
+        </Button>
+      )}
+    </div>
+  ) : null;
+
   return (
     <Panel className="dash-chart dash-forecast-panel" headClassName="dash-chart__head" title={ui('未来 14 天到期复习')}
       description={ui('按间隔重复排好的复习日，逾期的并入今天')}
-      actions={onStart && today?.cards?.length > 0 ? <Button variant="secondary" size="sm" iconEnd="arrow-right" lock={busy} onClick={() => practiseDue(today.cards)}>{ui('开始今日复习')}</Button> : null}>
+      actions={actionsNode}>
       <div className="dash-chart-box" ref={boxRef}>
         {total ? (
           <>
@@ -209,37 +254,55 @@ export function ForecastPanel({ forecast, onStart, parked }) {
               {later > 0 && <span>{uiFormat('更远的 {0} 题在 14 天之后', [later])}</span>}
             </p>
             <div className="dash-plot">
-            <svg className="dash-svg" role="img" viewBox={`0 0 ${width} ${height}`} width={width} height={height}
-              aria-labelledby="dash-forecast-title" onMouseLeave={() => setActive(null)}>
-              <title id="dash-forecast-title">{uiFormat('未来 14 天每天到期的复习题数，共 {0} 题', [total])}</title>
-              {ticks.map((t) => (
-                <g key={t}>
-                  <line className="dash-grid" x1={L} x2={width - R} y1={y(t)} y2={y(t)} />
-                  <text className="dash-axis" x={L - 8} y={y(t) + 4} textAnchor="end">{t}</text>
-                </g>
-              ))}
-              {days.map((d, i) => {
-                const cx = L + band * (i + 0.5);
-                const action = Boolean(onStart && !busy && d.cards?.length > 0);
-                const label = uiFormat('{0} · {1} 题', [i === 0 ? ui('今天（含逾期）') : dateLabel(d.date), d.count]);
-                return (
-                  <g key={d.date} className={`dash-bar${i === 0 ? ' today' : ''}${d.count ? '' : ' zero'}`}
-                    {...(action ? { role: 'button', tabIndex: 0, 'aria-label': `${label} · ${i === 0 ? ui('开始复习') : ui('提前复习')}` } : {})}
-                    onMouseEnter={() => setActive(i)} onFocus={() => setActive(i)} onBlur={() => setActive(null)}
-                    onClick={action ? () => start(d) : undefined}
-                    onKeyDown={action ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); start(d); } } : undefined}>
-                    <rect className="dash-bar-hit" x={cx - band / 2} y={T} width={band} height={height - B - T} />
-                    <rect className="dash-bar-fill" x={cx - barW / 2} y={d.count ? y(d.count) : height - B - 2} width={barW}
-                      height={d.count ? height - B - y(d.count) : 2} rx={3} />
-                    {d.count > 0 && <text className="dash-bar-value" x={cx} y={y(d.count) - 6} textAnchor="middle">{d.count}</text>}
-                  </g>
-                );
-              })}
-              {days.map((d, i) => labelAt.has(i) && (
-                <text key={`l${d.date}`} className={`dash-axis${i === 0 ? ' today' : ''}`} x={L + band * (i + 0.5)} y={height - 8} textAnchor="middle">{dayName(d, i)}</text>
-              ))}
-            </svg>
-            <Tip tip={tip} width={width} />
+              {view === 'tide' ? (
+                <ForecastInkTide
+                  days={days}
+                  total={total}
+                  width={width}
+                  height={height}
+                  margins={{ L, R, T, B }}
+                  ticks={ticks}
+                  yScale={y}
+                  band={band}
+                  labelAt={labelAt}
+                  active={active}
+                  onActiveChange={setActive}
+                  onStart={onStart ? start : undefined}
+                  roughGenerator={roughGenerator}
+                />
+              ) : (
+                <svg className="dash-svg" role="img" viewBox={`0 0 ${width} ${height}`} width={width} height={height}
+                  aria-labelledby="dash-forecast-title" onMouseLeave={() => setActive(null)}>
+                  <title id="dash-forecast-title">{uiFormat('未来 14 天每天到期的复习题数，共 {0} 题', [total])}</title>
+                  {ticks.map((t) => (
+                    <g key={t}>
+                      <line className="dash-grid" x1={L} x2={width - R} y1={y(t)} y2={y(t)} />
+                      <text className="dash-axis" x={L - 8} y={y(t) + 4} textAnchor="end">{t}</text>
+                    </g>
+                  ))}
+                  {days.map((d, i) => {
+                    const cx = L + band * (i + 0.5);
+                    const action = Boolean(onStart && !busy && d.cards?.length > 0);
+                    const label = uiFormat('{0} · {1} 题', [i === 0 ? ui('今天（含逾期）') : dateLabel(d.date), d.count]);
+                    return (
+                      <g key={d.date} className={`dash-bar${i === 0 ? ' today' : ''}${d.count ? '' : ' zero'}`}
+                        {...(action ? { role: 'button', tabIndex: 0, 'aria-label': `${label} · ${i === 0 ? ui('开始复习') : ui('提前复习')}` } : {})}
+                        onMouseEnter={() => setActive(i)} onFocus={() => setActive(i)} onBlur={() => setActive(null)}
+                        onClick={action ? () => start(d) : undefined}
+                        onKeyDown={action ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); start(d); } } : undefined}>
+                        <rect className="dash-bar-hit" x={cx - band / 2} y={T} width={band} height={height - B - T} />
+                        <rect className="dash-bar-fill" x={cx - barW / 2} y={d.count ? y(d.count) : height - B - 2} width={barW}
+                          height={d.count ? height - B - y(d.count) : 2} rx={3} />
+                        {d.count > 0 && <text className="dash-bar-value" x={cx} y={y(d.count) - 6} textAnchor="middle">{d.count}</text>}
+                      </g>
+                    );
+                  })}
+                  {days.map((d, i) => labelAt.has(i) && (
+                    <text key={`l${d.date}`} className={`dash-axis${i === 0 ? ' today' : ''}`} x={L + band * (i + 0.5)} y={height - 8} textAnchor="middle">{dayName(d, i)}</text>
+                  ))}
+                </svg>
+              )}
+              <Tip tip={tip} width={width} />
             </div>
           </>
         ) : (
