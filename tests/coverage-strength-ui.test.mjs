@@ -13,7 +13,7 @@ import { transcriptFixture } from './helpers/coverage-fixture.mjs';
    planner for the audited merged transcript (5 recordings, 80 parts, two volumes); the markup is static, interaction and layout are checked in the browser journey. */
 
 const m = await loadUi(`
-  export { default as CoverageStrength } from './ui/coverage/CoverageStrength.jsx';
+  export { default as CoverageStrength, PlanCaps } from './ui/coverage/CoverageStrength.jsx';
   export { CoverageSummary } from './ui/coverage/Coverage.jsx';
   export * as copy from './ui/coverage/copy.js';
   export * as form from './ui/generate-form.js';
@@ -205,4 +205,21 @@ test('a draft with a plan says that its later rounds are planned, not "never pla
   });
   const range = (await import('../lib/coverage.js')).coverageInRange(coverage, [{ sourceId: fx.sources[0].id, start: 0, end: 60000 }]);
   assert.ok(range.scheduled >= 1 && range.scheduled <= range.neverPlanned);
+});
+
+// Gate round 3: the caps that made a plan smaller are said under the plan, once each, in zh and en: the total of a run, one material, and a section held to one round (one pass).
+test('the caps of a plan are said: the total, one material, and a section held to one round', () => {
+  const zh = m.copy.cappedLine(['total', 'source:a', 'source:b', 'section', 'sections']);
+  assert.equal(zh, '计划到了一次出题的上限：最多 500 题。 同一份资料最多 400 题，计划已减到这个数。 一个小节最多出一轮的题（每轮最多 30 题），所以很长的小节题数低于这一档的密度。');
+  const en = inLanguage('en', () => m.copy.cappedLine(['section']));
+  assert.equal(en, 'A section gets at most one round of questions (at most 30 a round), so a very long section gets fewer than the level\'s density.');
+  assert.ok(!han.test(inLanguage('en', () => m.copy.cappedLine(['total', 'source:a', 'section']))));
+  assert.equal(m.copy.cappedLine([]), '');
+  assert.equal(m.copy.cappedLine(['sections']), '', 'sections left out are a different fact, said elsewhere');
+  const capped = { totalTokens: { low: 1, high: 2 }, calls: { low: 1, high: 1 }, stages: [], notes: [], coverage: { level: 'standard', goal: 30, sections: 1, leaves: 1, rounds: 1, capped: ['section'] } };
+  const html = render('standard', capped);
+  assert.match(html, /data-coverage-capped/);
+  assert.match(text(html), /一个小节最多出一轮的题/);
+  assert.doesNotMatch(render('standard', { ...capped, coverage: { ...capped.coverage, capped: undefined } }), /data-coverage-capped/);
+  assert.match(renderToStaticMarkup(React.createElement(m.PlanCaps, { coverage: capped.coverage })), /data-coverage-capped/);
 });

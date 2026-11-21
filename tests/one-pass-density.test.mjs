@@ -137,3 +137,16 @@ test('one source never plans more than the per-source bound, for long sections a
     if (plan.goal === LIMITS.perSource) assert.ok(plan.capped.includes('source:doc'), `${chars} ${level}: the cap is said`);
   }
 });
+
+// Gate round 3: the cap of a section at one round is said like the other caps (`capped`), so the form can say why the plan is smaller than the level's density.
+test('a section cut to one round says so in capped; a plan that fits says nothing, and staged never', () => {
+  for (const level of ['lean', 'standard', 'full']) {
+    const one = strengthPlan(sections(1, 200000), [], level, { onePass: true });
+    assert.equal(one.goal, 30, level);
+    assert.ok(one.capped.includes('section'), `${level}: ${one.capped}`);
+    assert.ok(!strengthPlan(sections(1, 200000), [], level).capped.includes('section'), `${level} staged`);
+    assert.ok(!strengthPlan(sections(10, 8000), [], level, { onePass: true }).capped.includes('section'), `${level} pages`);
+  }
+  assert.ok(strengthPlan(sections(10, 30000), [], 'standard', { onePass: true }).capped.includes('section'));
+  assert.deepEqual(coveragePlan({ leaves: sections(1, 200000), weights: [], level: 'standard', onePass: true }).plan.capped, ['section'], 'the plan as the form reads it');
+});

@@ -1,6 +1,7 @@
 import { ui, uiFormat } from '../i18n.js';
 import { META_DOT, joinMeta, formatElapsed } from '../format.js';
 import { formatCompactTokens } from '../../lib/token-usage.js';
+import { LIMITS, ROUND_LIMIT } from '../../lib/coverage-strength.js';
 import { classifyFailure, shortCauseOf, THIN_CHARS } from '../../lib/generation-failure.js';
 
 /* 覆盖: the words of coverage, written ONCE (README docs/plans/coverage-generation). The 任务 console's 资料部分, the draft page, the 资料 row, the reader's toolbar, outline and
@@ -597,6 +598,17 @@ export const materialsReportLine = (report) => (report.missing > 0
 
 /** A custom count below the number of materials was raised to it (before the run and on the draft): one line, no question asked. */
 export const raisedLine = (raised) => uiFormat('题数少于所选资料的份数，已从 {0} 题自动提高到 {1} 题：每份资料至少 1 题。', [raised.from, raised.to]);
+
+/** The caps that made the plan smaller (lib/coverage-strength.js `capped`), one sentence each: the total of one run, one material, a section held to one round (one pass).
+    'sections' (sections left out) is said by the plan's own count of sections, not here. '' when none. */
+export function cappedLine(capped) {
+  const list = Array.isArray(capped) ? capped : [];
+  return [
+    list.includes('total') && uiFormat('计划到了一次出题的上限：最多 {0} 题。', [LIMITS.total]),
+    list.some((item) => String(item).startsWith('source:')) && uiFormat('同一份资料最多 {0} 题，计划已减到这个数。', [LIMITS.perSource]),
+    list.includes('section') && uiFormat('一个小节最多出一轮的题（每轮最多 {0} 题），所以很长的小节题数低于这一档的密度。', [ROUND_LIMIT]),
+  ].filter(Boolean).join(' ');
+}
 
 /** Selected materials the library no longer held when the run started. */
 export const missingSourcesLine = (count) => uiFormat('另有 {0} 份所选资料在出题前已从资料库删除，没有出题。', [count]);

@@ -7,7 +7,7 @@ import css from './coverage.css';
 import { COUNT_MAX, COUNT_MIN, COUNT_PRESETS, COVERAGE_CHOICES, CUSTOM_CHOICE, budgetNote, clampCount, coverageChoicePatch, coverageLead, customCountOf, effectiveCoverage, levelNote, levelsLine, suggestCount } from '../generate-form.js';
 import { parseTokenBudget } from '../../lib/coverage-run.js';
 import { autoCompleteOf } from '../../lib/coverage-strength.js';
-import { autoLabel, autoLine, levelLabel, materialsForecastLine, raisedLine, tokensText } from './copy.js';
+import { autoLabel, autoLine, cappedLine, levelLabel, materialsForecastLine, raisedLine, tokensText } from './copy.js';
 
 /* 覆盖强度 on the 创建题组 form (phase 3 of docs/plans/coverage-generation): the choice of how completely the chosen materials are covered (精简 / 标准 / 完整), what it means in words, and, BEFORE the run,
    what it means for exactly these materials in one plain line: 「标准：约 343 道题，覆盖 81/81 个部分，分 12 轮，预计 2.10M–2.96M tok · 285–896 次模型调用」. The line is the answer of `usage.estimate`
@@ -30,6 +30,12 @@ export function MaterialsForecast({ coverage }) {
   useInjectCss(css, 'study-coverage');
   const line = materialsForecastLine(coverage?.materials);
   return line ? <p className="cov-materials__note" data-coverage-materials data-missing={(coverage.materials.selected || 0) - (coverage.materials.planned || 0)}>{line}</p> : null;
+}
+
+/** The caps that made the plan smaller (the estimate's `coverage.capped`), said under the plan: nothing when none. */
+export function PlanCaps({ coverage }) {
+  const line = cappedLine(coverage?.capped);
+  return line ? <p className="generate-note" data-coverage-capped role="status">{line}</p> : null;
 }
 
 export default function CoverageStrength({ level, customCount = '', onLevel, onCustom, onChoice, auto = autoCompleteOf(level), onAuto, budget = '', onBudget, state = { status: 'idle' }, stats, enabled = true, disabled = false, compact = false, part, onePass = false }) {
@@ -67,6 +73,7 @@ export default function CoverageStrength({ level, customCount = '', onLevel, onC
       <TokenEstimateView state={state} lead={coverageLead(coverage)} tight />
       {coverage && !custom && <p className="cov-strength__levels-line" data-coverage-levels>{levelsLine(coverage)}</p>}
       <MaterialsForecast coverage={coverage} />
+      <PlanCaps coverage={coverage} />
     </div>}
     {choices && onAuto && (!isCustom || rounds > 1) && <div className="cov-strength__auto" data-tour="generate-auto" data-coverage-auto data-auto={auto ? 'on' : 'off'}>
       <Checkbox label={autoLabel()} checked={auto} disabled={disabled} onChange={onAuto} />

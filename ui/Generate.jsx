@@ -26,7 +26,7 @@ import GenerateAssist from './GenerateAssist.jsx';
 import { TokenEstimate, TokenEstimateView, useUsageEstimate } from './TokenUsage.jsx';
 import { callsText } from './token-usage.js';
 import { useStickyRoom } from './use-sticky-room.js';
-import CoverageStrength, { MaterialsForecast } from './coverage/CoverageStrength.jsx';
+import CoverageStrength, { MaterialsForecast, PlanCaps } from './coverage/CoverageStrength.jsx';
 import { autoLine } from './coverage/copy.js';
 import { openingLine, openingSelection, openingStands } from './generate-opening.js';
 import LargeDocumentCard from './LargeDocumentCard.jsx';
@@ -404,6 +404,7 @@ export default function Generate({
               {estimating && <div className="generate-estimate" data-generate-coverage>
                 <TokenEstimateView state={planned} lead={coverageStructure(plannedCoverage)} summary={estimate => callsText(estimate.calls)} warn={false} tight />
                 <MaterialsForecast coverage={plannedCoverage} />
+                <PlanCaps coverage={plannedCoverage} />
                 {plannedCoverage?.rounds > 1 && <p className="generate-note" data-coverage-auto-note>{autoLine(autoOf({ ...gen, coverageLevel: level }), plannedCoverage.rounds,
                   plannedCoverage.leaves > 0 && Number.isFinite(plannedCoverage.firstRoundSections) ? { level: plannedCoverage.level, percent: Math.round(plannedCoverage.firstRoundSections / plannedCoverage.leaves * 100) } : undefined)}</p>}
               </div>}
