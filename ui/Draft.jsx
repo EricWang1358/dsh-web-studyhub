@@ -221,7 +221,8 @@ export default function Draft({
   const updatingDraft = generating || repairRunning || !!publishJob || !!work;
   const unsavedDraft = useDraftDirty({ draft, draftLoaded, draftText, jsonMode });
   // 覆盖: which sections of the material have a question (the saved draft's own, asked again whenever the library or the draft changes).
-  const covered = useCoverage(draft.draftVersion > 0 && !missingDraft ? { draftId: draft.id } : null, { version: `${data.revision}:${draft.draftVersion}` });
+  // The draft page alone asks for the knowledge points (知识点查缺: it reads the whole course; the other callers of coverage.get do not show it).
+  const covered = useCoverage(draft.draftVersion > 0 && !missingDraft ? { draftId: draft.id, points: true } : null, { version: `${data.revision}:${draft.draftVersion}` });
   // Questions that are near-duplicates of another one of the same kind, in this draft or the course's decks (#890): asked with the draft, again when it changes.
   // Not while a job is still changing the draft (it would ask after every batch): the last answer stays on screen, and the page asks once the job is done.
   const similar = useSimilarQuestions(draft.id, { version: `${data.revision}:${draft.draftVersion}`, enabled: draft.draftVersion > 0 && !missingDraft && !updatingDraft });
@@ -286,7 +287,7 @@ export default function Draft({
     return act("draft.save", { deck: d }, async (saved, { isCurrent = () => true } = {}) => { if (isCurrent()) openDraft(saved); await next(saved); }, { afterNavigation: true });
   }
   const topUp = (target, sectionIds, options) => (unsavedDraft
-    ? saveThen(async (saved) => toast.success(topUpNotice(saved, await call("generate", topUpArgs(saved, sectionIds, options)))))
+    ? saveThen(async (saved) => toast.success((options?.notice ?? topUpNotice)(saved, await call("generate", topUpArgs(saved, sectionIds, options)))))
     : topUpDraft(target, sectionIds, options));
   const activeReview = draft.editingDeckId && data.runs?.some((run) =>
     run.deckIds?.includes(draft.editingDeckId) || run.deckId === draft.editingDeckId);

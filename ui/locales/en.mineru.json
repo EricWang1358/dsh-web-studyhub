@@ -197,7 +197,6 @@
   "{0}；转换好的文字和你改过的地方也会丢掉": "{0}; the converted text and your edits are lost too",
   "{0}；其中 {1} 个任务转换好的文字和你改过的地方也会丢掉": "{0}; for {1} of them the converted text and your edits are lost too",
   "{0} 个等你导入的任务留在原处。": " {0} waiting for you stayed where they are.",
-  "选择 PDF 和解析工具，转换好后先等你改，再存为资料。": "Choose a PDF and a tool. Once converted it waits for your edits, then it is saved as a document.",
   "调用本机 Marker，转换好后先等你改": "Runs Marker on this computer and waits for your edits",
   "上次没能导入：{0}": "The last import did not go through: {0}",
   "还没有存为资料。改完后点「导入」；这之前它不会占用模型的输入，也不会被出题用到。": "Not saved as a document yet. Choose “Import” when you are done; until then it takes up no model input and no question uses it.",

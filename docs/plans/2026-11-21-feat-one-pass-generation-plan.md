@@ -485,3 +485,69 @@ owner（2026-11-21）：查缺还应复用于复习全书和知识点掌握度�
     - 结果：3,949,429 字节，6 轮，余量约 570 字节。tests/client-boundaries.test.mjs 的延迟加载数加一（22 + 每个设置分类一个）。
 
 未验证：快问、九格表和倍数都没有接真实模型跑过；快问的题数和花费都是预估。
+
+## 19. 知识点查缺，第一片（feat/knowledge-point-gap-check）
+
+按第 14、15 节的结论做的第一片：知识点就是课程总纲的叶子，题按引文位置对到知识点，草稿页说出「70 个知识点，17 个还没有题」，并能只补这些知识点。不存任何新东西，每次读的时候算。
+
+做了什么：
+- lib/evidence/point-link.js（纯函数）：题与知识点的对应（两级，见第 83 条）、知识点的原文段落（`pointSpans`）、每个知识点的题数（`pointQuota`）、查缺（`pointGaps`：每个知识点的题数、前置、被多少知识点依赖、能不能补，没题的按补的顺序排，以及落不到任何知识点的题数）。数字都在 `POINT_LIMITS` 一处。
+- lib/evidence/point-rows.js：把这套对应挂到总纲的书页行上（`linkedBook`），总纲页、未出题筛选和掌握度都读它。
+- lib/evidence/point-report.js：`coverage.get { draftId }` 新增的 `points`（形状见 docs/coverage.md「By knowledge point」），以及不能算时的原因。
+- lib/contexts/generation/generate/point-round.js：`coverage.pointIds` 的补题轮，每个知识点一项任务，走现有的 `roundRequest`（lib/coverage-round.js 只加了一处：一个 pick 可以自带任务）。
+- 草稿页：ui/coverage/PointGaps.jsx（用 deferredView 单独加载）和 ui/coverage/point-words.js；一行数字、可展开的没题列表、一个「补这些知识点」按钮和它的预估；没有可用总纲时一行灰字。英文在 ui/locales/en.coverage.json。
+- 测试：tests/point-link、point-outline、point-topup、point-topup-run（假模型，一次写完和逐题精出各一次）、point-gaps-ui；夹具是 tests/helpers/point-library.mjs。
+
+决定（接第 18 节编号，供评审逐条否决）：
+
+82. **只有按清点结果整理的总纲才按知识点对**：总纲 `from === 'inventory'`，而且有这门课的清点结果。否则总纲页照旧按页计数，一个字节都不变；草稿页说明原因（`no-outline`、`descriptors`、`no-inventory`、`stale`）。不属于任何课程的草稿没有 `points`，草稿页什么都不说（总纲属于课程，「这门课还没有总纲」对它不成立）。不会自己开始整理总纲：那要调模型。
+83. **对应分两级**：
+    - 第 1 级：题的某条引文位置，和某个知识点所含清点条目的已核对位置有正长度的重叠，就算这个知识点有题。一道题可以算给几个知识点。
+    - 第 0 级：一条都对不上时，退回今天的按页归属（这一页唯一的知识点）。
+    - 都不行就是「落不到知识点」（`unplaced`，其他 `other` 也算在这里）。
+    - 风险：引文落在两个清点位置之间（不重叠）的题会退回按页，可能多算给这一页的归属知识点。
+84. **一个答案到处用（第 2 项，没有停下）**：链接后的书页行带上 `refs` 和 `draftRefs`，`rowRefsOf` 优先读它们，没有才按页算。总纲页的题数、未出题筛选、展开的题目行、lib/evidence/course-evidence.js 的掌握度都经过它。原有测试一个没改。可见的变化：一页的归属知识点不再拿走在这一页上讲、但属于别的知识点的题（夹具里 A 从 3 道变成 2 道，B 从 0 变成 1）；掌握度跟着题数变，测试检查两者一致。一个知识点链接到的题如果不全在它锚定的页里，就不再提供「展开题目行」（`opensRows=false`），免得展开出来的题和计数对不上。
+85. **顺手修掉的旧问题**：锚定到页码范围（`doc@sA-B`）的知识点以前从来不算草稿里的题（这种行没有 `nodes`）。链接后的总纲算上了；没链接的总纲保持原样，没有改（后续项）。
+86. **草稿的报告只看这份草稿的资料讲到的知识点**：知识点的任一条目在草稿的某份资料里有位置（核对过没有都算）。「有没有题」看整门课：已发布的题组和这门课所有草稿。`unplaced` 也是整门课的。理由：别的资料里的知识点没法通过这份草稿来补。
+87. **「能不能补」也按这份草稿算**：知识点要在草稿自己的资料里有核对过的原文才算能补，否则列出来、写「补不了」，不放进「补这些知识点」。写界面时发现的：原来按全课程算，补题轮会因为一个这样的知识点整次拒绝。有测试。
+88. **顺序与数量**：没题的知识点先按被多少知识点（传递地）依赖排，再按阅读顺序；列表最多 30 个（`POINT_LIMITS.listed`），其余写「还有 N 个没列出」。「补这些知识点」从头依次取能补的，凑满一轮上限（30 题）为止。
+89. **题数与原文段落**：每个知识点 1 题，含 20 条及以上清点条目的 2 题（第 15 节的做法）。段落取这个知识点在草稿资料里核对位置最多的一簇（相邻位置相距不超过 1,500 字就合并），前后各加 400 字，最长 6,000 字（太长时从开头截）。这些数字都在 `POINT_LIMITS`。
+90. **补题轮就是普通的补题轮**：每个知识点一项任务，形状和现有任务一样（`key: 'point:<id>'`，标题是知识点名，`quota` 是题数），记到包含这段原文最多的那个小节上（可能是已经有题的小节），所以轮次照旧按小节记录。是单独一轮手动补题（`manual: true, autoComplete: false`），同一个 `roundRequest`、轮次上限、预估和审阅，沿用草稿原来的写法。送给模型的只有这些段落。被审阅删掉的题不算，知识点留在列表里。
+91. **整次拒绝，不做一半**：不认识的 id（总纲里没有，或不在这份草稿的资料里）、已经有题的、草稿资料里没有核对原文的、超过一轮题数的、总纲不可用的，都在开始前拒绝，不建任务。中英文在 messages.js 的 `POINTS`。`COVERAGE.shape` 的原文没改，它被 golden 记录逐字守着。
+92. **参数**：`coverage.pointIds` 是 1–200 个字符串；不能和 `sectionIds`、`run` 同用，不能 `autoComplete: true` 或 `manual: false`；新的题组分册不能用它。
+93. **首屏体积**：PointGaps 和它的文字单独成一个 chunk，不引用 lib/（tests/point-gaps-ui.test.mjs 检查）。esbuild 把中文转义成 `\uXXXX`，一个字 6 字节，所以开始补题时说的那句话也放在这个 chunk 里：按钮通过 `options.notice` 交给草稿页和 use-drafts，`topUpArgs` 只多了 `pointIds`。首屏 3,949,660 / 3,950,000 字节（+231），6 轮，余量约 340 字节。tests/client-boundaries.test.mjs 的延迟加载数 22 → 23。
+94. **夹具里的数字**：4 个知识点，1 个永远补不了（D 只有未核对的位置），默认夹具里 `unplaced` 为 0（那道不对应任何条目的题按页算给 A）；单元测试里落在「其他」的题算 1。真实总纲上有多少题退回按页、多少知识点补不了，没测。
+
+不确定、留给 owner 的：
+95. 没有总纲（`no-outline`）时也显示那一行灰字。也可以只在总纲旧了、坏了时才说，没有总纲就什么都不说，让主流程更短。
+96. 总纲的「未归位的概念」那个叶子当作普通知识点计数和补题。
+97. 第 0 级按页退回会让一页的归属知识点在别的知识点没题时显得有题（第 83 条的风险）。要不要只认第 1 级，等真实总纲的数据再定。
+
+后续（不在这一片）：第一波按知识点分配题数；知识点掌握度图谱；复习全书接上查缺；把知识点 id 记在题上；让模型判断缺题；没链接的总纲也算范围锚点的草稿题（第 85 条）；任务页的卡片对这种补题轮仍写「补 N 个小节」（N 是记到的小节数），措辞没改。
+
+未验证：没有接真实模型；没有在大部头书的真实总纲上跑；草稿页只有静态渲染和组件测试，浏览器里没有点过。
+
+### 评审后的修改（gate review of fa72bb4e）
+
+每条修改先写一个修之前失败的测试（tests/point-review-fixes.test.mjs，以及 point-topup-run、point-gaps-ui 里新加的几条）。第 89、95 条和「后续」里任务页措辞那一项由下面的决定取代。
+
+98. **预估就是这一轮的预估（B1）**：lib/token-estimate.js 在 `coverage.pointIds` 时用 `pointTopUpRound` 建同一轮再估，和运行时（covering.js）一样；被拒绝的一轮估 0。原来估的是普通补题轮，草稿各小节都有题时估 0，实际却要出题。point-topup-run 里原来的 `high > 0` 判断没有意义，改成和普通补题的预估比较、被拒绝的为 0；在「所有小节都有题」的草稿上判断的是纯函数测试。
+99. **草稿自己的题一定算进它自己的结果（B2）**：`buildOutlineIndex` 加了 `withDraft`（备忘的 key 也带上它），草稿不论 `course` 写的是什么（包括空字符串）都放进索引。报告和补题轮都通过 `draftPoints` 读同一份结果（`pointGaps` 只跑一次），所以补题轮也会拒绝已经被草稿自己的题覆盖的知识点。
+100. **计划还有轮次没跑时不提供、也拒绝（S1）**：选这一种，因为它不会丢掉计划里的题。按知识点补的一轮会把题记到计划里的小节上，计划随后会因为这个小节「已有题」跳过那一轮。`pointHold` 在有非补做轮次处于 pending 或 running 时返回 `planned-rounds`：报告照常列出知识点，但 `topUp` 为 null、带 `hold`，草稿页写一行「先接着做完，再按知识点补」；`pointTopUpRound` 拒绝为 `{ error: 'points-held', reason }`，中英文在 messages.js 的 `POINTS.held`。补做轮次（`fill`）不算。
+101. **不能补题的草稿不提供、也拒绝（S2）**：案例题、`editingDeckId`、`repairOfDeckId` 的草稿（lib/draft-continuation.js `canAddFromSources`）是 `hold: 'cannot-top-up'`；草稿页只在 `view.canTopUp` 时把 `onTopUp` 交给 PointGaps，没有按钮也没有那行说明。
+102. **过期的、不是按清点整理的总纲不做对应；未归位的题不算到知识点下（S3）**：`linkedBook` 在 `outlineStale` 或 `from !== 'inventory'` 时不链接，各页按页计数，和草稿页说「总纲旧了」一致。`pointCards` 跳过已发布题里带 `reason` 的（未归位）和草稿题里没有行的（`buildOutlineIndex` 新增的 `draftUnplaced`），所以一道题不会既在未归位又在某个知识点下。
+103. **复习全书的草稿题数和总纲页一致（S4）**：新增 `rowDraftRefsOf`（有链接读 `draftRefs`，否则按页，包括范围锚点），lib/custom-readiness.js（章节准备度的 `drafted`、`sentBack`）和 lib/course-outline.js 的行视图都读它。复习全书可见的变化：链接后的总纲，一个在别的知识点页上讲的知识点，草稿里的题现在算到它自己名下（夹具里 B 从 0 变 1、A 不再算这道）；锚定到页码范围的知识点也开始算草稿里的题；`sentBack` 跟着同一批题。查过的其他读者：course-book-crunch、course-book-files、course-book-qa、custom-fill 只经 `entriesOf`（已发布题，`rowRefsOf`）或只读文档列表，不数草稿题；course-outline-qa 读行的 `nodes`/`spans` 是为了把批注放到行上，不是计数。都没改。
+104. **只在草稿页问的时候才算知识点（S5）**：`coverage.get` 只有 `points: true` 才算 `points`；只有 ui/Draft.jsx 这样问（测试扫 ui/ 确认），首页卡片、任务控制台、缺题提示和生成进度不再触发整门课的索引。`pointGaps` 读行已经算好的对应（`card.found`），不再算第二遍。测试辅助函数 `seedView` 两种请求都预置。代价：草稿页和首页卡片不再共用同一个备忘答案，草稿页第一次打开要自己问一次。
+105. **没有总纲时什么都不说（S6，取代第 95 条）**：只在有总纲但用不了（`stale`、`descriptors`、`no-inventory`）时显示那行灰字；`no-outline` 和 `unreadable` 不显示。
+106. **数字说明是这份草稿的资料（S7）**：「这份草稿的资料讲到 70 个知识点，17 个还没有题」/「……都有题了」；说明里写「“有题”算的是整门课所有题组和草稿里的题，不只这份草稿」。英文同步，旧键删掉。
+107. **记录坏了不拖垮整个回答**：`draftPointReport` 包一层 try/catch，出错时 `{ status: 'unavailable', reason: 'unreadable' }`，`coverage.get` 其余部分照常；补题轮同样拒绝为 `points-unavailable / unreadable`。
+108. **宿主停在知识点补题轮里（选了「接着做补完」）**：补做轮次记下 `pointIds`（`appendFillRound`，经 round-begin 的 `fill-append`）。`runStartOf` 先找这种还处于 pending 的轮次，取其中仍然没题的知识点，返回 `{ type: 'points', index, pointIds }`；`coveringOf` 用 `pointTopUpRound` 建这一轮，`planIndex`、`seedDue`、`continuedPlan` 把它当作那一轮本身（不再追加新的补做轮）。都已经有题了就照旧往下走。总纲变了导致补不了时，重试会说出原因而不是说「已完成」。测试：point-topup-run 里的停机再接着做（原来重试说「每个计划的小节都有题」、B 留在列表里）。
+109. **任务页这一轮写「N 个知识点」**：`listOf` 给这种轮次加 `points`，`roundTitle` 有 `points` 时写「补做 · 第 3 轮 · 2 题 · 2 个知识点」，其他轮次不变。
+110. **原文段落不加前后文（取代第 89 条的段落部分）**（见下）
+
+### 第二次评审后的修改（gate review of 245c675d）
+
+111. **断开导入环（blocker）**：245c675d 让 lib/course-outline.js 进了一个导入环（course-outline → book/part-plan → custom-skeleton → outline/estimate → token-estimate → point-round → point-report → course-outline，另一条经 course-outline-book → contracts.js），某些入口顺序下 `rowRefsOf` 在初始化前被读到。修法是把共用的部分挪到两边都引用、只向内的模块：`courseOutlineIndex`（备忘）和 `layoutOf` 搬到 lib/course-outline-index.js（course-outline.js 照旧导出它们），point-report 只引用它；course-outline-book 直接引用 contexts/generation/inventory/notation-ledger.js，不再经过 generation 的 contracts.js 汇总（顺带消掉 main 上已有的 8 个文件的环）。course-outline.js 里也不再在顶层读引入的绑定。lib/ 的强连通环从 main 的 7 个降到 6 个，剩下的都和这次无关。测试：tests/point-import-order.test.mjs 让每个相关模块在新进程里第一个被引入，并检查它们都不在环上。
+112. **停在知识点补题轮里，之后知识点变了（R1）**：`settlePointRounds`（point-round.js）在「接着做」时先看宿主留下的知识点补题轮：知识点都已有题，标成 skipped（`covered`）；总纲重建换了 id、被删、过期，或这一轮会被拒绝的其他原因，标成 skipped（`points-changed`，任务页这一轮写「知识点已变，这一轮没有做完」/ "The knowledge points changed; this round was not finished"，文字在延迟加载的 ui/tasks/RunRounds.jsx 里，不占首屏）。然后照计划往下走（`stepOf`）。operation.js 用这份计划开始并写下来；run-close.js 收尾时同样先处理，所以不会被记成 done。取代第 108 条里「总纲变了导致补不了时，重试会说出原因」：现在不是拒绝，而是跳过这一轮、把计划做完。所有拒绝原因都跳过（不只 point-unknown 和 points-unavailable），因为任何一种拒绝都会让「接着做」卡住。测试：tests/point-round-resume.test.mjs（重建换 id、删除、过期、被别的草稿补上四种）和 point-topup-run 里的端到端（停机 → 重建总纲 → 重试完成、这一轮 skipped/points-changed、没有 pending、中断的任务卡消失）。
+113. **吞掉的错误要记下来（R2）**：`reportUnreadable` 按本仓库非致命错误的写法（`[study] …` 写到 console，像 lib/job-cleanup.js）记一行，同一原因、同一读者只记一次（页面每次变化都会再问），回答照旧是 `unreadable`。报告和补题轮都经过它。
+114. **第 85 条更正**：按清点整理、但没有链接的总纲（过期，或清点丢失）不是「保持原样」：行的草稿题数现在按页算且包括页码范围锚点（`pageDraftRefsOf`），以前范围锚点的知识点从来不算草稿题。保留这个行为，因为总纲页和复习全书（章节准备度）都读 `rowDraftRefsOf`，两处数出同一个数；恢复旧行为反而要两处各自特殊处理。测试：point-review-fixes 里「decision 85, corrected」。：选更小、更安全的一种：不加 padding，而不是按任务的知识点 id 记题。前后多给的 400 字里写出的题和核对位置不重叠，链接不会算给这个知识点，它就永远留在列表里。现在段落只是核对位置（重叠或相接才合并，`gapChars`、`padChars` 删掉），最长 6,000 字。代价：段落可能只有一句，模型能用的上下文少；没有在真实模型上看题目质量。

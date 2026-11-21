@@ -1,0 +1,17 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    .cov-points { display: grid; gap: var(--space-1-5); min-width: 0; }
+    .cov-points > * { min-width: 0; margin: 0; }
+    .cov-points__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .cov-points__list { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
+    .cov-points__row { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-half) var(--space-2); min-width: 0; }
+    .cov-points__name { min-width: 0; color: var(--text); font-size: var(--fs-sm); overflow-wrap: anywhere; }
+    .cov-points__why, .cov-points__note, .cov-points__plan, .cov-points__quiet { min-width: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
+    .cov-points__note { margin: var(--space-1) 0 0; }
+    .cov-points__quiet { margin: 0; }
+    .cov-points__act { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); min-width: 0; }
+    .cov-points__plan { flex: 1 1 12em; }
+  }
+}

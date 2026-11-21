@@ -24,5 +24,8 @@ export function draftView({ draftId = 'd1', draftVersion = 3, covered = [], fail
   return { status: 'ok', scope: 'draft', draftId, draftVersion, canTopUp, coverage: plainCoverage(coverage), round: planRound(coverage) };
 }
 
-/** Seed the view into the memo of a bundle that exports `seedCoverage` (a test's own esbuild bundle of the page). */
-export const seedView = (m, view, { revision } = {}) => m.seedCoverage({ draftId: view.draftId }, `${revision}:${view.draftVersion}`, view);
+/** Seed the view into the memo of a bundle that exports `seedCoverage` (a test's own esbuild bundle of the page): as the draft page asks (with the knowledge points)
+    and as every other caller asks (without). */
+export const seedView = (m, view, { revision } = {}) => {
+  for (const args of [{ draftId: view.draftId, points: true }, { draftId: view.draftId }]) m.seedCoverage(args, `${revision}:${view.draftVersion}`, view);
+};

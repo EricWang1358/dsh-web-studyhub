@@ -80,6 +80,23 @@ test('MinerU content_list.json is recognised by its content, whatever the extens
   assert.match(state.sources[1].text, /^# 条件概率/);
 });
 
+test('PaddleOCR layoutParsingResults JSON imports as one paged document with chapters', async t => {
+  const { call, store } = await fixture(t);
+  const payload = {
+    result: {
+      layoutParsingResults: [
+        { markdown: { text: '# 第一章 信号与系统\n\n连续时间信号的定义。' } },
+        { markdown: { text: '# 第二章 傅里叶变换\n\n频域分析揭示信号成分。' } },
+      ],
+    },
+  };
+  const imported = await call('materials.document.import', { dataBase64: base64(JSON.stringify(payload)), filename: 'signals.json', courses: ['DSP'] });
+  assert.equal(imported.sourceIds.length, 2);
+  const state = await store.read();
+  assert.equal(state.sources[0].document.converter, 'paddleocr');
+  assert.equal(state.sources[1].document.chapter.title, '第二章 傅里叶变换');
+});
+
 test('a JSON file that is not converter output is refused with a pointer to the right place', async t => {
   const { call, store } = await fixture(t);
   await assert.rejects(call('materials.document.import', { dataBase64: base64(JSON.stringify({ title: 'deck', cards: [] })), filename: 'deck.json' }),

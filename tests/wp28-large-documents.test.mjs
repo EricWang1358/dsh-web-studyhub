@@ -60,12 +60,13 @@ test('the catalogue states what is true and checkable: licence, platforms, downl
   for (const tool of TOOLS.filter(entry => entry.recommended))
     assert.ok(tool.channels.some(channel => channel.kind === 'mainland'), `${tool.id} is reachable from mainland China`);
   const recommended = role => TOOLS.filter(tool => tool.role === role && tool.recommended).map(tool => tool.id);
-  // The one-click local MinerU leads; the desktop export route remains optional; the cloud route was removed in 3.5.5.
-  assert.deepEqual(recommended('converter'), ['mineru-local', 'docling']);
+  // The one-click local MinerU leads, PaddleOCR online parsing is Option 2, Docling serves CLI users; the desktop client remains optional; the cloud route was removed in 3.5.5.
+  assert.deepEqual(recommended('converter'), ['mineru-local', 'paddleocr', 'docling']);
   assert.equal(TOOLS.find(tool => tool.id === 'mineru').recommended, false);
   assert.deepEqual(recommended('retrieval'), ['mcp-local-rag', 'ragflow']);
   assert.equal(TOOLS.find(tool => tool.id === 'mineru').studyhubFormat, 'mineru-content-list');
   assert.equal(TOOLS.find(tool => tool.id === 'mineru-local').studyhubFormat, 'mineru-content-list');
+  assert.equal(TOOLS.find(tool => tool.id === 'paddleocr').studyhubFormat, 'paddleocr-json');
   assert.equal(TOOLS.find(tool => tool.id === 'mineru-cloud'), undefined);
 
   assert.equal(TOOLS.find(tool => tool.id === 'docling').studyhubFormat, 'docling-json');

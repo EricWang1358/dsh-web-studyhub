@@ -127,9 +127,9 @@ test('LiveLocalCard & LiveLoopbackCard: visible privacy boundary, decision-orien
   assert.match(visibleOf(loopEn), /Captures online classes or recorded lectures/);
 });
 
-test('MinerU & Marker: distinguishes primary vs alternative, removes audio-component jargon, branches permission hand-off by canChat, and previews model download', () => {
+test('MinerU & Marker: folds Marker as alternative, removes audio-component jargon, branches permission hand-off by canChat, and previews model download', () => {
   const paneZh = renderWithHost(h(mod.MineruPane, { capabilities: { audio: true } }), { host: DESKTOP_HOST });
-  assert.match(visibleOf(paneZh), /两套工具二选一即可.*首选推荐下方 MinerU.*Marker 为备选方案/);
+  assert.match(paneZh, /<details class="sh-disclosure"(?![^>]* open )[\s\S]*其他本机引擎：Marker/);
   assert.match(visibleOf(paneZh), /备选方案：与上方 MinerU 二选一即可/);
   assert.doesNotMatch(visibleOf(paneZh), FORBIDDEN_ZH);
 
@@ -202,7 +202,7 @@ test('Retrieval UX: removes duplicate ConverterMain, documents 15万字 threshol
   const extVis = visibleOf(extDesktopZh);
   assert.match(extVis, /15 万字/);
   assert.match(extVis, /不超过 15 万字时默认直接发全文/);
-  assert.match(extVis, /设置 › PDF 转换（MinerU \/ Marker）/);
+  assert.match(extVis, /设置 › PDF 转换/);
   assert.doesNotMatch(extVis, /不会替你改任何配置文件/, 'omitted in Desktop edition');
   assert.match(extVis, /https:\/\/hf-mirror\.com/);
   assert.match(extVis, /保存后会立即生效/);
@@ -237,6 +237,6 @@ test('Retrieval UX: removes duplicate ConverterMain, documents 15万字 threshol
   assert.doesNotMatch(mod.converterHandOffWhat(false, false), /主会话|@/);
   const converterDesktopEn = renderWithHost(h(mod.ConverterMain, { why: 'too big', scanned: true }), { host: DESKTOP_HOST, language: 'en' });
   assert.doesNotMatch(textOf(converterDesktopEn), HAN);
-  assert.match(textOf(converterDesktopEn), /PDF conversion \(MinerU \/ Marker\)/);
+  assert.match(textOf(converterDesktopEn), /Settings › PDF conversion/);
   assert.match(textOf(converterDesktopEn), /Copy a prompt/);
 });

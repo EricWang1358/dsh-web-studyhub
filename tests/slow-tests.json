@@ -262,6 +262,7 @@
     "tests/pdf-console-browser.test.mjs",
     "tests/pdf-multi-import-and-eta.test.mjs",
     "tests/perf-budget.test.mjs",
+    "tests/point-import-order.test.mjs",
     "tests/prompt-contract-evals.test.mjs",
     "tests/retrieval-self-heal.test.mjs",
     "tests/shared-home-state.test.mjs",

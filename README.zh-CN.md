@@ -6,9 +6,9 @@
 
 开源免费，资料存在你电脑上；模型自己选，按用量付费。
 
-StudyHub 是 [DeepSeek Harness（DSH）](https://www.deepseek.com/en/harness/)的插件。DSH 是 AI 助手应用，可以装成桌面版，也可以在自己电脑上以网页版运行；StudyHub 就在 DSH 里打开使用。5.0.0 起另有 **StudyHub 桌面版**（Windows），不装 DSH 也能用，见[桌面版说明](https://github.com/EricWang1358/dsh-web-studyhub/blob/main/docs/desktop.zh-CN.md)。
+StudyHub 是 [DeepSeek Harness（DSH）](https://www.deepseek.com/en/harness/)的插件。DSH 是 AI 助手应用，可以装成桌面版，也可以在自己电脑上以网页版运行；StudyHub 就在 DSH 里打开使用。5.0.0 起另有 **StudyHub 桌面版**（Windows），提供免 UAC 的 `Setup.exe` 安装包（支持签名校验的应用内一键自动更新）、语音输入与独立大文档检索，不装 DSH 也能用，见[桌面版说明](https://github.com/EricWang1358/dsh-web-studyhub/blob/main/docs/desktop.zh-CN.md)。
 
-[在线体验](https://daily-flashcard-demo.ziangw1358.chatgpt.site) · [安装指南](docs/install.zh-CN.md) · [发布页](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v5.2.1) · [更新日志](CHANGELOG.zh-CN.md)
+[在线体验](https://daily-flashcard-demo.ziangw1358.chatgpt.site) · [安装指南](docs/install.zh-CN.md) · [发布页](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v5.3.0) · [更新日志](CHANGELOG.zh-CN.md)
 
 在线体验直接在浏览器里打开，内置示例题、可直接互动体验的跨学科**交互伴学**课和预置的 AI 回复，不用安装，也不用 Key；体验进度只保存在当前浏览器。
 
@@ -18,7 +18,7 @@ StudyHub 是 [DeepSeek Harness（DSH）](https://www.deepseek.com/en/harness/)�
 - **要花钱吗**：StudyHub 本身免费开源（MIT）。浏览资料、做题和安排复习都免费，不调用模型。出题和 AI 讲解按你的模型服务商计费。每次出题前，StudyHub 会显示预计 Token 用量，出题后显示实际用量；「统计」里还能看近 7 天或近 30 天的合计。
 - **网络与费用**：可用地区、免费额度和收费规则以各服务商的当前说明为准。从 GitHub 地址装不上插件时，见[快速上手](#快速上手)后面的备用办法。
 - **什么电脑能用**：下方提供 Windows 64 位和 Apple 芯片 Mac 的 DSH 安装入口。其他系统请查看 DSH 官方支持情况，或使用需要 Node.js 22.19 或以上的网页版。
-- **版本要求**：需要 DSH 0.2（0.2.0-rc.2 或以上，低于 0.3）。StudyHub 当前版本是 [5.2.1](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v5.2.1)。
+- **版本要求**：需要 DSH 0.2（0.2.0-rc.2 或以上，低于 0.3）。StudyHub 当前版本是 [5.3.0](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v5.3.0)。
 - **资料会上传吗**：学习库是你电脑上的一个文件夹。只有用到相应功能时，所选内容才会发给对应的服务，详见[数据与隐私](#数据与隐私)。
 
 ## 能做什么
@@ -29,7 +29,7 @@ StudyHub 是 [DeepSeek Harness（DSH）](https://www.deepseek.com/en/harness/)�
 - **练习与复习**：在「学习库」开始今日学习，按每门课的「学法」推进或在主对话里开始「AI 带学」；任何一道题都能点「帮我弄懂」；FSRS-6 会把到期的题按时推给你。
 - **语音带学包 + 全能主教练与 4 助教结算**：在课程下拉菜单、题组 `⋯` 菜单或多选栏点「语音带学包…」，即可预览当前学习进度快照（掌握度、薄弱/新题/到期分布、考试日与重点）、选择抽题策略、题数、时间预算与防跑偏节奏，一键复制或下载含每轮 `[进度 k/N]` 心跳协议与单题 3 轮熔断的提示词包发给 Gemini / ChatGPT / 豆包闭眼语音学；聊完点「回传语音记录给主教练结算」（内置 `study-coach-team` 技能），自动调度 4 位助教并行完成通俗 QA 预填、查漏补题（优先混合/客观题而非纯闪卡）、理顺前置顺序、同步 FSRS 掌握度并推送精选课后验收题。使用 Codex CLI、`agy` CLI、Claude Code 等外部终端工具时，也可以通过内置 `node scripts/study-cli.mjs` 安全读写同一个学习库。
 - **录入考试重点（只有图片也能用）**：在「录入重点…」拖入或粘贴划重点截图、板书照片或范围消息（同时支持看图模型与 DeepSeek 等纯文本主会话模型）；重点题间隔更短、优先进入每日学习与备考计划，出题时自动提高配额并加深到应用 / 进阶难度。存好重点后，首页会写出「重点 N 条：已掌握、还不会、还没有题」各几条，并给一个「练还不会的重点」的入口；课程设置里逐条列出每条重点有几道题、掌握了几道。
-- **找出薄弱点**：用「错题与待巩固」「统计」和「模拟考试」。模拟考试有选择题笔试、案例分析卷和口头面试三种形式。
+- **找出薄弱点与 0-token 错题分诊**：用「错题与待巩固」「统计」和「模拟考试」（支持选择题笔试、案例分析卷与口头面试）。错题本与本轮回看内置 0-token 确定性错题分诊，按错因与关联易混点直接推荐下一步（对比辨析、回全书讲解、先练前置题、后台修题或交互实验）；填空题支持等价改判，配合棚录立体声学习音效，并与外部 CLI / 另一端修改 `.dsh-study` 自动实时同步刷新。
 - **学完读一篇今日总结**：同一天同一课程累计完成 10 道不同题目后，可以生成错题讲解合集；不同章节合成一篇，重练不重复计数。设置里可选亲切或专业口吻、主动开启自动生成。合集沿用资料阅读器，「转成资料」和 CSDN 发布是单独的操作。
 - **录音转文字**：导入课堂录音，或用「课堂实录」边上课边转写，得到中英对照的讲稿，可以直接拿来出题。
 - **阅读与整理**：阅读器的工具栏只留「目录」「AI 出题」「错题」「思维导图」；查找、「翻译…」、显示设置和学习工具在「更多」里，「做这几页的题」是「AI 出题」右边的小箭头；课程、「学习笔记」「待办」和「知识骨架」帮你把一学期的内容管起来。
@@ -47,10 +47,10 @@ StudyHub 是 [DeepSeek Harness（DSH）](https://www.deepseek.com/en/harness/)�
 2. **安装 StudyHub**：在 DSH 打开「插件」，点「添加插件」，粘贴下面的地址，装好后点「启用」：
 
    ```text
-   https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v5.2.1/ericwang1358-dsh-daily-flashcard-5.2.1.tgz
+   https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v5.3.0/ericwang1358-dsh-daily-flashcard-5.3.0.tgz
    ```
 
-   确认包名是 `@ericwang1358/dsh-daily-flashcard`、版本是 5.2.1。[发布页](https://github.com/EricWang1358/dsh-web-studyhub/releases)是最新的渠道：npm 上的 `latest` 可能落后于它，所以请从发布页安装 `.tgz`。启用后 StudyHub 会自动打开；以后从 DSH 左栏的「StudyHub」进入（会话里的「StudyHub」标签和右侧栏也可以），不需要先发消息。
+   确认包名是 `@ericwang1358/dsh-daily-flashcard`、版本是 5.3.0。[发布页](https://github.com/EricWang1358/dsh-web-studyhub/releases)是最新的渠道：npm 上的 `latest` 可能落后于它，所以请从发布页安装 `.tgz`。启用后 StudyHub 会自动打开；以后从 DSH 左栏的「StudyHub」进入（会话里的「StudyHub」标签和右侧栏也可以），不需要先发消息。
 3. **看一遍示例（可选，一两分钟）**：在欢迎页点「载入示例并开始导览」。7 步导览按首页那条线的顺序走：模型在哪里设置、添加资料、出题、检查草稿、练习，直接指向真实的按钮，最后落在那条线的第 2 步；想看全部页面（包括任务），最后可以接着看完整导览。示例不调用模型，可以一键移除。
 4. **配置模型**：在 DSH 的「设置 › 模型」粘贴 API Key，再在会话里选一个模型。配置好之前，凡是需要模型的步骤，StudyHub 都会先提示并带一个「前往设置」链接，不会让你点了之后再失败；「设置 › 学习库与模型」顶部显示「模型已连接」或「模型未连接」和步骤。
 5. **用自己的资料开始**：点「添加资料」，一次拖入多个 PDF、PPT 或笔记，然后「用资料出题」→ 检查草稿 → 发布 → 开始练习。
@@ -58,9 +58,9 @@ StudyHub 是 [DeepSeek Harness（DSH）](https://www.deepseek.com/en/harness/)�
 安装补充说明：
 
 - **已经在用 DSH**：只装插件即可。桌面版或网页版、原来的 profile、模型设置和工作区都不用动。
-- **GitHub 地址装不上，或报 `unable to get local issuer certificate`**：用浏览器[下载 5.2.1 完整主包](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v5.2.1/ericwang1358-dsh-daily-flashcard-5.2.1.tgz)，**保留原始 `.tgz`，不用解压**。在「添加插件」里填这个文件本身的绝对路径，例如 `C:\Users\你的用户名\Downloads\ericwang1358-dsh-daily-flashcard-5.2.1.tgz`，请替换为实际保存路径。文件必须放在运行 DSH 的那台电脑或服务器上。详见[本地文件安装步骤](docs/install.zh-CN.md#dsh-无法从-github-下载时)。
+- **GitHub 地址装不上，或报 `unable to get local issuer certificate`**：用浏览器[下载 5.3.0 完整主包](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v5.3.0/ericwang1358-dsh-daily-flashcard-5.3.0.tgz)，**保留原始 `.tgz`，不用解压**。在「添加插件」里填这个文件本身的绝对路径，例如 `C:\Users\你的用户名\Downloads\ericwang1358-dsh-daily-flashcard-5.3.0.tgz`，请替换为实际保存路径。文件必须放在运行 DSH 的那台电脑或服务器上。详见[本地文件安装步骤](docs/install.zh-CN.md#dsh-无法从-github-下载时)。
 - **发布页文件很多，下哪个**：常规安装只需要上述完整主包；它已包含主入口和 6 个组件，共 7 项，不用下载、解压或合并其他组件包。检索扩展按需由 StudyHub 的「安装检索扩展」按钮安装；校验值清单和两份安装引导供核对与查阅。
-- 命令行安装等更多方式见[安装与模型配置](docs/install.zh-CN.md)。也可以下载能在浏览器里打开的[安装引导](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v5.2.1/StudyHub-5.2.1-Setup.zh-CN.html)（[English](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v5.2.1/StudyHub-5.2.1-Setup.html)）。DSH 本身只从第 1 步的官方渠道获取。
+- 命令行安装等更多方式见[安装与模型配置](docs/install.zh-CN.md)。也可以下载能在浏览器里打开的[安装引导](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v5.3.0/StudyHub-5.3.0-Setup.zh-CN.html)（[English](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v5.3.0/StudyHub-5.3.0-Setup.html)）。DSH 本身只从第 1 步的官方渠道获取。
 
 ## 使用 StudyHub
 

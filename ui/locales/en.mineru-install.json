@@ -108,8 +108,6 @@
   "在这台电脑上把 PDF 转成带页码的文字：支持扫描件、公式、表格和中文。不上传任何内容。": "Turns PDFs into text with page numbers on this computer: scanned pages, formulas, tables and Chinese. Nothing is uploaded.",
   "本地解析：不会上传任何内容。": "Local conversion: nothing is uploaded.",
   "本机服务没在运行，开始解析时会先自动启动（约 1 分钟）。": "The local service is not running; it starts by itself when the conversion begins (about a minute).",
-  "在「设置 › PDF 转换（MinerU / Marker）」点「一键安装」：StudyHub 把程序、Python 和模型装进一个文件夹（默认不在 C 盘），之后在本机解析，不上传文档。": "Choose “One-click install” under Settings › PDF conversion (MinerU / Marker): StudyHub puts the program, Python and the models into one folder (not on C by default), then converts on this computer and uploads nothing.",
-  "两套工具二选一即可，不需要都装：首选推荐下方 MinerU（自带 Python，中文、扫描件与公式效果好）；Marker 为备选方案，适合已有 Python 环境或想对比、替代 MinerU 时使用。": "You only need one of the two tools below: MinerU is recommended first (bundles Python; works well for Chinese, scans, and formulas); Marker is an alternative if you already have Python or want a fallback.",
   "备选方案：与上方 MinerU 二选一即可，适合已有 Python 环境或想对比、替代 MinerU 时使用。": "Alternative option: you only need either this or MinerU above; useful if you already have Python or want to compare or swap converters.",
   "点下面的「开始本地解析」：用本机的 MinerU（免费、不上传）。还没装好时，下面就有「一键安装」。": "Select “Start local conversion” below: it uses MinerU on this computer (free, nothing uploaded). If it is not installed yet, “One-click install” is right below.",
   "转换结果带页码，StudyHub 才能按页引用；大书会按这台电脑的速度分段处理。": "The result keeps page numbers so StudyHub can cite by page; a big book is processed in pieces sized to this computer's speed.",

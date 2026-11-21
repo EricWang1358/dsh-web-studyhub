@@ -6,7 +6,7 @@ import CourseField, { parseCourses } from './CourseField.jsx';
 import { coursesForFile } from './import-course.js';
 import { sourceFormatLabel } from './SourcePicker.jsx';
 import LargeDocumentCard, { ConverterMain } from './LargeDocumentCard.jsx';
-import PdfConversion from './PdfConversion.jsx';
+import { PdfConversion } from './pdf-conversion-lazy.jsx';
 import { looksLikeConvertedJson } from '../lib/converted-document.js';
 import { LARGE_DOCUMENT_LIMITS, classifyImportFailure } from '../lib/large-documents.js';
 import { MAX_OFFICE_BYTES, MAX_TEXT_DOCUMENT_BYTES, isPagedFormat, isSlideFormat, maxBytesFor, megabytes } from '../lib/office/limits.js';
@@ -577,8 +577,8 @@ export default function ImportHub({
         </InlineMessage>}
         {(!conversionOpen || items.length > 0 || largeItem) && <FileDrop className={stray ? 'is-attention' : undefined} dropClassName="import-hub__drop" accept={importAccept({ audio: audioOn })} multiple compact
           label={ui('把讲义、笔记或题组文件拖到这里，可以一次放多个')}
-          hint={[audioOn ? ui('PDF · Word · PowerPoint · Markdown · LaTeX · HTML · TXT · JSON 题组 · SRT / VTT 字幕') : ui('PDF · Word · PowerPoint · Markdown · LaTeX · HTML · TXT · JSON 题组'),
-            uiFormat('PDF 与文本最大 {0} MB，Word / PPT 最大 {1} MB', [megabytes(MAX_DOCUMENT_BYTES), megabytes(MAX_OFFICE_BYTES)])].join(' · ')}
+          hint={[audioOn ? ui('PDF · Word · PowerPoint · Markdown · LaTeX · HTML · TXT · 转换结果 JSON（PaddleOCR / MinerU / Docling）· JSON 题组 · SRT / VTT 字幕') : ui('PDF · Word · PowerPoint · Markdown · LaTeX · HTML · TXT · 转换结果 JSON（PaddleOCR / MinerU / Docling）· JSON 题组'),
+            uiFormat('PDF 与文本最大 {0} MB，Word / PPT / 转换 JSON 最大 {1} MB', [megabytes(MAX_DOCUMENT_BYTES), megabytes(MAX_OFFICE_BYTES)])].join(' · ')}
           buttonLabel={ui('选择文件')} busy={running} disabled={busy && !running} items={shown}
           rejectAction={rejections => handOff.action('import.file', rejectedFilesInput(rejections, { area: '添加资料' }), { what: '让主会话转换这些文件再导入；文件在输入框里用 @ 选' })}
           onFiles={accepted => add(accepted)} data-tour="import-drop" />}
@@ -589,7 +589,7 @@ export default function ImportHub({
           conversionAvailable={convertible} courseNames={coursesOf(largeItem.file)} jobs={data?.jobs} onConversionStarted={job => conversionStarted(job, largeItem)} />}
         {/* A PDF with no text: the same staged converter, one press from started. Nothing runs before that press. */}
         {!largeItem && scannedItem && <div ref={converterBox}><ConverterMain key={scannedItem.id} available={convertible} runnable file={scannedItem.file} courses={coursesOf(scannedItem.file)}
-          jobs={data?.jobs} onOpenSettings={settingsFor} onStarted={job => conversionStarted(job, scannedItem)} why={scannedItem.error} scanned /></div>}
+          jobs={data?.jobs} onOpenSettings={settingsFor} onStarted={job => conversionStarted(job, scannedItem)} showOnline why={scannedItem.error} scanned /></div>}
         {staged && <>
           <Button variant="link" size="sm" icon="arrow-left" onClick={() => { setConversionOpen(false); setConversionHistory(false); setConversionFile(null); }}>{ui('返回文件导入')}</Button>
           <PdfConversion available={convertible} file={conversionFile} onFile={setConversionFile} courses={coursesOf(conversionFile)} onStarted={conversionStarted} onOpenSettings={settingsFor}
@@ -598,7 +598,7 @@ export default function ImportHub({
         </>}
         {/* Rarely needed, so folded: the converters are suggested above for a PDF that fails, and here for one the learner already knows is hard. */}
         {!conversionOpen && <Disclosure className="import-hub__conversion" summary={ui('PDF 解析')} meta={ui('扫描件、公式多或大文件')}>
-          <p className="import-hub__routes">{ui('文字读不出来、公式多，或超过 8 MB 的 PDF，可以先在本机解析成带页码的文字，再存为资料。')}</p>
+          <p className="import-hub__routes">{ui('文字读不出来、公式多，或超过 8 MB 的 PDF，可先在本机解析成带页码的文字（不上传）；不想装本机工具，也可在 paddleocr.ai 在线解析后下载 JSON 直接拖进上面的导入框。')}</p>
           {!convertible && <InlineMessage tone="info">{ui('PDF 解析是音频组件的一部分，而音频组件没有启用。在 DSH 插件管理器里启用它，这里就能用。')}</InlineMessage>}
           <input ref={pdfPicker} type="file" accept=".pdf,application/pdf" className="sh-visually-hidden" tabIndex={-1} aria-hidden="true"
             onChange={event => { const chosen = event.target.files?.[0]; event.target.value = ''; if (chosen) { setConversionFile(chosen); setConversionOpen(true); } }} />
