@@ -1,0 +1,153 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    /* 知识点查缺 on the review book page (ui/book/BookPointGaps.jsx): a hairline block like 备考计划 (book-plan.css), never a box inside a box.
+       Uses the shared coverage ink & warning tokens so light and dark themes stay harmonious. */
+    .book-gaps {
+      display: grid;
+      gap: var(--space-2);
+      min-width: 0;
+      padding: var(--space-3);
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius);
+      background: var(--bg-raised);
+      overflow-wrap: anywhere;
+    }
+    .book-gaps--quiet {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: var(--space-1) var(--space-2);
+      padding: var(--space-1) 0;
+      border: 0;
+      background: none;
+    }
+    .book-gaps__running {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1) var(--space-2);
+      margin: 0;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+    .book-gaps__chapters {
+      padding-top: var(--space-2);
+      border-top: 1px solid var(--line-soft);
+    }
+    .book-gaps__chapter-list,
+    .book-gaps__section-list,
+    .book-gaps__missing-list {
+      display: grid;
+      gap: var(--space-1-5);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .book-gaps__chapter {
+      display: grid;
+      gap: var(--space-1);
+      padding-block: var(--space-1);
+      border-bottom: 1px solid var(--line-soft);
+      min-width: 0;
+    }
+    .book-gaps__chapter:last-child {
+      padding-bottom: 0;
+      border-bottom: 0;
+    }
+    .book-gaps__row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1) var(--space-2);
+      min-width: 0;
+    }
+    .book-gaps__title {
+      flex: 1 1 12em;
+      min-width: 0;
+      justify-content: flex-start;
+      text-align: start;
+      padding-inline: 0;
+      font-weight: var(--fw-medium);
+      color: var(--text);
+    }
+    .book-gaps__title--section {
+      font-weight: var(--fw-regular);
+      color: var(--text-dim);
+    }
+    .book-gaps__meta {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1-5);
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .book-gaps__bar {
+      display: inline-flex;
+      flex: none;
+      width: 3.5em;
+      height: 6px;
+      overflow: hidden;
+      border-radius: var(--radius-pill);
+      background: var(--bg-sunken);
+      box-shadow: inset 0 0 0 1px var(--line);
+    }
+    .book-gaps__bar-fill {
+      display: block;
+      height: 100%;
+      background: var(--text-muted);
+    }
+    .book-gaps__bar-draft {
+      display: block;
+      height: 100%;
+      background: var(--line-strong);
+    }
+    .book-gaps__gap-num {
+      color: var(--warn-ink, var(--text-muted));
+      font-weight: var(--fw-medium);
+    }
+    .book-gaps__sections {
+      display: grid;
+      gap: var(--space-1);
+      padding-inline-start: var(--space-3);
+      border-inline-start: 2px solid var(--line-soft);
+      min-width: 0;
+    }
+    .book-gaps__missing {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1) var(--space-2);
+      padding-inline-start: var(--space-3);
+      min-width: 0;
+    }
+    .book-gaps__missing-item {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
+      min-width: 0;
+    }
+    .book-gaps__missing-go {
+      padding-inline: 0;
+      color: var(--text-dim);
+    }
+    .book-gaps__missing-note {
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+    /* Per-point quiet gap hint inside BookGapHint (ui/book/BookGapHint.jsx). */
+    .book-point__question-gap {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1) var(--space-2);
+      margin: 0;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      line-height: var(--lh-snug);
+    }
+  }
+}
