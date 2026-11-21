@@ -13,6 +13,8 @@ import {
 } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
 import { useStudy } from '../study-context.jsx';
+import { useOptionalAppSelector } from '../app/app-context.js';
+import PaceMeta from '../pace/PaceMeta.jsx';
 import { TERMS } from '../mastery-terms.js';
 import { gapHintLabel } from '../evidence-hint.js';
 import {
@@ -285,9 +287,12 @@ export default function MasteryMap({
   onOpenBook,
   onOpenWrongBook,
   defaultLayout = 'heatmap',
+  paceForecast: propPaceForecast,
 }) {
   useInjectCss(css, 'study-mastery-map');
   const { busy } = useStudy();
+  const storePaceForecast = useOptionalAppSelector((state) => state.data?.paceForecast);
+  const paceForecast = propPaceForecast ?? storePaceForecast;
   const [filter, setFilter] = useState('all');
   const [query, setQuery] = useState('');
   const [layout, setLayout] = useState(defaultLayout === 'spine' ? 'spine' : 'heatmap');
@@ -334,6 +339,9 @@ export default function MasteryMap({
   }
 
   const { totals } = model;
+  const coursePace = paceForecast
+    ? ((course && course !== '*' ? paceForecast.courses?.[course] : paceForecast.library) || null)
+    : null;
   const canPracticeWeak = (model.weakKeys.length > 0 || model.weakScopes.length > 0) && Boolean(onPracticeWeakAll);
   const canGapFillAll = model.uncoveredTitles.length > 0 && Boolean(onGoGenerate);
 
@@ -463,6 +471,16 @@ export default function MasteryMap({
           )}
         </div>
       </div>
+
+      {coursePace && (
+        <PaceMeta
+          variant="course"
+          forecast={coursePace}
+          pace={paceForecast?.pace}
+          asOf={paceForecast?.asOf}
+          uncoveredPoints={totals.uncoveredPoints}
+        />
+      )}
 
       {model.stale && (
         <p className="mm-stale" role="status" data-mm-stale="">

@@ -13,6 +13,7 @@ import { HandOff } from '../hand-off/HandOff.jsx';
 import { META_DOT } from '../format.js';
 import { useStudy } from '../study-context.jsx';
 import LetterpressNumber from '../letterpress/LetterpressNumber.jsx';
+import PaceMeta from '../pace/PaceMeta.jsx';
 
 /** The mastery of the current course (and the whole library when it differs), with what the words mean on hover. */
 function DeskMastery({ mastery, onOpenMasteryMap }) {
@@ -56,6 +57,10 @@ export default function DeskIntro({ data, home, mastery, start, resume, endRun, 
   const { busy } = useStudy();
   const { route, starter, headline, plan, alternatives, otherRuns, otherCourse } = home;
   const currentEntry = (data.focus?.courses || []).find((course) => course.name === data.focus?.course);
+  const paceForecast = data?.paceForecast;
+  const coursePace = paceForecast
+    ? ((data.focus?.course && paceForecast.courses?.[data.focus.course]) || paceForecast.library || null)
+    : null;
   return (
     <div className="desk-intro">
       <CourseHeading data={data} headline={headline} onFocus={onFocus} onCourseSettings={onCourseSettings}
@@ -66,6 +71,7 @@ export default function DeskIntro({ data, home, mastery, start, resume, endRun, 
       <MethodLine method={data.focus?.method} courseId={data.focus?.courseId} onCourseSettings={onCourseSettings} />
       <FocusProgressLine progress={data.focus?.progress} courseId={data.focus?.courseId} lock={busy} start={start} onCourseSettings={onCourseSettings} onGenerateFocus={onGenerateFocus} />
       {mastery.primary && <DeskMastery mastery={mastery} onOpenMasteryMap={onOpenMasteryMap} />}
+      {coursePace && <PaceMeta variant="course" forecast={coursePace} pace={paceForecast?.pace} asOf={paceForecast?.asOf} />}
       <p className="desk-next">
         {data.next ? (
           <>
