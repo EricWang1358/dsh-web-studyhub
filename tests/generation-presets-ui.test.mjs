@@ -10,7 +10,10 @@ import { loadUi } from './helpers/ui-module.mjs';
 const m = await loadUi(`
   export * from './ui/presets/Presets.jsx';
   export { DepthChoice, CostMatrix } from './ui/presets/PresetsFold.jsx';
-  export { DEPTHS } from './lib/generation-presets.js';
+  export { DEPTHS, DEFAULT_PRESET, PRESETS } from './lib/generation-presets.js';
+  export { askCells } from './ui/presets/use-cell-estimates.js';
+  export { estimateRequestOf, generationRequest } from './ui/generate-form.js';
+  export { generationFormDefaults } from './ui/generation-status.js';
   export * as cost from './ui/presets/cost.js';
   export * as copy from './ui/presets/copy.js';
   export { setUiLanguage } from './ui/i18n.js';`);
@@ -138,4 +141,81 @@ test('the same words in English have no Chinese', () => {
     assert.doesNotMatch(html.replace(/<[^>]+>/g, ' '), han);
     assert.match(html, /Quick about ×0\.3/);
   } finally { m.setUiLanguage('zh'); }
+});
+
+test('a ratio under 0.05 is never 「×0」: it says it is under ×0.1', () => {
+  m.setUiLanguage('zh');
+  assert.equal(m.copy.ratioText(0.04), '不到 ×0.1');
+  assert.equal(m.copy.ratioText(0.04, { bare: true }), '<×0.1');
+  assert.equal(m.copy.ratioText(0.05), '约 ×0.1', '0.05 rounds to 0.1 as before');
+  m.setUiLanguage('en');
+  try { assert.equal(m.copy.ratioText(0.01), 'under ×0.1'); } finally { m.setUiLanguage('zh'); }
+});
+
+test('a typed number of questions: the presets read 自定义 with that number (never a level\'s amount), and no rough cost is shown', () => {
+  m.setUiLanguage('zh');
+  const html = renderToStaticMarkup(React.createElement(m.PresetPicker, { cell: { density: 'standard', depth: 'scenario', count: 40 }, applies: true, costs: null, onPick: () => {} }));
+  assert.match(html, /data-preset="custom"/);
+  assert.doesNotMatch(html, /aria-pressed="true"/, 'no preset is lit');
+  assert.match(text(html), /自定义：40 题 × 情境题。/);
+  assert.doesNotMatch(text(html), /标准题量|标准 ×/, 'the note names no level\'s amount');
+  assert.doesNotMatch(html, /data-preset-cost/);
+  // Every ratio is the estimate of a level; a run by a typed number would not be that run, so nothing is priced while one is set.
+  const on = { applies: true, sources: 2, count: null, held: false };
+  assert.equal(m.cost.pricesCells(on), true);
+  assert.equal(m.cost.pricesCells({ ...on, count: 40 }), false, 'a typed number: no ratio, no matrix');
+  assert.equal(m.cost.pricesCells({ ...on, sources: 0 }), false, 'no materials chosen: usage.estimate is not asked');
+  assert.equal(m.cost.pricesCells({ ...on, applies: false }), false, 'the depth does not apply (another question type): not asked');
+  assert.equal(m.cost.pricesCells({ ...on, held: true }), false, 'a blocked button, the steps of a path or an unusable sample: not asked');
+  m.setUiLanguage('en');
+  try {
+    const en = renderToStaticMarkup(React.createElement(m.PresetPicker, { cell: { density: 'standard', depth: 'quick', count: 40 }, applies: true, costs: null, onPick: () => {} }));
+    assert.match(text(en), /Custom: 40 questions × Quick\./);
+  } finally { m.setUiLanguage('zh'); }
+});
+
+test('the cells are asked again on every pass, the way the form\'s own estimate is: a failure is not kept, and a pass that is gone stops asking', async () => {
+  const requests = [{ coverageLevel: 'standard' }, { coverageLevel: 'lean' }].map(item => JSON.stringify(item));
+  let fail = true;
+  const asked = [], answers = new Map();
+  const call = async (action, args) => { asked.push([action, args.coverageLevel]); if (fail && args.coverageLevel === 'lean') throw new Error('busy'); return { totalTokens: { low: 1, high: 2 } }; };
+  const answer = (request, estimate) => answers.set(request, estimate);
+  await m.askCells(call, requests, { isLive: () => true, answer });
+  assert.deepEqual(asked, [['usage.estimate', 'standard'], ['usage.estimate', 'lean']]);
+  assert.equal(answers.get(requests[1]), null, 'a failed cell says nothing this pass');
+  fail = false;
+  await m.askCells(call, requests, { isLive: () => true, answer });
+  assert.equal(asked.length, 4, 'both cells asked again: nothing was cached, the failure least of all');
+  assert.deepEqual(answers.get(requests[1]), { totalTokens: { low: 1, high: 2 } }, 'and the cost comes back');
+  const empty = await m.askCells(async () => ({ totalTokens: { low: 0, high: 0 } }), requests.slice(0, 1), { isLive: () => true, answer });
+  assert.equal(empty, undefined);
+  assert.equal(answers.get(requests[0]), null, 'an estimate of nothing is no estimate');
+  let live = true, seen = 0;
+  await m.askCells(async () => { live = false; return { totalTokens: { low: 1, high: 2 } }; }, requests, { isLive: () => live, answer: () => { seen++; } });
+  assert.equal(seen, 0, 'an answer that arrives after the form moved on is dropped, and the rest is not asked');
+});
+
+test('the form\'s 出题深度 is sent as performance with this run and its estimate; a form without one sends none (the saved one applies)', () => {
+  const gen = { ...m.generationFormDefaults(undefined, 'zh'), kind: 'quiz', kinds: ['quiz'] };
+  const where = { course: '', sourceIds: ['a'] };
+  const { depth: _depth, ...plain } = gen;
+  assert.equal('performance' in m.generationRequest(plain, where), false);
+  assert.equal('performance' in m.estimateRequestOf(plain, where), false);
+  for (const [depth, performance] of [['quick', { strategy: 'one-pass', writeStyle: 'quick' }], ['scenario', { strategy: 'one-pass', writeStyle: 'scenario' }],
+    ['blueprint', { strategy: 'staged', writeStyle: 'scenario' }]]) {
+    assert.deepEqual(m.generationRequest({ ...plain, depth }, where).performance, performance, `${depth}: the run`);
+    assert.deepEqual(m.estimateRequestOf({ ...plain, depth }, where).performance, performance, `${depth}: its estimate`);
+  }
+  assert.equal('performance' in m.generationRequest({ ...plain, depth: 'loud' }, where), false, 'an unknown depth is not sent');
+});
+
+test('the copy names the default preset only where lib/generation-presets.js says it is the default', () => {
+  m.setUiLanguage('zh');
+  // The copy says 「情境题（默认）」 and prices against 「情境题」: if DEFAULT_PRESET moves, this fails until the words move with it.
+  assert.equal(m.DEFAULT_PRESET, 'scenario');
+  for (const { id } of m.PRESETS) assert.equal(/（默认）/.test(m.copy.presetNote(id)), id === m.DEFAULT_PRESET, `${id}: 默认 only on the default`);
+  const label = m.copy.presetLabel(m.DEFAULT_PRESET);
+  assert.ok(m.copy.costTip().includes(`「${label}」`), 'the hover card prices against the default');
+  const matrix = m.copy.matrixWords(m.cost.cellCosts(new Map(), m.cost.MATRIX_CELLS), { density: 'standard', depth: 'scenario' });
+  assert.ok(matrix.caption.includes(`「${label}」`), 'and so does the caption of the matrix');
 });

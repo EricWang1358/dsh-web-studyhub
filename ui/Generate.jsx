@@ -43,7 +43,7 @@ import { DEPTHS, depthApplies, depthOf, performanceOfDepth, presetCell } from '.
 import { depthOffReason, matrixWords } from './presets/copy.js';
 import { PresetPicker } from './presets/Presets.jsx';
 import { deferredView } from './deferred-view.jsx';
-import { MATRIX_CELLS, PRESET_CELLS, cellCosts } from './presets/cost.js';
+import { MATRIX_CELLS, PRESET_CELLS, cellCosts, pricesCells } from './presets/cost.js';
 import { useCellEstimates } from './presets/use-cell-estimates.js';
 import homeCss from './generate-home.css';
 import formCss from './generate-form.css';
@@ -201,8 +201,9 @@ export default function Generate({
   const caseExam = courseHasCaseExam(activeCourseRecord);
   // What the chosen 覆盖强度 means for the chosen materials: the backend's plan, priced from the real prompts (lib/token-estimate.js), asked once the choice settles.
   const level = levelOf(gen.coverageLevel ?? DEFAULT_LEVEL), custom = customCountOf(gen);
-  // 出题方式 (lib/generation-presets.js): the form's cell is its 覆盖强度 and its 出题深度 (the saved one until the learner picks; a pick is sent with this run only).
-  const depth = gen.depth ?? depthOf(data.settings?.generation), cell = { density: level, depth };
+  // 出题方式 (lib/generation-presets.js): the form's cell is its 覆盖强度 and its 出题深度 (the saved one until the learner picks; a pick is sent with this run only),
+  // and the typed number of questions when there is one (then it is no preset: 自定义, said with that number).
+  const depth = gen.depth ?? depthOf(data.settings?.generation), cell = { density: level, depth, count: custom };
   const applies = depthApplies({ kind: gen.kind, kinds: kindsOfForm(gen) });
   // The form's own request (a form without a depth of its own sends none, and the backend reads the saved one, as the run does).
   const estimateRequest = estimateRequestOf(gen, { course: generationCourse, sourceIds: selectedSources, reasoningEffort });
@@ -213,7 +214,8 @@ export default function Generate({
   // A summary promises questions: not for a button that is off (the reason is said below), and for the steps it is their own total.
   const blocked = !pathMode && advice.blocked;
   // The rough cost of each preset (and, with 更多选项 open, of every cell of the matrix), read from the estimate of each cell for these materials (ui/presets/cost.js).
-  const priced = foldOpen ? MATRIX_CELLS : PRESET_CELLS, pricing = applies && !pathMode && !blocked && selectedSources.length > 0 && !referenceState.reason;
+  const priced = foldOpen ? MATRIX_CELLS : PRESET_CELLS;
+  const pricing = pricesCells({ applies, sources: selectedSources.length, count: custom, held: pathMode || blocked || Boolean(referenceState.reason) });
   const cellEstimates = useCellEstimates(call, estimateRequest, priced, { enabled: pricing });
   const costs = pricing ? cellCosts(cellEstimates, priced) : null;
   const pickPreset = (id) => { const chosen = presetCell(id); if (chosen) setGen({ ...gen, coverageLevel: chosen.density, customCount: '', depth: chosen.depth }); };

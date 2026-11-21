@@ -70,3 +70,9 @@ test('the cost ratio is the upper end of the cell\'s estimate over the default c
   assert.equal(costRatio(estimate(600), estimate(0)), null, 'no ratio of nothing');
   assert.equal(costRatio({ totalTokens: { low: 0, high: 0 } }, estimate(1000)), null);
 });
+
+test('a typed number of questions is no preset: the run is planned by that number, not by the level any preset names', () => {
+  assert.equal(presetOf({ density: 'standard', depth: 'scenario', count: 40 }), null, '40 题 × 情境题 is 自定义');
+  assert.equal(presetOf({ density: 'lean', depth: 'quick', count: 12 }), null);
+  assert.equal(presetOf({ density: 'standard', depth: 'scenario', count: null }), 'scenario', 'no number: the level decides, and the cell may be a preset');
+});

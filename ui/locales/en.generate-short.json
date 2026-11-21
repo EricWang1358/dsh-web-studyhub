@@ -66,6 +66,7 @@
   "逐题精出：先定考点、设计答案，再分批出题、审阅和修复。": "Step by step: the targets planned and the answers designed first, then the questions written, reviewed and repaired in batches.",
   "快问和情境题只用于单选题；选了其他题型时总是逐题精出，只有题量（覆盖强度）起作用。": "Quick and Scenario are for multiple-choice questions only; with other question types the questions are always written step by step, and only the coverage strength counts.",
   "约 ×{0}": "about ×{0}",
+  "不到 ×0.1": "under ×0.1",
   "大致花费": "Rough cost",
   "按你选的资料，用出题前的 token 预估上限算出整次出题相对「情境题」的倍数；括号里是其他几种大约出多少题（选中那种的题数在出题按钮旁）。只是粗略比较，不是固定倍数，实际花费因模型而异；逐题精出出的题少，整次可能更省、每题更贵；快问省下的部分是估的，没有实测。": "Worked out from the token estimate (its upper end) for the materials you chose: the whole run against “Scenario”; in brackets, about how many questions each of the others makes (the count of the one you chose is beside the generate button). Only a rough comparison, not a fixed multiple, and the real cost depends on the model. Step by step makes fewer questions, so a whole run can cost less while each question costs more; what Quick saves is assumed, not measured.",
   "大致花费是怎么算的": "How the rough cost is worked out",

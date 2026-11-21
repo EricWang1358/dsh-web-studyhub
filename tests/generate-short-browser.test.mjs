@@ -203,7 +203,14 @@ test('创建题组 opens ticked with a reason, the main path is one line, the pl
         await strength.filter({ hasText: choice }).first().click();
         await until(async () => (await pressed()).join() === choice, `${choice} is the one choice that is on`);
         assert.equal(await page.locator('#generate-count').count(), choice === '自定义' ? 1 : 0, `the number field is there for 自定义 only (${choice})`);
-        if (choice === '自定义') assert.ok(Number(await page.locator('#generate-count').inputValue()) >= 1, 'and starts from a number');
+        if (choice === '自定义') {
+          const typed = Number(await page.locator('#generate-count').inputValue());
+          assert.ok(typed >= 1, 'and starts from a number');
+          // A typed number is no preset: the main path says 自定义 with that number, and no rough cost is said (each is the estimate of a level, not of this run).
+          await until(async () => (await page.locator('[data-presets]').getAttribute('data-preset')) === 'custom', 'a typed number reads 自定义');
+          assert.match(await presetNote.innerText(), new RegExp(`^自定义：${typed} 题 × 情境题。`));
+          assert.equal(await page.locator('[data-preset-cost]').count() + await matrix.count(), 0, 'no ratio and no matrix while a number is typed');
+        }
       }
       // a combination that is no preset: the main path says 自定义 and both halves; the depth moves the marked cell
       const depth = page.locator('[data-depth] .sh-seg__item');

@@ -16,6 +16,11 @@ export function cellRequest(base, cell) {
   return { ...rest, coverageLevel, performance };
 }
 
+/** Whether the rough costs are asked and shown at all: materials chosen, a depth that applies to the question types, no typed number of questions (every ratio
+    is the estimate of a level; a run of a typed number is not that run, so no ratio could be its own), and nothing holding the form (`held`: the button is
+    off, the steps of a path, an unusable sample). Otherwise `usage.estimate` is not asked for any cell. */
+export const pricesCells = ({ applies, sources, count, held }) => Boolean(applies && sources > 0 && !(count > 0) && !held);
+
 /** The cells to ask for, the default cell first (every ratio is read against it), each once. */
 export const cellsToAsk = (cells) => [DEFAULT_CELL, ...cells].filter((cell, at, all) => all.findIndex(other => cellKey(other) === cellKey(cell)) === at);
 

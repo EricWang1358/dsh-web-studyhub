@@ -20,8 +20,9 @@ export function presetNote(id) {
   })[id] || '';
 }
 
-/** The line for a combination that is no preset: what it is and where it is changed. */
-export const customNote = (cell) => uiFormat('自定义：{0} × {1}。在「更多选项 › 出题方式与题量」里改。', [levelLabel(cell.density), depthLabel(cell.depth)]);
+/** The line for a combination that is no preset: what it is and where it is changed. With a typed number of questions it says that number, not a level. */
+export const customNote = (cell) => uiFormat('自定义：{0} × {1}。在「更多选项 › 出题方式与题量」里改。',
+  [cell.count > 0 ? uiFormat('{0} 题', [cell.count]) : levelLabel(cell.density), depthLabel(cell.depth)]);
 
 /** Why the depth does nothing for these question types (the same rule 设置 says for 出题深度). */
 export const depthOffReason = () => ui('快问和情境题只用于单选题；选了其他题型时总是逐题精出，只有题量（覆盖强度）起作用。');
@@ -32,6 +33,8 @@ export function ratioText(ratio, { base = false, bare = false } = {}) {
   if (base) return '×1';
   if (!(ratio > 0)) return '';
   const rounded = ratio < 10 ? Math.round(ratio * 10) / 10 : Math.round(ratio);
+  // Under 0.05 it would round to 「×0」, which reads as free.
+  if (rounded === 0) return bare ? '<×0.1' : ui('不到 ×0.1');
   return bare ? `×${rounded}` : uiFormat('约 ×{0}', [rounded]);
 }
 
@@ -56,7 +59,7 @@ export function matrixWords(costs, cell) {
   return { ready, caption: ui('各组合的大致花费（相对「情境题」）'), tip: costTip(), loading: costLoading(),
     columns: DENSITIES.map(density => ({ key: density, label: levelLabel(density) })),
     rows: DEPTHS.map(depth => ({ key: depth, label: depthLabel(depth), cells: DENSITIES.map((density) => {
-      const key = cellKey({ density, depth }), cost = costs.get(key), current = cell.density === density && cell.depth === depth;
+      const key = cellKey({ density, depth }), cost = costs.get(key), current = !(cell.count > 0) && cell.density === density && cell.depth === depth;
       return { key, current, ready: Boolean(cost?.ready), ratio: cost?.ready ? ratioText(cost.ratio, { base: cost.base, bare: true }) || '—' : '',
         questions: cost?.ready && !current ? questionsText(cost.coverage) : '' };
     }) })) };
