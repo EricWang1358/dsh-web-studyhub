@@ -197,7 +197,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const togglePrereq = () => setPrereqOpenKey((cur) => (cur === entryKey ? "" : entryKey));
   const { autoAdvanceMs, autoAdvanceActive, autoAdvancePaused, hoverPauseRef, syncAutoPause } = useAutopilotPause({ session: liveSession, coachProps, reviewBodyRef });
   const fixPhrases = useFixPhrases(data);
-  const ruleDeck = data?.decks?.find((deck) => deck.id === run.deckId);
+  const ruleDeck = React.useMemo(() => data?.decks?.find((deck) => deck.id === run.deckId), [data?.decks, run.deckId]);
   const termCourseName = ruleDeck?.course ?? ruleDeck?.folder ?? (typeof run?.course === "string" ? run.course : run?.course?.name) ?? "";
   const courseRules = useCourseRules(data, ruleDeck?.course ?? ruleDeck?.folder ?? "");
   const termMarks = useTermMarking({ session: liveSession, reviewBodyRef, notify, call, courseName: termCourseName, assistTasks });
@@ -213,7 +213,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
     assistAct("terms", "", [], { terms });
   };
   React.useEffect(() => { setClozeFocusTick(0); setTermListOpen(false); }, [run.id, run.index, run.card?.id]);
-  const cardTasks = (assistTasks || []).filter((task) => task.cardId === run.card?.id);
+  const cardTasks = React.useMemo(() => (assistTasks || []).filter((task) => task.cardId === run.card?.id), [assistTasks, run.card?.id]);
   const runningTask = cardTasks.find((task) => task.status === "running" && task.mode !== "grade");
   const lastTask = cardTasks.filter((task) => task.mode !== "grade").at(-1);
   useAssistWatch({ session: liveSession, assistTasks, cardId: run.card?.id });
@@ -230,7 +230,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
     focusCloze: isCloze && !run.feedback && !busy ? () => setClozeFocusTick((n) => n + 1) : undefined });
   const { caseSource, caseHighlights, saveHighlights } = useCaseHighlights({ run, data, call });
   const cardNotes = data?.noteBadges?.[run.card?.id] || [];
-  const companionTarget = run.mode !== "exam" && run.revealed
+  const companionTarget = React.useMemo(() => (run.mode !== "exam" && run.revealed
     ? resolveCompanionTarget({
       card: run.card,
       solution: run.solution,
@@ -238,7 +238,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
       sources: data?.sources,
       fallbackCourse: ruleDeck?.course ?? ruleDeck?.folder ?? "",
     })
-    : null;
+    : null), [run.mode, run.revealed, run.card, run.solution, data?.courses, data?.sources, ruleDeck]);
   // The round's own size and the re-ask, said by one function (the round model puts `position` on the run, #660).
   const position = roundAt(run), words = roundWords(position);
   const prereqSummary = run.prerequisites?.length > 0

@@ -46,12 +46,13 @@ function MapBody({ map, document, pages, onJump }) {
  * The 思维导图 button of the toolbar and its panel. map: buildMindMap's tree of the current chapter; document: the material's name; pages: { from, to } of the chapter;
  * onJump(node): where a node leads (the panel closes after it).
  */
-export default function MindMapPanel({ map, document, pages, onJump }) {
+export default function MindMapPanel({ map, buildMap, document, pages, onJump }) {
   useInjectCss(css, 'study-reader-slim');
   const [open, setOpen] = useState(false);
+  const resolvedMap = open ? (map || buildMap?.()) : null;
   return <Popover open={open} onOpenChange={setOpen} label={ui('思维导图')} className="reader-popover reader-map" panelClassName="reader-popover__panel reader-map__panel"
     boundsSelector=".study-document-viewer" flip={false} data-tour="reader-map"
     trigger={({ props, ref }) => <Button ref={ref} size="sm" variant="quiet" icon="nav-skeleton" iconClassName="reader-toolbar__word-icon" className="reader-toolbar__action" {...props}>{ui('思维导图')}</Button>}>
-    <MapBody key={map.title} map={map} document={document} pages={pages} onJump={node => { setOpen(false); onJump(node); }} />
+    {resolvedMap && <MapBody key={resolvedMap.title} map={resolvedMap} document={document} pages={pages} onJump={node => { setOpen(false); onJump(node); }} />}
   </Popover>;
 }
