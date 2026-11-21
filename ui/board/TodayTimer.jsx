@@ -2,14 +2,24 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { formatClock, formatDateTime, joinMeta } from '../format.js';
 import {
-  Button, Dialog, Field, Icon, IconButton, NumberInput, ProgressBar, Select, Switch, TextInput, Tooltip, useNow, useToast,
+  Button, Dialog, Field, Icon, IconButton, NumberInput, Select, Switch, TextInput, Tooltip, useNow, useToast,
 } from '../components/index.js';
 import {
   ACTUAL_MINUTES_MAX, TIMER_BREAK_MAX, TIMER_WORK_MAX, isMeaningfulTitle, resolveTimerPrefs, selectTodayTimeLog, timerSnapshot,
 } from '../../lib/board-model.js';
 import { playTimerChime } from '../sound-effects.js';
+import { useLiveEffect } from '../use-async.js';
+import FocusRitualDial from '../desk-atelier/FocusRitualDial.jsx';
+import BreathingHalo from '../desk-atelier/BreathingHalo.jsx';
+import FocusSoundscapePill from '../desk-atelier/FocusSoundscapePill.jsx';
+import FocusAmbientCanvas, {
+  FocusAmbientControls,
+  loadAmbientMode,
+  saveAmbientMode,
+} from '../desk-atelier/FocusAmbientCanvas.jsx';
 
 const CUSTOM_CARD = '__custom__';
+let cachedChimeDialog = null;
 
 function sendSystemNotification(title, body) {
   try {
@@ -74,7 +84,7 @@ export function TodayTimerBar({
 export default function TodayTimer({
   board, today, todayCards = [], readOnly = false, nowMs: nowProp,
   fullscreen = false, onFullscreenChange,
-  onStartBreak, onPause, onResume, onCancel, onComplete, onSavePrefs, onAddLog, onEditLog, onRemoveLog,
+  onStartFreeFocus, onStartBreak, onPause, onResume, onCancel, onComplete, onSavePrefs, onAddLog, onEditLog, onRemoveLog,
 }) {
   const toast = useToast();
   const timer = board?.timer || null;
@@ -86,6 +96,29 @@ export default function TodayTimer({
 
   const [panelMode, setPanelMode] = useState('');
   const [offerBreak, setOfferBreak] = useState(false);
+  const [breathOpen, setBreathOpen] = useState(false);
+  const [chimeOpen, setChimeOpen] = useState(false);
+  const [ChimeDialog, setChimeDialog] = useState(() => cachedChimeDialog);
+  const [ambientMode, setAmbientMode] = useState(() => loadAmbientMode());
+
+  useLiveEffect((isLive) => {
+    if (!chimeOpen || ChimeDialog) return undefined;
+    import('../desk-atelier/DeskChimeDialog.jsx')
+      .then((mod) => {
+        cachedChimeDialog = mod?.default || null;
+        if (!isLive()) return;
+        if (cachedChimeDialog) setChimeDialog(() => cachedChimeDialog);
+        else setChimeOpen(false);
+      })
+      .catch(() => {
+        if (isLive()) setChimeOpen(false);
+      });
+    return undefined;
+  }, [chimeOpen, ChimeDialog]);
+
+  const handleAmbientChange = (nextMode) => {
+    setAmbientMode(saveAmbientMode(nextMode));
+  };
 
   // Manual log state
   const defaultCardChoice = todayCards[0]?.id || CUSTOM_CARD;
@@ -127,6 +160,7 @@ export default function TodayTimer({
 
   useEffect(() => {
     if (timer) setOfferBreak(false);
+    if (timer?.mode === 'work') setBreathOpen(false);
   }, [timer]);
 
   useEffect(() => {
@@ -233,6 +267,13 @@ export default function TodayTimer({
     if (ok) onFullscreenChange?.(false);
   };
 
+  const handleFreeFocus = async (openFullscreen = false) => {
+    if (readOnly || !onStartFreeFocus) return;
+    setOfferBreak(false);
+    const ok = await onStartFreeFocus(ui('自由专注'));
+    if (ok && openFullscreen) onFullscreenChange?.(true);
+  };
+
   const startEditLog = (entry) => {
     setEditingLogId(entry.id);
     setEditingMinutes(String(entry.minutes));
@@ -253,6 +294,12 @@ export default function TodayTimer({
   const activeCard = snap?.cardId ? board?.cards?.[snap.cardId] : null;
   const activeSubtitle = activeCard?.learningTask?.reason || activeCard?.note || '';
   const reversedEntries = useMemo(() => [...todayLog.entries].reverse(), [todayLog.entries]);
+  const dialProgress = snap && snap.durationMs > 0
+    ? Math.min(1, Math.max(0, snap.elapsedMs / snap.durationMs))
+    : 0;
+  const dialState = snap
+    ? (snap.paused ? 'paused' : snap.finished ? 'finished' : 'running')
+    : 'idle';
 
   return (
     <>
@@ -303,20 +350,40 @@ export default function TodayTimer({
               </span>
             </div>
 
-            <div
-              className="board-timer__clock"
-              data-timer-state={snap.paused ? 'paused' : snap.finished ? 'finished' : 'running'}
-            >
-              {formatClock(snap.remainingMs)}
-            </div>
-
-            <ProgressBar
-              size="sm"
-              tone={snap.mode === 'break' || snap.finished ? 'ok' : 'accent'}
-              value={Math.min(snap.durationMs, snap.elapsedMs)}
-              max={snap.durationMs}
-              label={ui('专注倒计时进度')}
+            <FocusRitualDial
+              size="compact"
+              remainingLabel={formatClock(snap.remainingMs)}
+              progress={dialProgress}
+              mode={snap.mode}
+              state={dialState}
+              clockClassName="board-timer__clock desk-dial__clock"
+              clockState={dialState}
             />
+
+            {snap.mode === 'break' && (
+              breathOpen ? (
+                <BreathingHalo compact onClose={() => setBreathOpen(false)} />
+              ) : (
+                <div className="desk-breath-trigger desk-break-rituals">
+                  <Button
+                    variant="quiet"
+                    size="sm"
+                    icon="sparkle"
+                    onClick={() => setBreathOpen(true)}
+                  >
+                    {ui('60 秒呼吸引导')}
+                  </Button>
+                  <Button
+                    variant="quiet"
+                    size="sm"
+                    icon="sparkle"
+                    onClick={() => setChimeOpen(true)}
+                  >
+                    {ui('五声风铃')}
+                  </Button>
+                </div>
+              )
+            )}
 
             <div className="board-timer__controls">
               {!snap.finished && (
@@ -348,11 +415,41 @@ export default function TodayTimer({
           </div>
         ) : (
           <div className="board-timer__idle">
-            <div className="board-timer__clock is-idle">{formatClock(prefs.workMinutes * 60_000)}</div>
+            <FocusRitualDial
+              size="compact"
+              state="idle"
+              remainingLabel={formatClock(prefs.workMinutes * 60_000)}
+              clockClassName="board-timer__clock is-idle desk-dial__clock"
+            />
             <p className="board-timer__meta">
               {uiFormat('番茄 {0} 分钟 · 休息 {1} 分钟', [prefs.workMinutes, prefs.breakMinutes])}
             </p>
-            <p className="board-timer__hint">{ui('点卡片上的「开始专注」才开始计时。')}</p>
+            {!readOnly && onStartFreeFocus && (
+              <div className="desk-free-focus">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon="play"
+                  onClick={() => handleFreeFocus(false)}
+                >
+                  {ui('自由专注')}
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon="fit"
+                  onClick={() => handleFreeFocus(true)}
+                >
+                  {ui('全屏专注')}
+                </Button>
+              </div>
+            )}
+            <p className="board-timer__hint">
+              {ui('点卡片上的「开始专注」才开始计时。')}
+              {!readOnly && onStartFreeFocus && (
+                <span className="desk-free-focus__sub">{ui('也可直接开启一段自由专注。')}</span>
+              )}
+            </p>
             {offerBreak && !readOnly && (
               <div className="board-timer__break-offer">
                 <Button
@@ -363,7 +460,27 @@ export default function TodayTimer({
                 >
                   {uiFormat('休息 {0} 分钟', [prefs.breakMinutes])}
                 </Button>
+                <Button
+                  variant="quiet"
+                  size="sm"
+                  icon="sparkle"
+                  aria-expanded={breathOpen}
+                  onClick={() => setBreathOpen((open) => !open)}
+                >
+                  {ui('60 秒呼吸引导')}
+                </Button>
+                <Button
+                  variant="quiet"
+                  size="sm"
+                  icon="sparkle"
+                  onClick={() => setChimeOpen(true)}
+                >
+                  {ui('五声风铃')}
+                </Button>
               </div>
+            )}
+            {offerBreak && breathOpen && (
+              <BreathingHalo compact onClose={() => setBreathOpen(false)} />
             )}
           </div>
         )}
@@ -542,65 +659,95 @@ export default function TodayTimer({
           contentClassName="board-focus-dialog__content"
           onClose={() => onFullscreenChange?.(false)}
         >
-          <div className="board-focus-stage">
-            <span className="board-chip board-timer__badge" data-timer-mode={snap.mode}>
-              {timerStateLabel(snap)}
-            </span>
-            <h3 className="board-focus-stage__title">
-              {snap.mode === 'break' ? ui('休息片刻') : snap.cardTitle}
-            </h3>
-            {snap.mode === 'work' && activeSubtitle && (
-              <p className="board-focus-stage__note">{activeSubtitle}</p>
-            )}
-            <div
-              className="board-focus-stage__clock"
-              data-timer-state={snap.paused ? 'paused' : snap.finished ? 'finished' : 'running'}
-            >
-              {formatClock(snap.remainingMs)}
-            </div>
-            <div className="board-focus-stage__bar">
-              <ProgressBar
-                size="md"
-                tone={snap.mode === 'break' || snap.finished ? 'ok' : 'accent'}
-                value={Math.min(snap.durationMs, snap.elapsedMs)}
-                max={snap.durationMs}
-                label={ui('专注倒计时进度')}
-              />
-            </div>
-            <div className="board-focus-stage__actions">
-              {!snap.finished && (
-                snap.paused ? (
-                  <Button variant="secondary" icon="play" disabled={readOnly} onClick={onResume}>
-                    {ui('继续')}
+          <div className="desk-focus-stage-wrap">
+            <FocusAmbientCanvas mode={ambientMode} />
+            <div className="desk-focus-stage-inner">
+              <div className="board-focus-stage">
+                <span className="board-chip board-timer__badge" data-timer-mode={snap.mode}>
+                  {timerStateLabel(snap)}
+                </span>
+                <h3 className="board-focus-stage__title">
+                  {snap.mode === 'break' ? ui('休息片刻') : snap.cardTitle}
+                </h3>
+                {snap.mode === 'work' && activeSubtitle && (
+                  <p className="board-focus-stage__note">{activeSubtitle}</p>
+                )}
+                <FocusRitualDial
+                  size="stage"
+                  remainingLabel={formatClock(snap.remainingMs)}
+                  progress={dialProgress}
+                  mode={snap.mode}
+                  state={dialState}
+                  clockClassName="board-focus-stage__clock desk-dial__clock"
+                  clockState={dialState}
+                />
+                {snap.mode === 'break' && (
+                  <div className="board-focus-stage__bar">
+                    {breathOpen ? (
+                      <BreathingHalo onClose={() => setBreathOpen(false)} />
+                    ) : (
+                      <div className="desk-breath-trigger desk-break-rituals">
+                        <Button
+                          variant="quiet"
+                          size="sm"
+                          icon="sparkle"
+                          onClick={() => setBreathOpen(true)}
+                        >
+                          {ui('60 秒呼吸引导')}
+                        </Button>
+                        <Button
+                          variant="quiet"
+                          size="sm"
+                          icon="sparkle"
+                          onClick={() => setChimeOpen(true)}
+                        >
+                          {ui('五声风铃')}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <div className="board-focus-stage__actions">
+                  {!snap.finished && (
+                    snap.paused ? (
+                      <Button variant="secondary" icon="play" disabled={readOnly} onClick={onResume}>
+                        {ui('继续')}
+                      </Button>
+                    ) : (
+                      <Button variant="secondary" disabled={readOnly} onClick={onPause}>
+                        {ui('暂停')}
+                      </Button>
+                    )
+                  )}
+                  <Button
+                    variant="primary"
+                    icon="check"
+                    disabled={readOnly}
+                    onClick={() => handleComplete(snap)}
+                  >
+                    {snap.mode === 'break'
+                      ? ui('结束休息')
+                      : uiFormat('完成，记 {0} 分钟', [snap.loggedMinutes])}
                   </Button>
-                ) : (
-                  <Button variant="secondary" disabled={readOnly} onClick={onPause}>
-                    {ui('暂停')}
+                  <Button variant="quiet" icon="close" disabled={readOnly} onClick={handleCancel}>
+                    {ui('放弃这一个')}
                   </Button>
-                )
-              )}
-              <Button
-                variant="primary"
-                icon="check"
-                disabled={readOnly}
-                onClick={() => handleComplete(snap)}
-              >
-                {snap.mode === 'break'
-                  ? ui('结束休息')
-                  : uiFormat('完成，记 {0} 分钟', [snap.loggedMinutes])}
-              </Button>
-              <Button variant="quiet" icon="close" disabled={readOnly} onClick={handleCancel}>
-                {ui('放弃这一个')}
-              </Button>
+                </div>
+                <FocusSoundscapePill />
+                <FocusAmbientControls mode={ambientMode} onChange={handleAmbientChange} />
+                <p className="board-focus-stage__meta">
+                  {joinMeta([
+                    uiFormat('今日已专注 {0} 分钟', [todayLog.totalMinutes]),
+                    ui('仅保存在本机'),
+                  ])}
+                </p>
+              </div>
             </div>
-            <p className="board-focus-stage__meta">
-              {joinMeta([
-                uiFormat('今日已专注 {0} 分钟', [todayLog.totalMinutes]),
-                ui('仅保存在本机'),
-              ])}
-            </p>
           </div>
         </Dialog>
+      )}
+      {chimeOpen && ChimeDialog && (
+        <ChimeDialog onClose={() => setChimeOpen(false)} />
       )}
     </>
   );

@@ -17,7 +17,7 @@ export default function TodayView({
   board, today, library, readOnly = false, hasDone = true, dailyPlan = null, dailyTaskIds,
   dailyBudgetMinutes, planAnswer, focusedMinutes = null, nowMs,
   onToggleDone, onEdit, onAction, onTodayAction, onMoveToday, onQuickAdd, onScheduleToday, onOrigin, onStudyRef,
-  onStartTimer, onStartBreak, onPauseTimer, onResumeTimer, onCancelTimer, onCompleteTimer, onSaveTimerPrefs,
+  onStartTimer, onStartFreeFocus, onStartBreak, onPauseTimer, onResumeTimer, onCancelTimer, onCompleteTimer, onSaveTimerPrefs,
   onAddTimeLog, onEditTimeLog, onRemoveTimeLog,
   onAddMemo, onEditMemo, onArchiveMemo, onDeleteMemo, onOpenPlan, onPracticeScope,
 }) {
@@ -447,6 +447,7 @@ export default function TodayView({
             nowMs={nowMs}
             fullscreen={timerFullscreen}
             onFullscreenChange={setTimerFullscreen}
+            onStartFreeFocus={onStartFreeFocus}
             onStartBreak={onStartBreak}
             onPause={onPauseTimer}
             onResume={onResumeTimer}

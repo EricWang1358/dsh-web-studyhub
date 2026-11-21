@@ -339,6 +339,16 @@ export default function Board({ state, library, today: todayProp, view: viewProp
     return ok;
   }, [run, say, onBoardChanged]);
 
+  const startFreeFocus = useCallback(async (title) => {
+    const focusTitle = typeof title === "string" && title.trim() ? title.trim() : ui("自由专注");
+    const ok = await run("board.timer.start", { mode: "work", cardTitle: focusTitle }, { optimistic: false });
+    if (ok) {
+      say(uiFormat("已开始专注：{0}", [focusTitle]));
+      onBoardChanged?.();
+    }
+    return ok;
+  }, [run, say, onBoardChanged]);
+
   const startBreak = useCallback(async (durationMinutes) => {
     const ok = await run("board.timer.start", {
       mode: "break",
@@ -732,6 +742,7 @@ export default function Board({ state, library, today: todayProp, view: viewProp
           onOrigin={openRef(onOrigin)}
           onStudyRef={openRef(onStudyRef)}
           onStartTimer={startTimer}
+          onStartFreeFocus={startFreeFocus}
           onStartBreak={startBreak}
           onPauseTimer={pauseTimer}
           onResumeTimer={resumeTimer}

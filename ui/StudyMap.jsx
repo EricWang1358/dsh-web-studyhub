@@ -43,6 +43,7 @@ import { JOB_TYPES } from '../lib/job-status.js';
 import FirstRunLine from "./first-run/FirstRunLine.jsx";
 import { useFirstRunLine } from "./first-run/use-first-run-line.js";
 import { AppContext } from "./app/app-context.js";
+import LazyDeskPlayStrip from "./desk-play/LazyDeskPlayStrip.jsx";
 
 /* The library home: the day's one card, the course heading, generation
    progress and drafts, and the catalogue of decks by course. Each part lives in
@@ -186,6 +187,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
           ? <div className="today-stack" data-depth={0} data-tour="home-today"><FirstRunLine line={line} form="compact" todayLabel={home.todayLabel} on={lineOn} plan={firstRun?.plan} /></div>
           : <TodayCard plan={home.plan} todayLabel={home.todayLabel} quiet={nextHasButton} extra={<RereadLine data={data} />} />}
       </div>
+      <LazyDeskPlayStrip data={data} onPracticeDeck={(deckId) => start?.({ mode: "path", scope: [{ deckId }] })} />
       {/* 待发布 sits under the day's work; it opens on its own when unpublished drafts wait and today's round is empty or finished. */}
       <HomeDrafts drafts={drafts} data={data} modelReady={modelReadiness(data).ready} openDraft={openDraft} topUpDraft={topUpDraft} defaultOpen={autoOpenDrafts} />
       {Boolean(data.focus?.course && (data.courses || []).some((c) => (c.name === data.focus.course || (c.aliases || []).includes(data.focus.course)) && c.companions?.length > 0))

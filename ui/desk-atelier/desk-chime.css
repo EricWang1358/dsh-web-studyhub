@@ -1,0 +1,338 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* ── Playable «五声风铃» D-Major Desk Chime Box Dialog ──────────────── */
+    .desk-chime-dialog {
+      --chime-bar-h: 100%;
+      --chime-warmth: 36%;
+    }
+    .desk-chime {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3-5);
+      min-width: 0;
+    }
+    .desk-chime__intro {
+      margin: 0;
+      font-size: var(--fs-sm);
+      color: var(--text-dim);
+      line-height: 1.5;
+    }
+    .desk-chime__notice {
+      margin: 0;
+    }
+    .desk-chime__frame {
+      position: relative;
+      padding: var(--space-4) var(--space-3) var(--space-4);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--bg-sunken);
+      box-shadow: var(--shadow-panel);
+      touch-action: none;
+      user-select: none;
+    }
+    .desk-chime__rail {
+      height: 6px;
+      margin: 0 var(--space-1) 0;
+      border-radius: var(--radius-pill);
+      background: linear-gradient(90deg, var(--line-strong), var(--warn-mid), var(--line-strong));
+      opacity: 0.9;
+    }
+    .desk-chime__bars {
+      display: grid;
+      grid-template-columns: repeat(9, minmax(0, 1fr));
+      align-items: start;
+      gap: var(--space-1-5);
+      height: 12.5rem;
+      padding: 0 var(--space-1);
+    }
+    .desk-chime__slot {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      height: var(--chime-bar-h);
+      min-width: 0;
+      transform-origin: center top;
+    }
+    .desk-chime__slot.is-struck {
+      animation: sh-desk-chime-sway 0.52s var(--ease-out);
+    }
+    .desk-chime__cord {
+      width: 1px;
+      height: 14px;
+      flex: none;
+      background: var(--decor-faint);
+      opacity: 0.75;
+    }
+    .desk-chime__bar {
+      position: relative;
+      flex: 1 1 auto;
+      width: 100%;
+      min-width: 0;
+      min-height: 0;
+      padding: var(--space-3) var(--space-half) var(--space-2);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-end;
+      gap: var(--space-1-5);
+      border: 1px solid color-mix(in srgb, var(--warn-line) 55%, var(--line-strong));
+      border-radius: var(--radius-sm);
+      background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--warn-tint) var(--chime-warmth), var(--bg-raised)) 0%,
+        color-mix(in srgb, var(--warn-bg) calc(var(--chime-warmth) * 0.7), var(--bg-surface)) 100%
+      );
+      box-shadow: var(--shadow-item);
+      color: var(--text);
+      overflow: visible;
+      transition: transform var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease);
+    }
+    .desk-chime__cap {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      border-radius: var(--radius-xs) var(--radius-xs) 0 0;
+      background: linear-gradient(90deg, var(--warn-line), var(--warn-mid), var(--warn-line));
+      opacity: 0.9;
+      pointer-events: none;
+    }
+    .desk-chime__pin {
+      position: absolute;
+      top: 7px;
+      left: 50%;
+      width: 5px;
+      height: 5px;
+      transform: translateX(-50%);
+      border-radius: 50%;
+      border: 1px solid var(--warn-line);
+      background: var(--bg-sunken);
+      pointer-events: none;
+    }
+    .desk-chime__bar:hover:not(:disabled) {
+      border-color: var(--warn-line);
+      background: linear-gradient(180deg, var(--warn-bg) 0%, var(--bg-raised) 100%);
+      transform: translateY(-2px);
+    }
+    .desk-chime__bar.is-struck {
+      border-color: var(--warn);
+      background: linear-gradient(180deg, var(--warn-tint) 0%, var(--warn-bg) 100%);
+    }
+    .desk-chime__ring {
+      position: absolute;
+      inset: 22% 12%;
+      border-radius: 50%;
+      border: 1.5px solid var(--warn-mid);
+      opacity: 0;
+      pointer-events: none;
+    }
+    .desk-chime__bar.is-struck .desk-chime__ring {
+      animation: sh-desk-chime-ring 0.52s var(--ease-out);
+    }
+    .desk-chime__pitch {
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-medium);
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+      line-height: 1.1;
+    }
+    .desk-chime__kbd {
+      display: inline-grid;
+      place-items: center;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 var(--space-half);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-xs);
+      background: var(--bg-sunken);
+      color: var(--text-muted);
+      font-family: var(--font-ui);
+      font-size: var(--fs-xs);
+      font-weight: var(--fw-regular);
+      line-height: 1;
+    }
+    .desk-chime__controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2) var(--space-3);
+      padding: var(--space-2-5) var(--space-3);
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius-sm);
+      background: var(--bg-surface);
+    }
+    .desk-chime__footer {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3);
+      min-width: 0;
+    }
+    .desk-chime__note-trail {
+      font-size: var(--fs-sm);
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* ── Focus-Stage Atmospheric Ripple Canvas (TodayTimer Fullscreen) ─── */
+    .desk-focus-stage-wrap {
+      position: relative;
+      width: 100%;
+      min-height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .desk-focus-stage-inner {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      display: flex;
+      justify-content: center;
+    }
+    .desk-ambient-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      pointer-events: none;
+      opacity: 0.16;
+      transition: opacity var(--dur-slow) var(--ease);
+    }
+    .desk-ambient-bar {
+      width: 100%;
+      max-width: 30rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-1-5) var(--space-2);
+    }
+    .desk-ambient-bar__label {
+      font-size: var(--fs-sm);
+      color: var(--text-muted);
+    }
+    .desk-ambient-bar__pills {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: var(--space-1-5);
+    }
+    .desk-ambient-bar__choice {
+      min-height: 0;
+      padding: var(--space-1) var(--space-2-5);
+      border: 1px solid var(--line-soft);
+      font-size: var(--fs-sm);
+      color: var(--text-muted);
+    }
+    .desk-ambient-bar__choice.is-selected,
+    .desk-ambient-bar__choice[aria-pressed="true"] {
+      background: var(--bg-selected);
+      border-color: var(--line-strong);
+      color: var(--text);
+      font-weight: var(--fw-medium);
+    }
+  }
+
+  /* High-contrast, forced-colors, and reduced-motion safeguards. */
+  .study-app[data-contrast="high"] .desk-ambient-canvas,
+  .study-seat[data-contrast="high"] .desk-ambient-canvas {
+    display: none;
+  }
+
+  @media (max-width: 520px) {
+    :is(.study-app, .study-seat) {
+      .desk-chime__bars {
+        gap: var(--space-1);
+        height: 11rem;
+      }
+      .desk-chime__kbd {
+        display: none;
+      }
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :is(.study-app, .study-seat) {
+      .desk-ambient-canvas {
+        display: none !important;
+      }
+      .desk-chime__slot.is-struck,
+      .desk-chime__bar.is-struck .desk-chime__ring {
+        animation: none !important;
+      }
+      .desk-chime__bar,
+      .desk-ambient-canvas {
+        transition: none !important;
+      }
+      .desk-chime__bar:hover:not(:disabled) {
+        transform: none !important;
+      }
+    }
+  }
+  :is(.study-app, .study-seat)[data-motion="reduced"],
+  :is(.study-app, .study-seat)[data-motion="off"] {
+    .desk-ambient-canvas {
+      display: none !important;
+    }
+    .desk-chime__slot.is-struck,
+    .desk-chime__bar.is-struck .desk-chime__ring {
+      animation: none !important;
+    }
+    .desk-chime__bar,
+    .desk-ambient-canvas {
+      transition: none !important;
+    }
+    .desk-chime__bar:hover:not(:disabled) {
+      transform: none !important;
+    }
+  }
+
+  @media (forced-colors: active) {
+    :is(.study-app, .study-seat) {
+      .desk-ambient-canvas {
+        display: none !important;
+      }
+    }
+  }
+}
+
+@keyframes sh-desk-chime-sway {
+  0% {
+    transform: rotate(0deg);
+  }
+  22% {
+    transform: rotate(-3.2deg);
+  }
+  52% {
+    transform: rotate(2.1deg);
+  }
+  78% {
+    transform: rotate(-0.9deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes sh-desk-chime-ring {
+  0% {
+    transform: scale(0.55);
+    opacity: 0.78;
+  }
+  100% {
+    transform: scale(1.65);
+    opacity: 0;
+  }
+}

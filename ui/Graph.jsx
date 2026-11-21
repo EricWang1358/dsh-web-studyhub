@@ -1,10 +1,12 @@
 import { ui, uiFormat, errorMessage } from "./i18n.js";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import css from "./graph.css";
+import sketchCss from "./graph-sketch/graph-sketch.css";
 import PageScope, { usePageScope, useShowInactive, scopeArgs } from './PageScope.jsx';
-import { Button, ErrorState, Hint, LoadingState, SegmentedControl } from './components/index.js';
+import { Button, ErrorState, Hint, LoadingState, SegmentedControl, useToast } from './components/index.js';
 import { FullscreenButton, ZoomControls, useCanvasFullscreen, usePanZoom } from "./canvas/index.js";
 import { useInjectCss, LEVEL_LABEL, LEVELS } from "./shared.js";
+import { usePersistentState } from "./storage.js";
 import { joinMeta } from './format.js';
 import {
   layoutStructure,
@@ -17,6 +19,19 @@ import {
   ZOOM_MAX,
 } from "./graph-layout.js";
 import { useStudy } from "./study-context.jsx";
+import { useInkPalette } from "./graph-sketch/ink-palette.js";
+import {
+  GRAPH_STYLES,
+  buildGraphFilename,
+  computeLineage,
+  edgeKey,
+  exportGraphSvg,
+} from "./graph-sketch/graph-sketch.js";
+import {
+  SketchEdgeLayer,
+  SketchNodeFrame,
+  useGraphRoughGenerator,
+} from "./graph-sketch/GraphSketchLayer.jsx";
 
 /* Knowledge graph / study path, rendered as a sideways fork: decks on the
    left, topics fanning right, each topic branching into its card leaves.
@@ -54,6 +69,17 @@ export function GraphStatus({ loading, error, onRetry }) {
   return <div className="graph-state"><Hint>{ui("当前范围内没有可展示的题目。")}</Hint></div>;
 }
 
+const GRAPH_STYLE_KEY = "study-graph-style";
+const GRAPH_STYLE_SET = new Set(GRAPH_STYLES);
+function parseGraphStyle(raw) {
+  try {
+    const parsed = JSON.parse(raw);
+    return GRAPH_STYLE_SET.has(parsed) ? parsed : undefined;
+  } catch {
+    return GRAPH_STYLE_SET.has(raw) ? raw : undefined;
+  }
+}
+
 /* ── component ────────────────────────────────────────────────────────── */
 export default function Graph({
   scope,
@@ -62,18 +88,32 @@ export default function Graph({
   onStudyCard,
   canvasWanted,
   onCanvasHandled,
+  defaultStyle = "crisp",
+  initialData = null,
+  roughGenerator = null,
 }) {
   const { call, busy } = useStudy();
+  const toast = useToast();
   useInjectCss(css, "study-graph");
+  useInjectCss(sketchCss, "study-graph-sketch");
   const [course, setCourse] = usePageScope(library?.root, 'graph', library?.focus?.course ?? '*');
   const [showInactive, setShowInactive] = useShowInactive(library?.root, 'graph');
   const [browse, setBrowse] = useState(false);
   const objectScope = scope != null && !browse;
   const [mode, setMode] = useState("structure");
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [styleMode, setStyleMode] = usePersistentState(
+    GRAPH_STYLE_KEY,
+    GRAPH_STYLE_SET.has(defaultStyle) ? defaultStyle : "crisp",
+    { parse: parseGraphStyle },
+  );
+  const [data, setData] = useState(initialData);
+  const [loading, setLoading] = useState(!initialData);
   const [error, setError] = useState("");
+  const [spotlightId, setSpotlightId] = useState(null);
   const fullscreen = useCanvasFullscreen();
+  const svgRef = useRef(null);
+  const palette = useInkPalette(fullscreen.ref);
+  const roughGen = useGraphRoughGenerator(styleMode === "sketch", roughGenerator);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const { viewRef, view, viewport, fit, zoomAt, panHandlers } = usePanZoom(size.w, size.h, {
     maxFit: FIT_MAX, minInitial: 0, zoomMin: ZOOM_MIN, zoomMax: ZOOM_MAX,
@@ -123,6 +163,14 @@ export default function Graph({
     setSize((previous) => (previous.w === next.w && previous.h === next.h ? previous : next));
   }, [layout]);
 
+  const activeMode = data?.mode || mode;
+  const lineage = useMemo(
+    () => computeLineage(layout, spotlightId, activeMode),
+    [layout, spotlightId, activeMode],
+  );
+  const isSketch = styleMode === "sketch";
+  const compactSketch = (layout?.placed.length || 0) > 220;
+
   /* Opened from the study map: the click that navigated here is the user
      gesture that lets the canvas take the screen, so try it once on mount and
      hand the intent back either way. */
@@ -147,15 +195,51 @@ export default function Graph({
     },
     [onStudyCard],
   );
+  const handleExportSvg = useCallback(() => {
+    if (!layout || !svgRef.current) return;
+    const ok = exportGraphSvg(
+      svgRef.current,
+      buildGraphFilename(activeMode, styleMode),
+      { width: layout.width, height: layout.height, palette },
+    );
+    if (ok) toast.success(ui("已导出知识图谱 SVG。"));
+    else toast.error(ui("导出知识图谱未成功，请重试。"));
+  }, [layout, activeMode, styleMode, palette, toast]);
   const clickable = !!onStudyCard && !loading && !error;
+
+  const spotlightNodeClass = (key, extra = "") => {
+    const dimmed = lineage && !lineage.connectedNodes.has(key);
+    return [extra, "gn-spotlight-item", dimmed ? "gn-spotlight-dim" : ""].filter(Boolean).join(" ");
+  };
+  const spotlightEdgeClass = (base, key) => {
+    if (!lineage) return `${base} gn-spotlight-edge`;
+    return `${base} gn-spotlight-edge ${lineage.highlightedEdges.has(key) ? "gn-spotlight-edge-active" : "gn-spotlight-edge-dim"}`;
+  };
+  const spotlightHandlers = (key) => ({
+    onMouseEnter: () => setSpotlightId(key),
+    onMouseLeave: () => setSpotlightId((cur) => (cur === key ? null : cur)),
+    onFocus: () => setSpotlightId(key),
+    onBlur: () => setSpotlightId((cur) => (cur === key ? null : cur)),
+  });
 
   const renderNode = (p) => {
     const n = p.node;
+    const level = levelOf(n);
     if (p.kind === "deck") {
       const meta = metaOf(n);
       return (
-        <g key={p.key} transform={`translate(${p.x} ${p.y - p.h / 2})`}>
-          <rect className={`gn-node gn-deck gn-${levelOf(n)}`} width={p.w} height={p.h} rx={12} />
+        <g
+          key={p.key}
+          data-node-key={p.key}
+          className={spotlightNodeClass(p.key)}
+          transform={`translate(${p.x} ${p.y - p.h / 2})`}
+          {...spotlightHandlers(p.key)}
+        >
+          {isSketch ? (
+            <SketchNodeFrame placed={p} level={level} palette={palette} roughGen={roughGen} compact={compactSketch} />
+          ) : (
+            <rect className={`gn-node gn-deck gn-${level}`} width={p.w} height={p.h} rx={12} />
+          )}
           <text className="gn-label gn-deck-label" x={12} y={20}>
             {fitLabel(n.label, 15)}
           </text>
@@ -171,13 +255,23 @@ export default function Graph({
       const label = n.ghost ? ui(n.label) : n.label || tail?.[1] || ui("未命名主题");
       const meta = n.ghost ? "" : metaOf(n);
       return (
-        <g key={p.key} transform={`translate(${p.x} ${p.y - p.h / 2})`}>
-          <rect
-            className={`gn-node gn-topic ${n.ghost ? "gn-ghost" : `gn-${levelOf(n)}`}`}
-            width={p.w}
-            height={p.h}
-            rx={9}
-          />
+        <g
+          key={p.key}
+          data-node-key={p.key}
+          className={spotlightNodeClass(p.key)}
+          transform={`translate(${p.x} ${p.y - p.h / 2})`}
+          {...spotlightHandlers(p.key)}
+        >
+          {isSketch ? (
+            <SketchNodeFrame placed={p} level={level} palette={palette} roughGen={roughGen} compact={compactSketch} />
+          ) : (
+            <rect
+              className={`gn-node gn-topic ${n.ghost ? "gn-ghost" : `gn-${level}`}`}
+              width={p.w}
+              height={p.h}
+              rx={9}
+            />
+          )}
           <text className={`gn-label${n.ghost ? " gn-ghost-label" : ""}`} x={10} y={14}>
             {fitLabel(label, 14)}
           </text>
@@ -189,22 +283,24 @@ export default function Graph({
       );
     }
     // card (structure) / pcard (path): clickable leaf
-    const lvl = `gn-${levelOf(n)}`;
+    const lvl = `gn-${level}`;
     const fullText = n.objective || n.prompt || n.label || "";
     const cap =
       p.kind === "pcard"
         ? fitLabel([n.deckTitle, n.topic].filter(Boolean).join(" › "), 15) ||
-          LEVEL_LABEL[levelOf(n)]
+          LEVEL_LABEL[level]
         : null;
     return (
       <g
         key={p.key}
+        data-node-key={p.key}
         transform={`translate(${p.x} ${p.y - p.h / 2})`}
-        className={clickable ? "gn-clickable" : undefined}
+        className={spotlightNodeClass(p.key, clickable ? "gn-clickable" : "")}
         role={clickable ? "button" : undefined}
         tabIndex={clickable ? 0 : undefined}
         aria-label={fullText}
         onClick={clickable ? () => study(n) : undefined}
+        {...spotlightHandlers(p.key)}
         onKeyDown={
           clickable
             ? (ev) => {
@@ -217,12 +313,16 @@ export default function Graph({
             : undefined
         }
       >
-        <rect
-          className={`gn-node ${p.kind === "pcard" ? "gn-topic" : "gn-card"} ${lvl}`}
-          width={p.w}
-          height={p.h}
-          rx={p.kind === "pcard" ? 14 : p.h / 2}
-        />
+        {isSketch ? (
+          <SketchNodeFrame placed={p} level={level} palette={palette} roughGen={roughGen} compact={compactSketch} />
+        ) : (
+          <rect
+            className={`gn-node ${p.kind === "pcard" ? "gn-topic" : "gn-card"} ${lvl}`}
+            width={p.w}
+            height={p.h}
+            rx={p.kind === "pcard" ? 14 : p.h / 2}
+          />
+        )}
         {p.kind === "pcard" ? (
           <>
             <text className="gn-label" x={12} y={20}>
@@ -255,6 +355,7 @@ export default function Graph({
   return (
     <section
       className={("graph" + (fullscreen.full ? " graph-canvas" : "") + (fullscreen.expanded ? " graph--expanded" : "") + " " + fullscreen.className).trim()}
+      data-graph-style={styleMode}
       ref={fullscreen.ref}
       tabIndex={-1}
       aria-busy={busy || loading}
@@ -264,11 +365,16 @@ export default function Graph({
       <div className="graph-toolbar">
         <SegmentedControl size="sm" label={ui("视图模式")} value={mode} disabled={busy} onChange={setMode}
           options={[{ value: "structure", label: ui("知识结构") }, { value: "path", label: ui("学习路径") }]} />
+        <SegmentedControl size="sm" label={ui("画风")} value={styleMode} disabled={busy} onChange={setStyleMode}
+          options={[{ value: "crisp", label: ui("精密") }, { value: "sketch", label: ui("手绘墨线") }]} />
         <div className="graph-zoom" role="group" aria-label={ui("缩放")}>
           <ZoomControls variant="quiet" zoomAt={zoomAt} fit={() => fit()} percent={Math.round(view.k * 100)} disabled={!layout}
             fitTitle={ui("缩放到刚好看到整张图（0）")} />
         </div>
         <div className="graph-actions">
+          <Button variant="quiet" size="sm" icon="download" disabled={!layout || !layout.placed.length} onClick={handleExportSvg}>
+            {ui("导出 SVG")}
+          </Button>
           <FullscreenButton full={fullscreen.full} variant={fullscreen.full ? "secondary" : "primary"} onToggle={fullscreen.toggle}
             title={fullscreen.full ? ui("回到面板中查看（Esc）") : ui("用整个屏幕看这张图，可缩放、拖拽")} />
           <Button size="sm" onClick={onClose}>{ui("关闭")}</Button>
@@ -302,7 +408,7 @@ export default function Graph({
       )}
 
       <div
-        className="graph-viewport"
+        className={`graph-viewport${isSketch ? " graph-sketch-surface" : ""}`}
         ref={viewRef}
         role="group"
         tabIndex={0}
@@ -322,12 +428,14 @@ export default function Graph({
             style={{ width: layout.width, height: layout.height, transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})` }}
           >
             <svg
+              ref={svgRef}
               className="graph-svg"
               width={layout.width}
               height={layout.height}
               viewBox={`0 0 ${layout.width} ${layout.height}`}
               role="img"
               aria-label={mode === "path" ? ui("学习路径图") : ui("知识结构图")}
+              onMouseLeave={() => setSpotlightId(null)}
             >
               <defs>
                 <marker
@@ -354,10 +462,17 @@ export default function Graph({
                 </marker>
               </defs>
 
-              {(data.mode || mode) === "path" ? (
+              {isSketch ? (
+                <SketchEdgeLayer layout={layout} mode={activeMode} palette={palette} roughGen={roughGen} lineage={lineage} />
+              ) : activeMode === "path" ? (
                 <>
                   {layout.orderPaths.map((d, i) => (
-                    <path key={`o${i}`} className="gn-order" markerEnd="url(#gn-arrow-order)" d={d} />
+                    <path
+                      key={`o${i}`}
+                      className={spotlightEdgeClass("gn-order", `order:${i}`)}
+                      markerEnd="url(#gn-arrow-order)"
+                      d={d}
+                    />
                   ))}
                   {layout.prereqEdges.map((e, i) => {
                     const a = layout.posOf.get(e.from);
@@ -365,7 +480,7 @@ export default function Graph({
                     return (
                       <path
                         key={`p${i}`}
-                        className="gn-prereq"
+                        className={spotlightEdgeClass("gn-prereq", edgeKey("prereq", e.from, e.to))}
                         markerEnd="url(#gn-arrow-prereq)"
                         d={bez(a.x + a.w, a.y, b.x, b.y)}
                       >
@@ -379,7 +494,13 @@ export default function Graph({
                   {layout.treeEdges.map((e, i) => {
                     const a = layout.posOf.get(e.from);
                     const b = layout.posOf.get(e.to);
-                    return <path key={`t${i}`} className="gn-tree" d={bez(a.x + a.w, a.y, b.x, b.y)} />;
+                    return (
+                      <path
+                        key={`t${i}`}
+                        className={spotlightEdgeClass("gn-tree", edgeKey("tree", e.from, e.to))}
+                        d={bez(a.x + a.w, a.y, b.x, b.y)}
+                      />
+                    );
                   })}
                   {layout.prereqEdges.map((e, i) => {
                     const a = layout.posOf.get(e.from);
@@ -387,7 +508,7 @@ export default function Graph({
                     return (
                       <path
                         key={`p${i}`}
-                        className="gn-prereq"
+                        className={spotlightEdgeClass("gn-prereq", edgeKey("prereq", e.from, e.to))}
                         markerEnd="url(#gn-arrow-prereq)"
                         d={bez(a.x + a.w, a.y, b.x, b.y)}
                       >
@@ -408,6 +529,14 @@ export default function Graph({
         {fullscreen.full
           ? ui("拖拽平移 · Ctrl/⌘+滚轮缩放 · Esc 退出全屏")
           : uiFormat("拖拽平移 · Ctrl/⌘+滚轮缩放 · 缩放范围 {0}–{1}%", [Math.round(ZOOM_MIN * 100), Math.round(ZOOM_MAX * 100)])}
+        {lineage && (lineage.upstreamCount > 0 || lineage.downstreamCount > 0) && (
+          <>
+            {" · "}
+            <span className="graph-sketch-lineage" data-testid="graph-lineage-hint">
+              {uiFormat("前置 {0} 项 · 后续 {1} 项", [lineage.upstreamCount, lineage.downstreamCount])}
+            </span>
+          </>
+        )}
       </div>
     </section>
   );

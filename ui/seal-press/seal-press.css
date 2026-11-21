@@ -1,0 +1,291 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    /* ── Quiet Flow Cadence & Leech Conquest Seal (QuestionRun) ── */
+    .sh-seal-flow-cue {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1-5);
+      margin-inline-start: var(--space-2);
+      padding: var(--space-half) var(--space-2-5);
+      border: 1px solid var(--ok-line);
+      border-radius: var(--radius-pill);
+      background: var(--ok-bg);
+      color: var(--ok-ink);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-medium);
+      line-height: var(--lh-snug);
+      white-space: nowrap;
+      vertical-align: middle;
+      animation: sh-seal-press-pop var(--dur) var(--ease-out) both;
+    }
+
+    .sh-seal-flow-cue[data-tier="2"] {
+      border-color: var(--warn-line);
+      background: var(--warn-bg);
+      color: var(--warn-ink);
+    }
+
+    .sh-seal-flow-cue[data-tier="3"] {
+      border-color: var(--ok-line);
+      background: var(--ok-bg);
+      color: var(--ok-ink);
+    }
+
+    .sh-seal-flow-cue__ring {
+      position: relative;
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+      flex: none;
+    }
+
+    .sh-seal-flow-cue__ring::after {
+      content: "";
+      position: absolute;
+      inset: -3px;
+      border-radius: 50%;
+      border: 1px solid currentColor;
+      opacity: 0;
+      animation: sh-seal-press-ring 1.8s var(--ease-out) 1 both;
+    }
+
+    .sh-seal-verdict-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2-5);
+      margin-top: var(--space-2-5);
+      padding-top: var(--space-2-5);
+      border-top: 1px dashed var(--paper-rule);
+    }
+
+    .sh-seal-verdict-stamp {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: none;
+      transform: rotate(-3deg);
+      animation: sh-seal-press-stamp var(--dur-slow) var(--ease-out) both;
+    }
+
+    .sh-seal-verdict-stamp__img {
+      display: block;
+      width: 42px;
+      height: 42px;
+    }
+
+    .sh-seal-verdict-copy {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: var(--space-1-5) var(--space-2);
+      min-width: 0;
+      font-size: var(--fs-sm);
+      color: var(--paper-dim);
+      line-height: var(--lh-snug);
+    }
+
+    .sh-seal-verdict-lead {
+      color: var(--accent-text);
+      font-weight: var(--fw-medium);
+      font-family: var(--font-display);
+    }
+
+    .sh-seal-verdict-flow {
+      margin-top: var(--space-2);
+      color: var(--paper-dim);
+      font-size: var(--fs-sm);
+      line-height: var(--lh-snug);
+    }
+
+    .sh-seal-verdict-flow__phrase {
+      color: var(--paper-ink);
+      font-weight: var(--fw-medium);
+    }
+
+    /* ── Round Completion Carved Seal Card (Review .result-page) ── */
+    .sh-seal-card {
+      margin: var(--space-4-5) 0;
+      padding: var(--space-4-5) var(--space-5);
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: var(--space-4-5);
+      align-items: center;
+    }
+
+    .sh-seal-press-trigger {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: var(--space-1-5);
+      border-radius: var(--radius);
+      transition: transform var(--dur-fast) var(--ease);
+    }
+
+    .sh-seal-press-trigger:hover {
+      transform: scale(1.03) rotate(-1.5deg);
+    }
+
+    .sh-seal-press-trigger:active {
+      transform: scale(0.95) rotate(-3deg);
+    }
+
+    .sh-seal-press-trigger.is-stamping .sh-seal-stamp-img {
+      animation: sh-seal-press-stamp var(--dur-slow) var(--ease-out) both;
+    }
+
+    .sh-seal-stamp-img {
+      display: block;
+      width: 84px;
+      height: 84px;
+      user-select: none;
+      transform: rotate(-2deg);
+    }
+
+    .sh-seal-card__info {
+      display: grid;
+      gap: var(--space-1-5);
+      min-width: 0;
+    }
+
+    .sh-seal-card__kicker {
+      color: var(--paper-dim);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-medium);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .sh-seal-card__heading {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2-5);
+    }
+
+    .sh-seal-card__title {
+      margin: 0;
+      color: var(--paper-ink);
+      font-family: var(--font-display);
+      font-size: var(--fs-xl);
+      font-weight: var(--fw-medium);
+      line-height: var(--lh-tight);
+    }
+
+    .sh-seal-card__reason {
+      margin: 0;
+      color: var(--paper-dim);
+      font-size: var(--fs-sm);
+      line-height: var(--lh-snug);
+    }
+
+    .sh-seal-card__style-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2);
+      margin-top: var(--space-1);
+    }
+
+    .sh-seal-card__actions {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: var(--space-2);
+      flex: none;
+    }
+  }
+
+  /* ── Reduced / Off Motion Guards ── */
+  @media (prefers-reduced-motion: reduce) {
+    :where(.study-app, .study-seat) {
+      .sh-seal-flow-cue,
+      .sh-seal-flow-cue__ring::after,
+      .sh-seal-verdict-stamp,
+      .sh-seal-press-trigger.is-stamping .sh-seal-stamp-img {
+        animation: none !important;
+      }
+
+      .sh-seal-press-trigger {
+        transition: none !important;
+      }
+
+      .sh-seal-press-trigger:hover,
+      .sh-seal-press-trigger:active {
+        transform: none !important;
+      }
+    }
+  }
+
+  :is(.study-app, .study-seat)[data-motion="reduced"],
+  :is(.study-app, .study-seat)[data-motion="off"] {
+    .sh-seal-flow-cue,
+    .sh-seal-flow-cue__ring::after,
+    .sh-seal-verdict-stamp,
+    .sh-seal-press-trigger.is-stamping .sh-seal-stamp-img {
+      animation: none !important;
+    }
+
+    .sh-seal-press-trigger:hover,
+    .sh-seal-press-trigger:active {
+      transform: none !important;
+    }
+  }
+
+  @container study (max-width: 640px) {
+    :where(.study-app, .study-seat) {
+      .sh-seal-card {
+        grid-template-columns: 1fr;
+        justify-items: start;
+        gap: var(--space-3-5);
+      }
+
+      .sh-seal-card__actions {
+        width: 100%;
+        flex-direction: row;
+        flex-wrap: wrap;
+      }
+    }
+  }
+}
+
+@keyframes sh-seal-press-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-2px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes sh-seal-press-ring {
+  0% {
+    opacity: 0.7;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.1);
+  }
+}
+
+@keyframes sh-seal-press-stamp {
+  0% {
+    opacity: 0.72;
+    transform: scale(1.18) rotate(-6deg);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(0.94) rotate(-1.5deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(-2deg);
+  }
+}

@@ -2,6 +2,7 @@ const prefix='daily-flashcard-demo-file:';
 export const mkdir=async()=>{};
 export async function readFile(path){let value=localStorage.getItem(prefix+path);if(value===null && path==='/demo/study/board.json'){value=JSON.stringify(sampleBoard());localStorage.setItem(prefix+path,value);}if(value===null)throw Object.assign(new Error('Missing demo file'),{code:'ENOENT'});return value;}
 export async function writeFile(path,value){localStorage.setItem(prefix+path,value);}
+export const open=async(path)=>({writeFile:(content)=>writeFile(path,typeof content==='string'?content:String(content)),sync:async()=>{},close:async()=>{}});
 export async function rename(from,to){await writeFile(to,await readFile(from));await rm(from);}
 export async function rm(path){localStorage.removeItem(prefix+path);}
 export const homedir=()=>'/demo', hostname=()=>'demo', totalmem=()=>8*1024*1024*1024;

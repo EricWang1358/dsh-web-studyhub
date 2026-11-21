@@ -179,6 +179,58 @@ test('generated native modules resolve through classic chunk factories and share
     assert.ok(!loadedAtBoot.includes(`${packageId}/${name}`), `${input} stays optional at activation`);
     verify(await asyncModule(`./${name}`));
   }
+  // Optional artistic/tactile libraries load on demand via dynamic import() only when the learner opens the
+  // sketchy graph/tide, editorial marks, or milestone celebrations — never at host activation.
+  for (const [label, pattern, verify] of [
+    ['rough-notation', /node_modules[/\\]rough-notation[/\\]/, module => assert.equal(typeof module.annotate, 'function')],
+    ['canvas-confetti', /node_modules[/\\]canvas-confetti[/\\]/, module => assert.equal(typeof (module.default ?? module), 'function')],
+    ['roughjs', /node_modules[/\\]roughjs[/\\]/, module => assert.equal(typeof (module.default?.generator ?? module.generator), 'function')],
+  ]) {
+    const output = Object.entries(result.metafile.outputs).find(([, record]) => Object.keys(record.inputs).some(path => pattern.test(path)));
+    assert.ok(output, `missing optional chunk boundary for ${label}`);
+    const name = basename(output[0]);
+    assert.ok(!loadedAtBoot.includes(`${packageId}/${name}`), `${label} stays optional at host activation`);
+    assert.ok(Object.values(result.metafile.outputs).every(record => !record.imports.some(edge => edge.kind !== 'dynamic-import' && basename(edge.path) === name)),
+      `only a dynamic import reaches ${label}`);
+    verify(await asyncModule(`./${name}`));
+  }
+  // Optional Wave 1 & Wave 2 artistic UI panels/dialogs also load on demand via runtime dynamic import() (outside React.lazy)
+  // so they stay out of the workspace first-load closure; materialize their static dependency graph first as loadExpression does.
+  const outputByName = new Map(Object.entries(result.metafile.outputs).map(([path, record]) => [basename(path), record]));
+  async function loadDynamicBoundary(name, visiting = new Set()) {
+    if (visiting.has(name)) return asyncModule(`./${name}`);
+    visiting.add(name);
+    const deps = (outputByName.get(name)?.imports || [])
+      .filter(edge => !edge.external && edge.kind === 'import-statement')
+      .map(edge => basename(edge.path));
+    for (const dep of deps) await loadDynamicBoundary(dep, visiting);
+    return asyncModule(`./${name}`);
+  }
+  for (const [entryPoint, verify] of [
+    ['ui/desk-atelier/DeskAtelierPanel.jsx', module => assert.equal(typeof module.default, 'function')],
+    ['ui/desk-atelier/DeskChimeDialog.jsx', module => assert.equal(typeof module.default, 'function')],
+    ['ui/desk-atelier/soundscape-assets.js', module => {
+      assert.equal(Object.keys(module.SOUNDSCAPE_DATA_URIS || {}).length, 5, 'all 5 CC0 ambient channels are present');
+      assert.equal(Object.keys(module.SOUNDSCAPE_CHANNEL_GAINS || {}).length, 5, 'all 5 ambient channel gains are present');
+    }],
+    ['ui/seal-press/seal-press-runtime.js', module => {
+      assert.equal(typeof module.FlowSealCue, 'function');
+      assert.equal(typeof module.RoundSealSection, 'function');
+    }],
+    ['ui/seal-press/PostcardStudioDialog.jsx', module => assert.equal(typeof module.default, 'function')],
+    ['ui/seal-press/SealAlbumDialog.jsx', module => assert.equal(typeof module.default, 'function')],
+    ['ui/seal-press/WrongBookClearStamp.jsx', module => assert.equal(typeof module.default, 'function')],
+    ['ui/desk-play/DeskPlayStrip.jsx', module => assert.equal(typeof module.default, 'function')],
+    ['ui/letterpress/letterpress-runtime.jsx', module => assert.equal(typeof module.default, 'function')],
+  ]) {
+    const output = Object.entries(result.metafile.outputs).find(([, record]) => record.entryPoint === entryPoint);
+    assert.ok(output, `missing optional UI boundary for ${entryPoint}`);
+    const name = basename(output[0]);
+    assert.ok(!loadedAtBoot.includes(`${packageId}/${name}`), `${entryPoint} stays optional at host activation`);
+    assert.ok(Object.values(result.metafile.outputs).every(record => !record.imports.some(edge => edge.kind !== 'dynamic-import' && basename(edge.path) === name)),
+      `only a dynamic import reaches ${entryPoint}`);
+    verify(await loadDynamicBoundary(name));
+  }
   assert.equal(cache.size, files.size, 'every emitted module can materialize');
   const notes = cache.get(`${packageId}/${basename(notesEntry[0])}`);
   assert.equal(React.isValidElement(React.createElement(notes.default, {})), true);

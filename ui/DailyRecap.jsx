@@ -10,6 +10,7 @@ import { gateTitle } from './ModelSetupGate.jsx';
 import { recapGroupKey, useDailyRecap } from './useDailyRecap.js';
 import css from './DailyRecap.css';
 import { useStudy } from './study-context.jsx';
+import LazySealAlbumTrigger from './seal-press/LazySealAlbumTrigger.jsx';
 
 export default function DailyRecap(props) {
   return <DailyRecapPanel key={JSON.stringify([props.root, props.runId, props.course])} {...props} />;
@@ -48,7 +49,10 @@ export function DailyRecapPanel(props) {
   </details>;
   return <section className="daily-recap" aria-labelledby={prefix + '-title'}>
     <div className="daily-recap-heading"><h2 id={prefix + '-title'}>{ui('今日学习总结')}</h2>
-      {onSettings && <Button iconEnd="arrow-right" className="daily-recap-heading__btn" size="sm" variant="quiet" onClick={onSettings}>{ui('生成设置')}</Button>}
+      <span className="daily-recap-status-row">
+        <LazySealAlbumTrigger onlyWhenNonEmpty size="sm" className="daily-recap-heading__btn" />
+        {onSettings && <Button iconEnd="arrow-right" className="daily-recap-heading__btn" size="sm" variant="quiet" onClick={onSettings}>{ui('生成设置')}</Button>}
+      </span>
     </div>
     <p className="daily-recap-lead">{ui('把今天各章的练习串起来，收好错因、思路和下一步。')}</p>
     {status && !modelReady && <InlineMessage tone="warning" title={gateTitle('inline')} action={onModelSettings ? { label: ui('打开模型设置'), iconEnd: 'arrow-right', onClick: onModelSettings } : undefined}>

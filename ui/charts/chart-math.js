@@ -25,6 +25,28 @@ export function niceTicks(max, target = 5) {
   return ticks;
 }
 
+/**
+ * Integer-only round tick values 0..top (top >= max) with step >= 1 for discrete counts.
+ * @param {number} max
+ * @param {number} [target]
+ */
+export function niceIntTicks(max, target = 4) {
+  if (!(max > 0)) return [0, 1];
+  const ceilMax = Math.ceil(max);
+  const raw = ceilMax / Math.max(1, target);
+  let step = 1;
+  if (raw > 1) {
+    const pow = 10 ** Math.floor(Math.log10(raw));
+    step = Math.max(1, Math.round((NICE_STEPS.find((s) => raw / pow <= s) ?? 10) * pow));
+  }
+  const ticks = [];
+  for (let value = 0; value <= ceilMax + step; value += step) {
+    ticks.push(value);
+    if (value >= ceilMax) break;
+  }
+  return ticks;
+}
+
 const keyOf = isoDay;
 const parseKey = (key) => {
   const [y, m, d] = key.split('-').map(Number);

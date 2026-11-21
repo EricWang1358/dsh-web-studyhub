@@ -947,6 +947,7 @@ test("snapshot.workflowSessions resolves course across historical session shapes
   try {
     const enSnap = {
       ...snap,
+      decks: snap.decks.map((d) => ({ ...d, title: "Distributed Transactions", course: "CS3219" })),
       workflowSessions: snap.workflowSessions.map((s) => ({ ...s, topic: "Consensus Topic", title: "Archived Flow", course: "CS3219" })),
     };
     const enDashHtml = renderWithStudy(

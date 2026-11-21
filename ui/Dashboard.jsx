@@ -14,6 +14,7 @@ import { ModelUsage } from "./TokenUsage.jsx";
 import { Badge, Button, EmptyState, ErrorState, Icon, LoadingState, PageHeader, Tooltip } from "./components/index.js";
 import { useStudy } from "./study-context.jsx";
 import { MEASURES, THIN_DATA, enoughAnswers } from "./mastery-terms.js";
+import LazySealAlbumTrigger from "./seal-press/LazySealAlbumTrigger.jsx";
 
 const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
@@ -397,7 +398,10 @@ export default function Dashboard({
       {/* 刷新 ends the title's row; the scope picker sits under both (#573). */}
       <PageHeader title={ui("学习统计")} actionsOnTitleRow
         scope={<PageScope courses={data?.focus?.courses} value={course} onChange={setCourse} showInactive={showInactive} onShowInactive={setShowInactive} />}
-        actions={<Button variant="quiet" onClick={load} busy={loading} busyLabel={ui("统计中…")}>{ui("刷新")}</Button>} />
+        actions={<>
+          <LazySealAlbumTrigger />
+          <Button variant="quiet" onClick={load} busy={loading} busyLabel={ui("统计中…")}>{ui("刷新")}</Button>
+        </>} />
 
       {err && <ErrorState error={err} onRetry={load} />}
       {loading && !stats && <LoadingState label={ui("正在统计学习记录…")} />}
