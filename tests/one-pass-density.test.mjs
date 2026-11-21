@@ -126,3 +126,14 @@ test('a one-pass slot still asks at most the range of its level: the assignments
   assert.equal(all.reduce((sum, item) => sum + item.quota, 0), made.plan.goal);
   assert.equal(made.plan.goal, 270);
 });
+
+// Gate round 3: the bound per source (400) holds however many questions a section may hold. A one-pass section may hold up to a round (30), so taking one question
+// a pass from each section for `maxQuota` passes (4 at 精简) left one source of long sections above it.
+test('one source never plans more than the per-source bound, for long sections at every level and both strategies', () => {
+  for (const chars of [21000, 40000]) for (const onePass of [false, true]) for (const level of ['lean', 'standard', 'full']) {
+    const plan = strengthPlan(sections(33, chars), [], level, { onePass });
+    assert.ok(plan.goal <= LIMITS.perSource, `${chars} ${onePass ? 'one pass' : 'staged'} ${level}: ${plan.goal}`);
+    assert.ok(plan.quotas.every(item => item.quota >= 1));
+    if (plan.goal === LIMITS.perSource) assert.ok(plan.capped.includes('source:doc'), `${chars} ${level}: the cap is said`);
+  }
+});
