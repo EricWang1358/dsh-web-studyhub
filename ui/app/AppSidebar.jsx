@@ -4,7 +4,7 @@ import { Button, Dialog, Icon } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
 import css from './app-shell.css';
 import drawerCss from './nav-drawer.css';
-import { useApp } from './app-context.js';
+import { useAppSelector } from './app-context.js';
 import { useNavAlert } from './use-nav-alert.js';
 import { useDrawerFrame } from './use-drawer-frame.js';
 import SidebarNav from './SidebarNav.jsx';
@@ -36,7 +36,7 @@ function Brand({ onCollapse }) {
 const AppSidebar = React.memo(function AppSidebar() {
   useInjectCss(css, 'study-app-shell');
   useInjectCss(drawerCss, 'study-nav-drawer');
-  const { shell } = useApp();
+  const shell = useAppSelector((s) => s.shell);
   const { alert, reason, tasks } = useNavAlert();
   useDrawerFrame(shell.rootRef, shell.navDrawer && shell.navOpen);
   const body = (<><SidebarNav alert={alert} reason={reason} tasks={tasks} /><SidebarFooter /></>);

@@ -31,7 +31,8 @@ import {
   resolveDesktopRetrievalDir,
   validateRetrievalDir,
 } from '../packages/studyhub-desktop/adapters/retrieval/discovery.mjs';
-import { extractZipArchive } from '../packages/studyhub-desktop/adapters/retrieval/zip-extract.mjs';
+import { extractZipArchive, unixModeOfZipEntry } from '../packages/studyhub-desktop/adapters/retrieval/zip-extract.mjs';
+import { EventEmitter } from 'node:events';
 import { createRetrievalInstaller } from '../packages/studyhub-desktop/adapters/retrieval/installer.mjs';
 import { createIndexLock } from '../packages/studyhub-desktop/adapters/retrieval/index-lock.mjs';
 import { createRetrievalRuntimePorts } from '../packages/studyhub-desktop/adapters/retrieval/runtime-ports.mjs';
@@ -1047,6 +1048,626 @@ test('application/retrieval-runtime exposes errorDetail, rejects mismatched conc
   releaseInstall();
   await installPending;
   await runtime.dispose();
+});
+
+/* ============================================================================
+ * 7. Wave 3 MCP Protocol (Cancellation, Negotiation, Backpressure, Graceful Close)
+ * ============================================================================ */
+
+function createFakePersistentProc({ onWrite, autoExitOnStdinEnd = true } = {}) {
+  const stdout = new EventEmitter();
+  stdout.pause = () => {};
+  stdout.resume = () => {};
+  const stderr = new EventEmitter();
+  // Mirror a live child process keeping the event loop referenced until it exits.
+  const keepalive = setInterval(() => {}, 10_000);
+  let resolveExited;
+  const exited = new Promise((done) => {
+    resolveExited = (outcome) => {
+      clearInterval(keepalive);
+      done(outcome);
+    };
+  });
+  let terminated = false;
+  let stdinEnded = false;
+
+  const stdin = new EventEmitter();
+  stdin.destroyed = false;
+  stdin.writable = true;
+  stdin.writableLength = 0;
+  stdin.write = (data) => (typeof onWrite === 'function' ? onWrite(data, { stdout, stdin, resolveExited }) : true);
+  stdin.end = () => {
+    stdinEnded = true;
+    stdin.writable = false;
+    if (autoExitOnStdinEnd) resolveExited({ code: 0, signal: null, error: null });
+  };
+
+  return {
+    proc: {
+      pid: 99999,
+      stdin,
+      stdout,
+      stderr,
+      exited,
+      terminate: async () => {
+        terminated = true;
+        resolveExited({ code: null, signal: 'SIGTERM', error: null });
+        return exited;
+      },
+    },
+    emitStdout: (chunk) => stdout.emit('data', chunk),
+    wasTerminated: () => terminated,
+    wasStdinEnded: () => stdinEnded,
+    exitNow: (outcome) => resolveExited(outcome),
+  };
+}
+
+test('adapters/retrieval/mcp-stdio-client propagates notifications/cancelled, negotiates protocol versions, answers ping, and handles pagination', async () => {
+  const received = [];
+  const sentPings = [];
+  let fake;
+  const client = createMcpStdioClient({
+    command: 'fake',
+    closeGraceMs: 100,
+    spawnPersistent: () => {
+      fake = createFakePersistentProc({
+        onWrite: (line, { stdout }) => {
+          const msg = JSON.parse(String(line));
+          received.push(msg);
+          if (msg.method === 'initialize') {
+            stdout.emit('data', Buffer.from(`${JSON.stringify({
+              jsonrpc: '2.0',
+              id: msg.id,
+              result: { protocolVersion: '2025-03-26', capabilities: { tools: {} } },
+            })}\n`));
+          } else if (msg.method === 'tools/list') {
+            if (!msg.params?.cursor) {
+              stdout.emit('data', Buffer.from(`${JSON.stringify({
+                jsonrpc: '2.0',
+                id: msg.id,
+                result: { tools: [{ name: 'query_documents', description: 'p1', inputSchema: {} }], nextCursor: 'page-2' },
+              })}\n`));
+            } else {
+              // Also test server-initiated ping + unsupported server request + UTF-8 chunk split
+              stdout.emit('data', Buffer.from(`${JSON.stringify({ jsonrpc: '2.0', id: 'srv-ping', method: 'ping' })}\n`));
+              stdout.emit('data', Buffer.from(`${JSON.stringify({ jsonrpc: '2.0', id: 'srv-unknown', method: 'sampling/createMessage' })}\n`));
+              const page2 = Buffer.from(`${JSON.stringify({
+                jsonrpc: '2.0',
+                id: msg.id,
+                result: { tools: [{ name: 'ingest_data', description: '中文工具描述', inputSchema: {} }] },
+              })}\n`, 'utf8');
+              const splitAt = page2.indexOf(Buffer.from('中文', 'utf8')) + 1;
+              stdout.emit('data', page2.subarray(0, splitAt));
+              stdout.emit('data', page2.subarray(splitAt));
+            }
+          } else if (msg.id === 'srv-ping' || msg.id === 'srv-unknown') {
+            sentPings.push(msg);
+          }
+          return true;
+        },
+      });
+      return fake.proc;
+    },
+  });
+
+  const tools = await client.start();
+  assert.equal(client.getProtocolVersion(), '2025-03-26');
+  assert.deepEqual(tools.map((t) => t.name), ['query_documents', 'ingest_data']);
+  assert.equal(tools[1].description, '中文工具描述', 'multi-byte UTF-8 split across chunks decoded cleanly');
+  assert.deepEqual(sentPings.find((m) => m.id === 'srv-ping')?.result, {});
+  assert.equal(sentPings.find((m) => m.id === 'srv-unknown')?.error?.code, -32601);
+
+  // 1. AbortSignal cancellation emits notifications/cancelled with matching requestId & reason
+  const ac = new AbortController();
+  const abortedCall = client.callTool('query_documents', { query: 'cancel-me' }, { signal: ac.signal });
+  const abortReq = received.find((m) => m.method === 'tools/call' && m.params?.arguments?.query === 'cancel-me');
+  assert.ok(abortReq?.id);
+  ac.abort(new Error('user-stopped'));
+  await assert.rejects(abortedCall, /user-stopped/);
+  const cancelNote1 = received.find((m) => m.method === 'notifications/cancelled' && m.params?.requestId === abortReq.id);
+  assert.equal(cancelNote1?.params?.reason, 'user-stopped');
+
+  // 2. Timeout cancellation emits notifications/cancelled
+  const timedCall = client.callTool('query_documents', { query: 'timeout-me' }, { timeoutMs: 25 });
+  const timeoutReq = received.find((m) => m.method === 'tools/call' && m.params?.arguments?.query === 'timeout-me');
+  await assert.rejects(timedCall, (err) => err?.code === 'retrieval-call-timeout');
+  const cancelNote2 = received.find((m) => m.method === 'notifications/cancelled' && m.params?.requestId === timeoutReq.id);
+  assert.match(cancelNote2?.params?.reason || '', /timed out/);
+
+  // 3. Cooperative close() cancels remaining in-flight call and exits on stdin EOF without forced terminate()
+  const inflight = client.callTool('query_documents', { query: 'closing-me' }, { timeoutMs: 5000 });
+  const closingReq = received.find((m) => m.method === 'tools/call' && m.params?.arguments?.query === 'closing-me');
+  const closePromise = client.close();
+  await assert.rejects(inflight, (err) => err?.code === 'retrieval-closed');
+  await closePromise;
+  assert.ok(received.some((m) => m.method === 'notifications/cancelled' && m.params?.requestId === closingReq.id));
+  assert.equal(fake.wasStdinEnded(), true);
+  assert.equal(fake.wasTerminated(), false, 'cooperative child exited cleanly via stdin EOF without SIGTERM/kill');
+});
+
+test('adapters/retrieval/mcp-stdio-client rejects unsupported protocolVersion, never cancels initialize, enforces backpressure/line cap, and escalates hung close', async () => {
+  // 1. Unsupported protocolVersion rejected cleanly
+  let badProc;
+  const badProtoClient = createMcpStdioClient({
+    command: 'fake',
+    spawnPersistent: () => {
+      badProc = createFakePersistentProc({
+        onWrite: (line, { stdout }) => {
+          const msg = JSON.parse(String(line));
+          if (msg.method === 'initialize') {
+            stdout.emit('data', Buffer.from(`${JSON.stringify({
+              jsonrpc: '2.0',
+              id: msg.id,
+              result: { protocolVersion: '2020-01-01', capabilities: {} },
+            })}\n`));
+          }
+          return true;
+        },
+      });
+      return badProc.proc;
+    },
+  });
+  await assert.rejects(badProtoClient.start(), (err) => err?.code === 'retrieval-protocol-unsupported');
+  assert.equal(badProtoClient.isRunning(), false);
+
+  // 2. initialize timeout must NOT emit notifications/cancelled (MCP spec)
+  const initReceived = [];
+  const initTimeoutClient = createMcpStdioClient({
+    command: 'fake',
+    initTimeoutMs: 30,
+    closeGraceMs: 20,
+    spawnPersistent: () => createFakePersistentProc({
+      autoExitOnStdinEnd: false,
+      onWrite: (line) => {
+        initReceived.push(JSON.parse(String(line)));
+        return true;
+      },
+    }).proc,
+  });
+  await assert.rejects(initTimeoutClient.start(), (err) => err?.code === 'retrieval-call-timeout');
+  assert.equal(initReceived.some((m) => m.method === 'notifications/cancelled'), false);
+
+  // 3. Stdin write backpressure queueing + drain + overflow rejection + hung close escalation
+  const writtenLines = [];
+  let allowImmediate = true;
+  let bpFake;
+  const bpClient = createMcpStdioClient({
+    command: 'fake',
+    closeGraceMs: 25,
+    maxWriteBufferBytes: 256,
+    spawnPersistent: () => {
+      bpFake = createFakePersistentProc({
+        autoExitOnStdinEnd: false,
+        onWrite: (line, { stdout }) => {
+          const msg = JSON.parse(String(line));
+          writtenLines.push(msg);
+          if (msg.method === 'initialize') {
+            stdout.emit('data', Buffer.from(`${JSON.stringify({
+              jsonrpc: '2.0',
+              id: msg.id,
+              result: { protocolVersion: '2024-11-05', capabilities: {} },
+            })}\n`));
+            return true;
+          }
+          if (msg.method === 'tools/list') {
+            stdout.emit('data', Buffer.from(`${JSON.stringify({
+              jsonrpc: '2.0',
+              id: msg.id,
+              result: { tools: [{ name: 'query_documents', description: '', inputSchema: {} }] },
+            })}\n`));
+            return true;
+          }
+          if (msg.method === 'tools/call') {
+            stdout.emit('data', Buffer.from(`${JSON.stringify({
+              jsonrpc: '2.0',
+              id: msg.id,
+              result: { content: [{ type: 'text', text: msg.params.arguments.query }] },
+            })}\n`));
+          }
+          return allowImmediate;
+        },
+      });
+      return bpFake.proc;
+    },
+  });
+  await bpClient.start();
+  assert.equal(bpClient.getProtocolVersion(), '2024-11-05');
+
+  allowImmediate = false;
+  const first = bpClient.callTool('query_documents', { query: 'first' });
+  const second = bpClient.callTool('query_documents', { query: 'second' });
+  // Second call is queued until drain
+  assert.equal(writtenLines.some((m) => m.params?.arguments?.query === 'second'), false);
+  // Oversized write while queued exceeds maxWriteBufferBytes -> retrieval-backpressure
+  await assert.rejects(
+    bpClient.callTool('query_documents', { query: 'x'.repeat(300) }),
+    (err) => err?.code === 'retrieval-backpressure'
+  );
+  allowImmediate = true;
+  bpFake.proc.stdin.emit('drain');
+  assert.equal((await first).content[0].text, 'first');
+  assert.equal((await second).content[0].text, 'second');
+
+  // Unresponsive child escalates to terminate() after closeGraceMs
+  await bpClient.close();
+  assert.equal(bpFake.wasStdinEnded(), true);
+  assert.equal(bpFake.wasTerminated(), true);
+
+  // 4. Oversized stdout line triggers retrieval-protocol-error without OOM
+  let overflowFake;
+  const overflowClient = createMcpStdioClient({
+    command: 'fake',
+    maxLineBytes: 128,
+    closeGraceMs: 20,
+    spawnPersistent: () => {
+      overflowFake = createFakePersistentProc({
+        onWrite: (line, { stdout }) => {
+          const msg = JSON.parse(String(line));
+          if (msg.method === 'initialize') {
+            stdout.emit('data', Buffer.from(`${JSON.stringify({
+              jsonrpc: '2.0',
+              id: msg.id,
+              result: { protocolVersion: '2024-11-05', capabilities: {} },
+            })}\n`));
+          } else if (msg.method === 'tools/list') {
+            stdout.emit('data', Buffer.from(`${JSON.stringify({
+              jsonrpc: '2.0',
+              id: msg.id,
+              result: { tools: [{ name: 'query_documents', description: '', inputSchema: {} }] },
+            })}\n`));
+          }
+          return true;
+        },
+      });
+      return overflowFake.proc;
+    },
+  });
+  await overflowClient.start();
+  const pendingOverflow = overflowClient.callTool('query_documents', { query: 'overflow' });
+  overflowFake.emitStdout(Buffer.from('A'.repeat(256), 'utf8'));
+  await assert.rejects(pendingOverflow, (err) => err?.code === 'retrieval-protocol-error');
+  assert.equal(overflowClient.isRunning(), false);
+});
+
+/* ============================================================================
+ * 8. Wave 3 Streaming zip-extract & installer Boundary Coverage
+ * ============================================================================ */
+
+function createCustomZipBuffer(entries) {
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+
+  for (const entry of entries) {
+    const nameBuf = Buffer.from(entry.name, 'utf8');
+    const raw = Buffer.isBuffer(entry.data) ? entry.data : Buffer.from(entry.data ?? '', 'utf8');
+    const method = entry.method ?? 8;
+    const payload = entry.rawCompressed ?? (method === 8 ? deflateRawSync(raw) : raw);
+    const crc = entry.crc !== undefined ? (entry.crc >>> 0) : (zlibCrc32(raw) >>> 0);
+    const uncompressedSize = entry.uncompressedSize ?? raw.length;
+    const compressedSize = entry.compressedSize ?? payload.length;
+    const versionMadeBy = entry.versionMadeBy ?? 20;
+    const externalAttrs = entry.externalAttrs ?? 0;
+
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(0x0800, 6);
+    local.writeUInt16LE(method, 8);
+    local.writeUInt32LE(crc, 14);
+    local.writeUInt32LE(compressedSize, 18);
+    local.writeUInt32LE(uncompressedSize, 22);
+    local.writeUInt16LE(nameBuf.length, 26);
+    localParts.push(Buffer.concat([local, nameBuf, payload]));
+
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(versionMadeBy, 4);
+    central.writeUInt16LE(20, 6);
+    central.writeUInt16LE(0x0800, 8);
+    central.writeUInt16LE(method, 10);
+    central.writeUInt32LE(crc, 16);
+    central.writeUInt32LE(compressedSize, 20);
+    central.writeUInt32LE(uncompressedSize, 24);
+    central.writeUInt16LE(nameBuf.length, 28);
+    central.writeUInt32LE(externalAttrs >>> 0, 38);
+    central.writeUInt32LE(offset, 42);
+    centralParts.push(Buffer.concat([central, nameBuf]));
+
+    offset += local.length + nameBuf.length + payload.length;
+  }
+
+  const centralBlock = Buffer.concat(centralParts);
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(entries.length, 8);
+  eocd.writeUInt16LE(entries.length, 10);
+  eocd.writeUInt32LE(centralBlock.length, 12);
+  eocd.writeUInt32LE(offset, 16);
+
+  return Buffer.concat([...localParts, centralBlock, eocd]);
+}
+
+test('adapters/retrieval/zip-extract handles streaming file-path ZIP64, stored/deflated empty files, Unix +x restoration, symlinks, Zip-Slip, and corrupt cleanup', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'studyhub-zip-boundaries-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+
+  // 1. Unix mode extraction policy (+x preserved, owner rw guaranteed, non-Unix ignored)
+  assert.equal(unixModeOfZipEntry({ versionMadeBy: (3 << 8) | 20, externalAttrs: (0o100755 << 16) >>> 0 }), 0o755);
+  assert.equal(unixModeOfZipEntry({ versionMadeBy: (3 << 8) | 20, externalAttrs: (0o100555 << 16) >>> 0 }), 0o755);
+  assert.equal(unixModeOfZipEntry({ versionMadeBy: (3 << 8) | 20, externalAttrs: (0o100444 << 16) >>> 0 }), 0o644);
+  assert.equal(unixModeOfZipEntry({ versionMadeBy: 20, externalAttrs: 0 }), null);
+
+  // 2. Streaming from disk file path: stored & deflated empty files, nested dir, and Unix +x chmod on linux vs skipped on win32
+  const mixedZip = createCustomZipBuffer([
+    { name: 'bin/', data: '', method: 0 },
+    { name: 'bin/run.sh', data: '#!/bin/sh\necho hi\n', method: 8, versionMadeBy: (3 << 8) | 20, externalAttrs: (0o100755 << 16) >>> 0 },
+    { name: 'empty-stored.txt', data: '', method: 0 },
+    { name: 'empty-deflated.txt', data: '', method: 8 },
+    { name: 'plain.txt', data: 'stored-ok', method: 0 },
+  ]);
+  const mixedPath = join(root, 'mixed.zip');
+  await writeFile(mixedPath, mixedZip);
+
+  const linuxChmods = [];
+  const linuxOut = join(root, 'linux-out');
+  const linuxRes = await extractZipArchive(mixedPath, linuxOut, {
+    platform: 'linux',
+    chmodFile: async (filePath, mode) => { linuxChmods.push({ filePath, mode }); },
+  });
+  assert.equal(linuxRes.fileCount, 4);
+  assert.equal(await readFile(join(linuxOut, 'empty-stored.txt'), 'utf8'), '');
+  assert.equal(await readFile(join(linuxOut, 'empty-deflated.txt'), 'utf8'), '');
+  assert.equal(await readFile(join(linuxOut, 'plain.txt'), 'utf8'), 'stored-ok');
+  assert.deepEqual(linuxChmods, [{ filePath: join(linuxOut, 'bin', 'run.sh'), mode: 0o755 }]);
+
+  const winChmods = [];
+  await extractZipArchive(mixedPath, join(root, 'win-out'), {
+    platform: 'win32',
+    chmodFile: async (filePath, mode) => { winChmods.push({ filePath, mode }); },
+  });
+  assert.deepEqual(winChmods, [], 'chmod is skipped on win32');
+
+  // 3. ZIP64 streamed from file path
+  const zip64Path = join(root, 'stream64.zip');
+  await writeFile(zip64Path, createZip64Buffer([
+    { name: 'empty64.txt', data: '' },
+    { name: 'sub/data.txt', data: 'zip64-from-disk' },
+  ]));
+  const out64 = join(root, 'out64');
+  const res64 = await extractZipArchive(zip64Path, out64);
+  assert.equal(res64.fileCount, 2);
+  assert.equal(await readFile(join(out64, 'empty64.txt'), 'utf8'), '');
+  assert.equal(await readFile(join(out64, 'sub', 'data.txt'), 'utf8'), 'zip64-from-disk');
+
+  // 4. Symlink directory and file entries blocked when streaming from disk
+  const symDirZip = createCustomZipBuffer([
+    { name: 'evil-link/', data: '/etc', method: 0, versionMadeBy: (3 << 8) | 20, externalAttrs: (0o120777 << 16) >>> 0 },
+  ]);
+  const symDirPath = join(root, 'sym-dir.zip');
+  await writeFile(symDirPath, symDirZip);
+  await assert.rejects(extractZipArchive(symDirPath, join(root, 'sym-dir-out')), (err) => err?.code === 'extension-zip-unsafe');
+
+  // 5. Zip-Slip variants blocked from file path with zero escape writes
+  for (const unsafeName of ['..\\escaped.txt', 'a/../../escaped.txt', '/etc/passwd', 'C:/Windows/evil.txt', 'bad\0name']) {
+    const slipPath = join(root, `slip-${Math.random().toString(16).slice(2)}.zip`);
+    await writeFile(slipPath, createCustomZipBuffer([{ name: unsafeName, data: 'nope', method: 0 }]));
+    await assert.rejects(extractZipArchive(slipPath, join(root, 'slip-out')), (err) => err?.code === 'extension-zip-unsafe');
+  }
+  assert.equal(await pathExists(join(root, 'escaped.txt')), false);
+
+  // 6. Zip-bomb (maxExtractedBytes), CRC32 mismatch, and 0-compressed-size corrupt entry fail cleanly and remove partial files
+  const bombZip = createCustomZipBuffer([{ name: 'bomb.bin', data: Buffer.alloc(4096, 0x41), method: 8 }]);
+  const bombOut = join(root, 'bomb-out');
+  await assert.rejects(extractZipArchive(bombZip, bombOut, { maxExtractedBytes: 512 }), (err) => err?.code === 'extension-extract');
+  assert.equal(await pathExists(join(bombOut, 'bomb.bin')), false, 'partial bomb output cleaned up');
+
+  const badCrcZip = createCustomZipBuffer([{ name: 'badcrc.txt', data: 'hello', method: 8, crc: 0xdeadbeef }]);
+  const badCrcOut = join(root, 'badcrc-out');
+  await assert.rejects(extractZipArchive(badCrcZip, badCrcOut), (err) => err?.code === 'extension-extract');
+  assert.equal(await pathExists(join(badCrcOut, 'badcrc.txt')), false, 'corrupt CRC file removed');
+
+  const zeroCompCorrupt = createCustomZipBuffer([
+    { name: 'trunc.txt', data: '', method: 0, rawCompressed: Buffer.alloc(0), compressedSize: 0, uncompressedSize: 10 },
+  ]);
+  const zeroCompPath = join(root, 'zero-comp.zip');
+  await writeFile(zeroCompPath, zeroCompCorrupt);
+  await assert.rejects(extractZipArchive(zeroCompPath, join(root, 'zero-comp-out')), (err) => err?.code === 'extension-extract');
+});
+
+test('adapters/retrieval/installer resumes 206 partial downloads and cleans up temp zip & stage dirs on interruption/corruption', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'studyhub-installer-boundaries-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+
+  const dshHome = join(root, 'dsh');
+  const tempDir = join(root, 'tmp');
+  const parentDir = join(root, 'local', 'StudyHub', 'tools');
+  const targetDir = join(parentDir, 'retrieval');
+  const version = '5.2.1';
+  const assetName = retrievalAssetName(version);
+  const sumsName = retrievalChecksumsName(version);
+
+  const validZip = createZipBuffer([
+    { name: 'package.json', data: Buffer.from(JSON.stringify({ name: '@ericwang1358/studyhub-retrieval', version, type: 'module' })) },
+    { name: 'server.mjs', data: Buffer.from(fakeMcpServerSource({ tag: 'resumed-b' })) },
+    { name: 'heal.js', data: Buffer.from('export async function healIndex() { return {}; }\n') },
+    { name: 'node_modules/mcp-local-rag/package.json', data: Buffer.from('{"name":"mcp-local-rag","version":"0.20.0","main":"./index.js"}') },
+    { name: 'node_modules/mcp-local-rag/index.js', data: Buffer.from('module.exports = {};\n') },
+  ]);
+  const validSha = createHash('sha256').update(validZip).digest('hex');
+  const splitAt = Math.floor(validZip.length / 2);
+  const etag = '"studyhub-retrieval-etag-v1"';
+  const seenRanges = [];
+  let assetCalls = 0;
+
+  const resumeFetch = async (url, init = {}) => {
+    const pathname = new URL(url).pathname;
+    if (pathname === `/v${version}/${sumsName}`) {
+      return new Response(`${validSha}  ${assetName}\n`, { status: 200 });
+    }
+    if (pathname === `/v${version}/${assetName}`) {
+      assetCalls += 1;
+      const rangeHeader = init.headers?.Range || null;
+      const ifRange = init.headers?.['If-Range'] || null;
+      seenRanges.push({ rangeHeader, ifRange });
+      if (assetCalls === 1) {
+        // Emit first half, then throw mid-stream network error
+        return {
+          ok: true,
+          status: 200,
+          headers: new Headers({ 'content-length': String(validZip.length), etag }),
+          body: {
+            async *[Symbol.asyncIterator]() {
+              yield validZip.subarray(0, splitAt);
+              throw new Error('ECONNRESET mid-stream');
+            },
+            cancel: async () => {},
+          },
+        };
+      }
+      assert.equal(rangeHeader, `bytes=${splitAt}-`);
+      assert.equal(ifRange, etag);
+      const rest = validZip.subarray(splitAt);
+      return {
+        ok: true,
+        status: 206,
+        headers: new Headers({
+          'content-length': String(rest.length),
+          'content-range': `bytes ${splitAt}-${validZip.length - 1}/${validZip.length}`,
+          etag,
+        }),
+        body: {
+          async *[Symbol.asyncIterator]() {
+            yield rest;
+          },
+          cancel: async () => {},
+        },
+      };
+    }
+    return new Response('not found', { status: 404 });
+  };
+
+  const installer = createRetrievalInstaller({
+    env: { DSH_HOME: dshHome },
+    desktopDir: targetDir,
+    dshHome,
+    tempDir,
+    httpFetch: resumeFetch,
+    downloadPrefix: 'http://127.0.0.1:9999/',
+    attempts: 3,
+    sleep: async () => {},
+  });
+
+  // 1. Resumed 206 download completes cleanly and leaves zero temp zip files
+  const installed = await installer.install({ version });
+  assert.equal(installed.sha256, validSha);
+  assert.equal(seenRanges.length, 2);
+  assert.deepEqual(await readdir(tempDir), [], 'temp zip cleaned up after successful install');
+
+  // 2. Interrupted download failing all retries cleans up partial temp zip
+  const failingInstaller = createRetrievalInstaller({
+    env: { DSH_HOME: dshHome },
+    desktopDir: targetDir,
+    dshHome,
+    tempDir,
+    attempts: 2,
+    sleep: async () => {},
+    downloadPrefix: 'http://127.0.0.1:9999/',
+    httpFetch: async (url) => {
+      if (url.endsWith(sumsName)) return new Response(`${validSha}  ${assetName}\n`, { status: 200 });
+      return {
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-length': String(validZip.length) }),
+        body: {
+          async *[Symbol.asyncIterator]() {
+            yield validZip.subarray(0, 32);
+            throw new Error('socket hang up');
+          },
+          cancel: async () => {},
+        },
+      };
+    },
+  });
+  await assert.rejects(failingInstaller.install({ version }), (err) => err?.code === 'extension-download');
+  assert.deepEqual(await readdir(tempDir), [], 'partial temp zip removed after interrupted download');
+
+  // 3. Oversized stream exceeding maxZipBytes aborts and cleans up temp zip
+  const tinyLimitInstaller = createRetrievalInstaller({
+    env: { DSH_HOME: dshHome },
+    desktopDir: targetDir,
+    dshHome,
+    tempDir,
+    maxZipBytes: 64,
+    attempts: 1,
+    downloadPrefix: 'http://127.0.0.1:9999/',
+    httpFetch: async (url) => {
+      if (url.endsWith(sumsName)) return new Response(`${validSha}  ${assetName}\n`, { status: 200 });
+      return {
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        body: {
+          async *[Symbol.asyncIterator]() {
+            yield validZip.subarray(0, 40);
+            yield validZip.subarray(40, 100);
+          },
+          cancel: async () => {},
+        },
+      };
+    },
+  });
+  await assert.rejects(tinyLimitInstaller.install({ version }), (err) => err?.code === 'extension-download');
+  assert.deepEqual(await readdir(tempDir), [], 'oversized temp zip removed immediately');
+
+  // 4. Zip-Slip archive fails extraction and cleans up BOTH temp zip AND .retrieval-stage-* dir
+  const evilZip = createZipBuffer([{ name: '../escaped.txt', data: Buffer.from('pwned') }]);
+  const evilSha = createHash('sha256').update(evilZip).digest('hex');
+  const evilInstaller = createRetrievalInstaller({
+    env: { DSH_HOME: dshHome },
+    desktopDir: targetDir,
+    dshHome,
+    tempDir,
+    attempts: 1,
+    downloadPrefix: 'http://127.0.0.1:9999/',
+    httpFetch: async (url) => {
+      if (url.endsWith(sumsName)) return new Response(`${evilSha}  ${assetName}\n`, { status: 200 });
+      return new Response(evilZip, { status: 200, headers: { 'content-length': String(evilZip.length) } });
+    },
+  });
+  await assert.rejects(evilInstaller.install({ version }), (err) => err?.code === 'extension-zip-unsafe');
+  assert.deepEqual(await readdir(tempDir), [], 'temp zip removed after unsafe archive extraction failure');
+  const parentEntries = await readdir(parentDir);
+  assert.equal(parentEntries.some((name) => name.startsWith('.retrieval-stage-')), false, 'stage dir cleaned up');
+  assert.equal(await pathExists(join(parentDir, 'escaped.txt')), false);
+
+  // 5. file:// local asset streaming install + oversize rejection
+  const localReleaseDir = join(root, 'local-release', `v${version}`);
+  await mkdir(localReleaseDir, { recursive: true });
+  await writeFile(join(localReleaseDir, sumsName), `${validSha}  ${assetName}\n`, 'utf8');
+  await writeFile(join(localReleaseDir, assetName), validZip);
+  const localPrefix = pathToFileURL(join(root, 'local-release')).href;
+  const localInstaller = createRetrievalInstaller({
+    env: { DSH_HOME: dshHome },
+    desktopDir: join(root, 'local-target', 'retrieval'),
+    dshHome,
+    tempDir,
+    downloadPrefix: localPrefix,
+  });
+  const localInstalled = await localInstaller.install({ version });
+  assert.equal(localInstalled.sha256, validSha);
+  assert.deepEqual(await readdir(tempDir), []);
+
+  const localOversizeInstaller = createRetrievalInstaller({
+    env: { DSH_HOME: dshHome },
+    desktopDir: join(root, 'local-target-2', 'retrieval'),
+    dshHome,
+    tempDir,
+    maxZipBytes: 16,
+    downloadPrefix: localPrefix,
+  });
+  await assert.rejects(localOversizeInstaller.install({ version }), (err) => err?.code === 'extension-download');
+  assert.deepEqual(await readdir(tempDir), []);
 });
 
 

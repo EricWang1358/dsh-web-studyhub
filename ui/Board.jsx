@@ -1,5 +1,7 @@
 import { ui, uiFormat } from "./i18n.js";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { draggable, dropTargetForElements, monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/adapter/element-adapter";
+import { combine } from "@atlaskit/pragmatic-drag-and-drop/utils/combine";
 import { useInjectCss } from "./shared.js";
 import { readJSON, writeJSON } from "./storage.js";
 import { Button, EmptyState, Icon, IconButton, InlineMessage, LoadingState, Menu, PageHeader, TabPanel, Tabs, useToast } from "./components/index.js";
@@ -23,30 +25,110 @@ const readCollapsed = () => { const saved = readJSON(COLLAPSE_KEY, []); return n
 const writeCollapsed = (set) => { writeJSON(COLLAPSE_KEY, [...set]); /* a per-viewer convenience only */ };
 const friendly = (error, conflict) => conflict ? ui("看板已在其他位置更新，已载入最新内容，请再试一次。") : error;
 
-function Column({ column, view, board, today, library, drag, drop, setDrag, setDrop, hasDone, composer, collapsed, filtering, readOnly, labelSuggestions, boardEmpty,
-  studyRef, onClearStudyRef, onOpenComposer, onCloseComposer, onAdd, onToggleDone, onEdit, onAction, onDropTo, onRename, onFold, onRemove, onOrigin, onStudyRef }) {
+const BOARD_CARD_DND_TYPE = "board-card";
+const BOARD_COLUMN_DND_TYPE = "board-column";
+
+/** Pragmatic drag-and-drop card wrapper: uses an explicit drag handle, caches card midpoint once on dragEnter (zero 60-120Hz reflow loops), and preserves keyboard/menu move fallbacks. */
+function DraggableBoardCard({ card, column, columns, index, count, slot, today, library, readOnly, hasDone, dragging, extraItems,
+  onToggleDone, onEdit, onAction, onOrigin, onStudyRef, onDragStart, onDragEnd, onAim }) {
+  const articleRef = useRef(null);
+  const handleRef = useRef(null);
+  const midYRef = useRef(0);
+  const slotRef = useRef(slot);
+  slotRef.current = slot;
+
+  useEffect(() => {
+    const element = articleRef.current;
+    if (readOnly || !element) return undefined;
+    const handle = handleRef.current;
+    return combine(
+      draggable({
+        element,
+        ...(handle ? { dragHandle: handle } : {}),
+        getInitialData: () => ({ type: BOARD_CARD_DND_TYPE, cardId: card.id, columnId: column.id }),
+        onDragStart: () => onDragStart({ id: card.id, columnId: column.id }),
+        onDrop: () => onDragEnd(),
+      }),
+      dropTargetForElements({
+        element,
+        canDrop: ({ source }) => source.data?.type === BOARD_CARD_DND_TYPE,
+        getData: () => ({ type: BOARD_CARD_DND_TYPE, cardId: card.id, columnId: column.id, slot: slotRef.current }),
+        onDragEnter: ({ location }) => {
+          const box = element.getBoundingClientRect();
+          midYRef.current = box.top + box.height / 2;
+          const nextSlot = location.current.input.clientY < midYRef.current ? slotRef.current : slotRef.current + 1;
+          onAim(column.id, nextSlot);
+        },
+        onDrag: ({ location }) => {
+          // Compare pointer Y against the cached midpoint with zero DOM layout reads.
+          const nextSlot = location.current.input.clientY < midYRef.current ? slotRef.current : slotRef.current + 1;
+          onAim(column.id, nextSlot);
+        },
+      }),
+    );
+  }, [readOnly, card.id, column.id, onDragStart, onDragEnd, onAim]);
+
+  return (
+    <BoardCard
+      card={card}
+      column={column}
+      columns={columns}
+      index={index}
+      count={count}
+      today={today}
+      library={library}
+      readOnly={readOnly}
+      hasDone={hasDone}
+      dragging={dragging}
+      extraItems={extraItems}
+      onToggleDone={onToggleDone}
+      onEdit={onEdit}
+      onAction={onAction}
+      onOrigin={onOrigin}
+      onStudyRef={onStudyRef}
+      articleRef={articleRef}
+      dragHandleRef={handleRef}
+      showDragHandle={!readOnly}
+    />
+  );
+}
+
+function Column({ column, view, board, today, library, drag, drop, onDragStart, onDragEnd, onAim, onClearDrop, hasDone, composer, collapsed, filtering, readOnly, labelSuggestions, boardEmpty,
+  studyRef, onClearStudyRef, onOpenComposer, onCloseComposer, onAdd, onToggleDone, onEdit, onAction, onRename, onFold, onRemove, onOrigin, onStudyRef }) {
   const label = boardColumnLabel(column);
   const shown = view.cardIds;
   const taskIds = column.cardIds.filter((id) => !isMemoCard(board.cards[id]));
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(column.title);
+  const sectionRef = useRef(null);
+  const shownCountRef = useRef(shown.length);
+  shownCountRef.current = shown.length;
   const columns = board.columns.map((entry) => ({ id: entry.id, title: entry.title, done: entry.done }));
   const dropHere = drop?.column === column.id;
   // A slot among the visible cards maps back to the real position in the full column.
   const realIndex = (slot) => slot >= shown.length ? column.cardIds.length : column.cardIds.indexOf(shown[slot]);
-  const aim = (event, slot) => {
-    if (!drag || readOnly) return;
-    event.preventDefault();
-    event.dataTransfer.dropEffect = "move";
-    if (!drop || drop.column !== column.id || drop.slot !== slot) setDrop({ column: column.id, slot });
-  };
-  const finish = (event) => {
-    event.preventDefault(); event.stopPropagation();
-    const id = event.dataTransfer.getData("application/x-study-board-card") || drag?.id;
-    const target = drop?.column === column.id ? drop.slot : shown.length;
-    setDrag(null); setDrop(null);
-    if (id && board.cards[id]) onDropTo(id, column.id, realIndex(target));
-  };
+
+  useEffect(() => {
+    const element = sectionRef.current;
+    if (readOnly || !element) return undefined;
+    return dropTargetForElements({
+      element,
+      canDrop: ({ source }) => source.data?.type === BOARD_CARD_DND_TYPE,
+      getData: () => ({ type: BOARD_COLUMN_DND_TYPE, columnId: column.id }),
+      onDragEnter: ({ location }) => {
+        if (location.current.dropTargets[0]?.data?.type === BOARD_COLUMN_DND_TYPE) {
+          onAim(column.id, shownCountRef.current);
+        }
+      },
+      onDrag: ({ location }) => {
+        if (location.current.dropTargets[0]?.data?.type === BOARD_COLUMN_DND_TYPE) {
+          onAim(column.id, shownCountRef.current);
+        }
+      },
+      onDragLeave: () => onClearDrop(column.id),
+    });
+  }, [readOnly, column.id, onAim, onClearDrop]);
+
   const items = [
     { id: "rename", label: ui("重命名"), icon: "edit" },
     { id: "fold", label: collapsed ? ui("展开列") : ui("折叠"), icon: "chevron-down" },
@@ -55,10 +137,7 @@ function Column({ column, view, board, today, library, drag, drop, setDrag, setD
   ];
   const showLine = (slot) => dropHere && drop.slot === slot && !(drag && column.cardIds.includes(drag.id)
     && [column.cardIds.indexOf(drag.id), column.cardIds.indexOf(drag.id) + 1].includes(realIndex(slot)));
-  return <section className={`board-column${dropHere ? " is-over" : ""}${collapsed ? " is-collapsed" : ""}`} aria-label={label}
-    onDragOver={(event) => aim(event, shown.length)}
-    onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setDrop(null); }}
-    onDrop={finish}>
+  return <section ref={sectionRef} className={`board-column${dropHere ? " is-over" : ""}${collapsed ? " is-collapsed" : ""}`} aria-label={label}>
     <header className="board-column__head">
       <span className={column.done ? "board-dot is-done" : "board-dot"} aria-hidden="true" />
       {renaming
@@ -72,17 +151,7 @@ function Column({ column, view, board, today, library, drag, drop, setDrag, setD
         onSelect={(id) => { if (id === "rename") { if (collapsed) onFold(column); setName(column.title); setRenaming(true); } else if (id === "fold") onFold(column); else onRemove(column); }} />}
     </header>
     {!collapsed && <>
-      <div className="board-cards" onDragOver={(event) => {
-        // The slot is the first card whose middle is below the pointer; gaps never flicker.
-        const cards = [...event.currentTarget.querySelectorAll(":scope > .board-card")];
-        let slot = cards.length;
-        for (let at = 0; at < cards.length; at++) {
-          const box = cards[at].getBoundingClientRect();
-          if (event.clientY < box.top + box.height / 2) { slot = at; break; }
-        }
-        aim(event, slot);
-        event.stopPropagation();
-      }}>
+      <div className="board-cards">
         {shown.map((id, slot) => {
           const card = board.cards[id];
           const extraItems = column.done ? [] : (card.plannedDate === today
@@ -90,13 +159,9 @@ function Column({ column, view, board, today, library, drag, drop, setDrag, setD
             : [{ id: "plan-today", label: ui("排到今天"), icon: "calendar" }]);
           return <React.Fragment key={id}>
             {showLine(slot) && <div className="board-drop-line" aria-hidden="true" />}
-            <BoardCard card={card} column={column} columns={columns} index={taskIds.indexOf(id)} count={taskIds.length} today={today} library={library}
+            <DraggableBoardCard card={card} column={column} columns={columns} index={taskIds.indexOf(id)} count={taskIds.length} slot={slot} today={today} library={library}
               readOnly={readOnly} hasDone={hasDone} dragging={drag?.id === id} extraItems={extraItems} onToggleDone={onToggleDone} onEdit={onEdit} onAction={onAction}
-              onOrigin={onOrigin} onStudyRef={onStudyRef}
-              articleProps={{
-                onDragStart: (event) => { event.dataTransfer.setData("application/x-study-board-card", id); event.dataTransfer.effectAllowed = "move"; setDrag({ id }); },
-                onDragEnd: () => { setDrag(null); setDrop(null); },
-              }} />
+              onOrigin={onOrigin} onStudyRef={onStudyRef} onDragStart={onDragStart} onDragEnd={onDragEnd} onAim={onAim} />
           </React.Fragment>;
         })}
         {showLine(shown.length) && <div className="board-drop-line" aria-hidden="true" />}
@@ -166,6 +231,17 @@ export default function Board({ state, library, today: todayProp, view: viewProp
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const [drag, setDrag] = useState(null);
   const [drop, setDrop] = useState(null);
+  const dropRef = useRef(null);
+  dropRef.current = drop;
+  const viewRef = useRef(null);
+  const onDragStart = useCallback((nextDrag) => setDrag(nextDrag), []);
+  const onDragEnd = useCallback(() => { setDrag(null); setDrop(null); }, []);
+  const onAimDrop = useCallback((columnId, slot) => {
+    setDrop((prev) => (prev && prev.column === columnId && prev.slot === slot ? prev : { column: columnId, slot }));
+  }, []);
+  const onClearDrop = useCallback((columnId) => {
+    setDrop((prev) => (prev?.column === columnId ? null : prev));
+  }, []);
   const toast = useToast();
   const [saving, setSaving] = useState(false);
   const [announcement, setAnnouncement] = useState("");
@@ -567,6 +643,31 @@ export default function Board({ state, library, today: todayProp, view: viewProp
   const readOnly = !board || !!board.readOnly;
   const filtering = isFiltering(query);
   const view = useMemo(() => board ? filterCards(board, { ...query, today }) : null, [board, query, today]);
+  viewRef.current = view;
+
+  useEffect(() => {
+    if (readOnly) return undefined;
+    return monitorForElements({
+      canMonitor: ({ source }) => source.data?.type === BOARD_CARD_DND_TYPE,
+      onDrop: ({ source, location }) => {
+        const cardId = source.data?.cardId;
+        const currentDrop = dropRef.current;
+        const targets = location.current.dropTargets;
+        const colTarget = targets.find((entry) => entry.data?.type === BOARD_COLUMN_DND_TYPE);
+        const targetColumnId = currentDrop?.column || colTarget?.data?.columnId;
+        setDrag(null);
+        setDrop(null);
+        const now = boardRef.current;
+        if (!cardId || !targetColumnId || !now?.cards?.[cardId]) return;
+        const col = now.columns.find((entry) => entry.id === targetColumnId);
+        if (!col) return;
+        const shown = viewRef.current?.columns?.find((entry) => entry.id === targetColumnId)?.cardIds || col.cardIds;
+        const targetSlot = currentDrop?.column === targetColumnId ? currentDrop.slot : shown.length;
+        const realIdx = targetSlot >= shown.length ? col.cardIds.length : col.cardIds.indexOf(shown[targetSlot]);
+        void moveCard(cardId, targetColumnId, realIdx);
+      },
+    });
+  }, [readOnly, moveCard]);
   const labels = useMemo(() => board ? labelCounts(board) : [], [board]);
   const todaySummary = useMemo(() => board ? selectTodayBoard(board, { today, dailyTaskIds }) : { open: [], done: [], unscheduled: [] }, [board, today, dailyTaskIds]);
   const total = board ? taskCardCount(board) : 0;
@@ -659,10 +760,9 @@ export default function Board({ state, library, today: todayProp, view: viewProp
         {showColumns && <div className="board-columns sh-fade-x" ref={columnsStrip} data-fade-start={columnEdges.start || undefined}
           data-fade-end={columnEdges.end || undefined} onScroll={measureColumns} style={{ "--board-cols": board.columns.length, "--board-col-tracks": colTracks }}>
           {view.columns.map((column, at) => <Column key={column.id} column={board.columns[at]} view={column} board={board} today={today} library={library} drag={drag} drop={drop}
-            setDrag={setDrag} setDrop={setDrop} hasDone={hasDone} composer={composer === column.id} collapsed={collapsed.has(column.id)} filtering={filtering} readOnly={readOnly} boardEmpty={empty}
+            onDragStart={onDragStart} onDragEnd={onDragEnd} onAim={onAimDrop} onClearDrop={onClearDrop} hasDone={hasDone} composer={composer === column.id} collapsed={collapsed.has(column.id)} filtering={filtering} readOnly={readOnly} boardEmpty={empty}
             labelSuggestions={labels.map((entry) => entry.label)} studyRef={studyRef} onClearStudyRef={onClearStudyRef}
             onOpenComposer={openComposer} onCloseComposer={closeComposer} onAdd={addCard} onToggleDone={toggleDone} onEdit={(card) => onAction("edit", card)} onAction={onAction}
-            onDropTo={(id, target, index) => moveCard(id, target, index)}
             onRename={(entry, title) => run("board.column.rename", { id: entry.id, title })} onFold={flip}
             onRemove={(entry) => run("board.column.remove", { id: entry.id })}
             onOrigin={openRef(onOrigin)} onStudyRef={openRef(onStudyRef)} />)}

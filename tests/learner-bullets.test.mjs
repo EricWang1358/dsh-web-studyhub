@@ -320,6 +320,24 @@ test('learnerFacts and learnerBrief project course-scoped traceable bullets whil
   const brief = learnerBrief(baseState.learner, withConsent, 'en');
   assert.equal(brief.bullets.length, 2);
   assert.equal(brief.profile, 'Legacy gated summary');
+
+  // Privacy gate: learnerBrief must NEVER bypass learnerFacts to leak learner.summary or coach bullets when consent is revoked or debrief is disabled.
+  const briefNoConsent = learnerBrief(baseState.learner, withoutConsent, 'en');
+  assert.equal(briefNoConsent.profile, undefined, 'learnerBrief omits legacy summary when consent.prep is false');
+  assert.deepEqual(briefNoConsent.bullets.map(b => b.id), ['b-user'], 'learnerBrief omits coach bullets when consent.prep is false');
+
+  const debriefOffFacts = learnerFacts({
+    ...baseState,
+    learner: { ...baseState.learner, consent: { prep: true } },
+    settings: { practice: { debrief: false } },
+  }, 'OS');
+  const briefDebriefOff = learnerBrief({ ...baseState.learner, consent: { prep: true } }, debriefOffFacts, 'en');
+  assert.equal(briefDebriefOff.profile, undefined, 'learnerBrief omits legacy summary when settings.practice.debrief is false');
+  assert.deepEqual(briefDebriefOff.bullets.map(b => b.id), ['b-user']);
+
+  const briefNullFacts = learnerBrief({ ...baseState.learner, consent: { prep: true } }, null, 'en');
+  assert.equal(briefNullFacts.profile, undefined, 'learnerBrief does not leak raw learner.summary when facts is null');
+  assert.deepEqual(briefNullFacts.bullets.map(b => b.id), ['b-user', 'b-other'], 'learnerBrief filters out coach bullets when facts is null');
 });
 
 /* ---------- 4. Settings Profile UI & Clickable Anchor Navigation ---------- */

@@ -38,7 +38,125 @@ import { useRescueExperiments } from "./companions/use-rescue-experiments.js";
 // One page of this view holds ten pages of the service (which gives at most 100), so a filter sees every mistake of a normal library.
 const FETCH_LIMIT = 100;
 const PAGE_SIZE = 1000;
+const PAGE_FETCH_CONCURRENCY = 4;
+const DETAIL_FETCH_CONCURRENCY = 4;
+const PAGE_CACHE_LIMIT = 12;
+const DETAIL_CACHE_LIMIT = 200;
 const POLL_MS = 2500;
+
+/**
+ * Fetch one WrongBook UI page (up to `pageSize` items) without a 10x serial waterfall:
+ * read the first chunk to learn `total`, then fetch any remaining chunks with bounded concurrency while keeping offset order.
+ */
+export async function fetchWrongBookPage(call, {
+  scope = {},
+  view = "weak",
+  page = 0,
+  pageSize = PAGE_SIZE,
+  fetchLimit = FETCH_LIMIT,
+  concurrency = PAGE_FETCH_CONCURRENCY,
+  isStale = () => false,
+} = {}) {
+  const baseOffset = page * pageSize;
+  const first = await call("wrongbook", { ...scope, view, offset: baseOffset, limit: fetchLimit });
+  const firstItems = Array.isArray(first?.items) ? first.items : [];
+  if (isStale() || !firstItems.length) return { ...first, items: [...firstItems] };
+  const wanted = Math.min(pageSize, Math.max(0, (first?.total || 0) - baseOffset));
+  if (firstItems.length >= wanted) return { ...first, items: [...firstItems] };
+
+  const step = Math.min(fetchLimit, firstItems.length);
+  const offsets = [];
+  for (let rel = firstItems.length; rel < wanted; rel += step) {
+    offsets.push(baseOffset + rel);
+  }
+  const chunks = new Array(offsets.length);
+  let cursor = 0;
+  const workerCount = Math.min(Math.max(1, concurrency), offsets.length);
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (cursor < offsets.length && !isStale()) {
+      const idx = cursor++;
+      const more = await call("wrongbook", { ...scope, view, offset: offsets[idx], limit: fetchLimit });
+      chunks[idx] = Array.isArray(more?.items) ? more.items : [];
+    }
+  });
+  await Promise.all(workers);
+  if (isStale()) return { ...first, items: [...firstItems] };
+
+  const found = [...firstItems];
+  for (const chunk of chunks) {
+    if (!chunk?.length) break;
+    found.push(...chunk);
+  }
+  return { ...first, items: found };
+}
+
+/**
+ * Concurrency-limited + LRU-cached loader for `wrongbook.detail`, eliminating thundering-herd bursts
+ * when expanding a group of rows and serving repeated expansions from memory.
+ */
+export function createWrongDetailLoader({ call, concurrency = DETAIL_FETCH_CONCURRENCY, maxCache = DETAIL_CACHE_LIMIT } = {}) {
+  const cache = new Map();
+  const inflight = new Map();
+  const queue = [];
+  let active = 0;
+
+  const getCached = (key) => {
+    if (!cache.has(key)) return undefined;
+    const value = cache.get(key);
+    cache.delete(key);
+    cache.set(key, value);
+    return value;
+  };
+
+  const setCached = (key, value) => {
+    if (cache.has(key)) cache.delete(key);
+    cache.set(key, value);
+    while (cache.size > maxCache) {
+      const oldest = cache.keys().next().value;
+      cache.delete(oldest);
+    }
+  };
+
+  const pump = () => {
+    while (active < Math.max(1, concurrency) && queue.length > 0) {
+      const job = queue.shift();
+      active += 1;
+      Promise.resolve()
+        .then(() => call("wrongbook.detail", job.args))
+        .then((detail) => {
+          setCached(job.key, detail);
+          inflight.delete(job.key);
+          job.resolve(detail);
+        })
+        .catch((error) => {
+          inflight.delete(job.key);
+          job.reject(error);
+        })
+        .finally(() => {
+          active -= 1;
+          pump();
+        });
+    }
+  };
+
+  const load = (key, args) => {
+    const cached = getCached(key);
+    if (cached !== undefined) return Promise.resolve(cached);
+    if (inflight.has(key)) return inflight.get(key);
+    let resolve, reject;
+    const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
+    inflight.set(key, promise);
+    queue.push({ key, args, resolve, reject });
+    pump();
+    return promise;
+  };
+
+  const clear = () => {
+    cache.clear();
+  };
+
+  return { getCached, load, clear };
+}
 // How long the offer to undo a suspend stays (hovering or focusing it holds it).
 const UNDO_TIMEOUT = 8000;
 // How often the open page asks whether the list changed (one row is read; the whole list only when it did). It slows down by itself while nothing moves.
@@ -1700,6 +1818,11 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
   const seq = useRef(0);
   // What the list looked like at the last full read, whether a read is going on, and the page the learner is on: the watch below compares and reloads from these.
   const signature = useRef('');
+  const pageCacheRef = useRef(new Map());
+  const detailLoaderRef = useRef(null);
+  if (!detailLoaderRef.current || detailLoaderRef.current.call !== call) {
+    detailLoaderRef.current = { call, loader: createWrongDetailLoader({ call }) };
+  }
   const reading = useRef(false);
   const pageRef = useRef(0);
   pageRef.current = page;
@@ -1714,7 +1837,7 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
 
   // `quiet` is the page re-reading its own list (the watch): nothing flashes, the rows that were opened and the details already read stay, and an answer that
   // says nothing changed leaves the page untouched.
-  const load = useCallback(async (requestedPage = 0, { quiet = false } = {}) => {
+  const load = useCallback(async (requestedPage = 0, { quiet = false, force = false } = {}) => {
     const request = ++seq.current;
     reading.current = true;
     if (!quiet) {
@@ -1724,17 +1847,35 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
     try {
       let targetPage = requestedPage;
       const scope = scopeArgs(course, showInactive);
-      // A page of this view is up to ten service pages, read one after the other (so a filter sees all of them, and the first draw waits for one).
       const readPage = async (at) => {
-        const first = await call("wrongbook", { ...scope, view, offset: at * PAGE_SIZE, limit: FETCH_LIMIT });
-        const found = [...(first?.items || [])];
-        const wanted = Math.min(PAGE_SIZE, Math.max(0, (first?.total || 0) - at * PAGE_SIZE));
-        while (found.length < wanted && request === seq.current) {
-          const more = await call("wrongbook", { ...scope, view, offset: at * PAGE_SIZE + found.length, limit: FETCH_LIMIT });
-          if (!more?.items?.length) break;
-          found.push(...more.items);
+        const cacheKey = `${scopeKey}\0${view}\0${at}`;
+        if (!force && pageCacheRef.current.has(cacheKey)) {
+          const cached = pageCacheRef.current.get(cacheKey);
+          const probe = await call("wrongbook", { ...scope, view, offset: at * PAGE_SIZE, limit: 1 });
+          if (request !== seq.current) return cached.res;
+          if (readSignature(probe) === cached.signature) {
+            pageCacheRef.current.delete(cacheKey);
+            pageCacheRef.current.set(cacheKey, cached);
+            return cached.res;
+          }
         }
-        return { ...first, items: found };
+        const fetched = await fetchWrongBookPage(call, {
+          scope,
+          view,
+          page: at,
+          pageSize: PAGE_SIZE,
+          fetchLimit: FETCH_LIMIT,
+          concurrency: PAGE_FETCH_CONCURRENCY,
+          isStale: () => request !== seq.current,
+        });
+        if (request === seq.current) {
+          pageCacheRef.current.delete(cacheKey);
+          pageCacheRef.current.set(cacheKey, { signature: readSignature(fetched), res: fetched });
+          while (pageCacheRef.current.size > PAGE_CACHE_LIMIT) {
+            pageCacheRef.current.delete(pageCacheRef.current.keys().next().value);
+          }
+        }
+        return fetched;
       };
       let res = await readPage(targetPage);
       if (targetPage > 0 && !res?.items?.length) {
@@ -1789,7 +1930,7 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
     if (reading.current || busyRef.current) return { unchanged: true };
     const probe = await call("wrongbook", { ...scopeArgs(course, showInactive), view, offset: pageRef.current * PAGE_SIZE, limit: 1 });
     if (readSignature(probe) === signature.current) return { unchanged: true };
-    await load(pageRef.current, { quiet: true });
+    await load(pageRef.current, { quiet: true, force: true });
     return {};
   }, [call, course, showInactive, view, load]);
   usePolling(watch, { intervalMs: WATCH_MS, backoff: true });
@@ -1801,7 +1942,7 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
   // Track inline row-level & clinic cluster 3–4 slide rescue experiment builds non-blockingly via shared poller.
   const onRescueCompleted = useCallback(() => {
     Promise.resolve(app?.core?.refresh?.()).catch(() => {});
-    void load(pageRef.current, { quiet: true });
+    void load(pageRef.current, { quiet: true, force: true });
   }, [app?.core, load]);
   const { jobs: experimentJobs, start: startRescueJob } = useRescueExperiments({ call, onCompleted: onRescueCompleted });
 
@@ -1848,13 +1989,14 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
       if (kind === 'pause') {
         const done = await act(action, args, undefined, { rethrow: true });
         if (done === undefined) { toast.info(ui('刚才还有操作在进行，请稍后再点一次。')); return; }
-        await load(pageRef.current, { quiet: true });
+        pageCacheRef.current.clear();
+        await load(pageRef.current, { quiet: true, force: true });
         // The row is gone from the page at once, so the way back is here, not only on the manage page.
         toast.show({ tone: 'success', message: rescueNote(kind, done).text, undo: true, timeout: UNDO_TIMEOUT,
           action: { label: ui('撤销'), onClick: async () => {
             toast.dismiss();
             const back = undoPauseCall({ deckId: item.deckId, cardId: item.cardId });
-            try { await act(back.action, back.args, undefined, { rethrow: true }); await load(pageRef.current, { quiet: true }); toast.info(ui('已恢复这道题。')); } catch (failure) { toast.error(failure); }
+            try { await act(back.action, back.args, undefined, { rethrow: true }); pageCacheRef.current.clear(); await load(pageRef.current, { quiet: true, force: true }); toast.info(ui('已恢复这道题。')); } catch (failure) { toast.error(failure); }
           } } });
         return;
       }
@@ -1881,15 +2023,24 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
   const loadDetail = useCallback((ref) => {
     if (asked.current.has(ref.cardId)) return;
     asked.current.add(ref.cardId);
+    const cacheKey = `${signature.current}\0${view}\0${ref.deckId}\0${ref.cardId}`;
+    const loader = detailLoaderRef.current.loader;
+    const cached = loader.getCached(cacheKey);
+    if (cached !== undefined) {
+      setDetails((known) => ({ ...known, [ref.cardId]: cached }));
+      return;
+    }
     setDetails((known) => ({ ...known, [ref.cardId]: "loading" }));
     // A history row opens on the answer that was wrong, so the detail is asked in the same view as the list.
-    call("wrongbook.detail", { ...ref, ...(view === "history" ? { view: "history" } : {}) })
+    loader.load(cacheKey, { ...ref, ...(view === "history" ? { view: "history" } : {}) })
       .then((detail) => setDetails((now) => ({ ...now, [ref.cardId]: detail })))
       .catch((e) => {
         asked.current.delete(ref.cardId);
         setDetails((now) => ({ ...now, [ref.cardId]: { error: e.message || true } }));
       });
-  }, [call, view]);
+  }, [view]);
+
+  const reloadPage = useCallback((requestedPage = 0) => load(requestedPage, { force: true }), [load]);
 
   const toggleClinic = useCallback(async (next) => {
     if (typeof act !== "function") return false;
@@ -1900,7 +2051,7 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
   return (
     <WrongBookView data={data} course={course} onCourse={chooseCourse} showInactive={showInactive} onShowInactive={chooseInactive} items={items} counts={counts}
       view={view} onView={setView} viewCounts={current?.viewCounts || knownViewCounts} loading={loading} err={err}
-      page={page} pageSize={PAGE_SIZE} hasMore={counts.total > PAGE_SIZE} onReload={load} onPage={load}
+      page={page} pageSize={PAGE_SIZE} hasMore={counts.total > PAGE_SIZE} onReload={reloadPage} onPage={load}
       recs={recs?.key === key ? recs : null} recsLoading={view === "weak" && !!items?.length && recs?.key !== key} coach={coach} details={details} onLoadDetail={loadDetail}
       onPractice={onPractice} onPracticePrepared={onPracticePrepared} onGenerate={generate} onOpenSettings={onOpenSettings} onSettings={openSettings}
       onLibrary={onLibrary} onCreate={onCreate} onSources={onSources} onOpenBook={onOpenBook} onRescue={rescue} onStartExperiment={startExperiment} onStartClusterExperiment={startClusterExperiment} experimentJobs={experimentJobs} onNotify={(text) => toast.info(text)} onToggleClinic={toggleClinic} arrival={arrived ? arrival : null} openKey={`study-wrongbook-open:v1:${data?.root || ""}`} />

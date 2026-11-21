@@ -1,0 +1,195 @@
+{
+  "suite": "voice-study-pack",
+  "description": "Voice Study Pack contract: anti-drift heartbeat [进度 k/N · 本题第 t/3 轮], 3-turn circuit breaker, anti-pseudo-mastery, strict en/zh parity, and debrief hand-off message assembly.",
+  "cases": [
+    {
+      "id": "voice-pack-zh-heartbeat-and-breaker",
+      "contract": "voice-pack.export.zh",
+      "title": "Chinese cram voice pack includes anti-drift heartbeat, 3-turn circuit breaker, [cardId] anchors, and cram prioritization",
+      "evaluator": "voice_pack_export",
+      "input": {
+        "args": {
+          "course": "计网速成",
+          "only": "cram",
+          "limit": 3,
+          "minutes": 25,
+          "goal": "3 周速成面试高频计网",
+          "language": "zh"
+        }
+      },
+      "expect": {
+        "count": 3,
+        "firstCardId": "c-syn-flood",
+        "excludedCardIds": ["c-handshake"],
+        "mustMatch": [
+          "\\[进度 k/3 · 本题第 t/3 轮",
+          "单题 3 轮熔断",
+          "禁止“伪学会”",
+          "今天先到这，给我结算",
+          "\\[c-syn-flood\\]",
+          "study-coach-team"
+        ],
+        "zeroHan": false
+      }
+    },
+    {
+      "id": "voice-pack-en-strict-no-han",
+      "contract": "voice-pack.export.en",
+      "title": "English strict voice pack renders [Progress k/N · Turn t/3], Zero-tangent pacing, maps goal=explore, and has zero Han chars in English scope",
+      "evaluator": "voice_pack_export",
+      "input": {
+        "englishLibrary": true,
+        "learnerGoal": "explore",
+        "args": {
+          "course": "Operating Systems",
+          "only": "weak",
+          "banter": "strict",
+          "limit": 5,
+          "minutes": 20,
+          "language": "en"
+        }
+      },
+      "expect": {
+        "count": 1,
+        "firstCardId": "c-tlb",
+        "learnerGoal": "Personal interest",
+        "mustMatch": [
+          "\\[Progress k/1 · Turn t/3",
+          "Zero-tangent pacing",
+          "3-turn circuit breaker",
+          "Anti-pseudo-mastery",
+          "Wrap up today",
+          "Learner goal\\*\\*: Personal interest",
+          "\\[c-tlb\\]"
+        ],
+        "zeroHan": true
+      }
+    },
+    {
+      "id": "voice-pack-heartbeat-valid-sequence",
+      "contract": "voice-pack.heartbeat.sequence",
+      "title": "Valid zh and en multi-turn voice tutor transcripts satisfy monotonic heartbeat headers with 1<=k<=N and 1<=t<=3",
+      "evaluator": "voice_heartbeat_check",
+      "input": {
+        "totalItems": 3,
+        "turns": [
+          { "lang": "zh", "text": "[进度 1/3 · 本题第 1/3 轮 · 剩约 24 分钟]\n我们先看 [c-syn-flood]：SYN Flood 打爆的是服务器哪一块资源？" },
+          { "lang": "zh", "text": "[进度 1/3 · 本题第 2/3 轮 · 剩约 22 分钟]\n接近了！再区分一下：发 SYN 不回 ACK 卡住的是带宽还是连接队列？" },
+          { "lang": "zh", "text": "[进度 2/3 · 本题第 1/3 轮 · 剩约 20 分钟]\n好，拉回主线，进入下一题 [c-udp-flood]：UDP 放大攻击主要耗尽什么？" },
+          { "lang": "en", "text": "[Progress 3/3 · Turn 1/3 · ~15 min left]\nLast item [c-whois]: does standard WHOIS on port 43 use TCP or UDP?" }
+        ]
+      },
+      "expect": {
+        "valid": true,
+        "violations": 0
+      }
+    },
+    {
+      "id": "voice-pack-heartbeat-drift-detected",
+      "contract": "voice-pack.heartbeat.drift",
+      "title": "Detects missing heartbeat header, item index k>N overflow, and turn t>3 circuit-breaker violation",
+      "evaluator": "voice_heartbeat_check",
+      "input": {
+        "totalItems": 3,
+        "turns": [
+          { "lang": "zh", "text": "哈哈说到计网我顺便给你讲讲 HTTP/3 的 QUIC 协议演进史吧……" },
+          { "lang": "zh", "text": "[进度 4/3 · 本题第 1/3 轮 · 剩约 10 分钟]\n越界题号" },
+          { "lang": "zh", "text": "[进度 1/3 · 本题第 4/3 轮 · 剩约 18 分钟]\n第 4 轮还在死磕同一题" }
+        ]
+      },
+      "expect": {
+        "valid": false,
+        "expectedViolationCodes": ["missing_heartbeat", "item_out_of_range", "turn_exceeds_circuit_breaker"]
+      }
+    },
+    {
+      "id": "voice-pack-circuit-breaker-turn3-advance",
+      "contract": "voice-pack.circuit_breaker.turn3",
+      "title": "On turn 3/3 stumble, compliant tutor triggers circuit breaker (Struggled tag + force-advance to k+1); stalled turn stays flagged",
+      "evaluator": "voice_circuit_breaker",
+      "input": {
+        "totalItems": 3,
+        "compliantTranscript": [
+          "[进度 1/3 · 本题第 1/3 轮 · 剩约 24 分钟]\n[c-syn-flood] 问：SYN Flood 耗尽什么资源？",
+          "[进度 1/3 · 本题第 2/3 轮 · 剩约 22 分钟]\n提示：三次握手没完成前，服务端在内存里维护什么表？",
+          "[进度 1/3 · 本题第 3/3 轮 · 剩约 20 分钟]\n用个类比：就像餐厅订座只占号不来吃，把门口等位单占满了——SYN Flood 耗尽的是半连接队列（对比 UDP 放大耗尽带宽）。我先把 [c-syn-flood] 记入「卡壳待回炉」，我们强制推进到第 2 题！",
+          "[进度 2/3 · 本题第 1/3 轮 · 剩约 18 分钟]\n现在看 [c-udp-flood]：UDP 反射放大主要打垮哪一环？"
+        ],
+        "stalledTranscript": [
+          "[进度 1/3 · 本题第 1/3 轮 · 剩约 24 分钟]\n[c-syn-flood] 问：SYN Flood 耗尽什么资源？",
+          "[进度 1/3 · 本题第 2/3 轮 · 剩约 22 分钟]\n再想想？",
+          "[进度 1/3 · 本题第 3/3 轮 · 剩约 20 分钟]\n还是不对，再给你一次机会想想看。",
+          "[进度 1/3 · 本题第 3/3 轮 · 剩约 18 分钟]\n我们继续聊第 1 题直到你想出来。"
+        ]
+      },
+      "expect": {
+        "compliantValid": true,
+        "stalledDetected": true
+      }
+    },
+    {
+      "id": "voice-pack-anti-pseudo-mastery",
+      "contract": "voice-pack.anti_pseudo_mastery",
+      "title": "Passive acknowledgement ('嗯懂了' / 'yeah got it') without active recall is rejected for mastery promotion",
+      "evaluator": "coach_plan_audit",
+      "input": {
+        "items": [
+          { "cardId": "c-syn-flood", "grade": 5, "evidence": "嗯懂了，明白了" },
+          { "cardId": "c-udp-flood", "grade": 4, "evidence": "yeah got it, makes sense" }
+        ]
+      },
+      "expect": {
+        "valid": false,
+        "flaggedCardIds": ["c-syn-flood", "c-udp-flood"],
+        "violationCode": "passive_pseudo_mastery"
+      }
+    },
+    {
+      "id": "voice-pack-debrief-handoff-zh",
+      "contract": "voice-pack.debrief.zh",
+      "title": "Chinese coach.debrief hand-off assembles study-coach-team notes, debrief tail, and preserves tail after withLearnerFence",
+      "evaluator": "debrief_handoff",
+      "input": {
+        "language": "zh",
+        "params": { "course": "计网速成", "deckTitle": "传输层高频题" },
+        "learner": { "goal": "面试求职", "preferences": ["先讲直觉再讲公式"] }
+      },
+      "expect": {
+        "tailKey": "debrief",
+        "expectedTail": "以下是本次语音 / 外部对话记录：",
+        "mustInclude": ["study-coach-team", "card.review.batch", "card.followup.add", "card.link.batch", "panel.open"],
+        "zeroHan": false
+      }
+    },
+    {
+      "id": "voice-pack-debrief-handoff-en",
+      "contract": "voice-pack.debrief.en",
+      "title": "English coach.debrief hand-off ends with English debrief tail, preserves tail after withLearnerFence, and emits zero Han chars",
+      "evaluator": "debrief_handoff",
+      "input": {
+        "language": "en",
+        "params": { "course": "Operating Systems", "deckTitle": "Virtual Memory" },
+        "learner": { "goal": "Pass an exam" }
+      },
+      "expect": {
+        "tailKey": "debrief",
+        "expectedTail": "Paste your voice / external chat transcript below:",
+        "mustInclude": ["study-coach-team", "card.review.batch", "card.followup.add", "card.link.batch", "panel.open"],
+        "zeroHan": true
+      }
+    },
+    {
+      "id": "voice-pack-unknown-tail-rejected",
+      "contract": "voice-pack.debrief.unknown_tail",
+      "title": "composeMessage throws on unknown tail keys instead of silently dropping the debrief paste cue",
+      "evaluator": "debrief_unknown_tail",
+      "input": {
+        "language": "en",
+        "badTail": "voice-debrief-typo"
+      },
+      "expect": {
+        "throwsPattern": "Unknown message tail"
+      }
+    }
+  ]
+}

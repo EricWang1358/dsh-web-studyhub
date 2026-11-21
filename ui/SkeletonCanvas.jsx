@@ -194,9 +194,14 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, fresh })
     return { w, h };
   }, [layout, boxes]);
   // Moving a node expands the fit bounds, but does not refit during the drag.
+  // Selecting a concept or closing its detail drawer updates fit hints without resetting the learner's pan/zoom; only structural layout switches (skeleton/component/focus) refit.
   const anchor = layout.boxes.find((b) => b.id === selected) || layout.boxes[0];
   const { viewRef, view, viewport, fit, zoomAt, readable, moveTo, panHandlers } = usePanZoom(layout.width, layout.height, {
-    insetRight: detailOpen && !narrow ? 310 : 0, anchorX: anchor ? anchor.x + anchor.w / 2 : 0, anchorY: anchor ? anchor.y + anchor.h / 2 : 0, vertical: !focused && flowDirection === "down",
+    insetRight: detailOpen && !narrow ? 310 : 0,
+    anchorX: anchor ? anchor.x + anchor.w / 2 : 0,
+    anchorY: anchor ? anchor.y + anchor.h / 2 : 0,
+    vertical: !focused && flowDirection === "down",
+    fitKey: `${skeleton.id}:${componentId}:${focused || ""}`,
   });
   const fitDrawing = () => fit(false, world);
   const edges = useMemo(

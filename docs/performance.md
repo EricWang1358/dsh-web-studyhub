@@ -8,7 +8,8 @@ How StudyHub's host and panel are measured, what 2.4.0 cost on a large real libr
 | --- | --- |
 | Host: payload, per-request work, memory stages, growth, heap summary | `node scripts/qa/perf-baseline.mjs --library <dir with study-workspace.json> [--minutes 10] [--heap]`. The library is copied first (`--in-place` measures it where it is); `--seed 600` builds a synthetic library instead. |
 | Panel: first render, DOM nodes, JS heap, long tasks, polling cost | `npm run build`, then `node scripts/qa/perf-browser.mjs --seed 600 [--library <dir>] [--lang en --theme light --width 420]` |
-| Regression budgets | `node --test tests/perf-budget.test.mjs` (part of `npm test`) |
+| Regression budgets | `node --test tests/perf-budget.test.mjs` (part of `npm test`, in `tests/slow-tests.json`) |
+| Fast NFR gates (`< 2 s`) | `node --test tests/perf-nfr-fast.test.mjs` (always runs in `npm run test:fast`) |
 
 `perf-baseline` runs the real preview host (`scripts/preview-server.mjs`, `lib/host.js`, fake model, key/token/base-URL variables removed from the environment) in a forked process (`scripts/qa/perf-host.mjs`), so its memory and event loop are the host's alone, and sends the requests the panel sends. A `Probe` (`scripts/qa/perf-probe.mjs`) counts `JSON.parse`/`JSON.stringify` characters, `structuredClone` calls and characters, and shard reads and writes per request. Counts are exact and repeat. Milliseconds depend on the machine and on what else it is doing (the numbers below were taken on a Windows 11 laptop shared with other agents' test runs): compare counts and medians, never single runs.
 
@@ -237,3 +238,56 @@ What changed:
 What this did not change: moving a forced layout out of an effect only helps where it removes a layout. A new page needs one layout whoever asks for it first, so after the first fix the same 80-120 ms showed up under the next reader (`use-narrow`, then the auto-height of the focus box). The long tasks that remain on these two pages are that one layout plus 40-58 ms of React rendering.
 
 Not measured: a real DSH window, a real library, 420 px (the script's sidebar locator is stale at that width), and run-to-run spread (single runs; three earlier runs during the work agreed on the direction).
+
+## Component overhaul and A/B verification (`v5.2.1` -> `feat/v521-component-overhaul`)
+
+The `feat/v521-component-overhaul` branch layers backend, algorithm, storage and UI optimizations on top of the 2.4.0 foundation, alongside a `< 2 s` fast NFR gate that runs on every `npm run test:fast`.
+
+### Architectural changes
+
+| Area | Change |
+| --- | --- |
+| Citation locator (`lib/quote-locate.js`) | Bounded LRU cache (`INDEX_CACHE_MAX_ENTRIES = 800`, `INDEX_CACHE_MAX_CHARS = 8_000_000`) storing compact `Int32Array` / `Uint8Array` UTF-16 offset maps and a per-text approximate-match cache (up to 256 queries) so repeated snapshot rebuilds reuse normalized indices in O(1). |
+| FSRS-6 hot loop (`lib/sm2.js`) | Adopted `ts-fsrs` in runtime `dependencies` and hoisted `computeDecayFactor` out of the `retrievabilityAt` hot loop so planning 3,000 overdue cards calls `Math.pow` once per card (`<= 1.1x`). |
+| Sharded store (`lib/store.js`, `lib/atomic-json.js`) | Reuses unmodified items and whole collections in O(1) when they remain the exact deep-frozen shared reference (`itemRefs` / `wholeRefs`), and writes shards and manifests with `fsync` (`sync: true`) before atomic rename to prevent zero-filled corrupt shards on sudden power loss. |
+| Large PDF reader (`materials.document.range`, `ui/document-preview/peek/paged-renderer.js`) | Primary pdf.js `PDFDataRangeTransport` streaming 64 KB aligned byte-range blocks with a 32-block (~2 MB) LRU cache, in-flight deduplication and worker-safe buffer copies, eliminating full-file loads and false slow-page timeouts on oversized referenced PDFs (`materials.document.pages` remains as fallback). |
+| Workbench store & Sources rows (`ui/app/store.js`, `ui/Sources.jsx`) | Fine-grained per-`<App>` Zustand store (`useAppSelector` / `useAppSlice`) with synchronous `stageSlices` during render and `useLayoutEffect` `flushPending` (eliminating stale `data: null` boot renders without mid-render subscriber notifications). `DocumentRow` receives pre-derived `companionTarget` from its parent with zero `AppContext` subscription. |
+| Board drag-and-drop (`ui/Board.jsx`) | Migrated to `@atlaskit/pragmatic-drag-and-drop`; caches each target card's vertical midpoint once on `dragEnter`, eliminating 60–120 Hz `getBoundingClientRect()` reflow loops during dragging. |
+| WrongBook loading (`ui/WrongBook.jsx`) | Replaced serial chunk waterfalls and N+1 detail bursts with bounded-concurrency `fetchWrongBookPage` (concurrency 4) and a concurrency-limited, LRU-cached `wrongbook.detail` loader (cache limit 200). |
+| Term marking (`ui/review/use-term-marking.js`, `ui/review/term-marking-dom.js`) | Collects active, seen-unknown and candidate term highlights in a single DOM `TreeWalker` scan instead of repeated full-subtree traversals. |
+| Interaction sound assets (`ui/sound-effects.js`, `ui/sound-effects-assets.js`) | Moved ~40 KB of pre-baked studio MP3 base64 assets behind dynamic `import('./sound-effects-assets.js')` loaded on first playback, keeping startup bundles lean when sound is off. |
+| Fast NFR gate (`tests/perf-nfr-fast.test.mjs`) | Kept outside `tests/slow-tests.json` so `npm run test:fast` runs it every time (`< 2 s`), pinning hoisted `computeDecayFactor`, `createLocator` LRU reuse and synchronous `useAppStore` boot staging. |
+
+### Host A/B comparison (`perf-baseline.mjs --seed 600`)
+
+Measured on the same machine (Node v22.22.3, win32) against the same synthetic library (`--seed 600`: 600 sources / 2.24 M chars / 30 decks / 1,200 cards / 2,500 attempts), comparing clean `v5.2.1` (`5d68932f`) against `feat/v521-component-overhaul` (`24a31763`):
+
+| Metric | `v5.2.1` (`5d68932f`) | `feat/v521-component-overhaul` (`24a31763`) | Delta |
+| --- | --- | --- | --- |
+| Throughput (review actions with a poll each) | 1.9 / s | **2.5 / s** | **+31.6%** |
+| `review.reveal: next snapshot` loop block | 281.5 ms | **245.5 ms** | **-12.8%** |
+| `review.answer: next snapshot` loop block | 254.4 ms | **203.4 ms** | **-20.0%** |
+| `review.move: next snapshot` loop block | 243.5 ms | **200.8 ms** | **-17.5%** |
+| `card.flag: next snapshot` loop block | 227.3 ms | **194.1 ms** | **-14.6%** |
+| `source.add (2 KB): next snapshot` loop block | 249.3 ms | **190.8 ms** | **-23.5%** |
+| RSS after 200 review actions (post forced GC) | 241.2 MB | **197.6 MB** | **-43.6 MB (-18.1%)** |
+| RSS after opening every page & deck (post forced GC) | 244.3 MB | **199.4 MB** | **-44.9 MB (-18.4%)** |
+
+**Write-durability trade-off:** single disk-writing actions increased by ~19–36 ms (`review.reveal` 24.0 -> 43.4 ms, `review.answer` 64.1 -> 100.9 ms, `card.flag` 36.8 -> 63.0 ms). This is an explicit durability trade-off from adding `fsync` (`sync: true`) to `lib/store.js` commits so committed shards and manifests are flushed to disk before rename and cannot corrupt into zero-filled files on power loss. Net end-to-end review throughput still rose +31.6% because post-write snapshots and GC pressure dropped.
+
+### Chromium production page-switch benchmark (`page-switch-perf.mjs`)
+
+Run on `feat/v521-component-overhaul` (`24a31763`) with `node scripts/qa/page-switch-perf.mjs --widths 1440 --rounds 2 --sources 300 --production true` (headless Chromium, 7 pages, 3,401 frames):
+
+- **Summary:** `pressP50 = 8.3 ms`, `pressWorst = 16.2 ms`, `janky = 0%`, `bigRestyles = 0`, `longTasks = 3 (198 ms)`, `pageErrors = 0`, `consoleErrors = 0`, `apiErrors = 0`.
+
+| Target | `press -> frame` p50 | `press -> frame` worst |
+| --- | --- | --- |
+| `sources` | 10.1 ms | 11.6 ms |
+| `generate` | 15.3 ms | 16.2 ms |
+| `wrongbook` | 8.3 ms | 12.6 ms |
+| `exam` | 8.3 ms | 12.2 ms |
+| `dashboard` | 9.3 ms | 11.6 ms |
+| `tasks` | 4.7 ms | 8.3 ms |
+| `book` | 7.1 ms | 10.7 ms |
+| `open+close 更多` | 3.1 ms | 4.2 ms |

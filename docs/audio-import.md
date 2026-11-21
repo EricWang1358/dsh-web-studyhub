@@ -78,7 +78,7 @@ Nothing is re-encoded. Every segment knows its real length, so the task console 
 
 ### Pre-flight check
 
-Each file is checked as soon as it is added, and again when you click **Start import**. Nothing is sent to a provider until every file passes.
+Each file is checked as soon as it is added, and again when you click **Start import**. Nothing is sent to a provider until every file passes. Pre-flight probing (`measureOnly` in `lib/audio-file.js`) inspects container headers and frame boundaries via bounded streaming reads (skipping sample payloads such as WAV `data` and MP4 `mdat`), so large recordings are never loaded whole into memory just to measure duration or format.
 
 | Note under the file | What it means | What to do |
 | --- | --- | --- |
@@ -246,7 +246,7 @@ After a rate-limit wait, sending resumes at the first unfinished piece.
    - MP3 at frame boundaries;
    - M4A remuxed losslessly;
    - OGG and Opus at page boundaries, each part a complete Ogg file;
-   - 16-bit PCM WAV with each cut moved to the quietest 200 ms within 30 seconds, so sentences are not cut in half.
+   - 16-bit PCM WAV: when a local live-class engine with `silero_vad.onnx` is already installed on disk, StudyHub reuses Silero VAD around each target cut boundary (`lib/contexts/audio/vad-split.js`, zero downloads); otherwise each cut moves to the quietest 200 ms within 30 seconds, so sentences are not cut in half.
 
    FLAC, WebM, AAC and AIFF are sent whole when they fit one request (45 minutes); a longer one is cut with ffmpeg, or refused when ffmpeg is missing. See [Length of one request](#length-of-one-request).
 2. **Transcribe.** On Gemini (`gemini-3.5-transcribe`):

@@ -97,7 +97,7 @@ for (const [translationMode, generationMode] of COMBINATIONS) {
     assert.deepEqual([same.status, same.queuedBehind], ['queued', 1], 'the same document waits for the one in front of it');
     assert.equal(other.queuedBehind, 0);
     await until(() => f.fake.live.translation === 2, 'the other document to be at the model beside it');
-    assert.equal(f.fake.translating.filter(data => data.passages[0].text.startsWith('Alpha')).length, 1, 'the second translation of Alpha has not asked the model');
+    assert.equal(f.fake.translating.filter(data => data.passages[0].text.includes('Alpha')).length, 1, 'the second translation of Alpha has not asked the model');
     f.fake.gates.get(0).release(); f.fake.gates.get(1).release();
     for (const started of [first, same, other]) assert.equal((await settleJob(f.runtime, started.jobId)).status, 'complete');
     assert.equal(f.fake.live.peak.translation, 2, 'two documents at once, never two of the same document');

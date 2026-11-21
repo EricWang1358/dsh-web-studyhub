@@ -661,10 +661,12 @@ test('DesktopUpgradeGuide shows one-click signed auto-update when host.updater i
   assert.match(autoZh, /立即下载并更新到 5\.2\.0/);
   assert.match(autoZh, /Ed25519/);
   assert.match(autoZh, /改用手动下载/);
+  assert.match(autoZh, /以管理员身份运行/);
   assert.match(autoZh, /StudyHub-Desktop-5\.2\.0-win-x64-setup\.exe/);
 
   const autoEn = render(h(m.DesktopUpgradeGuide, { update, host: autoHost }), 'en');
   assert.match(autoEn, /Download and update to 5\.2\.0/);
+  assert.match(autoEn, /Run as administrator/);
   assert.doesNotMatch(autoEn.replace(/<[^>]+>/g, ' '), /[㐀-鿿]/, 'English auto-update guide has zero untranslated Han text');
 
   // IPC bridge: exposes updater only when Tauri bridge is present, listens & cleans up progress events

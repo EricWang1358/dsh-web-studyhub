@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { INDEX_TOOLS, readManifest, sourceKey } from '../lib/retrieval-index.js';
+import { retrievalRootId } from '../lib/retrieval-settings.js';
 import { library } from './helpers/index-library.mjs';
 import { untilAborted } from './helpers/index-port.mjs';
 import { until } from './helpers/wait.mjs';
@@ -39,7 +40,7 @@ test('runtime cancellation reports the full uncertain batch and resumes by repla
   await lib.service.call('retrieval.index.cancel', {});
   const stopped = await lib.finished('the cancelled batch');
   assert.equal(stopped.status, 'cancelled');
-  assert.deepEqual(stopped.unconfirmed.map(sourceKey), fake.batches[1].map(item => item.metadata.source));
+  assert.deepEqual(stopped.unconfirmed.map(id => sourceKey(id, retrievalRootId(lib.root))), fake.batches[1].map(item => item.metadata.source));
   assert.equal(Object.keys((await readManifest(lib.root)).sources).length, 3);
   await lib.service.call('retrieval.index.start', { course: 'OS' });
   const done = await lib.finished('the resumed build');
@@ -55,6 +56,6 @@ test('a lost batch response records every uncertain page even without cancellati
   await lib.service.call('retrieval.index.start', { course: 'OS' });
   const failed = await lib.finished('the failed batch');
   assert.equal(failed.status, 'failed');
-  assert.deepEqual(failed.unconfirmed.map(sourceKey), fake.batches[0].map(item => item.metadata.source));
+  assert.deepEqual(failed.unconfirmed.map(id => sourceKey(id, retrievalRootId(lib.root))), fake.batches[0].map(item => item.metadata.source));
   assert.deepEqual((await readManifest(lib.root)).sources, {});
 });

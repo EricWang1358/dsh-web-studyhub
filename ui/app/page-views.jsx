@@ -35,7 +35,7 @@ import AudioImport from '../AudioImport.jsx';
 import { Button, PageHeader } from '../components/index.js';
 import { openAudioSettings } from '../audio-focus.js';
 import { openIndexBuilder } from '../index-focus.js';
-import { useApp } from './app-context.js';
+import { useApp, useAppSelector } from './app-context.js';
 import { SourceForm } from './modals/AddSourceDialog.jsx';
 import { createSetupHandlers } from './setup-handlers.js';
 import { importForQuestions } from './import-handoff.js';
@@ -257,10 +257,18 @@ function ManageView() {
 }
 
 function SourcesView() {
-  const { data, host, nav, lib, set, learn, sources, intents, settingsEntry } = useApp();
+  const data = useAppSelector((s) => s.data);
+  const host = useAppSelector((s) => s.host);
+  const nav = useAppSelector((s) => s.nav);
+  const sourceHighlight = useAppSelector((s) => s.lib?.sourceHighlight);
+  const set = useAppSelector((s) => s.set);
+  const learn = useAppSelector((s) => s.learn);
+  const sources = useAppSelector((s) => s.sources);
+  const intents = useAppSelector((s) => s.intents);
+  const settingsEntry = useAppSelector((s) => s.settingsEntry);
   return (
     <Sources key={data.root} data={data} setModal={set.setModal} sourceForm={<SourceForm />}
-      highlight={lib.sourceHighlight} openAgent={host.openAgent} onOpenSources={learn.openAudioSources}
+      highlight={sourceHighlight} openAgent={host.openAgent} onOpenSources={learn.openAudioSources}
       onLegacyRetry={(job) => { set.setLegacyAudioJobId(job.id); nav.navigate('audio'); }}
       onOpenSettings={(section) => settingsEntry.openSettings(section === 'settings-marker' ? section : 'settings-mineru')} onBuildIndex={(course) => openIndexBuilder(settingsEntry.openSettings, course)} onGenerate={sources.generateFromSources}
       onPractice={(scope) => intents.practice(scope)} />
@@ -419,12 +427,22 @@ function GenerateView() {
 }
 
 function DraftView() {
-  const { data, nav, lib, set, session, drafts, intents, learn } = useApp();
-  if (!lib.draft) return null;
+  const data = useAppSelector((s) => s.data);
+  const nav = useAppSelector((s) => s.nav);
+  const draft = useAppSelector((s) => s.lib?.draft);
+  const draftLoaded = useAppSelector((s) => s.lib?.draftLoaded);
+  const draftText = useAppSelector((s) => s.lib?.draftText);
+  const jsonMode = useAppSelector((s) => s.lib?.jsonMode);
+  const set = useAppSelector((s) => s.set);
+  const enterRun = useAppSelector((s) => s.session?.enterRun);
+  const drafts = useAppSelector((s) => s.drafts);
+  const openDeck = useAppSelector((s) => s.intents?.openDeck);
+  const openSourceAt = useAppSelector((s) => s.learn?.openSourceAt);
+  if (!draft) return null;
   return (
-    <Draft data={data} draft={lib.draft} draftLoaded={lib.draftLoaded} setDraft={set.setDraft}
-      draftText={lib.draftText} setDraftText={set.setDraftText} jsonMode={lib.jsonMode} setJsonMode={set.setJsonMode} openDraft={drafts.openDraft}
-      topUpDraft={drafts.topUpDraft} openSourceAt={learn.openSourceAt} onOpenPublished={intents.openDeck} onStartPublished={session.enterRun} clearRecovery={drafts.clearRecovery}
+    <Draft data={data} draft={draft} draftLoaded={draftLoaded} setDraft={set.setDraft}
+      draftText={draftText} setDraftText={set.setDraftText} jsonMode={jsonMode} setJsonMode={set.setJsonMode} openDraft={drafts.openDraft}
+      topUpDraft={drafts.topUpDraft} openSourceAt={openSourceAt} onOpenPublished={openDeck} onStartPublished={enterRun} clearRecovery={drafts.clearRecovery}
       setPage={nav.navigate} setModal={set.setModal}
       blankCard={drafts.blankCard} patchCard={drafts.patchCard} parseDraft={parseDraft} />
   );

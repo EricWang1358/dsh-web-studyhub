@@ -47,14 +47,14 @@ test('first-time browser language chooses English while an explicit Chinese pref
   const original = keys.map(key => Object.getOwnPropertyDescriptor(globalThis, key));
   try {
     Object.defineProperty(globalThis, 'window', { configurable: true, value: { addEventListener() {} } });
-    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { languages: ['en-GB'], language: 'en-GB' } });
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { languages: ['en-GB'], language: 'en-GB', userAgent: '' } });
     Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: () => null, setItem() {} } });
     assert.equal(load().getUiLanguage(), 'en');
     Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: () => 'zh', setItem() {} } });
     assert.equal(load().getUiLanguage(), 'zh');
     Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: () => { throw new Error('blocked storage'); } } });
     assert.equal(load().getUiLanguage(), 'en');
-    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { languages: ['zh-Hant'], language: 'zh-Hant' } });
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { languages: ['zh-Hant'], language: 'zh-Hant', userAgent: '' } });
     assert.equal(load().getUiLanguage(), 'zh');
   } finally {
     keys.forEach((key, index) => original[index] ? Object.defineProperty(globalThis, key, original[index]) : delete globalThis[key]);

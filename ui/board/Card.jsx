@@ -49,7 +49,8 @@ export function cardMenuItems({ column, columns, index, count, extraItems = [] }
  * keyboard (Alt+arrows). `articleProps` carries the drag handlers.
  */
 export default function BoardCard({ card, column, columns, index, count, today, library, readOnly = false, hasDone = true, dragging = false,
-  menuOpen = false, extraItems = [], todayMeta = null, timerActive = false, onStartTimer = null, onToggleDone, onEdit, onAction, onOrigin, onStudyRef, articleProps = {} }) {
+  menuOpen = false, extraItems = [], todayMeta = null, timerActive = false, onStartTimer = null, onToggleDone, onEdit, onAction, onOrigin, onStudyRef, articleProps = {},
+  articleRef = null, dragHandleRef = null, showDragHandle = false }) {
   const done = !!column.done;
   const state = dueState(card.due, today, done);
   const progress = checklistProgress(card);
@@ -73,9 +74,14 @@ export default function BoardCard({ card, column, columns, index, count, today, 
     if (action) { event.preventDefault(); onAction(action, card); }
   };
   return (
-    <article className={`board-card${done ? ' is-done' : ''}${dragging ? ' is-dragging' : ''}${timerActive ? ' is-timing' : ''}`} tabIndex={0} data-card-id={card.id}
+    <article ref={articleRef} className={`board-card${done ? ' is-done' : ''}${dragging ? ' is-dragging' : ''}${timerActive ? ' is-timing' : ''}`} tabIndex={0} data-card-id={card.id}
       draggable={!readOnly} onKeyDown={key} aria-label={card.title} {...articleProps}>
       <div className="board-card__head">
+        {!readOnly && showDragHandle && (
+          <span ref={dragHandleRef} className="board-card__handle" data-drag-handle="true" aria-label={uiFormat('拖动卡片：{0}', [card.title])}>
+            <Icon name="move" size={14} />
+          </span>
+        )}
         {hasDone && <button type="button" role="checkbox" aria-checked={done} className="board-check" disabled={readOnly}
           aria-label={uiFormat(done ? '标记为未完成：{0}' : '标记完成：{0}', [card.title])} onClick={() => onToggleDone(card)}>
           <Icon name="check" size={14} strokeWidth={2.4} />

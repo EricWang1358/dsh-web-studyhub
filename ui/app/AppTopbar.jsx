@@ -5,7 +5,7 @@ import { markInboxRead, markInboxUnread } from '../quick-actions.js';
 import Inbox from '../Inbox.jsx';
 import { Button, Icon, IconBox, Tooltip } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
-import { useApp } from './app-context.js';
+import { useAppSelector } from './app-context.js';
 import { useStudyBusy } from '../study-context.jsx';
 import { useNavAlert } from './use-nav-alert.js';
 import { hostPart } from '../host-parts.js';
@@ -79,7 +79,7 @@ export function statusHint({ busy, running, publishing, syncIssue, syncTransient
 /** The way to the sidebar while it is a drawer (#657: a narrow window, or the learner put it away): one button at the start of the bar. It carries
     the sidebar's attention dot (ui/nav-alert.js) and says its reason; the drawer itself has every label. */
 function NavMenuButton() {
-  const { shell } = useApp();
+  const shell = useAppSelector((s) => s.shell);
   const { reason } = useNavAlert();
   return (
     <Tooltip layer content={reason || ui('打开导航：全部功能都在这里')} anchorClassName="nav-menu-anchor">
@@ -119,7 +119,13 @@ function TopbarStatus({ data, core, running, publishing, syncIssue, syncTransien
 /** The top bar: the crumb for the page on screen, where the library lives, whether the host is working, and the mailbox. */
 const AppTopbar = React.memo(function AppTopbar({ title }) {
   useInjectCss(css, 'study-app-shell');
-  const { data, core, nav, connection, inbox, settingsEntry, shell } = useApp();
+  const data = useAppSelector((s) => s.data);
+  const core = useAppSelector((s) => s.core);
+  const nav = useAppSelector((s) => s.nav);
+  const connection = useAppSelector((s) => s.connection);
+  const inbox = useAppSelector((s) => s.inbox);
+  const settingsEntry = useAppSelector((s) => s.settingsEntry);
+  const shell = useAppSelector((s) => s.shell);
   const { act, quick, quickApi } = core;
   const { binding, running, publishing, syncIssue, syncTransient } = connection;
   const model = modelReadiness(data);

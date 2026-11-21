@@ -1,7 +1,7 @@
 import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Banner, Button } from '../components/index.js';
-import { useApp } from './app-context.js';
+import { useAppSelector } from './app-context.js';
 import { useStudyBusy } from '../study-context.jsx';
 
 /* The messages that stay until their cause is gone, all as the one Banner (ui-consistency #87): a recording in progress,
@@ -10,10 +10,11 @@ import { useStudyBusy } from '../study-context.jsx';
 
 /** 录题中: the conversation is adding questions to a deck; the learner can stop it from here. */
 export function IngestBanner() {
-  const { data, core } = useApp();
+  const ingest = useAppSelector((s) => s.data?.ingest);
+  const core = useAppSelector((s) => s.core);
   const busy = useStudyBusy();
-  if (!data?.ingest) return null;
-  const { deckTitle, added } = data.ingest;
+  if (!ingest) return null;
+  const { deckTitle, added } = ingest;
   return (
     <Banner role="status" tone="info" title={ui('录题中')} className="app-banner"
       action={{ label: ui('停止录题'), disabled: busy, onClick: () => core.act('ingest.stop', {}, (result) => core.notify(uiFormat('已停止录题，本次录入 {0} 题。', [result.added]))) }}>
@@ -25,19 +26,19 @@ export function IngestBanner() {
 
 /** Files the library could not read: everything else stays usable, saving waits until they are fixed. */
 export function StorageIssuesBanner() {
-  const { data } = useApp();
-  if (!data?.storageIssues?.length) return null;
+  const storageIssues = useAppSelector((s) => s.data?.storageIssues);
+  if (!storageIssues?.length) return null;
   return (
     <Banner tone="error" title={ui('这些文件读不出来，学习库的其他内容仍可查看。修好或移走它们之前不会保存新的改动，原文件保持原样。')} className="app-banner">
-      <ul>{data.storageIssues.map((issue) => <li key={issue.file}>{issue.file}</li>)}</ul>
+      <ul>{storageIssues.map((issue) => <li key={issue.file}>{issue.file}</li>)}</ul>
     </Banner>
   );
 }
 
 /** 有本窗口暂存的编辑: the draft this window kept after a reload; carry on with it or throw it away. */
 export function RecoveryBanner() {
-  const { lib, drafts } = useApp();
-  const saved = lib.recovery;
+  const saved = useAppSelector((s) => s.lib?.recovery);
+  const drafts = useAppSelector((s) => s.drafts);
   if (!saved) return null;
   return (
     <Banner tone="info" className="app-banner" action={{ label: ui('继续编辑'), iconEnd: 'arrow-right', onClick: () => drafts.restoreRecovery(saved) }}
@@ -49,10 +50,11 @@ export function RecoveryBanner() {
 
 /** The way back after following a link out of a page (the trail the learning navigation keeps). */
 export function ContextReturn() {
-  const { nav, learn } = useApp();
+  const page = useAppSelector((s) => s.nav?.page);
+  const learn = useAppSelector((s) => s.learn);
   const busy = useStudyBusy();
-  if (!learn.hasTrail || ['review', 'notes'].includes(nav.page)) return null;
-  if (['book', 'outline'].includes(nav.page) && learn.trailPage === 'review') return null;
+  if (!learn.hasTrail || ['review', 'notes'].includes(page)) return null;
+  if (['book', 'outline'].includes(page) && learn.trailPage === 'review') return null;
   return (
     <div className="context-return">
       <Button variant="link" size="sm" icon="arrow-left" lock={busy} onClick={learn.returnFromContext}>{learn.trailLabel}</Button>

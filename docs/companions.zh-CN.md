@@ -17,7 +17,8 @@ StudyHub 内置了**交互伴学**（Interactive Companions）沙箱舞台与跨
   - **思辨反例矩阵（`dialectic`）**：思想实验反例矩阵（`matrix`，支持 `predictBeforeReveal` 先猜后看、`Reveal all` / `Reset` 全局对比与方向键单元格聚焦）及双立场苏格拉底交锋泳道（`lanes`）。
   - **闭环矢量框图与力流路径（`mechanism`）**：支持闭环反馈二次贝塞尔曲线绕行（避免控制回路或力流穿过中间模块）、节点点击详情以及 `Step trace` / `Reset` 逐步因果推演的分步矢量框图（`schematic`）。
   - **代码实证、前提找茬、诊断自测与实操演练（`empirical`、`spot`、`quiz`、`try`）**：逐行聚焦走读、并发交错时间轴（`inside`）、支持全键盘操作与无行号纯净划选的前提/证明/代码找茬（`spot`）、逐干扰项揭示错因 `why` 且严格守护首次作答 `self-check` 真实性的边界自测（`quiz`），以及带可勾选步骤、持久化草稿板、提示与参考解法的 `try` / `workshop` 实操积木。
-- **内置零依赖 W3C MathML 编译器（`lib/companion-template/mathml.js`）**：离线货币安全 `$...$` / `$$...$$` 编译，原生覆盖分段函数 `\begin{cases}`、矩阵与行列式 `bmatrix` / `vmatrix`、定积分与环路积分 `\int_a^b` / `\oint`、求和与极限 `\sum` / `\lim`、上下花括号、范数与内积 `\|x\|` / `\langle u, v \rangle`、牛顿/拉格朗日时间导数 `\dot{x}` / `\ddot{x}`、`\operatorname{...}` 以及形式与模态逻辑符号（`\vdash`、`\models`、`\Box`、`\Diamond`、`\forall`、`\exists`、`\implies`、`\iff`）。
+- **基于 `temml` 的编译期 W3C MathML Core 渲染（`lib/companion-template/mathml.js`）**：离线货币安全 `$...$` / `$$...$$` 编译器，底层采用纯 JS 零依赖的 `temml`（MIT，`{ xml: true, throwOnError: false, trust: false }`），在编译期将公式转为标准 XML `<math>` 存入 `lesson._math` 侧表，完整覆盖分段函数 `\begin{cases}`、矩阵与行列式 `bmatrix` / `vmatrix`、定积分与环路积分 `\int_a^b` / `\oint`、求和与极限 `\sum` / `\lim`、上下花括号、范数与内积 `\|x\|` / `\langle u, v \rangle`、牛顿/拉格朗日时间导数 `\dot{x}` / `\ddot{x}`、`\operatorname{...}` 以及形式与模态逻辑符号（`\vdash`、`\models`、`\Box`、`\Diamond`、`\forall`、`\exists`、`\implies`、`\iff`），浏览器端正文保持纯 `textNode` 渲染。
+- **模块化运行时与 Sandpack 式 `ready` 握手队列（`lib/companion-template/runtime/`、`ui/diagram-frame.js`）**：伴学运行时拆分为独立模块（`dom.js`、`blocks-core.js`、`blocks-visual.js`、`math-sandbox.js`、`renderer.js`、`bridge.js`、`i18n-*.js`）。宿主与 iframe 之间通过带令牌校验的 `studyhub-companion/1` 协议进行 `ready` / `ping` 握手，在 iframe 就绪前将 `theme`、`goto`、`labels` 等消息按 FIFO 排队并去重合并，就绪后原子冲刷，杜绝首屏主题同步或页码跳转竞态丢失。
 - **双落盘、主会话零密钥直编与诚实溯源**：生成结果同时明文写入 `<工作区>/companions/<课程>/<slug>.html` 与 `.lesson.json` 并自动挂载到课程（主对话亦可加载内置 `study-companion` 技能，无需单独配置模型密钥直接调用 `companion.compile` 编译并挂载交互课）。勾选讲义时智能提取高信号结构化摘录；无资料自由命题时正常出课并诚实标注为 `AI 推演`（`grounded: false`）。
 
 ### 本地伴学包挂载、未构建 JSON 即时编译与学习交互体验（`companion.attach`、`companion.sync`）
@@ -80,7 +81,7 @@ dsh plugin --profile web add @tt-a1i/archify-dsh@1.0.0
 **打开时怎么做。**
 
 - 文档放在 `sandbox="allow-scripts"`、不加其他任何标志的 `iframe` 里。里面的脚本能运行（交互靠它），但它是一个不透明的源：读不到 StudyHub 的页面、存储和 cookie，不能让页面跳转、提交表单、弹出窗口、下载文件或弹对话框；里面访问 `parent.document` 会直接报错。
-- 用 `srcdoc` 传入，不是网址；带 `referrerpolicy="no-referrer"` 和一条 `csp`，挡住 `fetch`、WebSocket 和表单提交。图里从网络加载图片或字体仍然可以，这类请求不带你的任何信息。
+- 用 `srcdoc` 传入，不是网址；除了 `referrerpolicy="no-referrer"` 和 iframe 的 `csp` 属性外，还在 `srcdoc` `<head>` 内注入 `<meta http-equiv="Content-Security-Policy">`，确保 Chromium、Firefox 与 Safari 均一致挡住 `fetch`、XHR、WebSocket 和表单提交。图里从网络加载图片或字体仍然可以，这类请求不带你的任何信息。
 - 在文档头部最前面加了一小段脚本，让点链接时图停在原处（指向别的页面的链接不会在应用里打开；页内的 `#` 链接照常）。这只是方便，真正的保护是沙箱。
 - 窗口里有一行提示：这是外部生成的图，在隔离窗口里显示。
 

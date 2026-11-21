@@ -14,8 +14,11 @@ const IGNORE = 'button, a, input, select, textarea';
  * fitTransform) and zoomMin/zoomMax.
  */
 export function usePanZoom(width, height, { maxFit = 1.2, insetRight = 0, minInitial = 0.9, anchorX = 0, anchorY = 0, vertical = false,
-  zoomMin = ZOOM_LIMITS.min, zoomMax = ZOOM_LIMITS.max } = {}) {
+  fitKey = undefined, zoomMin = ZOOM_LIMITS.min, zoomMax = ZOOM_LIMITS.max } = {}) {
   const viewRef = useRef(null), drag = useRef(null), swallow = useRef(false);
+  // Dynamic fit hints (overlay inset / anchor point) are read on demand by fit() rather than recreating fit/ResizeObserver on node selection or drawer toggles.
+  const fitHintsRef = useRef({ insetRight, anchorX, anchorY });
+  fitHintsRef.current = { insetRight, anchorX, anchorY };
   const limits = { min: zoomMin, max: zoomMax };
   const [view, setView] = useState({ k: 1, x: 0, y: 0 });
   const [viewport, setViewport] = useState({ w: 0, h: 0 });
@@ -23,20 +26,38 @@ export function usePanZoom(width, height, { maxFit = 1.2, insetRight = 0, minIni
   const fit = useCallback((initial = false, bounds = { w: width, h: height }) => {
     const el = viewRef.current;
     if (!el || !width || !height) return;
-    setView(fitTransform({ box: { width: el.clientWidth, height: el.clientHeight }, bounds, initial: initial === true, maxFit, insetRight, minInitial,
-      anchorX, anchorY, vertical, zoomMin, zoomMax }));
-  }, [width, height, maxFit, insetRight, minInitial, anchorX, anchorY, vertical, zoomMin, zoomMax]);
+    const { insetRight: hintInsetRight, anchorX: hintAnchorX, anchorY: hintAnchorY } = fitHintsRef.current;
+    setView(fitTransform({ box: { width: el.clientWidth, height: el.clientHeight }, bounds, initial: initial === true, maxFit, insetRight: hintInsetRight, minInitial,
+      anchorX: hintAnchorX, anchorY: hintAnchorY, vertical, zoomMin, zoomMax }));
+  }, [width, height, maxFit, minInitial, vertical, zoomMin, zoomMax]);
   useLayoutEffect(() => {
     fit(true);
     const el = viewRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    let lastW = el.clientWidth;
+    let lastH = el.clientHeight;
+    if (lastW && lastH) {
+      setViewport(v => (v.w === lastW && v.h === lastH ? v : { w: lastW, h: lastH }));
+    }
     const observer = new ResizeObserver(() => {
-      setViewport(v => (v.w === el.clientWidth && v.h === el.clientHeight ? v : { w: el.clientWidth, h: el.clientHeight }));
-      if (el.clientWidth && el.clientHeight) fit(true);
+      const nextW = el.clientWidth;
+      const nextH = el.clientHeight;
+      setViewport(v => (v.w === nextW && v.h === nextH ? v : { w: nextW, h: nextH }));
+      if (nextW && nextH && (nextW !== lastW || nextH !== lastH)) {
+        lastW = nextW;
+        lastH = nextH;
+        fit(true);
+      }
     });
     observer.observe(el);
     return () => observer.disconnect();
   }, [fit]);
+  const lastFitKeyRef = useRef(fitKey);
+  useLayoutEffect(() => {
+    if (Object.is(lastFitKeyRef.current, fitKey)) return;
+    lastFitKeyRef.current = fitKey;
+    fit(true);
+  }, [fit, fitKey]);
   const zoomAt = useCallback((factor, clientX, clientY) => {
     const el = viewRef.current;
     if (!el) return;
