@@ -67,7 +67,7 @@ export default function BookPointGaps({ course, report, disabled = false, modelR
     return (
       <div className="book-gaps book-gaps--quiet" data-book-point-gaps={report.reason}>
         <PointGaps course={course} report={report} />
-        {onOutline && <Button variant="link" size="sm" onClick={onOutline}>{ui('回到总纲')}</Button>}
+        {onOutline && <Button icon="arrow-left" variant="link" size="sm" onClick={onOutline}>{ui('回到总纲')}</Button>}
       </div>
     );
   }
@@ -119,6 +119,7 @@ export default function BookPointGaps({ course, report, disabled = false, modelR
                     <Button
                       size="sm"
                       variant="quiet"
+                      iconEnd="arrow-right"
                       disabled={disabled || !!fillingJob}
                       data-chapter-topup={chapter.id}
                       onClick={() => fillGroup(chapter)}
@@ -141,6 +142,7 @@ export default function BookPointGaps({ course, report, disabled = false, modelR
                           <Button
                             size="sm"
                             variant="quiet"
+                            iconEnd="arrow-right"
                             disabled={disabled || !!fillingJob}
                             data-section-topup={section.id}
                             onClick={() => fillGroup(section)}

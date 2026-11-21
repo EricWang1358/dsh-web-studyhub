@@ -24,6 +24,7 @@ export default function BookGapHint({ node, course = '', handlers }) {
   const cardIds = [...new Set(questionRefs.map((q) => q?.cardId).filter(Boolean))].slice(0, 4);
   const deckIds = [...new Set(questionRefs.map((q) => q?.deckId).filter(Boolean))];
   const isRescueLaunch = hint?.kind === 'rescue_experiment';
+  const addPointGap = () => handlers.fillPointGap(node, pointGap);
 
   return (
     <div className="book-point__gap-wrap">
@@ -36,10 +37,9 @@ export default function BookGapHint({ node, course = '', handlers }) {
                 <Button
                   variant="link"
                   size="sm"
-                  iconEnd="arrow-right"
                   disabled={!!handlers.pointGapBusy}
                   data-point-fill-one={pointGap.id}
-                  onClick={() => handlers.fillPointGap(node, pointGap)}
+                  onClick={addPointGap}
                 >
                   {ui('补这个知识点')}
                 </Button>

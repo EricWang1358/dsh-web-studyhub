@@ -383,6 +383,7 @@
   "{0}/{1} 有题": "{0}/{1} covered",
   "缺 {0}": "{0} missing",
   "含 {0} 草稿": "{0} in drafts",
+  "含 {0} 草稿#one": "{0} in draft",
   "补不了": "Cannot fill",
   "{0} · 补知识点": "{0} · Fill knowledge points",
   "补本章（约 {0} 题）": "Fill chapter (~{0} questions)",

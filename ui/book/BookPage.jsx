@@ -334,7 +334,7 @@ export default function BookPage({ data, onBack, backLabel = '', onReturnBack = 
   // A rebuilt outline that would move the learner's own text: nothing moved yet, the list comes first (#461).
   if (book.status === 'rebuild-pending') return <section className="page book-page" ref={pageRef}>{header}<BookRebuildPreview moves={book.moves} onApply={rebuild.apply} onDiscard={rebuild.discard} building={building} /></section>;
   if (book.status !== 'ok') return <section className="page book-page" ref={pageRef}>{header}<EmptyState icon="book" title={ui('这门课还没有总纲')}
-    description={ui('复习全书按总纲的知识点排，先在总纲页生成总纲。')} primary={{ label: ui('回到总纲'), onClick: onBack }} /></section>;
+    description={ui('复习全书按总纲的知识点排，先在总纲页生成总纲。')} primary={{ label: ui('回到总纲'), icon: 'arrow-left', onClick: onBack }} /></section>;
   if (!book.notes) {
     const model = modelReadiness(data);
     const writeBook = () => startBookBuild({ act, course, notify });
@@ -345,7 +345,7 @@ export default function BookPage({ data, onBack, backLabel = '', onReturnBack = 
           {onOpenTask && <Button iconEnd="arrow-right" variant="link" size="sm" onClick={() => onOpenTask(writing.jobId)}>{ui('看进度')}</Button>}</p>
           : <EmptyState icon="book" title={ui('还没有复习全书')} description={`${ui('「生成复习全书」给每个知识点写讲解；写好后在这里读，点题目链接就去练。')} ${bookCostTipText()}`}
             primary={{ label: ui('生成复习全书'), icon: 'book', onClick: writeBook, disabled: !model.ready }}
-            secondary={onBack ? { label: ui('回到总纲'), onClick: onBack } : undefined} />}
+            secondary={onBack ? { label: ui('回到总纲'), icon: 'arrow-left', onClick: onBack } : undefined} />}
         <ModelSetupGate variant="compact" feature="reviewBook" model={model} />
       </section>
     );
