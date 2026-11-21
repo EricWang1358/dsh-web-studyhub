@@ -27,7 +27,7 @@ const world = mergedTranscript({ recordings: 2, parts: 4, paragraphs: 3 });
 const PARTS = 4, COUNT = PARTS * 5;
 const run = (complete, extra = {}, hooks = {}) => {
   const decks = [];
-  const request = { sources: world.sources, kind: 'quiz', count: COUNT, existing: [], performance: { concurrency: 3, batchSize: 5, fillRounds: 0 }, ...extra };
+  const request = { sources: world.sources, kind: 'quiz', count: COUNT, existing: [], performance: { concurrency: 3, batchSize: 5, fillRounds: 0, strategy: 'staged' }, ...extra };
   const done = generateBatched(complete, request, () => {}, async (deck) => { decks.push(deck); hooks.onSave?.(deck); });
   return { done, decks, last: () => decks.at(-1) };
 };
@@ -84,7 +84,7 @@ async function cutOff(how) {
     }
     return model.complete(system, prompt, context);
   };
-  const { done, last } = run(complete, { count: 10, signal: controller.signal, performance: { concurrency: 3, batchSize: 5, fillRounds: 0 } });
+  const { done, last } = run(complete, { count: 10, signal: controller.signal, performance: { concurrency: 3, batchSize: 5, fillRounds: 0, strategy: 'staged' } });
   const outcome = await done.then(deck => ({ deck }), error => ({ error }));
   return { ...outcome, saved: last() };
 }
@@ -119,7 +119,7 @@ test('and a dropped request is asked again by the fill round, like any transient
     if (isReview(system) && context.part === 2 && drops++ === 0) throw Object.assign(new Error('Model stream aborted'), { name: 'AbortError' });
     return model.complete(system, prompt, context);
   };
-  const deck = await run(complete, { count: 10, performance: { concurrency: 3, batchSize: 5, fillRounds: 1 } }).done;
+  const deck = await run(complete, { count: 10, performance: { concurrency: 3, batchSize: 5, fillRounds: 1, strategy: 'staged' } }).done;
   assert.equal(deck.cards.length, 10);
   assert.equal(deck.editorial.partReport.passed, 2);
 });
@@ -156,7 +156,7 @@ async function library(t, { model, coverage = { roundLimit: 8 }, sources = lectu
 
 test('a whole run over a lecture that repeats itself covers every section it asked for (it used to keep questions, cover nothing new, and retry the same sections)', async (t) => {
   const { service, ids } = await library(t, { model: repeatingModel() });
-  const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'full', kind: 'quiz', performance: { concurrency: 3, batchSize: 5 } });
+  const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'full', kind: 'quiz', performance: { concurrency: 3, batchSize: 5, strategy: 'staged' } });
   const job = await settleJob(service, started.jobId);
   assert.equal(job.status, 'complete', job.stage);
   const draft = (await service.call('export')).drafts[0], rounds = roundList(draft.editorial.coverageSpec);
@@ -199,7 +199,7 @@ test('a retry round that covers nothing is not repeated: the run stops after the
     return base.complete(system, prompt, context);
   } };
   const { service, ids } = await library(t, { model });
-  const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'full', kind: 'quiz', performance: { concurrency: 1, batchSize: 5 } });
+  const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'full', kind: 'quiz', performance: { concurrency: 1, batchSize: 5, strategy: 'staged' } });
   const job = await settleJob(service, started.jobId);
   assert.equal(job.status, 'complete', job.stage);
   const draft = (await service.call('export')).drafts[0], rounds = roundList(draft.editorial.coverageSpec), fills = rounds.filter(round => round.fill);
@@ -220,7 +220,7 @@ test('the learner presses 为没覆盖的部分补题 for sections that failed a
     return base.complete(system, prompt, context);
   } };
   const { service, ids } = await library(t, { model });
-  const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'full', kind: 'quiz', performance: { concurrency: 1, batchSize: 2, fillRounds: 0 } });
+  const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'full', kind: 'quiz', performance: { concurrency: 1, batchSize: 2, fillRounds: 0, strategy: 'staged' } });
   const job = await settleJob(service, started.jobId);
   assert.equal(job.status, 'complete', job.stage);
   const read = async () => { const current = (await service.call('export')).drafts[0]; return { draft: current, view: await service.call('coverage.get', { draftId: current.id }) }; };

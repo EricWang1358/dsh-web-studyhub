@@ -8,6 +8,7 @@ import { observeJob } from '../lib/job-calls.js';
 import { settleJob, until, sleep } from './helpers/wait.mjs';
 import { mergedTranscript } from './helpers/merged-transcript.mjs';
 import { clusteringModel } from './helpers/clustering-model.mjs';
+import { pinStaged } from './helpers/staged-strategy.mjs';
 
 /* A real run with the fake model: the progress of a continuation is its own (0% when it starts), and the end of a run is written in the log when it happened, with the saving that follows the last
    round said as a line of its own (the owner's log showed four silent minutes between the last round and 「任务完成」: the line of the end was stamped when the console next looked, not when the job ended). */
@@ -18,6 +19,7 @@ const PLAN = 'Plan a source-grounded assessment';
 async function library(t, model) {
   const root = await mkdtemp(join(tmpdir(), 'study-progress-honest-'));
   const service = new StudyService(root, { coverage: { roundLimit: 8 } });
+  await pinStaged(service);
   t.after(async () => { await service.dispose(); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
   service.complete = model.complete;
   service.light = async (system, prompt) => JSON.stringify({ sections: JSON.parse(prompt.split('\n\n')[0]).sections.map(item => ({ id: item.id, importance: 3, kind: 'definition', reason: `Reason for ${item.title}` })) });

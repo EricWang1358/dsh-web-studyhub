@@ -10,7 +10,8 @@ import { createFakeModel } from '../scripts/fake-model.mjs';
 const EFFORTS = { effortPlanning: 'follow', effortReview: 'follow', effortWriting: 'low', effortRepair: 'low', applySuggestions: false };
 const original = { kind: 'flashcard', count: 7, language: 'English', difficulty: 'foundation', focus: 'Explain independent deployment',
   concurrency: 1, batchSize: 2, jobTimeoutMinutes: 5, fillRounds: 2, ...EFFORTS, notation: 'auto' };
-const performance = ({ concurrency, batchSize, jobTimeoutMinutes, fillRounds = 2 }) => ({ concurrency, batchSize, jobTimeoutMinutes, fillRounds, ...EFFORTS });
+// 出题方式: the draft records the strategy that wrote it; these runs ask for a number of questions, which one pass does not serve, so they are written staged.
+const performance = ({ concurrency, batchSize, jobTimeoutMinutes, fillRounds = 2, strategy = 'staged' }) => ({ concurrency, batchSize, jobTimeoutMinutes, fillRounds, ...EFFORTS, strategy });
 const text = 'Microservices split a system into independently deployable services that own their data. ' +
   'Event-driven architecture lets services react to events published by others, which decouples producers from consumers. ' +
   'Relational databases give ACID transactions for payments and settlements. ';
@@ -100,7 +101,7 @@ test('explicit content and performance override one job without rewriting saved 
   assert.equal(draft.cards.length, 5);
   assert.ok(draft.cards.every(card => card.kind === 'quiz'));
   assert.deepEqual(draft.editorial.partReport.parts.map(part => part.asked), [3, 2]);
-  assert.deepEqual((await service.call('snapshot')).settings.generation, { ...original, kinds: [original.kind], coverageLevel: 'standard', selectionCount: 3, bookCallTimeoutMinutes: 0, lightModel: '' }, 'the saved list is derived from the saved kind');
+  assert.deepEqual((await service.call('snapshot')).settings.generation, { ...original, kinds: [original.kind], coverageLevel: 'standard', selectionCount: 3, bookCallTimeoutMinutes: 0, lightModel: '', strategy: 'one-pass' }, 'the saved list is derived from the saved kind');
 });
 
 test('usage estimates follow the saved batch size and match the actual fake-model call counts', async t => {
@@ -153,7 +154,7 @@ test('queued continuation retains original content and performance, but its time
     editorial: { ...draft.editorial, requested: 7, generated: 1, generation: legacyGeneration } } });
   await service.call('settings', { generation: { concurrency: 6, batchSize: 1, jobTimeoutMinutes: 60 } });
   const resumed = await wait(service, (await service.call('generate', { resumeDraftId: legacy.id, draftVersion: legacy.draftVersion })).jobId);
-  const expected = { ...original, count: 6, concurrency: 4, batchSize: 5, jobTimeoutMinutes: 60 }; // the limit follows the setting (60 set just above); the rest falls back to the defaults
+  const expected = { ...original, count: 6, concurrency: 4, batchSize: 5, jobTimeoutMinutes: 60, strategy: 'staged' }; // the limit follows the setting (60 set just above); the rest falls back to the defaults
   const legacyCompleted = await draftFor(service, resumed);
   checkJob(resumed, expected, 2); checkContent(legacyCompleted, expected);
   assert.ok(ctx.peak.get(resumed.id) <= 3);
@@ -164,7 +165,7 @@ test('queued continuation retains original content and performance, but its time
   const overridden = await wait(service, (await service.call('generate', { resumeDraftId: more.id, draftVersion: more.draftVersion,
     performance: oneOff })).jobId);
   const overriddenDraft = await draftFor(service, overridden);
-  checkJob(overridden, { ...original, ...oneOff, count: 5 }, 3); checkContent(overriddenDraft, { ...original, ...oneOff });
+  checkJob(overridden, { ...original, ...oneOff, count: 5 }, 3); checkContent(overriddenDraft, { ...original, ...oneOff, strategy: 'staged' }); // the legacy draft goes on staged
   assert.equal(ctx.peak.get(overridden.id), 2);
   assert.equal(overriddenDraft.cards.length, 12);
   assert.deepEqual(overriddenDraft.cards.slice(0, legacyCompleted.cards.length), legacyCompleted.cards);
@@ -197,7 +198,7 @@ test('corrupt retained draft performance falls back safely while explicit overri
   const resumed = await wait(service, (await service.call('generate', { resumeDraftId: saved.id, draftVersion: saved.draftVersion })).jobId);
   checkJob(resumed, { kind: 'flashcard', count: 1, concurrency: 4, batchSize: 5, jobTimeoutMinutes: 20 }, 1);
   assert.deepEqual((await draftFor(service, resumed)).editorial.generation.performance,
-    { concurrency: 4, batchSize: 5, jobTimeoutMinutes: 20, fillRounds: 2, ...EFFORTS });
+    { concurrency: 4, batchSize: 5, jobTimeoutMinutes: 20, fillRounds: 2, ...EFFORTS, strategy: 'staged' });
 });
 
 test('a continued run takes the time limit from the setting as it is now, not the one the draft was written with (3.0.1)', async t => {

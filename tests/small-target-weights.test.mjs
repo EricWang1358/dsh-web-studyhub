@@ -9,6 +9,7 @@ import { weighsSections, SMALL_TARGET_QUESTIONS } from '../lib/coverage-plan.js'
 import { settleJob } from './helpers/wait.mjs';
 import { transcriptFixture } from './helpers/coverage-fixture.mjs';
 import { clusteringModel } from './helpers/clustering-model.mjs';
+import { pinStaged } from './helpers/staged-strategy.mjs';
 
 /* Token cost: the importance of every section of a long material is asked of a light model (one call per ~20 sections, lib/section-weights.js). That pays when the run
    spreads many questions over the sections (the weights decide which sections get them). A SMALL custom total (a few questions asked of a long material) does not need
@@ -17,7 +18,8 @@ import { clusteringModel } from './helpers/clustering-model.mjs';
 const fx = transcriptFixture();
 const state = { sources: fx.sources, decks: [], drafts: [], settings: {} };
 const ids = fx.sources.map(source => source.id);
-const planned = (args) => estimateFromState('generate', { sourceIds: ids, ...args }, state, { language: 'zh' });
+// The staged pipeline: a planning call per group of sections beside the importance calls (one pass, the default, has no planning call: the last test below).
+const planned = (args) => estimateFromState('generate', { sourceIds: ids, performance: { strategy: 'staged' }, ...args }, state, { language: 'zh' });
 
 test('the rule: a custom total of at most 10 questions, or fewer than a quarter of the sections, is not weighed by the model', () => {
   assert.equal(SMALL_TARGET_QUESTIONS, 10);
@@ -42,11 +44,15 @@ test('the estimate prices no importance calls for a small custom total, and stil
   // The same total, but with enough of the material asked for that the weights are worth their calls.
   const many = planned({ coverageLevel: 'standard', count: 40 });
   assert.ok(many.stages.find(item => item.id === 'plan').calls >= 5, 'a total of 40 over 81 sections is weighed');
+  // In one pass the only 'plan' calls are the importance calls: none for a small total, one per chunk of 20 sections for a level.
+  const quick = args => planned({ ...args, performance: { strategy: 'one-pass' } }).stages.find(item => item.id === 'plan')?.calls ?? 0;
+  assert.deepEqual([quick({ coverageLevel: 'standard', count: 4 }), quick({ coverageLevel: 'standard' })], [0, 5]);
 });
 
 async function library(t) {
   const root = await mkdtemp(join(tmpdir(), 'study-small-weights-'));
   const service = new StudyService(root);
+  await pinStaged(service);
   t.after(async () => { await service.dispose(); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
   service.complete = clusteringModel().complete;
   const lightCalls = [];

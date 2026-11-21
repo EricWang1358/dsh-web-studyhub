@@ -23,16 +23,23 @@ test('a coverage estimate says what the level means and prices every round, the 
   assert.deepEqual([standard.coverage.level, standard.coverage.sections, standard.coverage.leaves], ['standard', 81, 81]);
   assert.ok(standard.coverage.goal > 200 && standard.coverage.rounds >= Math.ceil(standard.coverage.goal / 30), 'rounds of at most 30 questions');
   assert.ok(standard.coverage.firstRound <= 30);
-  assert.ok(standard.totalTokens.low > 1_000_000 && standard.totalTokens.high > standard.totalTokens.low);
+  assert.ok(standard.totalTokens.low > 500_000 && standard.totalTokens.high > standard.totalTokens.low);
   assert.ok(standard.calls.low > standard.coverage.rounds && standard.calls.high > standard.calls.low);
-  const stage = id => standard.stages.find(item => item.id === id);
-  assert.ok(stage('plan').calls >= 5 + 25, 'a planning call per group of sections plus the importance calls (one per chunk of 20 sections)');
+  const stage = (id, of = standard) => of.stages.find(item => item.id === id);
+  // The default writes in one pass: no planning call, only the importance calls (one per chunk of 20 sections); the staged pipeline also plans each group of sections.
+  assert.equal(stage('plan').calls, 5, 'the importance calls only');
+  assert.equal(stage('blueprint'), undefined);
+  const staged = estimate({ coverageLevel: 'standard', performance: { strategy: 'staged' } });
+  assert.ok(stage('plan', staged).calls >= 5 + 25, 'a planning call per group of sections plus the importance calls (one per chunk of 20 sections)');
   assert.ok(stage('author').calls >= standard.coverage.rounds);
   assert.deepEqual(Object.keys(standard.coverage.levels), ['lean', 'standard', 'full']);
   const [lean, full] = [estimate({ coverageLevel: 'lean' }), estimate({ coverageLevel: 'full' })];
-  assert.ok(lean.coverage.goal < standard.coverage.goal && standard.coverage.goal < full.coverage.goal);
-  assert.ok(lean.totalTokens.low < standard.totalTokens.low && standard.totalTokens.low < full.totalTokens.low, 'more questions cost more tokens');
-  assert.deepEqual(standard.coverage.levels.lean, { goal: lean.coverage.goal, sections: lean.coverage.sections });
+  // At the one-pass density these 570 000 characters ask more than the 500 questions one run is planned for at 标准 and 完整: both are capped, and say so.
+  assert.ok(lean.coverage.goal < standard.coverage.goal && standard.coverage.goal <= full.coverage.goal);
+  assert.deepEqual([standard.coverage.capped, full.coverage.capped], [['total'], ['total']]);
+  assert.ok(lean.totalTokens.low < standard.totalTokens.low, 'more questions cost more tokens');
+  assert.ok(Math.abs(full.totalTokens.low / standard.totalTokens.low - 1) < 0.15, 'the same capped number of questions costs about the same');
+  assert.deepEqual(standard.coverage.levels.lean, { goal: lean.coverage.goal, goalLow: lean.coverage.goalLow, sections: lean.coverage.sections });
   assert.equal(JSON.stringify(estimate({ coverageLevel: 'standard' })), JSON.stringify(standard), 'deterministic');
 });
 
@@ -85,9 +92,10 @@ test('parity: the plan a coverage run makes is the plan the estimate promised, f
 });
 
 test('#945: multi-round coverage estimation prices planned rounds and fillRounds accurately and covers a 197-question 7-round run', () => {
-  const autoAll = estimate({ coverageLevel: 'standard', count: 197, autoComplete: true });
-  const firstOnly = estimate({ coverageLevel: 'standard', count: 197, autoComplete: false });
-  const noFill = estimate({ coverageLevel: 'standard', count: 197, autoComplete: true, performance: { fillRounds: 0 } });
+  // The ~10M trajectory of #945 was a staged run: the staged pipeline is priced here (one pass: tests/one-pass-estimate.test.mjs).
+  const autoAll = estimate({ coverageLevel: 'standard', count: 197, autoComplete: true, performance: { strategy: 'staged' } });
+  const firstOnly = estimate({ coverageLevel: 'standard', count: 197, autoComplete: false, performance: { strategy: 'staged' } });
+  const noFill = estimate({ coverageLevel: 'standard', count: 197, autoComplete: true, performance: { strategy: 'staged', fillRounds: 0 } });
 
   assert.equal(autoAll.coverage.goal, 197);
   assert.equal(autoAll.coverage.rounds, 7);
@@ -102,4 +110,17 @@ test('#945: multi-round coverage estimation prices planned rounds and fillRounds
 
   const withThinking = calibrateEstimate(autoAll, null, null);
   assert.ok(withThinking.totalTokens.high >= 10_000_000, `197-question 7-round high bound (${withThinking.totalTokens.high}) covers ~10M actual trajectory (#945)`);
+});
+
+test('a run written in one pass forecasts a range of questions: the plan is the upper end; the staged pipeline and other kinds keep the one number', () => {
+  const quick = estimate({ coverageLevel: 'standard' });
+  assert.ok(quick.coverage.goalLow >= 1 && quick.coverage.goalLow < quick.coverage.goal, 'the lower end allows for dropped questions');
+  assert.equal(quick.coverage.goalLow, Math.floor(quick.coverage.goal * 0.8));
+  assert.ok(Object.values(quick.coverage.levels).every(level => level.goalLow < level.goal));
+  for (const other of [estimate({ coverageLevel: 'standard', performance: { strategy: 'staged' } }), estimate({ coverageLevel: 'standard', kinds: ['flashcard'] }),
+    estimate({ coverageLevel: 'standard' }, { settings: { generation: { strategy: 'staged' } } })]) {
+    assert.equal(other.coverage.goalLow, undefined);
+    // The density is the strategy's (lib/coverage-strength.js densityOf, owner 2026-11-21): 14 per 10 000 characters for one pass, 6 for the staged pipeline.
+    assert.ok(other.coverage.goal < quick.coverage.goal * 0.6, `${other.coverage.goal} staged, ${quick.coverage.goal} one pass`);
+  }
 });

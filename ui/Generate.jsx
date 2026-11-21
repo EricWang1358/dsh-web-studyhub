@@ -26,7 +26,7 @@ import GenerateAssist from './GenerateAssist.jsx';
 import { TokenEstimate, TokenEstimateView, useUsageEstimate } from './TokenUsage.jsx';
 import { callsText } from './token-usage.js';
 import { useStickyRoom } from './use-sticky-room.js';
-import CoverageStrength, { MaterialsForecast } from './coverage/CoverageStrength.jsx';
+import CoverageStrength, { MaterialsForecast, PlanCaps } from './coverage/CoverageStrength.jsx';
 import { autoLine } from './coverage/copy.js';
 import { openingLine, openingSelection, openingStands } from './generate-opening.js';
 import LargeDocumentCard from './LargeDocumentCard.jsx';
@@ -38,6 +38,7 @@ import {
   NOTATION_CHOICES, caseEvidence, chosenOptions, difficultyNote, estimateMinutes, estimateRequestOf, importDialog, kindNote, kindsOfForm, kindsPatch, extraValuesOf, moreValuesOf, notationNote, courseLine, roleOpenByDefault, selectionStats, summaryLine,
 } from './generate-form.js';
 import { DEFAULT_LEVEL, levelOf } from '../lib/coverage-strength.js';
+import { writesInOnePass } from '../lib/one-pass/route.js';
 import homeCss from './generate-home.css';
 import formCss from './generate-form.css';
 import focusIntakeCss from './focus-intake.css';
@@ -191,11 +192,13 @@ export default function Generate({
   // What the chosen 覆盖强度 means for the chosen materials: the backend's plan, priced from the real prompts (lib/token-estimate.js), asked once the choice settles.
   const level = levelOf(gen.coverageLevel ?? DEFAULT_LEVEL), custom = customCountOf(gen);
   const estimateRequest = estimateRequestOf(gen, { course: generationCourse, sourceIds: selectedSources, reasoningEffort });
+  // Whether the run will be written in one pass (出题方式 in 设置, and the kinds chosen here): the level's words say that strategy's density.
+  const onePass = writesInOnePass({ ...estimateRequest, performance: data.settings?.generation });
   const planned = useUsageEstimate(call, estimateRequest, { enabled: selectedSources.length > 0 && !referenceState.reason && !pathMode });
   const plannedCoverage = planned.status === 'ready' ? planned.estimate?.coverage : null, plannedGoal = plannedCoverage?.goal ?? null;
   // A summary promises questions: not for a button that is off (the reason is said below), and for the steps it is their own total.
   const blocked = !pathMode && advice.blocked;
-  const summary = pathMode ? pathSummary(path.included) : blocked ? '' : summaryLine({ ...stats, count: plannedGoal, difficulty: gen.difficulty, language: gen.language, minutes: plannedGoal ? estimateMinutes(data.jobs, plannedGoal) : null }, { choices: false });
+  const summary = pathMode ? pathSummary(path.included) : blocked ? '' : summaryLine({ ...stats, count: plannedGoal, low: plannedCoverage?.goalLow ?? null, difficulty: gen.difficulty, language: gen.language, minutes: plannedGoal ? estimateMinutes(data.jobs, plannedGoal) : null }, { choices: false });
   // The plan is priced for these materials: the tokens in the bar, the rest of the plan under it.
   const estimating = !pathMode && !blocked && selectedSources.length > 0 && !referenceState.reason;
   const barRoom = useStickyRoom('--generate-bar-room');
@@ -269,7 +272,7 @@ export default function Generate({
                   <p className="generate-note">{kindNote(kindsOfForm(gen), undefined, gen.kindCounts)}</p>
                 </FormRow>
                 {!pathMode && <FormRow label={ui("覆盖强度")} data-tour="generate-coverage">
-                  <CoverageStrength compact part="choice" level={level} customCount={gen.customCount ?? ''} state={planned} stats={stats} enabled={selectedSources.length > 0 && !referenceState.reason} disabled={busy}
+                  <CoverageStrength compact part="choice" level={level} customCount={gen.customCount ?? ''} state={planned} stats={stats} enabled={selectedSources.length > 0 && !referenceState.reason} disabled={busy} onePass={onePass}
                     onChoice={(patch) => setGen({ ...gen, ...patch })} onCustom={(customCount) => setGen({ ...gen, customCount })}
                     auto={autoOf({ ...gen, coverageLevel: level })} onAuto={(autoComplete) => setGen({ ...gen, autoComplete })} />
                 </FormRow>}
@@ -401,6 +404,7 @@ export default function Generate({
               {estimating && <div className="generate-estimate" data-generate-coverage>
                 <TokenEstimateView state={planned} lead={coverageStructure(plannedCoverage)} summary={estimate => callsText(estimate.calls)} warn={false} tight />
                 <MaterialsForecast coverage={plannedCoverage} />
+                <PlanCaps coverage={plannedCoverage} />
                 {plannedCoverage?.rounds > 1 && <p className="generate-note" data-coverage-auto-note>{autoLine(autoOf({ ...gen, coverageLevel: level }), plannedCoverage.rounds,
                   plannedCoverage.leaves > 0 && Number.isFinite(plannedCoverage.firstRoundSections) ? { level: plannedCoverage.level, percent: Math.round(plannedCoverage.firstRoundSections / plannedCoverage.leaves * 100) } : undefined)}</p>}
               </div>}

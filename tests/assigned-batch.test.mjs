@@ -12,7 +12,7 @@ const fx = transcriptFixture();
 const leaves = fx.leaves.map(section => ({ ...section, key: sectionKey(section.sourceId, section.id) }));
 const CONT = leaves.find(section => section.continued).key;
 const assign = (list, quota) => list.map(section => ({ key: section.key, sectionId: section.key, sourceId: section.sourceId, start: section.start, end: section.end, quota, title: section.title }));
-const performance = { concurrency: 2, batchSize: 5, fillRounds: 0 };
+const performance = { concurrency: 2, batchSize: 5, fillRounds: 0, strategy: 'staged' };
 const run = (model, assignments, extra = {}) => generateBatched(model.complete, { kind: 'quiz', sources: fx.sources, assignments, count: assignments.reduce((sum, item) => sum + item.quota, 0), performance, ...extra });
 const coverage = deck => coverageOf({ sources: fx.sources, cards: deck.cards, partPlans: deck.editorial.partPlans });
 

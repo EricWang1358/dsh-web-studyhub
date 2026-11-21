@@ -20,7 +20,8 @@ const noop = () => {};
 const text = html => html.replace(/<[^>]+>/g, ' ').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#x27;/g, "'").replace(/\s+/g, ' ').trim();
 const inLanguage = (language, run) => { m.setUiLanguage(language); try { return run(); } finally { m.setUiLanguage('zh'); } };
 
-const many = notes(40, 700), forty = estimateFromState('generate', { sourceIds: many.map(source => source.id), coverageLevel: 'full', autoComplete: false }, stateOf(many), { language: 'zh' });
+// At the staged density (完整, 10 per 10 000 characters) each 700-character note asks for one question, so a round of 30 holds 30 of the 40 notes.
+const many = notes(40, 700), forty = estimateFromState('generate', { sourceIds: many.map(source => source.id), coverageLevel: 'full', autoComplete: false, performance: { strategy: 'staged' } }, stateOf(many), { language: 'zh' });
 const eight = eightRecordings().sources, raised = estimateFromState('generate', { sourceIds: eight.map(source => source.id), coverageLevel: 'standard', count: 5 }, stateOf(eight), { language: 'zh' });
 const render = (estimate, extra = {}) => renderToStaticMarkup(React.createElement(m.CoverageStrength, { level: estimate.coverage.level, customCount: '', onLevel: noop, onCustom: noop,
   state: { status: 'ready', estimate }, stats: { materials: 2, pages: 0, chars: 30000 }, enabled: true, ...extra }));

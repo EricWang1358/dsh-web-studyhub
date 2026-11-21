@@ -11,6 +11,7 @@ import { settleJob, until, sleep } from './helpers/wait.mjs';
 import { mergedTranscript } from './helpers/merged-transcript.mjs';
 import { clusteringModel } from './helpers/clustering-model.mjs';
 import { stuckRun, refusePlannerUntilFill } from './helpers/staggered-refusals.mjs';
+import { pinStaged } from './helpers/staged-strategy.mjs';
 
 /* The EXECUTOR of a coverage run (phase 3b): the rounds of the plan one after another on the same draft, each round the coverage top-up (the enforced assignments, at most one round of questions),
    the draft as the checkpoint (editorial.coverageSpec.rounds[i].status and editorial.coverageRun), pause between rounds, resume, restart, the stop conditions and their true reasons.
@@ -114,6 +115,7 @@ async function library(t, { coverage = { roundLimit: 8 }, model = clusteringMode
     }
   }
   const service = new StudyService(root, { coverage });
+  await pinStaged(service);
   trackCleanup(t, root, service);
   service.complete = wrap ? wrap(model.complete, service) : model.complete;
   service.light = async (system, prompt) => {
@@ -183,6 +185,7 @@ test('a round larger than the 30 questions of a production round is accepted whe
   const big = mergedTranscript();
   const root = await mkdtemp(join(tmpdir(), 'study-coverage-limit-'));
   const service = new StudyService(root, { coverage: { roundLimit: 40 } });
+  await pinStaged(service);
   trackCleanup(t, root, service);
   service.complete = clusteringModel().complete;
   for (const source of big.sources) await service.call('source.add', { id: source.id, title: source.title, text: source.text, audio: source.audio });

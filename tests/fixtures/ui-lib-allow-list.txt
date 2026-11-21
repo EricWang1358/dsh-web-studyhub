@@ -87,6 +87,7 @@ lib/model-effort.js
 lib/model-text.js
 lib/notation.js
 lib/office/limits.js
+lib/one-pass/route.js
 lib/passage-translation.js
 lib/plain-reason.js
 lib/plan-weekly.js

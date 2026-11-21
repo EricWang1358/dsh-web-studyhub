@@ -11,6 +11,7 @@ import { mergedTranscript } from './helpers/merged-transcript.mjs';
 import { clusteringModel } from './helpers/clustering-model.mjs';
 import { stuckRun, refusePlannerUntilFill } from './helpers/staggered-refusals.mjs';
 import { requestData } from './helpers/request-data.mjs';
+import { pinStaged } from './helpers/staged-strategy.mjs';
 
 /* The honest states of a coverage run (the evaluation of 2026-10-06): D-15 a last planned round that covers nothing does not end the run before its bounded fill rounds, and the stop
    says how many sections are left; D-16 a section that fails again and again is remembered on the plan and left to the learner (after REPEAT_LIMIT tries; sooner when a retry round gains no section at all); D-5 a refused key is one plain
@@ -23,6 +24,7 @@ const refusal = () => Object.assign(new Error('401 Unauthorized: Invalid API key
 async function library(t, { model = clusteringModel(), wrap, coverage = { roundLimit: 8 } } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'study-honest-run-'));
   const service = new StudyService(root, { coverage });
+  await pinStaged(service);
   t.after(async () => { await service.dispose(); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
   service.complete = wrap ? wrap(model.complete, service) : model.complete;
   service.light = async (system, prompt) => JSON.stringify({ sections: JSON.parse(prompt.split('\n\n')[0]).sections.map(item => ({ id: item.id, importance: 3, kind: 'definition', reason: `Reason for ${item.title}` })) });

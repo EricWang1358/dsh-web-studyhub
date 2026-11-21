@@ -10,6 +10,7 @@ import { roundList } from '../lib/coverage-run.js';
 import { settleJob, until } from './helpers/wait.mjs';
 import { mergedTranscript } from './helpers/merged-transcript.mjs';
 import { clusteringModel, sectionOfQuote } from './helpers/clustering-model.mjs';
+import { pinStaged } from './helpers/staged-strategy.mjs';
 
 /* What a top-up of an almost covered draft says is LEFT (the owner's screen of 2026-10-08: 「还要 1 轮、约 30 题」, 「1 / 约 30」 and 「预计还要约 3.1M tok」 for a round whose planner had
    returned 3 knowledge points, 「已用 5M tok」 beside a usage panel of 212,255). The draft: a standard plan of two rounds (30 + 21 questions), the second refused by its planner, then a fill
@@ -26,6 +27,7 @@ async function almostCovered(t, { pick = keys => keys.at(-1), planKeep = null } 
   const root = await mkdtemp(join(tmpdir(), 'study-run-left-'));
   // One fill round: the story is a run that ended with one section left; the run may now write a section again in further fill rounds (lib/coverage-run.js FILL_ROUNDS), which is not what this test is about.
   const service = new StudyService(root, { coverage: { roundLimit: 30, fillRounds: 1 } });
+  await pinStaged(service);
   const model = clusteringModel(), world2 = { phase: 1, last: null, holdPlan: null, holdReview: null, returned: 0 };
   /* One cleanup, in this order (t.after hooks run in the order they were registered, so two hooks would remove the folder first). A failed check must not leave the job held for ever, so the gates open first;
      then the service stops; then the usage ledger, which writes the tally of every call after the call and is not waited for by the job, is let to finish its queue (on a slow disk it is still writing when the

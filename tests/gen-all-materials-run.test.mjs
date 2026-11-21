@@ -13,6 +13,7 @@ import { sectionsOf } from '../lib/sections.js';
 import { sectionedModel } from './helpers/coverage-fixture.mjs';
 import { clusteringModel } from './helpers/clustering-model.mjs';
 import { eightRecordings, pdfBook, notes, stateOf } from './helpers/materials-fixture.mjs';
+import { pinStaged } from './helpers/staged-strategy.mjs';
 
 /* Flow A before and after the run: the creation form says 「选了 N 份资料，M 份会出题，K 份不会：原因」 from the plan the run is made with; the draft page says 「选了 N 份，M 份已出题，K 份没出题」
    with each material's reason from what the draft holds, read live; a material without a question has its own 补题, which runs as a fill round of the same executor. */
@@ -24,6 +25,7 @@ async function library(t, sources, { complete, spread = false } = {}) {
   t.after(() => rm(root, { recursive: true, force: true }));
   // `spread`: a planner that follows the prompt and takes a point from every material it is given (the plain path has no program check of the spread, only the prompt).
   const service = new StudyService(root), model = spread ? sectionedModel() : clusteringModel();
+  await pinStaged(service);
   service.complete = complete ? complete(model) : model.complete;
   for (const source of sources) await service.call('source.add', { id: source.id, title: source.title, text: source.text });
   return { service, model, ids: sources.map(source => source.id) };
@@ -41,7 +43,8 @@ test('before the run: the estimate says how many materials get a question, and a
 
 test('before the run: more materials than one round holds, rounds waiting for the learner: the rest is named with the round they wait for', () => {
   const many = notes(40, 700), state = stateOf(many);
-  const estimate = estimateFromState('generate', { sourceIds: many.map(source => source.id), coverageLevel: 'full', autoComplete: false }, state, { language: 'zh' });
+  // At the staged density (完整, 10 per 10 000 characters) each 700-character note asks for one question: a round of 30 holds 30 of them.
+  const estimate = estimateFromState('generate', { sourceIds: many.map(source => source.id), coverageLevel: 'full', autoComplete: false, performance: { strategy: 'staged' } }, state, { language: 'zh' });
   const forecast = estimate.coverage.materials;
   assert.equal(forecast.selected, 40);
   assert.equal(forecast.planned, 30);

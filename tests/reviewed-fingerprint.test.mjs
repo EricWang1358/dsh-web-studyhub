@@ -20,7 +20,7 @@ const assignments = list => list.map(section => ({ key: sectionKey('lec', sectio
 async function generated() {
   const late = leaves().slice(6, 9);
   return generateBatched(repeatingModel().complete, { sources: lecture.sources, kind: 'quiz', count: late.length, existing: [], assignments: assignments(late),
-    performance: { concurrency: 3, batchSize: 5, fillRounds: 0 } }, () => {}, async () => {});
+    performance: { concurrency: 3, batchSize: 5, fillRounds: 0, strategy: 'staged' } }, () => {}, async () => {});
 }
 const draftOf = deck => ({ cards: deck.cards, editorial: { reviewedCards: deck.editorial.reviewedCards } });
 const mark = deck => deck.editorial.reviewedCards;

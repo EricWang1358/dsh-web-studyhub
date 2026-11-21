@@ -41,7 +41,8 @@ async function englishLibrary(t) {
     return fake(system, prompt, ctx);
   } });
   t.after(async () => { await service.dispose(); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
-  await service.call('settings', { generation: { language: 'English' } });
+  // The stages this test follows are the staged pipeline's (plan, blueprint, author, review): one pass, the default, is pinned off.
+  await service.call('settings', { generation: { language: 'English', strategy: 'staged' } });
   const lesson = await service.call('source.add', { title: '并发控制', text: LESSON, course: '数据库' });
   return { service, calls, lesson };
 }

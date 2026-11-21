@@ -5,7 +5,7 @@ import { ui, uiFormat } from './i18n.js';
 import { sourceFormat } from '../lib/source-groups.js';
 import { documentCount } from './generation-status.js';
 import { normalizeNotation } from '../lib/notation.js';
-import { LEVELS, DEFAULT_LEVEL, STRENGTH, levelOf, autoCompleteOf } from '../lib/coverage-strength.js';
+import { LEVELS, DEFAULT_LEVEL, STRENGTH, levelOf, autoCompleteOf, densityOf } from '../lib/coverage-strength.js';
 import { parseTokenBudget } from '../lib/coverage-run.js';
 import { GOAL_QUESTIONS_MAX } from '../lib/limits.js';
 import { nonEvidenceRanges } from '../lib/sections.js';
@@ -26,9 +26,9 @@ export const COUNT_PRESETS = Object.freeze([10, 30, 60, 100]);
 export const COVERAGE_LEVELS = Object.freeze(LEVELS.map(value => Object.freeze({ value, get label() { return levelLabel(value); } })));
 export { DEFAULT_LEVEL, levelLabel };
 
-/** One line on what a level means (the numbers are the table of lib/coverage-strength.js). */
-export function levelNote(value) {
-  const level = levelOf(value), config = STRENGTH[level];
+/** One line on what a level means (the numbers are the table of lib/coverage-strength.js). `onePass`: the run is written in one pass (lib/one-pass/route.js writesInOnePass), which has its own density. */
+export function levelNote(value, { onePass = false } = {}) {
+  const level = levelOf(value), config = { ...STRENGTH[level], perTenK: densityOf(level, { onePass }) };
   return ({
     lean: uiFormat('精简：只给最重要的小节出题（合计约占内容的六成，每段录音至少一处），每万字约 {0} 题，适合考前过一遍；默认只出第 1 轮，覆盖的小节不多是设计如此，要继续就勾选「自动补到完整」。', [config.perTenK]),
     standard: uiFormat('标准：每个不少于 {0} 字的小节都出题，更长、更重要的小节题更多，每万字约 {1} 题。', [config.minChars, config.perTenK]),
@@ -62,10 +62,10 @@ export function selectionStats(sources = [], selectedIds = []) {
 const CHARS_PER_PAGE = 1800;
 /** What a coverage level means in questions for a selection of this size, before the sections are known: the density of the level (questions per 10 000 characters, lib/coverage-strength.js)
     over its characters, a PDF page counting as about 1 800. Never cut to a small number; null when nothing is selected. The exact plan is the backend's (the line under the choice). */
-export function suggestCount({ pages = 0, chars = 0 } = {}, level = DEFAULT_LEVEL) {
+export function suggestCount({ pages = 0, chars = 0 } = {}, level = DEFAULT_LEVEL, { onePass = false } = {}) {
   const total = pages * CHARS_PER_PAGE + chars;
   if (!(total > 0)) return null;
-  return Math.min(COUNT_MAX, Math.max(1, Math.round(STRENGTH[levelOf(level)].perTenK * total / 10000)));
+  return Math.min(COUNT_MAX, Math.max(1, Math.round(densityOf(levelOf(level), { onePass }) * total / 10000)));
 }
 
 /* ---------- time ---------- */
@@ -170,9 +170,15 @@ export function coverageLead(coverage) {
   if (!coverage?.goal) return '';
   const rounds = coverage.rounds > 1 ? uiFormat('分 {0} 轮', [coverage.rounds]) : ui('一轮出完');
   const parts = countOf(coverage.units, coverage.leaves);
+  // A run written in one pass says a range (lib/one-pass/route.js questionRange): its plan is the upper end, some questions may be dropped.
+  if (rangeOf(coverage)) return coverage.custom ? uiFormat('自定义：{0}–{1} 道题，覆盖 {2}/{3}，{4}，', [coverage.goalLow, coverage.goal, coverage.sections, parts, rounds])
+    : uiFormat('{0}：约 {1}–{2} 道题，覆盖 {3}/{4}，{5}，', [levelLabel(coverage.level), coverage.goalLow, coverage.goal, coverage.sections, parts, rounds]);
   return coverage.custom ? uiFormat('自定义：{0} 道题，覆盖 {1}/{2}，{3}，', [coverage.goal, coverage.sections, parts, rounds])
     : uiFormat('{0}：约 {1} 道题，覆盖 {2}/{3}，{4}，', [levelLabel(coverage.level), coverage.goal, coverage.sections, parts, rounds]);
 }
+
+/** Whether a forecast of questions is a range: a one-pass run's lower end (`goalLow`) below its plan (`goal`). */
+const rangeOf = (forecast) => Number.isInteger(forecast?.goalLow) && forecast.goalLow >= 1 && forecast.goalLow < forecast.goal;
 
 /** The same estimate without the level and the count (the form's summary line says those, once): 「覆盖 81/81 个小节，分 12 轮，」 (the estimate's tokens and calls follow). */
 export function coverageStructure(coverage) {
@@ -185,7 +191,8 @@ export function coverageStructure(coverage) {
 /** The three levels side by side for the same sources: 「精简约 172 题 · 标准约 343 题 · 完整约 500 题」. */
 export function levelsLine(coverage) {
   if (!coverage?.levels) return '';
-  return LEVELS.filter(level => coverage.levels[level]).map(level => uiFormat('{0}约 {1} 题', [levelLabel(level), coverage.levels[level].goal])).join(META_DOT);
+  return LEVELS.filter(level => coverage.levels[level]).map(level => { const forecast = coverage.levels[level];
+    return rangeOf(forecast) ? uiFormat('{0}约 {1}–{2} 题', [levelLabel(level), forecast.goalLow, forecast.goal]) : uiFormat('{0}约 {1} 题', [levelLabel(level), forecast.goal]); }).join(META_DOT);
 }
 
 /** One line on what the chosen difficulty means. */
@@ -263,12 +270,13 @@ export function chosenOptions(gen = {}, plain = {}) {
 }
 
 /** The sentence above the submit button: what will be made, from what, and about how long it takes. `count` is the number of questions the plan makes (the estimate's goal); without it the sentence leaves the number out.
+ *  `low`: the lower end of a one-pass run's range (the estimate's goalLow): the sentence then says 「出 8–10 题」.
  *  `choices: false` leaves out the difficulty and the language: 创建题组's bar says the count, and those two are the form's own settings (#1082). The pieces are joined by 「 · 」. */
-export function summaryLine({ materials = 0, pages = 0, count = null, difficulty = 'mixed', language = '中文', minutes = null } = {}, { choices = true } = {}) {
+export function summaryLine({ materials = 0, pages = 0, count = null, low = null, difficulty = 'mixed', language = '中文', minutes = null } = {}, { choices = true } = {}) {
   if (!(materials > 0)) return '';
   const sources = materials === 1 ? ui('1 份资料') : uiFormat('{0} 份资料', [materials]);
   const total = Number.isFinite(Number(count)) && Number(count) >= 1 ? clampCount(count) : null;
-  const questions = total === null ? '' : total === 1 ? ui('1 题') : uiFormat('{0} 题', [total]);
+  const questions = total === null ? '' : rangeOf({ goal: total, goalLow: low }) ? uiFormat('{0}–{1} 题', [low, total]) : total === 1 ? ui('1 题') : uiFormat('{0} 题', [total]);
   const size = pages > 0 ? (pages === 1 ? ui('约 1 页') : uiFormat('约 {0} 页', [pages])) : '';
   const what = total === null ? (size ? uiFormat('将从 {0}（{1}）出题', [sources, size]) : uiFormat('将从 {0}出题', [sources]))
     : size ? uiFormat('将从 {0}（{1}）出 {2}', [sources, size, questions]) : uiFormat('将从 {0}出 {1}', [sources, questions]);

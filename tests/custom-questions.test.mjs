@@ -4,6 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { HEADROOM, fitUnits, packRuns } from '../lib/custom-questions.js';
 import { LIMITS, goalOfChars, strengthPlan } from '../lib/coverage-strength.js';
+import { estimateCustom } from '../lib/custom-estimate.js';
 
 const unit = (id, chars, sourceIds) => ({ id, title: id, chars, ...(sourceIds ? { sourceIds } : {}) });
 const ROOM = Math.floor(LIMITS.total * HEADROOM);
@@ -46,4 +47,23 @@ test('a chapter over the cap by itself is cut into parts of its own pages; one t
   assert.deepEqual(cut.map(part => part.id), cut.map((_, at) => `big~${at + 1}`));
   assert.equal(fitUnits([unit('one', 1200000, ['only'])], 'full', { charsOf }).length, 1, 'one source cannot be cut: its run is capped by the run itself');
   assert.equal(fitUnits([unit('est', 1200000)], 'full').length, Math.ceil(goalOfChars(1200000, 'full') / ROOM), 'with no sources (the estimate) it is cut by characters');
+});
+
+// 深度定制 is not changed by one pass (gate F1, 2026-11-21): its runs are cut at the staged density exactly as before, so a learner part way through a book who applies the
+// plan again gets the same runs, and lib/custom-apply.js `earlier()` (matched by the exact set of sources of a run) still finds the drafts already made. These are the runs
+// the code before one pass made of this book (computed with the code of origin/main d36ed392).
+test('a plan made before one pass is cut into the same runs after it, at every strength', () => {
+  const units = [unit('c1', 120000), unit('c2', 90000), unit('c3', 60000), unit('c4', 900000, ['a', 'b', 'c']), unit('c5', 40000), unit('c6', 250000), unit('c7', 30000)];
+  const runsOf = level => packRuns(fitUnits(units, level, { charsOf: () => 300000 }), level).map(run => [run.units.map(item => item.id).join('+'), run.goal]);
+  assert.deepEqual(runsOf('lean'), [['c1+c2+c3+c4+c5+c6+c7', 447]]);
+  assert.deepEqual(runsOf('standard'), [['c1+c2+c3', 162], ['c4~1', 360], ['c4~2+c5+c6+c7', 372]]);
+  assert.deepEqual(runsOf('full'), [['c1+c2+c3', 270], ['c4~1', 600], ['c4~2+c5', 340], ['c6+c7', 280]]);
+});
+
+test('the 定制方案 estimate counts the staged questions and calls whatever 出题方式 says', () => {
+  const chosen = Array.from({ length: 4 }, (_, index) => ({ id: `c${index + 1}`, doc: 'doc', index, chars: 30000 }));
+  const custom = { book: { make: false, parts: [] }, questions: { make: true, kinds: ['quiz'], strength: 'standard' } };
+  const onePass = estimateCustom({ chosen, paperChars: 0 }, custom, { strategy: 'one-pass' }).questions, staged = estimateCustom({ chosen, paperChars: 0 }, custom, { strategy: 'staged' }).questions;
+  assert.equal(staged.count, goalOfChars(30000, 'standard') * 4);
+  assert.deepEqual(onePass, staged);
 });

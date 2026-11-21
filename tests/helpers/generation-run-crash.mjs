@@ -8,6 +8,7 @@ import { availableParallelism, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { StudyService } from '../../lib/service.js';
+import { pinStaged } from './staged-strategy.mjs';
 import { roundList } from '../../lib/coverage-run.js';
 import { shortfallOf } from '../../lib/shortfall.js';
 import { clusteringModel } from './clustering-model.mjs';
@@ -49,6 +50,8 @@ export function ensureSeedFiles() {
       const service = new StudyService(seedRoot, { coverage: { roundLimit: CORPUS_ROUND_LIMIT } });
       try {
         for (const source of world.sources) await service.call('source.add', { id: source.id, title: source.title, text: source.text, audio: source.audio });
+        // The crash windows are those of the staged pipeline (its planning calls, its batches): the seed library keeps 'staged' as its 出题方式, so every world copied from it does.
+        await pinStaged(service);
         await service.dispose();
         const seedFiles = await walkFiles(seedRoot);
         return { sourceIds: world.sources.map(source => source.id), seedFiles };

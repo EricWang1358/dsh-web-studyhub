@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from './i18n.js';
-import { Button, Checkbox, Disclosure, Field, Hint, NumberInput, Select, SettingsSection, TextArea, useToast } from './components/index.js';
+import { Button, Checkbox, Disclosure, Field, Hint, NumberInput, Select, SettingsSection, TextArea, Tooltip, useToast } from './components/index.js';
 import KindPicker from './KindPicker.jsx';
 import { COVERAGE_LEVELS, difficultyNote, kindNote, kindsPatch, levelNote, notationNote } from './generate-form.js';
 import { GENERATION_SETTINGS_DEFAULTS, GENERATION_SETTINGS_LIMITS, GENERATION_LANGUAGES,
-  GENERATION_DIFFICULTIES, GENERATION_NOTATIONS, UNLIMITED_TIMEOUT_KEYS, clampConcurrency, effectiveConcurrencyLimit, normalizeGenerationSettings, validateGenerationPatch } from '../lib/generation-settings.js';
+  GENERATION_DIFFICULTIES, GENERATION_NOTATIONS, GENERATION_STRATEGIES, UNLIMITED_TIMEOUT_KEYS, clampConcurrency, effectiveConcurrencyLimit, normalizeGenerationSettings, validateGenerationPatch } from '../lib/generation-settings.js';
 import { lightModelOf, modelKey } from '../lib/job-model.js';
+import { writesInOnePass } from '../lib/one-pass/route.js';
 import { EFFORT_STAGES, effortKey } from '../lib/stage-effort.js';
 import { EffortSelect } from './EffortSelect.jsx';
 import { useStudy } from './study-context.jsx';
@@ -13,10 +14,13 @@ import { useStudy } from './study-context.jsx';
 const labels = { kinds: '默认题型', coverageLevel: '默认覆盖强度', selectionCount: '选段补题默认题数', count: '主会话里出题的默认题数', language: '默认语言', difficulty: '默认难度', focus: '默认侧重点', notation: '默认公式写法',
   concurrency: '同时生成的批数', batchSize: '每批题数', jobTimeoutMinutes: '每轮运行时限（分钟）', bookCallTimeoutMinutes: '总纲与全书单次调用时限（分钟）', fillRounds: '自动补题轮数',
   effortPlanning: '规划考点与答案设计', effortReview: '独立审阅', effortWriting: '出题与替换题', effortRepair: '修复题目',
-  lightModel: '机械步骤轻量模型', applySuggestions: '采纳审阅建议' };
+  lightModel: '机械步骤轻量模型', applySuggestions: '采纳审阅建议', strategy: '出题方式' };
 const languages = { auto: '跟随界面语言', 中文: '中文', English: 'English', 中英双语: '中英双语' };
 const difficulties = { mixed: '混合难度', foundation: '基础理解', application: '应用迁移', advanced: '深入辨析' };
 const notations = { auto: '自动', text: '纯文本', latex: '公式（LaTeX）' };
+// 出题方式 (lib/one-pass/route.js): one pass writes a coverage run's multiple-choice questions; every other run is written by the staged pipeline whatever is chosen here.
+const strategies = { 'one-pass': '快速铺题（默认）', staged: '逐题精出' };
+const STRATEGY_TIP = '快速铺题：每段资料一次写完这一段的题，程序核对引文、选项和每段题数，再拿引文前后的原文分批审阅；调用少、出得快，不合格的题直接舍去。逐题精出：先规划考点、设计答案，再分批出题、审阅和修复；更慢、更费 token，适合要求最严的题组。';
 const numeric = ['selectionCount', 'count', 'concurrency', 'batchSize', 'jobTimeoutMinutes', 'bookCallTimeoutMinutes', 'fillRounds'];
 const same = (left, right) => JSON.stringify(left) === JSON.stringify(right);
 const numbers = values => ({ ...values, ...Object.fromEntries(numeric.map(key =>
@@ -146,7 +150,7 @@ export function GenerationSettingsForm({ root, saved, efforts = null, session, m
         kindNote(editor.values.kinds, undefined, undefined, { canChat }), true)}
       {/* The one default the 创建题组 page plans by (it also decides whether the rounds go on by themselves); selectionCount is for reader passage supplements, and count below is for main-chat requests without a level. */}
       {field('coverageLevel', <Select {...propsFor('coverageLevel')} onChange={value => edit('coverageLevel', value)} options={COVERAGE_LEVELS.map(({ value, label }) => ({ value, label }))} />,
-        levelNote(editor.values.coverageLevel))}
+        levelNote(editor.values.coverageLevel, { onePass: writesInOnePass({ kinds: editor.values.kinds, performance: editor.values }) }))}
       {numberField('selectionCount', ui('在资料阅读器里选中一段文字「补充到现有题组」时的默认题数；每次补题仍可在「更多设置」里临时调整。'))}
       {choiceField('language', GENERATION_LANGUAGES, value => ui(languages[value]))}
       {choiceField('difficulty', GENERATION_DIFFICULTIES, value => ui(difficulties[value]), difficultyNote(editor.values.difficulty))}
@@ -157,6 +161,12 @@ export function GenerationSettingsForm({ root, saved, efforts = null, session, m
       <Disclosure className="settings-disclosure" summaryClassName="settings-disclosure__summary" bodyClassName="settings-disclosure__body"
         summary={ui('高级生成控制')} meta={ui('并发、批次、推理程度与审阅')} open={advancedOpen} onToggle={setAdvancedOpen}>
         <h3 className="settings-subtitle">{ui('生成安排')}</h3>
+        <Field key="strategy" label={ui(labels.strategy)} hint={ui('只用于按覆盖强度出的单选题；其他题型和按题数出题总是逐题精出。已有题组接着做或补题时，按它开始时的方式出（早于这个设置的题组是逐题精出）；补题时重写没通过的题总是逐题精出。')} error={errors.strategy}>
+          {({ id, describedBy }) => <Tooltip layer content={ui(STRATEGY_TIP)}>
+            <Select id={id} aria-describedby={describedBy} {...propsFor('strategy')} onChange={value => edit('strategy', value)}
+              options={GENERATION_STRATEGIES.map(value => ({ value, label: ui(strategies[value]) }))} />
+          </Tooltip>}
+        </Field>
         {numberField('concurrency', concurrencyHint)}
         {numberField('batchSize', withRange(GENERATION_SETTINGS_LIMITS.batchSize.min, GENERATION_SETTINGS_LIMITS.batchSize.max, GENERATION_SETTINGS_DEFAULTS.batchSize, ui('小批更早保存已核验题目，但会增加调用次数。')))}
         {timeoutField('jobTimeoutMinutes', withRange(GENERATION_SETTINGS_LIMITS.jobTimeoutMinutes.min, GENERATION_SETTINGS_LIMITS.jobTimeoutMinutes.max, GENERATION_SETTINGS_DEFAULTS.jobTimeoutMinutes, ui('从这一轮开始运行计时，不含排队；填 0 表示无上限。出题计划的每一轮各自计时，整个计划没有总时限；一轮用时较长（慢模型）可以调到 180 分钟或设为无上限。达到时限会保留已核验题目。')))}

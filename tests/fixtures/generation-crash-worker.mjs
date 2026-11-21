@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { StudyService } from '../../lib/service.js';
 import { Store } from '../../lib/store.js';
 import { clusteringModel } from '../helpers/clustering-model.mjs';
+import { pinStaged } from '../helpers/staged-strategy.mjs';
 import { corpusWorld, CORPUS_ROUND_LIMIT, weighing } from '../helpers/record-run-corpus.mjs';
 import { coverageForDraft } from '../../lib/coverage-state.js';
 import { wantedUncovered } from '../../lib/coverage-run.js';
@@ -85,6 +86,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     ({ jobId } = await service.call('generate', { sourceIds: scenario.sourceIds, coverageLevel: 'standard', kind: 'quiz', ...(scenario.count ? { count: scenario.count } : {}) }));
   } else {
     const { world } = await worldOf(scenario);
+    // A fresh world: its crash windows are the staged pipeline's, so the library keeps 'staged' as its 出题方式 (the seeded world has it from its seed).
+    await pinStaged(service);
     for (const source of world.sources) await service.call('source.add', { id: source.id, title: source.title, text: source.text, audio: source.audio });
     ({ jobId } = await service.call('generate', { sourceIds: world.sources.map(source => source.id), coverageLevel: 'standard', kind: 'quiz', ...(scenario.count ? { count: scenario.count } : {}) }));
   }

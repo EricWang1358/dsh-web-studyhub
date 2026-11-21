@@ -157,6 +157,7 @@
 | `lib/contexts/notes/daily-generation.js:39,48`、`lib/daily-recap.js:256` | 仍走 | 例外：共享流水线 | 每日总结的模型由调用方传入 |
 | `lib/followup.js:50`、`lib/ingest.js:59`、`lib/oral-exam-service.js:36`、`lib/rubric-grading.js:29` | 仍走 | 例外：即时请求 | 单次等待的请求，无任务记录 |
 | `lib/generation.js:96,101,142,272,273,756` | 仍走 | 例外：共享流水线 | |
+| `lib/one-pass/reply.js:10,12` | 仍走 | 例外：共享流水线 | 一次写完（出题方式默认），模型由 lib/batch.js 传入（运行的限流调用）；回复读不出 JSON 时再问一次 |
 | `lib/jobs/gateway.js:138` | 仍走 | 例外：内核 | 批准的模型网关 |
 | `lib/library-usage.js:46`、`lib/sample-library.js:89` | 仍走 | 例外：误报 | |
 | `lib/live-job.js:39,42` | 不走（已更新：`audioLiveSave`） | S6-2 删除 | 原课堂保存运行器；Job 共用 `translateLive` |

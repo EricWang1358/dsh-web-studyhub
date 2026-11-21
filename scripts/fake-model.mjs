@@ -11,6 +11,8 @@ import { stageSystem } from "../lib/prompt-order.js";
 import { reportUsage } from "../lib/usage-scope.js";
 import { dshSystemTokens, dshUserTokens } from "../lib/token-estimate.js";
 import { recapLeaks } from "../lib/daily-recap.js";
+import { WRITE_SYSTEM, REWRITE_SYSTEM, REVIEW_SYSTEM } from "../lib/one-pass/prompts.js";
+import { SAME_FACT_SYSTEM } from "../lib/one-pass/merge.js";
 
 /** The route a preview reports for this model. */
 export const FAKE_MODEL_ROUTE = Object.freeze({ provider: "preview", model: "fake-model" });
@@ -259,6 +261,30 @@ function editorReview(candidate) {
     learningValue: "pass", sourceSupport: "pass", explanationQuality: "pass",
     explanation: "Preview fixture accepted this card; no real model judgment was made.",
   })) };
+}
+
+/* ---------- generation in one pass (lib/one-pass/): write, rewrite, review ---------- */
+
+/** The cards of a one-pass write call: for every section its quota of cards, each on a different passage of that section's own text, the first option correct (the program shuffles). */
+function writeOnePass(request, nextNumber) {
+  const covered = new Set((request.existing || []).map(norm)), cards = [];
+  for (const { section, quota } of request.sections || []) {
+    const piece = (request.sources || []).find((source) => source.section === section);
+    if (!piece) continue;
+    const used = new Set();
+    for (let at = 0, made = 0; made < Number(quota) && at < 12; at++) {
+      const n = nextNumber(), quote = quoteFor(piece, n - 1, request.focusTopics), english = englishContent(request.language, quote);
+      const objective = english ? `Target #${n}: explain what “${clip(quote, 40)}” establishes and tell it apart from a near miss` : `目标 #${n}：说清「${clip(quote, 24)}」成立的机制，并与相近说法区分`;
+      if (used.has(quote) || covered.has(norm(objective))) continue;
+      used.add(quote); covered.add(norm(objective)); made += 1;
+      const copy = COPY[english ? "en" : "zh"], topic = topicOf(piece, english);
+      const texts = [copy.options[0], copy.wrongSecond, copy.options[2], copy.options[3]];
+      cards.push({ section, topic, objective, quote, prompt: copy.quiz(n, topic, quote), hint: copy.hint,
+        options: texts.map((text, index) => ({ text, correct: index === 0, explanation: index === 0 ? copy.right : copy.wrong })),
+        explanation: copy.explanation(topic, quote), misconception: copy.misconception });
+    }
+  }
+  return { cards };
 }
 
 function answerBlueprint(request) {
@@ -644,6 +670,14 @@ const HANDLERS = [
     reply: ({ prompt }) => authorDeck(after(prompt, "REQUEST DATA:\n")) },
   { name: "generation.review", slow: true, match: (s) => s.startsWith("Act as a strict assessment editor"),
     reply: ({ input }) => editorReview(input.candidate) },
+  { name: "generation.one-pass.write", slow: true, match: (s) => s.startsWith(WRITE_SYSTEM),
+    reply: ({ prompt, nextNumber }) => writeOnePass(after(prompt, "REQUEST DATA:\n"), nextNumber) },
+  { name: "generation.one-pass.rewrite", match: (s) => s.startsWith(REWRITE_SYSTEM),
+    reply: ({ input }) => ({ cards: (input.cards || []).map((card) => ({ index: card.index, options: card.options })) }) },
+  { name: "generation.one-pass.review", slow: true, match: (s) => s.startsWith(REVIEW_SYSTEM),
+    reply: ({ input }) => ({ reviews: (input.cards || []).map((card) => ({ index: card.index, verdict: "pass", blocker: 0, issue: "" })) }) },
+  // The final same-fact merge of a one-pass run: every fake card is on its own passage, so nothing is grouped.
+  { name: "generation.one-pass.merge", match: (s) => s.startsWith(SAME_FACT_SYSTEM), reply: () => ({ groups: [] }) },
   { name: "generation.repair", match: (s) => s.startsWith("Repair one draft card"),
     reply: ({ input }) => {
       const source = (input.sources || [])[0];

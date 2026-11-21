@@ -7,7 +7,7 @@ import css from './coverage.css';
 import { COUNT_MAX, COUNT_MIN, COUNT_PRESETS, COVERAGE_CHOICES, CUSTOM_CHOICE, budgetNote, clampCount, coverageChoicePatch, coverageLead, customCountOf, effectiveCoverage, levelNote, levelsLine, suggestCount } from '../generate-form.js';
 import { parseTokenBudget } from '../../lib/coverage-run.js';
 import { autoCompleteOf } from '../../lib/coverage-strength.js';
-import { autoLabel, autoLine, levelLabel, materialsForecastLine, raisedLine, tokensText } from './copy.js';
+import { autoLabel, autoLine, cappedLine, levelLabel, materialsForecastLine, raisedLine, tokensText } from './copy.js';
 
 /* 覆盖强度 on the 创建题组 form (phase 3 of docs/plans/coverage-generation): the choice of how completely the chosen materials are covered (精简 / 标准 / 完整), what it means in words, and, BEFORE the run,
    what it means for exactly these materials in one plain line: 「标准：约 343 道题，覆盖 81/81 个部分，分 12 轮，预计 2.10M–2.96M tok · 285–896 次模型调用」. The line is the answer of `usage.estimate`
@@ -23,6 +23,7 @@ import { autoLabel, autoLine, levelLabel, materialsForecastLine, raisedLine, tok
  * The control has four choices (精简 / 标准 / 完整 / 自定义) and exactly one is on (generate-form.js effectiveCoverage): 自定义 is a typed number of questions, its field is under the choices and
  * goes away with them. `onChoice(patch)` receives the form fields one pick sets (coverageChoicePatch), so a pick is one change of the form; without it `onLevel` / `onCustom` are called in turn.
  * `part`: 'choice' draws the choices, the number and 自动补到完整 (which belongs to the choice: 精简 does not go on by itself, the others do), 'spend' only 花费上限, for a form that puts the limit elsewhere; without it all are drawn.
+ * `onePass`: the run will be written in one pass (lib/one-pass/route.js writesInOnePass), whose density the level's words and the suggested number say (lib/coverage-strength.js densityOf).
  */
 /** 「选了 40 份资料，30 份会出题，10 份不会：…」: what the plan does for each chosen material, before the run (lib/coverage-materials.js materialForecast, in the estimate). Nothing for one material. */
 export function MaterialsForecast({ coverage }) {
@@ -31,12 +32,18 @@ export function MaterialsForecast({ coverage }) {
   return line ? <p className="cov-materials__note" data-coverage-materials data-missing={(coverage.materials.selected || 0) - (coverage.materials.planned || 0)}>{line}</p> : null;
 }
 
-export default function CoverageStrength({ level, customCount = '', onLevel, onCustom, onChoice, auto = autoCompleteOf(level), onAuto, budget = '', onBudget, state = { status: 'idle' }, stats, enabled = true, disabled = false, compact = false, part }) {
+/** The caps that made the plan smaller (the estimate's `coverage.capped`), said under the plan: nothing when none. */
+export function PlanCaps({ coverage }) {
+  const line = cappedLine(coverage?.capped);
+  return line ? <p className="generate-note" data-coverage-capped role="status">{line}</p> : null;
+}
+
+export default function CoverageStrength({ level, customCount = '', onLevel, onCustom, onChoice, auto = autoCompleteOf(level), onAuto, budget = '', onBudget, state = { status: 'idle' }, stats, enabled = true, disabled = false, compact = false, part, onePass = false }) {
   useInjectCss(css, 'study-coverage');
   const [picking, setPicking] = React.useState(false);
   const coverage = state.status === 'ready' ? state.estimate?.coverage : null, custom = customCountOf({ customCount });
   const { choice } = effectiveCoverage({ coverageLevel: level, customCount }, { picking }), isCustom = choice === CUSTOM_CHOICE;
-  const hint = suggestCount(stats, level), rounds = coverage?.rounds ?? 0, spend = parseTokenBudget(budget);
+  const hint = suggestCount(stats, level, { onePass }), rounds = coverage?.rounds ?? 0, spend = parseTokenBudget(budget);
   const pick = (value) => {
     const patch = coverageChoicePatch(value, { suggested: coverage?.goal ?? hint });
     setPicking(value === CUSTOM_CHOICE);
@@ -61,11 +68,12 @@ export default function CoverageStrength({ level, customCount = '', onLevel, onC
       <p className="generate-note" id="generate-count-note" data-coverage-level-note>{custom
         ? uiFormat('按你填的题数出，题仍按「{0}」的规则分到各个小节；超过 30 道的会分成几轮（每轮最多 30 题），最多 {1} 题。', [levelLabel(level), COUNT_MAX])
         : uiFormat('还没填题数，现在按「{0}」出。', [levelLabel(level)])}</p>
-    </div> : <p className="generate-note" data-coverage-level-note>{levelNote(level)}</p>)}
+    </div> : <p className="generate-note" data-coverage-level-note>{levelNote(level, { onePass })}</p>)}
     {choices && enabled && !compact && <div className="cov-strength__line" data-coverage-consequence>
       <TokenEstimateView state={state} lead={coverageLead(coverage)} tight />
       {coverage && !custom && <p className="cov-strength__levels-line" data-coverage-levels>{levelsLine(coverage)}</p>}
       <MaterialsForecast coverage={coverage} />
+      <PlanCaps coverage={coverage} />
     </div>}
     {choices && onAuto && (!isCustom || rounds > 1) && <div className="cov-strength__auto" data-tour="generate-auto" data-coverage-auto data-auto={auto ? 'on' : 'off'}>
       <Checkbox label={autoLabel()} checked={auto} disabled={disabled} onChange={onAuto} />
