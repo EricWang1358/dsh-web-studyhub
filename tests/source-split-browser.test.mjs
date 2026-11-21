@@ -52,6 +52,10 @@ const setup = () => (shared ??= (async () => {
   const runtime = createStudyRuntime(library);
   const lecture = Array.from({ length: 4 }, (_, i) => [`Lecture page ${i + 1}: the main idea of part ${i + 1}.`, ...[1, 2, 3].map(n => `Line ${n} of page ${i + 1} explains part ${i + 1} in plain words.`)]);
   const pdf = await runtime.call('materials.document.import', { filename: 'Lecture.pdf', dataBase64: (await makeTextPdf(lecture)).toString('base64'), courses: ['Macro'] });
+  const tallQuote = '高防服务器主要是指能独立硬防御 50Gbps 以上的服务器，能够有效抵御大规模流量攻击。';
+  const tallFiller = Array.from({ length: 45 }, (_, i) => `第 ${i + 1} 条补充说明：在窄栏排版中同一个段落会被自动换行拉长到超过阅读视口高度，用于验证引用跳转不会因父块过高而产生负偏移或遮挡。`).join(' ');
+  const mdBody = ['# 网络攻击常见手段总结', ...Array.from({ length: 24 }, (_, i) => `前置段落 ${i + 1}：常见网络攻击包括 SYN Flood、ACK Flood、UDP Flood 与 CC 攻击等基础类型。`), `${tallQuote} ${tallFiller}`].join('\n\n');
+  const mdDoc = await runtime.call('materials.document.import', { filename: 'Security.md', dataBase64: Buffer.from(mdBody).toString('base64'), courses: ['Macro'] });
   runtime.dispose();
   const again = new StudyService(library);
   await again.store.update(state => {
@@ -62,6 +66,7 @@ const setup = () => (shared ??= (async () => {
       question('g', 'book-p2', 'Paragraph 4 of page 2')] });
     state.decks.push({ id: 'd3', title: 'Typed', course: 'Macro', cards: [{ id: 'o', kind: 'open', topic: 'Demand', objective: 'Objective o', prompt: 'Explain the multiplier in your words.',
       answer: 'Spending becomes income, which is spent again.', explanation: 'Because.', citations: [{ sourceId: 'book-p2', quote: 'Paragraph 2 of page 2' }] }] });
+    state.decks.push({ id: 'd4', title: 'TallMd', course: 'Macro', cards: [question('tall', mdDoc.sourceIds[0], tallQuote)] });
   });
   await again.dispose();
   const distDir = join(root, 'dist');
@@ -76,7 +81,7 @@ const setup = () => (shared ??= (async () => {
 
 const WORDS = {
   zh: { resume: '继续 Split', fold: '收起资料栏', unfold: '展开对照资料', close: '关闭资料栏', more: '更多', original: '原始 PDF', read: '阅读', strip: '本题' },
-  en: { resume: 'Continue Split', fold: 'Fold the source column', unfold: 'Show the source beside the question', close: 'Close the source column', more: 'More', original: 'Original PDF', read: 'Read', strip: 'Question' },
+  en: { resume: 'Resume Split', fold: 'Fold the source column', unfold: 'Show the source beside the question', close: 'Close the source column', more: 'More', original: 'Original PDF', read: 'Read', strip: 'Question' },
 };
 
 /* Counts the renders of the column's reader (DocumentReader: the component that draws .study-document-viewer) from React's commits, through the devtools
@@ -467,5 +472,130 @@ test('对照栏: one reader at a time: a narrower window hands it to the dialog,
   await dialog.getByText(/先翻到正在看的那一章或那几页/).waitFor({ timeout: 30000 });
   await until(async () => !(await column.count()), 'the column to give way to the reader dialog');
   assert.equal(await page.locator('.study-document-viewer').count(), 1, 'one reader');
+  assert.deepEqual(errors.filter(error => !REFUSED.test(error)), [], 'no console or page errors');
+});
+
+test('对照栏: quote inside a tall Markdown block lands in view with top breathing room (no occlusion/overshoot), and column matches refined topbar & UI scale', { timeout: 600000 }, async t => {
+  let served;
+  try { served = await setup(); } catch (error) { t.skip(`no Chromium to look with: ${String(error.message).split('\n')[0]}`); return; }
+  const { server, browser } = served;
+  for (const open of (await previewCall(server, 'snapshot', {})).runs || []) await previewCall(server, 'review.end', { runId: open.id });
+  await previewCall(server, 'review.start', { mode: 'path', fresh: true, scope: [{ deckId: 'd4' }] });
+  const context = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+  const page = await context.newPage(), errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+  await page.addInitScript(() => { try { localStorage.setItem('study-ui-language', 'zh'); localStorage.setItem('study-autopilot', 'off'); } catch { /* blocked */ } });
+  await page.goto(server.url);
+  await page.locator('.map-tree').waitFor({ timeout: 30000 });
+  const moreDecks = page.getByRole('button', { name: /查看全部题组/ });
+  if (await moreDecks.count()) await moreDecks.first().click();
+  await page.getByRole('button', { name: '继续 TallMd' }).first().click();
+  await page.locator('.question-card').waitFor({ timeout: 30000 });
+  t.after(() => context.close());
+
+  await answerWrong(page);
+  await page.locator('.reading-source').scrollIntoViewIfNeeded();
+  const appScrollBefore = await page.evaluate(() => document.querySelector('.study-app')?.scrollTop ?? 0);
+  await page.locator('.reading-source').click();
+  await page.locator('.source-column .reader-aux__quote').waitFor({ timeout: 30000 });
+  await until(async () => (await quoteShown(page)).mark, 'the quote highlighted in the tall block');
+  await page.waitForTimeout(300);
+
+  const geometry = await page.evaluate(() => {
+    const range = [...(window.CSS?.highlights?.get('study-source-quote') || [])][0];
+    const scroller = document.querySelector('.source-column .reader-scroll');
+    const auxQuote = document.querySelector('.source-column .reader-aux__quote');
+    const toolbar = document.querySelector('.source-column .reader-toolbar');
+    const app = document.querySelector('.study-app');
+    const parentEl = range?.startContainer?.nodeType === 1 ? range.startContainer : range?.startContainer?.parentElement;
+    if (!range || !scroller || !auxQuote || !toolbar || !parentEl) return null;
+    const rangeRect = range.getBoundingClientRect();
+    const scrollerRect = scroller.getBoundingClientRect();
+    const auxRect = auxQuote.getBoundingClientRect();
+    const toolbarRect = toolbar.getBoundingClientRect();
+    const parentRect = parentEl.getBoundingClientRect();
+    return {
+      rangeTop: rangeRect.top,
+      rangeBottom: rangeRect.bottom,
+      scrollerTop: scrollerRect.top,
+      scrollerBottom: scrollerRect.bottom,
+      scrollerHeight: scrollerRect.height,
+      parentHeight: parentRect.height,
+      auxBottom: auxRect.bottom,
+      toolbarBottom: toolbarRect.bottom,
+      appScrollTop: app?.scrollTop ?? 0,
+      scrollerScrollTop: scroller.scrollTop,
+    };
+  });
+  assert.ok(geometry, 'geometry captured');
+  assert.ok(geometry.parentHeight > geometry.scrollerHeight, `parent block (${geometry.parentHeight.toFixed(0)}px) is taller than scroller (${geometry.scrollerHeight.toFixed(0)}px)`);
+  assert.ok(geometry.rangeTop >= geometry.scrollerTop + 20, `quote top (${geometry.rangeTop.toFixed(1)}) has breathing room below scroller top (${geometry.scrollerTop.toFixed(1)})`);
+  assert.ok(geometry.rangeTop >= geometry.auxBottom && geometry.rangeTop >= geometry.toolbarBottom, 'quote is not occluded by toolbar or aux quote bar');
+  assert.ok(geometry.rangeBottom <= geometry.scrollerBottom + 1, `quote bottom (${geometry.rangeBottom.toFixed(1)}) fits inside scroller bottom (${geometry.scrollerBottom.toFixed(1)})`);
+  assert.equal(geometry.appScrollTop, appScrollBefore, 'outer .study-app was not scrolled by quote jump');
+
+  // Verify .source-column aligns under .topbar in data-craft="refined" (48px) and with data-ui-scale="125"
+  const layoutModes = await page.evaluate(() => {
+    const app = document.querySelector('.study-app');
+    const topbar = document.querySelector('.topbar');
+    const column = document.querySelector('.source-column');
+    const measure = () => {
+      const tb = topbar.getBoundingClientRect(), col = column.getBoundingClientRect();
+      return { topbarHeight: tb.height, topbarBottom: tb.bottom, colTop: col.top, colBottom: col.bottom, innerHeight: window.innerHeight };
+    };
+    const base = measure();
+    app.setAttribute('data-craft', 'refined');
+    const refined = measure();
+    app.setAttribute('data-ui-scale', '125');
+    const scaled = measure();
+    app.removeAttribute('data-craft');
+    app.removeAttribute('data-ui-scale');
+    return { base, refined, scaled };
+  });
+  assert.ok(Math.abs(layoutModes.base.colTop - layoutModes.base.topbarBottom) <= 1.5, 'default column top aligns with topbar bottom');
+  assert.ok(Math.abs(layoutModes.refined.colTop - layoutModes.refined.topbarBottom) <= 1.5, 'refined column top aligns with 48px topbar bottom');
+  assert.ok(Math.abs(layoutModes.refined.colBottom - layoutModes.refined.innerHeight) <= 2, 'refined column bottom reaches viewport bottom');
+  assert.ok(Math.abs(layoutModes.scaled.colBottom - layoutModes.scaled.innerHeight) <= 2, 'scaled (125%) column bottom reaches viewport bottom');
+
+  // Verify markQuote/anchorScroll lands accurately under CSS zoom (data-ui-scale="150")
+  await page.locator('.source-column').getByRole('button', { name: WORDS.zh.close }).click();
+  await until(async () => !(await page.locator('.source-column').count()), 'column closed before zoom test');
+  await page.setViewportSize({ width: 1800, height: 1000 });
+  await page.evaluate(() => {
+    const app = document.querySelector('.study-app');
+    app.setAttribute('data-ui-scale', '150');
+    app.scrollTop = 0;
+  });
+  await page.waitForFunction(() => (document.querySelector('.review-page')?.clientWidth ?? 0) >= 900, null, { timeout: 10000 });
+  await page.locator('.reading-source').dispatchEvent('click');
+  await page.locator('.source-column .reader-aux__quote').waitFor({ timeout: 30000 });
+  await until(async () => (await quoteShown(page)).mark, 'quote highlighted under 150% zoom');
+  await page.waitForTimeout(300);
+  const zoomedGeometry = await page.evaluate(() => {
+    const range = [...(window.CSS?.highlights?.get('study-source-quote') || [])][0];
+    const scroller = document.querySelector('.source-column .reader-scroll');
+    const auxQuote = document.querySelector('.source-column .reader-aux__quote');
+    const toolbar = document.querySelector('.source-column .reader-toolbar');
+    const app = document.querySelector('.study-app');
+    if (!range || !scroller || !auxQuote || !toolbar) return null;
+    const rangeRect = range.getBoundingClientRect(), scrollerRect = scroller.getBoundingClientRect();
+    const auxRect = auxQuote.getBoundingClientRect(), toolbarRect = toolbar.getBoundingClientRect();
+    return {
+      rangeTop: rangeRect.top,
+      rangeBottom: rangeRect.bottom,
+      scrollerTop: scrollerRect.top,
+      scrollerBottom: scrollerRect.bottom,
+      auxBottom: auxRect.bottom,
+      toolbarBottom: toolbarRect.bottom,
+      appScrollTop: app?.scrollTop ?? 0,
+    };
+  });
+  assert.ok(zoomedGeometry, 'zoomed geometry captured');
+  assert.ok(zoomedGeometry.rangeTop >= zoomedGeometry.scrollerTop + 20, `zoomed quote top (${zoomedGeometry.rangeTop.toFixed(1)}) clears scroller top (${zoomedGeometry.scrollerTop.toFixed(1)})`);
+  assert.ok(zoomedGeometry.rangeTop >= zoomedGeometry.auxBottom && zoomedGeometry.rangeTop >= zoomedGeometry.toolbarBottom, 'zoomed quote not occluded by toolbar or aux bar');
+  assert.ok(zoomedGeometry.rangeBottom <= zoomedGeometry.scrollerBottom + 1, `zoomed quote bottom (${zoomedGeometry.rangeBottom.toFixed(1)}) fits inside scroller bottom (${zoomedGeometry.scrollerBottom.toFixed(1)})`);
+  assert.equal(zoomedGeometry.appScrollTop, 0, 'outer .study-app was not scrolled by reader jump under zoom');
+
   assert.deepEqual(errors.filter(error => !REFUSED.test(error)), [], 'no console or page errors');
 });

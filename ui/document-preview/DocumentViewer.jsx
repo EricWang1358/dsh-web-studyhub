@@ -51,7 +51,7 @@ import ReadingSections from './reader/ReadingSections.jsx';
 import { renderReaderMarkdown } from './reader/markdown.js';
 import { copyText, pickFormula } from './reader/formula.js';
 import { useReaderSettings } from './reader/useReaderSettings.js';
-import { useReadingPosition, scrollToNode } from './reader/useReadingPosition.js';
+import { useReadingPosition, scrollToNode, anchorScroll, cancelAnchorScroll, scrollerScale, targetRect } from './reader/useReadingPosition.js';
 import { lastReadKey } from './reader/last-read.js';
 import { useLastReadOpening, useKeepLastRead, useKeepLastView } from './reader/useLastRead.js';
 import { useChapterReads } from './reader/useChapterReads.js';
@@ -154,9 +154,16 @@ export const viewerFormat = (document, source) => document?.format
 
 
 /** The stored text with the quote marked: as written, else by its letters (resolveQuote), found once per text and quote, not per render. */
-function QuotedText({ text, quote, anchor, format }) {
+function QuotedText({ text, quote, anchor, format, scroller }) {
   const hit = useMemo(() => resolveQuote(text, quote, anchor), [text, quote, anchor]), mark = useRef(null);
-  useEffect(() => { mark.current?.scrollIntoView?.({ block: 'center' }); }, [quote, text]);
+  useEffect(() => {
+    const node = mark.current;
+    if (!node) return undefined;
+    const container = scroller?.current || node.closest?.('.reader-scroll');
+    if (container) return anchorScroll(container, node, { center: true, smooth: false });
+    node.scrollIntoView?.({ block: 'center' });
+    return undefined;
+  }, [quote, text, scroller]);
   return <pre className={sourceTextClass({ format })} data-study-text="true">{isPlaced(hit.status)
     ? <>{text.slice(0, hit.start)}<mark ref={mark} className="source-hit">{text.slice(hit.start, hit.end)}</mark>{text.slice(hit.end)}</> : text}</pre>;
 }
@@ -482,6 +489,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
       restoreScroll.current = { chapterId: spot.chapterId, top: spot.scrollTop };
       chapter.goTo({ chapterId: spot.chapterId });
     } else {
+      cancelAnchorScroll(scroller.current);
       scroller.current?.scrollTo?.({ top: spot.scrollTop, behavior: 'auto' });
     }
   };
@@ -650,7 +658,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     [quote, quoteText, source.selection, view === 'text']); // eslint-disable-line react-hooks/exhaustive-deps
   // A paged document is opened at the page a citation is on (page 1 is the top).
   const showSourcePage = () => {
-    if (paged && (source.document?.page || 1) > 1) scrollToNode(scroller.current, scroller.current?.querySelector(`[data-study-source="${source.id}"]`), { smooth: false });
+    if (paged && (source.document?.page || 1) > 1) anchorScroll(scroller.current, scroller.current?.querySelector(`[data-study-source="${source.id}"]`), { smooth: false });
   };
   // Where a quote is in what the reading view draws: as written ('resolved'), else by its letters ('fuzzy': hyphenation, markup, width), else not ('missing').
   const findQuote = selection => {
@@ -661,11 +669,16 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   };
   // A placed quote is centred and marked (until the next one); returns the unmarking.
   const markQuote = range => {
-    scrollToNode(scroller.current, range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement, { center: true, smooth: false });
-    if (!window.CSS?.highlights || !window.Highlight) return undefined;
-    window.CSS.highlights.set('study-source-quote', new window.Highlight(range));
-    return () => window.CSS.highlights.delete('study-source-quote');
+    const stopAnchor = anchorScroll(scroller.current, range, { center: true, smooth: false });
+    const hasHighlights = !!(window.CSS?.highlights && window.Highlight);
+    if (hasHighlights) window.CSS.highlights.set('study-source-quote', new window.Highlight(range));
+    return () => {
+      stopAnchor();
+      if (hasHighlights) window.CSS?.highlights?.delete?.('study-source-quote');
+    };
   };
+  // A new view starts at the top; a page or slide opened from a link starts at that page.
+  useEffect(() => { cancelAnchorScroll(scroller.current); scroller.current?.scrollTo?.({ top: 0 }); }, [view]);
   // How the quote was placed in what the reading view draws: 'resolved' (as written), 'fuzzy' (by its letters: hyphenation, markup, width), 'ambiguous', 'missing'.
   const [placed, setPlaced] = useState(null);
   useEffect(() => {
@@ -680,8 +693,6 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     return markQuote(range);
   }, [reading, loading, html, sections, quote, quoteState?.status, source.id, source.selection]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // A new view starts at the top; a page or slide opened from a link starts at that page.
-  useEffect(() => { scroller.current?.scrollTo?.({ top: 0 }); }, [view]);
   // Back from 原始 PDF in a document shown whole (no chapters), the text opens at the page the PDF was on (a chaptered one goes there through its chapter).
   const landing = useRef(0);
   useEffect(() => {
@@ -703,7 +714,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     if (!restore || loading || view === 'original') return;
     if (activeChapterId !== restore.chapterId) return;
     restoreScroll.current = null;
-    requestAnimationFrame(() => scroller.current?.scrollTo?.({ top: restore.top, behavior: 'auto' }));
+    requestAnimationFrame(() => { cancelAnchorScroll(scroller.current); scroller.current?.scrollTo?.({ top: restore.top, behavior: 'auto' }); });
   }, [activeChapterId, loading, view]);
   // A source link of the round, once its chapter is drawn (after the chapter's own landing): its quote, else the top of its page. Its mark stays until the
   // next link or `seek`, and goes with the reader.
@@ -713,9 +724,12 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     unmarkSeek();
     const { range } = seekGoal.quote ? findQuote({ sourceId: seekGoal.sourceId, quote: seekGoal.quote }) : { range: null };
     if (range) seekMark.current = markQuote(range);
-    else scrollToNode(scroller.current, scroller.current?.querySelector(`[data-study-source="${seekGoal.sourceId}"]`), { smooth: false });
+    else seekMark.current = anchorScroll(scroller.current, scroller.current?.querySelector(`[data-study-source="${seekGoal.sourceId}"]`), { smooth: false });
   }, [seekGoal, loading, view, sections]);
-  useEffect(() => unmarkSeek, []); // on unmount only
+  useEffect(() => {
+    const scrollerEl = scroller.current;
+    return () => { unmarkSeek(); cancelAnchorScroll(scrollerEl); };
+  }, []); // on unmount only
 
   // Search in the document: matches are DOM ranges painted with the Custom Highlight API.
   const deferredQuery = useDeferredValue(query);
@@ -734,9 +748,17 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   useEffect(() => {
     if (!total) return undefined;
     const index = Math.min(match, total - 1), clear = paintMatches(ranges.current, index);
-    const rect = ranges.current[index]?.getBoundingClientRect?.(), area = scroller.current?.getBoundingClientRect();
-    if (rect && area && (rect.top < area.top + 56 || rect.bottom > area.bottom - 56))
-      scroller.current.scrollTo({ top: scroller.current.scrollTop + rect.top - area.top - area.height / 3, behavior: 'auto' });
+    const rect = targetRect(ranges.current[index]), area = scroller.current?.getBoundingClientRect();
+    if (rect && area) {
+      const scale = scrollerScale(scroller.current, area) || 1;
+      const relTop = (rect.top - area.top) / scale, relBottom = (rect.bottom - area.top) / scale;
+      const areaH = (area.height || 0) / scale;
+      if (relTop < 56 || relBottom > areaH - 56) {
+        cancelAnchorScroll(scroller.current);
+        const offset = Math.max(24, areaH / 3);
+        scroller.current.scrollTo({ top: Math.max(0, scroller.current.scrollTop + relTop - offset), behavior: 'auto' });
+      }
+    }
     return clear;
   }, [total, match, findRun]);
   // What find reads in each chapter: the reading view's paragraphs, or each page's stored text in 原文 (folded once per chapter, kept while the text is).
@@ -1005,9 +1027,9 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
                   data-outline-id={section.id} data-study-page={section.page} data-study-source={section.sourceId}>
                   <span className="reader-section__label" data-find-skip="true">{labelOf(section)}</span>
                   {canPeek && <Button variant="quiet" size="sm" className="reader-peek" data-find-skip="true" data-peek-page={section.page} title={ui('看原页')} onClick={() => openPeek(section.page)}>{ui('看原页')}</Button>}
-                  <QuotedText format={format} text={pageText(section)} quote={section.sourceId === source.id ? quote : ''} anchor={source.selection} />
+                  <QuotedText format={format} text={pageText(section)} quote={section.sourceId === source.id ? quote : ''} anchor={source.selection} scroller={scroller} />
                 </section>)
-                  : <QuotedText format={format} text={content || sources[0]?.text || ''} quote={quote} anchor={source.selection} />}
+                  : <QuotedText format={format} text={content || sources[0]?.text || ''} quote={quote} anchor={source.selection} scroller={scroller} />}
           </div>
           {view !== 'original' && (pager.previous || pager.next) && <nav className="reader-pager" data-pager={chaptered ? 'chapter' : 'section'} aria-label={pager.label}>
             {pager.previous ? <button type="button" className="reader-pager__link" data-direction="previous" aria-keyshortcuts={chaptered ? '[' : undefined} onClick={pager.previous.go}>

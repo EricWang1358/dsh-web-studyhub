@@ -1,6 +1,7 @@
 import { useLayoutEffect } from 'react';
 import { ui } from '../i18n.js';
 import { anchorSegments } from '../../lib/course-book-ai-anchor.js';
+import { scrollUnderBar } from './use-book-place.js';
 
 /* The dashed words of an AI block (复习全书 M4): after a paragraph of the book is drawn, the words each block is about get a dashed underline (a span, so it
    can be focused and pressed), found in the rendered text (lib/course-book-ai-anchor.js). A click goes to the block, a click on the block's 关于：「…」 comes
@@ -82,7 +83,7 @@ export function flash(elements) {
 export function showBlock(id) {
   const block = blockOf(id);
   if (!block) return false;
-  block.scrollIntoView({ block: 'center' });
+  scrollUnderBar(block, { center: true });
   flash([block]);
   block.querySelector('.book-ai__toggle')?.focus({ preventScroll: true });
   return true;
@@ -94,7 +95,7 @@ export function showWords(id) {
   if (!spans.length) return false;
   // Words in a folded part (要点清单, 补充) open it first.
   for (let fold = spans[0].closest('details'); fold; fold = fold.parentElement?.closest('details')) fold.open = true;
-  spans[0].scrollIntoView({ block: 'center' });
+  scrollUnderBar(spans[0], { center: true });
   flash(spans);
   spans[0].focus({ preventScroll: true });
   return true;

@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { findRanges, paintMatches } from '../document-preview/reader/find.js';
-import { stickBar } from './BookBar.jsx';
-import { scrollerOf } from './use-book-place.js';
+import { scrollTargetTop, scrollerOf } from './use-book-place.js';
 
 /* The words 在书里找 or full-text search went to (#489), marked on the page with the reader's highlight (ui/document-preview/reader/find.js) and paragraph wash
    while their point is drawn: the matched paragraph is smoothly scrolled under the book bar once, opening any enclosing <details> or folded AI blocks first.
@@ -69,13 +68,11 @@ export function useFoundMarks({ found, drawn, pageRef, aiFold, stopHold, onGone 
       stopHold?.();
       const anchorNode = ranges[activeIndex]?.startContainer?.parentElement ?? block;
       openEnclosingDetails(root, anchorNode);
+      (pageRef.current ?? root.closest?.('.page'))?.getAnimations?.().forEach(animation => animation.finish());
       const scroller = scrollerOf(root);
-      const scrollerTop = scroller === document.scrollingElement ? 0 : (scroller?.getBoundingClientRect?.().top ?? 0);
-      const barBottom = stickBar(pageRef.current)?.getBoundingClientRect?.().bottom;
-      const under = barBottom !== undefined ? Math.max(scrollerTop + 12, barBottom + 16) : scrollerTop + 24;
-      const targetRect = (ranges[activeIndex] || block)?.getBoundingClientRect?.();
-      if (scroller && targetRect) {
-        const nextTop = Math.max(0, scroller.scrollTop + targetRect.top - under);
+      const target = ranges[activeIndex] || block;
+      const nextTop = scrollTargetTop({ target, scroller, page: pageRef.current, margin: 16 });
+      if (scroller && nextTop !== null) {
         scroller.scrollTo({ top: nextTop, behavior: reducedMotion() ? 'instant' : 'smooth' });
       }
     }
