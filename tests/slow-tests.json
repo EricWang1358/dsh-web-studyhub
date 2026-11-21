@@ -250,6 +250,7 @@
     "tests/mineru-local-service.runtime.test.mjs",
     "tests/mineru-local-service.test.mjs",
     "tests/mineru-local.test.mjs",
+    "tests/mineru-parse-server-recovery.test.mjs",
     "tests/mineru-service.test.mjs",
     "tests/mineru-status-cache.test.mjs",
     "tests/nonmodel-baseline-install.test.mjs",

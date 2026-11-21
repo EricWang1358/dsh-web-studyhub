@@ -63,11 +63,14 @@ function applyCorsHeaders(res, origin) {
   res.setHeader('Vary', 'Origin');
 }
 
-function sendJson(res, status, payload, origin = '') {
+function sendJson(res, status, payload, originOrOpts = '') {
+  const origin = typeof originOrOpts === 'string' ? originOrOpts : (originOrOpts?.origin || '');
+  const extraHeaders = typeof originOrOpts === 'object' && originOrOpts?.headers ? originOrOpts.headers : {};
   applyCorsHeaders(res, origin);
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
+    ...extraHeaders,
   });
   res.end(JSON.stringify(payload));
 }
@@ -193,7 +196,9 @@ async function handleApiCall({ req, res, origin, expectedDigest, onCall, maxRequ
   }
   const parsed = await parseApiRequestBody(req, { maxRequestBytes, maxRestoreBytes });
   if (!parsed.ok) {
-    sendJson(res, parsed.status, { ok: false, error: parsed.error, code: parsed.code }, origin);
+    const opts = parsed.status === 413 ? { origin, headers: { Connection: 'close' } } : origin;
+    if (parsed.status === 413) req.resume();
+    sendJson(res, parsed.status, { ok: false, error: parsed.error, code: parsed.code }, opts);
     return;
   }
   const result = await onCall(parsed.action, parsed.args);
@@ -270,10 +275,12 @@ export async function startLocalServer({
   let boundPort = port;
 
   const server = createServer((req, res) => {
+    const rawOrigin = typeof req.headers.origin === 'string' ? req.headers.origin.trim() : '';
+    const safeOrigin = isAllowedOrigin(rawOrigin, boundPort) ? rawOrigin : '';
     void routeIncomingRequest({
       req, res, boundPort, expectedDigest, onCall, onSubscribeEvents, activeStreams, uiRoot, token, injectDevToken, maxRequestBytes, maxRestoreBytes,
     }).catch(() => {
-      if (!res.headersSent) sendJson(res, 500, { ok: false, error: 'Internal server error', code: 'internal-error' });
+      if (!res.headersSent) sendJson(res, 500, { ok: false, error: 'Internal server error', code: 'internal-error' }, safeOrigin);
     });
   });
 
@@ -293,7 +300,10 @@ export async function startLocalServer({
     baseUrl: `http://127.0.0.1:${boundPort}`,
     close: () => {
       for (const closeStream of [...activeStreams]) closeStream();
-      return new Promise((resolveClose) => server.close(() => resolveClose()));
+      const closing = new Promise((resolveClose) => server.close(() => resolveClose()));
+      server.closeIdleConnections?.();
+      server.closeAllConnections?.();
+      return closing;
     },
   };
 }

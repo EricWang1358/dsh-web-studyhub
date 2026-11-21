@@ -109,11 +109,23 @@ function buildFailureError(result, timeoutMs) {
 
 function buildLineDeltaHandler(execution) {
   const emitChunk = execution?.onOutput || execution?.onChunk;
-  if (!emitChunk) return undefined;
+  const emitReasoning = execution?.onReasoning;
+  if (!emitChunk && !emitReasoning) return undefined;
   return (line) => {
     const item = parseAgyStreamLine(line);
-    if (item?.textDelta) emitChunk(item.textDelta);
+    if (item?.textDelta && emitChunk) emitChunk(item.textDelta);
+    if (item?.reasoningDelta && emitReasoning) emitReasoning(item.reasoningDelta.length);
   };
+}
+
+function tryStructuredAgyError(stdout) {
+  if (!String(stdout || '').trim()) return null;
+  try {
+    parseAgyStreamOutput(stdout);
+    return null;
+  } catch (error) {
+    return String(error?.message || '').startsWith('Antigravity CLI 执行失败：') ? error : null;
+  }
 }
 
 function assertAgyRunOk(result, execution, timeoutMs) {
@@ -123,12 +135,22 @@ function assertAgyRunOk(result, execution, timeoutMs) {
   if (result.timedOut || result.errorCode) {
     throw buildFailureError(result, timeoutMs);
   }
+  if (result.code !== 0) {
+    const structured = tryStructuredAgyError(result.stdout);
+    if (structured) throw structured;
+    throw buildFailureError(result, timeoutMs);
+  }
 }
 
 function resolveTimeoutMs(execution, defaultTimeoutMs) {
   const requested = execution?.timeoutMs;
   if (requested === undefined || requested === null) return defaultTimeoutMs;
   return Number.isFinite(requested) && requested >= 0 ? requested : defaultTimeoutMs;
+}
+
+function resolveEffort(agyConfig, execution) {
+  const raw = execution?.reasoningEffort ?? execution?.route?.reasoningEffort ?? agyConfig.effort;
+  return typeof raw === 'string' ? raw.trim() : '';
 }
 
 /**
@@ -147,7 +169,8 @@ export function createAgyCompleteAdapter(agyConfig, {
     const effectiveTimeoutMs = resolveTimeoutMs(execution, timeoutMs);
     const tempDir = await mkdtemp(join(tmpdir(), 'studyhub-agy-'));
     try {
-      const args = buildAgyStreamArgs({ timeoutMs: effectiveTimeoutMs, model: agyConfig.model, effort: agyConfig.effort });
+      const effort = resolveEffort(agyConfig, execution);
+      const args = buildAgyStreamArgs({ timeoutMs: effectiveTimeoutMs, model: agyConfig.model, effort });
       const stdinText = buildAgyUserMessageLine(buildAgyWrappedPrompt(system, prompt));
       const result = await runner.run({
         command: executablePath,
@@ -159,11 +182,19 @@ export function createAgyCompleteAdapter(agyConfig, {
         onStdoutLine: buildLineDeltaHandler(execution),
       });
       assertAgyRunOk(result, execution, effectiveTimeoutMs);
-      const parsed = parseAgyStreamOutput(result.stdout);
+      let parsed;
+      try {
+        parsed = parseAgyStreamOutput(result.stdout);
+      } catch (error) {
+        if (result.truncated) {
+          throw Object.assign(new Error('Antigravity CLI 输出超出上限被截断，未能读取最终结果'), { modelFailure: true });
+        }
+        throw error;
+      }
       report?.(parsed.usage, execution);
       return parsed.text;
     } finally {
-      await rm(tempDir, { recursive: true, force: true }).catch(() => {});
+      await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }).catch(() => {});
     }
   };
 }

@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { access, readFile } from 'node:fs/promises';
-import { dirname, extname } from 'node:path';
+import { dirname, extname, win32 } from 'node:path';
+import { StringDecoder } from 'node:string_decoder';
 import { parseCmdShimTarget } from '../../domain/shim-parser.js';
 
 const DEFAULT_MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
@@ -49,18 +50,26 @@ export async function unwrapExecutable(commandPath, { exists = fileExists, readT
   return { ok: true, command: parsed.targetPath, prefixArgs: [] };
 }
 
+function resolveTaskkillPath(env = process.env) {
+  const root = env.SystemRoot || env.windir || '';
+  return root ? win32.join(root, 'System32', 'taskkill.exe') : 'taskkill';
+}
+
 /**
  * Terminate a child process and its entire descendant tree without using a shell.
  */
-export function killProcessTree(pid, platform = process.platform) {
+export function killProcessTree(pid, platform = process.platform, fallbackKill = null) {
   if (!Number.isInteger(pid) || pid <= 0) return;
   if (platform === 'win32') {
-    const killer = spawn('taskkill', ['/PID', String(pid), '/T', '/F'], {
+    const killer = spawn(resolveTaskkillPath(), ['/PID', String(pid), '/T', '/F'], {
       shell: false,
       windowsHide: true,
       stdio: 'ignore',
     });
-    killer.on('error', () => {});
+    killer.on('error', () => {
+      try { fallbackKill?.(); } catch { /* ignore */ }
+      try { process.kill(pid); } catch { /* already exited */ }
+    });
     killer.unref?.();
     return;
   }
@@ -115,14 +124,15 @@ export function spawnVerbatimDetached(command, argumentLine, { cwd } = {}) {
 
 function createOutputCollector(maxBytes, onLine) {
   const chunks = [];
+  const decoder = onLine ? new StringDecoder('utf8') : null;
   let collected = 0;
   let truncated = false;
   let lineBuffer = '';
 
   function push(buffer) {
     const chunk = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
-    if (onLine) {
-      lineBuffer += chunk.toString('utf8');
+    if (onLine && decoder) {
+      lineBuffer += decoder.write(chunk);
       const parts = lineBuffer.split(/\r?\n/);
       lineBuffer = parts.pop() || '';
       for (const line of parts) onLine(line);
@@ -143,9 +153,12 @@ function createOutputCollector(maxBytes, onLine) {
   }
 
   function finish() {
-    if (onLine && lineBuffer) {
-      onLine(lineBuffer);
-      lineBuffer = '';
+    if (onLine && decoder) {
+      lineBuffer += decoder.end();
+      if (lineBuffer) {
+        onLine(lineBuffer);
+        lineBuffer = '';
+      }
     }
     return { text: Buffer.concat(chunks).toString('utf8'), truncated };
   }
@@ -170,7 +183,8 @@ function createBrokenShimResult(reason, durationMs) {
 
 function attachTerminationControls({ child, request, state, finalize }) {
   const triggerKill = () => {
-    if (child.pid) killProcessTree(child.pid);
+    if (child.pid) killProcessTree(child.pid, process.platform, () => child.kill());
+    else try { child.kill(); } catch { /* already exited */ }
     state.forceCloseTimer = setTimeout(() => finalize(null, 'SIGKILL'), KILL_GRACE_MS + 500);
     state.forceCloseTimer.unref?.();
   };

@@ -28,6 +28,21 @@ use crate::sidecar::{
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct DesktopBootstrapInfo {
+    #[serde(flatten)]
+    sidecar: BootstrapInfo,
+    install_flavor: &'static str,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PickedFile {
+    path: String,
+    size: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct DesktopUpdateInfo {
     available: bool,
     current_version: String,
@@ -101,9 +116,66 @@ fn file_path_to_string(path: FilePath) -> Result<String, String> {
         .map_err(|err| format!("selected directory could not be converted to a path: {err}"))
 }
 
+fn file_path_to_picked(path: FilePath) -> Result<PickedFile, String> {
+    let buf = path
+        .into_path()
+        .map_err(|err| format!("selected file could not be converted to a path: {err}"))?;
+    let size = std::fs::metadata(&buf).ok().map(|meta| meta.len());
+    Ok(PickedFile {
+        path: buf.to_string_lossy().into_owned(),
+        size,
+    })
+}
+
+fn sanitize_extensions(extensions: Option<Vec<String>>) -> Vec<String> {
+    extensions
+        .unwrap_or_default()
+        .into_iter()
+        .map(|ext| ext.trim().trim_start_matches('.').to_ascii_lowercase())
+        .filter(|ext| !ext.is_empty() && ext.chars().all(|ch| ch.is_ascii_alphanumeric()))
+        .collect()
+}
+
+pub fn detect_install_flavor_from_dir(exe_dir: Option<&Path>, is_windows: bool) -> &'static str {
+    if !is_windows {
+        return "standard";
+    }
+    let Some(dir) = exe_dir else {
+        return "portable";
+    };
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            if let Some(name) = entry.file_name().to_str() {
+                let lower = name.to_ascii_lowercase();
+                if lower == "uninstall.exe"
+                    || (lower.starts_with("unins") && lower.ends_with(".exe"))
+                {
+                    return "nsis";
+                }
+            }
+        }
+    }
+    let normalized = dir.to_string_lossy().to_ascii_lowercase().replace('/', "\\");
+    if normalized.contains("\\program files\\") || normalized.contains("\\program files (x86)\\") {
+        return "msi";
+    }
+    "portable"
+}
+
+fn current_install_flavor() -> &'static str {
+    let exe_dir = std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(Path::to_path_buf));
+    detect_install_flavor_from_dir(exe_dir.as_deref(), cfg!(windows))
+}
+
 #[tauri::command]
-fn get_bootstrap_info(state: State<'_, SidecarManager>) -> Result<BootstrapInfo, String> {
-    state.bootstrap_info()
+fn get_bootstrap_info(state: State<'_, SidecarManager>) -> Result<DesktopBootstrapInfo, String> {
+    let sidecar = state.bootstrap_info()?;
+    Ok(DesktopBootstrapInfo {
+        sidecar,
+        install_flavor: current_install_flavor(),
+    })
 }
 
 #[tauri::command]
@@ -119,6 +191,26 @@ async fn pick_directory(app: AppHandle) -> Result<Option<String>, String> {
             .map_err(|err| format!("folder picker task failed: {err}"))?;
 
     picked.map(file_path_to_string).transpose()
+}
+
+#[tauri::command]
+async fn pick_file(
+    app: AppHandle,
+    extensions: Option<Vec<String>>,
+) -> Result<Option<PickedFile>, String> {
+    let clean_exts = sanitize_extensions(extensions);
+    let picked = tauri::async_runtime::spawn_blocking(move || {
+        let mut builder = app.dialog().file();
+        if !clean_exts.is_empty() {
+            let ext_refs: Vec<&str> = clean_exts.iter().map(String::as_str).collect();
+            builder = builder.add_filter("Supported files", &ext_refs);
+        }
+        builder.blocking_pick_file()
+    })
+    .await
+    .map_err(|err| format!("file picker task failed: {err}"))?;
+
+    picked.map(file_path_to_picked).transpose()
 }
 
 #[tauri::command]
@@ -355,6 +447,7 @@ pub fn run() -> Result<(), String> {
             get_bootstrap_info,
             get_sidecar_health,
             pick_directory,
+            pick_file,
             open_external,
             desktop_check_update,
             desktop_install_update
@@ -417,6 +510,42 @@ mod tests {
                 "expected URL to be rejected: {candidate}"
             );
         }
+    }
+
+    #[test]
+    fn detect_install_flavor_distinguishes_nsis_msi_and_portable() -> Result<(), String> {
+        let nonce = crate::sidecar::generate_token()?;
+        let nsis_dir = std::env::temp_dir().join(format!("studyhub-nsis-{nonce}"));
+        std::fs::create_dir_all(&nsis_dir).map_err(|err| err.to_string())?;
+        std::fs::write(nsis_dir.join("uninstall.exe"), b"").map_err(|err| err.to_string())?;
+        let nsis_flavor = detect_install_flavor_from_dir(Some(&nsis_dir), true);
+        let _ = std::fs::remove_dir_all(&nsis_dir);
+        assert_eq!(nsis_flavor, "nsis");
+
+        let msi_dir = Path::new(r"C:\Program Files\StudyHub");
+        assert_eq!(detect_install_flavor_from_dir(Some(msi_dir), true), "msi");
+
+        let portable_dir = Path::new(r"D:\Tools\StudyHub-Portable");
+        assert_eq!(
+            detect_install_flavor_from_dir(Some(portable_dir), true),
+            "portable"
+        );
+        assert_eq!(
+            detect_install_flavor_from_dir(Some(portable_dir), false),
+            "standard"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn sanitize_extensions_strips_dots_and_invalid_entries() {
+        let cleaned = sanitize_extensions(Some(vec![
+            ".PDF".to_string(),
+            " mp3 ".to_string(),
+            "../exe".to_string(),
+            "".to_string(),
+        ]));
+        assert_eq!(cleaned, vec!["pdf".to_string(), "mp3".to_string()]);
     }
 
     #[test]

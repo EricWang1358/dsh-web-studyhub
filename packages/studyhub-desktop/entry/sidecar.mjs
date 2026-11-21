@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { StringDecoder } from 'node:string_decoder';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createDesktopHost } from '../application/desktop-host.js';
 import { createProviderDiscovery } from '../application/provider-discovery.js';
@@ -43,6 +44,7 @@ function parseCliArgs(argv) {
  */
 function readHandshakeToken(stdin, timeoutMs = HANDSHAKE_TIMEOUT_MS) {
   return new Promise((resolveToken, rejectToken) => {
+    const decoder = new StringDecoder('utf8');
     let buffer = '';
     let settled = false;
 
@@ -64,7 +66,7 @@ function readHandshakeToken(stdin, timeoutMs = HANDSHAKE_TIMEOUT_MS) {
     timer.unref?.();
 
     const onData = (chunk) => {
-      buffer += chunk.toString('utf8');
+      buffer += decoder.write(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
       if (buffer.length > HANDSHAKE_MAX_BYTES) {
         fail('Sidecar handshake line exceeded maximum length');
         return;

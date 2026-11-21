@@ -15,23 +15,32 @@ const DESKTOP_ERROR_EN = Object.freeze({
   'model-key-invalid': 'Invalid API key format; spaces and control characters are not allowed',
 });
 
+function resolveCallErrorMessage(error, code, language) {
+  if (language === 'en') {
+    if (Object.hasOwn(DESKTOP_ERROR_EN, code)) return DESKTOP_ERROR_EN[code];
+    if (Object.hasOwn(RETRIEVAL_ERROR_MESSAGES, code)) return formatRetrievalError(code, 'en');
+  }
+  return localizeAppMessage(error?.message || String(error), language);
+}
+
 export function formatCallError(error, language) {
   const code = typeof error?.code === 'string' && error.code ? error.code : 'STUDY_ERROR';
-  if (language === 'en' && Object.hasOwn(DESKTOP_ERROR_EN, code)) {
-    return { ok: false, error: DESKTOP_ERROR_EN[code], code };
-  }
-  if (language === 'en' && Object.hasOwn(RETRIEVAL_ERROR_MESSAGES, code)) {
-    return { ok: false, error: formatRetrievalError(code, 'en'), code };
-  }
-  const message = localizeAppMessage(error?.message || String(error), language);
-  return { ok: false, error: message, code };
+  const details = error?.details && typeof error.details === 'object' ? error.details : undefined;
+  return {
+    ok: false,
+    error: resolveCallErrorMessage(error, code, language),
+    code,
+    ...(details ? { details } : {}),
+  };
 }
 
 export function formatForwardAnswer(answer) {
   if (answer.ok) return { ok: true, value: answer.value };
+  const details = answer.error?.details && typeof answer.error.details === 'object' ? answer.error.details : undefined;
   return {
     ok: false,
     error: answer.error?.message || 'Study request failed',
     code: answer.error?.code || 'STUDY_ERROR',
+    ...(details ? { details } : {}),
   };
 }

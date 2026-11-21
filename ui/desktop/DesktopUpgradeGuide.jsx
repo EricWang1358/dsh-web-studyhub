@@ -147,7 +147,9 @@ export default function DesktopUpgradeGuide({ update, host }) {
   const [manualOpen, setManualOpen] = useState(false);
 
   const runInstall = resolveUpdaterRunner(host);
-  const canAutoUpdate = typeof runInstall === 'function';
+  const installFlavor = host?.updater?.installFlavor;
+  const manualOnlyFlavor = installFlavor === 'msi' || installFlavor === 'portable';
+  const canAutoUpdate = typeof runInstall === 'function' && !manualOnlyFlavor;
 
   async function startAutoUpdate() {
     if (!runInstall || phase === 'working') return;
@@ -197,7 +199,14 @@ export default function DesktopUpgradeGuide({ update, host }) {
           </details>
         </>
       ) : (
-        <ManualSteps update={update} showLead />
+        <>
+          {manualOnlyFlavor && (
+            <InlineMessage tone="info" boxed>
+              {ui('当前是 MSI 或便携版安装，为避免与 Setup.exe 并存产生重复安装，请使用下方手动下载升级。')}
+            </InlineMessage>
+          )}
+          <ManualSteps update={update} showLead />
+        </>
       )}
     </section>
   );

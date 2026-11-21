@@ -18,6 +18,7 @@ const TOKEN_BYTES: usize = 32;
 const DEFAULT_STARTUP_TIMEOUT_SECS: u64 = 20;
 const GRACEFUL_EXIT_TIMEOUT: Duration = Duration::from_millis(3_000);
 const GRACEFUL_EXIT_POLL_INTERVAL: Duration = Duration::from_millis(50);
+const MAX_STRAY_HANDSHAKE_LINES: usize = 64;
 const DEFAULT_MAX_RESTARTS_IN_WINDOW: usize = 3;
 const DEFAULT_RESTART_WINDOW_SECS: u64 = 60;
 const DEFAULT_BASE_BACKOFF_MS: u64 = 250;
@@ -183,6 +184,42 @@ pub fn parse_handshake_response(line: &str) -> Result<u16, String> {
         return Err("sidecar reported invalid port 0".to_string());
     }
     Ok(parsed.port)
+}
+
+pub fn read_handshake_port<R: BufRead>(reader: &mut R) -> Result<u16, String> {
+    let mut line = String::new();
+    let mut stray_lines = 0usize;
+    let mut last_error: Option<String> = None;
+    loop {
+        line.clear();
+        match reader.read_line(&mut line) {
+            Ok(0) => {
+                return Err(last_error.unwrap_or_else(|| {
+                    "sidecar closed stdout before completing handshake".to_string()
+                }));
+            }
+            Ok(_) => {
+                let trimmed = line.trim();
+                if trimmed.is_empty() {
+                    continue;
+                }
+                match parse_handshake_response(trimmed) {
+                    Ok(port) => return Ok(port),
+                    Err(err) => {
+                        eprintln!("[studyhub-sidecar] ignoring pre-handshake stdout line: {trimmed}");
+                        last_error = Some(err);
+                        stray_lines = stray_lines.saturating_add(1);
+                        if stray_lines >= MAX_STRAY_HANDSHAKE_LINES {
+                            return Err(last_error.unwrap_or_else(|| {
+                                "sidecar emitted too many non-handshake stdout lines".to_string()
+                            }));
+                        }
+                    }
+                }
+            }
+            Err(err) => return Err(format!("failed reading sidecar stdout: {err}")),
+        }
+    }
 }
 
 pub fn sidecar_startup_timeout() -> Duration {
@@ -352,13 +389,26 @@ fn configure_hidden_command(command: &mut Command) {
     }
 }
 
+#[cfg(windows)]
+fn resolve_taskkill_path() -> PathBuf {
+    if let Some(sys_root) = std::env::var_os("SystemRoot") {
+        let candidate = PathBuf::from(sys_root)
+            .join("System32")
+            .join("taskkill.exe");
+        if candidate.is_file() {
+            return candidate;
+        }
+    }
+    PathBuf::from("taskkill")
+}
+
 fn kill_process_tree(pid: u32) {
     if pid == 0 {
         return;
     }
     #[cfg(windows)]
     {
-        let mut cmd = Command::new("taskkill");
+        let mut cmd = Command::new(resolve_taskkill_path());
         cmd.args(["/PID", &pid.to_string(), "/T", "/F"])
             .stdin(Stdio::null())
             .stdout(Stdio::null())
@@ -494,41 +544,16 @@ impl SidecarHandle {
             return Err(format!("failed to write handshake to sidecar stdin: {err}"));
         }
 
-        let (tx, rx) = mpsc::channel::<Result<String, String>>();
+        let (tx, rx) = mpsc::channel::<Result<u16, String>>();
         let spawn_reader = thread::Builder::new()
             .name("studyhub-sidecar-stdout".to_string())
             .spawn(move || {
                 let mut reader = BufReader::new(stdout_pipe);
-                let mut sent = false;
-                let mut line = String::new();
-                loop {
-                    line.clear();
-                    match reader.read_line(&mut line) {
-                        Ok(0) => {
-                            if !sent {
-                                let _ = tx
-                                    .send(Err("sidecar closed stdout before completing handshake"
-                                        .to_string()));
-                            }
-                            break;
-                        }
-                        Ok(_) => {
-                            if !sent {
-                                let trimmed = line.trim();
-                                if !trimmed.is_empty() {
-                                    let _ = tx.send(Ok(trimmed.to_string()));
-                                    sent = true;
-                                }
-                            }
-                        }
-                        Err(err) => {
-                            if !sent {
-                                let _ =
-                                    tx.send(Err(format!("failed reading sidecar stdout: {err}")));
-                            }
-                            break;
-                        }
-                    }
+                let handshake = read_handshake_port(&mut reader);
+                let _ = tx.send(handshake);
+                let mut drain = String::new();
+                while matches!(reader.read_line(&mut drain), Ok(n) if n > 0) {
+                    drain.clear();
                 }
             });
 
@@ -537,8 +562,8 @@ impl SidecarHandle {
             return Err(format!("failed to start sidecar stdout reader: {err}"));
         }
 
-        let response_line = match rx.recv_timeout(timeout) {
-            Ok(Ok(line)) => line,
+        let port = match rx.recv_timeout(timeout) {
+            Ok(Ok(port)) => port,
             Ok(Err(err)) => {
                 terminate_child(&mut child, &mut stdin);
                 return Err(err);
@@ -553,14 +578,6 @@ impl SidecarHandle {
             Err(mpsc::RecvTimeoutError::Disconnected) => {
                 terminate_child(&mut child, &mut stdin);
                 return Err("sidecar stdout reader disconnected before handshake".to_string());
-            }
-        };
-
-        let port = match parse_handshake_response(&response_line) {
-            Ok(port) => port,
-            Err(err) => {
-                terminate_child(&mut child, &mut stdin);
-                return Err(err);
             }
         };
 
@@ -1342,6 +1359,21 @@ mod tests {
         assert_eq!(paths.node_bin, node_file);
         assert_eq!(paths.entry_script, entry_file);
         assert_eq!(paths.working_dir, runtime_dir);
+        Ok(())
+    }
+
+    #[test]
+    fn read_handshake_port_skips_pre_handshake_noise_and_rejects_eof() -> Result<(), String> {
+        let mut cursor = std::io::Cursor::new(
+            b"\n[dotenv] loaded .env\n{\"debug\":true}\n{\"port\":4188}\n".as_slice(),
+        );
+        assert_eq!(read_handshake_port(&mut cursor)?, 4188);
+
+        let mut empty = std::io::Cursor::new(b"".as_slice());
+        assert!(read_handshake_port(&mut empty).is_err());
+
+        let mut only_noise = std::io::Cursor::new(b"booting...\nnot json\n".as_slice());
+        assert!(read_handshake_port(&mut only_noise).is_err());
         Ok(())
     }
 
