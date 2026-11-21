@@ -26,6 +26,7 @@ export default function OrigamiMark({ stage = 0, done = 0, goal = 20, label = ''
               <polygon className="desk-play-origami__paper" points="16,14 50,14 50,48 16,48" />
               <polygon className="desk-play-origami__shade" points="50,14 50,48 36,48 50,34" />
               <line className="desk-play-origami__crease" x1="18" y1="46" x2="48" y2="16" />
+              <path className="desk-play-origami__accent-fold" d="M 36 48 L 50 34" />
             </g>
           )}
           {safeStage === 1 && (
@@ -34,6 +35,7 @@ export default function OrigamiMark({ stage = 0, done = 0, goal = 20, label = ''
               <polygon className="desk-play-origami__paper" points="12,48 34,24 52,14 38,48" />
               <line className="desk-play-origami__ridge" x1="12" y1="48" x2="52" y2="14" />
               <line className="desk-play-origami__crease" x1="34" y1="24" x2="38" y2="48" />
+              <path className="desk-play-origami__accent-fold" d="M 34 24 L 52 14" />
             </g>
           )}
           {safeStage === 2 && (
@@ -43,6 +45,7 @@ export default function OrigamiMark({ stage = 0, done = 0, goal = 20, label = ''
               <polygon className="desk-play-origami__highlight" points="32,16 19,34 32,44" />
               <line className="desk-play-origami__ridge" x1="32" y1="8" x2="32" y2="56" />
               <line className="desk-play-origami__crease" x1="12" y1="34" x2="52" y2="34" />
+              <path className="desk-play-origami__accent-fold" d="M 22 21 L 32 8 L 42 21" />
             </g>
           )}
           {safeStage === 3 && (

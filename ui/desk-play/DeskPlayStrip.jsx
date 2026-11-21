@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { kinds, useInjectCss } from '../shared.js';
 import { Badge, Button, IconButton } from '../components/index.js';
@@ -48,6 +48,28 @@ export default function DeskPlayStrip({ data, onPracticeDeck }) {
     writeDeskPlayPrefs({ hidden: nextHidden });
   };
 
+  // Studio shortcut Alt+Shift+D toggles the calligraphic scratchpad on the Home Desk,
+  // even when the Desk Play strip is collapsed, while yielding to editable fields and open modals.
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.defaultPrevented || event.repeat) return;
+      if (!event.altKey || !event.shiftKey || event.ctrlKey || event.metaKey) return;
+      if (event.code !== 'KeyD' && String(event.key || '').toLowerCase() !== 'd') return;
+      const target = event.target;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable || target.closest?.('input,textarea,select,[contenteditable]'))) return;
+      if (scratchpadOpen) {
+        event.preventDefault();
+        setScratchpadOpen(false);
+        return;
+      }
+      if (document.querySelector('dialog[open]')) return;
+      event.preventDefault();
+      setScratchpadOpen(true);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [scratchpadOpen]);
+
   const drawSlip = async () => {
     if (!eligibleDecks.length || drawing) return;
     setDrawing(true);
@@ -88,12 +110,20 @@ export default function DeskPlayStrip({ data, onPracticeDeck }) {
     }
   };
 
+  const scratchpadDialog = scratchpadOpen && (
+    <LazyInkScratchpadDialog
+      onClose={() => setScratchpadOpen(false)}
+      onStrokesChange={setSavedStrokes}
+    />
+  );
+
   if (hidden) {
     return (
       <div className="desk-play-collapsed">
         <Button variant="quiet" size="sm" icon="sparkle" onClick={() => toggleHidden(false)}>
           {ui('展开案头小笺')}
         </Button>
+        {scratchpadDialog}
       </div>
     );
   }
@@ -147,6 +177,7 @@ export default function DeskPlayStrip({ data, onPracticeDeck }) {
             variant="secondary"
             size="sm"
             icon="note"
+            aria-keyshortcuts="Alt+Shift+D"
             onClick={() => setScratchpadOpen(true)}
           >
             {savedStrokes > 0 ? uiFormat('毛笔草稿纸 · {0}', [savedStrokes]) : ui('毛笔草稿纸')}
@@ -225,12 +256,7 @@ export default function DeskPlayStrip({ data, onPracticeDeck }) {
         </article>
       )}
 
-      {scratchpadOpen && (
-        <LazyInkScratchpadDialog
-          onClose={() => setScratchpadOpen(false)}
-          onStrokesChange={setSavedStrokes}
-        />
-      )}
+      {scratchpadDialog}
     </section>
   );
 }

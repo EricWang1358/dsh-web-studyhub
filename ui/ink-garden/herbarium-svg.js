@@ -11,6 +11,17 @@ export const PLATE_HEIGHT = 440;
 const MARGIN = 22;
 const INNER = 30;
 
+/** Subtle archival numeral colophon (`YYYY.MM · NN%`) shared across all 3 editions (Han-free). */
+export function formatColophonText(garden) {
+  const today = String(garden?.today || '');
+  const ym = /^\d{4}-\d{2}/.test(today) ? today.slice(0, 7).replace('-', '.') : '';
+  if ((garden?.totals?.deckCount || 0) > 0) {
+    const pct = `${clamp(Math.round(Number(garden.totals.overallMastery) || 0), 0, 100)}%`;
+    return ym ? `${ym} · ${pct}` : pct;
+  }
+  return ym;
+}
+
 function toPathList(roughGen, drawable, fallback) {
   if (!roughGen || !drawable) return fallback;
   const paths = roughGen.toPaths(drawable);
@@ -128,17 +139,23 @@ function growPlumBoughs(garden, palette, roughGen) {
   const rng = createSeededRandom(garden.seed ^ 0x51a7);
   const branchPaths = [];
   const anchors = [];
-  const maxDepth = garden.isEmpty ? 3 : clamp(4 + Math.floor(Math.log2(garden.items.length + 2)), 4, 6);
-  const branchCap = garden.isEmpty ? 28 : 110;
+  const sparse = !garden.isEmpty && garden.items.length <= 3;
+  // Give 1–3 deck libraries a sweeping golden-ratio primary bough (maxDepth = 5) so the scroll breathes gracefully.
+  const maxDepth = garden.isEmpty
+    ? 3
+    : sparse
+      ? 5
+      : clamp(4 + Math.floor(Math.log2(garden.items.length + 2)), 4, 6);
+  const branchCap = garden.isEmpty ? 28 : sparse ? 96 : 112;
   let count = 0;
 
-  const insideSafe = (x, y) => x >= 68 && x <= PLATE_WIDTH - 92 && y >= 58 && y <= PLATE_HEIGHT - 64;
+  const insideSafe = (x, y) => x >= 76 && x <= PLATE_WIDTH - 96 && y >= 62 && y <= PLATE_HEIGHT - 66;
 
   function step(x, y, rad, depth, length, weight) {
     if (depth <= 0 || count >= branchCap) return;
     count++;
-    const segLen = length * rng.range(0.84, 1.12);
-    const midAngle = rad + rng.range(-0.14, 0.14);
+    const segLen = length * rng.range(0.86, 1.12);
+    const midAngle = rad + rng.range(-0.13, 0.13);
     const [mx, my] = polar2cart(x, y, segLen * 0.52, midAngle);
     const [nx, ny] = polar2cart(x, y, segLen, rad);
 
@@ -161,40 +178,40 @@ function growPlumBoughs(garden, palette, roughGen) {
         y: round1(ny),
         angle: rad,
         depth,
-        priority: (depth <= 2 ? 2 : 1) + (ny < PLATE_HEIGHT - 90 ? 0.4 : 0),
+        priority: (depth <= 2 ? 2 : 1) + (ny < PLATE_HEIGHT - 96 ? 0.45 : 0) + (nx > 180 && nx < 760 ? 0.35 : 0),
       });
     }
 
     if (nx < 44 || nx > PLATE_WIDTH - 44 || ny < 40 || ny > PLATE_HEIGHT - 36) return;
 
-    const nextLen = segLen * rng.range(0.76, 0.88);
-    const nextWeight = Math.max(0.85, weight * 0.74);
+    const nextLen = segLen * rng.range(0.77, 0.89);
+    const nextWeight = Math.max(0.85, weight * 0.75);
 
-    // Primary continuation gently sweeps across the sheet
-    const drift = rng.range(-0.22, 0.22);
+    // Primary continuation gently sweeps across the golden section
+    const drift = rng.range(-0.18, 0.18);
     step(nx, ny, rad + drift, depth - 1, nextLen, nextWeight);
 
     // ArtPlum fork with organic asymmetry
-    const forkChance = depth >= maxDepth - 1 ? 0.92 : garden.isEmpty ? 0.45 : 0.68;
+    const forkChance = depth >= maxDepth - 1 ? 0.94 : garden.isEmpty ? 0.45 : sparse ? 0.74 : 0.68;
     if (rng.chance(forkChance)) {
       const side = rng.chance(0.5) ? 1 : -1;
-      const spread = rng.range(0.28, 0.58) * side;
-      step(nx, ny, rad + spread, depth - 1, nextLen * rng.range(0.74, 0.96), nextWeight * 0.88);
+      const spread = rng.range(0.28, 0.56) * side;
+      step(nx, ny, rad + spread, depth - 1, nextLen * rng.range(0.75, 0.96), nextWeight * 0.88);
     }
-    if (!garden.isEmpty && depth >= 3 && rng.chance(0.32)) {
-      const counter = rng.range(-0.62, -0.32);
-      step(nx, ny, rad + counter, depth - 2, nextLen * 0.72, nextWeight * 0.8);
+    if (!garden.isEmpty && depth >= 3 && rng.chance(sparse ? 0.38 : 0.32)) {
+      const counter = rng.range(-0.6, -0.3);
+      step(nx, ny, rad + counter, depth - 2, nextLen * 0.74, nextWeight * 0.8);
     }
   }
 
-  // Primary gnarled plum bough sweeping from bottom-left across the upper center
-  step(48, 386, -0.44, maxDepth, 108, 3.8);
+  // Primary sweeping plum bough across the golden-ratio diagonal
+  step(46, 384, sparse ? -0.36 : -0.44, maxDepth, sparse ? 124 : 108, sparse ? 4.2 : 3.8);
 
-  // Graceful secondary upper-right bough for balanced gallery composition
+  // Balanced counter-bough sweeping softly from upper-right
   if (!garden.isEmpty) {
-    step(916, 118, Math.PI - 0.34, Math.max(3, maxDepth - 1), 88, 2.8);
-    if (garden.items.length >= 6) {
-      step(210, 404, -1.12, Math.max(3, maxDepth - 1), 76, 2.5);
+    step(914, 114, Math.PI - (sparse ? 0.28 : 0.34), sparse ? 4 : Math.max(3, maxDepth - 1), sparse ? 96 : 88, sparse ? 3.0 : 2.8);
+    if (sparse || garden.items.length >= 6) {
+      step(248, 404, -1.04, sparse ? 3 : Math.max(3, maxDepth - 1), sparse ? 82 : 76, 2.5);
     }
   } else {
     // Calm companion twig in empty state
@@ -229,7 +246,6 @@ function placeDeckSpecimens(items, anchors, gardenSeed) {
       }
     }
     if (!pick) {
-      // Deterministic botanical grid fallback inside the plate
       const idx = chosen.length;
       const col = idx % 6;
       const row = Math.floor(idx / 6);
@@ -265,7 +281,6 @@ function renderDeckSpecimen(placement, palette, roughGen) {
     const coreColor = highMastery ? palette.ok : palette.accent;
     const baseRot = rng.range(0, Math.PI * 2);
 
-    // Two subtle jade calyx leaves behind the plum blossom
     for (const side of [-0.7, 0.75]) {
       const leafPts = leafPolygon(x, y, petalR * 1.9, petalR * 0.45, angle + Math.PI + side);
       const leafPaths = makePolygon(roughGen, leafPts, {
@@ -281,7 +296,6 @@ function renderDeckSpecimen(placement, palette, roughGen) {
       for (const p of leafPaths) strokes.push({ ...p, opacity: 0.58 });
     }
 
-    // 5-petal plum blossom (梅花五瓣)
     for (let i = 0; i < 5; i++) {
       const theta = baseRot + (i * Math.PI * 2) / 5;
       const px = x + Math.cos(theta) * orbit;
@@ -300,7 +314,6 @@ function renderDeckSpecimen(placement, palette, roughGen) {
       for (const p of petalPaths) strokes.push({ ...p, opacity: 0.86 });
     }
 
-    // Cinnabar/jade heart & delicate ink stamens
     const corePaths = makeCircle(roughGen, x, y, petalR * 0.72, {
       stroke: coreColor,
       strokeWidth: 1.1,
@@ -351,7 +364,6 @@ function renderDeckSpecimen(placement, palette, roughGen) {
         opacity: 0.65,
       });
     }
-    // Half-open ochre bud at the leaf fork
     const budPaths = makeCircle(roughGen, x, y, 10 * sizeBoost, {
       stroke: palette.warn,
       strokeWidth: 1.1,
@@ -365,7 +377,6 @@ function renderDeckSpecimen(placement, palette, roughGen) {
   }
 
   if (item.stage === 'weak') {
-    // Subtle berry bud — gentle, dignified signal for topics to revisit (never wilting)
     const diam = round1(14 * sizeBoost);
     const haloPaths = makeCircle(roughGen, x, y, diam * 1.65, {
       stroke: palette.bad,
@@ -389,7 +400,6 @@ function renderDeckSpecimen(placement, palette, roughGen) {
     });
     for (const p of budPaths) strokes.push({ ...p, opacity: 0.88 });
 
-    // Embracing ink calyx ticks
     for (const off of [-0.55, 0.55]) {
       const [cx2, cy2] = polar2cart(x, y, diam * 0.72, angle + Math.PI + off);
       strokes.push({
@@ -426,6 +436,155 @@ function renderDeckSpecimen(placement, palette, roughGen) {
   return { strokes, hitRadius: 18 };
 }
 
+/**
+ * Sprout non-interactive companion plum blossoms, jade/ochre buds, and drifting petals
+ * derived strictly from real study progress signals (totals.mastered, familiar+learning,
+ * activeDays) so 1–3 deck libraries look like a lush living scroll without faking decks.
+ */
+function buildCompanionFlora(garden, anchors, placements, palette, roughGen) {
+  if (garden.isEmpty || !anchors.length) return [];
+  const rng = createSeededRandom(garden.seed ^ 0x6f2d);
+  const strokes = [];
+  const sparse = garden.items.length <= 3;
+
+  const masteredCards = Math.max(
+    garden.totals.mastered || 0,
+    garden.items.reduce((sum, d) => sum + (d.counts?.mastered || 0), 0),
+  );
+  const progressCards = garden.items.reduce(
+    (sum, d) => sum + (d.counts?.familiar || 0) + (d.counts?.learning || 0),
+    0,
+  );
+  const activeDays = garden.totals.activeDays || 0;
+  const overallMastery = garden.totals.overallMastery || 0;
+
+  const blossomBudget = sparse
+    ? clamp(
+      Math.floor(masteredCards / 3) + Math.floor(overallMastery / 20) + (activeDays >= 4 ? 1 : 0),
+      overallMastery > 0 || masteredCards > 0 ? 2 : 0,
+      7,
+    )
+    : 0;
+  const budBudget = sparse
+    ? clamp(
+      Math.floor(progressCards / 3) + Math.floor(activeDays / 4) + (garden.totals.attempts > 0 ? 1 : 0),
+      garden.totals.attempts > 0 ? 2 : 1,
+      6,
+    )
+    : 0;
+  const petalBudget = sparse
+    ? clamp(Math.floor((activeDays + masteredCards) / 4) + (overallMastery >= 40 ? 2 : 0), 2, 8)
+    : (masteredCards > 0 || activeDays >= 3 ? 4 : 0);
+
+  // Pick free branch anchors staying cleanly clear of interactive deck specimen nodes
+  const occupied = placements.map((p) => ({ x: p.x, y: p.y }));
+  const pickAnchor = (minDist) => {
+    for (let tries = 0; tries < anchors.length; tries++) {
+      const a = anchors[(rng.int(0, anchors.length - 1) + tries) % anchors.length];
+      if (occupied.every((u) => Math.hypot(u.x - a.x, u.y - a.y) >= minDist)) {
+        occupied.push({ x: a.x, y: a.y });
+        return a;
+      }
+    }
+    return null;
+  };
+
+  // Delicate companion plum blossoms (reflecting mastered cards / high mastery progress)
+  for (let b = 0; b < blossomBudget; b++) {
+    const a = pickAnchor(44);
+    if (!a) break;
+    const petalR = round1(rng.range(6.4, 8.6));
+    const orbit = round1(petalR * 0.72);
+    const useCinnabar = b % 3 === 0 && overallMastery >= 55;
+    const petalColor = useCinnabar ? palette.accent : palette.ok;
+    const coreColor = useCinnabar ? palette.ok : palette.accent;
+    const rot = rng.range(0, Math.PI * 2);
+
+    for (let i = 0; i < 5; i++) {
+      const theta = rot + (i * Math.PI * 2) / 5;
+      const px = a.x + Math.cos(theta) * orbit;
+      const py = a.y + Math.sin(theta) * orbit;
+      for (const p of makeCircle(roughGen, px, py, petalR * 1.18, {
+        stroke: petalColor,
+        strokeWidth: 0.9,
+        fill: petalColor,
+        fillStyle: 'hachure',
+        fillWeight: 0.7,
+        hachureAngle: round1(30 + i * 32),
+        hachureGap: 3.8,
+        roughness: 1.0,
+        disableMultiStroke: true,
+        seed: rng.int(1, 99999),
+      })) {
+        strokes.push({ ...p, opacity: 0.66 });
+      }
+    }
+    for (const p of makeCircle(roughGen, a.x, a.y, petalR * 0.56, {
+      stroke: coreColor,
+      strokeWidth: 0.9,
+      fill: coreColor,
+      fillStyle: 'solid',
+      roughness: 0.75,
+      seed: rng.int(1, 99999),
+    })) {
+      strokes.push({ ...p, opacity: 0.76 });
+    }
+  }
+
+  // Companion jade buds & ochre young leaves (reflecting familiar/learning & active days)
+  for (let l = 0; l < budBudget; l++) {
+    const a = pickAnchor(36);
+    if (!a) break;
+    const isJade = l % 2 === 0;
+    const color = isJade ? palette.ok : palette.warn;
+    const len = round1(rng.range(13, 19));
+    const pts = leafPolygon(a.x, a.y, len, len * 0.34, a.angle + rng.range(-0.6, 0.6));
+    for (const p of makePolygon(roughGen, pts, {
+      stroke: color,
+      strokeWidth: 0.9,
+      fill: color,
+      fillStyle: 'hachure',
+      hachureGap: 3.8,
+      roughness: 1.0,
+      disableMultiStroke: true,
+      seed: rng.int(1, 99999),
+    })) {
+      strokes.push({ ...p, opacity: 0.56 });
+    }
+    for (const p of makeCircle(roughGen, a.x, a.y, 6.2, {
+      stroke: color,
+      strokeWidth: 0.85,
+      fill: color,
+      fillStyle: 'solid',
+      roughness: 0.8,
+      seed: rng.int(1, 99999),
+    })) {
+      strokes.push({ ...p, opacity: 0.68 });
+    }
+  }
+
+  // Delicate drifting plum petals floating gently across open breathing space
+  for (let d = 0; d < petalBudget; d++) {
+    const px = round1(rng.range(160, PLATE_WIDTH - 130));
+    const py = round1(rng.range(92, PLATE_HEIGHT - 88));
+    const ang = rng.range(-0.9, 0.9);
+    const len = round1(rng.range(7.5, 11));
+    const color = d % 2 === 0 ? palette.accent : palette.ok;
+    const pts = leafPolygon(px, py, len, len * 0.42, ang);
+    const pathD = `M${pts.map(([x, y]) => `${round1(x)} ${round1(y)}`).join(' L')} Z`;
+    strokes.push({
+      d: pathD,
+      stroke: color,
+      strokeWidth: 0.75,
+      fill: color,
+      fillOpacity: 0.24,
+      opacity: 0.52,
+    });
+  }
+
+  return strokes;
+}
+
 /** Build the collector's frame, subtle botanical guides, and carved red plum seal. */
 function buildFrameAndSeal(palette, roughGen, seed) {
   const framePaths = [
@@ -445,7 +604,7 @@ function buildFrameAndSeal(palette, roughGen, seed) {
     }).map((p) => ({ ...p, opacity: 0.55 })),
   ];
 
-  // Quiet botanical collector ruling lines & corner registration ticks
+  // Quiet botanical collector ruling lines & scale bar
   const guidePaths = [
     ...[132, 240, 348].map((gy) => ({
       d: `M${INNER + 14} ${gy} H${PLATE_WIDTH - INNER - 14}`,
@@ -499,6 +658,7 @@ export function buildHerbariumScene(garden, palette, roughGen = null) {
   const { framePaths, guidePaths, sealPaths, sealPetals, sealCenter } = buildFrameAndSeal(palette, roughGen, garden.seed);
   const { branchPaths, anchors } = growPlumBoughs(garden, palette, roughGen);
   const placements = placeDeckSpecimens(garden.items, anchors, garden.seed);
+  const companionStrokes = buildCompanionFlora(garden, anchors, placements, palette, roughGen);
 
   const nodes = placements.map((placement) => {
     const { strokes, hitRadius } = renderDeckSpecimen(placement, palette, roughGen);
@@ -539,10 +699,12 @@ export function buildHerbariumScene(garden, palette, roughGen = null) {
     framePaths,
     guidePaths,
     branchPaths,
+    companionStrokes,
     emptyBuds,
     nodes,
     sealPaths,
     sealPetals,
     sealCenter,
+    colophon: formatColophonText(garden),
   };
 }

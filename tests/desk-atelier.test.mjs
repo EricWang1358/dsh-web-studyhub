@@ -1,8 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { boardAction } from '../lib/board.js';
 import { loadUi } from './helpers/ui-module.mjs';
 
 const mod = await loadUi(`
@@ -532,4 +535,98 @@ test('desk-atelier stylesheets respect StudyHub layer, contrast, opacity ceiling
   const opacityMatch = triggerCss.match(/\.desk-atelier-atmosphere\s*\{[^}]*opacity:\s*([0-9.]+)/);
   assert.ok(opacityMatch, 'atmosphere layer declares explicit opacity');
   assert.ok(Number(opacityMatch[1]) <= 0.06, `atmosphere opacity (${opacityMatch[1]}) must stay <= 0.06`);
+
+  // Wave 3 popover compact fit: zero out base.css label margin and slider border so 1280x800 never overflows.
+  assert.match(panelCss, /\.desk-atelier__master-label\s*\{[^}]*margin:\s*0;/);
+  assert.match(panelCss, /\.desk-atelier__channel-name\s*\{[^}]*margin:\s*0;/);
+  assert.match(panelCss, /\.desk-atelier__slider\s*\{[^}]*border:\s*0;/);
+
+  // Wave 3 DeskAtelierButton subscribes to useUiLanguage, handles Alt+Shift+A, and hoists DeskChimeDialog.
+  const btnSrc = await readFile(new URL('../ui/desk-atelier/DeskAtelierButton.jsx', import.meta.url), 'utf8');
+  assert.match(btnSrc, /\buseUiLanguage\s*\(\s*\)/);
+  assert.match(btnSrc, /!event\.altKey\s*\|\|\s*!event\.shiftKey/);
+  assert.match(btnSrc, /event\.code !== ['"]KeyA['"]/);
+  assert.match(btnSrc, /import\(['"]\.\/DeskChimeDialog\.jsx['"]\)/);
+  assert.match(btnSrc, /onToggleChime/);
+});
+
+test('Wave 3: board.timer.start supports cardless Free Focus and TodayTimer idle renders zh/en Free Focus entry', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-free-focus-'));
+  const prevHome = process.env.DSH_HOME;
+  process.env.DSH_HOME = dir;
+  const today = '2026-11-21';
+  try {
+    let board = await boardAction('board.get', {});
+    await assert.rejects(
+      () => boardAction('board.timer.start', { revision: board.revision, mode: 'work', now: '2026-11-21T09:00:00.000Z' }),
+      /cardTitle/,
+      'work mode without id or cardTitle is rejected',
+    );
+    await assert.rejects(
+      () => boardAction('board.timer.start', { revision: board.revision, mode: 'work', cardTitle: '???', now: '2026-11-21T09:00:00.000Z' }),
+      /letter or digit/,
+      'non-meaningful cardTitle is rejected',
+    );
+
+    // Cardless Free Focus starts, survives reload validation, and logs cleanly on completion.
+    board = await boardAction('board.timer.start', {
+      revision: board.revision,
+      mode: 'work',
+      cardTitle: '自由专注',
+      now: '2026-11-21T09:00:00.000Z',
+    });
+    assert.equal(board.timer.mode, 'work');
+    assert.equal(board.timer.cardId, undefined);
+    assert.equal(board.timer.cardTitle, '自由专注');
+
+    const reloaded = await boardAction('board.get', {});
+    assert.equal(reloaded.timer.cardTitle, '自由专注');
+    assert.equal(reloaded.timer.cardId, undefined);
+
+    const completed = await boardAction('board.timer.complete', {
+      revision: reloaded.revision,
+      date: today,
+      now: '2026-11-21T09:15:00.000Z',
+    });
+    assert.equal(completed.timer, undefined);
+    assert.equal(completed.timeLog.length, 1);
+    assert.equal(completed.timeLog[0].cardId, undefined);
+    assert.equal(completed.timeLog[0].cardTitle, '自由专注');
+    assert.equal(completed.timeLog[0].minutes, 15);
+
+    // TodayTimer idle UI renders Free Focus + Fullscreen Focus in zh & en (and hides when readOnly).
+    const idleBoard = { version: 1, revision: 1, columns: [{ id: 'todo', title: 'Todo', cardIds: [] }], cards: {}, timeLog: [] };
+    setUiLanguage('zh');
+    const zhIdle = renderToStaticMarkup(React.createElement(TodayTimer, {
+      board: idleBoard,
+      today,
+      onStartFreeFocus: () => true,
+    }));
+    assert.match(zhIdle, /点卡片上的「开始专注」才开始计时/);
+    assert.match(zhIdle, /自由专注/);
+    assert.match(zhIdle, /全屏专注/);
+
+    const roIdle = renderToStaticMarkup(React.createElement(TodayTimer, {
+      board: idleBoard,
+      today,
+      readOnly: true,
+      onStartFreeFocus: () => true,
+    }));
+    assert.doesNotMatch(roIdle, /desk-free-focus/);
+
+    setUiLanguage('en');
+    const enIdle = renderToStaticMarkup(React.createElement(TodayTimer, {
+      board: idleBoard,
+      today,
+      onStartFreeFocus: () => true,
+    }));
+    assert.doesNotMatch(enIdle, HAN, `English idle timer leaked Han: ${enIdle.slice(0, 200)}`);
+    assert.match(enIdle, /Free focus/);
+    assert.match(enIdle, /Fullscreen focus/);
+  } finally {
+    setUiLanguage('zh');
+    if (prevHome === undefined) delete process.env.DSH_HOME;
+    else process.env.DSH_HOME = prevHome;
+    await rm(dir, { recursive: true, force: true });
+  }
 });

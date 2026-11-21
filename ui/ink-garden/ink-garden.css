@@ -120,6 +120,17 @@
       fill: var(--text-muted);
     }
 
+    .ink-garden__colophon,
+    .ink-garden__cardinal {
+      font-family: var(--font-ui);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-regular);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.04em;
+      fill: var(--text-faint);
+      pointer-events: none;
+    }
+
     .ink-garden__node {
       cursor: pointer;
       outline: none;

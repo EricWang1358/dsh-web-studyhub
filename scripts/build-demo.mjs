@@ -11,7 +11,7 @@ const browserService = {
       ? {path:resolve(root,'web-demo/store.js')} : null);
     b.onResolve({ filter: /^node:crypto$/ }, () => ({path:resolve(root,'web-demo/crypto.js')}));
     b.onResolve({ filter: /^node:util$/ }, () => ({path:resolve(root,'web-demo/util.js')}));
-    b.onResolve({ filter: /^node:fs\/promises$/ }, args => ({path:resolve(root,/[\\/]board\.js$/.test(args.importer)?'web-demo/files.js':'web-demo/unavailable.js')}));
+    b.onResolve({ filter: /^node:fs\/promises$/ }, args => ({path:resolve(root,/[\\/](?:board|store-lock|atomic-json)\.js$/.test(args.importer)?'web-demo/files.js':'web-demo/unavailable.js')}));
     b.onResolve({ filter: /^node:(fs|http|https|child_process|async_hooks|zlib|worker_threads|stream|module)$/ }, () => ({path:resolve(root,'web-demo/unavailable.js')}));
     b.onResolve({ filter: /^node:(timers|stream)\/promises$/ }, () => ({path:resolve(root,'web-demo/unavailable.js')}));
     b.onResolve({ filter: /^node:path$/ }, () => ({path:resolve(root,'web-demo/unavailable.js')}));
@@ -19,8 +19,25 @@ const browserService = {
     b.onResolve({ filter: /^(@deepseek-ai\/dsh-llm|pdfjs-dist(\/.*)?)$/ }, () => ({path:resolve(root,'web-demo/unavailable.js')}));
     b.onResolve({ filter: /(^|\/)(documents|pdf-runtime|legacy)\.js$/ }, () => ({path:resolve(root,'web-demo/unavailable.js')}));
     b.onLoad({ filter: /[\\/]lib[\\/]generation\.js$/ }, async args => {
-      const [code,protocol,recruitment] = await Promise.all([readFile(args.path,'utf8'),readFile(resolve(root,'references/content-quality.md'),'utf8'),readFile(resolve(root,'references/recruitment-prep.md'),'utf8')]);
-      return {contents:code.replace(/const \[protocol, recruitment\] = await Promise\.all\([\s\S]*?\n\);/,()=>`const protocol = ${JSON.stringify(protocol)}, recruitment = ${JSON.stringify(recruitment)};`), loader:'js'};
+      const [code, recruitment] = await Promise.all([
+        readFile(args.path, 'utf8'),
+        readFile(resolve(root, 'references/recruitment-prep.md'), 'utf8'),
+      ]);
+      const pattern = /await\s+readFile\(\s*new\s+URL\(\s*["']\.\.\/references\/recruitment-prep\.md["']\s*,\s*import\.meta\.url\s*\)\s*,\s*["']utf8["']\s*\)/;
+      if (!pattern.test(code)) throw new Error('scripts/build-demo.mjs: failed to inline references/recruitment-prep.md in lib/generation.js');
+      return { contents: code.replace(pattern, () => JSON.stringify(recruitment)), loader: 'js' };
+    });
+    b.onLoad({ filter: /[\\/]lib[\\/]companion-template[\\/]template-runtime\.js$/ }, async () => {
+      const mod = await import('../lib/companion-template/template-runtime.js');
+      return {
+        loader: 'js',
+        contents: [
+          `export const RUNTIME_MODULE_FILES = Object.freeze(${JSON.stringify(mod.RUNTIME_MODULE_FILES)});`,
+          `export const LESSON_TEMPLATE_RUNTIME_JS = ${JSON.stringify(mod.LESSON_TEMPLATE_RUNTIME_JS)};`,
+          `const EN_ONLY_RUNTIME_JS = ${JSON.stringify(mod.buildLessonTemplateRuntimeJs('en'))};`,
+          `export function buildLessonTemplateRuntimeJs(language = 'zh') { return language === 'en' ? EN_ONLY_RUNTIME_JS : LESSON_TEMPLATE_RUNTIME_JS; }`,
+        ].join('\n'),
+      };
     });
   },
 };

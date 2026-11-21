@@ -98,7 +98,7 @@ export default function SealAlbumView({ entries = [], palette, reducedMotion = f
         </PostcardTilt>
         <div className="sh-seal-album__toolbar">
           <span className="sh-seal-album__meta">
-            {uiFormat('{0} · {1} · {2}/{3}', [active.dateLabel || '', editionLabel(active.edition), active.correct, active.total || active.answered])}
+            {uiFormat('{0} · {1} · {2}/{3}', [active.dateLabel || '', editionLabel(active.edition), active.correct, active.answered || active.total])}
           </span>
           <div className="sh-seal-studio__actions">
             <Button size="sm" variant="secondary" icon="download" onClick={handleExportSvg}>

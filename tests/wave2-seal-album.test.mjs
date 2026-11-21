@@ -120,11 +120,21 @@ test('SealAlbumDialog renders the 5-Seal Specimen Shelf, filter chips, and zero-
     assert.match(textOf(htmlZh), /2 张/);
     assert.match(textOf(htmlZh), /全部收藏 \(4\)/);
     assert.match(textOf(htmlZh), /错题清零印 \(1\)/);
+    assert.match(textOf(htmlZh), /单轮正确率达八成以上/);
+    assert.doesNotMatch(textOf(htmlZh), /单轮正确率达到八成以上/);
     assert.doesNotMatch(htmlZh, /掌握度/, 'zero 掌握度 substring in SealAlbumDialog');
 
     const emptyZh = renderToStaticMarkup(React.createElement(mod.SealAlbumDialog, { entries: [], onClose: noop }));
     assert.match(emptyZh, /data-testid="seal-gallery-empty"/);
     assert.match(textOf(emptyZh), /已集齐 0 \/ 5 方/);
+    assert.match(textOf(emptyZh), /深夜或凌晨完成一轮/);
+    assert.doesNotMatch(textOf(emptyZh), /深夜或凌晨完成一轮练习/);
+
+    // Verify early-stopped entry shows answered count (0/1), not total (0/2), in album toolbar
+    const earlyEntry = makeEntry({ id: 'e-early', answered: 1, total: 2, correct: 0, accuracy: 0, sealId: 'round-done', sealChars: ['笃', '行'] });
+    const earlyAlbum = renderToStaticMarkup(React.createElement(mod.SealAlbumDialog, { entries: [earlyEntry], onClose: noop }));
+    assert.match(textOf(earlyAlbum), /0\/1/);
+    assert.doesNotMatch(textOf(earlyAlbum), /0\/2/);
 
     mod.setUiLanguage('en');
     const htmlEn = renderToStaticMarkup(React.createElement(mod.SealAlbumDialog, { entries, onClose: noop }));

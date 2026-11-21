@@ -67,7 +67,7 @@
     .desk-atelier__panel {
       width: min(352px, calc(100vw / var(--study-ui-scale, 1) - var(--space-6)));
       max-width: min(352px, calc(100vw / var(--study-ui-scale, 1) - var(--space-4)));
-      padding: var(--space-3-5);
+      padding: var(--space-3);
     }
     .desk-atelier__loading {
       display: grid;

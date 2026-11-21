@@ -20,7 +20,7 @@
       flex-wrap: wrap;
       align-items: center;
       gap: var(--space-1);
-      padding: var(--space-half);
+      padding: var(--space-1);
       border: 1px solid var(--line);
       border-radius: var(--radius-pill);
       background: var(--bg-sunken);
@@ -28,6 +28,13 @@
 
     .desk-play-ink-btn {
       gap: var(--space-1-5);
+      padding-inline: var(--space-3);
+    }
+
+    .desk-play-ink-btn[aria-pressed="true"] {
+      background: var(--bg-raised);
+      border-color: var(--line-strong);
+      box-shadow: var(--shadow-item);
     }
 
     .desk-play-ink-dot {

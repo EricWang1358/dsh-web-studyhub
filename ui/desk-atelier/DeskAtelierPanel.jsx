@@ -1,8 +1,7 @@
-import React, { useId, useState } from 'react';
+import React, { useId } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Button, InlineMessage, Tooltip } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
-import { useLiveEffect } from '../use-async.js';
 import {
   ATELIER_CHANNELS,
   ATELIER_PRESETS,
@@ -77,29 +76,10 @@ function ChannelGlyph({ id }) {
   );
 }
 
-let cachedChimeDialog = null;
-
-export default function DeskAtelierPanel() {
+export default function DeskAtelierPanel({ onToggleChime } = {}) {
   useInjectCss(css, 'study-desk-atelier');
   const state = useAtelierState();
   const baseId = useId();
-  const [chimeOpen, setChimeOpen] = useState(false);
-  const [ChimeDialog, setChimeDialog] = useState(() => cachedChimeDialog);
-
-  useLiveEffect((isLive) => {
-    if (!chimeOpen || ChimeDialog) return undefined;
-    import('./DeskChimeDialog.jsx')
-      .then((mod) => {
-        cachedChimeDialog = mod?.default || null;
-        if (!isLive()) return;
-        if (cachedChimeDialog) setChimeDialog(() => cachedChimeDialog);
-        else setChimeOpen(false);
-      })
-      .catch(() => {
-        if (isLive()) setChimeOpen(false);
-      });
-    return undefined;
-  }, [chimeOpen, ChimeDialog]);
   const activePreset = getPresetById(state.preset);
   const presetTitle = activePreset ? ui(activePreset.label) : ui('自定义混音');
   const masterPct = Math.round(state.master * 100);
@@ -252,15 +232,12 @@ export default function DeskAtelierPanel() {
             variant="quiet"
             size="sm"
             icon="sparkle"
-            onClick={() => setChimeOpen(true)}
+            onClick={() => onToggleChime?.()}
           >
             {ui('五声风铃')}
           </Button>
         </div>
       </section>
-      {chimeOpen && ChimeDialog && (
-        <ChimeDialog onClose={() => setChimeOpen(false)} />
-      )}
     </div>
   );
 }

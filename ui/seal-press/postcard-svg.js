@@ -123,6 +123,14 @@ function resolveColors(palette) {
   };
 }
 
+/** Semantic ink color for postcard accuracy figures: green >= 80%, warm ochre 50-79%, calm neutral ink < 50%. */
+export function accuracyInkColor(accuracy, colors = {}) {
+  const pct = Number(accuracy);
+  if (Number.isFinite(pct) && pct >= 80) return colors.ok || '#5fb58a';
+  if (Number.isFinite(pct) && pct >= 50) return colors.warn || '#d9a441';
+  return colors.dim || '#5d5448';
+}
+
 function buildLetterpressSvg(entry, colors, labels) {
   const W = 680;
   const H = 440;
@@ -133,7 +141,8 @@ function buildLetterpressSvg(entry, colors, labels) {
     { id: entry.sealId, chars: entry.sealChars, seed, defaultStyle: entry.sealStyle },
     { style: entry.sealStyle, ink: colors.accent, paper: colors.paper },
   );
-  const scoreMain = `${entry.correct} / ${entry.total || entry.answered}`;
+  const scoreMain = `${entry.correct} / ${entry.answered || entry.total}`;
+  const accuracyColor = accuracyInkColor(entry.accuracy, colors);
   const serial = `NO.${String(seed % 10000).padStart(4, '0')}`;
   const masteryTag = Number.isFinite(entry.masteryDelta) && entry.masteryDelta !== 0
     ? `${entry.masteryDelta > 0 ? '+' : ''}${entry.masteryDelta}%`
@@ -185,7 +194,7 @@ function buildLetterpressSvg(entry, colors, labels) {
     `<text x="46" y="346" font-family="${escapeXml(SERIF_FONT)}" font-size="38" font-weight="700" fill="${escapeXml(colors.ink)}" letter-spacing="-1">${escapeXml(scoreMain)}</text>`,
     `<text x="46" y="374" font-family="${escapeXml(SANS_FONT)}" font-size="12.5" fill="${escapeXml(colors.dim)}">${escapeXml(labels.scoreCaption)}</text>`,
     `<line x1="210" y1="316" x2="210" y2="380" stroke="${escapeXml(colors.ink)}" stroke-width="0.7" opacity="0.2" />`,
-    `<text x="232" y="344" font-family="${escapeXml(MONO_FONT)}" font-size="28" font-weight="700" fill="${escapeXml(colors.ok)}">${entry.accuracy}%</text>`,
+    `<text x="232" y="344" font-family="${escapeXml(MONO_FONT)}" font-size="28" font-weight="700" fill="${escapeXml(accuracyColor)}">${entry.accuracy}%</text>`,
     `<text x="232" y="374" font-family="${escapeXml(SANS_FONT)}" font-size="12.5" fill="${escapeXml(colors.dim)}">${escapeXml(labels.accuracyCaption)}${masteryTag ? ` · ${escapeXml(masteryTag)}` : ''}</text>`,
     // Pressed carved cinnabar seal at bottom-right colophon
     `<g transform="translate(524 274) rotate(-2.5 54 54) scale(0.92)">${sealMarkup}</g>`,
@@ -211,7 +220,8 @@ function buildRisographSvg(entry, colors, labels) {
   const peakY2 = 132 + Math.round(rng() * 26);
   const ridgeA = `M 426 266 Q 486 ${peakY1} 546 218 T 658 266 L 658 302 L 426 302 Z`;
   const ridgeB = `M 422 272 Q 504 ${peakY2} 574 226 T 658 272 L 658 306 L 422 306 Z`;
-  const scoreMain = `${entry.correct}/${entry.total || entry.answered}`;
+  const scoreMain = `${entry.correct}/${entry.answered || entry.total}`;
+  const accuracyColor = accuracyInkColor(entry.accuracy, colors);
 
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${escapeXml(labels.ariaLabel)}">`,
@@ -255,7 +265,7 @@ function buildRisographSvg(entry, colors, labels) {
     `<text x="48" y="280" font-family="${escapeXml(SANS_FONT)}" font-size="11.5" fill="${escapeXml(colors.dim)}">${escapeXml(labels.scoreCaption)}</text>`,
     `<rect x="217" y="218" width="164" height="78" rx="6" fill="${escapeXml(colors.warn)}" opacity="0.22" />`,
     `<rect x="214" y="215" width="164" height="78" rx="6" fill="none" stroke="${escapeXml(colors.ink)}" stroke-width="1.3" opacity="0.72" />`,
-    `<text x="230" y="259" font-family="${escapeXml(MONO_FONT)}" font-size="30" font-weight="700" fill="${escapeXml(colors.accent)}">${entry.accuracy}%</text>`,
+    `<text x="230" y="259" font-family="${escapeXml(MONO_FONT)}" font-size="30" font-weight="700" fill="${escapeXml(accuracyColor)}">${entry.accuracy}%</text>`,
     `<text x="230" y="280" font-family="${escapeXml(SANS_FONT)}" font-size="11.5" fill="${escapeXml(colors.dim)}">${escapeXml(labels.accuracyCaption)}</text>`,
     // Note or seal reason footer on left
     ...(noteLines.length
@@ -281,7 +291,8 @@ function buildArchivalSlipSvg(entry, colors, labels) {
     { id: entry.sealId, chars: entry.sealChars, seed, defaultStyle: entry.sealStyle },
     { style: entry.sealStyle, ink: colors.accent, paper: colors.paper },
   );
-  const scoreMain = `${entry.correct} / ${entry.total || entry.answered}`;
+  const scoreMain = `${entry.correct} / ${entry.answered || entry.total}`;
+  const accuracyColor = accuracyInkColor(entry.accuracy, colors);
 
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${escapeXml(labels.ariaLabel)}">`,
@@ -324,7 +335,7 @@ function buildArchivalSlipSvg(entry, colors, labels) {
     `<text x="116" y="546" font-family="${escapeXml(SERIF_FONT)}" font-size="24" font-weight="700" fill="${escapeXml(colors.ink)}" text-anchor="middle">${escapeXml(scoreMain)}</text>`,
     `<text x="116" y="568" font-family="${escapeXml(SANS_FONT)}" font-size="11" fill="${escapeXml(colors.dim)}" text-anchor="middle">${escapeXml(labels.scoreCaption)}</text>`,
     `<line x1="${W / 2}" y1="522" x2="${W / 2}" y2="574" stroke="${escapeXml(colors.ink)}" stroke-width="0.7" opacity="0.2" />`,
-    `<text x="304" y="546" font-family="${escapeXml(MONO_FONT)}" font-size="24" font-weight="700" fill="${escapeXml(colors.ok)}" text-anchor="middle">${entry.accuracy}%</text>`,
+    `<text x="304" y="546" font-family="${escapeXml(MONO_FONT)}" font-size="24" font-weight="700" fill="${escapeXml(accuracyColor)}" text-anchor="middle">${entry.accuracy}%</text>`,
     `<text x="304" y="568" font-family="${escapeXml(SANS_FONT)}" font-size="11" fill="${escapeXml(colors.dim)}" text-anchor="middle">${escapeXml(labels.accuracyCaption)}</text>`,
     '</svg>',
   ].join('');

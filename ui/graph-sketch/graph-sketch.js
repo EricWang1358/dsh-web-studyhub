@@ -164,9 +164,9 @@ export function sketchNodePaths(placedNode, level, palette, roughGen = null, com
     strokeWidth: kind === 'deck' ? 1.45 : 1.1,
     fill: style.fill || undefined,
     fillStyle: 'hachure',
-    fillWeight: 0.75,
+    fillWeight: 0.6,
     hachureAngle: kind === 'deck' ? -38 : -48,
-    hachureGap: compact ? 8.5 : 6.2,
+    hachureGap: compact ? 11 : 9.5,
     roughness: kind === 'card' ? 0.95 : 1.15,
     bowing: 1.1,
     disableMultiStroke: compact || kind === 'card',
@@ -183,7 +183,7 @@ export function sketchNodePaths(placedNode, level, palette, roughGen = null, com
       stroke: p.stroke || style.stroke,
       strokeWidth: p.strokeWidth ?? 1,
       fill: p.fill || 'none',
-      opacity: isHatch ? style.fillOpacity + 0.16 : 0.92,
+      opacity: isHatch ? Math.min(0.26, Number((style.fillOpacity + 0.04).toFixed(2))) : 0.92,
       dashArray: !isHatch && style.dashed ? '4 3' : undefined,
     });
   });

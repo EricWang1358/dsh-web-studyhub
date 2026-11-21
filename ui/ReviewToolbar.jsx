@@ -19,6 +19,28 @@ export default function ReviewToolbar({ run, expanded, revealed, onToggleHelp, o
   const busy = useStudyBusy();
   const [readingOpen, setReadingOpen] = React.useState(false);
   const [scratchpadOpen, setScratchpadOpen] = React.useState(false);
+  // Studio shortcut Alt+Shift+D toggles the ink scratchpad mid-review without clashing with
+  // text inputs, open modals, or a docked side-by-side reader when focus is inside the reader.
+  React.useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.defaultPrevented || event.repeat) return;
+      if (!event.altKey || !event.shiftKey || event.ctrlKey || event.metaKey) return;
+      if (event.code !== "KeyD" && String(event.key || "").toLowerCase() !== "d") return;
+      const target = event.target;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable || target.closest?.("input,textarea,select,[contenteditable]"))) return;
+      if (scratchpadOpen) {
+        event.preventDefault();
+        setScratchpadOpen(false);
+        return;
+      }
+      if (document.querySelector("dialog[open]")) return;
+      if (target?.closest?.(".study-document-viewer") || document.activeElement?.closest?.(".study-document-viewer")) return;
+      event.preventDefault();
+      setScratchpadOpen(true);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [scratchpadOpen]);
   // Say why 下一题 is unavailable instead of leaving a dim button: an unanswered question waits for its answer (one whose AI grade is on its way is answered: the grade lands on it later, #1031); a pending step is still saving.
   const needsAnswer = !run.feedback && !run.grading && run.mode !== "exam";
   const nextBlocked = busy || !!run.card?.publicationUngrable || needsAnswer;
@@ -98,6 +120,7 @@ export default function ReviewToolbar({ run, expanded, revealed, onToggleHelp, o
           icon="note"
           className="tool-action"
           aria-expanded={scratchpadOpen}
+          aria-keyshortcuts="Alt+Shift+D"
           onClick={() => setScratchpadOpen(true)}
         >
           {ui("草稿纸")}

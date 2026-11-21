@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
@@ -20,6 +21,7 @@ const compiled = await build({
       export { default as InkScratchpadDialog } from './ui/desk-play/InkScratchpadDialog.jsx';
       export { default as ReviewToolbar } from './ui/ReviewToolbar.jsx';
       export { default as StudyMap } from './ui/StudyMap.jsx';
+      export { default as ShortcutHelp } from './ui/ShortcutHelp.jsx';
       export { StudyServicesContext } from './ui/study-context.jsx';
       export { setUiLanguage } from './ui/i18n.js';
     `,
@@ -245,6 +247,11 @@ test('OrigamiMark, DeskPlayStrip, InkScratchpadDialog, and ReviewToolbar render 
     const mark = renderToStaticMarkup(h(dp.OrigamiMark, { stage, done: stage * 5, goal: 20, label: dp.ORIGAMI_STAGES[stage].label, caption: dp.ORIGAMI_STAGES[stage].caption }));
     assert.match(mark, new RegExp(`data-stage="${stage}"`));
     assert.match(mark, /<svg[^>]*aria-hidden="true"/);
+    if (stage <= 2) {
+      assert.match(mark, /<path class="desk-play-origami__accent-fold"/, `stage ${stage} includes cinnabar SVG fold accent`);
+    } else {
+      assert.match(mark, /<circle class="desk-play-origami__seal"/, `stage ${stage} includes cinnabar seal`);
+    }
   }
 
   const stripZh = renderToStaticMarkup(h(dp.StudyServicesContext.Provider, { value: { call: async () => sampleDeck } },
@@ -290,8 +297,52 @@ test('OrigamiMark, DeskPlayStrip, InkScratchpadDialog, and ReviewToolbar render 
         onToggleHelp: noop, onAsk: noop, onImprove: noop, onSlay: noop, onNote: noop, onReviewAction: noop,
       })));
     assert.match(toolbarEn, />Scratchpad</);
+    assert.match(toolbarEn, /aria-keyshortcuts="Alt\+Shift\+D"/);
     assert.doesNotMatch(toolbarEn.replace(/data-usage="[^"]*"/g, ''), HAN, 'zero Han in English ReviewToolbar');
   } finally {
     dp.setUiLanguage('zh');
   }
+});
+
+test('Wave 3 studio polish: ShortcutHelp documents Alt+Shift+A/D, hosts guard Alt+Shift+D, and origami/pigment CSS tokens hold', () => {
+  const noop = () => {};
+
+  dp.setUiLanguage('zh');
+  for (const page of ['home', 'review']) {
+    const helpZh = renderToStaticMarkup(h(dp.ShortcutHelp, { page, onClose: noop }));
+    assert.match(helpZh, /<kbd>Alt\+Shift\+A<\/kbd><\/dt><dd>打开 \/ 关闭书房声景与光影<\/dd>/);
+    assert.match(helpZh, /<kbd>Alt\+Shift\+D<\/kbd><\/dt><dd>学习库 \/ 练习 \/ 阅读资料时：打开毛笔草稿纸<\/dd>/);
+  }
+
+  dp.setUiLanguage('en');
+  try {
+    for (const page of ['home', 'review']) {
+      const helpEn = renderToStaticMarkup(h(dp.ShortcutHelp, { page, onClose: noop }));
+      assert.match(helpEn, /<kbd>Alt\+Shift\+A<\/kbd><\/dt><dd>Toggle desk soundscape &amp; lighting<\/dd>/);
+      assert.match(helpEn, /<kbd>Alt\+Shift\+D<\/kbd><\/dt><dd>Home \/ practice \/ reader: toggle ink scratchpad<\/dd>/);
+      assert.doesNotMatch(helpEn, HAN, `zero Han in English ShortcutHelp (${page})`);
+    }
+  } finally {
+    dp.setUiLanguage('zh');
+  }
+
+  const stripSrc = readFileSync(new URL('../ui/desk-play/DeskPlayStrip.jsx', import.meta.url), 'utf8');
+  assert.match(stripSrc, /event\.code !== 'KeyD'/, 'DeskPlayStrip listens for Alt+Shift+D');
+  assert.match(stripSrc, /dialog\[open\]/, 'DeskPlayStrip yields when another modal dialog is open');
+  assert.match(stripSrc, /aria-keyshortcuts="Alt\+Shift\+D"/, 'DeskPlayStrip exposes shortcut metadata');
+  const collapsedStart = stripSrc.indexOf('if (hidden)');
+  const collapsedEnd = stripSrc.indexOf('return (\n    <section className="desk-play"');
+  assert.ok(collapsedStart > 0 && collapsedEnd > collapsedStart);
+  assert.match(stripSrc.slice(collapsedStart, collapsedEnd), /scratchpadDialog/, 'collapsed DeskPlayStrip still renders scratchpad dialog on Alt+Shift+D');
+
+  const toolbarSrc = readFileSync(new URL('../ui/ReviewToolbar.jsx', import.meta.url), 'utf8');
+  assert.match(toolbarSrc, /event\.code !== "KeyD"/, 'ReviewToolbar listens for Alt+Shift+D');
+  assert.match(toolbarSrc, /dialog\[open\]/, 'ReviewToolbar yields when another modal dialog is open');
+  assert.match(toolbarSrc, /\.study-document-viewer/, 'ReviewToolbar yields to docked reader when focus is inside reader');
+
+  const deskCss = readFileSync(new URL('../ui/desk-play/desk-play.css', import.meta.url), 'utf8');
+  assert.match(deskCss, /\.desk-play-origami__accent-fold\s*\{[\s\S]*stroke:\s*var\(--accent\)/);
+
+  const padCss = readFileSync(new URL('../ui/desk-play/desk-play-scratchpad.css', import.meta.url), 'utf8');
+  assert.match(padCss, /\.desk-play-ink-btn\s*\{[\s\S]*padding-inline:\s*var\(--space-3\)/);
 });

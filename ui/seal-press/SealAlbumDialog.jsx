@@ -20,7 +20,7 @@ function buildSilhouetteUri(chars, inkColor) {
   const second = escapeXml(chars?.[1] || '行');
   const color = escapeXml(inkColor || '#7a7267');
   const svg = [
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="56" height="56" aria-hidden="true">',
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="44" height="44" aria-hidden="true">',
     `<line x1="60" y1="20" x2="60" y2="100" stroke="${color}" stroke-width="1.2" stroke-dasharray="3 3" opacity="0.45" />`,
     `<g fill="${color}" font-family="${escapeXml(SILHOUETTE_FONT)}" font-weight="700" text-anchor="middle" opacity="0.65">`,
     `<text x="82" y="65" font-size="38" transform="translate(82 60) scale(0.86 1.2) translate(-82 -60)">${first}</text>`,
@@ -92,7 +92,7 @@ export default function SealAlbumDialog({ entries: entriesProp, onAlbumChange, o
               const sealUri = earned
                 ? svgToDataUri(buildSealSvg(
                   { id: catalog.id, chars: catalog.chars, seed: hashSeed(catalog.id), defaultStyle: catalog.defaultStyle },
-                  { style: catalog.defaultStyle, size: 56, ink: palette.accent, paper: palette.paper },
+                  { style: catalog.defaultStyle, size: 44, ink: palette.accent, paper: palette.paper },
                 ))
                 : buildSilhouetteUri(catalog.chars, palette.textMuted);
 

@@ -84,7 +84,7 @@ export function TodayTimerBar({
 export default function TodayTimer({
   board, today, todayCards = [], readOnly = false, nowMs: nowProp,
   fullscreen = false, onFullscreenChange,
-  onStartBreak, onPause, onResume, onCancel, onComplete, onSavePrefs, onAddLog, onEditLog, onRemoveLog,
+  onStartFreeFocus, onStartBreak, onPause, onResume, onCancel, onComplete, onSavePrefs, onAddLog, onEditLog, onRemoveLog,
 }) {
   const toast = useToast();
   const timer = board?.timer || null;
@@ -267,6 +267,13 @@ export default function TodayTimer({
     if (ok) onFullscreenChange?.(false);
   };
 
+  const handleFreeFocus = async (openFullscreen = false) => {
+    if (readOnly || !onStartFreeFocus) return;
+    setOfferBreak(false);
+    const ok = await onStartFreeFocus(ui('自由专注'));
+    if (ok && openFullscreen) onFullscreenChange?.(true);
+  };
+
   const startEditLog = (entry) => {
     setEditingLogId(entry.id);
     setEditingMinutes(String(entry.minutes));
@@ -417,7 +424,32 @@ export default function TodayTimer({
             <p className="board-timer__meta">
               {uiFormat('番茄 {0} 分钟 · 休息 {1} 分钟', [prefs.workMinutes, prefs.breakMinutes])}
             </p>
-            <p className="board-timer__hint">{ui('点卡片上的「开始专注」才开始计时。')}</p>
+            <p className="board-timer__hint">
+              {ui('点卡片上的「开始专注」才开始计时。')}
+              {!readOnly && onStartFreeFocus && (
+                <span className="desk-free-focus__sub">{ui('也可直接开启一段自由专注。')}</span>
+              )}
+            </p>
+            {!readOnly && onStartFreeFocus && (
+              <div className="desk-free-focus">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon="play"
+                  onClick={() => handleFreeFocus(false)}
+                >
+                  {ui('自由专注')}
+                </Button>
+                <Button
+                  variant="quiet"
+                  size="sm"
+                  icon="fit"
+                  onClick={() => handleFreeFocus(true)}
+                >
+                  {ui('全屏专注')}
+                </Button>
+              </div>
+            )}
             {offerBreak && !readOnly && (
               <div className="board-timer__break-offer">
                 <Button

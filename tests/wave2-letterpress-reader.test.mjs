@@ -176,4 +176,7 @@ test('reader moreItems exposes 毛笔草稿纸 inside 更多 under 工具 withou
   assert.ok(actionsStart > 0 && actionsEnd > actionsStart);
   assert.doesNotMatch(viewerSrc.slice(actionsStart, actionsEnd), /scratchpad|毛笔草稿纸/i);
   assert.match(viewerSrc, /LazyInkScratchpadDialog/, 'mounts existing lazy scratchpad dialog');
+  assert.match(viewerSrc, /event\.code !== 'KeyD'/, 'DocumentViewer listens for Alt+Shift+D studio shortcut');
+  assert.match(viewerSrc, /window\.document\.querySelectorAll\('dialog\[open\]'\)/, 'DocumentViewer uses window.document (unshadowed) to check open dialogs');
+  assert.match(viewerSrc, /window\.document\.querySelector\('\.question-toolbar'\)/, 'docked DocumentViewer avoids double-opening alongside ReviewToolbar');
 });

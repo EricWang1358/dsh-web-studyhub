@@ -123,7 +123,7 @@ export default function PostcardStudioDialog({
 
   const tabItems = [
     { value: 'studio', label: ui('制卡印制') },
-    { value: 'album', label: ui('本地印谱'), note: album.length > 0 ? String(album.length) : undefined },
+    { value: 'album', label: album.length > 0 ? uiFormat('本地印谱 ({0})', [album.length]) : ui('本地印谱') },
   ];
 
   return (

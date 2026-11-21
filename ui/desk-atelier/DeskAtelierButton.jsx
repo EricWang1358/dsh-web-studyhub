@@ -1,5 +1,5 @@
-import React, { useRef, useState } from 'react';
-import { ui, uiFormat } from '../i18n.js';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ui, uiFormat, useUiLanguage } from '../i18n.js';
 import { Icon, IconButton, Popover, Spinner } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
 import { useLiveEffect } from '../use-async.js';
@@ -9,27 +9,74 @@ import AtmosphereLayer from './AtmosphereLayer.jsx';
 import triggerCss from './desk-atelier-trigger.css';
 
 let cachedPanel = null;
+let cachedChimeDialog = null;
 
-/** Compact top-bar Desk Atelier button + lazy Popover + opt-in AtmosphereLayer.
-    Memoised leaf component; DeskAtelierPanel (and soundscape-engine.js) are dynamically imported
-    only when opened so the workspace first-load closure stays lean. */
+/** Compact top-bar Desk Atelier button + lazy Popover + hoisted lazy DeskChimeDialog + opt-in AtmosphereLayer.
+    Memoised leaf component; DeskAtelierPanel (soundscape-engine.js) and DeskChimeDialog (chime-synth.js)
+    are dynamically imported only when opened so the workspace first-load closure stays lean. */
 const DeskAtelierButton = React.memo(function DeskAtelierButton() {
+  useUiLanguage();
   useInjectCss(triggerCss, 'study-desk-atelier-trigger');
   const state = useAtelierState();
   const anchorWrapRef = useRef(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [PanelComponent, setPanelComponent] = useState(() => cachedPanel);
+  const [chimeOpen, setChimeOpen] = useState(false);
+  const [ChimeDialog, setChimeDialog] = useState(() => cachedChimeDialog);
 
   useLiveEffect((isLive) => {
     if (!panelOpen || PanelComponent) return undefined;
     import('./DeskAtelierPanel.jsx')
       .then((mod) => {
         cachedPanel = mod?.default || null;
-        if (isLive() && cachedPanel) setPanelComponent(() => cachedPanel);
+        if (!isLive()) return;
+        if (cachedPanel) setPanelComponent(() => cachedPanel);
+        else setPanelOpen(false);
       })
-      .catch(() => {});
+      .catch(() => {
+        if (isLive()) setPanelOpen(false);
+      });
     return undefined;
   }, [panelOpen, PanelComponent]);
+
+  useLiveEffect((isLive) => {
+    if (!chimeOpen || ChimeDialog) return undefined;
+    import('./DeskChimeDialog.jsx')
+      .then((mod) => {
+        cachedChimeDialog = mod?.default || null;
+        if (!isLive()) return;
+        if (cachedChimeDialog) setChimeDialog(() => cachedChimeDialog);
+        else setChimeOpen(false);
+      })
+      .catch(() => {
+        if (isLive()) setChimeOpen(false);
+      });
+    return undefined;
+  }, [chimeOpen, ChimeDialog]);
+
+  // Global Alt+Shift+A shortcut toggles Desk Atelier (guarded against editable fields & open dialogs).
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.repeat || !event.altKey || !event.shiftKey || event.ctrlKey || event.metaKey) return;
+      if (event.code !== 'KeyA' && String(event.key || '').toUpperCase() !== 'A') return;
+      const target = event.target;
+      const tag = typeof target?.tagName === 'string' ? target.tagName.toUpperCase() : '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) return;
+      if (typeof document !== 'undefined' && document.querySelector?.('dialog[open]')) return;
+      event.preventDefault();
+      setPanelOpen((open) => !open);
+    };
+    if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+      window.addEventListener('keydown', onKeyDown);
+      return () => window.removeEventListener('keydown', onKeyDown);
+    }
+    return undefined;
+  }, []);
+
+  const handleToggleChime = useCallback(() => {
+    setPanelOpen(false);
+    setChimeOpen(true);
+  }, []);
 
   const activePreset = getPresetById(state.preset);
   const presetLabel = activePreset ? ui(activePreset.label) : ui('自定义混音');
@@ -76,13 +123,16 @@ const DeskAtelierButton = React.memo(function DeskAtelierButton() {
         )}
       >
         {PanelComponent ? (
-          <PanelComponent />
+          <PanelComponent onToggleChime={handleToggleChime} />
         ) : (
           <div className="desk-atelier__loading">
             <Spinner />
           </div>
         )}
       </Popover>
+      {chimeOpen && ChimeDialog && (
+        <ChimeDialog onClose={() => setChimeOpen(false)} />
+      )}
       <AtmosphereLayer anchorRef={anchorWrapRef} />
     </div>
   );

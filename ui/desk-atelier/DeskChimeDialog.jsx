@@ -5,6 +5,8 @@ import { isAudioCaptureActive } from '../audio-capture-state.js';
 import { useInjectCss } from '../shared.js';
 import { useLiveEffect } from '../use-async.js';
 import {
+  CHIME_ARPEGGIO_IDS,
+  CHIME_ARPEGGIO_STEP_MS,
   CHIME_BARS,
   CHIME_KEY_MAP,
   nextBreezeDelayMs,
@@ -31,6 +33,12 @@ export default function DeskChimeDialog({ onClose }) {
   const lastGlissBarRef = useRef('');
   const lastBreezeIdxRef = useRef(-1);
   const pulseTimersRef = useRef(new Map());
+  const arpeggioTimersRef = useRef([]);
+
+  const clearArpeggioTimers = useCallback(() => {
+    for (const timer of arpeggioTimersRef.current) clearTimeout(timer);
+    arpeggioTimersRef.current = [];
+  }, []);
 
   const triggerBar = useCallback((barId, { velocity = 0.85, skipCooldown = false } = {}) => {
     const bar = CHIME_BARS.find((item) => item.id === barId);
@@ -80,9 +88,10 @@ export default function DeskChimeDialog({ onClose }) {
       }
       for (const timer of pulseTimers.values()) clearTimeout(timer);
       pulseTimers.clear();
+      clearArpeggioTimers();
       stopAllChimes();
     };
-  }, []);
+  }, [clearArpeggioTimers]);
 
   // Keyboard play: A S D F G H J K L strike the 9 pentatonic bars while dialog is open.
   useEffect(() => {
@@ -160,8 +169,23 @@ export default function DeskChimeDialog({ onClose }) {
     }
   };
 
+  const handleToggleArpeggio = useCallback(() => {
+    clearArpeggioTimers();
+    const capturing = isAudioCaptureActive();
+    setCaptureMuted(capturing);
+    CHIME_ARPEGGIO_IDS.forEach((barId, step) => {
+      const timer = setTimeout(() => {
+        if (typeof document !== 'undefined' && document.hidden) return;
+        triggerBar(barId, { velocity: 0.72 + step * 0.04, skipCooldown: true });
+      }, step * CHIME_ARPEGGIO_STEP_MS);
+      timer.unref?.();
+      arpeggioTimersRef.current.push(timer);
+    });
+  }, [clearArpeggioTimers, triggerBar]);
+
   const handleClose = () => {
     setBreezeOn(false);
+    clearArpeggioTimers();
     stopAllChimes();
     onClose?.();
   };
@@ -202,14 +226,15 @@ export default function DeskChimeDialog({ onClose }) {
         >
           <div className="desk-chime__rail" aria-hidden="true" />
           <div className="desk-chime__bars">
-            {CHIME_BARS.map((bar) => {
+            {CHIME_BARS.map((bar, barIdx) => {
               const pulseCount = struckBars[bar.id] || 0;
               const isStruck = pulseCount > 0;
+              const warmthPct = Math.round(62 - barIdx * 5.5);
               return (
                 <div
                   key={bar.id}
                   className={'desk-chime__slot' + (isStruck ? ' is-struck' : '')}
-                  style={{ '--chime-bar-h': `${bar.heightPct}%` }}
+                  style={{ '--chime-bar-h': `${bar.heightPct}%`, '--chime-warmth': `${warmthPct}%` }}
                 >
                   <span className="desk-chime__cord" aria-hidden="true" />
                   <Button
@@ -232,6 +257,8 @@ export default function DeskChimeDialog({ onClose }) {
                       if (event.detail === 0) triggerBar(bar.id, { velocity: 0.88 });
                     }}
                   >
+                    <span className="desk-chime__cap" aria-hidden="true" />
+                    <span className="desk-chime__pin" aria-hidden="true" />
                     <span className="desk-chime__ring" aria-hidden="true" />
                     <span className="desk-chime__pitch">{bar.note}</span>
                     <kbd className="desk-chime__kbd">{bar.key}</kbd>
@@ -249,6 +276,14 @@ export default function DeskChimeDialog({ onClose }) {
             checked={breezeOn}
             onChange={setBreezeOn}
           />
+          <Button
+            variant="quiet"
+            size="sm"
+            icon="sparkle"
+            onClick={handleToggleArpeggio}
+          >
+            {ui('清风一曲')}
+          </Button>
         </div>
       </div>
     </Dialog>

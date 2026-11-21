@@ -204,6 +204,33 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   useEffect(() => { setPickPagesGuide(!!pickPages); }, [pickPages, source.id]);
   useEffect(() => { setSyncedTarget(null); }, [source.id]);
   const root = useRef(null), body = useRef(null), scroller = useRef(null), findInput = useRef(null), ranges = useRef([]), openedAt = useRef('');
+  // Studio shortcut Alt+Shift+D toggles the ink scratchpad from the reader (modal or docked)
+  // without double-opening alongside ReviewToolbar or stacking over another open modal.
+  useEffect(() => {
+    const onGlobalKeyDown = (event) => {
+      if (event.defaultPrevented || event.repeat) return;
+      if (!event.altKey || !event.shiftKey || event.ctrlKey || event.metaKey) return;
+      if (event.code !== 'KeyD' && String(event.key || '').toLowerCase() !== 'd') return;
+      const target = event.target;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable || target.closest?.('input,textarea,select,[contenteditable]'))) return;
+      if (scratchpadOpen) {
+        event.preventDefault();
+        setScratchpadOpen(false);
+        return;
+      }
+      const ownDialog = root.current?.closest?.('dialog[open]') || null;
+      const openDialogs = Array.from(window.document.querySelectorAll('dialog[open]'));
+      if (openDialogs.some((dialog) => dialog !== ownDialog)) return;
+      if (!ownDialog && window.document.querySelector('.question-toolbar')) {
+        const active = window.document.activeElement;
+        if (!root.current?.contains?.(target) && !root.current?.contains?.(active)) return;
+      }
+      event.preventDefault();
+      setScratchpadOpen(true);
+    };
+    window.addEventListener('keydown', onGlobalKeyDown);
+    return () => window.removeEventListener('keydown', onGlobalKeyDown);
+  }, [scratchpadOpen]);
   // Narrow panes (under NARROW px of the viewer, ui/use-narrow.js): the outline and the learning panel slide over the text instead of sitting beside it.
   const narrow = useNarrow(root), compact = useNarrow(root, COMPACT_TOOLBAR);
   const outlineId = useId(), toolsId = useId();

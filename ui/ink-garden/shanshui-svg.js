@@ -1,5 +1,5 @@
 import { clamp, createSeededRandom, fbm1D, lerp, round1 } from './seed-prng.js';
-import { PLATE_HEIGHT, PLATE_WIDTH } from './herbarium-svg.js';
+import { PLATE_HEIGHT, PLATE_WIDTH, formatColophonText } from './herbarium-svg.js';
 
 /* Edition II: 千里山水卷 (Ink-Wash Shan-Shui)
    MIT Lineage: LingDong-/shan-shui-inf layered procedural mountain ridges,
@@ -218,24 +218,79 @@ function buildSailboat(x, y, scale, palette, roughGen, seed) {
   return out;
 }
 
-/** Render a clickable deck peak marker anchored onto a sculpted mountain ridge. */
+/** Subtle foreground mountain pine silhouettes perched along near ridge crests based on mastery. */
+function buildMasteryPines(nearPoints, deckXs, garden, palette, roughGen) {
+  if (garden.isEmpty || !nearPoints.length) return [];
+  const masteryCount = clamp(
+    Math.floor((garden.totals.mastered || 0) / 4) + Math.floor((garden.totals.overallMastery || 0) / 22),
+    garden.totals.overallMastery >= 20 ? 2 : 0,
+    6,
+  );
+  if (masteryCount <= 0) return [];
+  const rng = createSeededRandom(garden.seed ^ 0x501e);
+  const strokes = [];
+  const placed = [...deckXs];
+
+  for (let i = 0; i < masteryCount; i++) {
+    let chosen = null;
+    for (let tries = 0; tries < 24; tries++) {
+      const idx = rng.int(5, nearPoints.length - 6);
+      const [px, py] = nearPoints[idx];
+      if (py > 326 || py < 120) continue;
+      if (placed.every((ox) => Math.abs(ox - px) >= 34)) {
+        placed.push(px);
+        chosen = [px, py];
+        break;
+      }
+    }
+    if (!chosen) continue;
+    const [x, y] = chosen;
+    const s = rng.range(0.75, 1.15);
+    // Tiny ink-wash trunk + two tiered pine canopies
+    strokes.push({
+      d: `M${round1(x)} ${round1(y + 2)} L${round1(x)} ${round1(y - 10 * s)}`,
+      stroke: palette.inkDim,
+      strokeWidth: 0.9,
+      fill: 'none',
+      opacity: 0.62,
+    });
+    const tiers = [
+      [[x - 6 * s, y - 4 * s], [x, y - 9 * s], [x + 6 * s, y - 4 * s]],
+      [[x - 4.5 * s, y - 8 * s], [x, y - 13 * s], [x + 4.5 * s, y - 8 * s]],
+    ];
+    for (const pts of tiers) {
+      for (const p of makeCurve(roughGen, pts, {
+        stroke: palette.ok,
+        strokeWidth: 1.0,
+        roughness: 0.85,
+        disableMultiStroke: true,
+        seed: rng.int(1, 99999),
+      })) {
+        strokes.push({ ...p, fill: palette.ok, fillOpacity: 0.2, opacity: 0.66 });
+      }
+    }
+  }
+  return strokes;
+}
+
+/** Render a clickable deck peak marker nestled closely onto a sculpted mountain ridge. */
 function renderRidgeLandmark(item, x, y, ridgeY, palette, roughGen) {
   const rng = createSeededRandom(item.seed);
   const strokes = [];
 
-  // Fine drop stem connecting landmark down to the mountain ridge crest
-  if (ridgeY > y + 6) {
+  // Short grounded plinth stroke (<= 8px) seating the landmark cleanly onto the ridge contour
+  const stemBottom = Math.min(ridgeY, y + 8);
+  if (stemBottom > y + 2) {
     strokes.push({
-      d: `M${round1(x)} ${round1(y + 7)} L${round1(x)} ${round1(ridgeY)}`,
+      d: `M${round1(x)} ${round1(y + 3)} L${round1(x)} ${round1(stemBottom)}`,
       stroke: palette.inkMuted,
-      strokeWidth: 0.85,
+      strokeWidth: 0.9,
       fill: 'none',
-      opacity: 0.55,
+      opacity: 0.58,
     });
   }
 
   if (item.stage === 'mastered') {
-    // Jade terraced mountain pine + cinnabar crest star
     const layers = [
       [x, y - 11, x - 9, y - 2, x + 9, y - 2],
       [x, y - 5, x - 11, y + 5, x + 11, y + 5],
@@ -265,7 +320,6 @@ function renderRidgeLandmark(item, x, y, ridgeY, palette, roughGen) {
   }
 
   if (item.stage === 'learning') {
-    // Warm ochre mountain lantern diamond
     const r = 8.5;
     const pts = [[x, y - r], [x + r * 0.82, y], [x, y + r], [x - r * 0.82, y], [x, y - r]];
     for (const p of makeCurve(roughGen, pts, {
@@ -291,8 +345,8 @@ function renderRidgeLandmark(item, x, y, ridgeY, palette, roughGen) {
   }
 
   if (item.stage === 'weak') {
-    // Soft berry ridge cairn with calm dashed ring
-    for (const p of makeCircle(roughGen, x, y, 19, {
+    // Grounded berry ridge cairn nestled directly onto the mountain contour (no tall lollipop stem)
+    for (const p of makeCircle(roughGen, x, y, 17, {
       stroke: palette.bad,
       strokeWidth: 0.9,
       strokeLineDash: [3, 3],
@@ -300,18 +354,18 @@ function renderRidgeLandmark(item, x, y, ridgeY, palette, roughGen) {
       disableMultiStroke: true,
       seed: rng.int(1, 99999),
     })) {
-      strokes.push({ ...p, opacity: 0.6 });
+      strokes.push({ ...p, opacity: 0.56 });
     }
-    for (const p of makeCircle(roughGen, x, y, 10.5, {
+    for (const p of makeCircle(roughGen, x, y, 9.8, {
       stroke: palette.bad,
-      strokeWidth: 1.25,
+      strokeWidth: 1.2,
       fill: palette.bad,
       fillStyle: 'hachure',
-      hachureGap: 3,
+      hachureGap: 3.2,
       roughness: 1.0,
       seed: rng.int(1, 99999),
     })) {
-      strokes.push({ ...p, opacity: 0.9 });
+      strokes.push({ ...p, opacity: 0.88 });
     }
     return { strokes, hitRadius: 20 };
   }
@@ -432,10 +486,12 @@ export function buildShanshuiScene(garden, palette, roughGen = null) {
   ];
 
   const mistBands = [
-    { x: LEFT, y: 214, width: RIGHT - LEFT, height: 64, opacity: 0.44 },
-    { x: LEFT, y: 282, width: RIGHT - LEFT, height: 68, opacity: 0.52 },
-    { x: LEFT, y: 344, width: RIGHT - LEFT, height: 60, opacity: 0.68 },
+    { x: LEFT, y: 214, width: RIGHT - LEFT, height: 64, opacity: 0.46 },
+    { x: LEFT, y: 278, width: RIGHT - LEFT, height: 68, opacity: 0.54 },
+    { x: LEFT, y: 332, width: RIGHT - LEFT, height: 54, opacity: 0.64 },
   ];
+  // Dedicated water-mist fade dissolving the foreground mountain base smoothly into palette.paper
+  const waterFadeBand = { x: LEFT, y: 330, width: RIGHT - LEFT, height: BOTTOM - 330 + 2 };
 
   // Calm river ripples in lower water band
   const rng = createSeededRandom(garden.seed ^ 0x9911);
@@ -466,7 +522,7 @@ export function buildShanshuiScene(garden, palette, roughGen = null) {
       : []),
   ];
 
-  // Anchor clickable deck landmarks cleanly across the mountain skyline
+  // Anchor clickable deck landmarks nestled closely along the mountain skyline
   const visible = garden.items.slice(0, 24);
   const sampleY = (pts, targetX) => {
     const t = clamp((targetX - LEFT) / (RIGHT - LEFT), 0, 1);
@@ -482,10 +538,10 @@ export function buildShanshuiScene(garden, palette, roughGen = null) {
       LEFT + 62,
       RIGHT - 74,
     ));
-    // Higher mastery decks stand on loftier upper ridges; lower mastery rest near calm foothills
+    // Higher mastery decks crown mid ridges; lower mastery nestle directly onto foreground ridge crests
     const targetRange = item.mastery >= 55 ? mid.points : near.points;
     const ridgeY = sampleY(targetRange, x);
-    const lift = 18 + (item.mastery / 100) * 24 + (idx % 2 === 0 ? 0 : 12);
+    const lift = item.stage === 'weak' ? 4 : item.stage === 'mastered' ? 7 : 6;
     const y = round1(clamp(ridgeY - lift, 74, 332));
     const { strokes, hitRadius } = renderRidgeLandmark(item, x, y, ridgeY, palette, roughGen);
     return {
@@ -493,10 +549,13 @@ export function buildShanshuiScene(garden, palette, roughGen = null) {
       item,
       x,
       y,
+      ridgeY,
       hitRadius,
       strokes,
     };
   });
+
+  const pinePaths = buildMasteryPines(near.points, nodes.map((n) => n.x), garden, palette, roughGen);
 
   // Carved cinnabar seal in lower-right with stylized mountain glyph (Han-free)
   const sx = PLATE_WIDTH - INNER - 46;
@@ -526,12 +585,15 @@ export function buildShanshuiScene(garden, palette, roughGen = null) {
     sunPaths,
     ranges,
     mistBands,
+    waterFadeBand,
     ridgeOutlines: [...midOutline, ...nearOutline],
     cunfaPaths,
+    pinePaths,
     riverPaths,
     pavilionPaths,
     boatPaths,
     nodes,
     sealPaths,
+    colophon: formatColophonText(garden),
   };
 }

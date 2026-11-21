@@ -5,7 +5,7 @@ import { Button, Icon, IconButton, NumberInput, Panel, ProgressBar, SegmentedCon
 import { useStudy } from '../study-context.jsx';
 import { useInjectCss } from '../shared.js';
 import { usePersistentState } from '../storage.js';
-import { dateLabel, evenTicks, fillTrend, linePath, linearScale, niceTicks, trendTicks } from './chart-math.js';
+import { dateLabel, evenTicks, fillTrend, linePath, linearScale, niceIntTicks, niceTicks, trendTicks } from './chart-math.js';
 import ForecastInkTide from './ForecastInkTide.jsx';
 import tideCss from './forecast-tide.css';
 import { MEASURES, THIN_DATA } from '../mastery-terms.js';
@@ -196,7 +196,7 @@ export function ForecastPanel({ forecast, onStart, parked, defaultView = 'bar', 
   const height = narrow ? 180 : 220;
   const L = 34, R = 8, T = 22, B = 28;
   const max = days.reduce((m, d) => Math.max(m, d.count), 0);
-  const ticks = niceTicks(max, 4);
+  const ticks = niceIntTicks(max, 4);
   const y = linearScale([0, ticks.at(-1)], [height - B, T]);
   const band = (width - L - R) / Math.max(1, days.length);
   const barW = Math.max(6, Math.min(36, band * 0.62));

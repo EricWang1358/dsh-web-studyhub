@@ -1,16 +1,16 @@
 import { clamp, createSeededRandom, lerp, round1 } from './seed-prng.js';
-import { PLATE_HEIGHT, PLATE_WIDTH } from './herbarium-svg.js';
+import { PLATE_HEIGHT, PLATE_WIDTH, formatColophonText } from './herbarium-svg.js';
 
 /* Edition III: 铜版星象图 (Engraved Astrolabe)
    Hand-etched roughjs concentric mastery orbits, celestial meridian arcs,
-   degree bezel ticks, course-grouped constellation filaments, and clickable
-   deck star glyphs. Pure & deterministic. */
+   degree bezel ticks, copperplate wing sighting arcs, course-grouped
+   constellation filaments, and clickable deck star glyphs. Pure & deterministic. */
 
 const MARGIN = 22;
 const INNER = 30;
 export const ASTRO_CX = 480;
 export const ASTRO_CY = 220;
-const ORBIT_RADII = [52, 96, 140, 178];
+const ORBIT_RADII = [48, 86, 124, 158];
 
 function toPathList(roughGen, drawable, fallback) {
   if (!roughGen || !drawable) return fallback;
@@ -60,6 +60,27 @@ function makeRect(roughGen, x, y, w, h, opts) {
   return toPathList(roughGen, roughGen.rectangle(rx, ry, rw, rh, { fixedDecimalPlaceDigits: 1, ...opts }), fallback);
 }
 
+function makeArcPoints(cx, cy, radius, startAngle, endAngle, steps = 12) {
+  const pts = [];
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const theta = lerp(startAngle, endAngle, t);
+    pts.push([round1(cx + Math.cos(theta) * radius), round1(cy + Math.sin(theta) * radius)]);
+  }
+  return pts;
+}
+
+function makeCurve(roughGen, pts, opts) {
+  const fallback = [{
+    d: `M${pts.map(([x, y]) => `${round1(x)} ${round1(y)}`).join(' L')}`,
+    stroke: opts.stroke || 'none',
+    strokeWidth: opts.strokeWidth ?? 1,
+    fill: opts.fill || 'none',
+  }];
+  if (!roughGen || pts.length < 2) return fallback;
+  return toPathList(roughGen, roughGen.curve(pts, { fixedDecimalPlaceDigits: 1, ...opts }), fallback);
+}
+
 /** Generate N-pointed engraved star polygon path string. */
 function starPath(cx, cy, points, outerR, innerR, rot = -Math.PI / 2) {
   const coords = [];
@@ -85,11 +106,11 @@ function placeConstellationStars(items) {
     // Higher mastery orbits closer to the zenith center; new decks sit on the outer rim
     let radius;
     if (item.stage === 'mastered') {
-      radius = lerp(42, 74, 1 - clamp((item.mastery - 80) / 20, 0, 1));
+      radius = lerp(38, 66, 1 - clamp((item.mastery - 80) / 20, 0, 1));
     } else if (item.stage === 'fresh') {
-      radius = rng.range(150, 170);
+      radius = rng.range(134, 150);
     } else {
-      radius = lerp(146, 82, clamp(item.mastery / 80, 0, 1));
+      radius = lerp(130, 74, clamp(item.mastery / 80, 0, 1));
     }
     return {
       item,
@@ -260,7 +281,7 @@ export function buildAstrolabeScene(garden, palette, roughGen = null) {
     }
   });
   // Outer hairline bezel ring
-  for (const p of makeCircle(roughGen, ASTRO_CX, ASTRO_CY, 374, {
+  for (const p of makeCircle(roughGen, ASTRO_CX, ASTRO_CY, 332, {
     stroke: palette.line,
     strokeWidth: 0.75,
     roughness: 0.65,
@@ -272,28 +293,28 @@ export function buildAstrolabeScene(garden, palette, roughGen = null) {
 
   // Tilted celestial meridian ellipses + equinoctial / solstitial axes
   const meridianPaths = [
-    ...makeEllipse(roughGen, ASTRO_CX, ASTRO_CY, 356, 132, {
+    ...makeEllipse(roughGen, ASTRO_CX, ASTRO_CY, 316, 118, {
       stroke: palette.info,
       strokeWidth: 0.85,
       roughness: 0.85,
       disableMultiStroke: true,
       seed: garden.seed + 211,
     }).map((p) => ({ ...p, opacity: 0.36 })),
-    ...makeEllipse(roughGen, ASTRO_CX, ASTRO_CY, 148, 356, {
+    ...makeEllipse(roughGen, ASTRO_CX, ASTRO_CY, 132, 316, {
       stroke: palette.info,
       strokeWidth: 0.85,
       roughness: 0.85,
       disableMultiStroke: true,
       seed: garden.seed + 223,
     }).map((p) => ({ ...p, opacity: 0.36 })),
-    ...makeLine(roughGen, ASTRO_CX - 216, ASTRO_CY, ASTRO_CX + 216, ASTRO_CY, {
+    ...makeLine(roughGen, ASTRO_CX - 176, ASTRO_CY, ASTRO_CX + 176, ASTRO_CY, {
       stroke: palette.lineStrong,
       strokeWidth: 0.8,
       roughness: 0.7,
       disableMultiStroke: true,
       seed: garden.seed + 233,
     }).map((p) => ({ ...p, opacity: 0.48 })),
-    ...makeLine(roughGen, ASTRO_CX, ASTRO_CY - 192, ASTRO_CX, ASTRO_CY + 192, {
+    ...makeLine(roughGen, ASTRO_CX, ASTRO_CY - 170, ASTRO_CX, ASTRO_CY + 170, {
       stroke: palette.lineStrong,
       strokeWidth: 0.8,
       roughness: 0.7,
@@ -302,19 +323,87 @@ export function buildAstrolabeScene(garden, palette, roughGen = null) {
     }).map((p) => ({ ...p, opacity: 0.48 })),
   ];
 
-  // Degree bezel ticks (36 around the 178px brass ring)
+  // Degree bezel ticks (36 around the 158px brass ring)
   const tickPaths = [];
   for (let i = 0; i < 36; i++) {
     const theta = (i * Math.PI * 2) / 36;
     const major = i % 3 === 0;
-    const r0 = major ? 172 : 175;
-    const r1 = major ? 186 : 182;
+    const r0 = major ? 152 : 155;
+    const r1 = major ? 166 : 162;
     tickPaths.push({
       d: `M${round1(ASTRO_CX + Math.cos(theta) * r0)} ${round1(ASTRO_CY + Math.sin(theta) * r0)} L${round1(ASTRO_CX + Math.cos(theta) * r1)} ${round1(ASTRO_CY + Math.sin(theta) * r1)}`,
       stroke: major ? palette.inkDim : palette.decorFaint,
       strokeWidth: major ? 1.15 : 0.75,
       fill: 'none',
       opacity: major ? 0.65 : 0.45,
+    });
+  }
+
+  // Universal copperplate cardinal degree markings (Han-free)
+  const cardinalMarks = [
+    { text: '0°', x: ASTRO_CX, y: 45, anchor: 'middle' },
+    { text: '90°', x: ASTRO_CX + 184, y: ASTRO_CY + 4, anchor: 'start' },
+    { text: '180°', x: ASTRO_CX, y: 403, anchor: 'middle' },
+    { text: '270°', x: ASTRO_CX - 184, y: ASTRO_CY + 4, anchor: 'end' },
+  ];
+
+  // Delicate symmetric left & right copperplate wing arcs & sighting rules framing the wide plate
+  const wingPaths = [];
+  const wingConfigs = [
+    { start: Math.PI - 0.44, end: Math.PI + 0.44, r: 252, seedOff: 401, opacity: 0.44, width: 0.9 },
+    { start: -0.44, end: 0.44, r: 252, seedOff: 409, opacity: 0.44, width: 0.9 },
+    { start: Math.PI - 0.34, end: Math.PI + 0.34, r: 296, seedOff: 419, opacity: 0.3, width: 0.75 },
+    { start: -0.34, end: 0.34, r: 296, seedOff: 431, opacity: 0.3, width: 0.75 },
+  ];
+  for (const cfg of wingConfigs) {
+    const pts = makeArcPoints(ASTRO_CX, ASTRO_CY, cfg.r, cfg.start, cfg.end, 10);
+    for (const p of makeCurve(roughGen, pts, {
+      stroke: palette.lineStrong,
+      strokeWidth: cfg.width,
+      roughness: 0.75,
+      disableMultiStroke: true,
+      seed: garden.seed + cfg.seedOff,
+    })) {
+      wingPaths.push({ ...p, opacity: cfg.opacity });
+    }
+  }
+  // Latitude calibration ticks along the inner wing arcs (5 per wing)
+  for (const sideBase of [Math.PI, 0]) {
+    for (let k = -2; k <= 2; k++) {
+      const theta = sideBase + k * 0.16;
+      const r0 = 247;
+      const r1 = k === 0 ? 261 : 257;
+      wingPaths.push({
+        d: `M${round1(ASTRO_CX + Math.cos(theta) * r0)} ${round1(ASTRO_CY + Math.sin(theta) * r0)} L${round1(ASTRO_CX + Math.cos(theta) * r1)} ${round1(ASTRO_CY + Math.sin(theta) * r1)}`,
+        stroke: k === 0 ? palette.inkMuted : palette.decorFaint,
+        strokeWidth: k === 0 ? 1.0 : 0.75,
+        fill: 'none',
+        opacity: k === 0 ? 0.56 : 0.4,
+      });
+    }
+  }
+  // Left & right equinoctial sighting rules with tiny engraved diamond pips
+  const sightLines = [
+    [88, ASTRO_CY, 214, ASTRO_CY, 132, 443],
+    [746, ASTRO_CY, 872, ASTRO_CY, 828, 449],
+  ];
+  for (const [x1, y1, x2, y2, pipX, seedOff] of sightLines) {
+    for (const p of makeLine(roughGen, x1, y1, x2, y2, {
+      stroke: palette.line,
+      strokeWidth: 0.75,
+      roughness: 0.65,
+      disableMultiStroke: true,
+      seed: garden.seed + seedOff,
+    })) {
+      wingPaths.push({ ...p, opacity: 0.48 });
+    }
+    wingPaths.push({
+      d: starPath(pipX, ASTRO_CY, 4, 4.5, 2),
+      stroke: palette.inkMuted,
+      strokeWidth: 0.85,
+      fill: palette.paper,
+      fillOpacity: 0.85,
+      opacity: 0.65,
     });
   }
 
@@ -413,10 +502,13 @@ export function buildAstrolabeScene(garden, palette, roughGen = null) {
     ringPaths,
     meridianPaths,
     tickPaths,
+    wingPaths,
+    cardinalMarks,
     corePaths,
     dustDots,
     filamentPaths,
     nodes,
     sealPaths,
+    colophon: formatColophonText(garden),
   };
 }

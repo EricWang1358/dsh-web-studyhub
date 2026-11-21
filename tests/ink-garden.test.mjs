@@ -235,8 +235,83 @@ test('all 3 print editions generate deterministic roughjs scenes and serene empt
   assert.equal(astro1.tickPaths.length, 36);
   assert.ok(astro1.filamentPaths.length >= 2, 'course-grouped decks link with constellation filaments');
   assert.ok(astro1.ringPaths.length >= 5);
+  assert.deepEqual(astro1.cardinalMarks.map((c) => c.text), ['0°', '90°', '180°', '270°']);
+  assert.ok(astro1.wingPaths.length >= 14, 'astrolabe renders symmetric copperplate wing arcs & sighting rules');
+  assert.match(astro1.colophon, /^2026\.10 · \d+%$/);
   const astroLight = m.buildAstrolabeScene(garden, lightPalette, roughGen);
   assert.notEqual(astroLight.framePaths[0].stroke, '', 'light palette resolves cleanly');
+});
+
+test('Wave 3 visual craft: 1-deck Herbarium richness, Shan-Shui water-mist & nestled peaks, colophon, and 34-char SVG halo tag', () => {
+  const oneDeck = [{ id: 'deck-only', title: 'CS3230｜Algorithmic Graph Theory Notes｜24题', course: 'CS3230', total: 24 }];
+  const oneProgress = {
+    'deck-only': {
+      total: 24, mastery: 58, due: 3, status: 'active',
+      counts: { mastered: 8, familiar: 6, learning: 8, weak: 2, new: 0 },
+    },
+  };
+  const oneStats = sampleStats();
+  const oneGarden = m.normalizeGardenData({ stats: oneStats, decks: oneDeck, progress: oneProgress });
+  const herb = m.buildHerbariumScene(oneGarden, m.DEFAULT_PALETTE, roughGen);
+  assert.equal(herb.nodes.length, 1, '1-deck library keeps exactly 1 interactive node (zero fake decks)');
+  assert.ok(herb.branchPaths.length >= 16, '1-deck herbarium grows sweeping primary + companion boughs');
+  assert.ok(herb.companionStrokes.length > 0, 'progress-driven companion blossoms/buds/petals enrich sparse plate');
+  assert.equal(herb.colophon, '2026.10 · 58%');
+
+  const fullGarden = m.normalizeGardenData({ stats: sampleStats(), decks: sampleDecks(), progress: sampleProgress() });
+  const ss = m.buildShanshuiScene(fullGarden, m.DEFAULT_PALETTE, roughGen);
+  assert.ok(ss.waterFadeBand && ss.waterFadeBand.height > 60, 'shan-shui emits bottom water-mist fade band');
+  assert.ok(ss.pinePaths.length > 0, 'shan-shui adds subtle foreground mastery pines');
+  assert.match(ss.colophon, /^2026\.10 · \d+%$/);
+  for (const node of ss.nodes) {
+    assert.ok(node.ridgeY - node.y <= 8, `${node.id} (${node.item.stage}) nestles closely onto ridge contour`);
+  }
+
+  // Rendered Shan-Shui includes bottom water-mist gradient + colophon; Astrolabe includes cardinal degree marks
+  const ssHtml = renderToStaticMarkup(React.createElement(m.InkGardenSection, {
+    stats: sampleStats(), decks: sampleDecks(), progress: sampleProgress(), defaultEdition: 'shanshui', roughGenerator: roughGen,
+  }));
+  assert.equal((ssHtml.match(/<linearGradient/g) || []).length, 2, 'shan-shui defines mist + bottom water-mist gradients');
+  assert.match(ssHtml, /class="ink-garden__colophon"[^>]*>2026\.10 · \d+%</);
+
+  const astroHtml = renderToStaticMarkup(React.createElement(m.InkGardenSection, {
+    stats: sampleStats(), decks: sampleDecks(), progress: sampleProgress(), defaultEdition: 'astrolabe', roughGenerator: roughGen,
+  }));
+  for (const deg of ['0°', '90°', '180°', '270°']) {
+    assert.ok(astroHtml.includes(`>${deg}</text>`), `astrolabe renders cardinal ${deg}`);
+  }
+
+  // ActiveNodeLabel supports 34 chars before ellipsis and carries SVG stroke-halo presentation attrs
+  const longTitle = 'CS3230｜Algorithmic Graph Theory & Flow Optimization Deep Dive｜24题';
+  const twoDecks = [
+    oneDeck[0],
+    { id: 'deck-long', title: longTitle, course: 'CS3230', total: 24 },
+  ];
+  const twoProg = {
+    ...oneProgress,
+    'deck-long': { total: 24, mastery: 40, due: 1, status: 'active', counts: { mastered: 4, familiar: 4, learning: 10, weak: 4, new: 2 } },
+  };
+  const hookStore = new Map();
+  const el = () => React.createElement(m.InkGardenSection, {
+    stats: oneStats, decks: twoDecks, progress: twoProg, roughGenerator: roughGen,
+  });
+  const t1 = renderTree(el(), hookStore);
+  const mediumNode = findAll(t1, (n) => n.type === 'g' && n.props?.['data-deck-id'] === 'deck-only')[0];
+  mediumNode.props.onMouseEnter();
+  const t2 = renderTree(el(), hookStore);
+  const tagMedium = findAll(t2, (n) => n.type === 'text' && n.props?.className === 'ink-garden__node-tag')[0];
+  assert.equal(textOf(tagMedium), 'Algorithmic Graph Theory Notes', '30-char title renders untruncated under 34-char budget');
+  assert.equal(tagMedium.props.paintOrder, 'stroke');
+  assert.equal(tagMedium.props.strokeLinejoin, 'round');
+  assert.equal(tagMedium.props.strokeWidth, 4);
+  assert.equal(tagMedium.props.stroke, m.DEFAULT_PALETTE.paper);
+
+  const longNode = findAll(t2, (n) => n.type === 'g' && n.props?.['data-deck-id'] === 'deck-long')[0];
+  longNode.props.onMouseEnter();
+  const t3 = renderTree(el(), hookStore);
+  const tagLong = findAll(t3, (n) => n.type === 'text' && n.props?.className === 'ink-garden__node-tag')[0];
+  assert.equal(textOf(tagLong).length, 34, 'titles over 34 chars truncate cleanly to 33 chars + ellipsis');
+  assert.ok(textOf(tagLong).endsWith('…'));
 });
 
 test('export-poster: builds clean ASCII filenames and standalone XML SVG with theme background', () => {

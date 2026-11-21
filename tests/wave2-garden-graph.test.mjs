@@ -7,6 +7,7 @@ import rough from 'roughjs';
 import { loadUi } from './helpers/ui-module.mjs';
 
 const m = await loadUi(`
+  export * from './ui/charts/chart-math.js';
   export * from './ui/charts/ForecastInkTide.jsx';
   export { ForecastPanel } from './ui/charts/DashboardCharts.jsx';
   export * from './ui/graph-sketch/graph-sketch.js';
@@ -208,6 +209,36 @@ test('ForecastPanel: defaults to bar view, toggles to Ink Tide, launches day rev
   }
 });
 
+test('Wave 3 ForecastPanel integer Y-axis: niceIntTicks eliminates fractional card ticks for small counts', () => {
+  assert.deepEqual(m.niceIntTicks(0, 4), [0, 1]);
+  assert.deepEqual(m.niceIntTicks(1, 4), [0, 1]);
+  assert.deepEqual(m.niceIntTicks(2, 4), [0, 1, 2]);
+  assert.deepEqual(m.niceIntTicks(3, 4), [0, 1, 2, 3]);
+  assert.deepEqual(m.niceIntTicks(4, 4), [0, 1, 2, 3, 4]);
+  assert.deepEqual(m.niceIntTicks(5, 4), [0, 2, 4, 6]);
+  assert.deepEqual(m.niceIntTicks(23, 4), [0, 10, 20, 30]);
+  for (let max = 0; max <= 50; max++) {
+    const ticks = m.niceIntTicks(max, 4);
+    assert.equal(ticks[0], 0);
+    assert.ok(ticks.at(-1) >= Math.max(1, max));
+    assert.ok(ticks.every((t) => Number.isInteger(t)), `niceIntTicks(${max}) yields integers only`);
+  }
+
+  const smallForecast = makeForecast([2, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+  for (const view of ['bar', 'tide']) {
+    const html = renderToStaticMarkup(React.createElement(m.ForecastPanel, {
+      forecast: smallForecast,
+      onStart: () => {},
+      defaultView: view,
+      roughGenerator: roughGen,
+    }));
+    const yLabels = [...html.matchAll(/class="(?:dash-axis|forecast-tide__axis)"[^>]*text-anchor="end"[^>]*>([^<]+)<\/text>/g)].map((hit) => hit[1]);
+    assert.deepEqual(yLabels, ['0', '1', '2'], `${view} view renders integer-only Y-axis labels for max=2`);
+    assert.doesNotMatch(html, />0\.5<\/text>/);
+    assert.doesNotMatch(html, />1\.5<\/text>/);
+  }
+});
+
 test('graph-sketch: computeLineage traces multi-hop prerequisite chains safely and roughjs sketch geometry + SVG export are deterministic', () => {
   const data = sampleGraphData();
   const layout = m.layoutStructure(data.nodes, data.edges);
@@ -243,6 +274,7 @@ test('graph-sketch: computeLineage traces multi-hop prerequisite chains safely a
   const s2 = m.sketchNodePaths(deckPlaced, 'mastered', palette, roughGen);
   assert.deepEqual(s1, s2);
   assert.ok(s1.length >= 2, 'deck node renders double-ink frame + hachure');
+  assert.ok(s1[0].opacity <= 0.28, 'hachure fill opacity stays gentle behind card labels');
 
   const edge1 = m.sketchBezierEdge(10, 20, 140, 80, 'prereq', palette, roughGen, 77);
   const edge2 = m.sketchBezierEdge(10, 20, 140, 80, 'prereq', palette, roughGen, 77);
@@ -336,4 +368,7 @@ test('Wave 2 stylesheets (forecast-tide.css, graph-sketch.css) satisfy all token
     assert.doesNotMatch(css, /var\(--shadow-(?:card|sm)\)/);
     assert.doesNotMatch(css, /!important/);
   }
+  const graphCss = await readFile(new URL('../ui/graph-sketch/graph-sketch.css', import.meta.url), 'utf8');
+  assert.match(graphCss, /\.gn-spotlight-dim\s*\{\s*opacity:\s*0\.42;/);
+  assert.match(graphCss, /\.gn-spotlight-edge-dim\s*\{\s*opacity:\s*0\.24;/);
 });

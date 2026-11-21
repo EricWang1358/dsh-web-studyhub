@@ -84,8 +84,8 @@ export const SEAL_CATALOG = Object.freeze({
 export const SPECIMEN_SEALS = Object.freeze([
   Object.freeze({ id: 'clean-sweep', hintKey: '单轮满 3 题全部过关' }),
   Object.freeze({ id: 'leech-cleared', hintKey: '本轮攻克反复出错的顽固题' }),
-  Object.freeze({ id: 'night-study', hintKey: '深夜或凌晨完成一轮练习' }),
-  Object.freeze({ id: 'steady-rise', hintKey: '单轮正确率达到八成以上' }),
+  Object.freeze({ id: 'night-study', hintKey: '深夜或凌晨完成一轮' }),
+  Object.freeze({ id: 'steady-rise', hintKey: '单轮正确率达八成以上' }),
   Object.freeze({ id: 'round-done', hintKey: '稳稳完成任意一轮练习' }),
 ]);
 

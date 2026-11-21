@@ -215,6 +215,50 @@ test('buildPostcardSvg generates all 3 fine-print editions with escaped session 
   }
 });
 
+test('accuracyInkColor and postcard score denominator stay semantically honest across all 3 editions', () => {
+  const palette = {
+    paper: '#ece4d6',
+    paperInk: '#201b15',
+    paperDim: '#5d5448',
+    paperRule: '#cfc5b4',
+    accent: '#c93d22',
+    ok: '#5fb58a',
+    warn: '#d9a441',
+    info: '#86a9c6',
+  };
+  assert.equal(mod.accuracyInkColor(100, { ok: '#5fb58a', warn: '#d9a441', dim: '#5d5448' }), '#5fb58a');
+  assert.equal(mod.accuracyInkColor(80, { ok: '#5fb58a', warn: '#d9a441', dim: '#5d5448' }), '#5fb58a');
+  assert.equal(mod.accuracyInkColor(65, { ok: '#5fb58a', warn: '#d9a441', dim: '#5d5448' }), '#d9a441');
+  assert.equal(mod.accuracyInkColor(50, { ok: '#5fb58a', warn: '#d9a441', dim: '#5d5448' }), '#d9a441');
+  assert.equal(mod.accuracyInkColor(0, { ok: '#5fb58a', warn: '#d9a441', dim: '#5d5448' }), '#5d5448');
+
+  const earlyStop = {
+    title: 'Design patterns',
+    course: 'CS',
+    dateLabel: '2026.11.21',
+    answered: 1,
+    total: 2,
+    correct: 0,
+    accuracy: 0,
+    sealId: 'round-done',
+    sealChars: ['笃', '行'],
+    sealStyle: 'yin',
+    seed: 2814,
+  };
+  for (const edition of mod.POSTCARD_EDITIONS) {
+    const { svg } = mod.buildPostcardSvg({ ...earlyStop, edition: edition.id }, { palette });
+    assert.match(svg, /fill="#5d5448"[^>]*>0%<\/text>/, `${edition.id}: 0% uses calm neutral ink, never emerald green`);
+    assert.doesNotMatch(svg, /fill="#5fb58a"[^>]*>0%<\/text>/);
+    const expectedScore = edition.id === 'risograph' ? '>0/1<' : '>0 / 1<';
+    assert.ok(svg.includes(expectedScore), `${edition.id}: denominator uses answered (1), not total (2)`);
+    assert.ok(!svg.includes('>0 / 2<') && !svg.includes('>0/2<'), `${edition.id}: does not mismatch answered count`);
+  }
+
+  const midRound = { ...earlyStop, answered: 4, total: 4, correct: 2, accuracy: 50 };
+  const midSvg = mod.buildPostcardSvg({ ...midRound, edition: 'letterpress' }, { palette }).svg;
+  assert.match(midSvg, /fill="#d9a441"[^>]*>50%<\/text>/, '50-79% uses warm ochre ink');
+});
+
 test('local Seal Album persists newest-first, removes entries, and caps cleanly at 60', () => {
   const storage = makeMemoryStorage();
   assert.deepEqual(mod.loadSealAlbum(storage), []);
@@ -341,6 +385,23 @@ test('SSR rendering of FlowSealCue, RoundSealSection, PostcardStudioDialog and R
     assert.doesNotMatch(flowHeaderEn, /[\u3400-\u9fff]/);
 
     const sealEn = mod.deriveRoundSeal({ id: 'r-done-en', questions: 4, answered: 4, correct: 4 }, { hour: 12 });
+    const prevStorage = globalThis.localStorage;
+    const mem = makeMemoryStorage();
+    globalThis.localStorage = mem;
+    mod.saveSealAlbumEntry({
+      id: 'tab-check-1',
+      runId: 'r-done-en',
+      title: 'Systems',
+      answered: 4,
+      total: 4,
+      correct: 4,
+      accuracy: 100,
+      sealId: 'clean-sweep',
+      sealChars: ['全', '胜'],
+      sealStyle: 'yang',
+      edition: 'letterpress',
+      dateLabel: '2026.11.21',
+    }, mem);
     const studioEn = renderToStaticMarkup(React.createElement(mod.PostcardStudioDialog, {
       run: { id: 'r-done-en', title: 'Systems' },
       title: 'Systems',
@@ -348,7 +409,10 @@ test('SSR rendering of FlowSealCue, RoundSealSection, PostcardStudioDialog and R
       seal: sealEn,
       onClose: noop,
     }));
+    globalThis.localStorage = prevStorage;
     assert.match(studioEn, /Ex-Libris Postcard Studio &amp; Seal Album/);
+    assert.match(studioEn, /Seal Album \(1\)/, 'renders single-line inline album count in tab');
+    assert.doesNotMatch(studioEn, /sh-tabs__note/, 'no two-line wrapped tab note');
     assert.match(studioEn, /Letterpress Ex-Libris/);
     assert.match(studioEn, /Risograph Print/);
     assert.match(studioEn, /Archival Slip/);

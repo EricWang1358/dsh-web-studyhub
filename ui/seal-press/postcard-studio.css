@@ -216,13 +216,33 @@
     /* ── Cross-Surface Seal Album Gallery & 5-Seal Specimen Shelf ── */
     .sh-seal-gallery {
       display: grid;
-      gap: var(--space-4);
+      gap: var(--space-3);
+    }
+
+    .sh-seal-gallery .sh-seal-album {
+      gap: var(--space-3);
+    }
+
+    .sh-seal-gallery .sh-seal-album__feature {
+      gap: var(--space-2-5);
+    }
+
+    .sh-seal-gallery .sh-postcard-stage-wrap {
+      padding: var(--space-3);
+    }
+
+    .sh-seal-gallery .sh-postcard-stage--wide {
+      max-width: 470px;
+    }
+
+    .sh-seal-gallery .sh-postcard-stage--slip {
+      max-width: 260px;
     }
 
     .sh-seal-shelf {
       display: grid;
-      gap: var(--space-3);
-      padding: var(--space-3-5) var(--space-4);
+      gap: var(--space-2);
+      padding: var(--space-2-5) var(--space-3-5);
       border: 1px solid var(--line);
       border-radius: var(--radius);
       background: var(--bg-surface);
@@ -254,7 +274,7 @@
     .sh-seal-shelf__grid {
       display: grid;
       grid-template-columns: repeat(5, minmax(0, 1fr));
-      gap: var(--space-2-5);
+      gap: var(--space-2);
       margin: 0;
       padding: 0;
       list-style: none;
@@ -263,7 +283,7 @@
     .sh-seal-shelf__card {
       width: 100%;
       height: 100%;
-      padding: var(--space-3) var(--space-2);
+      padding: var(--space-2);
       border: 1px solid var(--line);
       border-radius: var(--radius);
       background: var(--bg-sunken);
@@ -271,7 +291,7 @@
       flex-direction: column;
       align-items: center;
       justify-content: flex-start;
-      gap: var(--space-1-5);
+      gap: var(--space-1);
       text-align: center;
       white-space: normal;
       transition: transform var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease);
@@ -302,8 +322,8 @@
     }
 
     .sh-seal-shelf__seal-wrap {
-      width: 56px;
-      height: 56px;
+      width: 44px;
+      height: 44px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -312,15 +332,15 @@
 
     .sh-seal-shelf__img {
       display: block;
-      width: 56px;
-      height: 56px;
+      width: 44px;
+      height: 44px;
       user-select: none;
       transform: rotate(-2deg);
     }
 
     .sh-seal-shelf__silhouette {
-      width: 56px;
-      height: 56px;
+      width: 44px;
+      height: 44px;
       border: 1px dashed var(--line-strong);
       border-radius: var(--radius-sm);
       background: var(--bg-surface);

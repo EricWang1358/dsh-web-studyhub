@@ -29,7 +29,7 @@
     }
 
     .gn-spotlight-dim {
-      opacity: 0.22;
+      opacity: 0.42;
     }
 
     .gn-spotlight-edge {
@@ -37,7 +37,7 @@
     }
 
     .gn-spotlight-edge-dim {
-      opacity: 0.14;
+      opacity: 0.24;
     }
 
     .gn-spotlight-edge-active {

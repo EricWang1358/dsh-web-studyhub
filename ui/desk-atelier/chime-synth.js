@@ -20,6 +20,9 @@ export const CHIME_KEY_MAP = Object.freeze(
   Object.fromEntries(CHIME_BARS.map((bar) => [bar.key, bar.id])),
 );
 
+export const CHIME_ARPEGGIO_IDS = Object.freeze(['D4', 'Fs4', 'A4', 'B4', 'D5']);
+export const CHIME_ARPEGGIO_STEP_MS = 160;
+
 export const BREEZE_MIN_MS = 2500;
 export const BREEZE_MAX_MS = 6000;
 const BREEZE_MEAN_MS = 3900;

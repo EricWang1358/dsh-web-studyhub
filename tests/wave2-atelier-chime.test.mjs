@@ -9,6 +9,8 @@ const mod = await loadUi(`
   export { setUiLanguage } from './ui/i18n.js';
   export { holdAudioCapture, isAudioCaptureActive } from './ui/audio-capture-state.js';
   export {
+    CHIME_ARPEGGIO_IDS,
+    CHIME_ARPEGGIO_STEP_MS,
     CHIME_BARS,
     CHIME_KEY_MAP,
     BREEZE_MIN_MS,
@@ -40,6 +42,8 @@ const {
   setUiLanguage,
   holdAudioCapture,
   isAudioCaptureActive,
+  CHIME_ARPEGGIO_IDS,
+  CHIME_ARPEGGIO_STEP_MS,
   CHIME_BARS,
   CHIME_KEY_MAP,
   BREEZE_MIN_MS,
@@ -346,9 +350,15 @@ test('DeskChimeDialog, FocusAmbientControls, DeskAtelierPanel and TodayTimer ren
     const zhChime = renderToStaticMarkup(React.createElement(DeskChimeDialog, { onClose: () => {} }));
     assert.match(zhChime, /五声风铃/);
     assert.match(zhChime, /微风自鸣/);
+    assert.match(zhChime, /清风一曲/);
+    assert.match(zhChime, /desk-chime__cap/);
+    assert.match(zhChime, /desk-chime__pin/);
+    assert.match(zhChime, /--chime-warmth/);
     assert.match(zhChime, /D4/);
     assert.match(zhChime, /A5/);
     assert.match(zhChime, /desk-chime__bar/);
+    assert.deepEqual(CHIME_ARPEGGIO_IDS, ['D4', 'Fs4', 'A4', 'B4', 'D5']);
+    assert.equal(CHIME_ARPEGGIO_STEP_MS, 160);
 
     const zhPanel = renderToStaticMarkup(React.createElement(DeskAtelierPanel));
     assert.match(zhPanel, /五声风铃/);
@@ -385,6 +395,7 @@ test('DeskChimeDialog, FocusAmbientControls, DeskAtelierPanel and TodayTimer ren
     }
     assert.match(enSurfaces[0], /Pentatonic Chimes/);
     assert.match(enSurfaces[0], /Gentle Breeze/);
+    assert.match(enSurfaces[0], /Gentle arpeggio/);
     assert.match(enSurfaces[2], /Rain Ripples/);
     assert.match(enSurfaces[2], /Ink Ripples/);
     assert.match(enSurfaces[2], /Lamp Dust/);

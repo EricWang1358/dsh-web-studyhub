@@ -134,11 +134,11 @@ function DeckNodeGroup({ node, selected, onHover, onSelect }) {
 
 function ActiveNodeLabel({ node, palette }) {
   if (!node) return null;
-  const text = node.item.shortTitle.length > 22
-    ? `${node.item.shortTitle.slice(0, 21)}…`
+  const text = node.item.shortTitle.length > 34
+    ? `${node.item.shortTitle.slice(0, 33)}…`
     : node.item.shortTitle;
-  const nearRight = node.x > PLATE_WIDTH - 190;
-  const nearLeft = node.x < 170;
+  const nearRight = node.x > PLATE_WIDTH - 240;
+  const nearLeft = node.x < 220;
   const anchor = nearRight ? 'end' : nearLeft ? 'start' : 'middle';
   const tx = round1(nearRight ? node.x - 16 : nearLeft ? node.x + 16 : node.x);
   const ty = round1(node.y < 86 ? node.y + node.hitRadius + 16 : node.y - node.hitRadius - 8);
@@ -150,6 +150,10 @@ function ActiveNodeLabel({ node, palette }) {
       y={ty}
       textAnchor={anchor}
       fill={palette.ink}
+      stroke={palette.paper}
+      strokeWidth={4}
+      strokeLinejoin="round"
+      paintOrder="stroke"
     >
       {text}
     </text>
@@ -161,6 +165,7 @@ function HerbariumArtwork({ scene, palette }) {
     <>
       <StrokeList paths={scene.guidePaths} prefix="herb-guide" />
       <StrokeList paths={scene.branchPaths} prefix="herb-branch" />
+      <StrokeList paths={scene.companionStrokes} prefix="herb-companion" />
       <StrokeList paths={scene.emptyBuds} prefix="herb-empty-bud" />
       <StrokeList paths={scene.framePaths} prefix="herb-frame" />
       <g className="ink-garden__seal" aria-hidden="true">
@@ -174,7 +179,7 @@ function HerbariumArtwork({ scene, palette }) {
   );
 }
 
-function ShanshuiArtwork({ scene, palette, mistGradId }) {
+function ShanshuiArtwork({ scene, palette, mistGradId, waterFadeId }) {
   return (
     <>
       <defs>
@@ -182,6 +187,12 @@ function ShanshuiArtwork({ scene, palette, mistGradId }) {
           <stop offset="0%" stopColor={palette.paper} stopOpacity="0" />
           <stop offset="50%" stopColor={palette.paper} stopOpacity="0.88" />
           <stop offset="100%" stopColor={palette.paper} stopOpacity="0" />
+        </linearGradient>
+        <linearGradient id={waterFadeId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={palette.paper} stopOpacity="0" />
+          <stop offset="46%" stopColor={palette.paper} stopOpacity="0.58" />
+          <stop offset="82%" stopColor={palette.paper} stopOpacity="0.94" />
+          <stop offset="100%" stopColor={palette.paper} stopOpacity="1" />
         </linearGradient>
       </defs>
       <StrokeList paths={scene.sunPaths} prefix="ss-sun" />
@@ -202,6 +213,16 @@ function ShanshuiArtwork({ scene, palette, mistGradId }) {
       ))}
       <StrokeList paths={scene.ridgeOutlines} prefix="ss-ridge" />
       <StrokeList paths={scene.cunfaPaths} prefix="ss-cunfa" />
+      <StrokeList paths={scene.pinePaths} prefix="ss-pine" />
+      {scene.waterFadeBand && (
+        <rect
+          x={scene.waterFadeBand.x}
+          y={scene.waterFadeBand.y}
+          width={scene.waterFadeBand.width}
+          height={scene.waterFadeBand.height}
+          fill={`url(#${waterFadeId})`}
+        />
+      )}
       <StrokeList paths={scene.riverPaths} prefix="ss-river" />
       <StrokeList paths={scene.pavilionPaths} prefix="ss-pavilion" />
       <StrokeList paths={scene.boatPaths} prefix="ss-boat" />
@@ -221,9 +242,24 @@ function AstrolabeArtwork({ scene, palette }) {
           <circle key={`astro-dust-${idx}`} cx={dot.cx} cy={dot.cy} r={dot.r} fill={palette.inkMuted} opacity={dot.opacity} />
         ))}
       </g>
+      <StrokeList paths={scene.wingPaths} prefix="astro-wing" />
       <StrokeList paths={scene.meridianPaths} prefix="astro-meridian" />
       <StrokeList paths={scene.ringPaths} prefix="astro-ring" />
       <StrokeList paths={scene.tickPaths} prefix="astro-tick" />
+      <g aria-hidden="true">
+        {scene.cardinalMarks.map((mark) => (
+          <text
+            key={mark.text}
+            className="ink-garden__cardinal"
+            x={mark.x}
+            y={mark.y}
+            textAnchor={mark.anchor}
+            fill={palette.inkFaint}
+          >
+            {mark.text}
+          </text>
+        ))}
+      </g>
       <StrokeList paths={scene.corePaths} prefix="astro-core" />
       <StrokeList paths={scene.filamentPaths} prefix="astro-filament" />
       <StrokeList paths={scene.framePaths} prefix="astro-frame" />
@@ -306,6 +342,7 @@ export default function InkGardenSection({
   const titleId = useId();
   const descId = useId();
   const mistGradId = useId();
+  const waterFadeId = useId();
 
   const parseEdition = useCallback((raw) => {
     try {
@@ -498,12 +535,32 @@ export default function InkGardenSection({
               <rect x={0} y={0} width={PLATE_WIDTH} height={PLATE_HEIGHT} fill={palette.paper} />
 
               {edition === 'herbarium' && <HerbariumArtwork scene={scene} palette={palette} />}
-              {edition === 'shanshui' && <ShanshuiArtwork scene={scene} palette={palette} mistGradId={mistGradId} />}
+              {edition === 'shanshui' && (
+                <ShanshuiArtwork
+                  scene={scene}
+                  palette={palette}
+                  mistGradId={mistGradId}
+                  waterFadeId={waterFadeId}
+                />
+              )}
               {edition === 'astrolabe' && <AstrolabeArtwork scene={scene} palette={palette} />}
 
               <text className="ink-garden__plate-label" x={46} y={54} fill={palette.inkFaint}>
                 {editionPlateHeading(edition)}
               </text>
+
+              {scene.colophon && (
+                <text
+                  className="ink-garden__colophon"
+                  x={PLATE_WIDTH - 88}
+                  y={PLATE_HEIGHT - 55}
+                  textAnchor="end"
+                  fill={palette.inkFaint}
+                  aria-hidden="true"
+                >
+                  {scene.colophon}
+                </text>
+              )}
 
               {garden.isEmpty && (
                 <text className="ink-garden__plate-note" x={46} y={PLATE_HEIGHT - 44} fill={palette.inkMuted}>

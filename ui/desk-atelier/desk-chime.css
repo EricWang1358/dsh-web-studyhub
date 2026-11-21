@@ -5,6 +5,7 @@
     /* ── Playable «五声风铃» D-Major Desk Chime Box Dialog ──────────────── */
     .desk-chime-dialog {
       --chime-bar-h: 100%;
+      --chime-warmth: 36%;
     }
     .desk-chime {
       display: flex;
@@ -71,19 +72,46 @@
       width: 100%;
       min-width: 0;
       min-height: 0;
-      padding: var(--space-2) var(--space-half);
+      padding: var(--space-3) var(--space-half) var(--space-2);
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: flex-end;
       gap: var(--space-1-5);
-      border: 1px solid var(--line-strong);
+      border: 1px solid color-mix(in srgb, var(--warn-line) 55%, var(--line-strong));
       border-radius: var(--radius-sm);
-      background: linear-gradient(180deg, var(--bg-raised) 0%, var(--bg-surface) 100%);
+      background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--warn-tint) var(--chime-warmth), var(--bg-raised)) 0%,
+        color-mix(in srgb, var(--warn-bg) calc(var(--chime-warmth) * 0.7), var(--bg-surface)) 100%
+      );
       box-shadow: var(--shadow-item);
       color: var(--text);
       overflow: visible;
       transition: transform var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease);
+    }
+    .desk-chime__cap {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      border-radius: var(--radius-xs) var(--radius-xs) 0 0;
+      background: linear-gradient(90deg, var(--warn-line), var(--warn-mid), var(--warn-line));
+      opacity: 0.9;
+      pointer-events: none;
+    }
+    .desk-chime__pin {
+      position: absolute;
+      top: 7px;
+      left: 50%;
+      width: 5px;
+      height: 5px;
+      transform: translateX(-50%);
+      border-radius: 50%;
+      border: 1px solid var(--warn-line);
+      background: var(--bg-sunken);
+      pointer-events: none;
     }
     .desk-chime__bar:hover:not(:disabled) {
       border-color: var(--warn-line);
@@ -128,6 +156,11 @@
       line-height: 1;
     }
     .desk-chime__controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2) var(--space-3);
       padding: var(--space-2-5) var(--space-3);
       border: 1px solid var(--line-soft);
       border-radius: var(--radius-sm);
