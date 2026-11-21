@@ -1,6 +1,6 @@
 import { practiceArgs } from '../learning-navigation.js';
 import { resolvePracticeSettings } from '../../lib/practice-settings.js';
-import { buildSliceForecast } from '../pace/format-pace.js';
+import { buildSliceForecast } from '../pace/slice-forecast.js';
 
 /* 本轮设置 (#1010), the pure side: what the popover next to a start button shows first, and the review.start arguments it makes of a choice.
    A choice is { size, range: 'mixed' | 'due' | 'new' | 'wrong', chapter: { deckId, topic } | null }.

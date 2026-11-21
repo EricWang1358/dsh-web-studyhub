@@ -15,7 +15,7 @@ import {
   forecastScope,
   libraryPaceForecast,
   spacingProfile,
-} from "../lib/pace-forecast.js";
+} from "../lib/pace/forecast.js";
 import { StudyService } from "../lib/service.js";
 import { schedule } from "../lib/sm2.js";
 import { seedLibrary } from "../scripts/qa/perf-seed.mjs";

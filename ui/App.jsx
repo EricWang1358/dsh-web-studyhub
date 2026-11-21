@@ -2,13 +2,13 @@
    Contributed by ericwang1358 (https://github.com/EricWang1358).
    App composes: its hooks (ui/app/use-*.js, ui/review/useReviewSession.js) own the state and the verbs, the shell parts
    (ui/app/App*.jsx) draw the sidebar, top bar and dialogs, and ui/app/page-views.jsx maps each page of ui/pages.js to its component. */
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { Board, LiveClass } from './workspace-views.jsx';
 import { pageAvailable } from './capabilities.js';
 import { ui, uiFormat, useUiLanguage } from './i18n.js';
 import { abandonUndoable } from './undoable.js';
 import Tour from './tour/Tour.jsx';
-import { useBoard } from './board/use-board.js';
+import { boardSyncsOnPage, useBoard } from './board/use-board.js';
 import DailyPlan from './DailyPlan.jsx';
 import ShortcutHelp from './ShortcutHelp.jsx';
 import ActionFeedback, { useNotice, reviewNoticeScope } from './ActionFeedback.jsx';
@@ -109,13 +109,9 @@ export default function App({ call: transportCall, host = NO_HOST }) {
   const finder = useFinder({ nav, settingsEntry, core, tour, rootRef: shell.rootRef, learn });
   const selectionNotices = useSelectionNotices({ core, learn, data });
   const { courseActive } = useHostLinks({ host, core, nav, session, learn, lib: handle, rootRef: shell.rootRef, data, loading: connection.loading });
-  const [boardTimerActive, setBoardTimerActive] = useState(() => Boolean(warmEntry.warm?.board?.timer));
-  const boardState = useBoard(core.call, nav.page === 'board' || nav.page === 'dashboard' || nav.page === 'review' || boardTimerActive, {
+  const boardState = useBoard(core.call, boardSyncsOnPage(nav.page), {
     initialBoard: warmEntry.warm?.board ?? null,
-    onBoard: (next) => {
-      setBoardTimerActive(Boolean(next?.timer));
-      warmEntry.saveBoard(core.refs.bindingRoot.current || core.refs.dataRef.current?.root, next);
-    },
+    onBoard: (next) => warmEntry.saveBoard(core.refs.bindingRoot.current || core.refs.dataRef.current?.root, next),
   });
   useInitialLanding({ loading: connection.loading, data, boardState, nav, setBoardView: set.setBoardView, navigationCount: () => core.refs.navigation.current, restoredPage: warmEntry.restoredPage });
   const liveReady = useWarmSync({ host, placement: warmEntry.placement, loading: connection.loading, root: connection.binding.root, board: boardState.board, page: nav.page, boardView: lib.boardView });
