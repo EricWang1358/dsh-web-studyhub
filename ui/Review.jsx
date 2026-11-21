@@ -37,6 +37,9 @@ import { useSourceDock } from "./review/use-source-dock.jsx";
 import InkMark from "./seal-press/InkMark.jsx";
 import LazyRoundSealSection from "./seal-press/LazyRoundSealSection.jsx";
 import LetterpressNumber from "./letterpress/LetterpressNumber.jsx";
+import ReviewFocusPill from "./review/ReviewFocusPill.jsx";
+import { computeTodayPace, formatTodayPaceLine, useDailyGoal } from "./review/today-pace.js";
+import { resolveTimerPrefs } from "../lib/board-model.js";
 
 /* 复习视图：quiz/multi 选项作答、cloze 填空、闪卡翻面与开放问答自评，
    附前置题条、逐步讲解面板与薄弱主题收尾。会话状态（run）与本地作答
@@ -221,6 +224,19 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
   const methodAlt = run.complete && !flow && run.mode !== "exam" ? roundEndAlternative(data, roundCourse, { guidedSession: app?.lib?.guidedSession, canChat: app?.host?.capabilities?.chat !== false }) : null;
   const roundTotal = run.questions ?? run.total ?? 0;
   const allCorrect = Boolean(run.complete && roundTotal > 0 && (run.answered || 0) >= roundTotal && run.correct === roundTotal);
+  const boardState = app?.board?.state || null;
+  const [dailyGoal, setDailyGoal] = useDailyGoal({ root: data?.root || "" });
+  const timerPrefs = React.useMemo(() => resolveTimerPrefs(boardState?.board), [boardState?.board]);
+  const todayPace = React.useMemo(() => (
+    run.complete && run.mode !== "exam"
+      ? computeTodayPace({
+          attempts: data?.attempts,
+          goal: dailyGoal,
+          focusMinutes: timerPrefs.workMinutes,
+          breakMinutes: timerPrefs.breakMinutes,
+        })
+      : null
+  ), [run.complete, run.mode, data?.attempts, dailyGoal, timerPrefs.workMinutes, timerPrefs.breakMinutes]);
   return (
     <StudyServicesContext.Provider value={dock.services}>
     <section
@@ -235,6 +251,17 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
         eyebrow={flow ? [ui("学习流"), flow.stepIndex >= 0 && uiFormat("第 {0}/{1} 步", [flow.stepIndex + 1, flow.stepCount]), flow.stepTitle].filter(Boolean).join(" · ") : undefined}
         title={[shellTitle, run.mode === "flashcard" && ui("闪卡"), run.retry && !run.complete && ui("本轮重练")].filter(Boolean).join(" · ")}
         actions={<>
+          {run.mode !== "exam" && boardState && (
+            <ReviewFocusPill
+              boardState={boardState}
+              attempts={data?.attempts}
+              focusTitle={shellTitle}
+              root={data?.root || ""}
+              goal={dailyGoal}
+              onGoalChange={setDailyGoal}
+              onBoardChanged={() => app?.dailyPlan?.refresh?.()}
+            />
+          )}
           {host.openInSidebar && !run.complete && (
             <Tooltip layer content={ui("题目放到右栏，主区域回到主会话。在右栏里接着刚才做到的这一题继续。")}>
               <Button iconEnd="arrow-right" variant="quiet" busy={movingToSidebar} onClick={moveToSidebar}>{ui("在右栏打开")}</Button>
@@ -368,6 +395,11 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               </div>
             );
           })()}
+          {todayPace && (todayPace.goal !== null || todayPace.todayCount > 0) && (
+            <p className="review-today-pace" data-goal-met={todayPace.goalMet ? "true" : undefined}>
+              {formatTodayPaceLine(todayPace)}
+            </p>
+          )}
           <div className="summary-actions">
             {!run.closed && run.undoable && actions.undoAnswer && (
               <Button variant="quiet" data-usage="review.undo" aria-keyshortcuts="Z" lock={busy} onClick={actions.undoAnswer}>

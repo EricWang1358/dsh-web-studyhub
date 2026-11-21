@@ -12,6 +12,7 @@ import CardEditor from "./board/CardEditor.jsx";
 import DeleteCardDialog from "./board/DeleteCardDialog.jsx";
 import FilterBar from "./board/FilterBar.jsx";
 import TodayView from "./board/TodayView.jsx";
+import { useBoardTimer } from "./board/use-board-timer.js";
 import { boardColumnLabel, cardsText, stamp, studyRefLabel } from "./board/meta.js";
 import css from "./board/board.css";
 import { useScrollEdges } from "./components/use-scroll-edges.js";
@@ -330,72 +331,16 @@ export default function Board({ state, library, today: todayProp, view: viewProp
     return true;
   }, [run, offer, say, onBoardChanged]);
 
-  const startTimer = useCallback(async (card) => {
-    const ok = await run("board.timer.start", { id: card.id, mode: "work" }, { optimistic: false });
-    if (ok) {
-      say(uiFormat("已开始专注：{0}", [card.title]));
-      onBoardChanged?.();
-    }
-    return ok;
-  }, [run, say, onBoardChanged]);
-
-  const startFreeFocus = useCallback(async (title) => {
-    const focusTitle = typeof title === "string" && title.trim() ? title.trim() : ui("自由专注");
-    const ok = await run("board.timer.start", { mode: "work", cardTitle: focusTitle }, { optimistic: false });
-    if (ok) {
-      say(uiFormat("已开始专注：{0}", [focusTitle]));
-      onBoardChanged?.();
-    }
-    return ok;
-  }, [run, say, onBoardChanged]);
-
-  const startBreak = useCallback(async (durationMinutes) => {
-    const ok = await run("board.timer.start", {
-      mode: "break",
-      cardTitle: ui("休息片刻"),
-      ...(Number.isInteger(durationMinutes) ? { durationMinutes } : {}),
-    }, { optimistic: false });
-    if (ok) say(uiFormat("已开始休息 {0} 分钟", [durationMinutes]));
-    return ok;
-  }, [run, say]);
-
-  const pauseTimer = useCallback(async () => {
-    const ok = await run("board.timer.pause", {});
-    if (ok) say(ui("已暂停专注"));
-    return ok;
-  }, [run, say]);
-
-  const resumeTimer = useCallback(async () => {
-    const ok = await run("board.timer.resume", {});
-    if (ok) say(ui("继续专注"));
-    return ok;
-  }, [run, say]);
-
-  const cancelTimer = useCallback(async () => {
-    const ok = await run("board.timer.cancel", {});
-    if (ok) say(ui("已放弃本次计时"));
-    return ok;
-  }, [run, say]);
-
-  const completeTimer = useCallback(async (snap) => {
-    const isWork = snap?.mode === "work";
-    const mins = snap?.loggedMinutes;
-    const title = snap?.cardTitle || "";
-    const ok = await run("board.timer.complete", {
-      ...(isWork && Number.isInteger(mins) ? { minutes: mins, date: today } : {}),
-    }, { optimistic: false });
-    if (ok) {
-      onBoardChanged?.();
-      say(isWork ? uiFormat("已记录专注 {0} 分钟：{1}", [mins, title]) : ui("休息已结束"));
-    }
-    return ok;
-  }, [run, today, say, onBoardChanged]);
-
-  const saveTimerPrefs = useCallback(async (prefs) => {
-    const ok = await run("board.timer.prefs", prefs);
-    if (ok) say(ui("已保存计时设置"));
-    return ok;
-  }, [run, say]);
+  const {
+    startTimer,
+    startFreeFocus,
+    startBreak,
+    pauseTimer,
+    resumeTimer,
+    cancelTimer,
+    completeTimer,
+    saveTimerPrefs,
+  } = useBoardTimer({ mutate, today, say, onBoardChanged });
 
   const addTimeLog = useCallback(async (fields) => {
     const ok = await run("board.timeLog.add", {
