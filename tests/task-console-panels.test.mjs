@@ -15,6 +15,8 @@ const m = await loadUi(`
   export { default as GenerationParts } from './ui/tasks/GenerationParts.jsx';
   export { default as OutputPanel, OutputView } from './ui/tasks/OutputPanel.jsx';
   export { default as LogPanel, noticeLine } from './ui/tasks/LogPanel.jsx';
+  export { convertEventText } from './ui/tasks/convert-log.js';
+  export { logLines } from './ui/tasks/call-model.js';
   export { default as TaskConsole } from './ui/tasks/TaskConsole.jsx';
   export { jobContract } from './lib/job-contract.js';
   export { setUiLanguage } from './ui/i18n.js';
@@ -113,8 +115,97 @@ test('the log: newest first, a filter with its count, the notices as one fixed l
   assert.equal(out.includes('b.mp3'), false, 'the file is named on its own row, not in the log');
   assert.ok(out.indexOf('槽 2 被限流') < out.indexOf('转写全部完成'), 'newest first');
   assert.equal(m.noticeLine(contractOf(audioJob({ warnings: [], members: undefined }))), '');
-  assert.match(html(React.createElement(m.LogPanel, { contract: contractOf(audioJob({ members: undefined, warnings: [] })) })), /没有提醒/);
+  assert.match(html(React.createElement(m.LogPanel, { contract: contractOf(audioJob({ members: undefined, warnings: [], events: [] })) })), /没有提醒/);
   assert.match(html(React.createElement(m.LogPanel, { contract }), 'en'), /Follow latest/);
+});
+
+test('LogPanel notice strip stays consistent with the warn count when detail.warnings is empty', () => {
+  const empty = contractOf(audioJob({ members: undefined, warnings: [], events: [] }));
+  const emptyZh = html(React.createElement(m.LogPanel, { contract: empty }));
+  assert.match(emptyZh, /提醒 0/);
+  assert.match(emptyZh, /class="tc-log__notice" data-empty="true">没有提醒<\/p>/);
+  assert.match(html(React.createElement(m.LogPanel, { contract: empty }), 'en'), /class="tc-log__notice" data-empty="true">No notices<\/p>/);
+
+  const singleWarn = contractOf(audioJob({ members: undefined, warnings: [] }));
+  const singleZh = html(React.createElement(m.LogPanel, { contract: singleWarn }));
+  assert.match(singleZh, /提醒 1/);
+  assert.doesNotMatch(singleZh, /没有提醒/);
+  assert.match(singleZh, /<p class="tc-log__notice">槽 2 被限流，4 秒后重试<\/p>/);
+
+  const pdfFailed = contractOf({
+    id: 'pdf-fail', type: 'pdf-convert', route: 'local', filename: 'Book.pdf', status: 'failed', phase: 'local',
+    done: 0, total: 20, warnings: [], startedAt: at(0), finishedAt: at(60),
+    events: [
+      { id: 'p1', at: at(1), level: 'step', code: 'window-start', args: { index: 1, start: 1, end: 10, pages: 10 } },
+      { id: 'p2', at: at(59), level: 'warn', code: 'window-failed', args: { index: 1, start: 1, end: 10, pages: 10, seconds: 58 }, text: 'parse failed' },
+      { id: 'p3', at: at(60), level: 'error', code: 'convert-failed', args: { lines: [] }, text: 'parse failed' },
+    ],
+  });
+  const pdfZh = html(React.createElement(m.LogPanel, { contract: pdfFailed }));
+  assert.match(pdfZh, /提醒 2/);
+  assert.doesNotMatch(pdfZh, /没有提醒/);
+  assert.match(pdfZh, /<p class="tc-log__notice">转换失败：parse failed · 另有 1 条<\/p>/);
+  const pdfEn = html(React.createElement(m.LogPanel, { contract: pdfFailed }), 'en');
+  assert.match(pdfEn, /Notices 2/);
+  assert.doesNotMatch(pdfEn, /No notices/);
+  assert.match(pdfEn, /<p class="tc-log__notice">Conversion failed: parse failed · 1 more<\/p>/);
+});
+
+test('convertEventText formats engine-busy-wait and service lifecycle codes in both languages without leaking raw codes', () => {
+  const han = /[\u3400-\u9fff]/;
+  const rawCodes = /engine-busy-wait|service-start|service-started|service-restart|service-restarted|service-restart-failed/;
+  const events = [
+    { id: 'c1', at: at(1), level: 'step', code: 'service-start' },
+    { id: 'c2', at: at(2), level: 'step', code: 'service-started', args: { tier: 'standard' } },
+    { id: 'c3', at: at(3), level: 'step', code: 'service-started', args: { tier: null } },
+    { id: 'c4', at: at(4), level: 'info', code: 'engine-busy-wait', args: { index: 1, start: 1, end: 10, pages: 10, attempt: 2, maxAttempts: 8 } },
+    { id: 'c5', at: at(5), level: 'info', code: 'engine-busy-wait', args: { index: 1, start: 1, end: 10, pages: 10, attempt: 3, maxAttempts: 8, starting: true } },
+    { id: 'c6', at: at(6), level: 'info', code: 'engine-busy-wait', args: { attempt: 1 } },
+    { id: 'c7', at: at(7), level: 'step', code: 'service-restart', args: { reason: 'unhealthy' } },
+    { id: 'c8', at: at(8), level: 'step', code: 'service-restart', args: { index: 2, start: 11, end: 20, pages: 10, reason: 'unhealthy' } },
+    { id: 'c9', at: at(9), level: 'step', code: 'service-restart', args: {} },
+    { id: 'c10', at: at(10), level: 'step', code: 'service-restarted', args: { tier: 'standard', index: 2, start: 11, end: 20, pages: 10 } },
+    { id: 'c11', at: at(11), level: 'step', code: 'service-restarted', args: { tier: null } },
+    { id: 'c12', at: at(12), level: 'warn', code: 'service-restart-failed', args: { index: 2, start: 11, end: 20, pages: 10 }, text: 'restart timed out' },
+  ];
+  m.setUiLanguage('zh');
+  try {
+    assert.equal(m.convertEventText(events[0]), '正在启动本机 MinerU 服务');
+    assert.equal(m.convertEventText(events[1]), '本机 MinerU 服务已启动（standard 档）');
+    assert.equal(m.convertEventText(events[2]), '本机 MinerU 服务已启动');
+    assert.equal(m.convertEventText(events[3]), '第 1 段等待本机解析引擎就绪 · 第 2/8 次重试');
+    assert.equal(m.convertEventText(events[4]), '第 1 段等待本机解析服务启动就绪 · 第 3/8 次重试');
+    assert.equal(m.convertEventText(events[5]), '等待本机解析引擎就绪 · 第 1 次重试');
+    assert.equal(m.convertEventText(events[6]), '检测到本机 MinerU 解析服务异常，正在自动重启');
+    assert.equal(m.convertEventText(events[7]), '第 2 段检测到本机 MinerU 解析服务异常，正在自动重启');
+    assert.equal(m.convertEventText(events[8]), '正在重启本机 MinerU 服务');
+    assert.equal(m.convertEventText(events[9]), '本机 MinerU 服务已重启（standard 档） · 继续第 2 段');
+    assert.equal(m.convertEventText(events[10]), '本机 MinerU 服务已重启');
+    assert.equal(m.convertEventText(events[11]), '第 2 段自动重启本机 MinerU 服务失败 · restart timed out');
+    for (const line of m.logLines({ events, calls: [] })) {
+      assert.doesNotMatch(line.text, rawCodes);
+    }
+  } finally { m.setUiLanguage('zh'); }
+
+  m.setUiLanguage('en');
+  try {
+    assert.equal(m.convertEventText(events[0]), 'Starting the local MinerU service');
+    assert.equal(m.convertEventText(events[1]), 'The local MinerU service has started (standard tier)');
+    assert.equal(m.convertEventText(events[2]), 'The local MinerU service has started');
+    assert.equal(m.convertEventText(events[3]), 'Window 1 waiting for the local parsing engine to be ready · retry 2/8');
+    assert.equal(m.convertEventText(events[4]), 'Window 1 waiting for the local parse service to finish starting · retry 3/8');
+    assert.equal(m.convertEventText(events[5]), 'Waiting for the local parsing engine to be ready · retry 1');
+    assert.equal(m.convertEventText(events[6]), 'Local MinerU parse service is unhealthy; restarting automatically');
+    assert.equal(m.convertEventText(events[7]), 'Window 2: local MinerU parse service is unhealthy; restarting automatically');
+    assert.equal(m.convertEventText(events[8]), 'Restarting the local MinerU service');
+    assert.equal(m.convertEventText(events[9]), 'The local MinerU service has restarted (standard tier) · resuming window 2');
+    assert.equal(m.convertEventText(events[10]), 'The local MinerU service has restarted');
+    assert.equal(m.convertEventText(events[11]), 'Window 2: failed to restart the local MinerU service automatically · restart timed out');
+    for (const line of m.logLines({ events, calls: [] })) {
+      assert.doesNotMatch(line.text, rawCodes);
+      assert.doesNotMatch(line.text, han, `unexpected Chinese in English log line: ${line.text}`);
+    }
+  } finally { m.setUiLanguage('zh'); }
 });
 
 test('the output: no call, a call that cannot write on the way, and one that can', () => {

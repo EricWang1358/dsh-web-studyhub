@@ -16,8 +16,8 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 const TOKEN_BYTES: usize = 32;
 const DEFAULT_STARTUP_TIMEOUT_SECS: u64 = 20;
-const GRACEFUL_EXIT_POLLS: usize = 5;
-const GRACEFUL_EXIT_POLL_MS: u64 = 30;
+const GRACEFUL_EXIT_TIMEOUT: Duration = Duration::from_millis(3_000);
+const GRACEFUL_EXIT_POLL_INTERVAL: Duration = Duration::from_millis(50);
 const DEFAULT_MAX_RESTARTS_IN_WINDOW: usize = 3;
 const DEFAULT_RESTART_WINDOW_SECS: u64 = 60;
 const DEFAULT_BASE_BACKOFF_MS: u64 = 250;
@@ -353,6 +353,9 @@ fn configure_hidden_command(command: &mut Command) {
 }
 
 fn kill_process_tree(pid: u32) {
+    if pid == 0 {
+        return;
+    }
     #[cfg(windows)]
     {
         let mut cmd = Command::new("taskkill");
@@ -380,20 +383,53 @@ fn kill_process_tree(pid: u32) {
     }
 }
 
-fn terminate_child(child: &mut Child, stdin: &mut Option<ChildStdin>) {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TerminationOutcome {
+    AlreadyExited,
+    GracefulExit,
+    ForcedKill,
+}
+
+fn terminate_child_with_timeout(
+    child: &mut Child,
+    stdin: &mut Option<ChildStdin>,
+    grace_timeout: Duration,
+    poll_interval: Duration,
+) -> TerminationOutcome {
+    if matches!(child.try_wait(), Ok(Some(_))) {
+        drop(stdin.take());
+        return TerminationOutcome::AlreadyExited;
+    }
     drop(stdin.take());
     if matches!(child.try_wait(), Ok(Some(_))) {
-        return;
+        return TerminationOutcome::GracefulExit;
     }
-    for _ in 0..GRACEFUL_EXIT_POLLS {
-        thread::sleep(Duration::from_millis(GRACEFUL_EXIT_POLL_MS));
+    let deadline = Instant::now() + grace_timeout;
+    let step = poll_interval.max(Duration::from_millis(1));
+    while let Some(remaining) = deadline.checked_duration_since(Instant::now()) {
+        if remaining.is_zero() {
+            break;
+        }
+        thread::sleep(step.min(remaining));
         if matches!(child.try_wait(), Ok(Some(_))) {
-            return;
+            return TerminationOutcome::GracefulExit;
         }
     }
     kill_process_tree(child.id());
-    let _ = child.kill();
+    if !matches!(child.try_wait(), Ok(Some(_))) {
+        let _ = child.kill();
+    }
     let _ = child.wait();
+    TerminationOutcome::ForcedKill
+}
+
+fn terminate_child(child: &mut Child, stdin: &mut Option<ChildStdin>) {
+    let _ = terminate_child_with_timeout(
+        child,
+        stdin,
+        GRACEFUL_EXIT_TIMEOUT,
+        GRACEFUL_EXIT_POLL_INTERVAL,
+    );
 }
 
 pub struct SidecarHandle {
@@ -1329,5 +1365,91 @@ mod tests {
             strip_windows_verbatim_prefix_str(r"\\?\Volume{01234567}\foo"),
             r"\\?\Volume{01234567}\foo"
         );
+    }
+
+    fn spawn_node_script(script: &str) -> Result<(Child, Option<ChildStdin>), String> {
+        let mut cmd = Command::new(node_binary_name());
+        cmd.args(["-e", script])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null());
+        configure_hidden_command(&mut cmd);
+        let mut child = cmd
+            .spawn()
+            .map_err(|err| format!("failed to spawn node test process: {err}"))?;
+        let stdin = child.stdin.take();
+        if let Some(stdout) = child.stdout.take() {
+            let mut reader = BufReader::new(stdout);
+            let mut line = String::new();
+            reader
+                .read_line(&mut line)
+                .map_err(|err| format!("failed waiting for node test process readiness: {err}"))?;
+        }
+        Ok((child, stdin))
+    }
+
+    #[test]
+    fn graceful_exit_defaults_allow_realistic_windows_shutdown() {
+        assert!(GRACEFUL_EXIT_TIMEOUT >= Duration::from_millis(2_500));
+        assert!(GRACEFUL_EXIT_TIMEOUT <= Duration::from_millis(5_000));
+        assert!(GRACEFUL_EXIT_POLL_INTERVAL >= Duration::from_millis(20));
+        assert!(GRACEFUL_EXIT_POLL_INTERVAL <= Duration::from_millis(100));
+    }
+
+    #[test]
+    fn terminate_child_waits_for_graceful_exit_on_stdin_eof() -> Result<(), String> {
+        // Exits 200ms after stdin EOF (longer than the previous 150ms cutoff) to prove
+        // graceful shutdown completes cleanly without falling through to forced tree kill.
+        let (mut child, mut stdin) = spawn_node_script(
+            "process.stdin.resume(); process.stdin.once('end', () => setTimeout(() => process.exit(0), 200)); console.log('ready');",
+        )?;
+        let outcome = terminate_child_with_timeout(
+            &mut child,
+            &mut stdin,
+            Duration::from_millis(2_000),
+            Duration::from_millis(25),
+        );
+        assert_eq!(outcome, TerminationOutcome::GracefulExit);
+        assert!(stdin.is_none());
+        let status = child.try_wait().map_err(|err| err.to_string())?;
+        assert!(matches!(status, Some(code) if code.success()));
+        Ok(())
+    }
+
+    #[test]
+    fn terminate_child_force_kills_unresponsive_process_after_timeout() -> Result<(), String> {
+        let (mut child, mut stdin) = spawn_node_script(
+            "process.stdin.resume(); console.log('ready'); setInterval(() => {}, 10_000);",
+        )?;
+        let started = Instant::now();
+        let outcome = terminate_child_with_timeout(
+            &mut child,
+            &mut stdin,
+            Duration::from_millis(120),
+            Duration::from_millis(20),
+        );
+        let elapsed = started.elapsed();
+        assert_eq!(outcome, TerminationOutcome::ForcedKill);
+        assert!(stdin.is_none());
+        assert!(elapsed >= Duration::from_millis(100));
+        assert!(child.try_wait().map_err(|err| err.to_string())?.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn terminate_child_returns_already_exited_without_waiting() -> Result<(), String> {
+        let (mut child, mut stdin) = spawn_node_script("process.exit(0);")?;
+        let _ = child.wait().map_err(|err| err.to_string())?;
+        let started = Instant::now();
+        let outcome = terminate_child_with_timeout(
+            &mut child,
+            &mut stdin,
+            Duration::from_secs(3),
+            Duration::from_millis(50),
+        );
+        assert_eq!(outcome, TerminationOutcome::AlreadyExited);
+        assert!(stdin.is_none());
+        assert!(started.elapsed() < Duration::from_millis(500));
+        Ok(())
     }
 }

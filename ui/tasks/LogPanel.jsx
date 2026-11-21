@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Button, Checkbox, Tooltip } from '../components/index.js';
 import { formatDateTime } from '../format.js';
-import { logLines, logCounts } from './call-model.js';
+import { logLines } from './call-model.js';
 
 /* 日志: the job's events as structured lines, newest first, with level filters and a "follow the latest" switch. A warning several files share is ONE
    line with its count, and the grouped notices sit in ONE fixed-height line above the list (nothing here ever grows a side column): the files they are
@@ -24,14 +24,29 @@ export function noticeLine(contract) {
   return rest.length ? uiFormat('{0} · 另有 {1} 条', [head, rest.length]) : head;
 }
 
+/** Fallback one-line summary when detail.notices/warnings is empty but the log itself contains warn/error lines, so the notice strip never contradicts the 「提醒 N」 count above it. */
+function warnNoticeLine(warnLines) {
+  if (!warnLines.length) return '';
+  const head = warnLines.find((line) => line.text)?.text || '';
+  if (!head) return uiFormat('{0} 条提醒', [warnLines.length]);
+  return warnLines.length > 1 ? uiFormat('{0} · 另有 {1} 条', [head, warnLines.length - 1]) : head;
+}
+
 export default function LogPanel({ contract }) {
   const [level, setLevel] = useState('all'), [follow, setFollow] = useState(true);
-  const lines = useMemo(() => logLines(contract, level), [contract, level]);
-  const counts = useMemo(() => logCounts(contract), [contract]);
+  const allLines = useMemo(() => logLines(contract, 'all'), [contract]);
+  const lines = useMemo(() => (level === 'all' ? allLines : allLines.filter((line) => line.level === level)), [allLines, level]);
+  const warnLines = useMemo(() => allLines.filter((line) => line.level === 'warn'), [allLines]);
+  const counts = useMemo(() => ({
+    all: allLines.length,
+    step: allLines.filter((line) => line.level === 'step').length,
+    warn: warnLines.length,
+    done: allLines.filter((line) => line.level === 'done').length,
+  }), [allLines, warnLines]);
   const body = useRef(null);
   // Newest first: following the latest means staying at the top; with it off the browser's scroll anchoring keeps what is being read where it is.
   useEffect(() => { if (follow && body.current) body.current.scrollTop = 0; }, [lines, follow]);
-  const notice = noticeLine(contract);
+  const notice = noticeLine(contract) || warnNoticeLine(warnLines);
   return (
     <div className="tc-log">
       <div className="tc-log__bar">
