@@ -1,10 +1,12 @@
 /* lib/sm2.js against ts-fsrs 5.4.2 itself (a devDependency only, never shipped): many random review histories, each
    answer scheduled by both, compared on stability, difficulty, interval and due date. ts-fsrs runs as this library
-   uses FSRS: long-term mode (no minute-level learning steps), no fuzz. Two intended differences:
+   uses FSRS: long-term mode (no minute-level learning steps), no fuzz. Three intended differences:
    - our maximum interval is a hard cap, where ts-fsrs may push Good / Easy a day or two past it to keep them above Hard;
    - we count days on the learner's local calendar, ts-fsrs on UTC's. So ts-fsrs is fed every instant shifted by the local
-     UTC offset at that instant (its UTC date is then our local date), and the rest must match exactly. Run under several
-     time zones, one with daylight saving time. */
+     UTC offset at that instant (its UTC date is then our local date), and the rest must match exactly;
+   - same-day repeats (`elapsed === 0`) default to `isolate_same_day: true` to protect against Difficulty Hell, same-day
+     lapse stacking, and stuck recovery stability. Passing `isolate_same_day: false` exercises raw ts-fsrs parity even on
+     same-day repeats, while cross-day reviews (`elapsed >= 1`) match ts-fsrs identically under default settings too. */
 import test from "node:test";
 import assert from "node:assert/strict";
 import { fsrs, generatorParameters, createEmptyCard, Rating, State, forgetting_curve } from "ts-fsrs";
@@ -29,11 +31,11 @@ function random(seed) {
 }
 
 /** Run one history through both; returns the largest differences seen. */
-function replay(seed) {
+function replay(seed, { allowSameDay = true, settingsExtra = { isolate_same_day: false } } = {}) {
   const r = random(seed);
   const retention = Math.round((0.7 + r() * 0.27) * 100) / 100;
   const maximum = [36500, 36500, 365, 180, 60, 30][Math.floor(r() * 6)];
-  const settings = { request_retention: retention, maximum_interval: maximum };
+  const settings = { request_retention: retention, maximum_interval: maximum, ...settingsExtra };
   const f = fsrs(generatorParameters({ request_retention: retention, maximum_interval: maximum, enable_fuzz: false, enable_short_term: false }));
   let now = Date.parse("2026-01-01T00:00:00.000Z") + Math.floor(r() * DAY);
   let card = createEmptyCard(shifted(now)), review = initialReview();
@@ -59,12 +61,20 @@ function replay(seed) {
     worst.answers++;
     card = theirs;
     review = ours;
-    // Next answer: on time, early, late, the same day or much later, at any hour.
+    // Next answer: on time, early, late, the same day (when allowed) or much later, at any hour.
     const shape = r();
-    const gapDays = shape < 0.15 ? 0 : shape < 0.4 ? Math.floor(r() * ours.interval_days)
+    let gapDays = shape < 0.15 ? 0 : shape < 0.4 ? Math.floor(r() * ours.interval_days)
       : shape < 0.8 ? ours.interval_days : ours.interval_days + Math.floor(r() * (ours.interval_days * 2 + 3));
+    if (!allowSameDay && gapDays < 1) gapDays = 1;
     now += gapDays * DAY + Math.floor((r() - 0.5) * 8 * 3600e3);
     if (now <= Date.parse(ours.last_review)) now = Date.parse(ours.last_review) + 60e3;
+    if (!allowSameDay) {
+      const prev = new Date(Date.parse(ours.last_review));
+      const cur = new Date(now);
+      if (prev.getFullYear() === cur.getFullYear() && prev.getMonth() === cur.getMonth() && prev.getDate() === cur.getDate()) {
+        now += DAY;
+      }
+    }
   }
   return worst;
 }
@@ -87,6 +97,21 @@ for (const zone of ZONES) test(`FSRS-6 matches ts-fsrs 5.4.2 over 800 random rev
   console.log(`fsrs-parity ${zone}: answers ${total.answers}; max relative stability diff ${total.stability}; max difficulty diff ${total.difficulty}; max interval diff ${total.interval} d; max due diff ${total.due} ms; ts-fsrs intervals above the maximum (capped here) ${total.capped}`);
 });
 
+for (const zone of ZONES) test(`default settings (isolate_same_day on) still match ts-fsrs 5.4.2 identically on cross-day reviews in ${zone}`, () => {
+  process.env.TZ = zone;
+  const total = { stability: 0, difficulty: 0, interval: 0, due: 0, answers: 0 };
+  for (let seed = 1; seed <= 300; seed++) {
+    const worst = replay(seed, { allowSameDay: false, settingsExtra: {} });
+    for (const key of ["stability", "difficulty", "interval", "due"]) total[key] = Math.max(total[key], worst[key]);
+    total.answers += worst.answers;
+  }
+  assert.ok(total.answers > 3000, `${total.answers} cross-day answers`);
+  assert.ok(total.stability < 1e-9, `relative stability difference ${total.stability}`);
+  assert.ok(total.difficulty < 1e-9, `difficulty difference ${total.difficulty}`);
+  assert.equal(total.interval, 0);
+  assert.equal(total.due, 0);
+});
+
 for (const zone of ZONES) test(`a migrated SM-2 review continues as ts-fsrs continues a review card with the same memory state (${zone}, every 3 hours of the day)`, () => {
   process.env.TZ = zone;
   const f = fsrs(generatorParameters({ enable_fuzz: false, enable_short_term: false }));
@@ -101,7 +126,7 @@ for (const zone of ZONES) test(`a migrated SM-2 review continues as ts-fsrs cont
         last_review: shifted(lastReview), due: shifted(Date.parse(sm2.due_at)) };
       for (const grade of [1, 3, 4, 5]) {
         const theirs = f.next(card, shifted(now), TS_RATING[ratingOfGrade(grade)]).card;
-        const ours = schedule(sm2, grade, new Date(now).toISOString());
+        const ours = schedule(sm2, grade, new Date(now).toISOString(), { isolate_same_day: false });
         const where = `interval ${interval}, ease ${ease}, late ${late}, hour ${hour}, grade ${grade}`;
         assert.equal(ours.interval_days, theirs.scheduled_days, where);
         assert.ok(Math.abs(ours.stability - theirs.stability) < 1e-9, where);
