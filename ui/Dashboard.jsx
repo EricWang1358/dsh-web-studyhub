@@ -14,6 +14,7 @@ import { ModelUsage } from "./TokenUsage.jsx";
 import { Badge, Button, EmptyState, ErrorState, Icon, LoadingState, PageHeader, Tooltip } from "./components/index.js";
 import { useStudy } from "./study-context.jsx";
 import { MEASURES, THIN_DATA, enoughAnswers } from "./mastery-terms.js";
+import InkGardenSection from "./ink-garden/InkGardenSection.jsx";
 
 const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
@@ -240,6 +241,9 @@ export function StatsView({
           </div>
         </div>
       </div>
+
+      {/* Living Ink Gallery (手绘墨韵标本馆): 3 live generative ink prints driven by real study data. */}
+      <InkGardenSection stats={stats} decks={decks} progress={data?.progress} course={course} onStartScope={onStartScope} />
 
       {/* Rubric skills over time (WP12), weakest first, scoped to the active course. */}
       <RubricSkills attempts={scopedAttempts} onPractice={onStartScope && casePracticeCards.length ? () => practiseScope(casePracticeCards) : undefined} />

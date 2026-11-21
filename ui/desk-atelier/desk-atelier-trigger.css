@@ -1,0 +1,158 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* ── Top-bar trigger (harmonises with .mailbox__toggle) ─────────────── */
+    .desk-atelier-anchor {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      flex: none;
+    }
+    .desk-atelier__toggle {
+      position: relative;
+      display: inline-grid;
+      place-items: center;
+      width: 32px;
+      height: 32px;
+      min-height: 0;
+      margin: 0;
+      padding: 0;
+      border: 1px solid transparent;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--text-muted);
+    }
+    .desk-atelier__toggle:hover:not(:disabled),
+    .desk-atelier__toggle.is-open {
+      background: var(--bg-hover);
+      border-color: var(--line-soft);
+      color: var(--text);
+    }
+    .desk-atelier__toggle.is-playing {
+      color: var(--text);
+      background: var(--bg-selected);
+      border-color: var(--line);
+    }
+    .desk-atelier__toggle.is-muted {
+      color: var(--info-ink);
+      border-color: var(--info-line);
+      background: var(--info-bg);
+    }
+    .desk-atelier__wave {
+      position: absolute;
+      right: 3px;
+      bottom: 3px;
+      display: inline-flex;
+      align-items: flex-end;
+      gap: var(--space-half);
+      height: 7px;
+      pointer-events: none;
+    }
+    .desk-atelier__bar {
+      display: block;
+      width: 2px;
+      height: 7px;
+      border-radius: var(--radius-pill);
+      background: var(--ok);
+      transform-origin: center bottom;
+      animation: sh-desk-atelier-bar 1.2s var(--ease) infinite;
+    }
+    .desk-atelier__bar:nth-child(2) {
+      animation-delay: 0.25s;
+    }
+    .desk-atelier__bar:nth-child(3) {
+      animation-delay: 0.5s;
+    }
+    .desk-atelier__panel {
+      width: min(352px, calc(100vw / var(--study-ui-scale, 1) - var(--space-6)));
+      max-width: min(352px, calc(100vw / var(--study-ui-scale, 1) - var(--space-4)));
+      padding: var(--space-3-5);
+    }
+    .desk-atelier__loading {
+      display: grid;
+      place-items: center;
+      min-height: 8rem;
+      color: var(--text-muted);
+    }
+
+    /* ── Subtle Opt-In Atmosphere Overlay (opacity <= 0.06, non-blocking) ── */
+    .desk-atelier-atmosphere {
+      position: fixed;
+      inset: 0;
+      z-index: var(--z-raised);
+      pointer-events: none;
+      opacity: 0.055;
+      transition: opacity var(--dur-slow) var(--ease);
+    }
+    .desk-atelier-atmosphere[data-atmosphere="lamp"] {
+      background-image:
+        radial-gradient(circle at 82% 8%, var(--warn) 0%, transparent 56%),
+        radial-gradient(circle at 18% 92%, var(--warn) 0%, transparent 48%);
+    }
+    .desk-atelier-atmosphere[data-atmosphere="rain-mist"] {
+      background-image:
+        radial-gradient(circle at 16% 10%, var(--info) 0%, transparent 58%),
+        radial-gradient(circle at 88% 85%, var(--info) 0%, transparent 52%);
+    }
+    .desk-atelier-atmosphere[data-atmosphere="morning-paper"] {
+      background-image:
+        linear-gradient(132deg, var(--paper) 0%, var(--warn) 42%, transparent 74%),
+        radial-gradient(circle at 85% 18%, var(--ok) 0%, transparent 46%);
+    }
+  }
+
+  /* High-contrast mode automatically disables decorative atmosphere lighting. */
+  .study-app[data-contrast="high"] .desk-atelier-atmosphere,
+  .study-seat[data-contrast="high"] .desk-atelier-atmosphere {
+    display: none;
+  }
+
+  /* At phone width (<= 380px) fold idle atelier icon just like .library-location so status & mailbox keep full room. */
+  @container study (max-width: 380px) {
+    :is(.study-app, .study-seat) {
+      .desk-atelier-anchor:not(.is-playing) {
+        display: none;
+      }
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :is(.study-app, .study-seat) {
+      .desk-atelier__bar {
+        animation: none !important;
+      }
+      .desk-atelier-atmosphere {
+        transition: none !important;
+      }
+    }
+  }
+  :is(.study-app, .study-seat)[data-motion="reduced"],
+  :is(.study-app, .study-seat)[data-motion="off"] {
+    .desk-atelier__bar {
+      animation: none !important;
+    }
+    .desk-atelier-atmosphere {
+      transition: none !important;
+    }
+  }
+
+  @media (forced-colors: active) {
+    :is(.study-app, .study-seat) {
+      .desk-atelier-atmosphere {
+        display: none !important;
+      }
+    }
+  }
+}
+
+@keyframes sh-desk-atelier-bar {
+  0%, 100% {
+    transform: scaleY(0.35);
+    opacity: 0.65;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}

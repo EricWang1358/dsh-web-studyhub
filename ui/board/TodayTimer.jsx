@@ -2,12 +2,15 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { formatClock, formatDateTime, joinMeta } from '../format.js';
 import {
-  Button, Dialog, Field, Icon, IconButton, NumberInput, ProgressBar, Select, Switch, TextInput, Tooltip, useNow, useToast,
+  Button, Dialog, Field, Icon, IconButton, NumberInput, Select, Switch, TextInput, Tooltip, useNow, useToast,
 } from '../components/index.js';
 import {
   ACTUAL_MINUTES_MAX, TIMER_BREAK_MAX, TIMER_WORK_MAX, isMeaningfulTitle, resolveTimerPrefs, selectTodayTimeLog, timerSnapshot,
 } from '../../lib/board-model.js';
 import { playTimerChime } from '../sound-effects.js';
+import FocusRitualDial from '../desk-atelier/FocusRitualDial.jsx';
+import BreathingHalo from '../desk-atelier/BreathingHalo.jsx';
+import FocusSoundscapePill from '../desk-atelier/FocusSoundscapePill.jsx';
 
 const CUSTOM_CARD = '__custom__';
 
@@ -86,6 +89,7 @@ export default function TodayTimer({
 
   const [panelMode, setPanelMode] = useState('');
   const [offerBreak, setOfferBreak] = useState(false);
+  const [breathOpen, setBreathOpen] = useState(false);
 
   // Manual log state
   const defaultCardChoice = todayCards[0]?.id || CUSTOM_CARD;
@@ -127,6 +131,7 @@ export default function TodayTimer({
 
   useEffect(() => {
     if (timer) setOfferBreak(false);
+    if (timer?.mode === 'work') setBreathOpen(false);
   }, [timer]);
 
   useEffect(() => {
@@ -253,6 +258,12 @@ export default function TodayTimer({
   const activeCard = snap?.cardId ? board?.cards?.[snap.cardId] : null;
   const activeSubtitle = activeCard?.learningTask?.reason || activeCard?.note || '';
   const reversedEntries = useMemo(() => [...todayLog.entries].reverse(), [todayLog.entries]);
+  const dialProgress = snap && snap.durationMs > 0
+    ? Math.min(1, Math.max(0, snap.elapsedMs / snap.durationMs))
+    : 0;
+  const dialState = snap
+    ? (snap.paused ? 'paused' : snap.finished ? 'finished' : 'running')
+    : 'idle';
 
   return (
     <>
@@ -303,20 +314,32 @@ export default function TodayTimer({
               </span>
             </div>
 
-            <div
-              className="board-timer__clock"
-              data-timer-state={snap.paused ? 'paused' : snap.finished ? 'finished' : 'running'}
-            >
-              {formatClock(snap.remainingMs)}
-            </div>
-
-            <ProgressBar
-              size="sm"
-              tone={snap.mode === 'break' || snap.finished ? 'ok' : 'accent'}
-              value={Math.min(snap.durationMs, snap.elapsedMs)}
-              max={snap.durationMs}
-              label={ui('专注倒计时进度')}
+            <FocusRitualDial
+              size="compact"
+              remainingLabel={formatClock(snap.remainingMs)}
+              progress={dialProgress}
+              mode={snap.mode}
+              state={dialState}
+              clockClassName="board-timer__clock desk-dial__clock"
+              clockState={dialState}
             />
+
+            {snap.mode === 'break' && (
+              breathOpen ? (
+                <BreathingHalo compact onClose={() => setBreathOpen(false)} />
+              ) : (
+                <div className="desk-breath-trigger">
+                  <Button
+                    variant="quiet"
+                    size="sm"
+                    icon="sparkle"
+                    onClick={() => setBreathOpen(true)}
+                  >
+                    {ui('60 秒呼吸引导')}
+                  </Button>
+                </div>
+              )
+            )}
 
             <div className="board-timer__controls">
               {!snap.finished && (
@@ -348,7 +371,12 @@ export default function TodayTimer({
           </div>
         ) : (
           <div className="board-timer__idle">
-            <div className="board-timer__clock is-idle">{formatClock(prefs.workMinutes * 60_000)}</div>
+            <FocusRitualDial
+              size="compact"
+              state="idle"
+              remainingLabel={formatClock(prefs.workMinutes * 60_000)}
+              clockClassName="board-timer__clock is-idle desk-dial__clock"
+            />
             <p className="board-timer__meta">
               {uiFormat('番茄 {0} 分钟 · 休息 {1} 分钟', [prefs.workMinutes, prefs.breakMinutes])}
             </p>
@@ -363,7 +391,19 @@ export default function TodayTimer({
                 >
                   {uiFormat('休息 {0} 分钟', [prefs.breakMinutes])}
                 </Button>
+                <Button
+                  variant="quiet"
+                  size="sm"
+                  icon="sparkle"
+                  aria-expanded={breathOpen}
+                  onClick={() => setBreathOpen((open) => !open)}
+                >
+                  {ui('60 秒呼吸引导')}
+                </Button>
               </div>
+            )}
+            {offerBreak && breathOpen && (
+              <BreathingHalo compact onClose={() => setBreathOpen(false)} />
             )}
           </div>
         )}
@@ -552,21 +592,33 @@ export default function TodayTimer({
             {snap.mode === 'work' && activeSubtitle && (
               <p className="board-focus-stage__note">{activeSubtitle}</p>
             )}
-            <div
-              className="board-focus-stage__clock"
-              data-timer-state={snap.paused ? 'paused' : snap.finished ? 'finished' : 'running'}
-            >
-              {formatClock(snap.remainingMs)}
-            </div>
-            <div className="board-focus-stage__bar">
-              <ProgressBar
-                size="md"
-                tone={snap.mode === 'break' || snap.finished ? 'ok' : 'accent'}
-                value={Math.min(snap.durationMs, snap.elapsedMs)}
-                max={snap.durationMs}
-                label={ui('专注倒计时进度')}
-              />
-            </div>
+            <FocusRitualDial
+              size="stage"
+              remainingLabel={formatClock(snap.remainingMs)}
+              progress={dialProgress}
+              mode={snap.mode}
+              state={dialState}
+              clockClassName="board-focus-stage__clock desk-dial__clock"
+              clockState={dialState}
+            />
+            {snap.mode === 'break' && (
+              <div className="board-focus-stage__bar">
+                {breathOpen ? (
+                  <BreathingHalo onClose={() => setBreathOpen(false)} />
+                ) : (
+                  <div className="desk-breath-trigger">
+                    <Button
+                      variant="quiet"
+                      size="sm"
+                      icon="sparkle"
+                      onClick={() => setBreathOpen(true)}
+                    >
+                      {ui('60 秒呼吸引导')}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
             <div className="board-focus-stage__actions">
               {!snap.finished && (
                 snap.paused ? (
@@ -593,6 +645,7 @@ export default function TodayTimer({
                 {ui('放弃这一个')}
               </Button>
             </div>
+            <FocusSoundscapePill />
             <p className="board-focus-stage__meta">
               {joinMeta([
                 uiFormat('今日已专注 {0} 分钟', [todayLog.totalMinutes]),

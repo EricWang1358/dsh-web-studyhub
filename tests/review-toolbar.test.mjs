@@ -116,12 +116,13 @@ test("自动跳下一步 is an item of 更多 with its key A, bound to what the 
   assert.doesNotMatch(menuOf({ mode: "exam", feedback: null }, { autopilot: true, onToggleAutopilot() {} }), /自动跳下一步/, "a mock exam does not move on by itself");
 });
 
-test("the toolbar keeps at most seven controls (提示, 帮我弄懂, 修题, 标生词, 更多, 上一题, 下一题), and every folded one is an item of 更多 with its key", () => {
+test("the toolbar keeps at most eight controls (提示, 帮我弄懂, 修题, 标生词, 草稿纸, 更多, 上一题, 下一题), and every folded one is an item of 更多 with its key", () => {
   setUiLanguage("zh");
   const props = { autopilot: false, onToggleAutopilot() {}, onThumb() {}, thumbVote: null, onToggleEn() {} };
   const closed = render({ feedback: null }, props);
   const buttons = [...closed.matchAll(/<button\b[^>]*>/g)].map((match) => match[0]);
-  assert.ok(buttons.length <= 7, `${buttons.length} controls: ${buttons.join(" ")}`);
+  assert.ok(buttons.length <= 8, `${buttons.length} controls: ${buttons.join(" ")}`);
+  assert.match(closed, /<button[^>]*aria-expanded="false"[^>]*>(?:(?!<\/button>).)*草稿纸<\/button>/);
   const open = menuOf({ feedback: null }, props);
   for (const label of ["显示英文", "自动跳下一步", "字号与版心…", "这题不错", "这题有问题…"]) assert.match(open, new RegExp(`>${label}<`), `${label} is in 更多`);
   assert.match(item(open, "这题不错"), /aria-keyshortcuts="G"/);

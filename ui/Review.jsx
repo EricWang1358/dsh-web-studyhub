@@ -34,6 +34,8 @@ import RoundSetup from "./review/RoundSetup.jsx";
 import { resultTarget } from "./review/round-setup.js";
 import { similarWinsText } from "./review/similar-words.js";
 import { useSourceDock } from "./review/use-source-dock.jsx";
+import InkMark from "./seal-press/InkMark.jsx";
+import LazyRoundSealSection from "./seal-press/LazyRoundSealSection.jsx";
 
 /* 复习视图：quiz/multi 选项作答、cloze 填空、闪卡翻面与开放问答自评，
    附前置题条、逐步讲解面板与薄弱主题收尾。会话状态（run）与本地作答
@@ -267,9 +269,11 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               <strong>{run.correct}</strong>
               <span>{uiFormat(scoreWording(run), [run.questions ?? run.total])}</span>
               {allCorrect && (
-                <span className="result-hero__badge" data-testid="result-all-correct">
-                  {(run.selfAnswered || 0) > 0 ? ui("本轮全部达标") : ui("本轮全部答对")}
-                </span>
+                <InkMark type="underline" tone="success" padding={3} strokeWidth={1.8}>
+                  <span className="result-hero__badge" data-testid="result-all-correct">
+                    {(run.selfAnswered || 0) > 0 ? ui("本轮全部达标") : ui("本轮全部答对")}
+                  </span>
+                </InkMark>
               )}
               {run.retries > 0 && <small>{run.retries === 1 ? ui("另外重练了 1 次") : uiFormat("另外重练了 {0} 次", [run.retries])}</small>}
             </div>
@@ -308,6 +312,9 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               debriefModel={practice.debrief}
               onSettings={goPracticeSettings} onProfileSettings={() => openSettings("settings-profile")}
             />
+          )}
+          {run.mode !== "exam" && (
+            <LazyRoundSealSection run={run} title={shellTitle} course={roundCourse} allCorrect={allCorrect} />
           )}
           {call && <DailyRecap root={data.root} runId={run.id} saved={data.settings?.dailyRecap}
             poll primary={!nextStep && !backHere} onOpenNote={onOpenNote} onSettings={onRecapSettings} onModelSettings={onModelSettings} />}

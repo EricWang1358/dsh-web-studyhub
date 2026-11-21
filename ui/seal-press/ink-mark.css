@@ -1,0 +1,18 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    /* ── Editorial Ink Marks (rough-notation host) ── */
+    .sh-ink-mark-host {
+      position: relative;
+      display: inline-block;
+      isolation: isolate;
+      vertical-align: baseline;
+    }
+
+    .sh-ink-mark {
+      position: relative;
+      z-index: var(--z-raised);
+    }
+  }
+}
