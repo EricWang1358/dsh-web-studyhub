@@ -60,6 +60,7 @@ import { useCardPlace } from "./QuestionPlace.jsx";
 import { isPassed } from "./session-logic.js";
 import ChapterHint from "./ChapterHint.jsx";
 import { useChapterHint } from "./use-chapter-hint.js";
+import LazyFlowSealCue from "../seal-press/LazyFlowSealCue.jsx";
 
 export { formatAssistTaskSummary, buildFeedbackAnnouncement };
 
@@ -312,6 +313,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                 {roundSteps.onEnd && <RoundPending run={run} skippedIndices={session.skippedIndices} onJump={(index) => reviewAct("review.move", { index })} onEnd={roundSteps.onEnd} />}
                 {voice.pending}
                 <QuestionLiveMastery run={run} />
+                <LazyFlowSealCue run={run} variant="header" />
               </span>
               <div>
                 <QuestionMetaBadges run={run} sources={data?.sources} cardNotes={cardNotes} onOpenNote={onOpenNote} />
@@ -550,6 +552,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           {run.feedback && (
             <div ref={verdictFocusRef} className="next-due-focus" tabIndex={-1}>
               <NextDue feedback={run.feedback} telemetry={run.feedbackTelemetry} hideWhy className="next-due--verdict" />
+              <LazyFlowSealCue run={run} variant="verdict" />
             </div>
           )}
           {canOpenBookSection && run.feedback && !run.feedback.selfReported && !isPassed(run) && (

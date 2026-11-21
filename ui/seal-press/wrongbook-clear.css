@@ -1,0 +1,153 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    /* ── WrongBook Cleared-Ledger Carved Seal & Commemorative Card ── */
+    .sh-wb-clear {
+      margin: var(--space-3-5) auto 0;
+      max-width: 560px;
+      width: 100%;
+      padding: var(--space-4) var(--space-4-5);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--bg-raised);
+      box-shadow: var(--shadow-item);
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: var(--space-3-5) var(--space-4);
+      align-items: center;
+      text-align: left;
+    }
+
+    .sh-wb-clear__trigger {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: var(--space-1);
+      border-radius: var(--radius);
+      transition: transform var(--dur-fast) var(--ease);
+    }
+
+    .sh-wb-clear__trigger:hover {
+      transform: scale(1.03) rotate(-1.5deg);
+    }
+
+    .sh-wb-clear__trigger:active {
+      transform: scale(0.95) rotate(-3deg);
+    }
+
+    .sh-wb-clear__trigger.is-stamping .sh-wb-clear__seal-img {
+      animation: sh-wb-clear-stamp var(--dur-slow) var(--ease-out) both;
+    }
+
+    .sh-wb-clear__seal-img {
+      display: block;
+      width: 76px;
+      height: 76px;
+      user-select: none;
+      transform: rotate(-2.5deg);
+    }
+
+    .sh-wb-clear__body {
+      display: grid;
+      gap: var(--space-1-5);
+      min-width: 0;
+    }
+
+    .sh-wb-clear__kicker {
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-medium);
+      letter-spacing: 0.08em;
+    }
+
+    .sh-wb-clear__heading {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .sh-wb-clear__title {
+      color: var(--text);
+      font-family: var(--font-display);
+      font-size: var(--fs-xl);
+      font-weight: var(--fw-medium);
+      line-height: var(--lh-tight);
+    }
+
+    .sh-wb-clear__note {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      line-height: var(--lh-snug);
+    }
+
+    .sh-wb-clear__actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2);
+      margin-top: var(--space-1);
+    }
+  }
+
+  @container study (max-width: 640px) {
+    :where(.study-app, .study-seat) {
+      .sh-wb-clear {
+        grid-template-columns: 1fr;
+        justify-items: center;
+        text-align: center;
+      }
+
+      .sh-wb-clear__heading,
+      .sh-wb-clear__actions {
+        justify-content: center;
+      }
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :where(.study-app, .study-seat) {
+      .sh-wb-clear__trigger.is-stamping .sh-wb-clear__seal-img {
+        animation: none !important;
+      }
+
+      .sh-wb-clear__trigger {
+        transition: none !important;
+      }
+
+      .sh-wb-clear__trigger:hover,
+      .sh-wb-clear__trigger:active {
+        transform: none !important;
+      }
+    }
+  }
+
+  :is(.study-app, .study-seat)[data-motion="reduced"],
+  :is(.study-app, .study-seat)[data-motion="off"] {
+    .sh-wb-clear__trigger.is-stamping .sh-wb-clear__seal-img {
+      animation: none !important;
+    }
+
+    .sh-wb-clear__trigger:hover,
+    .sh-wb-clear__trigger:active {
+      transform: none !important;
+    }
+  }
+}
+
+@keyframes sh-wb-clear-stamp {
+  0% {
+    opacity: 0.72;
+    transform: scale(1.18) rotate(-6deg);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(0.94) rotate(-1.5deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(-2.5deg);
+  }
+}

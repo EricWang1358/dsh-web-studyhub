@@ -5,6 +5,7 @@ import { TERMS } from '../mastery-terms.js';
 import { useStudy } from '../study-context.jsx';
 import { useMethodAlternativeOpen } from '../method-alternatives.js';
 import RoundSetup from '../review/RoundSetup.jsx';
+import LetterpressNumber from '../letterpress/LetterpressNumber.jsx';
 
 /** The right of the home desk: the one card with today's count and its one action (a newcomer's three steps are the first-run line's compact card, ui/first-run). `quiet`: the 下一步 card above holds the page's primary button (ui/study-map/NextStepCard.jsx), so this action is a secondary one. `extra`: a line that comes later (重读 N 段), drawn under the action and outside the card's body, so its coming never moves the action. */
 export default function TodayCard({ plan, todayLabel, quiet = false, extra = null }) {
@@ -28,7 +29,7 @@ export default function TodayCard({ plan, todayLabel, quiet = false, extra = nul
           <time>{todayLabel}</time>
         </div>
         <div className="today-count">
-          <strong>{plan.count}</strong>
+          <strong>{typeof plan.count === 'number' && Number.isFinite(plan.count) ? <LetterpressNumber value={plan.count} /> : plan.count}</strong>
           <span>{plan.unit}</span>
         </div>
         {plan.detail && <p className="today-detail">{plan.kind === 'path' && !plan.ahead ? <Tooltip layer content={ui(TERMS.due.hint)}><span tabIndex={0}>{plan.detail}</span></Tooltip> : plan.detail}</p>}

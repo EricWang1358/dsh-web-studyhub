@@ -1,0 +1,22 @@
+{
+  "导出 SVG": "Export SVG",
+  "视图形式": "View style",
+  "柱状": "Bars",
+  "墨潮": "Ink tide",
+  "未来 14 天到期复习墨潮曲线，共 {0} 题": "Due reviews ink-tide horizon over the next 14 days, {0} questions in total",
+  "未来 14 天到期复习墨潮曲线，共 {0} 题#one": "Due reviews ink-tide horizon over the next 14 days, {0} question in total",
+  "峰期：{0}（{1} 题）": "Peak: {0} ({1} questions)",
+  "峰期：{0}（{1} 题）#one:1": "Peak: {0} ({1} question)",
+  "留白窗口：{0} 起连歇 {1} 天，适合补新或休整": "Calm stretch: {1} light days from {0} — good for new cards or rest",
+  "留白窗口：{0} 起连歇 {1} 天，适合补新或休整#one:1": "Calm stretch: {1} light day from {0} — good for new cards or rest",
+  "未来 14 天节奏平稳，每天都有少量回顾。": "Steady pace across the next 14 days with light daily reviews.",
+  "画风": "Ink style",
+  "精密": "Crisp",
+  "手绘墨线": "Hand-drawn ink",
+  "已导出知识图谱 SVG。": "Exported knowledge graph SVG.",
+  "导出知识图谱未成功，请重试。": "Could not export knowledge graph. Please try again.",
+  "前置 {0} 项 · 后续 {1} 项": "{0} prerequisites · {1} follow-ups",
+  "前置 {0} 项 · 后续 {1} 项#one": "{0} prerequisite · {1} follow-ups",
+  "前置 {0} 项 · 后续 {1} 项#one:1": "{0} prerequisites · {1} follow-up",
+  "前置 {0} 项 · 后续 {1} 项#one:0,1": "{0} prerequisite · {1} follow-up"
+}

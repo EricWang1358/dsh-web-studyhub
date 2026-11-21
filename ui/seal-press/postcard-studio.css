@@ -1,0 +1,423 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    /* ── 3D Tactile Collectible Postcard Stage & Clean-Room Matte Cotton Sheen ── */
+    .sh-postcard-stage-wrap {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: var(--space-4) var(--space-3);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--bg-sunken);
+      overflow: hidden;
+    }
+
+    .sh-postcard-stage {
+      --sh-sheen-x: 50%;
+      --sh-sheen-y: 50%;
+      --sh-sheen-op: 0;
+      position: relative;
+      display: inline-block;
+      max-width: 100%;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-popover);
+      overflow: hidden;
+      transform-style: preserve-3d;
+    }
+
+    .sh-postcard-stage--slip {
+      max-width: 310px;
+    }
+
+    .sh-postcard-stage--wide {
+      max-width: 560px;
+    }
+
+    .sh-postcard-stage__img {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: var(--radius);
+      user-select: none;
+    }
+
+    .sh-postcard-stage__sheen {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      border-radius: var(--radius);
+      opacity: var(--sh-sheen-op);
+      background: radial-gradient(
+        circle at var(--sh-sheen-x) var(--sh-sheen-y),
+        var(--edge-highlight-paper) 0%,
+        color-mix(in srgb, var(--edge-highlight-paper) 30%, transparent) 32%,
+        transparent 68%
+      );
+      mix-blend-mode: soft-light;
+      transition: opacity var(--dur-fast) var(--ease);
+    }
+
+    /* ── Postcard Studio Dialog Layout ── */
+    .sh-seal-studio {
+      display: grid;
+      gap: var(--space-4);
+    }
+
+    .sh-seal-studio__tabs {
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .sh-seal-studio__controls {
+      display: grid;
+      gap: var(--space-3-5);
+      padding: var(--space-4);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--bg-surface);
+    }
+
+    .sh-seal-studio__control-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: var(--space-3);
+    }
+
+    .sh-seal-studio__actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .sh-seal-studio__status {
+      color: var(--ok-ink);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-medium);
+    }
+
+    /* ── Local Seal Album Gallery ── */
+    .sh-seal-album {
+      display: grid;
+      gap: var(--space-4);
+    }
+
+    .sh-seal-album__empty {
+      padding: var(--space-6) var(--space-4);
+      border: 1px dashed var(--line-strong);
+      border-radius: var(--radius);
+      background: var(--bg-surface);
+      text-align: center;
+      display: grid;
+      gap: var(--space-2-5);
+      justify-items: center;
+    }
+
+    .sh-seal-album__empty-title {
+      margin: 0;
+      color: var(--text);
+      font-size: var(--fs-lg);
+      font-weight: var(--fw-medium);
+    }
+
+    .sh-seal-album__empty-body {
+      margin: 0;
+      max-width: 44ch;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      line-height: var(--lh-body);
+    }
+
+    .sh-seal-album__feature {
+      display: grid;
+      gap: var(--space-3);
+    }
+
+    .sh-seal-album__toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2);
+    }
+
+    .sh-seal-album__meta {
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+
+    .sh-seal-album__grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+      gap: var(--space-2-5);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .sh-seal-album__item-btn {
+      width: 100%;
+      padding: var(--space-2-5);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--bg-surface);
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: var(--space-2-5);
+      align-items: center;
+      text-align: left;
+      transition: transform var(--dur-fast) var(--ease);
+    }
+
+    .sh-seal-album__item-btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .sh-seal-album__item-btn[aria-pressed="true"] {
+      border-color: var(--line-strong);
+      background: var(--bg-selected);
+      box-shadow: var(--shadow-item);
+    }
+
+    .sh-seal-album__thumb {
+      display: block;
+      width: 38px;
+      height: 38px;
+      flex: none;
+    }
+
+    .sh-seal-album__item-text {
+      display: grid;
+      gap: var(--space-half);
+      min-width: 0;
+    }
+
+    .sh-seal-album__item-title {
+      color: var(--text);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-medium);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .sh-seal-album__item-sub {
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      font-variant-numeric: tabular-nums;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* ── Cross-Surface Seal Album Gallery & 5-Seal Specimen Shelf ── */
+    .sh-seal-gallery {
+      display: grid;
+      gap: var(--space-3);
+    }
+
+    .sh-seal-gallery .sh-seal-album {
+      gap: var(--space-3);
+    }
+
+    .sh-seal-gallery .sh-seal-album__feature {
+      gap: var(--space-2-5);
+    }
+
+    .sh-seal-gallery .sh-postcard-stage-wrap {
+      padding: var(--space-3);
+    }
+
+    .sh-seal-gallery .sh-postcard-stage--wide {
+      max-width: 470px;
+    }
+
+    .sh-seal-gallery .sh-postcard-stage--slip {
+      max-width: 260px;
+    }
+
+    .sh-seal-shelf {
+      display: grid;
+      gap: var(--space-2);
+      padding: var(--space-2-5) var(--space-3-5);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--bg-surface);
+    }
+
+    .sh-seal-shelf__head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: var(--space-2);
+    }
+
+    .sh-seal-shelf__title {
+      margin: 0;
+      color: var(--text);
+      font-family: var(--font-display);
+      font-size: var(--fs-md);
+      font-weight: var(--fw-medium);
+      line-height: var(--lh-tight);
+    }
+
+    .sh-seal-shelf__progress {
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .sh-seal-shelf__grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: var(--space-2);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .sh-seal-shelf__card {
+      width: 100%;
+      height: 100%;
+      padding: var(--space-2);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--bg-sunken);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      gap: var(--space-1);
+      text-align: center;
+      white-space: normal;
+      transition: transform var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease);
+    }
+
+    .sh-seal-shelf__card.is-earned {
+      border-color: var(--line-strong);
+      background: var(--bg-raised);
+      box-shadow: var(--shadow-item);
+    }
+
+    .sh-seal-shelf__card.is-unearned {
+      border-style: dashed;
+      opacity: 0.86;
+    }
+
+    .sh-seal-shelf__card:hover {
+      transform: translateY(-1px);
+      opacity: 1;
+    }
+
+    .sh-seal-shelf__card[aria-pressed="true"] {
+      border-style: solid;
+      border-color: var(--line-strong);
+      background: var(--bg-selected);
+      box-shadow: var(--shadow-item);
+      opacity: 1;
+    }
+
+    .sh-seal-shelf__seal-wrap {
+      width: 44px;
+      height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: none;
+    }
+
+    .sh-seal-shelf__img {
+      display: block;
+      width: 44px;
+      height: 44px;
+      user-select: none;
+      transform: rotate(-2deg);
+    }
+
+    .sh-seal-shelf__silhouette {
+      width: 44px;
+      height: 44px;
+      border: 1px dashed var(--line-strong);
+      border-radius: var(--radius-sm);
+      background: var(--bg-surface);
+      opacity: 0.62;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: none;
+      user-select: none;
+    }
+
+    .sh-seal-shelf__name {
+      color: var(--text);
+      font-family: var(--font-display);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-medium);
+      line-height: var(--lh-tight);
+    }
+
+    .sh-seal-shelf__hint {
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      line-height: var(--lh-snug);
+    }
+
+    .sh-seal-gallery__filters {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1-5);
+    }
+  }
+
+  @container study (max-width: 640px) {
+    :where(.study-app, .study-seat) {
+      .sh-seal-shelf__grid {
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      }
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :where(.study-app, .study-seat) {
+      .sh-seal-album__item-btn,
+      .sh-seal-shelf__card,
+      .sh-postcard-stage__sheen {
+        transition: none !important;
+      }
+
+      .sh-seal-album__item-btn:hover,
+      .sh-seal-shelf__card:hover {
+        transform: none !important;
+      }
+
+      .sh-postcard-stage__sheen {
+        display: none !important;
+      }
+    }
+  }
+
+  :is(.study-app, .study-seat)[data-motion="reduced"],
+  :is(.study-app, .study-seat)[data-motion="off"] {
+    .sh-seal-album__item-btn:hover,
+    .sh-seal-shelf__card:hover {
+      transform: none !important;
+    }
+
+    .sh-postcard-stage__sheen {
+      display: none !important;
+    }
+  }
+
+  @media (forced-colors: active) {
+    :where(.study-app, .study-seat) {
+      .sh-postcard-stage__sheen {
+        display: none !important;
+      }
+    }
+  }
+}

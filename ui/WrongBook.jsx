@@ -34,6 +34,7 @@ import { peekQuery, refreshQuery, setQueryData, useHostQuery } from './host-quer
 import { formatDateTime, joinMeta } from "./format.js";
 import { companionSlideButtonLabel, openCompanionTarget, resolveCompanionTarget } from "./companions/companion-ref.js";
 import { useRescueExperiments } from "./companions/use-rescue-experiments.js";
+import LazyWrongBookClearStamp from "./seal-press/LazyWrongBookClearStamp.jsx";
 
 // One page of this view holds ten pages of the service (which gives at most 100), so a filter sees every mistake of a normal library.
 const FETCH_LIMIT = 100;
@@ -1557,6 +1558,7 @@ export function WrongBookView({
             : (data?.attempts?.length
               ? ui("客观答错或自评未掌握的题会出现在这里，方便集中重练。")
               : ui("完成一次学习后，答错或自评未掌握的题会收在这里。"))}>
+          {historyCount > 0 && <LazyWrongBookClearStamp clearedCount={historyCount} course={course} />}
           <EmptyStudyActions data={{ ...data, decks: localDecks }} onStart={() => onPractice(localDecks.map(deck => ({ deckId: deck.id })))} onLibrary={onLibrary}
             onCreate={onCreate} onSources={onSources} />
           {historyCount > 0 && onView && (

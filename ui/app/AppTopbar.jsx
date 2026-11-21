@@ -3,6 +3,7 @@ import { ui, uiFormat, uiIsEnglish, uiMessage } from '../i18n.js';
 import { isTransientStudyError } from '../transport.js';
 import { markInboxRead, markInboxUnread } from '../quick-actions.js';
 import Inbox from '../Inbox.jsx';
+import DeskAtelierButton from '../desk-atelier/DeskAtelierButton.jsx';
 import { Button, Icon, IconBox, Tooltip } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
 import { useAppSelector } from './app-context.js';
@@ -149,6 +150,7 @@ const AppTopbar = React.memo(function AppTopbar({ title }) {
             onOpenTasks={() => nav.navigate('tasks', { animate: true, keepTrail: false })}
             onUndo={(letter) => act(letter.kind === 'rewrite' ? 'coach.revert' : 'card.revert', { deckId: letter.deckId, cardId: letter.cardId })} />
         )}
+        <DeskAtelierButton />
       </div>
     </header>
   );
