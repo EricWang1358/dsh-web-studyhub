@@ -192,6 +192,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'B', label: t(lang, '书签与批注', 'Bookmarks & notes') },
         { key: 'a: f', label: t(lang, '阅读问答存为闪卡', 'Save reader Q&A as card') },
         { key: 't', label: t(lang, '双语翻译 (缓存/估算)', 'Bilingual translate (cached)') },
+        { key: 'x', label: t(lang, '导出资料目录与覆盖率 (MD)', 'Export sources catalog (MD)') },
       ],
     },
     {

@@ -1,6 +1,6 @@
 import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text, useInput, useWindowSize } from 'ink';
-import type { HostClient, KeyHint, ViewProps } from '../../types/contracts.js';
+import type { HostClient, KeyHint, UiLanguage, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { Badge, EmptyState, Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
@@ -16,6 +16,7 @@ import { useTheme } from '../../theme/tokens.js';
 import { currentCourse } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
+import { atomicWriteTextFile, defaultBackupFilePath, todayLocalYmd } from '../../host/atomic-write.js';
 import { errorMessage, tryAction } from '../../host/sample-actions.js';
 import {
   type DocumentGroup,
@@ -34,6 +35,138 @@ const SourceCoverageModal = lazy(() => import('./SourceCoverageModal.js').then((
 const MinerUModal = lazy(() => import('./MinerUModal.js').then((m) => ({ default: m.MinerUModal })));
 const RereadQueueModal = lazy(() => import('./RereadQueueModal.js').then((m) => ({ default: m.RereadQueueModal })));
 const OriginalFileModal = lazy(() => import('./OriginalFileModal.js').then((m) => ({ default: m.OriginalFileModal })));
+
+export interface SourcesCatalogExportGroup extends DocumentGroup {
+  originalStatus?: string;
+  originalPath?: string;
+  original?: {
+    status?: string;
+    path?: string;
+    mode?: string;
+  };
+}
+
+export interface SourcesCatalogExportInput {
+  groups: readonly SourcesCatalogExportGroup[];
+  course?: string | null;
+  folderLabel?: string | null;
+  lang: UiLanguage;
+  generatedAt?: string | Date;
+}
+
+function escapeMdCell(raw: unknown): string {
+  return String(raw ?? '')
+    .replace(/\|/g, '\\|')
+    .replace(/[\r\n]+/g, ' ')
+    .trim();
+}
+
+function formatCatalogDate(generatedAt?: string | Date): string {
+  if (typeof generatedAt === 'string' && generatedAt.trim()) return generatedAt.trim();
+  if (generatedAt instanceof Date) {
+    const y = generatedAt.getFullYear();
+    const m = String(generatedAt.getMonth() + 1).padStart(2, '0');
+    const d = String(generatedAt.getDate()).padStart(2, '0');
+    const hh = String(generatedAt.getHours()).padStart(2, '0');
+    const mm = String(generatedAt.getMinutes()).padStart(2, '0');
+    return `${y}-${m}-${d} ${hh}:${mm}`;
+  }
+  return todayLocalYmd();
+}
+
+function formatGroupStatus(group: SourcesCatalogExportGroup, lang: UiLanguage): string {
+  if (group.pinned && group.archived) {
+    return t(lang, '置顶 / 已归档', 'Pinned / Archived');
+  }
+  if (group.pinned) return t(lang, '已置顶', 'Pinned');
+  if (group.archived) return t(lang, '已归档', 'Archived');
+  return t(lang, '正常', 'Active');
+}
+
+/** Format a catalog of study material groups into a clean Markdown table and breakdown. */
+export function formatSourcesCatalogMarkdown({
+  groups,
+  course,
+  folderLabel,
+  lang,
+  generatedAt,
+}: SourcesCatalogExportInput): string {
+  const dateStr = formatCatalogDate(generatedAt);
+  const totalPages = groups.reduce((sum, g) => sum + (Number(g.pageCount) || 0), 0);
+  const totalCards = groups.reduce((sum, g) => sum + (Number(g.cardCount) || 0), 0);
+  const cleanCourse = course ? escapeMdCell(course) : '';
+  const cleanFolder = folderLabel ? escapeMdCell(folderLabel) : '';
+
+  const lines: string[] = [
+    `# ${t(lang, 'StudyHub 学习资料目录与引用覆盖', 'StudyHub Materials Catalog & Citation Coverage')}`,
+    '',
+    `- **${t(lang, '生成日期', 'Date')}**: ${dateStr}`,
+  ];
+  if (cleanCourse) {
+    lines.push(`- **${t(lang, '课程筛选', 'Course Filter')}**: ${cleanCourse}`);
+  }
+  if (cleanFolder) {
+    lines.push(`- **${t(lang, '文件夹筛选', 'Folder Filter')}**: ${cleanFolder}`);
+  }
+  lines.push(
+    `- **${t(lang, '资料总数', 'Total Documents')}**: ${groups.length}`,
+    `- **${t(lang, '总页数', 'Total Pages')}**: ${totalPages}`,
+    `- **${t(lang, '关联题目总数', 'Total Linked Cards')}**: ${totalCards}`,
+  );
+
+  if (groups.length === 0) {
+    lines.push('', t(lang, '当前筛选条件下暂无可导出的资料。', 'No materials match the current filters.'), '');
+    return lines.join('\n');
+  }
+
+  lines.push(
+    '',
+    `## ${t(lang, '资料总览表', 'Materials Summary')}`,
+    '',
+    lang === 'zh'
+      ? '| # | 标题 | 课程 | 文件夹 | 页数 | 关联题 | 状态 |'
+      : '| # | Title | Course(s) | Folder | Pages | Linked Cards | Status |',
+    '| ---: | --- | --- | --- | ---: | ---: | --- |',
+  );
+
+  for (let i = 0; i < groups.length; i += 1) {
+    const g = groups[i];
+    const title = escapeMdCell(g.title || g.key) || t(lang, '未命名资料', 'Untitled');
+    const coursesText =
+      g.courses && g.courses.length > 0
+        ? escapeMdCell(g.courses.join(', '))
+        : t(lang, '未分配', 'Unassigned');
+    const folderText = g.folder ? escapeMdCell(g.folder) : t(lang, '未归类', 'Unfiled');
+    const pages = Number(g.pageCount) || 0;
+    const cards = Number(g.cardCount) || 0;
+    const status = formatGroupStatus(g, lang);
+    lines.push(`| ${i + 1} | ${title} | ${coursesText} | ${folderText} | ${pages} | ${cards} | ${status} |`);
+  }
+
+  lines.push('', `## ${t(lang, '资料明细', 'Document Breakdown')}`, '');
+  for (let i = 0; i < groups.length; i += 1) {
+    const g = groups[i];
+    const title = escapeMdCell(g.title || g.key) || t(lang, '未命名资料', 'Untitled');
+    const fmt = formatLabel(g.format || 'text');
+    const pages = Number(g.pageCount) || 0;
+    const cards = Number(g.cardCount) || 0;
+    const chars = (Number(g.chars) || 0).toLocaleString('en-US');
+    const origStatus = g.originalStatus || g.original?.status;
+    const origPath = g.originalPath || g.original?.path;
+    const origParts: string[] = [];
+    if (origStatus) origParts.push(escapeMdCell(origStatus));
+    if (origPath) origParts.push(`\`${escapeMdCell(origPath)}\``);
+    const origSuffix =
+      origParts.length > 0
+        ? `, ${t(lang, '原文件', 'Original')}: ${origParts.join(' ')}`
+        : '';
+    lines.push(
+      `- **${i + 1}. ${title}** (${fmt}) — ${pages} ${t(lang, '页', 'pages')}, ${cards} ${t(lang, '关联题', 'linked cards')}, ${chars} ${t(lang, '字符', 'chars')}${origSuffix}`,
+    );
+  }
+  lines.push('');
+  return lines.join('\n');
+}
 
 type ActiveOverlay =
   | 'none'
@@ -377,6 +510,7 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
 
   const mountedRef = useRef(true);
   const busyRef = useRef(false);
+  const exportBusyRef = useRef(false);
   const pendingFocusKeyRef = useRef<string | null>(null);
   useEffect(() => {
     mountedRef.current = true;
@@ -861,9 +995,63 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
     }
   }, [busy, host, lang, notify, refresh, selectedItem]);
 
+  const handleExportCatalog = useCallback(async () => {
+    if (exportBusyRef.current) return;
+    const isBatchSelection = selectedKeys.size > 0;
+    const targetGroups = isBatchSelection
+      ? allGroups.filter((g) => selectedKeys.has(g.key))
+      : filteredGroups;
+    if (targetGroups.length === 0) {
+      notify(t(lang, '当前没有可导出的资料目录', 'No materials to export'), 'info');
+      return;
+    }
+    exportBusyRef.current = true;
+    try {
+      const targetPath = defaultBackupFilePath(host.getLibraryRoot(), 'studyhub-sources', '.md');
+      const md = formatSourcesCatalogMarkdown({
+        groups: targetGroups,
+        course: !isBatchSelection && courseFilterOn && focusCourse ? focusCourse : undefined,
+        folderLabel:
+          !isBatchSelection && folderFilter !== null
+            ? folderFilter || t(lang, '未归类', 'Unfiled')
+            : undefined,
+        lang,
+      });
+      await atomicWriteTextFile(targetPath, md);
+      if (!mountedRef.current) return;
+      const arrow = asciiMode ? '->' : '→';
+      notify(
+        t(
+          lang,
+          `已导出 ${targetGroups.length} 份资料目录 ${arrow} ${targetPath}`,
+          `Exported ${targetGroups.length} source(s) ${arrow} ${targetPath}`,
+        ),
+        'success',
+      );
+    } catch (err) {
+      if (mountedRef.current) {
+        const msg = err instanceof Error ? err.message : String(err);
+        notify(t(lang, `导出资料目录失败: ${msg}`, `Export failed: ${msg}`), 'error');
+      }
+    } finally {
+      exportBusyRef.current = false;
+    }
+  }, [
+    allGroups,
+    asciiMode,
+    courseFilterOn,
+    filteredGroups,
+    focusCourse,
+    folderFilter,
+    host,
+    lang,
+    notify,
+    selectedKeys,
+  ]);
+
   const listActive = isActive && !readerTarget && overlay === 'none';
 
-  useClaimKeys(['/', 'c', 'r', 'R', 'g', 'p', 'd', 'i', 'f', 'a', 'F', 'm', 'M', 'C', 'G', 'V', 'E', 'O', ' ', '[', ']'], listActive);
+  useClaimKeys(['/', 'c', 'r', 'R', 'g', 'p', 'd', 'i', 'f', 'a', 'F', 'm', 'M', 'C', 'G', 'V', 'E', 'O', 'x', ' ', '[', ']'], listActive);
   useInputCapture(isActive && !readerTarget && (overlay === 'rename' || overlay === 'course' || overlay === 'search'));
 
   const hints: KeyHint[] = useMemo(
@@ -874,6 +1062,7 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
             { key: 'm', label: t(lang, `批量移夹(${selectedKeys.size})`, `Move(${selectedKeys.size})`) },
             { key: 'a', label: t(lang, '批量归档', 'Archive') },
             { key: 'E', label: t(lang, '补全元信息', 'Enrich') },
+            { key: 'x', label: t(lang, '导出目录', 'Export MD') },
             { key: 'Esc', label: t(lang, '清空选择', 'Clear sel') },
           ]
         : [
@@ -897,6 +1086,7 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
             { key: 'd', label: t(lang, '删除', 'Delete') },
             { key: '/', label: t(lang, '搜索', 'Filter') },
             { key: 'f', label: t(lang, '筛选课程', 'Course filter') },
+            { key: 'x', label: t(lang, '导出目录', 'Export MD') },
           ],
     [lang, selectedKeys.size],
   );
@@ -929,6 +1119,8 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
         setOverlay('reread');
       } else if (input === 'E') {
         void handleEnrich();
+      } else if (input === 'x') {
+        void handleExportCatalog();
       } else if (input === 'm' && selectedKeys.size > 0) {
         setOverlay('folders-assign-batch');
       } else if (input === 'a' && selectedKeys.size > 0) {

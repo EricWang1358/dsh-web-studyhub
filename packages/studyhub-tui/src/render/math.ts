@@ -194,6 +194,21 @@ const TEXT_CMDS = new Set(['text', 'textrm', 'textnormal', 'textsf', 'texttt', '
 
 const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 
+const WS_GLOBAL_RE = /\s+/g;
+const WS_CHAR_RE = /\s/;
+const ATOM_RE = /^[\p{L}\p{N}\p{M}.′∞]+$/u;
+const TEXT_ESCAPE_RE = /\\([{}%$&#_ ])/g;
+const DOLLAR_DISPLAY_RE = /^\$\$([\s\S]*)\$\$$/;
+const BRACKET_DISPLAY_RE = /^\\\[([\s\S]*)\\\]$/;
+const PAREN_INLINE_RE = /^\\\(([\s\S]*)\\\)$/;
+const DOLLAR_INLINE_RE = /^\$([^$]*)\$$/;
+const MULTI_SPACE_RE = / {2,}(?=\S)/g;
+const NEWLINE_RE = /\n/g;
+
+function isWhitespaceChar(ch: string): boolean {
+  return ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r' || WS_CHAR_RE.test(ch);
+}
+
 function graphemes(s: string): string[] {
   const out: string[] = [];
   for (const g of graphemeSegmenter.segment(s)) out.push(g.segment);
@@ -201,7 +216,7 @@ function graphemes(s: string): string[] {
 }
 
 function toScript(content: string, map: Record<string, string>, marker: '^' | '_'): string {
-  const body = content.replace(/\s+/g, '');
+  const body = content.replace(WS_GLOBAL_RE, '');
   if (!body) return '';
   const gs = graphemes(body);
   let mapped = '';
@@ -226,7 +241,7 @@ function toScript(content: string, map: Record<string, string>, marker: '^' | '_
 /** Atoms render without parentheses in \frac / \sqrt. */
 function isAtom(s: string): boolean {
   if (!s) return true;
-  if (/^[\p{L}\p{N}\p{M}.′∞]+$/u.test(s)) return true;
+  if (ATOM_RE.test(s)) return true;
   return graphemes(s).length === 1;
 }
 
@@ -255,7 +270,7 @@ class TexParser {
   }
 
   private skipWs(): void {
-    while (this.i < this.s.length && /\s/.test(this.s[this.i])) this.i++;
+    while (this.i < this.s.length && isWhitespaceChar(this.s[this.i])) this.i++;
   }
 
   /** Parse until `stop` (consumed) or end of input. */
@@ -267,7 +282,7 @@ class TexParser {
         this.i++;
         return out;
       }
-      if (/\s/.test(ch)) {
+      if (isWhitespaceChar(ch)) {
         this.skipWs();
         if (out && !out.endsWith(' ') && !out.endsWith('\n')) out += ' ';
         continue;
@@ -361,12 +376,13 @@ class TexParser {
   private readCommandName(): string {
     // assumes this.s[this.i] === '\\'
     this.i++;
-    const rest = this.s.slice(this.i);
-    const m = /^[A-Za-z]+/.exec(rest);
-    if (m) {
-      this.i += m[0].length;
-      return m[0];
+    const start = this.i;
+    while (this.i < this.s.length) {
+      const c = this.s.charCodeAt(this.i);
+      if ((c >= 65 && c <= 90) || (c >= 97 && c <= 122)) this.i++;
+      else break;
     }
+    if (this.i > start) return this.s.slice(start, this.i);
     const c = this.peek();
     this.i += c.length;
     return c;
@@ -393,9 +409,12 @@ class TexParser {
   private parseCommand(): string {
     const name = this.readCommandName();
     if (!name) return '\\';
-    if (name.length === 1 && !/[A-Za-z]/.test(name)) {
-      if (name === '\\') return this.matrixDepth > 0 ? '; ' : '\n';
-      return ESCAPES[name] ?? name;
+    if (name.length === 1) {
+      const cc = name.charCodeAt(0);
+      if (!((cc >= 65 && cc <= 90) || (cc >= 97 && cc <= 122))) {
+        if (name === '\\') return this.matrixDepth > 0 ? '; ' : '\n';
+        return ESCAPES[name] ?? name;
+      }
     }
     if (name in GREEK) return GREEK[name];
     if (FUNCTIONS.has(name)) return name;
@@ -434,7 +453,8 @@ class TexParser {
         return ` (mod ${x})`;
       }
       case 'begin': {
-        const env = this.parseRawArg().replace(/\*$/, '');
+        const rawEnv = this.parseRawArg();
+        const env = rawEnv.endsWith('*') ? rawEnv.slice(0, -1) : rawEnv;
         if (env === 'array') this.parseRawArg(); // column spec
         const m = MATRIX_ENVS[env];
         if (m) {
@@ -444,7 +464,8 @@ class TexParser {
         return '';
       }
       case 'end': {
-        const env = this.parseRawArg().replace(/\*$/, '');
+        const rawEnv = this.parseRawArg();
+        const env = rawEnv.endsWith('*') ? rawEnv.slice(0, -1) : rawEnv;
         const m = MATRIX_ENVS[env];
         if (m) {
           this.matrixDepth = Math.max(0, this.matrixDepth - 1);
@@ -489,7 +510,12 @@ class TexParser {
         break;
     }
 
-    if (TEXT_CMDS.has(name)) return this.parseRawArg().replace(/\\([{}%$&#_ ])/g, '$1');
+    if (TEXT_CMDS.has(name)) {
+      const raw = this.parseRawArg();
+      if (!raw.includes('\\')) return raw;
+      TEXT_ESCAPE_RE.lastIndex = 0;
+      return raw.replace(TEXT_ESCAPE_RE, '$1');
+    }
     if (name in ALPHABET_CMDS) {
       const kind = ALPHABET_CMDS[name];
       const inner = name === 'textbf' ? this.parseRawArg() : this.parseArg();
@@ -512,15 +538,23 @@ class TexParser {
 
 function stripDelimiters(tex: string): string {
   const t = tex.trim();
-  let m = /^\$\$([\s\S]*)\$\$$/.exec(t);
+  let m = DOLLAR_DISPLAY_RE.exec(t);
   if (m) return m[1];
-  m = /^\\\[([\s\S]*)\\\]$/.exec(t);
+  m = BRACKET_DISPLAY_RE.exec(t);
   if (m) return m[1];
-  m = /^\\\(([\s\S]*)\\\)$/.exec(t);
+  m = PAREN_INLINE_RE.exec(t);
   if (m) return m[1];
-  m = /^\$([^$]*)\$$/.exec(t);
+  m = DOLLAR_INLINE_RE.exec(t);
   if (m) return m[1];
   return t;
+}
+
+function normalizeMathLine(line: string): string {
+  if (line.includes('  ')) {
+    MULTI_SPACE_RE.lastIndex = 0;
+    line = line.replace(MULTI_SPACE_RE, (m) => (m.length >= 4 ? m : ' '));
+  }
+  return line.trim();
 }
 
 /** Convert a TeX expression (with or without `$` delimiters) to a Unicode approximation. */
@@ -530,12 +564,16 @@ export function renderMath(tex: string, enabled = true): string {
   if (cached !== undefined) return cached;
   let out: string;
   try {
-    out = new TexParser(stripDelimiters(tex))
-      .parse()
-      .split('\n')
-      .map((l) => l.replace(/ {2,}(?=\S)/g, (m) => (m.length >= 4 ? m : ' ')).trim())
-      .filter((l, i, arr) => l !== '' || (i > 0 && i < arr.length - 1))
-      .join('\n');
+    const parsed = new TexParser(stripDelimiters(tex)).parse();
+    if (!parsed.includes('\n')) {
+      out = normalizeMathLine(parsed);
+    } else {
+      out = parsed
+        .split('\n')
+        .map(normalizeMathLine)
+        .filter((l, i, arr) => l !== '' || (i > 0 && i < arr.length - 1))
+        .join('\n');
+    }
   } catch {
     out = tex;
   }
@@ -549,6 +587,7 @@ export function renderMath(tex: string, enabled = true): string {
  */
 const MATH_SEGMENT_SOURCE =
   '\\$\\$([\\s\\S]+?)\\$\\$|\\\\\\[([\\s\\S]+?)\\\\\\]|\\\\\\(([\\s\\S]+?)\\\\\\)|(?<![\\\\$])\\$(?![\\s$])((?:\\\\.|[^$\\\\\\n])+?)(?<!\\s)\\$(?![\\d$])';
+const MATH_SEGMENT_RE = new RegExp(MATH_SEGMENT_SOURCE, 'g');
 
 export interface MathSegment {
   /** Full matched source including delimiters. */
@@ -561,9 +600,13 @@ export interface MathSegment {
 
 /** Replace every math segment in `text` using `fn`. */
 export function replaceMath(text: string, fn: (seg: MathSegment) => string): string {
-  if (!text || (!text.includes('$') && !text.includes('\\(') && !text.includes('\\['))) return text;
-  const re = new RegExp(MATH_SEGMENT_SOURCE, 'g');
-  return text.replace(re, (raw: string, d1?: string, d2?: string, i1?: string, i2?: string) => {
+  if (!text) return text;
+  const hasDollar = text.includes('$');
+  const hasBackslash = text.includes('\\');
+  if (!hasDollar && !hasBackslash) return text;
+  if (!hasDollar && !text.includes('\\(') && !text.includes('\\[')) return text;
+  MATH_SEGMENT_RE.lastIndex = 0;
+  return text.replace(MATH_SEGMENT_RE, (raw: string, d1?: string, d2?: string, i1?: string, i2?: string) => {
     const display = d1 !== undefined || d2 !== undefined;
     const tex = (d1 ?? d2 ?? i1 ?? i2 ?? '').trim();
     return fn({ raw, tex, display });
@@ -573,8 +616,11 @@ export function replaceMath(text: string, fn: (seg: MathSegment) => string): str
 /** Render every `$…$`, `$$…$$`, `\(…\)`, `\[…\]` segment inside prose. */
 export function renderInlineMath(text: string, enabled = true): string {
   if (!enabled || typeof text !== 'string') return text;
+  if (!text.includes('$') && !text.includes('\\')) return text;
   return replaceMath(text, ({ tex, display }) => {
     const r = renderMath(tex);
-    return display ? r : r.replace(/\n/g, ' ');
+    if (display || !r.includes('\n')) return r;
+    NEWLINE_RE.lastIndex = 0;
+    return r.replace(NEWLINE_RE, ' ');
   });
 }

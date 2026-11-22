@@ -1,6 +1,6 @@
 # StudyHub TUI Contributor Architecture
 
-`@ericwang1358/studyhub-tui` is a React 19.3 + Ink 8 terminal client for StudyHub built with TypeScript, Zustand 5, Chalk 6, Marked 18, `esbuild` code splitting, and `@xterm/headless` E2E tests (0 `zod` runtime imports, 9 minimal runtime dependencies, 510+ automated tests across 150+ suites at the Round 65 milestone). It reuses `packages/studyhub-desktop` and `lib/` at runtime with zero invasive upstream edits.
+`@ericwang1358/studyhub-tui` is a React 19.3 + Ink 8 terminal client for StudyHub built with TypeScript, Zustand 5, Chalk 6, Marked 18, `esbuild` code splitting, and `@xterm/headless` E2E tests (0 `zod` runtime imports, 9 minimal runtime dependencies, 550+ automated tests across 165+ suites at the Round 70 milestone). It reuses `packages/studyhub-desktop` and `lib/` at runtime with zero invasive upstream edits.
 
 ---
 
@@ -9,7 +9,7 @@
 ```text
 packages/studyhub-tui/
 ├── bin/studyhub-tui.mjs        # CLI shim resolving dist/cli.mjs via import.meta.url
-├── docs/                       # ARCHITECTURE.md, KEYBINDINGS.md, ROADMAP-21-40.md, ROADMAP-41-50.md, ROADMAP-51-55.md, ROADMAP-56-60.md, ROADMAP-61-65.md
+├── docs/                       # ARCHITECTURE.md, KEYBINDINGS.md, ROADMAP-21-40.md, ROADMAP-41-50.md, ROADMAP-51-55.md, ROADMAP-56-60.md, ROADMAP-61-65.md, ROADMAP-66-70.md
 ├── scripts/
 │   ├── build.mjs               # esbuild code-split build (cli, boot-frame, App, host)
 │   └── bench.mjs               # Bundle size, cold spawn, boot-frame & RSS/heap probe
@@ -25,7 +25,7 @@ packages/studyhub-tui/
 │   │                           # focus.ts, useStreamingBuffer.ts
 │   ├── state/                  # Zustand store (store.ts) & O(K) snapshot-fingerprint.ts
 │   ├── host/                   # desktop-deps.ts, tui-host.ts, presets.ts, tui-prefs.ts,
-│   │                           # sample-actions.ts
+│   │                           # sample-actions.ts, atomic-write.ts
 │   ├── render/                 # lru.ts, cjk.ts, math.ts, markdown.ts, charts.ts
 │   ├── theme/tokens.ts         # 4 WCAG palettes + runtime ColorLevel / makeChalk(level)
 │   └── views/*/                # 16 view directories (lazy-loaded views & internal modals)
@@ -53,6 +53,9 @@ packages/studyhub-tui/
   - `src/views/board/board-store.ts` replaces `zod` with strict zero-dependency field-level validation (`BoardCard`, `FocusStats`, `MAX_DELETED_UPSTREAM_IDS = 500` tombstones) for `tui-board.json`, yielding `0` `zod` static or dynamic imports across all `dist/*.mjs` chunks (`tests/perf-budget.test.mjs`).
 - **Minimal 9-dependency runtime footprint (`package.json`)**:
   - Runtime `dependencies` are pruned to 9 packages (`chalk`, `cli-highlight`, `get-east-asian-width`, `ink`, `marked`, `react`, `signal-exit`, `strip-ansi`, `zustand`), verified by bidirectional dependency and `npm pack --dry-run --json` audits in `tests/packaging-smoke.test.mjs`.
+- **Shared cross-platform atomic persistence (`src/host/atomic-write.ts`)**:
+  - `atomicWriteTextFile`, `atomicWriteJsonFile`, and `defaultBackupFilePath` centralize `<libraryRoot>/backups/studyhub-*-YYYY-MM-DD.{md,json}` writes across views and modals, powering universal `[x]`/`[X]` Markdown and JSON exports.
+  - Writes to a UUID-suffixed `.tmp` sibling and promotes via `renameWithRetry` (retrying Windows transient lock errors `EBUSY`/`EPERM`/`EACCES`), with guaranteed `.tmp` cleanup on failure.
 
 ---
 
@@ -95,6 +98,9 @@ Keypress
 - **Bounded caches & virtualized rendering**:
   - `LruCache` (`src/render/lru.ts`) caps Markdown renders at 256 entries (`mdCache`, keyed with `colorLevel`) and TeX math conversions at 512 entries (`mathCache`).
   - `ReviewView` caps card translations at 32 entries; `store.ts` caps navigation history (24) and toasts (4); `TasksView` caps logs (200 lines); `cli-highlight` loads lazily on fenced code blocks; `VirtualList` windows long lists to viewport height.
+- **Fast-path CJK width & math/Markdown rendering (`src/render/cjk.ts`, `src/render/math.ts`, `src/render/markdown.ts`)**:
+  - `src/render/cjk.ts` uses a zero-allocation BMP fast-path (`fastBmpWidth` / `bmpCharWidth`) that bypasses `Intl.Segmenter` and ANSI regex scanning for safe non-combining BMP strings, delivering `~2x` speedup on `displayWidth` / `truncateDisplay` and faster Markdown line wrapping.
+  - `src/render/math.ts` (and `src/render/markdown.ts`) short-circuit plain-text / plain-prose inputs without LaTeX or Markdown control tokens before invoking full parser passes.
 - **`NO_COLOR=1` & cached `makeChalk(level)` (`src/theme/tokens.ts`)**:
   - `resolveColorCapability` maps `NO_COLOR`, `FORCE_COLOR`, `TERM=dumb`, TTY state, `WT_SESSION`, and `COLORTERM` to `ColorLevel` (`0–3`).
   - `makeChalk(level)` memoizes `ChalkInstance` objects in `CHALK_CACHE` per `ColorLevel` to avoid per-render `new Chalk({ level })` allocations.
