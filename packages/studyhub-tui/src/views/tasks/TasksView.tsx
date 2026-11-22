@@ -681,7 +681,8 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
           const lines = calls.map((c) => {
             const inTok = c.tokenUsage?.uncachedInputTokens ?? 0;
             const outTok = c.tokenUsage?.outputTokens ?? 0;
-            const tok = inTok || outTok ? ` · ${inTok}→${outTok} tok` : '';
+            const arrow = asciiMode ? '->' : '→';
+            const tok = inTok || outTok ? ` · ${inTok}${arrow}${outTok} tok` : '';
             return `[${c.status || 'ok'}] ${c.stage || c.purpose || c.callId || 'call'} (${c.model || 'model'}${tok})`;
           });
           setTraceLines(lines.slice(-MAX_LOG_LINES));
@@ -886,19 +887,29 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
           <Box flexGrow={1} />
           {hasActiveJobs ? (
             <Box flexShrink={0}>
-              <Spinner label={narrowBar ? '' : t(lang, '实时刷新中…', 'Live…')} />
+              <Spinner label={narrowBar ? '' : asciiMode ? t(lang, '实时刷新中...', 'Live...') : t(lang, '实时刷新中…', 'Live…')} />
             </Box>
           ) : !narrowBar ? (
             <Box flexShrink={0}>
-              <Text color={theme.dim} wrap="truncate-end">{t(lang, 'Tab 筛选 · w 历史学习流 · v 轨迹', 'Tab filter · w Workflows · v Trace')}</Text>
+              <Text color={theme.dim} wrap={asciiMode ? undefined : 'truncate-end'}>
+                {truncateDisplay(
+                  t(lang, 'Tab 筛选 · w 历史学习流 · v 轨迹', 'Tab filter · w Workflows · v Trace'),
+                  Math.max(8, width - 52),
+                  asciiMode ? '...' : '…',
+                )}
+              </Text>
             </Box>
           ) : null}
         </Box>
-        <Text color={theme.dim} wrap="truncate-end">
-          {t(
-            lang,
-            '监控后台任务；[o] 输出弹窗 · [m] 补充要求 · [w] 历史学习流 · Enter 打开草稿',
-            'Monitor jobs; [o] Output · [m] Message · [w] Workflows · Enter Open Draft',
+        <Text color={theme.dim} wrap={asciiMode ? undefined : 'truncate-end'}>
+          {truncateDisplay(
+            t(
+              lang,
+              '监控后台任务；[o] 输出弹窗 · [m] 补充要求 · [w] 历史学习流 · Enter 打开草稿',
+              'Monitor jobs; [o] Output · [m] Message · [w] Workflows · Enter Open Draft',
+            ),
+            Math.max(10, width - 2),
+            asciiMode ? '...' : '…',
           )}
         </Text>
       </Box>

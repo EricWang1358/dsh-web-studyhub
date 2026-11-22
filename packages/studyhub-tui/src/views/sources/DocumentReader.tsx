@@ -82,6 +82,7 @@ export const DocumentReader = memo(function DocumentReader({
 }: DocumentReaderProps) {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const mathUnicode = useTuiStore((s) => s.preferences.mathUnicode);
   const setPreferences = useTuiStore((s) => s.setPreferences);
   const navigate = useTuiStore((s) => s.navigate);
@@ -339,14 +340,14 @@ export const DocumentReader = memo(function DocumentReader({
             if (res.ok && res.value) {
               setAiAnswer(String(res.value.answer ?? res.value.message ?? ''));
             } else {
-              setAiAnswer(`✕ ${res.error?.message || t(lang, 'AI 回答失败', 'AI request failed')}`);
+              setAiAnswer(`${asciiMode ? 'x' : '✕'} ${res.error?.message || t(lang, 'AI 回答失败', 'AI request failed')}`);
             }
             finishAiAnswer();
           }
         }
       } catch (err) {
         if (!ac.signal.aborted) {
-          setAiAnswer(`✕ ${errorMessage(err)}`);
+          setAiAnswer(`${asciiMode ? 'x' : '✕'} ${errorMessage(err)}`);
           finishAiAnswer();
         }
       } finally {
@@ -421,7 +422,7 @@ export const DocumentReader = memo(function DocumentReader({
       }
     } catch (err) {
       if (!ac.signal.aborted) {
-        setTranslationText(`✕ ${errorMessage(err)}`);
+        setTranslationText(`${asciiMode ? 'x' : '✕'} ${errorMessage(err)}`);
         finishTranslation();
       }
     } finally {
@@ -723,7 +724,7 @@ export const DocumentReader = memo(function DocumentReader({
         >
           {loading ? (
             <Box padding={1}>
-              <Spinner label={t(lang, '正在读取页面内容…', 'Loading page…')} />
+              <Spinner label={asciiMode ? t(lang, '正在读取页面内容...', 'Loading page...') : t(lang, '正在读取页面内容…', 'Loading page…')} />
             </Box>
           ) : loadError ? (
             <Box padding={1}>
@@ -758,13 +759,17 @@ export const DocumentReader = memo(function DocumentReader({
         {subMode === 'ask-view' ? (
           <Panel
             title={t(lang, 'AI 讲解', 'AI Answer')}
-            icon="✦"
+            icon={asciiMode ? '*' : '✦'}
             tone="ai"
             subtitle={
               aiBusy
-                ? t(lang, '生成中… Esc 中止', 'Streaming… Esc abort')
+                ? asciiMode
+                  ? t(lang, '生成中... Esc 中止', 'Streaming... Esc abort')
+                  : t(lang, '生成中… Esc 中止', 'Streaming… Esc abort')
                 : savingNote
-                  ? t(lang, '保存中…', 'Saving…')
+                  ? asciiMode
+                    ? t(lang, '保存中...', 'Saving...')
+                    : t(lang, '保存中…', 'Saving…')
                   : t(lang, 's 存笔记 · Esc 返回', 's Save Note · Esc Back')
             }
             width={auxW}
@@ -772,7 +777,7 @@ export const DocumentReader = memo(function DocumentReader({
             focused
           >
             <MarkdownView
-              markdown={aiAnswer || (aiBusy ? t(lang, '_正在思考…_', '_Thinking…_') : '')}
+              markdown={aiAnswer || (aiBusy ? (asciiMode ? t(lang, '_正在思考..._', '_Thinking..._') : t(lang, '_正在思考…_', '_Thinking…_')) : '')}
               width={Math.max(12, auxW - 4)}
               height={Math.max(2, auxH - 2)}
               isActive={readerInputActive && subMode === 'ask-view'}
@@ -787,13 +792,13 @@ export const DocumentReader = memo(function DocumentReader({
             title={t(lang, '双语对照翻译', 'Bilingual Translation')}
             icon="译"
             tone="info"
-            subtitle={translateBusy ? t(lang, '翻译中… Esc 中止', 'Translating… Esc abort') : 'Esc 返回'}
+            subtitle={translateBusy ? (asciiMode ? t(lang, '翻译中... Esc 中止', 'Translating... Esc abort') : t(lang, '翻译中… Esc 中止', 'Translating… Esc abort')) : 'Esc 返回'}
             width={auxW}
             height={auxH}
             focused
           >
             <MarkdownView
-              markdown={translationText || (translateBusy ? t(lang, '_正在翻译当前页…_', '_Translating current page…_') : '')}
+              markdown={translationText || (translateBusy ? (asciiMode ? t(lang, '_正在翻译当前页..._', '_Translating current page..._') : t(lang, '_正在翻译当前页…_', '_Translating current page…_')) : '')}
               width={Math.max(12, auxW - 4)}
               height={Math.max(2, auxH - 2)}
               isActive={readerInputActive && subMode === 'translate-view'}

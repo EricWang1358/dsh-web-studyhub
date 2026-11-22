@@ -444,7 +444,7 @@ export const ExamView: React.FC<ViewProps> = memo(function ExamView({
       <Suspense
         fallback={
           <Box paddingX={1} paddingY={1}>
-            <Spinner label={t(lang, '正在载入考场…', 'Loading exam runner…')} active={isActive} />
+            <Spinner label={useTuiStore.getState().preferences.asciiMode ? t(lang, '正在载入考场...', 'Loading exam runner...') : t(lang, '正在载入考场…', 'Loading exam runner…')} active={isActive} />
           </Box>
         }
       >
@@ -482,7 +482,7 @@ export const ExamView: React.FC<ViewProps> = memo(function ExamView({
       <Suspense
         fallback={
           <Box paddingX={1} paddingY={1}>
-            <Spinner label={t(lang, '正在载入成绩报告…', 'Loading exam report…')} active={isActive} />
+            <Spinner label={useTuiStore.getState().preferences.asciiMode ? t(lang, '正在载入成绩报告...', 'Loading exam report...') : t(lang, '正在载入成绩报告…', 'Loading exam report…')} active={isActive} />
           </Box>
         }
       >

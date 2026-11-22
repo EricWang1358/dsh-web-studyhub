@@ -672,11 +672,11 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
           width={size.width}
           height={size.height}
         >
-          {loading ? (
-            <Box height={listH} alignItems="center" justifyContent="center">
-              <Spinner label={t(lang, '正在加载错题本…', 'Loading mistakes…')} active={isActive} />
-            </Box>
-          ) : loadError ? (
+            {loading ? (
+              <Box height={listH} alignItems="center" justifyContent="center">
+                <Spinner label={asciiMode ? t(lang, '正在加载错题本...', 'Loading mistakes...') : t(lang, '正在加载错题本…', 'Loading mistakes…')} active={isActive} />
+              </Box>
+            ) : loadError ? (
             <EmptyState
               title={t(lang, '加载错题本失败', 'Failed to load mistakes')}
               hint={loadError}
@@ -798,8 +798,17 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
             <Box height={1} overflow="hidden">
               <Text color={theme.dim}>
                 {truncateDisplay(
-                  `${t(lang, '题型', 'Kind')}: ${selectedItem.kind || '-'}  ·  ${t(lang, '数学符号', 'Math')}: ${mathUnicode ? 'Unicode' : 'LaTeX'} [m]  ·  ${detailScrollActive ? t(lang, 'j/k 滚动  ← 返回列表', 'j/k scroll  ← list') : t(lang, 'J/K 滚详情  → 专注详情', 'J/K scroll  → focus')}`,
+                  `${t(lang, '题型', 'Kind')}: ${selectedItem.kind || '-'}  ·  ${t(lang, '数学符号', 'Math')}: ${mathUnicode ? 'Unicode' : 'LaTeX'} [m]  ·  ${
+                    detailScrollActive
+                      ? asciiMode
+                        ? t(lang, 'j/k 滚动  < 返回列表', 'j/k scroll  < list')
+                        : t(lang, 'j/k 滚动  ← 返回列表', 'j/k scroll  ← list')
+                      : asciiMode
+                        ? t(lang, 'J/K 滚详情  > 专注详情', 'J/K scroll  > focus')
+                        : t(lang, 'J/K 滚详情  → 专注详情', 'J/K scroll  → focus')
+                  }`,
                   innerW,
+                  asciiMode ? '...' : '…',
                 )}
               </Text>
             </Box>
@@ -834,7 +843,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
           <Box height={mdHeight} width={innerW} overflow="hidden">
             {detailLoading && !detail ? (
               <Box height={mdHeight} alignItems="center" justifyContent="center">
-                <Spinner label={t(lang, '加载题目详情…', 'Loading detail…')} active={isActive} />
+                <Spinner label={asciiMode ? t(lang, '加载题目详情...', 'Loading detail...') : t(lang, '加载题目详情…', 'Loading detail…')} active={isActive} />
               </Box>
             ) : (
               <MarkdownView
@@ -858,6 +867,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
                     return `[o] ${t(lang, '跳转原文', 'Source')}: ${cit?.title || cit?.sourceId || ''}${cit?.page != null ? ` p.${cit.page}` : ''}`;
                   })(),
                   innerW,
+                  asciiMode ? '...' : '…',
                 )}
               </Text>
             </Box>
@@ -956,21 +966,23 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
       detailScrollTop,
       relatedRecs,
       selectedMap.size,
+      asciiMode,
     ],
   );
 
   // Reason Modal options
   const reasonOptions = useMemo<Array<SelectOption<string>>>(() => {
+    const arrow = asciiMode ? '->' : '→';
     const opts: Array<SelectOption<string>> = ERROR_REASONS.map((r) => ({
       value: r.id,
       label: t(lang, r.zh, r.en),
       hint:
         r.id === 'concept'
-          ? t(lang, '易混概念 → 0-token 对比辨析 / 全书梳理', 'Confusable → 0-token contrast / Book')
+          ? t(lang, `易混概念 ${arrow} 0-token 对比辨析 / 全书梳理`, `Confusable ${arrow} 0-token contrast / Book`)
           : r.id === 'prerequisite'
-            ? t(lang, '前置未稳 → 0-token 先练前置题', 'Gap → 0-token prerequisite branch')
+            ? t(lang, `前置未稳 ${arrow} 0-token 先练前置题`, `Gap ${arrow} 0-token prerequisite branch`)
             : r.id === 'slip'
-              ? t(lang, '粗心失误 → 仅按 FSRS 排程', 'Slip → FSRS spacing only')
+              ? t(lang, `粗心失误 ${arrow} 仅按 FSRS 排程`, `Slip ${arrow} FSRS spacing only`)
               : undefined,
       badge: reasonShort(r.id, lang),
       badgeTone: r.tone,
@@ -978,11 +990,11 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
     opts.push({
       value: '__clear__',
       label: t(lang, '清除错因标记', 'Clear error reason'),
-      badge: '×',
+      badge: asciiMode ? 'x' : '×',
       badgeTone: 'muted',
     });
     return opts;
-  }, [lang]);
+  }, [lang, asciiMode]);
 
   const reasonCountsSummary = useMemo(() => {
     const map = new Map<ReasonFilterValue, number>();
@@ -1100,7 +1112,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
         <Modal
           title={t(lang, '选择错因分类', 'Set Error Reason')}
           subtitle={selectedItem.topic || selectedItem.deckTitle}
-          icon="✎"
+          icon={asciiMode ? '#' : '✎'}
           tone="accent"
           width={Math.min(68, width - 4)}
           onClose={() => setActiveModal(null)}
@@ -1159,7 +1171,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
         <Modal
           title={t(lang, '标记题目待修题', 'Flag Question for Repair')}
           subtitle={selectedItem.deckTitle}
-          icon="⚑"
+          icon={asciiMode ? '!' : '⚑'}
           tone="error"
           width={Math.min(68, width - 4)}
           onClose={() => setActiveModal(null)}
@@ -1211,6 +1223,7 @@ const ConfusableContrastModal = memo(function ConfusableContrastModal({
   onOpenBook,
 }: ConfusableContrastModalProps) {
   const theme = useTheme();
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const pair = item.triage?.confusable;
   const innerW = modalContentWidth(width);
   const names = (pair?.names ?? []).filter(Boolean);
@@ -1228,7 +1241,7 @@ const ConfusableContrastModal = memo(function ConfusableContrastModal({
     <Modal
       title={t(lang, `0-token 易混对比 · ${pair?.id || 'C001'}`, `0-token Contrast · ${pair?.id || 'C001'}`)}
       subtitle={names.join(' vs ') || item.topic || ''}
-      icon="⇄"
+      icon={asciiMode ? '<>' : '⇄'}
       tone="warning"
       width={width}
       onClose={onClose}

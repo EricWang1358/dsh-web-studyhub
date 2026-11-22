@@ -52,13 +52,12 @@ import {
   type CardOptionItem,
   type CardTranslation,
 } from './review-helpers.js';
-import { RoundSummary } from './RoundSummary.js';
-
 const AiHelpDrawer = lazy(() => import('./AiHelpDrawer.js').then((m) => ({ default: m.AiHelpDrawer })));
 const AnswerCardModal = lazy(() => import('./AnswerCardModal.js').then((m) => ({ default: m.AnswerCardModal })));
 const CardToolsModal = lazy(() => import('./CardToolsModal.js').then((m) => ({ default: m.CardToolsModal })));
 const QueueModal = lazy(() => import('./QueueModal.js').then((m) => ({ default: m.QueueModal })));
 const RetellModal = lazy(() => import('./RetellModal.js').then((m) => ({ default: m.RetellModal })));
+const RoundSummary = lazy(() => import('./RoundSummary.js').then((m) => ({ default: m.RoundSummary })));
 const SimilarCardsModal = lazy(() => import('./SimilarCardsModal.js').then((m) => ({ default: m.SimilarCardsModal })));
 const TeachModal = lazy(() => import('./TeachModal.js').then((m) => ({ default: m.TeachModal })));
 
@@ -1040,17 +1039,32 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
 
   if (isFinished) {
     return (
-      <RoundSummary
-        host={host}
-        run={run}
-        width={width}
-        height={height}
-        isActive={isActive}
-        mathUnicode={mathUnicode}
-        onPracticeWeak={handlePracticeWeak}
-        onNewRound={() => void loadInitialRun(true)}
-        onGoLibrary={() => navigate('library')}
-      />
+      <Suspense
+        fallback={
+          <Box paddingX={1} paddingY={1}>
+            <Spinner
+              label={t(
+                lang,
+                asciiMode ? '正在载入总结...' : '正在载入总结…',
+                asciiMode ? 'Loading summary...' : 'Loading summary…',
+              )}
+              active={isActive}
+            />
+          </Box>
+        }
+      >
+        <RoundSummary
+          host={host}
+          run={run}
+          width={width}
+          height={height}
+          isActive={isActive}
+          mathUnicode={mathUnicode}
+          onPracticeWeak={handlePracticeWeak}
+          onNewRound={() => void loadInitialRun(true)}
+          onGoLibrary={() => navigate('library')}
+        />
+      </Suspense>
     );
   }
 

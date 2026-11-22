@@ -46,7 +46,7 @@ export const Launchpad = memo(function Launchpad({ width, height, isActive }: La
   const snapshot = useTuiStore((s) => s.snapshot);
   const root = binding?.root ?? snapshot?.root ?? cfg?.libraryRoot ?? '';
   const agy = detectAgy(cfg);
-  const model = modelInfo(cfg, binding, snapshot);
+  const model = modelInfo(cfg, binding, snapshot, asciiMode);
   const envKey = process.env.DEEPSEEK_API_KEY ? 'DEEPSEEK_API_KEY' : process.env.OPENAI_API_KEY ? 'OPENAI_API_KEY' : null;
 
   useInput(

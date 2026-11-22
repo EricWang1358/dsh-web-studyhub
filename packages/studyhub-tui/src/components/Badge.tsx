@@ -257,7 +257,7 @@ const ToastRow = memo(function ToastRow({
   const icon = (asciiMode ? ASCII_TOAST_ICON : TOAST_ICON)[toast.tone];
   return (
     <Box height={1} overflow="hidden">
-      <Text backgroundColor={theme.surface} wrap="truncate-end">
+      <Text backgroundColor={theme.surface} wrap={asciiMode ? undefined : 'truncate-end'}>
         <Text color={color} bold>{`${bar} ${icon} `}</Text>
         <Text color={theme.text}>{`${text} `}</Text>
       </Text>

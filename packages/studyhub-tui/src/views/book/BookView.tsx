@@ -552,7 +552,10 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
   if (loading && !bookData && !tocData) {
     return (
       <Box width={width} height={height} alignItems="center" justifyContent="center">
-        <Spinner label={t(lang, '正在打开复习全书…', 'Opening review book…')} active={isActive} />
+        <Spinner
+          label={asciiMode ? t(lang, '正在打开复习全书...', 'Opening review book...') : t(lang, '正在打开复习全书…', 'Opening review book…')}
+          active={isActive}
+        />
       </Box>
     );
   }
@@ -585,7 +588,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
           </Text>
           {effectiveCourse ? <Badge label={effectiveCourse} tone="accent" variant="soft" /> : null}
           {bookData?.outdated ? <Badge label={t(lang, '资料有更新', 'Outdated')} tone="warning" variant="outline" /> : null}
-          {busyAction ? <Spinner label={t(lang, '处理中…', 'Working…')} active={isActive} /> : null}
+          {busyAction ? <Spinner label={asciiMode ? t(lang, '处理中...', 'Working...') : t(lang, '处理中…', 'Working…')} active={isActive} /> : null}
         </Box>
         <Box gap={1}>
           <Badge
@@ -661,14 +664,14 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
                 renderItem={(it, ctx) => {
                   const indent = '  '.repeat(Math.max(0, it.depth - 1));
                   const tags = [
-                    it.hasQa ? '✎' : '',
+                    it.hasQa ? (asciiMode ? '*' : '✎') : '',
                     it.short ? '·' : '',
                     it.questionTotal > 0 ? `${it.questionTotal}` : '',
                   ]
                     .filter(Boolean)
                     .join(' ');
                   const tagReserve = tags ? tags.length + 1 : 0;
-                  const labelText = truncateDisplay(`${indent}${it.number} ${it.title}`, Math.max(8, ctx.width - tagReserve));
+                  const labelText = truncateDisplay(`${indent}${it.number} ${it.title}`, Math.max(8, ctx.width - tagReserve), asciiMode ? '...' : '…');
                   return (
                     <Box width={ctx.width} justifyContent="space-between">
                       <Text
@@ -709,7 +712,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
         <Modal
           title={t(lang, '构建 / 重建复习全书', 'Build Outline & Review Book')}
           subtitle={effectiveCourse ?? undefined}
-          icon="▣"
+          icon={asciiMode ? '=' : '▣'}
           onClose={() => setBuildModalOpen(false)}
           isActive={isActive}
           width={Math.min(72, Math.max(44, width - 6))}

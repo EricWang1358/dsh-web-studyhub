@@ -417,7 +417,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
       <Box height={1} width={width} justifyContent="space-between" paddingX={1}>
         <Box gap={1}>
           <Text color={theme.primary} bold>
-            {`⚑ ${t(lang, '备考补习', 'Exam Prep')}`}
+            {`${asciiMode ? '^' : '⚑'} ${t(lang, '备考补习', 'Exam Prep')}`}
           </Text>
           <Badge label={course || t(lang, '未选课程', 'No Course')} tone="accent" variant="soft" />
           {crunch?.daysLeft !== undefined && crunch.daysLeft !== null ? (
@@ -463,20 +463,20 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
       <Divider width={width} />
       {errorMsg ? (
         <Box height={1} width={width} paddingX={1}>
-          <Text color={theme.error}>{`✕ ${truncateDisplay(errorMsg, Math.max(10, width - 4))}`}</Text>
+          <Text color={theme.error}>{`${asciiMode ? '!' : '✕'} ${truncateDisplay(errorMsg, Math.max(10, width - 4), asciiMode ? '...' : '…')}`}</Text>
         </Box>
       ) : null}
 
       {/* Body */}
       {loading && !progress && !crunch ? (
         <Box flexGrow={1} alignItems="center" justifyContent="center">
-          <Spinner label={t(lang, '正在加载备考重点…', 'Loading exam prep…')} active={isActive} />
+          <Spinner label={asciiMode ? t(lang, '正在加载备考重点...', 'Loading exam prep...') : t(lang, '正在加载备考重点…', 'Loading exam prep…')} active={isActive} />
         </Box>
       ) : tab === 'focus' ? (
         topics.length === 0 ? (
           <Box flexDirection="column" height={bodyH} width={width} padding={1}>
             <EmptyState
-              icon="⚑"
+              icon={asciiMode ? '^' : '⚑'}
               title={t(lang, '尚未添加本课程考纲重点', 'No Exam Focus Points Yet')}
               hint={t(lang, '按 [a] 粘贴划重点文字或输入截图路径，自动提炼并追踪掌握度与补题缺口。', 'Press [a] to paste syllabus text or enter a screenshot path to extract focus points.')}
               actions={[
@@ -530,7 +530,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
                             : theme.text;
                     return (
                       <Text color={fg} bold={ctx.selected}>
-                        {`${padDisplay(truncateDisplay(tp.topic, nameW), nameW)} ${right}`}
+                        {`${padDisplay(truncateDisplay(tp.topic, nameW, asciiMode ? '...' : '…'), nameW)} ${right}`}
                       </Text>
                     );
                   }}
@@ -539,7 +539,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
             )}
             right={(sz) => (
               <Panel
-                title={selectedTopic ? truncateDisplay(selectedTopic.topic, Math.max(10, sz.width - 14)) : t(lang, '详情', 'Detail')}
+                title={selectedTopic ? truncateDisplay(selectedTopic.topic, Math.max(10, sz.width - 14), asciiMode ? '...' : '…') : t(lang, '详情', 'Detail')}
                 focused={focusPane === 'right'}
                 width={sz.width}
                 height={sz.height}
@@ -579,7 +579,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
       ) : crunchPoints.length === 0 ? (
         <Box flexDirection="column" height={bodyH} width={width} padding={1}>
           <EmptyState
-            icon="▣"
+            icon={asciiMode ? '=' : '▣'}
             title={crunchStatusLabel(crunch?.status || 'no-book', lang)}
             hint={t(lang, '前往「复习全书」生成复习全书并设置考试日期后，这里会生成每日冲刺清单。', 'Build a Review Book and set an exam date to unlock the crunch list.')}
             actions={[
@@ -616,13 +616,13 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
                 onChange={setCrunchIdx}
                 isActive={isActive && !modalOpen && focusPane === 'left'}
                 renderItem={(pt, ctx) => {
-                  const mark = pt.done ? '✓' : pt.seen ? '◐' : '○';
+                  const mark = asciiMode ? (pt.done ? '+' : pt.seen ? '~' : 'o') : (pt.done ? '✓' : pt.seen ? '◐' : '○');
                   const tag = `${pt.questions ?? 0}题${pt.weak ? `/${pt.weak}错` : ''}`;
                   const tagW = displayWidth(tag) + 1;
                   const titleW = Math.max(6, ctx.width - tagW - 2);
                   return (
                     <Text color={ctx.selected ? theme.selectionFg : pt.done ? theme.success : pt.weak ? theme.warning : theme.text} bold={ctx.selected}>
-                      {`${mark} ${padDisplay(truncateDisplay(pt.title, titleW), titleW)} ${tag}`}
+                      {`${mark} ${padDisplay(truncateDisplay(pt.title, titleW, asciiMode ? '...' : '…'), titleW)} ${tag}`}
                     </Text>
                   );
                 }}
@@ -631,7 +631,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
           )}
           right={(sz) => (
             <Panel
-              title={selectedCrunch ? truncateDisplay(selectedCrunch.title, Math.max(10, sz.width - 14)) : t(lang, '详情', 'Detail')}
+              title={selectedCrunch ? truncateDisplay(selectedCrunch.title, Math.max(10, sz.width - 14), asciiMode ? '...' : '…') : t(lang, '详情', 'Detail')}
               subtitle={t(lang, 'Space已看 m读完 p模考', 'Space:Seen m:Read p:Mock')}
               focused={focusPane === 'right'}
               width={sz.width}
@@ -640,7 +640,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
               {selectedCrunch ? (
                 <Box flexDirection="column" gap={1}>
                   <Box gap={1}>
-                    <Badge label={selectedCrunch.done ? t(lang, '已读完', 'Read ✓') : t(lang, '未读完', 'Unread')} tone={selectedCrunch.done ? 'success' : 'muted'} />
+                    <Badge label={selectedCrunch.done ? t(lang, '已读完', asciiMode ? 'Read +' : 'Read ✓') : t(lang, '未读完', 'Unread')} tone={selectedCrunch.done ? 'success' : 'muted'} />
                     <Badge label={selectedCrunch.seen ? t(lang, '已翻看', 'Seen') : t(lang, '未翻看', 'Unseen')} tone={selectedCrunch.seen ? 'info' : 'muted'} variant="soft" />
                     {selectedCrunch.examDay?.band ? (
                       <Badge
@@ -660,7 +660,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
                     <Box flexDirection="column">
                       <Text color={theme.warning} bold>{t(lang, '易错点提醒', 'Pitfalls')}:</Text>
                       {selectedCrunch.pitfalls.slice(0, 5).map((pf, i) => (
-                        <Text key={i} color={theme.muted}>{truncateDisplay(`• ${pf}`, Math.max(10, sz.width - 4))}</Text>
+                        <Text key={i} color={theme.muted}>{truncateDisplay(`${asciiMode ? '*' : '•'} ${pf}`, Math.max(10, sz.width - 4), asciiMode ? '...' : '…')}</Text>
                       ))}
                     </Box>
                   ) : null}

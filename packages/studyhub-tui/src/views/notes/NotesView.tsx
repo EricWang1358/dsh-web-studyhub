@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { Box, Text, useInput } from 'ink';
@@ -24,7 +24,6 @@ import { displayWidth, padDisplay, truncateDisplay } from '../../render/index.js
 import { currentCourse, useShellActions } from '../../shell/index.js';
 import { t, useTuiStore } from '../../state/store.js';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';
-import { NoteEditorModal } from './NoteEditorModal.js';
 import {
   defaultExportPath,
   expandUserPath,
@@ -37,6 +36,8 @@ import {
   type DailyRecapStatus,
   type NoteItem,
 } from './notes-types.js';
+
+const NoteEditorModal = lazy(() => import('./NoteEditorModal.js').then((m) => ({ default: m.NoteEditorModal })));
 
 type ActiveModal =
   | null
@@ -847,31 +848,33 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
         }}
       />
 
-      {modal?.type === 'create' || modal?.type === 'edit' ? (
-        <NoteEditorModal
-          mode={modal.type}
-          host={host}
-          lang={lang}
-          note={modal.type === 'edit' ? modal.note : null}
-          focusCourse={focusCourse}
-          availableDecks={decksForModal}
-          terminalRows={height}
-          terminalCols={width}
-          onClose={() => setModal(null)}
-          onSaved={(saved, created) => {
-            setModal(null);
-            pendingSelectIdRef.current = saved.id;
-            setSelectedId(saved.id);
-            setActiveNote(saved);
-            notify(
-              created ? t(lang, `已创建笔记「${saved.title}」`, `Created "${saved.title}"`) : t(lang, '笔记已保存', 'Note saved'),
-              'success',
-            );
-            void fetchNotesAndDaily(true);
-            void refreshSnapshot();
-          }}
-        />
-      ) : null}
+      <Suspense fallback={null}>
+        {modal?.type === 'create' || modal?.type === 'edit' ? (
+          <NoteEditorModal
+            mode={modal.type}
+            host={host}
+            lang={lang}
+            note={modal.type === 'edit' ? modal.note : null}
+            focusCourse={focusCourse}
+            availableDecks={decksForModal}
+            terminalRows={height}
+            terminalCols={width}
+            onClose={() => setModal(null)}
+            onSaved={(saved, created) => {
+              setModal(null);
+              pendingSelectIdRef.current = saved.id;
+              setSelectedId(saved.id);
+              setActiveNote(saved);
+              notify(
+                created ? t(lang, `已创建笔记「${saved.title}」`, `Created "${saved.title}"`) : t(lang, '笔记已保存', 'Note saved'),
+                'success',
+              );
+              void fetchNotesAndDaily(true);
+              void refreshSnapshot();
+            }}
+          />
+        ) : null}
+      </Suspense>
 
       {modal?.type === 'export' ? (
         <Modal

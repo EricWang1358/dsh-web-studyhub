@@ -68,6 +68,8 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
 }) {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const ell = asciiMode ? '...' : '…';
   const snapshot = useTuiStore((s) => s.snapshot);
   const binding = useTuiStore((s) => s.binding);
   const desktopConfig = useTuiStore((s) => s.desktopConfig);
@@ -84,8 +86,8 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
   }, [navContext.draftId]);
 
   const model = useMemo(
-    () => modelInfo(desktopConfig, binding, snapshot),
-    [desktopConfig, binding, snapshot],
+    () => modelInfo(desktopConfig, binding, snapshot, asciiMode),
+    [desktopConfig, binding, snapshot, asciiMode],
   );
 
   const courses = useMemo(() => listCourses(snapshot), [snapshot]);
@@ -339,20 +341,20 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
       <Box height={tabBarH} width={width} paddingX={1} flexDirection="column">
         <Box flexDirection="row" alignItems="center">
           <Badge
-            label={`✦ ${t(lang, '新建出题任务', 'New Generation')}`}
+            label={`${asciiMode ? '+' : '✦'} ${t(lang, '新建出题任务', 'New Generation')}`}
             tone={tab === 'new' ? 'primary' : 'muted'}
             variant={tab === 'new' ? 'solid' : 'outline'}
           />
           <Text> </Text>
           <Badge
-            label={`▤ ${t(lang, '草稿箱', 'Drafts')} (${draftCount})`}
+            label={`${asciiMode ? '#' : '▤'} ${t(lang, '草稿箱', 'Drafts')} (${draftCount})`}
             tone={tab === 'drafts' ? 'primary' : 'muted'}
             variant={tab === 'drafts' ? 'solid' : 'outline'}
           />
           <Text color={theme.dim}>  [Tab]</Text>
           <Box flexGrow={1} />
           <Badge
-            label={`${model.icon} ${model.provider}${model.model ? ` · ${model.model}` : ''}`}
+            label={`${model.icon} ${model.provider}${model.model ? `${asciiMode ? ' - ' : ' · '}${model.model}` : ''}`}
             tone={model.ready ? 'success' : 'warning'}
             variant="soft"
           />
@@ -362,7 +364,7 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
         </Box>
         {!model.ready && tab === 'new' ? (
           <Text color={theme.warning}>
-            {`⚠ ${t(lang, '模型尚未就绪', 'Model not ready')}${model.reason ? `: ${model.reason}` : ''} — ${t(lang, '按 [S] 打开模型设置', 'Press [S] to configure')}`}
+            {`${asciiMode ? '!' : '⚠'} ${t(lang, '模型尚未就绪', 'Model not ready')}${model.reason ? `: ${model.reason}` : ''} ${asciiMode ? '-' : '—'} ${t(lang, '按 [S] 打开模型设置', 'Press [S] to configure')}`}
           </Text>
         ) : (
           <Text color={theme.dim}>
@@ -371,6 +373,7 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
                 ? t(lang, '勾选资料后 [Enter]/[Ctrl+S] 出题 · [i] 录题', 'Select sources + [Enter]/[Ctrl+S] to generate · [i] Capture')
                 : t(lang, '审核、修改或发布生成的题目草稿', 'Review, edit or publish generated drafts'),
               Math.max(12, width - 2),
+              ell,
             )}
           </Text>
         )}
@@ -382,7 +385,10 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
           <Suspense
             fallback={
               <Box paddingX={1} paddingY={1}>
-                <Spinner label={t(lang, '正在载入草稿编辑器…', 'Loading draft editor…')} active={isActive} />
+                <Spinner
+                  label={asciiMode ? t(lang, '正在载入草稿编辑器...', 'Loading draft editor...') : t(lang, '正在载入草稿编辑器…', 'Loading draft editor…')}
+                  active={isActive}
+                />
               </Box>
             }
           >
@@ -428,16 +434,26 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
                     keyExtractor={(d) => d.key}
                     renderItem={(doc, ctx) => {
                       const pickedCount = doc.sourceIds.filter((id) => selectedSourceIds.has(id)).length;
-                      const check = pickedCount === doc.sourceIds.length ? '☑' : pickedCount > 0 ? '◐' : '☐';
+                      const check = asciiMode
+                        ? pickedCount === doc.sourceIds.length
+                          ? '[x]'
+                          : pickedCount > 0
+                            ? '[~]'
+                            : '[ ]'
+                        : pickedCount === doc.sourceIds.length
+                          ? '☑'
+                          : pickedCount > 0
+                            ? '◐'
+                            : '☐';
                       const fmt = formatLabel(doc.format);
                       const meta = `${doc.pageCount}p`;
-                      const titleMax = Math.max(8, ctx.width - fmt.length - meta.length - 8);
+                      const titleMax = Math.max(8, ctx.width - fmt.length - meta.length - (asciiMode ? 10 : 8));
                       return (
                         <Box flexDirection="row" width={ctx.width}>
                           <Text color={pickedCount > 0 ? theme.success : theme.muted}>{`${check} `}</Text>
                           <Text color={theme.accent}>{`[${fmt}] `}</Text>
                           <Text color={theme.text} bold={ctx.selected}>
-                            {truncateDisplay(doc.title, titleMax)}
+                            {truncateDisplay(doc.title, titleMax, ell)}
                           </Text>
                           <Box flexGrow={1} />
                           <Text color={theme.dim}>{meta}</Text>
@@ -504,10 +520,10 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
                     {effectiveSourceIds.length === 0 ? (
                       <Text color={theme.dim}>{t(lang, '勾选左侧资料后自动估算', 'Select materials to estimate')}</Text>
                     ) : estimate.loading ? (
-                      <Spinner label={t(lang, '正在计算预估用量…', 'Estimating…')} />
+                      <Spinner label={asciiMode ? t(lang, '正在计算预估用量...', 'Estimating...') : t(lang, '正在计算预估用量…', 'Estimating…')} />
                     ) : estimate.tokensHigh ? (
                       <Text color={theme.info}>
-                        {`≈ ${(estimate.tokensLow ?? 0).toLocaleString()}–${estimate.tokensHigh.toLocaleString()} tokens` +
+                        {`${asciiMode ? '~' : '≈'} ${(estimate.tokensLow ?? 0).toLocaleString()}-${estimate.tokensHigh.toLocaleString()} tokens` +
                           (estimate.calls ? ` · ${estimate.calls} ${t(lang, '次调用', 'calls')}` : '')}
                       </Text>
                     ) : (
@@ -517,7 +533,7 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
 
                   <Box marginTop={1}>
                     {submitting ? (
-                      <Spinner label={t(lang, '正在提交后台出题任务…', 'Submitting generation job…')} />
+                      <Spinner label={asciiMode ? t(lang, '正在提交后台出题任务...', 'Submitting generation job...') : t(lang, '正在提交后台出题任务…', 'Submitting generation job…')} />
                     ) : (
                       <Badge
                         label={t(lang, '按 [Enter] 或 [Ctrl+S] 开始出题', 'Press [Enter] or [Ctrl+S] to Generate')}
@@ -553,7 +569,7 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
               onCancel={() => setOverlay('none')}
               width={modalContentWidth(56) - 4}
               isActive={isActive}
-              prompt="›"
+              prompt={asciiMode ? '>' : '›'}
             />
           </Box>
         </Modal>

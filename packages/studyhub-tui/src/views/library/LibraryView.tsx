@@ -754,7 +754,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
 
             {compactDetail ? (
               <Box flexDirection="column">
-                <Text wrap="truncate-end">
+                <Text wrap={asciiMode ? undefined : 'truncate-end'}>
                   <Text color={theme.primary} bold>[Enter]</Text>
                   <Text color={theme.text}> {t(lang, '练习', 'Practice')} </Text>
                   <Text color={theme.accent} bold>[R]</Text>
@@ -768,7 +768,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
                   <Text color={theme.accent} bold>[r]</Text>
                   <Text color={theme.text}> {t(lang, '继续', 'Resume')}</Text>
                 </Text>
-                <Text wrap="truncate-end">
+                <Text wrap={asciiMode ? undefined : 'truncate-end'}>
                   <Text color={theme.primary} bold>[o]</Text>
                   <Text color={theme.text}> {t(lang, '操作', 'Ops')}  </Text>
                   <Text color={theme.accent} bold>[m]</Text>
@@ -785,40 +785,64 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
               </Box>
             ) : (
               <Box flexDirection="column">
-                <Text wrap="truncate-end">
-                  <Text color={theme.primary} bold>[Enter]</Text>
-                  <Text color={theme.text}> {t(lang, '开始练习', 'Start practice')}   </Text>
-                  <Text color={theme.accent} bold>[R]</Text>
-                  <Text color={theme.text}> {t(lang, '定制本轮', 'Configure round')}   </Text>
-                  <Text color={theme.accent} bold>[r]</Text>
-                  <Text color={theme.text}> {t(lang, '继续上次', 'Resume last')}{resumeRunForDeck ? '' : t(lang, ' (新轮)', ' (new)')}</Text>
-                </Text>
-                <Text wrap="truncate-end">
-                  <Text color={theme.primary} bold>[p]</Text>
-                  <Text color={theme.text}> {t(lang, '今日计划', 'Daily Plan')}   </Text>
-                  <Text color={theme.ai} bold>[g]</Text>
-                  <Text color={theme.text}> {t(lang, 'AI带学', 'Guided')}   </Text>
-                  <Text color={theme.accent} bold>[C]</Text>
-                  <Text color={theme.text}> {t(lang, '课程设置', 'Course Settings')}</Text>
-                </Text>
-                <Text wrap="truncate-end">
-                  <Text color={theme.accent} bold>[m]</Text>
-                  <Text color={theme.text}> {t(lang, '管理题组 / 查看卡片', 'Manage deck / cards')}   </Text>
-                  <Text color={theme.ai} bold>[v]</Text>
-                  <Text color={theme.text}> {t(lang, '导出语音包', 'Voice Pack')}</Text>
-                </Text>
-                <Text wrap="truncate-end">
-                  <Text color={theme.primary} bold>[o]</Text>
-                  <Text color={theme.text}> {t(lang, '导入 JSON / 合并 / 拆分题组', 'Import JSON / Merge / Split')}</Text>
-                </Text>
-                <Text wrap="truncate-end">
-                  <Text color={theme.warning} bold>[a]</Text>
-                  <Text color={theme.text}> {selectedDeck.archived ? t(lang, '恢复题组', 'Unarchive') : t(lang, '归档', 'Archive')}   </Text>
-                  <Text color={theme.error} bold>[d]</Text>
-                  <Text color={theme.text}> {t(lang, '删除题组', 'Delete')}   </Text>
-                  <Text color={theme.success} bold>[s]</Text>
-                  <Text color={theme.text}> {sampleLoaded ? t(lang, '移除示例课', 'Remove sample') : t(lang, '载入示例课', 'Load sample')}</Text>
-                </Text>
+                <Box flexDirection="row" flexWrap="wrap" columnGap={2}>
+                  <Text>
+                    <Text color={theme.primary} bold>[Enter]</Text>
+                    <Text color={theme.text}> {t(lang, '开始练习', 'Start practice')}</Text>
+                  </Text>
+                  <Text>
+                    <Text color={theme.accent} bold>[R]</Text>
+                    <Text color={theme.text}> {t(lang, '定制本轮', 'Configure round')}</Text>
+                  </Text>
+                  <Text>
+                    <Text color={theme.accent} bold>[r]</Text>
+                    <Text color={theme.text}> {t(lang, '继续上次', 'Resume last')}{resumeRunForDeck ? '' : t(lang, ' (新轮)', ' (new)')}</Text>
+                  </Text>
+                </Box>
+                <Box flexDirection="row" flexWrap="wrap" columnGap={2}>
+                  <Text>
+                    <Text color={theme.primary} bold>[p]</Text>
+                    <Text color={theme.text}> {t(lang, '今日计划', 'Daily Plan')}</Text>
+                  </Text>
+                  <Text>
+                    <Text color={theme.ai} bold>[g]</Text>
+                    <Text color={theme.text}> {t(lang, 'AI带学', 'Guided')}</Text>
+                  </Text>
+                  <Text>
+                    <Text color={theme.accent} bold>[C]</Text>
+                    <Text color={theme.text}> {t(lang, '课程设置', 'Course Settings')}</Text>
+                  </Text>
+                </Box>
+                <Box flexDirection="row" flexWrap="wrap" columnGap={2}>
+                  <Text>
+                    <Text color={theme.accent} bold>[m]</Text>
+                    <Text color={theme.text}> {t(lang, '管理题组 / 查看卡片', 'Manage deck / cards')}</Text>
+                  </Text>
+                  <Text>
+                    <Text color={theme.ai} bold>[v]</Text>
+                    <Text color={theme.text}> {t(lang, '导出语音包', 'Voice Pack')}</Text>
+                  </Text>
+                </Box>
+                <Box flexDirection="row" flexWrap="wrap" columnGap={2}>
+                  <Text>
+                    <Text color={theme.primary} bold>[o]</Text>
+                    <Text color={theme.text}> {t(lang, '导入 JSON / 合并 / 拆分题组', 'Import JSON / Merge / Split')}</Text>
+                  </Text>
+                </Box>
+                <Box flexDirection="row" flexWrap="wrap" columnGap={2}>
+                  <Text>
+                    <Text color={theme.warning} bold>[a]</Text>
+                    <Text color={theme.text}> {selectedDeck.archived ? t(lang, '恢复题组', 'Unarchive') : t(lang, '归档', 'Archive')}</Text>
+                  </Text>
+                  <Text>
+                    <Text color={theme.error} bold>[d]</Text>
+                    <Text color={theme.text}> {t(lang, '删除题组', 'Delete')}</Text>
+                  </Text>
+                  <Text>
+                    <Text color={theme.success} bold>[s]</Text>
+                    <Text color={theme.text}> {sampleLoaded ? t(lang, '移除示例课', 'Remove sample') : t(lang, '载入示例课', 'Load sample')}</Text>
+                  </Text>
+                </Box>
               </Box>
             )}
           </Box>

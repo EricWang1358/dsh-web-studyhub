@@ -64,9 +64,10 @@ export const Modal = memo(function Modal({
   const frameWidth = Math.max(24, Math.min(width ?? 72, columns - 4));
   const inner = frameWidth - 4;
   const accent = toneColor(theme, tone);
+  const ell = asciiMode ? '...' : '…';
   const head = `${icon ? `${icon} ` : ''}${title}`;
-  const sub = subtitle ? truncateDisplay(subtitle, Math.max(0, Math.floor(inner * 0.45))) : '';
-  const headText = truncateDisplay(head, Math.max(4, inner - displayWidth(sub) - (onClose ? 6 : 1)));
+  const sub = subtitle ? truncateDisplay(subtitle, Math.max(0, Math.floor(inner * 0.45)), ell) : '';
+  const headText = truncateDisplay(head, Math.max(4, inner - displayWidth(sub) - (onClose ? 6 : 1)), ell);
 
   const frame = (
     <Box

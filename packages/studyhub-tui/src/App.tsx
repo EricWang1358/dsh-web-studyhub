@@ -11,7 +11,8 @@ import {
 } from './host/index.js';
 import { Panel, Spinner, useTheme } from './components/index.js';
 import { nextThemeId } from './theme/index.js';
-import { AppShell, createDefaultShellActions, type ShellActions } from './shell/index.js';
+import { AppShell } from './shell/AppShell.js';
+import { createDefaultShellActions, type ShellActions } from './shell/actions.js';
 
 // Eagerly load the default landing view; lazy-load secondary views & voice pack modal for fast cold start and lower idle RSS.
 import { LibraryView } from './views/library/LibraryView.js';

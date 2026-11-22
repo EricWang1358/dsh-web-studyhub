@@ -99,15 +99,15 @@ export const SettingsView: React.FC<ViewProps> = ({ host, width, height, isActiv
       return [
         ...base,
         { key: 'j/k', label: t(lang, '选择', 'Select') },
-        { key: '←/→', label: t(lang, '调整并保存', 'Adjust') },
+        { key: asciiMode ? 'Left/Right' : '←/→', label: t(lang, '调整并保存', 'Adjust') },
       ];
     }
     return [
       ...base,
       { key: 'j/k', label: t(lang, '选择', 'Select') },
-      { key: '←/→/Enter', label: t(lang, '切换并保存', 'Toggle') },
+      { key: asciiMode ? 'Left/Right/Enter' : '←/→/Enter', label: t(lang, '切换并保存', 'Toggle') },
     ];
-  }, [lang, tab]);
+  }, [lang, tab, asciiMode]);
   useFooterHints(footerHints, isActive);
 
   const bodyH = Math.max(8, height - 3);
@@ -153,7 +153,7 @@ export const SettingsView: React.FC<ViewProps> = ({ host, width, height, isActiv
         <Suspense
           fallback={
             <Box paddingX={1} paddingY={1}>
-              <Spinner label={t(lang, '正在加载设置页…', 'Loading settings…')} active={isActive} />
+              <Spinner label={asciiMode ? t(lang, '正在加载设置页...', 'Loading settings...') : t(lang, '正在加载设置页…', 'Loading settings…')} active={isActive} />
             </Box>
           }
         >

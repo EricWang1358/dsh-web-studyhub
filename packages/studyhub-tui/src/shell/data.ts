@@ -195,13 +195,14 @@ export function modelInfo(
   cfg: DesktopConfigSnapshot | null | undefined,
   binding?: BindingSnapshot | null,
   snapshot?: StudySnapshot | null,
+  asciiMode = false,
 ): ModelBadgeInfo {
   const ready = Boolean(cfg?.effective?.ready ?? binding?.modelStatus?.ready ?? snapshot?.modelReady ?? false);
   const reason = String(cfg?.effective?.reason ?? binding?.modelStatus?.reason ?? '');
   if (!cfg) {
     const route = binding?.route;
     return {
-      icon: '◌',
+      icon: asciiMode ? 'o' : '◌',
       provider: route?.provider ?? 'Model',
       model: route?.model ?? '',
       ready,
@@ -210,14 +211,14 @@ export function modelInfo(
     };
   }
   if (cfg.mode === 'agy') {
-    return { icon: '⚡', provider: 'agy', model: cfg.agy?.model || cfg.effective?.model || '', ready, reason, mode: 'agy' };
+    return { icon: asciiMode ? '*' : '⚡', provider: 'agy', model: cfg.agy?.model || cfg.effective?.model || '', ready, reason, mode: 'agy' };
   }
   if (cfg.mode === 'codex') {
-    return { icon: '◇', provider: 'codex', model: cfg.codex?.model || cfg.effective?.model || '', ready, reason, mode: 'codex' };
+    return { icon: asciiMode ? '>' : '◇', provider: 'codex', model: cfg.codex?.model || cfg.effective?.model || '', ready, reason, mode: 'codex' };
   }
   const preset = cfg.presets?.find((p) => p.id === cfg.openai?.providerId);
   return {
-    icon: '☁',
+    icon: asciiMode ? '@' : '☁',
     provider: preset?.name ?? (cfg.openai?.providerId && cfg.openai.providerId !== 'custom' ? cfg.openai.providerId : 'OpenAI'),
     model: cfg.openai?.model || cfg.effective?.model || '',
     ready,

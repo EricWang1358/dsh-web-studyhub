@@ -43,6 +43,8 @@ export const AddFocusModal: React.FC<AddFocusModalProps> = ({
 }) => {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const ell = asciiMode ? '...' : '…';
   const snapshot = useTuiStore((s) => s.snapshot);
   const notify = useTuiStore((s) => s.notify);
 
@@ -184,7 +186,7 @@ export const AddFocusModal: React.FC<AddFocusModalProps> = ({
       }
 
       if (!mountedRef.current) return;
-      setStagedInfo(`${basename(resolved)} (${Math.round(st.size / 1024)} KB, ${mime}) → ${truncateDisplay(stagedLabel, 28)}`);
+      setStagedInfo(`${basename(resolved)} (${Math.round(st.size / 1024)} KB, ${mime}) ${asciiMode ? '->' : '→'} ${truncateDisplay(stagedLabel, 28, ell)}`);
 
       const combinedNotes = [imageNotes.trim(), `Screenshot file: ${basename(resolved)}`].filter(Boolean).join('\n');
       if (imageNotes.trim()) {
@@ -389,7 +391,7 @@ export const AddFocusModal: React.FC<AddFocusModalProps> = ({
                 onSubmit={() => void handleLoadAndExtractImage()}
               />
             </Box>
-            {stagedInfo ? <Text color={theme.success}>{`✓ ${stagedInfo}`}</Text> : null}
+            {stagedInfo ? <Text color={theme.success}>{`${asciiMode ? '+' : '✓'} ${stagedInfo}`}</Text> : null}
             <Box flexDirection="column">
               <Text color={field === 'notes' ? theme.primary : theme.muted} bold>
                 {t(lang, '图片补充说明 / 识别文字（可选）：', 'Image Caption / Notes (optional):')}
@@ -424,11 +426,11 @@ export const AddFocusModal: React.FC<AddFocusModalProps> = ({
         </Box>
 
         <Text color={theme.dim}>
-          {`${saveAsMaterial ? '☑' : '☐'} ${t(lang, '同时存为课程资料 (Ctrl+M 切换)', 'Also save raw notes as course material (Ctrl+M)')}`}
+          {`${saveAsMaterial ? (asciiMode ? '[x]' : '☑') : (asciiMode ? '[ ]' : '☐')} ${t(lang, '同时存为课程资料 (Ctrl+M 切换)', 'Also save raw notes as course material (Ctrl+M)')}`}
         </Text>
 
-        {statusNote ? <Text color={theme.info}>{truncateDisplay(statusNote, contentW)}</Text> : null}
-        {errorMsg ? <Text color={theme.error}>{`✕ ${truncateDisplay(errorMsg, contentW)}`}</Text> : null}
+        {statusNote ? <Text color={theme.info}>{truncateDisplay(statusNote, contentW, ell)}</Text> : null}
+        {errorMsg ? <Text color={theme.error}>{`${asciiMode ? '!' : '✕'} ${truncateDisplay(errorMsg, contentW, ell)}`}</Text> : null}
       </Box>
     </Modal>
   );

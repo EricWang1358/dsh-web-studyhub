@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useMemo, useRef, type ReactNode } from 'react';
+import React, { Suspense, lazy, memo, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { Box, useApp, useInput, useWindowSize } from 'ink';
 import { PAGE_REGISTRY, type CommandPaletteItem, type HostClient, type KeyHint, type PageId, type ViewProps } from '../types/contracts.js';
 import { t, useTuiStore } from '../state/store.js';
@@ -7,13 +7,14 @@ import { KeyHintBar, Spinner, ToastStack } from '../components/Badge.js';
 import { isKeyClaimed } from '../components/focus.js';
 import { TopBar } from './TopBar.js';
 import { SideNav, sideNavWidth } from './SideNav.js';
-import { CommandPalette } from './CommandPalette.js';
-import { HelpOverlay } from './HelpOverlay.js';
-import { CoursePickerModal } from './CoursePickerModal.js';
-import { InboxModal } from './InboxModal.js';
 import { Launchpad } from './Launchpad.js';
 import { ShellActionsContext, createDefaultShellActions, type ShellActions } from './actions.js';
 import { isLibraryEmpty } from './data.js';
+
+const CommandPalette = lazy(() => import('./CommandPalette.js').then((m) => ({ default: m.CommandPalette })));
+const HelpOverlay = lazy(() => import('./HelpOverlay.js').then((m) => ({ default: m.HelpOverlay })));
+const CoursePickerModal = lazy(() => import('./CoursePickerModal.js').then((m) => ({ default: m.CoursePickerModal })));
+const InboxModal = lazy(() => import('./InboxModal.js').then((m) => ({ default: m.InboxModal })));
 
 export interface VoicePackRenderProps {
   isActive: boolean;
@@ -234,19 +235,29 @@ export const AppShell = memo(function AppShell({
         ) : null}
 
         {paletteOpen ? (
-          <CommandPalette
-            host={host}
-            isActive={paletteOpen}
-            onClose={() => useTuiStore.getState().setCommandPaletteOpen(false)}
-            extraCommands={extraCommands}
-          />
+          <Suspense fallback={null}>
+            <CommandPalette
+              host={host}
+              isActive={paletteOpen}
+              onClose={() => useTuiStore.getState().setCommandPaletteOpen(false)}
+              extraCommands={extraCommands}
+            />
+          </Suspense>
         ) : null}
-        {helpOpen && !paletteOpen ? <HelpOverlay isActive={helpOpen} onClose={() => useTuiStore.getState().setHelpOpen(false)} /> : null}
+        {helpOpen && !paletteOpen ? (
+          <Suspense fallback={null}>
+            <HelpOverlay isActive={helpOpen} onClose={() => useTuiStore.getState().setHelpOpen(false)} />
+          </Suspense>
+        ) : null}
         {courseOpen && !paletteOpen && !helpOpen ? (
-          <CoursePickerModal isActive={courseOpen} onClose={() => useTuiStore.getState().setCoursePickerOpen(false)} />
+          <Suspense fallback={null}>
+            <CoursePickerModal isActive={courseOpen} onClose={() => useTuiStore.getState().setCoursePickerOpen(false)} />
+          </Suspense>
         ) : null}
         {inboxOpen && !paletteOpen && !helpOpen && !courseOpen ? (
-          <InboxModal host={host} isActive={inboxOpen} onClose={() => useTuiStore.getState().setInboxOpen(false)} />
+          <Suspense fallback={null}>
+            <InboxModal host={host} isActive={inboxOpen} onClose={() => useTuiStore.getState().setInboxOpen(false)} />
+          </Suspense>
         ) : null}
         {voiceOverlay && !paletteOpen && !helpOpen && !courseOpen && !inboxOpen && renderVoicePack
           ? renderVoicePack({

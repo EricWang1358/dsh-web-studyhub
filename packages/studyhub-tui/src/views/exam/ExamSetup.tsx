@@ -213,7 +213,9 @@ export const ExamSetup = memo(function ExamSetup({
         ) : null}
 
         <Text color={theme.muted} bold>
-          {t(lang, '选择范围（↑/↓ 选择，Enter 开始考试）:', 'Select Scope (↑/↓ move, Enter start):')}
+          {asciiMode
+            ? t(lang, '选择范围（j/k 选择，Enter 开始考试）:', 'Select Scope (j/k move, Enter start):')
+            : t(lang, '选择范围（↑/↓ 选择，Enter 开始考试）:', 'Select Scope (↑/↓ move, Enter start):')}
         </Text>
         <VirtualList
           items={scopes}

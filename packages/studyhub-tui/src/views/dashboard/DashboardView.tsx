@@ -181,6 +181,7 @@ const KpiCard = memo(function KpiCard({ label, value, sub, tone = 'primary', wid
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const color = theme[tone];
   const inner = Math.max(4, width - 4);
+  const ell = asciiMode ? '...' : '…';
   return (
     <Box
       flexDirection="column"
@@ -190,14 +191,14 @@ const KpiCard = memo(function KpiCard({ label, value, sub, tone = 'primary', wid
       borderColor={theme.border}
       paddingX={1}
     >
-      <Text color={theme.muted} wrap="truncate">
-        {truncateDisplay(label, inner)}
+      <Text color={theme.muted} wrap={asciiMode ? undefined : 'truncate'}>
+        {truncateDisplay(label, inner, ell)}
       </Text>
-      <Text color={color} bold wrap="truncate">
-        {truncateDisplay(value, inner)}
+      <Text color={color} bold wrap={asciiMode ? undefined : 'truncate'}>
+        {truncateDisplay(value, inner, ell)}
       </Text>
-      <Text color={theme.dim} wrap="truncate">
-        {truncateDisplay(sub ?? '', inner)}
+      <Text color={theme.dim} wrap={asciiMode ? undefined : 'truncate'}>
+        {truncateDisplay(sub ?? '', inner, ell)}
       </Text>
     </Box>
   );

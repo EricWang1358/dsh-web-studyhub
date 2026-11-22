@@ -454,7 +454,7 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
       <Box height={topBarH} width={width} paddingX={1} flexDirection="column">
         <Box flexDirection="row" alignItems="center" width={Math.max(10, width - 2)}>
           <Box flexShrink={0}>
-            <Text bold color={theme.primary} wrap="truncate-end">
+            <Text bold color={theme.primary} wrap={asciiMode ? undefined : 'truncate-end'}>
               {narrowBar ? t(lang, '资料', 'Sources') : t(lang, '学习资料库', 'Study Materials')}
             </Text>
           </Box>
@@ -481,7 +481,7 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
           <Box flexGrow={1} />
           {!narrowBar ? (
             <Box flexShrink={0}>
-              <Text color={theme.dim} wrap="truncate-end">
+              <Text color={theme.dim} wrap={asciiMode ? undefined : 'truncate-end'}>
                 {t(lang, '[i] 导入  [f] 切换课程过滤  [/] 搜索', '[i] Import  [f] Course Filter  [/] Filter')}
               </Text>
             </Box>
@@ -593,7 +593,7 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
                     {selectedItem.pinned ? (
                       <>
                         <Text> </Text>
-                        <Badge label={`★ ${t(lang, '已置顶', 'Pinned')}`} tone="warning" variant="soft" />
+                        <Badge label={`${asciiMode ? '*' : '★'} ${t(lang, '已置顶', 'Pinned')}`} tone="warning" variant="soft" />
                       </>
                     ) : null}
                     {selectedItem.archived ? (
@@ -683,7 +683,7 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
               onCancel={() => setOverlay('none')}
               width={modalContentWidth(62) - 4}
               isActive={isActive}
-              prompt="›"
+              prompt={asciiMode ? '>' : '›'}
             />
           </Box>
         </Modal>
@@ -713,7 +713,7 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
               placeholder={t(lang, '例如：操作系统, 计算机网络', 'e.g. Operating Systems')}
               width={modalContentWidth(64) - 4}
               isActive={isActive}
-              prompt="›"
+              prompt={asciiMode ? '>' : '›'}
             />
           </Box>
         </Modal>

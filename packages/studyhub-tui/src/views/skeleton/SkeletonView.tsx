@@ -238,6 +238,7 @@ function inferCardLevel(card: Record<string, unknown>, lastGrade?: number): Card
 function buildHierarchy(
   nodes: SkeletonNode[],
   statsMap: Map<string, NodeStats>,
+  asciiMode = false,
 ): { tree: TreeNode[]; parentById: Map<string, string | null>; nodeById: Map<string, SkeletonNode> } {
   const nodeById = new Map<string, SkeletonNode>();
   const parentById = new Map<string, string | null>();
@@ -263,9 +264,22 @@ function buildHierarchy(
   const toTree = (n: SkeletonNode): TreeNode => {
     visited.add(n.id);
     const st = statsMap.get(n.id);
-    const focusMark = st?.isFocus ? '⚑ ' : '';
-    const levelIcon =
-      st?.level === 'mastered' ? '★' : st?.level === 'weak' ? '✕' : st?.level === 'learning' ? '◐' : '○';
+    const focusMark = st?.isFocus ? (asciiMode ? '^ ' : '⚑ ') : '';
+    const levelIcon = asciiMode
+      ? st?.level === 'mastered'
+        ? '*'
+        : st?.level === 'weak'
+          ? '!'
+          : st?.level === 'learning'
+            ? 'o'
+            : '-'
+      : st?.level === 'mastered'
+        ? '★'
+        : st?.level === 'weak'
+          ? '✕'
+          : st?.level === 'learning'
+            ? '◐'
+            : '○';
     const meta = st ? `${focusMark}${levelIcon} ${st.cardCount}题 ${st.masteryPct}%` : '';
     const kids = (childrenMap.get(n.id) ?? []).filter((c) => !visited.has(c.id)).map(toTree);
     return {
@@ -602,8 +616,8 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
   }, [detail, cardIndex, focusTermSet, snapshotProgress]);
 
   const { tree, parentById, nodeById } = useMemo(
-    () => buildHierarchy(detail?.nodes ?? [], nodeStatsMap),
-    [detail?.nodes, nodeStatsMap],
+    () => buildHierarchy(detail?.nodes ?? [], nodeStatsMap, asciiMode),
+    [detail?.nodes, nodeStatsMap, asciiMode],
   );
 
   // Fallback topics preview tree when no saved skeleton exists
@@ -774,12 +788,14 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
   }, [busyAction, host, activeCourse, lang, topics]);
 
   const inspectorLines = useMemo(() => {
+    const bullet = asciiMode ? '* ' : '• ';
+    const focusSym = asciiMode ? '^ ' : '⚑ ';
     if (!detail) {
       if (!topics.length) return [t(lang, '暂无主题数据。', 'No topic data yet.')];
       return [
         t(lang, '当前课程尚未保存知识骨架，下方为现有主题分布：', 'No saved skeleton yet. Topic overview:'),
         '',
-        ...topics.slice(0, 20).map((tp) => `• ${tp.topic} (${tp.count}${t(lang, '题', 'Q')})`),
+        ...topics.slice(0, 20).map((tp) => `${bullet}${tp.topic} (${tp.count}${t(lang, '题', 'Q')})`),
         '',
         t(lang, '按 [g] 自动生成交互式知识骨架。', 'Press [g] to generate an interactive knowledge skeleton.'),
       ];
@@ -787,11 +803,11 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
     if (!selectedNode) return [t(lang, '请在左侧选择一个知识节点。', 'Select a knowledge node on the left.')];
 
     const out: string[] = [];
-    out.push(`${selectedNode.term}${selectedStats?.isFocus ? `  ⚑ ${t(lang, '考纲重点', 'Exam Focus')}` : ''}`);
+    out.push(`${selectedNode.term}${selectedStats?.isFocus ? `  ${focusSym}${t(lang, '考纲重点', 'Exam Focus')}` : ''}`);
     out.push('');
     out.push(`${t(lang, '释义', 'Description')}: ${selectedNode.meaning}`);
     if (selectedNode.attributes?.length) {
-      out.push(`${t(lang, '特征', 'Traits')}: ${selectedNode.attributes.join(' · ')}`);
+      out.push(`${t(lang, '特征', 'Traits')}: ${selectedNode.attributes.join(asciiMode ? ' - ' : ' · ')}`);
     }
     out.push('');
     if (selectedStats) {
@@ -812,7 +828,10 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
         const fromTerm = nodeById.get(r.from)?.term ?? r.from;
         const toTerm = nodeById.get(r.to)?.term ?? r.to;
         const relLabel = lang === 'zh' ? RELATION_ZH[r.type] ?? r.type : r.type;
-        out.push(`  • ${fromTerm} —[${relLabel}]→ ${toTerm}${r.note ? ` (${r.note})` : ''}`);
+        const relLine = asciiMode
+          ? `  * ${fromTerm} --[${relLabel}]-> ${toTerm}${r.note ? ` (${r.note})` : ''}`
+          : `  • ${fromTerm} —[${relLabel}]→ ${toTerm}${r.note ? ` (${r.note})` : ''}`;
+        out.push(relLine);
       }
     }
 
@@ -827,7 +846,7 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
       out.push(`${t(lang, '骨架总览', 'Skeleton Overview')}: ${detail.overview}`);
     }
     return out;
-  }, [detail, topics, selectedNode, selectedStats, parentById, nodeById, lang]);
+  }, [detail, topics, selectedNode, selectedStats, parentById, nodeById, lang, asciiMode]);
 
   const runLint = useCallback(async () => {
     const reqId = ++lintReqRef.current;
@@ -1047,7 +1066,10 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
   if (loading && !detail && skeletons.length === 0 && topics.length === 0) {
     return (
       <Box width={width} height={height} alignItems="center" justifyContent="center">
-        <Spinner label={t(lang, '正在加载知识骨架…', 'Loading knowledge skeleton…')} active={isActive} />
+        <Spinner
+          label={asciiMode ? t(lang, '正在加载知识骨架...', 'Loading knowledge skeleton...') : t(lang, '正在加载知识骨架…', 'Loading knowledge skeleton…')}
+          active={isActive}
+        />
       </Box>
     );
   }
@@ -1150,7 +1172,7 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
                   return (
                     <Box key={line.id} width={innerW} height={1} backgroundColor={line.selected ? theme.selectionBg : undefined}>
                       <Text color={fg} bold={line.selected}>
-                        {truncateDisplay(line.text, innerW)}
+                        {truncateDisplay(line.text, innerW, asciiMode ? '...' : '…')}
                       </Text>
                     </Box>
                   );

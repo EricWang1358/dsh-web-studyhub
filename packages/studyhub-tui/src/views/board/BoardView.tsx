@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { randomUUID } from 'node:crypto';
 import { Box, Text, useInput } from 'ink';
 import {
@@ -15,7 +15,6 @@ import { displayWidth, truncateDisplay } from '../../render/index.js';
 import { currentCourse } from '../../shell/index.js';
 import { t, useTuiStore } from '../../state/store.js';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';
-import { BoardCardModal } from './BoardCardModal.js';
 import { PomodoroBar, pomodoroBarHeight } from './PomodoroBar.js';
 import {
   addCompletedPomodoro,
@@ -35,6 +34,8 @@ import {
   type BoardDocument,
   type UpstreamBoardSnapshot,
 } from './board-store.js';
+
+const BoardCardModal = lazy(() => import('./BoardCardModal.js').then((m) => ({ default: m.BoardCardModal })));
 
 type ActiveModal =
   | null
@@ -679,8 +680,9 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
 
   const renderModals = () => (
     <>
-      {modal?.type === 'add' || modal?.type === 'edit' ? (
-        <BoardCardModal
+      <Suspense fallback={null}>
+        {modal?.type === 'add' || modal?.type === 'edit' ? (
+          <BoardCardModal
           mode={modal.type}
           lang={lang}
           initialColumn={activeCol}
@@ -759,7 +761,8 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
             }
           }}
         />
-      ) : null}
+        ) : null}
+      </Suspense>
 
       {modal?.type === 'delete' ? (
         <ConfirmDialog

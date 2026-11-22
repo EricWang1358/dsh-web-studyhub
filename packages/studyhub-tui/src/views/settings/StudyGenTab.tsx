@@ -277,8 +277,9 @@ export const StudyGenTab: React.FC<StudyGenTabProps> = memo(function StudyGenTab
   const orderLabel = (v: PracticeSettingsShape['newCardOrder']) =>
     v === 'reading' ? t(lang, '按讲义顺序', 'Reading order') : v === 'focus' ? t(lang, '考纲优先', 'Focus first') : t(lang, '随机穿插', 'Shuffle');
 
+  const arrowHint = asciiMode ? 'Left/Right' : '←/→';
   const rows: Array<{ id: SettingRowId; group: string; label: string; value: string; hint: string }> = [
-    { id: 'roundSize', group: t(lang, '复习', 'Review'), label: t(lang, '每轮题数 / 每日目标', 'Round Size / Daily Goal'), value: `${practice.roundSize} ${t(lang, '题', 'cards')}`, hint: '5–50 (←/→ ±5)' },
+    { id: 'roundSize', group: t(lang, '复习', 'Review'), label: t(lang, '每轮题数 / 每日目标', 'Round Size / Daily Goal'), value: `${practice.roundSize} ${t(lang, '题', 'cards')}`, hint: `5–50 (${arrowHint} ±5)` },
     { id: 'newCardOrder', group: t(lang, '复习', 'Review'), label: t(lang, '新题出场顺序', 'New Card Order'), value: orderLabel(practice.newCardOrder), hint: 'reading / focus / shuffle' },
     { id: 'autopilot', group: t(lang, '复习', 'Review'), label: t(lang, '答对自动下一题', 'Autopilot Advance'), value: onOff(practice.autopilot), hint: t(lang, '答对后自动倒计时切题', 'Auto-advance on pass') },
     { id: 'debrief', group: t(lang, '复习', 'Review'), label: t(lang, '本轮 AI 点评', 'Round AI Debrief'), value: onOff(practice.debrief), hint: t(lang, '结轮后生成轻量点评', 'Brief summary after round') },
@@ -286,7 +287,7 @@ export const StudyGenTab: React.FC<StudyGenTabProps> = memo(function StudyGenTab
     { id: 'request_retention', group: 'FSRS-6', label: t(lang, '目标记忆保留率', 'Target Retention'), value: `${Math.round(retention * 100)}%`, hint: '80%–95%' },
     { id: 'maximum_interval', group: 'FSRS-6', label: t(lang, '最大复习间隔', 'Max Interval'), value: `${maxInterval} ${t(lang, '天', 'days')}`, hint: '180 / 365 / 3650 / 36500' },
     { id: 'gen_kind', group: t(lang, '出题', 'Gen'), label: t(lang, '默认题型', 'Default Kind'), value: generation.kind, hint: 'quiz / multi / flashcard / mixed' },
-    { id: 'gen_count', group: t(lang, '出题', 'Gen'), label: t(lang, '默认生成题量', 'Default Count'), value: `${generation.count}`, hint: '5–30 (←/→ ±5)' },
+    { id: 'gen_count', group: t(lang, '出题', 'Gen'), label: t(lang, '默认生成题量', 'Default Count'), value: `${generation.count}`, hint: `5–30 (${arrowHint} ±5)` },
     { id: 'gen_difficulty', group: t(lang, '出题', 'Gen'), label: t(lang, '默认难度', 'Difficulty'), value: generation.difficulty, hint: 'mixed / foundation / application / advanced' },
     { id: 'gen_coverageLevel', group: t(lang, '出题', 'Gen'), label: t(lang, '覆盖强度', 'Coverage Level'), value: generation.coverageLevel, hint: 'lean / standard / full' },
     { id: 'gen_language', group: t(lang, '出题', 'Gen'), label: t(lang, '出题语言', 'Gen Language'), value: generation.language, hint: 'auto / 中文 / English / 中英双语' },
@@ -297,17 +298,18 @@ export const StudyGenTab: React.FC<StudyGenTabProps> = memo(function StudyGenTab
   const maxVisible = Math.max(4, height - 4);
   const startIdx = Math.max(0, Math.min(cursor - Math.floor(maxVisible / 2), Math.max(0, rows.length - maxVisible)));
   const visibleRows = rows.slice(startIdx, startIdx + maxVisible);
+  const ell = asciiMode ? '...' : '…';
 
   return (
     <Panel
       title={t(lang, '复习调度、出题默认与每日复盘', 'Review, Generation & Daily Recap Settings')}
-      subtitle={saving ? t(lang, '保存中…', 'Saving…') : loading ? t(lang, '加载中…', 'Loading…') : t(lang, '←/→ 或 Enter 调整并即时保存', '←/→ or Enter to adjust')}
+      subtitle={saving ? t(lang, `保存中${ell}`, `Saving${ell}`) : loading ? t(lang, `加载中${ell}`, `Loading${ell}`) : t(lang, `${arrowHint} 或 Enter 调整并即时保存`, `${arrowHint} or Enter to adjust`)}
       focused={isActive}
       width={width}
       height={height}
     >
       {loading && !settings ? (
-        <Spinner label={t(lang, '读取设置…', 'Loading settings…')} active={isActive} />
+        <Spinner label={t(lang, `读取设置${ell}`, `Loading settings${ell}`)} active={isActive} />
       ) : (
         <Box flexDirection="column">
           {visibleRows.map((row, i) => {
@@ -320,7 +322,7 @@ export const StudyGenTab: React.FC<StudyGenTabProps> = memo(function StudyGenTab
                 height={1}
                 backgroundColor={selected ? theme.selectionBg : undefined}
               >
-                <Text color={selected ? theme.primary : theme.dim}>{selected ? '❯ ' : '  '}</Text>
+                <Text color={selected ? theme.primary : theme.dim}>{selected ? (asciiMode ? '> ' : '❯ ') : '  '}</Text>
                 <Text color={theme.accent}>{padDisplay(`[${row.group}]`, 9)}</Text>
                 <Text color={selected ? theme.selectionFg : theme.text} bold={selected}>
                   {padDisplay(row.label, 26)}

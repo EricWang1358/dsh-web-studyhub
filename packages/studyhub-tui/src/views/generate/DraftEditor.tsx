@@ -259,7 +259,7 @@ export const DraftEditor = memo(function DraftEditor({
   const checkSimilar = useCallback(async () => {
     if (!draft || busy) return;
     setBusy(true);
-    setBusyLabel(t(lang, '查重中…', 'Checking…'));
+    setBusyLabel(asciiMode ? t(lang, '查重中...', 'Checking...') : t(lang, '查重中…', 'Checking…'));
     const res = await tryAction<{
       similar?: SimilarItem[];
     }>(host, 'draft.similar', { id: draft.id });
@@ -289,7 +289,7 @@ export const DraftEditor = memo(function DraftEditor({
   const repairDraft = useCallback(async () => {
     if (!draft || busy) return;
     setBusy(true);
-    setBusyLabel(t(lang, '修题中…', 'Repairing…'));
+    setBusyLabel(asciiMode ? t(lang, '修题中...', 'Repairing...') : t(lang, '修题中…', 'Repairing…'));
     const res = await tryAction<{ jobId?: string; status?: string; queuedBehind?: number; next?: string }>(
       host,
       'draft.repair',
@@ -452,7 +452,7 @@ export const DraftEditor = memo(function DraftEditor({
       parts.push(
         selectedCard.options
           .map((opt, idx) => {
-            const mark = opt.correct ? '✓' : '○';
+            const mark = opt.correct ? (asciiMode ? '[x]' : '✓') : (asciiMode ? '[ ]' : '○');
             const letter = String.fromCharCode(65 + idx);
             return `- **${mark} ${letter}.** ${opt.text || ''}`;
           })
@@ -470,7 +470,7 @@ export const DraftEditor = memo(function DraftEditor({
       parts.push(`---\n**${t(lang, '解析', 'Explanation')}:**\n\n${selectedCard.explanation}`);
     }
     return parts.join('\n\n');
-  }, [selectedCard, lang]);
+  }, [selectedCard, lang, asciiMode]);
 
   if (draftsList.length === 0) {
     return (
@@ -520,7 +520,7 @@ export const DraftEditor = memo(function DraftEditor({
             </>
           ) : null}
           <Box flexGrow={1} />
-          {busy ? <Spinner label={busyLabel || t(lang, '处理中…', 'Working…')} active={isActive} /> : (
+          {busy ? <Spinner label={busyLabel || (asciiMode ? t(lang, '处理中...', 'Working...') : t(lang, '处理中…', 'Working…'))} active={isActive} /> : (
             <Text color={theme.dim}>{t(lang, `[d] 切换 (${draftsList.length})  [R] 修题  [S] 查重  [P] 发布`, `[d] Switch (${draftsList.length})  [R] Repair  [S] Similar  [P] Publish`)}</Text>
           )}
         </Box>
@@ -550,7 +550,7 @@ export const DraftEditor = memo(function DraftEditor({
               focused={mainListActive}
             >
               {loading ? (
-                <Spinner label={t(lang, '加载草稿…', 'Loading draft…')} active={isActive} />
+                <Spinner label={asciiMode ? t(lang, '加载草稿...', 'Loading draft...') : t(lang, '加载草稿…', 'Loading draft…')} active={isActive} />
               ) : (
                 <VirtualList
                   items={draft?.cards ?? []}

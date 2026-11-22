@@ -313,8 +313,14 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
       <Box height={bannerH} width={width} paddingX={1} flexDirection="column">
         <Box flexDirection="row" alignItems="center" width={Math.max(10, width - 2)}>
           <Box flexShrink={0}>
-            <Text bold color={theme.primary} wrap="truncate-end">
-              {narrowBar ? t(lang, '♪ 音频转写', '♪ Audio') : t(lang, '♪ 音频转写工作台', '♪ Audio Transcription')}
+            <Text bold color={theme.primary} wrap={asciiMode ? undefined : 'truncate-end'}>
+              {narrowBar
+                ? asciiMode
+                  ? t(lang, '> 音频转写', '> Audio')
+                  : t(lang, '♪ 音频转写', '♪ Audio')
+                : asciiMode
+                  ? t(lang, '> 音频转写工作台', '> Audio Transcription')
+                  : t(lang, '♪ 音频转写工作台', '♪ Audio Transcription')}
             </Text>
           </Box>
           <Text> </Text>
@@ -331,17 +337,21 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
           <Box flexGrow={1} />
           {!narrowBar ? (
             <Box flexShrink={0}>
-              <Text color={theme.dim} wrap="truncate-end">
+              <Text color={theme.dim} wrap={asciiMode ? undefined : 'truncate-end'}>
                 {t(lang, '[i] 导入音频  [s] 密钥设置  [t] 测试', '[i] Import  [s] Settings  [t] Test')}
               </Text>
             </Box>
           ) : null}
         </Box>
-        <Text color={theme.dim} wrap="truncate-end">
-          {t(
-            lang,
-            '说明：实时麦克风录音需要桌面/浏览器音频捕获，纯终端模式已禁用；可直接导入本地录音文件转写。',
-            'Note: Live mic capture requires desktop/browser audio and is disabled in terminal mode. Import local audio files below.',
+        <Text color={theme.dim} wrap={asciiMode ? undefined : 'truncate-end'}>
+          {truncateDisplay(
+            t(
+              lang,
+              '说明：实时麦克风录音需要桌面/浏览器音频捕获，纯终端模式已禁用；可直接导入本地录音文件转写。',
+              'Note: Live mic capture requires desktop/browser audio and is disabled in terminal mode. Import local audio files below.',
+            ),
+            Math.max(10, width - 2),
+            asciiMode ? '...' : '…',
           )}
         </Text>
       </Box>
@@ -363,7 +373,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
               focused={listActive}
             >
               {loadingList ? (
-                <Spinner label={t(lang, '加载转写记录…', 'Loading transcripts…')} />
+                <Spinner label={asciiMode ? t(lang, '加载转写记录...', 'Loading transcripts...') : t(lang, '加载转写记录…', 'Loading transcripts…')} />
               ) : results.length === 0 ? (
                 <EmptyState
                   title={t(lang, '暂无音频转写记录', 'No transcripts yet')}
@@ -439,7 +449,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
           onClose={() => setOverlay('none')}
           hints={[
             { key: 'Tab', label: t(lang, '路径补全', 'Complete') },
-            { key: '↑/↓', label: t(lang, '切换字段', 'Field') },
+            { key: asciiMode ? 'Up/Down' : '↑/↓', label: t(lang, '切换字段', 'Field') },
             { key: 'Ctrl+S', label: t(lang, '开始转写', 'Transcribe') },
             { key: 'Esc', label: t(lang, '取消', 'Cancel') },
           ]}
@@ -456,7 +466,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
             placeholder={process.platform === 'win32' ? 'C:\\Users\\...\\lecture.mp3' : '~/Downloads/lecture.mp3'}
             width={modalContentWidth(72) - 4}
             isActive={isActive && !busy && importField === 'path'}
-            prompt="›"
+            prompt={asciiMode ? '>' : '›'}
           />
           {pathMatches.length > 0 && importField === 'path' ? (
             <Text color={theme.dim}>{`${t(lang, '候选:', 'Matches:')} ${pathMatches.join('  ')}`}</Text>
@@ -474,7 +484,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
             onCancel={() => setOverlay('none')}
             width={modalContentWidth(72) - 4}
             isActive={isActive && !busy && importField === 'title'}
-            prompt="›"
+            prompt={asciiMode ? '>' : '›'}
           />
 
           <Box marginTop={1}>
@@ -489,12 +499,12 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
             onCancel={() => setOverlay('none')}
             width={modalContentWidth(72) - 4}
             isActive={isActive && !busy && importField === 'course'}
-            prompt="›"
+            prompt={asciiMode ? '>' : '›'}
           />
 
           {busy ? (
             <Box marginTop={1}>
-              <Spinner label={t(lang, '正在提交转写任务…', 'Submitting transcription…')} />
+              <Spinner label={asciiMode ? t(lang, '正在提交转写任务...', 'Submitting transcription...') : t(lang, '正在提交转写任务…', 'Submitting transcription…')} />
             </Box>
           ) : null}
         </Modal>
@@ -508,7 +518,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
           isActive={isActive}
           onClose={() => setOverlay('none')}
           hints={[
-            { key: '↑/↓', label: t(lang, '选择服务商', 'Provider') },
+            { key: asciiMode ? 'Up/Down' : '↑/↓', label: t(lang, '选择服务商', 'Provider') },
             { key: 'Enter', label: t(lang, '保存密钥', 'Save Key') },
             { key: 'Ctrl+T', label: t(lang, '测试连通', 'Test') },
             { key: 'Esc', label: t(lang, '关闭', 'Close') },
@@ -551,7 +561,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
             placeholder={t(lang, '输入 API Key (留空回车可清除)', 'Enter API key (blank + Enter to clear)')}
             width={modalContentWidth(72) - 4}
             isActive={isActive && !busy}
-            prompt="›"
+            prompt={asciiMode ? '>' : '›'}
           />
         </Modal>
       ) : null}

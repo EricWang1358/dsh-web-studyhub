@@ -70,7 +70,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
   const knownCourses = useMemo(() => listCourses(snapshot).map((c) => c.key), [snapshot]);
   const [courseOverride, setCourseOverride] = useState<string | null>(null);
   const course = courseOverride !== null ? courseOverride : activeCourse || knownCourses[0] || '';
-  const model = useMemo(() => modelInfo(desktopConfig, binding, snapshot), [desktopConfig, binding, snapshot]);
+  const model = useMemo(() => modelInfo(desktopConfig, binding, snapshot, asciiMode), [desktopConfig, binding, snapshot, asciiMode]);
 
   const [tab, setTab] = useState<CoachTab>('calibration');
   const [focusPane, setFocusPane] = useState<'left' | 'right'>('left');
@@ -647,11 +647,14 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
   const familyLines = useMemo(() => {
     if (!selectedFamily) return [];
     const lines: string[] = [];
+    const bullet = asciiMode ? '* ' : '• ';
+    const chkOn = asciiMode ? '[x]' : '☑';
+    const chkOff = asciiMode ? '[ ]' : '☐';
     lines.push(`${t(lang, '任务族', 'Family')}: ${selectedFamily.title}`);
     lines.push(`${t(lang, '题型', 'Format')}: ${formatKindLabel(selectedFamily.primaryFormat, lang)}   ${t(lang, '配额', 'Quota')}: ${selectedFamily.quota}   ${t(lang, '时限', 'Budget')}: ${selectedFamily.timeBudgetSec ?? 90}s`);
-    lines.push(`${t(lang, '优先级', 'Priority')}: ${priorityLabel(selectedFamily.priority, lang)}   ${t(lang, '状态', 'Status')}: ${selectedFamily.calibrated ? t(lang, '三项已确认 ✓', 'Calibrated ✓') : t(lang, '待确认', 'Pending')}`);
+    lines.push(`${t(lang, '优先级', 'Priority')}: ${priorityLabel(selectedFamily.priority, lang)}   ${t(lang, '状态', 'Status')}: ${selectedFamily.calibrated ? (asciiMode ? t(lang, '三项已确认 +', 'Calibrated +') : t(lang, '三项已确认 ✓', 'Calibrated ✓')) : t(lang, '待确认', 'Pending')}`);
     lines.push('');
-    lines.push(`[x] ${selectedFamily.confirmations?.appearanceApproved ? '☑' : '☐'} ${t(lang, '外观满意', 'Appearance')}   [y] ${selectedFamily.confirmations?.intentApproved ? '☑' : '☐'} ${t(lang, '考察意图满意', 'Intent')}   [z] ${selectedFamily.confirmations?.answerVerified ? '☑' : '☐'} ${t(lang, '答案已核实', 'Answer Verified')}`);
+    lines.push(`[x] ${selectedFamily.confirmations?.appearanceApproved ? chkOn : chkOff} ${t(lang, '外观满意', 'Appearance')}   [y] ${selectedFamily.confirmations?.intentApproved ? chkOn : chkOff} ${t(lang, '考察意图满意', 'Intent')}   [z] ${selectedFamily.confirmations?.answerVerified ? chkOn : chkOff} ${t(lang, '答案已核实', 'Answer Verified')}`);
     if (selectedFamily.defects?.length) {
       lines.push('');
       lines.push(`! ${t(lang, '待修正提醒', 'Defects')}:`);
@@ -666,14 +669,14 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
       lines.push('');
       lines.push(`${t(lang, '干扰项错因映射', 'Distractor Rules')}:`);
       for (const r of selectedFamily.distractorRules) {
-        lines.push(`  • ${r.code || r.id} (${r.label || ''}): ${r.reason}`);
+        lines.push(`  ${bullet}${r.code || r.id} (${r.label || ''}): ${r.reason}`);
       }
     }
     if (selectedFamily.rubricPoints?.length) {
       lines.push('');
       lines.push(`${t(lang, '分步评分细则', 'Rubric')}:`);
       for (const r of selectedFamily.rubricPoints) {
-        lines.push(`  • ${r.criterion} (${r.marks}分): ${r.condition}`);
+        lines.push(`  ${bullet}${r.criterion} (${r.marks}分): ${r.condition}`);
       }
     }
     if (selectedFamily.sample?.stem) {
@@ -681,7 +684,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
       lines.push(`${t(lang, '代表样题', 'Representative Sample')}:`);
       lines.push(`  ${selectedFamily.sample.stem}`);
       for (const opt of selectedFamily.sample.options ?? []) {
-        const mark = !selectedFamily.sample.redacted && opt.correct ? ' [✓]' : '';
+        const mark = !selectedFamily.sample.redacted && opt.correct ? (asciiMode ? ' [+]' : ' [✓]') : '';
         const mis = opt.misconceptionReason ? ` (${opt.misconceptionReason})` : '';
         lines.push(`  [${opt.id}] ${opt.text}${mark}${mis}`);
       }
@@ -693,7 +696,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
       }
     }
     return lines;
-  }, [selectedFamily, lang]);
+  }, [selectedFamily, lang, asciiMode]);
 
   // Layout dimensions
   const headerH = 3;
@@ -706,7 +709,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
       <Box height={1} width={width} justifyContent="space-between" paddingX={1}>
         <Box gap={1}>
           <Text color={theme.primary} bold>
-            {`◎ ${t(lang, '考试教练', 'Exam Coach')}`}
+            {`${asciiMode ? 'o' : '◎'} ${t(lang, '考试教练', 'Exam Coach')}`}
           </Text>
           <Badge label={course || t(lang, '全部课程', 'All Courses')} tone="accent" variant="soft" />
           {spec ? (
@@ -720,7 +723,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
         </Box>
         <Box gap={1}>
           {busyLabel ? <Spinner label={busyLabel} active={isActive} /> : null}
-          <StatusPill label={`${model.provider}${model.model ? `/${truncateDisplay(model.model, 16)}` : ''}`} status={model.ready ? 'ok' : 'warn'} />
+          <StatusPill label={`${model.provider}${model.model ? `/${truncateDisplay(model.model, 16, asciiMode ? '...' : '…')}` : ''}`} status={model.ready ? 'ok' : 'warn'} />
         </Box>
       </Box>
 
@@ -748,7 +751,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
       {/* Main Content */}
       {loading && !spec && !courseEvidence ? (
         <Box flexGrow={1} alignItems="center" justifyContent="center">
-          <Spinner label={t(lang, '正在加载考试教练…', 'Loading Exam Coach…')} active={isActive} />
+          <Spinner label={asciiMode ? t(lang, '正在加载考试教练...', 'Loading Exam Coach...') : t(lang, '正在加载考试教练…', 'Loading Exam Coach…')} active={isActive} />
         </Box>
       ) : tab === 'calibration' ? (
         !spec ? (
@@ -799,7 +802,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
                     const line = `${icon} ${padDisplay(truncateDisplay(f.title, labelW, asciiMode ? '...' : '…'), labelW)} ${meta}`;
                     return (
                       <Text color={ctx.selected ? theme.selectionFg : f.calibrated ? theme.success : theme.text} bold={ctx.selected}>
-                        {truncateDisplay(line, ctx.width)}
+                        {truncateDisplay(line, ctx.width, asciiMode ? '...' : '…')}
                       </Text>
                     );
                   }}
@@ -808,7 +811,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
             )}
             right={(sz) => (
               <Panel
-                title={selectedFamily ? truncateDisplay(selectedFamily.title, Math.max(10, sz.width - 18)) : t(lang, '详情', 'Details')}
+                title={selectedFamily ? truncateDisplay(selectedFamily.title, Math.max(10, sz.width - 18), asciiMode ? '...' : '…') : t(lang, '详情', 'Details')}
                 subtitle={t(lang, 'x/y/z确认 v答案 e配额', 'x/y/z v e')}
                 focused={focusPane === 'right'}
                 width={sz.width}
@@ -875,7 +878,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
                           : t(lang, '[○未生成]', '[○Idle]');
                   const tagW = displayWidth(tag);
                   const textW = Math.max(6, ctx.width - tagW - 2);
-                  const title = truncateDisplay(String(item.prompt || item.topic || item.cardId).replace(/\s+/g, ' '), textW);
+                  const title = truncateDisplay(String(item.prompt || item.topic || item.cardId).replace(/\s+/g, ' '), textW, asciiMode ? '...' : '…');
                   return (
                     <Text color={ctx.selected ? theme.selectionFg : theme.text} bold={ctx.selected}>
                       {`${padDisplay(title, textW)} ${tag}`}
@@ -900,7 +903,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
                     label={coachStatus?.enabled ? t(lang, '教练模型就绪', 'Coach Ready') : t(lang, '无可用模型', 'Model Unready')}
                     status={coachStatus?.enabled ? 'ok' : 'warn'}
                   />
-                  {coachStatus?.preparing ? <Spinner label={t(lang, '后台生成中', 'Preparing…')} active={isActive} /> : null}
+                  {coachStatus?.preparing ? <Spinner label={asciiMode ? t(lang, '后台生成中', 'Preparing...') : t(lang, '后台生成中', 'Preparing…')} active={isActive} /> : null}
                 </Box>
                 <Text color={theme.text}>{`${t(lang, '已备好变式题', 'Ready variants')}: ${coachStatus?.ready ?? 0}`}</Text>
                 <Text color={theme.muted}>{`${t(lang, '授权状态', 'Consent')}: ${coachStatus?.consent ? t(lang, '已授权', 'Granted') : t(lang, '首次生成时确认', 'Prompt on first queue')}`}</Text>
@@ -911,7 +914,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
                 ) : (
                   (coachStatus?.tasks ?? []).slice(0, Math.max(1, sz.height - 10)).map((tk) => (
                     <Text key={tk.id} color={tk.status === 'failed' ? theme.error : tk.status === 'done' ? theme.success : theme.muted}>
-                      {truncateDisplay(`• [${tk.status}] ${tk.label || tk.kind || tk.id} ${tk.message || ''}`, Math.max(8, sz.width - 4))}
+                      {truncateDisplay(`${asciiMode ? '*' : '•'} [${tk.status}] ${tk.label || tk.kind || tk.id} ${tk.message || ''}`, Math.max(8, sz.width - 4), asciiMode ? '...' : '…')}
                     </Text>
                   ))
                 )}
@@ -951,7 +954,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
                   const titleW = Math.max(6, ctx.width - metaW);
                   return (
                     <Text color={ctx.selected ? theme.selectionFg : overallTone(pt.overall) === 'success' ? theme.success : overallTone(pt.overall) === 'error' ? theme.error : theme.text}>
-                      {`${padDisplay(truncateDisplay(pt.title, titleW), titleW)} ${badge}`}
+                      {`${padDisplay(truncateDisplay(pt.title, titleW, asciiMode ? '...' : '…'), titleW)} ${badge}`}
                     </Text>
                   );
                 }}
@@ -980,7 +983,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
                   {ce ? (
                     <>
                       <Text color={ce.capabilityEvidence.readyForExam ? theme.success : theme.warning} bold>
-                        {truncateDisplay(ce.capabilityEvidence.verdict, Math.max(10, sz.width - 4))}
+                        {truncateDisplay(ce.capabilityEvidence.verdict, Math.max(10, sz.width - 4), asciiMode ? '...' : '…')}
                       </Text>
                       <Box marginY={1} flexDirection="column">
                         <ProgressBar
@@ -995,7 +998,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
                           {`${t(lang, '训练覆盖', 'Training')}: ${t(lang, '计划', 'Plan')} ${ce.trainingCoverage.planned} / ${t(lang, '可用', 'Usable')} ${ce.trainingCoverage.verifiedUsable} / ${t(lang, '已练', 'Done')} ${ce.trainingCoverage.practiced}`}
                         </Text>
                         <Text color={theme.text}>
-                          {`${t(lang, '未见独立通过', 'Unseen pass')}: ${ce.capabilityEvidence.unseenIndependentPassCount}  |  ${t(lang, '隔日≥12h', '≥12h')}: ${ce.capabilityEvidence.delayedIndependent.passedFamilyCount}/${ce.capabilityEvidence.delayedIndependent.totalActiveFamilyCount}  |  ${t(lang, '限时达标', 'Timed')}: ${ce.capabilityEvidence.timedIndependent.passedCount}`}
+                          {`${t(lang, '未见独立通过', 'Unseen pass')}: ${ce.capabilityEvidence.unseenIndependentPassCount}  |  ${t(lang, '隔日>=12h', '>=12h')}: ${ce.capabilityEvidence.delayedIndependent.passedFamilyCount}/${ce.capabilityEvidence.delayedIndependent.totalActiveFamilyCount}  |  ${t(lang, '限时达标', 'Timed')}: ${ce.capabilityEvidence.timedIndependent.passedCount}`}
                         </Text>
                       </Box>
                     </>
@@ -1003,12 +1006,12 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
                   {selectedPoint ? (
                     <>
                       <Divider width={Math.max(8, sz.width - 4)} />
-                      <Text color={theme.heading} bold>{truncateDisplay(selectedPoint.title, Math.max(10, sz.width - 4))}</Text>
+                      <Text color={theme.heading} bold>{truncateDisplay(selectedPoint.title, Math.max(10, sz.width - 4), asciiMode ? '...' : '…')}</Text>
                       <Text color={theme.muted}>
                         {`${t(lang, '保持', 'Retention')}: ${selectedPoint.retention || '-'}  |  ${t(lang, '理解', 'Comprehension')}: ${selectedPoint.comprehension || '-'}  |  ${t(lang, '迁移', 'Transfer')}: ${selectedPoint.transfer || '-'}`}
                       </Text>
                       {selectedPoint.gapHint ? (
-                        <Text color={theme.warning}>{truncateDisplay(`! ${selectedPoint.gapHint}`, Math.max(10, sz.width - 4))}</Text>
+                        <Text color={theme.warning}>{truncateDisplay(`! ${selectedPoint.gapHint}`, Math.max(10, sz.width - 4), asciiMode ? '...' : '…')}</Text>
                       ) : null}
                     </>
                   ) : null}
@@ -1125,7 +1128,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
       {editModalOpen && selectedFamily ? (
         <Modal
           title={t(lang, '调整任务族训练配置', 'Edit Task Family Config')}
-          subtitle={truncateDisplay(selectedFamily.title, 30)}
+          subtitle={truncateDisplay(selectedFamily.title, 30, asciiMode ? '...' : '…')}
           width={Math.min(62, width - 4)}
           onClose={() => setEditModalOpen(false)}
           isActive={isActive}
@@ -1148,7 +1151,9 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
               onSubmit={() => void saveFamilyEdits()}
             />
             <Text color={editField === 'priority' ? theme.primary : theme.muted} bold>
-              {t(lang, '优先级（←/→/空格切换）：', 'Priority (Left/Right/Space):')}
+              {asciiMode
+                ? t(lang, '优先级（Left/Right/空格切换）：', 'Priority (Left/Right/Space):')
+                : t(lang, '优先级（←/→/空格切换）：', 'Priority (Left/Right/Space):')}
             </Text>
             <Box gap={1}>
               {(['high', 'medium', 'deferred'] as const).map((p) => (

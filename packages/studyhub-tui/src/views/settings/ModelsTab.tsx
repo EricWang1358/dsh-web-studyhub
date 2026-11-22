@@ -573,7 +573,7 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
       {/* Active Model Banner */}
       <Panel
         title={t(lang, '当前生效模型', 'Active Model Route')}
-        subtitle={config?.configPath ? truncateDisplay(config.configPath, 36) : undefined}
+        subtitle={config?.configPath ? truncateDisplay(config.configPath, 36, asciiMode ? '...' : '…') : undefined}
         width={width}
         height={bannerH}
       >
@@ -672,7 +672,7 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
                 </Box>
                 <Box flexDirection="row" gap={1}>
                   <Text color={theme.muted}>{t(lang, '路径:', 'Path:')}</Text>
-                  <Text color={theme.dim}>{truncateDisplay(agyProvider?.executablePath || config?.agy?.executablePath || '-', innerW - 8)}</Text>
+                  <Text color={theme.dim}>{truncateDisplay(agyProvider?.executablePath || config?.agy?.executablePath || '-', innerW - 8, asciiMode ? '...' : '…')}</Text>
                 </Box>
                 <Box flexDirection="row" flexWrap="wrap" gap={1} marginY={0}>
                   <Box flexShrink={0}>
@@ -731,7 +731,7 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
                   {t(lang, '状态:', 'Status:')} <Text color={codexProvider?.ready ? theme.success : theme.warning}>{codexProvider?.reason || '-'}</Text>
                 </Text>
                 <Text color={theme.muted}>
-                  {t(lang, '路径:', 'Path:')} <Text color={theme.dim}>{truncateDisplay(codexProvider?.executablePath || config?.codex?.executablePath || '-', innerW - 8)}</Text>
+                  {t(lang, '路径:', 'Path:')} <Text color={theme.dim}>{truncateDisplay(codexProvider?.executablePath || config?.codex?.executablePath || '-', innerW - 8, asciiMode ? '...' : '…')}</Text>
                 </Text>
                 <Box flexDirection="row" gap={1}>
                   <Text color={theme.muted}>{t(lang, '强度 [e]:', 'Effort [e]:')}</Text>

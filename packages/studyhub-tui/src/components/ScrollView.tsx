@@ -2,7 +2,7 @@ import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import stripAnsi from 'strip-ansi';
 import { useTheme } from '../theme/tokens.js';
-import { wrapDisplay } from '../render/index.js';
+import { displayWidth, truncateDisplay, wrapDisplay } from '../render/index.js';
 import { useTuiStore } from '../state/store.js';
 import { pageStep, scrollbarThumb } from './VirtualList.js';
 
@@ -134,11 +134,15 @@ export const ScrollView = memo(function ScrollView({
   return (
     <Box flexDirection="row" width={width} height={rows}>
       <Box flexDirection="column" width={textWidth} height={rows} overflow="hidden">
-        {visible.map((l, i) => (
-          <Box key={top + i} height={1} overflow="hidden">
-            <Text wrap="truncate-end">{highlight ? highlightLine(l, highlight) : l || ' '}</Text>
-          </Box>
-        ))}
+        {visible.map((l, i) => {
+          const raw = highlight ? highlightLine(l, highlight) : l || ' ';
+          const cell = ascii && displayWidth(raw) > textWidth ? truncateDisplay(raw, textWidth, '...') : raw;
+          return (
+            <Box key={top + i} height={1} overflow="hidden">
+              <Text wrap={ascii ? undefined : 'truncate-end'}>{cell}</Text>
+            </Box>
+          );
+        })}
       </Box>
       {indicator ? (
         <Box flexDirection="column" width={1} height={rows}>
