@@ -92,11 +92,11 @@ Inside the palette: `↑`/`↓`, `Ctrl+P`/`Ctrl+N`, or `Ctrl+J`/`Ctrl+K` move se
 
 ### `1` Library (`library`)
 - **Practice & Rounds**: `Enter` start deck / open work item · `R` custom round configurator (`RoundConfigModal`) · `r` resume or start review · `p` daily plan · `g` AI Guided Study
-- **Deck & Course Ops**: `o` deck import / merge / split (`DeckOpsModal`) · `[` / `]` reorder selected deck up / down · `C` course settings (tabs `1-4`: `m` merge course, `a` activate/deactivate course) · `v` voice pack · `a` archive/unarchive · `d` delete deck · `h` show/hide archived · `s` load/remove sample course · `Tab` toggle Decks / Drafts & Failed Jobs (`y` retries failed job)
+- **Deck & Course Ops**: `o` deck import / merge / split (`DeckOpsModal`) · `[` / `]` reorder selected deck up / down · `C` course settings (tabs `1-4`: `m` merge course, `a` activate/deactivate course; Terms tab: `Space` toggle term mark, `C` clear all terms, `/` filter) · `v` voice pack · `a` archive/unarchive · `d` delete deck · `h` show/hide archived · `s` load/remove sample course · `Tab` toggle Decks / Drafts & Failed Jobs (`y` retries failed job)
 - **Deck Card Manager (`m`)**: `+` supplement cards · `k` convert card kind · `u` restore slain card (Slain deck / slain card) · `m` move deck to folder (non-system decks) · `Space` multi-select (up to 100) · `F` batch focus · `S` batch suspend · `x` clear selection · `/` or `f` search · `c` clear search · `n` rename · `e` open draft · `p` practise deck
 
 ### `r` Review (`review`)
-- **Answering**: `1-6` / `a-f` select MCQ (`Space` toggles multi-select, `Enter` submits) · `1/t` & `2/f` True/False · `i` / `Enter` edit fill-blank or open answer (`Tab`/`Shift+Tab` cycle blanks) · `Space` / `Enter` flip flashcard
+- **Answering**: `1-6` / `a-f` select MCQ (`Space` toggles multi-select, `Enter` submits) · `1/t` & `2/f` True/False · `i` / `Enter` edit fill-blank or open answer (`Tab`/`Shift+Tab` cycle blanks; auto-draft persisted on edit & restored on resume) · `Space` / `Enter` flip flashcard
 - **FSRS-6 Rating & Flow**: `0-5` six-grade rating · `u` undo last rating · `Enter` / `.` next card · `,` / `←` / `→` prev/next card · `s` skip · `q` end round (with confirmation)
 - **Card Tools & AI**: `h` AI Help drawer · `L` Socratic teach · `F` Feynman retell · `G` AI rubric grade · `T` translate card · `S` similar cards · `D` card tools (edit, suspend/slay, prereqs, terms, P2-safe quality feedback `coach.feedback` & revert last rewrite `coach.revert`) · `A` answer card & drills · `Q` live queue editor (non-exam) · `*` toggle focus · `E` flag card · `o` jump to cited source page · `m` toggle Unicode/LaTeX math
 
@@ -119,7 +119,7 @@ Inside the palette: `↑`/`↓`, `Ctrl+P`/`Ctrl+N`, or `Ctrl+J`/`Ctrl+K` move se
 - `j` / `k` select weak topic or course · `Enter` / `p` drill selected item · `w` practise all weak questions · `f` toggle 7-day forecast · `r` refresh
 
 ### `7` Review Book (`book`)
-- `Tab` / `h` / `l` switch TOC / reading pane · `m` toggle Unicode/LaTeX math · `e` edit or revert (`[u]`) section · `R` rename TOC node · `[` / `]` move node up/down among siblings · `D` delete node (keeps notes in Unplaced) · `z` revert last structure change · `U` place unplaced section into target leaf point (`BookStructureModal`) · `p` practise 5 cards · `P` pinned book QA · `w` final-week crunch & mock · `x` export Markdown · `g` build/rebuild book (`a` apply / `u` undo when rebuild-pending) · `r` refresh
+- `Tab` / `h` / `l` switch TOC / reading pane · `m` toggle Unicode/LaTeX math · `e` edit or revert (`[u]`) section · `R` rename TOC node · `[` / `]` move node up/down among siblings · `D` delete node (keeps notes in Unplaced) · `z` revert last structure change · `U` place unplaced section into target leaf point (`BookStructureModal`) · `T` Feynman retell selected point (`BookRetellModal`) · `p` practise 5 cards · `P` pinned book QA · `w` final-week crunch & mock · `x` export Markdown · `g` build/rebuild book (`a` apply / `u` undo when rebuild-pending) · `r` refresh
 
 ### `8` Skeleton (`skeleton`)
 - `j` / `k` move node · `Space` / `Enter` / `h` / `l` expand/collapse · `Tab` switch pane · `p` practise node · `E` edit skeleton node · `R` course learning route · `G` topic groups manager · `L` skeleton lint · `g` generate skeleton · `s` switch skeleton · `D` delete skeleton (removes diagrams; keeps decks/cards) · `r` refresh

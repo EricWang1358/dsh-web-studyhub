@@ -112,6 +112,10 @@ export interface CourseTermsResponse {
   items: CourseTermItem[];
 }
 
+interface DisplayTermItem extends CourseTermItem {
+  unmarked?: boolean;
+}
+
 export interface ExamAlignmentCourseItem {
   name: string;
   date: string;
@@ -166,7 +170,8 @@ type SubMode =
   | 'editExamDate'
   | 'searchTerms'
   | 'pickMergeCourse'
-  | 'confirmMerge';
+  | 'confirmMerge'
+  | 'confirmClearTerms';
 
 const TABS: readonly SettingsTab[] = ['method', 'info', 'terms', 'align'];
 
@@ -316,6 +321,7 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
   const [methodData, setMethodData] = useState<CourseMethodResponse | null>(null);
   const [courseDetail, setCourseDetail] = useState<CourseDetailResponse | null>(null);
   const [termsData, setTermsData] = useState<CourseTermsResponse | null>(null);
+  const [unmarkedTerms, setUnmarkedTerms] = useState<CourseTermItem[]>([]);
   const [alignLoading, setAlignLoading] = useState(false);
   const [alignError, setAlignError] = useState('');
   const [alignPreview, setAlignPreview] = useState<ExamAlignmentPreviewResponse | null>(null);
@@ -334,6 +340,8 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
   const [pendingMergeCourse, setPendingMergeCourse] = useState<MergeCandidate | null>(null);
 
   const mountedRef = useRef(true);
+  const busyRef = useRef(false);
+  const termOrderRef = useRef<string[]>([]);
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -358,6 +366,9 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
 
   // Load course method, course detail, and course terms for the active course (cancel-guarded)
   useEffect(() => {
+    setUnmarkedTerms([]);
+    termOrderRef.current = [];
+    setTermFilter('');
     if (!selectedCourse) {
       setMethodData(null);
       setCourseDetail(null);
@@ -400,17 +411,44 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
   }, [host, selectedCourse, lang]);
 
   const stages = useMemo(() => methodData?.method?.stages ?? [], [methodData?.method?.stages]);
-  const filteredTerms = useMemo(() => {
-    const items = termsData?.items ?? [];
+  const displayTerms = useMemo<DisplayTermItem[]>(() => {
+    const activeItems = termsData?.items ?? [];
+    const byKey = new Map<string, DisplayTermItem>();
+    for (const item of activeItems) {
+      byKey.set(item.term.toLowerCase(), { ...item, unmarked: false });
+    }
+    for (const item of unmarkedTerms) {
+      const k = item.term.toLowerCase();
+      if (!byKey.has(k)) {
+        byKey.set(k, { ...item, unmarked: true });
+      }
+    }
+    const order = termOrderRef.current;
+    const orderIdx = new Map<string, number>();
+    for (let i = 0; i < order.length; i += 1) {
+      orderIdx.set(order[i], i);
+    }
+    for (const k of byKey.keys()) {
+      if (!orderIdx.has(k)) {
+        orderIdx.set(k, order.length);
+        order.push(k);
+      }
+    }
+    return [...byKey.entries()]
+      .sort((a, b) => (orderIdx.get(a[0]) ?? 0) - (orderIdx.get(b[0]) ?? 0))
+      .map(([, item]) => item);
+  }, [termsData?.items, unmarkedTerms]);
+
+  const filteredTerms = useMemo<DisplayTermItem[]>(() => {
     const q = termFilter.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter(
+    if (!q) return displayTerms;
+    return displayTerms.filter(
       (item) =>
         item.term.toLowerCase().includes(q) ||
         (item.alt ? item.alt.toLowerCase().includes(q) : false) ||
         (item.fromPrompt ? item.fromPrompt.toLowerCase().includes(q) : false),
     );
-  }, [termsData?.items, termFilter]);
+  }, [displayTerms, termFilter]);
 
   useEffect(() => {
     if (stageIndex >= stages.length) setStageIndex(Math.max(0, stages.length - 1));
@@ -419,6 +457,8 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
   useEffect(() => {
     if (termIndex >= filteredTerms.length) setTermIndex(Math.max(0, filteredTerms.length - 1));
   }, [filteredTerms.length, termIndex]);
+
+  const selectedTerm = filteredTerms[termIndex] ?? null;
 
   const focusTopics = useMemo(() => focusProgress?.topics ?? [], [focusProgress?.topics]);
   useEffect(() => {
@@ -838,6 +878,106 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
     notify(t(lang, `已将「${source.name}」合并到「${targetName}」`, `Merged "${source.name}" into "${targetName}"`), 'success');
   }, [pendingMergeCourse, resolvedCourseId, selectedCourse, busy, host, lang, notify, actions, onUpdated]);
 
+  const handleToggleTerm = useCallback(
+    async (target: DisplayTermItem | null) => {
+      if (!selectedCourse || !target || busyRef.current) return;
+      busyRef.current = true;
+      setBusy(true);
+      setError('');
+      try {
+        const willMark = Boolean(target.unmarked);
+        const action = willMark ? 'course.terms.mark' : 'course.terms.unmark';
+        const args = willMark
+          ? {
+              course: selectedCourse,
+              terms: [target.term],
+              ...(target.from ? { from: target.from } : {}),
+            }
+          : {
+              course: selectedCourse,
+              terms: [target.term],
+            };
+        const res = await tryAction<{ course?: string; items?: CourseTermItem[]; added?: number; removed?: number }>(
+          host,
+          action,
+          args,
+        );
+        if (!mountedRef.current) return;
+        if (!res.ok) {
+          const msg = res.error?.message || t(lang, '更新术语标记失败', 'Failed to update term mark');
+          notify(msg, 'error');
+          return;
+        }
+        const key = target.term.toLowerCase();
+        if (willMark) {
+          setUnmarkedTerms((prev) => prev.filter((it) => it.term.toLowerCase() !== key));
+        } else {
+          setUnmarkedTerms((prev) => (prev.some((it) => it.term.toLowerCase() === key) ? prev : [...prev, target]));
+        }
+        const refreshTerms = await tryAction<CourseTermsResponse>(host, 'course.terms.get', { course: selectedCourse });
+        if (!mountedRef.current) return;
+        if (refreshTerms.ok && refreshTerms.value) {
+          setTermsData(refreshTerms.value);
+        }
+        await actions.refresh();
+        if (!mountedRef.current) return;
+        onUpdated?.();
+        notify(
+          willMark
+            ? t(lang, `已标记术语「${target.term}」`, `Marked term "${target.term}"`)
+            : t(lang, `已取消标记术语「${target.term}」`, `Unmarked term "${target.term}"`),
+          'success',
+        );
+      } finally {
+        busyRef.current = false;
+        if (mountedRef.current) setBusy(false);
+      }
+    },
+    [selectedCourse, host, lang, notify, actions, onUpdated],
+  );
+
+  const handleClearTermsConfirmed = useCallback(async () => {
+    if (!selectedCourse || busyRef.current) {
+      setSubMode('none');
+      return;
+    }
+    busyRef.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      const res = await tryAction<{ course?: string; items?: CourseTermItem[]; cleared?: boolean }>(
+        host,
+        'course.terms.clear',
+        { course: selectedCourse },
+      );
+      if (!mountedRef.current) return;
+      setSubMode('none');
+      if (!res.ok) {
+        const msg = res.error?.message || t(lang, '清空课程术语失败', 'Failed to clear course terms');
+        notify(msg, 'error');
+        return;
+      }
+      setUnmarkedTerms([]);
+      termOrderRef.current = [];
+      setTermFilter('');
+      const refreshTerms = await tryAction<CourseTermsResponse>(host, 'course.terms.get', { course: selectedCourse });
+      if (!mountedRef.current) return;
+      setTermsData(refreshTerms.ok && refreshTerms.value ? refreshTerms.value : { course: selectedCourse, items: [] });
+      await actions.refresh();
+      if (!mountedRef.current) return;
+      onUpdated?.();
+      notify(
+        res.value?.cleared === false
+          ? t(lang, '当前课程暂无已标记术语', 'No marked terms to clear')
+          : t(lang, `已清空「${selectedCourse}」所有标记术语`, `Cleared all marked terms for "${selectedCourse}"`),
+        res.value?.cleared === false ? 'info' : 'success',
+      );
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusy(false);
+    }
+  }, [selectedCourse, host, lang, notify, actions, onUpdated]);
+
   useInput(
     (input, key) => {
       if (loading || busy || subMode !== 'none') return;
@@ -902,6 +1042,16 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
           setSubMode('searchTerms');
         } else if (input === 'x' && termFilter) {
           setTermFilter('');
+        } else if (input === ' ') {
+          if (selectedTerm) {
+            void handleToggleTerm(selectedTerm);
+          }
+        } else if (input === 'C') {
+          if ((termsData?.items?.length ?? 0) === 0) {
+            notify(t(lang, '当前课程暂无已标记术语', 'No marked terms to clear'), 'info');
+          } else {
+            setSubMode('confirmClearTerms');
+          }
         }
         return;
       }
@@ -1000,8 +1150,10 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
       base.push({ key: 'm', label: t(lang, '合并课程', 'Merge') });
       base.push({ key: 'a', label: isCourseActive ? t(lang, '停用', 'Deactivate') : t(lang, '激活', 'Activate') });
     } else if (tab === 'terms') {
+      if (filteredTerms.length > 0) base.push({ key: 'Space', label: t(lang, '标记/移出', 'Toggle Mark') });
       base.push({ key: '/', label: t(lang, '筛选', 'Filter') });
       if (termFilter) base.push({ key: 'x', label: t(lang, '清筛选', 'Clear') });
+      if ((termsData?.items?.length ?? 0) > 0) base.push({ key: 'C', label: t(lang, '清空', 'Clear All') });
     } else {
       base.push({ key: 'a', label: alignPreview?.enabled ? t(lang, '关对齐', 'Disable') : t(lang, '开对齐', 'Align') });
       if ((alignPreview?.restorable ?? 0) > 0) base.push({ key: 'u', label: t(lang, '恢复原日', 'Restore') });
@@ -1010,7 +1162,7 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
     if (availableCourses.length > 1) base.push({ key: 'c', label: t(lang, '换课', 'Course') });
     base.push({ key: 'Esc', label: t(lang, '关闭', 'Close') });
     return base;
-  }, [subMode, tab, lang, methodData?.own, isCourseActive, termFilter, alignPreview?.enabled, alignPreview?.restorable, focusProgress?.weakScope?.length, availableCourses.length]);
+  }, [subMode, tab, lang, methodData?.own, isCourseActive, filteredTerms.length, termFilter, termsData?.items?.length, alignPreview?.enabled, alignPreview?.restorable, focusProgress?.weakScope?.length, availableCourses.length]);
 
   const renderStageRow = useCallback(
     (stage: CourseMethodStage, ctx: VirtualListRenderContext) => {
@@ -1048,8 +1200,12 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
   );
 
   const renderTermRow = useCallback(
-    (item: CourseTermItem, ctx: VirtualListRenderContext) => {
-      const badge = termStateBadge(item.state, lang);
+    (item: DisplayTermItem, ctx: VirtualListRenderContext) => {
+      const isUnmarked = Boolean(item.unmarked);
+      const markGlyph = isUnmarked ? (asciiMode ? '[ ]' : '☐') : asciiMode ? '[x]' : '☑';
+      const badge = isUnmarked
+        ? { label: t(lang, '已移出', 'Unmarked'), tone: 'neutral' as const }
+        : termStateBadge(item.state, lang);
       const stateTag = `[${badge.label}]`;
       const altText = item.alt ? ` (${item.alt})` : '';
       const occ = (item as { occurrences?: number; count?: number }).occurrences ?? (item as { count?: number }).count;
@@ -1061,19 +1217,24 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
             : ' [卡]'
           : t(lang, ' ✓已建卡', ' ✓Card')
         : '';
-      const prefixW = displayWidth(stateTag) + 1;
+      const markPrefix = `${markGlyph} `;
+      const prefixW = displayWidth(markPrefix) + displayWidth(stateTag) + 1;
       const avail = Math.max(6, ctx.width - prefixW - displayWidth(occTag) - displayWidth(cardTag));
       const body = padDisplay(truncateDisplay(`${item.term}${altText}`, avail), avail);
-      const fg = ctx.selected ? theme.selectionFg : theme.text;
+      const fg = ctx.selected ? theme.selectionFg : isUnmarked ? theme.dim : theme.text;
+      const markColor = ctx.selected ? theme.selectionFg : isUnmarked ? theme.dim : theme.success;
       const tagColor = ctx.selected
         ? theme.selectionFg
-        : badge.tone === 'success'
-          ? theme.success
-          : badge.tone === 'info'
-            ? theme.info
-            : theme.warning;
+        : isUnmarked
+          ? theme.muted
+          : badge.tone === 'success'
+            ? theme.success
+            : badge.tone === 'info'
+              ? theme.info
+              : theme.warning;
       return (
         <Text color={fg} bold={ctx.selected}>
+          <Text color={markColor}>{markPrefix}</Text>
           <Text color={tagColor}>{stateTag} </Text>
           {body}
           {occTag ? <Text color={ctx.selected ? theme.selectionFg : theme.dim}>{occTag}</Text> : null}
@@ -1144,7 +1305,6 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
     return { total: items.length, known, learned, unknown };
   }, [termsData?.items]);
 
-  const selectedTerm = filteredTerms[termIndex] ?? null;
   const tabLabel = (id: SettingsTab, zh: string, en: string, num: number) => {
     const active = tab === id;
     return (
@@ -1174,7 +1334,7 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
                 setSubMode('none');
               }
         }
-        isActive={isActive && subMode !== 'confirmRename' && subMode !== 'confirmMerge'}
+        isActive={isActive && subMode !== 'confirmRename' && subMode !== 'confirmMerge' && subMode !== 'confirmClearTerms'}
         hints={hints}
       >
         {/* Tab Bar */}
@@ -1565,7 +1725,7 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
                   width={innerW}
                   selectedIndex={termIndex}
                   onChange={(idx) => setTermIndex(idx)}
-                  isActive={isActive && subMode === 'none'}
+                  isActive={isActive && subMode === 'none' && !busy}
                   keyExtractor={(item, idx) => `${item.term}:${idx}`}
                   renderItem={renderTermRow}
                 />
@@ -1577,14 +1737,18 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
                         <Text bold>{selectedTerm.term}</Text>
                         {selectedTerm.alt ? ` (${selectedTerm.alt})` : ''}
                         {' · '}
-                        <Text color={theme.muted}>{termStateBadge(selectedTerm.state, lang).label}</Text>
+                        <Text color={selectedTerm.unmarked ? theme.warning : theme.muted}>
+                          {selectedTerm.unmarked
+                            ? t(lang, '已移出 (按 Space 重新标记)', 'Unmarked (Space to re-mark)')
+                            : `${t(lang, '已标记', 'Marked')} · ${termStateBadge(selectedTerm.state, lang).label}`}
+                        </Text>
                       </Text>
                       <Text color={theme.muted} wrap="truncate-end">
                         {selectedTerm.fromPrompt
                           ? `${t(lang, '出处题干', 'From')}: ${selectedTerm.fromPrompt}`
                           : selectedTerm.at
                             ? `${t(lang, '记录时间', 'Recorded')}: ${selectedTerm.at.slice(0, 10)}`
-                            : t(lang, '按 [/] 搜索术语', 'Press [/] to filter terms')}
+                            : t(lang, '[Space] 标记/移出  [/] 搜索  [C] 清空', '[Space] Toggle  [/] Filter  [C] Clear')}
                       </Text>
                     </>
                   ) : null}
@@ -1730,6 +1894,25 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
             setPendingMergeCourse(null);
             setSubMode('none');
           }}
+        />
+      ) : null}
+
+      {subMode === 'confirmClearTerms' && selectedCourse ? (
+        <ConfirmDialog
+          title={t(lang, '确认清空课程术语', 'Confirm Clear Terms')}
+          message={t(
+            lang,
+            `确定清空「${selectedCourse}」的所有已标记术语（共 ${termCounts.total} 个）？题组里已生成的检查题和作答记录会保留。`,
+            `Clear all ${termCounts.total} marked terms for "${selectedCourse}"? Generated check cards and review history will be preserved.`,
+          )}
+          confirmLabel={t(lang, '确认清空', 'Clear All')}
+          cancelLabel={t(lang, '取消', 'Cancel')}
+          danger
+          isActive={isActive && subMode === 'confirmClearTerms' && !busy}
+          onConfirm={() => {
+            void handleClearTermsConfirmed();
+          }}
+          onCancel={() => setSubMode('none')}
         />
       ) : null}
     </>

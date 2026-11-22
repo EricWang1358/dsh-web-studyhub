@@ -94,6 +94,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'D / z', label: t(lang, '删节点 / 撤销结构', 'Delete / undo struct') },
         { key: 'a / u', label: t(lang, '应用 / 撤销总纲重建', 'Apply / undo rebuild') },
         { key: 'U', label: t(lang, '归位未归位段落', 'Place unplaced section') },
+        { key: 'T', label: t(lang, '费曼复述知识点', 'Feynman retell point') },
       ],
     },
     {

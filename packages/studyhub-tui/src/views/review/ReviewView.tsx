@@ -95,6 +95,15 @@ interface CardGradeResponse {
   message?: string;
 }
 
+interface RunDraftShape {
+  text?: unknown;
+  stepInputs?: unknown;
+  selected?: unknown;
+  updatedAt?: unknown;
+}
+
+const DRAFT_SAVE_DEBOUNCE_MS = 600;
+
 function isModelUnavailableMsg(msg: string): boolean {
   return /configure a model|model.*unavailable|no.*model|api.?key|unauthorized|forbidden|\b401\b|\b403\b|econnrefused|timed out|timeout|未配置|可用.*模型|模型不可用/i.test(
     msg,
@@ -181,32 +190,107 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
   const mountedRef = useRef(true);
   const translationCacheRef = useRef(new LruCache<string, CardTranslation>(MAX_TRANSLATION_CACHE));
   const currentCardIdRef = useRef<string | null>(null);
+  const runRef = useRef<ReviewRun | null>(null);
+  runRef.current = run;
+  const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearDraftTimer = useCallback(() => {
+    if (draftTimerRef.current !== null) {
+      clearTimeout(draftTimerRef.current);
+      draftTimerRef.current = null;
+    }
+  }, []);
+
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      clearDraftTimer();
     };
-  }, []);
+  }, [clearDraftTimer]);
 
   const cardId = currentCardId(run);
   currentCardIdRef.current = cardId;
   const cardKey = `${run?.id ?? ''}:${run?.index ?? -1}:${cardId ?? ''}`;
 
-  // Reset per-card input state when moving to another question
+  const scheduleDraftSave = useCallback(
+    (draftPatch: { text?: string; stepInputs?: Record<string, string>; selected?: string[] }) => {
+      clearDraftTimer();
+      const activeRun = runRef.current;
+      const targetCardId = currentCardIdRef.current;
+      if (
+        !activeRun?.id ||
+        !targetCardId ||
+        activeRun.complete ||
+        activeRun.closed ||
+        activeRun.feedback ||
+        !Number.isInteger(activeRun.index)
+      ) {
+        return;
+      }
+      const targetRunId = activeRun.id;
+      const targetIndex = activeRun.index;
+      draftTimerRef.current = setTimeout(() => {
+        draftTimerRef.current = null;
+        if (!mountedRef.current) return;
+        const latestRun = runRef.current;
+        if (
+          !latestRun ||
+          latestRun.id !== targetRunId ||
+          latestRun.index !== targetIndex ||
+          currentCardIdRef.current !== targetCardId ||
+          latestRun.complete ||
+          latestRun.closed ||
+          latestRun.feedback
+        ) {
+          return;
+        }
+        void tryAction(host, 'review.draft.save', {
+          runId: targetRunId,
+          cardId: targetCardId,
+          index: targetIndex,
+          draft: draftPatch,
+        }).catch(() => undefined);
+      }, DRAFT_SAVE_DEBOUNCE_MS);
+    },
+    [clearDraftTimer, host],
+  );
+
+  // Reset per-card input state and restore any persisted entry draft when opening/moving to a question
   useEffect(() => {
+    clearDraftTimer();
+    const activeRun = runRef.current;
+    const rawDraft =
+      activeRun && !activeRun.feedback && !activeRun.complete && !activeRun.closed
+        ? ((activeRun as { draft?: RunDraftShape | null }).draft ?? null)
+        : null;
+    const restoredText = typeof rawDraft?.text === 'string' ? rawDraft.text : '';
+    const restoredCloze: Record<string, string> = {};
+    if (rawDraft?.stepInputs && typeof rawDraft.stepInputs === 'object' && !Array.isArray(rawDraft.stepInputs)) {
+      for (const [key, val] of Object.entries(rawDraft.stepInputs as Record<string, unknown>)) {
+        if (typeof val === 'string') restoredCloze[key] = val;
+      }
+    }
+    const restoredSelected = Array.isArray(rawDraft?.selected)
+      ? rawDraft.selected.filter((id): id is string => typeof id === 'string')
+      : [];
+
     setCursorOpt(0);
-    setSelectedIds([]);
-    setClozeInputs({});
+    setSelectedIds(restoredSelected);
+    setClozeInputs(restoredCloze);
     setActiveBlankIdx(0);
     setClozeEditing(false);
-    setOpenDraft('');
+    setOpenDraft(restoredText);
     setOpenEditing(false);
     setGradingBusy(false);
     setGradeResult(null);
     setGradeError(null);
     setShowTranslation(false);
     setTranslating(false);
-  }, [cardKey]);
+    return () => {
+      clearDraftTimer();
+    };
+  }, [cardKey, clearDraftTimer]);
 
   const applyRun = useCallback(
     (next: ReviewRun | null, shouldRefreshSnapshot = false) => {
@@ -225,6 +309,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
 
   const loadInitialRun = useCallback(
     async (forceFresh = false) => {
+      clearDraftTimer();
       setLoading(true);
       setLoadError(null);
       const targetRunId = !forceFresh ? navContext.runId || activeRunId : null;
@@ -258,7 +343,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
         setLoadError(startRes.error?.message || t(lang, '当前没有待复习题目', 'No questions due right now'));
       }
     },
-    [host, navContext.runId, navContext.deckId, navContext.course, navContext.mode, activeRunId, snapshot, applyRun, lang],
+    [host, navContext.runId, navContext.deckId, navContext.course, navContext.mode, activeRunId, snapshot, applyRun, clearDraftTimer, lang],
   );
 
   useEffect(() => {
@@ -329,18 +414,34 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
 
   const handleReveal = useCallback(() => {
     if (!run?.id || !cardId || busy || revealed) return;
-    void runAction(() =>
-      revealReview(host, {
+    clearDraftTimer();
+    const serverDraftText =
+      typeof (run as { draft?: { text?: unknown } } | null)?.draft?.text === 'string'
+        ? ((run as { draft?: { text?: string } }).draft?.text ?? '')
+        : '';
+    const shouldFlushOpenDraft = isRubricEligibleKind && openDraft !== serverDraftText;
+    const pendingDraftText = openDraft;
+    void runAction(async () => {
+      if (shouldFlushOpenDraft) {
+        await tryAction(host, 'review.draft.save', {
+          runId: run.id,
+          cardId,
+          index: run.index,
+          draft: { text: pendingDraftText },
+        });
+      }
+      return revealReview(host, {
         runId: run.id,
         cardId,
         queueVersion: run.queueVersion ?? 0,
-      }),
-    );
-  }, [run, cardId, busy, revealed, runAction, host]);
+      });
+    });
+  }, [run, cardId, busy, revealed, clearDraftTimer, isRubricEligibleKind, openDraft, runAction, host]);
 
   const handleSubmitChoice = useCallback(
     (ids: string[]) => {
       if (!run?.id || !cardId || busy || feedback || ids.length === 0) return;
+      clearDraftTimer();
       void runAction(() =>
         answerReview(host, {
           runId: run.id,
@@ -350,7 +451,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
         }),
       );
     },
-    [run, cardId, busy, feedback, runAction, host],
+    [run, cardId, busy, feedback, clearDraftTimer, runAction, host],
   );
 
   const handleSubmitCloze = useCallback(
@@ -361,21 +462,24 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
         notify(t(lang, '请先填写至少一个空格', 'Fill in at least one blank first'), 'warning');
         return;
       }
+      clearDraftTimer();
       void runAction(() =>
         answerReview(host, {
           runId: run.id,
           cardId,
           answers: vals,
+          draft: { stepInputs: vals },
           queueVersion: run.queueVersion ?? 0,
         }),
       );
     },
-    [run, cardId, busy, feedback, runAction, host, notify, lang],
+    [run, cardId, busy, feedback, clearDraftTimer, runAction, host, notify, lang],
   );
 
   const handleFsrsGrade = useCallback(
     (grade: number) => {
       if (!run?.id || !cardId || busy || feedback || !revealed) return;
+      clearDraftTimer();
       const practice = (snapshot?.settings as { practice?: Record<string, unknown> } | undefined)?.practice;
       const selfGradeAdvanceEnabled =
         practice?.selfGradeAdvance !== false &&
@@ -389,11 +493,12 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
           cardId,
           grade,
           advanceOnSelfGrade,
+          ...(isRubricEligibleKind && openDraft.length > 0 ? { draft: { text: openDraft } } : {}),
           queueVersion: run.queueVersion ?? 0,
         }),
       );
     },
-    [run, cardId, busy, feedback, revealed, snapshot, runAction, host],
+    [run, cardId, busy, feedback, revealed, clearDraftTimer, snapshot, isRubricEligibleKind, openDraft, runAction, host],
   );
 
   const handleMove = useCallback(
@@ -407,14 +512,16 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
         notify(t(lang, '请先用 [0-5] 评分', 'Rate with [0-5] first'), 'info');
         return;
       }
+      clearDraftTimer();
       void runAction(() => moveReview(host, run.id, { direction }));
     },
-    [run, busy, feedback, revealed, isSelfGraded, runAction, host, notify, lang],
+    [run, busy, feedback, revealed, isSelfGraded, clearDraftTimer, runAction, host, notify, lang],
   );
 
   const handleSkip = useCallback(() => {
     if (!run?.id || !cardId || busy || feedback) return;
     if (run.card?.publicationUngrable) {
+      clearDraftTimer();
       void runAction(async () => {
         const res = await tryAction<ReviewRun>(host, 'review.skip', {
           runId: run.id,
@@ -431,8 +538,9 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
       notify(t(lang, '这是最后一题待答题目，无法跳过', 'This is the last unanswered question'), 'info');
       return;
     }
+    clearDraftTimer();
     void runAction(() => moveReview(host, run.id, { index: target }));
-  }, [run, cardId, busy, feedback, runAction, host, notify, lang]);
+  }, [run, cardId, busy, feedback, clearDraftTimer, runAction, host, notify, lang]);
 
   const handleUndo = useCallback(() => {
     if (!run?.id || busy) return;
@@ -441,6 +549,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
       notify(t(lang, '当前没有可撤销的评分', 'Nothing to undo in this round'), 'info');
       return;
     }
+    clearDraftTimer();
     const attemptId =
       typeof undoable === 'object' && undoable !== null && 'attemptId' in undoable
         ? (undoable as { attemptId?: string }).attemptId
@@ -454,12 +563,13 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
       notify(t(lang, '已撤销上一题评分', 'Undid last rating'), 'success');
       return res.value;
     }, true);
-  }, [run, busy, runAction, host, notify, lang]);
+  }, [run, busy, clearDraftTimer, runAction, host, notify, lang]);
 
   const handleEndRound = useCallback(() => {
     if (!run?.id || busy) return;
+    clearDraftTimer();
     void runAction(() => endReview(host, run.id), true);
-  }, [run, busy, runAction, host]);
+  }, [run, busy, clearDraftTimer, runAction, host]);
 
   const handleSubmitFlag = useCallback(async () => {
     const deckId =
@@ -484,12 +594,13 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
 
   const handlePracticeWeak = useCallback(() => {
     if (!run?.id || busy) return;
+    clearDraftTimer();
     void runAction(async () => {
       const res = await tryAction<ReviewRun>(host, 'review.weak.start', { runId: run.id });
       if (!res.ok || !res.value) throw new Error(res.error?.message || t(lang, '本轮暂无薄弱题', 'No weak cards to retry'));
       return res.value;
     });
-  }, [run, busy, runAction, host, lang]);
+  }, [run, busy, clearDraftTimer, runAction, host, lang]);
 
   const handleToggleTranslate = useCallback(async () => {
     if (!run?.card || !cardId || translating) return;
@@ -545,6 +656,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
 
   const handleRubricGrade = useCallback(async () => {
     if (!run?.id || !cardId || busy || gradingBusy || !isRubricEligibleKind) return;
+    clearDraftTimer();
     const answer = gradeAnswerText;
     if (!answer) {
       notify(
@@ -588,7 +700,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     } catch {
       // Keep local gradeResult displayed even if run refresh fails
     }
-  }, [run, cardId, busy, gradingBusy, isRubricEligibleKind, gradeAnswerText, host, lang, notify, applyRun]);
+  }, [run, cardId, busy, gradingBusy, isRubricEligibleKind, clearDraftTimer, gradeAnswerText, host, lang, notify, applyRun]);
 
   const handleToggleFocus = useCallback(async () => {
     if (!run?.id || !cardId || focusBusy) return;
@@ -1245,7 +1357,11 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                     <Text color={theme.muted}>{`#${idx + 1} `}</Text>
                     <TextInput
                       value={clozeInputs[blank.id] ?? ''}
-                      onChange={(val) => setClozeInputs((prev) => ({ ...prev, [blank.id]: val }))}
+                      onChange={(val) => {
+                        const next = { ...clozeInputs, [blank.id]: val };
+                        setClozeInputs(next);
+                        scheduleDraftSave({ stepInputs: next });
+                      }}
                       isActive={isActive && !anyModalOpen && isThisActive}
                       width={Math.max(12, Math.min(innerW, 64) - 10)}
                       placeholder={t(lang, '输入答案 (Enter 下一空/提交, Esc 退出)', 'Type answer (Enter next/submit, Esc blur)')}
@@ -1296,7 +1412,10 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
               </Text>
               <TextInput
                 value={openDraft}
-                onChange={setOpenDraft}
+                onChange={(val) => {
+                  setOpenDraft(val);
+                  scheduleDraftSave({ text: val });
+                }}
                 isActive={isActive && !anyModalOpen && openEditing}
                 width={Math.max(16, innerW - 6)}
                 placeholder={

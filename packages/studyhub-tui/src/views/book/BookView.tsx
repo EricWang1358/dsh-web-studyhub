@@ -20,7 +20,7 @@ import {
   useTheme,
   type SelectOption,
 } from '../../components/index.js';
-import { truncateDisplay } from '../../render/index.js';
+import { displayWidth, truncateDisplay } from '../../render/index.js';
 import type {
   BookNode,
   BookOpenResult,
@@ -33,11 +33,40 @@ const BookCrunchModal = lazy(() => import('./BookCrunchModal.js').then((m) => ({
 const BookEditModal = lazy(() => import('./BookEditModal.js').then((m) => ({ default: m.BookEditModal })));
 const BookExportModal = lazy(() => import('./BookExportModal.js').then((m) => ({ default: m.BookExportModal })));
 const BookQaModal = lazy(() => import('./BookQaModal.js').then((m) => ({ default: m.BookQaModal })));
+const BookRetellModal = lazy(() => import('./BookRetellModal.js').then((m) => ({ default: m.BookRetellModal })));
 const BookStructureModal = lazy(() => import('./BookStructureModal.js').then((m) => ({ default: m.BookStructureModal })));
 
-const BASE_CLAIMED_KEYS = ['P', 'U', 'e', 'r', 'w', 'x', '[', ']'] as const;
-const REBUILD_CLAIMED_KEYS = ['P', 'U', 'e', 'r', 'w', 'x', '[', ']', 'a'] as const;
+const BASE_CLAIMED_KEYS = ['P', 'T', 'U', 'e', 'r', 'w', 'x', '[', ']'] as const;
+const REBUILD_CLAIMED_KEYS = ['P', 'T', 'U', 'e', 'r', 'w', 'x', '[', ']', 'a'] as const;
 const STRUCTURE_FILE = 'book.structure';
+
+interface BookNodeRetold {
+  tries?: number;
+  passes?: number;
+  gap?: string;
+  at?: string;
+  count?: number;
+  lastAt?: string;
+  passed?: boolean;
+}
+
+type BookNodeWithRetell = BookNode & {
+  retell?: { passed?: boolean; tries?: number; passes?: number; gap?: string; at?: string };
+};
+
+function getRetoldSummary(node: BookNode | undefined): {
+  passed: boolean;
+  tries: number;
+  passes: number;
+} {
+  if (!node) return { passed: false, tries: 0, passes: 0 };
+  const raw = (node.retold ?? (node as BookNodeWithRetell).retell) as BookNodeRetold | undefined;
+  if (!raw) return { passed: false, tries: 0, passes: 0 };
+  const passes = Number(raw.passes ?? (raw.passed === true ? 1 : 0)) || 0;
+  const tries = Number(raw.tries ?? raw.count ?? passes) || 0;
+  const passed = passes > 0 || raw.passed === true || (node as BookNodeWithRetell).retell?.passed === true;
+  return { passed, tries, passes };
+}
 
 interface UnplacedSectionPreview {
   id: string;
@@ -167,7 +196,7 @@ function flattenBookNodes(nodes: BookNode[] | undefined, out: FlatTocItem[] = []
       short: Boolean(node.short),
       hasQa: Boolean(node.qa && node.qa.trim()),
       hasMine: Boolean(node.mine && node.mine.trim()),
-      retoldCount: Number(node.retold?.count ?? 0) || 0,
+      retoldCount: getRetoldSummary(node).tries,
       node,
     });
     if (node.children?.length) flattenBookNodes(node.children, out);
@@ -228,6 +257,7 @@ function buildSectionMarkdown(
   readResult: BookReadResult | null,
   qaList: BookQaListResult | null,
   lang: 'zh' | 'en',
+  asciiMode: boolean,
 ): string {
   if (!item) return '';
   const parts: string[] = [];
@@ -238,7 +268,18 @@ function buildSectionMarkdown(
     const statusTags: string[] = [];
     if (node.leaf) {
       statusTags.push(t(lang, `关联题目: ${node.questionTotal ?? 0}`, `Linked questions: ${node.questionTotal ?? 0}`));
-      if (node.retold?.count) statusTags.push(t(lang, `已复述 ${node.retold.count} 次`, `Retold ${node.retold.count}x`));
+      const retold = getRetoldSummary(node);
+      if (retold.passed) {
+        statusTags.push(
+          t(
+            lang,
+            `${asciiMode ? '+' : '✓'} 讲清楚过 (${retold.passes}/${retold.tries})`,
+            `${asciiMode ? '+' : '✓'} Retold (${retold.passes}/${retold.tries})`,
+          ),
+        );
+      } else if (retold.tries > 0) {
+        statusTags.push(t(lang, `已复述 ${retold.tries} 次`, `Retold ${retold.tries}x`));
+      }
       if (node.short) statusTags.push(t(lang, '内容较精简', 'Short summary'));
       if (node.unbuilt) statusTags.push(t(lang, '本节尚未生成讲义', 'Section not generated yet'));
     } else {
@@ -326,6 +367,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [qaModalOpen, setQaModalOpen] = useState(false);
+  const [retellModalOpen, setRetellModalOpen] = useState(false);
   const [structureModalOpen, setStructureModalOpen] = useState(false);
   const [structureModalMode, setStructureModalMode] = useState<'rename' | 'place'>('rename');
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
@@ -451,10 +493,11 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
   }, [host, selectedItem, effectiveCourse, readCache]);
 
   const selectedRead = selectedItem ? readCache[`${effectiveCourse ?? ''}:${selectedItem.hid}`] ?? null : null;
+  const selectedRetold = useMemo(() => getRetoldSummary(selectedItem?.node), [selectedItem?.node]);
 
   const markdown = useMemo(
-    () => buildSectionMarkdown(selectedItem, selectedRead, qaList, lang),
-    [selectedItem, selectedRead, qaList, lang],
+    () => buildSectionMarkdown(selectedItem, selectedRead, qaList, lang, asciiMode),
+    [selectedItem, selectedRead, qaList, lang, asciiMode],
   );
 
   const toggleMath = useCallback(() => {
@@ -820,6 +863,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
     editModalOpen ||
     exportModalOpen ||
     qaModalOpen ||
+    retellModalOpen ||
     structureModalOpen ||
     confirmDeleteOpen ||
     confirmRevertOpen ||
@@ -839,6 +883,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
         : [
             { key: 'Tab', label: t(lang, '切换窗格', 'Pane') },
             { key: 'm', label: mathUnicode ? t(lang, '数学:Unicode', 'Math:Unicode') : t(lang, '数学:LaTeX', 'Math:LaTeX') },
+            { key: 'T', label: t(lang, '费曼复述', 'Retell') },
             { key: 'e', label: t(lang, '编辑', 'Edit') },
             { key: 'p', label: t(lang, '练5题', 'Practise 5') },
             { key: 'P', label: t(lang, '精选问答', 'Pinned QA') },
@@ -947,6 +992,24 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
       }
       if (input === 'P') {
         setQaModalOpen(true);
+        return;
+      }
+      if (input === 'T') {
+        if (status !== 'ok' || !selectedItem) {
+          useTuiStore.getState().notify(
+            t(lang, '请先打开复习全书并选择一个知识点', 'Open a review book and select a knowledge point first'),
+            'warning',
+          );
+          return;
+        }
+        if (!selectedItem.leaf) {
+          useTuiStore.getState().notify(
+            t(lang, '章节标题不支持费曼复述，请选择具体叶子知识点', 'Chapter headers cannot be retold — select a leaf knowledge point'),
+            'warning',
+          );
+          return;
+        }
+        setRetellModalOpen(true);
         return;
       }
       if (input === 'w') {
@@ -1101,14 +1164,16 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
                 keyExtractor={(it) => it.hid}
                 renderItem={(it, ctx) => {
                   const indent = '  '.repeat(Math.max(0, it.depth - 1));
+                  const retold = getRetoldSummary(it.node);
                   const tags = [
+                    it.leaf && retold.passed ? (asciiMode ? '+' : '✓') : '',
                     it.hasQa ? (asciiMode ? '*' : '✎') : '',
                     it.short ? '·' : '',
                     it.questionTotal > 0 ? `${it.questionTotal}` : '',
                   ]
                     .filter(Boolean)
                     .join(' ');
-                  const tagReserve = tags ? tags.length + 1 : 0;
+                  const tagReserve = tags ? displayWidth(tags) + 1 : 0;
                   const labelText = truncateDisplay(`${indent}${it.number} ${it.title}`, Math.max(8, ctx.width - tagReserve), asciiMode ? '...' : '…');
                   return (
                     <Box width={ctx.width} justifyContent="space-between">
@@ -1118,7 +1183,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
                       >
                         {labelText}
                       </Text>
-                      {tags ? <Text color={ctx.selected ? theme.selectionFg : theme.muted}>{tags}</Text> : null}
+                      {tags ? <Text color={ctx.selected ? theme.selectionFg : retold.passed && it.leaf ? theme.success : theme.muted}>{tags}</Text> : null}
                     </Box>
                   );
                 }}
@@ -1128,7 +1193,13 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
           right={(size) => (
             <Panel
               title={selectedItem ? `${selectedItem.number} ${selectedItem.title}` : t(lang, '正文', 'Reader')}
-              subtitle={selectedItem?.leaf ? t(lang, '[p] 练5题  [m] 公式', '[p] Practise 5  [m] Math') : undefined}
+              badge={
+                selectedItem?.leaf && selectedRetold.passed
+                  ? t(lang, asciiMode ? '+ 讲清楚过' : '✓ 讲清楚过', asciiMode ? '+ Retold' : '✓ Retold')
+                  : undefined
+              }
+              badgeTone="success"
+              subtitle={selectedItem?.leaf ? t(lang, '[T] 费曼复述  [p] 练5题  [m] 公式', '[T] Retell  [p] Practise 5  [m] Math') : undefined}
               focused={activePane === 'right'}
               width={size.width}
               height={size.height}
@@ -1218,6 +1289,24 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
             height={height}
             onClose={() => setQaModalOpen(false)}
             onChanged={() => {
+              setReadCache({});
+              setReloadSeq((n) => n + 1);
+            }}
+          />
+        ) : null}
+
+        {retellModalOpen ? (
+          <BookRetellModal
+            host={host}
+            course={effectiveCourse ?? null}
+            selectedItem={selectedItem ?? null}
+            isActive={isActive && retellModalOpen}
+            width={width}
+            height={height}
+            mathUnicode={mathUnicode}
+            onClose={() => setRetellModalOpen(false)}
+            onRetold={() => {
+              if (selectedItem?.hid) pendingFocusHidRef.current = selectedItem.hid;
               setReadCache({});
               setReloadSeq((n) => n + 1);
             }}

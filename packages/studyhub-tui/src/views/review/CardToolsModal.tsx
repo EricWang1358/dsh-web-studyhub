@@ -90,6 +90,13 @@ interface CardGetResponse {
   prerequisites?: PrereqItem[];
 }
 
+interface CardPlaceResponse {
+  course?: string | null;
+  document?: { key?: string; title?: string } | null;
+  chapter?: { key?: string; title?: string } | null;
+  leaf?: { key?: string; title?: string; built?: boolean } | null;
+}
+
 interface ExtractedTermItem {
   term: string;
   definition?: string;
@@ -150,6 +157,7 @@ export const CardToolsModal = memo(function CardToolsModal({
   const [errorText, setErrorText] = useState<string | null>(null);
   const [infoText, setInfoText] = useState<string | null>(null);
   const [resolvedDeckId, setResolvedDeckId] = useState<string>(deckId);
+  const [cardPlaceInfo, setCardPlaceInfo] = useState<CardPlaceResponse | null>(null);
   const [revisionsCount, setRevisionsCount] = useState<number>(0);
   const [lastRevisionReason, setLastRevisionReason] = useState<string>('');
   const [confirmCoachRevert, setConfirmCoachRevert] = useState<boolean>(false);
@@ -180,6 +188,7 @@ export const CardToolsModal = memo(function CardToolsModal({
   const prereqSearchSeqRef = useRef(0);
   const lastSearchedQueryRef = useRef('');
   const hydrateSeqRef = useRef(0);
+  const placeSeqRef = useRef(0);
 
   // Edit form fields
   const [editField, setEditField] = useState<EditField>('prompt');
@@ -239,6 +248,29 @@ export const CardToolsModal = memo(function CardToolsModal({
     setResolvedDeckId(deckId);
     void hydrateCardDetails();
   }, [deckId, hydrateCardDetails]);
+
+  // Lookup exact Review Book chapter/point & source placement (fail-soft, read-only)
+  useEffect(() => {
+    const seq = ++placeSeqRef.current;
+    setCardPlaceInfo(null);
+    let cancelled = false;
+    void tryAction<CardPlaceResponse>(host, 'card.place', {
+      ...(deckId ? { deckId } : {}),
+      cardId,
+    })
+      .then((res) => {
+        if (cancelled || !mountedRef.current || seq !== placeSeqRef.current) return;
+        if (res.ok && res.value && typeof res.value === 'object') {
+          setCardPlaceInfo(res.value);
+        }
+      })
+      .catch(() => {
+        // fail-soft: placement summary is informational only
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [host, deckId, cardId]);
 
   const isExam = run.mode === 'exam';
   const isRetry = Boolean(run.retry);
@@ -1088,7 +1120,22 @@ export const CardToolsModal = memo(function CardToolsModal({
     },
   ];
 
-  const compactMenu = height <= 26;
+  const placementSummary = useMemo(() => {
+    if (!cardPlaceInfo) return null;
+    const sep = asciiMode ? ' > ' : ' › ';
+    const docTitle = typeof cardPlaceInfo.document?.title === 'string' ? cardPlaceInfo.document.title.trim() : '';
+    const chapterTitle = typeof cardPlaceInfo.chapter?.title === 'string' ? cardPlaceInfo.chapter.title.trim() : '';
+    const leafTitle = typeof cardPlaceInfo.leaf?.title === 'string' ? cardPlaceInfo.leaf.title.trim() : '';
+    const sourceText = docTitle && chapterTitle ? `${docTitle}${sep}${chapterTitle}` : docTitle || chapterTitle;
+    const bookText = leafTitle
+      ? `${leafTitle}${cardPlaceInfo.leaf?.built === false ? (lang === 'en' ? ' (unbuilt)' : ' (未生成)') : ''}`
+      : '';
+    const courseText = typeof cardPlaceInfo.course === 'string' ? cardPlaceInfo.course.trim() : '';
+    if (!sourceText && !bookText && !courseText) return null;
+    return { sourceText, bookText, courseText };
+  }, [cardPlaceInfo, asciiMode, lang]);
+
+  const compactMenu = height <= (placementSummary ? 30 : 26);
   const linkedPrereqIds = new Set(prereqs.map((p) => p.cardId));
 
   // Windowed slices for 'prereqs' lists so 80x24 never overflows
@@ -1140,6 +1187,37 @@ export const CardToolsModal = memo(function CardToolsModal({
         isActive={isActive && mode !== 'edit' && !confirmCoachRevert && !(mode === 'prereqs' && prereqSearchActive && prereqSearchFocused)}
         hints={hints}
       >
+        {mode === 'menu' && placementSummary ? (
+          <Box flexDirection="column" width={innerW} marginBottom={0}>
+            {placementSummary.bookText ? (
+              <Text color={theme.accent} wrap="truncate">
+                {truncateDisplay(
+                  `${asciiMode ? '*' : '▤'} ${t(lang, '复习全书', 'Review Book')}: ${placementSummary.bookText}`,
+                  innerW,
+                  ell,
+                )}
+              </Text>
+            ) : null}
+            {placementSummary.sourceText ? (
+              <Text color={theme.muted} wrap="truncate">
+                {truncateDisplay(
+                  `${asciiMode ? '#' : '◈'} ${t(lang, '资料出处', 'Source')}: ${placementSummary.sourceText}`,
+                  innerW,
+                  ell,
+                )}
+              </Text>
+            ) : !placementSummary.bookText && placementSummary.courseText ? (
+              <Text color={theme.dim} wrap="truncate">
+                {truncateDisplay(
+                  `${asciiMode ? '-' : '•'} ${t(lang, '所属课程', 'Course')}: ${placementSummary.courseText} (${t(lang, '暂未关联章节出处', 'no chapter/source link')})`,
+                  innerW,
+                  ell,
+                )}
+              </Text>
+            ) : null}
+            <Divider width={innerW} />
+          </Box>
+        ) : null}
         {busy ? (
           <Box height={1} marginY={0}>
             <Spinner label={t(lang, `正在提交操作${ell}`, `Applying action${ell}`)} active={isActive && !confirmCoachRevert} />
