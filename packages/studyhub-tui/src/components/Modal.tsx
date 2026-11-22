@@ -3,6 +3,7 @@ import { Box, Text, useInput, useWindowSize } from 'ink';
 import type { KeyHint } from '../types/contracts.js';
 import { toneColor, useTheme, type Tone } from '../theme/tokens.js';
 import { displayWidth, truncateDisplay } from '../render/index.js';
+import { useTuiStore } from '../state/store.js';
 import { useInputCapture } from './focus.js';
 
 export interface ModalProps {
@@ -51,6 +52,7 @@ export const Modal = memo(function Modal({
   children,
 }: ModalProps) {
   const theme = useTheme();
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const { columns, rows } = useWindowSize();
   useInputCapture(isActive && captureInput);
   useInput(
@@ -71,25 +73,27 @@ export const Modal = memo(function Modal({
       flexDirection="column"
       width={frameWidth}
       height={height ? Math.min(height, rows - 2) : undefined}
-      borderStyle="round"
+      borderStyle={asciiMode ? 'classic' : 'round'}
       borderColor={accent}
       backgroundColor={theme.surface}
       paddingX={1}
     >
-      <Box height={1}>
+      <Box height={1} flexShrink={0}>
         <Text color={accent} bold>
           {headText}
         </Text>
         <Box flexGrow={1} />
         {sub ? <Text color={theme.muted}>{sub}</Text> : null}
-        {onClose ? <Text color={theme.dim}>{'  esc ✕'}</Text> : null}
+        {onClose ? <Text color={theme.dim}>{asciiMode ? '  esc x' : '  esc ✕'}</Text> : null}
       </Box>
-      <Text color={theme.border}>{'─'.repeat(inner)}</Text>
+      <Box height={1} flexShrink={0}>
+        <Text color={theme.border}>{(asciiMode ? '-' : '─').repeat(inner)}</Text>
+      </Box>
       <Box flexDirection="column" paddingX={1} flexGrow={1} overflow="hidden">
         {children}
       </Box>
       {hints && hints.length > 0 ? (
-        <Box height={1} marginTop={0} overflow="hidden">
+        <Box height={1} flexShrink={0} marginTop={0} overflow="hidden">
           {hints.map((h) => (
             <Text key={`${h.key}:${h.label}`}>
               <Text color={theme.accent} bold>
@@ -105,7 +109,7 @@ export const Modal = memo(function Modal({
 
   if (!overlay) return frame;
   return (
-    <Box position="absolute" top={0} left={0} width={columns} height={rows} alignItems="center" justifyContent="center">
+    <Box position="absolute" top={0} left={0} width="100%" height="100%" alignItems="center" justifyContent="center">
       {frame}
     </Box>
   );

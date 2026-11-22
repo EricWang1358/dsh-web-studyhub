@@ -672,6 +672,35 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
           onCancel={() => setOverlay('none')}
         />
       ) : null}
+
+      {overlay === 'folders-filter' || overlay === 'folders-assign' ? (
+        <FolderModal
+          host={host}
+          mode={overlay === 'folders-assign' ? 'assign' : 'filter'}
+          folders={materialFolders.folders}
+          folderCounts={folderCounts}
+          totalCount={courseScopedGroups.length}
+          activeFolder={folderFilter}
+          selectedItem={selectedItem}
+          isActive={isActive}
+          onSelectFilter={(nextFolder) => {
+            setFolderFilter(nextFolder);
+            setSelectedIndex(0);
+          }}
+          onRefresh={refresh}
+          onClose={() => setOverlay('none')}
+        />
+      ) : null}
+
+      {overlay === 'companions' ? (
+        <CompanionsModal
+          host={host}
+          defaultCourse={focusCourse}
+          isActive={isActive}
+          onChanged={refresh}
+          onClose={() => setOverlay('none')}
+        />
+      ) : null}
     </Box>
   );
 });

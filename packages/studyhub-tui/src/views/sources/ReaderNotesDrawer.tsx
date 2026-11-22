@@ -496,7 +496,7 @@ export const ReaderNotesDrawer = memo(function ReaderNotesDrawer({
   const frameH = Math.min(30, Math.max(15, height - 2));
   const innerW = modalContentWidth(frameW);
   const tabRows = 2;
-  const bodyH = Math.max(6, frameH - 4 - tabRows);
+  const bodyH = Math.max(6, frameH - 5 - tabRows);
 
   const modalHints: KeyHint[] = useMemo(() => {
     const items: KeyHint[] = [

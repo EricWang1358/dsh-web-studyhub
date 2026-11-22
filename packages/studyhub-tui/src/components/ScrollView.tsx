@@ -3,7 +3,10 @@ import { Box, Text, useInput } from 'ink';
 import stripAnsi from 'strip-ansi';
 import { useTheme } from '../theme/tokens.js';
 import { wrapDisplay } from '../render/index.js';
-import { scrollbarThumb } from './VirtualList.js';
+import { useTuiStore } from '../state/store.js';
+import { pageStep, scrollbarThumb } from './VirtualList.js';
+
+export { pageStep } from './VirtualList.js';
 
 export interface ScrollViewProps {
   /** Pre-split lines (may contain ANSI). Takes precedence over `content`. */
@@ -21,6 +24,8 @@ export interface ScrollViewProps {
   showIndicator?: boolean;
   /** Start scrolled to bottom and follow new lines (for logs / streaming output). */
   follow?: boolean;
+  /** Override store asciiMode preference (`#` / `|` scrollbar when true). */
+  ascii?: boolean;
 }
 
 const INV_ON = '\u001b[7m';
@@ -54,8 +59,11 @@ export const ScrollView = memo(function ScrollView({
   highlight,
   showIndicator = true,
   follow = false,
+  ascii: asciiProp,
 }: ScrollViewProps) {
   const theme = useTheme();
+  const storeAscii = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const ascii = asciiProp ?? storeAscii;
   const rows = Math.max(1, height);
   const indicator = showIndicator;
   const textWidth = Math.max(1, width - (indicator ? 1 : 0));
@@ -97,12 +105,14 @@ export const ScrollView = memo(function ScrollView({
 
   useInput(
     (input, key) => {
-      if (key.downArrow || input === 'j') scrollTo(top + 1);
-      else if (key.upArrow || input === 'k') scrollTo(top - 1);
-      else if (key.pageDown || input === ' ' || (key.ctrl && input === 'd')) scrollTo(top + Math.max(1, rows - 1));
-      else if (key.pageUp || (key.ctrl && input === 'u')) scrollTo(top - Math.max(1, rows - 1));
-      else if (key.home || input === 'g') scrollTo(0);
-      else if (key.end || input === 'G') scrollTo(maxTop);
+      if (key.ctrl && input === 'd') scrollTo(top + pageStep(rows, 'half'));
+      else if (key.ctrl && input === 'u') scrollTo(top - pageStep(rows, 'half'));
+      else if (key.pageDown || input === ' ' || (key.ctrl && input === 'f')) scrollTo(top + pageStep(rows, 'full'));
+      else if (key.pageUp || (key.ctrl && input === 'b')) scrollTo(top - pageStep(rows, 'full'));
+      else if (key.downArrow || (!key.ctrl && !key.meta && input === 'j')) scrollTo(top + 1);
+      else if (key.upArrow || (!key.ctrl && !key.meta && input === 'k')) scrollTo(top - 1);
+      else if (key.home || (!key.ctrl && !key.meta && input === 'g')) scrollTo(0);
+      else if (key.end || (!key.ctrl && !key.meta && input === 'G')) scrollTo(maxTop);
       else if (input === 'n' && matchRows.length > 0) {
         const next = matchRows.find((r) => r > top) ?? matchRows[0];
         scrollTo(next);
@@ -118,6 +128,8 @@ export const ScrollView = memo(function ScrollView({
   const scrollable = indicator && all.length > rows;
   const thumb = scrollable ? scrollbarThumb(all.length, rows, top) : [];
   const pct = maxTop === 0 ? 100 : Math.round((top / maxTop) * 100);
+  const thumbChar = ascii ? '#' : '┃';
+  const trackChar = ascii ? '|' : '│';
 
   return (
     <Box flexDirection="row" width={width} height={rows}>
@@ -133,7 +145,7 @@ export const ScrollView = memo(function ScrollView({
           {scrollable
             ? thumb.map((on, i) => (
                 <Text key={i} color={on ? (isActive ? theme.primary : theme.muted) : theme.border}>
-                  {on ? '┃' : '│'}
+                  {on ? thumbChar : trackChar}
                 </Text>
               ))
             : null}

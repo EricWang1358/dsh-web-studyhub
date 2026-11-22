@@ -467,7 +467,7 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
   const innerW = modalContentWidth(frameW);
   const noticeRows = statusNotice ? 2 : 0;
   const headerRows = 2;
-  const listH = Math.max(4, frameH - 4 - headerRows - noticeRows);
+  const listH = Math.max(4, frameH - 5 - headerRows - noticeRows);
 
   const modalHints: KeyHint[] = useMemo(() => {
     const base: KeyHint[] = [{ key: 'Enter', label: t(lang, '跳页', 'Jump') }];

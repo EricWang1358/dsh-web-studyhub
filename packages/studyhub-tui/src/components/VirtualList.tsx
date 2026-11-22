@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { useTheme } from '../theme/tokens.js';
+import { useTuiStore } from '../state/store.js';
 
 export interface VirtualListRenderContext {
   index: number;
@@ -32,10 +33,18 @@ export interface VirtualListProps<T> {
   highlightSelected?: boolean;
   /** Keep this many rows of context above/below the cursor while scrolling. */
   scrollPadding?: number;
+  /** Override store asciiMode preference (`#` / `|` scrollbar when true). */
+  ascii?: boolean;
 }
 
 function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n));
+}
+
+/** Compute half-page or full-page step for a viewport of `height` rows. */
+export function pageStep(height: number, mode: 'half' | 'full'): number {
+  const h = Number.isFinite(height) ? Math.max(1, Math.floor(height)) : 1;
+  return mode === 'half' ? Math.max(1, Math.floor(h / 2)) : Math.max(1, h - 1);
 }
 
 /** Pure scrollbar geometry: returns per-row thumb flags. Exported for tests. */
@@ -75,8 +84,11 @@ function VirtualListInner<T>({
   showScrollbar = true,
   highlightSelected = true,
   scrollPadding = 1,
+  ascii: asciiProp,
 }: VirtualListProps<T>) {
   const theme = useTheme();
+  const storeAscii = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const ascii = asciiProp ?? storeAscii;
   const total = items.length;
   const rows = Math.max(1, height);
   const controlled = selectedIndex !== undefined;
@@ -105,12 +117,14 @@ function VirtualListInner<T>({
   useInput(
     (input, key) => {
       if (total === 0) return;
-      if (key.downArrow || input === 'j') move(cursor + 1);
-      else if (key.upArrow || input === 'k') move(cursor - 1);
-      else if (key.pageDown || (key.ctrl && input === 'd')) move(cursor + Math.max(1, rows - 1));
-      else if (key.pageUp || (key.ctrl && input === 'u')) move(cursor - Math.max(1, rows - 1));
-      else if (key.home || input === 'g') move(0);
-      else if (key.end || input === 'G') move(total - 1);
+      if (key.ctrl && input === 'd') move(cursor + pageStep(rows, 'half'));
+      else if (key.ctrl && input === 'u') move(cursor - pageStep(rows, 'half'));
+      else if (key.pageDown || (key.ctrl && input === 'f')) move(cursor + pageStep(rows, 'full'));
+      else if (key.pageUp || (key.ctrl && input === 'b')) move(cursor - pageStep(rows, 'full'));
+      else if (key.downArrow || (!key.ctrl && !key.meta && input === 'j')) move(cursor + 1);
+      else if (key.upArrow || (!key.ctrl && !key.meta && input === 'k')) move(cursor - 1);
+      else if (key.home || (!key.ctrl && !key.meta && input === 'g')) move(0);
+      else if (key.end || (!key.ctrl && !key.meta && input === 'G')) move(total - 1);
       else if (key.return) {
         const item = items[cursor];
         if (item !== undefined) onSelect?.(item, cursor);
@@ -122,6 +136,8 @@ function VirtualListInner<T>({
   const scrollable = showScrollbar && total > rows;
   const contentWidth = Math.max(1, width - (scrollable ? 1 : 0));
   const thumb = useMemo(() => (scrollable ? scrollbarThumb(total, rows, offset) : []), [scrollable, total, rows, offset]);
+  const thumbChar = ascii ? '#' : '┃';
+  const trackChar = ascii ? '|' : '│';
 
   if (total === 0) {
     return (
@@ -157,7 +173,7 @@ function VirtualListInner<T>({
         <Box flexDirection="column" width={1} height={rows}>
           {thumb.map((on, i) => (
             <Text key={i} color={on ? (isActive ? theme.primary : theme.muted) : theme.border}>
-              {on ? '┃' : '│'}
+              {on ? thumbChar : trackChar}
             </Text>
           ))}
         </Box>
