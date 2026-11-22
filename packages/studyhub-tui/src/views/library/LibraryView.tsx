@@ -18,7 +18,8 @@ import {
   type VirtualListRenderContext,
 } from '../../components/index.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/index.js';
-import { currentCourse, dueToday, useShellActions } from '../../shell/index.js';
+import { currentCourse, dueToday } from '../../shell/data.js';
+import { useShellActions } from '../../shell/actions.js';
 import { getSampleStatus, removeSampleCourse, tryAction } from '../../host/index.js';
 
 const DeckManageModal = lazy(() => import('./DeckManageModal.js').then((m) => ({ default: m.DeckManageModal })));

@@ -12,7 +12,7 @@ import {
   useTheme,
 } from '../../components/index.js';
 import { displayWidth, truncateDisplay } from '../../render/index.js';
-import { currentCourse } from '../../shell/index.js';
+import { currentCourse } from '../../shell/data.js';
 import { t, useTuiStore } from '../../state/store.js';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';
 import { PomodoroBar, pomodoroBarHeight } from './PomodoroBar.js';
@@ -575,7 +575,10 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
     if (loading && doc.cards.length === 0) {
       return (
         <Box height={innerH} alignItems="center" justifyContent="center">
-          <Spinner label={t(lang, '载入看板…', 'Loading board…')} active={isActive} />
+          <Spinner
+            label={asciiMode ? t(lang, '载入看板...', 'Loading board...') : t(lang, '载入看板…', 'Loading board…')}
+            active={isActive}
+          />
         </Box>
       );
     }
@@ -585,7 +588,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
         <EmptyState
           title={t(lang, '空列', 'Empty')}
           hint={isFocusedCol ? t(lang, 'a 添加 / S 同步', 'a: add / S: sync') : undefined}
-          icon="·"
+          icon={asciiMode ? '.' : '·'}
           width={innerW}
           height={innerH}
         />
@@ -603,7 +606,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
 
     return (
       <Box flexDirection="column" width={innerW} height={innerH} overflow="hidden">
-        {start > 0 ? <Text color={theme.dim}>{`  ↑ ${start}`}</Text> : null}
+        {start > 0 ? <Text color={theme.dim}>{`  ${asciiMode ? '^' : '↑'} ${start}`}</Text> : null}
         {visible.map((card, i) => {
           const idx = start + i;
           const selected = isFocusedCol && idx === cursor;
@@ -655,7 +658,11 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
                 ) : null}
                 {card.course ? (
                   <Badge
-                    label={truncateDisplay(card.course, Math.max(4, Math.floor(innerW * (isSynced ? 0.35 : 0.45))))}
+                    label={truncateDisplay(
+                      card.course,
+                      Math.max(4, Math.floor(innerW * (isSynced ? 0.35 : 0.45))),
+                      asciiMode ? '...' : '…',
+                    )}
                     tone="accent"
                     variant="soft"
                     bold={false}
@@ -672,7 +679,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
           );
         })}
         {start + visible.length < cards.length ? (
-          <Text color={theme.dim}>{`  ↓ ${cards.length - start - visible.length}`}</Text>
+          <Text color={theme.dim}>{`  ${asciiMode ? 'v' : '↓'} ${cards.length - start - visible.length}`}</Text>
         ) : null}
       </Box>
     );

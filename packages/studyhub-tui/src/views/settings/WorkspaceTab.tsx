@@ -8,7 +8,7 @@ import type { BindingSnapshot, HostClient } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { cleanPathInput, loadSampleCourse, removeSampleCourse, tryAction } from '../../host/index.js';
 import { expandHomePath } from '../sources/index.js';
-import { useShellActions } from '../../shell/index.js';
+import { useShellActions } from '../../shell/actions.js';
 import {
   Badge,
   ConfirmDialog,

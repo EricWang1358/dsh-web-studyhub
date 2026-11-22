@@ -136,9 +136,11 @@ function ViewCrashFallback({
 }
 
 function LazyFallback({ lang }: { lang: UiLanguage }) {
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const ell = asciiMode ? '...' : '…';
   return (
     <Box padding={1}>
-      <Spinner label={t(lang, '正在加载页面…', 'Loading view…')} tone="primary" />
+      <Spinner label={t(lang, `正在加载页面${ell}`, `Loading view${ell}`)} tone="primary" />
     </Box>
   );
 }
@@ -360,7 +362,8 @@ export function StudyHubTuiApp({
         category: t(curLang, '模型', 'Model'),
         keywords: ['agy', 'codex', 'scan', 'model', '模型', '扫描'],
         action: async () => {
-          useTuiStore.getState().notify(t(curLang, '正在扫描本地模型 CLI…', 'Scanning local CLI providers…'), 'info');
+          const ell = useTuiStore.getState().preferences.asciiMode ? '...' : '…';
+          useTuiStore.getState().notify(t(curLang, `正在扫描本地模型 CLI${ell}`, `Scanning local CLI providers${ell}`), 'info');
           const providers = await host.rescanProviders(true);
           const cfg = host.getConfig();
           if (cfg) useTuiStore.getState().setDesktopConfig(cfg);

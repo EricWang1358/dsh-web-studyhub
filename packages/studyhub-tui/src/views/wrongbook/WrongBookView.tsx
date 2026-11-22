@@ -2,7 +2,7 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from '
 import { Box, Text, useInput } from 'ink';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
-import { currentCourse } from '../../shell/index.js';
+import { currentCourse } from '../../shell/data.js';
 import { tryAction, type ReviewRun } from '../../host/index.js';
 import {
   Badge,

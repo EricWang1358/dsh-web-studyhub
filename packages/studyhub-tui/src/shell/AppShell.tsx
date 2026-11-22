@@ -201,9 +201,10 @@ export const AppShell = memo(function AppShell({
   if (showLaunchpad) {
     main = <Launchpad width={columns - 2} height={bodyH} isActive={!overlayOpen} />;
   } else if (loading && !snapshot) {
+    const ell = asciiMode ? '...' : '…';
     main = (
       <Box width={contentW} height={bodyH} alignItems="center" justifyContent="center">
-        <Spinner label={t(lang, '正在打开学习库…', 'Opening library…')} />
+        <Spinner label={t(lang, `正在打开学习库${ell}`, `Opening library${ell}`)} />
       </Box>
     );
   } else {

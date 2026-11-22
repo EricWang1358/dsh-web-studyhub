@@ -22,7 +22,8 @@ import {
   useTheme,
 } from '../../components/index.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/index.js';
-import { currentCourse, listCourses, modelInfo, useShellActions } from '../../shell/index.js';
+import { currentCourse, listCourses, modelInfo } from '../../shell/data.js';
+import { useShellActions } from '../../shell/actions.js';
 import { tryAction } from '../../host/index.js';
 import {
   formatKindLabel,
@@ -714,7 +715,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
           <Badge label={course || t(lang, '全部课程', 'All Courses')} tone="accent" variant="soft" />
           {spec ? (
             <Badge
-              label={`v${spec.specVersion ?? 1} · ${calibratedCount}/${families.length}`}
+              label={`v${spec.specVersion ?? 1} ${asciiMode ? '-' : '·'} ${calibratedCount}/${families.length}`}
               tone={calibratedCount === families.length && families.length > 0 ? 'success' : 'warning'}
               variant="outline"
             />

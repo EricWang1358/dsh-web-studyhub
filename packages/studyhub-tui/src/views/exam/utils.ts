@@ -1,5 +1,5 @@
 import type { StudySnapshot, UiLanguage } from '../../types/contracts.js';
-import { currentCourse } from '../../shell/index.js';
+import { currentCourse } from '../../shell/data.js';
 import { t } from '../../state/store.js';
 import type {
   CaseQuestionReport,

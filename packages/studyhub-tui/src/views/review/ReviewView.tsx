@@ -2,7 +2,8 @@ import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useStat
 import { Box, Text, useInput } from 'ink';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
-import { currentCourse, useShellActions } from '../../shell/index.js';
+import { useShellActions } from '../../shell/actions.js';
+import { currentCourse } from '../../shell/data.js';
 import {
   answerReview,
   currentCardId,
@@ -1298,7 +1299,11 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                 onChange={setOpenDraft}
                 isActive={isActive && !anyModalOpen && openEditing}
                 width={Math.max(16, innerW - 6)}
-                placeholder={t(lang, '输入你的思路或简答…', 'Type your answer or key points…')}
+                placeholder={
+                  asciiMode
+                    ? t(lang, '输入你的思路或简答...', 'Type your answer or key points...')
+                    : t(lang, '输入你的思路或简答…', 'Type your answer or key points…')
+                }
                 onSubmit={() => {
                   setOpenEditing(false);
                   handleReveal();
@@ -1329,7 +1334,15 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
 
               {gradingBusy ? (
                 <Box marginY={0}>
-                  <Spinner label={t(lang, '正在按评分标准 AI 批改…', 'Grading against rubric criteria…')} tone="ai" active={isActive} />
+                  <Spinner
+                    label={
+                      asciiMode
+                        ? t(lang, '正在按评分标准 AI 批改...', 'Grading against rubric criteria...')
+                        : t(lang, '正在按评分标准 AI 批改…', 'Grading against rubric criteria…')
+                    }
+                    tone="ai"
+                    active={isActive}
+                  />
                 </Box>
               ) : null}
 
@@ -1763,7 +1776,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
               onChange={setFlagReason}
               isActive={isActive && flagModalOpen}
               width={54}
-              placeholder={t(lang, '输入标记原因…', 'Reason…')}
+              placeholder={asciiMode ? t(lang, '输入标记原因...', 'Reason...') : t(lang, '输入标记原因…', 'Reason…')}
               onSubmit={() => void handleSubmitFlag()}
               onCancel={() => setFlagModalOpen(false)}
             />

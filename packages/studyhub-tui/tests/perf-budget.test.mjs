@@ -74,7 +74,8 @@ describe('StudyHub TUI NFR Performance & Bundle Budgets', () => {
     const budgets = [
       { file: 'cli.mjs', maxBytes: 15 * 1024 },
       { file: 'boot-frame.mjs', maxBytes: 5 * 1024 },
-      { file: 'App.mjs', maxBytes: 76 * 1024 },
+      // AppShell is inlined into App.mjs once no view imports shell/index.js (tighter than prior 76 KB + 35 KB split).
+      { file: 'App.mjs', maxBytes: 106 * 1024 },
     ];
     for (const { file, maxBytes } of budgets) {
       const full = path.join(distDir, file);
@@ -190,24 +191,59 @@ describe('StudyHub TUI NFR Performance & Bundle Budgets', () => {
     assert.ok(!externalImports.has('cli-highlight'), 'dist/boot-frame.mjs must not statically import cli-highlight');
   });
 
-  test('5. Shell overlays (CommandPalette, HelpOverlay, CoursePickerModal, InboxModal) are code-split out of AppShell chunk', () => {
-    const appCode = fs.readFileSync(path.join(distDir, 'App.mjs'), 'utf8');
+  test('5. Shell overlays (CommandPalette, HelpOverlay, CoursePickerModal, InboxModal) are code-split out of App.mjs and AppShell static graph', () => {
+    const appPath = path.join(distDir, 'App.mjs');
+    const appCode = fs.readFileSync(appPath, 'utf8');
     const shellImportMatch = /import\s*\{[^}]*\bAppShell\b[^}]*\}\s*from\s*['"](\.\/chunk-[^'"]+\.mjs)['"]/.exec(appCode);
-    assert.ok(shellImportMatch, 'dist/App.mjs must import AppShell from a split chunk');
-
-    const shellChunkPath = path.join(distDir, shellImportMatch[1]);
-    assert.ok(fs.existsSync(shellChunkPath), `missing shell chunk ${shellImportMatch[1]}`);
-    const shellSize = fs.statSync(shellChunkPath).size;
-    assert.ok(
-      shellSize <= 35 * 1024,
-      `AppShell chunk ${shellImportMatch[1]} is ${shellSize} bytes (${(shellSize / 1024).toFixed(1)} KB), exceeding 35 KB split budget`,
-    );
-
-    const shellCode = fs.readFileSync(shellChunkPath, 'utf8');
-    for (const overlayName of ['CommandPalette', 'HelpOverlay', 'CoursePickerModal', 'InboxModal']) {
+    if (shellImportMatch) {
+      const shellChunkPath = path.join(distDir, shellImportMatch[1]);
+      assert.ok(fs.existsSync(shellChunkPath), `missing shell chunk ${shellImportMatch[1]}`);
+      const shellSize = fs.statSync(shellChunkPath).size;
       assert.ok(
-        !new RegExp(`function\\s+${overlayName}\\b`).test(shellCode) && !new RegExp(`function\\s+${overlayName}\\b`).test(appCode),
-        `${overlayName} must be lazy-split into its own chunk, not bundled into App.mjs or ${shellImportMatch[1]}`,
+        shellSize <= 35 * 1024,
+        `AppShell chunk ${shellImportMatch[1]} is ${shellSize} bytes (${(shellSize / 1024).toFixed(1)} KB), exceeding 35 KB split budget`,
+      );
+    } else {
+      assert.ok(/\bAppShell\b/.test(appCode), 'AppShell must be present in dist/App.mjs or a split chunk');
+    }
+
+    const overlayNames = ['CommandPalette', 'HelpOverlay', 'CoursePickerModal', 'InboxModal'];
+    const overlayRe = new RegExp(`\\b(?:${overlayNames.join('|')})\\b`);
+    const visited = new Set();
+    const queue = [appPath];
+
+    while (queue.length > 0) {
+      const cur = queue.shift();
+      if (visited.has(cur)) continue;
+      visited.add(cur);
+
+      const code = fs.readFileSync(cur, 'utf8');
+      const chunkName = path.basename(cur);
+      for (const spec of extractStaticImportSpecifiers(code)) {
+        assert.ok(
+          !overlayRe.test(spec),
+          `${chunkName} must not statically import overlay module ${spec}`,
+        );
+        if (spec.startsWith('.')) {
+          const target = path.resolve(path.dirname(cur), spec);
+          if (fs.existsSync(target)) queue.push(target);
+        }
+      }
+
+      for (const overlayName of overlayNames) {
+        assert.ok(
+          !new RegExp(`function\\s+${overlayName}\\d*\\b`).test(code) &&
+            !new RegExp(`//\\s*src/shell/${overlayName}\\.tsx\\b`).test(code),
+          `${overlayName} must be lazy-split into its own chunk, not bundled into static graph chunk ${chunkName}`,
+        );
+      }
+    }
+
+    const distFiles = fs.readdirSync(distDir);
+    for (const overlayName of overlayNames) {
+      assert.ok(
+        distFiles.some((f) => f.startsWith(`${overlayName}-`) && f.endsWith('.mjs')),
+        `expected lazy-split chunk ${overlayName}-*.mjs in dist/`,
       );
     }
   });

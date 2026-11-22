@@ -9,6 +9,7 @@ import {
   Modal,
   Panel,
   ScrollView,
+  Spinner,
   SplitPane,
   TextInput,
   VirtualList,
@@ -425,7 +426,20 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
   // If DocumentReader is open, delegate full view area to it.
   if (readerTarget) {
     return (
-      <Suspense fallback={null}>
+      <Suspense
+        fallback={
+          <Box paddingX={1} paddingY={1}>
+            <Spinner
+              label={t(
+                lang,
+                asciiMode ? '正在打开阅读器...' : '正在打开阅读器…',
+                asciiMode ? 'Opening reader...' : 'Opening reader…',
+              )}
+              active={isActive}
+            />
+          </Box>
+        }
+      >
         <DocumentReader
           host={host}
           sourceId={readerTarget.sourceId}
@@ -499,7 +513,11 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
                 setSearchQuery('');
                 setOverlay('none');
               }}
-              placeholder={t(lang, '输入标题、格式或课程名…', 'Title, format or course…')}
+              placeholder={t(
+                lang,
+                asciiMode ? '输入标题、格式或课程名...' : '输入标题、格式或课程名…',
+                asciiMode ? 'Title, format or course...' : 'Title, format or course…',
+              )}
               width={Math.max(20, width - 16)}
               isActive={isActive && overlay === 'search'}
             />

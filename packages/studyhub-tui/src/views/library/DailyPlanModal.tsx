@@ -16,7 +16,8 @@ import {
   type VirtualListRenderContext,
 } from '../../components/index.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/index.js';
-import { currentCourse, useShellActions } from '../../shell/index.js';
+import { currentCourse } from '../../shell/data.js';
+import { useShellActions } from '../../shell/actions.js';
 import { tryAction } from '../../host/index.js';
 
 export interface DailyPlanStudyRef {

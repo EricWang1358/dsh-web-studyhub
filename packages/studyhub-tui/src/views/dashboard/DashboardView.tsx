@@ -3,7 +3,8 @@ import { Box, Text, useInput } from 'ink';
 import type { StudySnapshot, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { tryAction } from '../../host/index.js';
-import { currentCourse, dueToday, useShellActions } from '../../shell/index.js';
+import { currentCourse, dueToday } from '../../shell/data.js';
+import { useShellActions } from '../../shell/actions.js';
 import {
   EmptyState,
   Panel,

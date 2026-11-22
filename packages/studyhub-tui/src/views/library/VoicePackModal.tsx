@@ -15,7 +15,8 @@ import {
   useTheme,
 } from '../../components/index.js';
 import { truncateDisplay } from '../../render/index.js';
-import { currentCourse, type VoicePackRenderProps } from '../../shell/index.js';
+import { currentCourse } from '../../shell/data.js';
+import type { VoicePackRenderProps } from '../../shell/AppShell.js';
 import { cleanPathInput, getVoicePack, tryAction } from '../../host/index.js';
 
 export type VoicePackMode = 'due' | 'weak' | 'all';

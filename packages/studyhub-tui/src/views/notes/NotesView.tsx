@@ -21,7 +21,8 @@ import {
   type VirtualListRenderContext,
 } from '../../components/index.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/index.js';
-import { currentCourse, useShellActions } from '../../shell/index.js';
+import { useShellActions } from '../../shell/actions.js';
+import { currentCourse } from '../../shell/data.js';
 import { t, useTuiStore } from '../../state/store.js';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';
 import {
@@ -667,9 +668,14 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
     if (primaryRecapGroup.generation?.status === 'running') {
       const prog = primaryRecapGroup.generation.progress;
       const suffix = prog?.total ? ` (${prog.completed ?? 0}/${prog.total})` : '';
+      const ell = asciiMode ? '...' : '…';
       return {
         status: 'busy' as const,
-        title: t(lang, `正在整理「${primaryRecapGroup.course}」今日总结${suffix}…`, `Generating "${primaryRecapGroup.course}" recap${suffix}…`),
+        title: t(
+          lang,
+          `正在整理「${primaryRecapGroup.course}」今日总结${suffix}${ell}`,
+          `Generating "${primaryRecapGroup.course}" recap${suffix}${ell}`,
+        ),
       };
     }
     if (!primaryRecapGroup.eligible) {
@@ -696,7 +702,7 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
         `[R] Generate "${primaryRecapGroup.course}" recap (${primaryRecapGroup.answeredCount}q)`,
       ),
     };
-  }, [primaryRecapGroup, lang]);
+  }, [primaryRecapGroup, lang, asciiMode]);
 
   const effectiveMath = mathOverride ?? mathPref;
 
@@ -730,12 +736,15 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
               <Text color={theme.border}>{(asciiMode ? '-' : '─').repeat(Math.max(4, paneW - 4))}</Text>
               {loading && sortedNotes.length === 0 ? (
                 <Box height={listH} alignItems="center" justifyContent="center">
-                  <Spinner label={t(lang, '载入笔记中…', 'Loading notes…')} active={isActive} />
+                  <Spinner
+                    label={asciiMode ? t(lang, '载入笔记中...', 'Loading notes...') : t(lang, '载入笔记中…', 'Loading notes…')}
+                    active={isActive}
+                  />
                 </Box>
               ) : error && sortedNotes.length === 0 ? (
                 <EmptyState
                   title={t(lang, '加载笔记失败', 'Failed to load notes')}
-                  hint={truncateDisplay(error, Math.max(16, paneW - 6))}
+                  hint={truncateDisplay(error, Math.max(16, paneW - 6), asciiMode ? '...' : '…')}
                   icon="!"
                   width={paneW - 4}
                   height={listH}
@@ -785,7 +794,7 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
           const daily = isDailyNote(displayedNote);
           const coursesLabel = (displayedNote.courses || []).join(', ') || displayedNote.daily?.course || '';
           const cardTotal = displayedNote.cards?.length ?? displayedNote.cardCount ?? 0;
-          const subtitle = [coursesLabel, `${cardTotal}${t(lang, '题', 'q')}`, effectiveMath ? '∑' : 'TeX'].filter(Boolean).join(' · ');
+          const subtitle = [coursesLabel, `${cardTotal}${t(lang, '题', 'q')}`, effectiveMath ? (asciiMode ? 'Math' : '∑') : 'TeX'].filter(Boolean).join(' · ');
           const ell = asciiMode ? '...' : '…';
           return (
             <Panel
@@ -800,9 +809,14 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
               <Box height={1} justifyContent="space-between" overflow="hidden">
                 <Box gap={1}>
                   {displayedNote.generation?.status === 'running' ? (
-                    <Spinner label={t(lang, 'AI 正在生成内容…', 'Generating…')} active={isActive} />
+                    <Spinner
+                      label={asciiMode ? t(lang, 'AI 正在生成内容...', 'Generating...') : t(lang, 'AI 正在生成内容…', 'Generating…')}
+                      active={isActive}
+                    />
                   ) : loadingDetail ? (
-                    <Text color={theme.muted}>{t(lang, '刷新正文…', 'Loading…')}</Text>
+                    <Text color={theme.muted}>
+                      {asciiMode ? t(lang, '刷新正文...', 'Loading...') : t(lang, '刷新正文…', 'Loading…')}
+                    </Text>
                   ) : (
                     <Text color={theme.muted}>
                       {daily && displayedNote.daily
@@ -902,7 +916,7 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
               onCancel={() => setModal(null)}
               isActive={!exporting}
               width={modalContentWidth(Math.max(50, Math.min(76, width - 6))) - 2}
-              prompt="› "
+              prompt={asciiMode ? '> ' : '› '}
               captureInput={false}
             />
             {exportError ? <Text color={theme.error}>{`${asciiMode ? 'x' : '✕'} ${exportError}`}</Text> : null}

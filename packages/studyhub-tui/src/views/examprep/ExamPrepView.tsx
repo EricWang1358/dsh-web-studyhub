@@ -17,9 +17,10 @@ import {
   useTheme,
 } from '../../components/index.js';
 import { displayWidth, padDisplay, renderBarChart, truncateDisplay } from '../../render/index.js';
-import { currentCourse, listCourses, useShellActions } from '../../shell/index.js';
+import { currentCourse, listCourses } from '../../shell/data.js';
+import { useShellActions } from '../../shell/actions.js';
 import { tryAction } from '../../host/index.js';
-import { AddFocusModal } from './AddFocusModal.js';
+const AddFocusModal = lazy(() => import('./AddFocusModal.js').then((m) => ({ default: m.AddFocusModal })));
 const StudyPlanModal = lazy(() => import('./StudyPlanModal.js').then((m) => ({ default: m.StudyPlanModal })));
 import {
   crunchStatusLabel,
@@ -672,20 +673,22 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
       )}
 
       {/* [a] Add Exam Focus Modal */}
-      {addModalOpen ? (
-        <AddFocusModal
-          host={host}
-          course={course}
-          existingTopics={topics.map((tp) => tp.topic)}
-          width={width}
-          isActive={isActive}
-          onClose={() => setAddModalOpen(false)}
-          onSaved={() => {
-            setAddModalOpen(false);
-            void refreshSnapshot().then(() => loadAll());
-          }}
-        />
-      ) : null}
+      <Suspense fallback={null}>
+        {addModalOpen ? (
+          <AddFocusModal
+            host={host}
+            course={course}
+            existingTopics={topics.map((tp) => tp.topic)}
+            width={width}
+            isActive={isActive}
+            onClose={() => setAddModalOpen(false)}
+            onSaved={() => {
+              setAddModalOpen(false);
+              void refreshSnapshot().then(() => loadAll());
+            }}
+          />
+        ) : null}
+      </Suspense>
 
       {/* [P] Course Study Plan & Readiness Modal */}
       <Suspense fallback={null}>

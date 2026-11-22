@@ -3,7 +3,7 @@ import { Box, Text, useInput } from 'ink';
 import type { HostClient } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { tryAction } from '../../host/index.js';
-import { useShellActions } from '../../shell/index.js';
+import { useShellActions } from '../../shell/actions.js';
 import { Panel, Spinner, useClaimKeys, useTheme } from '../../components/index.js';
 import { padDisplay } from '../../render/index.js';
 
