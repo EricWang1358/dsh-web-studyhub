@@ -21,7 +21,7 @@ export const DEFAULT_TUI_PREFERENCES: Readonly<TuiPreferences> = Object.freeze({
   compactMode: false,
   showKeyHints: true,
   asciiMode: false,
-  recentCommands: [],
+  recentCommands: Object.freeze([]) as unknown as string[],
 });
 
 const recentCommands = z
@@ -79,11 +79,15 @@ export function tuiPreferencesPath(location: TuiPrefsLocation = {}): string {
 
 /** Parse arbitrary JSON-ish input into valid preferences (never throws). */
 export function parseTuiPreferences(raw: unknown): TuiPreferences {
-  const source = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
-  const parsed = TuiPreferencesSchema.safeParse(source);
-  if (!parsed.success) return { ...DEFAULT_TUI_PREFERENCES, recentCommands: [] };
-  const { lastOpenAiPreset, ...rest } = parsed.data;
-  return lastOpenAiPreset ? { ...rest, lastOpenAiPreset } : rest;
+  try {
+    const source = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+    const parsed = TuiPreferencesSchema.safeParse(source);
+    if (!parsed.success) return { ...DEFAULT_TUI_PREFERENCES, recentCommands: [] };
+    const { lastOpenAiPreset, ...rest } = parsed.data;
+    return lastOpenAiPreset ? { ...rest, lastOpenAiPreset } : rest;
+  } catch {
+    return { ...DEFAULT_TUI_PREFERENCES, recentCommands: [] };
+  }
 }
 
 /** Load preferences; a missing, unreadable or corrupt file yields defaults. */

@@ -5,6 +5,15 @@
   "type": "module",
   "description": "High-performance interactive terminal UI (TUI) for StudyHub — React 19 + Ink 8, agy CLI primary + OpenAI-compatible secondary",
   "license": "MIT",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "files": [
+    "bin/",
+    "dist/",
+    "README.md",
+    "docs/KEYBINDINGS.md"
+  ],
   "bin": {
     "studyhub-tui": "./bin/studyhub-tui.mjs"
   },

@@ -37,6 +37,7 @@ const SettingsView = lazy(() => import('./views/settings/SettingsView.js').then(
 interface ErrorBoundaryProps {
   page: PageId;
   lang: UiLanguage;
+  isActive: boolean;
   onReset: () => void;
   onGoLibrary: () => void;
   children: ReactNode;
@@ -46,7 +47,7 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-class ViewErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+export class ViewErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   override state: ErrorBoundaryState = { error: null };
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
@@ -61,11 +62,14 @@ class ViewErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState
 
   override render(): ReactNode {
     if (!this.state.error) return this.props.children;
-    const { lang, onReset, onGoLibrary } = this.props;
+    const { page, lang, isActive, onReset, onGoLibrary } = this.props;
+    const rawMsg = this.state.error instanceof Error ? this.state.error.message : String(this.state.error);
     return (
       <ViewCrashFallback
-        message={this.state.error.message || String(this.state.error)}
+        page={page}
+        message={rawMsg}
         lang={lang}
+        isActive={isActive}
         onRetry={() => {
           this.setState({ error: null });
           onReset();
@@ -80,25 +84,46 @@ class ViewErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState
 }
 
 function ViewCrashFallback({
+  page,
   message,
   lang,
+  isActive,
   onRetry,
   onGoLibrary,
 }: {
+  page: PageId;
   message: string;
   lang: UiLanguage;
+  isActive: boolean;
   onRetry: () => void;
   onGoLibrary: () => void;
 }) {
   const theme = useTheme();
-  useInput((input) => {
-    if (input === 'r') onRetry();
-    else if (input === '1') onGoLibrary();
-  });
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  useInput(
+    (input) => {
+      if (input === 'r' || input === 'R') onRetry();
+      else if (input === '1') onGoLibrary();
+    },
+    { isActive },
+  );
+  const clean = message.replace(/\s+/g, ' ').trim();
+  const ellipsis = asciiMode ? '...' : '…';
+  const summary = clean
+    ? clean.length > 240
+      ? `${clean.slice(0, 237)}${ellipsis}`
+      : clean
+    : t(lang, '未知页面渲染错误', 'Unknown view rendering error');
   return (
     <Box flexDirection="column" padding={1}>
-      <Panel title={t(lang, '页面渲染异常', 'View Error')} tone="error" focused>
-        <Text color={theme.error}>{message}</Text>
+      <Panel
+        title={t(lang, '页面渲染异常', 'View Error')}
+        subtitle={page}
+        icon={asciiMode ? '!' : '▲'}
+        tone="error"
+        focused
+      >
+        <Text color={theme.error}>{summary}</Text>
         <Box marginTop={1}>
           <Text color={theme.muted}>
             {t(lang, '按 [r] 重试当前页面，或按 [1] 返回学习库。', 'Press [r] to retry, or [1] to return to Library.')}
@@ -406,6 +431,7 @@ export function StudyHubTuiApp({
         <ViewErrorBoundary
           page={page}
           lang={lang}
+          isActive={viewProps.isActive}
           onReset={() => void syncFromHost(false)}
           onGoLibrary={() => useTuiStore.getState().navigate('library')}
         >
