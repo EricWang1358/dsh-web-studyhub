@@ -5,6 +5,7 @@ import { t, useTuiStore } from '../../state/store.js';
 import {
   Badge,
   ConfirmDialog,
+  Divider,
   EmptyState,
   MarkdownView,
   Modal,
@@ -50,6 +51,10 @@ interface FullDraft {
   course?: string;
   draftVersion?: number;
   cards: DraftCard[];
+  editorial?: {
+    rejectedIssues?: Record<string, string[]>;
+    [k: string]: unknown;
+  };
   [k: string]: unknown;
 }
 
@@ -59,6 +64,20 @@ interface SimilarWarning {
   otherPrompt?: string;
   where?: string;
   deckTitle?: string | null;
+}
+
+interface SimilarItem {
+  cardId: string;
+  n: number;
+  similarity: number;
+  other?: {
+    where?: string;
+    deckId?: string | null;
+    deckTitle?: string | null;
+    cardId?: string;
+    n?: number;
+    prompt?: string;
+  };
 }
 
 const KIND_LABELS: Record<string, string> = {
@@ -71,7 +90,7 @@ const KIND_LABELS: Record<string, string> = {
   task: '任务',
 };
 
-type DraftOverlay = 'none' | 'pick-draft' | 'edit-card' | 'delete-draft' | 'publish-confirm';
+type DraftOverlay = 'none' | 'pick-draft' | 'edit-card' | 'delete-draft' | 'publish-confirm' | 'similar-results';
 
 export const DraftEditor = memo(function DraftEditor({
   host,
@@ -83,6 +102,7 @@ export const DraftEditor = memo(function DraftEditor({
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
   const mathUnicode = useTuiStore((s) => s.preferences.mathUnicode);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const snapshot = useTuiStore((s) => s.snapshot);
   const navigate = useTuiStore((s) => s.navigate);
   const notify = useTuiStore((s) => s.notify);
@@ -98,9 +118,12 @@ export const DraftEditor = memo(function DraftEditor({
   const [draftPickerIdx, setDraftPickerIdx] = useState(0);
   const [overlay, setOverlay] = useState<DraftOverlay>('none');
   const [busy, setBusy] = useState(false);
+  const [busyLabel, setBusyLabel] = useState('');
 
-  // Similar card warnings keyed by cardId
+  // Similar card warnings keyed by cardId + modal list state
   const [similarMap, setSimilarMap] = useState<Map<string, SimilarWarning>>(new Map());
+  const [similarItems, setSimilarItems] = useState<SimilarItem[]>([]);
+  const [similarCursor, setSimilarCursor] = useState(0);
 
   // Edit card state
   const [editField, setEditField] = useState<'prompt' | 'explanation'>('prompt');
@@ -178,20 +201,19 @@ export const DraftEditor = memo(function DraftEditor({
   const checkSimilar = useCallback(async () => {
     if (!draft || busy) return;
     setBusy(true);
+    setBusyLabel(t(lang, '查重中…', 'Checking…'));
     const res = await tryAction<{
-      similar?: Array<{
-        cardId: string;
-        similarity: number;
-        other?: { prompt?: string; where?: string; deckTitle?: string | null };
-      }>;
+      similar?: SimilarItem[];
     }>(host, 'draft.similar', { id: draft.id });
     setBusy(false);
+    setBusyLabel('');
     if (!res.ok) {
       notify(res.error?.message || t(lang, '查重失败', 'Similarity check failed'), 'error');
       return;
     }
+    const items = Array.isArray(res.value?.similar) ? res.value.similar : [];
     const map = new Map<string, SimilarWarning>();
-    for (const item of res.value?.similar ?? []) {
+    for (const item of items) {
       map.set(item.cardId, {
         cardId: item.cardId,
         similarity: item.similarity,
@@ -201,13 +223,41 @@ export const DraftEditor = memo(function DraftEditor({
       });
     }
     setSimilarMap(map);
-    notify(
-      map.size > 0
-        ? t(lang, `发现 ${map.size} 道相似题目`, `Found ${map.size} similar card(s)`)
-        : t(lang, '未发现重复/高度相似题目', 'No near-duplicate cards found'),
-      map.size > 0 ? 'warning' : 'success',
-    );
+    setSimilarItems(items);
+    setSimilarCursor(0);
+    setOverlay('similar-results');
   }, [busy, draft, host, lang, notify]);
+
+  const repairDraft = useCallback(async () => {
+    if (!draft || busy) return;
+    setBusy(true);
+    setBusyLabel(t(lang, '修题中…', 'Repairing…'));
+    const res = await tryAction<{ jobId?: string; status?: string; queuedBehind?: number; next?: string }>(
+      host,
+      'draft.repair',
+      {
+        id: draft.id,
+        draftVersion: draft.draftVersion,
+      },
+    );
+    if (!res.ok) {
+      setBusy(false);
+      setBusyLabel('');
+      notify(res.error?.message || t(lang, '修复草稿失败', 'Draft repair failed'), 'error');
+      return;
+    }
+    await loadDraft(draft.id);
+    await refresh();
+    setBusy(false);
+    setBusyLabel('');
+    const jobId = res.value?.jobId;
+    notify(
+      jobId
+        ? t(lang, `已启动修题任务 (${jobId})，草稿已刷新`, `Repair queued (${jobId}); draft reloaded`)
+        : t(lang, '草稿已修复并刷新', 'Draft repaired and reloaded'),
+      'success',
+    );
+  }, [busy, draft, host, lang, loadDraft, notify, refresh]);
 
   const publishDraft = useCallback(
     async (reviewed: boolean) => {
@@ -255,17 +305,18 @@ export const DraftEditor = memo(function DraftEditor({
   }, [busy, draft, host, lang, notify, refresh]);
 
   const mainListActive = isActive && overlay === 'none';
-  useClaimKeys(['e', 'x', 's', 'P', 'D', 'd', 'n'], mainListActive);
+  useClaimKeys(['e', 'x', 's', 'S', 'R', 'P', 'D', 'd', 'n'], mainListActive);
   useInputCapture(isActive && overlay === 'edit-card');
 
   const hints: KeyHint[] = useMemo(
     () => [
       { key: 'd', label: t(lang, '切换草稿', 'Drafts') },
-      { key: 'e', label: t(lang, '编辑题目', 'Edit') },
-      { key: 'x', label: t(lang, '删除本题', 'Drop Card') },
-      { key: 's', label: t(lang, '相似查重', 'Similar') },
-      { key: 'P', label: t(lang, '发布题组', 'Publish') },
-      { key: 'D', label: t(lang, '删草稿', 'Del Draft') },
+      { key: 'e', label: t(lang, '编辑', 'Edit') },
+      { key: 'x', label: t(lang, '删题', 'Drop') },
+      { key: 'R', label: t(lang, '修题', 'Repair') },
+      { key: 'S', label: t(lang, '查重', 'Similar') },
+      { key: 'P', label: t(lang, '发布', 'Publish') },
+      { key: 'D', label: t(lang, '删草稿', 'Del') },
     ],
     [lang],
   );
@@ -309,7 +360,9 @@ export const DraftEditor = memo(function DraftEditor({
         }
         const next = draft.cards.filter((_, idx) => idx !== cardIndex);
         void saveDraftCards(next, t(lang, '已移除该题目', 'Removed card from draft'));
-      } else if (input === 's') {
+      } else if (input === 'R') {
+        void repairDraft();
+      } else if (input === 'S' || input === 's') {
         void checkSimilar();
       } else if (input === 'P') {
         setOverlay('publish-confirm');
@@ -363,6 +416,15 @@ export const DraftEditor = memo(function DraftEditor({
   const bodyH = Math.max(4, height - headerH);
 
   const simWarning = selectedCard ? similarMap.get(selectedCard.id) : undefined;
+  const rejectedCount = draft?.editorial?.rejectedIssues
+    ? Object.keys(draft.editorial.rejectedIssues).length
+    : 0;
+  const simModalW = Math.max(44, Math.min(78, width - 4));
+  const simModalH = Math.max(12, Math.min(22, height - 2));
+  const simInnerW = modalContentWidth(simModalW);
+  const simBodyH = Math.max(6, simModalH - 5);
+  const selectedSimilar = similarItems[similarCursor];
+  const ell = asciiMode ? '...' : '…';
 
   return (
     <Box flexDirection="column" width={width} height={height}>
@@ -370,19 +432,33 @@ export const DraftEditor = memo(function DraftEditor({
       <Box height={headerH} width={width} paddingX={1} flexDirection="column">
         <Box flexDirection="row" alignItems="center">
           <Text bold color={theme.primary}>
-            {draft?.title || draftsList.find((d) => d.id === selectedDraftId)?.title || selectedDraftId}
+            {truncateDisplay(
+              String(draft?.title || draftsList.find((d) => d.id === selectedDraftId)?.title || selectedDraftId),
+              Math.max(12, width - 44),
+              ell,
+            )}
           </Text>
           <Text> </Text>
           {draft?.course ? <Badge label={draft.course} tone="accent" variant="soft" /> : null}
           <Text> </Text>
           <Badge label={`${draft?.cards.length ?? 0} ${t(lang, '题', 'cards')}`} tone="info" variant="soft" />
+          {rejectedCount > 0 ? (
+            <>
+              <Text> </Text>
+              <Badge label={`${rejectedCount} ${t(lang, '待修', 'fix')}`} tone="warning" variant="soft" />
+            </>
+          ) : null}
           <Box flexGrow={1} />
-          {busy ? <Spinner label={t(lang, '处理中…', 'Working…')} /> : (
-            <Text color={theme.dim}>{t(lang, `[d] 切换草稿 (${draftsList.length})  [P] 发布`, `[d] Switch (${draftsList.length})  [P] Publish`)}</Text>
+          {busy ? <Spinner label={busyLabel || t(lang, '处理中…', 'Working…')} active={isActive} /> : (
+            <Text color={theme.dim}>{t(lang, `[d] 切换 (${draftsList.length})  [R] 修题  [S] 查重  [P] 发布`, `[d] Switch (${draftsList.length})  [R] Repair  [S] Similar  [P] Publish`)}</Text>
           )}
         </Box>
         <Text color={theme.dim}>
-          {t(lang, '审校草稿题干、选项与解析后按 [P] 发布到学习库', 'Review stems/explanations and press [P] to publish to deck')}
+          {truncateDisplay(
+            t(lang, '审校草稿题干、选项与解析；[R] 后台修题  [S] 查重  [P] 发布到学习库', 'Review stems & explanations; [R] Repair  [S] Similar  [P] Publish'),
+            Math.max(20, width - 2),
+            ell,
+          )}
         </Text>
       </Box>
 
@@ -403,7 +479,7 @@ export const DraftEditor = memo(function DraftEditor({
               focused={mainListActive}
             >
               {loading ? (
-                <Spinner label={t(lang, '加载草稿…', 'Loading draft…')} />
+                <Spinner label={t(lang, '加载草稿…', 'Loading draft…')} active={isActive} />
               ) : (
                 <VirtualList
                   items={draft?.cards ?? []}
@@ -415,16 +491,17 @@ export const DraftEditor = memo(function DraftEditor({
                   keyExtractor={(c, i) => `${c.id}-${i}`}
                   renderItem={(card, ctx) => {
                     const kindLabel = KIND_LABELS[String(card.kind || '')] || String(card.kind || '题');
-                    const warn = similarMap.has(card.id) ? '⚠ ' : '';
+                    const warn = similarMap.has(card.id) ? (asciiMode ? '! ' : '⚠ ') : '';
+                    const pointer = ctx.selected ? (asciiMode ? '> ' : '▸ ') : '  ';
                     const prefix = `${ctx.index + 1}. [${kindLabel}] `;
                     const stemMax = Math.max(8, ctx.width - prefix.length - (warn ? 2 : 0) - 3);
                     return (
                       <Box flexDirection="row" width={ctx.width}>
-                        <Text color={ctx.selected ? theme.primary : theme.muted}>{ctx.selected ? '▸ ' : '  '}</Text>
+                        <Text color={ctx.selected ? theme.primary : theme.muted}>{pointer}</Text>
                         {warn ? <Text color={theme.warning}>{warn}</Text> : null}
                         <Text color={theme.accent}>{prefix}</Text>
                         <Text color={theme.text} bold={ctx.selected}>
-                          {truncateDisplay(String(card.prompt || '').replace(/\s+/g, ' '), stemMax)}
+                          {truncateDisplay(String(card.prompt || '').replace(/\s+/g, ' '), stemMax, ell)}
                         </Text>
                       </Box>
                     );
@@ -451,7 +528,7 @@ export const DraftEditor = memo(function DraftEditor({
                   {simWarning ? (
                     <Box marginBottom={1}>
                       <Text color={theme.warning}>
-                        {`⚠ ${t(lang, '相似题提醒', 'Similar')} (${Math.round(simWarning.similarity * 100)}%): ${simWarning.otherPrompt || ''}`}
+                        {`${asciiMode ? '!' : '⚠'} ${t(lang, '相似题提醒', 'Similar')} (${Math.round(simWarning.similarity * 100)}%): ${simWarning.otherPrompt || ''}`}
                       </Text>
                     </Box>
                   ) : null}
@@ -581,6 +658,113 @@ export const DraftEditor = memo(function DraftEditor({
           onConfirm={() => void deleteDraft()}
           onCancel={() => setOverlay('none')}
         />
+      ) : null}
+
+      {/* Near-Duplicate Similarity Results Modal */}
+      {overlay === 'similar-results' ? (
+        <Modal
+          title={t(lang, '相似 / 重复题检测', 'Near-Duplicate Check')}
+          subtitle={
+            similarItems.length > 0
+              ? t(lang, `${similarItems.length} 处高相似`, `${similarItems.length} flagged`)
+              : t(lang, '0 处相似', '0 flagged')
+          }
+          icon={asciiMode ? '!' : '≈'}
+          tone={similarItems.length > 0 ? 'warning' : 'success'}
+          width={simModalW}
+          height={simModalH}
+          isActive={isActive}
+          onClose={() => setOverlay('none')}
+          hints={
+            similarItems.length > 0
+              ? [
+                  { key: 'Enter', label: t(lang, '跳转该题', 'Jump to Card') },
+                  { key: 'Esc', label: t(lang, '关闭', 'Close') },
+                ]
+              : [{ key: 'Esc', label: t(lang, '关闭', 'Close') }]
+          }
+        >
+          {similarItems.length === 0 ? (
+            <EmptyState
+              title={t(lang, '无明显重复题', 'No near-duplicates found')}
+              hint={t(lang, '当前草稿与课程题库中未发现高相似度题目', 'No high-similarity matches in draft or course decks')}
+              icon={asciiMode ? '+' : '✓'}
+              width={simInnerW}
+              height={simBodyH}
+            />
+          ) : (
+            <Box flexDirection="column" height={simBodyH} width={simInnerW}>
+              <VirtualList
+                items={similarItems}
+                height={Math.max(3, simBodyH - 4)}
+                width={simInnerW}
+                selectedIndex={similarCursor}
+                onChange={(idx) => setSimilarCursor(idx)}
+                onSelect={(item) => {
+                  if (draft) {
+                    const foundIdx = draft.cards.findIndex((c) => c.id === item.cardId);
+                    const fallbackIdx = Number.isInteger(item.n)
+                      ? Math.max(0, Math.min(draft.cards.length - 1, item.n - 1))
+                      : 0;
+                    setCardIndex(foundIdx >= 0 ? foundIdx : fallbackIdx);
+                  }
+                  setOverlay('none');
+                }}
+                isActive={isActive}
+                keyExtractor={(item, i) => `${item.cardId}-${i}`}
+                renderItem={(item, ctx) => {
+                  const pct = `${Math.round(item.similarity * 100)}%`;
+                  const draftCard = draft?.cards.find((c) => c.id === item.cardId) ?? draft?.cards[item.n - 1];
+                  const stem = String(draftCard?.prompt || '').replace(/\s+/g, ' ');
+                  const whereTag =
+                    item.other?.where === 'draft'
+                      ? t(lang, `草稿#${item.other?.n ?? '?'}`, `Draft#${item.other?.n ?? '?'}`)
+                      : `${item.other?.deckTitle || t(lang, '题组', 'Deck')}#${item.other?.n ?? '?'}`;
+                  const pointer = ctx.selected ? (asciiMode ? '> ' : '▸ ') : '  ';
+                  const sep = asciiMode ? ' <-> ' : ' ↔ ';
+                  const leftPart = `${pointer}[${pct}] #${item.n} `;
+                  const rightPart = `${sep}${truncateDisplay(whereTag, 18, ell)}`;
+                  const stemBudget = Math.max(8, ctx.width - leftPart.length - rightPart.length - 1);
+                  return (
+                    <Box flexDirection="row" width={ctx.width}>
+                      <Text color={ctx.selected ? theme.primary : theme.muted}>{pointer}</Text>
+                      <Text color={theme.warning} bold>{`[${pct}] `}</Text>
+                      <Text color={theme.accent}>{`#${item.n} `}</Text>
+                      <Text color={theme.text} bold={ctx.selected}>
+                        {truncateDisplay(stem || item.cardId, stemBudget, ell)}
+                      </Text>
+                      <Box flexGrow={1} />
+                      <Text color={theme.dim}>{rightPart}</Text>
+                    </Box>
+                  );
+                }}
+              />
+              <Divider width={simInnerW} />
+              {selectedSimilar ? (
+                <Box flexDirection="column" height={3} width={simInnerW} overflow="hidden">
+                  <Text color={theme.warning} bold>
+                    {truncateDisplay(
+                      `${Math.round(selectedSimilar.similarity * 100)}% · #${selectedSimilar.n} ${asciiMode ? '<->' : '↔'} ${
+                        selectedSimilar.other?.where === 'draft'
+                          ? t(lang, `草稿第 ${selectedSimilar.other?.n ?? '?'} 题`, `Draft #${selectedSimilar.other?.n ?? '?'}`)
+                          : `${selectedSimilar.other?.deckTitle || t(lang, '题组', 'Deck')} #${selectedSimilar.other?.n ?? '?'}`
+                      }`,
+                      simInnerW,
+                      ell,
+                    )}
+                  </Text>
+                  <Text color={theme.muted}>
+                    {truncateDisplay(
+                      String(selectedSimilar.other?.prompt || '').replace(/\s+/g, ' '),
+                      simInnerW * 2 - 2,
+                      ell,
+                    )}
+                  </Text>
+                </Box>
+              ) : null}
+            </Box>
+          )}
+        </Modal>
       ) : null}
     </Box>
   );

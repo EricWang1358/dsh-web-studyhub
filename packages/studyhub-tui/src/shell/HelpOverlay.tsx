@@ -49,6 +49,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       title: t(lang, '学习库 · Library', 'Library'),
       items: [
         { key: 'p', label: t(lang, '今日计划', 'Daily plan') },
+        { key: 'g', label: t(lang, 'AI 带学工作台', 'AI Guided Study') },
         { key: 'C', label: t(lang, '课程设置', 'Course settings') },
         { key: 'o', label: t(lang, '题组导入/合并/拆分', 'Deck import/merge/split') },
       ],
@@ -61,6 +62,14 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'D', label: t(lang, '卡片工具', 'Card tools') },
         { key: 'F', label: t(lang, '费曼复述', 'Feynman retell') },
         { key: 'G', label: t(lang, 'AI 评分标准批改', 'AI rubric grade') },
+        { key: 'L', label: t(lang, '互动带学', 'Socratic teach') },
+        { key: '*', label: t(lang, '标记重点', 'Toggle focus') },
+      ],
+    },
+    {
+      title: t(lang, '复习全书 · Book', 'Review Book'),
+      items: [
+        { key: 'w', label: t(lang, '期末一周与模考', 'Final-week crunch & mock') },
       ],
     },
     {

@@ -33,6 +33,8 @@ import { ImportModal } from './ImportModal.js';
 import { DocumentReader } from './DocumentReader.js';
 import { FolderModal } from './FolderModal.js';
 import { CompanionsModal } from './CompanionsModal.js';
+import { OrganizeSourcesModal } from './OrganizeSourcesModal.js';
+import { SourceCoverageModal } from './SourceCoverageModal.js';
 
 type ActiveOverlay =
   | 'none'
@@ -43,7 +45,9 @@ type ActiveOverlay =
   | 'search'
   | 'folders-filter'
   | 'folders-assign'
-  | 'companions';
+  | 'companions'
+  | 'organize'
+  | 'coverage';
 
 export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
   host,
@@ -315,7 +319,7 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
 
   const listActive = isActive && !readerTarget && overlay === 'none';
 
-  useClaimKeys(['/', 'c', 'r', 'g', 'p', 'd', 'i', 'f', 'a', 'F', 'm', 'C'], listActive);
+  useClaimKeys(['/', 'c', 'r', 'g', 'p', 'd', 'i', 'f', 'a', 'F', 'm', 'C', 'G', 'V'], listActive);
   useInputCapture(isActive && !readerTarget && (overlay === 'rename' || overlay === 'course' || overlay === 'search'));
 
   const hints: KeyHint[] = useMemo(
@@ -323,6 +327,8 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
       { key: 'Enter', label: t(lang, '阅读', 'Read') },
       { key: 'i', label: t(lang, '导入', 'Import') },
       { key: 'g', label: t(lang, '出题', 'Generate') },
+      { key: 'G', label: t(lang, '归类', 'Organize') },
+      { key: 'V', label: t(lang, '覆盖率', 'Coverage') },
       { key: 'F', label: t(lang, '文件夹', 'Folders') },
       { key: 'm', label: t(lang, '移至夹', 'Move') },
       { key: 'C', label: t(lang, '伴学页', 'Companions') },
@@ -350,8 +356,12 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
         setOverlay('folders-filter');
       } else if (input === 'C') {
         setOverlay('companions');
+      } else if (input === 'G') {
+        setOverlay('organize');
       } else if (selectedItem) {
-        if (input === 'm') {
+        if (input === 'V') {
+          setOverlay('coverage');
+        } else if (input === 'm') {
           setOverlay('folders-assign');
         } else if (input === 'g') {
           navigate('generate', {
@@ -698,6 +708,33 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
           defaultCourse={focusCourse}
           isActive={isActive}
           onChanged={refresh}
+          onClose={() => setOverlay('none')}
+        />
+      ) : null}
+
+      {overlay === 'organize' ? (
+        <OrganizeSourcesModal
+          host={host}
+          groups={filteredGroups}
+          allGroups={allGroups}
+          isActive={isActive}
+          onSaved={refresh}
+          onClose={() => setOverlay('none')}
+        />
+      ) : null}
+
+      {overlay === 'coverage' && selectedItem ? (
+        <SourceCoverageModal
+          host={host}
+          item={selectedItem}
+          defaultCourse={focusCourse}
+          isActive={isActive}
+          onGenerate={(sourceIds, course) => {
+            navigate('generate', {
+              sourceIds,
+              ...(course ? { course } : {}),
+            });
+          }}
           onClose={() => setOverlay('none')}
         />
       ) : null}

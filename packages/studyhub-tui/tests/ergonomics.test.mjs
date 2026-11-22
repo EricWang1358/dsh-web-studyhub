@@ -114,10 +114,10 @@ test('globalShortcuts documents required keys cleanly in zh and en without dupli
   }
 });
 
-test('featureShortcuts documents Rounds 5-9 shortcuts cleanly in zh and en without duplicates', () => {
+test('featureShortcuts documents Rounds 5-11 shortcuts cleanly in zh and en without duplicates', () => {
   for (const lang of ['zh', 'en']) {
     const sections = M.featureShortcuts(lang);
-    assert.equal(sections.length, 5);
+    assert.equal(sections.length, 6);
     const titles = sections.map((s) => s.title);
     assert.equal(new Set(titles).size, titles.length, `duplicate section title in ${lang}`);
     for (const sec of sections) {
@@ -134,20 +134,30 @@ test('featureShortcuts documents Rounds 5-9 shortcuts cleanly in zh and en witho
     }
 
     const titlesJoined = titles.join('\n');
+    assert.ok(titlesJoined.includes('Book'), `missing Book section in ${lang}`);
     assert.ok(titlesJoined.includes('Board'), `missing Board section in ${lang}`);
     assert.ok(titlesJoined.includes('Settings'), `missing Settings section in ${lang}`);
     if (lang === 'zh') {
+      assert.ok(titlesJoined.includes('复习全书'), 'missing 复习全书 section in zh');
       assert.ok(titlesJoined.includes('待办看板'), 'missing 待办看板 section in zh');
       assert.ok(titlesJoined.includes('设置'), 'missing 设置 section in zh');
     }
 
     const allKeys = sections.flatMap((s) => s.items.map((i) => i.key));
-    for (const k of ['p', 'C', 'o', 'T', 'S', 'D', 'F', 'G', 'm', 'O', 'B', 'P / Space', 'M', '+/-', 'R', 'x']) {
+    for (const k of ['p', 'g', 'C', 'o', 'T', 'S', 'D', 'F', 'G', 'L', '*', 'w', 'm', 'O', 'B', 'P / Space', 'M', '+/-', 'R', 'x']) {
       assert.ok(allKeys.includes(k), `missing feature shortcut ${k} in ${lang}`);
     }
     const keysJoined = allKeys.join('\n');
-    for (const token of ['o', 'F', 'G', 'P', 'x']) {
+    for (const token of ['o', 'g', 'L', '*', 'w', 'F', 'G', 'P', 'x']) {
       assert.ok(keysJoined.includes(token), `missing token ${token} in ${lang}`);
     }
+
+    const librarySec = sections.find((s) => s.title.includes('Library'));
+    const reviewSec = sections.find((s) => s.title.includes('Review') && !s.title.includes('Book'));
+    const bookSec = sections.find((s) => s.title.includes('Book'));
+    assert.ok(librarySec?.items.some((i) => i.key === 'g' && (i.label.includes('带学') || i.label.includes('Guided Study'))), `missing Library [g] label in ${lang}`);
+    assert.ok(reviewSec?.items.some((i) => i.key === 'L' && (i.label.includes('带学') || i.label.includes('Socratic'))), `missing Review [L] label in ${lang}`);
+    assert.ok(reviewSec?.items.some((i) => i.key === '*' && (i.label.includes('重点') || i.label.includes('focus'))), `missing Review [*] label in ${lang}`);
+    assert.ok(bookSec?.items.some((i) => i.key === 'w' && (i.label.includes('期末一周') || i.label.includes('Final-week'))), `missing Book [w] label in ${lang}`);
   }
 });
