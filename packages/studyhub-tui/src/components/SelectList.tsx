@@ -4,7 +4,7 @@ import { toneColor, useTheme, type Tone } from '../theme/tokens.js';
 import { t, useTuiStore } from '../state/store.js';
 import { displayWidth, truncateDisplay } from '../render/cjk.js';
 import { DIGIT_KEYS, useClaimKeys } from './focus.js';
-import { nextScrollOffset } from './VirtualList.js';
+import { nextScrollOffset, pageStep, parseSgrWheelDelta, useSgrMouseWheel } from './VirtualList.js';
 
 export interface SelectOption<V = string> {
   value: V;
@@ -59,6 +59,8 @@ function SelectListInner<V>({
   const controlled = selectedIndex !== undefined;
   const [internal, setInternal] = useState(initialIndex);
   const cursor = Math.max(0, Math.min(controlled ? (selectedIndex as number) : internal, total - 1));
+  const cursorRef = useRef(cursor);
+  cursorRef.current = cursor;
   const offsetRef = useRef(0);
   const rows = Math.max(1, Math.min(maxHeight ?? total, total));
   const off = nextScrollOffset(cursor, offsetRef.current, rows, total, 1);
@@ -77,8 +79,29 @@ function SelectListInner<V>({
     [options, total],
   );
 
+  const stepClamped = useCallback(
+    (from: number, delta: number): number => {
+      if (total === 0 || delta === 0) return from;
+      const dir: 1 | -1 = delta > 0 ? 1 : -1;
+      let cur = Math.max(0, Math.min(from, total - 1));
+      let remaining = Math.abs(delta);
+      while (remaining > 0) {
+        let next = cur + dir;
+        while (next >= 0 && next < total && options[next]?.disabled) {
+          next += dir;
+        }
+        if (next < 0 || next >= total) break;
+        cur = next;
+        remaining -= 1;
+      }
+      return cur;
+    },
+    [options, total],
+  );
+
   const moveTo = useCallback(
     (idx: number) => {
+      cursorRef.current = idx;
       if (!controlled) setInternal(idx);
       const opt = options[idx];
       if (opt) onChange?.(opt, idx);
@@ -86,14 +109,35 @@ function SelectListInner<V>({
     [controlled, onChange, options],
   );
 
+  useSgrMouseWheel(isActive && total > 0, (delta) => {
+    const next = stepClamped(cursorRef.current, delta);
+    if (next !== cursorRef.current) moveTo(next);
+  });
+
   useInput(
     (input, key) => {
       if (total === 0) return;
-      if (key.downArrow || input === 'j' || (key.tab && !key.shift)) moveTo(step(cursor, 1));
-      else if (key.upArrow || input === 'k' || (key.tab && key.shift)) moveTo(step(cursor, -1));
-      else if (key.home || input === 'g') moveTo(0);
-      else if (key.end || input === 'G') moveTo(total - 1);
-      else if (key.return) {
+      const wheelDelta = parseSgrWheelDelta(input);
+      if (wheelDelta !== 0) {
+        const next = stepClamped(cursorRef.current, wheelDelta);
+        if (next !== cursorRef.current) moveTo(next);
+        return;
+      }
+      if (key.pageDown || (key.ctrl && input === 'd')) {
+        const next = stepClamped(cursor, pageStep(rows, 'half'));
+        if (next !== cursor) moveTo(next);
+      } else if (key.pageUp || (key.ctrl && input === 'u')) {
+        const next = stepClamped(cursor, -pageStep(rows, 'half'));
+        if (next !== cursor) moveTo(next);
+      } else if (key.downArrow || (!key.ctrl && !key.meta && input === 'j') || (key.tab && !key.shift)) {
+        moveTo(step(cursor, 1));
+      } else if (key.upArrow || (!key.ctrl && !key.meta && input === 'k') || (key.tab && key.shift)) {
+        moveTo(step(cursor, -1));
+      } else if (key.home || (!key.ctrl && !key.meta && input === 'g')) {
+        moveTo(0);
+      } else if (key.end || (!key.ctrl && !key.meta && input === 'G')) {
+        moveTo(total - 1);
+      } else if (key.return) {
         const opt = options[cursor];
         if (opt && !opt.disabled) onSelect(opt, cursor);
       } else if (numberShortcuts && /^[1-9]$/.test(input)) {

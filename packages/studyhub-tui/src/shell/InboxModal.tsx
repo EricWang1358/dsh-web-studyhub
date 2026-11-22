@@ -1,4 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { randomUUID } from 'node:crypto';
+import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
 import { Box, Text, useInput, useWindowSize } from 'ink';
 import type { HostClient, NavigationContext, PageId, UiLanguage } from '../types/contracts.js';
 import { t, useTuiStore } from '../state/store.js';
@@ -6,7 +9,9 @@ import { toneColor, useTheme, type Tone } from '../theme/tokens.js';
 import { displayWidth, padDisplay, truncateDisplay, wrapDisplay } from '../render/cjk.js';
 import { Modal, modalContentWidth } from '../components/Modal.js';
 import { Spinner } from '../components/Badge.js';
+import { TextInput } from '../components/TextInput.js';
 import { VirtualList } from '../components/VirtualList.js';
+import { tryAction } from '../host/sample-actions.js';
 import { extractInboxData, type InboxEntry } from './data.js';
 import { useShellActions } from './actions.js';
 
@@ -17,6 +22,42 @@ export interface InboxModalProps {
 }
 
 type InboxFilter = 'all' | 'unread' | 'read';
+
+const RETRY_CODES = new Set(['EBUSY', 'EPERM', 'EACCES']);
+
+function todayLocalYmd(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+async function renameWithRetry(from: string, to: string): Promise<void> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await rename(from, to);
+      return;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException)?.code || '';
+      if (!RETRY_CODES.has(code) || attempt >= 5) throw error;
+      await new Promise((done) => setTimeout(done, 40 * (attempt + 1)));
+    }
+  }
+}
+
+async function atomicWriteJsonFile(targetPath: string, payload: unknown): Promise<void> {
+  await mkdir(dirname(targetPath), { recursive: true });
+  const temp = `${targetPath}.${randomUUID()}.tmp`;
+  const json = `${JSON.stringify(payload, null, 2)}\n`;
+  await writeFile(temp, json, 'utf8');
+  try {
+    await renameWithRetry(temp, targetPath);
+  } catch (error) {
+    await rm(temp, { force: true }).catch(() => {});
+    throw error;
+  }
+}
 
 function str(v: unknown): string {
   return typeof v === 'string' ? v : typeof v === 'number' ? String(v) : '';
@@ -123,13 +164,18 @@ export const InboxModal = memo(function InboxModal({ host, isActive, onClose }: 
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const snapshotInbox = useTuiStore((s) => s.snapshot?.inbox);
+  const bindingRoot = useTuiStore((s) => s.binding?.root);
+  const snapshotRoot = useTuiStore((s) => s.snapshot?.root);
 
   const initialData = useMemo(() => extractInboxData(snapshotInbox as unknown), [snapshotInbox]);
   const [items, setItems] = useState<InboxEntry[]>(initialData.items);
   const [filter, setFilter] = useState<InboxFilter>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
   const [cursor, setCursor] = useState(0);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -138,6 +184,10 @@ export const InboxModal = memo(function InboxModal({ host, isActive, onClose }: 
       mountedRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!isActive && searchFocused) setSearchFocused(false);
+  }, [isActive, searchFocused]);
 
   // Keep synced with snapshot fallback if live fetch hasn't populated items yet.
   useEffect(() => {
@@ -177,12 +227,18 @@ export const InboxModal = memo(function InboxModal({ host, isActive, onClose }: 
 
   const unreadCount = useMemo(() => items.filter((m) => !m.read).length, [items]);
   const readCount = items.length - unreadCount;
+  const normalizedQuery = searchQuery.trim().toLowerCase();
 
   const filteredItems = useMemo(() => {
-    if (filter === 'unread') return items.filter((m) => !m.read);
-    if (filter === 'read') return items.filter((m) => m.read);
-    return items;
-  }, [items, filter]);
+    const byRead =
+      filter === 'unread' ? items.filter((m) => !m.read) : filter === 'read' ? items.filter((m) => m.read) : items;
+    if (!normalizedQuery) return byRead;
+    return byRead.filter((m) =>
+      [m.prompt, m.promptFull, m.deckTitle, m.filename, m.label, m.detail, m.detailFull, m.kind, m.course].some(
+        (field) => typeof field === 'string' && field.toLowerCase().includes(normalizedQuery),
+      ),
+    );
+  }, [items, filter, normalizedQuery]);
 
   const selectedIndex = Math.min(cursor, Math.max(0, filteredItems.length - 1));
   const selected = filteredItems[selectedIndex];
@@ -193,7 +249,8 @@ export const InboxModal = memo(function InboxModal({ host, isActive, onClose }: 
 
   const handleToggleRead = useCallback(
     async (item: InboxEntry) => {
-      if (busy) return;
+      if (busyRef.current || busy) return;
+      busyRef.current = true;
       setBusy(true);
       const nextRead = !item.read;
       const action = nextRead ? 'inbox.read' : 'inbox.unread';
@@ -218,6 +275,7 @@ export const InboxModal = memo(function InboxModal({ host, isActive, onClose }: 
           useTuiStore.getState().notify(err instanceof Error ? err.message : String(err), 'error');
         }
       } finally {
+        busyRef.current = false;
         if (mountedRef.current) setBusy(false);
       }
     },
@@ -225,11 +283,12 @@ export const InboxModal = memo(function InboxModal({ host, isActive, onClose }: 
   );
 
   const handleMarkAllRead = useCallback(async () => {
-    if (busy) return;
+    if (busyRef.current || busy) return;
     if (unreadCount === 0) {
       useTuiStore.getState().notify(t(lang, '没有未读消息', 'No unread notifications'), 'info');
       return;
     }
+    busyRef.current = true;
     setBusy(true);
     try {
       let res = await host.call('inbox.mark', { all: true });
@@ -252,13 +311,63 @@ export const InboxModal = memo(function InboxModal({ host, isActive, onClose }: 
         useTuiStore.getState().notify(err instanceof Error ? err.message : String(err), 'error');
       }
     } finally {
+      busyRef.current = false;
       if (mountedRef.current) setBusy(false);
     }
   }, [busy, unreadCount, host, lang, loadInbox, actions]);
 
+  const handleExportRaw = useCallback(async () => {
+    if (busyRef.current || busy) return;
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      const res = await tryAction<unknown>(host, 'inbox.raw', {});
+      if (!mountedRef.current) return;
+      if (!res.ok) {
+        useTuiStore
+          .getState()
+          .notify(res.error?.message || t(lang, '导出收件箱失败', 'Failed to export inbox'), 'error');
+        return;
+      }
+      const rawArray = Array.isArray(res.value)
+        ? res.value
+        : res.value && typeof res.value === 'object' && Array.isArray((res.value as { items?: unknown[] }).items)
+          ? (res.value as { items: unknown[] }).items
+          : [];
+      const rawRoot =
+        bindingRoot?.trim() ||
+        host.getLibraryRoot?.()?.trim() ||
+        host.getConfig?.()?.libraryRoot?.trim() ||
+        snapshotRoot?.trim() ||
+        '';
+      const baseDir = rawRoot ? resolve(rawRoot) : process.cwd();
+      const targetPath = join(baseDir, 'backups', `studyhub-inbox-${todayLocalYmd()}.json`);
+      await atomicWriteJsonFile(targetPath, rawArray);
+      if (!mountedRef.current) return;
+      const arrow = asciiMode ? '->' : '→';
+      useTuiStore
+        .getState()
+        .notify(
+          t(
+            lang,
+            `已导出 ${rawArray.length} 条通知 ${arrow} ${targetPath}`,
+            `Exported ${rawArray.length} inbox item(s) ${arrow} ${targetPath}`,
+          ),
+          'success',
+        );
+    } catch (err) {
+      if (!mountedRef.current) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      useTuiStore.getState().notify(t(lang, `导出收件箱失败：${msg}`, `Failed to export inbox: ${msg}`), 'error');
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusy(false);
+    }
+  }, [asciiMode, bindingRoot, busy, host, lang, snapshotRoot]);
+
   const handleOpen = useCallback(
     async (item: InboxEntry) => {
-      if (busy) return;
+      if (busyRef.current || busy) return;
       if (item.missing) {
         if (!item.read) {
           void host.call('inbox.read', { ids: [item.id] }).then((res) => {
@@ -274,6 +383,7 @@ export const InboxModal = memo(function InboxModal({ host, isActive, onClose }: 
         return;
       }
 
+      busyRef.current = true;
       setBusy(true);
       try {
         const res = await host.call('inbox.open', { id: item.id });
@@ -302,6 +412,7 @@ export const InboxModal = memo(function InboxModal({ host, isActive, onClose }: 
           useTuiStore.getState().notify(err instanceof Error ? err.message : String(err), 'error');
         }
       } finally {
+        busyRef.current = false;
         if (mountedRef.current) setBusy(false);
       }
     },
@@ -310,26 +421,39 @@ export const InboxModal = memo(function InboxModal({ host, isActive, onClose }: 
 
   useInput(
     (input, key) => {
-      if (busy) return;
+      if (busyRef.current || busy) return;
       if (key.tab) {
         setFilter((prev) => (prev === 'all' ? 'unread' : prev === 'unread' ? 'read' : 'all'));
         setCursor(0);
         return;
       }
-      if (input === 'r') {
+      if (input === '/' && !key.ctrl && !key.meta) {
+        setSearchFocused(true);
+        return;
+      }
+      if (input === 'c' && !key.ctrl && !key.meta && searchQuery) {
+        setSearchQuery('');
+        setCursor(0);
+        return;
+      }
+      if (input === 'e' && !key.ctrl && !key.meta) {
+        void handleExportRaw();
+        return;
+      }
+      if (input === 'r' && !key.ctrl && !key.meta) {
         void loadInbox(true);
         void actions.refresh();
         return;
       }
-      if (input === 'm' && selected) {
+      if (input === 'm' && !key.ctrl && !key.meta && selected) {
         void handleToggleRead(selected);
         return;
       }
-      if (input === 'M') {
+      if (input === 'M' && !key.ctrl && !key.meta) {
         void handleMarkAllRead();
       }
     },
-    { isActive },
+    { isActive: isActive && !searchFocused },
   );
 
   const width = Math.min(96, Math.max(46, columns - 4));
@@ -340,7 +464,7 @@ export const InboxModal = memo(function InboxModal({ host, isActive, onClose }: 
   const sideBySide = innerW >= 72;
   const listW = sideBySide ? Math.floor(innerW * 0.52) : innerW;
   const previewW = sideBySide ? Math.max(16, innerW - listW - 1) : innerW;
-  const bodyH = Math.max(5, innerH - 2);
+  const bodyH = Math.max(4, innerH - 3);
   const listH = sideBySide ? bodyH : Math.max(3, Math.floor((bodyH - 1) * 0.56));
   const previewH = sideBySide ? bodyH : Math.max(2, bodyH - listH - 1);
 
@@ -379,17 +503,36 @@ export const InboxModal = memo(function InboxModal({ host, isActive, onClose }: 
       width={width}
       height={height}
       onClose={onClose}
-      isActive={isActive}
-      hints={[
-        { key: 'Enter', label: t(lang, '打开', 'Open') },
-        { key: 'm', label: t(lang, '已读/未读', 'Read') },
-        { key: 'M', label: t(lang, '全读', 'Read all') },
-        { key: 'Tab', label: t(lang, '筛选', 'Filter') },
-        { key: 'r', label: t(lang, '刷新', 'Refresh') },
-        { key: 'Esc', label: t(lang, '关闭', 'Close') },
-      ]}
+      isActive={isActive && !searchFocused}
+      hints={
+        searchFocused
+          ? [
+              { key: 'Enter', label: t(lang, '应用', 'Apply') },
+              { key: 'Esc', label: t(lang, '清除', 'Clear') },
+            ]
+          : sideBySide
+            ? [
+                { key: 'Enter', label: t(lang, '打开', 'Open') },
+                { key: '/', label: t(lang, '搜索', 'Search') },
+                ...(searchQuery ? [{ key: 'c', label: t(lang, '重置', 'Clear') }] : []),
+                { key: 'e', label: t(lang, '导出', 'Export') },
+                { key: 'm', label: t(lang, '已读', 'Read') },
+                { key: 'M', label: t(lang, '全读', 'All') },
+                { key: 'Tab', label: t(lang, '筛选', 'Filter') },
+                { key: 'r', label: t(lang, '刷新', 'Refresh') },
+                { key: 'Esc', label: t(lang, '关闭', 'Close') },
+              ]
+            : [
+                { key: 'Enter', label: t(lang, '打开', 'Open') },
+                { key: '/', label: t(lang, '搜索', 'Find') },
+                ...(searchQuery ? [{ key: 'c', label: t(lang, '重置', 'Clr') }] : []),
+                { key: 'e', label: t(lang, '导出', 'Export') },
+                { key: 'm', label: t(lang, '已读', 'Read') },
+                { key: 'Esc', label: t(lang, '关闭', 'Close') },
+              ]
+      }
     >
-      <Box height={1} width={innerW} overflow="hidden" marginBottom={1}>
+      <Box height={1} width={innerW} overflow="hidden">
         <Box flexGrow={1} overflow="hidden">
           {tabs.map((tab) => {
             const active = filter === tab.id;
@@ -410,6 +553,32 @@ export const InboxModal = memo(function InboxModal({ host, isActive, onClose }: 
         {loading || busy ? <Spinner tone="ai" label={t(lang, '同步', 'Sync')} /> : null}
       </Box>
 
+      <Box height={1} width={innerW} overflow="hidden" marginBottom={1}>
+        <Text color={searchFocused ? theme.primary : theme.accent} bold={searchFocused}>
+          {t(lang, '搜索 ', 'Find ')}
+        </Text>
+        <TextInput
+          value={searchQuery}
+          onChange={(val) => {
+            setSearchQuery(val);
+            setCursor(0);
+          }}
+          onSubmit={() => {
+            setSearchFocused(false);
+            setCursor(0);
+          }}
+          onCancel={() => {
+            setSearchQuery('');
+            setSearchFocused(false);
+            setCursor(0);
+          }}
+          isActive={isActive && searchFocused && !busy}
+          width={Math.max(12, innerW - 14)}
+          placeholder={t(lang, `按 / 搜索关键词${ell}`, `Press / to filter${ell}`)}
+        />
+        {normalizedQuery ? <Text color={theme.dim}>{` ${filteredItems.length}/${items.length}`}</Text> : null}
+      </Box>
+
       <Box flexDirection={sideBySide ? 'row' : 'column'} width={innerW} height={bodyH} overflow="hidden">
         <Box width={listW} height={listH} overflow="hidden" flexShrink={0}>
           <VirtualList
@@ -419,16 +588,22 @@ export const InboxModal = memo(function InboxModal({ host, isActive, onClose }: 
             selectedIndex={selectedIndex}
             onChange={(idx) => setCursor(idx)}
             onSelect={(item) => void handleOpen(item)}
-            isActive={isActive && !busy}
+            isActive={isActive && !busy && !searchFocused}
             keyExtractor={(item) => item.id}
             emptyText={
-              filter === 'unread'
-                ? t(lang, '没有未读通知', 'No unread notifications')
-                : filter === 'read'
-                  ? t(lang, '暂无已读通知', 'No read notifications')
-                  : t(lang, '信箱是空的', 'Inbox is empty')
+              normalizedQuery
+                ? t(lang, '没有匹配的通知', 'No matching notifications')
+                : filter === 'unread'
+                  ? t(lang, '没有未读通知', 'No unread notifications')
+                  : filter === 'read'
+                    ? t(lang, '暂无已读通知', 'No read notifications')
+                    : t(lang, '信箱是空的', 'Inbox is empty')
             }
-            emptyHint={t(lang, '后台任务或陪学回复完成后会投递到这里', 'Background jobs & coach replies appear here')}
+            emptyHint={
+              normalizedQuery
+                ? t(lang, '按 [c] 清除搜索或按 [/] 修改关键词', 'Press [c] to clear filter or [/] to edit query')
+                : t(lang, '后台任务或陪学回复完成后会投递到这里', 'Background jobs & coach replies appear here')
+            }
             renderItem={(item, ctx) => {
               const dot = item.read ? '  ' : asciiMode ? '* ' : '● ';
               const dotColor = item.read ? theme.dim : theme.primary;

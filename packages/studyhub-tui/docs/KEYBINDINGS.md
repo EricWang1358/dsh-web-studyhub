@@ -13,7 +13,7 @@ Complete keyboard reference for `@ericwang1358/studyhub-tui`, synchronized with 
 | `Ctrl+K` / `/` | Command palette & search | Opens Command Palette v3 (`Ctrl+K` toggles even during overlays) |
 | `?` | Context help overlay | Shows global, current-page, and feature shortcuts (`?` / `q` / `Esc` closes) |
 | `c` | Switch course | Opens `CoursePickerModal` |
-| `I` | Notification inbox | Opens `InboxModal` |
+| `I` | Notification inbox | Opens `InboxModal` (`/` keyword filter, `e` atomic `inbox.raw` JSON export) |
 | `1-9`, `0`, `n`, `b`, `t`, `a`, `,`, `r` | Jump directly to page | See 16-page registry below |
 | `[` / `]` | Previous / next page | Cycles across the 15 main nav pages (`group !== null`) |
 | `Backspace` (`Bksp`) | Go back | Pops navigation history |
@@ -21,13 +21,13 @@ Complete keyboard reference for `@ericwang1358/studyhub-tui`, synchronized with 
 | `Ctrl+R` | Force refresh | Reloads snapshot from StudyRuntime host |
 | `q` / `Ctrl+C` | Quit | Exits cleanly and restores terminal alt-screen/cursor |
 | `j` / `k` or `↑` / `↓` | Move up / down | Lists, trees, and scrollable panes |
-| `Ctrl+D` / `Ctrl+U` | Half-page scroll down / up | Active in `ScrollView` / `VirtualList` |
-| `Ctrl+F` / `Ctrl+B` (`PgDn` / `PgUp`) | Full-page scroll down / up | `Space` also pages down in `ScrollView` |
+| `Ctrl+D` / `Ctrl+U` | Half-page scroll down / up | Active in `ScrollView`, `VirtualList`, and `SelectList` |
+| `Ctrl+F` / `Ctrl+B` (`PgDn` / `PgUp`) | Full-page scroll down / up | `Space` also pages down in `ScrollView`; `PgDn` / `PgUp` also page in `SelectList` and `CommandPalette` |
 | `g` / `G` (`Home` / `End`) | Jump to top / bottom | Active in `ScrollView` / `VirtualList` |
-| `Mouse Wheel` | Scroll up / down (3 rows) | Opt-in SGR 1006 wheel lifecycle (`--mouse` / `--no-mouse` / `STUDYHUB_TUI_MOUSE=1`, intact & ESC-stripped, disabled before alt-screen exit) in `VirtualList`, `ScrollView`, and `CommandPalette` |
+| `Mouse Wheel` | Scroll up / down (3 rows) | Opt-in SGR 1006 wheel lifecycle (`--mouse` / `--no-mouse` / `STUDYHUB_TUI_MOUSE=1`, intact & ESC-stripped, disabled before alt-screen exit) in `VirtualList`, `ScrollView`, `SelectList`, and `CommandPalette` |
 | `Esc` | Close / cancel | Closes active modal, drawer, or palette |
 
-> **CLI Launch Flags**: `--root <path>`, `--page <id>`, `--theme <id>`, `--lang <zh|en>`, `--no-alt-screen`, `--no-launchpad`, `--skip-probe`, `--ascii` / `--unicode`, and `--mouse` / `--no-mouse` (or `STUDYHUB_TUI_MOUSE=1` env var for opt-in SGR 1006 mouse wheel scrolling).
+> **CLI Launch Flags**: `--root <path>`, `--page <id>`, `--theme <id>`, `--lang <zh|en>`, `--no-alt-screen`, `--no-launchpad`, `--skip-probe`, `--ascii` / `--unicode`, `--mouse` / `--no-mouse` (or `STUDYHUB_TUI_MOUSE=1` env var for opt-in SGR 1006 mouse wheel scrolling), and `--doctor` / `--doctor --json` (fast-path cross-platform terminal/env/provider diagnostics, zero API key leakage).
 
 ### Page Jump Shortcuts (`PAGE_REGISTRY`)
 

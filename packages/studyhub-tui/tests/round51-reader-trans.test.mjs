@@ -289,6 +289,7 @@ describe('StudyHub TUI Round 51 DocumentReader Persistent Bilingual Translation'
       },
     );
     tty.send('\r');
+    await sleep(60);
     await tty.flush();
     tty.send('\r');
 
@@ -296,7 +297,7 @@ describe('StudyHub TUI Round 51 DocumentReader Persistent Bilingual Translation'
       (s) =>
         s.includes(titleNeedle) &&
         s.includes(expectedBodyNeedle) &&
-        (s.includes('翻译') || s.includes('Trans') || s.includes('页') || s.includes('Page')),
+        (s.includes('问本页') || s.includes('Ask') || s.includes('术语译文') || s.includes('Glossary')),
       { timeoutMs: 10_000, label: `DocumentReader opened for ${titleNeedle}` },
     );
     await sleep(80);
