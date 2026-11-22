@@ -25,7 +25,7 @@ export interface ShortcutSection {
 
 export function globalShortcuts(lang: 'zh' | 'en', asciiMode = false): KeyHint[] {
   return [
-    { key: 'Ctrl+K  /', label: t(lang, '命令面板', 'Command palette') },
+    { key: 'Ctrl+K  /', label: t(lang, '命令面板 / 全文搜题与原文', 'Command palette & search') },
     { key: '?', label: t(lang, '帮助', 'Help') },
     { key: 'c', label: t(lang, '切换课程', 'Switch course') },
     { key: 'I', label: t(lang, '收件箱与通知', 'Notification inbox') },
@@ -50,6 +50,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       items: [
         { key: 'p', label: t(lang, '今日计划', 'Daily plan') },
         { key: 'C', label: t(lang, '课程设置', 'Course settings') },
+        { key: 'o', label: t(lang, '题组导入/合并/拆分', 'Deck import/merge/split') },
       ],
     },
     {
@@ -58,6 +59,8 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'T', label: t(lang, '翻译题目', 'Translate') },
         { key: 'S', label: t(lang, '同类题', 'Similar cards') },
         { key: 'D', label: t(lang, '卡片工具', 'Card tools') },
+        { key: 'F', label: t(lang, '费曼复述', 'Feynman retell') },
+        { key: 'G', label: t(lang, 'AI 评分标准批改', 'AI rubric grade') },
       ],
     },
     {
@@ -68,6 +71,21 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'C', label: t(lang, '伴学页面', 'Companions') },
         { key: 'O', label: t(lang, '目录大纲', 'Outline TOC') },
         { key: 'B', label: t(lang, '书签与批注', 'Bookmarks & notes') },
+      ],
+    },
+    {
+      title: t(lang, '待办看板 · Board', 'Board'),
+      items: [
+        { key: 'P / Space', label: t(lang, '番茄钟启停', 'Pomodoro toggle') },
+        { key: 'M', label: t(lang, '专注/休息模式', 'Focus/break mode') },
+        { key: '+/-', label: t(lang, '调整时长', 'Adjust minutes') },
+        { key: 'R', label: t(lang, '重置计时', 'Reset timer') },
+      ],
+    },
+    {
+      title: t(lang, '设置 · Settings', 'Settings'),
+      items: [
+        { key: 'x', label: t(lang, '导出学习库备份', 'Export backup') },
       ],
     },
   ];

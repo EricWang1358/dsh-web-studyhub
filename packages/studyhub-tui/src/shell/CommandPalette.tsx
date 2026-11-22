@@ -232,7 +232,7 @@ export const CommandPalette = memo(function CommandPalette({
     const timer = setTimeout(() => {
       Promise.all([
         host.call<CardSearchResponse>('card.search', { query: q, limit: LIVE_PER_KIND_LIMIT }).catch(() => null),
-        host.call<ContentSearchResponse>('search.content', { query: q, limit: LIVE_PER_KIND_LIMIT }).catch(() => null),
+        host.call<ContentSearchResponse>('search.content', { query: q, limit: LIVE_PER_KIND_LIMIT, includeSample: true }).catch(() => null),
       ])
         .then(([cardRes, contentRes]) => {
           if (!mountedRef.current || seqRef.current !== seq) return;

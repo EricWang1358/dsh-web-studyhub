@@ -97,8 +97,10 @@ test('globalShortcuts documents required keys cleanly in zh and en without dupli
     for (const ascii of [false, true]) {
       const list = M.globalShortcuts(lang, ascii);
       assert.ok(Array.isArray(list) && list.length >= 12);
-      const keysJoined = list.map((h) => h.key).join('\n');
-      for (const expected of ['I', 'Ctrl+K', '?', 'c', '[', 'Ctrl+R', 'Ctrl+D/U', 'g/G']) {
+      const keys = list.map((h) => h.key);
+      assert.equal(new Set(keys).size, keys.length, `duplicate key in globalShortcuts (${lang}, ascii=${ascii})`);
+      const keysJoined = keys.join('\n');
+      for (const expected of ['I', 'Ctrl+K', '?', 'c', '[', '\\', 'Ctrl+R', 'Ctrl+D/U', 'g/G']) {
         assert.ok(keysJoined.includes(expected), `missing ${expected} in ${lang} (ascii=${ascii})`);
       }
       for (const item of list) {
@@ -112,13 +114,40 @@ test('globalShortcuts documents required keys cleanly in zh and en without dupli
   }
 });
 
-test('featureShortcuts documents Round 5 and Round 6 shortcuts cleanly in zh and en', () => {
+test('featureShortcuts documents Rounds 5-9 shortcuts cleanly in zh and en without duplicates', () => {
   for (const lang of ['zh', 'en']) {
     const sections = M.featureShortcuts(lang);
-    assert.equal(sections.length, 3);
+    assert.equal(sections.length, 5);
+    const titles = sections.map((s) => s.title);
+    assert.equal(new Set(titles).size, titles.length, `duplicate section title in ${lang}`);
+    for (const sec of sections) {
+      assert.ok(sec.title.trim().length > 0, `empty section title in ${lang}`);
+      assert.ok(sec.items.length > 0, `empty section items for ${sec.title} in ${lang}`);
+      const secKeys = sec.items.map((i) => i.key);
+      const secLabels = sec.items.map((i) => i.label);
+      assert.equal(new Set(secKeys).size, secKeys.length, `duplicate shortcut key in ${sec.title} (${lang})`);
+      assert.equal(new Set(secLabels).size, secLabels.length, `duplicate shortcut label in ${sec.title} (${lang})`);
+      for (const item of sec.items) {
+        assert.ok(item.key.trim().length > 0, `empty key in ${sec.title} (${lang})`);
+        assert.ok(item.label.trim().length > 0, `empty label in ${sec.title} (${lang})`);
+      }
+    }
+
+    const titlesJoined = titles.join('\n');
+    assert.ok(titlesJoined.includes('Board'), `missing Board section in ${lang}`);
+    assert.ok(titlesJoined.includes('Settings'), `missing Settings section in ${lang}`);
+    if (lang === 'zh') {
+      assert.ok(titlesJoined.includes('待办看板'), 'missing 待办看板 section in zh');
+      assert.ok(titlesJoined.includes('设置'), 'missing 设置 section in zh');
+    }
+
     const allKeys = sections.flatMap((s) => s.items.map((i) => i.key));
-    for (const k of ['p', 'C', 'T', 'S', 'D', 'F', 'm', 'O', 'B']) {
+    for (const k of ['p', 'C', 'o', 'T', 'S', 'D', 'F', 'G', 'm', 'O', 'B', 'P / Space', 'M', '+/-', 'R', 'x']) {
       assert.ok(allKeys.includes(k), `missing feature shortcut ${k} in ${lang}`);
+    }
+    const keysJoined = allKeys.join('\n');
+    for (const token of ['o', 'F', 'G', 'P', 'x']) {
+      assert.ok(keysJoined.includes(token), `missing token ${token} in ${lang}`);
     }
   }
 });

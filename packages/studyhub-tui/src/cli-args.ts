@@ -156,8 +156,9 @@ export function cliHelpText(version = '1.0.0'): string {
     '             Supports DEEPSEEK_API_KEY / OPENAI_API_KEY environment variables.',
     '',
     'Shortcuts inside TUI:',
-    '  1-9, 0, n, b, t, a, , Switch pages        Ctrl+K / /  Command palette',
-    '  c                     Switch course       ?           Context help',
-    '  [                     Toggle sidebar      Ctrl+R      Refresh snapshot',
+    '  1-9, 0, n, b, t, a, , Switch pages        Ctrl+K / /  Command palette & search',
+    '  [  ]                  Prev / next page    \\           Toggle sidebar',
+    '  c                     Switch course       I           Notification inbox',
+    '  ?                     Context help        Ctrl+R      Refresh snapshot',
   ].join('\n');
 }
