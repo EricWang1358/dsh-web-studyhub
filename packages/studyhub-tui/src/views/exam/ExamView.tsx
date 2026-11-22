@@ -43,6 +43,7 @@ export const ExamView: React.FC<ViewProps> = memo(function ExamView({
 
   const mountedRef = useRef(true);
   const epochRef = useRef(0);
+  const startingRef = useRef(false);
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -93,55 +94,61 @@ export const ExamView: React.FC<ViewProps> = memo(function ExamView({
 
   const handleStart = useCallback(
     async (value: ExamSetupValue, scopeChoice: ScopeChoice) => {
+      if (startingRef.current) return;
+      startingRef.current = true;
       const epoch = ++epochRef.current;
       setBusy(true);
       setError(null);
-      if (value.mode === 'oral') {
-        const res = await tryAction<OralView>(host, 'oral.start', {
-          ...scopeChoice.args,
-          count: value.count,
-        });
+      try {
+        if (value.mode === 'oral') {
+          const res = await tryAction<OralView>(host, 'oral.start', {
+            ...scopeChoice.args,
+            count: value.count,
+          });
+          if (!mountedRef.current || epochRef.current !== epoch) return;
+          setBusy(false);
+          if (!res.ok || !res.value) {
+            setError(res.error?.message || t(lang, '启动口试失败', 'Failed to start oral exam'));
+            return;
+          }
+          setRunKind('oral');
+          setOral(res.value);
+          setRun(null);
+          setPhase('running');
+          return;
+        }
+
+        const payload: Record<string, unknown> =
+          value.mode === 'case'
+            ? {
+                mode: 'exam',
+                examKinds: 'case',
+                ...scopeChoice.args,
+                fresh: true,
+              }
+            : {
+                mode: 'exam',
+                examKinds: value.kinds,
+                count: value.count,
+                limitMinutes: value.minutes,
+                ...scopeChoice.args,
+                fresh: true,
+              };
+
+        const res = await tryAction<RunView>(host, 'review.start', payload);
         if (!mountedRef.current || epochRef.current !== epoch) return;
         setBusy(false);
         if (!res.ok || !res.value) {
-          setError(res.error?.message || t(lang, '启动口试失败', 'Failed to start oral exam'));
+          setError(res.error?.message || t(lang, '开始模拟考失败', 'Failed to start exam'));
           return;
         }
-        setRunKind('oral');
-        setOral(res.value);
-        setRun(null);
+        setRunKind(value.mode === 'case' ? 'case' : 'written');
+        setRun(res.value);
+        setOral(null);
         setPhase('running');
-        return;
+      } finally {
+        startingRef.current = false;
       }
-
-      const payload: Record<string, unknown> =
-        value.mode === 'case'
-          ? {
-              mode: 'exam',
-              examKinds: 'case',
-              ...scopeChoice.args,
-              fresh: true,
-            }
-          : {
-              mode: 'exam',
-              examKinds: value.kinds,
-              count: value.count,
-              limitMinutes: value.minutes,
-              ...scopeChoice.args,
-              fresh: true,
-            };
-
-      const res = await tryAction<RunView>(host, 'review.start', payload);
-      if (!mountedRef.current || epochRef.current !== epoch) return;
-      setBusy(false);
-      if (!res.ok || !res.value) {
-        setError(res.error?.message || t(lang, '开始模拟考失败', 'Failed to start exam'));
-        return;
-      }
-      setRunKind(value.mode === 'case' ? 'case' : 'written');
-      setRun(res.value);
-      setOral(null);
-      setPhase('running');
     },
     [host, lang],
   );

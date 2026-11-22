@@ -109,9 +109,6 @@ export const ExamSetup = memo(function ExamSetup({
           setKindIdx((i) => (i + 1) % WRITTEN_KINDS.length);
           return;
         }
-        if (key.return && selectedScope) {
-          onStart({ mode, scopeId: selectedScope.id, count, minutes, kinds }, selectedScope);
-        }
       }
     },
     { isActive },

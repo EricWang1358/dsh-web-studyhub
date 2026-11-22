@@ -17,6 +17,45 @@ const LIVE_DEBOUNCE_MS = 180;
 const LIVE_PER_KIND_LIMIT = 6;
 const LIVE_TOTAL_LIMIT = 12;
 
+export type PaletteScope = 'all' | 'cmd' | 'card' | 'passage' | 'course' | 'page';
+
+export interface PaletteScopeResult {
+  scope: PaletteScope;
+  term: string;
+}
+
+const SCOPE_PREFIX_MAP: Record<string, Exclude<PaletteScope, 'all'>> = {
+  '/': 'cmd',
+  '#': 'card',
+  '?': 'passage',
+  '@': 'course',
+  ':': 'page',
+};
+
+const SCOPE_HINTS: ReadonlyArray<{
+  scope: Exclude<PaletteScope, 'all'>;
+  prefix: string;
+  zh: string;
+  en: string;
+}> = [
+  { scope: 'cmd', prefix: '/', zh: '命令', en: 'cmd' },
+  { scope: 'card', prefix: '#', zh: '题目', en: 'card' },
+  { scope: 'passage', prefix: '?', zh: '片段', en: 'passage' },
+  { scope: 'course', prefix: '@', zh: '课程', en: 'course' },
+  { scope: 'page', prefix: ':', zh: '页面', en: 'page' },
+];
+
+/** Parse an optional leading scope prefix (`/`, `#`, `?`, `@`, `:`) from a palette query. */
+export function parsePaletteScope(raw: string): PaletteScopeResult {
+  const trimmed = raw.trimStart();
+  const first = trimmed[0];
+  const scope = first ? SCOPE_PREFIX_MAP[first] : undefined;
+  if (scope) {
+    return { scope, term: trimmed.slice(1).trim() };
+  }
+  return { scope: 'all', term: raw.trim() };
+}
+
 interface CardSearchHit {
   deckId?: string;
   deckTitle?: string;
@@ -216,11 +255,16 @@ export const CommandPalette = memo(function CommandPalette({
     };
   }, []);
 
+  const parsed = useMemo(() => parsePaletteScope(query), [query]);
+
   useEffect(() => {
-    const q = query.trim();
+    const { scope, term } = parsed;
     const seq = ++seqRef.current;
 
-    if (!isActive || !host || q.length < 2 || q.startsWith('/')) {
+    const wantsCards = scope === 'all' || scope === 'card';
+    const wantsPassages = scope === 'all' || scope === 'passage';
+
+    if (!isActive || !host || term.length < 2 || (!wantsCards && !wantsPassages)) {
       setLiveItems((prev) => (prev.length ? [] : prev));
       setSearching(false);
       return;
@@ -229,10 +273,15 @@ export const CommandPalette = memo(function CommandPalette({
     setLiveItems((prev) => (prev.length ? [] : prev));
     setSearching(true);
 
+    const limit = scope === 'all' ? LIVE_PER_KIND_LIMIT : LIVE_TOTAL_LIMIT;
     const timer = setTimeout(() => {
       Promise.all([
-        host.call<CardSearchResponse>('card.search', { query: q, limit: LIVE_PER_KIND_LIMIT }).catch(() => null),
-        host.call<ContentSearchResponse>('search.content', { query: q, limit: LIVE_PER_KIND_LIMIT, includeSample: true }).catch(() => null),
+        wantsCards
+          ? host.call<CardSearchResponse>('card.search', { query: term, limit }).catch(() => null)
+          : Promise.resolve(null),
+        wantsPassages
+          ? host.call<ContentSearchResponse>('search.content', { query: term, limit, includeSample: true }).catch(() => null)
+          : Promise.resolve(null),
       ])
         .then(([cardRes, contentRes]) => {
           if (!mountedRef.current || seqRef.current !== seq) return;
@@ -314,7 +363,7 @@ export const CommandPalette = memo(function CommandPalette({
       clearTimeout(timer);
       seqRef.current += 1;
     };
-  }, [query, isActive, host, lang, asciiMode]);
+  }, [parsed, isActive, host, lang, asciiMode, ell]);
 
   const items = useMemo(() => {
     const s = useTuiStore.getState();
@@ -322,8 +371,11 @@ export const CommandPalette = memo(function CommandPalette({
   }, [snapshot, preferences, activeRunId, actions, extraCommands]);
 
   const fuzzyResults = useMemo(() => {
-    const q = query.trim();
-    if (!q) {
+    const { scope, term } = parsed;
+    if (scope === 'card' || scope === 'passage') {
+      return [];
+    }
+    if (scope === 'all' && !term) {
       const byId = new Map(items.map((i) => [i.id, i]));
       const recent = preferences.recentCommands.map((id) => byId.get(id)).filter((x): x is CommandPaletteItem => Boolean(x));
       const recentIds = new Set(recent.map((r) => r.id));
@@ -333,10 +385,16 @@ export const CommandPalette = memo(function CommandPalette({
         ...items.filter((i) => !recentIds.has(i.id) && (i.id.startsWith('cmd:') ? !i.id.startsWith('cmd:theme:') : i.id.startsWith('page:'))),
       ];
     }
-    const slash = q.startsWith('/');
-    const pool = slash ? items.filter((i) => i.id.startsWith('cmd:') || i.label.startsWith('/')) : items;
-    return fuzzyFilter(pool, q, (i) => i.label, (i) => [...(i.keywords ?? []), i.hint ?? '']).map((r) => r.item);
-  }, [items, query, preferences.recentCommands, lang]);
+    let pool = items;
+    if (scope === 'cmd') {
+      pool = items.filter((i) => i.id.startsWith('cmd:') || i.label.startsWith('/'));
+    } else if (scope === 'course') {
+      pool = items.filter((i) => i.id.startsWith('course:'));
+    } else if (scope === 'page') {
+      pool = items.filter((i) => i.id.startsWith('page:'));
+    }
+    return fuzzyFilter(pool, term, (i) => i.label, (i) => [...(i.keywords ?? []), i.hint ?? '']).map((r) => r.item);
+  }, [items, parsed, preferences.recentCommands, lang]);
 
   const results = useMemo(
     () => (liveItems.length ? [...fuzzyResults, ...liveItems] : fuzzyResults),
@@ -344,7 +402,7 @@ export const CommandPalette = memo(function CommandPalette({
   );
 
   const width = Math.min(84, Math.max(40, columns - 8));
-  const listRows = Math.max(3, Math.min(14, rows - 10));
+  const listRows = Math.max(3, Math.min(13, rows - 11));
   const sel = Math.min(cursor, Math.max(0, results.length - 1));
   const off = nextScrollOffset(sel, offsetRef.current, listRows, results.length, 1);
   offsetRef.current = off;
@@ -353,14 +411,26 @@ export const CommandPalette = memo(function CommandPalette({
     (item: CommandPaletteItem | undefined) => {
       if (!item) return;
       const s = useTuiStore.getState();
-      if (!item.id.startsWith('live:')) s.recordRecentCommand(item.id);
+      if (!item.id.startsWith('live:')) {
+        s.recordRecentCommand(item.id);
+        const recentCommands = useTuiStore.getState().preferences.recentCommands;
+        const dshHome = (host as { dshHome?: string } | undefined)?.dshHome;
+        void import('../host/index.js')
+          .then(({ saveTuiPreferences }) =>
+            saveTuiPreferences(
+              { recentCommands },
+              dshHome ? { env: { DSH_HOME: dshHome } } : undefined,
+            ),
+          )
+          .catch(() => {});
+      }
       s.setCommandPaletteOpen(false);
       onClose();
       Promise.resolve()
         .then(() => item.action())
         .catch((err: unknown) => s.notify(err instanceof Error ? err.message : String(err), 'error'));
     },
-    [onClose],
+    [host, onClose],
   );
 
   useInput(
@@ -389,7 +459,7 @@ export const CommandPalette = memo(function CommandPalette({
         { key: 'Esc', label: t(lang, '关闭', 'Close') },
       ]}
     >
-      <Box height={1} marginBottom={1}>
+      <Box height={1}>
         <TextInput
           value={query}
           onChange={(v) => {
@@ -408,9 +478,35 @@ export const CommandPalette = memo(function CommandPalette({
           )}
         />
       </Box>
+      <Box height={1} width={inner} overflow="hidden" marginBottom={1}>
+        <Text wrap="truncate-end">
+          {SCOPE_HINTS.map((chip, idx) => {
+            const active = parsed.scope === chip.scope;
+            const label = `${chip.prefix} ${t(lang, chip.zh, chip.en)}`;
+            return (
+              <Text key={chip.scope}>
+                {idx > 0 ? <Text color={theme.dim}>{'  '}</Text> : null}
+                <Text color={active ? theme.accent : theme.muted} bold={active}>
+                  {label}
+                </Text>
+              </Text>
+            );
+          })}
+        </Text>
+      </Box>
       <Box flexDirection="column" height={listRows}>
         {results.length === 0 ? (
-          <Text color={theme.muted}>{t(lang, '  没有匹配的结果', '  No matches')}</Text>
+          <Box height={1} width={inner} overflow="hidden">
+            <Text color={theme.muted} wrap="truncate-end">
+              {(parsed.scope === 'card' || parsed.scope === 'passage') && parsed.term.length < 2
+                ? parsed.scope === 'card'
+                  ? t(lang, `  输入至少 2 个字符以搜索题目${ell}`, `  Type at least 2 chars to search cards${ell}`)
+                  : t(lang, `  输入至少 2 个字符以搜索片段${ell}`, `  Type at least 2 chars to search passages${ell}`)
+                : searching
+                  ? t(lang, `  正在全文检索${ell}`, `  Searching${ell}`)
+                  : t(lang, '  没有匹配的结果', '  No matches')}
+            </Text>
+          </Box>
         ) : (
           visible.map((item, i) => {
             const idx = off + i;

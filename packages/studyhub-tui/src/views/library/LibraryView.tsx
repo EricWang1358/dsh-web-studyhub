@@ -27,6 +27,7 @@ const DailyPlanModal = lazy(() => import('./DailyPlanModal.js').then((m) => ({ d
 const CourseSettingsModal = lazy(() => import('./CourseSettingsModal.js').then((m) => ({ default: m.CourseSettingsModal })));
 const DeckOpsModal = lazy(() => import('./DeckOpsModal.js').then((m) => ({ default: m.DeckOpsModal })));
 const GuidedStudyModal = lazy(() => import('./GuidedStudyModal.js').then((m) => ({ default: m.GuidedStudyModal })));
+const RoundConfigModal = lazy(() => import('./RoundConfigModal.js').then((m) => ({ default: m.RoundConfigModal })));
 
 type DeckItem = NonNullable<StudySnapshot['decks']>[number];
 type DraftItem = NonNullable<StudySnapshot['drafts']>[number];
@@ -57,7 +58,7 @@ type WorkEntry =
   | { kind: 'draft'; id: string; title: string; course: string; count: number; draft: DraftItem }
   | { kind: 'job'; id: string; title: string; course: string; status: string; error: string; job: JobItem };
 
-const CLAIMED_LIBRARY_KEYS = ['r', 'a', 'p', 'C', 'o', 'g'] as const;
+const CLAIMED_LIBRARY_KEYS = ['r', 'R', 'a', 'p', 'C', 'o', 'g'] as const;
 
 function localDayKey(value: Date | string | number): string {
   const d = value instanceof Date ? value : new Date(value);
@@ -133,6 +134,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
   const [courseSettingsOpen, setCourseSettingsOpen] = useState(false);
   const [deckOpsOpen, setDeckOpsOpen] = useState(false);
   const [guidedOpen, setGuidedOpen] = useState(false);
+  const [roundConfigOpen, setRoundConfigOpen] = useState(false);
   const [confirmDeleteDeck, setConfirmDeleteDeck] = useState<DeckItem | null>(null);
   const [busyAction, setBusyAction] = useState(false);
 
@@ -140,7 +142,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
   const [sampleLoaded, setSampleLoaded] = useState<boolean>(false);
 
   const modalOpen = Boolean(
-    manageDeckId || voiceOpen || dailyPlanOpen || courseSettingsOpen || deckOpsOpen || guidedOpen || confirmDeleteDeck,
+    manageDeckId || voiceOpen || dailyPlanOpen || courseSettingsOpen || deckOpsOpen || guidedOpen || roundConfigOpen || confirmDeleteDeck,
   );
   const viewActive = isActive && !modalOpen;
 
@@ -407,6 +409,10 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
         setCourseSettingsOpen(true);
         return;
       }
+      if (input === 'R') {
+        setRoundConfigOpen(true);
+        return;
+      }
       if (input === 'r') {
         if (resumeRunForDeck) {
           navigate('review', { runId: resumeRunForDeck });
@@ -447,6 +453,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
   const hints = useMemo<KeyHint[]>(
     () => [
       { key: 'Enter', label: focusSection === 'work' ? t(lang, '打开', 'Open') : t(lang, '开始练习', 'Practice') },
+      { key: 'R', label: t(lang, '定制本轮', 'Round') },
       { key: 'p', label: t(lang, '今日计划', 'Plan') },
       { key: 'g', label: t(lang, 'AI带学', 'Guided') },
       { key: 'C', label: t(lang, '课程设置', 'Course') },
@@ -724,13 +731,15 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
               <Box flexDirection="column">
                 <Text wrap="truncate-end">
                   <Text color={theme.primary} bold>[Enter]</Text>
-                  <Text color={theme.text}> {t(lang, '练习', 'Practice')}  </Text>
+                  <Text color={theme.text}> {t(lang, '练习', 'Practice')} </Text>
+                  <Text color={theme.accent} bold>[R]</Text>
+                  <Text color={theme.text}> {t(lang, '配轮', 'Round')} </Text>
                   <Text color={theme.primary} bold>[p]</Text>
-                  <Text color={theme.text}> {t(lang, '计划', 'Plan')}  </Text>
+                  <Text color={theme.text}> {t(lang, '计划', 'Plan')} </Text>
                   <Text color={theme.ai} bold>[g]</Text>
-                  <Text color={theme.text}> {t(lang, 'AI带学', 'Guided')}  </Text>
+                  <Text color={theme.text}> {t(lang, 'AI带学', 'Guided')} </Text>
                   <Text color={theme.accent} bold>[C]</Text>
-                  <Text color={theme.text}> {t(lang, '课程', 'Course')}  </Text>
+                  <Text color={theme.text}> {t(lang, '课程', 'Course')} </Text>
                   <Text color={theme.accent} bold>[r]</Text>
                   <Text color={theme.text}> {t(lang, '继续', 'Resume')}</Text>
                 </Text>
@@ -754,6 +763,8 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
                 <Text wrap="truncate-end">
                   <Text color={theme.primary} bold>[Enter]</Text>
                   <Text color={theme.text}> {t(lang, '开始练习', 'Start practice')}   </Text>
+                  <Text color={theme.accent} bold>[R]</Text>
+                  <Text color={theme.text}> {t(lang, '定制本轮', 'Configure round')}   </Text>
                   <Text color={theme.accent} bold>[r]</Text>
                   <Text color={theme.text}> {t(lang, '继续上次', 'Resume last')}{resumeRunForDeck ? '' : t(lang, ' (新轮)', ' (new)')}</Text>
                 </Text>
@@ -924,6 +935,19 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
             onUpdated={() => {
               void actions.refresh();
             }}
+          />
+        ) : null}
+
+        {roundConfigOpen ? (
+          <RoundConfigModal
+            host={host}
+            isActive={isActive}
+            width={width}
+            height={height}
+            selectedDeckId={selectedDeck?.id ?? null}
+            selectedDeckTitle={selectedDeck ? String(selectedDeck.title ?? selectedDeck.name ?? selectedDeck.id) : null}
+            activeCourse={course ?? selectedDeck?.course ?? null}
+            onClose={() => setRoundConfigOpen(false)}
           />
         ) : null}
       </Suspense>

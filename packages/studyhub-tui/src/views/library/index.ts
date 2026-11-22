@@ -5,3 +5,4 @@ export { DailyPlanModal, type DailyPlanModalProps } from './DailyPlanModal.js';
 export { CourseSettingsModal, type CourseSettingsModalProps } from './CourseSettingsModal.js';
 export { DeckOpsModal, type DeckOpsModalProps, type DeckOpsTab } from './DeckOpsModal.js';
 export { GuidedStudyModal, type GuidedStudyModalProps } from './GuidedStudyModal.js';
+export { RoundConfigModal, type RoundConfigModalProps, type RoundScope, type RoundFilter } from './RoundConfigModal.js';
