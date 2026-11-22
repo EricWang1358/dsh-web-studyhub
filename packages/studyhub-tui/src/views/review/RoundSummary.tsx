@@ -77,6 +77,7 @@ export const RoundSummary = memo(function RoundSummary({
 }: RoundSummaryProps) {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const notify = useTuiStore((s) => s.notify);
   const navigate = useTuiStore((s) => s.navigate);
 
@@ -226,7 +227,7 @@ export const RoundSummary = memo(function RoundSummary({
     <Box flexDirection="column" width={width} height={height}>
       <Panel
         title={t(lang, '本轮练习总结', 'Round Summary')}
-        icon="★"
+        icon={asciiMode ? '*' : '★'}
         badge={answered > 0 ? `${accuracy}%` : t(lang, '已结束', 'Ended')}
         badgeTone={accuracy >= 70 ? 'success' : answered > 0 ? 'warning' : 'neutral'}
         width={width}
@@ -305,7 +306,18 @@ export const RoundSummary = memo(function RoundSummary({
                       : row.status === 'wrong'
                         ? theme.error
                         : theme.muted;
-                  const icon = row.status === 'right' ? '✓' : row.status === 'wrong' ? '✕' : '○';
+                  const icon =
+                    row.status === 'right'
+                      ? asciiMode
+                        ? '+'
+                        : '✓'
+                      : row.status === 'wrong'
+                        ? asciiMode
+                          ? 'x'
+                          : '✕'
+                        : asciiMode
+                          ? 'o'
+                          : '○';
                   const snippet = cleanPromptSnippet(String(row.card?.prompt ?? row.prompt ?? ''));
                   return (
                     <Box flexDirection="row" width={ctx.width}>

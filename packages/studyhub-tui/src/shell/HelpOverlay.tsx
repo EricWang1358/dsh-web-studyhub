@@ -64,6 +64,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'F', label: t(lang, '费曼复述', 'Feynman retell') },
         { key: 'G', label: t(lang, 'AI 评分标准批改', 'AI rubric grade') },
         { key: 'L', label: t(lang, '互动带学', 'Socratic teach') },
+        { key: 'A', label: t(lang, '答题卡 / 案例强化', 'Answer card & drills') },
         { key: '*', label: t(lang, '标记重点', 'Toggle focus') },
       ],
     },
@@ -77,6 +78,13 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       title: t(lang, '复习全书 · Book', 'Review Book'),
       items: [
         { key: 'w', label: t(lang, '期末一周与模考', 'Final-week crunch & mock') },
+        { key: 'P', label: t(lang, '书内精选问答', 'Pinned book QA') },
+      ],
+    },
+    {
+      title: t(lang, '考试教练 · Exam Coach', 'Exam Coach'),
+      items: [
+        { key: 'p', label: t(lang, '学习画像与偏好', 'Coach profile & prefs') },
       ],
     },
     {

@@ -318,12 +318,12 @@ export const TeachModal = memo(function TeachModal({
     }
     const items: KeyHint[] = [];
     if (canType) items.push({ key: 'i/Tab', label: t(lang, '继续作答', 'Reply') });
-    if (turns.length > 0) items.push({ key: '↑/↓', label: t(lang, '滚动', 'Scroll') });
+    if (turns.length > 0) items.push({ key: asciiMode ? 'j/k' : '↑/↓', label: t(lang, '滚动', 'Scroll') });
     items.push({ key: 'm', label: teachMode === 'understanding' ? t(lang, '切计算', 'Calc') : t(lang, '切理解', 'Concept') });
     items.push({ key: 'r', label: t(lang, '刷新', 'Reload') });
     items.push({ key: 'Esc', label: t(lang, '关闭', 'Close') });
     return items;
-  }, [loading, submitting, inputActive, canType, turns.length, teachMode, lang]);
+  }, [loading, submitting, inputActive, canType, turns.length, teachMode, lang, asciiMode]);
 
   const needAnswerFirst = errorText ? needsAnswerFirstError(errorText) : false;
   const modelUnavailable = errorText ? isModelUnavailableError(errorText) : false;
@@ -433,7 +433,7 @@ export const TeachModal = memo(function TeachModal({
                 onChange={setDraft}
                 isActive={inputActive}
                 width={Math.max(12, innerW - 6)}
-                prompt="›"
+                prompt={asciiMode ? '>' : '›'}
                 placeholder={
                   submitting
                     ? t(lang, '正在提交…', 'Submitting…')

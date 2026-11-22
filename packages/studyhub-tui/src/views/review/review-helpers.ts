@@ -204,21 +204,26 @@ export function formatClozeDisplay(
   values: Record<string, string>,
   revealed: boolean,
   solution?: CardSolutionShape | null,
+  ascii = false,
 ): string {
   let idx = 0;
   const solAnswers = solution?.cloze?.answers ?? [];
+  const openBr = ascii ? '[' : '〔';
+  const closeBr = ascii ? ']' : '〕';
+  const blankMark = ascii ? '___' : '＿＿＿';
+  const arrow = ascii ? '->' : '→';
   const replaceBlank = () => {
     const blank = blanks[idx];
     const num = idx + 1;
     idx += 1;
-    if (!blank) return '〔＿＿〕';
+    if (!blank) return `${openBr}${ascii ? '__' : '＿＿'}${closeBr}`;
     const userVal = (values[blank.id] ?? '').trim();
     const expected = solAnswers.find((a) => a.id === blank.id)?.value;
     if (revealed && expected) {
-      if (userVal) return `〔#${num}: ${userVal} → **${expected}**〕`;
-      return `〔#${num}: **${expected}**〕`;
+      if (userVal) return `${openBr}#${num}: ${userVal} ${arrow} **${expected}**${closeBr}`;
+      return `${openBr}#${num}: **${expected}**${closeBr}`;
     }
-    return userVal ? `〔#${num}: ${userVal}〕` : `〔#${num}: ＿＿＿〕`;
+    return userVal ? `${openBr}#${num}: ${userVal}${closeBr}` : `${openBr}#${num}: ${blankMark}${closeBr}`;
   };
   if (/\{\{[^{}]+\}\}/.test(clozeText)) {
     return clozeText.replace(/\{\{[^{}]+\}\}/g, () => replaceBlank());

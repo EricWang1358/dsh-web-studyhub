@@ -72,6 +72,7 @@ export const SimilarCardsModal = memo(function SimilarCardsModal({
 }: SimilarCardsModalProps) {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const notify = useTuiStore((s) => s.notify);
 
   const [loading, setLoading] = useState(true);
@@ -182,7 +183,7 @@ export const SimilarCardsModal = memo(function SimilarCardsModal({
     if (items.length > 0) {
       return [
         { key: 'Enter', label: t(lang, '对比练习', 'Contrast Practice') },
-        { key: 'Tab/←→', label: t(lang, '切换面板', 'Pane') },
+        { key: asciiMode ? 'Tab' : 'Tab/←→', label: t(lang, '切换面板', 'Pane') },
         { key: 'Esc', label: t(lang, '关闭', 'Close') },
       ];
     }
@@ -190,7 +191,7 @@ export const SimilarCardsModal = memo(function SimilarCardsModal({
       { key: 'r', label: t(lang, '重新查找', 'Retry') },
       { key: 'Esc', label: t(lang, '关闭', 'Close') },
     ];
-  }, [items.length, lang]);
+  }, [items.length, lang, asciiMode]);
 
   const contrastMarkdown = useMemo(() => {
     if (!selectedItem) return '';
@@ -245,7 +246,7 @@ export const SimilarCardsModal = memo(function SimilarCardsModal({
   return (
     <Modal
       title={t(lang, '同类 / 易混题对比', 'Similar & Confusable Cards')}
-      icon="⇄"
+      icon={asciiMode ? '<>' : '⇄'}
       tone="info"
       subtitle={
         items.length > 0
@@ -264,12 +265,12 @@ export const SimilarCardsModal = memo(function SimilarCardsModal({
         </Box>
       ) : error ? (
         <Box height={bodyH} flexDirection="column" justifyContent="center" paddingX={1} gap={1}>
-          <Text color={theme.error} bold>{`✕ ${error}`}</Text>
+          <Text color={theme.error} bold>{`${asciiMode ? 'x' : '✕'} ${error}`}</Text>
           <Text color={theme.muted}>{t(lang, '按 [r] 重试，或按 [Esc] 返回复习', 'Press [r] to retry, or [Esc] to return')}</Text>
         </Box>
       ) : items.length === 0 ? (
         <EmptyState
-          icon="⇄"
+          icon={asciiMode ? '<>' : '⇄'}
           title={t(lang, '题库里暂无这一轮之外的同类题', 'No similar cards outside this round')}
           hint={t(lang, 'review.similar 会自动排除本轮已包含或最近刚做对的题目。', 'review.similar excludes cards already in this round or recently mastered.')}
           actions={[

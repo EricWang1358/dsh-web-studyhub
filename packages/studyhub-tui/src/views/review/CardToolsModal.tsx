@@ -473,7 +473,7 @@ export const CardToolsModal = memo(function CardToolsModal({
     }
     if (mode === 'terms') {
       return [
-        { key: '↑/↓', label: t(lang, '滚动', 'Scroll') },
+        { key: asciiMode ? 'j/k' : '↑/↓', label: t(lang, '滚动', 'Scroll') },
         { key: 'r', label: t(lang, '重试', 'Retry') },
         { key: 'Esc', label: t(lang, '返回', 'Back') },
       ];
@@ -482,7 +482,7 @@ export const CardToolsModal = memo(function CardToolsModal({
       { key: '1-6 / Enter', label: t(lang, '执行', 'Select') },
       { key: 'Esc', label: t(lang, '关闭', 'Close') },
     ];
-  }, [mode, lang]);
+  }, [mode, lang, asciiMode]);
 
   const termLines = useMemo<string[]>(() => {
     if (termsItems.length === 0) return [];
@@ -691,7 +691,7 @@ export const CardToolsModal = memo(function CardToolsModal({
             {t(lang, '1. 题干 (prompt)', '1. Stem (prompt)')}
           </Text>
           <Box
-            borderStyle="single"
+            borderStyle={asciiMode ? 'classic' : 'single'}
             borderColor={editField === 'prompt' ? theme.primary : theme.border}
             paddingX={1}
             width={innerW}
@@ -719,7 +719,7 @@ export const CardToolsModal = memo(function CardToolsModal({
                 {t(lang, '2. 参考答案 (answer)', '2. Reference Answer')}
               </Text>
               <Box
-                borderStyle="single"
+                borderStyle={asciiMode ? 'classic' : 'single'}
                 borderColor={editField === 'answer' ? theme.primary : theme.border}
                 paddingX={1}
                 width={innerW}
@@ -751,7 +751,7 @@ export const CardToolsModal = memo(function CardToolsModal({
             )}
           </Text>
           <Box
-            borderStyle="single"
+            borderStyle={asciiMode ? 'classic' : 'single'}
             borderColor={editField === 'explanation' ? theme.primary : theme.border}
             paddingX={1}
             width={innerW}

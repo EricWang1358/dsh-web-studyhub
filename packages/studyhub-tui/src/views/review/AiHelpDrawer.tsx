@@ -272,10 +272,10 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
               ? [{ key: `1-${suggestions.length}`, label: t(lang, '快问', 'Quick') }]
               : []),
             { key: 'N', label: t(lang, '存笔记', 'Save Note') },
-            { key: '↑/↓', label: t(lang, '滚动', 'Scroll') },
+            { key: asciiMode ? 'j/k' : '↑/↓', label: t(lang, '滚动', 'Scroll') },
             { key: 'Esc / h', label: t(lang, '关闭', 'Close') },
           ],
-    [inputFocused, suggestions.length, lang],
+    [inputFocused, suggestions.length, lang, asciiMode],
   );
   useFooterHints(drawerHints, isActive);
 
@@ -421,7 +421,7 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
           onChange={setInputValue}
           isActive={isActive && inputFocused}
           width={Math.max(10, innerW - 6)}
-          prompt="›"
+          prompt={asciiMode ? '>' : '›'}
           placeholder={
             inputFocused
               ? t(lang, '输入你的追问，Enter 发送…', 'Type your follow-up question, Enter to send…')

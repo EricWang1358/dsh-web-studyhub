@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
@@ -50,13 +50,14 @@ import {
   type CardOptionItem,
   type CardTranslation,
 } from './review-helpers.js';
-import { AiHelpDrawer } from './AiHelpDrawer.js';
-import { AnswerCardModal } from './AnswerCardModal.js';
-import { CardToolsModal } from './CardToolsModal.js';
-import { RetellModal } from './RetellModal.js';
 import { RoundSummary } from './RoundSummary.js';
-import { SimilarCardsModal } from './SimilarCardsModal.js';
-import { TeachModal } from './TeachModal.js';
+
+const AiHelpDrawer = lazy(() => import('./AiHelpDrawer.js').then((m) => ({ default: m.AiHelpDrawer })));
+const AnswerCardModal = lazy(() => import('./AnswerCardModal.js').then((m) => ({ default: m.AnswerCardModal })));
+const CardToolsModal = lazy(() => import('./CardToolsModal.js').then((m) => ({ default: m.CardToolsModal })));
+const RetellModal = lazy(() => import('./RetellModal.js').then((m) => ({ default: m.RetellModal })));
+const SimilarCardsModal = lazy(() => import('./SimilarCardsModal.js').then((m) => ({ default: m.SimilarCardsModal })));
+const TeachModal = lazy(() => import('./TeachModal.js').then((m) => ({ default: m.TeachModal })));
 
 interface RubricCriterionResult {
   id: string;
@@ -892,16 +893,16 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     if (!run) return '';
     const baseStem =
       kind === 'fill_blank' && clozeData
-        ? formatClozeDisplay(clozeData.text, clozeData.blanks, clozeInputs, revealed, solution)
+        ? formatClozeDisplay(clozeData.text, clozeData.blanks, clozeInputs, revealed, solution, asciiMode)
         : String(run.card?.prompt ?? '');
     if (!activeTranslation) return baseStem;
     const trStemRaw =
       kind === 'fill_blank' && activeTranslation.clozeText
-        ? activeTranslation.clozeText.replace(/\{\{[^{}]+\}\}/g, '＿＿')
+        ? activeTranslation.clozeText.replace(/\{\{[^{}]+\}\}/g, asciiMode ? '___' : '＿＿')
         : activeTranslation.prompt;
     if (!trStemRaw) return baseStem;
     return `${baseStem}\n\n> **EN**: ${trStemRaw}`;
-  }, [run, kind, clozeData, clozeInputs, revealed, solution, activeTranslation]);
+  }, [run, kind, clozeData, clozeInputs, revealed, solution, activeTranslation, asciiMode]);
 
   const referenceAnswer = useMemo(
     () => (run && revealed ? extractReferenceAnswer(run, kind, lang) : ''),
@@ -968,9 +969,9 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
 
   if (!run) {
     return (
-      <Panel title={t(lang, '刷题复习', 'Review')} icon="▶" width={width} height={height}>
+      <Panel title={t(lang, '刷题复习', 'Review')} icon={asciiMode ? '>' : '▶'} width={width} height={height}>
         <EmptyState
-          icon="✦"
+          icon={asciiMode ? '*' : '✦'}
           title={t(lang, '当前没有待复习题目', 'No questions due for review')}
           hint={loadError || t(lang, '可以先去学习库挑选一个题组，或导入新资料生成题目。', 'Pick a deck in Library or generate cards from Sources.')}
           actions={[
@@ -1021,7 +1022,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
       {!(aiDrawerOpen && !sideBySideAi) ? (
         <Panel
           title={String(run.title || t(lang, 'FSRS-6 间隔复习', 'FSRS-6 Review'))}
-          icon="▶"
+          icon={asciiMode ? '>' : '▶'}
           badge={`${atNum}/${totalCount}`}
           badgeTone="primary"
           subtitle={`${kindLabel(kind, lang)}${topicName ? ` · ${topicName}` : ''}`}
@@ -1059,7 +1060,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
             <Box flexDirection="row" alignItems="center" gap={1}>
               {busy || translating ? <Spinner tone="primary" active={isActive} /> : null}
               {activeTranslation ? <Badge label="EN 译" tone="info" variant="soft" /> : null}
-              <Badge label={mathUnicode ? '∑ Unicode' : 'TeX Raw'} tone="neutral" variant="outline" />
+              <Badge label={mathUnicode ? (asciiMode ? 'Unicode' : '∑ Unicode') : 'TeX Raw'} tone="neutral" variant="outline" />
             </Box>
           </Box>
 
@@ -1084,17 +1085,28 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                 const solOpt = solution?.options?.find((o) => o.id === opt.id);
                 const isCorrectOpt = Boolean(solOpt?.correct);
 
-                let mark = kind === 'multiple' ? (isSelected ? '[✓]' : '[ ]') : isSelected ? '(●)' : '( )';
+                let mark =
+                  kind === 'multiple'
+                    ? isSelected
+                      ? asciiMode
+                        ? '[x]'
+                        : '[✓]'
+                      : '[ ]'
+                    : isSelected
+                      ? asciiMode
+                        ? '(*)'
+                        : '(●)'
+                      : '( )';
                 let lineColor = isCursor ? theme.primary : isSelected ? theme.accent : theme.text;
                 if (feedback) {
                   if (isCorrectOpt) {
-                    mark = '✓';
+                    mark = asciiMode ? '+' : '✓';
                     lineColor = theme.success;
                   } else if (isSelected && !isCorrectOpt) {
-                    mark = '✕';
+                    mark = asciiMode ? 'x' : '✕';
                     lineColor = theme.error;
                   } else {
-                    mark = '·';
+                    mark = asciiMode ? '.' : '·';
                     lineColor = theme.muted;
                   }
                 }
@@ -1106,7 +1118,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                   <Box key={opt.id} flexDirection="column" width={innerW}>
                     <Box flexDirection="row" width={innerW}>
                       <Text color={isCursor ? theme.primary : theme.dim} bold={isCursor}>
-                        {isCursor ? '▸ ' : '  '}
+                        {isCursor ? (asciiMode ? '> ' : '▸ ') : '  '}
                       </Text>
                       <Text color={theme.muted}>{`${keyTag} `}</Text>
                       <Text color={lineColor} bold={isSelected || isCorrectOpt || isCursor}>
@@ -1136,7 +1148,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                   <Box
                     key={blank.id}
                     flexDirection="row"
-                    borderStyle="single"
+                    borderStyle={asciiMode ? 'classic' : 'single'}
                     borderColor={isThisActive ? theme.primary : theme.border}
                     paddingX={1}
                     width={Math.min(innerW, 64)}
@@ -1262,10 +1274,16 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                   <Badge
                     label={
                       feedback.correct
-                        ? t(lang, '✓ 回答正确', '✓ Correct')
+                        ? asciiMode
+                          ? t(lang, '+ 回答正确', '+ Correct')
+                          : t(lang, '✓ 回答正确', '✓ Correct')
                         : feedback.selfReported
-                          ? t(lang, '○ 已自报', '○ Self-reported')
-                          : t(lang, '✕ 回答有误', '✕ Incorrect')
+                          ? asciiMode
+                            ? t(lang, 'o 已自报', 'o Self-reported')
+                            : t(lang, '○ 已自报', '○ Self-reported')
+                          : asciiMode
+                            ? t(lang, 'x 回答有误', 'x Incorrect')
+                            : t(lang, '✕ 回答有误', '✕ Incorrect')
                     }
                     tone={feedback.correct ? 'success' : feedback.selfReported ? 'neutral' : 'error'}
                   />
@@ -1331,7 +1349,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
               {revealed && citation ? (
                 <Box marginTop={0}>
                   <Text color={theme.info}>
-                    {`▤ ${citation.title ? `${citation.title} ` : ''}${
+                    {`${asciiMode ? '#' : '▤'} ${citation.title ? `${citation.title} ` : ''}${
                       citation.pageNumber != null
                         ? t(lang, `第 ${citation.pageNumber} 页`, `p.${citation.pageNumber}`)
                         : ''
@@ -1359,7 +1377,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                   <Box flexDirection="row" gap={1} marginTop={0} flexWrap="wrap">
                     {FSRS_GRADES.map((g) => {
                       const gap = intervals ? formatGapDays(intervals[g.intervalIndex], lang) : '';
-                      const label = `${g.key} ${lang === 'en' ? g.labelEn : g.labelZh}${gap ? ` · ${gap}` : ''}`;
+                      const label = `${g.key} ${lang === 'en' ? g.labelEn : g.labelZh}${gap ? `${asciiMode ? ' - ' : ' · '}${gap}` : ''}`;
                       return <Badge key={g.key} label={label} tone={g.tone} variant="soft" />;
                     })}
                   </Box>
@@ -1393,124 +1411,127 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
 
       {sideBySideAi ? <Box width={1} /> : null}
 
-      {/* AI Streaming Help Drawer */}
-      {aiDrawerOpen && cardId ? (
-        <AiHelpDrawer
-          host={host}
-          run={run}
-          cardId={cardId}
-          kind={kind}
-          userAnswer={userAnswerText}
-          width={aiPaneW}
-          height={height}
-          isActive={isActive && aiDrawerOpen && !flagModalOpen && !similarModalOpen && !cardToolsModalOpen && !retellModalOpen && !teachModalOpen && !answerCardModalOpen}
-          mathUnicode={mathUnicode}
-          onClose={() => setAiDrawerOpen(false)}
-        />
-      ) : null}
+      {/* Lazy-loaded Heavy Modals & AI Drawer (only parsed when opened) */}
+      <Suspense fallback={null}>
+        {/* AI Streaming Help Drawer */}
+        {aiDrawerOpen && cardId ? (
+          <AiHelpDrawer
+            host={host}
+            run={run}
+            cardId={cardId}
+            kind={kind}
+            userAnswer={userAnswerText}
+            width={aiPaneW}
+            height={height}
+            isActive={isActive && aiDrawerOpen && !flagModalOpen && !similarModalOpen && !cardToolsModalOpen && !retellModalOpen && !teachModalOpen && !answerCardModalOpen}
+            mathUnicode={mathUnicode}
+            onClose={() => setAiDrawerOpen(false)}
+          />
+        ) : null}
 
-      {/* Socratic Teach Mode Modal */}
-      {teachModalOpen && cardId ? (
-        <TeachModal
-          host={host}
-          run={run}
-          cardId={cardId}
-          kind={kind}
-          width={width}
-          height={height}
-          isActive={isActive && teachModalOpen && !flagModalOpen}
-          mathUnicode={mathUnicode}
-          onClose={() => setTeachModalOpen(false)}
-        />
-      ) : null}
+        {/* Socratic Teach Mode Modal */}
+        {teachModalOpen && cardId ? (
+          <TeachModal
+            host={host}
+            run={run}
+            cardId={cardId}
+            kind={kind}
+            width={width}
+            height={height}
+            isActive={isActive && teachModalOpen && !flagModalOpen}
+            mathUnicode={mathUnicode}
+            onClose={() => setTeachModalOpen(false)}
+          />
+        ) : null}
 
-      {/* Feynman Retell Modal */}
-      {retellModalOpen && cardId ? (
-        <RetellModal
-          host={host}
-          run={run}
-          cardId={cardId}
-          kind={kind}
-          width={width}
-          height={height}
-          isActive={isActive && retellModalOpen && !flagModalOpen && !teachModalOpen}
-          mathUnicode={mathUnicode}
-          onClose={() => setRetellModalOpen(false)}
-          onNavigateToSource={(loc) => {
-            navigate('sources', { sourceId: loc.sourceId, pageNumber: loc.pageNumber });
-          }}
-        />
-      ) : null}
+        {/* Feynman Retell Modal */}
+        {retellModalOpen && cardId ? (
+          <RetellModal
+            host={host}
+            run={run}
+            cardId={cardId}
+            kind={kind}
+            width={width}
+            height={height}
+            isActive={isActive && retellModalOpen && !flagModalOpen && !teachModalOpen}
+            mathUnicode={mathUnicode}
+            onClose={() => setRetellModalOpen(false)}
+            onNavigateToSource={(loc) => {
+              navigate('sources', { sourceId: loc.sourceId, pageNumber: loc.pageNumber });
+            }}
+          />
+        ) : null}
 
-      {/* Similar / Confusable Cards Modal */}
-      {similarModalOpen && cardId ? (
-        <SimilarCardsModal
-          host={host}
-          run={run}
-          cardId={cardId}
-          kind={kind}
-          width={width}
-          height={height}
-          isActive={isActive && similarModalOpen && !flagModalOpen && !cardToolsModalOpen && !retellModalOpen && !teachModalOpen}
-          mathUnicode={mathUnicode}
-          onClose={() => setSimilarModalOpen(false)}
-          onStartRun={(nextRun) => applyRun(nextRun, true)}
-        />
-      ) : null}
+        {/* Similar / Confusable Cards Modal */}
+        {similarModalOpen && cardId ? (
+          <SimilarCardsModal
+            host={host}
+            run={run}
+            cardId={cardId}
+            kind={kind}
+            width={width}
+            height={height}
+            isActive={isActive && similarModalOpen && !flagModalOpen && !cardToolsModalOpen && !retellModalOpen && !teachModalOpen}
+            mathUnicode={mathUnicode}
+            onClose={() => setSimilarModalOpen(false)}
+            onStartRun={(nextRun) => applyRun(nextRun, true)}
+          />
+        ) : null}
 
-      {/* Power-User Card Tools Drawer/Modal */}
-      {cardToolsModalOpen && cardId ? (
-        <CardToolsModal
-          host={host}
-          run={run}
-          cardId={cardId}
-          kind={kind}
-          width={width}
-          height={height}
-          isActive={isActive && cardToolsModalOpen && !flagModalOpen && !retellModalOpen && !teachModalOpen}
-          onClose={() => setCardToolsModalOpen(false)}
-          onRunUpdated={(nextRun) => applyRun(nextRun, true)}
-          onCardEdited={(editedId) => {
-            translationCacheRef.current.delete(editedId);
-            setShowTranslation(false);
-          }}
-          onFocusChanged={(cid, focused) => {
-            setFocusOverrideByCard((prev) => ({ ...prev, [cid]: focused }));
-          }}
-          onRefreshSnapshot={() => void refresh()}
-        />
-      ) : null}
+        {/* Power-User Card Tools Drawer/Modal */}
+        {cardToolsModalOpen && cardId ? (
+          <CardToolsModal
+            host={host}
+            run={run}
+            cardId={cardId}
+            kind={kind}
+            width={width}
+            height={height}
+            isActive={isActive && cardToolsModalOpen && !flagModalOpen && !retellModalOpen && !teachModalOpen}
+            onClose={() => setCardToolsModalOpen(false)}
+            onRunUpdated={(nextRun) => applyRun(nextRun, true)}
+            onCardEdited={(editedId) => {
+              translationCacheRef.current.delete(editedId);
+              setShowTranslation(false);
+            }}
+            onFocusChanged={(cid, focused) => {
+              setFocusOverrideByCard((prev) => ({ ...prev, [cid]: focused }));
+            }}
+            onRefreshSnapshot={() => void refresh()}
+          />
+        ) : null}
 
-      {/* Case Answer Card Modal */}
-      {answerCardModalOpen && cardId ? (
-        <AnswerCardModal
-          host={host}
-          run={run}
-          cardId={cardId}
-          kind={kind}
-          width={width}
-          height={height}
-          isActive={
-            isActive &&
-            answerCardModalOpen &&
-            !flagModalOpen &&
-            !teachModalOpen &&
-            !retellModalOpen &&
-            !similarModalOpen &&
-            !cardToolsModalOpen
-          }
-          mathUnicode={mathUnicode}
-          onClose={() => setAnswerCardModalOpen(false)}
-          onRunUpdated={(nextRun) => applyRun(nextRun, true)}
-          onRefreshSnapshot={() => void refresh()}
-        />
-      ) : null}
+        {/* Case Answer Card Modal */}
+        {answerCardModalOpen && cardId ? (
+          <AnswerCardModal
+            host={host}
+            run={run}
+            cardId={cardId}
+            kind={kind}
+            width={width}
+            height={height}
+            isActive={
+              isActive &&
+              answerCardModalOpen &&
+              !flagModalOpen &&
+              !teachModalOpen &&
+              !retellModalOpen &&
+              !similarModalOpen &&
+              !cardToolsModalOpen
+            }
+            mathUnicode={mathUnicode}
+            onClose={() => setAnswerCardModalOpen(false)}
+            onRunUpdated={(nextRun) => applyRun(nextRun, true)}
+            onRefreshSnapshot={() => void refresh()}
+          />
+        ) : null}
+      </Suspense>
 
       {/* Quick Flag Modal */}
       {flagModalOpen ? (
         <Modal
           title={t(lang, '标记当前题目', 'Flag Current Card')}
-          icon="⚑"
+          icon={asciiMode ? '!' : '⚑'}
           tone="warning"
           isActive={isActive && flagModalOpen}
           onClose={() => setFlagModalOpen(false)}
@@ -1522,7 +1543,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
           <Text color={theme.muted}>
             {t(lang, '输入问题标记说明（如：答案有误、解析不清、需重点复习）：', 'Enter a reason (e.g. unclear stem, wrong key, review later):')}
           </Text>
-          <Box borderStyle="single" borderColor={theme.primary} paddingX={1} marginTop={1}>
+          <Box borderStyle={asciiMode ? 'classic' : 'single'} borderColor={theme.primary} paddingX={1} marginTop={1}>
             <TextInput
               value={flagReason}
               onChange={setFlagReason}

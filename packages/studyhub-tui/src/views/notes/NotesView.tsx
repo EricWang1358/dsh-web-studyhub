@@ -82,6 +82,7 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
   const listReqRef = useRef(0);
   const detailReqRef = useRef(0);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSelectIdRef = useRef<string | null>(navNoteId || null);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -108,8 +109,17 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
         ]);
         if (!mountedRef.current || listReqRef.current !== reqId) return;
         if (listRes.ok && Array.isArray(listRes.value?.notes)) {
-          setNotes(listRes.value.notes);
+          const fetchedNotes = listRes.value.notes;
+          setNotes(fetchedNotes);
           setError('');
+          const pendingId = pendingSelectIdRef.current;
+          if (pendingId) {
+            if (fetchedNotes.some((n) => n.id === pendingId)) {
+              setSelectedId(pendingId);
+            } else {
+              pendingSelectIdRef.current = null;
+            }
+          }
         } else if (!listRes.ok) {
           setError(listRes.error?.message || t(lang, '无法读取笔记列表', 'Failed to load notes'));
         }
@@ -167,7 +177,10 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
 
   // Sync navigation target noteId
   useEffect(() => {
-    if (navNoteId) setSelectedId(navNoteId);
+    if (navNoteId) {
+      pendingSelectIdRef.current = navNoteId;
+      setSelectedId(navNoteId);
+    }
   }, [navNoteId]);
 
   const sortedNotes = useMemo(() => {
@@ -190,12 +203,27 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
   }, [sortedNotes, selectedId]);
 
   const selectedSummary = selectedIndex >= 0 ? sortedNotes[selectedIndex] : null;
+  const isPendingSelection = Boolean(
+    pendingSelectIdRef.current &&
+      pendingSelectIdRef.current === selectedId &&
+      !sortedNotes.some((n) => n.id === selectedId),
+  );
 
   useEffect(() => {
+    if (pendingSelectIdRef.current && pendingSelectIdRef.current === selectedId) {
+      if (sortedNotes.some((n) => n.id === selectedId)) {
+        pendingSelectIdRef.current = null;
+        return;
+      }
+      if (!notes.some((n) => n.id === selectedId)) {
+        return;
+      }
+      pendingSelectIdRef.current = null;
+    }
     if (selectedSummary && selectedSummary.id !== selectedId) {
       setSelectedId(selectedSummary.id);
     }
-  }, [selectedSummary, selectedId]);
+  }, [notes, sortedNotes, selectedSummary, selectedId]);
 
   // Fetch full note detail when selection or revision changes
   const fetchDetail = useCallback(
@@ -216,14 +244,21 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
   );
 
   useEffect(() => {
+    if (isPendingSelection) return;
     if (!selectedSummary?.id) {
       setActiveNote(null);
       return;
     }
     void fetchDetail(selectedSummary.id);
-  }, [selectedSummary?.id, selectedSummary?.revision, selectedSummary?.updatedAt, fetchDetail]);
+  }, [isPendingSelection, selectedSummary?.id, selectedSummary?.revision, selectedSummary?.updatedAt, fetchDetail]);
 
-  const displayedNote = activeNote?.id === selectedSummary?.id ? activeNote : selectedSummary;
+  const displayedNote = isPendingSelection
+    ? activeNote?.id === selectedId
+      ? activeNote
+      : null
+    : activeNote?.id === selectedSummary?.id
+      ? activeNote
+      : selectedSummary;
 
   const primaryRecapGroup: DailyRecapGroup | null = useMemo(() => {
     const groups = dailyStatus?.groups || [];
@@ -268,7 +303,10 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
         notify(res.error?.message || t(lang, '生成每日总结失败', 'Failed to generate daily recap'), 'error');
         return;
       }
-      if (res.value?.id) setSelectedId(res.value.id);
+      if (res.value?.id) {
+        pendingSelectIdRef.current = res.value.id;
+        setSelectedId(res.value.id);
+      }
       if (res.value?.status === 'protected') {
         notify(t(lang, '该总结已被手动编辑保护，已打开现有内容', 'Recap has manual edits and is protected'), 'info');
       } else {
@@ -290,6 +328,7 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
         return;
       }
       notify(t(lang, `已删除「${target.title}」`, `Deleted "${target.title}"`), 'success');
+      if (pendingSelectIdRef.current === target.id) pendingSelectIdRef.current = null;
       if (activeNote?.id === target.id) setActiveNote(null);
       await fetchNotesAndDaily(true);
       void refreshSnapshot();
@@ -531,9 +570,11 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
                   isActive={noModalActive && activePane === 'left'}
                   keyExtractor={(item) => item.id}
                   onChange={(_idx, item) => {
+                    pendingSelectIdRef.current = null;
                     if (item) setSelectedId(item.id);
                   }}
                   onSelect={(item) => {
+                    pendingSelectIdRef.current = null;
                     setSelectedId(item.id);
                     setActivePane('right');
                   }}
@@ -617,6 +658,7 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
           onClose={() => setModal(null)}
           onSaved={(saved, created) => {
             setModal(null);
+            pendingSelectIdRef.current = saved.id;
             setSelectedId(saved.id);
             setActiveNote(saved);
             notify(

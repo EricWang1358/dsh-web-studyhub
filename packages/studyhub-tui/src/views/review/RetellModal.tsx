@@ -354,10 +354,10 @@ export const RetellModal = memo(function RetellModal({
     }
     const items: KeyHint[] = [{ key: 'i/r', label: t(lang, '修改重讲', 'Re-tell') }];
     if (targetCitation) items.push({ key: 'o', label: t(lang, '跳转原文', 'Source') });
-    if (verdict) items.push({ key: '↑/↓', label: t(lang, '滚动', 'Scroll') });
+    if (verdict) items.push({ key: asciiMode ? 'j/k' : '↑/↓', label: t(lang, '滚动', 'Scroll') });
     items.push({ key: 'Esc', label: t(lang, '关闭', 'Close') });
     return items;
-  }, [submitting, editing, verdict, targetCitation, lang]);
+  }, [submitting, editing, verdict, targetCitation, lang, asciiMode]);
 
   const modelUnavailable = errorText ? isModelUnavailableError(errorText) : false;
 

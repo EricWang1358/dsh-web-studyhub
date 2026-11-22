@@ -41,6 +41,7 @@ import {
   type MockComposeResult,
   type WrongBookEntry,
 } from './types.js';
+import { CoachPreferencesModal } from './CoachPreferencesModal.js';
 
 const CLAIMED_KEYS = [
   '1', '2', '3', '4',
@@ -103,8 +104,9 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
   const [editTimeSec, setEditTimeSec] = useState('90');
 
   const [consentPromptCards, setConsentPromptCards] = useState<Array<{ deckId: string; cardId: string }> | null>(null);
+  const [prefsModalOpen, setPrefsModalOpen] = useState(false);
 
-  const modalOpen = noteModalOpen || editModalOpen || consentPromptCards !== null;
+  const modalOpen = noteModalOpen || editModalOpen || prefsModalOpen || consentPromptCards !== null;
   const mountedRef = useRef(true);
   const reqSeqRef = useRef(0);
 
@@ -166,6 +168,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
         { key: 'v', label: t(lang, '展开样题答案', 'Reveal') },
         { key: 'x/y/z', label: t(lang, '三项确认', 'Confirm') },
         { key: 'e', label: t(lang, '编辑配额', 'Edit') },
+        { key: 'p', label: t(lang, '学习偏好', 'Preferences') },
       ];
     }
     if (tab === 'variants') {
@@ -181,6 +184,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
         { key: '1-4', label: t(lang, '标签页', 'Tabs') },
         { key: 'Tab', label: t(lang, '切换栏', 'Pane') },
         { key: 'p', label: t(lang, '练习当前考点', 'Practice') },
+        { key: 'P', label: t(lang, '学习偏好', 'Preferences') },
         { key: 'r', label: t(lang, '刷新', 'Refresh') },
       ];
     }
@@ -189,6 +193,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
       { key: 'b', label: t(lang, '编译预览', 'Preview') },
       { key: 'm', label: t(lang, '同型组卷检查', 'Mock Check') },
       { key: 'g', label: t(lang, '按校准出题', 'Generate') },
+      { key: 'p', label: t(lang, '学习偏好', 'Preferences') },
     ];
   }, [tab, lang]);
 
@@ -430,6 +435,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
       }
 
       if (tab === 'calibration') {
+        if (input === 'p') { setPrefsModalOpen(true); return; }
         if (input === 'a') { void runAnalyze(false); return; }
         if (input === 'A') { void runAnalyze(true); return; }
         if (input === 'N' || input === 'n') {
@@ -486,11 +492,16 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
           return;
         }
       } else if (tab === 'evidence') {
+        if (input === 'P') {
+          setPrefsModalOpen(true);
+          return;
+        }
         if (input === 'p' && selectedPoint) {
           void startPointPractice(selectedPoint);
           return;
         }
       } else if (tab === 'mock') {
+        if (input === 'p') { setPrefsModalOpen(true); return; }
         if (input === 'b') { void buildRequestPreview(); return; }
         if (input === 'm') { void checkStrictMock(); return; }
         if (input === 'g') { void startCalibratedGenerate(); return; }
@@ -1075,6 +1086,17 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
             void queueVariants(cards, true);
           }}
           onCancel={() => setConsentPromptCards(null)}
+        />
+      ) : null}
+
+      {/* Modal: Learner Profile & Study Preferences */}
+      {prefsModalOpen ? (
+        <CoachPreferencesModal
+          host={host}
+          isActive={isActive && prefsModalOpen}
+          width={width}
+          height={height}
+          onClose={() => setPrefsModalOpen(false)}
         />
       ) : null}
     </Box>

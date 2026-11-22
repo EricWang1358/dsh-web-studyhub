@@ -761,9 +761,9 @@ export const AnswerCardModal = memo(function AnswerCardModal({
     if (cov && typeof cov.covered === 'number' && typeof cov.total === 'number') {
       parts.push(t(lang, `评分点 ${cov.covered}/${cov.total}`, `Rubric ${cov.covered}/${cov.total}`));
     }
-    parts.push(t(lang, '已核对 ≠ 答案正确', 'Checked != correct'));
+    parts.push(asciiMode ? t(lang, '已核对 != 答案正确', 'Checked != correct') : t(lang, '已核对 ≠ 答案正确', 'Checked != correct'));
     return parts.join(' · ');
-  }, [answerCard, lang]);
+  }, [answerCard, lang, asciiMode]);
 
   const cardMarkdown = useMemo(
     () => (answerCard ? buildAnswerCardMarkdown(answerCard, cardDetail, lang, asciiMode) : ''),
@@ -792,11 +792,11 @@ export const AnswerCardModal = memo(function AnswerCardModal({
       items.push({ key: 'p', label: t(lang, '去练习', 'Practise') });
     }
     if (answerCard) {
-      items.push({ key: '↑/↓', label: t(lang, '滚动', 'Scroll') });
+      items.push({ key: asciiMode ? 'j/k' : '↑/↓', label: t(lang, '滚动', 'Scroll') });
     }
     items.push({ key: 'Esc', label: t(lang, '关闭', 'Close') });
     return items;
-  }, [answerCard, pinnedInBook, canLaunchDrills, drillResult, jobState?.jobId, lang]);
+  }, [answerCard, pinnedInBook, canLaunchDrills, drillResult, jobState?.jobId, lang, asciiMode]);
 
   const showBanner = Boolean(building || bookBusy || drillBusy || errorBanner || drillResult);
   const fixedHeaderRows =

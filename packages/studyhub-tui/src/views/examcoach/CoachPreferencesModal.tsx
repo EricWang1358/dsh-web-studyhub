@@ -1,0 +1,401 @@
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Box, Text, useInput } from 'ink';
+import type { HostClient, KeyHint } from '../../types/contracts.js';
+import { t, useTuiStore } from '../../state/store.js';
+import {
+  Badge,
+  Divider,
+  EmptyState,
+  Modal,
+  Spinner,
+  TextInput,
+  VirtualList,
+  modalContentWidth,
+  useTheme,
+  type VirtualListRenderContext,
+} from '../../components/index.js';
+import { truncateDisplay } from '../../render/index.js';
+import { tryAction } from '../../host/index.js';
+
+export interface CoachPreferencesModalProps {
+  host: HostClient;
+  isActive: boolean;
+  width: number;
+  height: number;
+  onClose: () => void;
+}
+
+interface CoachProfileResult {
+  consent?: boolean | null;
+  goal?: string;
+  preferences?: string[];
+  summary?: string;
+  memoryRevision?: number;
+  signals?: {
+    got?: number;
+    confused?: number;
+    easy?: number;
+    hard?: number;
+    up?: number;
+    down?: number;
+  };
+  updatedAt?: string | null;
+  ready?: number;
+}
+
+const PREF_MAX_ITEMS = 12;
+const PREF_MAX_CHARS = 120;
+
+function formatGoalLabel(goal: string | undefined, lang: 'zh' | 'en'): string {
+  switch (goal) {
+    case 'exam':
+      return t(lang, '应付考试', 'Pass Exam');
+    case 'interview':
+      return t(lang, '面试求职', 'Job Interview');
+    case 'work':
+      return t(lang, '工作中落地', 'Apply at Work');
+    case 'explore':
+      return t(lang, '兴趣拓展', 'Explore');
+    default:
+      return t(lang, '未设定', 'Not set');
+  }
+}
+
+export const CoachPreferencesModal = memo(function CoachPreferencesModal({
+  host,
+  isActive,
+  width,
+  height,
+  onClose,
+}: CoachPreferencesModalProps) {
+  const theme = useTheme();
+  const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const notify = useTuiStore((s) => s.notify);
+
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [profile, setProfile] = useState<CoachProfileResult | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [addMode, setAddMode] = useState(false);
+  const [draftText, setDraftText] = useState('');
+
+  const mountedRef = useRef(true);
+  const seqRef = useRef(0);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const loadProfile = useCallback(async () => {
+    const seq = ++seqRef.current;
+    setError(null);
+    const res = await tryAction<CoachProfileResult>(host, 'coach.profile', {});
+    if (!mountedRef.current || seq !== seqRef.current) return;
+    if (res.ok && res.value) {
+      setProfile(res.value);
+    } else {
+      setError(res.error?.message || t(lang, '读取学习者画像失败', 'Failed to load learner profile'));
+    }
+    setLoading(false);
+  }, [host, lang]);
+
+  useEffect(() => {
+    setLoading(true);
+    void loadProfile();
+  }, [loadProfile]);
+
+  const preferences = useMemo(() => profile?.preferences ?? [], [profile?.preferences]);
+
+  useEffect(() => {
+    if (preferences.length === 0) {
+      if (selectedIndex !== 0) setSelectedIndex(0);
+    } else if (selectedIndex >= preferences.length) {
+      setSelectedIndex(preferences.length - 1);
+    }
+  }, [preferences.length, selectedIndex]);
+
+  const selectedPref = preferences[selectedIndex];
+
+  const handleAddSubmit = useCallback(
+    async (raw: string) => {
+      if (busy) return;
+      const text = raw.replace(/\s+/g, ' ').trim();
+      if (!text) {
+        notify(t(lang, '请输入一条学习偏好内容', 'Enter a study preference first'), 'warning');
+        return;
+      }
+      if (text.length > PREF_MAX_CHARS) {
+        notify(
+          t(lang, `每条学习偏好不超过 ${PREF_MAX_CHARS} 字`, `Max ${PREF_MAX_CHARS} characters per preference`),
+          'warning',
+        );
+        return;
+      }
+      setBusy(true);
+      const res = await tryAction<{ preferences?: string[]; memoryRevision?: number }>(host, 'coach.preferences', {
+        add: text,
+      });
+      if (!mountedRef.current) return;
+      if (!res.ok) {
+        setBusy(false);
+        notify(res.error?.message || t(lang, '添加学习偏好失败', 'Failed to add preference'), 'error');
+        return;
+      }
+      setAddMode(false);
+      setDraftText('');
+      await loadProfile();
+      if (!mountedRef.current) return;
+      setBusy(false);
+      notify(t(lang, '已添加学习偏好', 'Study preference added'), 'success');
+    },
+    [busy, host, lang, loadProfile, notify],
+  );
+
+  const handleRemoveSelected = useCallback(async () => {
+    if (busy || !selectedPref) return;
+    setBusy(true);
+    const res = await tryAction<{ preferences?: string[]; memoryRevision?: number }>(host, 'coach.preferences', {
+      remove: selectedPref,
+    });
+    if (!mountedRef.current) return;
+    if (!res.ok) {
+      setBusy(false);
+      notify(res.error?.message || t(lang, '删除学习偏好失败', 'Failed to remove preference'), 'error');
+      return;
+    }
+    await loadProfile();
+    if (!mountedRef.current) return;
+    setBusy(false);
+    notify(t(lang, '已移除学习偏好', 'Study preference removed'), 'success');
+  }, [busy, selectedPref, host, lang, loadProfile, notify]);
+
+  useInput(
+    (input) => {
+      if (loading || busy || addMode) return;
+      if (input === 'a') {
+        if (preferences.length >= PREF_MAX_ITEMS) {
+          notify(
+            t(lang, `学习偏好最多保存 ${PREF_MAX_ITEMS} 条`, `Up to ${PREF_MAX_ITEMS} preferences allowed`),
+            'warning',
+          );
+          return;
+        }
+        setDraftText('');
+        setAddMode(true);
+        return;
+      }
+      if (input === 'd' && selectedPref) {
+        void handleRemoveSelected();
+        return;
+      }
+      if (input === 'r') {
+        setLoading(true);
+        void loadProfile();
+      }
+    },
+    { isActive: isActive && !loading && !busy && !addMode },
+  );
+
+  const frameW = Math.max(46, Math.min(82, width - 2));
+  const frameH = Math.max(16, Math.min(28, height - 2));
+  const innerW = modalContentWidth(frameW);
+  const bodyH = Math.max(8, frameH - 5);
+  const summaryLinesCount = bodyH >= 15 ? 2 : 1;
+  const addAreaRows = addMode ? 3 : 0;
+  // Budget: 1 (goal/consent) + 1 (signals) + summaryLinesCount + 1 (divider) + 1 (list title) + addAreaRows
+  const listH = Math.max(3, bodyH - (4 + summaryLinesCount + addAreaRows));
+  const ell = asciiMode ? '...' : '…';
+
+  const hints = useMemo<KeyHint[]>(() => {
+    if (addMode) {
+      return [
+        { key: 'Enter', label: t(lang, '保存偏好', 'Save') },
+        { key: 'Esc', label: t(lang, '取消输入', 'Cancel') },
+      ];
+    }
+    const out: KeyHint[] = [{ key: 'a', label: t(lang, '添加偏好', 'Add') }];
+    if (preferences.length > 0) {
+      out.push({ key: 'd', label: t(lang, '删除选中', 'Remove') });
+    }
+    out.push({ key: 'r', label: t(lang, '刷新', 'Refresh') });
+    out.push({ key: 'Esc', label: t(lang, '关闭', 'Close') });
+    return out;
+  }, [addMode, preferences.length, lang]);
+
+  const signalsText = useMemo(() => {
+    const sig = profile?.signals;
+    if (!sig) return '';
+    return t(
+      lang,
+      `反馈信号: 懂了 ${sig.got ?? 0} · 困惑 ${sig.confused ?? 0} · 太简 ${sig.easy ?? 0} · 太难 ${sig.hard ?? 0} · 赞 ${sig.up ?? 0} · 踩 ${sig.down ?? 0}`,
+      `Signals: Got ${sig.got ?? 0} · Confused ${sig.confused ?? 0} · Easy ${sig.easy ?? 0} · Hard ${sig.hard ?? 0} · Up ${sig.up ?? 0} · Down ${sig.down ?? 0}`,
+    );
+  }, [profile?.signals, lang]);
+
+  const summaryLines = useMemo(() => {
+    const raw = (profile?.summary ?? '').replace(/\s+/g, ' ').trim();
+    if (!raw) {
+      return [t(lang, '画像摘要: 暂无（完成练习与反馈后将自动沉淀）', 'Summary: None yet (builds from practice & feedback)')];
+    }
+    const prefix = t(lang, '画像摘要: ', 'Summary: ');
+    const full = `${prefix}${raw}`;
+    if (summaryLinesCount === 1) {
+      return [truncateDisplay(full, innerW, ell)];
+    }
+    const first = truncateDisplay(full, innerW, '');
+    const rest = full.slice(first.length).trim();
+    if (!rest) return [first, ''];
+    return [first, truncateDisplay(rest, innerW, ell)];
+  }, [profile?.summary, summaryLinesCount, innerW, ell, lang]);
+
+  const renderPrefRow = useCallback(
+    (pref: string, ctx: VirtualListRenderContext) => {
+      const marker = ctx.selected ? (asciiMode ? '>' : '▸') : asciiMode ? '-' : '•';
+      const label = `${marker} ${ctx.index + 1}. ${pref}`;
+      return (
+        <Text color={ctx.selected ? theme.selectionFg : theme.text} bold={ctx.selected}>
+          {truncateDisplay(label, ctx.width, ell)}
+        </Text>
+      );
+    },
+    [asciiMode, theme, ell],
+  );
+
+  return (
+    <Modal
+      title={t(lang, '学习者画像与长期偏好', 'Learner Profile & Preferences')}
+      icon={asciiMode ? 'o' : '◎'}
+      tone="primary"
+      subtitle={profile ? `${preferences.length}/${PREF_MAX_ITEMS}` : undefined}
+      width={frameW}
+      height={frameH}
+      onClose={addMode ? undefined : onClose}
+      isActive={isActive}
+      hints={hints}
+    >
+      {loading ? (
+        <Box height={bodyH} alignItems="center" justifyContent="center">
+          <Spinner label={t(lang, '正在读取学习者画像与偏好…', 'Loading learner profile & preferences…')} active={isActive} />
+        </Box>
+      ) : error && !profile ? (
+        <EmptyState
+          icon={asciiMode ? '!' : '✕'}
+          title={t(lang, '无法读取学习者画像', 'Cannot load learner profile')}
+          hint={error}
+          actions={[
+            { key: 'r', label: t(lang, '重试', 'Retry') },
+            { key: 'Esc', label: t(lang, '关闭', 'Close') },
+          ]}
+          width={innerW}
+          height={bodyH}
+        />
+      ) : (
+        <Box flexDirection="column" height={bodyH} overflow="hidden">
+          {/* Row 1: Goal, Consent & Ready status */}
+          <Box height={1} flexDirection="row" justifyContent="space-between" overflow="hidden" flexShrink={0}>
+            <Box gap={1} overflow="hidden">
+              <Badge label={`${t(lang, '目标', 'Goal')}: ${formatGoalLabel(profile?.goal, lang)}`} tone="accent" variant="soft" />
+              <Badge
+                label={
+                  profile?.consent === true
+                    ? t(lang, '自动变式: 已授权', 'Auto-Prep: On')
+                    : t(lang, '自动变式: 未授权', 'Auto-Prep: Off')
+                }
+                tone={profile?.consent === true ? 'success' : 'muted'}
+                variant="outline"
+              />
+              {typeof profile?.ready === 'number' ? (
+                <Badge label={`${t(lang, '已备题', 'Ready')}: ${profile.ready}`} tone={profile.ready > 0 ? 'primary' : 'muted'} variant="soft" />
+              ) : null}
+            </Box>
+            <Box flexShrink={0}>{busy ? <Spinner label={t(lang, '保存中…', 'Saving…')} active={isActive} /> : null}</Box>
+          </Box>
+
+          {/* Row 2: Signals overview */}
+          <Box height={1} overflow="hidden" flexShrink={0}>
+            <Text color={theme.muted} wrap="truncate-end">
+              {truncateDisplay(signalsText, innerW, ell)}
+            </Text>
+          </Box>
+
+          {/* Row 3..4: Profile summary */}
+          <Box height={summaryLinesCount} flexDirection="column" overflow="hidden" flexShrink={0}>
+            {summaryLines.slice(0, summaryLinesCount).map((line, i) => (
+              <Text key={i} color={profile?.summary?.trim() ? theme.text : theme.dim} wrap="truncate-end">
+                {line || ' '}
+              </Text>
+            ))}
+          </Box>
+
+          <Divider width={innerW} />
+
+          {/* Preferences header */}
+          <Box height={1} flexDirection="row" justifyContent="space-between" overflow="hidden" flexShrink={0}>
+            <Text color={theme.heading} bold>
+              {t(lang, `长期学习偏好 (${preferences.length}/${PREF_MAX_ITEMS})`, `Study Preferences (${preferences.length}/${PREF_MAX_ITEMS})`)}
+            </Text>
+            <Text color={theme.dim}>
+              {addMode
+                ? t(lang, '输入中…', 'Typing…')
+                : t(lang, `[a] 添加  [d] 删除`, `[a] Add  [d] Remove`)}
+            </Text>
+          </Box>
+
+          {/* Preferences VirtualList */}
+          <Box height={listH} flexDirection="column" overflow="hidden" flexShrink={0}>
+            <VirtualList
+              items={preferences}
+              width={innerW}
+              height={listH}
+              selectedIndex={selectedIndex}
+              onChange={setSelectedIndex}
+              isActive={isActive && !loading && !busy && !addMode}
+              keyExtractor={(item, idx) => `${idx}:${item}`}
+              emptyText={t(lang, '暂无自定义学习偏好', 'No study preferences yet')}
+              emptyHint={t(
+                lang,
+                '按 [a] 添加，例如“多举工程实例”或“先给直观直觉再写推导”',
+                'Press [a] to add, e.g. "Prefer concrete engineering examples"',
+              )}
+              renderItem={renderPrefRow}
+            />
+          </Box>
+
+          {/* Inline Add Input */}
+          {addMode ? (
+            <Box height={3} flexDirection="column" overflow="hidden" flexShrink={0}>
+              <Text color={theme.primary} bold wrap="truncate-end">
+                {t(
+                  lang,
+                  `新增偏好（≤${PREF_MAX_CHARS}字，Enter 保存 / Esc 取消）：`,
+                  `New preference (<=${PREF_MAX_CHARS} chars, Enter save / Esc cancel):`,
+                )}
+              </Text>
+              <TextInput
+                value={draftText}
+                onChange={setDraftText}
+                placeholder={t(lang, '输入长期学习偏好…', 'Enter a long-term study preference…')}
+                isActive={isActive && addMode && !busy}
+                width={Math.max(10, innerW - 4)}
+                maxLength={PREF_MAX_CHARS}
+                onSubmit={(val) => void handleAddSubmit(val)}
+                onCancel={() => {
+                  setAddMode(false);
+                  setDraftText('');
+                }}
+              />
+              <Text color={theme.dim} wrap="truncate-end">
+                {`${draftText.trim().length}/${PREF_MAX_CHARS}`}
+              </Text>
+            </Box>
+          ) : null}
+        </Box>
+      )}
+    </Modal>
+  );
+});
