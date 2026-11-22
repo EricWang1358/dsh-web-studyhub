@@ -1,16 +1,20 @@
 import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { randomUUID } from 'node:crypto';
+import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
 import { Box, Text, useInput } from 'ink';
 import { Badge, EmptyState, Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
 import { Panel } from '../../components/Panel.js';
+import { TextInput } from '../../components/TextInput.js';
+import { parseSgrWheelDelta, useSgrMouseWheel } from '../../components/VirtualList.js';
 import { useClaimKeys } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { useTheme } from '../../theme/tokens.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import { currentCourse } from '../../shell/data.js';
 import { t, useTuiStore } from '../../state/store.js';
-import type { KeyHint, ViewProps } from '../../types/contracts.js';
+import type { KeyHint, UiLanguage, ViewProps } from '../../types/contracts.js';
 import { PomodoroBar, pomodoroBarHeight } from './PomodoroBar.js';
 import {
   addCompletedPomodoro,
@@ -25,6 +29,7 @@ import {
   recordDeletedUpstreamIds,
   resolveUpstreamTargetColumn,
   saveBoard,
+  todayLocalYmd,
   type BoardCard,
   type BoardColumnId,
   type BoardDocument,
@@ -39,8 +44,135 @@ type ActiveModal =
   | { type: 'edit'; card: BoardCard }
   | { type: 'delete'; card: BoardCard };
 
-const CLAIMED_KEYS = ['a', 'S', 'P', 'R', 'M', '+', '-', 'r'] as const;
+type BoardCardMeta = BoardCard & {
+  description?: unknown;
+  priority?: unknown;
+  tags?: unknown;
+  due?: unknown;
+};
+
+const CLAIMED_KEYS = ['a', 'S', 'P', 'R', 'M', '+', '-', 'r', '/', 'x'] as const;
 const WIDE_BREAKPOINT = 78;
+const RETRY_CODES = new Set(['EBUSY', 'EPERM', 'EACCES']);
+
+function cleanSingleLine(raw: unknown): string {
+  return typeof raw === 'string' ? raw.replace(/\r?\n+/g, ' ').trim() : '';
+}
+
+function extractCardTags(raw: unknown): string[] {
+  if (Array.isArray(raw)) {
+    return raw.map((item) => cleanSingleLine(item)).filter(Boolean);
+  }
+  if (typeof raw === 'string') {
+    return raw
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
+function cardMatchesFilter(card: BoardCard, normalizedQuery: string): boolean {
+  if (!normalizedQuery) return true;
+  const meta = card as BoardCardMeta;
+  if (card.title.toLowerCase().includes(normalizedQuery)) return true;
+  if (card.course && card.course.toLowerCase().includes(normalizedQuery)) return true;
+  const desc = cleanSingleLine(meta.description);
+  if (desc && desc.toLowerCase().includes(normalizedQuery)) return true;
+  const tags = extractCardTags(meta.tags);
+  return tags.some((tag) => tag.toLowerCase().includes(normalizedQuery));
+}
+
+async function renameWithRetry(from: string, to: string): Promise<void> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await rename(from, to);
+      return;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException)?.code || '';
+      if (!RETRY_CODES.has(code) || attempt >= 5) throw error;
+      await new Promise((done) => setTimeout(done, 40 * (attempt + 1)));
+    }
+  }
+}
+
+async function atomicWriteTextFile(targetPath: string, text: string): Promise<void> {
+  await mkdir(dirname(targetPath), { recursive: true });
+  const temp = `${targetPath}.${randomUUID()}.tmp`;
+  await writeFile(temp, text, 'utf8');
+  try {
+    await renameWithRetry(temp, targetPath);
+  } catch (error) {
+    await rm(temp, { force: true }).catch(() => {});
+    throw error;
+  }
+}
+
+/** Pure helper generating GFM Markdown for a Kanban board snapshot (0 LLM tokens). */
+export function formatBoardMarkdown(doc: BoardDocument, lang: UiLanguage = 'en'): string {
+  const cards = Array.isArray(doc?.cards) ? doc.cards : [];
+  const grouped: Record<BoardColumnId, BoardCard[]> = {
+    todo: cardsInColumn(cards, 'todo'),
+    doing: cardsInColumn(cards, 'doing'),
+    done: cardsInColumn(cards, 'done'),
+  };
+
+  const pomodoros = Math.max(0, Math.floor(doc?.focusStats?.completedPomodoros ?? 0));
+  const minutes = Math.max(0, Math.floor(doc?.focusStats?.focusedMinutes ?? 0));
+  const exportDate = todayLocalYmd();
+
+  const lines: string[] = ['# StudyHub Kanban Board', ''];
+  if (lang === 'zh') {
+    lines.push(
+      `> 导出日期: ${exportDate} | 任务总计: ${cards.length} (待办: ${grouped.todo.length}, 进行中: ${grouped.doing.length}, 已完成: ${grouped.done.length}) | 番茄专注: ${pomodoros} 次 (${minutes} 分钟)`,
+    );
+  } else {
+    lines.push(
+      `> Exported: ${exportDate} | Cards: ${cards.length} (Todo: ${grouped.todo.length}, Doing: ${grouped.doing.length}, Done: ${grouped.done.length}) | Pomodoro: ${pomodoros} (${minutes}m)`,
+    );
+  }
+
+  const sectionHeading = (col: BoardColumnId): string => {
+    if (col === 'todo') return t(lang, '## 待办 Todo', '## Todo');
+    if (col === 'doing') return t(lang, '## 进行中 Doing', '## Doing');
+    return t(lang, '## 已完成 Done', '## Done');
+  };
+
+  for (const col of BOARD_COLUMNS) {
+    lines.push('', sectionHeading(col), '');
+    const colCards = grouped[col];
+    if (colCards.length === 0) {
+      lines.push(t(lang, '_（暂无）_', '_(none)_'));
+      continue;
+    }
+    const checkbox = col === 'done' ? '[x]' : '[ ]';
+    for (const card of colCards) {
+      const meta = card as BoardCardMeta;
+      const title = cleanSingleLine(card.title) || card.id;
+      const priority = cleanSingleLine(meta.priority);
+      const course = cleanSingleLine(card.course);
+      const dueDate = cleanSingleLine(card.dueDate) || cleanSingleLine(meta.due);
+      const tags = extractCardTags(meta.tags);
+      const rawDesc = cleanSingleLine(meta.description);
+      const desc = rawDesc.length > 240 ? `${rawDesc.slice(0, 237)}...` : rawDesc;
+
+      const metaParts: string[] = [];
+      if (priority) metaParts.push(lang === 'zh' ? `优先级:${priority}` : `priority:${priority}`);
+      if (course) metaParts.push(lang === 'zh' ? `课程:${course}` : `course:${course}`);
+      if (dueDate) metaParts.push(lang === 'zh' ? `截止:${dueDate}` : `due:${dueDate}`);
+      if (tags.length > 0) metaParts.push(`tags:${tags.map((tag) => `#${tag}`).join(' ')}`);
+
+      const metaSuffix = metaParts.length > 0 ? ` (${metaParts.join(' | ')})` : '';
+      lines.push(`- ${checkbox} ${title}${metaSuffix}`);
+      if (desc) {
+        lines.push(`  > ${desc}`);
+      }
+    }
+  }
+
+  lines.push('');
+  return lines.join('\n');
+}
 
 export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, width, height, isActive }) {
   const theme = useTheme();
@@ -59,10 +191,13 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
   const [activeCol, setActiveCol] = useState<BoardColumnId>('todo');
   const [cursorByCol, setCursorByCol] = useState<Record<BoardColumnId, number>>({ todo: 0, doing: 0, done: 0 });
   const [modal, setModal] = useState<ActiveModal>(null);
+  const [filterQuery, setFilterQuery] = useState('');
+  const [filterEditing, setFilterEditing] = useState(false);
 
   const mountedRef = useRef(true);
   const loadReqRef = useRef(0);
   const syncReqRef = useRef(0);
+  const exportBusyRef = useRef(false);
   const upstreamQueueRef = useRef<Promise<void>>(Promise.resolve());
   const docRef = useRef(doc);
   docRef.current = doc;
@@ -382,14 +517,30 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
     [enqueueUpstream, updateUpstreamDirect],
   );
 
+  const normalizedFilter = filterQuery.trim().toLowerCase();
+  const filteredCards = useMemo(
+    () => (normalizedFilter ? doc.cards.filter((c) => cardMatchesFilter(c, normalizedFilter)) : doc.cards),
+    [doc.cards, normalizedFilter],
+  );
+
   const grouped = useMemo(
     () => ({
-      todo: cardsInColumn(doc.cards, 'todo'),
-      doing: cardsInColumn(doc.cards, 'doing'),
-      done: cardsInColumn(doc.cards, 'done'),
+      todo: cardsInColumn(filteredCards, 'todo'),
+      doing: cardsInColumn(filteredCards, 'doing'),
+      done: cardsInColumn(filteredCards, 'done'),
     }),
-    [doc.cards],
+    [filteredCards],
   );
+
+  useEffect(() => {
+    setCursorByCol((prev) => {
+      const nextTodo = grouped.todo.length > 0 ? Math.max(0, Math.min(prev.todo, grouped.todo.length - 1)) : 0;
+      const nextDoing = grouped.doing.length > 0 ? Math.max(0, Math.min(prev.doing, grouped.doing.length - 1)) : 0;
+      const nextDone = grouped.done.length > 0 ? Math.max(0, Math.min(prev.done, grouped.done.length - 1)) : 0;
+      if (nextTodo === prev.todo && nextDoing === prev.doing && nextDone === prev.done) return prev;
+      return { todo: nextTodo, doing: nextDoing, done: nextDone };
+    });
+  }, [grouped.todo.length, grouped.doing.length, grouped.done.length]);
 
   const activeColCards = grouped[activeCol];
   const activeIdx = activeColCards.length > 0 ? Math.max(0, Math.min(cursorByCol[activeCol], activeColCards.length - 1)) : -1;
@@ -402,14 +553,16 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
         return;
       }
       const now = new Date().toISOString();
-      const targetLen = docRef.current.cards
-        .map((c) => (c.id === card.id ? { ...c, column: targetCol } : c))
-        .filter((c) => c.column === targetCol).length;
+      const nextPreview = docRef.current.cards.map((c) => (c.id === card.id ? { ...c, column: targetCol } : c));
+      const visibleTargetCards = (
+        normalizedFilter ? nextPreview.filter((c) => cardMatchesFilter(c, normalizedFilter)) : nextPreview
+      ).filter((c) => c.column === targetCol);
+      const targetIdx = visibleTargetCards.findIndex((c) => c.id === card.id);
       setActiveCol(targetCol);
       setCursorByCol((prev) => ({
         ...prev,
         [card.column]: Math.max(0, Math.min(prev[card.column], Math.max(0, grouped[card.column].length - 2))),
-        [targetCol]: Math.max(0, targetLen - 1),
+        [targetCol]: targetIdx >= 0 ? targetIdx : Math.max(0, visibleTargetCards.length - 1),
       }));
       let resolvedUpstreamId = card.upstreamCardId;
       void persistDoc((prev) => {
@@ -426,14 +579,77 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
         void mirrorUpstreamUpdate(resolvedUpstreamId, { column: targetCol });
       }
     },
-    [grouped, persistDoc, mirrorUpstreamUpdate, notifyReadOnlyError],
+    [grouped, normalizedFilter, persistDoc, mirrorUpstreamUpdate, notifyReadOnlyError],
+  );
+
+  const handleExportMarkdown = useCallback(async () => {
+    if (exportBusyRef.current) return;
+    exportBusyRef.current = true;
+    try {
+      const currentDoc = docRef.current;
+      const markdown = formatBoardMarkdown(currentDoc, lang);
+      const baseDir = libraryRoot?.trim() ? resolve(libraryRoot.trim()) : process.cwd();
+      const targetPath = join(baseDir, 'backups', `studyhub-board-${todayLocalYmd()}.md`);
+      await atomicWriteTextFile(targetPath, markdown);
+      if (!mountedRef.current) return;
+      const arrow = asciiMode ? '->' : '→';
+      notify(
+        t(
+          lang,
+          `已导出 ${currentDoc.cards.length} 张卡片 ${arrow} ${targetPath}`,
+          `Exported ${currentDoc.cards.length} cards ${arrow} ${targetPath}`,
+        ),
+        'success',
+      );
+    } catch (err) {
+      if (!mountedRef.current) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      notify(t(lang, `导出看板失败: ${msg}`, `Failed to export board: ${msg}`), 'error');
+    } finally {
+      exportBusyRef.current = false;
+    }
+  }, [asciiMode, lang, libraryRoot, notify]);
+
+  const moveCursorByWheel = useCallback(
+    (delta: number) => {
+      if (delta === 0) return;
+      const step = delta > 0 ? Math.max(1, Math.round(delta / 3)) : Math.min(-1, Math.round(delta / 3));
+      setCursorByCol((prev) => {
+        const len = grouped[activeCol].length;
+        if (len === 0) return prev;
+        const cur = Math.max(0, Math.min(prev[activeCol], len - 1));
+        const next = Math.max(0, Math.min(len - 1, cur + step));
+        if (next === prev[activeCol]) return prev;
+        return { ...prev, [activeCol]: next };
+      });
+    },
+    [activeCol, grouped],
   );
 
   const noModalActive = isActive && modal === null;
+  const boardNavActive = noModalActive && !filterEditing;
   useClaimKeys(CLAIMED_KEYS, noModalActive);
+  useSgrMouseWheel(boardNavActive, moveCursorByWheel);
 
   useInput(
     (input, key) => {
+      const wheelDelta = parseSgrWheelDelta(input);
+      if (wheelDelta !== 0) {
+        moveCursorByWheel(wheelDelta);
+        return;
+      }
+      if (key.escape && filterQuery) {
+        setFilterQuery('');
+        return;
+      }
+      if (input === '/' && !key.ctrl && !key.meta) {
+        setFilterEditing(true);
+        return;
+      }
+      if (input === 'x' && !key.ctrl && !key.meta) {
+        void handleExportMarkdown();
+        return;
+      }
       if (input === 'r') {
         void reloadBoard({ notifyOnReload: true });
         return;
@@ -508,7 +724,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
         setModal({ type: 'delete', card: selectedCard });
       }
     },
-    { isActive: noModalActive },
+    { isActive: boardNavActive },
   );
 
   const handleFocusComplete = useCallback(
@@ -533,13 +749,22 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
     [persistDoc, asciiMode, selectedCard, notify, lang, notifyReadOnlyError],
   );
 
-  const hints: KeyHint[] = useMemo(
-    () => [
+  const hints: KeyHint[] = useMemo(() => {
+    if (filterEditing) {
+      return [
+        { key: 'Enter', label: t(lang, '确认', 'Apply') },
+        { key: 'Esc', label: t(lang, '清除', 'Clear') },
+      ];
+    }
+    return [
       ...(readOnlyError ? [{ key: 'r', label: t(lang, '重载', 'Reload') }] : []),
       { key: 'h/l', label: t(lang, '切列', 'Col') },
       { key: 'j/k', label: t(lang, '移动', 'Nav') },
       { key: 'H/L/m', label: t(lang, '移列', 'Move') },
       { key: 'a', label: t(lang, '添加', 'Add') },
+      { key: '/', label: t(lang, '过滤', 'Filter') },
+      ...(filterQuery ? [{ key: 'Esc', label: t(lang, '清过滤', 'Clear') }] : []),
+      { key: 'x', label: t(lang, '导出', 'Export') },
       { key: 'S', label: t(lang, '同步', 'Sync') },
       { key: 'e', label: t(lang, '编辑', 'Edit') },
       { key: 'd', label: t(lang, '删除', 'Del') },
@@ -547,9 +772,8 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
       { key: 'M', label: t(lang, '模式', 'Mode') },
       { key: '+/-', label: t(lang, '时长', 'Min') },
       { key: 'R', label: t(lang, '重置', 'Reset') },
-    ],
-    [lang, readOnlyError],
-  );
+    ];
+  }, [filterEditing, filterQuery, lang, readOnlyError]);
   useFooterHints(hints, isActive);
 
   const colMeta = useCallback(
@@ -582,8 +806,16 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
     if (cards.length === 0) {
       return (
         <EmptyState
-          title={t(lang, '空列', 'Empty')}
-          hint={isFocusedCol ? t(lang, 'a 添加 / S 同步', 'a: add / S: sync') : undefined}
+          title={normalizedFilter ? t(lang, '无匹配任务', 'No matches') : t(lang, '空列', 'Empty')}
+          hint={
+            normalizedFilter
+              ? isFocusedCol
+                ? t(lang, 'Esc 清除过滤', 'Esc: clear filter')
+                : undefined
+              : isFocusedCol
+                ? t(lang, 'a 添加 / S 同步', 'a: add / S: sync')
+                : undefined
+          }
           icon={asciiMode ? '.' : '·'}
           width={innerW}
           height={innerH}
@@ -809,6 +1041,8 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
 
   const barH = pomodoroBarHeight(width);
   const bannerH = readOnlyError ? 4 : 0;
+  const showFilterBar = filterEditing || filterQuery.length > 0;
+  const filterBarH = showFilterBar ? 1 : 0;
   const ell = asciiMode ? '...' : '…';
   const resolvedBoardPath = readOnlyPath || boardFilePath(libraryRoot);
   const innerBannerW = Math.max(10, width - 4);
@@ -839,12 +1073,52 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
     </Box>
   ) : null;
 
+  const filterBadge = `[${filterEditing ? t(lang, '过滤', 'Filter') : t(lang, '已过滤', 'Filtered')} ${filteredCards.length}/${doc.cards.length}] `;
+  const filterRightHint =
+    width >= 66
+      ? ` ${filterEditing ? t(lang, 'Enter 确认 | Esc 清除', 'Enter apply | Esc clear') : t(lang, '/ 编辑 | Esc 清除', '/ edit | Esc clear')}`
+      : width >= 46
+        ? ' Esc'
+        : '';
+  const filterInputW = Math.max(8, width - 2 - displayWidth(filterBadge) - displayWidth(filterRightHint) - 3);
+  const filterBarNode = showFilterBar ? (
+    <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
+      <Text color={filterEditing ? theme.primary : theme.accent} bold>
+        {filterBadge}
+      </Text>
+      <Box flexGrow={1} overflow="hidden">
+        <TextInput
+          value={filterQuery}
+          onChange={(val) => setFilterQuery(val)}
+          onSubmit={(val) => {
+            if (!val.trim()) setFilterQuery('');
+            setFilterEditing(false);
+          }}
+          onCancel={() => {
+            setFilterQuery('');
+            setFilterEditing(false);
+          }}
+          isActive={noModalActive && filterEditing}
+          width={filterInputW}
+          prompt="/"
+          placeholder={t(lang, `关键词${ell}`, `keyword${ell}`)}
+          maxLength={120}
+        />
+      </Box>
+      {filterRightHint ? (
+        <Text color={theme.dim} wrap="truncate">
+          {filterRightHint}
+        </Text>
+      ) : null}
+    </Box>
+  ) : null;
+
   const pomodoroNode = (
     <PomodoroBar
       width={width}
       lang={lang}
       asciiMode={asciiMode}
-      isActive={noModalActive}
+      isActive={boardNavActive}
       selectedCardTitle={selectedCard?.title}
       focusStats={doc.focusStats}
       onFocusComplete={handleFocusComplete}
@@ -853,11 +1127,12 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
 
   if (narrow) {
     const meta = colMeta(activeCol);
-    const bodyH = Math.max(4, height - barH - bannerH - 1);
+    const bodyH = Math.max(4, height - barH - bannerH - filterBarH - 1);
     return (
       <Box flexDirection="column" width={width} height={height}>
         {pomodoroNode}
         {readOnlyBanner}
+        {filterBarNode}
         <Box height={1} width={width} gap={1} overflow="hidden">
           {BOARD_COLUMNS.map((col) => {
             const m = colMeta(col);
@@ -882,7 +1157,9 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
           subtitle={
             syncing
               ? t(lang, asciiMode ? '同步中...' : '同步中…', asciiMode ? 'Syncing...' : 'Syncing…')
-              : `${doc.cards.length} ${t(lang, '项', 'total')}`
+              : normalizedFilter
+                ? `${filteredCards.length}/${doc.cards.length} ${t(lang, '匹配', 'match')}`
+                : `${doc.cards.length} ${t(lang, '项', 'total')}`
           }
           focused
           width={width}
@@ -898,12 +1175,13 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
   const gap = 1;
   const colW = Math.max(20, Math.floor((width - gap * 2) / 3));
   const lastColW = Math.max(20, width - colW * 2 - gap * 2);
-  const colsH = Math.max(4, height - barH - bannerH);
+  const colsH = Math.max(4, height - barH - bannerH - filterBarH);
 
   return (
     <Box flexDirection="column" width={width} height={height}>
       {pomodoroNode}
       {readOnlyBanner}
+      {filterBarNode}
       <Box flexDirection="row" width={width} height={colsH} gap={gap}>
         {BOARD_COLUMNS.map((col, idx) => {
           const m = colMeta(col);

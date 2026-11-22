@@ -118,6 +118,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       items: [
         { key: 'Space / B', label: t(lang, '勾选并批量练错题', 'Select & batch practice') },
         { key: 'V', label: t(lang, '练错题变式', 'Practice variants') },
+        { key: 'X', label: t(lang, '导出错题复习卷 (Markdown)', 'Export wrong cards (Markdown)') },
       ],
     },
     {
@@ -126,6 +127,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'Enter/p', label: t(lang, '钻取练习', 'Drill practice') },
         { key: 'f', label: t(lang, '7天预测', '7d forecast') },
         { key: 'm', label: t(lang, '知识地图 / 依赖图', 'Study map & prereq graph') },
+        { key: 'd / x', label: t(lang, '切换用量周期 / 导出进度报告', 'Usage window / Export report') },
       ],
     },
     {
@@ -194,6 +196,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: '+/-', label: t(lang, '调整时长', 'Adjust minutes') },
         { key: 'R', label: t(lang, '重置计时', 'Reset timer') },
         { key: 'S', label: t(lang, '同步学习库看板', 'Sync StudyHub board') },
+        { key: '/ / x', label: t(lang, '筛选卡片 / 导出看板 Markdown', 'Filter cards / Export Markdown') },
       ],
     },
     {

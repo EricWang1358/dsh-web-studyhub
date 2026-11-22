@@ -113,14 +113,14 @@ Inside the palette: `↑`/`↓`, `Ctrl+P`/`Ctrl+N`, `Ctrl+J`/`Ctrl+K`, or `Mouse
 - **DraftEditor**: `d` switch draft · `e` edit selected card (`Ctrl+N` switch field, `Ctrl+S` save) · `x` remove card from draft · `u` undo last removed draft card · `S` / `s` check similar cards · `R` repair draft · `V` draft publish preflight · `P` publish draft to deck · `D` delete entire draft
 
 ### `4` Mistakes / Wrong Book (`wrongbook`)
-- `Tab` / `h` / `l` switch tabs · `Space` multi-select · `B` / `P` batch practice · `V` practise prepared coach variants (`coach.practice`) · `x` clear selection / similar cards · `e` tag wrong reason · `t` 0-token triage · `f` filter by reason · `Enter` / `p` practise selected · `m` toggle math · `J` / `K` scroll detail pane · `R` reload
+- `Tab` / `h` / `l` switch tabs · `Space` multi-select · `B` / `P` batch practice · `V` practise prepared coach variants (`coach.practice`) · `X` export wrong-book Markdown study sheet (`backups/studyhub-wrongbook-YYYY-MM-DD.md`) · `x` clear selection / similar cards · `e` tag wrong reason · `t` 0-token triage · `f` filter by reason · `Enter` / `p` practise selected · `m` toggle math · `J` / `K` scroll detail pane · `R` reload
 
 ### `5` Mock Exam (`exam`)
 - **Setup**: `Tab` / `h` / `l` switch Setup / History · `1` / `2` / `3` Written MCQ / Case / Oral · `c` question count · `t` time limit · `k` question kinds · `r` resume active exam
 - **Runner**: `1-9` select/toggle options · `f` flag question · `n` / `p` / `Tab` / `Shift+Tab` / `←` / `→` step questions · `s` toggle case scenario pane · `H` highlight paragraph · `[` / `]` step paragraphs · `Ctrl+S` submit exam
 
 ### `6` Stats / Dashboard (`dashboard`)
-- `j` / `k` select weak topic or course · `Enter` / `p` drill selected item · `w` practise all weak questions · `f` toggle 7-day forecast · `m` study map & prerequisite graph (`StudyMapModal`: `Tab`/`1`/`2` switch Mastery Map / Prerequisite Graph, `s` toggle scope, `/` filter, `c` clear, `r` refresh, `Enter` practise) · `r` refresh
+- `j` / `k` select weak topic or course · `Enter` / `p` drill selected item · `w` practise all weak questions · `f` toggle 7-day forecast · `m` study map & prerequisite graph (`StudyMapModal`: `Tab`/`1`/`2` switch Mastery Map / Prerequisite Graph, `s` toggle scope, `/` filter, `c` clear, `r` refresh, `Enter` practise) · `d` cycle usage window · `x` export progress report · `r` refresh
 
 ### `7` Review Book (`book`)
 - `Tab` / `h` / `l` switch TOC / reading pane · `m` toggle Unicode/LaTeX math · `e` edit or revert (`[u]`) section · `H` revision history & revert (`BookHistoryModal`, `course.book.revision` / `course.book.revert`) · `E` P2-guarded AI explain / add section (`BookExplainModal`, `generation.courseBook.explain`) · `B` review / keep / delete AI blocks (`BookAiBlocksModal`) · `R` rename TOC node · `[` / `]` move node up/down among siblings · `D` delete node (keeps notes in Unplaced) · `z` revert last structure change · `U` place unplaced section into target leaf point (`BookStructureModal`) · `T` Feynman retell selected point (`BookRetellModal`) · `M` chapter/point mock paper (`book.mock.plan` + `book.mock`, opens Exam) · `p` practise 5 cards · `P` pinned book QA & section Q&A (`course.outline.qa`) · `w` final-week crunch & mock · `x` export Markdown · `g` build/rebuild book (`a` apply / `u` undo when rebuild-pending) · `r` refresh
@@ -138,7 +138,7 @@ Inside the palette: `↑`/`↓`, `Ctrl+P`/`Ctrl+N`, `Ctrl+J`/`Ctrl+K`, or `Mouse
 - `Tab` / `h` / `l` switch list / reader pane · `a` new note · `e` edit draft note · `g` P2-guarded AI draft note (`note.generate`) · `L` publish link (`Ctrl+P` prepare publish baseline via `note.preparePublish`, `Ctrl+L` auto-lookup published article via `note.lookup`, `Tab` edit CSDN home, `Enter` save link) · `M` import note to Sources library · `o` / `O` jump to linked card or source · `R` generate daily recap · `C` cancel note / daily recap generation (`note.cancel` / `note.daily.cancel`) · `x` export Markdown · `d` delete note · `f` filter active course · `m` toggle math
 
 ### `b` Board (`board`)
-- **Kanban**: `h` / `l` switch column · `j` / `k` move card · `H` / `L` / `m` move card across columns · `a` add card · `e` / `Enter` edit card · `d` delete card · `S` sync StudyHub board · `r` reload
+- **Kanban**: `h` / `l` switch column · `j` / `k` move card · `H` / `L` / `m` move card across columns · `a` add card · `e` / `Enter` edit card · `d` delete card · `S` sync StudyHub board · `/` filter cards · `x` export board Markdown · `r` reload
 - **Pomodoro**: `P` / `Space` start/pause timer · `M` switch focus/break mode · `+` / `-` adjust minutes · `R` reset timer
 
 ### `t` Jobs / Tasks (`tasks`)

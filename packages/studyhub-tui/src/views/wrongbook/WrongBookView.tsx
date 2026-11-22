@@ -1,6 +1,9 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { randomUUID } from 'node:crypto';
+import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
 import { Box, Text, useInput } from 'ink';
-import type { KeyHint, ViewProps } from '../../types/contracts.js';
+import type { KeyHint, UiLanguage, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { currentCourse } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
@@ -46,7 +49,215 @@ import type {
 const PAGE_LIMIT = 100;
 const MAX_FETCH_ITEMS = 300;
 const PRACTICE_BATCH_CAP = 50;
-const CLAIMED_KEYS: readonly string[] = Object.freeze(['t', 'e', 'p', 'o', 'f', 'm', ' ', 'B', 'V', 'x']);
+const CLAIMED_KEYS: readonly string[] = Object.freeze(['t', 'e', 'p', 'o', 'f', 'm', ' ', 'B', 'V', 'x', 'X']);
+const RETRY_CODES = new Set(['EBUSY', 'EPERM', 'EACCES']);
+
+function todayLocalYmd(date = new Date()): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+async function renameWithRetry(from: string, to: string): Promise<void> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await rename(from, to);
+      return;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException)?.code || '';
+      if (!RETRY_CODES.has(code) || attempt >= 5) throw error;
+      await new Promise((done) => setTimeout(done, 40 * (attempt + 1)));
+    }
+  }
+}
+
+async function atomicWriteMarkdownFile(targetPath: string, markdown: string): Promise<void> {
+  await mkdir(dirname(targetPath), { recursive: true });
+  const temp = `${targetPath}.${randomUUID()}.tmp`;
+  await writeFile(temp, markdown, 'utf8');
+  try {
+    await renameWithRetry(temp, targetPath);
+  } catch (error) {
+    await rm(temp, { force: true }).catch(() => {});
+    throw error;
+  }
+}
+
+export interface WrongBookExportOption {
+  id?: string;
+  text?: string;
+  correct?: boolean;
+  explanation?: string;
+}
+
+export interface WrongBookExportItem extends Partial<WrongBookItem> {
+  options?: readonly WrongBookExportOption[];
+  correctAnswer?: string;
+  answer?: string;
+  explanation?: string;
+  misconception?: string;
+  yourAnswer?: string | null;
+  hint?: string;
+  cloze?: {
+    text?: string;
+    answers?: Array<{ id?: string; value?: string }>;
+  };
+  detail?: WrongBookDetail | null;
+}
+
+export interface FormatWrongBookMarkdownParams {
+  items: readonly WrongBookExportItem[];
+  course?: string | null;
+  lang: UiLanguage;
+  generatedAt?: Date | string;
+}
+
+function formatGeneratedDate(generatedAt?: Date | string): string {
+  if (typeof generatedAt === 'string' && generatedAt.trim()) {
+    return generatedAt.trim();
+  }
+  const d = generatedAt instanceof Date && !Number.isNaN(generatedAt.getTime()) ? generatedAt : new Date();
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${todayLocalYmd(d)} ${hh}:${mm}`;
+}
+
+function optionMarker(opt: WrongBookExportOption, idx: number): string {
+  const rawId = String(opt.id ?? '').trim();
+  if (rawId) {
+    return /^[a-z]$/i.test(rawId) ? rawId.toUpperCase() : rawId;
+  }
+  return String.fromCharCode(65 + (idx % 26));
+}
+
+function resolveExportAnswer(item: WrongBookExportItem): string {
+  if (item.correctAnswer && item.correctAnswer.trim()) return item.correctAnswer.trim();
+  if (item.detail?.correctAnswer && item.detail.correctAnswer.trim()) return item.detail.correctAnswer.trim();
+  if (Array.isArray(item.options) && item.options.some((o) => o?.correct)) {
+    return item.options
+      .filter((o) => o?.correct)
+      .map((o, idx) => {
+        const label = optionMarker(o, idx);
+        const text = String(o.text ?? '').trim();
+        return text ? `${label}. ${text}` : label;
+      })
+      .join('; ');
+  }
+  const clozeAnswers = item.cloze?.answers ?? item.detail?.cloze?.answers;
+  if (Array.isArray(clozeAnswers) && clozeAnswers.length > 0) {
+    return clozeAnswers.map((a) => String(a?.value ?? '').trim()).filter(Boolean).join('; ');
+  }
+  if (typeof item.answer === 'string' && item.answer.trim()) return item.answer.trim();
+  return '';
+}
+
+/** Format wrong-book cards into a printable Markdown study sheet with collapsible answers. */
+export function formatWrongBookMarkdown({
+  items,
+  course,
+  lang,
+  generatedAt,
+}: FormatWrongBookMarkdownParams): string {
+  const list = Array.isArray(items) ? items : [];
+  const dateStr = formatGeneratedDate(generatedAt);
+  const courseLabel = course && course.trim() ? course.trim() : t(lang, '全部课程', 'All Courses');
+
+  const lines: string[] = [
+    `# ${t(lang, '错题复习卷', 'Wrong-Book Study Sheet')}`,
+    '',
+    `- **${t(lang, '生成日期', 'Generated')}**: ${dateStr}`,
+    `- **${t(lang, '课程筛选', 'Course')}**: ${courseLabel}`,
+    `- **${t(lang, '错题数量', 'Cards')}**: ${list.length}`,
+    '',
+    '---',
+  ];
+
+  if (list.length === 0) {
+    lines.push('', t(lang, '_当前没有可导出的错题。_', '_No wrong cards to export._'), '');
+    return lines.join('\n');
+  }
+
+  list.forEach((item, idx) => {
+    const detail = item.detail ?? null;
+    const topic = (item.topic || '').trim();
+    const deckTitle = (item.deckTitle || item.deckId || '-').trim();
+    const kind = (item.kind || detail?.kind || '-').trim();
+    const wrongCount = item.wrongCount ?? 1;
+    const reasonText = item.errorReason ? reasonLabel(item.errorReason, lang) : '';
+
+    const headingTitle = topic
+      ? `${idx + 1}. ${topic}`
+      : `${idx + 1}. ${t(lang, `错题 #${idx + 1}`, `Question #${idx + 1}`)}`;
+
+    const metaParts = [
+      `${t(lang, '题组', 'Deck')}: ${deckTitle}`,
+      `${t(lang, '题型', 'Kind')}: ${kind}`,
+      `${t(lang, '出错次数', 'Mistakes')}: ${wrongCount}`,
+    ];
+    if (topic) metaParts.unshift(`${t(lang, '主题', 'Topic')}: ${topic}`);
+    if (reasonText) metaParts.push(`${t(lang, '错因', 'Reason')}: ${reasonText}`);
+
+    const promptText = (
+      detail?.prompt ||
+      item.prompt ||
+      item.cloze?.text ||
+      detail?.cloze?.text ||
+      t(lang, '（无题干）', '(No prompt)')
+    ).trim();
+
+    lines.push('', `## ${headingTitle}`, '', `> ${metaParts.join(' | ')}`, '', promptText);
+
+    const rawOptions: readonly WrongBookExportOption[] = Array.isArray(item.options) ? item.options : [];
+    const options = rawOptions.filter((o) => Boolean(o && (o.text || o.id)));
+    if (options.length > 0) {
+      lines.push('');
+      options.forEach((opt, optIdx) => {
+        const marker = optionMarker(opt, optIdx);
+        lines.push(`- **${marker}.** ${String(opt.text ?? '').trim()}`);
+      });
+    }
+
+    const answerText = resolveExportAnswer(item);
+    const explanationText = (item.explanation || detail?.explanation || '').trim();
+    const misconceptionText = (item.misconception || detail?.misconception || '').trim();
+    const yourAnswerText = (item.yourAnswer ?? detail?.yourAnswer ?? '').trim();
+
+    lines.push(
+      '',
+      '<details>',
+      '<summary>参考答案与解析 / Answer & Explanation</summary>',
+      '',
+    );
+
+    if (answerText) {
+      lines.push(`- **${t(lang, '参考答案', 'Reference Answer')}**: ${answerText}`);
+    }
+    if (yourAnswerText) {
+      lines.push(`- **${t(lang, '最近作答', 'Your Answer')}**: ${yourAnswerText}`);
+    }
+    if (explanationText) {
+      lines.push('', `**${t(lang, '解析', 'Explanation')}**:`, '', explanationText);
+    }
+    if (misconceptionText) {
+      lines.push('', `**${t(lang, '常见误区', 'Common Misconception')}**: ${misconceptionText}`);
+    }
+    if (detail?.distractorExplanations?.length) {
+      lines.push('', `**${t(lang, '干扰项分析', 'Distractor Analysis')}**:`);
+      for (const d of detail.distractorExplanations) {
+        lines.push(`- **${d.text}**: ${d.explanation}`);
+      }
+    }
+    if (!answerText && !explanationText && !misconceptionText) {
+      lines.push(t(lang, '_暂无参考答案与解析。_', '_No reference answer or explanation recorded._'));
+    }
+
+    lines.push('', '</details>', '', '---');
+  });
+
+  lines.push('');
+  return lines.join('\n');
+}
 
 function cardSelectionKey(item: Pick<WrongBookItem, 'deckId' | 'cardId'>): string {
   return `${item.deckId}\0${item.cardId}`;
@@ -112,6 +323,8 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const mathUnicode = useTuiStore((s) => s.preferences.mathUnicode);
   const snapshot = useTuiStore((s) => s.snapshot);
+  const bindingRoot = useTuiStore((s) => s.binding?.root);
+  const snapshotRoot = useTuiStore((s) => s.snapshot?.root);
   const notify = useTuiStore((s) => s.notify);
   const navigate = useTuiStore((s) => s.navigate);
   const setActiveRunId = useTuiStore((s) => s.setActiveRunId);
@@ -141,6 +354,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
 
   const mountedRef = useRef(true);
   const busyRef = useRef(false);
+  const exportBusyRef = useRef(false);
   const listSeqRef = useRef(0);
   const detailSeqRef = useRef(0);
   const detailCacheRef = useRef<Map<string, WrongBookDetail>>(new Map());
@@ -477,6 +691,118 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
     setSelectedIdx(0);
   }, []);
 
+  const handleExportMarkdown = useCallback(async () => {
+    if (exportBusyRef.current) return;
+    const sourceItems: WrongBookItem[] =
+      selectedMap.size > 0
+        ? (() => {
+            const picked = visibleItems.filter((item) => selectedMap.has(cardSelectionKey(item)));
+            if (picked.length === selectedMap.size) return picked;
+            const seen = new Set(picked.map((x) => cardSelectionKey(x)));
+            const rest = allItems.filter(
+              (item) => selectedMap.has(cardSelectionKey(item)) && !seen.has(cardSelectionKey(item)),
+            );
+            return [...picked, ...rest];
+          })()
+        : visibleItems;
+
+    if (sourceItems.length === 0) {
+      notify(t(lang, '当前没有可导出的错题', 'No wrong cards to export'), 'info');
+      return;
+    }
+
+    exportBusyRef.current = true;
+    try {
+      const enriched: WrongBookExportItem[] = [];
+      const CHUNK = 8;
+      for (let i = 0; i < sourceItems.length; i += CHUNK) {
+        const slice = sourceItems.slice(i, i + CHUNK);
+        const chunkRes = await Promise.all(
+          slice.map(async (item): Promise<WrongBookExportItem> => {
+            const k = itemKey(item);
+            let itemDetail = detailCacheRef.current.get(k) ?? null;
+            const [detailRes, cardRes] = await Promise.all([
+              itemDetail
+                ? Promise.resolve(null)
+                : tryAction<WrongBookDetail>(host, 'wrongbook.detail', {
+                    deckId: item.deckId,
+                    cardId: item.cardId,
+                    view: item._view,
+                  }),
+              tryAction<{
+                card?: {
+                  options?: WrongBookExportOption[];
+                  answer?: string;
+                  explanation?: string;
+                  misconception?: string;
+                  hint?: string;
+                  cloze?: { text?: string; answers?: Array<{ id?: string; value?: string }> };
+                };
+              }>(host, 'card.get', {
+                deckId: item.deckId,
+                cardId: item.cardId,
+              }),
+            ]);
+            if (detailRes && detailRes.ok && detailRes.value) {
+              itemDetail = detailRes.value;
+              if (mountedRef.current) {
+                detailCacheRef.current.set(k, detailRes.value);
+              }
+            }
+            const card = cardRes.ok ? cardRes.value?.card : undefined;
+            return {
+              ...item,
+              options: Array.isArray(card?.options) ? card.options : undefined,
+              answer: card?.answer,
+              explanation: itemDetail?.explanation || card?.explanation,
+              misconception: itemDetail?.misconception || card?.misconception,
+              hint: card?.hint,
+              cloze: card?.cloze ?? itemDetail?.cloze,
+              correctAnswer: itemDetail?.correctAnswer,
+              yourAnswer: itemDetail?.yourAnswer,
+              detail: itemDetail,
+            };
+          }),
+        );
+        enriched.push(...chunkRes);
+      }
+
+      const markdown = formatWrongBookMarkdown({
+        items: enriched,
+        course,
+        lang,
+        generatedAt: new Date(),
+      });
+
+      const rawRoot =
+        bindingRoot?.trim() ||
+        host.getLibraryRoot?.()?.trim() ||
+        host.getConfig?.()?.libraryRoot?.trim() ||
+        snapshotRoot?.trim() ||
+        '';
+      const baseDir = rawRoot ? resolve(rawRoot) : process.cwd();
+      const targetPath = join(baseDir, 'backups', `studyhub-wrongbook-${todayLocalYmd()}.md`);
+
+      await atomicWriteMarkdownFile(targetPath, markdown);
+      if (!mountedRef.current) return;
+      const arrow = asciiMode ? '->' : '→';
+      notify(
+        t(
+          lang,
+          `已导出 ${enriched.length} 道错题 ${arrow} ${targetPath}`,
+          `Exported ${enriched.length} wrong card(s) ${arrow} ${targetPath}`,
+        ),
+        'success',
+      );
+    } catch (err) {
+      if (!mountedRef.current) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      notify(t(lang, `导出错题失败：${msg}`, `Failed to export wrong cards: ${msg}`), 'error');
+    } finally {
+      exportBusyRef.current = false;
+    }
+  }, [allItems, asciiMode, bindingRoot, course, host, lang, notify, selectedMap, snapshotRoot, visibleItems]);
+
   const modalOpen = activeModal !== null;
   const viewInputActive = isActive && !modalOpen;
   useClaimKeys(CLAIMED_KEYS, viewInputActive);
@@ -487,6 +813,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
         { key: 'Space', label: t(lang, '勾选', 'Select') },
         { key: 'B', label: t(lang, `练已选(${selectedMap.size})`, `Batch(${selectedMap.size})`) },
         { key: 'V', label: t(lang, '变式练', 'Variants') },
+        { key: 'X', label: t(lang, '导出错题', 'Export MD') },
         { key: 'x', label: t(lang, '清空', 'Clear') },
         { key: 'e', label: t(lang, '标错因', 'Reason') },
         { key: 't', label: t(lang, '分流处理', 'Triage') },
@@ -499,6 +826,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
         { key: 'e', label: t(lang, '标错因', 'Reason') },
         { key: 't', label: t(lang, '分流处理', 'Triage') },
         { key: 'V', label: t(lang, '变式练', 'Variants') },
+        { key: 'X', label: t(lang, '导出错题', 'Export MD') },
         { key: 'Enter/p', label: t(lang, '重练', 'Practise') },
       ];
     }
@@ -510,6 +838,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
       { key: 'Enter/p', label: t(lang, '重练', 'Practise') },
       { key: 'P', label: t(lang, '批量练', 'Batch') },
       { key: 'V', label: t(lang, '变式练', 'Variants') },
+      { key: 'X', label: t(lang, '导出错题', 'Export MD') },
       { key: 'x', label: t(lang, '同类题', 'Similar') },
     ];
   }, [lang, tab, selectedMap.size]);
@@ -580,6 +909,10 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
       }
       if (input === 'V') {
         void handleVariantPractice();
+        return;
+      }
+      if (input === 'X') {
+        void handleExportMarkdown();
         return;
       }
       if (!selectedItem) return;

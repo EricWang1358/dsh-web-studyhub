@@ -1,4 +1,7 @@
 import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { randomUUID } from 'node:crypto';
+import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 import { Box, Text, useInput } from 'ink';
 import type { StudySnapshot, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
@@ -167,6 +170,197 @@ function totalTokensOf(u?: UsageTotals | null): number {
   );
 }
 
+export type UsageWindowDays = 7 | 30 | 90;
+
+export interface DashboardCourseReportRow {
+  rawCourse?: string;
+  label: string;
+  masteryPct: number;
+  totalCards: number;
+  dueCount: number;
+  weakCount: number;
+}
+
+export interface DashboardReportInput {
+  stats: StatsResponse | null;
+  dailyPlan?: DailyPlanResponse | null;
+  usage: UsageSummaryResponse | null;
+  usageDays: UsageWindowDays;
+  courseRows: readonly DashboardCourseReportRow[];
+  focusCourse?: string | null;
+  lang: 'zh' | 'en';
+  generatedAt?: string;
+}
+
+const RETRY_CODES = new Set(['EBUSY', 'EPERM', 'EACCES']);
+
+async function renameWithRetry(from: string, to: string): Promise<void> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await rename(from, to);
+      return;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException)?.code || '';
+      if (!RETRY_CODES.has(code) || attempt >= 5) throw error;
+      await new Promise((done) => setTimeout(done, 40 * (attempt + 1)));
+    }
+  }
+}
+
+async function atomicWriteMarkdownFile(targetPath: string, content: string): Promise<number> {
+  await mkdir(dirname(targetPath), { recursive: true });
+  const temp = `${targetPath}.${randomUUID()}.tmp`;
+  await writeFile(temp, content, 'utf8');
+  try {
+    await renameWithRetry(temp, targetPath);
+  } catch (error) {
+    await rm(temp, { force: true }).catch(() => {});
+    throw error;
+  }
+  return Buffer.byteLength(content, 'utf8');
+}
+
+function escapeMdCell(raw: unknown): string {
+  return String(raw ?? '')
+    .replace(/\|/g, '\\|')
+    .replace(/[\r\n]+/g, ' ')
+    .trim();
+}
+
+export function formatDashboardMarkdownReport({
+  stats,
+  dailyPlan,
+  usage,
+  usageDays,
+  courseRows,
+  focusCourse,
+  lang,
+  generatedAt,
+}: DashboardReportInput): string {
+  const reportDate = generatedAt || stats?.today || localTodayYmd();
+  const totals = stats?.totals;
+  const totalCards = totals?.cards ?? courseRows.reduce((sum, row) => sum + (Number(row.totalCards) || 0), 0);
+  const mastered = totals?.mastered ?? 0;
+  const dueTodayCount = totals?.due ?? courseRows.reduce((sum, row) => sum + (Number(row.dueCount) || 0), 0);
+  const weakCount = totals?.weak ?? courseRows.reduce((sum, row) => sum + (Number(row.weakCount) || 0), 0);
+  const attempts = totals?.attempts ?? 0;
+  const acc = totals?.recentRate ?? totals?.correctRate;
+  const accStr = acc !== null && acc !== undefined ? `${acc}%` : '--';
+  const activeDays = totals?.activeDays ?? 0;
+  const streak = totals?.streak ?? 0;
+
+  const lines: string[] = [
+    `# ${t(lang, 'StudyHub 学习进度报告', 'StudyHub Study Progress Report')}`,
+    '',
+    `- ${t(lang, '生成日期', 'Date')}: ${reportDate}`,
+  ];
+  if (focusCourse) {
+    lines.push(`- ${t(lang, '当前课程', 'Focus Course')}: ${escapeMdCell(focusCourse)}`);
+  }
+  if (dailyPlan && (dailyPlan.budgetMinutes !== undefined || dailyPlan.spentMinutes !== undefined)) {
+    lines.push(
+      `- ${t(lang, '今日学习时长', 'Daily Plan')}: ${Number(dailyPlan.spentMinutes) || 0} / ${Number(dailyPlan.budgetMinutes) || 0} ${t(lang, '分钟', 'min')}`,
+    );
+  }
+
+  lines.push(
+    '',
+    `## ${t(lang, '核心指标 (KPI)', 'Key Metrics (KPI)')}`,
+    '',
+    `| ${t(lang, '指标', 'Metric')} | ${t(lang, '数值', 'Value')} |`,
+    '| --- | ---: |',
+    `| ${t(lang, '总题数 (Total Cards)', 'Total Cards')} | ${totalCards} |`,
+    `| ${t(lang, '已掌握 (Mastered)', 'Mastered')} | ${mastered} |`,
+    `| ${t(lang, '今日到期 (Due Today)', 'Due Today')} | ${dueTodayCount} |`,
+    `| ${t(lang, '薄弱题 (Weak)', 'Weak')} | ${weakCount} |`,
+    `| ${t(lang, '累计作答 (Attempts)', 'Attempts')} | ${attempts} |`,
+    `| ${t(lang, '正确率 (Accuracy)', 'Accuracy')} | ${accStr} |`,
+    `| ${t(lang, '活跃天数 (Active Days)', 'Active Days')} | ${activeDays} |`,
+    `| ${t(lang, '连续学习 (Streak)', 'Streak')} | ${streak}${t(lang, ' 天', 'd')} |`,
+  );
+
+  const forecastDays = (stats?.forecast?.days ?? []).slice(0, 7);
+  if (forecastDays.length > 0) {
+    lines.push(
+      '',
+      `## ${t(lang, '未来 7 日复习预测', '7-Day Review Forecast')}`,
+      '',
+      `| ${t(lang, '日期', 'Date')} | ${t(lang, '待复习题数', 'Due Cards')} | ${t(lang, '逾期', 'Overdue')} |`,
+      '| --- | ---: | ---: |',
+    );
+    for (let i = 0; i < forecastDays.length; i += 1) {
+      const day = forecastDays[i];
+      const dayLabel = `${escapeMdCell(day.date)} (${formatForecastLabel(day.date, i, lang)})`;
+      lines.push(`| ${dayLabel} | ${Number(day.count) || 0} | ${Number(day.overdue) || 0} |`);
+    }
+  }
+
+  const weakTopics = (stats?.weakTopics ?? []).slice(0, 15);
+  lines.push('', `## ${t(lang, '薄弱知识点 (Top 15)', 'Weak Topics (Top 15)')}`, '');
+  if (weakTopics.length > 0) {
+    lines.push(
+      `| # | ${t(lang, '课程', 'Course')} | ${t(lang, '题组', 'Deck')} | ${t(lang, '知识点', 'Topic')} | ${t(lang, '错题次数', 'Wrong')} | ${t(lang, '题目数', 'Cards')} |`,
+      '| ---: | --- | --- | --- | ---: | ---: |',
+    );
+    weakTopics.forEach((wt, idx) => {
+      lines.push(
+        `| ${idx + 1} | ${escapeMdCell(wt.course || t(lang, '未分组', 'Uncategorized'))} | ${escapeMdCell(wt.deckTitle || wt.deckId)} | ${escapeMdCell(wt.topic)} | ${Number(wt.wrong) || 0} | ${wt.cards?.length ?? 0} |`,
+      );
+    });
+  } else {
+    lines.push(`_${t(lang, '暂无薄弱知识点记录。', 'No weak topics recorded.')}_`);
+  }
+
+  lines.push('', `## ${t(lang, '各课程掌握度', 'Per-Course Mastery')}`, '');
+  if (courseRows.length > 0) {
+    lines.push(
+      `| ${t(lang, '课程', 'Course')} | ${t(lang, '掌握度', 'Mastery')} | ${t(lang, '总题数', 'Total Cards')} | ${t(lang, '今日到期', 'Due Today')} | ${t(lang, '薄弱题', 'Weak')} |`,
+      '| --- | ---: | ---: | ---: | ---: |',
+    );
+    for (const row of courseRows) {
+      lines.push(
+        `| ${escapeMdCell(row.label)} | ${row.masteryPct}% | ${row.totalCards} | ${row.dueCount} | ${row.weakCount} |`,
+      );
+    }
+  } else {
+    lines.push(`_${t(lang, '暂无课程统计数据。', 'No course mastery data yet.')}_`);
+  }
+
+  const totalTokens = totalTokensOf(usage?.total);
+  const totalCalls = Number(usage?.total?.calls ?? 0);
+  const inputTokens = Number(usage?.total?.uncachedInputTokens ?? 0);
+  const outputTokens = Number(usage?.total?.outputTokens ?? 0);
+  const cacheRead = Number(usage?.total?.cacheReadTokens ?? 0);
+  const cacheWrite = Number(usage?.total?.cacheWriteTokens ?? 0);
+
+  lines.push(
+    '',
+    `## ${t(lang, `AI Token 用量汇总 (${usageDays}天)`, `AI Token Usage Summary (${usageDays}d)`)}`,
+    '',
+    `- ${t(lang, '统计窗口', 'Window')}: ${usageDays}${t(lang, ' 天', 'd')}`,
+    `- ${t(lang, '调用次数', 'Calls')}: ${totalCalls}`,
+    `- ${t(lang, '总 Token', 'Total Tokens')}: ${totalTokens} (${formatTokens(totalTokens)})`,
+    `- ${t(lang, '明细 (输入 / 输出 / 缓存读 / 缓存写)', 'Breakdown (Input / Output / Cache Read / Cache Write)')}: ${inputTokens} / ${outputTokens} / ${cacheRead} / ${cacheWrite}`,
+  );
+
+  const featureEntries = Object.entries(usage?.byFeature ?? {});
+  if (featureEntries.length > 0) {
+    lines.push(
+      '',
+      `| ${t(lang, '功能模块', 'Feature')} | ${t(lang, '调用次数', 'Calls')} | ${t(lang, '总 Token', 'Tokens')} |`,
+      '| --- | ---: | ---: |',
+    );
+    for (const [feature, totalsEntry] of featureEntries) {
+      lines.push(
+        `| ${escapeMdCell(feature)} | ${Number(totalsEntry?.calls ?? 0)} | ${totalTokensOf(totalsEntry)} |`,
+      );
+    }
+  }
+
+  lines.push('');
+  return lines.join('\n');
+}
+
 interface KpiCardProps {
   label: string;
   value: string;
@@ -208,6 +402,7 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const snapshot = useTuiStore((s) => s.snapshot);
+  const bindingRoot = useTuiStore((s) => s.binding?.root);
   const navigate = useTuiStore((s) => s.navigate);
   const notify = useTuiStore((s) => s.notify);
   const { refresh: refreshSnapshot } = useShellActions();
@@ -217,6 +412,7 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
 
   const [stats, setStats] = useState<StatsResponse | null>(null);
   const [usage, setUsage] = useState<UsageSummaryResponse | null>(null);
+  const [usageDays, setUsageDays] = useState<UsageWindowDays>(30);
   const [dailyPlan, setDailyPlan] = useState<DailyPlanResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -226,8 +422,11 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
   const [mapModalOpen, setMapModalOpen] = useState(false);
 
   const reqSeq = useRef(0);
+  const usageSeq = useRef(0);
   const planSeq = useRef(0);
+  const usageDaysRef = useRef<UsageWindowDays>(30);
   const busyRef = useRef(false);
+  const exportBusyRef = useRef(false);
   const mountedRef = useRef(true);
   useEffect(() => {
     mountedRef.current = true;
@@ -251,17 +450,18 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
 
   const loadData = useCallback(async () => {
     const seq = ++reqSeq.current;
+    const uSeq = ++usageSeq.current;
     setLoading(true);
     setError(null);
     void loadDailyPlan();
     const [statsRes, usageRes] = await Promise.all([
       tryAction<StatsResponse>(host, 'stats', course ? { course } : {}),
-      tryAction<UsageSummaryResponse>(host, 'usage.summary', { days: 30 }),
+      tryAction<UsageSummaryResponse>(host, 'usage.summary', { days: usageDaysRef.current }),
     ]);
     if (!mountedRef.current || reqSeq.current !== seq) return;
     if (statsRes.ok && statsRes.value) setStats(statsRes.value);
     else if (!statsRes.ok) setError(statsRes.error?.message || t(lang, '加载统计失败', 'Failed to load stats'));
-    if (usageRes.ok && usageRes.value) setUsage(usageRes.value);
+    if (usageRes.ok && usageRes.value && usageSeq.current === uSeq) setUsage(usageRes.value);
     setLoading(false);
   }, [host, course, lang, loadDailyPlan]);
 
@@ -449,7 +649,61 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
   const wide = width >= 96;
   const extraWide = width >= 110;
 
-  const claimedKeys = useMemo(() => ['j', 'k', 'r', 'p', 'w', 'f', 'm'], []);
+  const handleCycleUsageDays = useCallback(async () => {
+    const nextDays: UsageWindowDays =
+      usageDaysRef.current === 30 ? 90 : usageDaysRef.current === 90 ? 7 : 30;
+    usageDaysRef.current = nextDays;
+    setUsageDays(nextDays);
+    const seq = ++usageSeq.current;
+    const res = await tryAction<UsageSummaryResponse>(host, 'usage.summary', { days: nextDays });
+    if (!mountedRef.current || usageSeq.current !== seq) return;
+    if (res.ok && res.value) {
+      setUsage(res.value);
+      notify(
+        t(lang, `AI 用量窗口: 最近 ${nextDays} 天`, `AI usage window: ${nextDays}d`),
+        'info',
+      );
+    } else if (!res.ok) {
+      notify(
+        res.error?.message || t(lang, '加载 AI 用量失败', 'Failed to load AI usage'),
+        'error',
+      );
+    }
+  }, [host, lang, notify]);
+
+  const handleExportReport = useCallback(async () => {
+    if (exportBusyRef.current) return;
+    exportBusyRef.current = true;
+    try {
+      const baseDir = bindingRoot || host.getLibraryRoot?.() || process.cwd();
+      const targetPath = join(baseDir, 'backups', `studyhub-report-${localTodayYmd()}.md`);
+      const markdown = formatDashboardMarkdownReport({
+        stats,
+        dailyPlan,
+        usage,
+        usageDays,
+        courseRows: courseStats,
+        focusCourse: course,
+        lang,
+        generatedAt: localTodayYmd(),
+      });
+      await atomicWriteMarkdownFile(targetPath, markdown);
+      if (!mountedRef.current) return;
+      const arrow = asciiMode ? '->' : '→';
+      notify(
+        t(lang, `已导出报告 ${arrow} ${targetPath}`, `Exported MD ${arrow} ${targetPath}`),
+        'success',
+      );
+    } catch (err) {
+      if (!mountedRef.current) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      notify(t(lang, `导出报告失败: ${msg}`, `Failed to export report: ${msg}`), 'error');
+    } finally {
+      exportBusyRef.current = false;
+    }
+  }, [asciiMode, bindingRoot, course, courseStats, dailyPlan, host, lang, notify, stats, usage, usageDays]);
+
+  const claimedKeys = useMemo(() => ['j', 'k', 'r', 'p', 'w', 'f', 'm', 'd', 'x'], []);
   useClaimKeys(claimedKeys, isActive && !mapModalOpen);
 
   const footerHints = useMemo(
@@ -466,9 +720,11 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
             : t(lang, '7日预测', '7d Forecast'),
       },
       { key: 'm', label: t(lang, '知识地图', 'Map') },
+      { key: 'd', label: t(lang, `用量:${usageDays}天`, `Usage:${usageDays}d`) },
+      { key: 'x', label: t(lang, '导出报告', 'Export MD') },
       { key: 'r', label: t(lang, '刷新', 'Refresh') },
     ],
-    [lang, extraWide, showForecast],
+    [lang, extraWide, showForecast, usageDays],
   );
   useFooterHints(footerHints, isActive && !mapModalOpen);
 
@@ -476,6 +732,14 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
     (input) => {
       if (input === 'm') {
         setMapModalOpen(true);
+        return;
+      }
+      if (input === 'd') {
+        void handleCycleUsageDays();
+        return;
+      }
+      if (input === 'x') {
+        void handleExportReport();
         return;
       }
       if (input === 'r') {
@@ -608,7 +872,7 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
       <KpiCard
         label={t(lang, 'Token / 调用', 'Tokens / Calls')}
         value={formatTokens(totalTokens)}
-        sub={t(lang, `${totalCalls} 次 (30天)`, `${totalCalls} calls (30d)`)}
+        sub={t(lang, `${totalCalls} 次 (${usageDays}天)`, `${totalCalls} calls (${usageDays}d)`)}
         tone="info"
         width={kpiW}
       />
@@ -640,7 +904,7 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
         <Text color={theme.dim}>{t(lang, ` (连续${totals?.streak ?? 0}天)${sep}`, ` (${totals?.streak ?? 0}d)${sep}`)}</Text>
         <Text color={theme.muted}>{t(lang, '用量 ', 'Usage ')}</Text>
         <Text color={theme.info} bold>{formatTokens(totalTokens)}</Text>
-        <Text color={theme.dim}>{t(lang, ` (${totalCalls}次)`, ` (${totalCalls})`)}</Text>
+        <Text color={theme.dim}>{t(lang, ` (${totalCalls}次/${usageDays}天)`, ` (${totalCalls}/${usageDays}d)`)}</Text>
       </Text>
     </Box>
   );
