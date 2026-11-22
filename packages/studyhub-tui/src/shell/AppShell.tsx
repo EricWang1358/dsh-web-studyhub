@@ -7,10 +7,10 @@ import { KeyHintBar, Spinner, ToastStack } from '../components/Badge.js';
 import { isKeyClaimed } from '../components/focus.js';
 import { TopBar } from './TopBar.js';
 import { SideNav, sideNavWidth } from './SideNav.js';
-import { Launchpad } from './Launchpad.js';
 import { ShellActionsContext, createDefaultShellActions, type ShellActions } from './actions.js';
 import { isLibraryEmpty } from './data.js';
 
+const Launchpad = lazy(() => import('./Launchpad.js').then((m) => ({ default: m.Launchpad })));
 const CommandPalette = lazy(() => import('./CommandPalette.js').then((m) => ({ default: m.CommandPalette })));
 const HelpOverlay = lazy(() => import('./HelpOverlay.js').then((m) => ({ default: m.HelpOverlay })));
 const CoursePickerModal = lazy(() => import('./CoursePickerModal.js').then((m) => ({ default: m.CoursePickerModal })));
@@ -199,7 +199,11 @@ export const AppShell = memo(function AppShell({
 
   let main: ReactNode;
   if (showLaunchpad) {
-    main = <Launchpad width={columns - 2} height={bodyH} isActive={!overlayOpen} />;
+    main = (
+      <Suspense fallback={null}>
+        <Launchpad width={columns - 2} height={bodyH} isActive={!overlayOpen} />
+      </Suspense>
+    );
   } else if (loading && !snapshot) {
     const ell = asciiMode ? '...' : '…';
     main = (

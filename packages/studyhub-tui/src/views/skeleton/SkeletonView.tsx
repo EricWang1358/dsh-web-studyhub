@@ -2,6 +2,7 @@ import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useStat
 import { Box, Text, useInput } from 'ink';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
+import { useShellActions } from '../../shell/actions.js';
 import {
   Badge,
   ConfirmDialog,
@@ -44,7 +45,7 @@ const NodeEditModal = lazy(() =>
   import('./TopicGroupsModal.js').then((m) => ({ default: m.NodeEditModal })),
 );
 
-const CLAIMED_KEYS = ['r', 'L', 'R', 'G', 'E'] as const;
+const CLAIMED_KEYS = ['r', 'L', 'R', 'G', 'E', 'D'] as const;
 
 interface SkeletonLintCard {
   deckId: string;
@@ -314,6 +315,7 @@ function extractJsonObject(raw: string): Record<string, unknown> | null {
 
 export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActive }) => {
   const theme = useTheme();
+  const { refresh } = useShellActions();
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const snapshotDecks = useTuiStore((s) => s.snapshot?.decks);
@@ -344,6 +346,7 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
   const [groupsOpen, setGroupsOpen] = useState(false);
   const [nodeEditOpen, setNodeEditOpen] = useState(false);
   const [confirmGenOpen, setConfirmGenOpen] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [reloadSeq, setReloadSeq] = useState(0);
 
@@ -787,6 +790,47 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
     }
   }, [busyAction, host, activeCourse, lang, topics]);
 
+  const deleteSkeleton = useCallback(async () => {
+    const target = detail;
+    if (!target || busyRef.current || busyAction !== null) return;
+    busyRef.current = true;
+    setBusyAction('delete');
+    try {
+      const res = await host.call<{ deleted?: string }>('skeleton.delete', { id: target.id });
+      if (!mountedRef.current) return;
+      if (!res.ok) {
+        useTuiStore
+          .getState()
+          .notify(res.error?.message || t(lang, '删除知识骨架失败', 'Failed to delete skeleton'), 'error');
+        return;
+      }
+      setDetail(null);
+      setDiagramCount(0);
+      setSelectedNodeId(null);
+      setSelectedSkeletonId(null);
+      setLintResult(null);
+      setReloadSeq((n) => n + 1);
+      await refresh();
+      if (!mountedRef.current) return;
+      useTuiStore.getState().notify(
+        t(
+          lang,
+          `已删除知识骨架「${target.title}」（题组与卡片保持不变）`,
+          `Deleted skeleton "${target.title}" (decks and cards remain untouched)`,
+        ),
+        'success',
+      );
+    } catch (err) {
+      if (mountedRef.current) {
+        const msg = err instanceof Error ? err.message : String(err);
+        useTuiStore.getState().notify(t(lang, `删除知识骨架失败：${msg}`, `Failed to delete skeleton: ${msg}`), 'error');
+      }
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusyAction(null);
+    }
+  }, [detail, busyAction, host, lang, refresh]);
+
   const inspectorLines = useMemo(() => {
     const bullet = asciiMode ? '* ' : '• ';
     const focusSym = asciiMode ? '^ ' : '⚑ ';
@@ -897,20 +941,22 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
     [lintResult, detail, topics, cardIndex, nodeById, lang],
   );
 
-  const modalOpen = switcherOpen || lintOpen || routeOpen || groupsOpen || nodeEditOpen || confirmGenOpen;
+  const modalOpen =
+    switcherOpen || lintOpen || routeOpen || groupsOpen || nodeEditOpen || confirmGenOpen || confirmDeleteOpen;
   useClaimKeys(CLAIMED_KEYS, isActive && !modalOpen);
 
   const hints: KeyHint[] = useMemo(
     () => [
       { key: 'j/k', label: t(lang, '移动', 'Move') },
-      { key: 'Space/h/l', label: t(lang, '展开/折叠', 'Toggle') },
-      { key: 'p', label: t(lang, '练习节点', 'Practise') },
-      ...(detail && selectedNode ? [{ key: 'E', label: t(lang, '编辑节点', 'Edit') }] : []),
+      { key: 'Space/h/l', label: t(lang, '折叠', 'Toggle') },
+      { key: 'p', label: t(lang, '练习', 'Practise') },
+      ...(detail && selectedNode ? [{ key: 'E', label: t(lang, '编辑', 'Edit') }] : []),
+      ...(detail ? [{ key: 'D', label: t(lang, '删除', 'Delete') }] : []),
       { key: 'R', label: t(lang, '路线', 'Route') },
       { key: 'G', label: t(lang, '分组', 'Groups') },
       { key: 'L', label: t(lang, '自检', 'Lint') },
-      { key: 'g', label: t(lang, '生成骨架', 'Generate') },
-      { key: 's', label: t(lang, '切换骨架', 'Switch') },
+      { key: 'g', label: t(lang, '生成', 'Gen') },
+      { key: 's', label: t(lang, '切换', 'Switch') },
     ],
     [lang, detail, selectedNode],
   );
@@ -951,6 +997,12 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
       }
       if (input === 'E' && detail && selectedNode) {
         setNodeEditOpen(true);
+        return;
+      }
+      if (input === 'D' && detail) {
+        if (!busyRef.current && busyAction === null) {
+          setConfirmDeleteOpen(true);
+        }
         return;
       }
       if (input === 'p') {
@@ -1115,7 +1167,18 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
               <Badge label={t(lang, `附图 ${diagramCount}`, `${diagramCount} diag`)} tone="info" variant="outline" />
             </Box>
           ) : null}
-          {busyAction ? <Spinner label={t(lang, '生成中...', 'Working...')} active={isActive} /> : null}
+          {busyAction ? (
+            <Spinner
+              label={
+                busyAction === 'delete'
+                  ? t(lang, '删除中...', 'Deleting...')
+                  : busyAction === 'generate'
+                    ? t(lang, '生成中...', 'Generating...')
+                    : t(lang, '处理中...', 'Working...')
+              }
+              active={isActive}
+            />
+          ) : null}
         </Box>
         <Box height={1} overflow="hidden">
           <Text color={theme.muted}>{truncateDisplay(legendText, Math.max(12, width - 2), asciiMode ? '...' : '…')}</Text>
@@ -1368,6 +1431,27 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
             void generateSkeleton();
           }}
           onCancel={() => setConfirmGenOpen(false)}
+        />
+      ) : null}
+
+      {confirmDeleteOpen && detail ? (
+        <ConfirmDialog
+          title={t(lang, '确认删除知识骨架', 'Delete Knowledge Skeleton')}
+          message={t(
+            lang,
+            `确定永久删除当前知识骨架「${detail.title}」吗？关联的图表也会一并删除，题组与卡片本身不受影响。`,
+            `Permanently delete skeleton "${detail.title}"? Associated diagrams will also be removed, while decks and cards remain untouched.`,
+          )}
+          confirmLabel={t(lang, '永久删除', 'Delete')}
+          cancelLabel={t(lang, '取消', 'Cancel')}
+          danger
+          width={Math.min(62, Math.max(40, width - 6))}
+          isActive={isActive}
+          onConfirm={() => {
+            setConfirmDeleteOpen(false);
+            void deleteSkeleton();
+          }}
+          onCancel={() => setConfirmDeleteOpen(false)}
         />
       ) : null}
     </Box>

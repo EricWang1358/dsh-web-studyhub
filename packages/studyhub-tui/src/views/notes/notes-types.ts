@@ -45,12 +45,20 @@ export interface NoteItem {
   revision?: number;
   createdAt?: string;
   updatedAt?: string;
+  publishedAt?: string;
   cards?: NoteCardRef[];
   cardCount?: number;
   courses?: string[];
   daily?: NoteDailyMeta;
   generation?: NoteGenerationState;
+  publicUrl?: string;
   publishedUrl?: string;
+  link?: string;
+}
+
+export function getNotePublishUrl(note: Pick<NoteItem, 'publicUrl' | 'publishedUrl' | 'link'> | null | undefined): string {
+  const raw = note?.publicUrl || note?.publishedUrl || note?.link;
+  return typeof raw === 'string' && raw.trim() ? raw.trim() : '';
 }
 
 export interface DailyRecapGroup {

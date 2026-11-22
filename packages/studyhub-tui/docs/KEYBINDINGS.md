@@ -122,7 +122,7 @@ Inside the palette: `↑`/`↓`, `Ctrl+P`/`Ctrl+N`, or `Ctrl+J`/`Ctrl+K` move se
 - `Tab` / `h` / `l` switch TOC / reading pane · `m` toggle Unicode/LaTeX math · `e` edit or revert (`[u]`) section · `R` rename TOC node · `[` / `]` move node up/down among siblings · `D` delete node (keeps notes in Unplaced) · `z` revert last structure change · `p` practise 5 cards · `P` pinned book QA · `w` final-week crunch & mock · `x` export Markdown · `g` build/rebuild book (`a` apply / `u` undo when rebuild-pending) · `r` refresh
 
 ### `8` Skeleton (`skeleton`)
-- `j` / `k` move node · `Space` / `Enter` / `h` / `l` expand/collapse · `Tab` switch pane · `p` practise node · `E` edit skeleton node · `R` course learning route · `G` topic groups manager · `L` skeleton lint · `g` generate skeleton · `s` switch skeleton · `r` refresh
+- `j` / `k` move node · `Space` / `Enter` / `h` / `l` expand/collapse · `Tab` switch pane · `p` practise node · `E` edit skeleton node · `R` course learning route · `G` topic groups manager · `L` skeleton lint · `g` generate skeleton · `s` switch skeleton · `D` delete skeleton (removes diagrams; keeps decks/cards) · `r` refresh
 
 ### `9` Exam Coach (`examcoach`)
 - `1-4` switch Calibration / Variants / Evidence / Compile tabs · `p` / `P` coach profile & long-term prefs · `a` / `A` analyze / AI deepen · `N` past paper notes · `v` reveal sample answer · `x` / `y` / `z` three-item confirmation · `e` edit quota · `g` / `G` generate variants / batch · `b` compile preview · `m` mock check · `r` refresh
@@ -131,7 +131,7 @@ Inside the palette: `↑`/`↓`, `Ctrl+P`/`Ctrl+N`, or `Ctrl+J`/`Ctrl+K` move se
 - `1` / `2` switch Focus / Crunch tabs · `a` add focus point · `d` remove focus point · `p` practise unmastered / mock · `g` / `G` gap-fill generation · `P` study plan & custom wizard · `Space` mark seen (Crunch) · `m` mark read (Crunch)
 
 ### `n` Notes (`notes`)
-- `Tab` / `h` / `l` switch list / reader pane · `a` new note · `e` edit draft note · `o` / `O` jump to linked card or source · `R` generate daily recap · `x` export Markdown · `d` delete note · `f` filter active course · `m` toggle math
+- `Tab` / `h` / `l` switch list / reader pane · `a` new note · `e` edit draft note · `L` publish link · `o` / `O` jump to linked card or source · `R` generate daily recap · `C` cancel daily recap · `x` export Markdown · `d` delete note · `f` filter active course · `m` toggle math
 
 ### `b` Board (`board`)
 - **Kanban**: `h` / `l` switch column · `j` / `k` move card · `H` / `L` / `m` move card across columns · `a` add card · `e` / `Enter` edit card · `d` delete card · `S` sync StudyHub board · `r` reload
@@ -141,7 +141,7 @@ Inside the palette: `↑`/`↓`, `Ctrl+P`/`Ctrl+N`, or `Ctrl+J`/`Ctrl+K` move se
 - `1` / `2` / `3` / `Tab` filter Running / All / Archived · `o` live output modal · `m` send refinement message to active job · `w` workflow history · `v` toggle output / trace · `e` export trace JSON · `D` purge saved traces · `Enter` open draft · `x` cancel job · `a` archive/restore · `d` dismiss/delete
 
 ### `a` Audio (`audio`)
-- `i` import audio file (with Tab path completion) · `s` transcription provider settings · `t` test provider connectivity · `g` generate questions from transcript · `r` refresh
+- `i` import audio file (with Tab path completion) · `u` import subtitles (`.srt`/`.vtt`/`.txt`/`.json`) · `p` preflight diagnostics · `R` retry failed job · `s` transcription provider settings · `t` test provider connectivity · `g` generate questions from transcript · `r` refresh
 
 ### `,` Settings (`settings`)
 - `1-4` switch Models / Workspace / StudyGen / Appearance tabs

@@ -133,7 +133,9 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'R', label: t(lang, '课程学习路线', 'Course route') },
         { key: 'G', label: t(lang, '主题分组管理', 'Topic groups') },
         { key: 'E', label: t(lang, '编辑骨架节点', 'Edit skeleton node') },
-        { key: 'L', label: t(lang, '骨架自检', 'Skeleton lint') },
+        { key: 'D', label: t(lang, '删除知识骨架', 'Delete skeleton') },
+        { key: 'L', label: t(lang, '骨架自检 / 发布链接', 'Skeleton lint / Publish link') },
+        { key: 'C', label: t(lang, '取消每日总结', 'Cancel daily recap') },
         { key: 'o', label: t(lang, '跳转关联', 'Jump linked ref') },
       ],
     },
@@ -162,10 +164,13 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       ],
     },
     {
-      title: t(lang, '后台任务 · Tasks', 'Tasks'),
+      title: t(lang, '后台任务与音频 · Tasks / Audio', 'Tasks & Audio'),
       items: [
         { key: 'w / o / m', label: t(lang, '工作流历史 / 输出 / 指令', 'Workflows / Output / Msg') },
         { key: 'e / D', label: t(lang, '导出 / 清空调用轨迹', 'Export / Purge Traces') },
+        { key: 'p', label: t(lang, '音频环境自检', 'Audio preflight') },
+        { key: 'R', label: t(lang, '重试失败转写', 'Retry audio job') },
+        { key: 'u', label: t(lang, '导入字幕', 'Import subtitles') },
       ],
     },
     {

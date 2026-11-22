@@ -29,6 +29,7 @@ import {
   defaultExportPath,
   expandUserPath,
   formatShortDate,
+  getNotePublishUrl,
   isDailyNote,
   isNoteWritable,
   resolveRecapTimeZone,
@@ -45,9 +46,11 @@ type ActiveModal =
   | { type: 'create' }
   | { type: 'edit'; note: NoteItem }
   | { type: 'export'; note: NoteItem }
-  | { type: 'delete'; note: NoteItem };
+  | { type: 'delete'; note: NoteItem }
+  | { type: 'link'; note: NoteItem }
+  | { type: 'cancelRecap'; noteId: string; label: string };
 
-const CLAIMED_KEYS = ['a', 'o', 'R'] as const;
+const CLAIMED_KEYS = ['a', 'o', 'R', 'L', 'C'] as const;
 
 interface LinkedCardTarget {
   deckId: string;
@@ -204,12 +207,21 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
   const [exportPath, setExportPath] = useState('');
   const [exportError, setExportError] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [csdnHome, setCsdnHome] = useState('');
+  const [linkUrl, setLinkUrl] = useState('');
+  const [linkHome, setLinkHome] = useState('');
+  const [linkField, setLinkField] = useState<'url' | 'home'>('url');
+  const [linkError, setLinkError] = useState('');
+  const [linking, setLinking] = useState(false);
+  const [cancellingRecap, setCancellingRecap] = useState(false);
 
   const mountedRef = useRef(true);
   const listReqRef = useRef(0);
   const detailReqRef = useRef(0);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSelectIdRef = useRef<string | null>(navNoteId || null);
+  const linkingRef = useRef(false);
+  const cancellingRecapRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -238,6 +250,7 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
         if (listRes.ok && Array.isArray(listRes.value?.notes)) {
           const fetchedNotes = listRes.value.notes;
           setNotes(fetchedNotes);
+          if (typeof listRes.value.home === 'string') setCsdnHome(listRes.value.home);
           setError('');
           const pendingId = pendingSelectIdRef.current;
           if (pendingId) {
@@ -445,6 +458,122 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
     }
   }, [generatingRecap, primaryRecapGroup, notify, lang, host, timeZone, dailyStatus?.tone, fetchNotesAndDaily]);
 
+  const runningRecapTarget = useMemo(() => {
+    if (displayedNote && isDailyNote(displayedNote) && displayedNote.generation?.status === 'running') {
+      return { id: displayedNote.id, label: displayedNote.title || displayedNote.daily?.course || '' };
+    }
+    const runningNote = notes.find((n) => isDailyNote(n) && n.generation?.status === 'running');
+    if (runningNote) {
+      return { id: runningNote.id, label: runningNote.title || runningNote.daily?.course || '' };
+    }
+    const runningGroup = dailyStatus?.groups?.find((g) => g.generation?.status === 'running' && g.noteId);
+    if (runningGroup?.noteId) {
+      return { id: runningGroup.noteId, label: runningGroup.course || runningGroup.day || '' };
+    }
+    return null;
+  }, [displayedNote, notes, dailyStatus]);
+
+  const handleSaveHome = useCallback(async () => {
+    if (linkingRef.current || linking) return;
+    const trimmed = linkHome.trim();
+    if (!trimmed) {
+      setLinkError(t(lang, '请输入 CSDN 公开博客主页', 'Please enter CSDN public blog home URL'));
+      return;
+    }
+    linkingRef.current = true;
+    setLinking(true);
+    setLinkError('');
+    try {
+      const res = await host.call<{ home?: string }>('note.home', { home: trimmed });
+      if (!mountedRef.current) return;
+      if (!res.ok) {
+        setLinkError(res.error?.message || t(lang, '保存 CSDN 主页失败', 'Failed to save CSDN home'));
+        return;
+      }
+      const savedHome = res.value?.home || trimmed;
+      setCsdnHome(savedHome);
+      setLinkHome(savedHome);
+      setLinkField('url');
+      notify(t(lang, 'CSDN 公开主页已保存', 'CSDN home saved'), 'success');
+    } catch (err) {
+      if (mountedRef.current) {
+        setLinkError(err instanceof Error ? err.message : String(err));
+      }
+    } finally {
+      linkingRef.current = false;
+      if (mountedRef.current) setLinking(false);
+    }
+  }, [linking, linkHome, lang, host, notify]);
+
+  const handleLinkConfirm = useCallback(async () => {
+    if (!modal || modal.type !== 'link' || linkingRef.current || linking) return;
+    const trimmedUrl = linkUrl.trim();
+    if (!trimmedUrl) {
+      setLinkError(t(lang, '请输入公开文章链接', 'Please enter a published article URL'));
+      return;
+    }
+    linkingRef.current = true;
+    setLinking(true);
+    setLinkError('');
+    try {
+      const res = await host.call<NoteItem>('note.link', {
+        id: modal.note.id,
+        url: trimmedUrl,
+        expectedRevision: modal.note.revision ?? 0,
+      });
+      if (!mountedRef.current) return;
+      if (!res.ok) {
+        setLinkError(res.error?.message || t(lang, '关联公开链接失败', 'Failed to link published URL'));
+        return;
+      }
+      if (res.value) {
+        setActiveNote(res.value);
+      }
+      setModal(null);
+      notify(t(lang, '公开文章链接已关联', 'Published link saved'), 'success');
+      await fetchNotesAndDaily(true);
+      void refreshSnapshot();
+    } catch (err) {
+      if (mountedRef.current) {
+        setLinkError(err instanceof Error ? err.message : String(err));
+      }
+    } finally {
+      linkingRef.current = false;
+      if (mountedRef.current) setLinking(false);
+    }
+  }, [modal, linking, linkUrl, lang, host, notify, fetchNotesAndDaily, refreshSnapshot]);
+
+  const handleCancelRecapConfirm = useCallback(
+    async (noteId: string) => {
+      if (cancellingRecapRef.current || cancellingRecap) return;
+      cancellingRecapRef.current = true;
+      setCancellingRecap(true);
+      setModal(null);
+      try {
+        const res = await host.call<NoteItem>('note.daily.cancel', { id: noteId });
+        if (!mountedRef.current) return;
+        if (!res.ok) {
+          notify(res.error?.message || t(lang, '取消每日总结失败', 'Failed to cancel daily recap'), 'error');
+          return;
+        }
+        if (res.value && activeNote?.id === noteId) {
+          setActiveNote(res.value);
+        }
+        notify(t(lang, '已停止每日总结生成，已完成内容已保留', 'Daily recap generation cancelled; completed content kept'), 'info');
+        await fetchNotesAndDaily(true);
+        void refreshSnapshot();
+      } catch (err) {
+        if (mountedRef.current) {
+          notify(err instanceof Error ? err.message : String(err), 'error');
+        }
+      } finally {
+        cancellingRecapRef.current = false;
+        if (mountedRef.current) setCancellingRecap(false);
+      }
+    },
+    [cancellingRecap, host, lang, notify, activeNote?.id, fetchNotesAndDaily, refreshSnapshot],
+  );
+
   const handleDeleteNote = useCallback(
     async (target: NoteItem) => {
       setModal(null);
@@ -557,6 +686,14 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
         void triggerDailyRecap();
         return;
       }
+      if (input === 'C') {
+        if (!runningRecapTarget) {
+          notify(t(lang, '当前没有正在生成的每日总结', 'No daily recap is currently running'), 'info');
+          return;
+        }
+        setModal({ type: 'cancelRecap', noteId: runningRecapTarget.id, label: runningRecapTarget.label });
+        return;
+      }
       if (input === 'f' && focusCourse) {
         setFilterCourseOnly((v) => !v);
         return;
@@ -572,6 +709,14 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
       }
       if (input === 'O' && linkedRefs.source) {
         void openLinkedRef(true);
+        return;
+      }
+      if (input === 'L') {
+        setLinkUrl(getNotePublishUrl(displayedNote));
+        setLinkHome(csdnHome);
+        setLinkField('url');
+        setLinkError('');
+        setModal({ type: 'link', note: displayedNote });
         return;
       }
       if (input === 'e') {
@@ -600,13 +745,15 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
       { key: 'a', label: t(lang, '新建', 'New') },
       { key: 'e', label: t(lang, '编辑', 'Edit') },
       { key: 'o', label: t(lang, '打开关联', 'Open Ref') },
+      { key: 'L', label: t(lang, '外链', 'Link') },
       { key: 'R', label: t(lang, '日结', 'Recap') },
+      ...(anyRecapRunning ? [{ key: 'C', label: t(lang, '停日结', 'Stop Recap') }] : []),
       { key: 'x', label: t(lang, '导出', 'Export') },
       { key: 'd', label: t(lang, '删除', 'Del') },
       { key: 'm', label: t(lang, '公式', 'Math') },
       { key: 'Tab', label: t(lang, '切栏', 'Pane') },
     ],
-    [lang],
+    [lang, anyRecapRunning],
   );
   useFooterHints(hints, isActive);
 
@@ -776,8 +923,11 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
         }}
         right={({ width: paneW, height: paneH }) => {
           const readerW = Math.max(12, paneW - 4);
+          const publishUrl = getNotePublishUrl(displayedNote);
           const hasLinkRow = Boolean(displayedNote && (linkedRefs.card || linkedRefs.source));
-          const readerH = Math.max(3, paneH - (hasLinkRow ? 6 : 5));
+          const hasPublishRow = Boolean(displayedNote && publishUrl);
+          const headerExtraRows = (hasLinkRow ? 1 : 0) + (hasPublishRow ? 1 : 0);
+          const readerH = Math.max(3, paneH - (5 + headerExtraRows));
           if (!displayedNote) {
             return (
               <Panel title={t(lang, '笔记正文', 'Note Reader')} focused={activePane === 'right'} width={paneW} height={paneH}>
@@ -849,9 +999,20 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
                   ) : null}
                 </Box>
               ) : null}
+              {hasPublishRow ? (
+                <Box height={1} overflow="hidden" gap={1}>
+                  <Badge label={t(lang, '外链', 'Link')} tone="success" variant="soft" />
+                  <Text color={theme.info}>{truncateDisplay(publishUrl, Math.max(10, readerW - 9), ell)}</Text>
+                </Box>
+              ) : null}
               <Text color={theme.border}>{(asciiMode ? '-' : '─').repeat(Math.max(4, readerW))}</Text>
               <MarkdownView
-                markdown={displayedNote.markdown || t(lang, '_（暂无正文内容，按 `e` 编辑）_', '_Empty note — press `e` to edit_')}
+                markdown={
+                  displayedNote.markdown ||
+                  (displayedNote.status === 'published' && !daily
+                    ? t(lang, '_（已关联公开文章，按 `L` 更新外链）_', '_Published externally — press `L` to update link_')
+                    : t(lang, '_（暂无正文内容，按 `e` 编辑）_', '_Empty note — press `e` to edit_'))
+                }
                 width={readerW}
                 height={readerH}
                 isActive={noModalActive && activePane === 'right'}
@@ -922,6 +1083,103 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
             {exportError ? <Text color={theme.error}>{`${asciiMode ? 'x' : '✕'} ${exportError}`}</Text> : null}
           </Box>
         </Modal>
+      ) : null}
+
+      {modal?.type === 'link' ? (
+        (() => {
+          const linkModalWidth = Math.max(50, Math.min(76, width - 6));
+          const linkInnerWidth = modalContentWidth(linkModalWidth);
+          const ell = asciiMode ? '...' : '…';
+          return (
+            <Modal
+              title={t(lang, '关联公开文章链接', 'Link Published Article URL')}
+              icon={asciiMode ? '>' : '↗'}
+              tone="accent"
+              width={linkModalWidth}
+              onClose={linking ? undefined : () => setModal(null)}
+              hints={[
+                { key: 'Enter', label: linkField === 'home' ? t(lang, '保存主页', 'Save Home') : t(lang, '关联链接', 'Save Link') },
+                { key: 'Tab', label: linkField === 'home' ? t(lang, '切到文章链接', 'Article URL') : t(lang, '设置主页', 'CSDN Home') },
+                { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+              ]}
+            >
+              <Box flexDirection="column" gap={1}>
+                <Text color={theme.muted}>
+                  {truncateDisplay(t(lang, `笔记：${modal.note.title}`, `Note: ${modal.note.title}`), linkInnerWidth, ell)}
+                </Text>
+                {linkField === 'home' ? (
+                  <>
+                    <Text color={theme.text} bold>
+                      {t(lang, 'CSDN 公开主页（如 https://blog.csdn.net/username）：', 'CSDN Public Home (e.g. https://blog.csdn.net/username):')}
+                    </Text>
+                    <TextInput
+                      value={linkHome}
+                      onChange={setLinkHome}
+                      onSubmit={() => void handleSaveHome()}
+                      onCancel={() => setModal(null)}
+                      onTab={() => {
+                        setLinkField('url');
+                        setLinkError('');
+                      }}
+                      isActive={!linking}
+                      width={linkInnerWidth - 2}
+                      placeholder="https://blog.csdn.net/username"
+                      prompt={asciiMode ? '> ' : '› '}
+                      captureInput={false}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <Text color={theme.muted}>
+                      {truncateDisplay(
+                        csdnHome
+                          ? t(lang, `CSDN 主页: ${csdnHome} (Tab 修改)`, `CSDN Home: ${csdnHome} (Tab to edit)`)
+                          : t(lang, '未设置 CSDN 主页（按 Tab 填写主页）', 'CSDN Home not set (press Tab to configure)'),
+                        linkInnerWidth,
+                        ell,
+                      )}
+                    </Text>
+                    <Text color={theme.text} bold>
+                      {t(lang, '公开文章链接：', 'Published article URL:')}
+                    </Text>
+                    <TextInput
+                      value={linkUrl}
+                      onChange={setLinkUrl}
+                      onSubmit={() => void handleLinkConfirm()}
+                      onCancel={() => setModal(null)}
+                      onTab={() => {
+                        setLinkField('home');
+                        setLinkError('');
+                      }}
+                      isActive={!linking}
+                      width={linkInnerWidth - 2}
+                      placeholder="https://blog.csdn.net/username/article/details/123456"
+                      prompt={asciiMode ? '> ' : '› '}
+                      captureInput={false}
+                    />
+                  </>
+                )}
+                {linkError ? <Text color={theme.error}>{`${asciiMode ? 'x' : '✕'} ${linkError}`}</Text> : null}
+              </Box>
+            </Modal>
+          );
+        })()
+      ) : null}
+
+      {modal?.type === 'cancelRecap' ? (
+        <ConfirmDialog
+          title={t(lang, '停止生成每日总结', 'Cancel Daily Recap')}
+          message={t(
+            lang,
+            `确定停止「${modal.label || '今日学习总结'}」的生成吗？已完成的部分会保留。`,
+            `Stop generating "${modal.label || 'Daily Recap'}"? Completed sections will be kept.`,
+          )}
+          confirmLabel={t(lang, '停止生成', 'Stop')}
+          cancelLabel={t(lang, '继续生成', 'Keep Running')}
+          danger
+          onConfirm={() => void handleCancelRecapConfirm(modal.noteId)}
+          onCancel={() => setModal(null)}
+        />
       ) : null}
 
       {modal?.type === 'delete' ? (

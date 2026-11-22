@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { readFile, stat } from 'node:fs/promises';
+import { basename, extname, isAbsolute, resolve } from 'node:path';
 import { Box, Text, useInput } from 'ink';
-import { isAbsolute, resolve } from 'node:path';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import {
@@ -19,6 +20,7 @@ import {
   useFooterHints,
   useInputCapture,
   useTheme,
+  type PillStatus,
 } from '../../components/index.js';
 import { currentCourse } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
@@ -43,6 +45,62 @@ interface AudioSettingsInfo {
   [k: string]: unknown;
 }
 
+interface AudioPreflightInfo {
+  providers?: {
+    free?: boolean;
+    paid?: boolean;
+    groq?: boolean;
+    siliconflow?: boolean;
+    [k: string]: boolean | undefined;
+  };
+  transcription?: boolean;
+  first?: string | null;
+  reason?: string | null;
+  text?: boolean;
+  textProvider?: string;
+  live?: boolean;
+  liveProvider?: string | null;
+  liveReason?: string;
+  liveLocal?: { supported?: boolean; ready?: boolean };
+  liveLoopback?: { supported?: boolean; ready?: boolean };
+  [k: string]: unknown;
+}
+
+interface AudioUsageModel {
+  model: string;
+  used?: number;
+  limit?: number | null;
+  remaining?: number | null;
+  source?: string;
+}
+
+interface AudioUsageProvider {
+  tier: string;
+  configured?: boolean;
+  today?: {
+    requests?: number;
+    success?: number;
+    failures?: number;
+    limited?: number;
+    inputTokens?: number;
+    outputTokens?: number;
+    cachedInputTokens?: number;
+    outputUnknown?: number;
+    audioSeconds?: number;
+  };
+  total?: { requests?: number };
+  models?: AudioUsageModel[];
+}
+
+interface AudioUsageInfo {
+  updatedAt?: number;
+  since?: number | null;
+  timeZone?: string;
+  providers?: AudioUsageProvider[];
+  other?: { today?: { requests?: number }; total?: { requests?: number } };
+  [k: string]: unknown;
+}
+
 interface AudioResultItem {
   id: string;
   title?: string;
@@ -54,11 +112,39 @@ interface AudioResultItem {
   [k: string]: unknown;
 }
 
-type AudioOverlay = 'none' | 'import' | 'settings';
+interface AudioJobItem {
+  id: string;
+  retryJobId: string;
+  title: string;
+  status: string;
+  phase?: string;
+  error?: string;
+  retryable: boolean;
+}
+
+type LeftListItem =
+  | { kind: 'job'; id: string; job: AudioJobItem }
+  | { kind: 'result'; id: string; result: AudioResultItem };
+
+type AudioOverlay = 'none' | 'import' | 'subtitle' | 'settings';
 type ImportField = 'path' | 'title' | 'course';
+type SubtitleField = 'path' | 'course';
 type ProviderKeyField = 'siliconflowKey' | 'groqKey' | 'freeKey' | 'paidKey';
 
 const AUDIO_EXTS = ['.mp3', '.wav', '.m4a', '.ogg', '.flac', '.aac', '.webm'];
+const SUBTITLE_EXTS = ['.srt', '.vtt', '.txt', '.json'];
+const MAX_SUBTITLE_BYTES = 8 * 1024 * 1024;
+
+const AUDIO_JOB_TYPES = new Set([
+  'audio-import',
+  'audio-batch',
+  'audio-subtitles',
+  'audio-review',
+  'audio-live-save',
+  'audio-live-correction',
+]);
+const RETRYABLE_JOB_STATUSES = new Set(['failed', 'cancelled', 'canceled', 'interrupted', 'error']);
+const COMPLETED_JOB_STATUSES = new Set(['complete', 'completed', 'done', 'ok', 'succeeded']);
 
 const PROVIDERS: ReadonlyArray<{ field: ProviderKeyField; tier: string; label: string }> = [
   { field: 'siliconflowKey', tier: 'siliconflow', label: '硅基流动 SenseVoice (推荐/国内直连)' },
@@ -66,6 +152,97 @@ const PROVIDERS: ReadonlyArray<{ field: ProviderKeyField; tier: string; label: s
   { field: 'freeKey', tier: 'free', label: 'Google Gemini (免费额度)' },
   { field: 'paidKey', tier: 'paid', label: 'Google Gemini (付费密钥)' },
 ];
+
+function safeNum(value: unknown): number {
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
+function readTextField(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (value && typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+    if (typeof obj.message === 'string') return obj.message;
+    if (typeof obj.text === 'string') return obj.text;
+    if (typeof obj.code === 'string') return obj.code;
+  }
+  return '';
+}
+
+function jobPillStatus(status: string): PillStatus {
+  if (status === 'failed' || status === 'error' || status === 'interrupted') return 'error';
+  if (status === 'cancelled' || status === 'canceled') return 'warn';
+  if (status === 'running' || status === 'queued' || status === 'pausing' || status === 'cancelling') return 'busy';
+  return 'idle';
+}
+
+function formatPreflightLine(pf: AudioPreflightInfo | null, lang: 'zh' | 'en', asciiMode: boolean): string {
+  if (!pf) {
+    return t(lang, '预检: 正在检测或待按 [p] 运行', 'Preflight: pending (press [p] to run)');
+  }
+  const ok = asciiMode ? 'OK' : '✓';
+  const no = asciiMode ? '--' : '✕';
+  const prov = pf.providers ?? {};
+  const localReady = Boolean(pf.liveLocal?.ready);
+  const loopReady = Boolean(pf.liveLoopback?.ready);
+  if (lang === 'zh') {
+    return `预检: 免费:${prov.free ? ok : no} 付费:${prov.paid ? ok : no} 硅基:${prov.siliconflow ? ok : no} Groq:${prov.groq ? ok : no} 本地:${localReady ? ok : no} 内录:${loopReady ? ok : no}`;
+  }
+  return `Preflight: Free:${prov.free ? ok : no} Paid:${prov.paid ? ok : no} SF:${prov.siliconflow ? ok : no} Groq:${prov.groq ? ok : no} Local:${localReady ? ok : no} Loop:${loopReady ? ok : no}`;
+}
+
+function formatPreflightToast(pf: AudioPreflightInfo, lang: 'zh' | 'en', asciiMode: boolean): string {
+  const sep = asciiMode ? ' | ' : ' · ';
+  const prov = pf.providers ?? {};
+  const activeTiers = ['siliconflow', 'groq', 'free', 'paid'].filter((tier) => Boolean(prov[tier]));
+  const tierSummary = activeTiers.length > 0 ? activeTiers.join(',') : t(lang, '无可用转写密钥', 'none');
+  const localText = pf.liveLocal?.ready ? t(lang, '就绪', 'ready') : t(lang, '未就绪', 'off');
+  const loopText = pf.liveLoopback?.ready ? t(lang, '就绪', 'ready') : t(lang, '未就绪', 'off');
+  const textOk = pf.text ? t(lang, '可用', 'OK') : t(lang, '未就绪', 'off');
+  if (lang === 'zh') {
+    return `预检完成: 转写[${tierSummary}]${sep}文本[${textOk}]${sep}本地[${localText}]${sep}内录[${loopText}]`;
+  }
+  return `Preflight: transcribe[${tierSummary}]${sep}text[${textOk}]${sep}local[${localText}]${sep}loopback[${loopText}]`;
+}
+
+function formatUsageLine(usage: AudioUsageInfo | null, lang: 'zh' | 'en', asciiMode: boolean): string {
+  const sep = asciiMode ? ' | ' : ' · ';
+  if (!usage || !Array.isArray(usage.providers)) {
+    return t(lang, '用量: 暂无统计数据', 'Usage: no data yet');
+  }
+  let req = safeNum(usage.other?.today?.requests);
+  let audioSec = 0;
+  let inTok = 0;
+  let outTok = 0;
+  let failures = 0;
+  let limited = 0;
+  let quotaLabel = '--';
+
+  for (const p of usage.providers) {
+    const td = p.today;
+    if (td) {
+      req += safeNum(td.requests);
+      audioSec += safeNum(td.audioSeconds);
+      inTok += safeNum(td.inputTokens);
+      outTok += safeNum(td.outputTokens);
+      failures += safeNum(td.failures);
+      limited += safeNum(td.limited);
+    }
+    if (quotaLabel === '--' && p.tier !== 'paid' && p.configured && Array.isArray(p.models)) {
+      const m = p.models.find((item) => typeof item.limit === 'number' && item.limit > 0);
+      if (m && typeof m.limit === 'number') {
+        const rem = typeof m.remaining === 'number' ? m.remaining : Math.max(0, m.limit - safeNum(m.used));
+        quotaLabel = `${rem}/${m.limit}`;
+      }
+    }
+  }
+
+  const minStr = (audioSec / 60).toFixed(1);
+  if (lang === 'zh') {
+    return `今日: ${req}次${sep}${minStr}分${sep}${inTok}/${outTok} tok${sep}失败${failures}(限流${limited})${sep}余量:${quotaLabel}`;
+  }
+  return `Today: ${req} req${sep}${minStr}m${sep}${inTok}/${outTok} tok${sep}err:${failures}(429:${limited})${sep}quota:${quotaLabel}`;
+}
 
 export const AudioView: React.FC<ViewProps> = memo(function AudioView({
   host,
@@ -84,6 +261,8 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
   const focusCourse = currentCourse(snapshot);
 
   const [audioSettings, setAudioSettings] = useState<AudioSettingsInfo | null>(null);
+  const [preflight, setPreflight] = useState<AudioPreflightInfo | null>(null);
+  const [usage, setUsage] = useState<AudioUsageInfo | null>(null);
   const [results, setResults] = useState<AudioResultItem[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [activeTranscript, setActiveTranscript] = useState<{ id: string; text: string }>({ id: '', text: '' });
@@ -100,6 +279,13 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
   const [pathMatches, setPathMatches] = useState<string[]>([]);
   const cachedCompletionRef = useRef<{ input: string; completed: string } | null>(null);
 
+  // Subtitle modal state
+  const [subtitleField, setSubtitleField] = useState<SubtitleField>('path');
+  const [subtitlePath, setSubtitlePath] = useState('');
+  const [subtitleCourse, setSubtitleCourse] = useState(focusCourse || '');
+  const [subtitleMatches, setSubtitleMatches] = useState<string[]>([]);
+  const cachedSubCompletionRef = useRef<{ input: string; completed: string } | null>(null);
+
   // Settings modal state
   const [providerIdx, setProviderIdx] = useState(0);
   const [apiKeyInput, setApiKeyInput] = useState('');
@@ -107,15 +293,25 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
 
   const loadAudioData = useCallback(async () => {
     setLoadingList(true);
-    const [settingsRes, listRes] = await Promise.all([
+    let timeZone: string | undefined;
+    try {
+      timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+    } catch {
+      timeZone = undefined;
+    }
+    const [settingsRes, listRes, preflightRes, usageRes] = await Promise.all([
       tryAction<AudioSettingsInfo>(host, 'audio.settings.get', {}),
       tryAction<{ results?: AudioResultItem[] }>(host, 'results', {}),
+      tryAction<AudioPreflightInfo>(host, 'audio.preflight', {}),
+      tryAction<AudioUsageInfo>(host, 'audio.usage', timeZone ? { timeZone } : {}),
     ]);
     setLoadingList(false);
     if (settingsRes.ok && settingsRes.value) setAudioSettings(settingsRes.value);
     if (listRes.ok && Array.isArray(listRes.value?.results)) {
       setResults(listRes.value.results);
     }
+    if (preflightRes.ok && preflightRes.value) setPreflight(preflightRes.value);
+    if (usageRes.ok && usageRes.value) setUsage(usageRes.value);
   }, [host]);
 
   useEffect(() => {
@@ -123,13 +319,53 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
     void loadAudioData();
   }, [isActive, loadAudioData]);
 
-  useEffect(() => {
-    if (selectedIndex >= results.length) {
-      setSelectedIndex(Math.max(0, results.length - 1));
+  const audioJobs = useMemo<AudioJobItem[]>(() => {
+    const rawJobs = Array.isArray(snapshot?.jobs) ? snapshot.jobs : [];
+    const items: AudioJobItem[] = [];
+    for (const raw of rawJobs) {
+      if (!raw || typeof raw !== 'object') continue;
+      const contract = (raw.contract && typeof raw.contract === 'object' ? raw.contract : undefined) as
+        | Record<string, unknown>
+        | undefined;
+      const type = String(raw.type ?? raw.kind ?? '');
+      const contractKind = String(contract?.kind ?? '');
+      const isAudio = AUDIO_JOB_TYPES.has(type) || contractKind === 'audio-import';
+      if (!isAudio) continue;
+      const status = String(contract?.status ?? raw.status ?? 'unknown').toLowerCase();
+      if (COMPLETED_JOB_STATUSES.has(status)) continue;
+      const id = String(raw.id ?? contract?.jobId ?? '');
+      if (!id) continue;
+      const retryJobId = String(contract?.attemptId ?? raw.id ?? contract?.jobId ?? id);
+      const title =
+        readTextField(raw.filename) ||
+        readTextField(raw.title) ||
+        readTextField(contract?.title) ||
+        id;
+      const phase = readTextField(raw.phase) || readTextField(contract?.stage) || readTextField(raw.stage);
+      const error = readTextField(raw.error) || readTextField(contract?.error) || readTextField(raw.message);
+      const retryable = RETRYABLE_JOB_STATUSES.has(status);
+      items.push({ id, retryJobId, title, status, phase: phase || undefined, error: error || undefined, retryable });
     }
-  }, [results.length, selectedIndex]);
+    return items;
+  }, [snapshot?.jobs]);
 
-  const selectedResult = results[selectedIndex];
+  const leftItems = useMemo<LeftListItem[]>(() => {
+    const out: LeftListItem[] = audioJobs.map((job) => ({ kind: 'job', id: `job:${job.id}`, job }));
+    for (const r of results) {
+      out.push({ kind: 'result', id: `res:${r.id}`, result: r });
+    }
+    return out;
+  }, [audioJobs, results]);
+
+  useEffect(() => {
+    if (selectedIndex >= leftItems.length) {
+      setSelectedIndex(Math.max(0, leftItems.length - 1));
+    }
+  }, [leftItems.length, selectedIndex]);
+
+  const selectedItem = leftItems[selectedIndex];
+  const selectedJob = selectedItem?.kind === 'job' ? selectedItem.job : undefined;
+  const selectedResult = selectedItem?.kind === 'result' ? selectedItem.result : undefined;
 
   // Load selected transcript detail on demand (bounded to 1 active transcript — memory NFR)
   useEffect(() => {
@@ -168,6 +404,20 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
     };
   }, [isActive, overlay, importField, audioPath]);
 
+  // Pre-fetch path completions while typing subtitle path
+  useEffect(() => {
+    if (!isActive || overlay !== 'subtitle' || subtitleField !== 'path') return;
+    let cancelled = false;
+    void completeFsPath(cleanPathInput(subtitlePath), { extensions: SUBTITLE_EXTS }).then((res) => {
+      if (cancelled) return;
+      cachedSubCompletionRef.current = { input: subtitlePath, completed: res.completed };
+      setSubtitleMatches(res.matches.slice(0, 6));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isActive, overlay, subtitleField, subtitlePath]);
+
   const handleTabComplete = useCallback((val: string) => {
     const cached = cachedCompletionRef.current;
     if (cached && cached.input === val && cached.completed && cached.completed !== val) {
@@ -177,6 +427,19 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
       cachedCompletionRef.current = { input: res.completed, completed: res.completed };
       setPathMatches(res.matches.slice(0, 6));
       if (res.completed && res.completed !== val) setAudioPath(res.completed);
+    });
+    return undefined;
+  }, []);
+
+  const handleSubtitleTabComplete = useCallback((val: string) => {
+    const cached = cachedSubCompletionRef.current;
+    if (cached && cached.input === val && cached.completed && cached.completed !== val) {
+      return cached.completed;
+    }
+    void completeFsPath(cleanPathInput(val), { extensions: SUBTITLE_EXTS }).then((res) => {
+      cachedSubCompletionRef.current = { input: res.completed, completed: res.completed };
+      setSubtitleMatches(res.matches.slice(0, 6));
+      if (res.completed && res.completed !== val) setSubtitlePath(res.completed);
     });
     return undefined;
   }, []);
@@ -209,6 +472,99 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
     if (jobId) navigate('tasks', { jobId });
   }, [busy, audioPath, audioTitle, audioCourse, host, lang, notify, refresh, navigate]);
 
+  const handleSubtitleSubmit = useCallback(async () => {
+    if (busy) return;
+    const expanded = expandHomePath(cleanPathInput(subtitlePath));
+    if (!expanded) {
+      notify(t(lang, '请输入字幕文件路径', 'Please enter a subtitle file path'), 'warning');
+      return;
+    }
+    const absPath = isAbsolute(expanded) ? expanded : resolve(process.cwd(), expanded);
+    const ext = extname(absPath).toLowerCase();
+    if (!SUBTITLE_EXTS.includes(ext)) {
+      notify(
+        t(lang, '不支持的字幕格式；支持 .srt / .vtt / .txt / .json', 'Unsupported subtitle format; supported: .srt, .vtt, .txt, .json'),
+        'warning',
+      );
+      return;
+    }
+    setBusy(true);
+    let text = '';
+    try {
+      const info = await stat(absPath);
+      if (info.size > MAX_SUBTITLE_BYTES) {
+        setBusy(false);
+        notify(t(lang, '字幕文件超过 8MB 上限', 'Subtitle file exceeds 8MB limit'), 'warning');
+        return;
+      }
+      text = await readFile(absPath, 'utf8');
+    } catch (err) {
+      setBusy(false);
+      notify(
+        t(
+          lang,
+          `读取字幕文件失败: ${err instanceof Error ? err.message : String(err)}`,
+          `Failed to read subtitle file: ${err instanceof Error ? err.message : String(err)}`,
+        ),
+        'error',
+      );
+      return;
+    }
+
+    const res = await tryAction<{ jobId?: string; id?: string }>(host, 'audio.subtitles.import', {
+      filename: basename(absPath),
+      text,
+      ...(subtitleCourse.trim() ? { course: subtitleCourse.trim() } : {}),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      notify(res.error?.message || t(lang, '字幕导入失败', 'Subtitle import failed'), 'error');
+      return;
+    }
+    setOverlay('none');
+    setSubtitlePath('');
+    await Promise.all([refresh(), loadAudioData()]);
+    const jobId = res.value?.jobId || res.value?.id;
+    notify(t(lang, '字幕校对任务已启动', 'Subtitle import job started'), 'success');
+    if (jobId) navigate('tasks', { jobId });
+  }, [busy, subtitlePath, subtitleCourse, host, lang, notify, refresh, loadAudioData, navigate]);
+
+  const handlePreflight = useCallback(async () => {
+    if (busy) return;
+    setBusy(true);
+    const res = await tryAction<AudioPreflightInfo>(host, 'audio.preflight', {});
+    setBusy(false);
+    if (!res.ok || !res.value) {
+      notify(res.error?.message || t(lang, '音频预检失败', 'Audio preflight failed'), 'error');
+      return;
+    }
+    setPreflight(res.value);
+    const tone = res.value.transcription || res.value.live ? 'success' : 'warning';
+    notify(formatPreflightToast(res.value, lang, asciiMode), tone);
+  }, [busy, host, lang, asciiMode, notify]);
+
+  const handleRetryJob = useCallback(async () => {
+    if (busy) return;
+    if (!selectedJob || !selectedJob.retryable) {
+      notify(
+        t(lang, '请先选择一条失败或已取消的音频任务', 'No failed or canceled audio job selected'),
+        'warning',
+      );
+      return;
+    }
+    setBusy(true);
+    const res = await tryAction<{ jobId?: string; id?: string }>(host, 'audio.retry', {
+      jobId: selectedJob.retryJobId,
+    });
+    setBusy(false);
+    if (!res.ok) {
+      notify(res.error?.message || t(lang, '重试音频任务失败', 'Failed to retry audio job'), 'error');
+      return;
+    }
+    await Promise.all([refresh(), loadAudioData()]);
+    notify(t(lang, '已重新启动音频任务', 'Audio job retry started'), 'success');
+  }, [busy, selectedJob, host, lang, notify, refresh, loadAudioData]);
+
   const handleSaveKey = useCallback(async () => {
     if (busy) return;
     const chosen = PROVIDERS[providerIdx] ?? PROVIDERS[0];
@@ -224,7 +580,8 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
     if (res.value) setAudioSettings(res.value);
     setApiKeyInput('');
     notify(t(lang, '已保存转写服务密钥', 'Transcription key saved'), 'success');
-  }, [busy, providerIdx, host, apiKeyInput, notify, lang]);
+    void loadAudioData();
+  }, [busy, providerIdx, host, apiKeyInput, notify, lang, loadAudioData]);
 
   const handleTestProviders = useCallback(async () => {
     if (busy) return;
@@ -250,14 +607,17 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
   }, [audioSettings]);
 
   const listActive = isActive && overlay === 'none';
-  useClaimKeys(['i', 's', 't', 'g', 'r'], listActive);
+  useClaimKeys(['i', 'u', 'p', 'R', 's', 't', 'g', 'r'], listActive);
   useInputCapture(isActive && overlay !== 'none');
 
   const hints: KeyHint[] = useMemo(
     () => [
       { key: 'i', label: t(lang, '导入音频', 'Import Audio') },
-      { key: 's', label: t(lang, '转写服务设置', 'Provider Settings') },
-      { key: 't', label: t(lang, '测试连通性', 'Test Keys') },
+      { key: 'u', label: t(lang, '导入字幕', 'Subtitles') },
+      { key: 'p', label: t(lang, '预检', 'Preflight') },
+      { key: 'R', label: t(lang, '重试任务', 'Retry Job') },
+      { key: 's', label: t(lang, '转写设置', 'Providers') },
+      { key: 't', label: t(lang, '测试连通', 'Test Keys') },
       { key: 'g', label: t(lang, '据此出题', 'Generate') },
       { key: 'r', label: t(lang, '刷新', 'Refresh') },
     ],
@@ -275,6 +635,14 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
         else if (key.ctrl && input === 's') void handleImportSubmit();
         return;
       }
+      if (overlay === 'subtitle') {
+        const order: SubtitleField[] = ['path', 'course'];
+        const idx = order.indexOf(subtitleField);
+        if (key.downArrow || (key.ctrl && input === 'n')) setSubtitleField(order[(idx + 1) % order.length]);
+        else if (key.upArrow || (key.ctrl && input === 'p')) setSubtitleField(order[(idx - 1 + order.length) % order.length]);
+        else if (key.ctrl && input === 's') void handleSubtitleSubmit();
+        return;
+      }
       if (overlay === 'settings') {
         if (key.upArrow) setProviderIdx((i) => (i - 1 + PROVIDERS.length) % PROVIDERS.length);
         else if (key.downArrow) setProviderIdx((i) => (i + 1) % PROVIDERS.length);
@@ -286,12 +654,19 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
       if (input === 'i') {
         setImportField('path');
         setOverlay('import');
+      } else if (input === 'u') {
+        setSubtitleField('path');
+        setOverlay('subtitle');
+      } else if (input === 'p') {
+        void handlePreflight();
+      } else if (input === 'R') {
+        void handleRetryJob();
       } else if (input === 's') {
         setOverlay('settings');
       } else if (input === 't') {
         void handleTestProviders();
       } else if (input === 'r') {
-        void loadAudioData();
+        void Promise.all([loadAudioData(), refresh()]);
       } else if (input === 'g' && selectedResult) {
         const targetId = selectedResult.sourceId || selectedResult.id;
         navigate('generate', {
@@ -305,7 +680,12 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
 
   const narrowBar = width < 88;
   const bannerH = 2;
-  const splitH = Math.max(4, height - bannerH);
+  const diagH = 4;
+  const splitH = Math.max(4, height - bannerH - diagH);
+  const ell = asciiMode ? '...' : '…';
+  const diagInnerW = Math.max(10, width - 4);
+  const preflightLine = truncateDisplay(formatPreflightLine(preflight, lang, asciiMode), diagInnerW, ell);
+  const usageLine = truncateDisplay(formatUsageLine(usage, lang, asciiMode), diagInnerW, ell);
 
   return (
     <Box flexDirection="column" width={width} height={height}>
@@ -328,7 +708,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
             <StatusPill
               label={
                 configuredProviders.length > 0
-                  ? configuredProviders.join(' · ')
+                  ? configuredProviders.join(asciiMode ? ' | ' : ' · ')
                   : t(lang, '未配置密钥', 'No key')
               }
               status={configuredProviders.length > 0 ? 'ok' : 'warn'}
@@ -338,7 +718,11 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
           {!narrowBar ? (
             <Box flexShrink={0}>
               <Text color={theme.dim} wrap={asciiMode ? undefined : 'truncate-end'}>
-                {t(lang, '[i] 导入音频  [s] 密钥设置  [t] 测试', '[i] Import  [s] Settings  [t] Test')}
+                {t(
+                  lang,
+                  '[i] 音频  [u] 字幕  [p] 预检  [R] 重试  [s] 密钥',
+                  '[i] Audio  [u] Subtitles  [p] Preflight  [R] Retry  [s] Keys',
+                )}
               </Text>
             </Box>
           ) : null}
@@ -347,14 +731,32 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
           {truncateDisplay(
             t(
               lang,
-              '说明：实时麦克风录音需要桌面/浏览器音频捕获，纯终端模式已禁用；可直接导入本地录音文件转写。',
-              'Note: Live mic capture requires desktop/browser audio and is disabled in terminal mode. Import local audio files below.',
+              '说明：实时麦克风录音需要桌面/浏览器音频捕获，纯终端模式已禁用；可导入本地录音或字幕文件。',
+              'Note: Live mic capture is disabled in terminal mode. Import local audio or subtitle files below.',
             ),
             Math.max(10, width - 2),
-            asciiMode ? '...' : '…',
+            ell,
           )}
         </Text>
       </Box>
+
+      {/* Compact Diagnostics & Quota Section */}
+      <Panel
+        title={t(lang, '诊断与配额', 'Diagnostics & Quota')}
+        subtitle={
+          preflight
+            ? preflight.transcription
+              ? t(lang, '[p] 就绪', '[p] Ready')
+              : t(lang, '[p] 待配置', '[p] Setup')
+            : t(lang, '[p] 预检', '[p] Check')
+        }
+        tone={preflight ? (preflight.transcription ? 'success' : 'warning') : undefined}
+        width={width}
+        height={diagH}
+      >
+        <Text color={preflight?.transcription ? theme.text : theme.warning}>{preflightLine}</Text>
+        <Text color={theme.muted}>{usageLine}</Text>
+      </Panel>
 
       {/* Main SplitPane */}
       <Box height={splitH} width={width}>
@@ -366,40 +768,59 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
           rightLabel={t(lang, '正文预览', 'Transcript Text')}
           left={({ width: lw, height: lh }) => (
             <Panel
-              title={t(lang, '已完成转写稿', 'Completed Transcripts')}
-              badge={results.length}
+              title={
+                audioJobs.length > 0
+                  ? t(lang, '音频任务与转写稿', 'Audio Jobs & Transcripts')
+                  : t(lang, '已完成转写稿', 'Completed Transcripts')
+              }
+              badge={leftItems.length}
               width={lw}
               height={lh}
               focused={listActive}
             >
               {loadingList ? (
                 <Spinner label={asciiMode ? t(lang, '加载转写记录...', 'Loading transcripts...') : t(lang, '加载转写记录…', 'Loading transcripts…')} />
-              ) : results.length === 0 ? (
+              ) : leftItems.length === 0 ? (
                 <EmptyState
                   title={t(lang, '暂无音频转写记录', 'No transcripts yet')}
-                  hint={t(lang, '按 [i] 导入 .mp3 / .wav / .m4a / .ogg / .flac 录音', 'Press [i] to import .mp3 / .wav / .m4a / .ogg / .flac')}
+                  hint={t(lang, '按 [i] 导入音频，或按 [u] 导入 .srt/.vtt/.txt 字幕', 'Press [i] for audio or [u] for .srt/.vtt/.txt subtitles')}
                   width={Math.max(12, lw - 4)}
                   height={Math.max(4, lh - 2)}
                 />
               ) : (
                 <VirtualList
-                  items={results}
+                  items={leftItems}
                   height={Math.max(1, lh - 2)}
                   width={Math.max(12, lw - 4)}
                   selectedIndex={selectedIndex}
                   onChange={(idx) => setSelectedIndex(idx)}
                   isActive={listActive}
-                  keyExtractor={(r) => r.id}
+                  keyExtractor={(item) => item.id}
                   renderItem={(item, ctx) => {
-                    const label = String(item.title || item.id);
-                    const courseTag = item.courses?.[0] ? `[${item.courses[0]}] ` : '';
+                    if (item.kind === 'job') {
+                      const statusTag = `[${item.job.status.toUpperCase()}] `;
+                      const maxW = Math.max(8, ctx.width - statusTag.length - 4);
+                      const tagColor = item.job.retryable ? theme.error : theme.accent;
+                      return (
+                        <Box flexDirection="row" width={ctx.width}>
+                          <Text color={ctx.selected ? theme.primary : theme.muted}>{ctx.selected ? (asciiMode ? '> ' : '▸ ') : '  '}</Text>
+                          <Text color={tagColor}>{statusTag}</Text>
+                          <Text color={theme.text} bold={ctx.selected}>
+                            {truncateDisplay(item.job.title, maxW, ell)}
+                          </Text>
+                        </Box>
+                      );
+                    }
+                    const r = item.result;
+                    const label = String(r.title || r.id);
+                    const courseTag = r.courses?.[0] ? `[${r.courses[0]}] ` : '';
                     const maxW = Math.max(8, ctx.width - courseTag.length - 5);
                     return (
                       <Box flexDirection="row" width={ctx.width}>
                         <Text color={ctx.selected ? theme.primary : theme.muted}>{ctx.selected ? (asciiMode ? '> ' : '▸ ') : '  '}</Text>
                         {courseTag ? <Text color={theme.accent}>{courseTag}</Text> : null}
                         <Text color={theme.text} bold={ctx.selected}>
-                          {truncateDisplay(label, maxW, asciiMode ? '...' : '…')}
+                          {truncateDisplay(label, maxW, ell)}
                         </Text>
                       </Box>
                     );
@@ -410,12 +831,52 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
           )}
           right={({ width: rw, height: rh }) => (
             <Panel
-              title={selectedResult?.title || t(lang, '文稿内容', 'Transcript')}
-              subtitle={selectedResult ? t(lang, '[g] 据此出题', '[g] Generate') : undefined}
+              title={
+                selectedJob
+                  ? selectedJob.title
+                  : selectedResult?.title || t(lang, '文稿内容', 'Transcript')
+              }
+              subtitle={
+                selectedJob
+                  ? selectedJob.retryable
+                    ? t(lang, '[R] 重试任务', '[R] Retry')
+                    : selectedJob.status
+                  : selectedResult
+                    ? t(lang, '[g] 据此出题', '[g] Generate')
+                    : undefined
+              }
               width={rw}
               height={rh}
             >
-              {!selectedResult ? (
+              {selectedJob ? (
+                <Box flexDirection="column" width={Math.max(12, rw - 4)}>
+                  <Box flexDirection="row" alignItems="center">
+                    <StatusPill label={selectedJob.status} status={jobPillStatus(selectedJob.status)} />
+                    <Text color={theme.dim}>{`  ID: ${selectedJob.id}`}</Text>
+                  </Box>
+                  {selectedJob.phase ? (
+                    <Box marginTop={1}>
+                      <Text color={theme.muted}>
+                        {truncateDisplay(`${t(lang, '阶段: ', 'Stage: ')}${selectedJob.phase}`, Math.max(12, rw - 4), ell)}
+                      </Text>
+                    </Box>
+                  ) : null}
+                  {selectedJob.error ? (
+                    <Box marginTop={1}>
+                      <Text color={theme.error}>
+                        {truncateDisplay(`${t(lang, '原因: ', 'Error: ')}${selectedJob.error}`, Math.max(12, rw - 4), ell)}
+                      </Text>
+                    </Box>
+                  ) : null}
+                  <Box marginTop={1}>
+                    <Text color={selectedJob.retryable ? theme.primary : theme.dim}>
+                      {selectedJob.retryable
+                        ? t(lang, '按 [R] 重试此失败或已取消的音频任务。', 'Press [R] to retry this failed or canceled audio job.')
+                        : t(lang, '任务进行中，请前往任务页查看进度。', 'Job is active; check Tasks view for progress.')}
+                    </Text>
+                  </Box>
+                </Box>
+              ) : !selectedResult ? (
                 <EmptyState
                   title={t(lang, '选择一条转写记录查看全文', 'Select a transcript')}
                   width={Math.max(12, rw - 4)}
@@ -510,6 +971,63 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
         </Modal>
       ) : null}
 
+      {/* Import Subtitle Modal */}
+      {overlay === 'subtitle' ? (
+        <Modal
+          title={t(lang, '导入字幕文件校对', 'Import Subtitle File')}
+          subtitle={asciiMode ? '.srt / .vtt / .txt / .json' : '.srt · .vtt · .txt · .json'}
+          icon={asciiMode ? '>' : '♪'}
+          width={72}
+          isActive={isActive}
+          onClose={() => setOverlay('none')}
+          hints={[
+            { key: 'Tab', label: t(lang, '路径补全', 'Complete') },
+            { key: asciiMode ? 'Up/Down' : '↑/↓', label: t(lang, '切换字段', 'Field') },
+            { key: 'Ctrl+S', label: t(lang, '导入字幕', 'Import') },
+            { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+          ]}
+        >
+          <Text color={subtitleField === 'path' ? theme.primary : theme.muted} bold={subtitleField === 'path'}>
+            {t(lang, '字幕文件路径 (.srt / .vtt / .txt):', 'Subtitle file path (.srt / .vtt / .txt):')}
+          </Text>
+          <TextInput
+            value={subtitlePath}
+            onChange={setSubtitlePath}
+            onTab={handleSubtitleTabComplete}
+            onSubmit={() => void handleSubtitleSubmit()}
+            onCancel={() => setOverlay('none')}
+            placeholder={process.platform === 'win32' ? 'C:\\Users\\...\\lecture.srt' : '~/Downloads/lecture.srt'}
+            width={modalContentWidth(72) - 4}
+            isActive={isActive && !busy && subtitleField === 'path'}
+            prompt={asciiMode ? '>' : '›'}
+          />
+          {subtitleMatches.length > 0 && subtitleField === 'path' ? (
+            <Text color={theme.dim}>{`${t(lang, '候选:', 'Matches:')} ${subtitleMatches.join('  ')}`}</Text>
+          ) : null}
+
+          <Box marginTop={1}>
+            <Text color={subtitleField === 'course' ? theme.primary : theme.muted} bold={subtitleField === 'course'}>
+              {t(lang, '课程归属 (可选):', 'Course (optional):')}
+            </Text>
+          </Box>
+          <TextInput
+            value={subtitleCourse}
+            onChange={setSubtitleCourse}
+            onSubmit={() => void handleSubtitleSubmit()}
+            onCancel={() => setOverlay('none')}
+            width={modalContentWidth(72) - 4}
+            isActive={isActive && !busy && subtitleField === 'course'}
+            prompt={asciiMode ? '>' : '›'}
+          />
+
+          {busy ? (
+            <Box marginTop={1}>
+              <Spinner label={asciiMode ? t(lang, '正在导入字幕...', 'Importing subtitles...') : t(lang, '正在导入字幕…', 'Importing subtitles…')} />
+            </Box>
+          ) : null}
+        </Modal>
+      ) : null}
+
       {/* Audio Provider Settings Modal */}
       {overlay === 'settings' ? (
         <Modal
@@ -541,7 +1059,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
                   />
                   {testRes ? (
                     <Text color={testRes.ok ? theme.success : theme.error}>
-                      {` · ${testRes.ok ? 'OK' : testRes.message || 'Failed'}`}
+                      {`${asciiMode ? ' | ' : ' · '}${testRes.ok ? 'OK' : testRes.message || 'Failed'}`}
                     </Text>
                   ) : null}
                 </Box>

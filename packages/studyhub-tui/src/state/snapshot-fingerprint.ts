@@ -1,85 +1,92 @@
 import type { StudySnapshot } from '../types/contracts.js';
 
 const FNV_PRIME = 0x01000193;
-const FNV_OFFSET_1 = 0x811c9dc5;
-const FNV_OFFSET_2 = 0x9e3779b9;
+const FNV_OFFSET_1 = 0x811c9dc5 | 0;
+const FNV_OFFSET_2 = 0x9e3779b9 | 0;
 const hasOwn = Object.prototype.hasOwnProperty;
 
 /**
- * Dual 32-bit FNV-1a rolling hasher with zero-allocation primitive mixing.
+ * Dual signed-int32 FNV-1a rolling hasher with zero HeapNumber boxing in V8.
+ * Keeping `h1`/`h2` as signed 32-bit integers (`Math.imul` returns int32) avoids
+ * `>>> 0` double-boxing on every step; unsigned conversion happens once in `digest()`.
  */
 class RollingHasher {
   private h1 = FNV_OFFSET_1;
   private h2 = FNV_OFFSET_2;
 
-  private mixByte(b: number): void {
-    this.h1 = Math.imul(this.h1 ^ b, FNV_PRIME) >>> 0;
-    this.h2 = Math.imul(this.h2 ^ ((b + 0x55) & 0xff), FNV_PRIME) >>> 0;
-  }
-
   private mixInt32(n: number): void {
-    this.mixByte(n & 0xff);
-    this.mixByte((n >>> 8) & 0xff);
-    this.mixByte((n >>> 16) & 0xff);
-    this.mixByte((n >>> 24) & 0xff);
+    const x = n | 0;
+    this.h1 = Math.imul(this.h1 ^ x, FNV_PRIME);
+    this.h2 = Math.imul(this.h2 ^ ((x >>> 16) ^ (x << 16) ^ 0x55555555), FNV_PRIME);
   }
 
   private mixChars(s: string): void {
-    this.mixInt32(s.length);
-    for (let i = 0; i < s.length; i++) {
+    const len = s.length;
+    let h1 = Math.imul(this.h1 ^ len, FNV_PRIME);
+    let h2 = Math.imul(this.h2 ^ (len ^ 0x55), FNV_PRIME);
+    for (let i = 0; i < len; i++) {
       const code = s.charCodeAt(i);
-      this.h1 = Math.imul(this.h1 ^ code, FNV_PRIME) >>> 0;
-      this.h2 = Math.imul(this.h2 ^ ((code >>> 8) ^ 0x55), FNV_PRIME) >>> 0;
+      h1 = Math.imul(h1 ^ code, FNV_PRIME);
+      h2 = Math.imul(h2 ^ ((code >>> 8) ^ 0x55), FNV_PRIME);
     }
-  }
-
-  sep(): void {
-    this.mixByte(0xff);
+    this.h1 = h1;
+    this.h2 = h2;
   }
 
   tag(t: number): void {
-    this.mixByte(0xfe);
-    this.mixByte(t & 0xff);
+    const x = (0xfe00 | (t & 0xff)) | 0;
+    this.h1 = Math.imul(this.h1 ^ x, FNV_PRIME);
+    this.h2 = Math.imul(this.h2 ^ (x ^ 0x55), FNV_PRIME);
   }
 
   val(v: unknown): void {
-    this.sep();
     if (v === undefined) {
-      this.mixByte(0);
+      this.h1 = Math.imul(this.h1 ^ 0xff00, FNV_PRIME);
+      this.h2 = Math.imul(this.h2 ^ 0xaa00, FNV_PRIME);
       return;
     }
     if (v === null) {
-      this.mixByte(1);
+      this.h1 = Math.imul(this.h1 ^ 0xff01, FNV_PRIME);
+      this.h2 = Math.imul(this.h2 ^ 0xaa01, FNV_PRIME);
       return;
     }
-    if (typeof v === 'boolean') {
-      this.mixByte(v ? 2 : 3);
+    const kind = typeof v;
+    if (kind === 'string') {
+      this.h1 = Math.imul(this.h1 ^ 0xff06, FNV_PRIME);
+      this.h2 = Math.imul(this.h2 ^ 0xaa06, FNV_PRIME);
+      this.mixChars(v as string);
       return;
     }
-    if (typeof v === 'number') {
-      if (Number.isNaN(v)) {
-        this.mixByte(4);
+    if (kind === 'number') {
+      const num = v as number;
+      if (num !== num) {
+        this.h1 = Math.imul(this.h1 ^ 0xff04, FNV_PRIME);
+        this.h2 = Math.imul(this.h2 ^ 0xaa04, FNV_PRIME);
         return;
       }
-      this.mixByte(5);
-      if (Number.isInteger(v) && v >= -2147483648 && v <= 2147483647) {
-        this.mixInt32(v);
+      this.h1 = Math.imul(this.h1 ^ 0xff05, FNV_PRIME);
+      this.h2 = Math.imul(this.h2 ^ 0xaa05, FNV_PRIME);
+      const asInt = num | 0;
+      if (asInt === num) {
+        this.mixInt32(asInt);
         return;
       }
-      this.mixChars(String(v));
+      this.mixChars(String(num));
       return;
     }
-    if (typeof v === 'string') {
-      this.mixByte(6);
-      this.mixChars(v);
+    if (kind === 'boolean') {
+      const code = v ? 0xff02 : 0xff03;
+      this.h1 = Math.imul(this.h1 ^ code, FNV_PRIME);
+      this.h2 = Math.imul(this.h2 ^ (code ^ 0x5500), FNV_PRIME);
       return;
     }
-    this.mixByte(7);
+    this.h1 = Math.imul(this.h1 ^ 0xff07, FNV_PRIME);
+    this.h2 = Math.imul(this.h2 ^ 0xaa07, FNV_PRIME);
     this.mixChars(String(v));
   }
 
   digest(): string {
-    return `${this.h1.toString(36)}-${this.h2.toString(36)}`;
+    return `${(this.h1 >>> 0).toString(36)}-${(this.h2 >>> 0).toString(36)}`;
   }
 }
 

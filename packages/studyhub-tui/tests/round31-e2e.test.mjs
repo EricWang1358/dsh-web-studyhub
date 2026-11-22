@@ -598,6 +598,7 @@ describe('Round 31 Deep Missing-Coverage E2E', () => {
     await tty.waitFor(
       (s) =>
         useTuiStore.getState().page === 'dashboard' &&
+        (s.includes('薄弱点') || s.includes('热力图') || s.includes('Analytics') || s.includes('Weak')) &&
         !s.includes('正在加载页面') &&
         !s.includes('Loading view'),
       { timeoutMs: 6_000, label: 'Navigated to DashboardView before BoardView' },
