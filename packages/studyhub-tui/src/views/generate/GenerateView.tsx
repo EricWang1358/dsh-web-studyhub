@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
@@ -24,8 +24,10 @@ import { tryAction } from '../../host/sample-actions.js';
 import { groupSourcesFromSnapshot, formatLabel } from '../sources/source-helpers.js';
 import { DraftEditor } from './DraftEditor.js';
 
+const IngestModal = lazy(() => import('./IngestModal.js').then((m) => ({ default: m.IngestModal })));
+
 type SubTab = 'new' | 'drafts';
-type GenOverlay = 'none' | 'scope' | 'focus';
+type GenOverlay = 'none' | 'scope' | 'focus' | 'ingest';
 
 const QUESTION_KINDS: ReadonlyArray<{ id: string; zh: string; en: string }> = [
   { id: 'quiz', zh: '单选', en: 'Quiz' },
@@ -72,6 +74,7 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
   const navContext = useTuiStore((s) => s.navContext);
   const navigate = useTuiStore((s) => s.navigate);
   const notify = useTuiStore((s) => s.notify);
+  const inputCaptured = useTuiStore((s) => s.inputCaptured);
   const { refresh } = useShellActions();
 
   const [tab, setTab] = useState<SubTab>(navContext.draftId ? 'drafts' : 'new');
@@ -247,15 +250,16 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
     navigate,
   ]);
 
-  const wizardActive = isActive && tab === 'new' && overlay === 'none';
+  const wizardActive = isActive && tab === 'new' && overlay === 'none' && !inputCaptured;
 
-  useClaimKeys(['c', 'k', 'n', 'p', 'f', 'S', 'a', 'g'], wizardActive);
+  useClaimKeys(['c', 'k', 'n', 'p', 'f', 'S', 'a', 'g', 'i'], wizardActive);
   useInputCapture(isActive && tab === 'new' && (overlay === 'scope' || overlay === 'focus'));
 
   const wizardHints: KeyHint[] = useMemo(
     () => [
       { key: 'Tab', label: t(lang, '切到草稿箱', 'Drafts') },
       { key: 'Space', label: t(lang, '勾选资料', 'Toggle Src') },
+      { key: 'i', label: t(lang, '录题', 'Capture') },
       { key: 'c', label: t(lang, '换课程', 'Course') },
       { key: 'k', label: t(lang, '题型', 'Kind') },
       { key: 'n', label: t(lang, '题数', 'Count') },
@@ -269,12 +273,17 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
 
   useInput(
     (input, key) => {
-      if (!isActive || overlay !== 'none') return;
+      if (!isActive || overlay !== 'none' || inputCaptured) return;
       if (key.tab) {
         setTab((cur) => (cur === 'new' ? 'drafts' : 'new'));
         return;
       }
       if (tab !== 'new') return;
+
+      if (input === 'i' && !key.ctrl && !key.meta) {
+        setOverlay('ingest');
+        return;
+      }
 
       if (key.ctrl && input === 's') {
         void handleSubmitGeneration();
@@ -357,9 +366,12 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
           </Text>
         ) : (
           <Text color={theme.dim}>
-            {tab === 'new'
-              ? t(lang, '勾选资料与参数后，按 [Enter] 或 [Ctrl+S] 启动后台出题', 'Select sources & options, then press [Enter] or [Ctrl+S] to generate')
-              : t(lang, '审核、修改或发布生成的题目草稿', 'Review, edit or publish generated drafts')}
+            {truncateDisplay(
+              tab === 'new'
+                ? t(lang, '勾选资料后 [Enter]/[Ctrl+S] 出题 · [i] 录题', 'Select sources + [Enter]/[Ctrl+S] to generate · [i] Capture')
+                : t(lang, '审核、修改或发布生成的题目草稿', 'Review, edit or publish generated drafts'),
+              Math.max(12, width - 2),
+            )}
           </Text>
         )}
       </Box>
@@ -372,7 +384,7 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
             initialDraftId={navContext.draftId}
             width={width}
             height={bodyH}
-            isActive={isActive && tab === 'drafts'}
+            isActive={isActive && tab === 'drafts' && overlay === 'none'}
           />
         ) : (
           <SplitPane
@@ -563,6 +575,18 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
           />
         </Modal>
       ) : null}
+
+      <Suspense fallback={null}>
+        {overlay === 'ingest' ? (
+          <IngestModal
+            host={host}
+            defaultCourse={courseName || currentCourse(snapshot)}
+            isActive={isActive && overlay === 'ingest'}
+            onClose={() => setOverlay('none')}
+            onDone={refresh}
+          />
+        ) : null}
+      </Suspense>
     </Box>
   );
 });
