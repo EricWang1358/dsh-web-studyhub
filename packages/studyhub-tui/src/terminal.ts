@@ -10,16 +10,20 @@ const ENTER_ALT_SCREEN = '\x1b[?1049h\x1b[2J\x1b[H';
 const EXIT_ALT_SCREEN = '\x1b[?1049l';
 const SHOW_CURSOR = '\x1b[?25h';
 const RESET_STYLE = '\x1b[0m';
+export const ENABLE_SGR_MOUSE = '\x1b[?1000h\x1b[?1006h';
+export const DISABLE_SGR_MOUSE = '\x1b[?1006l\x1b[?1000l';
 
 export interface TerminalSessionOptions {
   stdout?: NodeJS.WriteStream;
   stdin?: NodeJS.ReadStream;
   altScreen?: boolean;
+  mouse?: boolean;
 }
 
 export interface TerminalSession {
   readonly isTty: boolean;
   readonly altScreenActive: boolean;
+  readonly mouseActive: boolean;
   restore: () => void;
 }
 
@@ -49,6 +53,7 @@ export function enterTerminalSession(options: TerminalSessionOptions = {}): Term
   const stdin = options.stdin ?? process.stdin;
   const isTty = Boolean(stdout.isTTY && stdin.isTTY);
   const useAlt = isTty && options.altScreen !== false;
+  const useMouse = isTty && options.mouse === true;
 
   // Ensure UTF-8 encoding on both Linux bash and Windows PowerShell / ConPTY
   try {
@@ -64,7 +69,9 @@ export function enterTerminalSession(options: TerminalSessionOptions = {}): Term
     restored = true;
     if (isTty) {
       try {
-        stdout.write(`${RESET_STYLE}${SHOW_CURSOR}${useAlt ? EXIT_ALT_SCREEN : ''}`);
+        stdout.write(
+          `${useMouse ? DISABLE_SGR_MOUSE : ''}${RESET_STYLE}${SHOW_CURSOR}${useAlt ? EXIT_ALT_SCREEN : ''}`,
+        );
       } catch {
         // Ignore broken pipe during exit
       }
@@ -78,9 +85,10 @@ export function enterTerminalSession(options: TerminalSessionOptions = {}): Term
     }
   };
 
-  if (useAlt) {
+  const entrySeq = `${useAlt ? ENTER_ALT_SCREEN : ''}${useMouse ? ENABLE_SGR_MOUSE : ''}`;
+  if (entrySeq) {
     try {
-      stdout.write(ENTER_ALT_SCREEN);
+      stdout.write(entrySeq);
     } catch {
       // Ignore write failures
     }
@@ -93,6 +101,7 @@ export function enterTerminalSession(options: TerminalSessionOptions = {}): Term
   return {
     isTty,
     altScreenActive: useAlt,
+    mouseActive: useMouse,
     restore: () => {
       removeExitHook();
       restore();

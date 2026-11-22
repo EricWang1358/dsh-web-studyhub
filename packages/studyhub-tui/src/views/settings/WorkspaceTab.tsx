@@ -10,7 +10,7 @@ import { cleanPathInput, loadSampleCourse, removeSampleCourse, tryAction } from 
 import { expandHomePath } from '../sources/path-complete.js';
 import { useShellActions } from '../../shell/actions.js';
 import { useTheme } from '../../theme/tokens.js';
-import { Badge, Spinner } from '../../components/Badge.js';
+import { Badge, normalizeAsciiChrome, Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
 import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { Panel } from '../../components/Panel.js';
@@ -46,6 +46,7 @@ interface RetrievalStatusShape {
   selected?: string;
   effective?: string;
   missing?: string;
+  hfEndpoint?: string;
   hostCanSearch?: boolean;
   providers?: Array<{ id: string; label?: string; name?: string }>;
   otherTools?: Array<{ name: string }>;
@@ -98,6 +99,24 @@ interface RetrievalTestResultShape {
   unresolved?: number;
   sample?: Array<{ title?: string; sourceId?: string; snippet?: string }>;
   message?: string;
+}
+
+interface RetrievalPreviewPageShape {
+  sourceId?: string;
+  title?: string;
+  page?: number;
+  score?: number;
+  snippet?: string;
+}
+
+interface RetrievalPreviewResultShape {
+  provider?: string;
+  query?: string;
+  hits?: number;
+  unresolved?: number;
+  truncated?: boolean;
+  chars?: number;
+  pages?: RetrievalPreviewPageShape[];
 }
 
 interface UsageFrequencyStatusShape {
@@ -357,6 +376,8 @@ export function truncatePathMiddle(rawPath: string, maxWidth: number, ell = '…
   return `${headPart}${ell}${sliceEndWidth(tailSegment, tailBudget)}`;
 }
 
+type RetrievalDiagSubMode = 'summary' | 'preview-input' | 'endpoint-input';
+
 interface RetrievalDiagModalProps {
   lang: 'zh' | 'en';
   asciiMode: boolean;
@@ -365,10 +386,13 @@ interface RetrievalDiagModalProps {
   isActive: boolean;
   loading: boolean;
   providerFallback: string;
+  hfEndpoint: string;
   plan: RetrievalIndexPlanShape | null;
   testResult: RetrievalTestResultShape | null;
   error: string | null;
   onRefresh: () => void;
+  onPreview: (query: string) => Promise<{ ok: boolean; value?: RetrievalPreviewResultShape; error?: string }>;
+  onSaveEndpoint: (endpoint: string) => Promise<{ ok: boolean; error?: string }>;
   onClose: () => void;
 }
 
@@ -380,16 +404,65 @@ const RetrievalDiagModal = memo(function RetrievalDiagModal({
   isActive,
   loading,
   providerFallback,
+  hfEndpoint,
   plan,
   testResult,
   error,
   onRefresh,
+  onPreview,
+  onSaveEndpoint,
   onClose,
 }: RetrievalDiagModalProps) {
   const theme = useTheme();
   const contentW = modalContentWidth(width);
   const sep = asciiMode ? ' | ' : ' · ';
   const activeProvider = testResult?.provider || providerFallback || 'builtin';
+  const [subMode, setSubMode] = useState<RetrievalDiagSubMode>('summary');
+  const [previewQuery, setPreviewQuery] = useState('');
+  const [previewResult, setPreviewResult] = useState<RetrievalPreviewResultShape | null>(null);
+  const [endpointDraft, setEndpointDraft] = useState('');
+  const [subBusy, setSubBusy] = useState(false);
+  const [subError, setSubError] = useState<string | null>(null);
+
+  const handleSubmitPreview = useCallback(
+    async (raw: string) => {
+      if (subBusy) return;
+      const trimmed = raw.trim();
+      setSubBusy(true);
+      setSubError(null);
+      try {
+        const res = await onPreview(trimmed);
+        if (!res.ok || !res.value) {
+          if (res.error) setSubError(res.error);
+          return;
+        }
+        setPreviewResult(res.value);
+        setSubMode('summary');
+      } finally {
+        setSubBusy(false);
+      }
+    },
+    [onPreview, subBusy],
+  );
+
+  const handleSubmitEndpoint = useCallback(
+    async (raw: string) => {
+      if (subBusy) return;
+      setSubBusy(true);
+      setSubError(null);
+      try {
+        const res = await onSaveEndpoint(raw.trim());
+        if (!res.ok) {
+          if (res.error) setSubError(res.error);
+          return;
+        }
+        setSubMode('summary');
+      } finally {
+        setSubBusy(false);
+      }
+    },
+    [onSaveEndpoint, subBusy],
+  );
 
   useInput(
     (input, key) => {
@@ -397,11 +470,23 @@ const RetrievalDiagModal = memo(function RetrievalDiagModal({
         onClose();
         return;
       }
+      if (subBusy) return;
+      if (input === 's') {
+        setSubError(null);
+        setSubMode('preview-input');
+        return;
+      }
+      if (input === 'm') {
+        setSubError(null);
+        setEndpointDraft(hfEndpoint);
+        setSubMode('endpoint-input');
+        return;
+      }
       if (input === 'r') {
         onRefresh();
       }
     },
-    { isActive },
+    { isActive: isActive && subMode === 'summary' },
   );
 
   let verdictBadge: { label: string; tone: 'info' | 'success' | 'warning' | 'muted' } | null = null;
@@ -432,19 +517,114 @@ const RetrievalDiagModal = memo(function RetrievalDiagModal({
     }
   }
 
+  const previewPages = Array.isArray(previewResult?.pages) ? previewResult.pages.slice(0, 4) : [];
+  const modalHints =
+    subMode === 'preview-input'
+      ? [
+          { key: 'Enter', label: t(lang, '搜索', 'Search') },
+          { key: 'Esc', label: t(lang, '返回', 'Back') },
+        ]
+      : subMode === 'endpoint-input'
+        ? [
+            { key: 'Enter', label: t(lang, '保存', 'Save') },
+            { key: 'Esc', label: t(lang, '返回', 'Back') },
+          ]
+        : [
+            { key: 's', label: t(lang, '试搜', 'Search') },
+            { key: 'm', label: t(lang, '镜像源', 'Mirror') },
+            { key: 'r', label: t(lang, '刷新', 'Refresh') },
+            { key: 'Esc/q', label: t(lang, '关闭', 'Close') },
+          ];
+
+  const handleModalClose = useCallback(() => {
+    if (subMode === 'summary') {
+      onClose();
+      return;
+    }
+    setSubError(null);
+    setSubMode('summary');
+  }, [onClose, subMode]);
+
   return (
     <Modal
       title={t(lang, '语义检索诊断与索引计划', 'Retrieval Diagnostics & Index Plan')}
       subtitle={activeProvider}
       width={width}
-      onClose={onClose}
+      onClose={handleModalClose}
       isActive={isActive}
-      hints={[
-        { key: 'r', label: t(lang, '重新诊断', 'Re-run') },
-        { key: 'Esc/q', label: t(lang, '关闭', 'Close') },
-      ]}
+      hints={modalHints}
     >
-      {loading && !testResult && !plan ? (
+      {subMode === 'preview-input' ? (
+        <Box flexDirection="column" gap={0}>
+          <Text color={theme.muted}>
+            {t(
+              lang,
+              '输入本地混合检索试搜主题（0 模型开销，支持词法+目录树）：',
+              'Enter topic for local hybrid search preview (0 LLM tokens):',
+            )}
+          </Text>
+          <Box marginTop={1}>
+            <TextInput
+              value={previewQuery}
+              onChange={setPreviewQuery}
+              onSubmit={(v) => void handleSubmitPreview(v)}
+              onCancel={() => {
+                setSubError(null);
+                setSubMode('summary');
+              }}
+              width={Math.max(12, contentW - 4)}
+              isActive={isActive && !subBusy}
+              prompt={asciiMode ? '>' : '›'}
+              placeholder={t(lang, `输入关键词${ell}`, `Enter search topic${ell}`)}
+            />
+          </Box>
+          {subError ? (
+            <Box marginTop={1}>
+              <Text color={theme.error}>{truncateDisplay(subError, contentW, ell)}</Text>
+            </Box>
+          ) : null}
+          {subBusy ? (
+            <Box marginTop={1}>
+              <Spinner label={t(lang, `正在执行本地试搜${ell}`, `Running local search preview${ell}`)} active={isActive} />
+            </Box>
+          ) : null}
+        </Box>
+      ) : subMode === 'endpoint-input' ? (
+        <Box flexDirection="column" gap={0}>
+          <Text color={theme.muted}>
+            {t(
+              lang,
+              '设置模型下载镜像地址 (HF_ENDPOINT，留空恢复默认 HuggingFace)：',
+              'Set HuggingFace mirror endpoint (leave empty for default):',
+            )}
+          </Text>
+          <Box marginTop={1}>
+            <TextInput
+              value={endpointDraft}
+              onChange={setEndpointDraft}
+              onSubmit={(v) => void handleSubmitEndpoint(v)}
+              onCancel={() => {
+                setSubError(null);
+                setSubMode('summary');
+              }}
+              width={Math.max(12, contentW - 4)}
+              isActive={isActive && !subBusy}
+              prompt={asciiMode ? '>' : '›'}
+              placeholder={t(lang, 'https://hf-mirror.com (留空恢复默认)', 'https://hf-mirror.com (empty resets to default)')}
+            />
+          </Box>
+          {subError ? (
+            <Box marginTop={1}>
+              <Text color={theme.error}>{truncateDisplay(subError, contentW, ell)}</Text>
+            </Box>
+          ) : null}
+          {subBusy ? (
+            <Box marginTop={1}>
+              <Spinner label={t(lang, `正在保存镜像源${ell}`, `Saving HF mirror endpoint${ell}`)} active={isActive} />
+            </Box>
+          ) : null}
+        </Box>
+      ) : loading && !testResult && !plan ? (
         <Spinner label={t(lang, `正在诊断语义检索${ell}`, `Running retrieval diagnostics${ell}`)} active={isActive} />
       ) : (
         <Box flexDirection="column" gap={0}>
@@ -461,6 +641,13 @@ const RetrievalDiagModal = memo(function RetrievalDiagModal({
               {truncateDisplay(verdictDetail, contentW, ell)}
             </Text>
           ) : null}
+          <Text color={theme.muted}>
+            {truncateDisplay(
+              t(lang, `模型镜像: ${hfEndpoint || '默认 (HuggingFace)'}`, `HF Endpoint: ${hfEndpoint || 'Default'}`),
+              contentW,
+              ell,
+            )}
+          </Text>
 
           {plan ? (
             <Box flexDirection="column" marginTop={1}>
@@ -509,9 +696,52 @@ const RetrievalDiagModal = memo(function RetrievalDiagModal({
             </Box>
           ) : null}
 
-          {error ? (
+          {previewResult ? (
+            <Box flexDirection="column" marginTop={1}>
+              <Text color={theme.accent}>
+                {truncateDisplay(
+                  t(
+                    lang,
+                    `试搜命中 ${previewResult.hits ?? previewPages.length}: ${previewResult.query || ''}`,
+                    `Search Preview (${previewResult.hits ?? previewPages.length} hits): ${previewResult.query || ''}`,
+                  ),
+                  contentW,
+                  ell,
+                )}
+              </Text>
+              {previewPages.length === 0 ? (
+                <Text color={theme.muted}>
+                  {truncateDisplay(
+                    t(lang, '未找到匹配页面，请换个关键词重试。', 'No matching pages found; try different keywords.'),
+                    contentW,
+                    ell,
+                  )}
+                </Text>
+              ) : (
+                previewPages.map((pg, idx) => {
+                  const rawTitle = pg.title || pg.sourceId || t(lang, '未命名资料', 'Untitled');
+                  const titleText = asciiMode ? normalizeAsciiChrome(rawTitle, true) : rawTitle;
+                  const pageLabel = typeof pg.page === 'number' ? `p.${pg.page}` : '';
+                  const headRaw = pageLabel ? `${titleText} (${pageLabel})` : titleText;
+                  const rawSnippet = pg.snippet ? String(pg.snippet).replace(/\s+/g, ' ').trim() : '';
+                  const snippetText = asciiMode ? normalizeAsciiChrome(rawSnippet, true) : rawSnippet;
+                  const head = snippetText
+                    ? truncateDisplay(headRaw, Math.max(14, Math.floor(contentW * 0.45)), ell)
+                    : truncateDisplay(headRaw, contentW, ell);
+                  const rowText = snippetText ? `${head}${sep}${snippetText}` : head;
+                  return (
+                    <Text key={`${pg.sourceId || idx}-${idx}`} color={theme.text}>
+                      {truncateDisplay(rowText, contentW, ell)}
+                    </Text>
+                  );
+                })
+              )}
+            </Box>
+          ) : null}
+
+          {error || subError ? (
             <Box marginTop={1}>
-              <Text color={theme.error}>{truncateDisplay(error, contentW, ell)}</Text>
+              <Text color={theme.error}>{truncateDisplay(error || subError || '', contentW, ell)}</Text>
             </Box>
           ) : null}
 
@@ -942,9 +1172,10 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
     setRetrievalDiagLoading(true);
     setRetrievalDiagError(null);
     try {
-      const [planRes, testRes] = await Promise.allSettled([
+      const [planRes, testRes, statusRes] = await Promise.allSettled([
         tryAction<RetrievalIndexPlanShape>(host, 'retrieval.index.plan', {}),
         tryAction<RetrievalTestResultShape>(host, 'retrieval.test', {}),
+        tryAction<RetrievalStatusShape>(host, 'retrieval.status', {}),
       ]);
       if (!mountedRef.current) return;
       const errors: string[] = [];
@@ -966,6 +1197,10 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
       } else {
         errors.push(testRes.reason instanceof Error ? testRes.reason.message : String(testRes.reason));
       }
+      if (statusRes.status === 'fulfilled' && statusRes.value.ok && statusRes.value.value) {
+        setRetrievalStatus(statusRes.value.value);
+        setRetrievalLoaded(true);
+      }
       if (errors.length > 0) {
         setRetrievalDiagError(errors.join('; '));
       }
@@ -974,6 +1209,61 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
       if (mountedRef.current) setRetrievalDiagLoading(false);
     }
   }, [host, lang]);
+
+  const handleRetrievalPreview = useCallback(
+    async (query: string): Promise<{ ok: boolean; value?: RetrievalPreviewResultShape; error?: string }> => {
+      if (diagBusyRef.current) return { ok: false };
+      diagBusyRef.current = true;
+      try {
+        const res = await tryAction<RetrievalPreviewResultShape>(host, 'retrieval.preview', {
+          query,
+          localHybrid: true,
+          limit: 5,
+        });
+        if (!mountedRef.current) return { ok: false };
+        if (!res.ok || !res.value) {
+          return {
+            ok: false,
+            error: res.error?.message || t(lang, '本地混合试搜失败', 'Local hybrid search preview failed'),
+          };
+        }
+        return { ok: true, value: res.value };
+      } finally {
+        diagBusyRef.current = false;
+      }
+    },
+    [host, lang],
+  );
+
+  const handleSaveHfEndpoint = useCallback(
+    async (rawEndpoint: string): Promise<{ ok: boolean; error?: string }> => {
+      if (diagBusyRef.current) return { ok: false };
+      diagBusyRef.current = true;
+      const trimmed = rawEndpoint.trim();
+      try {
+        const res = await tryAction<RetrievalStatusShape>(host, 'retrieval.endpoint.set', { endpoint: trimmed });
+        if (!mountedRef.current) return { ok: false };
+        if (!res.ok || !res.value) {
+          return {
+            ok: false,
+            error: res.error?.message || t(lang, '保存模型下载镜像失败', 'Failed to save HF mirror endpoint'),
+          };
+        }
+        setRetrievalStatus(res.value);
+        setRetrievalLoaded(true);
+        notify(
+          trimmed
+            ? t(lang, `已保存模型下载镜像: ${trimmed}`, `Saved HF mirror endpoint: ${trimmed}`)
+            : t(lang, '已恢复默认下载源', 'Reset HF endpoint to default'),
+          'success',
+        );
+        return { ok: true };
+      } finally {
+        diagBusyRef.current = false;
+      }
+    },
+    [host, lang, notify],
+  );
 
   const modalOpen =
     editingRoot ||
@@ -1340,10 +1630,13 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
           isActive={isActive}
           loading={retrievalDiagLoading}
           providerFallback={retrievalStatus?.effective || retrievalStatus?.selected || 'builtin'}
+          hfEndpoint={retrievalStatus?.hfEndpoint ?? ''}
           plan={retrievalPlan}
           testResult={retrievalTest}
           error={retrievalDiagError}
           onRefresh={() => void runRetrievalDiag()}
+          onPreview={handleRetrievalPreview}
+          onSaveEndpoint={handleSaveHfEndpoint}
           onClose={() => setRetrievalDiagOpen(false)}
         />
       ) : null}

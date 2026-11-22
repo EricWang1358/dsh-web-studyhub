@@ -24,7 +24,7 @@ Complete keyboard reference for `@ericwang1358/studyhub-tui`, synchronized with 
 | `Ctrl+D` / `Ctrl+U` | Half-page scroll down / up | Active in `ScrollView` / `VirtualList` |
 | `Ctrl+F` / `Ctrl+B` (`PgDn` / `PgUp`) | Full-page scroll down / up | `Space` also pages down in `ScrollView` |
 | `g` / `G` (`Home` / `End`) | Jump to top / bottom | Active in `ScrollView` / `VirtualList` |
-| `Mouse Wheel` | Scroll up / down (3 rows) | SGR 1006 wheel sequences (intact & ESC-stripped) in `VirtualList` & `ScrollView` |
+| `Mouse Wheel` | Scroll up / down (3 rows) | Opt-in SGR 1006 wheel lifecycle (`--mouse` / `--no-mouse` / `STUDYHUB_TUI_MOUSE=1`, intact & ESC-stripped, disabled before alt-screen exit) in `VirtualList` & `ScrollView` |
 | `Esc` | Close / cancel | Closes active modal, drawer, or palette |
 
 ### Page Jump Shortcuts (`PAGE_REGISTRY`)
@@ -92,7 +92,7 @@ Inside the palette: `↑`/`↓`, `Ctrl+P`/`Ctrl+N`, or `Ctrl+J`/`Ctrl+K` move se
 ## 4. Per-View Power Shortcuts
 
 ### `1` Library (`library`)
-- **Practice & Rounds**: `Enter` start deck / open work item · `R` custom round configurator (`RoundConfigModal`) · `r` resume or start review · `p` daily plan · `g` AI Guided Study
+- **Practice & Rounds**: `Enter` start deck / open work item · `R` custom round configurator (`RoundConfigModal`) · `r` resume or start review · `p` daily plan · `g` AI Guided Study (`GuidedStudyModal`: `B` open prerequisite branch via `study.branch.open`, `u` return from branch via `study.branch.return`)
 - **Deck & Course Ops**: `o` deck import / merge / split (`DeckOpsModal`: Import tab `Ctrl+G` P2-guarded AI filing proposal `draft.import.propose`; Merge tab `g` P2-guarded AI merge suggestions `deck.merge.suggest`, `a` apply proposal) · `[` / `]` reorder selected deck up / down · `C` course settings (tabs `1-4`: `m` merge course, `a` activate/deactivate course; Terms tab: `Space` toggle term mark, `C` clear all terms, `/` filter) · `v` voice pack · `a` archive/unarchive · `d` delete deck · `h` show/hide archived · `s` load/remove sample course · `Tab` toggle Decks / Drafts & Failed Jobs (`y` retries failed job)
 - **Deck Card Manager (`m`)**: `+` supplement cards · `k` convert card kind · `u` restore slain card (Slain deck / slain card) · `m` move deck to folder (non-system decks) · `Space` multi-select (up to 100) · `F` batch focus · `S` batch suspend · `T` batch retag topic · `L` batch link prerequisite · `X` batch slay · `C` reassign deck course (`deck.course`) · `x` clear selection · `/` or `f` search · `c` clear search · `n` rename · `e` open draft · `p` practise deck
 
@@ -148,5 +148,5 @@ Inside the palette: `↑`/`↓`, `Ctrl+P`/`Ctrl+N`, or `Ctrl+J`/`Ctrl+K` move se
 ### `,` Settings (`settings`)
 - `1-4` switch Models / Workspace / StudyGen / Appearance tabs
 - **Models (`1`)**: `Tab` switch pane · `a` / `Enter` save & activate · `t` test connection · `s` rescan / save
-- **Workspace (`2`)**: `e` change library root · `c` confirm library location · `s` toggle sample course · `f` toggle experimental features · `v` cycle semantic retrieval provider (`retrieval.set` + displays `retrieval.index.coverage`) · `t` semantic retrieval diagnostics & index plan (`retrieval.index.plan` + `retrieval.test`) · `u` toggle usage frequency tracking · `U` clear usage data · `a` toggle auto update check (`update.preferences`) · `x` export JSON backup · `r` refresh restore points / retrieval / usage / update prefs · `Enter` restore selected point
+- **Workspace (`2`)**: `e` change library root · `c` confirm library location · `s` toggle sample course · `f` toggle experimental features · `v` cycle semantic retrieval provider (`retrieval.set` + displays `retrieval.index.coverage`) · `t` semantic retrieval diagnostics & index plan (`retrieval.index.plan` + `retrieval.test`; inside modal: `s` local hybrid preview search via `retrieval.preview`, `m` HuggingFace mirror endpoint via `retrieval.endpoint.set`) · `u` toggle usage frequency tracking · `U` clear usage data · `a` toggle auto update check (`update.preferences`) · `x` export JSON backup · `r` refresh restore points / retrieval / usage / update prefs · `Enter` restore selected point
 - **StudyGen (`3`)** & **Appearance (`4`)**: `j` / `k` select option · `←` / `→` (`Enter`) adjust/toggle & save (includes Book Q&A auto-add, Practice reset, and ExamPrep reset)

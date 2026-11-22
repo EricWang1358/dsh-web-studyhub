@@ -84,6 +84,22 @@ export interface StudyArtifact {
   updatedAt?: number;
 }
 
+export interface StudyBranchReturnEntry {
+  kind?: string;
+  runId?: string | null;
+  deckId?: string | null;
+  cardId?: string;
+  reason?: string;
+  branchKind?: string;
+}
+
+export interface StudySessionFocus {
+  kind?: string;
+  id?: string;
+  deckId?: string;
+  runId?: string;
+}
+
 export interface StudySessionRecord {
   id: string;
   courseId: string;
@@ -97,6 +113,8 @@ export interface StudySessionRecord {
   version?: number;
   createdAt?: number;
   updatedAt?: number;
+  focus?: StudySessionFocus | null;
+  returnPath?: StudyBranchReturnEntry[];
   artifactRefs?: StudyArtifact[];
   artifacts?: StudyArtifact[];
   progress?: StudySessionProgress;
@@ -138,7 +156,32 @@ export interface GuidedStudyModalProps {
   onUpdated?: () => void;
 }
 
-type SubMode = 'sessions' | 'workbench' | 'artifact';
+type SubMode = 'sessions' | 'workbench' | 'artifact' | 'branch-pick';
+
+interface BranchCandidateCard {
+  deckId: string;
+  deckTitle: string;
+  cardId: string;
+  prompt: string;
+  topic?: string;
+  kind?: string;
+}
+
+interface BranchDeckDetail {
+  id: string;
+  title?: string;
+  course?: string;
+  archived?: boolean;
+  systemKind?: string;
+  cards?: Array<{
+    id: string;
+    kind?: string;
+    topic?: string;
+    prompt?: string;
+    suspended?: boolean;
+    slain?: unknown;
+  }>;
+}
 
 function sessionStatusMeta(
   status: string | undefined,
@@ -282,7 +325,12 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
   const [confirmEnd, setConfirmEnd] = useState(false);
   const [staleWarnings, setStaleWarnings] = useState<string[]>([]);
 
+  const [branchCandidates, setBranchCandidates] = useState<BranchCandidateCard[]>([]);
+  const [branchIndex, setBranchIndex] = useState(0);
+  const [branchReturnSubMode, setBranchReturnSubMode] = useState<'sessions' | 'workbench'>('workbench');
+
   const mountedRef = useRef(true);
+  const busyRef = useRef(false);
   const autoModeSetRef = useRef(false);
   useEffect(() => {
     mountedRef.current = true;
@@ -628,11 +676,166 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
     navigate('review', { runId: res.value.id });
   }, [selectedSession, busyAction, selectedDeckId, subMode, selectedCheckItem, mergedCheckItems, host, notify, lang, onClose, navigate]);
 
+  const handleOpenBranchPicker = useCallback(async () => {
+    if (!selectedSession || busyRef.current || busyAction || loading) return;
+    if (selectedSession.status !== 'active') {
+      notify(t(lang, '仅进行中的带学可以开支线', 'Only active sessions can open a branch'), 'info');
+      return;
+    }
+    busyRef.current = true;
+    setBusyAction('branch-load');
+    try {
+      const scopeDeckIds = (selectedSession.scope ?? [])
+        .filter((s) => s.kind === 'deck' && s.id)
+        .map((s) => String(s.id));
+      const allDecks = (snapshot?.decks ?? []).filter(
+        (d) => !d.archived && !(d as Record<string, unknown>).systemKind,
+      );
+      const courseDecks = selectedSession.courseId
+        ? allDecks.filter((d) => d.course === selectedSession.courseId)
+        : allDecks;
+      const candidateDeckIds: string[] = [];
+      const seenDecks = new Set<string>();
+      const pushDeckId = (id: string | null | undefined) => {
+        if (!id || seenDecks.has(id)) return;
+        seenDecks.add(id);
+        candidateDeckIds.push(id);
+      };
+      for (const id of scopeDeckIds) pushDeckId(id);
+      if (selectedDeckId) pushDeckId(selectedDeckId);
+      for (const d of courseDecks) pushDeckId(d.id);
+      if (candidateDeckIds.length === 0) {
+        for (const d of allDecks) pushDeckId(d.id);
+      }
+
+      const targetDecks = candidateDeckIds.slice(0, 12);
+      const deckResults = await Promise.all(
+        targetDecks.map((id) => tryAction<BranchDeckDetail>(host, 'deck.get', { id })),
+      );
+      if (!mountedRef.current) return;
+
+      const allCards: BranchCandidateCard[] = [];
+      const seenCards = new Set<string>();
+      for (const res of deckResults) {
+        if (!res.ok || !res.value) continue;
+        const deck = res.value;
+        if (deck.archived || deck.systemKind) continue;
+        const deckTitle = String(deck.title || deck.id);
+        for (const card of deck.cards ?? []) {
+          if (!card?.id || card.slain || card.suspended) continue;
+          const cardKey = `${deck.id}:${card.id}`;
+          if (seenCards.has(cardKey)) continue;
+          seenCards.add(cardKey);
+          const rawPrompt = String(card.prompt || card.topic || card.id).replace(/\s+/g, ' ').trim();
+          allCards.push({
+            deckId: deck.id,
+            deckTitle,
+            cardId: card.id,
+            prompt: rawPrompt || card.id,
+            topic: card.topic ? String(card.topic) : undefined,
+            kind: card.kind ? String(card.kind) : undefined,
+          });
+        }
+      }
+
+      const focusId = selectedSession.focus?.id;
+      const nonFocusCards = focusId ? allCards.filter((c) => c.cardId !== focusId) : allCards;
+      const finalCards = nonFocusCards.length > 0 ? nonFocusCards : allCards;
+      if (finalCards.length === 0) {
+        notify(t(lang, '当前课程暂无可用于开支线的题目', 'No candidate cards available for branching'), 'warning');
+        return;
+      }
+      setBranchReturnSubMode(subMode === 'sessions' ? 'sessions' : 'workbench');
+      setBranchCandidates(finalCards);
+      setBranchIndex(0);
+      setSubMode('branch-pick');
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusyAction('');
+    }
+  }, [selectedSession, busyAction, loading, snapshot?.decks, selectedDeckId, host, subMode, notify, lang]);
+
+  const handleConfirmBranchOpen = useCallback(
+    async (candidate: BranchCandidateCard) => {
+      if (!selectedSession || busyRef.current || busyAction) return;
+      busyRef.current = true;
+      setBusyAction('branch-open');
+      try {
+        const res = await tryAction<{ session?: StudySessionRecord }>(host, 'study.branch.open', {
+          sessionId: selectedSession.id,
+          targetDeckId: candidate.deckId,
+          targetCardId: candidate.cardId,
+          branchKind: 'prerequisite',
+        });
+        if (!mountedRef.current) return;
+        if (!res.ok) {
+          notify(res.error?.message || t(lang, '切入前置支线失败', 'Failed to open prerequisite branch'), 'error');
+          return;
+        }
+        await tryAction(host, 'study.scene.get', { sessionId: selectedSession.id });
+        if (!mountedRef.current) return;
+        await loadSessions(selectedSession.id);
+        if (!mountedRef.current) return;
+        setSubMode(branchReturnSubMode);
+        onUpdated?.();
+        notify(
+          t(
+            lang,
+            '已切入前置支线练习（按 [u] 返回原题）',
+            'Opened prerequisite branch (press [u] to return)',
+          ),
+          'success',
+        );
+      } finally {
+        busyRef.current = false;
+        if (mountedRef.current) setBusyAction('');
+      }
+    },
+    [selectedSession, busyAction, host, loadSessions, branchReturnSubMode, onUpdated, notify, lang],
+  );
+
+  const handleBranchReturn = useCallback(async () => {
+    if (!selectedSession || busyRef.current || busyAction) return;
+    if ((selectedSession.returnPath?.length ?? 0) === 0) return;
+    busyRef.current = true;
+    setBusyAction('branch-return');
+    try {
+      const res = await tryAction<{ session?: StudySessionRecord }>(host, 'study.branch.return', {
+        sessionId: selectedSession.id,
+      });
+      if (!mountedRef.current) return;
+      if (!res.ok) {
+        notify(res.error?.message || t(lang, '返回原学习焦点失败', 'Failed to return from branch'), 'error');
+        return;
+      }
+      await tryAction(host, 'study.scene.get', { sessionId: selectedSession.id });
+      if (!mountedRef.current) return;
+      await loadSessions(selectedSession.id);
+      if (!mountedRef.current) return;
+      onUpdated?.();
+      notify(
+        t(lang, '已从前置支线回到原学习焦点', 'Returned from branch to previous focus'),
+        'success',
+      );
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusyAction('');
+    }
+  }, [selectedSession, busyAction, host, loadSessions, onUpdated, notify, lang]);
+
   const modalInputActive = isActive && !creating && !confirmEnd;
+  const branchDepth = selectedSession?.returnPath?.length ?? 0;
 
   useInput(
     (input, key) => {
-      if (busyAction || loading) return;
+      if (busyAction || busyRef.current || loading) return;
+
+      if (subMode === 'branch-pick') {
+        if (key.escape || input === 'b') {
+          setSubMode(branchReturnSubMode);
+        }
+        return;
+      }
 
       if (subMode === 'artifact') {
         if (key.escape || input === 'b') {
@@ -687,6 +890,14 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
         openCreateInput();
         return;
       }
+      if (input === 'B' && selectedSession) {
+        void handleOpenBranchPicker();
+        return;
+      }
+      if (input === 'u' && selectedSession && branchDepth > 0) {
+        void handleBranchReturn();
+        return;
+      }
       if (input === 'p' && selectedSession) {
         void handlePause();
         return;
@@ -727,6 +938,13 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
         { key: 'Esc', label: t(lang, '取消', 'Cancel') },
       ];
     }
+    if (subMode === 'branch-pick') {
+      return [
+        { key: 'Enter', label: t(lang, '切入支线', 'Open Branch') },
+        { key: 'j/k', label: t(lang, '选择', 'Select') },
+        { key: 'Esc', label: t(lang, '返回', 'Back') },
+      ];
+    }
     if (subMode === 'artifact') {
       const list: KeyHint[] = [];
       if (artifacts.length > 1) list.push({ key: asciiMode ? '<-/->' : '←/→', label: t(lang, '切换文稿', 'Switch') });
@@ -737,6 +955,8 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
     const list: KeyHint[] = [{ key: 'n', label: t(lang, '新建', 'New') }];
     if (selectedSession) {
       list.push({ key: 'Enter', label: t(lang, '去练习', 'Practice') });
+      if (selectedSession.status === 'active') list.push({ key: 'B', label: t(lang, '开支线', 'Branch') });
+      if (branchDepth > 0) list.push({ key: 'u', label: t(lang, '回原题', 'Return') });
       if (selectedSession.status === 'active') list.push({ key: 'p', label: t(lang, '暂停', 'Pause') });
       if (selectedSession.status === 'paused') list.push({ key: 'r', label: t(lang, '恢复', 'Resume') });
       if (selectedSession.status !== 'ended') list.push({ key: 'e', label: t(lang, '结束', 'End') });
@@ -745,7 +965,29 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
     list.push({ key: 'Tab', label: subMode === 'sessions' ? t(lang, '工作台', 'Workbench') : t(lang, '会话', 'Sessions') });
     list.push({ key: 'Esc', label: t(lang, '关闭', 'Close') });
     return list;
-  }, [creating, subMode, artifacts.length, selectedSession, lang, asciiMode]);
+  }, [creating, subMode, artifacts.length, selectedSession, branchDepth, lang, asciiMode]);
+
+  const renderBranchCandidateRow = useCallback(
+    (item: BranchCandidateCard, ctx: VirtualListRenderContext) => {
+      const sep = asciiMode ? ' - ' : ' · ';
+      const metaText = item.topic
+        ? `[${truncateDisplay(item.topic, 14, ell)}] `
+        : `[${truncateDisplay(item.deckTitle, 14, ell)}] `;
+      const kindTag = item.kind ? `${sep}${item.kind}` : '';
+      const promptBudget = Math.max(8, ctx.width - displayWidth(metaText) - displayWidth(kindTag));
+      const prompt = padDisplay(truncateDisplay(item.prompt, promptBudget, ell), promptBudget);
+      const fg = ctx.selected ? theme.selectionFg : theme.text;
+      const tagColor = ctx.selected ? theme.selectionFg : theme.ai;
+      return (
+        <Text color={fg} bold={ctx.selected}>
+          <Text color={tagColor}>{metaText}</Text>
+          {prompt}
+          {kindTag ? <Text color={ctx.selected ? theme.selectionFg : theme.muted}>{kindTag}</Text> : null}
+        </Text>
+      );
+    },
+    [asciiMode, ell, theme],
+  );
 
   const renderSessionRow = useCallback(
     (item: StudySessionRecord, ctx: VirtualListRenderContext) => {
@@ -822,7 +1064,7 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
         subtitle={subtitle}
         width={frameW}
         height={frameH}
-        onClose={subMode === 'artifact' || creating || confirmEnd ? undefined : onClose}
+        onClose={subMode === 'artifact' || subMode === 'branch-pick' || creating || confirmEnd ? undefined : onClose}
         isActive={isActive && !confirmEnd}
         hints={hints}
       >
@@ -850,7 +1092,7 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
               </Text>
             ) : null}
             <Box flexGrow={1} />
-            <Badge label={truncateDisplay(scopeBadgeLabel, 18)} tone="accent" variant="soft" />
+            <Badge label={truncateDisplay(scopeBadgeLabel, 18, ell)} tone="accent" variant="soft" />
             {resolvedCourseId && innerW >= 54 ? (
               <Text color={theme.dim}>{t(lang, '[f] 切换', '[f] Scope')}</Text>
             ) : null}
@@ -929,6 +1171,36 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
             width={innerW}
             height={contentH}
           />
+        ) : subMode === 'branch-pick' ? (
+          <Box flexDirection="column" height={contentH} overflow="hidden">
+            <Box height={1} overflow="hidden" flexDirection="row" gap={1}>
+              <Badge label={t(lang, '前置支线选卡', 'Branch Card Picker')} tone="ai" variant="soft" />
+              <Text color={theme.muted} wrap="truncate-end">
+                {`${branchCandidates.length} ${t(lang, '道候选题目', 'candidates')}`}
+              </Text>
+            </Box>
+            <Divider width={innerW} />
+            <VirtualList
+              items={branchCandidates}
+              height={Math.max(3, contentH - 3)}
+              width={innerW}
+              selectedIndex={branchIndex}
+              onChange={setBranchIndex}
+              onSelect={(item) => {
+                void handleConfirmBranchOpen(item);
+              }}
+              isActive={modalInputActive && subMode === 'branch-pick'}
+              keyExtractor={(item) => `${item.deckId}:${item.cardId}`}
+              renderItem={renderBranchCandidateRow}
+            />
+            <Text color={theme.muted} wrap="truncate-end">
+              {t(
+                lang,
+                '按 Enter 切入前置支线练习 (0 token) · Esc 返回',
+                'Press Enter to open prerequisite branch (0 tokens) · Esc back',
+              )}
+            </Text>
+          </Box>
         ) : subMode === 'artifact' && activeArtifact ? (
           <Box flexDirection="column" height={contentH} overflow="hidden">
             <Box height={1} overflow="hidden" flexDirection="row" gap={1}>
@@ -980,6 +1252,9 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
                     {formatCostSummary(selectedSession.cost, lang)
                       ? ` · ${t(lang, '消耗', 'Cost')}: ${formatCostSummary(selectedSession.cost, lang)}`
                       : ''}
+                    {branchDepth > 0
+                      ? ` · ${t(lang, `支线深度 ${branchDepth}`, `Branch x${branchDepth}`)}`
+                      : ''}
                     {artifacts.length > 0 ? ` · ${artifacts.length}${t(lang, '份讲解', ' artifacts')}` : ''}
                     {` · ${t(lang, '[Tab] 工作台', '[Tab] Workbench')}`}
                   </Text>
@@ -999,6 +1274,13 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
                       label={sessionStatusMeta(selectedSession.status, lang).label}
                       status={sessionStatusMeta(selectedSession.status, lang).pill}
                     />
+                    {branchDepth > 0 ? (
+                      <Badge
+                        label={t(lang, `支线深度 ${branchDepth}`, `Branch x${branchDepth}`)}
+                        tone="ai"
+                        variant="soft"
+                      />
+                    ) : null}
                     <Text color={theme.text} bold wrap="truncate-end">
                       {selectedSession.goal?.title || selectedSession.courseId || selectedSession.id}
                     </Text>

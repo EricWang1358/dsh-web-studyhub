@@ -47,7 +47,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       title: t(lang, '学习库 · Library', 'Library'),
       items: [
         { key: 'p', label: t(lang, '今日计划', 'Daily plan') },
-        { key: 'g', label: t(lang, 'AI 带学工作台', 'AI Guided Study') },
+        { key: 'g', label: t(lang, 'AI 带学工作台 (B开支线/u返回)', 'AI Guided Study (B branch/u back)') },
         { key: 'C', label: t(lang, '课程设置', 'Course settings') },
         { key: 'o', label: t(lang, '题组导入/AI建议/合并拆分', 'Deck import/AI suggest/merge') },
         { key: '[ / ]', label: t(lang, '上移/下移题组顺序', 'Reorder deck up/down') },
@@ -209,7 +209,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'u / U', label: t(lang, '使用记录开关 / 清空', 'Usage toggle / clear') },
         { key: 'a', label: t(lang, '自动检查更新开关', 'Auto update check toggle') },
         { key: 'v', label: t(lang, '切换语义检索提供方', 'Cycle retrieval provider') },
-        { key: 't', label: t(lang, '语义检索诊断与索引计划', 'Retrieval test & index plan') },
+        { key: 't', label: t(lang, '语义检索诊断/试搜/镜像源', 'Retrieval diag / search / mirror') },
       ],
     },
     {

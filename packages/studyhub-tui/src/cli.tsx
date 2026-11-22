@@ -5,7 +5,7 @@
  *   in parallel, slashing perceived Time-To-First-Frame by >60%.
  * - Supports both Linux bash and Windows PowerShell / Windows Terminal (including `--ascii`).
  */
-import { parseCliArgs, cliHelpText, shouldAutoAscii, resolveColorCapability } from './cli-args.js';
+import { parseCliArgs, cliHelpText, shouldAutoAscii, shouldEnableMouse, resolveColorCapability } from './cli-args.js';
 
 const PKG_VERSION = '1.0.0';
 
@@ -28,6 +28,7 @@ async function main() {
   }
 
   const resolvedAscii = parsed.asciiMode ?? (shouldAutoAscii(process.env) ? true : undefined);
+  const resolvedMouse = parsed.mouse ?? shouldEnableMouse(process.env);
   const colorCap = resolveColorCapability(process.env, { isTTY: Boolean(process.stdout.isTTY) });
   if (colorCap.level === 0) {
     process.env.FORCE_COLOR = '0';
@@ -55,7 +56,7 @@ async function main() {
   if (parsed.language) useTuiStore.getState().setLanguage(parsed.language);
   if (resolvedAscii !== undefined) useTuiStore.getState().setPreferences({ asciiMode: resolvedAscii });
 
-  const terminal = enterTerminalSession({ altScreen: parsed.altScreen });
+  const terminal = enterTerminalSession({ altScreen: parsed.altScreen, mouse: resolvedMouse });
 
   type TuiHostType = Awaited<ReturnType<typeof import('./host/tui-host.js').createTuiHost>>;
   let activeHost: TuiHostType | null = null;

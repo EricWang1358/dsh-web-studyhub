@@ -12,6 +12,7 @@ export interface ParsedCliArgs {
   autoLaunchpad: boolean;
   skipAutoProbe: boolean;
   asciiMode?: boolean;
+  mouse?: boolean;
   error?: string;
 }
 
@@ -117,6 +118,13 @@ export function shouldAutoAscii(
   return false;
 }
 
+export function shouldEnableMouse(env: NodeJS.ProcessEnv = process.env): boolean {
+  const flag = String(env.STUDYHUB_TUI_MOUSE ?? '').trim().toLowerCase();
+  if (flag === '1' || flag === 'true' || flag === 'yes' || flag === 'on') return true;
+  if (flag === '0' || flag === 'false' || flag === 'no' || flag === 'off') return false;
+  return false;
+}
+
 export function parseCliArgs(argv: readonly string[]): ParsedCliArgs {
   const result: ParsedCliArgs = {
     help: false,
@@ -154,6 +162,14 @@ export function parseCliArgs(argv: readonly string[]): ParsedCliArgs {
     }
     if (token === '--unicode') {
       result.asciiMode = false;
+      continue;
+    }
+    if (token === '--mouse') {
+      result.mouse = true;
+      continue;
+    }
+    if (token === '--no-mouse') {
+      result.mouse = false;
       continue;
     }
 
@@ -238,6 +254,7 @@ export function cliHelpText(version = '1.0.0'): string {
     '      --no-launchpad    Skip the first-run Launchpad even on an empty library',
     '      --skip-probe      Skip background CLI model discovery on startup',
     '      --ascii           Use ASCII-safe borders/bars (for legacy Windows PowerShell 5.1)',
+    '      --mouse           Enable SGR mouse wheel scrolling (or STUDYHUB_TUI_MOUSE=1; --no-mouse disables)',
     '  -v, --version         Print version and exit',
     '  -h, --help            Show this help message',
     '',
