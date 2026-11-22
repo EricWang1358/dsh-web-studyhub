@@ -13,7 +13,7 @@ import { useTheme } from '../../theme/tokens.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { currentCourse, dueToday } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
-import { getSampleStatus, removeSampleCourse, tryAction } from '../../host/index.js';
+import { getSampleStatus, removeSampleCourse, tryAction } from '../../host/sample-actions.js';
 
 const DeckManageModal = lazy(() => import('./DeckManageModal.js').then((m) => ({ default: m.DeckManageModal })));
 const VoicePackModal = lazy(() => import('./VoicePackModal.js').then((m) => ({ default: m.VoicePackModal })));

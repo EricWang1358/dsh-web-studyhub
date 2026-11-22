@@ -6,7 +6,7 @@ import { useTheme } from '../../theme/tokens.js';
 import { Badge, Spinner } from '../../components/Badge.js';
 import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
-import { tryAction } from '../../host/index.js';
+import { tryAction } from '../../host/sample-actions.js';
 
 export type RoundScope = 'deck' | 'course' | 'all';
 export type RoundFilter = 'all' | 'due' | 'new' | 'wrong';

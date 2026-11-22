@@ -14,7 +14,7 @@ import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { renderBarChart } from '../../render/charts.js';
 import { currentCourse, listCourses } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
-import { tryAction } from '../../host/index.js';
+import { tryAction } from '../../host/sample-actions.js';
 const AddFocusModal = lazy(() => import('./AddFocusModal.js').then((m) => ({ default: m.AddFocusModal })));
 const StudyPlanModal = lazy(() => import('./StudyPlanModal.js').then((m) => ({ default: m.StudyPlanModal })));
 import {

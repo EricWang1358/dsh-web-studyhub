@@ -1,4 +1,4 @@
-import type { ReviewRun } from '../../host/index.js';
+import type { ReviewRun } from '../../host/sample-actions.js';
 import type { UiLanguage } from '../../types/contracts.js';
 import { t } from '../../state/store.js';
 

@@ -8,7 +8,7 @@ import { ConfirmDialog } from '../../components/ConfirmDialog.js';
 import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { TextInput } from '../../components/TextInput.js';
 import { truncateDisplay } from '../../render/cjk.js';
-import { tryAction } from '../../host/index.js';
+import { tryAction } from '../../host/sample-actions.js';
 import type { BookNode, BookOpenResult, FlatTocItem } from './types.js';
 
 export interface BookEditModalProps {

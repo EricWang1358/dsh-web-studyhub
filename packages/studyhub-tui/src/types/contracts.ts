@@ -49,6 +49,8 @@ export interface TuiPreferences {
   recentCommands: string[];
   /** Custom OpenAI presets saved by user (DSH-TUI style) */
   lastOpenAiPreset?: string;
+  /** Persistent last-read page per document (LRU-bounded at 100 entries). */
+  lastReadPages?: Record<string, number>;
 }
 
 export interface HostCallResult<T = unknown> {

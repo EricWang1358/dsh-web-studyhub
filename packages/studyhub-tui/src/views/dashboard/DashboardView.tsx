@@ -2,7 +2,7 @@ import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, u
 import { Box, Text, useInput } from 'ink';
 import type { StudySnapshot, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
-import { tryAction } from '../../host/index.js';
+import { tryAction } from '../../host/sample-actions.js';
 import { currentCourse, dueToday } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
 import { useTheme } from '../../theme/tokens.js';

@@ -12,7 +12,7 @@ import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { TextInput } from '../../components/TextInput.js';
 import { useInputCapture } from '../../components/focus.js';
 import { truncateDisplay } from '../../render/cjk.js';
-import { cleanPathInput, tryAction } from '../../host/index.js';
+import { cleanPathInput, tryAction } from '../../host/sample-actions.js';
 import {
   detectImageMimeFromBytes,
   mergeUniqueTopics,

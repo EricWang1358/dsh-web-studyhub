@@ -2,7 +2,8 @@ import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useStat
 import { Box, Text, useInput } from 'ink';
 import type { BindingSnapshot, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
-import { tryAction, type TuiConfigSnapshot } from '../../host/index.js';
+import { tryAction } from '../../host/sample-actions.js';
+import type { TuiConfigSnapshot } from '../../host/tui-host.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Spinner } from '../../components/Badge.js';
 import { useClaimKeys } from '../../components/focus.js';

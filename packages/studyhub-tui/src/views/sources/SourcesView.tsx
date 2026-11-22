@@ -1,6 +1,6 @@
 import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
-import type { KeyHint, ViewProps } from '../../types/contracts.js';
+import { Box, Text, useInput, useWindowSize } from 'ink';
+import type { HostClient, KeyHint, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { Badge, EmptyState, Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
@@ -15,7 +15,7 @@ import { useFooterHints } from '../../components/hooks.js';
 import { useTheme } from '../../theme/tokens.js';
 import { currentCourse } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
-import { truncateDisplay } from '../../render/cjk.js';
+import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import { errorMessage, tryAction } from '../../host/sample-actions.js';
 import {
   type DocumentGroup,
@@ -23,6 +23,7 @@ import {
   formatTone,
   groupSourcesFromSnapshot,
   materialFoldersFromSnapshot,
+  normalizeFolderName,
 } from './source-helpers.js';
 const ImportModal = lazy(() => import('./ImportModal.js').then((m) => ({ default: m.ImportModal })));
 const DocumentReader = lazy(() => import('./DocumentReader.js').then((m) => ({ default: m.DocumentReader })));
@@ -43,10 +44,292 @@ type ActiveOverlay =
   | 'search'
   | 'folders-filter'
   | 'folders-assign'
+  | 'folders-assign-batch'
   | 'companions'
   | 'organize'
   | 'coverage'
   | 'reread';
+
+type BatchFolderRow =
+  | { kind: 'folder'; id: string; name: string; label: string; count: number }
+  | { kind: 'unfile'; id: string; label: string; count: number };
+
+interface BatchFolderModalProps {
+  host: HostClient;
+  selectedKeys: readonly string[];
+  folders: readonly string[];
+  folderCounts: ReadonlyMap<string, number>;
+  isActive: boolean;
+  onRefresh: () => Promise<void> | void;
+  onAssigned: () => void;
+  onClose: () => void;
+}
+
+const BatchFolderModal = memo(function BatchFolderModal({
+  host,
+  selectedKeys,
+  folders,
+  folderCounts,
+  isActive,
+  onRefresh,
+  onAssigned,
+  onClose,
+}: BatchFolderModalProps) {
+  const theme = useTheme();
+  const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const notify = useTuiStore((s) => s.notify);
+  const { columns, rows: termRows } = useWindowSize();
+  const ell = asciiMode ? '...' : '…';
+
+  const [subMode, setSubMode] = useState<'list' | 'create'>('list');
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [inputValue, setInputValue] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const busyRef = useRef(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const items: BatchFolderRow[] = useMemo(() => {
+    const folderRows: BatchFolderRow[] = folders.map((name) => ({
+      kind: 'folder',
+      id: `folder:${name}`,
+      name,
+      label: name,
+      count: folderCounts.get(name) ?? 0,
+    }));
+    return [
+      ...folderRows,
+      {
+        kind: 'unfile',
+        id: '__unfile__',
+        label: t(lang, '移出文件夹（未归类）', 'Unfile (No folder)'),
+        count: folderCounts.get('') ?? 0,
+      },
+    ];
+  }, [folders, folderCounts, lang]);
+
+  useEffect(() => {
+    if (selectedIndex >= items.length) {
+      setSelectedIndex(Math.max(0, items.length - 1));
+    }
+  }, [items.length, selectedIndex]);
+
+  const assignAll = useCallback(
+    async (folder: string | null) => {
+      if (busyRef.current || busy || selectedKeys.length === 0) return;
+      busyRef.current = true;
+      setBusy(true);
+      setErr(null);
+      try {
+        const res = await tryAction<{ updated?: number }>(host, 'source.folder.set', {
+          keys: selectedKeys,
+          folder,
+        });
+        if (!mountedRef.current) return;
+        if (!res.ok) {
+          setErr(res.error?.message || t(lang, '批量移动文件夹失败', 'Batch move failed'));
+          return;
+        }
+        const count = typeof res.value?.updated === 'number' ? res.value.updated : selectedKeys.length;
+        await onRefresh();
+        if (!mountedRef.current) return;
+        onAssigned();
+        notify(
+          folder
+            ? t(lang, `已将 ${count} 份资料移入「${folder}」`, `Moved ${count} materials to "${folder}"`)
+            : t(lang, `已将 ${count} 份资料移出文件夹`, `Unfiled ${count} materials`),
+          'success',
+        );
+        onClose();
+      } catch (error) {
+        if (mountedRef.current) setErr(errorMessage(error, lang));
+      } finally {
+        busyRef.current = false;
+        if (mountedRef.current) setBusy(false);
+      }
+    },
+    [busy, host, lang, notify, onAssigned, onClose, onRefresh, selectedKeys],
+  );
+
+  const handleCreateSubmit = useCallback(
+    async (raw: string) => {
+      if (busyRef.current || busy) return;
+      const name = normalizeFolderName(raw);
+      if (!name) {
+        setErr(t(lang, '请输入文件夹名称', 'Please enter a folder name'));
+        return;
+      }
+      if (name.length > 80) {
+        setErr(t(lang, '文件夹名称最多 80 个字符', 'Folder name must be at most 80 characters'));
+        return;
+      }
+      busyRef.current = true;
+      setBusy(true);
+      setErr(null);
+      try {
+        const res = await tryAction(host, 'source.folder.create', { name });
+        if (!mountedRef.current) return;
+        if (!res.ok) {
+          setErr(res.error?.message || t(lang, '创建文件夹失败', 'Create folder failed'));
+          return;
+        }
+        await onRefresh();
+        if (!mountedRef.current) return;
+        notify(t(lang, `已创建文件夹「${name}」`, `Created folder "${name}"`), 'success');
+        setSubMode('list');
+        setInputValue('');
+        setSelectedIndex(folders.length);
+      } catch (error) {
+        if (mountedRef.current) setErr(errorMessage(error, lang));
+      } finally {
+        busyRef.current = false;
+        if (mountedRef.current) setBusy(false);
+      }
+    },
+    [busy, folders.length, host, lang, notify, onRefresh],
+  );
+
+  const listActive = isActive && subMode === 'list' && !busy;
+  useInput(
+    (input) => {
+      if (!listActive || busyRef.current || busy) return;
+      if (input === 'a') {
+        setErr(null);
+        setInputValue('');
+        setSubMode('create');
+      } else if (input === '0' || input === 'x') {
+        void assignAll(null);
+      }
+    },
+    { isActive: listActive },
+  );
+
+  const hints: KeyHint[] = useMemo(
+    () =>
+      subMode === 'create'
+        ? [
+            { key: 'Enter', label: t(lang, '保存', 'Save') },
+            { key: 'Esc', label: t(lang, '返回', 'Back') },
+          ]
+        : [
+            { key: 'Enter', label: t(lang, '批量移入', 'Move all') },
+            { key: 'a', label: t(lang, '新建', 'New') },
+            { key: '0/x', label: t(lang, '移出', 'Unfile') },
+            { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+          ],
+    [lang, subMode],
+  );
+
+  const frameWidth = Math.max(46, Math.min(68, columns - 4));
+  const innerWidth = modalContentWidth(frameWidth);
+  const listHeight = Math.max(4, Math.min(12, termRows - 12));
+
+  return (
+    <Modal
+      title={t(lang, '批量移动资料到文件夹', 'Batch Move to Folder')}
+      subtitle={t(lang, `已选 ${selectedKeys.length} 份`, `${selectedKeys.length} selected`)}
+      icon={asciiMode ? '*' : '◈'}
+      width={frameWidth}
+      isActive={isActive && !busy}
+      onClose={
+        subMode === 'list'
+          ? onClose
+          : () => {
+              setErr(null);
+              setSubMode('list');
+            }
+      }
+      hints={hints}
+    >
+      {subMode === 'create' ? (
+        <Box flexDirection="column" marginY={1}>
+          <Text color={theme.primary} bold>
+            {t(lang, '新建文件夹名称:', 'New folder name:')}
+          </Text>
+          <Box marginTop={1}>
+            <TextInput
+              value={inputValue}
+              onChange={setInputValue}
+              onSubmit={(val) => void handleCreateSubmit(val)}
+              onCancel={() => {
+                setErr(null);
+                setSubMode('list');
+              }}
+              placeholder={t(lang, '例如：讲义、历年真题、实验笔记', 'e.g. Lectures, Past Exams')}
+              width={Math.max(16, innerWidth - 4)}
+              maxLength={80}
+              isActive={isActive && !busy && subMode === 'create'}
+              prompt={asciiMode ? '>' : '›'}
+            />
+          </Box>
+        </Box>
+      ) : (
+        <Box flexDirection="column">
+          {folders.length === 0 ? (
+            <Box marginBottom={1}>
+              <Text color={theme.dim}>
+                {t(lang, '暂无自定义文件夹，按 [a] 新建一个。', 'No folders yet. Press [a] to create one.')}
+              </Text>
+            </Box>
+          ) : null}
+          <VirtualList
+            items={items}
+            height={listHeight}
+            width={innerWidth}
+            selectedIndex={selectedIndex}
+            onChange={(idx) => setSelectedIndex(idx)}
+            onSelect={(row) => void assignAll(row.kind === 'folder' ? row.name : null)}
+            isActive={listActive}
+            keyExtractor={(row) => row.id}
+            renderItem={(row, ctx) => {
+              const countText = `${row.count}`;
+              const icon =
+                row.kind === 'folder'
+                  ? asciiMode
+                    ? '> '
+                    : '▸ '
+                  : asciiMode
+                    ? 'o '
+                    : '○ ';
+              const maxLabel = Math.max(10, ctx.width - countText.length - 6);
+              return (
+                <Box flexDirection="row" width={ctx.width}>
+                  <Text color={ctx.selected ? theme.primary : theme.muted}>
+                    {ctx.selected ? (asciiMode ? '> ' : '› ') : '  '}
+                  </Text>
+                  <Text color={row.kind === 'folder' ? theme.accent : theme.muted}>{icon}</Text>
+                  <Text color={theme.text} bold={ctx.selected}>
+                    {truncateDisplay(row.label, maxLabel, ell)}
+                  </Text>
+                  <Box flexGrow={1} />
+                  <Text color={theme.dim}>{countText}</Text>
+                </Box>
+              );
+            }}
+          />
+        </Box>
+      )}
+      {busy ? (
+        <Box marginTop={1}>
+          <Spinner label={t(lang, `正在保存文件夹变更${ell}`, `Updating folders${ell}`)} />
+        </Box>
+      ) : null}
+      {err ? (
+        <Box marginTop={1}>
+          <Text color={theme.error}>{`${asciiMode ? 'x' : '✕'} ${err}`}</Text>
+        </Box>
+      ) : null}
+    </Modal>
+  );
+});
 
 export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
   host,
@@ -68,6 +351,7 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
   const [folderFilter, setFolderFilter] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => new Set());
   const [overlay, setOverlay] = useState<ActiveOverlay>('none');
 
   // Reader state
@@ -128,6 +412,20 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
 
   const allGroups = useMemo(() => groupSourcesFromSnapshot(snapshot), [snapshot]);
   const materialFolders = useMemo(() => materialFoldersFromSnapshot(snapshot), [snapshot]);
+
+  useEffect(() => {
+    setSelectedKeys((prev) => {
+      if (prev.size === 0) return prev;
+      const valid = new Set(allGroups.map((g) => g.key));
+      let changed = false;
+      const next = new Set<string>();
+      for (const k of prev) {
+        if (valid.has(k)) next.add(k);
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [allGroups]);
 
   const courseScopedGroups = useMemo(() => {
     if (!courseFilterOn || !focusCourse) return allGroups;
@@ -330,23 +628,119 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
   );
 
   const handleToggleArchive = useCallback(
-    async (item: DocumentGroup) => {
-      if (busy) return;
+    async (singleItem?: DocumentGroup) => {
+      if (busyRef.current || busy) return;
+      const targetGroups =
+        selectedKeys.size > 0
+          ? allGroups.filter((g) => selectedKeys.has(g.key))
+          : singleItem
+            ? [singleItem]
+            : [];
+      if (targetGroups.length === 0) return;
+      const sourceIds = [...new Set(targetGroups.flatMap((g) => g.sourceIds))];
+      if (sourceIds.length === 0) return;
+      const nextArchived = !targetGroups.every((g) => g.archived);
+
+      busyRef.current = true;
       setBusy(true);
-      const res = await tryAction(host, 'source.archive', {
-        sourceIds: item.sourceIds,
-        archived: !item.archived,
-      });
-      setBusy(false);
-      if (!res.ok) {
-        notify(res.error?.message || t(lang, '归档操作失败', 'Archive failed'), 'error');
+      try {
+        const res = await tryAction(host, 'source.archive', {
+          sourceIds,
+          archived: nextArchived,
+        });
+        if (!mountedRef.current) return;
+        if (!res.ok) {
+          notify(res.error?.message || t(lang, '归档操作失败', 'Archive failed'), 'error');
+          return;
+        }
+        const batchCount = selectedKeys.size > 0 ? targetGroups.length : 0;
+        if (batchCount > 0) setSelectedKeys(new Set());
+        await refresh();
+        if (!mountedRef.current) return;
+        if (batchCount > 1) {
+          notify(
+            nextArchived
+              ? t(lang, `已归档 ${batchCount} 份资料`, `Archived ${batchCount} materials`)
+              : t(lang, `已恢复 ${batchCount} 份资料`, `Restored ${batchCount} materials`),
+            'success',
+          );
+        } else {
+          notify(nextArchived ? t(lang, '已归档资料', 'Archived') : t(lang, '已恢复资料', 'Restored'), 'success');
+        }
+      } finally {
+        busyRef.current = false;
+        if (mountedRef.current) setBusy(false);
+      }
+    },
+    [allGroups, busy, host, lang, notify, refresh, selectedKeys],
+  );
+
+  const handleEnrich = useCallback(async () => {
+    if (busyRef.current || busy) return;
+    const targetGroups =
+      selectedKeys.size > 0
+        ? allGroups.filter((g) => selectedKeys.has(g.key))
+        : selectedItem
+          ? [selectedItem]
+          : [];
+    if (targetGroups.length === 0) {
+      notify(t(lang, '请先选择要补全元信息的资料', 'Select at least one material to enrich'), 'info');
+      return;
+    }
+    const sourceIds = [...new Set(targetGroups.flatMap((g) => g.sourceIds))];
+    if (sourceIds.length === 0) return;
+
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      const res = await tryAction<{
+        updated?: number;
+        changes?: Array<{ id: string; fields?: string[] }>;
+        unresolved?: Array<{ id: string; fields?: string[] }>;
+      }>(host, 'materials.enrich', { sourceIds });
+      if (!mountedRef.current) return;
+      if (!res.ok || !res.value) {
+        notify(res.error?.message || t(lang, '补全资料元信息失败', 'Failed to enrich metadata'), 'error');
         return;
       }
+      const changedCount = Array.isArray(res.value.changes)
+        ? res.value.changes.length
+        : Number(res.value.updated ?? 0);
+      const unresolvedCount = Array.isArray(res.value.unresolved) ? res.value.unresolved.length : 0;
       await refresh();
-      notify(item.archived ? t(lang, '已恢复资料', 'Restored') : t(lang, '已归档资料', 'Archived'), 'success');
-    },
-    [busy, host, lang, notify, refresh],
-  );
+      if (!mountedRef.current) return;
+      if (changedCount > 0) {
+        notify(
+          unresolvedCount > 0
+            ? t(
+                lang,
+                `已补全 ${changedCount} 份元信息（${unresolvedCount} 份仍缺原始文件或导入时间）`,
+                `Enriched ${changedCount} source(s) (${unresolvedCount} unresolved)`,
+              )
+            : t(
+                lang,
+                `已补全 ${changedCount} 份元信息`,
+                `Enriched ${changedCount} source(s)`,
+              ),
+          'success',
+        );
+      } else {
+        notify(
+          unresolvedCount > 0
+            ? t(
+                lang,
+                `元信息已检查（0 项变更，${unresolvedCount} 份缺原始文件或导入时间）`,
+                `Metadata checked (0 changes, ${unresolvedCount} unresolved)`,
+              )
+            : t(lang, '所选资料元信息已完整', 'Selected metadata already complete'),
+          'info',
+        );
+      }
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusy(false);
+    }
+  }, [allGroups, busy, host, lang, notify, refresh, selectedItem, selectedKeys]);
 
   const handleRenameSubmit = useCallback(
     async (newTitle: string) => {
@@ -467,36 +861,51 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
 
   const listActive = isActive && !readerTarget && overlay === 'none';
 
-  useClaimKeys(['/', 'c', 'r', 'R', 'g', 'p', 'd', 'i', 'f', 'a', 'F', 'm', 'M', 'C', 'G', 'V', '[', ']'], listActive);
+  useClaimKeys(['/', 'c', 'r', 'R', 'g', 'p', 'd', 'i', 'f', 'a', 'F', 'm', 'M', 'C', 'G', 'V', 'E', ' ', '[', ']'], listActive);
   useInputCapture(isActive && !readerTarget && (overlay === 'rename' || overlay === 'course' || overlay === 'search'));
 
   const hints: KeyHint[] = useMemo(
-    () => [
-      { key: 'Enter', label: t(lang, '阅读', 'Read') },
-      { key: 'i', label: t(lang, '导入', 'Import') },
-      { key: 'M', label: 'MinerU' },
-      { key: 'g', label: t(lang, '出题', 'Generate') },
-      { key: 'G', label: t(lang, '归类', 'Organize') },
-      { key: 'V', label: t(lang, '覆盖率', 'Coverage') },
-      { key: 'R', label: t(lang, '重读清单', 'Reread') },
-      { key: 'F', label: t(lang, '文件夹', 'Folders') },
-      { key: 'm', label: t(lang, '移至夹', 'Move') },
-      { key: 'C', label: t(lang, '伴学页', 'Companions') },
-      { key: 'r', label: t(lang, '重命名', 'Rename') },
-      { key: 'c', label: t(lang, '课程', 'Course') },
-      { key: 'p', label: t(lang, '置顶', 'Pin') },
-      { key: '[/]', label: t(lang, '置顶排序', 'Reorder pin') },
-      { key: 'd', label: t(lang, '删除', 'Delete') },
-      { key: '/', label: t(lang, '搜索', 'Filter') },
-      { key: 'f', label: t(lang, '筛选课程', 'Course filter') },
-    ],
-    [lang],
+    () =>
+      selectedKeys.size > 0
+        ? [
+            { key: 'Space', label: t(lang, '取消/勾选', 'Toggle') },
+            { key: 'm', label: t(lang, `批量移夹(${selectedKeys.size})`, `Move(${selectedKeys.size})`) },
+            { key: 'a', label: t(lang, '批量归档', 'Archive') },
+            { key: 'E', label: t(lang, '补全元信息', 'Enrich') },
+            { key: 'Esc', label: t(lang, '清空选择', 'Clear sel') },
+          ]
+        : [
+            { key: 'Enter', label: t(lang, '阅读', 'Read') },
+            { key: 'Space', label: t(lang, '多选', 'Select') },
+            { key: 'i', label: t(lang, '导入', 'Import') },
+            { key: 'M', label: 'MinerU' },
+            { key: 'g', label: t(lang, '出题', 'Generate') },
+            { key: 'G', label: t(lang, '归类', 'Organize') },
+            { key: 'V', label: t(lang, '覆盖率', 'Coverage') },
+            { key: 'R', label: t(lang, '重读清单', 'Reread') },
+            { key: 'E', label: t(lang, '补全元信息', 'Enrich') },
+            { key: 'F', label: t(lang, '文件夹', 'Folders') },
+            { key: 'm', label: t(lang, '移至夹', 'Move') },
+            { key: 'C', label: t(lang, '伴学页', 'Companions') },
+            { key: 'r', label: t(lang, '重命名', 'Rename') },
+            { key: 'c', label: t(lang, '课程', 'Course') },
+            { key: 'p', label: t(lang, '置顶', 'Pin') },
+            { key: '[/]', label: t(lang, '置顶排序', 'Reorder pin') },
+            { key: 'd', label: t(lang, '删除', 'Delete') },
+            { key: '/', label: t(lang, '搜索', 'Filter') },
+            { key: 'f', label: t(lang, '筛选课程', 'Course filter') },
+          ],
+    [lang, selectedKeys.size],
   );
   useFooterHints(hints, isActive && !readerTarget);
 
   useInput(
-    (input) => {
+    (input, key) => {
       if (!listActive || busyRef.current || busy) return;
+      if (key.escape && selectedKeys.size > 0) {
+        setSelectedKeys(new Set());
+        return;
+      }
       if (input === '[' || input === ']') {
         void handleMovePin(input === '[' ? 'up' : 'down');
       } else if (input === 'i') {
@@ -515,8 +924,21 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
         setOverlay('organize');
       } else if (input === 'R') {
         setOverlay('reread');
+      } else if (input === 'E') {
+        void handleEnrich();
+      } else if (input === 'm' && selectedKeys.size > 0) {
+        setOverlay('folders-assign-batch');
+      } else if (input === 'a' && selectedKeys.size > 0) {
+        void handleToggleArchive();
       } else if (selectedItem) {
-        if (input === 'V') {
+        if (input === ' ') {
+          setSelectedKeys((prev) => {
+            const next = new Set(prev);
+            if (next.has(selectedItem.key)) next.delete(selectedItem.key);
+            else next.add(selectedItem.key);
+            return next;
+          });
+        } else if (input === 'V') {
           setOverlay('coverage');
         } else if (input === 'm') {
           setOverlay('folders-assign');
@@ -612,11 +1034,25 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
               <Badge label={t(lang, '全部课程', 'All Courses')} tone="muted" variant="outline" />
             )}
           </Box>
+          {selectedKeys.size > 0 ? (
+            <>
+              <Text> </Text>
+              <Box flexShrink={0}>
+                <Badge
+                  label={t(lang, `已选 ${selectedKeys.size} 份`, `${selectedKeys.size} selected`)}
+                  tone="success"
+                  variant="soft"
+                />
+              </Box>
+            </>
+          ) : null}
           <Box flexGrow={1} />
           {!narrowBar ? (
             <Box flexShrink={0}>
               <Text color={theme.dim} wrap={asciiMode ? undefined : 'truncate-end'}>
-                {t(lang, '[i] 导入  [f] 切换课程过滤  [/] 搜索', '[i] Import  [f] Course Filter  [/] Filter')}
+                {selectedKeys.size > 0
+                  ? t(lang, '[m] 移至夹  [a] 归档  [E] 补全元信息  [Esc] 清空', '[m] Move  [a] Archive  [E] Enrich  [Esc] Clear')
+                  : t(lang, '[i] 导入  [f] 切换课程过滤  [/] 搜索', '[i] Import  [f] Course Filter  [/] Filter')}
               </Text>
             </Box>
           ) : null}
@@ -685,13 +1121,36 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
                   keyExtractor={(item) => item.key}
                   renderItem={(item, ctx) => {
                     const fmt = formatLabel(item.format);
+                    const isChecked = selectedKeys.has(item.key);
+                    const checkMark =
+                      selectedKeys.size > 0 || isChecked
+                        ? isChecked
+                          ? asciiMode
+                            ? '[x] '
+                            : '[✓] '
+                          : '[ ] '
+                        : '';
                     const pinMark = item.pinned ? (asciiMode ? '* ' : '★ ') : '';
                     const archMark = item.archived ? t(lang, '[归档] ', '[Arch] ') : '';
                     const meta = `${item.pageCount}p ${asciiMode ? '-' : '·'} ${item.cardCount}${t(lang, '题', 'q')}`;
-                    const titleMax = Math.max(8, ctx.width - fmt.length - meta.length - (item.pinned ? 2 : 0) - (item.archived ? 7 : 0) - 5);
+                    const fixedW =
+                      2 +
+                      displayWidth(checkMark) +
+                      displayWidth(pinMark) +
+                      displayWidth(fmt) +
+                      3 +
+                      (item.archived ? displayWidth(archMark) : 0) +
+                      displayWidth(meta) +
+                      1;
+                    const titleMax = Math.max(6, ctx.width - fixedW);
                     return (
-                      <Box flexDirection="row" width={ctx.width}>
+                      <Box flexDirection="row" width={ctx.width} overflow="hidden">
                         <Text color={ctx.selected ? theme.primary : theme.muted}>{ctx.selected ? (asciiMode ? '> ' : '▸ ') : '  '}</Text>
+                        {checkMark ? (
+                          <Text color={isChecked ? theme.success : theme.muted} bold={isChecked}>
+                            {checkMark}
+                          </Text>
+                        ) : null}
                         {item.pinned ? <Text color={theme.warning}>{pinMark}</Text> : null}
                         <Text color={theme.accent} bold>{`[${fmt}] `}</Text>
                         {item.archived ? <Text color={theme.dim}>{archMark}</Text> : null}
@@ -889,6 +1348,19 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
             setSelectedIndex(0);
           }}
           onRefresh={refresh}
+          onClose={() => setOverlay('none')}
+        />
+      ) : null}
+
+      {overlay === 'folders-assign-batch' && selectedKeys.size > 0 ? (
+        <BatchFolderModal
+          host={host}
+          selectedKeys={[...selectedKeys]}
+          folders={materialFolders.folders}
+          folderCounts={folderCounts}
+          isActive={isActive}
+          onRefresh={refresh}
+          onAssigned={() => setSelectedKeys(new Set())}
           onClose={() => setOverlay('none')}
         />
       ) : null}

@@ -2,7 +2,7 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from '
 import { Box, Text, useInput, useWindowSize } from 'ink';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
-import { tryAction } from '../../host/index.js';
+import { tryAction } from '../../host/sample-actions.js';
 import { currentCourse } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
 import { useTheme } from '../../theme/tokens.js';

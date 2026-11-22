@@ -8,7 +8,7 @@ import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList } from '../../components/VirtualList.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
-import { tryAction } from '../../host/index.js';
+import { tryAction } from '../../host/sample-actions.js';
 import type { FlatTocItem } from './types.js';
 
 export interface UnplacedSectionItem {

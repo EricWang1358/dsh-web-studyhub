@@ -7,10 +7,10 @@ import {
   describeEnvDetection,
   detectPrimaryEnvProvider,
   findPreset,
-  saveTuiPreferences,
-  tryAction,
-  type TuiConfigSnapshot,
-} from '../../host/index.js';
+} from '../../host/presets.js';
+import { saveTuiPreferences } from '../../host/tui-prefs.js';
+import { tryAction } from '../../host/sample-actions.js';
+import type { TuiConfigSnapshot } from '../../host/tui-host.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, Spinner, StatusPill } from '../../components/Badge.js';
 import { Panel } from '../../components/Panel.js';

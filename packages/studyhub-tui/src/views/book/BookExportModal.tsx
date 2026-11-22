@@ -6,7 +6,7 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { Box, Text, useInput } from 'ink';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
-import { cleanPathInput, tryAction } from '../../host/index.js';
+import { cleanPathInput, tryAction } from '../../host/sample-actions.js';
 import { expandHomePath } from '../sources/path-complete.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, Divider, EmptyState, Spinner } from '../../components/Badge.js';

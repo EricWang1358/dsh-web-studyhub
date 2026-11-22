@@ -2,7 +2,7 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from '
 import { Box, Text, useInput } from 'ink';
 import type { HostClient, KeyHint, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
-import { tryAction, type ReviewRun } from '../../host/index.js';
+import { tryAction, type ReviewRun } from '../../host/sample-actions.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, EmptyState, ProgressBar, Spinner } from '../../components/Badge.js';
 import { MarkdownView } from '../../components/MarkdownView.js';

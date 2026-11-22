@@ -3,7 +3,7 @@ import { Box } from 'ink';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';
 import { Spinner } from '../../components/Badge.js';
 import { useFooterHints } from '../../components/hooks.js';
-import { tryAction } from '../../host/index.js';
+import { tryAction } from '../../host/sample-actions.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { ExamSetup } from './ExamSetup.js';
 

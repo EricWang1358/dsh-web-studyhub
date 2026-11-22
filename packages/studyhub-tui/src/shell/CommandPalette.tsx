@@ -420,7 +420,7 @@ export const CommandPalette = memo(function CommandPalette({
         s.recordRecentCommand(item.id);
         const recentCommands = useTuiStore.getState().preferences.recentCommands;
         const dshHome = (host as { dshHome?: string } | undefined)?.dshHome;
-        void import('../host/index.js')
+        void import('../host/tui-prefs.js')
           .then(({ saveTuiPreferences }) =>
             saveTuiPreferences(
               { recentCommands },

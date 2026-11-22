@@ -6,7 +6,7 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { Box, Text, useInput } from 'ink';
 import type { BindingSnapshot, HostClient } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
-import { cleanPathInput, loadSampleCourse, removeSampleCourse, tryAction } from '../../host/index.js';
+import { cleanPathInput, loadSampleCourse, removeSampleCourse, tryAction } from '../../host/sample-actions.js';
 import { expandHomePath } from '../sources/path-complete.js';
 import { useShellActions } from '../../shell/actions.js';
 import { useTheme } from '../../theme/tokens.js';

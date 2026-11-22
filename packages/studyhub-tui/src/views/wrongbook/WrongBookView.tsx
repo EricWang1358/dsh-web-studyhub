@@ -4,7 +4,7 @@ import type { KeyHint, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { currentCourse } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
-import { tryAction, type ReviewRun } from '../../host/index.js';
+import { tryAction, type ReviewRun } from '../../host/sample-actions.js';
 import { toneColor, useTheme } from '../../theme/tokens.js';
 import { Badge, EmptyState, Spinner } from '../../components/Badge.js';
 import { MarkdownView } from '../../components/MarkdownView.js';

@@ -9,7 +9,7 @@ import { VirtualList, type VirtualListRenderContext } from '../../components/Vir
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { currentCourse } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
-import { tryAction } from '../../host/index.js';
+import { tryAction } from '../../host/sample-actions.js';
 
 export interface DailyPlanStudyRef {
   root?: string;

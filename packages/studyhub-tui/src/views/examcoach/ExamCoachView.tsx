@@ -16,7 +16,7 @@ import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { currentCourse, listCourses, modelInfo } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
-import { tryAction } from '../../host/index.js';
+import { tryAction } from '../../host/sample-actions.js';
 import {
   formatKindLabel,
   overallLabel,

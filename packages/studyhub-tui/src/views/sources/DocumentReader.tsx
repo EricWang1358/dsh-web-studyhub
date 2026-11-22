@@ -12,6 +12,7 @@ import { useClaimKeys, useInputCapture } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { useStreamingBuffer } from '../../components/useStreamingBuffer.js';
 import { errorMessage, startReview, tryAction } from '../../host/sample-actions.js';
+import { MAX_LAST_READ_PAGES, saveTuiPreferences } from '../../host/tui-prefs.js';
 import { wrapDisplay } from '../../render/cjk.js';
 
 const ReaderOutlineDrawer = lazy(() =>
@@ -223,6 +224,39 @@ function parsePageRange(pagesStr: unknown, fallbackTotal: number): { first: numb
   return { first: 1, last: Math.max(1, fallbackTotal) };
 }
 
+const LAST_READ_DEBOUNCE_MS = 400;
+const MAX_LAST_READ_KEY_LENGTH = 160;
+const MAX_LAST_READ_PAGE = 50_000;
+
+function buildDocKey(documentId?: string, firstSourceId?: string, title?: string): string {
+  const raw = (documentId || firstSourceId || title || '').trim();
+  return raw.slice(0, MAX_LAST_READ_KEY_LENGTH);
+}
+
+function buildUpdatedLastReadPages(
+  existing: Record<string, number> | undefined,
+  docKey: string,
+  page: number,
+): Record<string, number> {
+  const ordered = new Map<string, number>();
+  if (existing && typeof existing === 'object') {
+    for (const [rawKey, rawVal] of Object.entries(existing)) {
+      const key = rawKey.trim();
+      if (!key || key.length > MAX_LAST_READ_KEY_LENGTH || key === docKey) continue;
+      if (typeof rawVal !== 'number' || !Number.isSafeInteger(rawVal) || rawVal < 1 || rawVal > MAX_LAST_READ_PAGE) {
+        continue;
+      }
+      ordered.set(key, rawVal);
+    }
+  }
+  if (docKey && Number.isSafeInteger(page) && page >= 1 && page <= MAX_LAST_READ_PAGE) {
+    ordered.set(docKey, page);
+  }
+  const entries = [...ordered.entries()];
+  const capped = entries.length > MAX_LAST_READ_PAGES ? entries.slice(-MAX_LAST_READ_PAGES) : entries;
+  return Object.fromEntries(capped);
+}
+
 export const DocumentReader = memo(function DocumentReader({
   host,
   sourceId,
@@ -285,6 +319,44 @@ export const DocumentReader = memo(function DocumentReader({
   const mountedRef = useRef(true);
   const readingBusyRef = useRef(false);
   const readingTargetRef = useRef<{ documentId?: string; sourceId?: string; revision?: string }>({});
+  const firstSourceIdRef = useRef<string | undefined>(sourceId);
+  const resumeCheckedRef = useRef(false);
+  const userNavigatedRef = useRef(false);
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingPersistRef = useRef<{ docKey: string; page: number } | null>(null);
+  const lastPersistedRef = useRef<{ docKey: string; page: number } | null>(null);
+
+  const clearPersistTimer = useCallback(() => {
+    if (persistTimerRef.current !== null) {
+      clearTimeout(persistTimerRef.current);
+      persistTimerRef.current = null;
+    }
+  }, []);
+
+  const flushPendingPersist = useCallback(() => {
+    clearPersistTimer();
+    const pending = pendingPersistRef.current;
+    if (!pending) return;
+    pendingPersistRef.current = null;
+    const { docKey, page } = pending;
+    if (!docKey || !Number.isSafeInteger(page) || page < 1 || page > MAX_LAST_READ_PAGE) return;
+    if (
+      lastPersistedRef.current &&
+      lastPersistedRef.current.docKey === docKey &&
+      lastPersistedRef.current.page === page
+    ) {
+      return;
+    }
+    lastPersistedRef.current = { docKey, page };
+    const currentPrefs = useTuiStore.getState().preferences;
+    const nextLastReadPages = buildUpdatedLastReadPages(currentPrefs.lastReadPages, docKey, page);
+    setPreferences({ lastReadPages: nextLastReadPages });
+    const dshHome = (host as { dshHome?: string }).dshHome;
+    void saveTuiPreferences(
+      { lastReadPages: nextLastReadPages },
+      dshHome ? { env: { DSH_HOME: dshHome } } : undefined,
+    ).catch(() => {});
+  }, [clearPersistTimer, host, setPreferences]);
 
   const abortInFlight = useCallback(() => {
     if (abortRef.current) {
@@ -293,11 +365,12 @@ export const DocumentReader = memo(function DocumentReader({
     }
   }, []);
 
-  // Clear local page/drawer buffers and abort any active AI stream on unmount.
+  // Clear local page/drawer buffers, flush any pending last-read page, and abort any active AI stream on unmount.
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      flushPendingPersist();
       abortInFlight();
       setPageData(null);
       setSearchHits([]);
@@ -306,12 +379,17 @@ export const DocumentReader = memo(function DocumentReader({
       setSubMode('read');
       setSavingNote(false);
     };
-  }, [abortInFlight]);
+  }, [abortInFlight, flushPendingPersist]);
 
-  // Reset page when target source/document changes.
+  // Reset page and resume tracking when target source/document changes.
   useEffect(() => {
+    flushPendingPersist();
+    firstSourceIdRef.current = sourceId;
+    resumeCheckedRef.current = false;
+    userNavigatedRef.current = false;
+    lastPersistedRef.current = null;
     setCurrentPage(Math.max(1, initialPage));
-  }, [sourceId, documentId, initialPage]);
+  }, [sourceId, documentId, initialPage, flushPendingPersist]);
 
   // Abort any in-flight AI stream and reset coalesced buffers on page or document change.
   useEffect(() => {
@@ -330,7 +408,14 @@ export const DocumentReader = memo(function DocumentReader({
     setPageScrollTop(0);
 
     const loadPage = async () => {
-      let docMeta: { documentId?: string; revision?: string; title?: string; format?: string; totalPages?: number } = {};
+      let docMeta: {
+        documentId?: string;
+        firstSourceId?: string;
+        revision?: string;
+        title?: string;
+        format?: string;
+        totalPages?: number;
+      } = {};
 
       if (documentId || sourceId) {
         const metaRes = await tryAction<Record<string, unknown>>(host, 'materials.document.get', {
@@ -338,8 +423,21 @@ export const DocumentReader = memo(function DocumentReader({
           ...(sourceId ? { sourceId } : {}),
         });
         if (metaRes.ok && metaRes.value) {
+          const metaSources = Array.isArray(metaRes.value.sources)
+            ? (metaRes.value.sources as Array<{ id?: unknown }>)
+            : [];
+          const metaFirstSourceId = typeof metaSources[0]?.id === 'string' ? metaSources[0].id : undefined;
+          if (metaFirstSourceId) {
+            firstSourceIdRef.current = metaFirstSourceId;
+          }
           docMeta = {
-            documentId: typeof metaRes.value.id === 'string' ? metaRes.value.id : documentId,
+            documentId:
+              typeof metaRes.value.documentId === 'string'
+                ? metaRes.value.documentId
+                : typeof metaRes.value.id === 'string'
+                  ? metaRes.value.id
+                  : documentId,
+            firstSourceId: metaFirstSourceId,
             revision:
               typeof metaRes.value.currentRevision === 'string'
                 ? metaRes.value.currentRevision
@@ -368,6 +466,34 @@ export const DocumentReader = memo(function DocumentReader({
         const firstShown = shown[0];
         const { first, last } = parsePageRange(val.pages, Math.max(totalPagesHint, targetFrom));
         if (firstShown) {
+          const resolvedDocId = docMeta.documentId || (typeof val.documentId === 'string' ? val.documentId : documentId);
+          const resolvedFirstSourceId =
+            docMeta.firstSourceId || firstSourceIdRef.current || sourceId || String(firstShown.sourceId ?? '');
+          const resolvedTitle = docMeta.title || String(val.title || initialTitle || '文档阅读');
+          const resolvedDocKey = buildDocKey(resolvedDocId, resolvedFirstSourceId, resolvedTitle);
+          const hasExplicitPage = initialPage > 1;
+          if (!hasExplicitPage && !resumeCheckedRef.current && !userNavigatedRef.current) {
+            resumeCheckedRef.current = true;
+            const savedPage = resolvedDocKey
+              ? useTuiStore.getState().preferences.lastReadPages?.[resolvedDocKey]
+              : undefined;
+            if (
+              last > 1 &&
+              typeof savedPage === 'number' &&
+              Number.isSafeInteger(savedPage) &&
+              savedPage > 1 &&
+              savedPage <= last &&
+              savedPage !== targetFrom
+            ) {
+              lastPersistedRef.current = { docKey: resolvedDocKey, page: savedPage };
+              setCurrentPage(savedPage);
+              notify(
+                t(lang, `已恢复到上次阅读第 ${savedPage} 页`, `Resumed at page ${savedPage}`),
+                'info',
+              );
+              return;
+            }
+          }
           setPageData({
             page: Number(firstShown.page ?? targetFrom),
             sourceId: String(firstShown.sourceId ?? sourceId ?? ''),
@@ -376,8 +502,8 @@ export const DocumentReader = memo(function DocumentReader({
             firstPage: first,
             lastPage: last,
             revision: docMeta.revision,
-            documentId: docMeta.documentId || (typeof val.documentId === 'string' ? val.documentId : documentId),
-            title: docMeta.title || String(val.title || initialTitle || '文档阅读'),
+            documentId: resolvedDocId,
+            title: resolvedTitle,
             format: docMeta.format || initialFormat,
           });
           setLoading(false);
@@ -424,7 +550,47 @@ export const DocumentReader = memo(function DocumentReader({
     return () => {
       cancelled = true;
     };
-  }, [host, documentId, sourceId, currentPage, initialTitle, initialFormat, totalPagesHint, lang]);
+  }, [host, documentId, sourceId, currentPage, initialPage, initialTitle, initialFormat, totalPagesHint, lang, notify]);
+
+  // Debounce-persist last-read page on user navigation (flushed on close/unmount).
+  useEffect(() => {
+    if (!userNavigatedRef.current) return;
+    const totalPages = Math.max(pageData?.lastPage ?? 1, totalPagesHint);
+    if (totalPages <= 1) return;
+    const docKey = buildDocKey(
+      pageData?.documentId || readingTargetRef.current.documentId || documentId,
+      firstSourceIdRef.current || sourceId,
+      pageData?.title || initialTitle,
+    );
+    if (!docKey) return;
+    const targetPage = currentPage;
+    if (!Number.isSafeInteger(targetPage) || targetPage < 1 || targetPage > MAX_LAST_READ_PAGE) return;
+    if (
+      lastPersistedRef.current &&
+      lastPersistedRef.current.docKey === docKey &&
+      lastPersistedRef.current.page === targetPage
+    ) {
+      pendingPersistRef.current = null;
+      clearPersistTimer();
+      return;
+    }
+    pendingPersistRef.current = { docKey, page: targetPage };
+    clearPersistTimer();
+    persistTimerRef.current = setTimeout(() => {
+      flushPendingPersist();
+    }, LAST_READ_DEBOUNCE_MS);
+  }, [
+    clearPersistTimer,
+    currentPage,
+    documentId,
+    flushPendingPersist,
+    initialTitle,
+    pageData?.documentId,
+    pageData?.lastPage,
+    pageData?.title,
+    sourceId,
+    totalPagesHint,
+  ]);
 
   // Load outline chapters + Web-parity reading progress (fail-soft for legacy or un-outlined sources).
   useEffect(() => {
@@ -626,6 +792,7 @@ export const DocumentReader = memo(function DocumentReader({
         }));
         setSearchHits(hits);
         if (hits.length > 0 && hits[0].page && hits[0].page !== currentPage) {
+          userNavigatedRef.current = true;
           setCurrentPage(hits[0].page);
         }
       } else {
@@ -919,6 +1086,7 @@ export const DocumentReader = memo(function DocumentReader({
           setTranslateBusy(false);
           setSubMode('read');
         } else {
+          flushPendingPersist();
           abortInFlight();
           resetAiAnswer();
           resetTranslation();
@@ -936,9 +1104,11 @@ export const DocumentReader = memo(function DocumentReader({
 
       if (input === '[') {
         const first = pageData?.firstPage ?? 1;
+        userNavigatedRef.current = true;
         setCurrentPage((p) => Math.max(first, p - 1));
       } else if (input === ']') {
         const last = pageData?.lastPage ?? Math.max(1, totalPagesHint);
+        userNavigatedRef.current = true;
         setCurrentPage((p) => Math.min(last, p + 1));
       } else if (input === 'g') {
         setJumpInput(String(currentPage));
@@ -1050,7 +1220,10 @@ export const DocumentReader = memo(function DocumentReader({
               const n = Number.parseInt(val.trim(), 10);
               const lo = pageData?.firstPage ?? 1;
               const hi = pageData?.lastPage ?? Math.max(1, totalPagesHint);
-              if (Number.isFinite(n)) setCurrentPage(Math.max(lo, Math.min(hi, n)));
+              if (Number.isFinite(n)) {
+                userNavigatedRef.current = true;
+                setCurrentPage(Math.max(lo, Math.min(hi, n)));
+              }
               setSubMode('read');
             }}
             onCancel={() => setSubMode('read')}
@@ -1220,6 +1393,7 @@ export const DocumentReader = memo(function DocumentReader({
             onJumpPage={(pg) => {
               const lo = pageData?.firstPage ?? 1;
               const hi = pageData?.lastPage ?? Math.max(pg, totalPagesHint);
+              userNavigatedRef.current = true;
               setCurrentPage(Math.max(lo, Math.min(hi, pg)));
             }}
             onClose={() => setSubMode('read')}
@@ -1240,6 +1414,7 @@ export const DocumentReader = memo(function DocumentReader({
             onJumpPage={(pg) => {
               const lo = pageData?.firstPage ?? 1;
               const hi = pageData?.lastPage ?? Math.max(pg, totalPagesHint);
+              userNavigatedRef.current = true;
               setCurrentPage(Math.max(lo, Math.min(hi, pg)));
             }}
             onClose={() => setSubMode('read')}

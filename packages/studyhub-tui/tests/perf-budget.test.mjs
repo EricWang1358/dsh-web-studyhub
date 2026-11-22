@@ -258,7 +258,7 @@ describe('StudyHub TUI NFR Performance & Bundle Budgets', () => {
     }
   });
 
-  test('6. dist/App.mjs static closure excludes zod, marked, render/markdown.ts, and render/math.ts; startup path avoids components/index.js', () => {
+  test('6. dist/App.mjs static closure excludes zod, marked, render/markdown.ts, render/math.ts, and host/{tui-host,desktop-deps,presets}.ts; startup path avoids barrels', () => {
     const appPath = path.join(distDir, 'App.mjs');
     assert.ok(fs.existsSync(appPath), 'missing dist/App.mjs');
 
@@ -289,6 +289,18 @@ describe('StudyHub TUI NFR Performance & Bundle Budgets', () => {
       assert.ok(
         !/^\/\/\s*src\/render\/math\.ts\b/m.test(code),
         `App.mjs static chunk ${chunkName} must not bundle src/render/math.ts`,
+      );
+      assert.ok(
+        !/^\/\/\s*src\/host\/tui-host\.ts\b/m.test(code),
+        `App.mjs static chunk ${chunkName} must not bundle src/host/tui-host.ts`,
+      );
+      assert.ok(
+        !/^\/\/\s*src\/host\/desktop-deps\.ts\b/m.test(code),
+        `App.mjs static chunk ${chunkName} must not bundle src/host/desktop-deps.ts`,
+      );
+      assert.ok(
+        !/^\/\/\s*src\/host\/presets\.ts\b/m.test(code),
+        `App.mjs static chunk ${chunkName} must not bundle src/host/presets.ts`,
       );
     }
 
@@ -324,10 +336,11 @@ describe('StudyHub TUI NFR Performance & Bundle Budgets', () => {
     );
   });
 
-  test('7. Zero render/index.js & components/index.js barrel imports in src/ and non-markdown views/overlays/modals exclude marked and render/markdown.ts', () => {
+  test('7. Zero render/index.js, components/index.js & host/index.js barrel imports in src/ and non-markdown views/overlays/modals exclude marked and render/markdown.ts', () => {
     const srcDir = path.join(pkgRoot, 'src');
     const renderIndexPath = path.join(srcDir, 'render', 'index.ts');
     const componentsIndexPath = path.join(srcDir, 'components', 'index.ts');
+    const hostIndexPath = path.join(srcDir, 'host', 'index.ts');
     const srcFiles = [];
     const walk = (dir) => {
       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -340,6 +353,7 @@ describe('StudyHub TUI NFR Performance & Bundle Budgets', () => {
 
     const renderBarrelImporters = [];
     const componentBarrelImporters = [];
+    const hostBarrelImporters = [];
     for (const file of srcFiles) {
       const source = fs.readFileSync(file, 'utf8');
       const allSpecs = [
@@ -358,6 +372,12 @@ describe('StudyHub TUI NFR Performance & Bundle Budgets', () => {
       ) {
         componentBarrelImporters.push(path.relative(pkgRoot, file));
       }
+      if (
+        file !== hostIndexPath &&
+        allSpecs.some((spec) => /(?:^|\/)host\/index(?:\.js|\.ts)?$/.test(spec))
+      ) {
+        hostBarrelImporters.push(path.relative(pkgRoot, file));
+      }
     }
     assert.deepEqual(
       renderBarrelImporters,
@@ -368,6 +388,11 @@ describe('StudyHub TUI NFR Performance & Bundle Budgets', () => {
       componentBarrelImporters,
       [],
       `src/ files must import direct component submodules instead of components/index.js: ${componentBarrelImporters.join(', ')}`,
+    );
+    assert.deepEqual(
+      hostBarrelImporters,
+      [],
+      `src/ files must import direct host submodules instead of host/index.js: ${hostBarrelImporters.join(', ')}`,
     );
 
     const distFiles = fs.readdirSync(distDir).filter((f) => f.endsWith('.mjs'));

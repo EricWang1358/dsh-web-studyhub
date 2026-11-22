@@ -24,7 +24,7 @@ let importLocalSource = null;
 let saveTuiPreferences = null;
 let displayWidth = null;
 for (const f of distFiles) {
-  if (f === 'host.mjs' || f.startsWith('host-') || f.startsWith('chunk-') || f.startsWith('store-')) {
+  if (f === 'host.mjs' || f.startsWith('host-') || f.startsWith('tui-') || f.startsWith('store-') || f.startsWith('chunk-')) {
     const mod = await import(pathToFileURL(join(distDir, f)).href);
     if (!createTuiHost && typeof mod.createTuiHost === 'function') createTuiHost = mod.createTuiHost;
     if (!importLocalSource && typeof mod.importLocalSource === 'function') importLocalSource = mod.importLocalSource;

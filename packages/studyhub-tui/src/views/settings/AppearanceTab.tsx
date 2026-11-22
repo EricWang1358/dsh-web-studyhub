@@ -2,7 +2,7 @@ import React, { memo, useCallback, useMemo, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { HostClient, ThemeId, TuiPreferences, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
-import { THEME_IDS, saveTuiPreferences } from '../../host/index.js';
+import { THEME_IDS, saveTuiPreferences } from '../../host/tui-prefs.js';
 import { getTheme, useTheme } from '../../theme/tokens.js';
 import { Panel } from '../../components/Panel.js';
 import { useClaimKeys } from '../../components/focus.js';

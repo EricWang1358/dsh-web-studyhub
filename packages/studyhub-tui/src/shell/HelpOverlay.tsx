@@ -151,6 +151,9 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
     {
       title: t(lang, '资料与阅读 · Sources / Reader', 'Sources & Reader'),
       items: [
+        { key: 'Enter', label: t(lang, '打开阅读器 (自动续读上次页码)', 'Open reader (auto-resume page)') },
+        { key: 'Space', label: t(lang, '多选批量 (移夹/归档/补全)', 'Multi-select (move/arch/enrich)') },
+        { key: 'E', label: t(lang, '补全资料元信息', 'Enrich metadata') },
         { key: 'G', label: t(lang, 'AI 课程归类 / 术语译文', 'AI organize / Glossary') },
         { key: 'V', label: t(lang, '引用覆盖率与关联题卡', 'Coverage & linked cards') },
         { key: 'F', label: t(lang, '文件夹筛选', 'Folders') },

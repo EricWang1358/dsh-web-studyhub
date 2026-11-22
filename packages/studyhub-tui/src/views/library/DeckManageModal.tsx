@@ -10,7 +10,7 @@ import { TextInput } from '../../components/TextInput.js';
 import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
 import { useTheme } from '../../theme/tokens.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
-import { startReview, tryAction } from '../../host/index.js';
+import { startReview, tryAction } from '../../host/sample-actions.js';
 import { formatLabel, groupSourcesFromSnapshot, type DocumentGroup } from '../sources/source-helpers.js';
 
 export interface DeckCardItem {

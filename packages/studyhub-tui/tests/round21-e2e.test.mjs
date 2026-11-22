@@ -22,9 +22,9 @@ let H = null;
 let R = null;
 let S = null;
 for (const f of distFiles) {
-  if (f.startsWith('host-') || f.startsWith('chunk-') || f.startsWith('store-')) {
+  if (f === 'host.mjs' || f.startsWith('host-') || f.startsWith('tui-') || f.startsWith('store-') || f.startsWith('chunk-')) {
     const mod = await import(pathToFileURL(join(distDir, f)).href);
-    if (!H && typeof mod.createTuiHost === 'function') H = mod;
+    if (!H && typeof mod.createTuiHost === 'function' && typeof mod.saveTuiPreferences === 'function') H = mod;
     if (!R && typeof mod.displayWidth === 'function') R = mod;
     if (!S && typeof mod.useTuiStore?.getState === 'function') S = mod;
   }

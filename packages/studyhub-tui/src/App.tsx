@@ -3,12 +3,8 @@ import { Box, Text, useInput } from 'ink';
 import type { CommandPaletteItem, PageId, ThemeId, UiLanguage, ViewProps } from './types/contracts.js';
 import { t, useTuiStore } from './state/store.js';
 import { computeSnapshotFingerprint } from './state/snapshot-fingerprint.js';
-import {
-  TUI_CONFIG_CHANGED_EVENT,
-  loadTuiPreferences,
-  saveTuiPreferences,
-  type TuiHost,
-} from './host/index.js';
+import { loadTuiPreferences, saveTuiPreferences } from './host/tui-prefs.js';
+import type { TuiHost } from './host/tui-host.js';
 import { Panel } from './components/Panel.js';
 import { Spinner } from './components/Badge.js';
 import { useTheme } from './theme/tokens.js';
@@ -293,7 +289,8 @@ export function StudyHubTuiApp({
 
     const unsubscribe = host.subscribeEvents((event) => {
       if (!alive) return;
-      if (event.type === TUI_CONFIG_CHANGED_EVENT) {
+      // Matches TUI_CONFIG_CHANGED_EVENT in host/tui-host.ts without statically pulling tui-host/desktop-deps/presets into App.mjs.
+      if (event.type === 'tui:config-changed') {
         const cfg = host.getConfig();
         if (cfg) useTuiStore.getState().setDesktopConfig(cfg);
         void syncFromHost(true);

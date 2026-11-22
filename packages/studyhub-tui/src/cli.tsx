@@ -57,7 +57,7 @@ async function main() {
 
   const terminal = enterTerminalSession({ altScreen: parsed.altScreen });
 
-  type TuiHostType = Awaited<ReturnType<typeof import('./host/index.js').createTuiHost>>;
+  type TuiHostType = Awaited<ReturnType<typeof import('./host/tui-host.js').createTuiHost>>;
   let activeHost: TuiHostType | null = null;
   let instance: ReturnType<typeof render> | null = null;
   let cleaningUp = false;
@@ -135,7 +135,7 @@ async function main() {
   }
 
   // Kick off host + App loading IMMEDIATELY in parallel with Ink mounting ShellBootFrame
-  const bootPromise = Promise.all([import('./host/index.js'), import('./App.js')]).then(
+  const bootPromise = Promise.all([import('./host/tui-host.js'), import('./App.js')]).then(
     async ([{ createTuiHost }, { StudyHubTuiApp }]) => {
       const host = await createTuiHost({
         libraryRoot: parsed.libraryRoot,

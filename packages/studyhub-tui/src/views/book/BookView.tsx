@@ -2,7 +2,7 @@ import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useStat
 import { Box, Text, useInput } from 'ink';
 import type { KeyHint, StudySnapshot, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
-import { saveTuiPreferences } from '../../host/index.js';
+import { saveTuiPreferences } from '../../host/tui-prefs.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, EmptyState, Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';

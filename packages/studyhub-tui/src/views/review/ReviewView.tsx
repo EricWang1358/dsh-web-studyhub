@@ -15,7 +15,7 @@ import {
   tryAction,
   type ReviewMode,
   type ReviewRun,
-} from '../../host/index.js';
+} from '../../host/sample-actions.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, Divider, EmptyState, ProgressBar, Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';

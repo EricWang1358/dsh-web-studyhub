@@ -11,7 +11,7 @@ import { Panel } from '../../components/Panel.js';
 import { SplitPane, computeSplit } from '../../components/SplitPane.js';
 import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
-import { tryAction } from '../../host/index.js';
+import { tryAction } from '../../host/sample-actions.js';
 import type { BookNode, BookOpenResult, BookQaListResult } from './types.js';
 
 export interface BookQaModalProps {

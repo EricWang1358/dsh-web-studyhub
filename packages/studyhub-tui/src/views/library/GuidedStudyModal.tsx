@@ -10,7 +10,7 @@ import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
-import { tryAction } from '../../host/index.js';
+import { tryAction } from '../../host/sample-actions.js';
 
 export interface StudySessionScopeItem {
   kind: 'source' | 'deck' | 'card' | string;

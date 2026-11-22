@@ -7,7 +7,7 @@ import { Badge, Divider, EmptyState, Spinner } from '../../components/Badge.js';
 import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
-import { tryAction } from '../../host/index.js';
+import { tryAction } from '../../host/sample-actions.js';
 
 export interface BookCrunchModalProps {
   host: HostClient;

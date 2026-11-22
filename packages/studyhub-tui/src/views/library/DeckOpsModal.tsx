@@ -12,7 +12,7 @@ import { TextInput } from '../../components/TextInput.js';
 import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { useShellActions } from '../../shell/actions.js';
-import { cleanPathInput, tryAction } from '../../host/index.js';
+import { cleanPathInput, tryAction } from '../../host/sample-actions.js';
 import { completeFsPath, expandHomePath } from '../sources/path-complete.js';
 import type { FullDeckDetail } from './DeckManageModal.js';
 

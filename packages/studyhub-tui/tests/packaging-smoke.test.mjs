@@ -30,7 +30,7 @@ const { StudyHubTuiApp } = await import(pathToFileURL(join(distDir, 'App.mjs')).
 let createTuiHost = null;
 let displayWidth = null;
 for (const f of distFiles) {
-  if (f === 'host.mjs' || f.startsWith('host-') || f.startsWith('chunk-')) {
+  if (f === 'host.mjs' || f.startsWith('host-') || f.startsWith('tui-') || f.startsWith('chunk-')) {
     const mod = await import(pathToFileURL(join(distDir, f)).href);
     if (!createTuiHost && typeof mod.createTuiHost === 'function') createTuiHost = mod.createTuiHost;
     if (!displayWidth && typeof mod.displayWidth === 'function') displayWidth = mod.displayWidth;

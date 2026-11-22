@@ -10,7 +10,7 @@ import { TextInput } from '../../components/TextInput.js';
 import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
 import { useInputCapture } from '../../components/focus.js';
 import { truncateDisplay } from '../../render/cjk.js';
-import { tryAction } from '../../host/index.js';
+import { tryAction } from '../../host/sample-actions.js';
 
 export interface CoachPreferencesModalProps {
   host: HostClient;

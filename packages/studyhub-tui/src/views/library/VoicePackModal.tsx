@@ -12,7 +12,7 @@ import { TextInput } from '../../components/TextInput.js';
 import { truncateDisplay } from '../../render/cjk.js';
 import { currentCourse } from '../../shell/data.js';
 import type { VoicePackRenderProps } from '../../shell/AppShell.js';
-import { cleanPathInput, getVoicePack, tryAction } from '../../host/index.js';
+import { cleanPathInput, getVoicePack, tryAction } from '../../host/sample-actions.js';
 
 export type VoicePackMode = 'due' | 'weak' | 'all';
 export type VoicePackScope = 'course' | 'deck' | 'all';

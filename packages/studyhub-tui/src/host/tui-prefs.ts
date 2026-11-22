@@ -11,6 +11,9 @@ import type { ThemeId, TuiPreferences, UiLanguage } from '../types/contracts.js'
 export const THEME_IDS: readonly ThemeId[] = Object.freeze(['dsh-dark', 'warm-paper', 'nord', 'high-contrast']);
 export const UI_LANGUAGES: readonly UiLanguage[] = Object.freeze(['zh', 'en']);
 export const MAX_RECENT_COMMANDS = 12;
+export const MAX_LAST_READ_PAGES = 100;
+const MAX_LAST_READ_KEY_LENGTH = 160;
+const MAX_LAST_READ_PAGE = 50_000;
 
 const THEME_SET = new Set<string>(THEME_IDS);
 const LANGUAGE_SET = new Set<string>(UI_LANGUAGES);
@@ -66,6 +69,25 @@ function parseTuiPreferencesObject(source: Record<string, unknown>): TuiPreferen
     }
   }
 
+  let lastReadPages: Record<string, number> | undefined;
+  if (source.lastReadPages && typeof source.lastReadPages === 'object' && !Array.isArray(source.lastReadPages)) {
+    const validEntries = new Map<string, number>();
+    for (const [rawKey, rawVal] of Object.entries(source.lastReadPages as Record<string, unknown>)) {
+      const key = rawKey.trim();
+      if (!key || key.length > MAX_LAST_READ_KEY_LENGTH) continue;
+      if (typeof rawVal !== 'number' || !Number.isSafeInteger(rawVal) || rawVal < 1 || rawVal > MAX_LAST_READ_PAGE) {
+        continue;
+      }
+      if (validEntries.has(key)) validEntries.delete(key);
+      validEntries.set(key, rawVal);
+    }
+    if (validEntries.size > 0) {
+      const entries = [...validEntries.entries()];
+      const capped = entries.length > MAX_LAST_READ_PAGES ? entries.slice(-MAX_LAST_READ_PAGES) : entries;
+      lastReadPages = Object.fromEntries(capped);
+    }
+  }
+
   const base: TuiPreferences = {
     theme,
     language,
@@ -76,7 +98,11 @@ function parseTuiPreferencesObject(source: Record<string, unknown>): TuiPreferen
     asciiMode,
     recentCommands,
   };
-  return lastOpenAiPreset ? { ...base, lastOpenAiPreset } : base;
+  return {
+    ...base,
+    ...(lastOpenAiPreset ? { lastOpenAiPreset } : {}),
+    ...(lastReadPages ? { lastReadPages } : {}),
+  };
 }
 
 /** Field-level forgiving parser shim (zod-compatible `.safeParse(raw)` interface, zero dependencies). */
