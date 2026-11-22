@@ -22,8 +22,8 @@ import { useShellActions } from '../../shell/actions.js';
 import { truncateDisplay } from '../../render/index.js';
 import { tryAction } from '../../host/sample-actions.js';
 import { groupSourcesFromSnapshot, formatLabel } from '../sources/source-helpers.js';
-import { DraftEditor } from './DraftEditor.js';
 
+const DraftEditor = lazy(() => import('./DraftEditor.js').then((m) => ({ default: m.DraftEditor })));
 const IngestModal = lazy(() => import('./IngestModal.js').then((m) => ({ default: m.IngestModal })));
 
 type SubTab = 'new' | 'drafts';
@@ -379,13 +379,21 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
       {/* Body */}
       <Box height={bodyH} width={width}>
         {tab === 'drafts' ? (
-          <DraftEditor
-            host={host}
-            initialDraftId={navContext.draftId}
-            width={width}
-            height={bodyH}
-            isActive={isActive && tab === 'drafts' && overlay === 'none'}
-          />
+          <Suspense
+            fallback={
+              <Box paddingX={1} paddingY={1}>
+                <Spinner label={t(lang, '正在载入草稿编辑器…', 'Loading draft editor…')} active={isActive} />
+              </Box>
+            }
+          >
+            <DraftEditor
+              host={host}
+              initialDraftId={navContext.draftId}
+              width={width}
+              height={bodyH}
+              isActive={isActive && tab === 'drafts' && overlay === 'none'}
+            />
+          </Suspense>
         ) : (
           <SplitPane
             width={width}

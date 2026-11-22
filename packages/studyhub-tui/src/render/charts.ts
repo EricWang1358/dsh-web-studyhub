@@ -2,11 +2,8 @@
  * Pure text charts for the TUI: progress bars, sparklines, bar charts, a GitHub-style study
  * heatmap and tree-line flattening. Every function returns strings with exact, CJK-aware widths.
  */
-import defaultChalk, { Chalk, type ChalkInstance } from 'chalk';
-import type { ThemeTokens } from '../theme/tokens.js';
+import { getColorLevel, makeChalk, type ThemeTokens } from '../theme/tokens.js';
 import { displayWidth, padDisplay, truncateDisplay } from './cjk.js';
-
-const chalk: ChalkInstance = new Chalk({ level: defaultChalk.level });
 
 type ChartTheme = Pick<ThemeTokens, 'primary' | 'track' | 'muted' | 'dim' | 'heat'> & Partial<ThemeTokens>;
 
@@ -50,6 +47,7 @@ export function renderProgressBar(
 ): string {
   const total = Math.max(0, Math.floor(width) || 0);
   if (total === 0) return '';
+  const chalk = makeChalk(getColorLevel());
   const r = clampRatio(ratio);
   const style = opts.style ?? 'block';
   const ascii = opts.ascii === true;
@@ -154,6 +152,7 @@ export function renderBarChart(
 ): string[] {
   const total = Math.max(0, Math.floor(width) || 0);
   if (!items.length || total === 0) return [];
+  const chalk = makeChalk(getColorLevel());
   const ascii = opts.ascii === true;
   const values = items.map((it) => (Number.isFinite(it.value) ? Math.max(0, it.value) : 0));
   const valueStrs = items.map((it) => formatValue(it.value));
@@ -248,6 +247,7 @@ export function renderHeatmap(
   opts: HeatmapOptions = {},
 ): string[] {
   const nWeeks = Math.max(1, Math.floor(weeks) || 1);
+  const chalk = makeChalk(getColorLevel());
   const showLabels = opts.showLabels !== false;
   const zh = (opts.locale ?? 'zh') === 'zh';
   const end = (opts.endDate && parseDay(opts.endDate)) || todayUtcMidnight();

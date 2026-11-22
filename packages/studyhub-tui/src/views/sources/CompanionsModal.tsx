@@ -14,6 +14,7 @@ import {
   TextInput,
   VirtualList,
   modalContentWidth,
+  useStreamingBuffer,
   useTheme,
 } from '../../components/index.js';
 import { currentCourse } from '../../shell/data.js';
@@ -521,7 +522,13 @@ export const CompanionsModal = memo(function CompanionsModal({
 
   // Ask AI state
   const [askInput, setAskInput] = useState('');
-  const [askAnswer, setAskAnswer] = useState('');
+  const {
+    text: askAnswer,
+    push: pushAskAnswer,
+    set: setAskAnswer,
+    finish: finishAskAnswer,
+    reset: resetAskAnswer,
+  } = useStreamingBuffer(24);
   const [askSuggestedCard, setAskSuggestedCard] = useState<SuggestedCatchupCard | null>(null);
   const [askBusy, setAskBusy] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -569,12 +576,12 @@ export const CompanionsModal = memo(function CompanionsModal({
       mountedRef.current = false;
       busyRef.current = false;
       abortInFlight();
+      resetAskAnswer();
       setDetail(null);
-      setAskAnswer('');
       setAskSuggestedCard(null);
       setFeedbackSummary(null);
     };
-  }, [abortInFlight]);
+  }, [abortInFlight, resetAskAnswer]);
 
   const availableSourceGroups = useMemo(() => {
     const rawSources = (snapshot?.sources ?? []).filter((s) => {
@@ -639,6 +646,13 @@ export const CompanionsModal = memo(function CompanionsModal({
   }, [companions.length, selectedIndex]);
 
   const selectedCompanion = companions[selectedIndex];
+
+  useEffect(() => {
+    abortInFlight();
+    resetAskAnswer();
+    setAskSuggestedCard(null);
+    setAskBusy(false);
+  }, [abortInFlight, isActive, resetAskAnswer, selectedCompanion?.id]);
 
   useEffect(() => {
     setPathNotice(null);
@@ -1028,7 +1042,7 @@ export const CompanionsModal = memo(function CompanionsModal({
       abortRef.current = ac;
       setSubMode('ask-view');
       setAskBusy(true);
-      setAskAnswer('');
+      resetAskAnswer();
       setAskSuggestedCard(null);
 
       const compTitle = detail?.lesson?.title || selectedCompanion.title;
@@ -1073,8 +1087,8 @@ export const CompanionsModal = memo(function CompanionsModal({
             md += `\n\n---\n\n### ${t(lang, '建议防混闪卡 (按 [c] 存入伴学拾遗)', 'Suggested Catch-Up Card (press [c] to save)')}\n\n- **Q**: ${card.prompt || q}\n- **A**: ${card.answer || ''}${card.misconception ? `\n- **${t(lang, '易混点', 'Misconception')}**: ${card.misconception}` : ''}`;
           }
           setAskAnswer(md);
+          finishAskAnswer();
         } else if (typeof host.streamComplete === 'function') {
-          let buf = '';
           const system = t(
             lang,
             '你是 StudyHub 交互伴学导师。请基于伴学课内容与结构简洁回答学习者的困惑，使用 Markdown 与 LaTeX 数学公式。',
@@ -1087,25 +1101,35 @@ export const CompanionsModal = memo(function CompanionsModal({
             signal: ac.signal,
             onChunk: (delta) => {
               if (ac.signal.aborted || !mountedRef.current) return;
-              buf += delta;
-              setAskAnswer(buf);
+              pushAskAnswer(delta);
             },
           });
-          if (!ac.signal.aborted && mountedRef.current) setAskAnswer(final || buf);
+          if (!ac.signal.aborted && mountedRef.current) {
+            if (final) setAskAnswer(final);
+            finishAskAnswer();
+          }
         } else {
           const mark = asciiMode ? 'x' : '✕';
           setAskAnswer(`${mark} ${res.error?.message || t(lang, 'AI 模型不可用，请先在设置中配置模型', 'AI model unavailable')}`);
+          finishAskAnswer();
         }
       } catch (error) {
         if (!ac.signal.aborted && mountedRef.current) {
           const mark = asciiMode ? 'x' : '✕';
           setAskAnswer(`${mark} ${errorMessage(error)}`);
+          finishAskAnswer();
         }
       } finally {
-        if (!ac.signal.aborted && mountedRef.current) setAskBusy(false);
+        if (abortRef.current === ac) {
+          abortRef.current = null;
+          if (!ac.signal.aborted && mountedRef.current) {
+            finishAskAnswer();
+            setAskBusy(false);
+          }
+        }
       }
     },
-    [abortInFlight, asciiMode, detail, host, lang, selectedCompanion],
+    [abortInFlight, asciiMode, detail, finishAskAnswer, host, lang, pushAskAnswer, resetAskAnswer, selectedCompanion, setAskAnswer],
   );
 
   const handleOpenExternal = useCallback(async () => {
@@ -1321,9 +1345,11 @@ export const CompanionsModal = memo(function CompanionsModal({
       } else if (input === 'v' && defaultCourse) {
         setCourseFilterOn((v) => !v);
       } else if (input === 'a' && selectedCompanion) {
+        abortInFlight();
+        resetAskAnswer();
         setAskInput('');
-        setAskAnswer('');
         setAskSuggestedCard(null);
+        setAskBusy(false);
         setSubMode('ask');
       } else if (input === 'c' && selectedCompanion) {
         setCatchupErr(null);
@@ -1449,6 +1475,10 @@ export const CompanionsModal = memo(function CompanionsModal({
 
   const handleModalClose = useCallback(() => {
     if (subMode === 'browse') {
+      abortInFlight();
+      resetAskAnswer();
+      setAskSuggestedCard(null);
+      setAskBusy(false);
       onClose();
       return;
     }
@@ -1458,9 +1488,11 @@ export const CompanionsModal = memo(function CompanionsModal({
       return;
     }
     abortInFlight();
+    resetAskAnswer();
+    setAskSuggestedCard(null);
     setAskBusy(false);
     setSubMode('browse');
-  }, [abortInFlight, buildEstimate, buildResult, onClose, subMode]);
+  }, [abortInFlight, buildEstimate, buildResult, onClose, resetAskAnswer, subMode]);
 
   const activeSourceGroup = availableSourceGroups[buildSourceCursor];
   const selectedSourceGroupsCount = availableSourceGroups.filter((g) =>

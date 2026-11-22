@@ -1,11 +1,13 @@
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Box } from 'ink';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';
-import { useFooterHints } from '../../components/index.js';
+import { Spinner, useFooterHints } from '../../components/index.js';
 import { tryAction } from '../../host/index.js';
 import { t, useTuiStore } from '../../state/store.js';
-import { ExamReportView } from './ExamReportView.js';
-import { ExamRunner } from './ExamRunner.js';
 import { ExamSetup } from './ExamSetup.js';
+
+const ExamReportView = lazy(() => import('./ExamReportView.js').then((m) => ({ default: m.ExamReportView })));
+const ExamRunner = lazy(() => import('./ExamRunner.js').then((m) => ({ default: m.ExamRunner })));
 import type {
   CaseHighlight,
   ExamReport,
@@ -439,49 +441,65 @@ export const ExamView: React.FC<ViewProps> = memo(function ExamView({
 
   if (phase === 'running' && (run || oral)) {
     return (
-      <ExamRunner
-        kind={runKind}
-        run={run}
-        oral={oral}
-        width={width}
-        height={height}
-        lang={lang}
-        isActive={isActive}
-        busy={busy}
-        error={error}
-        onSelectPick={handleSelectPick}
-        onSaveCaseResponse={handleSaveCaseResponse}
-        onSaveHighlights={handleSaveHighlights}
-        onLoadSourceText={handleLoadSourceText}
-        onJumpWritten={handleJumpWritten}
-        onSubmitWritten={handleSubmitWritten}
-        onSaveOralAnswer={handleSaveOralAnswer}
-        onOralFollowup={handleOralFollowup}
-        onOralNext={handleOralNext}
-        onSubmitOral={handleSubmitOral}
-        onAbortBack={() => {
-          setPhase('setup');
-          setError(null);
-        }}
-      />
+      <Suspense
+        fallback={
+          <Box paddingX={1} paddingY={1}>
+            <Spinner label={t(lang, '正在载入考场…', 'Loading exam runner…')} active={isActive} />
+          </Box>
+        }
+      >
+        <ExamRunner
+          kind={runKind}
+          run={run}
+          oral={oral}
+          width={width}
+          height={height}
+          lang={lang}
+          isActive={isActive}
+          busy={busy}
+          error={error}
+          onSelectPick={handleSelectPick}
+          onSaveCaseResponse={handleSaveCaseResponse}
+          onSaveHighlights={handleSaveHighlights}
+          onLoadSourceText={handleLoadSourceText}
+          onJumpWritten={handleJumpWritten}
+          onSubmitWritten={handleSubmitWritten}
+          onSaveOralAnswer={handleSaveOralAnswer}
+          onOralFollowup={handleOralFollowup}
+          onOralNext={handleOralNext}
+          onSubmitOral={handleSubmitOral}
+          onAbortBack={() => {
+            setPhase('setup');
+            setError(null);
+          }}
+        />
+      </Suspense>
     );
   }
 
   if (phase === 'report' && reportState) {
     return (
-      <ExamReportView
-        state={reportState}
-        width={width}
-        height={height}
-        lang={lang}
-        isActive={isActive}
-        busy={busy}
-        onPracticeWeak={handlePracticeWeak}
-        onBack={() => {
-          setPhase('setup');
-          setError(null);
-        }}
-      />
+      <Suspense
+        fallback={
+          <Box paddingX={1} paddingY={1}>
+            <Spinner label={t(lang, '正在载入成绩报告…', 'Loading exam report…')} active={isActive} />
+          </Box>
+        }
+      >
+        <ExamReportView
+          state={reportState}
+          width={width}
+          height={height}
+          lang={lang}
+          isActive={isActive}
+          busy={busy}
+          onPracticeWeak={handlePracticeWeak}
+          onBack={() => {
+            setPhase('setup');
+            setError(null);
+          }}
+        />
+      </Suspense>
     );
   }
 

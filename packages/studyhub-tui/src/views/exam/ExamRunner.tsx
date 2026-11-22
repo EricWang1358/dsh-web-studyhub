@@ -1,5 +1,4 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import defaultChalk, { Chalk, type ChalkInstance } from 'chalk';
 import { Box, Text, useInput } from 'ink';
 import type { UiLanguage } from '../../types/contracts.js';
 import {
@@ -15,10 +14,9 @@ import {
 } from '../../components/index.js';
 import { truncateDisplay, wrapDisplay } from '../../render/index.js';
 import { t, useTuiStore } from '../../state/store.js';
+import { getColorLevel, makeChalk } from '../../theme/tokens.js';
 import type { CaseHighlight, ExamCard, OralView, RunView } from './types.js';
 import { computeRemainingMs, formatDurationMs } from './utils.js';
-
-const chalk: ChalkInstance = new Chalk({ level: defaultChalk.level });
 
 export interface ExamRunnerProps {
   kind: 'written' | 'case' | 'oral';
@@ -215,8 +213,10 @@ export const ExamRunner = memo(function ExamRunner({
   const scenarioScrollH = Math.max(3, height - 4);
 
   const safeParaIdx = Math.max(0, Math.min(selectedParaIdx, Math.max(0, scenarioParagraphs.length - 1)));
+  const colorLevel = getColorLevel();
 
   const { scenarioLines, paragraphStarts } = useMemo(() => {
+    const chalk = makeChalk(colorLevel);
     const lines: string[] = [];
     const starts: number[] = [];
     const hlSet = new Set(localHighlights.map((h) => h.paragraph));
@@ -243,7 +243,7 @@ export const ExamRunner = memo(function ExamRunner({
       if (idx < scenarioParagraphs.length - 1) lines.push('');
     });
     return { scenarioLines: lines, paragraphStarts: starts };
-  }, [scenarioParagraphs, localHighlights, scenarioScrollW, safeParaIdx, asciiMode, theme.warning, theme.primary, theme.info, theme.text]);
+  }, [colorLevel, scenarioParagraphs, localHighlights, scenarioScrollW, safeParaIdx, asciiMode, theme.warning, theme.primary, theme.info, theme.text]);
 
   const handleScenarioScroll = useCallback(
     (nextTop: number) => {

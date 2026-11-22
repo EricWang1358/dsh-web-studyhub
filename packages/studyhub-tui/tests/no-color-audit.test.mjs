@@ -2,6 +2,7 @@
 // `node --test tests/no-color-audit.test.mjs`
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import { after, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -9,13 +10,16 @@ import { tsImport } from 'tsx/esm/api';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const pkgRoot = path.resolve(here, '..');
+const srcRoot = path.join(pkgRoot, 'src');
 const binPath = path.join(pkgRoot, 'bin', 'studyhub-tui.mjs');
 
 const tokensMod = await tsImport('../src/theme/tokens.ts', import.meta.url);
 const markdownMod = await tsImport('../src/render/markdown.ts', import.meta.url);
+const chartsMod = await tsImport('../src/render/charts.ts', import.meta.url);
 
 const { getTheme, getColorLevel, setColorLevel, makeChalk } = tokensMod;
 const { renderMarkdown, clearMarkdownCache } = markdownMod;
+const { renderBarChart, renderSparkline, renderHeatmap } = chartsMod;
 
 const ANSI_COLOR_RE = /\x1b\[(?:[349]\d|10[0-7]|38;[^\x1b]*|48;[^\x1b]*)m/;
 const ANY_ANSI_RE = /\x1b\[[0-9;]*m/;
@@ -53,6 +57,63 @@ const RICH_MARKDOWN = [
 ].join('\n');
 
 const initialColorLevel = getColorLevel();
+
+function walkTsFiles(dir) {
+  const out = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      out.push(...walkTsFiles(full));
+    } else if (entry.isFile() && /\.(ts|tsx)$/.test(entry.name)) {
+      out.push(full);
+    }
+  }
+  return out;
+}
+
+function findRuntimeChalkViolations(source) {
+  const stripped = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  const violations = [];
+
+  for (const m of stripped.matchAll(/(?:^|[;\n])\s*import\s+([^;]*?)\s+from\s+['"]chalk['"]/g)) {
+    const clause = m[1].trim();
+    if (/^type\s+/.test(clause)) continue;
+
+    const braceStart = clause.indexOf('{');
+    const braceEnd = clause.lastIndexOf('}');
+    if (braceStart === -1 || braceEnd === -1) {
+      violations.push(`runtime import from 'chalk': ${m[0].trim()}`);
+      continue;
+    }
+
+    const outside = (clause.slice(0, braceStart) + clause.slice(braceEnd + 1)).replace(/,/g, '').trim();
+    if (outside.length > 0) {
+      violations.push(`default/namespace import from 'chalk': ${m[0].trim()}`);
+      continue;
+    }
+
+    const specifiers = clause
+      .slice(braceStart + 1, braceEnd)
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (specifiers.some((spec) => !/^type\s+/.test(spec))) {
+      violations.push(`non-type named import from 'chalk': ${m[0].trim()}`);
+    }
+  }
+
+  if (/\bimport\s+['"]chalk['"]/.test(stripped)) {
+    violations.push("side-effect import 'chalk'");
+  }
+  if (/\b(?:require|import)\s*\(\s*['"]chalk['"]\s*\)/.test(stripped)) {
+    violations.push("dynamic require/import('chalk')");
+  }
+  if (/\bnew\s+Chalk\b/.test(stripped)) {
+    violations.push('direct `new Chalk(...)` instantiation');
+  }
+
+  return violations;
+}
 
 after(() => {
   setColorLevel(initialColorLevel);
@@ -137,5 +198,86 @@ describe('NO_COLOR & ColorLevel audit', () => {
     assert.equal(ANSI_COLOR_RE.test(res.stdout), false, `Unexpected ANSI color in stdout: ${res.stdout}`);
     assert.equal(ANSI_COLOR_RE.test(res.stderr), false, `Unexpected ANSI color in stderr: ${res.stderr}`);
     assert.equal(ANY_ANSI_RE.test(res.stdout), false, `Unexpected ANSI escape in stdout: ${res.stdout}`);
+  });
+
+  test('static audit: zero src/**/*.ts(x) files outside src/theme/tokens.ts import runtime Chalk or default chalk', () => {
+    const files = walkTsFiles(srcRoot);
+    assert.ok(files.length > 0, 'Expected source files under src/');
+
+    const allowedFile = path.join(srcRoot, 'theme', 'tokens.ts');
+    assert.ok(files.includes(allowedFile), 'Expected src/theme/tokens.ts in scanned files');
+
+    const offending = [];
+    for (const file of files) {
+      if (file === allowedFile) continue;
+      const content = fs.readFileSync(file, 'utf8');
+      const violations = findRuntimeChalkViolations(content);
+      if (violations.length > 0) {
+        offending.push(`${path.relative(pkgRoot, file)}: ${violations.join('; ')}`);
+      }
+    }
+
+    assert.deepEqual(
+      offending,
+      [],
+      `Found runtime Chalk/chalk usage outside src/theme/tokens.ts:\n${offending.join('\n')}`,
+    );
+  });
+
+  test('renderBarChart, renderSparkline, and renderHeatmap emit zero ANSI color escapes under setColorLevel(0) and restore color under setColorLevel(3)', () => {
+    const theme = getTheme('dsh-dark');
+    const barItems = [
+      { label: '数学', value: 120 },
+      { label: 'English', value: 45.5 },
+      { label: 'Physics', value: 0, color: '#ff0000' },
+    ];
+    const heatmapDays = [
+      { date: '2026-10-15', count: 2 },
+      { date: '2026-10-20', count: 5 },
+      { date: '2026-10-28', count: 9 },
+    ];
+    const sparkValues = [1, 3, 2, 5, 4, 8];
+
+    setColorLevel(0);
+    const bars0 = renderBarChart(barItems, 40, theme);
+    const spark0 = renderSparkline(sparkValues);
+    const heat0 = renderHeatmap(heatmapDays, 10, theme, { endDate: '2026-10-28', locale: 'en' });
+
+    assert.equal(bars0.length, barItems.length);
+    for (const line of bars0) {
+      assert.equal(ANSI_COLOR_RE.test(line), false, `Unexpected ANSI color in bar line: ${line}`);
+      assert.equal(ANY_ANSI_RE.test(line), false, `Unexpected ANSI escape in bar line: ${line}`);
+    }
+    assert.ok(bars0[0].includes('数学') && bars0[0].includes('120'));
+
+    assert.equal(ANSI_COLOR_RE.test(spark0), false, `Unexpected ANSI color in sparkline: ${spark0}`);
+    assert.equal(ANY_ANSI_RE.test(spark0), false, `Unexpected ANSI escape in sparkline: ${spark0}`);
+    assert.equal(spark0, '▁▃▂▅▄█');
+
+    assert.equal(heat0.length, 9);
+    for (const line of heat0) {
+      assert.equal(ANSI_COLOR_RE.test(line), false, `Unexpected ANSI color in heatmap line: ${line}`);
+      assert.equal(ANY_ANSI_RE.test(line), false, `Unexpected ANSI escape in heatmap line: ${line}`);
+    }
+    assert.ok(heat0[1].startsWith('Mon'));
+    assert.ok(heat0[8].includes('Less') && heat0[8].includes('More'));
+
+    setColorLevel(3);
+    const bars3 = renderBarChart(barItems, 40, theme);
+    const spark3 = renderSparkline(sparkValues);
+    const heat3 = renderHeatmap(heatmapDays, 10, theme, { endDate: '2026-10-28', locale: 'en' });
+
+    assert.ok(bars3.some((line) => TRUECOLOR_RE.test(line)), 'Expected truecolor escapes in renderBarChart at level 3');
+    assert.ok(bars3.some((line) => ANSI_COLOR_RE.test(line)), 'Expected ANSI color escapes in renderBarChart at level 3');
+    assert.ok(heat3.some((line) => TRUECOLOR_RE.test(line)), 'Expected truecolor escapes in renderHeatmap at level 3');
+    assert.ok(heat3.some((line) => ANSI_COLOR_RE.test(line)), 'Expected ANSI color escapes in renderHeatmap at level 3');
+    assert.equal(ANSI_COLOR_RE.test(spark3), false);
+    assert.equal(spark3, spark0);
+
+    setColorLevel(0);
+    const bars0Again = renderBarChart(barItems, 40, theme);
+    const heat0Again = renderHeatmap(heatmapDays, 10, theme, { endDate: '2026-10-28', locale: 'en' });
+    assert.deepEqual(bars0Again, bars0);
+    assert.deepEqual(heat0Again, heat0);
   });
 });

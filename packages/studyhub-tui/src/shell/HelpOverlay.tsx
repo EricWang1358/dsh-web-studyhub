@@ -1,15 +1,12 @@
 import React, { memo, useMemo } from 'react';
 import { useInput, useWindowSize } from 'ink';
-import defaultChalk, { Chalk, type ChalkInstance } from 'chalk';
 import { PAGE_REGISTRY, type KeyHint } from '../types/contracts.js';
 import { t, useTuiStore } from '../state/store.js';
-import { useTheme } from '../theme/tokens.js';
+import { getColorLevel, makeChalk, useTheme } from '../theme/tokens.js';
 import { padDisplay, truncateDisplay } from '../render/index.js';
 import { Modal, modalContentWidth } from '../components/Modal.js';
 import { ScrollView } from '../components/ScrollView.js';
 import { pageIcon } from './data.js';
-
-const chalk: ChalkInstance = new Chalk({ level: defaultChalk.level });
 
 export interface HelpOverlayProps {
   isActive: boolean;
@@ -206,7 +203,9 @@ export const HelpOverlay = memo(function HelpOverlay({ isActive, onClose, pageHi
   const keyW = Math.min(12, Math.max(8, Math.floor(colW * 0.3)));
   const labelW = Math.max(4, colW - keyW - 1);
 
+  const colorLevel = getColorLevel();
   const packedLines = useMemo(() => {
+    const chalk = makeChalk(colorLevel);
     const headStyle = chalk.hex(theme.heading).bold;
     const keyStyle = chalk.hex(theme.accent).bold;
     const textStyle = chalk.hex(theme.text);
@@ -259,7 +258,7 @@ export const HelpOverlay = memo(function HelpOverlay({ isActive, onClose, pageHi
       combined.push(r ? `${l}${spacer}${r}` : l);
     }
     return combined;
-  }, [theme.heading, theme.accent, theme.text, colW, keyW, labelW, ell, lang, asciiMode, hints, twoCol]);
+  }, [colorLevel, theme.heading, theme.accent, theme.text, colW, keyW, labelW, ell, lang, asciiMode, hints, twoCol]);
 
   const maxModalH = Math.max(8, rows - 2);
   const modalH = Math.min(maxModalH, packedLines.length + 5);

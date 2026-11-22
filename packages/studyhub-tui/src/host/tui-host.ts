@@ -42,6 +42,7 @@ import {
   presetsForSnapshot,
   type EnvProviderDetection,
 } from './presets.js';
+import { isHeadlessOrSsh } from '../terminal.js';
 
 type EnvLike = Record<string, string | undefined>;
 
@@ -220,14 +221,15 @@ function findOnPath(name: string, env: EnvLike): string {
   return '';
 }
 
-/** Command used to open a URL, or '' when there is no desktop session to open it in. */
+/** Command used to open a URL, or null when in an SSH/headless session with no desktop browser. */
 export function externalOpener(platform: NodeJS.Platform, env: EnvLike): { command: string; prefixArgs: string[] } | null {
+  if (isHeadlessOrSsh(env, platform)) return null;
   if (platform === 'win32') {
     const root = env.SystemRoot || env.windir || 'C:\\Windows';
     return { command: win32.join(root, 'System32', 'rundll32.exe'), prefixArgs: ['url.dll,FileProtocolHandler'] };
   }
   if (platform === 'darwin') return { command: '/usr/bin/open', prefixArgs: [] };
-  // Linux / BSD: a headless terminal (SSH, CI, container) has no browser — never spawn, never wait.
+  // Linux / BSD: even under WSL2, require a display server before spawning xdg-open.
   if (!env.DISPLAY && !env.WAYLAND_DISPLAY) return null;
   const command = findOnPath('xdg-open', env) || (existsSync('/usr/bin/xdg-open') ? '/usr/bin/xdg-open' : '');
   return command ? { command, prefixArgs: [] } : null;
@@ -340,6 +342,17 @@ export async function createTuiHost(options: CreateTuiHostOptions = {}): Promise
       } catch (error) {
         log('[studyhub-tui] openExternal failed:', error);
       }
+    } else if (isHeadlessOrSsh(env, platform)) {
+      const hasSsh = Boolean(
+        String(env.SSH_TTY ?? '').trim() ||
+        String(env.SSH_CONNECTION ?? '').trim() ||
+        String(env.SSH_CLIENT ?? '').trim(),
+      );
+      log(
+        hasSsh
+          ? `[studyhub-tui] SSH session detected; open URL in local browser: ${url}`
+          : `[studyhub-tui] Headless terminal; open URL in browser: ${url}`,
+      );
     }
     try { options.onOpenExternal?.(url, opened); } catch { /* listener errors never break the call */ }
     return { ok: true, url, opened };

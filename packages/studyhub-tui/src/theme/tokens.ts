@@ -251,7 +251,14 @@ export function setColorLevel(level: ColorLevel): void {
   (globalThis as GlobalColorState)[COLOR_LEVEL_KEY] = level;
 }
 
-/** Create a Chalk instance respecting the provided or active ColorLevel. */
+const CHALK_CACHE: Partial<Record<ColorLevel, ChalkInstance>> = {};
+
+/** Return a cached Chalk instance respecting the provided or active ColorLevel. */
 export function makeChalk(level: ColorLevel = getColorLevel()): ChalkInstance {
-  return new Chalk({ level });
+  let instance = CHALK_CACHE[level];
+  if (!instance) {
+    instance = new Chalk({ level });
+    CHALK_CACHE[level] = instance;
+  }
+  return instance;
 }

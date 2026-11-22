@@ -1,14 +1,15 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { BindingSnapshot, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { tryAction, type TuiConfigSnapshot } from '../../host/index.js';
-import { useClaimKeys, useFooterHints, useTheme } from '../../components/index.js';
-import { AppearanceTab } from './AppearanceTab.js';
+import { Spinner, useClaimKeys, useFooterHints, useTheme } from '../../components/index.js';
 import { ModelsTab } from './ModelsTab.js';
-import { StudyGenTab } from './StudyGenTab.js';
-import { WorkspaceTab } from './WorkspaceTab.js';
 import { SETTINGS_TABS, type SettingsTabId } from './types.js';
+
+const AppearanceTab = lazy(() => import('./AppearanceTab.js').then((m) => ({ default: m.AppearanceTab })));
+const StudyGenTab = lazy(() => import('./StudyGenTab.js').then((m) => ({ default: m.StudyGenTab })));
+const WorkspaceTab = lazy(() => import('./WorkspaceTab.js').then((m) => ({ default: m.WorkspaceTab })));
 
 export const SettingsView: React.FC<ViewProps> = ({ host, width, height, isActive }) => {
   const theme = useTheme();
@@ -148,23 +149,33 @@ export const SettingsView: React.FC<ViewProps> = ({ host, width, height, isActiv
         />
       ) : null}
 
-      {tab === 'workspace' ? (
-        <WorkspaceTab
-          host={host}
-          binding={binding}
-          width={width}
-          height={bodyH}
-          isActive={isActive}
-          onRefreshBinding={refreshBinding}
-        />
-      ) : null}
+      {tab !== 'models' ? (
+        <Suspense
+          fallback={
+            <Box paddingX={1} paddingY={1}>
+              <Spinner label={t(lang, '正在加载设置页…', 'Loading settings…')} active={isActive} />
+            </Box>
+          }
+        >
+          {tab === 'workspace' ? (
+            <WorkspaceTab
+              host={host}
+              binding={binding}
+              width={width}
+              height={bodyH}
+              isActive={isActive}
+              onRefreshBinding={refreshBinding}
+            />
+          ) : null}
 
-      {tab === 'study' ? (
-        <StudyGenTab host={host} width={width} height={bodyH} isActive={isActive} />
-      ) : null}
+          {tab === 'study' ? (
+            <StudyGenTab host={host} width={width} height={bodyH} isActive={isActive} />
+          ) : null}
 
-      {tab === 'appearance' ? (
-        <AppearanceTab host={host} width={width} height={bodyH} isActive={isActive} />
+          {tab === 'appearance' ? (
+            <AppearanceTab host={host} width={width} height={bodyH} isActive={isActive} />
+          ) : null}
+        </Suspense>
       ) : null}
     </Box>
   );
