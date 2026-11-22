@@ -204,15 +204,33 @@ const RELATION_ZH: Record<string, string> = {
   related: '相关',
 };
 
-function inferCardLevel(card: Record<string, unknown>): CardMasteryInfo['level'] {
+const LEVEL_WEIGHT: Record<CardMasteryInfo['level'], number> = {
+  new: 0,
+  weak: 0.15,
+  learning: 0.45,
+  familiar: 0.75,
+  mastered: 1,
+};
+
+function inferCardLevel(card: Record<string, unknown>, lastGrade?: number): CardMasteryInfo['level'] {
   const rev = card.review as Record<string, unknown> | undefined;
-  const reps = Number(rev?.repetitions ?? 0) || 0;
+  const streak = Number(rev?.repetitions ?? 0) || 0;
+  const totalReps = Number(rev?.reps ?? 0) || 0;
   const days = Number(rev?.interval_days ?? 0) || 0;
   const lapses = Number(rev?.lapses ?? 0) || 0;
-  if (reps <= 0) return 'new';
-  if (lapses > 0 && days < 3) return 'weak';
-  if (days >= 14 && reps >= 3) return 'mastered';
-  if (days >= 5) return 'familiar';
+  const hasReviewHistory = Boolean(rev?.lastReview || rev?.last_review);
+  if (lastGrade === undefined && streak <= 0 && totalReps <= 0 && lapses <= 0 && !hasReviewHistory) {
+    return 'new';
+  }
+  if (lastGrade !== undefined && lastGrade < 3) return 'weak';
+  if (lastGrade === 5) return 'mastered';
+  if ((lapses > 0 && (streak <= 0 || days < 3)) || (streak <= 0 && (totalReps > 0 || hasReviewHistory) && days < 3)) {
+    return 'weak';
+  }
+  const cap = Number(rev?.maximum_interval);
+  const line = (value: number) => (Number.isFinite(cap) && cap >= 1 ? Math.min(value, cap) : value);
+  if (days >= line(21) && streak >= 2) return 'mastered';
+  if (days >= line(6)) return 'familiar';
   return 'learning';
 }
 
@@ -284,6 +302,8 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const snapshotDecks = useTuiStore((s) => s.snapshot?.decks);
+  const snapshotAttempts = useTuiStore((s) => s.snapshot?.attempts);
+  const snapshotProgress = useTuiStore((s) => s.snapshot?.progress);
   const snapshotCourse = useTuiStore((s) => (typeof s.snapshot?.focus?.course === 'string' ? s.snapshot.focus.course : null));
   const navCourse = useTuiStore((s) => s.navContext.course);
   const activeCourse = navCourse ?? snapshotCourse;
@@ -294,6 +314,7 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
   const [focusTopics, setFocusTopics] = useState<FocusProgressTopic[]>([]);
   const [selectedSkeletonId, setSelectedSkeletonId] = useState<string | null>(null);
   const [detail, setDetail] = useState<SkeletonDetail | null>(null);
+  const [fetchedDecks, setFetchedDecks] = useState<Record<string, Array<Record<string, unknown>>>>({});
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [activePane, setActivePane] = useState<'left' | 'right'>('left');
@@ -398,27 +419,95 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
     }
   }, [host, selectedSkeletonId]);
 
-  // Card mastery lookup from snapshot decks
+  // Collect unique deckIds referenced by detail.nodes[].cards (plus detail.scope[].deckId fallback)
+  const detailDeckIds = useMemo(() => {
+    if (!detail) return [];
+    const ids = new Set<string>();
+    for (const n of detail.nodes ?? []) {
+      for (const c of n.cards ?? []) {
+        if (c.deckId) ids.add(c.deckId);
+      }
+    }
+    for (const s of detail.scope ?? []) {
+      if (s.deckId) ids.add(s.deckId);
+    }
+    return [...ids];
+  }, [detail]);
+
+  // Fetch full decks via deck.get because snapshot.decks omits .cards arrays
+  useEffect(() => {
+    if (!detailDeckIds.length) {
+      setFetchedDecks({});
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const results = await Promise.all(
+        detailDeckIds.map((id) =>
+          host
+            .call<{ id?: string; cards?: Array<Record<string, unknown>> }>('deck.get', { id })
+            .catch(() => ({ ok: false as const, value: undefined })),
+        ),
+      );
+      if (cancelled || !mountedRef.current) return;
+      const next: Record<string, Array<Record<string, unknown>>> = {};
+      results.forEach((res, idx) => {
+        if (res.ok && res.value && Array.isArray(res.value.cards)) {
+          const deckId = String(res.value.id || detailDeckIds[idx]);
+          next[deckId] = res.value.cards;
+        }
+      });
+      setFetchedDecks(next);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [host, detailDeckIds, reloadSeq]);
+
+  const latestGrades = useMemo(() => {
+    const grades = new Map<string, number>();
+    for (const raw of snapshotAttempts ?? []) {
+      if (!raw || raw.voidedAt || raw.retry || raw.updatedAfterOpening) continue;
+      const cardId = typeof raw.quiz_id === 'string' ? raw.quiz_id : typeof raw.cardId === 'string' ? raw.cardId : '';
+      const deckId = typeof raw.deckId === 'string' ? raw.deckId : '';
+      const grade = Number(raw.grade);
+      if (cardId && Number.isFinite(grade)) {
+        grades.set(`${deckId}\0${cardId}`, grade);
+        grades.set(`\0${cardId}`, grade);
+      }
+    }
+    return grades;
+  }, [snapshotAttempts]);
+
+  // Card mastery lookup from fetched decks (falling back to snapshotDecks[].cards if present)
   const cardIndex = useMemo(() => {
     const map = new Map<string, CardMasteryInfo>();
-    for (const deck of snapshotDecks ?? []) {
-      const cards = Array.isArray((deck as Record<string, unknown>).cards)
-        ? ((deck as Record<string, unknown>).cards as Array<Record<string, unknown>>)
-        : [];
+    const indexCards = (deckId: string, cards: Array<Record<string, unknown>>) => {
       for (const c of cards) {
         const cardId = String(c.id ?? '');
         if (!cardId) continue;
+        const lastGrade = latestGrades.get(`${deckId}\0${cardId}`) ?? latestGrades.get(`\0${cardId}`);
         map.set(cardId, {
-          deckId: deck.id,
+          deckId,
           cardId,
           topic: String(c.topic ?? ''),
           prompt: String(c.prompt ?? '').replace(/\s+/g, ' ').trim(),
-          level: inferCardLevel(c),
+          level: inferCardLevel(c, lastGrade),
         });
       }
+    };
+    for (const [deckId, cards] of Object.entries(fetchedDecks)) {
+      indexCards(deckId, cards);
+    }
+    for (const deck of snapshotDecks ?? []) {
+      if (Object.prototype.hasOwnProperty.call(fetchedDecks, deck.id)) continue;
+      const cards = Array.isArray((deck as Record<string, unknown>).cards)
+        ? ((deck as Record<string, unknown>).cards as Array<Record<string, unknown>>)
+        : [];
+      indexCards(deck.id, cards);
     }
     return map;
-  }, [snapshotDecks]);
+  }, [fetchedDecks, snapshotDecks, latestGrades]);
 
   const focusTermSet = useMemo(() => {
     const set = new Set<string>();
@@ -455,12 +544,16 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
       let mastered = 0;
       let weak = 0;
       let learning = 0;
+      let weightSum = 0;
+      let matched = 0;
       const samplePrompts: string[] = [];
       let topicFocusHit = focusTermSet.has(n.term.toLowerCase());
 
       for (const ref of subtreeCards) {
         const info = cardIndex.get(ref.cardId);
         if (info) {
+          matched += 1;
+          weightSum += LEVEL_WEIGHT[info.level];
           if (info.level === 'mastered' || info.level === 'familiar') mastered += 1;
           else if (info.level === 'weak') weak += 1;
           else if (info.level === 'learning') learning += 1;
@@ -469,9 +562,27 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
         }
       }
       const total = subtreeCards.length;
-      const masteryPct = total > 0 ? Math.round((mastered / total) * 100) : 0;
+      let masteryPct = total > 0 ? Math.round((weightSum / total) * 100) : 0;
+      if (total > 0 && matched === 0 && snapshotProgress) {
+        let progSum = 0;
+        let progCount = 0;
+        for (const ref of subtreeCards) {
+          const deckProg = snapshotProgress[ref.deckId] as { mastery?: number } | undefined;
+          if (deckProg && typeof deckProg.mastery === 'number') {
+            progSum += deckProg.mastery;
+            progCount += 1;
+          }
+        }
+        if (progCount > 0) masteryPct = Math.round(progSum / progCount);
+      }
       const level: NodeStats['level'] =
-        weak > 0 ? 'weak' : total > 0 && mastered === total ? 'mastered' : learning > 0 || mastered > 0 ? 'learning' : 'new';
+        weak > 0
+          ? 'weak'
+          : total > 0 && (mastered === total || masteryPct >= 80)
+            ? 'mastered'
+            : learning > 0 || mastered > 0 || masteryPct > 0
+              ? 'learning'
+              : 'new';
 
       stats.set(n.id, {
         cardCount: (n.cards ?? []).length,
@@ -485,7 +596,7 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
       });
     }
     return stats;
-  }, [detail, cardIndex, focusTermSet]);
+  }, [detail, cardIndex, focusTermSet, snapshotProgress]);
 
   const { tree, parentById, nodeById } = useMemo(
     () => buildHierarchy(detail?.nodes ?? [], nodeStatsMap),

@@ -376,13 +376,13 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
           id: f.id,
           title: f.title,
           allowedKinds: f.allowFormSubstitute && f.allowedFormats?.length ? f.allowedFormats : [f.primaryFormat],
-          count: Math.max(1, Math.min(f.quota, 5)),
-          marksPerItem: f.marksPerItem ?? 2,
-          timePerItemSec: f.timeBudgetSec ?? 90,
+          count: Math.max(1, f.quota),
+          marksPerItem: f.marksPerItem ?? 5,
+          timePerItemSec: f.timeBudgetSec ?? 180,
           requiresSharedMaterial: f.quotaUnit === 'shared-material-group' || f.primaryFormat === 'case',
           subpartsCount: f.quotaUnit === 'subquestion' ? Math.max(2, f.questionsPerUnit ?? 2) : 0,
         }))
-      : [{ id: 'default-quiz', title: t(lang, '基础客观题', 'Basic MCQ'), allowedKinds: ['quiz'], count: 4, marksPerItem: 2, timePerItemSec: 90 }];
+      : [{ id: 'default-quiz', title: t(lang, '基础客观题', 'Basic MCQ'), allowedKinds: ['quiz'], count: 4, marksPerItem: 5, timePerItemSec: 180 }];
     const res = await tryAction<MockComposeResult>(host, 'coach.mockPaper.compose', { course, examShape: { sections } });
     if (!mountedRef.current) return;
     setBusyLabel(null);

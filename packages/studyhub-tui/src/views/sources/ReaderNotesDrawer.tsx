@@ -44,6 +44,8 @@ export interface SavePageAskParams {
   question: string;
   answer: string;
   course?: string;
+  anchorOffset?: number;
+  selectedExcerpt?: string;
 }
 
 export interface SavePageAskResult {
@@ -160,12 +162,28 @@ function formatMarkMarkdown(lang: UiLanguage, item: MarkItem, page?: number): st
 
 /**
  * Save a finished AI Page Ask Q&A persistently:
- * 1) If the page has linked cards (`materials.pages.cards`), append into Study Notes via `note.create` + `note.save`.
+ * 1) If the page has linked cards (`materials.pages.cards`), record a follow-up via `card.followup.add`
+ *    and append into Study Notes via `note.qa.add`.
  * 2) When passage text is available, also save a page-anchored annotation via `materials.annotation.save`
+ *    using the reader's active viewport offset/excerpt (falling back to first non-whitespace text)
  *    so the Q&A appears immediately in `ReaderNotesDrawer` even when no cards are linked yet.
  */
 export async function savePageAskToNote(params: SavePageAskParams): Promise<SavePageAskResult> {
-  const { host, lang, title, page, sourceId, documentId, revision, pageText, question, answer, course } = params;
+  const {
+    host,
+    lang,
+    title,
+    page,
+    sourceId,
+    documentId,
+    revision,
+    pageText,
+    question,
+    answer,
+    course,
+    anchorOffset,
+    selectedExcerpt,
+  } = params;
   const cleanAnswer = answer.trim();
   if (!cleanAnswer || cleanAnswer.startsWith('✕')) {
     return {
@@ -176,12 +194,12 @@ export async function savePageAskToNote(params: SavePageAskParams): Promise<Save
   }
   const cleanQuestion = question.trim() || t(lang, `第 ${page} 页提问`, `Page ${page} question`);
   const docLabel = title || t(lang, '资料阅读', 'Material');
-  const noteBlock = `### ${docLabel} (P.${page})\n\n**${t(lang, '问题', 'Q')}:** ${cleanQuestion}\n\n${cleanAnswer}`;
 
+  let savedNote = false;
   let savedNoteId: string | undefined;
   let noteError: string | undefined;
 
-  // 1. Check linked cards for `note.create` (which requires 1-30 cards in StudyHub backend).
+  // 1. Check linked cards and save Q&A via card.followup.add + note.qa.add.
   if (sourceId || documentId) {
     const cardsRes = await tryAction<{ cards?: Array<{ deckId?: string; cardId?: string }> }>(
       host,
@@ -195,36 +213,32 @@ export async function savePageAskToNote(params: SavePageAskParams): Promise<Save
       (c): c is { deckId: string; cardId: string } => Boolean(c.deckId && c.cardId),
     );
     if (linked.length > 0) {
+      const target = linked[0];
       const noteTitle = course ? `${course} · ${docLabel}` : docLabel;
-      const createdRes = await tryAction<{ id?: string; markdown?: string; revision?: number }>(host, 'note.create', {
-        title: noteTitle.slice(0, 180),
-        cards: [linked[0]],
-        reuse: true,
-        prefill: true,
-        language: lang,
+      const followupRes = await tryAction<{ item?: { id?: string } }>(host, 'card.followup.add', {
+        deckId: target.deckId,
+        cardId: target.cardId,
+        question: cleanQuestion.replace(/\s+/g, ' ').trim().slice(0, 1000),
+        answer: cleanAnswer.slice(0, 8000),
+        source: 'assistant',
+        silent: true,
       });
-      if (createdRes.ok && createdRes.value?.id) {
-        const noteId = createdRes.value.id;
-        const getRes = await tryAction<{ markdown?: string; revision?: number }>(host, 'note.get', { id: noteId });
-        const existingMd = String((getRes.ok ? getRes.value?.markdown : createdRes.value.markdown) ?? '');
-        const expectedRev = (getRes.ok ? getRes.value?.revision : createdRes.value.revision) ?? 0;
-        const nextMd = existingMd.includes(noteBlock)
-          ? existingMd
-          : existingMd.trimEnd()
-            ? `${existingMd.trimEnd()}\n\n---\n\n${noteBlock}\n`
-            : `${noteBlock}\n`;
-        const saveRes = await tryAction<Record<string, unknown>>(host, 'note.save', {
-          id: noteId,
-          markdown: nextMd,
-          expectedRevision: expectedRev,
+      if (followupRes.ok && followupRes.value?.item?.id) {
+        const noteRes = await tryAction<{ status?: string; note?: { id?: string } }>(host, 'note.qa.add', {
+          deckId: target.deckId,
+          cardId: target.cardId,
+          followupId: followupRes.value.item.id,
+          title: noteTitle.slice(0, 180),
+          language: lang,
         });
-        if (saveRes.ok) {
-          savedNoteId = noteId;
+        if (noteRes.ok) {
+          savedNote = true;
+          savedNoteId = noteRes.value?.note?.id;
         } else {
-          noteError = saveRes.error?.message;
+          noteError = noteRes.error?.message;
         }
-      } else if (!createdRes.ok) {
-        noteError = createdRes.error?.message;
+      } else if (!followupRes.ok) {
+        noteError = followupRes.error?.message;
       }
     }
   }
@@ -234,8 +248,36 @@ export async function savePageAskToNote(params: SavePageAskParams): Promise<Save
   let annotError: string | undefined;
   const nonWsIndex = pageText.search(/\S/);
   if (sourceId && nonWsIndex >= 0) {
-    const start = nonWsIndex;
-    const end = Math.min(pageText.length, start + 360);
+    let start = nonWsIndex;
+    let end = Math.min(pageText.length, start + 360);
+
+    const cleanExcerpt = typeof selectedExcerpt === 'string' ? selectedExcerpt.trim() : '';
+    if (cleanExcerpt) {
+      const hint =
+        typeof anchorOffset === 'number' && Number.isFinite(anchorOffset) && anchorOffset >= 0
+          ? Math.min(pageText.length, Math.floor(anchorOffset))
+          : 0;
+      const matchedAt = pageText.indexOf(cleanExcerpt, hint);
+      const fallbackAt = matchedAt >= 0 ? matchedAt : pageText.indexOf(cleanExcerpt);
+      if (fallbackAt >= 0) {
+        start = fallbackAt;
+        end = Math.min(pageText.length, start + Math.max(1, Math.min(360, cleanExcerpt.length)));
+      }
+    }
+    if (
+      start === nonWsIndex &&
+      typeof anchorOffset === 'number' &&
+      Number.isFinite(anchorOffset) &&
+      anchorOffset > 0
+    ) {
+      const clamped = Math.min(Math.max(0, Math.floor(anchorOffset)), Math.max(0, pageText.length - 1));
+      const relNonWs = pageText.slice(clamped).search(/\S/);
+      if (relNonWs >= 0) {
+        start = clamped + relNonWs;
+        end = Math.min(pageText.length, start + 360);
+      }
+    }
+
     const quote = pageText.slice(start, end);
     const nodeId = `ask-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
     const annotRes = await tryAction<Record<string, unknown>>(host, 'materials.annotation.save', {
@@ -269,19 +311,19 @@ export async function savePageAskToNote(params: SavePageAskParams): Promise<Save
     }
   }
 
-  if (savedNoteId && savedAnnotation) {
+  if (savedNote && savedAnnotation) {
     return {
       ok: true,
       savedTo: 'both',
-      noteId: savedNoteId,
+      ...(savedNoteId ? { noteId: savedNoteId } : {}),
       message: t(lang, '已保存到学习笔记与文档批注', 'Saved to Study Notes & Annotations'),
     };
   }
-  if (savedNoteId) {
+  if (savedNote) {
     return {
       ok: true,
       savedTo: 'note',
-      noteId: savedNoteId,
+      ...(savedNoteId ? { noteId: savedNoteId } : {}),
       message: t(lang, '已保存到学习笔记', 'Saved to Study Notes'),
     };
   }

@@ -124,7 +124,7 @@ const CARD_UTIL_KEYS: readonly string[] = Object.freeze([
   'u',
   'o',
 ]);
-const RATING_DIGIT_KEYS: readonly string[] = Object.freeze(['1', '2', '3', '4']);
+const RATING_DIGIT_KEYS: readonly string[] = Object.freeze(['0', '1', '2', '3', '4', '5']);
 const CHOICE_DIGIT_KEYS: readonly string[] = Object.freeze(['1', '2', '3', '4', '5', '6']);
 const TF_DIGIT_KEYS: readonly string[] = Object.freeze(['1', '2']);
 const EMPTY_CLAIMED_KEYS: readonly string[] = Object.freeze(['r']);
@@ -376,17 +376,24 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
   const handleFsrsGrade = useCallback(
     (grade: number) => {
       if (!run?.id || !cardId || busy || feedback || !revealed) return;
+      const practice = (snapshot?.settings as { practice?: Record<string, unknown> } | undefined)?.practice;
+      const selfGradeAdvanceEnabled =
+        practice?.selfGradeAdvance !== false &&
+        practice?.autoAdvance !== false &&
+        practice?.advanceOnPass !== false &&
+        practice?.advanceOnSelfGrade !== false;
+      const advanceOnSelfGrade = grade >= 3 && selfGradeAdvanceEnabled && run.mode !== 'exam';
       void runAction(() =>
         answerReview(host, {
           runId: run.id,
           cardId,
           grade,
-          advanceOnSelfGrade: grade >= 4,
+          advanceOnSelfGrade,
           queueVersion: run.queueVersion ?? 0,
         }),
       );
     },
-    [run, cardId, busy, feedback, revealed, runAction, host],
+    [run, cardId, busy, feedback, revealed, snapshot, runAction, host],
   );
 
   const handleMove = useCallback(
@@ -397,7 +404,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
         return;
       }
       if (direction === 1 && revealed && !feedback && isSelfGraded) {
-        notify(t(lang, '请先用 [1-4] 评分', 'Rate with [1-4] first'), 'info');
+        notify(t(lang, '请先用 [0-5] 评分', 'Rate with [0-5] first'), 'info');
         return;
       }
       void runAction(() => moveReview(host, run.id, { direction }));
@@ -618,7 +625,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     }
   }, [run, cardId, focusBusy, host, notify, lang, focusOverrideByCard, refresh, applyRun]);
 
-  // Phase-aware key claiming: only claim digits when rating (1-4) or picking choices (1-6 / 1-2)
+  // Phase-aware key claiming: only claim digits when rating (0-5) or picking choices (1-6 / 1-2)
   const anyModalOpen =
     aiDrawerOpen ||
     flagModalOpen ||
@@ -663,7 +670,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
         base.push({ key: 'Space/Enter', label: t(lang, '翻卡', 'Flip') });
       }
     } else if (needsRating) {
-      base.push({ key: '1-4', label: t(lang, 'FSRS评分', 'Rate 1-4') });
+      base.push({ key: '0-5', label: t(lang, 'FSRS评分', 'Rate 0-5') });
     } else {
       base.push({ key: 'Enter / .', label: t(lang, '下一题', 'Next') });
     }
@@ -1324,13 +1331,13 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                     {isModelUnavailableMsg(gradeError)
                       ? t(
                           lang,
-                          '未检测到可用 AI 模型：请按 [,] 配置模型，或按 [Space] 对照参考答案后用 [1-4] 自评。',
-                          'Model unavailable: configure one in Settings ([,]), or reveal reference answer and self-rate [1-4].',
+                          '未检测到可用 AI 模型：请按 [,] 配置模型，或按 [Space] 对照参考答案后用 [0-5] 自评。',
+                          'Model unavailable: configure one in Settings ([,]), or reveal reference answer and self-rate [0-5].',
                         )
                       : t(
                           lang,
-                          '暂无法按评分标准批改，请对照参考答案后用 [1-4] 自评。',
-                          'Could not run rubric grading; reveal reference answer and self-rate [1-4].',
+                          '暂无法按评分标准批改，请对照参考答案后用 [0-5] 自评。',
+                          'Could not run rubric grading; reveal reference answer and self-rate [0-5].',
                         )}
                   </Text>
                 </Box>
@@ -1525,12 +1532,14 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                 </Box>
               ) : null}
 
-              {/* FSRS-6 4-grade selector */}
+              {/* FSRS-6 6-grade selector (0-5) */}
               {needsRating ? (
-                <Box flexDirection="column" marginTop={1}>
-                  <Box flexDirection="row" justifyContent="space-between" width={innerW}>
-                    <Text color={theme.muted} bold>
-                      {t(lang, 'FSRS-6 记忆评分（按数字键 1-4）:', 'FSRS-6 Rating (Press 1-4):')}
+                <Box flexDirection="column" marginTop={1} width={innerW}>
+                  <Box flexDirection="row" justifyContent="space-between" width={innerW} overflow="hidden">
+                    <Text color={theme.muted} bold wrap="truncate">
+                      {innerW < 64
+                        ? t(lang, 'FSRS评分 [0-5]:', 'Rate [0-5]:')
+                        : t(lang, 'FSRS-6 记忆评分（按数字键 0-5）:', 'FSRS-6 Rating (Press 0-5):')}
                     </Text>
                     {canRubricGrade && !activeRubric ? (
                       <Text color={theme.ai} bold>
@@ -1538,10 +1547,14 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                       </Text>
                     ) : null}
                   </Box>
-                  <Box flexDirection="row" gap={1} marginTop={0} flexWrap="wrap">
+                  <Box flexDirection="row" gap={1} marginTop={0} width={innerW} overflow="hidden">
                     {FSRS_GRADES.map((g) => {
-                      const gap = intervals ? formatGapDays(intervals[g.intervalIndex], lang) : '';
-                      const label = `${g.key} ${lang === 'en' ? g.labelEn : g.labelZh}${gap ? `${asciiMode ? ' - ' : ' · '}${gap}` : ''}`;
+                      const gap = innerW >= 96 && intervals ? formatGapDays(intervals[g.intervalIndex], lang) : '';
+                      const textLabel = lang === 'en' ? g.labelEn : g.labelZh;
+                      const label =
+                        innerW < 82
+                          ? `${g.key}${lang === 'en' ? `:${textLabel}` : textLabel}`
+                          : `${g.key} ${textLabel}${gap ? `${asciiMode ? ' - ' : ' · '}${gap}` : ''}`;
                       return <Badge key={g.key} label={label} tone={g.tone} variant="soft" />;
                     })}
                   </Box>

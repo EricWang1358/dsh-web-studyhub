@@ -15,6 +15,7 @@ import {
   useTheme,
 } from '../../components/index.js';
 import { errorMessage, startReview, tryAction } from '../../host/sample-actions.js';
+import { wrapDisplay } from '../../render/index.js';
 import { ReaderOutlineDrawer } from './ReaderOutlineDrawer.js';
 import { ReaderNotesDrawer, savePageAskToNote } from './ReaderNotesDrawer.js';
 
@@ -103,6 +104,7 @@ export const DocumentReader = memo(function DocumentReader({
   const [savingNote, setSavingNote] = useState(false);
   const [translationText, setTranslationText] = useState('');
   const [translateBusy, setTranslateBusy] = useState(false);
+  const [pageScrollTop, setPageScrollTop] = useState(0);
 
   const abortRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
@@ -139,6 +141,7 @@ export const DocumentReader = memo(function DocumentReader({
     let cancelled = false;
     setLoading(true);
     setLoadError(null);
+    setPageScrollTop(0);
 
     const loadPage = async () => {
       let docMeta: { documentId?: string; revision?: string; title?: string; format?: string; totalPages?: number } = {};
@@ -429,6 +432,33 @@ export const DocumentReader = memo(function DocumentReader({
     if (!pageData || aiBusy || savingNote) return;
     setSavingNote(true);
     try {
+      let anchorOffset: number | undefined;
+      let selectedExcerpt: string | undefined;
+      if (pageScrollTop > 0 && pageData.text) {
+        const isSide = (subMode === 'ask-view' || subMode === 'translate-view') && width >= 88;
+        const readerW = isSide ? Math.max(24, Math.floor(width * 0.56)) : width;
+        const textCols = Math.max(11, readerW - 5);
+        const wrapped = wrapDisplay(pageData.text, textCols);
+        if (wrapped.length > 0) {
+          const lineIdx = Math.min(pageScrollTop, wrapped.length - 1);
+          let approx = 0;
+          for (let i = 0; i < lineIdx; i += 1) approx += wrapped[i].length;
+          const ratioOffset = Math.floor((lineIdx / wrapped.length) * pageData.text.length);
+          let offset = Math.min(Math.max(0, Math.min(approx, ratioOffset)), Math.max(0, pageData.text.length - 1));
+          const probe = wrapped
+            .slice(lineIdx, lineIdx + 3)
+            .map((l) => l.trim())
+            .find((l) => l.length >= 6);
+          if (probe) {
+            const needle = probe.slice(0, 32);
+            const foundAt = pageData.text.indexOf(needle, Math.max(0, offset - 200));
+            if (foundAt >= 0) offset = foundAt;
+          }
+          const relNonWs = pageData.text.slice(offset).search(/\S/);
+          anchorOffset = relNonWs >= 0 ? offset + relNonWs : offset;
+          selectedExcerpt = pageData.text.slice(anchorOffset, Math.min(pageData.text.length, anchorOffset + 360));
+        }
+      }
       const result = await savePageAskToNote({
         host,
         lang,
@@ -441,6 +471,8 @@ export const DocumentReader = memo(function DocumentReader({
         question: askQuestion,
         answer: aiAnswer,
         course: initialCourse,
+        ...(anchorOffset !== undefined ? { anchorOffset } : {}),
+        ...(selectedExcerpt !== undefined ? { selectedExcerpt } : {}),
       });
       if (!mountedRef.current) return;
       notify(result.message, result.ok ? 'success' : 'warning');
@@ -449,7 +481,7 @@ export const DocumentReader = memo(function DocumentReader({
     } finally {
       if (mountedRef.current) setSavingNote(false);
     }
-  }, [pageData, aiBusy, savingNote, host, lang, documentId, askQuestion, aiAnswer, initialCourse, notify]);
+  }, [pageData, aiBusy, savingNote, pageScrollTop, subMode, width, host, lang, documentId, askQuestion, aiAnswer, initialCourse, notify]);
 
   const isTyping = subMode === 'jump' || subMode === 'search' || subMode === 'ask-input';
   const drawerOpen = subMode === 'outline' || subMode === 'notes';
@@ -661,6 +693,8 @@ export const DocumentReader = memo(function DocumentReader({
               isActive={readerInputActive && subMode === 'read'}
               mathUnicode={mathUnicode}
               highlight={activeSearch || undefined}
+              scrollTop={pageScrollTop}
+              onScroll={setPageScrollTop}
             />
           ) : (
             <ScrollView
@@ -669,6 +703,8 @@ export const DocumentReader = memo(function DocumentReader({
               height={Math.max(2, readerH - 2)}
               isActive={readerInputActive && subMode === 'read'}
               highlight={activeSearch || undefined}
+              scrollTop={pageScrollTop}
+              onScroll={setPageScrollTop}
             />
           )}
         </Panel>

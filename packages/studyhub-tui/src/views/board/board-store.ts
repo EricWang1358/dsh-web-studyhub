@@ -46,8 +46,11 @@ export interface UpstreamBoardSnapshot {
   revision?: number;
   columns?: UpstreamBoardColumn[];
   cards?: Record<string, UpstreamBoardCard>;
+  archived?: UpstreamBoardCard[];
   readOnly?: boolean;
 }
+
+export const MAX_DELETED_UPSTREAM_IDS = 500;
 
 export interface FocusStats {
   date: string;
@@ -58,6 +61,7 @@ export interface FocusStats {
 export interface BoardDocument {
   version: 1;
   cards: BoardCard[];
+  deletedUpstreamIds?: string[];
   focusStats?: FocusStats;
   updatedAt: string;
 }
@@ -105,6 +109,20 @@ const BoardDocumentSchema = z.object({
       return out;
     })
     .catch([]),
+  deletedUpstreamIds: z
+    .array(z.string().trim().min(1).max(120))
+    .transform((ids) => {
+      const seen = new Set<string>();
+      const out: string[] = [];
+      for (const id of ids) {
+        if (seen.has(id)) continue;
+        seen.add(id);
+        out.push(id);
+      }
+      return out.slice(-MAX_DELETED_UPSTREAM_IDS);
+    })
+    .default([])
+    .catch([]),
   focusStats: FocusStatsSchema.optional().catch(undefined),
   updatedAt: z.string().catch(() => new Date().toISOString()),
 });
@@ -115,7 +133,25 @@ export function boardFilePath(libraryRoot: string): string {
 }
 
 export function emptyBoard(): BoardDocument {
-  return { version: 1, cards: [], updatedAt: new Date().toISOString() };
+  return { version: 1, cards: [], deletedUpstreamIds: [], updatedAt: new Date().toISOString() };
+}
+
+export function recordDeletedUpstreamIds(existing: readonly string[] | undefined, ...ids: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const id of existing ?? []) {
+    const clean = typeof id === 'string' ? id.trim() : '';
+    if (!clean || seen.has(clean)) continue;
+    seen.add(clean);
+    out.push(clean);
+  }
+  for (const id of ids) {
+    const clean = typeof id === 'string' ? id.trim() : '';
+    if (!clean || seen.has(clean)) continue;
+    seen.add(clean);
+    out.push(clean);
+  }
+  return out.slice(-MAX_DELETED_UPSTREAM_IDS);
 }
 
 export function parseBoardDocument(raw: unknown): BoardDocument {
@@ -303,13 +339,17 @@ function extractUpstreamMeta(raw: UpstreamBoardCard): { title: string; course?: 
   return { title, course, dueDate };
 }
 
-/** Merge open task cards from StudyHub's global `board.get` snapshot without duplicating local or synced cards. */
+/** Merge open task cards from StudyHub's global `board.get` snapshot without duplicating local or synced cards or resurrecting tombstoned deletions. */
 export function mergeUpstreamBoard(
   prevCards: readonly BoardCard[],
   upstream: UpstreamBoardSnapshot,
+  deletedUpstreamIds?: readonly string[],
 ): { cards: BoardCard[]; syncedCount: number; changed: boolean } {
   const cardsMap = upstream.cards && typeof upstream.cards === 'object' ? upstream.cards : {};
   const columns = Array.isArray(upstream.columns) ? upstream.columns : [];
+  const deletedSet = new Set(
+    (deletedUpstreamIds ?? []).filter((id): id is string => typeof id === 'string' && id.trim().length > 0),
+  );
 
   const entryByUpstreamId = new Map<string, { raw: UpstreamBoardCard; column: BoardColumnId }>();
 
@@ -343,6 +383,10 @@ export function mergeUpstreamBoard(
       usedLocalIds.add(card.id);
       continue;
     }
+    if (deletedSet.has(card.upstreamCardId)) {
+      changed = true;
+      continue;
+    }
     const up = entryByUpstreamId.get(card.upstreamCardId);
     if (!up) {
       changed = true;
@@ -370,7 +414,10 @@ export function mergeUpstreamBoard(
     usedLocalIds.add(updated.id);
   }
 
+  let activeUpstreamCount = 0;
   for (const [upstreamId, up] of entryByUpstreamId.entries()) {
+    if (deletedSet.has(upstreamId)) continue;
+    activeUpstreamCount += 1;
     if (matchedUpstreamIds.has(upstreamId)) continue;
     changed = true;
     const { title, course, dueDate } = extractUpstreamMeta(up.raw);
@@ -393,7 +440,7 @@ export function mergeUpstreamBoard(
 
   return {
     cards: changed ? nextCards : [...prevCards],
-    syncedCount: entryByUpstreamId.size,
+    syncedCount: activeUpstreamCount,
     changed,
   };
 }

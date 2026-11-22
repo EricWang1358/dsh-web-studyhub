@@ -80,6 +80,13 @@ function flattenTocRows(toc: BookTocResult | null): FlatTocItem[] {
   });
 }
 
+function extractPendingOutlineId(book: BookOpenResult | null | undefined): string | undefined {
+  if (!book) return undefined;
+  const extra = book as BookOpenResult & { outlineId?: unknown; rebuildPending?: { outlineId?: unknown } };
+  const raw = book.moves?.outlineId ?? extra.rebuildPending?.outlineId ?? extra.outlineId;
+  return typeof raw === 'string' && raw.trim() ? raw.trim() : undefined;
+}
+
 function collectNodeQuestions(node: BookNode | undefined): Array<{ deckId: string; cardId: string }> {
   if (!node) return [];
   const seen = new Set<string>();
@@ -360,7 +367,29 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
       setBusyAction('build');
       try {
         if (kind === 'apply-rebuild') {
-          const res = await host.call('course.book.rebuild', { course, action: 'apply' });
+          let outlineId = extractPendingOutlineId(bookData);
+          if (!outlineId) {
+            const openRes = await host.call<BookOpenResult>('course.book.open', { course, language: lang });
+            if (openRes.ok && openRes.value) {
+              if (mountedRef.current) setBookData(openRes.value);
+              outlineId = extractPendingOutlineId(openRes.value);
+            }
+          }
+          if (!outlineId) {
+            const outlineRes = await host.call<{ book?: { id?: string; outlineId?: string } | null }>('course.outline', { course });
+            if (outlineRes.ok && outlineRes.value?.book) {
+              const candidate = outlineRes.value.book.outlineId ?? outlineRes.value.book.id;
+              if (typeof candidate === 'string' && candidate.trim()) outlineId = candidate.trim();
+            }
+          }
+          if (!outlineId) {
+            useTuiStore.getState().notify(
+              t(lang, '未能获取待应用总纲的 outlineId，请按 [r] 刷新后重试', 'Missing pending outlineId; press [r] to refresh and try again'),
+              'error',
+            );
+            return;
+          }
+          const res = await host.call('course.book.rebuild', { course, action: 'apply', outlineId });
           if (res.ok) {
             useTuiStore.getState().notify(t(lang, '已应用新总纲结构', 'Applied rebuilt outline to book'), 'success');
             setReloadSeq((n) => n + 1);
@@ -404,7 +433,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
         if (mountedRef.current) setBusyAction(null);
       }
     },
-    [busyAction, effectiveCourse, host, lang, selectedItem],
+    [busyAction, effectiveCourse, host, lang, selectedItem, bookData],
   );
 
   const buildOptions: SelectOption<'outline' | 'book' | 'point' | 'apply-rebuild'>[] = useMemo(() => {

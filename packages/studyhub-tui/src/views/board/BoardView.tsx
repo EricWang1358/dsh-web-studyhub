@@ -27,6 +27,7 @@ import {
   emptyBoard,
   loadBoardSafe,
   mergeUpstreamBoard,
+  recordDeletedUpstreamIds,
   resolveUpstreamTargetColumn,
   saveBoard,
   type BoardCard,
@@ -65,10 +66,17 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
   const mountedRef = useRef(true);
   const loadReqRef = useRef(0);
   const syncReqRef = useRef(0);
+  const upstreamQueueRef = useRef<Promise<void>>(Promise.resolve());
   const docRef = useRef(doc);
   docRef.current = doc;
   const readOnlyErrorRef = useRef<string | null>(readOnlyError);
   readOnlyErrorRef.current = readOnlyError;
+
+  const enqueueUpstream = useCallback((fn: () => Promise<void>) => {
+    const next = upstreamQueueRef.current.then(fn, fn);
+    upstreamQueueRef.current = next.catch(() => {});
+    return next;
+  }, []);
 
   const notifyReadOnlyError = useCallback(() => {
     notify(
@@ -112,18 +120,6 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
     [libraryRoot, notify, lang, notifyReadOnlyError],
   );
 
-  const persist = useCallback(
-    async (nextCards: BoardCard[]) => {
-      await persistDoc((prev) => ({
-        ...prev,
-        version: 1,
-        cards: nextCards,
-        updatedAt: new Date().toISOString(),
-      }));
-    },
-    [persistDoc],
-  );
-
   const syncUpstreamBoard = useCallback(
     async ({ notifyResult }: { notifyResult: boolean }) => {
       if (readOnlyErrorRef.current) {
@@ -133,40 +129,47 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
       const reqId = ++syncReqRef.current;
       if (notifyResult) setSyncing(true);
       try {
-        const res = await host.call<UpstreamBoardSnapshot>('board.get', {});
-        if (!mountedRef.current || syncReqRef.current !== reqId) return;
-        if (!res.ok || !res.value) {
-          if (notifyResult) {
-            notify(res.error?.message || t(lang, '同步学习库看板失败', 'Failed to sync StudyHub board'), 'error');
+        await enqueueUpstream(async () => {
+          if (readOnlyErrorRef.current) return;
+          const res = await host.call<UpstreamBoardSnapshot>('board.get', {});
+          if (!mountedRef.current || syncReqRef.current !== reqId) return;
+          if (!res.ok || !res.value) {
+            if (notifyResult) {
+              notify(res.error?.message || t(lang, '同步学习库看板失败', 'Failed to sync StudyHub board'), 'error');
+            }
+            return;
           }
-          return;
-        }
-        if (res.value.readOnly) {
-          if (notifyResult) {
-            notify(t(lang, '学习库看板当前为只读状态', 'StudyHub board is read-only'), 'warning');
+          if (res.value.readOnly) {
+            if (notifyResult) {
+              notify(t(lang, '学习库看板当前为只读状态', 'StudyHub board is read-only'), 'warning');
+            }
+            return;
           }
-          return;
-        }
-        const upstreamSnapshot = res.value;
-        const preview = mergeUpstreamBoard(docRef.current.cards, upstreamSnapshot);
-        if (preview.changed) {
-          await persistDoc((prev) => {
-            const merged = mergeUpstreamBoard(prev.cards, upstreamSnapshot);
-            if (!merged.changed) return prev;
-            return {
-              ...prev,
-              version: 1,
-              cards: merged.cards,
-              updatedAt: new Date().toISOString(),
-            };
-          });
-        }
-        if (notifyResult && mountedRef.current) {
-          notify(
-            t(lang, `已同步 ${preview.syncedCount} 条学习库看板任务`, `Synced ${preview.syncedCount} StudyHub board tasks`),
-            'success',
+          const upstreamSnapshot = res.value;
+          const preview = mergeUpstreamBoard(
+            docRef.current.cards,
+            upstreamSnapshot,
+            docRef.current.deletedUpstreamIds,
           );
-        }
+          if (preview.changed) {
+            await persistDoc((prev) => {
+              const merged = mergeUpstreamBoard(prev.cards, upstreamSnapshot, prev.deletedUpstreamIds);
+              if (!merged.changed) return prev;
+              return {
+                ...prev,
+                version: 1,
+                cards: merged.cards,
+                updatedAt: new Date().toISOString(),
+              };
+            });
+          }
+          if (notifyResult && mountedRef.current) {
+            notify(
+              t(lang, `已同步 ${preview.syncedCount} 条学习库看板任务`, `Synced ${preview.syncedCount} StudyHub board tasks`),
+              'success',
+            );
+          }
+        });
       } catch (err) {
         if (notifyResult && mountedRef.current) {
           notify(
@@ -180,7 +183,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
         }
       }
     },
-    [host, lang, notify, persistDoc],
+    [host, lang, notify, persistDoc, notifyReadOnlyError, enqueueUpstream],
   );
 
   const syncUpstreamRef = useRef(syncUpstreamBoard);
@@ -222,8 +225,9 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
     void reloadBoardRef.current({ notifyOnReload: false });
   }, [libraryRoot]);
 
-  const mirrorUpstreamUpdate = useCallback(
+  const updateUpstreamDirect = useCallback(
     async (upstreamCardId: string, patch: { column?: BoardColumnId; title?: string; due?: string }) => {
+      if (readOnlyErrorRef.current) return;
       for (let attempt = 0; attempt < 2; attempt += 1) {
         const boardRes = await host.call<UpstreamBoardSnapshot>('board.get', {});
         if (!boardRes.ok || !boardRes.value || boardRes.value.readOnly) return;
@@ -241,7 +245,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
             ...(patch.due !== undefined ? { due: patch.due } : {}),
           });
           if (!editRes.ok) {
-            if (editRes.error?.message?.includes('revision conflict')) {
+            if (editRes.error?.message && /revision conflict/i.test(editRes.error.message)) {
               retryConflict = true;
             } else {
               return;
@@ -263,7 +267,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
             id: upstreamCardId,
             column: targetUpstreamCol,
           });
-          if (!moveRes.ok && moveRes.error?.message?.includes('revision conflict')) {
+          if (!moveRes.ok && moveRes.error?.message && /revision conflict/i.test(moveRes.error.message)) {
             retryConflict = true;
           }
         }
@@ -272,6 +276,113 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
       }
     },
     [host],
+  );
+
+  const removeUpstreamDirect = useCallback(
+    async (upstreamCardId: string) => {
+      if (readOnlyErrorRef.current) return;
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const boardRes = await host.call<UpstreamBoardSnapshot>('board.get', {});
+        if (!boardRes.ok || !boardRes.value || boardRes.value.readOnly) return;
+        const upstream = boardRes.value;
+        const inOpen = Boolean(upstream.cards && Object.hasOwn(upstream.cards, upstreamCardId));
+        const inArchived = Array.isArray(upstream.archived)
+          ? upstream.archived.some((c) => c && c.id === upstreamCardId)
+          : false;
+        if (!inOpen && !inArchived) return;
+
+        const rmRes = await host.call('board.card.remove', {
+          revision: upstream.revision ?? 0,
+          id: upstreamCardId,
+        });
+        if (rmRes.ok) return;
+        if (!rmRes.error?.message || !/revision conflict/i.test(rmRes.error.message)) {
+          return;
+        }
+      }
+    },
+    [host],
+  );
+
+  const addUpstreamDirect = useCallback(
+    async (localCardId: string) => {
+      if (readOnlyErrorRef.current) return;
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const localNow = docRef.current.cards.find((c) => c.id === localCardId);
+        if (!localNow || localNow.upstreamCardId) return;
+
+        const boardRes = await host.call<UpstreamBoardSnapshot>('board.get', {});
+        if (!boardRes.ok || !boardRes.value || boardRes.value.readOnly) return;
+        const upstream = boardRes.value;
+        const beforeIds = new Set(Object.keys(upstream.cards || {}));
+        const targetUpstreamCol = resolveUpstreamTargetColumn(upstream.columns, localNow.column);
+
+        const addRes = await host.call<UpstreamBoardSnapshot>('board.card.add', {
+          revision: upstream.revision ?? 0,
+          ...(targetUpstreamCol ? { column: targetUpstreamCol } : {}),
+          title: localNow.title,
+          due: localNow.dueDate || '',
+          ...(localNow.course ? { labels: [localNow.course.slice(0, 60)] } : {}),
+        });
+
+        if (!addRes.ok) {
+          if (addRes.error?.message && /revision conflict/i.test(addRes.error.message)) {
+            continue;
+          }
+          return;
+        }
+
+        const afterCards = addRes.value?.cards || {};
+        const createdId =
+          Object.keys(afterCards).find((id) => !beforeIds.has(id)) ||
+          (targetUpstreamCol
+            ? addRes.value?.columns
+                ?.find((c) => c.id === targetUpstreamCol)
+                ?.cardIds?.slice()
+                .reverse()
+                .find((id) => !beforeIds.has(id))
+            : undefined);
+        if (!createdId) return;
+
+        const latestLocal = docRef.current.cards.find((c) => c.id === localCardId);
+        if (!latestLocal) {
+          await persistDoc((prev) => ({
+            ...prev,
+            version: 1,
+            deletedUpstreamIds: recordDeletedUpstreamIds(prev.deletedUpstreamIds, createdId),
+            updatedAt: new Date().toISOString(),
+          }));
+          await removeUpstreamDirect(createdId);
+          return;
+        }
+
+        await persistDoc((prev) => ({
+          ...prev,
+          version: 1,
+          cards: prev.cards.map((c) => (c.id === localCardId ? { ...c, upstreamCardId: createdId } : c)),
+          updatedAt: new Date().toISOString(),
+        }));
+
+        const colChanged = latestLocal.column !== localNow.column;
+        const titleChanged = latestLocal.title !== localNow.title;
+        const dueChanged = (latestLocal.dueDate || '') !== (localNow.dueDate || '');
+        if (colChanged || titleChanged || dueChanged) {
+          await updateUpstreamDirect(createdId, {
+            ...(colChanged ? { column: latestLocal.column } : {}),
+            ...(titleChanged ? { title: latestLocal.title } : {}),
+            ...(dueChanged ? { due: latestLocal.dueDate || '' } : {}),
+          });
+        }
+        return;
+      }
+    },
+    [host, persistDoc, removeUpstreamDirect, updateUpstreamDirect],
+  );
+
+  const mirrorUpstreamUpdate = useCallback(
+    (upstreamCardId: string, patch: { column?: BoardColumnId; title?: string; due?: string }) =>
+      enqueueUpstream(() => updateUpstreamDirect(upstreamCardId, patch)),
+    [enqueueUpstream, updateUpstreamDirect],
   );
 
   const grouped = useMemo(
@@ -294,20 +405,31 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
         return;
       }
       const now = new Date().toISOString();
-      const updated = doc.cards.map((c) => (c.id === card.id ? { ...c, column: targetCol, updatedAt: now } : c));
-      const targetLen = updated.filter((c) => c.column === targetCol).length;
+      const targetLen = docRef.current.cards
+        .map((c) => (c.id === card.id ? { ...c, column: targetCol } : c))
+        .filter((c) => c.column === targetCol).length;
       setActiveCol(targetCol);
       setCursorByCol((prev) => ({
         ...prev,
         [card.column]: Math.max(0, Math.min(prev[card.column], Math.max(0, grouped[card.column].length - 2))),
         [targetCol]: Math.max(0, targetLen - 1),
       }));
-      void persist(updated);
-      if (card.upstreamCardId && card.column !== targetCol) {
-        void mirrorUpstreamUpdate(card.upstreamCardId, { column: targetCol });
+      let resolvedUpstreamId = card.upstreamCardId;
+      void persistDoc((prev) => {
+        const latest = prev.cards.find((c) => c.id === card.id);
+        if (!resolvedUpstreamId && latest?.upstreamCardId) resolvedUpstreamId = latest.upstreamCardId;
+        return {
+          ...prev,
+          version: 1,
+          cards: prev.cards.map((c) => (c.id === card.id ? { ...c, column: targetCol, updatedAt: now } : c)),
+          updatedAt: now,
+        };
+      });
+      if (resolvedUpstreamId && card.column !== targetCol) {
+        void mirrorUpstreamUpdate(resolvedUpstreamId, { column: targetCol });
       }
     },
-    [doc.cards, grouped, persist, mirrorUpstreamUpdate, notifyReadOnlyError],
+    [grouped, persistDoc, mirrorUpstreamUpdate, notifyReadOnlyError],
   );
 
   const noModalActive = isActive && modal === null;
@@ -578,40 +700,55 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
                 createdAt: now,
                 updatedAt: now,
               };
-              const nextCards = [...doc.cards, nextCard];
+              const targetCount = docRef.current.cards.filter((c) => c.column === data.column).length;
               setActiveCol(data.column);
               setCursorByCol((prev) => ({
                 ...prev,
-                [data.column]: nextCards.filter((c) => c.column === data.column).length - 1,
+                [data.column]: targetCount,
               }));
               setModal(null);
-              void persist(nextCards);
+              void persistDoc((prev) => ({
+                ...prev,
+                version: 1,
+                cards: [...prev.cards, nextCard],
+                updatedAt: now,
+              }));
+              void enqueueUpstream(() => addUpstreamDirect(nextCard.id));
               notify(t(lang, `已添加「${nextCard.title}」`, `Added "${nextCard.title}"`), 'success');
             } else {
               const target = modal.card;
-              const nextCards = doc.cards.map((c) =>
-                c.id === target.id
-                  ? {
-                      id: c.id,
-                      title: data.title,
-                      column: data.column,
-                      ...(data.course ? { course: data.course } : {}),
-                      ...(data.dueDate ? { dueDate: data.dueDate } : {}),
-                      ...(c.upstreamCardId ? { upstreamCardId: c.upstreamCardId } : {}),
-                      createdAt: c.createdAt,
-                      updatedAt: now,
-                    }
-                  : c,
-              );
+              let resolvedUpstreamId = target.upstreamCardId;
               setActiveCol(data.column);
               setModal(null);
-              void persist(nextCards);
-              if (target.upstreamCardId) {
+              void persistDoc((prev) => {
+                const latest = prev.cards.find((c) => c.id === target.id);
+                if (!resolvedUpstreamId && latest?.upstreamCardId) resolvedUpstreamId = latest.upstreamCardId;
+                return {
+                  ...prev,
+                  version: 1,
+                  cards: prev.cards.map((c) =>
+                    c.id === target.id
+                      ? {
+                          id: c.id,
+                          title: data.title,
+                          column: data.column,
+                          ...(data.course ? { course: data.course } : {}),
+                          ...(data.dueDate ? { dueDate: data.dueDate } : {}),
+                          ...(c.upstreamCardId ? { upstreamCardId: c.upstreamCardId } : {}),
+                          createdAt: c.createdAt,
+                          updatedAt: now,
+                        }
+                      : c,
+                  ),
+                  updatedAt: now,
+                };
+              });
+              if (resolvedUpstreamId) {
                 const titleChanged = data.title !== target.title;
                 const dueChanged = (data.dueDate || '') !== (target.dueDate || '');
                 const colChanged = data.column !== target.column;
                 if (titleChanged || dueChanged || colChanged) {
-                  void mirrorUpstreamUpdate(target.upstreamCardId, {
+                  void mirrorUpstreamUpdate(resolvedUpstreamId, {
                     ...(colChanged ? { column: data.column } : {}),
                     ...(titleChanged ? { title: data.title } : {}),
                     ...(dueChanged ? { due: data.dueDate || '' } : {}),
@@ -634,12 +771,28 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
           onConfirm={() => {
             const gone = modal.card;
             setModal(null);
-            const nextCards = doc.cards.filter((c) => c.id !== gone.id);
             setCursorByCol((prev) => ({
               ...prev,
               [gone.column]: Math.max(0, Math.min(prev[gone.column], Math.max(0, grouped[gone.column].length - 2))),
             }));
-            void persist(nextCards);
+            let resolvedUpstreamId = gone.upstreamCardId;
+            void persistDoc((prev) => {
+              const latest = prev.cards.find((c) => c.id === gone.id);
+              if (!resolvedUpstreamId && latest?.upstreamCardId) resolvedUpstreamId = latest.upstreamCardId;
+              return {
+                ...prev,
+                version: 1,
+                cards: prev.cards.filter((c) => c.id !== gone.id),
+                ...(resolvedUpstreamId
+                  ? { deletedUpstreamIds: recordDeletedUpstreamIds(prev.deletedUpstreamIds, resolvedUpstreamId) }
+                  : {}),
+                updatedAt: new Date().toISOString(),
+              };
+            });
+            if (resolvedUpstreamId) {
+              const targetUpstreamId = resolvedUpstreamId;
+              void enqueueUpstream(() => removeUpstreamDirect(targetUpstreamId));
+            }
             notify(t(lang, `已删除「${gone.title}」`, `Deleted "${gone.title}"`), 'success');
           }}
           onCancel={() => setModal(null)}

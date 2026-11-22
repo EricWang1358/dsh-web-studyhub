@@ -160,11 +160,11 @@ export function currentCourse(snapshot: StudySnapshot | null | undefined): strin
 export function dueToday(snapshot: StudySnapshot | null | undefined): number {
   const direct = Number(snapshot?.today?.due);
   if (Number.isFinite(direct) && direct >= 0) return direct;
-  return (snapshot?.decks ?? []).reduce((n, d) => n + (Number(d.dueCount) || 0), 0);
+  return (snapshot?.decks ?? []).reduce((n, d) => n + (d.archived ? 0 : Number(d.due ?? d.dueCount ?? 0) || 0), 0);
 }
 
 export function wrongCount(snapshot: StudySnapshot | null | undefined): number {
-  return (snapshot?.decks ?? []).reduce((n, d) => n + (Number(d.wrongCount) || 0), 0);
+  return (snapshot?.decks ?? []).reduce((n, d) => n + (d.archived ? 0 : Number(d.wrong ?? d.wrongCount ?? 0) || 0), 0);
 }
 
 const RUNNING = new Set(['running', 'queued', 'pending', 'active', 'in_progress', 'started', 'processing']);

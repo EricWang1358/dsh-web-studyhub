@@ -382,14 +382,14 @@ describe('StudyHub TUI Round 20/21 Features E2E', () => {
       { timeoutMs: 8_000, label: 'Card 2 rendered in ReviewView' },
     );
 
-    // Card 2: reveal with Space, rate '4' (Easy -> passing grade 5, auto-advances to tail retry)
+    // Card 2: reveal with Space, rate '5' (Easy -> passing grade 5, auto-advances to tail retry)
     tty.send(' ');
     await tty.waitFor(
       (s) => s.includes('答案与解析') && s.includes('简单'),
       { timeoutMs: 8_000, label: 'Card 2 revealed with FSRS rating bar' },
     );
 
-    tty.send('4');
+    tty.send('5');
     // Tail retry of Card 1 appears ('再练' / 'Retry' badge)
     await tty.waitFor(
       (s) =>

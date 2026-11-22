@@ -107,6 +107,72 @@ const TABS: readonly DeckOpsTab[] = ['import', 'merge', 'split'];
 const JSON_EXTS = ['.json', '.txt'] as const;
 const MAX_LOCAL_JSON_BYTES = 2_000_000;
 
+const TEX_COMMANDS = new Set([
+  'alpha', 'beta', 'gamma', 'delta', 'epsilon', 'varepsilon', 'zeta', 'eta', 'theta', 'vartheta', 'iota', 'kappa', 'lambda', 'mu', 'nu', 'xi',
+  'pi', 'varpi', 'rho', 'varrho', 'sigma', 'varsigma', 'tau', 'upsilon', 'phi', 'varphi', 'chi', 'psi', 'omega',
+  'Gamma', 'Delta', 'Theta', 'Lambda', 'Xi', 'Pi', 'Sigma', 'Upsilon', 'Phi', 'Psi', 'Omega',
+  'frac', 'dfrac', 'tfrac', 'sqrt', 'sum', 'prod', 'int', 'oint', 'iint', 'lim', 'limsup', 'liminf', 'sup', 'inf', 'max', 'min', 'arg', 'argmax',
+  'argmin', 'det', 'dim', 'ker', 'exp', 'log', 'ln', 'lg', 'sin', 'cos', 'tan', 'cot', 'sec', 'csc', 'sinh', 'cosh', 'tanh', 'arcsin', 'arccos', 'arctan',
+  'binom', 'begin', 'end', 'left', 'right', 'big', 'Big', 'bigg', 'Bigg',
+  'infty', 'partial', 'nabla', 'cdot', 'cdots', 'ldots', 'dots', 'vdots', 'ddots', 'times', 'div', 'pm', 'mp', 'ast', 'star', 'circ', 'bullet',
+  'oplus', 'otimes', 'odot', 'leq', 'geq', 'neq', 'ne', 'le', 'ge', 'approx', 'equiv', 'sim', 'simeq', 'cong', 'propto', 'll', 'gg', 'subset',
+  'supset', 'subseteq', 'supseteq', 'in', 'notin', 'ni', 'cup', 'cap', 'emptyset', 'setminus', 'forall', 'exists', 'neg', 'not', 'land', 'lor',
+  'wedge', 'vee', 'implies', 'iff', 'mid', 'parallel', 'perp', 'angle', 'triangle', 'prime', 'quad', 'qquad', 'hbar', 'ell', 'Re', 'Im', 'aleph',
+  'langle', 'rangle', 'lceil', 'rceil', 'lfloor', 'rfloor',
+  'to', 'gets', 'rightarrow', 'leftarrow', 'leftrightarrow', 'Rightarrow', 'Leftarrow', 'Leftrightarrow', 'mapsto', 'uparrow', 'downarrow',
+  'mathbb', 'mathbf', 'mathrm', 'mathcal', 'mathit', 'mathsf', 'mathtt', 'boldsymbol', 'text', 'textbf', 'textit', 'vec', 'hat', 'bar', 'tilde',
+  'overline', 'underline', 'overrightarrow', 'operatorname', 'boxed', 'cancel',
+  'ce', 'pu', 'si', 'SI', 'unit', 'qty', 'num', 'textdegree', 'degree', 'celsius', 'ohm', 'angstrom',
+]);
+const TEX_PUNCTUATION = '()[]{},;:!|%&#_^~\'';
+
+/** Mirror lib/tex-text.js repairTexEscapes so single-backslash LaTeX previews cleanly before deck.import. */
+function repairTexEscapes(text: string): string {
+  let out = '';
+  let quoted = false;
+  let changed = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (!quoted) {
+      out += ch;
+      if (ch === '"') quoted = true;
+      continue;
+    }
+    if (ch === '"') {
+      quoted = false;
+      out += ch;
+      continue;
+    }
+    if (ch !== '\\') {
+      out += ch;
+      continue;
+    }
+    const next = text[i + 1];
+    if (next === undefined) {
+      out += ch;
+      continue;
+    }
+    if ('"\\/bfnrt'.includes(next)) {
+      out += ch + next;
+      i += 1;
+      continue;
+    }
+    if (next === 'u' && /^[0-9a-fA-F]{4}/.test(text.slice(i + 2, i + 6))) {
+      out += text.slice(i, i + 6);
+      i += 5;
+      continue;
+    }
+    const word = /^[A-Za-z]+/.exec(text.slice(i + 1))?.[0] || '';
+    if (TEX_PUNCTUATION.includes(next) || (word && TEX_COMMANDS.has(word))) {
+      out += '\\\\';
+      changed = true;
+      continue;
+    }
+    out += ch;
+  }
+  return changed ? out : text;
+}
+
 function stripJsonWrapper(raw: string): string {
   return String(raw)
     .replace(/^\uFEFF/, '')
@@ -127,8 +193,18 @@ function validateDeckJsonText(
   try {
     parsed = JSON.parse(cleaned);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: t(lang, `JSON 解析失败：${msg}`, `Invalid JSON: ${msg}`) };
+    const repaired = repairTexEscapes(cleaned);
+    if (repaired !== cleaned) {
+      try {
+        parsed = JSON.parse(repaired);
+      } catch {
+        const msg = err instanceof Error ? err.message : String(err);
+        return { ok: false, error: t(lang, `JSON 解析失败：${msg}`, `Invalid JSON: ${msg}`) };
+      }
+    } else {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { ok: false, error: t(lang, `JSON 解析失败：${msg}`, `Invalid JSON: ${msg}`) };
+    }
   }
   if (Array.isArray(parsed)) {
     if (parsed.length === 0) {

@@ -59,14 +59,14 @@ export function buildScopeChoices(
         label: String(d.title || d.name || d.id),
         hint: marks
           ? `${marks} ${lang === 'en' ? 'pts' : '分'}`
-          : `${d.cardCount ?? 0} ${lang === 'en' ? 'Q' : '题'}`,
+          : `${Number(d.count ?? d.cardCount ?? 0)} ${lang === 'en' ? 'Q' : '题'}`,
         args: { scope: [{ deckId: d.id }] },
       };
     });
   }
 
   if (mode === 'oral') {
-    const scopedDecks = decks.filter((d) => inCourse(d) && (Number(d.cardCount ?? 0) > 0));
+    const scopedDecks = decks.filter((d) => inCourse(d) && Number(d.count ?? d.cardCount ?? 0) > 0);
     const choices: ScopeChoice[] = [];
     if (scopedDecks.length > 0) {
       choices.push({
@@ -82,26 +82,26 @@ export function buildScopeChoices(
       choices.push({
         id: `deck:${d.id}`,
         label: String(d.title || d.name || d.id),
-        hint: `${d.cardCount ?? 0} ${lang === 'en' ? 'Q' : '题'}`,
+        hint: `${Number(d.count ?? d.cardCount ?? 0)} ${lang === 'en' ? 'Q' : '题'}`,
         args: { scope: [{ deckId: d.id }] },
       });
     }
     return choices;
   }
 
-  // Written MCQ: decks with examCount > 0 (or fallback cardCount > 0 when examCount absent)
+  // Written MCQ: decks with examCount > 0 (or fallback count/cardCount > 0 when examCount absent)
   const writtenDecks = decks.filter((d) => {
     if (!inCourse(d)) return false;
     if ((d as { format?: string }).format === 'case-study') return false;
     const examCount = (d as { examCount?: number }).examCount;
     if (typeof examCount === 'number') return examCount > 0;
-    return Number(d.cardCount ?? 0) > 0;
+    return Number(d.count ?? d.cardCount ?? 0) > 0;
   });
 
   const choices: ScopeChoice[] = [];
   if (writtenDecks.length > 0) {
     const totalExam = writtenDecks.reduce(
-      (sum, d) => sum + Number((d as { examCount?: number }).examCount ?? d.cardCount ?? 0),
+      (sum, d) => sum + Number((d as { examCount?: number }).examCount ?? d.count ?? d.cardCount ?? 0),
       0,
     );
     choices.push({
@@ -116,7 +116,7 @@ export function buildScopeChoices(
   for (const d of writtenDecks) {
     const q = Number((d as { examQuizCount?: number }).examQuizCount ?? 0);
     const m = Number((d as { examMultiCount?: number }).examMultiCount ?? 0);
-    const ec = Number((d as { examCount?: number }).examCount ?? d.cardCount ?? 0);
+    const ec = Number((d as { examCount?: number }).examCount ?? d.count ?? d.cardCount ?? 0);
     const hint =
       q || m
         ? (lang === 'en' ? `${q}S / ${m}M` : `单${q} · 多${m}`)

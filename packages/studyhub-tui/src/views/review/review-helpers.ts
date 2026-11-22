@@ -103,7 +103,7 @@ export interface SimilarCardItem {
 }
 
 export interface FsrsGradeSpec {
-  key: '1' | '2' | '3' | '4';
+  key: '0' | '1' | '2' | '3' | '4' | '5';
   grade: number;
   intervalIndex: number;
   labelZh: string;
@@ -112,17 +112,21 @@ export interface FsrsGradeSpec {
 }
 
 /**
- * FSRS-6 4-grade selector mapped to StudyHub backend 0-5 grade scale:
- * - 1 (Again) -> backend grade 1 (triggers tail retry, rating 1)
- * - 2 (Hard)  -> backend grade 3 (rating 2)
- * - 3 (Good)  -> backend grade 4 (rating 3)
- * - 4 (Easy)  -> backend grade 5 (rating 4)
+ * FSRS-6 6-grade selector aligned 1:1 with StudyHub web & backend 0-5 grade scale:
+ * - 0 (Forgot) -> backend grade 0 (fails < 3, triggers tail retry)
+ * - 1 (Again)  -> backend grade 1 (fails < 3, triggers tail retry)
+ * - 2 (Fuzzy)  -> backend grade 2 (fails < 3, stays on card without tail retry)
+ * - 3 (Hard)   -> backend grade 3 (passes >= 3)
+ * - 4 (Good)   -> backend grade 4 (passes >= 3)
+ * - 5 (Easy)   -> backend grade 5 (passes >= 3)
  */
 export const FSRS_GRADES: readonly FsrsGradeSpec[] = Object.freeze([
+  { key: '0', grade: 0, intervalIndex: 0, labelZh: '忘了', labelEn: 'Forgot', tone: 'error' },
   { key: '1', grade: 1, intervalIndex: 1, labelZh: '重来', labelEn: 'Again', tone: 'error' },
-  { key: '2', grade: 3, intervalIndex: 3, labelZh: '困难', labelEn: 'Hard', tone: 'warning' },
-  { key: '3', grade: 4, intervalIndex: 4, labelZh: '良好', labelEn: 'Good', tone: 'success' },
-  { key: '4', grade: 5, intervalIndex: 5, labelZh: '简单', labelEn: 'Easy', tone: 'primary' },
+  { key: '2', grade: 2, intervalIndex: 2, labelZh: '模糊', labelEn: 'Fuzzy', tone: 'warning' },
+  { key: '3', grade: 3, intervalIndex: 3, labelZh: '困难', labelEn: 'Hard', tone: 'warning' },
+  { key: '4', grade: 4, intervalIndex: 4, labelZh: '良好', labelEn: 'Good', tone: 'success' },
+  { key: '5', grade: 5, intervalIndex: 5, labelZh: '简单', labelEn: 'Easy', tone: 'primary' },
 ]);
 
 export function normalizeCardKind(run: ReviewRun | null | undefined): NormalizedKind {

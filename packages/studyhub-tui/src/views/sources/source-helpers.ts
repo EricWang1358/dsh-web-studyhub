@@ -193,6 +193,82 @@ function buildCardCountIndex(snapshot: StudySnapshot | null | undefined): Map<st
   return counts;
 }
 
+const LIBRARY_LIST_FIELDS: ReadonlyArray<[string, string]> = [
+  ['exam-blueprint', 'blueprint'],
+  ['course-outline', 'courseOutline'],
+  ['course-outline-notes', 'courseNotes'],
+  ['course-book-doc', 'bookDoc'],
+  ['course-outline-inventory', 'courseInventory'],
+];
+
+/** Mirror lib/exam-point-list.js isLibraryListSource so derived lists are excluded from material pickers. */
+export function isLibraryListSource(source: RawSource): boolean {
+  const rec = source as Record<string, unknown>;
+  const prov = rec.provenance;
+  if (typeof prov !== 'string') return false;
+  for (const [expectedProv, field] of LIBRARY_LIST_FIELDS) {
+    if (prov === expectedProv) {
+      const val = rec[field];
+      return Boolean(val && typeof val === 'object');
+    }
+  }
+  return false;
+}
+
+interface SnapshotDocumentLike {
+  currentRevision?: unknown;
+  superseded?: unknown;
+  versions?: Array<{
+    revision?: unknown;
+    superseded?: unknown;
+    sourceIds?: unknown[];
+  }>;
+}
+
+function buildVersionMembership(snapshot: StudySnapshot | null | undefined): {
+  retained: Set<string>;
+  current: Set<string>;
+} {
+  const retained = new Set<string>();
+  const current = new Set<string>();
+  const rawDocs = (snapshot as Record<string, unknown> | null | undefined)?.documents;
+  if (!Array.isArray(rawDocs)) return { retained, current };
+  for (const doc of rawDocs as SnapshotDocumentLike[]) {
+    if (!doc || typeof doc !== 'object') continue;
+    const versions = Array.isArray(doc.versions) ? doc.versions : [];
+    for (const version of versions) {
+      if (!version || typeof version !== 'object') continue;
+      const isCurrent =
+        doc.superseded !== true &&
+        version.superseded !== true &&
+        version.revision !== undefined &&
+        version.revision !== null &&
+        version.revision === doc.currentRevision;
+      const ids = Array.isArray(version.sourceIds) ? version.sourceIds : [];
+      for (const id of ids) {
+        if (typeof id !== 'string' || !id) continue;
+        retained.add(id);
+        if (isCurrent) current.add(id);
+      }
+    }
+  }
+  return { retained, current };
+}
+
+/** Mirror lib/material-source-versions.js stampSourceVersions for historical/superseded revisions. */
+export function isHistoricalSource(
+  source: RawSource,
+  membership?: { retained: Set<string>; current: Set<string> },
+): boolean {
+  const rec = source as Record<string, unknown>;
+  const docMeta = asDocMeta(source);
+  if (rec.superseded === true || docMeta?.superseded === true) return true;
+  if (membership && membership.retained.has(source.id)) {
+    return !membership.current.has(source.id);
+  }
+  return rec.historical === true;
+}
+
 /** Group page-level snapshot sources into document-level items (mirrors lib/source-groups.js). */
 export function groupSourcesFromSnapshot(snapshot: StudySnapshot | null | undefined): DocumentGroup[] {
   const sources = snapshot?.sources ?? [];
@@ -201,10 +277,12 @@ export function groupSourcesFromSnapshot(snapshot: StudySnapshot | null | undefi
   const pinIndex = new Map(pins.map((k, i) => [k, i]));
   const cardIndex = buildCardCountIndex(snapshot);
   const folderState = materialFoldersFromSnapshot(snapshot);
+  const versionMembership = buildVersionMembership(snapshot);
 
   const buckets = new Map<string, { key: string; format: string; members: RawSource[] }>();
   for (const s of sources) {
     if (!s || typeof s.id !== 'string') continue;
+    if (isHistoricalSource(s, versionMembership) || isLibraryListSource(s)) continue;
     const key = sourceGroupKey(s);
     let bucket = buckets.get(key);
     if (!bucket) {
