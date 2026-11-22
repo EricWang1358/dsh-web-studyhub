@@ -18,7 +18,7 @@ import {
   modalContentWidth,
   useTheme,
 } from '../../components/index.js';
-import { displayWidth, truncateDisplay } from '../../render/index.js';
+import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 
 export type BookExportQuestionMode = 'linked' | 'all' | 'none';
 

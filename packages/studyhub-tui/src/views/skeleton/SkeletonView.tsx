@@ -23,7 +23,8 @@ import {
   type SelectOption,
   type VirtualListRenderContext,
 } from '../../components/index.js';
-import { padDisplay, renderTreeLines, truncateDisplay, type TreeLine, type TreeNode } from '../../render/index.js';
+import { padDisplay, truncateDisplay } from '../../render/cjk.js';
+import { renderTreeLines, type TreeLine, type TreeNode } from '../../render/charts.js';
 import type {
   CardMasteryInfo,
   FocusProgressTopic,

@@ -2,7 +2,7 @@ import React, { memo, useCallback, useRef, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { toneColor, useTheme, type Tone } from '../theme/tokens.js';
 import { t, useTuiStore } from '../state/store.js';
-import { displayWidth, truncateDisplay } from '../render/index.js';
+import { displayWidth, truncateDisplay } from '../render/cjk.js';
 import { DIGIT_KEYS, useClaimKeys } from './focus.js';
 import { nextScrollOffset } from './VirtualList.js';
 

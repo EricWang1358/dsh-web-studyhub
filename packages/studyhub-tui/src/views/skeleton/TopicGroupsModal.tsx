@@ -11,7 +11,7 @@ import {
   useTheme,
   type VirtualListRenderContext,
 } from '../../components/index.js';
-import { displayWidth, padDisplay, truncateDisplay } from '../../render/index.js';
+import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import type { SkeletonNode } from './types.js';
 
 export interface TopicGroupEntry {

@@ -16,7 +16,7 @@ import {
   useTheme,
   type VirtualListRenderContext,
 } from '../../components/index.js';
-import { displayWidth, padDisplay, truncateDisplay } from '../../render/index.js';
+import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { tryAction } from '../../host/index.js';
 
 export interface StudyPlanModalProps {

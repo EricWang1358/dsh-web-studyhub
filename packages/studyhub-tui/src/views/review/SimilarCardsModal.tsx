@@ -15,7 +15,7 @@ import {
   useTheme,
   type VirtualListRenderContext,
 } from '../../components/index.js';
-import { padDisplay, truncateDisplay } from '../../render/index.js';
+import { padDisplay, truncateDisplay } from '../../render/cjk.js';
 import {
   currentDeckIdOf,
   kindLabel,

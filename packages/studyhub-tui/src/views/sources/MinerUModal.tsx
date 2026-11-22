@@ -14,7 +14,7 @@ import {
   useTheme,
   type Tone,
 } from '../../components/index.js';
-import { displayWidth, truncateDisplay } from '../../render/index.js';
+import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import { cleanPathInput, errorMessage, tryAction } from '../../host/sample-actions.js';
 import { completeFsPath, expandHomePath } from './path-complete.js';
 

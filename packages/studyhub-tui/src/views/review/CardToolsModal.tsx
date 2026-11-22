@@ -15,7 +15,7 @@ import {
   modalContentWidth,
   useTheme,
 } from '../../components/index.js';
-import { displayWidth, truncateDisplay, wrapDisplay } from '../../render/index.js';
+import { displayWidth, truncateDisplay, wrapDisplay } from '../../render/cjk.js';
 import {
   currentDeckIdOf,
   extractFeedback,

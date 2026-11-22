@@ -9,7 +9,7 @@ import {
   modalContentWidth,
   useTheme,
 } from '../../components/index.js';
-import { displayWidth, padDisplay, truncateDisplay } from '../../render/index.js';
+import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { tryAction } from '../../host/index.js';
 
 export type RoundScope = 'deck' | 'course' | 'all';

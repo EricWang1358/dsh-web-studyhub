@@ -10,7 +10,7 @@ import {
   modalContentWidth,
   useTheme,
 } from '../../components/index.js';
-import { truncateDisplay } from '../../render/index.js';
+import { truncateDisplay } from '../../render/cjk.js';
 import { tryAction } from '../../host/sample-actions.js';
 
 export interface IngestModalProps {

@@ -4,6 +4,7 @@ import type { HostClient, KeyHint, StudySnapshot } from '../../types/contracts.j
 import { t, useTuiStore } from '../../state/store.js';
 import {
   Badge,
+  ConfirmDialog,
   Divider,
   MarkdownView,
   Modal,
@@ -14,7 +15,7 @@ import {
   useTheme,
   type VirtualListRenderContext,
 } from '../../components/index.js';
-import { displayWidth, padDisplay, truncateDisplay } from '../../render/index.js';
+import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { startReview, tryAction } from '../../host/index.js';
 import { formatLabel, groupSourcesFromSnapshot, type DocumentGroup } from '../sources/source-helpers.js';
 
@@ -372,6 +373,7 @@ export const DeckManageModal = memo(function DeckManageModal({
   const [folderValue, setFolderValue] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [confirmBatchSlay, setConfirmBatchSlay] = useState(false);
   const busyRef = useRef(false);
   const mountedRef = useRef(true);
 
@@ -384,6 +386,7 @@ export const DeckManageModal = memo(function DeckManageModal({
 
   useEffect(() => {
     setSelectedIds(new Set());
+    setConfirmBatchSlay(false);
   }, [deckId]);
 
   // Supplement sub-mode state ([+])
@@ -795,6 +798,49 @@ export const DeckManageModal = memo(function DeckManageModal({
     }
   }, [busy, deck, selectedIds, host, reloadDeck, onUpdated, notify, lang]);
 
+  const handleBatchSlay = useCallback(async () => {
+    if (busyRef.current || busy || !deck || deck.systemKind || selectedIds.size === 0) {
+      setConfirmBatchSlay(false);
+      return;
+    }
+    const targetIds = (deck.cards ?? []).filter((c) => selectedIds.has(c.id)).map((c) => c.id);
+    if (targetIds.length === 0) {
+      setConfirmBatchSlay(false);
+      return;
+    }
+    busyRef.current = true;
+    setBusy(true);
+    setConfirmBatchSlay(false);
+    try {
+      const res = await tryAction<{ updated?: number; slain?: number }>(host, 'card.review.batch', {
+        atomic: true,
+        items: targetIds.map((cardId) => ({ deckId: deck.id, cardId, slay: true })),
+      });
+      if (!mountedRef.current) return;
+      if (!res.ok) {
+        notify(res.error?.message || t(lang, '批量斩题失败', 'Batch slay failed'), 'error');
+        return;
+      }
+      const slainCount = typeof res.value?.slain === 'number' ? res.value.slain : targetIds.length;
+      setSelectedIds(new Set());
+      await reloadDeck();
+      await refreshSnapshot();
+      if (!mountedRef.current) return;
+      onUpdated?.();
+      notify(
+        t(
+          lang,
+          `已原子斩除 ${slainCount} 题并移入「已斩题」（可随时按 [u] 恢复）`,
+          `Atomically slain ${slainCount} card(s) to "Slain" (press [u] anytime to restore)`,
+        ),
+        'success',
+      );
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusy(false);
+    }
+  }, [busy, deck, selectedIds, host, notify, lang, reloadDeck, refreshSnapshot, onUpdated]);
+
   const handleFolderSubmit = useCallback(
     async (raw: string) => {
       if (busyRef.current || busy || !deck) {
@@ -1015,6 +1061,12 @@ export const DeckManageModal = memo(function DeckManageModal({
         void handleBatchFocus();
       } else if (input === 'S' && selectedIds.size > 0) {
         void handleBatchSuspend();
+      } else if (!key.ctrl && !key.meta && input === 'X' && selectedIds.size > 0) {
+        if (deck.systemKind) {
+          notify(t(lang, '系统题组不支持批量斩题', 'System decks do not support batch slay'), 'warning');
+        } else {
+          setConfirmBatchSlay(true);
+        }
       } else if (input === 'x' && selectedIds.size > 0) {
         setSelectedIds(new Set());
       } else if (input === '/' || input === 'f') {
@@ -1046,7 +1098,7 @@ export const DeckManageModal = memo(function DeckManageModal({
         openConvertMode();
       }
     },
-    { isActive: isActive && (mode === 'browse' || mode === 'supplement' || mode === 'convert') && !loading && !busy },
+    { isActive: isActive && !confirmBatchSlay && (mode === 'browse' || mode === 'supplement' || mode === 'convert') && !loading && !busy },
   );
 
   const hints = useMemo<KeyHint[]>(
@@ -1098,6 +1150,7 @@ export const DeckManageModal = memo(function DeckManageModal({
                     { key: 'Space', label: t(lang, '多选', 'Select') },
                     { key: 'F', label: t(lang, '重点', 'Focus') },
                     ...(!isSlainDeck ? [{ key: 'S', label: t(lang, '暂停/恢复', 'Suspend') }] : []),
+                    ...(!deck?.systemKind ? [{ key: 'X', label: t(lang, '斩题', 'Slay') }] : []),
                     { key: 'x', label: t(lang, '清空', 'Clear') },
                     { key: 'Esc', label: t(lang, '关闭', 'Close') },
                   ]
@@ -1197,24 +1250,25 @@ export const DeckManageModal = memo(function DeckManageModal({
           : t(lang, '题组管理', 'Manage Deck');
 
   return (
-    <Modal
-      title={modalTitle}
-      icon={asciiMode ? '#' : '▤'}
-      subtitle={
-        mode === 'supplement'
-          ? `${suppSelectedIds.size} ${t(lang, '页已选', 'pg')}`
-          : mode === 'convert' && selectedCard
-            ? `${kindLabel(selectedCard.kind, lang)} -> ${kindLabel(convertTargetKind, lang)}`
-            : deck
-              ? `${filteredCards.length}/${deck.cards.length} ${t(lang, '题', 'cards')}${selectedIds.size > 0 ? ` · [${t(lang, `已选 ${selectedIds.size}`, `${selectedIds.size} sel`)}]` : ''}`
-              : undefined
-      }
-      width={frameW}
-      height={frameH}
-      onClose={handleModalClose}
-      isActive={isActive && (mode === 'browse' || mode === 'supplement' || (mode === 'convert' && !convertEditActive))}
-      hints={hints}
-    >
+    <>
+      <Modal
+        title={modalTitle}
+        icon={asciiMode ? '#' : '▤'}
+        subtitle={
+          mode === 'supplement'
+            ? `${suppSelectedIds.size} ${t(lang, '页已选', 'pg')}`
+            : mode === 'convert' && selectedCard
+              ? `${kindLabel(selectedCard.kind, lang)} -> ${kindLabel(convertTargetKind, lang)}`
+              : deck
+                ? `${filteredCards.length}/${deck.cards.length} ${t(lang, '题', 'cards')}${selectedIds.size > 0 ? ` · [${t(lang, `已选 ${selectedIds.size}`, `${selectedIds.size} sel`)}]` : ''}`
+                : undefined
+        }
+        width={frameW}
+        height={frameH}
+        onClose={handleModalClose}
+        isActive={isActive && !confirmBatchSlay && (mode === 'browse' || mode === 'supplement' || (mode === 'convert' && !convertEditActive))}
+        hints={hints}
+      >
       {mode === 'search' ? (
         <Box flexDirection="column" flexShrink={0}>
           <Text color={theme.accent}>{t(lang, '搜索题目 (题干 / 知识点 / 题型):', 'Filter cards:')}</Text>
@@ -1281,7 +1335,9 @@ export const DeckManageModal = memo(function DeckManageModal({
                 {truncateDisplay(
                   isSlainDeck
                     ? t(lang, '[F]重点  [x]清空', '[F]Focus  [x]Clear')
-                    : t(lang, '[F]重点  [S]暂停/恢复  [x]清空', '[F]Focus  [S]Suspend  [x]Clear'),
+                    : deck?.systemKind
+                      ? t(lang, '[F]重点  [S]暂停/恢复  [x]清空', '[F]Focus  [S]Suspend  [x]Clear')
+                      : t(lang, '[F]重点  [S]暂停/恢复  [X]斩题  [x]清空', '[F]Focus  [S]Suspend  [X]Slay  [x]Clear'),
                   Math.max(10, innerW - 14),
                   ell,
                 )}
@@ -1565,6 +1621,26 @@ export const DeckManageModal = memo(function DeckManageModal({
           </Box>
         </Box>
       )}
-    </Modal>
+      </Modal>
+
+      {confirmBatchSlay && deck && !deck.systemKind ? (
+        <ConfirmDialog
+          title={t(lang, '确认批量斩题', 'Confirm Batch Slay')}
+          message={t(
+            lang,
+            `确定将已选的 ${selectedIds.size} 道题原子移入「已斩题 / Slain」题组？移入后不会在日常复习中出现，可随时在「已斩题」中按 [u] 恢复。`,
+            `Atomically move the ${selectedIds.size} selected card(s) to the "已斩题 / Slain" deck? They will be excluded from daily reviews and can be restored anytime via [u].`,
+          )}
+          confirmLabel={t(lang, '确认斩题', 'Slay')}
+          cancelLabel={t(lang, '取消', 'Cancel')}
+          isActive={isActive && !busy}
+          width={Math.min(64, Math.max(44, width - 6))}
+          onConfirm={() => {
+            void handleBatchSlay();
+          }}
+          onCancel={() => setConfirmBatchSlay(false)}
+        />
+      ) : null}
+    </>
   );
 });

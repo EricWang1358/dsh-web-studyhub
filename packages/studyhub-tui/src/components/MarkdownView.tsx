@@ -2,7 +2,7 @@ import React, { memo, useMemo, useRef } from 'react';
 import { Box, Text } from 'ink';
 import { useTheme } from '../theme/tokens.js';
 import { useTuiStore } from '../state/store.js';
-import { renderMarkdownLines } from '../render/index.js';
+import { renderMarkdownLines } from '../render/markdown.js';
 import { ScrollView } from './ScrollView.js';
 
 const EMPTY_LINES: string[] = [];

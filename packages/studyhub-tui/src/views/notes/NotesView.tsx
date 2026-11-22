@@ -20,7 +20,7 @@ import {
   VirtualList,
   type VirtualListRenderContext,
 } from '../../components/index.js';
-import { displayWidth, padDisplay, truncateDisplay } from '../../render/index.js';
+import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { useShellActions } from '../../shell/actions.js';
 import { currentCourse } from '../../shell/data.js';
 import { t, useTuiStore } from '../../state/store.js';

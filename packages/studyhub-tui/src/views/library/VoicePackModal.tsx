@@ -14,7 +14,7 @@ import {
   modalContentWidth,
   useTheme,
 } from '../../components/index.js';
-import { truncateDisplay } from '../../render/index.js';
+import { truncateDisplay } from '../../render/cjk.js';
 import { currentCourse } from '../../shell/data.js';
 import type { VoicePackRenderProps } from '../../shell/AppShell.js';
 import { cleanPathInput, getVoicePack, tryAction } from '../../host/index.js';

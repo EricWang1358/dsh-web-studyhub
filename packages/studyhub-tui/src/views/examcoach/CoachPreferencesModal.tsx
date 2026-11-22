@@ -16,7 +16,7 @@ import {
   useTheme,
   type VirtualListRenderContext,
 } from '../../components/index.js';
-import { truncateDisplay } from '../../render/index.js';
+import { truncateDisplay } from '../../render/cjk.js';
 import { tryAction } from '../../host/index.js';
 
 export interface CoachPreferencesModalProps {

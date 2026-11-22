@@ -13,7 +13,7 @@ import {
   modalContentWidth,
   useTheme,
 } from '../../components/index.js';
-import { truncateDisplay } from '../../render/index.js';
+import { truncateDisplay } from '../../render/cjk.js';
 import { tryAction } from '../../host/index.js';
 import type { BookNode, BookOpenResult, FlatTocItem } from './types.js';
 

@@ -20,7 +20,7 @@ import {
 } from '../../components/index.js';
 import { currentCourse, listCourses, modelInfo } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
-import { truncateDisplay } from '../../render/index.js';
+import { truncateDisplay } from '../../render/cjk.js';
 import { errorMessage, tryAction } from '../../host/sample-actions.js';
 import { groupSourcesFromSnapshot, formatLabel } from '../sources/source-helpers.js';
 

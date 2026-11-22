@@ -14,7 +14,7 @@ import {
   modalContentWidth,
   useTheme,
 } from '../../components/index.js';
-import { truncateDisplay } from '../../render/index.js';
+import { truncateDisplay } from '../../render/cjk.js';
 import { currentDeckIdOf, kindLabel, type NormalizedKind } from './review-helpers.js';
 
 export interface AnswerCardSignal {

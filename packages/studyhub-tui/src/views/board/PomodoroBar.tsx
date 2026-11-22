@@ -1,7 +1,8 @@
 import React, { memo, useEffect, useRef } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { ProgressBar, useTheme } from '../../components/index.js';
-import { displayWidth, truncateDisplay } from '../../render/index.js';
+import { ProgressBar } from '../../components/Badge.js';
+import { useTheme } from '../../theme/tokens.js';
+import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import { t, useTuiStore } from '../../state/store.js';
 import type { UiLanguage } from '../../types/contracts.js';
 import { todayFocusStats, type FocusStats } from './board-store.js';

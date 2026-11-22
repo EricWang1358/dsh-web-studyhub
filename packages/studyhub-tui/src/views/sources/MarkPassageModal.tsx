@@ -12,7 +12,7 @@ import {
   useClaimKeys,
   useTheme,
 } from '../../components/index.js';
-import { displayWidth, truncateDisplay } from '../../render/index.js';
+import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import { errorMessage, tryAction } from '../../host/sample-actions.js';
 
 export type MarkStyleValue = 'highlight' | 'underline' | 'bold' | 'queue';

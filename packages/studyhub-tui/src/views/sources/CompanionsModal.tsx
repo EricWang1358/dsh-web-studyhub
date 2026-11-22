@@ -18,7 +18,7 @@ import {
   useTheme,
 } from '../../components/index.js';
 import { currentCourse } from '../../shell/data.js';
-import { truncateDisplay } from '../../render/index.js';
+import { truncateDisplay } from '../../render/cjk.js';
 import { cleanPathInput, errorMessage, tryAction } from '../../host/sample-actions.js';
 import { completeFsPath, expandHomePath } from './path-complete.js';
 import { groupSourcesFromSnapshot } from './source-helpers.js';

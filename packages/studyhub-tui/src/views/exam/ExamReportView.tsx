@@ -11,7 +11,8 @@ import {
   useClaimKeys,
   useTheme,
 } from '../../components/index.js';
-import { renderBarChart, truncateDisplay } from '../../render/index.js';
+import { truncateDisplay } from '../../render/cjk.js';
+import { renderBarChart } from '../../render/charts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import type { CaseQuestionReport, ExamReport, ReportItem, ReportState } from './types.js';
 import {

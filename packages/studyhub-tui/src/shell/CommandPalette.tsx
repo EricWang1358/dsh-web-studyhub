@@ -3,7 +3,7 @@ import { Box, Text, useInput, useWindowSize } from 'ink';
 import { PAGE_REGISTRY, type CommandPaletteItem, type HostClient, type StudySnapshot, type UiLanguage } from '../types/contracts.js';
 import { t, useTuiStore, type TuiStoreState } from '../state/store.js';
 import { listThemes, nextThemeId, useTheme } from '../theme/tokens.js';
-import { displayWidth, truncateDisplay } from '../render/index.js';
+import { displayWidth, truncateDisplay } from '../render/cjk.js';
 import { Modal } from '../components/Modal.js';
 import { TextInput } from '../components/TextInput.js';
 import { nextScrollOffset } from '../components/VirtualList.js';

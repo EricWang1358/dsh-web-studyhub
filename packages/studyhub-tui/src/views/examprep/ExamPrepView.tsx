@@ -16,7 +16,8 @@ import {
   useFooterHints,
   useTheme,
 } from '../../components/index.js';
-import { displayWidth, padDisplay, renderBarChart, truncateDisplay } from '../../render/index.js';
+import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
+import { renderBarChart } from '../../render/charts.js';
 import { currentCourse, listCourses } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
 import { tryAction } from '../../host/index.js';

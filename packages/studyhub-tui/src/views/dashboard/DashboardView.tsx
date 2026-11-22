@@ -15,16 +15,14 @@ import {
   useTheme,
   type VirtualListRenderContext,
 } from '../../components/index.js';
+import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import {
-  displayWidth,
-  padDisplay,
   renderBarChart,
   renderHeatmap,
   renderProgressBar,
-  truncateDisplay,
   type BarChartItem,
   type HeatmapDay,
-} from '../../render/index.js';
+} from '../../render/charts.js';
 
 const StudyMapModal = lazy(() =>
   import('./StudyMapModal.js').then((m) => ({ default: m.StudyMapModal })),

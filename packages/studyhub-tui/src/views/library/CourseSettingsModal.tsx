@@ -19,7 +19,8 @@ import {
   type SelectOption,
   type VirtualListRenderContext,
 } from '../../components/index.js';
-import { displayWidth, padDisplay, renderProgressBar, truncateDisplay } from '../../render/index.js';
+import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
+import { renderProgressBar } from '../../render/charts.js';
 import { listCourses } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
 import { tryAction } from '../../host/index.js';

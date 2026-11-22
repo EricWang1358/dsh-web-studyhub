@@ -20,7 +20,7 @@ import {
   useTheme,
   type SelectOption,
 } from '../../components/index.js';
-import { displayWidth, truncateDisplay } from '../../render/index.js';
+import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import type {
   BookNode,
   BookOpenResult,

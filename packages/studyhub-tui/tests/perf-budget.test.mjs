@@ -323,4 +323,96 @@ describe('StudyHub TUI NFR Performance & Bundle Budgets', () => {
       'src/views/library/LibraryView.tsx must not import components/index.js barrel',
     );
   });
+
+  test('7. Zero render/index.js barrel imports in src/ and non-markdown overlays/views exclude marked and render/markdown.ts', () => {
+    const srcDir = path.join(pkgRoot, 'src');
+    const renderIndexPath = path.join(srcDir, 'render', 'index.ts');
+    const srcFiles = [];
+    const walk = (dir) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) walk(full);
+        else if (/\.(ts|tsx|js|jsx|mjs)$/.test(entry.name)) srcFiles.push(full);
+      }
+    };
+    walk(srcDir);
+
+    const barrelImporters = [];
+    for (const file of srcFiles) {
+      if (file === renderIndexPath) continue;
+      const source = fs.readFileSync(file, 'utf8');
+      const allSpecs = [
+        ...extractStaticImportSpecifiers(source),
+        ...extractDynamicImportSpecifiers(source),
+      ];
+      if (allSpecs.some((spec) => /(?:^|\/)render\/index(?:\.js|\.ts)?$/.test(spec))) {
+        barrelImporters.push(path.relative(pkgRoot, file));
+      }
+    }
+    assert.deepEqual(
+      barrelImporters,
+      [],
+      `src/ files must import direct render submodules instead of render/index.js: ${barrelImporters.join(', ')}`,
+    );
+
+    const distFiles = fs.readdirSync(distDir).filter((f) => f.endsWith('.mjs'));
+    const targetPrefixes = [
+      'CommandPalette-',
+      'InboxModal-',
+      'BoardView-',
+      'TasksView-',
+      'AudioView-',
+      'SourcesView-',
+    ];
+
+    for (const prefix of targetPrefixes) {
+      const matches = distFiles.filter((f) => f.startsWith(prefix));
+      assert.ok(matches.length > 0, `expected built chunk ${prefix}*.mjs in dist/`);
+
+      for (const entryChunk of matches) {
+        const visited = new Set();
+        const queue = [path.join(distDir, entryChunk)];
+        const externalImports = new Set();
+
+        while (queue.length > 0) {
+          const cur = queue.shift();
+          if (visited.has(cur)) continue;
+          visited.add(cur);
+
+          const code = fs.readFileSync(cur, 'utf8');
+          const chunkName = path.basename(cur);
+          for (const spec of extractStaticImportSpecifiers(code)) {
+            if (spec.startsWith('.')) {
+              const target = path.resolve(path.dirname(cur), spec);
+              if (fs.existsSync(target)) queue.push(target);
+            } else {
+              externalImports.add(spec);
+            }
+          }
+
+          assert.ok(
+            !/^\/\/\s*src\/render\/markdown\.ts\b/m.test(code),
+            `${entryChunk} static closure (${chunkName}) must not bundle src/render/markdown.ts`,
+          );
+          assert.ok(
+            !/^\/\/\s*src\/render\/math\.ts\b/m.test(code),
+            `${entryChunk} static closure (${chunkName}) must not bundle src/render/math.ts`,
+          );
+          assert.ok(
+            !/^\/\/\s*src\/components\/MarkdownView\.tsx\b/m.test(code),
+            `${entryChunk} static closure (${chunkName}) must not bundle src/components/MarkdownView.tsx`,
+          );
+        }
+
+        assert.ok(
+          !externalImports.has('marked') && ![...externalImports].some((s) => s.startsWith('marked/')),
+          `${entryChunk} static closure must not statically import marked`,
+        );
+        assert.ok(
+          !externalImports.has('cli-highlight'),
+          `${entryChunk} static closure must not statically import cli-highlight`,
+        );
+      }
+    }
+  });
 });

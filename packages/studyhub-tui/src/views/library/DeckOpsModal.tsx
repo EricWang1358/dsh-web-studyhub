@@ -16,7 +16,7 @@ import {
   useTheme,
   type VirtualListRenderContext,
 } from '../../components/index.js';
-import { displayWidth, padDisplay, truncateDisplay } from '../../render/index.js';
+import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { useShellActions } from '../../shell/actions.js';
 import { cleanPathInput, tryAction } from '../../host/index.js';
 import { completeFsPath, expandHomePath } from '../sources/path-complete.js';

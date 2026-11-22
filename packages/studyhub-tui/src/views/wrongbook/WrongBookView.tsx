@@ -25,7 +25,8 @@ import {
   type SelectOption,
   type VirtualListRenderContext,
 } from '../../components/index.js';
-import { displayWidth, renderProgressBar, truncateDisplay } from '../../render/index.js';
+import { displayWidth, truncateDisplay } from '../../render/cjk.js';
+import { renderProgressBar } from '../../render/charts.js';
 import {
   ERROR_REASONS,
   REASON_FILTER_ORDER,

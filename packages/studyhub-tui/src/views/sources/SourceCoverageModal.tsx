@@ -12,7 +12,7 @@ import {
   modalContentWidth,
   useTheme,
 } from '../../components/index.js';
-import { displayWidth, truncateDisplay } from '../../render/index.js';
+import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import { tryAction } from '../../host/sample-actions.js';
 import type { DocumentGroup } from './source-helpers.js';
 

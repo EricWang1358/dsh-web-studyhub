@@ -2,7 +2,7 @@ import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Box, Text, useInput, usePaste } from 'ink';
 import stripAnsi from 'strip-ansi';
 import { useTheme } from '../theme/tokens.js';
-import { displayWidth } from '../render/index.js';
+import { displayWidth } from '../render/cjk.js';
 import { useTuiStore } from '../state/store.js';
 import { normalizeAsciiChrome } from './Badge.js';
 import { useInputCapture } from './focus.js';

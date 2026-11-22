@@ -3,7 +3,7 @@ import { Box, Text, useInput, useWindowSize } from 'ink';
 import type { HostClient, NavigationContext, PageId, UiLanguage } from '../types/contracts.js';
 import { t, useTuiStore } from '../state/store.js';
 import { toneColor, useTheme, type Tone } from '../theme/tokens.js';
-import { displayWidth, padDisplay, truncateDisplay, wrapDisplay } from '../render/index.js';
+import { displayWidth, padDisplay, truncateDisplay, wrapDisplay } from '../render/cjk.js';
 import { Modal, modalContentWidth } from '../components/Modal.js';
 import { Spinner } from '../components/Badge.js';
 import { VirtualList } from '../components/VirtualList.js';

@@ -18,7 +18,7 @@ import {
   useTheme,
   type VirtualListRenderContext,
 } from '../../components/index.js';
-import { displayWidth, truncateDisplay } from '../../render/index.js';
+import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import { tryAction } from '../../host/index.js';
 import type { BookNode, BookOpenResult, BookQaListResult } from './types.js';
 

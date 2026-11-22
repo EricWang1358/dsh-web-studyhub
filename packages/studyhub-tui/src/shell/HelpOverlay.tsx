@@ -3,7 +3,7 @@ import { useInput, useWindowSize } from 'ink';
 import { PAGE_REGISTRY, type KeyHint } from '../types/contracts.js';
 import { t, useTuiStore } from '../state/store.js';
 import { getColorLevel, makeChalk, useTheme } from '../theme/tokens.js';
-import { padDisplay, truncateDisplay } from '../render/index.js';
+import { padDisplay, truncateDisplay } from '../render/cjk.js';
 import { Modal, modalContentWidth } from '../components/Modal.js';
 import { ScrollView } from '../components/ScrollView.js';
 import { pageIcon } from './data.js';
@@ -54,6 +54,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'R', label: t(lang, '定制本轮练习', 'Custom round config') },
         { key: 'm: + / k', label: t(lang, '题组补题 / 转换题型', 'Deck supplement / convert') },
         { key: 'm: Space/F/S', label: t(lang, '题组批量重点/暂停', 'Deck batch focus/suspend') },
+        { key: 'm: X', label: t(lang, '题组批量斩题', 'Deck batch slay') },
       ],
     },
     {
@@ -149,7 +150,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
     {
       title: t(lang, '资料与阅读 · Sources / Reader', 'Sources & Reader'),
       items: [
-        { key: 'G', label: t(lang, 'AI 课程归类', 'AI organize') },
+        { key: 'G', label: t(lang, 'AI 课程归类 / 术语译文', 'AI organize / Glossary') },
         { key: 'V', label: t(lang, '引用覆盖率', 'Coverage') },
         { key: 'F', label: t(lang, '文件夹筛选', 'Folders') },
         { key: 'm', label: t(lang, '移至文件夹', 'Move folder') },

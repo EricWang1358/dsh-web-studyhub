@@ -31,7 +31,8 @@ import {
   useFooterHints,
   useTheme,
 } from '../../components/index.js';
-import { LruCache, displayWidth, truncateDisplay } from '../../render/index.js';
+import { LruCache } from '../../render/lru.js';
+import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import {
   FSRS_GRADES,
   MAX_TRANSLATION_CACHE,

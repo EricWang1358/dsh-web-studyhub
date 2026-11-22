@@ -14,7 +14,7 @@ import {
   useTheme,
   type PillStatus,
 } from '../../components/index.js';
-import { displayWidth, padDisplay, truncateDisplay, wrapDisplay } from '../../render/index.js';
+import { displayWidth, padDisplay, truncateDisplay, wrapDisplay } from '../../render/cjk.js';
 import { tryAction } from '../../host/sample-actions.js';
 
 export interface WorkflowSessionSummary {

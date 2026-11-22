@@ -16,7 +16,7 @@ import {
   useTheme,
 } from '../../components/index.js';
 import { errorMessage, startReview, tryAction } from '../../host/sample-actions.js';
-import { wrapDisplay } from '../../render/index.js';
+import { wrapDisplay } from '../../render/cjk.js';
 
 const ReaderOutlineDrawer = lazy(() =>
   import('./ReaderOutlineDrawer.js').then((m) => ({ default: m.ReaderOutlineDrawer })),
@@ -26,6 +26,9 @@ const ReaderNotesDrawer = lazy(() =>
 );
 const MarkPassageModal = lazy(() =>
   import('./MarkPassageModal.js').then((m) => ({ default: m.MarkPassageModal })),
+);
+const TranslationGlossaryModal = lazy(() =>
+  import('./TranslationGlossaryModal.js').then((m) => ({ default: m.TranslationGlossaryModal })),
 );
 
 export interface DocumentReaderProps {
@@ -52,7 +55,8 @@ type ReaderSubMode =
   | 'translate-view'
   | 'outline'
   | 'notes'
-  | 'mark';
+  | 'mark'
+  | 'glossary';
 
 interface PageProjection {
   page: number;
@@ -865,13 +869,13 @@ export const DocumentReader = memo(function DocumentReader({
   }, [pageData, aiBusy, savingNote, pageScrollTop, subMode, width, host, lang, documentId, askQuestion, aiAnswer, initialCourse, notify]);
 
   const isTyping = subMode === 'jump' || subMode === 'search' || subMode === 'ask-input';
-  const drawerOpen = subMode === 'outline' || subMode === 'notes' || subMode === 'mark';
+  const drawerOpen = subMode === 'outline' || subMode === 'notes' || subMode === 'mark' || subMode === 'glossary';
   const readerInputActive = isActive && !drawerOpen;
   const claimedKeys = useMemo(
     () =>
       subMode === 'ask-view'
         ? ['s', 'backspace']
-        : ['[', ']', '/', 'g', 'm', 'M', 'a', 't', 'q', 'p', 'O', 'B', 'H', 'backspace'],
+        : ['[', ']', '/', 'g', 'G', 'm', 'M', 'a', 't', 'q', 'p', 'O', 'B', 'H', 'backspace'],
     [subMode],
   );
   useClaimKeys(claimedKeys, readerInputActive && !isTyping);
@@ -893,6 +897,7 @@ export const DocumentReader = memo(function DocumentReader({
       ...(chapters.length > 0 ? [{ key: 'M', label: t(lang, '已读', 'Read') }] : []),
       { key: 'a', label: t(lang, '问AI', 'Ask') },
       { key: 't', label: t(lang, '翻译', 'Trans') },
+      { key: 'G', label: t(lang, '术语译文', 'Glossary') },
       { key: 'g', label: t(lang, '跳页', 'Go') },
       { key: '/', label: t(lang, '搜索', 'Search') },
       { key: 'm', label: t(lang, '公式', 'Math') },
@@ -958,6 +963,8 @@ export const DocumentReader = memo(function DocumentReader({
         setSubMode('ask-input');
       } else if (input === 't') {
         void runTranslatePage();
+      } else if (input === 'G') {
+        setSubMode('glossary');
       } else if (input === 'O') {
         setSubMode('outline');
       } else if (input === 'B') {
@@ -1252,6 +1259,18 @@ export const DocumentReader = memo(function DocumentReader({
             title={pageData?.title || initialTitle}
             currentPage={pageData?.page ?? currentPage}
             pageText={pageData?.text ?? ''}
+            isActive={isActive}
+            onClose={() => setSubMode('read')}
+          />
+        ) : null}
+
+        {subMode === 'glossary' ? (
+          <TranslationGlossaryModal
+            host={host}
+            documentId={pageData?.documentId || documentId}
+            sourceId={pageData?.sourceId || sourceId}
+            revision={pageData?.revision}
+            title={pageData?.title || initialTitle}
             isActive={isActive}
             onClose={() => setSubMode('read')}
           />

@@ -15,7 +15,7 @@ import {
   useInputCapture,
   useTheme,
 } from '../../components/index.js';
-import { truncateDisplay } from '../../render/index.js';
+import { truncateDisplay } from '../../render/cjk.js';
 import type { FlatTocItem } from './types.js';
 
 export const BOOK_RETELL_TEXT_MAX = 4000;

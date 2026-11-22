@@ -23,7 +23,7 @@ import {
   useTheme,
   type SelectOption,
 } from '../../components/index.js';
-import { padDisplay, truncateDisplay } from '../../render/index.js';
+import { padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { AGY_EFFORTS, CODEX_EFFORTS, OPENAI_EFFORTS, effortLabel } from './types.js';
 
 export interface ModelsTabProps {

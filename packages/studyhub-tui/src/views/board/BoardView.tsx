@@ -1,17 +1,13 @@
 import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { randomUUID } from 'node:crypto';
 import { Box, Text, useInput } from 'ink';
-import {
-  Badge,
-  ConfirmDialog,
-  EmptyState,
-  Panel,
-  Spinner,
-  useClaimKeys,
-  useFooterHints,
-  useTheme,
-} from '../../components/index.js';
-import { displayWidth, truncateDisplay } from '../../render/index.js';
+import { Badge, EmptyState, Spinner } from '../../components/Badge.js';
+import { ConfirmDialog } from '../../components/ConfirmDialog.js';
+import { Panel } from '../../components/Panel.js';
+import { useClaimKeys } from '../../components/focus.js';
+import { useFooterHints } from '../../components/hooks.js';
+import { useTheme } from '../../theme/tokens.js';
+import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import { currentCourse } from '../../shell/data.js';
 import { t, useTuiStore } from '../../state/store.js';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';

@@ -2,7 +2,7 @@ import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import stripAnsi from 'strip-ansi';
 import { useTheme } from '../theme/tokens.js';
-import { displayWidth, truncateDisplay, wrapDisplay } from '../render/index.js';
+import { displayWidth, truncateDisplay, wrapDisplay } from '../render/cjk.js';
 import { useTuiStore } from '../state/store.js';
 import { pageStep, scrollbarThumb } from './VirtualList.js';
 

@@ -15,7 +15,7 @@ import {
   useTheme,
   type VirtualListRenderContext,
 } from '../../components/index.js';
-import { displayWidth, truncateDisplay } from '../../render/index.js';
+import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import { kindLabel, normalizeCardKind, type NormalizedKind } from './review-helpers.js';
 
 export interface QueueModalProps {

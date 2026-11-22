@@ -16,7 +16,7 @@ import {
   useFooterHints,
   useTheme,
 } from '../../components/index.js';
-import { displayWidth, truncateDisplay } from '../../render/index.js';
+import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 
 interface LookBackOption {
   id?: string;

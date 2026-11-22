@@ -5,7 +5,7 @@ import { t, useTuiStore } from '../../state/store.js';
 import { tryAction } from '../../host/index.js';
 import { useShellActions } from '../../shell/actions.js';
 import { ConfirmDialog, Panel, Spinner, useClaimKeys, useTheme } from '../../components/index.js';
-import { padDisplay, truncateDisplay } from '../../render/index.js';
+import { padDisplay, truncateDisplay } from '../../render/cjk.js';
 
 export interface StudyGenTabProps {
   host: HostClient;

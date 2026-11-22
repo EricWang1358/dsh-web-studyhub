@@ -10,7 +10,7 @@ import {
   useClaimKeys,
   useTheme,
 } from '../../components/index.js';
-import { truncateDisplay } from '../../render/index.js';
+import { truncateDisplay } from '../../render/cjk.js';
 import { t, useTuiStore } from '../../state/store.js';
 import type {
   ExamMode,
