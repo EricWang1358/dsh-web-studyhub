@@ -20,6 +20,8 @@ export interface PathCompleteOptions {
 
 const WIN_DRIVE_RE = /^[a-zA-Z]:(?:[\\/]|$)/;
 const WIN_DRIVE_ONLY_RE = /^[a-zA-Z]:$/;
+const WIN_UNC_RE = /^(?:\\\\|\/\/)/;
+const WIN_UNC_INCOMPLETE_RE = /^(?:\\\\|\/\/)[^\\/]*[\\/]?$/;
 
 /** Expand leading `~` or `~/...` or `~\...` to the user's home directory. */
 export function expandHomePath(
@@ -33,7 +35,10 @@ export function expandHomePath(
     const rest = trimmed.slice(2);
     const trailing = trimmed.endsWith('/') || trimmed.endsWith('\\');
     const segments = rest.split(/[\\/]+/).filter(Boolean);
-    const useWin = WIN_DRIVE_RE.test(home) || (!home.startsWith('/') && (platform === 'win32' || home.includes('\\')));
+    const useWin =
+      WIN_DRIVE_RE.test(home) ||
+      WIN_UNC_RE.test(home) ||
+      (!home.startsWith('/') && (platform === 'win32' || home.includes('\\')));
     const pathImpl = useWin ? path.win32 : path.posix;
     const joined = segments.length > 0 ? pathImpl.join(home, ...segments) : home;
     if (trailing && !joined.endsWith('/') && !joined.endsWith('\\')) {
@@ -47,7 +52,7 @@ export function expandHomePath(
 function preferredSeparator(raw: string, platform: NodeJS.Platform): string {
   if (raw.includes('\\') && !raw.includes('/')) return '\\';
   if (raw.includes('/') && !raw.includes('\\')) return '/';
-  if (WIN_DRIVE_RE.test(raw)) return raw.includes('/') ? '/' : '\\';
+  if (WIN_DRIVE_RE.test(raw) || WIN_UNC_RE.test(raw)) return raw.includes('/') ? '/' : '\\';
   return platform === 'win32' ? '\\' : '/';
 }
 
@@ -55,38 +60,43 @@ function splitDirAndPrefix(
   expanded: string,
   cwd: string,
   platform: NodeJS.Platform,
-): { fsDir: string; prefix: string; displayDir: string; trailingSep: string } {
+): { fsDir: string; prefix: string; displayDir: string; trailingSep: string; pathImpl: path.PlatformPath } {
   const sep = preferredSeparator(expanded, platform);
-  const useWin = WIN_DRIVE_RE.test(expanded) || (!expanded.startsWith('/') && (platform === 'win32' || expanded.includes('\\')));
+  const useWin =
+    WIN_DRIVE_RE.test(expanded) ||
+    WIN_UNC_RE.test(expanded) ||
+    WIN_DRIVE_RE.test(cwd) ||
+    WIN_UNC_RE.test(cwd) ||
+    (!expanded.startsWith('/') && (platform === 'win32' || expanded.includes('\\')));
   const pathImpl = useWin ? path.win32 : path.posix;
 
   if (!expanded) {
-    return { fsDir: cwd, prefix: '', displayDir: '', trailingSep: sep };
+    return { fsDir: cwd, prefix: '', displayDir: '', trailingSep: sep, pathImpl };
   }
 
   // Bare Windows drive like `C:` -> treat as `C:\`
   if (WIN_DRIVE_ONLY_RE.test(expanded)) {
     const driveRoot = `${expanded}${sep}`;
-    return { fsDir: driveRoot, prefix: '', displayDir: driveRoot, trailingSep: sep };
+    return { fsDir: driveRoot, prefix: '', displayDir: driveRoot, trailingSep: sep, pathImpl };
   }
 
   const endsWithSep = expanded.endsWith('/') || expanded.endsWith('\\');
   if (endsWithSep) {
     const resolved = pathImpl.isAbsolute(expanded) ? expanded : pathImpl.resolve(cwd, expanded);
-    return { fsDir: resolved, prefix: '', displayDir: expanded, trailingSep: expanded.slice(-1) };
+    return { fsDir: resolved, prefix: '', displayDir: expanded, trailingSep: expanded.slice(-1), pathImpl };
   }
 
   const lastFwd = expanded.lastIndexOf('/');
   const lastBack = expanded.lastIndexOf('\\');
   const lastSepIdx = Math.max(lastFwd, lastBack);
   if (lastSepIdx < 0) {
-    return { fsDir: cwd, prefix: expanded, displayDir: '', trailingSep: sep };
+    return { fsDir: cwd, prefix: expanded, displayDir: '', trailingSep: sep, pathImpl };
   }
 
   const rawDir = expanded.slice(0, lastSepIdx + 1);
   const prefix = expanded.slice(lastSepIdx + 1);
   const resolved = pathImpl.isAbsolute(rawDir) ? rawDir : pathImpl.resolve(cwd, rawDir);
-  return { fsDir: resolved, prefix, displayDir: rawDir, trailingSep: rawDir.slice(-1) || sep };
+  return { fsDir: resolved, prefix, displayDir: rawDir, trailingSep: rawDir.slice(-1) || sep, pathImpl };
 }
 
 function longestCommonPrefix(values: readonly string[], caseInsensitive: boolean): string {
@@ -127,7 +137,7 @@ export async function completeFsPath(
   const tildeSep = trimmed.startsWith('~\\') ? '\\' : '/';
   const expanded = expandHomePath(trimmed, home, platform);
   const sep = preferredSeparator(trimmed || cwd, platform);
-  const caseInsensitive = platform === 'win32' || WIN_DRIVE_RE.test(expanded);
+  const caseInsensitive = platform === 'win32' || WIN_DRIVE_RE.test(expanded) || WIN_UNC_RE.test(expanded);
   const extFilter = opts.extensions?.length
     ? new Set(opts.extensions.map((e) => (e.startsWith('.') ? e.toLowerCase() : `.${e.toLowerCase()}`)))
     : null;
@@ -145,7 +155,11 @@ export async function completeFsPath(
     return { completed: next, matches: [next], directory: home, basePrefix: '', isExactFile: false };
   }
 
-  const { fsDir, prefix, displayDir, trailingSep } = splitDirAndPrefix(expanded, cwd, platform);
+  const { fsDir, prefix, displayDir, trailingSep, pathImpl } = splitDirAndPrefix(expanded, cwd, platform);
+
+  if (WIN_UNC_INCOMPLETE_RE.test(expanded) && (expanded.startsWith('\\\\') || platform === 'win32')) {
+    return { ...emptyResult, directory: fsDir, basePrefix: prefix };
+  }
 
   let entries;
   try {
@@ -167,7 +181,7 @@ export async function completeFsPath(
     let isDir = entry.isDirectory();
     if (!isDir && entry.isSymbolicLink()) {
       try {
-        const st = await stat(path.join(fsDir, name));
+        const st = await stat(pathImpl.join(fsDir, name));
         isDir = st.isDirectory();
       } catch {
         isDir = false;
@@ -175,7 +189,7 @@ export async function completeFsPath(
     }
 
     if (!isDir && extFilter) {
-      const ext = path.extname(name).toLowerCase();
+      const ext = pathImpl.extname(name).toLowerCase();
       if (!extFilter.has(ext)) continue;
     }
 
@@ -194,7 +208,7 @@ export async function completeFsPath(
   // Reconstruct display prefix preserving `~/` if the user typed `~`.
   let shownBase = displayDir;
   if (hadTilde) {
-    const relFromHome = path.relative(home, fsDir);
+    const relFromHome = pathImpl.relative(home, fsDir);
     if (!relFromHome || relFromHome === '.') {
       shownBase = `~${tildeSep}`;
     } else if (!relFromHome.startsWith('..')) {

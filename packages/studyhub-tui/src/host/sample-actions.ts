@@ -168,17 +168,22 @@ export function importFormatOf(filePath: string): ImportFormat | null {
   return EXTENSION_FORMATS[extname(String(filePath || '')).toLowerCase()] || null;
 }
 
+const WIN_DRIVE_PATH_RE = /^[a-zA-Z]:(?:[\\/]|$)/;
+const WIN_UNC_PATH_RE = /^(?:\\\\|\/\/)/;
+
 /**
  * Clean a path typed or dropped into a terminal: PowerShell drag & drop gives `& 'C:\\My Files\\a.pdf'`,
  * Explorer "Copy as path" gives `"C:\\My Files\\a.pdf"`, bash gives `'/home/me/a b.pdf'` or `a\\ b.pdf`.
+ * Preserves Windows UNC paths (`\\server\share\...`, `//server/share/...`) and drive roots (`C:\`, `D:/`).
  */
 export function cleanPathInput(input: string): string {
-  let text = String(input ?? '').trim();
-  if (text.startsWith('& ')) text = text.slice(2).trim();
-  const quoted = text.match(/^(['"])(.*)\1$/s);
+  const text = String(input ?? '').trim();
+  const quoted = text.match(/^(?:&\s*)?(['"])(.*)\1$/s);
   if (quoted) return quoted[2].trim();
-  // POSIX shells escape spaces in dragged paths; never touch Windows backslash paths.
-  if (process.platform !== 'win32' && !/^[a-zA-Z]:[\\/]/.test(text)) text = text.replace(/\\ /g, ' ');
+  // POSIX shells escape spaces in dragged paths; never touch Windows drive or UNC paths.
+  if (process.platform !== 'win32' && !WIN_DRIVE_PATH_RE.test(text) && !WIN_UNC_PATH_RE.test(text)) {
+    return text.replace(/\\ /g, ' ');
+  }
   return text;
 }
 

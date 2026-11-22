@@ -18,11 +18,13 @@ const binPath = resolve(pkgRoot, 'bin', 'studyhub-tui.mjs');
 const cliArgsMod = await tsImport('../src/cli-args.ts', import.meta.url);
 const terminalMod = await tsImport('../src/terminal.ts', import.meta.url);
 const pathCompleteMod = await tsImport('../src/views/sources/path-complete.ts', import.meta.url);
+const sampleActionsMod = await tsImport('../src/host/sample-actions.ts', import.meta.url);
 const contractsMod = await tsImport('../src/types/contracts.ts', import.meta.url);
 
 const { parseCliArgs, cliHelpText, shouldAutoAscii } = cliArgsMod;
-const { enterTerminalSession } = terminalMod;
+const { enterTerminalSession, isHeadlessOrSsh } = terminalMod;
 const { completeFsPath, expandHomePath } = pathCompleteMod;
+const { cleanPathInput } = sampleActionsMod;
 const { PAGE_REGISTRY } = contractsMod;
 
 const tempRoots = [];
@@ -225,6 +227,31 @@ describe('enterTerminalSession', () => {
 });
 
 // ---------------------------------------------------------------------------
+// 2b. isHeadlessOrSsh environment detection
+// ---------------------------------------------------------------------------
+
+describe('isHeadlessOrSsh', () => {
+  test('detects SSH sessions across Linux, macOS, and Windows', () => {
+    assert.equal(isHeadlessOrSsh({ SSH_TTY: '/dev/pts/0', DISPLAY: ':0' }, 'linux'), true);
+    assert.equal(isHeadlessOrSsh({ SSH_CONNECTION: '10.0.0.1 1234 10.0.0.2 22' }, 'darwin'), true);
+    assert.equal(isHeadlessOrSsh({ SSH_CLIENT: '10.0.0.1 1234 22' }, 'win32'), true);
+    assert.equal(isHeadlessOrSsh({ SSH_TTY: '   ', DISPLAY: ':0' }, 'linux'), false);
+  });
+
+  test('distinguishes Linux headless, Linux X11/Wayland, WSL2, macOS, and Windows', () => {
+    assert.equal(isHeadlessOrSsh({}, 'linux'), true);
+    assert.equal(isHeadlessOrSsh({ DISPLAY: '', WAYLAND_DISPLAY: '' }, 'linux'), true);
+    assert.equal(isHeadlessOrSsh({ DISPLAY: ':0' }, 'linux'), false);
+    assert.equal(isHeadlessOrSsh({ WAYLAND_DISPLAY: 'wayland-0' }, 'linux'), false);
+    assert.equal(isHeadlessOrSsh({ WSL_DISTRO_NAME: 'Ubuntu' }, 'linux'), false);
+    assert.equal(isHeadlessOrSsh({ WSL_INTEROP: '/run/WSL/100_interop' }, 'linux'), false);
+    assert.equal(isHeadlessOrSsh({ WSL_DISTRO_NAME: 'Ubuntu', SSH_TTY: '/dev/pts/1' }, 'linux'), true);
+    assert.equal(isHeadlessOrSsh({}, 'darwin'), false);
+    assert.equal(isHeadlessOrSsh({}, 'win32'), false);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 3. bin/studyhub-tui.mjs CLI execution
 // ---------------------------------------------------------------------------
 
@@ -327,6 +354,55 @@ describe('completeFsPath', () => {
     });
     assert.equal(nestedWin.completed, '~\\materials\\exam.txt');
     assert.equal(nestedWin.isExactFile, true);
+  });
+
+  test('handles UNC prefixes and Windows drive roots cleanly on both linux and win32 without throwing', async () => {
+    const inputs = [
+      '\\\\server\\share\\notes.pdf',
+      '\\\\server\\share\\',
+      '\\\\server\\share',
+      '\\\\server',
+      '\\\\',
+      '//server/share/notes.pdf',
+      '//server/share/',
+      'C:\\',
+      'D:/',
+      'C:',
+    ];
+    for (const platform of ['linux', 'win32']) {
+      for (const input of inputs) {
+        const res = await completeFsPath(input, { platform });
+        assert.equal(typeof res.completed, 'string');
+        assert.ok(Array.isArray(res.matches));
+        assert.equal(res.isExactFile, false);
+      }
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4b. cleanPathInput PowerShell, UNC, Windows drive roots & WSL2 paths
+// ---------------------------------------------------------------------------
+
+describe('cleanPathInput', () => {
+  test('strips PowerShell drag-and-drop prefix when followed by quoted paths', () => {
+    assert.equal(cleanPathInput("& 'C:\\Users\\My Docs\\file.pdf'"), 'C:\\Users\\My Docs\\file.pdf');
+    assert.equal(cleanPathInput('& "C:\\path\\file.pdf"'), 'C:\\path\\file.pdf');
+    assert.equal(cleanPathInput("  &   '\\\\server\\share\\My Notes.pdf'  "), '\\\\server\\share\\My Notes.pdf');
+    assert.equal(cleanPathInput('& unquoted.pdf'), '& unquoted.pdf');
+  });
+
+  test('preserves Windows UNC paths, drive roots, and WSL2 paths', () => {
+    assert.equal(cleanPathInput('\\\\server\\share\\notes.pdf'), '\\\\server\\share\\notes.pdf');
+    assert.equal(cleanPathInput('\\\\server\\share\\ My Notes.pdf'), '\\\\server\\share\\ My Notes.pdf');
+    assert.equal(cleanPathInput('//server/share/notes.pdf'), '//server/share/notes.pdf');
+    assert.equal(cleanPathInput('  //server/share/notes.pdf  '), '//server/share/notes.pdf');
+    assert.equal(cleanPathInput('C:\\'), 'C:\\');
+    assert.equal(cleanPathInput('D:/'), 'D:/');
+    assert.equal(cleanPathInput('/mnt/c/Users/Alice/notes.pdf'), '/mnt/c/Users/Alice/notes.pdf');
+    if (process.platform !== 'win32') {
+      assert.equal(cleanPathInput('/mnt/c/Users/Alice/My\\ Notes.pdf'), '/mnt/c/Users/Alice/My Notes.pdf');
+    }
   });
 });
 

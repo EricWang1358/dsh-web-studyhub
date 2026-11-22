@@ -23,6 +23,27 @@ export interface TerminalSession {
   restore: () => void;
 }
 
+const hasNonEmptyEnv = (env: NodeJS.ProcessEnv, key: string): boolean => Boolean(String(env[key] ?? '').trim());
+
+/**
+ * Detect SSH or headless Linux environments (no X11/Wayland display outside WSL2).
+ */
+export function isHeadlessOrSsh(
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+): boolean {
+  if (hasNonEmptyEnv(env, 'SSH_TTY') || hasNonEmptyEnv(env, 'SSH_CONNECTION') || hasNonEmptyEnv(env, 'SSH_CLIENT')) {
+    return true;
+  }
+  if (platform === 'linux') {
+    const isWsl = hasNonEmptyEnv(env, 'WSL_DISTRO_NAME') || hasNonEmptyEnv(env, 'WSL_INTEROP');
+    if (!isWsl && !hasNonEmptyEnv(env, 'DISPLAY') && !hasNonEmptyEnv(env, 'WAYLAND_DISPLAY')) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function enterTerminalSession(options: TerminalSessionOptions = {}): TerminalSession {
   const stdout = options.stdout ?? process.stdout;
   const stdin = options.stdin ?? process.stdin;
