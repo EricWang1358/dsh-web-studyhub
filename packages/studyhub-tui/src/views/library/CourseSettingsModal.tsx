@@ -73,6 +73,9 @@ export interface CourseDetailResponse {
   decks?: number;
   drafts?: number;
   sources?: number;
+  active?: boolean;
+  explicit?: boolean;
+  inactiveBy?: string;
   focusTopics?: string[];
   exam?: {
     format?: string;
@@ -84,6 +87,14 @@ export interface CourseDetailResponse {
     notes?: string;
     [k: string]: unknown;
   };
+}
+
+interface MergeCandidate {
+  id: string;
+  name: string;
+  decks?: number;
+  sources?: number;
+  active?: boolean;
 }
 
 export interface CourseTermItem {
@@ -144,7 +155,18 @@ export interface CourseSettingsModalProps {
 }
 
 type SettingsTab = 'method' | 'info' | 'terms' | 'align';
-type SubMode = 'none' | 'pickCourse' | 'presets' | 'editNote' | 'editTargetDate' | 'rename' | 'confirmRename' | 'editExamDate' | 'searchTerms';
+type SubMode =
+  | 'none'
+  | 'pickCourse'
+  | 'presets'
+  | 'editNote'
+  | 'editTargetDate'
+  | 'rename'
+  | 'confirmRename'
+  | 'editExamDate'
+  | 'searchTerms'
+  | 'pickMergeCourse'
+  | 'confirmMerge';
 
 const TABS: readonly SettingsTab[] = ['method', 'info', 'terms', 'align'];
 
@@ -308,6 +330,8 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
   const [dateInput, setDateInput] = useState('');
   const [renameInput, setRenameInput] = useState('');
   const [pendingRename, setPendingRename] = useState('');
+  const [mergeCandidates, setMergeCandidates] = useState<MergeCandidate[]>([]);
+  const [pendingMergeCourse, setPendingMergeCourse] = useState<MergeCandidate | null>(null);
 
   const mountedRef = useRef(true);
   useEffect(() => {
@@ -324,6 +348,13 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
     const hit = (snapshot?.courses ?? []).find((c) => c.name === selectedCourse || c.title === selectedCourse);
     return typeof hit?.id === 'string' ? hit.id : undefined;
   }, [courseDetail?.id, methodData?.courseId, selectedCourse, snapshot?.courses]);
+
+  const snapshotCourse = useMemo(
+    () => (snapshot?.courses ?? []).find((c) => (resolvedCourseId && c.id === resolvedCourseId) || c.name === selectedCourse || c.title === selectedCourse),
+    [snapshot?.courses, resolvedCourseId, selectedCourse],
+  );
+
+  const isCourseActive = courseDetail?.active ?? (snapshotCourse?.active !== false);
 
   // Load course method, course detail, and course terms for the active course (cancel-guarded)
   useEffect(() => {
@@ -648,6 +679,165 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
     [selectedCourse, busy, courseDetail?.exam, host, resolvedCourseId, actions, onUpdated, notify, lang],
   );
 
+  const handleToggleActive = useCallback(async () => {
+    if (!selectedCourse || busy) return;
+    const nextActive = !isCourseActive;
+    const action = nextActive ? 'course.activate' : 'course.deactivate';
+    const args = resolvedCourseId ? { id: resolvedCourseId } : { name: selectedCourse };
+    setBusy(true);
+    setError('');
+    const res = await tryAction<{
+      id?: string;
+      name?: string;
+      active?: boolean;
+      changed?: boolean;
+      decks?: number;
+      due?: number;
+      overdue?: number;
+    }>(host, action, args);
+    if (!mountedRef.current) return;
+    if (!res.ok || !res.value) {
+      setBusy(false);
+      const msg = res.error?.message || t(lang, '切换课程有效状态失败', 'Failed to toggle course active status');
+      setError(msg);
+      notify(msg, 'error');
+      return;
+    }
+    const detailRes = await tryAction<CourseDetailResponse>(host, 'course.get', { name: selectedCourse });
+    if (!mountedRef.current) return;
+    if (detailRes.ok && detailRes.value) {
+      setCourseDetail(detailRes.value);
+    } else {
+      setCourseDetail((prev) => (prev ? { ...prev, active: Boolean(res.value?.active ?? nextActive) } : prev));
+    }
+    setBusy(false);
+    await actions.refresh();
+    onUpdated?.();
+    const result = res.value;
+    const courseLabel = result.name || selectedCourse;
+    if (result.active) {
+      notify(
+        result.due
+          ? t(lang, `已激活「${courseLabel}」（到期 ${result.due} 题）`, `Activated "${courseLabel}" (${result.due} due)`)
+          : t(lang, `已激活「${courseLabel}」`, `Activated "${courseLabel}"`),
+        'success',
+      );
+    } else {
+      notify(
+        result.decks
+          ? t(
+              lang,
+              `已停用「${courseLabel}」（${result.decks} 个题组不计入复习与推荐，进度保留）`,
+              `Deactivated "${courseLabel}" (${result.decks} decks parked; progress kept)`,
+            )
+          : t(
+              lang,
+              `已停用「${courseLabel}」（不计入到期复习与推荐，进度保留）`,
+              `Deactivated "${courseLabel}" (excluded from due counts & recommendations; progress kept)`,
+            ),
+        'success',
+      );
+    }
+  }, [selectedCourse, busy, isCourseActive, resolvedCourseId, host, lang, notify, actions, onUpdated]);
+
+  const handleOpenMergePicker = useCallback(async () => {
+    if (!selectedCourse || busy) return;
+    if (!resolvedCourseId) {
+      notify(t(lang, '未找到当前课程 ID，请刷新后重试', 'Current course ID missing; refresh and retry'), 'error');
+      return;
+    }
+    setBusy(true);
+    const listRes = await tryAction<{
+      courses?: Array<{
+        id?: string;
+        name?: string;
+        title?: string;
+        decks?: number;
+        deckCount?: number;
+        sources?: number;
+        sourceCount?: number;
+        active?: boolean;
+      }>;
+    }>(host, 'course.list', {});
+    if (!mountedRef.current) return;
+    setBusy(false);
+    const rawList: Array<{
+      id?: string;
+      name?: string;
+      title?: string;
+      decks?: unknown;
+      deckCount?: unknown;
+      sources?: unknown;
+      sourceCount?: unknown;
+      active?: boolean;
+    }> = listRes.ok && Array.isArray(listRes.value?.courses) ? listRes.value.courses : (snapshot?.courses ?? []);
+    const candidates: MergeCandidate[] = [];
+    const seen = new Set<string>();
+    for (const c of rawList) {
+      const id = typeof c.id === 'string' ? c.id : '';
+      const name = String(c.name ?? c.title ?? id).trim();
+      if (!id || !name || id === resolvedCourseId || name === selectedCourse || seen.has(id)) continue;
+      seen.add(id);
+      candidates.push({
+        id,
+        name,
+        decks: typeof c.decks === 'number' ? c.decks : typeof c.deckCount === 'number' ? Number(c.deckCount) : undefined,
+        sources: typeof c.sources === 'number' ? c.sources : typeof c.sourceCount === 'number' ? Number(c.sourceCount) : undefined,
+        active: typeof c.active === 'boolean' ? c.active : undefined,
+      });
+    }
+    if (candidates.length === 0) {
+      notify(t(lang, '当前没有其他可合并的课程', 'No other courses available to merge'), 'info');
+      return;
+    }
+    setMergeCandidates(candidates);
+    setPendingMergeCourse(null);
+    setSubMode('pickMergeCourse');
+  }, [selectedCourse, busy, resolvedCourseId, host, snapshot?.courses, lang, notify]);
+
+  const handleMergeConfirmed = useCallback(async () => {
+    const source = pendingMergeCourse;
+    const targetId = resolvedCourseId;
+    if (!source || !targetId || !selectedCourse || busy) {
+      setPendingMergeCourse(null);
+      setSubMode('none');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    const res = await tryAction<{ course?: CourseDetailResponse; merged?: string[] }>(host, 'course.merge', {
+      from: [source.id],
+      into: targetId,
+    });
+    if (!mountedRef.current) return;
+    if (!res.ok) {
+      setBusy(false);
+      setPendingMergeCourse(null);
+      setSubMode('none');
+      const msg = res.error?.message || t(lang, '合并课程失败', 'Failed to merge course');
+      setError(msg);
+      notify(msg, 'error');
+      return;
+    }
+    const targetName = res.value?.course?.name || selectedCourse;
+    if (res.value?.course) setCourseDetail(res.value.course);
+    const [mRes, cRes, tRes] = await Promise.all([
+      tryAction<CourseMethodResponse>(host, 'course.method.get', { course: targetName }),
+      tryAction<CourseDetailResponse>(host, 'course.get', { name: targetName }),
+      tryAction<CourseTermsResponse>(host, 'course.terms.get', { course: targetName }),
+    ]);
+    if (!mountedRef.current) return;
+    if (mRes.ok && mRes.value) setMethodData(mRes.value);
+    if (cRes.ok && cRes.value) setCourseDetail(cRes.value);
+    if (tRes.ok && tRes.value) setTermsData(tRes.value);
+    setBusy(false);
+    setPendingMergeCourse(null);
+    setSubMode('none');
+    await actions.refresh();
+    onUpdated?.();
+    notify(t(lang, `已将「${source.name}」合并到「${targetName}」`, `Merged "${source.name}" into "${targetName}"`), 'success');
+  }, [pendingMergeCourse, resolvedCourseId, selectedCourse, busy, host, lang, notify, actions, onUpdated]);
+
   useInput(
     (input, key) => {
       if (loading || busy || subMode !== 'none') return;
@@ -699,6 +889,10 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
         } else if (input === 'd') {
           setDateInput(courseDetail?.exam?.date || '');
           setSubMode('editExamDate');
+        } else if (input === 'm') {
+          void handleOpenMergePicker();
+        } else if (input === 'a') {
+          void handleToggleActive();
         }
         return;
       }
@@ -753,11 +947,33 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
     [lang],
   );
 
+  const mergeOptions = useMemo<SelectOption<string>[]>(
+    () =>
+      mergeCandidates.map((c) => {
+        const parts: string[] = [];
+        if (typeof c.decks === 'number') parts.push(`${c.decks} ${t(lang, '题组', 'decks')}`);
+        if (typeof c.sources === 'number') parts.push(`${c.sources} ${t(lang, '资料', 'sources')}`);
+        if (c.active === false) parts.push(t(lang, '未激活', 'Inactive'));
+        return {
+          value: c.id,
+          label: c.name,
+          hint: parts.length > 0 ? parts.join(' · ') : undefined,
+        };
+      }),
+    [mergeCandidates, lang],
+  );
+
   const hints = useMemo<KeyHint[]>(() => {
     if (subMode === 'pickCourse') {
       return [
         { key: 'Enter', label: t(lang, '选择课程', 'Select') },
         { key: 'Esc', label: t(lang, '返回', 'Back') },
+      ];
+    }
+    if (subMode === 'pickMergeCourse') {
+      return [
+        { key: 'Enter/1-9', label: t(lang, '选择待合并课程', 'Select') },
+        { key: 'Esc', label: t(lang, '取消', 'Cancel') },
       ];
     }
     if (subMode === 'presets') {
@@ -781,6 +997,8 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
     } else if (tab === 'info') {
       base.push({ key: 'n', label: t(lang, '重命名', 'Rename') });
       base.push({ key: 'd', label: t(lang, '考试日', 'Exam Date') });
+      base.push({ key: 'm', label: t(lang, '合并课程', 'Merge') });
+      base.push({ key: 'a', label: isCourseActive ? t(lang, '停用', 'Deactivate') : t(lang, '激活', 'Activate') });
     } else if (tab === 'terms') {
       base.push({ key: '/', label: t(lang, '筛选', 'Filter') });
       if (termFilter) base.push({ key: 'x', label: t(lang, '清筛选', 'Clear') });
@@ -792,7 +1010,7 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
     if (availableCourses.length > 1) base.push({ key: 'c', label: t(lang, '换课', 'Course') });
     base.push({ key: 'Esc', label: t(lang, '关闭', 'Close') });
     return base;
-  }, [subMode, tab, lang, methodData?.own, termFilter, alignPreview?.enabled, alignPreview?.restorable, focusProgress?.weakScope?.length, availableCourses.length]);
+  }, [subMode, tab, lang, methodData?.own, isCourseActive, termFilter, alignPreview?.enabled, alignPreview?.restorable, focusProgress?.weakScope?.length, availableCourses.length]);
 
   const renderStageRow = useCallback(
     (stage: CourseMethodStage, ctx: VirtualListRenderContext) => {
@@ -948,8 +1166,15 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
         subtitle={selectedCourse ?? t(lang, '未选课程', 'No course')}
         width={frameW}
         height={frameH}
-        onClose={subMode === 'none' ? onClose : () => setSubMode('none')}
-        isActive={isActive && subMode === 'none'}
+        onClose={
+          subMode === 'none'
+            ? onClose
+            : () => {
+                setPendingMergeCourse(null);
+                setSubMode('none');
+              }
+        }
+        isActive={isActive && subMode !== 'confirmRename' && subMode !== 'confirmMerge'}
         hints={hints}
       >
         {/* Tab Bar */}
@@ -1203,11 +1428,40 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
                 />
               </Box>
             </Box>
+          ) : subMode === 'pickMergeCourse' ? (
+            <Box flexDirection="column" height={tabBodyH} overflow="hidden">
+              <Text color={theme.accent} bold>
+                {t(lang, `选择要并入「${selectedCourse}」的课程:`, `Select a course to merge into "${selectedCourse}":`)}
+              </Text>
+              <Box marginTop={1}>
+                <SelectList
+                  options={mergeOptions}
+                  width={innerW}
+                  maxHeight={Math.max(3, tabBodyH - 2)}
+                  isActive={isActive && subMode === 'pickMergeCourse' && !busy}
+                  onSelect={(opt) => {
+                    const target = mergeCandidates.find((c) => c.id === opt.value);
+                    if (!target) return;
+                    setPendingMergeCourse(target);
+                    setSubMode('confirmMerge');
+                  }}
+                />
+              </Box>
+            </Box>
           ) : (
             <Box flexDirection="column" height={tabBodyH} gap={0} overflow="hidden">
-              <Box height={1} overflow="hidden">
+              <Box height={1} flexDirection="row" gap={1} overflow="hidden">
                 <Text color={theme.muted}>{t(lang, '课程名称', 'Course Name')}: </Text>
                 <Text color={theme.text} bold>{courseDetail?.name || selectedCourse}</Text>
+                <StatusPill
+                  label={isCourseActive ? t(lang, '已激活', 'Active') : t(lang, '未激活', 'Inactive')}
+                  status={isCourseActive ? 'ok' : 'idle'}
+                />
+                {!isCourseActive && courseDetail?.inactiveBy ? (
+                  <Text color={theme.dim} wrap="truncate-end">
+                    ({t(lang, `随「${courseDetail.inactiveBy}」停用`, `via "${courseDetail.inactiveBy}"`)})
+                  </Text>
+                ) : null}
               </Box>
               <Box height={1} overflow="hidden">
                 <Text color={theme.muted}>{t(lang, '旧称别名', 'Aliases')}: </Text>
@@ -1246,6 +1500,15 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
                 </Text>
                 <Text color={theme.accent} wrap="truncate-end">
                   [d] {t(lang, '设置 / 清除考试日期 (同步考前对齐)', 'Set / clear exam date (triggers alignment)')}
+                </Text>
+                <Text color={theme.accent} wrap="truncate-end">
+                  [m] {t(lang, '合并其他课程到此课程 (题组、资料、笔记、重点与计划一并归入)', 'Merge another course into this course (decks, sources, notes, focus & plans)')}
+                </Text>
+                <Text color={theme.accent} wrap="truncate-end">
+                  [a]{' '}
+                  {isCourseActive
+                    ? t(lang, '停用课程 (暂停计入到期复习与推荐，进度保留)', 'Deactivate course (exclude from due counts & recs; progress kept)')
+                    : t(lang, '激活课程 (恢复计入到期复习与推荐)', 'Activate course (include in due counts & recs)')}
                 </Text>
               </Box>
             </Box>
@@ -1446,6 +1709,27 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
             void handleRenameConfirmed();
           }}
           onCancel={() => setSubMode('none')}
+        />
+      ) : null}
+
+      {subMode === 'confirmMerge' && pendingMergeCourse ? (
+        <ConfirmDialog
+          title={t(lang, '确认合并课程', 'Confirm Course Merge')}
+          message={t(
+            lang,
+            `将「${pendingMergeCourse.name}」合并到「${selectedCourse}」？其题组、资料、笔记、重点知识点和备考计划都会归入「${selectedCourse}」，原课程名称会保留为别名。`,
+            `Merge "${pendingMergeCourse.name}" into "${selectedCourse}"? Decks, sources, notes, focus topics, and plans from "${pendingMergeCourse.name}" will merge into "${selectedCourse}", preserving the old name as an alias.`,
+          )}
+          confirmLabel={t(lang, '确认合并', 'Merge')}
+          cancelLabel={t(lang, '取消', 'Cancel')}
+          isActive={isActive && subMode === 'confirmMerge' && !busy}
+          onConfirm={() => {
+            void handleMergeConfirmed();
+          }}
+          onCancel={() => {
+            setPendingMergeCourse(null);
+            setSubMode('none');
+          }}
         />
       ) : null}
     </>

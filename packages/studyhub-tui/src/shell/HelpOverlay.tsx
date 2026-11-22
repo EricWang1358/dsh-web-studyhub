@@ -146,6 +146,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'm', label: t(lang, '移至文件夹', 'Move folder') },
         { key: 'M', label: t(lang, 'MinerU PDF', 'MinerU PDF') },
         { key: 'C', label: t(lang, '伴学页面', 'Companions') },
+        { key: '[ / ]', label: t(lang, '上移/下移置顶资料', 'Reorder pinned material') },
         { key: 'O', label: t(lang, '目录大纲', 'Outline TOC') },
         { key: 'B', label: t(lang, '书签与批注', 'Bookmarks & notes') },
       ],

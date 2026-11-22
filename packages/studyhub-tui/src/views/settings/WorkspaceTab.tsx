@@ -185,6 +185,9 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
 
   const sampleLoaded = Boolean(snapshot?.sample?.loaded);
 
+  const [experimentalEnabled, setExperimentalEnabled] = useState<boolean>(
+    () => Boolean(snapshot?.experimental),
+  );
   const [restorePoints, setRestorePoints] = useState<RestorePointEntry[]>([]);
   const [loadingPoints, setLoadingPoints] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
@@ -204,6 +207,22 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
       mountedRef.current = false;
     };
   }, []);
+
+  const loadExperimental = useCallback(async () => {
+    try {
+      const res = await tryAction<{ enabled?: boolean }>(host, 'experimental.get', {});
+      if (!mountedRef.current) return;
+      if (res.ok && res.value && typeof res.value.enabled === 'boolean') {
+        setExperimentalEnabled(res.value.enabled);
+      }
+    } catch {
+      // Fail-soft: keep snapshot/default value when experimental.get is unavailable
+    }
+  }, [host]);
+
+  useEffect(() => {
+    void loadExperimental();
+  }, [loadExperimental]);
 
   const loadPoints = useCallback(async () => {
     setLoadingPoints(true);
@@ -346,8 +365,34 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
     [asciiMode, binding?.root, busyAction, host, lang, notify],
   );
 
+  const handleToggleExperimental = useCallback(async () => {
+    if (busyAction) return;
+    const prev = experimentalEnabled;
+    const next = !prev;
+    setExperimentalEnabled(next);
+    const res = await tryAction<{ enabled?: boolean }>(host, 'experimental.set', { enabled: next });
+    if (!mountedRef.current) return;
+    if (!res.ok) {
+      setExperimentalEnabled(prev);
+      notify(
+        res.error?.message || t(lang, '切换实验性功能失败', 'Failed to toggle experimental features'),
+        'error',
+      );
+      return;
+    }
+    const confirmedEnabled = typeof res.value?.enabled === 'boolean' ? res.value.enabled : next;
+    setExperimentalEnabled(confirmedEnabled);
+    void refreshSnapshot();
+    notify(
+      confirmedEnabled
+        ? t(lang, '已开启实验性功能', 'Experimental features enabled')
+        : t(lang, '已关闭实验性功能', 'Experimental features disabled'),
+      'success',
+    );
+  }, [busyAction, experimentalEnabled, host, lang, notify, refreshSnapshot]);
+
   const modalOpen = editingRoot || exportingBackup || confirmSampleRemove || Boolean(confirmRestore);
-  const claimed = useMemo(() => ['e', 's', 'x', 'r', 'c'], []);
+  const claimed = useMemo(() => ['e', 's', 'x', 'r', 'c', 'f'], []);
   useClaimKeys(claimed, isActive && !modalOpen);
 
   useInput(
@@ -372,6 +417,10 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
         void handleConfirmLocation();
         return;
       }
+      if (input === 'f') {
+        void handleToggleExperimental();
+        return;
+      }
       if (input === 'r') {
         void loadPoints();
         return;
@@ -387,7 +436,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
   const defaultRoot = binding?.defaultRoot || '';
   const confirmed = desktopConfig?.libraryPlaceConfirmed ?? true;
 
-  const compactLayout = width < 78;
+  const compactLayout = width < 84;
   const infoPanelH = compactLayout ? 10 : 9;
   const listPanelH = Math.max(6, height - infoPanelH);
   const listRows = Math.max(1, listPanelH - 2);
@@ -420,6 +469,12 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
   const sampleActionLabel = `[s] ${sampleLoaded ? t(lang, '移除示例课程', 'Remove sample') : t(lang, '载入示例课程', 'Load sample')}`;
   const exportActionLabel = `[x] ${t(lang, '导出学习库备份', 'Export backup')}`;
   const confirmActionLabel = `[c] ${t(lang, '确认位置', 'Confirm place')}`;
+  const experimentalBadgeLabel = experimentalEnabled
+    ? asciiMode
+      ? t(lang, '已开启 +', 'Enabled +')
+      : t(lang, '已开启 ✓', 'Enabled ✓')
+    : t(lang, '已关闭', 'Disabled');
+  const experimentalActionLabel = `[f] ${t(lang, '切换', 'Toggle')}`;
 
   return (
     <Box flexDirection="column" width={width} height={height} overflow="hidden">
@@ -458,6 +513,17 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
             />
           </Text>
         </Box>
+        <Box flexDirection="row" gap={2} marginTop={0}>
+          <Text color={theme.muted}>
+            {t(lang, '实验性功能:', 'Experimental Features:')}{' '}
+            <Badge
+              label={experimentalBadgeLabel}
+              tone={experimentalEnabled ? 'accent' : 'muted'}
+              variant="soft"
+            />
+          </Text>
+          <Text color={theme.accent}>{experimentalActionLabel}</Text>
+        </Box>
         {compactLayout ? (
           <>
             <Box flexDirection="row" gap={2} marginTop={1}>
@@ -489,8 +555,12 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
         {loadingPoints && restorePoints.length === 0 ? (
           <Spinner label={t(lang, `正在读取备份列表${ell}`, `Loading restore points${ell}`)} active={isActive} />
         ) : restorePoints.length === 0 ? (
-          <Text color={theme.muted} wrap="truncate">
-            {t(lang, '暂无备份点（学习库发生重要变更时会自动创建快照）', 'No restore points yet (created automatically on major edits).')}
+          <Text color={theme.muted}>
+            {truncateDisplay(
+              t(lang, '暂无备份点（学习库发生重要变更时会自动创建快照）', 'No restore points yet (created automatically on major edits).'),
+              Math.max(10, width - 4),
+              ell,
+            )}
           </Text>
         ) : (
           <VirtualList

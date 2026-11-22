@@ -4,8 +4,8 @@ import type { HostClient } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { tryAction } from '../../host/index.js';
 import { useShellActions } from '../../shell/actions.js';
-import { Panel, Spinner, useClaimKeys, useTheme } from '../../components/index.js';
-import { padDisplay } from '../../render/index.js';
+import { ConfirmDialog, Panel, Spinner, useClaimKeys, useTheme } from '../../components/index.js';
+import { padDisplay, truncateDisplay } from '../../render/index.js';
 
 export interface StudyGenTabProps {
   host: HostClient;
@@ -36,10 +36,21 @@ interface DailyRecapSettingsShape {
   timeZone: string;
 }
 
+interface BookSettingsShape {
+  qaToBook: 'manual' | 'auto';
+  pageLimit?: number;
+  crunchWindowDays?: number;
+  crunchMinutes?: number;
+  coverage?: 'brief' | 'standard' | 'full';
+  inlinePractice?: boolean;
+  confusableDrill?: boolean;
+}
+
 interface FullSettingsShape {
   request_retention: number;
   maximum_interval: number;
   practice?: Partial<PracticeSettingsShape>;
+  book?: Partial<BookSettingsShape>;
   generation?: Partial<GenerationSettingsShape>;
   dailyRecap?: Partial<DailyRecapSettingsShape>;
 }
@@ -58,6 +69,8 @@ type SettingRowId =
   | 'autopilot'
   | 'debrief'
   | 'rereadMarks'
+  | 'book_qaToBook'
+  | 'practice_reset'
   | 'request_retention'
   | 'maximum_interval'
   | 'gen_kind'
@@ -74,6 +87,8 @@ const ROW_IDS: readonly SettingRowId[] = Object.freeze([
   'autopilot',
   'debrief',
   'rereadMarks',
+  'book_qaToBook',
+  'practice_reset',
   'request_retention',
   'maximum_interval',
   'gen_kind',
@@ -110,6 +125,7 @@ export const StudyGenTab: React.FC<StudyGenTabProps> = memo(function StudyGenTab
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [cursor, setCursor] = useState(0);
+  const [confirmResetPractice, setConfirmResetPractice] = useState(false);
 
   const mountedRef = useRef(true);
   useEffect(() => {
@@ -150,6 +166,10 @@ export const StudyGenTab: React.FC<StudyGenTabProps> = memo(function StudyGenTab
     tone: (settings?.dailyRecap?.tone as DailyRecapSettingsShape['tone']) ?? 'friendly',
     timeZone: String(settings?.dailyRecap?.timeZone ?? 'Asia/Shanghai'),
   };
+  const bookQaToBook: 'manual' | 'auto' =
+    (settings?.book?.qaToBook ?? (snapshot?.settings as FullSettingsShape | undefined)?.book?.qaToBook) === 'auto'
+      ? 'auto'
+      : 'manual';
   const retention = Number(settings?.request_retention ?? 0.9) || 0.9;
   const maxInterval = Number(settings?.maximum_interval ?? 36500) || 36500;
 
@@ -168,6 +188,37 @@ export const StudyGenTab: React.FC<StudyGenTabProps> = memo(function StudyGenTab
     },
     [host, lang, notify, refreshSnapshot],
   );
+
+  const saveBookPatch = useCallback(
+    async (patch: Partial<BookSettingsShape>) => {
+      setSaving(true);
+      const res = await tryAction<BookSettingsShape>(host, 'settings.book.set', { patch });
+      if (!mountedRef.current) return;
+      setSaving(false);
+      if (!res.ok) {
+        notify(res.error?.message || t(lang, '保存复习全书设置失败', 'Failed to save review book settings'), 'error');
+        return;
+      }
+      setSettings((prev) => ({ ...(prev ?? { request_retention: 0.9, maximum_interval: 36500 }), book: res.value }));
+      void refreshSnapshot();
+    },
+    [host, lang, notify, refreshSnapshot],
+  );
+
+  const handleResetPractice = useCallback(async () => {
+    setConfirmResetPractice(false);
+    setSaving(true);
+    const res = await tryAction<PracticeSettingsShape>(host, 'settings.practice.reset', {});
+    if (!mountedRef.current) return;
+    setSaving(false);
+    if (!res.ok) {
+      notify(res.error?.message || t(lang, '恢复练习默认设置失败', 'Failed to reset practice defaults'), 'error');
+      return;
+    }
+    setSettings((prev) => ({ ...(prev ?? { request_retention: 0.9, maximum_interval: 36500 }), practice: res.value }));
+    void refreshSnapshot();
+    notify(t(lang, '已恢复练习默认设置（修题短语已保留）', 'Practice defaults reset (saved fixPhrases kept)'), 'success');
+  }, [host, lang, notify, refreshSnapshot]);
 
   const saveGeneralPatch = useCallback(
     async (patch: Record<string, unknown>) => {
@@ -204,6 +255,12 @@ export const StudyGenTab: React.FC<StudyGenTabProps> = memo(function StudyGenTab
           return;
         case 'rereadMarks':
           void savePracticePatch({ rereadMarks: !practice.rereadMarks });
+          return;
+        case 'book_qaToBook':
+          void saveBookPatch({ qaToBook: bookQaToBook === 'auto' ? 'manual' : 'auto' });
+          return;
+        case 'practice_reset':
+          if (dir === 1) setConfirmResetPractice(true);
           return;
         case 'request_retention': {
           const nearest = RETENTIONS.reduce((best, r) => (Math.abs(r - retention) < Math.abs(best - retention) ? r : best), RETENTIONS[2]);
@@ -242,11 +299,11 @@ export const StudyGenTab: React.FC<StudyGenTabProps> = memo(function StudyGenTab
           return;
       }
     },
-    [dailyRecap, generation, maxInterval, practice, retention, saveGeneralPatch, savePracticePatch],
+    [bookQaToBook, dailyRecap, generation, maxInterval, practice, retention, saveBookPatch, saveGeneralPatch, savePracticePatch],
   );
 
   const claimed = useMemo(() => ['j', 'k', 'h', 'l', 'r', ' '], []);
-  useClaimKeys(claimed, isActive);
+  useClaimKeys(claimed, isActive && !confirmResetPractice);
 
   useInput(
     (input, key) => {
@@ -270,7 +327,7 @@ export const StudyGenTab: React.FC<StudyGenTabProps> = memo(function StudyGenTab
         adjustRow(ROW_IDS[cursor], 1);
       }
     },
-    { isActive },
+    { isActive: isActive && !confirmResetPractice },
   );
 
   const onOff = (v: boolean) => (v ? (asciiMode ? t(lang, '开启 +', 'On +') : t(lang, '开启 ✓', 'On ✓')) : t(lang, '关闭', 'Off'));
@@ -278,12 +335,27 @@ export const StudyGenTab: React.FC<StudyGenTabProps> = memo(function StudyGenTab
     v === 'reading' ? t(lang, '按讲义顺序', 'Reading order') : v === 'focus' ? t(lang, '考纲优先', 'Focus first') : t(lang, '随机穿插', 'Shuffle');
 
   const arrowHint = asciiMode ? 'Left/Right' : '←/→';
-  const rows: Array<{ id: SettingRowId; group: string; label: string; value: string; hint: string }> = [
+  const rows: Array<{ id: SettingRowId; group: string; label: string; value: string; hint: string; isAction?: boolean }> = [
     { id: 'roundSize', group: t(lang, '复习', 'Review'), label: t(lang, '每轮题数 / 每日目标', 'Round Size / Daily Goal'), value: `${practice.roundSize} ${t(lang, '题', 'cards')}`, hint: `5–50 (${arrowHint} ±5)` },
     { id: 'newCardOrder', group: t(lang, '复习', 'Review'), label: t(lang, '新题出场顺序', 'New Card Order'), value: orderLabel(practice.newCardOrder), hint: 'reading / focus / shuffle' },
     { id: 'autopilot', group: t(lang, '复习', 'Review'), label: t(lang, '答对自动下一题', 'Autopilot Advance'), value: onOff(practice.autopilot), hint: t(lang, '答对后自动倒计时切题', 'Auto-advance on pass') },
     { id: 'debrief', group: t(lang, '复习', 'Review'), label: t(lang, '本轮 AI 点评', 'Round AI Debrief'), value: onOff(practice.debrief), hint: t(lang, '结轮后生成轻量点评', 'Brief summary after round') },
     { id: 'rereadMarks', group: t(lang, '复习', 'Review'), label: t(lang, '薄弱段重读提示', 'Reread Marks'), value: onOff(practice.rereadMarks), hint: t(lang, '在学习库提示薄弱讲义段落', 'Highlight weak source sections') },
+    {
+      id: 'book_qaToBook',
+      group: t(lang, '全书', 'Book'),
+      label: t(lang, '追问自动加入全书', 'Auto-add Q&A to Book'),
+      value: bookQaToBook === 'auto' ? (asciiMode ? t(lang, '自动 +', 'Auto +') : t(lang, '自动 ✓', 'Auto ✓')) : t(lang, '手动', 'Manual'),
+      hint: t(lang, '练习追问/弄懂自动写入全书', 'Auto-add practice Q&A to book'),
+    },
+    {
+      id: 'practice_reset',
+      group: t(lang, '复习', 'Review'),
+      label: t(lang, '恢复练习默认设置', 'Reset Practice Defaults'),
+      value: t(lang, '恢复默认', 'Reset'),
+      hint: t(lang, '重置练习默认值，保留 fixPhrases', 'Resets defaults, keeps fixPhrases'),
+      isAction: true,
+    },
     { id: 'request_retention', group: 'FSRS-6', label: t(lang, '目标记忆保留率', 'Target Retention'), value: `${Math.round(retention * 100)}%`, hint: '80%–95%' },
     { id: 'maximum_interval', group: 'FSRS-6', label: t(lang, '最大复习间隔', 'Max Interval'), value: `${maxInterval} ${t(lang, '天', 'days')}`, hint: '180 / 365 / 3650 / 36500' },
     { id: 'gen_kind', group: t(lang, '出题', 'Gen'), label: t(lang, '默认题型', 'Default Kind'), value: generation.kind, hint: 'quiz / multi / flashcard / mixed' },
@@ -299,43 +371,75 @@ export const StudyGenTab: React.FC<StudyGenTabProps> = memo(function StudyGenTab
   const startIdx = Math.max(0, Math.min(cursor - Math.floor(maxVisible / 2), Math.max(0, rows.length - maxVisible)));
   const visibleRows = rows.slice(startIdx, startIdx + maxVisible);
   const ell = asciiMode ? '...' : '…';
+  const compact = width < 76;
+  const groupW = compact ? 8 : 9;
+  const labelW = compact ? 21 : 26;
+  const valueW = compact ? 16 : 20;
+  const innerW = Math.max(20, width - 4);
+  const hintW = Math.max(0, innerW - 2 - groupW - labelW - valueW);
 
   return (
-    <Panel
-      title={t(lang, '复习调度、出题默认与每日复盘', 'Review, Generation & Daily Recap Settings')}
-      subtitle={saving ? t(lang, `保存中${ell}`, `Saving${ell}`) : loading ? t(lang, `加载中${ell}`, `Loading${ell}`) : t(lang, `${arrowHint} 或 Enter 调整并即时保存`, `${arrowHint} or Enter to adjust`)}
-      focused={isActive}
-      width={width}
-      height={height}
-    >
-      {loading && !settings ? (
-        <Spinner label={t(lang, `读取设置${ell}`, `Loading settings${ell}`)} active={isActive} />
-      ) : (
-        <Box flexDirection="column">
-          {visibleRows.map((row, i) => {
-            const idx = startIdx + i;
-            const selected = idx === cursor;
-            return (
-              <Box
-                key={row.id}
-                flexDirection="row"
-                height={1}
-                backgroundColor={selected ? theme.selectionBg : undefined}
-              >
-                <Text color={selected ? theme.primary : theme.dim}>{selected ? (asciiMode ? '> ' : '❯ ') : '  '}</Text>
-                <Text color={theme.accent}>{padDisplay(`[${row.group}]`, 9)}</Text>
-                <Text color={selected ? theme.selectionFg : theme.text} bold={selected}>
-                  {padDisplay(row.label, 26)}
-                </Text>
-                <Text color={selected ? theme.accent : theme.primary} bold>
-                  {padDisplay(`< ${row.value} >`, 20)}
-                </Text>
-                <Text color={theme.muted}>{row.hint}</Text>
-              </Box>
-            );
-          })}
-        </Box>
-      )}
-    </Panel>
+    <Box flexDirection="column" width={width} height={height} overflow="hidden">
+      <Panel
+        title={t(lang, '复习调度、出题默认与每日复盘', 'Review, Generation & Daily Recap Settings')}
+        subtitle={saving ? t(lang, `保存中${ell}`, `Saving${ell}`) : loading ? t(lang, `加载中${ell}`, `Loading${ell}`) : t(lang, `${arrowHint} 或 Enter 调整并即时保存`, `${arrowHint} or Enter to adjust`)}
+        focused={isActive && !confirmResetPractice}
+        width={width}
+        height={height}
+      >
+        {loading && !settings ? (
+          <Spinner label={t(lang, `读取设置${ell}`, `Loading settings${ell}`)} active={isActive} />
+        ) : (
+          <Box flexDirection="column">
+            {visibleRows.map((row, i) => {
+              const idx = startIdx + i;
+              const selected = idx === cursor;
+              const valueDisplay = row.isAction ? `[ ${row.value} ]` : `< ${row.value} >`;
+              return (
+                <Box
+                  key={row.id}
+                  flexDirection="row"
+                  height={1}
+                  overflow="hidden"
+                  backgroundColor={selected ? theme.selectionBg : undefined}
+                >
+                  <Text color={selected ? theme.primary : theme.dim}>{selected ? (asciiMode ? '> ' : '❯ ') : '  '}</Text>
+                  <Text color={theme.accent}>{padDisplay(`[${row.group}]`, groupW)}</Text>
+                  <Text color={selected ? theme.selectionFg : theme.text} bold={selected}>
+                    {padDisplay(truncateDisplay(row.label, labelW - 1, ell), labelW)}
+                  </Text>
+                  <Text color={selected ? theme.accent : row.isAction ? theme.warning : theme.primary} bold>
+                    {padDisplay(truncateDisplay(valueDisplay, valueW - 1, ell), valueW)}
+                  </Text>
+                  {hintW >= 6 ? (
+                    <Text color={theme.muted}>
+                      {truncateDisplay(row.hint, hintW, ell)}
+                    </Text>
+                  ) : null}
+                </Box>
+              );
+            })}
+          </Box>
+        )}
+      </Panel>
+
+      {confirmResetPractice ? (
+        <ConfirmDialog
+          title={t(lang, '恢复练习默认设置', 'Reset Practice Defaults')}
+          message={t(
+            lang,
+            '确定将自定义练习默认设置（每轮题数、新题顺序、自动切题、AI 点评、重读提示）恢复为默认值吗？你保存的修题常用短语 (fixPhrases) 会完整保留。',
+            'Reset custom practice defaults (round size, card order, autopilot, AI debrief, reread marks) back to defaults? Your saved fixPhrases will remain intact.',
+          )}
+          confirmLabel={t(lang, '恢复默认', 'Reset')}
+          cancelLabel={t(lang, '取消', 'Cancel')}
+          danger
+          width={Math.min(62, Math.max(40, width - 6))}
+          onConfirm={() => void handleResetPractice()}
+          onCancel={() => setConfirmResetPractice(false)}
+          isActive={isActive}
+        />
+      ) : null}
+    </Box>
   );
 });

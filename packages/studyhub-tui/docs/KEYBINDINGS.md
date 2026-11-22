@@ -101,7 +101,7 @@ Inside the palette: `↑`/`↓`, `Ctrl+P`/`Ctrl+N`, or `Ctrl+J`/`Ctrl+K` move se
 - **Card Tools & AI**: `h` AI Help drawer · `L` Socratic teach · `F` Feynman retell · `G` AI rubric grade · `T` translate card · `S` similar cards · `D` card tools · `A` answer card & drills · `Q` live queue editor (non-exam) · `*` toggle focus · `E` flag card · `o` jump to cited source page · `m` toggle Unicode/LaTeX math
 
 ### `2` Sources & DocumentReader (`sources`)
-- **Sources List**: `Enter` open `DocumentReader` · `i` import source (Tab path completion) · `M` MinerU scanned/long PDF planner · `g` generate questions · `G` AI organize into courses · `V` citation coverage · `F` folder filter · `m` move to folder · `C` companions builder & sync · `r` rename · `c` set course · `p` pin/unpin · `a` archive · `d` delete · `/` filter · `f` filter by active course
+- **Sources List**: `Enter` open `DocumentReader` · `i` import source (Tab path completion) · `M` MinerU scanned/long PDF planner · `g` generate questions · `G` AI organize into courses · `V` citation coverage · `F` folder filter · `m` move to folder · `C` companions builder & sync · `r` rename · `c` set course · `p` pin/unpin · `[` / `]` reorder pinned material up / down · `a` archive · `d` delete · `/` filter · `f` filter by active course
 - **DocumentReader**: `[` / `]` previous / next page · `O` outline TOC drawer · `B` bookmarks & notes drawer · `a` ask AI on current page (`s` saves reply to note) · `t` translate page · `g` jump to page · `/` search in page · `m` toggle Unicode/LaTeX math · `q` generate from page · `p` practise page · `Esc` / `Backspace` close reader
 
 ### `3` Generate & Drafts (`generate`)

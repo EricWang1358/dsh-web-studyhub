@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
@@ -93,6 +93,16 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
   const [courseValue, setCourseValue] = useState('');
   const [busy, setBusy] = useState(false);
 
+  const mountedRef = useRef(true);
+  const busyRef = useRef(false);
+  const pendingFocusKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
   // Sync navContext triggers (citation deep link or import trigger)
   const lastNavSig = React.useRef('');
   useEffect(() => {
@@ -158,10 +168,24 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
   }, [courseScopedGroups, folderFilter, searchQuery]);
 
   useEffect(() => {
+    const targetKey = pendingFocusKeyRef.current;
+    if (targetKey && filteredGroups.length > 0) {
+      const nextIdx = filteredGroups.findIndex((g) => g.key === targetKey);
+      if (nextIdx >= 0) {
+        pendingFocusKeyRef.current = null;
+        setSelectedIndex(nextIdx);
+        return;
+      }
+    }
     if (selectedIndex >= filteredGroups.length) {
       setSelectedIndex(Math.max(0, filteredGroups.length - 1));
     }
-  }, [filteredGroups.length, selectedIndex]);
+  }, [filteredGroups, selectedIndex]);
+
+  const shownPinnedKeys = useMemo(
+    () => filteredGroups.filter((g) => g.pinned).map((g) => g.key),
+    [filteredGroups],
+  );
 
   const selectedItem: DocumentGroup | undefined = filteredGroups[selectedIndex];
 
@@ -201,18 +225,87 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
 
   const handleTogglePin = useCallback(
     async (item: DocumentGroup) => {
-      if (busy) return;
+      if (busyRef.current || busy) return;
+      busyRef.current = true;
       setBusy(true);
-      const res = await tryAction(host, 'source.pin', { key: item.key, pinned: !item.pinned });
-      setBusy(false);
-      if (!res.ok) {
-        notify(res.error?.message || t(lang, '置顶操作失败', 'Pin failed'), 'error');
-        return;
+      try {
+        const res = await tryAction(host, 'source.pin', { key: item.key, pinned: !item.pinned });
+        if (!mountedRef.current) return;
+        if (!res.ok) {
+          notify(res.error?.message || t(lang, '置顶操作失败', 'Pin failed'), 'error');
+          return;
+        }
+        pendingFocusKeyRef.current = item.key;
+        await refresh();
+        if (!mountedRef.current) return;
+        notify(item.pinned ? t(lang, '已取消置顶', 'Unpinned') : t(lang, '已置顶', 'Pinned'), 'success');
+      } finally {
+        busyRef.current = false;
+        if (mountedRef.current) setBusy(false);
       }
-      await refresh();
-      notify(item.pinned ? t(lang, '已取消置顶', 'Unpinned') : t(lang, '已置顶', 'Pinned'), 'success');
     },
     [busy, host, lang, notify, refresh],
+  );
+
+  const handleMovePin = useCallback(
+    async (direction: 'up' | 'down') => {
+      if (busyRef.current || busy) return;
+      if (!selectedItem) {
+        notify(t(lang, '当前列表暂无资料', 'No materials available to reorder'), 'info');
+        return;
+      }
+      if (!selectedItem.pinned) {
+        notify(
+          t(lang, '请先按 [p] 置顶资料后再调整顺序', 'Press [p] to pin this material before reordering'),
+          'info',
+        );
+        return;
+      }
+      const pinIdx = shownPinnedKeys.indexOf(selectedItem.key);
+      if (pinIdx < 0) {
+        notify(
+          t(lang, '未能定位置顶顺序，请按 Ctrl+R 刷新后重试', 'Could not locate pinned order; press Ctrl+R to refresh'),
+          'warning',
+        );
+        return;
+      }
+      if (direction === 'up' && pinIdx === 0) {
+        notify(t(lang, '已经是第一个置顶资料', 'Already the first pinned material'), 'info');
+        return;
+      }
+      if (direction === 'down' && pinIdx === shownPinnedKeys.length - 1) {
+        notify(t(lang, '已经是最后一个置顶资料', 'Already the last pinned material'), 'info');
+        return;
+      }
+      const req =
+        direction === 'up'
+          ? { key: selectedItem.key, before: shownPinnedKeys[pinIdx - 1] }
+          : { key: selectedItem.key, after: shownPinnedKeys[pinIdx + 1] };
+
+      busyRef.current = true;
+      setBusy(true);
+      try {
+        const res = await tryAction<{ pins?: string[] }>(host, 'source.pin.move', req);
+        if (!mountedRef.current) return;
+        if (!res.ok) {
+          notify(res.error?.message || t(lang, '调整置顶顺序失败', 'Failed to reorder pinned material'), 'error');
+          return;
+        }
+        pendingFocusKeyRef.current = selectedItem.key;
+        await refresh();
+        if (!mountedRef.current) return;
+        notify(
+          direction === 'up'
+            ? t(lang, `已上移置顶「${selectedItem.title}」`, `Moved pinned "${selectedItem.title}" up`)
+            : t(lang, `已下移置顶「${selectedItem.title}」`, `Moved pinned "${selectedItem.title}" down`),
+          'success',
+        );
+      } finally {
+        busyRef.current = false;
+        if (mountedRef.current) setBusy(false);
+      }
+    },
+    [busy, host, lang, notify, refresh, selectedItem, shownPinnedKeys],
   );
 
   const handleToggleArchive = useCallback(
@@ -353,7 +446,7 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
 
   const listActive = isActive && !readerTarget && overlay === 'none';
 
-  useClaimKeys(['/', 'c', 'r', 'g', 'p', 'd', 'i', 'f', 'a', 'F', 'm', 'M', 'C', 'G', 'V'], listActive);
+  useClaimKeys(['/', 'c', 'r', 'g', 'p', 'd', 'i', 'f', 'a', 'F', 'm', 'M', 'C', 'G', 'V', '[', ']'], listActive);
   useInputCapture(isActive && !readerTarget && (overlay === 'rename' || overlay === 'course' || overlay === 'search'));
 
   const hints: KeyHint[] = useMemo(
@@ -370,6 +463,7 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
       { key: 'r', label: t(lang, '重命名', 'Rename') },
       { key: 'c', label: t(lang, '课程', 'Course') },
       { key: 'p', label: t(lang, '置顶', 'Pin') },
+      { key: '[/]', label: t(lang, '置顶排序', 'Reorder pin') },
       { key: 'd', label: t(lang, '删除', 'Delete') },
       { key: '/', label: t(lang, '搜索', 'Filter') },
       { key: 'f', label: t(lang, '筛选课程', 'Course filter') },
@@ -380,8 +474,10 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
 
   useInput(
     (input) => {
-      if (!listActive) return;
-      if (input === 'i') {
+      if (!listActive || busyRef.current || busy) return;
+      if (input === '[' || input === ']') {
+        void handleMovePin(input === '[' ? 'up' : 'down');
+      } else if (input === 'i') {
         setOverlay('import');
       } else if (input === 'M') {
         setOverlay('mineru');
