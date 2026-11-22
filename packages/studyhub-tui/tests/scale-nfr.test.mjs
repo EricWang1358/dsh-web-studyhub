@@ -321,6 +321,12 @@ describe('StudyHub TUI Large-Library Scale NFR Budgets (5,000 cards / 2,000 sour
       keywords: ['os'],
     };
 
+    // Warm V8 TurboFan JIT before timed median loops to avoid cold-start skew under parallel test load
+    for (let w = 0; w < 3; w++) {
+      fuzzyFilter(pool, 'virtual memory page', (x) => x.label, (x) => x.keywords, 50);
+      fuzzyFilter(pool, '虚拟内存页表', (x) => x.label, (x) => x.keywords, 50);
+    }
+
     const enMedian = medianMs(() =>
       fuzzyFilter(pool, 'virtual memory page', (x) => x.label, (x) => x.keywords, 50),
     );
@@ -347,6 +353,11 @@ describe('StudyHub TUI Large-Library Scale NFR Budgets (5,000 cards / 2,000 sour
   });
 
   test('2. groupSourcesFromSnapshot over 2,000 page sources (400 docs + historical/list): median < 40ms & exact ordering', () => {
+    // Warm V8 TurboFan JIT before timed median loop to avoid cold-start skew under parallel test load
+    for (let w = 0; w < 3; w++) {
+      groupSourcesFromSnapshot(snapshot);
+    }
+
     const median = medianMs(() => groupSourcesFromSnapshot(snapshot));
     assert.ok(median < 40, `groupSourcesFromSnapshot median ${median.toFixed(2)}ms exceeded 40ms`);
 
@@ -383,6 +394,7 @@ describe('StudyHub TUI Large-Library Scale NFR Budgets (5,000 cards / 2,000 sour
   });
 
   test('3. computeSnapshotFingerprint over 5,000-card / 250-deck / 2,000-source snapshot: median < 10ms', () => {
+    for (let i = 0; i < 3; i += 1) computeSnapshotFingerprint(snapshot);
     const median = medianMs(() => computeSnapshotFingerprint(snapshot));
     assert.ok(median < 10, `computeSnapshotFingerprint median ${median.toFixed(2)}ms exceeded 10ms`);
 

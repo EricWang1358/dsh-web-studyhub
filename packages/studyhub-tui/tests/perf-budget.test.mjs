@@ -422,6 +422,7 @@ describe('StudyHub TUI NFR Performance & Bundle Budgets', () => {
       // Non-markdown modals & drawers
       'AddFocusModal-',
       'BoardCardModal-',
+      'BookAiBlocksModal-',
       'BookCrunchModal-',
       'BookEditModal-',
       'BookExplainModal-',

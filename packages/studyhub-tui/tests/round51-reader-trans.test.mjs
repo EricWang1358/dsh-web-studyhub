@@ -293,9 +293,14 @@ describe('StudyHub TUI Round 51 DocumentReader Persistent Bilingual Translation'
     tty.send('\r');
 
     await tty.waitFor(
-      (s) => s.includes(titleNeedle) && s.includes(expectedBodyNeedle),
+      (s) =>
+        s.includes(titleNeedle) &&
+        s.includes(expectedBodyNeedle) &&
+        (s.includes('翻译') || s.includes('Trans') || s.includes('页') || s.includes('Page')),
       { timeoutMs: 10_000, label: `DocumentReader opened for ${titleNeedle}` },
     );
+    await sleep(80);
+    await tty.flush();
   }
 
   before(async () => {

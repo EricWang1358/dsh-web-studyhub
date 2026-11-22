@@ -396,6 +396,8 @@ describe('StudyHub TUI Round 22 Features E2E', () => {
       { timeoutMs: 8_000, label: 'MinerUModal inline error rendered for missing PDF' },
     );
     tty.assertHealthyScreen(errorScreen, 120, 36, 'MinerUModal missing PDF inline error at 120x36');
+    await sleep(80);
+    await tty.flush();
 
     // Switch to Tab 2 (History) via Ctrl+T ('\x14')
     tty.send('\x14');

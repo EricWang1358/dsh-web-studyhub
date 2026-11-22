@@ -109,6 +109,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'T', label: t(lang, '费曼复述知识点', 'Feynman retell point') },
         { key: 'M', label: t(lang, '章节模拟卷', 'Chapter mock exam') },
         { key: 'E', label: t(lang, 'AI深入讲解/补充段落', 'AI explain / add section') },
+        { key: 'B', label: t(lang, '审阅/保留/删除 AI 补充块', 'Review / keep / delete AI blocks') },
       ],
     },
     {
@@ -200,6 +201,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'w / o / m', label: t(lang, '工作流上下文 / 输出 / 指令', 'Workflows ctx / Output / Msg') },
         { key: 'e / D', label: t(lang, '导出 / 清空调用轨迹', 'Export / Purge Traces') },
         { key: 'p', label: t(lang, '暂停任务 / 音频自检', 'Pause tasks / Audio preflight') },
+        { key: 'P', label: t(lang, '排队任务立即并行启动', 'Promote queued job to parallel') },
         { key: '+/-', label: t(lang, '并发数', 'Concurrency') },
         { key: 'R', label: t(lang, '恢复中断任务 / 重试音频', 'Recover jobs / Retry audio') },
         { key: 'u', label: t(lang, '导入字幕', 'Import subtitles') },

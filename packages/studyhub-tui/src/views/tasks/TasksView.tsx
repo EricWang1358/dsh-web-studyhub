@@ -43,6 +43,7 @@ interface JobRecord {
   paused: boolean;
   pauseAvailable: boolean;
   resumeAvailable: boolean;
+  parallelAvailable: boolean;
   pauseReasonCode?: string;
   concurrency: number | null;
   concurrencyKey: string | null;
@@ -139,6 +140,7 @@ function extractJobControlState(
   | 'paused'
   | 'pauseAvailable'
   | 'resumeAvailable'
+  | 'parallelAvailable'
   | 'pauseReasonCode'
   | 'concurrency'
   | 'concurrencyKey'
@@ -177,6 +179,10 @@ function extractJobControlState(
     actions?.resume && typeof actions.resume === 'object'
       ? (actions.resume as Record<string, unknown>)
       : undefined;
+  const parallelAction =
+    actions?.parallel && typeof actions.parallel === 'object'
+      ? (actions.parallel as Record<string, unknown>)
+      : undefined;
   const setAction =
     actions?.set && typeof actions.set === 'object'
       ? (actions.set as Record<string, unknown>)
@@ -184,6 +190,7 @@ function extractJobControlState(
 
   const pauseAvailable = !archived && Boolean(pauseAction?.available);
   const resumeAvailable = !archived && Boolean(resumeAction?.available);
+  const parallelAvailable = !archived && Boolean(parallelAction?.available);
   const pauseReasonObj =
     pauseAction?.reason && typeof pauseAction.reason === 'object'
       ? (pauseAction.reason as Record<string, unknown>)
@@ -265,6 +272,7 @@ function extractJobControlState(
     paused,
     pauseAvailable,
     resumeAvailable,
+    parallelAvailable,
     pauseReasonCode,
     concurrency,
     concurrencyKey,
@@ -1266,6 +1274,50 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
     }
   }, [busy, host, lang, notify, selectedJob, syncLiveAndRefresh]);
 
+  const handleStartParallel = useCallback(async () => {
+    if (busy || busyRef.current) return;
+    if (!selectedJob) {
+      notify(t(lang, '请先选择一个排队中的任务', 'Select a queued job first'), 'info');
+      return;
+    }
+    if (selectedJob.archived) {
+      notify(t(lang, '已归档任务无法并行启动', 'Archived jobs cannot be started in parallel'), 'info');
+      return;
+    }
+
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      const res = await tryAction<{
+        jobId?: string;
+        attemptId?: string;
+        status?: string;
+        parallel?: boolean;
+        note?: string;
+      }>(host, 'job.parallel', {
+        jobId: selectedJob.contractJobId || selectedJob.id,
+      });
+      if (!mountedRef.current) return;
+      if (!res.ok) {
+        notify(
+          res.error?.message || t(lang, '无法并行启动该任务', 'Cannot start job in parallel'),
+          'warning',
+        );
+        return;
+      }
+
+      await syncLiveAndRefresh();
+      if (!mountedRef.current) return;
+      notify(
+        res.value?.note || t(lang, '已要求并行启动该任务', 'Job promoted to run in parallel'),
+        'success',
+      );
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusy(false);
+    }
+  }, [busy, host, lang, notify, selectedJob, syncLiveAndRefresh]);
+
   const handleAdjustConcurrency = useCallback(
     async (delta: -1 | 1) => {
       if (busy || busyRef.current) return;
@@ -1373,11 +1425,18 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
 
   const modalOpen = confirmDeleteOpen || confirmPurgeTraceOpen || outputModalOpen || messageModalOpen || workflowModalOpen;
   const listActive = isActive && !modalOpen;
-  useClaimKeys(['1', '2', '3', 'o', 'm', 'w', 'x', 'a', 'd', 'v', 'e', 'D', 'p', 'R', '+', '-', '='], listActive);
+  useClaimKeys(['1', '2', '3', 'o', 'm', 'w', 'x', 'a', 'd', 'v', 'e', 'D', 'p', 'P', 'R', '+', '-', '='], listActive);
+
+  const showParallelHint = Boolean(
+    selectedJob &&
+      !selectedJob.archived &&
+      (selectedJob.parallelAvailable || selectedJob.status === 'queued' || selectedJob.status === 'pending'),
+  );
 
   const hints: KeyHint[] = useMemo(
     () => [
       { key: 'p', label: t(lang, '暂停/继续', 'Pause/Resume') },
+      ...(showParallelHint ? [{ key: 'P', label: t(lang, '立即并行', 'Parallel') }] : []),
       { key: '+/-', label: t(lang, '并发', 'Concur') },
       { key: 'R', label: t(lang, '恢复中断', 'Recover') },
       { key: 'o', label: t(lang, '输出', 'Output') },
@@ -1392,7 +1451,7 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
       { key: 'a', label: t(lang, '归档/恢复', 'Archive') },
       { key: 'd', label: t(lang, '删除', 'Dismiss') },
     ],
-    [lang],
+    [lang, showParallelHint],
   );
   useFooterHints(hints, isActive);
 
@@ -1407,6 +1466,7 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
       else if (input === '2') setFilterTab('all');
       else if (input === '3') setFilterTab('archived');
       else if (input === 'p') void handleTogglePause();
+      else if (input === 'P') void handleStartParallel();
       else if (input === 'R') void handleRecoverInterrupted();
       else if (input === '+' || input === '=') void handleAdjustConcurrency(1);
       else if (input === '-') void handleAdjustConcurrency(-1);

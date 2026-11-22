@@ -23,6 +23,7 @@ import type {
   BookTocResult,
   FlatTocItem,
 } from './types.js';
+const BookAiBlocksModal = lazy(() => import('./BookAiBlocksModal.js').then((m) => ({ default: m.BookAiBlocksModal })));
 const BookCrunchModal = lazy(() => import('./BookCrunchModal.js').then((m) => ({ default: m.BookCrunchModal })));
 const BookEditModal = lazy(() => import('./BookEditModal.js').then((m) => ({ default: m.BookEditModal })));
 const BookExplainModal = lazy(() => import('./BookExplainModal.js').then((m) => ({ default: m.BookExplainModal })));
@@ -32,8 +33,8 @@ const BookQaModal = lazy(() => import('./BookQaModal.js').then((m) => ({ default
 const BookRetellModal = lazy(() => import('./BookRetellModal.js').then((m) => ({ default: m.BookRetellModal })));
 const BookStructureModal = lazy(() => import('./BookStructureModal.js').then((m) => ({ default: m.BookStructureModal })));
 
-const BASE_CLAIMED_KEYS = ['E', 'H', 'M', 'P', 'T', 'U', 'e', 'r', 'w', 'x', '[', ']'] as const;
-const REBUILD_CLAIMED_KEYS = ['E', 'H', 'M', 'P', 'T', 'U', 'e', 'r', 'w', 'x', '[', ']', 'a'] as const;
+const BASE_CLAIMED_KEYS = ['B', 'E', 'H', 'M', 'P', 'T', 'U', 'e', 'r', 'w', 'x', '[', ']'] as const;
+const REBUILD_CLAIMED_KEYS = ['B', 'E', 'H', 'M', 'P', 'T', 'U', 'e', 'r', 'w', 'x', '[', ']', 'a'] as const;
 const STRUCTURE_FILE = 'book.structure';
 
 interface BookMockPlanResult {
@@ -402,6 +403,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
   const [readCache, setReadCache] = useState<Record<string, BookReadResult>>({});
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [activePane, setActivePane] = useState<'left' | 'right'>('left');
+  const [aiBlocksOpen, setAiBlocksOpen] = useState(false);
   const [buildModalOpen, setBuildModalOpen] = useState(false);
   const [crunchModalOpen, setCrunchModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -901,6 +903,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
   const bookTitle = bookData?.title ?? tocData?.title ?? t(lang, '复习全书', 'Review Book');
 
   const modalOpen =
+    aiBlocksOpen ||
     buildModalOpen ||
     crunchModalOpen ||
     editModalOpen ||
@@ -1040,9 +1043,10 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
             ...(selectedItem?.leaf ? [{ key: 'E', label: t(lang, 'AI讲解', 'AI Explain') }] : []),
             { key: 'M', label: t(lang, '章节模拟', 'Mock exam') },
             { key: 'e', label: t(lang, '编辑', 'Edit') },
-            { key: 'H', label: t(lang, '历史版本', 'History') },
             { key: 'p', label: t(lang, '练5题', 'Practise 5') },
             { key: 'P', label: t(lang, '精选问答', 'Pinned QA') },
+            { key: 'H', label: t(lang, '历史版本', 'History') },
+            { key: 'B', label: t(lang, 'AI块审阅', 'AI Blocks') },
             { key: 'w', label: t(lang, '期末一周', 'Final week') },
             { key: 'x', label: t(lang, '导出', 'Export') },
             { key: 'R', label: t(lang, '改名', 'Rename') },
@@ -1185,6 +1189,17 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
         } else {
           useTuiStore.getState().notify(
             t(lang, '请先在目录中选择一个具体知识点（叶子节点）', 'Select a specific knowledge point (leaf) first'),
+            'info',
+          );
+        }
+        return;
+      }
+      if (input === 'B') {
+        if (effectiveCourse && status === 'ok') {
+          setAiBlocksOpen(true);
+        } else {
+          useTuiStore.getState().notify(
+            t(lang, '当前课程还没有可审阅的复习全书', 'No review book available for AI blocks yet'),
             'info',
           );
         }
@@ -1423,6 +1438,29 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
       ) : null}
 
       <Suspense fallback={null}>
+        {aiBlocksOpen ? (
+          <BookAiBlocksModal
+            host={host}
+            course={effectiveCourse ?? null}
+            selectedItem={selectedItem ?? null}
+            bookData={bookData}
+            isActive={isActive && aiBlocksOpen}
+            width={width}
+            height={height}
+            onClose={() => setAiBlocksOpen(false)}
+            onUpdated={(view) => {
+              if (selectedItem?.hid) pendingFocusHidRef.current = selectedItem.hid;
+              setReadCache({});
+              if (view && view.status === 'ok') {
+                setBookData(view);
+                setStructureVersion(extractStructureVersion(view));
+              } else {
+                setReloadSeq((n) => n + 1);
+              }
+            }}
+          />
+        ) : null}
+
         {crunchModalOpen ? (
           <BookCrunchModal
             host={host}
