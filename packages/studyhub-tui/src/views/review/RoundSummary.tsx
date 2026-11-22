@@ -1,6 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
-import type { HostClient, KeyHint } from '../../types/contracts.js';
+import type { HostClient, KeyHint, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { tryAction, type ReviewRun } from '../../host/index.js';
 import {
@@ -12,24 +12,72 @@ import {
   Spinner,
   SplitPane,
   VirtualList,
+  useClaimKeys,
   useFooterHints,
   useTheme,
 } from '../../components/index.js';
-import { truncateDisplay } from '../../render/index.js';
+import { displayWidth, truncateDisplay } from '../../render/index.js';
+
+interface LookBackOption {
+  id?: string;
+  text?: string;
+  correct?: boolean;
+  explanation?: string;
+}
+
+interface LookBackSolution {
+  answer?: string;
+  explanation?: string;
+  misconception?: string;
+  rubric?: string;
+  options?: LookBackOption[];
+  cloze?: { text?: string; answers?: Array<{ id?: string; value: string }> };
+  followups?: Array<{ id?: string; question?: string; answer?: string }>;
+  [k: string]: unknown;
+}
+
+interface LookBackFeedback {
+  correct?: boolean;
+  grade?: number;
+  selected?: string[];
+  answers?: Record<string, string>;
+  answer?: string;
+  note?: string;
+  selfReported?: boolean;
+  assessment?: string;
+  rubric?: { total?: number; max?: number; band?: string; summary?: string };
+  [k: string]: unknown;
+}
 
 interface LookBackRow {
   number?: number;
+  entryIndex?: number;
   deckId?: string;
   cardId?: string;
   kind?: string;
   status: 'right' | 'wrong' | 'self' | 'grading' | 'unanswered';
   errorReason?: string;
+  thinkingNote?: string;
+  correctionPending?: boolean;
+  hinted?: boolean;
+  leech?: boolean;
+  hesitant?: boolean;
   prompt?: string;
-  card?: { prompt?: string; topic?: string; [k: string]: unknown };
-  feedback?: { correct?: boolean; grade?: number; [k: string]: unknown };
-  solution?: { answer?: string; explanation?: string; [k: string]: unknown };
+  card?: {
+    id?: string;
+    kind?: string;
+    prompt?: string;
+    topic?: string;
+    answer?: string;
+    explanation?: string;
+    options?: LookBackOption[];
+    [k: string]: unknown;
+  };
+  feedback?: LookBackFeedback;
+  solution?: LookBackSolution;
   sourceTitle?: string;
   page?: number;
+  unit?: string;
 }
 
 interface DailyStatusGroup {
@@ -51,17 +99,193 @@ export interface RoundSummaryProps {
   height: number;
   isActive: boolean;
   mathUnicode: boolean;
-  onPracticeWeak: () => void;
-  onNewRound: () => void;
-  onGoLibrary: () => void;
+  onPracticeWeak?: () => void;
+  onNewRound?: () => void;
+  onGoLibrary?: () => void;
+  /** Backwards-compatible aliases if a caller passes retry/continue/back handlers. */
+  onRetryWeak?: () => void;
+  onContinue?: () => void;
+  onBack?: () => void;
 }
 
-function cleanPromptSnippet(text: string): string {
+const CLAIMED_SUMMARY_KEYS: readonly string[] = Object.freeze(['w', 'r', 'g', 'b', 'v', '1', 'j', 'k']);
+const SPLIT_BREAKPOINT = 84;
+
+function cleanPromptSnippet(text: string, ascii: boolean): string {
   return String(text || '')
-    .replace(/\{\{[^{}]+\}\}/g, '＿＿')
+    .replace(/\{\{[^{}]+\}\}/g, ascii ? '___' : '＿＿')
     .replace(/[#*_`>$\\]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function statusFromEntry(entry: Record<string, unknown>): LookBackRow['status'] {
+  const fb = entry.feedback as LookBackFeedback | null | undefined;
+  if (!fb || typeof fb !== 'object') {
+    return entry.grading ? 'grading' : 'unanswered';
+  }
+  if (fb.selfReported || fb.assessment === 'self-report') return 'self';
+  if (fb.correct === true) return 'right';
+  if (typeof fb.grade === 'number') return fb.grade >= 3 ? 'right' : 'wrong';
+  return fb.correct === false ? 'wrong' : 'right';
+}
+
+function buildFallbackRows(run: ReviewRun): LookBackRow[] {
+  const rawEntries = (run as { entries?: unknown }).entries;
+  if (Array.isArray(rawEntries) && rawEntries.length > 0) {
+    const typed = rawEntries as Array<Record<string, unknown>>;
+    const nonRetry = typed.filter((e) => e && !e.retry);
+    const list = nonRetry.length > 0 ? nonRetry : typed;
+    return list.map((entry, idx) => {
+      const card = (entry.card && typeof entry.card === 'object' ? entry.card : {}) as NonNullable<LookBackRow['card']>;
+      const fb = entry.feedback && typeof entry.feedback === 'object' ? (entry.feedback as LookBackFeedback) : undefined;
+      const solRaw = entry.solution && typeof entry.solution === 'object' ? (entry.solution as LookBackSolution) : undefined;
+      const fallbackSol: LookBackSolution | undefined =
+        solRaw ||
+        (card.answer || card.explanation
+          ? {
+              ...(typeof card.answer === 'string' ? { answer: card.answer } : {}),
+              ...(typeof card.explanation === 'string' ? { explanation: card.explanation } : {}),
+            }
+          : undefined);
+      return {
+        number: idx + 1,
+        deckId: typeof entry.deckId === 'string' ? entry.deckId : run.deckId,
+        cardId: typeof card.id === 'string' ? card.id : typeof entry.cardId === 'string' ? entry.cardId : undefined,
+        kind: typeof card.kind === 'string' ? card.kind : typeof entry.kind === 'string' ? entry.kind : undefined,
+        status: statusFromEntry(entry),
+        prompt: String(card.prompt ?? entry.prompt ?? ''),
+        card,
+        ...(fb ? { feedback: fb } : {}),
+        ...(fallbackSol ? { solution: fallbackSol } : {}),
+        ...(typeof entry.errorReason === 'string' ? { errorReason: entry.errorReason } : {}),
+        ...(typeof entry.sourceTitle === 'string' ? { sourceTitle: entry.sourceTitle } : {}),
+        ...(typeof entry.page === 'number' ? { page: entry.page } : {}),
+      };
+    });
+  }
+
+  const missedList = Array.isArray((run as { missedCards?: unknown }).missedCards)
+    ? ((run as { missedCards?: Array<{ deckId?: string; cardId?: string; topic?: string; prompt?: string }> }).missedCards ?? [])
+    : [];
+  const missedMap = new Map(missedList.map((m) => [m.cardId, m]));
+
+  if (Array.isArray(run.navigation) && run.navigation.length > 0) {
+    const navItems = run.navigation.filter((n) => !n.retry);
+    const list = navItems.length > 0 ? navItems : run.navigation;
+    return list.map((nav, idx) => {
+      const missed = missedMap.get(nav.cardId);
+      const status: LookBackRow['status'] = nav.grading
+        ? 'grading'
+        : !nav.answered
+          ? 'unanswered'
+          : nav.passed === true
+            ? 'right'
+            : nav.passed === false
+              ? 'wrong'
+              : missed
+                ? 'wrong'
+                : 'right';
+      return {
+        number: idx + 1,
+        deckId: nav.deckId,
+        cardId: nav.cardId,
+        status,
+        prompt: missed?.prompt || nav.topic || nav.cardId,
+        card: {
+          id: nav.cardId,
+          prompt: missed?.prompt || nav.topic || nav.cardId,
+          ...(nav.topic ? { topic: nav.topic } : {}),
+        },
+        ...(typeof nav.page === 'number' ? { page: nav.page } : {}),
+      };
+    });
+  }
+
+  return missedList.map((m, idx) => ({
+    number: idx + 1,
+    deckId: m.deckId,
+    cardId: m.cardId,
+    status: 'wrong' as const,
+    prompt: m.prompt || m.topic || m.cardId || '',
+    card: {
+      id: m.cardId,
+      prompt: m.prompt || m.topic || '',
+      ...(m.topic ? { topic: m.topic } : {}),
+    },
+  }));
+}
+
+function formatRowRatingTag(row: LookBackRow, lang: UiLanguage): string {
+  if (row.status === 'grading') return t(lang, '批改', 'Grd');
+  if (row.status === 'unanswered') return t(lang, '未答', 'Skip');
+  if (row.status === 'self') return t(lang, '自报', 'Self');
+  const rubric = row.feedback?.rubric;
+  if (rubric && typeof rubric.total === 'number' && typeof rubric.max === 'number' && rubric.max > 0) {
+    return `${rubric.total}/${rubric.max}`;
+  }
+  const grade = row.feedback?.grade;
+  if (typeof grade === 'number') {
+    if (grade === 1) return t(lang, '重来', 'Again');
+    if (grade === 2) return t(lang, '较难', 'Miss');
+    if (grade === 3) return t(lang, '困难', 'Hard');
+    if (grade === 4) return t(lang, '良好', 'Good');
+    if (grade === 5) return t(lang, '简单', 'Easy');
+    return `${grade}/5`;
+  }
+  return row.status === 'right' ? t(lang, '对', 'OK') : t(lang, '错', 'Miss');
+}
+
+function formatReferenceAnswer(row: LookBackRow): string {
+  const sol = row.solution;
+  if (!sol) return '';
+  const opts = sol.options ?? row.card?.options;
+  if (Array.isArray(opts) && opts.length > 0) {
+    const correct = opts.filter((o) => o.correct);
+    if (correct.length > 0) {
+      return correct.map((o) => o.text || o.id || '').filter(Boolean).join(' / ');
+    }
+  }
+  if (sol.cloze?.answers?.length) {
+    return sol.cloze.answers.map((a, i) => `#${i + 1}: ${a.value}`).join(' | ');
+  }
+  return String(sol.answer || '').trim();
+}
+
+function formatUserAnswer(row: LookBackRow): string {
+  const fb = row.feedback;
+  if (!fb) return '';
+  const opts = row.card?.options;
+  if (Array.isArray(fb.selected) && fb.selected.length > 0) {
+    return fb.selected
+      .map((id) => opts?.find((o) => o.id === id)?.text || id)
+      .filter(Boolean)
+      .join(' / ');
+  }
+  if (fb.answers && typeof fb.answers === 'object') {
+    const vals = Object.entries(fb.answers)
+      .filter(([, v]) => String(v || '').trim())
+      .map(([, v], idx) => `#${idx + 1}: ${String(v).trim()}`);
+    if (vals.length > 0) return vals.join(' | ');
+  }
+  if (typeof fb.answer === 'string' && fb.answer.trim()) return fb.answer.trim();
+  if (typeof fb.note === 'string' && fb.note.trim()) return fb.note.trim();
+  return '';
+}
+
+function statusBadgeMeta(status: LookBackRow['status'], lang: UiLanguage) {
+  switch (status) {
+    case 'right':
+      return { label: t(lang, '答对', 'Correct'), tone: 'success' as const };
+    case 'wrong':
+      return { label: t(lang, '需巩固', 'Missed'), tone: 'error' as const };
+    case 'self':
+      return { label: t(lang, '自报', 'Self'), tone: 'neutral' as const };
+    case 'grading':
+      return { label: t(lang, '批改中', 'Grading'), tone: 'warning' as const };
+    default:
+      return { label: t(lang, '未答', 'Unanswered'), tone: 'neutral' as const };
+  }
 }
 
 export const RoundSummary = memo(function RoundSummary({
@@ -74,6 +298,9 @@ export const RoundSummary = memo(function RoundSummary({
   onPracticeWeak,
   onNewRound,
   onGoLibrary,
+  onRetryWeak,
+  onContinue,
+  onBack,
 }: RoundSummaryProps) {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
@@ -84,8 +311,11 @@ export const RoundSummary = memo(function RoundSummary({
   const [rows, setRows] = useState<LookBackRow[]>([]);
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [loadingLookBack, setLoadingLookBack] = useState(true);
+  const [previewExpanded, setPreviewExpanded] = useState(false);
+  const [detailScrollTop, setDetailScrollTop] = useState(0);
   const [dailyGroup, setDailyGroup] = useState<DailyStatusGroup | null>(null);
   const [generatingRecap, setGeneratingRecap] = useState(false);
+  const [retryingWeak, setRetryingWeak] = useState(false);
 
   const mountedRef = useRef(true);
   useEffect(() => {
@@ -95,17 +325,33 @@ export const RoundSummary = memo(function RoundSummary({
     };
   }, []);
 
+  const fallbackRows = useMemo(() => buildFallbackRows(run), [run]);
+  const fallbackRowsRef = useRef(fallbackRows);
+  fallbackRowsRef.current = fallbackRows;
+
   useEffect(() => {
     let cancelled = false;
+    setPreviewExpanded(false);
+    setDetailScrollTop(0);
+
+    if (!run?.id) {
+      setLoadingLookBack(false);
+      const fb = fallbackRowsRef.current;
+      setRows(fb);
+      const firstWeak = fb.findIndex((r) => r.status === 'wrong');
+      setSelectedIdx(firstWeak >= 0 ? firstWeak : 0);
+      return undefined;
+    }
+
     setLoadingLookBack(true);
     void tryAction<{ rows?: LookBackRow[] }>(host, 'review.lookBack', { runId: run.id }).then((res) => {
       if (cancelled || !mountedRef.current) return;
       setLoadingLookBack(false);
-      if (res.ok && Array.isArray(res.value?.rows)) {
-        setRows(res.value.rows);
-        const firstWeak = res.value.rows.findIndex((r) => r.status === 'wrong');
-        setSelectedIdx(firstWeak >= 0 ? firstWeak : 0);
-      }
+      const fetched = res.ok && Array.isArray(res.value?.rows) ? res.value.rows : [];
+      const nextRows = fetched.length > 0 ? fetched : fallbackRowsRef.current;
+      setRows(nextRows);
+      const firstWeak = nextRows.findIndex((r) => r.status === 'wrong');
+      setSelectedIdx(firstWeak >= 0 ? firstWeak : 0);
     });
 
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
@@ -119,7 +365,7 @@ export const RoundSummary = memo(function RoundSummary({
     return () => {
       cancelled = true;
     };
-  }, [host, run.id]);
+  }, [host, run?.id]);
 
   const triggerDailyRecap = useCallback(async () => {
     if (generatingRecap) return;
@@ -162,31 +408,109 @@ export const RoundSummary = memo(function RoundSummary({
   }, [generatingRecap, dailyGroup, host, lang, notify, navigate]);
 
   const totalQuestions = Number((run as { questions?: number }).questions ?? run.total ?? rows.length) || 0;
-  const answered = Number(run.answered ?? 0) || 0;
-  const correct = Number((run as { correct?: number }).correct ?? 0) || 0;
+  const answered = Number(
+    run.answered ?? rows.filter((r) => r.status !== 'unanswered' && r.status !== 'grading').length,
+  ) || 0;
+  const correct = Number((run as { correct?: number }).correct ?? rows.filter((r) => r.status === 'right').length) || 0;
   const accuracy = answered > 0 ? Math.round((correct / answered) * 100) : 0;
   const rawWeakTopics = (run as Record<string, unknown>).weakTopics;
-  const weakTopics = Array.isArray(rawWeakTopics) ? (rawWeakTopics as string[]) : [];
+  const weakTopics = Array.isArray(rawWeakTopics) ? (rawWeakTopics as string[]).filter(Boolean) : [];
   const rawMissed = (run as Record<string, unknown>).missedCards;
   const hasMissed =
     rows.some((r) => r.status === 'wrong') ||
-    (Array.isArray(rawMissed) && rawMissed.length > 0);
+    (Array.isArray(rawMissed) && rawMissed.length > 0) ||
+    weakTopics.length > 0;
+
+  const handleRetryWeak = useCallback(async () => {
+    if (!hasMissed) {
+      notify(t(lang, '本轮没有需要重练的错题或薄弱题', 'No weak cards to retry in this round'), 'info');
+      return;
+    }
+    const handler = onRetryWeak ?? onPracticeWeak;
+    if (handler) {
+      handler();
+      return;
+    }
+    if (!run?.id || retryingWeak) return;
+    setRetryingWeak(true);
+    const res = await tryAction<ReviewRun>(host, 'review.weak.start', { runId: run.id });
+    if (!mountedRef.current) return;
+    setRetryingWeak(false);
+    if (!res.ok || !res.value?.id) {
+      notify(res.error?.message || t(lang, '本轮暂无薄弱题', 'No weak cards to retry'), 'warning');
+      return;
+    }
+    navigate('review', { runId: res.value.id });
+  }, [hasMissed, onRetryWeak, onPracticeWeak, run?.id, retryingWeak, host, notify, lang, navigate]);
+
+  const handleNewRound = useCallback(() => {
+    const handler = onNewRound ?? onContinue;
+    if (handler) handler();
+    else navigate('review');
+  }, [onNewRound, onContinue, navigate]);
+
+  const handleGoBack = useCallback(() => {
+    const handler = onGoLibrary ?? onBack;
+    if (handler) handler();
+    else navigate('library');
+  }, [onGoLibrary, onBack, navigate]);
+
+  const isNarrow = width < SPLIT_BREAKPOINT;
+  const selectedRow = rows[selectedIdx] ?? null;
+
+  useClaimKeys(CLAIMED_SUMMARY_KEYS, isActive);
 
   const hints: KeyHint[] = useMemo(
     () => [
+      { key: 'j/k', label: t(lang, '选题目', 'Select') },
+      ...(selectedRow
+        ? [
+            {
+              key: 'Enter/Space/v',
+              label: previewExpanded ? t(lang, '收起解析', 'Hide Ans') : t(lang, '答案解析', 'Preview'),
+            },
+          ]
+        : []),
       ...(hasMissed ? [{ key: 'w', label: t(lang, '重练错题', 'Retry Weak') }] : []),
       { key: 'g', label: dailyGroup?.hasContent ? t(lang, '看复盘', 'View Recap') : t(lang, '每日复盘', 'Daily Recap') },
       { key: 'r', label: t(lang, '再来一轮', 'New Round') },
-      { key: 'Esc / b', label: t(lang, '学习库', 'Library') },
+      { key: 'Esc/b/1', label: t(lang, '学习库', 'Library') },
     ],
-    [hasMissed, dailyGroup?.hasContent, lang],
+    [selectedRow, previewExpanded, hasMissed, dailyGroup?.hasContent, lang],
   );
   useFooterHints(hints, isActive);
 
   useInput(
     (input, key) => {
-      if (input === 'w' && hasMissed) {
-        onPracticeWeak();
+      if (isNarrow && previewExpanded && (key.escape || key.leftArrow)) {
+        setPreviewExpanded(false);
+        return;
+      }
+      if ((key.return || input === ' ' || input === 'v') && selectedRow) {
+        setDetailScrollTop(0);
+        setPreviewExpanded((prev) => !prev);
+        return;
+      }
+      if (previewExpanded) {
+        if (key.pageDown || (key.ctrl && input === 'd')) {
+          setDetailScrollTop((top) => top + 6);
+          return;
+        }
+        if (key.pageUp || (key.ctrl && input === 'u')) {
+          setDetailScrollTop((top) => Math.max(0, top - 6));
+          return;
+        }
+        if (isNarrow && (key.downArrow || input === 'j')) {
+          setDetailScrollTop((top) => top + 1);
+          return;
+        }
+        if (isNarrow && (key.upArrow || input === 'k')) {
+          setDetailScrollTop((top) => Math.max(0, top - 1));
+          return;
+        }
+      }
+      if (input === 'w') {
+        void handleRetryWeak();
         return;
       }
       if (input === 'g') {
@@ -194,34 +518,86 @@ export const RoundSummary = memo(function RoundSummary({
         return;
       }
       if (input === 'r') {
-        onNewRound();
+        handleNewRound();
         return;
       }
-      if (input === 'b' || key.escape) {
-        onGoLibrary();
+      if (input === 'b' || input === '1' || key.escape) {
+        handleGoBack();
       }
     },
     { isActive },
   );
 
-  const selectedRow = rows[selectedIdx] ?? null;
-  const summaryMarkdown = useMemo(() => {
+  const detailMarkdown = useMemo(() => {
     if (!selectedRow) return '';
-    const prompt = String(selectedRow.card?.prompt ?? selectedRow.prompt ?? '');
+    const prompt = String(selectedRow.card?.prompt ?? selectedRow.prompt ?? '').trim();
     const parts: string[] = [];
-    if (selectedRow.card?.topic) parts.push(`**${t(lang, '知识点', 'Topic')}**: ${selectedRow.card.topic}`);
-    parts.push(prompt);
-    if (selectedRow.solution?.answer) {
-      parts.push(`**${t(lang, '参考答案', 'Answer')}**: ${selectedRow.solution.answer}`);
+    if (selectedRow.card?.topic) {
+      parts.push(`**${t(lang, '知识点', 'Topic')}**: ${String(selectedRow.card.topic)}`);
     }
-    if (selectedRow.solution?.explanation) {
-      parts.push(`**${t(lang, '解析', 'Explanation')}**:\n${selectedRow.solution.explanation}`);
-    }
-    return parts.join('\n\n');
-  }, [selectedRow, lang]);
+    if (prompt) parts.push(prompt);
 
-  const headerH = 5;
+    const userAns = formatUserAnswer(selectedRow);
+    if (userAns) {
+      parts.push(`**${t(lang, '你的作答', 'Your Answer')}**: ${userAns}`);
+    }
+
+    if (previewExpanded) {
+      if (selectedRow.solution) {
+        const refAnswer = formatReferenceAnswer(selectedRow);
+        if (refAnswer) {
+          parts.push(`**${t(lang, '参考答案', 'Reference Answer')}**: ${refAnswer}`);
+        }
+        if (selectedRow.solution.explanation) {
+          parts.push(`**${t(lang, '解析', 'Explanation')}**:\n${String(selectedRow.solution.explanation).trim()}`);
+        }
+        if (selectedRow.solution.misconception) {
+          parts.push(`> **${t(lang, '常见误区', 'Misconception')}**: ${String(selectedRow.solution.misconception).trim()}`);
+        }
+        if (selectedRow.solution.rubric) {
+          parts.push(`**${t(lang, '评分依据', 'Rubric')}**: ${String(selectedRow.solution.rubric).trim()}`);
+        }
+        if (Array.isArray(selectedRow.solution.followups) && selectedRow.solution.followups.length > 0) {
+          const qaLines = selectedRow.solution.followups
+            .filter((f) => f && (f.question || f.answer))
+            .slice(0, 3)
+            .map((f) => `- **Q**: ${String(f.question || '').trim()}\n  **A**: ${String(f.answer || '').trim()}`);
+          if (qaLines.length > 0) {
+            parts.push(`### ${t(lang, 'AI 追问记录', 'Follow-up Q&A')}\n${qaLines.join('\n')}`);
+          }
+        }
+      } else {
+        parts.push(
+          `> ${
+            selectedRow.status === 'grading'
+              ? t(lang, '正在批改中，分数出来后会显示参考答案与解析。', 'Still grading; reference answer and explanation will appear once graded.')
+              : t(lang, '本题本轮未作答，参考答案留待下次练习时揭晓。', 'Unanswered in this round; reference answer hidden until next attempt.')
+          }`,
+        );
+      }
+    }
+
+    return parts.join('\n\n');
+  }, [selectedRow, previewExpanded, lang]);
+
+  const ellipsis = asciiMode ? '...' : '…';
+  const headerH = height <= 24 ? 4 : 5;
   const bodyH = Math.max(6, height - headerH);
+  const headerInnerW = Math.max(16, width - 4);
+  const barW = Math.min(20, Math.max(8, Math.floor(width * 0.16)));
+  const statsPrefix = `${t(lang, '已答', 'Ans')} ${answered}/${totalQuestions}  ${t(lang, '答对', 'OK')} ${correct}`;
+  const weakBudget = Math.max(0, headerInnerW - displayWidth(statsPrefix) - barW - 10);
+  const weakSep = asciiMode ? ' / ' : ' · ';
+
+  const recapLine = dailyGroup?.eligible
+    ? dailyGroup.hasContent
+      ? t(lang, '[g] 查看今日每日复盘笔记', "[g] Open today's daily recap")
+      : t(lang, '[g] 生成今日每日复盘 (Daily Recap)', '[g] Generate Daily Recap')
+    : t(
+        lang,
+        `今日累计满 10 题可生成每日复盘 (${dailyGroup?.answeredCount ?? answered}/10)`,
+        `10 questions/day unlocks Daily Recap (${dailyGroup?.answeredCount ?? answered}/10)`,
+      );
 
   return (
     <Box flexDirection="column" width={width} height={height}>
@@ -232,140 +608,205 @@ export const RoundSummary = memo(function RoundSummary({
         badgeTone={accuracy >= 70 ? 'success' : answered > 0 ? 'warning' : 'neutral'}
         width={width}
         height={headerH}
+        ascii={asciiMode}
       >
-        <Box flexDirection="row" alignItems="center" gap={2}>
-          <Text color={theme.text} bold>
-            {`${t(lang, '已答', 'Answered')} ${answered}/${totalQuestions}`}
+        <Box flexDirection="row" alignItems="center" gap={1} height={1} overflow="hidden">
+          <Text color={theme.text} bold wrap="truncate">
+            {statsPrefix}
           </Text>
-          <Text color={theme.success}>{`${t(lang, '答对', 'Correct')} ${correct}`}</Text>
-          <ProgressBar
-            ratio={answered > 0 ? correct / answered : 0}
-            width={Math.min(24, Math.max(10, Math.floor(width * 0.2)))}
-            showPercent
-          />
-          {weakTopics.length > 0 ? (
-            <Text color={theme.warning}>
-              {truncateDisplay(
-                `${t(lang, '薄弱', 'Weak')}: ${weakTopics.join(' · ')}`,
-                Math.max(12, width - 56),
-              )}
+          <ProgressBar ratio={answered > 0 ? correct / answered : 0} width={barW} showPercent />
+          {weakTopics.length > 0 && weakBudget >= 10 ? (
+            <Text color={theme.warning} wrap="truncate">
+              {truncateDisplay(`${t(lang, '薄弱', 'Weak')}: ${weakTopics.join(weakSep)}`, weakBudget, ellipsis)}
             </Text>
           ) : null}
-          {generatingRecap ? <Spinner label={t(lang, '生成复盘中…', 'Generating…')} tone="ai" active={isActive} /> : null}
+          {generatingRecap || retryingWeak ? (
+            <Spinner
+              label={retryingWeak ? t(lang, '开启重练', 'Starting') : t(lang, '生成复盘', 'Generating')}
+              tone="ai"
+              active={isActive}
+            />
+          ) : null}
         </Box>
-        <Box flexDirection="row" gap={2}>
-          <Text color={theme.muted}>
-            {dailyGroup?.eligible
-              ? dailyGroup.hasContent
-                ? t(lang, '[g] 查看今日每日复盘笔记', '[g] Open today’s daily recap')
-                : t(lang, '[g] 生成今日每日复盘 (Daily Recap)', '[g] Generate Daily Recap')
-              : t(
-                  lang,
-                  `今日累计满 10 题可生成每日复盘 (${dailyGroup?.answeredCount ?? answered}/10)`,
-                  `10 questions/day unlocks Daily Recap (${dailyGroup?.answeredCount ?? answered}/10)`,
-                )}
+        <Box flexDirection="row" alignItems="center" justifyContent="space-between" height={1} overflow="hidden">
+          <Text color={theme.muted} wrap="truncate">
+            {truncateDisplay(recapLine, hasMissed ? Math.max(12, headerInnerW - 22) : headerInnerW, ellipsis)}
           </Text>
+          {hasMissed && headerInnerW >= 46 ? (
+            <Text color={theme.warning} bold wrap="truncate">
+              {t(lang, '[w] 重练错题', '[w] Retry Weak')}
+            </Text>
+          ) : null}
         </Box>
       </Panel>
 
       <SplitPane
         width={width}
         height={bodyH}
-        breakpoint={84}
+        leftWidth={0.42}
+        minLeft={28}
+        minRight={34}
+        breakpoint={SPLIT_BREAKPOINT}
+        activePane={isNarrow && previewExpanded ? 'right' : 'left'}
         leftLabel={t(lang, '题目回顾', 'Items')}
         rightLabel={t(lang, '解析详情', 'Detail')}
-        left={(size) => (
-          <Panel
-            title={t(lang, '本轮题目回顾', 'Round Look-Back')}
-            badge={rows.length}
-            width={size.width}
-            height={size.height}
-            focused={isActive}
-          >
-            {loadingLookBack ? (
-              <Spinner label={t(lang, '加载本轮回顾…', 'Loading look-back…')} active={isActive} />
-            ) : rows.length === 0 ? (
-              <EmptyState
-                title={t(lang, '本轮暂无答题记录', 'No questions recorded in this round')}
-                width={size.width - 4}
-                height={size.height - 3}
-              />
-            ) : (
-              <VirtualList
-                items={rows}
-                width={Math.max(10, size.width - 4)}
-                height={Math.max(3, size.height - 3)}
-                selectedIndex={selectedIdx}
-                onChange={(idx) => setSelectedIdx(idx)}
-                isActive={isActive}
-                keyExtractor={(r, i) => `${r.cardId || 'row'}-${i}`}
-                renderItem={(row, ctx) => {
-                  const statusColor =
-                    row.status === 'right'
-                      ? theme.success
-                      : row.status === 'wrong'
-                        ? theme.error
-                        : theme.muted;
-                  const icon =
-                    row.status === 'right'
-                      ? asciiMode
-                        ? '+'
-                        : '✓'
-                      : row.status === 'wrong'
-                        ? asciiMode
-                          ? 'x'
-                          : '✕'
-                        : asciiMode
-                          ? 'o'
-                          : '○';
-                  const snippet = cleanPromptSnippet(String(row.card?.prompt ?? row.prompt ?? ''));
-                  return (
-                    <Box flexDirection="row" width={ctx.width}>
-                      <Text color={statusColor} bold>{`${icon} `}</Text>
-                      <Text color={ctx.selected ? theme.selectionFg : theme.text}>
-                        {truncateDisplay(`#${row.number ?? ctx.index + 1} ${snippet}`, Math.max(6, ctx.width - 3))}
+        left={(size) => {
+          const showFooterHint = size.height >= 7;
+          const listW = Math.max(10, size.width - 4);
+          const listH = Math.max(3, size.height - (showFooterHint ? 3 : 2));
+          return (
+            <Panel
+              title={t(lang, '本轮题目回顾', 'Round Look-Back')}
+              badge={rows.length}
+              width={size.width}
+              height={size.height}
+              focused={isActive && !(isNarrow && previewExpanded)}
+              ascii={asciiMode}
+            >
+              {loadingLookBack ? (
+                <Spinner label={t(lang, `加载本轮回顾${ellipsis}`, `Loading look-back${ellipsis}`)} active={isActive} />
+              ) : rows.length === 0 ? (
+                <EmptyState
+                  title={t(lang, '本轮暂无答题记录', 'No questions recorded in this round')}
+                  width={listW}
+                  height={listH}
+                />
+              ) : (
+                <>
+                  <VirtualList
+                    items={rows}
+                    width={listW}
+                    height={listH}
+                    selectedIndex={selectedIdx}
+                    onChange={(idx) => {
+                      setSelectedIdx(idx);
+                      setDetailScrollTop(0);
+                    }}
+                    isActive={isActive && !(isNarrow && previewExpanded)}
+                    ascii={asciiMode}
+                    keyExtractor={(r, i) => `${r.cardId || 'row'}-${i}`}
+                    renderItem={(row, ctx) => {
+                      const statusColor =
+                        row.status === 'right'
+                          ? theme.success
+                          : row.status === 'wrong'
+                            ? theme.error
+                            : row.status === 'grading'
+                              ? theme.warning
+                              : theme.muted;
+                      const icon =
+                        row.status === 'right'
+                          ? asciiMode
+                            ? '+'
+                            : '✓'
+                          : row.status === 'wrong'
+                            ? asciiMode
+                              ? 'x'
+                              : '✕'
+                            : row.status === 'self'
+                              ? asciiMode
+                                ? '*'
+                                : '◆'
+                              : row.status === 'grading'
+                                ? '~'
+                                : asciiMode
+                                  ? 'o'
+                                  : '○';
+                      const pointer = ctx.selected ? (asciiMode ? '>' : '▸') : ' ';
+                      const ratingTag = `[${formatRowRatingTag(row, lang)}]`;
+                      const numTag = `#${row.number ?? ctx.index + 1}`;
+                      const fixedPrefix = `${pointer}${icon} ${numTag} ${ratingTag} `;
+                      const snippetBudget = Math.max(4, ctx.width - displayWidth(fixedPrefix));
+                      const snippet = cleanPromptSnippet(String(row.card?.prompt ?? row.prompt ?? ''), asciiMode);
+                      return (
+                        <Box flexDirection="row" width={ctx.width} height={1} overflow="hidden">
+                          <Text color={ctx.selected ? theme.primary : theme.dim} bold={ctx.selected}>
+                            {pointer}
+                          </Text>
+                          <Text color={statusColor} bold>{`${icon} `}</Text>
+                          <Text color={ctx.selected ? theme.selectionFg : theme.muted}>{`${numTag} `}</Text>
+                          <Text color={statusColor}>{`${ratingTag} `}</Text>
+                          <Text color={ctx.selected ? theme.selectionFg : theme.text} wrap="truncate">
+                            {truncateDisplay(snippet, snippetBudget, ellipsis)}
+                          </Text>
+                        </Box>
+                      );
+                    }}
+                  />
+                  {showFooterHint ? (
+                    <Box height={1} width={listW} overflow="hidden">
+                      <Text color={theme.dim} wrap="truncate">
+                        {truncateDisplay(
+                          hasMissed
+                            ? t(lang, '[Enter/Space/v] 答案解析  [w] 重练  [r] 再来一轮  [b] 返回', '[Enter/Space/v] Preview  [w] Retry  [r] New  [b] Back')
+                            : t(lang, '[Enter/Space/v] 答案解析  [r] 再来一轮  [b/Esc] 返回', '[Enter/Space/v] Preview  [r] New Round  [b/Esc] Back'),
+                          listW,
+                          ellipsis,
+                        )}
                       </Text>
                     </Box>
-                  );
-                }}
-              />
-            )}
-          </Panel>
-        )}
-        right={(size) => (
-          <Panel
-            title={selectedRow ? `#${selectedRow.number ?? selectedIdx + 1}` : t(lang, '题目详情', 'Question Detail')}
-            subtitle={selectedRow?.sourceTitle ? `${selectedRow.sourceTitle}${selectedRow.page ? ` p.${selectedRow.page}` : ''}` : undefined}
-            width={size.width}
-            height={size.height}
-          >
-            {selectedRow ? (
-              <Box flexDirection="column" gap={0}>
-                <Box flexDirection="row" gap={1} marginBottom={1}>
-                  <Badge
-                    label={
-                      selectedRow.status === 'right'
-                        ? t(lang, '答对', 'Correct')
-                        : selectedRow.status === 'wrong'
-                          ? t(lang, '需巩固', 'Missed')
-                          : t(lang, '未答', 'Unanswered')
-                    }
-                    tone={selectedRow.status === 'right' ? 'success' : selectedRow.status === 'wrong' ? 'error' : 'neutral'}
-                  />
-                  {selectedRow.errorReason ? <Badge label={selectedRow.errorReason} tone="warning" variant="outline" /> : null}
+                  ) : null}
+                </>
+              )}
+            </Panel>
+          );
+        }}
+        right={(size) => {
+          const innerW = Math.max(12, size.width - 4);
+          const innerH = Math.max(4, size.height - 2);
+          const mdHeight = Math.max(2, innerH - 2);
+          const badgeMeta = selectedRow ? statusBadgeMeta(selectedRow.status, lang) : null;
+          const ratingLabel = selectedRow ? formatRowRatingTag(selectedRow, lang) : '';
+          const subtitle = selectedRow?.sourceTitle
+            ? `${selectedRow.sourceTitle}${selectedRow.page != null ? ` p.${selectedRow.page}` : ''}`
+            : undefined;
+          return (
+            <Panel
+              title={selectedRow ? `#${selectedRow.number ?? selectedIdx + 1}` : t(lang, '题目详情', 'Question Detail')}
+              subtitle={subtitle}
+              width={size.width}
+              height={size.height}
+              focused={isActive && isNarrow && previewExpanded}
+              ascii={asciiMode}
+            >
+              {selectedRow && badgeMeta ? (
+                <Box flexDirection="column" width={innerW} height={innerH} overflow="hidden">
+                  <Box flexDirection="row" gap={1} height={1} overflow="hidden">
+                    <Badge label={badgeMeta.label} tone={badgeMeta.tone} />
+                    <Badge label={ratingLabel} tone={badgeMeta.tone} variant="outline" />
+                    {selectedRow.errorReason ? <Badge label={selectedRow.errorReason} tone="warning" variant="outline" /> : null}
+                  </Box>
+                  <Box height={mdHeight} width={innerW} overflow="hidden">
+                    <MarkdownView
+                      markdown={detailMarkdown}
+                      width={innerW}
+                      height={mdHeight}
+                      mathUnicode={mathUnicode}
+                      ascii={asciiMode}
+                      scrollTop={detailScrollTop}
+                      onScroll={setDetailScrollTop}
+                    />
+                  </Box>
+                  <Box height={1} width={innerW} overflow="hidden">
+                    <Text color={previewExpanded ? theme.accent : theme.primary} bold wrap="truncate">
+                      {truncateDisplay(
+                        previewExpanded
+                          ? isNarrow
+                            ? t(lang, '[Enter/Space/v/Esc] 收起返回列表  [j/k] 滚动', '[Enter/Space/v/Esc] Collapse  [j/k] Scroll')
+                            : t(lang, '[Enter/Space/v] 收起参考答案与解析  [PgUp/PgDn] 滚动', '[Enter/Space/v] Hide Answer & Explanation  [PgUp/PgDn] Scroll')
+                          : t(lang, '[Enter/Space/v] 展开参考答案与解析', '[Enter/Space/v] Show Reference Answer & Explanation'),
+                        innerW,
+                        ellipsis,
+                      )}
+                    </Text>
+                  </Box>
                 </Box>
-                <MarkdownView
-                  markdown={summaryMarkdown}
-                  width={Math.max(12, size.width - 4)}
-                  height={Math.max(4, size.height - 5)}
-                  mathUnicode={mathUnicode}
-                />
-              </Box>
-            ) : (
-              <EmptyState title={t(lang, '选择左侧题目查看解析', 'Select a question on the left')} />
-            )}
-          </Panel>
-        )}
+              ) : (
+                <EmptyState title={t(lang, '选择左侧题目查看解析', 'Select a question on the left')} width={innerW} height={innerH} />
+              )}
+            </Panel>
+          );
+        }}
       />
     </Box>
   );
