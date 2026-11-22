@@ -1,10 +1,11 @@
-import type { PageId, ThemeId, UiLanguage } from './types/contracts.js';
+import type { PageId, StudySnapshot, ThemeId, UiLanguage } from './types/contracts.js';
 import { PAGE_REGISTRY } from './types/contracts.js';
 
 export interface ParsedCliArgs {
   help: boolean;
   version: boolean;
   doctor: boolean;
+  stats: boolean;
   json: boolean;
   libraryRoot?: string;
   theme?: ThemeId;
@@ -157,6 +158,7 @@ export function parseCliArgs(argv: readonly string[]): ParsedCliArgs {
   // Keep default false values non-enumerable until explicitly passed so existing empty-argv equality checks stay intact.
   Object.defineProperties(result, {
     doctor: { value: false, writable: true, enumerable: false, configurable: true },
+    stats: { value: false, writable: true, enumerable: false, configurable: true },
     json: { value: false, writable: true, enumerable: false, configurable: true },
   });
 
@@ -172,6 +174,10 @@ export function parseCliArgs(argv: readonly string[]): ParsedCliArgs {
     }
     if (token === '--doctor') {
       Object.defineProperty(result, 'doctor', { value: true, writable: true, enumerable: true, configurable: true });
+      continue;
+    }
+    if (token === '--stats') {
+      Object.defineProperty(result, 'stats', { value: true, writable: true, enumerable: true, configurable: true });
       continue;
     }
     if (token === '--json') {
@@ -218,10 +224,10 @@ export function parseCliArgs(argv: readonly string[]): ParsedCliArgs {
       return undefined;
     };
 
-    if (flag === '--root' || flag === '-r') {
+    if (flag === '--root' || flag === '--library' || flag === '-r') {
       const val = takeValue();
       if (!val) {
-        result.error = 'Missing value for --root';
+        result.error = `Missing value for ${flag === '--library' ? '--library' : '--root'}`;
         return result;
       }
       result.libraryRoot = val;
@@ -280,7 +286,7 @@ export function cliHelpText(version = '1.0.0'): string {
     '  studyhub-tui [options] [library-path]',
     '',
     'Options:',
-    '  -r, --root <path>     Open a specific StudyHub library directory (.dsh-study or folder)',
+    '  -r, --root <path>     Open a specific StudyHub library directory (.dsh-study or folder; alias: --library)',
     '  -p, --page <id>       Start directly on a page (library, review, sources, generate, ...)',
     '      --theme <id>      Theme: dsh-dark | warm-paper | nord | high-contrast',
     '      --lang <zh|en>    UI language: zh (default) | en',
@@ -291,6 +297,8 @@ export function cliHelpText(version = '1.0.0'): string {
     '      --mouse           Enable SGR mouse wheel scrolling (or STUDYHUB_TUI_MOUSE=1; --no-mouse disables)',
     '      --doctor          Print cross-platform terminal, path & provider diagnostics and exit',
     '      --doctor --json   Print diagnostics in JSON format and exit (never prints API keys)',
+    '      --stats           Print offline library summary (courses, decks, due & weak) and exit',
+    '      --stats --json    Print offline library summary in JSON format and exit',
     '  -v, --version         Print version and exit',
     '  -h, --help            Show this help message',
     '',
@@ -484,4 +492,180 @@ export function formatDoctorReport(report: DoctorReport, asciiMode = report.term
     `  ${bullet} agy CLI: ${pr.agyInPath ? `${okMark} ${pr.agyPath}` : `${missMark} not found in PATH`}`,
     `  ${bullet} API env keys: ${pr.envKeysPresent.length > 0 ? pr.envKeysPresent.join(', ') : 'none'}`,
   ].join('\n');
+}
+
+export interface StatsSummaryCourse {
+  name: string;
+  decks: number;
+  cards: number;
+  due: number;
+}
+
+export interface StatsSummary {
+  version: string;
+  libraryRoot: string;
+  generatedAt: string;
+  counts: {
+    courses: number;
+    activeDecks: number;
+    archivedDecks: number;
+    cards: number;
+    due: number;
+    weak: number;
+    sources: number;
+    notes: number;
+    drafts: number;
+  };
+  courses: StatsSummaryCourse[];
+}
+
+export interface BuildStatsSummaryOptions {
+  libraryRoot: string;
+  snapshot: StudySnapshot | null | undefined;
+  version?: string;
+  generatedAt?: string;
+}
+
+function toFiniteCount(value: unknown): number {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+}
+
+function toPureAscii(text: string): string {
+  return text
+    .replace(/[·•]/g, '-')
+    .replace(/[—–]/g, '-')
+    .replace(/…/g, '...')
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/[^\x00-\x7f]/g, '?');
+}
+
+/**
+ * Build a deterministic, offline library summary snapshot for `--stats` and `--stats --json`.
+ */
+export function buildStatsSummary(opts: BuildStatsSummaryOptions): StatsSummary {
+  const snap = opts.snapshot ?? {};
+  const decks = Array.isArray(snap.decks) ? snap.decks : [];
+  const progress = (snap.progress && typeof snap.progress === 'object' ? snap.progress : {}) as Record<
+    string,
+    { total?: number; due?: number; counts?: { weak?: number } } | undefined
+  >;
+
+  let activeDecks = 0;
+  let archivedDecks = 0;
+  let cards = 0;
+  let deckDueSum = 0;
+  let deckWeakSum = 0;
+
+  const courseMap = new Map<string, StatsSummaryCourse>();
+  const ensureCourse = (name: string): StatsSummaryCourse => {
+    const existing = courseMap.get(name);
+    if (existing) return existing;
+    const created: StatsSummaryCourse = { name, decks: 0, cards: 0, due: 0 };
+    courseMap.set(name, created);
+    return created;
+  };
+
+  for (const rawCourse of Array.isArray(snap.courses) ? snap.courses : []) {
+    const name = String(rawCourse?.name ?? rawCourse?.title ?? rawCourse?.id ?? '').trim();
+    if (name) ensureCourse(name);
+  }
+
+  for (const d of decks) {
+    if (!d || typeof d !== 'object') continue;
+    if (d.archived) {
+      archivedDecks += 1;
+      continue;
+    }
+    const rec = d as Record<string, unknown>;
+    if (rec.systemKind) continue;
+    activeDecks += 1;
+    const p = d.id ? progress[d.id] : undefined;
+    const deckCards = toFiniteCount(d.cardCount ?? rec.count ?? p?.total);
+    const deckDue = toFiniteCount(rec.due ?? d.dueCount ?? p?.due);
+    const deckWeak = toFiniteCount(rec.wrong ?? d.wrongCount ?? p?.counts?.weak);
+    cards += deckCards;
+    deckDueSum += deckDue;
+    deckWeakSum += deckWeak;
+
+    const courseName = String(d.course ?? '').trim();
+    if (courseName) {
+      const entry = ensureCourse(courseName);
+      entry.decks += 1;
+      entry.cards += deckCards;
+      entry.due += deckDue;
+    }
+  }
+
+  for (const rawCourse of Array.isArray(snap.courses) ? snap.courses : []) {
+    const name = String(rawCourse?.name ?? rawCourse?.title ?? rawCourse?.id ?? '').trim();
+    if (!name) continue;
+    const entry = courseMap.get(name);
+    if (entry && entry.decks === 0 && entry.cards === 0) {
+      const rec = rawCourse as Record<string, unknown>;
+      entry.decks = toFiniteCount(rawCourse.deckCount ?? rec.decks);
+      entry.cards = toFiniteCount(rawCourse.cardCount);
+      entry.due = toFiniteCount(rawCourse.dueCount);
+    }
+  }
+
+  const today = snap.today && typeof snap.today === 'object' ? (snap.today as Record<string, unknown>) : null;
+  const due = deckDueSum > 0 ? deckDueSum : toFiniteCount(today?.due);
+  const weak = deckWeakSum > 0 ? deckWeakSum : toFiniteCount(today?.weak);
+
+  const courses = [...courseMap.values()]
+    .sort((a, b) => b.due - a.due || b.cards - a.cards || b.decks - a.decks || a.name.localeCompare(b.name))
+    .slice(0, 8);
+
+  return {
+    version: opts.version ?? '1.0.0',
+    libraryRoot: opts.libraryRoot,
+    generatedAt: opts.generatedAt ?? new Date().toISOString(),
+    counts: {
+      courses: courseMap.size,
+      activeDecks,
+      archivedDecks,
+      cards,
+      due,
+      weak,
+      sources: Array.isArray(snap.sources) ? snap.sources.length : 0,
+      notes: Array.isArray(snap.notes) ? snap.notes.length : 0,
+      drafts: Array.isArray(snap.drafts) ? snap.drafts.length : 0,
+    },
+    courses,
+  };
+}
+
+/**
+ * Format a `StatsSummary` for terminal output. Guaranteed 100% pure ASCII when `asciiMode` is true.
+ */
+export function formatStatsSummary(summary: StatsSummary, asciiMode = false): string {
+  const rule = asciiMode ? '----------------------------------------' : '────────────────────────────────────────';
+  const bullet = asciiMode ? '-' : '•';
+  const c = summary.counts;
+  const clean = (s: string) => (asciiMode ? toPureAscii(s) : s);
+
+  const lines = [
+    `StudyHub TUI Stats (v${clean(summary.version)})`,
+    rule,
+    `Library: ${clean(summary.libraryRoot || '(unset)')}`,
+    `Generated: ${clean(summary.generatedAt)}`,
+    'Overview',
+    `  ${bullet} Courses: ${c.courses} | Decks: ${c.activeDecks} active (${c.archivedDecks} archived)`,
+    `  ${bullet} Cards: ${c.cards} total | Due: ${c.due} | Weak: ${c.weak}`,
+    `  ${bullet} Materials: ${c.sources} sources | ${c.notes} notes | ${c.drafts} drafts`,
+  ];
+
+  if (summary.courses.length > 0) {
+    lines.push(`Top Courses (${summary.courses.length})`);
+    for (const course of summary.courses) {
+      lines.push(`  ${bullet} ${clean(course.name)}: ${course.decks} decks, ${course.cards} cards, ${course.due} due`);
+    }
+  } else {
+    lines.push('Top Courses (0)');
+    lines.push(`  ${bullet} (none)`);
+  }
+
+  return lines.join('\n');
 }

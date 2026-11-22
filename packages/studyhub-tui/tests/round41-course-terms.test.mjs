@@ -369,12 +369,21 @@ describe('Round 41: Course Glossary Term Mastery Marking', () => {
       // Toggle highlighted term (BCP38) back on via Space -> course.terms.mark
       tty.send(' ');
       const remarkedScreen = await tty.waitFor(
-        (s) => !s.includes('☐') && s.includes('☑') && s.includes('共 2'),
+        (s) =>
+          !s.includes('☐') &&
+          s.includes('☑') &&
+          s.includes('共 2') &&
+          !s.includes('保存中') &&
+          !s.includes('处理中'),
         { timeoutMs: 8_000, label: 'Term re-marked via Space' },
       );
       tty.assertHealthyScreen(remarkedScreen, 120, 36, 'Terms tab after re-mark zh');
       const restoredTerms = await host.call('course.terms.get', { course: 'Computer Networks' });
       assert.equal(restoredTerms.value?.items?.length, 2);
+
+      // Let React commit setBusy(false) after course.terms.mark + refreshTerms settle before pressing 'C'
+      await sleep(80);
+      await tty.flush();
 
       // Open [C] clear ConfirmDialog and cancel with 'n'
       tty.send('C');

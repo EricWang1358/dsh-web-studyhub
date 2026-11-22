@@ -16,7 +16,7 @@ import { SelectList, type SelectOption } from '../../components/SelectList.js';
 import { SplitPane, type PaneSize } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
-import { useClaimKeys } from '../../components/focus.js';
+import { useClaimKeys, useInputCapture } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import { renderProgressBar } from '../../render/charts.js';
@@ -48,7 +48,7 @@ import type {
 const PAGE_LIMIT = 100;
 const MAX_FETCH_ITEMS = 300;
 const PRACTICE_BATCH_CAP = 50;
-const CLAIMED_KEYS: readonly string[] = Object.freeze(['t', 'e', 'p', 'o', 'f', 'm', ' ', 'B', 'V', 'x', 'X']);
+const CLAIMED_KEYS: readonly string[] = Object.freeze(['t', 'e', 'p', 'o', 'f', 'm', ' ', 'B', 'V', 'x', 'X', '/']);
 
 export interface WrongBookExportOption {
   id?: string;
@@ -300,6 +300,8 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
 
   const [tab, setTab] = useState<WrongBookTab>('weak');
   const [reasonFilter, setReasonFilter] = useState<ReasonFilterValue>('all');
+  const [filterQuery, setFilterQuery] = useState('');
+  const [filterEditing, setFilterEditing] = useState(false);
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [activePane, setActivePane] = useState<'left' | 'right'>('left');
   const [activeModal, setActiveModal] = useState<ActiveModal>(null);
@@ -407,7 +409,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
     [weakItems],
   );
 
-  const visibleItems = useMemo<WrongBookItem[]>(() => {
+  const tabItems = useMemo<WrongBookItem[]>(() => {
     if (tab === 'weak') return weakItems;
     if (tab === 'confusable') return confusableItems;
     if (tab === 'all') return allItems;
@@ -427,11 +429,37 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
     });
   }, [tab, weakItems, confusableItems, allItems, reasonFilter]);
 
+  const normalizedFilter = filterQuery.trim().toLowerCase();
+  const visibleItems = useMemo<WrongBookItem[]>(() => {
+    if (!normalizedFilter) return tabItems;
+    return tabItems.filter((item) => {
+      const meta = errorReasonMeta(item.errorReason);
+      const itemCourse = (item as WrongBookItem & { course?: string }).course ?? item.triage?.course ?? course ?? '';
+      const haystack = [
+        item.prompt,
+        item.topic,
+        item.deckTitle,
+        item.errorReason,
+        meta?.zh,
+        meta?.en,
+        itemCourse,
+        item.cardId,
+      ]
+        .filter(Boolean)
+        .join('\n')
+        .toLowerCase();
+      return haystack.includes(normalizedFilter);
+    });
+  }, [tabItems, normalizedFilter, course]);
+
+  const clampedSelectedIdx =
+    visibleItems.length === 0 ? 0 : Math.max(0, Math.min(selectedIdx, visibleItems.length - 1));
+
   useEffect(() => {
     setSelectedIdx((idx) => Math.max(0, Math.min(idx, Math.max(0, visibleItems.length - 1))));
   }, [visibleItems.length]);
 
-  const selectedItem = visibleItems[selectedIdx] ?? null;
+  const selectedItem = visibleItems[clampedSelectedIdx] ?? null;
   const selectedKey = selectedItem ? itemKey(selectedItem) : '';
 
   // Load detail for currently selected card with cache + cancel guard
@@ -771,7 +799,9 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
 
   const modalOpen = activeModal !== null;
   const viewInputActive = isActive && !modalOpen;
-  useClaimKeys(CLAIMED_KEYS, viewInputActive);
+  const listNavActive = viewInputActive && !filterEditing;
+  useClaimKeys(CLAIMED_KEYS, listNavActive);
+  useInputCapture(viewInputActive && filterEditing);
 
   const footerHints: KeyHint[] = useMemo(() => {
     if (selectedMap.size > 0) {
@@ -783,6 +813,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
         { key: 'x', label: t(lang, '清空', 'Clear') },
         { key: 'e', label: t(lang, '标错因', 'Reason') },
         { key: 't', label: t(lang, '分流处理', 'Triage') },
+        { key: '/', label: t(lang, '筛选', 'Filter') },
       ];
     }
     if (tab === 'reason') {
@@ -794,6 +825,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
         { key: 'V', label: t(lang, '变式练', 'Variants') },
         { key: 'X', label: t(lang, '导出错题', 'Export MD') },
         { key: 'Enter/p', label: t(lang, '重练', 'Practise') },
+        { key: '/', label: t(lang, '筛选', 'Filter') },
       ];
     }
     return [
@@ -806,6 +838,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
       { key: 'V', label: t(lang, '变式练', 'Variants') },
       { key: 'X', label: t(lang, '导出错题', 'Export MD') },
       { key: 'x', label: t(lang, '同类题', 'Similar') },
+      { key: '/', label: t(lang, '筛选', 'Filter') },
     ];
   }, [lang, tab, selectedMap.size]);
 
@@ -815,6 +848,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
 
   useInput(
     (input, key) => {
+      if (!listNavActive) return;
       if (key.tab) {
         cycleTab(key.shift ? -1 : 1);
         return;
@@ -833,6 +867,16 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
       }
       if (key.leftArrow || (key.escape && narrowLayout && activePane === 'right')) {
         setActivePane('left');
+        return;
+      }
+      if (key.escape && filterQuery) {
+        setFilterQuery('');
+        setSelectedIdx(0);
+        return;
+      }
+      if (input === '/' && !key.ctrl && !key.meta) {
+        setActivePane('left');
+        setFilterEditing(true);
         return;
       }
       if (input === 'R') {
@@ -933,11 +977,12 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
         }
       }
     },
-    { isActive: viewInputActive },
+    { isActive: listNavActive },
   );
 
   // Compute header & split layout heights
-  const headerRows = tab === 'reason' ? 3 : 2;
+  const showFilterBar = filterEditing || filterQuery.length > 0;
+  const headerRows = (tab === 'reason' ? 3 : 2) + (showFilterBar ? 1 : 0);
   const bodyHeight = Math.max(6, height - headerRows);
 
   const renderListItem = useCallback(
@@ -1000,8 +1045,8 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
     [lang, asciiMode, theme, selectedMap],
   );
 
-  const listActive = viewInputActive && activePane === 'left';
-  const detailScrollActive = viewInputActive && activePane === 'right';
+  const listActive = listNavActive && activePane === 'left';
+  const detailScrollActive = listNavActive && activePane === 'right';
 
   const renderLeftPane = useCallback(
     (size: PaneSize) => {
@@ -1038,7 +1083,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
               items={visibleItems}
               height={listH}
               width={listW}
-              selectedIndex={selectedIdx}
+              selectedIndex={clampedSelectedIdx}
               onChange={(idx) => setSelectedIdx(idx)}
               onSelect={(item) => {
                 if (narrowLayout && activePane === 'left') setActivePane('right');
@@ -1048,11 +1093,17 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
               renderItem={renderListItem}
               isActive={listActive}
               emptyText={
-                tab === 'confusable'
-                  ? t(lang, '当前没有命中易混对的错题', 'No confusable mistakes found')
-                  : t(lang, '暂无错题记录', 'No mistakes recorded')
+                normalizedFilter
+                  ? t(lang, `没有匹配「${filterQuery.trim()}」的错题`, `No mistakes matching "${filterQuery.trim()}"`)
+                  : tab === 'confusable'
+                    ? t(lang, '当前没有命中易混对的错题', 'No confusable mistakes found')
+                    : t(lang, '暂无错题记录', 'No mistakes recorded')
               }
-              emptyHint={t(lang, '切换标签或去学习库继续练习', 'Switch tabs or practise from Library')}
+              emptyHint={
+                normalizedFilter
+                  ? t(lang, '按 Esc 清除筛选或按 / 修改关键词', 'Press Esc to clear filter or / to edit')
+                  : t(lang, '切换标签或去学习库继续练习', 'Switch tabs or practise from Library')
+              }
             />
           )}
         </Panel>
@@ -1067,12 +1118,15 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
       loading,
       isActive,
       loadError,
-      selectedIdx,
+      clampedSelectedIdx,
       narrowLayout,
       launchPractice,
       renderListItem,
       listActive,
       selectedMap,
+      asciiMode,
+      normalizedFilter,
+      filterQuery,
     ],
   );
 
@@ -1364,6 +1418,16 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
     return map;
   }, [weakItems, allItems]);
 
+  const ell = asciiMode ? '...' : '…';
+  const filterBadge = `[${t(lang, '筛选', filterEditing ? 'Filter' : 'Filtered')} ${visibleItems.length}/${tabItems.length}] `;
+  const filterRightHint =
+    width >= 66
+      ? ` ${filterEditing ? t(lang, 'Enter 确认 | Esc 清除', 'Enter apply | Esc clear') : t(lang, '/ 编辑 | Esc 清除', '/ edit | Esc clear')}`
+      : width >= 46
+        ? ' Esc'
+        : '';
+  const filterInputW = Math.max(8, width - 2 - displayWidth(filterBadge) - displayWidth(filterRightHint) - 3);
+
   return (
     <Box flexDirection="column" width={width} height={height}>
       {/* Top Filter & KPI Strip */}
@@ -1445,6 +1509,43 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
       ) : null}
 
       <Text color={theme.border}>{(asciiMode ? '-' : '─').repeat(Math.max(0, width))}</Text>
+
+      {/* Inline `/` Live Wrong-Card Search & Filter Bar */}
+      {showFilterBar ? (
+        <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
+          <Text color={filterEditing ? theme.primary : theme.accent} bold>
+            {filterBadge}
+          </Text>
+          <Box flexGrow={1} overflow="hidden">
+            <TextInput
+              value={filterQuery}
+              onChange={(next) => {
+                setFilterQuery(next);
+                setSelectedIdx(0);
+              }}
+              onSubmit={(val) => {
+                if (!val.trim()) setFilterQuery('');
+                setFilterEditing(false);
+              }}
+              onCancel={() => {
+                setFilterQuery('');
+                setFilterEditing(false);
+                setSelectedIdx(0);
+              }}
+              isActive={viewInputActive && filterEditing}
+              width={filterInputW}
+              prompt="/"
+              placeholder={t(lang, `题干/主题/题组/错因/课程${ell}`, `prompt/topic/deck/reason/course${ell}`)}
+              maxLength={120}
+            />
+          </Box>
+          {filterRightHint ? (
+            <Text color={theme.dim} wrap="truncate">
+              {filterRightHint}
+            </Text>
+          ) : null}
+        </Box>
+      ) : null}
 
       {/* Master-Detail SplitPane */}
       <SplitPane

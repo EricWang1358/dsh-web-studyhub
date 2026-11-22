@@ -93,6 +93,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'S / R', label: t(lang, '草稿查重与修复', 'Draft similar & repair') },
         { key: 'V', label: t(lang, '草稿发布预检', 'Draft publish preflight') },
         { key: 'u', label: t(lang, '撤销移除草稿题', 'Undo removed draft card') },
+        { key: '/ / X', label: t(lang, '筛选草稿题 / 导出草稿 MD', 'Filter draft / Export draft MD') },
         { key: 'Ctrl+S/J', label: t(lang, '保存 / 换行 (Shift+Enter)', 'Save / newline (Shift+Enter)') },
       ],
     },
@@ -121,6 +122,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'Space / B', label: t(lang, '勾选并批量练错题', 'Select & batch practice') },
         { key: 'V', label: t(lang, '练错题变式', 'Practice variants') },
         { key: 'X', label: t(lang, '导出错题复习卷 (Markdown)', 'Export wrong cards (Markdown)') },
+        { key: '/', label: t(lang, '关键词筛选错题', 'Filter wrong cards by keyword') },
       ],
     },
     {

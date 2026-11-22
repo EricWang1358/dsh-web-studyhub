@@ -27,7 +27,7 @@ Complete keyboard reference for `@ericwang1358/studyhub-tui`, synchronized with 
 | `Mouse Wheel` | Scroll up / down (3 rows) | Opt-in SGR 1006 wheel lifecycle (`--mouse` / `--no-mouse` / `STUDYHUB_TUI_MOUSE=1`, intact & ESC-stripped, disabled before alt-screen exit) in `VirtualList`, `ScrollView`, `SelectList`, and `CommandPalette` |
 | `Esc` | Close / cancel | Closes active modal, drawer, or palette |
 
-> **CLI Launch Flags**: `--root <path>`, `--page <id>`, `--theme <id>`, `--lang <zh|en>`, `--no-alt-screen`, `--no-launchpad`, `--skip-probe`, `--ascii` / `--unicode`, `--mouse` / `--no-mouse` (or `STUDYHUB_TUI_MOUSE=1` env var for opt-in SGR 1006 mouse wheel scrolling), and `--doctor` / `--doctor --json` (fast-path cross-platform terminal/env/provider diagnostics, zero API key leakage).
+> **CLI Launch Flags**: `--root <path>` (`--library <path>`), `--page <id>`, `--theme <id>`, `--lang <zh|en>`, `--no-alt-screen`, `--no-launchpad`, `--skip-probe`, `--ascii` / `--unicode`, `--mouse` / `--no-mouse` (or `STUDYHUB_TUI_MOUSE=1` env var for opt-in SGR 1006 mouse wheel scrolling), `--doctor` / `--doctor --json` (fast-path cross-platform terminal/env/provider diagnostics, zero API key leakage), and `--stats` / `--stats --json` (fast-path offline library dashboard summary, zero Ink/React mount or LLM calls).
 
 ### Page Jump Shortcuts (`PAGE_REGISTRY`)
 
@@ -110,10 +110,10 @@ Inside the palette: `↑`/`↓`, `Ctrl+P`/`Ctrl+N`, `Ctrl+J`/`Ctrl+K`, or `Mouse
 
 ### `3` Generate & Drafts (`generate`)
 - **New Generation**: `Tab` switch to Drafts · `Space` toggle source · `a` select/clear all sources · `i` capture & ingest existing cards · `c` cycle course · `k` cycle question kind · `n` cycle count · `p` page range scope · `f` focus instructions · `W` fill course weak topics (`generate.weakTopics`) · `S` AI suggest strategy (`generate.suggest`, P2 `ConfirmDialog` quota-guarded; also opens model settings when unconfigured) · `P` multi-step study path wizard (`GeneratePathModal`, P2 `ConfirmDialog`-guarded `generate.path.suggest`) · `Ctrl+S` start generation
-- **DraftEditor**: `d` switch draft · `e` edit selected card (`Ctrl+N` switch field, `Ctrl+S` save) · `x` remove card from draft · `u` undo last removed draft card · `S` / `s` check similar cards · `R` repair draft · `V` draft publish preflight · `P` publish draft to deck · `D` delete entire draft
+- **DraftEditor**: `d` switch draft · `/` filter draft cards by keyword (`Enter` keep, `Esc` clear) · `X` export draft Markdown (`backups/studyhub-draft-YYYY-MM-DD.md`) · `e` edit selected card (`Ctrl+N` switch field, `Ctrl+S` save) · `x` remove card from draft · `u` undo last removed draft card · `S` / `s` check similar cards · `R` repair draft · `V` draft publish preflight · `P` publish draft to deck · `D` delete entire draft
 
 ### `4` Mistakes / Wrong Book (`wrongbook`)
-- `Tab` / `h` / `l` switch tabs · `Space` multi-select · `B` / `P` batch practice · `V` practise prepared coach variants (`coach.practice`) · `X` export wrong-book Markdown study sheet (`backups/studyhub-wrongbook-YYYY-MM-DD.md`) · `x` clear selection / similar cards · `e` tag wrong reason · `t` 0-token triage · `f` filter by reason · `Enter` / `p` practise selected · `m` toggle math · `J` / `K` scroll detail pane · `R` reload
+- `Tab` / `h` / `l` switch tabs · `/` filter wrong cards by keyword (`Enter` keep, `Esc` clear) · `Space` multi-select · `B` / `P` batch practice · `V` practise prepared coach variants (`coach.practice`) · `X` export wrong-book Markdown study sheet (`backups/studyhub-wrongbook-YYYY-MM-DD.md`) · `x` clear selection / similar cards · `e` tag wrong reason · `t` 0-token triage · `f` filter by reason · `Enter` / `p` practise selected · `m` toggle math · `J` / `K` scroll detail pane · `R` reload
 
 ### `5` Mock Exam (`exam`)
 - **Setup**: `Tab` / `h` / `l` switch Setup / History · `1` / `2` / `3` Written MCQ / Case / Oral · `c` question count · `t` time limit · `k` question kinds · `r` resume active exam · `x` export exam history report (`backups/studyhub-exam-YYYY-MM-DD.md`)

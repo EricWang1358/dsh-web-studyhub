@@ -1,6 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
-import type { HostClient, KeyHint } from '../../types/contracts.js';
+import type { HostClient, KeyHint, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, Divider, EmptyState, normalizeAsciiChrome, Spinner } from '../../components/Badge.js';
@@ -14,8 +14,9 @@ import { VirtualList } from '../../components/VirtualList.js';
 import { useClaimKeys, useInputCapture } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { useShellActions } from '../../shell/actions.js';
-import { truncateDisplay } from '../../render/cjk.js';
+import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import { tryAction } from '../../host/sample-actions.js';
+import { atomicWriteTextFile, defaultBackupFilePath } from '../../host/atomic-write.js';
 
 export interface DraftEditorProps {
   host: HostClient;
@@ -88,6 +89,131 @@ function kindLabelFor(kind: unknown, lang: 'zh' | 'en'): string {
   const pair = KIND_LABELS[k];
   if (pair) return lang === 'en' ? pair[1] : pair[0];
   return k || (lang === 'en' ? 'Card' : '题');
+}
+
+export interface DraftMarkdownCard {
+  id?: string;
+  kind?: string;
+  topic?: string;
+  prompt?: string;
+  answer?: string;
+  hint?: string;
+  explanation?: string;
+  rubric?: string;
+  options?: ReadonlyArray<{ id?: string; text?: string; correct?: boolean; explanation?: string }>;
+  cloze?: { text?: string; answers?: ReadonlyArray<{ id?: string; value?: string }> };
+}
+
+export interface DraftMarkdownInput {
+  id?: string;
+  title?: string;
+  course?: string;
+  draftVersion?: number;
+  cards?: readonly DraftMarkdownCard[];
+}
+
+function localDraftDateLabel(value?: Date | string): string {
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  const d = value instanceof Date && !Number.isNaN(value.getTime()) ? value : new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${y}-${m}-${day} ${hh}:${mm}`;
+}
+
+function draftOptionTag(id: string | undefined, idx: number): string {
+  const s = (id ?? '').trim();
+  return s ? (/^[a-z]$/i.test(s) ? s.toUpperCase() : s) : String.fromCharCode(65 + (idx % 26));
+}
+
+/** Pure helper generating a clean Markdown draft review sheet with collapsible answers (0 LLM tokens). */
+export function formatDraftMarkdown({
+  draft,
+  cards,
+  lang,
+  generatedAt,
+}: {
+  draft: DraftMarkdownInput;
+  cards?: readonly DraftMarkdownCard[];
+  lang: UiLanguage;
+  generatedAt?: Date | string;
+}): string {
+  const list: readonly DraftMarkdownCard[] = Array.isArray(cards)
+    ? cards
+    : Array.isArray(draft.cards)
+      ? draft.cards
+      : [];
+  const title = String(draft.title || draft.id || t(lang, '未命名草稿', 'Untitled Draft')).trim();
+  const course = String(draft.course || '').trim() || t(lang, '未分课', 'General');
+  const date = localDraftDateLabel(generatedAt);
+  const versionText =
+    draft.draftVersion !== undefined && draft.draftVersion !== null
+      ? `v${draft.draftVersion}`
+      : t(lang, '未定稿', 'draft');
+
+  const lines: string[] = [
+    `# ${title}`,
+    '',
+    `- **${t(lang, '课程', 'Course')}**: ${course}`,
+    `- **${t(lang, '生成日期', 'Generated')}**: ${date}`,
+    `- **${t(lang, '题目数量', 'Cards')}**: ${list.length}`,
+    `- **${t(lang, '草稿版本', 'Draft Version')}**: ${versionText}`,
+    '',
+    '---',
+  ];
+
+  if (list.length === 0) {
+    lines.push('', t(lang, '_当前草稿暂无匹配题目。_', '_No matching draft cards._'), '');
+    return lines.join('\n');
+  }
+
+  list.forEach((c, i) => {
+    const kind = String(c.kind || 'card').trim();
+    const topic = String(c.topic || '').trim();
+    const tags = [`\`${kind}\``, ...(topic ? [`\`${topic}\``] : [])].join(' ');
+    const promptText = String(c.prompt || '').trim();
+    const clozeText = String(c.cloze?.text || '').trim();
+    const stem = promptText || clozeText || t(lang, '（无题干）', '(No prompt)');
+
+    lines.push('', `## ${i + 1}. ${topic || t(lang, `第 ${i + 1} 题`, `Card ${i + 1}`)}`, '', tags, '', stem);
+    if (clozeText && promptText && clozeText !== promptText) {
+      lines.push('', `**Cloze:** ${clozeText}`);
+    }
+
+    const opts = Array.isArray(c.options)
+      ? c.options.filter((o) => Boolean(o && (o.text || o.id)))
+      : [];
+    if (opts.length > 0) {
+      lines.push('');
+      opts.forEach((o, oi) => {
+        lines.push(`- **${draftOptionTag(o.id, oi)}.** ${String(o.text ?? '').trim()}`);
+      });
+    }
+
+    const optAns = opts
+      .map((o, oi) => (o.correct ? `${draftOptionTag(o.id, oi)}. ${String(o.text ?? '').trim()}` : ''))
+      .filter(Boolean)
+      .join('; ');
+    const clozeAnswers = Array.isArray(c.cloze?.answers) ? c.cloze.answers : [];
+    const clozeAns = clozeAnswers.map((a) => String(a?.value ?? '').trim()).filter(Boolean).join('; ');
+    const ans = String(c.answer || optAns || clozeAns || c.rubric || '').trim();
+    const hint = String(c.hint || '').trim();
+    const expl = String(c.explanation || '').trim();
+
+    lines.push('', '<details>', '<summary>参考答案与解析 / Answer & Explanation</summary>', '');
+    if (ans) lines.push(`- **${t(lang, '参考答案', 'Answer')}**: ${ans}`);
+    if (hint) lines.push(`- **${t(lang, '提示', 'Hint')}**: ${hint}`);
+    if (expl) lines.push('', `**${t(lang, '解析', 'Explanation')}**:`, '', expl);
+    if (!ans && !hint && !expl) {
+      lines.push(t(lang, '_暂无参考答案与解析。_', '_No answer or explanation._'));
+    }
+    lines.push('', '</details>', '', '---');
+  });
+
+  lines.push('');
+  return lines.join('\n');
 }
 
 interface PublishPlanExpect {
@@ -175,6 +301,11 @@ export const DraftEditor = memo(function DraftEditor({
   const planSeqRef = useRef(0);
   const mountedRef = useRef(true);
 
+  // Live filter & markdown export state
+  const [filterQuery, setFilterQuery] = useState('');
+  const [filterEditing, setFilterEditing] = useState(false);
+  const exportBusyRef = useRef(false);
+
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -188,6 +319,8 @@ export const DraftEditor = memo(function DraftEditor({
 
   useEffect(() => {
     setLastRemoved((prev) => (prev && prev.draftId === selectedDraftId ? prev : null));
+    setFilterQuery('');
+    setFilterEditing(false);
     planSeqRef.current += 1;
     planBusyRef.current = false;
     setPlanLoading(false);
@@ -229,13 +362,38 @@ export const DraftEditor = memo(function DraftEditor({
     void loadDraft(selectedDraftId);
   }, [selectedDraftId, loadDraft]);
 
-  useEffect(() => {
-    if (draft && cardIndex >= draft.cards.length) {
-      setCardIndex(Math.max(0, draft.cards.length - 1));
-    }
-  }, [draft, cardIndex]);
+  const normalizedFilter = filterQuery.trim().toLowerCase();
+  const filteredEntries = useMemo(() => {
+    const all = draft?.cards ?? [];
+    const entries = all.map((card, originalIndex) => ({ card, originalIndex }));
+    if (!normalizedFilter) return entries;
+    return entries.filter(({ card }) => {
+      const haystack = [
+        card.prompt,
+        card.cloze?.text,
+        card.topic,
+        card.kind,
+        card.answer,
+        card.explanation,
+      ]
+        .filter((v): v is string => typeof v === 'string' && v.length > 0)
+        .join('\n')
+        .toLowerCase();
+      return haystack.includes(normalizedFilter);
+    });
+  }, [draft?.cards, normalizedFilter]);
 
-  const selectedCard: DraftCard | undefined = draft?.cards[cardIndex];
+  useEffect(() => {
+    if (filteredEntries.length === 0) {
+      if (cardIndex !== 0) setCardIndex(0);
+    } else if (cardIndex >= filteredEntries.length) {
+      setCardIndex(Math.max(0, filteredEntries.length - 1));
+    }
+  }, [filteredEntries.length, cardIndex]);
+
+  const selectedEntry = filteredEntries[cardIndex];
+  const selectedCard: DraftCard | undefined = selectedEntry?.card;
+  const selectedOriginalIndex: number = selectedEntry?.originalIndex ?? -1;
 
   const saveDraftCards = useCallback(
     async (nextCards: DraftCard[], msg: string): Promise<boolean> => {
@@ -261,14 +419,14 @@ export const DraftEditor = memo(function DraftEditor({
   );
 
   const confirmRemoveCard = useCallback(async () => {
-    if (!draft || !selectedCard || busy) return;
+    if (!draft || !selectedCard || selectedOriginalIndex < 0 || busy) return;
     if (draft.cards.length <= 1) {
       setOverlay('none');
       notify(t(lang, '最后一道题请使用 [D] 删除整份草稿', 'Use [D] to delete the whole draft'), 'warning');
       return;
     }
-    const removed = { draftId: draft.id, index: cardIndex, card: selectedCard };
-    const next = draft.cards.filter((_, idx) => idx !== cardIndex);
+    const removed = { draftId: draft.id, index: selectedOriginalIndex, card: selectedCard };
+    const next = draft.cards.filter((_, idx) => idx !== selectedOriginalIndex);
     setOverlay('none');
     const ok = await saveDraftCards(
       next,
@@ -277,7 +435,7 @@ export const DraftEditor = memo(function DraftEditor({
     if (ok) {
       setLastRemoved(removed);
     }
-  }, [busy, cardIndex, draft, lang, notify, saveDraftCards, selectedCard]);
+  }, [busy, draft, lang, notify, saveDraftCards, selectedCard, selectedOriginalIndex]);
 
   const undoRemoveCard = useCallback(async () => {
     if (!draft || !lastRemoved || lastRemoved.draftId !== draft.id || busy) return;
@@ -290,9 +448,11 @@ export const DraftEditor = memo(function DraftEditor({
     const ok = await saveDraftCards(next, t(lang, '已恢复刚移除的题目', 'Restored removed card'));
     if (ok) {
       setLastRemoved(null);
-      setCardIndex(insertAt);
+      if (!normalizedFilter) {
+        setCardIndex(insertAt);
+      }
     }
-  }, [busy, draft, lang, lastRemoved, saveDraftCards]);
+  }, [busy, draft, lang, lastRemoved, normalizedFilter, saveDraftCards]);
 
   const checkSimilar = useCallback(async () => {
     if (!draft || busy) return;
@@ -436,13 +596,56 @@ export const DraftEditor = memo(function DraftEditor({
     notify(t(lang, '草稿已删除', 'Draft deleted'), 'success');
   }, [busy, draft, host, lang, notify, refresh]);
 
+  const exportDraftMarkdown = useCallback(async () => {
+    if (!draft || exportBusyRef.current) return;
+    const cardsToExport = filteredEntries.map((entry) => entry.card);
+    if (cardsToExport.length === 0) {
+      notify(
+        t(
+          lang,
+          normalizedFilter ? '当前筛选结果为空，请先按 Esc 清除筛选' : '当前草稿暂无可导出题目',
+          normalizedFilter ? 'No matching cards; press Esc to clear filter' : 'No draft cards to export',
+        ),
+        'info',
+      );
+      return;
+    }
+    exportBusyRef.current = true;
+    try {
+      const markdown = formatDraftMarkdown({
+        draft,
+        cards: cardsToExport,
+        lang,
+        generatedAt: new Date(),
+      });
+      const targetPath = defaultBackupFilePath(host.getLibraryRoot(), 'studyhub-draft', '.md');
+      await atomicWriteTextFile(targetPath, markdown);
+      if (!mountedRef.current) return;
+      const arrow = asciiMode ? '->' : '→';
+      notify(
+        t(
+          lang,
+          `已导出 ${cardsToExport.length} 道草稿题 ${arrow} ${targetPath}`,
+          `Exported ${cardsToExport.length} draft card(s) ${arrow} ${targetPath}`,
+        ),
+        'success',
+      );
+    } catch (err) {
+      if (!mountedRef.current) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      notify(t(lang, `导出草稿失败: ${msg}`, `Failed to export draft: ${msg}`), 'error');
+    } finally {
+      exportBusyRef.current = false;
+    }
+  }, [asciiMode, draft, filteredEntries, host, lang, normalizedFilter, notify]);
+
   const mainListActive = isActive && overlay === 'none';
   const canUndoRemove = Boolean(draft && lastRemoved && lastRemoved.draftId === draft.id);
   useClaimKeys(
     canUndoRemove
-      ? ['e', 'x', 'u', 's', 'S', 'R', 'V', 'P', 'D', 'd', 'n']
-      : ['e', 'x', 's', 'S', 'R', 'V', 'P', 'D', 'd', 'n'],
-    mainListActive,
+      ? ['e', 'x', 'X', '/', 'u', 's', 'S', 'R', 'V', 'P', 'D', 'd', 'n']
+      : ['e', 'x', 'X', '/', 's', 'S', 'R', 'V', 'P', 'D', 'd', 'n'],
+    mainListActive && !filterEditing,
   );
   useInputCapture(isActive && overlay === 'edit-card');
 
@@ -457,6 +660,8 @@ export const DraftEditor = memo(function DraftEditor({
       { key: 'V', label: t(lang, '预检', 'Plan') },
       { key: 'P', label: t(lang, '发布', 'Publish') },
       { key: 'D', label: t(lang, '删草稿', 'Del') },
+      { key: '/', label: t(lang, '筛选', 'Filter') },
+      { key: 'X', label: t(lang, '导出MD', 'Export') },
     ],
     [lang, canUndoRemove],
   );
@@ -467,9 +672,9 @@ export const DraftEditor = memo(function DraftEditor({
       if (overlay === 'edit-card') {
         if (key.ctrl && input === 'n') {
           setEditField((f) => (f === 'prompt' ? 'explanation' : 'prompt'));
-        } else if (key.ctrl && input === 's' && draft && selectedCard) {
+        } else if (key.ctrl && input === 's' && draft && selectedCard && selectedOriginalIndex >= 0) {
           const next = draft.cards.map((c, idx) =>
-            idx === cardIndex ? { ...c, prompt: editPrompt, explanation: editExplanation } : c,
+            idx === selectedOriginalIndex ? { ...c, prompt: editPrompt, explanation: editExplanation } : c,
           );
           setOverlay('none');
           void saveDraftCards(next, t(lang, '题目修改已保存', 'Card updated'));
@@ -493,7 +698,12 @@ export const DraftEditor = memo(function DraftEditor({
         return;
       }
 
-      if (!mainListActive) return;
+      if (!mainListActive || filterEditing) return;
+
+      if (key.escape && filterQuery) {
+        setFilterQuery('');
+        return;
+      }
 
       if (input === 'd' && draftsList.length > 0) {
         const idx = Math.max(0, draftsList.findIndex((item) => item.id === selectedDraftId));
@@ -503,6 +713,16 @@ export const DraftEditor = memo(function DraftEditor({
       }
 
       if (!draft) return;
+
+      if (input === '/' && !key.ctrl && !key.meta) {
+        setFilterEditing(true);
+        return;
+      }
+
+      if (input === 'X' && !key.ctrl && !key.meta) {
+        void exportDraftMarkdown();
+        return;
+      }
 
       if (input === 'u' && lastRemoved && lastRemoved.draftId === draft.id) {
         void undoRemoveCard();
@@ -579,8 +799,11 @@ export const DraftEditor = memo(function DraftEditor({
     );
   }
 
+  const showFilterBar = filterEditing || filterQuery.length > 0;
+  const filterBarH = showFilterBar ? 1 : 0;
   const headerH = 2;
-  const bodyH = Math.max(4, height - headerH);
+  const bodyH = Math.max(4, height - headerH - filterBarH);
+  const totalCards = draft?.cards.length ?? 0;
 
   const simWarning = selectedCard ? similarMap.get(selectedCard.id) : undefined;
   const rejectedCount = draft?.editorial?.rejectedIssues
@@ -592,6 +815,15 @@ export const DraftEditor = memo(function DraftEditor({
   const simBodyH = Math.max(6, simModalH - 5);
   const selectedSimilar = similarItems[similarCursor];
   const ell = asciiMode ? '...' : '…';
+
+  const filterBadge = `[${filterEditing ? t(lang, '筛选', 'Filter') : t(lang, '已筛选', 'Filtered')} ${filteredEntries.length}/${totalCards}] `;
+  const filterRightHint =
+    width >= 66
+      ? ` ${filterEditing ? t(lang, 'Enter 确认 | Esc 清除', 'Enter apply | Esc clear') : t(lang, '/ 编辑 | Esc 清除', '/ edit | Esc clear')}`
+      : width >= 46
+        ? ' Esc'
+        : '';
+  const filterInputW = Math.max(8, width - 2 - displayWidth(filterBadge) - displayWidth(filterRightHint) - 3);
 
   const planModalW = Math.max(44, Math.min(72, width - 4));
   const planInnerW = modalContentWidth(planModalW);
@@ -609,37 +841,52 @@ export const DraftEditor = memo(function DraftEditor({
     : null;
   const planCanPublish = !planLoading && !planError && planAccepted > 0;
 
+  const headerRightText = width < 92
+    ? t(lang, '[V] 预检  [P] 发布', '[V] Plan  [P] Publish')
+    : t(lang, `[d] 切换 (${draftsList.length})  [V] 预检  [P] 发布`, `[d] Switch (${draftsList.length})  [V] Plan  [P] Publish`);
+  const headerCountLabel = `${draft?.cards.length ?? 0} ${t(lang, '题', 'cards')}`;
+  const headerCourseLabel = draft?.course
+    ? truncateDisplay(normalizeAsciiChrome(String(draft.course), asciiMode), width < 92 ? 12 : 24, ell)
+    : '';
+  const headerFixLabel = rejectedCount > 0 ? `${rejectedCount} ${t(lang, '待修', 'fix')}` : '';
+  const headerReservedW =
+    2 +
+    (headerCourseLabel ? displayWidth(headerCourseLabel) + 3 : 0) +
+    displayWidth(headerCountLabel) + 3 +
+    (headerFixLabel ? displayWidth(headerFixLabel) + 3 : 0) +
+    (busy ? 14 : displayWidth(headerRightText)) +
+    4;
+  const headerTitleMaxW = Math.max(8, width - headerReservedW);
+
   return (
     <Box flexDirection="column" width={width} height={height}>
       {/* Draft Header Bar */}
       <Box height={headerH} width={width} paddingX={1} flexDirection="column" overflow="hidden">
         <Box flexDirection="row" alignItems="center" height={1} overflow="hidden">
-          <Text bold color={theme.primary} wrap="truncate">
+          <Text bold color={theme.primary}>
             {truncateDisplay(
               normalizeAsciiChrome(
                 String(draft?.title || draftsList.find((d) => d.id === selectedDraftId)?.title || selectedDraftId),
                 asciiMode,
               ),
-              Math.max(12, width - (width < 92 ? 38 : 50)),
+              headerTitleMaxW,
               ell,
             )}
           </Text>
           <Text> </Text>
-          {draft?.course ? <Badge label={draft.course} tone="accent" variant="soft" /> : null}
+          {headerCourseLabel ? <Badge label={headerCourseLabel} tone="accent" variant="soft" /> : null}
           <Text> </Text>
-          <Badge label={`${draft?.cards.length ?? 0} ${t(lang, '题', 'cards')}`} tone="info" variant="soft" />
-          {rejectedCount > 0 ? (
+          <Badge label={headerCountLabel} tone="info" variant="soft" />
+          {headerFixLabel ? (
             <>
               <Text> </Text>
-              <Badge label={`${rejectedCount} ${t(lang, '待修', 'fix')}`} tone="warning" variant="soft" />
+              <Badge label={headerFixLabel} tone="warning" variant="soft" />
             </>
           ) : null}
           <Box flexGrow={1} />
           {busy ? <Spinner label={busyLabel || (asciiMode ? t(lang, '处理中...', 'Working...') : t(lang, '处理中…', 'Working…'))} active={isActive} /> : (
-            <Text color={theme.dim} wrap="truncate">
-              {width < 92
-                ? t(lang, '[V] 预检  [P] 发布', '[V] Plan  [P] Publish')
-                : t(lang, `[d] 切换 (${draftsList.length})  [V] 预检  [P] 发布`, `[d] Switch (${draftsList.length})  [V] Plan  [P] Publish`)}
+            <Text color={theme.dim}>
+              {truncateDisplay(headerRightText, Math.max(10, width - 2), ell)}
             </Text>
           )}
         </Box>
@@ -656,6 +903,42 @@ export const DraftEditor = memo(function DraftEditor({
         </Text>
       </Box>
 
+      {/* Inline Live Card Filter Bar */}
+      {showFilterBar ? (
+        <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
+          <Text color={filterEditing ? theme.primary : theme.accent} bold>
+            {filterBadge}
+          </Text>
+          <Box flexGrow={1} overflow="hidden">
+            <TextInput
+              value={filterQuery}
+              onChange={(val) => {
+                setFilterQuery(val);
+                setCardIndex(0);
+              }}
+              onSubmit={(val) => {
+                if (!val.trim()) setFilterQuery('');
+                setFilterEditing(false);
+              }}
+              onCancel={() => {
+                setFilterQuery('');
+                setFilterEditing(false);
+              }}
+              isActive={mainListActive && filterEditing}
+              width={filterInputW}
+              prompt="/"
+              placeholder={t(lang, `关键词${ell}`, `keyword${ell}`)}
+              maxLength={120}
+            />
+          </Box>
+          {filterRightHint ? (
+            <Text color={theme.dim}>
+              {filterRightHint}
+            </Text>
+          ) : null}
+        </Box>
+      ) : null}
+
       {/* SplitPane */}
       <Box height={bodyH} width={width}>
         <SplitPane
@@ -667,35 +950,43 @@ export const DraftEditor = memo(function DraftEditor({
           left={({ width: lw, height: lh }) => (
             <Panel
               title={t(lang, '题目列表', 'Draft Cards')}
-              badge={draft?.cards.length ?? 0}
+              badge={normalizedFilter ? `${filteredEntries.length}/${totalCards}` : totalCards}
               width={lw}
               height={lh}
-              focused={mainListActive}
+              focused={mainListActive && !filterEditing}
             >
               {loading ? (
                 <Spinner label={asciiMode ? t(lang, '加载草稿...', 'Loading draft...') : t(lang, '加载草稿…', 'Loading draft…')} active={isActive} />
+              ) : filteredEntries.length === 0 && normalizedFilter ? (
+                <EmptyState
+                  title={t(lang, '无匹配题目', 'No matching cards')}
+                  hint={t(lang, '按 [Esc] 清除筛选，或 [/] 修改关键词', 'Press [Esc] to clear filter, or [/] to edit')}
+                  width={Math.max(12, lw - 4)}
+                  height={Math.max(4, lh - 2)}
+                />
               ) : (
                 <VirtualList
-                  items={draft?.cards ?? []}
+                  items={filteredEntries}
                   height={Math.max(1, lh - 2)}
                   width={Math.max(12, lw - 4)}
                   selectedIndex={cardIndex}
                   onChange={(idx) => setCardIndex(idx)}
-                  isActive={mainListActive}
-                  keyExtractor={(c, i) => `${c.id}-${i}`}
-                  renderItem={(card, ctx) => {
+                  isActive={mainListActive && !filterEditing}
+                  keyExtractor={(entry) => `${entry.card.id}-${entry.originalIndex}`}
+                  renderItem={(entry, ctx) => {
+                    const card = entry.card;
                     const kindLabel = kindLabelFor(card.kind, lang);
                     const warn = similarMap.has(card.id) ? (asciiMode ? '! ' : '⚠ ') : '';
                     const pointer = ctx.selected ? (asciiMode ? '> ' : '▸ ') : '  ';
-                    const prefix = `${ctx.index + 1}. [${kindLabel}] `;
-                    const stemMax = Math.max(8, ctx.width - prefix.length - (warn ? 2 : 0) - 3);
+                    const prefix = `${entry.originalIndex + 1}. [${kindLabel}] `;
+                    const stemMax = Math.max(8, ctx.width - displayWidth(prefix) - (warn ? 2 : 0) - 3);
                     return (
                       <Box flexDirection="row" width={ctx.width}>
                         <Text color={ctx.selected ? theme.primary : theme.muted}>{pointer}</Text>
                         {warn ? <Text color={theme.warning}>{warn}</Text> : null}
                         <Text color={theme.accent}>{prefix}</Text>
                         <Text color={theme.text} bold={ctx.selected}>
-                          {truncateDisplay(String(card.prompt || '').replace(/\s+/g, ' '), stemMax, ell)}
+                          {truncateDisplay(String(card.prompt || card.cloze?.text || '').replace(/\s+/g, ' '), stemMax, ell)}
                         </Text>
                       </Box>
                     );
@@ -706,7 +997,7 @@ export const DraftEditor = memo(function DraftEditor({
           )}
           right={({ width: rw, height: rh }) => (
             <Panel
-              title={selectedCard ? `#${cardIndex + 1} ${kindLabelFor(selectedCard.kind, lang)}` : t(lang, '详情', 'Detail')}
+              title={selectedCard && selectedOriginalIndex >= 0 ? `#${selectedOriginalIndex + 1} ${kindLabelFor(selectedCard.kind, lang)}` : t(lang, '详情', 'Detail')}
               subtitle={selectedCard?.topic ? String(selectedCard.topic) : undefined}
               width={rw}
               height={rh}
@@ -782,7 +1073,7 @@ export const DraftEditor = memo(function DraftEditor({
       {/* Edit Card Modal */}
       {overlay === 'edit-card' && selectedCard ? (
         <Modal
-          title={t(lang, `编辑第 ${cardIndex + 1} 题`, `Edit Card #${cardIndex + 1}`)}
+          title={t(lang, `编辑第 ${selectedOriginalIndex + 1} 题`, `Edit Card #${selectedOriginalIndex + 1}`)}
           width={72}
           isActive={isActive}
           onClose={() => setOverlay('none')}
@@ -959,8 +1250,8 @@ export const DraftEditor = memo(function DraftEditor({
           title={t(lang, '移除草稿题目', 'Remove Draft Card')}
           message={t(
             lang,
-            `确定从草稿移除第 ${cardIndex + 1} 题「${truncateDisplay(String(selectedCard.prompt || '').replace(/\s+/g, ' '), 48, ell)}」吗？`,
-            `Remove card #${cardIndex + 1} "${truncateDisplay(String(selectedCard.prompt || '').replace(/\s+/g, ' '), 48, ell)}" from this draft?`,
+            `确定从草稿移除第 ${selectedOriginalIndex + 1} 题「${truncateDisplay(String(selectedCard.prompt || '').replace(/\s+/g, ' '), 48, ell)}」吗？`,
+            `Remove card #${selectedOriginalIndex + 1} "${truncateDisplay(String(selectedCard.prompt || '').replace(/\s+/g, ' '), 48, ell)}" from this draft?`,
           )}
           confirmLabel={t(lang, '移除', 'Remove')}
           cancelLabel={t(lang, '取消', 'Cancel')}
@@ -1030,11 +1321,18 @@ export const DraftEditor = memo(function DraftEditor({
                 onChange={(idx) => setSimilarCursor(idx)}
                 onSelect={(item) => {
                   if (draft) {
-                    const foundIdx = draft.cards.findIndex((c) => c.id === item.cardId);
-                    const fallbackIdx = Number.isInteger(item.n)
-                      ? Math.max(0, Math.min(draft.cards.length - 1, item.n - 1))
-                      : 0;
-                    setCardIndex(foundIdx >= 0 ? foundIdx : fallbackIdx);
+                    const foundInFiltered = filteredEntries.findIndex((e) => e.card.id === item.cardId);
+                    if (foundInFiltered >= 0) {
+                      setCardIndex(foundInFiltered);
+                    } else {
+                      setFilterQuery('');
+                      setFilterEditing(false);
+                      const foundIdx = draft.cards.findIndex((c) => c.id === item.cardId);
+                      const fallbackIdx = Number.isInteger(item.n)
+                        ? Math.max(0, Math.min(draft.cards.length - 1, item.n - 1))
+                        : 0;
+                      setCardIndex(foundIdx >= 0 ? foundIdx : fallbackIdx);
+                    }
                   }
                   setOverlay('none');
                 }}

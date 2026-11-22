@@ -7,8 +7,10 @@
  */
 import {
   buildDoctorReport,
+  buildStatsSummary,
   cliHelpText,
   formatDoctorReport,
+  formatStatsSummary,
   parseCliArgs,
   resolveColorCapability,
   shouldAutoAscii,
@@ -99,6 +101,33 @@ async function runDoctorFastPath(parsed: ReturnType<typeof parseCliArgs>) {
   }
 }
 
+async function runStatsFastPath(parsed: ReturnType<typeof parseCliArgs>) {
+  const { createTuiHost } = await import('./host/tui-host.js');
+  const host = await createTuiHost({
+    libraryRoot: parsed.libraryRoot,
+    skipAutoProbe: true,
+    language: parsed.language,
+  });
+  try {
+    const refresh = await host.refreshSnapshot();
+    const libraryRoot =
+      refresh.binding?.root || refresh.snapshot?.root || host.getLibraryRoot() || parsed.libraryRoot || '';
+    const summary = buildStatsSummary({
+      libraryRoot,
+      snapshot: refresh.snapshot,
+      version: PKG_VERSION,
+    });
+    if (parsed.json) {
+      process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
+    } else {
+      const ascii = parsed.asciiMode ?? shouldAutoAscii(process.env);
+      process.stdout.write(`${formatStatsSummary(summary, ascii)}\n`);
+    }
+  } finally {
+    await host.dispose().catch(() => {});
+  }
+}
+
 async function main() {
   const parsed = parseCliArgs(process.argv.slice(2));
 
@@ -119,6 +148,11 @@ async function main() {
 
   if (parsed.doctor) {
     await runDoctorFastPath(parsed);
+    return;
+  }
+
+  if (parsed.stats) {
+    await runStatsFastPath(parsed);
     return;
   }
 
