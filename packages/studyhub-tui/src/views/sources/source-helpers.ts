@@ -1,6 +1,11 @@
 import type { StudySnapshot } from '../../types/contracts.js';
 import type { Tone } from '../../components/index.js';
 
+export interface MaterialFoldersState {
+  folders: string[];
+  items: Record<string, string>;
+}
+
 export interface DocumentGroup {
   key: string;
   documentId?: string;
@@ -10,6 +15,7 @@ export interface DocumentGroup {
   sourceIds: string[];
   pages: Array<{ sourceId: string; page: number; title: string; chars: number }>;
   courses: string[];
+  folder?: string;
   cardCount: number;
   chars: number;
   pinned: boolean;
@@ -99,6 +105,46 @@ export function sourceGroupKey(source: RawSource): string {
   return `source:${source.id}`;
 }
 
+export function normalizeFolderName(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+export function materialFoldersFromSnapshot(snapshot: StudySnapshot | null | undefined): MaterialFoldersState {
+  const topRaw = snapshot?.materialFolders;
+  const raw =
+    topRaw && typeof topRaw === 'object' && !Array.isArray(topRaw)
+      ? (topRaw as Record<string, unknown>)
+      : (snapshot?.settings?.materialFolders as Record<string, unknown> | undefined);
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { folders: [], items: {} };
+  }
+  const folders: string[] = [];
+  const seen = new Set<string>();
+  if (Array.isArray(raw.folders)) {
+    for (const entry of raw.folders) {
+      const name = normalizeFolderName(entry);
+      if (!name || name.length > 80 || seen.has(name)) continue;
+      seen.add(name);
+      folders.push(name);
+    }
+  }
+  const items: Record<string, string> = {};
+  if (raw.items && typeof raw.items === 'object' && !Array.isArray(raw.items)) {
+    for (const [key, val] of Object.entries(raw.items)) {
+      if (typeof key !== 'string' || !key.trim()) continue;
+      const folder = normalizeFolderName(val);
+      if (!folder || folder.length > 80) continue;
+      if (!seen.has(folder)) {
+        seen.add(folder);
+        folders.push(folder);
+      }
+      items[key] = folder;
+    }
+  }
+  return { folders, items };
+}
+
 export function pinnedKeysFromSnapshot(snapshot: StudySnapshot | null | undefined): string[] {
   const raw = snapshot?.settings?.materialPins;
   if (!Array.isArray(raw)) return [];
@@ -154,6 +200,7 @@ export function groupSourcesFromSnapshot(snapshot: StudySnapshot | null | undefi
   const pins = pinnedKeysFromSnapshot(snapshot);
   const pinIndex = new Map(pins.map((k, i) => [k, i]));
   const cardIndex = buildCardCountIndex(snapshot);
+  const folderState = materialFoldersFromSnapshot(snapshot);
 
   const buckets = new Map<string, { key: string; format: string; members: RawSource[] }>();
   for (const s of sources) {
@@ -229,6 +276,10 @@ export function groupSourcesFromSnapshot(snapshot: StudySnapshot | null | undefi
     });
 
     const pinned = pinIndex.has(key) || ordered.some(({ src }) => Boolean(src.pinned));
+    const folder =
+      folderState.items[key] ||
+      ordered.map(({ src }) => normalizeFolderName(src.folder)).find(Boolean) ||
+      '';
     groups.push({
       key,
       ...(documentId ? { documentId } : {}),
@@ -238,6 +289,7 @@ export function groupSourcesFromSnapshot(snapshot: StudySnapshot | null | undefi
       sourceIds: pages.map((p) => p.sourceId),
       pages,
       courses: [...courseSet],
+      ...(folder ? { folder } : {}),
       cardCount: totalCards,
       chars: totalChars,
       pinned,

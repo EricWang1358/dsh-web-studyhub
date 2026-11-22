@@ -15,6 +15,8 @@ import {
   useTheme,
 } from '../../components/index.js';
 import { errorMessage, startReview, tryAction } from '../../host/sample-actions.js';
+import { ReaderOutlineDrawer } from './ReaderOutlineDrawer.js';
+import { ReaderNotesDrawer, savePageAskToNote } from './ReaderNotesDrawer.js';
 
 export interface DocumentReaderProps {
   host: HostClient;
@@ -31,7 +33,15 @@ export interface DocumentReaderProps {
   onClose: () => void;
 }
 
-type ReaderSubMode = 'read' | 'jump' | 'search' | 'ask-input' | 'ask-view' | 'translate-view';
+type ReaderSubMode =
+  | 'read'
+  | 'jump'
+  | 'search'
+  | 'ask-input'
+  | 'ask-view'
+  | 'translate-view'
+  | 'outline'
+  | 'notes';
 
 interface PageProjection {
   page: number;
@@ -90,10 +100,12 @@ export const DocumentReader = memo(function DocumentReader({
   const [askQuestion, setAskQuestion] = useState('');
   const [aiAnswer, setAiAnswer] = useState('');
   const [aiBusy, setAiBusy] = useState(false);
+  const [savingNote, setSavingNote] = useState(false);
   const [translationText, setTranslationText] = useState('');
   const [translateBusy, setTranslateBusy] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
+  const mountedRef = useRef(true);
 
   const abortInFlight = useCallback(() => {
     if (abortRef.current) {
@@ -102,11 +114,18 @@ export const DocumentReader = memo(function DocumentReader({
     }
   }, []);
 
-  // Clear local page buffer and abort any active AI stream on unmount.
+  // Clear local page/drawer buffers and abort any active AI stream on unmount.
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
+      mountedRef.current = false;
       abortInFlight();
       setPageData(null);
+      setSearchHits([]);
+      setAiAnswer('');
+      setTranslationText('');
+      setSubMode('read');
+      setSavingNote(false);
     };
   }, [abortInFlight]);
 
@@ -132,7 +151,12 @@ export const DocumentReader = memo(function DocumentReader({
         if (metaRes.ok && metaRes.value) {
           docMeta = {
             documentId: typeof metaRes.value.id === 'string' ? metaRes.value.id : documentId,
-            revision: typeof metaRes.value.currentRevision === 'string' ? metaRes.value.currentRevision : undefined,
+            revision:
+              typeof metaRes.value.currentRevision === 'string'
+                ? metaRes.value.currentRevision
+                : typeof metaRes.value.revision === 'string'
+                  ? metaRes.value.revision
+                  : undefined,
             title: typeof metaRes.value.title === 'string' ? metaRes.value.title : undefined,
             format: typeof metaRes.value.format === 'string' ? metaRes.value.format : undefined,
           };
@@ -401,30 +425,72 @@ export const DocumentReader = memo(function DocumentReader({
     }
   }, [host, lang, navigate, notify, pageData]);
 
+  const handleSaveAskToNote = useCallback(async () => {
+    if (!pageData || aiBusy || savingNote) return;
+    setSavingNote(true);
+    try {
+      const result = await savePageAskToNote({
+        host,
+        lang,
+        title: pageData.title,
+        page: pageData.page,
+        sourceId: pageData.sourceId,
+        documentId: pageData.documentId || documentId,
+        revision: pageData.revision,
+        pageText: pageData.text,
+        question: askQuestion,
+        answer: aiAnswer,
+        course: initialCourse,
+      });
+      if (!mountedRef.current) return;
+      notify(result.message, result.ok ? 'success' : 'warning');
+    } catch (err) {
+      if (mountedRef.current) notify(errorMessage(err), 'error');
+    } finally {
+      if (mountedRef.current) setSavingNote(false);
+    }
+  }, [pageData, aiBusy, savingNote, host, lang, documentId, askQuestion, aiAnswer, initialCourse, notify]);
+
   const isTyping = subMode === 'jump' || subMode === 'search' || subMode === 'ask-input';
-  useClaimKeys(['[', ']', '/', 'g', 'm', 'a', 't', 'q', 'p', 'backspace'], isActive && !isTyping);
+  const drawerOpen = subMode === 'outline' || subMode === 'notes';
+  const readerInputActive = isActive && !drawerOpen;
+  const claimedKeys = useMemo(
+    () =>
+      subMode === 'ask-view'
+        ? ['s', 'backspace']
+        : ['[', ']', '/', 'g', 'm', 'a', 't', 'q', 'p', 'O', 'B', 'backspace'],
+    [subMode],
+  );
+  useClaimKeys(claimedKeys, readerInputActive && !isTyping);
   useInputCapture(isActive && subMode !== 'read');
 
-  const hints: KeyHint[] = useMemo(
-    () => [
-      { key: 'j/k', label: t(lang, '滚动', 'Scroll') },
+  const hints: KeyHint[] = useMemo(() => {
+    if (subMode === 'ask-view') {
+      return [
+        { key: 'j/k', label: t(lang, '滚动', 'Scroll') },
+        { key: 's', label: t(lang, '存笔记', 'Save Note') },
+        { key: 'Esc', label: t(lang, '返回', 'Back') },
+      ];
+    }
+    return [
       { key: '[/]', label: t(lang, '翻页', 'Page') },
+      { key: 'O', label: t(lang, '目录', 'TOC') },
+      { key: 'B', label: t(lang, '批注', 'Notes') },
+      { key: 'a', label: t(lang, '问AI', 'Ask') },
+      { key: 't', label: t(lang, '翻译', 'Trans') },
       { key: 'g', label: t(lang, '跳页', 'Go') },
       { key: '/', label: t(lang, '搜索', 'Search') },
       { key: 'm', label: t(lang, '公式', 'Math') },
-      { key: 'a', label: t(lang, '问AI', 'Ask') },
-      { key: 't', label: t(lang, '翻译', 'Translate') },
       { key: 'q', label: t(lang, '出题', 'Gen') },
-      { key: 'p', label: t(lang, '练题', 'Practice') },
+      { key: 'p', label: t(lang, '练题', 'Quiz') },
       { key: 'Esc', label: t(lang, '返回', 'Back') },
-    ],
-    [lang],
-  );
-  useFooterHints(hints, isActive);
+    ];
+  }, [lang, subMode]);
+  useFooterHints(hints, readerInputActive);
 
   useInput(
     (input, key) => {
-      if (isTyping) return;
+      if (isTyping || drawerOpen) return;
       if (key.escape || (subMode === 'read' && key.backspace)) {
         if (subMode !== 'read') {
           abortInFlight();
@@ -433,6 +499,12 @@ export const DocumentReader = memo(function DocumentReader({
           setSubMode('read');
         } else {
           onClose();
+        }
+        return;
+      }
+      if (subMode === 'ask-view') {
+        if (input === 's' && !aiBusy) {
+          void handleSaveAskToNote();
         }
         return;
       }
@@ -457,6 +529,10 @@ export const DocumentReader = memo(function DocumentReader({
         setSubMode('ask-input');
       } else if (input === 't') {
         void runTranslatePage();
+      } else if (input === 'O') {
+        setSubMode('outline');
+      } else if (input === 'B') {
+        setSubMode('notes');
       } else if (input === 'q') {
         const sid = pageData?.sourceId || sourceId;
         if (sid) {
@@ -469,7 +545,7 @@ export const DocumentReader = memo(function DocumentReader({
         void handlePracticeLinkedCards();
       }
     },
-    { isActive },
+    { isActive: readerInputActive },
   );
 
   const showSide = (subMode === 'ask-view' || subMode === 'translate-view') && width >= 88;
@@ -582,7 +658,7 @@ export const DocumentReader = memo(function DocumentReader({
               markdown={pageData?.text || t(lang, '（本页暂无可提取文字）', '(No extracted text on this page)')}
               width={Math.max(12, mainW - 4)}
               height={Math.max(2, readerH - 2)}
-              isActive={isActive && subMode === 'read'}
+              isActive={readerInputActive && subMode === 'read'}
               mathUnicode={mathUnicode}
               highlight={activeSearch || undefined}
             />
@@ -591,7 +667,7 @@ export const DocumentReader = memo(function DocumentReader({
               content={pageData?.text || t(lang, '（本页暂无可提取文字）', '(No extracted text on this page)')}
               width={Math.max(12, mainW - 4)}
               height={Math.max(2, readerH - 2)}
-              isActive={isActive && subMode === 'read'}
+              isActive={readerInputActive && subMode === 'read'}
               highlight={activeSearch || undefined}
             />
           )}
@@ -604,7 +680,13 @@ export const DocumentReader = memo(function DocumentReader({
             title={t(lang, 'AI 讲解', 'AI Answer')}
             icon="✦"
             tone="ai"
-            subtitle={aiBusy ? t(lang, '生成中… Esc 中止', 'Streaming… Esc abort') : 'Esc 返回'}
+            subtitle={
+              aiBusy
+                ? t(lang, '生成中… Esc 中止', 'Streaming… Esc abort')
+                : savingNote
+                  ? t(lang, '保存中…', 'Saving…')
+                  : t(lang, 's 存笔记 · Esc 返回', 's Save Note · Esc Back')
+            }
             width={auxW}
             height={auxH}
             focused
@@ -613,7 +695,7 @@ export const DocumentReader = memo(function DocumentReader({
               markdown={aiAnswer || (aiBusy ? t(lang, '_正在思考…_', '_Thinking…_') : '')}
               width={Math.max(12, auxW - 4)}
               height={Math.max(2, auxH - 2)}
-              isActive={isActive && subMode === 'ask-view'}
+              isActive={readerInputActive && subMode === 'ask-view'}
               mathUnicode={mathUnicode}
               follow={aiBusy}
             />
@@ -634,13 +716,54 @@ export const DocumentReader = memo(function DocumentReader({
               markdown={translationText || (translateBusy ? t(lang, '_正在翻译当前页…_', '_Translating current page…_') : '')}
               width={Math.max(12, auxW - 4)}
               height={Math.max(2, auxH - 2)}
-              isActive={isActive && subMode === 'translate-view'}
+              isActive={readerInputActive && subMode === 'translate-view'}
               mathUnicode={mathUnicode}
               follow={translateBusy}
             />
           </Panel>
         ) : null}
       </Box>
+
+      {subMode === 'outline' ? (
+        <ReaderOutlineDrawer
+          host={host}
+          documentId={pageData?.documentId || documentId}
+          sourceId={pageData?.sourceId || sourceId}
+          revision={pageData?.revision}
+          title={pageData?.title || initialTitle}
+          currentPage={pageData?.page ?? currentPage}
+          currentPageText={pageData?.text}
+          width={width}
+          height={height}
+          isActive={isActive}
+          onJumpPage={(pg) => {
+            const lo = pageData?.firstPage ?? 1;
+            const hi = pageData?.lastPage ?? Math.max(pg, totalPagesHint);
+            setCurrentPage(Math.max(lo, Math.min(hi, pg)));
+          }}
+          onClose={() => setSubMode('read')}
+        />
+      ) : null}
+
+      {subMode === 'notes' ? (
+        <ReaderNotesDrawer
+          host={host}
+          documentId={pageData?.documentId || documentId}
+          sourceId={pageData?.sourceId || sourceId}
+          revision={pageData?.revision}
+          title={pageData?.title || initialTitle}
+          currentPage={pageData?.page ?? currentPage}
+          width={width}
+          height={height}
+          isActive={isActive}
+          onJumpPage={(pg) => {
+            const lo = pageData?.firstPage ?? 1;
+            const hi = pageData?.lastPage ?? Math.max(pg, totalPagesHint);
+            setCurrentPage(Math.max(lo, Math.min(hi, pg)));
+          }}
+          onClose={() => setSubMode('read')}
+        />
+      ) : null}
     </Box>
   );
 });

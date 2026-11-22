@@ -27,11 +27,23 @@ import {
   formatLabel,
   formatTone,
   groupSourcesFromSnapshot,
+  materialFoldersFromSnapshot,
 } from './source-helpers.js';
 import { ImportModal } from './ImportModal.js';
 import { DocumentReader } from './DocumentReader.js';
+import { FolderModal } from './FolderModal.js';
+import { CompanionsModal } from './CompanionsModal.js';
 
-type ActiveOverlay = 'none' | 'import' | 'rename' | 'course' | 'delete' | 'search';
+type ActiveOverlay =
+  | 'none'
+  | 'import'
+  | 'rename'
+  | 'course'
+  | 'delete'
+  | 'search'
+  | 'folders-filter'
+  | 'folders-assign'
+  | 'companions';
 
 export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
   host,
@@ -49,6 +61,7 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
 
   const focusCourse = currentCourse(snapshot);
   const [courseFilterOn, setCourseFilterOn] = useState(Boolean(focusCourse));
+  const [folderFilter, setFolderFilter] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [overlay, setOverlay] = useState<ActiveOverlay>('none');
@@ -100,19 +113,41 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
   }, [navContext.sourceId, navContext.pageNumber, navContext.mode, snapshot, focusCourse]);
 
   const allGroups = useMemo(() => groupSourcesFromSnapshot(snapshot), [snapshot]);
+  const materialFolders = useMemo(() => materialFoldersFromSnapshot(snapshot), [snapshot]);
+
+  const courseScopedGroups = useMemo(() => {
+    if (!courseFilterOn || !focusCourse) return allGroups;
+    return allGroups.filter((g) => g.courses.includes(focusCourse));
+  }, [allGroups, courseFilterOn, focusCourse]);
+
+  const folderCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const g of courseScopedGroups) {
+      const f = g.folder || '';
+      counts.set(f, (counts.get(f) ?? 0) + 1);
+    }
+    return counts;
+  }, [courseScopedGroups]);
 
   const filteredGroups = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    return allGroups.filter((g) => {
-      if (courseFilterOn && focusCourse && !g.courses.includes(focusCourse)) return false;
+    return courseScopedGroups.filter((g) => {
+      if (folderFilter !== null) {
+        if (folderFilter === '') {
+          if (g.folder) return false;
+        } else if (g.folder !== folderFilter) {
+          return false;
+        }
+      }
       if (!q) return true;
       return (
         g.title.toLowerCase().includes(q) ||
         g.format.toLowerCase().includes(q) ||
+        (g.folder ? g.folder.toLowerCase().includes(q) : false) ||
         g.courses.some((c) => c.toLowerCase().includes(q))
       );
     });
-  }, [allGroups, courseFilterOn, focusCourse, searchQuery]);
+  }, [courseScopedGroups, folderFilter, searchQuery]);
 
   useEffect(() => {
     if (selectedIndex >= filteredGroups.length) {
@@ -280,7 +315,7 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
 
   const listActive = isActive && !readerTarget && overlay === 'none';
 
-  useClaimKeys(['/', 'c', 'r', 'g', 'p', 'd', 'i', 'f', 'a'], listActive);
+  useClaimKeys(['/', 'c', 'r', 'g', 'p', 'd', 'i', 'f', 'a', 'F', 'm', 'C'], listActive);
   useInputCapture(isActive && !readerTarget && (overlay === 'rename' || overlay === 'course' || overlay === 'search'));
 
   const hints: KeyHint[] = useMemo(
@@ -288,6 +323,9 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
       { key: 'Enter', label: t(lang, '阅读', 'Read') },
       { key: 'i', label: t(lang, '导入', 'Import') },
       { key: 'g', label: t(lang, '出题', 'Generate') },
+      { key: 'F', label: t(lang, '文件夹', 'Folders') },
+      { key: 'm', label: t(lang, '移至夹', 'Move') },
+      { key: 'C', label: t(lang, '伴学页', 'Companions') },
       { key: 'r', label: t(lang, '重命名', 'Rename') },
       { key: 'c', label: t(lang, '课程', 'Course') },
       { key: 'p', label: t(lang, '置顶', 'Pin') },
@@ -308,8 +346,14 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
         setOverlay('search');
       } else if (input === 'f') {
         setCourseFilterOn((v) => !v);
+      } else if (input === 'F') {
+        setOverlay('folders-filter');
+      } else if (input === 'C') {
+        setOverlay('companions');
       } else if (selectedItem) {
-        if (input === 'g') {
+        if (input === 'm') {
+          setOverlay('folders-assign');
+        } else if (input === 'g') {
           navigate('generate', {
             sourceIds: selectedItem.sourceIds,
             ...(selectedItem.courses[0] ? { course: selectedItem.courses[0] } : focusCourse ? { course: focusCourse } : {}),
