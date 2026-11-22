@@ -51,6 +51,7 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const ell = asciiMode ? '...' : '…';
   const notify = useTuiStore((s) => s.notify);
 
   // Per-card history kept local and capped at MAX_AI_TURNS.
@@ -343,10 +344,10 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
       }
     }
     if (streaming) {
-      blocks.push(streamingText || t(lang, '_正在生成讲解…_', '_Generating explanation…_'));
+      blocks.push(streamingText || t(lang, `_正在生成讲解${ell}_`, `_Generating explanation${ell}_`));
     }
-    return blocks.join('\n\n---\n\n') || t(lang, '_正在准备 AI 助教…_', '_Preparing AI tutor…_');
-  }, [turns, streaming, streamingText, lang]);
+    return blocks.join('\n\n---\n\n') || t(lang, `_正在准备 AI 助教${ell}_`, `_Preparing AI tutor${ell}_`);
+  }, [turns, streaming, streamingText, lang, ell]);
 
   const innerW = Math.max(20, width - 4);
   const suggestH = suggestLoading ? 1 : suggestError ? 1 : suggestions.length > 0 ? suggestions.length : 0;
@@ -372,7 +373,7 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
               label={
                 reasoningChars > 0
                   ? t(lang, `思考中 · ${reasoningChars} 字符`, `Reasoning · ${reasoningChars} chars`)
-                  : t(lang, '正在流式生成…', 'Streaming…')
+                  : t(lang, `正在流式生成${ell}`, `Streaming${ell}`)
               }
               tone="ai"
               active={isActive && streaming}
@@ -380,7 +381,7 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
           ) : (
             <Badge label={t(lang, '已就绪', 'Ready')} tone="ai" variant="soft" />
           )}
-          {savingNote ? <Spinner label={t(lang, '保存中…', 'Saving…')} tone="success" active={isActive} /> : null}
+          {savingNote ? <Spinner label={t(lang, `保存中${ell}`, `Saving${ell}`)} tone="success" active={isActive} /> : null}
         </Box>
         <Text color={theme.dim}>{t(lang, '[s] 推荐追问 · [N] 存笔记 · [Esc] 关闭', '[s] Suggest Qs · [N] Note · [Esc] Close')}</Text>
       </Box>
@@ -407,7 +408,7 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
 
       {suggestLoading ? (
         <Box height={1} width={innerW} overflow="hidden">
-          <Spinner label={t(lang, '正在生成推荐追问…', 'Suggesting follow-up questions…')} tone="ai" active={isActive} />
+          <Spinner label={t(lang, `正在生成推荐追问${ell}`, `Suggesting follow-up questions${ell}`)} tone="ai" active={isActive} />
         </Box>
       ) : suggestError ? (
         <Box height={1} width={innerW} overflow="hidden">
@@ -443,7 +444,7 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
           prompt={asciiMode ? '>' : '›'}
           placeholder={
             inputFocused
-              ? t(lang, '输入你的追问，Enter 发送…', 'Type your follow-up question, Enter to send…')
+              ? t(lang, `输入你的追问，Enter 发送${ell}`, `Type your follow-up question, Enter to send${ell}`)
               : t(lang, '按 [i] 输入追问，[s] 推荐追问，[N] 存笔记', 'Press [i] to ask, [s] suggest Qs, [N] save note')
           }
           onSubmit={(val) => {

@@ -320,6 +320,7 @@ export const WorkflowHistoryModal = memo(function WorkflowHistoryModal({
   const { columns, rows } = useWindowSize();
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const ell = asciiMode ? '...' : '…';
   const notify = useTuiStore((s) => s.notify);
 
   const [loadingList, setLoadingList] = useState(true);
@@ -402,7 +403,6 @@ export const WorkflowHistoryModal = memo(function WorkflowHistoryModal({
   // Modal chrome budget: 5 rows (top border, title, divider, hints, bottom border).
   const innerH = Math.max(8, Math.min(frameH, rows - 2) - 5);
   const sideBySide = innerW >= 74;
-  const ell = asciiMode ? '...' : '…';
 
   const handleBackOrClose = useCallback(() => {
     if (!sideBySide && focusPane === 'detail') {
@@ -424,7 +424,7 @@ export const WorkflowHistoryModal = memo(function WorkflowHistoryModal({
       if (input === 'r') {
         setDetailCache({});
         setReloadTick((n) => n + 1);
-        notify(t(lang, '正在刷新历史学习流…', 'Refreshing workflow history…'), 'info');
+        notify(t(lang, `正在刷新历史学习流${ell}`, `Refreshing workflow history${ell}`), 'info');
         return;
       }
       if ((input === 'b' || key.backspace) && focusPane === 'detail') {
@@ -437,18 +437,18 @@ export const WorkflowHistoryModal = memo(function WorkflowHistoryModal({
   const hints: KeyHint[] = useMemo(() => {
     if (!sideBySide && focusPane === 'detail') {
       return [
-        { key: '↑↓/Pg', label: t(lang, '滚动', 'Scroll') },
+        { key: asciiMode ? 'Up/Dn/Pg' : '↑↓/Pg', label: t(lang, '滚动', 'Scroll') },
         { key: 'b/Esc', label: t(lang, '返回列表', 'Back') },
         { key: 'r', label: t(lang, '刷新', 'Refresh') },
       ];
     }
     return [
-      { key: '↑↓', label: t(lang, '选择', 'Select') },
+      { key: asciiMode ? 'Up/Dn' : '↑↓', label: t(lang, '选择', 'Select') },
       { key: sideBySide ? 'Tab' : 'Enter', label: sideBySide ? t(lang, '切焦', 'Focus') : t(lang, '查看详情', 'Inspect') },
       { key: 'r', label: t(lang, '刷新', 'Refresh') },
       { key: 'Esc', label: t(lang, '关闭', 'Close') },
     ];
-  }, [focusPane, lang, sideBySide]);
+  }, [asciiMode, focusPane, lang, sideBySide]);
 
   const headerRows = 2; // status banner + divider
   const bodyH = Math.max(4, innerH - headerRows);
@@ -495,7 +495,7 @@ export const WorkflowHistoryModal = memo(function WorkflowHistoryModal({
       {/* Main Content */}
       {loadingList ? (
         <Box width={innerW} height={bodyH} alignItems="center" justifyContent="center">
-          <Spinner label={t(lang, '正在读取历史学习流…', 'Loading workflow history…')} active={isActive} />
+          <Spinner label={t(lang, `正在读取历史学习流${ell}`, `Loading workflow history${ell}`)} active={isActive} />
         </Box>
       ) : listError ? (
         <Box width={innerW} height={bodyH} flexDirection="column" alignItems="center" justifyContent="center">
@@ -616,7 +616,7 @@ export const WorkflowHistoryModal = memo(function WorkflowHistoryModal({
                   <Box height={Math.max(2, bodyH - 2)} width={detailW} overflow="hidden">
                     {loadingDetailId === selectedSession.id && !activeDetail ? (
                       <Box width={detailW} height={Math.max(2, bodyH - 2)} alignItems="center" justifyContent="center">
-                        <Spinner label={t(lang, '加载步骤详情…', 'Loading steps…')} active={isActive} />
+                        <Spinner label={t(lang, `加载步骤详情${ell}`, `Loading steps${ell}`)} active={isActive} />
                       </Box>
                     ) : detailError && !activeDetail ? (
                       <EmptyState

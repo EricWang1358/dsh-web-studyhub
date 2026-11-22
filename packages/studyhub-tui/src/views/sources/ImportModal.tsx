@@ -43,6 +43,8 @@ export const ImportModal = memo(function ImportModal({
 }: ImportModalProps) {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const ell = asciiMode ? '...' : '…';
   const notify = useTuiStore((s) => s.notify);
 
   const [mode, setMode] = useState<ImportMode>('file');
@@ -211,21 +213,22 @@ export const ImportModal = memo(function ImportModal({
   const hints: KeyHint[] = useMemo(
     () => [
       { key: 'Ctrl+T', label: t(lang, '切换模式', 'Switch mode') },
-      { key: '↑/↓', label: t(lang, '切换字段', 'Next field') },
+      { key: asciiMode ? 'Up/Down' : '↑/↓', label: t(lang, '切换字段', 'Next field') },
       ...(mode === 'file' && fileField === 'path' ? [{ key: 'Tab', label: t(lang, '路径补全', 'Complete') }] : []),
       { key: 'Ctrl+S', label: t(lang, '导入', 'Import') },
       { key: 'Esc', label: t(lang, '取消', 'Cancel') },
     ],
-    [lang, mode, fileField],
+    [lang, asciiMode, mode, fileField],
   );
 
   const detectedFmt = importFormatOf(expandHomePath(cleanPathInput(filePath)));
+  const promptGlyph = asciiMode ? '>' : '›';
 
   return (
     <Modal
       title={t(lang, '导入学习资料', 'Import Study Material')}
-      subtitle="PDF · PPTX · DOCX · MD · LaTeX · HTML · TXT"
-      icon="▤"
+      subtitle={asciiMode ? 'PDF | PPTX | DOCX | MD | LaTeX | HTML | TXT' : 'PDF · PPTX · DOCX · MD · LaTeX · HTML · TXT'}
+      icon={asciiMode ? '#' : '▤'}
       width={frameWidth}
       isActive={isActive}
       onClose={onClose}
@@ -264,7 +267,7 @@ export const ImportModal = memo(function ImportModal({
             placeholder={process.platform === 'win32' ? 'C:\\Users\\...\\lecture.pdf' : '~/Documents/lecture.pdf'}
             width={Math.max(20, innerWidth - 4)}
             isActive={isActive && !busy && fileField === 'path'}
-            prompt="›"
+            prompt={promptGlyph}
           />
 
           {matches.length > 0 && fileField === 'path' ? (
@@ -288,7 +291,7 @@ export const ImportModal = memo(function ImportModal({
             placeholder={t(lang, '留空自动使用文件名', 'Leave blank to use filename')}
             width={Math.max(20, innerWidth - 4)}
             isActive={isActive && !busy && fileField === 'title'}
-            prompt="›"
+            prompt={promptGlyph}
           />
 
           <Box marginTop={1}>
@@ -304,7 +307,7 @@ export const ImportModal = memo(function ImportModal({
             placeholder={t(lang, '例如：线性代数', 'e.g. Linear Algebra')}
             width={Math.max(20, innerWidth - 4)}
             isActive={isActive && !busy && fileField === 'course'}
-            prompt="›"
+            prompt={promptGlyph}
           />
         </Box>
       ) : (
@@ -320,7 +323,7 @@ export const ImportModal = memo(function ImportModal({
             placeholder={t(lang, '例如：第3章课堂笔记', 'e.g. Chapter 3 Notes')}
             width={Math.max(20, innerWidth - 4)}
             isActive={isActive && !busy && textField === 'title'}
-            prompt="›"
+            prompt={promptGlyph}
           />
 
           <Box flexDirection="row" marginTop={1}>
@@ -345,7 +348,7 @@ export const ImportModal = memo(function ImportModal({
             placeholder={t(lang, '例如：数据结构', 'e.g. Data Structures')}
             width={Math.max(20, innerWidth - 4)}
             isActive={isActive && !busy && textField === 'course'}
-            prompt="›"
+            prompt={promptGlyph}
           />
 
           <Box marginTop={1}>
@@ -358,7 +361,7 @@ export const ImportModal = memo(function ImportModal({
             onChange={setTextBody}
             onSubmit={() => void submitTextImport()}
             onCancel={onClose}
-            placeholder={t(lang, '粘贴讲义、笔记或知识点原文…', 'Paste notes, slides or study material…')}
+            placeholder={t(lang, `粘贴讲义、笔记或知识点原文${ell}`, `Paste notes, slides or study material${ell}`)}
             multiline
             height={5}
             width={Math.max(20, innerWidth - 4)}
@@ -369,12 +372,12 @@ export const ImportModal = memo(function ImportModal({
 
       {busy ? (
         <Box marginTop={1}>
-          <Spinner label={t(lang, '正在解析并导入资料…', 'Importing material…')} />
+          <Spinner label={t(lang, `正在解析并导入资料${ell}`, `Importing material${ell}`)} />
         </Box>
       ) : null}
       {err ? (
         <Box marginTop={1}>
-          <Text color={theme.error}>{`✕ ${err}`}</Text>
+          <Text color={theme.error}>{`${asciiMode ? 'x' : '✕'} ${err}`}</Text>
         </Box>
       ) : null}
     </Modal>

@@ -346,6 +346,7 @@ export const DeckManageModal = memo(function DeckManageModal({
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const ell = asciiMode ? '...' : '…';
   const snapshot = useTuiStore((s) => s.snapshot);
   const navigate = useTuiStore((s) => s.navigate);
   const notify = useTuiStore((s) => s.notify);
@@ -987,8 +988,6 @@ export const DeckManageModal = memo(function DeckManageModal({
     [mode, lang, suppJobResult, convertEditActive, convertTargetKind, selectedIds.size],
   );
 
-  const ell = asciiMode ? '...' : '…';
-
   const renderCardRow = useCallback(
     (card: DeckCardItem, ctx: VirtualListRenderContext) => {
       const isChecked = selectedIds.has(card.id);
@@ -1091,7 +1090,7 @@ export const DeckManageModal = memo(function DeckManageModal({
               onCancel={() => setMode('browse')}
               isActive={isActive && mode === 'search'}
               width={Math.max(12, innerW - 6)}
-              placeholder={t(lang, '输入关键字…', 'Type keyword…')}
+              placeholder={t(lang, `输入关键字${ell}`, `Type keyword${ell}`)}
             />
           </Box>
         </Box>
@@ -1110,7 +1109,7 @@ export const DeckManageModal = memo(function DeckManageModal({
               onCancel={() => setMode('browse')}
               isActive={isActive && mode === 'rename' && !busy}
               width={Math.max(12, innerW - 6)}
-              placeholder={t(lang, '输入题组名称…', 'Deck title…')}
+              placeholder={t(lang, `输入题组名称${ell}`, `Deck title${ell}`)}
             />
           </Box>
         </Box>
@@ -1141,7 +1140,7 @@ export const DeckManageModal = memo(function DeckManageModal({
 
       {loading ? (
         <Box height={bodyH} alignItems="center" justifyContent="center">
-          <Spinner label={t(lang, '正在读取题组卡片…', 'Loading deck cards…')} active={isActive} />
+          <Spinner label={t(lang, `正在读取题组卡片${ell}`, `Loading deck cards${ell}`)} active={isActive} />
         </Box>
       ) : error ? (
         <Box height={bodyH} flexDirection="column" paddingY={1}>
@@ -1183,7 +1182,7 @@ export const DeckManageModal = memo(function DeckManageModal({
                   variant="soft"
                 />
                 <Box flexGrow={1} />
-                {busy ? <Spinner label={t(lang, '提交中…', 'Queuing…')} active={isActive} /> : (
+                {busy ? <Spinner label={t(lang, `提交中${ell}`, `Queuing${ell}`)} active={isActive} /> : (
                   <Text color={theme.dim}>{t(lang, '[a] 全选  [Enter] 提交', '[a] All  [Enter] Submit')}</Text>
                 )}
               </Box>
@@ -1341,7 +1340,7 @@ export const DeckManageModal = memo(function DeckManageModal({
           ) : null}
           {busy ? (
             <Box marginTop={1}>
-              <Spinner label={t(lang, '正在转换题型…', 'Converting card kind…')} active={isActive} />
+              <Spinner label={t(lang, `正在转换题型${ell}`, `Converting card kind${ell}`)} active={isActive} />
             </Box>
           ) : null}
         </Box>

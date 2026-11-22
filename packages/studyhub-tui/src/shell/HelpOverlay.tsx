@@ -88,6 +88,10 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'P', label: t(lang, '书内精选问答', 'Pinned book QA') },
         { key: 'e', label: t(lang, '编辑/回退全书', 'Edit/revert section') },
         { key: 'x', label: t(lang, '导出 Markdown', 'Export Markdown') },
+        { key: 'R', label: t(lang, '节点改名', 'Rename node') },
+        { key: '[ / ]', label: t(lang, '同级上移/下移节点', 'Move node up/down') },
+        { key: 'D / z', label: t(lang, '删节点 / 撤销结构', 'Delete / undo struct') },
+        { key: 'a / u', label: t(lang, '应用 / 撤销总纲重建', 'Apply / undo rebuild') },
       ],
     },
     {

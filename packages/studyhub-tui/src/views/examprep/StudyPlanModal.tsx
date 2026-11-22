@@ -745,6 +745,7 @@ export const StudyPlanModal = memo(function StudyPlanModal({
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const ell = asciiMode ? '...' : '…';
   const notify = useTuiStore((s) => s.notify);
 
   // Hold input capture for the modal lifetime even while ConfirmDialog mounts on top.
@@ -1186,7 +1187,7 @@ export const StudyPlanModal = memo(function StudyPlanModal({
   const handleRequestFill = useCallback(async () => {
     if (busyRef.current || busyLabel) return;
     busyRef.current = true;
-    setBusyLabel(t(lang, '正在估算待补齐任务…', 'Estimating missing work…'));
+    setBusyLabel(t(lang, `正在估算待补齐任务${ell}`, `Estimating missing work${ell}`));
     try {
       const res = await tryAction<CustomFillResponse>(host, 'course.custom.fill', {
         ...(effectiveCourse ? { course: effectiveCourse } : {}),
@@ -1223,7 +1224,7 @@ export const StudyPlanModal = memo(function StudyPlanModal({
     if (busyRef.current) return;
     setConfirmFill(null);
     busyRef.current = true;
-    setBusyLabel(t(lang, '正在启动补齐任务…', 'Starting fill jobs…'));
+    setBusyLabel(t(lang, `正在启动补齐任务${ell}`, `Starting fill jobs${ell}`));
     try {
       const res = await tryAction<CustomFillResponse>(
         host,
@@ -1348,7 +1349,6 @@ export const StudyPlanModal = memo(function StudyPlanModal({
     return out;
   }, [tab, lang, asciiMode, innerW]);
 
-  const ell = asciiMode ? '...' : '…';
   const sep = asciiMode ? '-' : '·';
   const arrow = asciiMode ? '->' : '→';
 
@@ -1423,7 +1423,7 @@ export const StudyPlanModal = memo(function StudyPlanModal({
     if (planLoading && !planData) {
       return (
         <Box height={tabBodyH} alignItems="center" justifyContent="center">
-          <Spinner label={t(lang, '正在加载备考计划…', 'Loading study plan…')} active={isActive} />
+          <Spinner label={t(lang, `正在加载备考计划${ell}`, `Loading study plan${ell}`)} active={isActive} />
         </Box>
       );
     }
@@ -1654,7 +1654,7 @@ export const StudyPlanModal = memo(function StudyPlanModal({
     if (readinessLoading && !readinessData && !previewData) {
       return (
         <Box height={tabBodyH} alignItems="center" justifyContent="center">
-          <Spinner label={t(lang, '正在分析章节就绪度与估算…', 'Loading chapter readiness & estimate…')} active={isActive} />
+          <Spinner label={t(lang, `正在分析章节就绪度与估算${ell}`, `Loading chapter readiness & estimate${ell}`)} active={isActive} />
         </Box>
       );
     }

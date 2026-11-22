@@ -269,6 +269,7 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
   const { columns } = useWindowSize();
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const ell = asciiMode ? '...' : '…';
   const snapshot = useTuiStore((s) => s.snapshot);
   const navigate = useTuiStore((s) => s.navigate);
   const notify = useTuiStore((s) => s.notify);
@@ -738,7 +739,7 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
     }
     if (subMode === 'artifact') {
       const list: KeyHint[] = [];
-      if (artifacts.length > 1) list.push({ key: '←/→', label: t(lang, '切换文稿', 'Switch') });
+      if (artifacts.length > 1) list.push({ key: asciiMode ? '<-/->' : '←/→', label: t(lang, '切换文稿', 'Switch') });
       list.push({ key: 'j/k', label: t(lang, '滚动', 'Scroll') });
       list.push({ key: 'b/Esc', label: t(lang, '返回', 'Back') });
       return list;
@@ -754,7 +755,7 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
     list.push({ key: 'Tab', label: subMode === 'sessions' ? t(lang, '工作台', 'Workbench') : t(lang, '会话', 'Sessions') });
     list.push({ key: 'Esc', label: t(lang, '关闭', 'Close') });
     return list;
-  }, [creating, subMode, artifacts.length, selectedSession, lang]);
+  }, [creating, subMode, artifacts.length, selectedSession, lang, asciiMode]);
 
   const renderSessionRow = useCallback(
     (item: StudySessionRecord, ctx: VirtualListRenderContext) => {
@@ -819,7 +820,7 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
       : t(lang, '全部课程', 'All Courses');
 
   const subtitle = busyAction
-    ? t(lang, '处理中…', 'Working…')
+    ? t(lang, `处理中${ell}`, `Working${ell}`)
     : `${enrichedSessions.length} ${t(lang, '个会话', 'sessions')}`;
 
   return (
@@ -885,7 +886,7 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
                   setCreating(false);
                   setCreateError('');
                 }}
-                placeholder={t(lang, '输入学习目标，按 Enter 启动带学…', 'Enter goal title, press Enter to start…')}
+                placeholder={t(lang, `输入学习目标，按 Enter 启动带学${ell}`, `Enter goal title, press Enter to start${ell}`)}
                 width={Math.max(12, innerW - (lang === 'en' ? 6 : 7) - 4)}
                 isActive={isActive && creating && !confirmEnd}
                 prompt={asciiMode ? '> ' : '› '}
@@ -914,7 +915,7 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
         {/* Main Content */}
         {loading ? (
           <Box height={contentH} alignItems="center" justifyContent="center">
-            <Spinner label={t(lang, '正在读取带学工作台…', 'Loading guided study sessions…')} active={isActive} />
+            <Spinner label={t(lang, `正在读取带学工作台${ell}`, `Loading guided study sessions${ell}`)} active={isActive} />
           </Box>
         ) : error && enrichedSessions.length === 0 ? (
           <Box height={contentH} flexDirection="column" paddingY={1}>

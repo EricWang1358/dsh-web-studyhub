@@ -3,7 +3,7 @@ import { Box, Text } from 'ink';
 import { PAGE_REGISTRY, type NavGroup, type PageId, type PageMeta } from '../types/contracts.js';
 import { t, useTuiStore } from '../state/store.js';
 import { useTheme } from '../theme/tokens.js';
-import { displayWidth, truncateDisplay } from '../render/index.js';
+import { displayWidth, truncateDisplay } from '../render/cjk.js';
 import { draftCount, dueToday, pageIcon, runningJobs, wrongCount } from './data.js';
 
 export const SIDENAV_WIDTH = 24;

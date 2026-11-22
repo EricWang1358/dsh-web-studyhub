@@ -153,6 +153,8 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
 }: ReaderOutlineDrawerProps) {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const ell = asciiMode ? '...' : '…';
   const notify = useTuiStore((s) => s.notify);
 
   const [loading, setLoading] = useState(true);
@@ -300,7 +302,7 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
     }
     setBusy(true);
     setStatusNotice({
-      text: t(lang, '正在请求 AI 整理章节目录…', 'Requesting AI chapter outline…'),
+      text: t(lang, `正在请求 AI 整理章节目录${ell}`, `Requesting AI chapter outline${ell}`),
       tone: 'info',
     });
 
@@ -490,8 +492,8 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
   return (
     <Modal
       title={t(lang, '文档目录大纲', 'Document Outline')}
-      subtitle={title ? truncateDisplay(title, Math.max(12, Math.floor(innerW * 0.45))) : undefined}
-      icon="☰"
+      subtitle={title ? truncateDisplay(title, Math.max(12, Math.floor(innerW * 0.45)), ell) : undefined}
+      icon={asciiMode ? '#' : '☰'}
       tone="primary"
       width={frameW}
       height={frameH}
@@ -508,7 +510,7 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
         <Text> </Text>
         <Badge label={`${t(lang, '当前', 'Curr')} P.${currentPage}`} tone="accent" variant="outline" />
         <Box flexGrow={1} />
-        {busy ? <Spinner label={t(lang, '处理中…', 'Working…')} /> : null}
+        {busy ? <Spinner label={t(lang, `处理中${ell}`, `Working${ell}`)} /> : null}
       </Box>
 
       {statusNotice ? (
@@ -532,7 +534,7 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
 
       {loading ? (
         <Box height={listH} alignItems="center" justifyContent="center">
-          <Spinner label={t(lang, '正在读取目录结构…', 'Loading outline…')} />
+          <Spinner label={t(lang, `正在读取目录结构${ell}`, `Loading outline${ell}`)} />
         </Box>
       ) : displayedRows.length === 0 ? (
         <EmptyState
@@ -560,11 +562,11 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
             const pageTag = `P.${item.page}`;
             const tag = item.kind === 'label' ? t(lang, ' [概括]', ' [label]') : '';
             const avail = Math.max(6, ctx.width - pageTag.length - tag.length - 4);
-            const label = truncateDisplay(`${indent}${item.title}`, avail);
+            const label = truncateDisplay(`${indent}${item.title}`, avail, ell);
             return (
               <Box width={ctx.width} height={1}>
                 <Text color={ctx.selected ? theme.primary : isCurrent ? theme.accent : theme.dim} bold={ctx.selected}>
-                  {ctx.selected ? '▸ ' : isCurrent ? '• ' : '  '}
+                  {ctx.selected ? (asciiMode ? '> ' : '▸ ') : isCurrent ? (asciiMode ? '- ' : '• ') : '  '}
                 </Text>
                 <Text
                   color={ctx.selected ? theme.text : item.level === 1 ? theme.text : theme.muted}

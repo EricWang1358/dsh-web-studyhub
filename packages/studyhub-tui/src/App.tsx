@@ -9,7 +9,9 @@ import {
   saveTuiPreferences,
   type TuiHost,
 } from './host/index.js';
-import { Panel, Spinner, useTheme } from './components/index.js';
+import { Panel } from './components/Panel.js';
+import { Spinner } from './components/Badge.js';
+import { useTheme } from './theme/tokens.js';
 import { nextThemeId } from './theme/index.js';
 import { AppShell } from './shell/AppShell.js';
 import { createDefaultShellActions, type ShellActions } from './shell/actions.js';

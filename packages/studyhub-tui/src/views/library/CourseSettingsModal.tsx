@@ -275,6 +275,7 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
   const actions = useShellActions();
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const ell = asciiMode ? '...' : '…';
   const snapshot = useTuiStore((s) => s.snapshot);
   const navigate = useTuiStore((s) => s.navigate);
   const notify = useTuiStore((s) => s.notify);
@@ -957,7 +958,7 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
           {tabLabel('info', '重命名与目标', 'Info & Rename', 2)}
           {tabLabel('terms', '课程术语', 'Terms', 3)}
           {tabLabel('align', '考前对齐', 'Exam Align', 4)}
-          {busy ? <Spinner label={t(lang, '保存中…', 'Saving…')} active={isActive} /> : null}
+          {busy ? <Spinner label={t(lang, `保存中${ell}`, `Saving${ell}`)} active={isActive} /> : null}
         </Box>
         <Divider width={innerW} />
 
@@ -990,7 +991,7 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
           />
         ) : loading ? (
           <Box height={tabBodyH} alignItems="center" justifyContent="center">
-            <Spinner label={t(lang, '正在读取课程配置…', 'Loading course settings…')} active={isActive} />
+            <Spinner label={t(lang, `正在读取课程配置${ell}`, `Loading course settings${ell}`)} active={isActive} />
           </Box>
         ) : error && !methodData && !courseDetail ? (
           <Box height={tabBodyH} flexDirection="column" paddingY={1}>
@@ -1162,7 +1163,7 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
                   onChange={setRenameInput}
                   maxLength={200}
                   width={Math.max(12, innerW - 6)}
-                  placeholder={t(lang, '输入新的课程名称…', 'New course name…')}
+                  placeholder={t(lang, `输入新的课程名称${ell}`, `New course name${ell}`)}
                   isActive={isActive && subMode === 'rename' && !busy}
                   onCancel={() => setSubMode('none')}
                   onSubmit={(val) => {
@@ -1263,7 +1264,7 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
                     onCancel={() => setSubMode('none')}
                     isActive={isActive && subMode === 'searchTerms'}
                     width={Math.max(12, innerW - 6)}
-                    placeholder={t(lang, '输入术语关键字…', 'Type term keyword…')}
+                    placeholder={t(lang, `输入术语关键字${ell}`, `Type term keyword${ell}`)}
                   />
                 </Box>
               </Box>
@@ -1333,7 +1334,7 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
           <Box flexDirection="column" height={tabBodyH} overflow="hidden">
             {(alignLoading || (!alignError && Boolean(selectedCourse))) && !alignPreview && !focusProgress ? (
               <Box height={tabBodyH} alignItems="center" justifyContent="center">
-                <Spinner label={t(lang, '正在读取考前对齐与重点进度…', 'Loading exam alignment & focus progress…')} active={isActive} />
+                <Spinner label={t(lang, `正在读取考前对齐与重点进度${ell}`, `Loading exam alignment & focus progress${ell}`)} active={isActive} />
               </Box>
             ) : alignError && !alignPreview && !focusProgress ? (
               <Box height={tabBodyH} flexDirection="column" paddingY={1}>

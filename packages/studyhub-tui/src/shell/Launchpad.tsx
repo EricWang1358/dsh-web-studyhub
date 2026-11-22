@@ -2,7 +2,7 @@ import React, { memo } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { t, useTuiStore } from '../state/store.js';
 import { useTheme, type ThemeTokens } from '../theme/tokens.js';
-import { truncateDisplay } from '../render/index.js';
+import { truncateDisplay } from '../render/cjk.js';
 import { Spinner } from '../components/Badge.js';
 import { detectAgy, modelInfo } from './data.js';
 import { useShellActions } from './actions.js';

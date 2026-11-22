@@ -88,6 +88,7 @@ export const RetellModal = memo(function RetellModal({
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const ell = asciiMode ? '...' : '…';
   const notify = useTuiStore((s) => s.notify);
 
   const deckId = currentDeckIdOf(run);
@@ -401,7 +402,7 @@ export const RetellModal = memo(function RetellModal({
 
       {submitting ? (
         <Box height={Math.max(4, bodyH - stemH - 2)} alignItems="center" justifyContent="center" flexDirection="column" gap={1}>
-          <Spinner label={t(lang, '正在评估你的费曼复述…', 'Evaluating your Feynman explanation…')} tone="ai" active={isActive} />
+          <Spinner label={t(lang, `正在评估你的费曼复述${ell}`, `Evaluating your Feynman explanation${ell}`)} tone="ai" active={isActive} />
           <Text color={theme.dim}>{t(lang, '仅对照题目与原文进行理解检查，不会存储你的原话', 'Checking against source material — your wording is never stored')}</Text>
         </Box>
       ) : editing ? (
@@ -430,8 +431,8 @@ export const RetellModal = memo(function RetellModal({
               isActive={isActive && editing && !submitting}
               placeholder={t(
                 lang,
-                '试着像教一位初学者一样讲清楚因果关系与边界条件… (Enter / Ctrl+S 提交)',
-                'Explain as if teaching a beginner… (Enter / Ctrl+S submits)',
+                `试着像教一位初学者一样讲清楚因果关系与边界条件${ell} (Enter / Ctrl+S 提交)`,
+                `Explain as if teaching a beginner${ell} (Enter / Ctrl+S submits)`,
               )}
               onSubmit={(val) => void handleSubmit(val)}
               onCancel={() => {

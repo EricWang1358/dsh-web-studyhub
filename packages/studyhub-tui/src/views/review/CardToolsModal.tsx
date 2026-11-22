@@ -117,6 +117,7 @@ export const CardToolsModal = memo(function CardToolsModal({
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const ell = asciiMode ? '...' : '…';
   const notify = useTuiStore((s) => s.notify);
 
   const deckId = currentDeckIdOf(run) ?? '';
@@ -926,7 +927,7 @@ export const CardToolsModal = memo(function CardToolsModal({
       title={modalTitle}
       icon={asciiMode ? '*' : '⚙'}
       tone={mode === 'confirm-slay' ? 'error' : mode === 'terms' ? 'ai' : 'accent'}
-      subtitle={truncateDisplay(String(run.card?.topic || cardId), 24)}
+      subtitle={truncateDisplay(String(run.card?.topic || cardId), 24, ell)}
       width={frameW}
       height={fixedFrameH}
       onClose={handleModalClose}
@@ -935,13 +936,13 @@ export const CardToolsModal = memo(function CardToolsModal({
     >
       {busy ? (
         <Box height={1} marginY={0}>
-          <Spinner label={t(lang, '正在提交操作…', 'Applying action…')} active={isActive} />
+          <Spinner label={t(lang, `正在提交操作${ell}`, `Applying action${ell}`)} active={isActive} />
         </Box>
       ) : null}
 
       {errorText ? (
         <Box marginBottom={0}>
-          <Text color={theme.error}>{`${asciiMode ? 'x' : '✕'} ${truncateDisplay(errorText, innerW - 2)}`}</Text>
+          <Text color={theme.error}>{`${asciiMode ? 'x' : '✕'} ${truncateDisplay(errorText, innerW - 2, ell)}`}</Text>
         </Box>
       ) : null}
 
@@ -1012,12 +1013,12 @@ export const CardToolsModal = memo(function CardToolsModal({
           <Divider width={innerW} />
           {termsLoading ? (
             <Box height={Math.max(3, subBodyH - 2)} alignItems="center" justifyContent="center">
-              <Spinner label={t(lang, '正在提取本题核心专业术语…', 'Extracting technical terms…')} tone="ai" active={isActive} />
+              <Spinner label={t(lang, `正在提取本题核心专业术语${ell}`, `Extracting technical terms${ell}`)} tone="ai" active={isActive} />
             </Box>
           ) : termsError ? (
             <Box height={Math.max(3, subBodyH - 2)} flexDirection="column" justifyContent="center" gap={1}>
               <Text color={theme.error} bold>
-                {`${asciiMode ? '!' : '▲'} ${truncateDisplay(termsError, innerW - 2)}`}
+                {`${asciiMode ? '!' : '▲'} ${truncateDisplay(termsError, innerW - 2, ell)}`}
               </Text>
               <Text color={theme.muted}>
                 {t(
@@ -1082,7 +1083,7 @@ export const CardToolsModal = memo(function CardToolsModal({
                 <TextInput
                   value={prereqQuery}
                   onChange={setPrereqQuery}
-                  placeholder={t(lang, '输入题目关键词（至少 1 字）…', 'Type query to search cards…')}
+                  placeholder={t(lang, `输入题目关键词（至少 1 字）${ell}`, `Type query to search cards${ell}`)}
                   width={Math.max(12, innerW - 4)}
                   isActive={isActive && mode === 'prereqs' && prereqSearchActive && prereqSearchFocused && !busy}
                   onTab={() => {
@@ -1108,7 +1109,7 @@ export const CardToolsModal = memo(function CardToolsModal({
               </Box>
               {prereqSearchLoading ? (
                 <Box height={Math.max(2, searchHitRows)} alignItems="center" justifyContent="center">
-                  <Spinner label={t(lang, '正在搜索题库…', 'Searching cards…')} active={isActive} />
+                  <Spinner label={t(lang, `正在搜索题库${ell}`, `Searching cards${ell}`)} active={isActive} />
                 </Box>
               ) : prereqQuery.trim().length === 0 ? (
                 <EmptyState
@@ -1132,7 +1133,7 @@ export const CardToolsModal = memo(function CardToolsModal({
                     const realIdx = hitStart + i;
                     const selected = !prereqSearchFocused && realIdx === prereqHitCursor;
                     const already = linkedPrereqIds.has(hit.cardId);
-                    const tag = already ? t(lang, '[已关联]', '[linked]') : hit.topic ? `[${truncateDisplay(hit.topic, 14)}]` : '';
+                    const tag = already ? t(lang, '[已关联]', '[linked]') : hit.topic ? `[${truncateDisplay(hit.topic, 14, ell)}]` : '';
                     const tagW = tag ? displayWidth(tag) + 1 : 0;
                     const promptW = Math.max(12, innerW - 6 - tagW);
                     return (
@@ -1144,7 +1145,7 @@ export const CardToolsModal = memo(function CardToolsModal({
                         backgroundColor={selected ? theme.selectionBg : undefined}
                       >
                         <Text color={selected ? theme.selectionFg : theme.text} bold={selected} wrap="truncate">
-                          {`${selected ? (asciiMode ? '> ' : '▸ ') : '  '}${truncateDisplay(hit.prompt, promptW)}`}
+                          {`${selected ? (asciiMode ? '> ' : '▸ ') : '  '}${truncateDisplay(hit.prompt, promptW, ell)}`}
                         </Text>
                         {tag ? (
                           <Text color={selected ? theme.selectionFg : already ? theme.success : theme.muted}>
@@ -1159,7 +1160,7 @@ export const CardToolsModal = memo(function CardToolsModal({
             </Box>
           ) : prereqsLoading ? (
             <Box height={Math.max(3, prereqsContentH - 2)} alignItems="center" justifyContent="center">
-              <Spinner label={t(lang, '正在加载前置题目…', 'Loading prerequisites…')} active={isActive} />
+              <Spinner label={t(lang, `正在加载前置题目${ell}`, `Loading prerequisites${ell}`)} active={isActive} />
             </Box>
           ) : prereqs.length === 0 ? (
             <EmptyState

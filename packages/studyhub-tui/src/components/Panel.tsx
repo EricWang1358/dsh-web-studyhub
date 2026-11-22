@@ -1,7 +1,7 @@
 import React, { memo, type ReactNode } from 'react';
 import { Box, Text } from 'ink';
 import { toneColor, useTheme, type Tone } from '../theme/tokens.js';
-import { displayWidth, truncateDisplay } from '../render/index.js';
+import { displayWidth, truncateDisplay } from '../render/cjk.js';
 import { useTuiStore } from '../state/store.js';
 
 export interface PanelProps {

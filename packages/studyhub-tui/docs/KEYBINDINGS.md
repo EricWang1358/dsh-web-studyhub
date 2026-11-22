@@ -119,7 +119,7 @@ Inside the palette: `↑`/`↓`, `Ctrl+P`/`Ctrl+N`, or `Ctrl+J`/`Ctrl+K` move se
 - `j` / `k` select weak topic or course · `Enter` / `p` drill selected item · `w` practise all weak questions · `f` toggle 7-day forecast · `r` refresh
 
 ### `7` Review Book (`book`)
-- `Tab` / `h` / `l` switch TOC / reading pane · `m` toggle Unicode/LaTeX math · `e` edit or revert (`[u]`) section · `p` practise 5 cards · `P` pinned book QA · `w` final-week crunch & mock · `x` export Markdown · `g` build/rebuild book · `r` refresh
+- `Tab` / `h` / `l` switch TOC / reading pane · `m` toggle Unicode/LaTeX math · `e` edit or revert (`[u]`) section · `R` rename TOC node · `[` / `]` move node up/down among siblings · `D` delete node (keeps notes in Unplaced) · `z` revert last structure change · `p` practise 5 cards · `P` pinned book QA · `w` final-week crunch & mock · `x` export Markdown · `g` build/rebuild book (`a` apply / `u` undo when rebuild-pending) · `r` refresh
 
 ### `8` Skeleton (`skeleton`)
 - `j` / `k` move node · `Space` / `Enter` / `h` / `l` expand/collapse · `Tab` switch pane · `p` practise node · `E` edit skeleton node · `R` course learning route · `G` topic groups manager · `L` skeleton lint · `g` generate skeleton · `s` switch skeleton · `r` refresh

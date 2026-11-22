@@ -2,7 +2,8 @@ import React, { memo, useEffect, useState } from 'react';
 import { Box, Text } from 'ink';
 import type { KeyHint, ToastItem } from '../types/contracts.js';
 import { toneColor, useTheme, type Tone } from '../theme/tokens.js';
-import { displayWidth, renderProgressBar, truncateDisplay } from '../render/index.js';
+import { displayWidth, truncateDisplay } from '../render/cjk.js';
+import { renderProgressBar } from '../render/charts.js';
 import { useTuiStore } from '../state/store.js';
 
 /* ------------------------------------------------------------------ Badge */

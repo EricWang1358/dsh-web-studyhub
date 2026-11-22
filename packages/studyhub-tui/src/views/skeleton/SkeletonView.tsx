@@ -744,7 +744,7 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
         return;
       }
 
-      useTuiStore.getState().notify(t(lang, '正在用 AI 构建知识骨架…', 'Generating knowledge skeleton with AI...'), 'info');
+      useTuiStore.getState().notify(t(lang, `正在用 AI 构建知识骨架${asciiMode ? '...' : '…'}`, 'Generating knowledge skeleton with AI...'), 'info');
       const sys = [
         'Design a hierarchical knowledge skeleton from the supplied topics and cards.',
         'Return ONLY valid JSON: {title:string, overview:string, nodes:[{id:string, term:string, meaning:string, parent?:string, cards:string[]}], relations:[{from:string, to:string, type:"part-of"|"causes"|"contrasts"|"prerequisite"|"example-of"|"related", note?:string}]}.',

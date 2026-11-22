@@ -100,6 +100,13 @@ const MARK_STYLE_ICON: Record<string, string> = {
   queue: '✦',
 };
 
+const ASCII_MARK_STYLE_ICON: Record<string, string> = {
+  underline: '=',
+  bold: 'B',
+  highlight: '#',
+  queue: '*',
+};
+
 function markStyleLabel(lang: UiLanguage, style: string): string {
   switch (style) {
     case 'underline':
@@ -125,7 +132,7 @@ function resolveItemPage(selection: SelectionAnchor | undefined, pageMap: Map<st
   return undefined;
 }
 
-function formatAnnotationMarkdown(lang: UiLanguage, item: AnnotationItem, page?: number): string {
+function formatAnnotationMarkdown(lang: UiLanguage, item: AnnotationItem, page?: number, asciiMode = false): string {
   const heading = item.label || item.term || item.question;
   const metaParts: string[] = [];
   if (page) metaParts.push(`P.${page}`);
@@ -133,7 +140,8 @@ function formatAnnotationMarkdown(lang: UiLanguage, item: AnnotationItem, page?:
   if (item.kind === 'explain') metaParts.push(t(lang, '词解', 'Explain'));
   const quote = item.selection?.quote?.trim();
   const lines = [`### ${heading}`];
-  if (metaParts.length > 0) lines.push(`*${metaParts.join(' · ')}*`);
+  const sep = asciiMode ? ' - ' : ' · ';
+  if (metaParts.length > 0) lines.push(`*${metaParts.join(sep)}*`);
   if (item.label && item.question && item.label !== item.question) {
     lines.push('', `**${t(lang, '问题', 'Question')}:** ${item.question}`);
   }
@@ -145,15 +153,17 @@ function formatAnnotationMarkdown(lang: UiLanguage, item: AnnotationItem, page?:
   return lines.join('\n');
 }
 
-function formatMarkMarkdown(lang: UiLanguage, item: MarkItem, page?: number): string {
+function formatMarkMarkdown(lang: UiLanguage, item: MarkItem, page?: number, asciiMode = false): string {
   const label = markStyleLabel(lang, item.style);
   const meta: string[] = [];
   if (page) meta.push(`P.${page}`);
   if (item.status === 'stale') meta.push(t(lang, '旧版本', 'Stale'));
   if (item.rereadAt) meta.push(t(lang, '已重读', 'Reread'));
   const quote = item.selection?.quote?.trim() || t(lang, '（无引用片段）', '(No quote)');
-  const lines = [`### ${MARK_STYLE_ICON[item.style] || '•'} ${label}`];
-  if (meta.length > 0) lines.push(`*${meta.join(' · ')}*`);
+  const iconMap = asciiMode ? ASCII_MARK_STYLE_ICON : MARK_STYLE_ICON;
+  const sep = asciiMode ? ' - ' : ' · ';
+  const lines = [`### ${iconMap[item.style] || (asciiMode ? '-' : '•')} ${label}`];
+  if (meta.length > 0) lines.push(`*${meta.join(sep)}*`);
   lines.push('', `> ${quote}`);
   if (item.at) lines.push('', `- **${t(lang, '标记时间', 'Marked')}:** ${item.at.slice(0, 16).replace('T', ' ')}`);
   if (item.rereadAt) lines.push(`- **${t(lang, '重读时间', 'Reread')}:** ${item.rereadAt.slice(0, 16).replace('T', ' ')}`);
@@ -185,7 +195,7 @@ export async function savePageAskToNote(params: SavePageAskParams): Promise<Save
     selectedExcerpt,
   } = params;
   const cleanAnswer = answer.trim();
-  if (!cleanAnswer || cleanAnswer.startsWith('✕')) {
+  if (!cleanAnswer || cleanAnswer.startsWith(String.fromCharCode(0x2715))) {
     return {
       ok: false,
       savedTo: 'none',
@@ -360,6 +370,8 @@ export const ReaderNotesDrawer = memo(function ReaderNotesDrawer({
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
   const mathUnicode = useTuiStore((s) => s.preferences.mathUnicode);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const ell = asciiMode ? '...' : '…';
   const notify = useTuiStore((s) => s.notify);
 
   const [tab, setTab] = useState<DrawerTab>('annotations');
@@ -556,19 +568,19 @@ export const ReaderNotesDrawer = memo(function ReaderNotesDrawer({
     if (tab === 'annotations') {
       if (!selectedAnnotation) return '';
       const pg = resolveItemPage(selectedAnnotation.selection, pageMap);
-      return formatAnnotationMarkdown(lang, selectedAnnotation, pg);
+      return formatAnnotationMarkdown(lang, selectedAnnotation, pg, asciiMode);
     }
     if (!selectedMark) return '';
     const pg = resolveItemPage(selectedMark.selection, pageMap);
-    return formatMarkMarkdown(lang, selectedMark, pg);
-  }, [tab, selectedAnnotation, selectedMark, pageMap, lang]);
+    return formatMarkMarkdown(lang, selectedMark, pg, asciiMode);
+  }, [tab, selectedAnnotation, selectedMark, pageMap, lang, asciiMode]);
 
   return (
     <>
       <Modal
         title={t(lang, '批注问答与高亮标记', 'Annotations & Marks')}
-        subtitle={title ? truncateDisplay(title, Math.max(12, Math.floor(innerW * 0.4))) : undefined}
-        icon="✎"
+        subtitle={title ? truncateDisplay(title, Math.max(12, Math.floor(innerW * 0.4)), ell) : undefined}
+        icon={asciiMode ? '*' : '✎'}
         tone="accent"
         width={frameW}
         height={frameH}
@@ -600,7 +612,7 @@ export const ReaderNotesDrawer = memo(function ReaderNotesDrawer({
 
         {loading ? (
           <Box height={bodyH} alignItems="center" justifyContent="center">
-            <Spinner label={t(lang, '正在加载批注与标记…', 'Loading annotations & marks…')} />
+            <Spinner label={t(lang, `正在加载批注与标记${ell}`, `Loading annotations & marks${ell}`)} />
           </Box>
         ) : (
           <SplitPane
@@ -639,10 +651,10 @@ export const ReaderNotesDrawer = memo(function ReaderNotesDrawer({
                       return (
                         <Box width={ctx.width} height={1}>
                           <Text color={ctx.selected ? theme.primary : theme.dim} bold={ctx.selected}>
-                            {ctx.selected ? '▸ ' : '  '}
+                            {ctx.selected ? (asciiMode ? '> ' : '▸ ') : '  '}
                           </Text>
                           <Text color={ctx.selected ? theme.text : theme.muted} bold={ctx.selected}>
-                            {truncateDisplay(titleTxt.replace(/\s+/g, ' '), maxTitle)}
+                            {truncateDisplay(titleTxt.replace(/\s+/g, ' '), maxTitle, ell)}
                           </Text>
                           <Box flexGrow={1} />
                           {pgTag ? <Text color={pg === currentPage ? theme.accent : theme.dim}>{pgTag}</Text> : null}
@@ -669,7 +681,7 @@ export const ReaderNotesDrawer = memo(function ReaderNotesDrawer({
                   keyExtractor={(item) => item.id}
                   isActive={listActive}
                   renderItem={(item, ctx) => {
-                    const icon = MARK_STYLE_ICON[item.style] || '•';
+                    const icon = (asciiMode ? ASCII_MARK_STYLE_ICON : MARK_STYLE_ICON)[item.style] || (asciiMode ? '-' : '•');
                     const pg = resolveItemPage(item.selection, pageMap);
                     const pgTag = pg ? `P.${pg}` : '';
                     const quote = (item.selection?.quote || markStyleLabel(lang, item.style)).replace(/\s+/g, ' ');
@@ -677,11 +689,11 @@ export const ReaderNotesDrawer = memo(function ReaderNotesDrawer({
                     return (
                       <Box width={ctx.width} height={1}>
                         <Text color={ctx.selected ? theme.primary : theme.accent} bold={ctx.selected}>
-                          {ctx.selected ? '▸ ' : '  '}
+                          {ctx.selected ? (asciiMode ? '> ' : '▸ ') : '  '}
                           {icon}{' '}
                         </Text>
                         <Text color={ctx.selected ? theme.text : theme.muted} bold={ctx.selected}>
-                          {truncateDisplay(quote, maxQ)}
+                          {truncateDisplay(quote, maxQ, ell)}
                         </Text>
                         <Box flexGrow={1} />
                         {pgTag ? <Text color={pg === currentPage ? theme.accent : theme.dim}>{pgTag}</Text> : null}
@@ -699,6 +711,7 @@ export const ReaderNotesDrawer = memo(function ReaderNotesDrawer({
                   height={rh}
                   isActive={false}
                   mathUnicode={mathUnicode}
+                  ascii={asciiMode}
                 />
               ) : (
                 <EmptyState
@@ -717,8 +730,8 @@ export const ReaderNotesDrawer = memo(function ReaderNotesDrawer({
           title={t(lang, '删除批注', 'Delete Annotation')}
           message={t(
             lang,
-            `确定要删除这条批注吗？「${truncateDisplay(confirmDelete.question.replace(/\s+/g, ' '), 40)}」`,
-            `Delete this annotation? "${truncateDisplay(confirmDelete.question.replace(/\s+/g, ' '), 40)}"`,
+            `确定要删除这条批注吗？「${truncateDisplay(confirmDelete.question.replace(/\s+/g, ' '), 40, ell)}」`,
+            `Delete this annotation? "${truncateDisplay(confirmDelete.question.replace(/\s+/g, ' '), 40, ell)}"`,
           )}
           confirmLabel={t(lang, '删除', 'Delete')}
           cancelLabel={t(lang, '取消', 'Cancel')}

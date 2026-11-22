@@ -273,6 +273,7 @@ export const DeckOpsModal = memo(function DeckOpsModal({
   const { columns, rows } = useWindowSize();
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const ell = asciiMode ? '...' : '…';
   const snapshot = useTuiStore((s) => s.snapshot);
   const notify = useTuiStore((s) => s.notify);
 
@@ -851,7 +852,7 @@ export const DeckOpsModal = memo(function DeckOpsModal({
   const hints = useMemo<KeyHint[]>(() => {
     if (tab === 'import') {
       return [
-        { key: '↑/↓', label: t(lang, '切栏/字段', 'Focus') },
+        { key: asciiMode ? 'Up/Down' : '↑/↓', label: t(lang, '切栏/字段', 'Focus') },
         ...(importFocus === 'path' ? [{ key: 'Tab', label: t(lang, '路径补全', 'Complete') }] : []),
         { key: 'Enter', label: t(lang, '导入', 'Import') },
         { key: 'Esc', label: t(lang, '关闭', 'Close') },
@@ -867,7 +868,7 @@ export const DeckOpsModal = memo(function DeckOpsModal({
     }
     if (splitFocus === 'title') {
       return [
-        { key: '↑/Esc', label: t(lang, '返回主题', 'Topics') },
+        { key: asciiMode ? 'Up/Esc' : '↑/Esc', label: t(lang, '返回主题', 'Topics') },
         { key: 'Enter', label: t(lang, '确认拆分', 'Split') },
       ];
     }
@@ -877,7 +878,7 @@ export const DeckOpsModal = memo(function DeckOpsModal({
       { key: 'Enter', label: t(lang, '下一步', 'Next') },
       { key: 'Esc', label: t(lang, '关闭', 'Close') },
     ];
-  }, [tab, importFocus, splitFocus, lang]);
+  }, [tab, importFocus, splitFocus, lang, asciiMode]);
 
   const renderMergeRow = useCallback(
     (item: DeckItem, ctx: VirtualListRenderContext) => {
@@ -957,7 +958,11 @@ export const DeckOpsModal = memo(function DeckOpsModal({
             );
           })}
           <Box flexGrow={1} />
-          <Text color={theme.dim}>{tab === 'import' && importFocus !== 'tabs' ? t(lang, '↑切页', '↑tabs') : '1-3 / Tab'}</Text>
+          <Text color={theme.dim}>
+            {tab === 'import' && importFocus !== 'tabs'
+              ? t(lang, asciiMode ? 'Up切页' : '↑切页', asciiMode ? 'Up:tabs' : '↑tabs')
+              : '1-3 / Tab'}
+          </Text>
         </Box>
         <Box height={1} flexShrink={0}>
           <Text color={theme.border}>{sepLine}</Text>
@@ -1044,7 +1049,7 @@ export const DeckOpsModal = memo(function DeckOpsModal({
 
             {busy ? (
               <Box marginTop={1}>
-                <Spinner label={t(lang, '正在导入题组 JSON…', 'Importing deck JSON…')} active={isActive} />
+                <Spinner label={t(lang, `正在导入题组 JSON${ell}`, `Importing deck JSON${ell}`)} active={isActive} />
               </Box>
             ) : null}
 
@@ -1145,7 +1150,7 @@ export const DeckOpsModal = memo(function DeckOpsModal({
               />
             ) : splitLoading ? (
               <Box height={bodyH} alignItems="center" justifyContent="center">
-                <Spinner label={t(lang, '正在读取题组主题…', 'Loading deck topics…')} active={isActive} />
+                <Spinner label={t(lang, `正在读取题组主题${ell}`, `Loading deck topics${ell}`)} active={isActive} />
               </Box>
             ) : splitError ? (
               <Box height={bodyH} paddingY={1}>
@@ -1209,7 +1214,7 @@ export const DeckOpsModal = memo(function DeckOpsModal({
                   }}
                   onSubmit={(val) => handleSplitTitleSubmit(val)}
                   onCancel={() => setSplitFocus('topics')}
-                  placeholder={t(lang, '输入拆分后的新题组名称…', 'Enter new deck title…')}
+                  placeholder={t(lang, `输入拆分后的新题组名称${ell}`, `Enter new deck title${ell}`)}
                   width={Math.max(16, innerW - 4)}
                   isActive={isActive && !confirmState && !busy && tab === 'split' && splitFocus === 'title'}
                   prompt={promptGlyph}

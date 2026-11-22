@@ -356,6 +356,7 @@ export const AnswerCardModal = memo(function AnswerCardModal({
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const ell = asciiMode ? '...' : '…';
   const snapshot = useTuiStore((s) => s.snapshot);
   const notify = useTuiStore((s) => s.notify);
   const navigate = useTuiStore((s) => s.navigate);
@@ -554,7 +555,7 @@ export const AnswerCardModal = memo(function AnswerCardModal({
     const targetCardId = cardId;
     const again = Boolean(answerCard);
     setErrorBanner(null);
-    setJobState({ status: 'starting', stageText: t(lang, '正在提交答题卡生成任务…', 'Starting answer card build…') });
+    setJobState({ status: 'starting', stageText: t(lang, `正在提交答题卡生成任务${ell}`, `Starting answer card build${ell}`) });
 
     const res = await tryAction<AnswerCardBuildResponse>(host, 'generation.answerCard.build', {
       ...(effectiveDeckId ? { deckId: effectiveDeckId } : {}),
@@ -585,7 +586,7 @@ export const AnswerCardModal = memo(function AnswerCardModal({
       setJobState({
         status: 'running',
         jobId: res.value.jobId,
-        stageText: t(lang, '正在写入、核对引文与独立复核…', 'Writing, checking quotes & reviewing…'),
+        stageText: t(lang, `正在写入、核对引文与独立复核${ell}`, `Writing, checking quotes & reviewing${ell}`),
       });
       notify(
         t(lang, `已开始生成答题卡 (${res.value.jobId})`, `Building answer card (${res.value.jobId})`),
@@ -596,7 +597,7 @@ export const AnswerCardModal = memo(function AnswerCardModal({
 
     setJobState(null);
     await finishJobAndReload();
-  }, [building, cardId, answerCard, lang, host, effectiveDeckId, notify, finishJobAndReload]);
+  }, [building, cardId, answerCard, lang, ell, host, effectiveDeckId, notify, finishJobAndReload]);
 
   const handleTogglePin = useCallback(async () => {
     if (bookBusy || building) return;
@@ -883,19 +884,20 @@ export const AnswerCardModal = memo(function AnswerCardModal({
           {building ? (
             <Spinner
               label={truncateDisplay(
-                jobState?.stageText || t(lang, '正在生成答题卡…', 'Building answer card…'),
+                jobState?.stageText || t(lang, `正在生成答题卡${ell}`, `Building answer card${ell}`),
                 Math.max(12, innerW - 4),
+                ell,
               )}
               tone="ai"
               active={isActive}
             />
           ) : drillBusy ? (
-            <Spinner label={t(lang, '正在生成薄弱评分项练习…', 'Launching weak-criterion drills…')} tone="primary" active={isActive} />
+            <Spinner label={t(lang, `正在生成薄弱评分项练习${ell}`, `Launching weak-criterion drills${ell}`)} tone="primary" active={isActive} />
           ) : bookBusy ? (
-            <Spinner label={t(lang, '正在更新复习全书…', 'Updating Review Book…')} tone="info" active={isActive} />
+            <Spinner label={t(lang, `正在更新复习全书${ell}`, `Updating Review Book${ell}`)} tone="info" active={isActive} />
           ) : errorBanner ? (
             <Text color={theme.error} wrap="truncate">
-              {truncateDisplay(`${asciiMode ? '!' : '▲'} ${errorBanner}`, innerW)}
+              {truncateDisplay(`${asciiMode ? '!' : '▲'} ${errorBanner}`, innerW, ell)}
             </Text>
           ) : drillResult ? (
             <Text color={theme.success} wrap="truncate">
@@ -908,6 +910,7 @@ export const AnswerCardModal = memo(function AnswerCardModal({
                     )
                   : t(lang, '薄弱项练习已就绪 · 按 [p] 开始练习', 'Drills ready · Press [p] to practise'),
                 innerW,
+                ell,
               )}
             </Text>
           ) : null}
@@ -919,7 +922,7 @@ export const AnswerCardModal = memo(function AnswerCardModal({
       {/* Main Content */}
       {loading && !answerCard ? (
         <Box height={contentH} width={innerW} alignItems="center" justifyContent="center">
-          <Spinner label={t(lang, '正在读取答题卡…', 'Loading answer card…')} active={isActive} />
+          <Spinner label={t(lang, `正在读取答题卡${ell}`, `Loading answer card${ell}`)} active={isActive} />
         </Box>
       ) : answerCard ? (
         <Box height={contentH} width={innerW} overflow="hidden">

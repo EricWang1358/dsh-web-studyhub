@@ -1,17 +1,19 @@
 /**
- * Zod-validated, atomic persistence for TUI-only preferences at `<DSH_HOME || ~/.dsh>/study/tui.json`.
+ * Zero-dependency validated, atomic persistence for TUI-only preferences at `<DSH_HOME || ~/.dsh>/study/tui.json`.
  * Lives beside StudyHub Desktop's `desktop.json` (never inside the study library).
  */
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
-import { z } from 'zod';
 import type { ThemeId, TuiPreferences, UiLanguage } from '../types/contracts.js';
 
 export const THEME_IDS: readonly ThemeId[] = Object.freeze(['dsh-dark', 'warm-paper', 'nord', 'high-contrast']);
 export const UI_LANGUAGES: readonly UiLanguage[] = Object.freeze(['zh', 'en']);
 export const MAX_RECENT_COMMANDS = 12;
+
+const THEME_SET = new Set<string>(THEME_IDS);
+const LANGUAGE_SET = new Set<string>(UI_LANGUAGES);
 
 export const DEFAULT_TUI_PREFERENCES: Readonly<TuiPreferences> = Object.freeze({
   theme: 'dsh-dark',
@@ -24,41 +26,72 @@ export const DEFAULT_TUI_PREFERENCES: Readonly<TuiPreferences> = Object.freeze({
   recentCommands: Object.freeze([]) as unknown as string[],
 });
 
-const recentCommands = z
-  .array(z.unknown())
-  .transform((items) => {
+function parseTuiPreferencesObject(source: Record<string, unknown>): TuiPreferences {
+  const theme =
+    typeof source.theme === 'string' && THEME_SET.has(source.theme)
+      ? (source.theme as ThemeId)
+      : DEFAULT_TUI_PREFERENCES.theme;
+  const language =
+    typeof source.language === 'string' && LANGUAGE_SET.has(source.language)
+      ? (source.language as UiLanguage)
+      : DEFAULT_TUI_PREFERENCES.language;
+  const sidebarCollapsed =
+    typeof source.sidebarCollapsed === 'boolean' ? source.sidebarCollapsed : DEFAULT_TUI_PREFERENCES.sidebarCollapsed;
+  const mathUnicode =
+    typeof source.mathUnicode === 'boolean' ? source.mathUnicode : DEFAULT_TUI_PREFERENCES.mathUnicode;
+  const compactMode =
+    typeof source.compactMode === 'boolean' ? source.compactMode : DEFAULT_TUI_PREFERENCES.compactMode;
+  const showKeyHints =
+    typeof source.showKeyHints === 'boolean' ? source.showKeyHints : DEFAULT_TUI_PREFERENCES.showKeyHints;
+  const asciiMode = typeof source.asciiMode === 'boolean' ? source.asciiMode : false;
+
+  const recentCommands: string[] = [];
+  if (Array.isArray(source.recentCommands)) {
     const seen = new Set<string>();
-    const out: string[] = [];
-    for (const item of items) {
+    for (const item of source.recentCommands) {
       if (typeof item !== 'string') continue;
       const id = item.trim().slice(0, 200);
       if (!id || seen.has(id)) continue;
       seen.add(id);
-      out.push(id);
-      if (out.length >= MAX_RECENT_COMMANDS) break;
+      recentCommands.push(id);
+      if (recentCommands.length >= MAX_RECENT_COMMANDS) break;
     }
-    return out;
-  })
-  .catch([]);
+  }
 
-/** Field-level forgiving schema: one bad field falls back to its default, the rest survive. */
-export const TuiPreferencesSchema = z.object({
-  theme: z.enum(['dsh-dark', 'warm-paper', 'nord', 'high-contrast']).catch(DEFAULT_TUI_PREFERENCES.theme),
-  language: z.enum(['zh', 'en']).catch(DEFAULT_TUI_PREFERENCES.language),
-  sidebarCollapsed: z.boolean().catch(DEFAULT_TUI_PREFERENCES.sidebarCollapsed),
-  mathUnicode: z.boolean().catch(DEFAULT_TUI_PREFERENCES.mathUnicode),
-  compactMode: z.boolean().catch(DEFAULT_TUI_PREFERENCES.compactMode),
-  showKeyHints: z.boolean().catch(DEFAULT_TUI_PREFERENCES.showKeyHints),
-  asciiMode: z.boolean().default(false).catch(false),
-  recentCommands: recentCommands.default([]),
-  lastOpenAiPreset: z
-    .string()
-    .trim()
-    .min(1)
-    .max(64)
-    .optional()
-    .catch(undefined),
-});
+  let lastOpenAiPreset: string | undefined;
+  if (typeof source.lastOpenAiPreset === 'string') {
+    const trimmed = source.lastOpenAiPreset.trim();
+    if (trimmed.length >= 1 && trimmed.length <= 64) {
+      lastOpenAiPreset = trimmed;
+    }
+  }
+
+  const base: TuiPreferences = {
+    theme,
+    language,
+    sidebarCollapsed,
+    mathUnicode,
+    compactMode,
+    showKeyHints,
+    asciiMode,
+    recentCommands,
+  };
+  return lastOpenAiPreset ? { ...base, lastOpenAiPreset } : base;
+}
+
+/** Field-level forgiving parser shim (zod-compatible `.safeParse(raw)` interface, zero dependencies). */
+export const TuiPreferencesSchema = {
+  safeParse(raw: unknown): { success: true; data: TuiPreferences } | { success: false; error: Error } {
+    try {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return { success: false, error: new Error('Expected preferences object') };
+      }
+      return { success: true, data: parseTuiPreferencesObject(raw as Record<string, unknown>) };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error : new Error(String(error)) };
+    }
+  },
+};
 
 export interface TuiPrefsLocation {
   env?: Record<string, string | undefined>;
@@ -80,11 +113,9 @@ export function tuiPreferencesPath(location: TuiPrefsLocation = {}): string {
 /** Parse arbitrary JSON-ish input into valid preferences (never throws). */
 export function parseTuiPreferences(raw: unknown): TuiPreferences {
   try {
-    const source = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
-    const parsed = TuiPreferencesSchema.safeParse(source);
-    if (!parsed.success) return { ...DEFAULT_TUI_PREFERENCES, recentCommands: [] };
-    const { lastOpenAiPreset, ...rest } = parsed.data;
-    return lastOpenAiPreset ? { ...rest, lastOpenAiPreset } : rest;
+    const source =
+      raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+    return parseTuiPreferencesObject(source);
   } catch {
     return { ...DEFAULT_TUI_PREFERENCES, recentCommands: [] };
   }

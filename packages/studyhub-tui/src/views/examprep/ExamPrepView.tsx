@@ -41,6 +41,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const ell = asciiMode ? '...' : '…';
   const snapshot = useTuiStore((s) => s.snapshot);
   const navigate = useTuiStore((s) => s.navigate);
   const notify = useTuiStore((s) => s.notify);
@@ -146,7 +147,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
       : progress?.weakScope ?? [];
     if (scope.length > 0) {
       busyRef.current = true;
-      setBusyLabel(t(lang, '正在开启重点薄弱题练习…', 'Starting weak focus practice...'));
+      setBusyLabel(t(lang, `正在开启重点薄弱题练习${ell}`, 'Starting weak focus practice...'));
       try {
         const res = await tryAction<{ id: string }>(host, 'review.start', { mode: 'path', scope, fresh: true });
         if (!mountedRef.current) return;
@@ -163,7 +164,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
     }
     if (selectedTopic && selectedTopic.cards > 0 && course) {
       busyRef.current = true;
-      setBusyLabel(t(lang, '正在开启练习…', 'Starting practice...'));
+      setBusyLabel(t(lang, `正在开启练习${ell}`, 'Starting practice...'));
       try {
         const res = await tryAction<{ id: string }>(host, 'review.start', { mode: 'due', course, fresh: true });
         if (!mountedRef.current) return;
@@ -218,7 +219,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
       return;
     }
     busyRef.current = true;
-    setBusyLabel(t(lang, '正在启动重点查漏补缺出题…', 'Starting gap-fill generation...'));
+    setBusyLabel(t(lang, `正在启动重点查漏补缺出题${ell}`, 'Starting gap-fill generation...'));
     try {
       const count = Math.min(20, Math.max(4, targetTopics.length * 4));
       const title = targetTopics.length === 1
@@ -252,7 +253,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
     if (!course || busyRef.current || busyLabel !== null) return;
     setDeleteTopicTarget(null);
     busyRef.current = true;
-    setBusyLabel(t(lang, '正在移除重点条目…', 'Removing focus topic...'));
+    setBusyLabel(t(lang, `正在移除重点条目${ell}`, 'Removing focus topic...'));
     try {
       const existingCourse = (snapshot?.courses ?? []).find((c) => String(c.name || c.id || '').trim() === course);
       let record: CourseRecordView | null = null;
@@ -308,7 +309,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
   const startCrunchMock = useCallback(async () => {
     if (!course || busyRef.current || busyLabel !== null) return;
     busyRef.current = true;
-    setBusyLabel(t(lang, '正在生成冲刺模拟练习…', 'Starting crunch mock...'));
+    setBusyLabel(t(lang, `正在生成冲刺模拟练习${ell}`, 'Starting crunch mock...'));
     try {
       const pointIds = selectedCrunch ? [selectedCrunch.id] : undefined;
       const res = await tryAction<{ id: string }>(host, 'book.mock', {

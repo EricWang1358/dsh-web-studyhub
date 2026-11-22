@@ -60,6 +60,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const ell = asciiMode ? '...' : '…';
   const snapshot = useTuiStore((s) => s.snapshot);
   const desktopConfig = useTuiStore((s) => s.desktopConfig);
   const binding = useTuiStore((s) => s.binding);
@@ -213,7 +214,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
   const runAnalyze = useCallback(async (useModel: boolean, referenceSourceIds?: string[]) => {
     if (busyRef.current || busyLabel !== null) return;
     busyRef.current = true;
-    setBusyLabel(useModel ? t(lang, '正在结合 AI 分析考察方式…', 'Analyzing exam style with AI...') : t(lang, '正在分析考察方式…', 'Analyzing exam style...'));
+    setBusyLabel(useModel ? t(lang, `正在结合 AI 分析考察方式${ell}`, 'Analyzing exam style with AI...') : t(lang, `正在分析考察方式${ell}`, 'Analyzing exam style...'));
     setErrorMsg(null);
     try {
       const res = await tryAction<{ spec?: CoachSpec; evidence?: CoachCapabilityEvidence }>(host, 'coach.calibration.analyze', {
@@ -270,7 +271,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
     }
     busyRef.current = true;
     setNoteModalOpen(false);
-    setBusyLabel(t(lang, '正在保存样卷笔记…', 'Saving exam-style notes...'));
+    setBusyLabel(t(lang, `正在保存样卷笔记${ell}`, 'Saving exam-style notes...'));
     try {
       const title = noteTitle.trim() || `${course || t(lang, '考试', 'Exam')} - ${t(lang, '考法样卷笔记', 'Past-Paper Style Notes')}`;
       const added = await tryAction<{ id: string }>(host, 'source.add', {
@@ -308,7 +309,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
     );
     busyRef.current = true;
     setEditModalOpen(false);
-    setBusyLabel(t(lang, '正在保存训练配置…', 'Saving training configuration...'));
+    setBusyLabel(t(lang, `正在保存训练配置${ell}`, 'Saving training configuration...'));
     try {
       const res = await tryAction<{ spec?: CoachSpec; evidence?: CoachCapabilityEvidence }>(host, 'coach.calibration.save', {
         course,
@@ -336,7 +337,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
       return;
     }
     busyRef.current = true;
-    setBusyLabel(t(lang, '正在排队生成变式题…', 'Queueing variant generation...'));
+    setBusyLabel(t(lang, `正在排队生成变式题${ell}`, 'Queueing variant generation...'));
     try {
       const res = await tryAction<{ queued?: number; needsConsent?: boolean; skipped?: unknown[]; status?: CoachStatusResult }>(host, 'coach.variants', {
         cards,
@@ -365,7 +366,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
   const startCoachPractice = useCallback(async (originCardIds?: string[]) => {
     if (busyRef.current || busyLabel !== null) return;
     busyRef.current = true;
-    setBusyLabel(t(lang, '正在启动教练针对练习…', 'Starting targeted coach practice...'));
+    setBusyLabel(t(lang, `正在启动教练针对练习${ell}`, 'Starting targeted coach practice...'));
     try {
       const res = await tryAction<{ id: string }>(host, 'coach.practice', originCardIds?.length ? { originCardIds } : {});
       if (!mountedRef.current) return;
@@ -384,7 +385,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
   const startPointPractice = useCallback(async (point: CourseEvidencePoint | undefined) => {
     if (!point || busyRef.current || busyLabel !== null) return;
     busyRef.current = true;
-    setBusyLabel(t(lang, '正在启动考点练习…', 'Starting point practice...'));
+    setBusyLabel(t(lang, `正在启动考点练习${ell}`, 'Starting point practice...'));
     try {
       if (point.cardRefs && point.cardRefs.length > 0) {
         const res = await tryAction<{ id: string }>(host, 'review.start', { mode: 'path', scope: point.cardRefs, fresh: true });
@@ -414,7 +415,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
   const buildRequestPreview = useCallback(async () => {
     if (busyRef.current || busyLabel !== null) return;
     busyRef.current = true;
-    setBusyLabel(t(lang, '正在编译校准出题请求…', 'Compiling calibrated request...'));
+    setBusyLabel(t(lang, `正在编译校准出题请求${ell}`, 'Compiling calibrated request...'));
     try {
       const res = await tryAction<CompiledRequestResult>(host, 'coach.calibration.buildRequest', { course });
       if (!mountedRef.current) return;
@@ -433,7 +434,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
   const checkStrictMock = useCallback(async () => {
     if (busyRef.current || busyLabel !== null) return;
     busyRef.current = true;
-    setBusyLabel(t(lang, '正在核对严格同型组卷缺口…', 'Checking strict mock composition...'));
+    setBusyLabel(t(lang, `正在核对严格同型组卷缺口${ell}`, 'Checking strict mock composition...'));
     try {
       const activeFamilies = families.filter((f) => f.quota > 0);
       const sections = activeFamilies.length
@@ -464,7 +465,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
   const requestCalibratedGenerate = useCallback(async () => {
     if (busyRef.current || busyLabel !== null) return;
     busyRef.current = true;
-    setBusyLabel(t(lang, '正在估算校准出题数量…', 'Estimating calibrated generation...'));
+    setBusyLabel(t(lang, `正在估算校准出题数量${ell}`, 'Estimating calibrated generation...'));
     try {
       const built = await tryAction<CompiledRequestResult>(host, 'coach.calibration.buildRequest', { course });
       if (!mountedRef.current) return;
@@ -487,7 +488,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
   const executeCalibratedGenerate = useCallback(async (built: CompiledRequestResult) => {
     if (busyRef.current || busyLabel !== null) return;
     busyRef.current = true;
-    setBusyLabel(t(lang, '正在按校准方案启动出题…', 'Starting calibrated generation...'));
+    setBusyLabel(t(lang, `正在按校准方案启动出题${ell}`, 'Starting calibrated generation...'));
     try {
       const gen = await tryAction(host, 'generate', built.request);
       if (!mountedRef.current) return;
@@ -1115,7 +1116,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
               onChange={setNoteText}
               multiline
               height={6}
-              placeholder={t(lang, '粘贴老师划的题型分布、样卷例题或评分要点…', 'Paste exam format, sample questions, or grading notes...')}
+              placeholder={t(lang, `粘贴老师划的题型分布、样卷例题或评分要点${ell}`, 'Paste exam format, sample questions, or grading notes...')}
               isActive={isActive && noteModalOpen && noteField === 'text'}
               width={modalContentWidth(Math.min(76, width - 4))}
               onCancel={() => setNoteModalOpen(false)}

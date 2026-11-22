@@ -3,7 +3,7 @@ import { Box, Text } from 'ink';
 import { PAGE_REGISTRY } from '../types/contracts.js';
 import { t, useTuiStore } from '../state/store.js';
 import { useTheme } from '../theme/tokens.js';
-import { displayWidth, truncateDisplay } from '../render/index.js';
+import { displayWidth, truncateDisplay } from '../render/cjk.js';
 import { Spinner } from '../components/Badge.js';
 import { currentCourse, dueToday, modelInfo, pageIcon, runningJobs, unreadInboxCount } from './data.js';
 

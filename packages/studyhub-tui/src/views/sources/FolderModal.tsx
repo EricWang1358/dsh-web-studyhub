@@ -54,6 +54,8 @@ export const FolderModal = memo(function FolderModal({
 }: FolderModalProps) {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const ell = asciiMode ? '...' : '…';
   const notify = useTuiStore((s) => s.notify);
   const { columns, rows: termRows } = useWindowSize();
 
@@ -332,7 +334,7 @@ export const FolderModal = memo(function FolderModal({
       <Modal
         title={title}
         subtitle={subtitle}
-        icon="◈"
+        icon={asciiMode ? '*' : '◈'}
         width={frameWidth}
         isActive={isActive && subMode !== 'delete'}
         onClose={subMode === 'list' ? onClose : () => { setErr(null); setSubMode('list'); }}
@@ -364,7 +366,7 @@ export const FolderModal = memo(function FolderModal({
                 width={Math.max(16, innerWidth - 4)}
                 maxLength={80}
                 isActive={isActive && !busy && subMode === 'create'}
-                prompt="›"
+                prompt={asciiMode ? '>' : '›'}
               />
             </Box>
           </Box>
@@ -382,7 +384,7 @@ export const FolderModal = memo(function FolderModal({
                 width={Math.max(16, innerWidth - 4)}
                 maxLength={80}
                 isActive={isActive && !busy && subMode === 'rename'}
-                prompt="›"
+                prompt={asciiMode ? '>' : '›'}
               />
             </Box>
           </Box>
@@ -420,16 +422,27 @@ export const FolderModal = memo(function FolderModal({
                     ? t(lang, ' [当前]', ' [Current]')
                     : '';
                 const countText = `${row.count}`;
-                const icon = row.kind === 'folder' ? '▸ ' : row.kind === 'all' ? '◈ ' : '○ ';
+                const icon =
+                  row.kind === 'folder'
+                    ? asciiMode
+                      ? '> '
+                      : '▸ '
+                    : row.kind === 'all'
+                      ? asciiMode
+                        ? '* '
+                        : '◈ '
+                      : asciiMode
+                        ? 'o '
+                        : '○ ';
                 const maxLabel = Math.max(10, ctx.width - countText.length - tag.length - 6);
                 return (
                   <Box flexDirection="row" width={ctx.width}>
                     <Text color={ctx.selected ? theme.primary : theme.muted}>
-                      {ctx.selected ? '› ' : '  '}
+                      {ctx.selected ? (asciiMode ? '> ' : '› ') : '  '}
                     </Text>
                     <Text color={row.kind === 'folder' ? theme.accent : theme.muted}>{icon}</Text>
                     <Text color={theme.text} bold={ctx.selected}>
-                      {truncateDisplay(row.label, maxLabel)}
+                      {truncateDisplay(row.label, maxLabel, ell)}
                     </Text>
                     {tag ? <Text color={theme.success}>{tag}</Text> : null}
                     <Box flexGrow={1} />
@@ -443,12 +456,12 @@ export const FolderModal = memo(function FolderModal({
 
         {busy ? (
           <Box marginTop={1}>
-            <Spinner label={t(lang, '正在保存文件夹变更…', 'Updating folders…')} />
+            <Spinner label={t(lang, `正在保存文件夹变更${ell}`, `Updating folders${ell}`)} />
           </Box>
         ) : null}
         {err ? (
           <Box marginTop={1}>
-            <Text color={theme.error}>{`✕ ${err}`}</Text>
+            <Text color={theme.error}>{`${asciiMode ? 'x' : '✕'} ${err}`}</Text>
           </Box>
         ) : null}
       </Modal>

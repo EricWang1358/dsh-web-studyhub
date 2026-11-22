@@ -177,6 +177,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const ell = asciiMode ? '...' : '…';
   const snapshot = useTuiStore((s) => s.snapshot);
   const desktopConfig = useTuiStore((s) => s.desktopConfig);
   const notify = useTuiStore((s) => s.notify);
@@ -223,7 +224,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
       const cleaned = cleanPathInput(raw);
       setEditingRoot(false);
       if (!cleaned) return;
-      setBusyAction(t(lang, '切换学习库路径…', 'Switching library folder…'));
+      setBusyAction(t(lang, `切换学习库路径${ell}`, `Switching library folder${ell}`));
       const res = await tryAction<BindingSnapshot>(host, 'binding.set', { root: cleaned });
       if (!mountedRef.current) return;
       setBusyAction(null);
@@ -238,7 +239,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
   );
 
   const handleConfirmLocation = useCallback(async () => {
-    setBusyAction(t(lang, '确认当前位置…', 'Confirming location…'));
+    setBusyAction(t(lang, `确认当前位置${ell}`, `Confirming location${ell}`));
     const res = await tryAction(host, 'desktop.library.confirm', {});
     if (!mountedRef.current) return;
     setBusyAction(null);
@@ -256,7 +257,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
       setConfirmSampleRemove(true);
       return;
     }
-    setBusyAction(t(lang, '载入示例课程…', 'Loading sample course…'));
+    setBusyAction(t(lang, `载入示例课程${ell}`, `Loading sample course${ell}`));
     try {
       await loadSampleCourse(host, { language: lang });
       await refreshSnapshot();
@@ -270,7 +271,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
 
   const handleRemoveSample = useCallback(async () => {
     setConfirmSampleRemove(false);
-    setBusyAction(t(lang, '移除示例课程…', 'Removing sample course…'));
+    setBusyAction(t(lang, `移除示例课程${ell}`, `Removing sample course${ell}`));
     try {
       await removeSampleCourse(host);
       await refreshSnapshot();
@@ -285,7 +286,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
   const handleRestorePoint = useCallback(
     async (point: RestorePointEntry) => {
       setConfirmRestore(null);
-      setBusyAction(t(lang, '恢复备份点…', 'Restoring backup…'));
+      setBusyAction(t(lang, `恢复备份点${ell}`, `Restoring backup${ell}`));
       const res = await tryAction(host, 'library.restorePoints.restore', { id: point.id });
       if (!mountedRef.current) return;
       setBusyAction(null);
@@ -306,7 +307,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
       const targetPath = resolveBackupPath(raw, baseDir);
       setExportingBackup(false);
       if (!targetPath) return;
-      setBusyAction(t(lang, '导出学习库备份…', 'Exporting library backup…'));
+      setBusyAction(t(lang, `导出学习库备份${ell}`, `Exporting library backup${ell}`));
       try {
         const res = await tryAction<Record<string, unknown>>(host, 'export', {});
         if (!mountedRef.current) return;
@@ -415,7 +416,6 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
     [asciiMode, theme.muted, theme.selectionFg, theme.text],
   );
 
-  const ell = asciiMode ? '...' : '…';
   const modalW = Math.min(72, Math.max(40, width - 6));
   const sampleActionLabel = `[s] ${sampleLoaded ? t(lang, '移除示例课程', 'Remove sample') : t(lang, '载入示例课程', 'Load sample')}`;
   const exportActionLabel = `[x] ${t(lang, '导出学习库备份', 'Export backup')}`;
@@ -482,12 +482,12 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
       <Panel
         title={t(lang, '学习库自动备份点 (Enter 恢复)', 'Library Restore Points (Enter to Restore)')}
         badge={restorePoints.length}
-        subtitle={loadingPoints ? t(lang, '加载中…', 'Loading…') : t(lang, '[r] 刷新', '[r] Refresh')}
+        subtitle={loadingPoints ? t(lang, `加载中${ell}`, `Loading${ell}`) : t(lang, '[r] 刷新', '[r] Refresh')}
         width={width}
         height={listPanelH}
       >
         {loadingPoints && restorePoints.length === 0 ? (
-          <Spinner label={t(lang, '正在读取备份列表…', 'Loading restore points…')} active={isActive} />
+          <Spinner label={t(lang, `正在读取备份列表${ell}`, `Loading restore points${ell}`)} active={isActive} />
         ) : restorePoints.length === 0 ? (
           <Text color={theme.muted} wrap="truncate">
             {t(lang, '暂无备份点（学习库发生重要变更时会自动创建快照）', 'No restore points yet (created automatically on major edits).')}

@@ -247,4 +247,54 @@ describe('StudyHub TUI NFR Performance & Bundle Budgets', () => {
       );
     }
   });
+
+  test('6. dist/App.mjs static closure excludes zod, marked, render/markdown.ts, and render/math.ts; startup path avoids components/index.js', () => {
+    const appPath = path.join(distDir, 'App.mjs');
+    assert.ok(fs.existsSync(appPath), 'missing dist/App.mjs');
+
+    const visited = new Set();
+    const queue = [appPath];
+    const externalImports = new Set();
+
+    while (queue.length > 0) {
+      const cur = queue.shift();
+      if (visited.has(cur)) continue;
+      visited.add(cur);
+
+      const code = fs.readFileSync(cur, 'utf8');
+      const chunkName = path.basename(cur);
+      for (const spec of extractStaticImportSpecifiers(code)) {
+        if (spec.startsWith('.')) {
+          const target = path.resolve(path.dirname(cur), spec);
+          if (fs.existsSync(target)) queue.push(target);
+        } else {
+          externalImports.add(spec);
+        }
+      }
+
+      assert.ok(
+        !/^\/\/\s*src\/render\/markdown\.ts\b/m.test(code),
+        `App.mjs static chunk ${chunkName} must not bundle src/render/markdown.ts`,
+      );
+      assert.ok(
+        !/^\/\/\s*src\/render\/math\.ts\b/m.test(code),
+        `App.mjs static chunk ${chunkName} must not bundle src/render/math.ts`,
+      );
+    }
+
+    assert.ok(!externalImports.has('zod'), 'dist/App.mjs static closure must not import zod');
+    assert.ok(!externalImports.has('marked'), 'dist/App.mjs static closure must not import marked');
+    assert.ok(!externalImports.has('cli-highlight'), 'dist/App.mjs static closure must not import cli-highlight');
+
+    const appSource = fs.readFileSync(path.join(pkgRoot, 'src/App.tsx'), 'utf8');
+    const librarySource = fs.readFileSync(path.join(pkgRoot, 'src/views/library/LibraryView.tsx'), 'utf8');
+    assert.ok(
+      !/components\/index\.js/.test(appSource),
+      'src/App.tsx must not import components/index.js barrel',
+    );
+    assert.ok(
+      !/components\/index\.js/.test(librarySource),
+      'src/views/library/LibraryView.tsx must not import components/index.js barrel',
+    );
+  });
 });

@@ -5,6 +5,7 @@ import { t, useTuiStore } from '../../state/store.js';
 import { saveTuiPreferences } from '../../host/index.js';
 import {
   Badge,
+  ConfirmDialog,
   EmptyState,
   MarkdownView,
   Modal,
@@ -32,8 +33,64 @@ const BookCrunchModal = lazy(() => import('./BookCrunchModal.js').then((m) => ({
 const BookEditModal = lazy(() => import('./BookEditModal.js').then((m) => ({ default: m.BookEditModal })));
 const BookExportModal = lazy(() => import('./BookExportModal.js').then((m) => ({ default: m.BookExportModal })));
 const BookQaModal = lazy(() => import('./BookQaModal.js').then((m) => ({ default: m.BookQaModal })));
+const BookStructureModal = lazy(() => import('./BookStructureModal.js').then((m) => ({ default: m.BookStructureModal })));
 
-const CLAIMED_KEYS = ['P', 'e', 'r', 'w', 'x'] as const;
+const BASE_CLAIMED_KEYS = ['P', 'e', 'r', 'w', 'x', '[', ']'] as const;
+const REBUILD_CLAIMED_KEYS = ['P', 'e', 'r', 'w', 'x', '[', ']', 'a'] as const;
+const STRUCTURE_FILE = 'book.structure';
+
+interface BookOpenWithStructure extends BookOpenResult {
+  structureVersion?: number;
+  book?: { structureVersion?: number };
+}
+
+interface BookStructureOpResult {
+  course?: string | null;
+  write?: string;
+  hid?: string;
+  structureVersion?: number;
+  revision?: number;
+  kept?: string[];
+  emptied?: { hid: string; title: string };
+  removed?: { points?: number; sections?: number; files?: number; toUnplaced?: number };
+  note?: string;
+}
+
+function extractStructureVersion(res: unknown): number {
+  if (!res || typeof res !== 'object') return 1;
+  const obj = res as BookOpenWithStructure;
+  const v = obj.structureVersion ?? obj.book?.structureVersion;
+  return typeof v === 'number' && Number.isInteger(v) && v > 0 ? v : 1;
+}
+
+function findNodeSiblings(
+  nodes: BookNode[] | undefined,
+  hid: string,
+): { siblings: Array<{ hid: string; title: string }>; index: number } | null {
+  if (!nodes?.length) return null;
+  for (let i = 0; i < nodes.length; i += 1) {
+    if (nodes[i].hid === hid) {
+      return { siblings: nodes, index: i };
+    }
+    const found = findNodeSiblings(nodes[i].children, hid);
+    if (found) return found;
+  }
+  return null;
+}
+
+function findFlatSiblings(
+  items: FlatTocItem[],
+  item: FlatTocItem,
+): { siblings: Array<{ hid: string; title: string }>; index: number } | null {
+  const parentPrefix = item.number.includes('.') ? item.number.slice(0, item.number.lastIndexOf('.')) : '';
+  const siblings = items.filter((it) => {
+    if (it.depth !== item.depth) return false;
+    const prefix = it.number.includes('.') ? it.number.slice(0, it.number.lastIndexOf('.')) : '';
+    return prefix === parentPrefix;
+  });
+  const index = siblings.findIndex((it) => it.hid === item.hid);
+  return index >= 0 ? { siblings, index } : null;
+}
 
 function flattenBookNodes(nodes: BookNode[] | undefined, out: FlatTocItem[] = []): FlatTocItem[] {
   for (const node of nodes ?? []) {
@@ -208,10 +265,17 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [qaModalOpen, setQaModalOpen] = useState(false);
+  const [structureModalOpen, setStructureModalOpen] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [confirmRevertOpen, setConfirmRevertOpen] = useState(false);
+  const [confirmUndoRebuildOpen, setConfirmUndoRebuildOpen] = useState(false);
+  const [structureVersion, setStructureVersion] = useState<number>(1);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [reloadSeq, setReloadSeq] = useState(0);
 
   const mountedRef = useRef(true);
+  const busyRef = useRef(false);
+  const pendingFocusHidRef = useRef<string | null>(null);
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -238,9 +302,13 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
 
         if (openRes.ok && openRes.value) {
           setBookData(openRes.value);
+          setStructureVersion(extractStructureVersion(openRes.value));
           if (openRes.value.status === 'ok' && (!openRes.value.nodes || openRes.value.nodes.length === 0)) {
             const tocRes = await host.call<BookTocResult>('book.toc', { ...courseArgs, compact: false });
-            if (!cancelled && mountedRef.current && tocRes.ok && tocRes.value) setTocData(tocRes.value);
+            if (!cancelled && mountedRef.current && tocRes.ok && tocRes.value) {
+              setTocData(tocRes.value);
+              setStructureVersion(extractStructureVersion(tocRes.value));
+            }
           } else {
             setTocData(null);
           }
@@ -250,6 +318,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
           if (tocRes.ok && tocRes.value) {
             setTocData(tocRes.value);
             setBookData(null);
+            setStructureVersion(extractStructureVersion(tocRes.value));
           } else {
             setError(openRes.error?.message || tocRes.error?.message || t(lang, '加载复习全书失败', 'Failed to load review book'));
           }
@@ -272,8 +341,17 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
   }, [bookData, tocData]);
 
   useEffect(() => {
+    const targetHid = pendingFocusHidRef.current;
+    if (targetHid && items.length > 0) {
+      const idx = items.findIndex((it) => it.hid === targetHid);
+      pendingFocusHidRef.current = null;
+      if (idx >= 0) {
+        setSelectedIndex(idx);
+        return;
+      }
+    }
     if (items.length > 0 && selectedIndex >= items.length) setSelectedIndex(items.length - 1);
-  }, [items.length, selectedIndex]);
+  }, [items, selectedIndex]);
 
   const selectedItem = items[selectedIndex];
   const effectiveCourse = bookData?.course ?? tocData?.course ?? activeCourse ?? undefined;
@@ -355,33 +433,45 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
     }
   }, [selectedItem, busyAction, effectiveCourse, host, lang]);
 
+  const resolvePendingOutlineId = useCallback(
+    async (course: string): Promise<string | undefined> => {
+      let outlineId = extractPendingOutlineId(bookData);
+      if (!outlineId) {
+        const openRes = await host.call<BookOpenResult>('course.book.open', { course, language: lang });
+        if (openRes.ok && openRes.value) {
+          if (mountedRef.current) {
+            setBookData(openRes.value);
+            setStructureVersion(extractStructureVersion(openRes.value));
+          }
+          outlineId = extractPendingOutlineId(openRes.value);
+        }
+      }
+      if (!outlineId) {
+        const outlineRes = await host.call<{ book?: { id?: string; outlineId?: string } | null }>('course.outline', { course });
+        if (outlineRes.ok && outlineRes.value?.book) {
+          const candidate = outlineRes.value.book.outlineId ?? outlineRes.value.book.id;
+          if (typeof candidate === 'string' && candidate.trim()) outlineId = candidate.trim();
+        }
+      }
+      return outlineId;
+    },
+    [bookData, host, lang],
+  );
+
   const runBuild = useCallback(
     async (kind: 'outline' | 'book' | 'point' | 'apply-rebuild') => {
       setBuildModalOpen(false);
-      if (busyAction) return;
+      if (busyRef.current || busyAction) return;
       const course = effectiveCourse;
       if (!course) {
         useTuiStore.getState().notify(t(lang, '请先按 [c] 选择一门课程', 'Please pick a course first with [c]'), 'warning');
         return;
       }
+      busyRef.current = true;
       setBusyAction('build');
       try {
         if (kind === 'apply-rebuild') {
-          let outlineId = extractPendingOutlineId(bookData);
-          if (!outlineId) {
-            const openRes = await host.call<BookOpenResult>('course.book.open', { course, language: lang });
-            if (openRes.ok && openRes.value) {
-              if (mountedRef.current) setBookData(openRes.value);
-              outlineId = extractPendingOutlineId(openRes.value);
-            }
-          }
-          if (!outlineId) {
-            const outlineRes = await host.call<{ book?: { id?: string; outlineId?: string } | null }>('course.outline', { course });
-            if (outlineRes.ok && outlineRes.value?.book) {
-              const candidate = outlineRes.value.book.outlineId ?? outlineRes.value.book.id;
-              if (typeof candidate === 'string' && candidate.trim()) outlineId = candidate.trim();
-            }
-          }
+          const outlineId = await resolvePendingOutlineId(course);
           if (!outlineId) {
             useTuiStore.getState().notify(
               t(lang, '未能获取待应用总纲的 outlineId，请按 [r] 刷新后重试', 'Missing pending outlineId; press [r] to refresh and try again'),
@@ -392,6 +482,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
           const res = await host.call('course.book.rebuild', { course, action: 'apply', outlineId });
           if (res.ok) {
             useTuiStore.getState().notify(t(lang, '已应用新总纲结构', 'Applied rebuilt outline to book'), 'success');
+            setReadCache({});
             setReloadSeq((n) => n + 1);
           } else {
             useTuiStore.getState().notify(res.error?.message || t(lang, '应用失败', 'Apply failed'), 'error');
@@ -430,11 +521,183 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
           useTuiStore.getState().notify(res.error?.message || t(lang, '启动复习全书构建失败', 'Book build failed'), 'error');
         }
       } finally {
+        busyRef.current = false;
         if (mountedRef.current) setBusyAction(null);
       }
     },
-    [busyAction, effectiveCourse, host, lang, selectedItem, bookData],
+    [busyAction, effectiveCourse, host, lang, resolvePendingOutlineId, selectedItem],
   );
+
+  const undoPendingRebuild = useCallback(async () => {
+    setConfirmUndoRebuildOpen(false);
+    if (busyRef.current || busyAction) return;
+    const course = effectiveCourse;
+    if (!course) {
+      useTuiStore.getState().notify(t(lang, '请先按 [c] 选择一门课程', 'Please pick a course first with [c]'), 'warning');
+      return;
+    }
+    busyRef.current = true;
+    setBusyAction('rebuild-undo');
+    try {
+      const outlineId = await resolvePendingOutlineId(course);
+      if (!outlineId) {
+        useTuiStore.getState().notify(
+          t(lang, '未能获取待撤销总纲的 outlineId，请按 [r] 刷新后重试', 'Missing pending outlineId; press [r] to refresh and try again'),
+          'error',
+        );
+        return;
+      }
+      const res = await host.call('course.book.rebuild', { course, action: 'undo', outlineId });
+      if (res.ok) {
+        useTuiStore.getState().notify(t(lang, '已撤销本次总纲重组', 'Undid outline rebuild'), 'success');
+        setReadCache({});
+        setReloadSeq((n) => n + 1);
+      } else {
+        useTuiStore.getState().notify(res.error?.message || t(lang, '撤销总纲重组失败', 'Failed to undo rebuild'), 'error');
+      }
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusyAction(null);
+    }
+  }, [busyAction, effectiveCourse, host, lang, resolvePendingOutlineId]);
+
+  const moveSelectedNode = useCallback(
+    async (direction: 'up' | 'down') => {
+      if (busyRef.current || busyAction) return;
+      if (!selectedItem || (bookData?.status ?? tocData?.status) !== 'ok') {
+        useTuiStore.getState().notify(t(lang, '请先选择一个目录节点', 'Select a TOC node first'), 'warning');
+        return;
+      }
+      const loc = findNodeSiblings(bookData?.nodes, selectedItem.hid) ?? findFlatSiblings(items, selectedItem);
+      if (!loc) {
+        useTuiStore.getState().notify(t(lang, '未找到该节点在目录中的位置', 'Could not locate selected node in TOC'), 'warning');
+        return;
+      }
+      if (direction === 'up' && loc.index <= 0) {
+        useTuiStore.getState().notify(t(lang, '已经是同级第一个节点', 'Already the first item at this level'), 'info');
+        return;
+      }
+      if (direction === 'down' && loc.index >= loc.siblings.length - 1) {
+        useTuiStore.getState().notify(t(lang, '已经是同级最后一个节点', 'Already the last item at this level'), 'info');
+        return;
+      }
+      const neighbor = loc.siblings[direction === 'up' ? loc.index - 1 : loc.index + 1];
+      busyRef.current = true;
+      setBusyAction('move');
+      try {
+        const res = await host.call<BookStructureOpResult>('course.book.move', {
+          ...(effectiveCourse ? { course: effectiveCourse } : {}),
+          hid: selectedItem.hid,
+          ...(direction === 'up' ? { beforeHid: neighbor.hid } : { afterHid: neighbor.hid }),
+          version: structureVersion,
+        });
+        if (!mountedRef.current) return;
+        if (res.ok) {
+          if (typeof res.value?.structureVersion === 'number') setStructureVersion(res.value.structureVersion);
+          pendingFocusHidRef.current = selectedItem.hid;
+          useTuiStore.getState().notify(
+            direction === 'up'
+              ? t(lang, `已上移「${selectedItem.title}」`, `Moved "${selectedItem.title}" up`)
+              : t(lang, `已下移「${selectedItem.title}」`, `Moved "${selectedItem.title}" down`),
+            'success',
+          );
+          setReadCache({});
+          setReloadSeq((n) => n + 1);
+        } else if (res.error?.code === 'course-book-conflict') {
+          useTuiStore.getState().notify(
+            res.error.message || t(lang, '目录版本已变更，已刷新最新目录', 'Book structure changed; refreshing TOC'),
+            'warning',
+          );
+          pendingFocusHidRef.current = selectedItem.hid;
+          setReadCache({});
+          setReloadSeq((n) => n + 1);
+        } else {
+          useTuiStore.getState().notify(res.error?.message || t(lang, '移动节点失败', 'Failed to move node'), 'error');
+        }
+      } finally {
+        busyRef.current = false;
+        if (mountedRef.current) setBusyAction(null);
+      }
+    },
+    [bookData?.nodes, bookData?.status, busyAction, effectiveCourse, host, items, lang, selectedItem, structureVersion, tocData?.status],
+  );
+
+  const deleteSelectedNode = useCallback(async () => {
+    setConfirmDeleteOpen(false);
+    if (busyRef.current || busyAction || !selectedItem) return;
+    busyRef.current = true;
+    setBusyAction('delete');
+    try {
+      const res = await host.call<BookStructureOpResult>('course.book.delete', {
+        ...(effectiveCourse ? { course: effectiveCourse } : {}),
+        hid: selectedItem.hid,
+        children: 'promote',
+        version: structureVersion,
+      });
+      if (!mountedRef.current) return;
+      if (res.ok) {
+        if (typeof res.value?.structureVersion === 'number') setStructureVersion(res.value.structureVersion);
+        const parked = Number(res.value?.removed?.toUnplaced ?? 0) > 0;
+        useTuiStore.getState().notify(
+          parked
+            ? t(lang, `已删除「${selectedItem.title}」，原有笔记已保留在「未归位」`, `Deleted "${selectedItem.title}"; learner notes kept in Unplaced`)
+            : t(lang, `已删除「${selectedItem.title}」`, `Deleted "${selectedItem.title}"`),
+          'success',
+        );
+        setReadCache({});
+        setReloadSeq((n) => n + 1);
+      } else if (res.error?.code === 'course-book-conflict') {
+        useTuiStore.getState().notify(
+          res.error.message || t(lang, '目录版本已变更，已刷新最新目录', 'Book structure changed; refreshing TOC'),
+          'warning',
+        );
+        setReadCache({});
+        setReloadSeq((n) => n + 1);
+      } else {
+        useTuiStore.getState().notify(res.error?.message || t(lang, '删除节点失败', 'Failed to delete node'), 'error');
+      }
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusyAction(null);
+    }
+  }, [busyAction, effectiveCourse, host, lang, selectedItem, structureVersion]);
+
+  const revertStructure = useCallback(async () => {
+    setConfirmRevertOpen(false);
+    if (busyRef.current || busyAction) return;
+    busyRef.current = true;
+    setBusyAction('revert');
+    try {
+      const res = await host.call<BookStructureOpResult>('course.book.revert', {
+        ...(effectiveCourse ? { course: effectiveCourse } : {}),
+        file: STRUCTURE_FILE,
+      });
+      if (!mountedRef.current) return;
+      if (res.ok) {
+        if (typeof res.value?.structureVersion === 'number') setStructureVersion(res.value.structureVersion);
+        if (res.value?.kept?.length) {
+          useTuiStore.getState().notify(
+            t(
+              lang,
+              `已撤销目录改动（后续已编辑文件保持不变: ${res.value.kept.join(', ')}）`,
+              `Reverted structure (kept newer edits in: ${res.value.kept.join(', ')})`,
+            ),
+            'warning',
+          );
+        } else {
+          useTuiStore.getState().notify(t(lang, '已撤销最近一次目录结构调整', 'Reverted last structure change'), 'success');
+        }
+        setReadCache({});
+        setReloadSeq((n) => n + 1);
+      } else {
+        const tone = res.error?.code === 'course-book-no-version' ? 'info' : 'error';
+        useTuiStore.getState().notify(res.error?.message || t(lang, '没有可撤销的目录调整', 'No structure edit to revert'), tone);
+      }
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusyAction(null);
+    }
+  }, [busyAction, effectiveCourse, host, lang]);
 
   const buildOptions: SelectOption<'outline' | 'book' | 'point' | 'apply-rebuild'>[] = useMemo(() => {
     const opts: SelectOption<'outline' | 'book' | 'point' | 'apply-rebuild'>[] = [];
@@ -475,22 +738,48 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
     return opts;
   }, [bookData?.status, lang, selectedItem]);
 
-  const modalOpen = buildModalOpen || crunchModalOpen || editModalOpen || exportModalOpen || qaModalOpen;
-  useClaimKeys(CLAIMED_KEYS, isActive && !modalOpen);
+  const status = bookData?.status ?? tocData?.status ?? 'empty';
+  const reason = bookData?.reason ?? tocData?.reason ?? '';
+  const bookTitle = bookData?.title ?? tocData?.title ?? t(lang, '复习全书', 'Review Book');
+
+  const modalOpen =
+    buildModalOpen ||
+    crunchModalOpen ||
+    editModalOpen ||
+    exportModalOpen ||
+    qaModalOpen ||
+    structureModalOpen ||
+    confirmDeleteOpen ||
+    confirmRevertOpen ||
+    confirmUndoRebuildOpen;
+  useClaimKeys(status === 'rebuild-pending' ? REBUILD_CLAIMED_KEYS : BASE_CLAIMED_KEYS, isActive && !modalOpen);
 
   const hints: KeyHint[] = useMemo(
-    () => [
-      { key: 'Tab', label: t(lang, '切换窗格', 'Pane') },
-      { key: 'm', label: mathUnicode ? t(lang, '数学:Unicode', 'Math:Unicode') : t(lang, '数学:LaTeX', 'Math:LaTeX') },
-      { key: 'e', label: t(lang, '编辑', 'Edit') },
-      { key: 'p', label: t(lang, '练5题', 'Practise 5') },
-      { key: 'P', label: t(lang, '精选问答', 'Pinned QA') },
-      { key: 'w', label: t(lang, '期末一周', 'Final week') },
-      { key: 'x', label: t(lang, '导出', 'Export') },
-      { key: 'g', label: t(lang, '生成/重建', 'Build') },
-      { key: 'r', label: t(lang, '刷新', 'Refresh') },
-    ],
-    [lang, mathUnicode],
+    () =>
+      status === 'rebuild-pending'
+        ? [
+            { key: 'a', label: t(lang, '应用重建', 'Apply') },
+            { key: 'u', label: t(lang, '撤销重组', 'Undo rebuild') },
+            { key: 'g', label: t(lang, '构建选项', 'Build') },
+            { key: 'P', label: t(lang, '精选问答', 'Pinned QA') },
+            { key: 'r', label: t(lang, '刷新', 'Refresh') },
+          ]
+        : [
+            { key: 'Tab', label: t(lang, '切换窗格', 'Pane') },
+            { key: 'm', label: mathUnicode ? t(lang, '数学:Unicode', 'Math:Unicode') : t(lang, '数学:LaTeX', 'Math:LaTeX') },
+            { key: 'e', label: t(lang, '编辑', 'Edit') },
+            { key: 'p', label: t(lang, '练5题', 'Practise 5') },
+            { key: 'P', label: t(lang, '精选问答', 'Pinned QA') },
+            { key: 'w', label: t(lang, '期末一周', 'Final week') },
+            { key: 'x', label: t(lang, '导出', 'Export') },
+            { key: 'R', label: t(lang, '改名', 'Rename') },
+            { key: '[/]', label: t(lang, '移序', 'Move') },
+            { key: 'D', label: t(lang, '删节', 'Delete') },
+            { key: 'z', label: t(lang, '撤销结构', 'Undo struct') },
+            { key: 'g', label: t(lang, '生成/重建', 'Build') },
+            { key: 'r', label: t(lang, '刷新', 'Refresh') },
+          ],
+    [lang, mathUnicode, status],
   );
   useFooterHints(hints, isActive && !modalOpen);
 
@@ -507,12 +796,50 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
         setActivePane('right');
         return;
       }
+      if (status === 'rebuild-pending') {
+        if (input === 'a') {
+          void runBuild('apply-rebuild');
+          return;
+        }
+        if (input === 'u') {
+          setConfirmUndoRebuildOpen(true);
+          return;
+        }
+      }
       if (input === 'm') {
         toggleMath();
         return;
       }
       if (input === 'e') {
         setEditModalOpen(true);
+        return;
+      }
+      if (input === 'R') {
+        setStructureModalOpen(true);
+        return;
+      }
+      if (input === '[') {
+        void moveSelectedNode('up');
+        return;
+      }
+      if (input === ']') {
+        void moveSelectedNode('down');
+        return;
+      }
+      if (input === 'D') {
+        if (status === 'ok' && selectedItem) {
+          setConfirmDeleteOpen(true);
+        } else {
+          useTuiStore.getState().notify(t(lang, '请先选择一个目录节点', 'Select a TOC node first'), 'warning');
+        }
+        return;
+      }
+      if (input === 'z') {
+        if (status === 'ok') {
+          setConfirmRevertOpen(true);
+        } else {
+          useTuiStore.getState().notify(t(lang, '当前没有可撤销的目录调整', 'No review book structure to revert'), 'info');
+        }
         return;
       }
       if (input === 'p') {
@@ -545,9 +872,6 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
 
   const headerH = 2;
   const bodyH = Math.max(6, height - headerH);
-  const status = bookData?.status ?? tocData?.status ?? 'empty';
-  const reason = bookData?.reason ?? tocData?.reason ?? '';
-  const bookTitle = bookData?.title ?? tocData?.title ?? t(lang, '复习全书', 'Review Book');
 
   if (loading && !bookData && !tocData) {
     return (
@@ -620,15 +944,23 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
             }
             hint={
               status === 'rebuild-pending'
-                ? t(lang, '按 [g] 应用新总纲结构并保留原有笔记', 'Press [g] to apply the rebuilt outline')
+                ? t(lang, '按 [a] 应用新总纲，按 [u] 撤销本次总纲重组，或按 [g] 查看构建选项', 'Press [a] to apply, [u] to undo rebuild, or [g] for build options')
                 : reason === 'no-course'
                   ? t(lang, '按 [c] 选择课程，或先导入课程资料', 'Press [c] to pick a course')
                   : t(lang, '按 [g] 自动整理课程总纲并生成复习全书', 'Press [g] to build the course outline and review book')
             }
-            actions={[
-              { key: 'g', label: t(lang, '生成/重建', 'Build') },
-              { key: 'c', label: t(lang, '选课', 'Course') },
-            ]}
+            actions={
+              status === 'rebuild-pending'
+                ? [
+                    { key: 'a', label: t(lang, '应用新总纲', 'Apply') },
+                    { key: 'u', label: t(lang, '撤销重组', 'Undo') },
+                    { key: 'g', label: t(lang, '构建选项', 'Build') },
+                  ]
+                : [
+                    { key: 'g', label: t(lang, '生成/重建', 'Build') },
+                    { key: 'c', label: t(lang, '选课', 'Course') },
+                  ]
+            }
             width={width - 2}
             height={bodyH}
           />
@@ -785,7 +1117,82 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
             }}
           />
         ) : null}
+
+        {structureModalOpen ? (
+          <BookStructureModal
+            host={host}
+            course={effectiveCourse ?? null}
+            selectedItem={selectedItem ?? null}
+            structureVersion={structureVersion}
+            isActive={isActive && structureModalOpen}
+            width={width}
+            height={height}
+            onClose={() => setStructureModalOpen(false)}
+            onRenamed={(nextVer, hid) => {
+              if (typeof nextVer === 'number') setStructureVersion(nextVer);
+              if (hid) pendingFocusHidRef.current = hid;
+              setReadCache({});
+              setReloadSeq((n) => n + 1);
+            }}
+            onConflict={() => {
+              if (selectedItem?.hid) pendingFocusHidRef.current = selectedItem.hid;
+              setReadCache({});
+              setReloadSeq((n) => n + 1);
+            }}
+          />
+        ) : null}
       </Suspense>
+
+      {confirmDeleteOpen && selectedItem ? (
+        <ConfirmDialog
+          title={t(lang, '删除目录节点', 'Delete TOC Node')}
+          message={t(
+            lang,
+            `确定删除「${selectedItem.number} ${selectedItem.title}」吗？子节点将上提一级，你写的笔记与问答会保留在「未归位 (Unplaced)」中，不会丢失。`,
+            `Delete "${selectedItem.number} ${selectedItem.title}"? Child items will be promoted, and learner notes & Q&A will be kept safely in Unplaced (未归位).`,
+          )}
+          confirmLabel={t(lang, '删除', 'Delete')}
+          cancelLabel={t(lang, '取消', 'Cancel')}
+          danger
+          isActive={isActive && confirmDeleteOpen}
+          onConfirm={() => void deleteSelectedNode()}
+          onCancel={() => setConfirmDeleteOpen(false)}
+        />
+      ) : null}
+
+      {confirmRevertOpen ? (
+        <ConfirmDialog
+          title={t(lang, '撤销上次目录调整', 'Revert Last Structure Edit')}
+          message={t(
+            lang,
+            '确定撤销最近一次章节改名、移动或删除操作吗？之后单独编辑过的讲义正文会保留。',
+            'Revert the latest rename, move, or delete structure change? Any section text edited afterward will be kept.',
+          )}
+          confirmLabel={t(lang, '撤销', 'Revert')}
+          cancelLabel={t(lang, '取消', 'Cancel')}
+          danger
+          isActive={isActive && confirmRevertOpen}
+          onConfirm={() => void revertStructure()}
+          onCancel={() => setConfirmRevertOpen(false)}
+        />
+      ) : null}
+
+      {confirmUndoRebuildOpen ? (
+        <ConfirmDialog
+          title={t(lang, '撤销本次总纲重组', 'Undo Outline Rebuild')}
+          message={t(
+            lang,
+            '确定放弃本次待确认的新总纲重组并回到原来的总纲结构吗？原有笔记不会被改动。',
+            'Discard the pending outline rebuild and keep the previous outline structure? Existing notes stay unchanged.',
+          )}
+          confirmLabel={t(lang, '撤销重组', 'Undo rebuild')}
+          cancelLabel={t(lang, '取消', 'Cancel')}
+          danger
+          isActive={isActive && confirmUndoRebuildOpen}
+          onConfirm={() => void undoPendingRebuild()}
+          onCancel={() => setConfirmUndoRebuildOpen(false)}
+        />
+      ) : null}
     </Box>
   );
 };

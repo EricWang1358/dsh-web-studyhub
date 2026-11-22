@@ -660,7 +660,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
         base.push({ key: '1-6/Space', label: t(lang, '勾选', 'Toggle') });
         base.push({ key: 'Enter', label: t(lang, '提交', 'Submit') });
       } else if (kind === 'true_false') {
-        base.push({ key: '1/t · 2/f', label: t(lang, '判断', 'Judge') });
+        base.push({ key: asciiMode ? '1/t - 2/f' : '1/t · 2/f', label: t(lang, '判断', 'Judge') });
       } else if (kind === 'fill_blank') {
         base.push({ key: 'i/Enter', label: t(lang, '填空', 'Type') });
       } else if (isRubricEligibleKind) {

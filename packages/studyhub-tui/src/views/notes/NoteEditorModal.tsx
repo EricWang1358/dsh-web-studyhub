@@ -36,6 +36,7 @@ export const NoteEditorModal = memo(function NoteEditorModal({
 }: NoteEditorModalProps) {
   const theme = useTheme();
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const ell = asciiMode ? '...' : '…';
   const frameWidth = Math.max(54, Math.min(88, terminalCols - 6));
   const innerWidth = modalContentWidth(frameWidth);
 
@@ -269,7 +270,7 @@ export const NoteEditorModal = memo(function NoteEditorModal({
   return (
     <Modal
       title={mode === 'create' ? t(lang, '新建学习笔记', 'New Study Note') : t(lang, '编辑笔记', 'Edit Note')}
-      icon="✎"
+      icon={asciiMode ? '*' : '✎'}
       tone="primary"
       width={frameWidth}
       onClose={saving ? undefined : onClose}
@@ -289,7 +290,7 @@ export const NoteEditorModal = memo(function NoteEditorModal({
           onCancel={onClose}
           isActive={!saving && (mode === 'create' ? createField === 'title' : editField === 'title')}
           width={innerWidth - 2}
-          prompt="› "
+          prompt={asciiMode ? '> ' : '› '}
           placeholder={t(lang, '例如：特征值与特征向量易错整理', 'e.g. Eigenvalues & common pitfalls')}
           maxLength={200}
           captureInput={false}
@@ -301,7 +302,7 @@ export const NoteEditorModal = memo(function NoteEditorModal({
               <Text color={createField === 'query' || createField === 'cards' ? theme.primary : theme.muted} bold>
                 {t(lang, `关联题目（已选 ${selectedCards.length}/30）`, `Linked Cards (${selectedCards.length}/30)`)}
               </Text>
-              {loadingCards ? <Spinner label={t(lang, '搜索中…', 'Searching…')} /> : null}
+              {loadingCards ? <Spinner label={t(lang, `搜索中${ell}`, `Searching${ell}`)} /> : null}
             </Box>
             <TextInput
               value={query}
@@ -359,7 +360,7 @@ export const NoteEditorModal = memo(function NoteEditorModal({
               height={editorHeight}
               width={innerWidth - 4}
               isActive={!saving && (mode === 'create' ? createField === 'markdown' : editField === 'markdown')}
-              placeholder={t(lang, '输入 Markdown 内容，按 Ctrl+S 保存…', 'Write Markdown, press Ctrl+S to save…')}
+              placeholder={t(lang, `输入 Markdown 内容，按 Ctrl+S 保存${ell}`, `Write Markdown, press Ctrl+S to save${ell}`)}
               captureInput={false}
             />
           </Box>
@@ -373,7 +374,7 @@ export const NoteEditorModal = memo(function NoteEditorModal({
 
         <Box marginTop={1} justifyContent="space-between">
           <Text color={theme.muted}>
-            {saving ? t(lang, '正在保存…', 'Saving…') : t(lang, '按 Ctrl+S 保存，Esc 取消', 'Ctrl+S to save, Esc to cancel')}
+            {saving ? t(lang, `正在保存${ell}`, `Saving${ell}`) : t(lang, '按 Ctrl+S 保存，Esc 取消', 'Ctrl+S to save, Esc to cancel')}
           </Text>
           <Text backgroundColor={theme.primary} color={theme.dark ? theme.bg : '#ffffff'} bold>
             {` ${t(lang, '保存 Ctrl+S', 'Save Ctrl+S')} `}

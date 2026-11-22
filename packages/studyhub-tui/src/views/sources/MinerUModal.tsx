@@ -221,6 +221,7 @@ export const MinerUModal = memo(function MinerUModal({
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const ell = asciiMode ? '...' : '…';
   const notify = useTuiStore((s) => s.notify);
   const { columns, rows: termRows } = useWindowSize();
 
@@ -341,7 +342,7 @@ export const MinerUModal = memo(function MinerUModal({
 
     busyRef.current = true;
     setBusy(true);
-    setBusyLabel(t(lang, '正在本地读取页数与分段计划…', 'Reading PDF pages & conversion plan locally…'));
+    setBusyLabel(t(lang, `正在本地读取页数与分段计划${ell}`, `Reading PDF pages & conversion plan locally${ell}`));
     setPlanError(null);
     setPlanResult(null);
 
@@ -390,7 +391,7 @@ export const MinerUModal = memo(function MinerUModal({
     if (busyRef.current || !planResult) return;
     busyRef.current = true;
     setBusy(true);
-    setBusyLabel(t(lang, '正在加入 MinerU 转换队列…', 'Queueing MinerU conversion…'));
+    setBusyLabel(t(lang, `正在加入 MinerU 转换队列${ell}`, `Queueing MinerU conversion${ell}`));
     setPlanError(null);
 
     try {
@@ -460,7 +461,7 @@ export const MinerUModal = memo(function MinerUModal({
 
     busyRef.current = true;
     setBusy(true);
-    setBusyLabel(t(lang, '正在恢复 MinerU 转换任务…', 'Retrying MinerU conversion…'));
+    setBusyLabel(t(lang, `正在恢复 MinerU 转换任务${ell}`, `Retrying MinerU conversion${ell}`));
     try {
       const res = await tryAction<RetryResult>(host, 'mineru.retry', { jobId: selectedRecord.id });
       if (!mountedRef.current) return;
@@ -595,11 +596,11 @@ export const MinerUModal = memo(function MinerUModal({
     return [
       ...(focusField === 'path' ? [{ key: 'Tab', label: t(lang, '补全', 'Complete') }] : []),
       { key: 'Enter', label: t(lang, '本地规划', 'Plan') },
-      { key: '↑/↓', label: t(lang, '切字段', 'Field') },
+      { key: asciiMode ? 'Up/Down' : '↑/↓', label: t(lang, '切字段', 'Field') },
       { key: 'Ctrl+T', label: t(lang, '历史', 'History') },
       { key: 'Esc', label: t(lang, '取消', 'Cancel') },
     ];
-  }, [focusField, lang, planResult, queuedResult, selectedRecord, tab]);
+  }, [asciiMode, focusField, lang, planResult, queuedResult, selectedRecord, tab]);
 
   const frameWidth = Math.max(46, Math.min(82, columns - 4));
   const frameHeight = Math.max(15, Math.min(28, termRows - 2));
@@ -607,8 +608,8 @@ export const MinerUModal = memo(function MinerUModal({
   const innerHeight = Math.max(10, frameHeight - 5);
   const inputWidth = Math.max(20, innerWidth - 4);
 
-  const ell = asciiMode ? '...' : '…';
   const sep = asciiMode ? '-' : '·';
+  const gt = asciiMode ? '>' : '›';
   const errMark = asciiMode ? 'x' : '✕';
   const okMark = asciiMode ? '+' : '✓';
   const warnMark = asciiMode ? '!' : '⚠';
@@ -774,7 +775,7 @@ export const MinerUModal = memo(function MinerUModal({
                       {truncateDisplay(
                         t(
                           lang,
-                          '指引：请在 StudyHub Desktop「设置 › PDF 转换」一键安装或修复本机 MinerU 后重试。',
+                          `指引：请在 StudyHub Desktop「设置 ${gt} PDF 转换」一键安装或修复本机 MinerU 后重试。`,
                           'Settings: Open StudyHub Desktop "Settings > PDF conversion" to install or repair local MinerU.',
                         ),
                         Math.max(20, (innerWidth - 4) * 2),
@@ -854,7 +855,7 @@ export const MinerUModal = memo(function MinerUModal({
                         {truncateDisplay(
                           `${warnMark} ${t(
                             lang,
-                            '本机 MinerU 未就绪，请先前往「设置 › PDF 转换」安装或修复。',
+                            `本机 MinerU 未就绪，请先前往「设置 ${gt} PDF 转换」安装或修复。`,
                             'Local MinerU not ready — check Settings > PDF conversion.',
                           )}`,
                           Math.max(16, innerWidth - 4),
@@ -890,7 +891,7 @@ export const MinerUModal = memo(function MinerUModal({
                       {truncateDisplay(
                         `${warnMark} ${t(
                           lang,
-                          '未检测到本机 MinerU：请在「设置 › PDF 转换」安装后开始转换。',
+                          `未检测到本机 MinerU：请在「设置 ${gt} PDF 转换」安装后开始转换。`,
                           'Local MinerU not ready: install under Settings > PDF conversion.',
                         )}`,
                         innerWidth,
@@ -921,7 +922,7 @@ export const MinerUModal = memo(function MinerUModal({
 
           {historyLoading && historyRecords.length === 0 ? (
             <Box height={Math.max(4, bodyHeight - 2)} width={innerWidth} alignItems="center" justifyContent="center">
-              <Spinner label={t(lang, '正在加载 MinerU 转换历史…', 'Loading MinerU history…')} />
+              <Spinner label={t(lang, `正在加载 MinerU 转换历史${ell}`, `Loading MinerU history${ell}`)} />
             </Box>
           ) : historyError && historyRecords.length === 0 ? (
             <Box height={Math.max(4, bodyHeight - 2)} width={innerWidth} flexDirection="column" alignItems="center" justifyContent="center">

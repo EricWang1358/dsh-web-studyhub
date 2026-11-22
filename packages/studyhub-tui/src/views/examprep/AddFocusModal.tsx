@@ -85,7 +85,7 @@ export const AddFocusModal: React.FC<AddFocusModalProps> = ({
       return;
     }
     setErrorMsg(null);
-    setBusy(t(lang, '正在提炼重点条目…', 'Extracting focus topics…'));
+    setBusy(t(lang, `正在提炼重点条目${ell}`, `Extracting focus topics${ell}`));
     const res = await tryAction<{ topics?: string[]; summary?: string; source?: string }>(host, 'focus.extract', {
       course: courseName.trim(),
       text: trimmed,
@@ -126,7 +126,7 @@ export const AddFocusModal: React.FC<AddFocusModalProps> = ({
     }
     const resolved = isAbsolute(cleaned) ? cleaned : resolve(host.getLibraryRoot() || process.cwd(), cleaned);
     setErrorMsg(null);
-    setBusy(t(lang, '正在读取并暂存文件…', 'Reading and staging local file…'));
+    setBusy(t(lang, `正在读取并暂存文件${ell}`, `Reading and staging local file${ell}`));
     try {
       const st = await stat(resolved);
       if (!st.isFile()) {
@@ -234,7 +234,7 @@ export const AddFocusModal: React.FC<AddFocusModalProps> = ({
     }
 
     setErrorMsg(null);
-    setBusy(t(lang, '正在保存重点到课程…', 'Saving focus topics…'));
+    setBusy(t(lang, `正在保存重点到课程${ell}`, `Saving focus topics${ell}`));
 
     const existingCourse = (snapshot?.courses ?? []).find(
       (c) => String(c.name || c.id || '').trim() === trimmedCourse,
@@ -368,7 +368,7 @@ export const AddFocusModal: React.FC<AddFocusModalProps> = ({
               onChange={setRawText}
               multiline
               height={4}
-              placeholder={t(lang, '粘贴老师发的考试范围、重点清单或章节提要…', 'Paste syllabus scope, focus bullets, or lecture notes…')}
+              placeholder={t(lang, `粘贴老师发的考试范围、重点清单或章节提要${ell}`, `Paste syllabus scope, focus bullets, or lecture notes${ell}`)}
               isActive={isActive && field === 'input'}
               width={contentW}
               onCancel={onClose}
@@ -399,7 +399,7 @@ export const AddFocusModal: React.FC<AddFocusModalProps> = ({
               <TextInput
                 value={imageNotes}
                 onChange={setImageNotes}
-                placeholder={t(lang, '可补充截图中的关键词或章节名…', 'Optional keywords or notes from the screenshot…')}
+                placeholder={t(lang, `可补充截图中的关键词或章节名${ell}`, `Optional keywords or notes from the screenshot${ell}`)}
                 isActive={isActive && field === 'notes'}
                 width={contentW}
                 onCancel={onClose}

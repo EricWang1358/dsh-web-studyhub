@@ -89,7 +89,7 @@ function str(v: unknown): string {
   return typeof v === 'string' ? v : typeof v === 'number' ? String(v) : '';
 }
 
-function clipLine(v: unknown, max = 120, ell = '…'): string {
+function clipLine(v: unknown, max = 120, ell = '...'): string {
   const clean = str(v).replace(/\s+/g, ' ').trim();
   if (!clean) return '';
   return clean.length > max ? `${clean.slice(0, Math.max(1, max - ell.length)).trimEnd()}${ell}` : clean;
@@ -120,8 +120,9 @@ export function buildPaletteItems(
   const act = (id: string, label: string, hint: string, action: () => void | Promise<void>, keywords: string[] = [], shortcut?: string) =>
     items.push({ id, label, hint, category: catAction, action, keywords, shortcut });
 
+  const themeArrow = asciiMode ? '->' : '→';
   act('cmd:sample', '/sample', t(lang, '载入示例课程', 'Load sample course'), () => actions.loadSample(), ['示例', 'demo', 'tour']);
-  act('cmd:theme', '/theme', t(lang, `切换主题 → ${nextThemeId(state.preferences.theme)}`, `Cycle theme → ${nextThemeId(state.preferences.theme)}`), () =>
+  act('cmd:theme', '/theme', t(lang, `切换主题 ${themeArrow} ${nextThemeId(state.preferences.theme)}`, `Cycle theme ${themeArrow} ${nextThemeId(state.preferences.theme)}`), () =>
     state.setTheme(nextThemeId(state.preferences.theme)),
   ['主题', 'color', 'palette']);
   for (const th of listThemes()) {
@@ -154,9 +155,10 @@ export function buildPaletteItems(
   }
 
   const catCourse = t(lang, '课程', 'Course');
+  const courseGlyph = asciiMode ? 'o' : '◎';
   items.push({
     id: 'course:*',
-    label: t(lang, '◎ 全部课程', '◎ All courses'),
+    label: t(lang, `${courseGlyph} 全部课程`, `${courseGlyph} All courses`),
     category: catCourse,
     keywords: ['all', '全部'],
     action: () => actions.setCourse(null),
@@ -164,7 +166,7 @@ export function buildPaletteItems(
   for (const c of listCourses(snap).slice(0, MAX_ENTITY)) {
     items.push({
       id: `course:${c.key}`,
-      label: `◎ ${c.label}`,
+      label: `${courseGlyph} ${c.label}`,
       hint: c.dueCount ? t(lang, `${c.dueCount} 待复习`, `${c.dueCount} due`) : undefined,
       category: catCourse,
       keywords: [c.key],
@@ -173,10 +175,11 @@ export function buildPaletteItems(
   }
 
   const catDeck = t(lang, '题组', 'Deck');
+  const deckGlyph = asciiMode ? '#' : '▦';
   for (const d of (snap?.decks ?? []).filter((x) => !x.archived).slice(0, MAX_ENTITY)) {
     items.push({
       id: `deck:${d.id}`,
-      label: `▦ ${str(d.title) || str(d.name) || d.id}`,
+      label: `${deckGlyph} ${str(d.title) || str(d.name) || d.id}`,
       hint: [str(d.course), d.dueCount ? t(lang, `${d.dueCount} 待复习`, `${d.dueCount} due`) : ''].filter(Boolean).join(' · ') || undefined,
       category: catDeck,
       keywords: [str(d.course)],
@@ -185,10 +188,11 @@ export function buildPaletteItems(
   }
 
   const catSource = t(lang, '资料', 'Source');
+  const sourceGlyph = asciiMode ? '#' : '▤';
   for (const s of (snap?.sources ?? []).filter((x) => !x.archived).slice(0, MAX_ENTITY)) {
     items.push({
       id: `source:${s.id}`,
-      label: `▤ ${str(s.title) || str(s.name) || str(s.filename) || s.id}`,
+      label: `${sourceGlyph} ${str(s.title) || str(s.name) || str(s.filename) || s.id}`,
       hint: [str(s.format || s.ext).toUpperCase(), str(s.course)].filter(Boolean).join(' · ') || undefined,
       category: catSource,
       keywords: [str(s.filename)],
@@ -197,12 +201,13 @@ export function buildPaletteItems(
   }
 
   const catNote = t(lang, '笔记', 'Note');
+  const noteGlyph = asciiMode ? '*' : '✎';
   for (const n of (snap?.notes ?? []).slice(0, MAX_ENTITY)) {
     const id = str(n.id);
     if (!id) continue;
     items.push({
       id: `note:${id}`,
-      label: `✎ ${str(n.title) || str(n.name) || id}`,
+      label: `${noteGlyph} ${str(n.title) || str(n.name) || id}`,
       hint: str(n.course) || undefined,
       category: catNote,
       action: () => state.navigate('notes', { noteId: id }),
