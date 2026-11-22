@@ -5,6 +5,7 @@ import { Box, Text, useInput } from 'ink';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { Badge, EmptyState, Spinner, StatusPill, type PillStatus } from '../../components/Badge.js';
+import { ConfirmDialog } from '../../components/ConfirmDialog.js';
 import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { Panel } from '../../components/Panel.js';
 import { ScrollView } from '../../components/ScrollView.js';
@@ -145,9 +146,119 @@ const PROVIDERS: ReadonlyArray<{ field: ProviderKeyField; tier: string; label: s
   { field: 'paidKey', tier: 'paid', label: 'Google Gemini (付费密钥)' },
 ];
 
+export interface PendingCorrectionSample {
+  wrong?: string;
+  right?: string;
+  reason?: string;
+  context?: string;
+}
+
+export interface PendingCorrectionsSummary {
+  pending: number;
+  applied: number;
+  items: PendingCorrectionSample[];
+}
+
+interface CorrectionSkippedEntry {
+  wrong?: unknown;
+  right?: unknown;
+  reason?: unknown;
+  context?: unknown;
+  skipped?: unknown;
+  review?: unknown;
+  [k: string]: unknown;
+}
+
+interface AudioCorrectionsData {
+  applied?: unknown[];
+  appliedCount?: number;
+  skipped?: CorrectionSkippedEntry[];
+  skippedCount?: number;
+}
+
+interface AudioRecordLike {
+  id?: string;
+  sourceId?: string;
+  audio?: {
+    sourceIds?: unknown[];
+    batch?: { sourceIds?: unknown[] };
+    corrections?: AudioCorrectionsData;
+    [k: string]: unknown;
+  };
+  [k: string]: unknown;
+}
+
 function safeNum(value: unknown): number {
   const n = Number(value);
   return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
+function readCorrectionsContainer(
+  item: AudioRecordLike | null | undefined,
+  sources?: ReadonlyArray<AudioRecordLike> | null,
+): AudioCorrectionsData | undefined {
+  if (!item || typeof item !== 'object') return undefined;
+  if (item.audio?.corrections && typeof item.audio.corrections === 'object') {
+    return item.audio.corrections;
+  }
+  if (!Array.isArray(sources) || sources.length === 0) return undefined;
+  const lookupId = String(item.sourceId || item.id || '');
+  const matched = lookupId
+    ? sources.find((s) => s && typeof s === 'object' && (s.id === lookupId || s.sourceId === lookupId))
+    : undefined;
+  if (matched?.audio?.corrections && typeof matched.audio.corrections === 'object') {
+    return matched.audio.corrections;
+  }
+  const familyIdsRaw =
+    matched?.audio?.sourceIds ??
+    matched?.audio?.batch?.sourceIds ??
+    item.audio?.sourceIds ??
+    item.audio?.batch?.sourceIds;
+  if (Array.isArray(familyIdsRaw)) {
+    const familyIds = new Set(familyIdsRaw.map((v) => String(v || '')).filter(Boolean));
+    const owner = sources.find(
+      (s) =>
+        s &&
+        typeof s === 'object' &&
+        s.id &&
+        familyIds.has(s.id) &&
+        s.audio?.corrections &&
+        typeof s.audio.corrections === 'object',
+    );
+    if (owner?.audio?.corrections) return owner.audio.corrections;
+  }
+  return undefined;
+}
+
+/** Inspect `audio.corrections` (directly or via snapshot source lookup) and count pending low-confidence items. */
+export function countPendingCorrections(
+  item: AudioRecordLike | null | undefined,
+  sources?: ReadonlyArray<AudioRecordLike> | null,
+): PendingCorrectionsSummary {
+  const corrections = readCorrectionsContainer(item, sources);
+  if (!corrections) {
+    return { pending: 0, applied: 0, items: [] };
+  }
+  const appliedArr = Array.isArray(corrections.applied) ? corrections.applied : [];
+  const applied = appliedArr.length > 0 ? appliedArr.length : safeNum(corrections.appliedCount);
+  const skippedArr = Array.isArray(corrections.skipped) ? corrections.skipped : [];
+  const items: PendingCorrectionSample[] = [];
+  for (const entry of skippedArr) {
+    if (!entry || typeof entry !== 'object') continue;
+    if (entry.skipped === 'low-confidence' && !entry.review) {
+      items.push({
+        ...(typeof entry.wrong === 'string' ? { wrong: entry.wrong } : {}),
+        ...(typeof entry.right === 'string' ? { right: entry.right } : {}),
+        ...(typeof entry.reason === 'string' ? { reason: entry.reason } : {}),
+        ...(typeof entry.context === 'string' ? { context: entry.context } : {}),
+      });
+    }
+  }
+  return {
+    pending: items.length,
+    applied,
+    items,
+  };
 }
 
 function readTextField(value: unknown): string {
@@ -261,7 +372,18 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
   const [loadingList, setLoadingList] = useState(false);
 
   const [overlay, setOverlay] = useState<AudioOverlay>('none');
+  const [confirmReview, setConfirmReview] = useState<{ sourceId: string; title: string; pending: number } | null>(null);
   const [busy, setBusy] = useState(false);
+  const mountedRef = useRef(true);
+  const busyRef = useRef(false);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      busyRef.current = false;
+    };
+  }, []);
 
   // Import modal state
   const [importField, setImportField] = useState<ImportField>('path');
@@ -293,10 +415,11 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
     }
     const [settingsRes, listRes, preflightRes, usageRes] = await Promise.all([
       tryAction<AudioSettingsInfo>(host, 'audio.settings.get', {}),
-      tryAction<{ results?: AudioResultItem[] }>(host, 'results', {}),
+      tryAction<{ results?: AudioResultItem[] }>(host, 'audio.results', {}),
       tryAction<AudioPreflightInfo>(host, 'audio.preflight', {}),
       tryAction<AudioUsageInfo>(host, 'audio.usage', timeZone ? { timeZone } : {}),
     ]);
+    if (!mountedRef.current) return;
     setLoadingList(false);
     if (settingsRes.ok && settingsRes.value) setAudioSettings(settingsRes.value);
     if (listRes.ok && Array.isArray(listRes.value?.results)) {
@@ -359,6 +482,15 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
   const selectedJob = selectedItem?.kind === 'job' ? selectedItem.job : undefined;
   const selectedResult = selectedItem?.kind === 'result' ? selectedItem.result : undefined;
 
+  const correctionsSummary = useMemo<PendingCorrectionsSummary>(() => {
+    if (!selectedResult) return { pending: 0, applied: 0, items: [] };
+    const lookupPool = [
+      ...(Array.isArray(snapshot?.sources) ? (snapshot.sources as AudioRecordLike[]) : []),
+      ...(results as AudioRecordLike[]),
+    ];
+    return countPendingCorrections(selectedResult as AudioRecordLike, lookupPool);
+  }, [selectedResult, snapshot?.sources, results]);
+
   // Load selected transcript detail on demand (bounded to 1 active transcript — memory NFR)
   useEffect(() => {
     if (!isActive || !selectedResult) {
@@ -371,7 +503,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
     }
     if (activeTranscript.id === selectedResult.id) return;
     let cancelled = false;
-    void tryAction<AudioResultItem>(host, 'result.get', { id: selectedResult.id }).then((res) => {
+    void tryAction<AudioResultItem>(host, 'audio.result.get', { id: selectedResult.id }).then((res) => {
       if (cancelled) return;
       if (res.ok && res.value) {
         setActiveTranscript({ id: selectedResult.id, text: String(res.value.text || '') });
@@ -588,6 +720,49 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
     notify(t(lang, '转写服务检测完成', 'Provider test complete'), 'info');
   }, [busy, host, lang, notify]);
 
+  const handleReviewTrigger = useCallback(() => {
+    if (busyRef.current || busy) return;
+    if (!selectedResult) {
+      notify(t(lang, '请先选择一条转写记录', 'Please select a transcript first'), 'info');
+      return;
+    }
+    if (correctionsSummary.pending === 0) {
+      notify(
+        t(lang, '当前逐字稿没有待复核的存疑处', 'No pending uncertain corrections for this transcript'),
+        'info',
+      );
+      return;
+    }
+    setConfirmReview({
+      sourceId: String(selectedResult.sourceId || selectedResult.id),
+      title: String(selectedResult.title || selectedResult.id),
+      pending: correctionsSummary.pending,
+    });
+  }, [busy, selectedResult, correctionsSummary.pending, lang, notify]);
+
+  const handleStartReview = useCallback(
+    async (sourceId: string) => {
+      if (busyRef.current || busy) return;
+      busyRef.current = true;
+      setBusy(true);
+      try {
+        const res = await tryAction<{ id?: string; jobId?: string }>(host, 'audio.corrections.review', { sourceId });
+        if (!mountedRef.current) return;
+        if (!res.ok) {
+          notify(res.error?.message || t(lang, '启动存疑复核任务失败', 'Failed to start corrections review job'), 'error');
+          return;
+        }
+        await Promise.all([loadAudioData(), refresh()]);
+        if (!mountedRef.current) return;
+        notify(t(lang, '已启动存疑复核任务', 'Started corrections review job'), 'success');
+      } finally {
+        busyRef.current = false;
+        if (mountedRef.current) setBusy(false);
+      }
+    },
+    [busy, host, lang, notify, loadAudioData, refresh],
+  );
+
   const configuredProviders = useMemo(() => {
     if (!audioSettings) return [];
     const list: string[] = [];
@@ -598,15 +773,17 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
     return list;
   }, [audioSettings]);
 
-  const listActive = isActive && overlay === 'none';
-  useClaimKeys(['i', 'u', 'p', 'R', 's', 't', 'g', 'r'], listActive);
-  useInputCapture(isActive && overlay !== 'none');
+  const hasOverlay = overlay !== 'none' || confirmReview !== null;
+  const listActive = isActive && !hasOverlay;
+  useClaimKeys(['i', 'u', 'p', 'R', 's', 't', 'g', 'r', 'c'], listActive);
+  useInputCapture(isActive && hasOverlay);
 
   const hints: KeyHint[] = useMemo(
     () => [
       { key: 'i', label: t(lang, '导入音频', 'Import Audio') },
       { key: 'u', label: t(lang, '导入字幕', 'Subtitles') },
       { key: 'p', label: t(lang, '预检', 'Preflight') },
+      { key: 'c', label: t(lang, '复核存疑', 'Review') },
       { key: 'R', label: t(lang, '重试任务', 'Retry Job') },
       { key: 's', label: t(lang, '转写设置', 'Providers') },
       { key: 't', label: t(lang, '测试连通', 'Test Keys') },
@@ -641,6 +818,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
         else if (key.ctrl && input === 't') void handleTestProviders();
         return;
       }
+      if (confirmReview) return;
       if (!listActive) return;
 
       if (input === 'i') {
@@ -651,6 +829,8 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
         setOverlay('subtitle');
       } else if (input === 'p') {
         void handlePreflight();
+      } else if (input === 'c') {
+        handleReviewTrigger();
       } else if (input === 'R') {
         void handleRetryJob();
       } else if (input === 's') {
@@ -708,12 +888,12 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
           </Box>
           <Box flexGrow={1} />
           {!narrowBar ? (
-            <Box flexShrink={0}>
+            <Box flexShrink={1} overflow="hidden">
               <Text color={theme.dim} wrap={asciiMode ? undefined : 'truncate-end'}>
                 {t(
                   lang,
-                  '[i] 音频  [u] 字幕  [p] 预检  [R] 重试  [s] 密钥',
-                  '[i] Audio  [u] Subtitles  [p] Preflight  [R] Retry  [s] Keys',
+                  '[i] 音频  [u] 字幕  [p] 预检  [c] 复核  [R] 重试  [s] 密钥',
+                  '[i] Audio  [u] Sub  [p] Check  [c] Review  [R] Retry  [s] Keys',
                 )}
               </Text>
             </Box>
@@ -834,7 +1014,9 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
                     ? t(lang, '[R] 重试任务', '[R] Retry')
                     : selectedJob.status
                   : selectedResult
-                    ? t(lang, '[g] 据此出题', '[g] Generate')
+                    ? correctionsSummary.pending > 0
+                      ? t(lang, '[c] 复核存疑  [g] 出题', '[c] Review  [g] Gen')
+                      : t(lang, '[g] 据此出题', '[g] Generate')
                     : undefined
               }
               width={rw}
@@ -874,18 +1056,78 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
                   width={Math.max(12, rw - 4)}
                   height={Math.max(4, rh - 2)}
                 />
-              ) : (
-                <ScrollView
-                  content={
-                    activeTranscript.id === selectedResult.id && activeTranscript.text
-                      ? activeTranscript.text
-                      : t(lang, '（暂无转写正文）', '(Empty transcript)')
-                  }
-                  width={Math.max(12, rw - 4)}
-                  height={Math.max(2, rh - 2)}
-                  isActive={false}
-                />
-              )}
+              ) : (() => {
+                const innerW = Math.max(12, rw - 4);
+                const innerH = Math.max(2, rh - 2);
+                const hasStatus = correctionsSummary.pending > 0 || correctionsSummary.applied > 0;
+                const maxSamples = innerH >= 7 ? 3 : innerH >= 5 ? 1 : 0;
+                const sampleItems = correctionsSummary.pending > 0 ? correctionsSummary.items.slice(0, maxSamples) : [];
+                const statusMargin = hasStatus && innerH >= 6 ? 1 : 0;
+                const headerRows = (hasStatus ? 1 : 0) + sampleItems.length + statusMargin;
+                const scrollH = Math.max(2, innerH - headerRows);
+                return (
+                  <Box flexDirection="column" width={innerW} height={innerH}>
+                    {hasStatus ? (
+                      <Box flexDirection="column" marginBottom={statusMargin}>
+                        <Box flexDirection="row" alignItems="center" width={innerW} height={1} overflow="hidden">
+                          {correctionsSummary.pending > 0 ? (
+                            <StatusPill
+                              label={t(
+                                lang,
+                                `${correctionsSummary.pending} 处存疑待复核`,
+                                `${correctionsSummary.pending} uncertain`,
+                              )}
+                              status="warn"
+                            />
+                          ) : (
+                            <StatusPill
+                              label={t(
+                                lang,
+                                `已校对 ${correctionsSummary.applied} 处`,
+                                `${correctionsSummary.applied} fixed`,
+                              )}
+                              status="ok"
+                            />
+                          )}
+                          {correctionsSummary.pending > 0 && correctionsSummary.applied > 0 && innerW >= 34 ? (
+                            <>
+                              <Text> </Text>
+                              <Badge
+                                label={t(
+                                  lang,
+                                  `已校对 ${correctionsSummary.applied} 处`,
+                                  `${correctionsSummary.applied} fixed`,
+                                )}
+                                tone="success"
+                                variant="soft"
+                              />
+                            </>
+                          ) : null}
+                        </Box>
+                        {sampleItems.map((sample, idx) => (
+                          <Text key={idx} color={theme.muted} wrap={asciiMode ? undefined : 'truncate-end'}>
+                            {truncateDisplay(
+                              `${sample.wrong || '?'} -> ${sample.right || '?'}${sample.reason ? ` (${sample.reason})` : ''}`,
+                              innerW,
+                              ell,
+                            )}
+                          </Text>
+                        ))}
+                      </Box>
+                    ) : null}
+                    <ScrollView
+                      content={
+                        activeTranscript.id === selectedResult.id && activeTranscript.text
+                          ? activeTranscript.text
+                          : t(lang, '（暂无转写正文）', '(Empty transcript)')
+                      }
+                      width={innerW}
+                      height={scrollH}
+                      isActive={false}
+                    />
+                  </Box>
+                );
+              })()}
             </Panel>
           )}
         />
@@ -1074,6 +1316,28 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
             prompt={asciiMode ? '>' : '›'}
           />
         </Modal>
+      ) : null}
+
+      {/* P2 Quota Guard ConfirmDialog for AI Transcript Corrections Review ([c]) */}
+      {confirmReview ? (
+        <ConfirmDialog
+          title={t(lang, 'AI 复核转写存疑处', 'AI Review Uncertain Corrections')}
+          message={t(
+            lang,
+            `将为「${truncateDisplay(confirmReview.title, 36, ell)}」调用已配置的文本模型，在后台任务中复核 ${confirmReview.pending} 处存疑项。确认继续吗？`,
+            `Will invoke the configured text model in a background job to review ${confirmReview.pending} uncertain item(s) for "${truncateDisplay(confirmReview.title, 36, ell)}". Continue?`,
+          )}
+          confirmLabel={t(lang, '开始复核', 'Start Review')}
+          cancelLabel={t(lang, '取消', 'Cancel')}
+          width={60}
+          isActive={isActive && overlay === 'none'}
+          onConfirm={() => {
+            const target = confirmReview;
+            setConfirmReview(null);
+            void handleStartReview(target.sourceId);
+          }}
+          onCancel={() => setConfirmReview(null)}
+        />
       ) : null}
     </Box>
   );

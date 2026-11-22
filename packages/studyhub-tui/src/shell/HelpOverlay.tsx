@@ -168,6 +168,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'X', label: t(lang, '清除自定义目录 (大纲内)', 'Clear custom outline (TOC)') },
         { key: 'H', label: t(lang, '标记段落', 'Mark passage') },
         { key: 'B', label: t(lang, '书签与批注', 'Bookmarks & notes') },
+        { key: 't', label: t(lang, '双语翻译 (缓存/估算)', 'Bilingual translate (cached)') },
       ],
     },
     {
@@ -189,6 +190,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: '+/-', label: t(lang, '并发数', 'Concurrency') },
         { key: 'R', label: t(lang, '恢复中断任务 / 重试音频', 'Recover jobs / Retry audio') },
         { key: 'u', label: t(lang, '导入字幕', 'Import subtitles') },
+        { key: 'c', label: t(lang, '复核音频存疑处', 'Review audio corrections') },
       ],
     },
     {
@@ -205,6 +207,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       title: t(lang, '命令面板 · Palette', 'Command Palette'),
       items: [
         { key: '/#?@:', label: t(lang, '命令/题/段/课/页筛选', 'Cmd/card/text/course/page') },
+        { key: '/ascii /math /recover', label: t(lang, 'ASCII/数学符号/恢复中断任务', 'ASCII / Math / Recover jobs') },
       ],
     },
   ];

@@ -1,9 +1,10 @@
 import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
-import type { HostClient, KeyHint } from '../../types/contracts.js';
+import type { HostClient, KeyHint, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, Spinner } from '../../components/Badge.js';
+import { ConfirmDialog } from '../../components/ConfirmDialog.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
 import { Panel } from '../../components/Panel.js';
 import { ScrollView } from '../../components/ScrollView.js';
@@ -257,6 +258,172 @@ function buildUpdatedLastReadPages(
   return Object.fromEntries(capped);
 }
 
+interface TranslationItem {
+  key?: string;
+  sourceId?: string;
+  quote?: string;
+  text?: string;
+  target?: 'zh' | 'en' | string;
+  version?: number;
+  outdated?: boolean;
+  reused?: boolean;
+  warnings?: string[];
+}
+
+interface TranslationListResponse {
+  documentId?: string;
+  revision?: string;
+  target?: 'zh' | 'en';
+  items?: TranslationItem[];
+  modelAvailable?: boolean;
+}
+
+interface TranslationCounts {
+  passages: number;
+  translated: number;
+  cached: number;
+  reused: number;
+  skipped: number;
+  rejected: number;
+  unlocated: number;
+  toTranslate: number;
+}
+
+interface TranslationEstimate {
+  calls?: { low?: number; high?: number } | number;
+  inputTokens?: { low?: number; high?: number } | number;
+  outputTokens?: { low?: number; high?: number } | number;
+  totalTokens?: { low?: number; high?: number } | number;
+}
+
+interface TranslationResultEntry {
+  key?: string;
+  sourceId?: string;
+  status?: string;
+  outdated?: boolean;
+  message?: string;
+  item?: TranslationItem;
+}
+
+interface TranslationTranslateResponse {
+  status?: 'estimate' | 'done' | 'partial' | 'failed' | 'unavailable' | string;
+  target?: 'zh' | 'en';
+  counts?: Partial<TranslationCounts>;
+  modelAvailable?: boolean;
+  estimate?: TranslationEstimate;
+  results?: TranslationResultEntry[];
+  message?: string;
+}
+
+interface PendingTranslateConfirm {
+  target: 'zh' | 'en';
+  retranslate: boolean;
+  counts: TranslationCounts;
+  estimate: TranslationEstimate | null;
+  modelAvailable: boolean;
+}
+
+interface TranslateMeta {
+  target: 'zh' | 'en';
+  source: 'cache' | 'fresh' | 'skipped' | 'empty' | 'unavailable' | 'error';
+  cachedCount: number;
+  freshCount: number;
+  reusedCount: number;
+  skippedCount: number;
+  rejectedCount: number;
+  outdatedCount: number;
+}
+
+function normalizeTranslationCounts(raw?: Partial<TranslationCounts> | null): TranslationCounts {
+  const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0);
+  return {
+    passages: num(raw?.passages),
+    translated: num(raw?.translated),
+    cached: num(raw?.cached),
+    reused: num(raw?.reused),
+    skipped: num(raw?.skipped),
+    rejected: num(raw?.rejected),
+    unlocated: num(raw?.unlocated),
+    toTranslate: num(raw?.toTranslate),
+  };
+}
+
+function formatEstimateRange(value: unknown): string {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.max(0, Math.round(value)).toLocaleString();
+  }
+  if (value && typeof value === 'object') {
+    const obj = value as { low?: unknown; high?: unknown };
+    const low = Number(obj.low);
+    const high = Number(obj.high);
+    if (Number.isFinite(low) && Number.isFinite(high)) {
+      const rLow = Math.max(0, Math.round(low));
+      const rHigh = Math.max(rLow, Math.round(high));
+      return rHigh > rLow ? `${rLow.toLocaleString()}-${rHigh.toLocaleString()}` : rHigh.toLocaleString();
+    }
+    if (Number.isFinite(high)) return Math.max(0, Math.round(high)).toLocaleString();
+    if (Number.isFinite(low)) return Math.max(0, Math.round(low)).toLocaleString();
+  }
+  return '';
+}
+
+function resolveEstimateTokensText(est: TranslationEstimate | null): string {
+  if (!est) return '';
+  if (est.totalTokens !== undefined && est.totalTokens !== null) {
+    return formatEstimateRange(est.totalTokens);
+  }
+  const inp = est.inputTokens as { low?: unknown; high?: unknown } | number | undefined;
+  const out = est.outputTokens as { low?: unknown; high?: unknown } | number | undefined;
+  if (inp && typeof inp === 'object' && out && typeof out === 'object') {
+    return formatEstimateRange({
+      low: (Number(inp.low) || 0) + (Number(out.low) || 0),
+      high: (Number(inp.high) || 0) + (Number(out.high) || 0),
+    });
+  }
+  const total = (Number(inp) || 0) + (Number(out) || 0);
+  return total > 0 ? total.toLocaleString() : '';
+}
+
+function formatTranslationEntries(
+  entries: Array<{
+    quote?: string;
+    text?: string;
+    outdated?: boolean;
+    reused?: boolean;
+    warnings?: string[];
+    status?: string;
+    message?: string;
+  }>,
+  lang: UiLanguage,
+  asciiMode: boolean,
+): string {
+  const blocks: string[] = [];
+  for (const entry of entries) {
+    const translated = typeof entry.text === 'string' ? entry.text.trim() : '';
+    const quote = typeof entry.quote === 'string' ? entry.quote.trim() : '';
+    if (translated) {
+      const tags: string[] = [];
+      if (entry.outdated) tags.push(t(lang, '[待更新]', '[outdated]'));
+      if (entry.reused) tags.push(t(lang, '[复用]', '[reused]'));
+      if (Array.isArray(entry.warnings) && entry.warnings.length > 0) {
+        tags.push(`[${asciiMode ? '!' : '⚠'} ${entry.warnings.join(', ')}]`);
+      }
+      const quoteBlock = quote
+        ? quote
+            .split('\n')
+            .map((line) => `> ${line}`)
+            .join('\n')
+        : '';
+      const bodyBlock = tags.length > 0 ? `${translated}\n\n_${tags.join(' ')}_` : translated;
+      blocks.push(quoteBlock ? `${quoteBlock}\n\n${bodyBlock}` : bodyBlock);
+    } else if (entry.status === 'rejected' || entry.status === 'unlocated') {
+      const errMsg = entry.message || t(lang, '该段落翻译失败', 'Passage translation failed');
+      blocks.push(`> [${entry.status}] ${errMsg}`);
+    }
+  }
+  return blocks.join('\n\n---\n\n');
+}
+
 export const DocumentReader = memo(function DocumentReader({
   host,
   sourceId,
@@ -303,12 +470,14 @@ export const DocumentReader = memo(function DocumentReader({
   const [savingNote, setSavingNote] = useState(false);
   const {
     text: translationText,
-    push: pushTranslation,
     set: setTranslationText,
     finish: finishTranslation,
     reset: resetTranslation,
   } = useStreamingBuffer();
   const [translateBusy, setTranslateBusy] = useState(false);
+  const [translateTarget, setTranslateTarget] = useState<'zh' | 'en'>(() => (lang === 'en' ? 'en' : 'zh'));
+  const [translateMeta, setTranslateMeta] = useState<TranslateMeta | null>(null);
+  const [pendingTranslateConfirm, setPendingTranslateConfirm] = useState<PendingTranslateConfirm | null>(null);
   const [pageScrollTop, setPageScrollTop] = useState(0);
 
   const [chapters, setChapters] = useState<ReadingChapter[]>([]);
@@ -316,6 +485,11 @@ export const DocumentReader = memo(function DocumentReader({
   const [outlineRefreshTick, setOutlineRefreshTick] = useState(0);
 
   const abortRef = useRef<AbortController | null>(null);
+  const translateRequestIdRef = useRef<string | null>(null);
+  const translateInFlightRef = useRef(false);
+  const translateSeqRef = useRef(0);
+  const pageKeyRef = useRef('');
+  pageKeyRef.current = pageData ? `${pageData.documentId ?? ''}|${pageData.sourceId}|${pageData.page}` : '';
   const mountedRef = useRef(true);
   const readingBusyRef = useRef(false);
   const readingTargetRef = useRef<{ documentId?: string; sourceId?: string; revision?: string }>({});
@@ -365,21 +539,34 @@ export const DocumentReader = memo(function DocumentReader({
     }
   }, []);
 
+  const cancelActiveTranslation = useCallback(() => {
+    translateSeqRef.current += 1;
+    const reqId = translateRequestIdRef.current;
+    translateRequestIdRef.current = null;
+    translateInFlightRef.current = false;
+    if (reqId) {
+      void tryAction(host, 'materials.translation.cancel', { requestId: reqId }).catch(() => {});
+    }
+  }, [host]);
+
   // Clear local page/drawer buffers, flush any pending last-read page, and abort any active AI stream on unmount.
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
       flushPendingPersist();
+      cancelActiveTranslation();
       abortInFlight();
       setPageData(null);
       setSearchHits([]);
       setChapters([]);
       setReadChapterIds(new Set());
+      setPendingTranslateConfirm(null);
+      setTranslateMeta(null);
       setSubMode('read');
       setSavingNote(false);
     };
-  }, [abortInFlight, flushPendingPersist]);
+  }, [abortInFlight, cancelActiveTranslation, flushPendingPersist]);
 
   // Reset page and resume tracking when target source/document changes.
   useEffect(() => {
@@ -393,12 +580,16 @@ export const DocumentReader = memo(function DocumentReader({
 
   // Abort any in-flight AI stream and reset coalesced buffers on page or document change.
   useEffect(() => {
+    cancelActiveTranslation();
     abortInFlight();
     setAiBusy(false);
     setTranslateBusy(false);
+    setPendingTranslateConfirm(null);
+    setTranslateMeta(null);
     resetAiAnswer();
     resetTranslation();
-  }, [sourceId, documentId, currentPage, abortInFlight, resetAiAnswer, resetTranslation]);
+    setSubMode((m) => (m === 'translate-view' || m === 'ask-view' ? 'read' : m));
+  }, [sourceId, documentId, currentPage, abortInFlight, cancelActiveTranslation, resetAiAnswer, resetTranslation]);
 
   // Load current page window on demand.
   useEffect(() => {
@@ -872,78 +1063,335 @@ export const DocumentReader = memo(function DocumentReader({
     [abortInFlight, asciiMode, finishAiAnswer, host, lang, pageData, pushAiAnswer, resetAiAnswer, setAiAnswer],
   );
 
-  const runTranslatePage = useCallback(async () => {
-    if (!pageData) return;
-    abortInFlight();
-    const ac = new AbortController();
-    abortRef.current = ac;
-    setSubMode('translate-view');
-    setTranslateBusy(true);
-    resetTranslation();
+  const applyTranslationResults = useCallback(
+    (resVal: TranslationTranslateResponse, target: 'zh' | 'en') => {
+      const counts = normalizeTranslationCounts(resVal.counts);
+      const rawResults = Array.isArray(resVal.results) ? resVal.results : [];
+      const mapped = rawResults.map((entry) => ({
+        quote: entry.item?.quote,
+        text: entry.item?.text,
+        outdated: Boolean(entry.outdated || entry.item?.outdated),
+        reused: Boolean(entry.item?.reused),
+        warnings: entry.item?.warnings,
+        status: entry.status,
+        message: entry.message,
+      }));
+      const formatted = formatTranslationEntries(mapped, lang, asciiMode);
+      const outdatedCount = mapped.filter((m) => m.outdated && Boolean(m.text)).length;
 
-    try {
-      const targetLang = lang === 'en' ? 'English' : '中文';
-      if (pageData.documentId) {
-        const res = await tryAction<Record<string, unknown>>(host, 'materials.translation.translate', {
-          documentId: pageData.documentId,
-          scope: { sourceIds: [pageData.sourceId] },
-          target: targetLang,
+      resetTranslation();
+      if (formatted) {
+        setTranslationText(formatted);
+        setTranslateMeta({
+          target,
+          source: counts.translated > 0 ? 'fresh' : 'cache',
+          cachedCount: counts.cached,
+          freshCount: counts.translated,
+          reusedCount: counts.reused,
+          skippedCount: counts.skipped,
+          rejectedCount: counts.rejected + counts.unlocated,
+          outdatedCount,
         });
-        if (ac.signal.aborted) return;
-        if (res.ok && res.value && Array.isArray(res.value.results)) {
-          const items = res.value.results as Array<Record<string, unknown>>;
-          const translatedLines = items
-            .map((entry) => {
-              const item = entry.item as Record<string, unknown> | undefined;
-              const srcTxt = typeof item?.sourceText === 'string' ? item.sourceText : '';
-              const dstTxt = typeof item?.translation === 'string' ? item.translation : typeof entry.text === 'string' ? entry.text : '';
-              if (srcTxt && dstTxt) return `> ${srcTxt}\n\n${dstTxt}`;
-              return dstTxt || srcTxt;
-            })
-            .filter(Boolean);
-          if (translatedLines.length > 0) {
-            setTranslationText(translatedLines.join('\n\n---\n\n'));
-            finishTranslation();
-            setTranslateBusy(false);
-            return;
+      } else if (counts.skipped > 0) {
+        setTranslationText(
+          t(
+            lang,
+            '本页已是目标语言，无需翻译。',
+            'This page is already in the target language; no translation needed.',
+          ),
+        );
+        setTranslateMeta({
+          target,
+          source: 'skipped',
+          cachedCount: 0,
+          freshCount: 0,
+          reusedCount: 0,
+          skippedCount: counts.skipped,
+          rejectedCount: 0,
+          outdatedCount: 0,
+        });
+      } else {
+        setTranslationText(
+          resVal.message || t(lang, '本页暂无可翻译段落。', 'No translatable passages on this page.'),
+        );
+        setTranslateMeta({
+          target,
+          source: 'empty',
+          cachedCount: 0,
+          freshCount: 0,
+          reusedCount: 0,
+          skippedCount: 0,
+          rejectedCount: counts.rejected + counts.unlocated,
+          outdatedCount: 0,
+        });
+      }
+      finishTranslation();
+    },
+    [asciiMode, finishTranslation, lang, resetTranslation, setTranslationText],
+  );
+
+  const openTranslatePage = useCallback(
+    async (target: 'zh' | 'en', retranslate = false) => {
+      if (!pageData || !pageData.sourceId) {
+        notify(t(lang, '当前页内容尚未加载完成', 'Page content not loaded yet'), 'info');
+        return;
+      }
+      if (translateInFlightRef.current || translateBusy) return;
+
+      const expectedPageKey = `${pageData.documentId ?? ''}|${pageData.sourceId}|${pageData.page}`;
+      const seq = ++translateSeqRef.current;
+      translateInFlightRef.current = true;
+      setTranslateTarget(target);
+      setPendingTranslateConfirm(null);
+
+      const locator = {
+        ...(pageData.documentId ? { documentId: pageData.documentId } : {}),
+        sourceId: pageData.sourceId,
+        ...(pageData.revision ? { revision: pageData.revision } : {}),
+      };
+
+      try {
+        if (!retranslate) {
+          const listRes = await tryAction<TranslationListResponse>(host, 'materials.translation.list', {
+            ...locator,
+            target,
+          });
+          if (!mountedRef.current || seq !== translateSeqRef.current || pageKeyRef.current !== expectedPageKey) return;
+          if (listRes.ok && listRes.value && Array.isArray(listRes.value.items)) {
+            const pageItems = listRes.value.items.filter(
+              (item) => item && item.sourceId === pageData.sourceId && typeof item.text === 'string' && item.text.trim(),
+            );
+            if (pageItems.length > 0) {
+              const formatted = formatTranslationEntries(
+                pageItems.map((item) => ({
+                  quote: item.quote,
+                  text: item.text,
+                  outdated: Boolean(item.outdated),
+                  reused: Boolean(item.reused),
+                  warnings: item.warnings,
+                })),
+                lang,
+                asciiMode,
+              );
+              resetTranslation();
+              setTranslationText(formatted);
+              finishTranslation();
+              setTranslateMeta({
+                target,
+                source: 'cache',
+                cachedCount: pageItems.length,
+                freshCount: 0,
+                reusedCount: pageItems.filter((item) => Boolean(item.reused)).length,
+                skippedCount: 0,
+                rejectedCount: 0,
+                outdatedCount: pageItems.filter((item) => Boolean(item.outdated)).length,
+              });
+              setTranslateBusy(false);
+              setSubMode('translate-view');
+              return;
+            }
           }
         }
-      }
 
-      if (typeof host.streamComplete === 'function') {
-        const system = `Translate the following study material page into ${targetLang}. Keep technical terms accurate and show clear bilingual paragraph pairs (original quote followed by translation).`;
-        const final = await host.streamComplete({
-          system,
-          prompt: pageData.text.slice(0, 12000),
-          signal: ac.signal,
-          onChunk: (delta) => {
-            if (ac.signal.aborted) return;
-            pushTranslation(delta);
-          },
+        const estRes = await tryAction<TranslationTranslateResponse>(host, 'materials.translation.translate', {
+          ...locator,
+          scope: { sourceIds: [pageData.sourceId] },
+          target,
+          estimate: true,
+          ...(retranslate ? { retranslate: true } : {}),
         });
-        if (!ac.signal.aborted) {
-          if (final) setTranslationText(final);
+        if (!mountedRef.current || seq !== translateSeqRef.current || pageKeyRef.current !== expectedPageKey) return;
+
+        if (!estRes.ok || !estRes.value) {
+          notify(estRes.error?.message || t(lang, '获取翻译估算失败', 'Failed to estimate translation'), 'error');
+          return;
+        }
+
+        const counts = normalizeTranslationCounts(estRes.value.counts);
+        if (counts.toTranslate === 0) {
+          if (counts.reused > 0 || counts.cached > 0) {
+            const reuseRes = await tryAction<TranslationTranslateResponse>(host, 'materials.translation.translate', {
+              ...locator,
+              scope: { sourceIds: [pageData.sourceId] },
+              target,
+              ...(retranslate ? { retranslate: true } : {}),
+            });
+            if (!mountedRef.current || seq !== translateSeqRef.current || pageKeyRef.current !== expectedPageKey) return;
+            if (reuseRes.ok && reuseRes.value) {
+              applyTranslationResults(reuseRes.value, target);
+              setSubMode('translate-view');
+            } else {
+              notify(reuseRes.error?.message || t(lang, '加载译文失败', 'Failed to load translations'), 'error');
+            }
+            return;
+          }
+
+          resetTranslation();
+          setTranslationText(
+            counts.skipped > 0
+              ? t(
+                  lang,
+                  '本页已是目标语言，无需翻译。',
+                  'This page is already in the target language; no translation needed.',
+                )
+              : t(lang, '本页暂无可翻译段落。', 'No translatable passages on this page.'),
+          );
+          finishTranslation();
+          setTranslateMeta({
+            target,
+            source: counts.skipped > 0 ? 'skipped' : 'empty',
+            cachedCount: 0,
+            freshCount: 0,
+            reusedCount: 0,
+            skippedCount: counts.skipped,
+            rejectedCount: 0,
+            outdatedCount: 0,
+          });
+          setTranslateBusy(false);
+          setSubMode('translate-view');
+          return;
+        }
+
+        setPendingTranslateConfirm({
+          target,
+          retranslate,
+          counts,
+          estimate: estRes.value.estimate ?? null,
+          modelAvailable: estRes.value.modelAvailable !== false,
+        });
+      } catch (err) {
+        if (mountedRef.current && seq === translateSeqRef.current) {
+          notify(errorMessage(err), 'error');
+        }
+      } finally {
+        if (seq === translateSeqRef.current) {
+          translateInFlightRef.current = false;
+        }
+      }
+    },
+    [
+      applyTranslationResults,
+      asciiMode,
+      finishTranslation,
+      host,
+      lang,
+      notify,
+      pageData,
+      resetTranslation,
+      setTranslationText,
+      translateBusy,
+    ],
+  );
+
+  const executeConfirmedTranslate = useCallback(
+    async (confirm: PendingTranslateConfirm) => {
+      if (!pageData || !pageData.sourceId || translateInFlightRef.current) return;
+      const expectedPageKey = `${pageData.documentId ?? ''}|${pageData.sourceId}|${pageData.page}`;
+      const seq = ++translateSeqRef.current;
+      const requestId = `tui-tr-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+      setPendingTranslateConfirm(null);
+      abortInFlight();
+      const ac = new AbortController();
+      abortRef.current = ac;
+      translateRequestIdRef.current = requestId;
+      translateInFlightRef.current = true;
+      setTranslateTarget(confirm.target);
+      setTranslateMeta(null);
+      setSubMode('translate-view');
+      setTranslateBusy(true);
+      resetTranslation();
+
+      const locator = {
+        ...(pageData.documentId ? { documentId: pageData.documentId } : {}),
+        sourceId: pageData.sourceId,
+        ...(pageData.revision ? { revision: pageData.revision } : {}),
+      };
+
+      try {
+        const res = await tryAction<TranslationTranslateResponse>(host, 'materials.translation.translate', {
+          ...locator,
+          scope: { sourceIds: [pageData.sourceId] },
+          target: confirm.target,
+          ...(confirm.retranslate ? { retranslate: true } : {}),
+          requestId,
+        });
+        if (ac.signal.aborted || !mountedRef.current || seq !== translateSeqRef.current || pageKeyRef.current !== expectedPageKey) {
+          return;
+        }
+        if (res.ok && res.value) {
+          if (res.value.status === 'unavailable') {
+            setTranslationText(
+              res.value.message ||
+                t(
+                  lang,
+                  '未配置可用的翻译模型，请先在设置中配置模型。',
+                  'No model available for translation. Please configure a model in Settings.',
+                ),
+            );
+            setTranslateMeta({
+              target: confirm.target,
+              source: 'unavailable',
+              cachedCount: 0,
+              freshCount: 0,
+              reusedCount: 0,
+              skippedCount: 0,
+              rejectedCount: 0,
+              outdatedCount: 0,
+            });
+            finishTranslation();
+          } else {
+            applyTranslationResults(res.value, confirm.target);
+          }
+        } else {
+          setTranslationText(`${asciiMode ? 'x' : '✕'} ${res.error?.message || t(lang, '翻译失败', 'Translation failed')}`);
+          setTranslateMeta({
+            target: confirm.target,
+            source: 'error',
+            cachedCount: 0,
+            freshCount: 0,
+            reusedCount: 0,
+            skippedCount: 0,
+            rejectedCount: 0,
+            outdatedCount: 0,
+          });
           finishTranslation();
         }
-      } else {
-        setTranslationText(t(lang, '未配置可用的翻译模型，请先在设置中配置模型。', 'No model available for translation. Please configure a model in Settings.'));
-        finishTranslation();
+      } catch (err) {
+        if (!ac.signal.aborted && mountedRef.current && seq === translateSeqRef.current) {
+          setTranslationText(`${asciiMode ? 'x' : '✕'} ${errorMessage(err)}`);
+          setTranslateMeta({
+            target: confirm.target,
+            source: 'error',
+            cachedCount: 0,
+            freshCount: 0,
+            reusedCount: 0,
+            skippedCount: 0,
+            rejectedCount: 0,
+            outdatedCount: 0,
+          });
+          finishTranslation();
+        }
+      } finally {
+        if (translateRequestIdRef.current === requestId) {
+          translateRequestIdRef.current = null;
+        }
+        if (seq === translateSeqRef.current) {
+          translateInFlightRef.current = false;
+        }
+        if (abortRef.current === ac) {
+          abortRef.current = null;
+          finishTranslation();
+          if (!ac.signal.aborted && mountedRef.current) {
+            setTranslateBusy(false);
+          }
+        } else if (ac.signal.aborted && !abortRef.current) {
+          finishTranslation();
+        }
       }
-    } catch (err) {
-      if (!ac.signal.aborted) {
-        setTranslationText(`${asciiMode ? 'x' : '✕'} ${errorMessage(err)}`);
-        finishTranslation();
-      }
-    } finally {
-      if (abortRef.current === ac) {
-        abortRef.current = null;
-        finishTranslation();
-        if (!ac.signal.aborted) setTranslateBusy(false);
-      } else if (ac.signal.aborted && !abortRef.current) {
-        finishTranslation();
-      }
-    }
-  }, [abortInFlight, asciiMode, finishTranslation, host, lang, pageData, pushTranslation, resetTranslation, setTranslationText]);
+    },
+    [abortInFlight, applyTranslationResults, asciiMode, finishTranslation, host, lang, pageData, resetTranslation, setTranslationText],
+  );
 
   const handlePracticeLinkedCards = useCallback(async () => {
     if (!pageData) return;
@@ -1033,22 +1481,32 @@ export const DocumentReader = memo(function DocumentReader({
 
   const isTyping = subMode === 'jump' || subMode === 'search' || subMode === 'ask-input';
   const drawerOpen = subMode === 'outline' || subMode === 'notes' || subMode === 'mark' || subMode === 'glossary';
-  const readerInputActive = isActive && !drawerOpen;
+  const readerInputActive = isActive && !drawerOpen && !pendingTranslateConfirm;
   const claimedKeys = useMemo(
     () =>
       subMode === 'ask-view'
         ? ['s', 'backspace']
-        : ['[', ']', '/', 'g', 'G', 'm', 'M', 'a', 't', 'q', 'p', 'O', 'B', 'H', 'backspace'],
+        : subMode === 'translate-view'
+          ? ['L', 'R', 'backspace']
+          : ['[', ']', '/', 'g', 'G', 'm', 'M', 'a', 't', 'q', 'p', 'O', 'B', 'H', 'backspace'],
     [subMode],
   );
   useClaimKeys(claimedKeys, readerInputActive && !isTyping);
-  useInputCapture(isActive && subMode !== 'read');
+  useInputCapture(isActive && (subMode !== 'read' || Boolean(pendingTranslateConfirm)));
 
   const hints: KeyHint[] = useMemo(() => {
     if (subMode === 'ask-view') {
       return [
         { key: 'j/k', label: t(lang, '滚动', 'Scroll') },
         { key: 's', label: t(lang, '存笔记', 'Save Note') },
+        { key: 'Esc', label: t(lang, '返回', 'Back') },
+      ];
+    }
+    if (subMode === 'translate-view') {
+      return [
+        { key: 'j/k', label: t(lang, '滚动', 'Scroll') },
+        { key: 'L', label: translateTarget === 'zh' ? '-> en' : '-> zh' },
+        { key: 'R', label: t(lang, '重译', 'Retrans') },
         { key: 'Esc', label: t(lang, '返回', 'Back') },
       ];
     }
@@ -1069,24 +1527,27 @@ export const DocumentReader = memo(function DocumentReader({
       { key: 'Esc', label: t(lang, '返回', 'Back') },
     ];
     return items;
-  }, [chapters.length, lang, subMode]);
+  }, [chapters.length, lang, subMode, translateTarget]);
   useFooterHints(hints, readerInputActive);
 
   useInput(
     (input, key) => {
-      if (isTyping || drawerOpen) return;
+      if (isTyping || drawerOpen || pendingTranslateConfirm) return;
       if (key.escape || (subMode === 'read' && key.backspace)) {
         if (subMode !== 'read') {
+          cancelActiveTranslation();
           abortInFlight();
           finishAiAnswer();
           finishTranslation();
           resetAiAnswer();
           resetTranslation();
+          setTranslateMeta(null);
           setAiBusy(false);
           setTranslateBusy(false);
           setSubMode('read');
         } else {
           flushPendingPersist();
+          cancelActiveTranslation();
           abortInFlight();
           resetAiAnswer();
           resetTranslation();
@@ -1097,6 +1558,15 @@ export const DocumentReader = memo(function DocumentReader({
       if (subMode === 'ask-view') {
         if (input === 's' && !aiBusy) {
           void handleSaveAskToNote();
+        }
+        return;
+      }
+      if (subMode === 'translate-view') {
+        if (input === 'L' && !translateBusy && !translateInFlightRef.current) {
+          const nextTarget: 'zh' | 'en' = translateTarget === 'zh' ? 'en' : 'zh';
+          void openTranslatePage(nextTarget, false);
+        } else if (input === 'R' && !translateBusy && !translateInFlightRef.current) {
+          void openTranslatePage(translateTarget, true);
         }
         return;
       }
@@ -1128,7 +1598,7 @@ export const DocumentReader = memo(function DocumentReader({
         setAskQuestion('');
         setSubMode('ask-input');
       } else if (input === 't') {
-        void runTranslatePage();
+        void openTranslatePage(translateTarget, false);
       } else if (input === 'G') {
         setSubMode('glossary');
       } else if (input === 'O') {
@@ -1349,30 +1819,145 @@ export const DocumentReader = memo(function DocumentReader({
         {subMode === 'translate-view' ? (
           <Panel
             title={t(lang, '双语对照翻译', 'Bilingual Translation')}
-            icon="译"
+            icon={lang === 'en' ? undefined : '译'}
             tone="info"
             subtitle={
               translateBusy
                 ? asciiMode
                   ? t(lang, '翻译中... Esc 中止', 'Translating... Esc abort')
                   : t(lang, '翻译中… Esc 中止', 'Translating… Esc abort')
-                : t(lang, 'Esc 返回', 'Esc Back')
+                : 'L/R/Esc'
             }
             width={auxW}
             height={auxH}
             focused
           >
-            <MarkdownView
-              markdown={translationText || (translateBusy ? (asciiMode ? t(lang, '_正在翻译当前页..._', '_Translating current page..._') : t(lang, '_正在翻译当前页…_', '_Translating current page…_')) : '')}
-              width={Math.max(12, auxW - 4)}
-              height={Math.max(2, auxH - 2)}
-              isActive={readerInputActive && subMode === 'translate-view'}
-              mathUnicode={mathUnicode}
-              follow={translateBusy}
-            />
+            {!translateBusy && translateMeta ? (
+              <Box height={1} width={Math.max(12, auxW - 4)} flexShrink={0}>
+                <Badge
+                  label={translateMeta.target === 'en' ? 'EN' : 'ZH'}
+                  tone="info"
+                  variant="outline"
+                />
+                <Text> </Text>
+                {translateMeta.source === 'cache' && translateMeta.cachedCount > 0 ? (
+                  <Badge
+                    label={t(
+                      lang,
+                      `已缓存 ${translateMeta.cachedCount} 段`,
+                      `Cached ${translateMeta.cachedCount} passages`,
+                    )}
+                    tone="success"
+                    variant="soft"
+                  />
+                ) : translateMeta.freshCount + translateMeta.cachedCount + translateMeta.reusedCount > 0 ? (
+                  <Badge
+                    label={t(
+                      lang,
+                      `已译 ${translateMeta.freshCount + translateMeta.cachedCount + translateMeta.reusedCount} 段`,
+                      `Translated ${translateMeta.freshCount + translateMeta.cachedCount + translateMeta.reusedCount} passages`,
+                    )}
+                    tone="success"
+                    variant="soft"
+                  />
+                ) : null}
+                {translateMeta.outdatedCount > 0 ? (
+                  <>
+                    <Text> </Text>
+                    <Badge
+                      label={t(lang, `待更新 ${translateMeta.outdatedCount}`, `Outdated ${translateMeta.outdatedCount}`)}
+                      tone="warning"
+                      variant="outline"
+                    />
+                  </>
+                ) : null}
+              </Box>
+            ) : null}
+            {translateBusy ? (
+              <Box padding={1}>
+                <Spinner
+                  label={
+                    asciiMode
+                      ? t(lang, '正在翻译当前页...', 'Translating current page...')
+                      : t(lang, '正在翻译当前页…', 'Translating current page…')
+                  }
+                />
+              </Box>
+            ) : (
+              <MarkdownView
+                markdown={translationText}
+                width={Math.max(12, auxW - 4)}
+                height={Math.max(2, auxH - (translateMeta ? 3 : 2))}
+                isActive={readerInputActive && subMode === 'translate-view' && !translateBusy}
+                mathUnicode={mathUnicode}
+              />
+            )}
           </Panel>
         ) : null}
       </Box>
+
+      {pendingTranslateConfirm ? (
+        <ConfirmDialog
+          title={
+            pendingTranslateConfirm.retranslate
+              ? t(lang, '确认重新翻译本页', 'Confirm Page Retranslation')
+              : t(lang, '确认翻译本页', 'Confirm Page Translation')
+          }
+          message={(() => {
+            const targetNameLabel =
+              pendingTranslateConfirm.target === 'en'
+                ? t(lang, '英文 (en)', 'English (en)')
+                : t(lang, '中文 (zh)', 'Chinese (zh)');
+            const { toTranslate, cached, reused } = pendingTranslateConfirm.counts;
+            const estCalls = formatEstimateRange(pendingTranslateConfirm.estimate?.calls) || '1';
+            const estTokens = resolveEstimateTokensText(pendingTranslateConfirm.estimate) || '-';
+            const reusedParts: string[] = [];
+            if (cached > 0) reusedParts.push(t(lang, `已缓存 ${cached}`, `cached ${cached}`));
+            if (reused > 0) reusedParts.push(t(lang, `可复用 ${reused}`, `reused ${reused}`));
+            const extraNote = reusedParts.length > 0 ? ` (${reusedParts.join(', ')})` : '';
+            return (
+              <Box flexDirection="column">
+                <Text color={theme.text} wrap="wrap">
+                  {t(
+                    lang,
+                    `目标语言: ${targetNameLabel} | 待翻译 ${toTranslate} 段${extraNote}`,
+                    `Target: ${targetNameLabel} | ${toTranslate} passage(s) to translate${extraNote}`,
+                  )}
+                </Text>
+                <Text color={theme.muted} wrap="wrap">
+                  {t(
+                    lang,
+                    `预计调用: ~${estCalls} 次 | 预计用量: ~${estTokens} tokens`,
+                    `Est. calls: ~${estCalls} | Est. tokens: ~${estTokens}`,
+                  )}
+                </Text>
+                {!pendingTranslateConfirm.modelAvailable ? (
+                  <Text color={theme.warning} wrap="wrap">
+                    {t(
+                      lang,
+                      '提示: 当前未配置可用模型，执行可能失败。',
+                      'Note: No model configured; execution may fail.',
+                    )}
+                  </Text>
+                ) : null}
+                <Text color={theme.dim} wrap="wrap">
+                  {t(
+                    lang,
+                    '译文将自动保存至资料库，翻译中按 Esc 可中止。',
+                    'Translations auto-save to library; Esc aborts in-flight.',
+                  )}
+                </Text>
+              </Box>
+            );
+          })()}
+          confirmLabel={t(lang, '开始翻译', 'Translate')}
+          cancelLabel={t(lang, '取消', 'Cancel')}
+          width={Math.min(62, Math.max(40, width - 4))}
+          onConfirm={() => void executeConfirmedTranslate(pendingTranslateConfirm)}
+          onCancel={() => setPendingTranslateConfirm(null)}
+          isActive={isActive}
+        />
+      ) : null}
 
       <Suspense fallback={null}>
         {subMode === 'outline' ? (

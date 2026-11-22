@@ -1,7 +1,8 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text, useInput, useWindowSize } from 'ink';
-import { PAGE_REGISTRY, type CommandPaletteItem, type HostClient, type StudySnapshot, type UiLanguage } from '../types/contracts.js';
+import { PAGE_REGISTRY, type CommandPaletteItem, type HostClient, type PageId, type StudySnapshot, type TuiPreferences, type UiLanguage } from '../types/contracts.js';
 import { t, useTuiStore, type TuiStoreState } from '../state/store.js';
+import { saveTuiPreferences } from '../host/tui-prefs.js';
 import { listThemes, nextThemeId, useTheme } from '../theme/tokens.js';
 import { displayWidth, truncateDisplay } from '../render/cjk.js';
 import { Modal } from '../components/Modal.js';
@@ -95,6 +96,22 @@ function clipLine(v: unknown, max = 120, ell = '...'): string {
   return clean.length > max ? `${clean.slice(0, Math.max(1, max - ell.length)).trimEnd()}${ell}` : clean;
 }
 
+const SLASH_PAGE_IDS: readonly PageId[] = [
+  'review',
+  'book',
+  'exam',
+  'skeleton',
+  'wrongbook',
+  'tasks',
+  'audio',
+  'settings',
+];
+
+function persistPreferencePatch(host: HostClient | undefined, patch: Partial<TuiPreferences>): void {
+  const dshHome = (host as { dshHome?: string } | undefined)?.dshHome;
+  void saveTuiPreferences(patch, dshHome ? { env: { DSH_HOME: dshHome } } : undefined).catch(() => {});
+}
+
 /** Build the full command list from store state + shell actions (pure, exported for tests). */
 export function buildPaletteItems(
   state: Pick<TuiStoreState, 'snapshot' | 'preferences' | 'activeRunId'> & {
@@ -106,16 +123,21 @@ export function buildPaletteItems(
     setVoicePackOpen: TuiStoreState['setVoicePackOpen'];
     setCoursePickerOpen: TuiStoreState['setCoursePickerOpen'];
     setInboxOpen?: TuiStoreState['setInboxOpen'];
+    setPreferences?: TuiStoreState['setPreferences'];
+    notify?: TuiStoreState['notify'];
     goBack: TuiStoreState['goBack'];
   },
   actions: ShellActions,
   extra: readonly CommandPaletteItem[] = [],
+  host?: HostClient,
 ): CommandPaletteItem[] {
   const lang: UiLanguage = state.preferences.language;
   const asciiMode = Boolean(state.preferences.asciiMode);
   const snap: StudySnapshot | null = state.snapshot;
   const items: CommandPaletteItem[] = [];
   const catAction = t(lang, '命令', 'Action');
+  const setPrefs = state.setPreferences ?? useTuiStore.getState().setPreferences;
+  const notify = state.notify ?? useTuiStore.getState().notify;
 
   const act = (id: string, label: string, hint: string, action: () => void | Promise<void>, keywords: string[] = [], shortcut?: string) =>
     items.push({ id, label, hint, category: catAction, action, keywords, shortcut });
@@ -129,6 +151,64 @@ export function buildPaletteItems(
     act(`cmd:theme:${th.id}`, `/theme ${th.id}`, th.label, () => state.setTheme(th.id), ['主题', 'theme']);
   }
   act('cmd:lang', '/lang', lang === 'zh' ? 'Switch to English' : '切换到中文', () => state.setLanguage(lang === 'zh' ? 'en' : 'zh'), ['language', '语言', '中文', 'english']);
+  act(
+    'cmd:ascii',
+    '/ascii',
+    t(lang, asciiMode ? '关闭 ASCII 模式（恢复图形符号）' : '开启 ASCII 纯字符模式', asciiMode ? 'Disable ASCII mode (restore Unicode)' : 'Enable ASCII pure-char mode'),
+    () => {
+      const next = !Boolean(state.preferences.asciiMode);
+      setPrefs({ asciiMode: next });
+      persistPreferencePatch(host, { asciiMode: next });
+      notify(
+        t(lang, next ? '已切换为 ASCII 纯字符模式' : '已恢复 Unicode 图形模式', next ? 'ASCII mode enabled' : 'Unicode chrome restored'),
+        'info',
+      );
+    },
+    ['ascii', 'unicode', 'chrome', '字符', '纯字符'],
+  );
+  act(
+    'cmd:math',
+    '/math',
+    t(lang, state.preferences.mathUnicode ? '切换数学公式为原始 LaTeX' : '开启 Unicode 数学公式渲染', state.preferences.mathUnicode ? 'Switch math to raw LaTeX' : 'Enable Unicode math rendering'),
+    () => {
+      const next = !Boolean(state.preferences.mathUnicode);
+      setPrefs({ mathUnicode: next });
+      persistPreferencePatch(host, { mathUnicode: next });
+      notify(
+        t(lang, next ? '已开启 Unicode 数学公式渲染' : '已切换为原始 LaTeX 显示', next ? 'Unicode Math enabled' : 'Raw LaTeX mode'),
+        'info',
+      );
+    },
+    ['math', 'latex', 'unicode', 'formula', '数学', '公式'],
+  );
+  act(
+    'cmd:recover',
+    '/recover',
+    t(lang, '恢复中断的后台任务', 'Recover interrupted background jobs'),
+    async () => {
+      if (!host) {
+        notify(t(lang, '无法恢复中断任务：主机未就绪', 'Cannot recover jobs: host unavailable'), 'warning');
+        return;
+      }
+      try {
+        const res = await host.call<{ recovered?: number }>('coverage.recover', {});
+        if (!res.ok) {
+          notify(res.error?.message || t(lang, '恢复中断任务失败', 'Failed to recover interrupted jobs'), 'error');
+          return;
+        }
+        const recovered = typeof res.value?.recovered === 'number' ? res.value.recovered : 0;
+        await actions.refresh();
+        if (recovered > 0) {
+          notify(t(lang, `已恢复 ${recovered} 个中断任务`, `Recovered ${recovered} interrupted job(s)`), 'success');
+        } else {
+          notify(t(lang, '当前没有可恢复的中断任务', 'No interrupted jobs to recover'), 'info');
+        }
+      } catch (err) {
+        notify(err instanceof Error ? err.message : String(err), 'error');
+      }
+    },
+    ['recover', 'jobs', 'resume', '恢复', '中断', '任务'],
+  );
   act('cmd:model', '/model', t(lang, '配置模型（agy / OpenAI）', 'Configure model (agy / OpenAI)'), () => actions.openModelSettings(), ['agy', 'openai', 'deepseek', '模型', 'api key']);
   act('cmd:voicepack', '/voicepack', t(lang, '语音包', 'Voice pack'), () => state.setVoicePackOpen(true), ['voice', '语音', 'tts']);
   act('cmd:inbox', '/inbox', t(lang, '收件箱与通知', 'Notification Inbox'), () => (state.setInboxOpen ?? useTuiStore.getState().setInboxOpen)(true), ['inbox', 'mail', 'notification', '收件箱', '通知', '信箱'], 'I');
@@ -139,6 +219,20 @@ export function buildPaletteItems(
   act('cmd:help', '/help', t(lang, '快捷键帮助', 'Keyboard help'), () => state.setHelpOpen(true), ['帮助', 'keys'], '?');
   act('cmd:back', '/back', t(lang, '返回上一页', 'Go back'), () => state.goBack(), ['返回', 'history'], asciiMode ? 'Bksp' : '⌫');
   act('cmd:quit', '/quit', t(lang, '退出 StudyHub', 'Quit StudyHub'), () => actions.quit(), ['exit', '退出'], 'q');
+
+  const pageMetaMap = new Map(PAGE_REGISTRY.map((p) => [p.id, p]));
+  for (const pid of SLASH_PAGE_IDS) {
+    const meta = pageMetaMap.get(pid);
+    if (!meta) continue;
+    act(
+      `cmd:page:${pid}`,
+      `/${pid}`,
+      t(lang, `前往${meta.labelZh}`, `Open ${meta.labelEn}`),
+      () => (pid === 'review' && state.activeRunId ? state.navigate('review', { runId: state.activeRunId }) : state.navigate(pid)),
+      [pid, meta.labelZh, meta.labelEn],
+      meta.shortcut,
+    );
+  }
 
   const catPage = t(lang, '页面', 'Page');
   for (const p of PAGE_REGISTRY) {
@@ -372,8 +466,8 @@ export const CommandPalette = memo(function CommandPalette({
 
   const items = useMemo(() => {
     const s = useTuiStore.getState();
-    return buildPaletteItems({ ...s, snapshot, preferences, activeRunId }, actions, extraCommands ?? []);
-  }, [snapshot, preferences, activeRunId, actions, extraCommands]);
+    return buildPaletteItems({ ...s, snapshot, preferences, activeRunId }, actions, extraCommands ?? [], host);
+  }, [snapshot, preferences, activeRunId, actions, extraCommands, host]);
 
   const fuzzyResults = useMemo(() => {
     const { scope, term } = parsed;
@@ -387,7 +481,11 @@ export const CommandPalette = memo(function CommandPalette({
       const recentCat = t(lang, '最近', 'Recent');
       return [
         ...recent.map((r) => ({ ...r, category: recentCat })),
-        ...items.filter((i) => !recentIds.has(i.id) && (i.id.startsWith('cmd:') ? !i.id.startsWith('cmd:theme:') : i.id.startsWith('page:'))),
+        ...items.filter(
+          (i) =>
+            !recentIds.has(i.id) &&
+            (i.id.startsWith('cmd:') ? !i.id.startsWith('cmd:theme:') && !i.id.startsWith('cmd:page:') : i.id.startsWith('page:')),
+        ),
       ];
     }
     let pool = items;
@@ -419,15 +517,7 @@ export const CommandPalette = memo(function CommandPalette({
       if (!item.id.startsWith('live:')) {
         s.recordRecentCommand(item.id);
         const recentCommands = useTuiStore.getState().preferences.recentCommands;
-        const dshHome = (host as { dshHome?: string } | undefined)?.dshHome;
-        void import('../host/tui-prefs.js')
-          .then(({ saveTuiPreferences }) =>
-            saveTuiPreferences(
-              { recentCommands },
-              dshHome ? { env: { DSH_HOME: dshHome } } : undefined,
-            ),
-          )
-          .catch(() => {});
+        persistPreferencePatch(host, { recentCommands });
       }
       s.setCommandPaletteOpen(false);
       onClose();
