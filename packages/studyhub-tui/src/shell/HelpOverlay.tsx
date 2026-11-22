@@ -49,7 +49,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'p', label: t(lang, '今日计划', 'Daily plan') },
         { key: 'g', label: t(lang, 'AI 带学工作台', 'AI Guided Study') },
         { key: 'C', label: t(lang, '课程设置', 'Course settings') },
-        { key: 'o', label: t(lang, '题组导入/合并/拆分', 'Deck import/merge/split') },
+        { key: 'o', label: t(lang, '题组导入/AI合并建议/拆分', 'Deck import/AI merge/split') },
         { key: '[ / ]', label: t(lang, '上移/下移题组顺序', 'Reorder deck up/down') },
         { key: 'R', label: t(lang, '定制本轮练习', 'Custom round config') },
         { key: 'm: + / k', label: t(lang, '题组补题 / 转换题型', 'Deck supplement / convert') },
@@ -74,6 +74,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'Q', label: t(lang, '队列编辑', 'Edit queue') },
         { key: '*', label: t(lang, '标记重点', 'Toggle focus') },
         { key: 'u', label: t(lang, '撤销上一题评分', 'Undo last rating') },
+        { key: 'd', label: t(lang, '本轮 AI 复盘点评', 'Round AI debrief') },
         { key: 'q', label: t(lang, '结束本轮 (二次确认)', 'End round (confirm)') },
       ],
     },
@@ -128,7 +129,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
     {
       title: t(lang, '考试教练 · Exam Coach', 'Exam Coach'),
       items: [
-        { key: 'p', label: t(lang, '学习画像与偏好', 'Coach profile & prefs') },
+        { key: 'p', label: t(lang, '学习画像与偏好及记忆要点', 'Coach profile, prefs & bullets') },
       ],
     },
     {

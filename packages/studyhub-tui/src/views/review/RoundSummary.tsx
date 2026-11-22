@@ -5,8 +5,11 @@ import { t, useTuiStore } from '../../state/store.js';
 import { tryAction, type ReviewRun } from '../../host/sample-actions.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, EmptyState, ProgressBar, Spinner } from '../../components/Badge.js';
+import { ConfirmDialog } from '../../components/ConfirmDialog.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
+import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { Panel } from '../../components/Panel.js';
+import { ScrollView } from '../../components/ScrollView.js';
 import { SplitPane } from '../../components/SplitPane.js';
 import { VirtualList } from '../../components/VirtualList.js';
 import { useClaimKeys } from '../../components/focus.js';
@@ -87,6 +90,21 @@ interface DailyStatusGroup {
   generation?: { status?: string; message?: string };
 }
 
+type DebriefInsightItem = string | { code?: string; title?: string; text?: string; detail?: string };
+
+interface DebriefResult {
+  version?: number;
+  answered?: number;
+  metrics?: Record<string, unknown>;
+  insights?: DebriefInsightItem[];
+  headline?: string;
+  why?: string;
+  next?: string;
+  preparing?: boolean;
+  at?: string;
+  status?: unknown;
+}
+
 export interface RoundSummaryProps {
   host: HostClient;
   run: ReviewRun;
@@ -103,8 +121,122 @@ export interface RoundSummaryProps {
   onBack?: () => void;
 }
 
-const CLAIMED_SUMMARY_KEYS: readonly string[] = Object.freeze(['w', 'r', 'g', 'b', 'v', '1', 'j', 'k']);
+const CLAIMED_SUMMARY_KEYS: readonly string[] = Object.freeze(['w', 'r', 'g', 'b', 'v', '1', 'j', 'k', 'd']);
 const SPLIT_BREAKPOINT = 84;
+
+function formatDebriefNextLabel(nextCode: string, lang: UiLanguage): string {
+  switch (nextCode) {
+    case 'practice_prepared':
+      return t(lang, '练习定制题', 'Practice Prepared');
+    case 'review_weak':
+      return t(lang, '重练薄弱题', 'Review Weak');
+    case 'rest':
+      return t(lang, '休息巩固', 'Take a Break');
+    case 'continue_path':
+      return t(lang, '继续学习路径', 'Continue Path');
+    default:
+      return nextCode;
+  }
+}
+
+function formatDebriefInsight(item: DebriefInsightItem): string {
+  if (typeof item === 'string') return item.trim();
+  if (!item || typeof item !== 'object') return '';
+  const title = typeof item.title === 'string' ? item.title.trim() : '';
+  const text = typeof item.text === 'string' ? item.text.trim() : '';
+  const detail = typeof item.detail === 'string' ? item.detail.trim() : '';
+  if (title && text) return `${title}: ${text}`;
+  if (title && detail) return `${title}: ${detail}`;
+  return text || detail || title;
+}
+
+const DebriefModal = memo(function DebriefModal({
+  debrief,
+  width,
+  height,
+  isActive,
+  onClose,
+}: {
+  debrief: DebriefResult;
+  width: number;
+  height: number;
+  isActive: boolean;
+  onClose: () => void;
+}) {
+  const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const shellOverlay = useTuiStore((s) => s.commandPaletteOpen || s.helpOpen || s.coursePickerOpen || s.inboxOpen);
+  const effectiveActive = isActive && !shellOverlay;
+
+  useInput(
+    (input, key) => {
+      if (!key.ctrl && !key.meta && input === 'd') {
+        onClose();
+      }
+    },
+    { isActive: effectiveActive },
+  );
+
+  const modalW = Math.min(72, Math.max(40, width - 4));
+  const modalH = Math.min(20, Math.max(12, height - 4));
+  const innerW = modalContentWidth(modalW);
+  const scrollH = Math.max(4, modalH - 6);
+
+  const debriefContent = useMemo(() => {
+    const sections: string[] = [];
+    if (debrief.headline) sections.push(String(debrief.headline).trim());
+    if (debrief.why) {
+      sections.push(`${t(lang, '原因分析', 'Why')}: ${String(debrief.why).trim()}`);
+    }
+    const insights = (Array.isArray(debrief.insights) ? debrief.insights : [])
+      .map(formatDebriefInsight)
+      .filter(Boolean);
+    if (insights.length > 0) {
+      sections.push([`${t(lang, '本轮洞察', 'Insights')}:`, ...insights.map((line) => `- ${line}`)].join('\n'));
+    }
+    if (debrief.preparing) {
+      sections.push(
+        t(lang, '[后台] AI 教练正在为你准备针对性变式题。', '[Background] AI Coach is preparing tailored practice variants.'),
+      );
+    }
+    return sections.join('\n\n') || t(lang, '暂无本轮复盘详情。', 'No debrief details available.');
+  }, [debrief, lang]);
+
+  return (
+    <Modal
+      title={t(lang, 'AI 教练本轮复盘', 'AI Coach Debrief')}
+      icon={asciiMode ? '*' : '✦'}
+      tone="ai"
+      width={modalW}
+      height={modalH}
+      onClose={onClose}
+      isActive={effectiveActive}
+      hints={[
+        { key: 'j/k', label: t(lang, '滚动', 'Scroll') },
+        { key: 'd/Esc', label: t(lang, '关闭', 'Close') },
+      ]}
+    >
+      <Box flexDirection="row" gap={1} height={1} overflow="hidden">
+        {debrief.next ? (
+          <Badge
+            label={`${t(lang, '建议下一步', 'Next')}: ${formatDebriefNextLabel(String(debrief.next), lang)}`}
+            tone="primary"
+            variant="soft"
+          />
+        ) : null}
+        {typeof debrief.answered === 'number' ? (
+          <Badge label={t(lang, `已答 ${debrief.answered} 题`, `${debrief.answered} answered`)} tone="neutral" variant="outline" />
+        ) : null}
+        {debrief.preparing ? (
+          <Badge label={t(lang, '后台准备变式题', 'Preparing variants')} tone="warning" variant="outline" />
+        ) : null}
+      </Box>
+      <Box height={scrollH} width={innerW} overflow="hidden">
+        <ScrollView content={debriefContent} width={innerW} height={scrollH} isActive={effectiveActive} ascii={asciiMode} />
+      </Box>
+    </Modal>
+  );
+});
 
 function cleanPromptSnippet(text: string, ascii: boolean): string {
   return String(text || '')
@@ -311,6 +443,11 @@ export const RoundSummary = memo(function RoundSummary({
   const [dailyGroup, setDailyGroup] = useState<DailyStatusGroup | null>(null);
   const [generatingRecap, setGeneratingRecap] = useState(false);
   const [retryingWeak, setRetryingWeak] = useState(false);
+  const [debrief, setDebrief] = useState<DebriefResult | null>(() => (run as { debrief?: DebriefResult }).debrief ?? null);
+  const [debriefOpen, setDebriefOpen] = useState(false);
+  const [confirmDebriefOpen, setConfirmDebriefOpen] = useState(false);
+  const [debriefBusy, setDebriefBusy] = useState(false);
+  const debriefBusyRef = useRef(false);
 
   const mountedRef = useRef(true);
   useEffect(() => {
@@ -328,6 +465,11 @@ export const RoundSummary = memo(function RoundSummary({
     let cancelled = false;
     setPreviewExpanded(false);
     setDetailScrollTop(0);
+    setDebrief((run as { debrief?: DebriefResult }).debrief ?? null);
+    setDebriefOpen(false);
+    setConfirmDebriefOpen(false);
+    debriefBusyRef.current = false;
+    setDebriefBusy(false);
 
     if (!run?.id) {
       setLoadingLookBack(false);
@@ -450,8 +592,39 @@ export const RoundSummary = memo(function RoundSummary({
     else navigate('library');
   }, [onGoLibrary, onBack, navigate]);
 
+  const handleDebriefKey = useCallback(() => {
+    if (confirmDebriefOpen || debriefOpen || debriefBusyRef.current) return;
+    if (run.mode === 'exam') {
+      notify(t(lang, '模拟考试请查看上方成绩单', 'Mock exam uses the exam score report'), 'info');
+      return;
+    }
+    if (debrief && debrief.headline) {
+      setDebriefOpen(true);
+      return;
+    }
+    setConfirmDebriefOpen(true);
+  }, [confirmDebriefOpen, debriefOpen, run.mode, debrief, notify, lang]);
+
+  const handleConfirmDebrief = useCallback(async () => {
+    setConfirmDebriefOpen(false);
+    if (!run?.id || debriefBusyRef.current) return;
+    debriefBusyRef.current = true;
+    setDebriefBusy(true);
+    const res = await tryAction<DebriefResult>(host, 'coach.debrief', { runId: run.id });
+    debriefBusyRef.current = false;
+    if (!mountedRef.current) return;
+    setDebriefBusy(false);
+    if (!res.ok || !res.value) {
+      notify(res.error?.message || t(lang, '获取 AI 复盘点评失败', 'Failed to load AI coach debrief'), 'error');
+      return;
+    }
+    setDebrief(res.value);
+    setDebriefOpen(true);
+  }, [host, lang, notify, run?.id]);
+
   const isNarrow = width < SPLIT_BREAKPOINT;
   const selectedRow = rows[selectedIdx] ?? null;
+  const modalOpen = confirmDebriefOpen || debriefOpen;
 
   useClaimKeys(CLAIMED_SUMMARY_KEYS, isActive);
 
@@ -467,11 +640,14 @@ export const RoundSummary = memo(function RoundSummary({
           ]
         : []),
       ...(hasMissed ? [{ key: 'w', label: t(lang, '重练错题', 'Retry Weak') }] : []),
+      ...(run.mode !== 'exam'
+        ? [{ key: 'd', label: debrief ? t(lang, '查看复盘', 'Debrief') : t(lang, 'AI复盘', 'Debrief') }]
+        : []),
       { key: 'g', label: dailyGroup?.hasContent ? t(lang, '看复盘', 'View Recap') : t(lang, '每日复盘', 'Daily Recap') },
       { key: 'r', label: t(lang, '再来一轮', 'New Round') },
       { key: 'Esc/b/1', label: t(lang, '学习库', 'Library') },
     ],
-    [selectedRow, previewExpanded, hasMissed, dailyGroup?.hasContent, lang],
+    [selectedRow, previewExpanded, hasMissed, run.mode, debrief, dailyGroup?.hasContent, lang],
   );
   useFooterHints(hints, isActive);
 
@@ -504,6 +680,10 @@ export const RoundSummary = memo(function RoundSummary({
           return;
         }
       }
+      if (input === 'd' && !key.ctrl && !key.meta) {
+        handleDebriefKey();
+        return;
+      }
       if (input === 'w') {
         void handleRetryWeak();
         return;
@@ -520,7 +700,7 @@ export const RoundSummary = memo(function RoundSummary({
         handleGoBack();
       }
     },
-    { isActive },
+    { isActive: isActive && !modalOpen },
   );
 
   const detailMarkdown = useMemo(() => {
@@ -615,9 +795,15 @@ export const RoundSummary = memo(function RoundSummary({
               {truncateDisplay(`${t(lang, '薄弱', 'Weak')}: ${weakTopics.join(weakSep)}`, weakBudget, ellipsis)}
             </Text>
           ) : null}
-          {generatingRecap || retryingWeak ? (
+          {generatingRecap || retryingWeak || debriefBusy ? (
             <Spinner
-              label={retryingWeak ? t(lang, '开启重练', 'Starting') : t(lang, '生成复盘', 'Generating')}
+              label={
+                retryingWeak
+                  ? t(lang, '开启重练', 'Starting')
+                  : debriefBusy
+                    ? t(lang, 'AI复盘', 'Debriefing')
+                    : t(lang, '生成复盘', 'Generating')
+              }
               tone="ai"
               active={isActive}
             />
@@ -655,7 +841,7 @@ export const RoundSummary = memo(function RoundSummary({
               badge={rows.length}
               width={size.width}
               height={size.height}
-              focused={isActive && !(isNarrow && previewExpanded)}
+              focused={isActive && !modalOpen && !(isNarrow && previewExpanded)}
               ascii={asciiMode}
             >
               {loadingLookBack ? (
@@ -677,7 +863,7 @@ export const RoundSummary = memo(function RoundSummary({
                       setSelectedIdx(idx);
                       setDetailScrollTop(0);
                     }}
-                    isActive={isActive && !(isNarrow && previewExpanded)}
+                    isActive={isActive && !modalOpen && !(isNarrow && previewExpanded)}
                     ascii={asciiMode}
                     keyExtractor={(r, i) => `${r.cardId || 'row'}-${i}`}
                     renderItem={(row, ctx) => {
@@ -761,7 +947,7 @@ export const RoundSummary = memo(function RoundSummary({
               subtitle={subtitle}
               width={size.width}
               height={size.height}
-              focused={isActive && isNarrow && previewExpanded}
+              focused={isActive && !modalOpen && isNarrow && previewExpanded}
               ascii={asciiMode}
             >
               {selectedRow && badgeMeta ? (
@@ -803,6 +989,30 @@ export const RoundSummary = memo(function RoundSummary({
           );
         }}
       />
+      {confirmDebriefOpen ? (
+        <ConfirmDialog
+          title={t(lang, 'AI 教练本轮复盘', 'AI Coach Round Debrief')}
+          message={t(
+            lang,
+            '获取 AI 教练本轮复盘点评？将分析本轮作答表现；若本轮已作答满 3 题可能会调用模型生成点评与建议。',
+            'Request AI Coach debrief for this round? Analyzes this round performance and may invoke the model if 3+ cards were answered.',
+          )}
+          confirmLabel={t(lang, '获取点评', 'Get Debrief')}
+          onConfirm={() => void handleConfirmDebrief()}
+          onCancel={() => setConfirmDebriefOpen(false)}
+          isActive={isActive}
+          width={Math.min(64, Math.max(36, width - 4))}
+        />
+      ) : null}
+      {debriefOpen && debrief ? (
+        <DebriefModal
+          debrief={debrief}
+          width={width}
+          height={height}
+          isActive={isActive}
+          onClose={() => setDebriefOpen(false)}
+        />
+      ) : null}
     </Box>
   );
 });

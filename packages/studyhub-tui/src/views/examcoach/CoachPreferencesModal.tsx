@@ -9,7 +9,7 @@ import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
 import { useInputCapture } from '../../components/focus.js';
-import { truncateDisplay } from '../../render/cjk.js';
+import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import { tryAction } from '../../host/sample-actions.js';
 
 export interface CoachPreferencesModalProps {
@@ -20,11 +20,20 @@ export interface CoachPreferencesModalProps {
   onClose: () => void;
 }
 
+export interface LearnerBulletItem {
+  id: string;
+  text: string;
+  source?: 'user' | 'debrief' | 'retell' | string;
+  course?: string;
+  updatedAt?: string;
+}
+
 interface CoachProfileResult {
   consent?: boolean | null | { prep?: boolean | null };
   goal?: string;
   preferences?: string[];
   summary?: string;
+  bullets?: LearnerBulletItem[];
   memoryRevision?: number;
   signals?: {
     got?: number;
@@ -38,10 +47,28 @@ interface CoachProfileResult {
   ready?: number;
 }
 
+type ModalTab = 'prefs' | 'bullets';
+
 const PREF_MAX_ITEMS = 12;
 const PREF_MAX_CHARS = 120;
+const BULLET_MAX_ITEMS = 10;
+const BULLET_MAX_CHARS = 140;
 const GOAL_KEYS = ['', 'exam', 'interview', 'work', 'explore'] as const;
 type LearnerGoalKey = (typeof GOAL_KEYS)[number];
+
+function formatBulletSource(source: string | undefined, lang: 'zh' | 'en'): string {
+  switch (source) {
+    case 'user':
+      return t(lang, '用户', 'user');
+    case 'retell':
+      return t(lang, '复述', 'retell');
+    case 'debrief':
+    case 'coach':
+      return t(lang, '复盘', 'debrief');
+    default:
+      return source || t(lang, '复盘', 'debrief');
+  }
+}
 
 function formatGoalLabel(goal: string | undefined, lang: 'zh' | 'en'): string {
   switch (goal) {
@@ -74,7 +101,9 @@ export const CoachPreferencesModal = memo(function CoachPreferencesModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [profile, setProfile] = useState<CoachProfileResult | null>(null);
+  const [activeTab, setActiveTab] = useState<ModalTab>('prefs');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [bulletSelectedIndex, setBulletSelectedIndex] = useState(0);
   const [addMode, setAddMode] = useState(false);
   const [draftText, setDraftText] = useState('');
   const [confirmKind, setConfirmKind] = useState<'consent-opt-in' | 'forget' | null>(null);
@@ -112,6 +141,7 @@ export const CoachPreferencesModal = memo(function CoachPreferencesModal({
   }, [loadProfile]);
 
   const preferences = useMemo(() => profile?.preferences ?? [], [profile?.preferences]);
+  const bullets = useMemo(() => profile?.bullets ?? [], [profile?.bullets]);
 
   useEffect(() => {
     if (preferences.length === 0) {
@@ -121,12 +151,59 @@ export const CoachPreferencesModal = memo(function CoachPreferencesModal({
     }
   }, [preferences.length, selectedIndex]);
 
+  useEffect(() => {
+    if (bullets.length === 0) {
+      if (bulletSelectedIndex !== 0) setBulletSelectedIndex(0);
+    } else if (bulletSelectedIndex >= bullets.length) {
+      setBulletSelectedIndex(bullets.length - 1);
+    }
+  }, [bullets.length, bulletSelectedIndex]);
+
   const selectedPref = preferences[selectedIndex];
+  const selectedBullet = bullets[bulletSelectedIndex];
 
   const handleAddSubmit = useCallback(
     async (raw: string) => {
       if (busyRef.current || busy) return;
       const text = raw.replace(/\s+/g, ' ').trim();
+      if (activeTab === 'bullets') {
+        if (!text) {
+          notify(t(lang, '请输入一条记忆要点内容', 'Enter a memory bullet first'), 'warning');
+          return;
+        }
+        if (text.length > BULLET_MAX_CHARS) {
+          notify(
+            t(lang, `每条记忆要点不超过 ${BULLET_MAX_CHARS} 字`, `Max ${BULLET_MAX_CHARS} characters per bullet`),
+            'warning',
+          );
+          return;
+        }
+        const expectedRevision = typeof profile?.memoryRevision === 'number' ? profile.memoryRevision : undefined;
+        busyRef.current = true;
+        setBusy(true);
+        const res = await tryAction<CoachProfileResult>(host, 'coach.profile', {
+          addBullet: { text },
+          ...(expectedRevision !== undefined ? { expectedRevision } : {}),
+        });
+        if (!mountedRef.current) return;
+        busyRef.current = false;
+        setBusy(false);
+        if (!res.ok || !res.value) {
+          const errMsg = res.error?.message || t(lang, '添加记忆要点失败', 'Failed to add memory bullet');
+          notify(errMsg, 'error');
+          if (res.error?.code === 'MEMORY_REVISION_CONFLICT' || /刷新后重试/.test(errMsg)) {
+            void loadProfile();
+          }
+          return;
+        }
+        setAddMode(false);
+        setDraftText('');
+        setProfile(res.value);
+        setBulletSelectedIndex(Math.max(0, (res.value.bullets?.length ?? 1) - 1));
+        notify(t(lang, '已添加学习要点', 'Memory bullet added'), 'success');
+        return;
+      }
+
       if (!text) {
         notify(t(lang, '请输入一条学习偏好内容', 'Enter a study preference first'), 'warning');
         return;
@@ -158,11 +235,37 @@ export const CoachPreferencesModal = memo(function CoachPreferencesModal({
       setBusy(false);
       notify(t(lang, '已添加学习偏好', 'Study preference added'), 'success');
     },
-    [busy, host, lang, loadProfile, notify],
+    [activeTab, busy, host, lang, loadProfile, notify, profile?.memoryRevision],
   );
 
   const handleRemoveSelected = useCallback(async () => {
-    if (busyRef.current || busy || !selectedPref) return;
+    if (busyRef.current || busy) return;
+    if (activeTab === 'bullets') {
+      if (!selectedBullet) return;
+      const expectedRevision = typeof profile?.memoryRevision === 'number' ? profile.memoryRevision : undefined;
+      busyRef.current = true;
+      setBusy(true);
+      const res = await tryAction<CoachProfileResult>(host, 'coach.profile', {
+        removeBullet: selectedBullet.id,
+        ...(expectedRevision !== undefined ? { expectedRevision } : {}),
+      });
+      if (!mountedRef.current) return;
+      busyRef.current = false;
+      setBusy(false);
+      if (!res.ok || !res.value) {
+        const errMsg = res.error?.message || t(lang, '删除记忆要点失败', 'Failed to remove memory bullet');
+        notify(errMsg, 'error');
+        if (res.error?.code === 'MEMORY_REVISION_CONFLICT' || /刷新后重试/.test(errMsg)) {
+          void loadProfile();
+        }
+        return;
+      }
+      setProfile(res.value);
+      notify(t(lang, '已删除学习要点', 'Memory bullet removed'), 'success');
+      return;
+    }
+
+    if (!selectedPref) return;
     busyRef.current = true;
     setBusy(true);
     const res = await tryAction<{ preferences?: string[]; memoryRevision?: number }>(host, 'coach.preferences', {
@@ -180,7 +283,42 @@ export const CoachPreferencesModal = memo(function CoachPreferencesModal({
     busyRef.current = false;
     setBusy(false);
     notify(t(lang, '已移除学习偏好', 'Study preference removed'), 'success');
-  }, [busy, selectedPref, host, lang, loadProfile, notify]);
+  }, [activeTab, busy, selectedBullet, selectedPref, profile?.memoryRevision, host, lang, loadProfile, notify]);
+
+  const handleClearPrefs = useCallback(async () => {
+    if (busyRef.current || busy || preferences.length === 0) return;
+    const expectedRevision = typeof profile?.memoryRevision === 'number' ? profile.memoryRevision : undefined;
+    busyRef.current = true;
+    setBusy(true);
+    const res = await tryAction<{ preferences?: string[]; memoryRevision?: number }>(host, 'coach.preferences', {
+      preferences: [],
+      ...(expectedRevision !== undefined ? { expectedRevision } : {}),
+    });
+    if (!mountedRef.current) return;
+    if (!res.ok) {
+      busyRef.current = false;
+      setBusy(false);
+      const errMsg = res.error?.message || t(lang, '清空学习偏好失败', 'Failed to clear preferences');
+      notify(errMsg, 'error');
+      if (res.error?.code === 'MEMORY_REVISION_CONFLICT' || /刷新后重试/.test(errMsg)) {
+        void loadProfile();
+      }
+      return;
+    }
+    setProfile((prev) =>
+      prev
+        ? {
+            ...prev,
+            preferences: [],
+            ...(typeof res.value?.memoryRevision === 'number' ? { memoryRevision: res.value.memoryRevision } : {}),
+          }
+        : prev,
+    );
+    setSelectedIndex(0);
+    busyRef.current = false;
+    setBusy(false);
+    notify(t(lang, '已清空学习偏好', 'Study preferences cleared'), 'success');
+  }, [busy, preferences.length, profile?.memoryRevision, host, lang, notify, loadProfile]);
 
   const handleCycleGoal = useCallback(async () => {
     if (busyRef.current || busy || loading || addMode) return;
@@ -282,6 +420,7 @@ export const CoachPreferencesModal = memo(function CoachPreferencesModal({
       if (!mountedRef.current) return;
     }
     setSelectedIndex(0);
+    setBulletSelectedIndex(0);
     busyRef.current = false;
     setBusy(false);
     notify(
@@ -291,8 +430,20 @@ export const CoachPreferencesModal = memo(function CoachPreferencesModal({
   }, [busy, host, lang, loadProfile, notify]);
 
   useInput(
-    (input) => {
+    (input, key) => {
       if (loading || busyRef.current || busy || addMode || confirmKind !== null) return;
+      if (key.tab) {
+        setActiveTab((prev) => (prev === 'prefs' ? 'bullets' : 'prefs'));
+        return;
+      }
+      if (input === '1') {
+        setActiveTab('prefs');
+        return;
+      }
+      if (input === '2') {
+        setActiveTab('bullets');
+        return;
+      }
       if (input === 'r') {
         setLoading(true);
         void loadProfile();
@@ -316,7 +467,15 @@ export const CoachPreferencesModal = memo(function CoachPreferencesModal({
         return;
       }
       if (input === 'a') {
-        if (preferences.length >= PREF_MAX_ITEMS) {
+        if (activeTab === 'bullets') {
+          if (bullets.length >= BULLET_MAX_ITEMS) {
+            notify(
+              t(lang, `记忆要点最多保存 ${BULLET_MAX_ITEMS} 条`, `Up to ${BULLET_MAX_ITEMS} memory bullets allowed`),
+              'warning',
+            );
+            return;
+          }
+        } else if (preferences.length >= PREF_MAX_ITEMS) {
           notify(
             t(lang, `学习偏好最多保存 ${PREF_MAX_ITEMS} 条`, `Up to ${PREF_MAX_ITEMS} preferences allowed`),
             'warning',
@@ -327,8 +486,14 @@ export const CoachPreferencesModal = memo(function CoachPreferencesModal({
         setAddMode(true);
         return;
       }
-      if (input === 'd' && selectedPref) {
-        void handleRemoveSelected();
+      if (input === 'd') {
+        if ((activeTab === 'bullets' && selectedBullet) || (activeTab === 'prefs' && selectedPref)) {
+          void handleRemoveSelected();
+        }
+        return;
+      }
+      if (input === 'x' && activeTab === 'prefs' && preferences.length > 0) {
+        void handleClearPrefs();
       }
     },
     { isActive: isActive && !loading && !busy && !addMode && confirmKind === null },
@@ -340,30 +505,35 @@ export const CoachPreferencesModal = memo(function CoachPreferencesModal({
   const bodyH = Math.max(8, frameH - 5);
   const summaryLinesCount = bodyH >= 15 ? 2 : 1;
   const addAreaRows = addMode ? 3 : 0;
-  // Budget: 1 (goal/consent) + 1 (signals) + summaryLinesCount + 1 (divider) + 1 (list title) + addAreaRows
+  // Budget: 1 (goal/consent) + 1 (signals) + summaryLinesCount + 1 (divider) + 1 (tab bar) + addAreaRows
   const listH = Math.max(3, bodyH - (4 + summaryLinesCount + addAreaRows));
   const ell = asciiMode ? '...' : '…';
 
   const hints = useMemo<KeyHint[]>(() => {
     if (addMode) {
       return [
-        { key: 'Enter', label: t(lang, '保存偏好', 'Save') },
+        { key: 'Enter', label: activeTab === 'bullets' ? t(lang, '保存要点', 'Save') : t(lang, '保存偏好', 'Save') },
         { key: 'Esc', label: t(lang, '取消输入', 'Cancel') },
       ];
     }
     const out: KeyHint[] = [
+      { key: 'Tab/1/2', label: t(lang, '切换', 'Tab') },
       { key: 'g', label: t(lang, '目标', 'Goal') },
       { key: 'p', label: t(lang, '备题', 'Prep') },
       { key: 'a', label: t(lang, '添加', 'Add') },
     ];
-    if (preferences.length > 0) {
+    const hasItems = activeTab === 'bullets' ? bullets.length > 0 : preferences.length > 0;
+    if (hasItems) {
       out.push({ key: 'd', label: t(lang, '删除', 'Del') });
+    }
+    if (activeTab === 'prefs' && preferences.length > 0) {
+      out.push({ key: 'x', label: t(lang, '清空', 'Clear') });
     }
     out.push({ key: 'F', label: t(lang, '重置', 'Reset') });
     out.push({ key: 'r', label: t(lang, '刷新', 'Refresh') });
     out.push({ key: 'Esc', label: t(lang, '关闭', 'Close') });
     return out;
-  }, [addMode, preferences.length, lang]);
+  }, [addMode, activeTab, bullets.length, preferences.length, lang]);
 
   const signalsText = useMemo(() => {
     const sig = profile?.signals;
@@ -404,13 +574,51 @@ export const CoachPreferencesModal = memo(function CoachPreferencesModal({
     [asciiMode, theme, ell],
   );
 
+  const renderBulletRow = useCallback(
+    (item: LearnerBulletItem, ctx: VirtualListRenderContext) => {
+      const marker = ctx.selected ? (asciiMode ? '>' : '▸') : asciiMode ? '-' : '•';
+      const prefix = `${marker} ${ctx.index + 1}. `;
+      const srcBadge = `[${formatBulletSource(item.source, lang)}]`;
+      const courseTag = item.course ? ` [${truncateDisplay(item.course, 14, ell)}]` : '';
+      const suffixW = displayWidth(` ${srcBadge}${courseTag}`);
+      const textBudget = Math.max(4, ctx.width - displayWidth(prefix) - suffixW);
+      const bodyText = truncateDisplay(item.text, textBudget, ell);
+      const srcColor =
+        item.source === 'user' ? theme.primary : item.source === 'retell' ? theme.accent : theme.info;
+      return (
+        <Box width={ctx.width} flexDirection="row" overflow="hidden">
+          <Text color={ctx.selected ? theme.selectionFg : theme.text} bold={ctx.selected} wrap="truncate-end">
+            {`${prefix}${bodyText}`}
+          </Text>
+          <Text color={srcColor} wrap="truncate-end">
+            {` ${srcBadge}`}
+          </Text>
+          {courseTag ? (
+            <Text color={theme.dim} wrap="truncate-end">
+              {courseTag}
+            </Text>
+          ) : null}
+        </Box>
+      );
+    },
+    [asciiMode, ell, lang, theme],
+  );
+
+  const activeMaxChars = activeTab === 'bullets' ? BULLET_MAX_CHARS : PREF_MAX_CHARS;
+
   return (
     <>
       <Modal
         title={t(lang, '学习者画像与长期偏好', 'Learner Profile & Preferences')}
         icon={asciiMode ? 'o' : '◎'}
         tone="primary"
-        subtitle={profile ? `${preferences.length}/${PREF_MAX_ITEMS}` : undefined}
+        subtitle={
+          profile
+            ? activeTab === 'bullets'
+              ? `${bullets.length}/${BULLET_MAX_ITEMS}`
+              : `${preferences.length}/${PREF_MAX_ITEMS}`
+            : undefined
+        }
         width={frameW}
         height={frameH}
         onClose={addMode || confirmKind !== null ? undefined : onClose}
@@ -473,55 +681,89 @@ export const CoachPreferencesModal = memo(function CoachPreferencesModal({
 
             <Divider width={innerW} />
 
-            {/* Preferences header */}
+            {/* 2-tab switcher: Preferences / Memory Bullets */}
             <Box height={1} flexDirection="row" justifyContent="space-between" overflow="hidden" flexShrink={0}>
-              <Text color={theme.heading} bold>
-                {t(lang, `长期学习偏好 (${preferences.length}/${PREF_MAX_ITEMS})`, `Study Preferences (${preferences.length}/${PREF_MAX_ITEMS})`)}
-              </Text>
-              <Text color={theme.dim} wrap="truncate-end">
-                {addMode
-                  ? t(lang, `输入中${ell}`, `Typing${ell}`)
-                  : t(lang, `[a] 添加  [d] 删除  [F] 重置画像`, `[a] Add  [d] Remove  [F] Reset`)}
-              </Text>
+              <Box gap={2} overflow="hidden">
+                <Text color={activeTab === 'prefs' ? theme.primary : theme.muted} bold={activeTab === 'prefs'} wrap="truncate-end">
+                  {t(lang, `[1] 学习偏好 (${preferences.length}/${PREF_MAX_ITEMS})`, `[1] Preferences (${preferences.length}/${PREF_MAX_ITEMS})`)}
+                </Text>
+                <Text color={activeTab === 'bullets' ? theme.primary : theme.muted} bold={activeTab === 'bullets'} wrap="truncate-end">
+                  {t(lang, `[2] 记忆要点 (${bullets.length})`, `[2] Memory Bullets (${bullets.length})`)}
+                </Text>
+              </Box>
+              <Box flexShrink={0}>
+                <Text color={theme.dim} wrap="truncate-end">
+                  {addMode ? t(lang, `输入中${ell}`, `Typing${ell}`) : t(lang, '[Tab] 切换', '[Tab] Switch')}
+                </Text>
+              </Box>
             </Box>
 
-            {/* Preferences VirtualList */}
+            {/* Active tab VirtualList */}
             <Box height={listH} flexDirection="column" overflow="hidden" flexShrink={0}>
-              <VirtualList
-                items={preferences}
-                width={innerW}
-                height={listH}
-                selectedIndex={selectedIndex}
-                onChange={setSelectedIndex}
-                isActive={isActive && !loading && !busy && !addMode && confirmKind === null}
-                keyExtractor={(item, idx) => `${idx}:${item}`}
-                emptyText={t(lang, '暂无自定义学习偏好', 'No study preferences yet')}
-                emptyHint={t(
-                  lang,
-                  '按 [a] 添加，例如“多举工程实例”或“先给直观直觉再写推导”',
-                  'Press [a] to add, e.g. "Prefer concrete engineering examples"',
-                )}
-                renderItem={renderPrefRow}
-              />
+              {activeTab === 'prefs' ? (
+                <VirtualList
+                  items={preferences}
+                  width={innerW}
+                  height={listH}
+                  selectedIndex={selectedIndex}
+                  onChange={setSelectedIndex}
+                  isActive={isActive && !loading && !busy && !addMode && confirmKind === null}
+                  keyExtractor={(item, idx) => `${idx}:${item}`}
+                  emptyText={t(lang, '暂无自定义学习偏好', 'No study preferences yet')}
+                  emptyHint={t(
+                    lang,
+                    '按 [a] 添加，例如“多举工程实例”或“先给直观直觉再写推导”',
+                    'Press [a] to add, e.g. "Prefer concrete engineering examples"',
+                  )}
+                  renderItem={renderPrefRow}
+                />
+              ) : (
+                <VirtualList
+                  items={bullets}
+                  width={innerW}
+                  height={listH}
+                  selectedIndex={bulletSelectedIndex}
+                  onChange={setBulletSelectedIndex}
+                  isActive={isActive && !loading && !busy && !addMode && confirmKind === null}
+                  keyExtractor={(item) => item.id}
+                  emptyText={t(lang, '暂无记忆要点', 'No memory bullets yet')}
+                  emptyHint={t(
+                    lang,
+                    '按 [a] 添加要点（0 token），或由本轮复盘 / 费曼复述自动沉淀',
+                    'Press [a] to add a bullet (0 tokens), or build from debrief / retell',
+                  )}
+                  renderItem={renderBulletRow}
+                />
+              )}
             </Box>
 
             {/* Inline Add Input */}
             {addMode ? (
               <Box height={3} flexDirection="column" overflow="hidden" flexShrink={0}>
                 <Text color={theme.primary} bold wrap="truncate-end">
-                  {t(
-                    lang,
-                    `新增偏好（≤${PREF_MAX_CHARS}字，Enter 保存 / Esc 取消）：`,
-                    `New preference (<=${PREF_MAX_CHARS} chars, Enter save / Esc cancel):`,
-                  )}
+                  {activeTab === 'bullets'
+                    ? t(
+                        lang,
+                        `新增要点（≤${BULLET_MAX_CHARS}字，Enter 保存 / Esc 取消）：`,
+                        `New memory bullet (<=${BULLET_MAX_CHARS} chars, Enter save / Esc cancel):`,
+                      )
+                    : t(
+                        lang,
+                        `新增偏好（≤${PREF_MAX_CHARS}字，Enter 保存 / Esc 取消）：`,
+                        `New preference (<=${PREF_MAX_CHARS} chars, Enter save / Esc cancel):`,
+                      )}
                 </Text>
                 <TextInput
                   value={draftText}
                   onChange={setDraftText}
-                  placeholder={t(lang, `输入长期学习偏好${ell}`, `Enter a long-term study preference${ell}`)}
+                  placeholder={
+                    activeTab === 'bullets'
+                      ? t(lang, `输入一条学习记忆要点${ell}`, `Enter a learner memory bullet${ell}`)
+                      : t(lang, `输入长期学习偏好${ell}`, `Enter a long-term study preference${ell}`)
+                  }
                   isActive={isActive && addMode && !busy}
                   width={Math.max(10, innerW - 4)}
-                  maxLength={PREF_MAX_CHARS}
+                  maxLength={activeMaxChars}
                   onSubmit={(val) => void handleAddSubmit(val)}
                   onCancel={() => {
                     setAddMode(false);
@@ -529,7 +771,7 @@ export const CoachPreferencesModal = memo(function CoachPreferencesModal({
                   }}
                 />
                 <Text color={theme.dim} wrap="truncate-end">
-                  {`${draftText.trim().length}/${PREF_MAX_CHARS}`}
+                  {`${draftText.trim().length}/${activeMaxChars}`}
                 </Text>
               </Box>
             ) : null}

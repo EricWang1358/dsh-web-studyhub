@@ -84,6 +84,9 @@ type ConfirmState =
       title: string;
       movedCount: number;
       remainingCount: number;
+    }
+  | {
+      kind: 'suggest-merge';
     };
 
 export interface DeckOpsModalProps {
@@ -289,6 +292,9 @@ export const DeckOpsModal = memo(function DeckOpsModal({
   const [mergeIndex, setMergeIndex] = useState(0);
   const [mergeDirection, setMergeDirection] = useState<'into-other' | 'into-selected'>('into-other');
   const [mergeSuggestions, setMergeSuggestions] = useState<MergeSuggestionProposal[]>([]);
+  const [suggestBusy, setSuggestBusy] = useState(false);
+  const [suggestNotice, setSuggestNotice] = useState<string | null>(null);
+  const suggestBusyRef = useRef(false);
 
   // Tab 3: Split
   const [splitLoading, setSplitLoading] = useState(false);
@@ -505,30 +511,6 @@ export const DeckOpsModal = memo(function DeckOpsModal({
     });
   }, [snapshot?.decks, selectedDeck]);
 
-  // Non-blocking AI merge suggestions when Tab 2 (merge) is opened
-  useEffect(() => {
-    if (!isActive || tab !== 'merge') return;
-    let alive = true;
-    void host
-      .call<DeckMergeSuggestResponse>('deck.merge.suggest', {})
-      .then((res) => {
-        if (!alive || !mountedRef.current) return;
-        if (res.ok && Array.isArray(res.value?.proposals)) {
-          setMergeSuggestions(
-            res.value.proposals.filter((p) => p && p.targetId && Array.isArray(p.sourceIds) && p.sourceIds.length > 0),
-          );
-        } else {
-          setMergeSuggestions([]);
-        }
-      })
-      .catch(() => {
-        // Silently ignore errors or unavailable AI provider
-      });
-    return () => {
-      alive = false;
-    };
-  }, [host, isActive, tab]);
-
   const topMergeSuggestion = useMemo(() => {
     if (mergeSuggestions.length === 0) return null;
     if (selectedDeck) {
@@ -554,7 +536,9 @@ export const DeckOpsModal = memo(function DeckOpsModal({
     const pair = [...sources, target].filter(Boolean).join(' + ');
     const reason = topMergeSuggestion.reason ? ` (${topMergeSuggestion.reason})` : '';
     const prefix = asciiMode ? '* ' : '✦ ';
-    return `${prefix}${t(lang, '建议合并', 'Suggested merge')}: ${pair}${reason}`;
+    const applyHint = t(lang, '[a] 应用建议', '[a] Apply');
+    const sep = asciiMode ? ' - ' : ' · ';
+    return `${prefix}${applyHint}${sep}${t(lang, '建议合并', 'Suggested merge')}: ${pair}${reason}`;
   }, [topMergeSuggestion, snapshot?.decks, asciiMode, lang]);
 
   useEffect(() => {
@@ -701,7 +685,59 @@ export const DeckOpsModal = memo(function DeckOpsModal({
   const handleConfirmExecute = useCallback(async () => {
     const req = confirmState;
     setConfirmState(null);
-    if (!req || busy) return;
+    if (!req || busy || suggestBusyRef.current) return;
+    if (req.kind === 'suggest-merge') {
+      suggestBusyRef.current = true;
+      setSuggestBusy(true);
+      setSuggestNotice(null);
+      setError('');
+      try {
+        const res = await tryAction<DeckMergeSuggestResponse>(host, 'deck.merge.suggest', {});
+        if (!mountedRef.current) return;
+        if (!res.ok) {
+          const msg = res.error?.message || t(lang, '生成合并建议失败', 'Failed to suggest merges');
+          setError(msg);
+          notify(msg, 'error');
+          return;
+        }
+        const method = res.value?.method;
+        if (method === 'too-few-decks') {
+          const msg = t(lang, '当前课程至少需要 2 个题组才能分析合并建议', 'Need at least 2 decks in course to suggest merges');
+          setMergeSuggestions([]);
+          setSuggestNotice(msg);
+          notify(msg, 'info');
+          return;
+        }
+        if (method === 'unavailable') {
+          const msg = t(lang, '未配置可用模型，无法生成合并建议', 'No model available for merge suggestions');
+          setMergeSuggestions([]);
+          setSuggestNotice(msg);
+          notify(msg, 'warning');
+          return;
+        }
+        const proposals = Array.isArray(res.value?.proposals)
+          ? res.value.proposals.filter((p) => p && p.targetId && Array.isArray(p.sourceIds) && p.sourceIds.length > 0)
+          : [];
+        setMergeSuggestions(proposals);
+        if (proposals.length > 0) {
+          const msg = t(
+            lang,
+            `找到 ${proposals.length} 条合并建议（按 [a] 应用首条建议）`,
+            `Found ${proposals.length} merge suggestion(s) (press [a] to apply top)`,
+          );
+          setSuggestNotice(msg);
+          notify(msg, 'success');
+        } else {
+          const msg = t(lang, '当前题组主题区分清晰，暂无推荐合并', 'No duplicate decks detected');
+          setSuggestNotice(msg);
+          notify(msg, 'info');
+        }
+      } finally {
+        suggestBusyRef.current = false;
+        if (mountedRef.current) setSuggestBusy(false);
+      }
+      return;
+    }
     setBusy(true);
     setError('');
     if (req.kind === 'merge') {
@@ -811,8 +847,36 @@ export const DeckOpsModal = memo(function DeckOpsModal({
       }
 
       if (tab === 'merge') {
+        if (!selectedDeck || !isOrdinaryActiveDeck(selectedDeck)) return;
         if (input === 's' || input === 'd') {
           setMergeDirection((d) => (d === 'into-other' ? 'into-selected' : 'into-other'));
+          return;
+        }
+        if (input === 'g') {
+          if (suggestBusyRef.current || busy || confirmState) return;
+          setError('');
+          setConfirmState({ kind: 'suggest-merge' });
+          return;
+        }
+        if (input === 'a' && topMergeSuggestion) {
+          if (suggestBusyRef.current || busy || confirmState) return;
+          const sourceId = topMergeSuggestion.sourceIds[0];
+          const targetId = topMergeSuggestion.targetId;
+          const decks = snapshot?.decks ?? [];
+          const source = decks.find((d) => d.id === sourceId && isOrdinaryActiveDeck(d));
+          const target = decks.find((d) => d.id === targetId && isOrdinaryActiveDeck(d));
+          if (!source || !target || source.id === target.id) {
+            setError(t(lang, '建议中的题组已变更，请按 [g] 重新分析', 'Suggested decks changed; press [g] to re-run'));
+            return;
+          }
+          setError('');
+          setConfirmState({
+            kind: 'merge',
+            source,
+            target,
+            sourceCount: deckCardCount(source, progressMap),
+            targetCount: deckCardCount(target, progressMap),
+          });
         }
         return;
       }
@@ -854,8 +918,10 @@ export const DeckOpsModal = memo(function DeckOpsModal({
     }
     if (tab === 'merge') {
       return [
-        { key: '1-3/Tab', label: t(lang, '切页', 'Tabs') },
-        { key: 's', label: t(lang, '切换方向', 'Direction') },
+        { key: '1-3', label: t(lang, '切页', 'Tabs') },
+        { key: 's', label: t(lang, '换向', 'Flip') },
+        { key: 'g', label: t(lang, 'AI合并建议', 'AI Suggest') },
+        ...(topMergeSuggestion ? [{ key: 'a', label: t(lang, '应用建议', 'Apply') }] : []),
         { key: 'Enter', label: t(lang, '合并', 'Merge') },
         { key: 'Esc', label: t(lang, '关闭', 'Close') },
       ];
@@ -872,15 +938,15 @@ export const DeckOpsModal = memo(function DeckOpsModal({
       { key: 'Enter', label: t(lang, '下一步', 'Next') },
       { key: 'Esc', label: t(lang, '关闭', 'Close') },
     ];
-  }, [tab, importFocus, splitFocus, lang, asciiMode]);
+  }, [tab, importFocus, splitFocus, topMergeSuggestion, lang, asciiMode]);
 
   const renderMergeRow = useCallback(
     (item: DeckItem, ctx: VirtualListRenderContext) => {
       const countStr = ` ${deckCardCount(item, progressMap)}${t(lang, '题', 'c')}`;
       const draftTag = editingDraftDeckIds.has(item.id) ? (lang === 'en' ? ' [draft]' : ' [草稿]') : '';
-      const courseTag = item.course ? ` [${truncateDisplay(item.course, 12)}]` : '';
+      const courseTag = item.course ? ` [${truncateDisplay(item.course, 12, ell)}]` : '';
       const avail = Math.max(8, ctx.width - displayWidth(courseTag) - displayWidth(draftTag) - displayWidth(countStr));
-      const titleText = padDisplay(truncateDisplay(deckLabel(item), avail), avail);
+      const titleText = padDisplay(truncateDisplay(deckLabel(item), avail, ell), avail);
       const fg = ctx.selected ? theme.selectionFg : theme.text;
       return (
         <Text color={fg} bold={ctx.selected}>
@@ -891,7 +957,7 @@ export const DeckOpsModal = memo(function DeckOpsModal({
         </Text>
       );
     },
-    [progressMap, lang, editingDraftDeckIds, theme],
+    [progressMap, lang, editingDraftDeckIds, theme, ell],
   );
 
   const renderTopicRow = useCallback(
@@ -900,7 +966,7 @@ export const DeckOpsModal = memo(function DeckOpsModal({
       const box = checked ? (asciiMode ? '[x] ' : '[✓] ') : '[ ] ';
       const countStr = ` ${item.count}${t(lang, '题', 'c')}`;
       const avail = Math.max(6, ctx.width - box.length - displayWidth(countStr));
-      const label = padDisplay(truncateDisplay(item.topic, avail), avail);
+      const label = padDisplay(truncateDisplay(item.topic, avail, ell), avail);
       const fg = ctx.selected ? theme.selectionFg : checked ? theme.primary : theme.text;
       return (
         <Text color={fg} bold={ctx.selected || checked}>
@@ -910,7 +976,7 @@ export const DeckOpsModal = memo(function DeckOpsModal({
         </Text>
       );
     },
-    [selectedTopics, asciiMode, lang, theme],
+    [selectedTopics, asciiMode, lang, theme, ell],
   );
 
   const tabSpecs: Array<{ id: DeckOpsTab; key: string; label: string }> = [
@@ -919,7 +985,7 @@ export const DeckOpsModal = memo(function DeckOpsModal({
     { id: 'split', key: '3', label: t(lang, '拆分题组', 'Split') },
   ];
 
-  const mergeListH = Math.max(4, bodyH - (error ? 3 : 2) - (topMergeSuggestion ? 1 : 0));
+  const mergeListH = Math.max(4, bodyH - (error ? 4 : 3));
   const splitListH = Math.max(4, bodyH - (error ? 6 : 5));
   const arrowGlyph = asciiMode ? '->' : '→';
   const promptGlyph = asciiMode ? '>' : '›';
@@ -930,7 +996,7 @@ export const DeckOpsModal = memo(function DeckOpsModal({
       <Modal
         title={t(lang, '题组操作中心', 'Deck Operations')}
         icon={asciiMode ? '+' : '◈'}
-        subtitle={selectedDeck ? truncateDisplay(deckLabel(selectedDeck), 26) : undefined}
+        subtitle={selectedDeck ? truncateDisplay(deckLabel(selectedDeck), 26, ell) : undefined}
         width={frameW}
         height={frameH}
         onClose={onClose}
@@ -1082,7 +1148,7 @@ export const DeckOpsModal = memo(function DeckOpsModal({
                       <>
                         {t(lang, '将', 'Merge')}{' '}
                         <Text color={theme.accent} bold>
-                          {truncateDisplay(deckLabel(selectedDeck), 22)}
+                          {truncateDisplay(deckLabel(selectedDeck), 22, ell)}
                         </Text>{' '}
                         {arrowGlyph} {t(lang, '并入下方所选目标题组 (s 换向)', 'into selected target (s flip)')}
                       </>
@@ -1090,7 +1156,7 @@ export const DeckOpsModal = memo(function DeckOpsModal({
                       <>
                         {t(lang, '将下方所选来源题组', 'Merge selected source')} {arrowGlyph}{' '}
                         <Text color={theme.accent} bold>
-                          {truncateDisplay(deckLabel(selectedDeck), 22)}
+                          {truncateDisplay(deckLabel(selectedDeck), 22, ell)}
                         </Text>{' '}
                         {t(lang, '(s 换向)', '(s flip)')}
                       </>
@@ -1100,13 +1166,34 @@ export const DeckOpsModal = memo(function DeckOpsModal({
                 <Box height={1} flexShrink={0}>
                   <Text color={theme.border}>{sepLine}</Text>
                 </Box>
-                {topMergeSuggestion ? (
-                  <Box height={1} overflow="hidden">
+                <Box height={1} overflow="hidden">
+                  {suggestBusy ? (
+                    <Spinner
+                      label={t(lang, `正在分析题组合并建议${ell}`, `Analyzing deck merge suggestions${ell}`)}
+                      active={isActive}
+                    />
+                  ) : topMergeSuggestion ? (
                     <Text color={theme.ai} wrap="truncate-end">
-                      {truncateDisplay(mergeSuggestionBannerText, innerW, asciiMode ? '...' : '…')}
+                      {truncateDisplay(mergeSuggestionBannerText, innerW, ell)}
                     </Text>
-                  </Box>
-                ) : null}
+                  ) : suggestNotice ? (
+                    <Text color={theme.muted} wrap="truncate-end">
+                      {truncateDisplay(suggestNotice, innerW, ell)}
+                    </Text>
+                  ) : (
+                    <Text color={theme.dim} wrap="truncate-end">
+                      {truncateDisplay(
+                        t(
+                          lang,
+                          '按 [g] AI合并建议 (发送题组标题与主题给模型分析)',
+                          'Press [g] AI Suggest (analyzes deck titles & topics)',
+                        ),
+                        innerW,
+                        ell,
+                      )}
+                    </Text>
+                  )}
+                </Box>
                 <VirtualList
                   items={mergeCandidates}
                   height={mergeListH}
@@ -1231,7 +1318,9 @@ export const DeckOpsModal = memo(function DeckOpsModal({
           title={
             confirmState.kind === 'merge'
               ? t(lang, '确认合并题组', 'Confirm Merge Decks')
-              : t(lang, '确认拆分题组', 'Confirm Split Deck')
+              : confirmState.kind === 'split'
+                ? t(lang, '确认拆分题组', 'Confirm Split Deck')
+                : t(lang, 'AI 分析并推荐题组合并', 'AI Suggest Deck Merges')
           }
           message={
             confirmState.kind === 'merge'
@@ -1240,13 +1329,25 @@ export const DeckOpsModal = memo(function DeckOpsModal({
                   `将「${deckLabel(confirmState.source)}」(${confirmState.sourceCount} 题) 合并入「${deckLabel(confirmState.target)}」(${confirmState.targetCount} 题)？来源题组将被移除，所有题目与学习记录全部保留。`,
                   `Merge "${deckLabel(confirmState.source)}" (${confirmState.sourceCount} cards) into "${deckLabel(confirmState.target)}" (${confirmState.targetCount} cards)? The source deck will be removed; all cards and history stay.`,
                 )
-              : t(
-                  lang,
-                  `从「${confirmState.deck.title}」拆出 ${confirmState.movedCount} 题到新题组「${confirmState.title}」？原题组将保留 ${confirmState.remainingCount} 题。`,
-                  `Split ${confirmState.movedCount} cards from "${confirmState.deck.title}" into new deck "${confirmState.title}"? ${confirmState.remainingCount} cards will stay in source.`,
-                )
+              : confirmState.kind === 'split'
+                ? t(
+                    lang,
+                    `从「${confirmState.deck.title}」拆出 ${confirmState.movedCount} 题到新题组「${confirmState.title}」？原题组将保留 ${confirmState.remainingCount} 题。`,
+                    `Split ${confirmState.movedCount} cards from "${confirmState.deck.title}" into new deck "${confirmState.title}"? ${confirmState.remainingCount} cards will stay in source.`,
+                  )
+                : t(
+                    lang,
+                    '将把当前课程的题组标题与主题名称发送给已配置模型（deck.merge.suggest），用于分析相近或重复题组；实际合并前仍需你确认。',
+                    'Send current course deck titles and topic names to the configured model (deck.merge.suggest) to suggest near-duplicate merges. You will confirm before any merge runs.',
+                  )
           }
-          confirmLabel={confirmState.kind === 'merge' ? t(lang, '确认合并', 'Merge') : t(lang, '确认拆分', 'Split')}
+          confirmLabel={
+            confirmState.kind === 'merge'
+              ? t(lang, '确认合并', 'Merge')
+              : confirmState.kind === 'split'
+                ? t(lang, '确认拆分', 'Split')
+                : t(lang, '开始分析', 'Suggest')
+          }
           cancelLabel={t(lang, '取消', 'Cancel')}
           isActive={isActive}
           onConfirm={() => {
