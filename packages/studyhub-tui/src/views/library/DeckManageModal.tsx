@@ -55,7 +55,7 @@ export interface DeckManageModalProps {
   onUpdated?: () => void;
 }
 
-type ModalMode = 'browse' | 'search' | 'rename' | 'folder' | 'topic' | 'supplement' | 'convert';
+type ModalMode = 'browse' | 'search' | 'rename' | 'folder' | 'topic' | 'link' | 'supplement' | 'convert';
 
 const SUPPLEMENT_COUNTS = [3, 5, 10, 15] as const;
 const SUPPLEMENT_KINDS = ['mixed', 'quiz', 'multi', 'truefalse', 'flashcard', 'open', 'cloze'] as const;
@@ -383,7 +383,13 @@ export const DeckManageModal = memo(function DeckManageModal({
     setSelectedIds(new Set());
     setConfirmBatchSlay(false);
     setTopicValue('');
+    setLinkPrereqCursor(0);
+    setLinkError('');
   }, [deckId]);
+
+  // Batch prerequisite link sub-mode state ([L])
+  const [linkPrereqCursor, setLinkPrereqCursor] = useState(0);
+  const [linkError, setLinkError] = useState('');
 
   // Supplement sub-mode state ([+])
   const [suppSelectedIds, setSuppSelectedIds] = useState<Set<string>>(() => new Set());
@@ -475,6 +481,17 @@ export const DeckManageModal = memo(function DeckManageModal({
   }, [filteredCards.length, selectedIndex]);
 
   const selectedCard = filteredCards[selectedIndex] ?? null;
+
+  const linkCandidates = useMemo(() => {
+    const cards = deck?.cards ?? [];
+    return cards.filter((c) => !selectedIds.has(c.id));
+  }, [deck?.cards, selectedIds]);
+
+  useEffect(() => {
+    if (linkPrereqCursor >= linkCandidates.length) {
+      setLinkPrereqCursor(Math.max(0, linkCandidates.length - 1));
+    }
+  }, [linkCandidates.length, linkPrereqCursor]);
 
   // Available active sources sorted course-matched first for [+] supplement
   const availableDocs = useMemo<DocumentGroup[]>(() => {
@@ -911,6 +928,82 @@ export const DeckManageModal = memo(function DeckManageModal({
     [busy, deck, selectedIds, host, notify, lang, reloadDeck, refreshSnapshot, onUpdated],
   );
 
+  const handleBatchLinkSubmit = useCallback(
+    async (prereq: DeckCardItem) => {
+      if (busyRef.current || busy || !deck || deck.systemKind || selectedIds.size === 0) return;
+      const links = [...selectedIds]
+        .filter((id) => id !== prereq.id)
+        .map((cardId) => ({
+          deckId: deck.id,
+          cardId,
+          requires: { deckId: deck.id, cardId: prereq.id },
+        }));
+      if (links.length === 0) {
+        setLinkError(
+          t(lang, '没有可关联的目标题目（不能将题目设为自身前置）', 'No target cards to link (cannot link a card to itself)'),
+        );
+        return;
+      }
+      busyRef.current = true;
+      setBusy(true);
+      setLinkError('');
+      try {
+        const res = await tryAction<{
+          linked?: number;
+          failed?: number;
+          results?: Array<{ index?: number; cardId?: string; requires?: string; ok: boolean; error?: string }>;
+        }>(host, 'card.link.batch', { links });
+        if (!mountedRef.current) return;
+        if (!res.ok) {
+          const msg = res.error?.message || t(lang, '批量关联前置题失败', 'Batch prerequisite linking failed');
+          setLinkError(msg);
+          notify(msg, 'error');
+          return;
+        }
+        const linkedCount = typeof res.value?.linked === 'number' ? res.value.linked : 0;
+        const failedCount = typeof res.value?.failed === 'number' ? res.value.failed : 0;
+        if (linkedCount === 0) {
+          const firstErr = res.value?.results?.find((r) => !r.ok && r.error)?.error;
+          const msg = firstErr || t(lang, '批量关联前置题失败', 'Batch prerequisite linking failed');
+          setLinkError(msg);
+          notify(msg, 'error');
+          return;
+        }
+        setSelectedIds(new Set());
+        setLinkPrereqCursor(0);
+        setLinkError('');
+        await reloadDeck();
+        await refreshSnapshot();
+        if (!mountedRef.current) return;
+        onUpdated?.();
+        setMode('browse');
+        const prereqLabel = truncateDisplay(
+          String(prereq.prompt || prereq.cloze?.text || prereq.id).replace(/\s+/g, ' ').trim(),
+          28,
+          ell,
+        );
+        notify(
+          failedCount > 0
+            ? t(
+                lang,
+                `已为 ${linkedCount} 题关联前置「${prereqLabel}」（${failedCount} 题失败）`,
+                `Linked ${linkedCount} card(s) to prerequisite "${prereqLabel}" (${failedCount} failed)`,
+              )
+            : t(
+                lang,
+                `已为 ${linkedCount} 题关联前置「${prereqLabel}」`,
+                `Linked ${linkedCount} card(s) to prerequisite "${prereqLabel}"`,
+              ),
+          failedCount > 0 ? 'warning' : 'success',
+        );
+      } finally {
+        busyRef.current = false;
+        if (mountedRef.current) setBusy(false);
+      }
+    },
+    [busy, deck, selectedIds, host, notify, lang, reloadDeck, refreshSnapshot, onUpdated, ell],
+  );
+
   const handleFolderSubmit = useCallback(
     async (raw: string) => {
       if (busyRef.current || busy || !deck) {
@@ -1138,6 +1231,14 @@ export const DeckManageModal = memo(function DeckManageModal({
           setTopicValue('');
           setMode('topic');
         }
+      } else if (!key.ctrl && !key.meta && input === 'L' && selectedIds.size > 0) {
+        if (deck.systemKind) {
+          notify(t(lang, '系统题组不支持批量关联前置', 'System decks do not support batch prerequisite linking'), 'warning');
+        } else {
+          setLinkPrereqCursor(0);
+          setLinkError('');
+          setMode('link');
+        }
       } else if (!key.ctrl && !key.meta && input === 'X' && selectedIds.size > 0) {
         if (deck.systemKind) {
           notify(t(lang, '系统题组不支持批量斩题', 'System decks do not support batch slay'), 'warning');
@@ -1200,7 +1301,13 @@ export const DeckManageModal = memo(function DeckManageModal({
                   { key: 'Enter', label: t(lang, '应用主题', 'Apply') },
                   { key: 'Esc', label: t(lang, '取消', 'Cancel') },
                 ]
-              : mode === 'supplement'
+              : mode === 'link'
+                ? [
+                    { key: 'j/k', label: t(lang, '移动', 'Move') },
+                    { key: 'Enter', label: t(lang, '确认关联', 'Link') },
+                    { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+                  ]
+                : mode === 'supplement'
             ? suppJobResult
               ? [
                   { key: 't', label: t(lang, '查看任务', 'View Tasks') },
@@ -1233,6 +1340,7 @@ export const DeckManageModal = memo(function DeckManageModal({
                     { key: 'F', label: t(lang, '重点', 'Focus') },
                     ...(!isSlainDeck ? [{ key: 'S', label: t(lang, '暂停/恢复', 'Suspend') }] : []),
                     ...(!deck?.systemKind ? [{ key: 'T', label: t(lang, '改主题', 'Topic') }] : []),
+                    ...(!deck?.systemKind ? [{ key: 'L', label: t(lang, '前置', 'Link') }] : []),
                     ...(!deck?.systemKind ? [{ key: 'X', label: t(lang, '斩题', 'Slay') }] : []),
                     { key: 'x', label: t(lang, '清空', 'Clear') },
                     { key: 'Esc', label: t(lang, '关闭', 'Close') },
@@ -1308,6 +1416,7 @@ export const DeckManageModal = memo(function DeckManageModal({
   );
 
   const handleModalClose = useCallback(() => {
+    if (busyRef.current) return;
     if (mode === 'browse') {
       onClose();
       return;
@@ -1318,6 +1427,8 @@ export const DeckManageModal = memo(function DeckManageModal({
     }
     setSuppError('');
     setSuppJobResult(null);
+    setLinkError('');
+    setLinkPrereqCursor(0);
     setConvertError('');
     setConvertEditActive(false);
     setMode('browse');
@@ -1326,11 +1437,13 @@ export const DeckManageModal = memo(function DeckManageModal({
   const modalTitle =
     mode === 'supplement'
       ? `${t(lang, '题组补题', 'Supplement Deck')}: ${deck?.title || ''}`
-      : mode === 'convert'
-        ? t(lang, '转换题型', 'Convert Card Kind')
-        : deck?.title
-          ? `${t(lang, '题组管理', 'Manage Deck')}: ${deck.title}`
-          : t(lang, '题组管理', 'Manage Deck');
+      : mode === 'link'
+        ? `${t(lang, '批量关联前置题', 'Batch Link Prerequisite')}: ${deck?.title || ''}`
+        : mode === 'convert'
+          ? t(lang, '转换题型', 'Convert Card Kind')
+          : deck?.title
+            ? `${t(lang, '题组管理', 'Manage Deck')}: ${deck.title}`
+            : t(lang, '题组管理', 'Manage Deck');
 
   return (
     <>
@@ -1340,16 +1453,18 @@ export const DeckManageModal = memo(function DeckManageModal({
         subtitle={
           mode === 'supplement'
             ? `${suppSelectedIds.size} ${t(lang, '页已选', 'pg')}`
-            : mode === 'convert' && selectedCard
-              ? `${kindLabel(selectedCard.kind, lang)} -> ${kindLabel(convertTargetKind, lang)}`
-              : deck
-                ? `${filteredCards.length}/${deck.cards.length} ${t(lang, '题', 'cards')}${selectedIds.size > 0 ? ` · [${t(lang, `已选 ${selectedIds.size}`, `${selectedIds.size} sel`)}]` : ''}`
-                : undefined
+            : mode === 'link'
+              ? `${selectedIds.size} ${t(lang, '题待关联', 'sel')}`
+              : mode === 'convert' && selectedCard
+                ? `${kindLabel(selectedCard.kind, lang)} -> ${kindLabel(convertTargetKind, lang)}`
+                : deck
+                  ? `${filteredCards.length}/${deck.cards.length} ${t(lang, '题', 'cards')}${selectedIds.size > 0 ? ` · [${t(lang, `已选 ${selectedIds.size}`, `${selectedIds.size} sel`)}]` : ''}`
+                  : undefined
         }
         width={frameW}
         height={frameH}
         onClose={handleModalClose}
-        isActive={isActive && !confirmBatchSlay && (mode === 'browse' || mode === 'supplement' || (mode === 'convert' && !convertEditActive))}
+        isActive={isActive && !confirmBatchSlay && (mode === 'browse' || mode === 'link' || mode === 'supplement' || (mode === 'convert' && !convertEditActive))}
         hints={hints}
       >
       {mode === 'search' ? (
@@ -1445,7 +1560,11 @@ export const DeckManageModal = memo(function DeckManageModal({
                     ? t(lang, '[F]重点  [x]清空', '[F]Focus  [x]Clear')
                     : deck?.systemKind
                       ? t(lang, '[F]重点  [S]暂停/恢复  [x]清空', '[F]Focus  [S]Suspend  [x]Clear')
-                      : t(lang, '[F]重点  [S]暂停/恢复  [T]改主题  [X]斩题  [x]清空', '[F]Focus  [S]Suspend  [T]Topic  [X]Slay  [x]Clear'),
+                      : t(
+                          lang,
+                          '[F]重点  [S]暂停/恢复  [T]改主题  [L]前置  [X]斩题  [x]清空',
+                          '[F]Focus  [S]Suspend  [T]Topic  [L]Link  [X]Slay  [x]Clear',
+                        ),
                   Math.max(10, innerW - 14),
                   ell,
                 )}
@@ -1699,6 +1818,69 @@ export const DeckManageModal = memo(function DeckManageModal({
               <Spinner label={t(lang, `正在转换题型${ell}`, `Converting card kind${ell}`)} active={isActive} />
             </Box>
           ) : null}
+        </Box>
+      ) : mode === 'link' ? (
+        <Box flexDirection="column" height={bodyH} width={innerW} overflow="hidden">
+          <Box flexDirection="row" height={1} alignItems="center" gap={1}>
+            <Badge label={t(lang, `已选 ${selectedIds.size} 题`, `${selectedIds.size} selected`)} tone="primary" variant="soft" />
+            <Text color={theme.accent} bold>
+              {truncateDisplay(
+                t(lang, '选择前置题目 (所选题将依赖它)', 'Pick prerequisite card (selected cards will require it)'),
+                Math.max(10, innerW - (busy ? 28 : 16)),
+                ell,
+              )}
+            </Text>
+            <Box flexGrow={1} />
+            {busy ? <Spinner label={t(lang, `关联中${ell}`, `Linking${ell}`)} active={isActive} /> : null}
+          </Box>
+          <Box height={1}>
+            <Text color={theme.dim}>
+              {truncateDisplay(
+                t(lang, '使用 [j/k] 选择前置题，按 [Enter] 确认关联，[Esc] 取消', 'Use [j/k] to choose prerequisite, [Enter] to link, [Esc] to cancel'),
+                innerW,
+                ell,
+              )}
+            </Text>
+          </Box>
+          {linkError ? (
+            <Box height={1}>
+              <Text color={theme.error}>{truncateDisplay(linkError, innerW, ell)}</Text>
+            </Box>
+          ) : null}
+          <Divider width={innerW} />
+          <VirtualList
+            items={linkCandidates}
+            height={Math.max(3, bodyH - 3 - (linkError ? 1 : 0))}
+            width={innerW}
+            selectedIndex={linkPrereqCursor}
+            onChange={(idx) => setLinkPrereqCursor(idx)}
+            onSelect={(card) => {
+              void handleBatchLinkSubmit(card);
+            }}
+            isActive={isActive && mode === 'link' && !busy}
+            keyExtractor={(c) => c.id}
+            emptyText={t(lang, '没有可选的前置题目', 'No candidate prerequisite cards')}
+            emptyHint={t(lang, '按 [Esc] 返回并保留至少 1 道未选题目作为前置', 'Press [Esc] to return and leave at least 1 unselected card as prerequisite')}
+            renderItem={(card, ctx) => {
+              const num = `${String(ctx.index + 1).padStart(2, ' ')}.`;
+              const kind = `[${kindLabel(card.kind, lang)}]`;
+              const foc = card.focus ? (asciiMode ? ' *' : ' ★') : '';
+              const topic = card.topic ? `${truncateDisplay(card.topic, 14, ell)}${asciiMode ? ' - ' : ' · '}` : '';
+              const prefix = `${num} ${kind} `;
+              const avail = Math.max(6, ctx.width - displayWidth(prefix) - displayWidth(foc));
+              const stem = `${topic}${String(card.prompt || card.cloze?.text || '').replace(/\s+/g, ' ')}`;
+              const line = padDisplay(truncateDisplay(stem, avail, ell), avail);
+              const fg = ctx.selected ? theme.selectionFg : theme.text;
+              return (
+                <Box flexDirection="row" width={ctx.width}>
+                  <Text color={ctx.selected ? theme.selectionFg : theme.muted}>{num} </Text>
+                  <Text color={ctx.selected ? theme.selectionFg : theme.accent}>{kind} </Text>
+                  <Text color={fg} bold={ctx.selected}>{line}</Text>
+                  {foc ? <Text color={ctx.selected ? theme.selectionFg : theme.primary}>{foc}</Text> : null}
+                </Box>
+              );
+            }}
+          />
         </Box>
       ) : (
         <Box flexDirection="column" flexGrow={1} overflow="hidden">

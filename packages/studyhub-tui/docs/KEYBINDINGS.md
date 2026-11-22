@@ -93,7 +93,7 @@ Inside the palette: `↑`/`↓`, `Ctrl+P`/`Ctrl+N`, or `Ctrl+J`/`Ctrl+K` move se
 ### `1` Library (`library`)
 - **Practice & Rounds**: `Enter` start deck / open work item · `R` custom round configurator (`RoundConfigModal`) · `r` resume or start review · `p` daily plan · `g` AI Guided Study
 - **Deck & Course Ops**: `o` deck import / merge / split (`DeckOpsModal`) · `[` / `]` reorder selected deck up / down · `C` course settings (tabs `1-4`: `m` merge course, `a` activate/deactivate course; Terms tab: `Space` toggle term mark, `C` clear all terms, `/` filter) · `v` voice pack · `a` archive/unarchive · `d` delete deck · `h` show/hide archived · `s` load/remove sample course · `Tab` toggle Decks / Drafts & Failed Jobs (`y` retries failed job)
-- **Deck Card Manager (`m`)**: `+` supplement cards · `k` convert card kind · `u` restore slain card (Slain deck / slain card) · `m` move deck to folder (non-system decks) · `Space` multi-select (up to 100) · `F` batch focus · `S` batch suspend · `T` batch retag topic · `X` batch slay · `x` clear selection · `/` or `f` search · `c` clear search · `n` rename · `e` open draft · `p` practise deck
+- **Deck Card Manager (`m`)**: `+` supplement cards · `k` convert card kind · `u` restore slain card (Slain deck / slain card) · `m` move deck to folder (non-system decks) · `Space` multi-select (up to 100) · `F` batch focus · `S` batch suspend · `T` batch retag topic · `L` batch link prerequisite · `X` batch slay · `x` clear selection · `/` or `f` search · `c` clear search · `n` rename · `e` open draft · `p` practise deck
 
 ### `r` Review (`review`)
 - **Answering**: `1-6` / `a-f` select MCQ (`Space` toggles multi-select, `Enter` submits) · `1/t` & `2/f` True/False · `i` / `Enter` edit fill-blank or open answer (`Tab`/`Shift+Tab` cycle blanks; auto-draft persisted on edit & restored on resume) · `Space` / `Enter` flip flashcard
@@ -138,7 +138,7 @@ Inside the palette: `↑`/`↓`, `Ctrl+P`/`Ctrl+N`, or `Ctrl+J`/`Ctrl+K` move se
 - **Pomodoro**: `P` / `Space` start/pause timer · `M` switch focus/break mode · `+` / `-` adjust minutes · `R` reset timer
 
 ### `t` Jobs / Tasks (`tasks`)
-- `1` / `2` / `3` / `Tab` filter Running / All / Archived · `p` pause/resume job queue · `+` / `-` adjust queue concurrency · `o` live output modal · `m` send refinement message to active job · `w` workflow history · `v` toggle output / trace · `e` export trace JSON · `D` purge saved traces · `Enter` open draft · `x` cancel job · `a` archive/restore · `d` dismiss/delete
+- `1` / `2` / `3` / `Tab` filter Running / All / Archived · `p` pause/resume job queue · `+` / `-` adjust queue concurrency · `R` recover interrupted jobs · `o` live output modal · `m` send refinement message to active job · `w` workflow history · `v` toggle output / trace · `e` export trace JSON · `D` purge saved traces · `Enter` open draft · `x` cancel job · `a` archive/restore · `d` dismiss/delete
 
 ### `a` Audio (`audio`)
 - `i` import audio file (with Tab path completion) · `u` import subtitles (`.srt`/`.vtt`/`.txt`/`.json`) · `p` preflight diagnostics · `R` retry failed job · `s` transcription provider settings · `t` test provider connectivity · `g` generate questions from transcript · `r` refresh

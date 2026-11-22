@@ -1340,14 +1340,46 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
     [busy, host, lang, notify, selectedJob, syncLiveAndRefresh],
   );
 
+  const handleRecoverInterrupted = useCallback(async () => {
+    if (busy || busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      const res = await tryAction<{ recovered?: number }>(host, 'coverage.recover', {});
+      if (!mountedRef.current) return;
+      if (!res.ok) {
+        notify(res.error?.message || t(lang, '恢复中断任务失败', 'Failed to recover interrupted jobs'), 'error');
+        return;
+      }
+      const recovered = typeof res.value?.recovered === 'number' ? res.value.recovered : 0;
+      await syncLiveAndRefresh();
+      if (!mountedRef.current) return;
+      if (recovered > 0) {
+        notify(
+          t(lang, `已恢复 ${recovered} 个中断任务`, `Recovered ${recovered} interrupted job(s)`),
+          'success',
+        );
+      } else {
+        notify(
+          t(lang, '当前没有可恢复的中断任务', 'No interrupted jobs to recover'),
+          'info',
+        );
+      }
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusy(false);
+    }
+  }, [busy, host, lang, notify, syncLiveAndRefresh]);
+
   const modalOpen = confirmDeleteOpen || confirmPurgeTraceOpen || outputModalOpen || messageModalOpen || workflowModalOpen;
   const listActive = isActive && !modalOpen;
-  useClaimKeys(['1', '2', '3', 'o', 'm', 'w', 'x', 'a', 'd', 'v', 'e', 'D', 'p', '+', '-', '='], listActive);
+  useClaimKeys(['1', '2', '3', 'o', 'm', 'w', 'x', 'a', 'd', 'v', 'e', 'D', 'p', 'R', '+', '-', '='], listActive);
 
   const hints: KeyHint[] = useMemo(
     () => [
       { key: 'p', label: t(lang, '暂停/继续', 'Pause/Resume') },
       { key: '+/-', label: t(lang, '并发', 'Concur') },
+      { key: 'R', label: t(lang, '恢复中断', 'Recover') },
       { key: 'o', label: t(lang, '输出', 'Output') },
       { key: 'm', label: t(lang, '补充', 'Msg') },
       { key: 'w', label: t(lang, '历史流', 'Flows') },
@@ -1375,6 +1407,7 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
       else if (input === '2') setFilterTab('all');
       else if (input === '3') setFilterTab('archived');
       else if (input === 'p') void handleTogglePause();
+      else if (input === 'R') void handleRecoverInterrupted();
       else if (input === '+' || input === '=') void handleAdjustConcurrency(1);
       else if (input === '-') void handleAdjustConcurrency(-1);
       else if (input === 'o') {
@@ -1508,11 +1541,17 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
         </Box>
         <Text color={theme.dim} wrap={asciiMode ? undefined : 'truncate-end'}>
           {truncateDisplay(
-            t(
-              lang,
-              '监控后台任务；[o] 输出 · [m] 补充 · [e] 导出 · [D] 清轨迹 · [p] 暂停 · [+/-] 并发 · [w] 流',
-              'Monitor jobs; [o] Out · [m] Msg · [e] Export · [D] Purge · [p] Pause · [+/-] Concur · [w] Flows',
-            ),
+            width < 90
+              ? t(
+                  lang,
+                  '任务：[R]恢复 [p]暂停 [+/-]并发 [e]导出 [D]清轨迹 [o]输出 [m]补充 [w]流',
+                  'Jobs: [R]Rec [p]Pause [+/-]Conc [e]Exp [D]Purge [o]Out [m]Msg [w]Flow',
+                )
+              : t(
+                  lang,
+                  '监控后台任务；[R] 恢复 · [p] 暂停 · [+/-] 并发 · [e] 导出 · [D] 清轨迹 · [o] 输出 · [m] 补充 · [w] 流',
+                  'Monitor jobs; [R] Recover · [p] Pause · [+/-] Concur · [e] Export · [D] Purge · [o] Out · [m] Msg · [w] Flows',
+                ),
             Math.max(10, width - 2),
             asciiMode ? '...' : '…',
           )}

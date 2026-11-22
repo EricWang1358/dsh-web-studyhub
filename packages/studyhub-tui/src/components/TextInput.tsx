@@ -2,7 +2,7 @@ import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Box, Text, useInput, usePaste } from 'ink';
 import stripAnsi from 'strip-ansi';
 import { useTheme } from '../theme/tokens.js';
-import { displayWidth } from '../render/cjk.js';
+import { displayWidth, splitGraphemes } from '../render/cjk.js';
 import { useTuiStore } from '../state/store.js';
 import { normalizeAsciiChrome } from './Badge.js';
 import { useInputCapture } from './focus.js';
@@ -37,14 +37,19 @@ export interface TextInputProps {
 }
 
 /**
- * Sanitize raw pasted or chunked input from Windows ConPTY / PowerShell / POSIX terminals.
- * Strips bracketed-paste wrappers (including split/orphaned `200~`/`201~` markers) and ANSI escapes,
- * normalizes CRLF/CR line endings, removes control characters, and flattens newlines in single-line mode.
+ * Sanitize raw pasted or chunked input from Windows ConPTY / PowerShell / Kitty / WezTerm / Ghostty.
+ * Strips bracketed-paste wrappers (including split/orphaned `200~`/`201~` markers), ANSI escapes,
+ * and orphaned CSI-u / modifyOtherKeys tails, normalizes CRLF/CR line endings, removes control
+ * characters, and flattens newlines in single-line mode.
  */
 export function sanitizePastedText(raw: string, opts?: { multiline?: boolean }): string {
   const multiline = opts?.multiline ?? false;
-  let clean = stripAnsi(raw).replace(/\u001b\[20[01]~/g, '');
-  clean = clean.replace(/^\[?20[01]~/, '').replace(/\[?20[01]~$/, '');
+  let clean = raw.replace(/\u001b\[[0-9;:]*[u~]/g, '');
+  clean = stripAnsi(clean).replace(/\u001b\[?$/g, '');
+  clean = clean
+    .replace(/\[(?:\d+(?:[:;]\d*)*)[u~]/g, '')
+    .replace(/(?<![A-Za-z0-9])\d+(?::\d*)*;\d+(?:[:;]\d*)*[u~]/g, '');
+  clean = clean.replace(/^(?:20[01]~)+/, '').replace(/(?:20[01]~)+$/, '');
   clean = clean.replace(/\r\n?/g, '\n');
   clean = clean.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '');
   if (!multiline) {
@@ -53,8 +58,11 @@ export function sanitizePastedText(raw: string, opts?: { multiline?: boolean }):
   return clean;
 }
 
+const ORPHAN_SHIFT_ENTER_RE = /^\[?(?:13;2(?::[12])?u|27;2;13~)$/;
+const ORPHAN_CTRL_ENTER_RE = /^\[?(?:13;5(?::[12])?u|27;5;13~)$/;
+
 function chars(s: string): string[] {
-  return Array.from(s);
+  return splitGraphemes(s);
 }
 
 const WORD_SEP = /[\s,.;:!?，。；：！？、/\\()[\]{}"'`-]/;
@@ -182,6 +190,7 @@ export const TextInput = memo(function TextInput({
 
   useInput(
     (input, key) => {
+      if (key.eventType === 'release') return;
       const cs = chars(value);
       const at = Math.min(cursor, cs.length);
       if (key.escape) {
@@ -189,11 +198,21 @@ export const TextInput = memo(function TextInput({
         return;
       }
       if (key.return) {
-        if (multiline && (key.shift || submitOnEnter === Boolean(key.meta))) {
+        if (key.ctrl) {
+          onSubmit?.(value);
+        } else if (multiline && (key.shift || submitOnEnter === Boolean(key.meta))) {
           insert('\n');
         } else {
           onSubmit?.(value);
         }
+        return;
+      }
+      if (multiline && ORPHAN_SHIFT_ENTER_RE.test(input)) {
+        insert('\n');
+        return;
+      }
+      if (multiline && ORPHAN_CTRL_ENTER_RE.test(input)) {
+        onSubmit?.(value);
         return;
       }
       if (key.ctrl && input === 'j' && multiline) {
@@ -303,7 +322,17 @@ export const TextInput = memo(function TextInput({
     hStart.current = win.start;
     const before = display.slice(win.start, at).join('');
     const atChar = at < display.length ? display[at] : ' ';
-    const after = display.slice(at + 1, win.end).join('');
+    let afterCells = display.slice(at + 1, win.end);
+    if (win.start > 0 && at === win.start) {
+      let used = 1 + Math.max(1, displayWidth(atChar));
+      let keep = 0;
+      while (keep < afterCells.length && used + Math.max(1, displayWidth(afterCells[keep])) <= fieldWidth) {
+        used += Math.max(1, displayWidth(afterCells[keep]));
+        keep += 1;
+      }
+      afterCells = afterCells.slice(0, keep);
+    }
+    const after = afterCells.join('');
     return (
       <Box height={1}>
         {promptEl}
