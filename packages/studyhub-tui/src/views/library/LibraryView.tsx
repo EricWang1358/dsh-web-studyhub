@@ -24,6 +24,7 @@ import { DeckManageModal } from './DeckManageModal.js';
 import { VoicePackModal } from './VoicePackModal.js';
 import { DailyPlanModal } from './DailyPlanModal.js';
 import { CourseSettingsModal } from './CourseSettingsModal.js';
+import { DeckOpsModal } from './DeckOpsModal.js';
 
 type DeckItem = NonNullable<StudySnapshot['decks']>[number];
 type DraftItem = NonNullable<StudySnapshot['drafts']>[number];
@@ -54,7 +55,7 @@ type WorkEntry =
   | { kind: 'draft'; id: string; title: string; course: string; count: number; draft: DraftItem }
   | { kind: 'job'; id: string; title: string; course: string; status: string; error: string; job: JobItem };
 
-const CLAIMED_LIBRARY_KEYS = ['r', 'a', 'p', 'C'] as const;
+const CLAIMED_LIBRARY_KEYS = ['r', 'a', 'p', 'C', 'o'] as const;
 
 function localDayKey(value: Date | string | number): string {
   const d = value instanceof Date ? value : new Date(value);
@@ -127,13 +128,14 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [dailyPlanOpen, setDailyPlanOpen] = useState(false);
   const [courseSettingsOpen, setCourseSettingsOpen] = useState(false);
+  const [deckOpsOpen, setDeckOpsOpen] = useState(false);
   const [confirmDeleteDeck, setConfirmDeleteDeck] = useState<DeckItem | null>(null);
   const [busyAction, setBusyAction] = useState(false);
 
   const [streak, setStreak] = useState<number>(0);
   const [sampleLoaded, setSampleLoaded] = useState<boolean>(false);
 
-  const modalOpen = Boolean(manageDeckId || voiceOpen || dailyPlanOpen || courseSettingsOpen || confirmDeleteDeck);
+  const modalOpen = Boolean(manageDeckId || voiceOpen || dailyPlanOpen || courseSettingsOpen || deckOpsOpen || confirmDeleteDeck);
   const viewActive = isActive && !modalOpen;
 
   useClaimKeys(CLAIMED_LIBRARY_KEYS, viewActive);
@@ -415,6 +417,10 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
           return;
         }
       }
+      if (input === 'o') {
+        setDeckOpsOpen(true);
+        return;
+      }
       if (selectedDeck) {
         if (input === 'm') {
           setManageDeckId(selectedDeck.id);
@@ -434,6 +440,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
       { key: 'p', label: t(lang, '今日计划', 'Plan') },
       { key: 'C', label: t(lang, '课程设置', 'Course') },
       { key: 'r', label: t(lang, '继续上次', 'Resume') },
+      { key: 'o', label: t(lang, '导/合/拆', 'Deck Ops') },
       { key: 'm', label: t(lang, '管理卡片', 'Manage') },
       { key: 'v', label: t(lang, '语音包', 'Voice Pack') },
       { key: 'a', label: t(lang, '归档', 'Archive') },
@@ -622,7 +629,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
           <Panel title={t(lang, '题组详情', 'Deck Detail')} width={size.width} height={size.height}>
             <EmptyState
               title={t(lang, '未选中题组', 'No deck selected')}
-              hint={t(lang, '按 [s] 载入示例课 · [p] 今日计划 · [C] 课程设置', 'Press [s] for sample · [p] Daily Plan · [C] Course Settings')}
+              hint={t(lang, '按 [s] 载入示例课 · [o] 导入 JSON · [p] 今日计划 · [C] 课程设置', 'Press [s] sample · [o] import JSON · [p] Plan · [C] Course')}
               width={innerW}
               height={Math.max(4, size.height - 4)}
             />
@@ -708,7 +715,9 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
                   <Text color={theme.accent} bold>[C]</Text>
                   <Text color={theme.text}> {t(lang, '课程', 'Course')}  </Text>
                   <Text color={theme.accent} bold>[r]</Text>
-                  <Text color={theme.text}> {t(lang, '继续', 'Resume')}</Text>
+                  <Text color={theme.text}> {t(lang, '继续', 'Resume')}  </Text>
+                  <Text color={theme.primary} bold>[o]</Text>
+                  <Text color={theme.text}> {t(lang, '操作', 'Ops')}</Text>
                 </Text>
                 <Text wrap="truncate-end">
                   <Text color={theme.accent} bold>[m]</Text>
@@ -742,6 +751,10 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
                   <Text color={theme.text}> {t(lang, '管理题组 / 查看卡片', 'Manage deck / cards')}   </Text>
                   <Text color={theme.ai} bold>[v]</Text>
                   <Text color={theme.text}> {t(lang, '导出语音包', 'Voice Pack')}</Text>
+                </Text>
+                <Text wrap="truncate-end">
+                  <Text color={theme.primary} bold>[o]</Text>
+                  <Text color={theme.text}> {t(lang, '导入 JSON / 合并 / 拆分题组', 'Import JSON / Merge / Split')}</Text>
                 </Text>
                 <Text wrap="truncate-end">
                   <Text color={theme.warning} bold>[a]</Text>
@@ -861,6 +874,21 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
           width={width}
           height={height}
           onClose={() => setCourseSettingsOpen(false)}
+          onUpdated={() => {
+            void actions.refresh();
+          }}
+        />
+      ) : null}
+
+      {/* Deck Operations Modal (Import / Merge / Split) */}
+      {deckOpsOpen ? (
+        <DeckOpsModal
+          host={host}
+          selectedDeckId={selectedDeck?.id ?? null}
+          isActive={isActive}
+          width={width}
+          height={height}
+          onClose={() => setDeckOpsOpen(false)}
           onUpdated={() => {
             void actions.refresh();
           }}

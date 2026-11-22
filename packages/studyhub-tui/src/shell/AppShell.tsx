@@ -226,7 +226,12 @@ export const AppShell = memo(function AppShell({
         ) : null}
 
         {paletteOpen ? (
-          <CommandPalette isActive={paletteOpen} onClose={() => useTuiStore.getState().setCommandPaletteOpen(false)} extraCommands={extraCommands} />
+          <CommandPalette
+            host={host}
+            isActive={paletteOpen}
+            onClose={() => useTuiStore.getState().setCommandPaletteOpen(false)}
+            extraCommands={extraCommands}
+          />
         ) : null}
         {helpOpen && !paletteOpen ? <HelpOverlay isActive={helpOpen} onClose={() => useTuiStore.getState().setHelpOpen(false)} /> : null}
         {courseOpen && !paletteOpen && !helpOpen ? (

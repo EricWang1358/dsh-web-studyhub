@@ -1,6 +1,6 @@
-import React, { memo, useCallback, useMemo, useRef, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text, useInput, useWindowSize } from 'ink';
-import { PAGE_REGISTRY, type CommandPaletteItem, type StudySnapshot, type UiLanguage } from '../types/contracts.js';
+import { PAGE_REGISTRY, type CommandPaletteItem, type HostClient, type StudySnapshot, type UiLanguage } from '../types/contracts.js';
 import { t, useTuiStore, type TuiStoreState } from '../state/store.js';
 import { listThemes, nextThemeId, useTheme } from '../theme/tokens.js';
 import { displayWidth, truncateDisplay } from '../render/index.js';
@@ -13,9 +13,47 @@ import type { ShellActions } from './actions.js';
 import { useShellActions } from './actions.js';
 
 const MAX_ENTITY = 300;
+const LIVE_DEBOUNCE_MS = 180;
+const LIVE_PER_KIND_LIMIT = 6;
+const LIVE_TOTAL_LIMIT = 12;
+
+interface CardSearchHit {
+  deckId?: string;
+  deckTitle?: string;
+  course?: string;
+  cardId?: string;
+  topic?: string;
+  prompt?: string;
+}
+
+interface CardSearchResponse {
+  results?: CardSearchHit[];
+}
+
+interface ContentSearchHit {
+  kind?: string;
+  sourceId?: string;
+  title?: string;
+  course?: string;
+  page?: number | null;
+  snippet?: string;
+}
+
+interface ContentSearchResponse {
+  results?: ContentSearchHit[];
+  groups?: {
+    sources?: ContentSearchHit[];
+  };
+}
 
 function str(v: unknown): string {
   return typeof v === 'string' ? v : typeof v === 'number' ? String(v) : '';
+}
+
+function clipLine(v: unknown, max = 120, ell = '…'): string {
+  const clean = str(v).replace(/\s+/g, ' ').trim();
+  if (!clean) return '';
+  return clean.length > max ? `${clean.slice(0, Math.max(1, max - ell.length)).trimEnd()}${ell}` : clean;
 }
 
 /** Build the full command list from store state + shell actions (pure, exported for tests). */
@@ -137,6 +175,7 @@ export function buildPaletteItems(
 }
 
 export interface CommandPaletteProps {
+  host?: HostClient;
   isActive: boolean;
   onClose: () => void;
   /** Extra commands contributed by the app/views. */
@@ -145,7 +184,13 @@ export interface CommandPaletteProps {
   initialQuery?: string;
 }
 
-export const CommandPalette = memo(function CommandPalette({ isActive, onClose, extraCommands, initialQuery = '' }: CommandPaletteProps) {
+export const CommandPalette = memo(function CommandPalette({
+  host,
+  isActive,
+  onClose,
+  extraCommands,
+  initialQuery = '',
+}: CommandPaletteProps) {
   const theme = useTheme();
   const { columns, rows } = useWindowSize();
   const actions = useShellActions();
@@ -157,14 +202,126 @@ export const CommandPalette = memo(function CommandPalette({ isActive, onClose, 
   const ell = asciiMode ? '...' : '…';
   const [query, setQuery] = useState(initialQuery);
   const [cursor, setCursor] = useState(0);
+  const [liveItems, setLiveItems] = useState<CommandPaletteItem[]>([]);
+  const [searching, setSearching] = useState(false);
   const offsetRef = useRef(0);
+  const seqRef = useRef(0);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      seqRef.current += 1;
+    };
+  }, []);
+
+  useEffect(() => {
+    const q = query.trim();
+    const seq = ++seqRef.current;
+
+    if (!isActive || !host || q.length < 2 || q.startsWith('/')) {
+      setLiveItems((prev) => (prev.length ? [] : prev));
+      setSearching(false);
+      return;
+    }
+
+    setLiveItems((prev) => (prev.length ? [] : prev));
+    setSearching(true);
+
+    const timer = setTimeout(() => {
+      Promise.all([
+        host.call<CardSearchResponse>('card.search', { query: q, limit: LIVE_PER_KIND_LIMIT }).catch(() => null),
+        host.call<ContentSearchResponse>('search.content', { query: q, limit: LIVE_PER_KIND_LIMIT }).catch(() => null),
+      ])
+        .then(([cardRes, contentRes]) => {
+          if (!mountedRef.current || seqRef.current !== seq) return;
+
+          const cardHits = cardRes?.ok && Array.isArray(cardRes.value?.results) ? cardRes.value.results : [];
+          const rawContentHits =
+            contentRes?.ok && Array.isArray(contentRes.value?.groups?.sources)
+              ? contentRes.value.groups.sources
+              : contentRes?.ok && Array.isArray(contentRes.value?.results)
+                ? contentRes.value.results.filter((item) => item?.kind === 'source')
+                : [];
+
+          const next: CommandPaletteItem[] = [];
+          const cardCat = t(lang, '题库', 'Card');
+          const contentCat = t(lang, '原文', 'Passage');
+          const cardIcon = asciiMode ? '*' : '❖';
+          const contentIcon = asciiMode ? '#' : '¶';
+
+          for (const hit of cardHits) {
+            if (next.length >= LIVE_TOTAL_LIMIT) break;
+            const deckId = str(hit?.deckId);
+            const cardId = str(hit?.cardId);
+            if (!deckId || !cardId) continue;
+            const promptText = clipLine(hit.prompt, 120, ell) || clipLine(hit.topic, 120, ell) || cardId;
+            const hint = [clipLine(hit.topic, 40, ell), clipLine(hit.deckTitle, 40, ell), clipLine(hit.course, 32, ell)]
+              .filter(Boolean)
+              .join(' · ');
+            next.push({
+              id: `live:card:${deckId}:${cardId}`,
+              label: `${cardIcon} ${promptText}`,
+              hint: hint || undefined,
+              category: cardCat,
+              action: async () => {
+                const res = await host.call<{ id?: string }>('review.start', {
+                  mode: 'path',
+                  scope: [{ deckId, cardId }],
+                  fresh: true,
+                });
+                if (res.ok && res.value?.id) {
+                  useTuiStore.getState().navigate('review', { runId: res.value.id });
+                  return;
+                }
+                useTuiStore
+                  .getState()
+                  .notify(res.error?.message || t(lang, '无法启动题目练习', 'Failed to start practice'), 'error');
+              },
+            });
+          }
+
+          rawContentHits.forEach((hit, idx) => {
+            if (next.length >= LIVE_TOTAL_LIMIT) return;
+            const sourceId = str(hit?.sourceId);
+            if (!sourceId) return;
+            const pageNum = typeof hit.page === 'number' && Number.isFinite(hit.page) && hit.page >= 1 ? Math.trunc(hit.page) : undefined;
+            const titleText = clipLine(hit.title, 80, ell) || sourceId;
+            const pageTag = pageNum !== undefined ? ` (p.${pageNum})` : '';
+            const hint = clipLine(hit.snippet, 120, ell) || clipLine(hit.course, 40, ell) || undefined;
+            next.push({
+              id: `live:source:${sourceId}:${pageNum ?? 0}:${idx}`,
+              label: `${contentIcon} ${titleText}${pageTag}`,
+              hint,
+              category: contentCat,
+              action: () => {
+                useTuiStore.getState().navigate('sources', pageNum !== undefined ? { sourceId, pageNumber: pageNum } : { sourceId });
+              },
+            });
+          });
+
+          setLiveItems(next.slice(0, LIVE_TOTAL_LIMIT));
+          setSearching(false);
+        })
+        .catch(() => {
+          if (!mountedRef.current || seqRef.current !== seq) return;
+          setSearching(false);
+        });
+    }, LIVE_DEBOUNCE_MS);
+
+    return () => {
+      clearTimeout(timer);
+      seqRef.current += 1;
+    };
+  }, [query, isActive, host, lang, asciiMode]);
 
   const items = useMemo(() => {
     const s = useTuiStore.getState();
     return buildPaletteItems({ ...s, snapshot, preferences, activeRunId }, actions, extraCommands ?? []);
   }, [snapshot, preferences, activeRunId, actions, extraCommands]);
 
-  const results = useMemo(() => {
+  const fuzzyResults = useMemo(() => {
     const q = query.trim();
     if (!q) {
       const byId = new Map(items.map((i) => [i.id, i]));
@@ -181,6 +338,11 @@ export const CommandPalette = memo(function CommandPalette({ isActive, onClose, 
     return fuzzyFilter(pool, q, (i) => i.label, (i) => [...(i.keywords ?? []), i.hint ?? '']).map((r) => r.item);
   }, [items, query, preferences.recentCommands, lang]);
 
+  const results = useMemo(
+    () => (liveItems.length ? [...fuzzyResults, ...liveItems] : fuzzyResults),
+    [fuzzyResults, liveItems],
+  );
+
   const width = Math.min(84, Math.max(40, columns - 8));
   const listRows = Math.max(3, Math.min(14, rows - 10));
   const sel = Math.min(cursor, Math.max(0, results.length - 1));
@@ -191,7 +353,7 @@ export const CommandPalette = memo(function CommandPalette({ isActive, onClose, 
     (item: CommandPaletteItem | undefined) => {
       if (!item) return;
       const s = useTuiStore.getState();
-      s.recordRecentCommand(item.id);
+      if (!item.id.startsWith('live:')) s.recordRecentCommand(item.id);
       s.setCommandPaletteOpen(false);
       onClose();
       Promise.resolve()
@@ -217,7 +379,7 @@ export const CommandPalette = memo(function CommandPalette({ isActive, onClose, 
     <Modal
       title={t(lang, '命令面板', 'Command Palette')}
       icon={asciiMode ? '>' : '⌘'}
-      subtitle={`${results.length}`}
+      subtitle={searching ? `${results.length} · ${t(lang, `正在全文检索${ell}`, `Searching${ell}`)}` : `${results.length}`}
       width={width}
       onClose={onClose}
       isActive={isActive}

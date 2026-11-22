@@ -477,7 +477,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
               onChange={setRootDraft}
               onSubmit={(v) => void handleSaveRoot(v)}
               onCancel={() => setEditingRoot(false)}
-              width={modalContentWidth(modalW)}
+              width={Math.max(12, modalContentWidth(modalW) - 4)}
               isActive={isActive}
               prompt={asciiMode ? '>' : '›'}
               placeholder={defaultRoot || '/path/to/StudyHub'}
@@ -510,7 +510,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
               onChange={setExportPathDraft}
               onSubmit={(v) => void handleExportBackup(v)}
               onCancel={() => setExportingBackup(false)}
-              width={modalContentWidth(modalW)}
+              width={Math.max(12, modalContentWidth(modalW) - 4)}
               isActive={isActive}
               prompt={asciiMode ? '>' : '›'}
               placeholder={defaultBackupPath(rootPath)}

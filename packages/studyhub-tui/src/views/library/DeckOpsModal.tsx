@@ -1,0 +1,1110 @@
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { readFile, stat } from 'node:fs/promises';
+import { isAbsolute, resolve } from 'node:path';
+import { Box, Text, useInput, useWindowSize } from 'ink';
+import type { HostClient, KeyHint, StudySnapshot } from '../../types/contracts.js';
+import { t, useTuiStore } from '../../state/store.js';
+import {
+  Badge,
+  ConfirmDialog,
+  EmptyState,
+  Modal,
+  Spinner,
+  TextInput,
+  VirtualList,
+  modalContentWidth,
+  useTheme,
+  type VirtualListRenderContext,
+} from '../../components/index.js';
+import { displayWidth, padDisplay, truncateDisplay } from '../../render/index.js';
+import { useShellActions } from '../../shell/index.js';
+import { cleanPathInput, tryAction } from '../../host/index.js';
+import { completeFsPath, expandHomePath } from '../sources/path-complete.js';
+import type { FullDeckDetail } from './DeckManageModal.js';
+
+export type DeckOpsTab = 'import' | 'merge' | 'split';
+
+type DeckItem = NonNullable<StudySnapshot['decks']>[number];
+
+interface TopicGroup {
+  topic: string;
+  count: number;
+}
+
+interface ParsedDeckPreview {
+  title: string;
+  course: string;
+  cardCount: number;
+}
+
+interface DeckImportResponse {
+  files?: number;
+  imported?: number;
+  failed?: number;
+  added?: number;
+  skipped?: number;
+  results?: Array<{ file?: string; title?: string; deckId?: string | null; added?: number; skipped?: number; error?: string }>;
+}
+
+interface DeckMergeResponse {
+  targetId: string;
+  sourceIds: string[];
+  moved: number;
+  count: number;
+}
+
+interface DeckSplitResponse {
+  sourceId: string;
+  targetId: string;
+  moved: number;
+  remaining: number;
+}
+
+type ConfirmState =
+  | {
+      kind: 'merge';
+      source: DeckItem;
+      target: DeckItem;
+      sourceCount: number;
+      targetCount: number;
+    }
+  | {
+      kind: 'split';
+      deck: FullDeckDetail;
+      topics: string[];
+      title: string;
+      movedCount: number;
+      remainingCount: number;
+    };
+
+export interface DeckOpsModalProps {
+  host: HostClient;
+  selectedDeckId?: string | null;
+  initialTab?: DeckOpsTab;
+  isActive: boolean;
+  width: number;
+  height: number;
+  onClose: () => void;
+  onUpdated?: () => void;
+}
+
+const TABS: readonly DeckOpsTab[] = ['import', 'merge', 'split'];
+const JSON_EXTS = ['.json', '.txt'] as const;
+const MAX_LOCAL_JSON_BYTES = 2_000_000;
+
+function stripJsonWrapper(raw: string): string {
+  return String(raw)
+    .replace(/^\uFEFF/, '')
+    .trim()
+    .replace(/^```(?:json)?\s*\n([\s\S]*?)\n```$/i, '$1')
+    .trim();
+}
+
+function validateDeckJsonText(
+  rawText: string,
+  lang: 'zh' | 'en',
+): { ok: true; preview: ParsedDeckPreview } | { ok: false; error: string } {
+  const cleaned = stripJsonWrapper(rawText);
+  if (!cleaned) {
+    return { ok: false, error: t(lang, '文件内容为空', 'File is empty') };
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: t(lang, `JSON 解析失败：${msg}`, `Invalid JSON: ${msg}`) };
+  }
+  if (Array.isArray(parsed)) {
+    if (parsed.length === 0) {
+      return { ok: false, error: t(lang, '题目数组不能为空', 'Card array cannot be empty') };
+    }
+    if (parsed.some((item) => !item || Array.isArray(item) || typeof item !== 'object')) {
+      return { ok: false, error: t(lang, '题目数组中每一项都必须是对象', 'Each item in card array must be an object') };
+    }
+    return {
+      ok: true,
+      preview: { title: '', course: '', cardCount: parsed.length },
+    };
+  }
+  if (!parsed || typeof parsed !== 'object') {
+    return {
+      ok: false,
+      error: t(
+        lang,
+        'JSON 顶层必须是包含 cards 数组的对象，或题目对象数组',
+        'Top-level JSON must be an object with cards[] or an array of cards',
+      ),
+    };
+  }
+  const obj = parsed as Record<string, unknown>;
+  if (!Array.isArray(obj.cards) || obj.cards.length === 0) {
+    return { ok: false, error: t(lang, 'cards 必须包含至少一道题', 'cards must contain at least one card') };
+  }
+  if (obj.cards.some((item) => !item || Array.isArray(item) || typeof item !== 'object')) {
+    return { ok: false, error: t(lang, 'cards 中的每一项都必须是对象', 'Each card entry must be an object') };
+  }
+  return {
+    ok: true,
+    preview: {
+      title: typeof obj.title === 'string' ? obj.title.trim() : '',
+      course: typeof obj.course === 'string' ? obj.course.trim() : '',
+      cardCount: obj.cards.length,
+    },
+  };
+}
+
+function deckCardCount(deck: DeckItem, progressMap: Record<string, { total?: number }> | undefined): number {
+  const p = progressMap?.[deck.id];
+  return Number(deck.count ?? p?.total ?? deck.cardCount ?? 0) || 0;
+}
+
+function deckLabel(deck: DeckItem): string {
+  return String(deck.title ?? deck.name ?? deck.id);
+}
+
+function isOrdinaryActiveDeck(deck: DeckItem): boolean {
+  return !deck.archived && !(deck as Record<string, unknown>).systemKind;
+}
+
+export const DeckOpsModal = memo(function DeckOpsModal({
+  host,
+  selectedDeckId,
+  initialTab = 'import',
+  isActive,
+  width,
+  height,
+  onClose,
+  onUpdated,
+}: DeckOpsModalProps) {
+  const theme = useTheme();
+  const actions = useShellActions();
+  const { columns, rows } = useWindowSize();
+  const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const snapshot = useTuiStore((s) => s.snapshot);
+  const notify = useTuiStore((s) => s.notify);
+
+  const [tab, setTab] = useState<DeckOpsTab>(initialTab);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
+
+  // Tab 1: Import JSON
+  const [importFocus, setImportFocus] = useState<'tabs' | 'path' | 'course'>('path');
+  const [filePath, setFilePath] = useState('');
+  const [courseOverride, setCourseOverride] = useState('');
+  const [matches, setMatches] = useState<string[]>([]);
+  const [jsonPreview, setJsonPreview] = useState<ParsedDeckPreview | null>(null);
+  const [jsonHintErr, setJsonHintErr] = useState('');
+  const cachedCompletionRef = useRef<{ input: string; completed: string } | null>(null);
+
+  // Tab 2: Merge
+  const [mergeIndex, setMergeIndex] = useState(0);
+  const [mergeDirection, setMergeDirection] = useState<'into-other' | 'into-selected'>('into-other');
+
+  // Tab 3: Split
+  const [splitLoading, setSplitLoading] = useState(false);
+  const [splitDeck, setSplitDeck] = useState<FullDeckDetail | null>(null);
+  const [splitError, setSplitError] = useState('');
+  const [splitFocus, setSplitFocus] = useState<'topics' | 'title'>('topics');
+  const [topicIndex, setTopicIndex] = useState(0);
+  const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
+  const [splitTitle, setSplitTitle] = useState('');
+
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const progressMap = snapshot?.progress as Record<string, { total?: number }> | undefined;
+  const activeFocusCourse = typeof snapshot?.focus?.course === 'string' ? snapshot.focus.course : '';
+
+  const selectedDeck = useMemo(
+    () => (selectedDeckId ? (snapshot?.decks ?? []).find((d) => d.id === selectedDeckId) ?? null : null),
+    [selectedDeckId, snapshot?.decks],
+  );
+
+  const editingDraftDeckIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const d of snapshot?.drafts ?? []) {
+      const editId = (d as Record<string, unknown>).editingDeckId;
+      const repairId = ((d as Record<string, unknown>).editorial as Record<string, unknown> | undefined)?.repairOfDeckId;
+      if (typeof editId === 'string' && editId) ids.add(editId);
+      if (typeof repairId === 'string' && repairId) ids.add(repairId);
+    }
+    return ids;
+  }, [snapshot?.drafts]);
+
+  const switchTab = useCallback((next: DeckOpsTab) => {
+    setTab(next);
+    setError('');
+    if (next === 'import') setImportFocus('path');
+    if (next === 'split') setSplitFocus('topics');
+  }, []);
+
+  // Pre-fetch Tab path completions & validate existing .json file preview
+  useEffect(() => {
+    if (!isActive || tab !== 'import') return;
+    let cancelled = false;
+    const cleaned = cleanPathInput(filePath);
+    if (importFocus === 'path') {
+      void completeFsPath(cleaned, { extensions: JSON_EXTS }).then((res) => {
+        if (cancelled) return;
+        cachedCompletionRef.current = { input: filePath, completed: res.completed };
+        setMatches(res.matches.slice(0, 5));
+      });
+    }
+
+    const expanded = expandHomePath(cleaned);
+    if (!expanded) {
+      setJsonPreview(null);
+      setJsonHintErr('');
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const timer = setTimeout(() => {
+      void (async () => {
+        const resolved = isAbsolute(expanded) ? expanded : resolve(process.cwd(), expanded);
+        try {
+          const info = await stat(resolved);
+          if (cancelled) return;
+          if (!info.isFile()) {
+            setJsonPreview(null);
+            setJsonHintErr('');
+            return;
+          }
+          if (info.size > MAX_LOCAL_JSON_BYTES) {
+            setJsonPreview(null);
+            setJsonHintErr(t(lang, '文件过大，超过 2MB 上限', 'File exceeds 2MB limit'));
+            return;
+          }
+          const content = await readFile(resolved, 'utf8');
+          if (cancelled) return;
+          const check = validateDeckJsonText(content, lang);
+          if (check.ok) {
+            setJsonPreview(check.preview);
+            setJsonHintErr('');
+          } else {
+            setJsonPreview(null);
+            setJsonHintErr(check.error);
+          }
+        } catch {
+          if (cancelled) return;
+          setJsonPreview(null);
+          setJsonHintErr('');
+        }
+      })();
+    }, 140);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [isActive, tab, importFocus, filePath, lang]);
+
+  const handleTabComplete = useCallback((val: string) => {
+    const cached = cachedCompletionRef.current;
+    if (cached && cached.input === val && cached.completed && cached.completed !== val) {
+      return cached.completed;
+    }
+    const cleaned = cleanPathInput(val);
+    void completeFsPath(cleaned, { extensions: JSON_EXTS }).then((res) => {
+      cachedCompletionRef.current = { input: res.completed, completed: res.completed };
+      setMatches(res.matches.slice(0, 5));
+      if (res.completed && res.completed !== val) setFilePath(res.completed);
+    });
+    return undefined;
+  }, []);
+
+  const handleImportSubmit = useCallback(async () => {
+    if (busy) return;
+    setError('');
+    const cleaned = cleanPathInput(filePath);
+    const expanded = expandHomePath(cleaned);
+    if (!expanded) {
+      setError(t(lang, '请输入本地 .json 题组文件路径', 'Please enter a local .json deck file path'));
+      return;
+    }
+    const resolvedPath = isAbsolute(expanded) ? expanded : resolve(process.cwd(), expanded);
+    setBusy(true);
+    try {
+      let info;
+      try {
+        info = await stat(resolvedPath);
+      } catch {
+        if (!mountedRef.current) return;
+        setError(t(lang, `找不到文件：${resolvedPath}`, `File not found: ${resolvedPath}`));
+        setBusy(false);
+        return;
+      }
+      if (!info.isFile()) {
+        if (!mountedRef.current) return;
+        setError(t(lang, '请选择具体的 .json 文件（而非目录）', 'Please choose a .json file (not a directory)'));
+        setBusy(false);
+        return;
+      }
+      if (info.size > MAX_LOCAL_JSON_BYTES) {
+        if (!mountedRef.current) return;
+        setError(t(lang, '文件过大，超过 2MB 上限', 'File is too large (max 2MB)'));
+        setBusy(false);
+        return;
+      }
+      const rawContent = await readFile(resolvedPath, 'utf8');
+      const check = validateDeckJsonText(rawContent, lang);
+      if (!check.ok) {
+        if (!mountedRef.current) return;
+        setError(check.error);
+        setBusy(false);
+        return;
+      }
+
+      const course = courseOverride.trim();
+      const res = await tryAction<DeckImportResponse>(host, 'deck.import', {
+        path: resolvedPath,
+        ...(course ? { course } : {}),
+      });
+      if (!mountedRef.current) return;
+
+      if (!res.ok) {
+        setError(res.error?.message || t(lang, '导入题组失败', 'Failed to import deck'));
+        setBusy(false);
+        return;
+      }
+      const firstErr = res.value?.results?.find((r) => Boolean(r.error))?.error;
+      if ((res.value?.failed ?? 0) > 0 || firstErr) {
+        setError(firstErr || t(lang, '导入题组失败', 'Failed to import deck'));
+        setBusy(false);
+        return;
+      }
+
+      const added = res.value?.added ?? 0;
+      const skipped = res.value?.skipped ?? 0;
+      const importedTitle = res.value?.results?.[0]?.title || check.preview.title || resolvedPath;
+      await actions.refresh();
+      onUpdated?.();
+      if (!mountedRef.current) return;
+      notify(
+        t(
+          lang,
+          `已导入「${importedTitle}」：新增 ${added} 题${skipped > 0 ? `，跳过重复 ${skipped} 题` : ''}`,
+          `Imported "${importedTitle}": +${added} cards${skipped > 0 ? ` (${skipped} skipped)` : ''}`,
+        ),
+        'success',
+      );
+      onClose();
+    } catch (err) {
+      if (!mountedRef.current) return;
+      setError(err instanceof Error ? err.message : String(err));
+      setBusy(false);
+    }
+  }, [busy, filePath, courseOverride, host, lang, actions, onUpdated, notify, onClose]);
+
+  // Tab 2: Merge candidate decks
+  const mergeCandidates = useMemo<DeckItem[]>(() => {
+    if (!selectedDeck) return [];
+    const list = (snapshot?.decks ?? []).filter((d) => d.id !== selectedDeck.id && isOrdinaryActiveDeck(d));
+    const selCourse = selectedDeck.course ?? '';
+    return [...list].sort((a, b) => {
+      const aSame = (a.course ?? '') === selCourse ? 0 : 1;
+      const bSame = (b.course ?? '') === selCourse ? 0 : 1;
+      if (aSame !== bSame) return aSame - bSame;
+      return deckLabel(a).localeCompare(deckLabel(b));
+    });
+  }, [snapshot?.decks, selectedDeck]);
+
+  useEffect(() => {
+    if (mergeIndex >= mergeCandidates.length) {
+      setMergeIndex(Math.max(0, mergeCandidates.length - 1));
+    }
+  }, [mergeCandidates.length, mergeIndex]);
+
+  const handleMergeSelect = useCallback(
+    (other: DeckItem) => {
+      if (!selectedDeck || busy) return;
+      if (!isOrdinaryActiveDeck(selectedDeck)) {
+        setError(t(lang, '已归档或系统题组不能合并', 'Archived or system decks cannot be merged'));
+        return;
+      }
+      const source = mergeDirection === 'into-other' ? selectedDeck : other;
+      const target = mergeDirection === 'into-other' ? other : selectedDeck;
+      setError('');
+      setConfirmState({
+        kind: 'merge',
+        source,
+        target,
+        sourceCount: deckCardCount(source, progressMap),
+        targetCount: deckCardCount(target, progressMap),
+      });
+    },
+    [selectedDeck, busy, lang, mergeDirection, progressMap],
+  );
+
+  // Tab 3: Load full deck via deck.get when selectedDeckId changes
+  useEffect(() => {
+    if (tab !== 'split') return;
+    if (!selectedDeckId) {
+      setSplitDeck(null);
+      setSplitError('');
+      setSplitLoading(false);
+      return;
+    }
+    let alive = true;
+    setSplitLoading(true);
+    setSplitError('');
+    setSelectedTopics([]);
+    setTopicIndex(0);
+    setSplitTitle('');
+    void (async () => {
+      const res = await tryAction<FullDeckDetail>(host, 'deck.get', { id: selectedDeckId });
+      if (!alive) return;
+      if (res.ok && res.value) {
+        setSplitDeck(res.value);
+      } else {
+        setSplitDeck(null);
+        setSplitError(res.error?.message || t(lang, '读取题组详情失败', 'Failed to load deck'));
+      }
+      setSplitLoading(false);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [host, selectedDeckId, tab, lang]);
+
+  const topicGroups = useMemo<TopicGroup[]>(() => {
+    if (!splitDeck?.cards) return [];
+    const counts = new Map<string, number>();
+    for (const card of splitDeck.cards) {
+      const key = card.topic || '未分类';
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return Array.from(counts.entries()).map(([topic, count]) => ({ topic, count }));
+  }, [splitDeck?.cards]);
+
+  useEffect(() => {
+    if (topicIndex >= topicGroups.length) {
+      setTopicIndex(Math.max(0, topicGroups.length - 1));
+    }
+  }, [topicGroups.length, topicIndex]);
+
+  const totalSplitCards = splitDeck?.cards?.length ?? 0;
+  const selectedSplitCount = useMemo(() => {
+    const sel = new Set(selectedTopics);
+    return topicGroups.reduce((sum, g) => sum + (sel.has(g.topic) ? g.count : 0), 0);
+  }, [topicGroups, selectedTopics]);
+
+  const toggleTopic = useCallback((topic: string) => {
+    setError('');
+    setSelectedTopics((prev) => (prev.includes(topic) ? prev.filter((x) => x !== topic) : [...prev, topic]));
+  }, []);
+
+  const proceedToSplitTitle = useCallback(
+    (highlighted?: TopicGroup) => {
+      if (!splitDeck) return;
+      let nextTopics = selectedTopics;
+      if (nextTopics.length === 0 && highlighted) {
+        nextTopics = [highlighted.topic];
+        setSelectedTopics(nextTopics);
+      }
+      const nextCount = topicGroups.reduce((sum, g) => sum + (nextTopics.includes(g.topic) ? g.count : 0), 0);
+      if (nextCount === 0) {
+        setError(t(lang, '请至少选择一个要拆出的主题', 'Select at least one topic to split'));
+        return;
+      }
+      if (nextCount >= totalSplitCards) {
+        setError(t(lang, '拆分后原题组至少须保留 1 道题，不能全选', 'Must leave at least 1 card in the source deck'));
+        return;
+      }
+      setError('');
+      if (!splitTitle.trim()) {
+        setSplitTitle(`${splitDeck.title} - ${nextTopics[0]}`.slice(0, 200));
+      }
+      setSplitFocus('title');
+    },
+    [splitDeck, selectedTopics, topicGroups, totalSplitCards, lang, splitTitle],
+  );
+
+  const handleSplitTitleSubmit = useCallback(
+    (rawTitle: string) => {
+      if (!splitDeck || busy) return;
+      const title = rawTitle.trim();
+      if (!title) {
+        setError(t(lang, '请输入新题组名称', 'Please enter a title for the new deck'));
+        return;
+      }
+      if (title.length > 200) {
+        setError(t(lang, '新题组名称不能超过 200 字', 'New deck title must be <= 200 chars'));
+        return;
+      }
+      if (selectedTopics.length === 0 || selectedSplitCount === 0 || selectedSplitCount >= totalSplitCards) {
+        setError(t(lang, '拆分后两个题组都必须有题目', 'Both decks must have at least 1 card after splitting'));
+        setSplitFocus('topics');
+        return;
+      }
+      setError('');
+      setConfirmState({
+        kind: 'split',
+        deck: splitDeck,
+        topics: selectedTopics,
+        title,
+        movedCount: selectedSplitCount,
+        remainingCount: totalSplitCards - selectedSplitCount,
+      });
+    },
+    [splitDeck, busy, lang, selectedTopics, selectedSplitCount, totalSplitCards],
+  );
+
+  const handleConfirmExecute = useCallback(async () => {
+    const req = confirmState;
+    setConfirmState(null);
+    if (!req || busy) return;
+    setBusy(true);
+    setError('');
+    if (req.kind === 'merge') {
+      const res = await tryAction<DeckMergeResponse>(host, 'deck.merge', {
+        sourceIds: [req.source.id],
+        targetId: req.target.id,
+      });
+      if (!mountedRef.current) return;
+      setBusy(false);
+      if (!res.ok) {
+        setError(res.error?.message || t(lang, '合并题组失败', 'Failed to merge decks'));
+        return;
+      }
+      await actions.refresh();
+      onUpdated?.();
+      if (!mountedRef.current) return;
+      notify(
+        t(
+          lang,
+          `已将「${deckLabel(req.source)}」的 ${res.value?.moved ?? req.sourceCount} 题合并入「${deckLabel(req.target)}」`,
+          `Merged ${res.value?.moved ?? req.sourceCount} cards from "${deckLabel(req.source)}" into "${deckLabel(req.target)}"`,
+        ),
+        'success',
+      );
+      onClose();
+      return;
+    }
+
+    const res = await tryAction<DeckSplitResponse>(host, 'deck.split', {
+      id: req.deck.id,
+      title: req.title,
+      topics: req.topics,
+    });
+    if (!mountedRef.current) return;
+    setBusy(false);
+    if (!res.ok) {
+      setError(res.error?.message || t(lang, '拆分题组失败', 'Failed to split deck'));
+      return;
+    }
+    await actions.refresh();
+    onUpdated?.();
+    if (!mountedRef.current) return;
+    notify(
+      t(
+        lang,
+        `已拆出 ${res.value?.moved ?? req.movedCount} 题到「${req.title}」（原题组余 ${res.value?.remaining ?? req.remainingCount} 题）`,
+        `Split ${res.value?.moved ?? req.movedCount} cards into "${req.title}" (${res.value?.remaining ?? req.remainingCount} remaining)`,
+      ),
+      'success',
+    );
+    onClose();
+  }, [confirmState, busy, host, lang, actions, onUpdated, notify, onClose]);
+
+  const typingInTextField =
+    (tab === 'import' && (importFocus === 'path' || importFocus === 'course')) ||
+    (tab === 'split' && splitFocus === 'title');
+
+  // Keyboard routing for tabs & sub-focus
+  useInput(
+    (input, key) => {
+      if (busy || confirmState) return;
+
+      // Global modal tab shortcuts when not actively typing inside a TextInput
+      if (!typingInTextField) {
+        if (input === '1') {
+          switchTab('import');
+          return;
+        }
+        if (input === '2') {
+          switchTab('merge');
+          return;
+        }
+        if (input === '3') {
+          switchTab('split');
+          return;
+        }
+        if (key.tab) {
+          const idx = TABS.indexOf(tab);
+          switchTab(TABS[(idx + (key.shift ? TABS.length - 1 : 1)) % TABS.length]);
+          return;
+        }
+      }
+
+      if (tab === 'import') {
+        if (importFocus === 'tabs') {
+          if (key.leftArrow) {
+            const idx = TABS.indexOf(tab);
+            switchTab(TABS[(idx + TABS.length - 1) % TABS.length]);
+          } else if (key.rightArrow) {
+            const idx = TABS.indexOf(tab);
+            switchTab(TABS[(idx + 1) % TABS.length]);
+          } else if (key.downArrow || key.return) {
+            setImportFocus('path');
+          }
+          return;
+        }
+        if (importFocus === 'path') {
+          if (key.upArrow) setImportFocus('tabs');
+          else if (key.downArrow) setImportFocus('course');
+          return;
+        }
+        if (importFocus === 'course') {
+          if (key.upArrow) setImportFocus('path');
+          else if (key.downArrow) setImportFocus('tabs');
+          return;
+        }
+      }
+
+      if (tab === 'merge') {
+        if (input === 's' || input === 'd') {
+          setMergeDirection((d) => (d === 'into-other' ? 'into-selected' : 'into-other'));
+        }
+        return;
+      }
+
+      if (tab === 'split') {
+        if (splitFocus === 'topics') {
+          if (input === ' ') {
+            const item = topicGroups[topicIndex];
+            if (item) toggleTopic(item.topic);
+          }
+          return;
+        }
+        if (splitFocus === 'title') {
+          if (key.upArrow) {
+            setSplitFocus('topics');
+          }
+        }
+      }
+    },
+    { isActive: isActive && !busy && !confirmState },
+  );
+
+  // Responsive Modal Sizing for 80x24, 120x36, 160x44
+  const availCols = Math.max(width, Math.max(24, columns - 4));
+  const availRows = Math.max(height, Math.max(16, rows - 2));
+  const frameW = Math.max(48, Math.min(86, availCols - 4));
+  const frameH = Math.max(18, Math.min(30, availRows - 2));
+  const innerW = modalContentWidth(frameW);
+  const bodyH = Math.max(8, frameH - 7); // 5 chrome rows + 2 tab-bar rows
+
+  const hints = useMemo<KeyHint[]>(() => {
+    if (tab === 'import') {
+      return [
+        { key: '↑/↓', label: t(lang, '切栏/字段', 'Focus') },
+        ...(importFocus === 'path' ? [{ key: 'Tab', label: t(lang, '路径补全', 'Complete') }] : []),
+        { key: 'Enter', label: t(lang, '导入', 'Import') },
+        { key: 'Esc', label: t(lang, '关闭', 'Close') },
+      ];
+    }
+    if (tab === 'merge') {
+      return [
+        { key: '1-3/Tab', label: t(lang, '切页', 'Tabs') },
+        { key: 's', label: t(lang, '切换方向', 'Direction') },
+        { key: 'Enter', label: t(lang, '合并', 'Merge') },
+        { key: 'Esc', label: t(lang, '关闭', 'Close') },
+      ];
+    }
+    if (splitFocus === 'title') {
+      return [
+        { key: '↑/Esc', label: t(lang, '返回主题', 'Topics') },
+        { key: 'Enter', label: t(lang, '确认拆分', 'Split') },
+      ];
+    }
+    return [
+      { key: '1-3/Tab', label: t(lang, '切页', 'Tabs') },
+      { key: 'Space', label: t(lang, '勾选主题', 'Toggle') },
+      { key: 'Enter', label: t(lang, '下一步', 'Next') },
+      { key: 'Esc', label: t(lang, '关闭', 'Close') },
+    ];
+  }, [tab, importFocus, splitFocus, lang]);
+
+  const renderMergeRow = useCallback(
+    (item: DeckItem, ctx: VirtualListRenderContext) => {
+      const countStr = ` ${deckCardCount(item, progressMap)}${t(lang, '题', 'c')}`;
+      const draftTag = editingDraftDeckIds.has(item.id) ? (lang === 'en' ? ' [draft]' : ' [草稿]') : '';
+      const courseTag = item.course ? ` [${truncateDisplay(item.course, 12)}]` : '';
+      const avail = Math.max(8, ctx.width - displayWidth(courseTag) - displayWidth(draftTag) - displayWidth(countStr));
+      const titleText = padDisplay(truncateDisplay(deckLabel(item), avail), avail);
+      const fg = ctx.selected ? theme.selectionFg : theme.text;
+      return (
+        <Text color={fg} bold={ctx.selected}>
+          {titleText}
+          {courseTag ? <Text color={ctx.selected ? theme.selectionFg : theme.accent}>{courseTag}</Text> : null}
+          {draftTag ? <Text color={ctx.selected ? theme.selectionFg : theme.warning}>{draftTag}</Text> : null}
+          <Text color={ctx.selected ? theme.selectionFg : theme.muted}>{countStr}</Text>
+        </Text>
+      );
+    },
+    [progressMap, lang, editingDraftDeckIds, theme],
+  );
+
+  const renderTopicRow = useCallback(
+    (item: TopicGroup, ctx: VirtualListRenderContext) => {
+      const checked = selectedTopics.includes(item.topic);
+      const box = checked ? (asciiMode ? '[x] ' : '[✓] ') : '[ ] ';
+      const countStr = ` ${item.count}${t(lang, '题', 'c')}`;
+      const avail = Math.max(6, ctx.width - box.length - displayWidth(countStr));
+      const label = padDisplay(truncateDisplay(item.topic, avail), avail);
+      const fg = ctx.selected ? theme.selectionFg : checked ? theme.primary : theme.text;
+      return (
+        <Text color={fg} bold={ctx.selected || checked}>
+          <Text color={ctx.selected ? theme.selectionFg : checked ? theme.success : theme.muted}>{box}</Text>
+          {label}
+          <Text color={ctx.selected ? theme.selectionFg : theme.muted}>{countStr}</Text>
+        </Text>
+      );
+    },
+    [selectedTopics, asciiMode, lang, theme],
+  );
+
+  const tabSpecs: Array<{ id: DeckOpsTab; key: string; label: string }> = [
+    { id: 'import', key: '1', label: t(lang, '导入 JSON', 'Import JSON') },
+    { id: 'merge', key: '2', label: t(lang, '合并题组', 'Merge') },
+    { id: 'split', key: '3', label: t(lang, '拆分题组', 'Split') },
+  ];
+
+  const mergeListH = Math.max(4, bodyH - (error ? 3 : 2));
+  const splitListH = Math.max(4, bodyH - (error ? 6 : 5));
+  const arrowGlyph = asciiMode ? '->' : '→';
+  const promptGlyph = asciiMode ? '>' : '›';
+  const sepLine = (asciiMode ? '-' : '─').repeat(innerW);
+
+  return (
+    <>
+      <Modal
+        title={t(lang, '题组操作中心', 'Deck Operations')}
+        icon={asciiMode ? '+' : '◈'}
+        subtitle={selectedDeck ? truncateDisplay(deckLabel(selectedDeck), 26) : undefined}
+        width={frameW}
+        height={frameH}
+        onClose={onClose}
+        isActive={isActive && !confirmState && !busy}
+        hints={hints}
+      >
+        {/* Tab Bar */}
+        <Box flexDirection="row" height={1} gap={1} flexShrink={0} overflow="hidden">
+          {tabSpecs.map((spec) => {
+            const active = tab === spec.id;
+            const focusedBar = tab === 'import' && importFocus === 'tabs';
+            return (
+              <Badge
+                key={spec.id}
+                label={`${spec.key}:${spec.label}`}
+                tone={active ? (focusedBar ? 'accent' : 'primary') : 'neutral'}
+                variant={active ? 'solid' : 'outline'}
+              />
+            );
+          })}
+          <Box flexGrow={1} />
+          <Text color={theme.dim}>{tab === 'import' && importFocus !== 'tabs' ? t(lang, '↑切页', '↑tabs') : '1-3 / Tab'}</Text>
+        </Box>
+        <Box height={1} flexShrink={0}>
+          <Text color={theme.border}>{sepLine}</Text>
+        </Box>
+
+        {/* Tab 1: Import JSON */}
+        {tab === 'import' ? (
+          <Box flexDirection="column" height={bodyH} overflow="hidden">
+            <Box flexDirection="row" justifyContent="space-between" height={1}>
+              <Text color={importFocus === 'path' ? theme.primary : theme.muted} bold={importFocus === 'path'}>
+                {t(lang, '本地题组 JSON 路径 (支持 ~ / \\ 及拖拽路径):', 'Local JSON Path (~ / \\ / drag-drop):')}
+              </Text>
+              {jsonPreview ? (
+                <Text color={theme.success}>
+                  {asciiMode ? `[OK] ${jsonPreview.cardCount}c` : `✓ ${jsonPreview.cardCount}${t(lang, '题', 'c')}`}
+                </Text>
+              ) : null}
+            </Box>
+            <TextInput
+              value={filePath}
+              onChange={(v) => {
+                setFilePath(v);
+                if (error) setError('');
+              }}
+              onTab={handleTabComplete}
+              onSubmit={() => {
+                void handleImportSubmit();
+              }}
+              onCancel={onClose}
+              placeholder={process.platform === 'win32' ? 'C:\\Users\\...\\deck.json' : '~/Documents/deck.json'}
+              width={Math.max(16, innerW - 4)}
+              isActive={isActive && !confirmState && !busy && importFocus === 'path'}
+              prompt={promptGlyph}
+            />
+
+            {matches.length > 0 && importFocus === 'path' ? (
+              <Box height={1} overflow="hidden">
+                <Text color={theme.dim} wrap="truncate-end">
+                  {t(lang, '补全:', 'Tab:')} {matches.join('  ')}
+                </Text>
+              </Box>
+            ) : null}
+
+            <Box marginTop={1} height={1}>
+              <Text color={importFocus === 'course' ? theme.primary : theme.muted} bold={importFocus === 'course'}>
+                {t(lang, '覆盖所属课程 (可选，留空沿用文件或当前课程):', 'Course Override (optional):')}
+              </Text>
+            </Box>
+            <TextInput
+              value={courseOverride}
+              onChange={setCourseOverride}
+              onTab={() => {
+                switchTab('merge');
+              }}
+              onSubmit={() => {
+                void handleImportSubmit();
+              }}
+              onCancel={onClose}
+              placeholder={
+                activeFocusCourse
+                  ? t(lang, `留空默认 (${activeFocusCourse})`, `Leave blank (default: ${activeFocusCourse})`)
+                  : t(lang, '例如：线性代数', 'e.g. Linear Algebra')
+              }
+              width={Math.max(16, innerW - 4)}
+              isActive={isActive && !confirmState && !busy && importFocus === 'course'}
+              prompt={promptGlyph}
+            />
+
+            {jsonPreview ? (
+              <Box marginTop={1} height={1} overflow="hidden">
+                <Text color={theme.muted} wrap="truncate-end">
+                  {t(lang, '预览:', 'Preview:')}{' '}
+                  <Text color={theme.text}>{jsonPreview.title || t(lang, '(将用文件名)', '(filename)')}</Text>
+                  {jsonPreview.course ? ` · ${jsonPreview.course}` : ''} · {jsonPreview.cardCount} {t(lang, '题', 'cards')}
+                </Text>
+              </Box>
+            ) : jsonHintErr ? (
+              <Box marginTop={1} height={1} overflow="hidden">
+                <Text color={theme.warning} wrap="truncate-end">
+                  {`${asciiMode ? '[!]' : '▲'} ${jsonHintErr}`}
+                </Text>
+              </Box>
+            ) : null}
+
+            {busy ? (
+              <Box marginTop={1}>
+                <Spinner label={t(lang, '正在导入题组 JSON…', 'Importing deck JSON…')} active={isActive} />
+              </Box>
+            ) : null}
+
+            {error ? (
+              <Box marginTop={1}>
+                <Text color={theme.error} wrap="wrap">
+                  {`${asciiMode ? '[X]' : '✕'} ${error}`}
+                </Text>
+              </Box>
+            ) : null}
+          </Box>
+        ) : null}
+
+        {/* Tab 2: Merge Decks */}
+        {tab === 'merge' ? (
+          <Box flexDirection="column" height={bodyH} overflow="hidden">
+            {!selectedDeck ? (
+              <EmptyState
+                title={t(lang, '未选中题组', 'No deck selected')}
+                hint={t(lang, '请先在学习库选中一个题组，或按 [1] 导入题组 JSON', 'Select a deck in Library first, or press [1] to import JSON')}
+                width={innerW}
+                height={bodyH}
+              />
+            ) : !isOrdinaryActiveDeck(selectedDeck) ? (
+              <EmptyState
+                title={t(lang, '当前题组不可合并', 'Deck cannot be merged')}
+                hint={t(lang, '已归档或系统题组无法合并，请先恢复或选择其他题组', 'Archived or system decks cannot be merged')}
+                width={innerW}
+                height={bodyH}
+              />
+            ) : (
+              <>
+                <Box height={1} overflow="hidden">
+                  <Text color={theme.muted} wrap="truncate-end">
+                    {mergeDirection === 'into-other' ? (
+                      <>
+                        {t(lang, '将', 'Merge')}{' '}
+                        <Text color={theme.accent} bold>
+                          {truncateDisplay(deckLabel(selectedDeck), 22)}
+                        </Text>{' '}
+                        {arrowGlyph} {t(lang, '并入下方所选目标题组 (s 换向)', 'into selected target (s flip)')}
+                      </>
+                    ) : (
+                      <>
+                        {t(lang, '将下方所选来源题组', 'Merge selected source')} {arrowGlyph}{' '}
+                        <Text color={theme.accent} bold>
+                          {truncateDisplay(deckLabel(selectedDeck), 22)}
+                        </Text>{' '}
+                        {t(lang, '(s 换向)', '(s flip)')}
+                      </>
+                    )}
+                  </Text>
+                </Box>
+                <Box height={1} flexShrink={0}>
+                  <Text color={theme.border}>{sepLine}</Text>
+                </Box>
+                <VirtualList
+                  items={mergeCandidates}
+                  height={mergeListH}
+                  width={innerW}
+                  selectedIndex={mergeIndex}
+                  onChange={setMergeIndex}
+                  onSelect={handleMergeSelect}
+                  isActive={isActive && !confirmState && !busy && tab === 'merge'}
+                  keyExtractor={(d) => d.id}
+                  renderItem={renderMergeRow}
+                  emptyText={t(lang, '没有其他可合并的普通题组', 'No other active decks to merge')}
+                  emptyHint={t(lang, '按 [1] 可导入新题组 JSON', 'Press [1] to import a deck JSON')}
+                />
+                {error ? (
+                  <Box height={1} overflow="hidden">
+                    <Text color={theme.error} wrap="truncate-end">
+                      {`${asciiMode ? '[X]' : '✕'} ${error}`}
+                    </Text>
+                  </Box>
+                ) : null}
+              </>
+            )}
+          </Box>
+        ) : null}
+
+        {/* Tab 3: Split Deck */}
+        {tab === 'split' ? (
+          <Box flexDirection="column" height={bodyH} overflow="hidden">
+            {!selectedDeckId ? (
+              <EmptyState
+                title={t(lang, '未选中题组', 'No deck selected')}
+                hint={t(lang, '请先在学习库选中一个题组再拆分，或按 [1] 导入 JSON', 'Select a deck in Library first, or press [1] to import JSON')}
+                width={innerW}
+                height={bodyH}
+              />
+            ) : splitLoading ? (
+              <Box height={bodyH} alignItems="center" justifyContent="center">
+                <Spinner label={t(lang, '正在读取题组主题…', 'Loading deck topics…')} active={isActive} />
+              </Box>
+            ) : splitError ? (
+              <Box height={bodyH} paddingY={1}>
+                <Text color={theme.error}>{splitError}</Text>
+              </Box>
+            ) : !splitDeck ? (
+              <EmptyState title={t(lang, '题组不存在', 'Deck not found')} width={innerW} height={bodyH} />
+            ) : splitDeck.archived || splitDeck.systemKind ? (
+              <EmptyState
+                title={t(lang, '当前题组不可拆分', 'Deck cannot be split')}
+                hint={t(lang, '已归档或系统题组不能拆分', 'Archived or system decks cannot be split')}
+                width={innerW}
+                height={bodyH}
+              />
+            ) : topicGroups.length <= 1 ? (
+              <EmptyState
+                title={t(lang, '当前题组无法按主题拆分', 'Cannot split by topic')}
+                hint={t(
+                  lang,
+                  `仅检测到 ${topicGroups.length} 个主题，拆分后两个题组均须至少保留 1 道题`,
+                  `Only ${topicGroups.length} topic found; splitting requires at least 2 topics`,
+                )}
+                width={innerW}
+                height={bodyH}
+              />
+            ) : (
+              <>
+                <Box height={1} overflow="hidden">
+                  <Text color={theme.muted} wrap="truncate-end">
+                    {t(lang, '已选主题', 'Topics')}: <Text color={theme.primary} bold>{selectedTopics.length}</Text>/
+                    {topicGroups.length} ·{' '}
+                    {t(lang, '拆出', 'Move')}: <Text color={theme.accent} bold>{selectedSplitCount}</Text>/
+                    {totalSplitCards} {t(lang, '题', 'cards')} ·{' '}
+                    {t(lang, '保留', 'Keep')}: <Text color={theme.text}>{totalSplitCards - selectedSplitCount}</Text>
+                  </Text>
+                </Box>
+                <VirtualList
+                  items={topicGroups}
+                  height={splitListH}
+                  width={innerW}
+                  selectedIndex={topicIndex}
+                  onChange={setTopicIndex}
+                  onSelect={(item) => proceedToSplitTitle(item)}
+                  isActive={isActive && !confirmState && !busy && tab === 'split' && splitFocus === 'topics'}
+                  keyExtractor={(g) => g.topic}
+                  renderItem={renderTopicRow}
+                />
+                <Box height={1} flexShrink={0}>
+                  <Text color={theme.border}>{sepLine}</Text>
+                </Box>
+                <Box height={1} overflow="hidden">
+                  <Text color={splitFocus === 'title' ? theme.primary : theme.muted} bold={splitFocus === 'title'}>
+                    {t(lang, '新题组名称 (Enter 确认拆分):', 'New Deck Title (Enter to split):')}
+                  </Text>
+                </Box>
+                <TextInput
+                  value={splitTitle}
+                  onChange={(v) => {
+                    setSplitTitle(v);
+                    if (error) setError('');
+                  }}
+                  onSubmit={(val) => handleSplitTitleSubmit(val)}
+                  onCancel={() => setSplitFocus('topics')}
+                  placeholder={t(lang, '输入拆分后的新题组名称…', 'Enter new deck title…')}
+                  width={Math.max(16, innerW - 4)}
+                  isActive={isActive && !confirmState && !busy && tab === 'split' && splitFocus === 'title'}
+                  prompt={promptGlyph}
+                />
+                {error ? (
+                  <Box height={1} overflow="hidden">
+                    <Text color={theme.error} wrap="truncate-end">
+                      {`${asciiMode ? '[X]' : '✕'} ${error}`}
+                    </Text>
+                  </Box>
+                ) : null}
+              </>
+            )}
+          </Box>
+        ) : null}
+      </Modal>
+
+      {confirmState ? (
+        <ConfirmDialog
+          title={
+            confirmState.kind === 'merge'
+              ? t(lang, '确认合并题组', 'Confirm Merge Decks')
+              : t(lang, '确认拆分题组', 'Confirm Split Deck')
+          }
+          message={
+            confirmState.kind === 'merge'
+              ? t(
+                  lang,
+                  `将「${deckLabel(confirmState.source)}」(${confirmState.sourceCount} 题) 合并入「${deckLabel(confirmState.target)}」(${confirmState.targetCount} 题)？来源题组将被移除，所有题目与学习记录全部保留。`,
+                  `Merge "${deckLabel(confirmState.source)}" (${confirmState.sourceCount} cards) into "${deckLabel(confirmState.target)}" (${confirmState.targetCount} cards)? The source deck will be removed; all cards and history stay.`,
+                )
+              : t(
+                  lang,
+                  `从「${confirmState.deck.title}」拆出 ${confirmState.movedCount} 题到新题组「${confirmState.title}」？原题组将保留 ${confirmState.remainingCount} 题。`,
+                  `Split ${confirmState.movedCount} cards from "${confirmState.deck.title}" into new deck "${confirmState.title}"? ${confirmState.remainingCount} cards will stay in source.`,
+                )
+          }
+          confirmLabel={confirmState.kind === 'merge' ? t(lang, '确认合并', 'Merge') : t(lang, '确认拆分', 'Split')}
+          cancelLabel={t(lang, '取消', 'Cancel')}
+          isActive={isActive}
+          onConfirm={() => {
+            void handleConfirmExecute();
+          }}
+          onCancel={() => setConfirmState(null)}
+        />
+      ) : null}
+    </>
+  );
+});
