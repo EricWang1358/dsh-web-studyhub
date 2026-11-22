@@ -94,6 +94,40 @@ interface RawDocOutlineEntry {
 
 const DOC_HEADING_RE = /^ {0,3}(#{1,4})[ \t]+(\S.*?)(?:[ \t]+#+)?[ \t]*$/;
 const DOC_FENCE_RE = /^ {0,3}(?:```|~~~)/;
+const MAX_ANCHOR_SLICE_CHARS = 240;
+
+/**
+ * Extract the first non-whitespace passage slice (up to 240 chars, stopping at the first
+ * blank line when present) while preserving exact UTF-16 `start`/`end` offsets in `text`.
+ */
+export function extractPageAnchorSlice(
+  text: string,
+): { start: number; end: number; quote: string } | null {
+  if (typeof text !== 'string' || !text) return null;
+  const start = text.search(/\S/);
+  if (start < 0) return null;
+
+  const maxEnd = Math.min(text.length, start + MAX_ANCHOR_SLICE_CHARS);
+  const windowText = text.slice(start, maxEnd);
+  const blankLine = /\r?\n[ \t]*\r?\n/.exec(windowText);
+  let end = blankLine ? start + blankLine.index : maxEnd;
+
+  if (end === maxEnd && end < text.length && end > start + 1) {
+    const prevCode = text.charCodeAt(end - 1);
+    if (prevCode >= 0xd800 && prevCode <= 0xdbff) {
+      end -= 1;
+    }
+  }
+
+  while (end > start && /\s/.test(text[end - 1] ?? '')) {
+    end -= 1;
+  }
+  if (end <= start) return null;
+
+  const quote = text.slice(start, end);
+  if (!quote.trim()) return null;
+  return { start, end, quote };
+}
 
 function finalizeChapterRanges(
   rawRows: Array<{ id: string; title: string; level: number; page: number }>,
@@ -443,6 +477,7 @@ export const DocumentReader = memo(function DocumentReader({
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const mathUnicode = useTuiStore((s) => s.preferences.mathUnicode);
   const setPreferences = useTuiStore((s) => s.setPreferences);
+  const setSnapshot = useTuiStore((s) => s.setSnapshot);
   const navigate = useTuiStore((s) => s.navigate);
   const notify = useTuiStore((s) => s.notify);
 
@@ -468,6 +503,9 @@ export const DocumentReader = memo(function DocumentReader({
   } = useStreamingBuffer();
   const [aiBusy, setAiBusy] = useState(false);
   const [savingNote, setSavingNote] = useState(false);
+  const [savingCard, setSavingCard] = useState(false);
+  const [savedCard, setSavedCard] = useState(false);
+  const saveCardBusyRef = useRef(false);
   const {
     text: translationText,
     set: setTranslationText,
@@ -565,6 +603,8 @@ export const DocumentReader = memo(function DocumentReader({
       setTranslateMeta(null);
       setSubMode('read');
       setSavingNote(false);
+      setSavingCard(false);
+      setSavedCard(false);
     };
   }, [abortInFlight, cancelActiveTranslation, flushPendingPersist]);
 
@@ -583,6 +623,8 @@ export const DocumentReader = memo(function DocumentReader({
     cancelActiveTranslation();
     abortInFlight();
     setAiBusy(false);
+    setSavingCard(false);
+    setSavedCard(false);
     setTranslateBusy(false);
     setPendingTranslateConfirm(null);
     setTranslateMeta(null);
@@ -1002,6 +1044,7 @@ export const DocumentReader = memo(function DocumentReader({
       abortRef.current = ac;
       setSubMode('ask-view');
       setAiBusy(true);
+      setSavedCard(false);
       resetAiAnswer();
 
       try {
@@ -1479,13 +1522,123 @@ export const DocumentReader = memo(function DocumentReader({
     }
   }, [pageData, aiBusy, savingNote, pageScrollTop, subMode, width, host, lang, documentId, askQuestion, aiAnswer, initialCourse, notify]);
 
+  const handleSaveAskToCard = useCallback(async () => {
+    if (!pageData || aiBusy || saveCardBusyRef.current) return;
+    const question = askQuestion.trim();
+    const answer = aiAnswer.trim();
+    if (!question || !answer) {
+      notify(t(lang, '当前没有可保存的问答内容', 'No Q&A answer available to save'), 'error');
+      return;
+    }
+    const anchor = extractPageAnchorSlice(pageData.text);
+    if (!anchor) {
+      notify(t(lang, '当前页没有可用于定位的原文段落', 'No source passage available on this page to link'), 'error');
+      return;
+    }
+    saveCardBusyRef.current = true;
+    setSavingCard(true);
+    try {
+      let selection: Record<string, unknown> = {
+        ...(pageData.documentId ? { documentId: pageData.documentId } : {}),
+        ...(pageData.revision ? { revision: pageData.revision } : {}),
+        sourceId: pageData.sourceId,
+        start: anchor.start,
+        end: anchor.end,
+        quote: anchor.quote,
+      };
+      if (!pageData.revision || !pageData.documentId) {
+        let resolvedDocId = pageData.documentId;
+        let resolvedRev = pageData.revision;
+        if (!resolvedDocId) {
+          const docRes = await tryAction<{ id?: string; documentId?: string; currentRevision?: string; revision?: string }>(
+            host,
+            'materials.document.get',
+            { sourceId: pageData.sourceId },
+          );
+          if (!mountedRef.current) return;
+          if (docRes.ok && docRes.value) {
+            resolvedDocId = docRes.value.documentId || docRes.value.id;
+            resolvedRev = resolvedRev || docRes.value.currentRevision || docRes.value.revision;
+          }
+        }
+        const resolveRes = await tryAction<{
+          status?: string;
+          selection?: Record<string, unknown>;
+          message?: string;
+        }>(host, 'materials.selection.resolve', {
+          ...selection,
+          ...(resolvedDocId ? { documentId: resolvedDocId } : {}),
+          ...(resolvedRev ? { revision: resolvedRev } : {}),
+        });
+        if (!mountedRef.current) return;
+        if (resolveRes.ok && resolveRes.value?.status === 'resolved' && resolveRes.value.selection) {
+          selection = Object.fromEntries(
+            Object.entries(resolveRes.value.selection).filter(([, v]) => v !== undefined),
+          );
+        } else {
+          notify(
+            resolveRes.value?.message ||
+              resolveRes.error?.message ||
+              t(lang, '无法定位当前页原文版本', 'Unable to resolve current page revision'),
+            'error',
+          );
+          return;
+        }
+      }
+      const operationId = `tui-qa-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const res = await tryAction<{
+        status?: string;
+        deckId?: string;
+        cardId?: string;
+        error?: string;
+      }>(host, 'generation.selection.saveAnswer', {
+        selection,
+        question,
+        answer,
+        operationId,
+        uiLanguage: lang,
+      });
+      if (!mountedRef.current) return;
+      if (!res.ok || !res.value) {
+        notify(
+          res.error?.message || t(lang, '保存闪卡失败', 'Failed to save flashcard'),
+          'error',
+        );
+        return;
+      }
+      if (res.value.status === 'complete') {
+        setSavedCard(true);
+        const snapRes = await tryAction(host, 'snapshot');
+        if (mountedRef.current && snapRes.ok && snapRes.value && typeof snapRes.value === 'object') {
+          setSnapshot(snapRes.value as never);
+        }
+        if (mountedRef.current) {
+          notify(t(lang, '已保存为原文关联闪卡', 'Saved as passage-linked flashcard'), 'success');
+        }
+      } else if (res.value.status === 'duplicate') {
+        setSavedCard(true);
+        notify(t(lang, '该问答卡片已存在于题组中', 'This Q&A flashcard already exists'), 'info');
+      } else {
+        notify(
+          res.value.error || t(lang, '保存闪卡时发生冲突，请重试', 'Conflict while saving flashcard, please retry'),
+          'error',
+        );
+      }
+    } catch (err) {
+      if (mountedRef.current) notify(errorMessage(err, lang), 'error');
+    } finally {
+      saveCardBusyRef.current = false;
+      if (mountedRef.current) setSavingCard(false);
+    }
+  }, [pageData, aiBusy, askQuestion, aiAnswer, host, lang, notify, setSnapshot]);
+
   const isTyping = subMode === 'jump' || subMode === 'search' || subMode === 'ask-input';
   const drawerOpen = subMode === 'outline' || subMode === 'notes' || subMode === 'mark' || subMode === 'glossary';
   const readerInputActive = isActive && !drawerOpen && !pendingTranslateConfirm;
   const claimedKeys = useMemo(
     () =>
       subMode === 'ask-view'
-        ? ['s', 'backspace']
+        ? ['s', 'f', 'backspace']
         : subMode === 'translate-view'
           ? ['L', 'R', 'backspace']
           : ['[', ']', '/', 'g', 'G', 'm', 'M', 'a', 't', 'q', 'p', 'O', 'B', 'H', 'backspace'],
@@ -1499,6 +1652,12 @@ export const DocumentReader = memo(function DocumentReader({
       return [
         { key: 'j/k', label: t(lang, '滚动', 'Scroll') },
         { key: 's', label: t(lang, '存笔记', 'Save Note') },
+        {
+          key: 'f',
+          label: savedCard
+            ? t(lang, '已存闪卡', 'Card saved')
+            : t(lang, '存为闪卡', 'Save card'),
+        },
         { key: 'Esc', label: t(lang, '返回', 'Back') },
       ];
     }
@@ -1527,7 +1686,7 @@ export const DocumentReader = memo(function DocumentReader({
       { key: 'Esc', label: t(lang, '返回', 'Back') },
     ];
     return items;
-  }, [chapters.length, lang, subMode, translateTarget]);
+  }, [chapters.length, lang, savedCard, subMode, translateTarget]);
   useFooterHints(hints, readerInputActive);
 
   useInput(
@@ -1543,6 +1702,8 @@ export const DocumentReader = memo(function DocumentReader({
           resetTranslation();
           setTranslateMeta(null);
           setAiBusy(false);
+          setSavingCard(false);
+          setSavedCard(false);
           setTranslateBusy(false);
           setSubMode('read');
         } else {
@@ -1558,6 +1719,8 @@ export const DocumentReader = memo(function DocumentReader({
       if (subMode === 'ask-view') {
         if (input === 's' && !aiBusy) {
           void handleSaveAskToNote();
+        } else if (input === 'f' && !aiBusy) {
+          void handleSaveAskToCard();
         }
         return;
       }
@@ -1596,6 +1759,7 @@ export const DocumentReader = memo(function DocumentReader({
         }
       } else if (input === 'a') {
         setAskQuestion('');
+        setSavedCard(false);
         setSubMode('ask-input');
       } else if (input === 't') {
         void openTranslatePage(translateTarget, false);
@@ -1793,22 +1957,33 @@ export const DocumentReader = memo(function DocumentReader({
                 ? asciiMode
                   ? t(lang, '生成中... Esc 中止', 'Streaming... Esc abort')
                   : t(lang, '生成中… Esc 中止', 'Streaming… Esc abort')
-                : savingNote
+                : savingNote || savingCard
                   ? asciiMode
                     ? t(lang, '保存中...', 'Saving...')
                     : t(lang, '保存中…', 'Saving…')
-                  : asciiMode
-                    ? t(lang, 's 存笔记 - Esc 返回', 's Save Note - Esc Back')
-                    : t(lang, 's 存笔记 · Esc 返回', 's Save Note · Esc Back')
+                  : 's/f/Esc'
             }
             width={auxW}
             height={auxH}
             focused
           >
+            {!aiBusy && aiAnswer.trim() && askQuestion.trim() ? (
+              <Box height={1} width={Math.max(12, auxW - 4)} flexShrink={0} overflow="hidden">
+                <Text color={savedCard ? theme.success : theme.muted} wrap="truncate-end">
+                  {asciiMode
+                    ? `[s] ${t(lang, '存笔记', 'Save Note')}  [f] ${
+                        savedCard ? t(lang, '已存闪卡', 'Card saved') : t(lang, '存为闪卡', 'Save card')
+                      }`
+                    : `[s] ${t(lang, '存笔记', 'Save Note')} · [f] ${
+                        savedCard ? t(lang, '已存闪卡', 'Card saved') : t(lang, '存为闪卡', 'Save card')
+                      }`}
+                </Text>
+              </Box>
+            ) : null}
             <MarkdownView
               markdown={aiAnswer || (aiBusy ? (asciiMode ? t(lang, '_正在思考..._', '_Thinking..._') : t(lang, '_正在思考…_', '_Thinking…_')) : '')}
               width={Math.max(12, auxW - 4)}
-              height={Math.max(2, auxH - 2)}
+              height={Math.max(2, auxH - (!aiBusy && aiAnswer.trim() && askQuestion.trim() ? 3 : 2))}
               isActive={readerInputActive && subMode === 'ask-view'}
               mathUnicode={mathUnicode}
               follow={aiBusy}

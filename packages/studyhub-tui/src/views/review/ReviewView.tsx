@@ -31,6 +31,7 @@ import {
   FSRS_GRADES,
   MAX_TRANSLATION_CACHE,
   buildClozeBlankDiffs,
+  canAdjustAiGrade,
   currentDeckIdOf,
   extractCitation,
   extractFeedback,
@@ -133,6 +134,106 @@ const CHOICE_DIGIT_KEYS: readonly string[] = Object.freeze(['1', '2', '3', '4', 
 const TF_DIGIT_KEYS: readonly string[] = Object.freeze(['1', '2']);
 const EMPTY_CLAIMED_KEYS: readonly string[] = Object.freeze(['r']);
 
+interface GradeAdjustModalProps {
+  lang: 'zh' | 'en';
+  asciiMode: boolean;
+  width: number;
+  currentGrade: number | undefined;
+  originalGrade: number | undefined;
+  busy: boolean;
+  isActive: boolean;
+  onSelect: (grade: number) => void;
+  onClose: () => void;
+}
+
+function GradeAdjustModal({
+  lang,
+  asciiMode,
+  width,
+  currentGrade,
+  originalGrade,
+  busy,
+  isActive,
+  onSelect,
+  onClose,
+}: GradeAdjustModalProps) {
+  const theme = useTheme();
+  const initialCursor =
+    typeof currentGrade === 'number' && currentGrade >= 0 && currentGrade <= 5 ? currentGrade : 3;
+  const [cursor, setCursor] = useState(initialCursor);
+
+  useEffect(() => {
+    if (isActive) {
+      setCursor(typeof currentGrade === 'number' && currentGrade >= 0 && currentGrade <= 5 ? currentGrade : 3);
+    }
+  }, [isActive, currentGrade]);
+
+  useInput(
+    (input, key) => {
+      if (busy) return;
+      if (/^[0-5]$/.test(input)) {
+        onSelect(Number(input));
+        return;
+      }
+      if (input === 'j' || key.downArrow) {
+        setCursor((prev) => (prev + 1) % FSRS_GRADES.length);
+        return;
+      }
+      if (input === 'k' || key.upArrow) {
+        setCursor((prev) => (prev - 1 + FSRS_GRADES.length) % FSRS_GRADES.length);
+        return;
+      }
+      if (key.return) {
+        onSelect(FSRS_GRADES[cursor]?.grade ?? cursor);
+      }
+    },
+    { isActive },
+  );
+
+  return (
+    <Modal
+      title={t(lang, '手动调整 AI 评分', 'Adjust AI Grade')}
+      icon={asciiMode ? '*' : '◆'}
+      tone="primary"
+      width={Math.min(56, Math.max(32, width - 6))}
+      isActive={isActive}
+      onClose={onClose}
+      hints={[
+        { key: '0-5', label: t(lang, '直接改分', 'Pick') },
+        { key: 'j/k', label: t(lang, '选择', 'Move') },
+        { key: 'Enter', label: t(lang, '确认', 'Confirm') },
+        { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+      ]}
+    >
+      <Text color={theme.muted}>
+        {typeof originalGrade === 'number' && originalGrade !== currentGrade
+          ? t(lang, `当前: ${currentGrade ?? '-'}/5 (AI 原评 ${originalGrade})`, `Current: ${currentGrade ?? '-'}/5 (AI: ${originalGrade})`)
+          : t(lang, `当前评分: ${currentGrade ?? '-'}/5，选择调整后的 FSRS 评分 (0-5):`, `Current grade: ${currentGrade ?? '-'}/5. Pick new FSRS grade (0-5):`)}
+      </Text>
+      <Box flexDirection="column" marginTop={1}>
+        {FSRS_GRADES.map((g, idx) => {
+          const isCursor = idx === cursor;
+          const isCurrent = g.grade === currentGrade;
+          const isOriginal = g.grade === originalGrade;
+          const label = lang === 'en' ? g.labelEn : g.labelZh;
+          return (
+            <Box key={g.key} flexDirection="row" gap={1}>
+              <Text color={isCursor ? theme.primary : theme.dim} bold={isCursor}>
+                {isCursor ? (asciiMode ? '> ' : '▸ ') : '  '}
+              </Text>
+              <Text color={isCursor ? theme.primary : theme.text} bold={isCursor || isCurrent}>
+                {`[${g.key}] ${label}`}
+              </Text>
+              {isCurrent ? <Text color={theme.accent}>{t(lang, '(当前)', '(current)')}</Text> : null}
+              {isOriginal ? <Text color={theme.muted}>{t(lang, '(AI原评)', '(AI)')}</Text> : null}
+            </Box>
+          );
+        })}
+      </Box>
+    </Modal>
+  );
+}
+
 export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive }) => {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
@@ -172,6 +273,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
   const [retellModalOpen, setRetellModalOpen] = useState(false);
   const [teachModalOpen, setTeachModalOpen] = useState(false);
   const [answerCardModalOpen, setAnswerCardModalOpen] = useState(false);
+  const [gradeAdjustModalOpen, setGradeAdjustModalOpen] = useState(false);
   const [confirmEndOpen, setConfirmEndOpen] = useState(false);
   const [focusOverrideByCard, setFocusOverrideByCard] = useState<Record<string, boolean>>({});
   const [focusBusy, setFocusBusy] = useState(false);
@@ -183,6 +285,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
   const [translationTick, setTranslationTick] = useState(0);
 
   const mountedRef = useRef(true);
+  const busyRef = useRef(false);
   const translationCacheRef = useRef(new LruCache<string, CardTranslation>(MAX_TRANSLATION_CACHE));
   const currentCardIdRef = useRef<string | null>(null);
   const runRef = useRef<ReviewRun | null>(null);
@@ -277,6 +380,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     setClozeEditing(false);
     setOpenDraft(restoredText);
     setOpenEditing(false);
+    setGradeAdjustModalOpen(false);
     setGradingBusy(false);
     setGradeResult(null);
     setGradeError(null);
@@ -732,6 +836,71 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     }
   }, [run, cardId, focusBusy, host, notify, lang, focusOverrideByCard, refresh, applyRun]);
 
+  const canAdjustGrade = canAdjustAiGrade(
+    run,
+    run ? (run.entry ?? { retry: Boolean(run.retry) }) : null,
+    feedback,
+  );
+  const canAckCorrection = Boolean(run && !isFinished && run.mode !== 'exam' && feedback?.correctionPending);
+
+  const handleAdjustGrade = useCallback(
+    async (grade: number) => {
+      if (!run?.id || !cardId || busyRef.current || busy || !canAdjustGrade) return;
+      busyRef.current = true;
+      setBusy(true);
+      try {
+        const res = await tryAction<ReviewRun>(host, 'review.grade.adjust', {
+          runId: run.id,
+          entryIndex: run.index,
+          cardId,
+          grade,
+        });
+        if (!mountedRef.current) return;
+        if (!res.ok || !res.value) {
+          notify(res.error?.message || t(lang, '调整评分失败', 'Failed to adjust grade'), 'error');
+          return;
+        }
+        setGradeAdjustModalOpen(false);
+        setGradeResult(null);
+        applyRun(res.value, true);
+        notify(
+          t(lang, `已将 AI 评分调整为 ${grade}`, `Adjusted AI grade to ${grade}`),
+          'success',
+        );
+      } finally {
+        busyRef.current = false;
+        if (mountedRef.current) setBusy(false);
+      }
+    },
+    [run, cardId, busy, canAdjustGrade, host, applyRun, notify, lang],
+  );
+
+  const handleAckCorrection = useCallback(async () => {
+    if (!run?.id || !cardId || busyRef.current || busy || !canAckCorrection) return;
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      const res = await tryAction<ReviewRun>(host, 'review.correction.ack', {
+        runId: run.id,
+        entryIndex: run.index,
+        cardId,
+      });
+      if (!mountedRef.current) return;
+      if (!res.ok || !res.value) {
+        notify(res.error?.message || t(lang, '确认订正失败', 'Failed to acknowledge correction'), 'error');
+        return;
+      }
+      applyRun(res.value, true);
+      notify(
+        t(lang, '已确认订正并加入本轮重练', 'Correction acknowledged and queued for retry'),
+        'success',
+      );
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusy(false);
+    }
+  }, [run, cardId, busy, canAckCorrection, host, applyRun, notify, lang]);
+
   // Phase-aware key claiming: only claim digits when rating (0-5) or picking choices (1-6 / 1-2)
   const anyModalOpen =
     aiDrawerOpen ||
@@ -742,20 +911,26 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     retellModalOpen ||
     teachModalOpen ||
     answerCardModalOpen ||
+    gradeAdjustModalOpen ||
     confirmEndOpen;
   const mainActive = isActive && !anyModalOpen && !clozeEditing && !openEditing && !isFinished;
   const claimedKeys = useMemo<readonly string[]>(() => {
     if (!isActive || loading) return [];
     if (!run) return EMPTY_CLAIMED_KEYS;
     if (isFinished) return [];
-    const baseUtil = isRubricEligibleKind ? [...CARD_UTIL_KEYS, 'G'] : CARD_UTIL_KEYS;
+    const baseUtil = [
+      ...CARD_UTIL_KEYS,
+      ...(isRubricEligibleKind ? ['G'] : []),
+      ...(canAdjustGrade ? ['J'] : []),
+      ...(canAckCorrection ? ['K'] : []),
+    ];
     if (needsRating) return [...baseUtil, ...RATING_DIGIT_KEYS];
     if (!revealed && !feedback) {
       if (kind === 'true_false') return [...baseUtil, ...TF_DIGIT_KEYS];
       if (kind === 'single' || kind === 'multiple') return [...baseUtil, ...CHOICE_DIGIT_KEYS];
     }
     return baseUtil;
-  }, [isActive, loading, run, isFinished, isRubricEligibleKind, needsRating, revealed, feedback, kind]);
+  }, [isActive, loading, run, isFinished, isRubricEligibleKind, canAdjustGrade, canAckCorrection, needsRating, revealed, feedback, kind]);
   useClaimKeys(claimedKeys, mainActive);
 
   const hints: KeyHint[] = useMemo(() => {
@@ -784,6 +959,12 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     if (canRubricGrade && !activeRubric) {
       base.push({ key: 'G', label: t(lang, 'AI评分', 'Grade') });
     }
+    if (canAdjustGrade) {
+      base.push({ key: 'J', label: t(lang, '改分', 'Adjust') });
+    }
+    if (canAckCorrection) {
+      base.push({ key: 'K', label: t(lang, '确认订正', 'Ack fix') });
+    }
     base.push({ key: 'h', label: t(lang, 'AI讲解', 'AI Help') });
     base.push({ key: 'L', label: t(lang, '带学', 'Teach') });
     base.push({ key: '*', label: t(lang, '重点', 'Focus') });
@@ -809,8 +990,11 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     needsRating,
     canRubricGrade,
     activeRubric,
+    canAdjustGrade,
+    canAckCorrection,
     canUndo,
     mathUnicode,
+    asciiMode,
     citation,
     lang,
   ]);
@@ -844,6 +1028,14 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
       }
       if (input === 'G' && isRubricEligibleKind) {
         void handleRubricGrade();
+        return;
+      }
+      if (input === 'J' && canAdjustGrade) {
+        setGradeAdjustModalOpen(true);
+        return;
+      }
+      if (input === 'K' && canAckCorrection) {
+        void handleAckCorrection();
         return;
       }
       if (input === 'T') {
@@ -1207,7 +1399,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
           paddingX={1}
         >
           {/* Top progress & status bar */}
-          <Box flexDirection="row" alignItems="center" justifyContent="space-between" width={innerW} marginBottom={0}>
+          <Box flexDirection="row" alignItems="center" justifyContent="space-between" flexShrink={0} width={innerW} marginBottom={0}>
             <Box flexDirection="row" alignItems="center" gap={1}>
               <ProgressBar
                 ratio={progressRatio}
@@ -1242,7 +1434,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
           <Divider width={innerW} />
 
           {/* Question Stem */}
-          <Box flexDirection="column" width={innerW} marginY={0}>
+          <Box flexDirection="column" flexShrink={0} width={innerW} marginY={0}>
             <MarkdownView
               markdown={stemMarkdown}
               width={innerW}
@@ -1507,7 +1699,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                     (feedback.level ? displayWidth(String(feedback.level)) + 3 : 0) +
                     (canUndo ? displayWidth(undoLabel) + 3 : 0);
                   return (
-                    <Box flexDirection="row" alignItems="center" gap={1} marginBottom={0} width={innerW} overflow="hidden">
+                    <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} gap={1} marginBottom={0} width={innerW}>
                       <Badge
                         label={statusLabel}
                         tone={feedback.correct ? 'success' : feedback.selfReported ? 'neutral' : 'error'}
@@ -1529,7 +1721,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                 if (userAnswerText || canUndo) {
                   const usedW = canUndo ? displayWidth(undoLabel) + 3 : 0;
                   return (
-                    <Box flexDirection="row" alignItems="center" gap={1} marginBottom={0} width={innerW} overflow="hidden">
+                    <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} gap={1} marginBottom={0} width={innerW}>
                       {canUndo ? <Badge label={undoLabel} tone="info" variant="soft" /> : null}
                       {userAnswerText ? (
                         <Text color={theme.muted}>
@@ -1611,7 +1803,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
               ) : null}
 
               {activeRubric ? (
-                <Box flexDirection="row" alignItems="center" gap={1} marginY={0}>
+                <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} gap={1} marginY={0} width={innerW}>
                   <Badge
                     label={`${t(lang, 'Rubric 得分', 'Rubric')} ${activeRubric.total}/${activeRubric.max}`}
                     tone={
@@ -1625,25 +1817,64 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                   {activeRubric.band ? (
                     <Badge label={String(activeRubric.band)} tone="ai" variant="soft" />
                   ) : null}
-                  {gradeResult?.grade !== undefined || feedback?.grade !== undefined ? (
+                  {feedback?.grade !== undefined || gradeResult?.grade !== undefined ? (
                     <Badge
-                      label={`FSRS ${gradeResult?.grade ?? feedback?.grade}/5`}
+                      label={`FSRS ${feedback?.grade ?? gradeResult?.grade}/5`}
                       tone="accent"
                       variant="soft"
                     />
                   ) : null}
+                  {feedback && typeof feedback.gradeOriginal === 'number' && feedback.gradeOriginal !== feedback.grade ? (
+                    <Badge
+                      label={t(
+                        lang,
+                        `已改分 ${feedback.grade} (AI 原评 ${feedback.gradeOriginal})`,
+                        `Adjusted ${feedback.grade} (AI: ${feedback.gradeOriginal})`,
+                      )}
+                      tone="info"
+                      variant="soft"
+                    />
+                  ) : null}
+                </Box>
+              ) : feedback && typeof feedback.gradeOriginal === 'number' && feedback.gradeOriginal !== feedback.grade ? (
+                <Box flexDirection="row" alignItems="center" flexShrink={0} gap={1} marginY={0} width={innerW}>
+                  <Badge
+                    label={t(
+                      lang,
+                      `已改分 ${feedback.grade} (AI 原评 ${feedback.gradeOriginal})`,
+                      `Adjusted ${feedback.grade} (AI: ${feedback.gradeOriginal})`,
+                    )}
+                    tone="info"
+                    variant="soft"
+                  />
+                </Box>
+              ) : null}
+
+              {canAckCorrection ? (
+                <Box flexDirection="row" alignItems="center" flexWrap="wrap" flexShrink={0} gap={1} marginY={0} width={innerW}>
+                  <Badge
+                    label={truncateDisplay(
+                      asciiMode
+                        ? t(lang, '待确认订正 - 按 [K] 确认并加入本轮重练', 'Correction pending - press [K] to confirm & queue retry')
+                        : t(lang, '待确认订正 · 按 [K] 确认并加入本轮重练', 'Correction pending · press [K] to confirm & queue retry'),
+                      Math.max(12, innerW - 2),
+                      asciiMode ? '...' : '…',
+                    )}
+                    tone="warning"
+                    variant="soft"
+                  />
                 </Box>
               ) : null}
 
               {revealed ? (
-                <>
+                <Box flexDirection="column" flexShrink={0} width={innerW}>
                   <Text color={theme.success} bold>
                     {`${t(lang, '参考答案', 'Reference')}: ${referenceAnswer}`}
                   </Text>
                   {activeTranslation?.answer ? (
                     <Text color={theme.muted}>{`EN: ${activeTranslation.answer}`}</Text>
                   ) : null}
-                </>
+                </Box>
               ) : null}
 
               {postAnswerMarkdown ? (
@@ -1651,7 +1882,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                   <MarkdownView
                     markdown={postAnswerMarkdown}
                     width={innerW}
-                    height={Math.max(3, height - 18)}
+                    height={Math.max(3, height - (innerW < 90 ? 22 : 18))}
                     mathUnicode={mathUnicode}
                   />
                 </Box>
@@ -1709,17 +1940,23 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
           <Box height={1} width={innerW} overflow="hidden">
             <Text color={theme.dim} wrap="truncate">
               {truncateDisplay(
-                canRubricGrade
-                  ? t(
-                      lang,
-                      '[h]讲解 [L]带学 [*]重点 [F]复述 [G]评分 [A]答题卡 [T]翻译 [S]同类 [D]工具 [Q]队列 [E]标记 [s]跳过 [u]撤销 [,/.]换题',
-                      '[h]Help [L]Teach [*]Focus [F]Retell [G]Grade [A]AnswerCard [T]Trans [S]Sim [D]Tools [Q]Queue [E]Flag [s]Skip [u]Undo [,/.]Nav',
-                    )
-                  : t(
-                      lang,
-                      '[h]讲解 [L]带学 [*]重点 [F]复述 [A]答题卡 [T]翻译 [S]同类 [D]工具 [Q]队列 [E]标记 [s]跳过 [u]撤销 [,/.]换题',
-                      '[h]Help [L]Teach [*]Focus [F]Retell [A]AnswerCard [T]Trans [S]Sim [D]Tools [Q]Queue [E]Flag [s]Skip [u]Undo [,/.]Nav',
-                    ),
+                [
+                  canRubricGrade
+                    ? t(
+                        lang,
+                        '[h]讲解 [L]带学 [*]重点 [F]复述 [G]评分 [A]答题卡 [T]翻译 [S]同类 [D]工具 [Q]队列 [E]标记 [s]跳过 [u]撤销 [,/.]换题',
+                        '[h]Help [L]Teach [*]Focus [F]Retell [G]Grade [A]AnswerCard [T]Trans [S]Sim [D]Tools [Q]Queue [E]Flag [s]Skip [u]Undo [,/.]Nav',
+                      )
+                    : t(
+                        lang,
+                        '[h]讲解 [L]带学 [*]重点 [F]复述 [A]答题卡 [T]翻译 [S]同类 [D]工具 [Q]队列 [E]标记 [s]跳过 [u]撤销 [,/.]换题',
+                        '[h]Help [L]Teach [*]Focus [F]Retell [A]AnswerCard [T]Trans [S]Sim [D]Tools [Q]Queue [E]Flag [s]Skip [u]Undo [,/.]Nav',
+                      ),
+                  canAdjustGrade ? t(lang, '[J]改分', '[J]Adjust') : '',
+                  canAckCorrection ? t(lang, '[K]确认订正', '[K]Ack') : '',
+                ]
+                  .filter(Boolean)
+                  .join(' '),
                 innerW,
                 asciiMode ? '...' : '…',
               )}
@@ -1742,7 +1979,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
             userAnswer={userAnswerText}
             width={aiPaneW}
             height={height}
-            isActive={isActive && aiDrawerOpen && !flagModalOpen && !similarModalOpen && !cardToolsModalOpen && !queueModalOpen && !retellModalOpen && !teachModalOpen && !answerCardModalOpen}
+            isActive={isActive && aiDrawerOpen && !flagModalOpen && !similarModalOpen && !cardToolsModalOpen && !queueModalOpen && !retellModalOpen && !teachModalOpen && !answerCardModalOpen && !gradeAdjustModalOpen}
             mathUnicode={mathUnicode}
             onClose={() => setAiDrawerOpen(false)}
           />
@@ -1896,6 +2133,23 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
             />
           </Box>
         </Modal>
+      ) : null}
+
+      {/* Manual AI Grade Adjust Modal */}
+      {gradeAdjustModalOpen && canAdjustGrade ? (
+        <GradeAdjustModal
+          lang={lang}
+          asciiMode={asciiMode}
+          width={width}
+          currentGrade={typeof feedback?.grade === 'number' ? feedback.grade : undefined}
+          originalGrade={typeof feedback?.gradeOriginal === 'number' ? feedback.gradeOriginal : undefined}
+          busy={busy}
+          isActive={isActive && gradeAdjustModalOpen}
+          onSelect={(grade) => void handleAdjustGrade(grade)}
+          onClose={() => {
+            if (!busyRef.current) setGradeAdjustModalOpen(false);
+          }}
+        />
       ) : null}
 
       {/* End Round Confirmation Dialog */}

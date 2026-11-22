@@ -15,6 +15,7 @@ import { useClaimKeys } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { useShellActions } from '../../shell/actions.js';
+import { tryAction } from '../../host/sample-actions.js';
 import { currentCourse } from '../../shell/data.js';
 import { t, useTuiStore } from '../../state/store.js';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';
@@ -43,7 +44,7 @@ type ActiveModal =
   | { type: 'link'; note: NoteItem }
   | { type: 'cancelRecap'; noteId: string; label: string };
 
-const CLAIMED_KEYS = ['a', 'o', 'R', 'L', 'C'] as const;
+const CLAIMED_KEYS = ['a', 'o', 'R', 'L', 'C', 'M'] as const;
 
 interface LinkedCardTarget {
   deckId: string;
@@ -215,6 +216,7 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
   const pendingSelectIdRef = useRef<string | null>(navNoteId || null);
   const linkingRef = useRef(false);
   const cancellingRecapRef = useRef(false);
+  const importMaterialBusyRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -585,6 +587,77 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
     [host, notify, lang, activeNote?.id, fetchNotesAndDaily, refreshSnapshot],
   );
 
+  const handleImportNoteToSources = useCallback(async () => {
+    if (!displayedNote || importMaterialBusyRef.current) return;
+    importMaterialBusyRef.current = true;
+    try {
+      const prep = await tryAction<{ id: string; title: string; text: string; format?: string; courses?: string[] }>(
+        host,
+        'note.material.prepare',
+        { id: displayedNote.id, expectedRevision: displayedNote.revision ?? 0 },
+      );
+      if (!mountedRef.current) return;
+      if (!prep.ok || !prep.value) {
+        const rawMsg = prep.error?.message || '';
+        const msg = rawMsg.includes('请先生成或填写正文')
+          ? t(lang, '请先生成或填写正文。', 'Please generate or enter note content first.')
+          : rawMsg || t(lang, '导入资料库失败', 'Failed to prepare note for Sources');
+        notify(msg, 'error');
+        return;
+      }
+      const material = prep.value;
+      const existing = await tryAction<{ id: string }>(host, 'source.get', { id: material.id, limit: 1 });
+      if (!mountedRef.current) return;
+      if (existing.ok && existing.value) {
+        notify(
+          t(
+            lang,
+            `笔记「${material.title}」已在资料库中（无需重复导入）`,
+            `Note "${material.title}" is already in Sources library`,
+          ),
+          'info',
+        );
+        return;
+      }
+      const added = await tryAction<{ id: string }>(host, 'source.add', {
+        id: material.id,
+        title: material.title,
+        text: material.text,
+        format: material.format ?? 'md',
+        courses: Array.isArray(material.courses) ? material.courses : [],
+      });
+      if (!mountedRef.current) return;
+      if (!added.ok) {
+        const errMsg = added.error?.message || '';
+        if (/already exists/i.test(errMsg)) {
+          notify(
+            t(
+              lang,
+              `笔记「${material.title}」已在资料库中（无需重复导入）`,
+              `Note "${material.title}" is already in Sources library`,
+            ),
+            'info',
+          );
+          return;
+        }
+        notify(errMsg || t(lang, '导入资料库失败', 'Failed to import note to Sources'), 'error');
+        return;
+      }
+      await refreshSnapshot();
+      if (!mountedRef.current) return;
+      notify(
+        t(
+          lang,
+          `已将笔记「${material.title}」导入资料库（可在资料库阅读或据此出题）`,
+          `Imported note "${material.title}" to Sources library`,
+        ),
+        'success',
+      );
+    } finally {
+      importMaterialBusyRef.current = false;
+    }
+  }, [displayedNote, host, lang, notify, refreshSnapshot]);
+
   const handleExportConfirm = useCallback(async () => {
     if (!modal || modal.type !== 'export' || exporting) return;
     const resolved = expandUserPath(exportPath, host.getLibraryRoot());
@@ -712,6 +785,10 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
         setModal({ type: 'link', note: displayedNote });
         return;
       }
+      if (input === 'M') {
+        void handleImportNoteToSources();
+        return;
+      }
       if (input === 'e') {
         if (!isNoteWritable(displayedNote)) {
           notify(t(lang, '已发布笔记不能直接修改，请新建草稿', 'Published notes cannot be overwritten; create a new draft'), 'warning');
@@ -739,6 +816,7 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
       { key: 'e', label: t(lang, '编辑', 'Edit') },
       { key: 'o', label: t(lang, '打开关联', 'Open Ref') },
       { key: 'L', label: t(lang, '外链', 'Link') },
+      { key: 'M', label: t(lang, '入资料库', 'To Sources') },
       { key: 'R', label: t(lang, '日结', 'Recap') },
       ...(anyRecapRunning ? [{ key: 'C', label: t(lang, '停日结', 'Stop Recap') }] : []),
       { key: 'x', label: t(lang, '导出', 'Export') },

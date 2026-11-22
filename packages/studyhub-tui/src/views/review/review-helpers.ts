@@ -40,6 +40,12 @@ export interface CardFeedbackShape {
   credited?: number;
   answers?: Record<string, string>;
   details?: Array<{ id: string; correct?: boolean; expected?: string }>;
+  hasRubric?: boolean;
+  taskCheck?: boolean;
+  gradeOriginal?: number;
+  adjustedAt?: string;
+  correctionPending?: boolean;
+  correctionSeenAt?: string;
   [k: string]: unknown;
 }
 
@@ -313,7 +319,33 @@ export function formatGapDays(days: unknown, lang: UiLanguage): string {
 
 export function extractFeedback(run: ReviewRun | null | undefined): CardFeedbackShape | null {
   if (!run?.feedback || typeof run.feedback !== 'object') return null;
-  return run.feedback as CardFeedbackShape;
+  const raw = run.feedback as Record<string, unknown>;
+  return {
+    ...(raw as CardFeedbackShape),
+    hasRubric: Boolean(raw.rubric),
+    taskCheck: Boolean(raw.taskCheck),
+    ...(typeof raw.gradeOriginal === 'number' ? { gradeOriginal: raw.gradeOriginal } : {}),
+    ...(typeof raw.adjustedAt === 'string' ? { adjustedAt: raw.adjustedAt } : {}),
+    ...(typeof raw.correctionPending === 'boolean' ? { correctionPending: raw.correctionPending } : {}),
+    ...(typeof raw.correctionSeenAt === 'string' ? { correctionSeenAt: raw.correctionSeenAt } : {}),
+  };
+}
+
+export function canAdjustAiGrade(
+  run: (Pick<ReviewRun, 'mode' | 'closed'> & { closedAt?: unknown }) | null | undefined,
+  entry: { retry?: unknown; [k: string]: unknown } | null | undefined,
+  feedback: CardFeedbackShape | null | undefined,
+): boolean {
+  return Boolean(
+    run &&
+      run.mode !== 'exam' &&
+      !run.closed &&
+      !run.closedAt &&
+      entry &&
+      !entry.retry &&
+      feedback?.hasRubric &&
+      !feedback?.taskCheck,
+  );
 }
 
 export function extractSolution(run: ReviewRun | null | undefined): CardSolutionShape | null {

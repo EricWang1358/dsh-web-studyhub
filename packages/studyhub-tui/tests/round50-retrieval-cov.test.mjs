@@ -367,10 +367,10 @@ describe('Round 50: WorkspaceTab Retrieval Index Coverage, Provider Switch & Hel
       await ttyZh.flush();
       const scr = ttyZh.readScreen();
       ttyZh.assertHealthyScreen(scr, 120, 36, `HelpOverlay scroll ${step} zh`);
-      if (scr.includes('骨架互动图管理')) sawSkelZh = true;
+      if (scr.includes('骨架互动图')) sawSkelZh = true;
       if (scr.includes('原始文件 / 目录大纲')) sawOrigZh = true;
     }
-    assert.ok(sawSkelZh, 'HelpOverlay (zh) must include 骨架互动图管理');
+    assert.ok(sawSkelZh, 'HelpOverlay (zh) must include 骨架互动图');
     assert.ok(sawOrigZh, 'HelpOverlay (zh) must include 原始文件 / 目录大纲');
     ttyZh.send('G');
     const helpZhBottom = await ttyZh.waitFor(
