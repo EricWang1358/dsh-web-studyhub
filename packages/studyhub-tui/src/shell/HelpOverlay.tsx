@@ -95,6 +95,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'a / u', label: t(lang, '应用 / 撤销总纲重建', 'Apply / undo rebuild') },
         { key: 'U', label: t(lang, '归位未归位段落', 'Place unplaced section') },
         { key: 'T', label: t(lang, '费曼复述知识点', 'Feynman retell point') },
+        { key: 'M', label: t(lang, '章节模拟卷', 'Chapter mock exam') },
       ],
     },
     {
@@ -108,6 +109,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       items: [
         { key: 'Enter/p', label: t(lang, '钻取练习', 'Drill practice') },
         { key: 'f', label: t(lang, '7天预测', '7d forecast') },
+        { key: 'm', label: t(lang, '知识地图', 'Study map') },
       ],
     },
     {

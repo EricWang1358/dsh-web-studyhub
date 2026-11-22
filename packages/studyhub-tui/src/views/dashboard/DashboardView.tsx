@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { StudySnapshot, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
@@ -25,6 +25,10 @@ import {
   type BarChartItem,
   type HeatmapDay,
 } from '../../render/index.js';
+
+const StudyMapModal = lazy(() =>
+  import('./StudyMapModal.js').then((m) => ({ default: m.StudyMapModal })),
+);
 
 interface WeakTopicRow {
   deckId: string;
@@ -225,6 +229,7 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [busyPractice, setBusyPractice] = useState(false);
   const [showForecast, setShowForecast] = useState(false);
+  const [mapModalOpen, setMapModalOpen] = useState(false);
 
   const reqSeq = useRef(0);
   const planSeq = useRef(0);
@@ -450,8 +455,8 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
   const wide = width >= 96;
   const extraWide = width >= 110;
 
-  const claimedKeys = useMemo(() => ['j', 'k', 'r', 'p', 'w', 'f'], []);
-  useClaimKeys(claimedKeys, isActive);
+  const claimedKeys = useMemo(() => ['j', 'k', 'r', 'p', 'w', 'f', 'm'], []);
+  useClaimKeys(claimedKeys, isActive && !mapModalOpen);
 
   const footerHints = useMemo(
     () => [
@@ -466,14 +471,19 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
             ? t(lang, '掌握度', 'Mastery')
             : t(lang, '7日预测', '7d Forecast'),
       },
+      { key: 'm', label: t(lang, '知识地图', 'Map') },
       { key: 'r', label: t(lang, '刷新', 'Refresh') },
     ],
     [lang, extraWide, showForecast],
   );
-  useFooterHints(footerHints, isActive);
+  useFooterHints(footerHints, isActive && !mapModalOpen);
 
   useInput(
     (input) => {
+      if (input === 'm') {
+        setMapModalOpen(true);
+        return;
+      }
       if (input === 'r') {
         void refreshSnapshot().then(() => loadData());
         return;
@@ -494,7 +504,7 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
         launchDrillItem(drillItems[selectedIdx]);
       }
     },
-    { isActive },
+    { isActive: isActive && !mapModalOpen },
   );
 
   const totals = stats?.totals;
@@ -776,7 +786,7 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
           </Text>
         </Text>
         {loading || busyPractice ? (
-          <Spinner label={busyPractice ? t(lang, '准备练习...', 'Starting...') : t(lang, '加载中...', 'Loading...')} active={isActive} />
+          <Spinner label={busyPractice ? t(lang, '准备练习...', 'Starting...') : t(lang, '加载中...', 'Loading...')} active={isActive && !mapModalOpen} />
         ) : habitInfo && habitHeaderWidth >= 14 ? (
           <Text color={theme.info} wrap="truncate">
             {truncateDisplay(habitHeaderWidth >= 34 ? habitInfo.full : habitInfo.compact, habitHeaderWidth, asciiMode ? '...' : '…')}
@@ -866,7 +876,7 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
             ? t(lang, `薄弱 ${weakTopics.length} · 课程 ${courseStats.length}`, `${weakTopics.length} weak · ${courseStats.length} courses`)
             : undefined
         }
-        focused={isActive}
+        focused={isActive && !mapModalOpen}
         width={width}
         height={drillListPanelH}
       >
@@ -887,10 +897,22 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
             onSelect={(item) => launchDrillItem(item)}
             renderItem={renderDrillRow}
             keyExtractor={(item) => item.key}
-            isActive={isActive}
+            isActive={isActive && !mapModalOpen}
           />
         )}
       </Panel>
+
+      <Suspense fallback={null}>
+        {mapModalOpen ? (
+          <StudyMapModal
+            host={host}
+            width={width}
+            height={height}
+            isActive={isActive && mapModalOpen}
+            onClose={() => setMapModalOpen(false)}
+          />
+        ) : null}
+      </Suspense>
     </Box>
   );
 };

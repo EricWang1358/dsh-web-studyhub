@@ -25,6 +25,8 @@ import type { BookNode, BookOpenResult, BookQaListResult } from './types.js';
 export interface BookQaModalProps {
   host: HostClient;
   course: string | null;
+  selectedNodeId?: string | null;
+  selectedHid?: string | null;
   isActive: boolean;
   width: number;
   height: number;
@@ -45,15 +47,78 @@ interface BookOpenWithCards extends BookOpenResult {
   answerCards?: BookAnswerCardMeta[];
 }
 
+interface OutlineQaPlace {
+  sourceId?: string;
+  start?: number;
+  end?: number;
+  quote?: string;
+  title?: string;
+}
+
+interface OutlineQaItem {
+  kind: 'card' | 'qa-card' | 'passage' | string;
+  question: string;
+  answer: string;
+  at?: string | null;
+  place?: OutlineQaPlace | null;
+  prompt?: string;
+  followupId?: string;
+  id?: string;
+}
+
+interface CourseOutlineQaResult {
+  status?: 'ok' | 'empty';
+  course?: string | null;
+  items?: OutlineQaItem[];
+  cards?: { total?: number; read?: number; capped?: boolean; limit?: number };
+}
+
 interface PinnedQaItem {
   id: string;
-  kind: 'answerCard' | 'followup';
+  kind: 'answerCard' | 'followup' | 'sectionCard' | 'sectionQaCard' | 'sectionPassage';
+  removable: boolean;
   cardId: string;
   followupId?: string;
   title: string;
   sectionLabel: string;
   prompt?: string;
+  placeTitle?: string;
+  placeQuote?: string;
   markdown: string;
+}
+
+function resolveOutlineNode(
+  nodes: BookNode[] | undefined,
+  selectedNodeId: string | null | undefined,
+  selectedHid: string | null | undefined,
+): { key: string | null; label: string | null } {
+  const walk = (list: BookNode[] | undefined): BookNode | null => {
+    for (const node of list ?? []) {
+      if (
+        (selectedHid && node.hid === selectedHid) ||
+        (selectedNodeId && (node.key === selectedNodeId || node.hid === selectedNodeId || node.key === `bk:${selectedNodeId}`))
+      ) {
+        return node;
+      }
+      const child = walk(node.children);
+      if (child) return child;
+    }
+    return null;
+  };
+  const found = walk(nodes);
+  if (found) {
+    const label = `${found.number ? `${found.number} ` : ''}${found.title}`.trim();
+    const key = found.key && found.key.startsWith('bk:') ? found.key : null;
+    return { key, label: label || null };
+  }
+  if (selectedNodeId && selectedNodeId.trim()) {
+    const trimmed = selectedNodeId.trim();
+    return {
+      key: trimmed.startsWith('bk:') ? trimmed : `bk:${trimmed}`,
+      label: null,
+    };
+  }
+  return { key: null, label: null };
 }
 
 const QA_BLOCK_RE = /<!-- sh:qa card=(\S+) fid=(\S+) -->\r?\n((?:(?!<!-- sh:qa )[\s\S])*?)\r?\n<!-- \/sh:qa -->/g;
@@ -82,9 +147,11 @@ function cleanCardTitle(rawBody: string, prompt: string | undefined, lang: 'zh' 
   return first || t(lang, '分析题答案卡', 'Answer Card');
 }
 
-function collectPinnedItems(
+function collectQaItems(
   qaList: BookQaListResult | null,
   bookOpen: BookOpenWithCards | null,
+  outlineQaItems: OutlineQaItem[],
+  sectionTitle: string | null,
   lang: 'zh' | 'en',
 ): PinnedQaItem[] {
   const promptByCard = new Map<string, string>();
@@ -139,6 +206,7 @@ function collectPinnedItems(
   const items: PinnedQaItem[] = [];
   const cardIds = qaList?.answerCardIds ?? [...parsedCards.keys()];
   const followupIds = qaList?.followupIds ?? [...parsedFollowups.keys()];
+  const pinnedFollowupSet = new Set(followupIds);
 
   for (const cardId of cardIds) {
     const found = parsedCards.get(cardId);
@@ -154,6 +222,7 @@ function collectPinnedItems(
     items.push({
       id: `card:${cardId}`,
       kind: 'answerCard',
+      removable: true,
       cardId,
       title: cleanCardTitle(body, prompt, lang),
       sectionLabel,
@@ -177,6 +246,7 @@ function collectPinnedItems(
     items.push({
       id: `qa:${fid}`,
       kind: 'followup',
+      removable: true,
       cardId,
       followupId: fid,
       title: cleanFollowupTitle(body, lang),
@@ -186,12 +256,52 @@ function collectPinnedItems(
     });
   }
 
+  const secLabel = sectionTitle || t(lang, '本节问答', 'Section Q&A');
+  outlineQaItems.forEach((entry, idx) => {
+    if (entry.kind === 'card' && entry.followupId && pinnedFollowupSet.has(entry.followupId)) {
+      return;
+    }
+    const qText = String(entry.question ?? '').replace(/\s+/g, ' ').trim();
+    const aText = String(entry.answer ?? '').trim();
+    const mappedKind: PinnedQaItem['kind'] =
+      entry.kind === 'passage'
+        ? 'sectionPassage'
+        : entry.kind === 'qa-card'
+          ? 'sectionQaCard'
+          : 'sectionCard';
+    const fallbackTitle =
+      mappedKind === 'sectionPassage'
+        ? t(lang, '原文批注问答', 'Passage annotation')
+        : mappedKind === 'sectionQaCard'
+          ? t(lang, '阅读问答卡', 'Reader Q&A card')
+          : t(lang, '关联追问', 'Card follow-up');
+    const title = qText || fallbackTitle;
+    const mdParts: string[] = [];
+    if (qText) mdParts.push(`**${t(lang, '问题', 'Question')}:** ${qText}`);
+    if (aText) mdParts.push(aText);
+    items.push({
+      id: `outline-qa:${entry.kind}:${entry.followupId ?? entry.id ?? idx}`,
+      kind: mappedKind,
+      removable: false,
+      cardId: '',
+      followupId: entry.followupId,
+      title,
+      sectionLabel: secLabel,
+      prompt: entry.prompt,
+      placeTitle: entry.place?.title,
+      placeQuote: entry.place?.quote,
+      markdown: mdParts.join('\n\n') || fallbackTitle,
+    });
+  });
+
   return items;
 }
 
 export const BookQaModal = memo(function BookQaModal({
   host,
   course,
+  selectedNodeId,
+  selectedHid,
   isActive,
   width,
   height,
@@ -209,6 +319,8 @@ export const BookQaModal = memo(function BookQaModal({
   const [error, setError] = useState<string | null>(null);
   const [qaList, setQaList] = useState<BookQaListResult | null>(null);
   const [bookOpen, setBookOpen] = useState<BookOpenWithCards | null>(null);
+  const [outlineQaItems, setOutlineQaItems] = useState<OutlineQaItem[]>([]);
+  const [sectionTitle, setSectionTitle] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [activePane, setActivePane] = useState<'left' | 'right'>('left');
   const [confirmTarget, setConfirmTarget] = useState<PinnedQaItem | null>(null);
@@ -227,9 +339,17 @@ export const BookQaModal = memo(function BookQaModal({
     const seq = ++seqRef.current;
     setError(null);
     const courseArgs = course !== null && course !== undefined ? { course } : {};
-    const [qaRes, openRes] = await Promise.all([
+    const directKey =
+      selectedNodeId && selectedNodeId.trim().startsWith('bk:') ? selectedNodeId.trim() : null;
+    const [qaRes, openRes, directOutlineRes] = await Promise.all([
       tryAction<BookQaListResult>(host, 'book.qa.list', courseArgs),
       tryAction<BookOpenWithCards>(host, 'course.book.open', { ...courseArgs, language: lang }),
+      directKey
+        ? tryAction<CourseOutlineQaResult>(host, 'course.outline.qa', {
+            ...courseArgs,
+            keys: [directKey],
+          })
+        : Promise.resolve(null),
     ]);
     if (!mountedRef.current || seq !== seqRef.current) return;
     if (qaRes.ok && qaRes.value) {
@@ -238,20 +358,38 @@ export const BookQaModal = memo(function BookQaModal({
       setQaList(null);
       setError(qaRes.error?.message || t(lang, '读取全书精选问答失败', 'Failed to load pinned Q&As'));
     }
-    if (openRes.ok && openRes.value) {
-      setBookOpen(openRes.value);
-    } else {
-      setBookOpen(null);
+    const nextBookOpen = openRes.ok && openRes.value ? openRes.value : null;
+    setBookOpen(nextBookOpen);
+
+    const resolvedNode = resolveOutlineNode(nextBookOpen?.nodes, selectedNodeId, selectedHid);
+    setSectionTitle(resolvedNode.label);
+
+    let nextOutlineItems: OutlineQaItem[] = [];
+    if (directOutlineRes && directOutlineRes.ok && Array.isArray(directOutlineRes.value?.items)) {
+      nextOutlineItems = directOutlineRes.value.items;
+    } else if (resolvedNode.key && resolvedNode.key !== directKey) {
+      const outlineRes = await tryAction<CourseOutlineQaResult>(host, 'course.outline.qa', {
+        ...(nextBookOpen?.course ? { course: nextBookOpen.course } : courseArgs),
+        keys: [resolvedNode.key],
+      });
+      if (!mountedRef.current || seq !== seqRef.current) return;
+      if (outlineRes.ok && Array.isArray(outlineRes.value?.items)) {
+        nextOutlineItems = outlineRes.value.items;
+      }
     }
+    setOutlineQaItems(nextOutlineItems);
     setLoading(false);
-  }, [host, course, lang]);
+  }, [host, course, lang, selectedNodeId, selectedHid]);
 
   useEffect(() => {
     setLoading(true);
     void loadData();
   }, [loadData]);
 
-  const items = useMemo(() => collectPinnedItems(qaList, bookOpen, lang), [qaList, bookOpen, lang]);
+  const items = useMemo(
+    () => collectQaItems(qaList, bookOpen, outlineQaItems, sectionTitle, lang),
+    [qaList, bookOpen, outlineQaItems, sectionTitle, lang],
+  );
 
   useEffect(() => {
     if (items.length === 0) {
@@ -316,7 +454,7 @@ export const BookQaModal = memo(function BookQaModal({
         else setActivePane((p) => (p === 'left' ? 'right' : 'left'));
         return;
       }
-      if (input === 'd' && selectedItem) {
+      if (input === 'd' && selectedItem?.removable) {
         setConfirmTarget(selectedItem);
         return;
       }
@@ -331,17 +469,22 @@ export const BookQaModal = memo(function BookQaModal({
   const ell = asciiMode ? '...' : '…';
   const cardCount = items.filter((it) => it.kind === 'answerCard').length;
   const qaCount = items.filter((it) => it.kind === 'followup').length;
+  const sectionQaCount = items.filter(
+    (it) => it.kind === 'sectionCard' || it.kind === 'sectionQaCard' || it.kind === 'sectionPassage',
+  ).length;
 
   const hints = useMemo<KeyHint[]>(() => {
     const out: KeyHint[] = [];
     if (items.length > 0) {
       out.push({ key: 'Tab', label: t(lang, '切换窗格', 'Pane') });
+    }
+    if (selectedItem?.removable) {
       out.push({ key: 'd', label: t(lang, '移出全书', 'Remove') });
     }
     out.push({ key: 'r', label: t(lang, '刷新', 'Refresh') });
     out.push({ key: 'Esc', label: t(lang, '关闭', 'Close') });
     return out;
-  }, [items.length, lang]);
+  }, [items.length, selectedItem?.removable, lang]);
 
   const previewMarkdown = useMemo(() => {
     if (!selectedItem) return '';
@@ -351,13 +494,27 @@ export const BookQaModal = memo(function BookQaModal({
       const cleanPrompt = selectedItem.prompt.replace(/\s+/g, ' ').trim();
       parts.push(`> **${t(lang, '关联题目', 'Question')}:** ${cleanPrompt}`);
     }
+    if (selectedItem.placeTitle || selectedItem.placeQuote) {
+      const placeHead = selectedItem.placeTitle ? `**${selectedItem.placeTitle}**` : t(lang, '原文引用', 'Source');
+      const placeQuote = selectedItem.placeQuote ? `: ${selectedItem.placeQuote.replace(/\s+/g, ' ').trim()}` : '';
+      parts.push(`> ${placeHead}${placeQuote}`);
+    }
     parts.push(selectedItem.markdown);
     return parts.join('\n\n');
   }, [selectedItem, lang]);
 
   const renderRow = useCallback(
     (item: PinnedQaItem, ctx: VirtualListRenderContext) => {
-      const tag = item.kind === 'answerCard' ? t(lang, '[卡]', '[Card]') : t(lang, '[问]', '[Q&A]');
+      const tag =
+        item.kind === 'answerCard'
+          ? t(lang, '[卡]', '[Card]')
+          : item.kind === 'followup'
+            ? t(lang, '[问]', '[Q&A]')
+            : item.kind === 'sectionPassage'
+              ? t(lang, '[注]', '[Note]')
+              : item.kind === 'sectionQaCard'
+                ? t(lang, '[答]', '[QCard]')
+                : t(lang, '[节]', '[Sec]');
       const tagW = displayWidth(tag);
       const avail = Math.max(6, ctx.width - tagW - 1);
       const title = truncateDisplay(item.title, avail, ell);
@@ -365,7 +522,9 @@ export const BookQaModal = memo(function BookQaModal({
         ? theme.selectionFg
         : item.kind === 'answerCard'
           ? theme.accent
-          : theme.ai;
+          : item.kind === 'followup'
+            ? theme.ai
+            : theme.info;
       return (
         <Text color={ctx.selected ? theme.selectionFg : theme.text} bold={ctx.selected}>
           <Text color={tagColor}>{tag}</Text>
@@ -390,9 +549,9 @@ export const BookQaModal = memo(function BookQaModal({
     >
       {loading ? (
         <Box height={bodyH} alignItems="center" justifyContent="center">
-          <Spinner label={t(lang, '正在读取全书精选问答与答题卡…', 'Loading pinned Q&As & answer cards…')} active={isActive} />
+          <Spinner label={t(lang, `正在读取全书精选与本节问答${ell}`, `Loading pinned & section Q&As${ell}`)} active={isActive} />
         </Box>
-      ) : error && !qaList ? (
+      ) : error && !qaList && items.length === 0 ? (
         <EmptyState
           icon={asciiMode ? '!' : '✕'}
           title={t(lang, '无法读取全书精选问答', 'Cannot load pinned Q&As')}
@@ -410,9 +569,12 @@ export const BookQaModal = memo(function BookQaModal({
           <Box height={1} flexDirection="row" justifyContent="space-between" overflow="hidden" flexShrink={0}>
             <Box gap={1} overflow="hidden">
               <Badge label={t(lang, `答题卡 ${cardCount}`, `Cards ${cardCount}`)} tone={cardCount > 0 ? 'accent' : 'muted'} variant="soft" />
-              <Badge label={t(lang, `追问 ${qaCount}`, `Q&As ${qaCount}`)} tone={qaCount > 0 ? 'ai' : 'muted'} variant="soft" />
+              <Badge label={t(lang, `精选追问 ${qaCount}`, `Pinned ${qaCount}`)} tone={qaCount > 0 ? 'ai' : 'muted'} variant="soft" />
+              {(sectionQaCount > 0 || selectedNodeId || selectedHid) ? (
+                <Badge label={t(lang, `本节问答 ${sectionQaCount}`, `Section ${sectionQaCount}`)} tone={sectionQaCount > 0 ? 'info' : 'muted'} variant="soft" />
+              ) : null}
             </Box>
-            <Box flexShrink={0}>{busy ? <Spinner label={t(lang, '移出中…', 'Removing…')} active={isActive} /> : null}</Box>
+            <Box flexShrink={0}>{busy ? <Spinner label={t(lang, `移出中${ell}`, `Removing${ell}`)} active={isActive} /> : null}</Box>
           </Box>
 
           <Divider width={innerW} />
@@ -425,8 +587,8 @@ export const BookQaModal = memo(function BookQaModal({
                 title={t(lang, '当前课程暂无已收录的答题卡或追问', 'No pinned Answer Cards or Q&As yet')}
                 hint={t(
                   lang,
-                  '在刷题复习页按 [A] 打开答题卡并加入复习全书，或在 AI 追问中将问答加入全书。',
-                  'Press [A] in Review to build & pin an Answer Card, or pin an AI follow-up to the Review Book.',
+                  '在刷题复习页按 [A] 打开答题卡并加入复习全书，或在阅读器/AI 追问中记录问答。',
+                  'Press [A] in Review to pin an Answer Card, or record follow-ups and reader annotations.',
                 )}
                 width={innerW}
                 height={contentH}
@@ -442,11 +604,11 @@ export const BookQaModal = memo(function BookQaModal({
                 minRight={30}
                 breakpoint={66}
                 activePane={activePane}
-                leftLabel={t(lang, '精选列表', 'Pinned Items')}
+                leftLabel={t(lang, '问答列表', 'Q&A Items')}
                 rightLabel={t(lang, '内容预览', 'Preview')}
                 left={(sz) => (
                   <Panel
-                    title={t(lang, '已收录条目', 'Pinned')}
+                    title={t(lang, '问答条目', 'Q&A')}
                     badge={items.length}
                     focused={activePane === 'left'}
                     width={sz.width}
@@ -469,7 +631,7 @@ export const BookQaModal = memo(function BookQaModal({
                 right={(sz) => (
                   <Panel
                     title={selectedItem ? truncateDisplay(selectedItem.sectionLabel, Math.max(10, sz.width - 10), ell) : t(lang, '预览', 'Preview')}
-                    subtitle={t(lang, 'd 移出', 'd:Remove')}
+                    subtitle={selectedItem?.removable ? t(lang, 'd 移出', 'd:Remove') : t(lang, '只读查看', 'Inspect')}
                     focused={activePane === 'right'}
                     width={sz.width}
                     height={sz.height}

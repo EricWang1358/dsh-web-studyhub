@@ -15,7 +15,7 @@ import {
   useClaimKeys,
   useTheme,
 } from '../../components/index.js';
-import { truncateDisplay } from '../../render/index.js';
+import { displayWidth, truncateDisplay } from '../../render/index.js';
 import { errorMessage, tryAction } from '../../host/sample-actions.js';
 
 export interface ReaderNotesDrawerProps {
@@ -91,7 +91,19 @@ interface MarkItem {
   rereadAt?: string;
 }
 
+interface StaleMarkGroup {
+  revision?: string;
+  count?: number;
+  savedAt?: string;
+  items?: MarkItem[];
+}
+
 type DrawerTab = 'annotations' | 'marks';
+
+type ConfirmAction =
+  | { kind: 'annotation'; item: AnnotationItem }
+  | { kind: 'mark'; item: MarkItem }
+  | { kind: 'purge-stale-marks'; count: number };
 
 const MARK_STYLE_ICON: Record<string, string> = {
   underline: '═',
@@ -379,32 +391,50 @@ export const ReaderNotesDrawer = memo(function ReaderNotesDrawer({
   const [busy, setBusy] = useState(false);
   const [annotations, setAnnotations] = useState<AnnotationItem[]>([]);
   const [marks, setMarks] = useState<MarkItem[]>([]);
-  const [staleSummary, setStaleSummary] = useState<string | null>(null);
+  const [staleAnnotCount, setStaleAnnotCount] = useState(0);
+  const [staleMarkCount, setStaleMarkCount] = useState(0);
   const [pageMap, setPageMap] = useState<Map<string, number>>(() => new Map());
   const [annotIndex, setAnnotIndex] = useState(0);
   const [markIndex, setMarkIndex] = useState(0);
-  const [confirmDelete, setConfirmDelete] = useState<AnnotationItem | null>(null);
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
 
   const [resolvedDocId, setResolvedDocId] = useState<string | undefined>(documentId);
   const [resolvedRevision, setResolvedRevision] = useState<string | undefined>(revision);
   const mountedRef = useRef(true);
+  const busyRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      busyRef.current = false;
       // Memory NFR: clear drawer lists/maps on unmount.
       setAnnotations([]);
       setMarks([]);
+      setStaleAnnotCount(0);
+      setStaleMarkCount(0);
       setPageMap(new Map());
-      setConfirmDelete(null);
+      setConfirmAction(null);
     };
+  }, []);
+
+  const applyMarksResponse = useCallback((marksVal: Record<string, unknown> | undefined) => {
+    const markItems = Array.isArray(marksVal?.items) ? (marksVal.items as MarkItem[]) : [];
+    const staleGroups = Array.isArray(marksVal?.stale) ? (marksVal.stale as StaleMarkGroup[]) : [];
+    const olderStaleCount = staleGroups.reduce(
+      (sum, s) => sum + Number(s.count ?? (Array.isArray(s.items) ? s.items.length : 0)),
+      0,
+    );
+    const inlineStaleCount = markItems.filter((item) => item.status === 'stale').length;
+    setMarks(markItems);
+    setStaleMarkCount(olderStaleCount + inlineStaleCount);
+    setMarkIndex((idx) => (markItems.length === 0 ? 0 : Math.max(0, Math.min(idx, markItems.length - 1))));
   }, []);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    setConfirmDelete(null);
+    setConfirmAction(null);
 
     const loadAll = async () => {
       const targetArgs: Record<string, unknown> = {
@@ -422,13 +452,16 @@ export const ReaderNotesDrawer = memo(function ReaderNotesDrawer({
       ]);
       if (cancelled || !mountedRef.current) return;
 
+      let nextDocId = documentId;
+      let nextRev = revision;
+
       const nextPageMap = new Map<string, number>();
       if (docRes.ok && docRes.value) {
         const val = docRes.value;
-        if (typeof val.documentId === 'string') setResolvedDocId(val.documentId);
-        else if (typeof val.id === 'string') setResolvedDocId(val.id);
-        if (typeof val.revision === 'string') setResolvedRevision(val.revision);
-        else if (typeof val.currentRevision === 'string') setResolvedRevision(val.currentRevision);
+        if (typeof val.documentId === 'string') nextDocId = val.documentId;
+        else if (typeof val.id === 'string') nextDocId = val.id;
+        if (typeof val.revision === 'string') nextRev = val.revision;
+        else if (typeof val.currentRevision === 'string') nextRev = val.currentRevision;
 
         const sources = Array.isArray(val.sources) ? (val.sources as Array<{ id?: string; document?: { page?: number } }>) : [];
         sources.forEach((src, idx) => {
@@ -441,38 +474,26 @@ export const ReaderNotesDrawer = memo(function ReaderNotesDrawer({
       const annotItems = annotRes.ok && Array.isArray(annotRes.value?.items)
         ? (annotRes.value.items as AnnotationItem[])
         : [];
-      const markItems = marksRes.ok && Array.isArray(marksRes.value?.items)
-        ? (marksRes.value.items as MarkItem[])
-        : [];
 
       if (annotRes.ok && typeof annotRes.value?.documentId === 'string') {
-        setResolvedDocId(annotRes.value.documentId);
+        nextDocId = annotRes.value.documentId;
       }
       if (annotRes.ok && typeof annotRes.value?.revision === 'string') {
-        setResolvedRevision(annotRes.value.revision);
+        nextRev = annotRes.value.revision;
       }
+      if (!nextRev && marksRes.ok && typeof marksRes.value?.revision === 'string') {
+        nextRev = marksRes.value.revision;
+      }
+      setResolvedDocId(nextDocId);
+      setResolvedRevision(nextRev);
 
-      const staleAnnotCount = Array.isArray(annotRes.ok ? annotRes.value?.stale : null)
+      const nextStaleAnnotCount = Array.isArray(annotRes.ok ? annotRes.value?.stale : null)
         ? (annotRes.value?.stale as Array<{ count?: number }>).reduce((sum, s) => sum + Number(s.count ?? 0), 0)
         : 0;
-      const staleMarkCount = Array.isArray(marksRes.ok ? marksRes.value?.stale : null)
-        ? (marksRes.value?.stale as Array<{ count?: number }>).reduce((sum, s) => sum + Number(s.count ?? 0), 0)
-        : 0;
-      if (staleAnnotCount > 0 || staleMarkCount > 0) {
-        setStaleSummary(
-          t(
-            lang,
-            `旧版本另有 ${staleAnnotCount} 条批注 / ${staleMarkCount} 条标记`,
-            `Older revisions: ${staleAnnotCount} annotations / ${staleMarkCount} marks`,
-          ),
-        );
-      } else {
-        setStaleSummary(null);
-      }
-
+      setStaleAnnotCount(nextStaleAnnotCount);
       setAnnotations(annotItems);
-      setMarks(markItems);
       setAnnotIndex(0);
+      applyMarksResponse(marksRes.ok ? marksRes.value : undefined);
       setMarkIndex(0);
       setLoading(false);
     };
@@ -481,41 +502,127 @@ export const ReaderNotesDrawer = memo(function ReaderNotesDrawer({
     return () => {
       cancelled = true;
     };
-  }, [host, documentId, sourceId, revision, lang]);
+  }, [host, documentId, sourceId, revision, applyMarksResponse]);
+
+  const staleSummary = useMemo(() => {
+    if (staleAnnotCount <= 0 && staleMarkCount <= 0) return null;
+    return t(
+      lang,
+      `旧版本另有 ${staleAnnotCount} 条批注 / ${staleMarkCount} 条标记`,
+      `Older revisions: ${staleAnnotCount} annotations / ${staleMarkCount} marks`,
+    );
+  }, [lang, staleAnnotCount, staleMarkCount]);
 
   const selectedAnnotation = annotations[annotIndex];
   const selectedMark = marks[markIndex];
 
-  const handleDeleteConfirm = useCallback(async () => {
-    const target = confirmDelete;
-    setConfirmDelete(null);
-    if (!target || busy) return;
+  const buildTargetArgs = useCallback(
+    (): Record<string, unknown> => ({
+      ...(resolvedDocId ? { documentId: resolvedDocId } : {}),
+      ...(sourceId ? { sourceId } : {}),
+      ...(resolvedRevision ? { revision: resolvedRevision } : {}),
+    }),
+    [resolvedDocId, sourceId, resolvedRevision],
+  );
+
+  const refreshMarks = useCallback(async () => {
+    const res = await tryAction<Record<string, unknown>>(host, 'materials.marks.list', buildTargetArgs());
+    if (!mountedRef.current || !res.ok) return res;
+    if (!resolvedRevision && typeof res.value?.revision === 'string') {
+      setResolvedRevision(res.value.revision);
+    }
+    applyMarksResponse(res.value);
+    return res;
+  }, [host, buildTargetArgs, resolvedRevision, applyMarksResponse]);
+
+  const handleMarkReread = useCallback(async () => {
+    if (!selectedMark || busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     try {
-      const res = await tryAction<Record<string, unknown>>(host, 'materials.annotation.delete', {
-        ...(resolvedDocId ? { documentId: resolvedDocId } : {}),
-        ...(sourceId ? { sourceId } : {}),
-        ...(resolvedRevision ? { revision: resolvedRevision } : {}),
-        ids: [target.id],
+      const res = await tryAction<Record<string, unknown>>(host, 'materials.marks.seen', {
+        ...buildTargetArgs(),
+        id: selectedMark.id,
       });
       if (!mountedRef.current) return;
       if (!res.ok) {
-        notify(res.error?.message || t(lang, '删除批注失败', 'Failed to delete annotation'), 'error');
-        setBusy(false);
+        notify(res.error?.message || t(lang, '标记重读失败', 'Failed to mark as reread'), 'error');
         return;
       }
-      setAnnotations((prev) => {
-        const next = prev.filter((item) => item.id !== target.id);
-        setAnnotIndex((idx) => Math.max(0, Math.min(idx, next.length - 1)));
-        return next;
-      });
-      notify(t(lang, '已删除批注', 'Annotation deleted'), 'success');
+      if (res.value?.status === 'missing') {
+        notify(t(lang, '当前版本未找到该标记', 'Mark not found in current revision'), 'info');
+        await refreshMarks();
+        return;
+      }
+      await refreshMarks();
+      if (!mountedRef.current) return;
+      notify(t(lang, '已标记为重读', 'Marked as reread'), 'success');
     } catch (err) {
       if (mountedRef.current) notify(errorMessage(err), 'error');
     } finally {
+      busyRef.current = false;
       if (mountedRef.current) setBusy(false);
     }
-  }, [confirmDelete, busy, host, resolvedDocId, sourceId, resolvedRevision, notify, lang]);
+  }, [selectedMark, host, buildTargetArgs, notify, lang, refreshMarks]);
+
+  const handleConfirmAction = useCallback(async () => {
+    const action = confirmAction;
+    setConfirmAction(null);
+    if (!action || busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      if (action.kind === 'annotation') {
+        const res = await tryAction<Record<string, unknown>>(host, 'materials.annotation.delete', {
+          ...buildTargetArgs(),
+          ids: [action.item.id],
+        });
+        if (!mountedRef.current) return;
+        if (!res.ok) {
+          notify(res.error?.message || t(lang, '删除批注失败', 'Failed to delete annotation'), 'error');
+          return;
+        }
+        setAnnotations((prev) => {
+          const next = prev.filter((item) => item.id !== action.item.id);
+          setAnnotIndex((idx) => Math.max(0, Math.min(idx, next.length - 1)));
+          return next;
+        });
+        notify(t(lang, '已删除批注', 'Annotation deleted'), 'success');
+      } else if (action.kind === 'mark') {
+        const res = await tryAction<Record<string, unknown>>(host, 'materials.marks.delete', {
+          ...buildTargetArgs(),
+          ids: [action.item.id],
+        });
+        if (!mountedRef.current) return;
+        if (!res.ok) {
+          notify(res.error?.message || t(lang, '删除标记失败', 'Failed to delete mark'), 'error');
+          return;
+        }
+        await refreshMarks();
+        if (!mountedRef.current) return;
+        notify(t(lang, '已删除标记', 'Mark deleted'), 'success');
+      } else {
+        const res = await tryAction<Record<string, unknown>>(host, 'materials.marks.delete', {
+          ...buildTargetArgs(),
+          stale: true,
+        });
+        if (!mountedRef.current) return;
+        if (!res.ok) {
+          notify(res.error?.message || t(lang, '清除旧版本标记失败', 'Failed to purge stale marks'), 'error');
+          return;
+        }
+        const deletedCount = Number(res.value?.deleted ?? action.count);
+        await refreshMarks();
+        if (!mountedRef.current) return;
+        notify(t(lang, `已清除 ${deletedCount} 条旧版本标记`, `Purged ${deletedCount} stale mark(s)`), 'success');
+      }
+    } catch (err) {
+      if (mountedRef.current) notify(errorMessage(err), 'error');
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusy(false);
+    }
+  }, [confirmAction, host, buildTargetArgs, notify, lang, refreshMarks]);
 
   const handleJumpSelection = useCallback(
     (selection: SelectionAnchor | undefined) => {
@@ -530,8 +637,8 @@ export const ReaderNotesDrawer = memo(function ReaderNotesDrawer({
     [pageMap, onJumpPage, onClose, notify, lang],
   );
 
-  const listActive = isActive && !confirmDelete && !busy && !loading;
-  useClaimKeys(['d', 'j', 'k'], listActive);
+  const listActive = isActive && !confirmAction && !busy && !loading;
+  useClaimKeys(['d', 'j', 'k', 'r', 'S'], listActive);
 
   useInput(
     (input, key) => {
@@ -539,8 +646,21 @@ export const ReaderNotesDrawer = memo(function ReaderNotesDrawer({
         setTab((prev) => (prev === 'annotations' ? 'marks' : 'annotations'));
         return;
       }
-      if (input === 'd' && tab === 'annotations' && selectedAnnotation) {
-        setConfirmDelete(selectedAnnotation);
+      if (key.ctrl || key.meta) return;
+      if (input === 'd') {
+        if (tab === 'annotations' && selectedAnnotation) {
+          setConfirmAction({ kind: 'annotation', item: selectedAnnotation });
+        } else if (tab === 'marks' && selectedMark) {
+          setConfirmAction({ kind: 'mark', item: selectedMark });
+        }
+        return;
+      }
+      if (input === 'r' && tab === 'marks' && selectedMark) {
+        void handleMarkReread();
+        return;
+      }
+      if (input === 'S' && tab === 'marks' && staleMarkCount > 0) {
+        setConfirmAction({ kind: 'purge-stale-marks', count: staleMarkCount });
       }
     },
     { isActive: listActive },
@@ -559,10 +679,18 @@ export const ReaderNotesDrawer = memo(function ReaderNotesDrawer({
     ];
     if (tab === 'annotations' && selectedAnnotation) {
       items.push({ key: 'd', label: t(lang, '删除', 'Delete') });
+    } else if (tab === 'marks') {
+      if (selectedMark) {
+        items.push({ key: 'r', label: t(lang, '重读', 'Reread') });
+        items.push({ key: 'd', label: t(lang, '删除', 'Delete') });
+      }
+      if (staleMarkCount > 0) {
+        items.push({ key: 'S', label: t(lang, '清旧标', 'Purge stale') });
+      }
     }
     items.push({ key: 'Esc', label: t(lang, '关闭', 'Close') });
     return items;
-  }, [lang, tab, selectedAnnotation]);
+  }, [lang, tab, selectedAnnotation, selectedMark, staleMarkCount]);
 
   const detailMarkdown = useMemo(() => {
     if (tab === 'annotations') {
@@ -584,7 +712,7 @@ export const ReaderNotesDrawer = memo(function ReaderNotesDrawer({
         tone="accent"
         width={frameW}
         height={frameH}
-        isActive={isActive && !confirmDelete}
+        isActive={isActive && !confirmAction}
         onClose={onClose}
         hints={modalHints}
       >
@@ -606,8 +734,17 @@ export const ReaderNotesDrawer = memo(function ReaderNotesDrawer({
             {` ${t(lang, '高亮标记', 'Marks')} (${marks.length}) `}
           </Text>
           <Box flexGrow={1} />
-          {staleSummary && innerW >= 60 ? <Text color={theme.dim}>{staleSummary}</Text> : null}
-          {!staleSummary ? <Badge label={`P.${currentPage}`} tone="info" variant="outline" /> : null}
+          {tab === 'marks' && staleMarkCount > 0 ? (
+            <Badge
+              label={t(lang, `旧版标记 ${staleMarkCount}`, `Stale: ${staleMarkCount}`)}
+              tone="warning"
+              variant="outline"
+            />
+          ) : staleSummary && innerW >= 60 ? (
+            <Text color={theme.dim}>{staleSummary}</Text>
+          ) : (
+            <Badge label={`P.${currentPage}`} tone="info" variant="outline" />
+          )}
         </Box>
 
         {loading ? (
@@ -666,7 +803,15 @@ export const ReaderNotesDrawer = memo(function ReaderNotesDrawer({
               ) : marks.length === 0 ? (
                 <EmptyState
                   title={t(lang, '暂无高亮标记', 'No marks yet')}
-                  hint={t(lang, '文档划线、加粗、荧光笔与待出题标记会显示在这里', 'Highlights, underlines & queued passages appear here')}
+                  hint={
+                    staleMarkCount > 0
+                      ? t(
+                          lang,
+                          `旧版本有 ${staleMarkCount} 条失效标记，按 [S] 清除`,
+                          `${staleMarkCount} stale mark(s) from older revisions, press [S] to purge`,
+                        )
+                      : t(lang, '文档划线、加粗、荧光笔与待出题标记会显示在这里', 'Highlights, underlines & queued passages appear here')
+                  }
                   width={lw}
                   height={lh}
                 />
@@ -684,8 +829,11 @@ export const ReaderNotesDrawer = memo(function ReaderNotesDrawer({
                     const icon = (asciiMode ? ASCII_MARK_STYLE_ICON : MARK_STYLE_ICON)[item.style] || (asciiMode ? '-' : '•');
                     const pg = resolveItemPage(item.selection, pageMap);
                     const pgTag = pg ? `P.${pg}` : '';
+                    const rereadText = item.rereadAt ? t(lang, '已重读', 'Reread') : '';
+                    const rereadTagW = rereadText ? displayWidth(`[${rereadText}]`) + 1 : 0;
+                    const pgTagW = pgTag ? displayWidth(pgTag) + 1 : 0;
                     const quote = (item.selection?.quote || markStyleLabel(lang, item.style)).replace(/\s+/g, ' ');
-                    const maxQ = Math.max(6, ctx.width - pgTag.length - 6);
+                    const maxQ = Math.max(4, ctx.width - 5 - rereadTagW - pgTagW);
                     return (
                       <Box width={ctx.width} height={1}>
                         <Text color={ctx.selected ? theme.primary : theme.accent} bold={ctx.selected}>
@@ -696,6 +844,12 @@ export const ReaderNotesDrawer = memo(function ReaderNotesDrawer({
                           {truncateDisplay(quote, maxQ, ell)}
                         </Text>
                         <Box flexGrow={1} />
+                        {rereadText ? (
+                          <>
+                            <Badge label={rereadText} tone="success" variant="outline" />
+                            {pgTag ? <Text> </Text> : null}
+                          </>
+                        ) : null}
                         {pgTag ? <Text color={pg === currentPage ? theme.accent : theme.dim}>{pgTag}</Text> : null}
                       </Box>
                     );
@@ -725,20 +879,58 @@ export const ReaderNotesDrawer = memo(function ReaderNotesDrawer({
         )}
       </Modal>
 
-      {confirmDelete ? (
+      {confirmAction ? (
         <ConfirmDialog
-          title={t(lang, '删除批注', 'Delete Annotation')}
-          message={t(
-            lang,
-            `确定要删除这条批注吗？「${truncateDisplay(confirmDelete.question.replace(/\s+/g, ' '), 40, ell)}」`,
-            `Delete this annotation? "${truncateDisplay(confirmDelete.question.replace(/\s+/g, ' '), 40, ell)}"`,
-          )}
-          confirmLabel={t(lang, '删除', 'Delete')}
+          title={
+            confirmAction.kind === 'annotation'
+              ? t(lang, '删除批注', 'Delete Annotation')
+              : confirmAction.kind === 'mark'
+                ? t(lang, '删除标记', 'Delete Mark')
+                : t(lang, '清除旧版本标记', 'Purge Stale Marks')
+          }
+          message={
+            confirmAction.kind === 'annotation'
+              ? t(
+                  lang,
+                  `确定要删除这条批注吗？「${truncateDisplay(confirmAction.item.question.replace(/\s+/g, ' '), 40, ell)}」`,
+                  `Delete this annotation? "${truncateDisplay(confirmAction.item.question.replace(/\s+/g, ' '), 40, ell)}"`,
+                )
+              : confirmAction.kind === 'mark'
+                ? t(
+                    lang,
+                    `确定要删除这条标记吗？「${truncateDisplay(
+                      (confirmAction.item.selection?.quote || markStyleLabel(lang, confirmAction.item.style)).replace(
+                        /\s+/g,
+                        ' ',
+                      ),
+                      40,
+                      ell,
+                    )}」`,
+                    `Delete this mark? "${truncateDisplay(
+                      (confirmAction.item.selection?.quote || markStyleLabel(lang, confirmAction.item.style)).replace(
+                        /\s+/g,
+                        ' ',
+                      ),
+                      40,
+                      ell,
+                    )}"`,
+                  )
+                : t(
+                    lang,
+                    `确定要清除来自旧版本的 ${confirmAction.count} 条失效标记吗？`,
+                    `Purge ${confirmAction.count} stale mark(s) from older revisions?`,
+                  )
+          }
+          confirmLabel={
+            confirmAction.kind === 'purge-stale-marks'
+              ? t(lang, '清除', 'Purge')
+              : t(lang, '删除', 'Delete')
+          }
           cancelLabel={t(lang, '取消', 'Cancel')}
           danger
           isActive={isActive}
-          onConfirm={() => void handleDeleteConfirm()}
-          onCancel={() => setConfirmDelete(null)}
+          onConfirm={() => void handleConfirmAction()}
+          onCancel={() => setConfirmAction(null)}
         />
       ) : null}
     </>

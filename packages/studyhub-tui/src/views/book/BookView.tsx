@@ -1,6 +1,6 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
-import type { KeyHint, ViewProps } from '../../types/contracts.js';
+import type { KeyHint, StudySnapshot, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { saveTuiPreferences } from '../../host/index.js';
 import {
@@ -36,9 +36,53 @@ const BookQaModal = lazy(() => import('./BookQaModal.js').then((m) => ({ default
 const BookRetellModal = lazy(() => import('./BookRetellModal.js').then((m) => ({ default: m.BookRetellModal })));
 const BookStructureModal = lazy(() => import('./BookStructureModal.js').then((m) => ({ default: m.BookStructureModal })));
 
-const BASE_CLAIMED_KEYS = ['P', 'T', 'U', 'e', 'r', 'w', 'x', '[', ']'] as const;
-const REBUILD_CLAIMED_KEYS = ['P', 'T', 'U', 'e', 'r', 'w', 'x', '[', ']', 'a'] as const;
+const BASE_CLAIMED_KEYS = ['M', 'P', 'T', 'U', 'e', 'r', 'w', 'x', '[', ']'] as const;
+const REBUILD_CLAIMED_KEYS = ['M', 'P', 'T', 'U', 'e', 'r', 'w', 'x', '[', ']', 'a'] as const;
 const STRUCTURE_FILE = 'book.structure';
+
+interface BookMockPlanResult {
+  status: string;
+  course: string;
+  points: string[];
+  unknown?: string[];
+  questions: number;
+  eligible: number;
+  leftOut?: Record<string, number>;
+  count: number;
+  capped?: boolean;
+  limitMinutes?: number;
+}
+
+interface MockConfirmState {
+  plan: BookMockPlanResult;
+  title: string;
+}
+
+function collectLeafHids(item: FlatTocItem | undefined, allItems: FlatTocItem[]): string[] {
+  if (!item) return [];
+  if (item.node) {
+    const out: string[] = [];
+    const seen = new Set<string>();
+    const walk = (node: BookNode) => {
+      if (node.leaf || !node.children?.length) {
+        if (node.hid && !seen.has(node.hid)) {
+          seen.add(node.hid);
+          out.push(node.hid);
+        }
+        return;
+      }
+      for (const child of node.children) walk(child);
+    };
+    walk(item.node);
+    return out;
+  }
+  if (item.leaf) return item.hid ? [item.hid] : [];
+  const prefix = item.number ? `${item.number}.` : '';
+  const descendants = prefix
+    ? allItems.filter((it) => it.leaf && it.number.startsWith(prefix)).map((it) => it.hid).filter(Boolean)
+    : [];
+  return descendants.length > 0 ? descendants : item.hid ? [item.hid] : [];
+}
 
 interface BookNodeRetold {
   tries?: number;
@@ -373,6 +417,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [confirmRevertOpen, setConfirmRevertOpen] = useState(false);
   const [confirmUndoRebuildOpen, setConfirmUndoRebuildOpen] = useState(false);
+  const [mockConfirmPlan, setMockConfirmPlan] = useState<MockConfirmState | null>(null);
   const [structureVersion, setStructureVersion] = useState<number>(1);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [reloadSeq, setReloadSeq] = useState(0);
@@ -867,8 +912,116 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
     structureModalOpen ||
     confirmDeleteOpen ||
     confirmRevertOpen ||
-    confirmUndoRebuildOpen;
+    confirmUndoRebuildOpen ||
+    Boolean(mockConfirmPlan);
   useClaimKeys(status === 'rebuild-pending' ? REBUILD_CLAIMED_KEYS : BASE_CLAIMED_KEYS, isActive && !modalOpen);
+
+  const planMockExam = useCallback(async () => {
+    if (busyRef.current || busyAction) return;
+    if (status !== 'ok' || !selectedItem) {
+      useTuiStore.getState().notify(
+        t(lang, '请先打开复习全书并选择一个章节或知识点', 'Open a review book and select a chapter or point first'),
+        'warning',
+      );
+      return;
+    }
+    const pointIds = collectLeafHids(selectedItem, items);
+    if (pointIds.length === 0) {
+      useTuiStore.getState().notify(
+        t(
+          lang,
+          '模拟考试仅支持选择题，当前所选章节暂无可用知识点或选择题。',
+          'Mock exams require choice questions; no eligible choice questions found for this selection.',
+        ),
+        'info',
+      );
+      return;
+    }
+    busyRef.current = true;
+    setBusyAction('mock-plan');
+    try {
+      const res = await host.call<BookMockPlanResult>('book.mock.plan', {
+        ...(effectiveCourse ? { course: effectiveCourse } : {}),
+        pointIds,
+      });
+      if (!mountedRef.current) return;
+      if (!res.ok || !res.value) {
+        const code = res.error?.code;
+        if (code === 'book-mock-empty' || code === 'book-mock-points') {
+          useTuiStore.getState().notify(
+            t(
+              lang,
+              '模拟考试仅支持单选与多选题，当前所选章节暂无可用选择题。',
+              'Mock exams require single or multiple choice questions; none found for this selection.',
+            ),
+            'info',
+          );
+        } else {
+          useTuiStore.getState().notify(res.error?.message || t(lang, '规划模拟卷失败', 'Failed to plan mock paper'), 'error');
+        }
+        return;
+      }
+      const plan = res.value;
+      const skipped = Object.values(plan.leftOut ?? {}).reduce((sum, n) => sum + (Number(n) || 0), 0);
+      if (!plan.eligible || plan.eligible <= 0 || !plan.count || plan.count <= 0) {
+        useTuiStore.getState().notify(
+          t(
+            lang,
+            `模拟卷仅考选择题：「${selectedItem.title}」暂无可用单/多选题${skipped > 0 ? `（跳过 ${skipped} 题）` : ''}`,
+            `Mock exam needs choice Qs: none in "${selectedItem.title}"${skipped > 0 ? ` (${skipped} skipped)` : ''}`,
+          ),
+          'info',
+        );
+        return;
+      }
+      setMockConfirmPlan({
+        plan,
+        title: `${selectedItem.number} ${selectedItem.title}`.trim(),
+      });
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusyAction(null);
+    }
+  }, [busyAction, effectiveCourse, host, items, lang, selectedItem, status]);
+
+  const confirmMockStart = useCallback(async () => {
+    const target = mockConfirmPlan;
+    setMockConfirmPlan(null);
+    if (!target || busyRef.current || busyAction) return;
+    busyRef.current = true;
+    setBusyAction('mock-start');
+    try {
+      const res = await host.call<{ id?: string }>('book.mock', {
+        ...(effectiveCourse ? { course: effectiveCourse } : {}),
+        pointIds: target.plan.points,
+        count: target.plan.count,
+        ...(target.plan.limitMinutes !== undefined ? { limitMinutes: target.plan.limitMinutes } : {}),
+      });
+      if (!mountedRef.current) return;
+      if (!res.ok || !res.value?.id) {
+        useTuiStore.getState().notify(res.error?.message || t(lang, '启动模拟考试失败', 'Failed to start mock exam'), 'error');
+        return;
+      }
+      const runId = res.value.id;
+      const store = useTuiStore.getState();
+      store.setActiveRunId(runId);
+      const snapRes = await host.call<StudySnapshot>('snapshot');
+      if (mountedRef.current && snapRes.ok && snapRes.value && typeof snapRes.value === 'object') {
+        store.setSnapshot(snapRes.value);
+      }
+      store.notify(
+        t(lang, `已创建模拟卷（${target.plan.count} 题），正在进入模拟考试`, `Mock paper created (${target.plan.count} Qs) — opening Exam`),
+        'success',
+      );
+      store.navigate('exam', {
+        runId,
+        ...(effectiveCourse ? { course: effectiveCourse } : {}),
+      });
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusyAction(null);
+    }
+  }, [busyAction, effectiveCourse, host, lang, mockConfirmPlan]);
 
   const hints: KeyHint[] = useMemo(
     () =>
@@ -884,6 +1037,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
             { key: 'Tab', label: t(lang, '切换窗格', 'Pane') },
             { key: 'm', label: mathUnicode ? t(lang, '数学:Unicode', 'Math:Unicode') : t(lang, '数学:LaTeX', 'Math:LaTeX') },
             { key: 'T', label: t(lang, '费曼复述', 'Retell') },
+            { key: 'M', label: t(lang, '章节模拟', 'Mock exam') },
             { key: 'e', label: t(lang, '编辑', 'Edit') },
             { key: 'p', label: t(lang, '练5题', 'Practise 5') },
             { key: 'P', label: t(lang, '精选问答', 'Pinned QA') },
@@ -1010,6 +1164,10 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
           return;
         }
         setRetellModalOpen(true);
+        return;
+      }
+      if (input === 'M') {
+        void planMockExam();
         return;
       }
       if (input === 'w') {
@@ -1284,6 +1442,8 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
           <BookQaModal
             host={host}
             course={effectiveCourse ?? null}
+            selectedNodeId={selectedItem?.key ?? null}
+            selectedHid={selectedItem?.hid ?? null}
             isActive={isActive && qaModalOpen}
             width={width}
             height={height}
@@ -1395,6 +1555,31 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
           isActive={isActive && confirmUndoRebuildOpen}
           onConfirm={() => void undoPendingRebuild()}
           onCancel={() => setConfirmUndoRebuildOpen(false)}
+        />
+      ) : null}
+
+      {mockConfirmPlan ? (
+        <ConfirmDialog
+          title={t(lang, '章节模拟卷确认', 'Chapter Mock Exam')}
+          message={(() => {
+            const { plan, title } = mockConfirmPlan;
+            const mins = plan.limitMinutes ?? 30;
+            const skipped = Object.values(plan.leftOut ?? {}).reduce((sum, n) => sum + (Number(n) || 0), 0);
+            const capNoteZh = plan.capped ? `（共 ${plan.eligible} 道可选）` : '';
+            const capNoteEn = plan.capped ? ` (${plan.eligible} eligible)` : '';
+            const skipNoteZh = skipped > 0 ? `，已跳过 ${skipped} 道非选择题` : '';
+            const skipNoteEn = skipped > 0 ? `, ${skipped} non-choice skipped` : '';
+            return t(
+              lang,
+              `已为「${title}」规划 ${plan.count} 道选择题${capNoteZh}，预计限时 ${mins} 分钟${skipNoteZh}。是否立即开始模拟考试？`,
+              `Planned ${plan.count} choice questions for "${title}"${capNoteEn}, ${mins} min limit${skipNoteEn}. Start mock exam now?`,
+            );
+          })()}
+          confirmLabel={t(lang, '开始模考', 'Start Mock')}
+          cancelLabel={t(lang, '取消', 'Cancel')}
+          isActive={isActive && Boolean(mockConfirmPlan)}
+          onConfirm={() => void confirmMockStart()}
+          onCancel={() => setMockConfirmPlan(null)}
         />
       ) : null}
     </Box>
