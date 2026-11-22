@@ -71,6 +71,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
     {
       title: t(lang, '出题与草稿 · Generate / Drafts', 'Generate & Drafts'),
       items: [
+        { key: 'i', label: t(lang, '录题 / 粘贴既有题', 'Capture & ingest') },
         { key: 'S / R', label: t(lang, '草稿查重与修复', 'Draft similar & repair') },
       ],
     },
@@ -79,6 +80,14 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       items: [
         { key: 'w', label: t(lang, '期末一周与模考', 'Final-week crunch & mock') },
         { key: 'P', label: t(lang, '书内精选问答', 'Pinned book QA') },
+        { key: 'x', label: t(lang, '导出 Markdown', 'Export Markdown') },
+      ],
+    },
+    {
+      title: t(lang, '学习统计 · Dashboard', 'Dashboard'),
+      items: [
+        { key: 'Enter/p', label: t(lang, '钻取练习', 'Drill practice') },
+        { key: 'f', label: t(lang, '7天预测', '7d forecast') },
       ],
     },
     {

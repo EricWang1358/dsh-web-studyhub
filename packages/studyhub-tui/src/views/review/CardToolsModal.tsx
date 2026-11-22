@@ -14,7 +14,7 @@ import {
   modalContentWidth,
   useTheme,
 } from '../../components/index.js';
-import { truncateDisplay, wrapDisplay } from '../../render/index.js';
+import { displayWidth, truncateDisplay, wrapDisplay } from '../../render/index.js';
 import {
   currentDeckIdOf,
   extractFeedback,
@@ -38,7 +38,7 @@ export interface CardToolsModalProps {
   onRefreshSnapshot?: () => void;
 }
 
-type ToolMode = 'menu' | 'edit' | 'confirm-slay' | 'terms';
+type ToolMode = 'menu' | 'edit' | 'confirm-slay' | 'terms' | 'prereqs';
 type EditField = 'prompt' | 'answer' | 'explanation';
 
 interface CardDetailShape {
@@ -49,6 +49,33 @@ interface CardDetailShape {
   explanation?: string;
   suspended?: boolean;
   focus?: boolean;
+}
+
+interface PrereqItem {
+  deckId: string;
+  cardId: string;
+  deckTitle?: string;
+  topic?: string;
+  prompt: string;
+  kind?: string;
+  level?: string;
+}
+
+interface CardSearchHit {
+  deckId: string;
+  deckTitle?: string;
+  course?: string;
+  cardId: string;
+  kind?: string;
+  topic?: string;
+  prompt: string;
+}
+
+interface CardGetResponse {
+  deckId?: string;
+  card?: CardDetailShape;
+  revisions?: Array<{ at?: string; reason?: string }>;
+  prerequisites?: PrereqItem[];
 }
 
 interface ExtractedTermItem {
@@ -108,6 +135,8 @@ export const CardToolsModal = memo(function CardToolsModal({
   const [menuCursor, setMenuCursor] = useState(0);
   const [busy, setBusy] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
+  const [resolvedDeckId, setResolvedDeckId] = useState<string>(deckId);
+  const [revisionsCount, setRevisionsCount] = useState<number>(0);
   const [suspended, setSuspended] = useState<boolean>(Boolean((run.card as { suspended?: unknown } | null | undefined)?.suspended));
   const [focusedCard, setFocusedCard] = useState<boolean>(Boolean((run.card as { focus?: unknown } | null | undefined)?.focus));
 
@@ -116,6 +145,20 @@ export const CardToolsModal = memo(function CardToolsModal({
   const [termsItems, setTermsItems] = useState<ExtractedTermItem[]>([]);
   const [termsCached, setTermsCached] = useState(false);
   const [termsError, setTermsError] = useState<string | null>(null);
+
+  // Prerequisite links manager state
+  const [prereqs, setPrereqs] = useState<PrereqItem[]>([]);
+  const [prereqsLoading, setPrereqsLoading] = useState(false);
+  const [prereqCursor, setPrereqCursor] = useState(0);
+  const [prereqSearchActive, setPrereqSearchActive] = useState(false);
+  const [prereqSearchFocused, setPrereqSearchFocused] = useState(false);
+  const [prereqQuery, setPrereqQuery] = useState('');
+  const [prereqSearchLoading, setPrereqSearchLoading] = useState(false);
+  const [prereqHits, setPrereqHits] = useState<CardSearchHit[]>([]);
+  const [prereqHitCursor, setPrereqHitCursor] = useState(0);
+  const prereqSearchSeqRef = useRef(0);
+  const lastSearchedQueryRef = useRef('');
+  const hydrateSeqRef = useRef(0);
 
   // Edit form fields
   const [editField, setEditField] = useState<EditField>('prompt');
@@ -136,16 +179,20 @@ export const CardToolsModal = memo(function CardToolsModal({
     };
   }, []);
 
-  // Hydrate full card details (authoritative suspended/focus state, answer & explanation even pre-reveal)
-  useEffect(() => {
-    let alive = true;
-    void (async () => {
-      const res = await tryAction<{ card?: CardDetailShape }>(host, 'card.get', {
-        ...(deckId ? { deckId } : {}),
-        cardId,
-      });
-      if (!alive || !mountedRef.current || !res.ok || !res.value?.card) return;
-      const c = res.value.card;
+  const hydrateCardDetails = useCallback(async () => {
+    const seq = ++hydrateSeqRef.current;
+    const res = await tryAction<CardGetResponse>(host, 'card.get', {
+      ...(deckId ? { deckId } : {}),
+      cardId,
+    });
+    if (!mountedRef.current || seq !== hydrateSeqRef.current || !res.ok || !res.value) return false;
+    if (typeof res.value.deckId === 'string' && res.value.deckId) {
+      setResolvedDeckId(res.value.deckId);
+    }
+    setRevisionsCount(Array.isArray(res.value.revisions) ? res.value.revisions.length : 0);
+    setPrereqs(Array.isArray(res.value.prerequisites) ? res.value.prerequisites : []);
+    const c = res.value.card;
+    if (c) {
       const nextPrompt = typeof c.prompt === 'string' ? c.prompt : initialPrompt;
       const nextAnswer = typeof c.answer === 'string' ? c.answer : '';
       const nextExpl = typeof c.explanation === 'string' ? c.explanation : '';
@@ -159,11 +206,15 @@ export const CardToolsModal = memo(function CardToolsModal({
         answer: nextAnswer,
         explanation: nextExpl,
       };
-    })();
-    return () => {
-      alive = false;
-    };
+    }
+    return true;
   }, [host, deckId, cardId, initialPrompt]);
+
+  // Hydrate full card details (authoritative suspended/focus/prereqs/revisions state, answer & explanation even pre-reveal)
+  useEffect(() => {
+    setResolvedDeckId(deckId);
+    void hydrateCardDetails();
+  }, [deckId, hydrateCardDetails]);
 
   const isExam = run.mode === 'exam';
   const isRetry = Boolean(run.retry);
@@ -376,7 +427,182 @@ export const CardToolsModal = memo(function CardToolsModal({
     setTermsItems(normalizeExtractedTerms(res.value.terms));
   }, [termsLoading, host, deckId, cardId, lang]);
 
-  const MENU_COUNT = 6;
+  const handleRevertCard = useCallback(async () => {
+    if (busy) return;
+    const effectiveDeckId = resolvedDeckId || deckId;
+    setBusy(true);
+    setErrorText(null);
+    const res = await tryAction<{ reverted?: string }>(host, 'card.revert', {
+      ...(effectiveDeckId ? { deckId: effectiveDeckId } : {}),
+      cardId,
+    });
+    if (!mountedRef.current) return;
+    if (!res.ok) {
+      setBusy(false);
+      setErrorText(res.error?.message || t(lang, '撤销修改失败', 'Failed to revert last edit'));
+      return;
+    }
+    onCardEdited?.(cardId);
+    try {
+      const refreshed = await getReview(host, run.id);
+      if (!mountedRef.current) return;
+      onRunUpdated(refreshed);
+    } catch {
+      // card.revert succeeded even if run refresh failed
+    }
+    if (!mountedRef.current) return;
+    setBusy(false);
+    onRefreshSnapshot?.();
+    const reasonSuffix = res.value?.reverted ? ` (${res.value.reverted})` : '';
+    notify(
+      t(lang, `已撤销上次修改并刷新当前复习${reasonSuffix}`, `Reverted last edit and refreshed review${reasonSuffix}`),
+      'success',
+    );
+    onClose();
+  }, [busy, resolvedDeckId, deckId, host, cardId, lang, onCardEdited, run.id, onRunUpdated, onRefreshSnapshot, notify, onClose]);
+
+  const openPrereqsMode = useCallback(async () => {
+    setMode('prereqs');
+    setErrorText(null);
+    setPrereqSearchActive(false);
+    setPrereqSearchFocused(false);
+    setPrereqQuery('');
+    setPrereqHits([]);
+    setPrereqHitCursor(0);
+    setPrereqCursor(0);
+    lastSearchedQueryRef.current = '';
+    setPrereqsLoading(true);
+    await hydrateCardDetails();
+    if (!mountedRef.current) return;
+    setPrereqsLoading(false);
+  }, [hydrateCardDetails]);
+
+  const performPrereqSearch = useCallback(
+    async (rawQuery: string, opts?: { focusResultsOnDone?: boolean }) => {
+      const trimmed = rawQuery.trim();
+      const seq = ++prereqSearchSeqRef.current;
+      if (!trimmed) {
+        setPrereqSearchLoading(false);
+        setPrereqHits([]);
+        setPrereqHitCursor(0);
+        lastSearchedQueryRef.current = '';
+        return;
+      }
+      setPrereqSearchLoading(true);
+      setErrorText(null);
+      const res = await tryAction<{ results?: CardSearchHit[] }>(host, 'card.search', {
+        query: trimmed,
+        limit: 8,
+      });
+      if (!mountedRef.current || seq !== prereqSearchSeqRef.current) return;
+      setPrereqSearchLoading(false);
+      if (!res.ok) {
+        setErrorText(res.error?.message || t(lang, '搜索题目失败', 'Failed to search cards'));
+        return;
+      }
+      const list = Array.isArray(res.value?.results) ? res.value.results : [];
+      const filtered = list.filter((hit) => hit && typeof hit.cardId === 'string' && hit.cardId !== cardId);
+      lastSearchedQueryRef.current = trimmed;
+      setPrereqHits(filtered);
+      setPrereqHitCursor(0);
+      if (opts?.focusResultsOnDone && filtered.length > 0) {
+        setPrereqSearchFocused(false);
+      }
+    },
+    [host, cardId, lang],
+  );
+
+  useEffect(() => {
+    if (mode !== 'prereqs' || !prereqSearchActive) return;
+    const trimmed = prereqQuery.trim();
+    if (!trimmed) {
+      prereqSearchSeqRef.current += 1;
+      lastSearchedQueryRef.current = '';
+      setPrereqSearchLoading(false);
+      setPrereqHits([]);
+      setPrereqHitCursor(0);
+      return;
+    }
+    const timer = setTimeout(() => {
+      void performPrereqSearch(trimmed);
+    }, 180);
+    return () => clearTimeout(timer);
+  }, [mode, prereqSearchActive, prereqQuery, performPrereqSearch]);
+
+  const handleLinkPrereq = useCallback(
+    async (hit: CardSearchHit) => {
+      if (busy) return;
+      const effectiveDeckId = resolvedDeckId || deckId;
+      setBusy(true);
+      setErrorText(null);
+      const res = await tryAction<{ linked?: boolean; existing?: boolean }>(host, 'card.link', {
+        ...(effectiveDeckId ? { deckId: effectiveDeckId } : {}),
+        cardId,
+        requires: {
+          cardId: hit.cardId,
+          deckId: hit.deckId,
+        },
+      });
+      if (!mountedRef.current) return;
+      if (!res.ok) {
+        setBusy(false);
+        const msg = res.error?.message || t(lang, '关联前置题目失败', 'Failed to link prerequisite');
+        setErrorText(msg);
+        notify(msg, 'error');
+        return;
+      }
+      await hydrateCardDetails();
+      if (!mountedRef.current) return;
+      setBusy(false);
+      setPrereqSearchActive(false);
+      setPrereqSearchFocused(false);
+      setPrereqCursor(0);
+      onRefreshSnapshot?.();
+      notify(
+        res.value?.existing
+          ? t(lang, '该前置题目已存在关联', 'Prerequisite already linked')
+          : t(lang, '已关联前置题目', 'Prerequisite linked'),
+        'success',
+      );
+    },
+    [busy, resolvedDeckId, deckId, host, cardId, lang, notify, hydrateCardDetails, onRefreshSnapshot],
+  );
+
+  const handleUnlinkPrereq = useCallback(
+    async (item: PrereqItem) => {
+      if (busy) return;
+      const effectiveDeckId = resolvedDeckId || deckId;
+      setBusy(true);
+      setErrorText(null);
+      const res = await tryAction<{ linked?: boolean }>(host, 'card.link', {
+        ...(effectiveDeckId ? { deckId: effectiveDeckId } : {}),
+        cardId,
+        requires: {
+          cardId: item.cardId,
+          deckId: item.deckId,
+        },
+        remove: true,
+      });
+      if (!mountedRef.current) return;
+      if (!res.ok) {
+        setBusy(false);
+        const msg = res.error?.message || t(lang, '移除前置题目失败', 'Failed to unlink prerequisite');
+        setErrorText(msg);
+        notify(msg, 'error');
+        return;
+      }
+      const prevLen = prereqs.length;
+      await hydrateCardDetails();
+      if (!mountedRef.current) return;
+      setBusy(false);
+      setPrereqCursor((cur) => Math.max(0, Math.min(cur, Math.max(0, prevLen - 2))));
+      onRefreshSnapshot?.();
+      notify(t(lang, '已移除前置题目关联', 'Prerequisite link removed'), 'success');
+    },
+    [busy, resolvedDeckId, deckId, host, cardId, lang, notify, prereqs.length, hydrateCardDetails, onRefreshSnapshot],
+  );
+
+  const MENU_COUNT = 8;
 
   const triggerOption = useCallback(
     (idx: number) => {
@@ -404,20 +630,33 @@ export const CardToolsModal = memo(function CardToolsModal({
         void handleToggleFocus();
       } else if (idx === 5) {
         void handleExtractTerms();
+      } else if (idx === 6) {
+        void handleRevertCard();
+      } else if (idx === 7) {
+        void openPrereqsMode();
       }
     },
-    [handleToggleSuspend, canAdjustGrade, handleAdjustGrade, handleToggleFocus, handleExtractTerms, lang],
+    [
+      handleToggleSuspend,
+      canAdjustGrade,
+      handleAdjustGrade,
+      handleToggleFocus,
+      handleExtractTerms,
+      handleRevertCard,
+      openPrereqsMode,
+      lang,
+    ],
   );
 
   useInput(
     (input, key) => {
-      if (busy || termsLoading) return;
+      if (busy || termsLoading || prereqsLoading) return;
       if (mode === 'menu') {
         if (key.downArrow || input === 'j') {
           setMenuCursor((prev) => (prev + 1) % MENU_COUNT);
         } else if (key.upArrow || input === 'k') {
           setMenuCursor((prev) => (prev + MENU_COUNT - 1) % MENU_COUNT);
-        } else if (/^[1-6]$/.test(input)) {
+        } else if (/^[1-8]$/.test(input)) {
           const idx = Number(input) - 1;
           setMenuCursor(idx);
           triggerOption(idx);
@@ -429,6 +668,53 @@ export const CardToolsModal = memo(function CardToolsModal({
       if (mode === 'terms') {
         if (input === 'r') {
           void handleExtractTerms();
+        }
+        return;
+      }
+      if (mode === 'prereqs') {
+        if (prereqSearchActive) {
+          if (prereqSearchFocused) {
+            if (key.downArrow && prereqHits.length > 0) {
+              setPrereqSearchFocused(false);
+              setPrereqHitCursor(0);
+            }
+            return;
+          }
+          if (key.downArrow || input === 'j') {
+            if (prereqHits.length > 0) {
+              setPrereqHitCursor((prev) => (prev + 1) % prereqHits.length);
+            }
+          } else if (key.upArrow || input === 'k') {
+            if (prereqHitCursor === 0 && key.upArrow) {
+              setPrereqSearchFocused(true);
+            } else if (prereqHits.length > 0) {
+              setPrereqHitCursor((prev) => (prev + prereqHits.length - 1) % prereqHits.length);
+            }
+          } else if (key.tab || input === '/') {
+            setPrereqSearchFocused(true);
+          } else if (key.return) {
+            const target = prereqHits[prereqHitCursor];
+            if (target) void handleLinkPrereq(target);
+          }
+          return;
+        }
+        if (key.downArrow || input === 'j') {
+          if (prereqs.length > 0) {
+            setPrereqCursor((prev) => (prev + 1) % prereqs.length);
+          }
+        } else if (key.upArrow || input === 'k') {
+          if (prereqs.length > 0) {
+            setPrereqCursor((prev) => (prev + prereqs.length - 1) % prereqs.length);
+          }
+        } else if (input === 'a' || input === '/' || (key.return && prereqs.length === 0)) {
+          setErrorText(null);
+          setPrereqSearchActive(true);
+          setPrereqSearchFocused(true);
+        } else if (input === 'd' || key.delete || key.backspace) {
+          const target = prereqs[prereqCursor];
+          if (target) void handleUnlinkPrereq(target);
+        } else if (input === 'r') {
+          void openPrereqsMode();
         }
         return;
       }
@@ -454,8 +740,9 @@ export const CardToolsModal = memo(function CardToolsModal({
   const frameW = Math.max(50, Math.min(82, width - 4));
   const innerW = modalContentWidth(frameW);
   const inputH = height <= 25 ? 2 : 3;
-  const termsFrameH = mode === 'terms' ? Math.max(14, Math.min(28, height - 2)) : undefined;
-  const termsBodyH = termsFrameH ? Math.max(6, termsFrameH - 5) : 10;
+  const fixedFrameH = mode === 'terms' || mode === 'prereqs' ? Math.max(14, Math.min(28, height - 2)) : undefined;
+  const subBodyH = fixedFrameH ? Math.max(6, fixedFrameH - 5) : 10;
+  const prereqsContentH = Math.max(5, subBodyH - (busy ? 1 : 0) - (errorText ? 1 : 0));
 
   const hints = useMemo<KeyHint[]>(() => {
     if (mode === 'edit') {
@@ -478,11 +765,34 @@ export const CardToolsModal = memo(function CardToolsModal({
         { key: 'Esc', label: t(lang, '返回', 'Back') },
       ];
     }
+    if (mode === 'prereqs') {
+      if (prereqSearchActive) {
+        if (prereqSearchFocused) {
+          return [
+            { key: 'Enter', label: t(lang, '搜索', 'Search') },
+            { key: asciiMode ? 'Tab' : 'Tab/↓', label: t(lang, '选结果', 'Results') },
+            { key: 'Esc', label: t(lang, '取消', 'Back') },
+          ];
+        }
+        return [
+          { key: asciiMode ? 'j/k' : '↑/↓', label: t(lang, '选择', 'Select') },
+          { key: 'Enter', label: t(lang, '关联', 'Link') },
+          { key: 'Tab', label: t(lang, '搜题', 'Search') },
+          { key: 'Esc', label: t(lang, '返回', 'Back') },
+        ];
+      }
+      return [
+        { key: 'a', label: t(lang, '添加前置', 'Add') },
+        { key: 'd', label: t(lang, '移除', 'Unlink') },
+        { key: asciiMode ? 'j/k' : '↑/↓', label: t(lang, '移动', 'Move') },
+        { key: 'Esc', label: t(lang, '返回', 'Back') },
+      ];
+    }
     return [
-      { key: '1-6 / Enter', label: t(lang, '执行', 'Select') },
+      { key: '1-8 / Enter', label: t(lang, '执行', 'Select') },
       { key: 'Esc', label: t(lang, '关闭', 'Close') },
     ];
-  }, [mode, lang, asciiMode]);
+  }, [mode, lang, asciiMode, prereqSearchActive, prereqSearchFocused]);
 
   const termLines = useMemo<string[]>(() => {
     if (termsItems.length === 0) return [];
@@ -556,20 +866,71 @@ export const CardToolsModal = memo(function CardToolsModal({
       enabled: true,
       badge: 'card.terms',
     },
+    {
+      key: '7',
+      title: t(lang, '撤销上次修改', 'Undo Last Edit'),
+      desc:
+        revisionsCount > 0
+          ? t(lang, '恢复题目上一版本内容并刷新当前复习', 'Revert question to previous revision and refresh review')
+          : t(lang, '当前暂无可撤销的修改历史', 'No earlier revision recorded for this card'),
+      enabled: revisionsCount > 0,
+      badge: revisionsCount > 0 ? t(lang, `${revisionsCount} 版`, `${revisionsCount} rev`) : t(lang, '无历史', 'None'),
+    },
+    {
+      key: '8',
+      title: t(lang, '前置题目关联', 'Prerequisite Links'),
+      desc: t(lang, '查看、搜索并管理本题依赖的前置题目', 'View, search, and link/unlink prerequisite cards'),
+      enabled: true,
+      badge: prereqs.length > 0 ? t(lang, `${prereqs.length} 题`, `${prereqs.length} linked`) : 'card.link',
+    },
   ];
 
-  const compactMenu = height <= 25;
+  const compactMenu = height <= 26;
+  const linkedPrereqIds = new Set(prereqs.map((p) => p.cardId));
+
+  // Windowed slices for 'prereqs' lists so 80x24 never overflows
+  const showPrereqDetailRow = height >= 28 && !prereqSearchActive && prereqs.length > 0;
+  const prereqListRows = Math.max(3, prereqsContentH - 2 - (showPrereqDetailRow ? 1 : 0));
+  const prereqStart = Math.max(0, Math.min(prereqCursor - Math.floor(prereqListRows / 2), Math.max(0, prereqs.length - prereqListRows)));
+  const visiblePrereqs = prereqs.slice(prereqStart, prereqStart + prereqListRows);
+  const selectedPrereq = prereqs[prereqCursor];
+
+  const searchHitRows = Math.max(3, prereqsContentH - 6);
+  const hitStart = Math.max(0, Math.min(prereqHitCursor - Math.floor(searchHitRows / 2), Math.max(0, prereqHits.length - searchHitRows)));
+  const visibleHits = prereqHits.slice(hitStart, hitStart + searchHitRows);
+
+  const modalTitle =
+    mode === 'terms'
+      ? t(lang, '核心术语 / 生词提取', 'Technical Terms')
+      : mode === 'prereqs'
+        ? t(lang, '前置题目关联', 'Prerequisite Links')
+        : t(lang, '题目工具箱', 'Card Tools');
+
+  const handleModalClose = () => {
+    if (mode === 'menu') {
+      onClose();
+      return;
+    }
+    if (mode === 'prereqs' && prereqSearchActive) {
+      setPrereqSearchActive(false);
+      setPrereqSearchFocused(false);
+      setErrorText(null);
+      return;
+    }
+    setErrorText(null);
+    setMode('menu');
+  };
 
   return (
     <Modal
-      title={mode === 'terms' ? t(lang, '核心术语 / 生词提取', 'Technical Terms') : t(lang, '题目工具箱', 'Card Tools')}
+      title={modalTitle}
       icon={asciiMode ? '*' : '⚙'}
       tone={mode === 'confirm-slay' ? 'error' : mode === 'terms' ? 'ai' : 'accent'}
       subtitle={truncateDisplay(String(run.card?.topic || cardId), 24)}
       width={frameW}
-      height={termsFrameH}
-      onClose={mode === 'menu' ? onClose : () => setMode('menu')}
-      isActive={isActive && mode !== 'edit'}
+      height={fixedFrameH}
+      onClose={handleModalClose}
+      isActive={isActive && mode !== 'edit' && !(mode === 'prereqs' && prereqSearchActive && prereqSearchFocused)}
       hints={hints}
     >
       {busy ? (
@@ -636,7 +997,7 @@ export const CardToolsModal = memo(function CardToolsModal({
       ) : null}
 
       {mode === 'terms' ? (
-        <Box flexDirection="column" width={innerW} height={termsBodyH} overflow="hidden">
+        <Box flexDirection="column" width={innerW} height={subBodyH} overflow="hidden">
           <Box flexDirection="row" justifyContent="space-between" width={innerW} height={1}>
             <Box flexDirection="row" gap={1}>
               <Badge
@@ -650,11 +1011,11 @@ export const CardToolsModal = memo(function CardToolsModal({
           </Box>
           <Divider width={innerW} />
           {termsLoading ? (
-            <Box height={Math.max(3, termsBodyH - 2)} alignItems="center" justifyContent="center">
+            <Box height={Math.max(3, subBodyH - 2)} alignItems="center" justifyContent="center">
               <Spinner label={t(lang, '正在提取本题核心专业术语…', 'Extracting technical terms…')} tone="ai" active={isActive} />
             </Box>
           ) : termsError ? (
-            <Box height={Math.max(3, termsBodyH - 2)} flexDirection="column" justifyContent="center" gap={1}>
+            <Box height={Math.max(3, subBodyH - 2)} flexDirection="column" justifyContent="center" gap={1}>
               <Text color={theme.error} bold>
                 {`${asciiMode ? '!' : '▲'} ${truncateDisplay(termsError, innerW - 2)}`}
               </Text>
@@ -672,15 +1033,180 @@ export const CardToolsModal = memo(function CardToolsModal({
               title={t(lang, '未识别到需要额外解释的生僻术语', 'No unfamiliar technical terms found')}
               hint={t(lang, '本题涉及的术语可能均已掌握，或题干较简明。', 'Terms in this card may already be mastered or self-explanatory.')}
               width={innerW}
-              height={Math.max(4, termsBodyH - 2)}
+              height={Math.max(4, subBodyH - 2)}
             />
           ) : (
             <ScrollView
               lines={termLines}
               width={innerW}
-              height={Math.max(3, termsBodyH - 2)}
+              height={Math.max(3, subBodyH - 2)}
               isActive={isActive && mode === 'terms' && !termsLoading}
             />
+          )}
+        </Box>
+      ) : null}
+
+      {mode === 'prereqs' ? (
+        <Box flexDirection="column" width={innerW} height={prereqsContentH} overflow="hidden">
+          <Box flexDirection="row" justifyContent="space-between" width={innerW} height={1}>
+            <Box flexDirection="row" gap={1}>
+              <Badge
+                label={
+                  prereqSearchActive
+                    ? t(lang, `搜索结果 ${prereqHits.length} 题`, `${prereqHits.length} hits`)
+                    : t(lang, `已关联 ${prereqs.length} 题`, `${prereqs.length} linked`)
+                }
+                tone="accent"
+                variant="soft"
+              />
+              {prereqSearchActive ? (
+                <Text color={theme.muted}>
+                  {t(lang, '输入关键词搜索前置题', 'Search cards to link')}
+                </Text>
+              ) : null}
+            </Box>
+            <Text color={theme.dim}>
+              {prereqSearchActive ? t(lang, '[Esc] 返回列表', '[Esc] List') : t(lang, '[a] 添加  [d] 移除', '[a] Add  [d] Unlink')}
+            </Text>
+          </Box>
+          <Divider width={innerW} />
+
+          {prereqSearchActive ? (
+            <Box flexDirection="column" width={innerW} height={Math.max(3, prereqsContentH - 2)} overflow="hidden">
+              <Box
+                borderStyle={asciiMode ? 'classic' : 'single'}
+                borderColor={prereqSearchFocused ? theme.primary : theme.border}
+                paddingX={1}
+                width={innerW}
+              >
+                <TextInput
+                  value={prereqQuery}
+                  onChange={setPrereqQuery}
+                  placeholder={t(lang, '输入题目关键词（至少 1 字）…', 'Type query to search cards…')}
+                  width={Math.max(12, innerW - 4)}
+                  isActive={isActive && mode === 'prereqs' && prereqSearchActive && prereqSearchFocused && !busy}
+                  onTab={() => {
+                    if (prereqHits.length > 0) setPrereqSearchFocused(false);
+                    return undefined;
+                  }}
+                  onSubmit={(val) => {
+                    const trimmed = val.trim();
+                    if (!trimmed) return;
+                    if (lastSearchedQueryRef.current === trimmed && prereqHits.length > 0 && !prereqSearchLoading) {
+                      setPrereqSearchFocused(false);
+                      setPrereqHitCursor(0);
+                    } else {
+                      void performPrereqSearch(trimmed, { focusResultsOnDone: true });
+                    }
+                  }}
+                  onCancel={() => {
+                    setPrereqSearchActive(false);
+                    setPrereqSearchFocused(false);
+                    setErrorText(null);
+                  }}
+                />
+              </Box>
+              {prereqSearchLoading ? (
+                <Box height={Math.max(2, searchHitRows)} alignItems="center" justifyContent="center">
+                  <Spinner label={t(lang, '正在搜索题库…', 'Searching cards…')} active={isActive} />
+                </Box>
+              ) : prereqQuery.trim().length === 0 ? (
+                <EmptyState
+                  icon={asciiMode ? '?' : '⌕'}
+                  title={t(lang, '输入关键词并按 Enter 搜索题库', 'Type keywords and press Enter to search')}
+                  hint={t(lang, '将从其他题目中筛选并关联为当前题的前置依赖', 'Matches other cards (excluding self) to link as prerequisite')}
+                  width={innerW}
+                  height={Math.max(3, searchHitRows)}
+                />
+              ) : prereqHits.length === 0 ? (
+                <EmptyState
+                  icon={asciiMode ? 'o' : '◌'}
+                  title={t(lang, '未找到匹配的其他题目', 'No matching cards found')}
+                  hint={t(lang, '请换个关键词重试，或按 Esc 返回关联列表', 'Try another query or press Esc to go back')}
+                  width={innerW}
+                  height={Math.max(3, searchHitRows)}
+                />
+              ) : (
+                <Box flexDirection="column" width={innerW} height={searchHitRows} overflow="hidden">
+                  {visibleHits.map((hit, i) => {
+                    const realIdx = hitStart + i;
+                    const selected = !prereqSearchFocused && realIdx === prereqHitCursor;
+                    const already = linkedPrereqIds.has(hit.cardId);
+                    const tag = already ? t(lang, '[已关联]', '[linked]') : hit.topic ? `[${truncateDisplay(hit.topic, 14)}]` : '';
+                    const tagW = tag ? displayWidth(tag) + 1 : 0;
+                    const promptW = Math.max(12, innerW - 6 - tagW);
+                    return (
+                      <Box
+                        key={`${hit.deckId}:${hit.cardId}`}
+                        flexDirection="row"
+                        justifyContent="space-between"
+                        width={innerW}
+                        backgroundColor={selected ? theme.selectionBg : undefined}
+                      >
+                        <Text color={selected ? theme.selectionFg : theme.text} bold={selected} wrap="truncate">
+                          {`${selected ? (asciiMode ? '> ' : '▸ ') : '  '}${truncateDisplay(hit.prompt, promptW)}`}
+                        </Text>
+                        {tag ? (
+                          <Text color={selected ? theme.selectionFg : already ? theme.success : theme.muted}>
+                            {tag}
+                          </Text>
+                        ) : null}
+                      </Box>
+                    );
+                  })}
+                </Box>
+              )}
+            </Box>
+          ) : prereqsLoading ? (
+            <Box height={Math.max(3, prereqsContentH - 2)} alignItems="center" justifyContent="center">
+              <Spinner label={t(lang, '正在加载前置题目…', 'Loading prerequisites…')} active={isActive} />
+            </Box>
+          ) : prereqs.length === 0 ? (
+            <EmptyState
+              icon={asciiMode ? '-' : '◇'}
+              title={t(lang, '当前题目暂无前置依赖', 'No prerequisites linked yet')}
+              hint={t(lang, '按 [a] 搜索题库中的前置题目并关联', 'Press [a] to search cards and link a prerequisite')}
+              width={innerW}
+              height={Math.max(4, prereqsContentH - 2)}
+            />
+          ) : (
+            <Box flexDirection="column" width={innerW} height={Math.max(3, prereqsContentH - 2)} overflow="hidden">
+              <Box flexDirection="column" width={innerW} height={prereqListRows} overflow="hidden">
+                {visiblePrereqs.map((item, i) => {
+                  const realIdx = prereqStart + i;
+                  const selected = realIdx === prereqCursor;
+                  const levelTag = item.level ? `[${item.level}]` : item.kind ? `[${item.kind}]` : '';
+                  const tagW = levelTag ? displayWidth(levelTag) + 1 : 0;
+                  const promptW = Math.max(12, innerW - 9 - tagW);
+                  return (
+                    <Box
+                      key={`${item.deckId}:${item.cardId}`}
+                      flexDirection="row"
+                      justifyContent="space-between"
+                      width={innerW}
+                      backgroundColor={selected ? theme.selectionBg : undefined}
+                    >
+                      <Text color={selected ? theme.selectionFg : theme.text} bold={selected} wrap="truncate">
+                        {`${selected ? (asciiMode ? '> ' : '▸ ') : '  '}${realIdx + 1}. ${truncateDisplay(item.prompt, promptW)}`}
+                      </Text>
+                      {levelTag ? (
+                        <Text color={selected ? theme.selectionFg : theme.muted}>
+                          {levelTag}
+                        </Text>
+                      ) : null}
+                    </Box>
+                  );
+                })}
+              </Box>
+              {showPrereqDetailRow && selectedPrereq ? (
+                <Text color={theme.dim} wrap="truncate">
+                  {truncateDisplay(
+                    `${selectedPrereq.deckTitle || selectedPrereq.deckId}${selectedPrereq.topic ? `${asciiMode ? ' | ' : ' · '}${selectedPrereq.topic}` : ''}`,
+                    innerW,
+                  )}
+                </Text>
+              ) : null}
+            </Box>
           )}
         </Box>
       ) : null}

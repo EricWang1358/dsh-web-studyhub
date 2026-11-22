@@ -29,9 +29,10 @@ import type {
   FlatTocItem,
 } from './types.js';
 const BookCrunchModal = lazy(() => import('./BookCrunchModal.js').then((m) => ({ default: m.BookCrunchModal })));
+const BookExportModal = lazy(() => import('./BookExportModal.js').then((m) => ({ default: m.BookExportModal })));
 const BookQaModal = lazy(() => import('./BookQaModal.js').then((m) => ({ default: m.BookQaModal })));
 
-const CLAIMED_KEYS = ['P', 'r', 'w'] as const;
+const CLAIMED_KEYS = ['P', 'r', 'w', 'x'] as const;
 
 function flattenBookNodes(nodes: BookNode[] | undefined, out: FlatTocItem[] = []): FlatTocItem[] {
   for (const node of nodes ?? []) {
@@ -196,6 +197,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
   const [activePane, setActivePane] = useState<'left' | 'right'>('left');
   const [buildModalOpen, setBuildModalOpen] = useState(false);
   const [crunchModalOpen, setCrunchModalOpen] = useState(false);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
   const [qaModalOpen, setQaModalOpen] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [reloadSeq, setReloadSeq] = useState(0);
@@ -442,7 +444,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
     return opts;
   }, [bookData?.status, lang, selectedItem]);
 
-  const modalOpen = buildModalOpen || crunchModalOpen || qaModalOpen;
+  const modalOpen = buildModalOpen || crunchModalOpen || exportModalOpen || qaModalOpen;
   useClaimKeys(CLAIMED_KEYS, isActive && !modalOpen);
 
   const hints: KeyHint[] = useMemo(
@@ -452,6 +454,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
       { key: 'p', label: t(lang, '练5题', 'Practise 5') },
       { key: 'P', label: t(lang, '精选问答', 'Pinned QA') },
       { key: 'w', label: t(lang, '期末一周', 'Final week') },
+      { key: 'x', label: t(lang, '导出', 'Export') },
       { key: 'g', label: t(lang, '生成/重建', 'Build') },
       { key: 'r', label: t(lang, '刷新', 'Refresh') },
     ],
@@ -486,6 +489,10 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
       }
       if (input === 'w') {
         setCrunchModalOpen(true);
+        return;
+      }
+      if (input === 'x') {
+        setExportModalOpen(true);
         return;
       }
       if (input === 'g') {
@@ -694,6 +701,17 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
             width={width}
             height={height}
             onClose={() => setCrunchModalOpen(false)}
+          />
+        ) : null}
+
+        {exportModalOpen ? (
+          <BookExportModal
+            host={host}
+            course={effectiveCourse ?? null}
+            isActive={isActive && exportModalOpen}
+            width={width}
+            height={height}
+            onClose={() => setExportModalOpen(false)}
           />
         ) : null}
 

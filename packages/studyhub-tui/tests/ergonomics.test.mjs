@@ -114,10 +114,10 @@ test('globalShortcuts documents required keys cleanly in zh and en without dupli
   }
 });
 
-test('featureShortcuts documents Rounds 5-17 shortcuts cleanly in zh and en without duplicates', () => {
+test('featureShortcuts documents Rounds 5-19 shortcuts cleanly in zh and en without duplicates', () => {
   for (const lang of ['zh', 'en']) {
     const sections = M.featureShortcuts(lang);
-    assert.equal(sections.length, 10);
+    assert.equal(sections.length, 11);
     const titles = sections.map((s) => s.title);
     assert.equal(new Set(titles).size, titles.length, `duplicate section title in ${lang}`);
     for (const sec of sections) {
@@ -136,6 +136,7 @@ test('featureShortcuts documents Rounds 5-17 shortcuts cleanly in zh and en with
     const titlesJoined = titles.join('\n');
     assert.ok(titlesJoined.includes('Generate'), `missing Generate section in ${lang}`);
     assert.ok(titlesJoined.includes('Book'), `missing Book section in ${lang}`);
+    assert.ok(titlesJoined.includes('Dashboard'), `missing Dashboard section in ${lang}`);
     assert.ok(titlesJoined.includes('Exam Coach'), `missing Exam Coach section in ${lang}`);
     assert.ok(titlesJoined.includes('Exam Prep'), `missing Exam Prep section in ${lang}`);
     assert.ok(titlesJoined.includes('Sources'), `missing Sources section in ${lang}`);
@@ -145,6 +146,7 @@ test('featureShortcuts documents Rounds 5-17 shortcuts cleanly in zh and en with
     if (lang === 'zh') {
       assert.ok(titlesJoined.includes('出题与草稿'), 'missing 出题与草稿 section in zh');
       assert.ok(titlesJoined.includes('复习全书'), 'missing 复习全书 section in zh');
+      assert.ok(titlesJoined.includes('学习统计'), 'missing 学习统计 section in zh');
       assert.ok(titlesJoined.includes('考试教练'), 'missing 考试教练 section in zh');
       assert.ok(titlesJoined.includes('备考补习'), 'missing 备考补习 section in zh');
       assert.ok(titlesJoined.includes('待办看板'), 'missing 待办看板 section in zh');
@@ -153,11 +155,11 @@ test('featureShortcuts documents Rounds 5-17 shortcuts cleanly in zh and en with
     }
 
     const allKeys = sections.flatMap((s) => s.items.map((i) => i.key));
-    for (const k of ['p', 'g', 'C', 'o', 'm: + / k', 'T', 'S', 'D', 'F', 'G', 'L', 'A', '*', 'S / R', 'w', 'P', 'V', 'm', 'O', 'B', 'P / Space', 'M', '+/-', 'R', 'w / o / m', 'x']) {
+    for (const k of ['p', 'g', 'C', 'o', 'm: + / k', 'T', 'S', 'D', 'F', 'G', 'L', 'A', '*', 'i', 'S / R', 'w', 'P', 'x', 'Enter/p', 'f', 'V', 'm', 'O', 'B', 'P / Space', 'M', '+/-', 'R', 'w / o / m']) {
       assert.ok(allKeys.includes(k), `missing feature shortcut ${k} in ${lang}`);
     }
     const keysJoined = allKeys.join('\n');
-    for (const token of ['o', 'g', '+', 'k', 'L', 'A', '*', 'w', 'P', 'p', 'F', 'G', 'V', 'S', 'R', 'x']) {
+    for (const token of ['o', 'g', '+', 'k', 'L', 'A', '*', 'i', 'w', 'P', 'p', 'f', 'F', 'G', 'V', 'S', 'R', 'x']) {
       assert.ok(keysJoined.includes(token), `missing token ${token} in ${lang}`);
     }
 
@@ -166,6 +168,7 @@ test('featureShortcuts documents Rounds 5-17 shortcuts cleanly in zh and en with
     const generateSec = sections.find((s) => s.title.includes('Generate'));
     const sourcesSec = sections.find((s) => s.title.includes('Sources'));
     const bookSec = sections.find((s) => s.title.includes('Book'));
+    const dashboardSec = sections.find((s) => s.title.includes('Dashboard'));
     const coachSec = sections.find((s) => s.title.includes('Exam Coach'));
     const examPrepSec = sections.find((s) => s.title.includes('Exam Prep'));
     const boardSec = sections.find((s) => s.title.includes('Board'));
@@ -175,11 +178,15 @@ test('featureShortcuts documents Rounds 5-17 shortcuts cleanly in zh and en with
     assert.ok(reviewSec?.items.some((i) => i.key === 'L' && (i.label.includes('带学') || i.label.includes('Socratic'))), `missing Review [L] label in ${lang}`);
     assert.ok(reviewSec?.items.some((i) => i.key === 'A' && (i.label.includes('答题卡') || i.label.includes('Answer card'))), `missing Review [A] label in ${lang}`);
     assert.ok(reviewSec?.items.some((i) => i.key === '*' && (i.label.includes('重点') || i.label.includes('focus'))), `missing Review [*] label in ${lang}`);
+    assert.ok(generateSec?.items.some((i) => i.key === 'i' && (i.label.includes('录题') || i.label.includes('Capture'))), `missing Generate [i] label in ${lang}`);
     assert.ok(generateSec?.items.some((i) => i.key === 'S / R' && (i.label.includes('查重') || i.label.includes('similar'))), `missing Generate [S / R] label in ${lang}`);
     assert.ok(sourcesSec?.items.some((i) => i.key === 'G' && (i.label.includes('归类') || i.label.includes('organize'))), `missing Sources [G] label in ${lang}`);
     assert.ok(sourcesSec?.items.some((i) => i.key === 'V' && (i.label.includes('覆盖率') || i.label.includes('Coverage'))), `missing Sources [V] label in ${lang}`);
     assert.ok(bookSec?.items.some((i) => i.key === 'w' && (i.label.includes('期末一周') || i.label.includes('Final-week'))), `missing Book [w] label in ${lang}`);
     assert.ok(bookSec?.items.some((i) => i.key === 'P' && (i.label.includes('精选问答') || i.label.includes('book QA'))), `missing Book [P] label in ${lang}`);
+    assert.ok(bookSec?.items.some((i) => i.key === 'x' && (i.label.includes('导出 Markdown') || i.label.includes('Export Markdown'))), `missing Book [x] label in ${lang}`);
+    assert.ok(dashboardSec?.items.some((i) => i.key === 'Enter/p' && (i.label.includes('钻取练习') || i.label.includes('Drill practice'))), `missing Dashboard [Enter/p] label in ${lang}`);
+    assert.ok(dashboardSec?.items.some((i) => i.key === 'f' && (i.label.includes('7天预测') || i.label.includes('7d forecast'))), `missing Dashboard [f] label in ${lang}`);
     assert.ok(coachSec?.items.some((i) => i.key === 'p' && (i.label.includes('画像与偏好') || i.label.includes('profile'))), `missing Exam Coach [p] label in ${lang}`);
     assert.ok(examPrepSec?.items.some((i) => i.key === 'P' && (i.label.includes('备考计划') || i.label.includes('Study plan'))), `missing Exam Prep [P] label in ${lang}`);
     assert.ok(boardSec?.items.some((i) => i.key === 'S' && (i.label.includes('同步') || i.label.includes('Sync'))), `missing Board [S] label in ${lang}`);
