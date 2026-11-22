@@ -5,7 +5,7 @@ import { t, useTuiStore } from '../state/store.js';
 import { useTheme } from '../theme/tokens.js';
 import { displayWidth, truncateDisplay } from '../render/index.js';
 import { Spinner } from '../components/Badge.js';
-import { currentCourse, dueToday, modelInfo, runningJobs } from './data.js';
+import { currentCourse, dueToday, modelInfo, pageIcon, runningJobs, unreadInboxCount } from './data.js';
 
 export interface TopBarProps {
   width: number;
@@ -19,10 +19,18 @@ interface Segment {
   node: React.ReactNode;
 }
 
+const ASCII_MODEL_ICON: Record<string, string> = {
+  agy: '*',
+  codex: '>',
+  openai: '@',
+  unknown: 'o',
+};
+
 /** 1-line responsive status bar. Segments are dropped by priority until they fit. */
 export const TopBar = memo(function TopBar({ width }: TopBarProps) {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const page = useTuiStore((s) => s.page);
   const snapshot = useTuiStore((s) => s.snapshot);
   const cfg = useTuiStore((s) => s.desktopConfig);
@@ -33,16 +41,23 @@ export const TopBar = memo(function TopBar({ width }: TopBarProps) {
   const course = currentCourse(snapshot);
   const due = dueToday(snapshot);
   const jobs = runningJobs(snapshot);
+  const unread = unreadInboxCount(snapshot);
   const model = modelInfo(cfg, binding, snapshot);
 
+  const ell = asciiMode ? '...' : '…';
+  const sep = asciiMode ? ' - ' : ' · ';
+  const mIcon = asciiMode ? (ASCII_MODEL_ICON[model.mode] ?? 'o') : model.icon;
+  const pIcon = meta ? pageIcon(meta.id, asciiMode, meta.icon) : '';
+
   const onPrimary = theme.dark ? theme.bg : '#ffffff';
-  const brand = ' ▙▟ StudyHub ';
-  const brandShort = ' ▙▟ ';
-  const pageLabel = meta ? ` ${meta.icon} ${t(lang, meta.labelZh, meta.labelEn)} ` : '';
-  const courseLabel = truncateDisplay(course ?? t(lang, '全部课程', 'All courses'), 18);
+  const brand = asciiMode ? ' [SH] StudyHub ' : ' ▙▟ StudyHub ';
+  const brandShort = asciiMode ? ' [SH] ' : ' ▙▟ ';
+  const pageLabel = meta ? ` ${pIcon} ${t(lang, meta.labelZh, meta.labelEn)} ` : '';
+  const courseLabel = truncateDisplay(course ?? t(lang, '全部课程', 'All courses'), 18, ell);
   const courseText = ` [c] ${courseLabel} `;
-  const modelLabel = truncateDisplay(`${model.icon} ${model.provider}${model.model ? ` · ${model.model}` : ''}`, 30);
+  const modelLabel = truncateDisplay(`${mIcon} ${model.provider}${model.model ? `${sep}${model.model}` : ''}`, 30, ell);
   const modelText = ` ${modelLabel} `;
+  const inboxText = asciiMode ? ` [I] M:${unread} ` : ` [I] ✉ ${unread} `;
   const dueText = ` ${t(lang, '今日', 'Due')} ${due} `;
   const jobsText = `  ${jobs} ${t(lang, '任务', 'jobs')} `;
   const helpText = ` [?] ${t(lang, '帮助', 'Help')}  [/] ${t(lang, '命令', 'Cmd')} `;
@@ -83,6 +98,23 @@ export const TopBar = memo(function TopBar({ width }: TopBarProps) {
     },
   ];
   const right: Segment[] = [
+    ...(unread > 0
+      ? [
+          {
+            id: 'inbox',
+            priority: 55,
+            width: displayWidth(inboxText) + 1,
+            node: (
+              <Text key="inbox">
+                <Text> </Text>
+                <Text backgroundColor={theme.surface} color={theme.primary} bold>
+                  {inboxText}
+                </Text>
+              </Text>
+            ),
+          } satisfies Segment,
+        ]
+      : []),
     ...(jobs > 0 || refreshing
       ? [
           {

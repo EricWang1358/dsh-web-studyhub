@@ -10,6 +10,7 @@ import { SideNav, sideNavWidth } from './SideNav.js';
 import { CommandPalette } from './CommandPalette.js';
 import { HelpOverlay } from './HelpOverlay.js';
 import { CoursePickerModal } from './CoursePickerModal.js';
+import { InboxModal } from './InboxModal.js';
 import { Launchpad } from './Launchpad.js';
 import { ShellActionsContext, createDefaultShellActions, type ShellActions } from './actions.js';
 import { isLibraryEmpty } from './data.js';
@@ -70,6 +71,7 @@ export const AppShell = memo(function AppShell({
   const paletteOpen = useTuiStore((s) => s.commandPaletteOpen);
   const helpOpen = useTuiStore((s) => s.helpOpen);
   const courseOpen = useTuiStore((s) => s.coursePickerOpen);
+  const inboxOpen = useTuiStore((s) => s.inboxOpen);
   const voiceOpen = useTuiStore((s) => s.voicePackOpen);
   const showLaunchpad = useTuiStore((s) => s.showLaunchpad);
   const toasts = useTuiStore((s) => s.toasts);
@@ -93,7 +95,7 @@ export const AppShell = memo(function AppShell({
   }, [autoLaunchpad, loading, snapshot]);
 
   const voiceOverlay = voiceOpen && Boolean(renderVoicePack);
-  const overlayOpen = paletteOpen || helpOpen || courseOpen || voiceOverlay;
+  const overlayOpen = paletteOpen || helpOpen || courseOpen || inboxOpen || voiceOverlay;
 
   // Render-time snapshot of routing state: every useInput handler for ONE keystroke sees
   // the state from BEFORE that keystroke (so closing an overlay with `?` never reopens it).
@@ -130,6 +132,9 @@ export const AppShell = memo(function AppShell({
         return;
       case 'c':
         s.setCoursePickerOpen(true);
+        return;
+      case 'I':
+        s.setInboxOpen(true);
         return;
       case 'q':
         actions.quit();
@@ -227,7 +232,10 @@ export const AppShell = memo(function AppShell({
         {courseOpen && !paletteOpen && !helpOpen ? (
           <CoursePickerModal isActive={courseOpen} onClose={() => useTuiStore.getState().setCoursePickerOpen(false)} />
         ) : null}
-        {voiceOverlay && !paletteOpen && !helpOpen && !courseOpen && renderVoicePack
+        {inboxOpen && !paletteOpen && !helpOpen && !courseOpen ? (
+          <InboxModal host={host} isActive={inboxOpen} onClose={() => useTuiStore.getState().setInboxOpen(false)} />
+        ) : null}
+        {voiceOverlay && !paletteOpen && !helpOpen && !courseOpen && !inboxOpen && renderVoicePack
           ? renderVoicePack({
               isActive: true,
               onClose: () => useTuiStore.getState().setVoicePackOpen(false),

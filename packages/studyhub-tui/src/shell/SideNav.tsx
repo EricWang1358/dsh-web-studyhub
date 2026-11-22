@@ -4,7 +4,7 @@ import { PAGE_REGISTRY, type NavGroup, type PageId, type PageMeta } from '../typ
 import { t, useTuiStore } from '../state/store.js';
 import { useTheme } from '../theme/tokens.js';
 import { displayWidth, truncateDisplay } from '../render/index.js';
-import { draftCount, dueToday, runningJobs, wrongCount } from './data.js';
+import { draftCount, dueToday, pageIcon, runningJobs, wrongCount } from './data.js';
 
 export const SIDENAV_WIDTH = 24;
 export const SIDENAV_COLLAPSED_WIDTH = 6;
@@ -30,11 +30,13 @@ export interface SideNavProps {
 export const SideNav = memo(function SideNav({ width, height }: SideNavProps) {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const page = useTuiStore((s) => s.page);
   const snapshot = useTuiStore((s) => s.snapshot);
   const activeRunId = useTuiStore((s) => s.activeRunId);
   const collapsed = width <= SIDENAV_COLLAPSED_WIDTH;
   const inner = Math.max(1, width - 1);
+  const ell = asciiMode ? '...' : '…';
 
   const counts: Partial<Record<PageId, { n: number; color: string }>> = {
     library: { n: dueToday(snapshot), color: theme.warning },
@@ -53,17 +55,18 @@ export const SideNav = memo(function SideNav({ width, height }: SideNavProps) {
   // Resume-practice callout.
   if (activeRunId) {
     const active = page === 'review';
+    const playGlyph = asciiMode ? '>' : '▶';
     if (collapsed) {
       push(
         <Text key="resume" color={theme.success} bold>
-          {` ▶ r`}
+          {` ${playGlyph} r`}
         </Text>,
       );
     } else {
       push(
         <Box key="resume" width={inner} height={1}>
           <Text backgroundColor={active ? theme.selectionBg : theme.surface} color={theme.success} bold>
-            {truncateDisplay(` ▶ ${t(lang, '继续练习', 'Resume')}  r`, inner).padEnd(0)}
+            {truncateDisplay(` ${playGlyph} ${t(lang, '继续练习', 'Resume')}  r`, inner, ell).padEnd(0)}
           </Text>
         </Box>,
       );
@@ -75,14 +78,16 @@ export const SideNav = memo(function SideNav({ width, height }: SideNavProps) {
     const active = p.id === page;
     const c = counts[p.id];
     const badge = c && c.n > 0 ? (c.n > 99 ? '99+' : String(c.n)) : '';
+    const icon = pageIcon(p.id, asciiMode, p.icon);
+    const bar = active ? (asciiMode ? '>' : '▌') : ' ';
     if (collapsed) {
       return (
         <Box key={p.id} width={inner} height={1}>
-          <Text color={active ? theme.primary : theme.dim}>{active ? '▌' : ' '}</Text>
+          <Text color={active ? theme.primary : theme.dim}>{bar}</Text>
           <Text color={active ? theme.primary : theme.muted} bold={active}>
-            {p.icon}
+            {icon}
           </Text>
-          <Text color={badge ? c?.color : theme.dim}>{badge ? ' •' : `${' '}${p.shortcut}`}</Text>
+          <Text color={badge ? c?.color : theme.dim}>{badge ? (asciiMode ? ' *' : ' •') : ` ${p.shortcut}`}</Text>
         </Box>
       );
     }
@@ -91,11 +96,11 @@ export const SideNav = memo(function SideNav({ width, height }: SideNavProps) {
     const avail = Math.max(1, inner - 4 - displayWidth(right));
     return (
       <Box key={p.id} width={inner} height={1} backgroundColor={active ? theme.selectionBg : undefined}>
-        <Text color={active ? theme.primary : theme.bg}>{active ? '▌' : ' '}</Text>
-        <Text color={active ? theme.primary : theme.muted}>{` ${p.icon} `}</Text>
+        <Text color={active ? theme.primary : theme.bg}>{bar}</Text>
+        <Text color={active ? theme.primary : theme.muted}>{` ${icon} `}</Text>
         <Box flexGrow={1} overflow="hidden">
           <Text color={active ? theme.selectionFg : theme.text} bold={active} wrap="truncate-end">
-            {truncateDisplay(label, avail)}
+            {truncateDisplay(label, avail, ell)}
           </Text>
         </Box>
         {badge ? (
@@ -115,14 +120,14 @@ export const SideNav = memo(function SideNav({ width, height }: SideNavProps) {
     if (collapsed) {
       push(
         <Text key={`g-${g.id}`} color={theme.border}>
-          {' ' + '─'.repeat(Math.max(0, inner - 2))}
+          {' ' + (asciiMode ? '-' : '─').repeat(Math.max(0, inner - 2))}
         </Text>,
       );
     } else {
       const head = ` ${t(lang, g.zh, g.en)} ${lang === 'zh' ? g.en : ''}`.trimEnd();
       push(
         <Text key={`g-${g.id}`} color={theme.dim} bold>
-          {truncateDisplay(head, inner)}
+          {truncateDisplay(head, inner, ell)}
         </Text>,
       );
     }
@@ -135,7 +140,7 @@ export const SideNav = memo(function SideNav({ width, height }: SideNavProps) {
       flexDirection="column"
       width={width}
       height={height}
-      borderStyle="single"
+      borderStyle={asciiMode ? 'classic' : 'single'}
       borderTop={false}
       borderBottom={false}
       borderLeft={false}

@@ -60,6 +60,39 @@ export interface AiTurn {
 }
 
 export const MAX_AI_TURNS = 20;
+export const MAX_TRANSLATION_CACHE = 32;
+
+export interface CardTranslation {
+  lang?: string;
+  at?: string;
+  digest?: string;
+  prompt: string;
+  answer: string;
+  explanation: string;
+  clozeText?: string;
+  blanks?: Array<{ id: string; value: string }>;
+  options?: Array<{ id: string; text: string; explanation?: string }>;
+}
+
+export interface SimilarCardReason {
+  type: string;
+  topic?: string;
+  terms?: string[];
+  sourceTitle?: string;
+  [k: string]: unknown;
+}
+
+export interface SimilarCardItem {
+  deckId: string;
+  deckTitle?: string;
+  cardId: string;
+  topic?: string;
+  kind?: string;
+  prompt?: string;
+  score?: number;
+  reasons?: SimilarCardReason[];
+  [k: string]: unknown;
+}
 
 export interface FsrsGradeSpec {
   key: '1' | '2' | '3' | '4';

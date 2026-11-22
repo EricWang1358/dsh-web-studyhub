@@ -8,7 +8,7 @@ import { Modal } from '../components/Modal.js';
 import { TextInput } from '../components/TextInput.js';
 import { nextScrollOffset } from '../components/VirtualList.js';
 import { fuzzyFilter } from './fuzzy.js';
-import { listCourses } from './data.js';
+import { listCourses, pageIcon } from './data.js';
 import type { ShellActions } from './actions.js';
 import { useShellActions } from './actions.js';
 
@@ -28,12 +28,14 @@ export function buildPaletteItems(
     setHelpOpen: TuiStoreState['setHelpOpen'];
     setVoicePackOpen: TuiStoreState['setVoicePackOpen'];
     setCoursePickerOpen: TuiStoreState['setCoursePickerOpen'];
+    setInboxOpen?: TuiStoreState['setInboxOpen'];
     goBack: TuiStoreState['goBack'];
   },
   actions: ShellActions,
   extra: readonly CommandPaletteItem[] = [],
 ): CommandPaletteItem[] {
   const lang: UiLanguage = state.preferences.language;
+  const asciiMode = Boolean(state.preferences.asciiMode);
   const snap: StudySnapshot | null = state.snapshot;
   const items: CommandPaletteItem[] = [];
   const catAction = t(lang, '命令', 'Action');
@@ -51,19 +53,20 @@ export function buildPaletteItems(
   act('cmd:lang', '/lang', lang === 'zh' ? 'Switch to English' : '切换到中文', () => state.setLanguage(lang === 'zh' ? 'en' : 'zh'), ['language', '语言', '中文', 'english']);
   act('cmd:model', '/model', t(lang, '配置模型（agy / OpenAI）', 'Configure model (agy / OpenAI)'), () => actions.openModelSettings(), ['agy', 'openai', 'deepseek', '模型', 'api key']);
   act('cmd:voicepack', '/voicepack', t(lang, '语音包', 'Voice pack'), () => state.setVoicePackOpen(true), ['voice', '语音', 'tts']);
+  act('cmd:inbox', '/inbox', t(lang, '收件箱与通知', 'Notification Inbox'), () => (state.setInboxOpen ?? useTuiStore.getState().setInboxOpen)(true), ['inbox', 'mail', 'notification', '收件箱', '通知', '信箱'], 'I');
   act('cmd:refresh', '/refresh', t(lang, '刷新学习库', 'Refresh library'), () => actions.refresh(), ['reload', '刷新'], 'Ctrl+R');
   act('cmd:course', '/course', t(lang, '切换课程焦点', 'Switch course'), () => state.setCoursePickerOpen(true), ['课程', 'focus'], 'c');
   act('cmd:import', '/import', t(lang, '导入资料', 'Import source'), () => actions.importSource(), ['导入', 'pdf', 'upload']);
   act('cmd:sidebar', '/sidebar', t(lang, '折叠/展开侧栏', 'Toggle sidebar'), () => state.toggleSidebar(), ['侧栏', 'nav'], '\\');
   act('cmd:help', '/help', t(lang, '快捷键帮助', 'Keyboard help'), () => state.setHelpOpen(true), ['帮助', 'keys'], '?');
-  act('cmd:back', '/back', t(lang, '返回上一页', 'Go back'), () => state.goBack(), ['返回', 'history'], '⌫');
+  act('cmd:back', '/back', t(lang, '返回上一页', 'Go back'), () => state.goBack(), ['返回', 'history'], asciiMode ? 'Bksp' : '⌫');
   act('cmd:quit', '/quit', t(lang, '退出 StudyHub', 'Quit StudyHub'), () => actions.quit(), ['exit', '退出'], 'q');
 
   const catPage = t(lang, '页面', 'Page');
   for (const p of PAGE_REGISTRY) {
     items.push({
       id: `page:${p.id}`,
-      label: `${p.icon} ${t(lang, p.labelZh, p.labelEn)}`,
+      label: `${pageIcon(p.id, asciiMode, p.icon)} ${t(lang, p.labelZh, p.labelEn)}`,
       hint: t(lang, p.descriptionZh, p.descriptionEn),
       category: catPage,
       shortcut: p.shortcut,
@@ -150,6 +153,8 @@ export const CommandPalette = memo(function CommandPalette({ isActive, onClose, 
   const preferences = useTuiStore((s) => s.preferences);
   const activeRunId = useTuiStore((s) => s.activeRunId);
   const lang = preferences.language;
+  const asciiMode = Boolean(preferences.asciiMode);
+  const ell = asciiMode ? '...' : '…';
   const [query, setQuery] = useState(initialQuery);
   const [cursor, setCursor] = useState(0);
   const offsetRef = useRef(0);
@@ -211,13 +216,13 @@ export const CommandPalette = memo(function CommandPalette({ isActive, onClose, 
   return (
     <Modal
       title={t(lang, '命令面板', 'Command Palette')}
-      icon="⌘"
+      icon={asciiMode ? '>' : '⌘'}
       subtitle={`${results.length}`}
       width={width}
       onClose={onClose}
       isActive={isActive}
       hints={[
-        { key: '↑↓', label: t(lang, '选择', 'Select') },
+        { key: asciiMode ? 'Up/Dn' : '↑↓', label: t(lang, '选择', 'Select') },
         { key: 'Enter', label: t(lang, '执行', 'Run') },
         { key: 'Esc', label: t(lang, '关闭', 'Close') },
       ]}
@@ -232,9 +237,13 @@ export const CommandPalette = memo(function CommandPalette({ isActive, onClose, 
           onSubmit={() => run(results[sel])}
           onCancel={onClose}
           isActive={isActive}
-          prompt="›"
+          prompt={asciiMode ? '>' : '›'}
           width={inner - 2}
-          placeholder={t(lang, '搜索页面、课程、题组、资料、笔记，或输入 / 命令…', 'Search pages, courses, decks, sources, notes, or / commands…')}
+          placeholder={t(
+            lang,
+            `搜索页面、课程、题组、资料、笔记，或输入 / 命令${ell}`,
+            `Search pages, courses, decks, sources, notes, or / commands${ell}`,
+          )}
         />
       </Box>
       <Box flexDirection="column" height={listRows}>
@@ -248,11 +257,11 @@ export const CommandPalette = memo(function CommandPalette({ isActive, onClose, 
             const sc = item.shortcut ? ` ${item.shortcut}` : '';
             const right = displayWidth(cat) + displayWidth(sc) + 1;
             const labelW = Math.max(6, Math.min(displayWidth(item.label), Math.floor((inner - right) * 0.55)));
-            const label = truncateDisplay(item.label, labelW);
-            const hint = item.hint ? truncateDisplay(`  ${item.hint}`, Math.max(0, inner - right - displayWidth(label) - 2)) : '';
+            const label = truncateDisplay(item.label, labelW, ell);
+            const hint = item.hint ? truncateDisplay(`  ${item.hint}`, Math.max(0, inner - right - displayWidth(label) - 2), ell) : '';
             return (
               <Box key={item.id} height={1} width={inner} backgroundColor={active ? theme.selectionBg : undefined}>
-                <Text color={active ? theme.primary : theme.dim}>{active ? '❯ ' : '  '}</Text>
+                <Text color={active ? theme.primary : theme.dim}>{active ? (asciiMode ? '> ' : '❯ ') : '  '}</Text>
                 <Box flexGrow={1} overflow="hidden">
                   <Text wrap="truncate-end">
                     <Text color={active ? theme.selectionFg : theme.text} bold={active}>

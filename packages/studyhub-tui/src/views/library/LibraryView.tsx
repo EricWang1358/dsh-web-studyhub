@@ -22,6 +22,8 @@ import { currentCourse, dueToday, useShellActions } from '../../shell/index.js';
 import { getSampleStatus, removeSampleCourse, tryAction } from '../../host/index.js';
 import { DeckManageModal } from './DeckManageModal.js';
 import { VoicePackModal } from './VoicePackModal.js';
+import { DailyPlanModal } from './DailyPlanModal.js';
+import { CourseSettingsModal } from './CourseSettingsModal.js';
 
 type DeckItem = NonNullable<StudySnapshot['decks']>[number];
 type DraftItem = NonNullable<StudySnapshot['drafts']>[number];
@@ -52,7 +54,7 @@ type WorkEntry =
   | { kind: 'draft'; id: string; title: string; course: string; count: number; draft: DraftItem }
   | { kind: 'job'; id: string; title: string; course: string; status: string; error: string; job: JobItem };
 
-const CLAIMED_LIBRARY_KEYS = ['r', 'a'] as const;
+const CLAIMED_LIBRARY_KEYS = ['r', 'a', 'p', 'C'] as const;
 
 function localDayKey(value: Date | string | number): string {
   const d = value instanceof Date ? value : new Date(value);
@@ -123,13 +125,15 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
 
   const [manageDeckId, setManageDeckId] = useState<string | null>(null);
   const [voiceOpen, setVoiceOpen] = useState(false);
+  const [dailyPlanOpen, setDailyPlanOpen] = useState(false);
+  const [courseSettingsOpen, setCourseSettingsOpen] = useState(false);
   const [confirmDeleteDeck, setConfirmDeleteDeck] = useState<DeckItem | null>(null);
   const [busyAction, setBusyAction] = useState(false);
 
   const [streak, setStreak] = useState<number>(0);
   const [sampleLoaded, setSampleLoaded] = useState<boolean>(false);
 
-  const modalOpen = Boolean(manageDeckId || voiceOpen || confirmDeleteDeck);
+  const modalOpen = Boolean(manageDeckId || voiceOpen || dailyPlanOpen || courseSettingsOpen || confirmDeleteDeck);
   const viewActive = isActive && !modalOpen;
 
   useClaimKeys(CLAIMED_LIBRARY_KEYS, viewActive);
@@ -383,6 +387,14 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
         setVoiceOpen(true);
         return;
       }
+      if (input === 'p') {
+        setDailyPlanOpen(true);
+        return;
+      }
+      if (input === 'C') {
+        setCourseSettingsOpen(true);
+        return;
+      }
       if (input === 'r') {
         if (resumeRunForDeck) {
           navigate('review', { runId: resumeRunForDeck });
@@ -419,6 +431,8 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
   const hints = useMemo<KeyHint[]>(
     () => [
       { key: 'Enter', label: focusSection === 'work' ? t(lang, '打开', 'Open') : t(lang, '开始练习', 'Practice') },
+      { key: 'p', label: t(lang, '今日计划', 'Plan') },
+      { key: 'C', label: t(lang, '课程设置', 'Course') },
       { key: 'r', label: t(lang, '继续上次', 'Resume') },
       { key: 'm', label: t(lang, '管理卡片', 'Manage') },
       { key: 'v', label: t(lang, '语音包', 'Voice Pack') },
@@ -608,7 +622,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
           <Panel title={t(lang, '题组详情', 'Deck Detail')} width={size.width} height={size.height}>
             <EmptyState
               title={t(lang, '未选中题组', 'No deck selected')}
-              hint={t(lang, '按 [s] 载入示例课快速体验', 'Press [s] to load the sample course')}
+              hint={t(lang, '按 [s] 载入示例课 · [p] 今日计划 · [C] 课程设置', 'Press [s] for sample · [p] Daily Plan · [C] Course Settings')}
               width={innerW}
               height={Math.max(4, size.height - 4)}
             />
@@ -618,6 +632,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
 
       const st = deckStats(selectedDeck, progressMap);
       const topicsLine = (selectedDeck as { topics?: string[] }).topics?.slice(0, 5).join(' · ') || '';
+      const compactDetail = size.height <= 12;
 
       return (
         <Panel
@@ -643,7 +658,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
               )}
             </Box>
 
-            <Box marginTop={1}>
+            <Box marginTop={compactDetail ? 0 : 1}>
               <ProgressBar
                 ratio={st.mastery / 100}
                 width={Math.min(44, innerW)}
@@ -665,13 +680,15 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
               ) : null}
             </Box>
 
-            <Box marginTop={0}>
-              <Text color={theme.muted}>
-                {t(lang, '最近学习', 'Last studied')}: <Text color={theme.text}>{formatDateShort(st.lastStudied, lang)}</Text>
-              </Text>
-            </Box>
+            {!compactDetail ? (
+              <Box marginTop={0}>
+                <Text color={theme.muted}>
+                  {t(lang, '最近学习', 'Last studied')}: <Text color={theme.text}>{formatDateShort(st.lastStudied, lang)}</Text>
+                </Text>
+              </Box>
+            ) : null}
 
-            {topicsLine ? (
+            {!compactDetail && topicsLine ? (
               <Box marginTop={0}>
                 <Text color={theme.muted}>
                   {t(lang, '涵盖主题', 'Topics')}: <Text color={theme.text}>{truncateDisplay(topicsLine, Math.max(12, innerW - 12))}</Text>
@@ -681,28 +698,61 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
 
             <Divider width={innerW} label={t(lang, '快捷操作', 'Quick Actions')} />
 
-            <Box flexDirection="column">
-              <Text>
-                <Text color={theme.primary} bold>[Enter]</Text>
-                <Text color={theme.text}> {t(lang, '开始练习', 'Start practice')}   </Text>
-                <Text color={theme.accent} bold>[r]</Text>
-                <Text color={theme.text}> {t(lang, '继续上次', 'Resume last')}{resumeRunForDeck ? '' : t(lang, ' (新轮)', ' (new)')}</Text>
-              </Text>
-              <Text>
-                <Text color={theme.accent} bold>[m]</Text>
-                <Text color={theme.text}> {t(lang, '管理题组 / 查看卡片', 'Manage deck / cards')}   </Text>
-                <Text color={theme.ai} bold>[v]</Text>
-                <Text color={theme.text}> {t(lang, '导出语音包', 'Voice Pack')}</Text>
-              </Text>
-              <Text>
-                <Text color={theme.warning} bold>[a]</Text>
-                <Text color={theme.text}> {selectedDeck.archived ? t(lang, '恢复题组', 'Unarchive') : t(lang, '归档', 'Archive')}   </Text>
-                <Text color={theme.error} bold>[d]</Text>
-                <Text color={theme.text}> {t(lang, '删除题组', 'Delete')}   </Text>
-                <Text color={theme.success} bold>[s]</Text>
-                <Text color={theme.text}> {sampleLoaded ? t(lang, '移除示例课', 'Remove sample') : t(lang, '载入示例课', 'Load sample')}</Text>
-              </Text>
-            </Box>
+            {compactDetail ? (
+              <Box flexDirection="column">
+                <Text wrap="truncate-end">
+                  <Text color={theme.primary} bold>[Enter]</Text>
+                  <Text color={theme.text}> {t(lang, '练习', 'Practice')}  </Text>
+                  <Text color={theme.primary} bold>[p]</Text>
+                  <Text color={theme.text}> {t(lang, '计划', 'Plan')}  </Text>
+                  <Text color={theme.accent} bold>[C]</Text>
+                  <Text color={theme.text}> {t(lang, '课程', 'Course')}  </Text>
+                  <Text color={theme.accent} bold>[r]</Text>
+                  <Text color={theme.text}> {t(lang, '继续', 'Resume')}</Text>
+                </Text>
+                <Text wrap="truncate-end">
+                  <Text color={theme.accent} bold>[m]</Text>
+                  <Text color={theme.text}> {t(lang, '卡片', 'Cards')}  </Text>
+                  <Text color={theme.ai} bold>[v]</Text>
+                  <Text color={theme.text}> {t(lang, '语音包', 'Voice')}  </Text>
+                  <Text color={theme.warning} bold>[a]</Text>
+                  <Text color={theme.text}> {t(lang, '归档', 'Archive')}  </Text>
+                  <Text color={theme.error} bold>[d]</Text>
+                  <Text color={theme.text}> {t(lang, '删除', 'Del')}  </Text>
+                  <Text color={theme.success} bold>[s]</Text>
+                  <Text color={theme.text}> {t(lang, '示例', 'Sample')}</Text>
+                </Text>
+              </Box>
+            ) : (
+              <Box flexDirection="column">
+                <Text wrap="truncate-end">
+                  <Text color={theme.primary} bold>[Enter]</Text>
+                  <Text color={theme.text}> {t(lang, '开始练习', 'Start practice')}   </Text>
+                  <Text color={theme.accent} bold>[r]</Text>
+                  <Text color={theme.text}> {t(lang, '继续上次', 'Resume last')}{resumeRunForDeck ? '' : t(lang, ' (新轮)', ' (new)')}</Text>
+                </Text>
+                <Text wrap="truncate-end">
+                  <Text color={theme.primary} bold>[p]</Text>
+                  <Text color={theme.text}> {t(lang, '今日计划', 'Daily Plan')}   </Text>
+                  <Text color={theme.accent} bold>[C]</Text>
+                  <Text color={theme.text}> {t(lang, '课程设置', 'Course Settings')}</Text>
+                </Text>
+                <Text wrap="truncate-end">
+                  <Text color={theme.accent} bold>[m]</Text>
+                  <Text color={theme.text}> {t(lang, '管理题组 / 查看卡片', 'Manage deck / cards')}   </Text>
+                  <Text color={theme.ai} bold>[v]</Text>
+                  <Text color={theme.text}> {t(lang, '导出语音包', 'Voice Pack')}</Text>
+                </Text>
+                <Text wrap="truncate-end">
+                  <Text color={theme.warning} bold>[a]</Text>
+                  <Text color={theme.text}> {selectedDeck.archived ? t(lang, '恢复题组', 'Unarchive') : t(lang, '归档', 'Archive')}   </Text>
+                  <Text color={theme.error} bold>[d]</Text>
+                  <Text color={theme.text}> {t(lang, '删除题组', 'Delete')}   </Text>
+                  <Text color={theme.success} bold>[s]</Text>
+                  <Text color={theme.text}> {sampleLoaded ? t(lang, '移除示例课', 'Remove sample') : t(lang, '载入示例课', 'Load sample')}</Text>
+                </Text>
+              </Box>
+            )}
           </Box>
         </Panel>
       );
@@ -785,6 +835,35 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
           height={height}
           initialCourse={course}
           initialDeckId={selectedDeck?.id ?? null}
+        />
+      ) : null}
+
+      {/* Daily Study Plan Modal */}
+      {dailyPlanOpen ? (
+        <DailyPlanModal
+          host={host}
+          isActive={isActive}
+          width={width}
+          height={height}
+          onClose={() => setDailyPlanOpen(false)}
+          onUpdated={() => {
+            void actions.refresh();
+          }}
+        />
+      ) : null}
+
+      {/* Course Settings & Method Modal */}
+      {courseSettingsOpen ? (
+        <CourseSettingsModal
+          host={host}
+          course={course ?? selectedDeck?.course ?? null}
+          isActive={isActive}
+          width={width}
+          height={height}
+          onClose={() => setCourseSettingsOpen(false)}
+          onUpdated={() => {
+            void actions.refresh();
+          }}
         />
       ) : null}
 

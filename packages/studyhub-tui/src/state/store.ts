@@ -37,6 +37,7 @@ export interface TuiStoreState {
   helpOpen: boolean;
   coursePickerOpen: boolean;
   voicePackOpen: boolean;
+  inboxOpen: boolean;
   showLaunchpad: boolean;
 
   /** Core StudyHub backend state */
@@ -61,6 +62,7 @@ export interface TuiStoreState {
   setHelpOpen: (open: boolean) => void;
   setCoursePickerOpen: (open: boolean) => void;
   setVoicePackOpen: (open: boolean) => void;
+  setInboxOpen: (open: boolean) => void;
   setShowLaunchpad: (show: boolean) => void;
 
   setSnapshot: (snapshot: StudySnapshot | null) => void;
@@ -94,6 +96,7 @@ export const useTuiStore = create<TuiStoreState>((set, get) => ({
   helpOpen: false,
   coursePickerOpen: false,
   voicePackOpen: false,
+  inboxOpen: false,
   showLaunchpad: false,
 
   snapshot: null,
@@ -121,6 +124,7 @@ export const useTuiStore = create<TuiStoreState>((set, get) => ({
       commandPaletteOpen: false,
       helpOpen: false,
       coursePickerOpen: false,
+      inboxOpen: false,
       showLaunchpad: false,
       ...(page === 'review' && context.runId ? { activeRunId: context.runId } : {}),
     });
@@ -145,6 +149,7 @@ export const useTuiStore = create<TuiStoreState>((set, get) => ({
   setHelpOpen: (helpOpen) => set({ helpOpen }),
   setCoursePickerOpen: (coursePickerOpen) => set({ coursePickerOpen }),
   setVoicePackOpen: (voicePackOpen) => set({ voicePackOpen }),
+  setInboxOpen: (inboxOpen) => set({ inboxOpen }),
   setShowLaunchpad: (showLaunchpad) => set({ showLaunchpad }),
 
   setSnapshot: (snapshot) => {

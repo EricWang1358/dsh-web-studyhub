@@ -29,9 +29,11 @@ import {
   useFooterHints,
   useTheme,
 } from '../../components/index.js';
-import { truncateDisplay } from '../../render/index.js';
+import { LruCache, truncateDisplay } from '../../render/index.js';
 import {
   FSRS_GRADES,
+  MAX_TRANSLATION_CACHE,
+  currentDeckIdOf,
   extractCitation,
   extractFeedback,
   extractReferenceAnswer,
@@ -46,11 +48,31 @@ import {
   skipTargetIndex,
   type CardFeedbackShape,
   type CardOptionItem,
+  type CardTranslation,
 } from './review-helpers.js';
 import { AiHelpDrawer } from './AiHelpDrawer.js';
+import { CardToolsModal } from './CardToolsModal.js';
 import { RoundSummary } from './RoundSummary.js';
+import { SimilarCardsModal } from './SimilarCardsModal.js';
 
-const CARD_UTIL_KEYS: readonly string[] = Object.freeze(['q', 's', 'm', ',', '.', 't', 'a', 'f', 'n']);
+const CARD_UTIL_KEYS: readonly string[] = Object.freeze([
+  'q',
+  's',
+  'm',
+  ',',
+  '.',
+  't',
+  'a',
+  'f',
+  'n',
+  'T',
+  'S',
+  'D',
+  'E',
+  'h',
+  'u',
+  'o',
+]);
 const RATING_DIGIT_KEYS: readonly string[] = Object.freeze(['1', '2', '3', '4']);
 const CHOICE_DIGIT_KEYS: readonly string[] = Object.freeze(['1', '2', '3', '4', '5', '6']);
 const TF_DIGIT_KEYS: readonly string[] = Object.freeze(['1', '2']);
@@ -84,12 +106,19 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
   const [openDraft, setOpenDraft] = useState('');
   const [openEditing, setOpenEditing] = useState(false);
 
-  // Overlays
+  // Overlays & translation
   const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
   const [flagModalOpen, setFlagModalOpen] = useState(false);
   const [flagReason, setFlagReason] = useState('');
+  const [similarModalOpen, setSimilarModalOpen] = useState(false);
+  const [cardToolsModalOpen, setCardToolsModalOpen] = useState(false);
+  const [showTranslation, setShowTranslation] = useState(false);
+  const [translating, setTranslating] = useState(false);
+  const [translationTick, setTranslationTick] = useState(0);
 
   const mountedRef = useRef(true);
+  const translationCacheRef = useRef(new LruCache<string, CardTranslation>(MAX_TRANSLATION_CACHE));
+  const currentCardIdRef = useRef<string | null>(null);
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -98,6 +127,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
   }, []);
 
   const cardId = currentCardId(run);
+  currentCardIdRef.current = cardId;
   const cardKey = `${run?.id ?? ''}:${run?.index ?? -1}:${cardId ?? ''}`;
 
   // Reset per-card input state when moving to another question
@@ -109,6 +139,8 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     setClozeEditing(false);
     setOpenDraft('');
     setOpenEditing(false);
+    setShowTranslation(false);
+    setTranslating(false);
   }, [cardKey]);
 
   const applyRun = useCallback(
@@ -361,8 +393,43 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     });
   }, [run, busy, runAction, host, lang]);
 
+  const handleToggleTranslate = useCallback(async () => {
+    if (!run?.card || !cardId || translating) return;
+    if (showTranslation) {
+      setShowTranslation(false);
+      return;
+    }
+    const cached = translationCacheRef.current.get(cardId);
+    if (cached) {
+      setShowTranslation(true);
+      return;
+    }
+    const deckId = currentDeckIdOf(run);
+    setTranslating(true);
+    const res = await tryAction<{ translation?: CardTranslation | null }>(host, 'card.translate', {
+      ...(deckId ? { deckId } : {}),
+      cardId,
+    });
+    if (!mountedRef.current) return;
+    setTranslating(false);
+    if (res.ok && res.value?.translation) {
+      translationCacheRef.current.set(cardId, res.value.translation);
+      setTranslationTick((v) => v + 1);
+      if (currentCardIdRef.current === cardId) {
+        setShowTranslation(true);
+      }
+      return;
+    }
+    notify(
+      res.error?.message ||
+        t(lang, '翻译失败：请先在设置中配置可用模型', 'Translation unavailable: configure a model in Settings'),
+      'warning',
+    );
+  }, [run, cardId, translating, showTranslation, host, notify, lang]);
+
   // Phase-aware key claiming: only claim digits when rating (1-4) or picking choices (1-6 / 1-2)
-  const mainActive = isActive && !aiDrawerOpen && !flagModalOpen && !clozeEditing && !openEditing && !isFinished;
+  const anyModalOpen = aiDrawerOpen || flagModalOpen || similarModalOpen || cardToolsModalOpen;
+  const mainActive = isActive && !anyModalOpen && !clozeEditing && !openEditing && !isFinished;
   const claimedKeys = useMemo<readonly string[]>(() => {
     if (!isActive || loading) return [];
     if (!run) return EMPTY_CLAIMED_KEYS;
@@ -400,12 +467,15 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
       base.push({ key: 'Enter / .', label: t(lang, '下一题', 'Next') });
     }
     base.push({ key: 'h', label: t(lang, 'AI讲解', 'AI Help') });
+    base.push({ key: 'T', label: t(lang, '翻译', 'Trans') });
+    base.push({ key: 'S', label: t(lang, '同类', 'Similar') });
+    base.push({ key: 'D', label: t(lang, '工具', 'Tools') });
     base.push({ key: 'm', label: mathUnicode ? 'Unicode' : 'LaTeX' });
     if (citation) base.push({ key: 'o', label: t(lang, '原文', 'Source') });
     base.push({ key: 'q', label: t(lang, '结束', 'End') });
     return base;
   }, [loading, run, isFinished, revealed, feedback, kind, needsRating, mathUnicode, citation, lang]);
-  useFooterHints(hints, isActive && !aiDrawerOpen && !flagModalOpen && !isFinished);
+  useFooterHints(hints, isActive && !anyModalOpen && !isFinished);
 
   // Main keyboard controller for active question
   useInput(
@@ -419,6 +489,18 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
       // Global card utilities
       if (input === 'h') {
         setAiDrawerOpen(true);
+        return;
+      }
+      if (input === 'T') {
+        void handleToggleTranslate();
+        return;
+      }
+      if (input === 'S') {
+        setSimilarModalOpen(true);
+        return;
+      }
+      if (input === 'D') {
+        setCardToolsModalOpen(true);
         return;
       }
       if (input === 'm') {
@@ -582,6 +664,12 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
   );
 
   // Hooks above, early returns below.
+  const activeTranslation = useMemo<CardTranslation | null>(() => {
+    if (!showTranslation || !cardId) return null;
+    void translationTick;
+    return translationCacheRef.current.get(cardId) ?? null;
+  }, [showTranslation, cardId, translationTick]);
+
   const userAnswerText = useMemo(
     () => extractUserAnswerText(run, kind, selectedIds, clozeInputs, openDraft, lang),
     [run, kind, selectedIds, clozeInputs, openDraft, lang],
@@ -589,11 +677,18 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
 
   const stemMarkdown = useMemo(() => {
     if (!run) return '';
-    if (kind === 'fill_blank' && clozeData) {
-      return formatClozeDisplay(clozeData.text, clozeData.blanks, clozeInputs, revealed, solution);
-    }
-    return String(run.card?.prompt ?? '');
-  }, [run, kind, clozeData, clozeInputs, revealed, solution]);
+    const baseStem =
+      kind === 'fill_blank' && clozeData
+        ? formatClozeDisplay(clozeData.text, clozeData.blanks, clozeInputs, revealed, solution)
+        : String(run.card?.prompt ?? '');
+    if (!activeTranslation) return baseStem;
+    const trStemRaw =
+      kind === 'fill_blank' && activeTranslation.clozeText
+        ? activeTranslation.clozeText.replace(/\{\{[^{}]+\}\}/g, '＿＿')
+        : activeTranslation.prompt;
+    if (!trStemRaw) return baseStem;
+    return `${baseStem}\n\n> **EN**: ${trStemRaw}`;
+  }, [run, kind, clozeData, clozeInputs, revealed, solution, activeTranslation]);
 
   const referenceAnswer = useMemo(
     () => (run && revealed ? extractReferenceAnswer(run, kind, lang) : ''),
@@ -683,7 +778,8 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
               {run.card?.focus ? <Badge label={t(lang, '重点', 'Focus')} tone="accent" variant="soft" /> : null}
             </Box>
             <Box flexDirection="row" alignItems="center" gap={1}>
-              {busy ? <Spinner tone="primary" active={isActive} /> : null}
+              {busy || translating ? <Spinner tone="primary" active={isActive} /> : null}
+              {activeTranslation ? <Badge label="EN 译" tone="info" variant="soft" /> : null}
               <Badge label={mathUnicode ? '∑ Unicode' : 'TeX Raw'} tone="neutral" variant="outline" />
             </Box>
           </Box>
@@ -726,15 +822,21 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                 const keyTag = kind === 'true_false'
                   ? (idx === 0 ? '[1/t]' : '[2/f]')
                   : `[${idx + 1}/${String.fromCharCode(97 + idx)}]`;
+                const trOptText = activeTranslation?.options?.find((o) => o.id === opt.id)?.text;
                 return (
-                  <Box key={opt.id} flexDirection="row" width={innerW}>
-                    <Text color={isCursor ? theme.primary : theme.dim} bold={isCursor}>
-                      {isCursor ? '▸ ' : '  '}
-                    </Text>
-                    <Text color={theme.muted}>{`${keyTag} `}</Text>
-                    <Text color={lineColor} bold={isSelected || isCorrectOpt || isCursor}>
-                      {`${mark} ${opt.text}`}
-                    </Text>
+                  <Box key={opt.id} flexDirection="column" width={innerW}>
+                    <Box flexDirection="row" width={innerW}>
+                      <Text color={isCursor ? theme.primary : theme.dim} bold={isCursor}>
+                        {isCursor ? '▸ ' : '  '}
+                      </Text>
+                      <Text color={theme.muted}>{`${keyTag} `}</Text>
+                      <Text color={lineColor} bold={isSelected || isCorrectOpt || isCursor}>
+                        {`${mark} ${opt.text}`}
+                      </Text>
+                    </Box>
+                    {trOptText ? (
+                      <Text color={theme.muted}>{`      EN: ${trOptText}`}</Text>
+                    ) : null}
                   </Box>
                 );
               })}
@@ -764,7 +866,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                     <TextInput
                       value={clozeInputs[blank.id] ?? ''}
                       onChange={(val) => setClozeInputs((prev) => ({ ...prev, [blank.id]: val }))}
-                      isActive={isActive && !aiDrawerOpen && !flagModalOpen && isThisActive}
+                      isActive={isActive && !anyModalOpen && isThisActive}
                       width={Math.max(12, Math.min(innerW, 64) - 10)}
                       placeholder={t(lang, '输入答案 (Enter 下一空/提交, Esc 退出)', 'Type answer (Enter next/submit, Esc blur)')}
                       onTab={() => {
@@ -805,7 +907,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
               <TextInput
                 value={openDraft}
                 onChange={setOpenDraft}
-                isActive={isActive && !aiDrawerOpen && !flagModalOpen && openEditing}
+                isActive={isActive && !anyModalOpen && openEditing}
                 width={Math.max(16, innerW - 6)}
                 placeholder={t(lang, '输入你的思路或简答…', 'Type your answer or key points…')}
                 onSubmit={() => {
@@ -855,13 +957,17 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
               <Text color={theme.success} bold>
                 {`${t(lang, '参考答案', 'Reference')}: ${referenceAnswer}`}
               </Text>
+              {activeTranslation?.answer ? (
+                <Text color={theme.muted}>{`EN: ${activeTranslation.answer}`}</Text>
+              ) : null}
 
-              {solution?.explanation || solution?.misconception ? (
+              {solution?.explanation || solution?.misconception || activeTranslation?.explanation ? (
                 <Box marginTop={0} flexGrow={1} overflow="hidden">
                   <MarkdownView
                     markdown={[
-                      solution.explanation || '',
-                      solution.misconception
+                      solution?.explanation || '',
+                      activeTranslation?.explanation ? `> **EN**: ${activeTranslation.explanation}` : '',
+                      solution?.misconception
                         ? `> **${t(lang, '常见误区', 'Misconception')}**: ${solution.misconception}`
                         : '',
                     ]
@@ -910,9 +1016,16 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
 
           {/* Bottom utility status strip */}
           <Box flexGrow={1} />
-          <Box flexDirection="row" justifyContent="space-between" width={innerW}>
-            <Text color={theme.dim}>
-              {t(lang, '[h] AI讲解 · [E] 标记 · [s] 跳过 · [u] 撤销 · [,/.] 上/下题', '[h] AI Help · [E] Flag · [s] Skip · [u] Undo · [,/.] Prev/Next')}
+          <Box height={1} width={innerW} overflow="hidden">
+            <Text color={theme.dim} wrap="truncate">
+              {truncateDisplay(
+                t(
+                  lang,
+                  '[h]讲解 [T]翻译 [S]同类 [D]工具 [E]标记 [s]跳过 [u]撤销 [,/.]换题',
+                  '[h]Help [T]Trans [S]Sim [D]Tools [E]Flag [s]Skip [u]Undo [,/.]Nav',
+                ),
+                innerW,
+              )}
             </Text>
           </Box>
         </Panel>
@@ -930,9 +1043,45 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
           userAnswer={userAnswerText}
           width={aiPaneW}
           height={height}
-          isActive={isActive && aiDrawerOpen && !flagModalOpen}
+          isActive={isActive && aiDrawerOpen && !flagModalOpen && !similarModalOpen && !cardToolsModalOpen}
           mathUnicode={mathUnicode}
           onClose={() => setAiDrawerOpen(false)}
+        />
+      ) : null}
+
+      {/* Similar / Confusable Cards Modal */}
+      {similarModalOpen && cardId ? (
+        <SimilarCardsModal
+          host={host}
+          run={run}
+          cardId={cardId}
+          kind={kind}
+          width={width}
+          height={height}
+          isActive={isActive && similarModalOpen && !flagModalOpen && !cardToolsModalOpen}
+          mathUnicode={mathUnicode}
+          onClose={() => setSimilarModalOpen(false)}
+          onStartRun={(nextRun) => applyRun(nextRun, true)}
+        />
+      ) : null}
+
+      {/* Power-User Card Tools Drawer/Modal */}
+      {cardToolsModalOpen && cardId ? (
+        <CardToolsModal
+          host={host}
+          run={run}
+          cardId={cardId}
+          kind={kind}
+          width={width}
+          height={height}
+          isActive={isActive && cardToolsModalOpen && !flagModalOpen}
+          onClose={() => setCardToolsModalOpen(false)}
+          onRunUpdated={(nextRun) => applyRun(nextRun, true)}
+          onCardEdited={(editedId) => {
+            translationCacheRef.current.delete(editedId);
+            setShowTranslation(false);
+          }}
+          onRefreshSnapshot={() => void refresh()}
         />
       ) : null}
 

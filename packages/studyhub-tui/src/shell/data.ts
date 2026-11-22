@@ -1,6 +1,128 @@
-import type { BindingSnapshot, DesktopConfigSnapshot, StudySnapshot } from '../types/contracts.js';
+import type { BindingSnapshot, DesktopConfigSnapshot, PageId, StudySnapshot } from '../types/contracts.js';
 
 /** Pure selectors over the loose StudySnapshot shape (shared by shell widgets). */
+
+const ASCII_PAGE_ICONS: Record<PageId, string> = {
+  library: '*',
+  sources: '#',
+  generate: '+',
+  wrongbook: '!',
+  exam: '@',
+  dashboard: '%',
+  book: '=',
+  skeleton: '&',
+  examcoach: 'o',
+  examprep: '^',
+  notes: '-',
+  board: ':',
+  tasks: '~',
+  audio: '>',
+  settings: '$',
+  review: '>',
+};
+
+export function pageIcon(pageId: PageId, asciiMode: boolean, fallback = '*'): string {
+  if (!asciiMode) return fallback;
+  return ASCII_PAGE_ICONS[pageId] ?? '*';
+}
+
+export interface InboxEntry {
+  id: string;
+  kind: string;
+  label: string;
+  deckId?: string;
+  deckTitle?: string;
+  cardId?: string;
+  noteId?: string;
+  jobId?: string;
+  draftId?: string;
+  runId?: string;
+  sourceId?: string;
+  sourceIds?: string[];
+  course?: string;
+  book?: boolean;
+  filename?: string;
+  prompt: string;
+  promptFull: string;
+  detail: string;
+  detailFull: string;
+  at?: string;
+  read: boolean;
+  count: number;
+  missing: boolean;
+  canRevert: boolean;
+}
+
+export interface InboxSnapshotData {
+  unread: number;
+  items: InboxEntry[];
+}
+
+function str(v: unknown): string {
+  return typeof v === 'string' ? v : typeof v === 'number' ? String(v) : '';
+}
+
+function normalizeInboxItem(raw: unknown, idx: number): InboxEntry | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const kind = str(r.kind) || str(r.type) || 'info';
+  const id = str(r.id) || str(r.cardId) || str(r.noteId) || str(r.jobId) || `inbox-${idx}`;
+  const promptFull = str(r.promptFull) || str(r.prompt) || str(r.title) || str(r.filename);
+  const detailFull = str(r.detailFull) || str(r.detail) || str(r.summary) || str(r.message);
+  const prompt = str(r.prompt) || str(r.title) || str(r.filename) || promptFull;
+  const detail = str(r.detail) || str(r.summary) || str(r.message) || detailFull;
+  const sourceIds = Array.isArray(r.sourceIds) ? r.sourceIds.map((x) => str(x)).filter(Boolean) : undefined;
+  return {
+    id,
+    kind,
+    label: str(r.label) || kind,
+    deckId: str(r.deckId) || undefined,
+    deckTitle: str(r.deckTitle) || undefined,
+    cardId: str(r.cardId) || undefined,
+    noteId: str(r.noteId) || undefined,
+    jobId: str(r.jobId) || undefined,
+    draftId: str(r.draftId) || undefined,
+    runId: str(r.runId) || undefined,
+    sourceId: str(r.sourceId) || undefined,
+    sourceIds: sourceIds && sourceIds.length > 0 ? sourceIds : undefined,
+    course: str(r.course) || undefined,
+    book: r.book === true ? true : undefined,
+    filename: str(r.filename) || undefined,
+    prompt,
+    promptFull,
+    detail,
+    detailFull,
+    at: str(r.at) || str(r.createdAt) || str(r.updatedAt) || undefined,
+    read: Boolean(r.read),
+    count: typeof r.count === 'number' && Number.isFinite(r.count) && r.count > 1 ? r.count : 1,
+    missing: Boolean(r.missing),
+    canRevert: Boolean(r.canRevert),
+  };
+}
+
+/** Normalize either `{ unread, items }` (runtime inboxView) or loose `InboxItem[]` into `{ unread, items }`. */
+export function extractInboxData(raw: unknown): InboxSnapshotData {
+  if (!raw) return { unread: 0, items: [] };
+  if (Array.isArray(raw)) {
+    const items = raw.map((item, idx) => normalizeInboxItem(item, idx)).filter((x): x is InboxEntry => x !== null);
+    return { unread: items.filter((m) => !m.read).length, items };
+  }
+  if (typeof raw === 'object') {
+    const obj = raw as Record<string, unknown>;
+    const rawItems = Array.isArray(obj.items) ? obj.items : [];
+    const items = rawItems.map((item, idx) => normalizeInboxItem(item, idx)).filter((x): x is InboxEntry => x !== null);
+    const unread =
+      typeof obj.unread === 'number' && Number.isFinite(obj.unread) && obj.unread >= 0
+        ? obj.unread
+        : items.filter((m) => !m.read).length;
+    return { unread, items };
+  }
+  return { unread: 0, items: [] };
+}
+
+export function unreadInboxCount(snapshot: StudySnapshot | null | undefined): number {
+  return extractInboxData(snapshot?.inbox as unknown).unread;
+}
 
 export interface CourseEntry {
   key: string;
