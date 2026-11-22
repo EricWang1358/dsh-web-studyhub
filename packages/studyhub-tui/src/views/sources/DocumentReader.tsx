@@ -24,6 +24,9 @@ const ReaderOutlineDrawer = lazy(() =>
 const ReaderNotesDrawer = lazy(() =>
   import('./ReaderNotesDrawer.js').then((m) => ({ default: m.ReaderNotesDrawer })),
 );
+const MarkPassageModal = lazy(() =>
+  import('./MarkPassageModal.js').then((m) => ({ default: m.MarkPassageModal })),
+);
 
 export interface DocumentReaderProps {
   host: HostClient;
@@ -48,7 +51,8 @@ type ReaderSubMode =
   | 'ask-view'
   | 'translate-view'
   | 'outline'
-  | 'notes';
+  | 'notes'
+  | 'mark';
 
 interface PageProjection {
   page: number;
@@ -861,13 +865,13 @@ export const DocumentReader = memo(function DocumentReader({
   }, [pageData, aiBusy, savingNote, pageScrollTop, subMode, width, host, lang, documentId, askQuestion, aiAnswer, initialCourse, notify]);
 
   const isTyping = subMode === 'jump' || subMode === 'search' || subMode === 'ask-input';
-  const drawerOpen = subMode === 'outline' || subMode === 'notes';
+  const drawerOpen = subMode === 'outline' || subMode === 'notes' || subMode === 'mark';
   const readerInputActive = isActive && !drawerOpen;
   const claimedKeys = useMemo(
     () =>
       subMode === 'ask-view'
         ? ['s', 'backspace']
-        : ['[', ']', '/', 'g', 'm', 'M', 'a', 't', 'q', 'p', 'O', 'B', 'backspace'],
+        : ['[', ']', '/', 'g', 'm', 'M', 'a', 't', 'q', 'p', 'O', 'B', 'H', 'backspace'],
     [subMode],
   );
   useClaimKeys(claimedKeys, readerInputActive && !isTyping);
@@ -885,6 +889,7 @@ export const DocumentReader = memo(function DocumentReader({
       { key: '[/]', label: t(lang, '翻页', 'Page') },
       { key: 'O', label: t(lang, '目录', 'TOC') },
       { key: 'B', label: t(lang, '批注', 'Notes') },
+      { key: 'H', label: t(lang, '标记段落', 'Mark') },
       ...(chapters.length > 0 ? [{ key: 'M', label: t(lang, '已读', 'Read') }] : []),
       { key: 'a', label: t(lang, '问AI', 'Ask') },
       { key: 't', label: t(lang, '翻译', 'Trans') },
@@ -957,6 +962,12 @@ export const DocumentReader = memo(function DocumentReader({
         setSubMode('outline');
       } else if (input === 'B') {
         setSubMode('notes');
+      } else if (input === 'H') {
+        if (!pageData || !pageData.sourceId) {
+          notify(t(lang, '当前页内容尚未加载完成', 'Page content not loaded yet'), 'info');
+        } else {
+          setSubMode('mark');
+        }
       } else if (input === 'q') {
         const sid = pageData?.sourceId || sourceId;
         if (sid) {
@@ -1228,6 +1239,20 @@ export const DocumentReader = memo(function DocumentReader({
               const hi = pageData?.lastPage ?? Math.max(pg, totalPagesHint);
               setCurrentPage(Math.max(lo, Math.min(hi, pg)));
             }}
+            onClose={() => setSubMode('read')}
+          />
+        ) : null}
+
+        {subMode === 'mark' ? (
+          <MarkPassageModal
+            host={host}
+            documentId={pageData?.documentId || documentId}
+            sourceId={pageData?.sourceId || sourceId}
+            revision={pageData?.revision}
+            title={pageData?.title || initialTitle}
+            currentPage={pageData?.page ?? currentPage}
+            pageText={pageData?.text ?? ''}
+            isActive={isActive}
             onClose={() => setSubMode('read')}
           />
         ) : null}

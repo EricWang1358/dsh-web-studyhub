@@ -3,6 +3,7 @@ import { Box, Text, useInput } from 'ink';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { currentCourse } from '../../shell/data.js';
+import { useShellActions } from '../../shell/actions.js';
 import { tryAction, type ReviewRun } from '../../host/index.js';
 import {
   Badge,
@@ -53,7 +54,7 @@ import type {
 const PAGE_LIMIT = 100;
 const MAX_FETCH_ITEMS = 300;
 const PRACTICE_BATCH_CAP = 50;
-const CLAIMED_KEYS: readonly string[] = Object.freeze(['t', 'e', 'p', 'o', 'f', 'm', ' ', 'B', 'x']);
+const CLAIMED_KEYS: readonly string[] = Object.freeze(['t', 'e', 'p', 'o', 'f', 'm', ' ', 'B', 'V', 'x']);
 
 function cardSelectionKey(item: Pick<WrongBookItem, 'deckId' | 'cardId'>): string {
   return `${item.deckId}\0${item.cardId}`;
@@ -121,7 +122,9 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
   const snapshot = useTuiStore((s) => s.snapshot);
   const notify = useTuiStore((s) => s.notify);
   const navigate = useTuiStore((s) => s.navigate);
+  const setActiveRunId = useTuiStore((s) => s.setActiveRunId);
   const setPreferences = useTuiStore((s) => s.setPreferences);
+  const { refresh: refreshSnapshot } = useShellActions();
   const course = currentCourse(snapshot);
 
   const [tab, setTab] = useState<WrongBookTab>('weak');
@@ -338,6 +341,53 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
     [busyAction, host, lang, navigate, notify],
   );
 
+  const handleVariantPractice = useCallback(async () => {
+    if (busyRef.current || busyAction) return;
+    busyRef.current = true;
+    setBusyAction(true);
+    try {
+      const originCardIds =
+        selectedMap.size > 0
+          ? Array.from(selectedMap.values()).map((x) => x.cardId)
+          : selectedItem
+            ? [selectedItem.cardId]
+            : [];
+      const res = await tryAction<{ id: string }>(
+        host,
+        'coach.practice',
+        originCardIds.length > 0 ? { originCardIds } : {},
+      );
+      if (!mountedRef.current) return;
+      if (!res.ok || !res.value?.id) {
+        const msg = res.error?.message || '';
+        const noReady =
+          !msg ||
+          msg.includes('还没有备好的定制题') ||
+          msg.toLowerCase().includes('no custom question is ready') ||
+          msg.toLowerCase().includes('no ready');
+        notify(
+          noReady
+            ? t(
+                lang,
+                '无变式; 考试教练(9)[g]生成',
+                'No variants; ExamCoach(9)[g]',
+              )
+            : msg,
+          noReady ? 'info' : 'error',
+        );
+        return;
+      }
+      setActiveRunId(res.value.id);
+      await refreshSnapshot();
+      if (!mountedRef.current) return;
+      navigate('review', { runId: res.value.id });
+      notify(t(lang, '已开启错题变式专练', 'Started mistake variant practice'), 'success');
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusyAction(false);
+    }
+  }, [busyAction, host, lang, navigate, notify, refreshSnapshot, selectedItem, selectedMap, setActiveRunId]);
+
   const setErrorReason = useCallback(
     async (reason: ErrorReasonId | null) => {
       if (!selectedItem || busyAction) return;
@@ -444,6 +494,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
       return [
         { key: 'Space', label: t(lang, '勾选', 'Select') },
         { key: 'B', label: t(lang, `练已选(${selectedMap.size})`, `Batch(${selectedMap.size})`) },
+        { key: 'V', label: t(lang, '变式练', 'Variants') },
         { key: 'x', label: t(lang, '清空', 'Clear') },
         { key: 'e', label: t(lang, '标错因', 'Reason') },
         { key: 't', label: t(lang, '分流处理', 'Triage') },
@@ -455,6 +506,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
         { key: 'f', label: t(lang, '筛选错因', 'Filter') },
         { key: 'e', label: t(lang, '标错因', 'Reason') },
         { key: 't', label: t(lang, '分流处理', 'Triage') },
+        { key: 'V', label: t(lang, '变式练', 'Variants') },
         { key: 'Enter/p', label: t(lang, '重练', 'Practise') },
       ];
     }
@@ -465,6 +517,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
       { key: 't', label: t(lang, '分流处理', 'Triage') },
       { key: 'Enter/p', label: t(lang, '重练', 'Practise') },
       { key: 'P', label: t(lang, '批量练', 'Batch') },
+      { key: 'V', label: t(lang, '变式练', 'Variants') },
       { key: 'x', label: t(lang, '同类题', 'Similar') },
     ];
   }, [lang, tab, selectedMap.size]);
@@ -531,6 +584,10 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
       if (input === 'P') {
         const batch = visibleItems.map((x) => ({ deckId: x.deckId, cardId: x.cardId }));
         void launchPractice(batch);
+        return;
+      }
+      if (input === 'V') {
+        void handleVariantPractice();
         return;
       }
       if (!selectedItem) return;
@@ -906,6 +963,14 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
                   textLabel: t(lang, '错因', 'Reason'),
                   bg: theme.surface,
                   fg: theme.accent,
+                  textColor: theme.muted,
+                },
+                {
+                  id: 'variants',
+                  keyLabel: ' V ',
+                  textLabel: t(lang, '变式练', 'Variants'),
+                  bg: theme.surface,
+                  fg: theme.warning,
                   textColor: theme.muted,
                 },
               ];

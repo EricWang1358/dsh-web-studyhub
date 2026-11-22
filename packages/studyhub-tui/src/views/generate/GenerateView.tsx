@@ -1,9 +1,10 @@
-import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Box, Text, useInput, useWindowSize } from 'ink';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import {
   Badge,
+  ConfirmDialog,
   EmptyState,
   Modal,
   Panel,
@@ -20,14 +21,32 @@ import {
 import { currentCourse, listCourses, modelInfo } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
 import { truncateDisplay } from '../../render/index.js';
-import { tryAction } from '../../host/sample-actions.js';
+import { errorMessage, tryAction } from '../../host/sample-actions.js';
 import { groupSourcesFromSnapshot, formatLabel } from '../sources/source-helpers.js';
 
 const DraftEditor = lazy(() => import('./DraftEditor.js').then((m) => ({ default: m.DraftEditor })));
 const IngestModal = lazy(() => import('./IngestModal.js').then((m) => ({ default: m.IngestModal })));
 
 type SubTab = 'new' | 'drafts';
-type GenOverlay = 'none' | 'scope' | 'focus' | 'ingest';
+type GenOverlay = 'none' | 'scope' | 'focus' | 'ingest' | 'suggest-confirm' | 'suggest-loading' | 'suggest-result';
+
+interface SuggestUnavailable {
+  reason?: string;
+  message?: string;
+  sample?: string;
+}
+
+interface GenerateSuggestResult {
+  source?: 'model' | 'local';
+  focus?: string[];
+  coverage?: string;
+  difficulty?: string;
+  kind?: string;
+  count?: number;
+  why?: string;
+  basis?: { sources?: number; weakTopics?: number };
+  unavailable?: SuggestUnavailable;
+}
 
 const QUESTION_KINDS: ReadonlyArray<{ id: string; zh: string; en: string }> = [
   { id: 'quiz', zh: '单选', en: 'Quiz' },
@@ -60,6 +79,73 @@ function parsePageScope(scopeText: string): Set<number> | null {
   return pages.size > 0 ? pages : null;
 }
 
+function mergeFocusText(current: string, items: readonly string[], lang: 'zh' | 'en'): string {
+  const sep = lang === 'en' ? '; ' : '；';
+  const existing = current
+    .split(/[；;\n]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  let next = current.trim();
+  for (const raw of items) {
+    const item = raw.trim();
+    if (!item || existing.includes(item)) continue;
+    existing.push(item);
+    next = next ? `${next.replace(/[；;]+$/, '')}${sep}${item}` : item;
+  }
+  return next;
+}
+
+function formatCoverageLabel(coverage: string | undefined, lang: 'zh' | 'en'): string {
+  if (coverage === 'lean') return t(lang, '精简', 'Lean');
+  if (coverage === 'standard') return t(lang, '标准', 'Standard');
+  if (coverage === 'full') return t(lang, '完整', 'Full');
+  return coverage ?? '';
+}
+
+function formatDifficultyLabel(difficulty: string | undefined, lang: 'zh' | 'en'): string {
+  if (difficulty === 'mixed') return t(lang, '混合难度', 'Mixed');
+  if (difficulty === 'foundation') return t(lang, '基础理解', 'Foundation');
+  if (difficulty === 'application') return t(lang, '应用迁移', 'Application');
+  if (difficulty === 'advanced') return t(lang, '深入辨析', 'Advanced');
+  return difficulty ?? '';
+}
+
+function formatUnavailableReason(unavailable: SuggestUnavailable | undefined, lang: 'zh' | 'en'): string | null {
+  if (!unavailable?.reason) return null;
+  switch (unavailable.reason) {
+    case 'no-signal':
+      return t(
+        lang,
+        '所选资料暂未提取到标题/目录且暂无薄弱知识点记录，请先确认资料内容或先做一轮练习。',
+        'No headings or weak topics found for the selected materials yet.',
+      );
+    case 'no-model':
+      return t(
+        lang,
+        '当前未配置可用模型，已为你展示基于本地目录与薄弱点的参考建议。',
+        'No AI model configured; showing local suggestions from outlines and weak topics.',
+      );
+    case 'nothing-usable':
+      return t(
+        lang,
+        '模型返回内容未能解析，已回退为基于本地目录与薄弱点的建议。',
+        'Model output could not be parsed; falling back to local suggestions.',
+      );
+    case 'failed':
+      return t(
+        lang,
+        `AI 建议调用失败${unavailable.message ? ` (${unavailable.message})` : ''}，已回退为本地建议。`,
+        `AI suggestion call failed${unavailable.message ? ` (${unavailable.message})` : ''}; falling back to local suggestions.`,
+      );
+    default:
+      return t(
+        lang,
+        `AI 建议暂不可用 (${unavailable.reason})，已展示本地可用建议。`,
+        `AI suggestion unavailable (${unavailable.reason}); showing local suggestions.`,
+      );
+  }
+}
+
 export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
   host,
   width,
@@ -77,6 +163,10 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
   const navigate = useTuiStore((s) => s.navigate);
   const notify = useTuiStore((s) => s.notify);
   const inputCaptured = useTuiStore((s) => s.inputCaptured);
+  const shellOverlay = useTuiStore(
+    (s) => s.commandPaletteOpen || s.helpOpen || s.coursePickerOpen || s.inboxOpen || s.voicePackOpen,
+  );
+  const { columns } = useWindowSize();
   const { refresh } = useShellActions();
 
   const [tab, setTab] = useState<SubTab>(navContext.draftId ? 'drafts' : 'new');
@@ -106,6 +196,17 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
   const [sourceCursor, setSourceCursor] = useState(0);
   const [overlay, setOverlay] = useState<GenOverlay>('none');
   const [submitting, setSubmitting] = useState(false);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+  const [suggestResult, setSuggestResult] = useState<GenerateSuggestResult | null>(null);
+  const busyRef = useRef(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   // Sync incoming navContext.sourceIds / navContext.course
   useEffect(() => {
@@ -252,7 +353,78 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
     navigate,
   ]);
 
-  const wizardActive = isActive && tab === 'new' && overlay === 'none' && !inputCaptured;
+  const handleRunSuggest = useCallback(async () => {
+    if (busyRef.current || suggestLoading) return;
+    if (effectiveSourceIds.length === 0) {
+      setOverlay('none');
+      notify(
+        t(
+          lang,
+          '请至少选择一份资料后再使用「帮我想想」（按空格键勾选）',
+          'Select at least 1 material first before using AI Suggest (Space)',
+        ),
+        'warning',
+      );
+      return;
+    }
+    busyRef.current = true;
+    setSuggestLoading(true);
+    setOverlay('suggest-loading');
+    try {
+      let goal: string | undefined;
+      const profileRes = await tryAction<{ goal?: unknown }>(host, 'coach.profile', {});
+      if (profileRes.ok && typeof profileRes.value?.goal === 'string' && profileRes.value.goal.trim()) {
+        goal = profileRes.value.goal.trim();
+      }
+      const res = await tryAction<GenerateSuggestResult>(host, 'generate.suggest', {
+        sourceIds: effectiveSourceIds,
+        ...(courseName ? { course: courseName } : {}),
+        ...(goal ? { goal } : {}),
+      });
+      if (!mountedRef.current) return;
+      if (!res.ok || !res.value) {
+        setOverlay('none');
+        notify(
+          res.error?.message || t(lang, '获取 AI 出题建议失败', 'Failed to get AI generation suggestion'),
+          'error',
+        );
+        return;
+      }
+      setSuggestResult(res.value);
+      setOverlay('suggest-result');
+    } catch (error) {
+      if (mountedRef.current) {
+        setOverlay('none');
+        notify(errorMessage(error, lang), 'error');
+      }
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setSuggestLoading(false);
+    }
+  }, [courseName, effectiveSourceIds, host, lang, notify, suggestLoading]);
+
+  const handleApplySuggest = useCallback(() => {
+    if (!suggestResult) {
+      setOverlay('none');
+      return;
+    }
+    const items = Array.isArray(suggestResult.focus) ? suggestResult.focus.filter((x) => typeof x === 'string' && x.trim()) : [];
+    const kindIdx = suggestResult.kind ? QUESTION_KINDS.findIndex((k) => k.id === suggestResult.kind) : -1;
+    if (items.length === 0 && kindIdx < 0) {
+      notify(t(lang, '当前暂无可应用的建议重点', 'No suggested focus to apply yet'), 'warning');
+      return;
+    }
+    if (items.length > 0) {
+      setFocusText((prev) => mergeFocusText(prev, items, lang));
+    }
+    if (kindIdx >= 0) {
+      setKindIndex(kindIdx);
+    }
+    setOverlay('none');
+    notify(t(lang, '已将建议重点应用到出题设置', 'Applied suggested focus to generation settings'), 'success');
+  }, [lang, notify, suggestResult]);
+
+  const wizardActive = isActive && tab === 'new' && overlay === 'none' && !inputCaptured && !suggestLoading;
 
   useClaimKeys(['c', 'k', 'n', 'p', 'f', 'S', 'a', 'g', 'i'], wizardActive);
   useInputCapture(isActive && tab === 'new' && (overlay === 'scope' || overlay === 'focus'));
@@ -267,15 +439,23 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
       { key: 'n', label: t(lang, '题数', 'Count') },
       { key: 'p', label: t(lang, '页码范围', 'Pages') },
       { key: 'f', label: t(lang, '出题要求', 'Focus') },
+      { key: 'S', label: model.ready ? t(lang, '帮我想想', 'AI Suggest') : t(lang, '设置模型', 'Settings') },
       { key: 'Ctrl+S', label: t(lang, '开始出题', 'Generate') },
     ],
-    [lang],
+    [lang, model.ready],
   );
   useFooterHints(wizardHints, isActive && tab === 'new');
 
   useInput(
     (input, key) => {
-      if (!isActive || overlay !== 'none' || inputCaptured) return;
+      if (!isActive || shellOverlay) return;
+      if (overlay === 'suggest-result') {
+        if (input === 'a' || input === 'A' || key.return) {
+          handleApplySuggest();
+        }
+        return;
+      }
+      if (overlay !== 'none' || inputCaptured || busyRef.current || suggestLoading) return;
       if (key.tab) {
         setTab((cur) => (cur === 'new' ? 'drafts' : 'new'));
         return;
@@ -291,8 +471,24 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
         void handleSubmitGeneration();
         return;
       }
-      if (input === 'S' && !model.ready) {
-        navigate('settings', { mode: 'model' });
+      if (input === 'S' && !key.ctrl && !key.meta) {
+        if (!model.ready) {
+          navigate('settings', { mode: 'model' });
+          return;
+        }
+        if (busyRef.current || suggestLoading) return;
+        if (effectiveSourceIds.length === 0) {
+          notify(
+            t(
+              lang,
+              '请至少选择一份资料后再使用「帮我想想」（按空格键勾选）',
+              'Select at least 1 material first before using AI Suggest (Space)',
+            ),
+            'warning',
+          );
+          return;
+        }
+        setOverlay('suggest-confirm');
         return;
       }
       if (input === 'c') {
@@ -370,7 +566,11 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
           <Text color={theme.dim}>
             {truncateDisplay(
               tab === 'new'
-                ? t(lang, '勾选资料后 [Enter]/[Ctrl+S] 出题 · [i] 录题', 'Select sources + [Enter]/[Ctrl+S] to generate · [i] Capture')
+                ? t(
+                    lang,
+                    '勾选资料后 [Enter]/[Ctrl+S] 出题 · [S] 帮我想想 · [i] 录题',
+                    'Select sources + [Enter]/[Ctrl+S] to generate · [S] AI Suggest · [i] Capture',
+                  )
                 : t(lang, '审核、修改或发布生成的题目草稿', 'Review, edit or publish generated drafts'),
               Math.max(12, width - 2),
               ell,
@@ -509,7 +709,9 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
                   <Box marginTop={1} flexDirection="column">
                     <Text color={theme.muted}>{t(lang, '[f] 重点与额外指令:', '[f] Focus / Instructions:')}</Text>
                     <Text color={focusText ? theme.text : theme.dim}>
-                      {focusText || t(lang, '（无，按材料自动规划重点）', '(None — auto plan from materials)')}
+                      {focusText
+                        ? truncateDisplay(focusText, Math.max(20, (rw - 4) * 2 - 4), ell)
+                        : t(lang, '（无，按材料自动规划重点）', '(None — auto plan from materials)')}
                     </Text>
                   </Box>
 
@@ -611,6 +813,147 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
           />
         ) : null}
       </Suspense>
+
+      {overlay === 'suggest-confirm' ? (
+        <ConfirmDialog
+          title={t(lang, 'AI 帮我想想', 'AI Study Focus Suggestion')}
+          message={t(
+            lang,
+            `将发起 1 次轻量 AI 调用（仅发送已选 ${effectiveSourceIds.length} 份资料的标题/目录与薄弱知识点，不发送正文且不会立即出题），为你推荐出题重点。是否继续？`,
+            `This will make 1 lightweight AI call over ${effectiveSourceIds.length} selected source title(s)/headings and weak topics to suggest a study focus (no cards generated yet). Continue?`,
+          )}
+          confirmLabel={t(lang, '开始分析', 'Suggest')}
+          cancelLabel={t(lang, '取消', 'Cancel')}
+          width={62}
+          isActive={isActive && overlay === 'suggest-confirm' && !suggestLoading}
+          onConfirm={() => void handleRunSuggest()}
+          onCancel={() => {
+            if (!busyRef.current) setOverlay('none');
+          }}
+        />
+      ) : null}
+
+      {overlay === 'suggest-loading' ? (
+        <Modal
+          title={t(lang, 'AI 帮我想想', 'AI Study Focus Suggestion')}
+          icon={asciiMode ? '*' : '✦'}
+          width={56}
+          isActive={isActive && overlay === 'suggest-loading'}
+        >
+          <Box paddingY={1}>
+            <Spinner
+              label={
+                asciiMode
+                  ? t(lang, '正在分析资料目录与薄弱知识点...', 'Analyzing source outlines and weak topics...')
+                  : t(lang, '正在分析资料目录与薄弱知识点…', 'Analyzing source outlines and weak topics…')
+              }
+              active={isActive}
+            />
+          </Box>
+        </Modal>
+      ) : null}
+
+      {overlay === 'suggest-result' && suggestResult
+        ? (() => {
+            const modalW = Math.min(70, Math.max(44, columns - 4));
+            const innerW = modalContentWidth(modalW);
+            const focusItems = Array.isArray(suggestResult.focus)
+              ? suggestResult.focus.filter((item) => typeof item === 'string' && item.trim())
+              : [];
+            const kindMatch = suggestResult.kind ? QUESTION_KINDS.find((k) => k.id === suggestResult.kind) : undefined;
+            const kindText = kindMatch ? (lang === 'en' ? kindMatch.en : kindMatch.zh) : suggestResult.kind || '';
+            const recParts = [
+              suggestResult.coverage
+                ? `${t(lang, '覆盖', 'Coverage')}: ${formatCoverageLabel(suggestResult.coverage, lang)}`
+                : '',
+              suggestResult.difficulty
+                ? `${t(lang, '难度', 'Difficulty')}: ${formatDifficultyLabel(suggestResult.difficulty, lang)}`
+                : '',
+              kindText ? `${t(lang, '题型', 'Kind')}: ${kindText}` : '',
+            ].filter(Boolean);
+            const sepDot = asciiMode ? ' | ' : ' · ';
+            const unavailableMsg = formatUnavailableReason(suggestResult.unavailable, lang);
+            const isModel = suggestResult.source === 'model';
+            const canApply = focusItems.length > 0 || Boolean(kindMatch);
+            const bullet = asciiMode ? '- ' : '• ';
+
+            return (
+              <Modal
+                title={t(lang, 'AI 出题重点建议', 'AI Focus Suggestion')}
+                subtitle={isModel ? t(lang, 'AI 推荐', 'AI') : t(lang, '本地回退', 'Local')}
+                icon={asciiMode ? '*' : '✦'}
+                tone={isModel ? 'primary' : 'warning'}
+                width={modalW}
+                isActive={isActive && overlay === 'suggest-result'}
+                onClose={() => setOverlay('none')}
+                hints={
+                  canApply
+                    ? [
+                        { key: 'a', label: t(lang, '应用到出题设置', 'Apply to Form') },
+                        { key: 'Esc', label: t(lang, '关闭', 'Close') },
+                      ]
+                    : [{ key: 'Esc', label: t(lang, '关闭', 'Close') }]
+                }
+              >
+                <Box flexDirection="column" width={innerW}>
+                  <Box flexDirection="row" alignItems="center">
+                    <Badge
+                      label={isModel ? t(lang, 'AI 推荐重点', 'AI Suggested Focus') : t(lang, '本地目录与错题建议', 'Local Outline & Weak-Topic Suggestion')}
+                      tone={isModel ? 'success' : 'warning'}
+                      variant="soft"
+                    />
+                    {suggestResult.basis ? (
+                      <Text color={theme.dim}>
+                        {`  ${suggestResult.basis.sources ?? 0} ${t(lang, '资料', 'src')}${sepDot}${suggestResult.basis.weakTopics ?? 0} ${t(lang, '薄弱点', 'weak')}`}
+                      </Text>
+                    ) : null}
+                  </Box>
+
+                  {unavailableMsg ? (
+                    <Box marginTop={1}>
+                      <Text color={theme.warning} wrap="wrap">
+                        {truncateDisplay(unavailableMsg, Math.max(24, innerW * 2 - 4), ell)}
+                      </Text>
+                    </Box>
+                  ) : null}
+
+                  <Box marginTop={1} flexDirection="column">
+                    <Text color={theme.primary} bold>
+                      {t(lang, '推荐练习重点:', 'Recommended Focus:')}
+                    </Text>
+                    {focusItems.length === 0 ? (
+                      <Text color={theme.dim}>
+                        {t(lang, '（暂无可推荐重点，可先检查资料目录或补充练习记录）', '(No focus items available yet)')}
+                      </Text>
+                    ) : (
+                      focusItems.map((item, idx) => (
+                        <Text key={`${idx}-${item}`} color={theme.text}>
+                          {`${bullet}${truncateDisplay(item, Math.max(12, innerW - 4), ell)}`}
+                        </Text>
+                      ))
+                    )}
+                  </Box>
+
+                  {recParts.length > 0 ? (
+                    <Box marginTop={1}>
+                      <Text color={theme.accent} wrap="wrap">
+                        {truncateDisplay(`${t(lang, '建议参数: ', 'Settings: ')}${recParts.join(sepDot)}`, Math.max(20, innerW * 2 - 4), ell)}
+                      </Text>
+                    </Box>
+                  ) : null}
+
+                  {suggestResult.why ? (
+                    <Box marginTop={1}>
+                      <Text color={theme.muted} wrap="wrap">
+                        {truncateDisplay(`${t(lang, '建议依据: ', 'Reason: ')}${suggestResult.why}`, Math.max(24, innerW * 2 - 4), ell)}
+                      </Text>
+                    </Box>
+                  ) : null}
+                </Box>
+              </Modal>
+            );
+          })()
+        : null}
     </Box>
   );
 });

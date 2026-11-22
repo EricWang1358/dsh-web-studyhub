@@ -77,6 +77,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       title: t(lang, '出题与草稿 · Generate / Drafts', 'Generate & Drafts'),
       items: [
         { key: 'i', label: t(lang, '录题 / 粘贴既有题', 'Capture & ingest') },
+        { key: 'S', label: t(lang, 'AI 出题建议', 'AI suggest strategy') },
         { key: 'S / R', label: t(lang, '草稿查重与修复', 'Draft similar & repair') },
         { key: 'u', label: t(lang, '撤销移除草稿题', 'Undo removed draft card') },
         { key: 'Ctrl+S/J', label: t(lang, '保存 / 换行 (Shift+Enter)', 'Save / newline (Shift+Enter)') },
@@ -102,6 +103,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       title: t(lang, '错题本 · Wrong Book', 'Wrong Book'),
       items: [
         { key: 'Space / B', label: t(lang, '勾选并批量练错题', 'Select & batch practice') },
+        { key: 'V', label: t(lang, '练错题变式', 'Practice variants') },
       ],
     },
     {
@@ -155,6 +157,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: '[ / ]', label: t(lang, '上移/下移置顶资料', 'Reorder pinned material') },
         { key: 'R', label: t(lang, '重读清单', 'Reread queue') },
         { key: 'O', label: t(lang, '目录大纲', 'Outline TOC') },
+        { key: 'H', label: t(lang, '标记段落', 'Mark passage') },
         { key: 'B', label: t(lang, '书签与批注', 'Bookmarks & notes') },
       ],
     },
