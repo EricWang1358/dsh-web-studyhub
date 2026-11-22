@@ -21,10 +21,11 @@ import {
   addCompletedPomodoro,
   adjacentColumn,
   BOARD_COLUMNS,
+  boardFilePath,
   cardsInColumn,
   dueStatus,
   emptyBoard,
-  loadBoard,
+  loadBoardSafe,
   mergeUpstreamBoard,
   resolveUpstreamTargetColumn,
   saveBoard,
@@ -40,7 +41,7 @@ type ActiveModal =
   | { type: 'edit'; card: BoardCard }
   | { type: 'delete'; card: BoardCard };
 
-const CLAIMED_KEYS = ['a', 'S', 'P', 'R', 'M', '+', '-'] as const;
+const CLAIMED_KEYS = ['a', 'S', 'P', 'R', 'M', '+', '-', 'r'] as const;
 const WIDE_BREAKPOINT = 78;
 
 export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, width, height, isActive }) {
@@ -55,6 +56,8 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
   const [doc, setDoc] = useState<BoardDocument>(() => emptyBoard());
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [readOnlyError, setReadOnlyError] = useState<string | null>(null);
+  const [readOnlyPath, setReadOnlyPath] = useState<string>('');
   const [activeCol, setActiveCol] = useState<BoardColumnId>('todo');
   const [cursorByCol, setCursorByCol] = useState<Record<BoardColumnId, number>>({ todo: 0, doing: 0, done: 0 });
   const [modal, setModal] = useState<ActiveModal>(null);
@@ -64,6 +67,19 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
   const syncReqRef = useRef(0);
   const docRef = useRef(doc);
   docRef.current = doc;
+  const readOnlyErrorRef = useRef<string | null>(readOnlyError);
+  readOnlyErrorRef.current = readOnlyError;
+
+  const notifyReadOnlyError = useCallback(() => {
+    notify(
+      t(
+        lang,
+        '看板文件读取失败，已锁定只读防止覆盖原文件',
+        'Board file unreadable; read-only lock active to avoid overwriting',
+      ),
+      'error',
+    );
+  }, [lang, notify]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -74,6 +90,10 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
 
   const persistDoc = useCallback(
     async (updater: (prev: BoardDocument) => BoardDocument) => {
+      if (readOnlyErrorRef.current) {
+        if (mountedRef.current) notifyReadOnlyError();
+        return;
+      }
       const nextDoc = updater(docRef.current);
       docRef.current = nextDoc;
       setDoc(nextDoc);
@@ -89,7 +109,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
         }
       }
     },
-    [libraryRoot, notify, lang],
+    [libraryRoot, notify, lang, notifyReadOnlyError],
   );
 
   const persist = useCallback(
@@ -106,6 +126,10 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
 
   const syncUpstreamBoard = useCallback(
     async ({ notifyResult }: { notifyResult: boolean }) => {
+      if (readOnlyErrorRef.current) {
+        if (notifyResult && mountedRef.current) notifyReadOnlyError();
+        return;
+      }
       const reqId = ++syncReqRef.current;
       if (notifyResult) setSyncing(true);
       try {
@@ -162,16 +186,40 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
   const syncUpstreamRef = useRef(syncUpstreamBoard);
   syncUpstreamRef.current = syncUpstreamBoard;
 
-  useEffect(() => {
-    const reqId = ++loadReqRef.current;
-    setLoading(true);
-    void loadBoard(libraryRoot).then((loaded) => {
+  const reloadBoard = useCallback(
+    async ({ notifyOnReload = false }: { notifyOnReload?: boolean } = {}) => {
+      const reqId = ++loadReqRef.current;
+      setLoading(true);
+      const res = await loadBoardSafe(libraryRoot);
       if (!mountedRef.current || loadReqRef.current !== reqId) return;
-      docRef.current = loaded;
-      setDoc(loaded);
       setLoading(false);
+      if (!res.ok) {
+        readOnlyErrorRef.current = res.error;
+        setReadOnlyError(res.error);
+        setReadOnlyPath(res.path);
+        docRef.current = res.doc;
+        setDoc(res.doc);
+        if (notifyOnReload) notifyReadOnlyError();
+        return;
+      }
+      readOnlyErrorRef.current = null;
+      setReadOnlyError(null);
+      setReadOnlyPath('');
+      docRef.current = res.doc;
+      setDoc(res.doc);
+      if (notifyOnReload) {
+        notify(t(lang, '看板文件已重新加载', 'Board file reloaded'), 'success');
+      }
       void syncUpstreamRef.current({ notifyResult: false });
-    });
+    },
+    [libraryRoot, lang, notify, notifyReadOnlyError],
+  );
+
+  const reloadBoardRef = useRef(reloadBoard);
+  reloadBoardRef.current = reloadBoard;
+
+  useEffect(() => {
+    void reloadBoardRef.current({ notifyOnReload: false });
   }, [libraryRoot]);
 
   const mirrorUpstreamUpdate = useCallback(
@@ -241,6 +289,10 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
 
   const moveCard = useCallback(
     (card: BoardCard, targetCol: BoardColumnId) => {
+      if (readOnlyErrorRef.current) {
+        notifyReadOnlyError();
+        return;
+      }
       const now = new Date().toISOString();
       const updated = doc.cards.map((c) => (c.id === card.id ? { ...c, column: targetCol, updatedAt: now } : c));
       const targetLen = updated.filter((c) => c.column === targetCol).length;
@@ -255,7 +307,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
         void mirrorUpstreamUpdate(card.upstreamCardId, { column: targetCol });
       }
     },
-    [doc.cards, grouped, persist, mirrorUpstreamUpdate],
+    [doc.cards, grouped, persist, mirrorUpstreamUpdate, notifyReadOnlyError],
   );
 
   const noModalActive = isActive && modal === null;
@@ -263,6 +315,10 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
 
   useInput(
     (input, key) => {
+      if (input === 'r') {
+        void reloadBoard({ notifyOnReload: true });
+        return;
+      }
       if (key.leftArrow || input === 'h') {
         const prevCol = adjacentColumn(activeCol, -1, true);
         if (prevCol) setActiveCol(prevCol);
@@ -290,6 +346,10 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
         return;
       }
       if (input === 'a') {
+        if (readOnlyErrorRef.current) {
+          notifyReadOnlyError();
+          return;
+        }
         setModal({ type: 'add' });
         return;
       }
@@ -314,10 +374,18 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
         return;
       }
       if (input === 'e' || key.return) {
+        if (readOnlyErrorRef.current) {
+          notifyReadOnlyError();
+          return;
+        }
         setModal({ type: 'edit', card: selectedCard });
         return;
       }
       if (input === 'd') {
+        if (readOnlyErrorRef.current) {
+          notifyReadOnlyError();
+          return;
+        }
         setModal({ type: 'delete', card: selectedCard });
       }
     },
@@ -326,6 +394,10 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
 
   const handleFocusComplete = useCallback(
     (minutes: number) => {
+      if (readOnlyErrorRef.current) {
+        notifyReadOnlyError();
+        return;
+      }
       void persistDoc((prev) => ({
         ...prev,
         version: 1,
@@ -339,11 +411,12 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
         'success',
       );
     },
-    [persistDoc, asciiMode, selectedCard, notify, lang],
+    [persistDoc, asciiMode, selectedCard, notify, lang, notifyReadOnlyError],
   );
 
   const hints: KeyHint[] = useMemo(
     () => [
+      ...(readOnlyError ? [{ key: 'r', label: t(lang, '重载', 'Reload') }] : []),
       { key: 'h/l', label: t(lang, '切列', 'Col') },
       { key: 'j/k', label: t(lang, '移动', 'Nav') },
       { key: 'H/L/m', label: t(lang, '移列', 'Move') },
@@ -356,7 +429,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
       { key: '+/-', label: t(lang, '时长', 'Min') },
       { key: 'R', label: t(lang, '重置', 'Reset') },
     ],
-    [lang],
+    [lang, readOnlyError],
   );
   useFooterHints(hints, isActive);
 
@@ -576,6 +649,37 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
   );
 
   const barH = pomodoroBarHeight(width);
+  const bannerH = readOnlyError ? 4 : 0;
+  const ell = asciiMode ? '...' : '…';
+  const resolvedBoardPath = readOnlyPath || boardFilePath(libraryRoot);
+  const innerBannerW = Math.max(10, width - 4);
+  const readOnlyBanner = readOnlyError ? (
+    <Box
+      flexDirection="column"
+      width={width}
+      height={4}
+      borderStyle={asciiMode ? 'classic' : 'single'}
+      borderColor={theme.error}
+      paddingX={1}
+      overflow="hidden"
+    >
+      <Text color={theme.error} bold wrap="truncate">
+        {truncateDisplay(
+          `${asciiMode ? '[!]' : '▲'} ${t(
+            lang,
+            '看板只读锁定: 修复/备份 tui-board.json 后按 [r] 重载',
+            'Read-only lock: fix/backup tui-board.json then press [r] to reload',
+          )}`,
+          innerBannerW,
+          ell,
+        )}
+      </Text>
+      <Text color={theme.muted} wrap="truncate">
+        {truncateDisplay(`${t(lang, '文件', 'File')}: ${resolvedBoardPath} (${readOnlyError})`, innerBannerW, ell)}
+      </Text>
+    </Box>
+  ) : null;
+
   const pomodoroNode = (
     <PomodoroBar
       width={width}
@@ -590,10 +694,11 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
 
   if (narrow) {
     const meta = colMeta(activeCol);
-    const bodyH = Math.max(4, height - barH - 1);
+    const bodyH = Math.max(4, height - barH - bannerH - 1);
     return (
       <Box flexDirection="column" width={width} height={height}>
         {pomodoroNode}
+        {readOnlyBanner}
         <Box height={1} width={width} gap={1} overflow="hidden">
           {BOARD_COLUMNS.map((col) => {
             const m = colMeta(col);
@@ -634,11 +739,12 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
   const gap = 1;
   const colW = Math.max(20, Math.floor((width - gap * 2) / 3));
   const lastColW = Math.max(20, width - colW * 2 - gap * 2);
-  const colsH = Math.max(4, height - barH);
+  const colsH = Math.max(4, height - barH - bannerH);
 
   return (
     <Box flexDirection="column" width={width} height={height}>
       {pomodoroNode}
+      {readOnlyBanner}
       <Box flexDirection="row" width={width} height={colsH} gap={gap}>
         {BOARD_COLUMNS.map((col, idx) => {
           const m = colMeta(col);

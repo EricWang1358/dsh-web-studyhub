@@ -313,22 +313,47 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
     setConfirmDeleteDeck(null);
     if (!target || busyAction) return;
     setBusyAction(true);
-    if (!target.archived) {
-      const archRes = await tryAction(host, 'deck.archive', { id: target.id, archived: true });
-      if (!archRes.ok) {
-        setBusyAction(false);
-        notify(archRes.error?.message || t(lang, '归档失败，无法删除', 'Could not archive before delete'), 'error');
+    try {
+      let archivedByUs = false;
+      if (!target.archived) {
+        const archRes = await tryAction(host, 'deck.archive', { id: target.id, archived: true });
+        if (!archRes.ok) {
+          notify(archRes.error?.message || t(lang, '归档失败，无法删除', 'Could not archive before delete'), 'error');
+          return;
+        }
+        archivedByUs = true;
+      }
+      const delRes = await tryAction(host, 'deck.remove', { id: target.id, confirm: true });
+      if (!delRes.ok) {
+        const errMsg = delRes.error?.message || t(lang, '删除题组失败', 'Failed to delete deck');
+        if (archivedByUs) {
+          const rollbackRes = await tryAction(host, 'deck.archive', { id: target.id, archived: false });
+          await actions.refresh();
+          if (rollbackRes.ok) {
+            notify(
+              t(lang, `删除失败（${errMsg}），已自动恢复未归档状态`, `Delete failed (${errMsg}); restored deck from archive`),
+              'error',
+            );
+          } else {
+            notify(
+              t(
+                lang,
+                `删除失败（${errMsg}），注意：题组已被归档，可在归档中恢复`,
+                `Delete failed (${errMsg}); note: deck was archived and can be restored`,
+              ),
+              'warning',
+            );
+          }
+          return;
+        }
+        notify(errMsg, 'error');
         return;
       }
+      await actions.refresh();
+      notify(t(lang, `已永久删除「${target.title ?? target.id}」`, `Deleted "${target.title ?? target.id}"`), 'success');
+    } finally {
+      setBusyAction(false);
     }
-    const delRes = await tryAction(host, 'deck.remove', { id: target.id, confirm: true });
-    setBusyAction(false);
-    if (!delRes.ok) {
-      notify(delRes.error?.message || t(lang, '删除题组失败', 'Failed to delete deck'), 'error');
-      return;
-    }
-    await actions.refresh();
-    notify(t(lang, `已永久删除「${target.title ?? target.id}」`, `Deleted "${target.title ?? target.id}"`), 'success');
   }, [confirmDeleteDeck, busyAction, host, actions, notify, lang]);
 
   const handleSampleToggle = useCallback(async () => {

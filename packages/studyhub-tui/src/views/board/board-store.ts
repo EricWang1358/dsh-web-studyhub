@@ -125,13 +125,47 @@ export function parseBoardDocument(raw: unknown): BoardDocument {
   return parsed.data;
 }
 
-export async function loadBoard(libraryRoot: string): Promise<BoardDocument> {
+export type BoardLoadResult =
+  | { ok: true; doc: BoardDocument; existed: boolean }
+  | { ok: false; doc: BoardDocument; error: string; path: string };
+
+export async function loadBoardSafe(libraryRoot: string): Promise<BoardLoadResult> {
+  const path = boardFilePath(libraryRoot);
+  let text: string;
   try {
-    const text = await readFile(boardFilePath(libraryRoot), 'utf8');
-    return parseBoardDocument(JSON.parse(text));
-  } catch {
-    return emptyBoard();
+    text = await readFile(path, 'utf8');
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException)?.code;
+    if (code === 'ENOENT') {
+      return { ok: true, doc: emptyBoard(), existed: false };
+    }
+    const error = err instanceof Error ? err.message : String(err);
+    return { ok: false, doc: emptyBoard(), error, path };
   }
+
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    return { ok: false, doc: emptyBoard(), error, path };
+  }
+
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return {
+      ok: false,
+      doc: emptyBoard(),
+      error: 'Invalid board JSON: root value must be an object',
+      path,
+    };
+  }
+
+  return { ok: true, doc: parseBoardDocument(raw), existed: true };
+}
+
+export async function loadBoard(libraryRoot: string): Promise<BoardDocument> {
+  const res = await loadBoardSafe(libraryRoot);
+  return res.doc;
 }
 
 const RETRY_CODES = new Set(['EBUSY', 'EPERM', 'EACCES']);

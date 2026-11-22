@@ -546,10 +546,15 @@ describe('StudyHub TUI Round 7 Parity E2E & Memory Soak', () => {
     );
     tty.assertHealthyScreen(translatedScreen, 120, 'Review bilingual translation');
 
-    // Exit Review: 'q' -> Round Summary -> 'b' -> Library
+    // Exit Review: 'q' -> Confirm -> 'y' -> Round Summary -> 'b' -> Library
     tty.send('q');
+    await tty.waitFor(
+      (s) => s.includes('结束本轮练习') || s.includes('End This Round'),
+      { timeoutMs: 6_000, label: 'Confirm end round dialog' },
+    );
+    tty.send('y');
     const summaryScreen = await tty.waitFor(
-      (s) => s.includes('再来一轮') || s.includes('New Round') || s.includes('本轮'),
+      (s) => s.includes('再来一轮') || s.includes('New Round') || s.includes('本轮练习总结'),
       { timeoutMs: 8_000, label: 'Round Summary' },
     );
     tty.assertHealthyScreen(summaryScreen, 120, 'Round Summary');

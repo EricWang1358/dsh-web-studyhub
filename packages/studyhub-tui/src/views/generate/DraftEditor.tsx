@@ -97,7 +97,14 @@ function kindLabelFor(kind: unknown, lang: 'zh' | 'en'): string {
   return k || (lang === 'en' ? 'Card' : '题');
 }
 
-type DraftOverlay = 'none' | 'pick-draft' | 'edit-card' | 'delete-draft' | 'publish-confirm' | 'similar-results';
+type DraftOverlay =
+  | 'none'
+  | 'pick-draft'
+  | 'edit-card'
+  | 'delete-card'
+  | 'delete-draft'
+  | 'publish-confirm'
+  | 'similar-results';
 
 export const DraftEditor = memo(function DraftEditor({
   host,
@@ -136,10 +143,19 @@ export const DraftEditor = memo(function DraftEditor({
   const [editField, setEditField] = useState<'prompt' | 'explanation'>('prompt');
   const [editPrompt, setEditPrompt] = useState('');
   const [editExplanation, setEditExplanation] = useState('');
+  const [lastRemoved, setLastRemoved] = useState<{
+    draftId: string;
+    index: number;
+    card: DraftCard;
+  } | null>(null);
 
   useEffect(() => {
     if (initialDraftId) setSelectedDraftId(initialDraftId);
   }, [initialDraftId]);
+
+  useEffect(() => {
+    setLastRemoved((prev) => (prev && prev.draftId === selectedDraftId ? prev : null));
+  }, [selectedDraftId]);
 
   useEffect(() => {
     if (!selectedDraftId && draftsList.length > 0) {
@@ -184,15 +200,15 @@ export const DraftEditor = memo(function DraftEditor({
   const selectedCard: DraftCard | undefined = draft?.cards[cardIndex];
 
   const saveDraftCards = useCallback(
-    async (nextCards: DraftCard[], msg: string) => {
-      if (!draft || busy) return;
+    async (nextCards: DraftCard[], msg: string): Promise<boolean> => {
+      if (!draft || busy) return false;
       setBusy(true);
       const updated = { ...draft, cards: nextCards };
       const res = await tryAction<FullDraft>(host, 'draft.save', { deck: updated });
       setBusy(false);
       if (!res.ok) {
         notify(res.error?.message || t(lang, '保存草稿失败', 'Save draft failed'), 'error');
-        return;
+        return false;
       }
       if (res.value && Array.isArray(res.value.cards)) {
         setDraft(res.value);
@@ -201,9 +217,44 @@ export const DraftEditor = memo(function DraftEditor({
       }
       await refresh();
       notify(msg, 'success');
+      return true;
     },
     [busy, draft, host, lang, loadDraft, notify, refresh],
   );
+
+  const confirmRemoveCard = useCallback(async () => {
+    if (!draft || !selectedCard || busy) return;
+    if (draft.cards.length <= 1) {
+      setOverlay('none');
+      notify(t(lang, '最后一道题请使用 [D] 删除整份草稿', 'Use [D] to delete the whole draft'), 'warning');
+      return;
+    }
+    const removed = { draftId: draft.id, index: cardIndex, card: selectedCard };
+    const next = draft.cards.filter((_, idx) => idx !== cardIndex);
+    setOverlay('none');
+    const ok = await saveDraftCards(
+      next,
+      t(lang, '已移除该题目（按 [u] 撤销）', 'Removed card from draft (press [u] to undo)'),
+    );
+    if (ok) {
+      setLastRemoved(removed);
+    }
+  }, [busy, cardIndex, draft, lang, notify, saveDraftCards, selectedCard]);
+
+  const undoRemoveCard = useCallback(async () => {
+    if (!draft || !lastRemoved || lastRemoved.draftId !== draft.id || busy) return;
+    const insertAt = Math.min(lastRemoved.index, draft.cards.length);
+    const next = [
+      ...draft.cards.slice(0, insertAt),
+      lastRemoved.card,
+      ...draft.cards.slice(insertAt),
+    ];
+    const ok = await saveDraftCards(next, t(lang, '已恢复刚移除的题目', 'Restored removed card'));
+    if (ok) {
+      setLastRemoved(null);
+      setCardIndex(insertAt);
+    }
+  }, [busy, draft, lang, lastRemoved, saveDraftCards]);
 
   const checkSimilar = useCallback(async () => {
     if (!draft || busy) return;
@@ -312,7 +363,13 @@ export const DraftEditor = memo(function DraftEditor({
   }, [busy, draft, host, lang, notify, refresh]);
 
   const mainListActive = isActive && overlay === 'none';
-  useClaimKeys(['e', 'x', 's', 'S', 'R', 'P', 'D', 'd', 'n'], mainListActive);
+  const canUndoRemove = Boolean(draft && lastRemoved && lastRemoved.draftId === draft.id);
+  useClaimKeys(
+    canUndoRemove
+      ? ['e', 'x', 'u', 's', 'S', 'R', 'P', 'D', 'd', 'n']
+      : ['e', 'x', 's', 'S', 'R', 'P', 'D', 'd', 'n'],
+    mainListActive,
+  );
   useInputCapture(isActive && overlay === 'edit-card');
 
   const hints: KeyHint[] = useMemo(
@@ -320,12 +377,13 @@ export const DraftEditor = memo(function DraftEditor({
       { key: 'd', label: t(lang, '切换草稿', 'Drafts') },
       { key: 'e', label: t(lang, '编辑', 'Edit') },
       { key: 'x', label: t(lang, '删题', 'Drop') },
+      ...(canUndoRemove ? [{ key: 'u', label: t(lang, '撤销删题', 'Undo') }] : []),
       { key: 'R', label: t(lang, '修题', 'Repair') },
       { key: 'S', label: t(lang, '查重', 'Similar') },
       { key: 'P', label: t(lang, '发布', 'Publish') },
       { key: 'D', label: t(lang, '删草稿', 'Del') },
     ],
-    [lang],
+    [lang, canUndoRemove],
   );
   useFooterHints(hints, isActive);
 
@@ -353,7 +411,14 @@ export const DraftEditor = memo(function DraftEditor({
         return;
       }
 
-      if (!draft || !selectedCard) return;
+      if (!draft) return;
+
+      if (input === 'u' && lastRemoved && lastRemoved.draftId === draft.id) {
+        void undoRemoveCard();
+        return;
+      }
+
+      if (!selectedCard) return;
 
       if (input === 'e') {
         setEditPrompt(String(selectedCard.prompt || ''));
@@ -365,8 +430,7 @@ export const DraftEditor = memo(function DraftEditor({
           notify(t(lang, '最后一道题请使用 [D] 删除整份草稿', 'Use [D] to delete the whole draft'), 'warning');
           return;
         }
-        const next = draft.cards.filter((_, idx) => idx !== cardIndex);
-        void saveDraftCards(next, t(lang, '已移除该题目', 'Removed card from draft'));
+        setOverlay('delete-card');
       } else if (input === 'R') {
         void repairDraft();
       } else if (input === 'S' || input === 's') {
@@ -646,6 +710,23 @@ export const DraftEditor = memo(function DraftEditor({
           cancelLabel={t(lang, '取消', 'Cancel')}
           isActive={isActive}
           onConfirm={() => void publishDraft(false)}
+          onCancel={() => setOverlay('none')}
+        />
+      ) : null}
+
+      {overlay === 'delete-card' && draft && selectedCard ? (
+        <ConfirmDialog
+          title={t(lang, '移除草稿题目', 'Remove Draft Card')}
+          message={t(
+            lang,
+            `确定从草稿移除第 ${cardIndex + 1} 题「${truncateDisplay(String(selectedCard.prompt || '').replace(/\s+/g, ' '), 48, ell)}」吗？`,
+            `Remove card #${cardIndex + 1} "${truncateDisplay(String(selectedCard.prompt || '').replace(/\s+/g, ' '), 48, ell)}" from this draft?`,
+          )}
+          confirmLabel={t(lang, '移除', 'Remove')}
+          cancelLabel={t(lang, '取消', 'Cancel')}
+          danger
+          isActive={isActive}
+          onConfirm={() => void confirmRemoveCard()}
           onCancel={() => setOverlay('none')}
         />
       ) : null}

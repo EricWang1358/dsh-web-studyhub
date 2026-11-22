@@ -756,14 +756,38 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
   const handleDeleteConfirm = useCallback(async () => {
     if (!selectedJob || busy) return;
     setBusy(true);
-    let res = await tryAction(host, 'job.dismiss', { jobId: selectedJob.id });
-    if (!res.ok) {
-      res = await tryAction(host, 'job.delete', { jobIds: [selectedJob.id] });
+    const dismissRes = await tryAction(host, 'job.dismiss', { jobId: selectedJob.id });
+    if (dismissRes.ok) {
+      setBusy(false);
+      setConfirmDeleteOpen(false);
+      await refresh();
+      notify(t(lang, '任务记录已移除', 'Job removed'), 'success');
+      return;
     }
+    const delRes = await tryAction<{
+      deleted?: string[];
+      skipped?: Array<{ id?: string; reason?: string }>;
+      missing?: string[];
+    }>(host, 'job.delete', { jobIds: [selectedJob.id] });
     setBusy(false);
     setConfirmDeleteOpen(false);
-    if (!res.ok) {
-      notify(res.error?.message || t(lang, '删除任务失败', 'Delete failed'), 'error');
+    if (!delRes.ok) {
+      notify(delRes.error?.message || t(lang, '删除任务失败', 'Delete failed'), 'error');
+      return;
+    }
+    if (delRes.value?.skipped?.length) {
+      const reason = delRes.value.skipped[0]?.reason;
+      notify(
+        reason === 'running'
+          ? t(lang, '运行中的任务无法直接删除，请先按 [x] 取消任务', 'Running job cannot be removed; press [x] to cancel it first')
+          : t(lang, `任务未能删除 (${reason || 'skipped'})`, `Job could not be removed (${reason || 'skipped'})`),
+        'warning',
+      );
+      return;
+    }
+    if (delRes.value?.deleted && delRes.value.deleted.length === 0 && delRes.value.missing?.length) {
+      await refresh();
+      notify(t(lang, '该任务记录已不存在，已刷新列表', 'Job record was already gone; list refreshed'), 'info');
       return;
     }
     await refresh();

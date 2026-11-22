@@ -34,6 +34,8 @@ export const ConfirmDialog = memo(function ConfirmDialog({
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const shellOverlay = useTuiStore((s) => s.commandPaletteOpen || s.helpOpen || s.coursePickerOpen || s.inboxOpen);
+  const effectiveActive = isActive && !shellOverlay;
   const resolvedConfirm = confirmLabel ?? t(lang, '确认', 'Confirm');
   const resolvedCancel = cancelLabel ?? t(lang, '取消', 'Cancel');
   const [focus, setFocus] = useState<'confirm' | 'cancel'>(danger ? 'cancel' : 'confirm');
@@ -48,7 +50,7 @@ export const ConfirmDialog = memo(function ConfirmDialog({
         else onCancel();
       }
     },
-    { isActive },
+    { isActive: effectiveActive },
   );
   const confirmColor = danger ? theme.error : theme.primary;
   const btn = (label: string, active: boolean, color: string, hot: string) => (
@@ -57,7 +59,7 @@ export const ConfirmDialog = memo(function ConfirmDialog({
     </Text>
   );
   return (
-    <Modal title={title} icon={danger ? (asciiMode ? '!' : '▲') : '?'} tone={danger ? 'error' : 'primary'} width={width} onClose={onCancel} isActive={isActive} overlay={overlay}>
+    <Modal title={title} icon={danger ? (asciiMode ? '!' : '▲') : '?'} tone={danger ? 'error' : 'primary'} width={width} onClose={onCancel} isActive={effectiveActive} overlay={overlay}>
       <Box marginY={1} flexDirection="column">
         {typeof message === 'string' ? <Text color={theme.text}>{message}</Text> : message}
       </Box>

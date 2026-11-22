@@ -17,6 +17,7 @@ import {
 } from '../../host/index.js';
 import {
   Badge,
+  ConfirmDialog,
   Divider,
   EmptyState,
   MarkdownView,
@@ -167,6 +168,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
   const [retellModalOpen, setRetellModalOpen] = useState(false);
   const [teachModalOpen, setTeachModalOpen] = useState(false);
   const [answerCardModalOpen, setAnswerCardModalOpen] = useState(false);
+  const [confirmEndOpen, setConfirmEndOpen] = useState(false);
   const [focusOverrideByCard, setFocusOverrideByCard] = useState<Record<string, boolean>>({});
   const [focusBusy, setFocusBusy] = useState(false);
   const [gradingBusy, setGradingBusy] = useState(false);
@@ -625,7 +627,8 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     queueModalOpen ||
     retellModalOpen ||
     teachModalOpen ||
-    answerCardModalOpen;
+    answerCardModalOpen ||
+    confirmEndOpen;
   const mainActive = isActive && !anyModalOpen && !clozeEditing && !openEditing && !isFinished;
   const claimedKeys = useMemo<readonly string[]>(() => {
     if (!isActive || loading) return [];
@@ -783,7 +786,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
         return;
       }
       if (input === 'q') {
-        handleEndRound();
+        setConfirmEndOpen(true);
         return;
       }
 
@@ -1739,6 +1742,27 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
             />
           </Box>
         </Modal>
+      ) : null}
+
+      {/* End Round Confirmation Dialog */}
+      {confirmEndOpen ? (
+        <ConfirmDialog
+          title={t(lang, '结束本轮练习', 'End This Round')}
+          message={t(
+            lang,
+            `当前已作答 ${answeredCount}/${totalCount} 题。结束后本轮不可恢复，将直接进入本轮总结；如需暂离请按 [1] 返回学习库（保留进度）。`,
+            `Answered ${answeredCount}/${totalCount}. Ending closes this round permanently; press [1] to return to Library and keep progress.`,
+          )}
+          confirmLabel={t(lang, '结束本轮', 'End Round')}
+          cancelLabel={t(lang, '继续练习', 'Keep Going')}
+          danger
+          isActive={isActive}
+          onConfirm={() => {
+            setConfirmEndOpen(false);
+            handleEndRound();
+          }}
+          onCancel={() => setConfirmEndOpen(false)}
+        />
       ) : null}
     </Box>
   );

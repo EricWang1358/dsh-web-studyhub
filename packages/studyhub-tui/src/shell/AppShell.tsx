@@ -109,8 +109,11 @@ export const AppShell = memo(function AppShell({
     const s = useTuiStore.getState();
     const r = routing.current;
     if (key.ctrl && input === 'k') {
-      if (!r.overlayOpen) s.setCommandPaletteOpen(true);
-      else if (s.commandPaletteOpen) s.setCommandPaletteOpen(false);
+      if (s.commandPaletteOpen) {
+        s.setCommandPaletteOpen(false);
+      } else if (!r.overlayOpen && !r.inputCaptured) {
+        s.setCommandPaletteOpen(true);
+      }
       return;
     }
     if (key.ctrl && input === 'r') {

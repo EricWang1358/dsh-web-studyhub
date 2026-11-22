@@ -596,11 +596,32 @@ export const DeckManageModal = memo(function DeckManageModal({
         return;
       }
       setBusy(true);
-      const editRes = await tryAction<Record<string, unknown>>(host, 'deck.edit', { id: deck.id });
+      const editDraftWarning = t(
+        lang,
+        '该题组已有未发布的编辑草稿，请先在「创建题组」处理后再重命名',
+        'This deck has an unpublished edit draft; resolve it in Generate before renaming',
+      );
+      const snapRes = await tryAction<{ drafts?: Array<{ id?: string; editingDeckId?: string }> }>(host, 'snapshot');
+      const draftsToCheck = snapRes.ok && Array.isArray(snapRes.value?.drafts)
+        ? snapRes.value.drafts
+        : (useTuiStore.getState().snapshot?.drafts ?? []);
+      if (draftsToCheck.some((d) => (d as { editingDeckId?: string }).editingDeckId === deck.id)) {
+        setBusy(false);
+        setMode('browse');
+        notify(editDraftWarning, 'warning');
+        return;
+      }
+      const editRes = await tryAction<Record<string, unknown> & { draftVersion?: number }>(host, 'deck.edit', { id: deck.id });
       if (!editRes.ok || !editRes.value) {
         setBusy(false);
         setMode('browse');
         notify(editRes.error?.message || t(lang, '无法创建编辑草稿', 'Could not create edit draft'), 'error');
+        return;
+      }
+      if ((editRes.value.draftVersion ?? 1) !== 1) {
+        setBusy(false);
+        setMode('browse');
+        notify(editDraftWarning, 'warning');
         return;
       }
       const draft = { ...editRes.value, title: nextTitle };

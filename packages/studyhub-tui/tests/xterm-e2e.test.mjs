@@ -386,7 +386,12 @@ describe('StudyHub TUI xterm-headless E2E', () => {
       } else {
         tty.send('q');
         await tty.waitFor(
-          (s) => s.includes('再来一轮') || s.includes('New Round') || s.includes('本轮'),
+          (s) => s.includes('结束本轮练习') || s.includes('End This Round'),
+          { timeoutMs: 6_000, label: `Confirm end round dialog @ ${cols}x${rows}` },
+        );
+        tty.send('y');
+        await tty.waitFor(
+          (s) => s.includes('再来一轮') || s.includes('New Round') || s.includes('本轮练习总结'),
           { timeoutMs: 8_000, label: `Round summary after review @ ${cols}x${rows}` },
         );
         tty.send('b');
@@ -494,8 +499,13 @@ describe('StudyHub TUI xterm-headless E2E', () => {
     });
 
     tty.send('q');
+    await tty.waitFor(
+      (s) => s.includes('结束本轮练习') || s.includes('End This Round'),
+      { timeoutMs: 6_000, label: 'Confirm end round dialog' },
+    );
+    tty.send('y');
     const summaryScreen = await tty.waitFor(
-      (s) => s.includes('再来一轮') || s.includes('New Round') || s.includes('本轮') || s.includes('Round'),
+      (s) => s.includes('再来一轮') || s.includes('New Round') || s.includes('本轮练习总结') || s.includes('Round Summary'),
       { timeoutMs: 8_000, label: 'Round Summary' },
     );
     tty.assertHealthyScreen(summaryScreen, 120, 'Round Summary');

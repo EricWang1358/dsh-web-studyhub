@@ -290,6 +290,7 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
   const handleDeleteConfirm = useCallback(async () => {
     if (!selectedItem || busy) return;
     setBusy(true);
+    let archivedByUs = false;
     try {
       if (!selectedItem.archived) {
         const archRes = await tryAction(host, 'source.archive', {
@@ -298,16 +299,45 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
         });
         if (!archRes.ok) {
           notify(archRes.error?.message || t(lang, '归档失败，无法删除', 'Archive failed before delete'), 'error');
-          setBusy(false);
           return;
         }
+        archivedByUs = true;
       }
       const delRes = await tryAction(host, 'source.remove', {
         sourceIds: selectedItem.sourceIds,
         confirm: true,
       });
       if (!delRes.ok) {
-        notify(delRes.error?.message || t(lang, '删除失败（可能被题组引用）', 'Delete failed (may be referenced by cards)'), 'error');
+        const errMsg =
+          delRes.error?.message || t(lang, '删除失败（可能被题组引用）', 'Delete failed (may be referenced by cards)');
+        if (archivedByUs) {
+          const rollbackRes = await tryAction(host, 'source.archive', {
+            sourceIds: selectedItem.sourceIds,
+            archived: false,
+          });
+          await refresh();
+          if (rollbackRes.ok) {
+            notify(
+              t(
+                lang,
+                `删除失败（${errMsg}），已自动恢复未归档状态`,
+                `Delete failed (${errMsg}); restored material from archive`,
+              ),
+              'error',
+            );
+          } else {
+            notify(
+              t(
+                lang,
+                `删除失败（${errMsg}），注意：资料已被归档，可在归档中恢复`,
+                `Delete failed (${errMsg}); note: material was archived and can be restored`,
+              ),
+              'warning',
+            );
+          }
+        } else {
+          notify(errMsg, 'error');
+        }
       } else {
         notify(t(lang, '已删除资料', 'Material deleted'), 'success');
         await refresh();
