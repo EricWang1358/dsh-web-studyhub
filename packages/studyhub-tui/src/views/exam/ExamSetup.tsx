@@ -11,7 +11,7 @@ import {
   useTheme,
 } from '../../components/index.js';
 import { truncateDisplay } from '../../render/index.js';
-import { t } from '../../state/store.js';
+import { t, useTuiStore } from '../../state/store.js';
 import type {
   ExamMode,
   ExamSetupValue,
@@ -56,6 +56,8 @@ export const ExamSetup = memo(function ExamSetup({
   onOpenHistory,
 }: ExamSetupProps) {
   const theme = useTheme();
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const ellipsis = asciiMode ? '...' : '…';
   const [pane, setPane] = useState<'setup' | 'history'>('setup');
   const [mode, setMode] = useState<ExamMode>('written');
   const [countIdx, setCountIdx] = useState(0);
@@ -137,7 +139,7 @@ export const ExamSetup = memo(function ExamSetup({
     return (
       <Panel
         title={t(lang, '组卷设置', 'Exam Setup')}
-        icon="◷"
+        icon={asciiMode ? '@' : '◷'}
         focused={pane === 'setup'}
         width={paneW}
         height={paneH}
@@ -160,7 +162,7 @@ export const ExamSetup = memo(function ExamSetup({
 
         {mode === 'written' ? (
           <Box flexDirection="column" marginBottom={1}>
-            <Box gap={2}>
+            <Box gap={2} flexWrap="wrap">
               <Text>
                 <Text color={theme.muted}>{t(lang, '[c] 题数: ', '[c] Count: ')}</Text>
                 {WRITTEN_COUNTS.map((n) => (
@@ -203,13 +205,13 @@ export const ExamSetup = memo(function ExamSetup({
         {resumableRun ? (
           <Box marginBottom={1}>
             <Badge label={t(lang, 'r 继续未交卷考试', 'r Resume Open Exam')} tone="warning" />
-            <Text color={theme.muted}>{` ${truncateDisplay(String(resumableRun.title || ''), Math.max(8, innerW - 22))}`}</Text>
+            <Text color={theme.muted}>{` ${truncateDisplay(String(resumableRun.title || ''), Math.max(8, innerW - 22), ellipsis)}`}</Text>
           </Box>
         ) : null}
 
         {error ? (
           <Box marginBottom={1}>
-            <Text color={theme.error}>{truncateDisplay(error, innerW)}</Text>
+            <Text color={theme.error}>{truncateDisplay(error, innerW, ellipsis)}</Text>
           </Box>
         ) : null}
 
@@ -232,7 +234,8 @@ export const ExamSetup = memo(function ExamSetup({
           emptyHint={t(lang, '按 1/2/3 切换考试模式，或先在题组中生成题目', 'Switch mode with 1/2/3 or generate questions first')}
           renderItem={(item, ctx) => {
             const hint = item.hint ? ` (${item.hint})` : '';
-            const label = truncateDisplay(`${ctx.selected ? '❯ ' : '  '}${item.label}${hint}`, ctx.width);
+            const cursor = ctx.selected ? (asciiMode ? '> ' : '❯ ') : '  ';
+            const label = truncateDisplay(`${cursor}${item.label}${hint}`, ctx.width, ellipsis);
             return (
               <Text color={ctx.selected ? theme.selectionFg : theme.text} bold={ctx.selected}>
                 {label}
@@ -258,7 +261,7 @@ export const ExamSetup = memo(function ExamSetup({
       >
         {historyItems.length === 0 ? (
           <EmptyState
-            icon="◷"
+            icon={asciiMode ? 'o' : '◷'}
             title={t(lang, '暂无考试记录', 'No past exams yet')}
             hint={t(lang, '交卷后可在此查看详细成绩单与错题分析', 'Submitted exams & oral reports appear here')}
             height={listH}
@@ -274,9 +277,11 @@ export const ExamSetup = memo(function ExamSetup({
             isActive={isActive && pane === 'history' && !busy}
             keyExtractor={(item) => item.key}
             renderItem={(item, ctx) => {
-              const scoreW = Math.min(8, item.score.length + 1);
+              const scoreDisplay = asciiMode ? item.score.replace(/★/g, '*') : item.score;
+              const scoreW = Math.min(8, scoreDisplay.length + 1);
               const mainW = Math.max(6, ctx.width - scoreW - 2);
-              const text = truncateDisplay(`${ctx.selected ? '❯ ' : '  '}${item.title} · ${item.detail}`, mainW);
+              const cursor = ctx.selected ? (asciiMode ? '> ' : '❯ ') : '  ';
+              const text = truncateDisplay(`${cursor}${item.title} · ${item.detail}`, mainW, ellipsis);
               const scoreColor =
                 item.tone === 'success'
                   ? theme.success
@@ -293,7 +298,7 @@ export const ExamSetup = memo(function ExamSetup({
                     </Text>
                   </Box>
                   <Text color={scoreColor} bold>
-                    {item.score}
+                    {scoreDisplay}
                   </Text>
                 </Box>
               );

@@ -13,8 +13,9 @@ import {
 } from '../../components/index.js';
 import { renderBarChart, truncateDisplay } from '../../render/index.js';
 import { t, useTuiStore } from '../../state/store.js';
-import type { ReportItem, ReportState } from './types.js';
+import type { CaseQuestionReport, ExamReport, ReportItem, ReportState } from './types.js';
 import {
+  buildCaseQuestionMarkdown,
   buildOralEntryMarkdown,
   buildWrongItemMarkdown,
   formatDurationMs,
@@ -32,7 +33,37 @@ export interface ExamReportViewProps {
   onBack: () => void;
 }
 
-const CLAIMED = ['b', 'h', 'l'];
+const CLAIMED = ['b', 'h', 'l', 'w', 'p'];
+
+function scoreBandBadge(
+  scorePct: number,
+  lang: UiLanguage,
+): { label: string; tone: 'success' | 'warning' | 'error' } {
+  if (scorePct >= 80) return { label: t(lang, '优秀', 'Strong'), tone: 'success' };
+  if (scorePct >= 60) return { label: t(lang, '及格', 'Pass'), tone: 'warning' };
+  return { label: t(lang, '待提升', 'Weak'), tone: 'error' };
+}
+
+function comparisonLabel(
+  comparison: ExamReport['comparison'],
+  lang: UiLanguage,
+): { label: string; tone: 'success' | 'warning' | 'info' } | null {
+  if (!comparison) return null;
+  const delta = comparison.deltaPct;
+  const sign = delta > 0 ? '+' : '';
+  const tone = delta > 0 ? 'success' : delta < 0 ? 'warning' : 'info';
+  if (typeof comparison.scorePct === 'number') {
+    return {
+      label: t(
+        lang,
+        `上次 ${Math.round(comparison.scorePct)}% (${sign}${delta}%)`,
+        `Prev ${Math.round(comparison.scorePct)}% (${sign}${delta}%)`,
+      ),
+      tone,
+    };
+  }
+  return delta !== 0 ? { label: `${sign}${delta}%`, tone } : null;
+}
 
 export const ExamReportView = memo(function ExamReportView({
   state,
@@ -46,25 +77,35 @@ export const ExamReportView = memo(function ExamReportView({
 }: ExamReportViewProps) {
   const theme = useTheme();
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const ellipsis = asciiMode ? '...' : '…';
   const [pane, setPane] = useState<'list' | 'detail'>('list');
   const [selectedIdx, setSelectedIdx] = useState(0);
 
   useClaimKeys(CLAIMED, isActive);
 
+  const isCaseReport = state.kind === 'written' && Boolean(state.report.case);
+
   const writtenItems: ReportItem[] = useMemo(() => {
-    if (state.kind !== 'written') return [];
+    if (state.kind !== 'written' || state.report.case) return [];
     const wrong = (state.report.wrong ?? []).map((x) => ({ ...x, skipped: false }));
     const skipped = (state.report.skipped ?? []).map((x) => ({ ...x, skipped: true }));
     return [...wrong, ...skipped];
   }, [state]);
 
+  const caseQuestions: CaseQuestionReport[] =
+    state.kind === 'written' && state.report.case ? state.report.case.questions : [];
   const oralEntries = state.kind === 'oral' ? state.report.entries : [];
-  const totalList = state.kind === 'written' ? writtenItems.length : oralEntries.length;
+
+  const totalList = isCaseReport
+    ? caseQuestions.length
+    : state.kind === 'written'
+      ? writtenItems.length
+      : oralEntries.length;
   const safeIdx = Math.max(0, Math.min(selectedIdx, Math.max(0, totalList - 1)));
 
   const weakScope = state.report.weakScope ?? [];
   const topicBarItems = useMemo(
-    () => (state.kind === 'written' ? reportTopicBars(state.report, lang) : []),
+    () => (state.kind === 'written' && !state.report.case ? reportTopicBars(state.report, lang) : []),
     [state, lang],
   );
 
@@ -75,7 +116,7 @@ export const ExamReportView = memo(function ExamReportView({
         onBack();
         return;
       }
-      if (input === 'p' && weakScope.length > 0) {
+      if ((input === 'w' || input === 'p') && weakScope.length > 0) {
         onPracticeWeak(weakScope);
         return;
       }
@@ -90,13 +131,10 @@ export const ExamReportView = memo(function ExamReportView({
 
   const detailMarkdown = useMemo(() => {
     if (state.kind === 'written') {
-      if (state.report.case && writtenItems.length === 0) {
-        return state.report.case.questions
-          .map(
-            (q) =>
-              `### Q${q.n} (${q.total ?? '?'}/${q.marks} ${lang === 'en' ? 'pts' : '分'} · ${q.status})\n\n${q.prompt || ''}\n\n${q.response || ''}`,
-          )
-          .join('\n\n---\n\n');
+      if (state.report.case) {
+        const q = caseQuestions[safeIdx];
+        if (!q) return t(lang, '暂无案例题目明细。', 'No case question details.');
+        return buildCaseQuestionMarkdown(q, lang, state.report.case.pacing);
       }
       const item = writtenItems[safeIdx];
       if (!item) return t(lang, '全部答对！本次没有错题或漏答题。', 'All correct! No wrong or skipped questions.');
@@ -105,17 +143,143 @@ export const ExamReportView = memo(function ExamReportView({
     const entry = oralEntries[safeIdx];
     if (!entry) return t(lang, '暂无题目明细。', 'No question details.');
     return buildOralEntryMarkdown(entry, lang);
-  }, [state, writtenItems, oralEntries, safeIdx, lang]);
+  }, [state, caseQuestions, writtenItems, oralEntries, safeIdx, lang]);
 
   const renderLeftPane = (paneW: number, paneH: number) => {
     const innerW = Math.max(20, paneW - 4);
+    const cursor = (selected: boolean) => (selected ? (asciiMode ? '> ' : '❯ ') : '  ');
+
+    // Case Study Report
+    if (state.kind === 'written' && state.report.case) {
+      const r = state.report;
+      const c = r.case!;
+      const scoreTone = r.scorePct >= 80 ? 'success' : r.scorePct >= 60 ? 'warning' : 'error';
+      const comp = comparisonLabel(r.comparison, lang);
+      const band = scoreBandBadge(r.scorePct, lang);
+      const weakBarsData = (c.weakest ?? [])
+        .filter((w) => w.label)
+        .slice(0, 4)
+        .map((w) => {
+          const pct = Math.round((Number(w.ratio) || 0) * 100);
+          return {
+            label: String(w.label),
+            value: pct,
+            color: pct < 60 ? theme.error : theme.warning,
+          };
+        });
+      const bars = renderBarChart(weakBarsData, innerW, theme, { ascii: asciiMode });
+      const summaryLines = 5 + (bars.length > 0 ? bars.length + 2 : 0);
+      const listH = Math.max(4, paneH - summaryLines - 2);
+
+      return (
+        <Panel
+          title={t(lang, '案例评估报告', 'Case Exam Report')}
+          badge={`${Math.round(r.scorePct)}%`}
+          badgeTone={scoreTone}
+          focused={pane === 'list'}
+          width={paneW}
+          height={paneH}
+          ascii={asciiMode}
+        >
+          <Box gap={1} marginBottom={1} flexWrap="wrap">
+            <Badge label={`${c.total}/${c.max} ${t(lang, '分', 'pts')}`} tone={scoreTone} />
+            <Badge label={band.label} tone={band.tone} variant="soft" />
+            {c.pending > 0 ? (
+              <Badge label={`${c.pending} ${t(lang, '待批改', 'pending')}`} tone="warning" variant="soft" />
+            ) : null}
+            {r.durationMs ? (
+              <Badge label={formatDurationMs(r.durationMs)} tone="info" variant="soft" />
+            ) : null}
+            {comp ? <Badge label={comp.label} tone={comp.tone} variant="soft" /> : null}
+            {weakScope.length > 0 ? (
+              <Badge label={t(lang, 'w 练薄弱项', 'w Practise Weak')} tone="primary" />
+            ) : null}
+          </Box>
+
+          {bars.length > 0 ? (
+            <Box flexDirection="column" marginBottom={1}>
+              <Text color={theme.muted} bold>
+                {t(lang, '薄弱评分维度 (%):', 'Weakest Criteria (%):')}
+              </Text>
+              {bars.map((line, i) => (
+                <Text key={i}>{line}</Text>
+              ))}
+            </Box>
+          ) : null}
+
+          <Text color={theme.muted} bold>
+            {t(lang, `各题评分 (${caseQuestions.length}):`, `Questions (${caseQuestions.length}):`)}
+          </Text>
+          {caseQuestions.length === 0 ? (
+            <EmptyState
+              icon={asciiMode ? 'o' : '◷'}
+              title={t(lang, '暂无案例题目', 'No case questions')}
+              hint={t(lang, '按 b 返回模拟考主页', 'Press b to return')}
+              height={listH}
+            />
+          ) : (
+            <VirtualList
+              items={caseQuestions}
+              width={innerW}
+              height={listH}
+              selectedIndex={safeIdx}
+              onChange={(idx) => setSelectedIdx(idx)}
+              onSelect={() => setPane('detail')}
+              isActive={isActive && pane === 'list'}
+              keyExtractor={(q, i) => `${q.cardId}:${i}`}
+              renderItem={(q, ctx) => {
+                const bandTag = q.band ?? q.status;
+                const scoreStr = q.total !== null && q.total !== undefined ? `${q.total}/${q.marks}` : `-/${q.marks}`;
+                const txt = truncateDisplay(
+                  `${cursor(ctx.selected)}Q${q.n} [${bandTag}] ${scoreStr} ${q.prompt || ''}`,
+                  ctx.width,
+                  ellipsis,
+                );
+                return (
+                  <Text
+                    color={
+                      ctx.selected
+                        ? theme.selectionFg
+                        : q.band === 'strong'
+                          ? theme.success
+                          : q.band === 'weak' || q.status === 'unanswered'
+                            ? theme.error
+                            : q.status === 'pending'
+                              ? theme.warning
+                              : theme.text
+                    }
+                    bold={ctx.selected}
+                  >
+                    {txt}
+                  </Text>
+                );
+              }}
+            />
+          )}
+        </Panel>
+      );
+    }
+
+    // Written MCQ Report
     if (state.kind === 'written') {
       const r = state.report;
       const bars = renderBarChart(topicBarItems, innerW, theme, { ascii: asciiMode });
-      const summaryLines = 5 + bars.length;
+      const kindParts = (r.byKind ?? []).map((k) => {
+        const kLabel =
+          k.kind === 'multi'
+            ? t(lang, '多选', 'Multi')
+            : k.kind === 'truefalse'
+              ? t(lang, '判断', 'T/F')
+              : t(lang, '单选', 'Single');
+        return `${kLabel} ${k.correct}/${k.total}`;
+      });
+      const showKindLine = kindParts.length > 1;
+      const summaryLines = 5 + bars.length + (showKindLine ? 1 : 0);
       const listH = Math.max(4, paneH - summaryLines - 2);
       const scoreTone = r.scorePct >= 80 ? 'success' : r.scorePct >= 60 ? 'warning' : 'error';
-      const delta = r.comparison?.deltaPct;
+      const band = scoreBandBadge(r.scorePct, lang);
+      const comp = comparisonLabel(r.comparison, lang);
+
       return (
         <Panel
           title={t(lang, '考试成绩单', 'Exam Report')}
@@ -124,23 +288,27 @@ export const ExamReportView = memo(function ExamReportView({
           focused={pane === 'list'}
           width={paneW}
           height={paneH}
+          ascii={asciiMode}
         >
-          <Box gap={1} marginBottom={1}>
+          <Box gap={1} marginBottom={1} flexWrap="wrap">
             <Badge label={`${r.correct}/${r.total} ${t(lang, '正确', 'OK')}`} tone={scoreTone} />
+            <Badge label={band.label} tone={band.tone} variant="soft" />
             {r.durationMs ? (
               <Badge label={formatDurationMs(r.durationMs)} tone="info" variant="soft" />
             ) : null}
-            {typeof delta === 'number' && delta !== 0 ? (
-              <Badge
-                label={`${delta > 0 ? '+' : ''}${delta}%`}
-                tone={delta > 0 ? 'success' : 'warning'}
-                variant="soft"
-              />
-            ) : null}
+            {comp ? <Badge label={comp.label} tone={comp.tone} variant="soft" /> : null}
             {weakScope.length > 0 ? (
-              <Badge label={t(lang, 'p 练错题', 'p Practise Weak')} tone="primary" />
+              <Badge label={t(lang, 'w 练错题', 'w Practise Weak')} tone="primary" />
             ) : null}
           </Box>
+
+          {showKindLine ? (
+            <Box marginBottom={0}>
+              <Text color={theme.muted}>
+                {truncateDisplay(kindParts.join(' · '), innerW, ellipsis)}
+              </Text>
+            </Box>
+          ) : null}
 
           {bars.length > 0 ? (
             <Box flexDirection="column" marginBottom={1}>
@@ -176,9 +344,9 @@ export const ExamReportView = memo(function ExamReportView({
               renderItem={(item, ctx) => {
                 const tag = asciiMode ? (item.skipped ? 'o' : 'x') : item.skipped ? '○' : '✕';
                 const txt = truncateDisplay(
-                  `${ctx.selected ? (asciiMode ? '> ' : '❯ ') : '  '}${tag} [${item.topic || ''}] ${item.prompt || ''}`,
+                  `${cursor(ctx.selected)}${tag} [${item.topic || ''}] ${item.prompt || ''}`,
                   ctx.width,
-                  asciiMode ? '...' : '…',
+                  ellipsis,
                 );
                 return (
                   <Text
@@ -195,9 +363,30 @@ export const ExamReportView = memo(function ExamReportView({
       );
     }
 
-    // Oral report
+    // Oral Report
     const r = state.report;
-    const listH = Math.max(4, paneH - 8);
+    const unassessed = Math.max(0, r.total - r.assessed);
+    const showBandBars = paneH >= 18 && r.total > 0;
+    const bandBars = showBandBars
+      ? renderBarChart(
+          [
+            { label: t(lang, '优秀', 'Strong'), value: r.strong, color: theme.success },
+            { label: t(lang, '尚可', 'Dev'), value: r.developing, color: theme.warning },
+            { label: t(lang, '薄弱', 'Weak'), value: r.weak, color: theme.error },
+            ...(unassessed > 0 ? [{ label: t(lang, '未评', 'N/A'), value: unassessed, color: theme.dim }] : []),
+          ],
+          innerW,
+          theme,
+          { ascii: asciiMode },
+        )
+      : [];
+    const weakTopicsLine =
+      (r.weakTopics ?? []).length > 0
+        ? `${t(lang, '薄弱主题', 'Weak Topics')}: ${r.weakTopics!.map((w) => w.topic).join(', ')}`
+        : '';
+    const extraOverhead = (bandBars.length > 0 ? bandBars.length + 1 : 0) + (weakTopicsLine ? 1 : 0);
+    const listH = Math.max(4, paneH - 8 - extraOverhead);
+
     return (
       <Panel
         title={t(lang, '口试评估报告', 'Oral Report')}
@@ -206,15 +395,31 @@ export const ExamReportView = memo(function ExamReportView({
         focused={pane === 'list'}
         width={paneW}
         height={paneH}
+        ascii={asciiMode}
       >
-        <Box gap={1} marginBottom={1}>
+        <Box gap={1} marginBottom={1} flexWrap="wrap">
+          {r.role ? <Badge label={r.role} tone="ai" variant="soft" /> : null}
           <Badge label={`${t(lang, '优秀', 'Strong')} ${r.strong}`} tone="success" />
           <Badge label={`${t(lang, '尚可', 'Dev')} ${r.developing}`} tone="warning" variant="soft" />
           <Badge label={`${t(lang, '薄弱', 'Weak')} ${r.weak}`} tone="error" variant="soft" />
           {weakScope.length > 0 ? (
-            <Badge label={t(lang, 'p 练薄弱项', 'p Practise Weak')} tone="primary" />
+            <Badge label={t(lang, 'w 练薄弱项', 'w Practise Weak')} tone="primary" />
           ) : null}
         </Box>
+
+        {bandBars.length > 0 ? (
+          <Box flexDirection="column" marginBottom={1}>
+            {bandBars.map((line, i) => (
+              <Text key={i}>{line}</Text>
+            ))}
+          </Box>
+        ) : null}
+
+        {weakTopicsLine ? (
+          <Box marginBottom={1}>
+            <Text color={theme.warning}>{truncateDisplay(weakTopicsLine, innerW, ellipsis)}</Text>
+          </Box>
+        ) : null}
 
         <VirtualList
           items={oralEntries}
@@ -227,9 +432,11 @@ export const ExamReportView = memo(function ExamReportView({
           keyExtractor={(item, i) => `${item.deckId}:${item.cardId}:${i}`}
           renderItem={(item, ctx) => {
             const band = item.assessment?.band ?? 'n/a';
+            const gradeStr = item.assessment ? ` ${item.assessment.grade}/5` : '';
             const txt = truncateDisplay(
-              `${ctx.selected ? '❯ ' : '  '}[${band}] ${item.topic || ''} · ${item.prompt || ''}`,
+              `${cursor(ctx.selected)}[${band}${gradeStr}] ${item.topic || ''} · ${item.prompt || ''}`,
               ctx.width,
+              ellipsis,
             );
             return (
               <Text
@@ -262,6 +469,7 @@ export const ExamReportView = memo(function ExamReportView({
         focused={pane === 'detail'}
         width={paneW}
         height={paneH}
+        ascii={asciiMode}
       >
         <MarkdownView
           markdown={detailMarkdown}

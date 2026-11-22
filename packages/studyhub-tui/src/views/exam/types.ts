@@ -37,6 +37,15 @@ export interface ExamPick {
   selected: string[] | null;
 }
 
+export interface CaseHighlight {
+  id: string;
+  paragraph: number;
+  start: number;
+  end: number;
+  color: 'yellow' | 'green' | 'blue' | 'pink' | string;
+  note?: string;
+}
+
 /** `review.start` / `review.get` / `review.move` / `review.answer` projection of an exam run. */
 export interface RunView {
   id: string;
@@ -54,6 +63,7 @@ export interface RunView {
   picks?: ExamPick[];
   responses?: Array<{ deckId: string; cardId: string; response: string }>;
   paperCards?: ExamCard[];
+  highlights?: CaseHighlight[];
   paper?: {
     deckId?: string;
     limitMs?: number | null;
@@ -88,6 +98,18 @@ export interface ReportItem {
   skipped?: boolean;
 }
 
+export interface CaseCriterionScore {
+  id?: string;
+  label?: string;
+  score?: number;
+  max?: number;
+  ratio?: number;
+  evidence?: string[];
+  missing?: Array<{ id?: string; text?: string }>;
+  suggestion?: string;
+  note?: string;
+}
+
 export interface CaseQuestionReport {
   cardId: string;
   deckId?: string;
@@ -99,6 +121,14 @@ export interface CaseQuestionReport {
   status: 'graded' | 'pending' | 'unanswered' | string;
   total: number | null;
   band?: string | null;
+  criteria?: CaseCriterionScore[];
+  rubric?: {
+    total?: number;
+    max?: number;
+    band?: string;
+    criteria?: CaseCriterionScore[];
+    summary?: string;
+  } | null;
 }
 
 /** `exam.submit` / `exam.report` value. */
@@ -121,7 +151,14 @@ export interface ExamReport {
     max: number;
     pending: number;
     questions: CaseQuestionReport[];
-    weakest?: Array<{ label?: string; ratio?: number; [k: string]: unknown }>;
+    weakest?: Array<{ label?: string; ratio?: number; score?: number; max?: number; n?: number; [k: string]: unknown }>;
+    pacing?: {
+      readingMs?: number;
+      writingMs?: number;
+      transcribeMs?: number;
+      readingMinutes?: number;
+      writingMinutes?: number;
+    };
   };
   byTopic?: Array<{ deckId?: string; deckTitle?: string; topic: string; correct: number; total: number }>;
   byDeck?: Array<{ deckId?: string; title?: string; correct: number; total: number }>;
@@ -157,6 +194,11 @@ export interface OralAssessment {
   band: 'strong' | 'developing' | 'weak' | string;
   grade: number;
   reason?: string;
+  correction?: {
+    keywordExpansion?: string[];
+    phrasingUpgrade?: { informal?: string; professional?: string };
+    missingLinks?: string[];
+  };
 }
 
 /** `oral.submit` / `oral.report` value. */

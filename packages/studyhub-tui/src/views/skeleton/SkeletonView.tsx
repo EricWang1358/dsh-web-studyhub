@@ -12,13 +12,16 @@ import {
   SelectList,
   Spinner,
   SplitPane,
+  StatusPill,
+  VirtualList,
   modalContentWidth,
   useClaimKeys,
   useFooterHints,
   useTheme,
   type SelectOption,
+  type VirtualListRenderContext,
 } from '../../components/index.js';
-import { renderTreeLines, truncateDisplay, type TreeLine, type TreeNode } from '../../render/index.js';
+import { padDisplay, renderTreeLines, truncateDisplay, type TreeLine, type TreeNode } from '../../render/index.js';
 import type {
   CardMasteryInfo,
   FocusProgressTopic,
@@ -30,7 +33,157 @@ import type {
   SkeletonTopicItem,
 } from './types.js';
 
-const CLAIMED_KEYS = ['r'] as const;
+const CLAIMED_KEYS = ['r', 'L'] as const;
+
+interface SkeletonLintCard {
+  deckId: string;
+  deckTitle: string;
+  cardId: string;
+  topic: string;
+  kind: string;
+  prompt: string;
+  issues: string[];
+}
+
+interface SkeletonLintResult {
+  total: number;
+  decks: number;
+  flagged: number;
+  counts: Record<string, number>;
+  labels?: Record<string, string>;
+  cards: SkeletonLintCard[];
+}
+
+interface LintFindingItem {
+  id: string;
+  severity: 'error' | 'warn' | 'info';
+  tag: string;
+  summary: string;
+  detail: string;
+}
+
+function lintCodeLabel(code: string, lang: 'zh' | 'en', fallback?: string): string {
+  switch (code) {
+    case 'echo-explanation':
+      return t(lang, '重复选项解析', 'Echo explanation');
+    case 'membership-stem':
+      return t(lang, '考课件页码/列表', 'Slide/page stem');
+    case 'thin-explanation':
+      return t(lang, '解析过短', 'Thin explanation');
+    case 'isolated-recall':
+      return t(lang, '孤立记忆题', 'Isolated recall');
+    default:
+      return fallback || code;
+  }
+}
+
+function buildLintFindings(
+  lint: SkeletonLintResult | null,
+  detail: SkeletonDetail | null,
+  topics: readonly SkeletonTopicItem[],
+  cardIndex: ReadonlyMap<string, CardMasteryInfo>,
+  nodeById: ReadonlyMap<string, SkeletonNode>,
+  lang: 'zh' | 'en',
+): LintFindingItem[] {
+  const items: LintFindingItem[] = [];
+
+  if (detail) {
+    const parentIds = new Set<string>();
+    const relNodeIds = new Set<string>();
+    for (const n of detail.nodes) {
+      if (n.parent) {
+        parentIds.add(n.parent);
+        if (!nodeById.has(n.parent)) {
+          items.push({
+            id: `broken-parent:${n.id}`,
+            severity: 'error',
+            tag: t(lang, '断链父节点', 'Broken parent'),
+            summary: n.term,
+            detail: t(lang, `引用了不存在的父节点 ${n.parent}`, `Missing parent ${n.parent}`),
+          });
+        }
+      }
+    }
+    for (const [idx, r] of (detail.relations ?? []).entries()) {
+      relNodeIds.add(r.from);
+      relNodeIds.add(r.to);
+      if (!nodeById.has(r.from) || !nodeById.has(r.to)) {
+        items.push({
+          id: `broken-rel:${idx}`,
+          severity: 'error',
+          tag: t(lang, '断链关系', 'Broken relation'),
+          summary: `${r.from} -> ${r.to}`,
+          detail: t(lang, '关系端点节点不存在', 'Relation endpoint node missing'),
+        });
+      }
+    }
+
+    const coveredTopics = new Set<string>();
+    const coveredCardIds = new Set<string>();
+    for (const s of detail.scope ?? []) {
+      if (s.topic) coveredTopics.add(s.topic.trim().toLowerCase());
+    }
+    const nodeTerms: string[] = [];
+    for (const n of detail.nodes) {
+      const termLower = n.term.trim().toLowerCase();
+      if (termLower) {
+        coveredTopics.add(termLower);
+        nodeTerms.push(termLower);
+      }
+      for (const ref of n.cards ?? []) {
+        coveredCardIds.add(ref.cardId);
+        const info = cardIndex.get(ref.cardId);
+        if (info?.topic) coveredTopics.add(info.topic.trim().toLowerCase());
+      }
+      const hasCards = (n.cards ?? []).length > 0;
+      const hasChildren = parentIds.has(n.id);
+      const hasRelations = relNodeIds.has(n.id);
+      if (!hasCards && !hasChildren && !hasRelations) {
+        items.push({
+          id: `orphan-node:${n.id}`,
+          severity: 'warn',
+          tag: t(lang, '孤立空节点', 'Orphan node'),
+          summary: n.term,
+          detail: t(lang, '未关联题卡且无子节点或关系', 'No linked cards, children, or relations'),
+        });
+      }
+    }
+    for (const c of lint?.cards ?? []) {
+      if (coveredCardIds.has(c.cardId) && c.topic) {
+        coveredTopics.add(c.topic.trim().toLowerCase());
+      }
+    }
+
+    for (const tp of topics) {
+      const key = tp.topic.trim().toLowerCase();
+      if (!key) continue;
+      const matchedTerm = nodeTerms.some((term) => term.includes(key) || key.includes(term));
+      if (!coveredTopics.has(key) && !matchedTerm) {
+        items.push({
+          id: `uncovered-topic:${tp.key}`,
+          severity: 'info',
+          tag: t(lang, '未覆盖主题', 'Uncovered topic'),
+          summary: tp.topic,
+          detail: t(lang, `包含 ${tp.count} 题，尚未纳入骨架节点`, `${tp.count} cards not yet mapped to skeleton`),
+        });
+      }
+    }
+  }
+
+  for (const card of lint?.cards ?? []) {
+    if (!card.issues?.length) continue;
+    const issueNames = card.issues.map((c) => lintCodeLabel(c, lang, lint?.labels?.[c])).join(' / ');
+    items.push({
+      id: `card:${card.deckId}:${card.cardId}`,
+      severity: 'warn',
+      tag: issueNames,
+      summary: card.topic || card.deckTitle,
+      detail: card.prompt,
+    });
+  }
+
+  return items;
+}
 
 const RELATION_ZH: Record<string, string> = {
   'part-of': '属于',
@@ -135,10 +288,17 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [activePane, setActivePane] = useState<'left' | 'right'>('left');
   const [switcherOpen, setSwitcherOpen] = useState(false);
+  const [diagramCount, setDiagramCount] = useState(0);
+  const [lintOpen, setLintOpen] = useState(false);
+  const [lintLoading, setLintLoading] = useState(false);
+  const [lintError, setLintError] = useState('');
+  const [lintResult, setLintResult] = useState<SkeletonLintResult | null>(null);
+  const [lintCursor, setLintCursor] = useState(0);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [reloadSeq, setReloadSeq] = useState(0);
 
   const mountedRef = useRef(true);
+  const lintReqRef = useRef(0);
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -180,13 +340,24 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
     };
   }, [host, activeCourse, reloadSeq]);
 
-  // Fetch skeleton.get when selectedSkeletonId changes
+  // Fetch skeleton.get + non-blocking skeleton.diagram.list when selectedSkeletonId changes
   useEffect(() => {
     if (!selectedSkeletonId) {
       setDetail(null);
+      setDiagramCount(0);
       return;
     }
     let cancelled = false;
+    setDiagramCount(0);
+    host
+      .call<{ diagrams?: unknown[] }>('skeleton.diagram.list', { id: selectedSkeletonId })
+      .then((dRes) => {
+        if (cancelled || !mountedRef.current) return;
+        setDiagramCount(dRes.ok && Array.isArray(dRes.value?.diagrams) ? dRes.value.diagrams.length : 0);
+      })
+      .catch(() => {
+        // Non-blocking diagram count fetch
+      });
     (async () => {
       const res = await host.call<SkeletonDetail>('skeleton.get', { id: selectedSkeletonId });
       if (cancelled || !mountedRef.current) return;
@@ -537,19 +708,70 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
     return out;
   }, [detail, topics, selectedNode, selectedStats, parentById, nodeById, lang]);
 
-  useClaimKeys(CLAIMED_KEYS, isActive && !switcherOpen);
+  const runLint = useCallback(async () => {
+    const reqId = ++lintReqRef.current;
+    setLintOpen(true);
+    setLintLoading(true);
+    setLintError('');
+    setLintCursor(0);
+    try {
+      let scope: Array<{ deckId: string; topic?: string; cardId?: string }> = detail?.scope?.length ? [...detail.scope] : [];
+      if (!scope.length) {
+        const scopeMap = new Map<string, { deckId: string; topic?: string }>();
+        for (const tp of topics.slice(0, 25)) {
+          for (const d of tp.decks ?? []) {
+            scopeMap.set(`${d.deckId}\0${tp.topic}`, { deckId: d.deckId, topic: tp.topic });
+          }
+        }
+        scope = [...scopeMap.values()];
+      }
+      if (!scope.length) {
+        if (mountedRef.current && lintReqRef.current === reqId) {
+          setLintResult(null);
+          setLintLoading(false);
+        }
+        return;
+      }
+      const res = await host.call<SkeletonLintResult>('skeleton.lint', { scope });
+      if (!mountedRef.current || lintReqRef.current !== reqId) return;
+      if (res.ok && res.value) {
+        setLintResult(res.value);
+      } else {
+        setLintResult(null);
+        setLintError(res.error?.message || t(lang, '骨架结构检查失败', 'Failed to lint skeleton'));
+      }
+    } catch (err) {
+      if (mountedRef.current && lintReqRef.current === reqId) {
+        setLintResult(null);
+        setLintError(err instanceof Error ? err.message : String(err));
+      }
+    } finally {
+      if (mountedRef.current && lintReqRef.current === reqId) {
+        setLintLoading(false);
+      }
+    }
+  }, [detail?.scope, topics, host, lang]);
+
+  const lintFindings = useMemo(
+    () => buildLintFindings(lintResult, detail, topics, cardIndex, nodeById, lang),
+    [lintResult, detail, topics, cardIndex, nodeById, lang],
+  );
+
+  const modalOpen = switcherOpen || lintOpen;
+  useClaimKeys(CLAIMED_KEYS, isActive && !modalOpen);
 
   const hints: KeyHint[] = useMemo(
     () => [
       { key: 'j/k', label: t(lang, '移动', 'Move') },
       { key: 'Space/h/l', label: t(lang, '展开/折叠', 'Toggle') },
       { key: 'p', label: t(lang, '练习节点', 'Practise') },
+      { key: 'L', label: t(lang, '自检', 'Lint') },
       { key: 'g', label: t(lang, '生成骨架', 'Generate') },
       { key: 's', label: t(lang, '切换骨架', 'Switch') },
     ],
     [lang],
   );
-  useFooterHints(hints, isActive && !switcherOpen);
+  useFooterHints(hints, isActive && !modalOpen);
 
   const treeViewportH = Math.max(4, height - 4);
   const treeScrollTop = useMemo(() => {
@@ -559,10 +781,21 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
   }, [selectedLineIdx, treeLines.length, treeViewportH]);
 
   useInput(
+    (input) => {
+      if (input === 'r') void runLint();
+    },
+    { isActive: isActive && lintOpen && !lintLoading },
+  );
+
+  useInput(
     (input, key) => {
-      if (switcherOpen) return;
+      if (modalOpen) return;
       if (key.tab) {
         setActivePane((p) => (p === 'left' ? 'right' : 'left'));
+        return;
+      }
+      if (input === 'L') {
+        void runLint();
         return;
       }
       if (input === 'p') {
@@ -617,7 +850,7 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
         }
       }
     },
-    { isActive: isActive && !switcherOpen },
+    { isActive: isActive && !modalOpen },
   );
 
   const switcherOptions: SelectOption<string>[] = useMemo(
@@ -625,11 +858,51 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
       skeletons.map((k) => ({
         value: k.id,
         label: k.title,
-        hint: `${k.nodes}${t(lang, '节点', ' nodes')} · ${k.relations}${t(lang, '关系', ' rels')}`,
+        hint: `${k.nodes}${t(lang, '节点', ' nodes')} ${asciiMode ? '-' : '·'} ${k.relations}${t(lang, '关系', ' rels')}`,
         badge: `${k.cardIds?.length ?? 0}${t(lang, '题', 'Q')}`,
         badgeTone: 'primary',
       })),
-    [skeletons, lang],
+    [skeletons, lang, asciiMode],
+  );
+
+  const lintModalW = Math.min(82, Math.max(46, width - 6));
+  const lintModalH = Math.min(22, Math.max(12, height - 4));
+  const lintInnerW = modalContentWidth(lintModalW);
+  const lintListH = Math.max(4, lintModalH - 7);
+
+  const renderLintRow = useCallback(
+    (item: LintFindingItem, ctx: VirtualListRenderContext) => {
+      const ell = asciiMode ? '...' : '…';
+      const icon =
+        item.severity === 'error'
+          ? asciiMode
+            ? '[!]'
+            : '✕'
+          : item.severity === 'warn'
+            ? asciiMode
+              ? '[~]'
+              : '▲'
+            : asciiMode
+              ? '[i]'
+              : '○';
+      const toneColor =
+        item.severity === 'error' ? theme.error : item.severity === 'warn' ? theme.warning : theme.info;
+      const prefix = `${ctx.selected ? (asciiMode ? '>' : '❯') : ' '} ${icon} `;
+      const tagText = `[${item.tag}]`;
+      const bodyAvail = Math.max(10, ctx.width - prefix.length - tagText.length - 3);
+      const bodyRaw = `${item.summary}: ${item.detail}`;
+      const bodyText = padDisplay(truncateDisplay(bodyRaw, bodyAvail, ell), bodyAvail);
+      return (
+        <Box width={ctx.width} height={1}>
+          <Text color={ctx.selected ? theme.primary : toneColor}>{prefix}</Text>
+          <Text color={toneColor} bold>
+            {tagText}
+          </Text>
+          <Text color={ctx.selected ? theme.selectionFg : theme.text}>{` ${bodyText}`}</Text>
+        </Box>
+      );
+    },
+    [asciiMode, theme],
   );
 
   const headerH = 2;
@@ -643,24 +916,51 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
     );
   }
 
+  const headerCompact = width < 105;
+  const legendText = asciiMode
+    ? t(lang, '*掌握  o学习  !薄弱  ^考纲重点', '*Mastered oLearning !Weak ^Focus')
+    : t(lang, '★掌握  ◐学习  ✕薄弱  ⚑考纲重点', '★Mastered ◐Learning ✕Weak ⚑Focus');
+
   return (
     <Box flexDirection="column" width={width} height={height}>
       {/* Header */}
-      <Box height={headerH} width={width} paddingX={1} justifyContent="space-between" alignItems="center">
-        <Box gap={1}>
+      <Box
+        height={headerH}
+        width={width}
+        paddingX={1}
+        flexDirection={headerCompact ? 'column' : 'row'}
+        justifyContent={headerCompact ? 'flex-start' : 'space-between'}
+        alignItems={headerCompact ? 'flex-start' : 'center'}
+        overflow="hidden"
+      >
+        <Box gap={1} height={1} overflow="hidden">
           <Text color={theme.primary} bold>
-            {asciiMode ? '&' : '⎇'} {truncateDisplay(detail?.title ?? t(lang, '知识骨架', 'Knowledge Skeleton'), Math.max(16, Math.floor(width * 0.45)), asciiMode ? '...' : '…')}
+            {asciiMode ? '&' : '⎇'}{' '}
+            {truncateDisplay(
+              detail?.title ?? t(lang, '知识骨架', 'Knowledge Skeleton'),
+              Math.max(12, Math.floor(width * (headerCompact ? 0.48 : 0.36))),
+              asciiMode ? '...' : '…',
+            )}
           </Text>
-          {activeCourse ? <Badge label={activeCourse} tone="accent" variant="soft" /> : null}
-          {skeletons.length > 1 ? <Badge label={`${skeletons.length} ${t(lang, '份', 'saved')}`} tone="info" variant="outline" /> : null}
-          {busyAction ? <Spinner label={t(lang, '生成中…', 'Working…')} active={isActive} /> : null}
+          {activeCourse ? (
+            <Box flexShrink={0}>
+              <Badge label={truncateDisplay(activeCourse, 18, asciiMode ? '...' : '…')} tone="accent" variant="soft" />
+            </Box>
+          ) : null}
+          {skeletons.length > 1 ? (
+            <Box flexShrink={0}>
+              <Badge label={`${skeletons.length} ${t(lang, '份', 'saved')}`} tone="info" variant="outline" />
+            </Box>
+          ) : null}
+          {diagramCount > 0 ? (
+            <Box flexShrink={0}>
+              <Badge label={t(lang, `附图 ${diagramCount}`, `${diagramCount} diag`)} tone="info" variant="outline" />
+            </Box>
+          ) : null}
+          {busyAction ? <Spinner label={t(lang, '生成中...', 'Working...')} active={isActive} /> : null}
         </Box>
-        <Box gap={1}>
-          <Text color={theme.muted}>
-            {asciiMode
-              ? t(lang, '*掌握  o学习  !薄弱  ^考纲重点', '*Mastered oLearning !Weak ^Focus')
-              : t(lang, '★掌握  ◐学习  ✕薄弱  ⚑考纲重点', '★Mastered ◐Learning ✕Weak ⚑Focus')}
-          </Text>
+        <Box height={1} overflow="hidden">
+          <Text color={theme.muted}>{truncateDisplay(legendText, Math.max(12, width - 2), asciiMode ? '...' : '…')}</Text>
         </Box>
       </Box>
 
@@ -748,7 +1048,7 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
                   lines={inspectorLines}
                   width={innerW}
                   height={Math.max(2, innerH - (selectedStats ? 2 : 0))}
-                  isActive={isActive && activePane === 'right' && !switcherOpen}
+                  isActive={isActive && activePane === 'right' && !modalOpen}
                 />
               </Panel>
             );
@@ -759,7 +1059,7 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
       {switcherOpen ? (
         <Modal
           title={t(lang, '选择已保存的知识骨架', 'Switch Knowledge Skeleton')}
-          icon="⎇"
+          icon={asciiMode ? '&' : '⎇'}
           onClose={() => setSwitcherOpen(false)}
           isActive={isActive}
           width={Math.min(70, Math.max(40, width - 6))}
@@ -779,6 +1079,88 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
               setSwitcherOpen(false);
             }}
           />
+        </Modal>
+      ) : null}
+
+      {lintOpen ? (
+        <Modal
+          title={t(lang, '骨架结构自检', 'Skeleton Lint & Health')}
+          subtitle={detail?.title}
+          icon={asciiMode ? '!' : '⚑'}
+          tone={lintError ? 'error' : lintFindings.length > 0 ? 'warning' : 'success'}
+          onClose={() => setLintOpen(false)}
+          isActive={isActive}
+          width={lintModalW}
+          height={lintModalH}
+          hints={[
+            { key: 'j/k', label: t(lang, '滚动', 'Scroll') },
+            { key: 'r', label: t(lang, '重检', 'Re-run') },
+            { key: 'Esc', label: t(lang, '关闭', 'Close') },
+          ]}
+        >
+          {lintLoading ? (
+            <Box height={Math.max(4, lintListH + 2)} alignItems="center" justifyContent="center">
+              <Spinner label={t(lang, '正在检查骨架与题目结构...', 'Linting skeleton structure...')} active={isActive} />
+            </Box>
+          ) : lintError ? (
+            <Box flexDirection="column" gap={1} paddingY={1}>
+              <StatusPill status="error" label={t(lang, '检查失败', 'Lint failed')} />
+              <Text color={theme.error}>{truncateDisplay(lintError, lintInnerW, asciiMode ? '...' : '…')}</Text>
+            </Box>
+          ) : (
+            <Box flexDirection="column">
+              <Box height={1} justifyContent="space-between" overflow="hidden">
+                <StatusPill
+                  status={lintFindings.length === 0 ? 'ok' : 'warn'}
+                  label={
+                    lintFindings.length === 0
+                      ? t(lang, '骨架结构健康', 'Skeleton structure looks healthy')
+                      : t(lang, `发现 ${lintFindings.length} 项结构提示`, `${lintFindings.length} structural finding(s)`)
+                  }
+                />
+                <Text color={theme.muted}>
+                  {lintResult
+                    ? t(lang, `${lintResult.total}题 / ${lintResult.flagged}标红`, `${lintResult.total} cards / ${lintResult.flagged} flagged`)
+                    : detail
+                      ? t(lang, `${detail.nodes.length}节点`, `${detail.nodes.length} nodes`)
+                      : ''}
+                </Text>
+              </Box>
+              <Text color={theme.border}>{(asciiMode ? '-' : '─').repeat(Math.max(4, lintInnerW))}</Text>
+              {lintFindings.length === 0 ? (
+                <Box height={lintListH} flexDirection="column" alignItems="center" justifyContent="center" gap={1}>
+                  <Text color={theme.success} bold>
+                    {t(lang, '骨架结构健康', 'Skeleton structure looks healthy')}
+                  </Text>
+                  <Text color={theme.muted}>
+                    {truncateDisplay(
+                      lintResult
+                        ? t(
+                            lang,
+                            `已检查 ${lintResult.total} 道题与 ${detail?.nodes.length ?? 0} 个节点，未发现孤立主题或断链。`,
+                            `Checked ${lintResult.total} cards and ${detail?.nodes.length ?? 0} nodes; no issues or orphaned topics found.`,
+                          )
+                        : t(lang, '当前作用域暂无可检查的题卡或结构问题。', 'No cards in scope or structural issues detected.'),
+                      lintInnerW,
+                      asciiMode ? '...' : '…',
+                    )}
+                  </Text>
+                </Box>
+              ) : (
+                <VirtualList
+                  items={lintFindings}
+                  width={lintInnerW}
+                  height={lintListH}
+                  selectedIndex={lintCursor}
+                  onChange={(idx) => setLintCursor(idx)}
+                  isActive={isActive && lintOpen}
+                  keyExtractor={(item) => item.id}
+                  renderItem={renderLintRow}
+                  ascii={asciiMode}
+                />
+              )}
+            </Box>
+          )}
         </Modal>
       ) : null}
     </Box>

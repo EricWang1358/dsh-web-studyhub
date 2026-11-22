@@ -7,6 +7,7 @@ import { ExamReportView } from './ExamReportView.js';
 import { ExamRunner } from './ExamRunner.js';
 import { ExamSetup } from './ExamSetup.js';
 import type {
+  CaseHighlight,
   ExamReport,
   ExamSetupValue,
   HistoryItem,
@@ -359,6 +360,33 @@ export const ExamView: React.FC<ViewProps> = memo(function ExamView({
     [host, lang, navigate, notify],
   );
 
+  const handleSaveHighlights = useCallback(
+    async (highlights: CaseHighlight[]) => {
+      if (!run) return;
+      const res = await tryAction<{ runId: string; highlights: CaseHighlight[] }>(host, 'review.highlights', {
+        runId: run.id,
+        highlights,
+      });
+      if (!mountedRef.current) return;
+      if (!res.ok || !res.value) {
+        notify(res.error?.message || t(lang, '保存高亮失败', 'Failed to save highlight'), 'error');
+        return;
+      }
+      setRun((prev) => (prev ? { ...prev, highlights: res.value!.highlights } : prev));
+    },
+    [host, lang, notify, run],
+  );
+
+  const handleLoadSourceText = useCallback(
+    async (sourceId: string): Promise<string | null> => {
+      if (!sourceId) return null;
+      const res = await tryAction<{ text?: string }>(host, 'source.get', { id: sourceId });
+      if (!mountedRef.current || !res.ok || !res.value) return null;
+      return typeof res.value.text === 'string' ? res.value.text : null;
+    },
+    [host],
+  );
+
   const hints: readonly KeyHint[] = useMemo(() => {
     if (phase === 'setup') {
       return [
@@ -369,15 +397,32 @@ export const ExamView: React.FC<ViewProps> = memo(function ExamView({
       ];
     }
     if (phase === 'running') {
+      if (runKind === 'case') {
+        return [
+          { key: 's', label: t(lang, '案例', 'Scenario') },
+          { key: 'H', label: t(lang, '高亮', 'Highlight') },
+          { key: 'e', label: t(lang, '作答', 'Answer') },
+          { key: 'n/p', label: t(lang, '切题', 'Move') },
+          { key: 'Ctrl+S', label: t(lang, '交卷', 'Submit') },
+        ];
+      }
+      if (runKind === 'oral') {
+        return [
+          { key: 'e', label: t(lang, '作答', 'Answer') },
+          { key: 'a', label: t(lang, '追问', 'Follow-up') },
+          { key: 'n', label: t(lang, '下一题', 'Next') },
+          { key: 'Ctrl+S', label: t(lang, '交卷', 'Submit') },
+        ];
+      }
       return [
-        { key: runKind === 'written' ? '1-9' : 'e', label: t(lang, '作答', 'Answer') },
+        { key: '1-9', label: t(lang, '作答', 'Answer') },
         { key: 'n/p', label: t(lang, '切题', 'Prev/Next') },
         { key: 'f', label: t(lang, '标记', 'Flag') },
         { key: 'Ctrl+S', label: t(lang, '交卷', 'Submit') },
       ];
     }
     return [
-      { key: 'p', label: t(lang, '练错题', 'Practise Weak') },
+      { key: 'w', label: t(lang, '练错题', 'Practise Weak') },
       { key: 'Tab', label: t(lang, '切换面板', 'Pane') },
       { key: 'b', label: t(lang, '返回', 'Back') },
     ];
@@ -399,6 +444,8 @@ export const ExamView: React.FC<ViewProps> = memo(function ExamView({
         error={error}
         onSelectPick={handleSelectPick}
         onSaveCaseResponse={handleSaveCaseResponse}
+        onSaveHighlights={handleSaveHighlights}
+        onLoadSourceText={handleLoadSourceText}
         onJumpWritten={handleJumpWritten}
         onSubmitWritten={handleSubmitWritten}
         onSaveOralAnswer={handleSaveOralAnswer}

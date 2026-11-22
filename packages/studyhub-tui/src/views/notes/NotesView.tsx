@@ -45,7 +45,131 @@ type ActiveModal =
   | { type: 'export'; note: NoteItem }
   | { type: 'delete'; note: NoteItem };
 
-const CLAIMED_KEYS = ['a', 'R'] as const;
+const CLAIMED_KEYS = ['a', 'o', 'R'] as const;
+
+interface LinkedCardTarget {
+  deckId: string;
+  cardId: string;
+  label: string;
+  course?: string;
+}
+
+interface LinkedSourceTarget {
+  sourceId: string;
+  pageNumber?: number;
+  label: string;
+}
+
+interface NoteLinkedRefs {
+  card: LinkedCardTarget | null;
+  cardCount: number;
+  source: LinkedSourceTarget | null;
+}
+
+function asNonEmptyString(val: unknown): string {
+  return typeof val === 'string' && val.trim() ? val.trim() : '';
+}
+
+function asPositiveInt(val: unknown): number | undefined {
+  const num = Number(val);
+  return Number.isFinite(num) && num >= 1 ? Math.floor(num) : undefined;
+}
+
+function extractLinkedRefs(
+  note: NoteItem | null | undefined,
+  decks: ReadonlyArray<{ id: string; title?: string; course?: string; [k: string]: unknown }> | undefined,
+  sources: ReadonlyArray<{ id: string; title?: string; name?: string; filename?: string; [k: string]: unknown }> | undefined,
+): NoteLinkedRefs {
+  if (!note) return { card: null, cardCount: 0, source: null };
+  const raw = note as unknown as Record<string, unknown>;
+
+  const validCards = (note.cards ?? []).filter((c) => !c.missing && Boolean(c.deckId) && Boolean(c.cardId));
+  let card: LinkedCardTarget | null = null;
+  if (validCards.length > 0) {
+    const first = validCards[0];
+    let fallbackPrompt = '';
+    let fallbackCourse = first.course || '';
+    if (!first.prompt || !fallbackCourse) {
+      for (const d of decks ?? []) {
+        if (d.id !== first.deckId) continue;
+        if (!fallbackCourse && typeof d.course === 'string') fallbackCourse = d.course;
+        const deckCards = Array.isArray(d.cards) ? (d.cards as Array<Record<string, unknown>>) : [];
+        const found = deckCards.find((c) => c.id === first.cardId);
+        if (found && typeof found.prompt === 'string') {
+          fallbackPrompt = found.prompt.replace(/\s+/g, ' ').trim();
+        }
+        break;
+      }
+    }
+    card = {
+      deckId: first.deckId,
+      cardId: first.cardId,
+      label: (first.prompt || fallbackPrompt || first.deckTitle || first.cardId).replace(/\s+/g, ' ').trim(),
+      ...(fallbackCourse ? { course: fallbackCourse } : {}),
+    };
+  } else {
+    const topCardId = asNonEmptyString(raw.cardId);
+    let topDeckId = asNonEmptyString(raw.deckId);
+    let topLabel = asNonEmptyString(raw.cardPrompt) || topCardId;
+    let topCourse = '';
+    if (topCardId && (!topDeckId || topLabel === topCardId)) {
+      for (const d of decks ?? []) {
+        const deckCards = Array.isArray(d.cards) ? (d.cards as Array<Record<string, unknown>>) : [];
+        const found = deckCards.find((c) => c.id === topCardId);
+        if (found) {
+          if (!topDeckId) topDeckId = d.id;
+          if (typeof found.prompt === 'string' && found.prompt.trim()) {
+            topLabel = found.prompt.replace(/\s+/g, ' ').trim();
+          }
+          if (typeof d.course === 'string') topCourse = d.course;
+          break;
+        }
+      }
+    }
+    if (topCardId && topDeckId) {
+      card = {
+        deckId: topDeckId,
+        cardId: topCardId,
+        label: topLabel,
+        ...(topCourse ? { course: topCourse } : {}),
+      };
+    }
+  }
+
+  let source: LinkedSourceTarget | null = null;
+  const nestedSource =
+    (raw.source && typeof raw.source === 'object' ? (raw.source as Record<string, unknown>) : null) ??
+    (Array.isArray(raw.sources) && raw.sources[0] && typeof raw.sources[0] === 'object'
+      ? (raw.sources[0] as Record<string, unknown>)
+      : null) ??
+    (Array.isArray(raw.sourceRefs) && raw.sourceRefs[0] && typeof raw.sourceRefs[0] === 'object'
+      ? (raw.sourceRefs[0] as Record<string, unknown>)
+      : null);
+
+  const sourceId = asNonEmptyString(raw.sourceId) || asNonEmptyString(nestedSource?.sourceId) || asNonEmptyString(nestedSource?.id);
+  if (sourceId) {
+    const pageNumber =
+      asPositiveInt(raw.pageNumber) ??
+      asPositiveInt(raw.page) ??
+      asPositiveInt(nestedSource?.pageNumber) ??
+      asPositiveInt(nestedSource?.page);
+    const matchedSrc = (sources ?? []).find((s) => s.id === sourceId);
+    const label =
+      asNonEmptyString(raw.sourceTitle) ||
+      asNonEmptyString(nestedSource?.title) ||
+      asNonEmptyString(matchedSrc?.title) ||
+      asNonEmptyString(matchedSrc?.name) ||
+      asNonEmptyString(matchedSrc?.filename) ||
+      sourceId;
+    source = { sourceId, ...(pageNumber !== undefined ? { pageNumber } : {}), label };
+  }
+
+  return {
+    card,
+    cardCount: validCards.length > 0 ? validCards.length : card ? 1 : 0,
+    source,
+  };
+}
 
 export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, width, height, isActive }) {
   const theme = useTheme();
@@ -72,6 +196,7 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
   const [filterCourseOnly, setFilterCourseOnly] = useState(false);
   const [mathOverride, setMathOverride] = useState<boolean | null>(null);
   const [generatingRecap, setGeneratingRecap] = useState(false);
+  const [openingRef, setOpeningRef] = useState(false);
 
   const [modal, setModal] = useState<ActiveModal>(null);
   const [exportPath, setExportPath] = useState('');
@@ -361,6 +486,50 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
     }
   }, [modal, exporting, exportPath, host, lang, displayedNote?.markdown, notify]);
 
+  const linkedRefs = useMemo(
+    () => extractLinkedRefs(displayedNote, snapshot?.decks, snapshot?.sources),
+    [displayedNote, snapshot?.decks, snapshot?.sources],
+  );
+
+  const openLinkedRef = useCallback(
+    async (preferSource = false) => {
+      if (!displayedNote || openingRef) return;
+      if (!linkedRefs.card && !linkedRefs.source) {
+        notify(t(lang, '该笔记暂未关联题卡或资料', 'This note has no linked card or source'), 'info');
+        return;
+      }
+      if ((preferSource || !linkedRefs.card) && linkedRefs.source) {
+        useTuiStore.getState().navigate('sources', {
+          sourceId: linkedRefs.source.sourceId,
+          ...(linkedRefs.source.pageNumber !== undefined ? { pageNumber: linkedRefs.source.pageNumber } : {}),
+        });
+        return;
+      }
+      if (linkedRefs.card) {
+        setOpeningRef(true);
+        try {
+          const res = await host.call<{ id?: string }>('review.start', {
+            mode: 'path',
+            scope: [{ deckId: linkedRefs.card.deckId, cardId: linkedRefs.card.cardId }],
+            fresh: true,
+          });
+          if (!mountedRef.current) return;
+          if (!res.ok || !res.value?.id) {
+            notify(res.error?.message || t(lang, '启动题卡练习失败', 'Failed to start card review'), 'error');
+            return;
+          }
+          useTuiStore.getState().navigate('review', {
+            runId: res.value.id,
+            ...(linkedRefs.card.course ? { course: linkedRefs.card.course } : focusCourse ? { course: focusCourse } : {}),
+          });
+        } finally {
+          if (mountedRef.current) setOpeningRef(false);
+        }
+      }
+    },
+    [displayedNote, openingRef, linkedRefs, notify, lang, host, focusCourse],
+  );
+
   const noModalActive = isActive && modal === null;
   useClaimKeys(CLAIMED_KEYS, noModalActive);
 
@@ -395,6 +564,14 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
         return;
       }
       if (!displayedNote) return;
+      if (input === 'o') {
+        void openLinkedRef(false);
+        return;
+      }
+      if (input === 'O' && linkedRefs.source) {
+        void openLinkedRef(true);
+        return;
+      }
       if (input === 'e') {
         if (!isNoteWritable(displayedNote)) {
           notify(t(lang, '已发布笔记不能直接修改，请新建草稿', 'Published notes cannot be overwritten; create a new draft'), 'warning');
@@ -420,6 +597,7 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
     () => [
       { key: 'a', label: t(lang, '新建', 'New') },
       { key: 'e', label: t(lang, '编辑', 'Edit') },
+      { key: 'o', label: t(lang, '打开关联', 'Open Ref') },
       { key: 'R', label: t(lang, '日结', 'Recap') },
       { key: 'x', label: t(lang, '导出', 'Export') },
       { key: 'd', label: t(lang, '删除', 'Del') },
@@ -588,7 +766,8 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
         }}
         right={({ width: paneW, height: paneH }) => {
           const readerW = Math.max(12, paneW - 4);
-          const readerH = Math.max(3, paneH - 5);
+          const hasLinkRow = Boolean(displayedNote && (linkedRefs.card || linkedRefs.source));
+          const readerH = Math.max(3, paneH - (hasLinkRow ? 6 : 5));
           if (!displayedNote) {
             return (
               <Panel title={t(lang, '笔记正文', 'Note Reader')} focused={activePane === 'right'} width={paneW} height={paneH}>
@@ -606,6 +785,7 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
           const coursesLabel = (displayedNote.courses || []).join(', ') || displayedNote.daily?.course || '';
           const cardTotal = displayedNote.cards?.length ?? displayedNote.cardCount ?? 0;
           const subtitle = [coursesLabel, `${cardTotal}${t(lang, '题', 'q')}`, effectiveMath ? '∑' : 'TeX'].filter(Boolean).join(' · ');
+          const ell = asciiMode ? '...' : '…';
           return (
             <Panel
               title={displayedNote.title || t(lang, '学习笔记', 'Study Note')}
@@ -632,6 +812,28 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
                 </Box>
                 <Badge label={effectiveMath ? 'Unicode Math' : 'Raw LaTeX'} tone="info" variant="soft" />
               </Box>
+              {hasLinkRow ? (
+                <Box height={1} overflow="hidden" gap={1}>
+                  {linkedRefs.card ? (
+                    <Text color={theme.accent}>
+                      {truncateDisplay(
+                        `[o] ${t(lang, '关联题卡', 'Card')}: ${linkedRefs.card.label}${linkedRefs.cardCount > 1 ? ` (+${linkedRefs.cardCount - 1})` : ''}`,
+                        linkedRefs.source ? Math.max(16, Math.floor(readerW * 0.55)) : readerW,
+                        ell,
+                      )}
+                    </Text>
+                  ) : null}
+                  {linkedRefs.source ? (
+                    <Text color={theme.info}>
+                      {truncateDisplay(
+                        `[${linkedRefs.card ? 'O' : 'o'}] ${t(lang, '关联资料', 'Source')}: ${linkedRefs.source.label}${linkedRefs.source.pageNumber !== undefined ? ` p.${linkedRefs.source.pageNumber}` : ''}`,
+                        linkedRefs.card ? Math.max(14, Math.floor(readerW * 0.42)) : readerW,
+                        ell,
+                      )}
+                    </Text>
+                  ) : null}
+                </Box>
+              ) : null}
               <Text color={theme.border}>{(asciiMode ? '-' : '─').repeat(Math.max(4, readerW))}</Text>
               <MarkdownView
                 markdown={displayedNote.markdown || t(lang, '_（暂无正文内容，按 `e` 编辑）_', '_Empty note — press `e` to edit_')}

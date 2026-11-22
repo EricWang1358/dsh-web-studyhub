@@ -2,6 +2,7 @@ import type { StudySnapshot, UiLanguage } from '../../types/contracts.js';
 import { currentCourse } from '../../shell/index.js';
 import { t } from '../../state/store.js';
 import type {
+  CaseQuestionReport,
   ExamMode,
   ExamReport,
   HistoryItem,
@@ -268,10 +269,91 @@ export function buildOralEntryMarkdown(
     lines.push(entry.assessment.reason);
     lines.push('');
   }
+  const corr = entry.assessment?.correction;
+  if (corr && (corr.keywordExpansion?.length || corr.phrasingUpgrade?.professional || corr.missingLinks?.length)) {
+    lines.push(lang === 'en' ? '**Expression & Depth Tips**' : '**表达与机制提升**');
+    lines.push('');
+    if (corr.keywordExpansion?.length) {
+      lines.push(`- ${lang === 'en' ? 'Keywords' : '关键词扩展'}: ${corr.keywordExpansion.join(', ')}`);
+    }
+    if (corr.phrasingUpgrade?.professional) {
+      lines.push(`- ${lang === 'en' ? 'Upgrade' : '专业表达'}: ${corr.phrasingUpgrade.professional}`);
+    }
+    if (corr.missingLinks?.length) {
+      lines.push(`- ${lang === 'en' ? 'Missing Links' : '待补链路'}: ${corr.missingLinks.join('; ')}`);
+    }
+    lines.push('');
+  }
   if (entry.expected) {
     lines.push(lang === 'en' ? '**Reference Points**' : '**参考要点**');
     lines.push('');
     lines.push(entry.expected);
+  }
+  return lines.join('\n').trim();
+}
+
+export function buildCaseQuestionMarkdown(
+  q: CaseQuestionReport,
+  lang: UiLanguage,
+  pacing?: NonNullable<ExamReport['case']>['pacing'],
+): string {
+  const lines: string[] = [];
+  const statusLabel =
+    q.status === 'graded'
+      ? (lang === 'en' ? 'Graded' : '已评分')
+      : q.status === 'pending'
+        ? (lang === 'en' ? 'Pending Rubric' : '待批改')
+        : (lang === 'en' ? 'Unanswered' : '未作答');
+  const bandSuffix = q.band ? ` · ${q.band.toUpperCase()}` : '';
+  const scoreStr = q.total !== null && q.total !== undefined ? String(q.total) : '-';
+  lines.push(
+    `### Q${q.n} (${scoreStr}/${q.marks} ${lang === 'en' ? 'pts' : '分'} · ${statusLabel}${bandSuffix})`,
+  );
+  lines.push('');
+  if (q.prompt) {
+    lines.push(q.prompt);
+    lines.push('');
+  }
+  const criteria = q.criteria?.length ? q.criteria : (q.rubric?.criteria ?? []);
+  if (criteria.length > 0) {
+    lines.push(lang === 'en' ? '**Criteria Breakdown**' : '**评分维度明细**');
+    lines.push('');
+    for (const cr of criteria) {
+      const label = cr.label || cr.id || (lang === 'en' ? 'Criterion' : '维度');
+      const crScore = typeof cr.score === 'number' ? cr.score : '-';
+      const crMax = typeof cr.max === 'number' ? cr.max : '-';
+      lines.push(`- **${label}** — \`${crScore}/${crMax}\``);
+      if (Array.isArray(cr.evidence) && cr.evidence.length > 0) {
+        lines.push(`  - ${lang === 'en' ? 'Evidence' : '命中依据'}: ${cr.evidence.join(' / ')}`);
+      }
+      if (Array.isArray(cr.missing) && cr.missing.length > 0) {
+        const missText = cr.missing.map((m) => m.text || m.id || '').filter(Boolean).join('; ');
+        if (missText) lines.push(`  - ${lang === 'en' ? 'Missing' : '缺失要点'}: ${missText}`);
+      }
+      if (cr.suggestion) {
+        lines.push(`  - ${lang === 'en' ? 'Suggestion' : '建议'}: ${cr.suggestion}`);
+      }
+    }
+    lines.push('');
+  }
+  if (q.rubric?.summary) {
+    lines.push(lang === 'en' ? '**Rubric Summary**' : '**总评**');
+    lines.push('');
+    lines.push(q.rubric.summary);
+    lines.push('');
+  }
+  lines.push(lang === 'en' ? '**Your Response**' : '**你的作答**');
+  lines.push('');
+  lines.push(q.response?.trim() || (lang === 'en' ? '*(No response)*' : '*(未作答)*'));
+  if (pacing && (pacing.readingMs || pacing.writingMs)) {
+    lines.push('');
+    const readMin = pacing.readingMs ? Math.round(pacing.readingMs / 60000) : 0;
+    const writeMin = pacing.writingMs ? Math.round(pacing.writingMs / 60000) : 0;
+    lines.push(
+      lang === 'en'
+        ? `*Pacing: Reading ${readMin}m (plan ${pacing.readingMinutes ?? 0}m) · Writing ${writeMin}m (plan ${pacing.writingMinutes ?? 0}m)*`
+        : `*用时分配: 审题 ${readMin} 分钟 (建议 ${pacing.readingMinutes ?? 0}m) · 作答 ${writeMin} 分钟 (建议 ${pacing.writingMinutes ?? 0}m)*`,
+    );
   }
   return lines.join('\n').trim();
 }
