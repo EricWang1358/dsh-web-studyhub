@@ -47,7 +47,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       title: t(lang, '学习库 · Library', 'Library'),
       items: [
         { key: 'p', label: t(lang, '今日计划', 'Daily plan') },
-        { key: 'g', label: t(lang, 'AI 带学工作台 (B开支线/u返回)', 'AI Guided Study (B branch/u back)') },
+        { key: 'g', label: t(lang, 'AI带学工作台 (B支线/u回/Q问答)', 'AI Guided Study (B/u/Q)') },
         { key: 'C', label: t(lang, '课程设置', 'Course settings') },
         { key: 'o', label: t(lang, '题组导入/AI建议/合并拆分', 'Deck import/AI suggest/merge') },
         { key: '[ / ]', label: t(lang, '上移/下移题组顺序', 'Reorder deck up/down') },
@@ -192,7 +192,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
     {
       title: t(lang, '后台任务与音频 · Tasks / Audio', 'Tasks & Audio'),
       items: [
-        { key: 'w / o / m', label: t(lang, '工作流历史 / 输出 / 指令', 'Workflows / Output / Msg') },
+        { key: 'w / o / m', label: t(lang, '工作流上下文 / 输出 / 指令', 'Workflows ctx / Output / Msg') },
         { key: 'e / D', label: t(lang, '导出 / 清空调用轨迹', 'Export / Purge Traces') },
         { key: 'p', label: t(lang, '暂停任务 / 音频自检', 'Pause tasks / Audio preflight') },
         { key: '+/-', label: t(lang, '并发数', 'Concurrency') },

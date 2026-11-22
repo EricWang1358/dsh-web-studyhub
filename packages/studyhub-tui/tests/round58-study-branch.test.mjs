@@ -461,7 +461,7 @@ describe('Round 58: GuidedStudyModal Knowledge Branch Open/Return (0 LLM tokens)
       const helpTopScreen = await tty.waitFor(
         (s) =>
           s.includes('快捷键') &&
-          s.includes('B开支线/u返回'),
+          (s.includes('B支线/u回') || s.includes('B开支线/u返回')),
         { timeoutMs: 8_000, label: 'HelpOverlay updated Library label zh' },
       );
       tty.assertHealthyScreen(helpTopScreen, 120, 36, 'HelpOverlay top zh 120x36');
@@ -627,7 +627,7 @@ describe('Round 58: GuidedStudyModal Knowledge Branch Open/Return (0 LLM tokens)
 
       // In 80x24 single-column HelpOverlay, page down via Space waiting for each render until Library & Settings labels appear
       let prevHelpScreen = helpOpenScreen;
-      let seenLibraryLabel = helpOpenScreen.includes('B branch/u back');
+      let seenLibraryLabel = helpOpenScreen.includes('B/u/Q') || helpOpenScreen.includes('B branch/u back');
       let seenSettingsLabel = helpOpenScreen.includes('Retrieval diag / search / mirror');
       for (let step = 0; step < 20 && (!seenLibraryLabel || !seenSettingsLabel); step += 1) {
         tty.send(' ');
@@ -637,7 +637,7 @@ describe('Round 58: GuidedStudyModal Knowledge Branch Open/Return (0 LLM tokens)
         ).catch(() => tty.readScreen());
         tty.assertHealthyScreen(cur, 80, 24, `HelpOverlay scroll #${step + 1} en --ascii 80x24`);
         tty.assertAsciiPure(cur, `HelpOverlay scroll #${step + 1} en --ascii 80x24`);
-        if (cur.includes('B branch/u back')) seenLibraryLabel = true;
+        if (cur.includes('B/u/Q') || cur.includes('B branch/u back')) seenLibraryLabel = true;
         if (cur.includes('Retrieval diag / search / mirror')) seenSettingsLabel = true;
         if (cur === prevHelpScreen) break;
         prevHelpScreen = cur;

@@ -9,6 +9,13 @@ import { Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
 import { Panel } from '../../components/Panel.js';
 import { useClaimKeys } from '../../components/focus.js';
+import {
+  nextScrollOffset,
+  pageStep,
+  parseSgrWheelDelta,
+  scrollbarThumb,
+  useSgrMouseWheel,
+} from '../../components/VirtualList.js';
 import { padDisplay, truncateDisplay } from '../../render/cjk.js';
 
 export interface StudyGenTabProps {
@@ -75,6 +82,7 @@ const GEN_KINDS = ['quiz', 'multi', 'flashcard', 'mixed'] as const;
 const GEN_DIFFICULTIES = ['mixed', 'foundation', 'application', 'advanced'] as const;
 const GEN_COVERAGES = ['lean', 'standard', 'full'] as const;
 const GEN_LANGS = ['auto', '中文', 'English', '中英双语'] as const;
+const BOOK_COVERAGES = ['brief', 'standard', 'full'] as const;
 
 type SettingRowId =
   | 'roundSize'
@@ -93,7 +101,12 @@ type SettingRowId =
   | 'gen_coverageLevel'
   | 'gen_language'
   | 'recap_automatic'
-  | 'recap_tone';
+  | 'recap_tone'
+  | 'book_coverage'
+  | 'book_inlinePractice'
+  | 'book_confusableDrill'
+  | 'examprep_autoRoles'
+  | 'examprep_showOtherCourses';
 
 const ROW_IDS: readonly SettingRowId[] = Object.freeze([
   'roundSize',
@@ -113,6 +126,11 @@ const ROW_IDS: readonly SettingRowId[] = Object.freeze([
   'gen_language',
   'recap_automatic',
   'recap_tone',
+  'book_coverage',
+  'book_inlinePractice',
+  'book_confusableDrill',
+  'examprep_autoRoles',
+  'examprep_showOtherCourses',
 ]);
 
 function cycleOf<T>(arr: readonly T[], current: T, dir: 1 | -1): T {
@@ -144,6 +162,7 @@ export const StudyGenTab: React.FC<StudyGenTabProps> = memo(function StudyGenTab
   const [confirmResetExamPrep, setConfirmResetExamPrep] = useState(false);
 
   const mountedRef = useRef(true);
+  const scrollOffsetRef = useRef(0);
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -182,10 +201,18 @@ export const StudyGenTab: React.FC<StudyGenTabProps> = memo(function StudyGenTab
     tone: (settings?.dailyRecap?.tone as DailyRecapSettingsShape['tone']) ?? 'friendly',
     timeZone: String(settings?.dailyRecap?.timeZone ?? 'Asia/Shanghai'),
   };
-  const bookQaToBook: 'manual' | 'auto' =
-    (settings?.book?.qaToBook ?? (snapshot?.settings as FullSettingsShape | undefined)?.book?.qaToBook) === 'auto'
-      ? 'auto'
-      : 'manual';
+  const bookSrc = settings?.book ?? (snapshot?.settings as FullSettingsShape | undefined)?.book;
+  const bookQaToBook: 'manual' | 'auto' = bookSrc?.qaToBook === 'auto' ? 'auto' : 'manual';
+  const bookCoverage: 'brief' | 'standard' | 'full' = BOOK_COVERAGES.includes(
+    bookSrc?.coverage as (typeof BOOK_COVERAGES)[number],
+  )
+    ? (bookSrc?.coverage as (typeof BOOK_COVERAGES)[number])
+    : 'standard';
+  const bookInlinePractice = bookSrc?.inlinePractice === true;
+  const bookConfusableDrill = bookSrc?.confusableDrill === true;
+  const examPrepSrc = settings?.examPrep ?? (snapshot?.settings as FullSettingsShape | undefined)?.examPrep;
+  const examPrepAutoRoles = examPrepSrc?.autoRoles !== false;
+  const examPrepShowOtherCourses = examPrepSrc?.showOtherCourses === true;
   const retention = Number(settings?.request_retention ?? 0.9) || 0.9;
   const maxInterval = Number(settings?.maximum_interval ?? 36500) || 36500;
 
@@ -216,6 +243,22 @@ export const StudyGenTab: React.FC<StudyGenTabProps> = memo(function StudyGenTab
         return;
       }
       setSettings((prev) => ({ ...(prev ?? { request_retention: 0.9, maximum_interval: 36500 }), book: res.value }));
+      void refreshSnapshot();
+    },
+    [host, lang, notify, refreshSnapshot],
+  );
+
+  const saveExamPrepPatch = useCallback(
+    async (patch: Partial<ExamPrepSettingsShape>) => {
+      setSaving(true);
+      const res = await tryAction<ExamPrepSettingsShape>(host, 'settings.examPrep.set', { patch });
+      if (!mountedRef.current) return;
+      setSaving(false);
+      if (!res.ok) {
+        notify(res.error?.message || t(lang, '保存备考补习设置失败', 'Failed to save ExamPrep settings'), 'error');
+        return;
+      }
+      setSettings((prev) => ({ ...(prev ?? { request_retention: 0.9, maximum_interval: 36500 }), examPrep: res.value }));
       void refreshSnapshot();
     },
     [host, lang, notify, refreshSnapshot],
@@ -334,27 +377,92 @@ export const StudyGenTab: React.FC<StudyGenTabProps> = memo(function StudyGenTab
         case 'recap_tone':
           void saveGeneralPatch({ dailyRecap: { tone: dailyRecap.tone === 'friendly' ? 'professional' : 'friendly' } });
           return;
+        case 'book_coverage':
+          void saveBookPatch({ coverage: cycleOf(BOOK_COVERAGES, bookCoverage, dir) });
+          return;
+        case 'book_inlinePractice':
+          void saveBookPatch({ inlinePractice: !bookInlinePractice });
+          return;
+        case 'book_confusableDrill':
+          void saveBookPatch({ confusableDrill: !bookConfusableDrill });
+          return;
+        case 'examprep_autoRoles':
+          void saveExamPrepPatch({ autoRoles: !examPrepAutoRoles });
+          return;
+        case 'examprep_showOtherCourses':
+          void saveExamPrepPatch({ showOtherCourses: !examPrepShowOtherCourses });
+          return;
       }
     },
-    [bookQaToBook, dailyRecap, generation, maxInterval, practice, retention, saveBookPatch, saveGeneralPatch, savePracticePatch],
+    [
+      bookConfusableDrill,
+      bookCoverage,
+      bookInlinePractice,
+      bookQaToBook,
+      dailyRecap,
+      examPrepAutoRoles,
+      examPrepShowOtherCourses,
+      generation,
+      maxInterval,
+      practice,
+      retention,
+      saveBookPatch,
+      saveExamPrepPatch,
+      saveGeneralPatch,
+      savePracticePatch,
+    ],
   );
 
+  const maxVisible = Math.max(4, height - 4);
   const dialogOpen = confirmResetPractice || confirmResetExamPrep;
-  const claimed = useMemo(() => ['j', 'k', 'h', 'l', 'r', ' '], []);
+  const claimed = useMemo(() => ['j', 'k', 'h', 'l', 'r', ' ', 'g', 'G'], []);
   useClaimKeys(claimed, isActive && !dialogOpen);
+
+  useSgrMouseWheel(isActive && !dialogOpen, (wheelDelta) => {
+    setCursor((c) => Math.max(0, Math.min(ROW_IDS.length - 1, c + wheelDelta)));
+  });
 
   useInput(
     (input, key) => {
+      const wheelDelta = parseSgrWheelDelta(input);
+      if (wheelDelta !== 0) {
+        setCursor((c) => Math.max(0, Math.min(ROW_IDS.length - 1, c + wheelDelta)));
+        return;
+      }
       if (input === 'r') {
         void loadSettings();
         return;
       }
-      if (key.upArrow || input === 'k') {
+      if (key.upArrow || (!key.ctrl && !key.meta && input === 'k')) {
         setCursor((c) => (c - 1 + ROW_IDS.length) % ROW_IDS.length);
         return;
       }
-      if (key.downArrow || input === 'j') {
+      if (key.downArrow || (!key.ctrl && !key.meta && input === 'j')) {
         setCursor((c) => (c + 1) % ROW_IDS.length);
+        return;
+      }
+      if (key.pageDown || (key.ctrl && input === 'f')) {
+        setCursor((c) => Math.min(ROW_IDS.length - 1, c + pageStep(maxVisible, 'full')));
+        return;
+      }
+      if (key.pageUp || (key.ctrl && input === 'b')) {
+        setCursor((c) => Math.max(0, c - pageStep(maxVisible, 'full')));
+        return;
+      }
+      if (key.ctrl && input === 'd') {
+        setCursor((c) => Math.min(ROW_IDS.length - 1, c + pageStep(maxVisible, 'half')));
+        return;
+      }
+      if (key.ctrl && input === 'u') {
+        setCursor((c) => Math.max(0, c - pageStep(maxVisible, 'half')));
+        return;
+      }
+      if (key.home || (!key.ctrl && !key.meta && input === 'g')) {
+        setCursor(0);
+        return;
+      }
+      if (key.end || (!key.ctrl && !key.meta && input === 'G')) {
+        setCursor(ROW_IDS.length - 1);
         return;
       }
       if (key.leftArrow || input === 'h') {
@@ -411,23 +519,64 @@ export const StudyGenTab: React.FC<StudyGenTabProps> = memo(function StudyGenTab
     { id: 'gen_language', group: t(lang, '出题', 'Gen'), label: t(lang, '出题语言', 'Gen Language'), value: generation.language, hint: 'auto / 中文 / English / 中英双语' },
     { id: 'recap_automatic', group: t(lang, '复盘', 'Recap'), label: t(lang, '自动生成每日复盘', 'Auto Daily Recap'), value: onOff(dailyRecap.automatic), hint: t(lang, '每日自动总结学习记录', 'Automatic daily recap note') },
     { id: 'recap_tone', group: t(lang, '复盘', 'Recap'), label: t(lang, '每日复盘口吻', 'Recap Tone'), value: dailyRecap.tone === 'friendly' ? t(lang, '亲切 (friendly)', 'Friendly') : t(lang, '专业 (professional)', 'Professional'), hint: 'friendly / professional' },
+    {
+      id: 'book_coverage',
+      group: t(lang, '全书', 'Book'),
+      label: t(lang, '全书详略', 'Book coverage'),
+      value: bookCoverage === 'brief' ? t(lang, '精简', 'brief') : bookCoverage === 'full' ? t(lang, '详尽', 'full') : t(lang, '标准', 'standard'),
+      hint: 'brief / standard / full',
+    },
+    {
+      id: 'book_inlinePractice',
+      group: t(lang, '全书', 'Book'),
+      label: t(lang, '全书内嵌练习', 'Book inline practice'),
+      value: onOff(bookInlinePractice),
+      hint: t(lang, '章节末合书自测与薄弱段标注', 'In-book checkpoint & weak lens'),
+    },
+    {
+      id: 'book_confusableDrill',
+      group: t(lang, '全书', 'Book'),
+      label: t(lang, '易混对比专练', 'Confusable drill'),
+      value: onOff(bookConfusableDrill),
+      hint: t(lang, '易混概念遮盖自测专练', 'Concept masking drill in lookup'),
+    },
+    {
+      id: 'examprep_autoRoles',
+      group: t(lang, '备考', 'Exam'),
+      label: t(lang, '备考自动识别岗位', 'ExamPrep auto roles'),
+      value: onOff(examPrepAutoRoles),
+      hint: t(lang, '按文件名与大小判别资料用途', 'Guess material role automatically'),
+    },
+    {
+      id: 'examprep_showOtherCourses',
+      group: t(lang, '备考', 'Exam'),
+      label: t(lang, '备考显示其他课程', 'ExamPrep other courses'),
+      value: onOff(examPrepShowOtherCourses),
+      hint: t(lang, '选材列表中显示其他课程资料', 'Show other courses in pickers'),
+    },
   ];
 
-  const maxVisible = Math.max(4, height - 4);
-  const startIdx = Math.max(0, Math.min(cursor - Math.floor(maxVisible / 2), Math.max(0, rows.length - maxVisible)));
+  const startIdx = nextScrollOffset(cursor, scrollOffsetRef.current, maxVisible, rows.length, 1);
+  scrollOffsetRef.current = startIdx;
   const visibleRows = rows.slice(startIdx, startIdx + maxVisible);
+  const scrollable = rows.length > maxVisible;
+  const thumb = scrollable ? scrollbarThumb(rows.length, maxVisible, startIdx) : [];
+  const thumbChar = asciiMode ? '#' : '┃';
+  const trackChar = asciiMode ? '|' : '│';
   const ell = asciiMode ? '...' : '…';
   const compact = width < 76;
   const groupW = compact ? 8 : 9;
   const labelW = compact ? 21 : 26;
   const valueW = compact ? 16 : 20;
-  const innerW = Math.max(20, width - 4);
-  const hintW = Math.max(0, innerW - 2 - groupW - labelW - valueW);
+  const contentW = Math.max(20, width - 4);
+  const rowW = Math.max(19, contentW - (scrollable ? 1 : 0));
+  const hintW = Math.max(0, rowW - 2 - groupW - labelW - valueW);
 
   return (
     <Box flexDirection="column" width={width} height={height} overflow="hidden">
       <Panel
         title={t(lang, '复习调度、出题默认与每日复盘', 'Review, Generation & Daily Recap Settings')}
+        badge={`${cursor + 1}/${rows.length}`}
         subtitle={saving ? t(lang, `保存中${ell}`, `Saving${ell}`) : loading ? t(lang, `加载中${ell}`, `Loading${ell}`) : t(lang, `${arrowHint} 或 Enter 调整并即时保存`, `${arrowHint} or Enter to adjust`)}
         focused={isActive && !dialogOpen}
         width={width}
@@ -436,35 +585,46 @@ export const StudyGenTab: React.FC<StudyGenTabProps> = memo(function StudyGenTab
         {loading && !settings ? (
           <Spinner label={t(lang, `读取设置${ell}`, `Loading settings${ell}`)} active={isActive} />
         ) : (
-          <Box flexDirection="column">
-            {visibleRows.map((row, i) => {
-              const idx = startIdx + i;
-              const selected = idx === cursor;
-              const valueDisplay = row.isAction ? `[ ${row.value} ]` : `< ${row.value} >`;
-              return (
-                <Box
-                  key={row.id}
-                  flexDirection="row"
-                  height={1}
-                  overflow="hidden"
-                  backgroundColor={selected ? theme.selectionBg : undefined}
-                >
-                  <Text color={selected ? theme.primary : theme.dim}>{selected ? (asciiMode ? '> ' : '❯ ') : '  '}</Text>
-                  <Text color={theme.accent}>{padDisplay(`[${row.group}]`, groupW)}</Text>
-                  <Text color={selected ? theme.selectionFg : theme.text} bold={selected}>
-                    {padDisplay(truncateDisplay(row.label, labelW - 1, ell), labelW)}
-                  </Text>
-                  <Text color={selected ? theme.accent : row.isAction ? theme.warning : theme.primary} bold>
-                    {padDisplay(truncateDisplay(valueDisplay, valueW - 1, ell), valueW)}
-                  </Text>
-                  {hintW >= 6 ? (
-                    <Text color={theme.muted}>
-                      {truncateDisplay(row.hint, hintW, ell)}
+          <Box flexDirection="row" width={contentW} height={visibleRows.length}>
+            <Box flexDirection="column" width={rowW} height={visibleRows.length} overflow="hidden">
+              {visibleRows.map((row, i) => {
+                const idx = startIdx + i;
+                const selected = idx === cursor;
+                const valueDisplay = row.isAction ? `[ ${row.value} ]` : `< ${row.value} >`;
+                return (
+                  <Box
+                    key={row.id}
+                    flexDirection="row"
+                    height={1}
+                    overflow="hidden"
+                    backgroundColor={selected ? theme.selectionBg : undefined}
+                  >
+                    <Text color={selected ? theme.primary : theme.dim}>{selected ? (asciiMode ? '> ' : '❯ ') : '  '}</Text>
+                    <Text color={theme.accent}>{padDisplay(`[${row.group}]`, groupW)}</Text>
+                    <Text color={selected ? theme.selectionFg : theme.text} bold={selected}>
+                      {padDisplay(truncateDisplay(row.label, labelW - 1, ell), labelW)}
                     </Text>
-                  ) : null}
-                </Box>
-              );
-            })}
+                    <Text color={selected ? theme.accent : row.isAction ? theme.warning : theme.primary} bold>
+                      {padDisplay(truncateDisplay(valueDisplay, valueW - 1, ell), valueW)}
+                    </Text>
+                    {hintW >= 6 ? (
+                      <Text color={theme.muted}>
+                        {truncateDisplay(row.hint, hintW, ell)}
+                      </Text>
+                    ) : null}
+                  </Box>
+                );
+              })}
+            </Box>
+            {scrollable ? (
+              <Box flexDirection="column" width={1} height={visibleRows.length}>
+                {thumb.map((on, i) => (
+                  <Text key={i} color={on ? (isActive ? theme.primary : theme.muted) : theme.border}>
+                    {on ? thumbChar : trackChar}
+                  </Text>
+                ))}
+              </Box>
+            ) : null}
           </Box>
         )}
       </Panel>

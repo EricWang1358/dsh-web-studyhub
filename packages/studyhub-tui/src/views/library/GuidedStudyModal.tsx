@@ -156,7 +156,15 @@ export interface GuidedStudyModalProps {
   onUpdated?: () => void;
 }
 
-type SubMode = 'sessions' | 'workbench' | 'artifact' | 'branch-pick';
+type SubMode = 'sessions' | 'workbench' | 'artifact' | 'branch-pick' | 'qa-form';
+
+interface QaTargetCard {
+  deckId: string;
+  deckTitle: string;
+  cardId: string;
+  prompt: string;
+  topic?: string;
+}
 
 interface BranchCandidateCard {
   deckId: string;
@@ -329,9 +337,17 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
   const [branchIndex, setBranchIndex] = useState(0);
   const [branchReturnSubMode, setBranchReturnSubMode] = useState<'sessions' | 'workbench'>('workbench');
 
+  const [qaTarget, setQaTarget] = useState<QaTargetCard | null>(null);
+  const [qaQuestion, setQaQuestion] = useState('');
+  const [qaAnswer, setQaAnswer] = useState('');
+  const [qaField, setQaField] = useState<'question' | 'answer'>('question');
+  const [qaError, setQaError] = useState('');
+
   const mountedRef = useRef(true);
   const busyRef = useRef(false);
   const autoModeSetRef = useRef(false);
+  const qaOpIdRef = useRef('');
+  const qaOpSignatureRef = useRef('');
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -823,12 +839,197 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
     }
   }, [selectedSession, busyAction, host, loadSessions, onUpdated, notify, lang]);
 
+  const handleOpenQaForm = useCallback(async () => {
+    if (!selectedSession || busyRef.current || busyAction || loading) return;
+    if (selectedSession.status !== 'active') {
+      notify(t(lang, '仅进行中的带学可以整理问答', 'Only active sessions can save Q&A'), 'info');
+      return;
+    }
+    busyRef.current = true;
+    setBusyAction('qa-load');
+    try {
+      const toTarget = (
+        deck: BranchDeckDetail,
+        card: NonNullable<BranchDeckDetail['cards']>[number],
+      ): QaTargetCard => ({
+        deckId: deck.id,
+        deckTitle: String(deck.title || deck.id),
+        cardId: card.id,
+        prompt: String(card.prompt || card.topic || card.id).replace(/\s+/g, ' ').trim() || card.id,
+        topic: card.topic ? String(card.topic) : undefined,
+      });
+
+      let resolvedTarget: QaTargetCard | null = null;
+
+      // 1. Prefer active focus if it points to a card
+      const focus = selectedSession.focus;
+      if (focus?.kind === 'card' && focus.id && focus.deckId) {
+        const focusDeckRes = await tryAction<BranchDeckDetail>(host, 'deck.get', { id: focus.deckId });
+        if (!mountedRef.current) return;
+        if (focusDeckRes.ok && focusDeckRes.value && !focusDeckRes.value.archived && !focusDeckRes.value.systemKind) {
+          const hit = (focusDeckRes.value.cards ?? []).find((c) => c?.id === focus.id && !c.slain);
+          if (hit) resolvedTarget = toTarget(focusDeckRes.value, hit);
+        }
+      }
+
+      // 2. Otherwise load the first card from the session's scoped deck(s) / card scope
+      if (!resolvedTarget) {
+        const scope = selectedSession.scope ?? [];
+        const scopeDeckIds: string[] = [];
+        const seenDeckIds = new Set<string>();
+        const pushScopeDeck = (id: unknown) => {
+          if (typeof id !== 'string' || !id || seenDeckIds.has(id)) return;
+          seenDeckIds.add(id);
+          scopeDeckIds.push(id);
+        };
+        for (const item of scope) {
+          if (item.kind === 'deck' && item.id) pushScopeDeck(item.id);
+          if (item.kind === 'card' && item.deckId) pushScopeDeck(item.deckId);
+        }
+
+        const scopedCardIds = new Set(
+          scope.filter((s) => s.kind === 'card' && s.id).map((s) => String(s.id)),
+        );
+        const focusCardId = focus?.kind === 'card' && focus.id ? String(focus.id) : null;
+
+        const deckResults = await Promise.all(
+          scopeDeckIds.slice(0, 12).map((id) => tryAction<BranchDeckDetail>(host, 'deck.get', { id })),
+        );
+        if (!mountedRef.current) return;
+
+        for (const res of deckResults) {
+          if (!res.ok || !res.value) continue;
+          const deck = res.value;
+          if (deck.archived || deck.systemKind) continue;
+          const cards = (deck.cards ?? []).filter((c) => c?.id && !c.slain);
+          if (cards.length === 0) continue;
+          const preferred =
+            (focusCardId ? cards.find((c) => c.id === focusCardId) : undefined) ??
+            (scopedCardIds.size > 0 ? cards.find((c) => scopedCardIds.has(c.id)) : undefined) ??
+            cards.find((c) => !c.suspended) ??
+            cards[0];
+          if (preferred) {
+            resolvedTarget = toTarget(deck, preferred);
+            break;
+          }
+        }
+      }
+
+      if (!resolvedTarget) {
+        notify(
+          t(lang, '当前会话范围内暂无可归档的卡片', 'No scoped card found in this guided session'),
+          'warning',
+        );
+        return;
+      }
+
+      setQaTarget(resolvedTarget);
+      setQaQuestion('');
+      setQaAnswer('');
+      setQaField('question');
+      setQaError('');
+      qaOpIdRef.current = '';
+      qaOpSignatureRef.current = '';
+      setSubMode('qa-form');
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusyAction('');
+    }
+  }, [selectedSession, busyAction, loading, host, notify, lang]);
+
+  const handleCancelQaForm = useCallback(() => {
+    if (busyRef.current || busyAction === 'qa-save') return;
+    setQaError('');
+    setSubMode('workbench');
+  }, [busyAction]);
+
+  const handleSubmitQa = useCallback(async () => {
+    if (!selectedSession || !qaTarget || busyRef.current || busyAction) return;
+    const cleanQ = qaQuestion.trim();
+    const cleanA = qaAnswer.trim();
+    if (!cleanQ) {
+      setQaError(t(lang, '请输入问题内容', 'Please enter a question'));
+      setQaField('question');
+      return;
+    }
+    if (!cleanA) {
+      setQaError(t(lang, '请输入解答 Markdown 内容', 'Please enter an answer in Markdown'));
+      setQaField('answer');
+      return;
+    }
+
+    const sig = `${selectedSession.id}:${qaTarget.deckId}:${qaTarget.cardId}:${cleanQ}\u0000${cleanA}`;
+    if (!qaOpIdRef.current || qaOpSignatureRef.current !== sig) {
+      qaOpIdRef.current = `tui-gqa-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      qaOpSignatureRef.current = sig;
+    }
+
+    busyRef.current = true;
+    setBusyAction('qa-save');
+    setQaError('');
+    try {
+      const res = await tryAction<{
+        ok?: boolean;
+        qaId?: string;
+        operationId?: string;
+        deduplicated?: boolean;
+        warnings?: string[];
+      }>(host, 'study.qa.organize', {
+        sessionId: selectedSession.id,
+        operationId: qaOpIdRef.current,
+        target: { deckId: qaTarget.deckId, cardId: qaTarget.cardId },
+        question: cleanQ,
+        answerMarkdown: cleanA,
+        explicitUserCommand: true,
+      });
+      if (!mountedRef.current) return;
+      if (!res.ok) {
+        setQaError(res.error?.message || t(lang, '整理问答归档失败', 'Failed to save organized Q&A'));
+        return;
+      }
+      await tryAction(host, 'study.scene.get', { sessionId: selectedSession.id });
+      if (!mountedRef.current) return;
+      await loadSessions(selectedSession.id);
+      if (!mountedRef.current) return;
+      setSubMode('workbench');
+      setQaQuestion('');
+      setQaAnswer('');
+      setQaError('');
+      qaOpIdRef.current = '';
+      qaOpSignatureRef.current = '';
+      onUpdated?.();
+      notify(t(lang, '已整理问答并归档到卡片', 'Saved organized Q&A to card'), 'success');
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusyAction('');
+    }
+  }, [selectedSession, qaTarget, busyAction, qaQuestion, qaAnswer, lang, host, loadSessions, onUpdated, notify]);
+
   const modalInputActive = isActive && !creating && !confirmEnd;
   const branchDepth = selectedSession?.returnPath?.length ?? 0;
 
   useInput(
     (input, key) => {
       if (busyAction || busyRef.current || loading) return;
+
+      if (subMode === 'qa-form') {
+        if (key.escape) {
+          handleCancelQaForm();
+          return;
+        }
+        if (key.tab) {
+          setQaField((prev) => (prev === 'question' ? 'answer' : 'question'));
+          return;
+        }
+        if (key.ctrl && input === 's') {
+          // Multiline TextInput on 'answer' already invokes onSubmit -> handleSubmitQa on Ctrl+S.
+          if (qaField !== 'answer') {
+            void handleSubmitQa();
+          }
+          return;
+        }
+        return;
+      }
 
       if (subMode === 'branch-pick') {
         if (key.escape || input === 'b') {
@@ -894,6 +1095,10 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
         void handleOpenBranchPicker();
         return;
       }
+      if (input === 'Q' && selectedSession) {
+        void handleOpenQaForm();
+        return;
+      }
       if (input === 'u' && selectedSession && branchDepth > 0) {
         void handleBranchReturn();
         return;
@@ -938,6 +1143,13 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
         { key: 'Esc', label: t(lang, '取消', 'Cancel') },
       ];
     }
+    if (subMode === 'qa-form') {
+      return [
+        { key: 'Tab', label: t(lang, '切换栏位', 'Next Field') },
+        { key: 'Ctrl+S', label: t(lang, '保存归档', 'Save Q&A') },
+        { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+      ];
+    }
     if (subMode === 'branch-pick') {
       return [
         { key: 'Enter', label: t(lang, '切入支线', 'Open Branch') },
@@ -952,20 +1164,26 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
       list.push({ key: 'b/Esc', label: t(lang, '返回', 'Back') });
       return list;
     }
+    const compactHints = innerW < 84;
     const list: KeyHint[] = [{ key: 'n', label: t(lang, '新建', 'New') }];
     if (selectedSession) {
-      list.push({ key: 'Enter', label: t(lang, '去练习', 'Practice') });
+      list.push({ key: 'Enter', label: compactHints ? t(lang, '练习', 'Go') : t(lang, '去练习', 'Practice') });
       if (selectedSession.status === 'active') list.push({ key: 'B', label: t(lang, '开支线', 'Branch') });
+      if (selectedSession.status === 'active') list.push({ key: 'Q', label: t(lang, '整理问答', 'Save Q&A') });
       if (branchDepth > 0) list.push({ key: 'u', label: t(lang, '回原题', 'Return') });
       if (selectedSession.status === 'active') list.push({ key: 'p', label: t(lang, '暂停', 'Pause') });
       if (selectedSession.status === 'paused') list.push({ key: 'r', label: t(lang, '恢复', 'Resume') });
-      if (selectedSession.status !== 'ended') list.push({ key: 'e', label: t(lang, '结束', 'End') });
-      if (artifacts.length > 0) list.push({ key: 'a', label: t(lang, '讲解', 'Artifacts') });
+      if (selectedSession.status !== 'ended' && !(compactHints && branchDepth > 0)) {
+        list.push({ key: 'e', label: t(lang, '结束', 'End') });
+      }
+      if (artifacts.length > 0 && !compactHints) list.push({ key: 'a', label: t(lang, '讲解', 'Artifacts') });
     }
-    list.push({ key: 'Tab', label: subMode === 'sessions' ? t(lang, '工作台', 'Workbench') : t(lang, '会话', 'Sessions') });
+    if (!compactHints) {
+      list.push({ key: 'Tab', label: subMode === 'sessions' ? t(lang, '工作台', 'Workbench') : t(lang, '会话', 'Sessions') });
+    }
     list.push({ key: 'Esc', label: t(lang, '关闭', 'Close') });
     return list;
-  }, [creating, subMode, artifacts.length, selectedSession, branchDepth, lang, asciiMode]);
+  }, [creating, subMode, artifacts.length, selectedSession, branchDepth, innerW, lang, asciiMode]);
 
   const renderBranchCandidateRow = useCallback(
     (item: BranchCandidateCard, ctx: VirtualListRenderContext) => {
@@ -1064,7 +1282,7 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
         subtitle={subtitle}
         width={frameW}
         height={frameH}
-        onClose={subMode === 'artifact' || subMode === 'branch-pick' || creating || confirmEnd ? undefined : onClose}
+        onClose={subMode === 'artifact' || subMode === 'branch-pick' || subMode === 'qa-form' || creating || confirmEnd ? undefined : onClose}
         isActive={isActive && !confirmEnd}
         hints={hints}
       >
@@ -1171,6 +1389,89 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
             width={innerW}
             height={contentH}
           />
+        ) : subMode === 'qa-form' && qaTarget ? (
+          <Box flexDirection="column" height={contentH} overflow="hidden">
+            <Box height={1} overflow="hidden" flexDirection="row" gap={1}>
+              <Badge label={t(lang, '整理问答归档', 'Save Organized Q&A')} tone="ai" variant="soft" />
+              <Text color={theme.muted} wrap="truncate-end">
+                {`${truncateDisplay(qaTarget.deckTitle, 24, ell)}${qaTarget.topic ? ` - ${truncateDisplay(qaTarget.topic, 16, ell)}` : ''}`}
+              </Text>
+            </Box>
+            <Box height={1} overflow="hidden">
+              <Text color={theme.text} wrap="truncate-end">
+                {`${t(lang, '目标卡片', 'Card')}: ${truncateDisplay(qaTarget.prompt, Math.max(12, innerW - 12), ell)}`}
+              </Text>
+            </Box>
+            <Divider width={innerW} />
+            <Box height={1} overflow="hidden">
+              <Text color={qaField === 'question' ? theme.primary : theme.muted} bold>
+                {t(lang, '问题 (Question)', 'Question')}
+              </Text>
+            </Box>
+            <Box height={1} overflow="hidden">
+              <TextInput
+                value={qaQuestion}
+                onChange={(v) => {
+                  setQaQuestion(v);
+                  if (qaError) setQaError('');
+                }}
+                onSubmit={() => setQaField('answer')}
+                onCancel={handleCancelQaForm}
+                placeholder={t(lang, `输入核心问题，按 Tab 切换解答${ell}`, `Enter question, press Tab for answer${ell}`)}
+                width={Math.max(12, innerW - 4)}
+                isActive={modalInputActive && subMode === 'qa-form' && qaField === 'question' && !busyAction}
+                prompt={asciiMode ? '> ' : '› '}
+                captureInput={false}
+              />
+            </Box>
+            <Box height={1} overflow="hidden">
+              <Text color={qaField === 'answer' ? theme.primary : theme.muted} bold>
+                {t(lang, '解答 Markdown (Answer)', 'Answer Markdown')}
+              </Text>
+            </Box>
+            <Box
+              borderStyle={asciiMode ? 'classic' : 'single'}
+              borderColor={qaField === 'answer' ? theme.borderActive : theme.border}
+              paddingX={1}
+              flexShrink={0}
+            >
+              <TextInput
+                value={qaAnswer}
+                onChange={(v) => {
+                  setQaAnswer(v);
+                  if (qaError) setQaError('');
+                }}
+                onSubmit={() => {
+                  void handleSubmitQa();
+                }}
+                onCancel={handleCancelQaForm}
+                multiline
+                submitOnEnter
+                height={Math.max(2, Math.min(6, contentH - 10))}
+                width={Math.max(12, innerW - 6)}
+                isActive={modalInputActive && subMode === 'qa-form' && qaField === 'answer' && !busyAction}
+                placeholder={t(lang, `输入整理后的 Markdown 解答，Ctrl+S 或 Enter 提交${ell}`, `Write Markdown answer, Ctrl+S or Enter to save${ell}`)}
+                captureInput={false}
+              />
+            </Box>
+            <Box height={1} overflow="hidden">
+              {qaError ? (
+                <Text color={theme.error} wrap="truncate-end">
+                  {`${asciiMode ? '!' : '✕'} ${truncateDisplay(qaError, Math.max(12, innerW - 4), ell)}`}
+                </Text>
+              ) : (
+                <Text color={theme.muted} wrap="truncate-end">
+                  {busyAction === 'qa-save'
+                    ? t(lang, `正在归档到卡片${ell}`, `Saving Q&A to card${ell}`)
+                    : t(
+                        lang,
+                        '0 token 本地归档 · Tab 切换 · Ctrl+S/Enter 提交 · Esc 取消',
+                        '0-token save · Tab switch · Ctrl+S/Enter submit · Esc cancel',
+                      )}
+                </Text>
+              )}
+            </Box>
+          </Box>
         ) : subMode === 'branch-pick' ? (
           <Box flexDirection="column" height={contentH} overflow="hidden">
             <Box height={1} overflow="hidden" flexDirection="row" gap={1}>
