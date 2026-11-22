@@ -49,9 +49,11 @@ import {
   type CardOptionItem,
   type CardTranslation,
 } from './review-helpers.js';
+import type { CoachNudgeNote } from './CoachNudgeModal.js';
 const AiHelpDrawer = lazy(() => import('./AiHelpDrawer.js').then((m) => ({ default: m.AiHelpDrawer })));
 const AnswerCardModal = lazy(() => import('./AnswerCardModal.js').then((m) => ({ default: m.AnswerCardModal })));
 const CardToolsModal = lazy(() => import('./CardToolsModal.js').then((m) => ({ default: m.CardToolsModal })));
+const CoachNudgeModal = lazy(() => import('./CoachNudgeModal.js').then((m) => ({ default: m.CoachNudgeModal })));
 const QueueModal = lazy(() => import('./QueueModal.js').then((m) => ({ default: m.QueueModal })));
 const RetellModal = lazy(() => import('./RetellModal.js').then((m) => ({ default: m.RetellModal })));
 const RoundSummary = lazy(() => import('./RoundSummary.js').then((m) => ({ default: m.RoundSummary })));
@@ -128,6 +130,7 @@ const CARD_UTIL_KEYS: readonly string[] = Object.freeze([
   'h',
   'u',
   'o',
+  'N',
 ]);
 const RATING_DIGIT_KEYS: readonly string[] = Object.freeze(['0', '1', '2', '3', '4', '5']);
 const CHOICE_DIGIT_KEYS: readonly string[] = Object.freeze(['1', '2', '3', '4', '5', '6']);
@@ -274,6 +277,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
   const [teachModalOpen, setTeachModalOpen] = useState(false);
   const [answerCardModalOpen, setAnswerCardModalOpen] = useState(false);
   const [gradeAdjustModalOpen, setGradeAdjustModalOpen] = useState(false);
+  const [nudgeModalOpen, setNudgeModalOpen] = useState(false);
   const [confirmEndOpen, setConfirmEndOpen] = useState(false);
   const [focusOverrideByCard, setFocusOverrideByCard] = useState<Record<string, boolean>>({});
   const [focusBusy, setFocusBusy] = useState(false);
@@ -287,6 +291,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
   const mountedRef = useRef(true);
   const busyRef = useRef(false);
   const translationCacheRef = useRef(new LruCache<string, CardTranslation>(MAX_TRANSLATION_CACHE));
+  const nudgeCacheRef = useRef<Map<string, CoachNudgeNote>>(new Map());
   const currentCardIdRef = useRef<string | null>(null);
   const runRef = useRef<ReviewRun | null>(null);
   runRef.current = run;
@@ -381,6 +386,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     setOpenDraft(restoredText);
     setOpenEditing(false);
     setGradeAdjustModalOpen(false);
+    setNudgeModalOpen(false);
     setGradingBusy(false);
     setGradeResult(null);
     setGradeError(null);
@@ -842,6 +848,16 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     feedback,
   );
   const canAckCorrection = Boolean(run && !isFinished && run.mode !== 'exam' && feedback?.correctionPending);
+  const canCoachNudge = Boolean(
+    run && !isFinished && run.mode !== 'exam' && feedback && typeof feedback.grade === 'number' && feedback.grade < 3,
+  );
+  const nudgeCacheKey = `${run?.id ?? ''}:${run?.index ?? -1}:${cardId ?? ''}:${feedback?.grade ?? ''}:${feedback?.correct ?? ''}`;
+
+  useEffect(() => {
+    if (!canCoachNudge && nudgeModalOpen) {
+      setNudgeModalOpen(false);
+    }
+  }, [canCoachNudge, nudgeModalOpen]);
 
   const handleAdjustGrade = useCallback(
     async (grade: number) => {
@@ -912,6 +928,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     teachModalOpen ||
     answerCardModalOpen ||
     gradeAdjustModalOpen ||
+    nudgeModalOpen ||
     confirmEndOpen;
   const mainActive = isActive && !anyModalOpen && !clozeEditing && !openEditing && !isFinished;
   const claimedKeys = useMemo<readonly string[]>(() => {
@@ -965,6 +982,9 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     if (canAckCorrection) {
       base.push({ key: 'K', label: t(lang, '确认订正', 'Ack fix') });
     }
+    if (canCoachNudge) {
+      base.push({ key: 'N', label: t(lang, '陪学点拨', 'Nudge') });
+    }
     base.push({ key: 'h', label: t(lang, 'AI讲解', 'AI Help') });
     base.push({ key: 'L', label: t(lang, '带学', 'Teach') });
     base.push({ key: '*', label: t(lang, '重点', 'Focus') });
@@ -992,6 +1012,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     activeRubric,
     canAdjustGrade,
     canAckCorrection,
+    canCoachNudge,
     canUndo,
     mathUnicode,
     asciiMode,
@@ -1036,6 +1057,24 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
       }
       if (input === 'K' && canAckCorrection) {
         void handleAckCorrection();
+        return;
+      }
+      if (input === 'N') {
+        if (canCoachNudge) {
+          setNudgeModalOpen(true);
+        } else if (run.mode === 'exam') {
+          notify(t(lang, '模拟考试期间不可开启陪学点拨', 'Coach nudge is unavailable in exam mode'), 'info');
+        } else if (!feedback) {
+          notify(
+            t(lang, '请先作答且答错或自评低于3分后再开启陪学点拨', 'Answer first (wrong or rating < 3) to open coach nudge'),
+            'info',
+          );
+        } else {
+          notify(
+            t(lang, '仅在答错或自评低于3分时可开启陪学点拨', 'Coach nudge is only available for wrong answers or ratings < 3'),
+            'info',
+          );
+        }
         return;
       }
       if (input === 'T') {
@@ -1954,6 +1993,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                       ),
                   canAdjustGrade ? t(lang, '[J]改分', '[J]Adjust') : '',
                   canAckCorrection ? t(lang, '[K]确认订正', '[K]Ack') : '',
+                  canCoachNudge ? t(lang, '[N]陪学点拨', '[N]Nudge') : '',
                 ]
                   .filter(Boolean)
                   .join(' '),
@@ -1979,7 +2019,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
             userAnswer={userAnswerText}
             width={aiPaneW}
             height={height}
-            isActive={isActive && aiDrawerOpen && !flagModalOpen && !similarModalOpen && !cardToolsModalOpen && !queueModalOpen && !retellModalOpen && !teachModalOpen && !answerCardModalOpen && !gradeAdjustModalOpen}
+            isActive={isActive && aiDrawerOpen && !flagModalOpen && !similarModalOpen && !cardToolsModalOpen && !queueModalOpen && !retellModalOpen && !teachModalOpen && !answerCardModalOpen && !gradeAdjustModalOpen && !nudgeModalOpen}
             mathUnicode={mathUnicode}
             onClose={() => setAiDrawerOpen(false)}
           />
@@ -2101,6 +2141,35 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
             onClose={() => setAnswerCardModalOpen(false)}
             onRunUpdated={(nextRun) => applyRun(nextRun, true)}
             onRefreshSnapshot={() => void refresh()}
+          />
+        ) : null}
+
+        {/* Coach Nudge Modal */}
+        {nudgeModalOpen && cardId && canCoachNudge ? (
+          <CoachNudgeModal
+            host={host}
+            run={run}
+            cardId={cardId}
+            width={width}
+            height={height}
+            isActive={
+              isActive &&
+              nudgeModalOpen &&
+              !flagModalOpen &&
+              !teachModalOpen &&
+              !retellModalOpen &&
+              !similarModalOpen &&
+              !cardToolsModalOpen &&
+              !answerCardModalOpen &&
+              !queueModalOpen &&
+              !gradeAdjustModalOpen &&
+              !confirmEndOpen
+            }
+            initialNote={nudgeCacheRef.current.get(nudgeCacheKey) ?? null}
+            onNoteUpdate={(note) => {
+              nudgeCacheRef.current.set(nudgeCacheKey, note);
+            }}
+            onClose={() => setNudgeModalOpen(false)}
           />
         ) : null}
       </Suspense>

@@ -3,7 +3,8 @@ import { Box, Text, useInput } from 'ink';
 import type { HostClient, ThemeId, TuiPreferences, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { THEME_IDS, saveTuiPreferences } from '../../host/tui-prefs.js';
-import { getTheme, useTheme } from '../../theme/tokens.js';
+import { shouldEnableMouse } from '../../cli-args.js';
+import { getColorLevel, getTheme, useTheme } from '../../theme/tokens.js';
 import { Panel } from '../../components/Panel.js';
 import { useClaimKeys } from '../../components/focus.js';
 import { padDisplay, truncateDisplay } from '../../render/cjk.js';
@@ -33,6 +34,27 @@ const ROWS: readonly RowKey[] = Object.freeze([
   'compactMode',
   'showKeyHints',
 ]);
+
+function describeColorLevel(level: ReturnType<typeof getColorLevel>): string {
+  switch (level) {
+    case 3:
+      return 'Truecolor (L3)';
+    case 2:
+      return '256-color (L2)';
+    case 1:
+      return '16-color (L1)';
+    default:
+      return 'NO_COLOR (L0)';
+  }
+}
+
+function resolveMouseOption(): boolean {
+  for (let i = process.argv.length - 1; i >= 0; i -= 1) {
+    if (process.argv[i] === '--no-mouse') return false;
+    if (process.argv[i] === '--mouse') return true;
+  }
+  return shouldEnableMouse(process.env);
+}
 
 export const AppearanceTab: React.FC<AppearanceTabProps> = memo(function AppearanceTab({
   host,
@@ -211,15 +233,31 @@ export const AppearanceTab: React.FC<AppearanceTabProps> = memo(function Appeara
   const valueW = compactCols ? 18 : 22;
   const hintW = Math.max(0, innerW - 2 - labelW - valueW);
 
+  const colorLevelLabel = describeColorLevel(getColorLevel());
+  const mouseEnabled = resolveMouseOption();
+  const sep = asciiMode ? ' | ' : ' · ';
+  const capLine1 = t(
+    lang,
+    `平台: ${process.platform} (${width}x${height})${sep}色彩: ${colorLevelLabel}`,
+    `Platform: ${process.platform} (${width}x${height})${sep}Color: ${colorLevelLabel}`,
+  );
+  const capLine2 = t(
+    lang,
+    `渲染: ${asciiMode ? 'ASCII' : 'Unicode'}${sep}公式: ${prefs.mathUnicode ? 'Unicode' : 'LaTeX'}${sep}鼠标 SGR 1006: ${mouseEnabled ? 'On' : 'Off'}`,
+    `Render: ${asciiMode ? 'ASCII' : 'Unicode'}${sep}Math: ${prefs.mathUnicode ? 'Unicode' : 'LaTeX'}${sep}Mouse SGR 1006: ${mouseEnabled ? 'On' : 'Off'}`,
+  );
+  const swatchGroups = innerW < 92 ? [themeSwatches.slice(0, 2), themeSwatches.slice(2)] : [themeSwatches];
+
   return (
-    <Box flexDirection="column" width={width} height={height}>
+    <Box flexDirection="column" width={width} height={height} overflow="hidden">
       <Panel
         title={t(lang, 'TUI 外观与偏好 (自动保存至 tui.json)', 'TUI Appearance & Preferences (Auto-saved)')}
         subtitle={saving ? t(lang, `保存中${ellipsis}`, `Saving${ellipsis}`) : t(lang, '实时生效', 'Live')}
         focused={isActive}
         width={width}
+        height={height}
       >
-        <Box flexDirection="column" marginBottom={1}>
+        <Box flexDirection="column" flexShrink={0} marginBottom={height < 20 ? 0 : 1}>
           {rowSpecs.map((row, idx) => {
             const selected = idx === cursor;
             const pointer = selected ? (asciiMode ? '> ' : '❯ ') : '  ';
@@ -247,6 +285,7 @@ export const AppearanceTab: React.FC<AppearanceTabProps> = memo(function Appeara
 
         <Box
           flexDirection="column"
+          flexShrink={0}
           borderStyle={asciiMode ? 'classic' : 'single'}
           borderColor={theme.border}
           paddingX={1}
@@ -254,23 +293,51 @@ export const AppearanceTab: React.FC<AppearanceTabProps> = memo(function Appeara
           <Text color={theme.muted} bold>
             {t(lang, '主题色板实时预览', 'Theme Palette Preview')}
           </Text>
-          <Box flexDirection="row" flexWrap="wrap" gap={2} marginTop={0}>
-            {themeSwatches.map(({ id, tok, active }) => (
-              <Box key={id} flexDirection="row">
-                <Text color={active ? theme.primary : theme.muted} bold={active}>
-                  {active ? (asciiMode ? '* ' : '● ') : asciiMode ? 'o ' : '○ '}
-                  {tok.label}
-                  {' '}
-                </Text>
-                <Text backgroundColor={tok.primary} color={tok.bg}>{'  '}</Text>
-                <Text backgroundColor={tok.success} color={tok.bg}>{'  '}</Text>
-                <Text backgroundColor={tok.warning} color={tok.bg}>{'  '}</Text>
-                <Text backgroundColor={tok.error} color={tok.bg}>{'  '}</Text>
-                <Text backgroundColor={tok.ai} color={tok.bg}>{'  '}</Text>
-              </Box>
-            ))}
-          </Box>
+          {swatchGroups.map((group, gIdx) => (
+            <Box key={`swatch-row-${gIdx}`} flexDirection="row" gap={2} marginTop={0}>
+              {group.map(({ id, tok, active }) => (
+                <Box key={id} flexDirection="row">
+                  <Text color={active ? theme.primary : theme.muted} bold={active}>
+                    {active ? (asciiMode ? '* ' : '● ') : asciiMode ? 'o ' : '○ '}
+                    {tok.label}
+                    {' '}
+                  </Text>
+                  <Text backgroundColor={tok.primary} color={tok.bg}>{'  '}</Text>
+                  <Text backgroundColor={tok.success} color={tok.bg}>{'  '}</Text>
+                  <Text backgroundColor={tok.warning} color={tok.bg}>{'  '}</Text>
+                  <Text backgroundColor={tok.error} color={tok.bg}>{'  '}</Text>
+                  <Text backgroundColor={tok.ai} color={tok.bg}>{'  '}</Text>
+                </Box>
+              ))}
+            </Box>
+          ))}
         </Box>
+
+        {height >= 20 ? (
+          <Box
+            flexDirection="column"
+            flexShrink={0}
+            borderStyle={asciiMode ? 'classic' : 'single'}
+            borderColor={theme.border}
+            paddingX={1}
+            marginTop={1}
+          >
+            <Text color={theme.muted} bold>
+              {truncateDisplay(
+                t(lang, '终端能力与运行诊断', 'Terminal Capabilities & Diagnostics'),
+                Math.max(10, innerW - 4),
+                ellipsis,
+              )}
+            </Text>
+            <Text color={theme.text}>{truncateDisplay(capLine1, Math.max(10, innerW - 4), ellipsis)}</Text>
+            <Text color={theme.muted}>{truncateDisplay(capLine2, Math.max(10, innerW - 4), ellipsis)}</Text>
+          </Box>
+        ) : height >= 17 ? (
+          <Box flexDirection="column" flexShrink={0} marginTop={height >= 18 ? 1 : 0}>
+            <Text color={theme.muted}>{truncateDisplay(capLine1, innerW, ellipsis)}</Text>
+            <Text color={theme.dim}>{truncateDisplay(capLine2, innerW, ellipsis)}</Text>
+          </Box>
+        ) : null}
       </Panel>
     </Box>
   );

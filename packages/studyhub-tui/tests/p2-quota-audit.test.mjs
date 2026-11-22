@@ -22,6 +22,8 @@ const EFFECT_GUARDED_ACTIONS = new Set([
   'coach.debrief',
   'coach.prepare',
   'coach.rewrite.retry',
+  'coach.nudge',
+  'coach.reply',
   'materials.translation.translate',
   'note.generate',
   'audio.corrections.review',
@@ -191,8 +193,8 @@ describe('Permanent P2 Quota-Guard Static Audit', () => {
     }
 
     assert.ok(
-      guardedFiles.length >= 11,
-      `Expected at least 11 guarded view/modal files, got ${guardedFiles.length}: ${guardedFiles.join(', ')}`,
+      guardedFiles.length >= 12,
+      `Expected at least 12 guarded view/modal files, got ${guardedFiles.length}: ${guardedFiles.join(', ')}`,
     );
     assert.deepEqual(
       violations,

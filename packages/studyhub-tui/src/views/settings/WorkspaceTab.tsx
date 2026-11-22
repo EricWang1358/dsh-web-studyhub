@@ -17,7 +17,7 @@ import { Panel } from '../../components/Panel.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
 import { useClaimKeys } from '../../components/focus.js';
-import { displayWidth, graphemeWidth, padDisplay, splitGraphemes, truncateDisplay } from '../../render/cjk.js';
+import { displayWidth, graphemeWidth, padDisplay, splitGraphemes, truncateDisplay, wrapDisplay } from '../../render/cjk.js';
 
 export interface RestorePointEntry {
   id: string;
@@ -126,6 +126,26 @@ interface UsageFrequencyStatusShape {
   daysWithData: number;
   since: string;
   file?: string;
+}
+
+interface UpdateViewShape {
+  current?: string;
+  installed?: string;
+  latest?: string | null;
+  newer?: boolean;
+  upgradeAvailable?: boolean;
+  publishedAt?: string | null;
+  notes?: string;
+  url?: string;
+  assetName?: string | null;
+  checkedAt?: string | null;
+  error?: string;
+  retryAt?: number | null;
+  source?: 'api' | 'fallback';
+  autoCheck?: boolean;
+  snoozed?: boolean;
+  pendingRestart?: string | null;
+  restartFailed?: { pending?: string; running?: string; installedAt?: string } | null;
 }
 
 function describeRetrievalBadge(
@@ -756,6 +776,201 @@ const RetrievalDiagModal = memo(function RetrievalDiagModal({
   );
 });
 
+function describeUpdateStatusBadge(
+  info: UpdateViewShape | null,
+  loading: boolean,
+  error: string | null,
+  lang: 'zh' | 'en',
+  asciiMode: boolean,
+): { label: string; tone: 'success' | 'warning' | 'accent' | 'muted' } {
+  if (!info) {
+    if (error) return { label: t(lang, '检查失败', 'Check failed'), tone: 'warning' };
+    return {
+      label: loading ? t(lang, '检查中', 'Checking') : t(lang, '未检查', 'Not checked'),
+      tone: 'muted',
+    };
+  }
+  if (info.pendingRestart) {
+    return { label: t(lang, '需重启生效', 'Restart pending'), tone: 'accent' };
+  }
+  if (info.error) {
+    if (info.error === 'network') {
+      return { label: t(lang, '离线 / 网络不可用', 'Offline / Network error'), tone: 'warning' };
+    }
+    if (info.error === 'rate-limited') {
+      return { label: t(lang, '请求受限 (Rate Limit)', 'Rate limited'), tone: 'warning' };
+    }
+    return { label: t(lang, `检查受限 (${info.error})`, `Check warning (${info.error})`), tone: 'warning' };
+  }
+  if (info.newer && info.snoozed) {
+    return { label: t(lang, '已推迟提醒', 'Snoozed'), tone: 'muted' };
+  }
+  if (info.newer) {
+    return { label: t(lang, '发现新版本', 'Update available'), tone: 'success' };
+  }
+  return {
+    label: asciiMode ? t(lang, '已是最新 +', 'Up to date +') : t(lang, '已是最新 ✓', 'Up to date ✓'),
+    tone: 'success',
+  };
+}
+
+interface ReleaseUpdateModalProps {
+  lang: 'zh' | 'en';
+  asciiMode: boolean;
+  ell: string;
+  width: number;
+  isActive: boolean;
+  loading: boolean;
+  snoozeBusy: boolean;
+  info: UpdateViewShape | null;
+  error: string | null;
+  onRefresh: () => void;
+  onToggleSnooze: () => void;
+  onClose: () => void;
+}
+
+const ReleaseUpdateModal = memo(function ReleaseUpdateModal({
+  lang,
+  asciiMode,
+  ell,
+  width,
+  isActive,
+  loading,
+  snoozeBusy,
+  info,
+  error,
+  onRefresh,
+  onToggleSnooze,
+  onClose,
+}: ReleaseUpdateModalProps) {
+  const theme = useTheme();
+  const contentW = modalContentWidth(width);
+  const sep = asciiMode ? ' | ' : ' · ';
+
+  useInput(
+    (input, key) => {
+      if (key.escape || input === 'q') {
+        onClose();
+        return;
+      }
+      if (input === 'r') {
+        onRefresh();
+        return;
+      }
+      if (input === 'z' && info?.latest && info?.newer && !snoozeBusy) {
+        onToggleSnooze();
+      }
+    },
+    { isActive },
+  );
+
+  const statusBadge = describeUpdateStatusBadge(info, loading, error, lang, asciiMode);
+  const currentText = info?.current ? `v${info.current}` : '-';
+  const latestText = info?.latest ? `v${info.latest}` : '-';
+  const publishedDate = info?.publishedAt ? info.publishedAt.slice(0, 10) : '-';
+  const releaseUrl = info?.url || '-';
+  const rawNotes = typeof info?.notes === 'string' ? info.notes.replace(/\r\n?/g, '\n').trim() : '';
+  const sanitizedNotes = rawNotes ? normalizeAsciiChrome(rawNotes, asciiMode) : '';
+  const noteLines = sanitizedNotes
+    ? wrapDisplay(sanitizedNotes, contentW)
+        .map((line) => line.trimEnd())
+        .filter((line) => line.length > 0)
+        .slice(0, 4)
+    : [];
+
+  const modalHints = [
+    ...(info?.latest && info?.newer
+      ? [{ key: 'z', label: info.snoozed ? t(lang, '取消推迟', 'Unsnooze') : t(lang, '推迟提醒', 'Snooze') }]
+      : []),
+    { key: 'r', label: t(lang, '重新检查', 'Recheck') },
+    { key: 'Esc/q', label: t(lang, '关闭', 'Close') },
+  ];
+
+  return (
+    <Modal
+      title={t(lang, '检查版本更新', 'Release Update Check')}
+      subtitle={info?.current ? `v${info.current}` : undefined}
+      width={width}
+      onClose={onClose}
+      isActive={isActive}
+      hints={modalHints}
+    >
+      {loading && !info ? (
+        <Spinner label={t(lang, `正在检查最新版本${ell}`, `Checking latest release${ell}`)} active={isActive} />
+      ) : (
+        <Box flexDirection="column" gap={0}>
+          <Box flexDirection="row" gap={1}>
+            <Text color={theme.muted}>{t(lang, '当前:', 'Current:')}</Text>
+            <Text color={theme.text} bold>
+              {currentText}
+            </Text>
+            <Text color={theme.muted}>{t(lang, '最新:', 'Latest:')}</Text>
+            <Text color={info?.newer ? theme.accent : theme.text} bold>
+              {latestText}
+            </Text>
+            <Badge label={statusBadge.label} tone={statusBadge.tone} variant="soft" />
+          </Box>
+          <Text color={theme.muted}>
+            {truncateDisplay(
+              `${t(lang, '发布日期:', 'Published:')} ${publishedDate}${sep}${t(lang, '自动检查:', 'Auto:')} ${
+                info?.autoCheck === false ? t(lang, '关', 'Off') : t(lang, '开', 'On')
+              }`,
+              contentW,
+              ell,
+            )}
+          </Text>
+          <Text color={theme.dim}>{truncateDisplay(`${t(lang, '发布页:', 'URL:')} ${releaseUrl}`, contentW, ell)}</Text>
+
+          {info?.pendingRestart ? (
+            <Text color={theme.accent}>
+              {truncateDisplay(
+                t(lang, `新版本 v${info.pendingRestart} 已安装，重启后生效。`, `v${info.pendingRestart} is installed; restart to activate.`),
+                contentW,
+                ell,
+              )}
+            </Text>
+          ) : null}
+
+          {info?.error ? (
+            <Text color={theme.warning}>
+              {truncateDisplay(
+                info.error === 'network'
+                  ? t(lang, '网络不可达或处于离线状态；稍后可按 [r] 重试。', 'Offline or network unreachable; press [r] to retry later.')
+                  : t(lang, `检查返回异常 (${info.error})；稍后可按 [r] 重试。`, `Check warning (${info.error}); press [r] to retry later.`),
+                contentW,
+                ell,
+              )}
+            </Text>
+          ) : null}
+
+          {error ? (
+            <Text color={theme.error}>{truncateDisplay(normalizeAsciiChrome(error, asciiMode), contentW, ell)}</Text>
+          ) : null}
+
+          {noteLines.length > 0 ? (
+            <Box flexDirection="column" marginTop={1}>
+              <Text color={theme.muted} bold>
+                {t(lang, '更新说明:', 'Release Notes:')}
+              </Text>
+              {noteLines.map((line, idx) => (
+                <Text key={`note-${idx}`} color={theme.text}>
+                  {truncateDisplay(line, contentW, ell)}
+                </Text>
+              ))}
+            </Box>
+          ) : null}
+
+          {loading ? (
+            <Box marginTop={1}>
+              <Spinner label={t(lang, `正在重新检查${ell}`, `Rechecking${ell}`)} active={isActive} />
+            </Box>
+          ) : null}
+        </Box>
+      )}
+    </Modal>
+  );
+});
+
 export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function WorkspaceTab({
   host,
   binding,
@@ -802,9 +1017,15 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
   const [retrievalPlan, setRetrievalPlan] = useState<RetrievalIndexPlanShape | null>(null);
   const [retrievalTest, setRetrievalTest] = useState<RetrievalTestResultShape | null>(null);
   const [retrievalDiagError, setRetrievalDiagError] = useState<string | null>(null);
+  const [updateModalOpen, setUpdateModalOpen] = useState(false);
+  const [updateCheckLoading, setUpdateCheckLoading] = useState(false);
+  const [updateSnoozeBusy, setUpdateSnoozeBusy] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<UpdateViewShape | null>(null);
+  const [updateError, setUpdateError] = useState<string | null>(null);
 
   const mountedRef = useRef(true);
   const updateBusyRef = useRef(false);
+  const updateCheckBusyRef = useRef(false);
   const retrievalBusyRef = useRef(false);
   const diagBusyRef = useRef(false);
   useEffect(() => {
@@ -862,10 +1083,13 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
 
   const loadUpdatePrefs = useCallback(async () => {
     try {
-      const res = await tryAction<{ autoCheck?: boolean }>(host, 'update.preferences', {});
+      const res = await tryAction<UpdateViewShape>(host, 'update.preferences', {});
       if (!mountedRef.current) return;
-      if (res.ok && res.value && typeof res.value.autoCheck === 'boolean') {
-        setAutoCheckEnabled(res.value.autoCheck);
+      if (res.ok && res.value) {
+        setUpdateInfo(res.value);
+        if (typeof res.value.autoCheck === 'boolean') {
+          setAutoCheckEnabled(res.value.autoCheck);
+        }
       }
     } catch {
       // Fail-soft: keep fallback status when update.preferences is unavailable
@@ -1099,7 +1323,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
     const next = !currentEffective;
     setAutoCheckEnabled(next);
     try {
-      const res = await tryAction<{ autoCheck?: boolean }>(host, 'update.preferences', { autoCheck: next });
+      const res = await tryAction<UpdateViewShape>(host, 'update.preferences', { autoCheck: next });
       if (!mountedRef.current) return;
       if (!res.ok || !res.value || typeof res.value.autoCheck !== 'boolean') {
         setAutoCheckEnabled(prev);
@@ -1109,6 +1333,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
         );
         return;
       }
+      setUpdateInfo(res.value);
       setAutoCheckEnabled(res.value.autoCheck);
       setUpdateLoaded(true);
       notify(
@@ -1121,6 +1346,61 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
       updateBusyRef.current = false;
     }
   }, [autoCheckEnabled, busyAction, host, lang, notify]);
+
+  const runUpdateCheck = useCallback(async () => {
+    if (updateCheckBusyRef.current) return;
+    updateCheckBusyRef.current = true;
+    setUpdateCheckLoading(true);
+    setUpdateError(null);
+    try {
+      const res = await tryAction<UpdateViewShape>(host, 'update.check', { force: true });
+      if (!mountedRef.current) return;
+      if (!res.ok || !res.value) {
+        setUpdateError(res.error?.message || t(lang, '检查更新失败', 'Update check failed'));
+        return;
+      }
+      setUpdateInfo(res.value);
+      if (typeof res.value.autoCheck === 'boolean') {
+        setAutoCheckEnabled(res.value.autoCheck);
+        setUpdateLoaded(true);
+      }
+    } catch (err) {
+      if (!mountedRef.current) return;
+      setUpdateError(err instanceof Error ? err.message : String(err));
+    } finally {
+      updateCheckBusyRef.current = false;
+      if (mountedRef.current) setUpdateCheckLoading(false);
+    }
+  }, [host, lang]);
+
+  const handleToggleSnooze = useCallback(async () => {
+    if (updateBusyRef.current || !updateInfo?.latest || !updateInfo?.newer) return;
+    updateBusyRef.current = true;
+    setUpdateSnoozeBusy(true);
+    const targetVersion = updateInfo.latest;
+    const nextSnooze = updateInfo.snoozed ? null : targetVersion;
+    try {
+      const res = await tryAction<UpdateViewShape>(host, 'update.preferences', { snooze: nextSnooze });
+      if (!mountedRef.current) return;
+      if (!res.ok || !res.value) {
+        notify(
+          res.error?.message || t(lang, '更新提醒设置失败', 'Failed to update snooze preference'),
+          'error',
+        );
+        return;
+      }
+      setUpdateInfo(res.value);
+      notify(
+        res.value.snoozed
+          ? t(lang, `已推迟 v${targetVersion} 更新提醒`, `Snoozed reminder for v${targetVersion}`)
+          : t(lang, `已恢复 v${targetVersion} 更新提醒`, `Unsnoozed reminder for v${targetVersion}`),
+        'success',
+      );
+    } finally {
+      updateBusyRef.current = false;
+      if (mountedRef.current) setUpdateSnoozeBusy(false);
+    }
+  }, [host, lang, notify, updateInfo]);
 
   const handleCycleRetrievalProvider = useCallback(async () => {
     if (busyAction || retrievalBusyRef.current) return;
@@ -1271,8 +1551,9 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
     confirmSampleRemove ||
     Boolean(confirmRestore) ||
     confirmClearUsage ||
-    retrievalDiagOpen;
-  const claimed = useMemo(() => ['e', 's', 'x', 'r', 'c', 'f', 'u', 'U', 'a', 'v', 't'], []);
+    retrievalDiagOpen ||
+    updateModalOpen;
+  const claimed = useMemo(() => ['e', 's', 'x', 'r', 'c', 'f', 'u', 'U', 'a', 'A', 'v', 't'], []);
   useClaimKeys(claimed, isActive && !modalOpen);
 
   useInput(
@@ -1311,6 +1592,12 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
       }
       if (input === 'a') {
         void handleToggleAutoCheck();
+        return;
+      }
+      if (input === 'A') {
+        if (busyAction) return;
+        setUpdateModalOpen(true);
+        void runUpdateCheck();
         return;
       }
       if (input === 'v') {
@@ -1455,12 +1742,13 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
           <Text color={theme.accent}>{usageToggleLabel}</Text>
           <Text color={theme.warning}>{usageClearLabel}</Text>
         </Box>
-        <Box flexDirection="row" gap={2} marginTop={0}>
+        <Box flexDirection="row" gap={compactLayout ? 1 : 2} marginTop={0} height={1} overflow="hidden">
           <Text color={theme.muted}>
             {t(lang, '自动检查更新:', 'Auto Update:')}{' '}
             <Badge label={autoUpdateBadge.label} tone={autoUpdateBadge.tone} variant="soft" />
           </Text>
           <Text color={theme.accent}>{autoUpdateToggleLabel}</Text>
+          <Text color={theme.accent}>[A] {t(lang, '检查更新', 'Check now')}</Text>
         </Box>
         {compactLayout ? (
           <>
@@ -1638,6 +1926,23 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
           onPreview={handleRetrievalPreview}
           onSaveEndpoint={handleSaveHfEndpoint}
           onClose={() => setRetrievalDiagOpen(false)}
+        />
+      ) : null}
+
+      {updateModalOpen ? (
+        <ReleaseUpdateModal
+          lang={lang}
+          asciiMode={asciiMode}
+          ell={ell}
+          width={modalW}
+          isActive={isActive}
+          loading={updateCheckLoading}
+          snoozeBusy={updateSnoozeBusy}
+          info={updateInfo}
+          error={updateError}
+          onRefresh={() => void runUpdateCheck()}
+          onToggleSnooze={() => void handleToggleSnooze()}
+          onClose={() => setUpdateModalOpen(false)}
         />
       ) : null}
     </Box>
