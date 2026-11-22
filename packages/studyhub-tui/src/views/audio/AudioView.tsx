@@ -1,8 +1,9 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { readFile, stat } from 'node:fs/promises';
-import { basename, extname, isAbsolute, resolve } from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path';
 import { Box, Text, useInput } from 'ink';
-import type { KeyHint, ViewProps } from '../../types/contracts.js';
+import type { KeyHint, UiLanguage, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { Badge, EmptyState, Spinner, StatusPill, type PillStatus } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
@@ -17,7 +18,7 @@ import { useFooterHints } from '../../components/hooks.js';
 import { useTheme } from '../../theme/tokens.js';
 import { currentCourse } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
-import { truncateDisplay } from '../../render/cjk.js';
+import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import { cleanPathInput, tryAction } from '../../host/sample-actions.js';
 import { completeFsPath, expandHomePath } from '../sources/path-complete.js';
 
@@ -94,14 +95,42 @@ interface AudioUsageInfo {
   [k: string]: unknown;
 }
 
-interface AudioResultItem {
+export interface AudioTranscriptSegment {
+  start?: number;
+  startSec?: number;
+  end?: number;
+  endSec?: number;
+  timestamp?: string;
+  speaker?: string;
+  text?: string;
+  en?: string;
+  zh?: string;
+}
+
+export interface AudioResultItem {
   id: string;
   title?: string;
   text?: string;
+  transcript?: string;
+  course?: string;
   courses?: string[];
+  fileName?: string;
+  filename?: string;
   sourceId?: string;
   durationSec?: number;
+  duration?: number;
+  provider?: string;
+  language?: string;
   createdAt?: string;
+  segments?: ReadonlyArray<AudioTranscriptSegment>;
+  audio?: AudioRecordLike['audio'] & {
+    provider?: string;
+    language?: string;
+    fileName?: string;
+    filename?: string;
+    durationSec?: number;
+  };
+  corrections?: AudioCorrectionsData | ReadonlyArray<PendingCorrectionSample>;
   [k: string]: unknown;
 }
 
@@ -127,6 +156,88 @@ type ProviderKeyField = 'siliconflowKey' | 'groqKey' | 'freeKey' | 'paidKey';
 const AUDIO_EXTS = ['.mp3', '.wav', '.m4a', '.ogg', '.flac', '.aac', '.webm'];
 const SUBTITLE_EXTS = ['.srt', '.vtt', '.txt', '.json'];
 const MAX_SUBTITLE_BYTES = 8 * 1024 * 1024;
+const CLAIMED_KEYS: readonly string[] = Object.freeze(['i', 'u', 'p', 'R', 's', 't', 'g', 'r', 'c', '/', 'x']);
+const RETRY_CODES = new Set(['EBUSY', 'EPERM', 'EACCES']);
+
+function todayLocalYmd(date = new Date()): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function formatGeneratedDate(generatedAt?: Date | string): string {
+  if (typeof generatedAt === 'string' && generatedAt.trim()) {
+    return generatedAt.trim();
+  }
+  const d = generatedAt instanceof Date && !Number.isNaN(generatedAt.getTime()) ? generatedAt : new Date();
+  const ymd = todayLocalYmd(d);
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${ymd} ${hh}:${mm}`;
+}
+
+function formatMmSs(seconds: number): string {
+  const total = Math.max(0, Math.floor(seconds));
+  const mins = Math.floor(total / 60);
+  const secs = total % 60;
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+}
+
+async function renameWithRetry(from: string, to: string): Promise<void> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await rename(from, to);
+      return;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException)?.code || '';
+      if (!RETRY_CODES.has(code) || attempt >= 5) throw error;
+      await new Promise((done) => setTimeout(done, 40 * (attempt + 1)));
+    }
+  }
+}
+
+async function atomicWriteMarkdownFile(targetPath: string, markdown: string): Promise<void> {
+  await mkdir(dirname(targetPath), { recursive: true });
+  const temp = `${targetPath}.${randomUUID()}.tmp`;
+  await writeFile(temp, markdown, 'utf8');
+  try {
+    await renameWithRetry(temp, targetPath);
+  } catch (error) {
+    await rm(temp, { force: true }).catch(() => {});
+    throw error;
+  }
+}
+
+function resultMatchesFilter(r: AudioResultItem, query: string): boolean {
+  if (!query) return true;
+  const parts: string[] = [];
+  if (typeof r.id === 'string') parts.push(r.id);
+  if (typeof r.sourceId === 'string') parts.push(r.sourceId);
+  if (typeof r.title === 'string') parts.push(r.title);
+  if (typeof r.course === 'string') parts.push(r.course);
+  if (Array.isArray(r.courses)) {
+    for (const c of r.courses) {
+      if (typeof c === 'string') parts.push(c);
+    }
+  }
+  if (typeof r.fileName === 'string') parts.push(r.fileName);
+  if (typeof r.filename === 'string') parts.push(r.filename);
+  const audioMeta = r.audio && typeof r.audio === 'object' ? (r.audio as Record<string, unknown>) : undefined;
+  if (typeof audioMeta?.fileName === 'string') parts.push(audioMeta.fileName);
+  if (typeof audioMeta?.filename === 'string') parts.push(audioMeta.filename);
+  if (typeof r.transcript === 'string') parts.push(r.transcript);
+  if (typeof r.text === 'string') parts.push(r.text);
+  if (Array.isArray(r.segments)) {
+    for (const seg of r.segments) {
+      if (seg && typeof seg === 'object') {
+        const segText = typeof seg.text === 'string' ? seg.text : [seg.en, seg.zh].filter(Boolean).join(' ');
+        if (segText) parts.push(segText);
+      }
+    }
+  }
+  return parts.join('\n').toLowerCase().includes(query);
+}
 
 const AUDIO_JOB_TYPES = new Set([
   'audio-import',
@@ -261,6 +372,168 @@ export function countPendingCorrections(
   };
 }
 
+export interface FormatAudioTranscriptMarkdownParams {
+  result: AudioResultItem;
+  detail?: AudioResultItem | null;
+  lang: UiLanguage;
+  generatedAt?: Date | string;
+}
+
+function extractPendingCorrections(
+  detail: AudioResultItem | null | undefined,
+  result: AudioResultItem,
+): PendingCorrectionsSummary {
+  const fromDetail = detail ? countPendingCorrections(detail as AudioRecordLike, [result as AudioRecordLike]) : null;
+  if (fromDetail && (fromDetail.pending > 0 || fromDetail.applied > 0)) return fromDetail;
+
+  const fromResult = countPendingCorrections(result as AudioRecordLike);
+  if (fromResult.pending > 0 || fromResult.applied > 0) return fromResult;
+
+  const rawDirect = detail?.corrections ?? result.corrections;
+  if (Array.isArray(rawDirect)) {
+    const items: PendingCorrectionSample[] = [];
+    for (const entry of rawDirect) {
+      if (!entry || typeof entry !== 'object') continue;
+      const obj = entry as Record<string, unknown>;
+      if (obj.review) continue;
+      items.push({
+        ...(typeof obj.wrong === 'string' ? { wrong: obj.wrong } : {}),
+        ...(typeof obj.right === 'string' ? { right: obj.right } : {}),
+        ...(typeof obj.reason === 'string' ? { reason: obj.reason } : {}),
+        ...(typeof obj.context === 'string' ? { context: obj.context } : {}),
+      });
+    }
+    return { pending: items.length, applied: 0, items };
+  }
+  if (rawDirect && typeof rawDirect === 'object') {
+    return countPendingCorrections({ audio: { corrections: rawDirect as AudioCorrectionsData } });
+  }
+  return { pending: 0, applied: 0, items: [] };
+}
+
+/** Pure formatter producing a clean Markdown transcript document for an audio result (0 LLM tokens). */
+export function formatAudioTranscriptMarkdown({
+  result,
+  detail,
+  lang,
+  generatedAt,
+}: FormatAudioTranscriptMarkdownParams): string {
+  const title = String(detail?.title || result.title || result.id || t(lang, '音频转写文稿', 'Audio Transcript')).trim();
+  const exportedAt = formatGeneratedDate(generatedAt);
+  const createdAt = String(detail?.createdAt || result.createdAt || '').trim();
+
+  const coursesList =
+    Array.isArray(detail?.courses) && detail.courses.length > 0
+      ? detail.courses
+      : Array.isArray(result.courses) && result.courses.length > 0
+        ? result.courses
+        : [];
+  const fallbackCourse = String(detail?.course || result.course || '').trim();
+  const courses = coursesList.length > 0 ? coursesList.filter(Boolean) : fallbackCourse ? [fallbackCourse] : [];
+
+  const fileName = String(
+    detail?.fileName ||
+      detail?.filename ||
+      detail?.audio?.fileName ||
+      detail?.audio?.filename ||
+      result.fileName ||
+      result.filename ||
+      result.audio?.fileName ||
+      result.audio?.filename ||
+      '',
+  ).trim();
+
+  const rawDuration =
+    detail?.durationSec ??
+    detail?.duration ??
+    detail?.audio?.durationSec ??
+    result.durationSec ??
+    result.duration ??
+    result.audio?.durationSec;
+  const durationNum = typeof rawDuration === 'number' ? rawDuration : Number(rawDuration);
+
+  const provider = String(
+    detail?.provider || detail?.audio?.provider || result.provider || result.audio?.provider || '',
+  ).trim();
+  const audioLanguage = String(
+    detail?.language || detail?.audio?.language || result.language || result.audio?.language || '',
+  ).trim();
+
+  const lines: string[] = [`# ${title}`, ''];
+  lines.push(`- ${t(lang, '导出时间', 'Exported')}: ${exportedAt}`);
+  if (createdAt) {
+    lines.push(`- ${t(lang, '创建时间', 'Created')}: ${createdAt}`);
+  }
+  if (courses.length > 0) {
+    lines.push(`- ${t(lang, '课程', 'Course')}: ${courses.join(', ')}`);
+  }
+  if (fileName) {
+    lines.push(`- ${t(lang, '文件', 'File')}: ${fileName}`);
+  }
+  if (Number.isFinite(durationNum) && durationNum > 0) {
+    lines.push(`- ${t(lang, '时长', 'Duration')}: ${formatMmSs(durationNum)}`);
+  }
+  if (provider) {
+    lines.push(`- ${t(lang, '转写服务', 'Provider')}: ${provider}`);
+  }
+  if (audioLanguage) {
+    lines.push(`- ${t(lang, '语言', 'Language')}: ${audioLanguage}`);
+  }
+  if (result.id) {
+    lines.push(`- ID: \`${result.id}\``);
+  }
+
+  lines.push('', `## ${t(lang, '转写正文', 'Transcript')}`, '');
+
+  const segments =
+    Array.isArray(detail?.segments) && detail.segments.length > 0
+      ? detail.segments
+      : Array.isArray(result.segments) && result.segments.length > 0
+        ? result.segments
+        : [];
+  const segmentLines: string[] = [];
+  for (const seg of segments) {
+    if (!seg || typeof seg !== 'object') continue;
+    const body = String(seg.text ?? [seg.en, seg.zh].filter(Boolean).join(' / ') ?? '').trim();
+    if (!body) continue;
+    const rawStart = seg.start ?? seg.startSec;
+    const stamp =
+      typeof seg.timestamp === 'string' && seg.timestamp.trim()
+        ? seg.timestamp.trim().replace(/^\[|\]$/g, '')
+        : typeof rawStart === 'number' && Number.isFinite(rawStart) && rawStart >= 0
+          ? formatMmSs(rawStart)
+          : '00:00';
+    const speaker = typeof seg.speaker === 'string' && seg.speaker.trim() ? `${seg.speaker.trim()}: ` : '';
+    segmentLines.push(`[${stamp}] ${speaker}${body}`);
+  }
+
+  if (segmentLines.length > 0) {
+    lines.push(...segmentLines);
+  } else {
+    const plainBody = String(detail?.transcript || detail?.text || result.transcript || result.text || '').trim();
+    lines.push(plainBody || t(lang, '（暂无转写正文）', '(Empty transcript)'));
+  }
+
+  const corrections = extractPendingCorrections(detail, result);
+  if (corrections.items.length > 0) {
+    lines.push(
+      '',
+      `## ${t(lang, `待复核存疑处 (${corrections.items.length})`, `Pending Uncertain Corrections (${corrections.items.length})`)}`,
+      '',
+    );
+    for (const item of corrections.items) {
+      const wrong = item.wrong || '?';
+      const right = item.right || '?';
+      const reason = item.reason ? ` (${item.reason})` : '';
+      const ctx = item.context ? ` -- "${item.context}"` : '';
+      lines.push(`- **${wrong}** -> **${right}**${reason}${ctx}`);
+    }
+  }
+
+  lines.push('');
+  return lines.join('\n');
+}
+
 function readTextField(value: unknown): string {
   if (typeof value === 'string') return value;
   if (value && typeof value === 'object') {
@@ -357,6 +630,8 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const snapshot = useTuiStore((s) => s.snapshot);
+  const bindingRoot = useTuiStore((s) => s.binding?.root);
+  const snapshotRoot = useTuiStore((s) => s.snapshot?.root);
   const navigate = useTuiStore((s) => s.navigate);
   const notify = useTuiStore((s) => s.notify);
   const { refresh } = useShellActions();
@@ -367,8 +642,14 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
   const [preflight, setPreflight] = useState<AudioPreflightInfo | null>(null);
   const [usage, setUsage] = useState<AudioUsageInfo | null>(null);
   const [results, setResults] = useState<AudioResultItem[]>([]);
+  const [filterQuery, setFilterQuery] = useState('');
+  const [filterEditing, setFilterEditing] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [activeTranscript, setActiveTranscript] = useState<{ id: string; text: string }>({ id: '', text: '' });
+  const [activeTranscript, setActiveTranscript] = useState<{ id: string; text: string; detail?: AudioResultItem | null }>({
+    id: '',
+    text: '',
+    detail: null,
+  });
   const [loadingList, setLoadingList] = useState(false);
 
   const [overlay, setOverlay] = useState<AudioOverlay>('none');
@@ -376,6 +657,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
   const [busy, setBusy] = useState(false);
   const mountedRef = useRef(true);
   const busyRef = useRef(false);
+  const exportBusyRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -464,13 +746,19 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
     return items;
   }, [snapshot?.jobs]);
 
+  const normalizedFilter = filterQuery.trim().toLowerCase();
+  const filteredResults = useMemo(
+    () => (normalizedFilter ? results.filter((r) => resultMatchesFilter(r, normalizedFilter)) : results),
+    [results, normalizedFilter],
+  );
+
   const leftItems = useMemo<LeftListItem[]>(() => {
     const out: LeftListItem[] = audioJobs.map((job) => ({ kind: 'job', id: `job:${job.id}`, job }));
-    for (const r of results) {
+    for (const r of filteredResults) {
       out.push({ kind: 'result', id: `res:${r.id}`, result: r });
     }
     return out;
-  }, [audioJobs, results]);
+  }, [audioJobs, filteredResults]);
 
   useEffect(() => {
     if (selectedIndex >= leftItems.length) {
@@ -494,11 +782,12 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
   // Load selected transcript detail on demand (bounded to 1 active transcript — memory NFR)
   useEffect(() => {
     if (!isActive || !selectedResult) {
-      setActiveTranscript({ id: '', text: '' });
+      setActiveTranscript({ id: '', text: '', detail: null });
       return;
     }
-    if (typeof selectedResult.text === 'string' && selectedResult.text) {
-      setActiveTranscript({ id: selectedResult.id, text: selectedResult.text });
+    const inlineText = selectedResult.transcript || selectedResult.text;
+    if (typeof inlineText === 'string' && inlineText) {
+      setActiveTranscript({ id: selectedResult.id, text: inlineText, detail: selectedResult });
       return;
     }
     if (activeTranscript.id === selectedResult.id) return;
@@ -506,7 +795,11 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
     void tryAction<AudioResultItem>(host, 'audio.result.get', { id: selectedResult.id }).then((res) => {
       if (cancelled) return;
       if (res.ok && res.value) {
-        setActiveTranscript({ id: selectedResult.id, text: String(res.value.text || '') });
+        setActiveTranscript({
+          id: selectedResult.id,
+          text: String(res.value.transcript || res.value.text || ''),
+          detail: res.value,
+        });
       }
     });
     return () => {
@@ -763,6 +1056,77 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
     [busy, host, lang, notify, loadAudioData, refresh],
   );
 
+  const handleExportMarkdown = useCallback(async () => {
+    if (exportBusyRef.current) return;
+    if (!selectedResult) {
+      notify(
+        t(lang, '请先选择一条音频转写记录', 'Select an audio transcript first'),
+        'info',
+      );
+      return;
+    }
+    exportBusyRef.current = true;
+    const ell = asciiMode ? '...' : '…';
+    try {
+      let detail: AudioResultItem | null = null;
+      if (activeTranscript.id === selectedResult.id && activeTranscript.detail) {
+        detail = activeTranscript.detail;
+      } else if (
+        (typeof selectedResult.text === 'string' && selectedResult.text.length > 0) ||
+        (typeof selectedResult.transcript === 'string' && selectedResult.transcript.length > 0) ||
+        (Array.isArray(selectedResult.segments) && selectedResult.segments.length > 0)
+      ) {
+        detail = selectedResult;
+      } else {
+        const detailRes = await tryAction<AudioResultItem>(host, 'audio.result.get', { id: selectedResult.id });
+        if (!mountedRef.current) return;
+        if (detailRes.ok && detailRes.value) {
+          detail = detailRes.value;
+          setActiveTranscript({
+            id: selectedResult.id,
+            text: String(detailRes.value.transcript || detailRes.value.text || ''),
+            detail: detailRes.value,
+          });
+        }
+      }
+
+      const markdown = formatAudioTranscriptMarkdown({
+        result: selectedResult,
+        detail,
+        lang,
+        generatedAt: new Date(),
+      });
+
+      const rawRoot =
+        bindingRoot?.trim() ||
+        host.getLibraryRoot?.()?.trim() ||
+        host.getConfig?.()?.libraryRoot?.trim() ||
+        snapshotRoot?.trim() ||
+        '';
+      const baseDir = rawRoot ? resolve(rawRoot) : process.cwd();
+      const targetPath = join(baseDir, 'backups', `studyhub-audio-${todayLocalYmd()}.md`);
+
+      await atomicWriteMarkdownFile(targetPath, markdown);
+      if (!mountedRef.current) return;
+      const arrow = asciiMode ? '->' : '→';
+      const label = truncateDisplay(String(detail?.title || selectedResult.title || selectedResult.id), 28, ell);
+      notify(
+        t(
+          lang,
+          `已导出逐字稿「${label}」 ${arrow} ${targetPath}`,
+          `Exported transcript "${label}" ${arrow} ${targetPath}`,
+        ),
+        'success',
+      );
+    } catch (err) {
+      if (!mountedRef.current) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      notify(t(lang, `导出转写失败: ${msg}`, `Failed to export transcript: ${msg}`), 'error');
+    } finally {
+      exportBusyRef.current = false;
+    }
+  }, [activeTranscript, asciiMode, bindingRoot, host, lang, notify, selectedResult, snapshotRoot]);
+
   const configuredProviders = useMemo(() => {
     if (!audioSettings) return [];
     const list: string[] = [];
@@ -775,8 +1139,9 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
 
   const hasOverlay = overlay !== 'none' || confirmReview !== null;
   const listActive = isActive && !hasOverlay;
-  useClaimKeys(['i', 'u', 'p', 'R', 's', 't', 'g', 'r', 'c'], listActive);
-  useInputCapture(isActive && hasOverlay);
+  const listNavActive = listActive && !filterEditing;
+  useClaimKeys(CLAIMED_KEYS, listNavActive);
+  useInputCapture(isActive && (hasOverlay || filterEditing));
 
   const hints: KeyHint[] = useMemo(
     () => [
@@ -789,8 +1154,11 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
       { key: 't', label: t(lang, '测试连通', 'Test Keys') },
       { key: 'g', label: t(lang, '据此出题', 'Generate') },
       { key: 'r', label: t(lang, '刷新', 'Refresh') },
+      { key: '/', label: t(lang, '筛选', 'Filter') },
+      { key: 'x', label: t(lang, '导出MD', 'Export') },
+      ...(filterQuery ? [{ key: 'Esc', label: t(lang, '清筛选', 'Clear') }] : []),
     ],
-    [lang],
+    [lang, filterQuery],
   );
   useFooterHints(hints, isActive);
 
@@ -819,8 +1187,21 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
         return;
       }
       if (confirmReview) return;
-      if (!listActive) return;
+      if (!listActive || filterEditing) return;
 
+      if (key.escape && filterQuery) {
+        setFilterQuery('');
+        setSelectedIndex(0);
+        return;
+      }
+      if (input === '/' && !key.ctrl && !key.meta) {
+        setFilterEditing(true);
+        return;
+      }
+      if (input === 'x' && !key.ctrl && !key.meta) {
+        void handleExportMarkdown();
+        return;
+      }
       if (input === 'i') {
         setImportField('path');
         setOverlay('import');
@@ -853,11 +1234,21 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
   const narrowBar = width < 88;
   const bannerH = 2;
   const diagH = 4;
-  const splitH = Math.max(4, height - bannerH - diagH);
+  const showFilterBar = filterEditing || filterQuery.length > 0;
+  const filterBarH = showFilterBar ? 1 : 0;
+  const splitH = Math.max(4, height - bannerH - diagH - filterBarH);
   const ell = asciiMode ? '...' : '…';
   const diagInnerW = Math.max(10, width - 4);
   const preflightLine = truncateDisplay(formatPreflightLine(preflight, lang, asciiMode), diagInnerW, ell);
   const usageLine = truncateDisplay(formatUsageLine(usage, lang, asciiMode), diagInnerW, ell);
+  const filterBadge = `[${filterEditing ? t(lang, '筛选', 'Filter') : t(lang, '已筛选', 'Filtered')} ${filteredResults.length}/${results.length}] `;
+  const filterRightHint =
+    width >= 66
+      ? ` ${filterEditing ? t(lang, 'Enter 确认 | Esc 清除', 'Enter apply | Esc clear') : t(lang, '/ 编辑 | Esc 清除', '/ edit | Esc clear')}`
+      : width >= 46
+        ? ' Esc'
+        : '';
+  const filterInputW = Math.max(8, width - 2 - displayWidth(filterBadge) - displayWidth(filterRightHint) - 3);
 
   return (
     <Box flexDirection="column" width={width} height={height}>
@@ -930,6 +1321,43 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
         <Text color={theme.muted}>{usageLine}</Text>
       </Panel>
 
+      {/* Inline Live Filter Bar ([/]) */}
+      {showFilterBar ? (
+        <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
+          <Text color={filterEditing ? theme.primary : theme.accent} bold>
+            {filterBadge}
+          </Text>
+          <Box flexGrow={1} overflow="hidden">
+            <TextInput
+              value={filterQuery}
+              onChange={(val) => {
+                setFilterQuery(val);
+                setSelectedIndex(0);
+              }}
+              onSubmit={(val) => {
+                if (!val.trim()) setFilterQuery('');
+                setFilterEditing(false);
+              }}
+              onCancel={() => {
+                setFilterQuery('');
+                setFilterEditing(false);
+                setSelectedIndex(0);
+              }}
+              isActive={listActive && filterEditing}
+              width={filterInputW}
+              prompt="/"
+              placeholder={t(lang, `标题/课程/文件名/正文${ell}`, `title/course/file/text${ell}`)}
+              maxLength={120}
+            />
+          </Box>
+          {filterRightHint ? (
+            <Text color={theme.dim} wrap="truncate">
+              {filterRightHint}
+            </Text>
+          ) : null}
+        </Box>
+      ) : null}
+
       {/* Main SplitPane */}
       <Box height={splitH} width={width}>
         <SplitPane
@@ -945,20 +1373,29 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
                   ? t(lang, '音频任务与转写稿', 'Audio Jobs & Transcripts')
                   : t(lang, '已完成转写稿', 'Completed Transcripts')
               }
-              badge={leftItems.length}
+              badge={normalizedFilter ? `${filteredResults.length}/${results.length}` : leftItems.length}
               width={lw}
               height={lh}
-              focused={listActive}
+              focused={listNavActive}
             >
               {loadingList ? (
                 <Spinner label={asciiMode ? t(lang, '加载转写记录...', 'Loading transcripts...') : t(lang, '加载转写记录…', 'Loading transcripts…')} />
               ) : leftItems.length === 0 ? (
-                <EmptyState
-                  title={t(lang, '暂无音频转写记录', 'No transcripts yet')}
-                  hint={t(lang, '按 [i] 导入音频，或按 [u] 导入 .srt/.vtt/.txt 字幕', 'Press [i] for audio or [u] for .srt/.vtt/.txt subtitles')}
-                  width={Math.max(12, lw - 4)}
-                  height={Math.max(4, lh - 2)}
-                />
+                normalizedFilter ? (
+                  <EmptyState
+                    title={t(lang, '无匹配的音频转写记录', 'No matching transcripts')}
+                    hint={t(lang, '按 [Esc] 清除筛选，或按 [/] 修改关键词', 'Press [Esc] to clear filter or [/] to edit')}
+                    width={Math.max(12, lw - 4)}
+                    height={Math.max(4, lh - 2)}
+                  />
+                ) : (
+                  <EmptyState
+                    title={t(lang, '暂无音频转写记录', 'No transcripts yet')}
+                    hint={t(lang, '按 [i] 导入音频，或按 [u] 导入 .srt/.vtt/.txt 字幕', 'Press [i] for audio or [u] for .srt/.vtt/.txt subtitles')}
+                    width={Math.max(12, lw - 4)}
+                    height={Math.max(4, lh - 2)}
+                  />
+                )
               ) : (
                 <VirtualList
                   items={leftItems}
@@ -966,7 +1403,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
                   width={Math.max(12, lw - 4)}
                   selectedIndex={selectedIndex}
                   onChange={(idx) => setSelectedIndex(idx)}
-                  isActive={listActive}
+                  isActive={listNavActive}
                   keyExtractor={(item) => item.id}
                   renderItem={(item, ctx) => {
                     if (item.kind === 'job') {

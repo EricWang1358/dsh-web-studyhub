@@ -1,4 +1,7 @@
-import React, { memo, useMemo, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { randomUUID } from 'node:crypto';
+import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
 import { Box, Text, useInput } from 'ink';
 import type { StudySnapshot, UiLanguage } from '../../types/contracts.js';
 import { useTheme } from '../../theme/tokens.js';
@@ -16,7 +19,7 @@ import type {
   ScopeChoice,
   WrittenKinds,
 } from './types.js';
-import { buildHistoryItems, buildScopeChoices } from './utils.js';
+import { buildHistoryItems, buildScopeChoices, formatDurationMs } from './utils.js';
 
 export interface ExamSetupProps {
   snapshot: StudySnapshot | null;
@@ -37,7 +40,242 @@ const WRITTEN_COUNTS = [10, 20, 30] as const;
 const ORAL_COUNTS = [3, 5, 8, 10] as const;
 const TIME_LIMITS = [15, 30, 60] as const;
 const WRITTEN_KINDS: readonly WrittenKinds[] = ['all', 'balanced', 'quiz', 'multi'];
-const CLAIMED = ['1', '2', '3', 'c', 't', 'k', 'r', 'h', 'l'];
+const CLAIMED = ['1', '2', '3', 'c', 't', 'k', 'r', 'h', 'l', 'x'];
+const RETRY_CODES = new Set(['EBUSY', 'EPERM', 'EACCES']);
+
+export interface ExamHistoryExportRecord {
+  runId?: string;
+  key?: string;
+  kind?: 'written' | 'oral' | string;
+  mode?: 'written' | 'case' | 'oral' | string;
+  examKinds?: string;
+  title?: string;
+  scope?: string;
+  decks?: string[];
+  role?: string;
+  detail?: string;
+  score?: string;
+  scorePct?: number;
+  answered?: number;
+  total?: number;
+  correct?: number;
+  assessed?: number;
+  strong?: number;
+  duration?: string;
+  durationMs?: number;
+  startedAt?: string;
+  submittedAt?: string;
+}
+
+export interface FormatExamHistoryMarkdownParams {
+  history: readonly ExamHistoryExportRecord[];
+  selectedAttempt?: ExamHistoryExportRecord | null;
+  lang: UiLanguage;
+  generatedAt?: Date | string;
+}
+
+function todayLocalYmd(date = new Date()): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function formatGeneratedDate(generatedAt?: Date | string): string {
+  if (typeof generatedAt === 'string' && generatedAt.trim()) return generatedAt.trim();
+  const d = generatedAt instanceof Date && !Number.isNaN(generatedAt.getTime()) ? generatedAt : new Date();
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${todayLocalYmd(d)} ${hh}:${mm}`;
+}
+
+function escapeMdCell(raw: unknown): string {
+  return String(raw ?? '')
+    .replace(/\|/g, '\\|')
+    .replace(/[\r\n]+/g, ' ')
+    .trim();
+}
+
+function resolveAttemptMode(rec: ExamHistoryExportRecord): 'written' | 'case' | 'oral' {
+  if (rec.mode === 'case' || rec.examKinds === 'case') return 'case';
+  if (rec.mode === 'oral' || rec.kind === 'oral') return 'oral';
+  if (typeof rec.title === 'string' && (rec.title.includes('[口试]') || rec.title.includes('[Oral]'))) return 'oral';
+  if (typeof rec.title === 'string' && (rec.title.includes('[案例卷]') || rec.title.includes('[Case]'))) return 'case';
+  return 'written';
+}
+
+function formatAttemptMode(mode: 'written' | 'case' | 'oral', lang: UiLanguage): string {
+  if (mode === 'case') return t(lang, '案例卷 (case)', 'Case Paper (case)');
+  if (mode === 'oral') return t(lang, '口试 (oral)', 'Oral Mock (oral)');
+  return t(lang, '选择题卷 (written)', 'Written MCQ (written)');
+}
+
+function resolveAttemptScorePct(rec: ExamHistoryExportRecord): number | null {
+  if (typeof rec.scorePct === 'number' && Number.isFinite(rec.scorePct)) return Math.round(rec.scorePct);
+  if (typeof rec.correct === 'number' && typeof rec.total === 'number' && rec.total > 0) {
+    return Math.round((rec.correct / rec.total) * 100);
+  }
+  if (
+    typeof rec.strong === 'number' &&
+    typeof rec.total === 'number' &&
+    rec.total > 0 &&
+    Number(rec.assessed ?? rec.total) > 0
+  ) {
+    return Math.round((rec.strong / rec.total) * 100);
+  }
+  if (typeof rec.score === 'string') {
+    const pctMatch = /(\d+(?:\.\d+)?)\s*%/.exec(rec.score);
+    if (pctMatch) return Math.round(Number(pctMatch[1]));
+    const ratioMatch = /^(\d+)\s*\/\s*(\d+)/.exec(rec.score.trim());
+    if (ratioMatch && Number(ratioMatch[2]) > 0) {
+      return Math.round((Number(ratioMatch[1]) / Number(ratioMatch[2])) * 100);
+    }
+  }
+  return null;
+}
+
+function formatAttemptScore(rec: ExamHistoryExportRecord): string {
+  const pct = resolveAttemptScorePct(rec);
+  if (rec.score && rec.score.trim()) {
+    const clean = rec.score.trim().replace(/★/g, '*');
+    if (pct !== null && !clean.includes('%')) return `${clean} (${pct}%)`;
+    return clean;
+  }
+  return pct !== null ? `${pct}%` : '-';
+}
+
+function formatAttemptAnsweredTotal(rec: ExamHistoryExportRecord): string {
+  const total = typeof rec.total === 'number' && Number.isFinite(rec.total) ? rec.total : null;
+  const answered =
+    typeof rec.answered === 'number' && Number.isFinite(rec.answered)
+      ? rec.answered
+      : typeof rec.assessed === 'number' && Number.isFinite(rec.assessed)
+        ? rec.assessed
+        : null;
+  if (answered !== null && total !== null) return `${answered}/${total}`;
+  if (total !== null) return `-/${total}`;
+  return '-';
+}
+
+function formatAttemptDuration(rec: ExamHistoryExportRecord): string {
+  if (typeof rec.duration === 'string' && rec.duration.trim()) return rec.duration.trim();
+  if (typeof rec.durationMs === 'number' && Number.isFinite(rec.durationMs) && rec.durationMs >= 0) {
+    return formatDurationMs(rec.durationMs);
+  }
+  if (rec.startedAt && rec.submittedAt) {
+    const ms = Date.parse(rec.submittedAt) - Date.parse(rec.startedAt);
+    if (Number.isFinite(ms) && ms >= 0) return formatDurationMs(ms);
+  }
+  return '-';
+}
+
+function formatAttemptTimestamp(rec: ExamHistoryExportRecord, compact = false): string {
+  const raw = String(rec.submittedAt ?? '').trim();
+  if (!raw) return '-';
+  return compact ? raw.slice(0, 16).replace('T', ' ') : raw;
+}
+
+function resolveAttemptTitleScope(rec: ExamHistoryExportRecord): string {
+  const scope = rec.scope?.trim();
+  const title = rec.title?.trim();
+  const decks = Array.isArray(rec.decks) ? rec.decks.map((d) => String(d).trim()).filter(Boolean).join(', ') : '';
+  const role = rec.role?.trim();
+  if (title && scope && title !== scope && !title.includes(scope)) {
+    return `${title} (${scope})`;
+  }
+  return scope || title || decks || role || '-';
+}
+
+/** Pure formatter producing an exam history Markdown report for the selected attempt and summary table. */
+export function formatExamHistoryMarkdown({
+  history,
+  selectedAttempt,
+  lang,
+  generatedAt,
+}: FormatExamHistoryMarkdownParams): string {
+  const list = Array.isArray(history) ? history : [];
+  const dateStr = formatGeneratedDate(generatedAt);
+  const scores = list.map(resolveAttemptScorePct).filter((v): v is number => v !== null);
+  const avgStr =
+    scores.length > 0
+      ? `${Math.round(scores.reduce((sum, n) => sum + n, 0) / scores.length)}%`
+      : '-';
+
+  const lines: string[] = [
+    `# ${t(lang, 'StudyHub 模拟考试历史报告', 'StudyHub Exam History Report')}`,
+    '',
+    `- **${t(lang, '生成日期', 'Generated')}**: ${dateStr}`,
+    `- **${t(lang, '考试记录总数', 'Total Exam Records')}**: ${list.length}`,
+    `- **${t(lang, '平均正确率 / 得分', 'Average Accuracy / Score')}**: ${avgStr}`,
+    '',
+  ];
+
+  if (selectedAttempt) {
+    const selMode = formatAttemptMode(resolveAttemptMode(selectedAttempt), lang);
+    lines.push(
+      `## ${t(lang, '当前选中记录', 'Selected Attempt')}`,
+      '',
+      `- **${t(lang, '标题 / 范围', 'Title / Scope')}**: ${resolveAttemptTitleScope(selectedAttempt)}`,
+      `- **${t(lang, '考试模式', 'Mode')}**: ${selMode}`,
+      `- **${t(lang, '成绩 / 正确率', 'Score / Accuracy')}**: ${formatAttemptScore(selectedAttempt)}`,
+      `- **${t(lang, '作答 / 总题数', 'Answered / Total')}**: ${formatAttemptAnsweredTotal(selectedAttempt)}`,
+      `- **${t(lang, '用时', 'Duration')}**: ${formatAttemptDuration(selectedAttempt)}`,
+      `- **${t(lang, '提交时间', 'Timestamp')}**: ${formatAttemptTimestamp(selectedAttempt)}`,
+      '',
+    );
+  }
+
+  lines.push(`## ${t(lang, '考试历史汇总', 'Exam Attempts Summary')}`, '');
+
+  if (list.length === 0) {
+    lines.push(t(lang, '_暂无模拟考试记录。_', '_No exam history records._'), '');
+    return lines.join('\n');
+  }
+
+  lines.push(
+    lang === 'en'
+      ? '| # | Date | Mode | Scope / Title | Score / Accuracy | Duration |'
+      : '| # | 日期 | 模式 | 范围 / 标题 | 成绩 / 正确率 | 用时 |',
+    '| --- | --- | --- | --- | --- | --- |',
+  );
+
+  list.forEach((rec, idx) => {
+    const dateCell = escapeMdCell(formatAttemptTimestamp(rec, true));
+    const modeCell = escapeMdCell(formatAttemptMode(resolveAttemptMode(rec), lang));
+    const scopeCell = escapeMdCell(resolveAttemptTitleScope(rec));
+    const scoreCell = escapeMdCell(formatAttemptScore(rec));
+    const durCell = escapeMdCell(formatAttemptDuration(rec));
+    lines.push(`| ${idx + 1} | ${dateCell} | ${modeCell} | ${scopeCell} | ${scoreCell} | ${durCell} |`);
+  });
+
+  lines.push('');
+  return lines.join('\n');
+}
+
+async function renameWithRetry(from: string, to: string): Promise<void> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await rename(from, to);
+      return;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException)?.code || '';
+      if (!RETRY_CODES.has(code) || attempt >= 5) throw error;
+      await new Promise((done) => setTimeout(done, 40 * (attempt + 1)));
+    }
+  }
+}
+
+async function atomicWriteMarkdownFile(targetPath: string, content: string): Promise<void> {
+  await mkdir(dirname(targetPath), { recursive: true });
+  const temp = `${targetPath}.${randomUUID()}.tmp`;
+  await writeFile(temp, content, 'utf8');
+  try {
+    await renameWithRetry(temp, targetPath);
+  } catch (error) {
+    await rm(temp, { force: true }).catch(() => {});
+    throw error;
+  }
+}
 
 export const ExamSetup = memo(function ExamSetup({
   snapshot,
@@ -54,6 +292,10 @@ export const ExamSetup = memo(function ExamSetup({
 }: ExamSetupProps) {
   const theme = useTheme();
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const notify = useTuiStore((s) => s.notify);
+  const bindingRoot = useTuiStore((s) => s.binding?.root);
+  const footerHints = useTuiStore((s) => s.footerHints);
+  const setFooterHints = useTuiStore((s) => s.setFooterHints);
   const ellipsis = asciiMode ? '...' : '…';
   const [pane, setPane] = useState<'setup' | 'history'>('setup');
   const [mode, setMode] = useState<ExamMode>('written');
@@ -63,12 +305,135 @@ export const ExamSetup = memo(function ExamSetup({
   const [kindIdx, setKindIdx] = useState(0);
   const [scopeIdx, setScopeIdx] = useState(0);
 
+  const mountedRef = useRef(true);
+  const exportBusyRef = useRef(false);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
   const scopes = useMemo(() => buildScopeChoices(snapshot, mode, lang), [snapshot, mode, lang]);
   const safeScopeIdx = Math.max(0, Math.min(scopeIdx, Math.max(0, scopes.length - 1)));
-  const selectedScope = scopes[safeScopeIdx] ?? null;
 
   const historyItems = useMemo(() => buildHistoryItems(snapshot, lang), [snapshot, lang]);
   const [historyIdx, setHistoryIdx] = useState(0);
+  const safeHistoryIdx = Math.max(0, Math.min(historyIdx, Math.max(0, historyItems.length - 1)));
+
+  const exportRecords = useMemo<ExamHistoryExportRecord[]>(() => {
+    const writtenById = new Map<string, Record<string, unknown>>();
+    for (const raw of snapshot?.exams ?? []) {
+      if (raw.runId) writtenById.set(String(raw.runId), raw);
+    }
+    const oralById = new Map<string, Record<string, unknown>>();
+    for (const raw of snapshot?.oralExams ?? []) {
+      if (raw.runId) oralById.set(String(raw.runId), raw);
+    }
+    return historyItems.map((item) => {
+      if (item.kind === 'oral') {
+        const raw = oralById.get(item.runId);
+        const total = raw && raw.total !== undefined ? Number(raw.total) : undefined;
+        const assessed = raw && raw.assessed !== undefined ? Number(raw.assessed) : undefined;
+        const strong = raw && raw.strong !== undefined ? Number(raw.strong) : undefined;
+        const role = raw ? String(raw.role ?? '').trim() : '';
+        return {
+          ...item,
+          mode: 'oral',
+          scope: role || item.title,
+          role,
+          answered: assessed,
+          assessed,
+          total,
+          strong,
+          scorePct: total && assessed ? Math.round(((strong ?? 0) / total) * 100) : undefined,
+        };
+      }
+      const raw = writtenById.get(item.runId);
+      const examKinds = raw ? String(raw.examKinds ?? 'all') : 'all';
+      const decks = raw && Array.isArray(raw.decks) ? raw.decks.map(String).filter(Boolean) : [];
+      return {
+        ...item,
+        mode: examKinds === 'case' ? 'case' : 'written',
+        examKinds,
+        scope: decks.join(', ') || item.title,
+        decks,
+        scorePct: raw && raw.scorePct !== undefined ? Number(raw.scorePct) : undefined,
+        answered: raw && raw.answered !== undefined ? Number(raw.answered) : undefined,
+        total: raw && raw.total !== undefined ? Number(raw.total) : undefined,
+        correct: raw && raw.correct !== undefined ? Number(raw.correct) : undefined,
+        durationMs: raw && typeof raw.durationMs === 'number' ? raw.durationMs : undefined,
+        startedAt: raw && typeof raw.startedAt === 'string' ? raw.startedAt : undefined,
+      };
+    });
+  }, [historyItems, snapshot?.exams, snapshot?.oralExams]);
+
+  const exportHintLabel = t(lang, '导出记录', 'Export MD');
+  const addedHintSigRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isActive) {
+      if (addedHintSigRef.current) {
+        const cur = useTuiStore.getState().footerHints;
+        if (cur.map((h) => `${h.key}\u0001${h.label}`).join('\u0002') === addedHintSigRef.current) {
+          setFooterHints([]);
+        }
+        addedHintSigRef.current = null;
+      }
+      return;
+    }
+    if (footerHints.length === 0 || footerHints.some((h) => h.key === 'x')) return;
+    const next = [...footerHints, { key: 'x', label: exportHintLabel }];
+    addedHintSigRef.current = next.map((h) => `${h.key}\u0001${h.label}`).join('\u0002');
+    setFooterHints(next);
+  }, [isActive, footerHints, setFooterHints, exportHintLabel]);
+
+  useEffect(() => () => {
+    if (addedHintSigRef.current) {
+      const cur = useTuiStore.getState().footerHints;
+      if (cur.map((h) => `${h.key}\u0001${h.label}`).join('\u0002') === addedHintSigRef.current) {
+        useTuiStore.getState().setFooterHints([]);
+      }
+      addedHintSigRef.current = null;
+    }
+  }, []);
+
+  const handleExportHistory = useCallback(async () => {
+    if (exportBusyRef.current) return;
+    if (exportRecords.length === 0) {
+      notify(t(lang, '暂无可导出的模拟考试记录', 'No exam history records to export'), 'info');
+      return;
+    }
+    exportBusyRef.current = true;
+    try {
+      const rawRoot = bindingRoot?.trim() || (typeof snapshot?.root === 'string' ? snapshot.root.trim() : '') || '';
+      const baseDir = rawRoot ? resolve(rawRoot) : process.cwd();
+      const targetPath = join(baseDir, 'backups', `studyhub-exam-${todayLocalYmd()}.md`);
+      const selectedAttempt = exportRecords[safeHistoryIdx] ?? exportRecords[0] ?? null;
+      const markdown = formatExamHistoryMarkdown({
+        history: exportRecords,
+        selectedAttempt,
+        lang,
+        generatedAt: new Date(),
+      });
+      await atomicWriteMarkdownFile(targetPath, markdown);
+      if (!mountedRef.current) return;
+      const arrow = asciiMode ? '->' : '→';
+      notify(
+        t(
+          lang,
+          `已导出 ${exportRecords.length} 条模考记录 ${arrow} ${targetPath}`,
+          `Exported ${exportRecords.length} exam record(s) ${arrow} ${targetPath}`,
+        ),
+        'success',
+      );
+    } catch (err) {
+      if (!mountedRef.current) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      notify(t(lang, `导出模考记录失败: ${msg}`, `Failed to export exam history: ${msg}`), 'error');
+    } finally {
+      exportBusyRef.current = false;
+    }
+  }, [asciiMode, bindingRoot, exportRecords, lang, notify, safeHistoryIdx, snapshot?.root]);
 
   useClaimKeys(CLAIMED, isActive);
 
@@ -79,6 +444,10 @@ export const ExamSetup = memo(function ExamSetup({
   useInput(
     (input, key) => {
       if (busy) return;
+      if (input === 'x' && !key.ctrl && !key.meta) {
+        void handleExportHistory();
+        return;
+      }
       if (key.tab || input === 'h' || input === 'l' || key.leftArrow || key.rightArrow) {
         if (input === 'h' || key.leftArrow) setPane('setup');
         else if (input === 'l' || key.rightArrow) setPane('history');

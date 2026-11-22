@@ -1,4 +1,7 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { randomUUID } from 'node:crypto';
+import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
 import { Box, Text, useInput } from 'ink';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
@@ -11,10 +14,11 @@ import { Panel } from '../../components/Panel.js';
 import { ScrollView } from '../../components/ScrollView.js';
 import { SelectList, type SelectOption } from '../../components/SelectList.js';
 import { SplitPane } from '../../components/SplitPane.js';
-import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
+import { TextInput } from '../../components/TextInput.js';
+import { VirtualList, parseSgrWheelDelta, useSgrMouseWheel, type VirtualListRenderContext } from '../../components/VirtualList.js';
 import { useClaimKeys } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
-import { padDisplay, truncateDisplay } from '../../render/cjk.js';
+import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { renderTreeLines, type TreeLine, type TreeNode } from '../../render/charts.js';
 import type {
   CardMasteryInfo,
@@ -40,7 +44,199 @@ const SkeletonDiagramsModal = lazy(() =>
   import('./SkeletonDiagramsModal.js').then((m) => ({ default: m.SkeletonDiagramsModal })),
 );
 
-const CLAIMED_KEYS = ['r', 'L', 'R', 'G', 'E', 'D', 'M'] as const;
+const CLAIMED_KEYS = ['r', 'L', 'R', 'G', 'E', 'D', 'M', '/', 'x'] as const;
+const RETRY_CODES = new Set(['EBUSY', 'EPERM', 'EACCES']);
+
+export function todayLocalYmd(date = new Date()): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+async function renameWithRetry(from: string, to: string): Promise<void> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await rename(from, to);
+      return;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException)?.code || '';
+      if (!RETRY_CODES.has(code) || attempt >= 5) throw error;
+      await new Promise((done) => setTimeout(done, 40 * (attempt + 1)));
+    }
+  }
+}
+
+async function atomicWriteMarkdownFile(targetPath: string, markdown: string): Promise<void> {
+  await mkdir(dirname(targetPath), { recursive: true });
+  const temp = `${targetPath}.${randomUUID()}.tmp`;
+  await writeFile(temp, markdown, 'utf8');
+  try {
+    await renameWithRetry(temp, targetPath);
+  } catch (error) {
+    await rm(temp, { force: true }).catch(() => {});
+    throw error;
+  }
+}
+
+export interface FormatSkeletonMarkdownOptions {
+  detail: SkeletonDetail;
+  course?: string | null;
+  masteryMap?: ReadonlyMap<string, NodeStats> | Record<string, NodeStats>;
+  lang?: 'zh' | 'en';
+  generatedAt?: Date | string;
+}
+
+function readNodeStats(
+  masteryMap: FormatSkeletonMarkdownOptions['masteryMap'],
+  nodeId: string,
+): NodeStats | undefined {
+  if (!masteryMap) return undefined;
+  if (masteryMap instanceof Map) return masteryMap.get(nodeId);
+  if (typeof (masteryMap as ReadonlyMap<string, NodeStats>).get === 'function') {
+    return (masteryMap as ReadonlyMap<string, NodeStats>).get(nodeId);
+  }
+  return (masteryMap as Record<string, NodeStats>)[nodeId];
+}
+
+function cleanMdText(raw: unknown): string {
+  return typeof raw === 'string' ? raw.replace(/\r?\n+/g, ' ').trim() : '';
+}
+
+/** Pure helper generating a hierarchical Markdown outline for a knowledge skeleton (0 LLM tokens). */
+export function formatSkeletonMarkdown({
+  detail,
+  course,
+  masteryMap,
+  lang = 'en',
+  generatedAt = new Date(),
+}: FormatSkeletonMarkdownOptions): string {
+  const nodes = Array.isArray(detail?.nodes) ? detail.nodes : [];
+  const relations = Array.isArray(detail?.relations) ? detail.relations : [];
+  const title = cleanMdText(detail?.title) || (lang === 'zh' ? '知识骨架' : 'Knowledge Skeleton');
+  const courseLabel = cleanMdText(course) || (lang === 'zh' ? '全部课程' : 'All Courses');
+  const timestamp =
+    generatedAt instanceof Date
+      ? generatedAt.toISOString().slice(0, 16).replace('T', ' ')
+      : cleanMdText(generatedAt) || new Date().toISOString().slice(0, 16).replace('T', ' ');
+
+  const nodeById = new Map<string, SkeletonNode>();
+  const childrenMap = new Map<string, SkeletonNode[]>();
+  for (const n of nodes) {
+    nodeById.set(n.id, n);
+    childrenMap.set(n.id, []);
+  }
+  const roots: SkeletonNode[] = [];
+  for (const n of nodes) {
+    if (n.parent && nodeById.has(n.parent) && n.parent !== n.id) {
+      childrenMap.get(n.parent)!.push(n);
+    } else {
+      roots.push(n);
+    }
+  }
+
+  const uniqueCardIds = new Set<string>();
+  let masterySum = 0;
+  let masteryCount = 0;
+  for (const n of nodes) {
+    for (const ref of n.cards ?? []) {
+      if (ref?.cardId) uniqueCardIds.add(ref.cardId);
+    }
+    const st = readNodeStats(masteryMap, n.id);
+    if (st && typeof st.masteryPct === 'number') {
+      masterySum += st.masteryPct;
+      masteryCount += 1;
+    }
+  }
+  const avgMasteryPct = masteryCount > 0 ? Math.round(masterySum / masteryCount) : 0;
+
+  const lines: string[] = [];
+  lines.push(`# ${title}`);
+  lines.push('');
+  lines.push(
+    lang === 'zh'
+      ? `- 课程: ${courseLabel} | 节点: ${nodes.length} | 关系: ${relations.length} | 题卡: ${uniqueCardIds.size} | 平均掌握度: ${avgMasteryPct}% | 导出时间: ${timestamp}`
+      : `- Course: ${courseLabel} | Nodes: ${nodes.length} | Relations: ${relations.length} | Cards: ${uniqueCardIds.size} | Avg Mastery: ${avgMasteryPct}% | Generated: ${timestamp}`,
+  );
+
+  const overview = cleanMdText(detail?.overview);
+  if (overview) {
+    lines.push('');
+    lines.push(`> ${overview}`);
+  }
+  const classNote = cleanMdText(detail?.classNote);
+  if (classNote) {
+    lines.push('');
+    lines.push(`- ${lang === 'zh' ? '课堂备注' : 'Class Note'}: ${classNote}`);
+  }
+
+  lines.push('');
+  lines.push(`## ${lang === 'zh' ? '知识层级大纲' : 'Knowledge Outline'}`);
+  lines.push('');
+
+  if (nodes.length === 0) {
+    lines.push(lang === 'zh' ? '_暂无知识节点_' : '_No knowledge nodes_');
+  } else {
+    const visited = new Set<string>();
+    const appendNode = (n: SkeletonNode, depth: number) => {
+      if (visited.has(n.id)) return;
+      visited.add(n.id);
+      const st = readNodeStats(masteryMap, n.id);
+      const directCards = st?.cardCount ?? (n.cards ?? []).length;
+      const masteryPct = st?.masteryPct ?? 0;
+      const focusTag = st?.isFocus ? (lang === 'zh' ? ' | 考纲重点' : ' | Focus') : '';
+      const badge =
+        lang === 'zh'
+          ? `[${masteryPct}% | ${directCards}题${focusTag}]`
+          : `[${masteryPct}% | ${directCards} cards${focusTag}]`;
+      const dyn = n as SkeletonNode & { title?: string; summary?: string; note?: string };
+      const label = cleanMdText(n.term) || cleanMdText(dyn.title) || n.id;
+      const desc = cleanMdText(n.meaning) || cleanMdText(dyn.summary) || cleanMdText(dyn.note);
+
+      if (depth === 0) {
+        lines.push(`### ${label} ${badge}`);
+        if (desc) lines.push(`- ${lang === 'zh' ? '释义' : 'Summary'}: ${desc}`);
+        if (n.attributes?.length) {
+          lines.push(`- ${lang === 'zh' ? '特征' : 'Traits'}: ${n.attributes.join(', ')}`);
+        }
+      } else {
+        const indent = '  '.repeat(depth - 1);
+        lines.push(`${indent}- **${label}** ${badge}`);
+        if (desc) lines.push(`${indent}  - ${desc}`);
+        if (n.attributes?.length) {
+          lines.push(`${indent}  - ${lang === 'zh' ? '特征' : 'Traits'}: ${n.attributes.join(', ')}`);
+        }
+      }
+
+      for (const kid of childrenMap.get(n.id) ?? []) {
+        appendNode(kid, depth + 1);
+      }
+      if (depth === 0) lines.push('');
+    };
+
+    for (const root of roots) {
+      appendNode(root, 0);
+    }
+    for (const n of nodes) {
+      if (!visited.has(n.id)) appendNode(n, 0);
+    }
+  }
+
+  if (relations.length > 0) {
+    lines.push(`## ${lang === 'zh' ? '概念关系' : 'Relations'}`);
+    lines.push('');
+    for (const r of relations) {
+      const fromTerm = nodeById.get(r.from)?.term ?? r.from;
+      const toTerm = nodeById.get(r.to)?.term ?? r.to;
+      const relLabel = lang === 'zh' ? RELATION_ZH[r.type] ?? r.type : r.type;
+      const noteText = cleanMdText(r.note);
+      lines.push(`- ${fromTerm} --[${relLabel}]-> ${toTerm}${noteText ? ` (${noteText})` : ''}`);
+    }
+    lines.push('');
+  }
+
+  return `${lines.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd()}\n`;
+}
 
 interface SkeletonLintCard {
   deckId: string;
@@ -316,6 +512,8 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
   const snapshotDecks = useTuiStore((s) => s.snapshot?.decks);
   const snapshotAttempts = useTuiStore((s) => s.snapshot?.attempts);
   const snapshotProgress = useTuiStore((s) => s.snapshot?.progress);
+  const snapshotRoot = useTuiStore((s) => s.snapshot?.root);
+  const bindingRoot = useTuiStore((s) => s.binding?.root);
   const snapshotCourse = useTuiStore((s) => (typeof s.snapshot?.focus?.course === 'string' ? s.snapshot.focus.course : null));
   const navCourse = useTuiStore((s) => s.navContext.course);
   const activeCourse = navCourse ?? snapshotCourse;
@@ -329,6 +527,8 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
   const [fetchedDecks, setFetchedDecks] = useState<Record<string, Array<Record<string, unknown>>>>({});
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [filterQuery, setFilterQuery] = useState('');
+  const [filterEditing, setFilterEditing] = useState(false);
   const [activePane, setActivePane] = useState<'left' | 'right'>('left');
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [diagramCount, setDiagramCount] = useState(0);
@@ -348,6 +548,7 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
 
   const mountedRef = useRef(true);
   const busyRef = useRef(false);
+  const exportBusyRef = useRef(false);
   const lintReqRef = useRef(0);
   useEffect(() => {
     mountedRef.current = true;
@@ -640,25 +841,88 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
     return Math.max(18, splitW - 4);
   }, [width]);
 
-  const treeLines: TreeLine[] = useMemo(
-    () => renderTreeLines(detail ? tree : fallbackTopicTree, expandedIds, selectedNodeId, treePaneWidth, { ascii: asciiMode }),
-    [detail, tree, fallbackTopicTree, expandedIds, selectedNodeId, treePaneWidth, asciiMode],
+  const normalizedFilter = filterQuery.trim().toLowerCase();
+
+  const allExpandedIds = useMemo(() => {
+    if (detail) {
+      return new Set(detail.nodes.filter((n) => detail.nodes.some((c) => c.parent === n.id)).map((n) => n.id));
+    }
+    return new Set(topics.slice(0, 60).map((tp) => `topic:${tp.key}`));
+  }, [detail, topics]);
+
+  const activeTree = detail ? tree : fallbackTopicTree;
+
+  const treeLabelById = useMemo(() => {
+    const map = new Map<string, string>();
+    const walk = (items: TreeNode[]) => {
+      for (const item of items) {
+        map.set(item.id, item.label);
+        if (item.children?.length) walk(item.children);
+      }
+    };
+    walk(activeTree);
+    return map;
+  }, [activeTree]);
+
+  const baseTreeLines: TreeLine[] = useMemo(
+    () =>
+      renderTreeLines(activeTree, normalizedFilter ? allExpandedIds : expandedIds, null, treePaneWidth, {
+        ascii: asciiMode,
+      }),
+    [activeTree, normalizedFilter, allExpandedIds, expandedIds, treePaneWidth, asciiMode],
   );
 
-  const selectedLineIdx = useMemo(() => {
-    if (!treeLines.length) return -1;
-    const idx = treeLines.findIndex((l) => l.id === selectedNodeId);
-    return idx >= 0 ? idx : 0;
+  const matchesFilter = useCallback(
+    (id: string): boolean => {
+      if (!normalizedFilter) return true;
+      if (id.toLowerCase().includes(normalizedFilter)) return true;
+      const fallbackLabel = treeLabelById.get(id);
+      if (fallbackLabel && fallbackLabel.toLowerCase().includes(normalizedFilter)) return true;
+      const node = nodeById.get(id);
+      if (node) {
+        const dyn = node as SkeletonNode & { title?: string; summary?: string; note?: string; topic?: string };
+        if (node.term.toLowerCase().includes(normalizedFilter)) return true;
+        if (dyn.title && dyn.title.toLowerCase().includes(normalizedFilter)) return true;
+        if (node.meaning && node.meaning.toLowerCase().includes(normalizedFilter)) return true;
+        if (dyn.summary && dyn.summary.toLowerCase().includes(normalizedFilter)) return true;
+        if (dyn.note && dyn.note.toLowerCase().includes(normalizedFilter)) return true;
+        if (dyn.topic && dyn.topic.toLowerCase().includes(normalizedFilter)) return true;
+        if (node.attributes?.some((attr) => attr.toLowerCase().includes(normalizedFilter))) return true;
+        for (const ref of node.cards ?? []) {
+          const info = cardIndex.get(ref.cardId);
+          if (info?.topic && info.topic.toLowerCase().includes(normalizedFilter)) return true;
+        }
+      }
+      return false;
+    },
+    [normalizedFilter, treeLabelById, nodeById, cardIndex],
+  );
+
+  const treeLines: TreeLine[] = useMemo(
+    () => (normalizedFilter ? baseTreeLines.filter((l) => matchesFilter(l.id)) : baseTreeLines),
+    [normalizedFilter, baseTreeLines, matchesFilter],
+  );
+
+  const effectiveSelectedNodeId = useMemo(() => {
+    if (treeLines.length === 0) return null;
+    if (selectedNodeId && treeLines.some((l) => l.id === selectedNodeId)) return selectedNodeId;
+    return treeLines[0].id;
   }, [treeLines, selectedNodeId]);
+
+  const selectedLineIdx = useMemo(() => {
+    if (!treeLines.length || !effectiveSelectedNodeId) return -1;
+    const idx = treeLines.findIndex((l) => l.id === effectiveSelectedNodeId);
+    return idx >= 0 ? idx : 0;
+  }, [treeLines, effectiveSelectedNodeId]);
 
   useEffect(() => {
-    if (treeLines.length > 0 && (!selectedNodeId || !treeLines.some((l) => l.id === selectedNodeId))) {
-      setSelectedNodeId(treeLines[0].id);
+    if (treeLines.length > 0 && effectiveSelectedNodeId && effectiveSelectedNodeId !== selectedNodeId) {
+      setSelectedNodeId(effectiveSelectedNodeId);
     }
-  }, [treeLines, selectedNodeId]);
+  }, [treeLines.length, effectiveSelectedNodeId, selectedNodeId]);
 
-  const selectedNode = selectedNodeId ? nodeById.get(selectedNodeId) ?? null : null;
-  const selectedStats = selectedNodeId ? nodeStatsMap.get(selectedNodeId) ?? null : null;
+  const selectedNode = effectiveSelectedNodeId ? nodeById.get(effectiveSelectedNodeId) ?? null : null;
+  const selectedStats = effectiveSelectedNodeId ? nodeStatsMap.get(effectiveSelectedNodeId) ?? null : null;
 
   const toggleExpand = useCallback((id: string, force?: boolean) => {
     setExpandedIds((prev) => {
@@ -937,9 +1201,74 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
     [lintResult, detail, topics, cardIndex, nodeById, lang],
   );
 
+  const exportSkeleton = useCallback(async () => {
+    if (exportBusyRef.current) return;
+    if (!detail) {
+      useTuiStore
+        .getState()
+        .notify(t(lang, '当前暂无可导出的知识骨架', 'No skeleton to export'), 'info');
+      return;
+    }
+    exportBusyRef.current = true;
+    try {
+      const markdown = formatSkeletonMarkdown({
+        detail,
+        course: activeCourse,
+        masteryMap: nodeStatsMap,
+        lang,
+        generatedAt: new Date(),
+      });
+      const rawRoot =
+        bindingRoot?.trim() ||
+        host.getLibraryRoot?.()?.trim() ||
+        host.getConfig?.()?.libraryRoot?.trim() ||
+        snapshotRoot?.trim() ||
+        '';
+      const baseDir = rawRoot ? resolve(rawRoot) : process.cwd();
+      const targetPath = join(baseDir, 'backups', `studyhub-skeleton-${todayLocalYmd()}.md`);
+      await atomicWriteMarkdownFile(targetPath, markdown);
+      if (!mountedRef.current) return;
+      const arrow = asciiMode ? '->' : '→';
+      useTuiStore.getState().notify(
+        t(
+          lang,
+          `已导出 ${detail.nodes.length} 个知识节点 ${arrow} ${targetPath}`,
+          `Exported ${detail.nodes.length} skeleton node(s) ${arrow} ${targetPath}`,
+        ),
+        'success',
+      );
+    } catch (err) {
+      if (!mountedRef.current) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      useTuiStore.getState().notify(t(lang, `导出知识骨架失败：${msg}`, `Failed to export skeleton: ${msg}`), 'error');
+    } finally {
+      exportBusyRef.current = false;
+    }
+  }, [activeCourse, asciiMode, bindingRoot, detail, host, lang, nodeStatsMap, snapshotRoot]);
+
+  const treeLinesRef = useRef(treeLines);
+  treeLinesRef.current = treeLines;
+  const selectedLineIdxRef = useRef(selectedLineIdx);
+  selectedLineIdxRef.current = selectedLineIdx;
+
+  const moveTreeCursorByWheel = useCallback((delta: number) => {
+    if (delta === 0) return;
+    const rows = treeLinesRef.current;
+    if (rows.length === 0) return;
+    const step = delta > 0 ? Math.max(1, Math.round(delta / 3)) : Math.min(-1, Math.round(delta / 3));
+    const cur = Math.max(0, selectedLineIdxRef.current);
+    const nextIdx = Math.max(0, Math.min(rows.length - 1, cur + step));
+    const targetId = rows[nextIdx]?.id ?? null;
+    if (targetId) {
+      selectedLineIdxRef.current = nextIdx;
+      setSelectedNodeId(targetId);
+    }
+  }, []);
+
   const modalOpen =
     switcherOpen || lintOpen || routeOpen || groupsOpen || nodeEditOpen || diagramsOpen || confirmGenOpen || confirmDeleteOpen;
-  useClaimKeys(CLAIMED_KEYS, isActive && !modalOpen);
+  useClaimKeys(CLAIMED_KEYS, isActive && !modalOpen && !filterEditing);
+  useSgrMouseWheel(isActive && !modalOpen && !filterEditing, moveTreeCursorByWheel);
 
   const hints: KeyHint[] = useMemo(
     () => [
@@ -954,12 +1283,16 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
       { key: 'L', label: t(lang, '自检', 'Lint') },
       { key: 'g', label: t(lang, '生成', 'Gen') },
       { key: 's', label: t(lang, '切换', 'Switch') },
+      { key: '/', label: t(lang, '筛选', 'Filter') },
+      { key: 'x', label: t(lang, '导出MD', 'Export') },
     ],
     [lang, detail, selectedNode, diagramCount],
   );
   useFooterHints(hints, isActive && !modalOpen);
 
-  const treeViewportH = Math.max(4, height - 4);
+  const showFilterBar = filterEditing || filterQuery.length > 0;
+  const filterBarH = showFilterBar ? 1 : 0;
+  const treeViewportH = Math.max(4, height - 4 - filterBarH);
   const treeScrollTop = useMemo(() => {
     if (selectedLineIdx < 0 || treeLines.length <= treeViewportH) return 0;
     const half = Math.floor(treeViewportH / 2);
@@ -975,7 +1308,24 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
 
   useInput(
     (input, key) => {
-      if (modalOpen) return;
+      if (modalOpen || filterEditing) return;
+      const wheelDelta = parseSgrWheelDelta(input);
+      if (wheelDelta !== 0) {
+        moveTreeCursorByWheel(wheelDelta);
+        return;
+      }
+      if (key.escape && filterQuery) {
+        setFilterQuery('');
+        return;
+      }
+      if (input === '/' && !key.ctrl && !key.meta) {
+        setFilterEditing(true);
+        return;
+      }
+      if (input === 'x' && !key.ctrl && !key.meta) {
+        void exportSkeleton();
+        return;
+      }
       if (key.tab) {
         setActivePane((p) => (p === 'left' ? 'right' : 'left'));
         return;
@@ -1067,7 +1417,7 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
         }
       }
     },
-    { isActive: isActive && !modalOpen },
+    { isActive: isActive && !modalOpen && !filterEditing },
   );
 
   const switcherOptions: SelectOption<string>[] = useMemo(
@@ -1123,7 +1473,8 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
   );
 
   const headerH = 2;
-  const bodyH = Math.max(6, height - headerH);
+  const bodyH = Math.max(6, height - headerH - filterBarH);
+  const ell = asciiMode ? '...' : '…';
 
   if (loading && !detail && skeletons.length === 0 && topics.length === 0) {
     return (
@@ -1140,6 +1491,46 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
   const legendText = asciiMode
     ? t(lang, '*掌握  o学习  !薄弱  ^考纲重点', '*Mastered oLearning !Weak ^Focus')
     : t(lang, '★掌握  ◐学习  ✕薄弱  ⚑考纲重点', '★Mastered ◐Learning ✕Weak ⚑Focus');
+
+  const filterBadge = `[${filterEditing ? t(lang, '筛选', 'Filter') : t(lang, '已筛选', 'Filtered')} ${treeLines.length}/${baseTreeLines.length}] `;
+  const filterRightHint =
+    width >= 66
+      ? ` ${filterEditing ? t(lang, 'Enter 确认 | Esc 清除', 'Enter apply | Esc clear') : t(lang, '/ 编辑 | Esc 清除', '/ edit | Esc clear')}`
+      : width >= 46
+        ? ' Esc'
+        : '';
+  const filterInputW = Math.max(8, width - 2 - displayWidth(filterBadge) - displayWidth(filterRightHint) - 3);
+  const filterBarNode = showFilterBar ? (
+    <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
+      <Text color={filterEditing ? theme.primary : theme.accent} bold>
+        {filterBadge}
+      </Text>
+      <Box flexGrow={1} overflow="hidden">
+        <TextInput
+          value={filterQuery}
+          onChange={(val) => setFilterQuery(val)}
+          onSubmit={(val) => {
+            if (!val.trim()) setFilterQuery('');
+            setFilterEditing(false);
+          }}
+          onCancel={() => {
+            setFilterQuery('');
+            setFilterEditing(false);
+          }}
+          isActive={isActive && !modalOpen && filterEditing}
+          width={filterInputW}
+          prompt="/"
+          placeholder={t(lang, `关键词${ell}`, `keyword${ell}`)}
+          maxLength={120}
+        />
+      </Box>
+      {filterRightHint ? (
+        <Text color={theme.dim} wrap="truncate">
+          {filterRightHint}
+        </Text>
+      ) : null}
+    </Box>
+  ) : null;
 
   return (
     <Box flexDirection="column" width={width} height={height}>
@@ -1159,12 +1550,12 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
             {truncateDisplay(
               detail?.title ?? t(lang, '知识骨架', 'Knowledge Skeleton'),
               Math.max(12, Math.floor(width * (headerCompact ? 0.48 : 0.36))),
-              asciiMode ? '...' : '…',
+              ell,
             )}
           </Text>
           {activeCourse ? (
             <Box flexShrink={0}>
-              <Badge label={truncateDisplay(activeCourse, 18, asciiMode ? '...' : '…')} tone="accent" variant="soft" />
+              <Badge label={truncateDisplay(activeCourse, 18, ell)} tone="accent" variant="soft" />
             </Box>
           ) : null}
           {skeletons.length > 1 ? (
@@ -1191,9 +1582,11 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
           ) : null}
         </Box>
         <Box height={1} overflow="hidden">
-          <Text color={theme.muted}>{truncateDisplay(legendText, Math.max(12, width - 2), asciiMode ? '...' : '…')}</Text>
+          <Text color={theme.muted}>{truncateDisplay(legendText, Math.max(12, width - 2), ell)}</Text>
         </Box>
       </Box>
+
+      {filterBarNode}
 
       {/* Main */}
       {!detail && topics.length === 0 ? (
@@ -1227,29 +1620,44 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
             return (
               <Panel
                 title={detail ? t(lang, '知识层级树', 'Knowledge Tree') : t(lang, '课程主题预览', 'Course Topics')}
-                badge={detail ? detail.nodes.length : topics.length}
+                badge={normalizedFilter ? `${treeLines.length}/${baseTreeLines.length}` : detail ? detail.nodes.length : topics.length}
                 focused={activePane === 'left'}
                 width={size.width}
                 height={size.height}
                 paddingX={1}
               >
-                {visible.map((line) => {
-                  const st = nodeStatsMap.get(line.id);
-                  const fg = line.selected
-                    ? theme.selectionFg
-                    : st?.level === 'weak'
-                      ? theme.error
-                      : st?.level === 'mastered'
-                        ? theme.success
-                        : theme.text;
-                  return (
-                    <Box key={line.id} width={innerW} height={1} backgroundColor={line.selected ? theme.selectionBg : undefined}>
-                      <Text color={fg} bold={line.selected}>
-                        {truncateDisplay(line.text, innerW, asciiMode ? '...' : '…')}
-                      </Text>
-                    </Box>
-                  );
-                })}
+                {visible.length === 0 ? (
+                  <Box width={innerW} height={innerH} alignItems="center" justifyContent="center">
+                    <Text color={theme.muted}>
+                      {truncateDisplay(
+                        normalizedFilter
+                          ? t(lang, '无匹配节点 (Esc 清除筛选)', 'No matching nodes (Esc to clear)')
+                          : t(lang, '暂无节点', 'No nodes'),
+                        innerW,
+                        ell,
+                      )}
+                    </Text>
+                  </Box>
+                ) : (
+                  visible.map((line) => {
+                    const isSelected = line.id === effectiveSelectedNodeId;
+                    const st = nodeStatsMap.get(line.id);
+                    const fg = isSelected
+                      ? theme.selectionFg
+                      : st?.level === 'weak'
+                        ? theme.error
+                        : st?.level === 'mastered'
+                          ? theme.success
+                          : theme.text;
+                    return (
+                      <Box key={line.id} width={innerW} height={1} backgroundColor={isSelected ? theme.selectionBg : undefined}>
+                        <Text color={fg} bold={isSelected}>
+                          {truncateDisplay(line.text, innerW, ell)}
+                        </Text>
+                      </Box>
+                    );
+                  })
+                )}
               </Panel>
             );
           }}
@@ -1279,7 +1687,7 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
                   lines={inspectorLines}
                   width={innerW}
                   height={Math.max(2, innerH - (selectedStats ? 2 : 0))}
-                  isActive={isActive && activePane === 'right' && !modalOpen}
+                  isActive={isActive && activePane === 'right' && !modalOpen && !filterEditing}
                 />
               </Panel>
             );

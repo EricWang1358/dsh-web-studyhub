@@ -135,6 +135,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       items: [
         { key: 's', label: t(lang, '切换材料', 'Toggle case') },
         { key: 'H', label: t(lang, '标亮段落', 'Highlight') },
+        { key: 'x', label: t(lang, '导出模考历史报告 (MD)', 'Export exam report (MD)') },
       ],
     },
     {
@@ -163,6 +164,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'g', label: t(lang, 'AI起草笔记正文', 'AI draft note') },
         { key: 'C', label: t(lang, '停止笔记/每日总结生成', 'Stop note / recap gen') },
         { key: 'o', label: t(lang, '跳转关联', 'Jump linked ref') },
+        { key: '/ / x', label: t(lang, '筛选骨架节点 / 导出大纲 MD', 'Filter nodes / Export skeleton MD') },
       ],
     },
     {
@@ -210,6 +212,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'R', label: t(lang, '恢复中断任务 / 重试音频', 'Recover jobs / Retry audio') },
         { key: 'u', label: t(lang, '导入字幕', 'Import subtitles') },
         { key: 'c', label: t(lang, '复核音频存疑处', 'Review audio corrections') },
+        { key: '/ / x', label: t(lang, '筛选音频 / 导出转写 MD', 'Filter audio / Export transcript MD') },
       ],
     },
     {
