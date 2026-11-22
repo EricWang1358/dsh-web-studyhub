@@ -1,7 +1,8 @@
 import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box } from 'ink';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';
-import { Spinner, useFooterHints } from '../../components/index.js';
+import { Spinner } from '../../components/Badge.js';
+import { useFooterHints } from '../../components/hooks.js';
 import { tryAction } from '../../host/index.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { ExamSetup } from './ExamSetup.js';

@@ -7,17 +7,11 @@ import { Box, Text, useInput } from 'ink';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { cleanPathInput, tryAction } from '../../host/index.js';
-import { expandHomePath } from '../sources/index.js';
-import {
-  Badge,
-  Divider,
-  EmptyState,
-  Modal,
-  Spinner,
-  TextInput,
-  modalContentWidth,
-  useTheme,
-} from '../../components/index.js';
+import { expandHomePath } from '../sources/path-complete.js';
+import { useTheme } from '../../theme/tokens.js';
+import { Badge, Divider, EmptyState, Spinner } from '../../components/Badge.js';
+import { Modal, modalContentWidth } from '../../components/Modal.js';
+import { TextInput } from '../../components/TextInput.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 
 export type BookExportQuestionMode = 'linked' | 'all' | 'none';

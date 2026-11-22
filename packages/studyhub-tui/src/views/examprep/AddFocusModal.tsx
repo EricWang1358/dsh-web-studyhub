@@ -5,16 +5,12 @@ import { randomUUID } from 'node:crypto';
 import { Box, Text, useInput } from 'ink';
 import type { HostClient } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
-import {
-  Badge,
-  ConfirmDialog,
-  Modal,
-  Spinner,
-  TextInput,
-  modalContentWidth,
-  useInputCapture,
-  useTheme,
-} from '../../components/index.js';
+import { useTheme } from '../../theme/tokens.js';
+import { Badge, Spinner } from '../../components/Badge.js';
+import { ConfirmDialog } from '../../components/ConfirmDialog.js';
+import { Modal, modalContentWidth } from '../../components/Modal.js';
+import { TextInput } from '../../components/TextInput.js';
+import { useInputCapture } from '../../components/focus.js';
 import { truncateDisplay } from '../../render/cjk.js';
 import { cleanPathInput, tryAction } from '../../host/index.js';
 import {

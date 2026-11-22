@@ -3,23 +3,17 @@ import { Box, Text, useInput } from 'ink';
 import type { KeyHint, StudySnapshot, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { saveTuiPreferences } from '../../host/index.js';
-import {
-  Badge,
-  ConfirmDialog,
-  EmptyState,
-  MarkdownView,
-  Modal,
-  Panel,
-  SelectList,
-  Spinner,
-  SplitPane,
-  VirtualList,
-  modalContentWidth,
-  useClaimKeys,
-  useFooterHints,
-  useTheme,
-  type SelectOption,
-} from '../../components/index.js';
+import { useTheme } from '../../theme/tokens.js';
+import { Badge, EmptyState, Spinner } from '../../components/Badge.js';
+import { ConfirmDialog } from '../../components/ConfirmDialog.js';
+import { MarkdownView } from '../../components/MarkdownView.js';
+import { Modal, modalContentWidth } from '../../components/Modal.js';
+import { Panel } from '../../components/Panel.js';
+import { SelectList, type SelectOption } from '../../components/SelectList.js';
+import { SplitPane } from '../../components/SplitPane.js';
+import { VirtualList } from '../../components/VirtualList.js';
+import { useClaimKeys } from '../../components/focus.js';
+import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import type {
   BookNode,

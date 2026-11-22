@@ -2,13 +2,9 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from '
 import { Box, Text, useInput } from 'ink';
 import type { HostClient, KeyHint, StudySnapshot } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
-import {
-  Badge,
-  Modal,
-  Spinner,
-  modalContentWidth,
-  useTheme,
-} from '../../components/index.js';
+import { useTheme } from '../../theme/tokens.js';
+import { Badge, Spinner } from '../../components/Badge.js';
+import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { tryAction } from '../../host/index.js';
 

@@ -5,18 +5,11 @@ import { t, useTuiStore } from '../../state/store.js';
 import { tryAction } from '../../host/index.js';
 import { currentCourse } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
-import {
-  Badge,
-  EmptyState,
-  Modal,
-  ProgressBar,
-  Spinner,
-  TextInput,
-  VirtualList,
-  modalContentWidth,
-  useTheme,
-  type VirtualListRenderContext,
-} from '../../components/index.js';
+import { useTheme } from '../../theme/tokens.js';
+import { Badge, EmptyState, ProgressBar, Spinner } from '../../components/Badge.js';
+import { Modal, modalContentWidth } from '../../components/Modal.js';
+import { TextInput } from '../../components/TextInput.js';
+import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 
 export interface StudyMapModalProps {

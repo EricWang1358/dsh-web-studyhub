@@ -4,16 +4,10 @@ import type { HostClient, KeyHint, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { currentCourse } from '../../shell/data.js';
 import { startReview, tryAction, getReview, type ReviewRun } from '../../host/index.js';
-import {
-  Badge,
-  Divider,
-  EmptyState,
-  MarkdownView,
-  Modal,
-  Spinner,
-  modalContentWidth,
-  useTheme,
-} from '../../components/index.js';
+import { useTheme } from '../../theme/tokens.js';
+import { Badge, Divider, EmptyState, Spinner } from '../../components/Badge.js';
+import { MarkdownView } from '../../components/MarkdownView.js';
+import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { truncateDisplay } from '../../render/cjk.js';
 import { currentDeckIdOf, kindLabel, type NormalizedKind } from './review-helpers.js';
 

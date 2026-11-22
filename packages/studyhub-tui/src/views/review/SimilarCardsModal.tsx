@@ -3,18 +3,12 @@ import { Box, Text, useInput } from 'ink';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { startReview, tryAction, type ReviewRun } from '../../host/index.js';
-import {
-  Badge,
-  EmptyState,
-  MarkdownView,
-  Modal,
-  Spinner,
-  SplitPane,
-  VirtualList,
-  modalContentWidth,
-  useTheme,
-  type VirtualListRenderContext,
-} from '../../components/index.js';
+import { useTheme } from '../../theme/tokens.js';
+import { Badge, EmptyState, Spinner } from '../../components/Badge.js';
+import { MarkdownView } from '../../components/MarkdownView.js';
+import { Modal, modalContentWidth } from '../../components/Modal.js';
+import { SplitPane } from '../../components/SplitPane.js';
+import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
 import { padDisplay, truncateDisplay } from '../../render/cjk.js';
 import {
   currentDeckIdOf,

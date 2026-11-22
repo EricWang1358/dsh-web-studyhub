@@ -2,23 +2,13 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from '
 import { Box, Text, useInput } from 'ink';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
-import {
-  Badge,
-  ConfirmDialog,
-  Divider,
-  EmptyState,
-  Modal,
-  ProgressBar,
-  SelectList,
-  Spinner,
-  StatusPill,
-  TextInput,
-  VirtualList,
-  modalContentWidth,
-  useTheme,
-  type SelectOption,
-  type VirtualListRenderContext,
-} from '../../components/index.js';
+import { useTheme } from '../../theme/tokens.js';
+import { Badge, Divider, EmptyState, ProgressBar, Spinner, StatusPill } from '../../components/Badge.js';
+import { ConfirmDialog } from '../../components/ConfirmDialog.js';
+import { Modal, modalContentWidth } from '../../components/Modal.js';
+import { SelectList, type SelectOption } from '../../components/SelectList.js';
+import { TextInput } from '../../components/TextInput.js';
+import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { renderProgressBar } from '../../render/charts.js';
 import { listCourses } from '../../shell/data.js';

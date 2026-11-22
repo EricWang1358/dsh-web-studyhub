@@ -16,21 +16,15 @@ import {
   type ReviewMode,
   type ReviewRun,
 } from '../../host/index.js';
-import {
-  Badge,
-  ConfirmDialog,
-  Divider,
-  EmptyState,
-  MarkdownView,
-  Modal,
-  Panel,
-  ProgressBar,
-  Spinner,
-  TextInput,
-  useClaimKeys,
-  useFooterHints,
-  useTheme,
-} from '../../components/index.js';
+import { useTheme } from '../../theme/tokens.js';
+import { Badge, Divider, EmptyState, ProgressBar, Spinner } from '../../components/Badge.js';
+import { ConfirmDialog } from '../../components/ConfirmDialog.js';
+import { MarkdownView } from '../../components/MarkdownView.js';
+import { Modal } from '../../components/Modal.js';
+import { Panel } from '../../components/Panel.js';
+import { TextInput } from '../../components/TextInput.js';
+import { useClaimKeys } from '../../components/focus.js';
+import { useFooterHints } from '../../components/hooks.js';
 import { LruCache } from '../../render/lru.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import {

@@ -3,18 +3,13 @@ import { Box, Text, useInput } from 'ink';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { tryAction } from '../../host/index.js';
-import {
-  Badge,
-  ConfirmDialog,
-  Divider,
-  MarkdownView,
-  Modal,
-  Spinner,
-  TextInput,
-  modalContentWidth,
-  useInputCapture,
-  useTheme,
-} from '../../components/index.js';
+import { useTheme } from '../../theme/tokens.js';
+import { Badge, Divider, Spinner } from '../../components/Badge.js';
+import { ConfirmDialog } from '../../components/ConfirmDialog.js';
+import { MarkdownView } from '../../components/MarkdownView.js';
+import { Modal, modalContentWidth } from '../../components/Modal.js';
+import { TextInput } from '../../components/TextInput.js';
+import { useInputCapture } from '../../components/focus.js';
 import { truncateDisplay } from '../../render/cjk.js';
 import type { FlatTocItem } from './types.js';
 

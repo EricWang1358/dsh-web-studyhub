@@ -1,20 +1,16 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { UiLanguage } from '../../types/contracts.js';
-import {
-  Badge,
-  ConfirmDialog,
-  MarkdownView,
-  Panel,
-  ScrollView,
-  Spinner,
-  TextInput,
-  useClaimKeys,
-  useTheme,
-} from '../../components/index.js';
+import { Badge, Spinner } from '../../components/Badge.js';
+import { ConfirmDialog } from '../../components/ConfirmDialog.js';
+import { MarkdownView } from '../../components/MarkdownView.js';
+import { Panel } from '../../components/Panel.js';
+import { ScrollView } from '../../components/ScrollView.js';
+import { TextInput } from '../../components/TextInput.js';
+import { useClaimKeys } from '../../components/focus.js';
 import { truncateDisplay, wrapDisplay } from '../../render/cjk.js';
 import { t, useTuiStore } from '../../state/store.js';
-import { getColorLevel, makeChalk } from '../../theme/tokens.js';
+import { getColorLevel, makeChalk, useTheme } from '../../theme/tokens.js';
 import type { CaseHighlight, ExamCard, OralView, RunView } from './types.js';
 import { computeRemainingMs, formatDurationMs } from './utils.js';
 

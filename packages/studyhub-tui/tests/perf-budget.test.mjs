@@ -324,9 +324,10 @@ describe('StudyHub TUI NFR Performance & Bundle Budgets', () => {
     );
   });
 
-  test('7. Zero render/index.js barrel imports in src/ and non-markdown overlays/views exclude marked and render/markdown.ts', () => {
+  test('7. Zero render/index.js & components/index.js barrel imports in src/ and non-markdown views/overlays/modals exclude marked and render/markdown.ts', () => {
     const srcDir = path.join(pkgRoot, 'src');
     const renderIndexPath = path.join(srcDir, 'render', 'index.ts');
+    const componentsIndexPath = path.join(srcDir, 'components', 'index.ts');
     const srcFiles = [];
     const walk = (dir) => {
       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -337,32 +338,92 @@ describe('StudyHub TUI NFR Performance & Bundle Budgets', () => {
     };
     walk(srcDir);
 
-    const barrelImporters = [];
+    const renderBarrelImporters = [];
+    const componentBarrelImporters = [];
     for (const file of srcFiles) {
-      if (file === renderIndexPath) continue;
       const source = fs.readFileSync(file, 'utf8');
       const allSpecs = [
         ...extractStaticImportSpecifiers(source),
         ...extractDynamicImportSpecifiers(source),
       ];
-      if (allSpecs.some((spec) => /(?:^|\/)render\/index(?:\.js|\.ts)?$/.test(spec))) {
-        barrelImporters.push(path.relative(pkgRoot, file));
+      if (
+        file !== renderIndexPath &&
+        allSpecs.some((spec) => /(?:^|\/)render\/index(?:\.js|\.ts)?$/.test(spec))
+      ) {
+        renderBarrelImporters.push(path.relative(pkgRoot, file));
+      }
+      if (
+        file !== componentsIndexPath &&
+        allSpecs.some((spec) => /(?:^|\/)components\/index(?:\.js|\.ts)?$/.test(spec))
+      ) {
+        componentBarrelImporters.push(path.relative(pkgRoot, file));
       }
     }
     assert.deepEqual(
-      barrelImporters,
+      renderBarrelImporters,
       [],
-      `src/ files must import direct render submodules instead of render/index.js: ${barrelImporters.join(', ')}`,
+      `src/ files must import direct render submodules instead of render/index.js: ${renderBarrelImporters.join(', ')}`,
+    );
+    assert.deepEqual(
+      componentBarrelImporters,
+      [],
+      `src/ files must import direct component submodules instead of components/index.js: ${componentBarrelImporters.join(', ')}`,
     );
 
     const distFiles = fs.readdirSync(distDir).filter((f) => f.endsWith('.mjs'));
     const targetPrefixes = [
+      // Shell overlays
       'CommandPalette-',
+      'CoursePickerModal-',
+      'HelpOverlay-',
       'InboxModal-',
-      'BoardView-',
-      'TasksView-',
+      // Non-markdown views (TasksView lazy-loads MarkdownView)
       'AudioView-',
+      'BoardView-',
+      'DashboardView-',
+      'ExamCoachView-',
+      'ExamPrepView-',
+      'ExamView-',
+      'GenerateView-',
+      'Launchpad-',
+      'SettingsView-',
+      'SkeletonView-',
       'SourcesView-',
+      'TasksView-',
+      // Non-markdown settings tabs
+      'AppearanceTab-',
+      'StudyGenTab-',
+      'WorkspaceTab-',
+      // Non-markdown modals & drawers
+      'AddFocusModal-',
+      'BoardCardModal-',
+      'BookCrunchModal-',
+      'BookEditModal-',
+      'BookExportModal-',
+      'BookStructureModal-',
+      'CardToolsModal-',
+      'CoachPreferencesModal-',
+      'CourseRouteModal-',
+      'CourseSettingsModal-',
+      'DailyPlanModal-',
+      'DeckOpsModal-',
+      'FolderModal-',
+      'ImportModal-',
+      'IngestModal-',
+      'MarkPassageModal-',
+      'MinerUModal-',
+      'NoteEditorModal-',
+      'OrganizeSourcesModal-',
+      'QueueModal-',
+      'ReaderOutlineDrawer-',
+      'RereadQueueModal-',
+      'RoundConfigModal-',
+      'SourceCoverageModal-',
+      'StudyMapModal-',
+      'StudyPlanModal-',
+      'TopicGroupsModal-',
+      'TranslationGlossaryModal-',
+      'WorkflowHistoryModal-',
     ];
 
     for (const prefix of targetPrefixes) {

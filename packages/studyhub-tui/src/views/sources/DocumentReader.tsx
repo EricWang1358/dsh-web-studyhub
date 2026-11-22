@@ -2,19 +2,15 @@ import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, u
 import { Box, Text, useInput } from 'ink';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
-import {
-  Badge,
-  MarkdownView,
-  Panel,
-  ScrollView,
-  Spinner,
-  TextInput,
-  useClaimKeys,
-  useFooterHints,
-  useInputCapture,
-  useStreamingBuffer,
-  useTheme,
-} from '../../components/index.js';
+import { useTheme } from '../../theme/tokens.js';
+import { Badge, Spinner } from '../../components/Badge.js';
+import { MarkdownView } from '../../components/MarkdownView.js';
+import { Panel } from '../../components/Panel.js';
+import { ScrollView } from '../../components/ScrollView.js';
+import { TextInput } from '../../components/TextInput.js';
+import { useClaimKeys, useInputCapture } from '../../components/focus.js';
+import { useFooterHints } from '../../components/hooks.js';
+import { useStreamingBuffer } from '../../components/useStreamingBuffer.js';
 import { errorMessage, startReview, tryAction } from '../../host/sample-actions.js';
 import { wrapDisplay } from '../../render/cjk.js';
 

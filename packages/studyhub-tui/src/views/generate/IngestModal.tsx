@@ -2,14 +2,10 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from '
 import { Box, Text, useInput, useWindowSize } from 'ink';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
-import {
-  Badge,
-  Modal,
-  Spinner,
-  TextInput,
-  modalContentWidth,
-  useTheme,
-} from '../../components/index.js';
+import { useTheme } from '../../theme/tokens.js';
+import { Badge, Spinner } from '../../components/Badge.js';
+import { Modal, modalContentWidth } from '../../components/Modal.js';
+import { TextInput } from '../../components/TextInput.js';
 import { truncateDisplay } from '../../render/cjk.js';
 import { tryAction } from '../../host/sample-actions.js';
 

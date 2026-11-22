@@ -11,18 +11,13 @@ import {
   tryAction,
   type TuiConfigSnapshot,
 } from '../../host/index.js';
-import {
-  Badge,
-  Panel,
-  SelectList,
-  Spinner,
-  SplitPane,
-  StatusPill,
-  TextInput,
-  useClaimKeys,
-  useTheme,
-  type SelectOption,
-} from '../../components/index.js';
+import { useTheme } from '../../theme/tokens.js';
+import { Badge, Spinner, StatusPill } from '../../components/Badge.js';
+import { Panel } from '../../components/Panel.js';
+import { SelectList, type SelectOption } from '../../components/SelectList.js';
+import { SplitPane } from '../../components/SplitPane.js';
+import { TextInput } from '../../components/TextInput.js';
+import { useClaimKeys } from '../../components/focus.js';
 import { padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { AGY_EFFORTS, CODEX_EFFORTS, OPENAI_EFFORTS, effortLabel } from './types.js';
 

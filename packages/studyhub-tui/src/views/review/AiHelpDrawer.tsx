@@ -3,17 +3,14 @@ import { Box, Text, useInput } from 'ink';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { tryAction, errorMessage, type ReviewRun } from '../../host/index.js';
-import {
-  Badge,
-  MarkdownView,
-  Panel,
-  Spinner,
-  TextInput,
-  useFooterHints,
-  useInputCapture,
-  useStreamingBuffer,
-  useTheme,
-} from '../../components/index.js';
+import { useTheme } from '../../theme/tokens.js';
+import { Badge, Spinner } from '../../components/Badge.js';
+import { MarkdownView } from '../../components/MarkdownView.js';
+import { Panel } from '../../components/Panel.js';
+import { TextInput } from '../../components/TextInput.js';
+import { useInputCapture } from '../../components/focus.js';
+import { useFooterHints } from '../../components/hooks.js';
+import { useStreamingBuffer } from '../../components/useStreamingBuffer.js';
 import {
   MAX_AI_TURNS,
   buildCardHelpSystemPrompt,

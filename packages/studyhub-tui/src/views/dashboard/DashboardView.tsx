@@ -5,16 +5,12 @@ import { t, useTuiStore } from '../../state/store.js';
 import { tryAction } from '../../host/index.js';
 import { currentCourse, dueToday } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
-import {
-  EmptyState,
-  Panel,
-  Spinner,
-  VirtualList,
-  useClaimKeys,
-  useFooterHints,
-  useTheme,
-  type VirtualListRenderContext,
-} from '../../components/index.js';
+import { useTheme } from '../../theme/tokens.js';
+import { EmptyState, Spinner } from '../../components/Badge.js';
+import { Panel } from '../../components/Panel.js';
+import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
+import { useClaimKeys } from '../../components/focus.js';
+import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import {
   renderBarChart,

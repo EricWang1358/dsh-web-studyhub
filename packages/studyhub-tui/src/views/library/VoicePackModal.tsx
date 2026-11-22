@@ -4,16 +4,11 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { Box, Text, useInput } from 'ink';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
-import {
-  Badge,
-  MarkdownView,
-  Modal,
-  Spinner,
-  StatusPill,
-  TextInput,
-  modalContentWidth,
-  useTheme,
-} from '../../components/index.js';
+import { useTheme } from '../../theme/tokens.js';
+import { Badge, Spinner, StatusPill } from '../../components/Badge.js';
+import { MarkdownView } from '../../components/MarkdownView.js';
+import { Modal, modalContentWidth } from '../../components/Modal.js';
+import { TextInput } from '../../components/TextInput.js';
 import { truncateDisplay } from '../../render/cjk.js';
 import { currentCourse } from '../../shell/data.js';
 import type { VoicePackRenderProps } from '../../shell/AppShell.js';

@@ -3,7 +3,9 @@ import { Box, Text, useInput } from 'ink';
 import type { HostClient, ThemeId, TuiPreferences, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { THEME_IDS, saveTuiPreferences } from '../../host/index.js';
-import { Panel, getTheme, useClaimKeys, useTheme } from '../../components/index.js';
+import { getTheme, useTheme } from '../../theme/tokens.js';
+import { Panel } from '../../components/Panel.js';
+import { useClaimKeys } from '../../components/focus.js';
 import { padDisplay, truncateDisplay } from '../../render/cjk.js';
 
 export interface AppearanceTabProps {

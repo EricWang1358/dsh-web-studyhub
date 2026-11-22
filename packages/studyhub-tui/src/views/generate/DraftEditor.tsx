@@ -2,24 +2,17 @@ import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
-import {
-  Badge,
-  ConfirmDialog,
-  Divider,
-  EmptyState,
-  MarkdownView,
-  Modal,
-  Panel,
-  Spinner,
-  SplitPane,
-  TextInput,
-  VirtualList,
-  modalContentWidth,
-  useClaimKeys,
-  useFooterHints,
-  useInputCapture,
-  useTheme,
-} from '../../components/index.js';
+import { useTheme } from '../../theme/tokens.js';
+import { Badge, Divider, EmptyState, Spinner } from '../../components/Badge.js';
+import { ConfirmDialog } from '../../components/ConfirmDialog.js';
+import { MarkdownView } from '../../components/MarkdownView.js';
+import { Modal, modalContentWidth } from '../../components/Modal.js';
+import { Panel } from '../../components/Panel.js';
+import { SplitPane } from '../../components/SplitPane.js';
+import { TextInput } from '../../components/TextInput.js';
+import { VirtualList } from '../../components/VirtualList.js';
+import { useClaimKeys, useInputCapture } from '../../components/focus.js';
+import { useFooterHints } from '../../components/hooks.js';
 import { useShellActions } from '../../shell/actions.js';
 import { truncateDisplay } from '../../render/cjk.js';
 import { tryAction } from '../../host/sample-actions.js';

@@ -1,6 +1,8 @@
 import React, { memo, useCallback, useMemo, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { Modal, modalContentWidth, TextInput, useTheme } from '../../components/index.js';
+import { useTheme } from '../../theme/tokens.js';
+import { Modal, modalContentWidth } from '../../components/Modal.js';
+import { TextInput } from '../../components/TextInput.js';
 import { t, useTuiStore } from '../../state/store.js';
 import type { KeyHint, UiLanguage } from '../../types/contracts.js';
 import { BOARD_COLUMNS, type BoardCard, type BoardColumnId } from './board-store.js';

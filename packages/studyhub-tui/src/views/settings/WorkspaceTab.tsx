@@ -7,21 +7,16 @@ import { Box, Text, useInput } from 'ink';
 import type { BindingSnapshot, HostClient } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { cleanPathInput, loadSampleCourse, removeSampleCourse, tryAction } from '../../host/index.js';
-import { expandHomePath } from '../sources/index.js';
+import { expandHomePath } from '../sources/path-complete.js';
 import { useShellActions } from '../../shell/actions.js';
-import {
-  Badge,
-  ConfirmDialog,
-  Modal,
-  Panel,
-  Spinner,
-  TextInput,
-  VirtualList,
-  modalContentWidth,
-  useClaimKeys,
-  useTheme,
-  type VirtualListRenderContext,
-} from '../../components/index.js';
+import { useTheme } from '../../theme/tokens.js';
+import { Badge, Spinner } from '../../components/Badge.js';
+import { ConfirmDialog } from '../../components/ConfirmDialog.js';
+import { Modal, modalContentWidth } from '../../components/Modal.js';
+import { Panel } from '../../components/Panel.js';
+import { TextInput } from '../../components/TextInput.js';
+import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
+import { useClaimKeys } from '../../components/focus.js';
 import { displayWidth, graphemeWidth, padDisplay, splitGraphemes, truncateDisplay } from '../../render/cjk.js';
 
 export interface RestorePointEntry {

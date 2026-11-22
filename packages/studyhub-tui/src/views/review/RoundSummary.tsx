@@ -3,19 +3,14 @@ import { Box, Text, useInput } from 'ink';
 import type { HostClient, KeyHint, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { tryAction, type ReviewRun } from '../../host/index.js';
-import {
-  Badge,
-  EmptyState,
-  MarkdownView,
-  Panel,
-  ProgressBar,
-  Spinner,
-  SplitPane,
-  VirtualList,
-  useClaimKeys,
-  useFooterHints,
-  useTheme,
-} from '../../components/index.js';
+import { useTheme } from '../../theme/tokens.js';
+import { Badge, EmptyState, ProgressBar, Spinner } from '../../components/Badge.js';
+import { MarkdownView } from '../../components/MarkdownView.js';
+import { Panel } from '../../components/Panel.js';
+import { SplitPane } from '../../components/SplitPane.js';
+import { VirtualList } from '../../components/VirtualList.js';
+import { useClaimKeys } from '../../components/focus.js';
+import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 
 interface LookBackOption {

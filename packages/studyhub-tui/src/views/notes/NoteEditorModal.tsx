@@ -1,6 +1,9 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { Modal, modalContentWidth, TextInput, useTheme, Spinner } from '../../components/index.js';
+import { useTheme } from '../../theme/tokens.js';
+import { Spinner } from '../../components/Badge.js';
+import { Modal, modalContentWidth } from '../../components/Modal.js';
+import { TextInput } from '../../components/TextInput.js';
 import { truncateDisplay } from '../../render/cjk.js';
 import { t, useTuiStore } from '../../state/store.js';
 import type { HostClient, KeyHint, UiLanguage } from '../../types/contracts.js';

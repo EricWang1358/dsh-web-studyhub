@@ -2,16 +2,11 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from '
 import { Box, Text, useInput } from 'ink';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
-import {
-  Badge,
-  EmptyState,
-  Modal,
-  Spinner,
-  TextInput,
-  VirtualList,
-  modalContentWidth,
-  useTheme,
-} from '../../components/index.js';
+import { useTheme } from '../../theme/tokens.js';
+import { Badge, EmptyState, Spinner } from '../../components/Badge.js';
+import { Modal, modalContentWidth } from '../../components/Modal.js';
+import { TextInput } from '../../components/TextInput.js';
+import { VirtualList } from '../../components/VirtualList.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import { tryAction } from '../../host/index.js';
 import type { FlatTocItem } from './types.js';

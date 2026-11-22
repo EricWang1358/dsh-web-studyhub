@@ -2,25 +2,17 @@ import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useStat
 import { Box, Text, useInput } from 'ink';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
-import {
-  Badge,
-  ConfirmDialog,
-  Divider,
-  EmptyState,
-  Modal,
-  Panel,
-  ProgressBar,
-  ScrollView,
-  Spinner,
-  SplitPane,
-  StatusPill,
-  TextInput,
-  VirtualList,
-  modalContentWidth,
-  useClaimKeys,
-  useFooterHints,
-  useTheme,
-} from '../../components/index.js';
+import { useTheme } from '../../theme/tokens.js';
+import { Badge, Divider, EmptyState, ProgressBar, Spinner, StatusPill } from '../../components/Badge.js';
+import { ConfirmDialog } from '../../components/ConfirmDialog.js';
+import { Modal, modalContentWidth } from '../../components/Modal.js';
+import { Panel } from '../../components/Panel.js';
+import { ScrollView } from '../../components/ScrollView.js';
+import { SplitPane } from '../../components/SplitPane.js';
+import { TextInput } from '../../components/TextInput.js';
+import { VirtualList } from '../../components/VirtualList.js';
+import { useClaimKeys } from '../../components/focus.js';
+import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { currentCourse, listCourses, modelInfo } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';

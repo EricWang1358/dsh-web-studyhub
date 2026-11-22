@@ -4,18 +4,12 @@ import { isAbsolute, resolve } from 'node:path';
 import { Box, Text, useInput, useWindowSize } from 'ink';
 import type { HostClient, KeyHint, StudySnapshot } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
-import {
-  Badge,
-  ConfirmDialog,
-  EmptyState,
-  Modal,
-  Spinner,
-  TextInput,
-  VirtualList,
-  modalContentWidth,
-  useTheme,
-  type VirtualListRenderContext,
-} from '../../components/index.js';
+import { useTheme } from '../../theme/tokens.js';
+import { Badge, EmptyState, Spinner } from '../../components/Badge.js';
+import { ConfirmDialog } from '../../components/ConfirmDialog.js';
+import { Modal, modalContentWidth } from '../../components/Modal.js';
+import { TextInput } from '../../components/TextInput.js';
+import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { useShellActions } from '../../shell/actions.js';
 import { cleanPathInput, tryAction } from '../../host/index.js';

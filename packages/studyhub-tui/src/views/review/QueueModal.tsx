@@ -3,18 +3,11 @@ import { Box, Text, useInput } from 'ink';
 import type { HostClient, KeyHint, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { getReview, tryAction, type ReviewRun } from '../../host/index.js';
-import {
-  Badge,
-  Divider,
-  EmptyState,
-  Modal,
-  Spinner,
-  TextInput,
-  VirtualList,
-  modalContentWidth,
-  useTheme,
-  type VirtualListRenderContext,
-} from '../../components/index.js';
+import { useTheme } from '../../theme/tokens.js';
+import { Badge, Divider, EmptyState, Spinner } from '../../components/Badge.js';
+import { Modal, modalContentWidth } from '../../components/Modal.js';
+import { TextInput } from '../../components/TextInput.js';
+import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import { kindLabel, normalizeCardKind, type NormalizedKind } from './review-helpers.js';
 

@@ -54,6 +54,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'R', label: t(lang, '定制本轮练习', 'Custom round config') },
         { key: 'm: + / k', label: t(lang, '题组补题 / 转换题型', 'Deck supplement / convert') },
         { key: 'm: Space/F/S', label: t(lang, '题组批量重点/暂停', 'Deck batch focus/suspend') },
+        { key: 'm: T', label: t(lang, '题组批量改主题', 'Deck batch retag topic') },
         { key: 'm: X', label: t(lang, '题组批量斩题', 'Deck batch slay') },
       ],
     },
@@ -151,7 +152,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       title: t(lang, '资料与阅读 · Sources / Reader', 'Sources & Reader'),
       items: [
         { key: 'G', label: t(lang, 'AI 课程归类 / 术语译文', 'AI organize / Glossary') },
-        { key: 'V', label: t(lang, '引用覆盖率', 'Coverage') },
+        { key: 'V', label: t(lang, '引用覆盖率与关联题卡', 'Coverage & linked cards') },
         { key: 'F', label: t(lang, '文件夹筛选', 'Folders') },
         { key: 'm', label: t(lang, '移至文件夹', 'Move folder') },
         { key: 'M', label: t(lang, 'MinerU / 标记章节已读', 'MinerU / Toggle chapter read') },

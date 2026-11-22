@@ -3,18 +3,12 @@ import { Box, Text, useInput } from 'ink';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { getReview, tryAction, type ReviewRun } from '../../host/index.js';
-import {
-  Badge,
-  ConfirmDialog,
-  Divider,
-  EmptyState,
-  Modal,
-  ScrollView,
-  Spinner,
-  TextInput,
-  modalContentWidth,
-  useTheme,
-} from '../../components/index.js';
+import { useTheme } from '../../theme/tokens.js';
+import { Badge, Divider, EmptyState, Spinner } from '../../components/Badge.js';
+import { ConfirmDialog } from '../../components/ConfirmDialog.js';
+import { Modal, modalContentWidth } from '../../components/Modal.js';
+import { ScrollView } from '../../components/ScrollView.js';
+import { TextInput } from '../../components/TextInput.js';
 import { displayWidth, truncateDisplay, wrapDisplay } from '../../render/cjk.js';
 import {
   currentDeckIdOf,

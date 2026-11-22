@@ -1,5 +1,5 @@
 import type { UiLanguage } from '../../types/contracts.js';
-import type { Tone } from '../../components/index.js';
+import type { Tone } from '../../theme/tokens.js';
 import { t } from '../../state/store.js';
 import type {
   ErrorReasonId,

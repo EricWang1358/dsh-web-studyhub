@@ -3,20 +3,15 @@ import { pathToFileURL } from 'node:url';
 import { Box, Text, useInput, useWindowSize } from 'ink';
 import type { HostClient, KeyHint, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
-import {
-  Badge,
-  EmptyState,
-  MarkdownView,
-  Modal,
-  Panel,
-  Spinner,
-  SplitPane,
-  TextInput,
-  VirtualList,
-  modalContentWidth,
-  useStreamingBuffer,
-  useTheme,
-} from '../../components/index.js';
+import { useTheme } from '../../theme/tokens.js';
+import { Badge, EmptyState, Spinner } from '../../components/Badge.js';
+import { MarkdownView } from '../../components/MarkdownView.js';
+import { Modal, modalContentWidth } from '../../components/Modal.js';
+import { Panel } from '../../components/Panel.js';
+import { SplitPane } from '../../components/SplitPane.js';
+import { TextInput } from '../../components/TextInput.js';
+import { VirtualList } from '../../components/VirtualList.js';
+import { useStreamingBuffer } from '../../components/useStreamingBuffer.js';
 import { currentCourse } from '../../shell/data.js';
 import { truncateDisplay } from '../../render/cjk.js';
 import { cleanPathInput, errorMessage, tryAction } from '../../host/sample-actions.js';

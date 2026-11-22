@@ -3,7 +3,10 @@ import { Box, Text, useInput } from 'ink';
 import type { BindingSnapshot, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { tryAction, type TuiConfigSnapshot } from '../../host/index.js';
-import { Spinner, useClaimKeys, useFooterHints, useTheme } from '../../components/index.js';
+import { useTheme } from '../../theme/tokens.js';
+import { Spinner } from '../../components/Badge.js';
+import { useClaimKeys } from '../../components/focus.js';
+import { useFooterHints } from '../../components/hooks.js';
 import { ModelsTab } from './ModelsTab.js';
 import { SETTINGS_TABS, type SettingsTabId } from './types.js';
 

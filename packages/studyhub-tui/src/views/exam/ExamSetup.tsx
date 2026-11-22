@@ -1,15 +1,12 @@
 import React, { memo, useMemo, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { StudySnapshot, UiLanguage } from '../../types/contracts.js';
-import {
-  Badge,
-  EmptyState,
-  Panel,
-  SplitPane,
-  VirtualList,
-  useClaimKeys,
-  useTheme,
-} from '../../components/index.js';
+import { useTheme } from '../../theme/tokens.js';
+import { Badge, EmptyState } from '../../components/Badge.js';
+import { Panel } from '../../components/Panel.js';
+import { SplitPane } from '../../components/SplitPane.js';
+import { VirtualList } from '../../components/VirtualList.js';
+import { useClaimKeys } from '../../components/focus.js';
 import { truncateDisplay } from '../../render/cjk.js';
 import { t, useTuiStore } from '../../state/store.js';
 import type {

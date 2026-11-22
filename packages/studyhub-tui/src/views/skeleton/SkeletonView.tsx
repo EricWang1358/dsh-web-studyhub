@@ -3,26 +3,17 @@ import { Box, Text, useInput } from 'ink';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useShellActions } from '../../shell/actions.js';
-import {
-  Badge,
-  ConfirmDialog,
-  EmptyState,
-  Modal,
-  Panel,
-  ProgressBar,
-  ScrollView,
-  SelectList,
-  Spinner,
-  SplitPane,
-  StatusPill,
-  VirtualList,
-  modalContentWidth,
-  useClaimKeys,
-  useFooterHints,
-  useTheme,
-  type SelectOption,
-  type VirtualListRenderContext,
-} from '../../components/index.js';
+import { useTheme } from '../../theme/tokens.js';
+import { Badge, EmptyState, ProgressBar, Spinner, StatusPill } from '../../components/Badge.js';
+import { ConfirmDialog } from '../../components/ConfirmDialog.js';
+import { Modal, modalContentWidth } from '../../components/Modal.js';
+import { Panel } from '../../components/Panel.js';
+import { ScrollView } from '../../components/ScrollView.js';
+import { SelectList, type SelectOption } from '../../components/SelectList.js';
+import { SplitPane } from '../../components/SplitPane.js';
+import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
+import { useClaimKeys } from '../../components/focus.js';
+import { useFooterHints } from '../../components/hooks.js';
 import { padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { renderTreeLines, type TreeLine, type TreeNode } from '../../render/charts.js';
 import type {

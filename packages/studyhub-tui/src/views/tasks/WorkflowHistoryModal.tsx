@@ -2,18 +2,11 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from '
 import { Box, Text, useInput, useWindowSize } from 'ink';
 import type { HostClient, KeyHint, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
-import {
-  Badge,
-  EmptyState,
-  Modal,
-  ScrollView,
-  Spinner,
-  StatusPill,
-  VirtualList,
-  modalContentWidth,
-  useTheme,
-  type PillStatus,
-} from '../../components/index.js';
+import { useTheme } from '../../theme/tokens.js';
+import { Badge, EmptyState, Spinner, StatusPill, type PillStatus } from '../../components/Badge.js';
+import { Modal, modalContentWidth } from '../../components/Modal.js';
+import { ScrollView } from '../../components/ScrollView.js';
+import { VirtualList } from '../../components/VirtualList.js';
 import { displayWidth, padDisplay, truncateDisplay, wrapDisplay } from '../../render/cjk.js';
 import { tryAction } from '../../host/sample-actions.js';
 

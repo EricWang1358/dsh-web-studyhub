@@ -1,5 +1,5 @@
 import type { StudySnapshot } from '../../types/contracts.js';
-import type { Tone } from '../../components/index.js';
+import type { Tone } from '../../theme/tokens.js';
 
 export interface MaterialFoldersState {
   folders: string[];

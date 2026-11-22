@@ -2,19 +2,13 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from '
 import { Box, Text, useInput } from 'ink';
 import type { HostClient, KeyHint, StudySnapshot } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
-import {
-  Badge,
-  ConfirmDialog,
-  Divider,
-  MarkdownView,
-  Modal,
-  Spinner,
-  TextInput,
-  VirtualList,
-  modalContentWidth,
-  useTheme,
-  type VirtualListRenderContext,
-} from '../../components/index.js';
+import { Badge, Divider, Spinner } from '../../components/Badge.js';
+import { ConfirmDialog } from '../../components/ConfirmDialog.js';
+import { MarkdownView } from '../../components/MarkdownView.js';
+import { Modal, modalContentWidth } from '../../components/Modal.js';
+import { TextInput } from '../../components/TextInput.js';
+import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
+import { useTheme } from '../../theme/tokens.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { startReview, tryAction } from '../../host/index.js';
 import { formatLabel, groupSourcesFromSnapshot, type DocumentGroup } from '../sources/source-helpers.js';
@@ -61,7 +55,7 @@ export interface DeckManageModalProps {
   onUpdated?: () => void;
 }
 
-type ModalMode = 'browse' | 'search' | 'rename' | 'folder' | 'supplement' | 'convert';
+type ModalMode = 'browse' | 'search' | 'rename' | 'folder' | 'topic' | 'supplement' | 'convert';
 
 const SUPPLEMENT_COUNTS = [3, 5, 10, 15] as const;
 const SUPPLEMENT_KINDS = ['mixed', 'quiz', 'multi', 'truefalse', 'flashcard', 'open', 'cloze'] as const;
@@ -371,6 +365,7 @@ export const DeckManageModal = memo(function DeckManageModal({
   const [searchQuery, setSearchQuery] = useState('');
   const [renameValue, setRenameValue] = useState('');
   const [folderValue, setFolderValue] = useState('');
+  const [topicValue, setTopicValue] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [confirmBatchSlay, setConfirmBatchSlay] = useState(false);
@@ -387,6 +382,7 @@ export const DeckManageModal = memo(function DeckManageModal({
   useEffect(() => {
     setSelectedIds(new Set());
     setConfirmBatchSlay(false);
+    setTopicValue('');
   }, [deckId]);
 
   // Supplement sub-mode state ([+])
@@ -841,6 +837,80 @@ export const DeckManageModal = memo(function DeckManageModal({
     }
   }, [busy, deck, selectedIds, host, notify, lang, reloadDeck, refreshSnapshot, onUpdated]);
 
+  const handleBatchTopicSubmit = useCallback(
+    async (raw: string) => {
+      if (busyRef.current || busy || !deck || deck.systemKind || selectedIds.size === 0) {
+        setMode('browse');
+        return;
+      }
+      const trimmed = raw.trim();
+      if (!trimmed) {
+        setMode('browse');
+        return;
+      }
+      const targetIds = [...selectedIds];
+      if (targetIds.length === 0) {
+        setMode('browse');
+        return;
+      }
+      busyRef.current = true;
+      setBusy(true);
+      try {
+        const res = await tryAction<{
+          updated?: number;
+          failed?: number;
+          results?: Array<{ cardId?: string; ok: boolean; error?: string }>;
+        }>(host, 'card.update.batch', {
+          updates: targetIds.map((cardId) => ({
+            deckId: deck.id,
+            cardId,
+            patch: { topic: trimmed },
+            reason: 'Batch topic retag from TUI',
+          })),
+        });
+        if (!mountedRef.current) return;
+        if (!res.ok) {
+          setMode('browse');
+          notify(res.error?.message || t(lang, '批量修改主题失败', 'Batch topic retag failed'), 'error');
+          return;
+        }
+        const updatedCount = typeof res.value?.updated === 'number' ? res.value.updated : targetIds.length;
+        const failedCount = typeof res.value?.failed === 'number' ? res.value.failed : 0;
+        if (updatedCount === 0) {
+          const firstErr = res.value?.results?.find((r) => !r.ok && r.error)?.error;
+          setMode('browse');
+          notify(firstErr || t(lang, '批量修改主题失败', 'Batch topic retag failed'), 'error');
+          return;
+        }
+        setSelectedIds(new Set());
+        setTopicValue('');
+        await reloadDeck();
+        await refreshSnapshot();
+        if (!mountedRef.current) return;
+        onUpdated?.();
+        setMode('browse');
+        notify(
+          failedCount > 0
+            ? t(
+                lang,
+                `已将 ${updatedCount} 题的主题更新为「${trimmed}」（${failedCount} 题失败）`,
+                `Retagged ${updatedCount} card(s) to "${trimmed}" (${failedCount} failed)`,
+              )
+            : t(
+                lang,
+                `已将 ${updatedCount} 题的主题更新为「${trimmed}」`,
+                `Retagged ${updatedCount} card(s) to "${trimmed}"`,
+              ),
+          failedCount > 0 ? 'warning' : 'success',
+        );
+      } finally {
+        busyRef.current = false;
+        if (mountedRef.current) setBusy(false);
+      }
+    },
+    [busy, deck, selectedIds, host, notify, lang, reloadDeck, refreshSnapshot, onUpdated],
+  );
+
   const handleFolderSubmit = useCallback(
     async (raw: string) => {
       if (busyRef.current || busy || !deck) {
@@ -955,7 +1025,7 @@ export const DeckManageModal = memo(function DeckManageModal({
     mode === 'browse' &&
     Boolean(searchQuery || selectedIds.size > 0 || isSlainDeck || hasSlainCard || (!deck?.systemKind && deck?.folder));
 
-  const inputRows = mode === 'search' || mode === 'rename' || mode === 'folder' ? 3 : 0;
+  const inputRows = mode === 'search' || mode === 'rename' || mode === 'folder' || mode === 'topic' ? 3 : 0;
   const bodyH = Math.max(6, frameH - 6 - inputRows);
   const listH = Math.max(4, Math.floor(bodyH * 0.52));
   const previewH = Math.max(3, bodyH - listH - 1);
@@ -1061,6 +1131,13 @@ export const DeckManageModal = memo(function DeckManageModal({
         void handleBatchFocus();
       } else if (input === 'S' && selectedIds.size > 0) {
         void handleBatchSuspend();
+      } else if (!key.ctrl && !key.meta && input === 'T' && selectedIds.size > 0) {
+        if (deck.systemKind) {
+          notify(t(lang, '系统题组不支持批量改主题', 'System decks do not support batch topic retag'), 'warning');
+        } else {
+          setTopicValue('');
+          setMode('topic');
+        }
       } else if (!key.ctrl && !key.meta && input === 'X' && selectedIds.size > 0) {
         if (deck.systemKind) {
           notify(t(lang, '系统题组不支持批量斩题', 'System decks do not support batch slay'), 'warning');
@@ -1118,7 +1195,12 @@ export const DeckManageModal = memo(function DeckManageModal({
                 { key: 'Enter', label: t(lang, '保存目录', 'Save') },
                 { key: 'Esc', label: t(lang, '取消', 'Cancel') },
               ]
-            : mode === 'supplement'
+            : mode === 'topic'
+              ? [
+                  { key: 'Enter', label: t(lang, '应用主题', 'Apply') },
+                  { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+                ]
+              : mode === 'supplement'
             ? suppJobResult
               ? [
                   { key: 't', label: t(lang, '查看任务', 'View Tasks') },
@@ -1150,6 +1232,7 @@ export const DeckManageModal = memo(function DeckManageModal({
                     { key: 'Space', label: t(lang, '多选', 'Select') },
                     { key: 'F', label: t(lang, '重点', 'Focus') },
                     ...(!isSlainDeck ? [{ key: 'S', label: t(lang, '暂停/恢复', 'Suspend') }] : []),
+                    ...(!deck?.systemKind ? [{ key: 'T', label: t(lang, '改主题', 'Topic') }] : []),
                     ...(!deck?.systemKind ? [{ key: 'X', label: t(lang, '斩题', 'Slay') }] : []),
                     { key: 'x', label: t(lang, '清空', 'Clear') },
                     { key: 'Esc', label: t(lang, '关闭', 'Close') },
@@ -1326,6 +1409,31 @@ export const DeckManageModal = memo(function DeckManageModal({
         </Box>
       ) : null}
 
+      {mode === 'topic' ? (
+        <Box flexDirection="column" flexShrink={0}>
+          <Text color={theme.accent}>
+            {t(
+              lang,
+              `批量修改主题标签 (${selectedIds.size} 题):`,
+              `Batch retag topic (${selectedIds.size} selected):`,
+            )}
+          </Text>
+          <Box borderStyle={asciiMode ? 'classic' : 'round'} borderColor={theme.borderActive} paddingX={1}>
+            <TextInput
+              value={topicValue}
+              onChange={setTopicValue}
+              onSubmit={(val) => {
+                void handleBatchTopicSubmit(val);
+              }}
+              onCancel={() => setMode('browse')}
+              isActive={isActive && mode === 'topic' && !busy}
+              width={Math.max(12, innerW - 6)}
+              placeholder={t(lang, `输入新主题标签${ell}`, `Enter new topic tag${ell}`)}
+            />
+          </Box>
+        </Box>
+      ) : null}
+
       {hasBrowseMetaStrip ? (
         <Box height={1} flexDirection="row" gap={1} flexShrink={0} overflow="hidden">
           {selectedIds.size > 0 ? (
@@ -1337,7 +1445,7 @@ export const DeckManageModal = memo(function DeckManageModal({
                     ? t(lang, '[F]重点  [x]清空', '[F]Focus  [x]Clear')
                     : deck?.systemKind
                       ? t(lang, '[F]重点  [S]暂停/恢复  [x]清空', '[F]Focus  [S]Suspend  [x]Clear')
-                      : t(lang, '[F]重点  [S]暂停/恢复  [X]斩题  [x]清空', '[F]Focus  [S]Suspend  [X]Slay  [x]Clear'),
+                      : t(lang, '[F]重点  [S]暂停/恢复  [T]改主题  [X]斩题  [x]清空', '[F]Focus  [S]Suspend  [T]Topic  [X]Slay  [x]Clear'),
                   Math.max(10, innerW - 14),
                   ell,
                 )}

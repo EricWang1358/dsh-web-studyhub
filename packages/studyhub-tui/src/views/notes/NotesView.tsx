@@ -2,24 +2,17 @@ import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, u
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { Box, Text, useInput } from 'ink';
-import {
-  Badge,
-  ConfirmDialog,
-  EmptyState,
-  MarkdownView,
-  Modal,
-  modalContentWidth,
-  Panel,
-  Spinner,
-  SplitPane,
-  StatusPill,
-  TextInput,
-  useClaimKeys,
-  useFooterHints,
-  useTheme,
-  VirtualList,
-  type VirtualListRenderContext,
-} from '../../components/index.js';
+import { useTheme } from '../../theme/tokens.js';
+import { Badge, EmptyState, Spinner, StatusPill } from '../../components/Badge.js';
+import { ConfirmDialog } from '../../components/ConfirmDialog.js';
+import { MarkdownView } from '../../components/MarkdownView.js';
+import { Modal, modalContentWidth } from '../../components/Modal.js';
+import { Panel } from '../../components/Panel.js';
+import { SplitPane } from '../../components/SplitPane.js';
+import { TextInput } from '../../components/TextInput.js';
+import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
+import { useClaimKeys } from '../../components/focus.js';
+import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { useShellActions } from '../../shell/actions.js';
 import { currentCourse } from '../../shell/data.js';

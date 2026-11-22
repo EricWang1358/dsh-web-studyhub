@@ -3,17 +3,11 @@ import { isAbsolute, resolve } from 'node:path';
 import { Box, Text, useInput, useWindowSize } from 'ink';
 import type { HostClient, KeyHint, UiLanguage } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
-import {
-  Badge,
-  EmptyState,
-  Modal,
-  Spinner,
-  TextInput,
-  VirtualList,
-  modalContentWidth,
-  useTheme,
-  type Tone,
-} from '../../components/index.js';
+import { useTheme, type Tone } from '../../theme/tokens.js';
+import { Badge, EmptyState, Spinner } from '../../components/Badge.js';
+import { Modal, modalContentWidth } from '../../components/Modal.js';
+import { TextInput } from '../../components/TextInput.js';
+import { VirtualList } from '../../components/VirtualList.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import { cleanPathInput, errorMessage, tryAction } from '../../host/sample-actions.js';
 import { completeFsPath, expandHomePath } from './path-complete.js';

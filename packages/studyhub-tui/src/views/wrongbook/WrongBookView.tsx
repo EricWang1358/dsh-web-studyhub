@@ -5,26 +5,17 @@ import { t, useTuiStore } from '../../state/store.js';
 import { currentCourse } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
 import { tryAction, type ReviewRun } from '../../host/index.js';
-import {
-  Badge,
-  EmptyState,
-  MarkdownView,
-  Modal,
-  Panel,
-  SelectList,
-  Spinner,
-  SplitPane,
-  TextInput,
-  VirtualList,
-  modalContentWidth,
-  toneColor,
-  useClaimKeys,
-  useFooterHints,
-  useTheme,
-  type PaneSize,
-  type SelectOption,
-  type VirtualListRenderContext,
-} from '../../components/index.js';
+import { toneColor, useTheme } from '../../theme/tokens.js';
+import { Badge, EmptyState, Spinner } from '../../components/Badge.js';
+import { MarkdownView } from '../../components/MarkdownView.js';
+import { Modal, modalContentWidth } from '../../components/Modal.js';
+import { Panel } from '../../components/Panel.js';
+import { SelectList, type SelectOption } from '../../components/SelectList.js';
+import { SplitPane, type PaneSize } from '../../components/SplitPane.js';
+import { TextInput } from '../../components/TextInput.js';
+import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
+import { useClaimKeys } from '../../components/focus.js';
+import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import { renderProgressBar } from '../../render/charts.js';
 import {

@@ -4,7 +4,11 @@ import type { HostClient } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { tryAction } from '../../host/index.js';
 import { useShellActions } from '../../shell/actions.js';
-import { ConfirmDialog, Panel, Spinner, useClaimKeys, useTheme } from '../../components/index.js';
+import { useTheme } from '../../theme/tokens.js';
+import { Spinner } from '../../components/Badge.js';
+import { ConfirmDialog } from '../../components/ConfirmDialog.js';
+import { Panel } from '../../components/Panel.js';
+import { useClaimKeys } from '../../components/focus.js';
 import { padDisplay, truncateDisplay } from '../../render/cjk.js';
 
 export interface StudyGenTabProps {
