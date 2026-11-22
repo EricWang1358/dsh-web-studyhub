@@ -88,7 +88,41 @@ export function collectOrganizeSourceIds(
   return out;
 }
 
-type OrganizePhase = 'confirm' | 'loading' | 'results' | 'error';
+interface PendingOrganizeState {
+  jobId?: string;
+  proposals?: RawOrganizeProposal[];
+  createdAt?: string;
+}
+
+function parseRawProposals(
+  rawList: unknown,
+  titleById: ReadonlyMap<string, string>,
+): { proposals: OrganizeProposal[]; checked: Set<string> } {
+  const list = Array.isArray(rawList) ? rawList : [];
+  const parsed: OrganizeProposal[] = [];
+  const initialChecked = new Set<string>();
+  for (const item of list as RawOrganizeProposal[]) {
+    const id = typeof item?.id === 'string' ? item.id.trim() : '';
+    if (!id) continue;
+    const courses = normalizeCourseList(item.courses);
+    const expectedCourses = normalizeCourseList(item.expectedCourses);
+    const proposal: OrganizeProposal = {
+      id,
+      title: (typeof item.title === 'string' && item.title.trim()) || titleById.get(id) || id,
+      courses,
+      expectedCourses,
+      reason: typeof item.reason === 'string' ? item.reason.trim() : '',
+      ...(typeof item.decidedBy === 'string' ? { decidedBy: item.decidedBy } : {}),
+    };
+    parsed.push(proposal);
+    if (courses.length > 0 && !sameCourseSet(courses, expectedCourses)) {
+      initialChecked.add(id);
+    }
+  }
+  return { proposals: parsed, checked: initialChecked };
+}
+
+type OrganizePhase = 'pending' | 'confirm' | 'loading' | 'results' | 'error';
 
 export const OrganizeSourcesModal = memo(function OrganizeSourcesModal({
   host,
@@ -101,6 +135,7 @@ export const OrganizeSourcesModal = memo(function OrganizeSourcesModal({
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const snapshot = useTuiStore((s) => s.snapshot);
   const notify = useTuiStore((s) => s.notify);
   const { columns, rows: termRows } = useWindowSize();
 
@@ -122,13 +157,27 @@ export const OrganizeSourcesModal = memo(function OrganizeSourcesModal({
     return map;
   }, [groups, allGroups]);
 
-  const [phase, setPhase] = useState<OrganizePhase>(() => (sourceIds.length > 0 ? 'confirm' : 'results'));
+  const pendingOrganize = useMemo<PendingOrganizeState | null>(() => {
+    const raw = (snapshot?.settings as { materialOrganizePending?: unknown } | undefined)?.materialOrganizePending;
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    return raw as PendingOrganizeState;
+  }, [snapshot]);
+
+  const pendingParsed = useMemo(
+    () => parseRawProposals(pendingOrganize?.proposals, titleById),
+    [pendingOrganize?.proposals, titleById],
+  );
+
+  const [phase, setPhase] = useState<OrganizePhase>(() =>
+    pendingOrganize ? 'pending' : sourceIds.length > 0 ? 'confirm' : 'results',
+  );
   const [reanalyzeConfirm, setReanalyzeConfirm] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [proposals, setProposals] = useState<OrganizeProposal[]>([]);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(() => new Set());
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [dismissing, setDismissing] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const mountedRef = useRef(true);
@@ -162,27 +211,7 @@ export const OrganizeSourcesModal = memo(function OrganizeSourcesModal({
         setPhase('error');
         return;
       }
-      const rawList = Array.isArray(res.value.proposals) ? res.value.proposals : [];
-      const parsed: OrganizeProposal[] = [];
-      const initialChecked = new Set<string>();
-      for (const item of rawList) {
-        const id = typeof item?.id === 'string' ? item.id.trim() : '';
-        if (!id) continue;
-        const courses = normalizeCourseList(item.courses);
-        const expectedCourses = normalizeCourseList(item.expectedCourses);
-        const proposal: OrganizeProposal = {
-          id,
-          title: (typeof item.title === 'string' && item.title.trim()) || titleById.get(id) || id,
-          courses,
-          expectedCourses,
-          reason: typeof item.reason === 'string' ? item.reason.trim() : '',
-          ...(typeof item.decidedBy === 'string' ? { decidedBy: item.decidedBy } : {}),
-        };
-        parsed.push(proposal);
-        if (courses.length > 0 && !sameCourseSet(courses, expectedCourses)) {
-          initialChecked.add(id);
-        }
-      }
+      const { proposals: parsed, checked: initialChecked } = parseRawProposals(res.value.proposals, titleById);
       setProposals(parsed);
       setCheckedIds(initialChecked);
       setSelectedIndex(0);
@@ -198,11 +227,12 @@ export const OrganizeSourcesModal = memo(function OrganizeSourcesModal({
     }
   }, [host, isActive, lang, sourceIds, titleById]);
 
+  const activeListLength = phase === 'pending' ? pendingParsed.proposals.length : proposals.length;
   useEffect(() => {
-    if (selectedIndex >= proposals.length) {
-      setSelectedIndex(Math.max(0, proposals.length - 1));
+    if (selectedIndex >= activeListLength) {
+      setSelectedIndex(Math.max(0, activeListLength - 1));
     }
-  }, [proposals.length, selectedIndex]);
+  }, [activeListLength, selectedIndex]);
 
   const currentProposal = proposals[selectedIndex];
   const loading = phase === 'loading';
@@ -268,11 +298,81 @@ export const OrganizeSourcesModal = memo(function OrganizeSourcesModal({
     }
   }, [checkedIds, host, lang, notify, onClose, onSaved, phase, proposals, saving]);
 
-  const modalInteractive = isActive && sourceIds.length > 0 && phase !== 'confirm' && !reanalyzeConfirm;
+  useEffect(() => {
+    if (phase === 'pending' && !pendingOrganize) {
+      setPhase(sourceIds.length > 0 ? 'confirm' : 'results');
+    }
+  }, [pendingOrganize, phase, sourceIds.length]);
+
+  const handleDismissPending = useCallback(async () => {
+    if (busyRef.current || saving || dismissing || !pendingOrganize) return;
+    busyRef.current = true;
+    setDismissing(true);
+    setSaveError(null);
+    try {
+      const res = await tryAction<{ dismissed?: boolean }>(
+        host,
+        'source.organize.dismiss',
+        pendingOrganize.jobId ? { jobId: pendingOrganize.jobId } : {},
+      );
+      if (!mountedRef.current) return;
+      if (!res.ok) {
+        const msg = res.error?.message || t(lang, '清除待审课程归类建议失败', 'Failed to dismiss pending organize proposal');
+        setSaveError(msg);
+        notify(msg, 'error');
+        return;
+      }
+      await onSaved();
+      if (!mountedRef.current) return;
+      notify(
+        t(lang, '已清除待处理的课程归类建议', 'Dismissed pending course-organize proposal'),
+        'success',
+      );
+      if (phase === 'pending') {
+        setPhase(sourceIds.length > 0 ? 'confirm' : 'results');
+      }
+    } catch (err) {
+      if (!mountedRef.current) return;
+      const msg = errorMessage(err, lang);
+      setSaveError(msg);
+      notify(msg, 'error');
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setDismissing(false);
+    }
+  }, [dismissing, host, lang, notify, onSaved, pendingOrganize, phase, saving, sourceIds.length]);
+
+  const handleInspectPending = useCallback(() => {
+    if (phase !== 'pending' || !pendingOrganize || busyRef.current || dismissing) return;
+    setProposals(pendingParsed.proposals);
+    setCheckedIds(pendingParsed.checked);
+    setSelectedIndex(0);
+    setLoadError(null);
+    setSaveError(null);
+    setPhase('results');
+  }, [dismissing, pendingOrganize, pendingParsed, phase]);
+
+  const modalInteractive =
+    isActive && phase !== 'confirm' && !reanalyzeConfirm && (phase === 'pending' || sourceIds.length > 0);
 
   useInput(
     (input, key) => {
-      if (!modalInteractive || saving || busyRef.current) return;
+      if (!modalInteractive || saving || dismissing || busyRef.current) return;
+      if (input === 'X' && pendingOrganize) {
+        void handleDismissPending();
+        return;
+      }
+      if (phase === 'pending') {
+        if (key.return) {
+          handleInspectPending();
+          return;
+        }
+        if (input === 'g' && sourceIds.length > 0) {
+          setPhase('confirm');
+          return;
+        }
+        return;
+      }
       if (phase === 'results' && proposals.length > 0) {
         if (input === ' ') {
           handleToggleOne();
@@ -295,6 +395,17 @@ export const OrganizeSourcesModal = memo(function OrganizeSourcesModal({
   );
 
   const hints: KeyHint[] = useMemo(() => {
+    if (phase === 'pending') {
+      const pendingHints: KeyHint[] = [
+        { key: 'Enter', label: t(lang, '查看/应用', 'Review') },
+        { key: 'X', label: t(lang, '清除待审', 'Dismiss') },
+      ];
+      if (sourceIds.length > 0) {
+        pendingHints.push({ key: 'g', label: t(lang, '重新分析', 'Re-analyze') });
+      }
+      pendingHints.push({ key: 'Esc', label: t(lang, '关闭', 'Close') });
+      return pendingHints;
+    }
     if (sourceIds.length === 0) {
       return [{ key: 'Esc', label: t(lang, '关闭', 'Close') }];
     }
@@ -302,18 +413,64 @@ export const OrganizeSourcesModal = memo(function OrganizeSourcesModal({
       return [{ key: 'Esc', label: t(lang, '取消', 'Cancel') }];
     }
     if (phase === 'error' || loadError || proposals.length === 0) {
-      return [
-        { key: 'r', label: t(lang, '重试', 'Retry') },
-        { key: 'Esc', label: t(lang, '关闭', 'Close') },
-      ];
+      const errHints: KeyHint[] = [{ key: 'r', label: t(lang, '重试', 'Retry') }];
+      if (pendingOrganize) errHints.push({ key: 'X', label: t(lang, '清除待审', 'Dismiss') });
+      errHints.push({ key: 'Esc', label: t(lang, '关闭', 'Close') });
+      return errHints;
     }
-    return [
+    const resultHints: KeyHint[] = [
       { key: 'Space', label: t(lang, '勾选', 'Toggle') },
       { key: 'a', label: t(lang, '全选/取消', 'All/None') },
       { key: 'Enter', label: t(lang, '应用保存', 'Apply') },
       { key: 'r', label: t(lang, '重算', 'Refresh') },
     ];
-  }, [lang, loadError, loading, phase, proposals.length, sourceIds.length]);
+    if (pendingOrganize) {
+      resultHints.push({ key: 'X', label: t(lang, '清除待审', 'Dismiss') });
+    }
+    return resultHints;
+  }, [lang, loadError, loading, pendingOrganize, phase, proposals.length, sourceIds.length]);
+
+  const ell = asciiMode ? '...' : '…';
+  const arrow = asciiMode ? '->' : '→';
+  const errMark = asciiMode ? 'x' : '✕';
+  const sep = asciiMode ? ' | ' : ' · ';
+
+  const renderProposalRow = useCallback(
+    (item: OrganizeProposal, ctx: { selected: boolean; width: number }, checked: boolean) => {
+      const cursor = ctx.selected ? (asciiMode ? '> ' : '▸ ') : '  ';
+      const box = checked ? (asciiMode ? '[x] ' : '[✓] ') : '[ ] ';
+      const curText = item.expectedCourses.length > 0 ? item.expectedCourses.join(', ') : t(lang, '未分配', 'Unassigned');
+      const nextText = item.courses.length > 0 ? item.courses.join(', ') : t(lang, '不修改/留空', 'Uncertain');
+      const unchanged = sameCourseSet(item.courses, item.expectedCourses);
+      const courseDelta = unchanged
+        ? `${curText} (${t(lang, '不变', 'same')})`
+        : `${curText} ${arrow} ${nextText}`;
+
+      const prefixW = displayWidth(cursor) + displayWidth(box);
+      const avail = Math.max(8, ctx.width - prefixW);
+      const deltaMax = Math.max(8, Math.min(Math.floor(avail * 0.55), displayWidth(courseDelta)));
+      const deltaStr = truncateDisplay(courseDelta, deltaMax, ell);
+      const titleMax = Math.max(6, avail - displayWidth(deltaStr) - 2);
+      const titleStr = truncateDisplay(item.title, titleMax, ell);
+
+      return (
+        <Box flexDirection="row" width={ctx.width}>
+          <Text color={ctx.selected ? theme.primary : theme.muted}>{cursor}</Text>
+          <Text color={checked ? theme.success : theme.dim} bold={checked}>
+            {box}
+          </Text>
+          <Text color={theme.text} bold={ctx.selected}>
+            {titleStr}
+          </Text>
+          <Box flexGrow={1} />
+          <Text color={unchanged ? theme.dim : checked ? theme.accent : theme.muted}>
+            {deltaStr}
+          </Text>
+        </Box>
+      );
+    },
+    [arrow, asciiMode, ell, lang, theme],
+  );
 
   const confirmWidth = Math.min(64, Math.max(40, columns - 4));
   const confirmTitle = t(lang, 'AI 分析资料所属课程', 'AI Organize Materials by Course');
@@ -343,13 +500,11 @@ export const OrganizeSourcesModal = memo(function OrganizeSourcesModal({
   const innerWidth = modalContentWidth(frameWidth);
   const innerHeight = Math.max(8, frameHeight - 5);
 
-  const ell = asciiMode ? '...' : '…';
-  const arrow = asciiMode ? '->' : '→';
-  const errMark = asciiMode ? 'x' : '✕';
-  const sep = asciiMode ? ' | ' : ' · ';
-
-  const showReasonRow = innerHeight >= 10 && proposals.length > 0;
-  const extraStatusRows = (saving || saveError ? 1 : 0) + (showReasonRow ? 1 : 0);
+  const activeProposals = phase === 'pending' ? pendingParsed.proposals : proposals;
+  const activeReason = activeProposals[selectedIndex]?.reason;
+  const showReasonRow =
+    innerHeight >= 10 && (phase === 'pending' || phase === 'results') && activeProposals.length > 0;
+  const extraStatusRows = (saving || dismissing || saveError ? 1 : 0) + (showReasonRow ? 1 : 0);
   const listHeight = Math.max(3, innerHeight - 2 - extraStatusRows);
 
   return (
@@ -364,7 +519,72 @@ export const OrganizeSourcesModal = memo(function OrganizeSourcesModal({
         onClose={onClose}
         hints={hints}
       >
-        {sourceIds.length === 0 ? (
+        {phase === 'pending' && pendingOrganize ? (
+          <Box flexDirection="column" height={innerHeight} width={innerWidth}>
+            <Box height={1} flexDirection="row" alignItems="center" width={innerWidth} marginBottom={1}>
+              <Badge
+                label={t(
+                  lang,
+                  `待审归类建议 ${pendingParsed.proposals.length}`,
+                  `Pending organize ${pendingParsed.proposals.length}`,
+                )}
+                tone="warning"
+                variant="soft"
+              />
+              <Box flexGrow={1} />
+              <Text color={theme.dim} wrap="truncate-end">
+                {t(
+                  lang,
+                  `[X] 清除${sep}[Enter] 查看应用${sep}[g] 重算`,
+                  `[X] Dismiss${sep}[Enter] Review${sep}[g] Re-run`,
+                )}
+              </Text>
+            </Box>
+
+            {pendingParsed.proposals.length === 0 ? (
+              <EmptyState
+                title={t(lang, '存在待处理的课程归类建议', 'Pending course-organize proposal')}
+                hint={t(lang, '按 [X] 清除待审状态，或按 [g] 重新分析', 'Press [X] to dismiss, or [g] to re-analyze')}
+                width={innerWidth}
+                height={Math.max(4, innerHeight - 3)}
+              />
+            ) : (
+              <VirtualList
+                items={pendingParsed.proposals}
+                height={listHeight}
+                width={innerWidth}
+                selectedIndex={selectedIndex}
+                onChange={(idx) => setSelectedIndex(idx)}
+                isActive={modalInteractive && !dismissing}
+                ascii={asciiMode}
+                keyExtractor={(item) => item.id}
+                renderItem={(item, ctx) => renderProposalRow(item, ctx, pendingParsed.checked.has(item.id))}
+              />
+            )}
+
+            {showReasonRow ? (
+              <Box height={1} width={innerWidth}>
+                <Text color={theme.dim} wrap="truncate-end">
+                  {activeReason
+                    ? `${t(lang, '理由: ', 'Reason: ')}${truncateDisplay(activeReason, Math.max(10, innerWidth - 8), ell)}`
+                    : t(lang, '按 [Enter] 进入勾选应用，或按 [X] 清除待审建议', 'Press [Enter] to review & apply, or [X] to dismiss')}
+                </Text>
+              </Box>
+            ) : null}
+
+            {dismissing ? (
+              <Box height={1}>
+                <Spinner label={t(lang, `正在清除待审建议${ell}`, `Dismissing pending proposal${ell}`)} />
+              </Box>
+            ) : saveError ? (
+              <Box height={1}>
+                <Text color={theme.error} wrap="truncate-end">
+                  {`${errMark} ${truncateDisplay(saveError, Math.max(12, innerWidth - 3), ell)}`}
+                </Text>
+              </Box>
+            ) : null}
+          </Box>
+        ) : sourceIds.length === 0 ? (
           <EmptyState
             title={t(lang, '暂无课程整理建议', 'No organization suggestions')}
             hint={t(lang, '当前视图没有可整理的资料', 'No visible materials to organize')}
@@ -402,6 +622,12 @@ export const OrganizeSourcesModal = memo(function OrganizeSourcesModal({
         ) : (
           <Box flexDirection="column" height={innerHeight} width={innerWidth}>
             <Box height={1} flexDirection="row" alignItems="center" width={innerWidth} marginBottom={1}>
+              {pendingOrganize ? (
+                <>
+                  <Badge label={t(lang, '待审', 'Pending')} tone="warning" variant="soft" />
+                  <Text> </Text>
+                </>
+              ) : null}
               <Badge label={`${t(lang, '建议', 'Proposals')} ${proposals.length}`} tone="info" variant="soft" />
               <Text> </Text>
               <Badge
@@ -421,58 +647,31 @@ export const OrganizeSourcesModal = memo(function OrganizeSourcesModal({
               width={innerWidth}
               selectedIndex={selectedIndex}
               onChange={(idx) => setSelectedIndex(idx)}
-              isActive={modalInteractive && !saving}
+              isActive={modalInteractive && !saving && !dismissing}
               ascii={asciiMode}
               keyExtractor={(item) => item.id}
-              renderItem={(item, ctx) => {
-                const checked = checkedIds.has(item.id);
-                const cursor = ctx.selected ? (asciiMode ? '> ' : '▸ ') : '  ';
-                const box = checked ? (asciiMode ? '[x] ' : '[✓] ') : '[ ] ';
-                const curText = item.expectedCourses.length > 0 ? item.expectedCourses.join(', ') : t(lang, '未分配', 'Unassigned');
-                const nextText = item.courses.length > 0 ? item.courses.join(', ') : t(lang, '不修改/留空', 'Uncertain');
-                const unchanged = sameCourseSet(item.courses, item.expectedCourses);
-                const courseDelta = unchanged
-                  ? `${curText} (${t(lang, '不变', 'same')})`
-                  : `${curText} ${arrow} ${nextText}`;
-
-                const prefixW = displayWidth(cursor) + displayWidth(box);
-                const avail = Math.max(8, ctx.width - prefixW);
-                const deltaMax = Math.max(8, Math.min(Math.floor(avail * 0.55), displayWidth(courseDelta)));
-                const deltaStr = truncateDisplay(courseDelta, deltaMax, ell);
-                const titleMax = Math.max(6, avail - displayWidth(deltaStr) - 2);
-                const titleStr = truncateDisplay(item.title, titleMax, ell);
-
-                return (
-                  <Box flexDirection="row" width={ctx.width}>
-                    <Text color={ctx.selected ? theme.primary : theme.muted}>{cursor}</Text>
-                    <Text color={checked ? theme.success : theme.dim} bold={checked}>
-                      {box}
-                    </Text>
-                    <Text color={theme.text} bold={ctx.selected}>
-                      {titleStr}
-                    </Text>
-                    <Box flexGrow={1} />
-                    <Text color={unchanged ? theme.dim : checked ? theme.accent : theme.muted}>
-                      {deltaStr}
-                    </Text>
-                  </Box>
-                );
-              }}
+              renderItem={(item, ctx) => renderProposalRow(item, ctx, checkedIds.has(item.id))}
             />
 
             {showReasonRow ? (
               <Box height={1} width={innerWidth}>
                 <Text color={theme.dim} wrap="truncate-end">
-                  {currentProposal?.reason
-                    ? `${t(lang, '理由: ', 'Reason: ')}${truncateDisplay(currentProposal.reason, Math.max(10, innerWidth - 8), ell)}`
+                  {activeReason
+                    ? `${t(lang, '理由: ', 'Reason: ')}${truncateDisplay(activeReason, Math.max(10, innerWidth - 8), ell)}`
                     : t(lang, '按 [Space] 切换勾选，[Enter] 保存已勾选资料的课程归属', 'Press [Space] to toggle, [Enter] to save checked assignments')}
                 </Text>
               </Box>
             ) : null}
 
-            {saving ? (
+            {saving || dismissing ? (
               <Box height={1}>
-                <Spinner label={t(lang, `正在保存课程归属${ell}`, `Saving course assignments${ell}`)} />
+                <Spinner
+                  label={
+                    dismissing
+                      ? t(lang, `正在清除待审建议${ell}`, `Dismissing pending proposal${ell}`)
+                      : t(lang, `正在保存课程归属${ell}`, `Saving course assignments${ell}`)
+                  }
+                />
               </Box>
             ) : saveError ? (
               <Box height={1}>

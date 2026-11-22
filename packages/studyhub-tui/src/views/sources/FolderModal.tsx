@@ -42,6 +42,53 @@ type FolderRow =
   | { kind: 'unfiled'; id: string; label: string; count: number }
   | { kind: 'unfile'; id: string; label: string; count: number };
 
+interface PendingClassifyEntry {
+  jobId?: string;
+  course?: string;
+  createdAt?: string;
+  folders?: string[];
+  suggestions?: unknown[];
+  unmatchedKeys?: string[];
+}
+
+function resolvePendingClassify(
+  settings: Record<string, unknown> | undefined,
+  focusCourse: string,
+): { entry: PendingClassifyEntry; course: string } | null {
+  if (!settings || typeof settings !== 'object') return null;
+  const byCourse = settings.materialClassifyPendingByCourse;
+  if (byCourse && typeof byCourse === 'object' && !Array.isArray(byCourse)) {
+    const map = byCourse as Record<string, unknown>;
+    if (focusCourse && map[focusCourse] && typeof map[focusCourse] === 'object') {
+      return { entry: map[focusCourse] as PendingClassifyEntry, course: focusCourse };
+    }
+    if (map['*'] && typeof map['*'] === 'object') {
+      return { entry: map['*'] as PendingClassifyEntry, course: '' };
+    }
+    let bestSlot = '';
+    let bestEntry: PendingClassifyEntry | null = null;
+    for (const [slot, val] of Object.entries(map)) {
+      if (!val || typeof val !== 'object') continue;
+      const cand = val as PendingClassifyEntry;
+      if (!bestEntry || String(cand.createdAt || '') >= String(bestEntry.createdAt || '')) {
+        bestEntry = cand;
+        bestSlot = slot;
+      }
+    }
+    if (bestEntry) {
+      return { entry: bestEntry, course: bestSlot === '*' ? '' : bestSlot };
+    }
+  }
+  const legacy = settings.materialClassifyPending;
+  if (legacy && typeof legacy === 'object' && !Array.isArray(legacy)) {
+    const entry = legacy as PendingClassifyEntry;
+    const rawCourse = typeof entry.course === 'string' ? entry.course.trim() : '';
+    const course = rawCourse === '*' ? '' : rawCourse;
+    return { entry, course };
+  }
+  return null;
+}
+
 export const FolderModal = memo(function FolderModal({
   host,
   mode,
@@ -58,9 +105,23 @@ export const FolderModal = memo(function FolderModal({
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const snapshot = useTuiStore((s) => s.snapshot);
   const ell = asciiMode ? '...' : '…';
   const notify = useTuiStore((s) => s.notify);
   const { columns, rows: termRows } = useWindowSize();
+
+  const focusCourse = useMemo(() => {
+    const raw = (snapshot?.focus as { course?: unknown } | undefined)?.course;
+    return typeof raw === 'string' ? raw.trim() : '';
+  }, [snapshot]);
+
+  const pendingClassify = useMemo(
+    () => resolvePendingClassify(snapshot?.settings, focusCourse),
+    [snapshot, focusCourse],
+  );
+  const pendingCount = Array.isArray(pendingClassify?.entry.suggestions)
+    ? pendingClassify.entry.suggestions.length
+    : 0;
 
   const [subMode, setSubMode] = useState<FolderSubMode>('list');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -418,6 +479,41 @@ export const FolderModal = memo(function FolderModal({
     setSubMode('list');
   }, [busy]);
 
+  const handleDismissPending = useCallback(async () => {
+    if (busyRef.current || busy || !pendingClassify) return;
+    busyRef.current = true;
+    setBusy(true);
+    setErr(null);
+    setAiPhaseLabel(t(lang, `正在清除待审分夹建议${ell}`, `Dismissing pending proposals${ell}`));
+    try {
+      const course = pendingClassify.course;
+      const res = await tryAction<{ dismissed?: boolean }>(
+        host,
+        'source.folder.dismiss',
+        { ...(course ? { course } : {}) },
+      );
+      if (!mountedRef.current) return;
+      if (!res.ok) {
+        setErr(res.error?.message || t(lang, '清除待审分夹建议失败', 'Failed to dismiss pending folder proposals'));
+        return;
+      }
+      await onRefresh();
+      if (!mountedRef.current) return;
+      notify(
+        t(lang, '已清除待审文件夹分类建议', 'Dismissed pending folder classification proposal'),
+        'success',
+      );
+    } catch (error) {
+      if (mountedRef.current) setErr(errorMessage(error, lang));
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) {
+        setBusy(false);
+        setAiPhaseLabel(null);
+      }
+    }
+  }, [busy, ell, host, lang, notify, onRefresh, pendingClassify]);
+
   const listActive = isActive && subMode === 'list' && !busy;
   const previewActive = isActive && subMode === 'ai-preview' && !busy;
 
@@ -440,6 +536,8 @@ export const FolderModal = memo(function FolderModal({
       } else if (input === 'g') {
         setErr(null);
         setSubMode('ai-confirm');
+      } else if (input === 'X' && pendingClassify) {
+        void handleDismissPending();
       } else if (input === '0' || input === 'x') {
         if (mode === 'filter') {
           onSelectFilter(null);
@@ -475,19 +573,23 @@ export const FolderModal = memo(function FolderModal({
         { key: 'Esc', label: t(lang, '放弃', 'Discard') },
       ];
     }
-    return [
+    const listHints: KeyHint[] = [
       { key: 'Enter', label: mode === 'assign' ? t(lang, '移入', 'Move') : t(lang, '筛选', 'Filter') },
       { key: 'a', label: t(lang, '新建', 'New') },
       { key: 'r', label: t(lang, '重命名', 'Rename') },
       { key: 'd', label: t(lang, '删除', 'Delete') },
       { key: 'g', label: t(lang, 'AI分类', 'AI Classify') },
-      { key: '0/x', label: mode === 'assign' ? t(lang, '移出', 'Unfile') : t(lang, '清空筛选', 'Clear') },
     ];
-  }, [lang, mode, subMode]);
+    if (pendingClassify) {
+      listHints.push({ key: 'X', label: t(lang, '清除待审', 'Dismiss') });
+    }
+    listHints.push({ key: '0/x', label: mode === 'assign' ? t(lang, '移出', 'Unfile') : t(lang, '清空筛选', 'Clear') });
+    return listHints;
+  }, [lang, mode, pendingClassify, subMode]);
 
   const frameWidth = Math.max(46, Math.min(68, columns - 4));
   const innerWidth = modalContentWidth(frameWidth);
-  const listHeight = Math.max(4, Math.min(12, termRows - 12));
+  const listHeight = Math.max(4, Math.min(12, termRows - (pendingClassify ? 14 : 12)));
   const arrow = asciiMode ? '->' : '→';
 
   const title =
@@ -624,6 +726,19 @@ export const FolderModal = memo(function FolderModal({
           </Box>
         ) : (
           <Box flexDirection="column">
+            {pendingClassify ? (
+              <Box marginBottom={1} flexDirection="row" width={innerWidth}>
+                <Badge
+                  label={t(lang, `待审分夹 ${pendingCount}`, `Pending classify ${pendingCount}`)}
+                  tone="warning"
+                  variant="soft"
+                />
+                <Text> </Text>
+                <Text color={theme.dim} wrap="truncate-end">
+                  {t(lang, '[X] 清除待审分夹建议', '[X] Dismiss pending')}
+                </Text>
+              </Box>
+            ) : null}
             {mode === 'assign' && folders.length === 0 ? (
               <Box marginBottom={1}>
                 <Text color={theme.dim}>

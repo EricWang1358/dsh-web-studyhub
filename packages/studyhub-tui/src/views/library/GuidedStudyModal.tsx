@@ -1,9 +1,10 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { randomUUID } from 'node:crypto';
 import { Box, Text, useInput, useWindowSize } from 'ink';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
-import { Badge, Divider, EmptyState, ProgressBar, Spinner, StatusPill, type PillStatus } from '../../components/Badge.js';
+import { Badge, Divider, EmptyState, normalizeAsciiChrome, ProgressBar, Spinner, StatusPill, type PillStatus } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
 import { Modal, modalContentWidth } from '../../components/Modal.js';
@@ -103,6 +104,7 @@ export interface StudySessionFocus {
 export interface StudySessionRecord {
   id: string;
   courseId: string;
+  topic?: string;
   scope?: StudySessionScopeItem[];
   goal?: {
     title?: string;
@@ -156,7 +158,25 @@ export interface GuidedStudyModalProps {
   onUpdated?: () => void;
 }
 
-type SubMode = 'sessions' | 'workbench' | 'artifact' | 'branch-pick' | 'qa-form';
+type SubMode = 'sessions' | 'workbench' | 'artifact' | 'branch-pick' | 'qa-form' | 'artifact-form';
+
+const ARTIFACT_KINDS = ['explanation', 'summary', 'formula', 'example'] as const;
+type ArtifactKind = (typeof ARTIFACT_KINDS)[number];
+
+function artifactKindLabel(kind: string, lang: 'zh' | 'en'): string {
+  switch (kind) {
+    case 'explanation':
+      return t(lang, '讲解', 'Explanation');
+    case 'summary':
+      return t(lang, '总结', 'Summary');
+    case 'formula':
+      return t(lang, '公式', 'Formula');
+    case 'example':
+      return t(lang, '例题', 'Example');
+    default:
+      return kind;
+  }
+}
 
 interface QaTargetCard {
   deckId: string;
@@ -343,11 +363,20 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
   const [qaField, setQaField] = useState<'question' | 'answer'>('question');
   const [qaError, setQaError] = useState('');
 
+  const [artifactTitle, setArtifactTitle] = useState('');
+  const [artifactKind, setArtifactKind] = useState<ArtifactKind>('explanation');
+  const [artifactTopic, setArtifactTopic] = useState('');
+  const [artifactMarkdown, setArtifactMarkdown] = useState('');
+  const [artifactField, setArtifactField] = useState<'title' | 'kind' | 'markdown'>('title');
+  const [artifactError, setArtifactError] = useState('');
+  const [artifactReturnSubMode, setArtifactReturnSubMode] = useState<'sessions' | 'workbench' | 'artifact'>('workbench');
+
   const mountedRef = useRef(true);
   const busyRef = useRef(false);
   const autoModeSetRef = useRef(false);
   const qaOpIdRef = useRef('');
   const qaOpSignatureRef = useRef('');
+  const artifactOpIdRef = useRef('');
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -375,15 +404,15 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
   const listCourseArg = scopeFilter === 'course' && resolvedCourseId ? { courseId: resolvedCourseId } : {};
 
   const loadSessions = useCallback(
-    async (preferSessionId?: string) => {
+    async (preferSessionId?: string): Promise<StudySessionRecord | null> => {
       setLoading(true);
       setError('');
       const res = await tryAction<SessionListResponse>(host, 'study.session.list', listCourseArg);
-      if (!mountedRef.current) return;
+      if (!mountedRef.current) return null;
       if (!res.ok) {
         setError(res.error?.message || t(lang, '读取带学会话失败', 'Failed to load guided sessions'));
         setLoading(false);
-        return;
+        return null;
       }
       const rawList = [...(res.value?.sessions ?? [])].sort(
         (a, b) => Number(b.updatedAt ?? b.createdAt ?? 0) - Number(a.updatedAt ?? a.createdAt ?? 0),
@@ -398,7 +427,7 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
           return getRes.ok && getRes.value ? [item.id, getRes.value] as const : null;
         }),
       );
-      if (!mountedRef.current) return;
+      if (!mountedRef.current) return null;
       const nextMap: Record<string, StudySessionRecord> = {};
       for (const pair of fetched) {
         if (pair) nextMap[pair[0]] = pair[1];
@@ -422,6 +451,10 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
         }
       }
       setLoading(false);
+      const preferred = preferSessionId
+        ? (nextMap[preferSessionId] ?? rawList.find((s) => s.id === preferSessionId) ?? null)
+        : null;
+      return preferred;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [host, scopeFilter, resolvedCourseId, lang],
@@ -1005,12 +1038,146 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
     }
   }, [selectedSession, qaTarget, busyAction, qaQuestion, qaAnswer, lang, host, loadSessions, onUpdated, notify]);
 
+  const handleOpenArtifactForm = useCallback(() => {
+    if (!selectedSession || busyRef.current || busyAction || loading) return;
+    setArtifactReturnSubMode(
+      subMode === 'sessions' ? 'sessions' : subMode === 'artifact' ? 'artifact' : 'workbench',
+    );
+    setArtifactTitle('');
+    setArtifactKind('explanation');
+    setArtifactTopic(selectedSession.topic ? String(selectedSession.topic) : '');
+    setArtifactMarkdown('');
+    setArtifactField('title');
+    setArtifactError('');
+    artifactOpIdRef.current = randomUUID();
+    setSubMode('artifact-form');
+  }, [selectedSession, busyAction, loading, subMode]);
+
+  const handleCancelArtifactForm = useCallback(() => {
+    if (busyRef.current || busyAction === 'artifact-save') return;
+    setArtifactError('');
+    artifactOpIdRef.current = '';
+    setSubMode(artifactReturnSubMode === 'artifact' && artifacts.length === 0 ? 'workbench' : artifactReturnSubMode);
+  }, [busyAction, artifactReturnSubMode, artifacts.length]);
+
+  const handleSubmitArtifact = useCallback(async () => {
+    if (!selectedSession || busyRef.current || busyAction) return;
+    const cleanTitle = artifactTitle.trim();
+    const cleanMarkdown = artifactMarkdown.trim();
+    const cleanTopic = artifactTopic.trim();
+    if (!cleanTitle) {
+      setArtifactError(t(lang, '请输入讲解标题', 'Please enter an artifact title'));
+      setArtifactField('title');
+      return;
+    }
+    if (!cleanMarkdown) {
+      setArtifactError(t(lang, '请输入教学讲解 Markdown 内容', 'Please enter artifact Markdown content'));
+      setArtifactField('markdown');
+      return;
+    }
+
+    if (!artifactOpIdRef.current) {
+      artifactOpIdRef.current = randomUUID();
+    }
+
+    busyRef.current = true;
+    setBusyAction('artifact-save');
+    setArtifactError('');
+    try {
+      const res = await tryAction<{
+        artifact?: StudyArtifact;
+        artifactId?: string;
+        operationId?: string;
+        deduplicated?: boolean;
+      }>(host, 'study.session.artifact.save', {
+        sessionId: selectedSession.id,
+        title: cleanTitle,
+        kind: artifactKind,
+        ...(cleanTopic ? { topic: cleanTopic } : {}),
+        markdown: cleanMarkdown,
+        operationId: artifactOpIdRef.current,
+      });
+      if (!mountedRef.current) return;
+      if (!res.ok || !res.value) {
+        setArtifactError(res.error?.message || t(lang, '保存教学讲解失败', 'Failed to save teaching artifact'));
+        return;
+      }
+      const refreshed = await loadSessions(selectedSession.id);
+      if (!mountedRef.current) return;
+      const refreshedArtifacts = refreshed?.artifactRefs ?? refreshed?.artifacts ?? [];
+      const savedId = res.value.artifactId || res.value.artifact?.id;
+      const savedIdx = savedId ? refreshedArtifacts.findIndex((a) => a.id === savedId) : -1;
+      setArtifactIndex(savedIdx >= 0 ? savedIdx : Math.max(0, refreshedArtifacts.length - 1));
+      setArtifactTitle('');
+      setArtifactMarkdown('');
+      setArtifactError('');
+      artifactOpIdRef.current = '';
+      setSubMode('artifact');
+      onUpdated?.();
+      notify(t(lang, '已保存教学讲解到会话', 'Saved teaching artifact to session'), 'success');
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusyAction('');
+    }
+  }, [
+    selectedSession,
+    busyAction,
+    artifactTitle,
+    artifactMarkdown,
+    artifactTopic,
+    artifactKind,
+    lang,
+    host,
+    loadSessions,
+    onUpdated,
+    notify,
+  ]);
+
   const modalInputActive = isActive && !creating && !confirmEnd;
   const branchDepth = selectedSession?.returnPath?.length ?? 0;
 
   useInput(
     (input, key) => {
       if (busyAction || busyRef.current || loading) return;
+
+      if (subMode === 'artifact-form') {
+        if (key.escape) {
+          handleCancelArtifactForm();
+          return;
+        }
+        if (key.tab) {
+          setArtifactField((prev) => (prev === 'title' ? 'kind' : prev === 'kind' ? 'markdown' : 'title'));
+          return;
+        }
+        if (key.ctrl && input === 's') {
+          // Multiline TextInput on 'markdown' already invokes onSubmit -> handleSubmitArtifact on Ctrl+S.
+          if (artifactField !== 'markdown') {
+            void handleSubmitArtifact();
+          }
+          return;
+        }
+        if (artifactField === 'kind') {
+          if (input === ' ' || key.rightArrow) {
+            setArtifactKind((prev) => {
+              const idx = ARTIFACT_KINDS.indexOf(prev);
+              return ARTIFACT_KINDS[(idx + 1) % ARTIFACT_KINDS.length];
+            });
+            return;
+          }
+          if (key.leftArrow) {
+            setArtifactKind((prev) => {
+              const idx = ARTIFACT_KINDS.indexOf(prev);
+              return ARTIFACT_KINDS[(idx - 1 + ARTIFACT_KINDS.length) % ARTIFACT_KINDS.length];
+            });
+            return;
+          }
+          if (key.return) {
+            setArtifactField('markdown');
+            return;
+          }
+        }
+        return;
+      }
 
       if (subMode === 'qa-form') {
         if (key.escape) {
@@ -1053,6 +1220,10 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
         }
         if (input === '2') {
           setSubMode('workbench');
+          return;
+        }
+        if (input === 'A' && selectedSession) {
+          handleOpenArtifactForm();
           return;
         }
         if ((key.leftArrow || input === ',') && artifacts.length > 1) {
@@ -1099,6 +1270,10 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
         void handleOpenQaForm();
         return;
       }
+      if (input === 'A' && selectedSession) {
+        handleOpenArtifactForm();
+        return;
+      }
       if (input === 'u' && selectedSession && branchDepth > 0) {
         void handleBranchReturn();
         return;
@@ -1143,6 +1318,16 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
         { key: 'Esc', label: t(lang, '取消', 'Cancel') },
       ];
     }
+    if (subMode === 'artifact-form') {
+      return [
+        { key: 'Tab', label: t(lang, '切换栏位', 'Next Field') },
+        ...(artifactField === 'kind'
+          ? [{ key: asciiMode ? 'Space/Left/Right' : 'Space/←/→', label: t(lang, '切换类型', 'Kind') }]
+          : []),
+        { key: 'Ctrl+S', label: t(lang, '保存讲解', 'Save Artifact') },
+        { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+      ];
+    }
     if (subMode === 'qa-form') {
       return [
         { key: 'Tab', label: t(lang, '切换栏位', 'Next Field') },
@@ -1161,6 +1346,7 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
       const list: KeyHint[] = [];
       if (artifacts.length > 1) list.push({ key: asciiMode ? '<-/->' : '←/→', label: t(lang, '切换文稿', 'Switch') });
       list.push({ key: 'j/k', label: t(lang, '滚动', 'Scroll') });
+      if (selectedSession) list.push({ key: 'A', label: t(lang, '新增讲解', 'New Artifact') });
       list.push({ key: 'b/Esc', label: t(lang, '返回', 'Back') });
       return list;
     }
@@ -1170,10 +1356,13 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
       list.push({ key: 'Enter', label: compactHints ? t(lang, '练习', 'Go') : t(lang, '去练习', 'Practice') });
       if (selectedSession.status === 'active') list.push({ key: 'B', label: t(lang, '开支线', 'Branch') });
       if (selectedSession.status === 'active') list.push({ key: 'Q', label: t(lang, '整理问答', 'Save Q&A') });
-      if (branchDepth > 0) list.push({ key: 'u', label: t(lang, '回原题', 'Return') });
-      if (selectedSession.status === 'active') list.push({ key: 'p', label: t(lang, '暂停', 'Pause') });
+      list.push({ key: 'A', label: compactHints ? t(lang, '存讲解', 'Artifact') : t(lang, '保存讲解', 'Save Artifact') });
+      if (branchDepth > 0 && !(compactHints && selectedSession.status === 'active')) {
+        list.push({ key: 'u', label: t(lang, '回原题', 'Return') });
+      }
+      if (selectedSession.status === 'active' && !compactHints) list.push({ key: 'p', label: t(lang, '暂停', 'Pause') });
       if (selectedSession.status === 'paused') list.push({ key: 'r', label: t(lang, '恢复', 'Resume') });
-      if (selectedSession.status !== 'ended' && !(compactHints && branchDepth > 0)) {
+      if (selectedSession.status !== 'ended' && !(compactHints && (selectedSession.status === 'active' || branchDepth > 0))) {
         list.push({ key: 'e', label: t(lang, '结束', 'End') });
       }
       if (artifacts.length > 0 && !compactHints) list.push({ key: 'a', label: t(lang, '讲解', 'Artifacts') });
@@ -1183,7 +1372,7 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
     }
     list.push({ key: 'Esc', label: t(lang, '关闭', 'Close') });
     return list;
-  }, [creating, subMode, artifacts.length, selectedSession, branchDepth, innerW, lang, asciiMode]);
+  }, [creating, subMode, artifactField, artifacts.length, selectedSession, branchDepth, innerW, lang, asciiMode]);
 
   const renderBranchCandidateRow = useCallback(
     (item: BranchCandidateCard, ctx: VirtualListRenderContext) => {
@@ -1282,7 +1471,7 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
         subtitle={subtitle}
         width={frameW}
         height={frameH}
-        onClose={subMode === 'artifact' || subMode === 'branch-pick' || subMode === 'qa-form' || creating || confirmEnd ? undefined : onClose}
+        onClose={subMode === 'artifact' || subMode === 'branch-pick' || subMode === 'qa-form' || subMode === 'artifact-form' || creating || confirmEnd ? undefined : onClose}
         isActive={isActive && !confirmEnd}
         hints={hints}
       >
@@ -1389,6 +1578,115 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
             width={innerW}
             height={contentH}
           />
+        ) : subMode === 'artifact-form' && selectedSession ? (
+          <Box flexDirection="column" height={contentH} overflow="hidden">
+            <Box height={1} overflow="hidden" flexDirection="row" gap={1}>
+              <Badge label={t(lang, '保存教学讲解', 'Save Teaching Artifact')} tone="ai" variant="soft" />
+              <Text color={theme.muted} wrap="truncate-end">
+                {normalizeAsciiChrome(
+                  artifactTopic
+                    ? `${truncateDisplay(artifactTopic, 18, ell)} - ${truncateDisplay(selectedSession.goal?.title || selectedSession.courseId || selectedSession.id, 24, ell)}`
+                    : truncateDisplay(selectedSession.goal?.title || selectedSession.courseId || selectedSession.id, Math.max(12, innerW - 24), ell),
+                  asciiMode,
+                )}
+              </Text>
+            </Box>
+            <Divider width={innerW} />
+            <Box height={1} overflow="hidden">
+              <Text color={artifactField === 'title' ? theme.primary : theme.muted} bold>
+                {t(lang, '标题 (Title)', 'Title')}
+              </Text>
+            </Box>
+            <Box height={1} overflow="hidden">
+              <TextInput
+                value={artifactTitle}
+                onChange={(v) => {
+                  setArtifactTitle(v);
+                  if (artifactError) setArtifactError('');
+                }}
+                onSubmit={() => setArtifactField('kind')}
+                onCancel={handleCancelArtifactForm}
+                placeholder={t(lang, `输入教学讲解标题，按 Tab 切换类型${ell}`, `Enter artifact title, press Tab for kind${ell}`)}
+                width={Math.max(12, innerW - 4)}
+                isActive={modalInputActive && subMode === 'artifact-form' && artifactField === 'title' && !busyAction}
+                prompt={asciiMode ? '> ' : '› '}
+                captureInput={false}
+              />
+            </Box>
+            <Box height={1} overflow="hidden">
+              <Text color={artifactField === 'kind' ? theme.primary : theme.muted} bold>
+                {t(lang, `类型 (Kind): ${artifactKind}`, `Kind: ${artifactKind}`)}
+              </Text>
+            </Box>
+            <Box height={1} overflow="hidden" flexDirection="row" gap={1}>
+              {ARTIFACT_KINDS.map((k) => {
+                const activeKind = k === artifactKind;
+                const label = artifactKindLabel(k, lang);
+                return (
+                  <Text
+                    key={k}
+                    color={activeKind ? (artifactField === 'kind' ? theme.ai : theme.primary) : theme.muted}
+                    bold={activeKind}
+                  >
+                    {activeKind ? `[${label}]` : ` ${label} `}
+                  </Text>
+                );
+              })}
+              <Text color={theme.dim} wrap="truncate-end">
+                {t(
+                  lang,
+                  `(${asciiMode ? 'Space/Left/Right' : 'Space/←/→'} 切换)`,
+                  `(${asciiMode ? 'Space/Left/Right' : 'Space/←/→'})`,
+                )}
+              </Text>
+            </Box>
+            <Box height={1} overflow="hidden">
+              <Text color={artifactField === 'markdown' ? theme.primary : theme.muted} bold>
+                {t(lang, '讲解正文 Markdown (Content)', 'Artifact Markdown')}
+              </Text>
+            </Box>
+            <Box
+              borderStyle={asciiMode ? 'classic' : 'single'}
+              borderColor={artifactField === 'markdown' ? theme.borderActive : theme.border}
+              paddingX={1}
+              flexShrink={0}
+            >
+              <TextInput
+                value={artifactMarkdown}
+                onChange={(v) => {
+                  setArtifactMarkdown(v);
+                  if (artifactError) setArtifactError('');
+                }}
+                onSubmit={() => {
+                  void handleSubmitArtifact();
+                }}
+                onCancel={handleCancelArtifactForm}
+                multiline
+                height={Math.max(2, Math.min(6, contentH - 10))}
+                width={Math.max(12, innerW - 6)}
+                isActive={modalInputActive && subMode === 'artifact-form' && artifactField === 'markdown' && !busyAction}
+                placeholder={t(lang, `输入教学讲解 Markdown 内容，Ctrl+S 保存${ell}`, `Write teaching Markdown, Ctrl+S to save${ell}`)}
+                captureInput={false}
+              />
+            </Box>
+            <Box height={1} overflow="hidden">
+              {artifactError ? (
+                <Text color={theme.error} wrap="truncate-end">
+                  {`${asciiMode ? '!' : '✕'} ${truncateDisplay(normalizeAsciiChrome(artifactError, asciiMode), Math.max(12, innerW - 4), ell)}`}
+                </Text>
+              ) : (
+                <Text color={theme.muted} wrap="truncate-end">
+                  {busyAction === 'artifact-save'
+                    ? t(lang, `正在保存教学讲解${ell}`, `Saving teaching artifact${ell}`)
+                    : t(
+                        lang,
+                        '0 token 本地保存 · Tab 切换 · Ctrl+S 保存 · Esc 取消',
+                        '0-token save · Tab switch · Ctrl+S save · Esc cancel',
+                      )}
+                </Text>
+              )}
+            </Box>
+          </Box>
         ) : subMode === 'qa-form' && qaTarget ? (
           <Box flexDirection="column" height={contentH} overflow="hidden">
             <Box height={1} overflow="hidden" flexDirection="row" gap={1}>
@@ -1506,11 +1804,16 @@ export const GuidedStudyModal = memo(function GuidedStudyModal({
           <Box flexDirection="column" height={contentH} overflow="hidden">
             <Box height={1} overflow="hidden" flexDirection="row" gap={1}>
               <Badge label={`${artifactIndex + 1}/${artifacts.length}`} tone="ai" variant="soft" />
+              {activeArtifact.kind ? (
+                <Badge label={artifactKindLabel(activeArtifact.kind, lang)} tone="accent" variant="outline" />
+              ) : null}
               <Text color={theme.text} bold wrap="truncate-end">
-                {activeArtifact.title}
+                {normalizeAsciiChrome(activeArtifact.title, asciiMode)}
               </Text>
               {activeArtifact.topic ? (
-                <Text color={theme.muted} wrap="truncate-end">· {activeArtifact.topic}</Text>
+                <Text color={theme.muted} wrap="truncate-end">
+                  · {normalizeAsciiChrome(activeArtifact.topic, asciiMode)}
+                </Text>
               ) : null}
             </Box>
             <Divider width={innerW} />

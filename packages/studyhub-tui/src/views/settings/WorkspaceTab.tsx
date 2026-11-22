@@ -162,6 +162,32 @@ interface UsageReportShape {
   observations?: UsageReportObservationShape[];
 }
 
+interface LibraryContextShape {
+  library?: string;
+  timeZone?: string;
+  today?: string;
+  focus?: {
+    mode?: string;
+    course?: string;
+    role?: string;
+  };
+  counts?: {
+    sources?: number;
+    decks?: number;
+    archivedDecks?: number;
+    drafts?: number;
+    cards?: number;
+  };
+  courses?: string[];
+  coursesPage?: {
+    total?: number;
+    offset?: number;
+    nextOffset?: number | null;
+  };
+  areas?: string[];
+  learner?: Record<string, unknown>;
+}
+
 interface UpdateViewShape {
   current?: string;
   installed?: string;
@@ -1248,6 +1274,197 @@ const UsageReportModal = memo(function UsageReportModal({
   );
 });
 
+interface LibraryContextModalProps {
+  lang: 'zh' | 'en';
+  asciiMode: boolean;
+  ell: string;
+  width: number;
+  isActive: boolean;
+  loading: boolean;
+  actionBusy: boolean;
+  contextData: LibraryContextShape | null;
+  fallbackRoot: string;
+  error: string | null;
+  lastExportPath: string | null;
+  onRefresh: () => void;
+  onExport: () => void;
+  onClose: () => void;
+}
+
+const LibraryContextModal = memo(function LibraryContextModal({
+  lang,
+  asciiMode,
+  ell,
+  width,
+  isActive,
+  loading,
+  actionBusy,
+  contextData,
+  fallbackRoot,
+  error,
+  lastExportPath,
+  onRefresh,
+  onExport,
+  onClose,
+}: LibraryContextModalProps) {
+  const theme = useTheme();
+  const contentW = modalContentWidth(width);
+  const sep = asciiMode ? ' | ' : ' · ';
+  const bullet = asciiMode ? '- ' : '• ';
+
+  useInput(
+    (input, key) => {
+      if (key.escape || input === 'q') {
+        onClose();
+        return;
+      }
+      if (input === 'r') {
+        onRefresh();
+        return;
+      }
+      if (input === 'e' && !actionBusy) {
+        onExport();
+      }
+    },
+    { isActive },
+  );
+
+  const rootText = contextData?.library || fallbackRoot || '-';
+  const todayText = contextData?.today || '-';
+  const tzText = contextData?.timeZone || '-';
+  const focusCourse = contextData?.focus?.course ? normalizeAsciiChrome(contextData.focus.course, asciiMode) : '-';
+  const focusRole = contextData?.focus?.role ? normalizeAsciiChrome(contextData.focus.role, asciiMode) : '-';
+  const sourcesCount = Number(contextData?.counts?.sources) || 0;
+  const decksCount = Number(contextData?.counts?.decks) || 0;
+  const archivedDecksCount = Number(contextData?.counts?.archivedDecks) || 0;
+  const draftsCount = Number(contextData?.counts?.drafts) || 0;
+  const cardsCount = Number(contextData?.counts?.cards) || 0;
+  const allCourses = Array.isArray(contextData?.courses) ? contextData.courses : [];
+  const totalCourses = Number(contextData?.coursesPage?.total ?? allCourses.length) || 0;
+  const shownCourses = allCourses.slice(0, 4);
+  const extraCourses = Math.max(0, totalCourses - shownCourses.length);
+  const areasList = Array.isArray(contextData?.areas) ? contextData.areas : [];
+  const areasText = areasList.length > 0 ? areasList.join(', ') : '-';
+
+  const rootPrefix = t(lang, '学习库: ', 'Library: ');
+  const rootMaxW = Math.max(10, contentW - displayWidth(rootPrefix));
+
+  const modalHints = [
+    { key: 'e', label: t(lang, '导出 JSON', 'Export JSON') },
+    { key: 'r', label: t(lang, '刷新', 'Refresh') },
+    { key: 'Esc/q', label: t(lang, '关闭', 'Close') },
+  ];
+
+  return (
+    <Modal
+      title={t(lang, '学习库上下文总览', 'Library Context Overview')}
+      subtitle={contextData?.today || undefined}
+      width={width}
+      onClose={onClose}
+      isActive={isActive}
+      hints={modalHints}
+    >
+      {loading && !contextData ? (
+        <Spinner label={t(lang, `正在读取学习库上下文${ell}`, `Loading library context${ell}`)} active={isActive} />
+      ) : (
+        <Box flexDirection="column" gap={0}>
+          <Text color={theme.primary} bold>
+            {`${rootPrefix}${truncatePathMiddle(rootText, rootMaxW, ell)}`}
+          </Text>
+          <Text color={theme.muted}>
+            {truncateDisplay(
+              t(lang, `日期: ${todayText}${sep}时区: ${tzText}`, `Date: ${todayText}${sep}TimeZone: ${tzText}`),
+              contentW,
+              ell,
+            )}
+          </Text>
+          <Text color={theme.text}>
+            {truncateDisplay(
+              t(
+                lang,
+                `当前焦点: ${focusCourse}${sep}角色: ${focusRole}`,
+                `Focus: ${focusCourse}${sep}Role: ${focusRole}`,
+              ),
+              contentW,
+              ell,
+            )}
+          </Text>
+          <Text color={theme.text}>
+            {truncateDisplay(
+              t(
+                lang,
+                `资料 ${sourcesCount}${sep}题组 ${decksCount} (+${archivedDecksCount} 归档)${sep}草稿 ${draftsCount}${sep}卡片 ${cardsCount}`,
+                `Sources ${sourcesCount}${sep}Decks ${decksCount} (+${archivedDecksCount} archived)${sep}Drafts ${draftsCount}${sep}Cards ${cardsCount}`,
+              ),
+              contentW,
+              ell,
+            )}
+          </Text>
+
+          <Box flexDirection="column" marginTop={1}>
+            <Text color={theme.muted} bold>
+              {t(lang, `课程分布 (${totalCourses}):`, `Courses (${totalCourses}):`)}
+            </Text>
+            {shownCourses.length === 0 ? (
+              <Text color={theme.dim}>
+                {truncateDisplay(t(lang, '（暂无课程）', '(No courses)'), contentW, ell)}
+              </Text>
+            ) : (
+              shownCourses.map((courseName, idx) => {
+                const label = courseName
+                  ? normalizeAsciiChrome(courseName, asciiMode)
+                  : t(lang, '(未分类)', '(Uncategorized)');
+                return (
+                  <Text key={`${courseName}-${idx}`} color={theme.text}>
+                    {truncateDisplay(`${bullet}${label}`, contentW, ell)}
+                  </Text>
+                );
+              })
+            )}
+            {extraCourses > 0 ? (
+              <Text color={theme.dim}>
+                {truncateDisplay(t(lang, `+${extraCourses} 更多课程`, `+${extraCourses} more`), contentW, ell)}
+              </Text>
+            ) : null}
+          </Box>
+
+          <Box marginTop={1}>
+            <Text color={theme.muted}>
+              {truncateDisplay(
+                t(lang, `可用上下文域: ${areasText}`, `Areas: ${areasText}`),
+                contentW,
+                ell,
+              )}
+            </Text>
+          </Box>
+
+          {lastExportPath ? (
+            <Text color={theme.success}>
+              {(() => {
+                const prefix = t(lang, '已导出: ', 'Exported: ');
+                const maxPathW = Math.max(10, contentW - displayWidth(prefix));
+                return `${prefix}${truncatePathMiddle(lastExportPath, maxPathW, ell)}`;
+              })()}
+            </Text>
+          ) : null}
+
+          {error ? (
+            <Text color={theme.error}>
+              {truncateDisplay(normalizeAsciiChrome(error, asciiMode), contentW, ell)}
+            </Text>
+          ) : null}
+
+          {loading ? (
+            <Box marginTop={1}>
+              <Spinner label={t(lang, `正在刷新上下文${ell}`, `Refreshing context${ell}`)} active={isActive} />
+            </Box>
+          ) : null}
+        </Box>
+      )}
+    </Modal>
+  );
+});
+
 export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function WorkspaceTab({
   host,
   binding,
@@ -1306,6 +1523,12 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
   const [usageReport, setUsageReport] = useState<UsageReportShape | null>(null);
   const [usageReportError, setUsageReportError] = useState<string | null>(null);
   const [usageReportExportPath, setUsageReportExportPath] = useState<string | null>(null);
+  const [libraryCtxOpen, setLibraryCtxOpen] = useState(false);
+  const [libraryCtxLoading, setLibraryCtxLoading] = useState(false);
+  const [libraryCtxActionBusy, setLibraryCtxActionBusy] = useState(false);
+  const [libraryCtxData, setLibraryCtxData] = useState<LibraryContextShape | null>(null);
+  const [libraryCtxError, setLibraryCtxError] = useState<string | null>(null);
+  const [libraryCtxExportPath, setLibraryCtxExportPath] = useState<string | null>(null);
 
   const mountedRef = useRef(true);
   const updateBusyRef = useRef(false);
@@ -1314,6 +1537,8 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
   const diagBusyRef = useRef(false);
   const usageReportBusyRef = useRef(false);
   const usageActionBusyRef = useRef(false);
+  const libraryCtxBusyRef = useRef(false);
+  const libraryCtxActionBusyRef = useRef(false);
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -1705,6 +1930,68 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
     }
   }, [asciiMode, binding?.root, host, lang, notify, usageReportPeriod]);
 
+  const loadLibraryContext = useCallback(async () => {
+    if (libraryCtxBusyRef.current) return;
+    libraryCtxBusyRef.current = true;
+    setLibraryCtxLoading(true);
+    setLibraryCtxError(null);
+    try {
+      const res = await tryAction<LibraryContextShape>(host, 'library.context', {});
+      if (!mountedRef.current) return;
+      if (!res.ok || !res.value) {
+        setLibraryCtxError(res.error?.message || t(lang, '读取学习库上下文失败', 'Failed to load library context'));
+        return;
+      }
+      setLibraryCtxData(res.value);
+    } catch (err) {
+      if (!mountedRef.current) return;
+      setLibraryCtxError(err instanceof Error ? err.message : String(err));
+    } finally {
+      libraryCtxBusyRef.current = false;
+      if (mountedRef.current) setLibraryCtxLoading(false);
+    }
+  }, [host, lang]);
+
+  const handleExportLibraryContext = useCallback(async () => {
+    if (libraryCtxActionBusyRef.current) return;
+    libraryCtxActionBusyRef.current = true;
+    setLibraryCtxActionBusy(true);
+    try {
+      let payload = libraryCtxData;
+      if (!payload) {
+        const res = await tryAction<LibraryContextShape>(host, 'library.context', {});
+        if (!mountedRef.current) return;
+        if (!res.ok || !res.value) {
+          const msg = res.error?.message || t(lang, '读取学习库上下文失败', 'Failed to load library context');
+          setLibraryCtxError(msg);
+          notify(msg, 'error');
+          return;
+        }
+        payload = res.value;
+        setLibraryCtxData(res.value);
+      }
+      const baseDir = binding?.root || host.getLibraryRoot() || payload.library || process.cwd();
+      const targetPath = join(baseDir, 'backups', `studyhub-context-${todayLocalYmd()}.json`);
+      await atomicWriteJsonFile(targetPath, payload);
+      if (!mountedRef.current) return;
+      setLibraryCtxExportPath(targetPath);
+      setLibraryCtxError(null);
+      const arrow = asciiMode ? '->' : '→';
+      notify(
+        t(lang, `已导出学习库上下文 ${arrow} ${targetPath}`, `Exported library context ${arrow} ${targetPath}`),
+        'success',
+      );
+    } catch (err) {
+      if (!mountedRef.current) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      setLibraryCtxError(msg);
+      notify(t(lang, `导出学习库上下文失败：${msg}`, `Failed to export library context: ${msg}`), 'error');
+    } finally {
+      libraryCtxActionBusyRef.current = false;
+      if (mountedRef.current) setLibraryCtxActionBusy(false);
+    }
+  }, [asciiMode, binding?.root, host, lang, libraryCtxData, notify]);
+
   const handleToggleAutoCheck = useCallback(async () => {
     if (busyAction || updateBusyRef.current) return;
     updateBusyRef.current = true;
@@ -1943,8 +2230,9 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
     confirmClearUsage ||
     retrievalDiagOpen ||
     updateModalOpen ||
-    usageReportOpen;
-  const claimed = useMemo(() => ['e', 's', 'x', 'r', 'c', 'f', 'u', 'U', 'a', 'A', 'v', 't', 'i'], []);
+    usageReportOpen ||
+    libraryCtxOpen;
+  const claimed = useMemo(() => ['e', 's', 'x', 'r', 'c', 'f', 'u', 'U', 'a', 'A', 'v', 't', 'i', 'L'], []);
   useClaimKeys(claimed, isActive && !modalOpen);
 
   useInput(
@@ -1963,6 +2251,14 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
         const baseDir = binding?.root || host.getLibraryRoot() || process.cwd();
         setExportPathDraft(defaultBackupPath(baseDir));
         setExportingBackup(true);
+        return;
+      }
+      if (input === 'L') {
+        if (busyAction) return;
+        setLibraryCtxExportPath(null);
+        setLibraryCtxError(null);
+        setLibraryCtxOpen(true);
+        void loadLibraryContext();
         return;
       }
       if (input === 'c' && desktopConfig && !desktopConfig.libraryPlaceConfirmed) {
@@ -2075,6 +2371,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
   const usageClearLabel = `[U] ${t(lang, '清空记录', 'Clear data')}`;
   const autoUpdateBadge = describeAutoUpdateBadge(autoCheckEnabled, updateLoaded, lang, asciiMode);
   const autoUpdateToggleLabel = `[a] ${t(lang, '切换', 'Toggle')}`;
+  const contextActionLabel = `[L] ${t(lang, '上下文', 'Context')}`;
 
   return (
     <Box flexDirection="column" width={width} height={height} overflow="hidden">
@@ -2152,20 +2449,22 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
         </Box>
         {compactLayout ? (
           <>
-            <Box flexDirection="row" gap={2} marginTop={0}>
+            <Box flexDirection="row" gap={2} marginTop={0} height={1} overflow="hidden">
               <Text color={theme.accent}>{`[e] ${t(lang, '更改文件夹路径', 'Change folder')}`}</Text>
               <Text color={theme.accent}>{sampleActionLabel}</Text>
             </Box>
-            <Box flexDirection="row" gap={2}>
+            <Box flexDirection="row" gap={2} height={1} overflow="hidden">
               <Text color={theme.accent}>{exportActionLabel}</Text>
+              <Text color={theme.accent}>{contextActionLabel}</Text>
               {!confirmed ? <Text color={theme.warning}>{confirmActionLabel}</Text> : null}
             </Box>
           </>
         ) : (
-          <Box flexDirection="row" gap={2} marginTop={0}>
+          <Box flexDirection="row" gap={width < 92 ? 1 : 2} marginTop={0} height={1} overflow="hidden">
             <Text color={theme.accent}>{`[e] ${t(lang, '更改文件夹路径', 'Change folder')}`}</Text>
             <Text color={theme.accent}>{sampleActionLabel}</Text>
             <Text color={theme.accent}>{exportActionLabel}</Text>
+            <Text color={theme.accent}>{contextActionLabel}</Text>
             {!confirmed ? <Text color={theme.warning}>{confirmActionLabel}</Text> : null}
           </Box>
         )}
@@ -2365,6 +2664,25 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
           onExport={() => void handleExportUsageReport()}
           onRefresh={() => void loadUsageReport(usageReportPeriod)}
           onClose={() => setUsageReportOpen(false)}
+        />
+      ) : null}
+
+      {libraryCtxOpen ? (
+        <LibraryContextModal
+          lang={lang}
+          asciiMode={asciiMode}
+          ell={ell}
+          width={modalW}
+          isActive={isActive}
+          loading={libraryCtxLoading}
+          actionBusy={libraryCtxActionBusy}
+          contextData={libraryCtxData}
+          fallbackRoot={rootPath}
+          error={libraryCtxError}
+          lastExportPath={libraryCtxExportPath}
+          onRefresh={() => void loadLibraryContext()}
+          onExport={() => void handleExportLibraryContext()}
+          onClose={() => setLibraryCtxOpen(false)}
         />
       ) : null}
     </Box>

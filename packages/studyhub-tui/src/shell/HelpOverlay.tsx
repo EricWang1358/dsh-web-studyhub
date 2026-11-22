@@ -48,6 +48,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       items: [
         { key: 'p', label: t(lang, '今日计划', 'Daily plan') },
         { key: 'g', label: t(lang, 'AI带学工作台 (B支线/u回/Q问答)', 'AI Guided Study (B/u/Q)') },
+        { key: 'g: A', label: t(lang, '保存带学产物笔记', 'Save guided artifact') },
         { key: 'C', label: t(lang, '课程设置', 'Course settings') },
         { key: 'o', label: t(lang, '题组导入/AI建议/合并拆分', 'Deck import/AI suggest/merge') },
         { key: '[ / ]', label: t(lang, '上移/下移题组顺序', 'Reorder deck up/down') },
@@ -167,6 +168,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'Space', label: t(lang, '多选批量 (移夹/归档/补全)', 'Multi-select (move/arch/enrich)') },
         { key: 'E', label: t(lang, '补全资料元信息', 'Enrich metadata') },
         { key: 'G', label: t(lang, 'AI 课程归类 / 术语译文', 'AI organize / Glossary') },
+        { key: 'G/F: X', label: t(lang, '清除待审归类/分夹建议', 'Dismiss pending proposals') },
         { key: 'V', label: t(lang, '引用覆盖率与关联题卡', 'Coverage & linked cards') },
         { key: 'F', label: t(lang, '文件夹筛选', 'Folders') },
         { key: 'm', label: t(lang, '移至文件夹', 'Move folder') },
@@ -215,6 +217,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'A', label: t(lang, '手动检查新版本', 'Check for updates') },
         { key: 'v', label: t(lang, '切换语义检索提供方', 'Cycle retrieval provider') },
         { key: 't', label: t(lang, '语义检索诊断/试搜/镜像源', 'Retrieval diag / search / mirror') },
+        { key: 'L', label: t(lang, '学习库上下文总览与导出', 'Library context & export') },
       ],
     },
     {
