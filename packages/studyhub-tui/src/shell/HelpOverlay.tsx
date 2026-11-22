@@ -52,6 +52,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'g', label: t(lang, 'AI 带学工作台', 'AI Guided Study') },
         { key: 'C', label: t(lang, '课程设置', 'Course settings') },
         { key: 'o', label: t(lang, '题组导入/合并/拆分', 'Deck import/merge/split') },
+        { key: 'm: + / k', label: t(lang, '题组补题 / 转换题型', 'Deck supplement / convert') },
       ],
     },
     {
@@ -67,6 +68,12 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       ],
     },
     {
+      title: t(lang, '出题与草稿 · Generate / Drafts', 'Generate & Drafts'),
+      items: [
+        { key: 'S / R', label: t(lang, '草稿查重与修复', 'Draft similar & repair') },
+      ],
+    },
+    {
       title: t(lang, '复习全书 · Book', 'Review Book'),
       items: [
         { key: 'w', label: t(lang, '期末一周与模考', 'Final-week crunch & mock') },
@@ -75,6 +82,8 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
     {
       title: t(lang, '资料与阅读 · Sources / Reader', 'Sources & Reader'),
       items: [
+        { key: 'G', label: t(lang, 'AI 课程归类', 'AI organize') },
+        { key: 'V', label: t(lang, '引用覆盖率', 'Coverage') },
         { key: 'F', label: t(lang, '文件夹筛选', 'Folders') },
         { key: 'm', label: t(lang, '移至文件夹', 'Move folder') },
         { key: 'C', label: t(lang, '伴学页面', 'Companions') },

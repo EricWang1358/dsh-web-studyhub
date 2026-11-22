@@ -1,4 +1,4 @@
-import React, { Component, Suspense, lazy, useCallback, useEffect, useMemo, type ReactNode } from 'react';
+import React, { Component, Suspense, lazy, useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { CommandPaletteItem, PageId, ThemeId, UiLanguage, ViewProps } from './types/contracts.js';
 import { t, useTuiStore } from './state/store.js';
@@ -12,8 +12,10 @@ import { Panel, Spinner, useTheme } from './components/index.js';
 import { nextThemeId } from './theme/index.js';
 import { AppShell, createDefaultShellActions, type ShellActions } from './shell/index.js';
 
-// Eagerly load the default landing view & voice pack modal; lazy-load secondary views for fast cold start and lower idle RSS.
-import { LibraryView, VoicePackModal } from './views/library/index.js';
+// Eagerly load the default landing view; lazy-load secondary views & voice pack modal for fast cold start and lower idle RSS.
+import { LibraryView } from './views/library/LibraryView.js';
+
+const VoicePackModal = lazy(() => import('./views/library/VoicePackModal.js').then((m) => ({ default: m.VoicePackModal })));
 
 const ReviewView = lazy(() => import('./views/review/index.js').then((m) => ({ default: m.ReviewView })));
 const SourcesView = lazy(() => import('./views/sources/index.js').then((m) => ({ default: m.SourcesView })));
@@ -134,22 +136,73 @@ export function StudyHubTuiApp({
   onExit,
 }: StudyHubTuiAppProps) {
   const lang = useTuiStore((s) => s.preferences.language);
+  const syncInFlightRef = useRef<Promise<void> | null>(null);
+  const syncPendingRef = useRef(false);
+  const syncPendingSilentRef = useRef(true);
+  const lastSnapshotJsonRef = useRef<string | null>(null);
+  const lastBindingJsonRef = useRef<string | null>(null);
+  const lastConfigJsonRef = useRef<string | null>(null);
 
   const syncFromHost = useCallback(
-    async (silent = false) => {
-      const store = useTuiStore.getState();
-      if (!silent) store.setRefreshing(true);
+    async (silent = false): Promise<void> => {
+      if (syncInFlightRef.current) {
+        syncPendingRef.current = true;
+        if (!silent) syncPendingSilentRef.current = false;
+        await syncInFlightRef.current;
+        return;
+      }
+
+      const run = (async () => {
+        let curSilent = silent;
+        while (true) {
+          const store = useTuiStore.getState();
+          if (!curSilent && !store.refreshing) store.setRefreshing(true);
+          try {
+            const res = await host.refreshSnapshot();
+            if (res.snapshot) {
+              const snapJson = JSON.stringify(res.snapshot);
+              if (snapJson !== lastSnapshotJsonRef.current) {
+                lastSnapshotJsonRef.current = snapJson;
+                store.setSnapshot(res.snapshot);
+              }
+            }
+            if (res.binding) {
+              const bindJson = JSON.stringify(res.binding);
+              if (bindJson !== lastBindingJsonRef.current) {
+                lastBindingJsonRef.current = bindJson;
+                store.setBinding(res.binding);
+              }
+            }
+            if (res.config) {
+              const cfgJson = JSON.stringify(res.config);
+              if (cfgJson !== lastConfigJsonRef.current) {
+                lastConfigJsonRef.current = cfgJson;
+                store.setDesktopConfig(res.config);
+              }
+            }
+            if (store.lastError !== res.error) {
+              store.setLastError(res.error);
+            }
+          } catch (err) {
+            store.setLastError(err instanceof Error ? err.message : String(err));
+          } finally {
+            const latest = useTuiStore.getState();
+            if (latest.loading) latest.setLoading(false);
+            if (latest.refreshing) latest.setRefreshing(false);
+          }
+
+          if (!syncPendingRef.current) break;
+          syncPendingRef.current = false;
+          curSilent = syncPendingSilentRef.current;
+          syncPendingSilentRef.current = true;
+        }
+      })();
+
+      syncInFlightRef.current = run;
       try {
-        const res = await host.refreshSnapshot();
-        if (res.snapshot) store.setSnapshot(res.snapshot);
-        if (res.binding) store.setBinding(res.binding);
-        if (res.config) store.setDesktopConfig(res.config);
-        store.setLastError(res.error);
-      } catch (err) {
-        store.setLastError(err instanceof Error ? err.message : String(err));
+        await run;
       } finally {
-        store.setLoading(false);
-        store.setRefreshing(false);
+        syncInFlightRef.current = null;
       }
     },
     [host],
@@ -369,7 +422,11 @@ export function StudyHubTuiApp({
       actions={shellActions}
       extraCommands={extraCommands}
       autoLaunchpad={autoLaunchpad}
-      renderVoicePack={(props) => <VoicePackModal {...props} host={host} />}
+      renderVoicePack={(props) => (
+        <Suspense fallback={null}>
+          <VoicePackModal {...props} host={host} />
+        </Suspense>
+      )}
     />
   );
 }

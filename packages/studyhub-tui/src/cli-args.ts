@@ -15,15 +15,106 @@ export interface ParsedCliArgs {
   error?: string;
 }
 
+export interface ColorCapability {
+  enabled: boolean;
+  level: 0 | 1 | 2 | 3;
+  reason: string;
+}
+
 const VALID_THEMES = new Set<ThemeId>(['dsh-dark', 'warm-paper', 'nord', 'high-contrast']);
 const VALID_PAGES = new Set<PageId>(PAGE_REGISTRY.map((p) => p.id));
+const TRUECOLOR_TERM_PROGRAMS = new Set([
+  'wezterm',
+  'iterm.app',
+  'vscode',
+  'hyper',
+  'alacritty',
+  'kitty',
+]);
 
-export function shouldAutoAscii(env: Record<string, string | undefined> = process.env): boolean {
+/**
+ * Resolve terminal color support from environment variables and TTY state.
+ * Honors `NO_COLOR`, `FORCE_COLOR`, `TERM=dumb`, non-TTY streams, Windows Terminal (`WT_SESSION`),
+ * `COLORTERM`, `TERM_PROGRAM`, and 256-color `TERM` values.
+ */
+export function resolveColorCapability(
+  env: NodeJS.ProcessEnv = process.env,
+  opts?: { isTTY?: boolean; platform?: NodeJS.Platform },
+): ColorCapability {
+  if (env.NO_COLOR !== undefined && env.NO_COLOR !== '') {
+    return { enabled: false, level: 0, reason: 'NO_COLOR' };
+  }
+
+  const forceRaw = env.FORCE_COLOR;
+  if (forceRaw !== undefined && forceRaw !== '') {
+    const force = forceRaw.trim().toLowerCase();
+    if (force === '0' || force === 'false') {
+      return { enabled: false, level: 0, reason: `FORCE_COLOR=${forceRaw}` };
+    }
+    if (force === '1') {
+      return { enabled: true, level: 1, reason: 'FORCE_COLOR=1' };
+    }
+    if (force === '2') {
+      return { enabled: true, level: 2, reason: 'FORCE_COLOR=2' };
+    }
+    if (force === '3' || force === 'true') {
+      return { enabled: true, level: 3, reason: `FORCE_COLOR=${forceRaw}` };
+    }
+  }
+
+  const term = String(env.TERM ?? '').trim().toLowerCase();
+  if (term === 'dumb') {
+    return { enabled: false, level: 0, reason: 'TERM=dumb' };
+  }
+
+  const isTTY = opts?.isTTY ?? Boolean(process.stdout?.isTTY);
+  if (!isTTY) {
+    return { enabled: false, level: 0, reason: 'non-tty' };
+  }
+
+  const colorterm = String(env.COLORTERM ?? '').trim().toLowerCase();
+  if (colorterm === 'truecolor' || colorterm === '24bit') {
+    return { enabled: true, level: 3, reason: `COLORTERM=${colorterm}` };
+  }
+
+  if (env.WT_SESSION) {
+    return { enabled: true, level: 3, reason: 'WT_SESSION' };
+  }
+
+  const termProgram = String(env.TERM_PROGRAM ?? '').trim().toLowerCase();
+  if (TRUECOLOR_TERM_PROGRAMS.has(termProgram)) {
+    return { enabled: true, level: 3, reason: `TERM_PROGRAM=${env.TERM_PROGRAM}` };
+  }
+
+  if (term.includes('256color')) {
+    return { enabled: true, level: 2, reason: 'TERM=256color' };
+  }
+
+  return { enabled: true, level: 1, reason: opts?.platform === 'win32' ? 'win32-tty' : 'tty-basic' };
+}
+
+export function shouldAutoAscii(
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+): boolean {
   const flag = String(env.STUDYHUB_TUI_ASCII ?? '').trim().toLowerCase();
   if (flag === '1' || flag === 'true' || flag === 'yes') return true;
   if (flag === '0' || flag === 'false' || flag === 'no') return false;
+
   const term = String(env.TERM ?? '').trim().toLowerCase();
-  return term === 'dumb';
+  if (term === 'dumb') return true;
+
+  if (platform === 'win32') {
+    if (env.WT_SESSION) return false;
+    if (env.TERM_PROGRAM) return false;
+    if (String(env.ConEmuANSI ?? '').trim().toUpperCase() === 'ON') return false;
+    if (env.ANSICON) return false;
+    if (env.MSYSTEM) return false;
+    if (term.includes('xterm') || term.includes('vt100')) return false;
+    return true;
+  }
+
+  return false;
 }
 
 export function parseCliArgs(argv: readonly string[]): ParsedCliArgs {

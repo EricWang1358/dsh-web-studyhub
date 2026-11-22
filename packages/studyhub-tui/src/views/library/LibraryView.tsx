@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { KeyHint, StudySnapshot, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
@@ -20,12 +20,13 @@ import {
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/index.js';
 import { currentCourse, dueToday, useShellActions } from '../../shell/index.js';
 import { getSampleStatus, removeSampleCourse, tryAction } from '../../host/index.js';
-import { DeckManageModal } from './DeckManageModal.js';
-import { VoicePackModal } from './VoicePackModal.js';
-import { DailyPlanModal } from './DailyPlanModal.js';
-import { CourseSettingsModal } from './CourseSettingsModal.js';
-import { DeckOpsModal } from './DeckOpsModal.js';
-import { GuidedStudyModal } from './GuidedStudyModal.js';
+
+const DeckManageModal = lazy(() => import('./DeckManageModal.js').then((m) => ({ default: m.DeckManageModal })));
+const VoicePackModal = lazy(() => import('./VoicePackModal.js').then((m) => ({ default: m.VoicePackModal })));
+const DailyPlanModal = lazy(() => import('./DailyPlanModal.js').then((m) => ({ default: m.DailyPlanModal })));
+const CourseSettingsModal = lazy(() => import('./CourseSettingsModal.js').then((m) => ({ default: m.CourseSettingsModal })));
+const DeckOpsModal = lazy(() => import('./DeckOpsModal.js').then((m) => ({ default: m.DeckOpsModal })));
+const GuidedStudyModal = lazy(() => import('./GuidedStudyModal.js').then((m) => ({ default: m.GuidedStudyModal })));
 
 type DeckItem = NonNullable<StudySnapshot['decks']>[number];
 type DraftItem = NonNullable<StudySnapshot['drafts']>[number];
@@ -836,94 +837,91 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
         right={renderRightPane}
       />
 
-      {/* Deck Manage Modal */}
-      {manageDeckId ? (
-        <DeckManageModal
-          host={host}
-          deckId={manageDeckId}
-          isActive={isActive}
-          width={width}
-          height={height}
-          onClose={() => setManageDeckId(null)}
-          onUpdated={() => {
-            void actions.refresh();
-          }}
-        />
-      ) : null}
+      {/* Lazy-loaded Heavy Modals (only parsed when opened) */}
+      <Suspense fallback={null}>
+        {manageDeckId ? (
+          <DeckManageModal
+            host={host}
+            deckId={manageDeckId}
+            isActive={isActive}
+            width={width}
+            height={height}
+            onClose={() => setManageDeckId(null)}
+            onUpdated={() => {
+              void actions.refresh();
+            }}
+          />
+        ) : null}
 
-      {/* Voice Study Pack Modal */}
-      {voiceOpen ? (
-        <VoicePackModal
-          host={host}
-          isActive={isActive}
-          onClose={() => setVoiceOpen(false)}
-          width={width}
-          height={height}
-          initialCourse={course}
-          initialDeckId={selectedDeck?.id ?? null}
-        />
-      ) : null}
+        {voiceOpen ? (
+          <VoicePackModal
+            host={host}
+            isActive={isActive}
+            onClose={() => setVoiceOpen(false)}
+            width={width}
+            height={height}
+            initialCourse={course}
+            initialDeckId={selectedDeck?.id ?? null}
+          />
+        ) : null}
 
-      {/* Daily Study Plan Modal */}
-      {dailyPlanOpen ? (
-        <DailyPlanModal
-          host={host}
-          isActive={isActive}
-          width={width}
-          height={height}
-          onClose={() => setDailyPlanOpen(false)}
-          onUpdated={() => {
-            void actions.refresh();
-          }}
-        />
-      ) : null}
+        {dailyPlanOpen ? (
+          <DailyPlanModal
+            host={host}
+            isActive={isActive}
+            width={width}
+            height={height}
+            onClose={() => setDailyPlanOpen(false)}
+            onUpdated={() => {
+              void actions.refresh();
+            }}
+          />
+        ) : null}
 
-      {/* Course Settings & Method Modal */}
-      {courseSettingsOpen ? (
-        <CourseSettingsModal
-          host={host}
-          course={course ?? selectedDeck?.course ?? null}
-          isActive={isActive}
-          width={width}
-          height={height}
-          onClose={() => setCourseSettingsOpen(false)}
-          onUpdated={() => {
-            void actions.refresh();
-          }}
-        />
-      ) : null}
+        {courseSettingsOpen ? (
+          <CourseSettingsModal
+            host={host}
+            course={course ?? selectedDeck?.course ?? null}
+            isActive={isActive}
+            width={width}
+            height={height}
+            onClose={() => setCourseSettingsOpen(false)}
+            onUpdated={() => {
+              void actions.refresh();
+            }}
+          />
+        ) : null}
 
-      {/* Deck Operations Modal (Import / Merge / Split) */}
-      {deckOpsOpen ? (
-        <DeckOpsModal
-          host={host}
-          selectedDeckId={selectedDeck?.id ?? null}
-          isActive={isActive}
-          width={width}
-          height={height}
-          onClose={() => setDeckOpsOpen(false)}
-          onUpdated={() => {
-            void actions.refresh();
-          }}
-        />
-      ) : null}
+        {deckOpsOpen ? (
+          <DeckOpsModal
+            host={host}
+            selectedDeckId={selectedDeck?.id ?? null}
+            isActive={isActive}
+            width={width}
+            height={height}
+            onClose={() => setDeckOpsOpen(false)}
+            onUpdated={() => {
+              void actions.refresh();
+            }}
+          />
+        ) : null}
 
-      {/* AI Guided Study Workbench Modal */}
-      {guidedOpen ? (
-        <GuidedStudyModal
-          host={host}
-          course={course ?? selectedDeck?.course ?? null}
-          selectedDeckId={selectedDeck?.id ?? null}
-          selectedDeckTitle={selectedDeck ? String(selectedDeck.title ?? selectedDeck.name ?? selectedDeck.id) : null}
-          isActive={isActive}
-          width={width}
-          height={height}
-          onClose={() => setGuidedOpen(false)}
-          onUpdated={() => {
-            void actions.refresh();
-          }}
-        />
-      ) : null}
+        {guidedOpen ? (
+          <GuidedStudyModal
+            host={host}
+            course={course ?? selectedDeck?.course ?? null}
+            selectedDeckId={selectedDeck?.id ?? null}
+            selectedDeckTitle={selectedDeck ? String(selectedDeck.title ?? selectedDeck.name ?? selectedDeck.id) : null}
+            isActive={isActive}
+            width={width}
+            height={height}
+            onClose={() => setGuidedOpen(false)}
+            onUpdated={() => {
+              void actions.refresh();
+            }}
+          />
+        ) : null}
+      </Suspense>
 
       {/* Delete Confirmation Dialog */}
       {confirmDeleteDeck ? (

@@ -39,7 +39,7 @@ async function main() {
     import('react'),
     import('ink'),
     import('./terminal.js'),
-    import('./shell/index.js'),
+    import('./shell/ShellBootFrame.js'),
     import('./state/store.js'),
   ]);
 

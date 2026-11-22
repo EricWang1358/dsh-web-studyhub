@@ -16,6 +16,7 @@ import { promisify } from 'node:util';
 const execFileAsync = promisify(execFile);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const distCli = resolve(root, 'dist', 'cli.mjs');
+const distBootFrame = resolve(root, 'dist', 'boot-frame.mjs');
 const distApp = resolve(root, 'dist', 'App.mjs');
 const distHost = resolve(root, 'dist', 'host.mjs');
 
@@ -40,8 +41,42 @@ for (let i = 0; i < 5; i += 1) {
 runs.sort((a, b) => a - b);
 const medianMs = runs[Math.floor(runs.length / 2)];
 
-// 2. Full interactive first-frame + steady-state RSS/heap in clean temp library
+// 2. Standalone ShellBootFrame Time-To-First-Frame (before AppShell / marked / StudyRuntime load)
 let bootFrameMs = null;
+{
+  const tBoot0 = performance.now();
+  const [{ createElement }, { render }, { ShellBootFrame }] = await Promise.all([
+    import('react'),
+    import('ink'),
+    import(pathToFileURL(distBootFrame).href),
+  ]);
+  const bootStdout = new PassThrough();
+  const bootStdin = new PassThrough();
+  Object.assign(bootStdout, { columns: 120, rows: 36, isTTY: true });
+  Object.assign(bootStdin, { isTTY: true, setRawMode: () => bootStdin, ref: () => bootStdin, unref: () => bootStdin });
+
+  let gotBootFrame = false;
+  const bootFrameReady = new Promise((done) => {
+    bootStdout.on('data', (chunk) => {
+      if (!gotBootFrame && String(chunk).includes('StudyHub')) {
+        gotBootFrame = true;
+        bootFrameMs = Math.round(performance.now() - tBoot0);
+        done();
+      }
+    });
+  });
+
+  const bootInstance = render(
+    createElement(ShellBootFrame, { label: 'Starting StudyHub runtime…' }),
+    { stdout: bootStdout, stdin: bootStdin, exitOnCtrlC: false, patchConsole: false },
+  );
+  await Promise.race([bootFrameReady, new Promise((r) => setTimeout(r, 5000))]);
+  bootInstance.unmount();
+  bootStdout.destroy();
+  bootStdin.destroy();
+}
+
+// 3. Full interactive first-frame + steady-state RSS/heap in clean temp library
 let interactiveReadyMs = null;
 let interactiveRssMb = null;
 let interactiveHeapMb = null;
@@ -54,7 +89,6 @@ try {
     import(pathToFileURL(distApp).href),
     import(pathToFileURL(distHost).href),
   ]);
-  bootFrameMs = Math.round(performance.now() - tFrame0);
 
   const host = await createTuiHost({
     libraryRoot: join(tempDir, 'lib'),

@@ -1,4 +1,5 @@
-export { AppShell, shellLayout, ShellBootFrame, type AppShellProps, type VoicePackRenderProps } from './AppShell.js';
+export { AppShell, shellLayout, type AppShellProps, type VoicePackRenderProps } from './AppShell.js';
+export { ShellBootFrame } from './ShellBootFrame.js';
 export { TopBar, type TopBarProps } from './TopBar.js';
 export { SideNav, sideNavWidth, SIDENAV_WIDTH, SIDENAV_COLLAPSED_WIDTH, SIDENAV_AUTO_COLLAPSE, type SideNavProps } from './SideNav.js';
 export { CommandPalette, buildPaletteItems, type CommandPaletteProps } from './CommandPalette.js';

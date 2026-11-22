@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Box, Text, useInput, usePaste } from 'ink';
+import stripAnsi from 'strip-ansi';
 import { useTheme } from '../theme/tokens.js';
 import { displayWidth } from '../render/index.js';
 import { useInputCapture } from './focus.js';
@@ -31,6 +32,23 @@ export interface TextInputProps {
   maxLength?: number;
   /** Set false to NOT mark input as captured (rare: e.g. palette search that still wants Esc routing). */
   captureInput?: boolean;
+}
+
+/**
+ * Sanitize raw pasted or chunked input from Windows ConPTY / PowerShell / POSIX terminals.
+ * Strips bracketed-paste wrappers (including split/orphaned `200~`/`201~` markers) and ANSI escapes,
+ * normalizes CRLF/CR line endings, removes control characters, and flattens newlines in single-line mode.
+ */
+export function sanitizePastedText(raw: string, opts?: { multiline?: boolean }): string {
+  const multiline = opts?.multiline ?? false;
+  let clean = stripAnsi(raw).replace(/\u001b\[20[01]~/g, '');
+  clean = clean.replace(/^\[?20[01]~/, '').replace(/\[?20[01]~$/, '');
+  clean = clean.replace(/\r\n?/g, '\n');
+  clean = clean.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '');
+  if (!multiline) {
+    clean = clean.replace(/\n+/g, ' ');
+  }
+  return clean;
 }
 
 function chars(s: string): string[] {
@@ -147,8 +165,7 @@ export const TextInput = memo(function TextInput({
   );
 
   const insert = useCallback(
-    (text: string) => {
-      const clean = text.replace(/\r\n?/g, '\n').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '');
+    (clean: string) => {
       if (!clean) return;
       const cs = chars(value);
       const at = Math.min(cursor, cs.length);
@@ -158,7 +175,7 @@ export const TextInput = memo(function TextInput({
     [value, cursor, commit],
   );
 
-  usePaste((text) => insert(text), { isActive });
+  usePaste((text) => insert(sanitizePastedText(text, { multiline })), { isActive });
 
   useInput(
     (input, key) => {
@@ -240,7 +257,10 @@ export const TextInput = memo(function TextInput({
         return;
       }
       if (key.ctrl || key.meta || key.upArrow || key.downArrow || key.pageUp || key.pageDown) return;
-      if (input) insert(input);
+      if (input) {
+        const clean = sanitizePastedText(input, { multiline });
+        if (clean) insert(clean);
+      }
     },
     { isActive },
   );

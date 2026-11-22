@@ -1,5 +1,5 @@
 import React, { memo, useEffect, useMemo, useRef, type ReactNode } from 'react';
-import { Box, Text, useApp, useInput, useWindowSize } from 'ink';
+import { Box, useApp, useInput, useWindowSize } from 'ink';
 import { PAGE_REGISTRY, type CommandPaletteItem, type HostClient, type KeyHint, type PageId, type ViewProps } from '../types/contracts.js';
 import { t, useTuiStore } from '../state/store.js';
 import { useTheme } from '../theme/tokens.js';
@@ -265,13 +265,5 @@ function VoicePackFallback(): null {
   return null;
 }
 
-// Re-export for convenience so App.tsx can render a bare frame while booting.
-export function ShellBootFrame({ label }: { label?: string }) {
-  const theme = useTheme();
-  return (
-    <Box padding={1}>
-      <Spinner label={label ?? 'StudyHub'} />
-      <Text color={theme.dim}> </Text>
-    </Box>
-  );
-}
+// Re-export for backwards compatibility (implementation lives in standalone ShellBootFrame.tsx).
+export { ShellBootFrame } from './ShellBootFrame.js';

@@ -12,6 +12,7 @@ const t0 = performance.now();
 await build({
   entryPoints: {
     cli: resolve(root, 'src/cli.tsx'),
+    'boot-frame': resolve(root, 'src/shell/ShellBootFrame.tsx'),
     App: resolve(root, 'src/App.tsx'),
     host: resolve(root, 'src/host/index.ts'),
   },
