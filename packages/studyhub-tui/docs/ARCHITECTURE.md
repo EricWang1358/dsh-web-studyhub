@@ -1,6 +1,6 @@
 # StudyHub TUI Contributor Architecture
 
-`@ericwang1358/studyhub-tui` is a React 19.3 + Ink 8 terminal client for StudyHub built with TypeScript, Zustand 5, Chalk 6, Marked 18, `esbuild` code splitting, and `@xterm/headless` E2E tests (0 `zod` runtime imports, 9 minimal runtime dependencies). It reuses `packages/studyhub-desktop` and `lib/` at runtime with zero invasive upstream edits.
+`@ericwang1358/studyhub-tui` is a React 19.3 + Ink 8 terminal client for StudyHub built with TypeScript, Zustand 5, Chalk 6, Marked 18, `esbuild` code splitting, and `@xterm/headless` E2E tests (0 `zod` runtime imports, 9 minimal runtime dependencies, 385+ automated tests). It reuses `packages/studyhub-desktop` and `lib/` at runtime with zero invasive upstream edits.
 
 ---
 
@@ -9,7 +9,7 @@
 ```text
 packages/studyhub-tui/
 ├── bin/studyhub-tui.mjs        # CLI shim resolving dist/cli.mjs via import.meta.url
-├── docs/                       # ARCHITECTURE.md, KEYBINDINGS.md, ROADMAP-21-40.md
+├── docs/                       # ARCHITECTURE.md, KEYBINDINGS.md, ROADMAP-21-40.md, ROADMAP-41-50.md
 ├── scripts/
 │   ├── build.mjs               # esbuild code-split build (cli, boot-frame, App, host)
 │   └── bench.mjs               # Bundle size, cold spawn, boot-frame & RSS/heap probe
@@ -82,11 +82,12 @@ Keypress
 - **Instant boot (`ShellBootFrame`)**:
   - `src/cli.tsx` handles `--help`/`--version` before importing React or Ink, then mounts `dist/boot-frame.mjs` (`ShellBootFrame`, tested to carry zero static `marked` or `cli-highlight` imports) immediately while `createTuiHost` and `dist/App.mjs` load in parallel.
   - A 64-byte boot stdin buffer captures early user keystrokes while stripping terminal probe/mouse escape noise.
-- **4 Barrel-Bypass rules (startup bundle & chunk isolation)**:
-  1. `views/*/index.js`: `src/App.tsx` eagerly imports only `LibraryView` and lazy-loads the remaining 15 views plus `VoicePackModal` directly via `React.lazy(() => import('./views/<dir>/<View>.js'))` — never `./views/*/index.js` barrels (enforced by AST audit in `tests/keymap-audit.test.mjs`).
-  2. `shell/index.js`: `AppShell` lazy-loads `Launchpad`, `CommandPalette`, `HelpOverlay`, `CoursePickerModal`, and `InboxModal` directly (`./Launchpad.js`, etc.), and `src/App.tsx` / views never import `shell/index.js` (`0` static overlays in `App.mjs`, allowing `AppShell` to inline cleanly; enforced by `tests/perf-budget.test.mjs`).
-  3. `components/index.js`: Boot/startup files (`src/App.tsx`, `src/shell/AppShell.tsx`, `src/views/library/LibraryView.tsx`, and shell overlays) import leaf component files directly (`./Panel.js`, `./Badge.js`, `./focus.js`) instead of `components/index.js` (which re-exports `MarkdownView`; enforced by `tests/perf-budget.test.mjs`).
-  4. `render/index.js`: Boot/startup files (`src/cli.tsx`, `src/shell/ShellBootFrame.tsx`, `src/shell/TopBar.tsx`, `src/shell/SideNav.tsx`, `src/shell/Launchpad.tsx`, `src/views/library/LibraryView.tsx`, and core UI components such as `Badge.tsx`, `TextInput.tsx`, `SelectList.tsx`, `ScrollView.tsx`) import leaf render utilities (`cjk.js`, `charts.js`) rather than `render/index.js` (which re-exports `markdown.js` and `math.js`), keeping `marked`, `cli-highlight`, `render/markdown.ts`, and `render/math.ts` out of `dist/boot-frame.mjs` and `dist/App.mjs` static closures.
+- **5 Barrel-Bypass rules (startup bundle & chunk isolation, enforced in `tests/perf-budget.test.mjs` & `tests/keymap-audit.test.mjs`)**:
+  1. `views/*/index.js`: `src/App.tsx` eagerly imports only `LibraryView` and lazy-loads the remaining 15 views plus `VoicePackModal` directly via `React.lazy(() => import('./views/<dir>/<View>.js'))` — never `./views/*/index.js` barrels (`tests/keymap-audit.test.mjs`).
+  2. `shell/index.js`: `AppShell` lazy-loads `Launchpad`, `CommandPalette`, `HelpOverlay`, `CoursePickerModal`, and `InboxModal` directly (`./Launchpad.js`, etc.), and `src/App.tsx` / views never import `shell/index.js` (`0` static overlays in `App.mjs`, allowing `AppShell` to inline cleanly; `tests/perf-budget.test.mjs`).
+  3. `components/index.js`: Complete `0`-importer Barrel-Bypass across all of `src/` (Round 47); every view, modal, drawer, and shell overlay imports leaf component files directly (`./Panel.js`, `./Badge.js`, `./focus.js`) instead of `components/index.js` (which re-exports `MarkdownView`; `tests/perf-budget.test.mjs`).
+  4. `render/index.js`: Complete `0`-importer Barrel-Bypass across all of `src/` (Round 46); callers import leaf render utilities (`cjk.js`, `charts.js`) rather than `render/index.js` (which re-exports `markdown.js` and `math.js`), keeping `marked`, `cli-highlight`, `render/markdown.ts`, and `render/math.ts` out of `dist/boot-frame.mjs`, `dist/App.mjs`, and `49+/71` non-markdown `dist/*.mjs` entry chunks (`tests/perf-budget.test.mjs`).
+  5. `host/index.js`: Complete `0`-importer Barrel-Bypass across all of `src/` (Round 48); UI modules import `host/sample-actions.js`, `host/tui-prefs.js`, or `host/presets.js` directly rather than `host/index.js`, isolating `tui-host.ts` and `desktop-deps.ts` from `dist/App.mjs` (`tests/perf-budget.test.mjs`).
 - **Signed-int32 $O(K)$ snapshot fingerprinting (`src/state/snapshot-fingerprint.ts`)**:
   - `computeSnapshotFingerprint` feeds a dual signed-int32 FNV-1a `RollingHasher` (`Math.imul` + `| 0`) over structural metadata (revision, counts, timestamps, decks/progress, sources, courses, drafts, runs, jobs, attempts, settings) — avoiding `>>> 0` V8 HeapNumber boxing per step and deferring unsigned conversion to `digest()` — skipping unchanged store updates in `syncFromHost` in `< 1 ms` without full-snapshot `JSON.stringify`.
 - **60fps streaming coalescing (`src/components/useStreamingBuffer.ts`)**:
@@ -111,8 +112,9 @@ Keypress
   - `enterTerminalSession` (`src/terminal.ts`) enforces UTF-8 stdio, manages the alternate screen buffer, and restores cursor/raw-mode via `signal-exit`.
   - `shouldAutoAscii` (`src/cli-args.ts`) auto-enables pure ASCII borders/charts on legacy Windows `conhost` (absent `WT_SESSION`, `TERM_PROGRAM`, `ConEmuANSI`, `ANSICON`, `MSYSTEM`), `TERM=dumb`, `--ascii`, or `STUDYHUB_TUI_ASCII=1`.
 - **Multiline & paste ergonomics (`src/components/TextInput.tsx`)**:
-  - Multiline fields bind `Ctrl+J` and `Shift+Enter` for newlines (`Alt+Enter` when `submitOnEnter` is set) and `Ctrl+S` to submit, avoiding Windows Terminal's `Alt+Enter` fullscreen conflict.
-  - Paste input strips ANSI escapes and orphaned `200~`/`201~` bracketed-paste markers; CJK/emoji display width and wrapping use `get-east-asian-width` + `strip-ansi` (`src/render/cjk.ts`).
+  - Cursor indexing uses grapheme clusters (`splitGraphemes` from `src/render/cjk.ts`) so ZWJ emoji, regional flags, and combining diacritics are never split across cursor moves or deletions.
+  - Multiline fields bind `Ctrl+J`, `Shift+Enter` (including orphaned CSI-u `13;2u` and `modifyOtherKeys` `27;2;13~`), and `Alt+Enter` (when `submitOnEnter` is set) for newlines, and `Ctrl+S` / `Ctrl+Enter` (`13;5u`, `27;5;13~`) to submit, avoiding Windows Terminal's `Alt+Enter` fullscreen conflict.
+  - `sanitizePastedText` strips ANSI escapes, stray CSI-u/`modifyOtherKeys` tails, and orphaned `200~`/`201~` bracketed-paste markers while preserving Windows/UNC paths; CJK/emoji display width and wrapping use `get-east-asian-width` + `strip-ansi` (`src/render/cjk.ts`).
 - **AST & modal invariants (`tests/keymap-audit.test.mjs`)**:
   - Parses `src/**/*.tsx` via the TypeScript AST to enforce: (1) `AppShell` global shortcuts match `PAGE_REGISTRY` and `HelpOverlay` with zero duplicates, (2) zero unclaimed global key collisions in primary views, (3) zero barrel imports in `src/App.tsx`, and (4) explicit bounded `width` props on every `<Modal>` containing `<TextInput>` (preserving `Modal`'s 5-row vertical chrome and `-4` prompt padding).
 - **Contributor verification checklist**:

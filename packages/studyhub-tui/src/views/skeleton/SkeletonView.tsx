@@ -36,8 +36,11 @@ const TopicGroupsModal = lazy(() =>
 const NodeEditModal = lazy(() =>
   import('./TopicGroupsModal.js').then((m) => ({ default: m.NodeEditModal })),
 );
+const SkeletonDiagramsModal = lazy(() =>
+  import('./SkeletonDiagramsModal.js').then((m) => ({ default: m.SkeletonDiagramsModal })),
+);
 
-const CLAIMED_KEYS = ['r', 'L', 'R', 'G', 'E', 'D'] as const;
+const CLAIMED_KEYS = ['r', 'L', 'R', 'G', 'E', 'D', 'M'] as const;
 
 interface SkeletonLintCard {
   deckId: string;
@@ -337,6 +340,7 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
   const [routeOpen, setRouteOpen] = useState(false);
   const [groupsOpen, setGroupsOpen] = useState(false);
   const [nodeEditOpen, setNodeEditOpen] = useState(false);
+  const [diagramsOpen, setDiagramsOpen] = useState(false);
   const [confirmGenOpen, setConfirmGenOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
@@ -934,7 +938,7 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
   );
 
   const modalOpen =
-    switcherOpen || lintOpen || routeOpen || groupsOpen || nodeEditOpen || confirmGenOpen || confirmDeleteOpen;
+    switcherOpen || lintOpen || routeOpen || groupsOpen || nodeEditOpen || diagramsOpen || confirmGenOpen || confirmDeleteOpen;
   useClaimKeys(CLAIMED_KEYS, isActive && !modalOpen);
 
   const hints: KeyHint[] = useMemo(
@@ -943,6 +947,7 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
       { key: 'Space/h/l', label: t(lang, '折叠', 'Toggle') },
       { key: 'p', label: t(lang, '练习', 'Practise') },
       ...(detail && selectedNode ? [{ key: 'E', label: t(lang, '编辑', 'Edit') }] : []),
+      ...(detail ? [{ key: 'M', label: t(lang, `互动图(${diagramCount})`, `Diagrams(${diagramCount})`) }] : []),
       ...(detail ? [{ key: 'D', label: t(lang, '删除', 'Delete') }] : []),
       { key: 'R', label: t(lang, '路线', 'Route') },
       { key: 'G', label: t(lang, '分组', 'Groups') },
@@ -950,7 +955,7 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
       { key: 'g', label: t(lang, '生成', 'Gen') },
       { key: 's', label: t(lang, '切换', 'Switch') },
     ],
-    [lang, detail, selectedNode],
+    [lang, detail, selectedNode, diagramCount],
   );
   useFooterHints(hints, isActive && !modalOpen);
 
@@ -989,6 +994,19 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
       }
       if (input === 'E' && detail && selectedNode) {
         setNodeEditOpen(true);
+        return;
+      }
+      if (input === 'M') {
+        if (detail) {
+          setDiagramsOpen(true);
+        } else {
+          useTuiStore
+            .getState()
+            .notify(
+              t(lang, '请先生成或选择一个知识骨架，再管理互动图表', 'Generate or select a knowledge skeleton first'),
+              'warning',
+            );
+        }
         return;
       }
       if (input === 'D' && detail) {
@@ -1403,6 +1421,16 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
             isActive={isActive && nodeEditOpen}
             onClose={() => setNodeEditOpen(false)}
             onSaved={() => void refreshDetail()}
+          />
+        ) : null}
+        {diagramsOpen && detail ? (
+          <SkeletonDiagramsModal
+            host={host}
+            skeletonId={detail.id}
+            skeletonTitle={detail.title}
+            isActive={isActive && diagramsOpen}
+            onClose={() => setDiagramsOpen(false)}
+            onCountChange={setDiagramCount}
           />
         ) : null}
       </Suspense>

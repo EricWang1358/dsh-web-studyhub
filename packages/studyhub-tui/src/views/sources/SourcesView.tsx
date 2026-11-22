@@ -33,6 +33,7 @@ const OrganizeSourcesModal = lazy(() => import('./OrganizeSourcesModal.js').then
 const SourceCoverageModal = lazy(() => import('./SourceCoverageModal.js').then((m) => ({ default: m.SourceCoverageModal })));
 const MinerUModal = lazy(() => import('./MinerUModal.js').then((m) => ({ default: m.MinerUModal })));
 const RereadQueueModal = lazy(() => import('./RereadQueueModal.js').then((m) => ({ default: m.RereadQueueModal })));
+const OriginalFileModal = lazy(() => import('./OriginalFileModal.js').then((m) => ({ default: m.OriginalFileModal })));
 
 type ActiveOverlay =
   | 'none'
@@ -48,7 +49,8 @@ type ActiveOverlay =
   | 'companions'
   | 'organize'
   | 'coverage'
-  | 'reread';
+  | 'reread'
+  | 'original';
 
 type BatchFolderRow =
   | { kind: 'folder'; id: string; name: string; label: string; count: number }
@@ -861,7 +863,7 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
 
   const listActive = isActive && !readerTarget && overlay === 'none';
 
-  useClaimKeys(['/', 'c', 'r', 'R', 'g', 'p', 'd', 'i', 'f', 'a', 'F', 'm', 'M', 'C', 'G', 'V', 'E', ' ', '[', ']'], listActive);
+  useClaimKeys(['/', 'c', 'r', 'R', 'g', 'p', 'd', 'i', 'f', 'a', 'F', 'm', 'M', 'C', 'G', 'V', 'E', 'O', ' ', '[', ']'], listActive);
   useInputCapture(isActive && !readerTarget && (overlay === 'rename' || overlay === 'course' || overlay === 'search'));
 
   const hints: KeyHint[] = useMemo(
@@ -884,6 +886,7 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
             { key: 'V', label: t(lang, '覆盖率', 'Coverage') },
             { key: 'R', label: t(lang, '重读清单', 'Reread') },
             { key: 'E', label: t(lang, '补全元信息', 'Enrich') },
+            { key: 'O', label: t(lang, '原文件', 'Original') },
             { key: 'F', label: t(lang, '文件夹', 'Folders') },
             { key: 'm', label: t(lang, '移至夹', 'Move') },
             { key: 'C', label: t(lang, '伴学页', 'Companions') },
@@ -940,6 +943,8 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
           });
         } else if (input === 'V') {
           setOverlay('coverage');
+        } else if (input === 'O') {
+          setOverlay('original');
         } else if (input === 'm') {
           setOverlay('folders-assign');
         } else if (input === 'g') {
@@ -1408,6 +1413,16 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
             course={courseFilterOn ? focusCourse : undefined}
             isActive={isActive}
             onOpenSource={handleOpenRereadSource}
+            onClose={() => setOverlay('none')}
+          />
+        ) : null}
+
+        {overlay === 'original' && selectedItem ? (
+          <OriginalFileModal
+            host={host}
+            item={selectedItem}
+            isActive={isActive}
+            onRefresh={refresh}
             onClose={() => setOverlay('none')}
           />
         ) : null}

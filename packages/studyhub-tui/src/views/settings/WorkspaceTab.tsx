@@ -47,6 +47,8 @@ interface RetrievalStatusShape {
   effective?: string;
   missing?: string;
   hostCanSearch?: boolean;
+  providers?: Array<{ id: string; label?: string; name?: string }>;
+  otherTools?: Array<{ name: string }>;
   companion?: {
     id?: string;
     running?: boolean;
@@ -58,6 +60,17 @@ interface RetrievalStatusShape {
     version?: string;
     outdated?: boolean;
   };
+}
+
+interface RetrievalCoverageShape {
+  indexed: string[];
+  stale: string[];
+  missing: string[];
+  skipped?: string[];
+  reset?: string[];
+  hasIndex: boolean;
+  canIndex: boolean;
+  building: boolean | Record<string, unknown> | null;
 }
 
 interface UsageFrequencyStatusShape {
@@ -100,6 +113,53 @@ function describeRetrievalBadge(
     return { label: t(lang, '可用(未启用)', 'Available (Off)'), tone: 'muted' };
   }
   return { label: t(lang, '未启用', 'Disabled'), tone: 'muted' };
+}
+
+function describeRetrievalCoverage(
+  coverage: RetrievalCoverageShape | null,
+  lang: 'zh' | 'en',
+  asciiMode: boolean,
+): string {
+  if (!coverage) return '';
+  const indexedCount = Array.isArray(coverage.indexed) ? coverage.indexed.length : 0;
+  const staleCount = Array.isArray(coverage.stale) ? coverage.stale.length : 0;
+  const missingCount = Array.isArray(coverage.missing) ? coverage.missing.length : 0;
+  const total = indexedCount + staleCount + missingCount;
+  const sep = asciiMode ? ', ' : ' · ';
+  if (total === 0) {
+    return coverage.building
+      ? `${t(lang, '无资料', '0 pages')}${sep}${t(lang, '构建中', 'building')}`
+      : t(lang, '无资料', '0 pages');
+  }
+  const parts = [t(lang, `索引 ${indexedCount}/${total}`, `Idx ${indexedCount}/${total}`)];
+  if (staleCount > 0) {
+    parts.push(t(lang, `过期 ${staleCount}`, `${staleCount} stale`));
+  }
+  if (coverage.building) {
+    parts.push(t(lang, '构建中', 'building'));
+  }
+  return parts.join(sep);
+}
+
+function buildRetrievalProviderChoices(status: RetrievalStatusShape | null): string[] {
+  const seen = new Set<string>(['builtin']);
+  const out = ['builtin'];
+  for (const p of status?.providers ?? []) {
+    if (p?.id && !seen.has(p.id)) {
+      seen.add(p.id);
+      out.push(p.id);
+    }
+  }
+  for (const tool of status?.otherTools ?? []) {
+    if (tool?.name) {
+      const id = tool.name.startsWith('mcp:') ? tool.name : `mcp:${tool.name}`;
+      if (!seen.has(id)) {
+        seen.add(id);
+        out.push(id);
+      }
+    }
+  }
+  return out;
 }
 
 function describeUsageBadge(
@@ -293,6 +353,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
     () => Boolean(snapshot?.experimental),
   );
   const [retrievalStatus, setRetrievalStatus] = useState<RetrievalStatusShape | null>(null);
+  const [retrievalCoverage, setRetrievalCoverage] = useState<RetrievalCoverageShape | null>(null);
   const [retrievalLoaded, setRetrievalLoaded] = useState(false);
   const [usageStatus, setUsageStatus] = useState<UsageFrequencyStatusShape | null>(null);
   const [usageLoaded, setUsageLoaded] = useState(false);
@@ -313,6 +374,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
 
   const mountedRef = useRef(true);
   const updateBusyRef = useRef(false);
+  const retrievalBusyRef = useRef(false);
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -334,13 +396,19 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
 
   const loadRetrieval = useCallback(async () => {
     try {
-      const res = await tryAction<RetrievalStatusShape>(host, 'retrieval.status', {});
+      const [statusRes, covRes] = await Promise.allSettled([
+        tryAction<RetrievalStatusShape>(host, 'retrieval.status', {}),
+        tryAction<RetrievalCoverageShape>(host, 'retrieval.index.coverage', {}),
+      ]);
       if (!mountedRef.current) return;
-      if (res.ok && res.value) {
-        setRetrievalStatus(res.value);
+      if (statusRes.status === 'fulfilled' && statusRes.value.ok && statusRes.value.value) {
+        setRetrievalStatus(statusRes.value.value);
+      }
+      if (covRes.status === 'fulfilled' && covRes.value.ok && covRes.value.value) {
+        setRetrievalCoverage(covRes.value.value);
       }
     } catch {
-      // Fail-soft: keep fallback status when retrieval.status is unavailable
+      // Fail-soft: keep fallback status when retrieval endpoints are unavailable
     } finally {
       if (mountedRef.current) setRetrievalLoaded(true);
     }
@@ -622,9 +690,53 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
     }
   }, [autoCheckEnabled, busyAction, host, lang, notify]);
 
+  const handleCycleRetrievalProvider = useCallback(async () => {
+    if (busyAction || retrievalBusyRef.current) return;
+    retrievalBusyRef.current = true;
+    try {
+      const choices = buildRetrievalProviderChoices(retrievalStatus);
+      const current = retrievalStatus?.selected || 'builtin';
+      const idx = choices.indexOf(current);
+      const nextProvider = choices[(idx + 1) % choices.length] || 'builtin';
+      const res = await tryAction<RetrievalStatusShape>(host, 'retrieval.set', { provider: nextProvider });
+      if (!mountedRef.current) return;
+      if (!res.ok || !res.value) {
+        notify(
+          res.error?.message || t(lang, '切换语义检索提供方失败', 'Failed to switch retrieval provider'),
+          'error',
+        );
+        return;
+      }
+      setRetrievalStatus(res.value);
+      setRetrievalLoaded(true);
+      const covRes = await tryAction<RetrievalCoverageShape>(host, 'retrieval.index.coverage', {});
+      if (!mountedRef.current) return;
+      if (covRes.ok && covRes.value) {
+        setRetrievalCoverage(covRes.value);
+      }
+      if (choices.length <= 1) {
+        notify(
+          t(lang, '当前仅检测到内置检索 (builtin)', 'Only built-in retrieval is available (builtin)'),
+          'info',
+        );
+      } else {
+        const providerLabel =
+          res.value.providers?.find((p) => p.id === nextProvider)?.label ||
+          res.value.providers?.find((p) => p.id === nextProvider)?.name ||
+          nextProvider;
+        notify(
+          t(lang, `语义检索提供方已切换为 ${providerLabel}`, `Retrieval provider switched to ${providerLabel}`),
+          'success',
+        );
+      }
+    } finally {
+      retrievalBusyRef.current = false;
+    }
+  }, [busyAction, host, lang, notify, retrievalStatus]);
+
   const modalOpen =
     editingRoot || exportingBackup || confirmSampleRemove || Boolean(confirmRestore) || confirmClearUsage;
-  const claimed = useMemo(() => ['e', 's', 'x', 'r', 'c', 'f', 'u', 'U', 'a'], []);
+  const claimed = useMemo(() => ['e', 's', 'x', 'r', 'c', 'f', 'u', 'U', 'a', 'v'], []);
   useClaimKeys(claimed, isActive && !modalOpen);
 
   useInput(
@@ -663,6 +775,10 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
       }
       if (input === 'a') {
         void handleToggleAutoCheck();
+        return;
+      }
+      if (input === 'v') {
+        void handleCycleRetrievalProvider();
         return;
       }
       if (input === 'r') {
@@ -723,6 +839,8 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
     : t(lang, '已关闭', 'Disabled');
   const experimentalActionLabel = `[f] ${t(lang, '切换', 'Toggle')}`;
   const retrievalBadge = describeRetrievalBadge(retrievalStatus, retrievalLoaded, lang, asciiMode);
+  const retrievalCoverageLabel = describeRetrievalCoverage(retrievalCoverage, lang, asciiMode);
+  const retrievalSwitchLabel = `[v] ${t(lang, '切换', 'Switch')}`;
   const usageBadge = describeUsageBadge(usageStatus, usageLoaded, lang, asciiMode);
   const usageToggleLabel = `[u] ${t(lang, '切换', 'Toggle')}`;
   const usageClearLabel = `[U] ${t(lang, '清空记录', 'Clear data')}`;
@@ -766,7 +884,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
             />
           </Text>
         </Box>
-        <Box flexDirection="row" gap={2} marginTop={0}>
+        <Box flexDirection="row" gap={2} marginTop={0} height={1} overflow="hidden">
           <Text color={theme.muted}>
             {t(lang, '实验性功能:', 'Experimental Features:')}{' '}
             <Badge
@@ -776,10 +894,14 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
             />
           </Text>
           <Text color={theme.accent}>{experimentalActionLabel}</Text>
+        </Box>
+        <Box flexDirection="row" gap={2} marginTop={0} height={1} overflow="hidden">
           <Text color={theme.muted}>
             {t(lang, '语义检索:', 'Retrieval:')}{' '}
             <Badge label={retrievalBadge.label} tone={retrievalBadge.tone} variant="soft" />
           </Text>
+          {retrievalCoverageLabel ? <Text color={theme.dim}>{retrievalCoverageLabel}</Text> : null}
+          <Text color={theme.accent}>{retrievalSwitchLabel}</Text>
         </Box>
         <Box flexDirection="row" gap={2} marginTop={0}>
           <Text color={theme.muted}>
