@@ -24,6 +24,7 @@ Complete keyboard reference for `@ericwang1358/studyhub-tui`, synchronized with 
 | `Ctrl+D` / `Ctrl+U` | Half-page scroll down / up | Active in `ScrollView` / `VirtualList` |
 | `Ctrl+F` / `Ctrl+B` (`PgDn` / `PgUp`) | Full-page scroll down / up | `Space` also pages down in `ScrollView` |
 | `g` / `G` (`Home` / `End`) | Jump to top / bottom | Active in `ScrollView` / `VirtualList` |
+| `Mouse Wheel` | Scroll up / down (3 rows) | SGR 1006 wheel sequences (intact & ESC-stripped) in `VirtualList` & `ScrollView` |
 | `Esc` | Close / cancel | Closes active modal, drawer, or palette |
 
 ### Page Jump Shortcuts (`PAGE_REGISTRY`)
@@ -120,7 +121,7 @@ Inside the palette: `↑`/`↓`, `Ctrl+P`/`Ctrl+N`, or `Ctrl+J`/`Ctrl+K` move se
 - `j` / `k` select weak topic or course · `Enter` / `p` drill selected item · `w` practise all weak questions · `f` toggle 7-day forecast · `m` study map & prerequisite graph (`StudyMapModal`: `Tab`/`1`/`2` switch Mastery Map / Prerequisite Graph, `s` toggle scope, `/` filter, `c` clear, `r` refresh, `Enter` practise) · `r` refresh
 
 ### `7` Review Book (`book`)
-- `Tab` / `h` / `l` switch TOC / reading pane · `m` toggle Unicode/LaTeX math · `e` edit or revert (`[u]`) section · `R` rename TOC node · `[` / `]` move node up/down among siblings · `D` delete node (keeps notes in Unplaced) · `z` revert last structure change · `U` place unplaced section into target leaf point (`BookStructureModal`) · `T` Feynman retell selected point (`BookRetellModal`) · `M` chapter/point mock paper (`book.mock.plan` + `book.mock`, opens Exam) · `p` practise 5 cards · `P` pinned book QA & section Q&A (`course.outline.qa`) · `w` final-week crunch & mock · `x` export Markdown · `g` build/rebuild book (`a` apply / `u` undo when rebuild-pending) · `r` refresh
+- `Tab` / `h` / `l` switch TOC / reading pane · `m` toggle Unicode/LaTeX math · `e` edit or revert (`[u]`) section · `E` P2-guarded AI explain / add section (`BookExplainModal`, `generation.courseBook.explain`) · `R` rename TOC node · `[` / `]` move node up/down among siblings · `D` delete node (keeps notes in Unplaced) · `z` revert last structure change · `U` place unplaced section into target leaf point (`BookStructureModal`) · `T` Feynman retell selected point (`BookRetellModal`) · `M` chapter/point mock paper (`book.mock.plan` + `book.mock`, opens Exam) · `p` practise 5 cards · `P` pinned book QA & section Q&A (`course.outline.qa`) · `w` final-week crunch & mock · `x` export Markdown · `g` build/rebuild book (`a` apply / `u` undo when rebuild-pending) · `r` refresh
 
 ### `8` Skeleton (`skeleton`)
 - `j` / `k` move node · `Space` / `Enter` / `h` / `l` expand/collapse · `Tab` switch pane · `p` practise node · `E` edit skeleton node · `R` course learning route · `G` topic groups manager · `L` skeleton lint · `M` interactive HTML diagrams manager (`SkeletonDiagramsModal`: `a` attach UTF-8 HTML `<= 5 MB`, `Enter` inspect, `d` remove, max 8) · `g` generate skeleton · `s` switch skeleton · `D` delete skeleton (removes diagrams; keeps decks/cards) · `r` refresh
@@ -147,5 +148,5 @@ Inside the palette: `↑`/`↓`, `Ctrl+P`/`Ctrl+N`, or `Ctrl+J`/`Ctrl+K` move se
 ### `,` Settings (`settings`)
 - `1-4` switch Models / Workspace / StudyGen / Appearance tabs
 - **Models (`1`)**: `Tab` switch pane · `a` / `Enter` save & activate · `t` test connection · `s` rescan / save
-- **Workspace (`2`)**: `e` change library root · `c` confirm library location · `s` toggle sample course · `f` toggle experimental features · `v` cycle semantic retrieval provider (`retrieval.set` + displays `retrieval.index.coverage`) · `u` toggle usage frequency tracking · `U` clear usage data · `a` toggle auto update check (`update.preferences`) · `x` export JSON backup · `r` refresh restore points / retrieval / usage / update prefs · `Enter` restore selected point
+- **Workspace (`2`)**: `e` change library root · `c` confirm library location · `s` toggle sample course · `f` toggle experimental features · `v` cycle semantic retrieval provider (`retrieval.set` + displays `retrieval.index.coverage`) · `t` semantic retrieval diagnostics & index plan (`retrieval.index.plan` + `retrieval.test`) · `u` toggle usage frequency tracking · `U` clear usage data · `a` toggle auto update check (`update.preferences`) · `x` export JSON backup · `r` refresh restore points / retrieval / usage / update prefs · `Enter` restore selected point
 - **StudyGen (`3`)** & **Appearance (`4`)**: `j` / `k` select option · `←` / `→` (`Enter`) adjust/toggle & save (includes Book Q&A auto-add, Practice reset, and ExamPrep reset)

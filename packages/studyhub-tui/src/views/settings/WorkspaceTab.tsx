@@ -73,6 +73,33 @@ interface RetrievalCoverageShape {
   building: boolean | Record<string, unknown> | null;
 }
 
+interface RetrievalIndexPlanShape {
+  course?: string;
+  pages: number;
+  toIndex: number;
+  unchanged: number;
+  skipped: number;
+  toRemove: number;
+  chars: number;
+  firstRun: boolean;
+  modelMb: number;
+  canIndex: boolean;
+  documents?: number;
+  missing?: Array<{ title: string; pages: number }>;
+  missingDocuments?: number;
+}
+
+interface RetrievalTestResultShape {
+  ok: boolean;
+  reason?: string;
+  provider?: string;
+  hits?: number;
+  matched?: number;
+  unresolved?: number;
+  sample?: Array<{ title?: string; sourceId?: string; snippet?: string }>;
+  message?: string;
+}
+
 interface UsageFrequencyStatusShape {
   enabled: boolean;
   paused: boolean;
@@ -330,6 +357,175 @@ export function truncatePathMiddle(rawPath: string, maxWidth: number, ell = '…
   return `${headPart}${ell}${sliceEndWidth(tailSegment, tailBudget)}`;
 }
 
+interface RetrievalDiagModalProps {
+  lang: 'zh' | 'en';
+  asciiMode: boolean;
+  ell: string;
+  width: number;
+  isActive: boolean;
+  loading: boolean;
+  providerFallback: string;
+  plan: RetrievalIndexPlanShape | null;
+  testResult: RetrievalTestResultShape | null;
+  error: string | null;
+  onRefresh: () => void;
+  onClose: () => void;
+}
+
+const RetrievalDiagModal = memo(function RetrievalDiagModal({
+  lang,
+  asciiMode,
+  ell,
+  width,
+  isActive,
+  loading,
+  providerFallback,
+  plan,
+  testResult,
+  error,
+  onRefresh,
+  onClose,
+}: RetrievalDiagModalProps) {
+  const theme = useTheme();
+  const contentW = modalContentWidth(width);
+  const sep = asciiMode ? ' | ' : ' · ';
+  const activeProvider = testResult?.provider || providerFallback || 'builtin';
+
+  useInput(
+    (input, key) => {
+      if (key.escape || input === 'q') {
+        onClose();
+        return;
+      }
+      if (input === 'r') {
+        onRefresh();
+      }
+    },
+    { isActive },
+  );
+
+  let verdictBadge: { label: string; tone: 'info' | 'success' | 'warning' | 'muted' } | null = null;
+  let verdictDetail = '';
+  if (testResult) {
+    if (testResult.reason === 'builtin') {
+      verdictBadge = {
+        label: t(lang, '内置词法检索 (builtin)', 'Built-in lexical search (builtin)'),
+        tone: 'info',
+      };
+      verdictDetail = t(
+        lang,
+        '使用本地词法检索，无需外部检索服务。',
+        'No external search server required; using local lexical search.',
+      );
+    } else if (testResult.ok) {
+      verdictBadge = {
+        label: t(lang, `已连通 (${activeProvider})`, `Connected (${activeProvider})`),
+        tone: 'success',
+      };
+      verdictDetail = `hits=${testResult.hits ?? 0}${sep}matched=${testResult.matched ?? 0}${sep}unresolved=${testResult.unresolved ?? 0}`;
+    } else {
+      verdictBadge = {
+        label: t(lang, `连接失败 (${activeProvider})`, `Failed (${activeProvider})`),
+        tone: 'warning',
+      };
+      verdictDetail = testResult.message ? truncateDisplay(testResult.message, contentW, ell) : '';
+    }
+  }
+
+  return (
+    <Modal
+      title={t(lang, '语义检索诊断与索引计划', 'Retrieval Diagnostics & Index Plan')}
+      subtitle={activeProvider}
+      width={width}
+      onClose={onClose}
+      isActive={isActive}
+      hints={[
+        { key: 'r', label: t(lang, '重新诊断', 'Re-run') },
+        { key: 'Esc/q', label: t(lang, '关闭', 'Close') },
+      ]}
+    >
+      {loading && !testResult && !plan ? (
+        <Spinner label={t(lang, `正在诊断语义检索${ell}`, `Running retrieval diagnostics${ell}`)} active={isActive} />
+      ) : (
+        <Box flexDirection="column" gap={0}>
+          <Box flexDirection="row" gap={1}>
+            <Text color={theme.muted}>{t(lang, '连通状态:', 'Status:')}</Text>
+            {verdictBadge ? (
+              <Badge label={verdictBadge.label} tone={verdictBadge.tone} variant="soft" />
+            ) : (
+              <Badge label={t(lang, '未返回', 'No result')} tone="muted" variant="soft" />
+            )}
+          </Box>
+          {verdictDetail ? (
+            <Text color={testResult?.ok === false && testResult?.reason !== 'builtin' ? theme.warning : theme.dim}>
+              {truncateDisplay(verdictDetail, contentW, ell)}
+            </Text>
+          ) : null}
+
+          {plan ? (
+            <Box flexDirection="column" marginTop={1}>
+              <Box flexDirection="row" gap={1}>
+                <Text color={theme.muted}>
+                  {t(lang, '索引计划:', 'Index Plan:')}
+                  {plan.course ? ` (${plan.course})` : ''}
+                </Text>
+                <Badge
+                  label={plan.canIndex ? t(lang, '可构建索引', 'Can Index') : t(lang, '不可构建', 'Cannot Index')}
+                  tone={plan.canIndex ? 'success' : 'muted'}
+                  variant="soft"
+                />
+              </Box>
+              <Text color={theme.text}>
+                {truncateDisplay(
+                  t(
+                    lang,
+                    `总页数 ${plan.pages}${sep}待索引 ${plan.toIndex}${sep}未变更 ${plan.unchanged}`,
+                    `Pages ${plan.pages}${sep}To Index ${plan.toIndex}${sep}Unchanged ${plan.unchanged}`,
+                  ),
+                  contentW,
+                  ell,
+                )}
+              </Text>
+              <Text color={theme.muted}>
+                {truncateDisplay(
+                  t(
+                    lang,
+                    `跳过 ${plan.skipped}${sep}待移除 ${plan.toRemove}${sep}字符 ${plan.chars.toLocaleString('en-US')}`,
+                    `Skipped ${plan.skipped}${sep}Remove ${plan.toRemove}${sep}Chars ${plan.chars.toLocaleString('en-US')}`,
+                  ),
+                  contentW,
+                  ell,
+                )}
+              </Text>
+              <Text color={plan.firstRun ? theme.accent : theme.dim}>
+                {truncateDisplay(
+                  plan.firstRun
+                    ? t(lang, `首次构建模型下载约 ${plan.modelMb} MB`, `First-run model download ~${plan.modelMb} MB`)
+                    : t(lang, `模型缓存已就绪 (~${plan.modelMb} MB)`, `Model cache ready (~${plan.modelMb} MB)`),
+                  contentW,
+                  ell,
+                )}
+              </Text>
+            </Box>
+          ) : null}
+
+          {error ? (
+            <Box marginTop={1}>
+              <Text color={theme.error}>{truncateDisplay(error, contentW, ell)}</Text>
+            </Box>
+          ) : null}
+
+          {loading ? (
+            <Box marginTop={1}>
+              <Spinner label={t(lang, `正在刷新诊断${ell}`, `Refreshing diagnostics${ell}`)} active={isActive} />
+            </Box>
+          ) : null}
+        </Box>
+      )}
+    </Modal>
+  );
+});
+
 export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function WorkspaceTab({
   host,
   binding,
@@ -371,10 +567,16 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
   const [confirmSampleRemove, setConfirmSampleRemove] = useState(false);
   const [confirmRestore, setConfirmRestore] = useState<RestorePointEntry | null>(null);
   const [confirmClearUsage, setConfirmClearUsage] = useState(false);
+  const [retrievalDiagOpen, setRetrievalDiagOpen] = useState(false);
+  const [retrievalDiagLoading, setRetrievalDiagLoading] = useState(false);
+  const [retrievalPlan, setRetrievalPlan] = useState<RetrievalIndexPlanShape | null>(null);
+  const [retrievalTest, setRetrievalTest] = useState<RetrievalTestResultShape | null>(null);
+  const [retrievalDiagError, setRetrievalDiagError] = useState<string | null>(null);
 
   const mountedRef = useRef(true);
   const updateBusyRef = useRef(false);
   const retrievalBusyRef = useRef(false);
+  const diagBusyRef = useRef(false);
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -734,9 +936,53 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
     }
   }, [busyAction, host, lang, notify, retrievalStatus]);
 
+  const runRetrievalDiag = useCallback(async () => {
+    if (diagBusyRef.current) return;
+    diagBusyRef.current = true;
+    setRetrievalDiagLoading(true);
+    setRetrievalDiagError(null);
+    try {
+      const [planRes, testRes] = await Promise.allSettled([
+        tryAction<RetrievalIndexPlanShape>(host, 'retrieval.index.plan', {}),
+        tryAction<RetrievalTestResultShape>(host, 'retrieval.test', {}),
+      ]);
+      if (!mountedRef.current) return;
+      const errors: string[] = [];
+      if (planRes.status === 'fulfilled') {
+        if (planRes.value.ok && planRes.value.value) {
+          setRetrievalPlan(planRes.value.value);
+        } else {
+          errors.push(planRes.value.error?.message || t(lang, '索引计划获取失败', 'Failed to load index plan'));
+        }
+      } else {
+        errors.push(planRes.reason instanceof Error ? planRes.reason.message : String(planRes.reason));
+      }
+      if (testRes.status === 'fulfilled') {
+        if (testRes.value.ok && testRes.value.value) {
+          setRetrievalTest(testRes.value.value);
+        } else {
+          errors.push(testRes.value.error?.message || t(lang, '连通性测试失败', 'Connectivity test failed'));
+        }
+      } else {
+        errors.push(testRes.reason instanceof Error ? testRes.reason.message : String(testRes.reason));
+      }
+      if (errors.length > 0) {
+        setRetrievalDiagError(errors.join('; '));
+      }
+    } finally {
+      diagBusyRef.current = false;
+      if (mountedRef.current) setRetrievalDiagLoading(false);
+    }
+  }, [host, lang]);
+
   const modalOpen =
-    editingRoot || exportingBackup || confirmSampleRemove || Boolean(confirmRestore) || confirmClearUsage;
-  const claimed = useMemo(() => ['e', 's', 'x', 'r', 'c', 'f', 'u', 'U', 'a', 'v'], []);
+    editingRoot ||
+    exportingBackup ||
+    confirmSampleRemove ||
+    Boolean(confirmRestore) ||
+    confirmClearUsage ||
+    retrievalDiagOpen;
+  const claimed = useMemo(() => ['e', 's', 'x', 'r', 'c', 'f', 'u', 'U', 'a', 'v', 't'], []);
   useClaimKeys(claimed, isActive && !modalOpen);
 
   useInput(
@@ -779,6 +1025,12 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
       }
       if (input === 'v') {
         void handleCycleRetrievalProvider();
+        return;
+      }
+      if (input === 't') {
+        if (busyAction) return;
+        setRetrievalDiagOpen(true);
+        void runRetrievalDiag();
         return;
       }
       if (input === 'r') {
@@ -841,6 +1093,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
   const retrievalBadge = describeRetrievalBadge(retrievalStatus, retrievalLoaded, lang, asciiMode);
   const retrievalCoverageLabel = describeRetrievalCoverage(retrievalCoverage, lang, asciiMode);
   const retrievalSwitchLabel = `[v] ${t(lang, '切换', 'Switch')}`;
+  const retrievalDiagLabel = `[t] ${t(lang, '诊断', 'Diag')}`;
   const usageBadge = describeUsageBadge(usageStatus, usageLoaded, lang, asciiMode);
   const usageToggleLabel = `[u] ${t(lang, '切换', 'Toggle')}`;
   const usageClearLabel = `[U] ${t(lang, '清空记录', 'Clear data')}`;
@@ -895,13 +1148,14 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
           </Text>
           <Text color={theme.accent}>{experimentalActionLabel}</Text>
         </Box>
-        <Box flexDirection="row" gap={2} marginTop={0} height={1} overflow="hidden">
+        <Box flexDirection="row" gap={compactLayout ? 1 : 2} marginTop={0} height={1} overflow="hidden">
           <Text color={theme.muted}>
             {t(lang, '语义检索:', 'Retrieval:')}{' '}
             <Badge label={retrievalBadge.label} tone={retrievalBadge.tone} variant="soft" />
           </Text>
           {retrievalCoverageLabel ? <Text color={theme.dim}>{retrievalCoverageLabel}</Text> : null}
           <Text color={theme.accent}>{retrievalSwitchLabel}</Text>
+          <Text color={theme.accent}>{retrievalDiagLabel}</Text>
         </Box>
         <Box flexDirection="row" gap={2} marginTop={0}>
           <Text color={theme.muted}>
@@ -1074,6 +1328,23 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
           onConfirm={() => void handleClearUsage()}
           onCancel={() => setConfirmClearUsage(false)}
           isActive={isActive}
+        />
+      ) : null}
+
+      {retrievalDiagOpen ? (
+        <RetrievalDiagModal
+          lang={lang}
+          asciiMode={asciiMode}
+          ell={ell}
+          width={modalW}
+          isActive={isActive}
+          loading={retrievalDiagLoading}
+          providerFallback={retrievalStatus?.effective || retrievalStatus?.selected || 'builtin'}
+          plan={retrievalPlan}
+          testResult={retrievalTest}
+          error={retrievalDiagError}
+          onRefresh={() => void runRetrievalDiag()}
+          onClose={() => setRetrievalDiagOpen(false)}
         />
       ) : null}
     </Box>

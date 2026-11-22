@@ -25,13 +25,14 @@ import type {
 } from './types.js';
 const BookCrunchModal = lazy(() => import('./BookCrunchModal.js').then((m) => ({ default: m.BookCrunchModal })));
 const BookEditModal = lazy(() => import('./BookEditModal.js').then((m) => ({ default: m.BookEditModal })));
+const BookExplainModal = lazy(() => import('./BookExplainModal.js').then((m) => ({ default: m.BookExplainModal })));
 const BookExportModal = lazy(() => import('./BookExportModal.js').then((m) => ({ default: m.BookExportModal })));
 const BookQaModal = lazy(() => import('./BookQaModal.js').then((m) => ({ default: m.BookQaModal })));
 const BookRetellModal = lazy(() => import('./BookRetellModal.js').then((m) => ({ default: m.BookRetellModal })));
 const BookStructureModal = lazy(() => import('./BookStructureModal.js').then((m) => ({ default: m.BookStructureModal })));
 
-const BASE_CLAIMED_KEYS = ['M', 'P', 'T', 'U', 'e', 'r', 'w', 'x', '[', ']'] as const;
-const REBUILD_CLAIMED_KEYS = ['M', 'P', 'T', 'U', 'e', 'r', 'w', 'x', '[', ']', 'a'] as const;
+const BASE_CLAIMED_KEYS = ['E', 'M', 'P', 'T', 'U', 'e', 'r', 'w', 'x', '[', ']'] as const;
+const REBUILD_CLAIMED_KEYS = ['E', 'M', 'P', 'T', 'U', 'e', 'r', 'w', 'x', '[', ']', 'a'] as const;
 const STRUCTURE_FILE = 'book.structure';
 
 interface BookMockPlanResult {
@@ -403,6 +404,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
   const [buildModalOpen, setBuildModalOpen] = useState(false);
   const [crunchModalOpen, setCrunchModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [explainOpen, setExplainOpen] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [qaModalOpen, setQaModalOpen] = useState(false);
   const [retellModalOpen, setRetellModalOpen] = useState(false);
@@ -900,6 +902,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
     buildModalOpen ||
     crunchModalOpen ||
     editModalOpen ||
+    explainOpen ||
     exportModalOpen ||
     qaModalOpen ||
     retellModalOpen ||
@@ -1031,6 +1034,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
             { key: 'Tab', label: t(lang, '切换窗格', 'Pane') },
             { key: 'm', label: mathUnicode ? t(lang, '数学:Unicode', 'Math:Unicode') : t(lang, '数学:LaTeX', 'Math:LaTeX') },
             { key: 'T', label: t(lang, '费曼复述', 'Retell') },
+            ...(selectedItem?.leaf ? [{ key: 'E', label: t(lang, 'AI讲解', 'AI Explain') }] : []),
             { key: 'M', label: t(lang, '章节模拟', 'Mock exam') },
             { key: 'e', label: t(lang, '编辑', 'Edit') },
             { key: 'p', label: t(lang, '练5题', 'Practise 5') },
@@ -1051,7 +1055,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
             { key: 'g', label: t(lang, '生成/重建', 'Build') },
             { key: 'r', label: t(lang, '刷新', 'Refresh') },
           ],
-    [lang, mathUnicode, status, unplacedSections.length],
+    [lang, mathUnicode, selectedItem?.leaf, status, unplacedSections.length],
   );
   useFooterHints(hints, isActive && !modalOpen);
 
@@ -1158,6 +1162,17 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
           return;
         }
         setRetellModalOpen(true);
+        return;
+      }
+      if (input === 'E') {
+        if (effectiveCourse && status === 'ok' && selectedItem?.leaf && (selectedItem.node?.hid || selectedItem.hid)) {
+          setExplainOpen(true);
+        } else {
+          useTuiStore.getState().notify(
+            t(lang, '请先在目录中选择一个具体知识点（叶子节点）', 'Select a specific knowledge point (leaf) first'),
+            'info',
+          );
+        }
         return;
       }
       if (input === 'M') {
@@ -1415,6 +1430,23 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
             height={height}
             onClose={() => setEditModalOpen(false)}
             onSaved={() => {
+              setReadCache({});
+              setReloadSeq((n) => n + 1);
+            }}
+          />
+        ) : null}
+
+        {explainOpen ? (
+          <BookExplainModal
+            host={host}
+            course={effectiveCourse ?? null}
+            selectedItem={selectedItem ?? null}
+            isActive={isActive && explainOpen}
+            width={width}
+            height={height}
+            onClose={() => setExplainOpen(false)}
+            onStarted={() => {
+              if (selectedItem?.hid) pendingFocusHidRef.current = selectedItem.hid;
               setReadCache({});
               setReloadSeq((n) => n + 1);
             }}

@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text, useInput, useStdin } from 'ink';
 import { useTheme } from '../theme/tokens.js';
 import { t, useTuiStore } from '../state/store.js';
 
@@ -39,6 +39,95 @@ export interface VirtualListProps<T> {
 
 function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n));
+}
+
+const SGR_MOUSE_CHUNK_RE = /^(?:(?:\u001b+\[|\[)?<\d+;\d+;\d+[Mm])+$/;
+const SGR_MOUSE_TOKEN_RE = /(?:\u001b+\[|\[)?<(\d+);\d+;\d+([Mm])/g;
+const INTACT_SGR_MOUSE_RE = /\u001b+\[<\d+;\d+;\d+[Mm]/g;
+
+/**
+ * Parse SGR 1006 mouse wheel sequences (intact `\x1b[<64;c;rM` or ESC-stripped `[<64;c;rM` / `<64;c;rM`)
+ * into a signed row delta; returns 0 for non-wheel mouse events, releases (`m`), or ordinary text.
+ */
+export function parseSgrWheelDelta(input: string, step = 3): number {
+  if (!input || !input.includes('<') || !SGR_MOUSE_CHUNK_RE.test(input)) return 0;
+  const unit = Number.isFinite(step) && step > 0 ? Math.floor(step) : 3;
+  const maxBurst = unit * 8;
+  let delta = 0;
+  SGR_MOUSE_TOKEN_RE.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = SGR_MOUSE_TOKEN_RE.exec(input)) !== null) {
+    if (match[2] !== 'M') continue;
+    const button = Number.parseInt(match[1], 10);
+    const code = button & 0x43;
+    if (code === 64) delta -= unit;
+    else if (code === 65) delta += unit;
+  }
+  return delta === 0 ? 0 : clamp(delta, -maxBurst, maxBurst);
+}
+
+type ReadFn = (size?: number) => unknown;
+interface StdinWheelTapState {
+  origRead: ReadFn;
+  wrappedRead: ReadFn;
+  listeners: Set<(delta: number) => void>;
+}
+const stdinWheelTaps = new WeakMap<object, StdinWheelTapState>();
+
+/**
+ * Subscribe to intact SGR 1006 mouse wheel events on Ink's `stdin` stream before
+ * Ink 6's `App` CSI filter drops complete non-Kitty control sequences (`key.name === ''`).
+ * ESC-stripped sequences (`[<64;c;rM`, `<64;c;rM`) still flow through `useInput`.
+ */
+export function useSgrMouseWheel(isActive: boolean, onWheel: (delta: number) => void): void {
+  const { stdin } = useStdin();
+  const onWheelRef = useRef(onWheel);
+  onWheelRef.current = onWheel;
+
+  useEffect(() => {
+    const stream = stdin as (NodeJS.ReadStream & { read?: ReadFn }) | undefined;
+    if (!isActive || !stream || typeof stream.read !== 'function') return undefined;
+
+    let state = stdinWheelTaps.get(stream);
+    if (!state) {
+      const origRead = stream.read.bind(stream) as ReadFn;
+      const listeners = new Set<(delta: number) => void>();
+      const wrappedRead: ReadFn = (size?: number) => {
+        const chunk = origRead(size);
+        if (chunk !== null && chunk !== undefined && listeners.size > 0) {
+          const text = typeof chunk === 'string' ? chunk : Buffer.isBuffer(chunk) ? chunk.toString('utf8') : '';
+          if (text.includes('\u001b') && text.includes('[<')) {
+            const matches = text.match(INTACT_SGR_MOUSE_RE);
+            if (matches && matches.length > 0) {
+              const delta = parseSgrWheelDelta(matches.join(''));
+              if (delta !== 0) {
+                for (const fn of [...listeners]) fn(delta);
+              }
+            }
+          }
+        }
+        return chunk;
+      };
+      state = { origRead, wrappedRead, listeners };
+      stdinWheelTaps.set(stream, state);
+      stream.read = wrappedRead;
+    }
+
+    const listener = (delta: number) => {
+      onWheelRef.current(delta);
+    };
+    state.listeners.add(listener);
+
+    return () => {
+      state.listeners.delete(listener);
+      if (state.listeners.size === 0) {
+        if (stream.read === state.wrappedRead) {
+          stream.read = state.origRead;
+        }
+        stdinWheelTaps.delete(stream);
+      }
+    };
+  }, [isActive, stdin]);
 }
 
 /** Compute half-page or full-page step for a viewport of `height` rows. */
@@ -96,6 +185,8 @@ function VirtualListInner<T>({
   const controlled = selectedIndex !== undefined;
   const [internal, setInternal] = useState(() => clamp(initialIndex, 0, Math.max(0, total - 1)));
   const cursor = clamp(controlled ? (selectedIndex as number) : internal, 0, Math.max(0, total - 1));
+  const cursorRef = useRef(cursor);
+  cursorRef.current = cursor;
   const offsetRef = useRef(0);
   const offset = nextScrollOffset(cursor, offsetRef.current, rows, total, scrollPadding);
   offsetRef.current = offset;
@@ -109,16 +200,26 @@ function VirtualListInner<T>({
     (to: number) => {
       if (total === 0) return;
       const next = clamp(to, 0, total - 1);
-      if (next === cursor) return;
+      if (next === cursorRef.current) return;
+      cursorRef.current = next;
       if (!controlled) setInternal(next);
       onChange?.(next, items[next]);
     },
-    [total, cursor, controlled, onChange, items],
+    [total, controlled, onChange, items],
   );
+
+  useSgrMouseWheel(isActive && total > 0, (wheelDelta) => {
+    move(cursorRef.current + wheelDelta);
+  });
 
   useInput(
     (input, key) => {
       if (total === 0) return;
+      const wheelDelta = parseSgrWheelDelta(input);
+      if (wheelDelta !== 0) {
+        move(cursorRef.current + wheelDelta);
+        return;
+      }
       if (key.ctrl && input === 'd') move(cursor + pageStep(rows, 'half'));
       else if (key.ctrl && input === 'u') move(cursor - pageStep(rows, 'half'));
       else if (key.pageDown || (key.ctrl && input === 'f')) move(cursor + pageStep(rows, 'full'));

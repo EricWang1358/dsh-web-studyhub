@@ -442,7 +442,7 @@ describe('StudyHub TUI Round 12 Features E2E', () => {
 
     // Esc (no-op in top-level editor) then Backspace leaves editor back to LibraryView
     tty.send('\x1b');
-    await tty.flush();
+    await tty.flush(150);
     tty.send('\x7f');
     const backToLib = await tty.waitFor(
       (s) =>

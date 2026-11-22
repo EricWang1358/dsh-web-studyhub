@@ -104,6 +104,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'U', label: t(lang, '归位未归位段落', 'Place unplaced section') },
         { key: 'T', label: t(lang, '费曼复述知识点', 'Feynman retell point') },
         { key: 'M', label: t(lang, '章节模拟卷', 'Chapter mock exam') },
+        { key: 'E', label: t(lang, 'AI深入讲解/补充段落', 'AI explain / add section') },
       ],
     },
     {
@@ -208,6 +209,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'u / U', label: t(lang, '使用记录开关 / 清空', 'Usage toggle / clear') },
         { key: 'a', label: t(lang, '自动检查更新开关', 'Auto update check toggle') },
         { key: 'v', label: t(lang, '切换语义检索提供方', 'Cycle retrieval provider') },
+        { key: 't', label: t(lang, '语义检索诊断与索引计划', 'Retrieval test & index plan') },
       ],
     },
     {

@@ -18,6 +18,7 @@ const EFFECT_GUARDED_ACTIONS = new Set([
   'generate.suggest',
   'focus.suggest',
   'book.retell',
+  'generation.courseBook.explain',
   'coach.debrief',
   'coach.prepare',
   'coach.rewrite.retry',

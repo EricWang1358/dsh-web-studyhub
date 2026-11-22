@@ -424,6 +424,7 @@ describe('StudyHub TUI NFR Performance & Bundle Budgets', () => {
       'BoardCardModal-',
       'BookCrunchModal-',
       'BookEditModal-',
+      'BookExplainModal-',
       'BookExportModal-',
       'BookStructureModal-',
       'CardToolsModal-',

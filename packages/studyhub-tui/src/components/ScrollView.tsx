@@ -1,10 +1,10 @@
-import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import stripAnsi from 'strip-ansi';
 import { useTheme } from '../theme/tokens.js';
 import { displayWidth, truncateDisplay, wrapDisplay } from '../render/cjk.js';
 import { useTuiStore } from '../state/store.js';
-import { pageStep, scrollbarThumb } from './VirtualList.js';
+import { pageStep, parseSgrWheelDelta, scrollbarThumb, useSgrMouseWheel } from './VirtualList.js';
 
 export { pageStep } from './VirtualList.js';
 
@@ -78,6 +78,8 @@ export const ScrollView = memo(function ScrollView({
   const controlled = scrollTop !== undefined;
   const [internal, setInternal] = useState(follow ? maxTop : 0);
   const top = Math.max(0, Math.min(controlled ? (scrollTop as number) : internal, maxTop));
+  const topRef = useRef(top);
+  topRef.current = top;
 
   useEffect(() => {
     if (follow && !controlled) setInternal(maxTop);
@@ -96,15 +98,25 @@ export const ScrollView = memo(function ScrollView({
   const scrollTo = useCallback(
     (to: number) => {
       const next = Math.max(0, Math.min(to, maxTop));
-      if (next === top) return;
+      if (next === topRef.current) return;
+      topRef.current = next;
       if (!controlled) setInternal(next);
       onScroll?.(next);
     },
-    [maxTop, top, controlled, onScroll],
+    [maxTop, controlled, onScroll],
   );
+
+  useSgrMouseWheel(isActive, (wheelDelta) => {
+    scrollTo(topRef.current + wheelDelta);
+  });
 
   useInput(
     (input, key) => {
+      const wheelDelta = parseSgrWheelDelta(input);
+      if (wheelDelta !== 0) {
+        scrollTo(topRef.current + wheelDelta);
+        return;
+      }
       if (key.ctrl && input === 'd') scrollTo(top + pageStep(rows, 'half'));
       else if (key.ctrl && input === 'u') scrollTo(top - pageStep(rows, 'half'));
       else if (key.pageDown || input === ' ' || (key.ctrl && input === 'f')) scrollTo(top + pageStep(rows, 'full'));
