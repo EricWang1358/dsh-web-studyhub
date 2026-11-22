@@ -19,6 +19,14 @@ export interface ClozeBlankItem {
   id: string;
 }
 
+export interface ClozeBlankDiff {
+  id: string;
+  index: number;
+  userValue: string;
+  expected: string;
+  matched: boolean | null;
+}
+
 export interface CardFeedbackShape {
   correct?: boolean;
   grade?: number;
@@ -232,6 +240,54 @@ export function formatClozeDisplay(
     return clozeText.replace(/_{3,}/g, () => replaceBlank());
   }
   return clozeText;
+}
+
+export function buildClozeBlankDiffs(
+  blanks: readonly ClozeBlankItem[],
+  values: Record<string, string>,
+  feedback?: CardFeedbackShape | null,
+  solution?: CardSolutionShape | null,
+): ClozeBlankDiff[] {
+  const details = feedback?.details;
+  const solAnswers = solution?.cloze?.answers;
+  return blanks.map((blank, idx) => {
+    const rawUser = values[blank.id] ?? feedback?.answers?.[blank.id] ?? '';
+    const userValue = String(rawUser).trim();
+    const detail = Array.isArray(details) ? details.find((d) => d.id === blank.id) : undefined;
+    const solAns = Array.isArray(solAnswers) ? solAnswers.find((a) => a.id === blank.id) : undefined;
+    const rawExpected =
+      typeof detail?.expected === 'string' && detail.expected.trim().length > 0
+        ? detail.expected
+        : (solAns?.value ?? '');
+    const expected = String(rawExpected).trim();
+
+    let matched: boolean | null = null;
+    if (typeof detail?.correct === 'boolean') {
+      matched = detail.correct;
+    } else {
+      const candidates: string[] = [];
+      if (expected) candidates.push(expected);
+      if (Array.isArray(solAns?.accept)) {
+        for (const alias of solAns.accept) {
+          if (typeof alias === 'string' && alias.trim()) {
+            candidates.push(alias.trim());
+          }
+        }
+      }
+      if (candidates.length > 0) {
+        const normUser = userValue.toLowerCase();
+        matched = normUser.length > 0 && candidates.some((c) => c.trim().toLowerCase() === normUser);
+      }
+    }
+
+    return {
+      id: blank.id,
+      index: idx + 1,
+      userValue,
+      expected,
+      matched,
+    };
+  });
 }
 
 export function formatGapDays(days: unknown, lang: UiLanguage): string {

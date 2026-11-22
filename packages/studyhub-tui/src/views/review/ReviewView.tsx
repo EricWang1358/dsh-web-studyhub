@@ -29,10 +29,11 @@ import {
   useFooterHints,
   useTheme,
 } from '../../components/index.js';
-import { LruCache, truncateDisplay } from '../../render/index.js';
+import { LruCache, displayWidth, truncateDisplay } from '../../render/index.js';
 import {
   FSRS_GRADES,
   MAX_TRANSLATION_CACHE,
+  buildClozeBlankDiffs,
   currentDeckIdOf,
   extractCitation,
   extractFeedback,
@@ -285,6 +286,22 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     () => (kind === 'fill_blank' ? resolveClozeBlanks(run?.card as Record<string, unknown> | undefined) : null),
     [kind, run?.card],
   );
+  const isExam = run?.mode === 'exam';
+  const canUndo = Boolean(run && !isExam && (run as { undoable?: unknown }).undoable);
+  const effectiveClozeValues = useMemo(() => {
+    const fbAns = feedback?.answers;
+    if (fbAns && typeof fbAns === 'object') {
+      return { ...fbAns, ...clozeInputs };
+    }
+    return clozeInputs;
+  }, [feedback, clozeInputs]);
+  const clozeBlankDiffs = useMemo(
+    () =>
+      kind === 'fill_blank' && clozeData && (revealed || feedback)
+        ? buildClozeBlankDiffs(clozeData.blanks, effectiveClozeValues, feedback, solution)
+        : [],
+    [kind, clozeData, revealed, feedback, effectiveClozeValues, solution],
+  );
   const citation = useMemo(() => extractCitation(run), [run]);
   const intervals = useMemo(() => {
     const raw = (run as { intervals?: unknown } | null)?.intervals;
@@ -410,15 +427,19 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
 
   const handleUndo = useCallback(() => {
     if (!run?.id || busy) return;
-    const undoable = (run as { undoable?: { attemptId?: string } }).undoable;
-    if (!undoable) {
+    const undoable = (run as { undoable?: unknown }).undoable;
+    if (!undoable || run.mode === 'exam') {
       notify(t(lang, '当前没有可撤销的评分', 'Nothing to undo in this round'), 'info');
       return;
     }
+    const attemptId =
+      typeof undoable === 'object' && undoable !== null && 'attemptId' in undoable
+        ? (undoable as { attemptId?: string }).attemptId
+        : undefined;
     void runAction(async () => {
       const res = await tryAction<ReviewRun>(host, 'review.undo', {
         runId: run.id,
-        attemptId: undoable.attemptId,
+        ...(attemptId ? { attemptId } : {}),
       });
       if (!res.ok || !res.value) throw new Error(res.error?.message || 'Undo failed');
       notify(t(lang, '已撤销上一题评分', 'Undid last rating'), 'success');
@@ -654,6 +675,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     base.push({ key: 'S', label: t(lang, '同类', 'Similar') });
     base.push({ key: 'D', label: t(lang, '工具', 'Tools') });
     if (run.mode !== 'exam') base.push({ key: 'Q', label: t(lang, '队列', 'Queue') });
+    if (canUndo) base.push({ key: 'u', label: t(lang, '撤销评分', 'Undo') });
     base.push({ key: 'A', label: t(lang, '答题卡', 'AnswerCard') });
     base.push({ key: 'm', label: mathUnicode ? 'Unicode' : 'LaTeX' });
     if (citation) base.push({ key: 'o', label: t(lang, '原文', 'Source') });
@@ -670,6 +692,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     needsRating,
     canRubricGrade,
     activeRubric,
+    canUndo,
     mathUnicode,
     citation,
     lang,
@@ -743,7 +766,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
         navigate('sources', { sourceId: citation.sourceId, pageNumber: citation.pageNumber });
         return;
       }
-      if (input === 'u') {
+      if (input === 'u' && !key.ctrl && !key.meta) {
         handleUndo();
         return;
       }
@@ -906,7 +929,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     if (!run) return '';
     const baseStem =
       kind === 'fill_blank' && clozeData
-        ? formatClozeDisplay(clozeData.text, clozeData.blanks, clozeInputs, revealed, solution, asciiMode)
+        ? formatClozeDisplay(clozeData.text, clozeData.blanks, effectiveClozeValues, revealed, solution, asciiMode)
         : String(run.card?.prompt ?? '');
     if (!activeTranslation) return baseStem;
     const trStemRaw =
@@ -915,7 +938,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
         : activeTranslation.prompt;
     if (!trStemRaw) return baseStem;
     return `${baseStem}\n\n> **EN**: ${trStemRaw}`;
-  }, [run, kind, clozeData, clozeInputs, revealed, solution, activeTranslation, asciiMode]);
+  }, [run, kind, clozeData, effectiveClozeValues, revealed, solution, activeTranslation, asciiMode]);
 
   const referenceAnswer = useMemo(
     () => (run && revealed ? extractReferenceAnswer(run, kind, lang) : ''),
@@ -975,7 +998,14 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
   if (loading) {
     return (
       <Box width={width} height={height} alignItems="center" justifyContent="center">
-        <Spinner label={t(lang, '正在准备复习队列…', 'Preparing review queue…')} active={isActive} />
+        <Spinner
+          label={
+            asciiMode
+              ? t(lang, '正在准备复习队列...', 'Preparing review queue...')
+              : t(lang, '正在准备复习队列…', 'Preparing review queue…')
+          }
+          active={isActive}
+        />
       </Box>
     );
   }
@@ -1155,8 +1185,29 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
           {/* Cloze blanks editor */}
           {kind === 'fill_blank' && clozeData && !feedback ? (
             <Box flexDirection="column" marginTop={1} width={innerW}>
+              {clozeData.blanks.length > 1 ? (
+                <Box flexDirection="row" alignItems="center" gap={1} marginBottom={0} width={innerW} overflow="hidden">
+                  <Badge
+                    label={`${Math.min(activeBlankIdx, Math.max(0, clozeData.blanks.length - 1)) + 1}/${clozeData.blanks.length}`}
+                    tone={clozeEditing ? 'primary' : 'neutral'}
+                    variant="outline"
+                  />
+                  <Text color={theme.dim} wrap="truncate">
+                    {truncateDisplay(
+                      clozeEditing
+                        ? asciiMode
+                          ? t(lang, 'Tab 下一空 | Enter 下一空/提交 | Esc 退出', 'Tab next blank | Enter next/submit | Esc blur')
+                          : t(lang, 'Tab 下一空 · Enter 下一空/提交 · Esc 退出', 'Tab next blank · Enter next/submit · Esc blur')
+                        : t(lang, '按 [i] 或 [Enter] 开始填空', 'Press [i] or [Enter] to fill blanks'),
+                      Math.max(10, innerW - 10),
+                      asciiMode ? '...' : '…',
+                    )}
+                  </Text>
+                </Box>
+              ) : null}
               {clozeData.blanks.map((blank, idx) => {
-                const isThisActive = clozeEditing && idx === activeBlankIdx;
+                const safeIdx = Math.min(activeBlankIdx, Math.max(0, clozeData.blanks.length - 1));
+                const isThisActive = clozeEditing && idx === safeIdx;
                 return (
                   <Box
                     key={blank.id}
@@ -1263,7 +1314,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                   <Box flexDirection="row" gap={1}>
                     <Badge label={asciiMode ? '! AI评分不可用' : '▲ AI评分不可用'} tone="warning" />
                     <Text color={theme.error}>
-                      {truncateDisplay(gradeError, Math.max(12, innerW - 18))}
+                      {truncateDisplay(gradeError, Math.max(12, innerW - 18), asciiMode ? '...' : '…')}
                     </Text>
                   </Box>
                   <Text color={theme.muted}>
@@ -1282,33 +1333,130 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                 </Box>
               ) : null}
 
-              {feedback ? (
-                <Box flexDirection="row" alignItems="center" gap={1} marginBottom={0}>
-                  <Badge
-                    label={
-                      feedback.correct
+              {(() => {
+                const ell = asciiMode ? '...' : '…';
+                const undoLabel = asciiMode
+                  ? t(lang, '[u] 可撤销', '[u] Undoable')
+                  : t(lang, '↺ [u] 可撤销', '↺ [u] Undoable');
+                if (feedback) {
+                  const statusLabel = feedback.correct
+                    ? asciiMode
+                      ? t(lang, '+ 回答正确', '+ Correct')
+                      : t(lang, '✓ 回答正确', '✓ Correct')
+                    : feedback.selfReported
+                      ? asciiMode
+                        ? t(lang, 'o 已自报', 'o Self-reported')
+                        : t(lang, '○ 已自报', '○ Self-reported')
+                      : asciiMode
+                        ? t(lang, 'x 回答有误', 'x Incorrect')
+                        : t(lang, '✕ 回答有误', '✕ Incorrect');
+                  const usedW =
+                    displayWidth(statusLabel) +
+                    2 +
+                    (feedback.level ? displayWidth(String(feedback.level)) + 3 : 0) +
+                    (canUndo ? displayWidth(undoLabel) + 3 : 0);
+                  return (
+                    <Box flexDirection="row" alignItems="center" gap={1} marginBottom={0} width={innerW} overflow="hidden">
+                      <Badge
+                        label={statusLabel}
+                        tone={feedback.correct ? 'success' : feedback.selfReported ? 'neutral' : 'error'}
+                      />
+                      {feedback.level ? <Badge label={String(feedback.level)} tone="accent" variant="soft" /> : null}
+                      {canUndo ? <Badge label={undoLabel} tone="info" variant="soft" /> : null}
+                      {userAnswerText ? (
+                        <Text color={theme.muted}>
+                          {truncateDisplay(
+                            `${t(lang, '你的作答', 'Yours')}: ${userAnswerText}`,
+                            Math.max(8, innerW - usedW - 1),
+                            ell,
+                          )}
+                        </Text>
+                      ) : null}
+                    </Box>
+                  );
+                }
+                if (userAnswerText || canUndo) {
+                  const usedW = canUndo ? displayWidth(undoLabel) + 3 : 0;
+                  return (
+                    <Box flexDirection="row" alignItems="center" gap={1} marginBottom={0} width={innerW} overflow="hidden">
+                      {canUndo ? <Badge label={undoLabel} tone="info" variant="soft" /> : null}
+                      {userAnswerText ? (
+                        <Text color={theme.muted}>
+                          {truncateDisplay(
+                            `${t(lang, '你的作答', 'Yours')}: ${userAnswerText}`,
+                            Math.max(8, innerW - usedW),
+                            ell,
+                          )}
+                        </Text>
+                      ) : null}
+                    </Box>
+                  );
+                }
+                return null;
+              })()}
+
+              {clozeBlankDiffs.length > 0 ? (
+                <Box flexDirection="column" marginY={0} width={innerW}>
+                  {clozeBlankDiffs.map((diff) => {
+                    const icon =
+                      diff.matched === true
                         ? asciiMode
-                          ? t(lang, '+ 回答正确', '+ Correct')
-                          : t(lang, '✓ 回答正确', '✓ Correct')
-                        : feedback.selfReported
+                          ? '+'
+                          : '✓'
+                        : diff.matched === false
                           ? asciiMode
-                            ? t(lang, 'o 已自报', 'o Self-reported')
-                            : t(lang, '○ 已自报', '○ Self-reported')
+                            ? 'x'
+                            : '✕'
                           : asciiMode
-                            ? t(lang, 'x 回答有误', 'x Incorrect')
-                            : t(lang, '✕ 回答有误', '✕ Incorrect')
+                            ? '?'
+                            : '·';
+                    const statusColor =
+                      diff.matched === true
+                        ? theme.success
+                        : diff.matched === false
+                          ? theme.error
+                          : theme.muted;
+                    const ell = asciiMode ? '...' : '…';
+                    const prefix = `#${diff.index} ${icon} `;
+                    const remW = Math.max(8, innerW - displayWidth(prefix));
+                    const rawUser = diff.userValue || t(lang, '(未填)', '(empty)');
+                    const arrowText = asciiMode ? ' -> ' : ' → ';
+                    const showMismatch = diff.matched === false && diff.expected.length > 0;
+                    let shownUser = rawUser;
+                    let shownExpected = diff.expected;
+                    if (showMismatch) {
+                      const avail = Math.max(6, remW - displayWidth(arrowText));
+                      if (displayWidth(rawUser) + displayWidth(diff.expected) > avail) {
+                        const userBudget = Math.max(3, Math.floor(avail * 0.45));
+                        shownUser = truncateDisplay(rawUser, userBudget, ell);
+                        const expBudget = Math.max(3, avail - displayWidth(shownUser));
+                        shownExpected = truncateDisplay(diff.expected, expBudget, ell);
+                      }
+                    } else {
+                      shownUser = truncateDisplay(rawUser, remW, ell);
                     }
-                    tone={feedback.correct ? 'success' : feedback.selfReported ? 'neutral' : 'error'}
-                  />
-                  {feedback.level ? <Badge label={String(feedback.level)} tone="accent" variant="soft" /> : null}
-                  {userAnswerText ? (
-                    <Text color={theme.muted}>
-                      {truncateDisplay(`${t(lang, '你的作答', 'Yours')}: ${userAnswerText}`, Math.max(10, innerW - 28))}
-                    </Text>
-                  ) : null}
+                    const userColor = !diff.userValue
+                      ? theme.muted
+                      : diff.matched === true
+                        ? theme.success
+                        : diff.matched === false
+                          ? theme.error
+                          : theme.text;
+                    return (
+                      <Box key={diff.id} flexDirection="row" width={innerW} overflow="hidden">
+                        <Text color={theme.muted}>{`#${diff.index} `}</Text>
+                        <Text color={statusColor} bold>{`${icon} `}</Text>
+                        <Text color={userColor}>{shownUser}</Text>
+                        {showMismatch ? (
+                          <>
+                            <Text color={theme.muted}>{arrowText}</Text>
+                            <Text color={theme.success} bold>{shownExpected}</Text>
+                          </>
+                        ) : null}
+                      </Box>
+                    );
+                  })}
                 </Box>
-              ) : userAnswerText ? (
-                <Text color={theme.muted}>{`${t(lang, '你的作答', 'Yours')}: ${userAnswerText}`}</Text>
               ) : null}
 
               {activeRubric ? (
@@ -1416,6 +1564,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                       '[h]Help [L]Teach [*]Focus [F]Retell [A]AnswerCard [T]Trans [S]Sim [D]Tools [Q]Queue [E]Flag [s]Skip [u]Undo [,/.]Nav',
                     ),
                 innerW,
+                asciiMode ? '...' : '…',
               )}
             </Text>
           </Box>

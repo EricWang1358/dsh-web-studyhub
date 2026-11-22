@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
@@ -33,7 +33,17 @@ import type {
   SkeletonTopicItem,
 } from './types.js';
 
-const CLAIMED_KEYS = ['r', 'L'] as const;
+const CourseRouteModal = lazy(() =>
+  import('./CourseRouteModal.js').then((m) => ({ default: m.CourseRouteModal })),
+);
+const TopicGroupsModal = lazy(() =>
+  import('./TopicGroupsModal.js').then((m) => ({ default: m.TopicGroupsModal })),
+);
+const NodeEditModal = lazy(() =>
+  import('./TopicGroupsModal.js').then((m) => ({ default: m.NodeEditModal })),
+);
+
+const CLAIMED_KEYS = ['r', 'L', 'R', 'G', 'E'] as const;
 
 interface SkeletonLintCard {
   deckId: string;
@@ -294,6 +304,9 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
   const [lintError, setLintError] = useState('');
   const [lintResult, setLintResult] = useState<SkeletonLintResult | null>(null);
   const [lintCursor, setLintCursor] = useState(0);
+  const [routeOpen, setRouteOpen] = useState(false);
+  const [groupsOpen, setGroupsOpen] = useState(false);
+  const [nodeEditOpen, setNodeEditOpen] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [reloadSeq, setReloadSeq] = useState(0);
 
@@ -373,6 +386,17 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
       cancelled = true;
     };
   }, [host, selectedSkeletonId, reloadSeq]);
+
+  const refreshDetail = useCallback(async () => {
+    if (!selectedSkeletonId) return;
+    const res = await host.call<SkeletonDetail>('skeleton.get', { id: selectedSkeletonId });
+    if (!mountedRef.current) return;
+    if (res.ok && res.value) {
+      const sk = res.value;
+      setDetail(sk);
+      setSelectedNodeId((prev) => (prev && sk.nodes.some((n) => n.id === prev) ? prev : sk.nodes[0]?.id ?? null));
+    }
+  }, [host, selectedSkeletonId]);
 
   // Card mastery lookup from snapshot decks
   const cardIndex = useMemo(() => {
@@ -757,7 +781,7 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
     [lintResult, detail, topics, cardIndex, nodeById, lang],
   );
 
-  const modalOpen = switcherOpen || lintOpen;
+  const modalOpen = switcherOpen || lintOpen || routeOpen || groupsOpen || nodeEditOpen;
   useClaimKeys(CLAIMED_KEYS, isActive && !modalOpen);
 
   const hints: KeyHint[] = useMemo(
@@ -765,11 +789,14 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
       { key: 'j/k', label: t(lang, '移动', 'Move') },
       { key: 'Space/h/l', label: t(lang, '展开/折叠', 'Toggle') },
       { key: 'p', label: t(lang, '练习节点', 'Practise') },
+      ...(detail && selectedNode ? [{ key: 'E', label: t(lang, '编辑节点', 'Edit') }] : []),
+      { key: 'R', label: t(lang, '路线', 'Route') },
+      { key: 'G', label: t(lang, '分组', 'Groups') },
       { key: 'L', label: t(lang, '自检', 'Lint') },
       { key: 'g', label: t(lang, '生成骨架', 'Generate') },
       { key: 's', label: t(lang, '切换骨架', 'Switch') },
     ],
-    [lang],
+    [lang, detail, selectedNode],
   );
   useFooterHints(hints, isActive && !modalOpen);
 
@@ -796,6 +823,18 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
       }
       if (input === 'L') {
         void runLint();
+        return;
+      }
+      if (input === 'R') {
+        setRouteOpen(true);
+        return;
+      }
+      if (input === 'G') {
+        setGroupsOpen(true);
+        return;
+      }
+      if (input === 'E' && detail && selectedNode) {
+        setNodeEditOpen(true);
         return;
       }
       if (input === 'p') {
@@ -1163,6 +1202,36 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
           )}
         </Modal>
       ) : null}
+
+      <Suspense fallback={null}>
+        {routeOpen ? (
+          <CourseRouteModal
+            host={host}
+            activeCourse={activeCourse}
+            isActive={isActive && routeOpen}
+            onClose={() => setRouteOpen(false)}
+          />
+        ) : null}
+        {groupsOpen ? (
+          <TopicGroupsModal
+            host={host}
+            activeCourse={activeCourse}
+            isActive={isActive && groupsOpen}
+            onClose={() => setGroupsOpen(false)}
+            onSaved={() => setReloadSeq((n) => n + 1)}
+          />
+        ) : null}
+        {nodeEditOpen && detail && selectedNode ? (
+          <NodeEditModal
+            host={host}
+            skeletonId={detail.id}
+            node={selectedNode}
+            isActive={isActive && nodeEditOpen}
+            onClose={() => setNodeEditOpen(false)}
+            onSaved={() => void refreshDetail()}
+          />
+        ) : null}
+      </Suspense>
     </Box>
   );
 };

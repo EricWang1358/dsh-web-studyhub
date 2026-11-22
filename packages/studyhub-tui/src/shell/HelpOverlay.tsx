@@ -52,7 +52,9 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'g', label: t(lang, 'AI 带学工作台', 'AI Guided Study') },
         { key: 'C', label: t(lang, '课程设置', 'Course settings') },
         { key: 'o', label: t(lang, '题组导入/合并/拆分', 'Deck import/merge/split') },
+        { key: 'R', label: t(lang, '定制本轮练习', 'Custom round config') },
         { key: 'm: + / k', label: t(lang, '题组补题 / 转换题型', 'Deck supplement / convert') },
+        { key: 'm: Space/F/S', label: t(lang, '题组批量重点/暂停', 'Deck batch focus/suspend') },
       ],
     },
     {
@@ -67,6 +69,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'A', label: t(lang, '答题卡 / 案例强化', 'Answer card & drills') },
         { key: 'Q', label: t(lang, '队列编辑', 'Edit queue') },
         { key: '*', label: t(lang, '标记重点', 'Toggle focus') },
+        { key: 'u', label: t(lang, '撤销上一题评分', 'Undo last rating') },
       ],
     },
     {
@@ -83,6 +86,12 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'P', label: t(lang, '书内精选问答', 'Pinned book QA') },
         { key: 'e', label: t(lang, '编辑/回退全书', 'Edit/revert section') },
         { key: 'x', label: t(lang, '导出 Markdown', 'Export Markdown') },
+      ],
+    },
+    {
+      title: t(lang, '错题本 · Wrong Book', 'Wrong Book'),
+      items: [
+        { key: 'Space / B', label: t(lang, '勾选并批量练错题', 'Select & batch practice') },
       ],
     },
     {
@@ -108,7 +117,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
     {
       title: t(lang, '备考补习 · Exam Prep', 'Exam Prep'),
       items: [
-        { key: 'P', label: t(lang, '备考计划与就绪度', 'Study plan & readiness') },
+        { key: 'P', label: t(lang, '备考计划与定制向导', 'Study plan & custom wizard') },
       ],
     },
     {
@@ -151,6 +160,12 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       title: t(lang, '设置 · Settings', 'Settings'),
       items: [
         { key: 'x', label: t(lang, '导出学习库备份', 'Export backup') },
+      ],
+    },
+    {
+      title: t(lang, '命令面板 · Palette', 'Command Palette'),
+      items: [
+        { key: '/#?@:', label: t(lang, '命令/题/段/课/页筛选', 'Cmd/card/text/course/page') },
       ],
     },
   ];
