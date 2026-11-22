@@ -1,6 +1,4 @@
 import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { mkdir, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
 import { Box, Text, useInput } from 'ink';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, EmptyState, Spinner, StatusPill } from '../../components/Badge.js';
@@ -15,6 +13,7 @@ import { useClaimKeys } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { useShellActions } from '../../shell/actions.js';
+import { atomicWriteTextFile } from '../../host/atomic-write.js';
 import { errorMessage, tryAction } from '../../host/sample-actions.js';
 import { currentCourse } from '../../shell/data.js';
 import { t, useTuiStore } from '../../state/store.js';
@@ -46,7 +45,29 @@ type ActiveModal =
   | { type: 'confirm-generate'; note: NoteItem }
   | { type: 'confirm-cancel-gen'; note: NoteItem };
 
-const CLAIMED_KEYS = ['a', 'g', 'o', 'R', 'L', 'C', 'M'] as const;
+const CLAIMED_KEYS = ['a', 'g', 'o', 'R', 'L', 'C', 'M', '/'] as const;
+
+function matchesNoteFilter(note: NoteItem, normalizedQuery: string): boolean {
+  const raw = note as unknown as Record<string, unknown>;
+  const parts: string[] = [note.title || '', note.markdown || ''];
+  if (typeof raw.content === 'string') parts.push(raw.content);
+  if (typeof raw.body === 'string') parts.push(raw.body);
+  if (typeof raw.course === 'string') parts.push(raw.course);
+  if (note.daily?.course) parts.push(note.daily.course);
+  if (Array.isArray(note.courses)) {
+    for (const c of note.courses) {
+      if (typeof c === 'string') parts.push(c);
+    }
+  }
+  if (Array.isArray(raw.tags)) {
+    for (const tag of raw.tags) {
+      if (typeof tag === 'string') parts.push(tag);
+    }
+  } else if (typeof raw.tags === 'string') {
+    parts.push(raw.tags);
+  }
+  return parts.some((part) => part.toLowerCase().includes(normalizedQuery));
+}
 
 interface LinkedCardTarget {
   deckId: string;
@@ -198,6 +219,8 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
   const [mathOverride, setMathOverride] = useState<boolean | null>(null);
   const [generatingRecap, setGeneratingRecap] = useState(false);
   const [openingRef, setOpeningRef] = useState(false);
+  const [filterQuery, setFilterQuery] = useState('');
+  const [filterEditing, setFilterEditing] = useState(false);
 
   const [modal, setModal] = useState<ActiveModal>(null);
   const [exportPath, setExportPath] = useState('');
@@ -328,7 +351,7 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
     }
   }, [navNoteId]);
 
-  const sortedNotes = useMemo(() => {
+  const courseScopedNotes = useMemo(() => {
     const filtered =
       filterCourseOnly && focusCourse
         ? notes.filter((n) => (n.courses || []).includes(focusCourse) || n.daily?.course === focusCourse)
@@ -340,6 +363,12 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
       return String(b.updatedAt || '').localeCompare(String(a.updatedAt || ''));
     });
   }, [notes, filterCourseOnly, focusCourse, today]);
+
+  const normalizedFilter = filterQuery.trim().toLowerCase();
+  const sortedNotes = useMemo(() => {
+    if (!normalizedFilter) return courseScopedNotes;
+    return courseScopedNotes.filter((n) => matchesNoteFilter(n, normalizedFilter));
+  }, [courseScopedNotes, normalizedFilter]);
 
   const selectedIndex = useMemo(() => {
     if (sortedNotes.length === 0) return -1;
@@ -847,9 +876,11 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
     setExporting(true);
     setExportError('');
     try {
-      await mkdir(dirname(resolved), { recursive: true });
-      const content = displayedNote?.markdown || `# ${modal.note.title}\n`;
-      await writeFile(resolved, content, 'utf8');
+      const content =
+        (displayedNote?.id === modal.note.id ? displayedNote.markdown : undefined) ||
+        modal.note.markdown ||
+        `# ${modal.note.title}\n`;
+      await atomicWriteTextFile(resolved, content);
       if (!mountedRef.current) return;
       setModal(null);
       notify(t(lang, `已导出到 ${resolved}`, `Exported to ${resolved}`), 'success');
@@ -908,7 +939,7 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
 
   const busy = generatingRecap || generatingDraft || cancellingRecap || cancellingGen || openingRef || exporting || linking;
   const noModalActive = isActive && modal === null;
-  useClaimKeys(CLAIMED_KEYS, noModalActive);
+  useClaimKeys(CLAIMED_KEYS, noModalActive && !filterEditing);
 
   useInput(
     (input, key) => {
@@ -925,6 +956,7 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
 
   useInput(
     (input, key) => {
+      if (!noModalActive || filterEditing) return;
       if (key.tab) {
         setActivePane((p) => (p === 'left' ? 'right' : 'left'));
         return;
@@ -935,6 +967,14 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
       }
       if ((key.leftArrow || input === 'h' || key.escape) && activePane === 'right') {
         setActivePane('left');
+        return;
+      }
+      if (key.escape && filterQuery) {
+        setFilterQuery('');
+        return;
+      }
+      if (input === '/' && !key.ctrl && !key.meta) {
+        setFilterEditing(true);
         return;
       }
       if (input === 'a') {
@@ -1022,7 +1062,7 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
         setModal({ type: 'delete', note: displayedNote });
       }
     },
-    { isActive: noModalActive },
+    { isActive: noModalActive && !filterEditing },
   );
 
   const hints: KeyHint[] = useMemo(
@@ -1041,6 +1081,7 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
       { key: 'd', label: t(lang, '删除', 'Del') },
       { key: 'm', label: t(lang, '公式', 'Math') },
       { key: 'Tab', label: t(lang, '切栏', 'Pane') },
+      { key: '/', label: t(lang, '筛选', 'Filter') },
     ],
     [lang, anyRecapRunning, displayedNote?.generation?.status],
   );
@@ -1141,12 +1182,54 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
   }, [primaryRecapGroup, lang, asciiMode]);
 
   const effectiveMath = mathOverride ?? mathPref;
+  const ell = asciiMode ? '...' : '…';
+  const showFilterBar = filterEditing || filterQuery.length > 0;
+  const filterBarH = showFilterBar ? 1 : 0;
+  const filterBadge = `[${filterEditing ? t(lang, '筛选', 'Filter') : t(lang, '已筛选', 'Filtered')} ${sortedNotes.length}/${courseScopedNotes.length}] `;
+  const filterRightHint =
+    width >= 66
+      ? ` ${filterEditing ? t(lang, 'Enter 确认 | Esc 清除', 'Enter apply | Esc clear') : t(lang, '/ 编辑 | Esc 清除', '/ edit | Esc clear')}`
+      : width >= 46
+        ? ' Esc'
+        : '';
+  const filterInputW = Math.max(8, width - 2 - displayWidth(filterBadge) - displayWidth(filterRightHint) - 3);
 
   return (
     <Box flexDirection="column" width={width} height={height}>
+      {showFilterBar ? (
+        <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
+          <Text color={filterEditing ? theme.primary : theme.accent} bold>
+            {filterBadge}
+          </Text>
+          <Box flexGrow={1} overflow="hidden">
+            <TextInput
+              value={filterQuery}
+              onChange={setFilterQuery}
+              onSubmit={(val) => {
+                if (!val.trim()) setFilterQuery('');
+                setFilterEditing(false);
+              }}
+              onCancel={() => {
+                setFilterQuery('');
+                setFilterEditing(false);
+              }}
+              isActive={noModalActive && filterEditing}
+              width={filterInputW}
+              prompt="/"
+              placeholder={t(lang, `标题/正文/课程/标签${ell}`, `title/content/course/tag${ell}`)}
+              maxLength={120}
+            />
+          </Box>
+          {filterRightHint ? (
+            <Text color={theme.dim} wrap="truncate">
+              {filterRightHint}
+            </Text>
+          ) : null}
+        </Box>
+      ) : null}
       <SplitPane
         width={width}
-        height={height}
+        height={Math.max(8, height - filterBarH)}
         leftWidth={0.38}
         minLeft={28}
         minRight={34}
@@ -1191,7 +1274,7 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
                   width={Math.max(12, paneW - 4)}
                   height={listH}
                   selectedIndex={selectedIndex}
-                  isActive={noModalActive && activePane === 'left'}
+                  isActive={noModalActive && !filterEditing && activePane === 'left'}
                   keyExtractor={(item) => item.id}
                   onChange={(_idx, item) => {
                     pendingSelectIdRef.current = null;
@@ -1203,8 +1286,12 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
                     setActivePane('right');
                   }}
                   renderItem={renderNoteRow}
-                  emptyText={t(lang, '还没有学习笔记', 'No study notes yet')}
-                  emptyHint={t(lang, '按 a 新建笔记，或做满 10 题按 R 生成每日总结', 'Press a to create, or R for daily recap')}
+                  emptyText={normalizedFilter ? t(lang, '没有匹配的笔记', 'No matching notes') : t(lang, '还没有学习笔记', 'No study notes yet')}
+                  emptyHint={
+                    normalizedFilter
+                      ? t(lang, '按 Esc 清除筛选条件', 'Press Esc to clear filter')
+                      : t(lang, '按 a 新建笔记，或做满 10 题按 R 生成每日总结', 'Press a to create, or R for daily recap')
+                  }
                 />
               )}
             </Panel>
@@ -1304,7 +1391,7 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
                 }
                 width={readerW}
                 height={readerH}
-                isActive={noModalActive && activePane === 'right'}
+                isActive={noModalActive && !filterEditing && activePane === 'right'}
                 mathUnicode={effectiveMath}
               />
             </Panel>

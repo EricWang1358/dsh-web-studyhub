@@ -59,6 +59,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'm: L', label: t(lang, '题组批量关联前置', 'Deck batch link prereq') },
         { key: 'm: X', label: t(lang, '题组批量斩题', 'Deck batch slay') },
         { key: 'm: C', label: t(lang, '题组更改所属课程', 'Deck change course') },
+        { key: 'x', label: t(lang, '导出题组复习卷 (MD)', 'Export deck sheet (MD)') },
       ],
     },
     {
@@ -167,6 +168,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'C', label: t(lang, '停止笔记/每日总结生成', 'Stop note / recap gen') },
         { key: 'o', label: t(lang, '跳转关联', 'Jump linked ref') },
         { key: '/ / x', label: t(lang, '筛选骨架节点 / 导出大纲 MD', 'Filter nodes / Export skeleton MD') },
+        { key: 'n: /', label: t(lang, '关键词筛选学习笔记', 'Filter notes by keyword') },
       ],
     },
     {

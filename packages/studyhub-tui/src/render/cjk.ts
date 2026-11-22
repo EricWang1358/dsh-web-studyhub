@@ -15,8 +15,8 @@ export type Align = 'left' | 'right' | 'center';
 // OSC (… BEL / ST) or CSI sequences.
 const ANSI_SOURCE =
   '\\u001B\\][\\s\\S]*?(?:\\u0007|\\u001B\\\\|\\u009C)|[\\u001B\\u009B][[\\]()#;?]*(?:\\d{1,4}(?:[;:]\\d{0,4})*)?[\\dA-PR-TZcf-nq-uy=><~]';
+const ANSI_RE = new RegExp(ANSI_SOURCE, 'g');
 
-const PRINTABLE_ASCII = /^[\x20-\x7e]*$/;
 const ZERO_WIDTH_CLUSTER = /^[\p{Mn}\p{Me}\p{Cf}\u200B-\u200F\u2028-\u202E\u2060-\u2064\uFE00-\uFE0F\u{E0000}-\u{E007F}]+$/u;
 const ZERO_WIDTH_CP = /^[\p{Mn}\p{Me}\p{Cf}\u200B-\u200F\uFE00-\uFE0F]$/u;
 const PICTOGRAPHIC = /\p{Extended_Pictographic}/u;
@@ -27,11 +27,47 @@ const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 
 const widthCache = new Map<string, number>();
 
+/**
+ * Width (1 or 2) for guaranteed standalone non-combining BMP code units, or -1 to bail out to
+ * the full `Intl.Segmenter` path (surrogates, combining marks, tone marks, control/ANSI, etc.).
+ */
+function bmpCharWidth(c: number): number {
+  if (c >= 0x20 && c <= 0x7e) return 1;
+  if (
+    (c >= 0x4e00 && c <= 0x9fff) ||
+    (c >= 0x3000 && c <= 0x3029) ||
+    (c >= 0x3030 && c <= 0x303e) ||
+    (c >= 0x3041 && c <= 0x3096) ||
+    (c >= 0x309b && c <= 0x30ff) ||
+    (c >= 0xac00 && c <= 0xd7a3) ||
+    (c >= 0xff01 && c <= 0xff60) ||
+    (c >= 0xffe0 && c <= 0xffe6)
+  ) {
+    return 2;
+  }
+  return -1;
+}
+
+/**
+ * Zero-allocation display width for strings made solely of safe non-combining BMP characters;
+ * returns `-1` if any code unit falls outside the safe ranges.
+ */
+function fastBmpWidth(str: string): number {
+  let w = 0;
+  for (let i = 0; i < str.length; i++) {
+    const cw = bmpCharWidth(str.charCodeAt(i));
+    if (cw < 0) return -1;
+    w += cw;
+  }
+  return w;
+}
+
 /** Display width (0, 1 or 2 columns) of a single grapheme cluster. */
 export function graphemeWidth(g: string): number {
   if (g.length === 1) {
     const c = g.charCodeAt(0);
-    if (c >= 0x20 && c < 0x7f) return 1;
+    const bw = bmpCharWidth(c);
+    if (bw >= 0) return bw;
     if (c < 0x20 || (c >= 0x7f && c < 0xa0)) return 0;
   }
   const cached = widthCache.get(g);
@@ -60,7 +96,7 @@ function computeGraphemeWidth(g: string): number {
 
 /** Split a plain (ANSI-free) string into grapheme clusters. */
 export function splitGraphemes(str: string): string[] {
-  if (PRINTABLE_ASCII.test(str)) return str.split('');
+  if (fastBmpWidth(str) >= 0) return str.split('');
   const out: string[] = [];
   for (const s of segmenter.segment(str)) out.push(s.segment);
   return out;
@@ -69,9 +105,13 @@ export function splitGraphemes(str: string): string[] {
 /** Visible width in terminal columns (ANSI ignored, CJK/emoji = 2, combining marks = 0). */
 export function displayWidth(str: string): number {
   if (!str) return 0;
-  if (PRINTABLE_ASCII.test(str)) return str.length;
+  const fast = fastBmpWidth(str);
+  if (fast >= 0) return fast;
   const plain = str.includes('\u001B') || str.includes('\u009B') ? stripAnsi(str) : str;
-  if (PRINTABLE_ASCII.test(plain)) return plain.length;
+  if (plain !== str) {
+    const fastPlain = fastBmpWidth(plain);
+    if (fastPlain >= 0) return fastPlain;
+  }
   let w = 0;
   for (const s of segmenter.segment(plain)) w += graphemeWidth(s.segment);
   return w;
@@ -89,22 +129,28 @@ interface Tok {
 
 function tokenize(str: string): Tok[] {
   const out: Tok[] = [];
-  const re = new RegExp(ANSI_SOURCE, 'g');
+  if (!str.includes('\u001B') && !str.includes('\u009B')) {
+    pushText(out, str);
+    return out;
+  }
+  ANSI_RE.lastIndex = 0;
   let last = 0;
   let m: RegExpExecArray | null;
-  while ((m = re.exec(str)) !== null) {
+  while ((m = ANSI_RE.exec(str)) !== null) {
     if (m.index > last) pushText(out, str.slice(last, m.index));
     out.push({ s: m[0], w: 0, ansi: true });
-    last = re.lastIndex;
-    if (m[0].length === 0) re.lastIndex++;
+    last = ANSI_RE.lastIndex;
+    if (m[0].length === 0) ANSI_RE.lastIndex++;
   }
   if (last < str.length) pushText(out, str.slice(last));
   return out;
 }
 
 function pushText(out: Tok[], text: string): void {
-  if (PRINTABLE_ASCII.test(text)) {
-    for (let i = 0; i < text.length; i++) out.push({ s: text[i], w: 1, ansi: false });
+  if (fastBmpWidth(text) >= 0) {
+    for (let i = 0; i < text.length; i++) {
+      out.push({ s: text[i], w: text.charCodeAt(i) <= 0x7e ? 1 : 2, ansi: false });
+    }
     return;
   }
   for (const seg of segmenter.segment(text)) out.push({ s: seg.segment, w: graphemeWidth(seg.segment), ansi: false });
@@ -191,18 +237,38 @@ class SgrState {
 // Truncate / pad / slice
 // ---------------------------------------------------------------------------------------------
 
+function ellipsisWidth(ellipsis: string): number {
+  if (!ellipsis) return 0;
+  return ellipsis === '…' ? 1 : displayWidth(ellipsis);
+}
+
 /** Truncate to at most `maxCols` columns, appending `ellipsis` when cut. ANSI-safe. */
 export function truncateDisplay(str: string, maxCols: number, ellipsis = '…'): string {
   const max = Math.floor(maxCols);
   if (!(max > 0)) return '';
-  if (displayWidth(str) <= max) return str;
+  const fastW = fastBmpWidth(str);
+  if (fastW >= 0 && fastW <= max) return str;
+  if (fastW < 0 && displayWidth(str) <= max) return str;
+
   let ell = ellipsis;
-  let ellW = displayWidth(ell);
+  let ellW = ellipsisWidth(ell);
   if (ellW > max) {
     ell = '';
     ellW = 0;
   }
   const target = max - ellW;
+
+  if (fastW >= 0) {
+    let w = 0;
+    let cutIdx = 0;
+    for (; cutIdx < str.length; cutIdx++) {
+      const cw = str.charCodeAt(cutIdx) <= 0x7e ? 1 : 2;
+      if (w + cw > target) break;
+      w += cw;
+    }
+    return str.slice(0, cutIdx) + ell;
+  }
+
   let out = '';
   let w = 0;
   let cut = false;
