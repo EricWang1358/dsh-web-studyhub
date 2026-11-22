@@ -81,6 +81,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       items: [
         { key: 'w', label: t(lang, '期末一周与模考', 'Final-week crunch & mock') },
         { key: 'P', label: t(lang, '书内精选问答', 'Pinned book QA') },
+        { key: 'e', label: t(lang, '编辑/回退全书', 'Edit/revert section') },
         { key: 'x', label: t(lang, '导出 Markdown', 'Export Markdown') },
       ],
     },

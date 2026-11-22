@@ -114,7 +114,7 @@ test('globalShortcuts documents required keys cleanly in zh and en without dupli
   }
 });
 
-test('featureShortcuts documents Rounds 5-22 shortcuts cleanly in zh and en without duplicates', () => {
+test('featureShortcuts documents Rounds 5-23 shortcuts cleanly in zh and en without duplicates', () => {
   for (const lang of ['zh', 'en']) {
     const sections = M.featureShortcuts(lang);
     assert.equal(sections.length, 13);
@@ -162,7 +162,7 @@ test('featureShortcuts documents Rounds 5-22 shortcuts cleanly in zh and en with
     }
 
     const allKeys = sections.flatMap((s) => s.items.map((i) => i.key));
-    for (const k of ['p', 'g', 'C', 'o', 'm: + / k', 'T', 'S', 'D', 'F', 'G', 'L', 'A', 'Q', '*', 'i', 'S / R', 'w', 'P', 'x', 'Enter/p', 'f', 's', 'H', 'V', 'm', 'M', 'O', 'B', 'P / Space', '+/-', 'R', 'w / o / m']) {
+    for (const k of ['p', 'g', 'C', 'o', 'm: + / k', 'T', 'S', 'D', 'F', 'G', 'L', 'A', 'Q', '*', 'i', 'S / R', 'w', 'P', 'e', 'x', 'Enter/p', 'f', 's', 'H', 'V', 'm', 'M', 'O', 'B', 'P / Space', '+/-', 'R', 'w / o / m']) {
       assert.ok(allKeys.includes(k), `missing feature shortcut ${k} in ${lang}`);
     }
     const keysJoined = allKeys.join('\n');
@@ -195,6 +195,7 @@ test('featureShortcuts documents Rounds 5-22 shortcuts cleanly in zh and en with
     assert.ok(sourcesSec?.items.some((i) => i.key === 'M' && i.label.includes('MinerU')), `missing Sources [M] label in ${lang}`);
     assert.ok(bookSec?.items.some((i) => i.key === 'w' && (i.label.includes('期末一周') || i.label.includes('Final-week'))), `missing Book [w] label in ${lang}`);
     assert.ok(bookSec?.items.some((i) => i.key === 'P' && (i.label.includes('精选问答') || i.label.includes('book QA'))), `missing Book [P] label in ${lang}`);
+    assert.ok(bookSec?.items.some((i) => i.key === 'e' && (i.label.includes('编辑/回退全书') || i.label.includes('Edit/revert section'))), `missing Book [e] label in ${lang}`);
     assert.ok(bookSec?.items.some((i) => i.key === 'x' && (i.label.includes('导出 Markdown') || i.label.includes('Export Markdown'))), `missing Book [x] label in ${lang}`);
     assert.ok(dashboardSec?.items.some((i) => i.key === 'Enter/p' && (i.label.includes('钻取练习') || i.label.includes('Drill practice'))), `missing Dashboard [Enter/p] label in ${lang}`);
     assert.ok(dashboardSec?.items.some((i) => i.key === 'f' && (i.label.includes('7天预测') || i.label.includes('7d forecast'))), `missing Dashboard [f] label in ${lang}`);
