@@ -28,8 +28,9 @@ import type {
   BookTocResult,
   FlatTocItem,
 } from './types.js';
+import { BookCrunchModal } from './BookCrunchModal.js';
 
-const CLAIMED_KEYS = ['r'] as const;
+const CLAIMED_KEYS = ['r', 'w'] as const;
 
 function flattenBookNodes(nodes: BookNode[] | undefined, out: FlatTocItem[] = []): FlatTocItem[] {
   for (const node of nodes ?? []) {
@@ -192,6 +193,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [activePane, setActivePane] = useState<'left' | 'right'>('left');
   const [buildModalOpen, setBuildModalOpen] = useState(false);
+  const [crunchModalOpen, setCrunchModalOpen] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [reloadSeq, setReloadSeq] = useState(0);
 
@@ -437,23 +439,25 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
     return opts;
   }, [bookData?.status, lang, selectedItem]);
 
-  useClaimKeys(CLAIMED_KEYS, isActive && !buildModalOpen);
+  const modalOpen = buildModalOpen || crunchModalOpen;
+  useClaimKeys(CLAIMED_KEYS, isActive && !modalOpen);
 
   const hints: KeyHint[] = useMemo(
     () => [
       { key: 'Tab', label: t(lang, '切换窗格', 'Pane') },
       { key: 'm', label: mathUnicode ? t(lang, '数学:Unicode', 'Math:Unicode') : t(lang, '数学:LaTeX', 'Math:LaTeX') },
       { key: 'p', label: t(lang, '练5题', 'Practise 5') },
+      { key: 'w', label: t(lang, '期末一周', 'Final week') },
       { key: 'g', label: t(lang, '生成/重建', 'Build') },
       { key: 'r', label: t(lang, '刷新', 'Refresh') },
     ],
     [lang, mathUnicode],
   );
-  useFooterHints(hints, isActive && !buildModalOpen);
+  useFooterHints(hints, isActive && !modalOpen);
 
   useInput(
     (input, key) => {
-      if (buildModalOpen) return;
+      if (modalOpen) return;
       if (key.tab || input === 'h' || input === 'l' || key.leftArrow || key.rightArrow) {
         if (input === 'h' || key.leftArrow) setActivePane('left');
         else if (input === 'l' || key.rightArrow) setActivePane('right');
@@ -472,6 +476,10 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
         void practiseSection();
         return;
       }
+      if (input === 'w') {
+        setCrunchModalOpen(true);
+        return;
+      }
       if (input === 'g') {
         setBuildModalOpen(true);
         return;
@@ -481,7 +489,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
         setReloadSeq((n) => n + 1);
       }
     },
-    { isActive: isActive && !buildModalOpen },
+    { isActive: isActive && !modalOpen },
   );
 
   const headerH = 2;
@@ -593,7 +601,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
                 selectedIndex={selectedIndex}
                 onChange={(idx) => setSelectedIndex(idx)}
                 onSelect={() => setActivePane('right')}
-                isActive={isActive && activePane === 'left' && !buildModalOpen}
+                isActive={isActive && activePane === 'left' && !modalOpen}
                 keyExtractor={(it) => it.hid}
                 renderItem={(it, ctx) => {
                   const indent = '  '.repeat(Math.max(0, it.depth - 1));
@@ -634,7 +642,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
                 markdown={markdown}
                 width={Math.max(16, size.width - 4)}
                 height={Math.max(3, size.height - 2)}
-                isActive={isActive && activePane === 'right' && !buildModalOpen}
+                isActive={isActive && activePane === 'right' && !modalOpen}
                 mathUnicode={mathUnicode}
               />
             </Panel>
@@ -663,6 +671,17 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
             onSelect={(opt) => void runBuild(opt.value)}
           />
         </Modal>
+      ) : null}
+
+      {crunchModalOpen ? (
+        <BookCrunchModal
+          host={host}
+          course={effectiveCourse ?? null}
+          isActive={isActive && crunchModalOpen}
+          width={width}
+          height={height}
+          onClose={() => setCrunchModalOpen(false)}
+        />
       ) : null}
     </Box>
   );

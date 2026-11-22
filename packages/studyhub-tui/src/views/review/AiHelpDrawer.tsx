@@ -49,6 +49,7 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
 }: AiHelpDrawerProps) {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const notify = useTuiStore((s) => s.notify);
 
   // Per-card history kept local and capped at MAX_AI_TURNS.
@@ -60,9 +61,14 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
   const [inputValue, setInputValue] = useState('');
   const [inputFocused, setInputFocused] = useState(false);
   const [savingNote, setSavingNote] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+  const [suggestError, setSuggestError] = useState<string | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
+  const cardIdRef = useRef(cardId);
+  cardIdRef.current = cardId;
   const autoAskedRef = useRef<Set<string>>(new Set());
 
   // Capture global shortcuts while drawer is active.
@@ -77,7 +83,7 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
     };
   }, []);
 
-  // Abort any in-flight stream when card changes.
+  // Abort any in-flight stream and reset card-specific suggestions when card changes.
   useEffect(() => {
     abortRef.current?.abort();
     abortRef.current = null;
@@ -85,6 +91,9 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
     setStreamingText('');
     setReasoningChars(0);
     setErrorText(null);
+    setSuggestions([]);
+    setSuggestLoading(false);
+    setSuggestError(null);
   }, [cardId]);
 
   const turns = useMemo(() => historyByCard[cardId] ?? [], [historyByCard, cardId]);
@@ -173,6 +182,35 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
     }
   }, [isActive, cardId, historyByCard, run.revealed, run.feedback, lang, askAi]);
 
+  const fetchSuggestions = useCallback(async () => {
+    if (suggestLoading || !cardId) return;
+    const deckId = currentDeckIdOf(run);
+    const targetCardId = cardId;
+    setSuggestLoading(true);
+    setSuggestError(null);
+    const res = await tryAction<{ questions?: unknown }>(host, 'card.followup.suggest', {
+      ...(deckId ? { deckId } : {}),
+      cardId: targetCardId,
+    });
+    if (!mountedRef.current || cardIdRef.current !== targetCardId) return;
+    setSuggestLoading(false);
+    if (!res.ok || !res.value) {
+      setSuggestError(res.error?.message || t(lang, '获取推荐追问失败', 'Failed to suggest follow-up questions'));
+      return;
+    }
+    const items = Array.isArray(res.value.questions)
+      ? res.value.questions
+          .map((q) => (typeof q === 'string' ? q.trim() : ''))
+          .filter(Boolean)
+          .slice(0, 3)
+      : [];
+    if (items.length === 0) {
+      setSuggestError(t(lang, '暂无可推荐的追问问题', 'No follow-up suggestions returned'));
+      return;
+    }
+    setSuggestions(items);
+  }, [suggestLoading, cardId, run, host, lang]);
+
   const saveLatestQaToNotes = useCallback(async () => {
     if (savingNote) return;
     const deckId = currentDeckIdOf(run);
@@ -229,11 +267,15 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
           ]
         : [
             { key: 'i / Enter', label: t(lang, '追问', 'Ask') },
+            { key: 's', label: t(lang, '推荐追问', 'Suggest Qs') },
+            ...(suggestions.length > 0
+              ? [{ key: `1-${suggestions.length}`, label: t(lang, '快问', 'Quick') }]
+              : []),
             { key: 'N', label: t(lang, '存笔记', 'Save Note') },
             { key: '↑/↓', label: t(lang, '滚动', 'Scroll') },
             { key: 'Esc / h', label: t(lang, '关闭', 'Close') },
           ],
-    [inputFocused, lang],
+    [inputFocused, suggestions.length, lang],
   );
   useFooterHints(drawerHints, isActive);
 
@@ -248,6 +290,17 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
       if (input === 'i' || key.return) {
         setInputFocused(true);
         return;
+      }
+      if (input === 's' && !suggestLoading && !streaming) {
+        void fetchSuggestions();
+        return;
+      }
+      if (/^[1-3]$/.test(input) && !streaming) {
+        const idx = Number(input) - 1;
+        if (suggestions[idx]) {
+          void askAi(suggestions[idx]);
+          return;
+        }
       }
       if (input === 'N') {
         void saveLatestQaToNotes();
@@ -277,12 +330,14 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
   }, [turns, streaming, streamingText, lang]);
 
   const innerW = Math.max(20, width - 4);
-  const bodyH = Math.max(4, height - 6);
+  const suggestH = suggestLoading ? 1 : suggestError ? 1 : suggestions.length > 0 ? suggestions.length : 0;
+  const errorH = errorText ? 1 : 0;
+  const bodyH = Math.max(4, height - 6 - suggestH - errorH);
 
   return (
     <Panel
       title={t(lang, 'AI 帮我理解', 'AI Tutor')}
-      icon="✦"
+      icon={asciiMode ? '*' : '✦'}
       badge={`${Math.min(turns.length, MAX_AI_TURNS)}/${MAX_AI_TURNS}`}
       badgeTone="ai"
       tone="ai"
@@ -308,13 +363,15 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
           )}
           {savingNote ? <Spinner label={t(lang, '保存中…', 'Saving…')} tone="success" active={isActive} /> : null}
         </Box>
-        <Text color={theme.dim}>{t(lang, '[N] 存笔记 · [Esc] 关闭', '[N] Save Note · [Esc] Close')}</Text>
+        <Text color={theme.dim}>{t(lang, '[s] 推荐追问 · [N] 存笔记 · [Esc] 关闭', '[s] Suggest Qs · [N] Note · [Esc] Close')}</Text>
       </Box>
 
       {errorText ? (
-        <Box marginY={0}>
-          <Text color={theme.error}>{`✕ ${errorText} `}</Text>
-          <Text color={theme.muted}>{t(lang, '([r] 重试)', '([r] Retry)')}</Text>
+        <Box marginY={0} height={1} overflow="hidden">
+          <Text color={theme.error} wrap="truncate">
+            {`${asciiMode ? 'x' : '✕'} ${errorText} `}
+            <Text color={theme.muted}>{t(lang, '([r] 重试)', '([r] Retry)')}</Text>
+          </Text>
         </Box>
       ) : null}
 
@@ -329,8 +386,31 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
         />
       </Box>
 
+      {suggestLoading ? (
+        <Box height={1} width={innerW} overflow="hidden">
+          <Spinner label={t(lang, '正在生成推荐追问…', 'Suggesting follow-up questions…')} tone="ai" active={isActive} />
+        </Box>
+      ) : suggestError ? (
+        <Box height={1} width={innerW} overflow="hidden">
+          <Text color={theme.warning} wrap="truncate">
+            {`${asciiMode ? '!' : '▲'} ${suggestError}`}
+          </Text>
+        </Box>
+      ) : suggestions.length > 0 ? (
+        <Box flexDirection="column" height={suggestions.length} width={innerW} overflow="hidden">
+          {suggestions.map((q, idx) => (
+            <Box key={`${idx}:${q}`} height={1} width={innerW} overflow="hidden">
+              <Text color={theme.ai} bold>{`[${idx + 1}] `}</Text>
+              <Text color={theme.text} wrap="truncate">
+                {q}
+              </Text>
+            </Box>
+          ))}
+        </Box>
+      ) : null}
+
       <Box
-        borderStyle="single"
+        borderStyle={asciiMode ? 'classic' : 'single'}
         borderColor={inputFocused ? theme.ai : theme.border}
         paddingX={1}
         height={3}
@@ -345,7 +425,7 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
           placeholder={
             inputFocused
               ? t(lang, '输入你的追问，Enter 发送…', 'Type your follow-up question, Enter to send…')
-              : t(lang, '按 [i] 输入追问，[N] 保存问答到学习笔记', 'Press [i] to ask follow-up, [N] to save Q&A')
+              : t(lang, '按 [i] 输入追问，[s] 推荐追问，[N] 存笔记', 'Press [i] to ask, [s] suggest Qs, [N] save note')
           }
           onSubmit={(val) => {
             const trimmed = val.trim();

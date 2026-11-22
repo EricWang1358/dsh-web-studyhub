@@ -55,6 +55,7 @@ import { CardToolsModal } from './CardToolsModal.js';
 import { RetellModal } from './RetellModal.js';
 import { RoundSummary } from './RoundSummary.js';
 import { SimilarCardsModal } from './SimilarCardsModal.js';
+import { TeachModal } from './TeachModal.js';
 
 interface RubricCriterionResult {
   id: string;
@@ -106,6 +107,8 @@ const CARD_UTIL_KEYS: readonly string[] = Object.freeze([
   'f',
   'n',
   'F',
+  'L',
+  '*',
   'T',
   'S',
   'D',
@@ -155,6 +158,9 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
   const [similarModalOpen, setSimilarModalOpen] = useState(false);
   const [cardToolsModalOpen, setCardToolsModalOpen] = useState(false);
   const [retellModalOpen, setRetellModalOpen] = useState(false);
+  const [teachModalOpen, setTeachModalOpen] = useState(false);
+  const [focusOverrideByCard, setFocusOverrideByCard] = useState<Record<string, boolean>>({});
+  const [focusBusy, setFocusBusy] = useState(false);
   const [gradingBusy, setGradingBusy] = useState(false);
   const [gradeResult, setGradeResult] = useState<CardGradeResponse | null>(null);
   const [gradeError, setGradeError] = useState<string | null>(null);
@@ -547,8 +553,44 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     }
   }, [run, cardId, busy, gradingBusy, isRubricEligibleKind, gradeAnswerText, host, lang, notify, applyRun]);
 
+  const handleToggleFocus = useCallback(async () => {
+    if (!run?.id || !cardId || focusBusy) return;
+    const deckId = currentDeckIdOf(run);
+    const targetCardId = cardId;
+    setFocusBusy(true);
+    const res = await tryAction<{ ok?: boolean; focus?: boolean }>(host, 'card.focus', {
+      ...(deckId ? { deckId } : {}),
+      cardId: targetCardId,
+    });
+    if (!mountedRef.current) return;
+    setFocusBusy(false);
+    if (!res.ok) {
+      notify(res.error?.message || t(lang, '切换重点标记失败', 'Failed to toggle focus'), 'error');
+      return;
+    }
+    const nextFocus =
+      typeof res.value?.focus === 'boolean'
+        ? res.value.focus
+        : !(focusOverrideByCard[targetCardId] ?? Boolean(run.card?.focus));
+    setFocusOverrideByCard((prev) => ({ ...prev, [targetCardId]: nextFocus }));
+    notify(
+      nextFocus
+        ? t(lang, '已标为考纲重点（优先安排复习）', 'Marked as Focus (priority review)')
+        : t(lang, '已取消考纲重点标记', 'Removed Focus mark'),
+      'success',
+    );
+    void refresh();
+    try {
+      const refreshed = await getReview(host, run.id);
+      if (mountedRef.current) applyRun(refreshed);
+    } catch {
+      // Local focusOverrideByCard keeps badge accurate even if getReview fails
+    }
+  }, [run, cardId, focusBusy, host, notify, lang, focusOverrideByCard, refresh, applyRun]);
+
   // Phase-aware key claiming: only claim digits when rating (1-4) or picking choices (1-6 / 1-2)
-  const anyModalOpen = aiDrawerOpen || flagModalOpen || similarModalOpen || cardToolsModalOpen || retellModalOpen;
+  const anyModalOpen =
+    aiDrawerOpen || flagModalOpen || similarModalOpen || cardToolsModalOpen || retellModalOpen || teachModalOpen;
   const mainActive = isActive && !anyModalOpen && !clozeEditing && !openEditing && !isFinished;
   const claimedKeys = useMemo<readonly string[]>(() => {
     if (!isActive || loading) return [];
@@ -590,8 +632,10 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     if (canRubricGrade && !activeRubric) {
       base.push({ key: 'G', label: t(lang, 'AI评分', 'Grade') });
     }
-    base.push({ key: 'F', label: t(lang, '复述', 'Retell') });
     base.push({ key: 'h', label: t(lang, 'AI讲解', 'AI Help') });
+    base.push({ key: 'L', label: t(lang, '带学', 'Teach') });
+    base.push({ key: '*', label: t(lang, '重点', 'Focus') });
+    base.push({ key: 'F', label: t(lang, '复述', 'Retell') });
     base.push({ key: 'T', label: t(lang, '翻译', 'Trans') });
     base.push({ key: 'S', label: t(lang, '同类', 'Similar') });
     base.push({ key: 'D', label: t(lang, '工具', 'Tools') });
@@ -632,6 +676,14 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
       }
       if (input === 'F') {
         setRetellModalOpen(true);
+        return;
+      }
+      if (input === 'L') {
+        setTeachModalOpen(true);
+        return;
+      }
+      if (input === '*') {
+        void handleToggleFocus();
         return;
       }
       if (input === 'G' && isRubricEligibleKind) {
@@ -943,6 +995,8 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
   const atNum = Math.min(totalCount, Number(run.position?.at ?? run.index + 1) || 1);
   const answeredCount = Number(run.answered ?? 0) || 0;
   const topicName = typeof run.card?.topic === 'string' && run.card.topic ? run.card.topic : '';
+  const isCardFocused =
+    cardId && cardId in focusOverrideByCard ? focusOverrideByCard[cardId] : Boolean(run.card?.focus);
 
   const innerW = Math.max(20, cardPaneW - 4);
   const progressRatio = totalCount > 0 ? Math.min(1, answeredCount / totalCount) : 0;
@@ -972,7 +1026,21 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
               />
               <Text color={theme.muted}>{`${answeredCount}/${totalCount}`}</Text>
               {run.retry ? <Badge label={t(lang, '再练', 'Retry')} tone="warning" variant="soft" /> : null}
-              {run.card?.focus ? <Badge label={t(lang, '重点', 'Focus')} tone="accent" variant="soft" /> : null}
+              {isCardFocused ? (
+                <Badge
+                  label={
+                    asciiMode
+                      ? lang === 'en'
+                        ? '* Focus'
+                        : '* 重点'
+                      : lang === 'en'
+                        ? '★ Focus'
+                        : '★ 重点'
+                  }
+                  tone="accent"
+                  variant="soft"
+                />
+              ) : null}
             </Box>
             <Box flexDirection="row" alignItems="center" gap={1}>
               {busy || translating ? <Spinner tone="primary" active={isActive} /> : null}
@@ -1294,13 +1362,13 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                 canRubricGrade
                   ? t(
                       lang,
-                      '[h]讲解 [F]复述 [G]评分 [T]翻译 [S]同类 [D]工具 [E]标记 [s]跳过 [u]撤销 [,/.]换题',
-                      '[h]Help [F]Retell [G]Grade [T]Trans [S]Sim [D]Tools [E]Flag [s]Skip [u]Undo [,/.]Nav',
+                      '[h]讲解 [L]带学 [*]重点 [F]复述 [G]评分 [T]翻译 [S]同类 [D]工具 [E]标记 [s]跳过 [u]撤销 [,/.]换题',
+                      '[h]Help [L]Teach [*]Focus [F]Retell [G]Grade [T]Trans [S]Sim [D]Tools [E]Flag [s]Skip [u]Undo [,/.]Nav',
                     )
                   : t(
                       lang,
-                      '[h]讲解 [F]复述 [T]翻译 [S]同类 [D]工具 [E]标记 [s]跳过 [u]撤销 [,/.]换题',
-                      '[h]Help [F]Retell [T]Trans [S]Sim [D]Tools [E]Flag [s]Skip [u]Undo [,/.]Nav',
+                      '[h]讲解 [L]带学 [*]重点 [F]复述 [T]翻译 [S]同类 [D]工具 [E]标记 [s]跳过 [u]撤销 [,/.]换题',
+                      '[h]Help [L]Teach [*]Focus [F]Retell [T]Trans [S]Sim [D]Tools [E]Flag [s]Skip [u]Undo [,/.]Nav',
                     ),
                 innerW,
               )}
@@ -1321,9 +1389,24 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
           userAnswer={userAnswerText}
           width={aiPaneW}
           height={height}
-          isActive={isActive && aiDrawerOpen && !flagModalOpen && !similarModalOpen && !cardToolsModalOpen && !retellModalOpen}
+          isActive={isActive && aiDrawerOpen && !flagModalOpen && !similarModalOpen && !cardToolsModalOpen && !retellModalOpen && !teachModalOpen}
           mathUnicode={mathUnicode}
           onClose={() => setAiDrawerOpen(false)}
+        />
+      ) : null}
+
+      {/* Socratic Teach Mode Modal */}
+      {teachModalOpen && cardId ? (
+        <TeachModal
+          host={host}
+          run={run}
+          cardId={cardId}
+          kind={kind}
+          width={width}
+          height={height}
+          isActive={isActive && teachModalOpen && !flagModalOpen}
+          mathUnicode={mathUnicode}
+          onClose={() => setTeachModalOpen(false)}
         />
       ) : null}
 
@@ -1336,7 +1419,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
           kind={kind}
           width={width}
           height={height}
-          isActive={isActive && retellModalOpen && !flagModalOpen}
+          isActive={isActive && retellModalOpen && !flagModalOpen && !teachModalOpen}
           mathUnicode={mathUnicode}
           onClose={() => setRetellModalOpen(false)}
           onNavigateToSource={(loc) => {
@@ -1354,7 +1437,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
           kind={kind}
           width={width}
           height={height}
-          isActive={isActive && similarModalOpen && !flagModalOpen && !cardToolsModalOpen && !retellModalOpen}
+          isActive={isActive && similarModalOpen && !flagModalOpen && !cardToolsModalOpen && !retellModalOpen && !teachModalOpen}
           mathUnicode={mathUnicode}
           onClose={() => setSimilarModalOpen(false)}
           onStartRun={(nextRun) => applyRun(nextRun, true)}
@@ -1370,12 +1453,15 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
           kind={kind}
           width={width}
           height={height}
-          isActive={isActive && cardToolsModalOpen && !flagModalOpen && !retellModalOpen}
+          isActive={isActive && cardToolsModalOpen && !flagModalOpen && !retellModalOpen && !teachModalOpen}
           onClose={() => setCardToolsModalOpen(false)}
           onRunUpdated={(nextRun) => applyRun(nextRun, true)}
           onCardEdited={(editedId) => {
             translationCacheRef.current.delete(editedId);
             setShowTranslation(false);
+          }}
+          onFocusChanged={(cid, focused) => {
+            setFocusOverrideByCard((prev) => ({ ...prev, [cid]: focused }));
           }}
           onRefreshSnapshot={() => void refresh()}
         />

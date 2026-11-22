@@ -6,13 +6,15 @@ import { getReview, tryAction, type ReviewRun } from '../../host/index.js';
 import {
   Badge,
   Divider,
+  EmptyState,
   Modal,
+  ScrollView,
   Spinner,
   TextInput,
   modalContentWidth,
   useTheme,
 } from '../../components/index.js';
-import { truncateDisplay } from '../../render/index.js';
+import { truncateDisplay, wrapDisplay } from '../../render/index.js';
 import {
   currentDeckIdOf,
   extractFeedback,
@@ -32,10 +34,11 @@ export interface CardToolsModalProps {
   onClose: () => void;
   onRunUpdated: (nextRun: ReviewRun) => void;
   onCardEdited?: (cardId: string) => void;
+  onFocusChanged?: (cardId: string, focus: boolean) => void;
   onRefreshSnapshot?: () => void;
 }
 
-type ToolMode = 'menu' | 'edit' | 'confirm-slay';
+type ToolMode = 'menu' | 'edit' | 'confirm-slay' | 'terms';
 type EditField = 'prompt' | 'answer' | 'explanation';
 
 interface CardDetailShape {
@@ -45,6 +48,29 @@ interface CardDetailShape {
   answer?: string;
   explanation?: string;
   suspended?: boolean;
+  focus?: boolean;
+}
+
+interface ExtractedTermItem {
+  term: string;
+  definition?: string;
+}
+
+function normalizeExtractedTerms(raw: unknown): ExtractedTermItem[] {
+  if (!Array.isArray(raw)) return [];
+  const out: ExtractedTermItem[] = [];
+  for (const entry of raw) {
+    if (typeof entry === 'string') {
+      const term = entry.trim();
+      if (term) out.push({ term });
+    } else if (entry && typeof entry === 'object') {
+      const obj = entry as { term?: unknown; name?: unknown; definition?: unknown; plain?: unknown; explanation?: unknown };
+      const term = String(obj.term ?? obj.name ?? '').trim();
+      const def = String(obj.definition ?? obj.plain ?? obj.explanation ?? '').trim();
+      if (term) out.push({ term, ...(def ? { definition: def } : {}) });
+    }
+  }
+  return out;
 }
 
 export const CardToolsModal = memo(function CardToolsModal({
@@ -58,10 +84,12 @@ export const CardToolsModal = memo(function CardToolsModal({
   onClose,
   onRunUpdated,
   onCardEdited,
+  onFocusChanged,
   onRefreshSnapshot,
 }: CardToolsModalProps) {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const notify = useTuiStore((s) => s.notify);
 
   const deckId = currentDeckIdOf(run) ?? '';
@@ -81,6 +109,13 @@ export const CardToolsModal = memo(function CardToolsModal({
   const [busy, setBusy] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
   const [suspended, setSuspended] = useState<boolean>(Boolean((run.card as { suspended?: unknown } | null | undefined)?.suspended));
+  const [focusedCard, setFocusedCard] = useState<boolean>(Boolean((run.card as { focus?: unknown } | null | undefined)?.focus));
+
+  // Terms extraction state
+  const [termsLoading, setTermsLoading] = useState(false);
+  const [termsItems, setTermsItems] = useState<ExtractedTermItem[]>([]);
+  const [termsCached, setTermsCached] = useState(false);
+  const [termsError, setTermsError] = useState<string | null>(null);
 
   // Edit form fields
   const [editField, setEditField] = useState<EditField>('prompt');
@@ -101,7 +136,7 @@ export const CardToolsModal = memo(function CardToolsModal({
     };
   }, []);
 
-  // Hydrate full card details (authoritative suspended state, answer & explanation even pre-reveal)
+  // Hydrate full card details (authoritative suspended/focus state, answer & explanation even pre-reveal)
   useEffect(() => {
     let alive = true;
     void (async () => {
@@ -115,6 +150,7 @@ export const CardToolsModal = memo(function CardToolsModal({
       const nextAnswer = typeof c.answer === 'string' ? c.answer : '';
       const nextExpl = typeof c.explanation === 'string' ? c.explanation : '';
       setSuspended(Boolean(c.suspended));
+      if (typeof c.focus === 'boolean') setFocusedCard(c.focus);
       setPromptDraft(nextPrompt);
       setAnswerDraft(nextAnswer);
       setExplanationDraft(nextExpl);
@@ -293,6 +329,55 @@ export const CardToolsModal = memo(function CardToolsModal({
     onClose();
   }, [busy, canAdjustGrade, canAdjustCloze, run.id, run.index, cardId, host, onRunUpdated, onRefreshSnapshot, notify, lang, onClose]);
 
+  const handleToggleFocus = useCallback(async () => {
+    if (busy) return;
+    setBusy(true);
+    setErrorText(null);
+    const res = await tryAction<{ ok?: boolean; focus?: boolean }>(host, 'card.focus', {
+      ...(deckId ? { deckId } : {}),
+      cardId,
+    });
+    if (!mountedRef.current) return;
+    setBusy(false);
+    if (!res.ok) {
+      setErrorText(res.error?.message || t(lang, '更新考纲重点标记失败', 'Failed to toggle focus'));
+      return;
+    }
+    const nextFocus = typeof res.value?.focus === 'boolean' ? res.value.focus : !focusedCard;
+    setFocusedCard(nextFocus);
+    onFocusChanged?.(cardId, nextFocus);
+    onRefreshSnapshot?.();
+    notify(
+      nextFocus
+        ? t(lang, '已标为考纲重点（优先复习）', 'Marked as Focus (priority review)')
+        : t(lang, '已取消考纲重点标记', 'Removed Focus mark'),
+      'success',
+    );
+    onClose();
+  }, [busy, deckId, cardId, host, focusedCard, onFocusChanged, onRefreshSnapshot, notify, lang, onClose]);
+
+  const handleExtractTerms = useCallback(async () => {
+    if (termsLoading) return;
+    setMode('terms');
+    setErrorText(null);
+    setTermsError(null);
+    setTermsLoading(true);
+    const res = await tryAction<{ cached?: boolean; terms?: unknown }>(host, 'card.terms', {
+      ...(deckId ? { deckId } : {}),
+      cardId,
+    });
+    if (!mountedRef.current) return;
+    setTermsLoading(false);
+    if (!res.ok || !res.value) {
+      setTermsError(res.error?.message || t(lang, '提取核心术语失败', 'Failed to extract technical terms'));
+      return;
+    }
+    setTermsCached(Boolean(res.value.cached));
+    setTermsItems(normalizeExtractedTerms(res.value.terms));
+  }, [termsLoading, host, deckId, cardId, lang]);
+
+  const MENU_COUNT = 6;
+
   const triggerOption = useCallback(
     (idx: number) => {
       setErrorText(null);
@@ -315,25 +400,35 @@ export const CardToolsModal = memo(function CardToolsModal({
           return;
         }
         void handleAdjustGrade();
+      } else if (idx === 4) {
+        void handleToggleFocus();
+      } else if (idx === 5) {
+        void handleExtractTerms();
       }
     },
-    [handleToggleSuspend, canAdjustGrade, handleAdjustGrade, lang],
+    [handleToggleSuspend, canAdjustGrade, handleAdjustGrade, handleToggleFocus, handleExtractTerms, lang],
   );
 
   useInput(
     (input, key) => {
-      if (busy) return;
+      if (busy || termsLoading) return;
       if (mode === 'menu') {
         if (key.downArrow || input === 'j') {
-          setMenuCursor((prev) => (prev + 1) % 4);
+          setMenuCursor((prev) => (prev + 1) % MENU_COUNT);
         } else if (key.upArrow || input === 'k') {
-          setMenuCursor((prev) => (prev + 3) % 4);
-        } else if (/^[1-4]$/.test(input)) {
+          setMenuCursor((prev) => (prev + MENU_COUNT - 1) % MENU_COUNT);
+        } else if (/^[1-6]$/.test(input)) {
           const idx = Number(input) - 1;
           setMenuCursor(idx);
           triggerOption(idx);
         } else if (key.return) {
           triggerOption(menuCursor);
+        }
+        return;
+      }
+      if (mode === 'terms') {
+        if (input === 'r') {
+          void handleExtractTerms();
         }
         return;
       }
@@ -359,6 +454,8 @@ export const CardToolsModal = memo(function CardToolsModal({
   const frameW = Math.max(50, Math.min(82, width - 4));
   const innerW = modalContentWidth(frameW);
   const inputH = height <= 25 ? 2 : 3;
+  const termsFrameH = mode === 'terms' ? Math.max(14, Math.min(28, height - 2)) : undefined;
+  const termsBodyH = termsFrameH ? Math.max(6, termsFrameH - 5) : 10;
 
   const hints = useMemo<KeyHint[]>(() => {
     if (mode === 'edit') {
@@ -374,11 +471,33 @@ export const CardToolsModal = memo(function CardToolsModal({
         { key: 'n/Esc', label: t(lang, '取消', 'Cancel') },
       ];
     }
+    if (mode === 'terms') {
+      return [
+        { key: '↑/↓', label: t(lang, '滚动', 'Scroll') },
+        { key: 'r', label: t(lang, '重试', 'Retry') },
+        { key: 'Esc', label: t(lang, '返回', 'Back') },
+      ];
+    }
     return [
-      { key: '1-4 / Enter', label: t(lang, '执行', 'Select') },
+      { key: '1-6 / Enter', label: t(lang, '执行', 'Select') },
       { key: 'Esc', label: t(lang, '关闭', 'Close') },
     ];
   }, [mode, lang]);
+
+  const termLines = useMemo<string[]>(() => {
+    if (termsItems.length === 0) return [];
+    const textW = Math.max(12, innerW - 2);
+    const lines: string[] = [];
+    termsItems.forEach((item, idx) => {
+      const head = `${idx + 1}. ${item.term}`;
+      lines.push(...wrapDisplay(head, textW));
+      if (item.definition) {
+        lines.push(...wrapDisplay(`   ${item.definition}`, textW));
+      }
+      if (idx + 1 < termsItems.length) lines.push('');
+    });
+    return lines;
+  }, [termsItems, innerW]);
 
   const menuItems = [
     {
@@ -413,15 +532,42 @@ export const CardToolsModal = memo(function CardToolsModal({
       enabled: canAdjustGrade,
       badge: canAdjustGrade ? t(lang, '可用', 'Ready') : t(lang, '暂不可用', 'N/A'),
     },
+    {
+      key: '5',
+      title: focusedCard ? t(lang, '取消考纲重点', 'Remove Focus Mark') : t(lang, '标为考纲重点', 'Mark as Focus'),
+      desc: focusedCard
+        ? t(lang, '当前已标为重点：点击移除重点标记', 'Currently marked Focus: clear mark')
+        : t(lang, '标为考纲重点，优先安排复习', 'Mark syllabus focus for priority review'),
+      enabled: true,
+      badge: focusedCard
+        ? asciiMode
+          ? lang === 'en'
+            ? '* Focus'
+            : '* 重点'
+          : lang === 'en'
+            ? '★ Focus'
+            : '★ 重点'
+        : t(lang, '未标记', 'Normal'),
+    },
+    {
+      key: '6',
+      title: t(lang, '提取核心术语 / 生词', 'Extract Technical Terms'),
+      desc: t(lang, 'AI 识别本题中的关键专业术语与生词', 'Extract unfamiliar technical terms via card.terms'),
+      enabled: true,
+      badge: 'card.terms',
+    },
   ];
+
+  const compactMenu = height <= 25;
 
   return (
     <Modal
-      title={t(lang, '题目工具箱', 'Card Tools')}
-      icon="⚙"
-      tone={mode === 'confirm-slay' ? 'error' : 'accent'}
+      title={mode === 'terms' ? t(lang, '核心术语 / 生词提取', 'Technical Terms') : t(lang, '题目工具箱', 'Card Tools')}
+      icon={asciiMode ? '*' : '⚙'}
+      tone={mode === 'confirm-slay' ? 'error' : mode === 'terms' ? 'ai' : 'accent'}
       subtitle={truncateDisplay(String(run.card?.topic || cardId), 24)}
       width={frameW}
+      height={termsFrameH}
       onClose={mode === 'menu' ? onClose : () => setMode('menu')}
       isActive={isActive && mode !== 'edit'}
       hints={hints}
@@ -434,7 +580,7 @@ export const CardToolsModal = memo(function CardToolsModal({
 
       {errorText ? (
         <Box marginBottom={0}>
-          <Text color={theme.error}>{`✕ ${truncateDisplay(errorText, innerW - 2)}`}</Text>
+          <Text color={theme.error}>{`${asciiMode ? 'x' : '✕'} ${truncateDisplay(errorText, innerW - 2)}`}</Text>
         </Box>
       ) : null}
 
@@ -460,20 +606,82 @@ export const CardToolsModal = memo(function CardToolsModal({
                     }
                     bold={focused}
                   >
-                    {`${focused ? '▸ ' : '  '}[${item.key}] ${item.title}`}
+                    {`${focused ? (asciiMode ? '> ' : '▸ ') : '  '}[${item.key}] ${item.title}`}
                   </Text>
                   <Badge
                     label={item.badge}
-                    tone={!item.enabled ? 'neutral' : idx === 2 ? 'error' : idx === 1 && suspended ? 'warning' : 'accent'}
+                    tone={
+                      !item.enabled
+                        ? 'neutral'
+                        : idx === 2
+                          ? 'error'
+                          : idx === 1 && suspended
+                            ? 'warning'
+                            : idx === 4 && focusedCard
+                              ? 'accent'
+                              : 'accent'
+                    }
                     variant="soft"
                   />
                 </Box>
-                <Text color={focused ? theme.selectionFg : theme.muted}>
-                  {`      ${truncateDisplay(item.desc, Math.max(12, innerW - 8))}`}
-                </Text>
+                {!compactMenu ? (
+                  <Text color={focused ? theme.selectionFg : theme.muted}>
+                    {`      ${truncateDisplay(item.desc, Math.max(12, innerW - 8))}`}
+                  </Text>
+                ) : null}
               </Box>
             );
           })}
+        </Box>
+      ) : null}
+
+      {mode === 'terms' ? (
+        <Box flexDirection="column" width={innerW} height={termsBodyH} overflow="hidden">
+          <Box flexDirection="row" justifyContent="space-between" width={innerW} height={1}>
+            <Box flexDirection="row" gap={1}>
+              <Badge
+                label={t(lang, `共 ${termsItems.length} 项`, `${termsItems.length} terms`)}
+                tone="ai"
+                variant="soft"
+              />
+              {termsCached ? <Badge label="(cached)" tone="neutral" variant="soft" /> : null}
+            </Box>
+            <Text color={theme.dim}>{t(lang, '[Esc] 返回菜单', '[Esc] Back')}</Text>
+          </Box>
+          <Divider width={innerW} />
+          {termsLoading ? (
+            <Box height={Math.max(3, termsBodyH - 2)} alignItems="center" justifyContent="center">
+              <Spinner label={t(lang, '正在提取本题核心专业术语…', 'Extracting technical terms…')} tone="ai" active={isActive} />
+            </Box>
+          ) : termsError ? (
+            <Box height={Math.max(3, termsBodyH - 2)} flexDirection="column" justifyContent="center" gap={1}>
+              <Text color={theme.error} bold>
+                {`${asciiMode ? '!' : '▲'} ${truncateDisplay(termsError, innerW - 2)}`}
+              </Text>
+              <Text color={theme.muted}>
+                {t(
+                  lang,
+                  '请确认已在设置中配置可用 AI 模型，按 [r] 重试或按 [Esc] 返回工具菜单。',
+                  'Ensure a working AI model is configured in Settings. Press [r] to retry or [Esc] to go back.',
+                )}
+              </Text>
+            </Box>
+          ) : termsItems.length === 0 ? (
+            <EmptyState
+              icon={asciiMode ? 'o' : '◌'}
+              title={t(lang, '未识别到需要额外解释的生僻术语', 'No unfamiliar technical terms found')}
+              hint={t(lang, '本题涉及的术语可能均已掌握，或题干较简明。', 'Terms in this card may already be mastered or self-explanatory.')}
+              width={innerW}
+              height={Math.max(4, termsBodyH - 2)}
+            />
+          ) : (
+            <ScrollView
+              lines={termLines}
+              width={innerW}
+              height={Math.max(3, termsBodyH - 2)}
+              isActive={isActive && mode === 'terms' && !termsLoading}
+            />
+          )}
         </Box>
       ) : null}
 

@@ -25,6 +25,7 @@ import { VoicePackModal } from './VoicePackModal.js';
 import { DailyPlanModal } from './DailyPlanModal.js';
 import { CourseSettingsModal } from './CourseSettingsModal.js';
 import { DeckOpsModal } from './DeckOpsModal.js';
+import { GuidedStudyModal } from './GuidedStudyModal.js';
 
 type DeckItem = NonNullable<StudySnapshot['decks']>[number];
 type DraftItem = NonNullable<StudySnapshot['drafts']>[number];
@@ -55,7 +56,7 @@ type WorkEntry =
   | { kind: 'draft'; id: string; title: string; course: string; count: number; draft: DraftItem }
   | { kind: 'job'; id: string; title: string; course: string; status: string; error: string; job: JobItem };
 
-const CLAIMED_LIBRARY_KEYS = ['r', 'a', 'p', 'C', 'o'] as const;
+const CLAIMED_LIBRARY_KEYS = ['r', 'a', 'p', 'C', 'o', 'g'] as const;
 
 function localDayKey(value: Date | string | number): string {
   const d = value instanceof Date ? value : new Date(value);
@@ -129,13 +130,16 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
   const [dailyPlanOpen, setDailyPlanOpen] = useState(false);
   const [courseSettingsOpen, setCourseSettingsOpen] = useState(false);
   const [deckOpsOpen, setDeckOpsOpen] = useState(false);
+  const [guidedOpen, setGuidedOpen] = useState(false);
   const [confirmDeleteDeck, setConfirmDeleteDeck] = useState<DeckItem | null>(null);
   const [busyAction, setBusyAction] = useState(false);
 
   const [streak, setStreak] = useState<number>(0);
   const [sampleLoaded, setSampleLoaded] = useState<boolean>(false);
 
-  const modalOpen = Boolean(manageDeckId || voiceOpen || dailyPlanOpen || courseSettingsOpen || deckOpsOpen || confirmDeleteDeck);
+  const modalOpen = Boolean(
+    manageDeckId || voiceOpen || dailyPlanOpen || courseSettingsOpen || deckOpsOpen || guidedOpen || confirmDeleteDeck,
+  );
   const viewActive = isActive && !modalOpen;
 
   useClaimKeys(CLAIMED_LIBRARY_KEYS, viewActive);
@@ -393,6 +397,10 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
         setDailyPlanOpen(true);
         return;
       }
+      if (input === 'g') {
+        setGuidedOpen(true);
+        return;
+      }
       if (input === 'C') {
         setCourseSettingsOpen(true);
         return;
@@ -438,6 +446,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
     () => [
       { key: 'Enter', label: focusSection === 'work' ? t(lang, '打开', 'Open') : t(lang, '开始练习', 'Practice') },
       { key: 'p', label: t(lang, '今日计划', 'Plan') },
+      { key: 'g', label: t(lang, 'AI带学', 'Guided') },
       { key: 'C', label: t(lang, '课程设置', 'Course') },
       { key: 'r', label: t(lang, '继续上次', 'Resume') },
       { key: 'o', label: t(lang, '导/合/拆', 'Deck Ops') },
@@ -629,7 +638,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
           <Panel title={t(lang, '题组详情', 'Deck Detail')} width={size.width} height={size.height}>
             <EmptyState
               title={t(lang, '未选中题组', 'No deck selected')}
-              hint={t(lang, '按 [s] 载入示例课 · [o] 导入 JSON · [p] 今日计划 · [C] 课程设置', 'Press [s] sample · [o] import JSON · [p] Plan · [C] Course')}
+              hint={t(lang, '按 [s] 载入示例课 · [o] 导入 JSON · [p] 今日计划 · [g] AI带学 · [C] 课程设置', 'Press [s] sample · [o] import JSON · [p] Plan · [g] Guided · [C] Course')}
               width={innerW}
               height={Math.max(4, size.height - 4)}
             />
@@ -712,20 +721,22 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
                   <Text color={theme.text}> {t(lang, '练习', 'Practice')}  </Text>
                   <Text color={theme.primary} bold>[p]</Text>
                   <Text color={theme.text}> {t(lang, '计划', 'Plan')}  </Text>
+                  <Text color={theme.ai} bold>[g]</Text>
+                  <Text color={theme.text}> {t(lang, 'AI带学', 'Guided')}  </Text>
                   <Text color={theme.accent} bold>[C]</Text>
                   <Text color={theme.text}> {t(lang, '课程', 'Course')}  </Text>
                   <Text color={theme.accent} bold>[r]</Text>
-                  <Text color={theme.text}> {t(lang, '继续', 'Resume')}  </Text>
-                  <Text color={theme.primary} bold>[o]</Text>
-                  <Text color={theme.text}> {t(lang, '操作', 'Ops')}</Text>
+                  <Text color={theme.text}> {t(lang, '继续', 'Resume')}</Text>
                 </Text>
                 <Text wrap="truncate-end">
+                  <Text color={theme.primary} bold>[o]</Text>
+                  <Text color={theme.text}> {t(lang, '操作', 'Ops')}  </Text>
                   <Text color={theme.accent} bold>[m]</Text>
                   <Text color={theme.text}> {t(lang, '卡片', 'Cards')}  </Text>
                   <Text color={theme.ai} bold>[v]</Text>
-                  <Text color={theme.text}> {t(lang, '语音包', 'Voice')}  </Text>
+                  <Text color={theme.text}> {t(lang, '语音', 'Voice')}  </Text>
                   <Text color={theme.warning} bold>[a]</Text>
-                  <Text color={theme.text}> {t(lang, '归档', 'Archive')}  </Text>
+                  <Text color={theme.text}> {t(lang, '归档', 'Arch')}  </Text>
                   <Text color={theme.error} bold>[d]</Text>
                   <Text color={theme.text}> {t(lang, '删除', 'Del')}  </Text>
                   <Text color={theme.success} bold>[s]</Text>
@@ -743,6 +754,8 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
                 <Text wrap="truncate-end">
                   <Text color={theme.primary} bold>[p]</Text>
                   <Text color={theme.text}> {t(lang, '今日计划', 'Daily Plan')}   </Text>
+                  <Text color={theme.ai} bold>[g]</Text>
+                  <Text color={theme.text}> {t(lang, 'AI带学', 'Guided')}   </Text>
                   <Text color={theme.accent} bold>[C]</Text>
                   <Text color={theme.text}> {t(lang, '课程设置', 'Course Settings')}</Text>
                 </Text>
@@ -889,6 +902,23 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
           width={width}
           height={height}
           onClose={() => setDeckOpsOpen(false)}
+          onUpdated={() => {
+            void actions.refresh();
+          }}
+        />
+      ) : null}
+
+      {/* AI Guided Study Workbench Modal */}
+      {guidedOpen ? (
+        <GuidedStudyModal
+          host={host}
+          course={course ?? selectedDeck?.course ?? null}
+          selectedDeckId={selectedDeck?.id ?? null}
+          selectedDeckTitle={selectedDeck ? String(selectedDeck.title ?? selectedDeck.name ?? selectedDeck.id) : null}
+          isActive={isActive}
+          width={width}
+          height={height}
+          onClose={() => setGuidedOpen(false)}
           onUpdated={() => {
             void actions.refresh();
           }}

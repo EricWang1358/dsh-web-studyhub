@@ -8,6 +8,7 @@ import {
   Divider,
   EmptyState,
   Modal,
+  ProgressBar,
   SelectList,
   Spinner,
   StatusPill,
@@ -18,7 +19,7 @@ import {
   type SelectOption,
   type VirtualListRenderContext,
 } from '../../components/index.js';
-import { displayWidth, padDisplay, truncateDisplay } from '../../render/index.js';
+import { displayWidth, padDisplay, renderProgressBar, truncateDisplay } from '../../render/index.js';
 import { listCourses, useShellActions } from '../../shell/index.js';
 import { tryAction } from '../../host/index.js';
 
@@ -99,6 +100,38 @@ export interface CourseTermsResponse {
   items: CourseTermItem[];
 }
 
+export interface ExamAlignmentCourseItem {
+  name: string;
+  date: string;
+  pending: number;
+}
+
+export interface ExamAlignmentPreviewResponse {
+  enabled: boolean;
+  courses: ExamAlignmentCourseItem[];
+  pending: number;
+  restorable: number;
+}
+
+export interface FocusTopicProgress {
+  topic: string;
+  cards: number;
+  counts: Record<string, number | undefined>;
+  mastery: number;
+  status: 'none' | 'weak' | 'todo' | 'active' | 'done' | string;
+  weakCards: Array<{ deckId: string; cardId: string }>;
+}
+
+export interface FocusProgressResponse {
+  course: string | null;
+  topics: FocusTopicProgress[];
+  total: number;
+  done: number;
+  weak: number;
+  none: number;
+  weakScope: Array<{ deckId: string; cardId: string }>;
+}
+
 export interface CourseSettingsModalProps {
   host: HostClient;
   course: string | null;
@@ -109,10 +142,10 @@ export interface CourseSettingsModalProps {
   onUpdated?: () => void;
 }
 
-type SettingsTab = 'method' | 'info' | 'terms';
+type SettingsTab = 'method' | 'info' | 'terms' | 'align';
 type SubMode = 'none' | 'pickCourse' | 'presets' | 'editNote' | 'editTargetDate' | 'rename' | 'confirmRename' | 'editExamDate' | 'searchTerms';
 
-const TABS: readonly SettingsTab[] = ['method', 'info', 'terms'];
+const TABS: readonly SettingsTab[] = ['method', 'info', 'terms', 'align'];
 
 interface MethodPreset {
   id: string;
@@ -242,6 +275,7 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const snapshot = useTuiStore((s) => s.snapshot);
+  const navigate = useTuiStore((s) => s.navigate);
   const notify = useTuiStore((s) => s.notify);
 
   const availableCourses = useMemo(() => listCourses(snapshot), [snapshot]);
@@ -258,9 +292,14 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
   const [methodData, setMethodData] = useState<CourseMethodResponse | null>(null);
   const [courseDetail, setCourseDetail] = useState<CourseDetailResponse | null>(null);
   const [termsData, setTermsData] = useState<CourseTermsResponse | null>(null);
+  const [alignLoading, setAlignLoading] = useState(false);
+  const [alignError, setAlignError] = useState('');
+  const [alignPreview, setAlignPreview] = useState<ExamAlignmentPreviewResponse | null>(null);
+  const [focusProgress, setFocusProgress] = useState<FocusProgressResponse | null>(null);
 
   const [stageIndex, setStageIndex] = useState(0);
   const [termIndex, setTermIndex] = useState(0);
+  const [focusIndex, setFocusIndex] = useState(0);
   const [termFilter, setTermFilter] = useState('');
 
   const [noteInput, setNoteInput] = useState('');
@@ -347,6 +386,144 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
   useEffect(() => {
     if (termIndex >= filteredTerms.length) setTermIndex(Math.max(0, filteredTerms.length - 1));
   }, [filteredTerms.length, termIndex]);
+
+  const focusTopics = useMemo(() => focusProgress?.topics ?? [], [focusProgress?.topics]);
+  useEffect(() => {
+    if (focusIndex >= focusTopics.length) setFocusIndex(Math.max(0, focusTopics.length - 1));
+  }, [focusTopics.length, focusIndex]);
+
+  const loadAlignTab = useCallback(async () => {
+    if (!selectedCourse) {
+      setAlignPreview(null);
+      setFocusProgress(null);
+      setAlignLoading(false);
+      return;
+    }
+    setAlignLoading(true);
+    setAlignError('');
+    const [alignRes, focusRes] = await Promise.all([
+      tryAction<ExamAlignmentPreviewResponse>(host, 'course.examAlignment.preview', {}),
+      tryAction<FocusProgressResponse>(host, 'course.focusProgress', { course: selectedCourse }),
+    ]);
+    if (!mountedRef.current) return;
+    if (alignRes.ok && alignRes.value) setAlignPreview(alignRes.value);
+    else setAlignPreview(null);
+
+    if (focusRes.ok && focusRes.value) setFocusProgress(focusRes.value);
+    else setFocusProgress(null);
+
+    if (!alignRes.ok && !focusRes.ok) {
+      setAlignError(
+        alignRes.error?.message ||
+          focusRes.error?.message ||
+          t(lang, '加载考前对齐与重点进度失败', 'Failed to load exam alignment & focus progress'),
+      );
+    }
+    setAlignLoading(false);
+  }, [host, selectedCourse, lang]);
+
+  useEffect(() => {
+    if (tab !== 'align' || !selectedCourse) return;
+    let alive = true;
+    setAlignLoading(true);
+    setAlignError('');
+    void (async () => {
+      const [alignRes, focusRes] = await Promise.all([
+        tryAction<ExamAlignmentPreviewResponse>(host, 'course.examAlignment.preview', {}),
+        tryAction<FocusProgressResponse>(host, 'course.focusProgress', { course: selectedCourse }),
+      ]);
+      if (!alive || !mountedRef.current) return;
+      if (alignRes.ok && alignRes.value) setAlignPreview(alignRes.value);
+      else setAlignPreview(null);
+
+      if (focusRes.ok && focusRes.value) setFocusProgress(focusRes.value);
+      else setFocusProgress(null);
+
+      if (!alignRes.ok && !focusRes.ok) {
+        setAlignError(
+          alignRes.error?.message ||
+            focusRes.error?.message ||
+            t(lang, '加载考前对齐与重点进度失败', 'Failed to load exam alignment & focus progress'),
+        );
+      }
+      setAlignLoading(false);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [tab, host, selectedCourse, lang]);
+
+  const handleToggleAlignment = useCallback(async () => {
+    if (!selectedCourse || busy || alignLoading) return;
+    const nextEnabled = !(alignPreview?.enabled ?? false);
+    setBusy(true);
+    const res = await tryAction<{ enabled?: boolean; pulled?: number; restored?: number }>(
+      host,
+      'course.examAlignment.set',
+      { enabled: nextEnabled },
+    );
+    if (!mountedRef.current) return;
+    setBusy(false);
+    if (!res.ok) {
+      notify(res.error?.message || t(lang, '切换考前对齐失败', 'Failed to toggle exam alignment'), 'error');
+      return;
+    }
+    const pulled = res.value?.pulled ?? 0;
+    const restored = res.value?.restored ?? 0;
+    notify(
+      nextEnabled
+        ? t(lang, `已开启考前对齐（提前 ${pulled} 题）`, `Exam alignment enabled (${pulled} pulled)`)
+        : t(lang, `已关闭考前对齐（恢复 ${restored} 题）`, `Exam alignment disabled (${restored} restored)`),
+      'success',
+    );
+    onUpdated?.();
+    void actions.refresh();
+    await loadAlignTab();
+  }, [selectedCourse, busy, alignLoading, alignPreview?.enabled, host, notify, lang, onUpdated, actions, loadAlignTab]);
+
+  const handleRestoreAlignment = useCallback(async () => {
+    if (!selectedCourse || busy || alignLoading) return;
+    if ((alignPreview?.restorable ?? 0) <= 0) {
+      notify(t(lang, '当前没有需要恢复到期日的题目', 'No moved cards need restoring'), 'info');
+      return;
+    }
+    setBusy(true);
+    const res = await tryAction<{ pulled?: number; restored?: number }>(host, 'course.examAlignment.restore', {});
+    if (!mountedRef.current) return;
+    setBusy(false);
+    if (!res.ok) {
+      notify(res.error?.message || t(lang, '恢复原到期日失败', 'Failed to restore due dates'), 'error');
+      return;
+    }
+    const restored = res.value?.restored ?? 0;
+    notify(t(lang, `已恢复 ${restored} 题原到期日`, `Restored ${restored} card due dates`), 'success');
+    onUpdated?.();
+    void actions.refresh();
+    await loadAlignTab();
+  }, [selectedCourse, busy, alignLoading, alignPreview?.restorable, host, notify, lang, onUpdated, actions, loadAlignTab]);
+
+  const handlePractiseWeakFocus = useCallback(async () => {
+    if (!selectedCourse || busy || alignLoading) return;
+    const scope = focusProgress?.weakScope ?? [];
+    if (scope.length === 0) {
+      notify(t(lang, '当前课程暂无薄弱重点题可练', 'No weak focus cards to practise'), 'info');
+      return;
+    }
+    setBusy(true);
+    const res = await tryAction<{ id?: string }>(host, 'review.start', {
+      mode: 'path',
+      scope,
+      fresh: true,
+    });
+    if (!mountedRef.current) return;
+    setBusy(false);
+    if (!res.ok || !res.value?.id) {
+      notify(res.error?.message || t(lang, '启动薄弱重点练习失败', 'Failed to start weak focus practice'), 'error');
+      return;
+    }
+    onClose();
+    navigate('review', { runId: res.value.id, course: selectedCourse });
+  }, [selectedCourse, busy, alignLoading, focusProgress?.weakScope, host, notify, lang, onClose, navigate]);
 
   const saveMethod = useCallback(
     async (nextMethod: CourseMethodData | null, successMsg: string) => {
@@ -488,6 +665,10 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
         setTab('terms');
         return;
       }
+      if (input === '4') {
+        setTab('align');
+        return;
+      }
       if (input === 'c' && availableCourses.length > 0) {
         setSubMode('pickCourse');
         return;
@@ -525,6 +706,17 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
           setSubMode('searchTerms');
         } else if (input === 'x' && termFilter) {
           setTermFilter('');
+        }
+        return;
+      }
+
+      if (tab === 'align') {
+        if (input === 'a') {
+          void handleToggleAlignment();
+        } else if (input === 'u' && (alignPreview?.restorable ?? 0) > 0) {
+          void handleRestoreAlignment();
+        } else if (input === 'p') {
+          void handlePractiseWeakFocus();
         }
       }
     },
@@ -578,7 +770,7 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
         { key: 'Esc', label: t(lang, '取消', 'Cancel') },
       ];
     }
-    const base: KeyHint[] = [{ key: '1-3/Tab', label: t(lang, '标签', 'Tabs') }];
+    const base: KeyHint[] = [{ key: '1-4/Tab', label: t(lang, '标签', 'Tabs') }];
     if (tab === 'method') {
       base.push({ key: 'm', label: t(lang, '预设模式', 'Presets') });
       base.push({ key: 'e', label: t(lang, '改名称/注', 'Edit Note') });
@@ -587,14 +779,18 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
     } else if (tab === 'info') {
       base.push({ key: 'n', label: t(lang, '重命名', 'Rename') });
       base.push({ key: 'd', label: t(lang, '考试日', 'Exam Date') });
-    } else {
+    } else if (tab === 'terms') {
       base.push({ key: '/', label: t(lang, '筛选', 'Filter') });
       if (termFilter) base.push({ key: 'x', label: t(lang, '清筛选', 'Clear') });
+    } else {
+      base.push({ key: 'a', label: alignPreview?.enabled ? t(lang, '关对齐', 'Disable') : t(lang, '开对齐', 'Align') });
+      if ((alignPreview?.restorable ?? 0) > 0) base.push({ key: 'u', label: t(lang, '恢复原日', 'Restore') });
+      if ((focusProgress?.weakScope?.length ?? 0) > 0) base.push({ key: 'p', label: t(lang, '练薄弱', 'Practise') });
     }
     if (availableCourses.length > 1) base.push({ key: 'c', label: t(lang, '换课', 'Course') });
     base.push({ key: 'Esc', label: t(lang, '关闭', 'Close') });
     return base;
-  }, [subMode, tab, lang, methodData?.own, termFilter, availableCourses.length]);
+  }, [subMode, tab, lang, methodData?.own, termFilter, alignPreview?.enabled, alignPreview?.restorable, focusProgress?.weakScope?.length, availableCourses.length]);
 
   const renderStageRow = useCallback(
     (stage: CourseMethodStage, ctx: VirtualListRenderContext) => {
@@ -668,6 +864,53 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
     [lang, asciiMode, theme],
   );
 
+  const renderFocusRow = useCallback(
+    (tp: FocusTopicProgress, ctx: VirtualListRenderContext) => {
+      const statusLabel =
+        tp.status === 'done'
+          ? t(lang, '掌握', 'Done')
+          : tp.status === 'weak'
+            ? t(lang, '薄弱', 'Weak')
+            : tp.status === 'none'
+              ? t(lang, '缺题', 'None')
+              : t(lang, '在学', 'Todo');
+      const statusTag = `[${statusLabel}]`;
+      const barW = Math.min(18, Math.max(10, Math.floor(ctx.width * 0.24)));
+      const barStr =
+        tp.cards > 0
+          ? renderProgressBar(tp.mastery || 0, barW, theme, {
+              style: 'line',
+              showPercent: true,
+              ascii: asciiMode,
+              color: tp.status === 'done' ? theme.success : tp.status === 'weak' ? theme.error : theme.primary,
+            })
+          : padDisplay(t(lang, '暂无题目', 'No cards'), barW);
+      const countStr = `${tp.cards}${t(lang, '题', 'Q')}`;
+      const rightMeta = `${barStr} ${countStr}`;
+      const rightW = barW + 1 + displayWidth(countStr);
+      const prefixW = displayWidth(statusTag) + 1;
+      const nameAvail = Math.max(6, ctx.width - prefixW - rightW - 1);
+      const topicName = padDisplay(truncateDisplay(tp.topic, nameAvail), nameAvail);
+      const fg = ctx.selected ? theme.selectionFg : theme.text;
+      const tagColor = ctx.selected
+        ? theme.selectionFg
+        : tp.status === 'done'
+          ? theme.success
+          : tp.status === 'weak'
+            ? theme.error
+            : tp.status === 'none'
+              ? theme.muted
+              : theme.warning;
+      return (
+        <Text color={fg} bold={ctx.selected}>
+          <Text color={tagColor}>{statusTag} </Text>
+          {topicName} <Text color={ctx.selected ? theme.selectionFg : theme.muted}>{rightMeta}</Text>
+        </Text>
+      );
+    },
+    [lang, asciiMode, theme],
+  );
+
   const termCounts = useMemo(() => {
     const items = termsData?.items ?? [];
     let known = 0;
@@ -712,6 +955,7 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
           {tabLabel('method', '学习方式', 'Method', 1)}
           {tabLabel('info', '重命名与目标', 'Info & Rename', 2)}
           {tabLabel('terms', '课程术语', 'Terms', 3)}
+          {tabLabel('align', '考前对齐', 'Exam Align', 4)}
           {busy ? <Spinner label={t(lang, '保存中…', 'Saving…')} active={isActive} /> : null}
         </Box>
         <Divider width={innerW} />
@@ -1004,7 +1248,7 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
               </Box>
             </Box>
           )
-        ) : (
+        ) : tab === 'terms' ? (
           /* Tab 3: Course Terms */
           <Box flexDirection="column" height={tabBodyH} overflow="hidden">
             {subMode === 'searchTerms' ? (
@@ -1080,6 +1324,105 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
                     </>
                   ) : null}
                 </Box>
+              </>
+            )}
+          </Box>
+        ) : (
+          /* Tab 4: Exam Alignment & Focus Mastery */
+          <Box flexDirection="column" height={tabBodyH} overflow="hidden">
+            {alignLoading && !alignPreview && !focusProgress ? (
+              <Box height={tabBodyH} alignItems="center" justifyContent="center">
+                <Spinner label={t(lang, '正在读取考前对齐与重点进度…', 'Loading exam alignment & focus progress…')} active={isActive} />
+              </Box>
+            ) : alignError && !alignPreview && !focusProgress ? (
+              <Box height={tabBodyH} flexDirection="column" paddingY={1}>
+                <Text color={theme.error} bold>{alignError}</Text>
+              </Box>
+            ) : (
+              <>
+                {/* Alignment status (3 rows) */}
+                <Box height={1} flexDirection="row" gap={1} overflow="hidden" flexShrink={0}>
+                  <StatusPill
+                    label={alignPreview?.enabled ? t(lang, '考前对齐: 已开启', 'Exam Align: ON') : t(lang, '考前对齐: 已关闭', 'Exam Align: OFF')}
+                    status={alignPreview?.enabled ? 'ok' : 'idle'}
+                  />
+                  <Text color={theme.muted} wrap="truncate-end">
+                    {t(lang, '待提前', 'Pending')}: <Text color={theme.warning} bold>{alignPreview?.pending ?? 0}</Text>
+                    {' · '}
+                    {t(lang, '可恢复', 'Restorable')}: <Text color={theme.accent} bold>{alignPreview?.restorable ?? 0}</Text>
+                  </Text>
+                </Box>
+                <Box height={1} overflow="hidden" flexShrink={0}>
+                  <Text color={theme.muted} wrap="truncate-end">
+                    {t(lang, '近期考试', 'Upcoming')}:{' '}
+                    {alignPreview?.courses?.length ? (
+                      alignPreview.courses
+                        .slice(0, 3)
+                        .map((c) => `${c.name} (${c.date}${c.pending > 0 ? ` · ${c.pending}` : ''})`)
+                        .join('  |  ')
+                    ) : (
+                      <Text color={theme.dim}>
+                        {t(lang, '暂无未来考试（可在标签 2 按 [d] 设置考试日期）', 'No upcoming exams (press [2] then [d] to set date)')}
+                      </Text>
+                    )}
+                  </Text>
+                </Box>
+                <Box height={1} overflow="hidden" flexShrink={0}>
+                  <Text color={theme.accent} wrap="truncate-end">
+                    {`[a] ${alignPreview?.enabled ? t(lang, '关闭并恢复对齐', 'Disable & Restore') : t(lang, '开启 / 立即对齐', 'Enable / Align Now')}`}
+                    {(alignPreview?.restorable ?? 0) > 0 ? `  [u] ${t(lang, `恢复到期日(${alignPreview?.restorable})`, `Restore(${alignPreview?.restorable})`)}` : ''}
+                    {(focusProgress?.weakScope?.length ?? 0) > 0 ? `  [p] ${t(lang, `练薄弱重点(${focusProgress?.weakScope?.length})`, `Practise Weak(${focusProgress?.weakScope?.length})`)}` : ''}
+                  </Text>
+                </Box>
+
+                <Divider width={innerW} />
+
+                {/* Focus Topics mastery summary (1 row) */}
+                <Box height={1} flexDirection="row" justifyContent="space-between" overflow="hidden" flexShrink={0}>
+                  <Box gap={1} overflow="hidden">
+                    <Text color={theme.heading} bold>
+                      {t(lang, '重点掌握度', 'Focus Mastery')}
+                    </Text>
+                    <Text color={theme.muted} wrap="truncate-end">
+                      {t(lang, '共', 'Total')} <Text color={theme.text} bold>{focusProgress?.total ?? 0}</Text>
+                      {' · '}
+                      <Text color={theme.success}>{t(lang, '掌握', 'Done')} {focusProgress?.done ?? 0}</Text>
+                      {' · '}
+                      <Text color={theme.error}>{t(lang, '薄弱', 'Weak')} {focusProgress?.weak ?? 0}</Text>
+                      {' · '}
+                      <Text color={theme.dim}>{t(lang, '缺题', 'None')} {focusProgress?.none ?? 0}</Text>
+                    </Text>
+                  </Box>
+                  {(focusProgress?.total ?? 0) > 0 && innerW >= 58 ? (
+                    <ProgressBar
+                      ratio={(focusProgress?.done ?? 0) / Math.max(1, focusProgress?.total ?? 1)}
+                      width={16}
+                      style="line"
+                      showPercent
+                    />
+                  ) : null}
+                </Box>
+
+                {/* Focus Topics list */}
+                {focusTopics.length === 0 ? (
+                  <EmptyState
+                    title={t(lang, '本课程暂无考纲重点', 'No focus topics for this course')}
+                    hint={t(lang, '前往 [0] 备考补习按 [a] 添加重点后，可在此追踪掌握度与刷薄弱重点。', 'Add syllabus focus topics in [0] Exam Prep to track mastery here.')}
+                    width={innerW}
+                    height={Math.max(3, tabBodyH - 5)}
+                  />
+                ) : (
+                  <VirtualList
+                    items={focusTopics}
+                    height={Math.max(3, tabBodyH - 5)}
+                    width={innerW}
+                    selectedIndex={focusIndex}
+                    onChange={setFocusIndex}
+                    isActive={isActive && subMode === 'none' && !busy}
+                    keyExtractor={(tp, idx) => `${tp.topic}:${idx}`}
+                    renderItem={renderFocusRow}
+                  />
+                )}
               </>
             )}
           </Box>
