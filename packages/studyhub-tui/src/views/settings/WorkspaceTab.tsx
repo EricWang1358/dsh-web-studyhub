@@ -47,6 +47,94 @@ export interface WorkspaceTabProps {
   onRefreshBinding: () => Promise<void>;
 }
 
+interface RetrievalStatusShape {
+  selected?: string;
+  effective?: string;
+  missing?: string;
+  hostCanSearch?: boolean;
+  companion?: {
+    id?: string;
+    running?: boolean;
+    notStarted?: boolean;
+  };
+  extension?: {
+    installed?: boolean;
+    enabled?: boolean;
+    version?: string;
+    outdated?: boolean;
+  };
+}
+
+interface UsageFrequencyStatusShape {
+  enabled: boolean;
+  paused: boolean;
+  hasData: boolean;
+  daysWithData: number;
+  since: string;
+  file?: string;
+}
+
+function describeRetrievalBadge(
+  status: RetrievalStatusShape | null,
+  loaded: boolean,
+  lang: 'zh' | 'en',
+  asciiMode: boolean,
+): { label: string; tone: 'success' | 'warning' | 'accent' | 'muted' } {
+  if (!status) {
+    return {
+      label: loaded ? t(lang, '未检测', 'Unavailable') : t(lang, '检测中', 'Checking'),
+      tone: 'muted',
+    };
+  }
+  if (status.missing && !(status.companion?.notStarted && status.missing === status.companion?.id)) {
+    return { label: t(lang, '工具缺失', 'Missing'), tone: 'warning' };
+  }
+  if (status.companion?.notStarted || (status.extension?.installed && !status.companion?.running)) {
+    return { label: t(lang, '未启动', 'Not Started'), tone: 'warning' };
+  }
+  if (status.effective && status.effective !== 'builtin') {
+    return {
+      label: asciiMode ? t(lang, '已就绪 +', 'Ready +') : t(lang, '已就绪 ✓', 'Ready ✓'),
+      tone: 'success',
+    };
+  }
+  if (status.companion?.running) {
+    return { label: t(lang, '已启动(未启用)', 'Running (Off)'), tone: 'accent' };
+  }
+  if (status.hostCanSearch) {
+    return { label: t(lang, '可用(未启用)', 'Available (Off)'), tone: 'muted' };
+  }
+  return { label: t(lang, '未启用', 'Disabled'), tone: 'muted' };
+}
+
+function describeUsageBadge(
+  status: UsageFrequencyStatusShape | null,
+  loaded: boolean,
+  lang: 'zh' | 'en',
+  asciiMode: boolean,
+): { label: string; tone: 'success' | 'warning' | 'muted' } {
+  if (!status) {
+    return {
+      label: loaded ? t(lang, '未读取', 'Unavailable') : t(lang, '读取中', 'Loading'),
+      tone: 'muted',
+    };
+  }
+  const days = Number(status.daysWithData) || 0;
+  const daysText = t(lang, `${days}天`, `${days}d`);
+  if (status.enabled && status.paused) {
+    return { label: t(lang, `已暂停 (${daysText})`, `Paused (${daysText})`), tone: 'warning' };
+  }
+  if (status.enabled) {
+    return {
+      label: asciiMode
+        ? t(lang, `已开启 + (${daysText})`, `Enabled + (${daysText})`)
+        : t(lang, `已开启 ✓ (${daysText})`, `Enabled ✓ (${daysText})`),
+      tone: 'success',
+    };
+  }
+  return { label: t(lang, `已关闭 (${daysText})`, `Disabled (${daysText})`), tone: 'muted' };
+}
+
 const RETRY_CODES = new Set(['EBUSY', 'EPERM', 'EACCES']);
 
 function todayLocalYmd(): string {
@@ -188,6 +276,10 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
   const [experimentalEnabled, setExperimentalEnabled] = useState<boolean>(
     () => Boolean(snapshot?.experimental),
   );
+  const [retrievalStatus, setRetrievalStatus] = useState<RetrievalStatusShape | null>(null);
+  const [retrievalLoaded, setRetrievalLoaded] = useState(false);
+  const [usageStatus, setUsageStatus] = useState<UsageFrequencyStatusShape | null>(null);
+  const [usageLoaded, setUsageLoaded] = useState(false);
   const [restorePoints, setRestorePoints] = useState<RestorePointEntry[]>([]);
   const [loadingPoints, setLoadingPoints] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
@@ -199,6 +291,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
   const [exportPathDraft, setExportPathDraft] = useState('');
   const [confirmSampleRemove, setConfirmSampleRemove] = useState(false);
   const [confirmRestore, setConfirmRestore] = useState<RestorePointEntry | null>(null);
+  const [confirmClearUsage, setConfirmClearUsage] = useState(false);
 
   const mountedRef = useRef(true);
   useEffect(() => {
@@ -220,9 +313,39 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
     }
   }, [host]);
 
+  const loadRetrieval = useCallback(async () => {
+    try {
+      const res = await tryAction<RetrievalStatusShape>(host, 'retrieval.status', {});
+      if (!mountedRef.current) return;
+      if (res.ok && res.value) {
+        setRetrievalStatus(res.value);
+      }
+    } catch {
+      // Fail-soft: keep fallback status when retrieval.status is unavailable
+    } finally {
+      if (mountedRef.current) setRetrievalLoaded(true);
+    }
+  }, [host]);
+
+  const loadUsage = useCallback(async () => {
+    try {
+      const res = await tryAction<UsageFrequencyStatusShape>(host, 'usage.frequency.status', {});
+      if (!mountedRef.current) return;
+      if (res.ok && res.value && typeof res.value.enabled === 'boolean') {
+        setUsageStatus(res.value);
+      }
+    } catch {
+      // Fail-soft: keep fallback status when usage.frequency.status is unavailable
+    } finally {
+      if (mountedRef.current) setUsageLoaded(true);
+    }
+  }, [host]);
+
   useEffect(() => {
     void loadExperimental();
-  }, [loadExperimental]);
+    void loadRetrieval();
+    void loadUsage();
+  }, [loadExperimental, loadRetrieval, loadUsage]);
 
   const loadPoints = useCallback(async () => {
     setLoadingPoints(true);
@@ -391,8 +514,52 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
     );
   }, [busyAction, experimentalEnabled, host, lang, notify, refreshSnapshot]);
 
-  const modalOpen = editingRoot || exportingBackup || confirmSampleRemove || Boolean(confirmRestore);
-  const claimed = useMemo(() => ['e', 's', 'x', 'r', 'c', 'f'], []);
+  const handleToggleUsage = useCallback(async () => {
+    if (busyAction) return;
+    const prev = usageStatus;
+    const nextEnabled = !(prev?.enabled);
+    if (prev) {
+      setUsageStatus({ ...prev, enabled: nextEnabled, ...(nextEnabled ? { paused: false } : {}) });
+    }
+    const res = await tryAction<UsageFrequencyStatusShape>(host, 'usage.frequency.set', { enabled: nextEnabled });
+    if (!mountedRef.current) return;
+    if (!res.ok || !res.value) {
+      setUsageStatus(prev);
+      notify(
+        res.error?.message || t(lang, '切换使用频率记录失败', 'Failed to toggle usage frequency recording'),
+        'error',
+      );
+      return;
+    }
+    setUsageStatus(res.value);
+    setUsageLoaded(true);
+    notify(
+      res.value.enabled
+        ? t(lang, '已开启本地使用频率记录', 'Usage frequency recording enabled')
+        : t(lang, '已关闭本地使用频率记录', 'Usage frequency recording disabled'),
+      'success',
+    );
+  }, [busyAction, host, lang, notify, usageStatus]);
+
+  const handleClearUsage = useCallback(async () => {
+    setConfirmClearUsage(false);
+    if (busyAction) return;
+    setBusyAction(t(lang, `正在清空使用记录${ell}`, `Clearing usage records${ell}`));
+    const res = await tryAction<UsageFrequencyStatusShape>(host, 'usage.frequency.clear', {});
+    if (!mountedRef.current) return;
+    setBusyAction(null);
+    if (!res.ok || !res.value) {
+      notify(res.error?.message || t(lang, '清空使用记录失败', 'Failed to clear usage records'), 'error');
+      return;
+    }
+    setUsageStatus(res.value);
+    setUsageLoaded(true);
+    notify(t(lang, '已删除全部本地使用记录', 'All usage frequency records cleared'), 'success');
+  }, [busyAction, ell, host, lang, notify]);
+
+  const modalOpen =
+    editingRoot || exportingBackup || confirmSampleRemove || Boolean(confirmRestore) || confirmClearUsage;
+  const claimed = useMemo(() => ['e', 's', 'x', 'r', 'c', 'f', 'u', 'U'], []);
   useClaimKeys(claimed, isActive && !modalOpen);
 
   useInput(
@@ -421,8 +588,18 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
         void handleToggleExperimental();
         return;
       }
+      if (input === 'u') {
+        void handleToggleUsage();
+        return;
+      }
+      if (input === 'U') {
+        if (!busyAction) setConfirmClearUsage(true);
+        return;
+      }
       if (input === 'r') {
         void loadPoints();
+        void loadRetrieval();
+        void loadUsage();
         return;
       }
       if (key.return && restorePoints[selectedPointIdx]) {
@@ -437,7 +614,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
   const confirmed = desktopConfig?.libraryPlaceConfirmed ?? true;
 
   const compactLayout = width < 84;
-  const infoPanelH = compactLayout ? 10 : 9;
+  const infoPanelH = compactLayout ? 11 : 10;
   const listPanelH = Math.max(6, height - infoPanelH);
   const listRows = Math.max(1, listPanelH - 2);
 
@@ -475,6 +652,10 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
       : t(lang, '已开启 ✓', 'Enabled ✓')
     : t(lang, '已关闭', 'Disabled');
   const experimentalActionLabel = `[f] ${t(lang, '切换', 'Toggle')}`;
+  const retrievalBadge = describeRetrievalBadge(retrievalStatus, retrievalLoaded, lang, asciiMode);
+  const usageBadge = describeUsageBadge(usageStatus, usageLoaded, lang, asciiMode);
+  const usageToggleLabel = `[u] ${t(lang, '切换', 'Toggle')}`;
+  const usageClearLabel = `[U] ${t(lang, '清空记录', 'Clear data')}`;
 
   return (
     <Box flexDirection="column" width={width} height={height} overflow="hidden">
@@ -523,6 +704,18 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
             />
           </Text>
           <Text color={theme.accent}>{experimentalActionLabel}</Text>
+          <Text color={theme.muted}>
+            {t(lang, '语义检索:', 'Retrieval:')}{' '}
+            <Badge label={retrievalBadge.label} tone={retrievalBadge.tone} variant="soft" />
+          </Text>
+        </Box>
+        <Box flexDirection="row" gap={2} marginTop={0}>
+          <Text color={theme.muted}>
+            {t(lang, '使用频率记录:', 'Usage Frequency:')}{' '}
+            <Badge label={usageBadge.label} tone={usageBadge.tone} variant="soft" />
+          </Text>
+          <Text color={theme.accent}>{usageToggleLabel}</Text>
+          <Text color={theme.warning}>{usageClearLabel}</Text>
         </Box>
         {compactLayout ? (
           <>
@@ -661,6 +854,24 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
           danger
           onConfirm={() => void handleRestorePoint(confirmRestore)}
           onCancel={() => setConfirmRestore(null)}
+          isActive={isActive}
+        />
+      ) : null}
+
+      {confirmClearUsage ? (
+        <ConfirmDialog
+          title={t(lang, '删除全部使用记录', 'Clear Usage Frequency Data')}
+          message={t(
+            lang,
+            '确定要删除所有本地记录的使用次数和日期吗？不影响学习库，也不会改变当前的开启/关闭开关。',
+            'Delete all locally recorded usage counts and dates? This does not affect your study library or change the recording switch.',
+          )}
+          confirmLabel={t(lang, '清空记录', 'Clear Data')}
+          cancelLabel={t(lang, '取消', 'Cancel')}
+          danger
+          width={Math.min(62, Math.max(40, width - 6))}
+          onConfirm={() => void handleClearUsage()}
+          onCancel={() => setConfirmClearUsage(false)}
           isActive={isActive}
         />
       ) : null}

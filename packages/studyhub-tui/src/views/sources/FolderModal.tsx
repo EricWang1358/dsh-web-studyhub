@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text, useInput, useWindowSize } from 'ink';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
@@ -12,12 +12,19 @@ import {
   modalContentWidth,
   useTheme,
 } from '../../components/index.js';
-import { truncateDisplay } from '../../render/index.js';
+import { displayWidth, truncateDisplay } from '../../render/index.js';
 import { errorMessage, tryAction } from '../../host/sample-actions.js';
 import { type DocumentGroup, normalizeFolderName } from './source-helpers.js';
 
 export type FolderModalMode = 'filter' | 'assign';
-type FolderSubMode = 'list' | 'create' | 'rename' | 'delete';
+type FolderSubMode = 'list' | 'create' | 'rename' | 'delete' | 'ai-confirm' | 'ai-preview';
+
+interface FolderSuggestionItem {
+  key: string;
+  title: string;
+  currentFolder: string | null;
+  suggestedFolder: string;
+}
 
 export interface FolderModalProps {
   host: HostClient;
@@ -64,8 +71,21 @@ export const FolderModal = memo(function FolderModal({
   const [inputValue, setInputValue] = useState('');
   const [renameTarget, setRenameTarget] = useState('');
   const [deleteTarget, setDeleteTarget] = useState('');
+  const [aiSuggestions, setAiSuggestions] = useState<FolderSuggestionItem[]>([]);
+  const [aiPreviewIndex, setAiPreviewIndex] = useState(0);
+  const [aiUnmatchedCount, setAiUnmatchedCount] = useState(0);
+  const [aiPhaseLabel, setAiPhaseLabel] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const busyRef = useRef(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const items: FolderRow[] = useMemo(() => {
     const folderRows: FolderRow[] = folders.map((name) => ({
@@ -116,7 +136,8 @@ export const FolderModal = memo(function FolderModal({
 
   const assignFolder = useCallback(
     async (folder: string | null) => {
-      if (!selectedItem || busy) return;
+      if (!selectedItem || busyRef.current || busy) return;
+      busyRef.current = true;
       setBusy(true);
       setErr(null);
       try {
@@ -124,11 +145,13 @@ export const FolderModal = memo(function FolderModal({
           key: selectedItem.key,
           folder,
         });
+        if (!mountedRef.current) return;
         if (!res.ok) {
           setErr(res.error?.message || t(lang, '移动文件夹失败', 'Failed to move material'));
           return;
         }
         await onRefresh();
+        if (!mountedRef.current) return;
         notify(
           folder
             ? t(lang, `已移入文件夹「${folder}」`, `Moved to "${folder}"`)
@@ -137,9 +160,10 @@ export const FolderModal = memo(function FolderModal({
         );
         onClose();
       } catch (error) {
-        setErr(errorMessage(error));
+        if (mountedRef.current) setErr(errorMessage(error));
       } finally {
-        setBusy(false);
+        busyRef.current = false;
+        if (mountedRef.current) setBusy(false);
       }
     },
     [busy, host, lang, notify, onClose, onRefresh, selectedItem],
@@ -147,7 +171,7 @@ export const FolderModal = memo(function FolderModal({
 
   const handleRowActivate = useCallback(
     async (row: FolderRow) => {
-      if (busy) return;
+      if (busyRef.current || busy) return;
       if (mode === 'filter') {
         if (row.kind === 'all') onSelectFilter(null);
         else if (row.kind === 'unfiled') onSelectFilter('');
@@ -166,7 +190,7 @@ export const FolderModal = memo(function FolderModal({
 
   const handleCreateSubmit = useCallback(
     async (raw: string) => {
-      if (busy) return;
+      if (busyRef.current || busy) return;
       const name = normalizeFolderName(raw);
       if (!name) {
         setErr(t(lang, '请输入文件夹名称', 'Please enter a folder name'));
@@ -176,15 +200,18 @@ export const FolderModal = memo(function FolderModal({
         setErr(t(lang, '文件夹名称最多 80 个字符', 'Folder name must be at most 80 characters'));
         return;
       }
+      busyRef.current = true;
       setBusy(true);
       setErr(null);
       try {
         const res = await tryAction(host, 'source.folder.create', { name });
+        if (!mountedRef.current) return;
         if (!res.ok) {
           setErr(res.error?.message || t(lang, '创建文件夹失败', 'Create folder failed'));
           return;
         }
         await onRefresh();
+        if (!mountedRef.current) return;
         notify(t(lang, `已创建文件夹「${name}」`, `Created folder "${name}"`), 'success');
         setSubMode('list');
         setInputValue('');
@@ -192,9 +219,10 @@ export const FolderModal = memo(function FolderModal({
         const nextIdx = mode === 'filter' ? folders.length + 1 : folders.length;
         setSelectedIndex(nextIdx);
       } catch (error) {
-        setErr(errorMessage(error));
+        if (mountedRef.current) setErr(errorMessage(error));
       } finally {
-        setBusy(false);
+        busyRef.current = false;
+        if (mountedRef.current) setBusy(false);
       }
     },
     [busy, folders.length, host, lang, mode, notify, onRefresh],
@@ -202,7 +230,7 @@ export const FolderModal = memo(function FolderModal({
 
   const handleRenameSubmit = useCallback(
     async (raw: string) => {
-      if (busy) return;
+      if (busyRef.current || busy) return;
       const to = normalizeFolderName(raw);
       if (!to) {
         setErr(t(lang, '请输入新的文件夹名称', 'Please enter a new folder name'));
@@ -216,10 +244,12 @@ export const FolderModal = memo(function FolderModal({
         setSubMode('list');
         return;
       }
+      busyRef.current = true;
       setBusy(true);
       setErr(null);
       try {
         const res = await tryAction(host, 'source.folder.rename', { from: renameTarget, to });
+        if (!mountedRef.current) return;
         if (!res.ok) {
           setErr(res.error?.message || t(lang, '重命名文件夹失败', 'Rename folder failed'));
           return;
@@ -228,20 +258,23 @@ export const FolderModal = memo(function FolderModal({
           onSelectFilter(to);
         }
         await onRefresh();
+        if (!mountedRef.current) return;
         notify(t(lang, `已重命名为「${to}」`, `Renamed to "${to}"`), 'success');
         setSubMode('list');
         setInputValue('');
       } catch (error) {
-        setErr(errorMessage(error));
+        if (mountedRef.current) setErr(errorMessage(error));
       } finally {
-        setBusy(false);
+        busyRef.current = false;
+        if (mountedRef.current) setBusy(false);
       }
     },
     [activeFolder, busy, host, lang, notify, onRefresh, onSelectFilter, renameTarget],
   );
 
   const handleDeleteConfirm = useCallback(async () => {
-    if (busy || !deleteTarget) return;
+    if (busyRef.current || busy || !deleteTarget) return;
+    busyRef.current = true;
     setBusy(true);
     setErr(null);
     try {
@@ -249,6 +282,7 @@ export const FolderModal = memo(function FolderModal({
         folder: deleteTarget,
         unfile: true,
       });
+      if (!mountedRef.current) return;
       if (!res.ok) {
         setErr(res.error?.message || t(lang, '删除文件夹失败', 'Delete folder failed'));
         setSubMode('list');
@@ -258,22 +292,142 @@ export const FolderModal = memo(function FolderModal({
         onSelectFilter(null);
       }
       await onRefresh();
+      if (!mountedRef.current) return;
       notify(t(lang, `已删除文件夹「${deleteTarget}」`, `Deleted folder "${deleteTarget}"`), 'success');
       setSubMode('list');
       setDeleteTarget('');
     } catch (error) {
-      setErr(errorMessage(error));
-      setSubMode('list');
+      if (mountedRef.current) {
+        setErr(errorMessage(error));
+        setSubMode('list');
+      }
     } finally {
-      setBusy(false);
+      busyRef.current = false;
+      if (mountedRef.current) setBusy(false);
     }
   }, [activeFolder, busy, deleteTarget, host, lang, notify, onRefresh, onSelectFilter]);
 
-  const listActive = isActive && subMode === 'list';
+  const handleAiSuggest = useCallback(async () => {
+    if (busyRef.current || busy) return;
+    busyRef.current = true;
+    setBusy(true);
+    setErr(null);
+    setAiPhaseLabel(t(lang, `正在调用 AI 生成文件夹建议${ell}`, `Suggesting folders with AI${ell}`));
+    setSubMode('list');
+    try {
+      const res = await tryAction<{
+        folders?: string[];
+        suggestions?: Array<{
+          key?: string;
+          title?: string;
+          currentFolder?: string | null;
+          suggestedFolder?: string;
+        }>;
+        unmatchedKeys?: string[];
+      }>(host, 'source.folder.suggest', {
+        mode: 'auto',
+        language: lang,
+      });
+      if (!mountedRef.current) return;
+      if (!res.ok || !res.value) {
+        setErr(res.error?.message || t(lang, 'AI 文件夹分类建议失败', 'Failed to suggest folders'));
+        return;
+      }
+      const rawSuggestions = Array.isArray(res.value.suggestions) ? res.value.suggestions : [];
+      const normalized: FolderSuggestionItem[] = [];
+      for (const item of rawSuggestions) {
+        const key = typeof item?.key === 'string' ? item.key.trim() : '';
+        const suggestedFolder = normalizeFolderName(item?.suggestedFolder);
+        if (!key || !suggestedFolder) continue;
+        normalized.push({
+          key,
+          title: (typeof item?.title === 'string' && item.title.trim()) || key,
+          currentFolder:
+            typeof item?.currentFolder === 'string' && item.currentFolder.trim()
+              ? item.currentFolder.trim()
+              : null,
+          suggestedFolder,
+        });
+      }
+      if (normalized.length === 0) {
+        setErr(t(lang, '未生成可应用的文件夹分类建议', 'No folder suggestions returned'));
+        return;
+      }
+      setAiSuggestions(normalized);
+      setAiPreviewIndex(0);
+      setAiUnmatchedCount(Array.isArray(res.value.unmatchedKeys) ? res.value.unmatchedKeys.length : 0);
+      setSubMode('ai-preview');
+    } catch (error) {
+      if (mountedRef.current) {
+        setErr(errorMessage(error, lang));
+      }
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) {
+        setBusy(false);
+        setAiPhaseLabel(null);
+      }
+    }
+  }, [busy, ell, host, lang]);
+
+  const handleAiApply = useCallback(async () => {
+    if (busyRef.current || busy || aiSuggestions.length === 0) return;
+    busyRef.current = true;
+    setBusy(true);
+    setErr(null);
+    setAiPhaseLabel(t(lang, `正在应用 AI 文件夹分类${ell}`, `Applying folder assignments${ell}`));
+    try {
+      const assignments = aiSuggestions.map((item) => ({
+        key: item.key,
+        folder: item.suggestedFolder,
+      }));
+      const res = await tryAction<{ updated?: number; createdFolders?: string[] }>(
+        host,
+        'source.folder.apply',
+        { assignments },
+      );
+      if (!mountedRef.current) return;
+      if (!res.ok) {
+        setErr(res.error?.message || t(lang, '应用文件夹分类失败', 'Failed to apply folder assignments'));
+        return;
+      }
+      await onRefresh();
+      if (!mountedRef.current) return;
+      const count = res.value?.updated ?? assignments.length;
+      notify(
+        t(lang, `已应用 ${count} 份资料的 AI 文件夹分类`, `Applied AI folder classification to ${count} material(s)`),
+        'success',
+      );
+      setAiSuggestions([]);
+      setAiUnmatchedCount(0);
+      setSubMode('list');
+    } catch (error) {
+      if (mountedRef.current) {
+        setErr(errorMessage(error, lang));
+      }
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) {
+        setBusy(false);
+        setAiPhaseLabel(null);
+      }
+    }
+  }, [aiSuggestions, busy, ell, host, lang, notify, onRefresh]);
+
+  const discardAiPreview = useCallback(() => {
+    if (busyRef.current || busy) return;
+    setErr(null);
+    setAiSuggestions([]);
+    setAiUnmatchedCount(0);
+    setSubMode('list');
+  }, [busy]);
+
+  const listActive = isActive && subMode === 'list' && !busy;
+  const previewActive = isActive && subMode === 'ai-preview' && !busy;
 
   useInput(
     (input) => {
-      if (!listActive || busy) return;
+      if (!listActive || busyRef.current || busy) return;
       if (input === 'a') {
         setErr(null);
         setInputValue('');
@@ -287,6 +441,9 @@ export const FolderModal = memo(function FolderModal({
         setErr(null);
         setDeleteTarget(currentRow.name);
         setSubMode('delete');
+      } else if (input === 'g') {
+        setErr(null);
+        setSubMode('ai-confirm');
       } else if (input === '0' || input === 'x') {
         if (mode === 'filter') {
           onSelectFilter(null);
@@ -299,6 +456,16 @@ export const FolderModal = memo(function FolderModal({
     { isActive: listActive },
   );
 
+  useInput(
+    (input, key) => {
+      if (!previewActive || busyRef.current || busy) return;
+      if (key.return || input === 'y' || input === 'Y') {
+        void handleAiApply();
+      }
+    },
+    { isActive: previewActive },
+  );
+
   const hints: KeyHint[] = useMemo(() => {
     if (subMode === 'create' || subMode === 'rename') {
       return [
@@ -306,11 +473,18 @@ export const FolderModal = memo(function FolderModal({
         { key: 'Esc', label: t(lang, '返回', 'Back') },
       ];
     }
+    if (subMode === 'ai-preview') {
+      return [
+        { key: 'Enter/y', label: t(lang, '应用分类', 'Apply') },
+        { key: 'Esc', label: t(lang, '放弃', 'Discard') },
+      ];
+    }
     return [
       { key: 'Enter', label: mode === 'assign' ? t(lang, '移入', 'Move') : t(lang, '筛选', 'Filter') },
       { key: 'a', label: t(lang, '新建', 'New') },
       { key: 'r', label: t(lang, '重命名', 'Rename') },
       { key: 'd', label: t(lang, '删除', 'Delete') },
+      { key: 'g', label: t(lang, 'AI分类', 'AI Classify') },
       { key: '0/x', label: mode === 'assign' ? t(lang, '移出', 'Unfile') : t(lang, '清空筛选', 'Clear') },
     ];
   }, [lang, mode, subMode]);
@@ -318,16 +492,21 @@ export const FolderModal = memo(function FolderModal({
   const frameWidth = Math.max(46, Math.min(68, columns - 4));
   const innerWidth = modalContentWidth(frameWidth);
   const listHeight = Math.max(4, Math.min(12, termRows - 12));
+  const arrow = asciiMode ? '->' : '→';
 
   const title =
-    mode === 'assign'
-      ? t(lang, '移动资料到文件夹', 'Move to Folder')
-      : t(lang, '资料文件夹管理', 'Material Folders');
+    subMode === 'ai-preview'
+      ? t(lang, 'AI 文件夹分类预览', 'AI Folder Preview')
+      : mode === 'assign'
+        ? t(lang, '移动资料到文件夹', 'Move to Folder')
+        : t(lang, '资料文件夹管理', 'Material Folders');
 
   const subtitle =
-    mode === 'assign' && selectedItem
-      ? selectedItem.title
-      : `${folders.length} ${t(lang, '个文件夹', 'folders')}`;
+    subMode === 'ai-preview'
+      ? `${aiSuggestions.length} ${t(lang, '条建议', 'suggestions')}`
+      : mode === 'assign' && selectedItem
+        ? selectedItem.title
+        : `${folders.length} ${t(lang, '个文件夹', 'folders')}`;
 
   return (
     <>
@@ -336,11 +515,17 @@ export const FolderModal = memo(function FolderModal({
         subtitle={subtitle}
         icon={asciiMode ? '*' : '◈'}
         width={frameWidth}
-        isActive={isActive && subMode !== 'delete'}
-        onClose={subMode === 'list' ? onClose : () => { setErr(null); setSubMode('list'); }}
+        isActive={isActive && !busy && subMode !== 'delete' && subMode !== 'ai-confirm'}
+        onClose={
+          subMode === 'list'
+            ? onClose
+            : subMode === 'ai-preview'
+              ? discardAiPreview
+              : () => { setErr(null); setSubMode('list'); }
+        }
         hints={hints}
       >
-        {mode === 'assign' && selectedItem ? (
+        {mode === 'assign' && selectedItem && subMode !== 'ai-preview' ? (
           <Box marginBottom={1} flexDirection="row">
             <Text color={theme.muted}>{t(lang, '当前位置: ', 'Current: ')}</Text>
             <Badge
@@ -387,6 +572,59 @@ export const FolderModal = memo(function FolderModal({
                 prompt={asciiMode ? '>' : '›'}
               />
             </Box>
+          </Box>
+        ) : subMode === 'ai-preview' ? (
+          <Box flexDirection="column">
+            <Box marginBottom={1} flexDirection="row" width={innerWidth}>
+              <Badge
+                label={`${t(lang, '建议', 'Suggestions')} ${aiSuggestions.length}`}
+                tone="info"
+                variant="soft"
+              />
+              {aiUnmatchedCount > 0 ? (
+                <>
+                  <Text> </Text>
+                  <Badge
+                    label={`${t(lang, '未匹配', 'Unmatched')} ${aiUnmatchedCount}`}
+                    tone="muted"
+                    variant="outline"
+                  />
+                </>
+              ) : null}
+              <Box flexGrow={1} />
+              <Text color={theme.dim}>
+                {t(lang, 'Enter/y 应用  Esc 放弃', 'Enter/y apply  Esc discard')}
+              </Text>
+            </Box>
+            <VirtualList
+              items={aiSuggestions}
+              height={listHeight}
+              width={innerWidth}
+              selectedIndex={aiPreviewIndex}
+              onChange={(idx) => setAiPreviewIndex(idx)}
+              isActive={previewActive}
+              keyExtractor={(item) => item.key}
+              renderItem={(item, ctx) => {
+                const cursor = ctx.selected ? (asciiMode ? '> ' : '› ') : '  ';
+                const sep = ` ${arrow} `;
+                const avail = Math.max(8, ctx.width - displayWidth(cursor) - displayWidth(sep));
+                const folderMax = Math.max(6, Math.min(Math.floor(avail * 0.45), displayWidth(item.suggestedFolder)));
+                const folderStr = truncateDisplay(item.suggestedFolder, folderMax, ell);
+                const titleMax = Math.max(4, avail - displayWidth(folderStr));
+                const titleStr = truncateDisplay(item.title, titleMax, ell);
+                return (
+                  <Box flexDirection="row" width={ctx.width}>
+                    <Text color={ctx.selected ? theme.primary : theme.muted}>{cursor}</Text>
+                    <Text color={theme.text} bold={ctx.selected}>
+                      {titleStr}
+                    </Text>
+                    <Box flexGrow={1} />
+                    <Text color={theme.dim}>{sep}</Text>
+                    <Text color={theme.accent}>{folderStr}</Text>
+                  </Box>
+                );
+              }}
+            />
           </Box>
         ) : (
           <Box flexDirection="column">
@@ -456,7 +694,7 @@ export const FolderModal = memo(function FolderModal({
 
         {busy ? (
           <Box marginTop={1}>
-            <Spinner label={t(lang, `正在保存文件夹变更${ell}`, `Updating folders${ell}`)} />
+            <Spinner label={aiPhaseLabel ?? t(lang, `正在保存文件夹变更${ell}`, `Updating folders${ell}`)} />
           </Box>
         ) : null}
         {err ? (
@@ -477,8 +715,24 @@ export const FolderModal = memo(function FolderModal({
           confirmLabel={t(lang, '确认删除', 'Delete')}
           cancelLabel={t(lang, '取消', 'Cancel')}
           danger
-          isActive={isActive && subMode === 'delete'}
+          isActive={isActive && subMode === 'delete' && !busy}
           onConfirm={() => void handleDeleteConfirm()}
+          onCancel={() => setSubMode('list')}
+        />
+      ) : null}
+
+      {subMode === 'ai-confirm' ? (
+        <ConfirmDialog
+          title={t(lang, 'AI 智能文件夹分类', 'AI Auto-Classify Folders')}
+          message={t(
+            lang,
+            '将调用 AI 模型为资料生成主题文件夹分类建议（仅预览结果，确认应用前不会修改任何文件夹）。是否继续？',
+            'Invoke the AI model to suggest topic folder assignments for your materials. Preview only - no folders will be changed until you apply.',
+          )}
+          confirmLabel={t(lang, '开始分析', 'Analyze')}
+          cancelLabel={t(lang, '取消', 'Cancel')}
+          isActive={isActive && subMode === 'ai-confirm' && !busy}
+          onConfirm={() => void handleAiSuggest()}
           onCancel={() => setSubMode('list')}
         />
       ) : null}

@@ -46,11 +46,20 @@ interface BookSettingsShape {
   confusableDrill?: boolean;
 }
 
+interface ExamPrepSettingsShape {
+  autoRoles: boolean;
+  paperWords: string[];
+  language: 'auto' | 'zh' | 'en';
+  showOtherCourses: boolean;
+  enabled: boolean;
+}
+
 interface FullSettingsShape {
   request_retention: number;
   maximum_interval: number;
   practice?: Partial<PracticeSettingsShape>;
   book?: Partial<BookSettingsShape>;
+  examPrep?: Partial<ExamPrepSettingsShape>;
   generation?: Partial<GenerationSettingsShape>;
   dailyRecap?: Partial<DailyRecapSettingsShape>;
 }
@@ -71,6 +80,7 @@ type SettingRowId =
   | 'rereadMarks'
   | 'book_qaToBook'
   | 'practice_reset'
+  | 'examprep_reset'
   | 'request_retention'
   | 'maximum_interval'
   | 'gen_kind'
@@ -89,6 +99,7 @@ const ROW_IDS: readonly SettingRowId[] = Object.freeze([
   'rereadMarks',
   'book_qaToBook',
   'practice_reset',
+  'examprep_reset',
   'request_retention',
   'maximum_interval',
   'gen_kind',
@@ -126,6 +137,7 @@ export const StudyGenTab: React.FC<StudyGenTabProps> = memo(function StudyGenTab
   const [saving, setSaving] = useState(false);
   const [cursor, setCursor] = useState(0);
   const [confirmResetPractice, setConfirmResetPractice] = useState(false);
+  const [confirmResetExamPrep, setConfirmResetExamPrep] = useState(false);
 
   const mountedRef = useRef(true);
   useEffect(() => {
@@ -220,6 +232,24 @@ export const StudyGenTab: React.FC<StudyGenTabProps> = memo(function StudyGenTab
     notify(t(lang, '已恢复练习默认设置（修题短语已保留）', 'Practice defaults reset (saved fixPhrases kept)'), 'success');
   }, [host, lang, notify, refreshSnapshot]);
 
+  const handleResetExamPrep = useCallback(async () => {
+    setConfirmResetExamPrep(false);
+    setSaving(true);
+    const res = await tryAction<ExamPrepSettingsShape>(host, 'settings.examPrep.reset', {});
+    if (!mountedRef.current) return;
+    setSaving(false);
+    if (!res.ok) {
+      notify(res.error?.message || t(lang, '恢复备考补习默认设置失败', 'Failed to reset ExamPrep defaults'), 'error');
+      return;
+    }
+    setSettings((prev) => ({ ...(prev ?? { request_retention: 0.9, maximum_interval: 36500 }), examPrep: res.value }));
+    void refreshSnapshot();
+    notify(
+      t(lang, '已恢复备考补习默认设置（页面开关已保留）', 'ExamPrep defaults reset (page switch kept)'),
+      'success',
+    );
+  }, [host, lang, notify, refreshSnapshot]);
+
   const saveGeneralPatch = useCallback(
     async (patch: Record<string, unknown>) => {
       setSaving(true);
@@ -262,6 +292,9 @@ export const StudyGenTab: React.FC<StudyGenTabProps> = memo(function StudyGenTab
         case 'practice_reset':
           if (dir === 1) setConfirmResetPractice(true);
           return;
+        case 'examprep_reset':
+          if (dir === 1) setConfirmResetExamPrep(true);
+          return;
         case 'request_retention': {
           const nearest = RETENTIONS.reduce((best, r) => (Math.abs(r - retention) < Math.abs(best - retention) ? r : best), RETENTIONS[2]);
           void saveGeneralPatch({ request_retention: cycleOf(RETENTIONS, nearest, dir) });
@@ -302,8 +335,9 @@ export const StudyGenTab: React.FC<StudyGenTabProps> = memo(function StudyGenTab
     [bookQaToBook, dailyRecap, generation, maxInterval, practice, retention, saveBookPatch, saveGeneralPatch, savePracticePatch],
   );
 
+  const dialogOpen = confirmResetPractice || confirmResetExamPrep;
   const claimed = useMemo(() => ['j', 'k', 'h', 'l', 'r', ' '], []);
-  useClaimKeys(claimed, isActive && !confirmResetPractice);
+  useClaimKeys(claimed, isActive && !dialogOpen);
 
   useInput(
     (input, key) => {
@@ -327,7 +361,7 @@ export const StudyGenTab: React.FC<StudyGenTabProps> = memo(function StudyGenTab
         adjustRow(ROW_IDS[cursor], 1);
       }
     },
-    { isActive: isActive && !confirmResetPractice },
+    { isActive: isActive && !dialogOpen },
   );
 
   const onOff = (v: boolean) => (v ? (asciiMode ? t(lang, '开启 +', 'On +') : t(lang, '开启 ✓', 'On ✓')) : t(lang, '关闭', 'Off'));
@@ -354,6 +388,14 @@ export const StudyGenTab: React.FC<StudyGenTabProps> = memo(function StudyGenTab
       label: t(lang, '恢复练习默认设置', 'Reset Practice Defaults'),
       value: t(lang, '恢复默认', 'Reset'),
       hint: t(lang, '重置练习默认值，保留 fixPhrases', 'Resets defaults, keeps fixPhrases'),
+      isAction: true,
+    },
+    {
+      id: 'examprep_reset',
+      group: t(lang, '备考', 'Exam'),
+      label: t(lang, '恢复备考补习默认设置', 'Reset ExamPrep Defaults'),
+      value: t(lang, '恢复默认', 'Reset'),
+      hint: t(lang, '重置个人默认，保留页面开关', 'Resets defaults, keeps switch'),
       isAction: true,
     },
     { id: 'request_retention', group: 'FSRS-6', label: t(lang, '目标记忆保留率', 'Target Retention'), value: `${Math.round(retention * 100)}%`, hint: '80%–95%' },
@@ -383,7 +425,7 @@ export const StudyGenTab: React.FC<StudyGenTabProps> = memo(function StudyGenTab
       <Panel
         title={t(lang, '复习调度、出题默认与每日复盘', 'Review, Generation & Daily Recap Settings')}
         subtitle={saving ? t(lang, `保存中${ell}`, `Saving${ell}`) : loading ? t(lang, `加载中${ell}`, `Loading${ell}`) : t(lang, `${arrowHint} 或 Enter 调整并即时保存`, `${arrowHint} or Enter to adjust`)}
-        focused={isActive && !confirmResetPractice}
+        focused={isActive && !dialogOpen}
         width={width}
         height={height}
       >
@@ -437,6 +479,24 @@ export const StudyGenTab: React.FC<StudyGenTabProps> = memo(function StudyGenTab
           width={Math.min(62, Math.max(40, width - 6))}
           onConfirm={() => void handleResetPractice()}
           onCancel={() => setConfirmResetPractice(false)}
+          isActive={isActive}
+        />
+      ) : null}
+
+      {confirmResetExamPrep ? (
+        <ConfirmDialog
+          title={t(lang, '恢复备考补习默认设置', 'Reset ExamPrep Defaults')}
+          message={t(
+            lang,
+            '确定将自定义备考补习个人默认值（自动识别用途、样卷关键词、清单语言、显示其他课程资料）恢复为默认值吗？备考补习页面的开启/关闭开关会保持不变。',
+            'Reset custom ExamPrep personal defaults (auto roles, paper words, list language, show other courses) back to defaults? The ExamPrep page on/off switch will remain unchanged.',
+          )}
+          confirmLabel={t(lang, '恢复默认', 'Reset')}
+          cancelLabel={t(lang, '取消', 'Cancel')}
+          danger
+          width={Math.min(62, Math.max(40, width - 6))}
+          onConfirm={() => void handleResetExamPrep()}
+          onCancel={() => setConfirmResetExamPrep(false)}
           isActive={isActive}
         />
       ) : null}

@@ -1,6 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
-import type { HostClient, KeyHint } from '../../types/contracts.js';
+import type { HostClient, KeyHint, StudySnapshot } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import {
   Badge,
@@ -32,6 +32,12 @@ export interface DeckCardItem {
   flag?: string;
   suspended?: boolean;
   focus?: boolean;
+  slain?: {
+    deckId?: string;
+    deckTitle?: string;
+    suspended?: boolean;
+    at?: string;
+  };
 }
 
 export interface FullDeckDetail {
@@ -54,7 +60,7 @@ export interface DeckManageModalProps {
   onUpdated?: () => void;
 }
 
-type ModalMode = 'browse' | 'search' | 'rename' | 'supplement' | 'convert';
+type ModalMode = 'browse' | 'search' | 'rename' | 'folder' | 'supplement' | 'convert';
 
 const SUPPLEMENT_COUNTS = [3, 5, 10, 15] as const;
 const SUPPLEMENT_KINDS = ['mixed', 'quiz', 'multi', 'truefalse', 'flashcard', 'open', 'cloze'] as const;
@@ -331,6 +337,11 @@ function summarizeCardMarkdown(card: DeckCardItem, lang: 'zh' | 'en', asciiMode 
     parts.push('');
     parts.push(`> ${asciiMode ? '!' : '⚑'} ${t(lang, '标记', 'Flagged')}: ${card.flag}`);
   }
+  if (card.slain) {
+    const origin = card.slain.deckTitle || card.slain.deckId || t(lang, '原题组', 'Original deck');
+    parts.push('');
+    parts.push(`> ${t(lang, '斩题来源', 'Slain origin')}: ${origin}`);
+  }
   return parts.join('\n');
 }
 
@@ -358,6 +369,7 @@ export const DeckManageModal = memo(function DeckManageModal({
   const [mode, setMode] = useState<ModalMode>('browse');
   const [searchQuery, setSearchQuery] = useState('');
   const [renameValue, setRenameValue] = useState('');
+  const [folderValue, setFolderValue] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const busyRef = useRef(false);
@@ -402,6 +414,7 @@ export const DeckManageModal = memo(function DeckManageModal({
     if (res.ok && res.value) {
       setDeck(res.value);
       setRenameValue(res.value.title || '');
+      setFolderValue(res.value.folder || '');
       const validIds = new Set((res.value.cards ?? []).map((c) => c.id));
       setSelectedIds((prev) => {
         if (prev.size === 0) return prev;
@@ -418,6 +431,13 @@ export const DeckManageModal = memo(function DeckManageModal({
     return null;
   }, [host, deckId]);
 
+  const refreshSnapshot = useCallback(async () => {
+    const snapRes = await tryAction<StudySnapshot>(host, 'snapshot');
+    if (mountedRef.current && snapRes.ok && snapRes.value && typeof snapRes.value === 'object') {
+      useTuiStore.getState().setSnapshot(snapRes.value);
+    }
+  }, [host]);
+
   useEffect(() => {
     let alive = true;
     setLoading(true);
@@ -428,6 +448,7 @@ export const DeckManageModal = memo(function DeckManageModal({
       if (res.ok && res.value) {
         setDeck(res.value);
         setRenameValue(res.value.title || '');
+        setFolderValue(res.value.folder || '');
       } else {
         setError(res.error?.message || t(lang, '读取题组失败', 'Failed to load deck'));
       }
@@ -774,6 +795,90 @@ export const DeckManageModal = memo(function DeckManageModal({
     }
   }, [busy, deck, selectedIds, host, reloadDeck, onUpdated, notify, lang]);
 
+  const handleFolderSubmit = useCallback(
+    async (raw: string) => {
+      if (busyRef.current || busy || !deck) {
+        setMode('browse');
+        return;
+      }
+      if (deck.systemKind) {
+        setMode('browse');
+        notify(t(lang, '系统题组不支持移动目录', 'System decks cannot be moved to a folder'), 'warning');
+        return;
+      }
+      const normalizedFolder = raw
+        .split('/')
+        .map((x) => x.trim())
+        .filter(Boolean)
+        .join(' / ')
+        .slice(0, 200);
+      if (normalizedFolder === (deck.folder || '')) {
+        setMode('browse');
+        return;
+      }
+      busyRef.current = true;
+      setBusy(true);
+      try {
+        const res = await tryAction<{ id?: string; folder?: string }>(host, 'deck.move', {
+          id: deck.id,
+          folder: raw.trim(),
+        });
+        if (!mountedRef.current) return;
+        if (!res.ok) {
+          setMode('browse');
+          notify(res.error?.message || t(lang, '移动目录失败', 'Failed to move folder'), 'error');
+          return;
+        }
+        const savedFolder = typeof res.value?.folder === 'string' ? res.value.folder : normalizedFolder;
+        setDeck((prev) => (prev ? { ...prev, folder: savedFolder } : prev));
+        setFolderValue(savedFolder);
+        await refreshSnapshot();
+        if (!mountedRef.current) return;
+        onUpdated?.();
+        setMode('browse');
+        notify(
+          savedFolder
+            ? t(lang, `已移动到目录「${savedFolder}」`, `Moved to folder "${savedFolder}"`)
+            : t(lang, '已移出目录', 'Cleared deck folder'),
+          'success',
+        );
+      } finally {
+        busyRef.current = false;
+        if (mountedRef.current) setBusy(false);
+      }
+    },
+    [busy, deck, host, notify, lang, refreshSnapshot, onUpdated],
+  );
+
+  const handleRestoreCard = useCallback(async () => {
+    if (busyRef.current || busy || !deck || !selectedCard) return;
+    if (deck.systemKind !== 'slain' && !selectedCard.slain) return;
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      const res = await tryAction<{ deckId?: string; cardId?: string; title?: string }>(host, 'card.restore', {
+        deckId: deck.id,
+        cardId: selectedCard.id,
+      });
+      if (!mountedRef.current) return;
+      if (!res.ok) {
+        notify(res.error?.message || t(lang, '恢复原题组失败', 'Failed to restore card'), 'error');
+        return;
+      }
+      const targetTitle = String(
+        res.value?.title || selectedCard.slain?.deckTitle || selectedCard.slain?.deckId || t(lang, '原题组', 'original deck'),
+      );
+      await reloadDeck();
+      await refreshSnapshot();
+      if (!mountedRef.current) return;
+      onUpdated?.();
+      notify(t(lang, `已恢复到「${targetTitle}」`, `Restored to "${targetTitle}"`), 'success');
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusy(false);
+    }
+  }, [busy, deck, selectedCard, host, notify, lang, reloadDeck, refreshSnapshot, onUpdated]);
+
   const handlePracticeCard = useCallback(
     async (card: DeckCardItem) => {
       if (!deck || busy) return;
@@ -798,7 +903,13 @@ export const DeckManageModal = memo(function DeckManageModal({
   const frameW = Math.max(48, Math.min(100, width - 4));
   const frameH = Math.max(16, Math.min(34, height - 2));
   const innerW = modalContentWidth(frameW);
-  const inputRows = mode === 'search' || mode === 'rename' ? 3 : 0;
+  const isSlainDeck = deck?.systemKind === 'slain';
+  const hasSlainCard = Boolean(selectedCard?.slain);
+  const hasBrowseMetaStrip =
+    mode === 'browse' &&
+    Boolean(searchQuery || selectedIds.size > 0 || isSlainDeck || hasSlainCard || (!deck?.systemKind && deck?.folder));
+
+  const inputRows = mode === 'search' || mode === 'rename' || mode === 'folder' ? 3 : 0;
   const bodyH = Math.max(6, frameH - 6 - inputRows);
   const listH = Math.max(4, Math.floor(bodyH * 0.52));
   const previewH = Math.max(3, bodyH - listH - 1);
@@ -913,6 +1024,17 @@ export const DeckManageModal = memo(function DeckManageModal({
       } else if (input === 'n') {
         setRenameValue(deck.title || '');
         setMode('rename');
+      } else if (!key.ctrl && !key.meta && input === 'm') {
+        if (deck.systemKind) {
+          notify(t(lang, '系统题组不支持移动目录', 'System decks cannot be moved to a folder'), 'warning');
+        } else {
+          setFolderValue(deck.folder || '');
+          setMode('folder');
+        }
+      } else if (!key.ctrl && !key.meta && input === 'u') {
+        if (deck.systemKind === 'slain' || selectedCard?.slain) {
+          void handleRestoreCard();
+        }
       } else if (input === 'e') {
         void handleOpenDraft();
       } else if (input === 'p') {
@@ -939,7 +1061,12 @@ export const DeckManageModal = memo(function DeckManageModal({
               { key: 'Enter', label: t(lang, '保存名称', 'Save') },
               { key: 'Esc', label: t(lang, '取消', 'Cancel') },
             ]
-          : mode === 'supplement'
+          : mode === 'folder'
+            ? [
+                { key: 'Enter', label: t(lang, '保存目录', 'Save') },
+                { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+              ]
+            : mode === 'supplement'
             ? suppJobResult
               ? [
                   { key: 't', label: t(lang, '查看任务', 'View Tasks') },
@@ -970,22 +1097,31 @@ export const DeckManageModal = memo(function DeckManageModal({
                 ? [
                     { key: 'Space', label: t(lang, '多选', 'Select') },
                     { key: 'F', label: t(lang, '重点', 'Focus') },
-                    { key: 'S', label: t(lang, '暂停/恢复', 'Suspend') },
+                    ...(!isSlainDeck ? [{ key: 'S', label: t(lang, '暂停/恢复', 'Suspend') }] : []),
                     { key: 'x', label: t(lang, '清空', 'Clear') },
                     { key: 'Esc', label: t(lang, '关闭', 'Close') },
                   ]
-                : [
-                    { key: 'Space', label: t(lang, '多选', 'Select') },
-                    { key: 'Enter', label: t(lang, '练此题', 'Practice') },
-                    { key: 'p', label: t(lang, '练整组', 'Deck') },
-                    { key: '+', label: t(lang, '补题', 'Supplement') },
-                    { key: 'k', label: t(lang, '转题型', 'Convert') },
-                    { key: '/', label: t(lang, '搜索', 'Search') },
-                    { key: 'n', label: t(lang, '改名', 'Rename') },
-                    { key: 'e', label: t(lang, '草稿', 'Draft') },
-                    { key: 'Esc', label: t(lang, '关闭', 'Close') },
-                  ],
-    [mode, lang, suppJobResult, convertEditActive, convertTargetKind, selectedIds.size],
+                : isSlainDeck
+                  ? [
+                      { key: 'u', label: t(lang, '恢复原题组', 'Restore') },
+                      { key: 'Space', label: t(lang, '多选', 'Select') },
+                      { key: '/', label: t(lang, '搜索', 'Search') },
+                      { key: 'Esc', label: t(lang, '关闭', 'Close') },
+                    ]
+                  : [
+                      { key: 'Space', label: t(lang, '多选', 'Sel') },
+                      { key: 'Enter', label: t(lang, '练此题', 'Study') },
+                      { key: 'p', label: t(lang, '整组', 'Deck') },
+                      { key: '+', label: t(lang, '补题', 'Add') },
+                      { key: 'k', label: t(lang, '题型', 'Kind') },
+                      { key: '/', label: t(lang, '搜索', 'Find') },
+                      { key: 'n', label: t(lang, '改名', 'Ren') },
+                      ...(!deck?.systemKind ? [{ key: 'm', label: t(lang, '目录', 'Folder') }] : []),
+                      ...(hasSlainCard ? [{ key: 'u', label: t(lang, '恢复', 'Restore') }] : []),
+                      { key: 'e', label: t(lang, '草稿', 'Draft') },
+                      { key: 'Esc', label: t(lang, '关闭', 'Close') },
+                    ],
+    [mode, lang, suppJobResult, convertEditActive, convertTargetKind, selectedIds.size, isSlainDeck, deck?.systemKind, hasSlainCard],
   );
 
   const renderCardRow = useCallback(
@@ -1115,19 +1251,75 @@ export const DeckManageModal = memo(function DeckManageModal({
         </Box>
       ) : null}
 
-      {mode === 'browse' && (searchQuery || selectedIds.size > 0) ? (
+      {mode === 'folder' ? (
+        <Box flexDirection="column" flexShrink={0}>
+          <Text color={theme.accent}>
+            {t(lang, '设置题组目录 (留空清除目录，支持 A / B 层级):', 'Deck folder (leave empty to clear, supports A / B):')}
+          </Text>
+          <Box borderStyle={asciiMode ? 'classic' : 'round'} borderColor={theme.borderActive} paddingX={1}>
+            <TextInput
+              value={folderValue}
+              onChange={setFolderValue}
+              onSubmit={(val) => {
+                void handleFolderSubmit(val);
+              }}
+              onCancel={() => setMode('browse')}
+              isActive={isActive && mode === 'folder' && !busy}
+              width={Math.max(12, innerW - 6)}
+              placeholder={t(lang, `输入目录名称，如 高数 / 微积分${ell}`, `Folder name, e.g. CS / Algorithms${ell}`)}
+            />
+          </Box>
+        </Box>
+      ) : null}
+
+      {hasBrowseMetaStrip ? (
         <Box height={1} flexDirection="row" gap={1} flexShrink={0} overflow="hidden">
           {selectedIds.size > 0 ? (
             <>
               <Badge label={t(lang, `已选 ${selectedIds.size}`, `${selectedIds.size} sel`)} tone="primary" variant="soft" />
               <Text color={theme.dim}>
                 {truncateDisplay(
-                  t(lang, '[F]重点  [S]暂停/恢复  [x]清空', '[F]Focus  [S]Suspend  [x]Clear'),
+                  isSlainDeck
+                    ? t(lang, '[F]重点  [x]清空', '[F]Focus  [x]Clear')
+                    : t(lang, '[F]重点  [S]暂停/恢复  [x]清空', '[F]Focus  [S]Suspend  [x]Clear'),
                   Math.max(10, innerW - 14),
                   ell,
                 )}
               </Text>
             </>
+          ) : null}
+          {selectedIds.size === 0 && (isSlainDeck || hasSlainCard) ? (
+            <>
+              {selectedCard?.slain ? (
+                <>
+                  <Badge
+                    label={`${t(lang, '斩题来源', 'Origin')}: ${truncateDisplay(
+                      selectedCard.slain.deckTitle || selectedCard.slain.deckId || t(lang, '原题组', 'Original'),
+                      Math.max(10, Math.floor(innerW * 0.45)),
+                      ell,
+                    )}`}
+                    tone="warning"
+                    variant="soft"
+                  />
+                  <Text color={theme.dim}>
+                    {truncateDisplay(t(lang, '[u] 恢复原题组', '[u] Restore to deck'), Math.max(10, innerW - 24), ell)}
+                  </Text>
+                </>
+              ) : (
+                <Badge
+                  label={t(lang, '斩题组: 按 [u] 恢复到原题组', 'Slain Deck: Press [u] to restore')}
+                  tone="warning"
+                  variant="soft"
+                />
+              )}
+            </>
+          ) : null}
+          {selectedIds.size === 0 && !isSlainDeck && !hasSlainCard && deck?.folder ? (
+            <Badge
+              label={`${t(lang, '目录', 'Folder')}: ${truncateDisplay(deck.folder, Math.max(10, innerW - 16), ell)}`}
+              tone="accent"
+              variant="soft"
+            />
           ) : null}
           {searchQuery ? (
             <>
@@ -1348,7 +1540,7 @@ export const DeckManageModal = memo(function DeckManageModal({
         <Box flexDirection="column" flexGrow={1} overflow="hidden">
           <VirtualList
             items={filteredCards}
-            height={(searchQuery || selectedIds.size > 0) && mode === 'browse' ? Math.max(3, listH - 1) : listH}
+            height={hasBrowseMetaStrip ? Math.max(3, listH - 1) : listH}
             width={innerW}
             selectedIndex={selectedIndex}
             onChange={(idx) => setSelectedIndex(idx)}
@@ -1356,7 +1548,11 @@ export const DeckManageModal = memo(function DeckManageModal({
             highlightSelected={false}
             keyExtractor={(c) => c.id}
             renderItem={renderCardRow}
-            emptyText={t(lang, '没有匹配的题目', 'No matching cards')}
+            emptyText={
+              isSlainDeck && !searchQuery
+                ? t(lang, '斩题组已清空', 'No slain cards remaining')
+                : t(lang, '没有匹配的题目', 'No matching cards')
+            }
             emptyHint={searchQuery ? t(lang, '按 [c] 清除筛选', 'Press [c] to clear filter') : undefined}
           />
           <Divider width={innerW} />
