@@ -52,6 +52,7 @@ export const NoteEditorModal = memo(function NoteEditorModal({
   const [editField, setEditField] = useState<EditField>('markdown');
 
   const mountedRef = useRef(true);
+  const savingRef = useRef(false);
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -146,7 +147,7 @@ export const NoteEditorModal = memo(function NoteEditorModal({
   }, []);
 
   const handleSave = useCallback(async () => {
-    if (saving) return;
+    if (savingRef.current || saving) return;
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
       setError(t(lang, '请输入笔记标题', 'Please enter a note title'));
@@ -160,6 +161,7 @@ export const NoteEditorModal = memo(function NoteEditorModal({
       );
       return;
     }
+    savingRef.current = true;
     setSaving(true);
     setError('');
     try {
@@ -172,7 +174,6 @@ export const NoteEditorModal = memo(function NoteEditorModal({
         if (!mountedRef.current) return;
         if (!createdRes.ok || !createdRes.value) {
           setError(createdRes.error?.message || t(lang, '创建笔记失败', 'Failed to create note'));
-          setSaving(false);
           return;
         }
         let finalNote = createdRes.value;
@@ -199,7 +200,6 @@ export const NoteEditorModal = memo(function NoteEditorModal({
         if (!mountedRef.current) return;
         if (!saveRes.ok || !saveRes.value) {
           setError(saveRes.error?.message || t(lang, '保存笔记失败', 'Failed to save note'));
-          setSaving(false);
           return;
         }
         onSaved(saveRes.value, false);
@@ -207,15 +207,22 @@ export const NoteEditorModal = memo(function NoteEditorModal({
     } catch (err) {
       if (mountedRef.current) {
         setError(err instanceof Error ? err.message : String(err));
-        setSaving(false);
       }
+    } finally {
+      savingRef.current = false;
+      if (mountedRef.current) setSaving(false);
     }
   }, [saving, title, mode, selectedCards, candidates.length, host, lang, markdown, note, onSaved]);
+
+  const markdownFocused = mode === 'create' ? createField === 'markdown' : editField === 'markdown';
 
   useInput(
     (input, key) => {
       if (key.ctrl && input === 's') {
-        void handleSave();
+        // Multiline TextInput invokes onSubmit -> handleSave() on Ctrl+S; avoid duplicate firing in the same tick.
+        if (!markdownFocused) {
+          void handleSave();
+        }
         return;
       }
       if (mode === 'create') {

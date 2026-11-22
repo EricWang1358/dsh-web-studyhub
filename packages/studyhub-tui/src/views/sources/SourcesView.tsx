@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
@@ -29,12 +29,12 @@ import {
   groupSourcesFromSnapshot,
   materialFoldersFromSnapshot,
 } from './source-helpers.js';
-import { ImportModal } from './ImportModal.js';
-import { DocumentReader } from './DocumentReader.js';
-import { FolderModal } from './FolderModal.js';
-import { CompanionsModal } from './CompanionsModal.js';
-import { OrganizeSourcesModal } from './OrganizeSourcesModal.js';
-import { SourceCoverageModal } from './SourceCoverageModal.js';
+const ImportModal = lazy(() => import('./ImportModal.js').then((m) => ({ default: m.ImportModal })));
+const DocumentReader = lazy(() => import('./DocumentReader.js').then((m) => ({ default: m.DocumentReader })));
+const FolderModal = lazy(() => import('./FolderModal.js').then((m) => ({ default: m.FolderModal })));
+const CompanionsModal = lazy(() => import('./CompanionsModal.js').then((m) => ({ default: m.CompanionsModal })));
+const OrganizeSourcesModal = lazy(() => import('./OrganizeSourcesModal.js').then((m) => ({ default: m.OrganizeSourcesModal })));
+const SourceCoverageModal = lazy(() => import('./SourceCoverageModal.js').then((m) => ({ default: m.SourceCoverageModal })));
 
 type ActiveOverlay =
   | 'none'
@@ -390,20 +390,22 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
   // If DocumentReader is open, delegate full view area to it.
   if (readerTarget) {
     return (
-      <DocumentReader
-        host={host}
-        sourceId={readerTarget.sourceId}
-        documentId={readerTarget.documentId}
-        initialPage={readerTarget.pageNumber}
-        initialTitle={readerTarget.title}
-        initialFormat={readerTarget.format}
-        initialCourse={readerTarget.course}
-        totalPagesHint={readerTarget.totalPages}
-        width={width}
-        height={height}
-        isActive={isActive}
-        onClose={() => setReaderTarget(null)}
-      />
+      <Suspense fallback={null}>
+        <DocumentReader
+          host={host}
+          sourceId={readerTarget.sourceId}
+          documentId={readerTarget.documentId}
+          initialPage={readerTarget.pageNumber}
+          initialTitle={readerTarget.title}
+          initialFormat={readerTarget.format}
+          initialCourse={readerTarget.course}
+          totalPagesHint={readerTarget.totalPages}
+          width={width}
+          height={height}
+          isActive={isActive}
+          onClose={() => setReaderTarget(null)}
+        />
+      </Suspense>
     );
   }
 
@@ -601,15 +603,16 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
       </Box>
 
       {/* Modals */}
-      {overlay === 'import' ? (
-        <ImportModal
-          host={host}
-          defaultCourse={focusCourse}
-          isActive={isActive}
-          onClose={() => setOverlay('none')}
-          onImported={refresh}
-        />
-      ) : null}
+      <Suspense fallback={null}>
+        {overlay === 'import' ? (
+          <ImportModal
+            host={host}
+            defaultCourse={focusCourse}
+            isActive={isActive}
+            onClose={() => setOverlay('none')}
+            onImported={refresh}
+          />
+        ) : null}
 
       {overlay === 'rename' && selectedItem ? (
         <Modal
@@ -724,21 +727,22 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
         />
       ) : null}
 
-      {overlay === 'coverage' && selectedItem ? (
-        <SourceCoverageModal
-          host={host}
-          item={selectedItem}
-          defaultCourse={focusCourse}
-          isActive={isActive}
-          onGenerate={(sourceIds, course) => {
-            navigate('generate', {
-              sourceIds,
-              ...(course ? { course } : {}),
-            });
-          }}
-          onClose={() => setOverlay('none')}
-        />
-      ) : null}
+        {overlay === 'coverage' && selectedItem ? (
+          <SourceCoverageModal
+            host={host}
+            item={selectedItem}
+            defaultCourse={focusCourse}
+            isActive={isActive}
+            onGenerate={(sourceIds, course) => {
+              navigate('generate', {
+                sourceIds,
+                ...(course ? { course } : {}),
+              });
+            }}
+            onClose={() => setOverlay('none')}
+          />
+        ) : null}
+      </Suspense>
     </Box>
   );
 });

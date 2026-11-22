@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
@@ -28,8 +28,8 @@ import type {
   BookTocResult,
   FlatTocItem,
 } from './types.js';
-import { BookCrunchModal } from './BookCrunchModal.js';
-import { BookQaModal } from './BookQaModal.js';
+const BookCrunchModal = lazy(() => import('./BookCrunchModal.js').then((m) => ({ default: m.BookCrunchModal })));
+const BookQaModal = lazy(() => import('./BookQaModal.js').then((m) => ({ default: m.BookQaModal })));
 
 const CLAIMED_KEYS = ['P', 'r', 'w'] as const;
 
@@ -685,31 +685,33 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
         </Modal>
       ) : null}
 
-      {crunchModalOpen ? (
-        <BookCrunchModal
-          host={host}
-          course={effectiveCourse ?? null}
-          isActive={isActive && crunchModalOpen}
-          width={width}
-          height={height}
-          onClose={() => setCrunchModalOpen(false)}
-        />
-      ) : null}
+      <Suspense fallback={null}>
+        {crunchModalOpen ? (
+          <BookCrunchModal
+            host={host}
+            course={effectiveCourse ?? null}
+            isActive={isActive && crunchModalOpen}
+            width={width}
+            height={height}
+            onClose={() => setCrunchModalOpen(false)}
+          />
+        ) : null}
 
-      {qaModalOpen ? (
-        <BookQaModal
-          host={host}
-          course={effectiveCourse ?? null}
-          isActive={isActive && qaModalOpen}
-          width={width}
-          height={height}
-          onClose={() => setQaModalOpen(false)}
-          onChanged={() => {
-            setReadCache({});
-            setReloadSeq((n) => n + 1);
-          }}
-        />
-      ) : null}
+        {qaModalOpen ? (
+          <BookQaModal
+            host={host}
+            course={effectiveCourse ?? null}
+            isActive={isActive && qaModalOpen}
+            width={width}
+            height={height}
+            onClose={() => setQaModalOpen(false)}
+            onChanged={() => {
+              setReadCache({});
+              setReloadSeq((n) => n + 1);
+            }}
+          />
+        ) : null}
+      </Suspense>
     </Box>
   );
 };

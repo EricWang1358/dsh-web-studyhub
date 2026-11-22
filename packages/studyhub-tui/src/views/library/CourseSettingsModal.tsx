@@ -1330,7 +1330,7 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
         ) : (
           /* Tab 4: Exam Alignment & Focus Mastery */
           <Box flexDirection="column" height={tabBodyH} overflow="hidden">
-            {alignLoading && !alignPreview && !focusProgress ? (
+            {(alignLoading || (!alignError && Boolean(selectedCourse))) && !alignPreview && !focusProgress ? (
               <Box height={tabBodyH} alignItems="center" justifyContent="center">
                 <Spinner label={t(lang, '正在读取考前对齐与重点进度…', 'Loading exam alignment & focus progress…')} active={isActive} />
               </Box>

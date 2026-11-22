@@ -13,8 +13,40 @@ export interface BoardCard {
   column: BoardColumnId;
   course?: string;
   dueDate?: string;
+  upstreamCardId?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface UpstreamBoardColumn {
+  id: string;
+  title?: string;
+  done?: boolean;
+  cardIds?: string[];
+}
+
+export interface UpstreamBoardCard {
+  id?: string;
+  title?: string;
+  note?: string;
+  due?: string;
+  plannedDate?: string;
+  labels?: string[];
+  kind?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  studyRef?: {
+    kind?: string;
+    course?: string;
+    [k: string]: unknown;
+  };
+}
+
+export interface UpstreamBoardSnapshot {
+  revision?: number;
+  columns?: UpstreamBoardColumn[];
+  cards?: Record<string, UpstreamBoardCard>;
+  readOnly?: boolean;
 }
 
 export interface FocusStats {
@@ -36,6 +68,7 @@ const BoardCardSchema = z.object({
   column: z.enum(['todo', 'doing', 'done']).catch('todo'),
   course: z.string().trim().max(120).optional().catch(undefined),
   dueDate: z.string().trim().max(40).optional().catch(undefined),
+  upstreamCardId: z.string().trim().min(1).max(120).optional().catch(undefined),
   createdAt: z.string().catch(() => new Date().toISOString()),
   updatedAt: z.string().catch(() => new Date().toISOString()),
 });
@@ -66,6 +99,7 @@ const BoardDocumentSchema = z.object({
           ...parsed.data,
           ...(parsed.data.course ? { course: parsed.data.course } : {}),
           ...(parsed.data.dueDate ? { dueDate: parsed.data.dueDate } : {}),
+          ...(parsed.data.upstreamCardId ? { upstreamCardId: parsed.data.upstreamCardId } : {}),
         });
       }
       return out;
@@ -192,5 +226,140 @@ export function addCompletedPomodoro(stats: FocusStats | undefined, minutes: num
     date: base.date,
     completedPomodoros: base.completedPomodoros + 1,
     focusedMinutes: base.focusedMinutes + addMin,
+  };
+}
+
+export function mapUpstreamColumnId(col: UpstreamBoardColumn | undefined): BoardColumnId {
+  if (!col) return 'todo';
+  if (col.done || col.id === 'done') return 'done';
+  if (col.id === 'doing') return 'doing';
+  return 'todo';
+}
+
+export function resolveUpstreamTargetColumn(
+  columns: readonly UpstreamBoardColumn[] | undefined,
+  targetCol: BoardColumnId,
+): string | null {
+  if (!Array.isArray(columns) || columns.length === 0) return targetCol;
+  if (targetCol === 'done') {
+    return (columns.find((c) => c.id === 'done') || columns.find((c) => c.done))?.id ?? null;
+  }
+  if (targetCol === 'doing') {
+    return (
+      columns.find((c) => c.id === 'doing') ||
+      columns.find((c) => !c.done && c.id !== 'todo') ||
+      columns.find((c) => !c.done)
+    )?.id ?? null;
+  }
+  return (columns.find((c) => c.id === 'todo') || columns.find((c) => !c.done))?.id ?? null;
+}
+
+function extractUpstreamMeta(raw: UpstreamBoardCard): { title: string; course?: string; dueDate?: string } {
+  const title = String(raw.title || '').trim().slice(0, 300);
+  const courseRaw =
+    (typeof raw.studyRef?.course === 'string' && raw.studyRef.course.trim()) ||
+    (Array.isArray(raw.labels) && typeof raw.labels[0] === 'string' && raw.labels[0].trim()) ||
+    '';
+  const course = courseRaw ? courseRaw.slice(0, 120) : undefined;
+  const dueRaw =
+    (typeof raw.due === 'string' && raw.due.trim()) ||
+    (typeof raw.plannedDate === 'string' && raw.plannedDate.trim()) ||
+    '';
+  const dueDate = /^\d{4}-\d{2}-\d{2}$/.test(dueRaw) ? dueRaw : undefined;
+  return { title, course, dueDate };
+}
+
+/** Merge open task cards from StudyHub's global `board.get` snapshot without duplicating local or synced cards. */
+export function mergeUpstreamBoard(
+  prevCards: readonly BoardCard[],
+  upstream: UpstreamBoardSnapshot,
+): { cards: BoardCard[]; syncedCount: number; changed: boolean } {
+  const cardsMap = upstream.cards && typeof upstream.cards === 'object' ? upstream.cards : {};
+  const columns = Array.isArray(upstream.columns) ? upstream.columns : [];
+
+  const entryByUpstreamId = new Map<string, { raw: UpstreamBoardCard; column: BoardColumnId }>();
+
+  for (const col of columns) {
+    const mappedCol = mapUpstreamColumnId(col);
+    const ids = Array.isArray(col.cardIds) ? col.cardIds : [];
+    for (const cardId of ids) {
+      if (typeof cardId !== 'string' || !cardId || entryByUpstreamId.has(cardId)) continue;
+      const raw = cardsMap[cardId];
+      if (!raw || raw.kind === 'memo') continue;
+      if (typeof raw.title !== 'string' || !raw.title.trim()) continue;
+      entryByUpstreamId.set(cardId, { raw, column: mappedCol });
+    }
+  }
+
+  for (const [cardId, raw] of Object.entries(cardsMap)) {
+    if (!cardId || entryByUpstreamId.has(cardId) || !raw || raw.kind === 'memo') continue;
+    if (typeof raw.title !== 'string' || !raw.title.trim()) continue;
+    entryByUpstreamId.set(cardId, { raw, column: 'todo' });
+  }
+
+  const matchedUpstreamIds = new Set<string>();
+  const usedLocalIds = new Set<string>();
+  const nextCards: BoardCard[] = [];
+  const now = new Date().toISOString();
+  let changed = false;
+
+  for (const card of prevCards) {
+    if (!card.upstreamCardId) {
+      nextCards.push(card);
+      usedLocalIds.add(card.id);
+      continue;
+    }
+    const up = entryByUpstreamId.get(card.upstreamCardId);
+    if (!up) {
+      changed = true;
+      continue;
+    }
+    matchedUpstreamIds.add(card.upstreamCardId);
+    const { title, course, dueDate } = extractUpstreamMeta(up.raw);
+    const same =
+      card.title === title &&
+      card.column === up.column &&
+      card.course === course &&
+      card.dueDate === dueDate;
+    if (!same) changed = true;
+    const updated: BoardCard = {
+      id: card.id,
+      title,
+      column: up.column,
+      ...(course ? { course } : {}),
+      ...(dueDate ? { dueDate } : {}),
+      upstreamCardId: card.upstreamCardId,
+      createdAt: card.createdAt,
+      updatedAt: same ? card.updatedAt : up.raw.updatedAt || now,
+    };
+    nextCards.push(updated);
+    usedLocalIds.add(updated.id);
+  }
+
+  for (const [upstreamId, up] of entryByUpstreamId.entries()) {
+    if (matchedUpstreamIds.has(upstreamId)) continue;
+    changed = true;
+    const { title, course, dueDate } = extractUpstreamMeta(up.raw);
+    let localId = `sh-${upstreamId}`.slice(0, 120);
+    if (usedLocalIds.has(localId)) {
+      localId = `sh-${randomUUID().slice(0, 8)}`;
+    }
+    usedLocalIds.add(localId);
+    nextCards.push({
+      id: localId,
+      title,
+      column: up.column,
+      ...(course ? { course } : {}),
+      ...(dueDate ? { dueDate } : {}),
+      upstreamCardId: upstreamId,
+      createdAt: up.raw.createdAt || now,
+      updatedAt: up.raw.updatedAt || now,
+    });
+  }
+
+  return {
+    cards: changed ? nextCards : [...prevCards],
+    syncedCount: entryByUpstreamId.size,
+    changed,
   };
 }

@@ -114,10 +114,10 @@ test('globalShortcuts documents required keys cleanly in zh and en without dupli
   }
 });
 
-test('featureShortcuts documents Rounds 5-15 shortcuts cleanly in zh and en without duplicates', () => {
+test('featureShortcuts documents Rounds 5-17 shortcuts cleanly in zh and en without duplicates', () => {
   for (const lang of ['zh', 'en']) {
     const sections = M.featureShortcuts(lang);
-    assert.equal(sections.length, 8);
+    assert.equal(sections.length, 10);
     const titles = sections.map((s) => s.title);
     assert.equal(new Set(titles).size, titles.length, `duplicate section title in ${lang}`);
     for (const sec of sections) {
@@ -137,19 +137,23 @@ test('featureShortcuts documents Rounds 5-15 shortcuts cleanly in zh and en with
     assert.ok(titlesJoined.includes('Generate'), `missing Generate section in ${lang}`);
     assert.ok(titlesJoined.includes('Book'), `missing Book section in ${lang}`);
     assert.ok(titlesJoined.includes('Exam Coach'), `missing Exam Coach section in ${lang}`);
+    assert.ok(titlesJoined.includes('Exam Prep'), `missing Exam Prep section in ${lang}`);
     assert.ok(titlesJoined.includes('Sources'), `missing Sources section in ${lang}`);
     assert.ok(titlesJoined.includes('Board'), `missing Board section in ${lang}`);
+    assert.ok(titlesJoined.includes('Tasks'), `missing Tasks section in ${lang}`);
     assert.ok(titlesJoined.includes('Settings'), `missing Settings section in ${lang}`);
     if (lang === 'zh') {
       assert.ok(titlesJoined.includes('出题与草稿'), 'missing 出题与草稿 section in zh');
       assert.ok(titlesJoined.includes('复习全书'), 'missing 复习全书 section in zh');
       assert.ok(titlesJoined.includes('考试教练'), 'missing 考试教练 section in zh');
+      assert.ok(titlesJoined.includes('备考补习'), 'missing 备考补习 section in zh');
       assert.ok(titlesJoined.includes('待办看板'), 'missing 待办看板 section in zh');
+      assert.ok(titlesJoined.includes('后台任务'), 'missing 后台任务 section in zh');
       assert.ok(titlesJoined.includes('设置'), 'missing 设置 section in zh');
     }
 
     const allKeys = sections.flatMap((s) => s.items.map((i) => i.key));
-    for (const k of ['p', 'g', 'C', 'o', 'm: + / k', 'T', 'S', 'D', 'F', 'G', 'L', 'A', '*', 'S / R', 'w', 'P', 'V', 'm', 'O', 'B', 'P / Space', 'M', '+/-', 'R', 'x']) {
+    for (const k of ['p', 'g', 'C', 'o', 'm: + / k', 'T', 'S', 'D', 'F', 'G', 'L', 'A', '*', 'S / R', 'w', 'P', 'V', 'm', 'O', 'B', 'P / Space', 'M', '+/-', 'R', 'w / o / m', 'x']) {
       assert.ok(allKeys.includes(k), `missing feature shortcut ${k} in ${lang}`);
     }
     const keysJoined = allKeys.join('\n');
@@ -163,6 +167,9 @@ test('featureShortcuts documents Rounds 5-15 shortcuts cleanly in zh and en with
     const sourcesSec = sections.find((s) => s.title.includes('Sources'));
     const bookSec = sections.find((s) => s.title.includes('Book'));
     const coachSec = sections.find((s) => s.title.includes('Exam Coach'));
+    const examPrepSec = sections.find((s) => s.title.includes('Exam Prep'));
+    const boardSec = sections.find((s) => s.title.includes('Board'));
+    const tasksSec = sections.find((s) => s.title.includes('Tasks'));
     assert.ok(librarySec?.items.some((i) => i.key === 'g' && (i.label.includes('带学') || i.label.includes('Guided Study'))), `missing Library [g] label in ${lang}`);
     assert.ok(librarySec?.items.some((i) => i.key === 'm: + / k' && (i.label.includes('补题') || i.label.includes('supplement'))), `missing Library [m: + / k] label in ${lang}`);
     assert.ok(reviewSec?.items.some((i) => i.key === 'L' && (i.label.includes('带学') || i.label.includes('Socratic'))), `missing Review [L] label in ${lang}`);
@@ -174,5 +181,8 @@ test('featureShortcuts documents Rounds 5-15 shortcuts cleanly in zh and en with
     assert.ok(bookSec?.items.some((i) => i.key === 'w' && (i.label.includes('期末一周') || i.label.includes('Final-week'))), `missing Book [w] label in ${lang}`);
     assert.ok(bookSec?.items.some((i) => i.key === 'P' && (i.label.includes('精选问答') || i.label.includes('book QA'))), `missing Book [P] label in ${lang}`);
     assert.ok(coachSec?.items.some((i) => i.key === 'p' && (i.label.includes('画像与偏好') || i.label.includes('profile'))), `missing Exam Coach [p] label in ${lang}`);
+    assert.ok(examPrepSec?.items.some((i) => i.key === 'P' && (i.label.includes('备考计划') || i.label.includes('Study plan'))), `missing Exam Prep [P] label in ${lang}`);
+    assert.ok(boardSec?.items.some((i) => i.key === 'S' && (i.label.includes('同步') || i.label.includes('Sync'))), `missing Board [S] label in ${lang}`);
+    assert.ok(tasksSec?.items.some((i) => i.key === 'w / o / m' && (i.label.includes('工作流') || i.label.includes('Workflows'))), `missing Tasks [w / o / m] label in ${lang}`);
   }
 });

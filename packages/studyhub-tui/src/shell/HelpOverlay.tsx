@@ -88,6 +88,12 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       ],
     },
     {
+      title: t(lang, '备考补习 · Exam Prep', 'Exam Prep'),
+      items: [
+        { key: 'P', label: t(lang, '备考计划与就绪度', 'Study plan & readiness') },
+      ],
+    },
+    {
       title: t(lang, '资料与阅读 · Sources / Reader', 'Sources & Reader'),
       items: [
         { key: 'G', label: t(lang, 'AI 课程归类', 'AI organize') },
@@ -106,6 +112,13 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'M', label: t(lang, '专注/休息模式', 'Focus/break mode') },
         { key: '+/-', label: t(lang, '调整时长', 'Adjust minutes') },
         { key: 'R', label: t(lang, '重置计时', 'Reset timer') },
+        { key: 'S', label: t(lang, '同步学习库看板', 'Sync StudyHub board') },
+      ],
+    },
+    {
+      title: t(lang, '后台任务 · Tasks', 'Tasks'),
+      items: [
+        { key: 'w / o / m', label: t(lang, '工作流历史 / 输出 / 指令', 'Workflows / Output / Msg') },
       ],
     },
     {

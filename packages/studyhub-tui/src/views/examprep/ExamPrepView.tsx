@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
@@ -20,7 +20,7 @@ import { displayWidth, padDisplay, renderBarChart, truncateDisplay } from '../..
 import { currentCourse, listCourses, useShellActions } from '../../shell/index.js';
 import { tryAction } from '../../host/index.js';
 import { AddFocusModal } from './AddFocusModal.js';
-import { StudyPlanModal } from './StudyPlanModal.js';
+const StudyPlanModal = lazy(() => import('./StudyPlanModal.js').then((m) => ({ default: m.StudyPlanModal })));
 import {
   crunchStatusLabel,
   focusStatusGroup,
@@ -628,19 +628,21 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
       ) : null}
 
       {/* [P] Course Study Plan & Readiness Modal */}
-      {planModalOpen ? (
-        <StudyPlanModal
-          host={host}
-          course={course}
-          width={width}
-          height={height}
-          isActive={isActive}
-          onClose={() => setPlanModalOpen(false)}
-          onUpdated={() => {
-            void refreshSnapshot().then(() => loadAll());
-          }}
-        />
-      ) : null}
+      <Suspense fallback={null}>
+        {planModalOpen ? (
+          <StudyPlanModal
+            host={host}
+            course={course}
+            width={width}
+            height={height}
+            isActive={isActive}
+            onClose={() => setPlanModalOpen(false)}
+            onUpdated={() => {
+              void refreshSnapshot().then(() => loadAll());
+            }}
+          />
+        ) : null}
+      </Suspense>
 
       {/* Confirm remove focus topic */}
       {deleteTopicTarget ? (

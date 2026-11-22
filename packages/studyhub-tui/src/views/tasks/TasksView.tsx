@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text, useInput, useWindowSize } from 'ink';
 import type { HostClient, KeyHint, UiLanguage, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
@@ -25,7 +25,7 @@ import {
 import { useShellActions } from '../../shell/actions.js';
 import { truncateDisplay } from '../../render/index.js';
 import { tryAction } from '../../host/sample-actions.js';
-import { WorkflowHistoryModal } from './WorkflowHistoryModal.js';
+const WorkflowHistoryModal = lazy(() => import('./WorkflowHistoryModal.js').then((m) => ({ default: m.WorkflowHistoryModal })));
 
 type FilterTab = 'running' | 'all' | 'archived';
 
@@ -1058,13 +1058,15 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
         />
       ) : null}
 
-      {workflowModalOpen ? (
-        <WorkflowHistoryModal
-          host={host}
-          isActive={isActive && workflowModalOpen}
-          onClose={() => setWorkflowModalOpen(false)}
-        />
-      ) : null}
+      <Suspense fallback={null}>
+        {workflowModalOpen ? (
+          <WorkflowHistoryModal
+            host={host}
+            isActive={isActive && workflowModalOpen}
+            onClose={() => setWorkflowModalOpen(false)}
+          />
+        ) : null}
+      </Suspense>
     </Box>
   );
 });

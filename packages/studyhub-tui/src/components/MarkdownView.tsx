@@ -1,9 +1,11 @@
-import React, { memo, useMemo } from 'react';
+import React, { memo, useMemo, useRef } from 'react';
 import { Box, Text } from 'ink';
 import { useTheme } from '../theme/tokens.js';
 import { useTuiStore } from '../state/store.js';
 import { renderMarkdownLines } from '../render/index.js';
 import { ScrollView } from './ScrollView.js';
+
+const EMPTY_LINES: string[] = [];
 
 export interface MarkdownViewProps {
   markdown: string;
@@ -43,9 +45,21 @@ export const MarkdownView = memo(function MarkdownView({
   const asciiMode = ascii ?? prefAscii;
   const scroll = height !== undefined;
   const renderWidth = Math.max(8, width - (scroll ? 1 : 0));
+  const text = markdown || '';
+  const themeId = theme.id;
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
   const lines = useMemo(
-    () => renderMarkdownLines(markdown || '', { width: renderWidth, theme, mathUnicode: math, ascii: asciiMode }),
-    [markdown, renderWidth, theme, math, asciiMode],
+    () =>
+      text
+        ? renderMarkdownLines(text, {
+            width: renderWidth,
+            theme: themeRef.current,
+            mathUnicode: math,
+            ascii: asciiMode,
+          })
+        : EMPTY_LINES,
+    [text, renderWidth, themeId, math, asciiMode],
   );
 
   if (scroll) {

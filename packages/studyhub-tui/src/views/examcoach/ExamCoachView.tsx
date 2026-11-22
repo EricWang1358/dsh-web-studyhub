@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
@@ -41,7 +41,7 @@ import {
   type MockComposeResult,
   type WrongBookEntry,
 } from './types.js';
-import { CoachPreferencesModal } from './CoachPreferencesModal.js';
+const CoachPreferencesModal = lazy(() => import('./CoachPreferencesModal.js').then((m) => ({ default: m.CoachPreferencesModal })));
 
 const CLAIMED_KEYS = [
   '1', '2', '3', '4',
@@ -1090,15 +1090,17 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
       ) : null}
 
       {/* Modal: Learner Profile & Study Preferences */}
-      {prefsModalOpen ? (
-        <CoachPreferencesModal
-          host={host}
-          isActive={isActive && prefsModalOpen}
-          width={width}
-          height={height}
-          onClose={() => setPrefsModalOpen(false)}
-        />
-      ) : null}
+      <Suspense fallback={null}>
+        {prefsModalOpen ? (
+          <CoachPreferencesModal
+            host={host}
+            isActive={isActive && prefsModalOpen}
+            width={width}
+            height={height}
+            onClose={() => setPrefsModalOpen(false)}
+          />
+        ) : null}
+      </Suspense>
     </Box>
   );
 };
