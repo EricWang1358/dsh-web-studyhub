@@ -24,7 +24,7 @@ Complete keyboard reference for `@ericwang1358/studyhub-tui`, synchronized with 
 | `Ctrl+D` / `Ctrl+U` | Half-page scroll down / up | Active in `ScrollView` / `VirtualList` |
 | `Ctrl+F` / `Ctrl+B` (`PgDn` / `PgUp`) | Full-page scroll down / up | `Space` also pages down in `ScrollView` |
 | `g` / `G` (`Home` / `End`) | Jump to top / bottom | Active in `ScrollView` / `VirtualList` |
-| `Mouse Wheel` | Scroll up / down (3 rows) | Opt-in SGR 1006 wheel lifecycle (`--mouse` / `--no-mouse` / `STUDYHUB_TUI_MOUSE=1`, intact & ESC-stripped, disabled before alt-screen exit) in `VirtualList` & `ScrollView` |
+| `Mouse Wheel` | Scroll up / down (3 rows) | Opt-in SGR 1006 wheel lifecycle (`--mouse` / `--no-mouse` / `STUDYHUB_TUI_MOUSE=1`, intact & ESC-stripped, disabled before alt-screen exit) in `VirtualList`, `ScrollView`, and `CommandPalette` |
 | `Esc` | Close / cancel | Closes active modal, drawer, or palette |
 
 > **CLI Launch Flags**: `--root <path>`, `--page <id>`, `--theme <id>`, `--lang <zh|en>`, `--no-alt-screen`, `--no-launchpad`, `--skip-probe`, `--ascii` / `--unicode`, and `--mouse` / `--no-mouse` (or `STUDYHUB_TUI_MOUSE=1` env var for opt-in SGR 1006 mouse wheel scrolling).
@@ -81,13 +81,13 @@ Open the palette with `Ctrl+K` or `/`. Prefix the query to scope results immedia
 
 | Prefix | Scope | Behavior |
 | --- | --- | --- |
-| `/` | Commands (`cmd`) | Filters slash commands (`/sample`, `/theme`, `/lang`, `/ascii`, `/math`, `/recover`, `/model`, `/voicepack`, `/inbox`, `/refresh`, `/course`, `/import`, `/sidebar`, `/help`, `/back`, `/quit`, and direct page jumps `/review`, `/book`, `/exam`, `/skeleton`, `/wrongbook`, `/tasks`, `/audio`, `/settings`) |
+| `/` | Commands (`cmd`) | Filters slash commands (`/sample`, `/theme`, `/lang`, `/ascii`, `/math`, `/compact`, `/hints`, `/recover`, `/model`, `/voicepack`, `/inbox`, `/refresh`, `/course`, `/import`, `/sidebar`, `/help`, `/back`, `/quit`, and all 16/16 direct page jumps `/library`, `/sources`, `/generate`, `/wrongbook`, `/exam`, `/dashboard`, `/book`, `/skeleton`, `/coach`, `/prep`, `/notes`, `/board`, `/tasks`, `/audio`, `/settings`, `/review`) |
 | `#` | Cards (`card`) | Live full-text question search (`card.search`, min 2 chars); Enter starts focused practice |
 | `?` | Passages (`passage`) | Live source passage search (`search.content`, min 2 chars); Enter opens `DocumentReader` at exact page |
 | `@` | Courses (`course`) | Filters courses and switches active course focus |
 | `:` | Pages (`page`) | Filters all 16 TUI views for instant jump |
 
-Inside the palette: `↑`/`↓`, `Ctrl+P`/`Ctrl+N`, or `Ctrl+J`/`Ctrl+K` move selection; `PgUp`/`PgDn` jump a page; `Enter` executes and saves to recent frecency (`tui.json`); `Esc` closes.
+Inside the palette: `↑`/`↓`, `Ctrl+P`/`Ctrl+N`, `Ctrl+J`/`Ctrl+K`, or `Mouse Wheel` move selection; `PgUp`/`PgDn` jump a page; `Enter` executes and saves to recent frecency (`tui.json`); `Esc` closes.
 
 ---
 
@@ -95,7 +95,7 @@ Inside the palette: `↑`/`↓`, `Ctrl+P`/`Ctrl+N`, or `Ctrl+J`/`Ctrl+K` move se
 
 ### `1` Library (`library`)
 - **Practice & Rounds**: `Enter` start deck / open work item · `R` custom round configurator (`RoundConfigModal`) · `r` resume or start review · `p` daily plan · `g` AI Guided Study (`GuidedStudyModal`: `B` open prerequisite branch via `study.branch.open`, `u` return from branch via `study.branch.return`, `Q` save organized Q&A to card via `study.qa.organize`, `A` save guided artifact)
-- **Deck & Course Ops**: `o` deck import / merge / split (`DeckOpsModal`: Import tab `Ctrl+G` P2-guarded AI filing proposal `draft.import.propose`; Merge tab `g` P2-guarded AI merge suggestions `deck.merge.suggest`, `a` apply proposal) · `[` / `]` reorder selected deck up / down · `C` course settings (tabs `1-4`: `m` merge course, `a` activate/deactivate course; Terms tab: `Space` toggle term mark, `C` clear all terms, `/` filter) · `v` voice pack · `a` archive/unarchive · `d` delete deck · `h` show/hide archived · `s` load/remove sample course · `Tab` toggle Decks / Drafts & Failed Jobs (`y` retries failed job)
+- **Deck & Course Ops**: `o` deck import / merge / split (`DeckOpsModal`: Import tab `Ctrl+G` P2-guarded AI filing proposal `draft.import.propose`; Merge tab `g` P2-guarded AI merge suggestions `deck.merge.suggest`, `a` apply proposal) · `[` / `]` reorder selected deck up / down · `C` course settings (tabs `1-4`: `m` merge course, `a` activate/deactivate course; Terms tab: `Space` toggle term mark, `a` attach check card via `course.terms.attach`, `C` clear all terms, `/` filter) · `v` voice pack · `a` archive/unarchive · `d` delete deck · `h` show/hide archived · `s` load/remove sample course · `Tab` toggle Decks / Drafts & Failed Jobs (`y` retries failed job)
 - **Deck Card Manager (`m`)**: `+` supplement cards · `k` convert card kind · `u` restore slain card (Slain deck / slain card) · `m` move deck to folder (non-system decks) · `Space` multi-select (up to 100) · `F` batch focus · `S` batch suspend · `T` batch retag topic · `L` batch link prerequisite · `X` batch slay · `C` reassign deck course (`deck.course`) · `x` clear selection · `/` or `f` search · `c` clear search · `n` rename · `e` open draft · `p` practise deck
 
 ### `r` Review (`review`)
@@ -109,7 +109,7 @@ Inside the palette: `↑`/`↓`, `Ctrl+P`/`Ctrl+N`, or `Ctrl+J`/`Ctrl+K` move se
 - **DocumentReader**: Automatic last-read page resume (`lastReadPages` persisted across sessions in `tui.json`, capped at 100 recent documents; explicit page/citation jumps preserve target page) · `[` / `]` previous / next page · `O` outline TOC drawer (`Space`/`m` toggle chapter read, `g` AI suggest, `s` save proposal, `X` clear custom AI outline) · `H` mark/highlight passage (`MarkPassageModal`: `j`/`k` pick passage, `1-4`/`Tab` style, `Enter` save) · `B` bookmarks & notes drawer (`ReaderNotesDrawer`: `Tab` Annotations/Marks, `Enter` jump page; Annotations `d` delete; Marks `r` mark reread, `d` delete mark, `S` purge stale marks) · `G` translation glossary & saved translations (`TranslationGlossaryModal`: `Tab`/`1`/`2` Glossary & Saved, `a` add term, `d` delete, `l` toggle `zh`/`en`, `C` clear saved) · `M` toggle chapter read · `a` ask AI on current page (`s` saves reply to note, `f` saves grounded Q&A as flashcard) · `t` bilingual translate page (cache-first + cost estimate + P2 `ConfirmDialog` quota guard; inside translation pane: `L` switch target language, `R` retranslate) · `g` jump to page · `/` search in page · `m` toggle Unicode/LaTeX math · `q` generate from page · `p` practise page · `Esc` / `Backspace` close reader
 
 ### `3` Generate & Drafts (`generate`)
-- **New Generation**: `Tab` switch to Drafts · `Space` toggle source · `a` select/clear all sources · `i` capture & ingest existing cards · `c` cycle course · `k` cycle question kind · `n` cycle count · `p` page range scope · `f` focus instructions · `W` fill course weak topics (`generate.weakTopics`) · `S` AI suggest strategy (`generate.suggest`, P2 `ConfirmDialog` quota-guarded; also opens model settings when unconfigured) · `Ctrl+S` start generation
+- **New Generation**: `Tab` switch to Drafts · `Space` toggle source · `a` select/clear all sources · `i` capture & ingest existing cards · `c` cycle course · `k` cycle question kind · `n` cycle count · `p` page range scope · `f` focus instructions · `W` fill course weak topics (`generate.weakTopics`) · `S` AI suggest strategy (`generate.suggest`, P2 `ConfirmDialog` quota-guarded; also opens model settings when unconfigured) · `P` multi-step study path wizard (`GeneratePathModal`, P2 `ConfirmDialog`-guarded `generate.path.suggest`) · `Ctrl+S` start generation
 - **DraftEditor**: `d` switch draft · `e` edit selected card (`Ctrl+N` switch field, `Ctrl+S` save) · `x` remove card from draft · `u` undo last removed draft card · `S` / `s` check similar cards · `R` repair draft · `V` draft publish preflight · `P` publish draft to deck · `D` delete entire draft
 
 ### `4` Mistakes / Wrong Book (`wrongbook`)

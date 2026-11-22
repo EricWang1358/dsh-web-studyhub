@@ -107,6 +107,16 @@ interface DisplayTermItem extends CourseTermItem {
   unmarked?: boolean;
 }
 
+interface AttachCardHit {
+  deckId: string;
+  deckTitle?: string;
+  course?: string;
+  cardId: string;
+  kind?: string;
+  topic?: string;
+  prompt: string;
+}
+
 export interface ExamAlignmentCourseItem {
   name: string;
   date: string;
@@ -160,6 +170,7 @@ type SubMode =
   | 'confirmRename'
   | 'editExamDate'
   | 'searchTerms'
+  | 'attachCard'
   | 'pickMergeCourse'
   | 'confirmMerge'
   | 'confirmClearTerms';
@@ -330,9 +341,18 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
   const [mergeCandidates, setMergeCandidates] = useState<MergeCandidate[]>([]);
   const [pendingMergeCourse, setPendingMergeCourse] = useState<MergeCandidate | null>(null);
 
+  const [attachTargetTerm, setAttachTargetTerm] = useState<DisplayTermItem | null>(null);
+  const [attachQuery, setAttachQuery] = useState('');
+  const [attachHits, setAttachHits] = useState<AttachCardHit[]>([]);
+  const [attachHitIndex, setAttachHitIndex] = useState(0);
+  const [attachSearching, setAttachSearching] = useState(false);
+  const [attachSearchFocused, setAttachSearchFocused] = useState(false);
+
   const mountedRef = useRef(true);
   const busyRef = useRef(false);
   const termOrderRef = useRef<string[]>([]);
+  const attachSearchSeqRef = useRef(0);
+  const lastAttachQueryRef = useRef('');
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -360,6 +380,13 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
     setUnmarkedTerms([]);
     termOrderRef.current = [];
     setTermFilter('');
+    setAttachTargetTerm(null);
+    setAttachQuery('');
+    setAttachHits([]);
+    setAttachHitIndex(0);
+    setAttachSearching(false);
+    setAttachSearchFocused(false);
+    lastAttachQueryRef.current = '';
     if (!selectedCourse) {
       setMethodData(null);
       setCourseDetail(null);
@@ -969,6 +996,152 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
     }
   }, [selectedCourse, host, lang, notify, actions, onUpdated]);
 
+  const performAttachSearch = useCallback(
+    async (rawQuery: string, opts?: { focusResultsOnDone?: boolean }) => {
+      const trimmed = rawQuery.trim();
+      const seq = ++attachSearchSeqRef.current;
+      if (!trimmed) {
+        setAttachSearching(false);
+        setAttachHits([]);
+        setAttachHitIndex(0);
+        lastAttachQueryRef.current = '';
+        return;
+      }
+      setAttachSearching(true);
+      const res = await tryAction<{ results?: AttachCardHit[] }>(host, 'card.search', {
+        query: trimmed,
+        limit: 10,
+      });
+      if (!mountedRef.current || seq !== attachSearchSeqRef.current) return;
+      setAttachSearching(false);
+      if (!res.ok) {
+        notify(res.error?.message || t(lang, '搜索题目失败', 'Failed to search cards'), 'error');
+        return;
+      }
+      const list = Array.isArray(res.value?.results)
+        ? res.value.results.filter((x) => x && typeof x.deckId === 'string' && typeof x.cardId === 'string')
+        : [];
+      lastAttachQueryRef.current = trimmed;
+      setAttachHits(list);
+      setAttachHitIndex(0);
+      if (opts?.focusResultsOnDone) {
+        setAttachSearchFocused(false);
+      }
+    },
+    [host, lang, notify],
+  );
+
+  useEffect(() => {
+    if (subMode !== 'attachCard' || !attachSearchFocused) return;
+    const trimmed = attachQuery.trim();
+    if (trimmed === lastAttachQueryRef.current) return;
+    if (!trimmed) {
+      attachSearchSeqRef.current += 1;
+      lastAttachQueryRef.current = '';
+      setAttachSearching(false);
+      setAttachHits([]);
+      setAttachHitIndex(0);
+      return;
+    }
+    const timer = setTimeout(() => {
+      void performAttachSearch(trimmed);
+    }, 180);
+    return () => clearTimeout(timer);
+  }, [subMode, attachSearchFocused, attachQuery, performAttachSearch]);
+
+  const openAttachCard = useCallback(
+    (target: DisplayTermItem | null) => {
+      if (!selectedCourse || !target) return;
+      if (target.unmarked) {
+        notify(t(lang, '请先按 Space 标记该术语后再关联检查卡', 'Mark the term with Space before attaching a check card'), 'info');
+        return;
+      }
+      const initialQuery = target.term;
+      setAttachTargetTerm(target);
+      setAttachQuery(initialQuery);
+      setAttachHits([]);
+      setAttachHitIndex(0);
+      setAttachSearchFocused(false);
+      lastAttachQueryRef.current = '';
+      setSubMode('attachCard');
+      void performAttachSearch(initialQuery);
+    },
+    [selectedCourse, lang, notify, performAttachSearch],
+  );
+
+  const handleAttachCard = useCallback(
+    async (hit: AttachCardHit | undefined) => {
+      if (!selectedCourse || !attachTargetTerm || !hit || busyRef.current) return;
+      busyRef.current = true;
+      setBusy(true);
+      setError('');
+      try {
+        const res = await tryAction<{ course?: string; items?: CourseTermItem[]; attached?: number }>(
+          host,
+          'course.terms.attach',
+          {
+            course: selectedCourse,
+            links: [
+              {
+                term: attachTargetTerm.term,
+                card: { deckId: hit.deckId, cardId: hit.cardId },
+              },
+            ],
+          },
+        );
+        if (!mountedRef.current) return;
+        if (!res.ok) {
+          notify(res.error?.message || t(lang, '关联检查卡失败', 'Failed to attach check card'), 'error');
+          return;
+        }
+        const refreshTerms = await tryAction<CourseTermsResponse>(host, 'course.terms.get', {
+          course: selectedCourse,
+        });
+        if (!mountedRef.current) return;
+        if (refreshTerms.ok && refreshTerms.value) {
+          setTermsData(refreshTerms.value);
+        }
+        await actions.refresh();
+        if (!mountedRef.current) return;
+        onUpdated?.();
+        setAttachSearchFocused(false);
+        setAttachTargetTerm(null);
+        setSubMode('none');
+        if ((res.value?.attached ?? 0) > 0) {
+          notify(
+            t(lang, `已为术语「${attachTargetTerm.term}」关联检查卡`, `Linked check card to "${attachTargetTerm.term}"`),
+            'success',
+          );
+        } else {
+          notify(
+            t(lang, `术语「${attachTargetTerm.term}」已关联有效检查卡`, `Term "${attachTargetTerm.term}" already has a linked check card`),
+            'info',
+          );
+        }
+      } finally {
+        busyRef.current = false;
+        if (mountedRef.current) setBusy(false);
+      }
+    },
+    [selectedCourse, attachTargetTerm, host, lang, notify, actions, onUpdated],
+  );
+
+  useInput(
+    (input, key) => {
+      if (loading || busy || subMode !== 'attachCard') return;
+      if (attachSearchFocused) {
+        if (key.downArrow && attachHits.length > 0) {
+          setAttachSearchFocused(false);
+        }
+        return;
+      }
+      if (input === '/' || key.tab) {
+        setAttachSearchFocused(true);
+      }
+    },
+    { isActive: isActive && !loading && !busy && subMode === 'attachCard' },
+  );
+
   useInput(
     (input, key) => {
       if (loading || busy || subMode !== 'none') return;
@@ -1037,6 +1210,8 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
           if (selectedTerm) {
             void handleToggleTerm(selectedTerm);
           }
+        } else if (input === 'a') {
+          openAttachCard(selectedTerm);
         } else if (input === 'C') {
           if ((termsData?.items?.length ?? 0) === 0) {
             notify(t(lang, '当前课程暂无已标记术语', 'No marked terms to clear'), 'info');
@@ -1129,6 +1304,21 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
         { key: 'Esc', label: t(lang, '取消', 'Cancel') },
       ];
     }
+    if (subMode === 'attachCard') {
+      if (attachSearchFocused) {
+        return [
+          { key: 'Enter', label: t(lang, '搜索', 'Search') },
+          { key: asciiMode ? 'Tab' : 'Tab/↓', label: t(lang, '选卡片', 'Select') },
+          { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+        ];
+      }
+      return [
+        { key: asciiMode ? 'j/k' : 'j/k ↑↓', label: t(lang, '选择', 'Select') },
+        { key: 'Enter', label: t(lang, '关联', 'Attach') },
+        { key: '/ / Tab', label: t(lang, '搜题', 'Search') },
+        { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+      ];
+    }
     const base: KeyHint[] = [{ key: '1-4/Tab', label: t(lang, '标签', 'Tabs') }];
     if (tab === 'method') {
       base.push({ key: 'm', label: t(lang, '预设模式', 'Presets') });
@@ -1142,6 +1332,7 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
       base.push({ key: 'a', label: isCourseActive ? t(lang, '停用', 'Deactivate') : t(lang, '激活', 'Activate') });
     } else if (tab === 'terms') {
       if (filteredTerms.length > 0) base.push({ key: 'Space', label: t(lang, '标记/移出', 'Toggle Mark') });
+      if (selectedTerm && !selectedTerm.unmarked) base.push({ key: 'a', label: t(lang, '关联卡', 'Attach Card') });
       base.push({ key: '/', label: t(lang, '筛选', 'Filter') });
       if (termFilter) base.push({ key: 'x', label: t(lang, '清筛选', 'Clear') });
       if ((termsData?.items?.length ?? 0) > 0) base.push({ key: 'C', label: t(lang, '清空', 'Clear All') });
@@ -1153,7 +1344,7 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
     if (availableCourses.length > 1) base.push({ key: 'c', label: t(lang, '换课', 'Course') });
     base.push({ key: 'Esc', label: t(lang, '关闭', 'Close') });
     return base;
-  }, [subMode, tab, lang, methodData?.own, isCourseActive, filteredTerms.length, termFilter, termsData?.items?.length, alignPreview?.enabled, alignPreview?.restorable, focusProgress?.weakScope?.length, availableCourses.length]);
+  }, [subMode, attachSearchFocused, asciiMode, tab, lang, methodData?.own, isCourseActive, filteredTerms.length, selectedTerm, termFilter, termsData?.items?.length, alignPreview?.enabled, alignPreview?.restorable, focusProgress?.weakScope?.length, availableCourses.length]);
 
   const renderStageRow = useCallback(
     (stage: CourseMethodStage, ctx: VirtualListRenderContext) => {
@@ -1188,6 +1379,33 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
       );
     },
     [methodData?.progress?.index, methodData?.gate?.stages, asciiMode, lang, theme],
+  );
+
+  const renderAttachHitRow = useCallback(
+    (hit: AttachCardHit, ctx: VirtualListRenderContext) => {
+      const marker = ctx.selected ? (asciiMode ? '> ' : '▸ ') : '  ';
+      const isCurrent = attachTargetTerm?.card?.cardId === hit.cardId && attachTargetTerm?.card?.deckId === hit.deckId;
+      const metaRaw = isCurrent
+        ? t(lang, '[已关联]', '[linked]')
+        : hit.topic
+          ? `[${truncateDisplay(hit.topic, 14, ell)}]`
+          : hit.deckTitle
+            ? `[${truncateDisplay(hit.deckTitle, 14, ell)}]`
+            : '';
+      const meta = metaRaw ? ` ${metaRaw}` : '';
+      const promptAvail = Math.max(8, ctx.width - displayWidth(marker) - displayWidth(meta));
+      const cleanPrompt = String(hit.prompt || '').replace(/\s+/g, ' ').trim();
+      const promptText = padDisplay(truncateDisplay(cleanPrompt, promptAvail, ell), promptAvail);
+      const fg = ctx.selected ? theme.selectionFg : theme.text;
+      return (
+        <Text color={fg} bold={ctx.selected}>
+          <Text color={ctx.selected ? theme.selectionFg : theme.accent}>{marker}</Text>
+          {promptText}
+          {meta ? <Text color={ctx.selected ? theme.selectionFg : isCurrent ? theme.success : theme.muted}>{meta}</Text> : null}
+        </Text>
+      );
+    },
+    [asciiMode, attachTargetTerm?.card?.cardId, attachTargetTerm?.card?.deckId, ell, lang, theme],
   );
 
   const renderTermRow = useCallback(
@@ -1322,6 +1540,8 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
             ? onClose
             : () => {
                 setPendingMergeCourse(null);
+                setAttachSearchFocused(false);
+                setAttachTargetTerm(null);
                 setSubMode('none');
               }
         }
@@ -1666,6 +1886,90 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
           )
         ) : tab === 'terms' ? (
           /* Tab 3: Course Terms */
+          subMode === 'attachCard' && attachTargetTerm ? (
+            <Box flexDirection="column" height={tabBodyH} overflow="hidden">
+              <Box height={1} flexDirection="row" justifyContent="space-between" overflow="hidden" flexShrink={0}>
+                <Text color={theme.accent} bold wrap="truncate-end">
+                  {truncateDisplay(
+                    t(lang, `为术语「${attachTargetTerm.term}」关联检查卡:`, `Attach check card for "${attachTargetTerm.term}":`),
+                    Math.max(16, innerW - 20),
+                    ell,
+                  )}
+                </Text>
+                <Text color={theme.dim}>
+                  {attachSearchFocused ? t(lang, '[Tab] 选列表', '[Tab] List') : t(lang, '[/] 改搜索', '[/] Search')}
+                </Text>
+              </Box>
+              <Box
+                borderStyle={asciiMode ? 'classic' : 'round'}
+                borderColor={attachSearchFocused ? theme.borderActive : theme.border}
+                paddingX={1}
+                width={innerW}
+              >
+                <TextInput
+                  value={attachQuery}
+                  onChange={setAttachQuery}
+                  onSubmit={(val) => {
+                    const trimmed = val.trim();
+                    if (!trimmed) return;
+                    if (lastAttachQueryRef.current === trimmed && !attachSearching) {
+                      setAttachSearchFocused(false);
+                    } else {
+                      void performAttachSearch(trimmed, { focusResultsOnDone: true });
+                    }
+                  }}
+                  onTab={() => {
+                    setAttachSearchFocused(false);
+                    return undefined;
+                  }}
+                  onCancel={() => {
+                    setAttachSearchFocused(false);
+                    setAttachTargetTerm(null);
+                    setSubMode('none');
+                  }}
+                  isActive={isActive && subMode === 'attachCard' && attachSearchFocused && !busy}
+                  width={Math.max(12, innerW - 6)}
+                  placeholder={t(lang, `输入关键词搜索题目${ell}`, `Search cards${ell}`)}
+                />
+              </Box>
+              <Box height={1} flexDirection="row" gap={1} overflow="hidden" flexShrink={0}>
+                {attachSearching ? (
+                  <Spinner label={t(lang, `正在搜索题库${ell}`, `Searching cards${ell}`)} active={isActive} />
+                ) : (
+                  <Text color={theme.muted} wrap="truncate-end">
+                    {t(lang, `匹配 ${attachHits.length} 张卡片 (Enter 关联)`, `${attachHits.length} matching cards (Enter to attach)`)}
+                  </Text>
+                )}
+              </Box>
+              {attachSearching && attachHits.length === 0 ? (
+                <Box height={Math.max(3, tabBodyH - 5)} alignItems="center" justifyContent="center">
+                  <Spinner label={t(lang, `正在搜索「${attachQuery.trim()}」${ell}`, `Searching "${attachQuery.trim()}"${ell}`)} active={isActive} />
+                </Box>
+              ) : attachHits.length === 0 ? (
+                <EmptyState
+                  title={t(lang, '未找到匹配题目', 'No matching cards found')}
+                  hint={t(lang, '按 [/] 或 Tab 修改搜索关键词，或按 Esc 返回', 'Press [/] or Tab to edit query, or Esc to go back')}
+                  width={innerW}
+                  height={Math.max(3, tabBodyH - 5)}
+                />
+              ) : (
+                <VirtualList
+                  items={attachHits}
+                  height={Math.max(3, tabBodyH - 5)}
+                  width={innerW}
+                  selectedIndex={attachHitIndex}
+                  onChange={setAttachHitIndex}
+                  onSelect={(hit) => {
+                    void handleAttachCard(hit);
+                  }}
+                  isActive={isActive && subMode === 'attachCard' && !attachSearchFocused && !busy}
+                  keyExtractor={(hit) => `${hit.deckId}:${hit.cardId}`}
+                  renderItem={renderAttachHitRow}
+                  ascii={asciiMode}
+                />
+              )}
+            </Box>
+          ) : (
           <Box flexDirection="column" height={tabBodyH} overflow="hidden">
             {subMode === 'searchTerms' ? (
               <Box flexDirection="column" flexShrink={0}>
@@ -1719,6 +2023,7 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
                   isActive={isActive && subMode === 'none' && !busy}
                   keyExtractor={(item, idx) => `${item.term}:${idx}`}
                   renderItem={renderTermRow}
+                  ascii={asciiMode}
                 />
                 <Divider width={innerW} />
                 <Box height={2} flexDirection="column" overflow="hidden">
@@ -1733,13 +2038,20 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
                             ? t(lang, '已移出 (按 Space 重新标记)', 'Unmarked (Space to re-mark)')
                             : `${t(lang, '已标记', 'Marked')} · ${termStateBadge(selectedTerm.state, lang).label}`}
                         </Text>
+                        {selectedTerm.card ? (
+                          <Text color={theme.success}>
+                            {asciiMode
+                              ? t(lang, ' · [已关联检查卡]', ' · [Card linked]')
+                              : t(lang, ' · ✓已关联检查卡', ' · ✓Card linked')}
+                          </Text>
+                        ) : null}
                       </Text>
                       <Text color={theme.muted} wrap="truncate-end">
                         {selectedTerm.fromPrompt
                           ? `${t(lang, '出处题干', 'From')}: ${selectedTerm.fromPrompt}`
                           : selectedTerm.at
                             ? `${t(lang, '记录时间', 'Recorded')}: ${selectedTerm.at.slice(0, 10)}`
-                            : t(lang, '[Space] 标记/移出  [/] 搜索  [C] 清空', '[Space] Toggle  [/] Filter  [C] Clear')}
+                            : t(lang, '[Space] 标记/移出  [a] 关联卡  [/] 搜索  [C] 清空', '[Space] Toggle  [a] Attach  [/] Filter  [C] Clear')}
                       </Text>
                     </>
                   ) : null}
@@ -1747,6 +2059,7 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
               </>
             )}
           </Box>
+          )
         ) : (
           /* Tab 4: Exam Alignment & Focus Mastery */
           <Box flexDirection="column" height={tabBodyH} overflow="hidden">

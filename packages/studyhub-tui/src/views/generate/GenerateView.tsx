@@ -20,9 +20,10 @@ import { groupSourcesFromSnapshot, formatLabel } from '../sources/source-helpers
 
 const DraftEditor = lazy(() => import('./DraftEditor.js').then((m) => ({ default: m.DraftEditor })));
 const IngestModal = lazy(() => import('./IngestModal.js').then((m) => ({ default: m.IngestModal })));
+const GeneratePathModal = lazy(() => import('./GeneratePathModal.js').then((m) => ({ default: m.GeneratePathModal })));
 
 type SubTab = 'new' | 'drafts';
-type GenOverlay = 'none' | 'scope' | 'focus' | 'ingest' | 'suggest-confirm' | 'suggest-loading' | 'suggest-result';
+type GenOverlay = 'none' | 'scope' | 'focus' | 'ingest' | 'path' | 'suggest-confirm' | 'suggest-loading' | 'suggest-result';
 
 interface SuggestUnavailable {
   reason?: string;
@@ -502,8 +503,37 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
 
   const wizardActive = isActive && tab === 'new' && overlay === 'none' && !inputCaptured && !suggestLoading;
 
-  useClaimKeys(['c', 'k', 'n', 'p', 'f', 'S', 'W', 'a', 'g', 'i'], wizardActive);
+  useClaimKeys(['c', 'k', 'n', 'p', 'f', 'S', 'W', 'P', 'a', 'g', 'i'], wizardActive);
   useInputCapture(isActive && tab === 'new' && (overlay === 'scope' || overlay === 'focus'));
+
+  const handleApplyPathStep = useCallback(
+    ({ pageScope: nextScope, targetCount: nextCount, focusNote }: { pageScope: string; targetCount: number; focusNote?: string }) => {
+      setPageScope(nextScope);
+      let bestIdx = 0;
+      let bestDiff = Math.abs(TARGET_COUNTS[0] - nextCount);
+      for (let i = 1; i < TARGET_COUNTS.length; i += 1) {
+        const diff = Math.abs(TARGET_COUNTS[i] - nextCount);
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          bestIdx = i;
+        }
+      }
+      setCountIndex(bestIdx);
+      if (focusNote && focusNote.trim()) {
+        setFocusText((prev) => mergeFocusText(prev, [focusNote.trim()], lang));
+      }
+      setOverlay('none');
+      notify(
+        t(
+          lang,
+          `已应用分步范围 p.${nextScope}（${TARGET_COUNTS[bestIdx]} 题）`,
+          `Applied path step p.${nextScope} (${TARGET_COUNTS[bestIdx]} questions)`,
+        ),
+        'success',
+      );
+    },
+    [lang, notify],
+  );
 
   const wizardHints: KeyHint[] = useMemo(
     () => [
@@ -517,6 +547,7 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
       { key: 'f', label: t(lang, '出题要求', 'Focus') },
       { key: 'W', label: t(lang, '填薄弱点', 'Weak Topics') },
       { key: 'S', label: model.ready ? t(lang, '帮我想想', 'AI Suggest') : t(lang, '设置模型', 'Settings') },
+      { key: 'P', label: t(lang, '分步路径', 'Path') },
       { key: 'Ctrl+S', label: t(lang, '开始出题', 'Generate') },
     ],
     [lang, model.ready],
@@ -550,6 +581,21 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
       }
       if (input === 'W' && !key.ctrl && !key.meta) {
         handleFillWeakTopics();
+        return;
+      }
+      if (input === 'P' && !key.ctrl && !key.meta) {
+        if (selectedSourceIds.size === 0) {
+          notify(
+            t(
+              lang,
+              '请至少选择一份资料后再规划分步出题路径（按空格键勾选）',
+              'Select at least 1 material first to plan generation path (Space)',
+            ),
+            'warning',
+          );
+          return;
+        }
+        setOverlay('path');
         return;
       }
       if (input === 'S' && !key.ctrl && !key.meta) {
@@ -908,6 +954,17 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
             isActive={isActive && overlay === 'ingest'}
             onClose={() => setOverlay('none')}
             onDone={refresh}
+          />
+        ) : null}
+        {overlay === 'path' ? (
+          <GeneratePathModal
+            host={host}
+            groups={allDocs}
+            selectedSourceIds={selectedSourceIds}
+            course={courseName || undefined}
+            isActive={isActive && overlay === 'path'}
+            onApplyStep={handleApplyPathStep}
+            onClose={() => setOverlay('none')}
           />
         ) : null}
       </Suspense>

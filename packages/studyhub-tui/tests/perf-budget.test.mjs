@@ -437,6 +437,7 @@ describe('StudyHub TUI NFR Performance & Bundle Budgets', () => {
       'DailyPlanModal-',
       'DeckOpsModal-',
       'FolderModal-',
+      'GeneratePathModal-',
       'ImportModal-',
       'IngestModal-',
       'MarkPassageModal-',

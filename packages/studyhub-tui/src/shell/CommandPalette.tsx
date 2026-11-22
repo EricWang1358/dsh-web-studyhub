@@ -7,7 +7,7 @@ import { listThemes, nextThemeId, useTheme } from '../theme/tokens.js';
 import { displayWidth, truncateDisplay } from '../render/cjk.js';
 import { Modal } from '../components/Modal.js';
 import { TextInput } from '../components/TextInput.js';
-import { nextScrollOffset } from '../components/VirtualList.js';
+import { nextScrollOffset, parseSgrWheelDelta, useSgrMouseWheel } from '../components/VirtualList.js';
 import { fuzzyFilter } from './fuzzy.js';
 import { listCourses, pageIcon } from './data.js';
 import type { ShellActions } from './actions.js';
@@ -57,6 +57,47 @@ export function parsePaletteScope(raw: string): PaletteScopeResult {
   return { scope: 'all', term: raw.trim() };
 }
 
+/** Filter and rank palette items by parsed scope and query term (exported for unit tests). */
+export function filterPaletteItems(
+  items: readonly CommandPaletteItem[],
+  parsed: PaletteScopeResult,
+  recentCommands: readonly string[],
+  lang: UiLanguage,
+): CommandPaletteItem[] {
+  const { scope, term } = parsed;
+  if (scope === 'card' || scope === 'passage') {
+    return [];
+  }
+  if (scope === 'all' && !term) {
+    const byId = new Map(items.map((i) => [i.id, i]));
+    const recent = recentCommands.map((id) => byId.get(id)).filter((x): x is CommandPaletteItem => Boolean(x));
+    const recentIds = new Set(recent.map((r) => r.id));
+    const recentCat = t(lang, '最近', 'Recent');
+    return [
+      ...recent.map((r) => ({ ...r, category: recentCat })),
+      ...items.filter(
+        (i) =>
+          !recentIds.has(i.id) &&
+          (i.id.startsWith('cmd:') ? !i.id.startsWith('cmd:theme:') && !i.id.startsWith('cmd:page:') : i.id.startsWith('page:')),
+      ),
+    ];
+  }
+  let pool = items;
+  if (scope === 'cmd') {
+    pool = items.filter((i) => i.id.startsWith('cmd:') || i.label.startsWith('/'));
+  } else if (scope === 'course') {
+    pool = items.filter((i) => i.id.startsWith('course:'));
+  } else if (scope === 'page') {
+    pool = items.filter((i) => i.id.startsWith('page:'));
+  }
+  return fuzzyFilter(
+    pool,
+    term,
+    (i) => (scope === 'cmd' && i.label.startsWith('/') ? i.label.slice(1) : i.label),
+    (i) => [...(i.keywords ?? []), i.hint ?? ''],
+  ).map((r) => r.item);
+}
+
 interface CardSearchHit {
   deckId?: string;
   deckTitle?: string;
@@ -97,15 +138,47 @@ function clipLine(v: unknown, max = 120, ell = '...'): string {
 }
 
 const SLASH_PAGE_IDS: readonly PageId[] = [
-  'review',
-  'book',
-  'exam',
-  'skeleton',
+  'library',
+  'sources',
+  'generate',
   'wrongbook',
+  'exam',
+  'dashboard',
+  'book',
+  'skeleton',
+  'examcoach',
+  'examprep',
+  'notes',
+  'board',
   'tasks',
   'audio',
   'settings',
+  'review',
 ];
+
+const SLASH_PAGE_LABELS: Partial<Record<PageId, string>> = {
+  examcoach: '/coach',
+  examprep: '/prep',
+};
+
+const SLASH_PAGE_KEYWORDS: Partial<Record<PageId, readonly string[]>> = {
+  library: ['home', '主页', '库'],
+  sources: ['source', 'pdf', 'docs', '讲义', '阅读'],
+  generate: ['gen', 'create', 'drafts', '出题', '草稿'],
+  wrongbook: ['wrong', 'mistakes', '错题'],
+  exam: ['mock', '模考', '考试'],
+  dashboard: ['stats', 'analytics', '统计', '仪表盘'],
+  book: ['全书'],
+  skeleton: ['tree', '骨架'],
+  examcoach: ['coach', 'examcoach', '教练'],
+  examprep: ['prep', 'examprep', '备考', '补习'],
+  notes: ['note', '笔记'],
+  board: ['kanban', 'todo', '看板', '待办'],
+  tasks: ['jobs', '任务'],
+  audio: ['voice', '音频', '录音'],
+  settings: ['config', 'prefs', '设置'],
+  review: ['practice', '复习', '刷题'],
+};
 
 function persistPreferencePatch(host: HostClient | undefined, patch: Partial<TuiPreferences>): void {
   const dshHome = (host as { dshHome?: string } | undefined)?.dshHome;
@@ -209,13 +282,66 @@ export function buildPaletteItems(
     },
     ['recover', 'jobs', 'resume', '恢复', '中断', '任务'],
   );
+  act(
+    'cmd:compact',
+    '/compact',
+    t(
+      lang,
+      state.preferences.compactMode ? '关闭紧凑布局（恢复标准间距）' : '开启紧凑布局模式',
+      state.preferences.compactMode ? 'Disable compact mode (standard spacing)' : 'Enable compact layout mode',
+    ),
+    () => {
+      const next = !Boolean(state.preferences.compactMode);
+      setPrefs({ compactMode: next });
+      persistPreferencePatch(host, { compactMode: next });
+      notify(
+        t(lang, next ? '紧凑布局已开启' : '紧凑布局已关闭', next ? 'Compact mode enabled' : 'Compact mode disabled'),
+        'info',
+      );
+    },
+    ['compact', 'density', 'layout', '紧凑', '布局', '间距'],
+  );
+  act(
+    'cmd:hints',
+    '/hints',
+    t(
+      lang,
+      state.preferences.showKeyHints ? '隐藏底部快捷键提示' : '显示底部快捷键提示',
+      state.preferences.showKeyHints ? 'Hide footer key hints' : 'Show footer key hints',
+    ),
+    () => {
+      const next = !Boolean(state.preferences.showKeyHints);
+      setPrefs({ showKeyHints: next });
+      persistPreferencePatch(host, { showKeyHints: next });
+      notify(
+        t(lang, next ? '底部快捷键提示已显示' : '底部快捷键提示已隐藏', next ? 'Footer key hints shown' : 'Footer key hints hidden'),
+        'info',
+      );
+    },
+    ['hints', 'keyhints', 'footer', 'keys', '提示', '快捷键', '底部'],
+  );
   act('cmd:model', '/model', t(lang, '配置模型（agy / OpenAI）', 'Configure model (agy / OpenAI)'), () => actions.openModelSettings(), ['agy', 'openai', 'deepseek', '模型', 'api key']);
   act('cmd:voicepack', '/voicepack', t(lang, '语音包', 'Voice pack'), () => state.setVoicePackOpen(true), ['voice', '语音', 'tts']);
   act('cmd:inbox', '/inbox', t(lang, '收件箱与通知', 'Notification Inbox'), () => (state.setInboxOpen ?? useTuiStore.getState().setInboxOpen)(true), ['inbox', 'mail', 'notification', '收件箱', '通知', '信箱'], 'I');
   act('cmd:refresh', '/refresh', t(lang, '刷新学习库', 'Refresh library'), () => actions.refresh(), ['reload', '刷新'], 'Ctrl+R');
   act('cmd:course', '/course', t(lang, '切换课程焦点', 'Switch course'), () => state.setCoursePickerOpen(true), ['课程', 'focus'], 'c');
   act('cmd:import', '/import', t(lang, '导入资料', 'Import source'), () => actions.importSource(), ['导入', 'pdf', 'upload']);
-  act('cmd:sidebar', '/sidebar', t(lang, '折叠/展开侧栏', 'Toggle sidebar'), () => state.toggleSidebar(), ['侧栏', 'nav'], '\\');
+  act(
+    'cmd:sidebar',
+    '/sidebar',
+    t(lang, '折叠/展开侧栏', 'Toggle sidebar'),
+    () => {
+      const next = !Boolean(state.preferences.sidebarCollapsed);
+      setPrefs({ sidebarCollapsed: next });
+      persistPreferencePatch(host, { sidebarCollapsed: next });
+      notify(
+        t(lang, next ? '侧边栏已收起' : '侧边栏已展开', next ? 'Sidebar collapsed' : 'Sidebar expanded'),
+        'info',
+      );
+    },
+    ['sidebar', 'nav', 'collapse', '侧栏', '侧边栏'],
+    '\\',
+  );
   act('cmd:help', '/help', t(lang, '快捷键帮助', 'Keyboard help'), () => state.setHelpOpen(true), ['帮助', 'keys'], '?');
   act('cmd:back', '/back', t(lang, '返回上一页', 'Go back'), () => state.goBack(), ['返回', 'history'], asciiMode ? 'Bksp' : '⌫');
   act('cmd:quit', '/quit', t(lang, '退出 StudyHub', 'Quit StudyHub'), () => actions.quit(), ['exit', '退出'], 'q');
@@ -224,12 +350,14 @@ export function buildPaletteItems(
   for (const pid of SLASH_PAGE_IDS) {
     const meta = pageMetaMap.get(pid);
     if (!meta) continue;
+    const slashLabel = SLASH_PAGE_LABELS[pid] ?? `/${pid}`;
+    const extraKw = SLASH_PAGE_KEYWORDS[pid] ?? [];
     act(
       `cmd:page:${pid}`,
-      `/${pid}`,
+      slashLabel,
       t(lang, `前往${meta.labelZh}`, `Open ${meta.labelEn}`),
       () => (pid === 'review' && state.activeRunId ? state.navigate('review', { runId: state.activeRunId }) : state.navigate(pid)),
-      [pid, meta.labelZh, meta.labelEn],
+      [pid, slashLabel.slice(1), meta.labelZh, meta.labelEn, ...extraKw],
       meta.shortcut,
     );
   }
@@ -469,35 +597,10 @@ export const CommandPalette = memo(function CommandPalette({
     return buildPaletteItems({ ...s, snapshot, preferences, activeRunId }, actions, extraCommands ?? [], host);
   }, [snapshot, preferences, activeRunId, actions, extraCommands, host]);
 
-  const fuzzyResults = useMemo(() => {
-    const { scope, term } = parsed;
-    if (scope === 'card' || scope === 'passage') {
-      return [];
-    }
-    if (scope === 'all' && !term) {
-      const byId = new Map(items.map((i) => [i.id, i]));
-      const recent = preferences.recentCommands.map((id) => byId.get(id)).filter((x): x is CommandPaletteItem => Boolean(x));
-      const recentIds = new Set(recent.map((r) => r.id));
-      const recentCat = t(lang, '最近', 'Recent');
-      return [
-        ...recent.map((r) => ({ ...r, category: recentCat })),
-        ...items.filter(
-          (i) =>
-            !recentIds.has(i.id) &&
-            (i.id.startsWith('cmd:') ? !i.id.startsWith('cmd:theme:') && !i.id.startsWith('cmd:page:') : i.id.startsWith('page:')),
-        ),
-      ];
-    }
-    let pool = items;
-    if (scope === 'cmd') {
-      pool = items.filter((i) => i.id.startsWith('cmd:') || i.label.startsWith('/'));
-    } else if (scope === 'course') {
-      pool = items.filter((i) => i.id.startsWith('course:'));
-    } else if (scope === 'page') {
-      pool = items.filter((i) => i.id.startsWith('page:'));
-    }
-    return fuzzyFilter(pool, term, (i) => i.label, (i) => [...(i.keywords ?? []), i.hint ?? '']).map((r) => r.item);
-  }, [items, parsed, preferences.recentCommands, lang]);
+  const fuzzyResults = useMemo(
+    () => filterPaletteItems(items, parsed, preferences.recentCommands, lang),
+    [items, parsed, preferences.recentCommands, lang],
+  );
 
   const results = useMemo(
     () => (liveItems.length ? [...fuzzyResults, ...liveItems] : fuzzyResults),
@@ -528,12 +631,28 @@ export const CommandPalette = memo(function CommandPalette({
     [host, onClose],
   );
 
+  const moveCursor = useCallback(
+    (delta: number) => {
+      if (results.length === 0) return;
+      const maxIndex = results.length - 1;
+      setCursor((c) => Math.max(0, Math.min(Math.min(c, maxIndex) + delta, maxIndex)));
+    },
+    [results.length],
+  );
+
+  useSgrMouseWheel(isActive, moveCursor);
+
   useInput(
     (input, key) => {
-      if (key.downArrow || (key.ctrl && (input === 'n' || input === 'j'))) setCursor((c) => Math.min(c + 1, Math.max(0, results.length - 1)));
-      else if (key.upArrow || (key.ctrl && (input === 'p' || input === 'k'))) setCursor((c) => Math.max(0, c - 1));
-      else if (key.pageDown) setCursor((c) => Math.min(c + listRows, Math.max(0, results.length - 1)));
-      else if (key.pageUp) setCursor((c) => Math.max(0, c - listRows));
+      const wheelDelta = parseSgrWheelDelta(input);
+      if (wheelDelta !== 0) {
+        moveCursor(wheelDelta);
+        return;
+      }
+      if (key.downArrow || (key.ctrl && (input === 'n' || input === 'j'))) moveCursor(1);
+      else if (key.upArrow || (key.ctrl && (input === 'p' || input === 'k'))) moveCursor(-1);
+      else if (key.pageDown) moveCursor(listRows);
+      else if (key.pageUp) moveCursor(-listRows);
     },
     { isActive },
   );

@@ -87,6 +87,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'i', label: t(lang, '录题 / 粘贴既有题', 'Capture & ingest') },
         { key: 'W', label: t(lang, '填入课程薄弱知识点', 'Fill weak topics') },
         { key: 'S', label: t(lang, 'AI 出题建议', 'AI suggest strategy') },
+        { key: 'P', label: t(lang, '分步出题路径规划', 'Multi-step study path') },
         { key: 'S / R', label: t(lang, '草稿查重与修复', 'Draft similar & repair') },
         { key: 'V', label: t(lang, '草稿发布预检', 'Draft publish preflight') },
         { key: 'u', label: t(lang, '撤销移除草稿题', 'Undo removed draft card') },
@@ -227,6 +228,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       items: [
         { key: '/#?@:', label: t(lang, '命令/题/段/课/页筛选', 'Cmd/card/text/course/page') },
         { key: '/ascii /math /recover', label: t(lang, 'ASCII/数学符号/恢复中断任务', 'ASCII / Math / Recover jobs') },
+        { key: '/compact /hints', label: t(lang, '全16页跳转与界面偏好开关', 'All 16 views & UI toggles') },
       ],
     },
   ];

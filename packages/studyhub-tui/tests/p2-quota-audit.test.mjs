@@ -16,6 +16,7 @@ const EFFECT_GUARDED_ACTIONS = new Set([
   'source.organize.suggest',
   'draft.import.propose',
   'generate.suggest',
+  'generate.path.suggest',
   'focus.suggest',
   'book.retell',
   'generation.courseBook.explain',
