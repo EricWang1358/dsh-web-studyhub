@@ -555,6 +555,98 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
     }
   }, [modal, linking, linkUrl, lang, host, notify, fetchNotesAndDaily, refreshSnapshot]);
 
+  const handlePreparePublish = useCallback(async () => {
+    if (!modal || modal.type !== 'link' || linkingRef.current || linking) return;
+    linkingRef.current = true;
+    setLinking(true);
+    setLinkError('');
+    try {
+      const res = await tryAction<{ autoLookupReady?: boolean; reason?: string }>(host, 'note.preparePublish', {
+        id: modal.note.id,
+      });
+      if (!mountedRef.current) return;
+      if (!res.ok) {
+        setLinkError(errorMessage(res.error, lang) || t(lang, '准备发布失败', 'Failed to prepare publish'));
+        return;
+      }
+      if (res.value?.autoLookupReady) {
+        notify(
+          t(
+            lang,
+            '已记录 CSDN 发布基线，发布后按 Ctrl+L 自动查找关联',
+            'Baseline recorded; press Ctrl+L after publishing to auto-lookup',
+          ),
+          'success',
+        );
+        await fetchNotesAndDaily(true);
+      } else {
+        setLinkError(
+          res.value?.reason ||
+            t(lang, '尚未设置 CSDN 公开主页，发布后可手动关联', 'CSDN home not set; link manually after publishing'),
+        );
+      }
+    } catch (err) {
+      if (mountedRef.current) {
+        setLinkError(errorMessage(err, lang));
+      }
+    } finally {
+      linkingRef.current = false;
+      if (mountedRef.current) setLinking(false);
+    }
+  }, [modal, linking, host, lang, notify, fetchNotesAndDaily]);
+
+  const handleLookupPublished = useCallback(async () => {
+    if (!modal || modal.type !== 'link' || linkingRef.current || linking) return;
+    linkingRef.current = true;
+    setLinking(true);
+    setLinkError('');
+    try {
+      const res = await tryAction<{
+        linked?: NoteItem;
+        matched?: boolean;
+        matches?: string[];
+        reason?: string;
+      }>(host, 'note.lookup', {
+        id: modal.note.id,
+        expectedRevision: modal.note.revision ?? 0,
+      });
+      if (!mountedRef.current) return;
+      if (!res.ok) {
+        setLinkError(errorMessage(res.error, lang) || t(lang, '自动查找公开文章失败', 'Failed to lookup published article'));
+        return;
+      }
+      if (res.value?.linked) {
+        setActiveNote(res.value.linked);
+        setModal(null);
+        notify(t(lang, '已自动匹配并关联公开文章', 'Auto-matched and linked published article'), 'success');
+        await fetchNotesAndDaily(true);
+        if (mountedRef.current) void refreshSnapshot();
+        return;
+      }
+      if (Array.isArray(res.value?.matches) && res.value.matches[0]) {
+        setLinkUrl(res.value.matches[0]);
+        setLinkField('url');
+        setLinkError(
+          res.value.reason ||
+            t(lang, '找到候选文章，请核对链接后按 Enter 保存', 'Found candidate article; verify URL and press Enter to save'),
+        );
+        return;
+      }
+      setLinkError(
+        res.value?.reason ||
+          errorMessage(res.error, lang) ||
+          t(lang, '未找到匹配的公开文章', 'No matching published article found'),
+      );
+    } catch (err) {
+      if (mountedRef.current) {
+        setLinkError(errorMessage(err, lang));
+      }
+    } finally {
+      linkingRef.current = false;
+      if (mountedRef.current) setLinking(false);
+    }
+  }, [modal, linking, host, lang, notify, fetchNotesAndDaily, refreshSnapshot]);
+
   const handleCancelRecapConfirm = useCallback(
     async (noteId: string) => {
       if (cancellingRecapRef.current || cancellingRecap) return;
@@ -817,6 +909,19 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
   const busy = generatingRecap || generatingDraft || cancellingRecap || cancellingGen || openingRef || exporting || linking;
   const noModalActive = isActive && modal === null;
   useClaimKeys(CLAIMED_KEYS, noModalActive);
+
+  useInput(
+    (input, key) => {
+      if (key.ctrl && (input === 'p' || input === 'P')) {
+        void handlePreparePublish();
+        return;
+      }
+      if (key.ctrl && (input === 'l' || input === 'L')) {
+        void handleLookupPublished();
+      }
+    },
+    { isActive: isActive && modal?.type === 'link' },
+  );
 
   useInput(
     (input, key) => {
@@ -1277,14 +1382,16 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
           return (
             <Modal
               title={t(lang, '关联公开文章链接', 'Link Published Article URL')}
+              subtitle={linkField === 'home' ? t(lang, 'Tab 切到文章链接', 'Tab: Article URL') : t(lang, 'Tab 设置主页', 'Tab: CSDN Home')}
               icon={asciiMode ? '>' : '↗'}
               tone="accent"
               width={linkModalWidth}
               onClose={linking ? undefined : () => setModal(null)}
               hints={[
-                { key: 'Enter', label: linkField === 'home' ? t(lang, '保存主页', 'Save Home') : t(lang, '关联链接', 'Save Link') },
-                { key: 'Tab', label: linkField === 'home' ? t(lang, '切到文章链接', 'Article URL') : t(lang, '设置主页', 'CSDN Home') },
-                { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+                { key: 'Ctrl+P', label: t(lang, '准备发布', 'Prepare') },
+                { key: 'Ctrl+L', label: t(lang, '自动查找', 'Lookup') },
+                { key: 'Enter', label: t(lang, '保存', 'Save') },
+                { key: 'Esc', label: t(lang, '关闭', 'Close') },
               ]}
             >
               <Box flexDirection="column" gap={1}>

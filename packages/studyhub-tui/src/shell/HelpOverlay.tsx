@@ -57,6 +57,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'm: T', label: t(lang, '题组批量改主题', 'Deck batch retag topic') },
         { key: 'm: L', label: t(lang, '题组批量关联前置', 'Deck batch link prereq') },
         { key: 'm: X', label: t(lang, '题组批量斩题', 'Deck batch slay') },
+        { key: 'm: C', label: t(lang, '题组更改所属课程', 'Deck change course') },
       ],
     },
     {
@@ -82,6 +83,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       title: t(lang, '出题与草稿 · Generate / Drafts', 'Generate & Drafts'),
       items: [
         { key: 'i', label: t(lang, '录题 / 粘贴既有题', 'Capture & ingest') },
+        { key: 'W', label: t(lang, '填入课程薄弱知识点', 'Fill weak topics') },
         { key: 'S', label: t(lang, 'AI 出题建议', 'AI suggest strategy') },
         { key: 'S / R', label: t(lang, '草稿查重与修复', 'Draft similar & repair') },
         { key: 'u', label: t(lang, '撤销移除草稿题', 'Undo removed draft card') },
@@ -147,7 +149,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'G', label: t(lang, '主题分组管理', 'Topic groups') },
         { key: 'E', label: t(lang, '编辑骨架节点', 'Edit skeleton node') },
         { key: 'D', label: t(lang, '删除知识骨架', 'Delete skeleton') },
-        { key: 'L', label: t(lang, '骨架自检 / 发布链接', 'Skeleton lint / Publish link') },
+        { key: 'L', label: t(lang, '骨架自检 / 发布与查找链接', 'Skeleton lint / Publish & lookup') },
         { key: 'M', label: t(lang, '骨架互动图 / 笔记入资料库', 'Skeleton diagrams / Note to source') },
         { key: 'g', label: t(lang, 'AI起草笔记正文', 'AI draft note') },
         { key: 'C', label: t(lang, '停止笔记/每日总结生成', 'Stop note / recap gen') },

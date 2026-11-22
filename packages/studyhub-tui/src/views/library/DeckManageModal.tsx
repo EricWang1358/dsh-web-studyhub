@@ -11,6 +11,7 @@ import { VirtualList, type VirtualListRenderContext } from '../../components/Vir
 import { useTheme } from '../../theme/tokens.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { startReview, tryAction } from '../../host/sample-actions.js';
+import { listCourses } from '../../shell/data.js';
 import { formatLabel, groupSourcesFromSnapshot, type DocumentGroup } from '../sources/source-helpers.js';
 
 export interface DeckCardItem {
@@ -55,7 +56,7 @@ export interface DeckManageModalProps {
   onUpdated?: () => void;
 }
 
-type ModalMode = 'browse' | 'search' | 'rename' | 'folder' | 'topic' | 'link' | 'supplement' | 'convert';
+type ModalMode = 'browse' | 'search' | 'rename' | 'folder' | 'course' | 'topic' | 'link' | 'supplement' | 'convert';
 
 const SUPPLEMENT_COUNTS = [3, 5, 10, 15] as const;
 const SUPPLEMENT_KINDS = ['mixed', 'quiz', 'multi', 'truefalse', 'flashcard', 'open', 'cloze'] as const;
@@ -365,6 +366,7 @@ export const DeckManageModal = memo(function DeckManageModal({
   const [searchQuery, setSearchQuery] = useState('');
   const [renameValue, setRenameValue] = useState('');
   const [folderValue, setFolderValue] = useState('');
+  const [courseDraft, setCourseDraft] = useState('');
   const [topicValue, setTopicValue] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
@@ -382,6 +384,7 @@ export const DeckManageModal = memo(function DeckManageModal({
   useEffect(() => {
     setSelectedIds(new Set());
     setConfirmBatchSlay(false);
+    setCourseDraft('');
     setTopicValue('');
     setLinkPrereqCursor(0);
     setLinkError('');
@@ -420,6 +423,7 @@ export const DeckManageModal = memo(function DeckManageModal({
       setDeck(res.value);
       setRenameValue(res.value.title || '');
       setFolderValue(res.value.folder || '');
+      setCourseDraft(res.value.course || '');
       const validIds = new Set((res.value.cards ?? []).map((c) => c.id));
       setSelectedIds((prev) => {
         if (prev.size === 0) return prev;
@@ -454,6 +458,7 @@ export const DeckManageModal = memo(function DeckManageModal({
         setDeck(res.value);
         setRenameValue(res.value.title || '');
         setFolderValue(res.value.folder || '');
+        setCourseDraft(res.value.course || '');
       } else {
         setError(res.error?.message || t(lang, '读取题组失败', 'Failed to load deck'));
       }
@@ -1059,6 +1064,58 @@ export const DeckManageModal = memo(function DeckManageModal({
     [busy, deck, host, notify, lang, refreshSnapshot, onUpdated],
   );
 
+  const handleCourseSubmit = useCallback(
+    async (raw: string) => {
+      if (busyRef.current || busy || !deck) return;
+      if (deck.systemKind) {
+        setMode('browse');
+        notify(t(lang, '系统题组不能修改所属课程', 'System decks cannot change course'), 'warning');
+        return;
+      }
+      const trimmed = raw.trim();
+      if (!trimmed) {
+        notify(t(lang, '课程名称不能为空', 'Course name cannot be empty'), 'warning');
+        return;
+      }
+      if (trimmed.length > 200) {
+        notify(t(lang, '课程名称不能超过 200 个字符', 'Course name must be 200 characters or fewer'), 'warning');
+        return;
+      }
+      if (trimmed === (deck.course ?? '').trim()) {
+        setMode('browse');
+        return;
+      }
+      busyRef.current = true;
+      setBusy(true);
+      try {
+        const res = await tryAction<{ id?: string; course?: string }>(host, 'deck.course', {
+          id: deck.id,
+          course: trimmed,
+        });
+        if (!mountedRef.current) return;
+        if (!res.ok) {
+          notify(res.error?.message || t(lang, '修改所属课程失败', 'Failed to update deck course'), 'error');
+          return;
+        }
+        const savedCourse = res.value?.course ?? trimmed;
+        setDeck((prev) => (prev ? { ...prev, course: savedCourse } : prev));
+        setCourseDraft(savedCourse);
+        await refreshSnapshot();
+        if (!mountedRef.current) return;
+        onUpdated?.();
+        setMode('browse');
+        notify(
+          t(lang, `已将题组归入课程「${savedCourse}」`, `Moved deck to course "${savedCourse}"`),
+          'success',
+        );
+      } finally {
+        busyRef.current = false;
+        if (mountedRef.current) setBusy(false);
+      }
+    },
+    [busy, deck, host, notify, lang, refreshSnapshot, onUpdated],
+  );
+
   const handleRestoreCard = useCallback(async () => {
     if (busyRef.current || busy || !deck || !selectedCard) return;
     if (deck.systemKind !== 'slain' && !selectedCard.slain) return;
@@ -1118,7 +1175,18 @@ export const DeckManageModal = memo(function DeckManageModal({
     mode === 'browse' &&
     Boolean(searchQuery || selectedIds.size > 0 || isSlainDeck || hasSlainCard || (!deck?.systemKind && deck?.folder));
 
-  const inputRows = mode === 'search' || mode === 'rename' || mode === 'folder' || mode === 'topic' ? 3 : 0;
+  const courseHints = useMemo(
+    () => listCourses(snapshot).map((c) => c.key).filter(Boolean).slice(0, 6),
+    [snapshot],
+  );
+  const inputRows =
+    mode === 'search' || mode === 'rename' || mode === 'folder' || mode === 'topic'
+      ? 3
+      : mode === 'course'
+        ? courseHints.length > 0
+          ? 5
+          : 4
+        : 0;
   const bodyH = Math.max(6, frameH - 6 - inputRows);
   const listH = Math.max(4, Math.floor(bodyH * 0.52));
   const previewH = Math.max(3, bodyH - listH - 1);
@@ -1254,6 +1322,15 @@ export const DeckManageModal = memo(function DeckManageModal({
       } else if (input === 'n') {
         setRenameValue(deck.title || '');
         setMode('rename');
+      } else if (!key.ctrl && !key.meta && input === 'C') {
+        if (busy || busyRef.current || !deck) return;
+        if (deck.systemKind) {
+          notify(t(lang, '系统题组不能修改所属课程', 'System decks cannot change course'), 'warning');
+        } else {
+          setCourseDraft(deck.course ?? '');
+          setError('');
+          setMode('course');
+        }
       } else if (!key.ctrl && !key.meta && input === 'm') {
         if (deck.systemKind) {
           notify(t(lang, '系统题组不支持移动目录', 'System decks cannot be moved to a folder'), 'warning');
@@ -1296,7 +1373,12 @@ export const DeckManageModal = memo(function DeckManageModal({
                 { key: 'Enter', label: t(lang, '保存目录', 'Save') },
                 { key: 'Esc', label: t(lang, '取消', 'Cancel') },
               ]
-            : mode === 'topic'
+            : mode === 'course'
+              ? [
+                  { key: 'Enter', label: t(lang, '保存课程', 'Save') },
+                  { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+                ]
+              : mode === 'topic'
               ? [
                   { key: 'Enter', label: t(lang, '应用主题', 'Apply') },
                   { key: 'Esc', label: t(lang, '取消', 'Cancel') },
@@ -1360,6 +1442,7 @@ export const DeckManageModal = memo(function DeckManageModal({
                       { key: 'k', label: t(lang, '题型', 'Kind') },
                       { key: '/', label: t(lang, '搜索', 'Find') },
                       { key: 'n', label: t(lang, '改名', 'Ren') },
+                      ...(!deck?.systemKind ? [{ key: 'C', label: t(lang, '改课程', 'Course') }] : []),
                       ...(!deck?.systemKind ? [{ key: 'm', label: t(lang, '目录', 'Folder') }] : []),
                       ...(hasSlainCard ? [{ key: 'u', label: t(lang, '恢复', 'Restore') }] : []),
                       { key: 'e', label: t(lang, '草稿', 'Draft') },
@@ -1377,7 +1460,7 @@ export const DeckManageModal = memo(function DeckManageModal({
       const foc = card.focus ? (asciiMode ? ' *' : ' ★') : '';
       const flag = card.flag ? (asciiMode ? ' !' : ' ⚑') : '';
       const susp = card.suspended ? (asciiMode ? ' [||]' : ' [⏸]') : '';
-      const topic = card.topic ? `${truncateDisplay(card.topic, 14, ell)} · ` : '';
+      const topic = card.topic ? `${truncateDisplay(card.topic, 14, ell)}${asciiMode ? ' - ' : ' · '}` : '';
       const prefix = `${num} ${kind} `;
       const tail = `${foc}${flag}${susp}`;
       const avail = Math.max(6, ctx.width - displayWidth(checkBox) - displayWidth(prefix) - displayWidth(tail));
@@ -1521,6 +1604,45 @@ export const DeckManageModal = memo(function DeckManageModal({
               placeholder={t(lang, `输入目录名称，如 高数 / 微积分${ell}`, `Folder name, e.g. CS / Algorithms${ell}`)}
             />
           </Box>
+        </Box>
+      ) : null}
+
+      {mode === 'course' ? (
+        <Box flexDirection="column" flexShrink={0}>
+          <Text color={theme.accent}>
+            {truncateDisplay(
+              t(lang, '修改题组所属课程 (输入目标课程名):', 'Reassign deck course (enter target course):'),
+              innerW,
+              ell,
+            )}
+          </Text>
+          <Box borderStyle={asciiMode ? 'classic' : 'round'} borderColor={theme.borderActive} paddingX={1}>
+            <TextInput
+              value={courseDraft}
+              onChange={setCourseDraft}
+              onSubmit={(val) => {
+                void handleCourseSubmit(val);
+              }}
+              onCancel={() => {
+                setError('');
+                setMode('browse');
+              }}
+              isActive={isActive && mode === 'course' && !busy}
+              width={Math.max(12, innerW - 6)}
+              placeholder={t(lang, `输入课程名称，如 线性代数${ell}`, `Course name, e.g. Linear Algebra${ell}`)}
+            />
+          </Box>
+          {courseHints.length > 0 ? (
+            <Box height={1} overflow="hidden">
+              <Text color={theme.dim}>
+                {truncateDisplay(
+                  `${t(lang, '已有课程: ', 'Existing: ')}${courseHints.join(asciiMode ? ' | ' : ' · ')}`,
+                  innerW,
+                  ell,
+                )}
+              </Text>
+            </Box>
+          ) : null}
         </Box>
       ) : null}
 

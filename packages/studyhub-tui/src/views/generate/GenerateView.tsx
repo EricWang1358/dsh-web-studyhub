@@ -14,7 +14,7 @@ import { useClaimKeys, useInputCapture } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { currentCourse, listCourses, modelInfo } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
-import { truncateDisplay } from '../../render/cjk.js';
+import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import { errorMessage, tryAction } from '../../host/sample-actions.js';
 import { groupSourcesFromSnapshot, formatLabel } from '../sources/source-helpers.js';
 
@@ -71,6 +71,34 @@ function parsePageScope(scopeText: string): Set<number> | null {
     }
   }
   return pages.size > 0 ? pages : null;
+}
+
+export function formatWeakTopicNames(raw: unknown): string[] {
+  const list = Array.isArray(raw)
+    ? raw
+    : raw && typeof raw === 'object' && Array.isArray((raw as { topics?: unknown }).topics)
+      ? (raw as { topics: unknown[] }).topics
+      : [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const item of list) {
+    let candidate = '';
+    if (typeof item === 'string') {
+      candidate = item.trim();
+    } else if (item && typeof item === 'object') {
+      const obj = item as { topic?: unknown; name?: unknown };
+      if (typeof obj.topic === 'string' && obj.topic.trim()) {
+        candidate = obj.topic.trim();
+      } else if (typeof obj.name === 'string' && obj.name.trim()) {
+        candidate = obj.name.trim();
+      }
+    }
+    if (!candidate || seen.has(candidate)) continue;
+    seen.add(candidate);
+    out.push(candidate);
+    if (out.length >= 8) break;
+  }
+  return out;
 }
 
 function mergeFocusText(current: string, items: readonly string[], lang: 'zh' | 'en'): string {
@@ -192,6 +220,8 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
   const [submitting, setSubmitting] = useState(false);
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [suggestResult, setSuggestResult] = useState<GenerateSuggestResult | null>(null);
+  const [weakTopics, setWeakTopics] = useState<string[]>([]);
+  const weakSeqRef = useRef(0);
   const busyRef = useRef(false);
   const mountedRef = useRef(true);
 
@@ -201,6 +231,24 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
       mountedRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!isActive || tab !== 'new') return;
+    const seq = ++weakSeqRef.current;
+    void (async () => {
+      const res = await tryAction<{ topics?: unknown }>(
+        host,
+        'generate.weakTopics',
+        courseName ? { course: courseName } : {},
+      );
+      if (!mountedRef.current || seq !== weakSeqRef.current) return;
+      if (res.ok && res.value) {
+        setWeakTopics(formatWeakTopicNames(res.value));
+      } else {
+        setWeakTopics([]);
+      }
+    })();
+  }, [host, isActive, tab, courseName, snapshot]);
 
   // Sync incoming navContext.sourceIds / navContext.course
   useEffect(() => {
@@ -418,9 +466,43 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
     notify(t(lang, '已将建议重点应用到出题设置', 'Applied suggested focus to generation settings'), 'success');
   }, [lang, notify, suggestResult]);
 
+  const handleFillWeakTopics = useCallback(() => {
+    if (weakTopics.length === 0) {
+      notify(
+        t(lang, '当前课程暂无薄弱知识点记录', 'No weak topics recorded for this course yet'),
+        'info',
+      );
+      return;
+    }
+    const candidates = weakTopics.slice(0, 5);
+    const existing = new Set(
+      focusText
+        .split(/[；;\n]+/)
+        .map((s) => s.trim())
+        .filter(Boolean),
+    );
+    const added = candidates.filter((topic) => !existing.has(topic)).length;
+    if (added === 0) {
+      notify(
+        t(lang, '当前薄弱知识点已全部在出题重点中', 'All weak topics are already in focus'),
+        'info',
+      );
+      return;
+    }
+    setFocusText((prev) => mergeFocusText(prev, candidates, lang));
+    notify(
+      t(
+        lang,
+        `已填入 ${added} 个薄弱知识点到出题重点`,
+        `Added ${added} weak topic(s) to focus`,
+      ),
+      'success',
+    );
+  }, [weakTopics, focusText, lang, notify]);
+
   const wizardActive = isActive && tab === 'new' && overlay === 'none' && !inputCaptured && !suggestLoading;
 
-  useClaimKeys(['c', 'k', 'n', 'p', 'f', 'S', 'a', 'g', 'i'], wizardActive);
+  useClaimKeys(['c', 'k', 'n', 'p', 'f', 'S', 'W', 'a', 'g', 'i'], wizardActive);
   useInputCapture(isActive && tab === 'new' && (overlay === 'scope' || overlay === 'focus'));
 
   const wizardHints: KeyHint[] = useMemo(
@@ -433,12 +515,13 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
       { key: 'n', label: t(lang, '题数', 'Count') },
       { key: 'p', label: t(lang, '页码范围', 'Pages') },
       { key: 'f', label: t(lang, '出题要求', 'Focus') },
+      { key: 'W', label: t(lang, '填薄弱点', 'Weak Topics') },
       { key: 'S', label: model.ready ? t(lang, '帮我想想', 'AI Suggest') : t(lang, '设置模型', 'Settings') },
       { key: 'Ctrl+S', label: t(lang, '开始出题', 'Generate') },
     ],
     [lang, model.ready],
   );
-  useFooterHints(wizardHints, isActive && tab === 'new');
+  useFooterHints(wizardHints, isActive && tab === 'new' && !inputCaptured);
 
   useInput(
     (input, key) => {
@@ -463,6 +546,10 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
 
       if (key.ctrl && input === 's') {
         void handleSubmitGeneration();
+        return;
+      }
+      if (input === 'W' && !key.ctrl && !key.meta) {
+        handleFillWeakTopics();
         return;
       }
       if (input === 'S' && !key.ctrl && !key.meta) {
@@ -598,7 +685,10 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
           <SplitPane
             width={width}
             height={bodyH}
-            leftWidth={0.5}
+            leftWidth={width < 86 ? 0.45 : 0.5}
+            minLeft={24}
+            minRight={38}
+            breakpoint={68}
             leftLabel={t(lang, '选择资料', 'Sources')}
             rightLabel={t(lang, '出题参数 & 费用预估', 'Options & Estimate')}
             left={({ width: lw, height: lh }) => (
@@ -707,6 +797,20 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
                         ? truncateDisplay(focusText, Math.max(20, (rw - 4) * 2 - 4), ell)
                         : t(lang, '（无，按材料自动规划重点）', '(None — auto plan from materials)')}
                     </Text>
+                    {weakTopics.length > 0
+                      ? (() => {
+                          const panelInnerW = Math.max(14, rw - 4);
+                          const weakPrefix = `${t(lang, '薄弱点', 'Weak')}: `;
+                          const weakSuffix = ` [${t(lang, 'W 填入', 'W Fill')}]`;
+                          const topicMax = Math.max(6, panelInnerW - displayWidth(weakPrefix) - displayWidth(weakSuffix));
+                          const line = `${weakPrefix}${truncateDisplay(weakTopics.slice(0, 3).join(', '), topicMax, ell)}${weakSuffix}`;
+                          return (
+                            <Text color={theme.warning}>
+                              {truncateDisplay(line, panelInnerW, ell)}
+                            </Text>
+                          );
+                        })()
+                      : null}
                   </Box>
 
                   <Box marginTop={1} flexDirection="column">
