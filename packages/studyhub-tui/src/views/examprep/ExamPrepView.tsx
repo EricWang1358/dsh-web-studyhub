@@ -20,6 +20,7 @@ import { displayWidth, padDisplay, renderBarChart, truncateDisplay } from '../..
 import { currentCourse, listCourses, useShellActions } from '../../shell/index.js';
 import { tryAction } from '../../host/index.js';
 import { AddFocusModal } from './AddFocusModal.js';
+import { StudyPlanModal } from './StudyPlanModal.js';
 import {
   crunchStatusLabel,
   focusStatusGroup,
@@ -33,7 +34,7 @@ import {
   type PrepTab,
 } from './types.js';
 
-const CLAIMED_KEYS = ['1', '2', 'a', 'd', 'g', 'G', 'm', 'p', 'r', ' '] as const;
+const CLAIMED_KEYS = ['1', '2', 'a', 'd', 'g', 'G', 'm', 'p', 'P', 'r', ' '] as const;
 
 export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActive }) => {
   const theme = useTheme();
@@ -61,9 +62,10 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
   const [crunchIdx, setCrunchIdx] = useState(0);
 
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [planModalOpen, setPlanModalOpen] = useState(false);
   const [deleteTopicTarget, setDeleteTopicTarget] = useState<string | null>(null);
 
-  const modalOpen = addModalOpen || deleteTopicTarget !== null;
+  const modalOpen = addModalOpen || planModalOpen || deleteTopicTarget !== null;
   const mountedRef = useRef(true);
   const reqSeqRef = useRef(0);
 
@@ -117,6 +119,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
         { key: 'a', label: t(lang, '添加重点', 'Add Focus') },
         { key: 'p', label: t(lang, '练习未掌握', 'Practice') },
         { key: 'g/G', label: t(lang, '补齐出题', 'Gap-Fill') },
+        { key: 'P', label: t(lang, '备考计划', 'Plan') },
         { key: 'd', label: t(lang, '移除重点', 'Remove') },
       ];
     }
@@ -125,6 +128,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
       { key: 'Space', label: t(lang, '标记已看', 'Seen') },
       { key: 'm', label: t(lang, '标记读完', 'Read') },
       { key: 'p', label: t(lang, '模拟开练', 'Mock/Practice') },
+      { key: 'P', label: t(lang, '备考计划', 'Plan') },
       { key: 'a', label: t(lang, '添加重点', 'Add Focus') },
     ];
   }, [tab, lang]);
@@ -278,6 +282,10 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
         setAddModalOpen(true);
         return;
       }
+      if (input === 'P') {
+        setPlanModalOpen(true);
+        return;
+      }
       if (input === 'r') {
         void loadAll();
         return;
@@ -373,7 +381,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
       </Box>
 
       {/* Tabs */}
-      <Box height={1} width={width} paddingX={1} gap={1}>
+      <Box height={1} width={width} paddingX={1} gap={1} overflow="hidden">
         <Text
           backgroundColor={tab === 'focus' ? theme.primary : theme.surface}
           color={tab === 'focus' ? (theme.dark ? theme.bg : '#ffffff') : theme.muted}
@@ -388,7 +396,9 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
         >
           {` 2:${t(lang, '冲刺清单', 'Crunch List')} (${crunchPoints.length}) `}
         </Text>
-        <Text color={theme.dim}>{`  [a] ${t(lang, '添加重点(文本/截图)', 'Add Focus')}`}</Text>
+        <Text color={theme.dim} wrap="truncate-end">
+          {`  [a] ${t(lang, '添加重点', 'Add Focus')}  [P] ${t(lang, '备考计划', 'Plan')}`}
+        </Text>
       </Box>
       <Divider width={width} />
       {errorMsg ? (
@@ -612,6 +622,21 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
           onClose={() => setAddModalOpen(false)}
           onSaved={() => {
             setAddModalOpen(false);
+            void refreshSnapshot().then(() => loadAll());
+          }}
+        />
+      ) : null}
+
+      {/* [P] Course Study Plan & Readiness Modal */}
+      {planModalOpen ? (
+        <StudyPlanModal
+          host={host}
+          course={course}
+          width={width}
+          height={height}
+          isActive={isActive}
+          onClose={() => setPlanModalOpen(false)}
+          onUpdated={() => {
             void refreshSnapshot().then(() => loadAll());
           }}
         />

@@ -1,18 +1,22 @@
-import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
-import type { KeyHint, ViewProps } from '../../types/contracts.js';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Box, Text, useInput, useWindowSize } from 'ink';
+import type { HostClient, KeyHint, UiLanguage, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import {
   Badge,
   ConfirmDialog,
   EmptyState,
+  MarkdownView,
+  Modal,
   Panel,
   ProgressBar,
   ScrollView,
   Spinner,
   SplitPane,
   StatusPill,
+  TextInput,
   VirtualList,
+  modalContentWidth,
   useClaimKeys,
   useFooterHints,
   useTheme,
@@ -21,6 +25,7 @@ import {
 import { useShellActions } from '../../shell/actions.js';
 import { truncateDisplay } from '../../render/index.js';
 import { tryAction } from '../../host/sample-actions.js';
+import { WorkflowHistoryModal } from './WorkflowHistoryModal.js';
 
 type FilterTab = 'running' | 'all' | 'archived';
 
@@ -134,6 +139,412 @@ function formatElapsed(startedAt?: string | number, finishedAt?: string | number
   return `${min}m${String(rem).padStart(2, '0')}s`;
 }
 
+interface JobOutputResponse {
+  jobId?: string;
+  callId?: string;
+  supported?: boolean;
+  live?: boolean;
+  ended?: boolean;
+  retained?: boolean;
+  source?: string;
+  text?: string;
+  markdown?: string;
+  output?: unknown;
+  logs?: unknown;
+  artifacts?: unknown;
+  messages?: unknown;
+  reasoningChars?: number;
+  writtenChars?: number;
+  clipped?: boolean;
+  partial?: boolean;
+  truncated?: boolean;
+  sessionUnreadable?: boolean;
+  runner?: string;
+  [k: string]: unknown;
+}
+
+interface JobMessageResponse {
+  jobId?: string;
+  id?: string;
+  text?: string;
+  at?: string;
+  delivery?: string;
+  note?: string;
+}
+
+function tryParseJson(text: string): { ok: true; value: unknown } | { ok: false } {
+  const trimmed = text.trim();
+  if (!trimmed || (!trimmed.startsWith('{') && !trimmed.startsWith('['))) {
+    return { ok: false };
+  }
+  try {
+    return { ok: true, value: JSON.parse(trimmed) };
+  } catch {
+    return { ok: false };
+  }
+}
+
+function extractOutputContent(payload: JobOutputResponse | null): {
+  kind: 'empty' | 'markdown' | 'json';
+  markdownText: string;
+  jsonText: string;
+} {
+  if (!payload) return { kind: 'empty', markdownText: '', jsonText: '' };
+
+  const rawText =
+    typeof payload.markdown === 'string' && payload.markdown.trim()
+      ? payload.markdown
+      : typeof payload.text === 'string' && payload.text.trim()
+        ? payload.text
+        : typeof payload.output === 'string' && payload.output.trim()
+          ? payload.output
+          : '';
+
+  const structured: Record<string, unknown> = {};
+  if (payload.output && typeof payload.output === 'object') structured.output = payload.output;
+  if (Array.isArray(payload.logs) && payload.logs.length > 0) structured.logs = payload.logs;
+  else if (typeof payload.logs === 'string' && payload.logs.trim()) structured.logs = payload.logs;
+  if (Array.isArray(payload.artifacts) && payload.artifacts.length > 0) structured.artifacts = payload.artifacts;
+  if (Array.isArray(payload.messages) && payload.messages.length > 0) structured.messages = payload.messages;
+
+  const hasStructured = Object.keys(structured).length > 0;
+  if (!rawText && !hasStructured) {
+    return { kind: 'empty', markdownText: '', jsonText: '' };
+  }
+
+  if (rawText) {
+    const parsed = tryParseJson(rawText);
+    if (parsed.ok) {
+      const combined = hasStructured ? { ...structured, data: parsed.value } : parsed.value;
+      const jsonText = JSON.stringify(combined, null, 2);
+      return { kind: 'json', markdownText: rawText, jsonText };
+    }
+    const jsonText = hasStructured
+      ? JSON.stringify({ text: rawText, ...structured }, null, 2)
+      : JSON.stringify(payload, null, 2);
+    return { kind: 'markdown', markdownText: rawText, jsonText };
+  }
+
+  const jsonText = JSON.stringify(structured, null, 2);
+  return { kind: 'json', markdownText: '', jsonText };
+}
+
+const JobOutputModal = memo(function JobOutputModal({
+  host,
+  job,
+  isActive,
+  onClose,
+  lang,
+  asciiMode,
+}: {
+  host: HostClient;
+  job: JobRecord;
+  isActive: boolean;
+  onClose: () => void;
+  lang: UiLanguage;
+  asciiMode: boolean;
+}) {
+  const theme = useTheme();
+  const { columns, rows } = useWindowSize();
+  const ell = asciiMode ? '...' : '…';
+
+  const defaultCallIdx = useMemo(() => {
+    if (job.calls.length === 0) return 0;
+    const runningIdx = [...job.calls].reverse().findIndex((c) => c.status === 'running');
+    if (runningIdx >= 0) return job.calls.length - 1 - runningIdx;
+    return job.calls.length - 1;
+  }, [job.calls]);
+
+  const [callIdx, setCallIdx] = useState(defaultCallIdx);
+  const [loading, setLoading] = useState(true);
+  const [outputData, setOutputData] = useState<JobOutputResponse | null>(null);
+  const [viewMode, setViewMode] = useState<'auto' | 'json'>('auto');
+  const [reloadTick, setReloadTick] = useState(0);
+
+  useEffect(() => {
+    setCallIdx(defaultCallIdx);
+  }, [job.id, defaultCallIdx]);
+
+  const activeCall: JobRecord['calls'][number] | undefined =
+    job.calls[Math.min(callIdx, Math.max(0, job.calls.length - 1))];
+
+  useEffect(() => {
+    if (!isActive) return undefined;
+    let cancelled = false;
+    setLoading(true);
+    void (async () => {
+      let targetCallId: string | undefined = activeCall?.id;
+      if (!targetCallId) {
+        const traceRes = await tryAction<{ calls?: Array<{ callId?: string; status?: string }> }>(host, 'job.trace', {
+          jobId: job.id,
+        });
+        if (!cancelled && traceRes.ok && Array.isArray(traceRes.value?.calls) && traceRes.value.calls.length > 0) {
+          const running = [...traceRes.value.calls].reverse().find((c) => c.status === 'running');
+          targetCallId = running?.callId || traceRes.value.calls.at(-1)?.callId;
+        }
+      }
+      const args: Record<string, unknown> = targetCallId
+        ? { jobId: job.id, callId: targetCallId, cursor: 0 }
+        : { jobId: job.id };
+      const res = await tryAction<JobOutputResponse>(host, 'job.output', args);
+      if (cancelled) return;
+      setOutputData(res.ok && res.value ? res.value : null);
+      setLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [host, isActive, job.id, activeCall?.id, reloadTick]);
+
+  useInput(
+    (input, key) => {
+      if (!isActive) return;
+      if (input === 'r') {
+        setReloadTick((n) => n + 1);
+        return;
+      }
+      if (input === 'm') {
+        setViewMode((m) => (m === 'auto' ? 'json' : 'auto'));
+        return;
+      }
+      if (job.calls.length > 1) {
+        if (key.leftArrow || input === '[') {
+          setCallIdx((i) => Math.max(0, i - 1));
+        } else if (key.rightArrow || input === ']') {
+          setCallIdx((i) => Math.min(job.calls.length - 1, i + 1));
+        }
+      }
+    },
+    { isActive },
+  );
+
+  const frameW = Math.min(108, Math.max(46, columns - 4));
+  const frameH = Math.min(34, Math.max(15, rows - 2));
+  const innerW = modalContentWidth(frameW);
+  // Modal chrome: 5 rows; internal header + divider: 2 rows.
+  const innerH = Math.max(6, Math.min(frameH, rows - 2) - 5);
+  const bodyH = Math.max(3, innerH - 2);
+
+  const parsed = useMemo(() => extractOutputContent(outputData), [outputData]);
+  const showJson = viewMode === 'json' || parsed.kind === 'json';
+
+  const hints: KeyHint[] = useMemo(() => {
+    const h: KeyHint[] = [{ key: '↑↓/Pg', label: t(lang, '滚动', 'Scroll') }];
+    if (job.calls.length > 1) h.push({ key: '←/→', label: t(lang, '调用', 'Call') });
+    if (parsed.kind !== 'empty') h.push({ key: 'm', label: showJson ? 'Markdown' : 'JSON' });
+    h.push({ key: 'r', label: t(lang, '刷新', 'Refresh') });
+    h.push({ key: 'Esc', label: t(lang, '关闭', 'Close') });
+    return h;
+  }, [job.calls.length, lang, parsed.kind, showJson]);
+
+  const callBadge = activeCall
+    ? `${activeCall.stage || activeCall.kind || activeCall.id} (${callIdx + 1}/${job.calls.length})`
+    : t(lang, '默认输出', 'Output');
+
+  return (
+    <Modal
+      title={t(lang, `任务输出: ${job.title}`, `Job Output: ${job.title}`)}
+      icon={asciiMode ? '>' : '▤'}
+      tone="primary"
+      subtitle={job.status}
+      width={frameW}
+      height={frameH}
+      onClose={onClose}
+      isActive={isActive}
+      hints={hints}
+    >
+      <Box height={1} width={innerW} overflow="hidden" flexShrink={0}>
+        <StatusPill label={job.status} status={pillStatusFor(job.status)} />
+        <Text> </Text>
+        <Badge label={truncateDisplay(callBadge, Math.max(10, Math.floor(innerW * 0.4)), ell)} tone="info" variant="soft" />
+        {outputData?.source ? (
+          <>
+            <Text> </Text>
+            <Badge label={String(outputData.source)} tone="muted" variant="outline" />
+          </>
+        ) : null}
+        {typeof outputData?.reasoningChars === 'number' && outputData.reasoningChars > 0 ? (
+          <Text color={theme.dim}>{` ${t(lang, '思考', 'think')}:${outputData.reasoningChars}`}</Text>
+        ) : null}
+        {outputData?.clipped || outputData?.partial ? (
+          <>
+            <Text> </Text>
+            <Badge label={t(lang, '截断', 'Clipped')} tone="warning" variant="outline" />
+          </>
+        ) : null}
+      </Box>
+      <Box height={1} width={innerW} overflow="hidden" flexShrink={0}>
+        <Text color={theme.border}>{(asciiMode ? '-' : '─').repeat(innerW)}</Text>
+      </Box>
+
+      <Box width={innerW} height={bodyH} overflow="hidden">
+        {loading ? (
+          <Box width={innerW} height={bodyH} alignItems="center" justifyContent="center">
+            <Spinner label={t(lang, '正在获取任务输出…', 'Loading job output…')} active={isActive} />
+          </Box>
+        ) : parsed.kind === 'empty' ? (
+          <EmptyState
+            title={t(lang, '该任务暂无输出内容', 'No output available for this job yet')}
+            hint={
+              job.archived
+                ? t(lang, '已归档任务不保留实时流输出缓存', 'Archived jobs do not retain live stream output')
+                : outputData?.supported === false
+                  ? t(lang, '当前运行器不支持实时流式输出', 'Live streaming output is not supported by this runner')
+                  : outputData?.sessionUnreadable
+                    ? t(lang, '子代理会话暂不可读', 'Subagent session output is unreadable')
+                    : t(lang, '按 [r] 刷新输出，或稍后再试', 'Press [r] to refresh or check back shortly')
+            }
+            width={innerW}
+            height={bodyH}
+          />
+        ) : showJson ? (
+          <ScrollView
+            content={parsed.jsonText}
+            width={innerW}
+            height={bodyH}
+            isActive={isActive}
+            ascii={asciiMode}
+          />
+        ) : (
+          <MarkdownView
+            markdown={parsed.markdownText}
+            width={innerW}
+            height={bodyH}
+            isActive={isActive}
+            ascii={asciiMode}
+          />
+        )}
+      </Box>
+    </Modal>
+  );
+});
+
+const JobMessageModal = memo(function JobMessageModal({
+  host,
+  job,
+  isActive,
+  onClose,
+  onSent,
+  lang,
+  asciiMode,
+}: {
+  host: HostClient;
+  job: JobRecord;
+  isActive: boolean;
+  onClose: () => void;
+  onSent: (receipt: JobMessageResponse) => void;
+  lang: UiLanguage;
+  asciiMode: boolean;
+}) {
+  const theme = useTheme();
+  const { columns } = useWindowSize();
+  const [message, setMessage] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [validationError, setValidationError] = useState('');
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const frameW = Math.min(72, Math.max(40, columns - 4));
+  const innerW = modalContentWidth(frameW);
+  const inputW = Math.max(12, modalContentWidth(frameW) - 4);
+  const ell = asciiMode ? '...' : '…';
+
+  const handleSubmit = useCallback(
+    async (raw: string) => {
+      if (submitting) return;
+      const trimmed = raw.trim();
+      if (!trimmed || trimmed.length > 4000) {
+        setValidationError(t(lang, '请输入 1–4000 字的补充说明', 'Please enter 1–4000 characters'));
+        return;
+      }
+      setValidationError('');
+      setSubmitting(true);
+      const res = await tryAction<JobMessageResponse>(host, 'job.message', {
+        jobId: job.id,
+        message: trimmed,
+      });
+      if (!mountedRef.current) return;
+      setSubmitting(false);
+      if (!res.ok) {
+        setValidationError(res.error?.message || t(lang, '发送补充说明失败', 'Failed to send refinement message'));
+        return;
+      }
+      onSent(res.value ?? { jobId: job.id });
+    },
+    [host, job.id, lang, onSent, submitting],
+  );
+
+  const hints: KeyHint[] = useMemo(
+    () => [
+      { key: 'Enter', label: t(lang, '发送', 'Send') },
+      { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+    ],
+    [lang],
+  );
+
+  return (
+    <Modal
+      title={t(lang, '发送任务补充说明', 'Send Refinement Message')}
+      icon={asciiMode ? '>' : '✉'}
+      tone="accent"
+      subtitle={truncateDisplay(job.title, 24, ell)}
+      width={frameW}
+      onClose={submitting ? undefined : onClose}
+      isActive={isActive}
+      hints={hints}
+    >
+      <Box flexDirection="column" width={innerW}>
+        <Text color={theme.muted} wrap="truncate-end">
+          {t(
+            lang,
+            '向正在运行的出题任务发送实时补充要求（1–4000 字），立即投递或用于下一阶段。',
+            'Send live guidance (1–4000 chars) to this active job for current or next-stage workers.',
+          )}
+        </Text>
+        <Box
+          marginTop={1}
+          borderStyle={asciiMode ? 'classic' : 'round'}
+          borderColor={submitting ? theme.muted : theme.borderActive}
+          paddingX={1}
+        >
+          <TextInput
+            value={message}
+            onChange={(val) => {
+              setMessage(val);
+              if (validationError) setValidationError('');
+            }}
+            onSubmit={(val) => void handleSubmit(val)}
+            onCancel={onClose}
+            isActive={isActive && !submitting}
+            width={inputW}
+            prompt={asciiMode ? '> ' : '› '}
+            placeholder={t(lang, '例如：多出几道边界条件与反例题…', 'e.g. Add more boundary-case questions…')}
+            maxLength={4000}
+            captureInput={false}
+          />
+        </Box>
+        {submitting ? (
+          <Box marginTop={1}>
+            <Spinner label={t(lang, '正在投递补充说明…', 'Delivering message…')} active={isActive} />
+          </Box>
+        ) : validationError ? (
+          <Box marginTop={1}>
+            <Text color={theme.error} wrap="truncate-end">
+              {truncateDisplay(`${asciiMode ? '! ' : '✕ '}${validationError}`, innerW, ell)}
+            </Text>
+          </Box>
+        ) : null}
+      </Box>
+    </Modal>
+  );
+});
+
 export const TasksView: React.FC<ViewProps> = memo(function TasksView({
   host,
   width,
@@ -154,6 +565,9 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [detailMode, setDetailMode] = useState<'output' | 'trace'>('output');
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [outputModalOpen, setOutputModalOpen] = useState(false);
+  const [messageModalOpen, setMessageModalOpen] = useState(false);
+  const [workflowModalOpen, setWorkflowModalOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
   // Bounded detail buffers (capped at 200 lines — memory NFR)
@@ -300,12 +714,39 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
 
   const handleArchive = useCallback(async () => {
     if (!selectedJob || busy) return;
-    if (selectedJob.archived || ACTIVE_STATUSES.has(selectedJob.status)) return;
+    if (ACTIVE_STATUSES.has(selectedJob.status)) {
+      notify(t(lang, '运行中的任务无法归档', 'Running jobs cannot be archived'), 'info');
+      return;
+    }
     setBusy(true);
-    const res = await tryAction(host, 'job.archive', { jobId: selectedJob.id });
+    if (selectedJob.archived) {
+      const res = await tryAction<{ unarchived?: string[]; missing?: string[] }>(host, 'job.unarchive', {
+        jobId: selectedJob.id,
+      });
+      setBusy(false);
+      if (!res.ok) {
+        notify(res.error?.message || t(lang, '恢复归档任务失败', 'Unarchive failed'), 'error');
+        return;
+      }
+      await refresh();
+      notify(t(lang, '任务已从归档恢复', 'Job restored from archive'), 'success');
+      return;
+    }
+    const res = await tryAction<{ archived?: string[]; skipped?: Array<{ id: string; reason: string }> }>(
+      host,
+      'job.archive',
+      { jobId: selectedJob.id },
+    );
     setBusy(false);
     if (!res.ok) {
       notify(res.error?.message || t(lang, '归档任务失败', 'Archive failed'), 'error');
+      return;
+    }
+    if (res.value?.skipped?.length) {
+      notify(
+        t(lang, `任务未能归档 (${res.value.skipped[0].reason})`, `Skipped (${res.value.skipped[0].reason})`),
+        'warning',
+      );
       return;
     }
     await refresh();
@@ -329,17 +770,21 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
     notify(t(lang, '任务记录已移除', 'Job removed'), 'success');
   }, [busy, host, lang, notify, refresh, selectedJob]);
 
-  const listActive = isActive && !confirmDeleteOpen;
-  useClaimKeys(['1', '2', '3', 'x', 'a', 'd', 'v'], listActive);
+  const modalOpen = confirmDeleteOpen || outputModalOpen || messageModalOpen || workflowModalOpen;
+  const listActive = isActive && !modalOpen;
+  useClaimKeys(['1', '2', '3', 'o', 'm', 'w', 'x', 'a', 'd', 'v'], listActive);
 
   const hints: KeyHint[] = useMemo(
     () => [
-      { key: 'Tab', label: t(lang, '切换筛选', 'Filter') },
-      { key: 'Enter', label: t(lang, '打开草稿', 'Open Draft') },
+      { key: 'o', label: t(lang, '输出', 'Output') },
+      { key: 'm', label: t(lang, '补充', 'Msg') },
+      { key: 'w', label: t(lang, '历史流', 'Flows') },
+      { key: 'Tab', label: t(lang, '筛选', 'Filter') },
+      { key: 'Enter', label: t(lang, '草稿', 'Draft') },
+      { key: 'v', label: t(lang, '轨迹', 'Trace') },
       { key: 'x', label: t(lang, '取消', 'Cancel') },
-      { key: 'a', label: t(lang, '归档', 'Archive') },
+      { key: 'a', label: t(lang, '归档/恢复', 'Archive') },
       { key: 'd', label: t(lang, '删除', 'Dismiss') },
-      { key: 'v', label: t(lang, '输出/轨迹', 'Output/Trace') },
     ],
     [lang],
   );
@@ -355,6 +800,17 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
       if (input === '1') setFilterTab('running');
       else if (input === '2') setFilterTab('all');
       else if (input === '3') setFilterTab('archived');
+      else if (input === 'o') {
+        if (!selectedJob) notify(t(lang, '请先选择一个任务', 'Select a job first'), 'info');
+        else setOutputModalOpen(true);
+      } else if (input === 'm') {
+        if (!selectedJob) notify(t(lang, '请先选择一个任务', 'Select a job first'), 'info');
+        else if (!ACTIVE_STATUSES.has(selectedJob.status)) {
+          notify(t(lang, '仅运行中的任务可发送补充说明', 'Only active jobs accept refinement messages'), 'info');
+        } else {
+          setMessageModalOpen(true);
+        }
+      } else if (input === 'w') setWorkflowModalOpen(true);
       else if (input === 'v') setDetailMode((m) => (m === 'output' ? 'trace' : 'output'));
       else if (input === 'x') void handleCancel();
       else if (input === 'a') void handleArchive();
@@ -410,12 +866,16 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
             </Box>
           ) : !narrowBar ? (
             <Box flexShrink={0}>
-              <Text color={theme.dim} wrap="truncate-end">{t(lang, 'Tab 切换筛选 · v 切换输出/轨迹', 'Tab filter · v Output/Trace')}</Text>
+              <Text color={theme.dim} wrap="truncate-end">{t(lang, 'Tab 筛选 · w 历史学习流 · v 轨迹', 'Tab filter · w Workflows · v Trace')}</Text>
             </Box>
           ) : null}
         </Box>
         <Text color={theme.dim} wrap="truncate-end">
-          {t(lang, '监控出题、导入与转写后台任务进度；完成后按 Enter 打开草稿', 'Monitor generation, import & transcription jobs; press Enter to open draft')}
+          {t(
+            lang,
+            '监控后台任务；[o] 输出弹窗 · [m] 补充要求 · [w] 历史学习流 · Enter 打开草稿',
+            'Monitor jobs; [o] Output · [m] Message · [w] Workflows · Enter Open Draft',
+          )}
         </Text>
       </Box>
 
@@ -563,6 +1023,46 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
           isActive={isActive}
           onConfirm={() => void handleDeleteConfirm()}
           onCancel={() => setConfirmDeleteOpen(false)}
+        />
+      ) : null}
+
+      {outputModalOpen && selectedJob ? (
+        <JobOutputModal
+          host={host}
+          job={selectedJob}
+          isActive={isActive && outputModalOpen}
+          onClose={() => setOutputModalOpen(false)}
+          lang={lang}
+          asciiMode={asciiMode}
+        />
+      ) : null}
+
+      {messageModalOpen && selectedJob ? (
+        <JobMessageModal
+          host={host}
+          job={selectedJob}
+          isActive={isActive && messageModalOpen}
+          onClose={() => setMessageModalOpen(false)}
+          onSent={(receipt) => {
+            setMessageModalOpen(false);
+            const receiptMsg =
+              receipt.delivery === 'delivered'
+                ? t(lang, '补充说明已实时送达当前子任务', 'Refinement delivered to active workers')
+                : receipt.delivery === 'partial'
+                  ? t(lang, '补充说明已部分送达，并保留至后续阶段', 'Partially delivered; saved for next stage')
+                  : t(lang, '补充说明已保存，将在下一阶段生效', 'Saved; will apply to next stage');
+            notify(receiptMsg, 'success');
+          }}
+          lang={lang}
+          asciiMode={asciiMode}
+        />
+      ) : null}
+
+      {workflowModalOpen ? (
+        <WorkflowHistoryModal
+          host={host}
+          isActive={isActive && workflowModalOpen}
+          onClose={() => setWorkflowModalOpen(false)}
         />
       ) : null}
     </Box>
