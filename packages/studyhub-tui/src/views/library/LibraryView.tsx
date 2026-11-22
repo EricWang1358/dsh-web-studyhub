@@ -1,11 +1,12 @@
 import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
-import type { KeyHint, StudySnapshot, UiLanguage, ViewProps } from '../../types/contracts.js';
+import type { KeyHint, StudySnapshot, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { Badge, Divider, EmptyState, ProgressBar, StatusPill } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
 import { Panel } from '../../components/Panel.js';
 import { SplitPane } from '../../components/SplitPane.js';
+import { TextInput } from '../../components/TextInput.js';
 import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
 import { useClaimKeys } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
@@ -13,8 +14,10 @@ import { useTheme } from '../../theme/tokens.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { currentCourse, dueToday } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
-import { atomicWriteTextFile, defaultBackupFilePath } from '../../host/atomic-write.js';
 import { getSampleStatus, removeSampleCourse, tryAction } from '../../host/sample-actions.js';
+import type { DeckExportInput } from './deck-export.js';
+
+export { formatDeckMarkdown, type DeckExportCard, type DeckExportInput, type DeckExportOption } from './deck-export.js';
 
 const DeckManageModal = lazy(() => import('./DeckManageModal.js').then((m) => ({ default: m.DeckManageModal })));
 const VoicePackModal = lazy(() => import('./VoicePackModal.js').then((m) => ({ default: m.VoicePackModal })));
@@ -53,104 +56,7 @@ type WorkEntry =
   | { kind: 'draft'; id: string; title: string; course: string; count: number; draft: DraftItem }
   | { kind: 'job'; id: string; title: string; course: string; status: string; error: string; job: JobItem };
 
-const CLAIMED_LIBRARY_KEYS = ['r', 'R', 'a', 'p', 'C', 'o', 'g', '[', ']', 'x'] as const;
-
-export interface DeckExportOption {
-  id?: string;
-  text?: string;
-  correct?: boolean;
-}
-
-export interface DeckExportCard {
-  id?: string;
-  kind?: string;
-  topic?: string;
-  prompt?: string;
-  answer?: string;
-  correctAnswer?: string;
-  hint?: string;
-  rubric?: string;
-  explanation?: string;
-  options?: readonly DeckExportOption[];
-  cloze?: { text?: string; answers?: readonly { id?: string; value?: string }[] };
-}
-
-export interface DeckExportInput {
-  id?: string;
-  title?: string;
-  name?: string;
-  course?: string;
-  cards?: readonly DeckExportCard[];
-}
-
-function optTag(id: string | undefined, idx: number): string {
-  const s = (id ?? '').trim();
-  return s ? (/^[a-z]$/i.test(s) ? s.toUpperCase() : s) : String.fromCharCode(65 + (idx % 26));
-}
-
-/** Format a deck and its cards into a printable Markdown study sheet with collapsible answers. */
-export function formatDeckMarkdown({
-  deck,
-  lang,
-  generatedAt,
-}: {
-  deck: DeckExportInput;
-  lang: UiLanguage;
-  generatedAt?: Date | string;
-}): string {
-  const cards: readonly DeckExportCard[] = Array.isArray(deck.cards) ? deck.cards : [];
-  const title = String(deck.title || deck.name || deck.id || t(lang, '未命名题组', 'Untitled Deck')).trim();
-  const course = String(deck.course || '').trim() || t(lang, '未分课', 'General');
-  const d = generatedAt instanceof Date && !Number.isNaN(generatedAt.getTime()) ? generatedAt : new Date();
-  const date =
-    typeof generatedAt === 'string' && generatedAt.trim()
-      ? generatedAt.trim()
-      : `${localDayKey(d)} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-  const lines: string[] = [
-    `# ${title}`,
-    '',
-    `- **${t(lang, '课程', 'Course')}**: ${course}`,
-    `- **${t(lang, '生成日期', 'Generated')}**: ${date}`,
-    `- **${t(lang, '题目数量', 'Cards')}**: ${cards.length}`,
-    '',
-    '---',
-  ];
-  if (cards.length === 0) {
-    lines.push('', t(lang, '_该题组暂无卡片。_', '_No cards in this deck._'), '');
-    return lines.join('\n');
-  }
-  cards.forEach((c, i) => {
-    const kind = String(c.kind || 'card').trim();
-    const topic = String(c.topic || '').trim();
-    const badges = [`\`${kind}\``, ...(topic ? [`\`${topic}\``] : [])].join(' ');
-    const prompt = String(c.cloze?.text || c.prompt || t(lang, '（无题干）', '(No prompt)')).trim();
-    lines.push('', `## ${i + 1}. ${topic || t(lang, `第 ${i + 1} 题`, `Card ${i + 1}`)}`, '', badges, '', prompt);
-    const opts: readonly DeckExportOption[] = Array.isArray(c.options)
-      ? c.options.filter((o): o is DeckExportOption => Boolean(o && (o.text || o.id)))
-      : [];
-    if (opts.length > 0) {
-      lines.push('');
-      opts.forEach((o, oi) => lines.push(`- **${optTag(o.id, oi)}.** ${String(o.text ?? '').trim()}`));
-    }
-    const optAns = opts
-      .map((o, oi) => (o.correct ? `${optTag(o.id, oi)}. ${String(o.text ?? '').trim()}` : ''))
-      .filter(Boolean)
-      .join('; ');
-    const clozeAnswers: readonly { id?: string; value?: string }[] = Array.isArray(c.cloze?.answers) ? c.cloze.answers : [];
-    const clozeAns = clozeAnswers.map((a) => String(a?.value ?? '').trim()).filter(Boolean).join('; ');
-    const ans = String(c.correctAnswer || c.answer || optAns || clozeAns || c.rubric || '').trim();
-    const hint = String(c.hint || '').trim();
-    const expl = String(c.explanation || '').trim();
-    lines.push('', '<details>', '<summary>参考答案与解析 / Answer & Explanation</summary>', '');
-    if (ans) lines.push(`- **${t(lang, '参考答案', 'Reference Answer')}**: ${ans}`);
-    if (hint) lines.push(`- **${t(lang, '提示', 'Hint')}**: ${hint}`);
-    if (expl) lines.push('', `**${t(lang, '解析', 'Explanation')}**:`, '', expl);
-    if (!ans && !hint && !expl) lines.push(t(lang, '_暂无参考答案与解析。_', '_No answer or explanation._'));
-    lines.push('', '</details>', '', '---');
-  });
-  lines.push('');
-  return lines.join('\n');
-}
+const CLAIMED_LIBRARY_KEYS = ['r', 'R', 'a', 'p', 'C', 'o', 'g', '[', ']', 'x', '/'] as const;
 
 function localDayKey(value: Date | string | number): string {
   const d = value instanceof Date ? value : new Date(value);
@@ -216,6 +122,8 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
 
   const course = currentCourse(snapshot);
   const [showArchived, setShowArchived] = useState(false);
+  const [filterQuery, setFilterQuery] = useState('');
+  const [filterEditing, setFilterEditing] = useState(false);
   const [focusSection, setFocusSection] = useState<'decks' | 'work'>('decks');
   const [deckIndex, setDeckIndex] = useState(0);
   const [workIndex, setWorkIndex] = useState(0);
@@ -249,7 +157,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
   );
   const viewActive = isActive && !modalOpen;
 
-  useClaimKeys(CLAIMED_LIBRARY_KEYS, viewActive);
+  useClaimKeys(CLAIMED_LIBRARY_KEYS, viewActive && !filterEditing);
 
   // Sync streak & sample status cleanly without polluting global store
   useEffect(() => {
@@ -278,7 +186,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
 
   const progressMap = snapshot?.progress as Record<string, DeckProgressEntry> | undefined;
 
-  const filteredDecks = useMemo<DeckItem[]>(() => {
+  const scopedDecks = useMemo<DeckItem[]>(() => {
     const all = snapshot?.decks ?? [];
     return all.filter((d) => {
       if (!showArchived && d.archived) return false;
@@ -287,6 +195,20 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
       return true;
     });
   }, [snapshot?.decks, course, showArchived]);
+
+  const normalizedFilter = filterQuery.trim().toLowerCase();
+  const filteredDecks = useMemo<DeckItem[]>(() => {
+    if (!normalizedFilter) return scopedDecks;
+    return scopedDecks.filter((d) => {
+      const rec = d as Record<string, unknown>;
+      const topics = Array.isArray(rec.topics) ? rec.topics.map((x) => String(x ?? '')).join(' ') : '';
+      const haystack = [d.title, d.name, d.course, rec.description, topics]
+        .filter(Boolean)
+        .map((v) => String(v).toLowerCase())
+        .join('\n');
+      return haystack.includes(normalizedFilter);
+    });
+  }, [scopedDecks, normalizedFilter]);
 
   const workEntries = useMemo<WorkEntry[]>(() => {
     const list: WorkEntry[] = [];
@@ -336,7 +258,8 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
     if (workEntries.length === 0 && focusSection === 'work') setFocusSection('decks');
   }, [workEntries.length, workIndex, focusSection]);
 
-  const selectedDeck = filteredDecks[deckIndex] ?? null;
+  const clampedDeckIndex = filteredDecks.length === 0 ? 0 : Math.min(deckIndex, filteredDecks.length - 1);
+  const selectedDeck = filteredDecks[clampedDeckIndex] ?? null;
   const selectedWork = workEntries[workIndex] ?? null;
 
   // KPI metrics
@@ -354,7 +277,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
 
     let totalCards = 0;
     let weightedMastery = 0;
-    for (const d of filteredDecks) {
+    for (const d of scopedDecks) {
       if (d.archived) continue;
       const st = deckStats(d, progressMap);
       totalCards += st.total;
@@ -366,7 +289,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
     const focusProgress = fpRaw && fpRaw.total > 0 ? fpRaw : null;
 
     return { due, reviewed, streak, masteryPct, focusProgress };
-  }, [snapshot, filteredDecks, progressMap, streak]);
+  }, [snapshot, scopedDecks, progressMap, streak]);
 
   const resumeRunForDeck = useMemo(() => {
     const runs = snapshot?.runs ?? [];
@@ -587,10 +510,13 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
           notify(res.error?.message || t(lang, '读取题组失败', 'Failed to load deck'), 'error');
           return;
         }
-        const targetPath = defaultBackupFilePath(host.getLibraryRoot(), 'studyhub-deck', '.md');
-        await atomicWriteTextFile(targetPath, formatDeckMarkdown({ deck: res.value, lang }));
+        const { exportDeckToMarkdown } = await import('./deck-export.js');
+        const { targetPath, count } = await exportDeckToMarkdown({
+          libraryRoot: host.getLibraryRoot(),
+          deck: res.value,
+          lang,
+        });
         if (!mountedRef.current) return;
-        const count = Array.isArray(res.value.cards) ? res.value.cards.length : 0;
         const arrow = asciiMode ? '->' : '→';
         notify(
           t(lang, `已导出 ${count} 题 ${arrow} ${targetPath}`, `Exported ${count} card(s) ${arrow} ${targetPath}`),
@@ -615,7 +541,16 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
 
   useInput(
     (input, key) => {
-      if (busyRef.current || busyAction) return;
+      if (busyRef.current || busyAction || !viewActive || filterEditing) return;
+      if (key.escape && filterQuery) {
+        setFilterQuery('');
+        return;
+      }
+      if (input === '/' && !key.ctrl && !key.meta) {
+        setFocusSection('decks');
+        setFilterEditing(true);
+        return;
+      }
       if (key.tab && workEntries.length > 0) {
         setFocusSection((prev) => (prev === 'decks' ? 'work' : 'decks'));
         return;
@@ -688,7 +623,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
         }
       }
     },
-    { isActive: viewActive },
+    { isActive: viewActive && !filterEditing },
   );
 
   const hints = useMemo<KeyHint[]>(
@@ -707,6 +642,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
       { key: 'd', label: t(lang, '删除', 'Delete') },
       { key: 's', label: sampleLoaded ? t(lang, '移示例', 'Rm Sample') : t(lang, '示例课', 'Sample') },
       { key: 'x', label: t(lang, '导出MD', 'Export') },
+      { key: '/', label: t(lang, '筛选', 'Filter') },
     ],
     [focusSection, lang, sampleLoaded],
   );
@@ -714,7 +650,9 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
 
   // Layout geometry
   const kpiHeight = kpi.focusProgress ? 3 : 2;
-  const bodyHeight = Math.max(6, height - kpiHeight);
+  const showFilterBar = filterEditing || filterQuery.length > 0;
+  const filterBarHeight = showFilterBar ? 1 : 0;
+  const bodyHeight = Math.max(6, height - kpiHeight - filterBarHeight);
 
   const renderDeckRow = useCallback(
     (deck: DeckItem, ctx: VirtualListRenderContext) => {
@@ -788,8 +726,12 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
           >
             {filteredDecks.length === 0 ? (
               <EmptyState
-                title={t(lang, '当前范围暂无题组', 'No decks in this scope')}
-                hint={t(lang, '按 [s] 载入示例课程，或按 [3] 从资料生成题目', 'Press [s] for sample course, or [3] to generate')}
+                title={normalizedFilter ? t(lang, '没有匹配的题组', 'No matching decks') : t(lang, '当前范围暂无题组', 'No decks in this scope')}
+                hint={
+                  normalizedFilter
+                    ? t(lang, '按 [Esc] 清除筛选，或按 [/] 修改关键词', 'Press [Esc] to clear filter, or [/] to edit')
+                    : t(lang, '按 [s] 载入示例课程，或按 [3] 从资料生成题目', 'Press [s] for sample course, or [3] to generate')
+                }
                 width={deckListW}
                 height={deckListH}
               />
@@ -798,10 +740,10 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
                 items={filteredDecks}
                 height={deckListH}
                 width={deckListW}
-                selectedIndex={deckIndex}
+                selectedIndex={clampedDeckIndex}
                 onChange={setDeckIndex}
                 onSelect={handleStartReview}
-                isActive={viewActive && focusSection === 'decks'}
+                isActive={viewActive && !filterEditing && focusSection === 'decks'}
                 keyExtractor={(d) => d.id}
                 renderItem={renderDeckRow}
               />
@@ -826,7 +768,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
                 selectedIndex={workIndex}
                 onChange={setWorkIndex}
                 onSelect={handleOpenWork}
-                isActive={viewActive && focusSection === 'work'}
+                isActive={viewActive && !filterEditing && focusSection === 'work'}
                 keyExtractor={(w) => `${w.kind}:${w.id}`}
                 renderItem={renderWorkRow}
               />
@@ -838,12 +780,15 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
     [
       workEntries,
       lang,
+      asciiMode,
       filteredDecks,
+      normalizedFilter,
       showArchived,
       focusSection,
-      deckIndex,
+      clampedDeckIndex,
       handleStartReview,
       viewActive,
+      filterEditing,
       renderDeckRow,
       workIndex,
       handleOpenWork,
@@ -1076,6 +1021,16 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
     [focusSection, selectedWork, selectedDeck, lang, asciiMode, theme, progressMap, resumeRunForDeck, sampleLoaded],
   );
 
+  const filterBadge = `[${t(lang, '筛选', filterEditing ? 'Filter' : 'Filtered')} ${filteredDecks.length}/${scopedDecks.length}] `;
+  const filterRightHint =
+    width >= 66
+      ? ` ${filterEditing ? t(lang, 'Enter 确认 | Esc 清除', 'Enter apply | Esc clear') : t(lang, '/ 编辑 | Esc 清除', '/ edit | Esc clear')}`
+      : width >= 46
+        ? ' Esc'
+        : '';
+  const filterInputW = Math.max(8, width - 2 - displayWidth(filterBadge) - displayWidth(filterRightHint) - 3);
+  const ell = asciiMode ? '...' : '…';
+
   return (
     <Box flexDirection="column" width={width} height={height}>
       {/* KPI Header Strip */}
@@ -1111,6 +1066,39 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
         ) : null}
         <Text color={theme.border}>{(asciiMode ? '-' : '─').repeat(Math.max(1, width - 2))}</Text>
       </Box>
+
+      {/* Inline `/` Live Deck Search & Filter Bar */}
+      {showFilterBar ? (
+        <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
+          <Text color={filterEditing ? theme.primary : theme.accent} bold>
+            {filterBadge}
+          </Text>
+          <Box flexGrow={1} overflow="hidden">
+            <TextInput
+              value={filterQuery}
+              onChange={setFilterQuery}
+              onSubmit={(val) => {
+                if (!val.trim()) setFilterQuery('');
+                setFilterEditing(false);
+              }}
+              onCancel={() => {
+                setFilterQuery('');
+                setFilterEditing(false);
+              }}
+              isActive={viewActive && filterEditing}
+              width={filterInputW}
+              prompt="/"
+              placeholder={t(lang, `关键词${ell}`, `keyword${ell}`)}
+              maxLength={120}
+            />
+          </Box>
+          {filterRightHint ? (
+            <Text color={theme.dim} wrap="truncate">
+              {filterRightHint}
+            </Text>
+          ) : null}
+        </Box>
+      ) : null}
 
       {/* Main Master-Detail Split */}
       <SplitPane

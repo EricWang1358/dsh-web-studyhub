@@ -31,6 +31,13 @@ const PART_SUFFIX_RE = /\s\(\d+\/\d+\)$/;
 const OFFICE_FORMATS = new Set(['docx', 'pptx', 'ppt']);
 // Reuse one Collator instead of invoking String#localeCompare thousands of times inside sort().
 const TITLE_COLLATOR = new Intl.Collator();
+// Reusable scratch state for addCardSourceCounts (synchronous single-threaded pass; cleared after each card).
+const CARD_SID_SCRATCH = new Set<string>();
+const CARD_SID_STATE = {
+  first: undefined as string | undefined,
+  second: undefined as string | undefined,
+  usingScratch: false,
+};
 
 const FORMAT_MAP: Record<string, string> = {
   pdf: 'pdf',
@@ -48,10 +55,12 @@ const FORMAT_MAP: Record<string, string> = {
 };
 
 function baseNameOnly(value: string): string {
-  const s = String(value || '').trim();
+  const s = typeof value === 'string' ? value.trim() : String(value || '').trim();
   if (!s) return '未命名资料';
-  const parts = s.split(/[\\/]+/);
-  return parts[parts.length - 1] || s;
+  const lastSlash = Math.max(s.lastIndexOf('/'), s.lastIndexOf('\\'));
+  if (lastSlash < 0) return s;
+  if (lastSlash === s.length - 1) return s;
+  return s.slice(lastSlash + 1) || s;
 }
 
 function asDocMeta(source: RawSource): Record<string, unknown> | undefined {
@@ -64,12 +73,24 @@ function asAudioMeta(source: RawSource): Record<string, unknown> | undefined {
   return audio && typeof audio === 'object' ? (audio as Record<string, unknown>) : undefined;
 }
 
+function isPdfMaterialId(matId: unknown): matId is string {
+  if (typeof matId !== 'string' || matId.length !== 77) return false;
+  if (!matId.startsWith('document-') || !matId.endsWith('-pdf')) return false;
+  for (let i = 9; i < 73; i++) {
+    const c = matId.charCodeAt(i);
+    if (!((c >= 0x30 && c <= 0x39) || (c >= 0x61 && c <= 0x66))) return false;
+  }
+  return true;
+}
+
 function isPdfDoc(doc: Record<string, unknown> | undefined): boolean {
   if (!doc) return false;
   const rawFmt = doc.format;
+  if (rawFmt === 'pdf') return true;
+  if (rawFmt === 'docx' || rawFmt === 'pptx' || rawFmt === 'ppt') return false;
   const fmt = typeof rawFmt === 'string' ? rawFmt.toLowerCase() : String(rawFmt || '').toLowerCase();
   if (OFFICE_FORMATS.has(fmt)) return false;
-  return Number.isInteger(doc.page) || fmt === 'pdf' || PDF_MAT_RE.test(String(doc.materialId || ''));
+  return Number.isInteger(doc.page) || fmt === 'pdf' || isPdfMaterialId(doc.materialId);
 }
 
 function detectFormatWithMeta(
@@ -79,7 +100,8 @@ function detectFormatWithMeta(
 ): string {
   if (isPdf) return 'pdf';
   if (doc && typeof doc.format === 'string') {
-    const declared = FORMAT_MAP[doc.format.toLowerCase()];
+    const rawFmt = doc.format;
+    const declared = FORMAT_MAP[rawFmt] ?? FORMAT_MAP[rawFmt.toLowerCase()];
     if (declared) return declared;
   } else if (doc?.format) {
     const declared = FORMAT_MAP[String(doc.format).toLowerCase()];
@@ -113,7 +135,7 @@ function groupKeyWithMeta(
   if (isPdf && doc) {
     const idStr = typeof doc.id === 'string' ? doc.id : '';
     const matId = typeof doc.materialId === 'string' ? doc.materialId : '';
-    const hash = idStr || PDF_MAT_RE.exec(matId)?.[1] || '';
+    const hash = idStr || (isPdfMaterialId(matId) ? matId.slice(9, 73) : PDF_MAT_RE.exec(matId)?.[1] || '');
     if (matId && hash && !isCanonicalPdfMaterialId(matId, hash)) {
       return `pdf:${matId}:${hash}`;
     }
@@ -140,7 +162,17 @@ export function sourceGroupKey(source: RawSource): string {
 
 export function normalizeFolderName(value: unknown): string {
   if (typeof value !== 'string') return '';
-  return value.replace(/\s+/g, ' ').trim();
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  for (let i = 0; i < trimmed.length; i++) {
+    const c = trimmed.charCodeAt(i);
+    if (c === 32) {
+      if (i > 0 && trimmed.charCodeAt(i - 1) === 32) return trimmed.replace(/\s+/g, ' ');
+    } else if ((c >= 9 && c <= 13) || c >= 128) {
+      return trimmed.replace(/\s+/g, ' ');
+    }
+  }
+  return trimmed;
 }
 
 export function materialFoldersFromSnapshot(snapshot: StudySnapshot | null | undefined): MaterialFoldersState {
@@ -192,11 +224,37 @@ export function pinnedKeysFromSnapshot(snapshot: StudySnapshot | null | undefine
   return out;
 }
 
+function recordCardSourceId(sid: unknown, counts: Map<string, number>): void {
+  if (typeof sid !== 'string' || !sid) return;
+  const st = CARD_SID_STATE;
+  if (st.first === undefined) {
+    st.first = sid;
+    counts.set(sid, (counts.get(sid) ?? 0) + 1);
+  } else if (sid !== st.first) {
+    if (st.second === undefined) {
+      st.second = sid;
+      counts.set(sid, (counts.get(sid) ?? 0) + 1);
+    } else if (sid !== st.second) {
+      if (!st.usingScratch) {
+        st.usingScratch = true;
+        CARD_SID_SCRATCH.clear();
+        CARD_SID_SCRATCH.add(st.first);
+        CARD_SID_SCRATCH.add(st.second);
+      }
+      if (!CARD_SID_SCRATCH.has(sid)) {
+        CARD_SID_SCRATCH.add(sid);
+        counts.set(sid, (counts.get(sid) ?? 0) + 1);
+      }
+    }
+  }
+}
+
 function addCardSourceCounts(
   containers: unknown[] | undefined,
   counts: Map<string, number>,
 ): void {
   if (!Array.isArray(containers)) return;
+  const st = CARD_SID_STATE;
   for (let i = 0; i < containers.length; i++) {
     const container = containers[i];
     if (!container || typeof container !== 'object') continue;
@@ -207,44 +265,35 @@ function addCardSourceCounts(
       if (!card || typeof card !== 'object') continue;
       const sels = card.selections;
       const cits = card.citations;
-      const hasSels = Array.isArray(sels) && sels.length > 0;
-      const hasCits = Array.isArray(cits) && cits.length > 0;
-      if (!hasSels && !hasCits) continue;
+      const selsLen = Array.isArray(sels) ? sels.length : 0;
+      const citsLen = Array.isArray(cits) ? cits.length : 0;
+      if (selsLen === 0 && citsLen === 0) continue;
 
-      // Avoid allocating a Set per card when 0 or 1 distinct sourceId is referenced.
-      let firstSid: string | undefined;
-      let seenForCard: Set<string> | undefined;
+      st.first = undefined;
+      st.second = undefined;
+      st.usingScratch = false;
 
-      const recordSid = (sid: unknown) => {
-        if (typeof sid !== 'string' || !sid) return;
-        if (firstSid === undefined) {
-          firstSid = sid;
-          counts.set(sid, (counts.get(sid) ?? 0) + 1);
-        } else if (sid !== firstSid) {
-          if (!seenForCard) {
-            seenForCard = new Set<string>();
-            seenForCard.add(firstSid);
-          }
-          if (!seenForCard.has(sid)) {
-            seenForCard.add(sid);
-            counts.set(sid, (counts.get(sid) ?? 0) + 1);
-          }
-        }
-      };
-
-      if (hasSels) {
-        for (let k = 0; k < sels.length; k++) {
-          const s = sels[k] as Record<string, unknown> | undefined;
-          recordSid(s?.sourceId);
+      if (selsLen > 0) {
+        const selsArr = sels as unknown[];
+        for (let k = 0; k < selsLen; k++) {
+          const s = selsArr[k] as Record<string, unknown> | undefined;
+          recordCardSourceId(s?.sourceId, counts);
         }
       }
-      if (hasCits) {
-        for (let k = 0; k < cits.length; k++) {
-          const cit = cits[k] as Record<string, unknown> | undefined;
+      if (citsLen > 0) {
+        const citsArr = cits as unknown[];
+        for (let k = 0; k < citsLen; k++) {
+          const cit = citsArr[k] as Record<string, unknown> | undefined;
           const sel = cit?.selection as Record<string, unknown> | undefined;
-          recordSid(sel?.sourceId || cit?.sourceId);
+          recordCardSourceId(sel?.sourceId || cit?.sourceId, counts);
         }
       }
+      if (st.usingScratch) {
+        st.usingScratch = false;
+        CARD_SID_SCRATCH.clear();
+      }
+      st.first = undefined;
+      st.second = undefined;
     }
   }
 }
@@ -324,18 +373,32 @@ function buildVersionMembership(snapshot: StudySnapshot | null | undefined): {
   return { retained, current };
 }
 
+function isHistoricalSourceWithMeta(
+  source: RawSource,
+  docMeta: Record<string, unknown> | undefined,
+  membership?: { retained: Set<string>; current: Set<string> },
+): boolean {
+  const rec = source as Record<string, unknown>;
+  if (rec.superseded === true || docMeta?.superseded === true) return true;
+  if (membership && membership.retained.size > 0 && membership.retained.has(source.id)) {
+    return !membership.current.has(source.id);
+  }
+  return rec.historical === true;
+}
+
 /** Mirror lib/material-source-versions.js stampSourceVersions for historical/superseded revisions. */
 export function isHistoricalSource(
   source: RawSource,
   membership?: { retained: Set<string>; current: Set<string> },
 ): boolean {
-  const rec = source as Record<string, unknown>;
-  const docMeta = asDocMeta(source);
-  if (rec.superseded === true || docMeta?.superseded === true) return true;
-  if (membership && membership.retained.has(source.id)) {
-    return !membership.current.has(source.id);
-  }
-  return rec.historical === true;
+  return isHistoricalSourceWithMeta(source, asDocMeta(source), membership);
+}
+
+interface BucketEntry {
+  key: string;
+  format: string;
+  members: RawSource[];
+  docs: Array<Record<string, unknown> | undefined>;
 }
 
 /** Group page-level snapshot sources into document-level items (mirrors lib/source-groups.js). */
@@ -349,68 +412,80 @@ export function groupSourcesFromSnapshot(snapshot: StudySnapshot | null | undefi
   const folderState = materialFoldersFromSnapshot(snapshot);
   const versionMembership = buildVersionMembership(snapshot);
 
-  const buckets = new Map<string, { key: string; format: string; members: RawSource[] }>();
+  const buckets = new Map<string, BucketEntry>();
   for (let i = 0; i < sources.length; i++) {
     const s = sources[i];
     if (!s || typeof s.id !== 'string') continue;
-    if (isHistoricalSource(s, versionMembership) || isLibraryListSource(s)) continue;
     const doc = asDocMeta(s);
+    if (isHistoricalSourceWithMeta(s, doc, versionMembership) || isLibraryListSource(s)) continue;
     const pdf = isPdfDoc(doc);
     const key = groupKeyWithMeta(s, doc, pdf);
     let bucket = buckets.get(key);
     if (!bucket) {
-      bucket = { key, format: detectFormatWithMeta(s, doc, pdf), members: [] };
+      bucket = { key, format: detectFormatWithMeta(s, doc, pdf), members: [s], docs: [doc] };
       buckets.set(key, bucket);
+    } else {
+      bucket.members.push(s);
+      bucket.docs.push(doc);
     }
-    bucket.members.push(s);
   }
 
   const groups: DocumentGroup[] = [];
-  for (const { key, format, members } of buckets.values()) {
-    let ordered: Array<{ src: RawSource; page: number }>;
-    if (members.length === 1) {
+  for (const { key, format, members, docs } of buckets.values()) {
+    const count = members.length;
+    const isAudio = format === 'audio';
+    let ordered: Array<{ src: RawSource; doc: Record<string, unknown> | undefined; page: number }>;
+    if (count === 1) {
       const src = members[0];
-      const doc = asDocMeta(src);
-      const batch = format === 'audio' ? (asAudioMeta(src)?.batch as Record<string, unknown> | undefined) : undefined;
+      const doc = docs[0];
+      const batch = isAudio ? (asAudioMeta(src)?.batch as Record<string, unknown> | undefined) : undefined;
       const pg = Number.isInteger(doc?.page)
         ? Number(doc?.page)
-        : format === 'audio' && Number.isInteger(batch?.volume)
+        : isAudio && Number.isInteger(batch?.volume)
           ? Number(batch?.volume)
           : 1;
-      ordered = [{ src, page: pg }];
+      ordered = [{ src, doc, page: pg }];
     } else {
-      ordered = members
-        .map((src, idx) => {
-          const doc = asDocMeta(src);
-          const batch = format === 'audio' ? (asAudioMeta(src)?.batch as Record<string, unknown> | undefined) : undefined;
-          const pg = Number.isInteger(doc?.page)
-            ? Number(doc?.page)
-            : format === 'audio' && Number.isInteger(batch?.volume)
-              ? Number(batch?.volume)
-              : idx + 1;
-          return { src, page: pg };
-        })
-        .sort((a, b) => a.page - b.page);
+      ordered = new Array(count);
+      let sorted = true;
+      let prevPg = -Infinity;
+      for (let idx = 0; idx < count; idx++) {
+        const src = members[idx];
+        const doc = docs[idx];
+        const batch = isAudio ? (asAudioMeta(src)?.batch as Record<string, unknown> | undefined) : undefined;
+        const pg = Number.isInteger(doc?.page)
+          ? Number(doc?.page)
+          : isAudio && Number.isInteger(batch?.volume)
+            ? Number(batch?.volume)
+            : idx + 1;
+        if (pg < prevPg) sorted = false;
+        prevPg = pg;
+        ordered[idx] = { src, doc, page: pg };
+      }
+      if (!sorted) {
+        ordered.sort((a, b) => a.page - b.page);
+      }
     }
 
     const first = ordered[0].src;
-    const doc = asDocMeta(first);
-    const batch = format === 'audio' ? (asAudioMeta(first)?.batch as Record<string, unknown> | undefined) : undefined;
+    const doc = ordered[0].doc;
+    const batch = isAudio ? (asAudioMeta(first)?.batch as Record<string, unknown> | undefined) : undefined;
 
     let rawTitle = String(first.title ?? first.name ?? first.filename ?? first.id);
     if (format === 'pdf') {
       rawTitle = String(doc?.bookTitle || doc?.filename || rawTitle.replace(PAGE_SUFFIX_RE, ''));
     } else if (format === 'pptx' || format === 'ppt') {
       rawTitle = String(rawTitle.replace(PAGE_SUFFIX_RE, '') || doc?.filename || rawTitle);
-    } else if (format === 'audio') {
+    } else if (isAudio) {
       rawTitle = String(batch?.title || rawTitle.replace(PART_SUFFIX_RE, ''));
     }
     const title = baseNameOnly(rawTitle);
 
-    const courseSet = new Set<string>();
-    const pages: Array<{ sourceId: string; page: number; title: string; chars: number }> = new Array(ordered.length);
-    const sourceIds: string[] = new Array(ordered.length);
-    const isPinnedByIndex = pinIndex.has(key);
+    let firstCourse: string | undefined;
+    let courseSet: Set<string> | undefined;
+    const pages: Array<{ sourceId: string; page: number; title: string; chars: number }> = new Array(count);
+    const sourceIds: string[] = new Array(count);
+    const isPinnedByIndex = pinIndex.size > 0 && pinIndex.has(key);
     const assignedFolder = folderState.items[key];
     let totalChars = 0;
     let totalCards = 0;
@@ -420,9 +495,8 @@ export function groupSourcesFromSnapshot(snapshot: StudySnapshot | null | undefi
     let documentId: string | undefined;
     let updatedAt: string | number | undefined;
 
-    for (let i = 0; i < ordered.length; i++) {
-      const { src, page } = ordered[i];
-      const sDoc = asDocMeta(src);
+    for (let i = 0; i < count; i++) {
+      const { src, doc: sDoc, page } = ordered[i];
       if (!documentId && typeof sDoc?.materialId === 'string' && sDoc.materialId) documentId = sDoc.materialId;
       if (!documentId && typeof sDoc?.id === 'string' && sDoc.id) documentId = sDoc.id;
 
@@ -430,13 +504,35 @@ export function groupSourcesFromSnapshot(snapshot: StudySnapshot | null | undefi
         for (let k = 0; k < src.courses.length; k++) {
           const c = src.courses[k];
           if (typeof c === 'string') {
+            if (c === firstCourse) continue;
             const trimmed = c.trim();
-            if (trimmed) courseSet.add(trimmed);
+            if (!trimmed) continue;
+            if (firstCourse === undefined) {
+              firstCourse = trimmed;
+            } else if (trimmed !== firstCourse) {
+              if (!courseSet) {
+                courseSet = new Set<string>();
+                courseSet.add(firstCourse);
+              }
+              courseSet.add(trimmed);
+            }
           }
         }
       } else if (typeof src.course === 'string') {
-        const trimmed = src.course.trim();
-        if (trimmed) courseSet.add(trimmed);
+        if (src.course !== firstCourse) {
+          const trimmed = src.course.trim();
+          if (trimmed) {
+            if (firstCourse === undefined) {
+              firstCourse = trimmed;
+            } else if (trimmed !== firstCourse) {
+              if (!courseSet) {
+                courseSet = new Set<string>();
+                courseSet.add(firstCourse);
+              }
+              courseSet.add(trimmed);
+            }
+          }
+        }
       }
 
       const rawRec = src as Record<string, unknown>;
@@ -461,30 +557,35 @@ export function groupSourcesFromSnapshot(snapshot: StudySnapshot | null | undefi
       };
     }
 
-    groups.push({
+    const courses = courseSet ? [...courseSet] : firstCourse !== undefined ? [firstCourse] : [];
+    const group: DocumentGroup = {
       key,
-      ...(documentId ? { documentId } : {}),
       title,
       format,
       pageCount: pages.length,
       sourceIds,
       pages,
-      courses: [...courseSet],
-      ...(firstFolder ? { folder: firstFolder } : {}),
+      courses,
       cardCount: totalCards,
       chars: totalChars,
       pinned: anyPinned,
       archived: allArchived,
       updatedAt,
-    });
+    };
+    if (documentId) group.documentId = documentId;
+    if (firstFolder) group.folder = firstFolder;
+    groups.push(group);
   }
 
+  const hasPins = pinIndex.size > 0;
   groups.sort((a, b) => {
-    const aPin = pinIndex.get(a.key);
-    const bPin = pinIndex.get(b.key);
-    if (aPin !== undefined && bPin !== undefined) return aPin - bPin;
-    if (aPin !== undefined) return -1;
-    if (bPin !== undefined) return 1;
+    if (hasPins) {
+      const aPin = pinIndex.get(a.key);
+      const bPin = pinIndex.get(b.key);
+      if (aPin !== undefined && bPin !== undefined) return aPin - bPin;
+      if (aPin !== undefined) return -1;
+      if (bPin !== undefined) return 1;
+    }
     if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
     if (a.archived !== b.archived) return a.archived ? 1 : -1;
     return TITLE_COLLATOR.compare(a.title, b.title);

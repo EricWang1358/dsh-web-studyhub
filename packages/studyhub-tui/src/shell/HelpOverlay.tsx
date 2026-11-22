@@ -60,6 +60,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'm: X', label: t(lang, '题组批量斩题', 'Deck batch slay') },
         { key: 'm: C', label: t(lang, '题组更改所属课程', 'Deck change course') },
         { key: 'x', label: t(lang, '导出题组复习卷 (MD)', 'Export deck sheet (MD)') },
+        { key: '/', label: t(lang, '关键词筛选题组', 'Filter decks by keyword') },
       ],
     },
     {
@@ -218,6 +219,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'u', label: t(lang, '导入字幕', 'Import subtitles') },
         { key: 'c', label: t(lang, '复核音频存疑处', 'Review audio corrections') },
         { key: '/ / x', label: t(lang, '筛选音频 / 导出转写 MD', 'Filter audio / Export transcript MD') },
+        { key: 't: /  X', label: t(lang, '筛选任务 / 导出任务汇总 MD', 'Filter jobs / Export jobs MD') },
       ],
     },
     {

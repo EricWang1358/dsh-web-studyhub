@@ -14,11 +14,12 @@ import { ScrollView } from '../../components/ScrollView.js';
 import { SplitPane } from '../../components/SplitPane.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList } from '../../components/VirtualList.js';
-import { useClaimKeys } from '../../components/focus.js';
+import { useClaimKeys, useInputCapture } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { useTheme } from '../../theme/tokens.js';
 import { useShellActions } from '../../shell/actions.js';
-import { truncateDisplay } from '../../render/cjk.js';
+import { displayWidth, truncateDisplay } from '../../render/cjk.js';
+import { atomicWriteTextFile, defaultBackupFilePath, todayLocalYmd } from '../../host/atomic-write.js';
 import { tryAction } from '../../host/sample-actions.js';
 const WorkflowHistoryModal = lazy(() => import('./WorkflowHistoryModal.js').then((m) => ({ default: m.WorkflowHistoryModal })));
 const MarkdownView = lazy(() => import('../../components/MarkdownView.js').then((m) => ({ default: m.MarkdownView })));
@@ -33,11 +34,14 @@ interface JobRecord {
   status: string;
   progress: number;
   phase: string;
+  stage?: string;
   draftId?: string;
   course?: string;
   error?: string;
   startedAt?: string | number;
   finishedAt?: string | number;
+  createdAt?: string | number;
+  updatedAt?: string | number;
   calls: Array<{ id: string; status?: string; stage?: string; kind?: string }>;
   archived: boolean;
   paused: boolean;
@@ -54,6 +58,159 @@ interface JobRecord {
 
 const MAX_LOG_LINES = 200;
 const ACTIVE_STATUSES = new Set(['running', 'queued', 'pending', 'pausing', 'paused', 'cancelling', 'in_progress', 'started']);
+const CLAIMED_KEYS = ['1', '2', '3', 'o', 'm', 'w', 'x', 'X', 'a', 'd', 'v', 'e', 'D', 'p', 'P', 'R', '+', '-', '=', '/'] as const;
+
+export interface TaskMarkdownItem {
+  id?: string;
+  title?: string;
+  type?: string;
+  status?: string;
+  progress?: number;
+  phase?: string;
+  stage?: string;
+  course?: string;
+  archived?: boolean;
+  startedAt?: string | number;
+  finishedAt?: string | number;
+  createdAt?: string | number;
+  updatedAt?: string | number;
+}
+
+export interface FormatTasksMarkdownParams {
+  jobs?: readonly TaskMarkdownItem[];
+  filterTab?: FilterTab | string;
+  filterQuery?: string;
+  lang?: UiLanguage;
+  generatedAt?: Date | string;
+}
+
+function escapeMdCell(raw: unknown): string {
+  return String(raw ?? '')
+    .replace(/\|/g, '\\|')
+    .replace(/[\r\n]+/g, ' ')
+    .trim();
+}
+
+function formatMdTimestamp(value: Date | string | number | undefined): string {
+  if (value === undefined || value === null || value === '') return '-';
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return '-';
+    const ymd = todayLocalYmd(value);
+    const hh = String(value.getHours()).padStart(2, '0');
+    const mm = String(value.getMinutes()).padStart(2, '0');
+    return `${ymd} ${hh}:${mm}`;
+  }
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return '-';
+    return formatMdTimestamp(new Date(value));
+  }
+  const str = String(value).trim();
+  if (!str) return '-';
+  const parsed = Date.parse(str);
+  if (Number.isFinite(parsed)) {
+    return formatMdTimestamp(new Date(parsed));
+  }
+  return escapeMdCell(str) || '-';
+}
+
+function formatGeneratedAt(generatedAt?: Date | string): string {
+  if (typeof generatedAt === 'string' && generatedAt.trim()) return generatedAt.trim();
+  const d = generatedAt instanceof Date && !Number.isNaN(generatedAt.getTime()) ? generatedAt : new Date();
+  return formatMdTimestamp(d);
+}
+
+function filterTabLabel(filterTab: string | undefined, lang: UiLanguage): string {
+  const tab = (filterTab || 'all').toLowerCase();
+  if (tab === 'running') return t(lang, '运行中 (running)', 'Running (running)');
+  if (tab === 'archived') return t(lang, '已归档 (archived)', 'Archived (archived)');
+  if (tab === 'all') return t(lang, '全部 (all)', 'All (all)');
+  return escapeMdCell(tab) || 'all';
+}
+
+/** Pure formatter producing a Markdown summary report of visible TasksView jobs (0 LLM tokens). */
+export function formatTasksMarkdown({
+  jobs = [],
+  filterTab = 'all',
+  filterQuery = '',
+  lang = 'en',
+  generatedAt,
+}: FormatTasksMarkdownParams): string {
+  const jobList = Array.isArray(jobs) ? jobs : [];
+  const dateLabel = formatGeneratedAt(generatedAt);
+  const tabLabel = filterTabLabel(filterTab, lang);
+  const trimmedQuery = String(filterQuery ?? '').trim();
+
+  const statusCounts = new Map<string, number>();
+  for (const j of jobList) {
+    const st = String(j?.status ?? 'unknown').trim().toLowerCase() || 'unknown';
+    statusCounts.set(st, (statusCounts.get(st) ?? 0) + 1);
+  }
+  const breakdown =
+    statusCounts.size > 0
+      ? [...statusCounts.entries()].map(([st, count]) => `${escapeMdCell(st)}: ${count}`).join(', ')
+      : t(lang, '无', 'None');
+
+  const lines: string[] = [
+    `# ${t(lang, 'StudyHub 后台任务汇总报告', 'StudyHub Background Jobs Summary')}`,
+    '',
+    `- **${t(lang, '生成时间', 'Generated')}**: ${dateLabel}`,
+    `- **${t(lang, '当前标签页', 'Active Tab')}**: ${tabLabel}`,
+  ];
+  if (trimmedQuery) {
+    lines.push(`- **${t(lang, '筛选关键词', 'Filter Query')}**: ${escapeMdCell(trimmedQuery)}`);
+  }
+  lines.push(
+    `- **${t(lang, '任务总数', 'Total Jobs')}**: ${jobList.length}`,
+    `- **${t(lang, '状态分布', 'Status Breakdown')}**: ${breakdown}`,
+    '',
+    `## ${t(lang, '任务明细', 'Jobs Summary')}`,
+    '',
+  );
+
+  if (jobList.length === 0) {
+    lines.push(t(lang, '_当前筛选下暂无任务记录。_', '_No jobs match the current filter._'), '');
+    return lines.join('\n');
+  }
+
+  lines.push(
+    lang === 'zh'
+      ? '| # | 标题 | 类型 | 状态 | 进度 | 课程 | 更新/创建时间 |'
+      : '| # | Title | Type | Status | Progress | Course | Updated/Created |',
+    '| --- | --- | --- | --- | --- | --- | --- |',
+  );
+
+  jobList.forEach((job, idx) => {
+    const titleCell = escapeMdCell(job?.title || job?.id || '-') || '-';
+    const typeCell = escapeMdCell(job?.type || 'job') || '-';
+    const statusCell = escapeMdCell(job?.status || 'unknown') || '-';
+    const rawProg = typeof job?.progress === 'number' && Number.isFinite(job.progress) ? job.progress : 0;
+    const ratio = rawProg > 1 ? rawProg / 100 : rawProg;
+    const progressCell = `${Math.round(Math.max(0, Math.min(1, ratio)) * 100)}%`;
+    const courseCell = escapeMdCell(job?.course) || '-';
+    const timeVal = job?.finishedAt ?? job?.updatedAt ?? job?.startedAt ?? job?.createdAt;
+    const timeCell = escapeMdCell(formatMdTimestamp(timeVal)) || '-';
+    lines.push(`| ${idx + 1} | ${titleCell} | ${typeCell} | ${statusCell} | ${progressCell} | ${courseCell} | ${timeCell} |`);
+  });
+
+  lines.push('');
+  return lines.join('\n');
+}
+
+function jobMatchesFilter(job: JobRecord, rawQuery: string): boolean {
+  const q = rawQuery.trim().toLowerCase();
+  if (!q) return true;
+  const parts: string[] = [
+    job.title,
+    job.type,
+    job.status,
+    job.course ?? '',
+    job.stage ?? '',
+    job.phase,
+    job.id,
+    ...job.calls.map((c) => c.stage ?? ''),
+  ];
+  return parts.join('\n').toLowerCase().includes(q);
+}
 
 function sanitizeJobIdForFilename(jobId: string): string {
   const cleaned = String(jobId || 'job')
@@ -341,6 +498,7 @@ function normalizeJob(raw: Record<string, unknown>, archived = false): JobRecord
       textField(contract?.stage) ||
       textField(raw.stage) ||
       textField(raw.message),
+    stage: textField(contract?.stage) || textField(raw.stage) || textField(raw.phase) || undefined,
     draftId:
       (typeof raw.draftId === 'string' && raw.draftId) ||
       (typeof resultObj?.draftId === 'string' && resultObj.draftId) ||
@@ -349,6 +507,8 @@ function normalizeJob(raw: Record<string, unknown>, archived = false): JobRecord
     error: textField(raw.error) || textField(errObj?.message) || textField(errObj) || undefined,
     startedAt: (raw.startedAt ?? contract?.startedAt ?? raw.createdAt) as string | number | undefined,
     finishedAt: (raw.finishedAt ?? contract?.finishedAt) as string | number | undefined,
+    createdAt: (raw.createdAt ?? contract?.createdAt ?? raw.startedAt ?? contract?.startedAt) as string | number | undefined,
+    updatedAt: (raw.updatedAt ?? contract?.updatedAt ?? raw.finishedAt ?? contract?.finishedAt ?? raw.startedAt ?? contract?.startedAt) as string | number | undefined,
     calls,
     archived,
     ...controlState,
@@ -802,6 +962,8 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
   const { refresh } = useShellActions();
 
   const [filterTab, setFilterTab] = useState<FilterTab>('all');
+  const [filterQuery, setFilterQuery] = useState('');
+  const [filterEditing, setFilterEditing] = useState(false);
   const [liveJobs, setLiveJobs] = useState<Array<Record<string, unknown>> | null>(null);
   const [controlOverrides, setControlOverrides] = useState<
     Record<string, { paused?: boolean; status?: string; concurrency?: number }>
@@ -816,6 +978,7 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
   const [traceReloadTick, setTraceReloadTick] = useState(0);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
+  const exportBusyRef = useRef(false);
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -882,7 +1045,7 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
     };
   }, [host, isActive, hasActiveJobs]);
 
-  const displayedJobs = useMemo(() => {
+  const tabJobs = useMemo(() => {
     if (filterTab === 'running') {
       return allNormalized.activeAndRecent.filter((j) => ACTIVE_STATUSES.has(j.status));
     }
@@ -892,20 +1055,26 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
     return [...allNormalized.activeAndRecent, ...allNormalized.archived];
   }, [allNormalized, filterTab]);
 
+  const filteredJobs = useMemo(() => {
+    const q = filterQuery.trim().toLowerCase();
+    if (!q) return tabJobs;
+    return tabJobs.filter((j) => jobMatchesFilter(j, q));
+  }, [tabJobs, filterQuery]);
+
   // Select incoming navContext.jobId if provided
   useEffect(() => {
     if (!navContext.jobId) return;
-    const idx = displayedJobs.findIndex((j) => j.id === navContext.jobId);
+    const idx = filteredJobs.findIndex((j) => j.id === navContext.jobId);
     if (idx >= 0) setSelectedIndex(idx);
-  }, [navContext.jobId, displayedJobs]);
+  }, [navContext.jobId, filteredJobs]);
 
   useEffect(() => {
-    if (selectedIndex >= displayedJobs.length) {
-      setSelectedIndex(Math.max(0, displayedJobs.length - 1));
+    if (selectedIndex >= filteredJobs.length) {
+      setSelectedIndex(Math.max(0, filteredJobs.length - 1));
     }
-  }, [displayedJobs.length, selectedIndex]);
+  }, [filteredJobs.length, selectedIndex]);
 
-  const selectedJob = displayedJobs[selectedIndex];
+  const selectedJob = filteredJobs[selectedIndex];
 
   // Fetch `job.output` and `job.trace` for selected job (capped at MAX_LOG_LINES).
   useEffect(() => {
@@ -1423,9 +1592,47 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
     }
   }, [busy, host, lang, notify, syncLiveAndRefresh]);
 
+  const handleExportTasksMarkdown = useCallback(async () => {
+    if (exportBusyRef.current) return;
+    if (filteredJobs.length === 0) {
+      notify(t(lang, '当前筛选下暂无可导出的任务记录', 'No jobs to export in current filter'), 'info');
+      return;
+    }
+    exportBusyRef.current = true;
+    try {
+      const markdown = formatTasksMarkdown({
+        jobs: filteredJobs,
+        filterTab,
+        filterQuery,
+        lang,
+        generatedAt: new Date(),
+      });
+      const targetPath = defaultBackupFilePath(host.getLibraryRoot(), 'studyhub-tasks', '.md');
+      await atomicWriteTextFile(targetPath, markdown);
+      if (!mountedRef.current) return;
+      const arrow = asciiMode ? '->' : '→';
+      notify(
+        t(
+          lang,
+          `已导出 ${filteredJobs.length} 条任务汇总 ${arrow} ${targetPath}`,
+          `Exported ${filteredJobs.length} job(s) summary ${arrow} ${targetPath}`,
+        ),
+        'success',
+      );
+    } catch (err) {
+      if (!mountedRef.current) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      notify(t(lang, `导出任务汇总失败: ${msg}`, `Failed to export jobs summary: ${msg}`), 'error');
+    } finally {
+      exportBusyRef.current = false;
+    }
+  }, [asciiMode, filterQuery, filterTab, filteredJobs, host, lang, notify]);
+
   const modalOpen = confirmDeleteOpen || confirmPurgeTraceOpen || outputModalOpen || messageModalOpen || workflowModalOpen;
   const listActive = isActive && !modalOpen;
-  useClaimKeys(['1', '2', '3', 'o', 'm', 'w', 'x', 'a', 'd', 'v', 'e', 'D', 'p', 'P', 'R', '+', '-', '='], listActive);
+  const listNavActive = listActive && !filterEditing;
+  useClaimKeys(CLAIMED_KEYS, listNavActive);
+  useInputCapture(isActive && filterEditing);
 
   const showParallelHint = Boolean(
     selectedJob &&
@@ -1450,6 +1657,8 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
       { key: 'x', label: t(lang, '取消', 'Cancel') },
       { key: 'a', label: t(lang, '归档/恢复', 'Archive') },
       { key: 'd', label: t(lang, '删除', 'Dismiss') },
+      { key: '/', label: t(lang, '筛选', 'Filter') },
+      { key: 'X', label: t(lang, '导出MD', 'Export') },
     ],
     [lang, showParallelHint],
   );
@@ -1457,7 +1666,20 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
 
   useInput(
     (input, key) => {
-      if (!listActive) return;
+      if (!listNavActive) return;
+      if (key.escape && filterQuery) {
+        setFilterQuery('');
+        setSelectedIndex(0);
+        return;
+      }
+      if (input === '/' && !key.ctrl && !key.meta) {
+        setFilterEditing(true);
+        return;
+      }
+      if (input === 'X' && !key.ctrl && !key.meta) {
+        void handleExportTasksMarkdown();
+        return;
+      }
       if (key.tab) {
         setFilterTab((tCur) => (tCur === 'running' ? 'all' : tCur === 'all' ? 'archived' : 'running'));
         return;
@@ -1492,12 +1714,23 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
       else if (input === 'a') void handleArchive();
       else if (input === 'd' && selectedJob) setConfirmDeleteOpen(true);
     },
-    { isActive: listActive },
+    { isActive: listNavActive },
   );
 
   const narrowBar = width < 84;
   const topBarH = 2;
-  const splitH = Math.max(4, height - topBarH);
+  const showFilterBar = filterEditing || filterQuery.length > 0;
+  const filterBarH = showFilterBar ? 1 : 0;
+  const splitH = Math.max(4, height - topBarH - filterBarH);
+  const ell = asciiMode ? '...' : '…';
+  const filterBadge = `[${filterEditing ? t(lang, '筛选', 'Filter') : t(lang, '已筛选', 'Filtered')} ${filteredJobs.length}/${tabJobs.length}] `;
+  const filterRightHint =
+    width >= 66
+      ? ` ${filterEditing ? t(lang, 'Enter 确认 | Esc 清除', 'Enter apply | Esc clear') : t(lang, '/ 编辑 | Esc 清除', '/ edit | Esc clear')}`
+      : width >= 46
+        ? ' Esc'
+        : '';
+  const filterInputW = Math.max(8, width - 2 - displayWidth(filterBadge) - displayWidth(filterRightHint) - 3);
 
   const runningCount = allNormalized.activeAndRecent.filter((j) => ACTIVE_STATUSES.has(j.status)).length;
   const allCount = allNormalized.activeAndRecent.length + allNormalized.archived.length;
@@ -1618,6 +1851,43 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
         </Text>
       </Box>
 
+      {/* Inline Live Filter Bar ([/]) */}
+      {showFilterBar ? (
+        <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
+          <Text color={filterEditing ? theme.primary : theme.accent} bold>
+            {filterBadge}
+          </Text>
+          <Box flexGrow={1} overflow="hidden">
+            <TextInput
+              value={filterQuery}
+              onChange={(val) => {
+                setFilterQuery(val);
+                setSelectedIndex(0);
+              }}
+              onSubmit={(val) => {
+                if (!val.trim()) setFilterQuery('');
+                setFilterEditing(false);
+              }}
+              onCancel={() => {
+                setFilterQuery('');
+                setFilterEditing(false);
+                setSelectedIndex(0);
+              }}
+              isActive={listActive && filterEditing}
+              width={filterInputW}
+              prompt="/"
+              placeholder={t(lang, `标题/类型/状态/课程/阶段/ID${ell}`, `title/type/status/course/stage/id${ell}`)}
+              maxLength={120}
+            />
+          </Box>
+          {filterRightHint ? (
+            <Text color={theme.dim} wrap="truncate">
+              {filterRightHint}
+            </Text>
+          ) : null}
+        </Box>
+      ) : null}
+
       {/* SplitPane */}
       <Box height={splitH} width={width}>
         <SplitPane
@@ -1629,21 +1899,29 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
           left={({ width: lw, height: lh }) => (
             <Panel
               title={t(lang, '后台任务', 'Background Jobs')}
-              badge={displayedJobs.length}
+              badge={filteredJobs.length}
               width={lw}
               height={lh}
-              focused={listActive}
+              focused={listNavActive}
             >
-              {displayedJobs.length === 0 ? (
+              {filteredJobs.length === 0 ? (
                 <EmptyState
-                  title={t(lang, '当前筛选下无任务', 'No jobs in this filter')}
-                  hint={t(lang, '前往「创建题组」或「音频转写」启动任务', 'Start a task from Generate or Audio')}
+                  title={
+                    filterQuery.trim()
+                      ? t(lang, '未找到匹配的任务', 'No matching jobs')
+                      : t(lang, '当前筛选下无任务', 'No jobs in this filter')
+                  }
+                  hint={
+                    filterQuery.trim()
+                      ? t(lang, '按 Esc 清除筛选条件，或切换标签页', 'Press Esc to clear filter, or switch tabs')
+                      : t(lang, '前往「创建题组」或「音频转写」启动任务', 'Start a task from Generate or Audio')
+                  }
                   width={Math.max(12, lw - 4)}
                   height={Math.max(4, lh - 2)}
                 />
               ) : (
                 <VirtualList
-                  items={displayedJobs}
+                  items={filteredJobs}
                   height={Math.max(1, lh - 2)}
                   width={Math.max(12, lw - 4)}
                   selectedIndex={selectedIndex}
@@ -1655,7 +1933,7 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
                       notify(t(lang, '该任务暂无关联草稿', 'No draft linked to this job'), 'info');
                     }
                   }}
-                  isActive={listActive}
+                  isActive={listNavActive}
                   keyExtractor={(j) => `${j.archived ? 'arch-' : ''}${j.id}`}
                   renderItem={(job, ctx) => {
                     const active = ACTIVE_STATUSES.has(job.status);
