@@ -65,6 +65,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'G', label: t(lang, 'AI 评分标准批改', 'AI rubric grade') },
         { key: 'L', label: t(lang, '互动带学', 'Socratic teach') },
         { key: 'A', label: t(lang, '答题卡 / 案例强化', 'Answer card & drills') },
+        { key: 'Q', label: t(lang, '队列编辑', 'Edit queue') },
         { key: '*', label: t(lang, '标记重点', 'Toggle focus') },
       ],
     },
@@ -91,6 +92,13 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       ],
     },
     {
+      title: t(lang, '模拟考 · Exam', 'Mock Exam'),
+      items: [
+        { key: 's', label: t(lang, '切换材料', 'Toggle case') },
+        { key: 'H', label: t(lang, '标亮段落', 'Highlight') },
+      ],
+    },
+    {
       title: t(lang, '考试教练 · Exam Coach', 'Exam Coach'),
       items: [
         { key: 'p', label: t(lang, '学习画像与偏好', 'Coach profile & prefs') },
@@ -103,12 +111,20 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       ],
     },
     {
+      title: t(lang, '骨架与笔记 · Skeleton / Notes', 'Skeleton & Notes'),
+      items: [
+        { key: 'L', label: t(lang, '骨架自检', 'Skeleton lint') },
+        { key: 'o', label: t(lang, '跳转关联', 'Jump linked ref') },
+      ],
+    },
+    {
       title: t(lang, '资料与阅读 · Sources / Reader', 'Sources & Reader'),
       items: [
         { key: 'G', label: t(lang, 'AI 课程归类', 'AI organize') },
         { key: 'V', label: t(lang, '引用覆盖率', 'Coverage') },
         { key: 'F', label: t(lang, '文件夹筛选', 'Folders') },
         { key: 'm', label: t(lang, '移至文件夹', 'Move folder') },
+        { key: 'M', label: t(lang, 'MinerU PDF', 'MinerU PDF') },
         { key: 'C', label: t(lang, '伴学页面', 'Companions') },
         { key: 'O', label: t(lang, '目录大纲', 'Outline TOC') },
         { key: 'B', label: t(lang, '书签与批注', 'Bookmarks & notes') },

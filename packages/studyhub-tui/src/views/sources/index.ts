@@ -10,6 +10,7 @@ export {
   type OrganizeSourcesModalProps,
 } from './OrganizeSourcesModal.js';
 export { SourceCoverageModal, type SourceCoverageModalProps } from './SourceCoverageModal.js';
+export { MinerUModal, type MinerUModalProps } from './MinerUModal.js';
 export { completeFsPath, expandHomePath, type PathCompletionResult, type PathCompleteOptions } from './path-complete.js';
 export {
   groupSourcesFromSnapshot,

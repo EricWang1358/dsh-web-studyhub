@@ -17,21 +17,21 @@ import { LibraryView } from './views/library/LibraryView.js';
 
 const VoicePackModal = lazy(() => import('./views/library/VoicePackModal.js').then((m) => ({ default: m.VoicePackModal })));
 
-const ReviewView = lazy(() => import('./views/review/index.js').then((m) => ({ default: m.ReviewView })));
-const SourcesView = lazy(() => import('./views/sources/index.js').then((m) => ({ default: m.SourcesView })));
-const GenerateView = lazy(() => import('./views/generate/index.js').then((m) => ({ default: m.GenerateView })));
-const WrongBookView = lazy(() => import('./views/wrongbook/index.js').then((m) => ({ default: m.WrongBookView })));
-const ExamView = lazy(() => import('./views/exam/index.js').then((m) => ({ default: m.ExamView })));
-const DashboardView = lazy(() => import('./views/dashboard/index.js').then((m) => ({ default: m.DashboardView })));
-const BookView = lazy(() => import('./views/book/index.js').then((m) => ({ default: m.BookView })));
-const SkeletonView = lazy(() => import('./views/skeleton/index.js').then((m) => ({ default: m.SkeletonView })));
-const ExamCoachView = lazy(() => import('./views/examcoach/index.js').then((m) => ({ default: m.ExamCoachView })));
-const ExamPrepView = lazy(() => import('./views/examprep/index.js').then((m) => ({ default: m.ExamPrepView })));
-const NotesView = lazy(() => import('./views/notes/index.js').then((m) => ({ default: m.NotesView })));
-const BoardView = lazy(() => import('./views/board/index.js').then((m) => ({ default: m.BoardView })));
-const TasksView = lazy(() => import('./views/tasks/index.js').then((m) => ({ default: m.TasksView })));
-const AudioView = lazy(() => import('./views/audio/index.js').then((m) => ({ default: m.AudioView })));
-const SettingsView = lazy(() => import('./views/settings/index.js').then((m) => ({ default: m.SettingsView })));
+const ReviewView = lazy(() => import('./views/review/ReviewView.js').then((m) => ({ default: m.ReviewView })));
+const SourcesView = lazy(() => import('./views/sources/SourcesView.js').then((m) => ({ default: m.SourcesView })));
+const GenerateView = lazy(() => import('./views/generate/GenerateView.js').then((m) => ({ default: m.GenerateView })));
+const WrongBookView = lazy(() => import('./views/wrongbook/WrongBookView.js').then((m) => ({ default: m.WrongBookView })));
+const ExamView = lazy(() => import('./views/exam/ExamView.js').then((m) => ({ default: m.ExamView })));
+const DashboardView = lazy(() => import('./views/dashboard/DashboardView.js').then((m) => ({ default: m.DashboardView })));
+const BookView = lazy(() => import('./views/book/BookView.js').then((m) => ({ default: m.BookView })));
+const SkeletonView = lazy(() => import('./views/skeleton/SkeletonView.js').then((m) => ({ default: m.SkeletonView })));
+const ExamCoachView = lazy(() => import('./views/examcoach/ExamCoachView.js').then((m) => ({ default: m.ExamCoachView })));
+const ExamPrepView = lazy(() => import('./views/examprep/ExamPrepView.js').then((m) => ({ default: m.ExamPrepView })));
+const NotesView = lazy(() => import('./views/notes/NotesView.js').then((m) => ({ default: m.NotesView })));
+const BoardView = lazy(() => import('./views/board/BoardView.js').then((m) => ({ default: m.BoardView })));
+const TasksView = lazy(() => import('./views/tasks/TasksView.js').then((m) => ({ default: m.TasksView })));
+const AudioView = lazy(() => import('./views/audio/AudioView.js').then((m) => ({ default: m.AudioView })));
+const SettingsView = lazy(() => import('./views/settings/SettingsView.js').then((m) => ({ default: m.SettingsView })));
 
 interface ErrorBoundaryProps {
   page: PageId;

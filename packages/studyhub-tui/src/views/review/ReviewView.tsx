@@ -55,6 +55,7 @@ import { RoundSummary } from './RoundSummary.js';
 const AiHelpDrawer = lazy(() => import('./AiHelpDrawer.js').then((m) => ({ default: m.AiHelpDrawer })));
 const AnswerCardModal = lazy(() => import('./AnswerCardModal.js').then((m) => ({ default: m.AnswerCardModal })));
 const CardToolsModal = lazy(() => import('./CardToolsModal.js').then((m) => ({ default: m.CardToolsModal })));
+const QueueModal = lazy(() => import('./QueueModal.js').then((m) => ({ default: m.QueueModal })));
 const RetellModal = lazy(() => import('./RetellModal.js').then((m) => ({ default: m.RetellModal })));
 const SimilarCardsModal = lazy(() => import('./SimilarCardsModal.js').then((m) => ({ default: m.SimilarCardsModal })));
 const TeachModal = lazy(() => import('./TeachModal.js').then((m) => ({ default: m.TeachModal })));
@@ -100,6 +101,7 @@ function isModelUnavailableMsg(msg: string): boolean {
 
 const CARD_UTIL_KEYS: readonly string[] = Object.freeze([
   'q',
+  'Q',
   's',
   'm',
   ',',
@@ -160,6 +162,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
   const [flagReason, setFlagReason] = useState('');
   const [similarModalOpen, setSimilarModalOpen] = useState(false);
   const [cardToolsModalOpen, setCardToolsModalOpen] = useState(false);
+  const [queueModalOpen, setQueueModalOpen] = useState(false);
   const [retellModalOpen, setRetellModalOpen] = useState(false);
   const [teachModalOpen, setTeachModalOpen] = useState(false);
   const [answerCardModalOpen, setAnswerCardModalOpen] = useState(false);
@@ -598,6 +601,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     flagModalOpen ||
     similarModalOpen ||
     cardToolsModalOpen ||
+    queueModalOpen ||
     retellModalOpen ||
     teachModalOpen ||
     answerCardModalOpen;
@@ -649,6 +653,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     base.push({ key: 'T', label: t(lang, '翻译', 'Trans') });
     base.push({ key: 'S', label: t(lang, '同类', 'Similar') });
     base.push({ key: 'D', label: t(lang, '工具', 'Tools') });
+    if (run.mode !== 'exam') base.push({ key: 'Q', label: t(lang, '队列', 'Queue') });
     base.push({ key: 'A', label: t(lang, '答题卡', 'AnswerCard') });
     base.push({ key: 'm', label: mathUnicode ? 'Unicode' : 'LaTeX' });
     if (citation) base.push({ key: 'o', label: t(lang, '原文', 'Source') });
@@ -711,6 +716,14 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
       }
       if (input === 'D') {
         setCardToolsModalOpen(true);
+        return;
+      }
+      if (input === 'Q') {
+        if (run.mode !== 'exam') {
+          setQueueModalOpen(true);
+        } else {
+          notify(t(lang, '模拟考试队列已锁定，不能修改', 'Exam queue is locked'), 'info');
+        }
         return;
       }
       if (input === 'A') {
@@ -1394,13 +1407,13 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                 canRubricGrade
                   ? t(
                       lang,
-                      '[h]讲解 [L]带学 [*]重点 [F]复述 [G]评分 [A]答题卡 [T]翻译 [S]同类 [D]工具 [E]标记 [s]跳过 [u]撤销 [,/.]换题',
-                      '[h]Help [L]Teach [*]Focus [F]Retell [G]Grade [A]AnswerCard [T]Trans [S]Sim [D]Tools [E]Flag [s]Skip [u]Undo [,/.]Nav',
+                      '[h]讲解 [L]带学 [*]重点 [F]复述 [G]评分 [A]答题卡 [T]翻译 [S]同类 [D]工具 [Q]队列 [E]标记 [s]跳过 [u]撤销 [,/.]换题',
+                      '[h]Help [L]Teach [*]Focus [F]Retell [G]Grade [A]AnswerCard [T]Trans [S]Sim [D]Tools [Q]Queue [E]Flag [s]Skip [u]Undo [,/.]Nav',
                     )
                   : t(
                       lang,
-                      '[h]讲解 [L]带学 [*]重点 [F]复述 [A]答题卡 [T]翻译 [S]同类 [D]工具 [E]标记 [s]跳过 [u]撤销 [,/.]换题',
-                      '[h]Help [L]Teach [*]Focus [F]Retell [A]AnswerCard [T]Trans [S]Sim [D]Tools [E]Flag [s]Skip [u]Undo [,/.]Nav',
+                      '[h]讲解 [L]带学 [*]重点 [F]复述 [A]答题卡 [T]翻译 [S]同类 [D]工具 [Q]队列 [E]标记 [s]跳过 [u]撤销 [,/.]换题',
+                      '[h]Help [L]Teach [*]Focus [F]Retell [A]AnswerCard [T]Trans [S]Sim [D]Tools [Q]Queue [E]Flag [s]Skip [u]Undo [,/.]Nav',
                     ),
                 innerW,
               )}
@@ -1423,7 +1436,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
             userAnswer={userAnswerText}
             width={aiPaneW}
             height={height}
-            isActive={isActive && aiDrawerOpen && !flagModalOpen && !similarModalOpen && !cardToolsModalOpen && !retellModalOpen && !teachModalOpen && !answerCardModalOpen}
+            isActive={isActive && aiDrawerOpen && !flagModalOpen && !similarModalOpen && !cardToolsModalOpen && !queueModalOpen && !retellModalOpen && !teachModalOpen && !answerCardModalOpen}
             mathUnicode={mathUnicode}
             onClose={() => setAiDrawerOpen(false)}
           />
@@ -1498,6 +1511,28 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
               setFocusOverrideByCard((prev) => ({ ...prev, [cid]: focused }));
             }}
             onRefreshSnapshot={() => void refresh()}
+          />
+        ) : null}
+
+        {/* Live Review Queue Inspector & Editor */}
+        {queueModalOpen && run.mode !== 'exam' ? (
+          <QueueModal
+            host={host}
+            run={run}
+            width={width}
+            height={height}
+            isActive={
+              isActive &&
+              queueModalOpen &&
+              !flagModalOpen &&
+              !teachModalOpen &&
+              !retellModalOpen &&
+              !similarModalOpen &&
+              !cardToolsModalOpen &&
+              !answerCardModalOpen
+            }
+            onClose={() => setQueueModalOpen(false)}
+            onRunUpdated={(nextRun) => applyRun(nextRun, true)}
           />
         ) : null}
 

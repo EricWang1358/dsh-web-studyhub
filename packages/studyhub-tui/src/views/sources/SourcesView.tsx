@@ -35,10 +35,12 @@ const FolderModal = lazy(() => import('./FolderModal.js').then((m) => ({ default
 const CompanionsModal = lazy(() => import('./CompanionsModal.js').then((m) => ({ default: m.CompanionsModal })));
 const OrganizeSourcesModal = lazy(() => import('./OrganizeSourcesModal.js').then((m) => ({ default: m.OrganizeSourcesModal })));
 const SourceCoverageModal = lazy(() => import('./SourceCoverageModal.js').then((m) => ({ default: m.SourceCoverageModal })));
+const MinerUModal = lazy(() => import('./MinerUModal.js').then((m) => ({ default: m.MinerUModal })));
 
 type ActiveOverlay =
   | 'none'
   | 'import'
+  | 'mineru'
   | 'rename'
   | 'course'
   | 'delete'
@@ -320,13 +322,14 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
 
   const listActive = isActive && !readerTarget && overlay === 'none';
 
-  useClaimKeys(['/', 'c', 'r', 'g', 'p', 'd', 'i', 'f', 'a', 'F', 'm', 'C', 'G', 'V'], listActive);
+  useClaimKeys(['/', 'c', 'r', 'g', 'p', 'd', 'i', 'f', 'a', 'F', 'm', 'M', 'C', 'G', 'V'], listActive);
   useInputCapture(isActive && !readerTarget && (overlay === 'rename' || overlay === 'course' || overlay === 'search'));
 
   const hints: KeyHint[] = useMemo(
     () => [
       { key: 'Enter', label: t(lang, '阅读', 'Read') },
       { key: 'i', label: t(lang, '导入', 'Import') },
+      { key: 'M', label: 'MinerU' },
       { key: 'g', label: t(lang, '出题', 'Generate') },
       { key: 'G', label: t(lang, '归类', 'Organize') },
       { key: 'V', label: t(lang, '覆盖率', 'Coverage') },
@@ -349,6 +352,8 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
       if (!listActive) return;
       if (input === 'i') {
         setOverlay('import');
+      } else if (input === 'M') {
+        setOverlay('mineru');
       } else if (input === '/') {
         setOverlay('search');
       } else if (input === 'f') {
@@ -611,6 +616,20 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
             isActive={isActive}
             onClose={() => setOverlay('none')}
             onImported={refresh}
+          />
+        ) : null}
+
+        {overlay === 'mineru' ? (
+          <MinerUModal
+            host={host}
+            defaultCourse={focusCourse}
+            isActive={isActive}
+            onQueued={refresh}
+            onOpenTasks={(jobId) => {
+              setOverlay('none');
+              navigate('tasks', jobId ? { jobId } : {});
+            }}
+            onClose={() => setOverlay('none')}
           />
         ) : null}
 
