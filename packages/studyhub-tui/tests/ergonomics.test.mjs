@@ -100,9 +100,14 @@ test('globalShortcuts documents required keys cleanly in zh and en without dupli
       const keys = list.map((h) => h.key);
       assert.equal(new Set(keys).size, keys.length, `duplicate key in globalShortcuts (${lang}, ascii=${ascii})`);
       const keysJoined = keys.join('\n');
-      for (const expected of ['I', 'Ctrl+K', '?', 'c', '[', '\\', 'Ctrl+R', 'Ctrl+D/U', 'g/G']) {
+      for (const expected of ['I', 'Ctrl+K', '?', 'c', '[', '\\', 'Ctrl+R', 'Ctrl+D/U', 'g/G', 'Ctrl+S']) {
         assert.ok(keysJoined.includes(expected), `missing ${expected} in ${lang} (ascii=${ascii})`);
       }
+      const ctrlSItem = list.find((item) => item.key === 'Ctrl+S');
+      assert.ok(
+        ctrlSItem && ctrlSItem.label.includes('Ctrl+J') && ctrlSItem.label.includes('Shift+Enter'),
+        `globalShortcuts Ctrl+S must document Ctrl+J / Shift+Enter newline alternative in ${lang}`,
+      );
       for (const item of list) {
         assert.ok(item.key.trim().length > 0);
         assert.ok(item.label.trim().length > 0);
@@ -114,7 +119,7 @@ test('globalShortcuts documents required keys cleanly in zh and en without dupli
   }
 });
 
-test('featureShortcuts documents Rounds 5-25 shortcuts cleanly in zh and en without duplicates', () => {
+test('featureShortcuts documents Rounds 5-26 & PR #1297 shortcuts cleanly in zh and en without duplicates', () => {
   for (const lang of ['zh', 'en']) {
     const sections = M.featureShortcuts(lang);
     assert.equal(sections.length, 15);
@@ -167,7 +172,7 @@ test('featureShortcuts documents Rounds 5-25 shortcuts cleanly in zh and en with
     }
 
     const allKeys = sections.flatMap((s) => s.items.map((i) => i.key));
-    for (const k of ['p', 'g', 'C', 'o', 'R', 'm: + / k', 'm: Space/F/S', 'T', 'S', 'D', 'F', 'G', 'L', 'A', 'Q', '*', 'u', 'i', 'S / R', 'w', 'P', 'e', 'x', 'Space / B', 'Enter/p', 'f', 's', 'H', 'V', 'm', 'M', 'O', 'B', 'P / Space', '+/-', 'R', 'w / o / m', '/#?@:']) {
+    for (const k of ['p', 'g', 'C', 'o', 'R', 'm: + / k', 'm: Space/F/S', '0-5', 'T', 'S', 'D', 'F', 'G', 'L', 'A', 'Q', '*', 'u', 'q', 'i', 'S / R', 'Ctrl+S/J', 'w', 'P', 'e', 'x', 'Space / B', 'Enter/p', 'f', 's', 'H', 'E', 'V', 'm', 'M', 'O', 'B', 'P / Space', '+/-', 'R', 'w / o / m', '/#?@:']) {
       assert.ok(allKeys.includes(k), `missing feature shortcut ${k} in ${lang}`);
     }
     const keysJoined = allKeys.join('\n');
@@ -193,13 +198,18 @@ test('featureShortcuts documents Rounds 5-25 shortcuts cleanly in zh and en with
     assert.ok(librarySec?.items.some((i) => i.key === 'R' && (i.label.includes('定制本轮') || i.label.includes('Custom round'))), `missing Library [R] label in ${lang}`);
     assert.ok(librarySec?.items.some((i) => i.key === 'm: + / k' && (i.label.includes('补题') || i.label.includes('supplement'))), `missing Library [m: + / k] label in ${lang}`);
     assert.ok(librarySec?.items.some((i) => i.key === 'm: Space/F/S' && (i.label.includes('批量') || i.label.includes('batch'))), `missing Library [m: Space/F/S] label in ${lang}`);
+    assert.ok(reviewSec?.items.some((i) => i.key === '0-5' && (i.label.includes('六级') || i.label.includes('six-grade'))), `missing Review [0-5] label in ${lang}`);
+    assert.ok(!reviewSec?.items.some((i) => i.key.includes('1-4') || i.label.includes('1-4')), `stale [1-4] rating text in Review (${lang})`);
     assert.ok(reviewSec?.items.some((i) => i.key === 'L' && (i.label.includes('带学') || i.label.includes('Socratic'))), `missing Review [L] label in ${lang}`);
     assert.ok(reviewSec?.items.some((i) => i.key === 'A' && (i.label.includes('答题卡') || i.label.includes('Answer card'))), `missing Review [A] label in ${lang}`);
     assert.ok(reviewSec?.items.some((i) => i.key === 'Q' && (i.label.includes('队列编辑') || i.label.includes('Edit queue'))), `missing Review [Q] label in ${lang}`);
     assert.ok(reviewSec?.items.some((i) => i.key === '*' && (i.label.includes('重点') || i.label.includes('focus'))), `missing Review [*] label in ${lang}`);
     assert.ok(reviewSec?.items.some((i) => i.key === 'u' && (i.label.includes('撤销') || i.label.includes('Undo'))), `missing Review [u] label in ${lang}`);
+    assert.ok(reviewSec?.items.some((i) => i.key === 'q' && (i.label.includes('结束本轮') || i.label.includes('End round'))), `missing Review [q] label in ${lang}`);
     assert.ok(generateSec?.items.some((i) => i.key === 'i' && (i.label.includes('录题') || i.label.includes('Capture'))), `missing Generate [i] label in ${lang}`);
     assert.ok(generateSec?.items.some((i) => i.key === 'S / R' && (i.label.includes('查重') || i.label.includes('similar'))), `missing Generate [S / R] label in ${lang}`);
+    assert.ok(generateSec?.items.some((i) => i.key === 'u' && (i.label.includes('撤销') || i.label.includes('Undo'))), `missing Generate [u] undo label in ${lang}`);
+    assert.ok(generateSec?.items.some((i) => i.key === 'Ctrl+S/J' && i.label.includes('Shift+Enter')), `missing Generate [Ctrl+S/J] multiline newline label in ${lang}`);
     assert.ok(sourcesSec?.items.some((i) => i.key === 'G' && (i.label.includes('归类') || i.label.includes('organize'))), `missing Sources [G] label in ${lang}`);
     assert.ok(sourcesSec?.items.some((i) => i.key === 'V' && (i.label.includes('覆盖率') || i.label.includes('Coverage'))), `missing Sources [V] label in ${lang}`);
     assert.ok(sourcesSec?.items.some((i) => i.key === 'M' && i.label.includes('MinerU')), `missing Sources [M] label in ${lang}`);
@@ -214,6 +224,9 @@ test('featureShortcuts documents Rounds 5-25 shortcuts cleanly in zh and en with
     assert.ok(examSec?.items.some((i) => i.key === 'H' && (i.label.includes('标亮段落') || i.label.includes('Highlight'))), `missing Exam [H] label in ${lang}`);
     assert.ok(coachSec?.items.some((i) => i.key === 'p' && (i.label.includes('画像与偏好') || i.label.includes('profile'))), `missing Exam Coach [p] label in ${lang}`);
     assert.ok(examPrepSec?.items.some((i) => i.key === 'P' && (i.label.includes('定制向导') || i.label.includes('custom wizard'))), `missing Exam Prep [P] custom wizard label in ${lang}`);
+    assert.ok(skelNotesSec?.items.some((i) => i.key === 'R' && (i.label.includes('课程学习路线') || i.label.includes('Course route'))), `missing Skeleton/Notes [R] label in ${lang}`);
+    assert.ok(skelNotesSec?.items.some((i) => i.key === 'G' && (i.label.includes('主题分组') || i.label.includes('Topic groups'))), `missing Skeleton/Notes [G] label in ${lang}`);
+    assert.ok(skelNotesSec?.items.some((i) => i.key === 'E' && (i.label.includes('编辑骨架节点') || i.label.includes('Edit skeleton node'))), `missing Skeleton/Notes [E] label in ${lang}`);
     assert.ok(skelNotesSec?.items.some((i) => i.key === 'L' && (i.label.includes('骨架自检') || i.label.includes('Skeleton lint'))), `missing Skeleton/Notes [L] label in ${lang}`);
     assert.ok(skelNotesSec?.items.some((i) => i.key === 'o' && (i.label.includes('跳转关联') || i.label.includes('Jump linked ref'))), `missing Skeleton/Notes [o] label in ${lang}`);
     assert.ok(boardSec?.items.some((i) => i.key === 'S' && (i.label.includes('同步') || i.label.includes('Sync'))), `missing Board [S] label in ${lang}`);

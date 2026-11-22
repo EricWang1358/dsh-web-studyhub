@@ -40,6 +40,7 @@ export function globalShortcuts(lang: 'zh' | 'en', asciiMode = false): KeyHint[]
     { key: 'Ctrl+F/B', label: t(lang, '整页下/上翻', 'Full-page scroll') },
     { key: 'g/G', label: t(lang, '首尾跳转 (Home/End)', 'Top / bottom (Home/End)') },
     { key: 'Esc', label: t(lang, '关闭 / 取消', 'Close / cancel') },
+    { key: 'Ctrl+S', label: t(lang, '提交 (Ctrl+J/Shift+Enter换行)', 'Submit (Ctrl+J/Shift+Enter nl)') },
   ];
 }
 
@@ -60,6 +61,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
     {
       title: t(lang, '刷题复习 · Review', 'Review'),
       items: [
+        { key: '0-5', label: t(lang, 'FSRS-6 六级记忆自评', 'FSRS-6 six-grade rating') },
         { key: 'T', label: t(lang, '翻译题目', 'Translate') },
         { key: 'S', label: t(lang, '同类题', 'Similar cards') },
         { key: 'D', label: t(lang, '卡片工具', 'Card tools') },
@@ -70,6 +72,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'Q', label: t(lang, '队列编辑', 'Edit queue') },
         { key: '*', label: t(lang, '标记重点', 'Toggle focus') },
         { key: 'u', label: t(lang, '撤销上一题评分', 'Undo last rating') },
+        { key: 'q', label: t(lang, '结束本轮 (二次确认)', 'End round (confirm)') },
       ],
     },
     {
@@ -77,6 +80,8 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       items: [
         { key: 'i', label: t(lang, '录题 / 粘贴既有题', 'Capture & ingest') },
         { key: 'S / R', label: t(lang, '草稿查重与修复', 'Draft similar & repair') },
+        { key: 'u', label: t(lang, '撤销移除草稿题', 'Undo removed draft card') },
+        { key: 'Ctrl+S/J', label: t(lang, '保存 / 换行 (Shift+Enter)', 'Save / newline (Shift+Enter)') },
       ],
     },
     {
@@ -123,6 +128,9 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
     {
       title: t(lang, '骨架与笔记 · Skeleton / Notes', 'Skeleton & Notes'),
       items: [
+        { key: 'R', label: t(lang, '课程学习路线', 'Course route') },
+        { key: 'G', label: t(lang, '主题分组管理', 'Topic groups') },
+        { key: 'E', label: t(lang, '编辑骨架节点', 'Edit skeleton node') },
         { key: 'L', label: t(lang, '骨架自检', 'Skeleton lint') },
         { key: 'o', label: t(lang, '跳转关联', 'Jump linked ref') },
       ],

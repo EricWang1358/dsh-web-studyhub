@@ -2,6 +2,7 @@ import React, { Component, Suspense, lazy, useCallback, useEffect, useMemo, useR
 import { Box, Text, useInput } from 'ink';
 import type { CommandPaletteItem, PageId, ThemeId, UiLanguage, ViewProps } from './types/contracts.js';
 import { t, useTuiStore } from './state/store.js';
+import { computeSnapshotFingerprint } from './state/snapshot-fingerprint.js';
 import {
   TUI_CONFIG_CHANGED_EVENT,
   loadTuiPreferences,
@@ -139,7 +140,7 @@ export function StudyHubTuiApp({
   const syncInFlightRef = useRef<Promise<void> | null>(null);
   const syncPendingRef = useRef(false);
   const syncPendingSilentRef = useRef(true);
-  const lastSnapshotJsonRef = useRef<string | null>(null);
+  const lastSnapshotFingerprintRef = useRef<string | null>(null);
   const lastBindingJsonRef = useRef<string | null>(null);
   const lastConfigJsonRef = useRef<string | null>(null);
 
@@ -160,9 +161,9 @@ export function StudyHubTuiApp({
           try {
             const res = await host.refreshSnapshot();
             if (res.snapshot) {
-              const snapJson = JSON.stringify(res.snapshot);
-              if (snapJson !== lastSnapshotJsonRef.current) {
-                lastSnapshotJsonRef.current = snapJson;
+              const snapFingerprint = computeSnapshotFingerprint(res.snapshot);
+              if (snapFingerprint !== lastSnapshotFingerprintRef.current) {
+                lastSnapshotFingerprintRef.current = snapFingerprint;
                 store.setSnapshot(res.snapshot);
               }
             }
