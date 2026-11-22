@@ -11,6 +11,7 @@ import {
   TextInput,
   useFooterHints,
   useInputCapture,
+  useStreamingBuffer,
   useTheme,
 } from '../../components/index.js';
 import {
@@ -54,7 +55,12 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
 
   // Per-card history kept local and capped at MAX_AI_TURNS.
   const [historyByCard, setHistoryByCard] = useState<Record<string, AiTurn[]>>({});
-  const [streamingText, setStreamingText] = useState('');
+  const {
+    text: streamingText,
+    push: pushStreamingChunk,
+    finish: finishStreaming,
+    reset: resetStreaming,
+  } = useStreamingBuffer();
   const [streaming, setStreaming] = useState(false);
   const [reasoningChars, setReasoningChars] = useState(0);
   const [errorText, setErrorText] = useState<string | null>(null);
@@ -88,13 +94,13 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
     abortRef.current?.abort();
     abortRef.current = null;
     setStreaming(false);
-    setStreamingText('');
+    resetStreaming();
     setReasoningChars(0);
     setErrorText(null);
     setSuggestions([]);
     setSuggestLoading(false);
     setSuggestError(null);
-  }, [cardId]);
+  }, [cardId, resetStreaming]);
 
   const turns = useMemo(() => historyByCard[cardId] ?? [], [historyByCard, cardId]);
 
@@ -115,11 +121,10 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
       const withUser = [...priorTurns, userTurn].slice(-MAX_AI_TURNS);
       setHistoryByCard((prev) => ({ ...prev, [cardId]: withUser }));
       setStreaming(true);
-      setStreamingText('');
+      resetStreaming();
       setReasoningChars(0);
       setErrorText(null);
 
-      let accumulated = '';
       try {
         const finalText = await host.streamComplete({
           system: buildCardHelpSystemPrompt(lang),
@@ -134,8 +139,7 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
           signal: ctrl.signal,
           onChunk: (delta) => {
             if (!mountedRef.current || ctrl.signal.aborted) return;
-            accumulated += delta;
-            setStreamingText(accumulated);
+            pushStreamingChunk(delta);
           },
           onReasoning: (chars) => {
             if (!mountedRef.current || ctrl.signal.aborted) return;
@@ -143,7 +147,8 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
           },
         });
         if (!mountedRef.current || ctrl.signal.aborted) return;
-        const reply = (finalText || accumulated).trim();
+        const flushed = finishStreaming();
+        const reply = (finalText || flushed).trim();
         if (reply) {
           const assistantTurn: AiTurn = { role: 'assistant', text: reply };
           setHistoryByCard((prev) => {
@@ -151,23 +156,35 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
             return { ...prev, [cardId]: [...cur, assistantTurn].slice(-MAX_AI_TURNS) };
           });
         }
-        setStreamingText('');
+        resetStreaming();
         setStreaming(false);
       } catch (err) {
         if (!mountedRef.current || ctrl.signal.aborted) return;
+        const flushed = finishStreaming();
         setStreaming(false);
-        if (accumulated.trim()) {
-          const partialTurn: AiTurn = { role: 'assistant', text: accumulated.trim() };
+        const partial = flushed.trim();
+        if (partial) {
+          const partialTurn: AiTurn = { role: 'assistant', text: partial };
           setHistoryByCard((prev) => {
             const cur = prev[cardId] ?? withUser;
             return { ...prev, [cardId]: [...cur, partialTurn].slice(-MAX_AI_TURNS) };
           });
-          setStreamingText('');
+          resetStreaming();
         }
         setErrorText(errorMessage(err));
+      } finally {
+        if (abortRef.current === ctrl) {
+          abortRef.current = null;
+          if (!mountedRef.current || ctrl.signal.aborted) {
+            resetStreaming();
+            if (mountedRef.current) setStreaming(false);
+          } else {
+            finishStreaming();
+          }
+        }
       }
     },
-    [host, lang, historyByCard, cardId, run, kind, userAnswer],
+    [host, lang, historyByCard, cardId, run, kind, userAnswer, pushStreamingChunk, finishStreaming, resetStreaming],
   );
 
   // Auto-explain when opened for a card with no history yet.
@@ -284,6 +301,8 @@ export const AiHelpDrawer = memo(function AiHelpDrawer({
       if (inputFocused) return;
       if (key.escape || input === 'h') {
         abortRef.current?.abort();
+        resetStreaming();
+        setStreaming(false);
         onClose();
         return;
       }

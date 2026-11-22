@@ -12,6 +12,7 @@ import {
   useClaimKeys,
   useFooterHints,
   useInputCapture,
+  useStreamingBuffer,
   useTheme,
 } from '../../components/index.js';
 import { errorMessage, startReview, tryAction } from '../../host/sample-actions.js';
@@ -99,10 +100,22 @@ export const DocumentReader = memo(function DocumentReader({
   const [searchHits, setSearchHits] = useState<Array<{ sourceId: string; page?: number; snippet: string }>>([]);
 
   const [askQuestion, setAskQuestion] = useState('');
-  const [aiAnswer, setAiAnswer] = useState('');
+  const {
+    text: aiAnswer,
+    push: pushAiAnswer,
+    set: setAiAnswer,
+    finish: finishAiAnswer,
+    reset: resetAiAnswer,
+  } = useStreamingBuffer();
   const [aiBusy, setAiBusy] = useState(false);
   const [savingNote, setSavingNote] = useState(false);
-  const [translationText, setTranslationText] = useState('');
+  const {
+    text: translationText,
+    push: pushTranslation,
+    set: setTranslationText,
+    finish: finishTranslation,
+    reset: resetTranslation,
+  } = useStreamingBuffer();
   const [translateBusy, setTranslateBusy] = useState(false);
   const [pageScrollTop, setPageScrollTop] = useState(0);
 
@@ -124,8 +137,6 @@ export const DocumentReader = memo(function DocumentReader({
       abortInFlight();
       setPageData(null);
       setSearchHits([]);
-      setAiAnswer('');
-      setTranslationText('');
       setSubMode('read');
       setSavingNote(false);
     };
@@ -135,6 +146,15 @@ export const DocumentReader = memo(function DocumentReader({
   useEffect(() => {
     setCurrentPage(Math.max(1, initialPage));
   }, [sourceId, documentId, initialPage]);
+
+  // Abort any in-flight AI stream and reset coalesced buffers on page or document change.
+  useEffect(() => {
+    abortInFlight();
+    setAiBusy(false);
+    setTranslateBusy(false);
+    resetAiAnswer();
+    resetTranslation();
+  }, [sourceId, documentId, currentPage, abortInFlight, resetAiAnswer, resetTranslation]);
 
   // Load current page window on demand.
   useEffect(() => {
@@ -281,11 +301,10 @@ export const DocumentReader = memo(function DocumentReader({
       abortRef.current = ac;
       setSubMode('ask-view');
       setAiBusy(true);
-      setAiAnswer('');
+      resetAiAnswer();
 
       try {
         if (typeof host.streamComplete === 'function') {
-          let buf = '';
           const system = t(
             lang,
             '你是 StudyHub 终端助教。请严格基于提供的当前页面内容回答用户问题；如需补充通用背景，请明确标注。使用简洁 Markdown 输出。',
@@ -298,11 +317,13 @@ export const DocumentReader = memo(function DocumentReader({
             signal: ac.signal,
             onChunk: (delta) => {
               if (ac.signal.aborted) return;
-              buf += delta;
-              setAiAnswer(buf);
+              pushAiAnswer(delta);
             },
           });
-          if (!ac.signal.aborted) setAiAnswer(final || buf);
+          if (!ac.signal.aborted) {
+            if (final) setAiAnswer(final);
+            finishAiAnswer();
+          }
         } else {
           const res = await tryAction<Record<string, unknown>>(host, 'materials.selection.ask', {
             scope: 'page',
@@ -320,18 +341,25 @@ export const DocumentReader = memo(function DocumentReader({
             } else {
               setAiAnswer(`✕ ${res.error?.message || t(lang, 'AI 回答失败', 'AI request failed')}`);
             }
+            finishAiAnswer();
           }
         }
       } catch (err) {
         if (!ac.signal.aborted) {
           setAiAnswer(`✕ ${errorMessage(err)}`);
+          finishAiAnswer();
         }
       } finally {
-        if (abortRef.current === ac) abortRef.current = null;
-        if (!ac.signal.aborted) setAiBusy(false);
+        if (abortRef.current === ac) {
+          abortRef.current = null;
+          finishAiAnswer();
+          if (!ac.signal.aborted) setAiBusy(false);
+        } else if (ac.signal.aborted && !abortRef.current) {
+          finishAiAnswer();
+        }
       }
     },
-    [abortInFlight, host, lang, pageData],
+    [abortInFlight, finishAiAnswer, host, lang, pageData, pushAiAnswer, resetAiAnswer, setAiAnswer],
   );
 
   const runTranslatePage = useCallback(async () => {
@@ -341,7 +369,7 @@ export const DocumentReader = memo(function DocumentReader({
     abortRef.current = ac;
     setSubMode('translate-view');
     setTranslateBusy(true);
-    setTranslationText('');
+    resetTranslation();
 
     try {
       const targetLang = lang === 'en' ? 'English' : '中文';
@@ -365,6 +393,7 @@ export const DocumentReader = memo(function DocumentReader({
             .filter(Boolean);
           if (translatedLines.length > 0) {
             setTranslationText(translatedLines.join('\n\n---\n\n'));
+            finishTranslation();
             setTranslateBusy(false);
             return;
           }
@@ -372,7 +401,6 @@ export const DocumentReader = memo(function DocumentReader({
       }
 
       if (typeof host.streamComplete === 'function') {
-        let buf = '';
         const system = `Translate the following study material page into ${targetLang}. Keep technical terms accurate and show clear bilingual paragraph pairs (original quote followed by translation).`;
         const final = await host.streamComplete({
           system,
@@ -380,23 +408,32 @@ export const DocumentReader = memo(function DocumentReader({
           signal: ac.signal,
           onChunk: (delta) => {
             if (ac.signal.aborted) return;
-            buf += delta;
-            setTranslationText(buf);
+            pushTranslation(delta);
           },
         });
-        if (!ac.signal.aborted) setTranslationText(final || buf);
+        if (!ac.signal.aborted) {
+          if (final) setTranslationText(final);
+          finishTranslation();
+        }
       } else {
         setTranslationText(t(lang, '未配置可用的翻译模型，请先在设置中配置模型。', 'No model available for translation. Please configure a model in Settings.'));
+        finishTranslation();
       }
     } catch (err) {
       if (!ac.signal.aborted) {
         setTranslationText(`✕ ${errorMessage(err)}`);
+        finishTranslation();
       }
     } finally {
-      if (abortRef.current === ac) abortRef.current = null;
-      if (!ac.signal.aborted) setTranslateBusy(false);
+      if (abortRef.current === ac) {
+        abortRef.current = null;
+        finishTranslation();
+        if (!ac.signal.aborted) setTranslateBusy(false);
+      } else if (ac.signal.aborted && !abortRef.current) {
+        finishTranslation();
+      }
     }
-  }, [abortInFlight, host, lang, pageData]);
+  }, [abortInFlight, finishTranslation, host, lang, pageData, pushTranslation, resetTranslation, setTranslationText]);
 
   const handlePracticeLinkedCards = useCallback(async () => {
     if (!pageData) return;
@@ -526,10 +563,17 @@ export const DocumentReader = memo(function DocumentReader({
       if (key.escape || (subMode === 'read' && key.backspace)) {
         if (subMode !== 'read') {
           abortInFlight();
+          finishAiAnswer();
+          finishTranslation();
+          resetAiAnswer();
+          resetTranslation();
           setAiBusy(false);
           setTranslateBusy(false);
           setSubMode('read');
         } else {
+          abortInFlight();
+          resetAiAnswer();
+          resetTranslation();
           onClose();
         }
         return;

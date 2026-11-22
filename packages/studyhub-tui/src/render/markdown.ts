@@ -7,9 +7,9 @@
  * `math.ts` (or restored verbatim when `mathUnicode === false`).
  */
 import { createRequire } from 'node:module';
-import defaultChalk, { Chalk, type ChalkInstance } from 'chalk';
+import type { ChalkInstance } from 'chalk';
 import { marked, type Token, type Tokens } from 'marked';
-import type { ThemeTokens } from '../theme/tokens.js';
+import { getColorLevel, makeChalk, type ColorLevel, type ThemeTokens } from '../theme/tokens.js';
 import {
   displayWidth,
   expandTabs,
@@ -72,9 +72,6 @@ export function clearMarkdownCache(): void {
 export function markdownCacheSize(): number {
   return mdCache.size;
 }
-
-/** Shared chalk instance at the auto-detected colour level (0 when not a TTY, so output is plain). */
-const chalk: ChalkInstance = new Chalk({ level: defaultChalk.level });
 
 // ---------------------------------------------------------------------------------------------
 // Math protection
@@ -504,9 +501,16 @@ function renderBlocks(tokens: Token[], width: number, ctx: Ctx, tight: boolean):
   return out;
 }
 
-function renderUncached(md: string, width: number, theme: ThemeTokens, mathOn: boolean, ascii: boolean): string[] {
+function renderUncached(
+  md: string,
+  width: number,
+  theme: ThemeTokens,
+  mathOn: boolean,
+  ascii: boolean,
+  colorLevel: ColorLevel,
+): string[] {
   const { src, store } = protectMath(md.replace(/\r\n?/g, '\n'), mathOn);
-  const ctx: Ctx = { theme, c: chalk, store, listDepth: 0, mathOn, ascii };
+  const ctx: Ctx = { theme, c: makeChalk(colorLevel), store, listDepth: 0, mathOn, ascii };
   let lines: string[];
   try {
     const tokens = marked.lexer(src, { gfm: true });
@@ -523,11 +527,12 @@ export function renderMarkdownLines(md: string, opts: MarkdownRenderOptions): st
   const width = Math.max(1, Math.floor(opts.width) || 1);
   const mathOn = opts.mathUnicode !== false;
   const ascii = opts.ascii === true;
+  const colorLevel = getColorLevel();
   if (!md) return [];
-  const key = `${width}\u0001${opts.theme.id}\u0001${mathOn ? 1 : 0}\u0001${ascii ? 1 : 0}\u0001${md}`;
+  const key = `${width}\u0001${opts.theme.id}\u0001${mathOn ? 1 : 0}\u0001${ascii ? 1 : 0}\u0001${colorLevel}\u0001${md}`;
   const cached = mdCache.get(key);
   if (cached) return cached.slice();
-  const lines = renderUncached(md, width, opts.theme, mathOn, ascii);
+  const lines = renderUncached(md, width, opts.theme, mathOn, ascii, colorLevel);
   mdCache.set(key, lines);
   return lines.slice();
 }

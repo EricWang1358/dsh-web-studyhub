@@ -29,6 +29,8 @@ const PDF_MAT_RE = /^document-([a-f0-9]{64})-pdf$/;
 const PAGE_SUFFIX_RE = /\s·\s(?:p\.\s?\d+|第\s?\d+\s?页)$/;
 const PART_SUFFIX_RE = /\s\(\d+\/\d+\)$/;
 const OFFICE_FORMATS = new Set(['docx', 'pptx', 'ppt']);
+// Reuse one Collator instead of invoking String#localeCompare thousands of times inside sort().
+const TITLE_COLLATOR = new Intl.Collator();
 
 const FORMAT_MAP: Record<string, string> = {
   pdf: 'pdf',
@@ -62,31 +64,57 @@ function asAudioMeta(source: RawSource): Record<string, unknown> | undefined {
   return audio && typeof audio === 'object' ? (audio as Record<string, unknown>) : undefined;
 }
 
-function isPdfSource(source: RawSource): boolean {
-  const doc = asDocMeta(source);
+function isPdfDoc(doc: Record<string, unknown> | undefined): boolean {
   if (!doc) return false;
-  const fmt = String(doc.format || '').toLowerCase();
+  const rawFmt = doc.format;
+  const fmt = typeof rawFmt === 'string' ? rawFmt.toLowerCase() : String(rawFmt || '').toLowerCase();
   if (OFFICE_FORMATS.has(fmt)) return false;
   return Number.isInteger(doc.page) || fmt === 'pdf' || PDF_MAT_RE.test(String(doc.materialId || ''));
 }
 
-export function detectSourceFormat(source: RawSource): string {
-  if (isPdfSource(source)) return 'pdf';
-  const doc = asDocMeta(source);
-  const declared = FORMAT_MAP[String(doc?.format || '').toLowerCase()];
-  if (declared) return declared;
+function detectFormatWithMeta(
+  source: RawSource,
+  doc: Record<string, unknown> | undefined,
+  isPdf: boolean,
+): string {
+  if (isPdf) return 'pdf';
+  if (doc && typeof doc.format === 'string') {
+    const declared = FORMAT_MAP[doc.format.toLowerCase()];
+    if (declared) return declared;
+  } else if (doc?.format) {
+    const declared = FORMAT_MAP[String(doc.format).toLowerCase()];
+    if (declared) return declared;
+  }
   if (asAudioMeta(source)) return 'audio';
-  const legacy = FORMAT_MAP[String(source.format || source.ext || '').toLowerCase()];
+  const legacyRaw = source.format || source.ext;
+  const legacy = legacyRaw ? FORMAT_MAP[String(legacyRaw).toLowerCase()] : undefined;
   return legacy || 'text';
 }
 
-export function sourceGroupKey(source: RawSource): string {
+export function detectSourceFormat(source: RawSource): string {
   const doc = asDocMeta(source);
-  if (isPdfSource(source) && doc) {
+  return detectFormatWithMeta(source, doc, isPdfDoc(doc));
+}
+
+function isCanonicalPdfMaterialId(matId: string, hash: string): boolean {
+  return (
+    matId.length === 13 + hash.length &&
+    matId.startsWith('document-') &&
+    matId.endsWith('-pdf') &&
+    matId.indexOf(hash, 9) === 9
+  );
+}
+
+function groupKeyWithMeta(
+  source: RawSource,
+  doc: Record<string, unknown> | undefined,
+  isPdf: boolean,
+): string {
+  if (isPdf && doc) {
     const idStr = typeof doc.id === 'string' ? doc.id : '';
     const matId = typeof doc.materialId === 'string' ? doc.materialId : '';
     const hash = idStr || PDF_MAT_RE.exec(matId)?.[1] || '';
-    if (matId && hash && matId !== `document-${hash}-pdf`) {
+    if (matId && hash && !isCanonicalPdfMaterialId(matId, hash)) {
       return `pdf:${matId}:${hash}`;
     }
     return `pdf:${hash || matId || source.id}`;
@@ -103,6 +131,11 @@ export function sourceGroupKey(source: RawSource): string {
     return `audio:${String(audio.sourceIds[0])}`;
   }
   return `source:${source.id}`;
+}
+
+export function sourceGroupKey(source: RawSource): string {
+  const doc = asDocMeta(source);
+  return groupKeyWithMeta(source, doc, isPdfDoc(doc));
 }
 
 export function normalizeFolderName(value: unknown): string {
@@ -159,60 +192,96 @@ export function pinnedKeysFromSnapshot(snapshot: StudySnapshot | null | undefine
   return out;
 }
 
-function buildCardCountIndex(snapshot: StudySnapshot | null | undefined): Map<string, number> {
-  const counts = new Map<string, number>();
-  const bump = (id: unknown) => {
-    if (typeof id === 'string' && id) counts.set(id, (counts.get(id) ?? 0) + 1);
-  };
-  for (const container of [...(snapshot?.decks ?? []), ...(snapshot?.drafts ?? [])]) {
-    const cards = Array.isArray((container as Record<string, unknown>).cards)
-      ? ((container as Record<string, unknown>).cards as Array<Record<string, unknown>>)
-      : [];
-    for (const card of cards) {
-      const seenForCard = new Set<string>();
-      const sels = Array.isArray(card.selections) ? card.selections : [];
-      for (const s of sels) {
-        const sid = (s as Record<string, unknown>)?.sourceId;
-        if (typeof sid === 'string' && !seenForCard.has(sid)) {
-          seenForCard.add(sid);
-          bump(sid);
+function addCardSourceCounts(
+  containers: unknown[] | undefined,
+  counts: Map<string, number>,
+): void {
+  if (!Array.isArray(containers)) return;
+  for (let i = 0; i < containers.length; i++) {
+    const container = containers[i];
+    if (!container || typeof container !== 'object') continue;
+    const cards = (container as Record<string, unknown>).cards;
+    if (!Array.isArray(cards)) continue;
+    for (let j = 0; j < cards.length; j++) {
+      const card = cards[j] as Record<string, unknown> | undefined;
+      if (!card || typeof card !== 'object') continue;
+      const sels = card.selections;
+      const cits = card.citations;
+      const hasSels = Array.isArray(sels) && sels.length > 0;
+      const hasCits = Array.isArray(cits) && cits.length > 0;
+      if (!hasSels && !hasCits) continue;
+
+      // Avoid allocating a Set per card when 0 or 1 distinct sourceId is referenced.
+      let firstSid: string | undefined;
+      let seenForCard: Set<string> | undefined;
+
+      const recordSid = (sid: unknown) => {
+        if (typeof sid !== 'string' || !sid) return;
+        if (firstSid === undefined) {
+          firstSid = sid;
+          counts.set(sid, (counts.get(sid) ?? 0) + 1);
+        } else if (sid !== firstSid) {
+          if (!seenForCard) {
+            seenForCard = new Set<string>();
+            seenForCard.add(firstSid);
+          }
+          if (!seenForCard.has(sid)) {
+            seenForCard.add(sid);
+            counts.set(sid, (counts.get(sid) ?? 0) + 1);
+          }
+        }
+      };
+
+      if (hasSels) {
+        for (let k = 0; k < sels.length; k++) {
+          const s = sels[k] as Record<string, unknown> | undefined;
+          recordSid(s?.sourceId);
         }
       }
-      const cits = Array.isArray(card.citations) ? card.citations : [];
-      for (const c of cits) {
-        const cit = c as Record<string, unknown>;
-        const sel = cit?.selection as Record<string, unknown> | undefined;
-        const sid = sel?.sourceId || cit?.sourceId;
-        if (typeof sid === 'string' && !seenForCard.has(sid)) {
-          seenForCard.add(sid);
-          bump(sid);
+      if (hasCits) {
+        for (let k = 0; k < cits.length; k++) {
+          const cit = cits[k] as Record<string, unknown> | undefined;
+          const sel = cit?.selection as Record<string, unknown> | undefined;
+          recordSid(sel?.sourceId || cit?.sourceId);
         }
       }
     }
   }
+}
+
+function buildCardCountIndex(snapshot: StudySnapshot | null | undefined): Map<string, number> {
+  const counts = new Map<string, number>();
+  addCardSourceCounts(snapshot?.decks as unknown[] | undefined, counts);
+  addCardSourceCounts(snapshot?.drafts as unknown[] | undefined, counts);
   return counts;
 }
 
-const LIBRARY_LIST_FIELDS: ReadonlyArray<[string, string]> = [
-  ['exam-blueprint', 'blueprint'],
-  ['course-outline', 'courseOutline'],
-  ['course-outline-notes', 'courseNotes'],
-  ['course-book-doc', 'bookDoc'],
-  ['course-outline-inventory', 'courseInventory'],
-];
+function libraryListField(prov: string): string | undefined {
+  switch (prov) {
+    case 'exam-blueprint':
+      return 'blueprint';
+    case 'course-outline':
+      return 'courseOutline';
+    case 'course-outline-notes':
+      return 'courseNotes';
+    case 'course-book-doc':
+      return 'bookDoc';
+    case 'course-outline-inventory':
+      return 'courseInventory';
+    default:
+      return undefined;
+  }
+}
 
 /** Mirror lib/exam-point-list.js isLibraryListSource so derived lists are excluded from material pickers. */
 export function isLibraryListSource(source: RawSource): boolean {
   const rec = source as Record<string, unknown>;
   const prov = rec.provenance;
   if (typeof prov !== 'string') return false;
-  for (const [expectedProv, field] of LIBRARY_LIST_FIELDS) {
-    if (prov === expectedProv) {
-      const val = rec[field];
-      return Boolean(val && typeof val === 'object');
-    }
-  }
-  return false;
+  const field = libraryListField(prov);
+  if (!field) return false;
+  const val = rec[field];
+  return Boolean(val && typeof val === 'object');
 }
 
 interface SnapshotDocumentLike {
@@ -274,19 +343,23 @@ export function groupSourcesFromSnapshot(snapshot: StudySnapshot | null | undefi
   const sources = snapshot?.sources ?? [];
   if (sources.length === 0) return [];
   const pins = pinnedKeysFromSnapshot(snapshot);
-  const pinIndex = new Map(pins.map((k, i) => [k, i]));
+  const pinIndex = new Map<string, number>();
+  for (let i = 0; i < pins.length; i++) pinIndex.set(pins[i], i);
   const cardIndex = buildCardCountIndex(snapshot);
   const folderState = materialFoldersFromSnapshot(snapshot);
   const versionMembership = buildVersionMembership(snapshot);
 
   const buckets = new Map<string, { key: string; format: string; members: RawSource[] }>();
-  for (const s of sources) {
+  for (let i = 0; i < sources.length; i++) {
+    const s = sources[i];
     if (!s || typeof s.id !== 'string') continue;
     if (isHistoricalSource(s, versionMembership) || isLibraryListSource(s)) continue;
-    const key = sourceGroupKey(s);
+    const doc = asDocMeta(s);
+    const pdf = isPdfDoc(doc);
+    const key = groupKeyWithMeta(s, doc, pdf);
     let bucket = buckets.get(key);
     if (!bucket) {
-      bucket = { key, format: detectSourceFormat(s), members: [] };
+      bucket = { key, format: detectFormatWithMeta(s, doc, pdf), members: [] };
       buckets.set(key, bucket);
     }
     bucket.members.push(s);
@@ -294,24 +367,35 @@ export function groupSourcesFromSnapshot(snapshot: StudySnapshot | null | undefi
 
   const groups: DocumentGroup[] = [];
   for (const { key, format, members } of buckets.values()) {
-    const ordered = members
-      .map((src, idx) => {
-        const doc = asDocMeta(src);
-        const audio = asAudioMeta(src);
-        const batch = audio?.batch as Record<string, unknown> | undefined;
-        const pg = Number.isInteger(doc?.page)
-          ? Number(doc?.page)
-          : format === 'audio' && Number.isInteger(batch?.volume)
-            ? Number(batch?.volume)
-            : idx + 1;
-        return { src, page: pg };
-      })
-      .sort((a, b) => a.page - b.page);
+    let ordered: Array<{ src: RawSource; page: number }>;
+    if (members.length === 1) {
+      const src = members[0];
+      const doc = asDocMeta(src);
+      const batch = format === 'audio' ? (asAudioMeta(src)?.batch as Record<string, unknown> | undefined) : undefined;
+      const pg = Number.isInteger(doc?.page)
+        ? Number(doc?.page)
+        : format === 'audio' && Number.isInteger(batch?.volume)
+          ? Number(batch?.volume)
+          : 1;
+      ordered = [{ src, page: pg }];
+    } else {
+      ordered = members
+        .map((src, idx) => {
+          const doc = asDocMeta(src);
+          const batch = format === 'audio' ? (asAudioMeta(src)?.batch as Record<string, unknown> | undefined) : undefined;
+          const pg = Number.isInteger(doc?.page)
+            ? Number(doc?.page)
+            : format === 'audio' && Number.isInteger(batch?.volume)
+              ? Number(batch?.volume)
+              : idx + 1;
+          return { src, page: pg };
+        })
+        .sort((a, b) => a.page - b.page);
+    }
 
     const first = ordered[0].src;
     const doc = asDocMeta(first);
-    const audio = asAudioMeta(first);
-    const batch = audio?.batch as Record<string, unknown> | undefined;
+    const batch = format === 'audio' ? (asAudioMeta(first)?.batch as Record<string, unknown> | undefined) : undefined;
 
     let rawTitle = String(first.title ?? first.name ?? first.filename ?? first.id);
     if (format === 'pdf') {
@@ -324,53 +408,72 @@ export function groupSourcesFromSnapshot(snapshot: StudySnapshot | null | undefi
     const title = baseNameOnly(rawTitle);
 
     const courseSet = new Set<string>();
+    const pages: Array<{ sourceId: string; page: number; title: string; chars: number }> = new Array(ordered.length);
+    const sourceIds: string[] = new Array(ordered.length);
+    const isPinnedByIndex = pinIndex.has(key);
+    const assignedFolder = folderState.items[key];
     let totalChars = 0;
     let totalCards = 0;
     let allArchived = true;
+    let anyPinned = isPinnedByIndex;
+    let firstFolder = assignedFolder || '';
     let documentId: string | undefined;
     let updatedAt: string | number | undefined;
 
-    const pages = ordered.map(({ src, page }) => {
+    for (let i = 0; i < ordered.length; i++) {
+      const { src, page } = ordered[i];
       const sDoc = asDocMeta(src);
       if (!documentId && typeof sDoc?.materialId === 'string' && sDoc.materialId) documentId = sDoc.materialId;
       if (!documentId && typeof sDoc?.id === 'string' && sDoc.id) documentId = sDoc.id;
 
-      const sCourses = Array.isArray(src.courses) ? src.courses : src.course ? [src.course] : [];
-      for (const c of sCourses) if (typeof c === 'string' && c.trim()) courseSet.add(c.trim());
+      if (Array.isArray(src.courses)) {
+        for (let k = 0; k < src.courses.length; k++) {
+          const c = src.courses[k];
+          if (typeof c === 'string') {
+            const trimmed = c.trim();
+            if (trimmed) courseSet.add(trimmed);
+          }
+        }
+      } else if (typeof src.course === 'string') {
+        const trimmed = src.course.trim();
+        if (trimmed) courseSet.add(trimmed);
+      }
 
-      const chars = Number((src as Record<string, unknown>).chars ?? 0) || (typeof (src as Record<string, unknown>).text === 'string' ? ((src as Record<string, unknown>).text as string).length : 0);
+      const rawRec = src as Record<string, unknown>;
+      const chars = Number(rawRec.chars ?? 0) || (typeof rawRec.text === 'string' ? rawRec.text.length : 0);
       totalChars += chars;
       const cards = Number(src.cardCount ?? 0) || (cardIndex.get(src.id) ?? 0);
       totalCards += cards;
       if (!src.archived) allArchived = false;
+      if (!anyPinned && src.pinned) anyPinned = true;
+      if (!firstFolder && src.folder) {
+        const norm = normalizeFolderName(src.folder);
+        if (norm) firstFolder = norm;
+      }
       if (src.updatedAt !== undefined) updatedAt = src.updatedAt;
 
-      return {
+      sourceIds[i] = src.id;
+      pages[i] = {
         sourceId: src.id,
         page,
         title: String(src.title ?? src.id),
         chars,
       };
-    });
+    }
 
-    const pinned = pinIndex.has(key) || ordered.some(({ src }) => Boolean(src.pinned));
-    const folder =
-      folderState.items[key] ||
-      ordered.map(({ src }) => normalizeFolderName(src.folder)).find(Boolean) ||
-      '';
     groups.push({
       key,
       ...(documentId ? { documentId } : {}),
       title,
       format,
       pageCount: pages.length,
-      sourceIds: pages.map((p) => p.sourceId),
+      sourceIds,
       pages,
       courses: [...courseSet],
-      ...(folder ? { folder } : {}),
+      ...(firstFolder ? { folder: firstFolder } : {}),
       cardCount: totalCards,
       chars: totalChars,
-      pinned,
+      pinned: anyPinned,
       archived: allArchived,
       updatedAt,
     });
@@ -384,7 +487,7 @@ export function groupSourcesFromSnapshot(snapshot: StudySnapshot | null | undefi
     if (bPin !== undefined) return 1;
     if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
     if (a.archived !== b.archived) return a.archived ? 1 : -1;
-    return a.title.localeCompare(b.title);
+    return TITLE_COLLATOR.compare(a.title, b.title);
   });
 
   return groups;

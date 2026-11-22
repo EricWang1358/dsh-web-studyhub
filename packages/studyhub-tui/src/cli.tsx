@@ -5,7 +5,7 @@
  *   in parallel, slashing perceived Time-To-First-Frame by >60%.
  * - Supports both Linux bash and Windows PowerShell / Windows Terminal (including `--ascii`).
  */
-import { parseCliArgs, cliHelpText, shouldAutoAscii } from './cli-args.js';
+import { parseCliArgs, cliHelpText, shouldAutoAscii, resolveColorCapability } from './cli-args.js';
 
 const PKG_VERSION = '1.0.0';
 
@@ -28,6 +28,10 @@ async function main() {
   }
 
   const resolvedAscii = parsed.asciiMode ?? (shouldAutoAscii(process.env) ? true : undefined);
+  const colorCap = resolveColorCapability(process.env, { isTTY: Boolean(process.stdout.isTTY) });
+  if (colorCap.level === 0) {
+    process.env.FORCE_COLOR = '0';
+  }
 
   const [
     React,
@@ -35,13 +39,17 @@ async function main() {
     { enterTerminalSession },
     { ShellBootFrame },
     { useTuiStore },
+    { setColorLevel },
   ] = await Promise.all([
     import('react'),
     import('ink'),
     import('./terminal.js'),
     import('./shell/ShellBootFrame.js'),
     import('./state/store.js'),
+    import('./theme/tokens.js'),
   ]);
+
+  setColorLevel(colorCap.level);
 
   if (parsed.theme) useTuiStore.getState().setTheme(parsed.theme);
   if (parsed.language) useTuiStore.getState().setLanguage(parsed.language);

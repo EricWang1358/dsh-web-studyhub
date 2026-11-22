@@ -50,4 +50,10 @@ export {
   DIGIT_KEYS,
 } from './focus.js';
 export { useFooterHints } from './hooks.js';
+export {
+  createStreamingCoalescer,
+  useStreamingBuffer,
+  type StreamingCoalescer,
+  type StreamingBufferResult,
+} from './useStreamingBuffer.js';
 export { useTheme, getTheme, toneColor, type ThemeTokens, type Tone } from '../theme/tokens.js';

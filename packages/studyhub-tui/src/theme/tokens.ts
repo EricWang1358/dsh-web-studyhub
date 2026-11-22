@@ -1,3 +1,5 @@
+import { Chalk, type ChalkInstance } from 'chalk';
+import { resolveColorCapability } from '../cli-args.js';
 import type { ThemeId } from '../types/contracts.js';
 import { useTuiStore } from '../state/store.js';
 
@@ -229,4 +231,27 @@ export function toneColor(theme: ThemeTokens, tone: Tone = 'neutral'): string {
 export function useTheme(): ThemeTokens {
   const id = useTuiStore((s) => s.preferences.theme);
   return getTheme(id);
+}
+
+/** Terminal color support level matching Chalk (`0` = none / NO_COLOR, `1` = basic 16, `2` = 256, `3` = truecolor). */
+export type ColorLevel = 0 | 1 | 2 | 3;
+
+const COLOR_LEVEL_KEY = Symbol.for('@studyhub-tui/colorLevel');
+type GlobalColorState = typeof globalThis & { [COLOR_LEVEL_KEY]?: ColorLevel };
+
+/** Return the active terminal color level, resolving from env/TTY capability when unset. */
+export function getColorLevel(): ColorLevel {
+  const override = (globalThis as GlobalColorState)[COLOR_LEVEL_KEY];
+  if (override !== undefined) return override;
+  return resolveColorCapability(process.env, { isTTY: Boolean(process.stdout?.isTTY) }).level;
+}
+
+/** Override the active terminal color level at runtime (or in tests). */
+export function setColorLevel(level: ColorLevel): void {
+  (globalThis as GlobalColorState)[COLOR_LEVEL_KEY] = level;
+}
+
+/** Create a Chalk instance respecting the provided or active ColorLevel. */
+export function makeChalk(level: ColorLevel = getColorLevel()): ChalkInstance {
+  return new Chalk({ level });
 }
