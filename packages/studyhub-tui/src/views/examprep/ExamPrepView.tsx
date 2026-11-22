@@ -1,12 +1,13 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
-import type { KeyHint, ViewProps } from '../../types/contracts.js';
+import type { KeyHint, UiLanguage, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, Divider, EmptyState, ProgressBar, Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
 import { Panel } from '../../components/Panel.js';
 import { SplitPane } from '../../components/SplitPane.js';
+import { TextInput } from '../../components/TextInput.js';
 import { VirtualList } from '../../components/VirtualList.js';
 import { useClaimKeys } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
@@ -14,6 +15,7 @@ import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { renderBarChart } from '../../render/charts.js';
 import { currentCourse, listCourses } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
+import { atomicWriteTextFile, defaultBackupFilePath } from '../../host/atomic-write.js';
 import { tryAction } from '../../host/sample-actions.js';
 const AddFocusModal = lazy(() => import('./AddFocusModal.js').then((m) => ({ default: m.AddFocusModal })));
 const StudyPlanModal = lazy(() => import('./StudyPlanModal.js').then((m) => ({ default: m.StudyPlanModal })));
@@ -30,7 +32,124 @@ import {
   type PrepTab,
 } from './types.js';
 
-const CLAIMED_KEYS = ['1', '2', 'a', 'd', 'g', 'G', 'm', 'p', 'P', 'r', ' '] as const;
+const CLAIMED_KEYS = ['1', '2', 'a', 'd', 'g', 'G', 'm', 'p', 'P', 'r', ' ', '/', 'x'] as const;
+
+export interface FormatExamPrepMarkdownParams {
+  course?: string | null;
+  examDate?: string | null;
+  topics?: readonly FocusTopicProgress[];
+  crunchPoints?: readonly CrunchPoint[];
+  planNotes?: string | null;
+  lang?: UiLanguage;
+  generatedAt?: Date | string;
+}
+
+function escapeMdCell(raw: unknown): string {
+  return String(raw ?? '')
+    .replace(/\|/g, '\\|')
+    .replace(/[\r\n]+/g, ' ')
+    .trim();
+}
+
+function formatGeneratedAt(generatedAt?: Date | string): string {
+  if (typeof generatedAt === 'string' && generatedAt.trim()) return generatedAt.trim();
+  const d = generatedAt instanceof Date && !Number.isNaN(generatedAt.getTime()) ? generatedAt : new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${y}-${m}-${day} ${hh}:${mm}`;
+}
+
+/** Pure formatter producing an Exam Prep study plan & focus progress Markdown report (0 LLM tokens). */
+export function formatExamPrepMarkdown({
+  course,
+  examDate,
+  topics = [],
+  crunchPoints = [],
+  planNotes,
+  lang = 'en',
+  generatedAt,
+}: FormatExamPrepMarkdownParams): string {
+  const topicList = Array.isArray(topics) ? topics : [];
+  const crunchList = Array.isArray(crunchPoints) ? crunchPoints : [];
+  const courseLabel = String(course || '').trim() || t(lang, '全部课程', 'All Courses');
+  const dateLabel = formatGeneratedAt(generatedAt);
+
+  const total = topicList.length;
+  const doneCount = topicList.filter((tp) => tp.status === 'done').length;
+  const weakCount = topicList.filter((tp) => tp.status === 'weak').length;
+  const noneCount = topicList.filter((tp) => tp.status === 'none').length;
+  const todoCount = topicList.filter((tp) => tp.status === 'todo' || tp.status === 'active').length;
+
+  const lines: string[] = [
+    `# ${t(lang, 'StudyHub 备考计划与重点进度', 'StudyHub Exam Prep Plan & Focus Progress')}`,
+    '',
+    `- **${t(lang, '生成日期', 'Generated')}**: ${dateLabel}`,
+    `- **${t(lang, '课程', 'Course')}**: ${courseLabel}`,
+  ];
+  if (typeof examDate === 'string' && examDate.trim()) {
+    lines.push(`- **${t(lang, '考试日期', 'Exam Date')}**: ${examDate.trim()}`);
+  }
+  lines.push(
+    `- **${t(lang, '重点统计', 'Focus Summary')}**: ${t(
+      lang,
+      `共 ${total} 项 (已掌握 ${doneCount} / 薄弱 ${weakCount} / 待学 ${todoCount} / 缺题 ${noneCount})`,
+      `${total} total (Done ${doneCount} / Weak ${weakCount} / Todo ${todoCount} / None ${noneCount})`,
+    )}`,
+    '',
+    `## ${t(lang, '考纲重点进度', 'Focus Topics')}`,
+    '',
+  );
+
+  if (topicList.length === 0) {
+    lines.push(t(lang, '_暂无考纲重点条目。_', '_No focus topics yet._'), '');
+  } else {
+    lines.push(
+      lang === 'zh'
+        ? '| 重点主题 | 状态 | 掌握率 | 题数 | 薄弱题 |'
+        : '| Topic | Status | Mastery | Cards | Weak |',
+      '| --- | --- | --- | --- | --- |',
+    );
+    for (const tp of topicList) {
+      const topicCell = escapeMdCell(tp.topic) || '-';
+      const statusCell = escapeMdCell(focusStatusLabel(tp.status, lang));
+      const masteryCell = tp.cards > 0 ? `${Math.round((tp.mastery || 0) * 100)}%` : '-';
+      const cardsCell = String(tp.cards ?? 0);
+      const weakCell = String(tp.weakCards?.length ?? tp.counts?.weak ?? 0);
+      lines.push(`| ${topicCell} | ${statusCell} | ${masteryCell} | ${cardsCell} | ${weakCell} |`);
+    }
+    lines.push('');
+  }
+
+  if (crunchList.length > 0) {
+    lines.push(`## ${t(lang, '期末冲刺清单', 'Final-Week Crunch')}`, '');
+    for (const pt of crunchList) {
+      const checked = pt.done ? 'x' : ' ';
+      const title = escapeMdCell(pt.title) || pt.id;
+      const metaParts: string[] = [];
+      if (typeof pt.questions === 'number') {
+        metaParts.push(lang === 'zh' ? `${pt.questions}题` : `${pt.questions} Q`);
+      }
+      if (typeof pt.weak === 'number' && pt.weak > 0) {
+        metaParts.push(lang === 'zh' ? `${pt.weak}错` : `${pt.weak} weak`);
+      }
+      if (!pt.done && pt.seen) {
+        metaParts.push(t(lang, '已翻看', 'seen'));
+      }
+      const metaSuffix = metaParts.length > 0 ? ` (${metaParts.join(', ')})` : '';
+      lines.push(`- [${checked}] ${title}${metaSuffix}`);
+    }
+    lines.push('');
+  }
+
+  if (typeof planNotes === 'string' && planNotes.trim()) {
+    lines.push(`## ${t(lang, '备考计划备注', 'Study Plan Notes')}`, '', planNotes.trim(), '');
+  }
+
+  return `${lines.join('\n').trimEnd()}\n`;
+}
 
 export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActive }) => {
   const theme = useTheme();
@@ -54,9 +173,12 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
 
   const [progress, setProgress] = useState<FocusProgressResult | null>(null);
   const [crunch, setCrunch] = useState<BookCrunchResult | null>(null);
+  const [courseRecord, setCourseRecord] = useState<CourseRecordView | null>(null);
 
   const [topicIdx, setTopicIdx] = useState(0);
   const [crunchIdx, setCrunchIdx] = useState(0);
+  const [filterQuery, setFilterQuery] = useState('');
+  const [filterEditing, setFilterEditing] = useState(false);
 
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [planModalOpen, setPlanModalOpen] = useState(false);
@@ -67,6 +189,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
   const mountedRef = useRef(true);
   const reqSeqRef = useRef(0);
   const busyRef = useRef(false);
+  const exportBusyRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -78,14 +201,18 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
   const loadAll = useCallback(async () => {
     const seq = ++reqSeqRef.current;
     setErrorMsg(null);
-    const [fpRes, crRes] = await Promise.all([
+    const [fpRes, crRes, cgRes] = await Promise.all([
       tryAction<FocusProgressResult>(host, 'course.focusProgress', course ? { course } : {}),
       tryAction<BookCrunchResult>(host, 'book.crunch', course ? { course } : {}),
+      course
+        ? tryAction<CourseRecordView>(host, 'course.get', { name: course })
+        : Promise.resolve({ ok: false as const, value: undefined }),
     ]);
     if (!mountedRef.current || seq !== reqSeqRef.current) return;
     if (fpRes.ok && fpRes.value) setProgress(fpRes.value);
     else if (!fpRes.ok) setErrorMsg(fpRes.error?.message || t(lang, '加载重点进度失败', 'Failed to load focus progress'));
     if (crRes.ok && crRes.value) setCrunch(crRes.value);
+    setCourseRecord(cgRes.ok && cgRes.value ? cgRes.value : null);
     setLoading(false);
   }, [host, course, lang]);
 
@@ -101,15 +228,58 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
     return unsub;
   }, [host, loadAll]);
 
-  const topics = progress?.topics ?? [];
-  const selectedTopic: FocusTopicProgress | undefined = topics[Math.min(topicIdx, Math.max(0, topics.length - 1))];
+  const topics = useMemo(() => progress?.topics ?? [], [progress?.topics]);
+  const deckLabelById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const d of snapshot?.decks ?? []) {
+      const label = [d.title, d.name].filter((s): s is string => typeof s === 'string' && s.trim().length > 0).join(' ');
+      if (d.id && label) map.set(d.id, label);
+    }
+    return map;
+  }, [snapshot?.decks]);
+
+  const normalizedFilter = filterQuery.trim().toLowerCase();
+  const filteredTopics = useMemo(() => {
+    if (!normalizedFilter) return topics;
+    return topics.filter((tp) => {
+      const parts: string[] = [
+        tp.topic,
+        tp.status,
+        focusStatusLabel(tp.status, 'zh'),
+        focusStatusLabel(tp.status, 'en'),
+      ];
+      for (const wc of tp.weakCards ?? []) {
+        if (wc.deckId) {
+          parts.push(wc.deckId);
+          const deckLabel = deckLabelById.get(wc.deckId);
+          if (deckLabel) parts.push(deckLabel);
+        }
+        if (wc.cardId) parts.push(wc.cardId);
+      }
+      return parts.some((part) => part.toLowerCase().includes(normalizedFilter));
+    });
+  }, [topics, normalizedFilter, deckLabelById]);
+
+  useEffect(() => {
+    if (filteredTopics.length === 0) {
+      if (topicIdx !== 0) setTopicIdx(0);
+    } else if (topicIdx >= filteredTopics.length) {
+      setTopicIdx(filteredTopics.length - 1);
+    }
+  }, [filteredTopics.length, topicIdx]);
+
+  const clampedTopicIdx = filteredTopics.length > 0 ? Math.min(topicIdx, filteredTopics.length - 1) : 0;
+  const selectedTopic: FocusTopicProgress | undefined = filteredTopics[clampedTopicIdx];
   const crunchPoints = crunch?.points ?? [];
   const selectedCrunch: CrunchPoint | undefined = crunchPoints[Math.min(crunchIdx, Math.max(0, crunchPoints.length - 1))];
 
-  const noQuestionTopics = useMemo(() => topics.filter((tp) => tp.status === 'none').map((tp) => tp.topic), [topics]);
+  const noQuestionTopics = useMemo(
+    () => filteredTopics.filter((tp) => tp.status === 'none').map((tp) => tp.topic),
+    [filteredTopics],
+  );
   const inProgressCount = useMemo(() => topics.filter((tp) => focusStatusGroup(tp.status) === 'in_progress').length, [topics]);
 
-  useClaimKeys(CLAIMED_KEYS, isActive && !modalOpen);
+  useClaimKeys(CLAIMED_KEYS, isActive && !modalOpen && !filterEditing);
 
   const hints = useMemo<KeyHint[]>(() => {
     if (tab === 'focus') {
@@ -120,6 +290,8 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
         { key: 'g/G', label: t(lang, '补齐出题', 'Gap-Fill') },
         { key: 'P', label: t(lang, '备考计划', 'Plan') },
         { key: 'd', label: t(lang, '移除重点', 'Remove') },
+        { key: '/', label: t(lang, '筛选', 'Filter') },
+        { key: 'x', label: t(lang, '导出MD', 'Export') },
       ];
     }
     return [
@@ -129,6 +301,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
       { key: 'p', label: t(lang, '模拟开练', 'Mock/Practice') },
       { key: 'P', label: t(lang, '备考计划', 'Plan') },
       { key: 'a', label: t(lang, '添加重点', 'Add Focus') },
+      { key: 'x', label: t(lang, '导出MD', 'Export') },
     ];
   }, [tab, lang]);
 
@@ -137,9 +310,15 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
   // Actions
   const practiceUnmastered = useCallback(async () => {
     if (busyRef.current || busyLabel !== null) return;
+    if (normalizedFilter && !selectedTopic) {
+      notify(t(lang, '当前筛选结果为空，请先按 Esc 清除筛选', 'No matching focus topics; press Esc to clear filter'), 'info');
+      return;
+    }
     const scope = selectedTopic?.weakCards?.length
       ? selectedTopic.weakCards
-      : progress?.weakScope ?? [];
+      : normalizedFilter
+        ? []
+        : progress?.weakScope ?? [];
     if (scope.length > 0) {
       busyRef.current = true;
       setBusyLabel(t(lang, `正在开启重点薄弱题练习${ell}`, 'Starting weak focus practice...'));
@@ -323,11 +502,68 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
     }
   }, [busyLabel, course, selectedCrunch, host, lang, navigate, notify]);
 
+  const exportExamPrep = useCallback(async () => {
+    if (exportBusyRef.current) return;
+    if (topics.length === 0 && crunchPoints.length === 0) {
+      notify(
+        t(lang, '当前暂无可导出的备考重点或冲刺清单', 'No exam prep topics or crunch items to export'),
+        'info',
+      );
+      return;
+    }
+    exportBusyRef.current = true;
+    try {
+      const examDate =
+        crunch?.examDate ??
+        (typeof courseRecord?.exam?.date === 'string' ? courseRecord.exam.date : null);
+      const planNotes =
+        typeof courseRecord?.plan?.notes === 'string' ? courseRecord.plan.notes : null;
+      const markdown = formatExamPrepMarkdown({
+        course,
+        examDate,
+        topics,
+        crunchPoints,
+        planNotes,
+        lang,
+      });
+      const targetPath = defaultBackupFilePath(host.getLibraryRoot(), 'studyhub-examprep', '.md');
+      await atomicWriteTextFile(targetPath, markdown);
+      if (!mountedRef.current) return;
+      const arrow = asciiMode ? '->' : '→';
+      notify(
+        t(
+          lang,
+          `已导出 ${topics.length} 项重点 / ${crunchPoints.length} 项冲刺 ${arrow} ${targetPath}`,
+          `Exported ${topics.length} topic(s) / ${crunchPoints.length} crunch item(s) ${arrow} ${targetPath}`,
+        ),
+        'success',
+      );
+    } catch (err) {
+      if (!mountedRef.current) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      notify(t(lang, `导出备考报告失败: ${msg}`, `Failed to export exam prep: ${msg}`), 'error');
+    } finally {
+      exportBusyRef.current = false;
+    }
+  }, [asciiMode, course, courseRecord, crunch?.examDate, crunchPoints, host, lang, notify, topics]);
+
   useInput(
     (input, key) => {
-      if (modalOpen) return;
+      if (modalOpen || filterEditing) return;
+      if (key.escape && tab === 'focus' && filterQuery) {
+        setFilterQuery('');
+        return;
+      }
+      if (input === '/' && !key.ctrl && !key.meta && tab === 'focus') {
+        setFilterEditing(true);
+        return;
+      }
+      if (input === 'x' && !key.ctrl && !key.meta) {
+        void exportExamPrep();
+        return;
+      }
       if (input === '1') { setTab('focus'); return; }
-      if (input === '2') { setTab('crunch'); return; }
+      if (input === '2') { setTab('crunch'); setFilterEditing(false); return; }
       if (key.tab) {
         setFocusPane((p) => (p === 'left' ? 'right' : 'left'));
         return;
@@ -383,7 +619,7 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
         }
       }
     },
-    { isActive: isActive && !modalOpen },
+    { isActive: isActive && !modalOpen && !filterEditing },
   );
 
   // Memoized FSRS distribution bars for selected focus point
@@ -405,8 +641,19 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
     );
   }, [selectedTopic, width, lang, theme, asciiMode]);
 
+  const showFilterBar = tab === 'focus' && (filterEditing || filterQuery.length > 0);
+  const filterBarH = showFilterBar ? 1 : 0;
   const headerH = 3;
-  const bodyH = Math.max(8, height - headerH - (errorMsg ? 1 : 0));
+  const bodyH = Math.max(8, height - headerH - filterBarH - (errorMsg ? 1 : 0));
+
+  const filterBadge = `[${filterEditing ? t(lang, '筛选', 'Filter') : t(lang, '已筛选', 'Filtered')} ${filteredTopics.length}/${topics.length}] `;
+  const filterRightHint =
+    width >= 66
+      ? ` ${filterEditing ? t(lang, 'Enter 确认 | Esc 清除', 'Enter apply | Esc clear') : t(lang, '/ 编辑 | Esc 清除', '/ edit | Esc clear')}`
+      : width >= 46
+        ? ' Esc'
+        : '';
+  const filterInputW = Math.max(8, width - 2 - displayWidth(filterBadge) - displayWidth(filterRightHint) - 3);
 
   return (
     <Box flexDirection="column" width={width} height={height} overflow="hidden">
@@ -458,6 +705,37 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
         </Text>
       </Box>
       <Divider width={width} />
+      {showFilterBar ? (
+        <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
+          <Text color={filterEditing ? theme.primary : theme.accent} bold>
+            {filterBadge}
+          </Text>
+          <Box flexGrow={1} overflow="hidden">
+            <TextInput
+              value={filterQuery}
+              onChange={(val) => setFilterQuery(val)}
+              onSubmit={(val) => {
+                if (!val.trim()) setFilterQuery('');
+                setFilterEditing(false);
+              }}
+              onCancel={() => {
+                setFilterQuery('');
+                setFilterEditing(false);
+              }}
+              isActive={isActive && !modalOpen && tab === 'focus' && filterEditing}
+              width={filterInputW}
+              prompt="/"
+              placeholder={t(lang, `主题/状态/题组${ell}`, `topic/status/deck${ell}`)}
+              maxLength={120}
+            />
+          </Box>
+          {filterRightHint ? (
+            <Text color={theme.dim} wrap="truncate">
+              {filterRightHint}
+            </Text>
+          ) : null}
+        </Box>
+      ) : null}
       {errorMsg ? (
         <Box height={1} width={width} paddingX={1}>
           <Text color={theme.error}>{`${asciiMode ? '!' : '✕'} ${truncateDisplay(errorMsg, Math.max(10, width - 4), asciiMode ? '...' : '…')}`}</Text>
@@ -495,43 +773,56 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
             left={(sz) => (
               <Panel
                 title={t(lang, '重点 × 掌握度', 'Focus Progress')}
-                badge={topics.length}
+                badge={normalizedFilter ? `${filteredTopics.length}/${topics.length}` : topics.length}
                 subtitle={t(lang, 'p练 g补题 a新增', 'p:Prac g:Gen a:Add')}
                 focused={focusPane === 'left'}
                 width={sz.width}
                 height={sz.height}
                 paddingX={0}
               >
-                <VirtualList
-                  items={topics}
-                  width={Math.max(10, sz.width - 2)}
-                  height={Math.max(3, sz.height - 2)}
-                  selectedIndex={topicIdx}
-                  onChange={setTopicIdx}
-                  isActive={isActive && !modalOpen && focusPane === 'left'}
-                  renderItem={(tp, ctx) => {
-                    const st = focusStatusLabel(tp.status, lang);
-                    const pct = tp.cards > 0 ? `${Math.round((tp.mastery || 0) * 100)}%` : '0题';
-                    const right = `[${st}] ${pct}`;
-                    const rightW = displayWidth(right) + 1;
-                    const nameW = Math.max(6, ctx.width - rightW);
-                    const tone = focusStatusTone(tp.status);
-                    const fg = ctx.selected
-                      ? theme.selectionFg
-                      : tone === 'success'
-                        ? theme.success
-                        : tone === 'error'
-                          ? theme.error
-                          : tone === 'muted'
-                            ? theme.dim
-                            : theme.text;
-                    return (
-                      <Text color={fg} bold={ctx.selected}>
-                        {`${padDisplay(truncateDisplay(tp.topic, nameW, asciiMode ? '...' : '…'), nameW)} ${right}`}
-                      </Text>
-                    );
-                  }}
-                />
+                {filteredTopics.length === 0 ? (
+                  <Box width={Math.max(10, sz.width - 2)} height={Math.max(3, sz.height - 2)} alignItems="center" justifyContent="center">
+                    <Text color={theme.muted}>
+                      {truncateDisplay(
+                        t(lang, '无匹配重点 (Esc 清除筛选)', 'No matching topics (Esc to clear)'),
+                        Math.max(10, sz.width - 4),
+                        ell,
+                      )}
+                    </Text>
+                  </Box>
+                ) : (
+                  <VirtualList
+                    items={filteredTopics}
+                    width={Math.max(10, sz.width - 2)}
+                    height={Math.max(3, sz.height - 2)}
+                    selectedIndex={clampedTopicIdx}
+                    onChange={setTopicIdx}
+                    isActive={isActive && !modalOpen && !filterEditing && focusPane === 'left'}
+                    ascii={asciiMode}
+                    renderItem={(tp, ctx) => {
+                      const st = focusStatusLabel(tp.status, lang);
+                      const pct = tp.cards > 0 ? `${Math.round((tp.mastery || 0) * 100)}%` : '0题';
+                      const right = `[${st}] ${pct}`;
+                      const rightW = displayWidth(right) + 1;
+                      const nameW = Math.max(6, ctx.width - rightW);
+                      const tone = focusStatusTone(tp.status);
+                      const fg = ctx.selected
+                        ? theme.selectionFg
+                        : tone === 'success'
+                          ? theme.success
+                          : tone === 'error'
+                            ? theme.error
+                            : tone === 'muted'
+                              ? theme.dim
+                              : theme.text;
+                      return (
+                        <Text color={fg} bold={ctx.selected}>
+                          {`${padDisplay(truncateDisplay(tp.topic, nameW, asciiMode ? '...' : '…'), nameW)} ${right}`}
+                        </Text>
+                      );
+                    }}
+                  />
+                )}
               </Panel>
             )}
             right={(sz) => (
@@ -611,7 +902,8 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
                 height={Math.max(3, sz.height - 2)}
                 selectedIndex={crunchIdx}
                 onChange={setCrunchIdx}
-                isActive={isActive && !modalOpen && focusPane === 'left'}
+                isActive={isActive && !modalOpen && !filterEditing && focusPane === 'left'}
+                ascii={asciiMode}
                 renderItem={(pt, ctx) => {
                   const mark = asciiMode ? (pt.done ? '+' : pt.seen ? '~' : 'o') : (pt.done ? '✓' : pt.seen ? '◐' : '○');
                   const tag = `${pt.questions ?? 0}题${pt.weak ? `/${pt.weak}错` : ''}`;

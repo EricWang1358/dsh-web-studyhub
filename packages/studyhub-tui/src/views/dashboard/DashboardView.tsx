@@ -1,10 +1,8 @@
 import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { randomUUID } from 'node:crypto';
-import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
 import { Box, Text, useInput } from 'ink';
 import type { StudySnapshot, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
+import { atomicWriteTextFile, defaultBackupFilePath, todayLocalYmd } from '../../host/atomic-write.js';
 import { tryAction } from '../../host/sample-actions.js';
 import { currentCourse, dueToday } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
@@ -138,11 +136,6 @@ type DrillItem =
       weakCount: number;
     };
 
-function localTodayYmd(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
 function formatForecastLabel(date: string, index: number, lang: 'zh' | 'en'): string {
   if (index === 0) return t(lang, '今日', 'Today');
   const parsed = new Date(`${date}T12:00:00Z`);
@@ -192,34 +185,6 @@ export interface DashboardReportInput {
   generatedAt?: string;
 }
 
-const RETRY_CODES = new Set(['EBUSY', 'EPERM', 'EACCES']);
-
-async function renameWithRetry(from: string, to: string): Promise<void> {
-  for (let attempt = 0; ; attempt += 1) {
-    try {
-      await rename(from, to);
-      return;
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException)?.code || '';
-      if (!RETRY_CODES.has(code) || attempt >= 5) throw error;
-      await new Promise((done) => setTimeout(done, 40 * (attempt + 1)));
-    }
-  }
-}
-
-async function atomicWriteMarkdownFile(targetPath: string, content: string): Promise<number> {
-  await mkdir(dirname(targetPath), { recursive: true });
-  const temp = `${targetPath}.${randomUUID()}.tmp`;
-  await writeFile(temp, content, 'utf8');
-  try {
-    await renameWithRetry(temp, targetPath);
-  } catch (error) {
-    await rm(temp, { force: true }).catch(() => {});
-    throw error;
-  }
-  return Buffer.byteLength(content, 'utf8');
-}
-
 function escapeMdCell(raw: unknown): string {
   return String(raw ?? '')
     .replace(/\|/g, '\\|')
@@ -237,7 +202,7 @@ export function formatDashboardMarkdownReport({
   lang,
   generatedAt,
 }: DashboardReportInput): string {
-  const reportDate = generatedAt || stats?.today || localTodayYmd();
+  const reportDate = generatedAt || stats?.today || todayLocalYmd();
   const totals = stats?.totals;
   const totalCards = totals?.cards ?? courseRows.reduce((sum, row) => sum + (Number(row.totalCards) || 0), 0);
   const mastered = totals?.mastered ?? 0;
@@ -439,7 +404,7 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
     const seq = ++planSeq.current;
     try {
       const planRes = await tryAction<DailyPlanResponse>(host, 'daily.plan.get', {
-        date: localTodayYmd(),
+        date: todayLocalYmd(),
       });
       if (!mountedRef.current || planSeq.current !== seq) return;
       if (planRes.ok && planRes.value) setDailyPlan(planRes.value);
@@ -676,7 +641,7 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
     exportBusyRef.current = true;
     try {
       const baseDir = bindingRoot || host.getLibraryRoot?.() || process.cwd();
-      const targetPath = join(baseDir, 'backups', `studyhub-report-${localTodayYmd()}.md`);
+      const targetPath = defaultBackupFilePath(baseDir, 'studyhub-report', 'md');
       const markdown = formatDashboardMarkdownReport({
         stats,
         dailyPlan,
@@ -685,9 +650,9 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
         courseRows: courseStats,
         focusCourse: course,
         lang,
-        generatedAt: localTodayYmd(),
+        generatedAt: todayLocalYmd(),
       });
-      await atomicWriteMarkdownFile(targetPath, markdown);
+      await atomicWriteTextFile(targetPath, markdown);
       if (!mountedRef.current) return;
       const arrow = asciiMode ? '->' : '→';
       notify(

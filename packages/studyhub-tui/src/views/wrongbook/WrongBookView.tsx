@@ -1,12 +1,11 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { randomUUID } from 'node:crypto';
-import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { Box, Text, useInput } from 'ink';
 import type { KeyHint, UiLanguage, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { currentCourse } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
+import { atomicWriteTextFile, defaultBackupFilePath, todayLocalYmd } from '../../host/atomic-write.js';
 import { tryAction, type ReviewRun } from '../../host/sample-actions.js';
 import { toneColor, useTheme } from '../../theme/tokens.js';
 import { Badge, EmptyState, Spinner } from '../../components/Badge.js';
@@ -50,39 +49,6 @@ const PAGE_LIMIT = 100;
 const MAX_FETCH_ITEMS = 300;
 const PRACTICE_BATCH_CAP = 50;
 const CLAIMED_KEYS: readonly string[] = Object.freeze(['t', 'e', 'p', 'o', 'f', 'm', ' ', 'B', 'V', 'x', 'X']);
-const RETRY_CODES = new Set(['EBUSY', 'EPERM', 'EACCES']);
-
-function todayLocalYmd(date = new Date()): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
-async function renameWithRetry(from: string, to: string): Promise<void> {
-  for (let attempt = 0; ; attempt += 1) {
-    try {
-      await rename(from, to);
-      return;
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException)?.code || '';
-      if (!RETRY_CODES.has(code) || attempt >= 5) throw error;
-      await new Promise((done) => setTimeout(done, 40 * (attempt + 1)));
-    }
-  }
-}
-
-async function atomicWriteMarkdownFile(targetPath: string, markdown: string): Promise<void> {
-  await mkdir(dirname(targetPath), { recursive: true });
-  const temp = `${targetPath}.${randomUUID()}.tmp`;
-  await writeFile(temp, markdown, 'utf8');
-  try {
-    await renameWithRetry(temp, targetPath);
-  } catch (error) {
-    await rm(temp, { force: true }).catch(() => {});
-    throw error;
-  }
-}
 
 export interface WrongBookExportOption {
   id?: string;
@@ -781,9 +747,9 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
         snapshotRoot?.trim() ||
         '';
       const baseDir = rawRoot ? resolve(rawRoot) : process.cwd();
-      const targetPath = join(baseDir, 'backups', `studyhub-wrongbook-${todayLocalYmd()}.md`);
+      const targetPath = defaultBackupFilePath(baseDir, 'studyhub-wrongbook', 'md');
 
-      await atomicWriteMarkdownFile(targetPath, markdown);
+      await atomicWriteTextFile(targetPath, markdown);
       if (!mountedRef.current) return;
       const arrow = asciiMode ? '->' : '→';
       notify(

@@ -1,7 +1,5 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { randomUUID } from 'node:crypto';
-import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { Box, Text, useInput, useWindowSize } from 'ink';
 import type { HostClient, NavigationContext, PageId, UiLanguage } from '../types/contracts.js';
 import { t, useTuiStore } from '../state/store.js';
@@ -11,6 +9,7 @@ import { Modal, modalContentWidth } from '../components/Modal.js';
 import { Spinner } from '../components/Badge.js';
 import { TextInput } from '../components/TextInput.js';
 import { VirtualList } from '../components/VirtualList.js';
+import { atomicWriteJsonFile, defaultBackupFilePath } from '../host/atomic-write.js';
 import { tryAction } from '../host/sample-actions.js';
 import { extractInboxData, type InboxEntry } from './data.js';
 import { useShellActions } from './actions.js';
@@ -22,42 +21,6 @@ export interface InboxModalProps {
 }
 
 type InboxFilter = 'all' | 'unread' | 'read';
-
-const RETRY_CODES = new Set(['EBUSY', 'EPERM', 'EACCES']);
-
-function todayLocalYmd(): string {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
-async function renameWithRetry(from: string, to: string): Promise<void> {
-  for (let attempt = 0; ; attempt += 1) {
-    try {
-      await rename(from, to);
-      return;
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException)?.code || '';
-      if (!RETRY_CODES.has(code) || attempt >= 5) throw error;
-      await new Promise((done) => setTimeout(done, 40 * (attempt + 1)));
-    }
-  }
-}
-
-async function atomicWriteJsonFile(targetPath: string, payload: unknown): Promise<void> {
-  await mkdir(dirname(targetPath), { recursive: true });
-  const temp = `${targetPath}.${randomUUID()}.tmp`;
-  const json = `${JSON.stringify(payload, null, 2)}\n`;
-  await writeFile(temp, json, 'utf8');
-  try {
-    await renameWithRetry(temp, targetPath);
-  } catch (error) {
-    await rm(temp, { force: true }).catch(() => {});
-    throw error;
-  }
-}
 
 function str(v: unknown): string {
   return typeof v === 'string' ? v : typeof v === 'number' ? String(v) : '';
@@ -341,7 +304,7 @@ export const InboxModal = memo(function InboxModal({ host, isActive, onClose }: 
         snapshotRoot?.trim() ||
         '';
       const baseDir = rawRoot ? resolve(rawRoot) : process.cwd();
-      const targetPath = join(baseDir, 'backups', `studyhub-inbox-${todayLocalYmd()}.json`);
+      const targetPath = defaultBackupFilePath(baseDir, 'studyhub-inbox', 'json');
       await atomicWriteJsonFile(targetPath, rawArray);
       if (!mountedRef.current) return;
       const arrow = asciiMode ? '->' : '→';

@@ -1,8 +1,8 @@
 import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { randomUUID } from 'node:crypto';
-import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { Box, Text, useInput } from 'ink';
+import { atomicWriteTextFile, defaultBackupFilePath } from '../../host/atomic-write.js';
 import { Badge, EmptyState, Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
 import { Panel } from '../../components/Panel.js';
@@ -53,7 +53,6 @@ type BoardCardMeta = BoardCard & {
 
 const CLAIMED_KEYS = ['a', 'S', 'P', 'R', 'M', '+', '-', 'r', '/', 'x'] as const;
 const WIDE_BREAKPOINT = 78;
-const RETRY_CODES = new Set(['EBUSY', 'EPERM', 'EACCES']);
 
 function cleanSingleLine(raw: unknown): string {
   return typeof raw === 'string' ? raw.replace(/\r?\n+/g, ' ').trim() : '';
@@ -81,31 +80,6 @@ function cardMatchesFilter(card: BoardCard, normalizedQuery: string): boolean {
   if (desc && desc.toLowerCase().includes(normalizedQuery)) return true;
   const tags = extractCardTags(meta.tags);
   return tags.some((tag) => tag.toLowerCase().includes(normalizedQuery));
-}
-
-async function renameWithRetry(from: string, to: string): Promise<void> {
-  for (let attempt = 0; ; attempt += 1) {
-    try {
-      await rename(from, to);
-      return;
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException)?.code || '';
-      if (!RETRY_CODES.has(code) || attempt >= 5) throw error;
-      await new Promise((done) => setTimeout(done, 40 * (attempt + 1)));
-    }
-  }
-}
-
-async function atomicWriteTextFile(targetPath: string, text: string): Promise<void> {
-  await mkdir(dirname(targetPath), { recursive: true });
-  const temp = `${targetPath}.${randomUUID()}.tmp`;
-  await writeFile(temp, text, 'utf8');
-  try {
-    await renameWithRetry(temp, targetPath);
-  } catch (error) {
-    await rm(temp, { force: true }).catch(() => {});
-    throw error;
-  }
 }
 
 /** Pure helper generating GFM Markdown for a Kanban board snapshot (0 LLM tokens). */
@@ -589,7 +563,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
       const currentDoc = docRef.current;
       const markdown = formatBoardMarkdown(currentDoc, lang);
       const baseDir = libraryRoot?.trim() ? resolve(libraryRoot.trim()) : process.cwd();
-      const targetPath = join(baseDir, 'backups', `studyhub-board-${todayLocalYmd()}.md`);
+      const targetPath = defaultBackupFilePath(baseDir, 'studyhub-board', 'md');
       await atomicWriteTextFile(targetPath, markdown);
       if (!mountedRef.current) return;
       const arrow = asciiMode ? '->' : '→';

@@ -143,6 +143,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       items: [
         { key: 'p', label: t(lang, '学习画像与偏好及记忆要点', 'Coach profile, prefs & bullets') },
         { key: 'f', label: t(lang, '触发教练后台备题队列', 'Flush coach prep queue') },
+        { key: 'X', label: t(lang, '导出校准与学习画像 (MD)', 'Export coach profile (MD)') },
       ],
     },
     {
@@ -150,6 +151,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       items: [
         { key: 'P', label: t(lang, '备考计划与定制向导', 'Study plan & custom wizard') },
         { key: 'a', label: t(lang, '添加重点 / AI 匹配主题', 'Add focus & AI suggest') },
+        { key: '/ / x', label: t(lang, '筛选重点 / 导出备考计划 MD', 'Filter focus / Export prep MD') },
       ],
     },
     {

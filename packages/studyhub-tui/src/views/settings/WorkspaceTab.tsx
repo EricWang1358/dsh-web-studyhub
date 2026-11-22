@@ -1,11 +1,10 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { randomUUID } from 'node:crypto';
-import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { isAbsolute, resolve } from 'node:path';
 import { Box, Text, useInput } from 'ink';
 import type { BindingSnapshot, HostClient } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
+import { atomicWriteJsonFile, atomicWriteTextFile, defaultBackupFilePath } from '../../host/atomic-write.js';
 import { cleanPathInput, loadSampleCourse, removeSampleCourse, tryAction } from '../../host/sample-actions.js';
 import { expandHomePath } from '../sources/path-complete.js';
 import { useShellActions } from '../../shell/actions.js';
@@ -337,18 +336,10 @@ function describeAutoUpdateBadge(
   return { label: t(lang, '已关闭', 'Off'), tone: 'muted' };
 }
 
-const RETRY_CODES = new Set(['EBUSY', 'EPERM', 'EACCES']);
-
-function todayLocalYmd(): string {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
+export { atomicWriteJsonFile, atomicWriteTextFile };
 
 export function defaultBackupPath(libraryRoot: string): string {
-  return join(libraryRoot || process.cwd(), 'backups', `studyhub-backup-${todayLocalYmd()}.json`);
+  return defaultBackupFilePath(libraryRoot, 'studyhub-backup', 'json');
 }
 
 export function resolveBackupPath(raw: string, baseDir: string): string {
@@ -357,37 +348,6 @@ export function resolveBackupPath(raw: string, baseDir: string): string {
   const expanded = expandHomePath(cleaned, homedir());
   const withExt = expanded.toLowerCase().endsWith('.json') ? expanded : `${expanded}.json`;
   return isAbsolute(withExt) ? withExt : resolve(baseDir, withExt);
-}
-
-async function renameWithRetry(from: string, to: string): Promise<void> {
-  for (let attempt = 0; ; attempt += 1) {
-    try {
-      await rename(from, to);
-      return;
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException)?.code || '';
-      if (!RETRY_CODES.has(code) || attempt >= 5) throw error;
-      await new Promise((done) => setTimeout(done, 40 * (attempt + 1)));
-    }
-  }
-}
-
-export async function atomicWriteTextFile(targetPath: string, content: string): Promise<{ bytes: number }> {
-  await mkdir(dirname(targetPath), { recursive: true });
-  const temp = `${targetPath}.${randomUUID()}.tmp`;
-  await writeFile(temp, content, 'utf8');
-  try {
-    await renameWithRetry(temp, targetPath);
-  } catch (error) {
-    await rm(temp, { force: true }).catch(() => {});
-    throw error;
-  }
-  return { bytes: Buffer.byteLength(content, 'utf8') };
-}
-
-export async function atomicWriteJsonFile(targetPath: string, payload: unknown): Promise<{ bytes: number }> {
-  const json = `${JSON.stringify(payload, null, 2)}\n`;
-  return atomicWriteTextFile(targetPath, json);
 }
 
 export function summarizeExportPayload(payload: Record<string, unknown> | null | undefined): {
@@ -1909,7 +1869,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
         return;
       }
       const baseDir = binding?.root || host.getLibraryRoot() || process.cwd();
-      const targetPath = join(baseDir, 'backups', `studyhub-usage-${todayLocalYmd()}.json`);
+      const targetPath = defaultBackupFilePath(baseDir, 'studyhub-usage', 'json');
       await atomicWriteTextFile(targetPath, res.value.content);
       if (!mountedRef.current) return;
       setUsageReportExportPath(targetPath);
@@ -1971,7 +1931,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
         setLibraryCtxData(res.value);
       }
       const baseDir = binding?.root || host.getLibraryRoot() || payload.library || process.cwd();
-      const targetPath = join(baseDir, 'backups', `studyhub-context-${todayLocalYmd()}.json`);
+      const targetPath = defaultBackupFilePath(baseDir, 'studyhub-context', 'json');
       await atomicWriteJsonFile(targetPath, payload);
       if (!mountedRef.current) return;
       setLibraryCtxExportPath(targetPath);

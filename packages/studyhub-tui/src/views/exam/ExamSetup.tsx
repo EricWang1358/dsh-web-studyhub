@@ -1,9 +1,8 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { randomUUID } from 'node:crypto';
-import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { Box, Text, useInput } from 'ink';
 import type { StudySnapshot, UiLanguage } from '../../types/contracts.js';
+import { atomicWriteTextFile, defaultBackupFilePath, todayLocalYmd } from '../../host/atomic-write.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, EmptyState } from '../../components/Badge.js';
 import { Panel } from '../../components/Panel.js';
@@ -41,7 +40,6 @@ const ORAL_COUNTS = [3, 5, 8, 10] as const;
 const TIME_LIMITS = [15, 30, 60] as const;
 const WRITTEN_KINDS: readonly WrittenKinds[] = ['all', 'balanced', 'quiz', 'multi'];
 const CLAIMED = ['1', '2', '3', 'c', 't', 'k', 'r', 'h', 'l', 'x'];
-const RETRY_CODES = new Set(['EBUSY', 'EPERM', 'EACCES']);
 
 export interface ExamHistoryExportRecord {
   runId?: string;
@@ -72,13 +70,6 @@ export interface FormatExamHistoryMarkdownParams {
   selectedAttempt?: ExamHistoryExportRecord | null;
   lang: UiLanguage;
   generatedAt?: Date | string;
-}
-
-function todayLocalYmd(date = new Date()): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
 }
 
 function formatGeneratedDate(generatedAt?: Date | string): string {
@@ -252,31 +243,6 @@ export function formatExamHistoryMarkdown({
   return lines.join('\n');
 }
 
-async function renameWithRetry(from: string, to: string): Promise<void> {
-  for (let attempt = 0; ; attempt += 1) {
-    try {
-      await rename(from, to);
-      return;
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException)?.code || '';
-      if (!RETRY_CODES.has(code) || attempt >= 5) throw error;
-      await new Promise((done) => setTimeout(done, 40 * (attempt + 1)));
-    }
-  }
-}
-
-async function atomicWriteMarkdownFile(targetPath: string, content: string): Promise<void> {
-  await mkdir(dirname(targetPath), { recursive: true });
-  const temp = `${targetPath}.${randomUUID()}.tmp`;
-  await writeFile(temp, content, 'utf8');
-  try {
-    await renameWithRetry(temp, targetPath);
-  } catch (error) {
-    await rm(temp, { force: true }).catch(() => {});
-    throw error;
-  }
-}
-
 export const ExamSetup = memo(function ExamSetup({
   snapshot,
   width,
@@ -407,7 +373,7 @@ export const ExamSetup = memo(function ExamSetup({
     try {
       const rawRoot = bindingRoot?.trim() || (typeof snapshot?.root === 'string' ? snapshot.root.trim() : '') || '';
       const baseDir = rawRoot ? resolve(rawRoot) : process.cwd();
-      const targetPath = join(baseDir, 'backups', `studyhub-exam-${todayLocalYmd()}.md`);
+      const targetPath = defaultBackupFilePath(baseDir, 'studyhub-exam', 'md');
       const selectedAttempt = exportRecords[safeHistoryIdx] ?? exportRecords[0] ?? null;
       const markdown = formatExamHistoryMarkdown({
         history: exportRecords,
@@ -415,7 +381,7 @@ export const ExamSetup = memo(function ExamSetup({
         lang,
         generatedAt: new Date(),
       });
-      await atomicWriteMarkdownFile(targetPath, markdown);
+      await atomicWriteTextFile(targetPath, markdown);
       if (!mountedRef.current) return;
       const arrow = asciiMode ? '->' : '→';
       notify(

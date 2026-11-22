@@ -1,6 +1,6 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
-import type { KeyHint, ViewProps } from '../../types/contracts.js';
+import type { KeyHint, UiLanguage, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, Divider, EmptyState, ProgressBar, Spinner, StatusPill } from '../../components/Badge.js';
@@ -17,6 +17,7 @@ import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { currentCourse, listCourses, modelInfo } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
 import { tryAction } from '../../host/sample-actions.js';
+import { atomicWriteTextFile, defaultBackupFilePath } from '../../host/atomic-write.js';
 import {
   formatKindLabel,
   overallLabel,
@@ -38,8 +39,219 @@ const CoachPreferencesModal = lazy(() => import('./CoachPreferencesModal.js').th
 
 const CLAIMED_KEYS = [
   '1', '2', '3', '4',
-  'a', 'A', 'b', 'e', 'f', 'g', 'G', 'm', 'n', 'N', 'p', 'P', 'r', 'v', 'x', 'y', 'z',
+  'a', 'A', 'b', 'e', 'f', 'g', 'G', 'm', 'n', 'N', 'p', 'P', 'r', 'v', 'x', 'X', 'y', 'z',
 ] as const;
+
+export interface CoachProfileBulletExport {
+  id?: string;
+  text: string;
+  source?: string;
+  course?: string;
+  updatedAt?: string;
+}
+
+export interface CoachProfileExport {
+  consent?: boolean | null | { prep?: boolean | null };
+  goal?: string;
+  preferences?: string[];
+  summary?: string;
+  bullets?: CoachProfileBulletExport[];
+  memoryRevision?: number;
+  signals?: {
+    got?: number;
+    confused?: number;
+    easy?: number;
+    hard?: number;
+    up?: number;
+    down?: number;
+  };
+  updatedAt?: string | null;
+  ready?: number;
+}
+
+export interface FormatExamCoachMarkdownParams {
+  course?: string | null;
+  spec?: CoachSpec | null;
+  evidence?: CoachCapabilityEvidence | null;
+  courseEvidence?: CourseEvidenceSummaryResult | null;
+  status?: CoachStatusResult | null;
+  profile?: CoachProfileExport | null;
+  lang: UiLanguage;
+  generatedAt?: Date | string;
+}
+
+function formatGeneratedDate(generatedAt?: Date | string): string {
+  if (typeof generatedAt === 'string' && generatedAt.trim()) {
+    return generatedAt.trim();
+  }
+  const d = generatedAt instanceof Date && !Number.isNaN(generatedAt.getTime()) ? generatedAt : new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${y}-${m}-${day} ${hh}:${mm}`;
+}
+
+function escapeMdCell(value: unknown): string {
+  return String(value ?? '')
+    .replace(/\|/g, '\\|')
+    .replace(/\r?\n+/g, ' ')
+    .trim();
+}
+
+function formatCoachGoal(goal: string | undefined, lang: UiLanguage): string {
+  switch (goal) {
+    case 'exam':
+      return t(lang, '应付考试 (exam)', 'Pass Exam (exam)');
+    case 'interview':
+      return t(lang, '面试求职 (interview)', 'Job Interview (interview)');
+    case 'work':
+      return t(lang, '工作中落地 (work)', 'Apply at Work (work)');
+    case 'explore':
+      return t(lang, '兴趣拓展 (explore)', 'Explore (explore)');
+    default:
+      return goal && goal.trim() ? goal.trim() : t(lang, '未设定', 'Not set');
+  }
+}
+
+/** Format Exam Coach calibration spec, capability evidence, prep queue status, and learner profile as Markdown. */
+export function formatExamCoachMarkdown({
+  course,
+  spec,
+  evidence,
+  courseEvidence,
+  status,
+  profile,
+  lang,
+  generatedAt,
+}: FormatExamCoachMarkdownParams): string {
+  const dateStr = formatGeneratedDate(generatedAt);
+  const courseLabel = (course && course.trim()) || (spec?.course && spec.course.trim()) || t(lang, '全部课程', 'All Courses');
+  const prepReady = status?.ready ?? profile?.ready ?? 0;
+  const prepQueued = status?.preparingCards?.length ?? 0;
+  const prepActive = Boolean(status?.preparing);
+  const prepState = prepActive
+    ? t(lang, '运行中 (active)', 'active')
+    : t(lang, '空闲 (idle)', 'idle');
+
+  const lines: string[] = [
+    `# ${t(lang, '考试教练校准与学习画像', 'Exam Coach Calibration & Learner Profile')}`,
+    '',
+    `- **${t(lang, '生成日期', 'Generated')}**: ${dateStr}`,
+    `- **${t(lang, '课程', 'Course')}**: ${courseLabel}`,
+    `- **${t(lang, '学习目标', 'Learner Goal')}**: ${formatCoachGoal(profile?.goal, lang)}`,
+    `- **${t(lang, '备题队列状态', 'Prep Queue Status')}**: ${t(
+      lang,
+      `就绪 ${prepReady} (ready) | 待备 ${prepQueued} (queued) | 状态: ${prepState} (active: ${prepActive ? 'yes' : 'no'})`,
+      `ready: ${prepReady}, queued: ${prepQueued}, active: ${prepActive ? 'yes' : 'no'} (${prepState})`,
+    )}`,
+  ];
+
+  if (spec) {
+    lines.push(
+      `- **${t(lang, '校准方案版本', 'Calibration Spec')}**: v${spec.specVersion ?? 1}${spec.stage ? ` (${spec.stage})` : ''}${spec.crunchMode?.enabled ? ` [${t(lang, '压缩模式', 'Crunch')}]` : ''}`,
+    );
+  }
+
+  lines.push('', `## ${t(lang, '考法校准任务族', 'Calibration Assessment Families')}`, '');
+
+  const families = spec?.taskFamilies ?? [];
+  if (families.length === 0) {
+    lines.push(`_${t(lang, '尚未建立考法校准任务族。', 'No calibration assessment families yet.')}_`);
+  } else {
+    lines.push(
+      `| ${t(lang, '任务族 (Key)', 'Family (Key)')} | ${t(lang, '题型与配额', 'Format & Quota')} | ${t(lang, '权重 / 优先级', 'Weight / Priority')} | ${t(lang, '校准状态', 'Status')} | ${t(lang, '备注与确认项', 'Notes')} |`,
+      '| --- | --- | --- | --- | --- |',
+    );
+    for (const fam of families) {
+      const famCol = `${escapeMdCell(fam.title)} (\`${escapeMdCell(fam.id)}\`)`;
+      const fmtCol = `${escapeMdCell(formatKindLabel(fam.primaryFormat, lang))} x ${fam.quota}${fam.timeBudgetSec ? ` (${fam.timeBudgetSec}s)` : ''}`;
+      const weightParts = [priorityLabel(fam.priority, lang)];
+      if (typeof fam.marksPerItem === 'number') {
+        weightParts.push(`${fam.marksPerItem} ${t(lang, '分', 'pts')}`);
+      }
+      const weightCol = escapeMdCell(weightParts.join(' / '));
+      const isExcluded = Boolean((fam as CoachTaskFamily & { excluded?: boolean }).excluded) || fam.quota <= 0;
+      const statusCol = isExcluded
+        ? t(lang, '已排除 (excluded)', 'Excluded')
+        : fam.calibrated
+          ? t(lang, '已确认 (confirmed)', 'Confirmed')
+          : t(lang, '待确认 (pending)', 'Pending');
+
+      const noteParts: string[] = [];
+      const conf = fam.confirmations;
+      noteParts.push(
+        `app:${conf?.appearanceApproved ? 'Y' : 'N'} intent:${conf?.intentApproved ? 'Y' : 'N'} ans:${conf?.answerVerified ? 'Y' : 'N'}`,
+      );
+      if (conf?.staleReason) noteParts.push(`stale: ${conf.staleReason}`);
+      if (fam.formatTradeoff) noteParts.push(fam.formatTradeoff);
+      if (fam.defects?.length) noteParts.push(fam.defects.map((d) => d.message).join('; '));
+      if (fam.knowledgePoints?.length) {
+        noteParts.push(`${t(lang, '考点', 'Points')}: ${fam.knowledgePoints.slice(0, 4).join(', ')}`);
+      }
+      lines.push(`| ${famCol} | ${fmtCol} | ${weightCol} | ${statusCol} | ${escapeMdCell(noteParts.join('; ')) || '-'} |`);
+    }
+  }
+
+  if (evidence || courseEvidence) {
+    lines.push('', `## ${t(lang, '能力证据与掌握概览', 'Capability Evidence & Mastery Summary')}`, '');
+    if (evidence) {
+      const cap = evidence.capabilityEvidence;
+      const mat = evidence.materialCoverage;
+      const trn = evidence.trainingCoverage;
+      lines.push(
+        `- **${t(lang, '考前就绪度', 'Exam Readiness')}**: ${cap.readyForExam ? t(lang, '已就绪', 'Ready') : t(lang, '未就绪', 'Not Ready')} - ${cap.verdict}`,
+        `- **${t(lang, '资料覆盖', 'Material Coverage')}**: ${mat.coveredSections}/${mat.totalSections} (${Math.round((mat.ratio ?? 0) * 100)}%) | ${t(lang, '已发布卡片', 'Published Cards')}: ${mat.totalPublishedCards} (${t(lang, '纯记忆卡', 'Recall-only')}: ${mat.recallOnlyCardCount})`,
+        `- **${t(lang, '训练覆盖', 'Training Coverage')}**: ${t(lang, '计划', 'Planned')} ${trn.planned} / ${t(lang, '已生成', 'Generated')} ${trn.generated} / ${t(lang, '核验可用', 'Usable')} ${trn.verifiedUsable} / ${t(lang, '已练', 'Practiced')} ${trn.practiced}`,
+        `- **${t(lang, '独立迁移与限时证据', 'Independent & Timed Evidence')}**: ${t(lang, '未见独立通过', 'Unseen pass')}: ${cap.unseenIndependentPassCount} | ${t(lang, '隔日复测 (>=12h)', 'Delayed (>=12h)')}: ${cap.delayedIndependent.passedFamilyCount}/${cap.delayedIndependent.totalActiveFamilyCount} (${cap.delayedIndependent.status}) | ${t(lang, '限时达标', 'Timed')}: ${cap.timedIndependent.passedCount} (${t(lang, '超时', 'over budget')}: ${cap.timedIndependent.overBudgetCount})`,
+      );
+      if (cap.misconceptionHypotheses?.length) {
+        lines.push(`- **${t(lang, '误区假设', 'Misconception Hypotheses')}**:`);
+        for (const h of cap.misconceptionHypotheses) {
+          lines.push(`  - ${h.reason} (${h.occurrences}x${h.confirmedMisconception ? `, ${t(lang, '已确认', 'confirmed')}` : ''})`);
+        }
+      }
+    }
+    if (courseEvidence?.summary) {
+      const s = courseEvidence.summary;
+      lines.push(
+        `- **${t(lang, '考点掌握分布', 'Point Mastery Summary')}**: ${t(lang, '总计', 'Total')} ${s.total} | ${t(lang, '稳固', 'Solid')} ${s.solid} | ${t(lang, '巩固中', 'Progress')} ${s.in_progress} | ${t(lang, '薄弱', 'Shaky')} ${s.shaky} | ${t(lang, '未开始', 'New')} ${s.unstarted}`,
+      );
+    }
+  }
+
+  lines.push('', `## ${t(lang, '学习偏好与记忆要点', 'Learner Preferences & Memory Bullets')}`, '');
+  if (profile?.summary?.trim()) {
+    lines.push(`- **${t(lang, '画像摘要', 'Summary')}**: ${profile.summary.trim()}`, '');
+  }
+
+  lines.push(`### ${t(lang, '学习偏好', 'Learner Preferences')}`, '');
+  const prefs = profile?.preferences ?? [];
+  if (prefs.length === 0) {
+    lines.push(`- _${t(lang, '暂无自定义学习偏好。', 'No custom learner preferences.')}_`);
+  } else {
+    for (const p of prefs) {
+      lines.push(`- ${p}`);
+    }
+  }
+
+  lines.push('', `### ${t(lang, '记忆要点', 'Memory Bullets')}`, '');
+  const bullets = profile?.bullets ?? [];
+  if (bullets.length === 0) {
+    lines.push(`- _${t(lang, '暂无记忆要点。', 'No learner memory bullets.')}_`);
+  } else {
+    for (const b of bullets) {
+      const meta: string[] = [];
+      if (b.source) meta.push(b.source);
+      if (b.course) meta.push(b.course);
+      lines.push(`- ${b.text}${meta.length ? ` (${meta.join(', ')})` : ''}`);
+    }
+  }
+
+  lines.push('');
+  return lines.join('\n');
+}
 
 const TABS: readonly { id: CoachTab; num: string; zh: string; en: string }[] = [
   { id: 'calibration', num: '1', zh: '校准与考法', en: 'Calibration' },
@@ -114,6 +326,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
   const mountedRef = useRef(true);
   const reqSeqRef = useRef(0);
   const busyRef = useRef(false);
+  const exportBusyRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -165,6 +378,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
   useClaimKeys(CLAIMED_KEYS, isActive && !modalOpen);
 
   const hints = useMemo<KeyHint[]>(() => {
+    const exportHint: KeyHint = { key: 'X', label: t(lang, '导出画像', 'Export MD') };
     if (tab === 'calibration') {
       return [
         { key: '1-4', label: t(lang, '标签页', 'Tabs') },
@@ -175,6 +389,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
         { key: 'e', label: t(lang, '编辑配额', 'Edit') },
         { key: 'p', label: t(lang, '学习偏好', 'Preferences') },
         { key: 'f', label: t(lang, '立即备题', 'Prep Queue') },
+        exportHint,
       ];
     }
     if (tab === 'variants') {
@@ -184,6 +399,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
         { key: 'f', label: t(lang, '立即备题', 'Prep Queue') },
         { key: 'p/P', label: t(lang, '教练练习', 'Coach Practice') },
         { key: 'r', label: t(lang, '刷新', 'Refresh') },
+        exportHint,
       ];
     }
     if (tab === 'evidence') {
@@ -193,6 +409,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
         { key: 'p', label: t(lang, '练习当前考点', 'Practice') },
         { key: 'P', label: t(lang, '学习偏好', 'Preferences') },
         { key: 'r', label: t(lang, '刷新', 'Refresh') },
+        exportHint,
       ];
     }
     return [
@@ -201,6 +418,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
       { key: 'm', label: t(lang, '同型组卷检查', 'Mock Check') },
       { key: 'g', label: t(lang, '按校准出题', 'Generate') },
       { key: 'p', label: t(lang, '学习偏好', 'Preferences') },
+      exportHint,
     ];
   }, [tab, lang]);
 
@@ -523,6 +741,44 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
     }
   }, [busyLabel, coachStatus?.ready, ell, host, lang, notify]);
 
+  const handleExportMarkdown = useCallback(async () => {
+    if (exportBusyRef.current) return;
+    exportBusyRef.current = true;
+    try {
+      const profileRes = await tryAction<CoachProfileExport>(host, 'coach.profile', {});
+      if (!mountedRef.current) return;
+      const profile = profileRes.ok && profileRes.value ? profileRes.value : null;
+      const markdown = formatExamCoachMarkdown({
+        course,
+        spec,
+        evidence: coachEvidence,
+        courseEvidence,
+        status: coachStatus,
+        profile,
+        lang,
+        generatedAt: new Date(),
+      });
+      const targetPath = defaultBackupFilePath(host.getLibraryRoot(), 'studyhub-coach', '.md');
+      await atomicWriteTextFile(targetPath, markdown);
+      if (!mountedRef.current) return;
+      const arrow = asciiMode ? '->' : '→';
+      notify(
+        t(
+          lang,
+          `已导出教练画像 ${arrow} ${targetPath}`,
+          `Exported coach profile ${arrow} ${targetPath}`,
+        ),
+        'success',
+      );
+    } catch (err) {
+      if (!mountedRef.current) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      notify(t(lang, `导出教练画像失败: ${msg}`, `Failed to export coach profile: ${msg}`), 'error');
+    } finally {
+      exportBusyRef.current = false;
+    }
+  }, [asciiMode, coachEvidence, coachStatus, course, courseEvidence, host, lang, notify, spec]);
+
   useInput(
     (input, key) => {
       if (modalOpen) return;
@@ -541,6 +797,10 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
       if (input === 'f') {
         if (busyRef.current || busyLabel !== null) return;
         setConfirmFlushPrep(true);
+        return;
+      }
+      if (input === 'X') {
+        void handleExportMarkdown();
         return;
       }
 
