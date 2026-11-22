@@ -22,7 +22,7 @@ import {
   useTheme,
   type VirtualListRenderContext,
 } from '../../components/index.js';
-import { displayWidth, graphemeWidth, padDisplay, splitGraphemes, truncateDisplay } from '../../render/index.js';
+import { displayWidth, graphemeWidth, padDisplay, splitGraphemes, truncateDisplay } from '../../render/cjk.js';
 
 export interface RestorePointEntry {
   id: string;
@@ -133,6 +133,27 @@ function describeUsageBadge(
     };
   }
   return { label: t(lang, `已关闭 (${daysText})`, `Disabled (${daysText})`), tone: 'muted' };
+}
+
+function describeAutoUpdateBadge(
+  autoCheck: boolean | null,
+  loaded: boolean,
+  lang: 'zh' | 'en',
+  asciiMode: boolean,
+): { label: string; tone: 'success' | 'muted' } {
+  if (autoCheck === null) {
+    return {
+      label: loaded ? t(lang, '未读取', 'Unavailable') : t(lang, '读取中', 'Loading'),
+      tone: 'muted',
+    };
+  }
+  if (autoCheck) {
+    return {
+      label: asciiMode ? t(lang, '已开启 +', 'On +') : t(lang, '已开启 ✓', 'On ✓'),
+      tone: 'success',
+    };
+  }
+  return { label: t(lang, '已关闭', 'Off'), tone: 'muted' };
 }
 
 const RETRY_CODES = new Set(['EBUSY', 'EPERM', 'EACCES']);
@@ -280,6 +301,8 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
   const [retrievalLoaded, setRetrievalLoaded] = useState(false);
   const [usageStatus, setUsageStatus] = useState<UsageFrequencyStatusShape | null>(null);
   const [usageLoaded, setUsageLoaded] = useState(false);
+  const [autoCheckEnabled, setAutoCheckEnabled] = useState<boolean | null>(null);
+  const [updateLoaded, setUpdateLoaded] = useState(false);
   const [restorePoints, setRestorePoints] = useState<RestorePointEntry[]>([]);
   const [loadingPoints, setLoadingPoints] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
@@ -294,6 +317,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
   const [confirmClearUsage, setConfirmClearUsage] = useState(false);
 
   const mountedRef = useRef(true);
+  const updateBusyRef = useRef(false);
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -341,11 +365,26 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
     }
   }, [host]);
 
+  const loadUpdatePrefs = useCallback(async () => {
+    try {
+      const res = await tryAction<{ autoCheck?: boolean }>(host, 'update.preferences', {});
+      if (!mountedRef.current) return;
+      if (res.ok && res.value && typeof res.value.autoCheck === 'boolean') {
+        setAutoCheckEnabled(res.value.autoCheck);
+      }
+    } catch {
+      // Fail-soft: keep fallback status when update.preferences is unavailable
+    } finally {
+      if (mountedRef.current) setUpdateLoaded(true);
+    }
+  }, [host]);
+
   useEffect(() => {
     void loadExperimental();
     void loadRetrieval();
     void loadUsage();
-  }, [loadExperimental, loadRetrieval, loadUsage]);
+    void loadUpdatePrefs();
+  }, [loadExperimental, loadRetrieval, loadUsage, loadUpdatePrefs]);
 
   const loadPoints = useCallback(async () => {
     setLoadingPoints(true);
@@ -557,9 +596,40 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
     notify(t(lang, '已删除全部本地使用记录', 'All usage frequency records cleared'), 'success');
   }, [busyAction, ell, host, lang, notify]);
 
+  const handleToggleAutoCheck = useCallback(async () => {
+    if (busyAction || updateBusyRef.current) return;
+    updateBusyRef.current = true;
+    const prev = autoCheckEnabled;
+    const currentEffective = prev ?? true;
+    const next = !currentEffective;
+    setAutoCheckEnabled(next);
+    try {
+      const res = await tryAction<{ autoCheck?: boolean }>(host, 'update.preferences', { autoCheck: next });
+      if (!mountedRef.current) return;
+      if (!res.ok || !res.value || typeof res.value.autoCheck !== 'boolean') {
+        setAutoCheckEnabled(prev);
+        notify(
+          res.error?.message || t(lang, '切换自动检查更新失败', 'Failed to toggle automatic update check'),
+          'error',
+        );
+        return;
+      }
+      setAutoCheckEnabled(res.value.autoCheck);
+      setUpdateLoaded(true);
+      notify(
+        res.value.autoCheck
+          ? t(lang, '已开启自动检查更新', 'Auto update check enabled')
+          : t(lang, '已关闭自动检查更新', 'Auto update check disabled'),
+        'success',
+      );
+    } finally {
+      updateBusyRef.current = false;
+    }
+  }, [autoCheckEnabled, busyAction, host, lang, notify]);
+
   const modalOpen =
     editingRoot || exportingBackup || confirmSampleRemove || Boolean(confirmRestore) || confirmClearUsage;
-  const claimed = useMemo(() => ['e', 's', 'x', 'r', 'c', 'f', 'u', 'U'], []);
+  const claimed = useMemo(() => ['e', 's', 'x', 'r', 'c', 'f', 'u', 'U', 'a'], []);
   useClaimKeys(claimed, isActive && !modalOpen);
 
   useInput(
@@ -596,10 +666,15 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
         if (!busyAction) setConfirmClearUsage(true);
         return;
       }
+      if (input === 'a') {
+        void handleToggleAutoCheck();
+        return;
+      }
       if (input === 'r') {
         void loadPoints();
         void loadRetrieval();
         void loadUsage();
+        void loadUpdatePrefs();
         return;
       }
       if (key.return && restorePoints[selectedPointIdx]) {
@@ -656,6 +731,8 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
   const usageBadge = describeUsageBadge(usageStatus, usageLoaded, lang, asciiMode);
   const usageToggleLabel = `[u] ${t(lang, '切换', 'Toggle')}`;
   const usageClearLabel = `[U] ${t(lang, '清空记录', 'Clear data')}`;
+  const autoUpdateBadge = describeAutoUpdateBadge(autoCheckEnabled, updateLoaded, lang, asciiMode);
+  const autoUpdateToggleLabel = `[a] ${t(lang, '切换', 'Toggle')}`;
 
   return (
     <Box flexDirection="column" width={width} height={height} overflow="hidden">
@@ -717,9 +794,16 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
           <Text color={theme.accent}>{usageToggleLabel}</Text>
           <Text color={theme.warning}>{usageClearLabel}</Text>
         </Box>
+        <Box flexDirection="row" gap={2} marginTop={0}>
+          <Text color={theme.muted}>
+            {t(lang, '自动检查更新:', 'Auto Update:')}{' '}
+            <Badge label={autoUpdateBadge.label} tone={autoUpdateBadge.tone} variant="soft" />
+          </Text>
+          <Text color={theme.accent}>{autoUpdateToggleLabel}</Text>
+        </Box>
         {compactLayout ? (
           <>
-            <Box flexDirection="row" gap={2} marginTop={1}>
+            <Box flexDirection="row" gap={2} marginTop={0}>
               <Text color={theme.accent}>{`[e] ${t(lang, '更改文件夹路径', 'Change folder')}`}</Text>
               <Text color={theme.accent}>{sampleActionLabel}</Text>
             </Box>
@@ -729,7 +813,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
             </Box>
           </>
         ) : (
-          <Box flexDirection="row" gap={2} marginTop={1}>
+          <Box flexDirection="row" gap={2} marginTop={0}>
             <Text color={theme.accent}>{`[e] ${t(lang, '更改文件夹路径', 'Change folder')}`}</Text>
             <Text color={theme.accent}>{sampleActionLabel}</Text>
             <Text color={theme.accent}>{exportActionLabel}</Text>

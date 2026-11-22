@@ -4,6 +4,7 @@ import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import {
   Badge,
+  ConfirmDialog,
   EmptyState,
   Modal,
   Spinner,
@@ -12,7 +13,7 @@ import {
   useClaimKeys,
   useTheme,
 } from '../../components/index.js';
-import { truncateDisplay } from '../../render/index.js';
+import { truncateDisplay } from '../../render/cjk.js';
 import { errorMessage, tryAction } from '../../host/sample-actions.js';
 
 export interface OutlineChapterRef {
@@ -203,6 +204,8 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
 
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [reloadTick, setReloadTick] = useState(0);
   const [entries, setEntries] = useState<OutlineEntryRow[]>([]);
   const [outlineOrigin, setOutlineOrigin] = useState<'ai' | 'headings' | 'none'>('none');
   const [proposal, setProposal] = useState<ProposedOutline | null>(null);
@@ -214,6 +217,8 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
   const [sourcePageMap, setSourcePageMap] = useState<Map<string, number>>(() => new Map());
   const [totalPagesCount, setTotalPagesCount] = useState(1);
   const mountedRef = useRef(true);
+  const busyRef = useRef(false);
+  const pendingNoticeRef = useRef<{ text: string; tone: 'info' | 'warning' | 'error' | 'success' } | null>(null);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -228,8 +233,10 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
 
   useEffect(() => {
     let cancelled = false;
+    const pendingNotice = pendingNoticeRef.current;
+    pendingNoticeRef.current = null;
     setLoading(true);
-    setStatusNotice(null);
+    setStatusNotice(pendingNotice);
     setProposal(null);
 
     const loadOutline = async () => {
@@ -375,7 +382,7 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
     return () => {
       cancelled = true;
     };
-  }, [host, documentId, sourceId, revision, currentPage, currentPageText, lang]);
+  }, [host, documentId, sourceId, revision, currentPage, currentPageText, lang, reloadTick]);
 
   const displayedRows: OutlineEntryRow[] = useMemo(() => {
     if (proposal) {
@@ -398,7 +405,7 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
   }, [proposal, entries, sourcePageMap]);
 
   const handleSuggest = useCallback(async () => {
-    if (busy || loading) return;
+    if (busyRef.current || busy || loading) return;
     if (!resolvedDocId && !sourceId) {
       setStatusNotice({
         text: t(lang, '缺少文档标识，无法生成目录', 'Missing document identifier'),
@@ -406,6 +413,7 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
       });
       return;
     }
+    busyRef.current = true;
     setBusy(true);
     setStatusNotice({
       text: t(lang, `正在请求 AI 整理章节目录${ell}`, `Requesting AI chapter outline${ell}`),
@@ -429,7 +437,6 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
           text: res.error?.message || t(lang, 'AI 目录生成失败', 'Outline suggestion failed'),
           tone: 'error',
         });
-        setBusy(false);
         return;
       }
 
@@ -498,12 +505,14 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
         setStatusNotice({ text: errorMessage(err), tone: 'error' });
       }
     } finally {
+      busyRef.current = false;
       if (mountedRef.current) setBusy(false);
     }
-  }, [busy, loading, resolvedDocId, sourceId, resolvedRevision, lang, host]);
+  }, [busy, ell, loading, resolvedDocId, sourceId, resolvedRevision, lang, host]);
 
   const handleSaveProposal = useCallback(async () => {
-    if (busy || !proposal || proposal.entries.length === 0) return;
+    if (busyRef.current || busy || !proposal || proposal.entries.length === 0) return;
+    busyRef.current = true;
     setBusy(true);
     try {
       const res = await tryAction<Record<string, unknown>>(host, 'materials.outline.save', {
@@ -523,7 +532,6 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
         const msg = res.error?.message || t(lang, '保存目录失败', 'Failed to save outline');
         setStatusNotice({ text: msg, tone: 'error' });
         notify(msg, 'error');
-        setBusy(false);
         return;
       }
 
@@ -562,11 +570,67 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
         notify(msg, 'error');
       }
     } finally {
+      busyRef.current = false;
       if (mountedRef.current) setBusy(false);
     }
   }, [busy, proposal, host, resolvedDocId, sourceId, resolvedRevision, lang, sourcePageMap, totalPagesCount, notify, onOutlineSaved]);
 
-  useClaimKeys(['g', 's', 'j', 'k', ' ', 'm'], isActive);
+  const handleClearOutline = useCallback(async () => {
+    setConfirmClear(false);
+    if (busyRef.current || busy) return;
+    if (!resolvedDocId && !sourceId) {
+      setStatusNotice({
+        text: t(lang, '缺少文档标识，无法清除目录', 'Missing document identifier'),
+        tone: 'warning',
+      });
+      return;
+    }
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      const res = await tryAction<Record<string, unknown>>(host, 'materials.outline.clear', {
+        ...(resolvedDocId ? { documentId: resolvedDocId } : {}),
+        ...(sourceId ? { sourceId } : {}),
+        ...(resolvedRevision ? { revision: resolvedRevision } : {}),
+      });
+      if (!mountedRef.current) return;
+      if (!res.ok) {
+        const msg = res.error?.message || t(lang, '清除自定义目录失败', 'Failed to clear outline');
+        setStatusNotice({ text: msg, tone: 'error' });
+        notify(msg, 'error');
+        return;
+      }
+      const cleared = res.value?.cleared !== false;
+      if (cleared) {
+        setProposal(null);
+        pendingNoticeRef.current = {
+          text: t(lang, '已清除自定义 AI 目录，已恢复默认目录提取', 'Custom outline cleared; reverted to default headings'),
+          tone: 'success',
+        };
+        setReloadTick((n) => n + 1);
+        notify(
+          t(lang, '已清除自定义 AI 目录', 'Custom outline cleared'),
+          'success',
+        );
+        onOutlineSaved?.();
+      } else {
+        const msg = t(lang, '当前版本暂无自定义 AI 目录', 'No custom AI outline saved on this revision');
+        setStatusNotice({ text: msg, tone: 'info' });
+        notify(msg, 'info');
+      }
+    } catch (err) {
+      if (mountedRef.current) {
+        const msg = errorMessage(err);
+        setStatusNotice({ text: msg, tone: 'error' });
+        notify(msg, 'error');
+      }
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusy(false);
+    }
+  }, [busy, host, lang, notify, onOutlineSaved, resolvedDocId, resolvedRevision, sourceId]);
+
+  useClaimKeys(['g', 's', 'j', 'k', ' ', 'm', 'X'], isActive && !confirmClear);
 
   useInput(
     (input) => {
@@ -574,6 +638,15 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
         void handleSuggest();
       } else if (input === 's' && proposal) {
         void handleSaveProposal();
+      } else if (input === 'X' && !busyRef.current && !busy && !loading && !proposal) {
+        if (outlineOrigin === 'ai') {
+          setConfirmClear(true);
+        } else {
+          setStatusNotice({
+            text: t(lang, '当前文档暂无可清除的自定义 AI 目录', 'No saved custom AI outline to clear'),
+            tone: 'info',
+          });
+        }
       } else if ((input === ' ' || input === 'm') && !busy && !loading && !proposal && onToggleRead) {
         const selected = displayedRows[selectedIndex];
         if (selected) {
@@ -595,7 +668,7 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
         }
       }
     },
-    { isActive },
+    { isActive: isActive && !confirmClear },
   );
 
   const frameW = Math.min(84, Math.max(46, width - 4));
@@ -613,10 +686,13 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
     if (proposal) {
       base.push({ key: 's', label: t(lang, '保存', 'Save') });
     }
+    if (!proposal && outlineOrigin === 'ai') {
+      base.push({ key: 'X', label: t(lang, '清除', 'Clear') });
+    }
     base.push({ key: 'g', label: t(lang, 'AI目录', 'Suggest') });
     base.push({ key: 'Esc', label: t(lang, '关闭', 'Close') });
     return base;
-  }, [displayedRows.length, lang, onToggleRead, proposal]);
+  }, [displayedRows.length, lang, onToggleRead, outlineOrigin, proposal]);
 
   const readCount = useMemo(
     () => (readChapterIds ? entries.filter((e) => readChapterIds.has(e.id)).length : 0),
@@ -632,17 +708,18 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
         : t(lang, '暂无目录', 'Empty');
 
   return (
-    <Modal
-      title={t(lang, '文档目录大纲', 'Document Outline')}
-      subtitle={title ? truncateDisplay(title, Math.max(12, Math.floor(innerW * 0.45)), ell) : undefined}
-      icon={asciiMode ? '#' : '☰'}
-      tone="primary"
-      width={frameW}
-      height={frameH}
-      isActive={isActive}
-      onClose={onClose}
-      hints={modalHints}
-    >
+    <>
+      <Modal
+        title={t(lang, '文档目录大纲', 'Document Outline')}
+        subtitle={title ? truncateDisplay(title, Math.max(12, Math.floor(innerW * 0.45)), ell) : undefined}
+        icon={asciiMode ? '#' : '☰'}
+        tone="primary"
+        width={frameW}
+        height={frameH}
+        isActive={isActive && !confirmClear}
+        onClose={onClose}
+        hints={modalHints}
+      >
       <Box height={headerRows} flexDirection="row" alignItems="center" width={innerW} overflow="hidden">
         <Badge
           label={badgeLabel}
@@ -707,7 +784,7 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
             onClose();
           }}
           keyExtractor={(item) => item.id}
-          isActive={isActive && !busy}
+          isActive={isActive && !busy && !confirmClear}
           renderItem={(item, ctx) => {
             const indent = '  '.repeat(Math.max(0, item.level - 1));
             const isCurrent = item.page === currentPage;
@@ -748,6 +825,24 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
           }}
         />
       )}
-    </Modal>
+      </Modal>
+      {confirmClear ? (
+        <ConfirmDialog
+          title={t(lang, '清除自定义 AI 目录', 'Clear Custom AI Outline')}
+          message={t(
+            lang,
+            '确定要清除当前文档的自定义 AI 目录并恢复默认标题提取吗？',
+            'Clear the saved custom AI outline for this document and revert to default headings?',
+          )}
+          confirmLabel={t(lang, '清除目录', 'Clear Outline')}
+          cancelLabel={t(lang, '取消', 'Cancel')}
+          danger
+          width={Math.min(60, Math.max(40, width - 4))}
+          onConfirm={() => void handleClearOutline()}
+          onCancel={() => setConfirmClear(false)}
+          isActive={isActive}
+        />
+      ) : null}
+    </>
   );
 });

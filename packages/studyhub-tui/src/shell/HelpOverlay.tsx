@@ -111,7 +111,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       items: [
         { key: 'Enter/p', label: t(lang, '钻取练习', 'Drill practice') },
         { key: 'f', label: t(lang, '7天预测', '7d forecast') },
-        { key: 'm', label: t(lang, '知识地图', 'Study map') },
+        { key: 'm', label: t(lang, '知识地图 / 依赖图', 'Study map & prereq graph') },
       ],
     },
     {
@@ -131,6 +131,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       title: t(lang, '备考补习 · Exam Prep', 'Exam Prep'),
       items: [
         { key: 'P', label: t(lang, '备考计划与定制向导', 'Study plan & custom wizard') },
+        { key: 'a', label: t(lang, '添加重点 / AI 匹配主题', 'Add focus & AI suggest') },
       ],
     },
     {
@@ -157,6 +158,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: '[ / ]', label: t(lang, '上移/下移置顶资料', 'Reorder pinned material') },
         { key: 'R', label: t(lang, '重读清单', 'Reread queue') },
         { key: 'O', label: t(lang, '目录大纲', 'Outline TOC') },
+        { key: 'X', label: t(lang, '清除自定义目录 (大纲内)', 'Clear custom outline (TOC)') },
         { key: 'H', label: t(lang, '标记段落', 'Mark passage') },
         { key: 'B', label: t(lang, '书签与批注', 'Bookmarks & notes') },
       ],
@@ -188,6 +190,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'x', label: t(lang, '导出学习库备份', 'Export backup') },
         { key: 'f', label: t(lang, '实验性功能开关', 'Experimental toggle') },
         { key: 'u / U', label: t(lang, '使用记录开关 / 清空', 'Usage toggle / clear') },
+        { key: 'a', label: t(lang, '自动检查更新开关', 'Auto update check toggle') },
       ],
     },
     {

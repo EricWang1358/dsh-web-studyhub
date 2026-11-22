@@ -82,6 +82,38 @@ export interface StudyMapResponse {
   decks?: StudyMapDeck[];
 }
 
+export interface StudyGraphNode {
+  id: string;
+  kind: 'deck' | 'topic' | 'card' | string;
+  label: string;
+  deckId: string;
+  deckTitle?: string;
+  topic?: string;
+  cardId?: string;
+  mastery?: number;
+  due?: number;
+  total?: number;
+  level?: string;
+  cardKind?: string;
+}
+
+export interface StudyGraphEdge {
+  from: string;
+  to: string;
+  type: 'tree' | 'prereq' | 'order' | string;
+  seq?: number;
+}
+
+export interface StudyGraphResponse {
+  mode?: string;
+  scope?: Array<{ deckId: string; topic?: string; cardId?: string }>;
+  nodes?: StudyGraphNode[];
+  edges?: StudyGraphEdge[];
+  truncated?: boolean;
+}
+
+type StudyMapTab = 'map' | 'graph';
+
 type MapRow =
   | {
       kind: 'course';
@@ -125,6 +157,92 @@ type MapRow =
       status: string;
     };
 
+type GraphRow =
+  | {
+      kind: 'edge';
+      key: string;
+      course: string;
+      prereqDeckId: string;
+      prereqCardId: string;
+      prereqLabel: string;
+      prereqLevel: string;
+      depDeckId: string;
+      depCardId: string;
+      depLabel: string;
+      depLevel: string;
+      deckTitle: string;
+      topic: string;
+    }
+  | {
+      kind: 'deck';
+      key: string;
+      course: string;
+      deckId: string;
+      label: string;
+      mastery: number;
+      total: number;
+      due: number;
+      edgeCount: number;
+    }
+  | {
+      kind: 'topic';
+      key: string;
+      course: string;
+      deckId: string;
+      deckTitle: string;
+      topic: string;
+      label: string;
+      mastery: number;
+      total: number;
+      due: number;
+    }
+  | {
+      kind: 'card';
+      key: string;
+      course: string;
+      deckId: string;
+      deckTitle: string;
+      topic: string;
+      cardId: string;
+      label: string;
+      level: string;
+      inCount: number;
+      outCount: number;
+    };
+
+function levelTag(level: string | undefined, lang: 'zh' | 'en', compact: boolean): string {
+  switch (level) {
+    case 'mastered':
+      return compact ? t(lang, '掌', 'M') : t(lang, '掌握', 'MST');
+    case 'familiar':
+      return compact ? t(lang, '熟', 'F') : t(lang, '熟悉', 'FAM');
+    case 'learning':
+      return compact ? t(lang, '学', 'L') : t(lang, '学习', 'LRN');
+    case 'weak':
+      return compact ? t(lang, '弱', 'W') : t(lang, '薄弱', 'WEAK');
+    default:
+      return compact ? t(lang, '新', 'N') : t(lang, '新题', 'NEW');
+  }
+}
+
+function levelToneColor(
+  level: string | undefined,
+  theme: ReturnType<typeof useTheme>,
+): string {
+  switch (level) {
+    case 'mastered':
+      return theme.success;
+    case 'familiar':
+      return theme.primary;
+    case 'learning':
+      return theme.info;
+    case 'weak':
+      return theme.error;
+    default:
+      return theme.muted;
+  }
+}
+
 export const StudyMapModal = memo(function StudyMapModal({
   host,
   width,
@@ -143,10 +261,18 @@ export const StudyMapModal = memo(function StudyMapModal({
 
   const activeCourse = currentCourse(snapshot);
 
+  const [activeTab, setActiveTab] = useState<StudyMapTab>('map');
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState('');
   const [mapData, setMapData] = useState<StudyMapResponse | null>(null);
+
+  const [graphLoading, setGraphLoading] = useState(false);
+  const [graphError, setGraphError] = useState('');
+  const [graphData, setGraphData] = useState<StudyGraphResponse | null>(null);
+  const [graphScope, setGraphScope] = useState<'all' | 'course'>('all');
+  const [graphReloadSeq, setGraphReloadSeq] = useState(0);
+
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [filterQuery, setFilterQuery] = useState('');
   const [filterFocused, setFilterFocused] = useState(false);
@@ -154,6 +280,9 @@ export const StudyMapModal = memo(function StudyMapModal({
 
   const mountedRef = useRef(true);
   const reqSeqRef = useRef(0);
+  const graphReqSeqRef = useRef(0);
+  const graphDirtyRef = useRef(true);
+  const graphLoadedRef = useRef(false);
   const busyRef = useRef(false);
 
   useEffect(() => {
@@ -164,7 +293,11 @@ export const StudyMapModal = memo(function StudyMapModal({
   }, []);
 
   useEffect(() => {
-    if (!isActive) return;
+    if (!isActive) {
+      graphDirtyRef.current = true;
+      graphLoadedRef.current = false;
+      return;
+    }
     let cancelled = false;
     const seq = ++reqSeqRef.current;
     setLoading(true);
@@ -185,6 +318,33 @@ export const StudyMapModal = memo(function StudyMapModal({
       cancelled = true;
     };
   }, [host, isActive, reloadSeq, lang]);
+
+  useEffect(() => {
+    if (!isActive || activeTab !== 'graph') return;
+    if (!graphDirtyRef.current && graphLoadedRef.current) return;
+    let cancelled = false;
+    const seq = ++graphReqSeqRef.current;
+    graphDirtyRef.current = false;
+    graphLoadedRef.current = true;
+    setGraphLoading(true);
+    setGraphError('');
+
+    const args = graphScope === 'course' && activeCourse ? { course: activeCourse } : {};
+    void tryAction<StudyGraphResponse>(host, 'graph', args).then((res) => {
+      if (cancelled || !mountedRef.current || graphReqSeqRef.current !== seq) return;
+      if (!res.ok) {
+        setGraphData(null);
+        setGraphError(res.error?.message || t(lang, '加载依赖图谱失败', 'Failed to load prerequisite graph'));
+      } else {
+        setGraphData(res.value ?? null);
+      }
+      setGraphLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [host, isActive, activeTab, graphReloadSeq, graphScope, activeCourse, lang]);
 
   const deckCourseMap = useMemo(() => {
     const m = new Map<string, string>();
@@ -316,11 +476,186 @@ export const StudyMapModal = memo(function StudyMapModal({
     return out;
   }, [mapData?.decks, deckCourseMap, lang, activeCourse, filterQuery]);
 
-  useEffect(() => {
-    if (selectedIdx >= filteredRows.length) {
-      setSelectedIdx(Math.max(0, filteredRows.length - 1));
+  const graphStats = useMemo(() => {
+    const nodes = graphData?.nodes ?? [];
+    const edges = graphData?.edges ?? [];
+    const prereqs = edges.filter((e) => e.type === 'prereq');
+    const cardCount = nodes.filter((n) => n.kind === 'card').length;
+    const deckCount = nodes.filter((n) => n.kind === 'deck').length;
+    return {
+      nodeCount: nodes.length,
+      cardCount,
+      deckCount,
+      prereqCount: prereqs.length,
+    };
+  }, [graphData]);
+
+  const graphFilteredRows: GraphRow[] = useMemo(() => {
+    const nodes = graphData?.nodes ?? [];
+    if (nodes.length === 0) return [];
+    const edges = graphData?.edges ?? [];
+    const prereqs = edges.filter((e) => e.type === 'prereq');
+
+    const nodeById = new Map<string, StudyGraphNode>();
+    const deckTitleById = new Map<string, string>();
+    for (const n of nodes) {
+      nodeById.set(n.id, n);
+      if (n.kind === 'deck') {
+        deckTitleById.set(n.deckId, n.label);
+      }
     }
-  }, [filteredRows.length, selectedIdx]);
+
+    // In graphData, edge { from: dependent, to: prerequisite, type: 'prereq' }
+    const requiresCount = new Map<string, number>();
+    const unlocksCount = new Map<string, number>();
+    const deckEdgeCount = new Map<string, number>();
+    const edgeRows: GraphRow[] = [];
+
+    for (const e of prereqs) {
+      const dep = nodeById.get(e.from);
+      const pre = nodeById.get(e.to);
+      if (!dep || !pre) continue;
+      requiresCount.set(dep.id, (requiresCount.get(dep.id) ?? 0) + 1);
+      unlocksCount.set(pre.id, (unlocksCount.get(pre.id) ?? 0) + 1);
+      deckEdgeCount.set(dep.deckId, (deckEdgeCount.get(dep.deckId) ?? 0) + 1);
+      if (pre.deckId !== dep.deckId) {
+        deckEdgeCount.set(pre.deckId, (deckEdgeCount.get(pre.deckId) ?? 0) + 1);
+      }
+      edgeRows.push({
+        kind: 'edge',
+        key: `edge:${pre.id}->${dep.id}`,
+        course: deckCourseMap.get(pre.deckId) ?? deckCourseMap.get(dep.deckId) ?? '',
+        prereqDeckId: pre.deckId,
+        prereqCardId: pre.cardId ?? '',
+        prereqLabel: pre.label || pre.cardId || '',
+        prereqLevel: pre.level || 'new',
+        depDeckId: dep.deckId,
+        depCardId: dep.cardId ?? '',
+        depLabel: dep.label || dep.cardId || '',
+        depLevel: dep.level || 'new',
+        deckTitle: pre.deckTitle || deckTitleById.get(pre.deckId) || '',
+        topic: pre.topic || '',
+      });
+    }
+
+    const q = filterQuery.trim().toLowerCase();
+    const out: GraphRow[] = [];
+
+    for (const er of edgeRows) {
+      if (er.kind !== 'edge') continue;
+      if (
+        !q ||
+        er.prereqLabel.toLowerCase().includes(q) ||
+        er.depLabel.toLowerCase().includes(q) ||
+        er.deckTitle.toLowerCase().includes(q) ||
+        er.topic.toLowerCase().includes(q)
+      ) {
+        out.push(er);
+      }
+    }
+
+    // Build deck -> topic -> card hierarchy preserving graph node order
+    type DeckBucket = {
+      deck: StudyGraphNode;
+      topics: Array<{ topic: StudyGraphNode; cards: StudyGraphNode[] }>;
+      looseCards: StudyGraphNode[];
+    };
+    const buckets: DeckBucket[] = [];
+    const bucketByDeckId = new Map<string, DeckBucket>();
+    const topicBucketByKey = new Map<string, { topic: StudyGraphNode; cards: StudyGraphNode[] }>();
+
+    for (const n of nodes) {
+      if (n.kind === 'deck') {
+        const b: DeckBucket = { deck: n, topics: [], looseCards: [] };
+        buckets.push(b);
+        bucketByDeckId.set(n.deckId, b);
+      } else if (n.kind === 'topic') {
+        const b = bucketByDeckId.get(n.deckId);
+        if (b) {
+          const tb = { topic: n, cards: [] };
+          b.topics.push(tb);
+          topicBucketByKey.set(`${n.deckId}\0${n.topic ?? n.label}`, tb);
+        }
+      } else if (n.kind === 'card') {
+        const tb = topicBucketByKey.get(`${n.deckId}\0${n.topic ?? '未分类'}`);
+        if (tb) {
+          tb.cards.push(n);
+        } else {
+          bucketByDeckId.get(n.deckId)?.looseCards.push(n);
+        }
+      }
+    }
+
+    for (const b of buckets) {
+      const deckCourse = deckCourseMap.get(b.deck.deckId) ?? '';
+      const deckMatches = !q || b.deck.label.toLowerCase().includes(q) || deckCourse.toLowerCase().includes(q);
+      const childRows: GraphRow[] = [];
+
+      for (const tb of b.topics) {
+        const topicMatches = deckMatches || tb.topic.label.toLowerCase().includes(q);
+        const matchedCards = topicMatches
+          ? tb.cards
+          : tb.cards.filter(
+              (c) => c.label.toLowerCase().includes(q) || (c.topic ?? '').toLowerCase().includes(q),
+            );
+        if (!topicMatches && matchedCards.length === 0) continue;
+
+        childRows.push({
+          kind: 'topic',
+          key: `gtopic:${tb.topic.id}`,
+          course: deckCourse,
+          deckId: b.deck.deckId,
+          deckTitle: b.deck.label,
+          topic: tb.topic.topic ?? tb.topic.label,
+          label: tb.topic.label,
+          mastery: Math.max(0, Math.min(100, Math.round(Number(tb.topic.mastery) || 0))),
+          total: Math.max(0, Number(tb.topic.total) || 0),
+          due: Math.max(0, Number(tb.topic.due) || 0),
+        });
+
+        for (const c of matchedCards) {
+          childRows.push({
+            kind: 'card',
+            key: `gcard:${c.id}`,
+            course: deckCourse,
+            deckId: c.deckId,
+            deckTitle: c.deckTitle ?? b.deck.label,
+            topic: c.topic ?? tb.topic.label,
+            cardId: c.cardId ?? '',
+            label: c.label,
+            level: c.level ?? 'new',
+            inCount: requiresCount.get(c.id) ?? 0,
+            outCount: unlocksCount.get(c.id) ?? 0,
+          });
+        }
+      }
+
+      if (!deckMatches && childRows.length === 0) continue;
+
+      out.push({
+        kind: 'deck',
+        key: `gdeck:${b.deck.id}`,
+        course: deckCourse,
+        deckId: b.deck.deckId,
+        label: b.deck.label,
+        mastery: Math.max(0, Math.min(100, Math.round(Number(b.deck.mastery) || 0))),
+        total: Math.max(0, Number(b.deck.total) || 0),
+        due: Math.max(0, Number(b.deck.due) || 0),
+        edgeCount: deckEdgeCount.get(b.deck.deckId) ?? 0,
+      });
+      out.push(...childRows);
+    }
+
+    return out;
+  }, [graphData, deckCourseMap, filterQuery]);
+
+  const activeRowsLen = activeTab === 'map' ? filteredRows.length : graphFilteredRows.length;
+
+  useEffect(() => {
+    if (selectedIdx >= activeRowsLen) {
+      setSelectedIdx(Math.max(0, activeRowsLen - 1));
+    }
+  }, [activeRowsLen, selectedIdx]);
 
   const launchRow = useCallback(
     async (row: MapRow | undefined) => {
@@ -372,15 +707,111 @@ export const StudyMapModal = memo(function StudyMapModal({
     [activeCourse, host, lang, navigate, notify, onClose, refreshSnapshot],
   );
 
+  const launchGraphRow = useCallback(
+    async (row: GraphRow | undefined) => {
+      if (!row || busyRef.current) return;
+      if (row.kind !== 'edge' && row.kind !== 'card' && row.total <= 0) {
+        notify(t(lang, '当前节点暂无可练题目', 'No cards in selected node'), 'info');
+        return;
+      }
+
+      busyRef.current = true;
+      setStarting(true);
+      setGraphError('');
+
+      try {
+        if (row.course && row.course !== activeCourse) {
+          const focusRes = await tryAction(host, 'focus.set', { course: row.course });
+          if (focusRes.ok) {
+            await refreshSnapshot();
+          }
+        }
+
+        const startArgs: Record<string, unknown> =
+          row.kind === 'edge'
+            ? {
+                mode: 'path',
+                scope: [
+                  ...(row.prereqCardId ? [{ deckId: row.prereqDeckId, cardId: row.prereqCardId }] : [{ deckId: row.prereqDeckId }]),
+                  ...(row.depCardId ? [{ deckId: row.depDeckId, cardId: row.depCardId }] : [{ deckId: row.depDeckId }]),
+                ],
+                fresh: true,
+              }
+            : row.kind === 'card'
+              ? {
+                  mode: 'path',
+                  scope: [row.cardId ? { deckId: row.deckId, cardId: row.cardId } : { deckId: row.deckId }],
+                  fresh: true,
+                }
+              : row.kind === 'topic'
+                ? { mode: 'path', scope: [{ deckId: row.deckId, topic: row.topic }], fresh: true }
+                : { mode: 'path', scope: [{ deckId: row.deckId }], fresh: true };
+
+        const res = await tryAction<{ id?: string }>(host, 'review.start', startArgs);
+        if (!mountedRef.current) return;
+        if (!res.ok || !res.value?.id) {
+          const msg = res.error?.message || t(lang, '无法启动练习', 'Failed to start practice');
+          setGraphError(msg);
+          notify(msg, 'error');
+          return;
+        }
+        onClose();
+        navigate('review', {
+          runId: res.value.id,
+          ...(row.course ? { course: row.course } : {}),
+        });
+      } finally {
+        busyRef.current = false;
+        if (mountedRef.current) setStarting(false);
+      }
+    },
+    [activeCourse, host, lang, navigate, notify, onClose, refreshSnapshot],
+  );
+
+  const switchTab = useCallback((next: StudyMapTab) => {
+    setActiveTab(next);
+    setSelectedIdx(0);
+    setFilterQuery('');
+    setFilterFocused(false);
+  }, []);
+
+  const activeLoading = activeTab === 'map' ? loading : graphLoading;
+
   useInput(
-    (input) => {
-      if (loading || starting) return;
+    (input, key) => {
+      if (starting) return;
+      if (key.tab) {
+        switchTab(activeTab === 'map' ? 'graph' : 'map');
+        return;
+      }
+      if (input === '1') {
+        if (activeTab !== 'map') switchTab('map');
+        return;
+      }
+      if (input === '2') {
+        if (activeTab !== 'graph') switchTab('graph');
+        return;
+      }
+      if (activeLoading) return;
       if (input === '/') {
         setFilterFocused(true);
         return;
       }
       if (input === 'r') {
-        setReloadSeq((n) => n + 1);
+        if (activeTab === 'map') {
+          setLoading(true);
+          setReloadSeq((n) => n + 1);
+        } else {
+          graphDirtyRef.current = true;
+          setGraphLoading(true);
+          setGraphReloadSeq((n) => n + 1);
+        }
+        return;
+      }
+      if (input === 's' && activeTab === 'graph' && activeCourse) {
+        graphDirtyRef.current = true;
+        setGraphScope((prev) => (prev === 'all' ? 'course' : 'all'));
+        setSelectedIdx(0);
         return;
       }
       if (input === 'c' && filterQuery) {
@@ -399,10 +830,11 @@ export const StudyMapModal = memo(function StudyMapModal({
   const bodyH = Math.max(6, frameH - 5);
   const filterInputW = Math.max(12, modalContentWidth(frameW) - 10);
 
+  const activeError = activeTab === 'map' ? error : graphError;
   const showFilterRow = filterFocused || filterQuery.length > 0;
-  const showNextRow = Boolean(mapData?.next?.topic) && bodyH >= 11;
-  const showErrorRow = Boolean(error);
-  const overheadRows = 1 + (showNextRow ? 1 : 0) + (showFilterRow ? 1 : 0) + (showErrorRow ? 1 : 0);
+  const showNextRow = activeTab === 'map' && Boolean(mapData?.next?.topic) && bodyH >= 12;
+  const showErrorRow = Boolean(activeError);
+  const overheadRows = 2 + (showNextRow ? 1 : 0) + (showFilterRow ? 1 : 0) + (showErrorRow ? 1 : 0);
   const listH = Math.max(3, bodyH - overheadRows);
 
   const ell = asciiMode ? '...' : '…';
@@ -418,15 +850,19 @@ export const StudyMapModal = memo(function StudyMapModal({
     const items: KeyHint[] = [
       { key: 'j/k', label: t(lang, '移动', 'Move') },
       { key: 'Enter', label: t(lang, '练习', 'Practise') },
+      { key: '1/2', label: t(lang, '切页', 'Tab') },
       { key: '/', label: t(lang, '筛选', 'Filter') },
     ];
     if (filterQuery) {
       items.push({ key: 'c', label: t(lang, '清空', 'Clear') });
     }
+    if (activeTab === 'graph' && activeCourse) {
+      items.push({ key: 's', label: t(lang, '范围', 'Scope') });
+    }
     items.push({ key: 'r', label: t(lang, '刷新', 'Reload') });
     items.push({ key: 'Esc', label: t(lang, '关闭', 'Close') });
     return items;
-  }, [filterFocused, filterQuery, lang]);
+  }, [activeCourse, activeTab, filterFocused, filterQuery, lang]);
 
   const renderRow = useCallback(
     (row: MapRow, ctx: VirtualListRenderContext) => {
@@ -519,31 +955,195 @@ export const StudyMapModal = memo(function StudyMapModal({
     [asciiMode, ell, lang, theme],
   );
 
+  const renderGraphRow = useCallback(
+    (row: GraphRow, ctx: VirtualListRenderContext) => {
+      const pointer = ctx.selected ? (asciiMode ? '> ' : '▸ ') : '  ';
+      const compact = ctx.width < 68;
+      const arrow = asciiMode ? '->' : '→';
+      const inArrow = asciiMode ? '<-' : '←';
+
+      if (row.kind === 'edge') {
+        const tag = compact ? t(lang, '[链]', '[E]') : t(lang, '[前置]', '[EDGE]');
+        const preLvl = levelTag(row.prereqLevel, lang, true);
+        const depLvl = levelTag(row.depLevel, lang, true);
+        const rightBadge = ` [${preLvl}${arrow}${depLvl}]`;
+        const prefix = `${pointer}${tag} `;
+        const midArrow = ` ${arrow} `;
+        const availTextW = Math.max(
+          8,
+          ctx.width - displayWidth(prefix) - displayWidth(rightBadge) - displayWidth(midArrow) - 1,
+        );
+        const leftMax = Math.max(4, Math.floor(availTextW / 2));
+        const rightMax = Math.max(4, availTextW - leftMax);
+        const preStr = truncateDisplay(row.prereqLabel, leftMax, ell);
+        const depStr = padDisplay(
+          truncateDisplay(row.depLabel, rightMax, ell),
+          Math.max(4, availTextW - displayWidth(preStr)),
+        );
+
+        return (
+          <Box flexDirection="row" width={ctx.width} height={1} overflow="hidden">
+            <Text color={ctx.selected ? theme.primary : theme.muted} bold={ctx.selected}>
+              {pointer}
+            </Text>
+            <Text color={ctx.selected ? theme.selectionFg : theme.accent} bold>
+              {`${tag} `}
+            </Text>
+            <Text color={ctx.selected ? theme.selectionFg : theme.text} bold={ctx.selected}>
+              {preStr}
+            </Text>
+            <Text color={ctx.selected ? theme.selectionFg : theme.primary} bold>
+              {midArrow}
+            </Text>
+            <Text color={ctx.selected ? theme.selectionFg : theme.text} bold={ctx.selected}>
+              {depStr}
+            </Text>
+            <Text color={ctx.selected ? theme.selectionFg : levelToneColor(row.depLevel, theme)}>
+              {rightBadge}
+            </Text>
+          </Box>
+        );
+      }
+
+      if (row.kind === 'card') {
+        const indent = '    ';
+        const tag = compact ? t(lang, '[卡]', '[C]') : t(lang, '[题目]', '[CARD]');
+        const lvl = levelTag(row.level, lang, compact);
+        const badgeStr = `[${lvl}]`;
+        const ioParts: string[] = [];
+        if (row.inCount > 0) ioParts.push(`${inArrow}${row.inCount}`);
+        if (row.outCount > 0) ioParts.push(`${arrow}${row.outCount}`);
+        const ioMeta = ioParts.length > 0 ? ` ${ioParts.join(' ')}` : '';
+        const rightMeta = `${ioMeta} ${badgeStr}`;
+        const prefix = `${pointer}${indent}${tag} `;
+        const titleW = Math.max(6, ctx.width - displayWidth(prefix) - displayWidth(rightMeta) - 1);
+        const titleStr = padDisplay(truncateDisplay(row.label, titleW, ell), titleW);
+
+        return (
+          <Box flexDirection="row" width={ctx.width} height={1} overflow="hidden">
+            <Text color={ctx.selected ? theme.primary : theme.muted} bold={ctx.selected}>
+              {pointer}
+            </Text>
+            <Text>{indent}</Text>
+            <Text color={ctx.selected ? theme.selectionFg : theme.dim}>{`${tag} `}</Text>
+            <Text color={ctx.selected ? theme.selectionFg : theme.text} bold={ctx.selected}>
+              {`${titleStr} `}
+            </Text>
+            {ioMeta ? (
+              <Text color={ctx.selected ? theme.selectionFg : theme.accent}>{ioMeta}</Text>
+            ) : null}
+            <Text color={ctx.selected ? theme.selectionFg : levelToneColor(row.level, theme)} bold>
+              {` ${badgeStr}`}
+            </Text>
+          </Box>
+        );
+      }
+
+      const indent = row.kind === 'topic' ? '  ' : '';
+      const tag =
+        row.kind === 'deck'
+          ? compact
+            ? t(lang, '[组]', '[D]')
+            : t(lang, '[题组]', '[DECK]')
+          : compact
+            ? t(lang, '[点]', '[T]')
+            : t(lang, '[考点]', '[TOP]');
+      const pctBadge = ` [${String(row.mastery).padStart(2, ' ')}%]`;
+      const metaSep = asciiMode ? '/' : '·';
+      const metaParts = [`${row.total}${t(lang, '题', 'c')}`];
+      if (row.due > 0) metaParts.push(compact ? `d${row.due}` : t(lang, `到${row.due}`, `due ${row.due}`));
+      if (row.kind === 'deck' && row.edgeCount > 0) {
+        metaParts.push(`${row.edgeCount}${t(lang, '链', 'e')}`);
+      }
+      const rightMeta = `${pctBadge} ${metaParts.join(metaSep)}`;
+      const prefix = `${pointer}${indent}${tag} `;
+      const titleW = Math.max(6, ctx.width - displayWidth(prefix) - displayWidth(rightMeta) - 1);
+      const titleStr = padDisplay(truncateDisplay(row.label, titleW, ell), titleW);
+
+      const pctColor = ctx.selected
+        ? theme.selectionFg
+        : row.mastery >= 80
+          ? theme.success
+          : row.mastery >= 50
+            ? theme.primary
+            : theme.warning;
+
+      return (
+        <Box flexDirection="row" width={ctx.width} height={1} overflow="hidden">
+          <Text color={ctx.selected ? theme.primary : theme.muted} bold={ctx.selected}>
+            {pointer}
+          </Text>
+          {indent ? <Text>{indent}</Text> : null}
+          <Text
+            color={ctx.selected ? theme.selectionFg : row.kind === 'deck' ? theme.accent : theme.muted}
+            bold={row.kind === 'deck' || ctx.selected}
+          >
+            {`${tag} `}
+          </Text>
+          <Text
+            color={ctx.selected ? theme.selectionFg : row.kind === 'deck' ? theme.text : theme.muted}
+            bold={row.kind === 'deck' || ctx.selected}
+          >
+            {`${titleStr} `}
+          </Text>
+          <Text color={pctColor} bold>
+            {pctBadge}
+          </Text>
+          <Text color={ctx.selected ? theme.selectionFg : theme.dim}>
+            {` ${metaParts.join(metaSep)}`}
+          </Text>
+        </Box>
+      );
+    },
+    [asciiMode, ell, lang, theme],
+  );
+
   const courseMastery = mapData?.mastery?.course;
   const libraryMastery = mapData?.mastery?.library;
   const dueTotal = mapData?.today?.dueTotal ?? mapData?.today?.due ?? 0;
 
   const summaryBits: string[] = [];
-  if (courseMastery) {
+  if (activeTab === 'map') {
+    if (courseMastery) {
+      summaryBits.push(
+        t(
+          lang,
+          `${courseMastery.name}: ${courseMastery.value}% (${courseMastery.cards}题)`,
+          `${courseMastery.name}: ${courseMastery.value}% (${courseMastery.cards}c)`,
+        ),
+      );
+    }
+    if (libraryMastery) {
+      summaryBits.push(
+        t(
+          lang,
+          `全库 ${libraryMastery.value}% (${libraryMastery.cards}题)`,
+          `Library ${libraryMastery.value}% (${libraryMastery.cards}c)`,
+        ),
+      );
+    }
+    if (dueTotal > 0) {
+      summaryBits.push(t(lang, `今日到期 ${dueTotal}`, `Due ${dueTotal}`));
+    }
+  } else {
+    const scopeText =
+      graphScope === 'course' && activeCourse
+        ? activeCourse
+        : t(lang, '全部激活课程', 'All active courses');
+    summaryBits.push(scopeText);
     summaryBits.push(
       t(
         lang,
-        `${courseMastery.name}: ${courseMastery.value}% (${courseMastery.cards}题)`,
-        `${courseMastery.name}: ${courseMastery.value}% (${courseMastery.cards}c)`,
+        `${graphStats.nodeCount} 节点 (${graphStats.cardCount} 题)`,
+        `${graphStats.nodeCount} nodes (${graphStats.cardCount} cards)`,
       ),
     );
-  }
-  if (libraryMastery) {
     summaryBits.push(
-      t(
-        lang,
-        `全库 ${libraryMastery.value}% (${libraryMastery.cards}题)`,
-        `Library ${libraryMastery.value}% (${libraryMastery.cards}c)`,
-      ),
+      t(lang, `${graphStats.prereqCount} 条前置边`, `${graphStats.prereqCount} prereq edges`),
     );
-  }
-  if (dueTotal > 0) {
-    summaryBits.push(t(lang, `今日到期 ${dueTotal}`, `Due ${dueTotal}`));
+    if (graphData?.truncated) {
+      summaryBits.push(t(lang, '仅前400题', 'First 400'));
+    }
   }
 
   const subtitle = courseMastery
@@ -564,11 +1164,30 @@ export const StudyMapModal = memo(function StudyMapModal({
       isActive={isActive && !filterFocused}
       hints={hints}
     >
+      {/* Tab Bar */}
+      <Box flexDirection="row" height={1} gap={1} flexShrink={0} overflow="hidden">
+        <Badge
+          label={`1:${t(lang, '知识地图', 'Mastery Map')}`}
+          tone={activeTab === 'map' ? 'primary' : 'neutral'}
+          variant={activeTab === 'map' ? 'solid' : 'outline'}
+        />
+        <Badge
+          label={`2:${t(lang, '前置依赖图', 'Prerequisite Graph')}`}
+          tone={activeTab === 'graph' ? 'primary' : 'neutral'}
+          variant={activeTab === 'graph' ? 'solid' : 'outline'}
+        />
+        <Box flexGrow={1} />
+        {innerW >= 54 ? <Text color={theme.dim}>1-2 / Tab</Text> : null}
+      </Box>
+
       {/* Top summary line */}
       <Box flexDirection="row" justifyContent="space-between" height={1} flexShrink={0} overflow="hidden">
         <Text color={theme.muted} wrap="truncate">
           {truncateDisplay(
-            summaryBits.join(sep) || t(lang, '按课程、题组与考点查看掌握度', 'Mastery by course, deck & topic'),
+            summaryBits.join(sep) ||
+              (activeTab === 'map'
+                ? t(lang, '按课程、题组与考点查看掌握度', 'Mastery by course, deck & topic')
+                : t(lang, '查看节点与前置依赖关系', 'Nodes & prerequisite edges')),
             Math.max(10, innerW - (starting ? 14 : 0)),
             ell,
           )}
@@ -576,7 +1195,7 @@ export const StudyMapModal = memo(function StudyMapModal({
         {starting ? <Spinner label={t(lang, '启动中...', 'Starting...')} active={isActive} /> : null}
       </Box>
 
-      {/* Recommended next topic */}
+      {/* Recommended next topic (Tab 1) */}
       {showNextRow && mapData?.next ? (
         <Box flexDirection="row" gap={1} height={1} flexShrink={0} overflow="hidden">
           <Badge label={t(lang, '推荐下一步', 'NEXT')} tone="accent" variant="soft" />
@@ -609,7 +1228,11 @@ export const StudyMapModal = memo(function StudyMapModal({
                 setFilterFocused(false);
                 setSelectedIdx(0);
               }}
-              placeholder={t(lang, `输入课程/题组/考点关键字${ell}`, `Filter course, deck, or topic${ell}`)}
+              placeholder={
+                activeTab === 'map'
+                  ? t(lang, `输入课程/题组/考点关键字${ell}`, `Filter course, deck, or topic${ell}`)
+                  : t(lang, `输入节点/前置依赖关键字${ell}`, `Filter node, topic, or edge${ell}`)
+              }
               isActive={isActive && filterFocused}
               width={filterInputW}
               prompt={asciiMode ? '/' : '›'}
@@ -626,45 +1249,88 @@ export const StudyMapModal = memo(function StudyMapModal({
       {showErrorRow ? (
         <Box height={1} flexShrink={0} overflow="hidden">
           <Text color={theme.error} wrap="truncate">
-            {truncateDisplay(error, innerW, ell)}
+            {truncateDisplay(activeError, innerW, ell)}
           </Text>
         </Box>
       ) : null}
 
-      {/* Body: loading / empty / list */}
-      {loading ? (
+      {/* Body: Tab 1 vs Tab 2 */}
+      {activeTab === 'map' ? (
+        loading ? (
+          <Box height={listH} alignItems="center" justifyContent="center">
+            <Spinner
+              label={t(lang, `正在加载知识地图${ell}`, `Loading knowledge map${ell}`)}
+              active={isActive}
+            />
+          </Box>
+        ) : filteredRows.length === 0 ? (
+          <EmptyState
+            icon={asciiMode ? '+' : '◈'}
+            title={
+              filterQuery
+                ? t(lang, '没有匹配的课程或考点', 'No matching courses or topics')
+                : t(lang, '暂无知识掌握数据', 'No mastery data yet')
+            }
+            hint={
+              filterQuery
+                ? t(lang, '按 [c] 清空筛选条件', 'Press [c] to clear filter')
+                : t(lang, '先导入资料或创建题组即可查看知识地图', 'Import materials or create decks to see the map')
+            }
+            height={listH}
+          />
+        ) : (
+          <VirtualList
+            items={filteredRows}
+            height={listH}
+            width={innerW}
+            selectedIndex={selectedIdx}
+            onChange={(idx) => setSelectedIdx(idx)}
+            onSelect={(row) => {
+              void launchRow(row);
+            }}
+            renderItem={renderRow}
+            keyExtractor={(row) => row.key}
+            isActive={isActive && !filterFocused && !starting}
+            ascii={asciiMode}
+          />
+        )
+      ) : graphLoading ? (
         <Box height={listH} alignItems="center" justifyContent="center">
           <Spinner
-            label={t(lang, `正在加载知识地图${ell}`, `Loading knowledge map${ell}`)}
+            label={t(lang, `正在加载依赖图谱${ell}`, `Loading prerequisite graph${ell}`)}
             active={isActive}
           />
         </Box>
-      ) : filteredRows.length === 0 ? (
+      ) : graphFilteredRows.length === 0 ? (
         <EmptyState
           icon={asciiMode ? '+' : '◈'}
           title={
             filterQuery
-              ? t(lang, '没有匹配的课程或考点', 'No matching courses or topics')
-              : t(lang, '暂无知识掌握数据', 'No mastery data yet')
+              ? t(lang, '没有匹配的图谱节点或依赖', 'No matching nodes or prerequisites')
+              : t(lang, '暂无前置依赖图数据', 'No prerequisite graph data yet')
           }
           hint={
             filterQuery
               ? t(lang, '按 [c] 清空筛选条件', 'Press [c] to clear filter')
-              : t(lang, '先导入资料或创建题组即可查看知识地图', 'Import materials or create decks to see the map')
+              : t(
+                  lang,
+                  '创建题组并用 card.link 关联前置题目即可查看依赖图',
+                  'Create decks and link cards with card.link to view dependencies',
+                )
           }
           height={listH}
         />
       ) : (
         <VirtualList
-          items={filteredRows}
+          items={graphFilteredRows}
           height={listH}
           width={innerW}
           selectedIndex={selectedIdx}
           onChange={(idx) => setSelectedIdx(idx)}
           onSelect={(row) => {
-            void launchRow(row);
+            void launchGraphRow(row);
           }}
-          renderItem={renderRow}
+          renderItem={renderGraphRow}
           keyExtractor={(row) => row.key}
           isActive={isActive && !filterFocused && !starting}
           ascii={asciiMode}
