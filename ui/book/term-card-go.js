@@ -1,5 +1,6 @@
 /* global document, CSS, requestAnimationFrame */
 import { flash } from './ai-anchors.js';
+import { scrollUnderBar } from './use-book-place.js';
 
 /* Going to a 术语卡 (#710) from a relation link or the 速查页: the point that holds it is opened first when the card is not drawn (逐节读 shows one point),
    then, once the page has drawn it, its fold opens and the card is scrolled to the middle and flashed (the same short highlight as an AI block's). */
@@ -18,7 +19,7 @@ export function showCard(code) {
     const card = cardOf(code);
     if (!card) { if (--left > 0) requestAnimationFrame(look); return; }
     for (let fold = card.closest('details'); fold; fold = fold.parentElement?.closest('details')) fold.open = true;
-    requestAnimationFrame(() => { card.scrollIntoView({ block: 'center' }); flash([card]); });
+    requestAnimationFrame(() => { scrollUnderBar(card, { center: true }); flash([card]); });
   };
   requestAnimationFrame(look);
 }

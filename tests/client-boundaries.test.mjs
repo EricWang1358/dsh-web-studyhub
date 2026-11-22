@@ -222,6 +222,7 @@ test('generated native modules resolve through classic chunk factories and share
     ['ui/seal-press/WrongBookClearStamp.jsx', module => assert.equal(typeof module.default, 'function')],
     ['ui/desk-play/DeskPlayStrip.jsx', module => assert.equal(typeof module.default, 'function')],
     ['ui/letterpress/letterpress-runtime.jsx', module => assert.equal(typeof module.default, 'function')],
+    ['ui/review/ReviewFocusPill.jsx', module => assert.equal(typeof module.default, 'function')],
   ]) {
     const output = Object.entries(result.metafile.outputs).find(([, record]) => record.entryPoint === entryPoint);
     assert.ok(output, `missing optional UI boundary for ${entryPoint}`);

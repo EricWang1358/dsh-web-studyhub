@@ -37,6 +37,11 @@ import { useSourceDock } from "./review/use-source-dock.jsx";
 import InkMark from "./seal-press/InkMark.jsx";
 import LazyRoundSealSection from "./seal-press/LazyRoundSealSection.jsx";
 import LetterpressNumber from "./letterpress/LetterpressNumber.jsx";
+import LazyReviewFocusPill from "./review/LazyReviewFocusPill.jsx";
+import { computeTodayPace, formatTodayPaceLine, useDailyGoal } from "./review/today-pace.js";
+import { resolveTimerPrefs } from "../lib/board-model.js";
+import PaceMeta from "./pace/PaceMeta.jsx";
+import { buildSliceForecast } from "./pace/format-pace.js";
 
 /* 复习视图：quiz/multi 选项作答、cloze 填空、闪卡翻面与开放问答自评，
    附前置题条、逐步讲解面板与薄弱主题收尾。会话状态（run）与本地作答
@@ -221,6 +226,32 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
   const methodAlt = run.complete && !flow && run.mode !== "exam" ? roundEndAlternative(data, roundCourse, { guidedSession: app?.lib?.guidedSession, canChat: app?.host?.capabilities?.chat !== false }) : null;
   const roundTotal = run.questions ?? run.total ?? 0;
   const allCorrect = Boolean(run.complete && roundTotal > 0 && (run.answered || 0) >= roundTotal && run.correct === roundTotal);
+  const boardState = app?.board?.state || null;
+  const [dailyGoal, setDailyGoal] = useDailyGoal({ root: data?.root || "" });
+  const timerPrefs = React.useMemo(() => resolveTimerPrefs(boardState?.board), [boardState?.board]);
+  const todayPace = React.useMemo(() => (
+    run.complete && run.mode !== "exam"
+      ? computeTodayPace({
+          attempts: data?.attempts,
+          goal: dailyGoal,
+          focusMinutes: timerPrefs.workMinutes,
+          breakMinutes: timerPrefs.breakMinutes,
+        })
+      : null
+  ), [run.complete, run.mode, data?.attempts, dailyGoal, timerPrefs.workMinutes, timerPrefs.breakMinutes]);
+  const summaryPace = React.useMemo(() => {
+    if (!run.complete || run.mode === "exam" || !data?.paceForecast || roundTotal <= 0) return null;
+    const singleDeckId = run.deckId || (Array.isArray(run.scope) && run.scope.length === 1 ? run.scope[0]?.deckId : null);
+    const deckEntry = singleDeckId ? data.paceForecast.decks?.[singleDeckId] : null;
+    if (deckEntry?.status === "mastered") return { ...deckEntry, isSlice: true };
+    return buildSliceForecast({
+      count: roundTotal,
+      passedCount: run.correct ?? 0,
+      paceForecast: data.paceForecast,
+      deckId: singleDeckId,
+      course: roundCourse || data?.focus?.course || null,
+    });
+  }, [run.complete, run.mode, run.deckId, run.scope, run.correct, roundTotal, roundCourse, data?.paceForecast, data?.focus?.course]);
   return (
     <StudyServicesContext.Provider value={dock.services}>
     <section
@@ -235,6 +266,17 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
         eyebrow={flow ? [ui("学习流"), flow.stepIndex >= 0 && uiFormat("第 {0}/{1} 步", [flow.stepIndex + 1, flow.stepCount]), flow.stepTitle].filter(Boolean).join(" · ") : undefined}
         title={[shellTitle, run.mode === "flashcard" && ui("闪卡"), run.retry && !run.complete && ui("本轮重练")].filter(Boolean).join(" · ")}
         actions={<>
+          {run.mode !== "exam" && boardState && (
+            <LazyReviewFocusPill
+              boardState={boardState}
+              attempts={data?.attempts}
+              focusTitle={shellTitle}
+              root={data?.root || ""}
+              goal={dailyGoal}
+              onGoalChange={setDailyGoal}
+              onBoardChanged={() => app?.dailyPlan?.refresh?.()}
+            />
+          )}
           {host.openInSidebar && !run.complete && (
             <Tooltip layer content={ui("题目放到右栏，主区域回到主会话。在右栏里接着刚才做到的这一题继续。")}>
               <Button iconEnd="arrow-right" variant="quiet" busy={movingToSidebar} onClick={moveToSidebar}>{ui("在右栏打开")}</Button>
@@ -275,6 +317,9 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
           {/* The mastery of this round's questions before the first answer and now, in the run itself (lib/run-mastery.js), so it is drawn with the page.
               A reader round says it about its pages, in its own card with the way back. */}
           {readingBack ? <ReadingResult run={run} busy={busy} onReturn={onReturnToReading} /> : <MasteryChange kind="round" change={run.mastery} className="result-mastery" />}
+          {summaryPace && (
+            <PaceMeta variant="slice" forecast={summaryPace} pace={data?.paceForecast?.pace} asOf={data?.paceForecast?.asOf} />
+          )}
           <div className="result-hero sh-paper-card sh-paper-card--roomy" data-all-correct={allCorrect ? "true" : undefined}>
             <div className="result-headline">
               <strong>{typeof run.correct === "number" && Number.isFinite(run.correct) ? <LetterpressNumber value={run.correct} animateOnMount mountKey={run.id} /> : run.correct}</strong>
@@ -368,6 +413,11 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               </div>
             );
           })()}
+          {todayPace && (todayPace.goal !== null || todayPace.todayCount > 0) && (
+            <p className="review-today-pace" data-goal-met={todayPace.goalMet ? "true" : undefined}>
+              {formatTodayPaceLine(todayPace)}
+            </p>
+          )}
           <div className="summary-actions">
             {!run.closed && run.undoable && actions.undoAnswer && (
               <Button variant="quiet" data-usage="review.undo" aria-keyshortcuts="Z" lock={busy} onClick={actions.undoAnswer}>

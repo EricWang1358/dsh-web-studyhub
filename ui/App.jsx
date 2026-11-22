@@ -8,7 +8,7 @@ import { pageAvailable } from './capabilities.js';
 import { ui, uiFormat, useUiLanguage } from './i18n.js';
 import { abandonUndoable } from './undoable.js';
 import Tour from './tour/Tour.jsx';
-import { useBoard } from './board/use-board.js';
+import { boardSyncsOnPage, useBoard } from './board/use-board.js';
 import DailyPlan from './DailyPlan.jsx';
 import ShortcutHelp from './ShortcutHelp.jsx';
 import ActionFeedback, { useNotice, reviewNoticeScope } from './ActionFeedback.jsx';
@@ -109,7 +109,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
   const finder = useFinder({ nav, settingsEntry, core, tour, rootRef: shell.rootRef, learn });
   const selectionNotices = useSelectionNotices({ core, learn, data });
   const { courseActive } = useHostLinks({ host, core, nav, session, learn, lib: handle, rootRef: shell.rootRef, data, loading: connection.loading });
-  const boardState = useBoard(core.call, nav.page === 'board' || nav.page === 'dashboard', {
+  const boardState = useBoard(core.call, boardSyncsOnPage(nav.page), {
     initialBoard: warmEntry.warm?.board ?? null,
     onBoard: (next) => warmEntry.saveBoard(core.refs.bindingRoot.current || core.refs.dataRef.current?.root, next),
   });

@@ -12,6 +12,8 @@ import { loadUi } from './helpers/ui-module.mjs';
 
 const m = await loadUi(`
   export { openEnclosingDetails, resolveBookSearchTarget } from './ui/book/use-found-marks.js';
+  export { showBlock, showWords } from './ui/book/ai-anchors.js';
+  export { showCard } from './ui/book/term-card-go.js';
   export { keepBook, keptBook } from './ui/book/model.js';
   export { filterOutline, keepView, keptView, outlineViewKey, emptyPick } from './ui/outline/model.js';
   export { CourseOutlineView } from './ui/outline/CourseOutline.jsx';
@@ -454,5 +456,126 @@ test('FlagDialog uses shared Field + TextArea (.sh-input), and CSS enforces tabu
   for (const [file, pattern] of checks) {
     const css = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
     assert.match(css, pattern, `${file} matches ${pattern}`);
+  }
+});
+
+test('BookPage AI/term jumps (showBlock, showWords, showCard) and CSS scroll-margin-top clear sticky .topbar + .book-bar', () => {
+  const bookCss = readFileSync(new URL('../ui/book/book.css', import.meta.url), 'utf8');
+  const aiCss = readFileSync(new URL('../ui/book/book-ai.css', import.meta.url), 'utf8');
+  assert.match(bookCss, /--book-scroll-top:\s*calc\(var\(--book-bar-top,\s*0px\)\s*\+\s*var\(--book-bar-h,\s*44px\)\s*\+\s*var\(--space-5\)\)/);
+  for (const selector of ['.book-step {', '.book-step__heading {', '.book-chapter__heading {', '.book-node__heading {', '.book-card {', '.book-point [data-book-search-hit] {']) {
+    const idx = bookCss.indexOf(selector);
+    assert.ok(idx >= 0, `book.css contains ${selector}`);
+    const block = bookCss.slice(idx, bookCss.indexOf('}', idx) + 1);
+    assert.match(block, /scroll-margin-top:\s*var\(--book-scroll-top\)/, `${selector} uses --book-scroll-top`);
+  }
+  for (const selector of ['.book-ai {', '.book-ai-anchor {']) {
+    const idx = aiCss.indexOf(selector);
+    assert.ok(idx >= 0, `book-ai.css contains ${selector}`);
+    const block = aiCss.slice(idx, aiCss.indexOf('}', idx) + 1);
+    assert.match(block, /scroll-margin-top:\s*var\(--book-scroll-top/, `${selector} uses --book-scroll-top`);
+  }
+
+  const prevWindow = globalThis.window;
+  const prevDocument = globalThis.document;
+  const prevGetComputedStyle = globalThis.getComputedStyle;
+  const prevRaf = globalThis.requestAnimationFrame;
+  const prevCss = globalThis.CSS;
+  try {
+    let scrollNow = 0;
+    const scrolled = [];
+    const topbar = {
+      parentElement: { getBoundingClientRect: () => ({ top: -scrollNow, bottom: 4000 - scrollNow }) },
+      getBoundingClientRect: () => ({ top: 0, bottom: 51, height: 51 }),
+    };
+    const bar = {
+      closest: sel => (sel.includes('.study-app') ? scroller : null),
+      getBoundingClientRect: () => {
+        const top = Math.max(51, 180 - scrollNow);
+        return { top, bottom: top + 46, height: 46 };
+      },
+    };
+    const page = {
+      style: { getPropertyValue: () => '51px', setProperty: () => {} },
+      closest: sel => (sel.includes('.study-app') ? scroller : null),
+      querySelector: sel => (sel === '.book-bar' ? bar : null),
+    };
+    const scroller = {
+      clientTop: 0,
+      clientHeight: 800,
+      scrollHeight: 4000,
+      get scrollTop() { return scrollNow; },
+      set scrollTop(v) { scrollNow = v; },
+      getBoundingClientRect: () => ({ top: 0, bottom: 800, height: 800 }),
+      matches: sel => sel.includes('.study-app'),
+      contains: () => true,
+      querySelector: sel => (sel === '.topbar' ? topbar : null),
+      scrollTo: opts => { scrolled.push(opts); scrollNow = opts.top; },
+    };
+
+    const details = { open: false, parentElement: { closest: () => null } };
+    const focused = [];
+    const toggle = { focus: opts => focused.push(['toggle', opts]) };
+    const tallBlock = {
+      dataset: { aiBlock: 'b1' },
+      parentElement: scroller,
+      attrs: new Map(),
+      setAttribute(k, v) { this.attrs.set(k, v); },
+      removeAttribute(k) { this.attrs.delete(k); },
+      closest: sel => (sel === '.book-page' ? page : null),
+      querySelector: sel => (sel === '.book-ai__toggle' ? toggle : null),
+      getBoundingClientRect: () => ({ top: 1200 - scrollNow, bottom: 2200 - scrollNow, height: 1000 }),
+    };
+    const wordSpan = {
+      dataset: { aiIds: 'w1' },
+      parentElement: scroller,
+      attrs: new Map(),
+      setAttribute(k, v) { this.attrs.set(k, v); },
+      removeAttribute(k) { this.attrs.delete(k); },
+      closest: sel => (sel === 'details' ? details : sel === '.book-page' ? page : null),
+      focus: opts => focused.push(['span', opts]),
+      getBoundingClientRect: () => ({ top: 1500 - scrollNow, bottom: 1524 - scrollNow, height: 24 }),
+    };
+    const termCard = {
+      dataset: { termCard: 'K001' },
+      parentElement: scroller,
+      attrs: new Map(),
+      setAttribute(k, v) { this.attrs.set(k, v); },
+      removeAttribute(k) { this.attrs.delete(k); },
+      closest: sel => (sel === 'details' ? details : sel === '.book-page' ? page : null),
+      getBoundingClientRect: () => ({ top: 1800 - scrollNow, bottom: 2700 - scrollNow, height: 900 }),
+    };
+
+    globalThis.getComputedStyle = node => (node === scroller ? { overflowY: 'auto' } : node === topbar ? { position: 'sticky' } : {});
+    globalThis.window = { getComputedStyle: globalThis.getComputedStyle, innerHeight: 800 };
+    globalThis.CSS = { escape: s => s };
+    globalThis.requestAnimationFrame = fn => fn();
+    globalThis.document = {
+      scrollingElement: {},
+      querySelector: sel => (sel === '[data-term-card="K001"]' ? termCard : null),
+      querySelectorAll: sel => (sel === '[data-ai-block]' ? [tallBlock] : sel === '.book-ai-anchor' ? [wordSpan] : []),
+    };
+
+    assert.equal(m.showBlock('b1'), true);
+    assert.equal(scrolled.at(-1).top, 1200 - 113, 'tall AI block lands 16px below stuck .topbar + .book-bar (97 + 16 = 113)');
+    assert.deepEqual(focused.at(-1), ['toggle', { preventScroll: true }]);
+
+    scrollNow = 0;
+    assert.equal(m.showWords('w1'), true);
+    assert.equal(details.open, true);
+    assert.equal(scrolled.at(-1).top, 1500 - (113 + (687 - 24) / 2), 'short anchor span centers in usable viewport below sticky bar');
+    assert.deepEqual(focused.at(-1), ['span', { preventScroll: true }]);
+
+    scrollNow = 0;
+    details.open = false;
+    m.showCard('K001');
+    assert.equal(details.open, true);
+    assert.equal(scrolled.at(-1).top, 1800 - 113, 'tall term card lands 16px below stuck .topbar + .book-bar');
+  } finally {
+    globalThis.window = prevWindow;
+    globalThis.document = prevDocument;
+    globalThis.getComputedStyle = prevGetComputedStyle;
+    globalThis.requestAnimationFrame = prevRaf;
+    globalThis.CSS = prevCss;
   }
 });

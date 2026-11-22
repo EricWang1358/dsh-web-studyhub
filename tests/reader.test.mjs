@@ -8,6 +8,7 @@ import { READER_DEFAULTS, SIZES, UNDERLINES, READER_STORAGE_KEY, normalizeReader
 import { looksLikeHeading, classifyParagraph, splitParagraphs, readingSections, lineBreakPieces } from '../ui/document-preview/reader/text-sections.js';
 import { outlineFromSections, collectHeadings, pickActive, neighbours, readingProgress } from '../ui/document-preview/reader/outline.js';
 import { foldWithMap, foldQuery, matchOffsets, findRanges, textHits, paintMatches } from '../ui/document-preview/reader/find.js';
+import { ACTIVE_LINE_PX, CENTER_TOP_BREATHING_PX, TOP_BREATHING_PX, anchorScroll, scrollToNode, targetRect } from '../ui/document-preview/reader/useReadingPosition.js';
 
 /* ---------- settings ---------- */
 
@@ -632,6 +633,10 @@ test('#12, #56, #60 DocumentViewer: jump-back pill + Alt+ArrowLeft + 8s expiry, 
           builder.onResolve({ filter: /useReadingPosition\.js$/ }, () => ({ path: 'pos', namespace: 'dvp' }));
           builder.onLoad({ filter: /.*/, namespace: 'dvp' }, () => ({
             contents: `export const scrollToNode = (root, node) => globalThis.__DV_JUMP__?.('node', root, node);
+              export const anchorScroll = (root, node) => { globalThis.__DV_JUMP__?.('node', root, node); return () => {}; };
+              export const cancelAnchorScroll = () => {};
+              export const scrollerScale = () => 1;
+              export const targetRect = node => node?.getBoundingClientRect?.() ?? null;
               export const useReadingPosition = () => [{ activeId: globalThis.__DV_ACTIVE_ID__ ?? 'p1', progress: 0.1 }, id => globalThis.__DV_JUMP__?.('outline', id)];`,
             loader: 'js',
           }));
@@ -759,5 +764,167 @@ test('#12, #56, #60 DocumentViewer: jump-back pill + Alt+ArrowLeft + 8s expiry, 
     globalThis.requestAnimationFrame = prevRaf;
     globalThis.setTimeout = prevSetTimeout;
     globalThis.clearTimeout = prevClearTimeout;
+  }
+});
+
+test('scrollToNode & targetRect: supports Element and Range, skips empty client rects, and enforces top breathing room on tall targets', () => {
+  const prevWin = globalThis.window;
+  globalThis.window = { matchMedia: () => ({ matches: false }) };
+  try {
+    const makeScroller = (height = 500, initialTop = 0) => {
+      const s = {
+        scrollTop: initialTop,
+        clientHeight: height,
+        scrollHeight: 4000,
+        getBoundingClientRect: () => ({ top: 100, bottom: 100 + height, height }),
+        scrollTo({ top }) { s.scrollTop = top; },
+      };
+      return s;
+    };
+
+    // Short element centered
+    const shortScroller = makeScroller(500);
+    const shortEl = { nodeType: 1, getBoundingClientRect: () => ({ top: 1000, bottom: 1040, height: 40 }) };
+    scrollToNode(shortScroller, shortEl, { center: true, smooth: false });
+    // offset = (500 - 40) / 2 = 230 => top = 1000 - 100 - 230 = 670
+    assert.equal(shortScroller.scrollTop, 670);
+
+    // Tall element (> viewport) with center:true NEVER produces negative offset; keeps >= 24px top breathing room
+    const tallScroller = makeScroller(500);
+    const tallEl = { nodeType: 1, getBoundingClientRect: () => ({ top: 1000, bottom: 1900, height: 900 }) };
+    scrollToNode(tallScroller, tallEl, { center: true, smooth: false });
+    // offset = max(24, (500 - 900)/2) = 24 => top = 1000 - 100 - 24 = 876
+    assert.equal(tallScroller.scrollTop, 1000 - 100 - CENTER_TOP_BREATHING_PX);
+    assert.ok(CENTER_TOP_BREATHING_PX >= 24);
+
+    // Nearly full-height element (480 in 500) enforces >= 24px instead of (500-480)/2 = 10px
+    const nearFullScroller = makeScroller(500);
+    const nearFullEl = { nodeType: 1, getBoundingClientRect: () => ({ top: 1000, bottom: 1480, height: 480 }) };
+    scrollToNode(nearFullScroller, nearFullEl, { center: true, smooth: false });
+    assert.equal(nearFullScroller.scrollTop, 1000 - 100 - CENTER_TOP_BREATHING_PX);
+
+    // Range with leading empty rect (width: 0) followed by tall multi-line client rects
+    const rangeScroller = makeScroller(500);
+    const tallRange = {
+      startContainer: { isConnected: true },
+      getBoundingClientRect: () => ({ top: 880, bottom: 1620, left: 0, right: 300, width: 300, height: 740 }),
+      getClientRects: () => [
+        { top: 880, bottom: 898, left: 300, right: 300, width: 0, height: 18 }, // empty trailing line-break rect
+        { top: 900, bottom: 924, left: 20, right: 300, width: 280, height: 24 },
+        { top: 1596, bottom: 1620, left: 20, right: 240, width: 220, height: 24 },
+      ],
+    };
+    const measured = targetRect(tallRange);
+    assert.equal(measured.top, 900, 'skips leading zero-width rect');
+    assert.equal(measured.height, 720);
+    scrollToNode(rangeScroller, tallRange, { center: true, smooth: false });
+    assert.equal(rangeScroller.scrollTop, 900 - 100 - CENTER_TOP_BREATHING_PX);
+
+    // Non-centered alignment uses TOP_BREATHING_PX (16px <= ACTIVE_LINE_PX = 24px)
+    const headScroller = makeScroller(500);
+    scrollToNode(headScroller, shortEl, { center: false, smooth: false });
+    assert.equal(headScroller.scrollTop, 1000 - 100 - TOP_BREATHING_PX);
+    assert.ok(TOP_BREATHING_PX <= ACTIVE_LINE_PX);
+
+    // Zoomed UI (e.g. zoom: 1.5 via data-ui-scale="150"): getBoundingClientRect() returns zoomed screen px while scrollTop/offsetHeight are local CSS px
+    const zoomedScroller = {
+      scrollTop: 0,
+      clientHeight: 400,
+      offsetHeight: 400,
+      scrollHeight: 4000,
+      getBoundingClientRect: () => ({ top: 150, bottom: 750, height: 600 }),
+      scrollTo({ top }) { zoomedScroller.scrollTop = top; },
+    };
+    // Target at local offset +1000px, local height 40px -> zoomed rect: top = 150 + 1500 = 1650, height = 60
+    const zoomedTarget = { nodeType: 1, getBoundingClientRect: () => ({ top: 1650, bottom: 1710, height: 60 }) };
+    scrollToNode(zoomedScroller, zoomedTarget, { center: true, smooth: false });
+    // Local centered offset = (400 - 40) / 2 = 180 => local scrollTop = 1000 - 180 = 820 (not unscaled 1500 - 270 = 1230!)
+    assert.equal(zoomedScroller.scrollTop, 820);
+  } finally {
+    globalThis.window = prevWin;
+  }
+});
+
+test('anchorScroll: re-anchors across post-jump layout shifts and stops immediately on manual user scroll', () => {
+  const prevWin = globalThis.window, prevRaf = globalThis.requestAnimationFrame, prevCancel = globalThis.cancelAnimationFrame;
+  const prevSetTimeout = globalThis.setTimeout, prevClearTimeout = globalThis.clearTimeout, prevRO = globalThis.ResizeObserver;
+  const rafs = [], timers = [], observers = [];
+  globalThis.window = { matchMedia: () => ({ matches: false }) };
+  globalThis.requestAnimationFrame = fn => { rafs.push(fn); return rafs.length; };
+  globalThis.cancelAnimationFrame = () => {};
+  globalThis.setTimeout = (fn, ms) => { const t = { fn, ms, cleared: false }; timers.push(t); return t; };
+  globalThis.clearTimeout = t => { if (t) t.cleared = true; };
+  globalThis.ResizeObserver = class {
+    constructor(cb) { this.cb = cb; this.observed = []; observers.push(this); }
+    observe(el) { this.observed.push(el); }
+    disconnect() { this.disconnected = true; }
+  };
+  try {
+    let boxTop = 100, contentShift = 0;
+    const listeners = new Map();
+    const scroller = {
+      scrollTop: 0,
+      clientHeight: 500,
+      scrollHeight: 4000,
+      firstElementChild: { tag: 'page' },
+      getBoundingClientRect: () => ({ top: boxTop, bottom: boxTop + 500, height: 500 }),
+      scrollTo({ top }) { scroller.scrollTop = top; },
+      addEventListener(type, fn) { if (!listeners.has(type)) listeners.set(type, new Set()); listeners.get(type).add(fn); },
+      removeEventListener(type, fn) { listeners.get(type)?.delete(fn); },
+      emit(type, ev = {}) { listeners.get(type)?.forEach(fn => fn(ev)); },
+    };
+    const range = {
+      startContainer: { isConnected: true },
+      getBoundingClientRect: () => {
+        const top = 1200 + contentShift - scroller.scrollTop + boxTop;
+        return { top, bottom: top + 40, left: 0, right: 200, width: 200, height: 40 };
+      },
+      getClientRects: () => {
+        const top = 1200 + contentShift - scroller.scrollTop + boxTop;
+        return [{ top, bottom: top + 40, left: 0, right: 200, width: 200, height: 40 }];
+      },
+    };
+
+    const stop = anchorScroll(scroller, range, { center: true, smooth: false, settleMs: 700 });
+    // Initial: target doc offset 1200, centered offset = 230 => scrollTop = 970
+    assert.equal(scroller.scrollTop, 970);
+
+    // Late layout shift: content above target grows by +150px (e.g. image/KaTeX), ResizeObserver fires
+    contentShift = 150;
+    scroller.scrollHeight = 4150;
+    observers[0].cb();
+    assert.equal(scroller.scrollTop, 1120, 're-anchors to keep target centered after layout shift');
+
+    // Late notice shrinks scroller from top (+40px boxTop), double rAF fires
+    boxTop = 140;
+    rafs.splice(0).forEach(fn => fn());
+    assert.equal(scroller.scrollTop, 1120, 'stays centered relative to scroller');
+
+    // User manually scrolls with wheel -> cancels re-anchoring immediately
+    scroller.emit('wheel');
+    scroller.scrollTop = 300;
+    contentShift = 350;
+    observers.forEach(o => { if (!o.disconnected) o.cb(); });
+    rafs.splice(0).forEach(fn => fn());
+    assert.equal(scroller.scrollTop, 300, 'does not hijack manual user scroll');
+    stop();
+
+    // Non-layout scroll (e.g. scrollbar drag) without wheel also cancels re-anchoring
+    scroller.scrollTop = 0; contentShift = 0; boxTop = 100;
+    const stop2 = anchorScroll(scroller, range, { center: true, smooth: false, settleMs: 700 });
+    assert.equal(scroller.scrollTop, 970);
+    scroller.scrollTop = 500;
+    scroller.emit('scroll');
+    contentShift = 200;
+    observers.at(-1).cb();
+    assert.equal(scroller.scrollTop, 500, 'scrollbar drag cancels re-anchoring');
+    stop2();
+  } finally {
+    globalThis.window = prevWin;
+    globalThis.requestAnimationFrame = prevRaf;
+    globalThis.cancelAnimationFrame = prevCancel;
+    globalThis.setTimeout = prevSetTimeout;
+    globalThis.clearTimeout = prevClearTimeout;
+    globalThis.ResizeObserver = prevRO;
   }
 });

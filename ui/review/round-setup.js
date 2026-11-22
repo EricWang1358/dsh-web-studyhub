@@ -1,5 +1,6 @@
 import { practiceArgs } from '../learning-navigation.js';
 import { resolvePracticeSettings } from '../../lib/practice-settings.js';
+import { buildSliceForecast } from '../pace/slice-forecast.js';
 
 /* 本轮设置 (#1010), the pure side: what the popover next to a start button shows first, and the review.start arguments it makes of a choice.
    A choice is { size, range: 'mixed' | 'due' | 'new' | 'wrong', chapter: { deckId, topic } | null }.
@@ -170,4 +171,23 @@ export function estimateRoundMinutes({ size, range: _range, chapter, data, cards
   const minMinutes = Math.max(1, Math.round((count * avgMinSec) / 60));
   const maxMinutes = Math.max(minMinutes, Math.round((count * avgMaxSec) / 60));
   return [minMinutes, maxMinutes];
+}
+
+/**
+ * Estimate mastery ETA for the selected slice in RoundSetup using the snapshot's compact `paceForecast`.
+ * Returns `null` when `paceForecast` is absent or size is invalid.
+ */
+export function estimateSlicePace({ size, range = 'mixed', chapter = null, data = null, course = null, scope = null } = {}) {
+  const paceForecast = data?.paceForecast;
+  if (!paceForecast) return null;
+  const deckId = chapter?.deckId
+    || (Array.isArray(scope) && scope.length === 1 ? scope[0]?.deckId : null)
+    || null;
+  return buildSliceForecast({
+    count: size,
+    range,
+    paceForecast,
+    deckId,
+    course: course || data?.focus?.course || null,
+  });
 }

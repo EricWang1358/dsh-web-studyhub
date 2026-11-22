@@ -8,6 +8,7 @@
     .book-page {
       --book-bar-top: 0px;
       --book-bar-h: 44px;
+      --book-scroll-top: calc(var(--book-bar-top, 0px) + var(--book-bar-h, 44px) + var(--space-5));
       display: grid;
       gap: var(--space-3);
       align-content: start;
@@ -112,6 +113,7 @@
       background: var(--bg-selected);
       border-radius: var(--radius-xs);
       box-shadow: 0 0 0 4px var(--bg-selected);
+      scroll-margin-top: var(--book-scroll-top);
       transition: background-color var(--dur-slow) var(--ease), box-shadow var(--dur-slow) var(--ease);
     }
     .book-point__bar,
@@ -198,6 +200,7 @@
       border-top: 1px solid var(--line-soft);
       border-radius: var(--radius-sm);
       min-width: 0;
+      scroll-margin-top: var(--book-scroll-top);
       transition: background-color var(--dur-slow) var(--ease);
     }
     .book-card:first-child {
@@ -293,7 +296,7 @@
       display: grid;
       gap: var(--space-3);
       min-width: 0;
-      scroll-margin-top: var(--space-4);
+      scroll-margin-top: var(--book-scroll-top);
     }
     .book-step__path {
       display: flex;
@@ -321,7 +324,7 @@
       font-size: var(--fs-2xl);
       font-weight: var(--fw-strong);
       line-height: var(--lh-tight);
-      scroll-margin-top: var(--space-6);
+      scroll-margin-top: var(--book-scroll-top);
     }
     .book-point__gap-wrap {
       display: grid;
@@ -478,6 +481,7 @@
     .book-chapter__heading {
       margin: 0;
       font-size: var(--fs-xl);
+      scroll-margin-top: var(--book-scroll-top);
     }
     .book-chapter__toggle {
       text-align: left;
@@ -506,7 +510,7 @@
       font-size: var(--fs-lg);
       font-weight: var(--fw-strong);
       line-height: var(--lh-snug);
-      scroll-margin-top: var(--space-6);
+      scroll-margin-top: var(--book-scroll-top);
     }
     .book-node__number {
       color: var(--text-muted);

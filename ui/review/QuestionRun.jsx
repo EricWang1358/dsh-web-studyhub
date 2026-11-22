@@ -16,7 +16,7 @@ import ThumbFeedback from "../ThumbFeedback.jsx";
 import PracticeTip from "./PracticeTip.jsx";
 import TermChips from "./TermChips.jsx";
 import TermListDialog from "./TermListDialog.jsx";
-import { collectInFlightTerms, partitionMarkedTerms } from "./term-marks.js";
+import { useTermSubmitQueue } from "./use-term-submit-queue.js";
 import { useTermMarking } from "./use-term-marking.js";
 import { usePracticeTip } from "./use-practice-tip.js";
 import { voteTipMoments } from "../guidance/practice-tips.js";
@@ -204,63 +204,9 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const termMarks = useTermMarking({ session: liveSession, reviewBodyRef, notify, call, courseName: termCourseName, assistTasks });
   const openTermListDialog = () => { termMarks.refreshCourseTerms(); setTermListOpen(true); };
   const chapterHint = useChapterHint({ run, cardPlace, allFollowups, currentTerms: termMarks.terms, tipShown: practiceTip.tip, tourRunning: !!tourRunning });
-  const assistTasksRef = React.useRef(assistTasks);
-  assistTasksRef.current = assistTasks;
-  const submitTokenRef = React.useRef(0);
-  const [pendingTermSubmits, setPendingTermSubmits] = React.useState([]);
-  React.useEffect(() => {
-    setPendingTermSubmits((prev) => {
-      if (!prev.length) return prev;
-      const next = prev.filter((item) => !item.settled || item.tasksAtSettle === assistTasks);
-      return next.length === prev.length ? prev : next;
-    });
-  }, [assistTasks]);
-  const cardTasks = React.useMemo(
-    () => (assistTasks || []).filter((task) => task.cardId === run.card?.id),
-    [assistTasks, run.card?.id],
-  );
-  const runningTasks = cardTasks.filter((task) => task.status === "running" && task.mode !== "grade");
-  const runningTermsTasks = runningTasks.filter((task) => task.mode === "terms");
-  const otherRunningTasks = runningTasks.filter((task) => task.mode !== "terms");
-  const lastTask = cardTasks.filter((task) => task.mode !== "grade").at(-1);
-  const optimisticTermsForCard = React.useMemo(
-    () => pendingTermSubmits.filter((item) => item.cardId === run.card?.id).flatMap((item) => item.terms),
-    [pendingTermSubmits, run.card?.id],
-  );
-  const inFlightTerms = React.useMemo(
-    () => collectInFlightTerms(assistTasks, run.card?.id, optimisticTermsForCard),
-    [assistTasks, run.card?.id, optimisticTermsForCard],
-  );
-  const runningTask = runningTasks[0] || (inFlightTerms.length > 0 ? { mode: "terms", terms: inFlightTerms } : null);
-  const applyMarkedTerms = async (terms) => {
-    const { pendingTerms } = partitionMarkedTerms(terms, inFlightTerms);
-    if (!pendingTerms.length) return;
-    if (!model.ready) {
-      setAssistMode("ask");
-      return;
-    }
-    chapterHint.noteFillTerms();
-    const cardId = run.card?.id;
-    const token = ++submitTokenRef.current;
-    if (cardId) {
-      setPendingTermSubmits((prev) => [...prev, { token, cardId, terms: pendingTerms, settled: false, tasksAtSettle: null }]);
-    }
-    let ok = false;
-    try {
-      ok = await assistAct("terms", "", [], { terms: pendingTerms });
-    } finally {
-      if (cardId) {
-        if (!ok) {
-          setPendingTermSubmits((prev) => prev.filter((item) => item.token !== token));
-        } else {
-          const snapshotTasks = assistTasksRef.current;
-          setPendingTermSubmits((prev) => prev.map((item) => (
-            item.token === token ? { ...item, settled: true, tasksAtSettle: snapshotTasks } : item
-          )));
-        }
-      }
-    }
-  };
+  const { cardTasks, runningTermsTasks, otherRunningTasks, lastTask, inFlightTerms, runningTask, applyMarkedTerms } = useTermSubmitQueue({
+    assistTasks, cardId: run.card?.id, modelReady: model.ready, setAssistMode, noteFillTerms: chapterHint.noteFillTerms, assistAct,
+  });
   React.useEffect(() => { setClozeFocusTick(0); setTermListOpen(false); }, [run.id, run.index, run.card?.id]);
   useAssistWatch({ session: liveSession, assistTasks, cardId: run.card?.id });
   const readingStyle = useReadingProps().style || {};

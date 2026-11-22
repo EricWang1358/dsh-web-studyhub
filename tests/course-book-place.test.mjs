@@ -19,8 +19,8 @@ import { loadUi } from './helpers/ui-module.mjs';
 import { bookService } from './helpers/book-agent-library.mjs';
 
 const ui = await loadUi(`export * from './ui/book/model.js';
-  export { placeKeeper } from './ui/book/use-book-place.js';
-  export { readShare } from './ui/book/BookBar.jsx';`);
+  export { holdPlace, placeKeeper, scrollTargetTop, scrollUnderBar, targetBox } from './ui/book/use-book-place.js';
+  export { readShare, stickBar } from './ui/book/BookBar.jsx';`);
 
 /** A Map with the Storage methods the page's storage helpers call. */
 const memoryStorage = () => {
@@ -300,4 +300,175 @@ test('book.read {hid: "unplaced"} stays under the 8 000-character budget and sup
   assert.ok(jumped.sections.some(section => section.title.startsWith('段 38 ')), 'sections follow the read offset');
   assert.equal(await codeOf(study.call('book.read', { hid: 'unplaced', heading: '不存在' })), 'book-section-missing');
   assert.equal(await codeOf(study.call('book.read', { hid: 'unplaced', heading: '段 1', offset: 10 })), 'book-read-heading-offset');
+});
+
+function makeStickyBookDom({ scrollTop = 0, scrollerHeight = 800, zoom = 1, topbarHeight = 51, mainBottomAt0 = 5000, barTopAt0 = 180, barHeight = 46, targetTopAt0 = 1000, targetHeight = 40, scrollerContainsChrome = true }) {
+  const styles = new Map();
+  let currentScroll = scrollTop;
+  let lastScrollTo = null;
+  const stickyTopAt = s => Math.max(0, Math.min(topbarHeight, mainBottomAt0 - s));
+  const barTopAt = s => Math.max(stickyTopAt(s), barTopAt0 - s);
+  const topbar = {
+    parentElement: { getBoundingClientRect: () => ({ top: -currentScroll * zoom, bottom: (mainBottomAt0 - currentScroll) * zoom }) },
+    getBoundingClientRect: () => {
+      const bottom = stickyTopAt(currentScroll) * zoom;
+      return { top: bottom - topbarHeight * zoom, bottom, height: topbarHeight * zoom };
+    },
+  };
+  const bar = {
+    closest: sel => (sel.includes('.study-app') ? scroller : null),
+    getBoundingClientRect: () => {
+      const top = barTopAt(currentScroll) * zoom;
+      return { top, bottom: top + barHeight * zoom, height: barHeight * zoom };
+    },
+  };
+  const page = {
+    style: {
+      getPropertyValue: k => styles.get(k) || '',
+      setProperty: (k, v) => { styles.set(k, v); },
+    },
+    closest: sel => (sel.includes('.study-app') ? scroller : null),
+    querySelector: sel => (sel === '.book-bar' ? bar : null),
+  };
+  const scroller = {
+    clientTop: 0,
+    clientHeight: scrollerHeight,
+    offsetHeight: scrollerHeight,
+    scrollHeight: 6000,
+    get scrollTop() { return currentScroll; },
+    set scrollTop(v) { currentScroll = v; },
+    getBoundingClientRect: () => ({ top: 0, bottom: scrollerHeight * zoom, height: scrollerHeight * zoom }),
+    matches: sel => sel.includes('.study-app'),
+    contains: node => (scrollerContainsChrome ? (node === bar || node === topbar || node === page) : false),
+    querySelector: sel => (sel === '.topbar' ? topbar : null),
+    scrollTo: opts => { lastScrollTo = opts; currentScroll = opts.top; },
+  };
+  const target = {
+    isConnected: true,
+    parentElement: scroller,
+    closest: sel => (sel === '.book-page' ? page : null),
+    getBoundingClientRect: () => {
+      const top = (targetTopAt0 - currentScroll) * zoom;
+      return { top, bottom: top + targetHeight * zoom, height: targetHeight * zoom };
+    },
+  };
+  const prevWindow = globalThis.window;
+  const prevDocument = globalThis.document;
+  const prevGetComputedStyle = globalThis.getComputedStyle;
+  globalThis.getComputedStyle = node => {
+    if (node === scroller) return { overflowY: 'auto' };
+    if (node === topbar) return { position: 'sticky' };
+    return {};
+  };
+  globalThis.window = { getComputedStyle: globalThis.getComputedStyle, innerHeight: scrollerHeight * zoom };
+  globalThis.document = { scrollingElement: {} };
+  return {
+    scroller,
+    page,
+    target,
+    styles,
+    getScrollTo: () => lastScrollTo,
+    restore: () => {
+      globalThis.window = prevWindow;
+      globalThis.document = prevDocument;
+      globalThis.getComputedStyle = prevGetComputedStyle;
+    },
+  };
+}
+
+test('scrollTargetTop and scrollUnderBar clear sticky .topbar + .book-bar from scrollTop=0, when scrolling up into .topbar range, and for tall blocks', () => {
+  // 1) Starting at scrollTop === 0 while .book-bar is still unstuck under .book-header (180..226): uses stuck bottom (51 + 46 = 97), not 226
+  const atTop = makeStickyBookDom({ scrollTop: 0, barTopAt0: 180, barHeight: 46, topbarHeight: 51, mainBottomAt0: 5000, targetTopAt0: 1000 });
+  try {
+    assert.equal(ui.scrollTargetTop({ target: atTop.target, scroller: atTop.scroller, page: atTop.page, margin: 16 }), 887);
+  } finally { atTop.restore(); }
+
+  // 2) Starting scrolled down where .topbar scrolled away (--book-bar-top: 0px) and jumping UP into .topbar range: accounts for .topbar returning
+  const upToTopbar = makeStickyBookDom({ scrollTop: 2000, barTopAt0: 180, barHeight: 46, topbarHeight: 51, mainBottomAt0: 900, targetTopAt0: 500 });
+  try {
+    assert.equal(ui.scrollTargetTop({ target: upToTopbar.target, scroller: upToTopbar.scroller, page: upToTopbar.page, margin: 16 }), 387);
+  } finally { upToTopbar.restore(); }
+
+  // 3) Jumping right near the .topbar transition boundary (950 with mainBottomAt0=900): stays cleanly below .topbar + .book-bar
+  const boundary = makeStickyBookDom({ scrollTop: 0, barTopAt0: 180, barHeight: 46, topbarHeight: 51, mainBottomAt0: 900, targetTopAt0: 950 });
+  try {
+    assert.equal(ui.scrollTargetTop({ target: boundary.target, scroller: boundary.scroller, page: boundary.page, margin: 16 }), 837);
+  } finally { boundary.restore(); }
+
+  // 4) Jumping deep below .topbar range where .topbar is gone at destination: clears only stuck .book-bar (46 + 16 = 62)
+  const pastTopbar = makeStickyBookDom({ scrollTop: 0, barTopAt0: 180, barHeight: 46, topbarHeight: 51, mainBottomAt0: 900, targetTopAt0: 1500 });
+  try {
+    assert.equal(ui.scrollTargetTop({ target: pastTopbar.target, scroller: pastTopbar.scroller, page: pastTopbar.page, margin: 16 }), 1438);
+  } finally { pastTopbar.restore(); }
+
+  // 5) scrollUnderBar({ center: true }): centers short block within remaining viewport below sticky bar, clamps tall block below sticky bar
+  const shortBlock = makeStickyBookDom({ scrollTop: 0, scrollerHeight: 800, barTopAt0: 180, barHeight: 46, topbarHeight: 51, mainBottomAt0: 5000, targetTopAt0: 1200, targetHeight: 80 });
+  try {
+    ui.scrollUnderBar(shortBlock.target, { center: true, margin: 16 });
+    assert.equal(shortBlock.getScrollTo().top, 1200 - (113 + (687 - 80) / 2));
+  } finally { shortBlock.restore(); }
+
+  const tallBlock = makeStickyBookDom({ scrollTop: 0, scrollerHeight: 800, barTopAt0: 180, barHeight: 46, topbarHeight: 51, mainBottomAt0: 5000, targetTopAt0: 1200, targetHeight: 1000 });
+  try {
+    ui.scrollUnderBar(tallBlock.target, { center: true, margin: 16 });
+    assert.equal(tallBlock.getScrollTo().top, 1200 - 113);
+  } finally { tallBlock.restore(); }
+
+  // 6) Nested scroller that does not contain .book-bar / .topbar does not subtract their height
+  const nested = makeStickyBookDom({ scrollTop: 0, scrollerHeight: 500, targetTopAt0: 400, targetHeight: 40, scrollerContainsChrome: false });
+  try {
+    assert.equal(ui.scrollTargetTop({ target: nested.target, scroller: nested.scroller, page: nested.page, margin: 16 }), 376);
+  } finally { nested.restore(); }
+
+  // 7) CSS zoom (offsetHeight: 800, rect.height: 1000 -> scale = 1.25): converts zoomed rects back to unzoomed scrollTop px & --book-bar-top
+  const zoomed = makeStickyBookDom({ scrollTop: 0, scrollerHeight: 800, zoom: 1.25, barTopAt0: 180, barHeight: 46, topbarHeight: 51, mainBottomAt0: 5000, targetTopAt0: 1000 });
+  try {
+    ui.stickBar(zoomed.page);
+    assert.equal(zoomed.styles.get('--book-bar-top'), '51px', 'stickBar writes unzoomed CSS px under zoom=1.25');
+    assert.equal(ui.scrollTargetTop({ target: zoomed.target, scroller: zoomed.scroller, page: zoomed.page, margin: 16 }), 887);
+    ui.scrollUnderBar(zoomed.target, { center: true, margin: 16 });
+    assert.equal(zoomed.getScrollTo().top, 1000 - (113 + (687 - 40) / 2));
+  } finally { zoomed.restore(); }
+
+  // 8) Range with empty leading getClientRects() rects skips zero-size rects cleanly
+  const rangeZoomed = makeStickyBookDom({ scrollTop: 0, scrollerHeight: 800, zoom: 1.5, barTopAt0: 180, barHeight: 46, topbarHeight: 51, mainBottomAt0: 5000, targetTopAt0: 1000 });
+  try {
+    const rangeTarget = {
+      getClientRects: () => [
+        { top: 0, bottom: 0, width: 0, height: 0 },
+        { top: 1500, bottom: 1536, width: 200, height: 36 },
+        { top: 1536, bottom: 1572, width: 120, height: 36 },
+      ],
+      getBoundingClientRect: () => ({ top: 0, bottom: 1572, height: 1572 }),
+    };
+    assert.deepEqual(ui.targetBox(rangeTarget), { top: 1500, bottom: 1572, height: 72 });
+    assert.equal(ui.scrollTargetTop({ target: rangeTarget, scroller: rangeZoomed.scroller, page: rangeZoomed.page, margin: 16 }), 887);
+  } finally { rangeZoomed.restore(); }
+
+  // 9) holdPlace divides screen-px offset by zoom scale before adjusting scrollTop
+  const holdZoomed = makeStickyBookDom({ scrollTop: 887, scrollerHeight: 800, zoom: 1.25, targetTopAt0: 1050 });
+  const prevRaf = globalThis.requestAnimationFrame;
+  const prevCancelRaf = globalThis.cancelAnimationFrame;
+  const prevWinAdd = globalThis.window.addEventListener;
+  const prevWinRemove = globalThis.window.removeEventListener;
+  try {
+    let rafFn = null;
+    globalThis.requestAnimationFrame = fn => { rafFn = fn; return 1; };
+    globalThis.cancelAnimationFrame = () => {};
+    globalThis.window.addEventListener = () => {};
+    globalThis.window.removeEventListener = () => {};
+    // Desired screen top is 113 * 1.25 = 141.25; target shifted down by 50 CSS px (62.5 screen px) to 1050 -> scrollTop should increase by 50 CSS px to 937
+    const stop = ui.holdPlace(holdZoomed.target, holdZoomed.page, 113 * 1.25);
+    rafFn();
+    assert.equal(holdZoomed.getScrollTo().top, 937);
+    stop();
+  } finally {
+    globalThis.requestAnimationFrame = prevRaf;
+    globalThis.cancelAnimationFrame = prevCancelRaf;
+    if (globalThis.window) {
+      globalThis.window.addEventListener = prevWinAdd;
+      globalThis.window.removeEventListener = prevWinRemove;
+    }
+    holdZoomed.restore();
+  }
 });

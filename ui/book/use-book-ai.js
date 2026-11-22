@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { flushSync } from 'react-dom';
 import { ui, errorMessage } from '../i18n.js';
 import { usePolling } from '../use-polling.js';
 import { isActiveJob } from '../../lib/job-status.js';
@@ -102,8 +101,15 @@ export function useBookAi({ call, course, notify, reload, book, setBook, rows, a
     for (const line of written) {
       if (markLanded(line.id)) continue;
       latest.current.notify({ text: ui('AI 段落写好了'), tone: 'success', action: { label: ui('去看'), iconEnd: 'arrow-right', onClick: () => {
-        latest.current.goTo?.(line.heading);
-        setTimeout(() => { flushSync(() => latest.current.aiFold?.fold(line.id, false)); showBlock(line.id); }, 120);
+        latest.current.aiFold?.fold(line.id, false);
+        latest.current.goTo?.(line.heading, { hold: false });
+        let left = 30;
+        const look = () => {
+          if (showBlock(line.id)) return;
+          if (--left > 0 && typeof requestAnimationFrame === 'function') requestAnimationFrame(look);
+        };
+        if (typeof requestAnimationFrame === 'function') requestAnimationFrame(look);
+        else showBlock(line.id);
       } } });
     }
   }, [book, lines]);

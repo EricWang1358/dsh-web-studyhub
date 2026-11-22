@@ -4,7 +4,8 @@ import Markdown from "./Markdown.jsx";
 import { kinds, useInjectCss } from "./shared.js";
 import css from "./manage.css";
 import { useStudy } from "./study-context.jsx";
-import { AppContext } from "./app/app-context.js";
+import { AppContext, useOptionalAppSelector } from "./app/app-context.js";
+import PaceMeta from "./pace/PaceMeta.jsx";
 import { cardMatchesReview, reviewedCardStatus } from "../lib/review-integrity.js";
 import { aiDraftedCitedCardCount, selfCitedCardCount } from "../lib/source-provenance.js";
 import { Badge, Banner, Button, CheckboxInput, Combobox, ConfirmDialog, PageHeader, Panel, SegmentedControl, useToast } from "./components/index.js";
@@ -36,10 +37,13 @@ export default function Manage({
   setFolderDraft,
   onRemoveDeck,
   runs = [],
+  paceForecast: propPaceForecast,
 }) {
   useInjectCss(css, "study-manage");
   const { call, busy, act, openModal } = useStudy();
   const appCtx = useContext(AppContext);
+  const storePaceForecast = useOptionalAppSelector((state) => state.data?.paceForecast);
+  const paceForecast = propPaceForecast ?? storePaceForecast ?? appCtx?.data?.paceForecast;
   const refreshLibrary = appCtx?.core?.refresh;
   const courses = appCtx?.data?.courses;
   const toast = useToast();
@@ -99,6 +103,9 @@ export default function Manage({
           {managedDeck.archived && <Badge size="sm" tone="warning">{ui("已归档")}</Badge>}
           {parts.length > 1 && <span className="manage-parts" data-deck-parts>{partsLine(parts)}</span>}
         </div>
+        {!slainView && !managedDeck.archived && paceForecast?.decks?.[managedDeck.id] && (
+          <PaceMeta variant="deck" forecast={paceForecast.decks[managedDeck.id]} pace={paceForecast.pace} asOf={paceForecast.asOf} />
+        )}
         {managedDeck.originalTitle && managedDeck.originalTitle !== managedDeck.title &&
           <p className="muted">{ui("导入原标题：")}{managedDeck.originalTitle}</p>}
       </PageHeader>
