@@ -1265,7 +1265,7 @@ const ConfusableContrastModal = memo(function ConfusableContrastModal({
             {rows.slice(0, 8).map((row, idx) => (
               <Box key={idx} flexDirection="column" marginBottom={0}>
                 <Text color={theme.primary} bold>
-                  {truncateDisplay(`${useTuiStore.getState().preferences.asciiMode ? '>' : '▸'} ${row.aspect || t(lang, '对比维度', 'Aspect')}`, innerW)}
+                  {truncateDisplay(`${asciiMode ? '>' : '▸'} ${row.aspect || t(lang, '对比维度', 'Aspect')}`, innerW)}
                 </Text>
                 {(row.cells ?? []).map((cell, ci) => (
                   <Text key={ci} color={theme.text}>

@@ -69,6 +69,16 @@ function extractStaticImportSpecifiers(source) {
   return specs;
 }
 
+function extractDynamicImportSpecifiers(source) {
+  const specs = [];
+  const dynRe = /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
+  const reqRe = /\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
+  let m;
+  while ((m = dynRe.exec(source)) !== null) specs.push(m[1]);
+  while ((m = reqRe.exec(source)) !== null) specs.push(m[1]);
+  return specs;
+}
+
 describe('StudyHub TUI NFR Performance & Bundle Budgets', () => {
   test('1. Bundle size budgets for cli.mjs, boot-frame.mjs, and App.mjs', () => {
     const budgets = [
@@ -285,6 +295,22 @@ describe('StudyHub TUI NFR Performance & Bundle Budgets', () => {
     assert.ok(!externalImports.has('zod'), 'dist/App.mjs static closure must not import zod');
     assert.ok(!externalImports.has('marked'), 'dist/App.mjs static closure must not import marked');
     assert.ok(!externalImports.has('cli-highlight'), 'dist/App.mjs static closure must not import cli-highlight');
+
+    const allDistMjs = fs.readdirSync(distDir).filter((f) => f.endsWith('.mjs'));
+    assert.ok(allDistMjs.length > 0, 'dist/ must contain built .mjs chunks');
+    for (const file of allDistMjs) {
+      const code = fs.readFileSync(path.join(distDir, file), 'utf8');
+      const allSpecs = [
+        ...extractStaticImportSpecifiers(code),
+        ...extractDynamicImportSpecifiers(code),
+      ];
+      for (const spec of allSpecs) {
+        assert.ok(
+          spec !== 'zod' && !spec.startsWith('zod/'),
+          `dist/${file} must not statically or dynamically import zod (found ${spec})`,
+        );
+      }
+    }
 
     const appSource = fs.readFileSync(path.join(pkgRoot, 'src/App.tsx'), 'utf8');
     const librarySource = fs.readFileSync(path.join(pkgRoot, 'src/views/library/LibraryView.tsx'), 'utf8');

@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
-import { z } from 'zod';
 
 export type BoardColumnId = 'todo' | 'doing' | 'done';
 
@@ -66,66 +65,75 @@ export interface BoardDocument {
   updatedAt: string;
 }
 
-const BoardCardSchema = z.object({
-  id: z.string().trim().min(1).max(120),
-  title: z.string().trim().min(1).max(300),
-  column: z.enum(['todo', 'doing', 'done']).catch('todo'),
-  course: z.string().trim().max(120).optional().catch(undefined),
-  dueDate: z.string().trim().max(40).optional().catch(undefined),
-  upstreamCardId: z.string().trim().min(1).max(120).optional().catch(undefined),
-  createdAt: z.string().catch(() => new Date().toISOString()),
-  updatedAt: z.string().catch(() => new Date().toISOString()),
-});
+function isPlainObject(raw: unknown): raw is Record<string, unknown> {
+  return Boolean(raw) && typeof raw === 'object' && !Array.isArray(raw);
+}
 
-const FocusStatsSchema = z.object({
-  date: z
-    .string()
-    .trim()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .catch(() => todayLocalYmd()),
-  completedPomodoros: z.number().int().min(0).max(999).catch(0),
-  focusedMinutes: z.number().int().min(0).max(14400).catch(0),
-});
+function parseTrimmedString(raw: unknown, minLen: number, maxLen: number): string | undefined {
+  if (typeof raw !== 'string') return undefined;
+  const trimmed = raw.trim();
+  if (trimmed.length < minLen || trimmed.length > maxLen) return undefined;
+  return trimmed;
+}
 
-const BoardDocumentSchema = z.object({
-  version: z.literal(1).catch(1),
-  cards: z
-    .array(z.unknown())
-    .transform((items) => {
-      const seen = new Set<string>();
-      const out: BoardCard[] = [];
-      for (const raw of items) {
-        const parsed = BoardCardSchema.safeParse(raw);
-        if (!parsed.success) continue;
-        if (seen.has(parsed.data.id)) continue;
-        seen.add(parsed.data.id);
-        out.push({
-          ...parsed.data,
-          ...(parsed.data.course ? { course: parsed.data.course } : {}),
-          ...(parsed.data.dueDate ? { dueDate: parsed.data.dueDate } : {}),
-          ...(parsed.data.upstreamCardId ? { upstreamCardId: parsed.data.upstreamCardId } : {}),
-        });
-      }
-      return out;
-    })
-    .catch([]),
-  deletedUpstreamIds: z
-    .array(z.string().trim().min(1).max(120))
-    .transform((ids) => {
-      const seen = new Set<string>();
-      const out: string[] = [];
-      for (const id of ids) {
-        if (seen.has(id)) continue;
-        seen.add(id);
-        out.push(id);
-      }
-      return out.slice(-MAX_DELETED_UPSTREAM_IDS);
-    })
-    .default([])
-    .catch([]),
-  focusStats: FocusStatsSchema.optional().catch(undefined),
-  updatedAt: z.string().catch(() => new Date().toISOString()),
-});
+function parseIntInRange(raw: unknown, min: number, max: number, fallback: number): number {
+  if (typeof raw !== 'number' || !Number.isInteger(raw) || raw < min || raw > max) {
+    return fallback;
+  }
+  return raw === 0 ? 0 : raw;
+}
+
+function parseBoardColumn(raw: unknown): BoardColumnId {
+  return raw === 'todo' || raw === 'doing' || raw === 'done' ? raw : 'todo';
+}
+
+function parseBoardCard(raw: unknown): BoardCard | null {
+  if (!isPlainObject(raw)) return null;
+  const id = parseTrimmedString(raw.id, 1, 120);
+  const title = parseTrimmedString(raw.title, 1, 300);
+  if (!id || !title) return null;
+
+  const column = parseBoardColumn(raw.column);
+  const course = parseTrimmedString(raw.course, 1, 120);
+  const dueDate = parseTrimmedString(raw.dueDate, 1, 40);
+  const upstreamCardId = parseTrimmedString(raw.upstreamCardId, 1, 120);
+  const now = new Date().toISOString();
+  const createdAt = typeof raw.createdAt === 'string' ? raw.createdAt : now;
+  const updatedAt = typeof raw.updatedAt === 'string' ? raw.updatedAt : now;
+
+  return {
+    id,
+    title,
+    column,
+    ...(course !== undefined ? { course } : {}),
+    ...(dueDate !== undefined ? { dueDate } : {}),
+    ...(upstreamCardId !== undefined ? { upstreamCardId } : {}),
+    createdAt,
+    updatedAt,
+  };
+}
+
+function parseFocusStats(raw: unknown): FocusStats | undefined {
+  if (!isPlainObject(raw)) return undefined;
+  const rawDate = typeof raw.date === 'string' ? raw.date.trim() : '';
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : todayLocalYmd();
+  const completedPomodoros = parseIntInRange(raw.completedPomodoros, 0, 999, 0);
+  const focusedMinutes = parseIntInRange(raw.focusedMinutes, 0, 14400, 0);
+  return { date, completedPomodoros, focusedMinutes };
+}
+
+function parseDeletedUpstreamIds(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const item of raw) {
+    const id = parseTrimmedString(item, 1, 120);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out.slice(-MAX_DELETED_UPSTREAM_IDS);
+}
 
 export function boardFilePath(libraryRoot: string): string {
   const base = libraryRoot?.trim() ? resolve(libraryRoot.trim()) : process.cwd();
@@ -154,11 +162,32 @@ export function recordDeletedUpstreamIds(existing: readonly string[] | undefined
   return out.slice(-MAX_DELETED_UPSTREAM_IDS);
 }
 
+/** Parse and sanitize arbitrary JSON input into a valid `BoardDocument` without throwing. */
 export function parseBoardDocument(raw: unknown): BoardDocument {
-  const source = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
-  const parsed = BoardDocumentSchema.safeParse(source);
-  if (!parsed.success) return emptyBoard();
-  return parsed.data;
+  if (!isPlainObject(raw)) return emptyBoard();
+
+  const cards: BoardCard[] = [];
+  if (Array.isArray(raw.cards)) {
+    const seen = new Set<string>();
+    for (const item of raw.cards) {
+      const card = parseBoardCard(item);
+      if (!card || seen.has(card.id)) continue;
+      seen.add(card.id);
+      cards.push(card);
+    }
+  }
+
+  const deletedUpstreamIds = parseDeletedUpstreamIds(raw.deletedUpstreamIds);
+  const focusStats = parseFocusStats(raw.focusStats);
+  const updatedAt = typeof raw.updatedAt === 'string' ? raw.updatedAt : new Date().toISOString();
+
+  return {
+    version: 1,
+    cards,
+    deletedUpstreamIds,
+    ...(focusStats !== undefined ? { focusStats } : {}),
+    updatedAt,
+  };
 }
 
 export type BoardLoadResult =

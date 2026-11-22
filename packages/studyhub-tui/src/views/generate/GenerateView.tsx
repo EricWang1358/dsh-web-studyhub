@@ -235,7 +235,7 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
     }
     await refresh();
     const jobId = res.value?.jobId || res.value?.id;
-    notify(t(lang, '后台出题任务已启动，正在跳转任务监控…', 'Generation job started — opening Tasks…'), 'success');
+    notify(t(lang, `后台出题任务已启动，正在跳转任务监控${ell}`, `Generation job started — opening Tasks${ell}`), 'success');
     navigate('tasks', jobId ? { jobId } : {});
   }, [
     submitting,

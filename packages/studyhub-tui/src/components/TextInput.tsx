@@ -4,6 +4,7 @@ import stripAnsi from 'strip-ansi';
 import { useTheme } from '../theme/tokens.js';
 import { displayWidth } from '../render/index.js';
 import { useTuiStore } from '../state/store.js';
+import { normalizeAsciiChrome } from './Badge.js';
 import { useInputCapture } from './focus.js';
 
 export interface TextInputProps {
@@ -272,16 +273,22 @@ export const TextInput = memo(function TextInput({
   );
 
   const maskChar = mask === true ? (asciiMode ? '*' : '•') : typeof mask === 'string' && mask ? mask : null;
-  const promptEl = prompt ? <Text color={isActive ? theme.primary : theme.muted}>{`${prompt} `}</Text> : null;
+  const renderedPrompt = prompt ? normalizeAsciiChrome(prompt, asciiMode) : prompt;
+  const renderedPlaceholder = placeholder ? normalizeAsciiChrome(placeholder, asciiMode) : placeholder;
+  const promptEl = renderedPrompt ? (
+    <Text color={isActive ? theme.primary : theme.muted}>{`${renderedPrompt} `}</Text>
+  ) : null;
   const fieldWidth = Math.max(1, width);
 
   if (value.length === 0) {
     return (
-      <Box width={fieldWidth + (prompt ? displayWidth(prompt) + 1 : 0)} height={multiline ? height : 1}>
+      <Box width={fieldWidth + (renderedPrompt ? displayWidth(renderedPrompt) + 1 : 0)} height={multiline ? height : 1}>
         {promptEl}
         <Text>
-          {isActive ? <Text inverse>{placeholder ? chars(placeholder)[0] : ' '}</Text> : null}
-          <Text color={theme.dim}>{isActive ? chars(placeholder).slice(1).join('') : placeholder}</Text>
+          {isActive ? <Text inverse>{renderedPlaceholder ? chars(renderedPlaceholder)[0] : ' '}</Text> : null}
+          <Text color={theme.dim}>
+            {isActive ? chars(renderedPlaceholder).slice(1).join('') : renderedPlaceholder}
+          </Text>
         </Text>
       </Box>
     );
@@ -333,14 +340,14 @@ export const TextInput = memo(function TextInput({
         if (!isCurRow || !isActive) {
           return (
             <Box key={r} height={1}>
-              {i === 0 ? promptEl : prompt ? <Text>{' '.repeat(displayWidth(prompt) + 1)}</Text> : null}
+              {i === 0 ? promptEl : renderedPrompt ? <Text>{' '.repeat(displayWidth(renderedPrompt) + 1)}</Text> : null}
               <Text color={theme.text}>{line.slice(win.start, win.end).join('') || ' '}</Text>
             </Box>
           );
         }
         return (
           <Box key={r} height={1}>
-            {i === 0 ? promptEl : prompt ? <Text>{' '.repeat(displayWidth(prompt) + 1)}</Text> : null}
+            {i === 0 ? promptEl : renderedPrompt ? <Text>{' '.repeat(displayWidth(renderedPrompt) + 1)}</Text> : null}
             <Text color={theme.text}>
               {line.slice(win.start, curCol).join('')}
               <Text inverse>{curCol < line.length ? line[curCol] : ' '}</Text>

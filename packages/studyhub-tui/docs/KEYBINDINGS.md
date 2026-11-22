@@ -138,7 +138,7 @@ Inside the palette: `↑`/`↓`, `Ctrl+P`/`Ctrl+N`, or `Ctrl+J`/`Ctrl+K` move se
 - **Pomodoro**: `P` / `Space` start/pause timer · `M` switch focus/break mode · `+` / `-` adjust minutes · `R` reset timer
 
 ### `t` Jobs / Tasks (`tasks`)
-- `1` / `2` / `3` / `Tab` filter Running / All / Archived · `o` live output modal · `m` send refinement message to active job · `w` workflow history · `v` toggle output / trace · `Enter` open draft · `x` cancel job · `a` archive/restore · `d` dismiss/delete
+- `1` / `2` / `3` / `Tab` filter Running / All / Archived · `o` live output modal · `m` send refinement message to active job · `w` workflow history · `v` toggle output / trace · `e` export trace JSON · `D` purge saved traces · `Enter` open draft · `x` cancel job · `a` archive/restore · `d` dismiss/delete
 
 ### `a` Audio (`audio`)
 - `i` import audio file (with Tab path completion) · `s` transcription provider settings · `t` test provider connectivity · `g` generate questions from transcript · `r` refresh

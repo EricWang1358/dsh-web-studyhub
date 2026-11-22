@@ -103,6 +103,7 @@ export const TeachModal = memo(function TeachModal({
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const ell = asciiMode ? '...' : '…';
   const notify = useTuiStore((s) => s.notify);
 
   const initialTeaching = (run as { teaching?: TeachingSessionView | null } | null)?.teaching ?? null;
@@ -284,10 +285,10 @@ export const TeachModal = memo(function TeachModal({
       }
     }
     if (submitting) {
-      blocks.push(t(lang, '_导师正在评估你的回答…_', '_Tutor is evaluating your response…_'));
+      blocks.push(t(lang, `_导师正在评估你的回答${ell}_`, `_Tutor is evaluating your response${ell}_`));
     }
     return blocks.join('\n\n---\n\n');
-  }, [turns, submitting, lang, asciiMode]);
+  }, [turns, submitting, lang, asciiMode, ell]);
 
   const frameW = Math.max(48, Math.min(96, width - 4));
   const frameH = Math.max(16, Math.min(34, height - 2));
@@ -361,7 +362,7 @@ export const TeachModal = memo(function TeachModal({
           ) : null}
         </Box>
         {submitting ? (
-          <Spinner label={t(lang, '批改中…', 'Checking…')} tone="ai" active={isActive} />
+          <Spinner label={t(lang, `批改中${ell}`, `Checking${ell}`)} tone="ai" active={isActive} />
         ) : (
           <Text color={theme.dim}>
             {truncateDisplay(
@@ -376,7 +377,7 @@ export const TeachModal = memo(function TeachModal({
 
       {loading ? (
         <Box height={scrollH} width={innerW} alignItems="center" justifyContent="center" flexDirection="column" gap={1}>
-          <Spinner label={t(lang, '正在生成苏格拉底带学阶梯…', 'Preparing Socratic teaching steps…')} tone="ai" active={isActive} />
+          <Spinner label={t(lang, `正在生成苏格拉底带学阶梯${ell}`, `Preparing Socratic teaching steps${ell}`)} tone="ai" active={isActive} />
           <Text color={theme.dim}>{t(lang, '紧扣本题前置知识与原文证据，逐步引导理解', 'Building prerequisite steps grounded in source material')}</Text>
         </Box>
       ) : errorText ? (
@@ -436,7 +437,7 @@ export const TeachModal = memo(function TeachModal({
                 prompt={asciiMode ? '>' : '›'}
                 placeholder={
                   submitting
-                    ? t(lang, '正在提交…', 'Submitting…')
+                    ? t(lang, `正在提交${ell}`, `Submitting${ell}`)
                     : t(lang, '输入你的回答，Enter 提交 · Tab 切换滚动 · Esc 关闭', 'Your answer (Enter submit · Tab scroll · Esc close)')
                 }
                 onTab={() => {

@@ -6,6 +6,39 @@ import { displayWidth, truncateDisplay } from '../render/cjk.js';
 import { renderProgressBar } from '../render/charts.js';
 import { useTuiStore } from '../state/store.js';
 
+const ASCII_CHROME_MAP: Record<string, string> = {
+  '…': '...',
+  '↑↓': 'Up/Down',
+  '↑/↓': 'Up/Down',
+  '←/→': 'Left/Right',
+  '←→': 'Left/Right',
+  '↑': 'Up',
+  '↓': 'Down',
+  '←': 'Left',
+  '→': 'Right',
+  '›': '>',
+  '▸': '>',
+  '▾': 'v',
+  '•': '-',
+  '✓': 'OK',
+  '✕': 'x',
+  '★': '*',
+  '◆': '*',
+  '●': '*',
+  '○': 'o',
+  '☑': '[x]',
+  '☐': '[ ]',
+  '⚠': '[!]',
+};
+
+const ASCII_CHROME_RE = /↑↓|↑\/↓|←\/→|←→|[…↑↓←→›▸▾•✓✕★◆●○☑☐⚠]/g;
+
+/** Normalize Unicode UI chrome glyphs to clean ASCII equivalents when `ascii` is true. */
+export function normalizeAsciiChrome(text: string, ascii: boolean): string {
+  if (!ascii || !text) return text;
+  return text.replace(ASCII_CHROME_RE, (match) => ASCII_CHROME_MAP[match] ?? match);
+}
+
 /* ------------------------------------------------------------------ Badge */
 
 export interface BadgeProps {
@@ -130,10 +163,11 @@ export const Spinner = memo(function Spinner({ label, tone = 'accent', intervalM
     const timer = setInterval(() => setFrame((f) => (f + 1) % frames.length), intervalMs);
     return () => clearInterval(timer);
   }, [active, intervalMs, frames.length]);
+  const normLabel = label ? normalizeAsciiChrome(label, asciiMode) : undefined;
   return (
     <Text>
       <Text color={toneColor(theme, tone)}>{frames[frame % frames.length]}</Text>
-      {label ? <Text color={theme.muted}>{` ${label}`}</Text> : null}
+      {normLabel ? <Text color={theme.muted}>{` ${normLabel}`}</Text> : null}
     </Text>
   );
 });
@@ -152,28 +186,34 @@ export interface EmptyStateProps {
 export const EmptyState = memo(function EmptyState({ title, hint, icon, actions, width, height }: EmptyStateProps) {
   const theme = useTheme();
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
-  const glyph = icon ?? (asciiMode ? 'o' : '◌');
+  const glyph = icon ? normalizeAsciiChrome(icon, asciiMode) : (asciiMode ? 'o' : '◌');
+  const normTitle = normalizeAsciiChrome(title, asciiMode);
+  const normHint = hint ? normalizeAsciiChrome(hint, asciiMode) : undefined;
   return (
     <Box flexDirection="column" alignItems="center" justifyContent="center" width={width} height={height} flexGrow={height ? 0 : 1}>
       <Text color={theme.dim}>{glyph}</Text>
       <Box marginTop={1}>
         <Text color={theme.text} bold>
-          {title}
+          {normTitle}
         </Text>
       </Box>
-      {hint ? (
+      {normHint ? (
         <Box marginTop={0}>
-          <Text color={theme.muted}>{hint}</Text>
+          <Text color={theme.muted}>{normHint}</Text>
         </Box>
       ) : null}
       {actions && actions.length > 0 ? (
         <Box marginTop={1} gap={2}>
-          {actions.map((a) => (
-            <Text key={a.key}>
-              <Text backgroundColor={theme.surface} color={theme.primary} bold>{` ${a.key} `}</Text>
-              <Text color={theme.muted}>{` ${a.label}`}</Text>
-            </Text>
-          ))}
+          {actions.map((a) => {
+            const normKey = normalizeAsciiChrome(a.key, asciiMode);
+            const normActionLabel = normalizeAsciiChrome(a.label, asciiMode);
+            return (
+              <Text key={a.key}>
+                <Text backgroundColor={theme.surface} color={theme.primary} bold>{` ${normKey} `}</Text>
+                <Text color={theme.muted}>{` ${normActionLabel}`}</Text>
+              </Text>
+            );
+          })}
         </Box>
       ) : null}
     </Box>
@@ -193,15 +233,19 @@ export interface KeyHintBarProps {
 export const KeyHintBar = memo(function KeyHintBar({ hints, width, right }: KeyHintBarProps) {
   const theme = useTheme();
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
-  const rightText = right ? truncateDisplay(right, Math.max(0, Math.floor(width / 3)), asciiMode ? '...' : '…') : '';
+  const rightText = right
+    ? truncateDisplay(normalizeAsciiChrome(right, asciiMode), Math.max(0, Math.floor(width / 3)), asciiMode ? '...' : '…')
+    : '';
   const budget = width - (rightText ? displayWidth(rightText) + 2 : 0) - 1;
   const shown: KeyHint[] = [];
   let used = 1;
   for (const h of hints) {
-    const w = displayWidth(h.key) + 2 + 1 + displayWidth(h.label) + 2;
+    const normKey = normalizeAsciiChrome(h.key, asciiMode);
+    const normLabel = normalizeAsciiChrome(h.label, asciiMode);
+    const w = displayWidth(normKey) + 2 + 1 + displayWidth(normLabel) + 2;
     if (used + w > budget) break;
     used += w;
-    shown.push(h);
+    shown.push({ ...h, key: normKey, label: normLabel });
   }
   return (
     <Box width={width} height={1} overflow="hidden">
@@ -253,7 +297,8 @@ const ToastRow = memo(function ToastRow({
     return () => clearTimeout(timer);
   }, [toast.id, toast.tone, toast.createdAt, autoDismissMs, onDismiss]);
   const color = toneColor(theme, toast.tone);
-  const text = truncateDisplay(toast.text.replace(/\s+/g, ' '), Math.max(4, width - 6), asciiMode ? '...' : '…');
+  const normalizedText = normalizeAsciiChrome(toast.text, asciiMode).replace(/\s+/g, ' ');
+  const text = truncateDisplay(normalizedText, Math.max(4, width - 6), asciiMode ? '...' : '…');
   const bar = asciiMode ? '|' : '▎';
   const icon = (asciiMode ? ASCII_TOAST_ICON : TOAST_ICON)[toast.tone];
   return (

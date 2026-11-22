@@ -1,4 +1,8 @@
 import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { randomUUID } from 'node:crypto';
+import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import { Box, Text, useInput, useWindowSize } from 'ink';
 import type { HostClient, KeyHint, UiLanguage, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
@@ -48,10 +52,77 @@ interface JobRecord {
 const MAX_LOG_LINES = 200;
 const ACTIVE_STATUSES = new Set(['running', 'queued', 'pending', 'pausing', 'cancelling', 'in_progress', 'started']);
 
+function sanitizeJobIdForFilename(jobId: string): string {
+  const cleaned = String(jobId || 'job')
+    .replace(/[/\\]/g, '-')
+    .replace(/\.\.+/g, '-')
+    .replace(/[^a-zA-Z0-9_-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 64);
+  return cleaned || 'job';
+}
+
+function formatTraceTimestamp(d = new Date()): string {
+  const yyyy = String(d.getFullYear());
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  const ss = String(d.getSeconds()).padStart(2, '0');
+  return `${yyyy}${mm}${dd}-${hh}${mi}${ss}`;
+}
+
+/**
+ * Atomically export a job's request trace JSON into `<libraryRoot>/exports/trace-<safeJobId>-<yyyymmdd-hhmmss>.json`.
+ * Sanitizes `jobId` against path traversal and creates `exports/` if missing.
+ */
+export async function exportJobTraceToFile(
+  libraryRoot: string,
+  jobId: string,
+  tracePayload: unknown,
+): Promise<string> {
+  const baseRoot = libraryRoot?.trim() ? resolve(libraryRoot.trim()) : tmpdir();
+  const exportsDir = resolve(join(baseRoot, 'exports'));
+  await mkdir(exportsDir, { recursive: true });
+
+  const safeJobId = sanitizeJobIdForFilename(jobId);
+  const fileName = `trace-${safeJobId}-${formatTraceTimestamp()}.json`;
+  const targetPath = resolve(join(exportsDir, fileName));
+  if (dirname(targetPath) !== exportsDir) {
+    throw new Error(`Refusing trace export outside exports directory: ${targetPath}`);
+  }
+
+  const tmpPath = join(exportsDir, `.${fileName}.${randomUUID()}.tmp`);
+  const serialized = `${JSON.stringify(tracePayload ?? null, null, 2)}\n`;
+  try {
+    await writeFile(tmpPath, serialized, 'utf8');
+    await rename(tmpPath, targetPath);
+  } catch (err) {
+    await rm(tmpPath, { force: true }).catch(() => {});
+    throw err;
+  }
+  return targetPath;
+}
+
 function capLines(text: string, maxLines = MAX_LOG_LINES): string[] {
   const lines = text.split(/\r?\n/);
   if (lines.length <= maxLines) return lines;
   return lines.slice(-maxLines);
+}
+
+function textField(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (value && typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+    if (typeof obj.text === 'string') return obj.text;
+    if (typeof obj.message === 'string') return obj.message;
+    if (typeof obj.label === 'string') return obj.label;
+    if (typeof obj.title === 'string') return obj.title;
+    if (typeof obj.code === 'string') return obj.code;
+  }
+  return '';
 }
 
 function normalizeJob(raw: Record<string, unknown>, archived = false): JobRecord {
@@ -86,7 +157,7 @@ function normalizeJob(raw: Record<string, unknown>, archived = false): JobRecord
     .map((c) => ({
       id: String(c.id ?? c.callId ?? ''),
       status: typeof c.status === 'string' ? c.status : undefined,
-      stage: typeof c.stage === 'string' ? c.stage : undefined,
+      stage: textField(c.stage) || undefined,
       kind: typeof c.kind === 'string' ? c.kind : undefined,
     }))
     .filter((c) => Boolean(c.id));
@@ -96,20 +167,27 @@ function normalizeJob(raw: Record<string, unknown>, archived = false): JobRecord
 
   return {
     id: String(raw.id ?? contract?.jobId ?? ''),
-    title: String(raw.title ?? contract?.title ?? raw.type ?? raw.kind ?? raw.id ?? '后台任务'),
-    type: String(raw.type ?? raw.kind ?? contract?.kind ?? 'job'),
+    title:
+      textField(raw.title) ||
+      textField(contract?.title) ||
+      textField(raw.type) ||
+      textField(raw.kind) ||
+      textField(raw.id) ||
+      '后台任务',
+    type: textField(raw.type) || textField(raw.kind) || textField(contract?.kind) || 'job',
     status,
     progress: Math.max(0, Math.min(1, progress)),
-    phase: String(raw.phase ?? contract?.stage ?? raw.stage ?? raw.message ?? ''),
+    phase:
+      textField(raw.phase) ||
+      textField(contract?.stage) ||
+      textField(raw.stage) ||
+      textField(raw.message),
     draftId:
       (typeof raw.draftId === 'string' && raw.draftId) ||
       (typeof resultObj?.draftId === 'string' && resultObj.draftId) ||
       undefined,
     course: typeof raw.course === 'string' ? raw.course : undefined,
-    error:
-      (typeof raw.error === 'string' && raw.error) ||
-      (typeof errObj?.message === 'string' && errObj.message) ||
-      undefined,
+    error: textField(raw.error) || textField(errObj?.message) || textField(errObj) || undefined,
     startedAt: (raw.startedAt ?? contract?.startedAt ?? raw.createdAt) as string | number | undefined,
     finishedAt: (raw.finishedAt ?? contract?.finishedAt) as string | number | undefined,
     calls,
@@ -329,13 +407,13 @@ const JobOutputModal = memo(function JobOutputModal({
   const showJson = viewMode === 'json' || parsed.kind === 'json';
 
   const hints: KeyHint[] = useMemo(() => {
-    const h: KeyHint[] = [{ key: '↑↓/Pg', label: t(lang, '滚动', 'Scroll') }];
-    if (job.calls.length > 1) h.push({ key: '←/→', label: t(lang, '调用', 'Call') });
+    const h: KeyHint[] = [{ key: asciiMode ? 'Up/Dn/Pg' : '↑↓/Pg', label: t(lang, '滚动', 'Scroll') }];
+    if (job.calls.length > 1) h.push({ key: asciiMode ? '<-/->' : '←/→', label: t(lang, '调用', 'Call') });
     if (parsed.kind !== 'empty') h.push({ key: 'm', label: showJson ? 'Markdown' : 'JSON' });
     h.push({ key: 'r', label: t(lang, '刷新', 'Refresh') });
     h.push({ key: 'Esc', label: t(lang, '关闭', 'Close') });
     return h;
-  }, [job.calls.length, lang, parsed.kind, showJson]);
+  }, [asciiMode, job.calls.length, lang, parsed.kind, showJson]);
 
   const callBadge = activeCall
     ? `${activeCall.stage || activeCall.kind || activeCall.id} (${callIdx + 1}/${job.calls.length})`
@@ -380,7 +458,7 @@ const JobOutputModal = memo(function JobOutputModal({
       <Box width={innerW} height={bodyH} overflow="hidden">
         {loading ? (
           <Box width={innerW} height={bodyH} alignItems="center" justifyContent="center">
-            <Spinner label={t(lang, '正在获取任务输出…', 'Loading job output…')} active={isActive} />
+            <Spinner label={t(lang, `正在获取任务输出${ell}`, `Loading job output${ell}`)} active={isActive} />
           </Box>
         ) : parsed.kind === 'empty' ? (
           <EmptyState
@@ -524,14 +602,14 @@ const JobMessageModal = memo(function JobMessageModal({
             isActive={isActive && !submitting}
             width={inputW}
             prompt={asciiMode ? '> ' : '› '}
-            placeholder={t(lang, '例如：多出几道边界条件与反例题…', 'e.g. Add more boundary-case questions…')}
+            placeholder={t(lang, `例如：多出几道边界条件与反例题${ell}`, `e.g. Add more boundary-case questions${ell}`)}
             maxLength={4000}
             captureInput={false}
           />
         </Box>
         {submitting ? (
           <Box marginTop={1}>
-            <Spinner label={t(lang, '正在投递补充说明…', 'Delivering message…')} active={isActive} />
+            <Spinner label={t(lang, `正在投递补充说明${ell}`, `Delivering message${ell}`)} active={isActive} />
           </Box>
         ) : validationError ? (
           <Box marginTop={1}>
@@ -565,10 +643,21 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [detailMode, setDetailMode] = useState<'output' | 'trace'>('output');
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [confirmPurgeTraceOpen, setConfirmPurgeTraceOpen] = useState(false);
   const [outputModalOpen, setOutputModalOpen] = useState(false);
   const [messageModalOpen, setMessageModalOpen] = useState(false);
   const [workflowModalOpen, setWorkflowModalOpen] = useState(false);
+  const [traceReloadTick, setTraceReloadTick] = useState(0);
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   // Bounded detail buffers (capped at 200 lines — memory NFR)
   const [outputLines, setOutputLines] = useState<string[]>([]);
@@ -665,6 +754,7 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
           purpose?: string;
           status?: string;
           model?: string;
+          deleted?: boolean;
           tokenUsage?: { uncachedInputTokens?: number; outputTokens?: number };
         }>;
         unavailableReason?: string;
@@ -683,7 +773,8 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
             const outTok = c.tokenUsage?.outputTokens ?? 0;
             const arrow = asciiMode ? '->' : '→';
             const tok = inTok || outTok ? ` · ${inTok}${arrow}${outTok} tok` : '';
-            return `[${c.status || 'ok'}] ${c.stage || c.purpose || c.callId || 'call'} (${c.model || 'model'}${tok})`;
+            const purged = c.deleted ? ' · purged' : '';
+            return `[${c.status || 'ok'}] ${c.stage || c.purpose || c.callId || 'call'} (${c.model || 'model'}${tok}${purged})`;
           });
           setTraceLines(lines.slice(-MAX_LOG_LINES));
         }
@@ -694,119 +785,239 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
     return () => {
       cancelled = true;
     };
-  }, [host, isActive, selectedJob?.id, selectedJob?.status, selectedJob?.calls.length]);
+  }, [asciiMode, host, isActive, selectedJob?.id, selectedJob?.status, selectedJob?.calls.length, traceReloadTick]);
+
+  const resolveLibraryRoot = useCallback((): string => {
+    const hostWithInfo = host as HostClient & { getInfo?: () => { libraryRoot?: string } | null };
+    return (
+      host.getLibraryRoot?.()?.trim() ||
+      hostWithInfo.getInfo?.()?.libraryRoot?.trim() ||
+      host.getConfig?.()?.libraryRoot?.trim() ||
+      snapshot?.root?.trim() ||
+      tmpdir()
+    );
+  }, [host, snapshot?.root]);
 
   const handleCancel = useCallback(async () => {
-    if (!selectedJob || busy) return;
+    if (!selectedJob || busy || busyRef.current) return;
     if (!ACTIVE_STATUSES.has(selectedJob.status)) {
       notify(t(lang, '该任务已结束，无需取消', 'Job is already finished'), 'info');
       return;
     }
+    busyRef.current = true;
     setBusy(true);
-    const res = await tryAction(host, 'job.cancel', { jobId: selectedJob.id });
-    setBusy(false);
-    if (!res.ok) {
-      notify(res.error?.message || t(lang, '取消任务失败', 'Cancel failed'), 'error');
-      return;
+    try {
+      const res = await tryAction(host, 'job.cancel', { jobId: selectedJob.id });
+      if (!mountedRef.current) return;
+      if (!res.ok) {
+        notify(res.error?.message || t(lang, '取消任务失败', 'Cancel failed'), 'error');
+        return;
+      }
+      await refresh();
+      if (mountedRef.current) {
+        notify(t(lang, '已请求取消任务', 'Job cancel requested'), 'success');
+      }
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusy(false);
     }
-    await refresh();
-    notify(t(lang, '已请求取消任务', 'Job cancel requested'), 'success');
   }, [busy, host, lang, notify, refresh, selectedJob]);
 
   const handleArchive = useCallback(async () => {
-    if (!selectedJob || busy) return;
+    if (!selectedJob || busy || busyRef.current) return;
     if (ACTIVE_STATUSES.has(selectedJob.status)) {
       notify(t(lang, '运行中的任务无法归档', 'Running jobs cannot be archived'), 'info');
       return;
     }
+    busyRef.current = true;
     setBusy(true);
-    if (selectedJob.archived) {
-      const res = await tryAction<{ unarchived?: string[]; missing?: string[] }>(host, 'job.unarchive', {
-        jobId: selectedJob.id,
-      });
-      setBusy(false);
+    try {
+      if (selectedJob.archived) {
+        const res = await tryAction<{ unarchived?: string[]; missing?: string[] }>(host, 'job.unarchive', {
+          jobId: selectedJob.id,
+        });
+        if (!mountedRef.current) return;
+        if (!res.ok) {
+          notify(res.error?.message || t(lang, '恢复归档任务失败', 'Unarchive failed'), 'error');
+          return;
+        }
+        await refresh();
+        if (mountedRef.current) {
+          notify(t(lang, '任务已从归档恢复', 'Job restored from archive'), 'success');
+        }
+        return;
+      }
+      const res = await tryAction<{ archived?: string[]; skipped?: Array<{ id: string; reason: string }> }>(
+        host,
+        'job.archive',
+        { jobId: selectedJob.id },
+      );
+      if (!mountedRef.current) return;
       if (!res.ok) {
-        notify(res.error?.message || t(lang, '恢复归档任务失败', 'Unarchive failed'), 'error');
+        notify(res.error?.message || t(lang, '归档任务失败', 'Archive failed'), 'error');
+        return;
+      }
+      if (res.value?.skipped?.length) {
+        notify(
+          t(lang, `任务未能归档 (${res.value.skipped[0].reason})`, `Skipped (${res.value.skipped[0].reason})`),
+          'warning',
+        );
         return;
       }
       await refresh();
-      notify(t(lang, '任务已从归档恢复', 'Job restored from archive'), 'success');
-      return;
+      if (mountedRef.current) {
+        notify(t(lang, '任务已归档', 'Job archived'), 'success');
+      }
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusy(false);
     }
-    const res = await tryAction<{ archived?: string[]; skipped?: Array<{ id: string; reason: string }> }>(
-      host,
-      'job.archive',
-      { jobId: selectedJob.id },
-    );
-    setBusy(false);
-    if (!res.ok) {
-      notify(res.error?.message || t(lang, '归档任务失败', 'Archive failed'), 'error');
-      return;
-    }
-    if (res.value?.skipped?.length) {
-      notify(
-        t(lang, `任务未能归档 (${res.value.skipped[0].reason})`, `Skipped (${res.value.skipped[0].reason})`),
-        'warning',
-      );
-      return;
-    }
-    await refresh();
-    notify(t(lang, '任务已归档', 'Job archived'), 'success');
   }, [busy, host, lang, notify, refresh, selectedJob]);
 
   const handleDeleteConfirm = useCallback(async () => {
-    if (!selectedJob || busy) return;
+    if (!selectedJob || busy || busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
-    const dismissRes = await tryAction(host, 'job.dismiss', { jobId: selectedJob.id });
-    if (dismissRes.ok) {
-      setBusy(false);
+    try {
+      const dismissRes = await tryAction(host, 'job.dismiss', { jobId: selectedJob.id });
+      if (!mountedRef.current) return;
+      if (dismissRes.ok) {
+        setConfirmDeleteOpen(false);
+        await refresh();
+        if (mountedRef.current) {
+          notify(t(lang, '任务记录已移除', 'Job removed'), 'success');
+        }
+        return;
+      }
+      const delRes = await tryAction<{
+        deleted?: string[];
+        skipped?: Array<{ id?: string; reason?: string }>;
+        missing?: string[];
+      }>(host, 'job.delete', { jobIds: [selectedJob.id] });
+      if (!mountedRef.current) return;
       setConfirmDeleteOpen(false);
+      if (!delRes.ok) {
+        notify(delRes.error?.message || t(lang, '删除任务失败', 'Delete failed'), 'error');
+        return;
+      }
+      if (delRes.value?.skipped?.length) {
+        const reason = delRes.value.skipped[0]?.reason;
+        notify(
+          reason === 'running'
+            ? t(lang, '运行中的任务无法直接删除，请先按 [x] 取消任务', 'Running job cannot be removed; press [x] to cancel it first')
+            : t(lang, `任务未能删除 (${reason || 'skipped'})`, `Job could not be removed (${reason || 'skipped'})`),
+          'warning',
+        );
+        return;
+      }
+      if (delRes.value?.deleted && delRes.value.deleted.length === 0 && delRes.value.missing?.length) {
+        await refresh();
+        if (mountedRef.current) {
+          notify(t(lang, '该任务记录已不存在，已刷新列表', 'Job record was already gone; list refreshed'), 'info');
+        }
+        return;
+      }
       await refresh();
-      notify(t(lang, '任务记录已移除', 'Job removed'), 'success');
-      return;
+      if (mountedRef.current) {
+        notify(t(lang, '任务记录已移除', 'Job removed'), 'success');
+      }
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusy(false);
     }
-    const delRes = await tryAction<{
-      deleted?: string[];
-      skipped?: Array<{ id?: string; reason?: string }>;
-      missing?: string[];
-    }>(host, 'job.delete', { jobIds: [selectedJob.id] });
-    setBusy(false);
-    setConfirmDeleteOpen(false);
-    if (!delRes.ok) {
-      notify(delRes.error?.message || t(lang, '删除任务失败', 'Delete failed'), 'error');
-      return;
-    }
-    if (delRes.value?.skipped?.length) {
-      const reason = delRes.value.skipped[0]?.reason;
-      notify(
-        reason === 'running'
-          ? t(lang, '运行中的任务无法直接删除，请先按 [x] 取消任务', 'Running job cannot be removed; press [x] to cancel it first')
-          : t(lang, `任务未能删除 (${reason || 'skipped'})`, `Job could not be removed (${reason || 'skipped'})`),
-        'warning',
-      );
-      return;
-    }
-    if (delRes.value?.deleted && delRes.value.deleted.length === 0 && delRes.value.missing?.length) {
-      await refresh();
-      notify(t(lang, '该任务记录已不存在，已刷新列表', 'Job record was already gone; list refreshed'), 'info');
-      return;
-    }
-    await refresh();
-    notify(t(lang, '任务记录已移除', 'Job removed'), 'success');
   }, [busy, host, lang, notify, refresh, selectedJob]);
 
-  const modalOpen = confirmDeleteOpen || outputModalOpen || messageModalOpen || workflowModalOpen;
+  const handleExportTrace = useCallback(async () => {
+    if (!selectedJob || busy || busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      const res = await tryAction<{
+        archived?: boolean;
+        unavailableReason?: string;
+        calls?: Array<{ callId?: string; retained?: boolean; deleted?: boolean }>;
+      }>(host, 'job.trace.export', { jobId: selectedJob.id });
+      if (!mountedRef.current) return;
+      if (!res.ok) {
+        notify(res.error?.message || t(lang, '导出调用轨迹失败', 'Trace export failed'), 'error');
+        return;
+      }
+      const payload = res.value;
+      const calls = Array.isArray(payload?.calls) ? payload.calls : [];
+      if (!payload || payload.archived || calls.length === 0 || calls.every((c) => c.deleted)) {
+        const reason = payload?.unavailableReason;
+        const msg =
+          reason === 'archived'
+            ? t(lang, '已归档任务不保留调用轨迹', 'Archived jobs do not retain traces')
+            : reason === 'deleted-by-user'
+              ? t(lang, '该任务的调用轨迹已被清空', 'Traces for this job have been purged')
+              : t(lang, '该任务暂无可导出的调用轨迹', 'No trace available for this job');
+        notify(msg, 'info');
+        return;
+      }
+      const savedPath = await exportJobTraceToFile(resolveLibraryRoot(), selectedJob.id, payload);
+      if (!mountedRef.current) return;
+      notify(t(lang, `轨迹已导出到 ${savedPath}`, `Trace exported to ${savedPath}`), 'success');
+    } catch (err) {
+      if (mountedRef.current) {
+        const msg = err instanceof Error ? err.message : String(err);
+        notify(t(lang, `导出调用轨迹失败: ${msg}`, `Trace export failed: ${msg}`), 'error');
+      }
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusy(false);
+    }
+  }, [busy, host, lang, notify, resolveLibraryRoot, selectedJob]);
+
+  const handlePurgeTraceConfirm = useCallback(async () => {
+    if (!selectedJob || busy || busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      const res = await tryAction<{ jobId?: string; removed?: number }>(host, 'job.trace.delete', {
+        jobId: selectedJob.id,
+      });
+      if (!mountedRef.current) return;
+      setConfirmPurgeTraceOpen(false);
+      if (!res.ok) {
+        notify(res.error?.message || t(lang, '清空调用轨迹失败', 'Failed to purge traces'), 'error');
+        return;
+      }
+      const removed = typeof res.value?.removed === 'number' ? res.value.removed : 0;
+      setTraceReloadTick((n) => n + 1);
+      await refresh();
+      if (!mountedRef.current) return;
+      if (removed > 0) {
+        notify(
+          t(lang, `已清空 ${removed} 条调用轨迹（任务记录保留）`, `Purged ${removed} trace(s) (job record kept)`),
+          'success',
+        );
+      } else {
+        notify(
+          t(lang, '该任务暂无可清空的缓存轨迹（任务记录保留）', 'No cached traces to purge (job record kept)'),
+          'info',
+        );
+      }
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusy(false);
+    }
+  }, [busy, host, lang, notify, refresh, selectedJob]);
+
+  const modalOpen = confirmDeleteOpen || confirmPurgeTraceOpen || outputModalOpen || messageModalOpen || workflowModalOpen;
   const listActive = isActive && !modalOpen;
-  useClaimKeys(['1', '2', '3', 'o', 'm', 'w', 'x', 'a', 'd', 'v'], listActive);
+  useClaimKeys(['1', '2', '3', 'o', 'm', 'w', 'x', 'a', 'd', 'v', 'e', 'D'], listActive);
 
   const hints: KeyHint[] = useMemo(
     () => [
       { key: 'o', label: t(lang, '输出', 'Output') },
       { key: 'm', label: t(lang, '补充', 'Msg') },
       { key: 'w', label: t(lang, '历史流', 'Flows') },
+      { key: 'v', label: t(lang, '轨迹', 'Trace') },
+      { key: 'e', label: t(lang, '导出轨迹', 'Export') },
+      { key: 'D', label: t(lang, '清轨迹', 'Purge') },
       { key: 'Tab', label: t(lang, '筛选', 'Filter') },
       { key: 'Enter', label: t(lang, '草稿', 'Draft') },
-      { key: 'v', label: t(lang, '轨迹', 'Trace') },
       { key: 'x', label: t(lang, '取消', 'Cancel') },
       { key: 'a', label: t(lang, '归档/恢复', 'Archive') },
       { key: 'd', label: t(lang, '删除', 'Dismiss') },
@@ -837,7 +1048,13 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
         }
       } else if (input === 'w') setWorkflowModalOpen(true);
       else if (input === 'v') setDetailMode((m) => (m === 'output' ? 'trace' : 'output'));
-      else if (input === 'x') void handleCancel();
+      else if (input === 'e') {
+        if (!selectedJob) notify(t(lang, '请先选择一个任务', 'Select a job first'), 'info');
+        else void handleExportTrace();
+      } else if (input === 'D') {
+        if (!selectedJob) notify(t(lang, '请先选择一个任务', 'Select a job first'), 'info');
+        else setConfirmPurgeTraceOpen(true);
+      } else if (input === 'x') void handleCancel();
       else if (input === 'a') void handleArchive();
       else if (input === 'd' && selectedJob) setConfirmDeleteOpen(true);
     },
@@ -905,8 +1122,8 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
           {truncateDisplay(
             t(
               lang,
-              '监控后台任务；[o] 输出弹窗 · [m] 补充要求 · [w] 历史学习流 · Enter 打开草稿',
-              'Monitor jobs; [o] Output · [m] Message · [w] Workflows · Enter Open Draft',
+              '监控后台任务；[o] 输出 · [m] 补充 · [w] 历史流 · [e] 导出轨迹 · [D] 清轨迹',
+              'Monitor jobs; [o] Output · [m] Msg · [w] Flows · [e] Export · [D] Purge',
             ),
             Math.max(10, width - 2),
             asciiMode ? '...' : '…',
@@ -1027,7 +1244,13 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
                       tone={detailMode === 'trace' ? 'primary' : 'muted'}
                       variant={detailMode === 'trace' ? 'solid' : 'outline'}
                     />
-                    <Text color={theme.dim}>  [v]</Text>
+                    <Text color={theme.dim} wrap={asciiMode ? undefined : 'truncate-end'}>
+                      {truncateDisplay(
+                        t(lang, '  [v] 切换 · [e] 导出 · [D] 清空', '  [v] Switch · [e] Export · [D] Purge'),
+                        Math.max(8, rw - 28),
+                        asciiMode ? '...' : '…',
+                      )}
+                    </Text>
                   </Box>
 
                   <ScrollView
@@ -1036,6 +1259,7 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
                     height={Math.max(2, rh - 10)}
                     follow={detailMode === 'output' && ACTIVE_STATUSES.has(selectedJob.status)}
                     isActive={false}
+                    ascii={asciiMode}
                   />
                 </Box>
               )}
@@ -1058,6 +1282,23 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
           isActive={isActive}
           onConfirm={() => void handleDeleteConfirm()}
           onCancel={() => setConfirmDeleteOpen(false)}
+        />
+      ) : null}
+
+      {confirmPurgeTraceOpen && selectedJob ? (
+        <ConfirmDialog
+          title={t(lang, '清空请求轨迹', 'Purge Request Traces')}
+          message={t(
+            lang,
+            `确认清空任务「${selectedJob.title}」的缓存请求轨迹吗？（任务记录与草稿保持不变）`,
+            `Purge saved request traces for "${selectedJob.title}"? (The job record itself stays intact.)`,
+          )}
+          confirmLabel={t(lang, '确认清空', 'Purge')}
+          cancelLabel={t(lang, '取消', 'Cancel')}
+          danger
+          isActive={isActive}
+          onConfirm={() => void handlePurgeTraceConfirm()}
+          onCancel={() => setConfirmPurgeTraceOpen(false)}
         />
       ) : null}
 

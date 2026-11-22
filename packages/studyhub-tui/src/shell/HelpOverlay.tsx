@@ -163,6 +163,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       title: t(lang, '后台任务 · Tasks', 'Tasks'),
       items: [
         { key: 'w / o / m', label: t(lang, '工作流历史 / 输出 / 指令', 'Workflows / Output / Msg') },
+        { key: 'e / D', label: t(lang, '导出 / 清空调用轨迹', 'Export / Purge Traces') },
       ],
     },
     {
