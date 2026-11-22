@@ -5,9 +5,9 @@
 > - **Dual-model engine**: `agy` CLI primary (auto-probed, streaming) + 8 OpenAI-compatible presets secondary (env-key memory overlay).
 > - **Round 21 NFR baseline**: Cold CLI spawn `56ms`, `ShellBootFrame` `514ms`, RSS `189.5 MB`, V8 heap `72.5 MB`, `169/169` TUI tests.
 >
-> **Status through Round 29 (`10c0c234`) + PR #1297 P0–P4 Fixes** *(Round 30 certification & final cross-platform hardening in progress)*:
-> - **Verified TUI quality gate**: `251+` TUI tests across `57` suites (`0` failures), `0` AST keymap conflicts, `0` CJK leaks across all `16` empty views in English mode, `0` leaked active handles after soak unmount/dispose.
-> - **Verified NFR measurements**: `dist/cli.mjs` `6.3 KB`, cold CLI spawn `57ms` (Round 29 baseline; `83ms` median in local sandbox run, budget `<= 350ms`), RSS `191.9 MB` (`188.7 MB` RSS / `72.1 MB` V8 heap in local sandbox run, budget `< 260 MB`), `2.8 MB` 32-transition soak heap delta (and `< 40 MB` across 64-transition 4-viewport resize storm).
+> **Round 40 Complete (`feat/studyhub-tui`)**:
+> - **Verified TUI quality gate**: `314+` TUI tests across `77+` suites (`0` failures), `0` AST keymap conflicts (`tests/keymap-audit.test.mjs`), `0` `zod` runtime imports (`tests/perf-budget.test.mjs`), `9` minimal runtime dependencies, `0` CJK leaks across all `16` empty views in English mode, `0` `--ascii` modal/view Unicode leaks, and `0` leaked active handles after soak unmount/dispose.
+> - **Verified NFR measurements**: `dist/cli.mjs` `~6.3 KB`, cold CLI spawn `~57 ms` (budget `<= 350 ms`), `ShellBootFrame` `~521 ms`, V8 heap `~57–58 MB`, 16-view sweep RSS `~325 MB`, `2.8 MB` 32-transition soak heap delta (and `< 40 MB` across 64-transition 4-viewport resize storm).
 
 ---
 
@@ -104,22 +104,47 @@
 
 ## Wave D: Cross-Platform Polish, Reliability & Production Release Readiness (Rounds 36–40)
 
-### Round 36 — Windows PowerShell / ConPTY / WSL2 Deep Hardening *(In Progress: Exec Round 30; baseline P3/P4 landed in `86c0a25b`)*
-- **Goal**: Harden PowerShell drag-and-drop paths (`& '...'` / `& "..."`), UNC paths (`\\server\share`), drive roots (`C:\`), `completeFsPath`, and `isHeadlessOrSsh` detection (`src/terminal.ts`) with expanded `tests/cross-platform.test.mjs` (`execFile` only, zero `sh -c`/`cmd /c`).
+### Round 36 — Windows PowerShell / ConPTY / WSL2 Deep Hardening *(Completed: `0b7a665d` + `26e3c757`)*
+- **Completed Deliverables**:
+  - Hardened PowerShell drag-and-drop paths (`& '...'` / `& "..."`), UNC paths (`\\server\share`), drive roots (`C:\`), `completeFsPath`, and `isHeadlessOrSsh` detection (`src/terminal.ts`) with expanded `tests/cross-platform.test.mjs` (`execFile` only, zero `sh -c`/`cmd /c`).
+  - Pruned 4 dead runtime dependencies (`13 -> 9` minimal dependencies) with bidirectional dep audit (`tests/packaging-smoke.test.mjs`), added `LibraryView` `[` / `]` deck reordering, and added `DocumentReader` `[M]` chapter reading progress + lazy drawers (`tests/round36-library-e2e.test.mjs`, `tests/round36-reader-e2e.test.mjs`).
 
-### Round 37 — Offline / Degraded / Corrupt-Data Resilience & Crash Recovery *(Completed: Exec Round 29, `10c0c234`)*
+### Round 37 — Offline / Degraded / Corrupt-Data Resilience & Crash Recovery *(Completed: `10c0c234` + `3363211c`)*
 - **Completed Deliverables**:
   - Hardened `src/host/tui-prefs.ts` (`parseTuiPreferences` fallback + frozen defaults) and `ViewErrorBoundary` in `src/App.tsx` (ASCII-safe diagnostic summary + `[r]` retry / `[1]` Library).
   - Added `tests/resilience.test.mjs` covering corrupt `tui.json`, read-only corrupt `tui-board.json`, loopback OpenAI 401/429/500/503 + malformed/truncated SSE + abort, crashing `agy` stub, invalid `deck.import` JSON, and `ViewErrorBoundary` recovery (`10/10` pass).
+  - Delivered `SourcesView` `[` / `]` pin reordering, `CourseSettingsModal` course merge & activate/deactivate, and `SettingsView` Book/Practice/Experimental toggles (`3363211c`).
 
-### Round 38 — Onboarding Tour, Empty-State Polish & Bilingual Copy Consistency Audit *(Completed: Exec Round 29, `10c0c234`)*
+### Round 38 — Onboarding Tour, Empty-State Polish & Bilingual Copy Consistency Audit *(Completed: `10c0c234` + `e45a95eb`)*
 - **Completed Deliverables**:
   - Added `tests/empty-state-audit.test.mjs` sweeping `Launchpad` and all `16` views in an empty library (no sample course) across `en` & `zh` at `120x36` & `80x24` (`9/9` pass, `0` CJK leaks across all 16 empty views in English mode, `0` `--ascii` Unicode leaks).
+  - Delivered `AudioView` preflight diagnostics / usage / retry / subtitle import, `NotesView` publish link (`[L]`) & daily recap cancel (`[C]`), `SkeletonView` delete (`[D]`), signed-int32 `computeSnapshotFingerprint` 2x speedup, and `Launchpad` lazy split (`e45a95eb`).
 
-### Round 39 — Packaging, Bin Entrypoint, Architecture & Keybindings Docs, Smoke Test *(Completed: Exec Round 29 `10c0c234` + Exec Round 30)*
+### Round 39 — Packaging, Bin Entrypoint, Architecture & Keybindings Docs, Smoke Test *(Completed: `10c0c234`, `0b7a665d`, `261d3cac`)*
 - **Completed Deliverables**:
   - Configured `package.json` `engines` (`>=22.0.0`) and `files` (`["bin/", "dist/", "README.md", "docs/KEYBINDINGS.md"]`); added `tests/packaging-smoke.test.mjs` verifying `/tmp` out-of-repo `bin/studyhub-tui.mjs` execution and clean `npm pack --dry-run --json` output.
-  - Authored `docs/KEYBINDINGS.md` (`10c0c234`) and contributor guide `docs/ARCHITECTURE.md` (Exec Round 30).
+  - Authored `docs/KEYBINDINGS.md` (`10c0c234`) and contributor guide `docs/ARCHITECTURE.md` (`0b7a665d`).
+  - Delivered `DeckManageModal` slain card restore (`[u]`) & folder move (`[m]`), `FolderModal` P2-guarded AI classify (`[g]`), and `SettingsView` ExamPrep reset, Retrieval status & Usage telemetry (`[f]`/`[u]`/`[U]`) (`261d3cac`, `314/314` tests across `77` suites).
 
-### Round 40 — Release Candidate Milestone Audit (Round 21–40 Final Gate) *(In Progress: Exec Round 30 Certification)*
-- **Goal**: Final full-stack gate across `npx tsc --noEmit`, root `npm run lint`, `npm run tui:build`, `npm run tui:test` (`251+` tests across `57` suites), `npm run bench` (`6.3 KB` CLI entry, `57ms` cold spawn, `191.9 MB` RSS, `2.8 MB` 32-transition soak delta), `STUDYHUB_TUI_LIVE=1`, and upstream `npm run test:core`.
+### Round 40 — Release Candidate Milestone Audit (Round 21–40 Final Gate) *(Completed)*
+- **Completed Deliverables**:
+  - Wired `BookView` `[U]` Unplaced Section Placement (`course.book.place` via lazy `BookStructureModal`), `CoachPreferencesModal` `[g]` learning goal (`coach.goal`), and `CardToolsModal` P2-safe quality feedback (`coach.feedback` with `rewriteVia: 'assist'`) & rewrite revert (`coach.revert`).
+  - Synced `docs/ROADMAP-21-40.md`, `docs/ARCHITECTURE.md`, `docs/KEYBINDINGS.md`, and `src/shell/HelpOverlay.tsx` with verified Rounds 31–40 metrics and shortcuts.
+  - Passed full-stack gate (`npx tsc --noEmit`, `npm run build`, `314+` TUI tests across `77+` suites, `0` AST keymap conflicts, `0` `zod` runtime imports, `9` minimal runtime deps).
+
+---
+
+## Rounds 31–40 Execution Log
+
+| Exec Round | Commit | Verified Deliverables |
+| --- | --- | --- |
+| Round 31 | `9b1ab5d1` | `NO_COLOR` parity + cached `makeChalk(level)` (-12 MB RSS), lazy sub-views (`ExamView`, `SettingsView`, `GenerateView`), `CompanionsModal` streaming coalescer, SSH `app.open` guard, Oral/Coach/Pomodoro E2E (`tests/no-color-audit.test.mjs`, `tests/round31-e2e.test.mjs`) |
+| Round 32 | `33646f86` | Shell overlay (-67%) & view modal (-30%) lazy-splitting, full 16-view `--ascii` purity sweep & 20+ view leak fixes (`tests/ascii-full-sweep.test.mjs`) |
+| Round 33 | `9378c3ae` | Complete shell Barrel-Bypass (0 static overlays, `23 -> 16` chunks), `ExamPrepView` lazy split, final `--ascii` polish & ~327 MB sweep RSS |
+| Round 34 | `7a070f50` | Removed `zod`/`marked` from boot (-150 ms, -15.6 MB heap), `BookView` structure ops (`R`/`[`/`]`/`D`/`z`/`u`) + `BookStructureModal`, modal `--ascii` audit (`tests/ascii-modals-audit.test.mjs`, `tests/round34-e2e.test.mjs`, `274/274`) |
+| Round 35 | `a7ee0f5c` | 100% zero-`zod` runtime (`board-store.ts` + `tui-prefs.ts`), centralized `normalizeAsciiChrome`, `TasksView` trace export (`[e]`) & purge (`[D]`) (`tests/board-store.test.mjs`, `tests/round35-e2e.test.mjs`, `288/288` + `34/34` Live + Core) |
+| Round 36 | `26e3c757` | Pruned 4 dead runtime deps (`13 -> 9`) + bidirectional dep audit, `LibraryView` deck reorder (`[`/`]`), `DocumentReader` `[M]` chapter reading progress & lazy drawers (`tests/round36-library-e2e.test.mjs`, `tests/round36-reader-e2e.test.mjs`, `294/294`) |
+| Round 37 | `3363211c` | `SourcesView` pin reorder (`[`/`]`), `CourseSettingsModal` course merge & activate/deactivate, `SettingsView` Book/Practice/Experimental toggles (`tests/round37-course-merge.test.mjs`, `tests/round37-settings-e2e.test.mjs`, `tests/round37-sources-e2e.test.mjs`, `301/301`) |
+| Round 38 | `e45a95eb` | `AudioView` preflight/usage/retry/subtitles, `NotesView` publish link (`[L]`) & recap cancel (`[C]`), `SkeletonView` delete (`[D]`), signed-int32 `computeSnapshotFingerprint` 2x speedup & `Launchpad` lazy split (`tests/round38-audio-e2e.test.mjs`, `tests/round38-notes-e2e.test.mjs`, `tests/round38-skeleton-e2e.test.mjs`, `307/307`) |
+| Round 39 | `261d3cac` | `DeckManageModal` slain restore (`[u]`) & folder move (`[m]`), `FolderModal` AI classify (`[g]`, P2-guarded), `SettingsView` ExamPrep reset, Retrieval status & Usage telemetry (`[f]`/`[u]`/`[U]`) (`tests/round39-deck-restore.test.mjs`, `tests/round39-folder-ai.test.mjs`, `tests/round39-settings-usage.test.mjs`, `314/314`) |
+| Round 40 | *Milestone* | `BookView` `[U]` unplaced section placement (`course.book.place`), `CoachPreferencesModal` `[g]` goal (`coach.goal`), `CardToolsModal` P2-safe quality feedback (`coach.feedback` `rewriteVia: 'assist'`) & revert (`coach.revert`), Milestone docs & `HelpOverlay` sync |

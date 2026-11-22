@@ -92,17 +92,17 @@ Inside the palette: `↑`/`↓`, `Ctrl+P`/`Ctrl+N`, or `Ctrl+J`/`Ctrl+K` move se
 
 ### `1` Library (`library`)
 - **Practice & Rounds**: `Enter` start deck / open work item · `R` custom round configurator (`RoundConfigModal`) · `r` resume or start review · `p` daily plan · `g` AI Guided Study
-- **Deck & Course Ops**: `o` deck import / merge / split (`DeckOpsModal`) · `[` / `]` reorder selected deck up / down · `C` course settings · `v` voice pack · `a` archive/unarchive · `d` delete deck · `h` show/hide archived · `s` load/remove sample course · `Tab` toggle Decks / Drafts & Failed Jobs (`y` retries failed job)
-- **Deck Card Manager (`m`)**: `+` supplement cards · `k` convert card kind · `Space` multi-select (up to 100) · `F` batch focus · `S` batch suspend · `x` clear selection · `/` or `f` search · `c` clear search · `n` rename · `e` open draft · `p` practise deck
+- **Deck & Course Ops**: `o` deck import / merge / split (`DeckOpsModal`) · `[` / `]` reorder selected deck up / down · `C` course settings (tabs `1-4`: `m` merge course, `a` activate/deactivate course) · `v` voice pack · `a` archive/unarchive · `d` delete deck · `h` show/hide archived · `s` load/remove sample course · `Tab` toggle Decks / Drafts & Failed Jobs (`y` retries failed job)
+- **Deck Card Manager (`m`)**: `+` supplement cards · `k` convert card kind · `u` restore slain card (Slain deck / slain card) · `m` move deck to folder (non-system decks) · `Space` multi-select (up to 100) · `F` batch focus · `S` batch suspend · `x` clear selection · `/` or `f` search · `c` clear search · `n` rename · `e` open draft · `p` practise deck
 
 ### `r` Review (`review`)
 - **Answering**: `1-6` / `a-f` select MCQ (`Space` toggles multi-select, `Enter` submits) · `1/t` & `2/f` True/False · `i` / `Enter` edit fill-blank or open answer (`Tab`/`Shift+Tab` cycle blanks) · `Space` / `Enter` flip flashcard
 - **FSRS-6 Rating & Flow**: `0-5` six-grade rating · `u` undo last rating · `Enter` / `.` next card · `,` / `←` / `→` prev/next card · `s` skip · `q` end round (with confirmation)
-- **Card Tools & AI**: `h` AI Help drawer · `L` Socratic teach · `F` Feynman retell · `G` AI rubric grade · `T` translate card · `S` similar cards · `D` card tools · `A` answer card & drills · `Q` live queue editor (non-exam) · `*` toggle focus · `E` flag card · `o` jump to cited source page · `m` toggle Unicode/LaTeX math
+- **Card Tools & AI**: `h` AI Help drawer · `L` Socratic teach · `F` Feynman retell · `G` AI rubric grade · `T` translate card · `S` similar cards · `D` card tools (edit, suspend/slay, prereqs, terms, P2-safe quality feedback `coach.feedback` & revert last rewrite `coach.revert`) · `A` answer card & drills · `Q` live queue editor (non-exam) · `*` toggle focus · `E` flag card · `o` jump to cited source page · `m` toggle Unicode/LaTeX math
 
 ### `2` Sources & DocumentReader (`sources`)
-- **Sources List**: `Enter` open `DocumentReader` · `i` import source (Tab path completion) · `M` MinerU scanned/long PDF planner · `g` generate questions · `G` AI organize into courses · `V` citation coverage · `F` folder filter · `m` move to folder · `C` companions builder & sync · `r` rename · `c` set course · `p` pin/unpin · `[` / `]` reorder pinned material up / down · `a` archive · `d` delete · `/` filter · `f` filter by active course
-- **DocumentReader**: `[` / `]` previous / next page · `O` outline TOC drawer · `B` bookmarks & notes drawer · `a` ask AI on current page (`s` saves reply to note) · `t` translate page · `g` jump to page · `/` search in page · `m` toggle Unicode/LaTeX math · `q` generate from page · `p` practise page · `Esc` / `Backspace` close reader
+- **Sources List**: `Enter` open `DocumentReader` · `i` import source (Tab path completion) · `M` MinerU scanned/long PDF planner · `g` generate questions · `G` AI organize into courses · `V` citation coverage · `F` folder filter / `m` move to folder (`FolderModal`: `a` create, `r` rename, `d` delete, `g` AI classify folders [P2 quota-guarded], `0`/`x` clear) · `C` companions builder & sync · `r` rename · `c` set course · `p` pin/unpin · `[` / `]` reorder pinned material up / down · `a` archive · `d` delete · `/` filter · `f` filter by active course
+- **DocumentReader**: `[` / `]` previous / next page · `O` outline TOC drawer (`Space`/`m` toggle chapter read) · `B` bookmarks & notes drawer · `M` toggle chapter read · `a` ask AI on current page (`s` saves reply to note) · `t` translate page · `g` jump to page · `/` search in page · `m` toggle Unicode/LaTeX math · `q` generate from page · `p` practise page · `Esc` / `Backspace` close reader
 
 ### `3` Generate & Drafts (`generate`)
 - **New Generation**: `Tab` switch to Drafts · `Space` toggle source · `a` select/clear all sources · `i` capture & ingest existing cards · `c` cycle course · `k` cycle question kind · `n` cycle count · `p` page range scope · `f` focus instructions · `Ctrl+S` start generation · `S` open model settings (when unconfigured)
@@ -119,13 +119,13 @@ Inside the palette: `↑`/`↓`, `Ctrl+P`/`Ctrl+N`, or `Ctrl+J`/`Ctrl+K` move se
 - `j` / `k` select weak topic or course · `Enter` / `p` drill selected item · `w` practise all weak questions · `f` toggle 7-day forecast · `r` refresh
 
 ### `7` Review Book (`book`)
-- `Tab` / `h` / `l` switch TOC / reading pane · `m` toggle Unicode/LaTeX math · `e` edit or revert (`[u]`) section · `R` rename TOC node · `[` / `]` move node up/down among siblings · `D` delete node (keeps notes in Unplaced) · `z` revert last structure change · `p` practise 5 cards · `P` pinned book QA · `w` final-week crunch & mock · `x` export Markdown · `g` build/rebuild book (`a` apply / `u` undo when rebuild-pending) · `r` refresh
+- `Tab` / `h` / `l` switch TOC / reading pane · `m` toggle Unicode/LaTeX math · `e` edit or revert (`[u]`) section · `R` rename TOC node · `[` / `]` move node up/down among siblings · `D` delete node (keeps notes in Unplaced) · `z` revert last structure change · `U` place unplaced section into target leaf point (`BookStructureModal`) · `p` practise 5 cards · `P` pinned book QA · `w` final-week crunch & mock · `x` export Markdown · `g` build/rebuild book (`a` apply / `u` undo when rebuild-pending) · `r` refresh
 
 ### `8` Skeleton (`skeleton`)
 - `j` / `k` move node · `Space` / `Enter` / `h` / `l` expand/collapse · `Tab` switch pane · `p` practise node · `E` edit skeleton node · `R` course learning route · `G` topic groups manager · `L` skeleton lint · `g` generate skeleton · `s` switch skeleton · `D` delete skeleton (removes diagrams; keeps decks/cards) · `r` refresh
 
 ### `9` Exam Coach (`examcoach`)
-- `1-4` switch Calibration / Variants / Evidence / Compile tabs · `p` / `P` coach profile & long-term prefs · `a` / `A` analyze / AI deepen · `N` past paper notes · `v` reveal sample answer · `x` / `y` / `z` three-item confirmation · `e` edit quota · `g` / `G` generate variants / batch · `b` compile preview · `m` mock check · `r` refresh
+- `1-4` switch Calibration / Variants / Evidence / Compile tabs · `p` / `P` coach profile & long-term prefs (`CoachPreferencesModal`: `a` add pref, `d` remove, `g` cycle learning goal, `r` refresh) · `a` / `A` analyze / AI deepen · `N` past paper notes · `v` reveal sample answer · `x` / `y` / `z` three-item confirmation · `e` edit quota · `g` / `G` generate variants / batch · `b` compile preview · `m` mock check · `r` refresh
 
 ### `0` Exam Prep (`examprep`)
 - `1` / `2` switch Focus / Crunch tabs · `a` add focus point · `d` remove focus point · `p` practise unmastered / mock · `g` / `G` gap-fill generation · `P` study plan & custom wizard · `Space` mark seen (Crunch) · `m` mark read (Crunch)
@@ -146,5 +146,5 @@ Inside the palette: `↑`/`↓`, `Ctrl+P`/`Ctrl+N`, or `Ctrl+J`/`Ctrl+K` move se
 ### `,` Settings (`settings`)
 - `1-4` switch Models / Workspace / StudyGen / Appearance tabs
 - **Models (`1`)**: `Tab` switch pane · `a` / `Enter` save & activate · `t` test connection · `s` rescan / save
-- **Workspace (`2`)**: `e` change library root · `s` toggle sample course · `x` export JSON backup · `r` refresh restore points · `Enter` restore selected point
-- **StudyGen (`3`)** & **Appearance (`4`)**: `j` / `k` select option · `←` / `→` (`Enter`) adjust/toggle & save
+- **Workspace (`2`)**: `e` change library root · `c` confirm library location · `s` toggle sample course · `f` toggle experimental features · `u` toggle usage frequency tracking · `U` clear usage data · `x` export JSON backup · `r` refresh restore points / retrieval / usage · `Enter` restore selected point
+- **StudyGen (`3`)** & **Appearance (`4`)**: `j` / `k` select option · `←` / `→` (`Enter`) adjust/toggle & save (includes Book Q&A auto-add, Practice reset, and ExamPrep reset)

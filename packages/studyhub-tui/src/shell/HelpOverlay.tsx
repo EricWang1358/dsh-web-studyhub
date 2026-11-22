@@ -93,6 +93,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: '[ / ]', label: t(lang, '同级上移/下移节点', 'Move node up/down') },
         { key: 'D / z', label: t(lang, '删节点 / 撤销结构', 'Delete / undo struct') },
         { key: 'a / u', label: t(lang, '应用 / 撤销总纲重建', 'Apply / undo rebuild') },
+        { key: 'U', label: t(lang, '归位未归位段落', 'Place unplaced section') },
       ],
     },
     {
@@ -146,7 +147,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'V', label: t(lang, '引用覆盖率', 'Coverage') },
         { key: 'F', label: t(lang, '文件夹筛选', 'Folders') },
         { key: 'm', label: t(lang, '移至文件夹', 'Move folder') },
-        { key: 'M', label: t(lang, 'MinerU PDF', 'MinerU PDF') },
+        { key: 'M', label: t(lang, 'MinerU / 标记章节已读', 'MinerU / Toggle chapter read') },
         { key: 'C', label: t(lang, '伴学页面', 'Companions') },
         { key: '[ / ]', label: t(lang, '上移/下移置顶资料', 'Reorder pinned material') },
         { key: 'O', label: t(lang, '目录大纲', 'Outline TOC') },
@@ -177,6 +178,8 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       title: t(lang, '设置 · Settings', 'Settings'),
       items: [
         { key: 'x', label: t(lang, '导出学习库备份', 'Export backup') },
+        { key: 'f', label: t(lang, '实验性功能开关', 'Experimental toggle') },
+        { key: 'u / U', label: t(lang, '使用记录开关 / 清空', 'Usage toggle / clear') },
       ],
     },
     {

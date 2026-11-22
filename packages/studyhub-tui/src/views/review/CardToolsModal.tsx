@@ -5,6 +5,7 @@ import { t, useTuiStore } from '../../state/store.js';
 import { getReview, tryAction, type ReviewRun } from '../../host/index.js';
 import {
   Badge,
+  ConfirmDialog,
   Divider,
   EmptyState,
   Modal,
@@ -38,8 +39,19 @@ export interface CardToolsModalProps {
   onRefreshSnapshot?: () => void;
 }
 
-type ToolMode = 'menu' | 'edit' | 'confirm-slay' | 'terms' | 'prereqs';
+type ToolMode = 'menu' | 'edit' | 'confirm-slay' | 'terms' | 'prereqs' | 'feedback';
 type EditField = 'prompt' | 'answer' | 'explanation';
+
+const FEEDBACK_TAG_OPTIONS = [
+  { key: 'general-quality', zh: '题目有问题，检查并修改', en: 'Problematic question; check and fix' },
+  { key: 'stem-vague', zh: '题干太空', en: 'Stem too vague' },
+  { key: 'bad-options', zh: '选项太烂', en: 'Poor distractors' },
+  { key: 'too-easy', zh: '太简单', en: 'Too easy' },
+  { key: 'too-hard', zh: '太难', en: 'Too hard' },
+  { key: 'wrong-answer', zh: '答案有误', en: 'Wrong answer' },
+  { key: 'unclear-explanation', zh: '解析不清', en: 'Unclear explanation' },
+  { key: 'source-recall', zh: '只问资料怎么说，考的是背诵', en: 'Asks what the source says instead of the concept' },
+] as const;
 
 interface CardDetailShape {
   id?: string;
@@ -136,10 +148,18 @@ export const CardToolsModal = memo(function CardToolsModal({
   const [menuCursor, setMenuCursor] = useState(0);
   const [busy, setBusy] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
+  const [infoText, setInfoText] = useState<string | null>(null);
   const [resolvedDeckId, setResolvedDeckId] = useState<string>(deckId);
   const [revisionsCount, setRevisionsCount] = useState<number>(0);
+  const [lastRevisionReason, setLastRevisionReason] = useState<string>('');
+  const [confirmCoachRevert, setConfirmCoachRevert] = useState<boolean>(false);
   const [suspended, setSuspended] = useState<boolean>(Boolean((run.card as { suspended?: unknown } | null | undefined)?.suspended));
   const [focusedCard, setFocusedCard] = useState<boolean>(Boolean((run.card as { focus?: unknown } | null | undefined)?.focus));
+
+  // Card quality feedback state
+  const [feedbackTagCursor, setFeedbackTagCursor] = useState<number>(0);
+  const [selectedFeedbackTags, setSelectedFeedbackTags] = useState<string[]>([]);
+  const [lastFeedbackVote, setLastFeedbackVote] = useState<'up' | 'down' | null>(null);
 
   // Terms extraction state
   const [termsLoading, setTermsLoading] = useState(false);
@@ -173,6 +193,7 @@ export const CardToolsModal = memo(function CardToolsModal({
   });
 
   const mountedRef = useRef(true);
+  const busyRef = useRef(false);
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -190,7 +211,9 @@ export const CardToolsModal = memo(function CardToolsModal({
     if (typeof res.value.deckId === 'string' && res.value.deckId) {
       setResolvedDeckId(res.value.deckId);
     }
-    setRevisionsCount(Array.isArray(res.value.revisions) ? res.value.revisions.length : 0);
+    const revs = Array.isArray(res.value.revisions) ? res.value.revisions : [];
+    setRevisionsCount(revs.length);
+    setLastRevisionReason(String(revs.at(-1)?.reason ?? '').trim());
     setPrereqs(Array.isArray(res.value.prerequisites) ? res.value.prerequisites : []);
     const c = res.value.card;
     if (c) {
@@ -462,6 +485,112 @@ export const CardToolsModal = memo(function CardToolsModal({
     onClose();
   }, [busy, resolvedDeckId, deckId, host, cardId, lang, onCardEdited, run.id, onRunUpdated, onRefreshSnapshot, notify, onClose]);
 
+  const handleSubmitFeedback = useCallback(
+    async (vote: 'up' | 'down', tagsOverride?: string[]) => {
+      if (busyRef.current || busy) return;
+      const effectiveDeckId = resolvedDeckId || deckId;
+      const chosenTags = vote === 'down' ? [...new Set(tagsOverride ?? selectedFeedbackTags)] : [];
+      busyRef.current = true;
+      setBusy(true);
+      setErrorText(null);
+      setInfoText(null);
+      const res = await tryAction<{ vote?: string; tags?: string[]; scheduled?: string[]; fix?: string[] }>(
+        host,
+        'coach.feedback',
+        {
+          ...(effectiveDeckId ? { deckId: effectiveDeckId } : {}),
+          cardId,
+          vote,
+          ...(chosenTags.length > 0 ? { tags: chosenTags } : {}),
+          rewriteVia: 'assist',
+        },
+      );
+      if (!mountedRef.current) return;
+      busyRef.current = false;
+      setBusy(false);
+      if (!res.ok) {
+        const msg = res.error?.message || t(lang, '提交题目反馈失败', 'Failed to submit card feedback');
+        setErrorText(msg);
+        notify(msg, 'error');
+        return;
+      }
+      setLastFeedbackVote(vote);
+      onRefreshSnapshot?.();
+      if (vote === 'up') {
+        notify(t(lang, '已记录正面题目反馈（不错）', 'Recorded positive feedback (Good)'), 'success');
+      } else if (chosenTags.length > 0) {
+        notify(
+          t(
+            lang,
+            `已记录问题反馈（${chosenTags.length} 个标签，不触发静默后台改题）`,
+            `Feedback recorded (${chosenTags.length} tag(s); no silent AI rewrite)`,
+          ),
+          'success',
+        );
+      } else {
+        notify(t(lang, '已记录题目问题反馈', 'Recorded card quality downvote'), 'success');
+      }
+      setMode('menu');
+    },
+    [busy, resolvedDeckId, deckId, selectedFeedbackTags, host, cardId, lang, notify, onRefreshSnapshot],
+  );
+
+  const handleConfirmCoachRevert = useCallback(async () => {
+    if (busyRef.current || busy) return;
+    setConfirmCoachRevert(false);
+    const effectiveDeckId = resolvedDeckId || deckId;
+    busyRef.current = true;
+    setBusy(true);
+    setErrorText(null);
+    setInfoText(null);
+    const res = await tryAction<{ reverted?: string }>(host, 'coach.revert', {
+      ...(effectiveDeckId ? { deckId: effectiveDeckId } : {}),
+      cardId,
+    });
+    if (!mountedRef.current) return;
+    if (!res.ok) {
+      busyRef.current = false;
+      setBusy(false);
+      const msg = res.error?.message || t(lang, '撤销改写失败', 'Failed to revert rewrite');
+      setErrorText(msg);
+      notify(msg, 'error');
+      return;
+    }
+    onCardEdited?.(cardId);
+    try {
+      const refreshed = await getReview(host, run.id);
+      if (!mountedRef.current) return;
+      onRunUpdated(refreshed);
+    } catch {
+      // coach.revert succeeded even if run refresh failed
+    }
+    await hydrateCardDetails();
+    if (!mountedRef.current) return;
+    busyRef.current = false;
+    setBusy(false);
+    onRefreshSnapshot?.();
+    const reasonSuffix = res.value?.reverted ? ` (${res.value.reverted})` : '';
+    notify(
+      t(lang, `已撤销上次改写并刷新当前复习${reasonSuffix}`, `Reverted last rewrite and refreshed review${reasonSuffix}`),
+      'success',
+    );
+    onClose();
+  }, [
+    busy,
+    resolvedDeckId,
+    deckId,
+    host,
+    cardId,
+    lang,
+    notify,
+    onCardEdited,
+    run.id,
+    onRunUpdated,
+    hydrateCardDetails,
+    onRefreshSnapshot,
+    onClose,
+  ]);
+
   const openPrereqsMode = useCallback(async () => {
     setMode('prereqs');
     setErrorText(null);
@@ -603,11 +732,12 @@ export const CardToolsModal = memo(function CardToolsModal({
     [busy, resolvedDeckId, deckId, host, cardId, lang, notify, prereqs.length, hydrateCardDetails, onRefreshSnapshot],
   );
 
-  const MENU_COUNT = 8;
+  const MENU_COUNT = 10;
 
   const triggerOption = useCallback(
     (idx: number) => {
       setErrorText(null);
+      setInfoText(null);
       if (idx === 0) {
         setEditField('prompt');
         setMode('edit');
@@ -635,6 +765,17 @@ export const CardToolsModal = memo(function CardToolsModal({
         void handleRevertCard();
       } else if (idx === 7) {
         void openPrereqsMode();
+      } else if (idx === 8) {
+        setFeedbackTagCursor(0);
+        setMode('feedback');
+      } else if (idx === 9) {
+        if (revisionsCount <= 0) {
+          const msg = t(lang, '当前题目暂无可撤销的改写历史', 'No earlier rewrite version exists for this card');
+          setInfoText(msg);
+          notify(msg, 'info');
+          return;
+        }
+        setConfirmCoachRevert(true);
       }
     },
     [
@@ -645,24 +786,54 @@ export const CardToolsModal = memo(function CardToolsModal({
       handleExtractTerms,
       handleRevertCard,
       openPrereqsMode,
+      revisionsCount,
+      notify,
       lang,
     ],
   );
 
   useInput(
     (input, key) => {
-      if (busy || termsLoading || prereqsLoading) return;
+      if (busyRef.current || busy || termsLoading || prereqsLoading) return;
       if (mode === 'menu') {
         if (key.downArrow || input === 'j') {
           setMenuCursor((prev) => (prev + 1) % MENU_COUNT);
         } else if (key.upArrow || input === 'k') {
           setMenuCursor((prev) => (prev + MENU_COUNT - 1) % MENU_COUNT);
-        } else if (/^[1-8]$/.test(input)) {
-          const idx = Number(input) - 1;
+        } else if (/^[1-9]$/.test(input) || input === '0') {
+          const idx = input === '0' ? 9 : Number(input) - 1;
           setMenuCursor(idx);
           triggerOption(idx);
         } else if (key.return) {
           triggerOption(menuCursor);
+        }
+        return;
+      }
+      if (mode === 'feedback') {
+        if (key.downArrow || input === 'j') {
+          setFeedbackTagCursor((prev) => (prev + 1) % FEEDBACK_TAG_OPTIONS.length);
+        } else if (key.upArrow || input === 'k') {
+          setFeedbackTagCursor((prev) => (prev + FEEDBACK_TAG_OPTIONS.length - 1) % FEEDBACK_TAG_OPTIONS.length);
+        } else if (input === ' ') {
+          const tagKey = FEEDBACK_TAG_OPTIONS[feedbackTagCursor]?.key;
+          if (tagKey) {
+            setSelectedFeedbackTags((prev) =>
+              prev.includes(tagKey) ? prev.filter((item) => item !== tagKey) : [...prev, tagKey],
+            );
+          }
+        } else if (/^[1-8]$/.test(input)) {
+          const idx = Number(input) - 1;
+          setFeedbackTagCursor(idx);
+          const tagKey = FEEDBACK_TAG_OPTIONS[idx]?.key;
+          if (tagKey) {
+            setSelectedFeedbackTags((prev) =>
+              prev.includes(tagKey) ? prev.filter((item) => item !== tagKey) : [...prev, tagKey],
+            );
+          }
+        } else if (input === 'u' || input === 'U') {
+          void handleSubmitFeedback('up');
+        } else if (input === 'd' || input === 'D' || key.return) {
+          void handleSubmitFeedback('down');
         }
         return;
       }
@@ -727,7 +898,7 @@ export const CardToolsModal = memo(function CardToolsModal({
         }
       }
     },
-    { isActive: isActive && mode !== 'edit' },
+    { isActive: isActive && mode !== 'edit' && !confirmCoachRevert },
   );
 
   const cycleEditField = useCallback(() => {
@@ -789,8 +960,17 @@ export const CardToolsModal = memo(function CardToolsModal({
         { key: 'Esc', label: t(lang, '返回', 'Back') },
       ];
     }
+    if (mode === 'feedback') {
+      return [
+        { key: asciiMode ? 'j/k' : '↑/↓', label: t(lang, '选标签', 'Tag') },
+        { key: 'Space/1-8', label: t(lang, '勾选', 'Toggle') },
+        { key: 'u', label: t(lang, '点赞', 'Upvote') },
+        { key: 'd/Enter', label: t(lang, '提交问题', 'Downvote') },
+        { key: 'Esc', label: t(lang, '返回', 'Back') },
+      ];
+    }
     return [
-      { key: '1-8 / Enter', label: t(lang, '执行', 'Select') },
+      { key: '1-9,0 / Enter', label: t(lang, '执行', 'Select') },
       { key: 'Esc', label: t(lang, '关闭', 'Close') },
     ];
   }, [mode, lang, asciiMode, prereqSearchActive, prereqSearchFocused]);
@@ -884,6 +1064,28 @@ export const CardToolsModal = memo(function CardToolsModal({
       enabled: true,
       badge: prereqs.length > 0 ? t(lang, `${prereqs.length} 题`, `${prereqs.length} linked`) : 'card.link',
     },
+    {
+      key: '9',
+      title: t(lang, '题目质量反馈', 'Card Quality Feedback'),
+      desc: t(lang, '点赞或选择问题标签反馈，不触发静默后台改题', 'Upvote or report quality tags safely via assist'),
+      enabled: true,
+      badge:
+        lastFeedbackVote === 'up'
+          ? t(lang, '已赞', 'Upvoted')
+          : lastFeedbackVote === 'down'
+            ? t(lang, '已反馈', 'Flagged')
+            : 'coach.feedback',
+    },
+    {
+      key: '0',
+      title: t(lang, '撤销上次改写', 'Revert Last Rewrite'),
+      desc:
+        revisionsCount > 0
+          ? t(lang, '确认后回退教练改写并刷新当前复习', 'Confirm revert to previous version and refresh review')
+          : t(lang, '当前暂无可撤销的改写历史', 'No earlier rewrite version recorded'),
+      enabled: revisionsCount > 0,
+      badge: revisionsCount > 0 ? t(lang, `${revisionsCount} 版`, `${revisionsCount} rev`) : t(lang, '无历史', 'None'),
+    },
   ];
 
   const compactMenu = height <= 26;
@@ -905,7 +1107,9 @@ export const CardToolsModal = memo(function CardToolsModal({
       ? t(lang, '核心术语 / 生词提取', 'Technical Terms')
       : mode === 'prereqs'
         ? t(lang, '前置题目关联', 'Prerequisite Links')
-        : t(lang, '题目工具箱', 'Card Tools');
+        : mode === 'feedback'
+          ? t(lang, '题目质量反馈', 'Card Quality Feedback')
+          : t(lang, '题目工具箱', 'Card Tools');
 
   const handleModalClose = () => {
     if (mode === 'menu') {
@@ -919,32 +1123,40 @@ export const CardToolsModal = memo(function CardToolsModal({
       return;
     }
     setErrorText(null);
+    setInfoText(null);
     setMode('menu');
   };
 
   return (
-    <Modal
-      title={modalTitle}
-      icon={asciiMode ? '*' : '⚙'}
-      tone={mode === 'confirm-slay' ? 'error' : mode === 'terms' ? 'ai' : 'accent'}
-      subtitle={truncateDisplay(String(run.card?.topic || cardId), 24, ell)}
-      width={frameW}
-      height={fixedFrameH}
-      onClose={handleModalClose}
-      isActive={isActive && mode !== 'edit' && !(mode === 'prereqs' && prereqSearchActive && prereqSearchFocused)}
-      hints={hints}
-    >
-      {busy ? (
-        <Box height={1} marginY={0}>
-          <Spinner label={t(lang, `正在提交操作${ell}`, `Applying action${ell}`)} active={isActive} />
-        </Box>
-      ) : null}
+    <>
+      <Modal
+        title={modalTitle}
+        icon={asciiMode ? '*' : '⚙'}
+        tone={mode === 'confirm-slay' ? 'error' : mode === 'terms' ? 'ai' : 'accent'}
+        subtitle={truncateDisplay(String(run.card?.topic || cardId), 24, ell)}
+        width={frameW}
+        height={fixedFrameH}
+        onClose={handleModalClose}
+        isActive={isActive && mode !== 'edit' && !confirmCoachRevert && !(mode === 'prereqs' && prereqSearchActive && prereqSearchFocused)}
+        hints={hints}
+      >
+        {busy ? (
+          <Box height={1} marginY={0}>
+            <Spinner label={t(lang, `正在提交操作${ell}`, `Applying action${ell}`)} active={isActive && !confirmCoachRevert} />
+          </Box>
+        ) : null}
 
-      {errorText ? (
-        <Box marginBottom={0}>
-          <Text color={theme.error}>{`${asciiMode ? 'x' : '✕'} ${truncateDisplay(errorText, innerW - 2, ell)}`}</Text>
-        </Box>
-      ) : null}
+        {errorText ? (
+          <Box marginBottom={0}>
+            <Text color={theme.error}>{`${asciiMode ? 'x' : '✕'} ${truncateDisplay(errorText, innerW - 2, ell)}`}</Text>
+          </Box>
+        ) : null}
+
+        {infoText ? (
+          <Box marginBottom={0}>
+            <Text color={theme.accent}>{`${asciiMode ? '-' : '•'} ${truncateDisplay(infoText, innerW - 2, ell)}`}</Text>
+          </Box>
+        ) : null}
 
       {mode === 'menu' ? (
         <Box flexDirection="column" marginY={0}>
@@ -1302,6 +1514,71 @@ export const CardToolsModal = memo(function CardToolsModal({
         </Box>
       ) : null}
 
+      {mode === 'feedback' ? (
+        <Box flexDirection="column" width={innerW} overflow="hidden">
+          <Box flexDirection="row" justifyContent="space-between" width={innerW} height={1}>
+            <Box flexDirection="row" gap={1}>
+              <Badge
+                label={t(lang, '[u] 这题不错 (点赞)', '[u] Good (Upvote)')}
+                tone={lastFeedbackVote === 'up' ? 'success' : 'accent'}
+                variant="soft"
+              />
+              <Badge
+                label={t(
+                  lang,
+                  `已选 ${selectedFeedbackTags.length} 个标签`,
+                  `${selectedFeedbackTags.length} tag(s)`,
+                )}
+                tone={selectedFeedbackTags.length > 0 ? 'warning' : 'neutral'}
+                variant="soft"
+              />
+            </Box>
+            <Text color={theme.dim}>{t(lang, '[Esc] 返回菜单', '[Esc] Back')}</Text>
+          </Box>
+          <Divider width={innerW} />
+          <Box flexDirection="column" width={innerW} overflow="hidden">
+            {FEEDBACK_TAG_OPTIONS.map((tag, idx) => {
+              const focused = idx === feedbackTagCursor;
+              const checked = selectedFeedbackTags.includes(tag.key);
+              const boxMark = asciiMode ? (checked ? '[x]' : '[ ]') : checked ? '☑' : '☐';
+              const cursorMark = focused ? (asciiMode ? '> ' : '▸ ') : '  ';
+              const tagLabel = lang === 'en' ? tag.en : tag.zh;
+              return (
+                <Box
+                  key={tag.key}
+                  flexDirection="row"
+                  justifyContent="space-between"
+                  width={innerW}
+                  paddingX={1}
+                  backgroundColor={focused ? theme.selectionBg : undefined}
+                >
+                  <Text
+                    color={focused ? theme.selectionFg : checked ? theme.warning : theme.text}
+                    bold={focused || checked}
+                    wrap="truncate"
+                  >
+                    {truncateDisplay(`${cursorMark}${boxMark} [${idx + 1}] ${tagLabel}`, Math.max(16, innerW - 2), ell)}
+                  </Text>
+                </Box>
+              );
+            })}
+          </Box>
+          <Divider width={innerW} />
+          <Box flexDirection="row" justifyContent="space-between" width={innerW} height={1}>
+            <Text color={theme.muted} wrap="truncate">
+              {t(
+                lang,
+                '仅记录反馈，不触发静默后台改题 (rewriteVia: assist)',
+                'Safe record only; no silent background AI rewrite',
+              )}
+            </Text>
+            <Text color={theme.accent} bold>
+              {t(lang, '[d / Enter] 提交问题', '[d / Enter] Submit')}
+            </Text>
+          </Box>
+        </Box>
+      ) : null}
+
       {mode === 'confirm-slay' ? (
         <Box flexDirection="column" marginY={1} gap={1}>
           <Text color={theme.error} bold>
@@ -1322,5 +1599,22 @@ export const CardToolsModal = memo(function CardToolsModal({
         </Box>
       ) : null}
     </Modal>
+
+    {confirmCoachRevert ? (
+      <ConfirmDialog
+        title={t(lang, '撤销上次改写', 'Revert Last Rewrite')}
+        message={t(
+          lang,
+          `确定通过 coach.revert 将当前题目恢复到上一版本${lastRevisionReason ? `（${lastRevisionReason}）` : ''}？当前改写内容将被回退并刷新复习队列。`,
+          `Revert this card to its previous version${lastRevisionReason ? ` (${lastRevisionReason})` : ''} via coach.revert and refresh the active review?`,
+        )}
+        confirmLabel={t(lang, '确认撤销', 'Revert')}
+        cancelLabel={t(lang, '取消', 'Cancel')}
+        isActive={isActive && confirmCoachRevert}
+        onConfirm={() => void handleConfirmCoachRevert()}
+        onCancel={() => setConfirmCoachRevert(false)}
+      />
+    ) : null}
+    </>
   );
 });

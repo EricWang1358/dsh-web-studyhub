@@ -35,9 +35,70 @@ const BookExportModal = lazy(() => import('./BookExportModal.js').then((m) => ({
 const BookQaModal = lazy(() => import('./BookQaModal.js').then((m) => ({ default: m.BookQaModal })));
 const BookStructureModal = lazy(() => import('./BookStructureModal.js').then((m) => ({ default: m.BookStructureModal })));
 
-const BASE_CLAIMED_KEYS = ['P', 'e', 'r', 'w', 'x', '[', ']'] as const;
-const REBUILD_CLAIMED_KEYS = ['P', 'e', 'r', 'w', 'x', '[', ']', 'a'] as const;
+const BASE_CLAIMED_KEYS = ['P', 'U', 'e', 'r', 'w', 'x', '[', ']'] as const;
+const REBUILD_CLAIMED_KEYS = ['P', 'U', 'e', 'r', 'w', 'x', '[', ']', 'a'] as const;
 const STRUCTURE_FILE = 'book.structure';
+
+interface UnplacedSectionPreview {
+  id: string;
+  title: string;
+  chars?: number;
+  preview?: string;
+}
+
+function extractUnplacedPreviews(text: string | undefined): string[] {
+  if (!text) return [];
+  const lines = text.split(/\r?\n/);
+  const previews: string[] = [];
+  let currentLines: string[] | null = null;
+  let fence = '';
+  let seenTopHeading = false;
+
+  const flush = (buf: string[]) => {
+    const snippet = buf
+      .map((l) => l.replace(/^#+\s*/, '').replace(/\s+/g, ' ').trim())
+      .find((l) => l.length > 0 && !l.startsWith('[^'));
+    previews.push(snippet ?? '');
+  };
+
+  for (const line of lines) {
+    const fenceMatch = /^(\s*)(`{3,}|~{3,})/.exec(line);
+    if (fenceMatch) {
+      const marker = fenceMatch[2][0];
+      if (!fence) fence = marker;
+      else if (fence === marker) fence = '';
+    }
+    if (!fence && /^#{1,3}\s+/.test(line)) {
+      if (currentLines) flush(currentLines);
+      else if (seenTopHeading === false && previews.length === 0) {
+        // Check if there was unheaded text before first heading
+      }
+      seenTopHeading = true;
+      currentLines = [];
+      continue;
+    }
+    if (currentLines) {
+      currentLines.push(line);
+    } else if (!seenTopHeading && line.trim()) {
+      currentLines = [line];
+    }
+  }
+  if (currentLines) flush(currentLines);
+  return previews;
+}
+
+function extractUnplacedSections(book: BookOpenResult | null): UnplacedSectionPreview[] {
+  const rawSections = book?.unplaced?.sections;
+  if (!Array.isArray(rawSections) || rawSections.length === 0) return [];
+  const previews = extractUnplacedPreviews(book?.unplaced?.text);
+  const aligned = previews.length === rawSections.length;
+  return rawSections.map((sec, idx) => ({
+    id: sec.id,
+    title: sec.title,
+    chars: sec.chars,
+    ...(aligned && previews[idx] ? { preview: previews[idx] } : {}),
+  }));
+}
 
 interface BookOpenWithStructure extends BookOpenResult {
   structureVersion?: number;
@@ -266,6 +327,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [qaModalOpen, setQaModalOpen] = useState(false);
   const [structureModalOpen, setStructureModalOpen] = useState(false);
+  const [structureModalMode, setStructureModalMode] = useState<'rename' | 'place'>('rename');
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [confirmRevertOpen, setConfirmRevertOpen] = useState(false);
   const [confirmUndoRebuildOpen, setConfirmUndoRebuildOpen] = useState(false);
@@ -339,6 +401,16 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
     if (bookData?.status === 'ok' && bookData.nodes?.length) return flattenBookNodes(bookData.nodes);
     return flattenTocRows(tocData);
   }, [bookData, tocData]);
+
+  const unplacedSections = useMemo(() => extractUnplacedSections(bookData), [bookData]);
+
+  const leafPoints = useMemo(
+    () =>
+      items
+        .filter((it) => it.leaf)
+        .map((it) => ({ hid: it.hid, title: it.title, number: it.number, depth: it.depth })),
+    [items],
+  );
 
   useEffect(() => {
     const targetHid = pendingFocusHidRef.current;
@@ -775,11 +847,18 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
             { key: 'R', label: t(lang, '改名', 'Rename') },
             { key: '[/]', label: t(lang, '移序', 'Move') },
             { key: 'D', label: t(lang, '删节', 'Delete') },
+            {
+              key: 'U',
+              label:
+                unplacedSections.length > 0
+                  ? t(lang, `归位(${unplacedSections.length})`, `Place(${unplacedSections.length})`)
+                  : t(lang, '归位', 'Place'),
+            },
             { key: 'z', label: t(lang, '撤销结构', 'Undo struct') },
             { key: 'g', label: t(lang, '生成/重建', 'Build') },
             { key: 'r', label: t(lang, '刷新', 'Refresh') },
           ],
-    [lang, mathUnicode, status],
+    [lang, mathUnicode, status, unplacedSections.length],
   );
   useFooterHints(hints, isActive && !modalOpen);
 
@@ -815,6 +894,26 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
         return;
       }
       if (input === 'R') {
+        setStructureModalMode('rename');
+        setStructureModalOpen(true);
+        return;
+      }
+      if (input === 'U') {
+        if (status === 'rebuild-pending') {
+          useTuiStore.getState().notify(
+            t(lang, '请先处理待确认的总纲重组（按 [a] 应用或 [u] 撤销）', 'Resolve pending outline rebuild first ([a] apply or [u] undo)'),
+            'warning',
+          );
+          return;
+        }
+        if (unplacedSections.length === 0) {
+          useTuiStore.getState().notify(
+            t(lang, '当前没有未归位段落', 'No unplaced sections to place'),
+            'info',
+          );
+          return;
+        }
+        setStructureModalMode('place');
         setStructureModalOpen(true);
         return;
       }
@@ -920,6 +1019,13 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
             tone={mathUnicode ? 'success' : 'info'}
             variant="soft"
           />
+          {unplacedSections.length > 0 ? (
+            <Badge
+              label={t(lang, `未归位 ${unplacedSections.length}`, `Unplaced ${unplacedSections.length}`)}
+              tone="warning"
+              variant="soft"
+            />
+          ) : null}
           {((qaList?.followupIds?.length ?? 0) + (qaList?.answerCardIds?.length ?? 0)) > 0 ? (
             <Badge
               label={`Q&A ${(qaList?.followupIds?.length ?? 0) + (qaList?.answerCardIds?.length ?? 0)}`}
@@ -1122,7 +1228,10 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
           <BookStructureModal
             host={host}
             course={effectiveCourse ?? null}
+            mode={structureModalMode}
             selectedItem={selectedItem ?? null}
+            unplacedSections={unplacedSections}
+            leafPoints={leafPoints}
             structureVersion={structureVersion}
             isActive={isActive && structureModalOpen}
             width={width}
@@ -1131,6 +1240,12 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
             onRenamed={(nextVer, hid) => {
               if (typeof nextVer === 'number') setStructureVersion(nextVer);
               if (hid) pendingFocusHidRef.current = hid;
+              setReadCache({});
+              setReloadSeq((n) => n + 1);
+            }}
+            onPlaced={(nextVer, toHid) => {
+              if (typeof nextVer === 'number') setStructureVersion(nextVer);
+              if (toHid) pendingFocusHidRef.current = toHid;
               setReadCache({});
               setReloadSeq((n) => n + 1);
             }}

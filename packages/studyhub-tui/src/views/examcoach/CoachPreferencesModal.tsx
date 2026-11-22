@@ -45,6 +45,8 @@ interface CoachProfileResult {
 
 const PREF_MAX_ITEMS = 12;
 const PREF_MAX_CHARS = 120;
+const GOAL_KEYS = ['', 'exam', 'interview', 'work', 'explore'] as const;
+type LearnerGoalKey = (typeof GOAL_KEYS)[number];
 
 function formatGoalLabel(goal: string | undefined, lang: 'zh' | 'en'): string {
   switch (goal) {
@@ -82,6 +84,7 @@ export const CoachPreferencesModal = memo(function CoachPreferencesModal({
   const [draftText, setDraftText] = useState('');
 
   const mountedRef = useRef(true);
+  const busyRef = useRef(false);
   const seqRef = useRef(0);
 
   useEffect(() => {
@@ -123,7 +126,7 @@ export const CoachPreferencesModal = memo(function CoachPreferencesModal({
 
   const handleAddSubmit = useCallback(
     async (raw: string) => {
-      if (busy) return;
+      if (busyRef.current || busy) return;
       const text = raw.replace(/\s+/g, ' ').trim();
       if (!text) {
         notify(t(lang, '请输入一条学习偏好内容', 'Enter a study preference first'), 'warning');
@@ -136,12 +139,14 @@ export const CoachPreferencesModal = memo(function CoachPreferencesModal({
         );
         return;
       }
+      busyRef.current = true;
       setBusy(true);
       const res = await tryAction<{ preferences?: string[]; memoryRevision?: number }>(host, 'coach.preferences', {
         add: text,
       });
       if (!mountedRef.current) return;
       if (!res.ok) {
+        busyRef.current = false;
         setBusy(false);
         notify(res.error?.message || t(lang, '添加学习偏好失败', 'Failed to add preference'), 'error');
         return;
@@ -150,6 +155,7 @@ export const CoachPreferencesModal = memo(function CoachPreferencesModal({
       setDraftText('');
       await loadProfile();
       if (!mountedRef.current) return;
+      busyRef.current = false;
       setBusy(false);
       notify(t(lang, '已添加学习偏好', 'Study preference added'), 'success');
     },
@@ -157,26 +163,78 @@ export const CoachPreferencesModal = memo(function CoachPreferencesModal({
   );
 
   const handleRemoveSelected = useCallback(async () => {
-    if (busy || !selectedPref) return;
+    if (busyRef.current || busy || !selectedPref) return;
+    busyRef.current = true;
     setBusy(true);
     const res = await tryAction<{ preferences?: string[]; memoryRevision?: number }>(host, 'coach.preferences', {
       remove: selectedPref,
     });
     if (!mountedRef.current) return;
     if (!res.ok) {
+      busyRef.current = false;
       setBusy(false);
       notify(res.error?.message || t(lang, '删除学习偏好失败', 'Failed to remove preference'), 'error');
       return;
     }
     await loadProfile();
     if (!mountedRef.current) return;
+    busyRef.current = false;
     setBusy(false);
     notify(t(lang, '已移除学习偏好', 'Study preference removed'), 'success');
   }, [busy, selectedPref, host, lang, loadProfile, notify]);
 
+  const handleCycleGoal = useCallback(async () => {
+    if (busyRef.current || busy || loading || addMode) return;
+    const currentGoal = profile?.goal ?? '';
+    const currentIdx = GOAL_KEYS.indexOf(currentGoal as LearnerGoalKey);
+    const nextGoal = GOAL_KEYS[currentIdx >= 0 ? (currentIdx + 1) % GOAL_KEYS.length : 1];
+    const expectedRevision = typeof profile?.memoryRevision === 'number' ? profile.memoryRevision : undefined;
+
+    busyRef.current = true;
+    setBusy(true);
+    const res = await tryAction<{ goal?: string; memoryRevision?: number }>(host, 'coach.goal', {
+      goal: nextGoal,
+      ...(expectedRevision !== undefined ? { expectedRevision } : {}),
+    });
+    if (!mountedRef.current) return;
+    busyRef.current = false;
+    setBusy(false);
+    if (!res.ok || !res.value) {
+      const errMsg = res.error?.message || t(lang, '更新学习目标失败', 'Failed to update learning goal');
+      notify(errMsg, 'error');
+      if (res.error?.code === 'MEMORY_REVISION_CONFLICT' || /刷新后重试/.test(errMsg)) {
+        void loadProfile();
+      }
+      return;
+    }
+    const savedGoal = typeof res.value.goal === 'string' ? res.value.goal : nextGoal;
+    const nextRevision = typeof res.value.memoryRevision === 'number' ? res.value.memoryRevision : expectedRevision;
+    setProfile((prev) =>
+      prev
+        ? {
+            ...prev,
+            goal: savedGoal,
+            ...(typeof nextRevision === 'number' ? { memoryRevision: nextRevision } : {}),
+          }
+        : prev,
+    );
+    notify(
+      t(
+        lang,
+        `学习目标已切换为: ${formatGoalLabel(savedGoal, lang)}`,
+        `Learning goal updated: ${formatGoalLabel(savedGoal, lang)}`,
+      ),
+      'success',
+    );
+  }, [busy, loading, addMode, profile?.goal, profile?.memoryRevision, host, lang, notify, loadProfile]);
+
   useInput(
     (input) => {
-      if (loading || busy || addMode) return;
+      if (loading || busyRef.current || busy || addMode) return;
+      if (input === 'g') {
+        void handleCycleGoal();
+        return;
+      }
       if (input === 'a') {
         if (preferences.length >= PREF_MAX_ITEMS) {
           notify(
@@ -218,7 +276,10 @@ export const CoachPreferencesModal = memo(function CoachPreferencesModal({
         { key: 'Esc', label: t(lang, '取消输入', 'Cancel') },
       ];
     }
-    const out: KeyHint[] = [{ key: 'a', label: t(lang, '添加偏好', 'Add') }];
+    const out: KeyHint[] = [
+      { key: 'g', label: t(lang, '切换目标', 'Goal') },
+      { key: 'a', label: t(lang, '添加偏好', 'Add') },
+    ];
     if (preferences.length > 0) {
       out.push({ key: 'd', label: t(lang, '删除选中', 'Remove') });
     }
@@ -280,7 +341,7 @@ export const CoachPreferencesModal = memo(function CoachPreferencesModal({
     >
       {loading ? (
         <Box height={bodyH} alignItems="center" justifyContent="center">
-          <Spinner label={t(lang, '正在读取学习者画像与偏好…', 'Loading learner profile & preferences…')} active={isActive} />
+          <Spinner label={t(lang, `正在读取学习者画像与偏好${ell}`, `Loading learner profile & preferences${ell}`)} active={isActive} />
         </Box>
       ) : error && !profile ? (
         <EmptyState
@@ -299,7 +360,7 @@ export const CoachPreferencesModal = memo(function CoachPreferencesModal({
           {/* Row 1: Goal, Consent & Ready status */}
           <Box height={1} flexDirection="row" justifyContent="space-between" overflow="hidden" flexShrink={0}>
             <Box gap={1} overflow="hidden">
-              <Badge label={`${t(lang, '目标', 'Goal')}: ${formatGoalLabel(profile?.goal, lang)}`} tone="accent" variant="soft" />
+              <Badge label={`${t(lang, '[g] 目标', '[g] Goal')}: ${formatGoalLabel(profile?.goal, lang)}`} tone="accent" variant="soft" />
               <Badge
                 label={
                   profile?.consent === true
@@ -313,7 +374,7 @@ export const CoachPreferencesModal = memo(function CoachPreferencesModal({
                 <Badge label={`${t(lang, '已备题', 'Ready')}: ${profile.ready}`} tone={profile.ready > 0 ? 'primary' : 'muted'} variant="soft" />
               ) : null}
             </Box>
-            <Box flexShrink={0}>{busy ? <Spinner label={t(lang, '保存中…', 'Saving…')} active={isActive} /> : null}</Box>
+            <Box flexShrink={0}>{busy ? <Spinner label={t(lang, `保存中${ell}`, `Saving${ell}`)} active={isActive} /> : null}</Box>
           </Box>
 
           {/* Row 2: Signals overview */}
@@ -341,8 +402,8 @@ export const CoachPreferencesModal = memo(function CoachPreferencesModal({
             </Text>
             <Text color={theme.dim}>
               {addMode
-                ? t(lang, '输入中…', 'Typing…')
-                : t(lang, `[a] 添加  [d] 删除`, `[a] Add  [d] Remove`)}
+                ? t(lang, `输入中${ell}`, `Typing${ell}`)
+                : t(lang, `[g] 目标  [a] 添加  [d] 删除`, `[g] Goal  [a] Add  [d] Remove`)}
             </Text>
           </Box>
 
@@ -379,7 +440,7 @@ export const CoachPreferencesModal = memo(function CoachPreferencesModal({
               <TextInput
                 value={draftText}
                 onChange={setDraftText}
-                placeholder={t(lang, '输入长期学习偏好…', 'Enter a long-term study preference…')}
+                placeholder={t(lang, `输入长期学习偏好${ell}`, `Enter a long-term study preference${ell}`)}
                 isActive={isActive && addMode && !busy}
                 width={Math.max(10, innerW - 4)}
                 maxLength={PREF_MAX_CHARS}
