@@ -33,7 +33,7 @@ export interface CardToolsModalProps {
   onRefreshSnapshot?: () => void;
 }
 
-type ToolMode = 'menu' | 'edit' | 'confirm-slay' | 'terms' | 'prereqs' | 'feedback';
+type ToolMode = 'menu' | 'edit' | 'confirm-slay' | 'confirm-retry-rewrite' | 'terms' | 'prereqs' | 'feedback';
 type EditField = 'prompt' | 'answer' | 'explanation';
 
 const FEEDBACK_TAG_OPTIONS = [
@@ -617,6 +617,33 @@ export const CardToolsModal = memo(function CardToolsModal({
     onClose,
   ]);
 
+  const handleConfirmRetryRewrite = useCallback(async () => {
+    if (busyRef.current || busy) return;
+    const effectiveDeckId = resolvedDeckId || deckId;
+    busyRef.current = true;
+    setBusy(true);
+    setErrorText(null);
+    setInfoText(null);
+    const res = await tryAction<unknown>(host, 'coach.rewrite.retry', {
+      ...(effectiveDeckId ? { deckId: effectiveDeckId } : {}),
+      cardId,
+    });
+    if (!mountedRef.current) return;
+    busyRef.current = false;
+    setBusy(false);
+    setMode('menu');
+    if (!res.ok) {
+      const msg = res.error?.message || t(lang, '重试 AI 改题失败', 'Failed to retry AI rewrite');
+      setInfoText(msg);
+      notify(msg, 'warning');
+      return;
+    }
+    onRefreshSnapshot?.();
+    const okMsg = t(lang, '已重新排队 AI 改题任务', 'Re-queued AI rewrite task');
+    setInfoText(okMsg);
+    notify(okMsg, 'success');
+  }, [busy, resolvedDeckId, deckId, host, cardId, lang, notify, onRefreshSnapshot]);
+
   const openPrereqsMode = useCallback(async () => {
     setMode('prereqs');
     setErrorText(null);
@@ -758,7 +785,7 @@ export const CardToolsModal = memo(function CardToolsModal({
     [busy, resolvedDeckId, deckId, host, cardId, lang, notify, prereqs.length, hydrateCardDetails, onRefreshSnapshot],
   );
 
-  const MENU_COUNT = 10;
+  const MENU_COUNT = 11;
 
   const triggerOption = useCallback(
     (idx: number) => {
@@ -802,6 +829,8 @@ export const CardToolsModal = memo(function CardToolsModal({
           return;
         }
         setConfirmCoachRevert(true);
+      } else if (idx === 10) {
+        setMode('confirm-retry-rewrite');
       }
     },
     [
@@ -830,6 +859,9 @@ export const CardToolsModal = memo(function CardToolsModal({
           const idx = input === '0' ? 9 : Number(input) - 1;
           setMenuCursor(idx);
           triggerOption(idx);
+        } else if (input === 'R') {
+          setMenuCursor(10);
+          triggerOption(10);
         } else if (key.return) {
           triggerOption(menuCursor);
         }
@@ -924,7 +956,7 @@ export const CardToolsModal = memo(function CardToolsModal({
         }
       }
     },
-    { isActive: isActive && mode !== 'edit' && !confirmCoachRevert },
+    { isActive: isActive && mode !== 'edit' && mode !== 'confirm-retry-rewrite' && !confirmCoachRevert },
   );
 
   const cycleEditField = useCallback(() => {
@@ -996,7 +1028,7 @@ export const CardToolsModal = memo(function CardToolsModal({
       ];
     }
     return [
-      { key: '1-9,0 / Enter', label: t(lang, '执行', 'Select') },
+      { key: '1-9,0,R / Enter', label: t(lang, '执行', 'Select') },
       { key: 'Esc', label: t(lang, '关闭', 'Close') },
     ];
   }, [mode, lang, asciiMode, prereqSearchActive, prereqSearchFocused]);
@@ -1112,6 +1144,13 @@ export const CardToolsModal = memo(function CardToolsModal({
       enabled: revisionsCount > 0,
       badge: revisionsCount > 0 ? t(lang, `${revisionsCount} 版`, `${revisionsCount} rev`) : t(lang, '无历史', 'None'),
     },
+    {
+      key: 'R',
+      title: t(lang, '重试失败的 AI 改题', 'Retry Failed AI Rewrite'),
+      desc: t(lang, '确认后重新排队此前失败的教练改题任务', 'Confirm and re-queue a failed AI rewrite task'),
+      enabled: true,
+      badge: 'coach.rewrite.retry',
+    },
   ];
 
   const placementSummary = useMemo(() => {
@@ -1129,7 +1168,7 @@ export const CardToolsModal = memo(function CardToolsModal({
     return { sourceText, bookText, courseText };
   }, [cardPlaceInfo, asciiMode, lang]);
 
-  const compactMenu = height <= (placementSummary ? 30 : 26);
+  const compactMenu = height <= (placementSummary ? 32 : 28);
   const linkedPrereqIds = new Set(prereqs.map((p) => p.cardId));
 
   // Windowed slices for 'prereqs' lists so 80x24 never overflows
@@ -1178,7 +1217,7 @@ export const CardToolsModal = memo(function CardToolsModal({
         width={frameW}
         height={fixedFrameH}
         onClose={handleModalClose}
-        isActive={isActive && mode !== 'edit' && !confirmCoachRevert && !(mode === 'prereqs' && prereqSearchActive && prereqSearchFocused)}
+        isActive={isActive && mode !== 'edit' && mode !== 'confirm-retry-rewrite' && !confirmCoachRevert && !(mode === 'prereqs' && prereqSearchActive && prereqSearchFocused)}
         hints={hints}
       >
         {mode === 'menu' && placementSummary ? (
@@ -1214,7 +1253,7 @@ export const CardToolsModal = memo(function CardToolsModal({
         ) : null}
         {busy ? (
           <Box height={1} marginY={0}>
-            <Spinner label={t(lang, `正在提交操作${ell}`, `Applying action${ell}`)} active={isActive && !confirmCoachRevert} />
+            <Spinner label={t(lang, `正在提交操作${ell}`, `Applying action${ell}`)} active={isActive && !confirmCoachRevert && mode !== 'confirm-retry-rewrite'} />
           </Box>
         ) : null}
 
@@ -1685,6 +1724,22 @@ export const CardToolsModal = memo(function CardToolsModal({
         isActive={isActive && confirmCoachRevert}
         onConfirm={() => void handleConfirmCoachRevert()}
         onCancel={() => setConfirmCoachRevert(false)}
+      />
+    ) : null}
+
+    {mode === 'confirm-retry-rewrite' ? (
+      <ConfirmDialog
+        title={t(lang, '重试 AI 改题任务', 'Retry Failed AI Rewrite')}
+        message={t(
+          lang,
+          '确定调用 coach.rewrite.retry 为本题重新排队此前失败的 AI 改题任务？若取消或本题没有待重试的改题，不会产生模型调用。',
+          'Call coach.rewrite.retry to re-queue a failed AI rewrite for this card? Cancelling or having no failed rewrite makes 0 model calls.',
+        )}
+        confirmLabel={t(lang, '确认重试', 'Retry')}
+        cancelLabel={t(lang, '取消', 'Cancel')}
+        isActive={isActive && mode === 'confirm-retry-rewrite' && !busy}
+        onConfirm={() => void handleConfirmRetryRewrite()}
+        onCancel={() => setMode('menu')}
       />
     ) : null}
     </>

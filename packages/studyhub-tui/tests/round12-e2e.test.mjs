@@ -352,8 +352,18 @@ describe('StudyHub TUI Round 12 Features E2E', () => {
     );
     tty.assertHealthyScreen(afterCovClose, 120, 'SourcesView after SourceCoverageModal');
 
-    // Open OrganizeSourcesModal ('G')
+    // Open OrganizeSourcesModal ('G') -> P2 ConfirmDialog opens first with 0 auto AI calls
     tty.send('G');
+    const confirmOrgScreen = await tty.waitFor(
+      (s) =>
+        (s.includes('AI 分析资料所属课程') || s.includes('AI Organize Materials by Course')) &&
+        (s.includes('将分析') || s.includes('Analyze ')),
+      { timeoutMs: 8_000, label: 'OrganizeSourcesModal P2 ConfirmDialog' },
+    );
+    tty.assertHealthyScreen(confirmOrgScreen, 120, 'OrganizeSourcesModal P2 ConfirmDialog');
+
+    // Confirm with 'y' -> invoke source.organize.suggest and render proposals
+    tty.send('y');
     const organizeScreen = await tty.waitFor(
       (s) =>
         (s.includes('AI 智能整理课程归属') || s.includes('AI Organize Courses')) &&

@@ -15,7 +15,7 @@ import { useClaimKeys } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { useShellActions } from '../../shell/actions.js';
-import { tryAction } from '../../host/sample-actions.js';
+import { errorMessage, tryAction } from '../../host/sample-actions.js';
 import { currentCourse } from '../../shell/data.js';
 import { t, useTuiStore } from '../../state/store.js';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';
@@ -42,9 +42,11 @@ type ActiveModal =
   | { type: 'export'; note: NoteItem }
   | { type: 'delete'; note: NoteItem }
   | { type: 'link'; note: NoteItem }
-  | { type: 'cancelRecap'; noteId: string; label: string };
+  | { type: 'cancelRecap'; noteId: string; label: string }
+  | { type: 'confirm-generate'; note: NoteItem }
+  | { type: 'confirm-cancel-gen'; note: NoteItem };
 
-const CLAIMED_KEYS = ['a', 'o', 'R', 'L', 'C', 'M'] as const;
+const CLAIMED_KEYS = ['a', 'g', 'o', 'R', 'L', 'C', 'M'] as const;
 
 interface LinkedCardTarget {
   deckId: string;
@@ -208,6 +210,8 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
   const [linkError, setLinkError] = useState('');
   const [linking, setLinking] = useState(false);
   const [cancellingRecap, setCancellingRecap] = useState(false);
+  const [generatingDraft, setGeneratingDraft] = useState(false);
+  const [cancellingGen, setCancellingGen] = useState(false);
 
   const mountedRef = useRef(true);
   const listReqRef = useRef(0);
@@ -216,6 +220,8 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
   const pendingSelectIdRef = useRef<string | null>(navNoteId || null);
   const linkingRef = useRef(false);
   const cancellingRecapRef = useRef(false);
+  const generatingRef = useRef(false);
+  const cancellingGenRef = useRef(false);
   const importMaterialBusyRef = useRef(false);
 
   useEffect(() => {
@@ -287,17 +293,21 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
     return unsub;
   }, [host, fetchNotesAndDaily]);
 
-  // Poll daily recap status while any group is running
+  // Poll recap / note generation status while any job is running
   const anyRecapRunning = useMemo(
     () => Boolean(dailyStatus?.groups?.some((g) => g.generation?.status === 'running')),
     [dailyStatus],
+  );
+  const anyGenRunning = useMemo(
+    () => anyRecapRunning || notes.some((n) => n.generation?.status === 'running'),
+    [anyRecapRunning, notes],
   );
   useEffect(() => {
     if (pollTimerRef.current) {
       clearTimeout(pollTimerRef.current);
       pollTimerRef.current = null;
     }
-    if (!isActive || !anyRecapRunning) return undefined;
+    if (!isActive || !anyGenRunning) return undefined;
     pollTimerRef.current = setTimeout(() => {
       pollTimerRef.current = null;
       if (mountedRef.current) void fetchNotesAndDaily(true);
@@ -308,7 +318,7 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
         pollTimerRef.current = null;
       }
     };
-  }, [isActive, anyRecapRunning, fetchNotesAndDaily]);
+  }, [isActive, anyGenRunning, fetchNotesAndDaily]);
 
   // Sync navigation target noteId
   useEffect(() => {
@@ -385,7 +395,14 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
       return;
     }
     void fetchDetail(selectedSummary.id);
-  }, [isPendingSelection, selectedSummary?.id, selectedSummary?.revision, selectedSummary?.updatedAt, fetchDetail]);
+  }, [
+    isPendingSelection,
+    selectedSummary?.id,
+    selectedSummary?.revision,
+    selectedSummary?.updatedAt,
+    selectedSummary?.generation?.status,
+    fetchDetail,
+  ]);
 
   const displayedNote = isPendingSelection
     ? activeNote?.id === selectedId
@@ -569,6 +586,76 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
     [cancellingRecap, host, lang, notify, activeNote?.id, fetchNotesAndDaily, refreshSnapshot],
   );
 
+  const handleGenerateConfirm = useCallback(
+    async (note: NoteItem) => {
+      if (generatingRef.current) return;
+      generatingRef.current = true;
+      setGeneratingDraft(true);
+      setModal(null);
+      try {
+        const res = await tryAction<{ id?: string; jobId?: string; status?: string }>(host, 'note.generate', {
+          id: note.id,
+          expectedRevision: note.revision ?? 0,
+        });
+        if (!mountedRef.current) return;
+        if (!res.ok) {
+          notify(
+            errorMessage(res.error, lang) || t(lang, '启动 AI 笔记起草失败', 'Failed to start AI note drafting'),
+            'error',
+          );
+          return;
+        }
+        notify(t(lang, '已启动 AI 笔记起草任务', 'Started AI note drafting job'), 'success');
+        await Promise.all([fetchNotesAndDaily(true), fetchDetail(note.id)]);
+        if (!mountedRef.current) return;
+        void refreshSnapshot();
+      } catch (err) {
+        if (mountedRef.current) {
+          notify(errorMessage(err, lang), 'error');
+        }
+      } finally {
+        generatingRef.current = false;
+        if (mountedRef.current) setGeneratingDraft(false);
+      }
+    },
+    [host, lang, notify, fetchNotesAndDaily, fetchDetail, refreshSnapshot],
+  );
+
+  const handleCancelGenConfirm = useCallback(
+    async (note: NoteItem) => {
+      if (cancellingGenRef.current || cancellingGen) return;
+      cancellingGenRef.current = true;
+      setCancellingGen(true);
+      setModal(null);
+      try {
+        const res = await tryAction<NoteItem>(host, 'note.cancel', { id: note.id });
+        if (!mountedRef.current) return;
+        if (!res.ok) {
+          notify(
+            errorMessage(res.error, lang) || t(lang, '停止笔记 AI 起草失败', 'Failed to stop note AI drafting'),
+            'error',
+          );
+          return;
+        }
+        if (res.value && activeNote?.id === note.id) {
+          setActiveNote(res.value);
+        }
+        notify(t(lang, '已停止笔记 AI 起草', 'Stopped note AI drafting'), 'info');
+        await fetchNotesAndDaily(true);
+        if (!mountedRef.current) return;
+        void refreshSnapshot();
+      } catch (err) {
+        if (mountedRef.current) {
+          notify(errorMessage(err, lang), 'error');
+        }
+      } finally {
+        cancellingGenRef.current = false;
+        if (mountedRef.current) setCancellingGen(false);
+      }
+    },
+    [cancellingGen, host, lang, notify, activeNote?.id, fetchNotesAndDaily, refreshSnapshot],
+  );
+
   const handleDeleteNote = useCallback(
     async (target: NoteItem) => {
       setModal(null);
@@ -727,6 +814,7 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
     [displayedNote, openingRef, linkedRefs, notify, lang, host, focusCourse],
   );
 
+  const busy = generatingRecap || generatingDraft || cancellingRecap || cancellingGen || openingRef || exporting || linking;
   const noModalActive = isActive && modal === null;
   useClaimKeys(CLAIMED_KEYS, noModalActive);
 
@@ -753,6 +841,11 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
         return;
       }
       if (input === 'C') {
+        if (busy) return;
+        if (displayedNote && !isDailyNote(displayedNote) && displayedNote.generation?.status === 'running') {
+          setModal({ type: 'confirm-cancel-gen', note: displayedNote });
+          return;
+        }
         if (!runningRecapTarget) {
           notify(t(lang, '当前没有正在生成的每日总结', 'No daily recap is currently running'), 'info');
           return;
@@ -769,6 +862,23 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
         return;
       }
       if (!displayedNote) return;
+      if (input === 'g') {
+        if (busy) return;
+        if (isDailyNote(displayedNote)) {
+          notify(t(lang, '每日总结请按 [R] 更新今日总结', 'Use [R] to update Daily Recap'), 'info');
+          return;
+        }
+        if (displayedNote.status !== 'draft') {
+          notify(t(lang, '已发布笔记不能重新 AI 起草', 'Published notes cannot be re-drafted by AI'), 'warning');
+          return;
+        }
+        if (displayedNote.generation?.status === 'running') {
+          notify(t(lang, '该笔记正在 AI 起草中（按 [C] 可停止）', 'Note draft is already running (press [C] to stop)'), 'info');
+          return;
+        }
+        setModal({ type: 'confirm-generate', note: displayedNote });
+        return;
+      }
       if (input === 'o') {
         void openLinkedRef(false);
         return;
@@ -814,17 +924,20 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
     () => [
       { key: 'a', label: t(lang, '新建', 'New') },
       { key: 'e', label: t(lang, '编辑', 'Edit') },
+      { key: 'g', label: t(lang, 'AI起草', 'AI Draft') },
       { key: 'o', label: t(lang, '打开关联', 'Open Ref') },
       { key: 'L', label: t(lang, '外链', 'Link') },
       { key: 'M', label: t(lang, '入资料库', 'To Sources') },
       { key: 'R', label: t(lang, '日结', 'Recap') },
-      ...(anyRecapRunning ? [{ key: 'C', label: t(lang, '停日结', 'Stop Recap') }] : []),
+      ...(anyRecapRunning || displayedNote?.generation?.status === 'running'
+        ? [{ key: 'C', label: t(lang, '停生成', 'Stop Gen') }]
+        : []),
       { key: 'x', label: t(lang, '导出', 'Export') },
       { key: 'd', label: t(lang, '删除', 'Del') },
       { key: 'm', label: t(lang, '公式', 'Math') },
       { key: 'Tab', label: t(lang, '切栏', 'Pane') },
     ],
-    [lang, anyRecapRunning],
+    [lang, anyRecapRunning, displayedNote?.generation?.status],
   );
   useFooterHints(hints, isActive);
 
@@ -1235,6 +1348,40 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
             </Modal>
           );
         })()
+      ) : null}
+
+      {modal?.type === 'confirm-generate' ? (
+        <ConfirmDialog
+          title={t(lang, 'AI 起草笔记正文', 'AI Draft Note')}
+          message={(() => {
+            const cardCount = modal.note.cardCount ?? modal.note.cards?.length ?? 0;
+            return t(
+              lang,
+              `将调用已配置模型为笔记「${modal.note.title}」（关联 ${cardCount} 张题卡）起草正文。继续吗？`,
+              `Invoke the configured model to draft "${modal.note.title}" (${cardCount} linked card${cardCount === 1 ? '' : 's'}). Continue?`,
+            );
+          })()}
+          confirmLabel={t(lang, '开始起草', 'Generate')}
+          cancelLabel={t(lang, '取消', 'Cancel')}
+          onConfirm={() => void handleGenerateConfirm(modal.note)}
+          onCancel={() => setModal(null)}
+        />
+      ) : null}
+
+      {modal?.type === 'confirm-cancel-gen' ? (
+        <ConfirmDialog
+          title={t(lang, '停止 AI 起草笔记', 'Stop AI Note Draft')}
+          message={t(
+            lang,
+            `确定停止「${modal.note.title}」的 AI 起草吗？`,
+            `Stop AI drafting for "${modal.note.title}"?`,
+          )}
+          confirmLabel={t(lang, '停止起草', 'Stop')}
+          cancelLabel={t(lang, '继续生成', 'Keep Running')}
+          danger
+          onConfirm={() => void handleCancelGenConfirm(modal.note)}
+          onCancel={() => setModal(null)}
+        />
       ) : null}
 
       {modal?.type === 'cancelRecap' ? (
