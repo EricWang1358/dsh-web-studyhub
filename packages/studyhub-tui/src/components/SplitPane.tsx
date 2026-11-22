@@ -1,6 +1,7 @@
 import React, { memo, type ReactNode } from 'react';
 import { Box, Text } from 'ink';
 import { useTheme } from '../theme/tokens.js';
+import { t, useTuiStore } from '../state/store.js';
 
 export interface PaneSize {
   width: number;
@@ -64,12 +65,16 @@ export const SplitPane = memo(function SplitPane({
   breakpoint = 86,
   activePane = 'left',
   narrowMode = 'tabs',
-  leftLabel = '列表',
-  rightLabel = '详情',
+  leftLabel,
+  rightLabel,
   gap = 1,
   divider = false,
 }: SplitPaneProps) {
   const theme = useTheme();
+  const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const resolvedLeftLabel = leftLabel ?? t(lang, '列表', 'List');
+  const resolvedRightLabel = rightLabel ?? t(lang, '详情', 'Detail');
   const layout = computeSplit(width, { leftWidth, minLeft, minRight, breakpoint, gap });
 
   if (layout.narrow) {
@@ -81,7 +86,7 @@ export const SplitPane = memo(function SplitPane({
           <Box height={topH} width={width} overflow="hidden">
             {resolve(left, { width, height: topH, visible: true, narrow: true })}
           </Box>
-          <Text color={theme.border}>{'─'.repeat(Math.max(0, width))}</Text>
+          <Text color={theme.border}>{(asciiMode ? '-' : '─').repeat(Math.max(0, width))}</Text>
           <Box height={botH} width={width} overflow="hidden">
             {resolve(right, { width, height: botH, visible: true, narrow: true })}
           </Box>
@@ -91,17 +96,25 @@ export const SplitPane = memo(function SplitPane({
     const bodyH = Math.max(1, height - 1);
     const tab = (label: string, active: boolean, key: string) => (
       <Text key={key} color={active ? theme.primary : theme.muted} bold={active} backgroundColor={active ? theme.surface : undefined}>
-        {` ${active ? '●' : '○'} ${label} `}
+        {` ${active ? (asciiMode ? '*' : '●') : (asciiMode ? 'o' : '○')} ${label} `}
       </Text>
     );
+    const navHint =
+      activePane === 'left'
+        ? asciiMode
+          ? t(lang, 'Enter/> 详情 ', 'Enter/> Detail ')
+          : t(lang, 'Enter/→ 详情 ', 'Enter/→ Detail ')
+        : asciiMode
+          ? t(lang, 'Esc/< 返回 ', 'Esc/< Back ')
+          : t(lang, 'Esc/← 返回 ', 'Esc/← Back ');
     return (
       <Box flexDirection="column" width={width} height={height}>
         <Box height={1} width={width}>
-          {tab(leftLabel, activePane === 'left', 'l')}
+          {tab(resolvedLeftLabel, activePane === 'left', 'l')}
           <Text color={theme.dim}> </Text>
-          {tab(rightLabel, activePane === 'right', 'r')}
+          {tab(resolvedRightLabel, activePane === 'right', 'r')}
           <Box flexGrow={1} />
-          <Text color={theme.dim}>{activePane === 'left' ? 'Enter/→ 详情 ' : 'Esc/← 返回 '}</Text>
+          <Text color={theme.dim}>{navHint}</Text>
         </Box>
         <Box height={bodyH} width={width} overflow="hidden">
           {activePane === 'left'
@@ -123,7 +136,7 @@ export const SplitPane = memo(function SplitPane({
             ? Array.from({ length: height }, (_, i) => (
                 <Text key={i} color={theme.border}>
                   {' '.repeat(Math.max(0, layout.gap - 1))}
-                  {i === 0 ? ' ' : '│'}
+                  {i === 0 ? ' ' : asciiMode ? '|' : '│'}
                 </Text>
               ))
             : null}

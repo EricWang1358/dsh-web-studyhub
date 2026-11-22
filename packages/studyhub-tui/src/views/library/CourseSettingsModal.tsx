@@ -285,7 +285,7 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
   const [tab, setTab] = useState<SettingsTab>('method');
   const [subMode, setSubMode] = useState<SubMode>(() => (initialCourse ? 'none' : availableCourses.length > 0 ? 'pickCourse' : 'none'));
 
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(() => Boolean(initialCourse || availableCourses[0]?.key));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -1024,7 +1024,7 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
               <Text color={theme.accent} bold>
                 {t(lang, '编辑学习方式名称 / 策略简注 (1–40 字):', 'Edit method name / strategy note (1–40 chars):')}
               </Text>
-              <Box borderStyle="round" borderColor={theme.borderActive} paddingX={1} marginTop={1}>
+              <Box borderStyle={asciiMode ? 'classic' : 'round'} borderColor={theme.borderActive} paddingX={1} marginTop={1}>
                 <TextInput
                   value={noteInput}
                   onChange={setNoteInput}
@@ -1058,7 +1058,7 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
               <Text color={theme.accent} bold>
                 {t(lang, '设置学法目标日期 (YYYY-MM-DD，留空清除):', 'Set method target date (YYYY-MM-DD, empty to clear):')}
               </Text>
-              <Box borderStyle="round" borderColor={theme.borderActive} paddingX={1} marginTop={1}>
+              <Box borderStyle={asciiMode ? 'classic' : 'round'} borderColor={theme.borderActive} paddingX={1} marginTop={1}>
                 <TextInput
                   value={dateInput}
                   onChange={setDateInput}
@@ -1155,7 +1155,7 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
               <Text color={theme.accent} bold>
                 {t(lang, `重命名课程「${selectedCourse}」(将同步题组与资料):`, `Rename course "${selectedCourse}" (syncs decks & sources):`)}
               </Text>
-              <Box borderStyle="round" borderColor={theme.borderActive} paddingX={1} marginTop={1}>
+              <Box borderStyle={asciiMode ? 'classic' : 'round'} borderColor={theme.borderActive} paddingX={1} marginTop={1}>
                 <TextInput
                   value={renameInput}
                   onChange={setRenameInput}
@@ -1186,7 +1186,7 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
               <Text color={theme.accent} bold>
                 {t(lang, '设置考试日期 (YYYY-MM-DD，留空清除):', 'Set exam date (YYYY-MM-DD, empty to clear):')}
               </Text>
-              <Box borderStyle="round" borderColor={theme.borderActive} paddingX={1} marginTop={1}>
+              <Box borderStyle={asciiMode ? 'classic' : 'round'} borderColor={theme.borderActive} paddingX={1} marginTop={1}>
                 <TextInput
                   value={dateInput}
                   onChange={setDateInput}
@@ -1254,7 +1254,7 @@ export const CourseSettingsModal = memo(function CourseSettingsModal({
             {subMode === 'searchTerms' ? (
               <Box flexDirection="column" flexShrink={0}>
                 <Text color={theme.accent}>{t(lang, '筛选课程术语:', 'Filter course terms:')}</Text>
-                <Box borderStyle="round" borderColor={theme.borderActive} paddingX={1}>
+                <Box borderStyle={asciiMode ? 'classic' : 'round'} borderColor={theme.borderActive} paddingX={1}>
                   <TextInput
                     value={termFilter}
                     onChange={setTermFilter}

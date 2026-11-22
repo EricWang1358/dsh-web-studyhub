@@ -58,6 +58,7 @@ export const VoicePackModal = memo(function VoicePackModal({
 }: VoicePackModalProps) {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const snapshot = useTuiStore((s) => s.snapshot);
   const notify = useTuiStore((s) => s.notify);
 
@@ -300,7 +301,7 @@ export const VoicePackModal = memo(function VoicePackModal({
         </Box>
       </Box>
 
-      <Text color={theme.border}>{'─'.repeat(innerW)}</Text>
+      <Text color={theme.border}>{(asciiMode ? '-' : '─').repeat(innerW)}</Text>
 
       {/* Export Path Input */}
       {exporting ? (
@@ -308,7 +309,7 @@ export const VoicePackModal = memo(function VoicePackModal({
           <Text color={theme.accent} bold>
             {t(lang, '导出 Markdown 文件路径 (支持相对或绝对路径):', 'Export Markdown file path:')}
           </Text>
-          <Box borderStyle="round" borderColor={theme.borderActive} paddingX={1}>
+          <Box borderStyle={asciiMode ? 'classic' : 'round'} borderColor={theme.borderActive} paddingX={1}>
             <TextInput
               value={exportPath}
               onChange={setExportPath}

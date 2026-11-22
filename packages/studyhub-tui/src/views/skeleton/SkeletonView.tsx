@@ -300,17 +300,18 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
   // Fallback topics preview tree when no saved skeleton exists
   const fallbackTopicTree = useMemo<TreeNode[]>(() => {
     if (detail) return [];
+    const sep = asciiMode ? ' - ' : ' · ';
     return topics.slice(0, 60).map((tp) => ({
       id: `topic:${tp.key}`,
       label: tp.topic,
-      meta: `${tp.count}题 · ${tp.decks.length}组`,
+      meta: `${tp.count}${t(lang, '题', 'Q')}${sep}${tp.decks.length}${t(lang, '组', 'D')}`,
       children: tp.decks.map((d) => ({
         id: `topic:${tp.key}:${d.deckId}`,
         label: d.deckTitle,
-        meta: `${d.count}题`,
+        meta: `${d.count}${t(lang, '题', 'Q')}`,
       })),
     }));
-  }, [detail, topics]);
+  }, [detail, topics, lang, asciiMode]);
 
   const treePaneWidth = useMemo(() => {
     const splitW = width >= 90 ? Math.max(28, Math.round(width * 0.44)) : width;
@@ -648,7 +649,7 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
       <Box height={headerH} width={width} paddingX={1} justifyContent="space-between" alignItems="center">
         <Box gap={1}>
           <Text color={theme.primary} bold>
-            ⎇ {truncateDisplay(detail?.title ?? t(lang, '知识骨架', 'Knowledge Skeleton'), Math.max(16, Math.floor(width * 0.45)))}
+            {asciiMode ? '&' : '⎇'} {truncateDisplay(detail?.title ?? t(lang, '知识骨架', 'Knowledge Skeleton'), Math.max(16, Math.floor(width * 0.45)), asciiMode ? '...' : '…')}
           </Text>
           {activeCourse ? <Badge label={activeCourse} tone="accent" variant="soft" /> : null}
           {skeletons.length > 1 ? <Badge label={`${skeletons.length} ${t(lang, '份', 'saved')}`} tone="info" variant="outline" /> : null}
@@ -656,7 +657,9 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
         </Box>
         <Box gap={1}>
           <Text color={theme.muted}>
-            {t(lang, '★掌握  ◐学习  ✕薄弱  ⚑考纲重点', '★Mastered ◐Learning ✕Weak ⚑Focus')}
+            {asciiMode
+              ? t(lang, '*掌握  o学习  !薄弱  ^考纲重点', '*Mastered oLearning !Weak ^Focus')
+              : t(lang, '★掌握  ◐学习  ✕薄弱  ⚑考纲重点', '★Mastered ◐Learning ✕Weak ⚑Focus')}
           </Text>
         </Box>
       </Box>
@@ -665,7 +668,7 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
       {!detail && topics.length === 0 ? (
         <Box width={width} height={bodyH} paddingX={1}>
           <EmptyState
-            icon="⎇"
+            icon={asciiMode ? '&' : '⎇'}
             title={t(lang, '还没有知识骨架', 'No knowledge skeletons yet')}
             hint={t(lang, '先创建题组或导入题目，再按 [g] 生成知识层级树', 'Create questions first, then press [g] to generate a knowledge tree')}
             actions={[

@@ -158,7 +158,7 @@ export const ExamReportView = memo(function ExamReportView({
           </Text>
           {writtenItems.length === 0 ? (
             <EmptyState
-              icon="✓"
+              icon={asciiMode ? '+' : '✓'}
               title={t(lang, '全对通关！', 'Perfect Score!')}
               hint={t(lang, '按 b 返回模拟考主页', 'Press b to return')}
               height={listH}
@@ -174,10 +174,11 @@ export const ExamReportView = memo(function ExamReportView({
               isActive={isActive && pane === 'list'}
               keyExtractor={(item, i) => `${item.deckId}:${item.cardId}:${i}`}
               renderItem={(item, ctx) => {
-                const tag = item.skipped ? '○' : '✕';
+                const tag = asciiMode ? (item.skipped ? 'o' : 'x') : item.skipped ? '○' : '✕';
                 const txt = truncateDisplay(
-                  `${ctx.selected ? '❯ ' : '  '}${tag} [${item.topic || ''}] ${item.prompt || ''}`,
+                  `${ctx.selected ? (asciiMode ? '> ' : '❯ ') : '  '}${tag} [${item.topic || ''}] ${item.prompt || ''}`,
                   ctx.width,
+                  asciiMode ? '...' : '…',
                 );
                 return (
                   <Text

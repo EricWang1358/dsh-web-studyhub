@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useRef, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { toneColor, useTheme, type Tone } from '../theme/tokens.js';
+import { t, useTuiStore } from '../state/store.js';
 import { displayWidth, truncateDisplay } from '../render/index.js';
 import { DIGIT_KEYS, useClaimKeys } from './focus.js';
 import { nextScrollOffset } from './VirtualList.js';
@@ -47,9 +48,13 @@ function SelectListInner<V>({
   maxHeight,
   numberShortcuts = true,
   currentValue,
-  emptyText = '没有可选项',
+  emptyText,
 }: SelectListProps<V>) {
   const theme = useTheme();
+  const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const ell = asciiMode ? '...' : '…';
+  const resolvedEmptyText = emptyText ?? t(lang, '没有可选项', 'No options');
   const total = options.length;
   const controlled = selectedIndex !== undefined;
   const [internal, setInternal] = useState(initialIndex);
@@ -103,22 +108,22 @@ function SelectListInner<V>({
     { isActive },
   );
 
-  if (total === 0) return <Text color={theme.muted}>{emptyText}</Text>;
+  if (total === 0) return <Text color={theme.muted}>{resolvedEmptyText}</Text>;
 
   return (
     <Box flexDirection="column" width={width}>
-      {off > 0 ? <Text color={theme.dim}>{`  ↑ ${off}`}</Text> : null}
+      {off > 0 ? <Text color={theme.dim}>{`  ${asciiMode ? '^' : '↑'} ${off}`}</Text> : null}
       {options.slice(off, off + rows).map((opt, i) => {
         const idx = off + i;
         const active = idx === cursor;
         const num = numberShortcuts && idx < 9 ? `${idx + 1}` : ' ';
         const badgeText = opt.badge !== undefined && opt.badge !== '' ? ` ${opt.badge} ` : '';
         const isCurrent = currentValue !== undefined && opt.value === currentValue;
-        const lead = `${active ? '❯' : ' '} ${num} ${opt.icon ? `${opt.icon} ` : ''}`;
-        const tail = `${isCurrent ? ' ✓' : ''}`;
+        const lead = `${active ? (asciiMode ? '>' : '❯') : ' '} ${num} ${opt.icon ? `${opt.icon} ` : ''}`;
+        const tail = `${isCurrent ? (asciiMode ? ' *' : ' ✓') : ''}`;
         const avail = Math.max(1, width - displayWidth(lead) - displayWidth(badgeText) - displayWidth(tail) - 1);
-        const label = truncateDisplay(opt.label, avail);
-        const hint = opt.hint ? truncateDisplay(`  ${opt.hint}`, Math.max(0, avail - displayWidth(label))) : '';
+        const label = truncateDisplay(opt.label, avail, ell);
+        const hint = opt.hint ? truncateDisplay(`  ${opt.hint}`, Math.max(0, avail - displayWidth(label)), ell) : '';
         const fg = opt.disabled ? theme.dim : active ? (isActive ? theme.selectionFg : theme.text) : theme.text;
         return (
           <Box key={idx} height={1} width={width} backgroundColor={active ? (isActive ? theme.selectionBg : theme.surface) : undefined}>
@@ -140,7 +145,7 @@ function SelectListInner<V>({
           </Box>
         );
       })}
-      {off + rows < total ? <Text color={theme.dim}>{`  ↓ ${total - off - rows}`}</Text> : null}
+      {off + rows < total ? <Text color={theme.dim}>{`  ${asciiMode ? 'v' : '↓'} ${total - off - rows}`}</Text> : null}
     </Box>
   );
 }

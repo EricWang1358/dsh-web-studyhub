@@ -65,6 +65,7 @@ export const AppShell = memo(function AppShell({
 
   const page = useTuiStore((s) => s.page);
   const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const sidebarCollapsed = useTuiStore((s) => s.preferences.sidebarCollapsed);
   const showKeyHints = useTuiStore((s) => s.preferences.showKeyHints);
   const inputCaptured = useTuiStore((s) => s.inputCaptured);
@@ -216,7 +217,11 @@ export const AppShell = memo(function AppShell({
           </Box>
         </Box>
         {showKeyHints ? (
-          <KeyHintBar hints={hints} width={columns} right={refreshing ? t(lang, '⟳ 同步中', '⟳ syncing') : undefined} />
+          <KeyHintBar
+            hints={hints}
+            width={columns}
+            right={refreshing ? (asciiMode ? t(lang, '* 同步中', '* syncing') : t(lang, '⟳ 同步中', '⟳ syncing')) : undefined}
+          />
         ) : null}
 
         {toasts.length > 0 ? (

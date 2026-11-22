@@ -112,6 +112,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
 }) {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const mathUnicode = useTuiStore((s) => s.preferences.mathUnicode);
   const snapshot = useTuiStore((s) => s.snapshot);
   const notify = useTuiStore((s) => s.notify);
@@ -525,19 +526,31 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
 
   const renderListItem = useCallback(
     (item: WrongBookItem, ctx: VirtualListRenderContext) => {
+      const ell = asciiMode ? '...' : '…';
       const reasonMeta = errorReasonMeta(item.errorReason);
       const reasonTag = reasonMeta ? `[${reasonShort(item.errorReason, lang)}]` : '';
-      const errTag = `×${item.wrongCount ?? 1}`;
+      const errTag = `${asciiMode ? 'x' : '×'}${item.wrongCount ?? 1}`;
       const bar = renderProgressBar(gradeRatio(item.lastGrade), 5, theme, {
         style: 'block',
         showPercent: false,
+        ascii: asciiMode,
         color: (item.lastGrade ?? 0) >= 3 ? theme.success : item.leech ? theme.error : theme.warning,
       });
-      const prefix = item._view === 'history' ? '✓ ' : item.leech ? '◆ ' : '• ';
+      const prefix = asciiMode
+        ? item._view === 'history'
+          ? '+ '
+          : item.leech
+            ? '! '
+            : '* '
+        : item._view === 'history'
+          ? '✓ '
+          : item.leech
+            ? '◆ '
+            : '• ';
       const rightMeta = `${errTag}${reasonTag ? ` ${reasonTag}` : ''} `;
       const fixedW = displayWidth(prefix) + displayWidth(rightMeta) + 5;
       const snippetW = Math.max(6, ctx.width - fixedW);
-      const snippet = truncateDisplay(plainSnippet(item.prompt) || item.topic || item.cardId, snippetW);
+      const snippet = truncateDisplay(plainSnippet(item.prompt) || item.topic || item.cardId, snippetW, ell);
       const padW = Math.max(1, ctx.width - displayWidth(prefix) - displayWidth(snippet) - displayWidth(rightMeta) - 5);
 
       return (
@@ -558,7 +571,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
         </Box>
       );
     },
-    [lang, theme],
+    [lang, asciiMode, theme],
   );
 
   const listActive = viewInputActive && activePane === 'left';
@@ -715,7 +728,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
             <Box
               height={triageBoxRows}
               flexDirection="column"
-              borderStyle="single"
+              borderStyle={asciiMode ? 'classic' : 'single'}
               borderColor={toneColor(theme, triageInfo.tone)}
               paddingX={1}
               overflow="hidden"
@@ -723,10 +736,14 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
               <Box height={1} overflow="hidden">
                 <Text color={toneColor(theme, triageInfo.tone)} bold>
                   {triageInfo.isZeroToken
-                    ? t(lang, '⚡ 0-token 分流建议: ', '⚡ 0-token Triage: ')
-                    : t(lang, '✦ 分流建议: ', '✦ Triage: ')}
+                    ? asciiMode
+                      ? t(lang, '* 0-token 分流建议: ', '* 0-token Triage: ')
+                      : t(lang, '⚡ 0-token 分流建议: ', '⚡ 0-token Triage: ')
+                    : asciiMode
+                      ? t(lang, '+ 分流建议: ', '+ Triage: ')
+                      : t(lang, '✦ 分流建议: ', '✦ Triage: ')}
                 </Text>
-                <Text color={theme.text}>{truncateDisplay(triageInfo.lead, Math.max(10, innerW - 24))}</Text>
+                <Text color={theme.text}>{truncateDisplay(triageInfo.lead, Math.max(10, innerW - 24), asciiMode ? '...' : '…')}</Text>
               </Box>
             </Box>
           ) : null}
@@ -892,7 +909,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
       <Box height={1} width={width} paddingX={1} flexDirection="row" flexWrap="nowrap" overflow="hidden">
         <Box flexShrink={0} marginRight={width < 72 ? 1 : 2}>
           <Text color={theme.primary} bold>
-            {t(lang, '✕ 错题本', '✕ Mistakes')}
+            {asciiMode ? t(lang, '! 错题本', '! Mistakes') : t(lang, '✕ 错题本', '✕ Mistakes')}
           </Text>
         </Box>
         {TABS.map((tb) => {
@@ -937,25 +954,36 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
       {/* Secondary Sub-filter Bar when "按错因" tab is active */}
       {tab === 'reason' ? (
         <Box height={1} width={width} paddingX={1} gap={1} overflow="hidden">
-          <Text color={theme.dim}>{t(lang, '错因筛选 [f]:', 'Reason [f]:')}</Text>
+          <Box flexShrink={0}>
+            <Text color={theme.dim}>{width < 76 ? '[f]:' : width < 116 ? t(lang, '筛选[f]:', 'Filter[f]:') : t(lang, '错因筛选 [f]:', 'Reason [f]:')}</Text>
+          </Box>
           {REASON_FILTER_ORDER.map((r) => {
             const active = reasonFilter === r;
             const c = reasonCountsSummary.get(r) ?? 0;
+            const useShort = width < 116;
+            const lbl = useShort
+              ? r === 'all'
+                ? t(lang, '全部', 'All')
+                : r === 'unclassified'
+                  ? t(lang, '未归因', 'Unset')
+                  : reasonShort(r, lang)
+              : reasonLabel(r, lang);
             return (
-              <Text
-                key={r}
-                backgroundColor={active ? theme.accent : undefined}
-                color={active ? (theme.dark ? theme.bg : '#ffffff') : c > 0 ? theme.text : theme.dim}
-                bold={active}
-              >
-                {active ? ` ${reasonLabel(r, lang)}(${c}) ` : `${reasonLabel(r, lang)}(${c})`}
-              </Text>
+              <Box key={r} flexShrink={0}>
+                <Text
+                  backgroundColor={active ? theme.accent : undefined}
+                  color={active ? (theme.dark ? theme.bg : '#ffffff') : c > 0 ? theme.text : theme.dim}
+                  bold={active}
+                >
+                  {active ? ` ${lbl}(${c}) ` : `${lbl}(${c})`}
+                </Text>
+              </Box>
             );
           })}
         </Box>
       ) : null}
 
-      <Text color={theme.border}>{'─'.repeat(Math.max(0, width))}</Text>
+      <Text color={theme.border}>{(asciiMode ? '-' : '─').repeat(Math.max(0, width))}</Text>
 
       {/* Master-Detail SplitPane */}
       <SplitPane
@@ -1131,7 +1159,7 @@ const ConfusableContrastModal = memo(function ConfusableContrastModal({
             {rows.slice(0, 8).map((row, idx) => (
               <Box key={idx} flexDirection="column" marginBottom={0}>
                 <Text color={theme.primary} bold>
-                  {truncateDisplay(`▸ ${row.aspect || t(lang, '对比维度', 'Aspect')}`, innerW)}
+                  {truncateDisplay(`${useTuiStore.getState().preferences.asciiMode ? '>' : '▸'} ${row.aspect || t(lang, '对比维度', 'Aspect')}`, innerW)}
                 </Text>
                 {(row.cells ?? []).map((cell, ci) => (
                   <Text key={ci} color={theme.text}>

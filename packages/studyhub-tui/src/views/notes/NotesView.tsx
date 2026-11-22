@@ -50,6 +50,7 @@ const CLAIMED_KEYS = ['a', 'R'] as const;
 export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, width, height, isActive }) {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const mathPref = useTuiStore((s) => s.preferences.mathUnicode);
   const snapshot = useTuiStore((s) => s.snapshot);
   const navNoteId = useTuiStore((s) => s.navContext.noteId);
@@ -397,18 +398,33 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
 
   const renderNoteRow = useCallback(
     (item: NoteItem, ctx: VirtualListRenderContext) => {
+      const ell = asciiMode ? '...' : '…';
       const daily = isDailyNote(item);
       const isToday = daily && item.daily?.day === today;
-      const icon = item.generation?.status === 'running' ? '⟳' : daily ? '★' : item.status === 'published' ? '◈' : '✎';
+      const icon = asciiMode
+        ? item.generation?.status === 'running'
+          ? '~'
+          : daily
+            ? '*'
+            : item.status === 'published'
+              ? '+'
+              : '-'
+        : item.generation?.status === 'running'
+          ? '⟳'
+          : daily
+            ? '★'
+            : item.status === 'published'
+              ? '◈'
+              : '✎';
       const dateStr = formatShortDate(item.updatedAt, lang);
       const countStr = daily
-        ? `${item.daily?.answeredCount ?? item.cardCount ?? 0}题`
-        : `${item.cardCount ?? item.cards?.length ?? 0}题`;
+        ? `${item.daily?.answeredCount ?? item.cardCount ?? 0}${t(lang, '题', 'c')}`
+        : `${item.cardCount ?? item.cards?.length ?? 0}${t(lang, '题', 'c')}`;
       const meta = lang === 'en' ? `${item.cardCount ?? item.cards?.length ?? 0}c ${dateStr}` : `${countStr} ${dateStr}`;
       const metaW = displayWidth(meta);
-      const lead = `${ctx.selected ? '❯' : ' '} ${icon} `;
+      const lead = `${ctx.selected ? (asciiMode ? '>' : '❯') : ' '} ${icon} `;
       const titleBudget = Math.max(6, ctx.width - displayWidth(lead) - metaW - 2);
-      const titleText = padDisplay(truncateDisplay(item.title || t(lang, '无标题笔记', 'Untitled'), titleBudget), titleBudget);
+      const titleText = padDisplay(truncateDisplay(item.title || t(lang, '无标题笔记', 'Untitled'), titleBudget, ell), titleBudget);
       const fg = ctx.selected ? (ctx.focused ? theme.selectionFg : theme.text) : theme.text;
       return (
         <Box width={ctx.width} height={1}>
@@ -420,7 +436,7 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
         </Box>
       );
     },
-    [today, lang, theme],
+    [today, lang, asciiMode, theme],
   );
 
   const recapBannerText = useMemo(() => {
@@ -483,7 +499,7 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
           return (
             <Panel
               title={t(lang, '学习笔记', 'Notes')}
-              icon="✎"
+              icon={asciiMode ? '-' : '✎'}
               badge={sortedNotes.length}
               subtitle={focusCourse && filterCourseOnly ? `${focusCourse} [f]` : focusCourse ? t(lang, '[f]筛选课程', '[f]Filter') : undefined}
               focused={activePane === 'left'}
@@ -491,9 +507,9 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
               height={paneH}
             >
               <Box height={1} marginBottom={0} overflow="hidden">
-                <StatusPill status={recapBannerText.status} label={truncateDisplay(recapBannerText.title, Math.max(10, paneW - 8))} />
+                <StatusPill status={recapBannerText.status} label={truncateDisplay(recapBannerText.title, Math.max(10, paneW - 8), asciiMode ? '...' : '…')} />
               </Box>
-              <Text color={theme.border}>{'─'.repeat(Math.max(4, paneW - 4))}</Text>
+              <Text color={theme.border}>{(asciiMode ? '-' : '─').repeat(Math.max(4, paneW - 4))}</Text>
               {loading && sortedNotes.length === 0 ? (
                 <Box height={listH} alignItems="center" justifyContent="center">
                   <Spinner label={t(lang, '载入笔记中…', 'Loading notes…')} active={isActive} />
@@ -538,7 +554,7 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
                 <EmptyState
                   title={t(lang, '选择一篇笔记阅读', 'Select a note to read')}
                   hint={t(lang, '按 a 新建笔记 · 按 R 生成今日学习总结', 'Press a to create · R for daily recap')}
-                  icon="✎"
+                  icon={asciiMode ? '-' : '✎'}
                   width={readerW}
                   height={readerH}
                 />
@@ -575,7 +591,7 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
                 </Box>
                 <Badge label={effectiveMath ? 'Unicode Math' : 'Raw LaTeX'} tone="info" variant="soft" />
               </Box>
-              <Text color={theme.border}>{'─'.repeat(Math.max(4, readerW))}</Text>
+              <Text color={theme.border}>{(asciiMode ? '-' : '─').repeat(Math.max(4, readerW))}</Text>
               <MarkdownView
                 markdown={displayedNote.markdown || t(lang, '_（暂无正文内容，按 `e` 编辑）_', '_Empty note — press `e` to edit_')}
                 width={readerW}
@@ -616,7 +632,7 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
       {modal?.type === 'export' ? (
         <Modal
           title={t(lang, '导出 Markdown 笔记', 'Export Note as Markdown')}
-          icon="↗"
+          icon={asciiMode ? '>' : '↗'}
           tone="accent"
           width={Math.max(50, Math.min(76, width - 6))}
           onClose={exporting ? undefined : () => setModal(null)}
@@ -642,7 +658,7 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
               prompt="› "
               captureInput={false}
             />
-            {exportError ? <Text color={theme.error}>{`✕ ${exportError}`}</Text> : null}
+            {exportError ? <Text color={theme.error}>{`${asciiMode ? 'x' : '✕'} ${exportError}`}</Text> : null}
           </Box>
         </Modal>
       ) : null}

@@ -238,11 +238,11 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
 
   const colMeta = useCallback(
     (col: BoardColumnId) => {
-      if (col === 'todo') return { title: t(lang, '待办 Todo', 'Todo'), icon: '○', tone: 'info' as const };
-      if (col === 'doing') return { title: t(lang, '进行中 Doing', 'Doing'), icon: '◐', tone: 'warning' as const };
-      return { title: t(lang, '已完成 Done', 'Done'), icon: '●', tone: 'success' as const };
+      if (col === 'todo') return { title: t(lang, '待办 Todo', 'Todo'), icon: asciiMode ? 'o' : '○', tone: 'info' as const };
+      if (col === 'doing') return { title: t(lang, '进行中 Doing', 'Doing'), icon: asciiMode ? '~' : '◐', tone: 'warning' as const };
+      return { title: t(lang, '已完成 Done', 'Done'), icon: asciiMode ? '+' : '●', tone: 'success' as const };
     },
-    [lang],
+    [lang, asciiMode],
   );
 
   const narrow = width < WIDE_BREAKPOINT;
@@ -287,8 +287,8 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
         {visible.map((card, i) => {
           const idx = start + i;
           const selected = isFocusedCol && idx === cursor;
-          const lead = selected ? '❯ ' : '  ';
-          const titleLine = truncateDisplay(card.title, Math.max(6, innerW - displayWidth(lead) - 1));
+          const lead = selected ? (asciiMode ? '> ' : '❯ ') : '  ';
+          const titleLine = truncateDisplay(card.title, Math.max(6, innerW - displayWidth(lead) - 1), asciiMode ? '...' : '…');
           const status = dueStatus(card.dueDate, col);
           const dueColor =
             status === 'overdue'
@@ -322,7 +322,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
                 {card.course ? <Badge label={truncateDisplay(card.course, Math.max(6, Math.floor(innerW * 0.45)))} tone="accent" variant="soft" bold={false} /> : null}
                 {card.dueDate ? (
                   <Text color={dueColor}>
-                    {status === 'overdue' ? `! ${card.dueDate}` : `◷ ${card.dueDate}`}
+                    {status === 'overdue' ? `! ${card.dueDate}` : `${asciiMode ? '@' : '◷'} ${card.dueDate}`}
                   </Text>
                 ) : null}
                 {!card.course && !card.dueDate ? <Text color={theme.dim}> </Text> : null}
@@ -447,7 +447,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
                 color={active ? theme.primary : theme.muted}
                 bold={active}
               >
-                {` ${active ? '●' : '○'} ${m.title} (${grouped[col].length}) `}
+                {` ${active ? (asciiMode ? '*' : '●') : (asciiMode ? 'o' : '○')} ${m.title} (${grouped[col].length}) `}
               </Text>
             );
           })}

@@ -58,6 +58,7 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
 }) {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const lastPresetPref = useTuiStore((s) => s.preferences.lastOpenAiPreset);
   const setPreferences = useTuiStore((s) => s.setPreferences);
   const notify = useTuiStore((s) => s.notify);
@@ -599,12 +600,12 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
             {scanning ? <Spinner label={t(lang, '扫描 CLI…', 'Scanning…')} active={isActive} /> : null}
             {testStatus && !testing ? (
               <Badge
-                label={`${testStatus.ok ? '✓' : '✕'} ${truncateDisplay(testStatus.message, 28)}${testStatus.latencyMs ? ` (${testStatus.latencyMs}ms)` : ''}`}
+                label={`${testStatus.ok ? (asciiMode ? '+' : '✓') : (asciiMode ? 'x' : '✕')} ${truncateDisplay(testStatus.message, 28, asciiMode ? '...' : '…')}${testStatus.latencyMs ? ` (${testStatus.latencyMs}ms)` : ''}`}
                 tone={testStatus.ok ? 'success' : 'error'}
                 variant="soft"
               />
             ) : !effectiveReady && effectiveReason ? (
-              <Text color={theme.warning}>{truncateDisplay(effectiveReason, 32)}</Text>
+              <Text color={theme.warning}>{truncateDisplay(effectiveReason, 32, asciiMode ? '...' : '…')}</Text>
             ) : null}
           </Box>
         </Box>
@@ -655,7 +656,7 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
           if (activeRoute.kind === 'agy') {
             return (
               <Panel
-                title="⚡ agy CLI (Primary)"
+                title={asciiMode ? '* agy CLI (Primary)' : '⚡ agy CLI (Primary)'}
                 subtitle={agyProvider?.version ? `v${agyProvider.version}` : undefined}
                 badge={config?.mode === 'agy' ? t(lang, '当前启用', 'ACTIVE') : undefined}
                 badgeTone="success"
@@ -718,7 +719,7 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
           if (activeRoute.kind === 'codex') {
             return (
               <Panel
-                title="◇ codex CLI"
+                title={asciiMode ? '> codex CLI' : '◇ codex CLI'}
                 subtitle={codexProvider?.version ? `v${codexProvider.version}` : undefined}
                 badge={config?.mode === 'codex' ? t(lang, '当前启用', 'ACTIVE') : undefined}
                 badgeTone="success"

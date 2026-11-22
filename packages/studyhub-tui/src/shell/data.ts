@@ -202,7 +202,7 @@ export function modelInfo(
     const route = binding?.route;
     return {
       icon: '◌',
-      provider: route?.provider ?? '模型',
+      provider: route?.provider ?? 'Model',
       model: route?.model ?? '',
       ready,
       reason,

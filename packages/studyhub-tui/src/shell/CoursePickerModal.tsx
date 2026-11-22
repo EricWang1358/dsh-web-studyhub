@@ -20,6 +20,7 @@ export const CoursePickerModal = memo(function CoursePickerModal({ isActive, onC
   const theme = useTheme();
   const actions = useShellActions();
   const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const snapshot = useTuiStore((s) => s.snapshot);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
@@ -27,25 +28,26 @@ export const CoursePickerModal = memo(function CoursePickerModal({ isActive, onC
 
   const options = useMemo<SelectOption<string>[]>(() => {
     const courses = listCourses(snapshot);
+    const ell = asciiMode ? '...' : '…';
     return [
-      { value: ALL, label: t(lang, '全部课程', 'All courses'), icon: '◎', hint: t(lang, '不限定课程', 'No focus') },
+      { value: ALL, label: t(lang, '全部课程', 'All courses'), icon: asciiMode ? 'o' : '◎', hint: t(lang, '不限定课程', 'No focus') },
       ...courses.map((c) => ({
         value: c.key,
         label: c.label,
-        icon: '◆',
+        icon: asciiMode ? '*' : '◆',
         hint: c.deckCount ? t(lang, `${c.deckCount} 个题组`, `${c.deckCount} decks`) : undefined,
         badge: c.dueCount ? c.dueCount : undefined,
         badgeTone: 'warning' as const,
       })),
-      { value: NEW, label: t(lang, '新建课程…', 'New course…'), icon: '＋' },
+      { value: NEW, label: t(lang, `新建课程${ell}`, `New course${ell}`), icon: asciiMode ? '+' : '＋' },
     ];
-  }, [snapshot, lang]);
+  }, [snapshot, lang, asciiMode]);
 
   const width = 60;
   return (
     <Modal
       title={t(lang, '切换课程', 'Switch Course')}
-      icon="◎"
+      icon={asciiMode ? 'o' : '◎'}
       subtitle={current ?? t(lang, '全部课程', 'All courses')}
       width={width}
       onClose={creating ? () => setCreating(false) : onClose}
@@ -57,7 +59,7 @@ export const CoursePickerModal = memo(function CoursePickerModal({ isActive, onC
               { key: 'Esc', label: t(lang, '返回', 'Back') },
             ]
           : [
-              { key: '↑↓ 1-9', label: t(lang, '选择', 'Select') },
+              { key: asciiMode ? 'Up/Dn 1-9' : '↑↓ 1-9', label: t(lang, '选择', 'Select') },
               { key: 'Enter', label: t(lang, '切换', 'Switch') },
               { key: 'Esc', label: t(lang, '关闭', 'Close') },
             ]
@@ -66,7 +68,7 @@ export const CoursePickerModal = memo(function CoursePickerModal({ isActive, onC
       {creating ? (
         <Box flexDirection="column" marginY={1}>
           <Text color={theme.muted}>{t(lang, '课程名称', 'Course name')}</Text>
-          <Box borderStyle="round" borderColor={theme.borderActive} paddingX={1}>
+          <Box borderStyle={asciiMode ? 'classic' : 'round'} borderColor={theme.borderActive} paddingX={1}>
             <TextInput
               value={name}
               onChange={setName}

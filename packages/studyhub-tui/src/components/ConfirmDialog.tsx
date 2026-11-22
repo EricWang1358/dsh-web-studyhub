@@ -1,6 +1,7 @@
 import React, { memo, useState, type ReactNode } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { useTheme } from '../theme/tokens.js';
+import { t, useTuiStore } from '../state/store.js';
 import { Modal } from './Modal.js';
 
 export interface ConfirmDialogProps {
@@ -21,8 +22,8 @@ export interface ConfirmDialogProps {
 export const ConfirmDialog = memo(function ConfirmDialog({
   title,
   message,
-  confirmLabel = '确认',
-  cancelLabel = '取消',
+  confirmLabel,
+  cancelLabel,
   danger = false,
   onConfirm,
   onCancel,
@@ -31,6 +32,10 @@ export const ConfirmDialog = memo(function ConfirmDialog({
   overlay = true,
 }: ConfirmDialogProps) {
   const theme = useTheme();
+  const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const resolvedConfirm = confirmLabel ?? t(lang, '确认', 'Confirm');
+  const resolvedCancel = cancelLabel ?? t(lang, '取消', 'Cancel');
   const [focus, setFocus] = useState<'confirm' | 'cancel'>(danger ? 'cancel' : 'confirm');
   useInput(
     (input, key) => {
@@ -52,13 +57,13 @@ export const ConfirmDialog = memo(function ConfirmDialog({
     </Text>
   );
   return (
-    <Modal title={title} icon={danger ? '▲' : '?'} tone={danger ? 'error' : 'primary'} width={width} onClose={onCancel} isActive={isActive} overlay={overlay}>
+    <Modal title={title} icon={danger ? (asciiMode ? '!' : '▲') : '?'} tone={danger ? 'error' : 'primary'} width={width} onClose={onCancel} isActive={isActive} overlay={overlay}>
       <Box marginY={1} flexDirection="column">
         {typeof message === 'string' ? <Text color={theme.text}>{message}</Text> : message}
       </Box>
       <Box justifyContent="flex-end" gap={2}>
-        {btn(cancelLabel, focus === 'cancel', theme.muted, 'n')}
-        {btn(confirmLabel, focus === 'confirm', confirmColor, 'y')}
+        {btn(resolvedCancel, focus === 'cancel', theme.muted, 'n')}
+        {btn(resolvedConfirm, focus === 'confirm', confirmColor, 'y')}
       </Box>
     </Modal>
   );

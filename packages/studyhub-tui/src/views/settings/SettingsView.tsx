@@ -13,6 +13,7 @@ import { SETTINGS_TABS, type SettingsTabId } from './types.js';
 export const SettingsView: React.FC<ViewProps> = ({ host, width, height, isActive }) => {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const navContext = useTuiStore((s) => s.navContext);
   const desktopConfig = useTuiStore((s) => s.desktopConfig) as TuiConfigSnapshot | null;
   const binding = useTuiStore((s) => s.binding);
@@ -116,7 +117,7 @@ export const SettingsView: React.FC<ViewProps> = ({ host, width, height, isActiv
       <Box flexDirection="row" justifyContent="space-between" height={1} marginBottom={1}>
         <Box flexDirection="row" gap={1}>
           <Text color={theme.primary} bold>
-            {t(lang, '⚙ 设置', '⚙ Settings')}
+            {asciiMode ? t(lang, '$ 设置', '$ Settings') : t(lang, '⚙ 设置', '⚙ Settings')}
           </Text>
           {SETTINGS_TABS.map((item) => {
             const active = item.id === tab;

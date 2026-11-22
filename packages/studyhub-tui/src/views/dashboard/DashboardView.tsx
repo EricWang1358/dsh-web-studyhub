@@ -407,7 +407,7 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
       <Text wrap="truncate">
         <Text color={theme.muted}>{t(lang, '总题数 ', 'Cards ')}</Text>
         <Text color={theme.primary} bold>{String(totalCards)}</Text>
-        <Text color={theme.dim}>{` (${activeDecks.length}组)${sep}`}</Text>
+        <Text color={theme.dim}>{` (${activeDecks.length}${t(lang, '组', 'd')})${sep}`}</Text>
         <Text color={theme.muted}>{t(lang, '掌握 ', 'Mastery ')}</Text>
         <Text color={theme.success} bold>{`${fsrsBuckets.masteryPct}%`}</Text>
         <Text color={theme.dim}>{sep}</Text>
@@ -458,7 +458,7 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
       const countLabel = t(lang, `错 ${item.wrong} 次 · ${item.cards?.length ?? 0} 题`, `${item.wrong} wrong · ${item.cards?.length ?? 0} cards`);
       const countW = displayWidth(countLabel);
       const titleW = Math.max(6, ctx.width - countW - 4);
-      const left = truncateDisplay(`${ctx.selected ? '❯' : ' '} ${tag}${item.topic}`, titleW);
+      const left = truncateDisplay(`${ctx.selected ? (asciiMode ? '>' : '❯') : ' '} ${tag}${item.topic}`, titleW, asciiMode ? '...' : '…');
       return (
         <Box width={ctx.width} height={1}>
           <Text color={ctx.selected ? theme.selectionFg : theme.text} bold={ctx.selected}>
@@ -547,7 +547,7 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
       >
         {weakTopics.length === 0 ? (
           <EmptyState
-            icon="✓"
+            icon={asciiMode ? '+' : '✓'}
             title={t(lang, '暂无明显薄弱知识点', 'No weak topics detected')}
             hint={t(lang, '继续保持每日 FSRS 间隔复习', 'Keep up your daily FSRS reviews')}
             height={weakListRows}

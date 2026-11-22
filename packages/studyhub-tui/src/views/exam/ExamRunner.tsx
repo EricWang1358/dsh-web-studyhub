@@ -12,7 +12,7 @@ import {
   useTheme,
 } from '../../components/index.js';
 import { truncateDisplay } from '../../render/index.js';
-import { t } from '../../state/store.js';
+import { t, useTuiStore } from '../../state/store.js';
 import type { ExamCard, OralView, RunView } from './types.js';
 import { computeRemainingMs, formatDurationMs } from './utils.js';
 
@@ -60,6 +60,7 @@ export const ExamRunner = memo(function ExamRunner({
   onAbortBack,
 }: ExamRunnerProps) {
   const theme = useTheme();
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const [now, setNow] = useState(() => Date.now());
   const [flagged, setFlagged] = useState<Set<string>>(() => new Set());
   const [confirmSubmit, setConfirmSubmit] = useState(false);
@@ -359,7 +360,7 @@ export const ExamRunner = memo(function ExamRunner({
         {/* Navigator strip */}
         <Box flexWrap="wrap" gap={1} marginBottom={1}>
           {navTokens.slice(0, 30).map((tok) => {
-            const sym = tok.flag ? '⚑' : tok.answered ? '●' : '○';
+            const sym = asciiMode ? (tok.flag ? '!' : tok.answered ? '*' : 'o') : tok.flag ? '⚑' : tok.answered ? '●' : '○';
             return (
               <Text
                 key={tok.n}
@@ -429,7 +430,7 @@ export const ExamRunner = memo(function ExamRunner({
                       color={picked ? theme.primary : theme.text}
                       bold={picked}
                     >
-                      {` [${keyNum}] ${picked ? '◉' : '○'} ${truncateDisplay(opt.text, Math.max(10, innerW - 10))}`}
+                      {` [${keyNum}] ${picked ? (asciiMode ? '*' : '◉') : (asciiMode ? 'o' : '○')} ${truncateDisplay(opt.text, Math.max(10, innerW - 10), asciiMode ? '...' : '…')}`}
                     </Text>
                   </Box>
                 );

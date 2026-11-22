@@ -1,7 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { useTheme } from '../theme/tokens.js';
-import { useTuiStore } from '../state/store.js';
+import { t, useTuiStore } from '../state/store.js';
 
 export interface VirtualListRenderContext {
   index: number;
@@ -79,7 +79,7 @@ function VirtualListInner<T>({
   onChange,
   onSelect,
   isActive = true,
-  emptyText = '暂无内容',
+  emptyText,
   emptyHint,
   showScrollbar = true,
   highlightSelected = true,
@@ -87,8 +87,10 @@ function VirtualListInner<T>({
   ascii: asciiProp,
 }: VirtualListProps<T>) {
   const theme = useTheme();
+  const lang = useTuiStore((s) => s.preferences.language);
   const storeAscii = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const ascii = asciiProp ?? storeAscii;
+  const resolvedEmptyText = emptyText ?? t(lang, '暂无内容', 'No items');
   const total = items.length;
   const rows = Math.max(1, height);
   const controlled = selectedIndex !== undefined;
@@ -142,7 +144,7 @@ function VirtualListInner<T>({
   if (total === 0) {
     return (
       <Box width={width} height={rows} flexDirection="column" alignItems="center" justifyContent="center">
-        <Text color={theme.muted}>{emptyText}</Text>
+        <Text color={theme.muted}>{resolvedEmptyText}</Text>
         {emptyHint && rows > 1 ? <Text color={theme.dim}>{emptyHint}</Text> : null}
       </Box>
     );

@@ -57,6 +57,7 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
 }) {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const snapshot = useTuiStore((s) => s.snapshot);
   const navContext = useTuiStore((s) => s.navContext);
   const navigate = useTuiStore((s) => s.navigate);
@@ -509,18 +510,18 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
                   keyExtractor={(item) => item.key}
                   renderItem={(item, ctx) => {
                     const fmt = formatLabel(item.format);
-                    const pinMark = item.pinned ? '★ ' : '';
-                    const archMark = item.archived ? '[归档] ' : '';
-                    const meta = `${item.pageCount}p · ${item.cardCount}题`;
-                    const titleMax = Math.max(8, ctx.width - fmt.length - meta.length - (item.pinned ? 2 : 0) - (item.archived ? 5 : 0) - 5);
+                    const pinMark = item.pinned ? (asciiMode ? '* ' : '★ ') : '';
+                    const archMark = item.archived ? t(lang, '[归档] ', '[Arch] ') : '';
+                    const meta = `${item.pageCount}p ${asciiMode ? '-' : '·'} ${item.cardCount}${t(lang, '题', 'q')}`;
+                    const titleMax = Math.max(8, ctx.width - fmt.length - meta.length - (item.pinned ? 2 : 0) - (item.archived ? 7 : 0) - 5);
                     return (
                       <Box flexDirection="row" width={ctx.width}>
-                        <Text color={ctx.selected ? theme.primary : theme.muted}>{ctx.selected ? '▸ ' : '  '}</Text>
+                        <Text color={ctx.selected ? theme.primary : theme.muted}>{ctx.selected ? (asciiMode ? '> ' : '▸ ') : '  '}</Text>
                         {item.pinned ? <Text color={theme.warning}>{pinMark}</Text> : null}
                         <Text color={theme.accent} bold>{`[${fmt}] `}</Text>
                         {item.archived ? <Text color={theme.dim}>{archMark}</Text> : null}
                         <Text color={ctx.selected ? theme.text : theme.text} bold={ctx.selected}>
-                          {truncateDisplay(item.title, titleMax)}
+                          {truncateDisplay(item.title, titleMax, asciiMode ? '...' : '…')}
                         </Text>
                         <Box flexGrow={1} />
                         <Text color={theme.dim}>{meta}</Text>

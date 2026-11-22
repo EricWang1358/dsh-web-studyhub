@@ -80,15 +80,22 @@ interface SimilarItem {
   };
 }
 
-const KIND_LABELS: Record<string, string> = {
-  quiz: '单选',
-  multi: '多选',
-  truefalse: '判断',
-  cloze: '填空',
-  open: '简答',
-  flashcard: '闪卡',
-  task: '任务',
+const KIND_LABELS: Record<string, [string, string]> = {
+  quiz: ['单选', 'MCQ'],
+  multi: ['多选', 'Multi'],
+  truefalse: ['判断', 'T/F'],
+  cloze: ['填空', 'Cloze'],
+  open: ['简答', 'Open'],
+  flashcard: ['闪卡', 'Card'],
+  task: ['任务', 'Task'],
 };
+
+function kindLabelFor(kind: unknown, lang: 'zh' | 'en'): string {
+  const k = String(kind || '');
+  const pair = KIND_LABELS[k];
+  if (pair) return lang === 'en' ? pair[1] : pair[0];
+  return k || (lang === 'en' ? 'Card' : '题');
+}
 
 type DraftOverlay = 'none' | 'pick-draft' | 'edit-card' | 'delete-draft' | 'publish-confirm' | 'similar-results';
 
@@ -490,7 +497,7 @@ export const DraftEditor = memo(function DraftEditor({
                   isActive={mainListActive}
                   keyExtractor={(c, i) => `${c.id}-${i}`}
                   renderItem={(card, ctx) => {
-                    const kindLabel = KIND_LABELS[String(card.kind || '')] || String(card.kind || '题');
+                    const kindLabel = kindLabelFor(card.kind, lang);
                     const warn = similarMap.has(card.id) ? (asciiMode ? '! ' : '⚠ ') : '';
                     const pointer = ctx.selected ? (asciiMode ? '> ' : '▸ ') : '  ';
                     const prefix = `${ctx.index + 1}. [${kindLabel}] `;
@@ -512,7 +519,7 @@ export const DraftEditor = memo(function DraftEditor({
           )}
           right={({ width: rw, height: rh }) => (
             <Panel
-              title={selectedCard ? `#${cardIndex + 1} ${KIND_LABELS[String(selectedCard.kind || '')] || ''}` : t(lang, '详情', 'Detail')}
+              title={selectedCard ? `#${cardIndex + 1} ${kindLabelFor(selectedCard.kind, lang)}` : t(lang, '详情', 'Detail')}
               subtitle={selectedCard?.topic ? String(selectedCard.topic) : undefined}
               width={rw}
               height={rh}
@@ -573,12 +580,12 @@ export const DraftEditor = memo(function DraftEditor({
             keyExtractor={(d) => d.id}
             renderItem={(d, ctx) => (
               <Box flexDirection="row" width={ctx.width}>
-                <Text color={ctx.selected ? theme.primary : theme.muted}>{ctx.selected ? '▸ ' : '  '}</Text>
+                <Text color={ctx.selected ? theme.primary : theme.muted}>{ctx.selected ? (asciiMode ? '> ' : '▸ ') : '  '}</Text>
                 <Text bold={ctx.selected} color={theme.text}>
-                  {truncateDisplay(String(d.title || d.id), Math.max(12, ctx.width - 14))}
+                  {truncateDisplay(String(d.title || d.id), Math.max(12, ctx.width - 14), ell)}
                 </Text>
                 <Box flexGrow={1} />
-                <Text color={theme.dim}>{`${d.cardCount ?? d.cards?.length ?? 0}题`}</Text>
+                <Text color={theme.dim}>{`${d.cardCount ?? d.cards?.length ?? 0}${t(lang, '题', 'q')}`}</Text>
               </Box>
             )}
           />

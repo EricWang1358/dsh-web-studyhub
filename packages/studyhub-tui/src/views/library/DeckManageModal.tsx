@@ -890,7 +890,7 @@ export const DeckManageModal = memo(function DeckManageModal({
       {mode === 'search' ? (
         <Box flexDirection="column" flexShrink={0}>
           <Text color={theme.accent}>{t(lang, '搜索题目 (题干 / 知识点 / 题型):', 'Filter cards:')}</Text>
-          <Box borderStyle="round" borderColor={theme.borderActive} paddingX={1}>
+          <Box borderStyle={asciiMode ? 'classic' : 'round'} borderColor={theme.borderActive} paddingX={1}>
             <TextInput
               value={searchQuery}
               onChange={setSearchQuery}
@@ -907,7 +907,7 @@ export const DeckManageModal = memo(function DeckManageModal({
       {mode === 'rename' ? (
         <Box flexDirection="column" flexShrink={0}>
           <Text color={theme.accent}>{t(lang, '输入新题组标题 (通过 deck.edit 保存):', 'New deck title (via deck.edit):')}</Text>
-          <Box borderStyle="round" borderColor={theme.borderActive} paddingX={1}>
+          <Box borderStyle={asciiMode ? 'classic' : 'round'} borderColor={theme.borderActive} paddingX={1}>
             <TextInput
               value={renameValue}
               onChange={setRenameValue}

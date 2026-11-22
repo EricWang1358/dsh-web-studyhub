@@ -51,6 +51,7 @@ import {
   type CardTranslation,
 } from './review-helpers.js';
 import { AiHelpDrawer } from './AiHelpDrawer.js';
+import { AnswerCardModal } from './AnswerCardModal.js';
 import { CardToolsModal } from './CardToolsModal.js';
 import { RetellModal } from './RetellModal.js';
 import { RoundSummary } from './RoundSummary.js';
@@ -112,6 +113,7 @@ const CARD_UTIL_KEYS: readonly string[] = Object.freeze([
   'T',
   'S',
   'D',
+  'A',
   'E',
   'h',
   'u',
@@ -159,6 +161,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
   const [cardToolsModalOpen, setCardToolsModalOpen] = useState(false);
   const [retellModalOpen, setRetellModalOpen] = useState(false);
   const [teachModalOpen, setTeachModalOpen] = useState(false);
+  const [answerCardModalOpen, setAnswerCardModalOpen] = useState(false);
   const [focusOverrideByCard, setFocusOverrideByCard] = useState<Record<string, boolean>>({});
   const [focusBusy, setFocusBusy] = useState(false);
   const [gradingBusy, setGradingBusy] = useState(false);
@@ -590,7 +593,13 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
 
   // Phase-aware key claiming: only claim digits when rating (1-4) or picking choices (1-6 / 1-2)
   const anyModalOpen =
-    aiDrawerOpen || flagModalOpen || similarModalOpen || cardToolsModalOpen || retellModalOpen || teachModalOpen;
+    aiDrawerOpen ||
+    flagModalOpen ||
+    similarModalOpen ||
+    cardToolsModalOpen ||
+    retellModalOpen ||
+    teachModalOpen ||
+    answerCardModalOpen;
   const mainActive = isActive && !anyModalOpen && !clozeEditing && !openEditing && !isFinished;
   const claimedKeys = useMemo<readonly string[]>(() => {
     if (!isActive || loading) return [];
@@ -639,6 +648,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     base.push({ key: 'T', label: t(lang, '翻译', 'Trans') });
     base.push({ key: 'S', label: t(lang, '同类', 'Similar') });
     base.push({ key: 'D', label: t(lang, '工具', 'Tools') });
+    base.push({ key: 'A', label: t(lang, '答题卡', 'AnswerCard') });
     base.push({ key: 'm', label: mathUnicode ? 'Unicode' : 'LaTeX' });
     if (citation) base.push({ key: 'o', label: t(lang, '原文', 'Source') });
     base.push({ key: 'q', label: t(lang, '结束', 'End') });
@@ -700,6 +710,10 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
       }
       if (input === 'D') {
         setCardToolsModalOpen(true);
+        return;
+      }
+      if (input === 'A') {
+        setAnswerCardModalOpen(true);
         return;
       }
       if (input === 'm') {
@@ -1362,13 +1376,13 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                 canRubricGrade
                   ? t(
                       lang,
-                      '[h]讲解 [L]带学 [*]重点 [F]复述 [G]评分 [T]翻译 [S]同类 [D]工具 [E]标记 [s]跳过 [u]撤销 [,/.]换题',
-                      '[h]Help [L]Teach [*]Focus [F]Retell [G]Grade [T]Trans [S]Sim [D]Tools [E]Flag [s]Skip [u]Undo [,/.]Nav',
+                      '[h]讲解 [L]带学 [*]重点 [F]复述 [G]评分 [A]答题卡 [T]翻译 [S]同类 [D]工具 [E]标记 [s]跳过 [u]撤销 [,/.]换题',
+                      '[h]Help [L]Teach [*]Focus [F]Retell [G]Grade [A]AnswerCard [T]Trans [S]Sim [D]Tools [E]Flag [s]Skip [u]Undo [,/.]Nav',
                     )
                   : t(
                       lang,
-                      '[h]讲解 [L]带学 [*]重点 [F]复述 [T]翻译 [S]同类 [D]工具 [E]标记 [s]跳过 [u]撤销 [,/.]换题',
-                      '[h]Help [L]Teach [*]Focus [F]Retell [T]Trans [S]Sim [D]Tools [E]Flag [s]Skip [u]Undo [,/.]Nav',
+                      '[h]讲解 [L]带学 [*]重点 [F]复述 [A]答题卡 [T]翻译 [S]同类 [D]工具 [E]标记 [s]跳过 [u]撤销 [,/.]换题',
+                      '[h]Help [L]Teach [*]Focus [F]Retell [A]AnswerCard [T]Trans [S]Sim [D]Tools [E]Flag [s]Skip [u]Undo [,/.]Nav',
                     ),
                 innerW,
               )}
@@ -1389,7 +1403,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
           userAnswer={userAnswerText}
           width={aiPaneW}
           height={height}
-          isActive={isActive && aiDrawerOpen && !flagModalOpen && !similarModalOpen && !cardToolsModalOpen && !retellModalOpen && !teachModalOpen}
+          isActive={isActive && aiDrawerOpen && !flagModalOpen && !similarModalOpen && !cardToolsModalOpen && !retellModalOpen && !teachModalOpen && !answerCardModalOpen}
           mathUnicode={mathUnicode}
           onClose={() => setAiDrawerOpen(false)}
         />
@@ -1463,6 +1477,31 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
           onFocusChanged={(cid, focused) => {
             setFocusOverrideByCard((prev) => ({ ...prev, [cid]: focused }));
           }}
+          onRefreshSnapshot={() => void refresh()}
+        />
+      ) : null}
+
+      {/* Case Answer Card Modal */}
+      {answerCardModalOpen && cardId ? (
+        <AnswerCardModal
+          host={host}
+          run={run}
+          cardId={cardId}
+          kind={kind}
+          width={width}
+          height={height}
+          isActive={
+            isActive &&
+            answerCardModalOpen &&
+            !flagModalOpen &&
+            !teachModalOpen &&
+            !retellModalOpen &&
+            !similarModalOpen &&
+            !cardToolsModalOpen
+          }
+          mathUnicode={mathUnicode}
+          onClose={() => setAnswerCardModalOpen(false)}
+          onRunUpdated={(nextRun) => applyRun(nextRun, true)}
           onRefreshSnapshot={() => void refresh()}
         />
       ) : null}

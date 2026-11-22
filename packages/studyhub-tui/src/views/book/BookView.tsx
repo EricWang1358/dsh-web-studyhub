@@ -179,6 +179,7 @@ function buildSectionMarkdown(
 export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive }) => {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const mathUnicode = useTuiStore((s) => s.preferences.mathUnicode);
   const snapshotCourse = useTuiStore((s) => (typeof s.snapshot?.focus?.course === 'string' ? s.snapshot.focus.course : null));
   const navCourse = useTuiStore((s) => s.navContext.course);
@@ -510,7 +511,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
     return (
       <Box width={width} height={height} paddingX={1}>
         <EmptyState
-          icon="✕"
+          icon={asciiMode ? '!' : '✕'}
           title={t(lang, '无法打开复习全书', 'Cannot open review book')}
           hint={error}
           actions={[
@@ -530,7 +531,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
       <Box height={headerH} width={width} paddingX={1} justifyContent="space-between" alignItems="center">
         <Box gap={1}>
           <Text color={theme.primary} bold>
-            ▣ {truncateDisplay(bookTitle, Math.max(16, Math.floor(width * 0.45)))}
+            {asciiMode ? '=' : '▣'} {truncateDisplay(bookTitle, Math.max(16, Math.floor(width * 0.45)), asciiMode ? '...' : '…')}
           </Text>
           {effectiveCourse ? <Badge label={effectiveCourse} tone="accent" variant="soft" /> : null}
           {bookData?.outdated ? <Badge label={t(lang, '资料有更新', 'Outdated')} tone="warning" variant="outline" /> : null}
@@ -552,7 +553,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
       {status !== 'ok' || items.length === 0 ? (
         <Box width={width} height={bodyH} paddingX={1}>
           <EmptyState
-            icon="▣"
+            icon={asciiMode ? '=' : '▣'}
             title={
               status === 'rebuild-pending'
                 ? t(lang, '课程总纲已重建，等待确认归位', 'Outline rebuilt — confirmation needed')

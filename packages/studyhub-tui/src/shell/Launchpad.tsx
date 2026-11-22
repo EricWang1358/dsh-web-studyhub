@@ -40,6 +40,7 @@ export const Launchpad = memo(function Launchpad({ width, height, isActive }: La
   const theme = useTheme();
   const actions = useShellActions();
   const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const cfg = useTuiStore((s) => s.desktopConfig);
   const binding = useTuiStore((s) => s.binding);
   const snapshot = useTuiStore((s) => s.snapshot);
@@ -65,20 +66,32 @@ export const Launchpad = memo(function Launchpad({ width, height, isActive }: La
   const banner = pixelBanner('STUDY HUB');
   const compact = height < 22 || width < 60;
   const cardW = Math.min(64, width - 4);
+  const ell = asciiMode ? '...' : '…';
+  const dotSep = asciiMode ? ' - ' : ' · ';
+  const mIcon = asciiMode
+    ? model.mode === 'agy'
+      ? '*'
+      : model.mode === 'codex'
+        ? '>'
+        : model.mode === 'openai'
+          ? '@'
+          : 'o'
+    : model.icon;
 
   const agyLine = (() => {
     switch (agy.state) {
       case 'probing':
-        return <Spinner label={t(lang, '正在探测本机 agy CLI…', 'Probing local agy CLI…')} />;
+        return <Spinner label={t(lang, `正在探测本机 agy CLI${ell}`, `Probing local agy CLI${ell}`)} />;
       case 'ready':
         return (
           <Text>
-            <Text color={theme.success}>● </Text>
+            <Text color={theme.success}>{asciiMode ? '* ' : '● '}</Text>
             <Text color={theme.text}>{t(lang, 'agy CLI 已就绪', 'agy CLI ready')}</Text>
             <Text color={theme.muted}>
               {truncateDisplay(
-                `  ${agy.version ? `v${agy.version}` : ''}${agy.modelCount ? ` · ${agy.modelCount} ${t(lang, '个模型', 'models')}` : ''}`,
+                `  ${agy.version ? `v${agy.version}` : ''}${agy.modelCount ? `${dotSep}${agy.modelCount} ${t(lang, '个模型', 'models')}` : ''}`,
                 Math.max(0, cardW - 20),
+                ell,
               )}
             </Text>
           </Text>
@@ -86,18 +99,18 @@ export const Launchpad = memo(function Launchpad({ width, height, isActive }: La
       case 'unauthenticated':
         return (
           <Text>
-            <Text color={theme.warning}>▲ </Text>
+            <Text color={theme.warning}>{asciiMode ? '! ' : '▲ '}</Text>
             <Text color={theme.text}>{t(lang, 'agy 已安装但未登录 — 运行 agy login', 'agy found but not signed in — run agy login')}</Text>
           </Text>
         );
       default:
         return (
           <Text>
-            <Text color={theme.dim}>○ </Text>
+            <Text color={theme.dim}>{asciiMode ? 'o ' : '○ '}</Text>
             <Text color={theme.muted}>
               {envKey
-                ? t(lang, `未检测到 agy · 已发现 ${envKey}，可用 OpenAI 兼容接口`, `agy not found · ${envKey} detected for OpenAI-compatible`)
-                : t(lang, '未检测到 agy CLI · 可按 m 配置 OpenAI 兼容接口', 'agy CLI not found · press m to configure OpenAI-compatible')}
+                ? t(lang, `未检测到 agy${dotSep}已发现 ${envKey}，可用 OpenAI 兼容接口`, `agy not found${dotSep}${envKey} detected for OpenAI-compatible`)
+                : t(lang, `未检测到 agy CLI${dotSep}可按 m 配置 OpenAI 兼容接口`, `agy CLI not found${dotSep}press m to configure OpenAI-compatible`)}
             </Text>
           </Text>
         );
@@ -115,7 +128,11 @@ export const Launchpad = memo(function Launchpad({ width, height, isActive }: La
 
   return (
     <Box width={width} height={height} flexDirection="column" alignItems="center" justifyContent="center">
-      {!compact ? (
+      {asciiMode ? (
+        <Text color={theme.primary} bold>
+          [SH] STUDY HUB
+        </Text>
+      ) : !compact ? (
         <Box flexDirection="column" marginBottom={1}>
           {banner.map((row, r) => (
             <Text key={r}>
@@ -132,20 +149,24 @@ export const Launchpad = memo(function Launchpad({ width, height, isActive }: La
           ▙▟ StudyHub
         </Text>
       )}
-      <Text color={theme.muted}>{t(lang, '把资料变成真正会的知识 · 终端版', 'Turn materials into knowledge you own · terminal edition')}</Text>
+      <Text color={theme.muted}>
+        {asciiMode
+          ? t(lang, '把资料变成真正会的知识 - 终端版', 'Turn materials into knowledge you own - terminal edition')
+          : t(lang, '把资料变成真正会的知识 · 终端版', 'Turn materials into knowledge you own · terminal edition')}
+      </Text>
 
-      <Box marginTop={1} flexDirection="column" width={cardW} borderStyle="round" borderColor={theme.border} paddingX={2} paddingY={compact ? 0 : 1}>
+      <Box marginTop={1} flexDirection="column" width={cardW} borderStyle={asciiMode ? 'classic' : 'round'} borderColor={theme.border} paddingX={2} paddingY={compact ? 0 : 1}>
         {agyLine}
         <Text>
-          <Text color={model.ready ? theme.success : theme.warning}>{model.ready ? '● ' : '○ '}</Text>
+          <Text color={model.ready ? theme.success : theme.warning}>{model.ready ? (asciiMode ? '* ' : '● ') : (asciiMode ? 'o ' : '○ ')}</Text>
           <Text color={theme.muted}>{t(lang, '当前模型  ', 'Model  ')}</Text>
-          <Text color={theme.text}>{truncateDisplay(`${model.icon} ${model.provider}${model.model ? ` · ${model.model}` : ''}`, Math.max(4, cardW - 18))}</Text>
+          <Text color={theme.text}>{truncateDisplay(`${mIcon} ${model.provider}${model.model ? `${dotSep}${model.model}` : ''}`, Math.max(4, cardW - 18), ell)}</Text>
         </Text>
         {root ? (
           <Text>
-            <Text color={theme.dim}>{'▤ '}</Text>
+            <Text color={theme.dim}>{asciiMode ? '# ' : '▤ '}</Text>
             <Text color={theme.muted}>{t(lang, '学习库  ', 'Library  ')}</Text>
-            <Text color={theme.dim}>{truncateDisplay(root, Math.max(4, cardW - 18))}</Text>
+            <Text color={theme.dim}>{truncateDisplay(root, Math.max(4, cardW - 18), ell)}</Text>
           </Text>
         ) : null}
         <Box marginTop={1} flexDirection="column">
@@ -156,7 +177,11 @@ export const Launchpad = memo(function Launchpad({ width, height, isActive }: La
         </Box>
       </Box>
       <Box marginTop={1}>
-        <Text color={theme.dim}>{t(lang, 'Ctrl+K 命令面板 · ? 快捷键 · q 退出', 'Ctrl+K palette · ? shortcuts · q quit')}</Text>
+        <Text color={theme.dim}>
+          {asciiMode
+            ? t(lang, 'Ctrl+K 命令面板 - ? 快捷键 - q 退出', 'Ctrl+K palette - ? shortcuts - q quit')
+            : t(lang, 'Ctrl+K 命令面板 · ? 快捷键 · q 退出', 'Ctrl+K palette · ? shortcuts · q quit')}
+        </Text>
       </Box>
     </Box>
   );

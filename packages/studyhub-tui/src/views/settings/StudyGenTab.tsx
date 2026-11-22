@@ -99,6 +99,7 @@ export const StudyGenTab: React.FC<StudyGenTabProps> = memo(function StudyGenTab
 }) {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const snapshot = useTuiStore((s) => s.snapshot);
   const notify = useTuiStore((s) => s.notify);
   const { refresh: refreshSnapshot } = useShellActions();
@@ -272,7 +273,7 @@ export const StudyGenTab: React.FC<StudyGenTabProps> = memo(function StudyGenTab
     { isActive },
   );
 
-  const onOff = (v: boolean) => (v ? t(lang, '开启 ✓', 'On ✓') : t(lang, '关闭', 'Off'));
+  const onOff = (v: boolean) => (v ? (asciiMode ? t(lang, '开启 +', 'On +') : t(lang, '开启 ✓', 'On ✓')) : t(lang, '关闭', 'Off'));
   const orderLabel = (v: PracticeSettingsShape['newCardOrder']) =>
     v === 'reading' ? t(lang, '按讲义顺序', 'Reading order') : v === 'focus' ? t(lang, '考纲优先', 'Focus first') : t(lang, '随机穿插', 'Shuffle');
 

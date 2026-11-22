@@ -2,7 +2,7 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from '
 import { Box, Text, useInput } from 'ink';
 import { Modal, modalContentWidth, TextInput, useTheme, Spinner } from '../../components/index.js';
 import { truncateDisplay } from '../../render/index.js';
-import { t } from '../../state/store.js';
+import { t, useTuiStore } from '../../state/store.js';
 import type { HostClient, KeyHint, UiLanguage } from '../../types/contracts.js';
 import type { CardSearchOption, NoteItem } from './notes-types.js';
 
@@ -35,6 +35,7 @@ export const NoteEditorModal = memo(function NoteEditorModal({
   onSaved,
 }: NoteEditorModalProps) {
   const theme = useTheme();
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const frameWidth = Math.max(54, Math.min(88, terminalCols - 6));
   const innerWidth = modalContentWidth(frameWidth);
 
@@ -305,11 +306,11 @@ export const NoteEditorModal = memo(function NoteEditorModal({
               onCancel={onClose}
               isActive={!saving && createField === 'query'}
               width={innerWidth - 2}
-              prompt="⌕ "
+              prompt={asciiMode ? '? ' : '⌕ '}
               placeholder={t(lang, '输入关键词按 Enter 搜索题目，或 Tab 选下方列表', 'Type keywords + Enter to search, or Tab to pick below')}
               captureInput={false}
             />
-            <Box flexDirection="column" marginTop={0} borderStyle="single" borderColor={createField === 'cards' ? theme.borderActive : theme.border} paddingX={1}>
+            <Box flexDirection="column" marginTop={0} borderStyle={asciiMode ? 'classic' : 'single'} borderColor={createField === 'cards' ? theme.borderActive : theme.border} paddingX={1}>
               {candidates.length === 0 ? (
                 <Text color={theme.muted}>
                   {t(lang, '暂无可选题目（需至少 1 道题目才能创建笔记）', 'No cards available (at least 1 card required)')}
@@ -319,14 +320,14 @@ export const NoteEditorModal = memo(function NoteEditorModal({
                   const realIdx = windowStart + idx;
                   const active = createField === 'cards' && realIdx === cardCursor;
                   const picked = selectedCards.some((c) => c.cardId === opt.cardId);
-                  const line = truncateDisplay(opt.prompt || opt.topic || opt.cardId, Math.max(12, innerWidth - 10));
+                  const line = truncateDisplay(opt.prompt || opt.topic || opt.cardId, Math.max(12, innerWidth - 10), asciiMode ? '...' : '…');
                   return (
                     <Text
                       key={`${opt.deckId}:${opt.cardId}`}
                       backgroundColor={active ? theme.selectionBg : undefined}
                       color={active ? theme.selectionFg : picked ? theme.success : theme.text}
                     >
-                      {`${active ? '❯' : ' '} [${picked ? '✓' : ' '}] ${line}`}
+                      {`${active ? (asciiMode ? '>' : '❯') : ' '} [${picked ? (asciiMode ? 'x' : '✓') : ' '}] ${line}`}
                     </Text>
                   );
                 })
@@ -341,7 +342,7 @@ export const NoteEditorModal = memo(function NoteEditorModal({
               ? t(lang, '正文 Markdown（可选，留空自动生成笔记模板）', 'Markdown Body (optional; leave blank for template)')
               : t(lang, '正文 Markdown', 'Markdown Body')}
           </Text>
-          <Box borderStyle="single" borderColor={(mode === 'create' ? createField === 'markdown' : editField === 'markdown') ? theme.borderActive : theme.border} paddingX={1}>
+          <Box borderStyle={asciiMode ? 'classic' : 'single'} borderColor={(mode === 'create' ? createField === 'markdown' : editField === 'markdown') ? theme.borderActive : theme.border} paddingX={1}>
             <TextInput
               value={markdown}
               onChange={setMarkdown}
@@ -359,7 +360,7 @@ export const NoteEditorModal = memo(function NoteEditorModal({
 
         {error ? (
           <Box marginTop={1}>
-            <Text color={theme.error}>{`✕ ${truncateDisplay(error, innerWidth)}`}</Text>
+            <Text color={theme.error}>{`${asciiMode ? '!' : '✕'} ${truncateDisplay(error, innerWidth, asciiMode ? '...' : '…')}`}</Text>
           </Box>
         ) : null}
 

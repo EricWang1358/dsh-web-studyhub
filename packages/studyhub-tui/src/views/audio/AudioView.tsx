@@ -75,6 +75,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
 }) {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const snapshot = useTuiStore((s) => s.snapshot);
   const navigate = useTuiStore((s) => s.navigate);
   const notify = useTuiStore((s) => s.notify);
@@ -385,10 +386,10 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
                     const maxW = Math.max(8, ctx.width - courseTag.length - 5);
                     return (
                       <Box flexDirection="row" width={ctx.width}>
-                        <Text color={ctx.selected ? theme.primary : theme.muted}>{ctx.selected ? '▸ ' : '  '}</Text>
+                        <Text color={ctx.selected ? theme.primary : theme.muted}>{ctx.selected ? (asciiMode ? '> ' : '▸ ') : '  '}</Text>
                         {courseTag ? <Text color={theme.accent}>{courseTag}</Text> : null}
                         <Text color={theme.text} bold={ctx.selected}>
-                          {truncateDisplay(label, maxW)}
+                          {truncateDisplay(label, maxW, asciiMode ? '...' : '…')}
                         </Text>
                       </Box>
                     );
@@ -431,8 +432,8 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
       {overlay === 'import' ? (
         <Modal
           title={t(lang, '导入本地音频转写', 'Import Local Audio')}
-          subtitle=".mp3 · .wav · .m4a · .ogg · .flac"
-          icon="♪"
+          subtitle={asciiMode ? '.mp3 / .wav / .m4a / .ogg / .flac' : '.mp3 · .wav · .m4a · .ogg · .flac'}
+          icon={asciiMode ? '>' : '♪'}
           width={72}
           isActive={isActive}
           onClose={() => setOverlay('none')}
@@ -520,7 +521,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
               const testRes = testReport?.[p.tier];
               return (
                 <Box key={p.field} flexDirection="row" alignItems="center">
-                  <Text color={active ? theme.primary : theme.muted}>{active ? '▸ ' : '  '}</Text>
+                  <Text color={active ? theme.primary : theme.muted}>{active ? (asciiMode ? '> ' : '▸ ') : '  '}</Text>
                   <Text color={theme.text} bold={active}>{p.label}</Text>
                   <Text> </Text>
                   <Badge

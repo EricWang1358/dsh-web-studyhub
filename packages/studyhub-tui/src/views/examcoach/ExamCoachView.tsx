@@ -57,6 +57,7 @@ const TABS: readonly { id: CoachTab; num: string; zh: string; en: string }[] = [
 export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActive }) => {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const snapshot = useTuiStore((s) => s.snapshot);
   const desktopConfig = useTuiStore((s) => s.desktopConfig);
   const binding = useTuiStore((s) => s.binding);
@@ -627,7 +628,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
       <Divider width={width} />
       {errorMsg ? (
         <Box height={1} width={width} paddingX={1}>
-          <Text color={theme.error}>{`✕ ${truncateDisplay(errorMsg, Math.max(10, width - 4))}`}</Text>
+          <Text color={theme.error}>{`${asciiMode ? '!' : '✕'} ${truncateDisplay(errorMsg, Math.max(10, width - 4), asciiMode ? '...' : '…')}`}</Text>
         </Box>
       ) : null}
 
@@ -640,7 +641,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
         !spec ? (
           <Box flexDirection="column" height={bodyH} width={width} padding={1}>
             <EmptyState
-              icon="◎"
+              icon={asciiMode ? 'o' : '◎'}
               title={t(lang, '尚未建立考法校准方案', 'No Exam Calibration Profile Yet')}
               hint={t(lang, '可基于课程资料/样卷分析考察任务族，或直接粘贴往年样卷与考法笔记。', 'Analyze course materials or submit past-paper notes to calibrate task families.')}
               actions={[
@@ -679,10 +680,10 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
                   isActive={isActive && !modalOpen && focusPane === 'left'}
                   emptyText={t(lang, '暂无任务族', 'No task families')}
                   renderItem={(f, ctx) => {
-                    const icon = f.calibrated ? '✓' : '○';
-                    const meta = `${formatKindLabel(f.primaryFormat, lang)}·${f.quota}`;
+                    const icon = f.calibrated ? (asciiMode ? '+' : '✓') : (asciiMode ? 'o' : '○');
+                    const meta = `${formatKindLabel(f.primaryFormat, lang)}${asciiMode ? ':' : '·'}${f.quota}`;
                     const labelW = Math.max(6, ctx.width - displayWidth(meta) - 4);
-                    const line = `${icon} ${padDisplay(truncateDisplay(f.title, labelW), labelW)} ${meta}`;
+                    const line = `${icon} ${padDisplay(truncateDisplay(f.title, labelW, asciiMode ? '...' : '…'), labelW)} ${meta}`;
                     return (
                       <Text color={ctx.selected ? theme.selectionFg : f.calibrated ? theme.success : theme.text} bold={ctx.selected}>
                         {truncateDisplay(line, ctx.width)}
@@ -746,7 +747,19 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
                   const isReady = (coachStatus?.readyCards ?? []).some((r) => r.originCardId === item.cardId);
                   const isPrep = (coachStatus?.preparingCards ?? []).includes(item.cardId);
                   const isFail = (coachStatus?.failedCards ?? []).some((f) => f.cardId === item.cardId);
-                  const tag = isReady ? '[✓已备好]' : isPrep ? '[⟳生成中]' : isFail ? '[!失败]' : '[○未生成]';
+                  const tag = isReady
+                    ? asciiMode
+                      ? t(lang, '[+已备好]', '[+Ready]')
+                      : t(lang, '[✓已备好]', '[✓Ready]')
+                    : isPrep
+                      ? asciiMode
+                        ? t(lang, '[*生成中]', '[*Prep]')
+                        : t(lang, '[⟳生成中]', '[⟳Prep]')
+                      : isFail
+                        ? t(lang, '[!失败]', '[!Fail]')
+                        : asciiMode
+                          ? t(lang, '[o未生成]', '[oIdle]')
+                          : t(lang, '[○未生成]', '[○Idle]');
                   const tagW = displayWidth(tag);
                   const textW = Math.max(6, ctx.width - tagW - 2);
                   const title = truncateDisplay(String(item.prompt || item.topic || item.cardId).replace(/\s+/g, ' '), textW);
@@ -910,7 +923,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
                 )}
               </Text>
               {compiledPreview ? (
-                <Box flexDirection="column" borderStyle="single" borderColor={theme.border} paddingX={1}>
+                <Box flexDirection="column" borderStyle={asciiMode ? 'classic' : 'single'} borderColor={theme.border} paddingX={1}>
                   <Text color={theme.success} bold>
                     {`${t(lang, '编译预览', 'Compiled Preview')} (v${compiledPreview.coachSpecVersion ?? 1}): ${compiledPreview.totalCount} ${t(lang, '题', 'questions')}`}
                   </Text>
@@ -927,16 +940,20 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
                 </Box>
               ) : null}
               {mockReport ? (
-                <Box flexDirection="column" borderStyle="single" borderColor={mockReport.complete ? theme.success : theme.warning} paddingX={1}>
+                <Box flexDirection="column" borderStyle={asciiMode ? 'classic' : 'single'} borderColor={mockReport.complete ? theme.success : theme.warning} paddingX={1}>
                   <Text color={mockReport.complete ? theme.success : theme.warning} bold>
                     {mockReport.complete
-                      ? t(lang, '✓ 可完整组成严格同型模拟卷', '✓ Ready to compose full strict mock paper')
-                      : t(lang, `⚠ 存在 ${mockReport.shortfalls?.length ?? 0} 处结构缺口`, `⚠ ${mockReport.shortfalls?.length ?? 0} structural shortfall(s)`)}
+                      ? asciiMode
+                        ? t(lang, '+ 可完整组成严格同型模拟卷', '+ Ready to compose full strict mock paper')
+                        : t(lang, '✓ 可完整组成严格同型模拟卷', '✓ Ready to compose full strict mock paper')
+                      : asciiMode
+                        ? t(lang, `! 存在 ${mockReport.shortfalls?.length ?? 0} 处结构缺口`, `! ${mockReport.shortfalls?.length ?? 0} structural shortfall(s)`)
+                        : t(lang, `⚠ 存在 ${mockReport.shortfalls?.length ?? 0} 处结构缺口`, `⚠ ${mockReport.shortfalls?.length ?? 0} structural shortfall(s)`)}
                     {`  (${mockReport.totalMarks}/${mockReport.targetMarks} ${t(lang, '分', 'pts')})`}
                   </Text>
                   {(mockReport.shortfalls ?? []).slice(0, 4).map((sf) => (
                     <Text key={sf.sectionId} color={theme.muted}>
-                      {truncateDisplay(`• ${sf.title}: ${sf.fulfilled}/${sf.requested} (${sf.reason})`, Math.max(12, width - 10))}
+                      {truncateDisplay(`${asciiMode ? '-' : '•'} ${sf.title}: ${sf.fulfilled}/${sf.requested} (${sf.reason})`, Math.max(12, width - 10), asciiMode ? '...' : '…')}
                     </Text>
                   ))}
                 </Box>

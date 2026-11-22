@@ -115,6 +115,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
   const theme = useTheme();
   const actions = useShellActions();
   const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const snapshot = useTuiStore((s) => s.snapshot);
   const activeRunId = useTuiStore((s) => s.activeRunId);
   const navigate = useTuiStore((s) => s.navigate);
@@ -467,16 +468,18 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
 
   const renderDeckRow = useCallback(
     (deck: DeckItem, ctx: VirtualListRenderContext) => {
+      const ell = asciiMode ? '...' : '…';
+      const sep = asciiMode ? '|' : '·';
       const st = deckStats(deck, progressMap);
       const titleRaw = String(deck.title ?? deck.name ?? deck.id);
       const showCoursePill = Boolean(deck.course) && ctx.width >= 52 && course == null;
-      const courseTag = showCoursePill && deck.course ? ` [${truncateDisplay(deck.course, 10)}]` : '';
-      const archTag = deck.archived ? ' [归档]' : '';
-      const statsStr = ` ${st.mastery}% · ${t(lang, '待', 'D')}${st.due}/${t(lang, '新', 'N')}${st.newCount}/${t(lang, '错', 'W')}${st.wrong}`;
+      const courseTag = showCoursePill && deck.course ? ` [${truncateDisplay(deck.course, 10, ell)}]` : '';
+      const archTag = deck.archived ? t(lang, ' [归档]', ' [Arch]') : '';
+      const statsStr = ` ${st.mastery}% ${sep} ${t(lang, '待', 'D')}${st.due}/${t(lang, '新', 'N')}${st.newCount}/${t(lang, '错', 'W')}${st.wrong}`;
       const barW = ctx.width >= 52 ? 8 : 0;
       const barChunk = barW > 0 ? ' ' : '';
       const titleBudget = Math.max(8, ctx.width - displayWidth(courseTag) - displayWidth(archTag) - displayWidth(statsStr) - barW - barChunk.length);
-      const titleText = padDisplay(truncateDisplay(titleRaw, titleBudget), titleBudget);
+      const titleText = padDisplay(truncateDisplay(titleRaw, titleBudget, ell), titleBudget);
       const fg = ctx.selected ? theme.selectionFg : deck.archived ? theme.dim : theme.text;
       return (
         <Text color={fg} bold={ctx.selected}>
@@ -489,18 +492,19 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
         </Text>
       );
     },
-    [progressMap, lang, theme, course],
+    [progressMap, lang, asciiMode, theme, course],
   );
 
   const renderWorkRow = useCallback(
     (item: WorkEntry, ctx: VirtualListRenderContext) => {
+      const ell = asciiMode ? '...' : '…';
       const tag = item.kind === 'draft' ? t(lang, '[草稿]', '[Draft]') : t(lang, '[失败]', '[Failed]');
       const meta =
         item.kind === 'draft'
           ? ` ${item.count}${t(lang, '题', 'q')}`
           : ` ${item.status}`;
       const avail = Math.max(8, ctx.width - displayWidth(tag) - displayWidth(meta) - 1);
-      const title = padDisplay(truncateDisplay(item.title, avail), avail);
+      const title = padDisplay(truncateDisplay(item.title, avail, ell), avail);
       return (
         <Text color={ctx.selected ? theme.selectionFg : theme.text} bold={ctx.selected}>
           <Text color={ctx.selected ? theme.selectionFg : item.kind === 'draft' ? theme.info : theme.error}>{tag} </Text>
@@ -509,7 +513,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
         </Text>
       );
     },
-    [lang, theme],
+    [lang, asciiMode, theme],
   );
 
   const renderLeftPane = useCallback(
@@ -525,7 +529,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
         <Box flexDirection="column" width={size.width} height={size.height}>
           <Panel
             title={t(lang, '题组列表', 'Decks')}
-            icon="◈"
+            icon={asciiMode ? '*' : '◈'}
             badge={filteredDecks.length}
             subtitle={showArchived ? t(lang, '含已归档 [h]', '+Archived [h]') : t(lang, '[h] 含归档', '[h] Archived')}
             focused={focusSection === 'decks'}
@@ -557,10 +561,10 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
           {hasWork ? (
             <Panel
               title={t(lang, '草稿与异常任务', 'Drafts & Failed Jobs')}
-              icon="⚑"
+              icon={asciiMode ? '!' : '⚑'}
               badge={workEntries.length}
               badgeTone="warning"
-              subtitle={t(lang, 'Tab 切换 · y 重试 · o 打开', 'Tab focus · y retry · o open')}
+              subtitle={asciiMode ? t(lang, 'Tab 切换 - y 重试 - o 打开', 'Tab focus - y retry - o open') : t(lang, 'Tab 切换 · y 重试 · o 打开', 'Tab focus · y retry · o open')}
               focused={focusSection === 'work'}
               width={size.width}
               height={workBoxH}
@@ -604,7 +608,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
         return (
           <Panel
             title={selectedWork.kind === 'draft' ? t(lang, '草稿详情', 'Draft Detail') : t(lang, '异常任务详情', 'Failed Job Detail')}
-            icon={selectedWork.kind === 'draft' ? '✦' : '▲'}
+            icon={selectedWork.kind === 'draft' ? (asciiMode ? '+' : '✦') : (asciiMode ? '!' : '▲')}
             tone={selectedWork.kind === 'draft' ? 'info' : 'error'}
             focused
             width={size.width}
@@ -648,13 +652,14 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
       }
 
       const st = deckStats(selectedDeck, progressMap);
-      const topicsLine = (selectedDeck as { topics?: string[] }).topics?.slice(0, 5).join(' · ') || '';
+      const ell = asciiMode ? '...' : '…';
+      const topicsLine = (selectedDeck as { topics?: string[] }).topics?.slice(0, 5).join(asciiMode ? ' - ' : ' · ') || '';
       const compactDetail = size.height <= 12;
 
       return (
         <Panel
           title={String(selectedDeck.title ?? selectedDeck.name ?? selectedDeck.id)}
-          icon="▤"
+          icon={asciiMode ? '#' : '▤'}
           subtitle={formatDateShort(st.lastStudied, lang)}
           focused={focusSection === 'decks'}
           width={size.width}
@@ -708,7 +713,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
             {!compactDetail && topicsLine ? (
               <Box marginTop={0}>
                 <Text color={theme.muted}>
-                  {t(lang, '涵盖主题', 'Topics')}: <Text color={theme.text}>{truncateDisplay(topicsLine, Math.max(12, innerW - 12))}</Text>
+                  {t(lang, '涵盖主题', 'Topics')}: <Text color={theme.text}>{truncateDisplay(topicsLine, Math.max(12, innerW - 12), ell)}</Text>
                 </Text>
               </Box>
             ) : null}
@@ -784,7 +789,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
         </Panel>
       );
     },
-    [focusSection, selectedWork, selectedDeck, lang, theme, progressMap, resumeRunForDeck, sampleLoaded],
+    [focusSection, selectedWork, selectedDeck, lang, asciiMode, theme, progressMap, resumeRunForDeck, sampleLoaded],
   );
 
   return (
@@ -820,7 +825,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
             />
           </Box>
         ) : null}
-        <Text color={theme.border}>{'─'.repeat(Math.max(1, width - 2))}</Text>
+        <Text color={theme.border}>{(asciiMode ? '-' : '─').repeat(Math.max(1, width - 2))}</Text>
       </Box>
 
       {/* Main Master-Detail Split */}

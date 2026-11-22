@@ -142,6 +142,7 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
 }) {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const snapshot = useTuiStore((s) => s.snapshot);
   const navContext = useTuiStore((s) => s.navContext);
   const navigate = useTuiStore((s) => s.navigate);
@@ -465,10 +466,10 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
                     const titleMax = Math.max(8, ctx.width - meta.length - 8);
                     return (
                       <Box flexDirection="row" width={ctx.width}>
-                        <Text color={ctx.selected ? theme.primary : theme.muted}>{ctx.selected ? '▸ ' : '  '}</Text>
-                        <Text color={active ? theme.accent : theme.muted}>{active ? '⟳ ' : '• '}</Text>
+                        <Text color={ctx.selected ? theme.primary : theme.muted}>{ctx.selected ? (asciiMode ? '> ' : '▸ ') : '  '}</Text>
+                        <Text color={active ? theme.accent : theme.muted}>{active ? (asciiMode ? '* ' : '⟳ ') : (asciiMode ? '- ' : '• ')}</Text>
                         <Text color={theme.text} bold={ctx.selected}>
-                          {truncateDisplay(job.title, titleMax)}
+                          {truncateDisplay(job.title, titleMax, asciiMode ? '...' : '…')}
                         </Text>
                         <Box flexGrow={1} />
                         <Text color={theme.dim}>{meta}</Text>
