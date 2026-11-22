@@ -53,7 +53,11 @@ import type {
 const PAGE_LIMIT = 100;
 const MAX_FETCH_ITEMS = 300;
 const PRACTICE_BATCH_CAP = 50;
-const CLAIMED_KEYS: readonly string[] = Object.freeze(['t', 'e', 'p', 'o', 'f', 'm']);
+const CLAIMED_KEYS: readonly string[] = Object.freeze(['t', 'e', 'p', 'o', 'f', 'm', ' ', 'B', 'x']);
+
+function cardSelectionKey(item: Pick<WrongBookItem, 'deckId' | 'cardId'>): string {
+  return `${item.deckId}\0${item.cardId}`;
+}
 
 type ActiveModal = 'reason' | 'confusable' | 'flag' | null;
 
@@ -138,8 +142,10 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
 
   const [detailLoading, setDetailLoading] = useState(false);
   const [detail, setDetail] = useState<WrongBookDetail | null>(null);
+  const [selectedMap, setSelectedMap] = useState<Map<string, { deckId: string; cardId: string }>>(() => new Map());
 
   const mountedRef = useRef(true);
+  const busyRef = useRef(false);
   const listSeqRef = useRef(0);
   const detailSeqRef = useRef(0);
   const detailCacheRef = useRef<Map<string, WrongBookDetail>>(new Map());
@@ -175,6 +181,21 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
         history: weakRes.counts.history || historyRes.items.length,
       });
       setRecs(recRes.ok && Array.isArray(recRes.value?.items) ? recRes.value.items : []);
+      setSelectedMap((prev) => {
+        if (prev.size === 0) return prev;
+        const valid = new Set<string>();
+        for (const item of weakRes.items) valid.add(cardSelectionKey(item));
+        for (const item of historyRes.items) valid.add(cardSelectionKey(item));
+        let changed = false;
+        const next = new Map(prev);
+        for (const k of next.keys()) {
+          if (!valid.has(k)) {
+            next.delete(k);
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
       detailCacheRef.current.clear();
       setLoading(false);
     },
@@ -290,18 +311,23 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
 
   const launchPractice = useCallback(
     async (scope: Array<{ deckId: string; cardId: string }>, emptyMsg?: string) => {
-      if (busyAction) return;
+      if (busyRef.current || busyAction) return;
       if (!scope.length) {
         notify(emptyMsg || t(lang, '当前没有可练习的题目', 'No cards available to practise'), 'warning');
         return;
       }
+      busyRef.current = true;
       setBusyAction(true);
       const res = await tryAction<ReviewRun>(host, 'review.start', {
         mode: 'path',
         scope: scope.slice(0, PRACTICE_BATCH_CAP),
         fresh: true,
       });
-      if (!mountedRef.current) return;
+      if (!mountedRef.current) {
+        busyRef.current = false;
+        return;
+      }
+      busyRef.current = false;
       setBusyAction(false);
       if (!res.ok || !res.value?.id) {
         notify(res.error?.message || t(lang, '启动练习失败', 'Failed to start practice'), 'error');
@@ -414,6 +440,15 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
   useClaimKeys(CLAIMED_KEYS, viewInputActive);
 
   const footerHints: KeyHint[] = useMemo(() => {
+    if (selectedMap.size > 0) {
+      return [
+        { key: 'Space', label: t(lang, '勾选', 'Select') },
+        { key: 'B', label: t(lang, `练已选(${selectedMap.size})`, `Batch(${selectedMap.size})`) },
+        { key: 'x', label: t(lang, '清空', 'Clear') },
+        { key: 'e', label: t(lang, '标错因', 'Reason') },
+        { key: 't', label: t(lang, '分流处理', 'Triage') },
+      ];
+    }
     if (tab === 'reason') {
       return [
         { key: 'Tab/h/l', label: t(lang, '切换分组', 'Tabs') },
@@ -425,13 +460,14 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
     }
     return [
       { key: 'Tab/h/l', label: t(lang, '切换标签', 'Tabs') },
+      { key: 'Space', label: t(lang, '多选', 'Select') },
       { key: 'e', label: t(lang, '标错因', 'Reason') },
       { key: 't', label: t(lang, '分流处理', 'Triage') },
       { key: 'Enter/p', label: t(lang, '重练', 'Practise') },
       { key: 'P', label: t(lang, '批量练', 'Batch') },
       { key: 'x', label: t(lang, '同类题', 'Similar') },
     ];
-  }, [lang, tab]);
+  }, [lang, tab, selectedMap.size]);
 
   useFooterHints(footerHints, viewInputActive);
 
@@ -480,12 +516,44 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
         setDetailScrollTop((top) => Math.max(0, top - 4));
         return;
       }
+      if (input === 'B') {
+        if (selectedMap.size === 0) {
+          notify(t(lang, '请先按 [Space] 勾选要练习的错题', 'Press [Space] to select cards first'), 'warning');
+          return;
+        }
+        void launchPractice(Array.from(selectedMap.values()));
+        return;
+      }
+      if (input === 'x' && selectedMap.size > 0) {
+        setSelectedMap(new Map());
+        return;
+      }
       if (input === 'P') {
         const batch = visibleItems.map((x) => ({ deckId: x.deckId, cardId: x.cardId }));
         void launchPractice(batch);
         return;
       }
       if (!selectedItem) return;
+      if (input === ' ') {
+        const selKey = cardSelectionKey(selectedItem);
+        setSelectedMap((prev) => {
+          const next = new Map(prev);
+          if (next.has(selKey)) {
+            next.delete(selKey);
+          } else {
+            if (next.size >= PRACTICE_BATCH_CAP) {
+              notify(
+                t(lang, `最多同时勾选 ${PRACTICE_BATCH_CAP} 题`, `Up to ${PRACTICE_BATCH_CAP} cards can be selected`),
+                'warning',
+              );
+              return prev;
+            }
+            next.set(selKey, { deckId: selectedItem.deckId, cardId: selectedItem.cardId });
+          }
+          return next;
+        });
+        return;
+      }
       if (input === 'p' || (key.return && (!narrowLayout || activePane === 'right'))) {
         void launchPractice([{ deckId: selectedItem.deckId, cardId: selectedItem.cardId }]);
         return;
@@ -527,6 +595,8 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
   const renderListItem = useCallback(
     (item: WrongBookItem, ctx: VirtualListRenderContext) => {
       const ell = asciiMode ? '...' : '…';
+      const isChecked = selectedMap.has(cardSelectionKey(item));
+      const checkMark = selectedMap.size > 0 ? (isChecked ? (asciiMode ? '[x] ' : '[✓] ') : '[ ] ') : '';
       const reasonMeta = errorReasonMeta(item.errorReason);
       const reasonTag = reasonMeta ? `[${reasonShort(item.errorReason, lang)}]` : '';
       const errTag = `${asciiMode ? 'x' : '×'}${item.wrongCount ?? 1}`;
@@ -548,13 +618,21 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
             ? '◆ '
             : '• ';
       const rightMeta = `${errTag}${reasonTag ? ` ${reasonTag}` : ''} `;
-      const fixedW = displayWidth(prefix) + displayWidth(rightMeta) + 5;
+      const fixedW = displayWidth(checkMark) + displayWidth(prefix) + displayWidth(rightMeta) + 5;
       const snippetW = Math.max(6, ctx.width - fixedW);
       const snippet = truncateDisplay(plainSnippet(item.prompt) || item.topic || item.cardId, snippetW, ell);
-      const padW = Math.max(1, ctx.width - displayWidth(prefix) - displayWidth(snippet) - displayWidth(rightMeta) - 5);
+      const padW = Math.max(
+        1,
+        ctx.width - displayWidth(checkMark) - displayWidth(prefix) - displayWidth(snippet) - displayWidth(rightMeta) - 5,
+      );
 
       return (
         <Box width={ctx.width} height={1} overflow="hidden">
+          {checkMark ? (
+            <Text color={ctx.selected ? theme.selectionFg : isChecked ? theme.success : theme.muted} bold={isChecked}>
+              {checkMark}
+            </Text>
+          ) : null}
           <Text color={item._view === 'history' ? theme.success : item.leech ? theme.error : theme.warning} bold={ctx.selected}>
             {prefix}
           </Text>
@@ -571,7 +649,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
         </Box>
       );
     },
-    [lang, asciiMode, theme],
+    [lang, asciiMode, theme, selectedMap],
   );
 
   const listActive = viewInputActive && activePane === 'left';
@@ -581,12 +659,15 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
     (size: PaneSize) => {
       const listH = Math.max(1, size.height - 2);
       const listW = Math.max(10, size.width - 4);
+      const selectionBadge = selectedMap.size > 0 ? `[${t(lang, `已选 ${selectedMap.size}`, `${selectedMap.size} sel`)}]` : '';
+      const baseSubtitle = course || t(lang, '全部课程', 'All');
+      const leftSubtitle = selectionBadge ? `${selectionBadge} ${baseSubtitle}` : baseSubtitle;
       return (
         <Panel
           title={t(lang, '错题列表', 'Mistakes')}
           badge={visibleItems.length}
           badgeTone={tab === 'confusable' ? 'warning' : 'primary'}
-          subtitle={course || t(lang, '全部课程', 'All')}
+          subtitle={leftSubtitle}
           focused={activePane === 'left'}
           width={size.width}
           height={size.height}
@@ -643,6 +724,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
       launchPractice,
       renderListItem,
       listActive,
+      selectedMap,
     ],
   );
 
@@ -817,6 +899,16 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
                   textColor: theme.muted,
                 },
               ];
+              if (selectedMap.size > 0) {
+                chips.push({
+                  id: 'batch-selected',
+                  keyLabel: ' B ',
+                  textLabel: t(lang, `练已选(${selectedMap.size})`, `Batch(${selectedMap.size})`),
+                  bg: theme.surface,
+                  fg: theme.primary,
+                  textColor: theme.muted,
+                });
+              }
               if (relatedRecs.length > 0) {
                 chips.push({
                   id: 'similar',
@@ -863,6 +955,7 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
       isActive,
       detailScrollTop,
       relatedRecs,
+      selectedMap.size,
     ],
   );
 

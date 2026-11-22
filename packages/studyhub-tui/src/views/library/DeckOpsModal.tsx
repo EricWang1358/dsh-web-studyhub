@@ -60,6 +60,21 @@ interface DeckSplitResponse {
   remaining: number;
 }
 
+interface MergeSuggestionProposal {
+  targetId: string;
+  sourceIds: string[];
+  reason: string;
+  targetTitle?: string;
+  sourceTitles?: string[];
+  count?: number;
+}
+
+interface DeckMergeSuggestResponse {
+  course?: string;
+  proposals?: MergeSuggestionProposal[];
+  method?: string;
+}
+
 type ConfirmState =
   | {
       kind: 'merge';
@@ -202,6 +217,7 @@ export const DeckOpsModal = memo(function DeckOpsModal({
   // Tab 2: Merge
   const [mergeIndex, setMergeIndex] = useState(0);
   const [mergeDirection, setMergeDirection] = useState<'into-other' | 'into-selected'>('into-other');
+  const [mergeSuggestions, setMergeSuggestions] = useState<MergeSuggestionProposal[]>([]);
 
   // Tab 3: Split
   const [splitLoading, setSplitLoading] = useState(false);
@@ -417,6 +433,58 @@ export const DeckOpsModal = memo(function DeckOpsModal({
       return deckLabel(a).localeCompare(deckLabel(b));
     });
   }, [snapshot?.decks, selectedDeck]);
+
+  // Non-blocking AI merge suggestions when Tab 2 (merge) is opened
+  useEffect(() => {
+    if (!isActive || tab !== 'merge') return;
+    let alive = true;
+    void host
+      .call<DeckMergeSuggestResponse>('deck.merge.suggest', {})
+      .then((res) => {
+        if (!alive || !mountedRef.current) return;
+        if (res.ok && Array.isArray(res.value?.proposals)) {
+          setMergeSuggestions(
+            res.value.proposals.filter((p) => p && p.targetId && Array.isArray(p.sourceIds) && p.sourceIds.length > 0),
+          );
+        } else {
+          setMergeSuggestions([]);
+        }
+      })
+      .catch(() => {
+        // Silently ignore errors or unavailable AI provider
+      });
+    return () => {
+      alive = false;
+    };
+  }, [host, isActive, tab]);
+
+  const topMergeSuggestion = useMemo(() => {
+    if (mergeSuggestions.length === 0) return null;
+    if (selectedDeck) {
+      const match = mergeSuggestions.find(
+        (p) => p.targetId === selectedDeck.id || p.sourceIds.includes(selectedDeck.id),
+      );
+      if (match) return match;
+    }
+    return mergeSuggestions[0] ?? null;
+  }, [mergeSuggestions, selectedDeck]);
+
+  const mergeSuggestionBannerText = useMemo(() => {
+    if (!topMergeSuggestion) return '';
+    const titleOf = (id: string) => {
+      const found = (snapshot?.decks ?? []).find((d) => d.id === id);
+      return found ? deckLabel(found) : id;
+    };
+    const sources =
+      Array.isArray(topMergeSuggestion.sourceTitles) && topMergeSuggestion.sourceTitles.length > 0
+        ? topMergeSuggestion.sourceTitles
+        : topMergeSuggestion.sourceIds.map(titleOf);
+    const target = topMergeSuggestion.targetTitle || titleOf(topMergeSuggestion.targetId);
+    const pair = [...sources, target].filter(Boolean).join(' + ');
+    const reason = topMergeSuggestion.reason ? ` (${topMergeSuggestion.reason})` : '';
+    const prefix = asciiMode ? '* ' : '✦ ';
+    return `${prefix}${t(lang, '建议合并', 'Suggested merge')}: ${pair}${reason}`;
+  }, [topMergeSuggestion, snapshot?.decks, asciiMode, lang]);
 
   useEffect(() => {
     if (mergeIndex >= mergeCandidates.length) {
@@ -780,7 +848,7 @@ export const DeckOpsModal = memo(function DeckOpsModal({
     { id: 'split', key: '3', label: t(lang, '拆分题组', 'Split') },
   ];
 
-  const mergeListH = Math.max(4, bodyH - (error ? 3 : 2));
+  const mergeListH = Math.max(4, bodyH - (error ? 3 : 2) - (topMergeSuggestion ? 1 : 0));
   const splitListH = Math.max(4, bodyH - (error ? 6 : 5));
   const arrowGlyph = asciiMode ? '->' : '→';
   const promptGlyph = asciiMode ? '>' : '›';
@@ -957,6 +1025,13 @@ export const DeckOpsModal = memo(function DeckOpsModal({
                 <Box height={1} flexShrink={0}>
                   <Text color={theme.border}>{sepLine}</Text>
                 </Box>
+                {topMergeSuggestion ? (
+                  <Box height={1} overflow="hidden">
+                    <Text color={theme.ai} wrap="truncate-end">
+                      {truncateDisplay(mergeSuggestionBannerText, innerW, asciiMode ? '...' : '…')}
+                    </Text>
+                  </Box>
+                ) : null}
                 <VirtualList
                   items={mergeCandidates}
                   height={mergeListH}

@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
@@ -14,7 +14,7 @@ import {
   useTheme,
   type VirtualListRenderContext,
 } from '../../components/index.js';
-import { padDisplay, truncateDisplay } from '../../render/index.js';
+import { displayWidth, padDisplay, truncateDisplay } from '../../render/index.js';
 import { startReview, tryAction } from '../../host/index.js';
 import { formatLabel, groupSourcesFromSnapshot, type DocumentGroup } from '../sources/source-helpers.js';
 
@@ -31,6 +31,7 @@ export interface DeckCardItem {
   explanation?: string;
   flag?: string;
   suspended?: boolean;
+  focus?: boolean;
 }
 
 export interface FullDeckDetail {
@@ -58,6 +59,7 @@ type ModalMode = 'browse' | 'search' | 'rename' | 'supplement' | 'convert';
 const SUPPLEMENT_COUNTS = [3, 5, 10, 15] as const;
 const SUPPLEMENT_KINDS = ['mixed', 'quiz', 'multi', 'truefalse', 'flashcard', 'open', 'cloze'] as const;
 const CONVERT_TARGETS = ['flashcard', 'open', 'truefalse', 'quiz', 'cloze'] as const;
+const MAX_MULTI_SELECT = 100;
 type ConvertTargetKind = (typeof CONVERT_TARGETS)[number];
 
 interface ConvertDraft {
@@ -356,6 +358,20 @@ export const DeckManageModal = memo(function DeckManageModal({
   const [searchQuery, setSearchQuery] = useState('');
   const [renameValue, setRenameValue] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const busyRef = useRef(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [deckId]);
 
   // Supplement sub-mode state ([+])
   const [suppSelectedIds, setSuppSelectedIds] = useState<Set<string>>(() => new Set());
@@ -385,6 +401,17 @@ export const DeckManageModal = memo(function DeckManageModal({
     if (res.ok && res.value) {
       setDeck(res.value);
       setRenameValue(res.value.title || '');
+      const validIds = new Set((res.value.cards ?? []).map((c) => c.id));
+      setSelectedIds((prev) => {
+        if (prev.size === 0) return prev;
+        let changed = false;
+        const next = new Set<string>();
+        for (const id of prev) {
+          if (validIds.has(id)) next.add(id);
+          else changed = true;
+        }
+        return changed ? next : prev;
+      });
       return res.value;
     }
     return null;
@@ -619,6 +646,112 @@ export const DeckManageModal = memo(function DeckManageModal({
     navigate('generate', { draftId: editRes.value.id });
   }, [deck, busy, host, notify, lang, onClose, navigate]);
 
+  const handleBatchFocus = useCallback(async () => {
+    if (busyRef.current || busy || !deck || selectedIds.size === 0) return;
+    const targetCards = (deck.cards ?? []).filter((c) => selectedIds.has(c.id));
+    if (targetCards.length === 0) return;
+    const allFocused = targetCards.every((c) => Boolean(c.focus));
+    const nextFocus = !allFocused;
+    busyRef.current = true;
+    setBusy(true);
+    let succeeded = 0;
+    let failed = 0;
+    for (const card of targetCards) {
+      const res = await tryAction<{ ok?: boolean; focus?: boolean }>(host, 'card.focus', {
+        deckId: deck.id,
+        cardId: card.id,
+        focus: nextFocus,
+      });
+      if (!mountedRef.current) {
+        busyRef.current = false;
+        return;
+      }
+      if (res.ok) succeeded += 1;
+      else failed += 1;
+    }
+    await reloadDeck();
+    if (!mountedRef.current) {
+      busyRef.current = false;
+      return;
+    }
+    onUpdated?.();
+    busyRef.current = false;
+    setBusy(false);
+    if (succeeded > 0) {
+      notify(
+        nextFocus
+          ? t(
+              lang,
+              `已将 ${succeeded} 题标为重点${failed > 0 ? `（${failed} 题失败）` : ''}`,
+              `Marked ${succeeded} card(s) as Focus${failed > 0 ? ` (${failed} failed)` : ''}`,
+            )
+          : t(
+              lang,
+              `已取消 ${succeeded} 题的重点标记${failed > 0 ? `（${failed} 题失败）` : ''}`,
+              `Removed Focus from ${succeeded} card(s)${failed > 0 ? ` (${failed} failed)` : ''}`,
+            ),
+        failed > 0 ? 'warning' : 'success',
+      );
+    } else if (failed > 0) {
+      notify(t(lang, '批量更新重点标记失败', 'Failed to update Focus marks'), 'error');
+    }
+  }, [busy, deck, selectedIds, host, reloadDeck, onUpdated, notify, lang]);
+
+  const handleBatchSuspend = useCallback(async () => {
+    if (busyRef.current || busy || !deck || selectedIds.size === 0) return;
+    const targetCards = (deck.cards ?? []).filter((c) => selectedIds.has(c.id));
+    if (targetCards.length === 0) return;
+    const allSuspended = targetCards.every((c) => Boolean(c.suspended));
+    const nextSuspended = !allSuspended;
+    busyRef.current = true;
+    setBusy(true);
+    let succeeded = 0;
+    let failed = 0;
+    let lastError = '';
+    for (const card of targetCards) {
+      const res = await tryAction<{ ok?: boolean }>(host, 'card.suspend', {
+        deckId: deck.id,
+        cardId: card.id,
+        suspended: nextSuspended,
+      });
+      if (!mountedRef.current) {
+        busyRef.current = false;
+        return;
+      }
+      if (res.ok) succeeded += 1;
+      else {
+        failed += 1;
+        if (res.error?.message) lastError = res.error.message;
+      }
+    }
+    await reloadDeck();
+    if (!mountedRef.current) {
+      busyRef.current = false;
+      return;
+    }
+    onUpdated?.();
+    busyRef.current = false;
+    setBusy(false);
+    if (succeeded > 0) {
+      notify(
+        nextSuspended
+          ? t(
+              lang,
+              `已暂停 ${succeeded} 题${failed > 0 ? `（${failed} 题失败）` : ''}`,
+              `Suspended ${succeeded} card(s)${failed > 0 ? ` (${failed} failed)` : ''}`,
+            )
+          : t(
+              lang,
+              `已恢复 ${succeeded} 题${failed > 0 ? `（${failed} 题失败）` : ''}`,
+              `Resumed ${succeeded} card(s)${failed > 0 ? ` (${failed} failed)` : ''}`,
+            ),
+        failed > 0 ? 'warning' : 'success',
+      );
+    } else if (failed > 0) {
+      notify(lastError || t(lang, '批量暂停/恢复失败', 'Failed to update suspend status'), 'error');
+    }
+  }, [busy, deck, selectedIds, host, reloadDeck, onUpdated, notify, lang]);
+
   const handlePracticeCard = useCallback(
     async (card: DeckCardItem) => {
       if (!deck || busy) return;
@@ -730,6 +863,27 @@ export const DeckManageModal = memo(function DeckManageModal({
         if (total > 0) setSelectedIndex(total - 1);
       } else if (key.return) {
         if (selectedCard) void handlePracticeCard(selectedCard);
+      } else if (input === ' ') {
+        if (!selectedCard) return;
+        if (!selectedIds.has(selectedCard.id) && selectedIds.size >= MAX_MULTI_SELECT) {
+          notify(
+            t(lang, `最多同时选择 ${MAX_MULTI_SELECT} 道题`, `Up to ${MAX_MULTI_SELECT} cards can be selected`),
+            'warning',
+          );
+          return;
+        }
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          if (next.has(selectedCard.id)) next.delete(selectedCard.id);
+          else next.add(selectedCard.id);
+          return next;
+        });
+      } else if (input === 'F' && selectedIds.size > 0) {
+        void handleBatchFocus();
+      } else if (input === 'S' && selectedIds.size > 0) {
+        void handleBatchSuspend();
+      } else if (input === 'x' && selectedIds.size > 0) {
+        setSelectedIds(new Set());
       } else if (input === '/' || input === 'f') {
         setMode('search');
       } else if (input === 'c' && searchQuery) {
@@ -790,31 +944,43 @@ export const DeckManageModal = memo(function DeckManageModal({
                     { key: 'Enter', label: t(lang, '确认转换', 'Convert') },
                     { key: 'Esc', label: t(lang, '取消', 'Cancel') },
                   ]
-              : [
-                  { key: 'Enter', label: t(lang, '练此题', 'Practice') },
-                  { key: 'p', label: t(lang, '练整组', 'Deck') },
-                  { key: '+', label: t(lang, '补题', 'Supplement') },
-                  { key: 'k', label: t(lang, '转题型', 'Convert') },
-                  { key: '/', label: t(lang, '搜索', 'Search') },
-                  { key: 'n', label: t(lang, '改名', 'Rename') },
-                  { key: 'e', label: t(lang, '草稿', 'Draft') },
-                  { key: 'Esc', label: t(lang, '关闭', 'Close') },
-                ],
-    [mode, lang, suppJobResult, convertEditActive, convertTargetKind],
+              : selectedIds.size > 0
+                ? [
+                    { key: 'Space', label: t(lang, '多选', 'Select') },
+                    { key: 'F', label: t(lang, '重点', 'Focus') },
+                    { key: 'S', label: t(lang, '暂停/恢复', 'Suspend') },
+                    { key: 'x', label: t(lang, '清空', 'Clear') },
+                    { key: 'Esc', label: t(lang, '关闭', 'Close') },
+                  ]
+                : [
+                    { key: 'Space', label: t(lang, '多选', 'Select') },
+                    { key: 'Enter', label: t(lang, '练此题', 'Practice') },
+                    { key: 'p', label: t(lang, '练整组', 'Deck') },
+                    { key: '+', label: t(lang, '补题', 'Supplement') },
+                    { key: 'k', label: t(lang, '转题型', 'Convert') },
+                    { key: '/', label: t(lang, '搜索', 'Search') },
+                    { key: 'n', label: t(lang, '改名', 'Rename') },
+                    { key: 'e', label: t(lang, '草稿', 'Draft') },
+                    { key: 'Esc', label: t(lang, '关闭', 'Close') },
+                  ],
+    [mode, lang, suppJobResult, convertEditActive, convertTargetKind, selectedIds.size],
   );
 
   const ell = asciiMode ? '...' : '…';
 
   const renderCardRow = useCallback(
     (card: DeckCardItem, ctx: VirtualListRenderContext) => {
+      const isChecked = selectedIds.has(card.id);
+      const checkBox = selectedIds.size > 0 ? (isChecked ? (asciiMode ? '[x] ' : '[✓] ') : '[ ] ') : '';
       const num = `${String(ctx.index + 1).padStart(2, ' ')}.`;
       const kind = `[${kindLabel(card.kind, lang)}]`;
+      const foc = card.focus ? (asciiMode ? ' *' : ' ★') : '';
       const flag = card.flag ? (asciiMode ? ' !' : ' ⚑') : '';
       const susp = card.suspended ? (asciiMode ? ' [||]' : ' [⏸]') : '';
       const topic = card.topic ? `${truncateDisplay(card.topic, 14, ell)} · ` : '';
       const prefix = `${num} ${kind} `;
-      const tail = `${flag}${susp}`;
-      const avail = Math.max(6, ctx.width - prefix.length - tail.length);
+      const tail = `${foc}${flag}${susp}`;
+      const avail = Math.max(6, ctx.width - displayWidth(checkBox) - displayWidth(prefix) - displayWidth(tail));
       const stem = `${topic}${String(card.prompt || card.cloze?.text || '').replace(/\s+/g, ' ')}`;
       const line = padDisplay(truncateDisplay(stem, avail, ell), avail);
       const fg = ctx.selected ? theme.selectionFg : card.suspended ? theme.dim : theme.text;
@@ -826,16 +992,22 @@ export const DeckManageModal = memo(function DeckManageModal({
       return (
         <Box width={ctx.width} backgroundColor={rowBg}>
           <Text color={fg} bold={ctx.selected}>
+            {checkBox ? (
+              <Text color={ctx.selected ? theme.selectionFg : isChecked ? theme.success : theme.muted} bold={isChecked}>
+                {checkBox}
+              </Text>
+            ) : null}
             <Text color={ctx.selected ? theme.selectionFg : theme.muted}>{num} </Text>
             <Text color={ctx.selected ? theme.selectionFg : theme.accent}>{kind} </Text>
             {line}
+            {foc ? <Text color={ctx.selected ? theme.selectionFg : theme.primary}>{foc}</Text> : null}
             {flag ? <Text color={ctx.selected ? theme.selectionFg : theme.warning}>{flag}</Text> : null}
             {susp ? <Text color={theme.dim}>{susp}</Text> : null}
           </Text>
         </Box>
       );
     },
-    [lang, theme, asciiMode, ell, isActive, mode, busy],
+    [lang, theme, asciiMode, ell, isActive, mode, busy, selectedIds],
   );
 
   const previewMarkdown = useMemo(
@@ -878,7 +1050,7 @@ export const DeckManageModal = memo(function DeckManageModal({
           : mode === 'convert' && selectedCard
             ? `${kindLabel(selectedCard.kind, lang)} -> ${kindLabel(convertTargetKind, lang)}`
             : deck
-              ? `${filteredCards.length}/${deck.cards.length} ${t(lang, '题', 'cards')}`
+              ? `${filteredCards.length}/${deck.cards.length} ${t(lang, '题', 'cards')}${selectedIds.size > 0 ? ` · [${t(lang, `已选 ${selectedIds.size}`, `${selectedIds.size} sel`)}]` : ''}`
               : undefined
       }
       width={frameW}
@@ -923,10 +1095,26 @@ export const DeckManageModal = memo(function DeckManageModal({
         </Box>
       ) : null}
 
-      {searchQuery && mode === 'browse' ? (
-        <Box height={1} flexDirection="row" gap={1} flexShrink={0}>
-          <Badge label={`${t(lang, '筛选', 'Filter')}: ${searchQuery}`} tone="info" variant="soft" />
-          <Text color={theme.dim}>{t(lang, '([c] 清除)', '([c] clear)')}</Text>
+      {mode === 'browse' && (searchQuery || selectedIds.size > 0) ? (
+        <Box height={1} flexDirection="row" gap={1} flexShrink={0} overflow="hidden">
+          {selectedIds.size > 0 ? (
+            <>
+              <Badge label={t(lang, `已选 ${selectedIds.size}`, `${selectedIds.size} sel`)} tone="primary" variant="soft" />
+              <Text color={theme.dim}>
+                {truncateDisplay(
+                  t(lang, '[F]重点  [S]暂停/恢复  [x]清空', '[F]Focus  [S]Suspend  [x]Clear'),
+                  Math.max(10, innerW - 14),
+                  ell,
+                )}
+              </Text>
+            </>
+          ) : null}
+          {searchQuery ? (
+            <>
+              <Badge label={`${t(lang, '筛选', 'Filter')}: ${searchQuery}`} tone="info" variant="soft" />
+              <Text color={theme.dim}>{t(lang, '([c] 清除)', '([c] clear)')}</Text>
+            </>
+          ) : null}
         </Box>
       ) : null}
 
@@ -1140,7 +1328,7 @@ export const DeckManageModal = memo(function DeckManageModal({
         <Box flexDirection="column" flexGrow={1} overflow="hidden">
           <VirtualList
             items={filteredCards}
-            height={searchQuery && mode === 'browse' ? Math.max(3, listH - 1) : listH}
+            height={(searchQuery || selectedIds.size > 0) && mode === 'browse' ? Math.max(3, listH - 1) : listH}
             width={innerW}
             selectedIndex={selectedIndex}
             onChange={(idx) => setSelectedIndex(idx)}

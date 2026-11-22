@@ -29,7 +29,58 @@ export interface StudyPlanModalProps {
   onUpdated?: () => void;
 }
 
-type ModalTab = 'plan' | 'readiness';
+type ModalTab = 'plan' | 'readiness' | 'custom';
+
+type CustomPurpose = 'preview' | 'follow' | 'review' | 'openbook';
+type CustomScopeKind = 'all' | 'exam' | 'chapters';
+type BookPart = 'explain' | 'terms' | 'formulas' | 'index' | 'confusables' | 'answerKit' | 'cheatSheet';
+type QuestionStrength = 'lean' | 'standard' | 'full';
+type CustomRowId =
+  | 'purpose'
+  | 'scope'
+  | `part:${BookPart}`
+  | 'strength'
+  | 'minutes';
+
+interface CustomPlanConfig {
+  version: 1;
+  purpose: CustomPurpose;
+  scope: {
+    kind: CustomScopeKind;
+    chapters?: string[];
+    resolvedChapters?: string[];
+    titles?: Array<string | null>;
+    note?: string;
+  };
+  book: {
+    make: boolean;
+    coverage: 'brief' | 'standard' | 'full';
+    parts: BookPart[];
+  };
+  questions: {
+    make: boolean;
+    kinds: string[];
+    strength: QuestionStrength;
+    variants: boolean;
+  };
+  plan: {
+    make: boolean;
+    by: 'exam' | 'weekly';
+    chaptersPerWeek?: number;
+    minutesPerDay?: number;
+  };
+  sampleFirst: boolean;
+}
+
+interface CustomOptionRow {
+  id: CustomRowId;
+  label: string;
+  value: string;
+  note: string;
+  detail: string;
+  enabled?: boolean;
+  locked?: boolean;
+}
 
 interface CoursePlanPhase {
   name: string;
@@ -179,6 +230,7 @@ interface CustomPreviewResponse {
     basis: 'outline' | 'documents' | string;
     outline?: { id?: string; stale?: boolean; chapters?: Array<{ id: string; title: string; points?: number }> };
   };
+  defaults?: Partial<Record<CustomPurpose, CustomPlanConfig>>;
   estimate?: {
     book?: {
       points: number;
@@ -197,11 +249,43 @@ interface CustomPreviewResponse {
     };
     rough?: boolean;
   } | null;
-  filled?: {
-    purpose?: string;
-    scope?: { kind?: string };
+  filled?: CustomPlanConfig | null;
+  saved?: CustomPlanConfig | null;
+  unknownChapters?: string[];
+  examScope?: {
+    matchedChapters?: Array<{ id: string; title: string }>;
+    unmatchedTopics?: string[];
+    coverageNote?: string;
+    confirmed?: boolean;
+    resolvedChapters?: string[] | null;
   } | null;
-  saved?: Record<string, unknown> | null;
+}
+
+interface CustomApplyItem {
+  step: string;
+  jobId?: string;
+  what: string;
+}
+
+interface CustomApplyResponse {
+  status: 'ok' | 'no-course' | 'no-plan' | string;
+  course: string | null;
+  started: CustomApplyItem[];
+  waiting: CustomApplyItem[];
+  recorded: CustomApplyItem[];
+  done: CustomApplyItem[];
+  examScope?: CustomPreviewResponse['examScope'];
+}
+
+interface CourseRecordView {
+  id?: string;
+  name?: string;
+  virtual?: boolean;
+  exam?: Record<string, unknown>;
+  plan?: Record<string, unknown>;
+  focusTopics?: string[];
+  guidanceSourceIds?: string[];
+  custom?: CustomPlanConfig | null;
 }
 
 interface CustomFillResponse {
@@ -378,6 +462,277 @@ function summarizeStartedFill(started: NonNullable<CustomFillResponse['started']
   };
 }
 
+const CUSTOM_PURPOSES: readonly CustomPurpose[] = ['preview', 'follow', 'review', 'openbook'];
+const CUSTOM_SCOPES: readonly Exclude<CustomScopeKind, 'chapters'>[] = ['all', 'exam'];
+const BOOK_PARTS: readonly BookPart[] = ['explain', 'terms', 'formulas', 'index', 'confusables', 'answerKit', 'cheatSheet'];
+const STRENGTH_LEVELS: readonly QuestionStrength[] = ['lean', 'standard', 'full'];
+const DEFAULT_MINUTES_PER_DAY = 180;
+const MIN_MINUTES_PER_DAY = 15;
+const MAX_MINUTES_PER_DAY = 240;
+const STEP_MINUTES_PER_DAY = 15;
+
+const PART_NEEDS: Partial<Record<BookPart, readonly BookPart[]>> = {
+  terms: ['explain'],
+  formulas: ['explain'],
+  index: ['explain'],
+  confusables: ['terms'],
+};
+
+const SHEET_FROM: readonly BookPart[] = ['terms', 'formulas', 'answerKit', 'confusables'];
+
+const FALLBACK_CUSTOM_PLAN: CustomPlanConfig = {
+  version: 1,
+  purpose: 'review',
+  scope: { kind: 'all' },
+  book: { make: true, coverage: 'standard', parts: ['explain', 'terms', 'formulas', 'confusables', 'answerKit'] },
+  questions: { make: true, kinds: ['quiz', 'multi', 'truefalse', 'flashcard', 'open', 'cloze'], strength: 'standard', variants: true },
+  plan: { make: true, by: 'exam', minutesPerDay: DEFAULT_MINUTES_PER_DAY },
+  sampleFirst: true,
+};
+
+/** Close book parts to satisfy upstream dependencies (mirrors lib/custom-plan.js closedParts). */
+function closeBookParts(parts: readonly BookPart[]): BookPart[] {
+  const have = new Set<BookPart>(parts);
+  if (have.has('cheatSheet') && !SHEET_FROM.some((id) => have.has(id))) {
+    have.add('terms');
+  }
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const id of [...have]) {
+      for (const need of PART_NEEDS[id] ?? []) {
+        if (!have.has(need)) {
+          have.add(need);
+          grew = true;
+        }
+      }
+    }
+  }
+  return BOOK_PARTS.filter((id) => have.has(id));
+}
+
+/** Remove a book part along with any parts that depend on it (mirrors lib/custom-plan.js partsWithout). */
+function removeBookPart(parts: readonly BookPart[], target: BookPart): BookPart[] {
+  let kept = parts.filter((part) => part !== target);
+  let again = true;
+  while (again) {
+    const next = kept.filter(
+      (part) =>
+        (PART_NEEDS[part] ?? []).every((need) => kept.includes(need)) &&
+        (part !== 'cheatSheet' || SHEET_FROM.some((from) => kept.includes(from))),
+    );
+    again = next.length !== kept.length;
+    kept = next;
+  }
+  return BOOK_PARTS.filter((part) => kept.includes(part));
+}
+
+/** Parts currently required by another ticked part. */
+function lockedBookParts(parts: readonly BookPart[]): Set<BookPart> {
+  const locked = new Set<BookPart>();
+  for (const id of parts) {
+    for (const need of PART_NEEDS[id] ?? []) {
+      if (parts.includes(need)) locked.add(need);
+    }
+  }
+  return locked;
+}
+
+function clampMinutes(val: number | undefined): number {
+  if (typeof val !== 'number' || !Number.isFinite(val)) return DEFAULT_MINUTES_PER_DAY;
+  return Math.max(MIN_MINUTES_PER_DAY, Math.min(960, Math.round(val)));
+}
+
+function normalizeCustomDraft(raw?: Partial<CustomPlanConfig> | null): CustomPlanConfig {
+  const base = FALLBACK_CUSTOM_PLAN;
+  const purpose = CUSTOM_PURPOSES.includes(raw?.purpose as CustomPurpose) ? (raw!.purpose as CustomPurpose) : base.purpose;
+  const rawScope = raw?.scope;
+  const rawKind = rawScope?.kind;
+  let scope: CustomPlanConfig['scope'];
+  if (rawKind === 'chapters' && Array.isArray(rawScope?.chapters) && rawScope.chapters.length > 0) {
+    scope = {
+      kind: 'chapters',
+      chapters: [...rawScope.chapters],
+      ...(Array.isArray(rawScope.titles) ? { titles: [...rawScope.titles] } : {}),
+      ...(rawScope.note ? { note: rawScope.note } : {}),
+    };
+  } else if (rawKind === 'exam') {
+    scope = {
+      kind: 'exam',
+      ...(Array.isArray(rawScope?.resolvedChapters) && rawScope.resolvedChapters.length > 0
+        ? { resolvedChapters: [...rawScope.resolvedChapters] }
+        : {}),
+      ...(Array.isArray(rawScope?.titles) ? { titles: [...rawScope.titles] } : {}),
+      ...(rawScope?.note ? { note: rawScope.note } : {}),
+    };
+  } else {
+    scope = {
+      kind: 'all',
+      ...(rawScope?.note ? { note: rawScope.note } : {}),
+    };
+  }
+
+  const rawParts = Array.isArray(raw?.book?.parts)
+    ? raw!.book!.parts.filter((p): p is BookPart => BOOK_PARTS.includes(p as BookPart))
+    : base.book.parts;
+  const parts = closeBookParts(rawParts);
+  const coverage = raw?.book?.coverage === 'brief' || raw?.book?.coverage === 'standard' || raw?.book?.coverage === 'full'
+    ? raw.book.coverage
+    : base.book.coverage;
+  const bookMake = parts.length > 0 ? Boolean(raw?.book?.make ?? true) : false;
+
+  const strength = STRENGTH_LEVELS.includes(raw?.questions?.strength as QuestionStrength)
+    ? (raw!.questions!.strength as QuestionStrength)
+    : base.questions.strength;
+  const kinds = Array.isArray(raw?.questions?.kinds) && raw!.questions!.kinds.length > 0
+    ? [...raw!.questions!.kinds]
+    : [...base.questions.kinds];
+  const qMake = Boolean(raw?.questions?.make ?? true);
+  const variants = typeof raw?.questions?.variants === 'boolean' ? raw.questions.variants : base.questions.variants;
+
+  const by = raw?.plan?.by === 'weekly' ? 'weekly' : 'exam';
+  const planMake = Boolean(raw?.plan?.make ?? true);
+  const chaptersPerWeek =
+    by === 'weekly'
+      ? Math.max(1, Math.min(10, Math.round(raw?.plan?.chaptersPerWeek ?? 1)))
+      : undefined;
+  const minutesPerDay = clampMinutes(raw?.plan?.minutesPerDay);
+
+  return {
+    version: 1,
+    purpose,
+    scope,
+    book: { make: bookMake, coverage, parts },
+    questions: { make: qMake, kinds, strength, variants },
+    plan: {
+      make: planMake,
+      by,
+      ...(by === 'weekly' ? { chaptersPerWeek } : {}),
+      minutesPerDay,
+    },
+    sampleFirst: typeof raw?.sampleFirst === 'boolean' ? raw.sampleFirst : true,
+  };
+}
+
+function purposeMeta(purpose: CustomPurpose, lang: 'zh' | 'en'): { label: string; desc: string } {
+  switch (purpose) {
+    case 'preview':
+      return {
+        label: t(lang, '课前预习', 'Preview'),
+        desc: t(lang, '精简讲解+基础题，按周轻量化预习', 'Brief book + lean questions, weekly light pace'),
+      };
+    case 'follow':
+      return {
+        label: t(lang, '同步跟课', 'Follow'),
+        desc: t(lang, '标准全书+全题型+错题变式，按周跟进', 'Standard book + all kinds + variants, weekly pace'),
+      };
+    case 'review':
+      return {
+        label: t(lang, '期末复习', 'Review'),
+        desc: t(lang, '全书+术语/公式/易混/锦囊，倒推考期排期', 'Full review parts + exam-date backward schedule'),
+      };
+    case 'openbook':
+      return {
+        label: t(lang, '开卷速查', 'Open-book'),
+        desc: t(lang, '精简正文+全套索引与速查表，重点配开卷题', 'Brief prose + full lookup & cheat sheet'),
+      };
+  }
+}
+
+function scopeLabel(scope: CustomPlanConfig['scope'], lang: 'zh' | 'en'): string {
+  if (scope.kind === 'exam') return t(lang, '考纲范围', 'Exam Scope');
+  if (scope.kind === 'chapters') {
+    return t(lang, `指定章节 (${scope.chapters?.length ?? 0}章)`, `Chapters (${scope.chapters?.length ?? 0})`);
+  }
+  return t(lang, '全部章节', 'All Chapters');
+}
+
+function strengthLabel(strength: QuestionStrength, lang: 'zh' | 'en'): string {
+  switch (strength) {
+    case 'lean':
+      return t(lang, '精简 (lean)', 'Lean');
+    case 'standard':
+      return t(lang, '标准 (std)', 'Standard');
+    case 'full':
+      return t(lang, '完整 (full)', 'Full');
+  }
+}
+
+function bookPartMeta(part: BookPart, lang: 'zh' | 'en'): { label: string; dep: string; desc: string } {
+  switch (part) {
+    case 'explain':
+      return {
+        label: t(lang, '全书讲解', 'Explanations'),
+        dep: t(lang, '基础正文', 'Base text'),
+        desc: t(lang, '各知识点核心讲解与例题 (术语/公式/索引依赖此项)', 'Knowledge point explanations (required by terms/formulas/index)'),
+      };
+    case 'terms':
+      return {
+        label: t(lang, '术语卡', 'Term Cards'),
+        dep: t(lang, '需:讲解', 'Req:explain'),
+        desc: t(lang, '从讲解提炼核心术语卡 (自动开启全书讲解)', 'Core term cards extracted from explanations (auto-enables explain)'),
+      };
+    case 'formulas':
+      return {
+        label: t(lang, '公式页', 'Formulas'),
+        dep: t(lang, '需:讲解', 'Req:explain'),
+        desc: t(lang, '汇总公式与推导要点 (自动开启全书讲解)', 'Formula summary page (auto-enables explain)'),
+      };
+    case 'index':
+      return {
+        label: t(lang, '索引页', 'A-Z Index'),
+        dep: t(lang, '需:讲解', 'Req:explain'),
+        desc: t(lang, '按字母与章节整理的速查索引 (自动开启全书讲解)', 'A-Z glossary & chapter index (auto-enables explain)'),
+      };
+    case 'confusables':
+      return {
+        label: t(lang, '易混对比', 'Confusables'),
+        dep: t(lang, '需:术语', 'Req:terms'),
+        desc: t(lang, '易混/对立概念对比表 (自动开启术语卡与讲解)', 'Confusable concept pairs (auto-enables terms & explain)'),
+      };
+    case 'answerKit':
+      return {
+        label: t(lang, '答题锦囊', 'Answer Kit'),
+        dep: t(lang, '独立/真题', 'From papers'),
+        desc: t(lang, '基于历年真题/样卷提炼的高频答题模板', 'Exam answering templates from sample papers'),
+      };
+    case 'cheatSheet':
+      return {
+        label: t(lang, '速查表', 'Cheat Sheet'),
+        dep: t(lang, '需:任一查表项', 'Req:lookup'),
+        desc: t(lang, '可打印浓缩速查表 (无术语/公式/锦囊/易混时自动开启术语卡)', 'Printable cheat sheet (auto-enables terms if no lookup parts ticked)'),
+      };
+  }
+}
+
+function summarizeApplyResult(res: CustomApplyResponse, lang: 'zh' | 'en'): { text: string; tone: 'success' | 'warning' | 'info' } {
+  if (res.status === 'no-course') {
+    return { text: t(lang, '请先选择课程', 'Select a course first'), tone: 'warning' };
+  }
+  if (res.status === 'no-plan') {
+    return { text: t(lang, '尚未保存定制方案，请先按 [s] 保存', 'No saved custom plan; press [s] to save first'), tone: 'warning' };
+  }
+  const startedCount = res.started?.length ?? 0;
+  const waitingCount = res.waiting?.length ?? 0;
+  const doneCount = res.done?.length ?? 0;
+  const counts: string[] = [];
+  if (startedCount > 0) counts.push(t(lang, `已启动 ${startedCount}`, `Started ${startedCount}`));
+  if (waitingCount > 0) counts.push(t(lang, `待处理 ${waitingCount}`, `Waiting ${waitingCount}`));
+  if (doneCount > 0) counts.push(t(lang, `已完成 ${doneCount}`, `Done ${doneCount}`));
+
+  const firstDetail =
+    res.started?.[0]?.what ||
+    res.waiting?.[0]?.what ||
+    res.done?.[0]?.what ||
+    res.recorded?.[0]?.what ||
+    '';
+
+  const header = counts.length > 0 ? counts.join(' / ') : t(lang, '定制方案已检查', 'Custom plan checked');
+  const text = firstDetail ? `${header}: ${firstDetail}` : header;
+  const tone = startedCount > 0 ? 'success' : waitingCount > 0 ? 'warning' : 'info';
+  return { text, tone };
+}
+
 export const StudyPlanModal = memo(function StudyPlanModal({
   host,
   course,
@@ -398,22 +753,33 @@ export const StudyPlanModal = memo(function StudyPlanModal({
   const [tab, setTab] = useState<ModalTab>('plan');
   const [planLoading, setPlanLoading] = useState(true);
   const [readinessLoading, setReadinessLoading] = useState(true);
+  const [customLoading, setCustomLoading] = useState(false);
+  const [customPreviewBusy, setCustomPreviewBusy] = useState(false);
   const [planError, setPlanError] = useState<string | null>(null);
   const [readinessError, setReadinessError] = useState<string | null>(null);
+  const [customError, setCustomError] = useState<string | null>(null);
   const [busyLabel, setBusyLabel] = useState<string | null>(null);
 
   const [planData, setPlanData] = useState<CoursePlanResponse | null>(null);
   const [readinessData, setReadinessData] = useState<CustomReadinessResponse | null>(null);
   const [previewData, setPreviewData] = useState<CustomPreviewResponse | null>(null);
+  const [customPreviewData, setCustomPreviewData] = useState<CustomPreviewResponse | null>(null);
+  const [customDraft, setCustomDraft] = useState<CustomPlanConfig | null>(null);
 
   const [dayIdx, setDayIdx] = useState(0);
   const [chapterIdx, setChapterIdx] = useState(0);
+  const [customRowIdx, setCustomRowIdx] = useState(0);
   const [confirmFill, setConfirmFill] = useState<CustomFillResponse | null>(null);
+  const [confirmApply, setConfirmApply] = useState(false);
 
   const mountedRef = useRef(true);
+  const busyRef = useRef(false);
   const planSeqRef = useRef(0);
   const readinessSeqRef = useRef(0);
+  const customSeqRef = useRef(0);
   const readinessLoadedRef = useRef(false);
+  const customLoadedRef = useRef(false);
+  const lastPreviewKeyRef = useRef('');
 
   useEffect(() => {
     mountedRef.current = true;
@@ -455,10 +821,38 @@ export const StudyPlanModal = memo(function StudyPlanModal({
     setReadinessLoading(false);
   }, [host, courseArgs, lang]);
 
+  const loadCustomPreview = useCallback(async () => {
+    const seq = ++customSeqRef.current;
+    setCustomError(null);
+    const res = await tryAction<CustomPreviewResponse>(host, 'course.custom.preview', {
+      ...courseArgs,
+      language: lang,
+    });
+    if (!mountedRef.current || seq !== customSeqRef.current) return;
+    customLoadedRef.current = true;
+    if (res.ok && res.value) {
+      setPreviewData(res.value);
+      setCustomPreviewData(res.value);
+      const initial = normalizeCustomDraft(res.value.saved ?? res.value.filled);
+      lastPreviewKeyRef.current = JSON.stringify(initial);
+      setCustomDraft(initial);
+    } else {
+      setCustomError(res.error?.message || t(lang, '加载深度定制配置失败', 'Failed to load custom plan'));
+    }
+    setCustomLoading(false);
+  }, [host, courseArgs, lang]);
+
   useEffect(() => {
     setPlanLoading(true);
     setReadinessLoading(true);
+    setCustomLoading(false);
     readinessLoadedRef.current = false;
+    customLoadedRef.current = false;
+    lastPreviewKeyRef.current = '';
+    setCustomDraft(null);
+    setCustomPreviewData(null);
+    setConfirmFill(null);
+    setConfirmApply(false);
     void loadPlan();
   }, [loadPlan]);
 
@@ -466,10 +860,44 @@ export const StudyPlanModal = memo(function StudyPlanModal({
     if (tab === 'readiness' && !readinessLoadedRef.current) {
       setReadinessLoading(true);
       void loadReadiness();
+    } else if (tab === 'custom' && !customLoadedRef.current) {
+      setCustomLoading(true);
+      void loadCustomPreview();
     }
-  }, [tab, loadReadiness]);
+  }, [tab, loadReadiness, loadCustomPreview]);
 
-  const effectiveCourse = planData?.course ?? readinessData?.course ?? previewData?.course ?? course ?? '';
+  const effectiveCourse =
+    planData?.course ?? readinessData?.course ?? customPreviewData?.course ?? previewData?.course ?? course ?? '';
+
+  // Debounced (180ms) live zero-cost estimate on Tab 3 edits
+  useEffect(() => {
+    if (tab !== 'custom' || !customDraft || !customLoadedRef.current) return;
+    if (customPreviewData?.status === 'no-course' && !effectiveCourse) return;
+    const key = JSON.stringify(customDraft);
+    if (key === lastPreviewKeyRef.current) return;
+
+    const timer = setTimeout(() => {
+      const seq = ++customSeqRef.current;
+      setCustomPreviewBusy(true);
+      void tryAction<CustomPreviewResponse>(host, 'course.custom.preview', {
+        ...(effectiveCourse ? { course: effectiveCourse } : {}),
+        custom: customDraft,
+        language: lang,
+      }).then((res) => {
+        if (!mountedRef.current || seq !== customSeqRef.current) return;
+        setCustomPreviewBusy(false);
+        if (res.ok && res.value) {
+          lastPreviewKeyRef.current = key;
+          setCustomPreviewData(res.value);
+          setCustomError(null);
+        }
+      });
+    }, 180);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [tab, customDraft, customPreviewData?.status, effectiveCourse, host, lang]);
 
   const upcomingDays = useMemo<CoursePlanDay[]>(() => {
     const all = planData?.schedule?.days ?? [];
@@ -499,61 +927,328 @@ export const StudyPlanModal = memo(function StudyPlanModal({
     }
   }, [chapters.length, chapterIdx]);
 
-  const handleRequestFill = useCallback(async () => {
-    if (busyLabel) return;
-    setBusyLabel(t(lang, '正在估算待补齐任务…', 'Estimating missing work…'));
-    const res = await tryAction<CustomFillResponse>(host, 'course.custom.fill', {
-      ...(effectiveCourse ? { course: effectiveCourse } : {}),
-      estimate: true,
+  const savedCustomNormalized = useMemo(() => {
+    const saved = customPreviewData?.saved ?? previewData?.saved;
+    return saved ? normalizeCustomDraft(saved) : null;
+  }, [customPreviewData?.saved, previewData?.saved]);
+
+  const isCustomDirty = useMemo(() => {
+    if (!customDraft) return false;
+    if (!savedCustomNormalized) return true;
+    return JSON.stringify(customDraft) !== JSON.stringify(savedCustomNormalized);
+  }, [customDraft, savedCustomNormalized]);
+
+  const customRows = useMemo<CustomOptionRow[]>(() => {
+    if (!customDraft) return [];
+    const pMeta = purposeMeta(customDraft.purpose, lang);
+    const locked = lockedBookParts(customDraft.book.parts);
+    const examScopeInfo = customPreviewData?.examScope;
+    const scopeNote =
+      customDraft.scope.kind === 'exam' && examScopeInfo
+        ? examScopeInfo.confirmed
+          ? t(lang, `已确认 ${examScopeInfo.resolvedChapters?.length ?? 0} 章`, `${examScopeInfo.resolvedChapters?.length ?? 0} ch confirmed`)
+          : t(lang, `匹配 ${examScopeInfo.matchedChapters?.length ?? 0} 章 (待确认)`, `${examScopeInfo.matchedChapters?.length ?? 0} matched (unconfirmed)`)
+        : t(lang, 'all / exam', 'all / exam');
+
+    const rows: CustomOptionRow[] = [
+      {
+        id: 'purpose',
+        label: t(lang, '学习目的', 'Purpose'),
+        value: pMeta.label,
+        note: t(lang, '预习/跟课/复习/开卷', 'preview/follow/review/open'),
+        detail: `${t(lang, '学习目的', 'Purpose')}: ${pMeta.desc}`,
+      },
+      {
+        id: 'scope',
+        label: t(lang, '覆盖范围', 'Scope'),
+        value: scopeLabel(customDraft.scope, lang),
+        note: scopeNote,
+        detail:
+          customDraft.scope.kind === 'exam'
+            ? t(
+                lang,
+                `考纲范围${examScopeInfo?.coverageNote ? `: ${examScopeInfo.coverageNote}` : ' (应用前需在课程大纲中确认匹配章节)'}`,
+                `Exam scope${examScopeInfo?.coverageNote ? `: ${examScopeInfo.coverageNote}` : ' (requires confirmed exam chapters before generation)'}`,
+              )
+            : t(lang, '覆盖当前课程全部可学习章节', 'Covers all teachable chapters in this course'),
+      },
+    ];
+
+    for (const part of BOOK_PARTS) {
+      const enabled = customDraft.book.parts.includes(part);
+      const isLocked = enabled && locked.has(part);
+      const meta = bookPartMeta(part, lang);
+      rows.push({
+        id: `part:${part}`,
+        label: meta.label,
+        value: enabled ? t(lang, '已启用', 'ON') : t(lang, '未启用', 'OFF'),
+        note: isLocked ? `${meta.dep} *` : meta.dep,
+        detail: meta.desc,
+        enabled,
+        locked: isLocked,
+      });
+    }
+
+    rows.push({
+      id: 'strength',
+      label: t(lang, '出题强度', 'Q Strength'),
+      value: strengthLabel(customDraft.questions.strength, lang),
+      note: 'lean/std/full',
+      detail: t(
+        lang,
+        '出题覆盖强度: lean(精简~60%) / standard(标准) / full(完整覆盖每节)',
+        'Question density: lean (~60% weighted) / standard / full (every leaf section)',
+      ),
     });
-    if (!mountedRef.current) return;
-    setBusyLabel(null);
-    if (!res.ok || !res.value) {
-      notify(res.error?.message || t(lang, '估算补齐任务失败', 'Failed to estimate fill'), 'error');
+
+    const mins = clampMinutes(customDraft.plan.minutesPerDay);
+    rows.push({
+      id: 'minutes',
+      label: t(lang, '每日时长', 'Min / Day'),
+      value: `${mins}${t(lang, '分/天', 'm/d')}`,
+      note: '15-240 (+/-)',
+      detail: t(
+        lang,
+        '每日计划学习分钟数 (15-240 分钟, 步进 15; 支持 +/- 或左右键调整)',
+        'Daily study capacity (15-240 min, step 15; adjust with +/- or Left/Right)',
+      ),
+    });
+
+    return rows;
+  }, [customDraft, customPreviewData?.examScope, lang]);
+
+  useEffect(() => {
+    if (customRows.length > 0 && customRowIdx >= customRows.length) {
+      setCustomRowIdx(customRows.length - 1);
+    }
+  }, [customRows.length, customRowIdx]);
+
+  const adjustCustomRow = useCallback(
+    (rowId: CustomRowId, direction: 1 | -1) => {
+      setCustomDraft((prev) => {
+        if (!prev) return prev;
+        if (rowId === 'purpose') {
+          const idx = CUSTOM_PURPOSES.indexOf(prev.purpose);
+          const nextPurpose = CUSTOM_PURPOSES[(idx + direction + CUSTOM_PURPOSES.length) % CUSTOM_PURPOSES.length];
+          const preset = (customPreviewData?.defaults ?? previewData?.defaults)?.[nextPurpose];
+          if (preset) {
+            const normalizedPreset = normalizeCustomDraft(preset);
+            return {
+              ...normalizedPreset,
+              scope: prev.scope.kind === 'chapters' && !prev.scope.chapters?.length ? { kind: 'all' } : prev.scope,
+              plan: {
+                ...normalizedPreset.plan,
+                minutesPerDay: clampMinutes(prev.plan.minutesPerDay),
+              },
+            };
+          }
+          return { ...prev, purpose: nextPurpose };
+        }
+        if (rowId === 'scope') {
+          const nextKind: 'all' | 'exam' = prev.scope.kind === 'exam' ? 'all' : 'exam';
+          const savedExamScope =
+            nextKind === 'exam' && savedCustomNormalized?.scope.kind === 'exam'
+              ? savedCustomNormalized.scope
+              : null;
+          return {
+            ...prev,
+            scope: savedExamScope ?? { kind: nextKind },
+          };
+        }
+        if (rowId.startsWith('part:')) {
+          const part = rowId.slice(5) as BookPart;
+          const has = prev.book.parts.includes(part);
+          const nextParts = has
+            ? removeBookPart(prev.book.parts, part)
+            : closeBookParts([...prev.book.parts, part]);
+          return {
+            ...prev,
+            book: {
+              ...prev.book,
+              make: nextParts.length > 0,
+              parts: nextParts,
+            },
+          };
+        }
+        if (rowId === 'strength') {
+          const idx = STRENGTH_LEVELS.indexOf(prev.questions.strength);
+          const nextStrength = STRENGTH_LEVELS[(idx + direction + STRENGTH_LEVELS.length) % STRENGTH_LEVELS.length];
+          return {
+            ...prev,
+            questions: {
+              ...prev.questions,
+              make: true,
+              strength: nextStrength,
+            },
+          };
+        }
+        if (rowId === 'minutes') {
+          const curr = clampMinutes(prev.plan.minutesPerDay);
+          const snapped = Math.round(curr / STEP_MINUTES_PER_DAY) * STEP_MINUTES_PER_DAY;
+          const next = Math.max(
+            MIN_MINUTES_PER_DAY,
+            Math.min(MAX_MINUTES_PER_DAY, snapped + direction * STEP_MINUTES_PER_DAY),
+          );
+          return {
+            ...prev,
+            plan: {
+              ...prev.plan,
+              make: true,
+              minutesPerDay: next,
+            },
+          };
+        }
+        return prev;
+      });
+    },
+    [customPreviewData?.defaults, previewData?.defaults, savedCustomNormalized],
+  );
+
+  const handleSaveCustom = useCallback(async () => {
+    if (busyRef.current || !customDraft) return;
+    const targetCourse = effectiveCourse || course;
+    if (!targetCourse) {
+      notify(t(lang, '请先选择课程', 'Select a course first'), 'warning');
       return;
     }
-    const v = res.value;
-    if (v.status === 'nothing') {
-      notify(t(lang, '当前章节已全部补齐，暂无待启动任务', 'Nothing missing to fill right now'), 'info');
+    busyRef.current = true;
+    setBusyLabel(t(lang, '正在保存定制方案...', 'Saving custom plan...'));
+    try {
+      const got = await tryAction<CourseRecordView>(host, 'course.get', { name: targetCourse });
+      if (!mountedRef.current) return;
+      const record = got.ok && got.value ? got.value : null;
+      const normalized = normalizeCustomDraft(customDraft);
+      const saved = await tryAction<CourseRecordView>(host, 'course.save', {
+        ...(record?.id && !record?.virtual ? { id: record.id } : {}),
+        name: record?.name || targetCourse,
+        ...(record?.exam !== undefined ? { exam: record.exam } : {}),
+        ...(record?.plan !== undefined ? { plan: record.plan } : {}),
+        ...(record?.focusTopics !== undefined ? { focusTopics: record.focusTopics } : {}),
+        ...(record?.guidanceSourceIds !== undefined ? { guidanceSourceIds: record.guidanceSourceIds } : {}),
+        custom: normalized,
+      });
+      if (!mountedRef.current) return;
+      if (!saved.ok) {
+        notify(saved.error?.message || t(lang, '保存定制方案失败', 'Failed to save custom plan'), 'error');
+        return;
+      }
+      notify(t(lang, `已保存「${targetCourse}」深度定制方案`, `Saved custom plan for "${targetCourse}"`), 'success');
+      await Promise.all([loadCustomPreview(), loadReadiness(), loadPlan()]);
+      onUpdated?.();
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusyLabel(null);
+    }
+  }, [customDraft, effectiveCourse, course, host, lang, notify, loadCustomPreview, loadReadiness, loadPlan, onUpdated]);
+
+  const handleRequestApply = useCallback(() => {
+    if (busyRef.current) return;
+    const targetCourse = effectiveCourse || course;
+    if (!targetCourse) {
+      notify(t(lang, '请先选择课程', 'Select a course first'), 'warning');
       return;
     }
-    if (v.status !== 'ok') {
-      const msgMap: Record<string, string> = {
-        'no-course': t(lang, '请先选择课程', 'Select a course first'),
-        'no-book': t(lang, '尚未生成复习全书，请先前往「复习全书」按 [g] 生成', 'No review book yet; build it in Book view [7] first'),
-        'no-outline': t(lang, '尚未生成课程总纲，请先生成总纲后再补齐', 'No course outline yet; build outline first'),
-        'exam-scope-unconfirmed': t(lang, '考试范围章节尚未确认，请先确认后再补齐', 'Exam scope chapters are unconfirmed'),
-      };
-      notify(msgMap[v.status] || t(lang, `当前状态不可补齐: ${v.status}`, `Cannot fill (${v.status})`), 'warning');
+    if (!savedCustomNormalized) {
+      notify(t(lang, '尚未保存定制方案，请先按 [s] 保存', 'No saved custom plan yet; press [s] to save first'), 'warning');
       return;
     }
-    setConfirmFill(v);
+    setConfirmApply(true);
+  }, [effectiveCourse, course, savedCustomNormalized, notify, lang]);
+
+  const handleConfirmApply = useCallback(async () => {
+    if (busyRef.current) return;
+    setConfirmApply(false);
+    const targetCourse = effectiveCourse || course;
+    if (!targetCourse) return;
+    busyRef.current = true;
+    setBusyLabel(t(lang, '正在应用定制方案...', 'Applying custom plan...'));
+    try {
+      const res = await tryAction<CustomApplyResponse>(host, 'course.custom.apply', {
+        course: targetCourse,
+        confirm: true,
+        language: lang,
+      });
+      if (!mountedRef.current) return;
+      if (!res.ok || !res.value) {
+        notify(res.error?.message || t(lang, '应用定制方案失败', 'Failed to apply custom plan'), 'error');
+        return;
+      }
+      const summary = summarizeApplyResult(res.value, lang);
+      notify(summary.text, summary.tone);
+      await Promise.all([loadCustomPreview(), loadReadiness(), loadPlan()]);
+      onUpdated?.();
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusyLabel(null);
+    }
+  }, [effectiveCourse, course, host, lang, notify, loadCustomPreview, loadReadiness, loadPlan, onUpdated]);
+
+  const handleRequestFill = useCallback(async () => {
+    if (busyRef.current || busyLabel) return;
+    busyRef.current = true;
+    setBusyLabel(t(lang, '正在估算待补齐任务…', 'Estimating missing work…'));
+    try {
+      const res = await tryAction<CustomFillResponse>(host, 'course.custom.fill', {
+        ...(effectiveCourse ? { course: effectiveCourse } : {}),
+        estimate: true,
+      });
+      if (!mountedRef.current) return;
+      if (!res.ok || !res.value) {
+        notify(res.error?.message || t(lang, '估算补齐任务失败', 'Failed to estimate fill'), 'error');
+        return;
+      }
+      const v = res.value;
+      if (v.status === 'nothing') {
+        notify(t(lang, '当前章节已全部补齐，暂无待启动任务', 'Nothing missing to fill right now'), 'info');
+        return;
+      }
+      if (v.status !== 'ok') {
+        const msgMap: Record<string, string> = {
+          'no-course': t(lang, '请先选择课程', 'Select a course first'),
+          'no-book': t(lang, '尚未生成复习全书，请先前往「复习全书」按 [g] 生成', 'No review book yet; build it in Book view [7] first'),
+          'no-outline': t(lang, '尚未生成课程总纲，请先生成总纲后再补齐', 'No course outline yet; build outline first'),
+          'exam-scope-unconfirmed': t(lang, '考试范围章节尚未确认，请先确认后再补齐', 'Exam scope chapters are unconfirmed'),
+        };
+        notify(msgMap[v.status] || t(lang, `当前状态不可补齐: ${v.status}`, `Cannot fill (${v.status})`), 'warning');
+        return;
+      }
+      setConfirmFill(v);
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusyLabel(null);
+    }
   }, [busyLabel, host, effectiveCourse, lang, notify]);
 
   const handleConfirmFill = useCallback(async () => {
+    if (busyRef.current) return;
     setConfirmFill(null);
+    busyRef.current = true;
     setBusyLabel(t(lang, '正在启动补齐任务…', 'Starting fill jobs…'));
-    const res = await tryAction<CustomFillResponse>(
-      host,
-      'course.custom.fill',
-      effectiveCourse ? { course: effectiveCourse } : {},
-    );
-    if (!mountedRef.current) return;
-    setBusyLabel(null);
-    if (!res.ok || !res.value) {
-      notify(res.error?.message || t(lang, '启动补齐任务失败', 'Failed to start fill jobs'), 'error');
-      return;
+    try {
+      const res = await tryAction<CustomFillResponse>(
+        host,
+        'course.custom.fill',
+        effectiveCourse ? { course: effectiveCourse } : {},
+      );
+      if (!mountedRef.current) return;
+      if (!res.ok || !res.value) {
+        notify(res.error?.message || t(lang, '启动补齐任务失败', 'Failed to start fill jobs'), 'error');
+        return;
+      }
+      const summary = res.value.started
+        ? summarizeStartedFill(res.value.started, lang)
+        : { text: t(lang, '已检查补齐任务', 'Fill checked'), tone: 'success' as const };
+      notify(summary.text, summary.tone);
+      setReadinessLoading(true);
+      await Promise.all([loadReadiness(), loadPlan()]);
+      onUpdated?.();
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusyLabel(null);
     }
-    const summary = res.value.started
-      ? summarizeStartedFill(res.value.started, lang)
-      : { text: t(lang, '已检查补齐任务', 'Fill checked'), tone: 'success' as const };
-    notify(summary.text, summary.tone);
-    setReadinessLoading(true);
-    await Promise.all([loadReadiness(), loadPlan()]);
-    onUpdated?.();
   }, [host, effectiveCourse, lang, notify, loadReadiness, loadPlan, onUpdated]);
 
-  const modalActive = isActive && confirmFill === null;
+  const modalActive = isActive && confirmFill === null && !confirmApply;
 
   useInput(
     (input, key) => {
@@ -565,22 +1260,61 @@ export const StudyPlanModal = memo(function StudyPlanModal({
         setTab('readiness');
         return;
       }
-      if (key.tab) {
-        setTab((prev) => (prev === 'plan' ? 'readiness' : 'plan'));
+      if (input === '3') {
+        setTab('custom');
         return;
       }
-      if (input === 'r' && !busyLabel) {
+      if (key.tab) {
+        const order: ModalTab[] = ['plan', 'readiness', 'custom'];
+        setTab((prev) => order[(order.indexOf(prev) + (key.shift ? order.length - 1 : 1)) % order.length]);
+        return;
+      }
+      if (input === 'r' && !busyLabel && !busyRef.current) {
         if (tab === 'plan') {
           setPlanLoading(true);
           void loadPlan();
-        } else {
+        } else if (tab === 'readiness') {
           setReadinessLoading(true);
           void loadReadiness();
+        } else {
+          setCustomLoading(true);
+          void loadCustomPreview();
         }
         return;
       }
-      if (input === 'f' && tab === 'readiness' && !readinessLoading && !busyLabel) {
+      if (input === 'f' && tab === 'readiness' && !readinessLoading && !busyLabel && !busyRef.current) {
         void handleRequestFill();
+        return;
+      }
+      if (tab === 'custom' && !customLoading && !busyLabel && !busyRef.current && customRows.length > 0) {
+        const activeRow = customRows[Math.min(customRowIdx, customRows.length - 1)];
+        if (input === ' ') {
+          adjustCustomRow(activeRow.id, 1);
+          return;
+        }
+        if (key.rightArrow) {
+          adjustCustomRow(activeRow.id, 1);
+          return;
+        }
+        if (key.leftArrow) {
+          adjustCustomRow(activeRow.id, -1);
+          return;
+        }
+        if (input === '+' || input === '=') {
+          adjustCustomRow('minutes', 1);
+          return;
+        }
+        if (input === '-' || input === '_') {
+          adjustCustomRow('minutes', -1);
+          return;
+        }
+        if (input === 's') {
+          void handleSaveCustom();
+          return;
+        }
+        if (input === 'a') {
+          handleRequestApply();
+        }
       }
     },
     { isActive: modalActive },
@@ -594,17 +1328,25 @@ export const StudyPlanModal = memo(function StudyPlanModal({
   const tabBodyH = Math.max(6, bodyH - 2);
 
   const hints = useMemo<KeyHint[]>(() => {
+    const compact = innerW < 68;
     const out: KeyHint[] = [
-      { key: '1/2/Tab', label: t(lang, '切换标签', 'Tab') },
-      { key: 'j/k', label: t(lang, '滚动', 'Scroll') },
+      { key: compact ? '1-3' : '1/2/3/Tab', label: compact ? t(lang, '切', 'Tab') : t(lang, '切换', 'Tab') },
+      { key: 'j/k', label: compact ? t(lang, '移', 'Mv') : t(lang, '移动', 'Move') },
     ];
     if (tab === 'readiness') {
       out.push({ key: 'f', label: t(lang, '补齐缺失', 'Fill Missing') });
+    } else if (tab === 'custom') {
+      out.push({
+        key: compact ? 'Space' : asciiMode ? 'Space/<->' : 'Space/←/→',
+        label: compact ? t(lang, '调', 'Ed') : t(lang, '调整', 'Adjust'),
+      });
+      out.push({ key: 's', label: compact ? t(lang, '存', 'Sv') : t(lang, '保存', 'Save') });
+      out.push({ key: 'a', label: compact ? t(lang, '用', 'Go') : t(lang, '应用', 'Apply') });
     }
-    out.push({ key: 'r', label: t(lang, '刷新', 'Refresh') });
-    out.push({ key: 'Esc', label: t(lang, '关闭', 'Close') });
+    out.push({ key: 'r', label: compact ? t(lang, '刷', 'Rf') : t(lang, '刷新', 'Refresh') });
+    out.push({ key: 'Esc', label: compact ? t(lang, '关', 'X') : t(lang, '关闭', 'Close') });
     return out;
-  }, [tab, lang]);
+  }, [tab, lang, asciiMode, innerW]);
 
   const ell = asciiMode ? '...' : '…';
   const sep = asciiMode ? '-' : '·';
@@ -1047,6 +1789,179 @@ export const StudyPlanModal = memo(function StudyPlanModal({
     );
   };
 
+  const renderCustomRow = useCallback(
+    (row: CustomOptionRow, ctx: VirtualListRenderContext) => {
+      const isPart = row.id.startsWith('part:');
+      const checkStr = isPart ? (row.enabled ? (asciiMode ? '[x] ' : '[✓] ') : '[ ] ') : '    ';
+      const labelBudget = Math.max(16, Math.min(26, Math.floor(ctx.width * 0.36)));
+      const labelText = padDisplay(truncateDisplay(`${checkStr}${row.label}`, labelBudget, ell), labelBudget);
+
+      const valDisplay = isPart
+        ? row.value
+        : asciiMode
+          ? `< ${row.value} >`
+          : `‹ ${row.value} ›`;
+      const valBudget = Math.max(10, Math.min(24, ctx.width - labelBudget - 2));
+      const valText = padDisplay(truncateDisplay(valDisplay, valBudget, ell), valBudget);
+
+      const noteAvail = Math.max(0, ctx.width - labelBudget - valBudget - 2);
+      const noteText = noteAvail >= 4 ? ` ${truncateDisplay(row.note, noteAvail - 1, ell)}` : '';
+
+      const fg = ctx.selected ? theme.selectionFg : theme.text;
+      const valColor = ctx.selected
+        ? theme.selectionFg
+        : isPart
+          ? row.enabled
+            ? theme.success
+            : theme.dim
+          : theme.primary;
+      const noteColor = ctx.selected ? theme.selectionFg : row.locked ? theme.warning : theme.muted;
+
+      return (
+        <Text color={fg} bold={ctx.selected}>
+          <Text color={ctx.selected ? theme.selectionFg : isPart && !row.enabled ? theme.muted : theme.text}>
+            {labelText}
+          </Text>
+          <Text color={valColor} bold={ctx.selected || !isPart || Boolean(row.enabled)}>
+            {` ${valText}`}
+          </Text>
+          {noteText ? <Text color={noteColor}>{noteText}</Text> : null}
+        </Text>
+      );
+    },
+    [asciiMode, ell, theme],
+  );
+
+  const renderCustomTab = () => {
+    if (customLoading && !customDraft) {
+      return (
+        <Box height={tabBodyH} alignItems="center" justifyContent="center">
+          <Spinner label={t(lang, `正在加载深度定制配置${ell}`, `Loading custom plan${ell}`)} active={isActive} />
+        </Box>
+      );
+    }
+    if (customError && !customDraft) {
+      return (
+        <EmptyState
+          icon={asciiMode ? '!' : '✕'}
+          title={t(lang, '加载深度定制失败', 'Failed to load custom plan')}
+          hint={truncateDisplay(customError, Math.max(12, innerW - 4), ell)}
+          actions={[{ key: 'r', label: t(lang, '重试', 'Retry') }]}
+          width={innerW}
+          height={tabBodyH}
+        />
+      );
+    }
+    if (customPreviewData?.status === 'no-course' || !effectiveCourse) {
+      return (
+        <EmptyState
+          icon={asciiMode ? '!' : '◷'}
+          title={t(lang, '尚未选择课程', 'No course selected')}
+          hint={t(lang, '按 [Esc] 返回后按 [c] 选择一门课程。', 'Press [Esc], then [c] to select a course.')}
+          width={innerW}
+          height={tabBodyH}
+        />
+      );
+    }
+    if (!customDraft) {
+      return (
+        <Box height={tabBodyH} alignItems="center" justifyContent="center">
+          <Spinner label={t(lang, `正在初始化向导${ell}`, `Initializing wizard${ell}`)} active={isActive} />
+        </Box>
+      );
+    }
+
+    const est = customPreviewData?.estimate;
+    const listH = Math.max(3, tabBodyH - 5);
+    const activeRow = customRows[Math.min(customRowIdx, Math.max(0, customRows.length - 1))] ?? null;
+    const lrHint = asciiMode ? 'Space/<->' : 'Space/←/→';
+    const estSummary =
+      est?.total && est.total.calls > 0
+        ? innerW < 64
+          ? t(
+              lang,
+              `粗估: ~${est.total.calls}次 ${sep} ${fmtTokenRange(est.total.readTokens)} tok (书${est.book?.calls ?? 0}/题${est.questions?.calls ?? 0})`,
+              `Est: ~${est.total.calls} calls ${sep} ${fmtTokenRange(est.total.readTokens)} tok (B:${est.book?.calls ?? 0}/Q:${est.questions?.calls ?? 0})`,
+            )
+          : t(
+              lang,
+              `粗估(非计费): 约 ${est.total.calls} 次调用 ${sep} 读入 ${fmtTokenRange(est.total.readTokens)} tok (全书 ${est.book?.calls ?? 0} / 出题 ${est.questions?.calls ?? 0})`,
+              `Rough est.(no price): ~${est.total.calls} calls ${sep} ${fmtTokenRange(est.total.readTokens)} read tok (Book ${est.book?.calls ?? 0} / Qs ${est.questions?.calls ?? 0})`,
+            )
+        : t(lang, '粗估(非计费): 0 次调用 (未勾选生成项)', 'Rough est.(no price): 0 calls (no generation selected)');
+    const estRight =
+      est && ((est.book?.points ?? 0) > 0 || (est.questions?.count ?? 0) > 0)
+        ? ` ${t(lang, '点', 'Pts')}:${est.book?.points ?? 0} ${t(lang, '题', 'Qs')}:${est.questions?.count ?? 0}`
+        : '';
+
+    return (
+      <Box flexDirection="column" height={tabBodyH} overflow="hidden">
+        {/* Row 1: Saved status & quick actions */}
+        <Box height={1} justifyContent="space-between" overflow="hidden">
+          <Box gap={1} overflow="hidden">
+            {savedCustomNormalized && !isCustomDirty ? (
+              <Badge label={t(lang, '已保存', 'Saved')} tone="success" variant="soft" />
+            ) : savedCustomNormalized ? (
+              <Badge label={t(lang, '已修改(未存)', 'Modified')} tone="warning" variant="soft" />
+            ) : (
+              <Badge label={t(lang, '草稿(未存)', 'Draft')} tone="accent" variant="soft" />
+            )}
+            <Badge
+              label={
+                customDraft.plan.by === 'weekly'
+                  ? t(lang, `按周(${customDraft.plan.chaptersPerWeek ?? 1}章/周)`, `Weekly(${customDraft.plan.chaptersPerWeek ?? 1}/wk)`)
+                  : t(lang, '按考期排期', 'By Exam')
+              }
+              tone="muted"
+              variant="outline"
+            />
+          </Box>
+          <Text color={theme.accent} bold>
+            {t(lang, '[s] 保存  [a] 应用', '[s] Save  [a] Apply')}
+          </Text>
+        </Box>
+
+        {/* Row 2: Live zero-cost estimate */}
+        <Box height={1} justifyContent="space-between" overflow="hidden">
+          <Text color={customPreviewBusy ? theme.warning : theme.info} wrap="truncate-end">
+            {customPreviewBusy
+              ? truncateDisplay(t(lang, `正在重算零成本估算${ell}`, `Updating zero-cost estimate${ell}`), innerW, ell)
+              : truncateDisplay(estSummary, Math.max(12, innerW - displayWidth(estRight) - 1), ell)}
+          </Text>
+          {!customPreviewBusy && estRight ? <Text color={theme.muted}>{estRight}</Text> : null}
+        </Box>
+
+        {/* Rows list */}
+        <Divider width={innerW} label={t(lang, `深度定制向导 (${lrHint} 调整)`, `Custom Plan Wizard (${lrHint})`)} />
+        <VirtualList
+          items={customRows}
+          width={innerW}
+          height={listH}
+          selectedIndex={customRowIdx}
+          onChange={(idx) => setCustomRowIdx(idx)}
+          onSelect={(row) => adjustCustomRow(row.id, 1)}
+          isActive={modalActive && tab === 'custom' && !busyLabel}
+          keyExtractor={(row) => row.id}
+          renderItem={renderCustomRow}
+        />
+        <Divider width={innerW} />
+        <Box height={1} overflow="hidden">
+          <Text color={theme.text} wrap="truncate-end">
+            {activeRow
+              ? truncateDisplay(activeRow.detail, innerW, ell)
+              : t(lang, `使用 ${lrHint} 调整参数，[s] 保存，[a] 应用`, `Use ${lrHint} to edit, [s] Save, [a] Apply`)}
+          </Text>
+        </Box>
+      </Box>
+    );
+  };
+
+  const courseBadgeText = truncateDisplay(
+    effectiveCourse || t(lang, '未选课程', 'No Course'),
+    Math.max(8, Math.min(22, innerW - (lang === 'zh' ? 44 : 46))),
+    ell,
+  );
+
   return (
     <>
       <Modal
@@ -1077,16 +1992,23 @@ export const StudyPlanModal = memo(function StudyPlanModal({
             >
               {` 2:${t(lang, '章节就绪度', 'Readiness')}${chapters.length > 0 ? ` (${chapters.length})` : ''} `}
             </Text>
+            <Text
+              backgroundColor={tab === 'custom' ? theme.primary : theme.surface}
+              color={tab === 'custom' ? (theme.dark ? theme.bg : '#ffffff') : theme.muted}
+              bold={tab === 'custom'}
+            >
+              {` 3:${t(lang, '深度定制', 'Custom')} `}
+            </Text>
           </Box>
           <Box gap={1} overflow="hidden">
-            {busyLabel ? <Spinner label={truncateDisplay(busyLabel, 24, ell)} active={isActive} /> : null}
-            <Badge label={effectiveCourse || t(lang, '未选课程', 'No Course')} tone="accent" variant="soft" />
+            {busyLabel ? <Spinner label={truncateDisplay(busyLabel, 18, ell)} active={isActive} /> : null}
+            <Badge label={courseBadgeText} tone="accent" variant="soft" />
           </Box>
         </Box>
 
         <Divider width={innerW} />
 
-        {tab === 'plan' ? renderPlanTab() : renderReadinessTab()}
+        {tab === 'plan' ? renderPlanTab() : tab === 'readiness' ? renderReadinessTab() : renderCustomTab()}
       </Modal>
 
       {confirmFill ? (
@@ -1129,6 +2051,47 @@ export const StudyPlanModal = memo(function StudyPlanModal({
                   `Rough call estimate (no price): ${confirmFill.calls ? `${fmtCallRange(confirmFill.calls)} calls` : 'unavailable for some steps'}`,
                 )}
               </Text>
+            </Box>
+          }
+        />
+      ) : null}
+
+      {confirmApply && savedCustomNormalized ? (
+        <ConfirmDialog
+          title={t(lang, '确认应用深度定制方案', 'Confirm Apply Custom Plan')}
+          width={Math.min(64, Math.max(40, width - 8))}
+          confirmLabel={t(lang, '开始应用', 'Apply Now')}
+          cancelLabel={t(lang, '取消', 'Cancel')}
+          isActive={isActive}
+          onCancel={() => setConfirmApply(false)}
+          onConfirm={() => void handleConfirmApply()}
+          message={
+            <Box flexDirection="column">
+              <Text color={theme.text} bold>
+                {t(
+                  lang,
+                  `将按已保存方案为「${effectiveCourse}」启动构建与出题任务：`,
+                  `Apply saved custom plan for "${effectiveCourse}":`,
+                )}
+              </Text>
+              <Text color={theme.text}>
+                {`${asciiMode ? '-' : '•'} ${t(lang, '目的', 'Purpose')}: ${purposeMeta(savedCustomNormalized.purpose, lang).label} ${sep} ${scopeLabel(savedCustomNormalized.scope, lang)}`}
+              </Text>
+              <Text color={theme.text}>
+                {`${asciiMode ? '-' : '•'} ${t(lang, '全书部件', 'Book parts')}: ${savedCustomNormalized.book.parts.length > 0 ? savedCustomNormalized.book.parts.join(', ') : t(lang, '无', 'none')}`}
+              </Text>
+              <Text color={theme.text}>
+                {`${asciiMode ? '-' : '•'} ${t(lang, '出题强度', 'Strength')}: ${strengthLabel(savedCustomNormalized.questions.strength, lang)} ${sep} ${clampMinutes(savedCustomNormalized.plan.minutesPerDay)}m/${t(lang, '天', 'd')}`}
+              </Text>
+              {isCustomDirty ? (
+                <Text color={theme.warning}>
+                  {t(
+                    lang,
+                    '! 当前有未保存改动，应用将使用上次保存的方案（取消后按 [s] 可保存新改动）',
+                    '! Unsaved edits present; this applies the last saved plan (cancel & press [s] to save)',
+                  )}
+                </Text>
+              ) : null}
             </Box>
           }
         />
