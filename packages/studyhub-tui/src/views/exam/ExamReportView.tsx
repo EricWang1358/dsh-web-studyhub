@@ -12,7 +12,7 @@ import {
   useTheme,
 } from '../../components/index.js';
 import { renderBarChart, truncateDisplay } from '../../render/index.js';
-import { t } from '../../state/store.js';
+import { t, useTuiStore } from '../../state/store.js';
 import type { ReportItem, ReportState } from './types.js';
 import {
   buildOralEntryMarkdown,
@@ -45,6 +45,7 @@ export const ExamReportView = memo(function ExamReportView({
   onBack,
 }: ExamReportViewProps) {
   const theme = useTheme();
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const [pane, setPane] = useState<'list' | 'detail'>('list');
   const [selectedIdx, setSelectedIdx] = useState(0);
 
@@ -110,7 +111,7 @@ export const ExamReportView = memo(function ExamReportView({
     const innerW = Math.max(20, paneW - 4);
     if (state.kind === 'written') {
       const r = state.report;
-      const bars = renderBarChart(topicBarItems, innerW, theme);
+      const bars = renderBarChart(topicBarItems, innerW, theme, { ascii: asciiMode });
       const summaryLines = 5 + bars.length;
       const listH = Math.max(4, paneH - summaryLines - 2);
       const scoreTone = r.scorePct >= 80 ? 'success' : r.scorePct >= 60 ? 'warning' : 'error';

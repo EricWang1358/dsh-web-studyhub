@@ -191,6 +191,34 @@ test('math LRU is bounded at 512', () => {
 const mdOpts = (width, extra = {}) => ({ width, theme, ...extra });
 const allFit = (lines, width) => lines.every((l) => R.displayWidth(l) <= width);
 
+test('markdown: cli-highlight is lazy-loaded only on first fenced code block', () => {
+  assert.equal(R.isHighlighterLoaded(), false, 'highlighter not loaded on module import');
+  R.renderMarkdownLines(
+    [
+      '# Heading',
+      '',
+      'Plain paragraph with **bold**, *italic*, `inline code`, and [link](https://example.com).',
+      '',
+      '- item one',
+      '- [x] task two',
+      '',
+      '| Col A | Col B |',
+      '|---|---|',
+      '| 1 | 2 |',
+      '',
+      'Inline math $x^2 + y^2$ and block:',
+      '',
+      '$$\\alpha + \\beta$$',
+    ].join('\n'),
+    mdOpts(60),
+  );
+  assert.equal(R.isHighlighterLoaded(), false, 'plain markdown keeps cli-highlight unloaded');
+
+  const codeLines = R.renderMarkdownLines('```js\nconst answer = 42;\n```', mdOpts(40));
+  assert.equal(R.isHighlighterLoaded(), true, 'fenced code block lazily loads cli-highlight');
+  assert.ok(codeLines.map(strip).some((l) => l.includes('const answer = 42;')));
+});
+
 test('markdown: headings, paragraphs, inline styles', () => {
   const lines = R.renderMarkdownLines('# 标题 Title\n\n## Sub\n\nSome **bold** *it* ~~del~~ `code` [link](https://ex.com).', mdOpts(40));
   const plain = lines.map(strip);
@@ -300,6 +328,53 @@ test('markdown: every line fits for a long mixed document at many widths', () =>
     const lines = R.renderMarkdownLines(md, mdOpts(width));
     for (const l of lines) assert.ok(R.displayWidth(l) <= width, `w=${width}: ${JSON.stringify(strip(l))}`);
   }
+});
+
+test('markdown: ascii mode emits zero Unicode box-drawing/block/bullet glyphs and keeps exact widths', () => {
+  const md = [
+    '# Title',
+    '',
+    '> quoted line',
+    '',
+    '---',
+    '',
+    '- alpha',
+    '  - nested',
+    '- [x] done',
+    '- [ ] todo',
+    '',
+    '| ColA | ColB |',
+    '|---|---:|',
+    '| foo | 12 |',
+    '',
+    '```js',
+    'const x = 1;',
+    '```',
+  ].join('\n');
+  const width = 36;
+  const lines = R.renderMarkdownLines(md, mdOpts(width, { ascii: true }));
+  const plain = lines.map(strip);
+  const forbidden = /[\u2500-\u257F\u2580-\u259F\u2800-\u28FF•◦☑☐▎▸▾…]/;
+  for (const l of plain) {
+    assert.ok(R.displayWidth(l) <= width, `exceeds width: ${l}`);
+    assert.equal(forbidden.test(l), false, `unexpected Unicode glyph in ${JSON.stringify(l)}`);
+    assert.match(l, /^[\x20-\x7e]*$/);
+  }
+  assert.ok(plain.includes('-'.repeat(width)), 'h1 underline and hr use ---');
+  assert.ok(plain.includes('| quoted line'), 'blockquote uses | bar');
+  assert.ok(plain.includes('* alpha') && plain.includes('  - nested'), 'lists use * / -');
+  assert.ok(plain.includes('[x] done') && plain.includes('[ ] todo'), 'task lists use [x] / [ ]');
+  assert.ok(plain.some((l) => l.startsWith('+--- js ') && l.endsWith('+')), plain.join('\n'));
+  const codeFrame = plain.slice(-3);
+  assert.equal(codeFrame.length, 3);
+  for (const l of codeFrame) assert.equal(R.displayWidth(l), width, JSON.stringify(l));
+  assert.ok(codeFrame[1].startsWith('| ') && codeFrame[1].endsWith(' |'));
+  assert.ok(codeFrame.at(-1).startsWith('+') && codeFrame.at(-1).endsWith('+'));
+  const tableRows = plain.filter((l) => (/^\+[-+]+\+$/.test(l) && l.slice(1, -1).includes('+')) || /^\| (?:ColA|foo)/.test(l));
+  assert.equal(tableRows.length, 5, plain.join('\n'));
+  const tw = R.displayWidth(tableRows[0]);
+  for (const l of tableRows) assert.equal(R.displayWidth(l), tw);
+  assert.equal(R.renderMarkdown('> hi', mdOpts(20, { ascii: true })).includes('▎'), false);
 });
 
 test('markdown LRU is bounded at 256 and keyed on width', () => {
@@ -423,6 +498,92 @@ test('renderTreeLines: guides, markers, collapse, selection, width', () => {
   const arr = R.renderTreeLines(nodes, ['phys'], null, 8);
   assert.deepEqual(arr.map((l) => l.id), ['math', 'phys', 'mech', 'notes']);
   for (const l of arr) assert.ok(R.displayWidth(l.text) <= 8, l.text);
+});
+
+test('charts: ascii mode emits zero Unicode box/block/Braille glyphs and exact widths', () => {
+  const forbidden = /[\u2500-\u257F\u2580-\u259F\u2800-\u28FF▸▾…]/;
+
+  for (const style of ['block', 'line']) {
+    for (const showPercent of [false, true]) {
+      for (const r of [0, 0.37, 1, Number.NaN]) {
+        for (const w of [1, 5, 10, 23]) {
+          const s = R.renderProgressBar(r, w, theme, { style, showPercent, ascii: true });
+          const plain = strip(s);
+          assert.equal(R.displayWidth(s), w, `${style} pct=${showPercent} r=${r} w=${w}: ${JSON.stringify(plain)}`);
+          assert.equal(forbidden.test(plain), false, plain);
+          assert.match(plain, /^[\x20-\x7e]*$/);
+        }
+      }
+    }
+  }
+  assert.equal(strip(R.renderProgressBar(1, 10, theme, { ascii: true })), '#'.repeat(10));
+  assert.equal(strip(R.renderProgressBar(0, 10, theme, { ascii: true })), '-'.repeat(10));
+  assert.match(strip(R.renderProgressBar(0.5, 10, theme, { style: 'line', ascii: true })), /^#{5}>-{4}$/);
+
+  const spark = R.renderSparkline([1, 2, 3, 4, 5, 6, 7], undefined, { ascii: true });
+  assert.equal(spark, '_.-=+*#');
+  assert.equal(R.renderSparkline([3, 3, 3], undefined, { ascii: true }), '===');
+  assert.equal(R.renderSparkline([1, 5, 2, 8, 3], 12, { ascii: true }).length, 12);
+  assert.equal(forbidden.test(spark), false);
+
+  const barItems = [
+    { label: 'Math', value: 120 },
+    { label: 'English', value: 45.5 },
+    { label: 'Physics', value: 0 },
+  ];
+  for (const w of [10, 20, 40]) {
+    const lines = R.renderBarChart(barItems, w, theme, { ascii: true });
+    assert.equal(lines.length, barItems.length);
+    for (const l of lines) {
+      const plain = strip(l);
+      assert.equal(R.displayWidth(l), w);
+      assert.equal(forbidden.test(plain), false, plain);
+      assert.match(plain, /^[\x20-\x7e]*$/);
+    }
+  }
+  assert.ok(strip(R.renderBarChart(barItems, 40, theme, { ascii: true })[0]).includes('#'));
+
+  const days = [];
+  for (let i = 0; i < 90; i++) {
+    const d = new Date(Date.UTC(2026, 7, 1) + i * 86400000).toISOString().slice(0, 10);
+    days.push({ date: d, count: i % 7 });
+  }
+  const heat = R.renderHeatmap(days, 10, theme, { endDate: '2026-10-28', locale: 'en', ascii: true }).map(strip);
+  assert.equal(heat.length, 9);
+  const hw = R.displayWidth(heat[1]);
+  for (const l of heat.slice(0, 8)) {
+    assert.equal(R.displayWidth(l), hw);
+    assert.equal(forbidden.test(l), false, l);
+    assert.match(l, /^[\x20-\x7e]*$/);
+  }
+  assert.ok(heat[8].includes('Less .:o# More'), heat[8]);
+  assert.ok(/[.:oO#]/.test(heat.slice(1, 8).join('')));
+
+  const treeNodes = [
+    {
+      id: 'math', label: 'Math', meta: '3',
+      children: [
+        { id: 'calc', label: 'Calculus', children: [{ id: 'limits', label: 'Limits' }, { id: 'deriv', label: 'Derivatives' }] },
+        { id: 'alg', label: 'Algebra' },
+      ],
+    },
+    { id: 'phys', label: 'Physics', children: [{ id: 'mech', label: 'Mechanics' }] },
+    { id: 'notes', label: 'Loose notes' },
+  ];
+  const tree = R.renderTreeLines(treeNodes, new Set(['math', 'calc']), 'deriv', 40, { ascii: true });
+  for (const l of tree) {
+    assert.ok(R.displayWidth(l.text) <= 40);
+    assert.equal(forbidden.test(l.text), false, l.text);
+    assert.match(l.text, /^[\x20-\x7e]*$/);
+  }
+  assert.ok(tree[0].text.startsWith('v Math'));
+  assert.equal(R.displayWidth(tree[0].text), 40);
+  assert.ok(tree[1].text.startsWith('|-- v Calculus'), tree[1].text);
+  assert.ok(tree[2].text.startsWith('|   |-- Limits'), tree[2].text);
+  assert.ok(tree[2].text.includes('|  '), tree[2].text);
+  assert.ok(tree[3].text.startsWith('|   \\-- Derivatives'), tree[3].text);
+  assert.ok(tree[4].text.startsWith('\\-- Algebra'), tree[4].text);
+  assert.ok(tree[5].text.startsWith('> Physics'), tree[5].text);
 });
 
 // ------------------------------------------------------------------------------------------- lru

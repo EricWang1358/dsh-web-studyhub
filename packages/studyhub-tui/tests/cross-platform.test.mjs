@@ -20,7 +20,7 @@ const terminalMod = await tsImport('../src/terminal.ts', import.meta.url);
 const pathCompleteMod = await tsImport('../src/views/sources/path-complete.ts', import.meta.url);
 const contractsMod = await tsImport('../src/types/contracts.ts', import.meta.url);
 
-const { parseCliArgs, cliHelpText } = cliArgsMod;
+const { parseCliArgs, cliHelpText, shouldAutoAscii } = cliArgsMod;
 const { enterTerminalSession } = terminalMod;
 const { completeFsPath, expandHomePath } = pathCompleteMod;
 const { PAGE_REGISTRY } = contractsMod;
@@ -95,6 +95,18 @@ describe('parseCliArgs & cliHelpText', () => {
     assert.equal(parseCliArgs(['-r', 'C:\\Study\\Lib']).libraryRoot, 'C:\\Study\\Lib');
     assert.equal(parseCliArgs(['--root=D:\\Notes', '--lang=zh']).libraryRoot, 'D:\\Notes');
     assert.equal(parseCliArgs(['./positional-lib']).libraryRoot, './positional-lib');
+    assert.equal(parseCliArgs(['--ascii']).asciiMode, true);
+    assert.equal(parseCliArgs(['--unicode']).asciiMode, false);
+    assert.equal(parseCliArgs(['--ascii', '--unicode']).asciiMode, false);
+    assert.equal(parseCliArgs(['--unicode', '--ascii']).asciiMode, true);
+  });
+
+  test('shouldAutoAscii respects STUDYHUB_TUI_ASCII override and TERM=dumb', () => {
+    assert.equal(shouldAutoAscii({ STUDYHUB_TUI_ASCII: '1' }), true);
+    assert.equal(shouldAutoAscii({ TERM: 'dumb' }), true);
+    assert.equal(shouldAutoAscii({ STUDYHUB_TUI_ASCII: '0', TERM: 'dumb' }), false);
+    assert.equal(shouldAutoAscii({ TERM: 'xterm-256color' }), false);
+    assert.equal(shouldAutoAscii({}), false);
   });
 
   test('reports errors for invalid flags and missing values', () => {
@@ -117,6 +129,7 @@ describe('parseCliArgs & cliHelpText', () => {
       '--no-alt-screen',
       '--no-launchpad',
       '--skip-probe',
+      '--ascii',
       '--version',
       '--help',
     ]) {

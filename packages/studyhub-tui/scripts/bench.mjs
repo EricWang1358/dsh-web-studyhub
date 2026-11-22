@@ -2,7 +2,8 @@
  * Performance & Memory NFR Benchmark for StudyHub TUI:
  * 1. Code-split dist entry bundle size
  * 2. Cold CLI spawn latency (`--version`)
- * 3. Full interactive first-frame render latency + steady-state RSS & V8 heapUsed
+ * 3. Instant ShellBootFrame Time-To-First-Frame (before StudyRuntime loads)
+ * 4. Full interactive app ready latency + steady-state RSS & V8 heapUsed
  */
 import { execFile } from 'node:child_process';
 import { mkdtemp, rm, stat } from 'node:fs/promises';
@@ -40,7 +41,8 @@ runs.sort((a, b) => a - b);
 const medianMs = runs[Math.floor(runs.length / 2)];
 
 // 2. Full interactive first-frame + steady-state RSS/heap in clean temp library
-let firstFrameMs = null;
+let bootFrameMs = null;
+let interactiveReadyMs = null;
 let interactiveRssMb = null;
 let interactiveHeapMb = null;
 const tempDir = await mkdtemp(join(tmpdir(), 'studyhub-tui-bench-'));
@@ -52,6 +54,8 @@ try {
     import(pathToFileURL(distApp).href),
     import(pathToFileURL(distHost).href),
   ]);
+  bootFrameMs = Math.round(performance.now() - tFrame0);
+
   const host = await createTuiHost({
     libraryRoot: join(tempDir, 'lib'),
     env: { ...process.env, DSH_HOME: join(tempDir, 'dsh') },
@@ -67,7 +71,7 @@ try {
     stdout.on('data', (chunk) => {
       if (!gotFrame && String(chunk).length > 40) {
         gotFrame = true;
-        firstFrameMs = Math.round(performance.now() - tFrame0);
+        interactiveReadyMs = Math.round(performance.now() - tFrame0);
         done();
       }
     });
@@ -93,7 +97,8 @@ console.log(JSON.stringify({
   cliEntrySizeKb: sizeKb,
   coldSpawnMsRuns: runs,
   coldSpawnMedianMs: medianMs,
-  interactiveFirstFrameMs: firstFrameMs,
+  bootFrameReadyMs: bootFrameMs,
+  interactiveReadyMs,
   interactiveRssMb,
   interactiveHeapMb,
   nfrTargetColdMs: 350,

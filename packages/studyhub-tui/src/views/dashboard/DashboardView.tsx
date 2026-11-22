@@ -107,14 +107,15 @@ interface KpiCardProps {
 
 const KpiCard = memo(function KpiCard({ label, value, sub, tone = 'primary', width }: KpiCardProps) {
   const theme = useTheme();
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const color = theme[tone];
   const inner = Math.max(4, width - 4);
   return (
     <Box
       flexDirection="column"
       width={width}
-      height={4}
-      borderStyle="round"
+      height={5}
+      borderStyle={asciiMode ? 'classic' : 'round'}
       borderColor={theme.border}
       paddingX={1}
     >
@@ -134,6 +135,7 @@ const KpiCard = memo(function KpiCard({ label, value, sub, tone = 'primary', wid
 export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActive }) => {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const snapshot = useTuiStore((s) => s.snapshot);
   const navigate = useTuiStore((s) => s.navigate);
   const notify = useTuiStore((s) => s.notify);
@@ -344,16 +346,17 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
 
   const heatmapLines = useMemo(() => {
     const days = stats?.heatmap ?? [];
-    return renderHeatmap(days, 12, theme, { locale: lang, showLabels: wide });
-  }, [stats?.heatmap, theme, lang, wide]);
+    return renderHeatmap(days, 12, theme, { locale: lang, showLabels: wide, ascii: asciiMode });
+  }, [stats?.heatmap, theme, lang, wide, asciiMode]);
 
   const barChartLines = useMemo(() => {
     const innerW = Math.max(16, rightW - 4);
-    return renderBarChart(courseBars, innerW, theme);
-  }, [courseBars, rightW, theme]);
+    return renderBarChart(courseBars, innerW, theme, { ascii: asciiMode });
+  }, [courseBars, rightW, theme, asciiMode]);
 
+  const sep = asciiMode ? '  |  ' : '  │  ';
   const kpiCards = wide ? (
-    <Box flexDirection="row" flexWrap="nowrap" gap={kpiGap} width={width} height={4} flexShrink={0}>
+    <Box flexDirection="row" flexWrap="nowrap" gap={kpiGap} width={width} height={5} flexShrink={0}>
       <KpiCard
         label={t(lang, '总题数', 'Total Cards')}
         value={String(totalCards)}
@@ -396,7 +399,7 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
       width={width}
       height={4}
       flexShrink={0}
-      borderStyle="round"
+      borderStyle={asciiMode ? 'classic' : 'round'}
       borderColor={theme.border}
       paddingX={1}
       overflow="hidden"
@@ -404,17 +407,17 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
       <Text wrap="truncate">
         <Text color={theme.muted}>{t(lang, '总题数 ', 'Cards ')}</Text>
         <Text color={theme.primary} bold>{String(totalCards)}</Text>
-        <Text color={theme.dim}>{` (${activeDecks.length}组)  │  `}</Text>
+        <Text color={theme.dim}>{` (${activeDecks.length}组)${sep}`}</Text>
         <Text color={theme.muted}>{t(lang, '掌握 ', 'Mastery ')}</Text>
         <Text color={theme.success} bold>{`${fsrsBuckets.masteryPct}%`}</Text>
-        <Text color={theme.dim}>{'  │  '}</Text>
+        <Text color={theme.dim}>{sep}</Text>
         <Text color={theme.muted}>{t(lang, '到期 ', 'Due ')}</Text>
         <Text color={dueCount > 0 ? theme.warning : theme.success} bold>{String(dueCount)}</Text>
       </Text>
       <Text wrap="truncate">
         <Text color={theme.muted}>{t(lang, '正确率 ', 'Acc ')}</Text>
         <Text color={theme.accent} bold>{accuracyStr}</Text>
-        <Text color={theme.dim}>{t(lang, ` (连续${totals?.streak ?? 0}天)  │  `, ` (${totals?.streak ?? 0}d)  │  `)}</Text>
+        <Text color={theme.dim}>{t(lang, ` (连续${totals?.streak ?? 0}天)${sep}`, ` (${totals?.streak ?? 0}d)${sep}`)}</Text>
         <Text color={theme.muted}>{t(lang, '用量 ', 'Usage ')}</Text>
         <Text color={theme.info} bold>{formatTokens(totalTokens)}</Text>
         <Text color={theme.dim}>{t(lang, ` (${totalCalls}次)`, ` (${totalCalls})`)}</Text>
@@ -439,11 +442,12 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
         style: 'block',
         showPercent: true,
         color: it.color,
+        ascii: asciiMode,
       }),
     }));
-  }, [fsrsBuckets, lang, rightW, theme, wide]);
+  }, [fsrsBuckets, lang, rightW, theme, wide, asciiMode]);
 
-  const kpiRowsHeight = 4;
+  const kpiRowsHeight = wide ? 5 : 4;
   const middleSectionH = midH;
   const weakListPanelH = Math.max(5, height - 1 - kpiRowsHeight - middleSectionH);
   const weakListRows = Math.max(1, weakListPanelH - 2);

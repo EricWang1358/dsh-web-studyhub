@@ -42,6 +42,9 @@ npm run tui
 # 也可通过环境变量提供副模型密钥（不写入磁盘）
 $env:DEEPSEEK_API_KEY = "sk-..."
 node .\packages\studyhub-tui\bin\studyhub-tui.mjs --root C:\Users\You\Documents\StudyHub
+
+# 旧版 Windows PowerShell 5.1 / 无 Unicode 字体终端可启用纯 ASCII 边框与图表模式
+node .\packages\studyhub-tui\bin\studyhub-tui.mjs --ascii
 ```
 
 ## 常用快捷键

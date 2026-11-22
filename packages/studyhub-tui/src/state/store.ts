@@ -19,6 +19,7 @@ export const DEFAULT_PREFERENCES: TuiPreferences = {
   mathUnicode: true,
   compactMode: false,
   showKeyHints: true,
+  asciiMode: false,
   recentCommands: [],
 };
 

@@ -2,6 +2,7 @@ import React, { memo, type ReactNode } from 'react';
 import { Box, Text } from 'ink';
 import { toneColor, useTheme, type Tone } from '../theme/tokens.js';
 import { displayWidth, truncateDisplay } from '../render/index.js';
+import { useTuiStore } from '../state/store.js';
 
 export interface PanelProps {
   /** Title rendered inside the top border: `╭─ Title ─────── meta ─╮`. */
@@ -29,14 +30,18 @@ export interface PanelProps {
   direction?: 'row' | 'column';
   /** Disable border completely (keeps title as a header line). */
   borderless?: boolean;
+  /** Override store asciiMode preference (`classic` borders when true). */
+  ascii?: boolean;
   children?: ReactNode;
 }
 
-const RULE = '─'.repeat(400);
+const UNICODE_RULE = '─'.repeat(400);
+const ASCII_RULE = '-'.repeat(400);
 
 /**
- * Rounded card. When `width` is numeric the title border is computed exactly; for
- * flex widths a clipped flex-grow rule fills the gap, so it works in both modes.
+ * Rounded card (or classic ASCII `+---+` card when `asciiMode` is enabled). When `width` is
+ * numeric the title border is computed exactly; for flex widths a clipped flex-grow rule fills
+ * the gap, so it works in both modes.
  */
 export const Panel = memo(function Panel({
   title,
@@ -56,12 +61,16 @@ export const Panel = memo(function Panel({
   paddingY = 0,
   direction = 'column',
   borderless = false,
+  ascii: asciiProp,
   children,
 }: PanelProps) {
   const theme = useTheme();
+  const storeAscii = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const ascii = asciiProp ?? storeAscii;
   const borderColor = tone ? toneColor(theme, tone) : focused ? theme.borderActive : theme.border;
   const titleColor = focused ? theme.primary : theme.text;
   const hasHeader = Boolean(title || subtitle || badge !== undefined);
+  const ellipsis = ascii ? '...' : '…';
 
   const numericWidth = typeof width === 'number' ? width : undefined;
   const badgeText = badge !== undefined && badge !== '' ? ` ${badge} ` : '';
@@ -72,19 +81,24 @@ export const Panel = memo(function Panel({
     // corners + dashes + spaces: "╭─ " + title + " " + badge + " " + rule + " " + meta + " ─╮"
     const chrome = 3 + 1 + 4;
     const avail = Math.max(0, numericWidth - chrome - displayWidth(badgeText));
-    metaText = truncateDisplay(metaRaw, Math.max(0, Math.min(displayWidth(metaRaw), Math.floor(avail * 0.4))));
-    titleText = truncateDisplay(titleText, Math.max(0, avail - displayWidth(metaText) - (metaText ? 1 : 0)));
+    metaText = truncateDisplay(metaRaw, Math.max(0, Math.min(displayWidth(metaRaw), Math.floor(avail * 0.4))), ellipsis);
+    titleText = truncateDisplay(titleText, Math.max(0, avail - displayWidth(metaText) - (metaText ? 1 : 0)), ellipsis);
   }
+
+  const ruleText = ascii ? ASCII_RULE : UNICODE_RULE;
+  const leftCap = borderless ? '' : ascii ? '+-' : '╭─';
+  const dashChar = ascii ? '-' : '─';
+  const rightCap = borderless ? '' : ascii ? '-+' : '─╮';
 
   const header = hasHeader ? (
     <Box height={1} width={numericWidth} flexShrink={0}>
-      <Text color={borderColor}>{borderless ? '' : '╭─'}</Text>
+      <Text color={borderColor}>{leftCap}</Text>
       {titleText ? (
         <Text color={titleColor} bold>
           {` ${titleText} `}
         </Text>
       ) : (
-        <Text color={borderColor}>─</Text>
+        <Text color={borderColor}>{dashChar}</Text>
       )}
       {badgeText ? (
         <Text backgroundColor={toneColor(theme, badgeTone)} color={theme.dark ? theme.bg : '#ffffff'} bold>
@@ -93,10 +107,10 @@ export const Panel = memo(function Panel({
       ) : null}
       {badgeText ? <Text> </Text> : null}
       <Box flexGrow={1} flexShrink={1} flexBasis={0} height={1} overflow="hidden">
-        <Text color={borderless ? theme.border : borderColor}>{RULE}</Text>
+        <Text color={borderless ? theme.border : borderColor}>{ruleText}</Text>
       </Box>
       {metaText ? <Text color={theme.muted}>{` ${metaText} `}</Text> : null}
-      <Text color={borderColor}>{borderless ? '' : '─╮'}</Text>
+      <Text color={borderColor}>{rightCap}</Text>
     </Box>
   ) : null;
 
@@ -116,7 +130,7 @@ export const Panel = memo(function Panel({
       {header}
       <Box
         flexDirection={direction}
-        borderStyle="round"
+        borderStyle={ascii ? 'classic' : 'round'}
         borderColor={borderColor}
         borderTop={!hasHeader}
         paddingX={paddingX}

@@ -20,6 +20,7 @@ export const DEFAULT_TUI_PREFERENCES: Readonly<TuiPreferences> = Object.freeze({
   mathUnicode: true,
   compactMode: false,
   showKeyHints: true,
+  asciiMode: false,
   recentCommands: [],
 });
 
@@ -48,6 +49,7 @@ export const TuiPreferencesSchema = z.object({
   mathUnicode: z.boolean().catch(DEFAULT_TUI_PREFERENCES.mathUnicode),
   compactMode: z.boolean().catch(DEFAULT_TUI_PREFERENCES.compactMode),
   showKeyHints: z.boolean().catch(DEFAULT_TUI_PREFERENCES.showKeyHints),
+  asciiMode: z.boolean().default(false).catch(false),
   recentCommands: recentCommands.default([]),
   lastOpenAiPreset: z
     .string()

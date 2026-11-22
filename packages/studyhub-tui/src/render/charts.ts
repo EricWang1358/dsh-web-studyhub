@@ -37,6 +37,8 @@ export interface ProgressBarOptions {
   showPercent?: boolean;
   /** Override fill colour (defaults to theme.primary). */
   color?: string;
+  /** Use pure ASCII glyphs (`#`, `>`, `-`) instead of Unicode blocks/lines. */
+  ascii?: boolean;
 }
 
 /** Progress bar of exactly `width` columns (including the optional ` 37%` label). */
@@ -50,16 +52,30 @@ export function renderProgressBar(
   if (total === 0) return '';
   const r = clampRatio(ratio);
   const style = opts.style ?? 'block';
+  const ascii = opts.ascii === true;
   const fillColor = chalk.hex(opts.color ?? theme.primary);
   const trackColor = chalk.hex(theme.track);
   let label = '';
   if (opts.showPercent) {
     label = ` ${String(Math.round(r * 100)).padStart(3, ' ')}%`;
-    if (label.length >= total) return padDisplay(label.trimStart(), total, 'right');
+    if (label.length >= total) {
+      const trimmed = label.trimStart();
+      return padDisplay(ascii ? truncateDisplay(trimmed, total, '') : trimmed, total, 'right');
+    }
   }
   const barW = total - label.length;
   let bar: string;
-  if (style === 'line') {
+  if (ascii) {
+    const filled = Math.round(r * barW);
+    const rest = barW - filled;
+    if (style === 'line') {
+      bar =
+        fillColor('#'.repeat(filled)) +
+        (rest > 0 ? trackColor((filled > 0 ? '>' : '-') + '-'.repeat(rest - 1)) : '');
+    } else {
+      bar = fillColor('#'.repeat(filled)) + trackColor('-'.repeat(rest));
+    }
+  } else if (style === 'line') {
     const filled = Math.round(r * barW);
     const rest = barW - filled;
     bar =
@@ -73,6 +89,12 @@ export function renderProgressBar(
 }
 
 const SPARK = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+const SPARK_ASCII = ['_', '.', '-', '=', '+', '*', '#'];
+
+export interface SparklineOptions {
+  /** Use ASCII characters (`_.-=+*#`) instead of Unicode block elements. */
+  ascii?: boolean;
+}
 
 function resample(values: number[], width: number): number[] {
   const n = values.length;
@@ -92,23 +114,29 @@ function resample(values: number[], width: number): number[] {
   return out;
 }
 
-/** Unicode sparkline (`▁▂▃▄▅▆▇█`), optionally resampled to `width` columns. */
-export function renderSparkline(values: number[], width?: number): string {
+/** Sparkline (`▁▂▃▄▅▆▇█` or ASCII `_.-=+*#`), optionally resampled to `width` columns. */
+export function renderSparkline(values: number[], width?: number, opts: SparklineOptions = {}): string {
   if (!Array.isArray(values) || values.length === 0) return '';
   const clean = values.map((v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0));
   const w = width === undefined ? clean.length : Math.max(0, Math.floor(width) || 0);
   if (w === 0) return '';
+  const chars = opts.ascii ? SPARK_ASCII : SPARK;
   const vals = resample(clean, w);
   const min = Math.min(...vals);
   const max = Math.max(...vals);
-  if (max === min) return SPARK[3].repeat(w);
-  return vals.map((v) => SPARK[Math.round(((v - min) / (max - min)) * 7)]).join('');
+  if (max === min) return chars[Math.floor((chars.length - 1) / 2)].repeat(w);
+  return vals.map((v) => chars[Math.round(((v - min) / (max - min)) * (chars.length - 1))]).join('');
 }
 
 export interface BarChartItem {
   label: string;
   value: number;
   color?: string;
+}
+
+export interface BarChartOptions {
+  /** Use `#` instead of Unicode eighth-block characters. */
+  ascii?: boolean;
 }
 
 function formatValue(v: number): string {
@@ -118,9 +146,15 @@ function formatValue(v: number): string {
 }
 
 /** Horizontal bar chart: one line per item, each exactly `width` columns. */
-export function renderBarChart(items: BarChartItem[], width: number, theme: ChartTheme): string[] {
+export function renderBarChart(
+  items: BarChartItem[],
+  width: number,
+  theme: ChartTheme,
+  opts: BarChartOptions = {},
+): string[] {
   const total = Math.max(0, Math.floor(width) || 0);
   if (!items.length || total === 0) return [];
+  const ascii = opts.ascii === true;
   const values = items.map((it) => (Number.isFinite(it.value) ? Math.max(0, it.value) : 0));
   const valueStrs = items.map((it) => formatValue(it.value));
   const valueW = Math.max(...valueStrs.map((s) => s.length));
@@ -132,13 +166,25 @@ export function renderBarChart(items: BarChartItem[], width: number, theme: Char
     barW = total - labelW - valueW - 2;
   }
   const maxV = Math.max(...values);
+  const ellipsis = ascii ? '...' : '…';
   return items.map((it, i) => {
-    if (barW < 1) return padDisplay(`${truncateDisplay(it.label, Math.max(0, total - valueW - 1))} ${valueStrs[i]}`, total);
-    const { fill, filledCols } = eighthBar(maxV > 0 ? values[i] / maxV : 0, barW);
+    if (barW < 1) {
+      const narrow = `${truncateDisplay(it.label, Math.max(0, total - valueW - 1), ellipsis)} ${valueStrs[i]}`;
+      return padDisplay(truncateDisplay(narrow, total, ascii ? '' : '…'), total);
+    }
+    const ratio = maxV > 0 ? values[i] / maxV : 0;
+    let fill: string;
+    let filledCols: number;
+    if (ascii) {
+      filledCols = Math.round(clampRatio(ratio) * barW);
+      fill = '#'.repeat(filledCols);
+    } else {
+      ({ fill, filledCols } = eighthBar(ratio, barW));
+    }
     const bar = chalk.hex(it.color ?? theme.primary)(fill) + ' '.repeat(barW - filledCols);
-    const label = labelW > 0 ? padDisplay(it.label, labelW) : '';
+    const label = labelW > 0 ? padDisplay(truncateDisplay(it.label, labelW, ellipsis), labelW) : '';
     const line = `${label} ${bar} ${chalk.hex(theme.muted)(valueStrs[i].padStart(valueW, ' '))}`;
-    return labelW > 0 ? line : padDisplay(line.slice(1), total);
+    return labelW > 0 ? line : padDisplay(truncateDisplay(line.slice(1), total, ascii ? '' : '…'), total);
   });
 }
 
@@ -158,10 +204,13 @@ export interface HeatmapOptions {
   showLabels?: boolean;
   /** Label language (default 'zh'). */
   locale?: 'zh' | 'en';
+  /** Use pure ASCII heatmap cells (`.`, `:`, `o`, `O`, `#`) instead of Unicode shades. */
+  ascii?: boolean;
 }
 
 const DAY_MS = 86_400_000;
 const HEAT_CHARS = ['░', '▒', '▓', '█', '█'];
+const HEAT_CHARS_ASCII = ['.', ':', 'o', 'O', '#'];
 const EN_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 function parseDay(s: string): number | null {
@@ -228,7 +277,8 @@ export function renderHeatmap(
     if (v <= q3) return 3;
     return 4;
   };
-  const cell = (lv: number): string => chalk.hex(theme.heat[lv] ?? theme.primary)(HEAT_CHARS[lv]);
+  const heatChars = opts.ascii ? HEAT_CHARS_ASCII : HEAT_CHARS;
+  const cell = (lv: number): string => chalk.hex(theme.heat[lv] ?? theme.primary)(heatChars[lv]);
 
   const dayLabels = zh ? ['一', '', '三', '', '五', '', ''] : ['Mon', '', 'Wed', '', 'Fri', '', ''];
   const labelW = showLabels ? (zh ? 3 : 4) : 0;
@@ -263,7 +313,8 @@ export function renderHeatmap(
     lines.push(row);
   }
   const legend = `${zh ? '少' : 'Less'} ${[0, 1, 2, 4].map((lv) => cell(lv)).join('')} ${zh ? '多' : 'More'}`;
-  lines.push(padDisplay(' '.repeat(labelW) + chalk.hex(theme.muted)(legend), labelW + gridW));
+  const legendLine = ' '.repeat(labelW) + chalk.hex(theme.muted)(legend);
+  lines.push(padDisplay(opts.ascii ? truncateDisplay(legendLine, labelW + gridW, '...') : legendLine, labelW + gridW));
   return lines;
 }
 
@@ -287,18 +338,27 @@ export interface TreeLine {
   expanded: boolean;
 }
 
+export interface TreeLinesOptions {
+  /** Use ASCII tree connectors (`|-- `, `\\-- `, `|  `, `>`/`v`) instead of Unicode box drawing. */
+  ascii?: boolean;
+}
+
 /**
- * Flatten visible tree nodes into plain-text lines (no ANSI) with `├─ ` / `└─ ` / `│  ` guides and
- * `▸` (collapsed) / `▾` (expanded) markers. `meta` is right-aligned when it fits.
+ * Flatten visible tree nodes into plain-text lines (no ANSI) with `├─ ` / `└─ ` / `│  ` guides
+ * (or ASCII `|-- ` / `\-- ` / `|   `) and `▸`/`▾` (or `>`/`v`) markers. `meta` is right-aligned
+ * when it fits.
  */
 export function renderTreeLines(
   nodes: TreeNode[],
   expandedIds: ReadonlySet<string> | string[],
   selectedId: string | null,
   width: number,
+  opts: TreeLinesOptions = {},
 ): TreeLine[] {
   const expanded: ReadonlySet<string> = Array.isArray(expandedIds) ? new Set(expandedIds) : expandedIds;
   const maxW = Math.max(1, Math.floor(width) || 1);
+  const ascii = opts.ascii === true;
+  const ellipsis = ascii ? '...' : '…';
   const out: TreeLine[] = [];
 
   const walk = (list: TreeNode[], depth: number, guides: string): void => {
@@ -306,8 +366,18 @@ export function renderTreeLines(
       const last = idx === list.length - 1;
       const hasChildren = Array.isArray(node.children) && node.children.length > 0;
       const isExpanded = hasChildren && expanded.has(node.id);
-      const connector = depth === 0 ? '' : last ? '└─ ' : '├─ ';
-      const marker = hasChildren ? (isExpanded ? '▾ ' : '▸ ') : depth === 0 ? '  ' : '';
+      const connector = depth === 0 ? '' : ascii ? (last ? '\\-- ' : '|-- ') : last ? '└─ ' : '├─ ';
+      const marker = hasChildren
+        ? ascii
+          ? isExpanded
+            ? 'v '
+            : '> '
+          : isExpanded
+            ? '▾ '
+            : '▸ '
+        : depth === 0
+          ? '  '
+          : '';
       const left = `${guides}${connector}${marker}${node.label}`;
       let text: string;
       const meta = node.meta ?? '';
@@ -315,13 +385,14 @@ export function renderTreeLines(
       if (meta && displayWidth(left) + 1 + metaW <= maxW) {
         text = `${padDisplay(left, maxW - metaW)}${meta}`;
       } else if (meta && maxW - metaW - 1 >= displayWidth(`${guides}${connector}${marker}`) + 2) {
-        text = `${padDisplay(truncateDisplay(left, maxW - metaW - 1), maxW - metaW)}${meta}`;
+        text = `${padDisplay(truncateDisplay(left, maxW - metaW - 1, ellipsis), maxW - metaW)}${meta}`;
       } else {
-        text = truncateDisplay(left, maxW);
+        text = truncateDisplay(left, maxW, ellipsis);
       }
       out.push({ id: node.id, depth, text, selected: node.id === selectedId, hasChildren, expanded: isExpanded });
       if (isExpanded && node.children) {
-        walk(node.children, depth + 1, depth === 0 ? guides : guides + (last ? '   ' : '│  '));
+        const nextGuide = ascii ? (last ? '    ' : '|   ') : last ? '   ' : '│  ';
+        walk(node.children, depth + 1, depth === 0 ? guides : guides + nextGuide);
       }
     });
   };

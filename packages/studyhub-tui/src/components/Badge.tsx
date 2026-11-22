@@ -3,6 +3,7 @@ import { Box, Text } from 'ink';
 import type { KeyHint, ToastItem } from '../types/contracts.js';
 import { toneColor, useTheme, type Tone } from '../theme/tokens.js';
 import { displayWidth, renderProgressBar, truncateDisplay } from '../render/index.js';
+import { useTuiStore } from '../state/store.js';
 
 /* ------------------------------------------------------------------ Badge */
 
@@ -59,12 +60,23 @@ const STATUS_TONE: Record<PillStatus, Tone> = {
   ai: 'ai',
 };
 
+const ASCII_STATUS_ICON: Record<PillStatus, string> = {
+  ok: '*',
+  warn: '!',
+  error: '!',
+  idle: 'o',
+  busy: '*',
+  ai: '*',
+};
+
 export const StatusPill = memo(function StatusPill({ label, status = 'idle', icon, bold = false }: StatusPillProps) {
   const theme = useTheme();
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const color = toneColor(theme, STATUS_TONE[status]);
+  const dot = icon ?? (asciiMode ? ASCII_STATUS_ICON[status] : '●');
   return (
     <Text backgroundColor={theme.surface}>
-      <Text color={color}>{` ${icon ?? '●'} `}</Text>
+      <Text color={color}>{` ${dot} `}</Text>
       <Text color={theme.text} bold={bold}>{`${label} `}</Text>
     </Text>
   );
@@ -83,12 +95,13 @@ export interface ProgressBarProps {
 
 export const ProgressBar = memo(function ProgressBar({ ratio, width, style = 'line', showPercent = true, label }: ProgressBarProps) {
   const theme = useTheme();
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const labelText = label ? `${label} ` : '';
   const barWidth = Math.max(4, width - displayWidth(labelText));
   return (
     <Text>
       {labelText ? <Text color={theme.muted}>{labelText}</Text> : null}
-      {renderProgressBar(ratio, barWidth, theme, { style, showPercent })}
+      {renderProgressBar(ratio, barWidth, theme, { style, showPercent, ascii: asciiMode })}
     </Text>
   );
 });
@@ -96,6 +109,7 @@ export const ProgressBar = memo(function ProgressBar({ ratio, width, style = 'li
 /* ---------------------------------------------------------------- Spinner */
 
 export const SPINNER_FRAMES: readonly string[] = Object.freeze(['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']);
+export const ASCII_SPINNER_FRAMES: readonly string[] = Object.freeze(['|', '/', '-', '\\']);
 
 export interface SpinnerProps {
   label?: string;
@@ -107,15 +121,17 @@ export interface SpinnerProps {
 
 export const Spinner = memo(function Spinner({ label, tone = 'accent', intervalMs = 80, active = true }: SpinnerProps) {
   const theme = useTheme();
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const frames = asciiMode ? ASCII_SPINNER_FRAMES : SPINNER_FRAMES;
   const [frame, setFrame] = useState(0);
   useEffect(() => {
     if (!active) return undefined;
-    const timer = setInterval(() => setFrame((f) => (f + 1) % SPINNER_FRAMES.length), intervalMs);
+    const timer = setInterval(() => setFrame((f) => (f + 1) % frames.length), intervalMs);
     return () => clearInterval(timer);
-  }, [active, intervalMs]);
+  }, [active, intervalMs, frames.length]);
   return (
     <Text>
-      <Text color={toneColor(theme, tone)}>{SPINNER_FRAMES[frame]}</Text>
+      <Text color={toneColor(theme, tone)}>{frames[frame % frames.length]}</Text>
       {label ? <Text color={theme.muted}>{` ${label}`}</Text> : null}
     </Text>
   );
@@ -132,11 +148,13 @@ export interface EmptyStateProps {
   height?: number;
 }
 
-export const EmptyState = memo(function EmptyState({ title, hint, icon = '◌', actions, width, height }: EmptyStateProps) {
+export const EmptyState = memo(function EmptyState({ title, hint, icon, actions, width, height }: EmptyStateProps) {
   const theme = useTheme();
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const glyph = icon ?? (asciiMode ? 'o' : '◌');
   return (
     <Box flexDirection="column" alignItems="center" justifyContent="center" width={width} height={height} flexGrow={height ? 0 : 1}>
-      <Text color={theme.dim}>{icon}</Text>
+      <Text color={theme.dim}>{glyph}</Text>
       <Box marginTop={1}>
         <Text color={theme.text} bold>
           {title}
@@ -173,7 +191,8 @@ export interface KeyHintBarProps {
 /** One-line footer: `␣key␣ label  ␣key␣ label …`, dropping hints that don't fit. */
 export const KeyHintBar = memo(function KeyHintBar({ hints, width, right }: KeyHintBarProps) {
   const theme = useTheme();
-  const rightText = right ? truncateDisplay(right, Math.max(0, Math.floor(width / 3))) : '';
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const rightText = right ? truncateDisplay(right, Math.max(0, Math.floor(width / 3)), asciiMode ? '...' : '…') : '';
   const budget = width - (rightText ? displayWidth(rightText) + 2 : 0) - 1;
   const shown: KeyHint[] = [];
   let used = 1;
@@ -210,6 +229,7 @@ export interface ToastStackProps {
 }
 
 const TOAST_ICON: Record<ToastItem['tone'], string> = { info: 'ℹ', success: '✔', warning: '▲', error: '✖' };
+const ASCII_TOAST_ICON: Record<ToastItem['tone'], string> = { info: 'i', success: '+', warning: '!', error: 'x' };
 
 const ToastRow = memo(function ToastRow({
   toast,
@@ -223,6 +243,7 @@ const ToastRow = memo(function ToastRow({
   autoDismissMs: number;
 }) {
   const theme = useTheme();
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   useEffect(() => {
     if (autoDismissMs <= 0) return undefined;
     const ttl = toast.tone === 'error' ? autoDismissMs * 2 : autoDismissMs;
@@ -231,11 +252,13 @@ const ToastRow = memo(function ToastRow({
     return () => clearTimeout(timer);
   }, [toast.id, toast.tone, toast.createdAt, autoDismissMs, onDismiss]);
   const color = toneColor(theme, toast.tone);
-  const text = truncateDisplay(toast.text.replace(/\s+/g, ' '), Math.max(4, width - 6));
+  const text = truncateDisplay(toast.text.replace(/\s+/g, ' '), Math.max(4, width - 6), asciiMode ? '...' : '…');
+  const bar = asciiMode ? '|' : '▎';
+  const icon = (asciiMode ? ASCII_TOAST_ICON : TOAST_ICON)[toast.tone];
   return (
     <Box height={1} overflow="hidden">
       <Text backgroundColor={theme.surface} wrap="truncate-end">
-        <Text color={color} bold>{`▎ ${TOAST_ICON[toast.tone]} `}</Text>
+        <Text color={color} bold>{`${bar} ${icon} `}</Text>
         <Text color={theme.text}>{`${text} `}</Text>
       </Text>
     </Box>
@@ -262,16 +285,18 @@ export interface DividerProps {
   char?: string;
 }
 
-export const Divider = memo(function Divider({ width, label, char = '─' }: DividerProps) {
+export const Divider = memo(function Divider({ width, label, char }: DividerProps) {
   const theme = useTheme();
-  if (!label) return <Text color={theme.border}>{char.repeat(Math.max(0, width))}</Text>;
-  const l = truncateDisplay(label, Math.max(0, width - 6));
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const lineChar = char ?? (asciiMode ? '-' : '─');
+  if (!label) return <Text color={theme.border}>{lineChar.repeat(Math.max(0, width))}</Text>;
+  const l = truncateDisplay(label, Math.max(0, width - 6), asciiMode ? '...' : '…');
   const rest = Math.max(0, width - displayWidth(l) - 4);
   return (
     <Text>
-      <Text color={theme.border}>{`${char}${char} `}</Text>
+      <Text color={theme.border}>{`${lineChar}${lineChar} `}</Text>
       <Text color={theme.muted}>{l}</Text>
-      <Text color={theme.border}>{` ${char.repeat(rest)}`}</Text>
+      <Text color={theme.border}>{` ${lineChar.repeat(rest)}`}</Text>
     </Text>
   );
 });

@@ -11,11 +11,20 @@ export interface ParsedCliArgs {
   altScreen: boolean;
   autoLaunchpad: boolean;
   skipAutoProbe: boolean;
+  asciiMode?: boolean;
   error?: string;
 }
 
 const VALID_THEMES = new Set<ThemeId>(['dsh-dark', 'warm-paper', 'nord', 'high-contrast']);
 const VALID_PAGES = new Set<PageId>(PAGE_REGISTRY.map((p) => p.id));
+
+export function shouldAutoAscii(env: Record<string, string | undefined> = process.env): boolean {
+  const flag = String(env.STUDYHUB_TUI_ASCII ?? '').trim().toLowerCase();
+  if (flag === '1' || flag === 'true' || flag === 'yes') return true;
+  if (flag === '0' || flag === 'false' || flag === 'no') return false;
+  const term = String(env.TERM ?? '').trim().toLowerCase();
+  return term === 'dumb';
+}
 
 export function parseCliArgs(argv: readonly string[]): ParsedCliArgs {
   const result: ParsedCliArgs = {
@@ -46,6 +55,14 @@ export function parseCliArgs(argv: readonly string[]): ParsedCliArgs {
     }
     if (token === '--skip-probe') {
       result.skipAutoProbe = true;
+      continue;
+    }
+    if (token === '--ascii') {
+      result.asciiMode = true;
+      continue;
+    }
+    if (token === '--unicode') {
+      result.asciiMode = false;
       continue;
     }
 
@@ -129,6 +146,7 @@ export function cliHelpText(version = '1.0.0'): string {
     '      --no-alt-screen   Render inline without switching to the alternate screen buffer',
     '      --no-launchpad    Skip the first-run Launchpad even on an empty library',
     '      --skip-probe      Skip background CLI model discovery on startup',
+    '      --ascii           Use ASCII-safe borders/bars (for legacy Windows PowerShell 5.1)',
     '  -v, --version         Print version and exit',
     '  -h, --help            Show this help message',
     '',

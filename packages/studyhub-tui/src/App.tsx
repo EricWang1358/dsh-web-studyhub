@@ -119,6 +119,7 @@ export interface StudyHubTuiAppProps {
   initialPage?: PageId;
   initialTheme?: ThemeId;
   initialLanguage?: UiLanguage;
+  initialAsciiMode?: boolean;
   autoLaunchpad?: boolean;
   onExit?: () => void;
 }
@@ -128,6 +129,7 @@ export function StudyHubTuiApp({
   initialPage,
   initialTheme,
   initialLanguage,
+  initialAsciiMode,
   autoLaunchpad = true,
   onExit,
 }: StudyHubTuiAppProps) {
@@ -165,6 +167,7 @@ export function StudyHubTuiApp({
           ...savedPrefs,
           ...(initialTheme ? { theme: initialTheme } : {}),
           ...(initialLanguage ? { language: initialLanguage } : {}),
+          ...(initialAsciiMode !== undefined ? { asciiMode: initialAsciiMode } : {}),
         };
         const store = useTuiStore.getState();
         store.setPreferences(merged);
@@ -219,7 +222,7 @@ export function StudyHubTuiApp({
       alive = false;
       unsubscribe();
     };
-  }, [host, initialLanguage, initialPage, initialTheme, syncFromHost]);
+  }, [host, initialAsciiMode, initialLanguage, initialPage, initialTheme, syncFromHost]);
 
   const shellActions = useMemo<Partial<ShellActions>>(() => {
     const base = createDefaultShellActions(host, () => onExit?.());

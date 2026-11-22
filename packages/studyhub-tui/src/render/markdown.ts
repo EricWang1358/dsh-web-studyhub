@@ -6,9 +6,9 @@
  * protected before lexing so `_`/`*` inside TeX are not treated as emphasis, then rendered via
  * `math.ts` (or restored verbatim when `mathUnicode === false`).
  */
+import { createRequire } from 'node:module';
 import defaultChalk, { Chalk, type ChalkInstance } from 'chalk';
 import { marked, type Token, type Tokens } from 'marked';
-import { highlight, supportsLanguage } from 'cli-highlight';
 import type { ThemeTokens } from '../theme/tokens.js';
 import {
   displayWidth,
@@ -27,6 +27,39 @@ export interface MarkdownRenderOptions {
   theme: ThemeTokens;
   /** Render TeX as Unicode (default true). `false` keeps the raw `$…$` source. */
   mathUnicode?: boolean;
+  /** Render borders, bullets, rules, and quote bars using pure ASCII (default false). */
+  ascii?: boolean;
+}
+
+interface CliHighlightModule {
+  highlight: (code: string, options?: { language?: string; ignoreIllegals?: boolean }) => string;
+  supportsLanguage: (name: string) => boolean;
+}
+
+let cachedHighlighter: CliHighlightModule | null | undefined;
+let highlighterLoadAttempted = false;
+
+function getHighlighter(): CliHighlightModule | null {
+  if (highlighterLoadAttempted) return cachedHighlighter ?? null;
+  highlighterLoadAttempted = true;
+  try {
+    const req = createRequire(import.meta.url);
+    const mod = req('cli-highlight') as Partial<CliHighlightModule> | undefined;
+    if (mod && typeof mod.highlight === 'function' && typeof mod.supportsLanguage === 'function') {
+      cachedHighlighter = mod as CliHighlightModule;
+      return cachedHighlighter;
+    }
+    cachedHighlighter = null;
+    return null;
+  } catch {
+    cachedHighlighter = null;
+    return null;
+  }
+}
+
+/** Returns true once `cli-highlight` has been lazily loaded by a fenced code block. */
+export function isHighlighterLoaded(): boolean {
+  return highlighterLoadAttempted && cachedHighlighter !== null && cachedHighlighter !== undefined;
 }
 
 const MD_CACHE_MAX = 256;
@@ -133,6 +166,7 @@ interface Ctx {
   store: MathStore;
   listDepth: number;
   mathOn: boolean;
+  ascii: boolean;
 }
 
 const ENTITY_MAP: Record<string, string> = {
@@ -264,7 +298,7 @@ function wrapBlock(text: string, width: number): string[] {
 const MATH_LANGS = new Set(['math', 'latex', 'tex', 'katex']);
 
 function renderCode(tok: Tokens.Code, width: number, ctx: Ctx): string[] {
-  const { c, theme, mathOn } = ctx;
+  const { c, theme, mathOn, ascii } = ctx;
   const lang = (tok.lang ?? '').trim().split(/\s+/)[0] ?? '';
   if (mathOn && MATH_LANGS.has(lang.toLowerCase())) {
     return renderMath(tok.text)
@@ -273,29 +307,45 @@ function renderCode(tok: Tokens.Code, width: number, ctx: Ctx): string[] {
   }
   const code = expandTabs(tok.text.replace(/\r\n?/g, '\n'), 4);
   let body = code;
-  if (lang && supportsLanguage(lang) && c.level > 0) {
-    try {
-      body = highlight(code, { language: lang, ignoreIllegals: true });
-    } catch {
-      body = code;
+  if (lang && c.level > 0) {
+    const hl = getHighlighter();
+    if (hl && hl.supportsLanguage(lang)) {
+      try {
+        body = hl.highlight(code, { language: lang, ignoreIllegals: true });
+      } catch {
+        body = code;
+      }
     }
   }
   if (width < 8) return wrapHard(body, width);
   const border = c.hex(theme.border);
   const inner = width - 4;
   let label = lang ? ` ${lang} ` : '';
-  if (displayWidth(label) > width - 4) label = truncateDisplay(label, width - 4);
+  if (displayWidth(label) > width - 4) label = truncateDisplay(label, width - 4, ascii ? '...' : '…');
   const labelW = displayWidth(label);
-  const top = border('╭─') + c.hex(theme.muted)(label) + border(`${'─'.repeat(Math.max(0, width - 3 - labelW))}╮`);
-  const bottom = border(`╰${'─'.repeat(width - 2)}╯`);
+  let top: string;
+  let bottom: string;
+  let vBar: string;
+  if (ascii) {
+    const useLongPrefix = Boolean(label) && width >= labelW + 6;
+    const prefix = useLongPrefix ? '+---' : '+-';
+    const rem = Math.max(0, width - prefix.length - labelW - 1);
+    top = border(prefix) + c.hex(theme.muted)(label) + border(`${'-'.repeat(rem)}+`);
+    bottom = border(`+${'-'.repeat(width - 2)}+`);
+    vBar = border('|');
+  } else {
+    top = border('╭─') + c.hex(theme.muted)(label) + border(`${'─'.repeat(Math.max(0, width - 3 - labelW))}╮`);
+    bottom = border(`╰${'─'.repeat(width - 2)}╯`);
+    vBar = border('│');
+  }
   const lines = [top];
-  for (const l of wrapHard(body, inner)) lines.push(`${border('│')} ${padDisplay(l, inner)} ${border('│')}`);
+  for (const l of wrapHard(body, inner)) lines.push(`${vBar} ${padDisplay(l, inner)} ${vBar}`);
   lines.push(bottom);
   return lines;
 }
 
 function renderList(tok: Tokens.List, width: number, ctx: Ctx): string[] {
-  const { c, theme } = ctx;
+  const { c, theme, ascii } = ctx;
   const depth = ctx.listDepth;
   const start = typeof tok.start === 'number' ? tok.start : Number.parseInt(String(tok.start || '1'), 10) || 1;
   const maxNum = String(start + tok.items.length - 1).length;
@@ -303,12 +353,15 @@ function renderList(tok: Tokens.List, width: number, ctx: Ctx): string[] {
   tok.items.forEach((item, idx) => {
     let markerPlain: string;
     if (tok.ordered) markerPlain = `${String(start + idx)}.`.padStart(maxNum + 1, ' ');
+    else if (ascii) markerPlain = depth % 2 === 0 ? '*' : '-';
     else markerPlain = depth % 2 === 0 ? '•' : '◦';
     let marker = c.hex(tok.ordered ? theme.accent : theme.muted)(markerPlain);
     if (item.task) {
-      const box = item.checked ? c.hex(theme.success)('☑') : c.hex(theme.muted)('☐');
+      const checkedGlyph = ascii ? '[x]' : '☑';
+      const uncheckedGlyph = ascii ? '[ ]' : '☐';
+      const box = item.checked ? c.hex(theme.success)(checkedGlyph) : c.hex(theme.muted)(uncheckedGlyph);
       marker = tok.ordered ? `${marker} ${box}` : box;
-      markerPlain = tok.ordered ? `${markerPlain} ☐` : '☐';
+      markerPlain = tok.ordered ? `${markerPlain} ${uncheckedGlyph}` : uncheckedGlyph;
     }
     const mw = displayWidth(markerPlain) + 1;
     const children = (item.tokens ?? []).filter((t) => t.type !== 'checkbox');
@@ -349,7 +402,7 @@ function distributeWidths(nat: number[], avail: number): number[] {
 }
 
 function renderTable(tok: Tokens.Table, width: number, ctx: Ctx): string[] {
-  const { c, theme } = ctx;
+  const { c, theme, ascii } = ctx;
   const n = tok.header.length;
   if (n === 0) return [];
   const cell = (t: Tokens.TableCell): string => inline(t.tokens, ctx).replace(/\n/g, ' ');
@@ -359,12 +412,14 @@ function renderTable(tok: Tokens.Table, width: number, ctx: Ctx): string[] {
     while (cells.length < n) cells.push('');
     return cells.slice(0, n);
   });
+  const hChar = ascii ? '-' : '─';
+  const vChar = ascii ? '|' : '│';
   const avail = width - (3 * n + 1);
   if (avail < n) {
     // Too narrow for a grid: fall back to "header: value" lines.
     const out: string[] = [];
     rows.forEach((r, ri) => {
-      if (ri > 0) out.push(c.hex(theme.border)('─'.repeat(Math.max(1, width))));
+      if (ri > 0) out.push(c.hex(theme.border)(hChar.repeat(Math.max(1, width))));
       r.forEach((v, j) => out.push(...wrapDisplay(`${c.bold(header[j])}: ${v}`, width)));
     });
     return out;
@@ -373,24 +428,27 @@ function renderTable(tok: Tokens.Table, width: number, ctx: Ctx): string[] {
   const widths = distributeWidths(nat, avail);
   const aligns: Align[] = tok.align.map((a) => (a === 'right' ? 'right' : a === 'center' ? 'center' : 'left'));
   const border = c.hex(theme.border);
-  const rule = (l: string, m: string, r: string): string => border(l + widths.map((w) => '─'.repeat(w + 2)).join(m) + r);
+  const rule = (l: string, m: string, r: string): string => border(l + widths.map((w) => hChar.repeat(w + 2)).join(m) + r);
   const row = (cells: string[], head: boolean): string =>
-    border('│') +
+    border(vChar) +
     cells
       .map((v, j) => {
         const fitted = padDisplay(v, widths[j], aligns[j] ?? 'left');
         return ` ${head ? c.bold.hex(theme.heading)(fitted) : fitted} `;
       })
-      .join(border('│')) +
-    border('│');
-  const out = [rule('┌', '┬', '┐'), row(header, true), rule('├', '┼', '┤')];
+      .join(border(vChar)) +
+    border(vChar);
+  const out = ascii
+    ? [rule('+', '+', '+'), row(header, true), rule('+', '+', '+')]
+    : [rule('┌', '┬', '┐'), row(header, true), rule('├', '┼', '┤')];
   for (const r of rows) out.push(row(r, false));
-  out.push(rule('└', '┴', '┘'));
+  out.push(ascii ? rule('+', '+', '+') : rule('└', '┴', '┘'));
   return out;
 }
 
 function renderBlock(tok: AnyToken, width: number, ctx: Ctx): string[] {
-  const { c, theme } = ctx;
+  const { c, theme, ascii } = ctx;
+  const hChar = ascii ? '-' : '─';
   switch (tok.type) {
     case 'space':
     case 'def':
@@ -399,7 +457,7 @@ function renderBlock(tok: AnyToken, width: number, ctx: Ctx): string[] {
       const h = tok as unknown as Tokens.Heading;
       const text = inline(h.tokens, ctx);
       if (h.depth === 1) {
-        return [...wrapBlock(c.bold.hex(theme.primary)(text), width), c.hex(theme.border)('─'.repeat(width))];
+        return [...wrapBlock(c.bold.hex(theme.primary)(text), width), c.hex(theme.border)(hChar.repeat(width))];
       }
       if (h.depth === 2) return wrapBlock(c.bold.hex(theme.heading)(text), width);
       if (h.depth === 3) return wrapBlock(c.bold.hex(theme.accent)(text), width);
@@ -413,13 +471,13 @@ function renderBlock(tok: AnyToken, width: number, ctx: Ctx): string[] {
       return renderCode(tok as unknown as Tokens.Code, width, ctx);
     case 'blockquote': {
       const inner = renderBlocks(tok.tokens ?? [], Math.max(1, width - 2), ctx, false);
-      const bar = c.hex(theme.quote)('▎');
+      const bar = c.hex(theme.quote)(ascii ? '|' : '▎');
       return inner.map((l) => `${bar} ${c.hex(theme.quote)(l)}`);
     }
     case 'list':
       return renderList(tok as unknown as Tokens.List, width, ctx);
     case 'hr':
-      return [c.hex(theme.border)('─'.repeat(width))];
+      return [c.hex(theme.border)(hChar.repeat(width))];
     case 'table':
       return renderTable(tok as unknown as Tokens.Table, width, ctx);
     case 'html': {
@@ -446,9 +504,9 @@ function renderBlocks(tokens: Token[], width: number, ctx: Ctx, tight: boolean):
   return out;
 }
 
-function renderUncached(md: string, width: number, theme: ThemeTokens, mathOn: boolean): string[] {
+function renderUncached(md: string, width: number, theme: ThemeTokens, mathOn: boolean, ascii: boolean): string[] {
   const { src, store } = protectMath(md.replace(/\r\n?/g, '\n'), mathOn);
-  const ctx: Ctx = { theme, c: chalk, store, listDepth: 0, mathOn };
+  const ctx: Ctx = { theme, c: chalk, store, listDepth: 0, mathOn, ascii };
   let lines: string[];
   try {
     const tokens = marked.lexer(src, { gfm: true });
@@ -456,18 +514,20 @@ function renderUncached(md: string, width: number, theme: ThemeTokens, mathOn: b
   } catch {
     lines = wrapDisplay(restoreMath(src, ctx), width);
   }
-  return lines.map((l) => (displayWidth(l) > width ? truncateDisplay(l, width) : l));
+  const ellipsis = ascii ? '...' : '…';
+  return lines.map((l) => (displayWidth(l) > width ? truncateDisplay(l, width, ellipsis) : l));
 }
 
 /** Render markdown to self-contained ANSI lines, each at most `opts.width` columns wide. */
 export function renderMarkdownLines(md: string, opts: MarkdownRenderOptions): string[] {
   const width = Math.max(1, Math.floor(opts.width) || 1);
   const mathOn = opts.mathUnicode !== false;
+  const ascii = opts.ascii === true;
   if (!md) return [];
-  const key = `${width}\u0001${opts.theme.id}\u0001${mathOn ? 1 : 0}\u0001${md}`;
+  const key = `${width}\u0001${opts.theme.id}\u0001${mathOn ? 1 : 0}\u0001${ascii ? 1 : 0}\u0001${md}`;
   const cached = mdCache.get(key);
   if (cached) return cached.slice();
-  const lines = renderUncached(md, width, opts.theme, mathOn);
+  const lines = renderUncached(md, width, opts.theme, mathOn, ascii);
   mdCache.set(key, lines);
   return lines.slice();
 }

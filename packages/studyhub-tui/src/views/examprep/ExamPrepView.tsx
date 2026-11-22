@@ -38,6 +38,7 @@ const CLAIMED_KEYS = ['1', '2', 'a', 'd', 'g', 'G', 'm', 'p', 'r', ' '] as const
 export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActive }) => {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const snapshot = useTuiStore((s) => s.snapshot);
   const navigate = useTuiStore((s) => s.navigate);
   const notify = useTuiStore((s) => s.notify);
@@ -335,8 +336,9 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
       ],
       barW,
       theme,
+      { ascii: asciiMode },
     );
-  }, [selectedTopic, width, lang, theme]);
+  }, [selectedTopic, width, lang, theme, asciiMode]);
 
   const headerH = 3;
   const bodyH = Math.max(8, height - headerH - (errorMsg ? 1 : 0));

@@ -14,6 +14,8 @@ export interface MarkdownViewProps {
   isActive?: boolean;
   /** Override the user preference for LaTeX → Unicode. */
   mathUnicode?: boolean;
+  /** Override the user preference for ASCII-safe borders/rules. */
+  ascii?: boolean;
   highlight?: string;
   /** Follow the bottom (streaming answers). */
   follow?: boolean;
@@ -28,6 +30,7 @@ export const MarkdownView = memo(function MarkdownView({
   height,
   isActive = false,
   mathUnicode,
+  ascii,
   highlight,
   follow,
   scrollTop,
@@ -35,12 +38,14 @@ export const MarkdownView = memo(function MarkdownView({
 }: MarkdownViewProps) {
   const theme = useTheme();
   const prefMath = useTuiStore((s) => s.preferences.mathUnicode);
+  const prefAscii = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const math = mathUnicode ?? prefMath;
+  const asciiMode = ascii ?? prefAscii;
   const scroll = height !== undefined;
   const renderWidth = Math.max(8, width - (scroll ? 1 : 0));
   const lines = useMemo(
-    () => renderMarkdownLines(markdown || '', { width: renderWidth, theme, mathUnicode: math }),
-    [markdown, renderWidth, theme, math],
+    () => renderMarkdownLines(markdown || '', { width: renderWidth, theme, mathUnicode: math, ascii: asciiMode }),
+    [markdown, renderWidth, theme, math, asciiMode],
   );
 
   if (scroll) {

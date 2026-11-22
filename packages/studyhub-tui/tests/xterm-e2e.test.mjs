@@ -666,6 +666,91 @@ describe('StudyHub TUI xterm-headless E2E', () => {
     tty.assertHealthyScreen(backToSources, 120, 'Sources after DocumentReader exit');
   });
 
+  test('h) Widescreen 160x44 & ASCII Compatibility Mode', async () => {
+    tty.resize(160, 44);
+    await sleep(80);
+    await tty.flush();
+
+    const widescreenSweep = [
+      { id: 'library', key: '1', file: '160x44-01-library.txt', expect: /题组列表|Decks/ },
+      { id: 'dashboard', key: '6', file: '160x44-06-dashboard.txt', expect: /学习统计与掌握度|Stats/ },
+      { id: 'wrongbook', key: '4', file: '160x44-04-wrongbook.txt', expect: /错题列表|Mistakes/ },
+      { id: 'board', key: 'b', file: '160x44-12-board.txt', expect: /待办 Todo|Board/ },
+      { id: 'settings', key: ',', file: '160x44-14-settings.txt', expect: /设置.*模型配置|Settings/ },
+    ];
+
+    for (const step of widescreenSweep) {
+      tty.send(step.key);
+      await tty.waitFor(
+        (s) =>
+          step.expect.test(s) &&
+          !s.includes('正在加载页面…') &&
+          !s.includes('Loading view…'),
+        { timeoutMs: 10_000, label: `${step.id} @ 160x44` },
+      );
+      await sleep(160);
+      await tty.flush();
+      const settled = tty.readScreen();
+      await writeFile(join(screenDumpDir, step.file), settled, 'utf8');
+      tty.assertHealthyScreen(settled, 160, `${step.id} @ 160x44`);
+    }
+
+    // Switch to Settings -> Appearance tab (4) and enable ASCII Safe Mode (row index 3)
+    tty.send('4');
+    await tty.waitFor((s) => /TUI 外观与偏好|TUI Appearance/.test(s), {
+      timeoutMs: 8_000,
+      label: 'Settings Appearance tab @ 160x44',
+    });
+    for (let step = 0; step < 3; step += 1) {
+      tty.send('j');
+      await sleep(40);
+    }
+    tty.send('l');
+    const asciiSettings = await tty.waitFor(
+      (s) => s.includes('ASCII') && (s.includes('已开启') || s.includes('Enabled')),
+      { timeoutMs: 8_000, label: 'Enable asciiMode via Appearance tab' },
+    );
+    await sleep(140);
+    await tty.flush();
+    tty.assertHealthyScreen(asciiSettings, 160, 'Settings Appearance ASCII @ 160x44');
+    await writeFile(join(screenDumpDir, '160x44-14-settings-ascii.txt'), asciiSettings, 'utf8');
+    assert.ok(asciiSettings.includes('+') && asciiSettings.includes('-'), 'Settings renders classic ASCII borders');
+
+    const persistedRaw = await readFile(join(dshHome, 'study', 'tui.json'), 'utf8');
+    const persistedPrefs = JSON.parse(persistedRaw);
+    assert.equal(persistedPrefs.asciiMode, true, 'asciiMode persisted to tui.json');
+
+    // Leave Settings (where 1-4 are tab keys) via '6' -> Dashboard, then '1' -> Library
+    tty.send('6');
+    await tty.waitFor(
+      (s) => /学习统计与掌握度|Stats/.test(s) && !s.includes('正在加载页面…') && !s.includes('Loading view…'),
+      { timeoutMs: 8_000, label: 'Dashboard in ASCII mode @ 160x44' },
+    );
+    await sleep(160);
+    await tty.flush();
+    const dashAscii = tty.readScreen();
+    await writeFile(join(screenDumpDir, '160x44-06-dashboard-ascii.txt'), dashAscii, 'utf8');
+    tty.assertHealthyScreen(dashAscii, 160, 'Dashboard ASCII @ 160x44');
+    assert.ok(dashAscii.includes('+') && dashAscii.includes('-'), 'Dashboard renders classic ASCII borders');
+
+    tty.send('1');
+    await tty.waitFor(
+      (s) => /题组列表|Decks/.test(s) && !s.includes('正在加载页面…') && !s.includes('Loading view…'),
+      { timeoutMs: 8_000, label: 'Library in ASCII mode @ 160x44' },
+    );
+    await sleep(160);
+    await tty.flush();
+    const libAscii = tty.readScreen();
+    await writeFile(join(screenDumpDir, '160x44-01-library-ascii.txt'), libAscii, 'utf8');
+    tty.assertHealthyScreen(libAscii, 160, 'Library ASCII @ 160x44');
+    assert.ok(libAscii.includes('+') && libAscii.includes('-'), 'Library renders classic ASCII borders');
+    assert.match(libAscii, /掌握度|Mastery/);
+
+    tty.resize(120, 36);
+    await sleep(80);
+    await tty.flush();
+  });
+
   test('f) Performance & Memory NFR + clean unmount/dispose', async () => {
     const mem = process.memoryUsage();
     const finalRssMb = Math.round((mem.rss / (1024 * 1024)) * 10) / 10;

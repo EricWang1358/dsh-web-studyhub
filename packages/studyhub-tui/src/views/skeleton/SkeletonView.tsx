@@ -119,6 +119,7 @@ function extractJsonObject(raw: string): Record<string, unknown> | null {
 export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActive }) => {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const snapshotDecks = useTuiStore((s) => s.snapshot?.decks);
   const snapshotCourse = useTuiStore((s) => (typeof s.snapshot?.focus?.course === 'string' ? s.snapshot.focus.course : null));
   const navCourse = useTuiStore((s) => s.navContext.course);
@@ -317,8 +318,8 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
   }, [width]);
 
   const treeLines: TreeLine[] = useMemo(
-    () => renderTreeLines(detail ? tree : fallbackTopicTree, expandedIds, selectedNodeId, treePaneWidth),
-    [detail, tree, fallbackTopicTree, expandedIds, selectedNodeId, treePaneWidth],
+    () => renderTreeLines(detail ? tree : fallbackTopicTree, expandedIds, selectedNodeId, treePaneWidth, { ascii: asciiMode }),
+    [detail, tree, fallbackTopicTree, expandedIds, selectedNodeId, treePaneWidth, asciiMode],
   );
 
   const selectedLineIdx = useMemo(() => {
