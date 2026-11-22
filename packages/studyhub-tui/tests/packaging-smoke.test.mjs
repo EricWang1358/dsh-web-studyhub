@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { after, describe, test } from 'node:test';
+import { builtinModules } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import v8 from 'node:v8';
@@ -450,6 +451,100 @@ describe('StudyHub TUI Packaging, Out-of-Repo Bin Smoke & 64-Transition Resize S
       assert.ok(
         (afterRes[kind] || 0) <= (baselineResources[kind] || 0),
         `${kind} leaked after unmount & host.dispose(): before=${baselineResources[kind] || 0}, after=${afterRes[kind] || 0}`,
+      );
+    }
+  });
+
+  test('4. Bidirectional dependency hygiene: package.json dependencies match dist/*.mjs & src/ imports', async () => {
+    const pkgJson = JSON.parse(await readFile(join(pkgRoot, 'package.json'), 'utf8'));
+    const declaredDeps = new Set(Object.keys(pkgJson.dependencies || {}));
+    const nodeBuiltins = new Set(builtinModules);
+
+    function toBarePackageName(spec) {
+      if (!spec || spec.startsWith('.') || spec.startsWith('/') || spec.startsWith('node:')) {
+        return null;
+      }
+      if (nodeBuiltins.has(spec) || nodeBuiltins.has(spec.replace(/^node:/, ''))) {
+        return null;
+      }
+      return spec.startsWith('@')
+        ? spec.split('/').slice(0, 2).join('/')
+        : spec.split('/')[0];
+    }
+
+    function extractModuleSpecifiers(code) {
+      const specs = [];
+      const fromRe = /(?:^|\n)\s*(?:import|export)\s+(?:type\s+)?(?:\*|\{[^}]*\}|[\w$]+(?:\s*,\s*(?:\*|\{[^}]*\}))?)\s+from\s*['"]([^'"]+)['"]/g;
+      const sideEffectRe = /^\s*import\s*['"]([^'"]+)['"]/gm;
+      const dynRe = /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
+      const reqRe = /\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
+      const inlineCreateReqRe = /\bcreateRequire\s*\([^)]*\)\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
+
+      for (const re of [fromRe, sideEffectRe, dynRe, reqRe, inlineCreateReqRe]) {
+        for (const m of code.matchAll(re)) specs.push(m[1]);
+      }
+
+      const createReqVars = new Set();
+      const createReqAssignRe = /\b(?:const|let|var)\s+([\w$]+)\s*=\s*createRequire\s*\(/g;
+      for (const m of code.matchAll(createReqAssignRe)) {
+        createReqVars.add(m[1]);
+      }
+      for (const varName of createReqVars) {
+        const escaped = varName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const varCallRe = new RegExp(`\\b${escaped}\\s*\\(\\s*['"]([^'"]+)['"]\\s*\\)`, 'g');
+        for (const m of code.matchAll(varCallRe)) specs.push(m[1]);
+      }
+      return specs;
+    }
+
+    async function collectSourceFiles(dir) {
+      const entries = await readdir(dir, { withFileTypes: true });
+      const files = [];
+      for (const entry of entries) {
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          files.push(...(await collectSourceFiles(full)));
+        } else if (/\.(?:ts|tsx|js|mjs|cjs)$/.test(entry.name)) {
+          files.push(full);
+        }
+      }
+      return files;
+    }
+
+    const allDistFiles = (await readdir(distDir)).filter((f) => f.endsWith('.mjs'));
+    assert.ok(allDistFiles.length > 0, 'dist/ must contain built .mjs artifacts');
+
+    const distImportedPackages = new Set();
+    for (const file of allDistFiles) {
+      const code = await readFile(join(distDir, file), 'utf8');
+      for (const spec of extractModuleSpecifiers(code)) {
+        const pkgName = toBarePackageName(spec);
+        if (pkgName) distImportedPackages.add(pkgName);
+      }
+    }
+
+    const srcImportedPackages = new Set();
+    const srcFiles = await collectSourceFiles(resolve(pkgRoot, 'src'));
+    for (const file of srcFiles) {
+      const code = await readFile(file, 'utf8');
+      for (const spec of extractModuleSpecifiers(code)) {
+        const pkgName = toBarePackageName(spec);
+        if (pkgName) srcImportedPackages.add(pkgName);
+      }
+    }
+
+    const combinedImported = new Set([...distImportedPackages, ...srcImportedPackages]);
+    for (const dep of declaredDeps) {
+      assert.ok(
+        combinedImported.has(dep),
+        `Declared runtime dependency "${dep}" in package.json is not imported by any file in dist/*.mjs or src/`,
+      );
+    }
+
+    for (const pkgName of distImportedPackages) {
+      assert.ok(
+        declaredDeps.has(pkgName),
+        `Bare package "${pkgName}" imported in dist/*.mjs is missing from package.json dependencies`,
       );
     }
   });

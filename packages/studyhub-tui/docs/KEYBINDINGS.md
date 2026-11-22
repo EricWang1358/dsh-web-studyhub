@@ -92,7 +92,7 @@ Inside the palette: `↑`/`↓`, `Ctrl+P`/`Ctrl+N`, or `Ctrl+J`/`Ctrl+K` move se
 
 ### `1` Library (`library`)
 - **Practice & Rounds**: `Enter` start deck / open work item · `R` custom round configurator (`RoundConfigModal`) · `r` resume or start review · `p` daily plan · `g` AI Guided Study
-- **Deck & Course Ops**: `o` deck import / merge / split (`DeckOpsModal`) · `C` course settings · `v` voice pack · `a` archive/unarchive · `d` delete deck · `h` show/hide archived · `s` load/remove sample course · `Tab` toggle Decks / Drafts & Failed Jobs (`y` retries failed job)
+- **Deck & Course Ops**: `o` deck import / merge / split (`DeckOpsModal`) · `[` / `]` reorder selected deck up / down · `C` course settings · `v` voice pack · `a` archive/unarchive · `d` delete deck · `h` show/hide archived · `s` load/remove sample course · `Tab` toggle Decks / Drafts & Failed Jobs (`y` retries failed job)
 - **Deck Card Manager (`m`)**: `+` supplement cards · `k` convert card kind · `Space` multi-select (up to 100) · `F` batch focus · `S` batch suspend · `x` clear selection · `/` or `f` search · `c` clear search · `n` rename · `e` open draft · `p` practise deck
 
 ### `r` Review (`review`)

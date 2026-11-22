@@ -15,6 +15,13 @@ import {
 import { truncateDisplay } from '../../render/index.js';
 import { errorMessage, tryAction } from '../../host/sample-actions.js';
 
+export interface OutlineChapterRef {
+  id: string;
+  title: string;
+  startPage: number;
+  endPage: number;
+}
+
 export interface ReaderOutlineDrawerProps {
   host: HostClient;
   documentId?: string;
@@ -23,6 +30,9 @@ export interface ReaderOutlineDrawerProps {
   title?: string;
   currentPage: number;
   currentPageText?: string;
+  readChapterIds?: ReadonlySet<string>;
+  onToggleRead?: (chapter: OutlineChapterRef, allChapters?: OutlineChapterRef[]) => void | Promise<void>;
+  onOutlineSaved?: () => void;
   width: number;
   height: number;
   isActive: boolean;
@@ -35,6 +45,8 @@ interface OutlineEntryRow {
   title: string;
   level: number;
   page: number;
+  startPage: number;
+  endPage: number;
   sourceId?: string;
   startBlock?: number;
   kind?: 'quoted' | 'label' | 'heading';
@@ -56,7 +68,10 @@ interface ProposedOutline {
 interface RawDocSource {
   id?: string;
   text?: string;
-  document?: { page?: number };
+  document?: {
+    page?: number;
+    chapter?: { index?: number; title?: string; level?: number };
+  };
 }
 
 interface RawOutlineEntry {
@@ -91,11 +106,37 @@ function extractMarkdownHeadings(text: string, page: number, sid?: string): Outl
       title,
       level: Math.min(3, m[1].length),
       page,
+      startPage: page,
+      endPage: page,
       ...(sid ? { sourceId: sid } : {}),
       kind: 'heading',
     });
   }
   return rows;
+}
+
+function finalizeOutlineRanges(rows: OutlineEntryRow[], totalPages: number): OutlineEntryRow[] {
+  return rows.map((row, idx, arr) => {
+    const startPage = Math.max(1, Math.floor(row.page));
+    let nextSiblingPage: number | null = null;
+    for (let j = idx + 1; j < arr.length; j += 1) {
+      if (arr[j].level <= row.level) {
+        nextSiblingPage = Math.max(1, Math.floor(arr[j].page));
+        break;
+      }
+    }
+    const endPage =
+      nextSiblingPage !== null
+        ? nextSiblingPage > startPage
+          ? nextSiblingPage - 1
+          : startPage
+        : Math.max(startPage, totalPages);
+    return {
+      ...row,
+      startPage,
+      endPage: Math.max(startPage, endPage),
+    };
+  });
 }
 
 function buildSourcePageMap(sources: RawDocSource[]): Map<string, number> {
@@ -145,6 +186,9 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
   title,
   currentPage,
   currentPageText,
+  readChapterIds,
+  onToggleRead,
+  onOutlineSaved,
   width,
   height,
   isActive,
@@ -168,6 +212,7 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
   const [resolvedDocId, setResolvedDocId] = useState<string | undefined>(documentId);
   const [resolvedRevision, setResolvedRevision] = useState<string | undefined>(revision);
   const [sourcePageMap, setSourcePageMap] = useState<Map<string, number>>(() => new Map());
+  const [totalPagesCount, setTotalPagesCount] = useState(1);
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -203,22 +248,32 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
           const rev = typeof val.revision === 'string' ? val.revision : typeof val.currentRevision === 'string' ? val.currentRevision : revision;
           const sources = Array.isArray(val.sources) ? (val.sources as RawDocSource[]) : [];
           const pageMap = buildSourcePageMap(sources);
+          const docTotalPages = Math.max(1, sources.length, ...pageMap.values());
 
           setResolvedDocId(docId);
           setResolvedRevision(rev);
           setSourcePageMap(pageMap);
+          setTotalPagesCount(docTotalPages);
 
           const outlineObj = val.outline as { entries?: RawOutlineEntry[] } | undefined;
           if (outlineObj && Array.isArray(outlineObj.entries) && outlineObj.entries.length > 0) {
-            const mapped: OutlineEntryRow[] = outlineObj.entries.map((entry, idx) => ({
-              id: `ai-${idx}`,
-              title: String(entry.title ?? ''),
-              level: Number(entry.level) || 1,
-              page: entry.anchor?.sourceId ? (pageMap.get(entry.anchor.sourceId) ?? 1) : 1,
-              ...(entry.anchor?.sourceId ? { sourceId: entry.anchor.sourceId } : {}),
-              ...(typeof entry.startBlock === 'number' ? { startBlock: entry.startBlock } : {}),
-              kind: entry.kind || 'quoted',
-            }));
+            const mapped = finalizeOutlineRanges(
+              outlineObj.entries.map((entry, idx) => {
+                const pg = entry.anchor?.sourceId ? (pageMap.get(entry.anchor.sourceId) ?? 1) : 1;
+                return {
+                  id: `ai-${idx}`,
+                  title: String(entry.title ?? ''),
+                  level: Number(entry.level) || 1,
+                  page: pg,
+                  startPage: pg,
+                  endPage: pg,
+                  ...(entry.anchor?.sourceId ? { sourceId: entry.anchor.sourceId } : {}),
+                  ...(typeof entry.startBlock === 'number' ? { startBlock: entry.startBlock } : {}),
+                  kind: entry.kind || 'quoted',
+                };
+              }),
+              docTotalPages,
+            );
             setEntries(mapped);
             setOutlineOrigin('ai');
             const nearIdx = mapped.findIndex((e) => e.page >= currentPage);
@@ -235,9 +290,55 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
             extracted.push(...extractMarkdownHeadings(src.text, pg, src.id));
           });
           if (extracted.length > 0) {
-            setEntries(extracted);
+            const ranged = finalizeOutlineRanges(extracted, docTotalPages);
+            setEntries(ranged);
             setOutlineOrigin('headings');
-            const nearIdx = extracted.findIndex((e) => e.page >= currentPage);
+            const nearIdx = ranged.findIndex((e) => e.page >= currentPage);
+            setSelectedIndex(nearIdx >= 0 ? nearIdx : 0);
+            setLoading(false);
+            return;
+          }
+
+          // Fallback 2: converted book document.chapter stamps across sources.
+          const chapterGroups = new Map<
+            number,
+            { index: number; title: string; level: number; startPage: number; endPage: number; sourceId?: string }
+          >();
+          sources.forEach((src, idx) => {
+            const ch = src.document?.chapter;
+            const index = Number.isInteger(ch?.index) ? Number(ch?.index) : -1;
+            const pg = Number.isInteger(src.document?.page) ? Number(src.document?.page) : idx + 1;
+            if (!chapterGroups.has(index)) {
+              chapterGroups.set(index, {
+                index,
+                title: index < 0 ? t(lang, '卷首', 'Front Matter') : String(ch?.title ?? '').trim() || `Ch.${index}`,
+                level: index < 0 ? 1 : Number(ch?.level) || 1,
+                startPage: pg,
+                endPage: pg,
+                ...(src.id ? { sourceId: src.id } : {}),
+              });
+            } else {
+              const g = chapterGroups.get(index)!;
+              g.startPage = Math.min(g.startPage, pg);
+              g.endPage = Math.max(g.endPage, pg);
+            }
+          });
+          if (chapterGroups.size > 1 || (chapterGroups.size === 1 && !chapterGroups.has(-1))) {
+            const stampedRows: OutlineEntryRow[] = [...chapterGroups.values()]
+              .sort((a, b) => a.startPage - b.startPage || a.index - b.index)
+              .map((g) => ({
+                id: g.index < 0 ? 'chapter-front' : `chapter-${g.index}`,
+                title: g.title,
+                level: g.level,
+                page: g.startPage,
+                startPage: g.startPage,
+                endPage: g.endPage,
+                ...(g.sourceId ? { sourceId: g.sourceId } : {}),
+                kind: 'heading',
+              }));
+            setEntries(stampedRows);
+            setOutlineOrigin('headings');
+            const nearIdx = stampedRows.findIndex((e) => e.page >= currentPage);
             setSelectedIndex(nearIdx >= 0 ? nearIdx : 0);
             setLoading(false);
             return;
@@ -278,15 +379,20 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
 
   const displayedRows: OutlineEntryRow[] = useMemo(() => {
     if (proposal) {
-      return proposal.entries.map((entry, idx) => ({
-        id: `prop-${idx}`,
-        title: entry.title,
-        level: entry.level,
-        page: entry.anchor?.sourceId ? (sourcePageMap.get(entry.anchor.sourceId) ?? 1) : 1,
-        ...(entry.anchor?.sourceId ? { sourceId: entry.anchor.sourceId } : {}),
-        startBlock: entry.startBlock,
-        kind: entry.kind || 'quoted',
-      }));
+      return proposal.entries.map((entry, idx) => {
+        const pg = entry.anchor?.sourceId ? (sourcePageMap.get(entry.anchor.sourceId) ?? 1) : 1;
+        return {
+          id: `prop-${idx}`,
+          title: entry.title,
+          level: entry.level,
+          page: pg,
+          startPage: pg,
+          endPage: pg,
+          ...(entry.anchor?.sourceId ? { sourceId: entry.anchor.sourceId } : {}),
+          startBlock: entry.startBlock,
+          kind: entry.kind || 'quoted',
+        };
+      });
     }
     return entries;
   }, [proposal, entries, sourcePageMap]);
@@ -423,15 +529,23 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
 
       const savedOutline = res.value?.outline as { entries?: RawOutlineEntry[] } | undefined;
       const nextRaw = Array.isArray(savedOutline?.entries) ? savedOutline.entries : proposal.entries;
-      const savedRows: OutlineEntryRow[] = nextRaw.map((entry, idx) => ({
-        id: `ai-${idx}`,
-        title: String(entry.title ?? ''),
-        level: Number(entry.level) || 1,
-        page: entry.anchor?.sourceId ? (sourcePageMap.get(entry.anchor.sourceId) ?? 1) : 1,
-        ...(entry.anchor?.sourceId ? { sourceId: entry.anchor.sourceId } : {}),
-        ...(typeof entry.startBlock === 'number' ? { startBlock: entry.startBlock } : {}),
-        kind: entry.kind || 'quoted',
-      }));
+      const savedRows = finalizeOutlineRanges(
+        nextRaw.map((entry, idx) => {
+          const pg = entry.anchor?.sourceId ? (sourcePageMap.get(entry.anchor.sourceId) ?? 1) : 1;
+          return {
+            id: `ai-${idx}`,
+            title: String(entry.title ?? ''),
+            level: Number(entry.level) || 1,
+            page: pg,
+            startPage: pg,
+            endPage: pg,
+            ...(entry.anchor?.sourceId ? { sourceId: entry.anchor.sourceId } : {}),
+            ...(typeof entry.startBlock === 'number' ? { startBlock: entry.startBlock } : {}),
+            kind: entry.kind || 'quoted',
+          };
+        }),
+        totalPagesCount,
+      );
       setEntries(savedRows);
       setOutlineOrigin('ai');
       setProposal(null);
@@ -440,6 +554,7 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
         tone: 'success',
       });
       notify(t(lang, '已保存文档章节目录', 'Document outline saved'), 'success');
+      onOutlineSaved?.();
     } catch (err) {
       if (mountedRef.current) {
         const msg = errorMessage(err);
@@ -449,9 +564,9 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
     } finally {
       if (mountedRef.current) setBusy(false);
     }
-  }, [busy, proposal, host, resolvedDocId, sourceId, resolvedRevision, lang, sourcePageMap, notify]);
+  }, [busy, proposal, host, resolvedDocId, sourceId, resolvedRevision, lang, sourcePageMap, totalPagesCount, notify, onOutlineSaved]);
 
-  useClaimKeys(['g', 's', 'j', 'k'], isActive);
+  useClaimKeys(['g', 's', 'j', 'k', ' ', 'm'], isActive);
 
   useInput(
     (input) => {
@@ -459,6 +574,25 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
         void handleSuggest();
       } else if (input === 's' && proposal) {
         void handleSaveProposal();
+      } else if ((input === ' ' || input === 'm') && !busy && !loading && !proposal && onToggleRead) {
+        const selected = displayedRows[selectedIndex];
+        if (selected) {
+          const allRefs: OutlineChapterRef[] = entries.map((e) => ({
+            id: e.id,
+            title: e.title,
+            startPage: e.startPage,
+            endPage: e.endPage,
+          }));
+          void onToggleRead(
+            {
+              id: selected.id,
+              title: selected.title,
+              startPage: selected.startPage,
+              endPage: selected.endPage,
+            },
+            allRefs,
+          );
+        }
       }
     },
     { isActive },
@@ -473,13 +607,21 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
 
   const modalHints: KeyHint[] = useMemo(() => {
     const base: KeyHint[] = [{ key: 'Enter', label: t(lang, '跳页', 'Jump') }];
+    if (!proposal && displayedRows.length > 0 && onToggleRead) {
+      base.push({ key: 'Space/m', label: t(lang, '已读', 'Read') });
+    }
     if (proposal) {
       base.push({ key: 's', label: t(lang, '保存', 'Save') });
     }
     base.push({ key: 'g', label: t(lang, 'AI目录', 'Suggest') });
     base.push({ key: 'Esc', label: t(lang, '关闭', 'Close') });
     return base;
-  }, [lang, proposal]);
+  }, [displayedRows.length, lang, onToggleRead, proposal]);
+
+  const readCount = useMemo(
+    () => (readChapterIds ? entries.filter((e) => readChapterIds.has(e.id)).length : 0),
+    [entries, readChapterIds],
+  );
 
   const badgeLabel = proposal
     ? t(lang, `AI 建议 · ${proposal.entries.length} 项`, `AI Draft · ${proposal.entries.length}`)
@@ -509,6 +651,16 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
         />
         <Text> </Text>
         <Badge label={`${t(lang, '当前', 'Curr')} P.${currentPage}`} tone="accent" variant="outline" />
+        {!proposal && entries.length > 0 && readChapterIds ? (
+          <>
+            <Text> </Text>
+            <Badge
+              label={`${asciiMode ? 'OK' : '✓'} ${readCount}/${entries.length}`}
+              tone={readCount === entries.length ? 'success' : 'muted'}
+              variant="outline"
+            />
+          </>
+        ) : null}
         <Box flexGrow={1} />
         {busy ? <Spinner label={t(lang, `处理中${ell}`, `Working${ell}`)} /> : null}
       </Box>
@@ -559,15 +711,29 @@ export const ReaderOutlineDrawer = memo(function ReaderOutlineDrawer({
           renderItem={(item, ctx) => {
             const indent = '  '.repeat(Math.max(0, item.level - 1));
             const isCurrent = item.page === currentPage;
+            const showReadStatus = Boolean(readChapterIds && !proposal);
+            const isRead = showReadStatus && Boolean(readChapterIds?.has(item.id));
+            const readGlyph = showReadStatus
+              ? isRead
+                ? asciiMode
+                  ? '[x] '
+                  : '✓ '
+                : asciiMode
+                  ? '[ ] '
+                  : '○ '
+              : '';
             const pageTag = `P.${item.page}`;
             const tag = item.kind === 'label' ? t(lang, ' [概括]', ' [label]') : '';
-            const avail = Math.max(6, ctx.width - pageTag.length - tag.length - 4);
+            const avail = Math.max(6, ctx.width - pageTag.length - tag.length - readGlyph.length - 4);
             const label = truncateDisplay(`${indent}${item.title}`, avail, ell);
             return (
               <Box width={ctx.width} height={1}>
                 <Text color={ctx.selected ? theme.primary : isCurrent ? theme.accent : theme.dim} bold={ctx.selected}>
                   {ctx.selected ? (asciiMode ? '> ' : '▸ ') : isCurrent ? (asciiMode ? '- ' : '• ') : '  '}
                 </Text>
+                {readGlyph ? (
+                  <Text color={isRead ? theme.success : theme.dim}>{readGlyph}</Text>
+                ) : null}
                 <Text
                   color={ctx.selected ? theme.text : item.level === 1 ? theme.text : theme.muted}
                   bold={ctx.selected || item.level === 1}

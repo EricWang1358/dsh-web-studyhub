@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
@@ -17,8 +17,13 @@ import {
 } from '../../components/index.js';
 import { errorMessage, startReview, tryAction } from '../../host/sample-actions.js';
 import { wrapDisplay } from '../../render/index.js';
-import { ReaderOutlineDrawer } from './ReaderOutlineDrawer.js';
-import { ReaderNotesDrawer, savePageAskToNote } from './ReaderNotesDrawer.js';
+
+const ReaderOutlineDrawer = lazy(() =>
+  import('./ReaderOutlineDrawer.js').then((m) => ({ default: m.ReaderOutlineDrawer })),
+);
+const ReaderNotesDrawer = lazy(() =>
+  import('./ReaderNotesDrawer.js').then((m) => ({ default: m.ReaderNotesDrawer })),
+);
 
 export interface DocumentReaderProps {
   host: HostClient;
@@ -56,6 +61,154 @@ interface PageProjection {
   documentId?: string;
   title: string;
   format: string;
+}
+
+interface ReadingChapter {
+  id: string;
+  title: string;
+  level: number;
+  startPage: number;
+  endPage: number;
+}
+
+interface RawOutlineDocSource {
+  id?: string;
+  text?: string;
+  document?: {
+    page?: number;
+    chapter?: { index?: number; title?: string; level?: number };
+  };
+}
+
+interface RawDocOutlineEntry {
+  title?: string;
+  level?: number;
+  anchor?: { sourceId?: string };
+}
+
+const DOC_HEADING_RE = /^ {0,3}(#{1,4})[ \t]+(\S.*?)(?:[ \t]+#+)?[ \t]*$/;
+const DOC_FENCE_RE = /^ {0,3}(?:```|~~~)/;
+
+function finalizeChapterRanges(
+  rawRows: Array<{ id: string; title: string; level: number; page: number }>,
+  totalPages: number,
+): ReadingChapter[] {
+  return rawRows
+    .filter((r) => r.id && Number.isFinite(r.page))
+    .map((row, idx, arr) => {
+      const startPage = Math.max(1, Math.floor(row.page));
+      let nextSiblingPage: number | null = null;
+      for (let j = idx + 1; j < arr.length; j += 1) {
+        if (arr[j].level <= row.level) {
+          nextSiblingPage = Math.max(1, Math.floor(arr[j].page));
+          break;
+        }
+      }
+      const endPage =
+        nextSiblingPage !== null
+          ? nextSiblingPage > startPage
+            ? nextSiblingPage - 1
+            : startPage
+          : Math.max(startPage, totalPages);
+      return {
+        id: row.id,
+        title: row.title.trim(),
+        level: row.level,
+        startPage,
+        endPage: Math.max(startPage, endPage),
+      };
+    });
+}
+
+function extractChaptersFromDocument(
+  docVal: Record<string, unknown>,
+  totalPagesHint: number,
+  lang: 'zh' | 'en',
+): ReadingChapter[] {
+  const sources = Array.isArray(docVal.sources) ? (docVal.sources as RawOutlineDocSource[]) : [];
+  const pageMap = new Map<string, number>();
+  let maxPage = Math.max(1, totalPagesHint, sources.length);
+  sources.forEach((src, idx) => {
+    const pg = Number.isInteger(src.document?.page) ? Number(src.document?.page) : idx + 1;
+    if (src.id) pageMap.set(src.id, pg);
+    if (pg > maxPage) maxPage = pg;
+  });
+
+  const outlineObj = docVal.outline as { entries?: RawDocOutlineEntry[] } | undefined;
+  if (outlineObj && Array.isArray(outlineObj.entries) && outlineObj.entries.length > 0) {
+    const raw = outlineObj.entries.map((entry, idx) => ({
+      id: `ai-${idx}`,
+      title: String(entry.title ?? ''),
+      level: Number(entry.level) || 1,
+      page: entry.anchor?.sourceId ? (pageMap.get(entry.anchor.sourceId) ?? 1) : 1,
+    }));
+    return finalizeChapterRanges(raw, maxPage);
+  }
+
+  // Fallback 1: Markdown headings across sources (matches ReaderOutlineDrawer)
+  const mdRows: Array<{ id: string; title: string; level: number; page: number }> = [];
+  sources.forEach((src, idx) => {
+    if (typeof src.text !== 'string' || !src.text) return;
+    const pg = Number.isInteger(src.document?.page) ? Number(src.document?.page) : idx + 1;
+    let inFence = false;
+    let seq = 0;
+    for (const rawLine of src.text.split('\n')) {
+      const line = rawLine.replace(/\r$/, '');
+      if (DOC_FENCE_RE.test(line)) {
+        inFence = !inFence;
+        continue;
+      }
+      if (inFence) continue;
+      const m = DOC_HEADING_RE.exec(line);
+      if (!m) continue;
+      const heading = m[2].replace(/\s+/g, ' ').trim();
+      if (!heading) continue;
+      seq += 1;
+      mdRows.push({
+        id: `md-${pg}-${seq}`,
+        title: heading,
+        level: Math.min(3, m[1].length),
+        page: pg,
+      });
+    }
+  });
+  if (mdRows.length > 0) {
+    return finalizeChapterRanges(mdRows, maxPage);
+  }
+
+  // Fallback 2: Converted book document.chapter stamps across sources
+  const chapterGroups = new Map<number, { index: number; title: string; level: number; startPage: number; endPage: number }>();
+  sources.forEach((src, idx) => {
+    const ch = src.document?.chapter;
+    const index = Number.isInteger(ch?.index) ? Number(ch?.index) : -1;
+    const pg = Number.isInteger(src.document?.page) ? Number(src.document?.page) : idx + 1;
+    if (!chapterGroups.has(index)) {
+      chapterGroups.set(index, {
+        index,
+        title: index < 0 ? t(lang, '卷首', 'Front Matter') : String(ch?.title ?? '').trim() || `Ch.${index}`,
+        level: index < 0 ? 1 : Number(ch?.level) || 1,
+        startPage: pg,
+        endPage: pg,
+      });
+    } else {
+      const g = chapterGroups.get(index)!;
+      g.startPage = Math.min(g.startPage, pg);
+      g.endPage = Math.max(g.endPage, pg);
+    }
+  });
+  if (chapterGroups.size > 1 || (chapterGroups.size === 1 && !chapterGroups.has(-1))) {
+    return [...chapterGroups.values()]
+      .sort((a, b) => a.startPage - b.startPage || a.index - b.index)
+      .map((g) => ({
+        id: g.index < 0 ? 'chapter-front' : `chapter-${g.index}`,
+        title: g.title,
+        level: g.level,
+        startPage: g.startPage,
+        endPage: g.endPage,
+      }));
+  }
+
+  return [];
 }
 
 function parsePageRange(pagesStr: unknown, fallbackTotal: number): { first: number; last: number } {
@@ -120,8 +273,14 @@ export const DocumentReader = memo(function DocumentReader({
   const [translateBusy, setTranslateBusy] = useState(false);
   const [pageScrollTop, setPageScrollTop] = useState(0);
 
+  const [chapters, setChapters] = useState<ReadingChapter[]>([]);
+  const [readChapterIds, setReadChapterIds] = useState<Set<string>>(() => new Set());
+  const [outlineRefreshTick, setOutlineRefreshTick] = useState(0);
+
   const abortRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
+  const readingBusyRef = useRef(false);
+  const readingTargetRef = useRef<{ documentId?: string; sourceId?: string; revision?: string }>({});
 
   const abortInFlight = useCallback(() => {
     if (abortRef.current) {
@@ -138,6 +297,8 @@ export const DocumentReader = memo(function DocumentReader({
       abortInFlight();
       setPageData(null);
       setSearchHits([]);
+      setChapters([]);
+      setReadChapterIds(new Set());
       setSubMode('read');
       setSavingNote(false);
     };
@@ -261,6 +422,183 @@ export const DocumentReader = memo(function DocumentReader({
     };
   }, [host, documentId, sourceId, currentPage, initialTitle, initialFormat, totalPagesHint, lang]);
 
+  // Load outline chapters + Web-parity reading progress (fail-soft for legacy or un-outlined sources).
+  useEffect(() => {
+    let cancelled = false;
+    if (!documentId && !sourceId) {
+      setChapters([]);
+      setReadChapterIds(new Set());
+      return;
+    }
+
+    const loadOutlineAndReading = async () => {
+      try {
+        const metaRes = await tryAction<Record<string, unknown>>(host, 'materials.document.get', {
+          ...(documentId ? { documentId } : {}),
+          ...(sourceId ? { sourceId } : {}),
+        });
+        if (cancelled || !mountedRef.current) return;
+        if (!metaRes.ok || !metaRes.value) {
+          setChapters([]);
+          setReadChapterIds(new Set());
+          return;
+        }
+
+        const val = metaRes.value;
+        const resolvedDocId =
+          typeof val.documentId === 'string'
+            ? val.documentId
+            : typeof val.id === 'string'
+              ? val.id
+              : documentId;
+        const resolvedRev =
+          typeof val.revision === 'string'
+            ? val.revision
+            : typeof val.currentRevision === 'string'
+              ? val.currentRevision
+              : undefined;
+        const sources = Array.isArray(val.sources) ? (val.sources as RawOutlineDocSource[]) : [];
+        const resolvedSrcId = sourceId || (typeof sources[0]?.id === 'string' ? sources[0].id : undefined);
+
+        readingTargetRef.current = {
+          documentId: resolvedDocId,
+          sourceId: resolvedSrcId,
+          revision: resolvedRev,
+        };
+
+        const extracted = extractChaptersFromDocument(val, totalPagesHint, lang);
+        setChapters(extracted);
+
+        if (extracted.length === 0) {
+          setReadChapterIds(new Set());
+          return;
+        }
+
+        const chapterRefs = extracted.map(({ id, title, startPage, endPage }) => ({
+          id,
+          title,
+          startPage,
+          endPage,
+        }));
+        const readRes = await tryAction<{ read?: unknown[] }>(host, 'materials.reading.get', {
+          ...(resolvedDocId ? { documentId: resolvedDocId } : {}),
+          ...(resolvedSrcId ? { sourceId: resolvedSrcId } : {}),
+          ...(resolvedRev ? { revision: resolvedRev } : {}),
+          chapters: chapterRefs,
+        });
+        if (cancelled || !mountedRef.current) return;
+        if (readRes.ok && Array.isArray(readRes.value?.read)) {
+          setReadChapterIds(new Set(readRes.value.read.filter((id): id is string => typeof id === 'string')));
+        } else {
+          setReadChapterIds(new Set());
+        }
+      } catch {
+        if (!cancelled && mountedRef.current) {
+          setReadChapterIds(new Set());
+        }
+      }
+    };
+
+    void loadOutlineAndReading();
+    return () => {
+      cancelled = true;
+    };
+  }, [host, documentId, sourceId, totalPagesHint, outlineRefreshTick, lang]);
+
+  const activePageNum = pageData?.page ?? currentPage;
+  const currentChapter = useMemo(() => {
+    if (chapters.length === 0) return null;
+    let match: ReadingChapter | null = null;
+    for (const ch of chapters) {
+      if (activePageNum >= ch.startPage && activePageNum <= ch.endPage) {
+        match = ch;
+      }
+    }
+    return match;
+  }, [chapters, activePageNum]);
+
+  const readCount = useMemo(
+    () => chapters.reduce((acc, ch) => (readChapterIds.has(ch.id) ? acc + 1 : acc), 0),
+    [chapters, readChapterIds],
+  );
+  const currentChapterRead = Boolean(currentChapter && readChapterIds.has(currentChapter.id));
+
+  const toggleChapterRead = useCallback(
+    async (
+      chapter: { id: string; title: string; startPage: number; endPage: number },
+      overrideChapters?: Array<{ id: string; title: string; startPage: number; endPage: number }>,
+    ) => {
+      if (readingBusyRef.current) return;
+      const docId = pageData?.documentId || readingTargetRef.current.documentId || documentId;
+      const srcId = pageData?.sourceId || readingTargetRef.current.sourceId || sourceId;
+      const rev = pageData?.revision || readingTargetRef.current.revision;
+      if (!docId && !srcId) {
+        notify(t(lang, '缺少文档标识，无法保存阅读进度', 'Missing document identifier'), 'warning');
+        return;
+      }
+
+      const wasRead = readChapterIds.has(chapter.id);
+      const nextRead = !wasRead;
+      const prevSet = readChapterIds;
+
+      const optimistic = new Set(prevSet);
+      if (nextRead) optimistic.add(chapter.id);
+      else optimistic.delete(chapter.id);
+      setReadChapterIds(optimistic);
+      readingBusyRef.current = true;
+
+      const refPayload = {
+        id: chapter.id,
+        title: chapter.title,
+        startPage: chapter.startPage,
+        endPage: chapter.endPage,
+      };
+      const baseList =
+        overrideChapters && overrideChapters.length > 0
+          ? overrideChapters
+          : chapters.map(({ id, title, startPage, endPage }) => ({ id, title, startPage, endPage }));
+      const allRefs = baseList.some((c) => c.id === chapter.id) ? baseList : [...baseList, refPayload];
+
+      try {
+        const res = await tryAction<{ read?: unknown[]; saved?: boolean }>(host, 'materials.reading.save', {
+          ...(docId ? { documentId: docId } : {}),
+          ...(srcId ? { sourceId: srcId } : {}),
+          ...(rev ? { revision: rev } : {}),
+          chapters: allRefs,
+          read: nextRead ? [refPayload] : [],
+          unread: nextRead ? [] : [refPayload],
+        });
+        if (!mountedRef.current) return;
+        if (!res.ok || res.value?.saved === false) {
+          setReadChapterIds(prevSet);
+          notify(
+            res.error?.message || t(lang, '保存阅读进度失败', 'Failed to save reading progress'),
+            'error',
+          );
+          return;
+        }
+        if (Array.isArray(res.value?.read)) {
+          setReadChapterIds(new Set(res.value.read.filter((id): id is string => typeof id === 'string')));
+        }
+        const shortTitle = chapter.title ? ` (${chapter.title.slice(0, 24)})` : '';
+        notify(
+          nextRead
+            ? t(lang, `已标记章节为已读${shortTitle}`, `Marked chapter read${shortTitle}`)
+            : t(lang, `已取消章节已读标记${shortTitle}`, `Marked chapter unread${shortTitle}`),
+          'success',
+        );
+      } catch (err) {
+        if (mountedRef.current) {
+          setReadChapterIds(prevSet);
+          notify(errorMessage(err), 'error');
+        }
+      } finally {
+        readingBusyRef.current = false;
+      }
+    },
+    [chapters, documentId, host, lang, notify, pageData, readChapterIds, sourceId],
+  );
+
   const runSearch = useCallback(
     async (query: string) => {
       const q = query.trim();
@@ -360,7 +698,7 @@ export const DocumentReader = memo(function DocumentReader({
         }
       }
     },
-    [abortInFlight, finishAiAnswer, host, lang, pageData, pushAiAnswer, resetAiAnswer, setAiAnswer],
+    [abortInFlight, asciiMode, finishAiAnswer, host, lang, pageData, pushAiAnswer, resetAiAnswer, setAiAnswer],
   );
 
   const runTranslatePage = useCallback(async () => {
@@ -434,7 +772,7 @@ export const DocumentReader = memo(function DocumentReader({
         finishTranslation();
       }
     }
-  }, [abortInFlight, finishTranslation, host, lang, pageData, pushTranslation, resetTranslation, setTranslationText]);
+  }, [abortInFlight, asciiMode, finishTranslation, host, lang, pageData, pushTranslation, resetTranslation, setTranslationText]);
 
   const handlePracticeLinkedCards = useCallback(async () => {
     if (!pageData) return;
@@ -497,6 +835,7 @@ export const DocumentReader = memo(function DocumentReader({
           selectedExcerpt = pageData.text.slice(anchorOffset, Math.min(pageData.text.length, anchorOffset + 360));
         }
       }
+      const { savePageAskToNote } = await import('./ReaderNotesDrawer.js');
       const result = await savePageAskToNote({
         host,
         lang,
@@ -528,7 +867,7 @@ export const DocumentReader = memo(function DocumentReader({
     () =>
       subMode === 'ask-view'
         ? ['s', 'backspace']
-        : ['[', ']', '/', 'g', 'm', 'a', 't', 'q', 'p', 'O', 'B', 'backspace'],
+        : ['[', ']', '/', 'g', 'm', 'M', 'a', 't', 'q', 'p', 'O', 'B', 'backspace'],
     [subMode],
   );
   useClaimKeys(claimedKeys, readerInputActive && !isTyping);
@@ -542,10 +881,11 @@ export const DocumentReader = memo(function DocumentReader({
         { key: 'Esc', label: t(lang, '返回', 'Back') },
       ];
     }
-    return [
+    const items: KeyHint[] = [
       { key: '[/]', label: t(lang, '翻页', 'Page') },
       { key: 'O', label: t(lang, '目录', 'TOC') },
       { key: 'B', label: t(lang, '批注', 'Notes') },
+      ...(chapters.length > 0 ? [{ key: 'M', label: t(lang, '已读', 'Read') }] : []),
       { key: 'a', label: t(lang, '问AI', 'Ask') },
       { key: 't', label: t(lang, '翻译', 'Trans') },
       { key: 'g', label: t(lang, '跳页', 'Go') },
@@ -555,7 +895,8 @@ export const DocumentReader = memo(function DocumentReader({
       { key: 'p', label: t(lang, '练题', 'Quiz') },
       { key: 'Esc', label: t(lang, '返回', 'Back') },
     ];
-  }, [lang, subMode]);
+    return items;
+  }, [chapters.length, lang, subMode]);
   useFooterHints(hints, readerInputActive);
 
   useInput(
@@ -601,6 +942,12 @@ export const DocumentReader = memo(function DocumentReader({
         setSubMode('search');
       } else if (input === 'm') {
         setPreferences({ mathUnicode: !mathUnicode });
+      } else if (input === 'M') {
+        if (currentChapter) {
+          void toggleChapterRead(currentChapter);
+        } else {
+          notify(t(lang, '当前页暂无可标记的章节', 'No chapter available to mark on this page'), 'info');
+        }
       } else if (input === 'a') {
         setAskQuestion('');
         setSubMode('ask-input');
@@ -638,6 +985,15 @@ export const DocumentReader = memo(function DocumentReader({
     ? `${t(lang, '第', 'P.')} ${pageData.page} / ${pageData.lastPage} ${t(lang, '页', '')}`
     : `${t(lang, '第', 'P.')} ${currentPage}`;
 
+  const progressPrefix = `${asciiMode ? 'OK' : '✓'} ${readCount}/${chapters.length}`;
+  const chapterStateTag = currentChapter
+    ? currentChapterRead
+      ? t(lang, '已读', 'Read')
+      : t(lang, '未读', 'Unread')
+    : '';
+  const progressBadgeLabel =
+    chapterStateTag && width >= 88 ? `${progressPrefix} (${chapterStateTag})` : progressPrefix;
+
   return (
     <Box flexDirection="column" width={width} height={height}>
       {/* Reader Header */}
@@ -648,7 +1004,21 @@ export const DocumentReader = memo(function DocumentReader({
           {pageData?.title || initialTitle || t(lang, '资料阅读器', 'Document Reader')}
         </Text>
         <Box flexGrow={1} />
-        <Badge label={mathUnicode ? '∑ Unicode' : 'TeX'} tone={mathUnicode ? 'success' : 'muted'} variant="outline" />
+        {chapters.length > 0 ? (
+          <>
+            <Badge
+              label={progressBadgeLabel}
+              tone={currentChapterRead ? 'success' : readCount === chapters.length ? 'success' : 'muted'}
+              variant="outline"
+            />
+            <Text> </Text>
+          </>
+        ) : null}
+        <Badge
+          label={mathUnicode ? (asciiMode ? 'Unicode' : '∑ Unicode') : 'TeX'}
+          tone={mathUnicode ? 'success' : 'muted'}
+          variant="outline"
+        />
         <Text> </Text>
         <Badge label={pageLabel.trim()} tone="accent" variant="soft" />
       </Box>
@@ -717,7 +1087,7 @@ export const DocumentReader = memo(function DocumentReader({
       <Box flexDirection={showSide ? 'row' : 'column'} width={width} height={bodyH} overflow="hidden">
         <Panel
           title={pageLabel.trim()}
-          subtitle={activeSearch ? `🔍 ${activeSearch} (${searchHits.length})` : undefined}
+          subtitle={activeSearch ? `${asciiMode ? '?' : '🔍'} ${activeSearch} (${searchHits.length})` : undefined}
           width={mainW}
           height={readerH}
           focused={subMode === 'read'}
@@ -770,7 +1140,9 @@ export const DocumentReader = memo(function DocumentReader({
                   ? asciiMode
                     ? t(lang, '保存中...', 'Saving...')
                     : t(lang, '保存中…', 'Saving…')
-                  : t(lang, 's 存笔记 · Esc 返回', 's Save Note · Esc Back')
+                  : asciiMode
+                    ? t(lang, 's 存笔记 - Esc 返回', 's Save Note - Esc Back')
+                    : t(lang, 's 存笔记 · Esc 返回', 's Save Note · Esc Back')
             }
             width={auxW}
             height={auxH}
@@ -792,7 +1164,13 @@ export const DocumentReader = memo(function DocumentReader({
             title={t(lang, '双语对照翻译', 'Bilingual Translation')}
             icon="译"
             tone="info"
-            subtitle={translateBusy ? (asciiMode ? t(lang, '翻译中... Esc 中止', 'Translating... Esc abort') : t(lang, '翻译中… Esc 中止', 'Translating… Esc abort')) : 'Esc 返回'}
+            subtitle={
+              translateBusy
+                ? asciiMode
+                  ? t(lang, '翻译中... Esc 中止', 'Translating... Esc abort')
+                  : t(lang, '翻译中… Esc 中止', 'Translating… Esc abort')
+                : t(lang, 'Esc 返回', 'Esc Back')
+            }
             width={auxW}
             height={auxH}
             focused
@@ -809,46 +1187,51 @@ export const DocumentReader = memo(function DocumentReader({
         ) : null}
       </Box>
 
-      {subMode === 'outline' ? (
-        <ReaderOutlineDrawer
-          host={host}
-          documentId={pageData?.documentId || documentId}
-          sourceId={pageData?.sourceId || sourceId}
-          revision={pageData?.revision}
-          title={pageData?.title || initialTitle}
-          currentPage={pageData?.page ?? currentPage}
-          currentPageText={pageData?.text}
-          width={width}
-          height={height}
-          isActive={isActive}
-          onJumpPage={(pg) => {
-            const lo = pageData?.firstPage ?? 1;
-            const hi = pageData?.lastPage ?? Math.max(pg, totalPagesHint);
-            setCurrentPage(Math.max(lo, Math.min(hi, pg)));
-          }}
-          onClose={() => setSubMode('read')}
-        />
-      ) : null}
+      <Suspense fallback={null}>
+        {subMode === 'outline' ? (
+          <ReaderOutlineDrawer
+            host={host}
+            documentId={pageData?.documentId || documentId}
+            sourceId={pageData?.sourceId || sourceId}
+            revision={pageData?.revision}
+            title={pageData?.title || initialTitle}
+            currentPage={pageData?.page ?? currentPage}
+            currentPageText={pageData?.text}
+            readChapterIds={readChapterIds}
+            onToggleRead={(chapter, allChapters) => void toggleChapterRead(chapter, allChapters)}
+            onOutlineSaved={() => setOutlineRefreshTick((n) => n + 1)}
+            width={width}
+            height={height}
+            isActive={isActive}
+            onJumpPage={(pg) => {
+              const lo = pageData?.firstPage ?? 1;
+              const hi = pageData?.lastPage ?? Math.max(pg, totalPagesHint);
+              setCurrentPage(Math.max(lo, Math.min(hi, pg)));
+            }}
+            onClose={() => setSubMode('read')}
+          />
+        ) : null}
 
-      {subMode === 'notes' ? (
-        <ReaderNotesDrawer
-          host={host}
-          documentId={pageData?.documentId || documentId}
-          sourceId={pageData?.sourceId || sourceId}
-          revision={pageData?.revision}
-          title={pageData?.title || initialTitle}
-          currentPage={pageData?.page ?? currentPage}
-          width={width}
-          height={height}
-          isActive={isActive}
-          onJumpPage={(pg) => {
-            const lo = pageData?.firstPage ?? 1;
-            const hi = pageData?.lastPage ?? Math.max(pg, totalPagesHint);
-            setCurrentPage(Math.max(lo, Math.min(hi, pg)));
-          }}
-          onClose={() => setSubMode('read')}
-        />
-      ) : null}
+        {subMode === 'notes' ? (
+          <ReaderNotesDrawer
+            host={host}
+            documentId={pageData?.documentId || documentId}
+            sourceId={pageData?.sourceId || sourceId}
+            revision={pageData?.revision}
+            title={pageData?.title || initialTitle}
+            currentPage={pageData?.page ?? currentPage}
+            width={width}
+            height={height}
+            isActive={isActive}
+            onJumpPage={(pg) => {
+              const lo = pageData?.firstPage ?? 1;
+              const hi = pageData?.lastPage ?? Math.max(pg, totalPagesHint);
+              setCurrentPage(Math.max(lo, Math.min(hi, pg)));
+            }}
+            onClose={() => setSubMode('read')}
+          />
+        ) : null}
+      </Suspense>
     </Box>
   );
 });

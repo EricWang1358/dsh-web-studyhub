@@ -50,6 +50,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'g', label: t(lang, 'AI 带学工作台', 'AI Guided Study') },
         { key: 'C', label: t(lang, '课程设置', 'Course settings') },
         { key: 'o', label: t(lang, '题组导入/合并/拆分', 'Deck import/merge/split') },
+        { key: '[ / ]', label: t(lang, '上移/下移题组顺序', 'Reorder deck up/down') },
         { key: 'R', label: t(lang, '定制本轮练习', 'Custom round config') },
         { key: 'm: + / k', label: t(lang, '题组补题 / 转换题型', 'Deck supplement / convert') },
         { key: 'm: Space/F/S', label: t(lang, '题组批量重点/暂停', 'Deck batch focus/suspend') },

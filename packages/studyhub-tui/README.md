@@ -4,7 +4,7 @@
 
 ## 核心特性
 
-- **与 DSH-TUI 同源技术栈**：React 19.3 + Ink 8 + TypeScript + Chalk 6 + Marked 18 + cli-highlight + `get-east-asian-width`（中英混排零错位）+ Zustand 5 + Zod 4 + esbuild 代码分割打包 + `@xterm/headless` 真实终端 E2E 测试。
+- **与 DSH-TUI 同源技术栈**：React 19.3 + Ink 8 + TypeScript + Chalk 6 + Marked 18 + cli-highlight + `get-east-asian-width`（中英混排零错位）+ Zustand 5 + 零依赖严格运行时校验 + esbuild 代码分割打包 + `@xterm/headless` 真实终端 E2E 测试。
 - **双模型引擎（`agy` 主 + OpenAI 副）**：
   - **主模型（默认）**：自动探测本机 `agy` CLI 并优先启用，支持从 `agy models` 直接切换模型、调节思考强度（`low` / `medium` / `high` / `xhigh` / `max`）与逐 Token 流式输出。
   - **副模型（DSH-TUI 风格）**：内置 8 套 OpenAI 兼容预设（DeepSeek / OpenAI / 硅基流动 SiliconFlow / 智谱 GLM / OpenRouter / Groq / Moonshot Kimi / 自定义 Base URL），支持 `DEEPSEEK_API_KEY` / `OPENAI_API_KEY` 环境变量自动检测（密钥仅驻留内存，不落盘）与一键测连。

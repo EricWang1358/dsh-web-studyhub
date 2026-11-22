@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { KeyHint, StudySnapshot, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
@@ -52,7 +52,7 @@ type WorkEntry =
   | { kind: 'draft'; id: string; title: string; course: string; count: number; draft: DraftItem }
   | { kind: 'job'; id: string; title: string; course: string; status: string; error: string; job: JobItem };
 
-const CLAIMED_LIBRARY_KEYS = ['r', 'R', 'a', 'p', 'C', 'o', 'g'] as const;
+const CLAIMED_LIBRARY_KEYS = ['r', 'R', 'a', 'p', 'C', 'o', 'g', '[', ']'] as const;
 
 function localDayKey(value: Date | string | number): string {
   const d = value instanceof Date ? value : new Date(value);
@@ -132,6 +132,16 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
   const [confirmDeleteDeck, setConfirmDeleteDeck] = useState<DeckItem | null>(null);
   const [busyAction, setBusyAction] = useState(false);
 
+  const mountedRef = useRef(true);
+  const busyRef = useRef(false);
+  const pendingFocusDeckIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
   const [streak, setStreak] = useState<number>(0);
   const [sampleLoaded, setSampleLoaded] = useState<boolean>(false);
 
@@ -210,8 +220,17 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
   }, [snapshot?.drafts, snapshot?.jobs, course, lang]);
 
   useEffect(() => {
+    const targetId = pendingFocusDeckIdRef.current;
+    if (targetId && filteredDecks.length > 0) {
+      const nextIdx = filteredDecks.findIndex((d) => d.id === targetId);
+      if (nextIdx >= 0) {
+        pendingFocusDeckIdRef.current = null;
+        setDeckIndex(nextIdx);
+        return;
+      }
+    }
     if (deckIndex >= filteredDecks.length) setDeckIndex(Math.max(0, filteredDecks.length - 1));
-  }, [filteredDecks.length, deckIndex]);
+  }, [filteredDecks, deckIndex]);
 
   useEffect(() => {
     if (workIndex >= workEntries.length) setWorkIndex(Math.max(0, workEntries.length - 1));
@@ -397,11 +416,76 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
     [navigate],
   );
 
+  const handleMoveDeck = useCallback(
+    async (direction: 'up' | 'down') => {
+      if (busyRef.current || busyAction) return;
+      if (focusSection !== 'decks') {
+        notify(t(lang, '请先按 [Tab] 切回题组列表再调整顺序', 'Press [Tab] to focus the Decks list to reorder'), 'info');
+        return;
+      }
+      if (filteredDecks.length === 0 || !selectedDeck) {
+        notify(t(lang, '当前列表暂无可排序的题组', 'No decks available to reorder'), 'info');
+        return;
+      }
+      if (filteredDecks.length === 1) {
+        notify(t(lang, '当前列表只有一个题组，无需调整顺序', 'Only one deck in the current list; nothing to reorder'), 'info');
+        return;
+      }
+      if (direction === 'up' && deckIndex <= 0) {
+        notify(t(lang, '已经是第一个题组', 'Already the first deck'), 'info');
+        return;
+      }
+      if (direction === 'down' && deckIndex >= filteredDecks.length - 1) {
+        notify(t(lang, '已经是最后一个题组', 'Already the last deck'), 'info');
+        return;
+      }
+      const neighbor = filteredDecks[direction === 'up' ? deckIndex - 1 : deckIndex + 1];
+      const allIds = (snapshot?.decks ?? []).map((d) => d.id);
+      const posA = allIds.indexOf(selectedDeck.id);
+      const posB = allIds.indexOf(neighbor?.id ?? '');
+      if (posA < 0 || posB < 0) {
+        notify(t(lang, '未能定位题组顺序，请按 Ctrl+R 刷新后重试', 'Could not locate deck order; press Ctrl+R to refresh'), 'warning');
+        return;
+      }
+      const nextIds = [...allIds];
+      [nextIds[posA], nextIds[posB]] = [nextIds[posB], nextIds[posA]];
+
+      busyRef.current = true;
+      setBusyAction(true);
+      try {
+        const res = await tryAction<{ ids?: string[] }>(host, 'deck.reorder', { ids: nextIds });
+        if (!mountedRef.current) return;
+        if (!res.ok) {
+          notify(res.error?.message || t(lang, '调整题组顺序失败', 'Failed to reorder decks'), 'error');
+          return;
+        }
+        pendingFocusDeckIdRef.current = selectedDeck.id;
+        await actions.refresh();
+        if (!mountedRef.current) return;
+        const deckTitle = String(selectedDeck.title ?? selectedDeck.name ?? selectedDeck.id);
+        notify(
+          direction === 'up'
+            ? t(lang, `已上移「${deckTitle}」`, `Moved "${deckTitle}" up`)
+            : t(lang, `已下移「${deckTitle}」`, `Moved "${deckTitle}" down`),
+          'success',
+        );
+      } finally {
+        busyRef.current = false;
+        if (mountedRef.current) setBusyAction(false);
+      }
+    },
+    [busyAction, focusSection, filteredDecks, selectedDeck, deckIndex, snapshot?.decks, host, actions, notify, lang],
+  );
+
   useInput(
     (input, key) => {
-      if (busyAction) return;
+      if (busyRef.current || busyAction) return;
       if (key.tab && workEntries.length > 0) {
         setFocusSection((prev) => (prev === 'decks' ? 'work' : 'decks'));
+        return;
+      }
+      if (input === '[' || input === ']') {
+        void handleMoveDeck(input === '[' ? 'up' : 'down');
         return;
       }
       if (input === 'h') {
@@ -479,6 +563,7 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
       { key: 'r', label: t(lang, '继续上次', 'Resume') },
       { key: 'o', label: t(lang, '导/合/拆', 'Deck Ops') },
       { key: 'm', label: t(lang, '管理卡片', 'Manage') },
+      { key: '[/]', label: t(lang, '排序', 'Reorder') },
       { key: 'v', label: t(lang, '语音包', 'Voice Pack') },
       { key: 'a', label: t(lang, '归档', 'Archive') },
       { key: 'd', label: t(lang, '删除', 'Delete') },
@@ -767,6 +852,8 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
                   <Text color={theme.text}> {t(lang, '操作', 'Ops')}  </Text>
                   <Text color={theme.accent} bold>[m]</Text>
                   <Text color={theme.text}> {t(lang, '卡片', 'Cards')}  </Text>
+                  <Text color={theme.accent} bold>[/]</Text>
+                  <Text color={theme.text}> {t(lang, '排序', 'Order')}  </Text>
                   <Text color={theme.ai} bold>[v]</Text>
                   <Text color={theme.text}> {t(lang, '语音', 'Voice')}  </Text>
                   <Text color={theme.warning} bold>[a]</Text>
@@ -821,6 +908,10 @@ export const LibraryView: React.FC<ViewProps> = memo(function LibraryView({
                   <Text>
                     <Text color={theme.primary} bold>[o]</Text>
                     <Text color={theme.text}> {t(lang, '导入 JSON / 合并 / 拆分题组', 'Import JSON / Merge / Split')}</Text>
+                  </Text>
+                  <Text>
+                    <Text color={theme.accent} bold>[ / ]</Text>
+                    <Text color={theme.text}> {t(lang, '上移 / 下移题组', 'Reorder deck')}</Text>
                   </Text>
                 </Box>
                 <Box flexDirection="row" flexWrap="wrap" columnGap={2}>
