@@ -717,11 +717,14 @@ describe('Round 60 Track 1: CoachNudgeModal (coach.nudge + coach.reply) with P2 
       await tty.firstFramePromise;
 
       const qScreen = await tty.waitFor(
-        (s) => s.includes('reliable ordered delivery') || s.includes('Which port does HTTPS use'),
+        (s) =>
+          (s.includes('reliable ordered delivery') || s.includes('Which port does HTTPS use')) &&
+          s.includes('1-6/a-f'),
         { timeoutMs: 10_000, label: 'en 80x24 ReviewView question ready' },
       );
       tty.assertHealthyScreen(qScreen, 80, 24, '80x24 en ReviewView question');
       tty.assertAsciiPure(qScreen, '80x24 en ReviewView question');
+      await tty.flush(80);
 
       // Answer wrong using dynamically located wrong option
       tty.send(findWrongOptionKey(qScreen));

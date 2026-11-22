@@ -1,9 +1,9 @@
-import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
-import { Badge, Divider, EmptyState, Spinner } from '../../components/Badge.js';
+import { Badge, Divider, EmptyState, normalizeAsciiChrome, Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
 import { Modal, modalContentWidth } from '../../components/Modal.js';
@@ -90,12 +90,37 @@ function kindLabelFor(kind: unknown, lang: 'zh' | 'en'): string {
   return k || (lang === 'en' ? 'Card' : '题');
 }
 
+interface PublishPlanExpect {
+  draftId: string;
+  draftVersion?: number;
+  deckId?: string | null;
+  before?: { id: string; contentVersion?: number } | null;
+  written?: Record<string, unknown>;
+  remaining?: { id: string; draftVersion?: number } | null;
+  receipt?: {
+    id?: string | null;
+    deckId?: string | null;
+    accepted?: number;
+    rejected?: number;
+    added?: number;
+    total?: number | null;
+    autoReviewed?: number;
+    unchecked?: number;
+  };
+}
+
+interface PublishPlanResult {
+  decision?: unknown;
+  expect?: PublishPlanExpect;
+}
+
 type DraftOverlay =
   | 'none'
   | 'pick-draft'
   | 'edit-card'
   | 'delete-card'
   | 'delete-draft'
+  | 'publish-plan'
   | 'publish-confirm'
   | 'similar-results';
 
@@ -142,12 +167,32 @@ export const DraftEditor = memo(function DraftEditor({
     card: DraftCard;
   } | null>(null);
 
+  // Publish preflight plan state
+  const [planLoading, setPlanLoading] = useState(false);
+  const [planData, setPlanData] = useState<PublishPlanResult | null>(null);
+  const [planError, setPlanError] = useState<string | null>(null);
+  const planBusyRef = useRef(false);
+  const planSeqRef = useRef(0);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
   useEffect(() => {
     if (initialDraftId) setSelectedDraftId(initialDraftId);
   }, [initialDraftId]);
 
   useEffect(() => {
     setLastRemoved((prev) => (prev && prev.draftId === selectedDraftId ? prev : null));
+    planSeqRef.current += 1;
+    planBusyRef.current = false;
+    setPlanLoading(false);
+    setPlanData(null);
+    setPlanError(null);
   }, [selectedDraftId]);
 
   useEffect(() => {
@@ -310,6 +355,42 @@ export const DraftEditor = memo(function DraftEditor({
     );
   }, [busy, draft, host, lang, loadDraft, notify, refresh]);
 
+  const closePublishPlan = useCallback(() => {
+    planSeqRef.current += 1;
+    planBusyRef.current = false;
+    setPlanLoading(false);
+    setOverlay('none');
+  }, []);
+
+  const runPublishPlan = useCallback(async () => {
+    if (!draft || busy || planBusyRef.current) return;
+    planBusyRef.current = true;
+    const seq = ++planSeqRef.current;
+    setPlanLoading(true);
+    setPlanError(null);
+    setOverlay('publish-plan');
+    try {
+      const res = await tryAction<PublishPlanResult>(host, 'draft.publish.plan', {
+        id: draft.id,
+        ...(draft.draftVersion !== undefined ? { draftVersion: draft.draftVersion } : {}),
+        quick: true,
+      });
+      if (!mountedRef.current || seq !== planSeqRef.current) return;
+      if (!res.ok || !res.value?.expect) {
+        setPlanData(null);
+        setPlanError(res.error?.message || t(lang, '发布预检失败', 'Publish preflight failed'));
+      } else {
+        setPlanData(res.value);
+        setPlanError(null);
+      }
+    } finally {
+      if (seq === planSeqRef.current) {
+        planBusyRef.current = false;
+        if (mountedRef.current) setPlanLoading(false);
+      }
+    }
+  }, [busy, draft, host, lang]);
+
   const publishDraft = useCallback(
     async (reviewed: boolean) => {
       if (!draft || busy) return;
@@ -359,8 +440,8 @@ export const DraftEditor = memo(function DraftEditor({
   const canUndoRemove = Boolean(draft && lastRemoved && lastRemoved.draftId === draft.id);
   useClaimKeys(
     canUndoRemove
-      ? ['e', 'x', 'u', 's', 'S', 'R', 'P', 'D', 'd', 'n']
-      : ['e', 'x', 's', 'S', 'R', 'P', 'D', 'd', 'n'],
+      ? ['e', 'x', 'u', 's', 'S', 'R', 'V', 'P', 'D', 'd', 'n']
+      : ['e', 'x', 's', 'S', 'R', 'V', 'P', 'D', 'd', 'n'],
     mainListActive,
   );
   useInputCapture(isActive && overlay === 'edit-card');
@@ -373,6 +454,7 @@ export const DraftEditor = memo(function DraftEditor({
       ...(canUndoRemove ? [{ key: 'u', label: t(lang, '撤销删题', 'Undo') }] : []),
       { key: 'R', label: t(lang, '修题', 'Repair') },
       { key: 'S', label: t(lang, '查重', 'Similar') },
+      { key: 'V', label: t(lang, '预检', 'Plan') },
       { key: 'P', label: t(lang, '发布', 'Publish') },
       { key: 'D', label: t(lang, '删草稿', 'Del') },
     ],
@@ -395,6 +477,22 @@ export const DraftEditor = memo(function DraftEditor({
         return;
       }
 
+      if (overlay === 'publish-plan') {
+        if (input === 'q' || input === 'Q') {
+          closePublishPlan();
+        } else if (input === 'r' || input === 'R') {
+          void runPublishPlan();
+        } else if (
+          (input === 'p' || input === 'P' || key.return) &&
+          !planLoading &&
+          !planError &&
+          (planData?.expect?.receipt?.accepted ?? 0) > 0
+        ) {
+          setOverlay('publish-confirm');
+        }
+        return;
+      }
+
       if (!mainListActive) return;
 
       if (input === 'd' && draftsList.length > 0) {
@@ -408,6 +506,11 @@ export const DraftEditor = memo(function DraftEditor({
 
       if (input === 'u' && lastRemoved && lastRemoved.draftId === draft.id) {
         void undoRemoveCard();
+        return;
+      }
+
+      if (input === 'V') {
+        void runPublishPlan();
         return;
       }
 
@@ -490,15 +593,34 @@ export const DraftEditor = memo(function DraftEditor({
   const selectedSimilar = similarItems[similarCursor];
   const ell = asciiMode ? '...' : '…';
 
+  const planModalW = Math.max(44, Math.min(72, width - 4));
+  const planInnerW = modalContentWidth(planModalW);
+  const planExpect = planData?.expect;
+  const planReceipt = planExpect?.receipt;
+  const planAccepted = planReceipt?.accepted ?? 0;
+  const planRejected = planReceipt?.rejected ?? 0;
+  const planAdded = planReceipt?.added ?? 0;
+  const planTotal = planReceipt?.total;
+  const planAutoReviewed = planReceipt?.autoReviewed ?? 0;
+  const planUnchecked = planReceipt?.unchecked ?? 0;
+  const planHasTarget = Boolean(planExpect?.before);
+  const planTargetDeckTitle = planExpect?.before?.id
+    ? (snapshot?.decks ?? []).find((d) => d.id === planExpect.before?.id)?.title || planExpect.before.id
+    : null;
+  const planCanPublish = !planLoading && !planError && planAccepted > 0;
+
   return (
     <Box flexDirection="column" width={width} height={height}>
       {/* Draft Header Bar */}
-      <Box height={headerH} width={width} paddingX={1} flexDirection="column">
-        <Box flexDirection="row" alignItems="center">
-          <Text bold color={theme.primary}>
+      <Box height={headerH} width={width} paddingX={1} flexDirection="column" overflow="hidden">
+        <Box flexDirection="row" alignItems="center" height={1} overflow="hidden">
+          <Text bold color={theme.primary} wrap="truncate">
             {truncateDisplay(
-              String(draft?.title || draftsList.find((d) => d.id === selectedDraftId)?.title || selectedDraftId),
-              Math.max(12, width - 44),
+              normalizeAsciiChrome(
+                String(draft?.title || draftsList.find((d) => d.id === selectedDraftId)?.title || selectedDraftId),
+                asciiMode,
+              ),
+              Math.max(12, width - (width < 92 ? 38 : 50)),
               ell,
             )}
           </Text>
@@ -514,12 +636,20 @@ export const DraftEditor = memo(function DraftEditor({
           ) : null}
           <Box flexGrow={1} />
           {busy ? <Spinner label={busyLabel || (asciiMode ? t(lang, '处理中...', 'Working...') : t(lang, '处理中…', 'Working…'))} active={isActive} /> : (
-            <Text color={theme.dim}>{t(lang, `[d] 切换 (${draftsList.length})  [R] 修题  [S] 查重  [P] 发布`, `[d] Switch (${draftsList.length})  [R] Repair  [S] Similar  [P] Publish`)}</Text>
+            <Text color={theme.dim} wrap="truncate">
+              {width < 92
+                ? t(lang, '[V] 预检  [P] 发布', '[V] Plan  [P] Publish')
+                : t(lang, `[d] 切换 (${draftsList.length})  [V] 预检  [P] 发布`, `[d] Switch (${draftsList.length})  [V] Plan  [P] Publish`)}
+            </Text>
           )}
         </Box>
         <Text color={theme.dim}>
           {truncateDisplay(
-            t(lang, '审校草稿题干、选项与解析；[R] 后台修题  [S] 查重  [P] 发布到学习库', 'Review stems & explanations; [R] Repair  [S] Similar  [P] Publish'),
+            t(
+              lang,
+              '审校草稿题干、选项与解析；[R] 后台修题  [S] 查重  [V] 预检  [P] 发布到学习库',
+              'Review stems & explanations; [R] Repair  [S] Similar  [V] Plan  [P] Publish',
+            ),
             Math.max(20, width - 2),
             ell,
           )}
@@ -688,6 +818,123 @@ export const DraftEditor = memo(function DraftEditor({
             width={modalContentWidth(72) - 4}
             isActive={isActive && editField === 'explanation'}
           />
+        </Modal>
+      ) : null}
+
+      {/* Publish Preflight Dry-Run Modal */}
+      {overlay === 'publish-plan' && draft ? (
+        <Modal
+          title={t(lang, '发布预检', 'Publish Preflight')}
+          subtitle={t(lang, '干跑演练 (0 模型调用)', 'Dry-run (0 LLM calls)')}
+          icon={planError ? '!' : asciiMode ? '+' : '✓'}
+          tone={planError ? 'error' : planRejected > 0 ? 'warning' : 'primary'}
+          width={planModalW}
+          isActive={isActive}
+          onClose={closePublishPlan}
+          hints={
+            planCanPublish
+              ? [
+                  { key: 'p/Enter', label: t(lang, '去发布确认', 'Publish') },
+                  { key: 'r', label: t(lang, '重新预检', 'Re-run') },
+                  { key: 'Esc/q', label: t(lang, '关闭', 'Close') },
+                ]
+              : [
+                  { key: 'r', label: t(lang, '重新预检', 'Re-run') },
+                  { key: 'Esc/q', label: t(lang, '关闭', 'Close') },
+                ]
+          }
+        >
+          <Box flexDirection="column" width={planInnerW} overflow="hidden">
+            <Box flexDirection="row" width={planInnerW}>
+              <Text color={theme.muted}>{t(lang, '草稿: ', 'Draft: ')}</Text>
+              <Text bold color={theme.text}>
+                {truncateDisplay(normalizeAsciiChrome(String(draft.title || draft.id), asciiMode), Math.max(10, planInnerW - 8), ell)}
+              </Text>
+            </Box>
+            {planLoading ? (
+              <Box marginTop={1}>
+                <Spinner
+                  label={asciiMode ? t(lang, '正在运行发布预检...', 'Running publish preflight...') : t(lang, '正在运行发布预检…', 'Running publish preflight…')}
+                  active={isActive}
+                />
+              </Box>
+            ) : planError ? (
+              <Box flexDirection="column" marginTop={1}>
+                <Text color={theme.error} bold>
+                  {t(lang, '预检未通过:', 'Preflight failed:')}
+                </Text>
+                <Text color={theme.error}>
+                  {truncateDisplay(normalizeAsciiChrome(planError, asciiMode).replace(/\s+/g, ' '), planInnerW * 3, ell)}
+                </Text>
+              </Box>
+            ) : planExpect ? (
+              <Box flexDirection="column" width={planInnerW}>
+                <Box flexDirection="row" width={planInnerW}>
+                  <Text color={theme.muted}>{t(lang, '目标: ', 'Target: ')}</Text>
+                  <Text color={planHasTarget ? theme.accent : theme.primary} bold>
+                    {truncateDisplay(
+                      planHasTarget
+                        ? `${t(lang, '合并到现有题组', 'Update existing deck')}${
+                            planTargetDeckTitle ? ` (${normalizeAsciiChrome(String(planTargetDeckTitle), asciiMode)})` : ''
+                          }`
+                        : t(lang, '新建题组', 'New deck'),
+                      Math.max(12, planInnerW - 10),
+                      ell,
+                    )}
+                  </Text>
+                </Box>
+                <Box marginY={0}>
+                  <Divider width={planInnerW} />
+                </Box>
+                <Box flexDirection="row" width={planInnerW}>
+                  <Text color={theme.success}>
+                    {`${t(lang, '通过 (accepted)', 'Accepted')}: ${planAccepted}`}
+                  </Text>
+                  <Text>   </Text>
+                  <Text color={planRejected > 0 ? theme.warning : theme.muted}>
+                    {`${t(lang, '拦截 (rejected)', 'Rejected')}: ${planRejected}`}
+                  </Text>
+                </Box>
+                <Box flexDirection="row" width={planInnerW}>
+                  <Text color={theme.primary}>
+                    {`${t(lang, '新增 (added)', 'Added')}: ${planAdded}`}
+                  </Text>
+                  <Text>   </Text>
+                  <Text color={theme.text}>
+                    {`${t(lang, '发布后总计 (total)', 'Total')}: ${planTotal !== null && planTotal !== undefined ? planTotal : '-'}`}
+                  </Text>
+                </Box>
+                <Box flexDirection="row" width={planInnerW}>
+                  <Text color={theme.info}>
+                    {`${t(lang, '自动复审 (autoReviewed)', 'Auto-reviewed')}: ${planAutoReviewed}`}
+                  </Text>
+                  <Text>   </Text>
+                  <Text color={planUnchecked > 0 ? theme.warning : theme.muted}>
+                    {`${t(lang, '未复审 (unchecked)', 'Unchecked')}: ${planUnchecked}`}
+                  </Text>
+                </Box>
+                <Box marginTop={1} flexDirection="column" width={planInnerW}>
+                  <Text color={planExpect.remaining ? theme.warning : theme.success}>
+                    {truncateDisplay(
+                      planExpect.remaining
+                        ? t(
+                            lang,
+                            `剩余草稿: 将保留未通过草稿 (${normalizeAsciiChrome(planExpect.remaining.id, asciiMode)})`,
+                            `Remaining draft: rejected cards kept in ${normalizeAsciiChrome(planExpect.remaining.id, asciiMode)}`,
+                          )
+                        : t(
+                            lang,
+                            '剩余草稿: 无 (发布后将清空草稿，本次预检未写入学习库)',
+                            'Remaining draft: None (dry-run only; library unchanged)',
+                          ),
+                      planInnerW * 2,
+                      ell,
+                    )}
+                  </Text>
+                </Box>
+              </Box>
+            ) : null}
+          </Box>
         </Modal>
       ) : null}
 

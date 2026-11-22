@@ -27,12 +27,13 @@ const BookCrunchModal = lazy(() => import('./BookCrunchModal.js').then((m) => ({
 const BookEditModal = lazy(() => import('./BookEditModal.js').then((m) => ({ default: m.BookEditModal })));
 const BookExplainModal = lazy(() => import('./BookExplainModal.js').then((m) => ({ default: m.BookExplainModal })));
 const BookExportModal = lazy(() => import('./BookExportModal.js').then((m) => ({ default: m.BookExportModal })));
+const BookHistoryModal = lazy(() => import('./BookHistoryModal.js').then((m) => ({ default: m.BookHistoryModal })));
 const BookQaModal = lazy(() => import('./BookQaModal.js').then((m) => ({ default: m.BookQaModal })));
 const BookRetellModal = lazy(() => import('./BookRetellModal.js').then((m) => ({ default: m.BookRetellModal })));
 const BookStructureModal = lazy(() => import('./BookStructureModal.js').then((m) => ({ default: m.BookStructureModal })));
 
-const BASE_CLAIMED_KEYS = ['E', 'M', 'P', 'T', 'U', 'e', 'r', 'w', 'x', '[', ']'] as const;
-const REBUILD_CLAIMED_KEYS = ['E', 'M', 'P', 'T', 'U', 'e', 'r', 'w', 'x', '[', ']', 'a'] as const;
+const BASE_CLAIMED_KEYS = ['E', 'H', 'M', 'P', 'T', 'U', 'e', 'r', 'w', 'x', '[', ']'] as const;
+const REBUILD_CLAIMED_KEYS = ['E', 'H', 'M', 'P', 'T', 'U', 'e', 'r', 'w', 'x', '[', ']', 'a'] as const;
 const STRUCTURE_FILE = 'book.structure';
 
 interface BookMockPlanResult {
@@ -406,6 +407,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [explainOpen, setExplainOpen] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [qaModalOpen, setQaModalOpen] = useState(false);
   const [retellModalOpen, setRetellModalOpen] = useState(false);
   const [structureModalOpen, setStructureModalOpen] = useState(false);
@@ -904,6 +906,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
     editModalOpen ||
     explainOpen ||
     exportModalOpen ||
+    historyOpen ||
     qaModalOpen ||
     retellModalOpen ||
     structureModalOpen ||
@@ -1037,6 +1040,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
             ...(selectedItem?.leaf ? [{ key: 'E', label: t(lang, 'AI讲解', 'AI Explain') }] : []),
             { key: 'M', label: t(lang, '章节模拟', 'Mock exam') },
             { key: 'e', label: t(lang, '编辑', 'Edit') },
+            { key: 'H', label: t(lang, '历史版本', 'History') },
             { key: 'p', label: t(lang, '练5题', 'Practise 5') },
             { key: 'P', label: t(lang, '精选问答', 'Pinned QA') },
             { key: 'w', label: t(lang, '期末一周', 'Final week') },
@@ -1088,6 +1092,17 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
       }
       if (input === 'e') {
         setEditModalOpen(true);
+        return;
+      }
+      if (input === 'H') {
+        if (effectiveCourse && status === 'ok') {
+          setHistoryOpen(true);
+        } else {
+          useTuiStore.getState().notify(
+            t(lang, '当前课程还没有可查看历史的复习全书', 'No review book available for history yet'),
+            'info',
+          );
+        }
         return;
       }
       if (input === 'R') {
@@ -1461,6 +1476,24 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
             width={width}
             height={height}
             onClose={() => setExportModalOpen(false)}
+          />
+        ) : null}
+
+        {historyOpen ? (
+          <BookHistoryModal
+            host={host}
+            course={effectiveCourse ?? null}
+            selectedItem={selectedItem ?? null}
+            bookData={bookData}
+            isActive={isActive && historyOpen}
+            width={width}
+            height={height}
+            onClose={() => setHistoryOpen(false)}
+            onReverted={() => {
+              if (selectedItem?.hid) pendingFocusHidRef.current = selectedItem.hid;
+              setReadCache({});
+              setReloadSeq((n) => n + 1);
+            }}
           />
         ) : null}
 

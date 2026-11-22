@@ -128,6 +128,40 @@ interface UsageFrequencyStatusShape {
   file?: string;
 }
 
+type UsageReportPeriod = 7 | 30 | 'all';
+
+interface UsageReportRowShape {
+  key: string;
+  name: string | null;
+  count: number;
+  registered?: boolean;
+  tier?: string;
+  group?: string | null;
+  daysUsed?: number;
+  share: number;
+}
+
+interface UsageReportObservationShape {
+  id: string;
+  key: string | null;
+  optional?: boolean;
+  text: string;
+}
+
+interface UsageReportShape {
+  period: UsageReportPeriod;
+  language: 'zh' | 'en';
+  from?: string;
+  to?: string;
+  summary?: {
+    daysWithData?: number;
+    interactions?: number;
+    distinctControls?: number;
+  };
+  ranking?: UsageReportRowShape[];
+  observations?: UsageReportObservationShape[];
+}
+
 interface UpdateViewShape {
   current?: string;
   installed?: string;
@@ -312,18 +346,22 @@ async function renameWithRetry(from: string, to: string): Promise<void> {
   }
 }
 
-export async function atomicWriteJsonFile(targetPath: string, payload: unknown): Promise<{ bytes: number }> {
-  const json = `${JSON.stringify(payload, null, 2)}\n`;
+export async function atomicWriteTextFile(targetPath: string, content: string): Promise<{ bytes: number }> {
   await mkdir(dirname(targetPath), { recursive: true });
   const temp = `${targetPath}.${randomUUID()}.tmp`;
-  await writeFile(temp, json, 'utf8');
+  await writeFile(temp, content, 'utf8');
   try {
     await renameWithRetry(temp, targetPath);
   } catch (error) {
     await rm(temp, { force: true }).catch(() => {});
     throw error;
   }
-  return { bytes: Buffer.byteLength(json, 'utf8') };
+  return { bytes: Buffer.byteLength(content, 'utf8') };
+}
+
+export async function atomicWriteJsonFile(targetPath: string, payload: unknown): Promise<{ bytes: number }> {
+  const json = `${JSON.stringify(payload, null, 2)}\n`;
+  return atomicWriteTextFile(targetPath, json);
 }
 
 export function summarizeExportPayload(payload: Record<string, unknown> | null | undefined): {
@@ -971,6 +1009,245 @@ const ReleaseUpdateModal = memo(function ReleaseUpdateModal({
   );
 });
 
+function describeUsageReportState(
+  status: UsageFrequencyStatusShape | null,
+  lang: 'zh' | 'en',
+): { label: string; tone: 'success' | 'warning' | 'muted' } {
+  if (status?.enabled && status?.paused) {
+    return { label: t(lang, '已暂停', 'Paused'), tone: 'warning' };
+  }
+  if (status?.enabled) {
+    return { label: t(lang, '运行中', 'Active'), tone: 'success' };
+  }
+  return { label: t(lang, '已关闭', 'Disabled'), tone: 'muted' };
+}
+
+interface UsageReportModalProps {
+  lang: 'zh' | 'en';
+  asciiMode: boolean;
+  ell: string;
+  width: number;
+  isActive: boolean;
+  loading: boolean;
+  actionBusy: boolean;
+  period: UsageReportPeriod;
+  usageStatus: UsageFrequencyStatusShape | null;
+  report: UsageReportShape | null;
+  error: string | null;
+  lastExportPath: string | null;
+  onSelectPeriod: (period: UsageReportPeriod) => void;
+  onTogglePause: () => void;
+  onExport: () => void;
+  onRefresh: () => void;
+  onClose: () => void;
+}
+
+const UsageReportModal = memo(function UsageReportModal({
+  lang,
+  asciiMode,
+  ell,
+  width,
+  isActive,
+  loading,
+  actionBusy,
+  period,
+  usageStatus,
+  report,
+  error,
+  lastExportPath,
+  onSelectPeriod,
+  onTogglePause,
+  onExport,
+  onRefresh,
+  onClose,
+}: UsageReportModalProps) {
+  const theme = useTheme();
+  const contentW = modalContentWidth(width);
+  const sep = asciiMode ? ' | ' : ' · ';
+
+  useInput(
+    (input, key) => {
+      if (key.escape || input === 'q') {
+        onClose();
+        return;
+      }
+      if (input === '1') {
+        onSelectPeriod(7);
+        return;
+      }
+      if (input === '2') {
+        onSelectPeriod(30);
+        return;
+      }
+      if (input === '3') {
+        onSelectPeriod('all');
+        return;
+      }
+      if (input === 'r') {
+        onRefresh();
+        return;
+      }
+      if (input === 'p' && usageStatus?.enabled && !actionBusy) {
+        onTogglePause();
+        return;
+      }
+      if (input === 'e' && !actionBusy) {
+        onExport();
+      }
+    },
+    { isActive },
+  );
+
+  const stateBadge = describeUsageReportState(usageStatus, lang);
+  const periodLabel =
+    period === 7
+      ? t(lang, '最近 7 天', 'Last 7d')
+      : period === 30
+        ? t(lang, '最近 30 天', 'Last 30d')
+        : t(lang, '全部时间', 'All time');
+  const periodOptions: ReadonlyArray<{ id: UsageReportPeriod; keyLabel: string; text: string }> = [
+    { id: 7, keyLabel: '1', text: t(lang, '7天', '7d') },
+    { id: 30, keyLabel: '2', text: t(lang, '30天', '30d') },
+    { id: 'all', keyLabel: '3', text: t(lang, '全部', 'All') },
+  ];
+
+  const interactions = Number(report?.summary?.interactions) || 0;
+  const activeDays = Number(report?.summary?.daysWithData) || 0;
+  const distinctControls = Number(report?.summary?.distinctControls) || 0;
+  const topRows = Array.isArray(report?.ranking) ? report.ranking.slice(0, 5) : [];
+  const maxCount = Math.max(1, topRows[0]?.count || 1);
+  const fillCh = asciiMode ? '#' : '█';
+  const emptyCh = asciiMode ? '-' : '░';
+  const barW = 10;
+
+  const rawObs = report?.observations?.[0]?.text
+    ? String(report.observations[0].text).replace(/\s+/g, ' ').trim()
+    : '';
+  const obsNormalized = rawObs ? normalizeAsciiChrome(rawObs, asciiMode) : '';
+  const obsLines = obsNormalized
+    ? wrapDisplay(obsNormalized, contentW)
+        .map((line) => line.trimEnd())
+        .filter((line) => line.length > 0)
+        .slice(0, 2)
+    : [];
+
+  const modalHints = [
+    { key: '1-3', label: t(lang, '范围', 'Period') },
+    ...(usageStatus?.enabled
+      ? [{ key: 'p', label: usageStatus.paused ? t(lang, '继续', 'Resume') : t(lang, '暂停', 'Pause') }]
+      : []),
+    { key: 'e', label: t(lang, '导出', 'Export') },
+    { key: 'r', label: t(lang, '刷新', 'Refresh') },
+    { key: 'Esc/q', label: t(lang, '关闭', 'Close') },
+  ];
+
+  return (
+    <Modal
+      title={t(lang, '本地使用频率报表', 'Usage Frequency Report')}
+      subtitle={periodLabel}
+      width={width}
+      onClose={onClose}
+      isActive={isActive}
+      hints={modalHints}
+    >
+      {loading && !report ? (
+        <Spinner label={t(lang, `正在汇总使用记录${ell}`, `Loading usage report${ell}`)} active={isActive} />
+      ) : (
+        <Box flexDirection="column" gap={0}>
+          <Box flexDirection="row" gap={1}>
+            <Text color={theme.muted}>{t(lang, '状态:', 'Status:')}</Text>
+            <Badge label={stateBadge.label} tone={stateBadge.tone} variant="soft" />
+            <Text color={theme.dim}>{sep.trim()}</Text>
+            {periodOptions.map((opt) => (
+              <Text
+                key={String(opt.id)}
+                color={period === opt.id ? theme.accent : theme.muted}
+                bold={period === opt.id}
+              >
+                {`[${opt.keyLabel}] ${opt.text}`}
+              </Text>
+            ))}
+          </Box>
+
+          <Text color={theme.text}>
+            {truncateDisplay(
+              t(
+                lang,
+                `互动 ${interactions} 次${sep}活跃 ${activeDays} 天${sep}控件 ${distinctControls} 个`,
+                `Interactions: ${interactions}${sep}Active days: ${activeDays}${sep}Controls: ${distinctControls}`,
+              ),
+              contentW,
+              ell,
+            )}
+          </Text>
+
+          <Box flexDirection="column" marginTop={1}>
+            <Text color={theme.muted} bold>
+              {t(lang, '最常用控件:', 'Top Controls:')}
+            </Text>
+            {topRows.length === 0 ? (
+              <Text color={theme.dim}>
+                {truncateDisplay(
+                  t(lang, '（当前周期暂无使用记录）', '(No usage records in this period)'),
+                  contentW,
+                  ell,
+                )}
+              </Text>
+            ) : (
+              topRows.map((row) => {
+                const labelText = normalizeAsciiChrome(row.name || row.key, asciiMode);
+                const pct = Math.round((Number(row.share) || 0) * 100);
+                const stat = `${row.count} (${pct}%)`;
+                const filled = row.count > 0 ? Math.max(1, Math.round((row.count / maxCount) * barW)) : 0;
+                const bar = `${fillCh.repeat(filled)}${emptyCh.repeat(Math.max(0, barW - filled))}`;
+                const nameW = Math.max(10, contentW - barW - displayWidth(stat) - 3);
+                const line = `${padDisplay(truncateDisplay(labelText, nameW, ell), nameW)} ${bar} ${stat}`;
+                return (
+                  <Text key={row.key} color={theme.text}>
+                    {truncateDisplay(line, contentW, ell)}
+                  </Text>
+                );
+              })
+            )}
+          </Box>
+
+          {obsLines.length > 0 ? (
+            <Box flexDirection="column" marginTop={1}>
+              {obsLines.map((line, idx) => (
+                <Text key={`obs-${idx}`} color={theme.dim}>
+                  {truncateDisplay(line, contentW, ell)}
+                </Text>
+              ))}
+            </Box>
+          ) : null}
+
+          {lastExportPath ? (
+            <Text color={theme.success}>
+              {(() => {
+                const prefix = t(lang, '已导出: ', 'Exported: ');
+                const maxPathW = Math.max(10, contentW - displayWidth(prefix));
+                return `${prefix}${truncatePathMiddle(lastExportPath, maxPathW, ell)}`;
+              })()}
+            </Text>
+          ) : null}
+
+          {error ? (
+            <Text color={theme.error}>
+              {truncateDisplay(normalizeAsciiChrome(error, asciiMode), contentW, ell)}
+            </Text>
+          ) : null}
+
+          {loading ? (
+            <Box marginTop={1}>
+              <Spinner label={t(lang, `正在刷新报表${ell}`, `Refreshing report${ell}`)} active={isActive} />
+            </Box>
+          ) : null}
+        </Box>
+      )}
+    </Modal>
+  );
+});
+
 export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function WorkspaceTab({
   host,
   binding,
@@ -1022,12 +1299,21 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
   const [updateSnoozeBusy, setUpdateSnoozeBusy] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<UpdateViewShape | null>(null);
   const [updateError, setUpdateError] = useState<string | null>(null);
+  const [usageReportOpen, setUsageReportOpen] = useState(false);
+  const [usageReportPeriod, setUsageReportPeriod] = useState<UsageReportPeriod>(30);
+  const [usageReportLoading, setUsageReportLoading] = useState(false);
+  const [usageReportActionBusy, setUsageReportActionBusy] = useState(false);
+  const [usageReport, setUsageReport] = useState<UsageReportShape | null>(null);
+  const [usageReportError, setUsageReportError] = useState<string | null>(null);
+  const [usageReportExportPath, setUsageReportExportPath] = useState<string | null>(null);
 
   const mountedRef = useRef(true);
   const updateBusyRef = useRef(false);
   const updateCheckBusyRef = useRef(false);
   const retrievalBusyRef = useRef(false);
   const diagBusyRef = useRef(false);
+  const usageReportBusyRef = useRef(false);
+  const usageActionBusyRef = useRef(false);
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -1315,6 +1601,110 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
     notify(t(lang, '已删除全部本地使用记录', 'All usage frequency records cleared'), 'success');
   }, [busyAction, ell, host, lang, notify]);
 
+  const loadUsageReport = useCallback(
+    async (targetPeriod: UsageReportPeriod = usageReportPeriod) => {
+      if (usageReportBusyRef.current) return;
+      usageReportBusyRef.current = true;
+      setUsageReportLoading(true);
+      setUsageReportError(null);
+      try {
+        const res = await tryAction<UsageReportShape>(host, 'usage.frequency.report', {
+          period: targetPeriod,
+          language: lang,
+        });
+        if (!mountedRef.current) return;
+        if (!res.ok || !res.value) {
+          setUsageReportError(res.error?.message || t(lang, '读取使用报表失败', 'Failed to load usage report'));
+          return;
+        }
+        setUsageReport(res.value);
+      } catch (err) {
+        if (!mountedRef.current) return;
+        setUsageReportError(err instanceof Error ? err.message : String(err));
+      } finally {
+        usageReportBusyRef.current = false;
+        if (mountedRef.current) setUsageReportLoading(false);
+      }
+    },
+    [host, lang, usageReportPeriod],
+  );
+
+  const handleSelectUsagePeriod = useCallback(
+    (nextPeriod: UsageReportPeriod) => {
+      setUsageReportPeriod(nextPeriod);
+      void loadUsageReport(nextPeriod);
+    },
+    [loadUsageReport],
+  );
+
+  const handleToggleUsagePause = useCallback(async () => {
+    if (usageActionBusyRef.current || !usageStatus?.enabled) return;
+    usageActionBusyRef.current = true;
+    setUsageReportActionBusy(true);
+    const nextPaused = !usageStatus.paused;
+    try {
+      const res = await tryAction<UsageFrequencyStatusShape>(host, 'usage.frequency.set', { paused: nextPaused });
+      if (!mountedRef.current) return;
+      if (!res.ok || !res.value) {
+        const msg = res.error?.message || t(lang, '更新暂停状态失败', 'Failed to update pause state');
+        setUsageReportError(msg);
+        notify(msg, 'error');
+        return;
+      }
+      setUsageStatus(res.value);
+      setUsageLoaded(true);
+      setUsageReportError(null);
+      notify(
+        res.value.paused
+          ? t(lang, '已暂停使用频率记录', 'Usage frequency recording paused')
+          : t(lang, '已恢复使用频率记录', 'Usage frequency recording resumed'),
+        'success',
+      );
+    } finally {
+      usageActionBusyRef.current = false;
+      if (mountedRef.current) setUsageReportActionBusy(false);
+    }
+  }, [host, lang, notify, usageStatus]);
+
+  const handleExportUsageReport = useCallback(async () => {
+    if (usageActionBusyRef.current) return;
+    usageActionBusyRef.current = true;
+    setUsageReportActionBusy(true);
+    try {
+      const res = await tryAction<{ filename?: string; mime?: string; content?: string }>(
+        host,
+        'usage.frequency.export',
+        { format: 'json', period: usageReportPeriod, language: lang },
+      );
+      if (!mountedRef.current) return;
+      if (!res.ok || !res.value || typeof res.value.content !== 'string') {
+        const msg = res.error?.message || t(lang, '导出使用报表失败', 'Failed to export usage report');
+        setUsageReportError(msg);
+        notify(msg, 'error');
+        return;
+      }
+      const baseDir = binding?.root || host.getLibraryRoot() || process.cwd();
+      const targetPath = join(baseDir, 'backups', `studyhub-usage-${todayLocalYmd()}.json`);
+      await atomicWriteTextFile(targetPath, res.value.content);
+      if (!mountedRef.current) return;
+      setUsageReportExportPath(targetPath);
+      setUsageReportError(null);
+      const arrow = asciiMode ? '->' : '→';
+      notify(
+        t(lang, `已导出使用报表 ${arrow} ${targetPath}`, `Exported usage report ${arrow} ${targetPath}`),
+        'success',
+      );
+    } catch (err) {
+      if (!mountedRef.current) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      setUsageReportError(msg);
+      notify(t(lang, `导出使用报表失败：${msg}`, `Failed to export usage report: ${msg}`), 'error');
+    } finally {
+      usageActionBusyRef.current = false;
+      if (mountedRef.current) setUsageReportActionBusy(false);
+    }
+  }, [asciiMode, binding?.root, host, lang, notify, usageReportPeriod]);
+
   const handleToggleAutoCheck = useCallback(async () => {
     if (busyAction || updateBusyRef.current) return;
     updateBusyRef.current = true;
@@ -1552,8 +1942,9 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
     Boolean(confirmRestore) ||
     confirmClearUsage ||
     retrievalDiagOpen ||
-    updateModalOpen;
-  const claimed = useMemo(() => ['e', 's', 'x', 'r', 'c', 'f', 'u', 'U', 'a', 'A', 'v', 't'], []);
+    updateModalOpen ||
+    usageReportOpen;
+  const claimed = useMemo(() => ['e', 's', 'x', 'r', 'c', 'f', 'u', 'U', 'a', 'A', 'v', 't', 'i'], []);
   useClaimKeys(claimed, isActive && !modalOpen);
 
   useInput(
@@ -1588,6 +1979,14 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
       }
       if (input === 'U') {
         if (!busyAction) setConfirmClearUsage(true);
+        return;
+      }
+      if (input === 'i') {
+        if (busyAction) return;
+        setUsageReportExportPath(null);
+        setUsageReportError(null);
+        setUsageReportOpen(true);
+        void loadUsageReport(usageReportPeriod);
         return;
       }
       if (input === 'a') {
@@ -1734,12 +2133,13 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
           <Text color={theme.accent}>{retrievalSwitchLabel}</Text>
           <Text color={theme.accent}>{retrievalDiagLabel}</Text>
         </Box>
-        <Box flexDirection="row" gap={2} marginTop={0}>
+        <Box flexDirection="row" gap={compactLayout ? 1 : 2} marginTop={0} height={1} overflow="hidden">
           <Text color={theme.muted}>
             {t(lang, '使用频率记录:', 'Usage Frequency:')}{' '}
             <Badge label={usageBadge.label} tone={usageBadge.tone} variant="soft" />
           </Text>
           <Text color={theme.accent}>{usageToggleLabel}</Text>
+          <Text color={theme.accent}>[i] {t(lang, '报表', 'Report')}</Text>
           <Text color={theme.warning}>{usageClearLabel}</Text>
         </Box>
         <Box flexDirection="row" gap={compactLayout ? 1 : 2} marginTop={0} height={1} overflow="hidden">
@@ -1943,6 +2343,28 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
           onRefresh={() => void runUpdateCheck()}
           onToggleSnooze={() => void handleToggleSnooze()}
           onClose={() => setUpdateModalOpen(false)}
+        />
+      ) : null}
+
+      {usageReportOpen ? (
+        <UsageReportModal
+          lang={lang}
+          asciiMode={asciiMode}
+          ell={ell}
+          width={modalW}
+          isActive={isActive}
+          loading={usageReportLoading}
+          actionBusy={usageReportActionBusy}
+          period={usageReportPeriod}
+          usageStatus={usageStatus}
+          report={usageReport}
+          error={usageReportError}
+          lastExportPath={usageReportExportPath}
+          onSelectPeriod={handleSelectUsagePeriod}
+          onTogglePause={() => void handleToggleUsagePause()}
+          onExport={() => void handleExportUsageReport()}
+          onRefresh={() => void loadUsageReport(usageReportPeriod)}
+          onClose={() => setUsageReportOpen(false)}
         />
       ) : null}
     </Box>
