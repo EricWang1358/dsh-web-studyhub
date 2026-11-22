@@ -16,7 +16,9 @@ import { currentCourse } from '../../shell/index.js';
 import { t, useTuiStore } from '../../state/store.js';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';
 import { BoardCardModal } from './BoardCardModal.js';
+import { PomodoroBar, pomodoroBarHeight } from './PomodoroBar.js';
 import {
+  addCompletedPomodoro,
   adjacentColumn,
   BOARD_COLUMNS,
   cardsInColumn,
@@ -35,12 +37,13 @@ type ActiveModal =
   | { type: 'edit'; card: BoardCard }
   | { type: 'delete'; card: BoardCard };
 
-const CLAIMED_KEYS = ['a'] as const;
+const CLAIMED_KEYS = ['a', 'P', 'R', 'M', '+', '-'] as const;
 const WIDE_BREAKPOINT = 78;
 
 export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, width, height, isActive }) {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const snapshot = useTuiStore((s) => s.snapshot);
   const notify = useTuiStore((s) => s.notify);
   const focusCourse = currentCourse(snapshot);
@@ -54,6 +57,8 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
 
   const mountedRef = useRef(true);
   const loadReqRef = useRef(0);
+  const docRef = useRef(doc);
+  docRef.current = doc;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -67,22 +72,23 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
     setLoading(true);
     void loadBoard(libraryRoot).then((loaded) => {
       if (!mountedRef.current || loadReqRef.current !== reqId) return;
+      docRef.current = loaded;
       setDoc(loaded);
       setLoading(false);
     });
   }, [libraryRoot]);
 
-  const persist = useCallback(
-    async (nextCards: BoardCard[]) => {
-      const nextDoc: BoardDocument = {
-        version: 1,
-        cards: nextCards,
-        updatedAt: new Date().toISOString(),
-      };
+  const persistDoc = useCallback(
+    async (updater: (prev: BoardDocument) => BoardDocument) => {
+      const nextDoc = updater(docRef.current);
+      docRef.current = nextDoc;
       setDoc(nextDoc);
       try {
         const saved = await saveBoard(libraryRoot, nextDoc);
-        if (mountedRef.current) setDoc(saved);
+        if (mountedRef.current) {
+          docRef.current = saved;
+          setDoc(saved);
+        }
       } catch (err) {
         if (mountedRef.current) {
           notify(err instanceof Error ? err.message : t(lang, '保存看板失败', 'Failed to save board'), 'error');
@@ -90,6 +96,18 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
       }
     },
     [libraryRoot, notify, lang],
+  );
+
+  const persist = useCallback(
+    async (nextCards: BoardCard[]) => {
+      await persistDoc((prev) => ({
+        ...prev,
+        version: 1,
+        cards: nextCards,
+        updatedAt: new Date().toISOString(),
+      }));
+    },
+    [persistDoc],
   );
 
   const grouped = useMemo(
@@ -183,6 +201,24 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
     { isActive: noModalActive },
   );
 
+  const handleFocusComplete = useCallback(
+    (minutes: number) => {
+      void persistDoc((prev) => ({
+        ...prev,
+        version: 1,
+        focusStats: addCompletedPomodoro(prev.focusStats, minutes),
+        updatedAt: new Date().toISOString(),
+      }));
+      const ell = asciiMode ? '...' : '…';
+      const cardSuffix = selectedCard ? ` (${truncateDisplay(selectedCard.title, 24, ell)})` : '';
+      notify(
+        t(lang, `专注完成！已记录 ${minutes} 分钟${cardSuffix}`, `Focus complete! +${minutes}m logged${cardSuffix}`),
+        'success',
+      );
+    },
+    [persistDoc, asciiMode, selectedCard, notify, lang],
+  );
+
   const hints: KeyHint[] = useMemo(
     () => [
       { key: 'h/l', label: t(lang, '切列', 'Col') },
@@ -191,6 +227,10 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
       { key: 'a', label: t(lang, '添加', 'Add') },
       { key: 'e', label: t(lang, '编辑', 'Edit') },
       { key: 'd', label: t(lang, '删除', 'Del') },
+      { key: 'Space/P', label: t(lang, '专注', 'Timer') },
+      { key: 'M', label: t(lang, '模式', 'Mode') },
+      { key: '+/-', label: t(lang, '时长', 'Min') },
+      { key: 'R', label: t(lang, '重置', 'Reset') },
     ],
     [lang],
   );
@@ -377,12 +417,26 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
     </>
   );
 
+  const barH = pomodoroBarHeight(width);
+  const pomodoroNode = (
+    <PomodoroBar
+      width={width}
+      lang={lang}
+      asciiMode={asciiMode}
+      isActive={noModalActive}
+      selectedCardTitle={selectedCard?.title}
+      focusStats={doc.focusStats}
+      onFocusComplete={handleFocusComplete}
+    />
+  );
+
   if (narrow) {
     const meta = colMeta(activeCol);
-    const bodyH = Math.max(4, height - 2);
+    const bodyH = Math.max(4, height - barH - 1);
     return (
       <Box flexDirection="column" width={width} height={height}>
-        <Box height={1} width={width} gap={1}>
+        {pomodoroNode}
+        <Box height={1} width={width} gap={1} overflow="hidden">
           {BOARD_COLUMNS.map((col) => {
             const m = colMeta(col);
             const active = col === activeCol;
@@ -418,10 +472,12 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
   const gap = 1;
   const colW = Math.max(20, Math.floor((width - gap * 2) / 3));
   const lastColW = Math.max(20, width - colW * 2 - gap * 2);
+  const colsH = Math.max(4, height - barH);
 
   return (
     <Box flexDirection="column" width={width} height={height}>
-      <Box flexDirection="row" width={width} height={height} gap={gap}>
+      {pomodoroNode}
+      <Box flexDirection="row" width={width} height={colsH} gap={gap}>
         {BOARD_COLUMNS.map((col, idx) => {
           const m = colMeta(col);
           const w = idx === 2 ? lastColW : colW;
@@ -434,9 +490,9 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
               badgeTone={m.tone}
               focused={activeCol === col}
               width={w}
-              height={height}
+              height={colsH}
             >
-              {renderColumnBody(col, Math.max(10, w - 4), Math.max(2, height - 3))}
+              {renderColumnBody(col, Math.max(10, w - 4), Math.max(2, colsH - 3))}
             </Panel>
           );
         })}

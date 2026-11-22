@@ -126,7 +126,8 @@ const NORD: ThemeTokens = define({
   accent: '#81a1c1',
   success: '#a3be8c',
   warning: '#ebcb8b',
-  error: '#bf616a',
+  // Lightened slightly from #bf616a to meet WCAG >= 3.0:1 contrast on surface (#3b4252)
+  error: '#d57780',
   ai: '#b48ead',
   info: '#5e81ac',
   text: '#eceff4',

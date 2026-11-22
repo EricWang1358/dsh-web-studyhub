@@ -17,9 +17,16 @@ export interface BoardCard {
   updatedAt: string;
 }
 
+export interface FocusStats {
+  date: string;
+  completedPomodoros: number;
+  focusedMinutes: number;
+}
+
 export interface BoardDocument {
   version: 1;
   cards: BoardCard[];
+  focusStats?: FocusStats;
   updatedAt: string;
 }
 
@@ -31,6 +38,16 @@ const BoardCardSchema = z.object({
   dueDate: z.string().trim().max(40).optional().catch(undefined),
   createdAt: z.string().catch(() => new Date().toISOString()),
   updatedAt: z.string().catch(() => new Date().toISOString()),
+});
+
+const FocusStatsSchema = z.object({
+  date: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .catch(() => todayLocalYmd()),
+  completedPomodoros: z.number().int().min(0).max(999).catch(0),
+  focusedMinutes: z.number().int().min(0).max(14400).catch(0),
 });
 
 const BoardDocumentSchema = z.object({
@@ -54,6 +71,7 @@ const BoardDocumentSchema = z.object({
       return out;
     })
     .catch([]),
+  focusStats: FocusStatsSchema.optional().catch(undefined),
   updatedAt: z.string().catch(() => new Date().toISOString()),
 });
 
@@ -153,4 +171,26 @@ export function dueStatus(dueDate: string | undefined, column: BoardColumnId): '
   if (norm < today) return 'overdue';
   if (norm === today) return 'today';
   return 'upcoming';
+}
+
+export function todayFocusStats(stats?: FocusStats): FocusStats {
+  const today = todayLocalYmd();
+  if (stats && stats.date === today) {
+    return {
+      date: today,
+      completedPomodoros: Math.max(0, Math.floor(stats.completedPomodoros)),
+      focusedMinutes: Math.max(0, Math.floor(stats.focusedMinutes)),
+    };
+  }
+  return { date: today, completedPomodoros: 0, focusedMinutes: 0 };
+}
+
+export function addCompletedPomodoro(stats: FocusStats | undefined, minutes: number): FocusStats {
+  const base = todayFocusStats(stats);
+  const addMin = Math.max(1, Math.round(minutes));
+  return {
+    date: base.date,
+    completedPomodoros: base.completedPomodoros + 1,
+    focusedMinutes: base.focusedMinutes + addMin,
+  };
 }

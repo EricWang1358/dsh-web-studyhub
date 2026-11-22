@@ -52,8 +52,48 @@ import {
 } from './review-helpers.js';
 import { AiHelpDrawer } from './AiHelpDrawer.js';
 import { CardToolsModal } from './CardToolsModal.js';
+import { RetellModal } from './RetellModal.js';
 import { RoundSummary } from './RoundSummary.js';
 import { SimilarCardsModal } from './SimilarCardsModal.js';
+
+interface RubricCriterionResult {
+  id: string;
+  label?: string;
+  score: number;
+  max: number;
+  ratio?: number;
+  evidence?: string[];
+  missing?: Array<{ id?: string; text?: string }>;
+  suggestion?: string;
+  note?: string;
+}
+
+interface RubricSummaryShape {
+  total: number;
+  max: number;
+  ratio?: number;
+  band?: string;
+  unanswered?: boolean;
+  criteria?: RubricCriterionResult[];
+  summary?: string;
+}
+
+interface CardGradeResponse {
+  deckId?: string;
+  cardId?: string;
+  runId?: string | null;
+  grade?: number;
+  total?: number;
+  max?: number;
+  rubric?: RubricSummaryShape;
+  message?: string;
+}
+
+function isModelUnavailableMsg(msg: string): boolean {
+  return /configure a model|model.*unavailable|no.*model|api.?key|unauthorized|forbidden|\b401\b|\b403\b|econnrefused|timed out|timeout|未配置|可用.*模型|模型不可用/i.test(
+    msg,
+  );
+}
 
 const CARD_UTIL_KEYS: readonly string[] = Object.freeze([
   'q',
@@ -65,6 +105,7 @@ const CARD_UTIL_KEYS: readonly string[] = Object.freeze([
   'a',
   'f',
   'n',
+  'F',
   'T',
   'S',
   'D',
@@ -82,6 +123,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
   const mathUnicode = useTuiStore((s) => s.preferences.mathUnicode);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const setPreferences = useTuiStore((s) => s.setPreferences);
   const navContext = useTuiStore((s) => s.navContext);
   const activeRunId = useTuiStore((s) => s.activeRunId);
@@ -106,12 +148,16 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
   const [openDraft, setOpenDraft] = useState('');
   const [openEditing, setOpenEditing] = useState(false);
 
-  // Overlays & translation
+  // Overlays, rubric grading & translation
   const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
   const [flagModalOpen, setFlagModalOpen] = useState(false);
   const [flagReason, setFlagReason] = useState('');
   const [similarModalOpen, setSimilarModalOpen] = useState(false);
   const [cardToolsModalOpen, setCardToolsModalOpen] = useState(false);
+  const [retellModalOpen, setRetellModalOpen] = useState(false);
+  const [gradingBusy, setGradingBusy] = useState(false);
+  const [gradeResult, setGradeResult] = useState<CardGradeResponse | null>(null);
+  const [gradeError, setGradeError] = useState<string | null>(null);
   const [showTranslation, setShowTranslation] = useState(false);
   const [translating, setTranslating] = useState(false);
   const [translationTick, setTranslationTick] = useState(0);
@@ -139,6 +185,9 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     setClozeEditing(false);
     setOpenDraft('');
     setOpenEditing(false);
+    setGradingBusy(false);
+    setGradeResult(null);
+    setGradeError(null);
     setShowTranslation(false);
     setTranslating(false);
   }, [cardKey]);
@@ -203,12 +252,18 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
   }, [navContext.runId, navContext.deckId, navContext.course, navContext.mode]);
 
   const kind = normalizeCardKind(run);
+  const rawCardKind = String(run?.card?.kind || '').toLowerCase();
+  const isRubricEligibleKind =
+    kind === 'short_answer' ||
+    rawCardKind === 'open' ||
+    rawCardKind === 'short_answer' ||
+    rawCardKind === 'case';
   const feedback: CardFeedbackShape | null = extractFeedback(run);
   const solution = extractSolution(run);
   const isFinished = Boolean(run && (run.complete || run.closed));
   const revealed = Boolean(run?.revealed || feedback);
-  const isSelfGraded = kind === 'flashcard' || kind === 'short_answer';
-  const needsRating = Boolean(run && !isFinished && revealed && !feedback && isSelfGraded);
+  const isSelfGraded = kind === 'flashcard' || isRubricEligibleKind;
+  const needsRating = Boolean(run && !isFinished && revealed && !feedback && !gradeResult && isSelfGraded);
   const options: CardOptionItem[] = useMemo(
     () => resolveOptions(run?.card as Record<string, unknown> | undefined, kind, lang),
     [run?.card, kind, lang],
@@ -427,20 +482,86 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     );
   }, [run, cardId, translating, showTranslation, host, notify, lang]);
 
+  const gradeAnswerText = useMemo(() => {
+    const draft = openDraft.trim();
+    if (draft) return draft;
+    if (typeof feedback?.answer === 'string' && feedback.answer.trim()) return feedback.answer.trim();
+    const serverDraft = (run as { draft?: { text?: unknown } } | null)?.draft?.text;
+    if (typeof serverDraft === 'string' && serverDraft.trim()) return serverDraft.trim();
+    return '';
+  }, [openDraft, feedback, run]);
+
+  const canRubricGrade = Boolean(run && !isFinished && isRubricEligibleKind && gradeAnswerText.length > 0);
+
+  const activeRubric = useMemo<RubricSummaryShape | null>(() => {
+    if (gradeResult?.rubric) return gradeResult.rubric;
+    const fbRubric = (feedback as { rubric?: unknown } | null)?.rubric;
+    if (fbRubric && typeof fbRubric === 'object') return fbRubric as RubricSummaryShape;
+    return null;
+  }, [gradeResult, feedback]);
+
+  const handleRubricGrade = useCallback(async () => {
+    if (!run?.id || !cardId || busy || gradingBusy || !isRubricEligibleKind) return;
+    const answer = gradeAnswerText;
+    if (!answer) {
+      notify(
+        t(lang, '请先按 [i] 输入作答后再按 [G] AI 评分', 'Press [i] to type your answer before [G] AI rubric grading'),
+        'warning',
+      );
+      return;
+    }
+    const deckId = currentDeckIdOf(run);
+    const cardAtStart = cardId;
+    setGradingBusy(true);
+    setGradeError(null);
+    const res = await tryAction<CardGradeResponse>(host, 'card.grade', {
+      cardId,
+      ...(deckId ? { deckId } : {}),
+      answer,
+      runId: run.id,
+      language: lang,
+    });
+    if (!mountedRef.current || currentCardIdRef.current !== cardAtStart) return;
+    setGradingBusy(false);
+    if (!res.ok || !res.value) {
+      const msg = res.error?.message || t(lang, 'AI 按标准批改失败', 'AI rubric grading failed');
+      setGradeError(msg);
+      notify(msg, 'warning');
+      return;
+    }
+    setGradeResult(res.value);
+    setOpenEditing(false);
+    const scoreTotal = res.value.total ?? res.value.rubric?.total ?? 0;
+    const scoreMax = res.value.max ?? res.value.rubric?.max ?? 0;
+    notify(
+      res.value.message ||
+        t(lang, `AI 批改完成：${scoreTotal}/${scoreMax} 分`, `AI grading complete: ${scoreTotal}/${scoreMax} marks`),
+      'success',
+    );
+    try {
+      const refreshed = await getReview(host, run.id);
+      if (!mountedRef.current || currentCardIdRef.current !== cardAtStart) return;
+      applyRun(refreshed, true);
+    } catch {
+      // Keep local gradeResult displayed even if run refresh fails
+    }
+  }, [run, cardId, busy, gradingBusy, isRubricEligibleKind, gradeAnswerText, host, lang, notify, applyRun]);
+
   // Phase-aware key claiming: only claim digits when rating (1-4) or picking choices (1-6 / 1-2)
-  const anyModalOpen = aiDrawerOpen || flagModalOpen || similarModalOpen || cardToolsModalOpen;
+  const anyModalOpen = aiDrawerOpen || flagModalOpen || similarModalOpen || cardToolsModalOpen || retellModalOpen;
   const mainActive = isActive && !anyModalOpen && !clozeEditing && !openEditing && !isFinished;
   const claimedKeys = useMemo<readonly string[]>(() => {
     if (!isActive || loading) return [];
     if (!run) return EMPTY_CLAIMED_KEYS;
     if (isFinished) return [];
-    if (needsRating) return [...CARD_UTIL_KEYS, ...RATING_DIGIT_KEYS];
+    const baseUtil = isRubricEligibleKind ? [...CARD_UTIL_KEYS, 'G'] : CARD_UTIL_KEYS;
+    if (needsRating) return [...baseUtil, ...RATING_DIGIT_KEYS];
     if (!revealed && !feedback) {
-      if (kind === 'true_false') return [...CARD_UTIL_KEYS, ...TF_DIGIT_KEYS];
-      if (kind === 'single' || kind === 'multiple') return [...CARD_UTIL_KEYS, ...CHOICE_DIGIT_KEYS];
+      if (kind === 'true_false') return [...baseUtil, ...TF_DIGIT_KEYS];
+      if (kind === 'single' || kind === 'multiple') return [...baseUtil, ...CHOICE_DIGIT_KEYS];
     }
-    return CARD_UTIL_KEYS;
-  }, [isActive, loading, run, isFinished, needsRating, revealed, feedback, kind]);
+    return baseUtil;
+  }, [isActive, loading, run, isFinished, isRubricEligibleKind, needsRating, revealed, feedback, kind]);
   useClaimKeys(claimedKeys, mainActive);
 
   const hints: KeyHint[] = useMemo(() => {
@@ -455,7 +576,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
         base.push({ key: '1/t · 2/f', label: t(lang, '判断', 'Judge') });
       } else if (kind === 'fill_blank') {
         base.push({ key: 'i/Enter', label: t(lang, '填空', 'Type') });
-      } else if (kind === 'short_answer') {
+      } else if (isRubricEligibleKind) {
         base.push({ key: 'i', label: t(lang, '作答', 'Type') });
         base.push({ key: 'Space', label: t(lang, '翻看答案', 'Reveal') });
       } else {
@@ -466,6 +587,10 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     } else {
       base.push({ key: 'Enter / .', label: t(lang, '下一题', 'Next') });
     }
+    if (canRubricGrade && !activeRubric) {
+      base.push({ key: 'G', label: t(lang, 'AI评分', 'Grade') });
+    }
+    base.push({ key: 'F', label: t(lang, '复述', 'Retell') });
     base.push({ key: 'h', label: t(lang, 'AI讲解', 'AI Help') });
     base.push({ key: 'T', label: t(lang, '翻译', 'Trans') });
     base.push({ key: 'S', label: t(lang, '同类', 'Similar') });
@@ -474,7 +599,21 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     if (citation) base.push({ key: 'o', label: t(lang, '原文', 'Source') });
     base.push({ key: 'q', label: t(lang, '结束', 'End') });
     return base;
-  }, [loading, run, isFinished, revealed, feedback, kind, needsRating, mathUnicode, citation, lang]);
+  }, [
+    loading,
+    run,
+    isFinished,
+    revealed,
+    feedback,
+    kind,
+    isRubricEligibleKind,
+    needsRating,
+    canRubricGrade,
+    activeRubric,
+    mathUnicode,
+    citation,
+    lang,
+  ]);
   useFooterHints(hints, isActive && !anyModalOpen && !isFinished);
 
   // Main keyboard controller for active question
@@ -489,6 +628,14 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
       // Global card utilities
       if (input === 'h') {
         setAiDrawerOpen(true);
+        return;
+      }
+      if (input === 'F') {
+        setRetellModalOpen(true);
+        return;
+      }
+      if (input === 'G' && isRubricEligibleKind) {
+        void handleRubricGrade();
         return;
       }
       if (input === 'T') {
@@ -562,7 +709,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
         return;
       }
 
-      if (kind === 'short_answer') {
+      if (isRubricEligibleKind) {
         if (input === ' ') {
           handleReveal();
         } else if (input === 'i' || key.return) {
@@ -694,6 +841,56 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     () => (run && revealed ? extractReferenceAnswer(run, kind, lang) : ''),
     [revealed, run, kind, lang],
   );
+
+  const postAnswerMarkdown = useMemo(() => {
+    const blocks: string[] = [];
+    if (activeRubric) {
+      const criteria = Array.isArray(activeRubric.criteria) ? activeRubric.criteria : [];
+      if (criteria.length > 0) {
+        blocks.push(`### ${t(lang, 'AI 评分细则', 'AI Rubric Breakdown')}`);
+        for (const c of criteria) {
+          const mark =
+            c.max > 0 && c.score >= c.max
+              ? asciiMode
+                ? '[+]'
+                : '✓'
+              : c.score > 0
+                ? asciiMode
+                  ? '[~]'
+                  : '◐'
+                : asciiMode
+                  ? '[x]'
+                  : '✕';
+          blocks.push(`- ${mark} **${c.label || c.id}** (${c.score}/${c.max})`);
+          if (Array.isArray(c.evidence) && c.evidence.length > 0) {
+            blocks.push(`  - ${t(lang, '命中依据', 'Evidence')}: "${c.evidence[0]}"`);
+          }
+          if (Array.isArray(c.missing) && c.missing.length > 0) {
+            const missTexts = c.missing
+              .map((m) => (typeof m?.text === 'string' ? m.text.trim() : ''))
+              .filter(Boolean);
+            if (missTexts.length > 0) {
+              blocks.push(`  - ${t(lang, '遗漏要点', 'Missing')}: ${missTexts.join('; ')}`);
+            }
+          }
+          if (c.suggestion) {
+            blocks.push(`  - ${t(lang, '改进建议', 'Suggestion')}: ${c.suggestion}`);
+          }
+        }
+      }
+      if (activeRubric.summary) {
+        blocks.push(`> **${t(lang, '总评', 'Feedback')}**: ${activeRubric.summary}`);
+      }
+    }
+    if (revealed) {
+      if (solution?.explanation) blocks.push(solution.explanation);
+      if (activeTranslation?.explanation) blocks.push(`> **EN**: ${activeTranslation.explanation}`);
+      if (solution?.misconception) {
+        blocks.push(`> **${t(lang, '常见误区', 'Misconception')}**: ${solution.misconception}`);
+      }
+    }
+    return blocks.join('\n\n');
+  }, [activeRubric, asciiMode, revealed, solution, activeTranslation, lang]);
 
   if (loading) {
     return (
@@ -891,18 +1088,28 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
             </Box>
           ) : null}
 
-          {/* Short answer draft input */}
-          {kind === 'short_answer' && !revealed ? (
+          {/* Short answer / open / case draft input */}
+          {isRubricEligibleKind && !revealed ? (
             <Box
               flexDirection="column"
               marginTop={1}
-              borderStyle="single"
+              borderStyle={asciiMode ? 'classic' : 'single'}
               borderColor={openEditing ? theme.primary : theme.border}
               paddingX={1}
               width={innerW}
             >
               <Text color={theme.muted}>
-                {t(lang, '你的作答（按 [i] 输入，Enter 翻看答案自评；或按 [Space] 直接翻看）:', 'Your answer ([i] to type, Enter to reveal; or [Space] to reveal):')}
+                {openDraft.trim()
+                  ? t(
+                      lang,
+                      '你的作答（[i] 编辑，Enter 翻看，[G] AI 按标准评分，[Space] 翻看）:',
+                      'Your answer ([i] edit, Enter reveal, [G] AI rubric grade, [Space] reveal):',
+                    )
+                  : t(
+                      lang,
+                      '你的作答（按 [i] 输入，Enter 翻看答案；或按 [Space] 直接翻看）:',
+                      'Your answer ([i] to type, Enter to reveal; or [Space] to reveal):',
+                    )}
               </Text>
               <TextInput
                 value={openDraft}
@@ -920,16 +1127,53 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
           ) : null}
 
           {/* Flashcard front prompt */}
-          {kind === 'flashcard' && !revealed ? (
+          {kind === 'flashcard' && !isRubricEligibleKind && !revealed ? (
             <Box marginTop={1}>
               <Badge label={t(lang, '按 [Space] 或 [Enter] 翻开答案', 'Press [Space] or [Enter] to flip card')} tone="primary" variant="soft" />
             </Box>
           ) : null}
 
-          {/* Post-Reveal / Post-Answer Feedback & Explanation */}
-          {revealed ? (
+          {/* Post-Reveal / Post-Answer / Rubric Grading Panel */}
+          {revealed || activeRubric || gradingBusy || gradeError ? (
             <Box flexDirection="column" marginTop={1} width={innerW} flexGrow={1} overflow="hidden">
-              <Divider width={innerW} label={t(lang, '答案与解析', 'Answer & Explanation')} />
+              <Divider
+                width={innerW}
+                label={
+                  revealed
+                    ? t(lang, '答案与解析', 'Answer & Explanation')
+                    : t(lang, 'AI 评分反馈', 'AI Rubric Feedback')
+                }
+              />
+
+              {gradingBusy ? (
+                <Box marginY={0}>
+                  <Spinner label={t(lang, '正在按评分标准 AI 批改…', 'Grading against rubric criteria…')} tone="ai" active={isActive} />
+                </Box>
+              ) : null}
+
+              {gradeError ? (
+                <Box flexDirection="column" marginY={0}>
+                  <Box flexDirection="row" gap={1}>
+                    <Badge label={asciiMode ? '! AI评分不可用' : '▲ AI评分不可用'} tone="warning" />
+                    <Text color={theme.error}>
+                      {truncateDisplay(gradeError, Math.max(12, innerW - 18))}
+                    </Text>
+                  </Box>
+                  <Text color={theme.muted}>
+                    {isModelUnavailableMsg(gradeError)
+                      ? t(
+                          lang,
+                          '未检测到可用 AI 模型：请按 [,] 配置模型，或按 [Space] 对照参考答案后用 [1-4] 自评。',
+                          'Model unavailable: configure one in Settings ([,]), or reveal reference answer and self-rate [1-4].',
+                        )
+                      : t(
+                          lang,
+                          '暂无法按评分标准批改，请对照参考答案后用 [1-4] 自评。',
+                          'Could not run rubric grading; reveal reference answer and self-rate [1-4].',
+                        )}
+                  </Text>
+                </Box>
+              ) : null}
 
               {feedback ? (
                 <Box flexDirection="row" alignItems="center" gap={1} marginBottom={0}>
@@ -954,25 +1198,46 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                 <Text color={theme.muted}>{`${t(lang, '你的作答', 'Yours')}: ${userAnswerText}`}</Text>
               ) : null}
 
-              <Text color={theme.success} bold>
-                {`${t(lang, '参考答案', 'Reference')}: ${referenceAnswer}`}
-              </Text>
-              {activeTranslation?.answer ? (
-                <Text color={theme.muted}>{`EN: ${activeTranslation.answer}`}</Text>
+              {activeRubric ? (
+                <Box flexDirection="row" alignItems="center" gap={1} marginY={0}>
+                  <Badge
+                    label={`${t(lang, 'Rubric 得分', 'Rubric')} ${activeRubric.total}/${activeRubric.max}`}
+                    tone={
+                      activeRubric.max > 0 && activeRubric.total / activeRubric.max >= 0.7
+                        ? 'success'
+                        : activeRubric.max > 0 && activeRubric.total / activeRubric.max > 0.5
+                          ? 'warning'
+                          : 'error'
+                    }
+                  />
+                  {activeRubric.band ? (
+                    <Badge label={String(activeRubric.band)} tone="ai" variant="soft" />
+                  ) : null}
+                  {gradeResult?.grade !== undefined || feedback?.grade !== undefined ? (
+                    <Badge
+                      label={`FSRS ${gradeResult?.grade ?? feedback?.grade}/5`}
+                      tone="accent"
+                      variant="soft"
+                    />
+                  ) : null}
+                </Box>
               ) : null}
 
-              {solution?.explanation || solution?.misconception || activeTranslation?.explanation ? (
+              {revealed ? (
+                <>
+                  <Text color={theme.success} bold>
+                    {`${t(lang, '参考答案', 'Reference')}: ${referenceAnswer}`}
+                  </Text>
+                  {activeTranslation?.answer ? (
+                    <Text color={theme.muted}>{`EN: ${activeTranslation.answer}`}</Text>
+                  ) : null}
+                </>
+              ) : null}
+
+              {postAnswerMarkdown ? (
                 <Box marginTop={0} flexGrow={1} overflow="hidden">
                   <MarkdownView
-                    markdown={[
-                      solution?.explanation || '',
-                      activeTranslation?.explanation ? `> **EN**: ${activeTranslation.explanation}` : '',
-                      solution?.misconception
-                        ? `> **${t(lang, '常见误区', 'Misconception')}**: ${solution.misconception}`
-                        : '',
-                    ]
-                      .filter(Boolean)
-                      .join('\n\n')}
+                    markdown={postAnswerMarkdown}
                     width={innerW}
                     height={Math.max(3, height - 18)}
                     mathUnicode={mathUnicode}
@@ -981,7 +1246,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
               ) : null}
 
               {/* Source Citation Bar */}
-              {citation ? (
+              {revealed && citation ? (
                 <Box marginTop={0}>
                   <Text color={theme.info}>
                     {`▤ ${citation.title ? `${citation.title} ` : ''}${
@@ -999,9 +1264,16 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
               {/* FSRS-6 4-grade selector */}
               {needsRating ? (
                 <Box flexDirection="column" marginTop={1}>
-                  <Text color={theme.muted} bold>
-                    {t(lang, 'FSRS-6 记忆评分（按数字键 1-4）:', 'FSRS-6 Rating (Press 1-4):')}
-                  </Text>
+                  <Box flexDirection="row" justifyContent="space-between" width={innerW}>
+                    <Text color={theme.muted} bold>
+                      {t(lang, 'FSRS-6 记忆评分（按数字键 1-4）:', 'FSRS-6 Rating (Press 1-4):')}
+                    </Text>
+                    {canRubricGrade && !activeRubric ? (
+                      <Text color={theme.ai} bold>
+                        {t(lang, '[G] AI 按标准评分', '[G] AI Rubric Grade')}
+                      </Text>
+                    ) : null}
+                  </Box>
                   <Box flexDirection="row" gap={1} marginTop={0} flexWrap="wrap">
                     {FSRS_GRADES.map((g) => {
                       const gap = intervals ? formatGapDays(intervals[g.intervalIndex], lang) : '';
@@ -1019,11 +1291,17 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
           <Box height={1} width={innerW} overflow="hidden">
             <Text color={theme.dim} wrap="truncate">
               {truncateDisplay(
-                t(
-                  lang,
-                  '[h]讲解 [T]翻译 [S]同类 [D]工具 [E]标记 [s]跳过 [u]撤销 [,/.]换题',
-                  '[h]Help [T]Trans [S]Sim [D]Tools [E]Flag [s]Skip [u]Undo [,/.]Nav',
-                ),
+                canRubricGrade
+                  ? t(
+                      lang,
+                      '[h]讲解 [F]复述 [G]评分 [T]翻译 [S]同类 [D]工具 [E]标记 [s]跳过 [u]撤销 [,/.]换题',
+                      '[h]Help [F]Retell [G]Grade [T]Trans [S]Sim [D]Tools [E]Flag [s]Skip [u]Undo [,/.]Nav',
+                    )
+                  : t(
+                      lang,
+                      '[h]讲解 [F]复述 [T]翻译 [S]同类 [D]工具 [E]标记 [s]跳过 [u]撤销 [,/.]换题',
+                      '[h]Help [F]Retell [T]Trans [S]Sim [D]Tools [E]Flag [s]Skip [u]Undo [,/.]Nav',
+                    ),
                 innerW,
               )}
             </Text>
@@ -1043,9 +1321,27 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
           userAnswer={userAnswerText}
           width={aiPaneW}
           height={height}
-          isActive={isActive && aiDrawerOpen && !flagModalOpen && !similarModalOpen && !cardToolsModalOpen}
+          isActive={isActive && aiDrawerOpen && !flagModalOpen && !similarModalOpen && !cardToolsModalOpen && !retellModalOpen}
           mathUnicode={mathUnicode}
           onClose={() => setAiDrawerOpen(false)}
+        />
+      ) : null}
+
+      {/* Feynman Retell Modal */}
+      {retellModalOpen && cardId ? (
+        <RetellModal
+          host={host}
+          run={run}
+          cardId={cardId}
+          kind={kind}
+          width={width}
+          height={height}
+          isActive={isActive && retellModalOpen && !flagModalOpen}
+          mathUnicode={mathUnicode}
+          onClose={() => setRetellModalOpen(false)}
+          onNavigateToSource={(loc) => {
+            navigate('sources', { sourceId: loc.sourceId, pageNumber: loc.pageNumber });
+          }}
         />
       ) : null}
 
@@ -1058,7 +1354,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
           kind={kind}
           width={width}
           height={height}
-          isActive={isActive && similarModalOpen && !flagModalOpen && !cardToolsModalOpen}
+          isActive={isActive && similarModalOpen && !flagModalOpen && !cardToolsModalOpen && !retellModalOpen}
           mathUnicode={mathUnicode}
           onClose={() => setSimilarModalOpen(false)}
           onStartRun={(nextRun) => applyRun(nextRun, true)}
@@ -1074,7 +1370,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
           kind={kind}
           width={width}
           height={height}
-          isActive={isActive && cardToolsModalOpen && !flagModalOpen}
+          isActive={isActive && cardToolsModalOpen && !flagModalOpen && !retellModalOpen}
           onClose={() => setCardToolsModalOpen(false)}
           onRunUpdated={(nextRun) => applyRun(nextRun, true)}
           onCardEdited={(editedId) => {

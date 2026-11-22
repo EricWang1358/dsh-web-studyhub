@@ -1,8 +1,13 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { randomUUID } from 'node:crypto';
+import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { Box, Text, useInput } from 'ink';
 import type { BindingSnapshot, HostClient } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { cleanPathInput, loadSampleCourse, removeSampleCourse, tryAction } from '../../host/index.js';
+import { expandHomePath } from '../sources/index.js';
 import { useShellActions } from '../../shell/index.js';
 import {
   Badge,
@@ -23,8 +28,14 @@ export interface RestorePointEntry {
   id: string;
   createdAt?: string;
   reason?: string;
+  tier?: string;
   sizeBytes?: number;
+  extraBytes?: number;
   cards?: number;
+  summary?: {
+    cards?: number;
+    decks?: number;
+  };
 }
 
 export interface WorkspaceTabProps {
@@ -34,6 +45,68 @@ export interface WorkspaceTabProps {
   height: number;
   isActive: boolean;
   onRefreshBinding: () => Promise<void>;
+}
+
+const RETRY_CODES = new Set(['EBUSY', 'EPERM', 'EACCES']);
+
+function todayLocalYmd(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+export function defaultBackupPath(libraryRoot: string): string {
+  return join(libraryRoot || process.cwd(), 'backups', `studyhub-backup-${todayLocalYmd()}.json`);
+}
+
+export function resolveBackupPath(raw: string, baseDir: string): string {
+  const cleaned = cleanPathInput(raw);
+  if (!cleaned) return '';
+  const expanded = expandHomePath(cleaned, homedir());
+  const withExt = expanded.toLowerCase().endsWith('.json') ? expanded : `${expanded}.json`;
+  return isAbsolute(withExt) ? withExt : resolve(baseDir, withExt);
+}
+
+async function renameWithRetry(from: string, to: string): Promise<void> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await rename(from, to);
+      return;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException)?.code || '';
+      if (!RETRY_CODES.has(code) || attempt >= 5) throw error;
+      await new Promise((done) => setTimeout(done, 40 * (attempt + 1)));
+    }
+  }
+}
+
+export async function atomicWriteJsonFile(targetPath: string, payload: unknown): Promise<{ bytes: number }> {
+  const json = `${JSON.stringify(payload, null, 2)}\n`;
+  await mkdir(dirname(targetPath), { recursive: true });
+  const temp = `${targetPath}.${randomUUID()}.tmp`;
+  await writeFile(temp, json, 'utf8');
+  try {
+    await renameWithRetry(temp, targetPath);
+  } catch (error) {
+    await rm(temp, { force: true }).catch(() => {});
+    throw error;
+  }
+  return { bytes: Buffer.byteLength(json, 'utf8') };
+}
+
+export function summarizeExportPayload(payload: Record<string, unknown> | null | undefined): {
+  decksCount: number;
+  cardsCount: number;
+  referencedOriginals: number;
+} {
+  const decks = Array.isArray(payload?.decks) ? (payload.decks as Array<{ cards?: unknown[] }>) : [];
+  const decksCount = decks.length;
+  const cardsCount = decks.reduce((sum, deck) => sum + (Array.isArray(deck?.cards) ? deck.cards.length : 0), 0);
+  const pm = payload?.portableMaterials as { referencedOriginals?: unknown[] } | undefined;
+  const referencedOriginals = Array.isArray(pm?.referencedOriginals) ? pm.referencedOriginals.length : 0;
+  return { decksCount, cardsCount, referencedOriginals };
 }
 
 function formatBytes(bytes?: number): string {
@@ -54,6 +127,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
 }) {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const snapshot = useTuiStore((s) => s.snapshot);
   const desktopConfig = useTuiStore((s) => s.desktopConfig);
   const notify = useTuiStore((s) => s.notify);
@@ -68,6 +142,8 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
 
   const [editingRoot, setEditingRoot] = useState(false);
   const [rootDraft, setRootDraft] = useState('');
+  const [exportingBackup, setExportingBackup] = useState(false);
+  const [exportPathDraft, setExportPathDraft] = useState('');
   const [confirmSampleRemove, setConfirmSampleRemove] = useState(false);
   const [confirmRestore, setConfirmRestore] = useState<RestorePointEntry | null>(null);
 
@@ -174,8 +250,54 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
     [host, lang, loadPoints, notify, refreshSnapshot],
   );
 
-  const modalOpen = editingRoot || confirmSampleRemove || Boolean(confirmRestore);
-  const claimed = useMemo(() => ['e', 's', 'r', 'c'], []);
+  const handleExportBackup = useCallback(
+    async (raw: string) => {
+      if (busyAction) return;
+      const baseDir = binding?.root || host.getLibraryRoot() || process.cwd();
+      const targetPath = resolveBackupPath(raw, baseDir);
+      setExportingBackup(false);
+      if (!targetPath) return;
+      setBusyAction(t(lang, '导出学习库备份…', 'Exporting library backup…'));
+      try {
+        const res = await tryAction<Record<string, unknown>>(host, 'export', {});
+        if (!mountedRef.current) return;
+        if (!res.ok || !res.value) {
+          notify(res.error?.message || t(lang, '导出学习库备份失败', 'Failed to export library backup'), 'error');
+          return;
+        }
+        const { bytes } = await atomicWriteJsonFile(targetPath, res.value);
+        if (!mountedRef.current) return;
+        const { decksCount, cardsCount, referencedOriginals } = summarizeExportPayload(res.value);
+        const arrow = asciiMode ? '->' : '→';
+        const refSuffix =
+          referencedOriginals > 0
+            ? t(
+                lang,
+                `；${referencedOriginals} 份外部原文件仅记录路径`,
+                `; ${referencedOriginals} external originals referenced by path`,
+              )
+            : '';
+        notify(
+          t(
+            lang,
+            `已导出备份 (${formatBytes(bytes)}, ${decksCount} 牌组, ${cardsCount} 卡片) ${arrow} ${targetPath}${refSuffix}`,
+            `Exported backup (${formatBytes(bytes)}, ${decksCount} decks, ${cardsCount} cards) ${arrow} ${targetPath}${refSuffix}`,
+          ),
+          'success',
+        );
+      } catch (err) {
+        if (!mountedRef.current) return;
+        const msg = err instanceof Error ? err.message : String(err);
+        notify(t(lang, `导出备份失败：${msg}`, `Export failed: ${msg}`), 'error');
+      } finally {
+        if (mountedRef.current) setBusyAction(null);
+      }
+    },
+    [asciiMode, binding?.root, busyAction, host, lang, notify],
+  );
+
+  const modalOpen = editingRoot || exportingBackup || confirmSampleRemove || Boolean(confirmRestore);
+  const claimed = useMemo(() => ['e', 's', 'x', 'r', 'c'], []);
   useClaimKeys(claimed, isActive && !modalOpen);
 
   useInput(
@@ -187,6 +309,13 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
       }
       if (input === 's') {
         void handleToggleSample();
+        return;
+      }
+      if (input === 'x') {
+        if (busyAction) return;
+        const baseDir = binding?.root || host.getLibraryRoot() || process.cwd();
+        setExportPathDraft(defaultBackupPath(baseDir));
+        setExportingBackup(true);
         return;
       }
       if (input === 'c' && desktopConfig && !desktopConfig.libraryPlaceConfirmed) {
@@ -208,17 +337,23 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
   const defaultRoot = binding?.defaultRoot || '';
   const confirmed = desktopConfig?.libraryPlaceConfirmed ?? true;
 
-  const infoPanelH = 9;
+  const compactLayout = width < 78;
+  const infoPanelH = compactLayout ? 10 : 9;
   const listPanelH = Math.max(6, height - infoPanelH);
   const listRows = Math.max(1, listPanelH - 2);
 
   const renderPoint = useCallback(
     (pt: RestorePointEntry, ctx: VirtualListRenderContext) => {
       const ts = pt.createdAt ? pt.createdAt.slice(0, 19).replace('T', ' ') : pt.id;
-      const right = `${formatBytes(pt.sizeBytes)}${pt.cards !== undefined ? ` · ${pt.cards} cards` : ''}`;
+      const bytes = pt.extraBytes ?? pt.sizeBytes;
+      const cards = pt.summary?.cards ?? pt.cards;
+      const tag = pt.reason || pt.tier;
+      const sep = asciiMode ? ' - ' : ' · ';
+      const right = `${formatBytes(bytes)}${cards !== undefined ? `${sep}${cards} cards` : ''}`;
       const rightW = displayWidth(right);
       const leftW = Math.max(8, ctx.width - rightW - 4);
-      const label = truncateDisplay(`${ctx.selected ? '❯' : ' '} ${ts} ${pt.reason ? `· ${pt.reason}` : ''}`, leftW);
+      const pointer = ctx.selected ? (asciiMode ? '>' : '❯') : ' ';
+      const label = truncateDisplay(`${pointer} ${ts}${tag ? `${sep}${tag}` : ''}`, leftW);
       return (
         <Box width={ctx.width} height={1}>
           <Text color={ctx.selected ? theme.selectionFg : theme.text} bold={ctx.selected}>
@@ -228,13 +363,16 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
         </Box>
       );
     },
-    [theme.muted, theme.selectionFg, theme.text],
+    [asciiMode, theme.muted, theme.selectionFg, theme.text],
   );
 
   const modalW = Math.min(72, Math.max(40, width - 6));
+  const sampleActionLabel = `[s] ${sampleLoaded ? t(lang, '移除示例课程', 'Remove sample') : t(lang, '载入示例课程', 'Load sample')}`;
+  const exportActionLabel = `[x] ${t(lang, '导出学习库备份', 'Export backup')}`;
+  const confirmActionLabel = `[c] ${t(lang, '确认位置', 'Confirm place')}`;
 
   return (
-    <Box flexDirection="column" width={width} height={height}>
+    <Box flexDirection="column" width={width} height={height} overflow="hidden">
       <Panel
         title={t(lang, '学习库路径与工作区', 'Library Root & Workspace')}
         subtitle={busyAction || binding?.rootSource || undefined}
@@ -270,26 +408,38 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
             />
           </Text>
         </Box>
-        <Box flexDirection="row" gap={2} marginTop={1}>
-          <Text color={theme.accent}>{`[e] ${t(lang, '更改文件夹路径', 'Change folder')}`}</Text>
-          <Text color={theme.accent}>
-            {`[s] ${sampleLoaded ? t(lang, '移除示例课程', 'Remove sample') : t(lang, '载入示例课程', 'Load sample')}`}
-          </Text>
-          {!confirmed ? <Text color={theme.warning}>{`[c] ${t(lang, '确认位置', 'Confirm place')}`}</Text> : null}
-        </Box>
+        {compactLayout ? (
+          <>
+            <Box flexDirection="row" gap={2} marginTop={1}>
+              <Text color={theme.accent}>{`[e] ${t(lang, '更改文件夹路径', 'Change folder')}`}</Text>
+              <Text color={theme.accent}>{sampleActionLabel}</Text>
+            </Box>
+            <Box flexDirection="row" gap={2}>
+              <Text color={theme.accent}>{exportActionLabel}</Text>
+              {!confirmed ? <Text color={theme.warning}>{confirmActionLabel}</Text> : null}
+            </Box>
+          </>
+        ) : (
+          <Box flexDirection="row" gap={2} marginTop={1}>
+            <Text color={theme.accent}>{`[e] ${t(lang, '更改文件夹路径', 'Change folder')}`}</Text>
+            <Text color={theme.accent}>{sampleActionLabel}</Text>
+            <Text color={theme.accent}>{exportActionLabel}</Text>
+            {!confirmed ? <Text color={theme.warning}>{confirmActionLabel}</Text> : null}
+          </Box>
+        )}
       </Panel>
 
       <Panel
         title={t(lang, '学习库自动备份点 (Enter 恢复)', 'Library Restore Points (Enter to Restore)')}
         badge={restorePoints.length}
-        subtitle={loadingPoints ? t(lang, '加载中…', 'Loading…') : '[r] 刷新'}
+        subtitle={loadingPoints ? t(lang, '加载中…', 'Loading…') : t(lang, '[r] 刷新', '[r] Refresh')}
         width={width}
         height={listPanelH}
       >
         {loadingPoints && restorePoints.length === 0 ? (
           <Spinner label={t(lang, '正在读取备份列表…', 'Loading restore points…')} active={isActive} />
         ) : restorePoints.length === 0 ? (
-          <Text color={theme.muted}>
+          <Text color={theme.muted} wrap="truncate">
             {t(lang, '暂无备份点（学习库发生重要变更时会自动创建快照）', 'No restore points yet (created automatically on major edits).')}
           </Text>
         ) : (
@@ -329,8 +479,41 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
               onCancel={() => setEditingRoot(false)}
               width={modalContentWidth(modalW)}
               isActive={isActive}
-              prompt="›"
+              prompt={asciiMode ? '>' : '›'}
               placeholder={defaultRoot || '/path/to/StudyHub'}
+            />
+          </Box>
+        </Modal>
+      ) : null}
+
+      {exportingBackup ? (
+        <Modal
+          title={t(lang, '导出学习库备份', 'Export Library Backup')}
+          width={modalW}
+          onClose={() => setExportingBackup(false)}
+          isActive={isActive}
+          hints={[
+            { key: 'Enter', label: t(lang, '导出 JSON', 'Export JSON') },
+            { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+          ]}
+        >
+          <Text color={theme.muted}>
+            {t(
+              lang,
+              '输入备份文件路径（支持 Linux/Windows 及拖拽路径，留空取消）：',
+              'Enter backup file path (supports Linux/Windows & dropped paths):',
+            )}
+          </Text>
+          <Box marginTop={1}>
+            <TextInput
+              value={exportPathDraft}
+              onChange={setExportPathDraft}
+              onSubmit={(v) => void handleExportBackup(v)}
+              onCancel={() => setExportingBackup(false)}
+              width={modalContentWidth(modalW)}
+              isActive={isActive}
+              prompt={asciiMode ? '>' : '›'}
+              placeholder={defaultBackupPath(rootPath)}
             />
           </Box>
         </Modal>
