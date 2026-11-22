@@ -1,6 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { readFile, stat } from 'node:fs/promises';
-import { isAbsolute, resolve } from 'node:path';
+import { basename, isAbsolute, resolve } from 'node:path';
 import { Box, Text, useInput, useWindowSize } from 'ink';
 import type { HostClient, KeyHint, StudySnapshot } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
@@ -69,6 +69,14 @@ interface DeckMergeSuggestResponse {
   method?: string;
 }
 
+interface ImportProposal {
+  originalTitle?: string;
+  title: string;
+  course: string;
+  mergeTargetId: string | null;
+  method: string;
+}
+
 type ConfirmState =
   | {
       kind: 'merge';
@@ -87,6 +95,12 @@ type ConfirmState =
     }
   | {
       kind: 'suggest-merge';
+    }
+  | {
+      kind: 'propose-import';
+      filePath: string;
+      previewTitle: string;
+      cardCount: number;
     };
 
 export interface DeckOpsModalProps {
@@ -286,6 +300,14 @@ export const DeckOpsModal = memo(function DeckOpsModal({
   const [matches, setMatches] = useState<string[]>([]);
   const [jsonPreview, setJsonPreview] = useState<ParsedDeckPreview | null>(null);
   const [jsonHintErr, setJsonHintErr] = useState('');
+  const [importProposal, setImportProposal] = useState<{
+    title: string;
+    course: string;
+    mergeTargetId: string | null;
+    method: string;
+  } | null>(null);
+  const [proposeBusy, setProposeBusy] = useState(false);
+  const proposeBusyRef = useRef(false);
   const cachedCompletionRef = useRef<{ input: string; completed: string } | null>(null);
 
   // Tab 2: Merge
@@ -338,6 +360,11 @@ export const DeckOpsModal = memo(function DeckOpsModal({
     if (next === 'import') setImportFocus('path');
     if (next === 'split') setSplitFocus('topics');
   }, []);
+
+  // Reset import filing proposal whenever filePath changes
+  useEffect(() => {
+    setImportProposal(null);
+  }, [filePath]);
 
   // Pre-fetch Tab path completions & validate existing .json file preview
   useEffect(() => {
@@ -416,7 +443,7 @@ export const DeckOpsModal = memo(function DeckOpsModal({
   }, []);
 
   const handleImportSubmit = useCallback(async () => {
-    if (busy) return;
+    if (busy || proposeBusyRef.current) return;
     setError('');
     const cleaned = cleanPathInput(filePath);
     const expanded = expandHomePath(cleaned);
@@ -497,6 +524,25 @@ export const DeckOpsModal = memo(function DeckOpsModal({
       setBusy(false);
     }
   }, [busy, filePath, courseOverride, host, lang, actions, onUpdated, notify, onClose]);
+
+  const importProposalBannerText = useMemo(() => {
+    if (!importProposal) return '';
+    const sep = asciiMode ? ' - ' : ' · ';
+    const prefix = asciiMode ? '* ' : '✦ ';
+    const courseStr = importProposal.course || '-';
+    const titleStr = importProposal.title || jsonPreview?.title || '-';
+    const mergeDeck = importProposal.mergeTargetId
+      ? (snapshot?.decks ?? []).find((d) => d.id === importProposal.mergeTargetId)
+      : undefined;
+    const mergePart = mergeDeck
+      ? `${sep}${t(lang, '可合并:', 'Merge:')}${truncateDisplay(deckLabel(mergeDeck), 22, ell)}`
+      : '';
+    return `${prefix}${t(
+      lang,
+      `建议归属: 课程 ${courseStr}${sep}标题 ${titleStr}`,
+      `Suggested: Course ${courseStr}${sep}Title ${titleStr}`,
+    )}${mergePart}`;
+  }, [importProposal, asciiMode, jsonPreview?.title, snapshot?.decks, lang, ell]);
 
   // Tab 2: Merge candidate decks
   const mergeCandidates = useMemo<DeckItem[]>(() => {
@@ -685,7 +731,55 @@ export const DeckOpsModal = memo(function DeckOpsModal({
   const handleConfirmExecute = useCallback(async () => {
     const req = confirmState;
     setConfirmState(null);
-    if (!req || busy || suggestBusyRef.current) return;
+    if (!req || busy || suggestBusyRef.current || proposeBusyRef.current) return;
+    if (req.kind === 'propose-import') {
+      proposeBusyRef.current = true;
+      setProposeBusy(true);
+      setError('');
+      try {
+        const text = await readFile(req.filePath, 'utf8');
+        if (!mountedRef.current) return;
+        const trimmedCourse = courseOverride.trim();
+        const res = await tryAction<ImportProposal>(host, 'draft.import.propose', {
+          text,
+          ...(trimmedCourse ? { course: trimmedCourse } : {}),
+        });
+        if (!mountedRef.current) return;
+        if (!res.ok || !res.value) {
+          const msg = res.error?.message || t(lang, '生成导入归档建议失败', 'Failed to suggest import filing');
+          setError(msg);
+          notify(msg, 'error');
+          return;
+        }
+        const proposal = {
+          title: String(res.value.title ?? '').trim(),
+          course: String(res.value.course ?? '').trim(),
+          mergeTargetId: res.value.mergeTargetId ?? null,
+          method: String(res.value.method ?? 'rules'),
+        };
+        setImportProposal(proposal);
+        if (proposal.course && !trimmedCourse) {
+          setCourseOverride(proposal.course);
+        }
+        notify(
+          t(
+            lang,
+            `已生成归档建议：${proposal.course || '-'} / ${proposal.title || req.previewTitle}`,
+            `Filing proposal: ${proposal.course || '-'} / ${proposal.title || req.previewTitle}`,
+          ),
+          'success',
+        );
+      } catch (err) {
+        if (!mountedRef.current) return;
+        const msg = err instanceof Error ? err.message : String(err);
+        setError(msg);
+        notify(msg, 'error');
+      } finally {
+        proposeBusyRef.current = false;
+        if (mountedRef.current) setProposeBusy(false);
+      }
+      return;
+    }
     if (req.kind === 'suggest-merge') {
       suggestBusyRef.current = true;
       setSuggestBusy(true);
@@ -789,7 +883,7 @@ export const DeckOpsModal = memo(function DeckOpsModal({
       'success',
     );
     onClose();
-  }, [confirmState, busy, host, lang, actions, onUpdated, notify, onClose]);
+  }, [confirmState, busy, courseOverride, host, lang, actions, onUpdated, notify, onClose]);
 
   const typingInTextField =
     (tab === 'import' && (importFocus === 'path' || importFocus === 'course')) ||
@@ -798,7 +892,7 @@ export const DeckOpsModal = memo(function DeckOpsModal({
   // Keyboard routing for tabs & sub-focus
   useInput(
     (input, key) => {
-      if (busy || confirmState) return;
+      if (busy || proposeBusyRef.current || confirmState) return;
 
       // Global modal tab shortcuts when not actively typing inside a TextInput
       if (!typingInTextField) {
@@ -822,6 +916,27 @@ export const DeckOpsModal = memo(function DeckOpsModal({
       }
 
       if (tab === 'import') {
+        if (key.ctrl && input === 'g') {
+          if (proposeBusyRef.current || busy || confirmState) return;
+          const cleaned = cleanPathInput(filePath);
+          const expanded = expandHomePath(cleaned);
+          if (!expanded || !jsonPreview || jsonHintErr) {
+            notify(
+              t(lang, '请先输入有效的 JSON 题组文件路径', 'Enter a valid JSON deck file path first'),
+              'info',
+            );
+            return;
+          }
+          const resolvedPath = isAbsolute(expanded) ? expanded : resolve(process.cwd(), expanded);
+          setError('');
+          setConfirmState({
+            kind: 'propose-import',
+            filePath: resolvedPath,
+            previewTitle: jsonPreview.title || basename(resolvedPath),
+            cardCount: jsonPreview.cardCount,
+          });
+          return;
+        }
         if (importFocus === 'tabs') {
           if (key.leftArrow) {
             const idx = TABS.indexOf(tab);
@@ -896,7 +1011,7 @@ export const DeckOpsModal = memo(function DeckOpsModal({
         }
       }
     },
-    { isActive: isActive && !busy && !confirmState },
+    { isActive: isActive && !busy && !proposeBusy && !confirmState },
   );
 
   // Responsive Modal Sizing for 80x24, 120x36, 160x44
@@ -912,6 +1027,7 @@ export const DeckOpsModal = memo(function DeckOpsModal({
       return [
         { key: asciiMode ? 'Up/Down' : '↑/↓', label: t(lang, '切栏/字段', 'Focus') },
         ...(importFocus === 'path' ? [{ key: 'Tab', label: t(lang, '路径补全', 'Complete') }] : []),
+        { key: 'Ctrl+G', label: t(lang, 'AI归档建议', 'AI Filing') },
         { key: 'Enter', label: t(lang, '导入', 'Import') },
         { key: 'Esc', label: t(lang, '关闭', 'Close') },
       ];
@@ -989,6 +1105,7 @@ export const DeckOpsModal = memo(function DeckOpsModal({
   const splitListH = Math.max(4, bodyH - (error ? 6 : 5));
   const arrowGlyph = asciiMode ? '->' : '→';
   const promptGlyph = asciiMode ? '>' : '›';
+  const dotSep = asciiMode ? ' - ' : ' · ';
   const sepLine = (asciiMode ? '-' : '─').repeat(innerW);
 
   return (
@@ -1000,7 +1117,7 @@ export const DeckOpsModal = memo(function DeckOpsModal({
         width={frameW}
         height={frameH}
         onClose={onClose}
-        isActive={isActive && !confirmState && !busy}
+        isActive={isActive && !confirmState && !busy && !proposeBusy}
         hints={hints}
       >
         {/* Tab Bar */}
@@ -1054,7 +1171,7 @@ export const DeckOpsModal = memo(function DeckOpsModal({
               onCancel={onClose}
               placeholder={process.platform === 'win32' ? 'C:\\Users\\...\\deck.json' : '~/Documents/deck.json'}
               width={Math.max(16, innerW - 4)}
-              isActive={isActive && !confirmState && !busy && importFocus === 'path'}
+              isActive={isActive && !confirmState && !busy && !proposeBusy && importFocus === 'path'}
               prompt={promptGlyph}
             />
 
@@ -1087,7 +1204,7 @@ export const DeckOpsModal = memo(function DeckOpsModal({
                   : t(lang, '例如：线性代数', 'e.g. Linear Algebra')
               }
               width={Math.max(16, innerW - 4)}
-              isActive={isActive && !confirmState && !busy && importFocus === 'course'}
+              isActive={isActive && !confirmState && !busy && !proposeBusy && importFocus === 'course'}
               prompt={promptGlyph}
             />
 
@@ -1096,13 +1213,27 @@ export const DeckOpsModal = memo(function DeckOpsModal({
                 <Text color={theme.muted} wrap="truncate-end">
                   {t(lang, '预览:', 'Preview:')}{' '}
                   <Text color={theme.text}>{jsonPreview.title || t(lang, '(将用文件名)', '(filename)')}</Text>
-                  {jsonPreview.course ? ` · ${jsonPreview.course}` : ''} · {jsonPreview.cardCount} {t(lang, '题', 'cards')}
+                  {jsonPreview.course ? `${dotSep}${jsonPreview.course}` : ''}
+                  {dotSep}
+                  {jsonPreview.cardCount} {t(lang, '题', 'cards')}
                 </Text>
               </Box>
             ) : jsonHintErr ? (
               <Box marginTop={1} height={1} overflow="hidden">
                 <Text color={theme.warning} wrap="truncate-end">
                   {`${asciiMode ? '[!]' : '▲'} ${jsonHintErr}`}
+                </Text>
+              </Box>
+            ) : null}
+
+            {proposeBusy ? (
+              <Box marginTop={1} height={1} overflow="hidden">
+                <Spinner label={t(lang, `正在分析导入归档建议${ell}`, `Suggesting import filing${ell}`)} active={isActive} />
+              </Box>
+            ) : importProposal ? (
+              <Box marginTop={1} height={1} overflow="hidden">
+                <Text color={theme.ai} wrap="truncate-end">
+                  {truncateDisplay(importProposalBannerText, innerW, ell)}
                 </Text>
               </Box>
             ) : null}
@@ -1262,9 +1393,11 @@ export const DeckOpsModal = memo(function DeckOpsModal({
                 <Box height={1} overflow="hidden">
                   <Text color={theme.muted} wrap="truncate-end">
                     {t(lang, '已选主题', 'Topics')}: <Text color={theme.primary} bold>{selectedTopics.length}</Text>/
-                    {topicGroups.length} ·{' '}
+                    {topicGroups.length}
+                    {dotSep}
                     {t(lang, '拆出', 'Move')}: <Text color={theme.accent} bold>{selectedSplitCount}</Text>/
-                    {totalSplitCards} {t(lang, '题', 'cards')} ·{' '}
+                    {totalSplitCards} {t(lang, '题', 'cards')}
+                    {dotSep}
                     {t(lang, '保留', 'Keep')}: <Text color={theme.text}>{totalSplitCards - selectedSplitCount}</Text>
                   </Text>
                 </Box>
@@ -1320,7 +1453,9 @@ export const DeckOpsModal = memo(function DeckOpsModal({
               ? t(lang, '确认合并题组', 'Confirm Merge Decks')
               : confirmState.kind === 'split'
                 ? t(lang, '确认拆分题组', 'Confirm Split Deck')
-                : t(lang, 'AI 分析并推荐题组合并', 'AI Suggest Deck Merges')
+                : confirmState.kind === 'propose-import'
+                  ? t(lang, 'AI 建议导入归档信息', 'AI Suggest Import Filing')
+                  : t(lang, 'AI 分析并推荐题组合并', 'AI Suggest Deck Merges')
           }
           message={
             confirmState.kind === 'merge'
@@ -1335,18 +1470,26 @@ export const DeckOpsModal = memo(function DeckOpsModal({
                     `从「${confirmState.deck.title}」拆出 ${confirmState.movedCount} 题到新题组「${confirmState.title}」？原题组将保留 ${confirmState.remainingCount} 题。`,
                     `Split ${confirmState.movedCount} cards from "${confirmState.deck.title}" into new deck "${confirmState.title}"? ${confirmState.remainingCount} cards will stay in source.`,
                   )
-                : t(
-                    lang,
-                    '将把当前课程的题组标题与主题名称发送给已配置模型（deck.merge.suggest），用于分析相近或重复题组；实际合并前仍需你确认。',
-                    'Send current course deck titles and topic names to the configured model (deck.merge.suggest) to suggest near-duplicate merges. You will confirm before any merge runs.',
-                  )
+                : confirmState.kind === 'propose-import'
+                  ? t(
+                      lang,
+                      `将「${confirmState.previewTitle}」（${basename(confirmState.filePath)}，${confirmState.cardCount} 题）发送给已配置模型（draft.import.propose），用于建议归属课程、标题与合并目标；取消不会发起任何模型调用。`,
+                      `Send "${confirmState.previewTitle}" (${basename(confirmState.filePath)}, ${confirmState.cardCount} cards) to the configured model (draft.import.propose) to suggest course, title, and merge target. Cancelling makes no model calls.`,
+                    )
+                  : t(
+                      lang,
+                      '将把当前课程的题组标题与主题名称发送给已配置模型（deck.merge.suggest），用于分析相近或重复题组；实际合并前仍需你确认。',
+                      'Send current course deck titles and topic names to the configured model (deck.merge.suggest) to suggest near-duplicate merges. You will confirm before any merge runs.',
+                    )
           }
           confirmLabel={
             confirmState.kind === 'merge'
               ? t(lang, '确认合并', 'Merge')
               : confirmState.kind === 'split'
                 ? t(lang, '确认拆分', 'Split')
-                : t(lang, '开始分析', 'Suggest')
+                : confirmState.kind === 'propose-import'
+                  ? t(lang, '获取建议', 'Suggest')
+                  : t(lang, '开始分析', 'Suggest')
           }
           cancelLabel={t(lang, '取消', 'Cancel')}
           isActive={isActive}

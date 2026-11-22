@@ -38,7 +38,7 @@ const CoachPreferencesModal = lazy(() => import('./CoachPreferencesModal.js').th
 
 const CLAIMED_KEYS = [
   '1', '2', '3', '4',
-  'a', 'A', 'b', 'e', 'g', 'G', 'm', 'n', 'N', 'p', 'P', 'r', 'v', 'x', 'y', 'z',
+  'a', 'A', 'b', 'e', 'f', 'g', 'G', 'm', 'n', 'N', 'p', 'P', 'r', 'v', 'x', 'y', 'z',
 ] as const;
 
 const TABS: readonly { id: CoachTab; num: string; zh: string; en: string }[] = [
@@ -99,6 +99,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
 
   const [consentPromptCards, setConsentPromptCards] = useState<Array<{ deckId: string; cardId: string }> | null>(null);
   const [confirmAiAnalyze, setConfirmAiAnalyze] = useState(false);
+  const [confirmFlushPrep, setConfirmFlushPrep] = useState(false);
   const [confirmGenerate, setConfirmGenerate] = useState<CompiledRequestResult | null>(null);
   const [prefsModalOpen, setPrefsModalOpen] = useState(false);
 
@@ -108,6 +109,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
     prefsModalOpen ||
     consentPromptCards !== null ||
     confirmAiAnalyze ||
+    confirmFlushPrep ||
     confirmGenerate !== null;
   const mountedRef = useRef(true);
   const reqSeqRef = useRef(0);
@@ -172,12 +174,14 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
         { key: 'x/y/z', label: t(lang, '三项确认', 'Confirm') },
         { key: 'e', label: t(lang, '编辑配额', 'Edit') },
         { key: 'p', label: t(lang, '学习偏好', 'Preferences') },
+        { key: 'f', label: t(lang, '立即备题', 'Prep Queue') },
       ];
     }
     if (tab === 'variants') {
       return [
         { key: '1-4', label: t(lang, '标签页', 'Tabs') },
         { key: 'g/G', label: t(lang, '生成变式/批量', 'Variants') },
+        { key: 'f', label: t(lang, '立即备题', 'Prep Queue') },
         { key: 'p/P', label: t(lang, '教练练习', 'Coach Practice') },
         { key: 'r', label: t(lang, '刷新', 'Refresh') },
       ];
@@ -496,6 +500,29 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
     }
   }, [busyLabel, host, lang, notify, navigate]);
 
+  const flushCoachPrep = useCallback(async () => {
+    if (busyRef.current || busyLabel !== null) return;
+    busyRef.current = true;
+    setBusyLabel(t(lang, `正在触发教练备题队列${ell}`, 'Flushing coach prep queue...'));
+    try {
+      const res = await tryAction<CoachStatusResult>(host, 'coach.prepare', {});
+      if (!mountedRef.current) return;
+      if (!res.ok) {
+        notify(res.error?.message || t(lang, '触发教练备题队列失败', 'Failed to flush coach prep queue'), 'error');
+        return;
+      }
+      if (res.value) setCoachStatus(res.value);
+      const ready = res.value?.ready ?? coachStatus?.ready ?? 0;
+      notify(
+        t(lang, `已触发教练备题队列（就绪 ${ready} 题）`, `Coach prep queue flushed (${ready} ready)`),
+        'success',
+      );
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusyLabel(null);
+    }
+  }, [busyLabel, coachStatus?.ready, ell, host, lang, notify]);
+
   useInput(
     (input, key) => {
       if (modalOpen) return;
@@ -509,6 +536,11 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
       }
       if (input === 'r') {
         void loadAll();
+        return;
+      }
+      if (input === 'f') {
+        if (busyRef.current || busyLabel !== null) return;
+        setConfirmFlushPrep(true);
         return;
       }
 
@@ -696,16 +728,25 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
   const headerH = 3;
   const bodyH = Math.max(8, height - headerH - (errorMsg ? 1 : 0));
   const calibratedCount = families.filter((f) => f.calibrated).length;
+  const prepReadyCount = coachStatus?.ready ?? 0;
+  const prepQueuedCount = coachStatus?.preparingCards?.length ?? 0;
+  const prepActive = Boolean(coachStatus?.preparing);
+  const prepPillStatus = prepActive ? 'busy' : prepQueuedCount > 0 ? 'warn' : prepReadyCount > 0 ? 'ok' : 'idle';
+  const prepPillLabel = prepActive
+    ? t(lang, `备题中 ${prepReadyCount}/${prepQueuedCount}`, `Prep ${prepReadyCount}/${prepQueuedCount}`)
+    : prepQueuedCount > 0
+      ? t(lang, `待备 ${prepQueuedCount} (${prepReadyCount}就绪)`, `Queued ${prepQueuedCount} (${prepReadyCount}r)`)
+      : t(lang, `备题 ${prepReadyCount}`, `Prep ${prepReadyCount}`);
 
   return (
     <Box flexDirection="column" width={width} height={height} overflow="hidden">
       {/* Header & Tabs */}
-      <Box height={1} width={width} justifyContent="space-between" paddingX={1}>
+      <Box height={1} width={width} justifyContent="space-between" paddingX={1} overflow="hidden">
         <Box gap={1}>
           <Text color={theme.primary} bold>
             {`${asciiMode ? 'o' : '◎'} ${t(lang, '考试教练', 'Exam Coach')}`}
           </Text>
-          <Badge label={course || t(lang, '全部课程', 'All Courses')} tone="accent" variant="soft" />
+          <Badge label={truncateDisplay(course || t(lang, '全部课程', 'All Courses'), width < 96 ? 16 : 28, ell)} tone="accent" variant="soft" />
           {spec ? (
             <Badge
               label={`v${spec.specVersion ?? 1} ${asciiMode ? '-' : '·'} ${calibratedCount}/${families.length}`}
@@ -717,7 +758,8 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
         </Box>
         <Box gap={1}>
           {busyLabel ? <Spinner label={busyLabel} active={isActive} /> : null}
-          <StatusPill label={`${model.provider}${model.model ? `/${truncateDisplay(model.model, 16, asciiMode ? '...' : '…')}` : ''}`} status={model.ready ? 'ok' : 'warn'} />
+          {coachStatus ? <StatusPill label={prepPillLabel} status={prepPillStatus} /> : null}
+          <StatusPill label={`${model.provider}${model.model ? `/${truncateDisplay(model.model, width < 96 ? 12 : 16, asciiMode ? '...' : '…')}` : ''}`} status={model.ready ? 'ok' : 'warn'} />
         </Box>
       </Box>
 
@@ -892,14 +934,15 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
               height={sz.height}
             >
               <Box flexDirection="column" gap={1}>
-                <Box gap={2}>
+                <Box gap={1}>
                   <StatusPill
                     label={coachStatus?.enabled ? t(lang, '教练模型就绪', 'Coach Ready') : t(lang, '无可用模型', 'Model Unready')}
                     status={coachStatus?.enabled ? 'ok' : 'warn'}
                   />
+                  <StatusPill label={prepPillLabel} status={prepPillStatus} />
                   {coachStatus?.preparing ? <Spinner label={asciiMode ? t(lang, '后台生成中', 'Preparing...') : t(lang, '后台生成中', 'Preparing…')} active={isActive} /> : null}
                 </Box>
-                <Text color={theme.text}>{`${t(lang, '已备好变式题', 'Ready variants')}: ${coachStatus?.ready ?? 0}`}</Text>
+                <Text color={theme.text}>{`${t(lang, '已备好变式题', 'Ready variants')}: ${prepReadyCount}  ${asciiMode ? '|' : '·'}  ${t(lang, '待备队列', 'Queued')}: ${prepQueuedCount}`}</Text>
                 <Text color={theme.muted}>{`${t(lang, '授权状态', 'Consent')}: ${coachStatus?.consent ? t(lang, '已授权', 'Granted') : t(lang, '首次生成时确认', 'Prompt on first queue')}`}</Text>
                 <Divider width={Math.max(8, sz.width - 4)} />
                 <Text color={theme.heading} bold>{t(lang, '最近任务', 'Recent Tasks')}</Text>
@@ -1186,6 +1229,26 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
             void runAnalyze(true);
           }}
           onCancel={() => setConfirmAiAnalyze(false)}
+        />
+      ) : null}
+
+      {/* Confirm Dialog for Manual Coach Prep Queue Flush ([f]) */}
+      {confirmFlushPrep ? (
+        <ConfirmDialog
+          title={t(lang, '触发教练后台备题队列', 'Flush Coach Prep Queue')}
+          message={t(
+            lang,
+            `当前备题状态：就绪 ${prepReadyCount} 题，待备队列 ${prepQueuedCount} 项（${prepActive ? '运行中' : '空闲'}）。立即触发队列（coach.prepare）可能会为待处理项调用已配置的模型（${model.provider}${model.model ? `/${model.model}` : ''}）。确认继续吗？`,
+            `Current prep queue: ${prepReadyCount} ready, ${prepQueuedCount} queued (${prepActive ? 'active' : 'idle'}). Flushing queued preparation items (coach.prepare) may invoke the configured model (${model.provider}${model.model ? `/${model.model}` : ''}). Continue?`,
+          )}
+          confirmLabel={t(lang, '立即备题', 'Flush Queue')}
+          cancelLabel={t(lang, '取消', 'Cancel')}
+          isActive={isActive}
+          onConfirm={() => {
+            setConfirmFlushPrep(false);
+            void flushCoachPrep();
+          }}
+          onCancel={() => setConfirmFlushPrep(false)}
         />
       ) : null}
 

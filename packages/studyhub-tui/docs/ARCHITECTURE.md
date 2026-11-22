@@ -1,6 +1,6 @@
 # StudyHub TUI Contributor Architecture
 
-`@ericwang1358/studyhub-tui` is a React 19.3 + Ink 8 terminal client for StudyHub built with TypeScript, Zustand 5, Chalk 6, Marked 18, `esbuild` code splitting, and `@xterm/headless` E2E tests (0 `zod` runtime imports, 9 minimal runtime dependencies, 385+ automated tests). It reuses `packages/studyhub-desktop` and `lib/` at runtime with zero invasive upstream edits.
+`@ericwang1358/studyhub-tui` is a React 19.3 + Ink 8 terminal client for StudyHub built with TypeScript, Zustand 5, Chalk 6, Marked 18, `esbuild` code splitting, and `@xterm/headless` E2E tests (0 `zod` runtime imports, 9 minimal runtime dependencies, 420+ automated tests across 120+ suites). It reuses `packages/studyhub-desktop` and `lib/` at runtime with zero invasive upstream edits.
 
 ---
 
@@ -9,7 +9,7 @@
 ```text
 packages/studyhub-tui/
 ├── bin/studyhub-tui.mjs        # CLI shim resolving dist/cli.mjs via import.meta.url
-├── docs/                       # ARCHITECTURE.md, KEYBINDINGS.md, ROADMAP-21-40.md, ROADMAP-41-50.md
+├── docs/                       # ARCHITECTURE.md, KEYBINDINGS.md, ROADMAP-21-40.md, ROADMAP-41-50.md, ROADMAP-51-55.md
 ├── scripts/
 │   ├── build.mjs               # esbuild code-split build (cli, boot-frame, App, host)
 │   └── bench.mjs               # Bundle size, cold spawn, boot-frame & RSS/heap probe
@@ -86,7 +86,7 @@ Keypress
   1. `views/*/index.js`: `src/App.tsx` eagerly imports only `LibraryView` and lazy-loads the remaining 15 views plus `VoicePackModal` directly via `React.lazy(() => import('./views/<dir>/<View>.js'))` — never `./views/*/index.js` barrels (`tests/keymap-audit.test.mjs`).
   2. `shell/index.js`: `AppShell` lazy-loads `Launchpad`, `CommandPalette`, `HelpOverlay`, `CoursePickerModal`, and `InboxModal` directly (`./Launchpad.js`, etc.), and `src/App.tsx` / views never import `shell/index.js` (`0` static overlays in `App.mjs`, allowing `AppShell` to inline cleanly; `tests/perf-budget.test.mjs`).
   3. `components/index.js`: Complete `0`-importer Barrel-Bypass across all of `src/` (Round 47); every view, modal, drawer, and shell overlay imports leaf component files directly (`./Panel.js`, `./Badge.js`, `./focus.js`) instead of `components/index.js` (which re-exports `MarkdownView`; `tests/perf-budget.test.mjs`).
-  4. `render/index.js`: Complete `0`-importer Barrel-Bypass across all of `src/` (Round 46); callers import leaf render utilities (`cjk.js`, `charts.js`) rather than `render/index.js` (which re-exports `markdown.js` and `math.js`), keeping `marked`, `cli-highlight`, `render/markdown.ts`, and `render/math.ts` out of `dist/boot-frame.mjs`, `dist/App.mjs`, and `49+/71` non-markdown `dist/*.mjs` entry chunks (`tests/perf-budget.test.mjs`).
+  4. `render/index.js`: Complete `0`-importer Barrel-Bypass across all of `src/` (Round 46); callers import leaf render utilities (`cjk.js`, `charts.js`) rather than `render/index.js` (which re-exports `markdown.js` and `math.js`), keeping `marked`, `cli-highlight`, `render/markdown.ts`, and `render/math.ts` out of `dist/boot-frame.mjs`, `dist/App.mjs`, and `52/74` (`51+` non-markdown) `dist/*.mjs` entry chunks (`tests/perf-budget.test.mjs`, including `OriginalFileModal-` and `SkeletonDiagramsModal-`).
   5. `host/index.js`: Complete `0`-importer Barrel-Bypass across all of `src/` (Round 48); UI modules import `host/sample-actions.js`, `host/tui-prefs.js`, or `host/presets.js` directly rather than `host/index.js`, isolating `tui-host.ts` and `desktop-deps.ts` from `dist/App.mjs` (`tests/perf-budget.test.mjs`).
 - **Signed-int32 $O(K)$ snapshot fingerprinting (`src/state/snapshot-fingerprint.ts`)**:
   - `computeSnapshotFingerprint` feeds a dual signed-int32 FNV-1a `RollingHasher` (`Math.imul` + `| 0`) over structural metadata (revision, counts, timestamps, decks/progress, sources, courses, drafts, runs, jobs, attempts, settings) — avoiding `>>> 0` V8 HeapNumber boxing per step and deferring unsigned conversion to `digest()` — skipping unchanged store updates in `syncFromHost` in `< 1 ms` without full-snapshot `JSON.stringify`.
@@ -117,5 +117,7 @@ Keypress
   - `sanitizePastedText` strips ANSI escapes, stray CSI-u/`modifyOtherKeys` tails, and orphaned `200~`/`201~` bracketed-paste markers while preserving Windows/UNC paths; CJK/emoji display width and wrapping use `get-east-asian-width` + `strip-ansi` (`src/render/cjk.ts`).
 - **AST & modal invariants (`tests/keymap-audit.test.mjs`)**:
   - Parses `src/**/*.tsx` via the TypeScript AST to enforce: (1) `AppShell` global shortcuts match `PAGE_REGISTRY` and `HelpOverlay` with zero duplicates, (2) zero unclaimed global key collisions in primary views, (3) zero barrel imports in `src/App.tsx`, and (4) explicit bounded `width` props on every `<Modal>` containing `<TextInput>` (preserving `Modal`'s 5-row vertical chrome and `-4` prompt padding).
+- **Permanent P2 Quota-Guard Static Audit (`tests/p2-quota-audit.test.mjs`)**:
+  - Parses every `.ts`/`.tsx` file under `src/views/` and `src/shell/` via the TypeScript AST to enforce: (1) zero silent paid/LLM action calls inside `useEffect(...)`, (2) every file invoking guarded LLM actions (`deck.merge.suggest`, `source.organize.suggest`, `draft.import.propose`, `generate.suggest`, `focus.suggest`, `book.retell`, `coach.debrief`, `coach.prepare`, `coach.rewrite.retry`, `materials.translation.translate`, `note.generate`, `audio.corrections.review`, `source.folder.suggest`) directly imports `components/ConfirmDialog.js` (zero barrel imports) and renders `<ConfirmDialog`, and (3) zero `target: '中文'` / `'English'` regressions in `DocumentReader.tsx` `materials.translation.*` calls (`'zh'` / `'en'` only).
 - **Contributor verification checklist**:
   - Keep React hooks above every early return; provide `useTheme()`, `t(lang, zh, en)`, and `asciiMode` fallbacks; gate `useInput` with `isActive` + loaded state; never spawn `sh -c` or `cmd /c`; verify changes with `npx tsc --noEmit`, `npm run build`, root `npx eslint` on `.mjs` tests, and `npm test`.
