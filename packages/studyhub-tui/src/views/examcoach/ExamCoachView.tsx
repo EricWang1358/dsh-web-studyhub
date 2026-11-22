@@ -104,11 +104,20 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
   const [editTimeSec, setEditTimeSec] = useState('90');
 
   const [consentPromptCards, setConsentPromptCards] = useState<Array<{ deckId: string; cardId: string }> | null>(null);
+  const [confirmAiAnalyze, setConfirmAiAnalyze] = useState(false);
+  const [confirmGenerate, setConfirmGenerate] = useState<CompiledRequestResult | null>(null);
   const [prefsModalOpen, setPrefsModalOpen] = useState(false);
 
-  const modalOpen = noteModalOpen || editModalOpen || prefsModalOpen || consentPromptCards !== null;
+  const modalOpen =
+    noteModalOpen ||
+    editModalOpen ||
+    prefsModalOpen ||
+    consentPromptCards !== null ||
+    confirmAiAnalyze ||
+    confirmGenerate !== null;
   const mountedRef = useRef(true);
   const reqSeqRef = useRef(0);
+  const busyRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -201,222 +210,297 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
 
   // Actions
   const runAnalyze = useCallback(async (useModel: boolean, referenceSourceIds?: string[]) => {
-    setBusyLabel(useModel ? t(lang, '正在结合 AI 分析考察方式…', 'Analyzing exam style with AI…') : t(lang, '正在分析考察方式…', 'Analyzing exam style…'));
+    if (busyRef.current || busyLabel !== null) return;
+    busyRef.current = true;
+    setBusyLabel(useModel ? t(lang, '正在结合 AI 分析考察方式…', 'Analyzing exam style with AI...') : t(lang, '正在分析考察方式…', 'Analyzing exam style...'));
     setErrorMsg(null);
-    const res = await tryAction<{ spec?: CoachSpec; evidence?: CoachCapabilityEvidence }>(host, 'coach.calibration.analyze', {
-      course,
-      useModel,
-      ...(referenceSourceIds?.length ? { referenceSourceIds } : {}),
-    });
-    if (!mountedRef.current) return;
-    setBusyLabel(null);
-    if (!res.ok) {
-      setErrorMsg(res.error?.message || t(lang, '分析失败', 'Analyze failed'));
-      notify(res.error?.message || t(lang, '分析失败', 'Analyze failed'), 'error');
-      return;
+    try {
+      const res = await tryAction<{ spec?: CoachSpec; evidence?: CoachCapabilityEvidence }>(host, 'coach.calibration.analyze', {
+        course,
+        useModel,
+        ...(referenceSourceIds?.length ? { referenceSourceIds } : {}),
+      });
+      if (!mountedRef.current) return;
+      if (!res.ok) {
+        setErrorMsg(res.error?.message || t(lang, '分析失败', 'Analyze failed'));
+        notify(res.error?.message || t(lang, '分析失败', 'Analyze failed'), 'error');
+        return;
+      }
+      if (res.value?.spec) setSpec(res.value.spec);
+      if (res.value?.evidence) setCoachEvidence(res.value.evidence);
+      setCompiledPreview(null);
+      notify(t(lang, '已更新考察方式与代表样题草案', 'Calibration draft updated'), 'success');
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusyLabel(null);
     }
-    if (res.value?.spec) setSpec(res.value.spec);
-    if (res.value?.evidence) setCoachEvidence(res.value.evidence);
-    setCompiledPreview(null);
-    notify(t(lang, '已更新考察方式与代表样题草案', 'Calibration draft updated'), 'success');
-  }, [host, course, lang, notify]);
+  }, [busyLabel, host, course, lang, notify]);
 
   const toggleConfirm = useCallback(async (patch: Record<string, boolean>) => {
-    if (!selectedFamily) return;
-    const res = await tryAction<{ spec?: CoachSpec; evidence?: CoachCapabilityEvidence }>(host, 'coach.calibration.confirm', {
-      course,
-      familyId: selectedFamily.id,
-      ...patch,
-    });
-    if (!mountedRef.current) return;
-    if (!res.ok) {
-      notify(res.error?.message || t(lang, '确认失败', 'Confirm failed'), 'error');
-      return;
+    if (!selectedFamily || busyRef.current || busyLabel !== null) return;
+    busyRef.current = true;
+    try {
+      const res = await tryAction<{ spec?: CoachSpec; evidence?: CoachCapabilityEvidence }>(host, 'coach.calibration.confirm', {
+        course,
+        familyId: selectedFamily.id,
+        ...patch,
+      });
+      if (!mountedRef.current) return;
+      if (!res.ok) {
+        notify(res.error?.message || t(lang, '确认失败', 'Confirm failed'), 'error');
+        return;
+      }
+      if (res.value?.spec) setSpec(res.value.spec);
+      if (res.value?.evidence) setCoachEvidence(res.value.evidence);
+      if (patch.revealSampleSolution) {
+        notify(t(lang, '已展开样题答案并记录解法暴露', 'Sample solution revealed & exposure recorded'), 'info');
+      }
+    } finally {
+      busyRef.current = false;
     }
-    if (res.value?.spec) setSpec(res.value.spec);
-    if (res.value?.evidence) setCoachEvidence(res.value.evidence);
-    if (patch.revealSampleSolution) {
-      notify(t(lang, '已展开样题答案并记录解法暴露', 'Sample solution revealed & exposure recorded'), 'info');
-    }
-  }, [host, course, selectedFamily, lang, notify]);
+  }, [busyLabel, host, course, selectedFamily, lang, notify]);
 
-  const saveNotesAndAnalyze = useCallback(async () => {
+  const saveCoachNote = useCallback(async () => {
+    if (busyRef.current || busyLabel !== null) return;
     const trimmed = noteText.trim();
     if (!trimmed) {
       notify(t(lang, '请先粘贴样卷描述或考法笔记', 'Paste past-paper or exam-style notes first'), 'warning');
       return;
     }
+    busyRef.current = true;
     setNoteModalOpen(false);
-    setBusyLabel(t(lang, '正在保存样卷笔记并分析…', 'Saving exam-style notes & analyzing…'));
-    const title = noteTitle.trim() || `${course || t(lang, '考试', 'Exam')} · ${t(lang, '考法样卷笔记', 'Past-Paper Style Notes')}`;
-    const added = await tryAction<{ id: string }>(host, 'source.add', {
-      title,
-      text: trimmed,
-      format: 'md',
-      ...(course ? { courses: [course] } : {}),
-    });
-    if (!mountedRef.current) return;
-    if (!added.ok || !added.value?.id) {
-      setBusyLabel(null);
-      notify(added.error?.message || t(lang, '保存样卷笔记失败', 'Failed to save notes'), 'error');
-      return;
+    setBusyLabel(t(lang, '正在保存样卷笔记…', 'Saving exam-style notes...'));
+    try {
+      const title = noteTitle.trim() || `${course || t(lang, '考试', 'Exam')} - ${t(lang, '考法样卷笔记', 'Past-Paper Style Notes')}`;
+      const added = await tryAction<{ id: string }>(host, 'source.add', {
+        title,
+        text: trimmed,
+        format: 'md',
+        ...(course ? { courses: [course] } : {}),
+      });
+      if (!mountedRef.current) return;
+      if (!added.ok || !added.value?.id) {
+        notify(added.error?.message || t(lang, '保存样卷笔记失败', 'Failed to save notes'), 'error');
+        return;
+      }
+      setNoteTitle('');
+      setNoteText('');
+      await refreshSnapshot();
+      await loadAll();
+      if (!mountedRef.current) return;
+      notify(
+        t(lang, '已保存教练笔记（如需重新 AI 分析考法，请按 [A]）', 'Coach note saved (press [A] to re-run AI analysis)'),
+        'success',
+      );
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusyLabel(null);
     }
-    setNoteTitle('');
-    setNoteText('');
-    await refreshSnapshot();
-    await runAnalyze(model.ready, [added.value.id]);
-  }, [noteText, noteTitle, course, host, lang, notify, refreshSnapshot, runAnalyze, model.ready]);
+  }, [busyLabel, noteText, noteTitle, course, host, lang, notify, refreshSnapshot, loadAll]);
 
   const saveFamilyEdits = useCallback(async () => {
-    if (!spec || !selectedFamily) return;
+    if (!spec || !selectedFamily || busyRef.current || busyLabel !== null) return;
     const quota = Math.max(0, Math.min(50, Math.floor(Number(editQuota) || 0)));
     const timeBudgetSec = Math.max(15, Math.min(3600, Math.floor(Number(editTimeSec) || 90)));
     const nextFamilies = spec.taskFamilies.map((f) =>
       f.id === selectedFamily.id ? { ...f, quota, priority: editPriority, timeBudgetSec } : f,
     );
+    busyRef.current = true;
     setEditModalOpen(false);
-    setBusyLabel(t(lang, '正在保存训练配置…', 'Saving training configuration…'));
-    const res = await tryAction<{ spec?: CoachSpec; evidence?: CoachCapabilityEvidence }>(host, 'coach.calibration.save', {
-      course,
-      taskFamilies: nextFamilies,
-    });
-    if (!mountedRef.current) return;
-    setBusyLabel(null);
-    if (!res.ok) {
-      notify(res.error?.message || t(lang, '保存失败', 'Save failed'), 'error');
-      return;
+    setBusyLabel(t(lang, '正在保存训练配置…', 'Saving training configuration...'));
+    try {
+      const res = await tryAction<{ spec?: CoachSpec; evidence?: CoachCapabilityEvidence }>(host, 'coach.calibration.save', {
+        course,
+        taskFamilies: nextFamilies,
+      });
+      if (!mountedRef.current) return;
+      if (!res.ok) {
+        notify(res.error?.message || t(lang, '保存失败', 'Save failed'), 'error');
+        return;
+      }
+      if (res.value?.spec) setSpec(res.value.spec);
+      if (res.value?.evidence) setCoachEvidence(res.value.evidence);
+      setCompiledPreview(null);
+      notify(t(lang, '已保存任务族配额与时限', 'Saved task family quota & budget'), 'success');
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusyLabel(null);
     }
-    if (res.value?.spec) setSpec(res.value.spec);
-    if (res.value?.evidence) setCoachEvidence(res.value.evidence);
-    setCompiledPreview(null);
-    notify(t(lang, '已保存任务族配额与时限', 'Saved task family quota & budget'), 'success');
-  }, [spec, selectedFamily, editQuota, editPriority, editTimeSec, host, course, lang, notify]);
+  }, [busyLabel, spec, selectedFamily, editQuota, editPriority, editTimeSec, host, course, lang, notify]);
 
   const queueVariants = useCallback(async (cards: Array<{ deckId: string; cardId: string }>, consent?: boolean) => {
+    if (busyRef.current || busyLabel !== null) return;
     if (!cards.length) {
       notify(t(lang, '没有可生成变式的薄弱题', 'No weak cards to generate variants for'), 'warning');
       return;
     }
-    setBusyLabel(t(lang, '正在排队生成变式题…', 'Queueing variant generation…'));
-    const res = await tryAction<{ queued?: number; needsConsent?: boolean; skipped?: unknown[]; status?: CoachStatusResult }>(host, 'coach.variants', {
-      cards,
-      ...(consent ? { consent: true } : {}),
-    });
-    if (!mountedRef.current) return;
-    setBusyLabel(null);
-    if (!res.ok) {
-      notify(res.error?.message || t(lang, '生成变式失败', 'Variant generation failed'), 'error');
-      return;
+    busyRef.current = true;
+    setBusyLabel(t(lang, '正在排队生成变式题…', 'Queueing variant generation...'));
+    try {
+      const res = await tryAction<{ queued?: number; needsConsent?: boolean; skipped?: unknown[]; status?: CoachStatusResult }>(host, 'coach.variants', {
+        cards,
+        ...(consent ? { consent: true } : {}),
+      });
+      if (!mountedRef.current) return;
+      if (!res.ok) {
+        notify(res.error?.message || t(lang, '生成变式失败', 'Variant generation failed'), 'error');
+        return;
+      }
+      if (res.value?.needsConsent) {
+        setConsentPromptCards(cards);
+        return;
+      }
+      if (res.value?.status) setCoachStatus(res.value.status);
+      notify(
+        t(lang, `已入队 ${res.value?.queued ?? 0} 道变式题`, `Queued ${res.value?.queued ?? 0} variant(s)`),
+        'success',
+      );
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusyLabel(null);
     }
-    if (res.value?.needsConsent) {
-      setConsentPromptCards(cards);
-      return;
-    }
-    if (res.value?.status) setCoachStatus(res.value.status);
-    notify(
-      t(lang, `已入队 ${res.value?.queued ?? 0} 道变式题`, `Queued ${res.value?.queued ?? 0} variant(s)`),
-      'success',
-    );
-  }, [host, lang, notify]);
+  }, [busyLabel, host, lang, notify]);
 
   const startCoachPractice = useCallback(async (originCardIds?: string[]) => {
-    setBusyLabel(t(lang, '正在启动教练针对练习…', 'Starting targeted coach practice…'));
-    const res = await tryAction<{ id: string }>(host, 'coach.practice', originCardIds?.length ? { originCardIds } : {});
-    if (!mountedRef.current) return;
-    setBusyLabel(null);
-    if (!res.ok || !res.value?.id) {
-      notify(res.error?.message || t(lang, '暂时没有备好的定制题', 'No ready coach variants yet'), 'warning');
-      return;
+    if (busyRef.current || busyLabel !== null) return;
+    busyRef.current = true;
+    setBusyLabel(t(lang, '正在启动教练针对练习…', 'Starting targeted coach practice...'));
+    try {
+      const res = await tryAction<{ id: string }>(host, 'coach.practice', originCardIds?.length ? { originCardIds } : {});
+      if (!mountedRef.current) return;
+      if (!res.ok || !res.value?.id) {
+        notify(res.error?.message || t(lang, '暂时没有备好的定制题', 'No ready coach variants yet'), 'warning');
+        return;
+      }
+      await refreshSnapshot();
+      navigate('review', { runId: res.value.id });
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusyLabel(null);
     }
-    await refreshSnapshot();
-    navigate('review', { runId: res.value.id });
-  }, [host, lang, notify, refreshSnapshot, navigate]);
+  }, [busyLabel, host, lang, notify, refreshSnapshot, navigate]);
 
   const startPointPractice = useCallback(async (point: CourseEvidencePoint | undefined) => {
-    if (!point) return;
-    if (point.cardRefs && point.cardRefs.length > 0) {
-      const res = await tryAction<{ id: string }>(host, 'review.start', { mode: 'path', scope: point.cardRefs, fresh: true });
-      if (!mountedRef.current) return;
-      if (res.ok && res.value?.id) {
-        navigate('review', { runId: res.value.id });
+    if (!point || busyRef.current || busyLabel !== null) return;
+    busyRef.current = true;
+    setBusyLabel(t(lang, '正在启动考点练习…', 'Starting point practice...'));
+    try {
+      if (point.cardRefs && point.cardRefs.length > 0) {
+        const res = await tryAction<{ id: string }>(host, 'review.start', { mode: 'path', scope: point.cardRefs, fresh: true });
+        if (!mountedRef.current) return;
+        if (res.ok && res.value?.id) {
+          navigate('review', { runId: res.value.id });
+          return;
+        }
+        notify(res.error?.message || t(lang, '无法启动练习', 'Cannot start practice'), 'error');
         return;
       }
-      notify(res.error?.message || t(lang, '无法启动练习', 'Cannot start practice'), 'error');
-      return;
-    }
-    if (course) {
-      const res = await tryAction<{ id: string }>(host, 'review.start', { mode: 'due', course, fresh: true });
-      if (!mountedRef.current) return;
-      if (res.ok && res.value?.id) {
-        navigate('review', { runId: res.value.id });
-        return;
+      if (course) {
+        const res = await tryAction<{ id: string }>(host, 'review.start', { mode: 'due', course, fresh: true });
+        if (!mountedRef.current) return;
+        if (res.ok && res.value?.id) {
+          navigate('review', { runId: res.value.id });
+          return;
+        }
       }
+      notify(t(lang, '该考点暂无关联题目，请先出题', 'No linked cards for this point yet'), 'warning');
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusyLabel(null);
     }
-    notify(t(lang, '该考点暂无关联题目，请先出题', 'No linked cards for this point yet'), 'warning');
-  }, [host, course, lang, navigate, notify]);
+  }, [busyLabel, host, course, lang, navigate, notify]);
 
   const buildRequestPreview = useCallback(async () => {
-    setBusyLabel(t(lang, '正在编译校准出题请求…', 'Compiling calibrated request…'));
-    const res = await tryAction<CompiledRequestResult>(host, 'coach.calibration.buildRequest', { course });
-    if (!mountedRef.current) return;
-    setBusyLabel(null);
-    if (!res.ok || !res.value) {
-      notify(res.error?.message || t(lang, '请先执行「分析考法」', 'Run calibration analysis first'), 'warning');
-      return;
+    if (busyRef.current || busyLabel !== null) return;
+    busyRef.current = true;
+    setBusyLabel(t(lang, '正在编译校准出题请求…', 'Compiling calibrated request...'));
+    try {
+      const res = await tryAction<CompiledRequestResult>(host, 'coach.calibration.buildRequest', { course });
+      if (!mountedRef.current) return;
+      if (!res.ok || !res.value) {
+        notify(res.error?.message || t(lang, '请先执行「分析考法」', 'Run calibration analysis first'), 'warning');
+        return;
+      }
+      setCompiledPreview(res.value);
+      notify(t(lang, `预览就绪：共 ${res.value.totalCount} 题`, `Preview ready: ${res.value.totalCount} questions`), 'success');
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusyLabel(null);
     }
-    setCompiledPreview(res.value);
-    notify(t(lang, `预览就绪：共 ${res.value.totalCount} 题`, `Preview ready: ${res.value.totalCount} questions`), 'success');
-  }, [host, course, lang, notify]);
+  }, [busyLabel, host, course, lang, notify]);
 
   const checkStrictMock = useCallback(async () => {
-    setBusyLabel(t(lang, '正在核对严格同型组卷缺口…', 'Checking strict mock composition…'));
-    const activeFamilies = families.filter((f) => f.quota > 0);
-    const sections = activeFamilies.length
-      ? activeFamilies.map((f) => ({
-          id: f.id,
-          title: f.title,
-          allowedKinds: f.allowFormSubstitute && f.allowedFormats?.length ? f.allowedFormats : [f.primaryFormat],
-          count: Math.max(1, f.quota),
-          marksPerItem: f.marksPerItem ?? 5,
-          timePerItemSec: f.timeBudgetSec ?? 180,
-          requiresSharedMaterial: f.quotaUnit === 'shared-material-group' || f.primaryFormat === 'case',
-          subpartsCount: f.quotaUnit === 'subquestion' ? Math.max(2, f.questionsPerUnit ?? 2) : 0,
-        }))
-      : [{ id: 'default-quiz', title: t(lang, '基础客观题', 'Basic MCQ'), allowedKinds: ['quiz'], count: 4, marksPerItem: 5, timePerItemSec: 180 }];
-    const res = await tryAction<MockComposeResult>(host, 'coach.mockPaper.compose', { course, examShape: { sections } });
-    if (!mountedRef.current) return;
-    setBusyLabel(null);
-    if (!res.ok || !res.value) {
-      notify(res.error?.message || t(lang, '同型卷核对失败', 'Mock composition check failed'), 'error');
-      return;
+    if (busyRef.current || busyLabel !== null) return;
+    busyRef.current = true;
+    setBusyLabel(t(lang, '正在核对严格同型组卷缺口…', 'Checking strict mock composition...'));
+    try {
+      const activeFamilies = families.filter((f) => f.quota > 0);
+      const sections = activeFamilies.length
+        ? activeFamilies.map((f) => ({
+            id: f.id,
+            title: f.title,
+            allowedKinds: f.allowFormSubstitute && f.allowedFormats?.length ? f.allowedFormats : [f.primaryFormat],
+            count: Math.max(1, f.quota),
+            marksPerItem: f.marksPerItem ?? 5,
+            timePerItemSec: f.timeBudgetSec ?? 180,
+            requiresSharedMaterial: f.quotaUnit === 'shared-material-group' || f.primaryFormat === 'case',
+            subpartsCount: f.quotaUnit === 'subquestion' ? Math.max(2, f.questionsPerUnit ?? 2) : 0,
+          }))
+        : [{ id: 'default-quiz', title: t(lang, '基础客观题', 'Basic MCQ'), allowedKinds: ['quiz'], count: 4, marksPerItem: 5, timePerItemSec: 180 }];
+      const res = await tryAction<MockComposeResult>(host, 'coach.mockPaper.compose', { course, examShape: { sections } });
+      if (!mountedRef.current) return;
+      if (!res.ok || !res.value) {
+        notify(res.error?.message || t(lang, '同型卷核对失败', 'Mock composition check failed'), 'error');
+        return;
+      }
+      setMockReport(res.value);
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusyLabel(null);
     }
-    setMockReport(res.value);
-  }, [families, host, course, lang, notify]);
+  }, [busyLabel, families, host, course, lang, notify]);
 
-  const startCalibratedGenerate = useCallback(async () => {
-    setBusyLabel(t(lang, '正在按校准方案启动出题…', 'Starting calibrated generation…'));
-    const built = await tryAction<CompiledRequestResult>(host, 'coach.calibration.buildRequest', { course });
-    if (!mountedRef.current) return;
-    if (!built.ok || !built.value) {
-      setBusyLabel(null);
-      notify(built.error?.message || t(lang, '请先执行分析考法', 'Analyze exam style first'), 'warning');
-      return;
+  const requestCalibratedGenerate = useCallback(async () => {
+    if (busyRef.current || busyLabel !== null) return;
+    busyRef.current = true;
+    setBusyLabel(t(lang, '正在估算校准出题数量…', 'Estimating calibrated generation...'));
+    try {
+      const built = await tryAction<CompiledRequestResult>(host, 'coach.calibration.buildRequest', { course });
+      if (!mountedRef.current) return;
+      if (!built.ok || !built.value) {
+        notify(built.error?.message || t(lang, '请先执行分析考法', 'Analyze exam style first'), 'warning');
+        return;
+      }
+      if (built.value.totalCount <= 0) {
+        notify(t(lang, '启用配额为 0，请先调整至少一项任务配额', 'All quotas are 0; set at least one non-zero quota'), 'warning');
+        return;
+      }
+      setCompiledPreview(built.value);
+      setConfirmGenerate(built.value);
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusyLabel(null);
     }
-    if (built.value.totalCount <= 0) {
-      setBusyLabel(null);
-      notify(t(lang, '启用配额为 0，请先调整至少一项任务配额', 'All quotas are 0; set at least one non-zero quota'), 'warning');
-      return;
+  }, [busyLabel, host, course, lang, notify]);
+
+  const executeCalibratedGenerate = useCallback(async (built: CompiledRequestResult) => {
+    if (busyRef.current || busyLabel !== null) return;
+    busyRef.current = true;
+    setBusyLabel(t(lang, '正在按校准方案启动出题…', 'Starting calibrated generation...'));
+    try {
+      const gen = await tryAction(host, 'generate', built.request);
+      if (!mountedRef.current) return;
+      if (!gen.ok) {
+        notify(gen.error?.message || t(lang, '启动出题失败', 'Failed to start generation'), 'error');
+        return;
+      }
+      notify(t(lang, '已启动后台校准出题，可前往「后台任务」查看', 'Started calibrated generation job'), 'success');
+      navigate('tasks');
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusyLabel(null);
     }
-    const gen = await tryAction(host, 'generate', built.value.request);
-    if (!mountedRef.current) return;
-    setBusyLabel(null);
-    if (!gen.ok) {
-      notify(gen.error?.message || t(lang, '启动出题失败', 'Failed to start generation'), 'error');
-      return;
-    }
-    notify(t(lang, '已启动后台校准出题，可前往「后台任务」查看', 'Started calibrated generation job'), 'success');
-    navigate('tasks');
-  }, [host, course, lang, notify, navigate]);
+  }, [busyLabel, host, lang, notify, navigate]);
 
   useInput(
     (input, key) => {
@@ -436,8 +520,16 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
 
       if (tab === 'calibration') {
         if (input === 'p') { setPrefsModalOpen(true); return; }
-        if (input === 'a') { void runAnalyze(false); return; }
-        if (input === 'A') { void runAnalyze(true); return; }
+        if (input === 'a') {
+          if (busyRef.current || busyLabel !== null) return;
+          void runAnalyze(false);
+          return;
+        }
+        if (input === 'A') {
+          if (busyRef.current || busyLabel !== null) return;
+          setConfirmAiAnalyze(true);
+          return;
+        }
         if (input === 'N' || input === 'n') {
           setNoteField('text');
           setNoteModalOpen(true);
@@ -470,10 +562,12 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
         }
       } else if (tab === 'variants') {
         if (input === 'g' && selectedWrong) {
+          if (busyRef.current || busyLabel !== null) return;
           void queueVariants([{ deckId: selectedWrong.deckId, cardId: selectedWrong.cardId }]);
           return;
         }
         if (input === 'G' && wrongItems.length > 0) {
+          if (busyRef.current || busyLabel !== null) return;
           const readyIds = new Set((coachStatus?.readyCards ?? []).map((c) => c.originCardId));
           const prepIds = new Set(coachStatus?.preparingCards ?? []);
           const todo = wrongItems
@@ -503,8 +597,16 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
       } else if (tab === 'mock') {
         if (input === 'p') { setPrefsModalOpen(true); return; }
         if (input === 'b') { void buildRequestPreview(); return; }
-        if (input === 'm') { void checkStrictMock(); return; }
-        if (input === 'g') { void startCalibratedGenerate(); return; }
+        if (input === 'm') {
+          if (busyRef.current || busyLabel !== null) return;
+          void checkStrictMock();
+          return;
+        }
+        if (input === 'g') {
+          if (busyRef.current || busyLabel !== null) return;
+          void requestCalibratedGenerate();
+          return;
+        }
       }
     },
     { isActive: isActive && !modalOpen },
@@ -519,7 +621,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
           return;
         }
         if (key.ctrl && input === 's') {
-          void saveNotesAndAnalyze();
+          void saveCoachNote();
         }
       } else if (editModalOpen) {
         if (key.tab) {
@@ -978,13 +1080,13 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
       {noteModalOpen ? (
         <Modal
           title={t(lang, '提交往年样卷 / 考法笔记', 'Submit Past-Paper / Exam-Style Notes')}
-          subtitle={t(lang, 'Tab 切换字段 · Ctrl+S 分析', 'Tab: Switch · Ctrl+S: Analyze')}
+          subtitle={t(lang, 'Tab 切换字段 · Ctrl+S 保存', 'Tab: Switch - Ctrl+S: Save')}
           width={Math.min(76, width - 4)}
           onClose={() => setNoteModalOpen(false)}
           isActive={isActive}
           hints={[
             { key: 'Tab', label: t(lang, '切换输入框', 'Switch field') },
-            { key: 'Ctrl+S', label: t(lang, '保存并分析', 'Save & Analyze') },
+            { key: 'Ctrl+S', label: t(lang, '保存笔记', 'Save Note') },
             { key: 'Esc', label: t(lang, '取消', 'Cancel') },
           ]}
         >
@@ -1009,11 +1111,11 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
               onChange={setNoteText}
               multiline
               height={6}
-              placeholder={t(lang, '粘贴老师划的题型分布、样卷例题或评分要点…', 'Paste exam format, sample questions, or grading notes…')}
+              placeholder={t(lang, '粘贴老师划的题型分布、样卷例题或评分要点…', 'Paste exam format, sample questions, or grading notes...')}
               isActive={isActive && noteModalOpen && noteField === 'text'}
               width={modalContentWidth(Math.min(76, width - 4))}
               onCancel={() => setNoteModalOpen(false)}
-              onSubmit={() => void saveNotesAndAnalyze()}
+              onSubmit={() => void saveCoachNote()}
             />
           </Box>
         </Modal>
@@ -1066,6 +1168,52 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
             />
           </Box>
         </Modal>
+      ) : null}
+
+      {/* Confirm Dialog for AI Exam Analysis ([A]) */}
+      {confirmAiAnalyze ? (
+        <ConfirmDialog
+          title={t(lang, '确认 AI 深化分析考法', 'Confirm AI Exam Analysis')}
+          message={t(
+            lang,
+            `即将为「${course || '全部课程'}」调用 AI 模型（${model.provider}${model.model ? `/${model.model}` : ''}）重新分析课程资料与样卷（预计发起 1 次 AI 模型分析）。确认继续吗？`,
+            `Will invoke AI model (${model.provider}${model.model ? `/${model.model}` : ''}) to re-analyze exam materials for "${course || 'All Courses'}" (~1 AI analysis call). Continue?`,
+          )}
+          confirmLabel={t(lang, '开始分析', 'Analyze')}
+          cancelLabel={t(lang, '取消', 'Cancel')}
+          isActive={isActive}
+          onConfirm={() => {
+            setConfirmAiAnalyze(false);
+            void runAnalyze(true);
+          }}
+          onCancel={() => setConfirmAiAnalyze(false)}
+        />
+      ) : null}
+
+      {/* Confirm Dialog for Calibrated Generation ([g] on Mock tab) */}
+      {confirmGenerate ? (
+        <ConfirmDialog
+          title={t(lang, '确认按校准方案出题', 'Confirm Calibrated Generation')}
+          message={(() => {
+            const kindSummary = Object.entries(confirmGenerate.kindCounts || {})
+              .map(([k, n]) => `${formatKindLabel(k, lang)}:${n}`)
+              .join('  ');
+            return t(
+              lang,
+              `将为「${course || '全部课程'}」按校准配额生成共 ${confirmGenerate.totalCount} 题${kindSummary ? `（${kindSummary}）` : ''}，预计发起 1 次后台 AI 出题任务。确认继续吗？`,
+              `Generate ${confirmGenerate.totalCount} calibrated question(s) for "${course || 'All Courses'}"${kindSummary ? ` (${kindSummary})` : ''} (~1 AI generation job). Continue?`,
+            );
+          })()}
+          confirmLabel={t(lang, '开始出题', 'Generate')}
+          cancelLabel={t(lang, '取消', 'Cancel')}
+          isActive={isActive}
+          onConfirm={() => {
+            const built = confirmGenerate;
+            setConfirmGenerate(null);
+            void executeCalibratedGenerate(built);
+          }}
+          onCancel={() => setConfirmGenerate(null)}
+        />
       ) : null}
 
       {/* Consent Dialog for Variant Generation */}

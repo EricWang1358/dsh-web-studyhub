@@ -64,10 +64,12 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [planModalOpen, setPlanModalOpen] = useState(false);
   const [deleteTopicTarget, setDeleteTopicTarget] = useState<string | null>(null);
+  const [gapFillConfirm, setGapFillConfirm] = useState<{ topics: string[]; count: number } | null>(null);
 
-  const modalOpen = addModalOpen || planModalOpen || deleteTopicTarget !== null;
+  const modalOpen = addModalOpen || planModalOpen || deleteTopicTarget !== null || gapFillConfirm !== null;
   const mountedRef = useRef(true);
   const reqSeqRef = useRef(0);
+  const busyRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -137,33 +139,47 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
 
   // Actions
   const practiceUnmastered = useCallback(async () => {
+    if (busyRef.current || busyLabel !== null) return;
     const scope = selectedTopic?.weakCards?.length
       ? selectedTopic.weakCards
       : progress?.weakScope ?? [];
     if (scope.length > 0) {
-      setBusyLabel(t(lang, '正在开启重点薄弱题练习…', 'Starting weak focus practice…'));
-      const res = await tryAction<{ id: string }>(host, 'review.start', { mode: 'path', scope, fresh: true });
-      if (!mountedRef.current) return;
-      setBusyLabel(null);
-      if (res.ok && res.value?.id) {
-        navigate('review', { runId: res.value.id });
+      busyRef.current = true;
+      setBusyLabel(t(lang, '正在开启重点薄弱题练习…', 'Starting weak focus practice...'));
+      try {
+        const res = await tryAction<{ id: string }>(host, 'review.start', { mode: 'path', scope, fresh: true });
+        if (!mountedRef.current) return;
+        if (res.ok && res.value?.id) {
+          navigate('review', { runId: res.value.id });
+          return;
+        }
+        notify(res.error?.message || t(lang, '启动练习失败', 'Failed to start practice'), 'error');
         return;
+      } finally {
+        busyRef.current = false;
+        if (mountedRef.current) setBusyLabel(null);
       }
-      notify(res.error?.message || t(lang, '启动练习失败', 'Failed to start practice'), 'error');
-      return;
     }
     if (selectedTopic && selectedTopic.cards > 0 && course) {
-      const res = await tryAction<{ id: string }>(host, 'review.start', { mode: 'due', course, fresh: true });
-      if (!mountedRef.current) return;
-      if (res.ok && res.value?.id) {
-        navigate('review', { runId: res.value.id });
-        return;
+      busyRef.current = true;
+      setBusyLabel(t(lang, '正在开启练习…', 'Starting practice...'));
+      try {
+        const res = await tryAction<{ id: string }>(host, 'review.start', { mode: 'due', course, fresh: true });
+        if (!mountedRef.current) return;
+        if (res.ok && res.value?.id) {
+          navigate('review', { runId: res.value.id });
+          return;
+        }
+      } finally {
+        busyRef.current = false;
+        if (mountedRef.current) setBusyLabel(null);
       }
     }
     notify(t(lang, '当前暂无可练薄弱重点题；可按 g 为空重点补齐出题', 'No unmastered focus questions ready; press g for gap-fill'), 'info');
-  }, [selectedTopic, progress?.weakScope, host, course, lang, navigate, notify]);
+  }, [busyLabel, selectedTopic, progress?.weakScope, host, course, lang, navigate, notify]);
 
-  const generateGapFill = useCallback(async (targetTopics: string[]) => {
+  const requestGapFill = useCallback((targetTopics: string[]) => {
+    if (busyRef.current || busyLabel !== null) return;
     if (!course) {
       notify(t(lang, '请先选择一门课程 (按 c)', 'Select a course first (press c)'), 'warning');
       return;
@@ -179,95 +195,136 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
       notify(t(lang, '该课程暂无可用学习资料，请先前往「资料」页导入讲义', 'No sources in this course; import materials first'), 'warning');
       return;
     }
-    setBusyLabel(t(lang, '正在启动重点查漏补缺出题…', 'Starting gap-fill generation…'));
     const count = Math.min(20, Math.max(4, targetTopics.length * 4));
-    const title = targetTopics.length === 1
-      ? `${course} · ${targetTopics[0]}`
-      : `${course} · ${t(lang, '考纲补缺', 'Exam Gap-Fill')}`;
-    const res = await tryAction(host, 'generate', {
-      course,
-      sourceIds,
-      focusTopics: targetTopics,
-      count,
-      kind: 'mixed',
-      title,
-    });
-    if (!mountedRef.current) return;
-    setBusyLabel(null);
-    if (!res.ok) {
-      notify(res.error?.message || t(lang, '查漏补缺出题失败', 'Gap-fill generation failed'), 'error');
+    setGapFillConfirm({ topics: targetTopics, count });
+  }, [busyLabel, course, snapshot?.sources, lang, notify]);
+
+  const generateGapFill = useCallback(async (targetTopics: string[]) => {
+    if (busyRef.current || busyLabel !== null) return;
+    if (!course) {
+      notify(t(lang, '请先选择一门课程 (按 c)', 'Select a course first (press c)'), 'warning');
       return;
     }
-    notify(
-      t(lang, `已为 ${targetTopics.length} 个重点启动出题任务`, `Started gap-fill generation for ${targetTopics.length} topic(s)`),
-      'success',
-    );
-    navigate('tasks');
-  }, [course, snapshot?.sources, host, lang, notify, navigate]);
+    if (!targetTopics.length) {
+      notify(t(lang, '当前没有缺少题目的重点知识点', 'No focus points without questions'), 'info');
+      return;
+    }
+    const sourceIds = (snapshot?.sources ?? [])
+      .filter((s) => !s.archived && (s.course === course || s.courses?.includes(course)))
+      .map((s) => s.id);
+    if (!sourceIds.length) {
+      notify(t(lang, '该课程暂无可用学习资料，请先前往「资料」页导入讲义', 'No sources in this course; import materials first'), 'warning');
+      return;
+    }
+    busyRef.current = true;
+    setBusyLabel(t(lang, '正在启动重点查漏补缺出题…', 'Starting gap-fill generation...'));
+    try {
+      const count = Math.min(20, Math.max(4, targetTopics.length * 4));
+      const title = targetTopics.length === 1
+        ? `${course} - ${targetTopics[0]}`
+        : `${course} - ${t(lang, '考纲补缺', 'Exam Gap-Fill')}`;
+      const res = await tryAction(host, 'generate', {
+        course,
+        sourceIds,
+        focusTopics: targetTopics,
+        count,
+        kind: 'mixed',
+        title,
+      });
+      if (!mountedRef.current) return;
+      if (!res.ok) {
+        notify(res.error?.message || t(lang, '查漏补缺出题失败', 'Gap-fill generation failed'), 'error');
+        return;
+      }
+      notify(
+        t(lang, `已为 ${targetTopics.length} 个重点启动出题任务`, `Started gap-fill generation for ${targetTopics.length} topic(s)`),
+        'success',
+      );
+      navigate('tasks');
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusyLabel(null);
+    }
+  }, [busyLabel, course, snapshot?.sources, host, lang, notify, navigate]);
 
   const confirmRemoveTopic = useCallback(async (topicToRemove: string) => {
-    if (!course) return;
+    if (!course || busyRef.current || busyLabel !== null) return;
     setDeleteTopicTarget(null);
-    setBusyLabel(t(lang, '正在移除重点条目…', 'Removing focus topic…'));
-    const existingCourse = (snapshot?.courses ?? []).find((c) => String(c.name || c.id || '').trim() === course);
-    let record: CourseRecordView | null = null;
-    if (existingCourse?.id) {
-      const got = await tryAction<CourseRecordView>(host, 'course.get', { id: String(existingCourse.id) });
-      if (got.ok && got.value) record = got.value;
+    busyRef.current = true;
+    setBusyLabel(t(lang, '正在移除重点条目…', 'Removing focus topic...'));
+    try {
+      const existingCourse = (snapshot?.courses ?? []).find((c) => String(c.name || c.id || '').trim() === course);
+      let record: CourseRecordView | null = null;
+      if (existingCourse?.id) {
+        const got = await tryAction<CourseRecordView>(host, 'course.get', { id: String(existingCourse.id) });
+        if (got.ok && got.value) record = got.value;
+      }
+      const remaining = topics.map((tp) => tp.topic).filter((tp) => tp !== topicToRemove);
+      const saved = await tryAction(host, 'course.save', {
+        ...(record?.id ? { id: record.id } : {}),
+        name: course,
+        ...(record?.exam ? { exam: record.exam } : {}),
+        ...(record?.plan ? { plan: record.plan } : {}),
+        ...(record?.guidanceSourceIds ? { guidanceSourceIds: record.guidanceSourceIds } : {}),
+        focusTopics: remaining,
+      });
+      if (!mountedRef.current) return;
+      if (!saved.ok) {
+        notify(saved.error?.message || t(lang, '移除失败', 'Remove failed'), 'error');
+        return;
+      }
+      await refreshSnapshot();
+      await loadAll();
+      notify(t(lang, `已移除「${topicToRemove}」`, `Removed "${topicToRemove}"`), 'info');
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusyLabel(null);
     }
-    const remaining = topics.map((tp) => tp.topic).filter((tp) => tp !== topicToRemove);
-    const saved = await tryAction(host, 'course.save', {
-      ...(record?.id ? { id: record.id } : {}),
-      name: course,
-      ...(record?.exam ? { exam: record.exam } : {}),
-      ...(record?.plan ? { plan: record.plan } : {}),
-      ...(record?.guidanceSourceIds ? { guidanceSourceIds: record.guidanceSourceIds } : {}),
-      focusTopics: remaining,
-    });
-    if (!mountedRef.current) return;
-    setBusyLabel(null);
-    if (!saved.ok) {
-      notify(saved.error?.message || t(lang, '移除失败', 'Remove failed'), 'error');
-      return;
-    }
-    await refreshSnapshot();
-    await loadAll();
-    notify(t(lang, `已移除「${topicToRemove}」`, `Removed "${topicToRemove}"`), 'info');
-  }, [course, snapshot?.courses, host, topics, lang, notify, refreshSnapshot, loadAll]);
+  }, [busyLabel, course, snapshot?.courses, host, topics, lang, notify, refreshSnapshot, loadAll]);
 
   const toggleCrunchMark = useCallback(async (kind: 'read' | 'seen') => {
-    if (!selectedCrunch || !course) return;
-    const isOn = kind === 'read' ? Boolean(selectedCrunch.done) : Boolean(selectedCrunch.seen);
-    const res = await tryAction<BookCrunchResult>(host, 'book.crunch.mark', {
-      course,
-      hid: selectedCrunch.id,
-      kind,
-      on: !isOn,
-    });
-    if (!mountedRef.current) return;
-    if (!res.ok) {
-      notify(res.error?.message || t(lang, '标记失败', 'Mark failed'), 'error');
-      return;
+    if (!selectedCrunch || !course || busyRef.current || busyLabel !== null) return;
+    busyRef.current = true;
+    try {
+      const isOn = kind === 'read' ? Boolean(selectedCrunch.done) : Boolean(selectedCrunch.seen);
+      const res = await tryAction<BookCrunchResult>(host, 'book.crunch.mark', {
+        course,
+        hid: selectedCrunch.id,
+        kind,
+        on: !isOn,
+      });
+      if (!mountedRef.current) return;
+      if (!res.ok) {
+        notify(res.error?.message || t(lang, '标记失败', 'Mark failed'), 'error');
+        return;
+      }
+      if (res.value) setCrunch(res.value);
+    } finally {
+      busyRef.current = false;
     }
-    if (res.value) setCrunch(res.value);
-  }, [selectedCrunch, course, host, lang, notify]);
+  }, [busyLabel, selectedCrunch, course, host, lang, notify]);
 
   const startCrunchMock = useCallback(async () => {
-    if (!course) return;
-    setBusyLabel(t(lang, '正在生成冲刺模拟练习…', 'Starting crunch mock…'));
-    const pointIds = selectedCrunch ? [selectedCrunch.id] : undefined;
-    const res = await tryAction<{ id: string }>(host, 'book.mock', {
-      course,
-      ...(pointIds ? { pointIds } : {}),
-    });
-    if (!mountedRef.current) return;
-    setBusyLabel(null);
-    if (res.ok && res.value?.id) {
-      navigate('review', { runId: res.value.id });
-      return;
+    if (!course || busyRef.current || busyLabel !== null) return;
+    busyRef.current = true;
+    setBusyLabel(t(lang, '正在生成冲刺模拟练习…', 'Starting crunch mock...'));
+    try {
+      const pointIds = selectedCrunch ? [selectedCrunch.id] : undefined;
+      const res = await tryAction<{ id: string }>(host, 'book.mock', {
+        course,
+        ...(pointIds ? { pointIds } : {}),
+      });
+      if (!mountedRef.current) return;
+      if (res.ok && res.value?.id) {
+        navigate('review', { runId: res.value.id });
+        return;
+      }
+      notify(res.error?.message || t(lang, '该节暂无选择题，先按 g 补题', 'No choice questions for mock yet'), 'warning');
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusyLabel(null);
     }
-    notify(res.error?.message || t(lang, '该节暂无选择题，先按 g 补题', 'No choice questions for mock yet'), 'warning');
-  }, [course, selectedCrunch, host, lang, navigate, notify]);
+  }, [busyLabel, course, selectedCrunch, host, lang, navigate, notify]);
 
   useInput(
     (input, key) => {
@@ -297,17 +354,20 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
           return;
         }
         if (input === 'g') {
+          if (busyRef.current || busyLabel !== null) return;
           const list = selectedTopic && selectedTopic.status === 'none'
             ? [selectedTopic.topic]
             : noQuestionTopics.slice(0, 5);
-          void generateGapFill(list);
+          requestGapFill(list);
           return;
         }
         if (input === 'G') {
-          void generateGapFill(noQuestionTopics.slice(0, 10));
+          if (busyRef.current || busyLabel !== null) return;
+          requestGapFill(noQuestionTopics.slice(0, 10));
           return;
         }
         if (input === 'd' && selectedTopic) {
+          if (busyRef.current || busyLabel !== null) return;
           setDeleteTopicTarget(selectedTopic.topic);
           return;
         }
@@ -655,6 +715,36 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
           isActive={isActive}
           onConfirm={() => void confirmRemoveTopic(deleteTopicTarget)}
           onCancel={() => setDeleteTopicTarget(null)}
+        />
+      ) : null}
+
+      {/* Confirm gap-fill AI generation */}
+      {gapFillConfirm ? (
+        <ConfirmDialog
+          title={t(lang, '确认重点补齐出题', 'Confirm Gap-Fill Generation')}
+          message={
+            <Box flexDirection="column" gap={1}>
+              <Text color={theme.text}>
+                {t(
+                  lang,
+                  `即将为 ${gapFillConfirm.topics.length} 个缺失重点主题调用 AI 出题，预计发起约 1 次生成任务（约 ${gapFillConfirm.count} 题），确认继续吗？`,
+                  `Will generate questions for ${gapFillConfirm.topics.length} missing focus topics (~1 AI generation job, ~${gapFillConfirm.count} questions). Continue?`,
+                )}
+              </Text>
+              <Text color={theme.muted}>
+                {`${t(lang, '目标主题', 'Topics')}: ${gapFillConfirm.topics.slice(0, 5).join(', ')}${gapFillConfirm.topics.length > 5 ? ` (+${gapFillConfirm.topics.length - 5})` : ''}`}
+              </Text>
+            </Box>
+          }
+          confirmLabel={t(lang, '开始出题', 'Generate')}
+          cancelLabel={t(lang, '取消', 'Cancel')}
+          isActive={isActive}
+          onConfirm={() => {
+            const list = gapFillConfirm.topics;
+            setGapFillConfirm(null);
+            void generateGapFill(list);
+          }}
+          onCancel={() => setGapFillConfirm(null)}
         />
       ) : null}
     </Box>

@@ -4,6 +4,7 @@ import type { KeyHint, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import {
   Badge,
+  ConfirmDialog,
   EmptyState,
   Modal,
   Panel,
@@ -328,10 +329,12 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
   const [routeOpen, setRouteOpen] = useState(false);
   const [groupsOpen, setGroupsOpen] = useState(false);
   const [nodeEditOpen, setNodeEditOpen] = useState(false);
+  const [confirmGenOpen, setConfirmGenOpen] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [reloadSeq, setReloadSeq] = useState(0);
 
   const mountedRef = useRef(true);
+  const busyRef = useRef(false);
   const lintReqRef = useRef(0);
   useEffect(() => {
     mountedRef.current = true;
@@ -655,12 +658,13 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
   }, []);
 
   const practiseNode = useCallback(async () => {
-    if (!selectedNode || busyAction) return;
+    if (!selectedNode || busyRef.current || busyAction !== null) return;
     const refs = selectedStats?.subtreeCards.length ? selectedStats.subtreeCards : selectedNode.cards;
     if (!refs.length) {
       useTuiStore.getState().notify(t(lang, '该知识节点暂无关联题目', 'No cards linked to this node'), 'warning');
       return;
     }
+    busyRef.current = true;
     setBusyAction('practice');
     try {
       const res = await host.call<{ id?: string }>('review.start', {
@@ -677,25 +681,26 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
         ...(activeCourse ? { course: activeCourse } : {}),
       });
     } finally {
+      busyRef.current = false;
       if (mountedRef.current) setBusyAction(null);
     }
   }, [selectedNode, selectedStats, busyAction, host, lang, activeCourse]);
 
+  const requestGenerateSkeleton = useCallback(() => {
+    if (busyRef.current || busyAction !== null) return;
+    if (!topics.length) {
+      useTuiStore.getState().notify(t(lang, '当前课程还没有题目，无法生成知识骨架', 'No questions in scope to generate skeleton'), 'warning');
+      return;
+    }
+    setConfirmGenOpen(true);
+  }, [busyAction, topics.length, lang]);
+
   const generateSkeleton = useCallback(async () => {
-    if (busyAction) return;
+    if (busyRef.current || busyAction !== null) return;
+    busyRef.current = true;
     setBusyAction('generate');
     try {
-      // 1. Try workflow.skeleton.generate first (supports test mocks or active sessions)
-      const wfRes = await host.call<{ session?: { id?: string }; skeleton?: { id?: string } }>('workflow.skeleton.generate', {
-        ...(activeCourse ? { course: activeCourse } : {}),
-      });
-      if (wfRes.ok) {
-        useTuiStore.getState().notify(t(lang, '已触发知识骨架生成', 'Triggered skeleton generation'), 'success');
-        setReloadSeq((n) => n + 1);
-        return;
-      }
-
-      // 2. Gather scope from skeleton.topics + skeleton.context and generate via host.streamComplete -> skeleton.save
+      // 1. Gather scope from skeleton.topics + skeleton.context and generate via host.streamComplete -> skeleton.save
       const topicsRes = await host.call<{ topics?: SkeletonTopicItem[] }>('skeleton.topics', activeCourse ? { course: activeCourse } : {});
       const availableTopics = topicsRes.ok && topicsRes.value?.topics ? topicsRes.value.topics : topics;
       const scopeMap = new Map<string, { deckId: string; topic?: string }>();
@@ -712,77 +717,58 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
 
       const ctxRes = await host.call<{ cards?: Array<{ deckId: string; cardId: string; topic: string; prompt: string }> }>('skeleton.context', { scope });
       const cards = ctxRes.ok && Array.isArray(ctxRes.value?.cards) ? ctxRes.value!.cards! : [];
-
-      if (host.streamComplete && cards.length > 0) {
-        useTuiStore.getState().notify(t(lang, '正在用 AI 构建知识骨架…', 'Generating knowledge skeleton with AI…'), 'info');
-        const sys = [
-          'Design a hierarchical knowledge skeleton from the supplied topics and cards.',
-          'Return ONLY valid JSON: {title:string, overview:string, nodes:[{id:string, term:string, meaning:string, parent?:string, cards:string[]}], relations:[{from:string, to:string, type:"part-of"|"causes"|"contrasts"|"prerequisite"|"example-of"|"related", note?:string}]}.',
-          'Keep 5-20 nodes, depth <= 3, and meaning <= 50 chars.',
-        ].join('\n');
-        const prompt = JSON.stringify({
-          course: activeCourse || 'all',
-          topics: availableTopics.slice(0, 20).map((x) => ({ topic: x.topic, count: x.count })),
-          cards: cards.slice(0, 60).map((c) => ({ cardId: c.cardId, topic: c.topic, prompt: c.prompt.slice(0, 100) })),
-        });
-        const raw = await host.streamComplete({ system: sys, prompt });
-        const parsed = extractJsonObject(raw);
-        if (parsed && Array.isArray(parsed.nodes) && parsed.nodes.length > 0) {
-          const saved = await host.call<SkeletonDetail>('skeleton.save', { ...parsed, scope });
-          if (saved.ok && saved.value?.id) {
-            setSelectedSkeletonId(saved.value.id);
-            setReloadSeq((n) => n + 1);
-            useTuiStore.getState().notify(t(lang, `已生成骨架「${saved.value.title}」`, `Generated skeleton "${saved.value.title}"`), 'success');
-            return;
-          }
-        }
+      if (cards.length === 0) {
+        useTuiStore.getState().notify(t(lang, '当前课程还没有题目，无法生成知识骨架', 'No questions in scope to generate skeleton'), 'warning');
+        return;
       }
 
-      // 3. Deterministic topic-tree fallback via skeleton.save if model unavailable or returned non-JSON
-      const byTopic = new Map<string, Array<{ deckId: string; cardId: string }>>();
-      for (const c of cards) {
-        const list = byTopic.get(c.topic) ?? [];
-        list.push({ deckId: c.deckId, cardId: c.cardId });
-        byTopic.set(c.topic, list);
+      if (!host.streamComplete) {
+        useTuiStore.getState().notify(
+          t(lang, '当前模型未就绪，无法生成知识骨架（请先检查模型配置）', 'Model is unavailable to generate skeleton; check model configuration'),
+          'error',
+        );
+        return;
       }
-      const rootId = 'n0';
-      const nodes: SkeletonNode[] = [
-        {
-          id: rootId,
-          term: activeCourse || t(lang, '课程知识总览', 'Course Overview'),
-          meaning: t(lang, `包含 ${byTopic.size} 个核心主题`, `Covers ${byTopic.size} core topics`),
-          cards: [],
-        },
-      ];
-      let idx = 1;
-      for (const [topic, list] of [...byTopic.entries()].slice(0, 24)) {
-        nodes.push({
-          id: `n${idx++}`,
-          term: topic.slice(0, 60),
-          meaning: t(lang, `共关联 ${list.length} 道练习题`, `Linked to ${list.length} practice questions`),
-          parent: rootId,
-          cards: list,
-        });
-      }
-      const saved = await host.call<SkeletonDetail>('skeleton.save', {
-        title: `${activeCourse || t(lang, '知识', 'Study')} ${t(lang, '骨架', 'Skeleton')}`.slice(0, 70),
-        overview: t(lang, '按课程主题自动归并的知识层级树，可随时使用 AI 扩展细节。', 'Auto-organized knowledge hierarchy grouped by topic.'),
-        scope,
-        nodes,
-        relations: [],
+
+      useTuiStore.getState().notify(t(lang, '正在用 AI 构建知识骨架…', 'Generating knowledge skeleton with AI...'), 'info');
+      const sys = [
+        'Design a hierarchical knowledge skeleton from the supplied topics and cards.',
+        'Return ONLY valid JSON: {title:string, overview:string, nodes:[{id:string, term:string, meaning:string, parent?:string, cards:string[]}], relations:[{from:string, to:string, type:"part-of"|"causes"|"contrasts"|"prerequisite"|"example-of"|"related", note?:string}]}.',
+        'Keep 5-20 nodes, depth <= 3, and meaning <= 50 chars.',
+      ].join('\n');
+      const prompt = JSON.stringify({
+        course: activeCourse || 'all',
+        topics: availableTopics.slice(0, 20).map((x) => ({ topic: x.topic, count: x.count })),
+        cards: cards.slice(0, 60).map((c) => ({ cardId: c.cardId, topic: c.topic, prompt: c.prompt.slice(0, 100) })),
       });
+      const raw = await host.streamComplete({ system: sys, prompt });
+      const parsed = extractJsonObject(raw);
+      if (!parsed || !Array.isArray(parsed.nodes) || parsed.nodes.length === 0) {
+        useTuiStore.getState().notify(
+          t(lang, 'AI 返回的骨架格式无效，未写入（可重试或先检查模型配置）', 'Model output could not be parsed as a valid skeleton; nothing saved'),
+          'error',
+        );
+        return;
+      }
+
+      const saved = await host.call<SkeletonDetail>('skeleton.save', { ...parsed, scope });
       if (saved.ok && saved.value?.id) {
         setSelectedSkeletonId(saved.value.id);
         setReloadSeq((n) => n + 1);
-        useTuiStore.getState().notify(t(lang, `已创建知识骨架「${saved.value.title}」`, `Created skeleton "${saved.value.title}"`), 'success');
+        useTuiStore.getState().notify(t(lang, `已生成骨架「${saved.value.title}」`, `Generated skeleton "${saved.value.title}"`), 'success');
       } else {
-        useTuiStore.getState().notify(saved.error?.message || wfRes.error?.message || t(lang, '骨架生成失败', 'Skeleton generation failed'), 'error');
+        useTuiStore.getState().notify(saved.error?.message || t(lang, '骨架保存失败', 'Failed to save skeleton'), 'error');
       }
     } catch (err) {
       if (mountedRef.current) {
-        useTuiStore.getState().notify(err instanceof Error ? err.message : String(err), 'error');
+        const msg = err instanceof Error ? err.message : String(err);
+        useTuiStore.getState().notify(
+          t(lang, `AI 骨架生成失败，未写入：${msg}`, `AI skeleton generation failed; nothing saved: ${msg}`),
+          'error',
+        );
       }
     } finally {
+      busyRef.current = false;
       if (mountedRef.current) setBusyAction(null);
     }
   }, [busyAction, host, activeCourse, lang, topics]);
@@ -892,7 +878,7 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
     [lintResult, detail, topics, cardIndex, nodeById, lang],
   );
 
-  const modalOpen = switcherOpen || lintOpen || routeOpen || groupsOpen || nodeEditOpen;
+  const modalOpen = switcherOpen || lintOpen || routeOpen || groupsOpen || nodeEditOpen || confirmGenOpen;
   useClaimKeys(CLAIMED_KEYS, isActive && !modalOpen);
 
   const hints: KeyHint[] = useMemo(
@@ -953,7 +939,7 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
         return;
       }
       if (input === 'g') {
-        void generateSkeleton();
+        requestGenerateSkeleton();
         return;
       }
       if (input === 's' && skeletons.length > 0) {
@@ -1343,6 +1329,25 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
           />
         ) : null}
       </Suspense>
+
+      {confirmGenOpen ? (
+        <ConfirmDialog
+          title={t(lang, '确认生成知识骨架', 'Confirm Skeleton Generation')}
+          message={t(
+            lang,
+            `将为「${activeCourse || '全部课程'}」调用 AI 生成知识骨架（覆盖 ${topics.length} 个主题，共 ${topics.reduce((sum, tp) => sum + (tp.count || 0), 0)} 题，预计发起 1 次 AI 模型调用）。确认继续吗？`,
+            `Generate knowledge skeleton for "${activeCourse || 'All Courses'}" (${topics.length} topics, ${topics.reduce((sum, tp) => sum + (tp.count || 0), 0)} cards; ~1 AI model call). Continue?`,
+          )}
+          confirmLabel={t(lang, '开始生成', 'Generate')}
+          cancelLabel={t(lang, '取消', 'Cancel')}
+          isActive={isActive}
+          onConfirm={() => {
+            setConfirmGenOpen(false);
+            void generateSkeleton();
+          }}
+          onCancel={() => setConfirmGenOpen(false)}
+        />
+      ) : null}
     </Box>
   );
 };
