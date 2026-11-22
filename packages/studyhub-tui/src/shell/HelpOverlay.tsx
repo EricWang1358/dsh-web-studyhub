@@ -90,6 +90,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'W', label: t(lang, '填入课程薄弱知识点', 'Fill weak topics') },
         { key: 'S', label: t(lang, 'AI 出题建议', 'AI suggest strategy') },
         { key: 'P', label: t(lang, '分步出题路径规划', 'Multi-step study path') },
+        { key: 'g: /', label: t(lang, '筛选出题参考资料', 'Filter source materials') },
         { key: 'S / R', label: t(lang, '草稿查重与修复', 'Draft similar & repair') },
         { key: 'V', label: t(lang, '草稿发布预检', 'Draft publish preflight') },
         { key: 'u', label: t(lang, '撤销移除草稿题', 'Undo removed draft card') },
@@ -114,6 +115,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'M', label: t(lang, '章节模拟卷', 'Chapter mock exam') },
         { key: 'E', label: t(lang, 'AI深入讲解/补充段落', 'AI explain / add section') },
         { key: 'B', label: t(lang, '审阅/保留/删除 AI 补充块', 'Review / keep / delete AI blocks') },
+        { key: '/', label: t(lang, '关键词筛选全书目录', 'Filter book TOC by keyword') },
       ],
     },
     {

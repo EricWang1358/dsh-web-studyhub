@@ -11,8 +11,9 @@ import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { Panel } from '../../components/Panel.js';
 import { SelectList, type SelectOption } from '../../components/SelectList.js';
 import { SplitPane } from '../../components/SplitPane.js';
+import { TextInput } from '../../components/TextInput.js';
 import { VirtualList } from '../../components/VirtualList.js';
-import { useClaimKeys } from '../../components/focus.js';
+import { useClaimKeys, useInputCapture } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import type {
@@ -33,9 +34,29 @@ const BookQaModal = lazy(() => import('./BookQaModal.js').then((m) => ({ default
 const BookRetellModal = lazy(() => import('./BookRetellModal.js').then((m) => ({ default: m.BookRetellModal })));
 const BookStructureModal = lazy(() => import('./BookStructureModal.js').then((m) => ({ default: m.BookStructureModal })));
 
-const BASE_CLAIMED_KEYS = ['B', 'E', 'H', 'M', 'P', 'T', 'U', 'e', 'r', 'w', 'x', '[', ']'] as const;
+const BASE_CLAIMED_KEYS = ['B', 'E', 'H', 'M', 'P', 'T', 'U', 'e', 'r', 'w', 'x', '[', ']', '/'] as const;
 const REBUILD_CLAIMED_KEYS = ['B', 'E', 'H', 'M', 'P', 'T', 'U', 'e', 'r', 'w', 'x', '[', ']', 'a'] as const;
 const STRUCTURE_FILE = 'book.structure';
+
+function tocItemMatchesFilter(item: FlatTocItem, rawQuery: string): boolean {
+  const q = rawQuery.trim().toLowerCase();
+  if (!q) return true;
+  const nodeFiles = item.node?.files;
+  const tocFiles = item.tocRow?.files ? Object.keys(item.tocRow.files) : [];
+  const rawId = item.key?.startsWith('bk:') ? item.key.slice(3) : '';
+  const parts: string[] = [
+    item.title,
+    item.number,
+    item.hid,
+    item.key,
+    nodeFiles?.gen ?? '',
+    nodeFiles?.mine ?? '',
+    nodeFiles?.qa ?? '',
+    ...(rawId ? [`${rawId}.gen.md`, `${rawId}.mine.md`, `${rawId}.qa.md`] : []),
+    ...tocFiles,
+  ];
+  return parts.join('\n').toLowerCase().includes(q);
+}
 
 interface BookMockPlanResult {
   status: string;
@@ -402,6 +423,8 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
   const [qaList, setQaList] = useState<BookQaListResult | null>(null);
   const [readCache, setReadCache] = useState<Record<string, BookReadResult>>({});
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [filterQuery, setFilterQuery] = useState('');
+  const [filterEditing, setFilterEditing] = useState(false);
   const [activePane, setActivePane] = useState<'left' | 'right'>('left');
   const [aiBlocksOpen, setAiBlocksOpen] = useState(false);
   const [buildModalOpen, setBuildModalOpen] = useState(false);
@@ -484,10 +507,22 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
     };
   }, [host, activeCourse, lang, reloadSeq]);
 
+  useEffect(() => {
+    setFilterQuery('');
+    setFilterEditing(false);
+    setSelectedIndex(0);
+  }, [activeCourse]);
+
   const items: FlatTocItem[] = useMemo(() => {
     if (bookData?.status === 'ok' && bookData.nodes?.length) return flattenBookNodes(bookData.nodes);
     return flattenTocRows(tocData);
   }, [bookData, tocData]);
+
+  const normalizedFilter = filterQuery.trim().toLowerCase();
+  const visibleItems: FlatTocItem[] = useMemo(() => {
+    if (!normalizedFilter) return items;
+    return items.filter((it) => tocItemMatchesFilter(it, normalizedFilter));
+  }, [items, normalizedFilter]);
 
   const unplacedSections = useMemo(() => extractUnplacedSections(bookData), [bookData]);
 
@@ -501,18 +536,23 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
 
   useEffect(() => {
     const targetHid = pendingFocusHidRef.current;
-    if (targetHid && items.length > 0) {
-      const idx = items.findIndex((it) => it.hid === targetHid);
+    if (targetHid && visibleItems.length > 0) {
+      const idx = visibleItems.findIndex((it) => it.hid === targetHid);
       pendingFocusHidRef.current = null;
       if (idx >= 0) {
         setSelectedIndex(idx);
         return;
       }
     }
-    if (items.length > 0 && selectedIndex >= items.length) setSelectedIndex(items.length - 1);
-  }, [items, selectedIndex]);
+    if (visibleItems.length > 0 && selectedIndex >= visibleItems.length) {
+      setSelectedIndex(visibleItems.length - 1);
+    } else if (visibleItems.length === 0 && selectedIndex !== 0) {
+      setSelectedIndex(0);
+    }
+  }, [visibleItems, selectedIndex]);
 
-  const selectedItem = items[selectedIndex];
+  const clampedSelectedIndex = visibleItems.length > 0 ? Math.max(0, Math.min(selectedIndex, visibleItems.length - 1)) : 0;
+  const selectedItem = visibleItems[clampedSelectedIndex];
   const effectiveCourse = bookData?.course ?? tocData?.course ?? activeCourse ?? undefined;
 
   // Lazy-fetch book.read when selected node lacks inline text (e.g., toc fallback or chapter/leaf read)
@@ -917,7 +957,11 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
     confirmRevertOpen ||
     confirmUndoRebuildOpen ||
     Boolean(mockConfirmPlan);
-  useClaimKeys(status === 'rebuild-pending' ? REBUILD_CLAIMED_KEYS : BASE_CLAIMED_KEYS, isActive && !modalOpen);
+  useClaimKeys(
+    status === 'rebuild-pending' ? REBUILD_CLAIMED_KEYS : BASE_CLAIMED_KEYS,
+    isActive && !modalOpen && !filterEditing,
+  );
+  useInputCapture(isActive && !modalOpen && filterEditing);
 
   const planMockExam = useCallback(async () => {
     if (busyRef.current || busyAction) return;
@@ -1047,6 +1091,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
             { key: 'P', label: t(lang, '精选问答', 'Pinned QA') },
             { key: 'H', label: t(lang, '历史版本', 'History') },
             { key: 'B', label: t(lang, 'AI块审阅', 'AI Blocks') },
+            { key: '/', label: t(lang, '筛选', 'Filter') },
             { key: 'w', label: t(lang, '期末一周', 'Final week') },
             { key: 'x', label: t(lang, '导出', 'Export') },
             { key: 'R', label: t(lang, '改名', 'Rename') },
@@ -1069,14 +1114,26 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
 
   useInput(
     (input, key) => {
-      if (modalOpen) return;
+      if (modalOpen || filterEditing) return;
+      if (key.escape && filterQuery) {
+        setFilterQuery('');
+        setSelectedIndex(0);
+        return;
+      }
+      if (input === '/' && !key.ctrl && !key.meta) {
+        if (status === 'ok' && items.length > 0) {
+          setActivePane('left');
+          setFilterEditing(true);
+        }
+        return;
+      }
       if (key.tab || input === 'h' || input === 'l' || key.leftArrow || key.rightArrow) {
         if (input === 'h' || key.leftArrow) setActivePane('left');
         else if (input === 'l' || key.rightArrow) setActivePane('right');
         else setActivePane((p) => (p === 'left' ? 'right' : 'left'));
         return;
       }
-      if (key.return && activePane === 'left' && items.length > 0) {
+      if (key.return && activePane === 'left' && visibleItems.length > 0) {
         setActivePane('right');
         return;
       }
@@ -1226,11 +1283,22 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
         setReloadSeq((n) => n + 1);
       }
     },
-    { isActive: isActive && !modalOpen },
+    { isActive: isActive && !modalOpen && !filterEditing },
   );
 
+  const showFilterBar = status === 'ok' && items.length > 0 && (filterEditing || filterQuery.length > 0);
   const headerH = 2;
-  const bodyH = Math.max(6, height - headerH);
+  const filterBarH = showFilterBar ? 1 : 0;
+  const bodyH = Math.max(6, height - headerH - filterBarH);
+  const ell = asciiMode ? '...' : '…';
+  const filterBadge = `[${t(lang, '筛选', filterEditing ? 'Filter' : 'Filtered')} ${visibleItems.length}/${items.length}] `;
+  const filterRightHint =
+    width >= 66
+      ? ` ${filterEditing ? t(lang, 'Enter 确认 | Esc 清除', 'Enter apply | Esc clear') : t(lang, '/ 编辑 | Esc 清除', '/ edit | Esc clear')}`
+      : width >= 46
+        ? ' Esc'
+        : '';
+  const filterInputW = Math.max(8, width - 2 - displayWidth(filterBadge) - displayWidth(filterRightHint) - 3);
 
   if (loading && !bookData && !tocData) {
     return (
@@ -1296,6 +1364,43 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
         </Box>
       </Box>
 
+      {/* Inline `/` Live TOC Filter Bar */}
+      {showFilterBar ? (
+        <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
+          <Text color={filterEditing ? theme.primary : theme.accent} bold>
+            {filterBadge}
+          </Text>
+          <Box flexGrow={1} overflow="hidden">
+            <TextInput
+              value={filterQuery}
+              onChange={(val) => {
+                setFilterQuery(val);
+                setSelectedIndex(0);
+              }}
+              onSubmit={(val) => {
+                if (!val.trim()) setFilterQuery('');
+                setFilterEditing(false);
+              }}
+              onCancel={() => {
+                setFilterQuery('');
+                setFilterEditing(false);
+                setSelectedIndex(0);
+              }}
+              isActive={isActive && !modalOpen && filterEditing}
+              width={filterInputW}
+              prompt="/"
+              placeholder={t(lang, `标题/编号/HID/文件名${ell}`, `title/number/hid/file${ell}`)}
+              maxLength={120}
+            />
+          </Box>
+          {filterRightHint ? (
+            <Text color={theme.dim} wrap="truncate">
+              {filterRightHint}
+            </Text>
+          ) : null}
+        </Box>
+      ) : null}
+
       {/* Main content */}
       {status !== 'ok' || items.length === 0 ? (
         <Box width={width} height={bodyH} paddingX={1}>
@@ -1344,20 +1449,22 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
           left={(size) => (
             <Panel
               title={t(lang, '章节目录', 'Contents')}
-              badge={items.length}
+              badge={normalizedFilter ? `${visibleItems.length}/${items.length}` : items.length}
               focused={activePane === 'left'}
               width={size.width}
               height={size.height}
               paddingX={1}
             >
               <VirtualList
-                items={items}
+                items={visibleItems}
                 width={Math.max(10, size.width - 4)}
                 height={Math.max(3, size.height - 2)}
-                selectedIndex={selectedIndex}
+                selectedIndex={clampedSelectedIndex}
                 onChange={(idx) => setSelectedIndex(idx)}
                 onSelect={() => setActivePane('right')}
-                isActive={isActive && activePane === 'left' && !modalOpen}
+                isActive={isActive && activePane === 'left' && !modalOpen && !filterEditing}
+                emptyText={normalizedFilter ? t(lang, '没有匹配的章节或知识点', 'No matching TOC items') : undefined}
+                emptyHint={normalizedFilter ? t(lang, '按 Esc 清除筛选或按 / 修改', asciiMode ? 'Esc clear | / edit' : 'Esc clear · / edit') : undefined}
                 keyExtractor={(it) => it.hid}
                 renderItem={(it, ctx) => {
                   const indent = '  '.repeat(Math.max(0, it.depth - 1));
@@ -1406,7 +1513,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
                 markdown={markdown}
                 width={Math.max(16, size.width - 4)}
                 height={Math.max(3, size.height - 2)}
-                isActive={isActive && activePane === 'right' && !modalOpen}
+                isActive={isActive && activePane === 'right' && !modalOpen && !filterEditing}
                 mathUnicode={mathUnicode}
               />
             </Panel>

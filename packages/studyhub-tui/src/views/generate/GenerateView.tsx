@@ -16,7 +16,7 @@ import { currentCourse, listCourses, modelInfo } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import { errorMessage, tryAction } from '../../host/sample-actions.js';
-import { groupSourcesFromSnapshot, formatLabel } from '../sources/source-helpers.js';
+import { type DocumentGroup, groupSourcesFromSnapshot, formatLabel } from '../sources/source-helpers.js';
 
 const DraftEditor = lazy(() => import('./DraftEditor.js').then((m) => ({ default: m.DraftEditor })));
 const IngestModal = lazy(() => import('./IngestModal.js').then((m) => ({ default: m.IngestModal })));
@@ -169,6 +169,20 @@ function formatUnavailableReason(unavailable: SuggestUnavailable | undefined, la
   }
 }
 
+export function filterMaterialGroups(
+  docs: readonly DocumentGroup[],
+  query: string,
+): readonly DocumentGroup[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return docs;
+  return docs.filter((doc) => {
+    const hay = [doc.title, ...doc.courses, doc.folder ?? '', doc.format, formatLabel(doc.format)]
+      .join(' ')
+      .toLowerCase();
+    return hay.includes(q);
+  });
+}
+
 export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
   host,
   width,
@@ -217,6 +231,8 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
   const [countIndex, setCountIndex] = useState(1); // default 10
   const [focusText, setFocusText] = useState('');
   const [sourceCursor, setSourceCursor] = useState(0);
+  const [filterQuery, setFilterQuery] = useState('');
+  const [filterEditing, setFilterEditing] = useState(false);
   const [overlay, setOverlay] = useState<GenOverlay>('none');
   const [submitting, setSubmitting] = useState(false);
   const [suggestLoading, setSuggestLoading] = useState(false);
@@ -262,11 +278,24 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
     }
   }, [navContext.sourceIds, navContext.course]);
 
-  const visibleDocs = useMemo(() => {
+  const baseDocs = useMemo(() => {
     if (!courseName) return allDocs;
     const filtered = allDocs.filter((d) => d.courses.includes(courseName));
     return filtered.length > 0 ? filtered : allDocs;
   }, [allDocs, courseName]);
+
+  const normalizedFilter = filterQuery.trim().toLowerCase();
+  const filteredDocs = useMemo(
+    () => (normalizedFilter ? filterMaterialGroups(baseDocs, normalizedFilter) : baseDocs),
+    [baseDocs, normalizedFilter],
+  );
+
+  useEffect(() => {
+    setSourceCursor((cur) => {
+      if (filteredDocs.length === 0) return 0;
+      return Math.min(cur, filteredDocs.length - 1);
+    });
+  }, [filteredDocs.length]);
 
   // Resolve final sourceIds with page scope applied
   const effectiveSourceIds = useMemo(() => {
@@ -502,9 +531,12 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
   }, [weakTopics, focusText, lang, notify]);
 
   const wizardActive = isActive && tab === 'new' && overlay === 'none' && !inputCaptured && !suggestLoading;
+  const filterInputActive =
+    isActive && tab === 'new' && overlay === 'none' && !shellOverlay && !suggestLoading && filterEditing;
 
-  useClaimKeys(['c', 'k', 'n', 'p', 'f', 'S', 'W', 'P', 'a', 'g', 'i'], wizardActive);
+  useClaimKeys(['c', 'k', 'n', 'p', 'f', 'S', 'W', 'P', 'a', 'g', 'i', '/'], wizardActive && !filterEditing);
   useInputCapture(isActive && tab === 'new' && (overlay === 'scope' || overlay === 'focus'));
+  useInputCapture(isActive && tab === 'new' && overlay === 'none' && filterEditing);
 
   const handleApplyPathStep = useCallback(
     ({ pageScope: nextScope, targetCount: nextCount, focusNote }: { pageScope: string; targetCount: number; focusNote?: string }) => {
@@ -549,6 +581,7 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
       { key: 'S', label: model.ready ? t(lang, '帮我想想', 'AI Suggest') : t(lang, '设置模型', 'Settings') },
       { key: 'P', label: t(lang, '分步路径', 'Path') },
       { key: 'Ctrl+S', label: t(lang, '开始出题', 'Generate') },
+      { key: '/', label: t(lang, '筛选资料', 'Filter') },
     ],
     [lang, model.ready],
   );
@@ -563,12 +596,23 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
         }
         return;
       }
-      if (overlay !== 'none' || inputCaptured || busyRef.current || suggestLoading) return;
+      if (overlay !== 'none' || inputCaptured || busyRef.current || suggestLoading || filterEditing) return;
       if (key.tab) {
         setTab((cur) => (cur === 'new' ? 'drafts' : 'new'));
         return;
       }
       if (tab !== 'new') return;
+
+      if (key.escape && filterQuery) {
+        setFilterQuery('');
+        setSourceCursor(0);
+        return;
+      }
+
+      if (input === '/' && !key.ctrl && !key.meta) {
+        setFilterEditing(true);
+        return;
+      }
 
       if (input === 'i' && !key.ctrl && !key.meta) {
         setOverlay('ingest');
@@ -631,13 +675,20 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
       } else if (input === 'f') {
         setOverlay('focus');
       } else if (input === 'a') {
-        if (selectedSourceIds.size > 0) {
-          setSelectedSourceIds(new Set());
-        } else {
-          setSelectedSourceIds(new Set(visibleDocs.flatMap((d) => d.sourceIds)));
-        }
+        const visibleIds = filteredDocs.flatMap((d) => d.sourceIds);
+        if (visibleIds.length === 0) return;
+        setSelectedSourceIds((prev) => {
+          const allVisibleSelected = visibleIds.every((id) => prev.has(id));
+          const next = new Set(prev);
+          if (allVisibleSelected) {
+            for (const id of visibleIds) next.delete(id);
+          } else {
+            for (const id of visibleIds) next.add(id);
+          }
+          return next;
+        });
       } else if (input === ' ') {
-        const doc = visibleDocs[sourceCursor];
+        const doc = filteredDocs[sourceCursor];
         if (doc) {
           setSelectedSourceIds((prev) => {
             const next = new Set(prev);
@@ -654,9 +705,20 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
     { isActive },
   );
 
+  const showFilterBar = tab === 'new' && (filterEditing || filterQuery.length > 0);
+  const filterBarH = showFilterBar ? 1 : 0;
   const tabBarH = 2;
-  const bodyH = Math.max(4, height - tabBarH);
+  const bodyH = Math.max(4, height - tabBarH - filterBarH);
   const draftCount = snapshot?.drafts?.length ?? 0;
+
+  const filterBadge = `[${t(lang, '筛选', filterEditing ? 'Filter' : 'Filtered')} ${filteredDocs.length}/${baseDocs.length}] `;
+  const filterRightHint =
+    width >= 66
+      ? ` ${filterEditing ? t(lang, 'Enter 确认 | Esc 清除', 'Enter apply | Esc clear') : t(lang, '/ 编辑 | Esc 清除', '/ edit | Esc clear')}`
+      : width >= 46
+        ? ' Esc'
+        : '';
+  const filterInputW = Math.max(8, width - 2 - displayWidth(filterBadge) - displayWidth(filterRightHint) - 3);
 
   return (
     <Box flexDirection="column" width={width} height={height}>
@@ -706,6 +768,43 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
         )}
       </Box>
 
+      {/* Inline Live Material Filter Bar */}
+      {showFilterBar ? (
+        <Box height={1} width={width} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
+          <Text color={filterEditing ? theme.primary : theme.accent} bold>
+            {filterBadge}
+          </Text>
+          <Box flexGrow={1} overflow="hidden">
+            <TextInput
+              value={filterQuery}
+              onChange={(val) => {
+                setFilterQuery(val);
+                setSourceCursor(0);
+              }}
+              onSubmit={(val) => {
+                if (!val.trim()) setFilterQuery('');
+                setFilterEditing(false);
+              }}
+              onCancel={() => {
+                setFilterQuery('');
+                setFilterEditing(false);
+                setSourceCursor(0);
+              }}
+              isActive={filterInputActive}
+              width={filterInputW}
+              prompt="/"
+              placeholder={t(lang, `关键词${ell}`, `keyword${ell}`)}
+              maxLength={120}
+            />
+          </Box>
+          {filterRightHint ? (
+            <Text color={theme.dim} wrap="truncate">
+              {filterRightHint}
+            </Text>
+          ) : null}
+        </Box>
+      ) : null}
+
       {/* Body */}
       <Box height={bodyH} width={width}>
         {tab === 'drafts' ? (
@@ -743,24 +842,31 @@ export const GenerateView: React.FC<ViewProps> = memo(function GenerateView({
                 badge={`${effectiveSourceIds.length}p`}
                 width={lw}
                 height={lh}
-                focused={wizardActive}
+                focused={wizardActive && !filterEditing}
               >
-                {visibleDocs.length === 0 ? (
+                {baseDocs.length === 0 ? (
                   <EmptyState
                     title={t(lang, '暂无可用资料', 'No materials')}
                     hint={t(lang, '请先前往「资料」页导入讲义或笔记', 'Import materials in Sources view first')}
                     width={Math.max(12, lw - 4)}
                     height={Math.max(4, lh - 2)}
                   />
+                ) : filteredDocs.length === 0 ? (
+                  <EmptyState
+                    title={t(lang, '无匹配资料', 'No matching materials')}
+                    hint={t(lang, '按 [Esc] 清除筛选，或 [/] 修改关键词', 'Press [Esc] to clear filter, or [/] to edit')}
+                    width={Math.max(12, lw - 4)}
+                    height={Math.max(4, lh - 2)}
+                  />
                 ) : (
                   <VirtualList
-                    items={visibleDocs}
+                    items={filteredDocs}
                     height={Math.max(1, lh - 2)}
                     width={Math.max(12, lw - 4)}
                     selectedIndex={sourceCursor}
                     onChange={(idx) => setSourceCursor(idx)}
                     onSelect={() => void handleSubmitGeneration()}
-                    isActive={wizardActive}
+                    isActive={wizardActive && !filterEditing}
                     keyExtractor={(d) => d.key}
                     renderItem={(doc, ctx) => {
                       const pickedCount = doc.sourceIds.filter((id) => selectedSourceIds.has(id)).length;

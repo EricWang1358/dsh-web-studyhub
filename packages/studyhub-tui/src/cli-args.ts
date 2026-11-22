@@ -6,6 +6,8 @@ export interface ParsedCliArgs {
   version: boolean;
   doctor: boolean;
   stats: boolean;
+  exportBackup: boolean;
+  exportPath?: string;
   json: boolean;
   libraryRoot?: string;
   theme?: ThemeId;
@@ -159,6 +161,7 @@ export function parseCliArgs(argv: readonly string[]): ParsedCliArgs {
   Object.defineProperties(result, {
     doctor: { value: false, writable: true, enumerable: false, configurable: true },
     stats: { value: false, writable: true, enumerable: false, configurable: true },
+    exportBackup: { value: false, writable: true, enumerable: false, configurable: true },
     json: { value: false, writable: true, enumerable: false, configurable: true },
   });
 
@@ -223,6 +226,21 @@ export function parseCliArgs(argv: readonly string[]): ParsedCliArgs {
       }
       return undefined;
     };
+
+    if (flag === '--export') {
+      Object.defineProperty(result, 'exportBackup', { value: true, writable: true, enumerable: true, configurable: true });
+      const val = takeValue();
+      if (val !== undefined) {
+        const trimmed = val.trim();
+        if (trimmed) {
+          result.exportPath = trimmed;
+        } else if (eqIdx > 0) {
+          result.error = 'Missing value for --export';
+          return result;
+        }
+      }
+      continue;
+    }
 
     if (flag === '--root' || flag === '--library' || flag === '-r') {
       const val = takeValue();
@@ -299,6 +317,8 @@ export function cliHelpText(version = '1.0.0'): string {
     '      --doctor --json   Print diagnostics in JSON format and exit (never prints API keys)',
     '      --stats           Print offline library summary (courses, decks, due & weak) and exit',
     '      --stats --json    Print offline library summary in JSON format and exit',
+    '      --export [path]   Export full library JSON backup atomically and exit',
+    '      --export --json   Export backup and print JSON receipt',
     '  -v, --version         Print version and exit',
     '  -h, --help            Show this help message',
     '',
