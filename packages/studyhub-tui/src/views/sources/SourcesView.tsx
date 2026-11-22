@@ -37,6 +37,7 @@ const CompanionsModal = lazy(() => import('./CompanionsModal.js').then((m) => ({
 const OrganizeSourcesModal = lazy(() => import('./OrganizeSourcesModal.js').then((m) => ({ default: m.OrganizeSourcesModal })));
 const SourceCoverageModal = lazy(() => import('./SourceCoverageModal.js').then((m) => ({ default: m.SourceCoverageModal })));
 const MinerUModal = lazy(() => import('./MinerUModal.js').then((m) => ({ default: m.MinerUModal })));
+const RereadQueueModal = lazy(() => import('./RereadQueueModal.js').then((m) => ({ default: m.RereadQueueModal })));
 
 type ActiveOverlay =
   | 'none'
@@ -50,7 +51,8 @@ type ActiveOverlay =
   | 'folders-assign'
   | 'companions'
   | 'organize'
-  | 'coverage';
+  | 'coverage'
+  | 'reread';
 
 export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
   host,
@@ -222,6 +224,31 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
       totalPages: item.pageCount,
     });
   }, [focusCourse]);
+
+  const handleOpenRereadSource = useCallback(
+    (sourceKey: string, page?: number) => {
+      setOverlay('none');
+      const matched = allGroups.find(
+        (g) => g.sourceIds.includes(sourceKey) || g.documentId === sourceKey || g.key === sourceKey,
+      );
+      const matchedSourceId = matched?.sourceIds.includes(sourceKey)
+        ? sourceKey
+        : page
+          ? matched?.pages.find((p) => p.page === page)?.sourceId ?? matched?.sourceIds[0]
+          : matched?.sourceIds[0];
+      const matchedPage = matched?.pages.find((p) => p.sourceId === (matchedSourceId ?? sourceKey))?.page;
+      setReaderTarget({
+        sourceId: matchedSourceId ?? sourceKey,
+        documentId: matched?.documentId,
+        pageNumber: page ?? matchedPage ?? 1,
+        title: matched?.title,
+        format: matched?.format,
+        course: matched?.courses[0] || focusCourse || undefined,
+        totalPages: matched?.pageCount ?? 1,
+      });
+    },
+    [allGroups, focusCourse],
+  );
 
   const handleTogglePin = useCallback(
     async (item: DocumentGroup) => {
@@ -446,7 +473,7 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
 
   const listActive = isActive && !readerTarget && overlay === 'none';
 
-  useClaimKeys(['/', 'c', 'r', 'g', 'p', 'd', 'i', 'f', 'a', 'F', 'm', 'M', 'C', 'G', 'V', '[', ']'], listActive);
+  useClaimKeys(['/', 'c', 'r', 'R', 'g', 'p', 'd', 'i', 'f', 'a', 'F', 'm', 'M', 'C', 'G', 'V', '[', ']'], listActive);
   useInputCapture(isActive && !readerTarget && (overlay === 'rename' || overlay === 'course' || overlay === 'search'));
 
   const hints: KeyHint[] = useMemo(
@@ -457,6 +484,7 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
       { key: 'g', label: t(lang, '出题', 'Generate') },
       { key: 'G', label: t(lang, '归类', 'Organize') },
       { key: 'V', label: t(lang, '覆盖率', 'Coverage') },
+      { key: 'R', label: t(lang, '重读清单', 'Reread') },
       { key: 'F', label: t(lang, '文件夹', 'Folders') },
       { key: 'm', label: t(lang, '移至夹', 'Move') },
       { key: 'C', label: t(lang, '伴学页', 'Companions') },
@@ -491,6 +519,8 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
         setOverlay('companions');
       } else if (input === 'G') {
         setOverlay('organize');
+      } else if (input === 'R') {
+        setOverlay('reread');
       } else if (selectedItem) {
         if (input === 'V') {
           setOverlay('coverage');
@@ -902,6 +932,16 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
                 ...(course ? { course } : {}),
               });
             }}
+            onClose={() => setOverlay('none')}
+          />
+        ) : null}
+
+        {overlay === 'reread' ? (
+          <RereadQueueModal
+            host={host}
+            course={courseFilterOn ? focusCourse : undefined}
+            isActive={isActive}
+            onOpenSource={handleOpenRereadSource}
             onClose={() => setOverlay('none')}
           />
         ) : null}

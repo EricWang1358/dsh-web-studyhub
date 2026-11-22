@@ -35,6 +35,7 @@ type FilterTab = 'running' | 'all' | 'archived';
 
 interface JobRecord {
   id: string;
+  contractJobId: string;
   title: string;
   type: string;
   status: string;
@@ -47,10 +48,19 @@ interface JobRecord {
   finishedAt?: string | number;
   calls: Array<{ id: string; status?: string; stage?: string; kind?: string }>;
   archived: boolean;
+  paused: boolean;
+  pauseAvailable: boolean;
+  resumeAvailable: boolean;
+  pauseReasonCode?: string;
+  concurrency: number | null;
+  concurrencyKey: string | null;
+  concurrencyMin: number;
+  concurrencyMax: number;
+  setAvailable: boolean;
 }
 
 const MAX_LOG_LINES = 200;
-const ACTIVE_STATUSES = new Set(['running', 'queued', 'pending', 'pausing', 'cancelling', 'in_progress', 'started']);
+const ACTIVE_STATUSES = new Set(['running', 'queued', 'pending', 'pausing', 'paused', 'cancelling', 'in_progress', 'started']);
 
 function sanitizeJobIdForFilename(jobId: string): string {
   const cleaned = String(jobId || 'job')
@@ -125,6 +135,153 @@ function textField(value: unknown): string {
   return '';
 }
 
+function extractJobControlState(
+  raw: Record<string, unknown>,
+  contract: Record<string, unknown> | undefined,
+  status: string,
+  type: string,
+  archived: boolean,
+): Pick<
+  JobRecord,
+  | 'contractJobId'
+  | 'paused'
+  | 'pauseAvailable'
+  | 'resumeAvailable'
+  | 'pauseReasonCode'
+  | 'concurrency'
+  | 'concurrencyKey'
+  | 'concurrencyMin'
+  | 'concurrencyMax'
+  | 'setAvailable'
+> {
+  const id = String(raw.id ?? contract?.jobId ?? '');
+  const contractJobId = typeof contract?.jobId === 'string' && contract.jobId ? contract.jobId : id;
+  const actions =
+    contract?.actions && typeof contract.actions === 'object'
+      ? (contract.actions as Record<string, unknown>)
+      : undefined;
+  const detail =
+    contract?.detail && typeof contract.detail === 'object'
+      ? (contract.detail as Record<string, unknown>)
+      : undefined;
+  const controlObj =
+    raw.control && typeof raw.control === 'object'
+      ? (raw.control as Record<string, unknown>)
+      : undefined;
+  const controlValues =
+    controlObj?.values && typeof controlObj.values === 'object'
+      ? (controlObj.values as Record<string, unknown>)
+      : undefined;
+  const controlLimits =
+    controlObj?.limits && typeof controlObj.limits === 'object'
+      ? (controlObj.limits as Record<string, unknown>)
+      : undefined;
+
+  const pauseAction =
+    actions?.pause && typeof actions.pause === 'object'
+      ? (actions.pause as Record<string, unknown>)
+      : undefined;
+  const resumeAction =
+    actions?.resume && typeof actions.resume === 'object'
+      ? (actions.resume as Record<string, unknown>)
+      : undefined;
+  const setAction =
+    actions?.set && typeof actions.set === 'object'
+      ? (actions.set as Record<string, unknown>)
+      : undefined;
+
+  const pauseAvailable = !archived && Boolean(pauseAction?.available);
+  const resumeAvailable = !archived && Boolean(resumeAction?.available);
+  const pauseReasonObj =
+    pauseAction?.reason && typeof pauseAction.reason === 'object'
+      ? (pauseAction.reason as Record<string, unknown>)
+      : undefined;
+  const pauseReasonCode = textField(pauseReasonObj?.code) || undefined;
+
+  const paused =
+    status === 'paused' ||
+    status === 'pausing' ||
+    raw.paused === true ||
+    detail?.paused === true ||
+    controlValues?.paused === true ||
+    resumeAvailable;
+
+  const rawSettings = Array.isArray(setAction?.settings) ? setAction.settings : [];
+  const settings = rawSettings.filter((s): s is Record<string, unknown> => Boolean(s && typeof s === 'object'));
+  const matchedSetting =
+    settings.find((s) => s.key === 'concurrency') ??
+    settings.find((s) => s.key === 'textConcurrency') ??
+    settings.find((s) => s.type === 'int' && String(s.key ?? '').toLowerCase().includes('concurrency'));
+
+  const defaultMax = type === 'translation' ? 3 : type === 'audio-import' ? 6 : 8;
+  let concurrencyKey: string | null = null;
+  let concurrency: number | null = null;
+  let concurrencyMin = 1;
+  let concurrencyMax = defaultMax;
+
+  if (matchedSetting && typeof matchedSetting.key === 'string') {
+    concurrencyKey = matchedSetting.key;
+    if (typeof matchedSetting.value === 'number' && Number.isFinite(matchedSetting.value)) {
+      concurrency = matchedSetting.value;
+    }
+    if (typeof matchedSetting.min === 'number' && Number.isFinite(matchedSetting.min)) {
+      concurrencyMin = matchedSetting.min;
+    }
+    if (typeof matchedSetting.max === 'number' && Number.isFinite(matchedSetting.max)) {
+      concurrencyMax = matchedSetting.max;
+    }
+  } else if (controlValues) {
+    const keyCandidate =
+      typeof controlValues.concurrency === 'number'
+        ? 'concurrency'
+        : typeof controlValues.textConcurrency === 'number'
+          ? 'textConcurrency'
+          : null;
+    if (keyCandidate) {
+      concurrencyKey = keyCandidate;
+      concurrency = controlValues[keyCandidate] as number;
+      const rule =
+        controlLimits?.[keyCandidate] && typeof controlLimits[keyCandidate] === 'object'
+          ? (controlLimits[keyCandidate] as Record<string, unknown>)
+          : undefined;
+      if (typeof rule?.min === 'number' && Number.isFinite(rule.min)) concurrencyMin = rule.min;
+      if (typeof rule?.max === 'number' && Number.isFinite(rule.max)) concurrencyMax = rule.max;
+    }
+  }
+
+  if (concurrency === null) {
+    const fallbackVal =
+      typeof detail?.concurrency === 'number' && Number.isFinite(detail.concurrency)
+        ? detail.concurrency
+        : typeof raw.concurrency === 'number' && Number.isFinite(raw.concurrency)
+          ? raw.concurrency
+          : null;
+    if (fallbackVal !== null) {
+      concurrency = fallbackVal;
+      concurrencyKey = 'concurrency';
+    }
+  }
+
+  const setAvailable =
+    !archived &&
+    Boolean(concurrencyKey) &&
+    (Boolean(setAction?.available && matchedSetting) ||
+      Boolean(controlValues && concurrencyKey && typeof controlValues[concurrencyKey] === 'number'));
+
+  return {
+    contractJobId,
+    paused,
+    pauseAvailable,
+    resumeAvailable,
+    pauseReasonCode,
+    concurrency,
+    concurrencyKey,
+    concurrencyMin,
+    concurrencyMax,
+    setAvailable,
+  };
+}
+
 function normalizeJob(raw: Record<string, unknown>, archived = false): JobRecord {
   const contract = (raw.contract && typeof raw.contract === 'object'
     ? (raw.contract as Record<string, unknown>)
@@ -164,6 +321,8 @@ function normalizeJob(raw: Record<string, unknown>, archived = false): JobRecord
 
   const errObj = contract?.error as Record<string, unknown> | undefined;
   const resultObj = contract?.result as Record<string, unknown> | undefined;
+  const type = textField(raw.type) || textField(raw.kind) || textField(contract?.kind) || 'job';
+  const controlState = extractJobControlState(raw, contract, status, type, archived);
 
   return {
     id: String(raw.id ?? contract?.jobId ?? ''),
@@ -174,7 +333,7 @@ function normalizeJob(raw: Record<string, unknown>, archived = false): JobRecord
       textField(raw.kind) ||
       textField(raw.id) ||
       '后台任务',
-    type: textField(raw.type) || textField(raw.kind) || textField(contract?.kind) || 'job',
+    type,
     status,
     progress: Math.max(0, Math.min(1, progress)),
     phase:
@@ -192,10 +351,12 @@ function normalizeJob(raw: Record<string, unknown>, archived = false): JobRecord
     finishedAt: (raw.finishedAt ?? contract?.finishedAt) as string | number | undefined,
     calls,
     archived,
+    ...controlState,
   };
 }
 
 function pillStatusFor(status: string): PillStatus {
+  if (status === 'paused') return 'warn';
   if (ACTIVE_STATUSES.has(status)) return 'busy';
   if (status === 'complete' || status === 'ok' || status === 'done' || status === 'succeeded') return 'ok';
   if (status === 'failed' || status === 'error' || status === 'interrupted') return 'error';
@@ -640,6 +801,9 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
 
   const [filterTab, setFilterTab] = useState<FilterTab>('all');
   const [liveJobs, setLiveJobs] = useState<Array<Record<string, unknown>> | null>(null);
+  const [controlOverrides, setControlOverrides] = useState<
+    Record<string, { paused?: boolean; status?: string; concurrency?: number }>
+  >({});
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [detailMode, setDetailMode] = useState<'output' | 'trace'>('output');
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
@@ -669,10 +833,29 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
     const byId = new Map<string, JobRecord>();
     for (const j of snapJobs) if (j.id) byId.set(j.id, j);
     for (const j of liveNorm) if (j.id) byId.set(j.id, j);
-    const activeAndRecent = [...byId.values()].reverse();
+    const activeAndRecent = [...byId.values()]
+      .reverse()
+      .map((j) => {
+        const ov = controlOverrides[j.id];
+        if (!ov || (!ACTIVE_STATUSES.has(j.status) && !j.pauseAvailable && !j.resumeAvailable && !j.setAvailable)) {
+          return j;
+        }
+        return {
+          ...j,
+          ...(ov.paused !== undefined
+            ? {
+                paused: ov.paused,
+                pauseAvailable: !ov.paused,
+                resumeAvailable: ov.paused,
+              }
+            : {}),
+          ...(ov.status !== undefined ? { status: ov.status } : {}),
+          ...(ov.concurrency !== undefined ? { concurrency: ov.concurrency } : {}),
+        };
+      });
     const archived = (snapshot?.archivedJobs ?? []).map((j) => normalizeJob(j, true));
     return { activeAndRecent, archived };
-  }, [snapshot?.jobs, snapshot?.archivedJobs, liveJobs]);
+  }, [snapshot?.jobs, snapshot?.archivedJobs, liveJobs, controlOverrides]);
 
   const hasActiveJobs = useMemo(
     () => allNormalized.activeAndRecent.some((j) => ACTIVE_STATUSES.has(j.status)),
@@ -1004,12 +1187,173 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
     }
   }, [busy, host, lang, notify, refresh, selectedJob]);
 
+  const syncLiveAndRefresh = useCallback(async () => {
+    const liveRes = await tryAction<{ jobs?: Array<Record<string, unknown>> }>(host, 'job.live.list', {});
+    if (!mountedRef.current) return;
+    if (liveRes.ok && Array.isArray(liveRes.value?.jobs)) {
+      setLiveJobs(liveRes.value.jobs);
+    }
+    await refresh();
+  }, [host, refresh]);
+
+  const handleTogglePause = useCallback(async () => {
+    if (busy || busyRef.current) return;
+    if (!selectedJob) {
+      notify(t(lang, '请先选择一个任务', 'Select a job first'), 'info');
+      return;
+    }
+    if (selectedJob.archived) {
+      notify(
+        t(lang, '已归档任务为只读记录，请先按 [a] 取消归档', 'Archived job is read-only; press [a] to unarchive first'),
+        'info',
+      );
+      return;
+    }
+    const isPaused =
+      selectedJob.paused ||
+      selectedJob.status === 'paused' ||
+      selectedJob.status === 'pausing' ||
+      selectedJob.resumeAvailable;
+    if (!isPaused && !selectedJob.pauseAvailable && !ACTIVE_STATUSES.has(selectedJob.status)) {
+      notify(t(lang, '该任务已结束，无法暂停或继续', 'Job has ended; cannot pause or resume'), 'info');
+      return;
+    }
+
+    const action = isPaused ? 'resume' : 'pause';
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      const res = await tryAction<{
+        action?: string;
+        paused?: boolean;
+        status?: string;
+        applied?: Record<string, unknown>;
+        values?: Record<string, unknown>;
+      }>(host, 'job.control', {
+        jobId: selectedJob.contractJobId,
+        action,
+      });
+      if (!mountedRef.current) return;
+      if (!res.ok) {
+        notify(res.error?.message || t(lang, '队列控制操作失败', 'Job control failed'), 'warning');
+        return;
+      }
+
+      const nextPaused = action === 'pause';
+      const nextStatus =
+        typeof res.value?.status === 'string' && res.value.status
+          ? res.value.status
+          : nextPaused
+            ? selectedJob.calls.some((c) => c.status === 'running')
+              ? 'pausing'
+              : 'paused'
+            : 'running';
+
+      setControlOverrides((prev) => ({
+        ...prev,
+        [selectedJob.id]: { ...prev[selectedJob.id], paused: nextPaused, status: nextStatus },
+      }));
+      await syncLiveAndRefresh();
+      if (!mountedRef.current) return;
+      setControlOverrides((prev) => {
+        const next = { ...prev };
+        delete next[selectedJob.id];
+        return next;
+      });
+      notify(
+        nextPaused
+          ? t(lang, '已暂停任务队列（当前调用完成后停止新调度）', 'Job queue paused (no new calls will start)')
+          : t(lang, '已恢复任务队列继续执行', 'Job queue resumed'),
+        'success',
+      );
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusy(false);
+    }
+  }, [busy, host, lang, notify, selectedJob, syncLiveAndRefresh]);
+
+  const handleAdjustConcurrency = useCallback(
+    async (delta: -1 | 1) => {
+      if (busy || busyRef.current) return;
+      if (!selectedJob) {
+        notify(t(lang, '请先选择一个任务', 'Select a job first'), 'info');
+        return;
+      }
+      if (selectedJob.archived) {
+        notify(
+          t(lang, '已归档任务为只读记录，无法调整并发数', 'Archived job is read-only; concurrency cannot be changed'),
+          'info',
+        );
+        return;
+      }
+      if (!selectedJob.setAvailable || !selectedJob.concurrencyKey || selectedJob.concurrency === null) {
+        notify(t(lang, '当前任务不支持并发数调节', 'Concurrency adjustment is unavailable for this job'), 'info');
+        return;
+      }
+
+      const min = selectedJob.concurrencyMin;
+      const max = selectedJob.concurrencyMax;
+      const current = selectedJob.concurrency;
+      const next = Math.max(min, Math.min(max, current + delta));
+      if (next === current) {
+        notify(
+          delta < 0
+            ? t(lang, `并发数已达下限 (${min}x)`, `Concurrency already at minimum (${min}x)`)
+            : t(lang, `并发数已达上限 (${max}x)`, `Concurrency already at maximum (${max}x)`),
+          'info',
+        );
+        return;
+      }
+
+      const keyName = selectedJob.concurrencyKey;
+      busyRef.current = true;
+      setBusy(true);
+      try {
+        const res = await tryAction<{
+          applied?: Record<string, unknown>;
+          values?: Record<string, unknown>;
+        }>(host, 'job.control', {
+          jobId: selectedJob.contractJobId,
+          action: 'set',
+          patch: { [keyName]: next },
+        });
+        if (!mountedRef.current) return;
+        if (!res.ok) {
+          notify(res.error?.message || t(lang, '调整并发数失败', 'Failed to adjust concurrency'), 'warning');
+          return;
+        }
+        const confirmedRaw = res.value?.values?.[keyName] ?? res.value?.applied?.[keyName];
+        const confirmed =
+          typeof confirmedRaw === 'number' && Number.isFinite(confirmedRaw) ? confirmedRaw : next;
+
+        setControlOverrides((prev) => ({
+          ...prev,
+          [selectedJob.id]: { ...prev[selectedJob.id], concurrency: confirmed },
+        }));
+        await syncLiveAndRefresh();
+        if (!mountedRef.current) return;
+        setControlOverrides((prev) => {
+          const nextMap = { ...prev };
+          delete nextMap[selectedJob.id];
+          return nextMap;
+        });
+        notify(t(lang, `并发数已调整为 ${confirmed}x`, `Concurrency updated to ${confirmed}x`), 'success');
+      } finally {
+        busyRef.current = false;
+        if (mountedRef.current) setBusy(false);
+      }
+    },
+    [busy, host, lang, notify, selectedJob, syncLiveAndRefresh],
+  );
+
   const modalOpen = confirmDeleteOpen || confirmPurgeTraceOpen || outputModalOpen || messageModalOpen || workflowModalOpen;
   const listActive = isActive && !modalOpen;
-  useClaimKeys(['1', '2', '3', 'o', 'm', 'w', 'x', 'a', 'd', 'v', 'e', 'D'], listActive);
+  useClaimKeys(['1', '2', '3', 'o', 'm', 'w', 'x', 'a', 'd', 'v', 'e', 'D', 'p', '+', '-', '='], listActive);
 
   const hints: KeyHint[] = useMemo(
     () => [
+      { key: 'p', label: t(lang, '暂停/继续', 'Pause/Resume') },
+      { key: '+/-', label: t(lang, '并发', 'Concur') },
       { key: 'o', label: t(lang, '输出', 'Output') },
       { key: 'm', label: t(lang, '补充', 'Msg') },
       { key: 'w', label: t(lang, '历史流', 'Flows') },
@@ -1036,6 +1380,9 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
       if (input === '1') setFilterTab('running');
       else if (input === '2') setFilterTab('all');
       else if (input === '3') setFilterTab('archived');
+      else if (input === 'p') void handleTogglePause();
+      else if (input === '+' || input === '=') void handleAdjustConcurrency(1);
+      else if (input === '-') void handleAdjustConcurrency(-1);
       else if (input === 'o') {
         if (!selectedJob) notify(t(lang, '请先选择一个任务', 'Select a job first'), 'info');
         else setOutputModalOpen(true);
@@ -1068,6 +1415,40 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
   const runningCount = allNormalized.activeAndRecent.filter((j) => ACTIVE_STATUSES.has(j.status)).length;
   const allCount = allNormalized.activeAndRecent.length + allNormalized.archived.length;
   const archivedCount = allNormalized.archived.length;
+
+  const controlTarget = useMemo(
+    () =>
+      selectedJob ??
+      allNormalized.activeAndRecent.find((j) => ACTIVE_STATUSES.has(j.status)) ??
+      allNormalized.activeAndRecent[0] ??
+      null,
+    [allNormalized.activeAndRecent, selectedJob],
+  );
+
+  const queueIsPausing = controlTarget?.status === 'pausing';
+  const queueIsPaused = Boolean(
+    controlTarget &&
+      (controlTarget.paused || controlTarget.status === 'paused' || controlTarget.resumeAvailable),
+  );
+  const queueIsActive = Boolean(controlTarget && ACTIVE_STATUSES.has(controlTarget.status));
+  const queuePillStatus: PillStatus = !controlTarget
+    ? 'idle'
+    : queueIsPausing
+      ? 'busy'
+      : queueIsPaused
+        ? 'warn'
+        : queueIsActive
+          ? 'ok'
+          : 'idle';
+  const queuePillLabel = !controlTarget
+    ? t(lang, '空闲', 'Idle')
+    : queueIsPausing
+      ? t(lang, '暂停中', 'Pausing')
+      : queueIsPaused
+        ? t(lang, '已暂停', 'Paused')
+        : queueIsActive
+          ? t(lang, '活跃', 'Active')
+          : t(lang, '空闲', 'Idle');
 
   const activeLogLines = detailMode === 'output'
     ? (outputLines.length > 0 ? outputLines : [t(lang, '（暂无实时输出文本；按 [v] 查看调用轨迹）', '(No live output text yet; press [v] for trace)')])
@@ -1102,16 +1483,29 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
             />
           </Box>
           <Box flexGrow={1} />
+          <Box flexShrink={0} flexDirection="row" alignItems="center">
+            <StatusPill label={queuePillLabel} status={queuePillStatus} />
+            {controlTarget?.concurrency !== null && controlTarget?.concurrency !== undefined ? (
+              <>
+                <Text> </Text>
+                <Badge
+                  label={`${controlTarget.concurrency}x`}
+                  tone={controlTarget.setAvailable ? 'info' : 'muted'}
+                  variant="outline"
+                />
+              </>
+            ) : null}
+          </Box>
           {hasActiveJobs ? (
-            <Box flexShrink={0}>
+            <Box flexShrink={0} marginLeft={1}>
               <Spinner label={narrowBar ? '' : asciiMode ? t(lang, '实时刷新中...', 'Live...') : t(lang, '实时刷新中…', 'Live…')} />
             </Box>
-          ) : !narrowBar ? (
-            <Box flexShrink={0}>
+          ) : width >= 104 ? (
+            <Box flexShrink={0} marginLeft={1}>
               <Text color={theme.dim} wrap={asciiMode ? undefined : 'truncate-end'}>
                 {truncateDisplay(
-                  t(lang, 'Tab 筛选 · w 历史学习流 · v 轨迹', 'Tab filter · w Workflows · v Trace'),
-                  Math.max(8, width - 52),
+                  t(lang, 'Tab 筛选 · w 历史流 · v 轨迹', 'Tab filter · w Flows · v Trace'),
+                  Math.max(8, width - 72),
                   asciiMode ? '...' : '…',
                 )}
               </Text>
@@ -1122,8 +1516,8 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
           {truncateDisplay(
             t(
               lang,
-              '监控后台任务；[o] 输出 · [m] 补充 · [w] 历史流 · [e] 导出轨迹 · [D] 清轨迹',
-              'Monitor jobs; [o] Output · [m] Msg · [w] Flows · [e] Export · [D] Purge',
+              '监控后台任务；[o] 输出 · [m] 补充 · [e] 导出 · [D] 清轨迹 · [p] 暂停 · [+/-] 并发 · [w] 流',
+              'Monitor jobs; [o] Out · [m] Msg · [e] Export · [D] Purge · [p] Pause · [+/-] Concur · [w] Flows',
             ),
             Math.max(10, width - 2),
             asciiMode ? '...' : '…',
@@ -1195,7 +1589,7 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
           right={({ width: rw, height: rh }) => (
             <Panel
               title={selectedJob ? selectedJob.title : t(lang, '任务详情', 'Job Detail')}
-              subtitle={detailMode === 'output' ? t(lang, '实时输出 (≤200行)', 'Output (≤200)') : t(lang, '调用轨迹', 'Trace')}
+              subtitle={detailMode === 'output' ? t(lang, '实时输出 (<=200行)', asciiMode ? 'Output (<=200)' : 'Output (≤200)') : t(lang, '调用轨迹', 'Trace')}
               width={rw}
               height={rh}
             >
@@ -1211,6 +1605,12 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
                     <StatusPill label={selectedJob.status} status={pillStatusFor(selectedJob.status)} />
                     <Text> </Text>
                     <Badge label={selectedJob.type} tone="info" variant="soft" />
+                    {selectedJob.concurrency !== null ? (
+                      <>
+                        <Text> </Text>
+                        <Badge label={`${selectedJob.concurrency}x`} tone={selectedJob.setAvailable ? 'info' : 'muted'} variant="outline" />
+                      </>
+                    ) : null}
                     <Text> </Text>
                     <Text color={theme.dim}>{formatElapsed(selectedJob.startedAt, selectedJob.finishedAt)}</Text>
                     {selectedJob.draftId ? (

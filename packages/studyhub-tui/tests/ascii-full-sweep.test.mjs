@@ -244,7 +244,7 @@ const ALL_16_VIEWS = [
   { id: 'skeleton', key: '8', zh: /知识层级树|还没有知识骨架/, en: /Knowledge Tree|No knowledge skeletons/ },
   { id: 'examcoach', key: '9', zh: /考试教练/, en: /Exam Coach/ },
   { id: 'examprep', key: '0', zh: /考纲重点进度/, en: /Focus Progress/ },
-  { id: 'notes', key: 'n', zh: /笔记列表|今日总结|关联题卡|更新于|暂无笔记/, en: /Notes|Daily Recap|Linked card|Updated|No notes/ },
+  { id: 'notes', key: 'n', zh: /学习笔记|正文阅读|笔记列表|今日总结|关联题卡|更新于|暂无笔记/, en: /Notes|Daily Recap|Linked card|Updated|No notes/ },
   { id: 'board', key: 'b', zh: /进行中|待办 Todo/, en: /Doing|Todo/ },
   { id: 'tasks', key: 't', zh: /后台任务/, en: /Background Jobs/ },
   { id: 'settings', key: ',', zh: /模型配置|1 模型/, en: /Models|1 Models/ },

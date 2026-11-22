@@ -463,20 +463,32 @@ describe('Round 41: Course Glossary Term Mastery Marking', () => {
       // Toggle off via Space
       tty.send(' ');
       const unmarkedScreen = await tty.waitFor(
-        (s) => s.includes('[ ]') && s.includes('[Unmarked]') && s.includes('Total 1'),
+        (s) =>
+          s.includes('[ ]') &&
+          s.includes('[Unmarked]') &&
+          s.includes('Total 1') &&
+          !s.includes('Saving'),
         { timeoutMs: 8_000, label: 'Term unmarked via Space (en ascii)' },
       );
       tty.assertHealthyScreen(unmarkedScreen, 120, 36, 'Terms tab after unmark en ascii');
       tty.assertAsciiPure(unmarkedScreen, 'Terms tab after unmark en ascii pure');
+      await sleep(150);
+      await tty.flush();
 
       // Toggle back on via Space
       tty.send(' ');
       const remarkedScreen = await tty.waitFor(
-        (s) => !s.includes('[Unmarked]') && s.includes('[x] [Unknown] BCP38') && s.includes('Total 2'),
+        (s) =>
+          !s.includes('[Unmarked]') &&
+          s.includes('[x] [Unknown] BCP38') &&
+          s.includes('Total 2') &&
+          !s.includes('Saving'),
         { timeoutMs: 8_000, label: 'Term re-marked via Space (en ascii)' },
       );
       tty.assertHealthyScreen(remarkedScreen, 120, 36, 'Terms tab after re-mark en ascii');
       tty.assertAsciiPure(remarkedScreen, 'Terms tab after re-mark en ascii pure');
+      await sleep(150);
+      await tty.flush();
 
       // Open [C] clear ConfirmDialog and cancel via Esc
       tty.send('C');

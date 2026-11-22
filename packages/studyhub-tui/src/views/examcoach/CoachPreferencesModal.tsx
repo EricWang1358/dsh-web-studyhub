@@ -4,6 +4,7 @@ import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import {
   Badge,
+  ConfirmDialog,
   Divider,
   EmptyState,
   Modal,
@@ -11,6 +12,7 @@ import {
   TextInput,
   VirtualList,
   modalContentWidth,
+  useInputCapture,
   useTheme,
   type VirtualListRenderContext,
 } from '../../components/index.js';
@@ -26,7 +28,7 @@ export interface CoachPreferencesModalProps {
 }
 
 interface CoachProfileResult {
-  consent?: boolean | null;
+  consent?: boolean | null | { prep?: boolean | null };
   goal?: string;
   preferences?: string[];
   summary?: string;
@@ -82,10 +84,14 @@ export const CoachPreferencesModal = memo(function CoachPreferencesModal({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [addMode, setAddMode] = useState(false);
   const [draftText, setDraftText] = useState('');
+  const [confirmKind, setConfirmKind] = useState<'consent-opt-in' | 'forget' | null>(null);
 
   const mountedRef = useRef(true);
   const busyRef = useRef(false);
   const seqRef = useRef(0);
+
+  // Hold input capture for the modal lifetime even while ConfirmDialog mounts on top.
+  useInputCapture(isActive);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -228,11 +234,92 @@ export const CoachPreferencesModal = memo(function CoachPreferencesModal({
     );
   }, [busy, loading, addMode, profile?.goal, profile?.memoryRevision, host, lang, notify, loadProfile]);
 
+  const prepConsent = useMemo(() => {
+    const raw = profile?.consent;
+    if (typeof raw === 'boolean') return raw;
+    if (raw && typeof raw === 'object') return raw.prep === true;
+    return false;
+  }, [profile?.consent]);
+
+  const handleConsentChange = useCallback(
+    async (nextPrep: boolean) => {
+      if (busyRef.current || busy) return;
+      busyRef.current = true;
+      setBusy(true);
+      const res = await tryAction<{ consent?: boolean | null; ready?: number }>(host, 'coach.consent', {
+        prep: nextPrep,
+      });
+      if (!mountedRef.current) return;
+      if (!res.ok) {
+        busyRef.current = false;
+        setBusy(false);
+        notify(res.error?.message || t(lang, '更新后台备题授权失败', 'Failed to update auto-prep consent'), 'error');
+        return;
+      }
+      await loadProfile();
+      if (!mountedRef.current) return;
+      busyRef.current = false;
+      setBusy(false);
+      notify(
+        nextPrep
+          ? t(lang, '已开启后台变式备题授权', 'Background variant prep enabled')
+          : t(lang, '已关闭后台变式备题授权', 'Background variant prep disabled'),
+        'success',
+      );
+    },
+    [busy, host, lang, loadProfile, notify],
+  );
+
+  const handleForgetProfile = useCallback(async () => {
+    if (busyRef.current || busy) return;
+    busyRef.current = true;
+    setBusy(true);
+    const res = await tryAction<CoachProfileResult>(host, 'coach.forget', {});
+    if (!mountedRef.current) return;
+    if (!res.ok) {
+      busyRef.current = false;
+      setBusy(false);
+      notify(res.error?.message || t(lang, '重置学习者画像失败', 'Failed to reset learner profile'), 'error');
+      return;
+    }
+    if (res.value) {
+      setProfile(res.value);
+    } else {
+      await loadProfile();
+      if (!mountedRef.current) return;
+    }
+    setSelectedIndex(0);
+    busyRef.current = false;
+    setBusy(false);
+    notify(
+      t(lang, '已重置学习者画像与待备变式题（练习记录已保留）', 'Learner profile & pending prepared cards reset (practice history kept)'),
+      'success',
+    );
+  }, [busy, host, lang, loadProfile, notify]);
+
   useInput(
     (input) => {
-      if (loading || busyRef.current || busy || addMode) return;
+      if (loading || busyRef.current || busy || addMode || confirmKind !== null) return;
+      if (input === 'r') {
+        setLoading(true);
+        void loadProfile();
+        return;
+      }
+      if (!profile) return;
       if (input === 'g') {
         void handleCycleGoal();
+        return;
+      }
+      if (input === 'p') {
+        if (prepConsent) {
+          void handleConsentChange(false);
+        } else {
+          setConfirmKind('consent-opt-in');
+        }
+        return;
+      }
+      if (input === 'F') {
+        setConfirmKind('forget');
         return;
       }
       if (input === 'a') {
@@ -249,14 +336,9 @@ export const CoachPreferencesModal = memo(function CoachPreferencesModal({
       }
       if (input === 'd' && selectedPref) {
         void handleRemoveSelected();
-        return;
-      }
-      if (input === 'r') {
-        setLoading(true);
-        void loadProfile();
       }
     },
-    { isActive: isActive && !loading && !busy && !addMode },
+    { isActive: isActive && !loading && !busy && !addMode && confirmKind === null },
   );
 
   const frameW = Math.max(46, Math.min(82, width - 2));
@@ -277,12 +359,14 @@ export const CoachPreferencesModal = memo(function CoachPreferencesModal({
       ];
     }
     const out: KeyHint[] = [
-      { key: 'g', label: t(lang, '切换目标', 'Goal') },
-      { key: 'a', label: t(lang, '添加偏好', 'Add') },
+      { key: 'g', label: t(lang, '目标', 'Goal') },
+      { key: 'p', label: t(lang, '备题', 'Prep') },
+      { key: 'a', label: t(lang, '添加', 'Add') },
     ];
     if (preferences.length > 0) {
-      out.push({ key: 'd', label: t(lang, '删除选中', 'Remove') });
+      out.push({ key: 'd', label: t(lang, '删除', 'Del') });
     }
+    out.push({ key: 'F', label: t(lang, '重置', 'Reset') });
     out.push({ key: 'r', label: t(lang, '刷新', 'Refresh') });
     out.push({ key: 'Esc', label: t(lang, '关闭', 'Close') });
     return out;
@@ -328,135 +412,176 @@ export const CoachPreferencesModal = memo(function CoachPreferencesModal({
   );
 
   return (
-    <Modal
-      title={t(lang, '学习者画像与长期偏好', 'Learner Profile & Preferences')}
-      icon={asciiMode ? 'o' : '◎'}
-      tone="primary"
-      subtitle={profile ? `${preferences.length}/${PREF_MAX_ITEMS}` : undefined}
-      width={frameW}
-      height={frameH}
-      onClose={addMode ? undefined : onClose}
-      isActive={isActive}
-      hints={hints}
-    >
-      {loading ? (
-        <Box height={bodyH} alignItems="center" justifyContent="center">
-          <Spinner label={t(lang, `正在读取学习者画像与偏好${ell}`, `Loading learner profile & preferences${ell}`)} active={isActive} />
-        </Box>
-      ) : error && !profile ? (
-        <EmptyState
-          icon={asciiMode ? '!' : '✕'}
-          title={t(lang, '无法读取学习者画像', 'Cannot load learner profile')}
-          hint={error}
-          actions={[
-            { key: 'r', label: t(lang, '重试', 'Retry') },
-            { key: 'Esc', label: t(lang, '关闭', 'Close') },
-          ]}
-          width={innerW}
-          height={bodyH}
-        />
-      ) : (
-        <Box flexDirection="column" height={bodyH} overflow="hidden">
-          {/* Row 1: Goal, Consent & Ready status */}
-          <Box height={1} flexDirection="row" justifyContent="space-between" overflow="hidden" flexShrink={0}>
-            <Box gap={1} overflow="hidden">
-              <Badge label={`${t(lang, '[g] 目标', '[g] Goal')}: ${formatGoalLabel(profile?.goal, lang)}`} tone="accent" variant="soft" />
-              <Badge
-                label={
-                  profile?.consent === true
-                    ? t(lang, '自动变式: 已授权', 'Auto-Prep: On')
-                    : t(lang, '自动变式: 未授权', 'Auto-Prep: Off')
-                }
-                tone={profile?.consent === true ? 'success' : 'muted'}
-                variant="outline"
-              />
-              {typeof profile?.ready === 'number' ? (
-                <Badge label={`${t(lang, '已备题', 'Ready')}: ${profile.ready}`} tone={profile.ready > 0 ? 'primary' : 'muted'} variant="soft" />
-              ) : null}
+    <>
+      <Modal
+        title={t(lang, '学习者画像与长期偏好', 'Learner Profile & Preferences')}
+        icon={asciiMode ? 'o' : '◎'}
+        tone="primary"
+        subtitle={profile ? `${preferences.length}/${PREF_MAX_ITEMS}` : undefined}
+        width={frameW}
+        height={frameH}
+        onClose={addMode || confirmKind !== null ? undefined : onClose}
+        isActive={isActive && confirmKind === null}
+        hints={hints}
+      >
+        {loading ? (
+          <Box height={bodyH} alignItems="center" justifyContent="center">
+            <Spinner label={t(lang, `正在读取学习者画像与偏好${ell}`, `Loading learner profile & preferences${ell}`)} active={isActive} />
+          </Box>
+        ) : error && !profile ? (
+          <EmptyState
+            icon={asciiMode ? '!' : '✕'}
+            title={t(lang, '无法读取学习者画像', 'Cannot load learner profile')}
+            hint={error}
+            actions={[
+              { key: 'r', label: t(lang, '重试', 'Retry') },
+              { key: 'Esc', label: t(lang, '关闭', 'Close') },
+            ]}
+            width={innerW}
+            height={bodyH}
+          />
+        ) : (
+          <Box flexDirection="column" height={bodyH} overflow="hidden">
+            {/* Row 1: Goal, Consent & Ready status */}
+            <Box height={1} flexDirection="row" justifyContent="space-between" overflow="hidden" flexShrink={0}>
+              <Box gap={1} overflow="hidden">
+                <Badge label={`${t(lang, '[g] 目标', '[g] Goal')}: ${formatGoalLabel(profile?.goal, lang)}`} tone="accent" variant="soft" />
+                <Badge
+                  label={
+                    prepConsent
+                      ? t(lang, '[p] 后台备题: ON', '[p] Auto-Prep: ON')
+                      : t(lang, '[p] 后台备题: OFF', '[p] Auto-Prep: OFF')
+                  }
+                  tone={prepConsent ? 'success' : 'muted'}
+                  variant="outline"
+                />
+                {typeof profile?.ready === 'number' ? (
+                  <Badge label={`${t(lang, '已备题', 'Ready')}: ${profile.ready}`} tone={profile.ready > 0 ? 'primary' : 'muted'} variant="soft" />
+                ) : null}
+              </Box>
+              <Box flexShrink={0}>{busy ? <Spinner label={t(lang, `保存中${ell}`, `Saving${ell}`)} active={isActive} /> : null}</Box>
             </Box>
-            <Box flexShrink={0}>{busy ? <Spinner label={t(lang, `保存中${ell}`, `Saving${ell}`)} active={isActive} /> : null}</Box>
-          </Box>
 
-          {/* Row 2: Signals overview */}
-          <Box height={1} overflow="hidden" flexShrink={0}>
-            <Text color={theme.muted} wrap="truncate-end">
-              {truncateDisplay(signalsText, innerW, ell)}
-            </Text>
-          </Box>
-
-          {/* Row 3..4: Profile summary */}
-          <Box height={summaryLinesCount} flexDirection="column" overflow="hidden" flexShrink={0}>
-            {summaryLines.slice(0, summaryLinesCount).map((line, i) => (
-              <Text key={i} color={profile?.summary?.trim() ? theme.text : theme.dim} wrap="truncate-end">
-                {line || ' '}
+            {/* Row 2: Signals overview */}
+            <Box height={1} overflow="hidden" flexShrink={0}>
+              <Text color={theme.muted} wrap="truncate-end">
+                {truncateDisplay(signalsText, innerW, ell)}
               </Text>
-            ))}
-          </Box>
+            </Box>
 
-          <Divider width={innerW} />
+            {/* Row 3..4: Profile summary */}
+            <Box height={summaryLinesCount} flexDirection="column" overflow="hidden" flexShrink={0}>
+              {summaryLines.slice(0, summaryLinesCount).map((line, i) => (
+                <Text key={i} color={profile?.summary?.trim() ? theme.text : theme.dim} wrap="truncate-end">
+                  {line || ' '}
+                </Text>
+              ))}
+            </Box>
 
-          {/* Preferences header */}
-          <Box height={1} flexDirection="row" justifyContent="space-between" overflow="hidden" flexShrink={0}>
-            <Text color={theme.heading} bold>
-              {t(lang, `长期学习偏好 (${preferences.length}/${PREF_MAX_ITEMS})`, `Study Preferences (${preferences.length}/${PREF_MAX_ITEMS})`)}
-            </Text>
-            <Text color={theme.dim}>
-              {addMode
-                ? t(lang, `输入中${ell}`, `Typing${ell}`)
-                : t(lang, `[g] 目标  [a] 添加  [d] 删除`, `[g] Goal  [a] Add  [d] Remove`)}
-            </Text>
-          </Box>
+            <Divider width={innerW} />
 
-          {/* Preferences VirtualList */}
-          <Box height={listH} flexDirection="column" overflow="hidden" flexShrink={0}>
-            <VirtualList
-              items={preferences}
-              width={innerW}
-              height={listH}
-              selectedIndex={selectedIndex}
-              onChange={setSelectedIndex}
-              isActive={isActive && !loading && !busy && !addMode}
-              keyExtractor={(item, idx) => `${idx}:${item}`}
-              emptyText={t(lang, '暂无自定义学习偏好', 'No study preferences yet')}
-              emptyHint={t(
-                lang,
-                '按 [a] 添加，例如“多举工程实例”或“先给直观直觉再写推导”',
-                'Press [a] to add, e.g. "Prefer concrete engineering examples"',
-              )}
-              renderItem={renderPrefRow}
-            />
-          </Box>
-
-          {/* Inline Add Input */}
-          {addMode ? (
-            <Box height={3} flexDirection="column" overflow="hidden" flexShrink={0}>
-              <Text color={theme.primary} bold wrap="truncate-end">
-                {t(
-                  lang,
-                  `新增偏好（≤${PREF_MAX_CHARS}字，Enter 保存 / Esc 取消）：`,
-                  `New preference (<=${PREF_MAX_CHARS} chars, Enter save / Esc cancel):`,
-                )}
+            {/* Preferences header */}
+            <Box height={1} flexDirection="row" justifyContent="space-between" overflow="hidden" flexShrink={0}>
+              <Text color={theme.heading} bold>
+                {t(lang, `长期学习偏好 (${preferences.length}/${PREF_MAX_ITEMS})`, `Study Preferences (${preferences.length}/${PREF_MAX_ITEMS})`)}
               </Text>
-              <TextInput
-                value={draftText}
-                onChange={setDraftText}
-                placeholder={t(lang, `输入长期学习偏好${ell}`, `Enter a long-term study preference${ell}`)}
-                isActive={isActive && addMode && !busy}
-                width={Math.max(10, innerW - 4)}
-                maxLength={PREF_MAX_CHARS}
-                onSubmit={(val) => void handleAddSubmit(val)}
-                onCancel={() => {
-                  setAddMode(false);
-                  setDraftText('');
-                }}
-              />
               <Text color={theme.dim} wrap="truncate-end">
-                {`${draftText.trim().length}/${PREF_MAX_CHARS}`}
+                {addMode
+                  ? t(lang, `输入中${ell}`, `Typing${ell}`)
+                  : t(lang, `[a] 添加  [d] 删除  [F] 重置画像`, `[a] Add  [d] Remove  [F] Reset`)}
               </Text>
             </Box>
-          ) : null}
-        </Box>
-      )}
-    </Modal>
+
+            {/* Preferences VirtualList */}
+            <Box height={listH} flexDirection="column" overflow="hidden" flexShrink={0}>
+              <VirtualList
+                items={preferences}
+                width={innerW}
+                height={listH}
+                selectedIndex={selectedIndex}
+                onChange={setSelectedIndex}
+                isActive={isActive && !loading && !busy && !addMode && confirmKind === null}
+                keyExtractor={(item, idx) => `${idx}:${item}`}
+                emptyText={t(lang, '暂无自定义学习偏好', 'No study preferences yet')}
+                emptyHint={t(
+                  lang,
+                  '按 [a] 添加，例如“多举工程实例”或“先给直观直觉再写推导”',
+                  'Press [a] to add, e.g. "Prefer concrete engineering examples"',
+                )}
+                renderItem={renderPrefRow}
+              />
+            </Box>
+
+            {/* Inline Add Input */}
+            {addMode ? (
+              <Box height={3} flexDirection="column" overflow="hidden" flexShrink={0}>
+                <Text color={theme.primary} bold wrap="truncate-end">
+                  {t(
+                    lang,
+                    `新增偏好（≤${PREF_MAX_CHARS}字，Enter 保存 / Esc 取消）：`,
+                    `New preference (<=${PREF_MAX_CHARS} chars, Enter save / Esc cancel):`,
+                  )}
+                </Text>
+                <TextInput
+                  value={draftText}
+                  onChange={setDraftText}
+                  placeholder={t(lang, `输入长期学习偏好${ell}`, `Enter a long-term study preference${ell}`)}
+                  isActive={isActive && addMode && !busy}
+                  width={Math.max(10, innerW - 4)}
+                  maxLength={PREF_MAX_CHARS}
+                  onSubmit={(val) => void handleAddSubmit(val)}
+                  onCancel={() => {
+                    setAddMode(false);
+                    setDraftText('');
+                  }}
+                />
+                <Text color={theme.dim} wrap="truncate-end">
+                  {`${draftText.trim().length}/${PREF_MAX_CHARS}`}
+                </Text>
+              </Box>
+            ) : null}
+          </Box>
+        )}
+      </Modal>
+
+      {confirmKind === 'consent-opt-in' ? (
+        <ConfirmDialog
+          title={t(lang, '开启后台变式备题', 'Enable Background Variant Prep')}
+          message={t(
+            lang,
+            '开启后，教练会在后台调用 AI 为近期错题预备举一反三变式题。可随时按 [p] 关闭。是否确认开启？',
+            'Opting in lets the Coach call AI in the background to prepare variant questions for recent mistakes. You can turn this off anytime with [p]. Enable now?',
+          )}
+          confirmLabel={t(lang, '确认开启', 'Enable')}
+          cancelLabel={t(lang, '取消', 'Cancel')}
+          isActive={isActive && confirmKind === 'consent-opt-in' && !busy}
+          onConfirm={() => {
+            setConfirmKind(null);
+            void handleConsentChange(true);
+          }}
+          onCancel={() => setConfirmKind(null)}
+        />
+      ) : null}
+
+      {confirmKind === 'forget' ? (
+        <ConfirmDialog
+          title={t(lang, '重置学习者画像', 'Reset Learner Profile')}
+          message={t(
+            lang,
+            '将清空学习目标、长期学习偏好、后台备题授权及待练定制题；历史练习记录与题库完整保留。确认重置吗？',
+            'This clears your learning goal, study preferences, auto-prep consent, and pending prepared cards. Your decks and practice history stay intact. Reset profile?',
+          )}
+          confirmLabel={t(lang, '确认重置', 'Reset Profile')}
+          cancelLabel={t(lang, '取消', 'Cancel')}
+          danger
+          isActive={isActive && confirmKind === 'forget' && !busy}
+          onConfirm={() => {
+            setConfirmKind(null);
+            void handleForgetProfile();
+          }}
+          onCancel={() => setConfirmKind(null)}
+        />
+      ) : null}
+    </>
   );
 });

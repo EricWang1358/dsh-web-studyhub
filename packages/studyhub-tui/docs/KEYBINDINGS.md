@@ -101,7 +101,7 @@ Inside the palette: `↑`/`↓`, `Ctrl+P`/`Ctrl+N`, or `Ctrl+J`/`Ctrl+K` move se
 - **Card Tools & AI**: `h` AI Help drawer · `L` Socratic teach · `F` Feynman retell · `G` AI rubric grade · `T` translate card · `S` similar cards · `D` card tools (edit, suspend/slay, prereqs, terms, P2-safe quality feedback `coach.feedback` & revert last rewrite `coach.revert`) · `A` answer card & drills · `Q` live queue editor (non-exam) · `*` toggle focus · `E` flag card · `o` jump to cited source page · `m` toggle Unicode/LaTeX math
 
 ### `2` Sources & DocumentReader (`sources`)
-- **Sources List**: `Enter` open `DocumentReader` · `i` import source (Tab path completion) · `M` MinerU scanned/long PDF planner · `g` generate questions · `G` AI organize into courses · `V` citation coverage · `F` folder filter / `m` move to folder (`FolderModal`: `a` create, `r` rename, `d` delete, `g` AI classify folders [P2 quota-guarded], `0`/`x` clear) · `C` companions builder & sync · `r` rename · `c` set course · `p` pin/unpin · `[` / `]` reorder pinned material up / down · `a` archive · `d` delete · `/` filter · `f` filter by active course
+- **Sources List**: `Enter` open `DocumentReader` · `i` import source (Tab path completion) · `M` MinerU scanned/long PDF planner · `g` generate questions · `G` AI organize into courses · `V` citation coverage · `F` folder filter / `m` move to folder (`FolderModal`: `a` create, `r` rename, `d` delete, `g` AI classify folders [P2 quota-guarded], `0`/`x` clear) · `C` companions builder & sync · `R` reread queue · `r` rename · `c` set course · `p` pin/unpin · `[` / `]` reorder pinned material up / down · `a` archive · `d` delete · `/` filter · `f` filter by active course
 - **DocumentReader**: `[` / `]` previous / next page · `O` outline TOC drawer (`Space`/`m` toggle chapter read) · `B` bookmarks & notes drawer (`ReaderNotesDrawer`: `Tab` Annotations/Marks, `Enter` jump page; Annotations `d` delete; Marks `r` mark reread, `d` delete mark, `S` purge stale marks) · `M` toggle chapter read · `a` ask AI on current page (`s` saves reply to note) · `t` translate page · `g` jump to page · `/` search in page · `m` toggle Unicode/LaTeX math · `q` generate from page · `p` practise page · `Esc` / `Backspace` close reader
 
 ### `3` Generate & Drafts (`generate`)
@@ -125,7 +125,7 @@ Inside the palette: `↑`/`↓`, `Ctrl+P`/`Ctrl+N`, or `Ctrl+J`/`Ctrl+K` move se
 - `j` / `k` move node · `Space` / `Enter` / `h` / `l` expand/collapse · `Tab` switch pane · `p` practise node · `E` edit skeleton node · `R` course learning route · `G` topic groups manager · `L` skeleton lint · `g` generate skeleton · `s` switch skeleton · `D` delete skeleton (removes diagrams; keeps decks/cards) · `r` refresh
 
 ### `9` Exam Coach (`examcoach`)
-- `1-4` switch Calibration / Variants / Evidence / Compile tabs · `p` / `P` coach profile & long-term prefs (`CoachPreferencesModal`: `a` add pref, `d` remove, `g` cycle learning goal, `r` refresh) · `a` / `A` analyze / AI deepen · `N` past paper notes · `v` reveal sample answer · `x` / `y` / `z` three-item confirmation · `e` edit quota · `g` / `G` generate variants / batch · `b` compile preview · `m` mock check · `r` refresh
+- `1-4` switch Calibration / Variants / Evidence / Compile tabs · `p` / `P` coach profile & long-term prefs (`CoachPreferencesModal`: `a` add pref, `d` remove, `g` cycle learning goal, `p` toggle auto-prep consent, `F` forget/reset profile & prepared cards, `r` refresh) · `a` / `A` analyze / AI deepen · `N` past paper notes · `v` reveal sample answer · `x` / `y` / `z` three-item confirmation · `e` edit quota · `g` / `G` generate variants / batch · `b` compile preview · `m` mock check · `r` refresh
 
 ### `0` Exam Prep (`examprep`)
 - `1` / `2` switch Focus / Crunch tabs · `a` add focus point · `d` remove focus point · `p` practise unmastered / mock · `g` / `G` gap-fill generation · `P` study plan & custom wizard · `Space` mark seen (Crunch) · `m` mark read (Crunch)
@@ -138,7 +138,7 @@ Inside the palette: `↑`/`↓`, `Ctrl+P`/`Ctrl+N`, or `Ctrl+J`/`Ctrl+K` move se
 - **Pomodoro**: `P` / `Space` start/pause timer · `M` switch focus/break mode · `+` / `-` adjust minutes · `R` reset timer
 
 ### `t` Jobs / Tasks (`tasks`)
-- `1` / `2` / `3` / `Tab` filter Running / All / Archived · `o` live output modal · `m` send refinement message to active job · `w` workflow history · `v` toggle output / trace · `e` export trace JSON · `D` purge saved traces · `Enter` open draft · `x` cancel job · `a` archive/restore · `d` dismiss/delete
+- `1` / `2` / `3` / `Tab` filter Running / All / Archived · `p` pause/resume job queue · `+` / `-` adjust queue concurrency · `o` live output modal · `m` send refinement message to active job · `w` workflow history · `v` toggle output / trace · `e` export trace JSON · `D` purge saved traces · `Enter` open draft · `x` cancel job · `a` archive/restore · `d` dismiss/delete
 
 ### `a` Audio (`audio`)
 - `i` import audio file (with Tab path completion) · `u` import subtitles (`.srt`/`.vtt`/`.txt`/`.json`) · `p` preflight diagnostics · `R` retry failed job · `s` transcription provider settings · `t` test provider connectivity · `g` generate questions from transcript · `r` refresh

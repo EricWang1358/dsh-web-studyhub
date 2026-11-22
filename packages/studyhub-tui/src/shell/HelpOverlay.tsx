@@ -153,6 +153,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'M', label: t(lang, 'MinerU / 标记章节已读', 'MinerU / Toggle chapter read') },
         { key: 'C', label: t(lang, '伴学页面', 'Companions') },
         { key: '[ / ]', label: t(lang, '上移/下移置顶资料', 'Reorder pinned material') },
+        { key: 'R', label: t(lang, '重读清单', 'Reread queue') },
         { key: 'O', label: t(lang, '目录大纲', 'Outline TOC') },
         { key: 'B', label: t(lang, '书签与批注', 'Bookmarks & notes') },
       ],
@@ -172,7 +173,8 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
       items: [
         { key: 'w / o / m', label: t(lang, '工作流历史 / 输出 / 指令', 'Workflows / Output / Msg') },
         { key: 'e / D', label: t(lang, '导出 / 清空调用轨迹', 'Export / Purge Traces') },
-        { key: 'p', label: t(lang, '音频环境自检', 'Audio preflight') },
+        { key: 'p', label: t(lang, '暂停任务 / 音频自检', 'Pause tasks / Audio preflight') },
+        { key: '+/-', label: t(lang, '并发数', 'Concurrency') },
         { key: 'R', label: t(lang, '重试失败转写', 'Retry audio job') },
         { key: 'u', label: t(lang, '导入字幕', 'Import subtitles') },
       ],

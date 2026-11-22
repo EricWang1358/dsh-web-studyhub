@@ -390,12 +390,15 @@ describe('Round 37: SourcesView pinned material reordering ([ / ]) E2E', () => {
       // 3. Move to Alpha Notes (now index 1) and pin it -> materialPins = [keyB, keyA], cursor stays on Alpha Notes (index 1)
       tty.send('j');
       await tty.flush();
+      useTuiStore.setState({ toasts: [] });
       tty.send('p');
       await tty.waitFor(
         () =>
-          JSON.stringify(useTuiStore.getState().snapshot?.settings?.materialPins ?? []) === JSON.stringify([keyB, keyA]),
+          JSON.stringify(useTuiStore.getState().snapshot?.settings?.materialPins ?? []) === JSON.stringify([keyB, keyA]) &&
+          useTuiStore.getState().toasts.some((toast) => toast.text.includes('置顶')),
         { label: 'Pinned Alpha Notes second' },
       );
+      await tty.flush();
 
       // Last pinned boundary toast on Alpha Notes (index 1)
       useTuiStore.setState({ toasts: [] });
