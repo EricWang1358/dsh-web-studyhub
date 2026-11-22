@@ -371,13 +371,19 @@ export function extractUserAnswerText(
   return '';
 }
 
+function toPositivePageNumber(raw: unknown): number | undefined {
+  if (raw === null || raw === undefined || raw === '') return undefined;
+  const n = typeof raw === 'number' ? raw : Number(raw);
+  return Number.isInteger(n) && n >= 1 ? n : undefined;
+}
+
 export function extractCitation(run: ReviewRun | null | undefined): CardSourceLocation | null {
   const cardSource = (run as { cardSource?: unknown } | null | undefined)?.cardSource as
     | { sourceId?: unknown; documentSourceId?: unknown; title?: unknown; page?: unknown; unit?: unknown }
     | undefined;
   if (cardSource && (typeof cardSource.documentSourceId === 'string' || typeof cardSource.sourceId === 'string')) {
     const sourceId = String(cardSource.documentSourceId || cardSource.sourceId);
-    const pageNumber = Number.isFinite(Number(cardSource.page)) ? Number(cardSource.page) : undefined;
+    const pageNumber = toPositivePageNumber(cardSource.page);
     return {
       sourceId,
       pageNumber,
@@ -392,7 +398,7 @@ export function extractCitation(run: ReviewRun | null | undefined): CardSourceLo
   const pg = first.pageNumber ?? first.page;
   return {
     sourceId: first.sourceId,
-    pageNumber: Number.isFinite(Number(pg)) ? Number(pg) : undefined,
+    pageNumber: toPositivePageNumber(pg),
     title: typeof first.title === 'string' ? first.title : undefined,
   };
 }

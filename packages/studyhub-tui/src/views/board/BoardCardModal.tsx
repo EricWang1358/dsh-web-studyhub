@@ -1,7 +1,7 @@
 import React, { memo, useCallback, useMemo, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { Modal, modalContentWidth, TextInput, useTheme } from '../../components/index.js';
-import { t } from '../../state/store.js';
+import { t, useTuiStore } from '../../state/store.js';
 import type { KeyHint, UiLanguage } from '../../types/contracts.js';
 import { BOARD_COLUMNS, type BoardCard, type BoardColumnId } from './board-store.js';
 
@@ -30,6 +30,7 @@ export const BoardCardModal = memo(function BoardCardModal({
   onSubmit,
 }: BoardCardModalProps) {
   const theme = useTheme();
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const frameWidth = Math.max(46, Math.min(68, terminalCols - 6));
   const innerWidth = modalContentWidth(frameWidth);
 
@@ -88,11 +89,11 @@ export const BoardCardModal = memo(function BoardCardModal({
 
   const hints: KeyHint[] = useMemo(
     () => [
-      { key: 'Tab/↑↓', label: t(lang, '切换栏位', 'Next field') },
+      { key: asciiMode ? 'Tab/Up/Dn' : 'Tab/↑↓', label: t(lang, '切换栏位', 'Next field') },
       { key: 'Enter', label: t(lang, '确认', 'Save') },
       { key: 'Esc', label: t(lang, '取消', 'Cancel') },
     ],
-    [lang],
+    [asciiMode, lang],
   );
 
   const colLabel = (c: BoardColumnId) =>
@@ -101,7 +102,7 @@ export const BoardCardModal = memo(function BoardCardModal({
   return (
     <Modal
       title={mode === 'add' ? t(lang, '添加看板任务', 'Add Board Card') : t(lang, '编辑看板任务', 'Edit Board Card')}
-      icon="▦"
+      icon={asciiMode ? '#' : '▦'}
       tone="primary"
       width={frameWidth}
       onClose={onClose}
@@ -121,7 +122,7 @@ export const BoardCardModal = memo(function BoardCardModal({
           onCancel={onClose}
           isActive={field === 'title'}
           width={innerWidth - 2}
-          prompt="› "
+          prompt={asciiMode ? '> ' : '› '}
           placeholder={t(lang, '例如：刷完第 5 章矩阵特征值错题', 'e.g. Review Chapter 5 eigenvalue mistakes')}
           maxLength={300}
           captureInput={false}
@@ -156,7 +157,7 @@ export const BoardCardModal = memo(function BoardCardModal({
             onCancel={onClose}
             isActive={field === 'dueDate'}
             width={innerWidth - 2}
-            prompt="◷ "
+            prompt={asciiMode ? '@ ' : '◷ '}
             placeholder="2026-11-30"
             maxLength={20}
             captureInput={false}
@@ -165,7 +166,11 @@ export const BoardCardModal = memo(function BoardCardModal({
 
         <Box marginTop={1} flexDirection="column">
           <Text color={field === 'column' ? theme.primary : theme.muted} bold>
-            {t(lang, '所属列（←/→ 或 1/2/3）', 'Column (←/→ or 1/2/3)')}
+            {t(
+              lang,
+              asciiMode ? '所属列（<-/-> 或 1/2/3）' : '所属列（←/→ 或 1/2/3）',
+              asciiMode ? 'Column (<-/-> or 1/2/3)' : 'Column (←/→ or 1/2/3)',
+            )}
           </Text>
           <Box gap={2} marginTop={0}>
             {BOARD_COLUMNS.map((c, idx) => {
@@ -186,7 +191,7 @@ export const BoardCardModal = memo(function BoardCardModal({
 
         {error ? (
           <Box marginTop={1}>
-            <Text color={theme.error}>{`✕ ${error}`}</Text>
+            <Text color={theme.error}>{`${asciiMode ? 'x' : '✕'} ${error}`}</Text>
           </Box>
         ) : null}
       </Box>

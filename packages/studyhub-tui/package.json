@@ -13,8 +13,8 @@
     "start": "node bin/studyhub-tui.mjs",
     "dev": "tsx src/cli.tsx",
     "typecheck": "tsc --noEmit",
-    "test": "node --test --test-concurrency=2 tests/*.test.mjs",
-    "test:smoke": "node --test tests/smoke.test.mjs",
+    "test": "npm run build && node --test --test-concurrency=2 tests/*.test.mjs",
+    "test:smoke": "npm run build && node --test tests/cli-args.test.mjs tests/cross-platform.test.mjs tests/host.test.mjs",
     "test:e2e": "node --test tests/xterm-e2e.test.mjs",
     "bench": "node scripts/bench.mjs"
   },

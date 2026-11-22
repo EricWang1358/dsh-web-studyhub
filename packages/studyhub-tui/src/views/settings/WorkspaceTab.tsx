@@ -22,7 +22,7 @@ import {
   useTheme,
   type VirtualListRenderContext,
 } from '../../components/index.js';
-import { displayWidth, padDisplay, truncateDisplay } from '../../render/index.js';
+import { displayWidth, graphemeWidth, padDisplay, splitGraphemes, truncateDisplay } from '../../render/index.js';
 
 export interface RestorePointEntry {
   id: string;
@@ -115,6 +115,55 @@ function formatBytes(bytes?: number): string {
   if (n >= 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
   if (n >= 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${n} B`;
+}
+
+/**
+ * Truncate a file/directory path in the middle so both the start prefix (e.g. `C:\Users\`)
+ * and the trailing folder name (e.g. `\studyhub-tui-xxx`) remain visible within `maxWidth`.
+ */
+export function truncatePathMiddle(rawPath: string, maxWidth: number, ell = '…'): string {
+  const text = String(rawPath ?? '');
+  if (!text || displayWidth(text) <= maxWidth) return text;
+  const ellW = displayWidth(ell);
+  if (maxWidth <= ellW + 2) return truncateDisplay(text, maxWidth, ell);
+
+  const trimmed = text.length > 3 ? text.replace(/[\\/]+$/, '') : text;
+  const sepIdx = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'));
+
+  const sliceEndWidth = (str: string, budget: number): string => {
+    const gs = splitGraphemes(str);
+    let out = '';
+    let w = 0;
+    for (let i = gs.length - 1; i >= 0; i -= 1) {
+      const gw = graphemeWidth(gs[i]);
+      if (w + gw > budget) break;
+      out = gs[i] + out;
+      w += gw;
+    }
+    return out;
+  };
+
+  if (sepIdx <= 0 || sepIdx === trimmed.length - 1) {
+    const budget = maxWidth - ellW;
+    const headW = Math.max(1, Math.floor(budget / 2));
+    const tailW = Math.max(1, budget - headW);
+    return `${truncateDisplay(trimmed, headW, '')}${ell}${sliceEndWidth(trimmed, tailW)}`;
+  }
+
+  const tailSegment = trimmed.slice(sepIdx); // includes leading separator + trailing folder name
+  const tailW = displayWidth(tailSegment);
+  const headBudget = maxWidth - ellW - tailW;
+
+  if (headBudget >= 3) {
+    const headPart = truncateDisplay(trimmed.slice(0, sepIdx), headBudget, '');
+    return `${headPart}${ell}${tailSegment}`;
+  }
+
+  const minHeadW = Math.min(4, Math.max(2, Math.floor((maxWidth - ellW) * 0.25)));
+  const headPart = truncateDisplay(trimmed.slice(0, sepIdx), minHeadW, '');
+  const tailBudget = Math.max(1, maxWidth - displayWidth(headPart) - ellW);
+  if (tailW <= tailBudget) return `${headPart}${ell}${tailSegment}`;
+  return `${headPart}${ell}${sliceEndWidth(tailSegment, tailBudget)}`;
 }
 
 export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function WorkspaceTab({
@@ -366,6 +415,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
     [asciiMode, theme.muted, theme.selectionFg, theme.text],
   );
 
+  const ell = asciiMode ? '...' : '…';
   const modalW = Math.min(72, Math.max(40, width - 6));
   const sampleActionLabel = `[s] ${sampleLoaded ? t(lang, '移除示例课程', 'Remove sample') : t(lang, '载入示例课程', 'Load sample')}`;
   const exportActionLabel = `[x] ${t(lang, '导出学习库备份', 'Export backup')}`;
@@ -383,12 +433,12 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
         <Box flexDirection="row" gap={1}>
           <Text color={theme.muted}>{t(lang, '当前学习库:', 'Current Root:')}</Text>
           <Text color={theme.primary} bold>
-            {truncateDisplay(rootPath, Math.max(10, width - 22))}
+            {truncatePathMiddle(rootPath, Math.max(10, width - 22), ell)}
           </Text>
         </Box>
         <Box flexDirection="row" gap={1}>
           <Text color={theme.muted}>{t(lang, '默认路径:  ', 'Default Root:')}</Text>
-          <Text color={theme.dim}>{truncateDisplay(defaultRoot || '-', Math.max(10, width - 22))}</Text>
+          <Text color={theme.dim}>{truncatePathMiddle(defaultRoot || '-', Math.max(10, width - 22), ell)}</Text>
         </Box>
         <Box flexDirection="row" gap={2} marginTop={0}>
           <Text color={theme.muted}>

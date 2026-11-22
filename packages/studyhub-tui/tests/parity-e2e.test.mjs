@@ -6,6 +6,8 @@ import { dirname, join, resolve } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import v8 from 'node:v8';
+import vm from 'node:vm';
 import xtermPkg from '@xterm/headless';
 import { render } from 'ink';
 import React from 'react';
@@ -727,7 +729,21 @@ describe('StudyHub TUI Round 7 Parity E2E & Memory Soak', () => {
     await sleep(100);
     await tty.flush();
 
-    if (typeof globalThis.gc === 'function') globalThis.gc();
+    const runGc = () => {
+      if (typeof globalThis.gc === 'function') {
+        globalThis.gc();
+        return;
+      }
+      try {
+        v8.setFlagsFromString('--expose_gc');
+        const gcFn = vm.runInNewContext('gc');
+        if (typeof gcFn === 'function') gcFn();
+      } catch {
+        // Fallback when V8 flags are locked
+      }
+    };
+
+    runGc();
     const baselineHeapBytes = process.memoryUsage().heapUsed;
 
     for (let round = 1; round <= 4; round += 1) {
@@ -744,7 +760,7 @@ describe('StudyHub TUI Round 7 Parity E2E & Memory Soak', () => {
       }
     }
 
-    if (typeof globalThis.gc === 'function') globalThis.gc();
+    runGc();
     const finalHeapBytes = process.memoryUsage().heapUsed;
     const baselineMb = Math.round((baselineHeapBytes / (1024 * 1024)) * 10) / 10;
     const finalMb = Math.round((finalHeapBytes / (1024 * 1024)) * 10) / 10;

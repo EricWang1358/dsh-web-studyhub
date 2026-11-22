@@ -1,0 +1,39 @@
+commit 7c05d43bfe4870b8bcfdc49893b07d7bb1052acd
+Author: Eric Wang <122358137+EricWang1358@users.noreply.github.com>
+Date:   Sun Nov 22 07:57:37 2026 +0000
+
+    fix(tui): PR #1297 P3 (#20-#24) — Windows test fixes, TUI CI job, lint-guard exclusion, build-before-test, test:smoke & disk-persistence tests
+
+diff --git a/.github/workflows/verify.yml b/.github/workflows/verify.yml
+index 89a7ceb5..f0a5bb10 100644
+--- a/.github/workflows/verify.yml
++++ b/.github/workflows/verify.yml
+@@ -28,6 +28,28 @@ jobs:
+       - run: npm run lint
+       - run: npm run build
+ 
++  tui:
++    name: tui (${{ matrix.os }})
++    runs-on: ${{ matrix.os }}
++    timeout-minutes: 15
++    strategy:
++      fail-fast: false
++      matrix:
++        os: [ubuntu-latest, windows-latest]
++    steps:
++      - uses: actions/checkout@v4
++      - uses: actions/setup-node@v4
++        with:
++          node-version: 22
++          cache: npm
++      - run: npm ci --legacy-peer-deps
++        env:
++          STUDYHUB_SKIP_PREPARE: '1'
++      - run: npm --prefix packages/studyhub-tui ci
++      - run: npm --prefix packages/studyhub-tui run typecheck
++      - run: npm --prefix packages/studyhub-tui run build
++      - run: npm --prefix packages/studyhub-tui test
++
+   # Pull requests run all 3 Ubuntu shards (full suite) plus 1 fast Windows platform-smoke VM below (~4 test VMs per PR, ~3 minutes, well under GitHub's 20-VM cap).
+   # Pushes to main run the full cross-platform shard matrix across both Ubuntu (1..3) and Windows (1..5), with cancel-in-progress replacing superseded main runs.
+   # tests/test-runner-shards.test.mjs checks that the shards below are 1..N for each system.

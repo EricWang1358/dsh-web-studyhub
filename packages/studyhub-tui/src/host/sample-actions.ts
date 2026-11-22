@@ -5,6 +5,7 @@
  * `materials.document.import`, `source.add`, `review.*` (lib/contexts/study/operations.js).
  */
 import { extname, isAbsolute, resolve } from 'node:path';
+import { useTuiStore } from '../state/store.js';
 import type { HostCallResult, HostClient, StudySnapshot, UiLanguage } from '../types/contracts.js';
 
 type Caller = Pick<HostClient, 'call'>;
@@ -24,15 +25,47 @@ export class HostActionError extends Error {
   }
 }
 
+const BACKEND_ERROR_ZH: ReadonlyArray<[RegExp, string | ((...args: string[]) => string)]> = [
+  [/^Review has ended\.?$/i, '本轮练习已结束'],
+  [/^Exam has ended without submission\.?$/i, '模拟考已结束（未交卷）'],
+  [/^This round has ended; start a new one with review\.start\.?$/i, '本轮练习已结束，请重新开始新一轮'],
+  [/^Answer this question before continuing\.?$/i, '请先作答本题再继续'],
+  [/^Question changed; refresh review\.?$/i, '题目已变更，请刷新练习'],
+  [/^Submit the exam before reviewing answers\.?$/i, '请先交卷后再查看答案'],
+  [/^Not an exam run\.?$/i, '当前不是模拟考场次'],
+  [/^No questions available for this mode\.?$/i, '当前模式下暂无可练习题目'],
+  [/^Restore this archived deck before studying\.?$/i, '请先恢复该已归档题组再学习'],
+  [/^Deck not found(?::\s*(.+))?\.?$/i, (_, id) => (id ? `未找到该题组: ${id}` : '未找到该题组')],
+  [/^Source not found(?::\s*(.+))?\.?$/i, (_, id) => (id ? `未找到该资料: ${id}` : '未找到该资料')],
+  [/^Skeleton not found(?::\s*(.+))?\.?$/i, (_, id) => (id ? `未找到该知识骨架: ${id}` : '未找到该知识骨架')],
+];
+
+/** Localize known English backend error strings when UI language is Chinese (`zh`). */
+export function localizeBackendError(
+  message: string,
+  lang: UiLanguage = useTuiStore.getState().preferences.language,
+): string {
+  if (lang !== 'zh' || !message) return message;
+  const trimmed = message.trim();
+  if (!trimmed || /[\u4e00-\u9fff]/.test(trimmed)) return message;
+  for (const [pattern, replacement] of BACKEND_ERROR_ZH) {
+    const match = trimmed.match(pattern);
+    if (match) {
+      return typeof replacement === 'function' ? replacement(...match) : replacement;
+    }
+  }
+  return message;
+}
+
 /** Human-readable message for anything thrown or returned by the host. */
-export function errorMessage(error: unknown): string {
+export function errorMessage(error: unknown, lang?: UiLanguage): string {
   if (!error) return 'Unknown error';
-  if (typeof error === 'string') return error;
-  if (error instanceof Error) return error.message || error.name;
+  if (typeof error === 'string') return localizeBackendError(error, lang);
+  if (error instanceof Error) return localizeBackendError(error.message || error.name, lang);
   const err = error as { message?: unknown; error?: unknown };
-  if (typeof err.message === 'string') return err.message;
-  if (typeof err.error === 'string') return err.error;
-  if (err.error && typeof err.error === 'object') return errorMessage(err.error);
+  if (typeof err.message === 'string') return localizeBackendError(err.message, lang);
+  if (typeof err.error === 'string') return localizeBackendError(err.error, lang);
+  if (err.error && typeof err.error === 'object') return errorMessage(err.error, lang);
   try {
     return JSON.stringify(error);
   } catch {
@@ -48,7 +81,7 @@ export async function tryAction<T = unknown>(host: Caller, action: string, args:
       if (result.ok) return result;
       const raw = result.error as unknown;
       const error = typeof raw === 'string'
-        ? { message: raw, code: (result as { code?: string }).code || 'STUDY_ERROR' }
+        ? { message: localizeBackendError(raw), code: (result as { code?: string }).code || 'STUDY_ERROR' }
         : { message: errorMessage(raw) || `${action} failed`, code: (raw as { code?: string })?.code || 'STUDY_ERROR', details: (raw as { details?: unknown })?.details };
       return { ok: false, error };
     }

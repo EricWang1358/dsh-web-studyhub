@@ -101,12 +101,14 @@ describe('parseCliArgs & cliHelpText', () => {
     assert.equal(parseCliArgs(['--unicode', '--ascii']).asciiMode, true);
   });
 
-  test('shouldAutoAscii respects STUDYHUB_TUI_ASCII override and TERM=dumb', () => {
+  test('shouldAutoAscii respects STUDYHUB_TUI_ASCII override, TERM=dumb, and platform', () => {
     assert.equal(shouldAutoAscii({ STUDYHUB_TUI_ASCII: '1' }), true);
     assert.equal(shouldAutoAscii({ TERM: 'dumb' }), true);
     assert.equal(shouldAutoAscii({ STUDYHUB_TUI_ASCII: '0', TERM: 'dumb' }), false);
     assert.equal(shouldAutoAscii({ TERM: 'xterm-256color' }), false);
-    assert.equal(shouldAutoAscii({}), false);
+    assert.equal(shouldAutoAscii({}, 'linux'), false);
+    assert.equal(shouldAutoAscii({}, 'win32'), true);
+    assert.equal(shouldAutoAscii({ WT_SESSION: '1' }, 'win32'), false);
   });
 
   test('reports errors for invalid flags and missing values', () => {

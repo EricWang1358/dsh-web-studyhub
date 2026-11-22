@@ -26,6 +26,24 @@ export const DEFAULT_PREFERENCES: TuiPreferences = {
 const MAX_HISTORY = 24;
 const MAX_TOASTS = 4;
 
+export interface PomodoroState {
+  phase: 'work' | 'break';
+  running: boolean;
+  remainingSec: number;
+  endsAt: number | null;
+  workMinutes: number;
+  breakMinutes: number;
+}
+
+const DEFAULT_POMODORO: PomodoroState = {
+  phase: 'work',
+  running: false,
+  remainingSec: 25 * 60,
+  endsAt: null,
+  workMinutes: 25,
+  breakMinutes: 5,
+};
+
 export interface TuiStoreState {
   page: PageId;
   navContext: NavigationContext;
@@ -53,6 +71,7 @@ export interface TuiStoreState {
   toasts: ToastItem[];
   footerHints: KeyHint[];
   preferences: TuiPreferences;
+  pomodoro: PomodoroState;
 
   /** Actions */
   navigate: (page: PageId, context?: NavigationContext) => void;
@@ -82,6 +101,8 @@ export interface TuiStoreState {
   setLanguage: (language: UiLanguage) => void;
   toggleSidebar: () => void;
   recordRecentCommand: (commandId: string) => void;
+  setPomodoro: (patch: Partial<PomodoroState> | ((prev: PomodoroState) => Partial<PomodoroState>)) => void;
+  resetPomodoro: () => void;
 }
 
 let toastSeq = 0;
@@ -110,6 +131,7 @@ export const useTuiStore = create<TuiStoreState>((set, get) => ({
   toasts: [],
   footerHints: [],
   preferences: { ...DEFAULT_PREFERENCES },
+  pomodoro: { ...DEFAULT_POMODORO },
 
   navigate: (page, context = {}) => {
     const prev = get();
@@ -208,6 +230,25 @@ export const useTuiStore = create<TuiStoreState>((set, get) => ({
     set((state) => {
       const next = [commandId, ...state.preferences.recentCommands.filter((id) => id !== commandId)].slice(0, 12);
       return { preferences: { ...state.preferences, recentCommands: next } };
+    }),
+
+  setPomodoro: (patch) =>
+    set((state) => {
+      const resolved = typeof patch === 'function' ? patch(state.pomodoro) : patch;
+      return { pomodoro: { ...state.pomodoro, ...resolved } };
+    }),
+
+  resetPomodoro: () =>
+    set((state) => {
+      const mins = state.pomodoro.phase === 'work' ? state.pomodoro.workMinutes : state.pomodoro.breakMinutes;
+      return {
+        pomodoro: {
+          ...state.pomodoro,
+          running: false,
+          endsAt: null,
+          remainingSec: mins * 60,
+        },
+      };
     }),
 }));
 

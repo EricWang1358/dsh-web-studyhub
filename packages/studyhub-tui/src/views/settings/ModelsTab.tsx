@@ -375,7 +375,7 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
     out.push({
       value: 'agy',
       label: t(lang, 'agy CLI (主模型)', 'agy CLI (Primary)'),
-      icon: '⚡',
+      icon: asciiMode ? '*' : '⚡',
       badge: agyVer,
       badgeTone: agyProvider?.ready ? 'success' : agyProvider?.unauthenticated ? 'warning' : 'muted',
     });
@@ -384,7 +384,7 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
       out.push({
         value: `openai:${p.id}`,
         label: lang === 'en' ? p.nameEn : p.name,
-        icon: '☁',
+        icon: asciiMode ? '@' : '☁',
         badge: hasEnv ? 'ENV' : undefined,
         badgeTone: 'accent',
       });
@@ -393,13 +393,13 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
       out.push({
         value: 'codex',
         label: 'codex CLI',
-        icon: '◇',
+        icon: asciiMode ? '>' : '◇',
         badge: codexProvider?.version ? `v${codexProvider.version}` : codexProvider?.ready ? 'ready' : 'off',
         badgeTone: codexProvider?.ready ? 'success' : 'warning',
       });
     }
     return out;
-  }, [agyProvider, codexProvider, envDetection?.presetId, lang, showCodex]);
+  }, [agyProvider, asciiMode, codexProvider, envDetection?.presetId, lang, showCodex]);
 
   const currentRouteValue = useMemo(() => {
     if (!config) return '';
@@ -596,8 +596,8 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
             ) : null}
           </Box>
           <Box flexDirection="row" gap={1}>
-            {testing ? <Spinner label={t(lang, '测试连接中…', 'Testing…')} active={isActive} /> : null}
-            {scanning ? <Spinner label={t(lang, '扫描 CLI…', 'Scanning…')} active={isActive} /> : null}
+            {testing ? <Spinner label={t(lang, asciiMode ? '测试连接中...' : '测试连接中…', asciiMode ? 'Testing...' : 'Testing…')} active={isActive} /> : null}
+            {scanning ? <Spinner label={t(lang, asciiMode ? '扫描 CLI...' : '扫描 CLI…', asciiMode ? 'Scanning...' : 'Scanning…')} active={isActive} /> : null}
             {testStatus && !testing ? (
               <Badge
                 label={`${testStatus.ok ? (asciiMode ? '+' : '✓') : (asciiMode ? 'x' : '✕')} ${truncateDisplay(testStatus.message, 28, asciiMode ? '...' : '…')}${testStatus.latencyMs ? ` (${testStatus.latencyMs}ms)` : ''}`}
@@ -757,7 +757,7 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
                       onCancel={() => setEditingField(null)}
                       width={innerW}
                       isActive={isActive}
-                      prompt="Model ›"
+                      prompt={asciiMode ? 'Model >' : 'Model ›'}
                     />
                   </Box>
                 ) : (
@@ -788,13 +788,16 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
           // OpenAI Compatible Preset Panel
           const savedSamePreset = config?.openai?.providerId === openaiPresetId;
           const envMatched = envDetection?.presetId === openaiPresetId;
+          const maskDot = asciiMode ? '*' : '•';
+          const ell = asciiMode ? '...' : '…';
+          const sepDash = asciiMode ? '-' : '—';
           const keyBadge = openaiApiKey
-            ? `${'•'.repeat(8)} (${t(lang, '新密钥已填写', 'new key staged')})`
+            ? `${maskDot.repeat(8)} (${t(lang, '新密钥已填写', 'new key staged')})`
             : savedSamePreset && config?.openai?.hasKey
-              ? `••••••••${config.openai.keyLast4 || ''} (${t(lang, '已保存', 'saved')})`
+              ? `${maskDot.repeat(8)}${config.openai.keyLast4 || ''} (${t(lang, '已保存', 'saved')})`
               : envMatched
-                ? `ENV: ${envDetection?.envKey} (···${envDetection?.keyLast4})`
-                : t(lang, '(未填写 — 回车输入)', '(empty — Enter to input)');
+                ? `ENV: ${envDetection?.envKey} (${asciiMode ? '...' : '···'}${envDetection?.keyLast4})`
+                : t(lang, `(未填写 ${sepDash} 回车输入)`, `(empty ${sepDash} Enter to input)`);
 
           const fields: Array<{ label: string; value: string; field?: 'baseUrl' | 'apiKey' | 'model' }> = [
             {
@@ -803,7 +806,7 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
                 openaiBaseUrl ||
                 (selectedPreset?.baseUrl
                   ? t(lang, `默认: ${selectedPreset.baseUrl}`, `Default: ${selectedPreset.baseUrl}`)
-                  : t(lang, '(未填写 — 回车输入)', '(empty — Enter to input)')),
+                  : t(lang, `(未填写 ${sepDash} 回车输入)`, `(empty ${sepDash} Enter to input)`)),
               field: 'baseUrl',
             },
             { label: 'API Key', value: keyBadge, field: 'apiKey' },
@@ -813,21 +816,25 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
                 openaiModel ||
                 (selectedPreset?.defaultModel
                   ? t(lang, `默认: ${selectedPreset.defaultModel}`, `Default: ${selectedPreset.defaultModel}`)
-                  : t(lang, '(未填写 — 回车输入)', '(empty — Enter to input)')),
+                  : t(lang, `(未填写 ${sepDash} 回车输入)`, `(empty ${sepDash} Enter to input)`)),
               field: 'model',
             },
             { label: t(lang, 'Reasoning Effort', 'Reasoning Effort'), value: effortLabel(openaiEffort, lang) },
             {
               label: t(lang, '操作', 'Action'),
               value: saving
-                ? t(lang, '保存中…', 'Saving…')
-                : t(lang, '▶ 保存并切换到 OpenAI 兼容接口 [Enter / s]', '▶ Save & Switch to OpenAI [Enter / s]'),
+                ? t(lang, `保存中${ell}`, `Saving${ell}`)
+                : t(
+                    lang,
+                    `${asciiMode ? '>' : '▶'} 保存并切换到 OpenAI 兼容接口 [Enter / s]`,
+                    `${asciiMode ? '>' : '▶'} Save & Switch to OpenAI [Enter / s]`,
+                  ),
             },
           ];
 
           return (
             <Panel
-              title={`☁ ${selectedPreset ? (lang === 'en' ? selectedPreset.nameEn : selectedPreset.name) : openaiPresetId}`}
+              title={`${asciiMode ? '@' : '☁'} ${selectedPreset ? (lang === 'en' ? selectedPreset.nameEn : selectedPreset.name) : openaiPresetId}`}
               badge={config?.mode === 'openai' && savedSamePreset ? t(lang, '当前启用', 'ACTIVE') : undefined}
               badgeTone="success"
               focused={isActive && pane === 'detail'}
@@ -849,18 +856,18 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
                         height={1}
                         backgroundColor={selected && !isEditingThis ? theme.selectionBg : undefined}
                       >
-                        <Text color={selected ? theme.primary : theme.dim}>{selected ? '❯ ' : '  '}</Text>
+                        <Text color={selected ? theme.primary : theme.dim}>{selected ? (asciiMode ? '> ' : '❯ ') : '  '}</Text>
                         <Text color={selected ? theme.selectionFg : theme.muted} bold={selected}>
                           {padDisplay(f.label, 18)}
                         </Text>
                         {isEditingThis ? (
-                          <Text color={theme.accent}>{t(lang, '[编辑中 — Enter 确认 / Esc 取消]', '[Editing — Enter save / Esc cancel]')}</Text>
+                          <Text color={theme.accent}>{t(lang, `[编辑中 ${sepDash} Enter 确认 / Esc 取消]`, `[Editing ${sepDash} Enter save / Esc cancel]`)}</Text>
                         ) : (
                           <Text
                             color={idx === 4 ? theme.success : selected ? theme.accent : theme.text}
                             bold={idx === 4 || selected}
                           >
-                            {truncateDisplay(f.value, Math.max(10, innerW - 22))}
+                            {truncateDisplay(f.value, Math.max(10, innerW - 22), ell)}
                           </Text>
                         )}
                       </Box>
@@ -872,7 +879,7 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
                             mask={f.field === 'apiKey' ? '*' : undefined}
                             width={Math.max(12, innerW - 6)}
                             isActive={isActive}
-                            prompt="›"
+                            prompt={asciiMode ? '>' : '›'}
                             onSubmit={(val) => {
                               const trimmed = val.trim();
                               if (f.field === 'baseUrl') setOpenaiBaseUrl(trimmed);
@@ -892,7 +899,11 @@ export const ModelsTab: React.FC<ModelsTabProps> = memo(function ModelsTab({
               {selectedPreset && selectedPreset.models.length > 0 ? (
                 <Box flexDirection="column" marginTop={1}>
                   <Text color={theme.muted}>
-                    {t(lang, '预设模型快捷切换 (Model 行 ←/→):', 'Preset models (←/→ on Model row):')}
+                    {t(
+                      lang,
+                      `预设模型快捷切换 (Model 行 ${asciiMode ? '<-/->' : '←/→'}):`,
+                      `Preset models (${asciiMode ? '<-/->' : '←/→'} on Model row):`,
+                    )}
                   </Text>
                   <Box flexDirection="row" flexWrap="wrap" gap={1}>
                     {selectedPreset.models.map((m) => (

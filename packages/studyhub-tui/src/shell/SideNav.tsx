@@ -92,8 +92,11 @@ export const SideNav = memo(function SideNav({ width, height }: SideNavProps) {
       );
     }
     const label = t(lang, p.labelZh, p.labelEn);
-    const right = badge ? ` ${badge} ` : ` ${p.shortcut} `;
-    const avail = Math.max(1, inner - 4 - displayWidth(right));
+    const shortcutCol = ` ${p.shortcut} `;
+    const badgeStr = badge ? ` ${badge} ` : '';
+    const leftW = displayWidth(bar) + 2 + displayWidth(icon);
+    const rightW = displayWidth(badgeStr) + displayWidth(shortcutCol);
+    const avail = Math.max(1, inner - leftW - rightW);
     return (
       <Box key={p.id} width={inner} height={1} backgroundColor={active ? theme.selectionBg : undefined}>
         <Text color={active ? theme.primary : theme.bg}>{bar}</Text>
@@ -105,11 +108,10 @@ export const SideNav = memo(function SideNav({ width, height }: SideNavProps) {
         </Box>
         {badge ? (
           <Text backgroundColor={c?.color} color={theme.dark ? theme.bg : '#ffffff'} bold>
-            {right}
+            {badgeStr}
           </Text>
-        ) : (
-          <Text color={theme.dim}>{right}</Text>
-        )}
+        ) : null}
+        <Text color={theme.dim}>{shortcutCol}</Text>
       </Box>
     );
   };

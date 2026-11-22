@@ -3,6 +3,7 @@ import { Box, Text, useInput, usePaste } from 'ink';
 import stripAnsi from 'strip-ansi';
 import { useTheme } from '../theme/tokens.js';
 import { displayWidth } from '../render/index.js';
+import { useTuiStore } from '../state/store.js';
 import { useInputCapture } from './focus.js';
 
 export interface TextInputProps {
@@ -137,6 +138,7 @@ export const TextInput = memo(function TextInput({
   captureInput = true,
 }: TextInputProps) {
   const theme = useTheme();
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   useInputCapture(isActive && captureInput);
 
   const [cursor, setCursor] = useState(() => chars(value).length);
@@ -186,11 +188,15 @@ export const TextInput = memo(function TextInput({
         return;
       }
       if (key.return) {
-        if (!multiline || submitOnEnter !== Boolean(key.meta)) {
-          onSubmit?.(value);
-        } else {
+        if (multiline && (key.shift || submitOnEnter === Boolean(key.meta))) {
           insert('\n');
+        } else {
+          onSubmit?.(value);
         }
+        return;
+      }
+      if (key.ctrl && input === 'j' && multiline) {
+        insert('\n');
         return;
       }
       if (key.ctrl && input === 's' && multiline) {
@@ -265,7 +271,7 @@ export const TextInput = memo(function TextInput({
     { isActive },
   );
 
-  const maskChar = mask === true ? '•' : typeof mask === 'string' && mask ? mask : null;
+  const maskChar = mask === true ? (asciiMode ? '*' : '•') : typeof mask === 'string' && mask ? mask : null;
   const promptEl = prompt ? <Text color={isActive ? theme.primary : theme.muted}>{`${prompt} `}</Text> : null;
   const fieldWidth = Math.max(1, width);
 
@@ -295,7 +301,7 @@ export const TextInput = memo(function TextInput({
       <Box height={1}>
         {promptEl}
         <Text color={theme.text} wrap="truncate">
-          {win.start > 0 ? <Text color={theme.dim}>‹</Text> : null}
+          {win.start > 0 ? <Text color={theme.dim}>{asciiMode ? '<' : '‹'}</Text> : null}
           {win.start > 0 ? chars(before).slice(1).join('') : before}
           {isActive ? <Text inverse>{atChar}</Text> : at < display.length ? atChar : ''}
           {after}

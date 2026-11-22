@@ -54,9 +54,51 @@ async function main() {
   let instance: ReturnType<typeof render> | null = null;
   let cleaningUp = false;
 
+  const MAX_BOOT_BUFFER_BYTES = 64;
+  const bootChunks: Buffer[] = [];
+  let bootBytes = 0;
+  let bootAttached = false;
+
+  const stripBootNoise = (raw: string): string =>
+    raw
+      .replace(/\x1b\[<\d+;\d+;\d+[Mm]/g, '')
+      .replace(/\x1b\[M[\s\S]{3}/g, '')
+      .replace(/\x1b\[[IO]/g, '')
+      .replace(/\x1b\][\s\S]*?(?:\x07|\x1b\\|\x9c)/g, '')
+      .replace(/\x1b\[\?\d+(?:;\d+)*[uc]/g, '')
+      .replace(/\x1b\[>[\d;]*c/g, '')
+      .replace(/\x1b\[\d+;\d+R/g, '')
+      .replace(/\x1b\[\?\d+(?:;\d+)*\$y/g, '');
+
+  const onBootData = (chunk: Buffer | string) => {
+    if (bootBytes >= MAX_BOOT_BUFFER_BYTES) return;
+    const raw = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
+    if (raw.includes('\x03')) {
+      onSignal();
+      return;
+    }
+    const filtered = stripBootNoise(raw);
+    if (!filtered) return;
+    const buf = Buffer.from(filtered, 'utf8');
+    const remaining = MAX_BOOT_BUFFER_BYTES - bootBytes;
+    const slice = buf.length > remaining ? buf.subarray(0, remaining) : buf;
+    if (slice.length > 0) {
+      bootChunks.push(slice);
+      bootBytes += slice.length;
+    }
+  };
+
+  const detachBootBuffer = () => {
+    if (!bootAttached) return;
+    bootAttached = false;
+    process.stdin.off('data', onBootData);
+    process.stdin.pause();
+  };
+
   const cleanup = async () => {
     if (cleaningUp) return;
     cleaningUp = true;
+    detachBootBuffer();
     try {
       instance?.unmount();
     } catch {
@@ -73,6 +115,16 @@ async function main() {
   };
   process.once('SIGINT', onSignal);
   process.once('SIGTERM', onSignal);
+
+  if (process.stdin.isTTY) {
+    try {
+      process.stdin.setRawMode?.(true);
+      process.stdin.on('data', onBootData);
+      bootAttached = true;
+    } catch {
+      // Ignore if stdin cannot enter raw mode during boot
+    }
+  }
 
   // Kick off host + App loading IMMEDIATELY in parallel with Ink mounting ShellBootFrame
   const bootPromise = Promise.all([import('./host/index.js'), import('./App.js')]).then(
@@ -102,16 +154,35 @@ async function main() {
       let alive = true;
       bootPromise.then(
         (res) => {
-          if (alive && res) setReady(res);
+          if (!alive) return;
+          detachBootBuffer();
+          if (res) setReady(res);
         },
         (err) => {
-          if (alive) setBootError(err instanceof Error ? err.message : String(err));
+          if (!alive) return;
+          detachBootBuffer();
+          setBootError(err instanceof Error ? err.message : String(err));
         },
       );
       return () => {
         alive = false;
       };
     }, []);
+
+    React.useEffect(() => {
+      if (!ready || bootChunks.length === 0) return undefined;
+      const buffered = Buffer.concat(bootChunks.splice(0, bootChunks.length));
+      bootBytes = 0;
+      const timer = setImmediate(() => {
+        if (cleaningUp || buffered.length === 0) return;
+        try {
+          process.stdin.unshift(buffered);
+        } catch {
+          // Ignore replay errors if stdin closed
+        }
+      });
+      return () => clearImmediate(timer);
+    }, [ready]);
 
     if (bootError) {
       return React.createElement(

@@ -569,8 +569,8 @@ describe('agy-first auto-selection', () => {
     assert.equal(JSON.parse(await readFile(box.configPath, 'utf8').catch(() => '{}')).mode !== 'agy', true, 'no save after dispose');
   });
 
-  test('fake agy executable on PATH is discovered by the real probe and auto-selected', async () => {
-    if (process.platform === 'win32') return;
+  test('fake agy executable on PATH is discovered by the real probe and auto-selected', async (t) => {
+    if (process.platform === 'win32') { t.skip('POSIX sh stub test'); return; }
     const box = await sandbox('fake-agy-bin');
     const bin = join(box.base, 'bin');
     await mkdir(bin, { recursive: true });

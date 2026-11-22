@@ -1,8 +1,8 @@
-import React, { memo, useEffect, useRef, useState } from 'react';
+import React, { memo, useEffect, useRef } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { ProgressBar, useTheme } from '../../components/index.js';
 import { displayWidth, truncateDisplay } from '../../render/index.js';
-import { t } from '../../state/store.js';
+import { t, useTuiStore } from '../../state/store.js';
 import type { UiLanguage } from '../../types/contracts.js';
 import { todayFocusStats, type FocusStats } from './board-store.js';
 
@@ -49,63 +49,77 @@ export const PomodoroBar = memo(function PomodoroBar({
   onFocusComplete,
 }: PomodoroBarProps) {
   const theme = useTheme();
-  const [mode, setMode] = useState<PomodoroMode>('focus');
-  const [durationMin, setDurationMin] = useState<number>(25);
-  const [remainingSec, setRemainingSec] = useState<number>(25 * 60);
-  const [running, setRunning] = useState<boolean>(false);
+  const pomodoro = useTuiStore((s) => s.pomodoro);
+  const setPomodoro = useTuiStore((s) => s.setPomodoro);
+  const resetPomodoro = useTuiStore((s) => s.resetPomodoro);
+
+  const mode: PomodoroMode = pomodoro.phase === 'work' ? 'focus' : 'break';
+  const durationMin = pomodoro.phase === 'work' ? pomodoro.workMinutes : pomodoro.breakMinutes;
+  const { remainingSec, running, endsAt } = pomodoro;
 
   const onFocusCompleteRef = useRef(onFocusComplete);
   onFocusCompleteRef.current = onFocusComplete;
 
-  // Timer interval runs ONLY while actively counting down; cleared on pause or unmount.
+  // Timer interval syncs remainingSec from wall-clock endsAt while running; persists across view switches.
   useEffect(() => {
-    if (!running) return undefined;
-    const timer = setInterval(() => {
-      setRemainingSec((prev) => (prev <= 1 ? 0 : prev - 1));
-    }, 1000);
+    if (!running || endsAt === null) return undefined;
+    const sync = () => {
+      const cur = useTuiStore.getState().pomodoro;
+      if (!cur.running || cur.endsAt === null) return;
+      const nextRem = Math.max(0, Math.ceil((cur.endsAt - Date.now()) / 1000));
+      const curDurMin = cur.phase === 'work' ? cur.workMinutes : cur.breakMinutes;
+      if (nextRem <= 0) {
+        setPomodoro({ running: false, endsAt: null, remainingSec: curDurMin * 60 });
+        if (cur.phase === 'work') {
+          onFocusCompleteRef.current(curDurMin);
+        }
+        return;
+      }
+      if (nextRem !== cur.remainingSec) {
+        setPomodoro({ remainingSec: nextRem });
+      }
+    };
+    sync();
+    const timer = setInterval(sync, 250);
     return () => clearInterval(timer);
-  }, [running]);
-
-  useEffect(() => {
-    if (!running || remainingSec > 0) return;
-    setRunning(false);
-    if (mode === 'focus') {
-      onFocusCompleteRef.current(durationMin);
-    }
-    setRemainingSec(durationMin * 60);
-  }, [running, remainingSec, mode, durationMin]);
+  }, [running, endsAt, setPomodoro]);
 
   useInput(
     (input) => {
       if (input === ' ' || input === 'P') {
-        setRunning((prev) => {
-          if (!prev && remainingSec <= 0) {
-            setRemainingSec(durationMin * 60);
-          }
-          return !prev;
-        });
+        const cur = useTuiStore.getState().pomodoro;
+        const curDurMin = cur.phase === 'work' ? cur.workMinutes : cur.breakMinutes;
+        if (cur.running) {
+          const pausedRem = cur.endsAt !== null ? Math.max(0, Math.ceil((cur.endsAt - Date.now()) / 1000)) : cur.remainingSec;
+          setPomodoro({ running: false, endsAt: null, remainingSec: pausedRem });
+        } else {
+          const baseSec = cur.remainingSec <= 0 ? curDurMin * 60 : cur.remainingSec;
+          setPomodoro({ running: true, remainingSec: baseSec, endsAt: Date.now() + baseSec * 1000 });
+        }
         return;
       }
       if (input === 'R') {
-        setRunning(false);
-        setRemainingSec(durationMin * 60);
+        resetPomodoro();
         return;
       }
       if (input === 'M') {
-        const nextMode: PomodoroMode = mode === 'focus' ? 'break' : 'focus';
-        const nextDur = nextMode === 'focus' ? 25 : 5;
-        setRunning(false);
-        setMode(nextMode);
-        setDurationMin(nextDur);
-        setRemainingSec(nextDur * 60);
+        const cur = useTuiStore.getState().pomodoro;
+        const nextPhase = cur.phase === 'work' ? 'break' : 'work';
+        const nextDur = nextPhase === 'work' ? cur.workMinutes : cur.breakMinutes;
+        setPomodoro({ phase: nextPhase, running: false, endsAt: null, remainingSec: nextDur * 60 });
         return;
       }
       if (input === '+' || input === '-') {
-        const durations = mode === 'focus' ? FOCUS_DURATIONS : BREAK_DURATIONS;
-        const nextDur = cycleDuration(durations, durationMin, input === '+' ? 1 : -1);
-        setRunning(false);
-        setDurationMin(nextDur);
-        setRemainingSec(nextDur * 60);
+        const cur = useTuiStore.getState().pomodoro;
+        const durations = cur.phase === 'work' ? FOCUS_DURATIONS : BREAK_DURATIONS;
+        const curDurMin = cur.phase === 'work' ? cur.workMinutes : cur.breakMinutes;
+        const nextDur = cycleDuration(durations, curDurMin, input === '+' ? 1 : -1);
+        setPomodoro({
+          running: false,
+          endsAt: null,
+          remainingSec: nextDur * 60,
+          ...(cur.phase === 'work' ? { workMinutes: nextDur } : { breakMinutes: nextDur }),
+        });
       }
     },
     { isActive },
