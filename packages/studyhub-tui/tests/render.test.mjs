@@ -1250,3 +1250,41 @@ describe('createStreamingCoalescer', () => {
     assert.equal(disposeFlushes.length, 0, 'timer must be cancelled after dispose()');
   });
 });
+
+describe('WCAG 2.1 Theme Contrast Audit (all 4 palettes)', () => {
+  const hexToRgb = (hex) => {
+    const m = /^#([0-9a-f]{6})$/i.exec(hex);
+    assert.ok(m, `expected 6-digit hex color, got ${hex}`);
+    const n = parseInt(m[1], 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  };
+  const relLum = ([r, g, b]) => {
+    const lin = (c) => {
+      const s = c / 255;
+      return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+    };
+    return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+  };
+  const contrastRatio = (a, b) => {
+    const la = relLum(hexToRgb(a));
+    const lb = relLum(hexToRgb(b));
+    return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+  };
+
+  test('every theme meets WCAG AA (>= 4.5:1) for all semantic foreground tokens and >= 3.0:1 for dim', () => {
+    const fgTokens = ['text', 'muted', 'primary', 'accent', 'success', 'warning', 'error', 'ai', 'info', 'heading', 'code', 'link', 'quote'];
+    for (const id of ['dsh-dark', 'warm-paper', 'nord', 'high-contrast']) {
+      const th = getTheme(id);
+      assert.ok(contrastRatio(th.text, th.bg) >= 10.0, `${id}: text vs bg must be >= 10:1`);
+      assert.ok(contrastRatio(th.text, th.surface) >= 8.0, `${id}: text vs surface must be >= 8:1`);
+      assert.ok(contrastRatio(th.selectionFg, th.selectionBg) >= 7.0, `${id}: selectionFg vs selectionBg must be >= 7:1 (AAA)`);
+      assert.ok(contrastRatio(th.dim, th.bg) >= 3.0, `${id}: dim vs bg must be >= 3.0:1`);
+      for (const key of fgTokens) {
+        const ratio = contrastRatio(th[key], th.bg);
+        assert.ok(ratio >= 4.5, `${id}: ${key} (${th[key]}) vs bg (${th.bg}) contrast ${ratio.toFixed(2)}:1 < 4.5:1 (WCAG AA)`);
+      }
+    }
+    const hc = getTheme('high-contrast');
+    assert.ok(contrastRatio(hc.text, hc.bg) >= 15.0, 'high-contrast text vs bg must be >= 15:1');
+  });
+});

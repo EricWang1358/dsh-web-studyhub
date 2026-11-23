@@ -1299,6 +1299,49 @@ describe('Round 26: SkeletonView CourseRoute, TopicGroups & NodeEdit Modals', ()
     const beforeSkelRes = await host.call('skeleton.get', { id: skeletonId });
     assert.equal(beforeSkelRes.ok, true, 'skeleton.get before edit must succeed');
 
+    // Round 79: NodeEditModal clean Esc closes immediately; dirty Esc opens ConfirmDialog
+    tty.send('E');
+    await tty.waitFor((s) => (s.includes('编辑知识节点') || s.includes('Edit Knowledge Node')) && !s.includes('未保存'), {
+      timeoutMs: 8_000,
+      label: 'NodeEditModal opened clean for dirty-Esc check',
+    });
+    tty.send('\x1b');
+    await tty.waitFor((s) => !s.includes('编辑知识节点') && !s.includes('Edit Knowledge Node'), {
+      timeoutMs: 5_000,
+      label: 'Clean NodeEditModal Esc closed immediately',
+    });
+    tty.send('E');
+    await tty.waitFor((s) => s.includes('编辑知识节点') || s.includes('Edit Knowledge Node'), {
+      timeoutMs: 8_000,
+      label: 'NodeEditModal reopened for dirty-Esc check',
+    });
+    tty.send(' R79_TMP');
+    await tty.waitFor((s) => s.includes('R79_TMP') && s.includes('未保存'), {
+      timeoutMs: 5_000,
+      label: 'NodeEditModal shows unsaved badge',
+    });
+    tty.send('\x1b');
+    const nodeDiscardDialog = await tty.waitFor((s) => s.includes('放弃未保存的节点修改'), {
+      timeoutMs: 5_000,
+      label: 'NodeEditModal dirty Esc opened ConfirmDialog',
+    });
+    tty.assertHealthyScreen(nodeDiscardDialog, 120, 36, 'NodeEditModal discard ConfirmDialog');
+    tty.send('n');
+    await tty.waitFor(
+      (s) => !s.includes('放弃未保存的节点修改') && (s.includes('编辑知识节点') || s.includes('Edit Knowledge Node')) && s.includes('R79_TMP'),
+      { timeoutMs: 5_000, label: 'NodeEditModal discard cancel preserved edit' },
+    );
+    tty.send('\x1b');
+    await tty.waitFor((s) => s.includes('放弃未保存的节点修改'), {
+      timeoutMs: 5_000,
+      label: 'NodeEditModal discard ConfirmDialog reopened',
+    });
+    tty.send('y');
+    await tty.waitFor((s) => !s.includes('编辑知识节点') && !s.includes('Edit Knowledge Node') && !s.includes('放弃未保存的节点修改'), {
+      timeoutMs: 5_000,
+      label: 'NodeEditModal confirm discard closed cleanly',
+    });
+
     tty.send('E');
     const editWide = await tty.waitFor(
       (s) => (s.includes('编辑知识节点') || s.includes('Edit Knowledge Node')) && (s.includes('概念名称') || s.includes('Node Term:')),

@@ -4,6 +4,7 @@ import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Spinner } from '../../components/Badge.js';
+import { ConfirmDialog } from '../../components/ConfirmDialog.js';
 import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { TextInput } from '../../components/TextInput.js';
 import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
@@ -527,7 +528,18 @@ export const NodeEditModal = memo(function NodeEditModal({
   const [meaning, setMeaning] = useState(node.meaning);
   const [field, setField] = useState<'term' | 'meaning'>('term');
   const [saving, setSaving] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [error, setError] = useState('');
+
+  const dirty = term !== node.term || meaning !== node.meaning;
+  const requestClose = useCallback(() => {
+    if (savingRef.current || saving) return;
+    if (dirty) {
+      setConfirmDiscard(true);
+      return;
+    }
+    onClose();
+  }, [saving, dirty, onClose]);
 
   const mountedRef = useRef(true);
   const savingRef = useRef(false);
@@ -597,7 +609,7 @@ export const NodeEditModal = memo(function NodeEditModal({
 
   useInput(
     (input, key) => {
-      if (!isActive || saving) return;
+      if (!isActive || saving || confirmDiscard) return;
       if (key.ctrl && input === 's') {
         void handleSave();
         return;
@@ -606,16 +618,16 @@ export const NodeEditModal = memo(function NodeEditModal({
         setField((f) => (f === 'term' ? 'meaning' : 'term'));
       }
     },
-    { isActive },
+    { isActive: isActive && !confirmDiscard },
   );
 
   const hints: KeyHint[] = useMemo(
     () => [
       { key: 'Tab', label: t(lang, '切换字段', 'Field') },
       { key: 'Ctrl+S', label: t(lang, '保存', 'Save') },
-      { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+      { key: 'Esc', label: dirty ? t(lang, '放弃/取消', 'Discard') : t(lang, '取消', 'Cancel') },
     ],
-    [lang],
+    [lang, dirty],
   );
 
   const frameW = Math.max(42, Math.min(72, columns - 6));
@@ -625,14 +637,15 @@ export const NodeEditModal = memo(function NodeEditModal({
   const ell = asciiMode ? '...' : '…';
 
   return (
+    <>
     <Modal
       title={t(lang, '编辑知识节点', 'Edit Knowledge Node')}
-      subtitle={node.id}
+      subtitle={dirty ? t(lang, '未保存', 'unsaved') : node.id}
       icon={asciiMode ? '*' : '✎'}
       width={frameW}
       height={frameH}
-      isActive={isActive}
-      onClose={onClose}
+      isActive={isActive && !confirmDiscard}
+      onClose={saving || confirmDiscard ? undefined : requestClose}
       hints={hints}
     >
       <Box flexDirection="column" width={innerW}>
@@ -649,10 +662,11 @@ export const NodeEditModal = memo(function NodeEditModal({
               setTerm(v);
             }}
             onSubmit={() => setField('meaning')}
+            onCancel={requestClose}
             width={inputW}
             maxLength={80}
             prompt={asciiMode ? '>' : '›'}
-            isActive={isActive && !saving && field === 'term'}
+            isActive={isActive && !saving && !confirmDiscard && field === 'term'}
           />
         </Box>
         <Box height={1} width={innerW} marginTop={1} overflow="hidden">
@@ -668,10 +682,11 @@ export const NodeEditModal = memo(function NodeEditModal({
               setMeaning(v);
             }}
             onSubmit={() => void handleSave()}
+            onCancel={requestClose}
             width={inputW}
             maxLength={300}
             prompt={asciiMode ? '>' : '›'}
-            isActive={isActive && !saving && field === 'meaning'}
+            isActive={isActive && !saving && !confirmDiscard && field === 'meaning'}
           />
         </Box>
         <Box height={1} width={innerW} marginTop={1} overflow="hidden">
@@ -691,5 +706,26 @@ export const NodeEditModal = memo(function NodeEditModal({
         </Box>
       </Box>
     </Modal>
+
+    {confirmDiscard ? (
+      <ConfirmDialog
+        title={t(lang, '放弃未保存的节点修改？', 'Discard unsaved node edits?')}
+        message={t(
+          lang,
+          '当前知识节点的名称或释义尚未保存。放弃后将丢失这些修改。',
+          'You have unsaved edits to this knowledge node. Closing now will discard them.',
+        )}
+        confirmLabel={t(lang, '放弃修改', 'Discard')}
+        cancelLabel={t(lang, '继续编辑', 'Keep Editing')}
+        danger
+        isActive={isActive && confirmDiscard}
+        onConfirm={() => {
+          setConfirmDiscard(false);
+          onClose();
+        }}
+        onCancel={() => setConfirmDiscard(false)}
+      />
+    ) : null}
+    </>
   );
 });

@@ -238,9 +238,19 @@ describe('StudyHub TUI xterm-headless E2E', () => {
       for (let i = 0; i < ALL_16_SWEEP.length; i += 1) {
         const step = ALL_16_SWEEP[i];
         if (step.key) {
-          for (const ch of step.key) {
-            tty.send(ch);
+          if (step.id === 'review' && step.key === '1r') {
+            tty.send('1');
+            await tty.waitFor((s) => s.includes('题组列表') || s.includes('Decks'), {
+              timeoutMs: 8_000,
+              label: `LibraryView before review @ ${cols}x${rows}`,
+            });
             await tty.flush();
+            tty.send('r');
+          } else {
+            for (const ch of step.key) {
+              tty.send(ch);
+              await tty.flush();
+            }
           }
         }
         await tty.waitFor(
