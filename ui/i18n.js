@@ -79,7 +79,12 @@ if (typeof window !== 'undefined') window.addEventListener('storage', event => {
   if (event.key === KEY) switchLanguage(['en', 'zh'].includes(event.newValue) ? event.newValue : browserLanguage(), false);
 });
 const subscribe = fn => { listeners.add(fn); return () => listeners.delete(fn); };
-export function useUiLanguage() { return useSyncExternalStore(subscribe, getUiLanguage, getUiLanguage); }
+// Include catalogue readiness in the store snapshot so React re-renders once the on-demand English catalogue resolves even if language was already 'en'.
+const languageSnapshot = () => (language === 'en' ? (sources ? 'en:1' : 'en:0') : 'zh:1');
+export function useUiLanguage() {
+  const snap = useSyncExternalStore(subscribe, languageSnapshot, languageSnapshot);
+  return typeof snap === 'string' ? snap.slice(0, 2) : snap;
+}
 /** Application-owned copy only. Never pass question, source or user content. */
 export function ui(value) {
   if (language !== 'en' || typeof value !== 'string') return value;

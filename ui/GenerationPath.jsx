@@ -65,7 +65,7 @@ export default function GenerationPath({ path, disabled = false, onUseStep, onSe
         <Button size="sm" variant="secondary" icon="sparkle" busy={aiState.phase === 'loading'} disabled={disabled || typeof call !== 'function'} onClick={path.refine} data-usage="generate.path-refine">
           {ai || aiState.phase === 'unavailable' ? ui('重新让 AI 优化') : ui('让 AI 优化路径')}
         </Button>
-        <HandOff id="path.brief" shape="quiet" lead="想先和主会话聊聊怎么学：" what="把这条分步路径发给主会话，一起商量每一步学什么；确认之前不会出题" input={path.brief} data-usage="generate.path-chat" />
+        <HandOff id="path.brief" shape="quiet" lead="想先和主会话聊聊怎么学：" copyLead="想先和 AI 聊聊怎么学：" what="把这条分步路径发给主会话，一起商量每一步学什么；确认之前不会出题" copyWhat="复制这条分步路径提示词，可粘贴到外部 AI 商量每一步学什么" input={path.brief} data-usage="generate.path-chat" />
       </div>
       {aiState.phase === 'unavailable' && <AiHelperNote unavailable={aiState.unavailable} fallback="先用按章节做的路径" onSettings={onSettings} />}
       {aiState.phase === 'done' && <p className="muted small" role="status">{ui('AI 给了每一步的名称、重点和顺序；都可以改。页面范围不会变。')}</p>}

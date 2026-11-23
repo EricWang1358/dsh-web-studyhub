@@ -29,8 +29,9 @@ export function useAssistPanelState(entryKey, activeEntryKeyRef) {
     const key = activeEntryKeyRef.current;
     setAssistState((prev) => {
       const curMode = prev.key === key ? prev.mode : "";
-      const resolved = typeof next === "function" ? next(curMode) : next;
-      return { key, mode: resolved || "", text: "", choices: [], relation: "prerequisite", nonce: prev.nonce + 1 };
+      const resolved = (typeof next === "function" ? next(curMode) : next) || "";
+      if (prev.key === key && curMode === resolved) return prev;
+      return { key, mode: resolved, text: "", choices: [], relation: "prerequisite", nonce: prev.nonce + 1 };
     });
   }, [activeEntryKeyRef]);
   const setAssistTextForVoice = React.useCallback((updater) => {

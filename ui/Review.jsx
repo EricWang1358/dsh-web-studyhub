@@ -435,8 +435,9 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
                 () => setCaseNote(ui("已开始出一套同类案例，完成后草稿会出现在学习库。")))}>{ui("再来一个同类案例")}</Button>
             </>}
             {missedList.length > 0 && (
-              <HandOff id="method.missed" shape="quiet" label="带着错题回主会话"
+              <HandOff id="method.missed" shape="quiet" label="带着错题回主会话" copyLabel="复制错题讲解提示词"
                 what="把这一轮没过关的题目带回主会话讲透，讲完再回 StudyHub 重测"
+                copyWhat="复制这一轮错题的提示词，可粘贴到外部 AI 讲透后再回 StudyHub 重测"
                 input={{ course: roundCourse, stage: roundStage, missed: missedList }}
                 disabled={busy} />
             )}

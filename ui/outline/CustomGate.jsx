@@ -2,7 +2,8 @@ import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Button, Dialog, LoadingState, Tooltip } from '../components/index.js';
 import { callsText } from '../token-usage.js';
-import { handOffTip } from '../hand-off/use-hand-off.js';
+import { handOffTip, hasChatHost } from '../hand-off/use-hand-off.js';
+import { useStudy } from '../study-context.jsx';
 import { CUSTOM_BOOK_WHAT } from '../custom-entry.js';
 import { bookCostTipText, bookScalePointsText, bookScaleTokensText } from './words.js';
 
@@ -50,21 +51,25 @@ function ScaleLines({ scale }) {
  * <CustomGate kind gate scale onCustom onWhole onClose busy />: kind 'outline' (生成总纲) or 'book' (生成复习全书); gate { pages } (customGateOf); scale: gateScaleOf's
  * answer, 'loading' or null; onCustom() sends the 深度定制 hand-off, onWhole() starts the original action, onClose() cancels.
  */
-export default function CustomGate({ kind, gate, scale, onCustom, onWhole, onClose, busy = false }) {
+export default function CustomGate({ kind, gate, scale, onCustom, onWhole, onClose, busy = false, canChat: explicitCanChat }) {
+  const { host } = useStudy();
+  const canChat = explicitCanChat ?? hasChatHost(host);
   const book = kind === 'book';
   return (
-    <Dialog size="sm" title={ui('先深度定制这本书？')} onClose={onClose} busy={busy} data-custom-gate={kind}
+    <Dialog size="sm" title={canChat ? ui('先深度定制这本书？') : book ? ui('确认整本生成复习全书？') : ui('确认整本生成总纲？')} onClose={onClose} busy={busy} data-custom-gate={kind}
       description={book ? uiFormat('「生成复习全书」会先整理总纲，再给每个知识点写讲解，整本书都要读；这门课里最大的一本有 {0} 页。', [gate.pages])
         : uiFormat('「生成总纲」会把这门课的资料整本读一遍来排章节；这门课里最大的一本有 {0} 页。', [gate.pages])}
       footer={<>
-        <Tooltip layer content={handOffTip(CUSTOM_BOOK_WHAT)}><Button variant="primary" icon="external" className="sh-btn--lines" lock={busy} onClick={onCustom} data-custom-gate-action="custom">{ui('深度定制这本书（推荐）')}</Button></Tooltip>
+        {canChat && <Tooltip layer content={handOffTip(CUSTOM_BOOK_WHAT, true)}><Button variant="primary" icon="external" className="sh-btn--lines" lock={busy} onClick={onCustom} data-custom-gate-action="custom">{ui('深度定制这本书（推荐）')}</Button></Tooltip>}
         <Tooltip layer content={book ? ui('照原来的做法：读整本书，生成复习全书，马上开始') : ui('照原来的做法：读整本书，生成总纲，马上开始')}>
-          <Button variant="secondary" lock={busy} onClick={onWhole} data-custom-gate-action="whole">{ui('整本生成')}</Button></Tooltip>
+          <Button variant={canChat ? 'secondary' : 'primary'} lock={busy} onClick={onWhole} data-custom-gate-action="whole">{ui('整本生成')}</Button></Tooltip>
         <Tooltip layer content={ui('什么都不生成，回到总纲')}><Button variant="quiet" lock={busy} onClick={() => onClose('button')} data-custom-gate-action="cancel">{ui('取消')}</Button></Tooltip>
       </>}>
       <ScaleLines scale={scale} />
       {book && <p className="custom-gate__line">{bookCostTipText()}</p>}
-      <p className="custom-gate__line">{ui('深度定制：先由主会话问你几个选项（学哪几章、要不要出题），确认之前不生成任何东西，只做你选的部分。')}</p>
+      <p className="custom-gate__line">{canChat
+        ? ui('深度定制：先由主会话问你几个选项（学哪几章、要不要出题），确认之前不生成任何东西，只做你选的部分。')
+        : ui('大教材整本生成耗时和用量较高；也可以先生成总纲，再在全书页用「只生成部分章节」按需分批生成。')}</p>
     </Dialog>
   );
 }

@@ -31,6 +31,10 @@ const REVIEW = [
 const BOOK = [
   ["← → / Esc", "复习全书：← → 换一个知识点；Esc 关掉滑出的目录或菜单"],
 ];
+const EXAM = [
+  ["1–9 / A–I", "模拟考试：选择选项"],
+  ["← →", "上一题 / 下一题"],
+];
 const EVERYWHERE = [
   ["S", "从任意页继续上一轮或开始今日学习"],
   ["Ctrl K / ⌘K / /", "找功能：搜一个功能在哪，选中后直接带你过去（/ 在没有输入框聚焦时可用）"],
@@ -45,7 +49,11 @@ const EVERYWHERE = [
 
 /** A non-modal sheet: focus moves into it when it opens, Escape or a press outside closes it and focus goes back to where it was. */
 export default function ShortcutHelp({ page, onClose }) {
-  const rows = page === "review" ? [...REVIEW, ...EVERYWHERE] : [...(page === "book" ? BOOK : []), ...EVERYWHERE, ["A", "自动跳下一步 开/关"]];
+  const rows = page === "review"
+    ? [...REVIEW, ...EVERYWHERE]
+    : page === "exam"
+      ? [...EXAM, ...EVERYWHERE.filter(([key]) => key !== "S")]
+      : [...(page === "book" ? BOOK : []), ...EVERYWHERE, ["A", "自动跳下一步 开/关"]];
   const sheet = useRef(null), opener = useRef(null);
   useEffect(() => {
     opener.current = document.activeElement;

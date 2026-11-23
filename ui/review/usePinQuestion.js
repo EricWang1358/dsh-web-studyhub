@@ -3,6 +3,7 @@ import { ui, uiFormat } from "../i18n.js";
 import { plainAssistFailure } from "../generation-status.js";
 import { nextDueGap, nextDueWhen, nextDueWord } from "../NextDue.jsx";
 import { focusQuietly } from "../components/index.js";
+import { keysElsewhere } from "./session-logic.js";
 
 const QUESTION_HEADING_SELECTOR = '[data-question-heading], .question[role="heading"], .question, .flash-prompt, .cloze-text, .question-card';
 
@@ -98,6 +99,7 @@ export function useQuestionRunA11y({ entryKey, run, hasFeedback, choice, isCloze
       prevFocusStateRef.current = { key: entryKey, hasFeedback: true };
       if (autoAdvanceActive || isFocusInDialog()) return;
       const active = typeof document !== "undefined" ? document.activeElement : null;
+      if (keysElsewhere(active, reviewBodyRef.current)) return;
       const cardEl = reviewBodyRef.current?.querySelector?.(".question-card");
       const inOtherInput = active && active !== document.body
         && ["INPUT", "TEXTAREA", "SELECT"].includes(active.tagName)

@@ -37,19 +37,22 @@ export function createDesktopConfigActions({ call, refresh, setConfig, setError,
     testCli: (providerId, cliConfig) => runAction(`test-${providerId}`, () => (
       call('desktop.config.test', { mode: providerId, [providerId]: cliConfig })
     )),
+    saveOpenAiEndpoint: (openai) => runAction('save-openai', async () => (
+      applyConfig(await call('desktop.config.save', { mode: 'openai', openai }))
+    )),
     saveOpenAi: async (openai) => {
       setError('');
       setWorking('save-openai');
       try {
         return await applyConfig(await call('desktop.config.save', { mode: 'openai', openai }));
-      } catch (failure) {
-        setError(errorMessage(failure));
-        throw failure;
       } finally {
         setWorking('');
       }
     },
-    testOpenAi: (openai) => call('desktop.config.test', { mode: 'openai', openai }),
+    testOpenAi: (openai) => {
+      setError('');
+      return call('desktop.config.test', { mode: 'openai', openai });
+    },
     openCli: (providerId) => runAction(`open-${providerId}`, () => call('desktop.cli.open', { provider: providerId })),
     scan: () => runAction('scan', async () => {
       const result = await call('desktop.providers.scan', { force: true });

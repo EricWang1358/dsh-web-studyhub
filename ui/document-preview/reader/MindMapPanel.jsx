@@ -36,7 +36,7 @@ function MapBody({ map, document, pages, onJump }) {
       : <p className="reader-map__empty" role="status">{ui('这一章里没有可用的标题。')}</p>}
     {map.truncated && <p className="reader-map__empty">{uiFormat('标题很多，只画了前 {0} 个。', [map.count])}</p>}
     <div className="reader-map__foot">
-      <HandOff id="reader.map" shape="secondary" label={ui('交给主会话细化')} what={ui('让主会话照这一章的页面把这张图补全。')}
+      <HandOff id="reader.map" shape="secondary" label="交给主会话细化" copyLabel="复制导图细化提示词" what="让主会话照这一章的页面把这张图补全。" copyWhat="复制这一章的导图大纲提示词，可粘贴到外部 AI 进一步补全。"
         input={() => ({ title: document, chapter: map.title, from: pages?.from, to: pages?.to, outline: mapOutlineText(map) })} />
     </div>
   </div>;

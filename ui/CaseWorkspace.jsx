@@ -173,7 +173,7 @@ const TIMING_FLUSH_MS = 15000;
  * An open question with rubric criteria: write the answer, then 提交批改 (a
  * background grading task); the per-criterion result replaces self-rating.
  */
-export function RubricAnswer({ run, data, value = "", onChange, onSubmit, task, onSetupModel }) {
+export function RubricAnswer({ run, data, value = "", onChange, onSubmit, task, onSetupModel, onRefreshRun }) {
   const { busy, call } = useStudy();
   useInjectCss(css, "study-case-workspace");
   const card = run.card, rubric = run.feedback?.rubric;
@@ -261,7 +261,7 @@ export function RubricAnswer({ run, data, value = "", onChange, onSubmit, task, 
           {run.feedback.answer && <details className="rubric-my-answer"><summary>{ui("我的回答")}</summary><Markdown text={run.feedback.answer} /></details>}
           <RubricResult rubric={rubric} />
           {/* The reference answer, or its 分析题答案卡 when the question has one (ui/AnswerCard.jsx, 复习全书 M5). */}
-          {run.solution && <AnswerCardSection run={run} data={data} onSetupModel={onSetupModel} />}
+          {run.solution && <AnswerCardSection run={run} data={data} onSetupModel={onSetupModel} onRefreshRun={onRefreshRun} />}
         </>
       ) : (
         <>
@@ -617,11 +617,39 @@ export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, on
     return () => clearTimeout(timer);
   }, [highlights, run, phase, call]);
 
+  const [readingDraft, setReadingDraft] = useState(null);
+  const [perMarkDraft, setPerMarkDraft] = useState(null);
+  useEffect(() => {
+    setReadingDraft(null);
+    setPerMarkDraft(null);
+  }, [deck?.id, course]);
+
+  const clampReading = (raw, fallback) => {
+    const num = Number(raw);
+    if (raw === "" || !Number.isFinite(num)) return fallback;
+    return Math.min(EXAM_SETTING_LIMITS.readingMinutes.max, Math.max(EXAM_SETTING_LIMITS.readingMinutes.min, Math.round(num)));
+  };
+  const clampPerMark = (raw, fallback) => {
+    const num = Number(raw);
+    if (raw === "" || !Number.isFinite(num) || num <= 0) return fallback;
+    return Math.min(EXAM_SETTING_LIMITS.minutesPerMark.max, Math.max(EXAM_SETTING_LIMITS.minutesPerMark.min, num));
+  };
+
   const start = () => {
     if (!deck) return;
+    const finalPerMark = perMarkDraft !== null ? clampPerMark(perMarkDraft, DEFAULT_MINUTES_PER_MARK) : settings.minutesPerMark;
+    const defaultRead = defaultReadingMinutes(deck.caseMarks, finalPerMark);
+    const finalReading = readingDraft !== null
+      ? clampReading(readingDraft, defaultRead)
+      : (settings.readingMinutes ?? defaultRead);
+    if (readingDraft !== null || perMarkDraft !== null) {
+      setSettings((cur) => ({ ...cur, minutesPerMark: finalPerMark, readingMinutes: finalReading }));
+      setReadingDraft(null);
+      setPerMarkDraft(null);
+    }
     return exam.perform(async () => {
       const value = await call("review.start", { mode: "exam", examKinds: "case", scope: [{ deckId: deck.id }], fresh: true,
-        paper: { minutesPerMark: settings.minutesPerMark, readingMinutes: settings.readingMinutes ?? defaultReadingMinutes(deck.caseMarks, settings.minutesPerMark),
+        paper: { minutesPerMark: finalPerMark, readingMinutes: finalReading,
           handwriting: settings.handwriting } });
       setUpPaper(value);
       exam.enter(value);
@@ -768,6 +796,7 @@ export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, on
             const firstId = blanks[0];
             setConfirming(false);
             if (!firstId) return;
+            setView("questions");
             setActiveId(firstId);
             requestAnimationFrame(() => {
               const cardEl = [...(document.querySelectorAll("[data-case-question]") || [])]
@@ -828,12 +857,37 @@ export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, on
         {deck && <div className="es-section">
           <div className="es-times">
             <label className="es-times__field">{ui("阅读时间（分钟）")}
-              <input className="es-times__input" type="number" min={EXAM_SETTING_LIMITS.readingMinutes.min} max={EXAM_SETTING_LIMITS.readingMinutes.max} value={reading}
-                onChange={(event) => setSettings({ ...settings, readingMinutes: Math.min(EXAM_SETTING_LIMITS.readingMinutes.max, Math.max(EXAM_SETTING_LIMITS.readingMinutes.min, Math.round(Number(event.target.value) || 0))) })} />
+              <input className="es-times__input" type="number" min={EXAM_SETTING_LIMITS.readingMinutes.min} max={EXAM_SETTING_LIMITS.readingMinutes.max} value={readingDraft ?? String(reading)}
+                onChange={(event) => {
+                  const raw = event.target.value;
+                  setReadingDraft(raw);
+                  const num = Number(raw);
+                  if (raw !== "" && Number.isFinite(num) && num >= EXAM_SETTING_LIMITS.readingMinutes.min && num <= EXAM_SETTING_LIMITS.readingMinutes.max) {
+                    setSettings({ ...settings, readingMinutes: Math.round(num) });
+                  }
+                }}
+                onBlur={() => {
+                  if (readingDraft === null) return;
+                  const fallback = deck ? defaultReadingMinutes(deck.caseMarks, settings.minutesPerMark) : EXAM_SETTING_LIMITS.readingMinutes.min;
+                  setSettings({ ...settings, readingMinutes: clampReading(readingDraft, fallback) });
+                  setReadingDraft(null);
+                }} />
             </label>
             <label className="es-times__field">{ui("每分用时（分钟）")}
-              <input className="es-times__input" type="number" min={EXAM_SETTING_LIMITS.minutesPerMark.min} max={EXAM_SETTING_LIMITS.minutesPerMark.max} step="any" value={settings.minutesPerMark}
-                onChange={(event) => setSettings({ ...settings, minutesPerMark: Math.min(EXAM_SETTING_LIMITS.minutesPerMark.max, Math.max(EXAM_SETTING_LIMITS.minutesPerMark.min, Number(event.target.value) || DEFAULT_MINUTES_PER_MARK)) })} />
+              <input className="es-times__input" type="number" min={EXAM_SETTING_LIMITS.minutesPerMark.min} max={EXAM_SETTING_LIMITS.minutesPerMark.max} step="any" value={perMarkDraft ?? String(settings.minutesPerMark)}
+                onChange={(event) => {
+                  const raw = event.target.value;
+                  setPerMarkDraft(raw);
+                  const num = Number(raw);
+                  if (raw !== "" && Number.isFinite(num) && num >= EXAM_SETTING_LIMITS.minutesPerMark.min && num <= EXAM_SETTING_LIMITS.minutesPerMark.max) {
+                    setSettings({ ...settings, minutesPerMark: num });
+                  }
+                }}
+                onBlur={() => {
+                  if (perMarkDraft === null) return;
+                  setSettings({ ...settings, minutesPerMark: clampPerMark(perMarkDraft, DEFAULT_MINUTES_PER_MARK) });
+                  setPerMarkDraft(null);
+                }} />
             </label>
           </div>
           {examFormatName && <small className="es-hint">{uiFormat("来自课程「{0}」的考试设置：{1}（可在课程设置里修改）", [course, examFormatName])}</small>}
@@ -871,23 +925,52 @@ export function CaseDraftHeader({ draft, data }) {
 export function CriteriaEditor({ criteria = [], onChange, disabled, variant = "rubric" }) {
   useInjectCss(css, "study-case-workspace");
   const isTask = variant === "task";
+  const [keyPointDrafts, setKeyPointDrafts] = useState({});
+  const [markDrafts, setMarkDrafts] = useState({});
   const total = criteria.reduce((sum, criterion) => sum + (Number(criterion.marks) || 0), 0);
   const set = (index, patch) => onChange(criteria.map((criterion, at) => at === index ? { ...criterion, ...patch } : criterion));
   return (
     <fieldset className="criteria-editor" disabled={disabled}>
       <legend>{uiFormat(isTask ? "验收标准 · 共 {0} 分" : "评分标准 · 共 {0} 分", [total])}</legend>
-      {criteria.map((criterion, index) => (
-        <div key={criterion.id || index} className="criteria-editor__row">
+      {criteria.map((criterion, index) => {
+        const rowKey = criterion.id || String(index);
+        return (
+        <div key={rowKey} className="criteria-editor__row">
           <label>{ui(isTask ? "验收项" : "评分项")}<input value={criterion.label} onChange={(event) => set(index, { label: event.target.value })} /></label>
-          <label>{ui("分值")}<input type="number" min={0.5} step={0.5} value={criterion.marks}
-            onChange={(event) => set(index, { marks: Math.max(0.5, Number(event.target.value) || 0.5) })} /></label>
+          <label>{ui("分值")}<input type="number" min={0.5} step={0.5} value={markDrafts[rowKey] ?? String(criterion.marks)}
+            onChange={(event) => {
+              const raw = event.target.value;
+              setMarkDrafts((cur) => ({ ...cur, [rowKey]: raw }));
+              const num = Number(raw);
+              if (raw !== "" && Number.isFinite(num) && num >= 0.5) set(index, { marks: num });
+            }}
+            onBlur={() => {
+              const raw = markDrafts[rowKey];
+              if (raw === undefined) return;
+              const num = Number(raw);
+              set(index, { marks: Number.isFinite(num) && num >= 0.5 ? num : 0.5 });
+              setMarkDrafts((cur) => { const next = { ...cur }; delete next[rowKey]; return next; });
+            }} /></label>
           <label className="criteria-editor__wide">{ui(isTask ? "验收要求" : "得分要求")}<textarea rows={2} value={criterion.descriptor}
             onChange={(event) => set(index, { descriptor: event.target.value })} /></label>
-          <label className="criteria-editor__wide">{ui("要点（每行一条）")}<textarea rows={2} value={(criterion.keyPoints || []).join("\n")}
-            onChange={(event) => set(index, { keyPoints: event.target.value.split("\n").map((point) => point.trim()).filter(Boolean) })} /></label>
+          <label className="criteria-editor__wide">{ui("要点（每行一条）")}<textarea rows={2} value={keyPointDrafts[rowKey] ?? (criterion.keyPoints || []).join("\n")}
+            onChange={(event) => {
+              const raw = event.target.value;
+              setKeyPointDrafts((cur) => ({ ...cur, [rowKey]: raw }));
+              set(index, { keyPoints: raw.split("\n").map((point) => point.trim()).filter(Boolean) });
+            }}
+            onBlur={() => {
+              setKeyPointDrafts((cur) => {
+                if (!(rowKey in cur)) return cur;
+                const next = { ...cur };
+                delete next[rowKey];
+                return next;
+              });
+            }} /></label>
           {criteria.length > 1 && <Button size="sm" variant="quiet" onClick={() => onChange(criteria.filter((_, at) => at !== index))}>{ui("删除这一项")}</Button>}
         </div>
-      ))}
+        );
+      })}
       <Button size="sm" variant="link" icon="plus" onClick={() => onChange([...criteria, { id: `c${Date.now().toString(36)}`, label: "", marks: 1, descriptor: "", keyPoints: [] }])}>
         {ui(isTask ? "添加验收项" : "添加评分项")}</Button>
     </fieldset>
