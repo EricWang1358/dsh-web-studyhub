@@ -17,8 +17,6 @@ import { useShellActions } from '../../shell/actions.js';
 import { getSampleStatus, removeSampleCourse, tryAction } from '../../host/sample-actions.js';
 import type { DeckExportInput } from './deck-export.js';
 
-export { formatDeckMarkdown, type DeckExportCard, type DeckExportInput, type DeckExportOption } from './deck-export.js';
-
 const DeckManageModal = lazy(() => import('./DeckManageModal.js').then((m) => ({ default: m.DeckManageModal })));
 const VoicePackModal = lazy(() => import('./VoicePackModal.js').then((m) => ({ default: m.VoicePackModal })));
 const DailyPlanModal = lazy(() => import('./DailyPlanModal.js').then((m) => ({ default: m.DailyPlanModal })));

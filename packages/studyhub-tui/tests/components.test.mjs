@@ -328,6 +328,31 @@ describe('TextInput real Ink grapheme-cluster, multiline CSI-u, mask & width tes
       useTuiStore.setState({ preferences: prevPrefs });
     }
   });
+
+  test('c3) Horizontal scroll offset resets after Ctrl+U clears an overflowed path and shorter text is typed', async () => {
+    const prevPrefs = useTuiStore.getState().preferences;
+    try {
+      useTuiStore.setState({ preferences: { ...DEFAULT_PREFERENCES, asciiMode: false } });
+      const longInitial = '/tmp/very-long-studyhub-directory-name/backups/note-deep-views-e2e-note-2026-11-23-030845.md';
+      const h = createTextInputHarness({ initialValue: longInitial, width: 32, cols: 50, rows: 4 });
+      try {
+        await sleep(20);
+        assert.ok(h.lastFrame().includes('‹'), `expected overflowed initial value to scroll left: ${JSON.stringify(h.lastFrame())}`);
+
+        // Ctrl+U clears the entire line and resets hStart; typing a shorter value must render in full with no ‹
+        await h.send('\u0015');
+        await h.send('exported-deep-note.md');
+        assert.equal(h.getValue(), 'exported-deep-note.md');
+        const frame = h.lastFrame();
+        assert.ok(frame.includes('exported-deep-note.md'), `expected full shorter value visible, got ${JSON.stringify(frame)}`);
+        assert.ok(!frame.includes('‹'), `expected no stale scroll indicator when value fits width, got ${JSON.stringify(frame)}`);
+      } finally {
+        h.cleanup();
+      }
+    } finally {
+      useTuiStore.setState({ preferences: prevPrefs });
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -1752,6 +1752,35 @@ describe('Domain Notes & Board: NotesView PTY E2E (zh & --ascii en)', () => {
       );
       tty.assertHealthyScreen(afterClear, 120, 36, 'NotesView after Esc clear');
 
+      // Round 76: NoteEditorModal Esc unsaved-draft guard (clean Esc closes immediately; dirty Esc confirms)
+      tty.send('e');
+      await tty.waitFor((s) => s.includes('编辑笔记') && !s.includes('未保存'), { label: 'NoteEditorModal edit opened clean' });
+      tty.send('\x1b');
+      await tty.waitFor((s) => !s.includes('编辑笔记') && !s.includes('放弃未保存'), { label: 'Clean edit Esc closes immediately' });
+
+      tty.send('e');
+      await tty.waitFor((s) => s.includes('编辑笔记'), { label: 'NoteEditorModal edit reopened' });
+      tty.send('UNSAVED_R76_EDIT');
+      await tty.waitFor((s) => s.includes('UNSAVED_R76_EDIT') && s.includes('未保存'), { label: 'NoteEditorModal dirty badge shown' });
+      tty.send('\x1b');
+      const discardDialog = await tty.waitFor(
+        (s) => s.includes('放弃未保存的笔记修改'),
+        { label: 'NoteEditorModal dirty Esc opened ConfirmDialog' },
+      );
+      tty.assertHealthyScreen(discardDialog, 120, 36, 'NoteEditorModal discard ConfirmDialog');
+      tty.send('n');
+      await tty.waitFor(
+        (s) => !s.includes('放弃未保存的笔记修改') && s.includes('编辑笔记') && s.includes('UNSAVED_R76_EDIT'),
+        { label: 'Cancel discard preserves unsaved edits' },
+      );
+      tty.send('\x1b');
+      await tty.waitFor((s) => s.includes('放弃未保存的笔记修改'), { label: 'Discard ConfirmDialog reopened' });
+      tty.send('y');
+      await tty.waitFor(
+        (s) => !s.includes('编辑笔记') && !s.includes('放弃未保存的笔记修改'),
+        { label: 'Confirm discard closed NoteEditorModal' },
+      );
+
       // Switch in-place to 80x24 --ascii en — filter -> Esc while editing clears filter & closes bar
       tty.resize(80, 24);
       host.setLanguage('en');

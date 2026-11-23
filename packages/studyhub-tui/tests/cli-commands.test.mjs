@@ -373,5 +373,84 @@ describe('CLI fast-path subprocess suite (--doctor / --stats / --search / --expo
       await rm(backupsDir, { recursive: true, force: true });
     }
   });
+
+  test('10. --due --json, --due --ascii, and --course / --limit filtering work offline with zero model calls', async () => {
+    const { stdout: jsonOut, stderr: jsonErr } = await execFileAsync(
+      process.execPath,
+      [distCliPath, '--due', '--json', '--library', tempLib],
+      {
+        timeout: 25_000,
+        env: sanitizedTestEnv({ DSH_HOME: fakeDshHome }),
+      },
+    );
+    assertNoUnexpectedStderr(jsonErr);
+    const report = JSON.parse(jsonOut);
+    assert.equal(report.version, '1.0.0');
+    assert.equal(report.libraryRoot, tempLib);
+    assert.equal(report.courseFilter, null);
+    assert.ok(report.totals.decks >= 1, `expected decks >= 1, got ${report.totals.decks}`);
+    assert.ok(report.totals.totalCards >= 1, `expected totalCards >= 1, got ${report.totals.totalCards}`);
+    assert.ok(Array.isArray(report.decks) && report.decks.length >= 1);
+    assert.ok(report.decks[0].id && report.decks[0].title);
+    assert.equal(typeof report.decks[0].mastery, 'number');
+
+    const sampleCourse = report.decks[0].course;
+    const { stdout: filteredOut, stderr: filteredErr } = await execFileAsync(
+      process.execPath,
+      [distCliPath, '--due', '--json', '--course', sampleCourse, '--limit', '1', '--library', tempLib],
+      {
+        timeout: 25_000,
+        env: sanitizedTestEnv({ DSH_HOME: fakeDshHome }),
+      },
+    );
+    assertNoUnexpectedStderr(filteredErr);
+    const filtered = JSON.parse(filteredOut);
+    assert.equal(filtered.courseFilter, sampleCourse);
+    assert.equal(filtered.limit, 1);
+    assert.equal(filtered.decks.length, 1);
+    assert.equal(filtered.decks[0].course, sampleCourse);
+
+    const { stdout: asciiOut, stderr: asciiErr } = await execFileAsync(
+      process.execPath,
+      [distCliPath, '--due', '--ascii', '--library', tempLib],
+      {
+        timeout: 25_000,
+        env: sanitizedTestEnv({ DSH_HOME: fakeDshHome }),
+      },
+    );
+    assertNoUnexpectedStderr(asciiErr);
+    assert.ok(!/[^\x00-\x7f]/.test(asciiOut), '--due --ascii output must be 100% pure ASCII');
+    assert.match(asciiOut, /StudyHub TUI Due Queue \(v1\.0\.0\)/);
+    assert.match(asciiOut, /Queue: \d+ due \| \d+ weak \| \d+ new/);
+    assert.match(asciiOut, /Decks \(\d+\/\d+\)/);
+
+    const { stdout: emptyOut, stderr: emptyErr } = await execFileAsync(
+      process.execPath,
+      [distCliPath, '--due', '--json', '--course=NoSuchCourse99999', '--library', tempLib],
+      {
+        timeout: 25_000,
+        env: sanitizedTestEnv({ DSH_HOME: fakeDshHome }),
+      },
+    );
+    assertNoUnexpectedStderr(emptyErr);
+    const emptyReport = JSON.parse(emptyOut);
+    assert.equal(emptyReport.totals.decks, 0);
+    assert.deepEqual(emptyReport.decks, []);
+  });
+
+  test('11. --course with missing/empty value exits with code 2', async () => {
+    for (const argv of [['--due', '--course'], ['--due', '--course=']]) {
+      let exitCode = 0;
+      let stderrText = '';
+      try {
+        await execFileAsync(process.execPath, [distCliPath, ...argv], { timeout: 15_000 });
+      } catch (err) {
+        exitCode = err.code;
+        stderrText = String(err.stderr ?? '');
+      }
+      assert.equal(exitCode, 2, `expected exit code 2 for ${JSON.stringify(argv)}`);
+      assert.match(stderrText, /Missing value for --course/);
+    }
+  });
   });
 });

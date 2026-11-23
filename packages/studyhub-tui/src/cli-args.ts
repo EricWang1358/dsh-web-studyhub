@@ -6,10 +6,12 @@ export interface ParsedCliArgs {
   version: boolean;
   doctor: boolean;
   stats: boolean;
+  due: boolean;
   exportBackup: boolean;
   exportPath?: string;
   searchQuery?: string;
   searchLimit?: number;
+  course?: string;
   json: boolean;
   libraryRoot?: string;
   theme?: ThemeId;
@@ -163,6 +165,7 @@ export function parseCliArgs(argv: readonly string[]): ParsedCliArgs {
   Object.defineProperties(result, {
     doctor: { value: false, writable: true, enumerable: false, configurable: true },
     stats: { value: false, writable: true, enumerable: false, configurable: true },
+    due: { value: false, writable: true, enumerable: false, configurable: true },
     exportBackup: { value: false, writable: true, enumerable: false, configurable: true },
     json: { value: false, writable: true, enumerable: false, configurable: true },
   });
@@ -183,6 +186,10 @@ export function parseCliArgs(argv: readonly string[]): ParsedCliArgs {
     }
     if (token === '--stats') {
       Object.defineProperty(result, 'stats', { value: true, writable: true, enumerable: true, configurable: true });
+      continue;
+    }
+    if (token === '--due') {
+      Object.defineProperty(result, 'due', { value: true, writable: true, enumerable: true, configurable: true });
       continue;
     }
     if (token === '--json') {
@@ -267,6 +274,17 @@ export function parseCliArgs(argv: readonly string[]): ParsedCliArgs {
       continue;
     }
 
+    if (flag === '--course') {
+      const val = takeValue();
+      const trimmed = val?.trim() ?? '';
+      if (!trimmed) {
+        result.error = 'Missing value for --course';
+        return result;
+      }
+      result.course = trimmed;
+      continue;
+    }
+
     if (flag === '--root' || flag === '--library' || flag === '-r') {
       const val = takeValue();
       if (!val) {
@@ -342,11 +360,14 @@ export function cliHelpText(version = '1.0.0'): string {
     '      --doctor --json   Print diagnostics in JSON format and exit (never prints API keys)',
     '      --stats           Print offline library summary (courses, decks, due & weak) and exit',
     '      --stats --json    Print offline library summary in JSON format and exit',
+    '      --due             Print today\'s due review queue by deck (offline) and exit',
+    '      --due --json      Print today\'s due review queue in JSON format and exit',
+    '      --course <name>   Filter --due output to matching course(s)',
     '      --export [path]   Export full library JSON backup atomically and exit',
     '      --export --json   Export backup and print JSON receipt',
     '      --search <query>  Search cards & source passages offline and exit',
     '      --search <query> --json   Print search results in JSON format and exit',
-    '      --limit <n>       Limit --search results per category (1..100, default 10)',
+    '      --limit <n>       Limit --search / --due results (1..100, default 10 / 20)',
     '  -v, --version         Print version and exit',
     '  -h, --help            Show this help message',
     '',

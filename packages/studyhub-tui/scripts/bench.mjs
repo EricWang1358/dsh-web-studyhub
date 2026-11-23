@@ -20,10 +20,19 @@ const distBootFrame = resolve(root, 'dist', 'boot-frame.mjs');
 const distApp = resolve(root, 'dist', 'App.mjs');
 const distHost = resolve(root, 'dist', 'host.mjs');
 
+const SECRET_ENV_RE = /(?:_API_KEY|_TOKEN|_SECRET|^OPENAI_|^DEEPSEEK_|^ANTHROPIC_|^GEMINI_|^GOOGLE_API_KEY|^OPENROUTER_|^SILICONFLOW_|^ZHIPU_|^MOONSHOT_|^DASHSCOPE_)/i;
+function benchEnv(overrides = {}) {
+  const clean = {};
+  for (const [k, v] of Object.entries(process.env)) {
+    if (v !== undefined && !SECRET_ENV_RE.test(k)) clean[k] = v;
+  }
+  return { ...clean, ...overrides };
+}
+
 async function measureCli(args) {
   const t0 = performance.now();
   const { stdout } = await execFileAsync(process.execPath, [distCli, ...args], {
-    env: { ...process.env, NO_COLOR: '1' },
+    env: benchEnv({ NO_COLOR: '1' }),
     timeout: 15_000,
   });
   return { ms: Math.round(performance.now() - t0), stdout: stdout.trim() };
@@ -92,7 +101,7 @@ try {
 
   const host = await createTuiHost({
     libraryRoot: join(tempDir, 'lib'),
-    env: { ...process.env, DSH_HOME: join(tempDir, 'dsh') },
+    env: benchEnv({ DSH_HOME: join(tempDir, 'dsh') }),
     skipAutoProbe: true,
   });
   const stdout = new PassThrough();

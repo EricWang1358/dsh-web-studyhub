@@ -2,6 +2,7 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from '
 import { Box, Text, useInput } from 'ink';
 import { useTheme } from '../../theme/tokens.js';
 import { Spinner } from '../../components/Badge.js';
+import { ConfirmDialog } from '../../components/ConfirmDialog.js';
 import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { TextInput } from '../../components/TextInput.js';
 import { truncateDisplay } from '../../render/cjk.js';
@@ -43,17 +44,25 @@ export const NoteEditorModal = memo(function NoteEditorModal({
   const frameWidth = Math.max(54, Math.min(88, terminalCols - 6));
   const innerWidth = modalContentWidth(frameWidth);
 
-  const [title, setTitle] = useState(() => (mode === 'edit' ? note?.title || '' : ''));
-  const [markdown, setMarkdown] = useState(() => (mode === 'edit' ? note?.markdown || '' : ''));
+  const initialTitle = mode === 'edit' ? note?.title || '' : '';
+  const initialMarkdown = mode === 'edit' ? note?.markdown || '' : '';
+  const [title, setTitle] = useState(() => initialTitle);
+  const [markdown, setMarkdown] = useState(() => initialMarkdown);
   const [query, setQuery] = useState('');
   const [candidates, setCandidates] = useState<CardSearchOption[]>([]);
   const [selectedCards, setSelectedCards] = useState<Array<{ deckId: string; cardId: string }>>([]);
   const [cardCursor, setCardCursor] = useState(0);
   const [loadingCards, setLoadingCards] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [error, setError] = useState('');
   const [createField, setCreateField] = useState<CreateField>('title');
   const [editField, setEditField] = useState<EditField>('markdown');
+
+  const dirty =
+    mode === 'edit'
+      ? title !== initialTitle || markdown !== initialMarkdown
+      : title.trim().length > 0 || markdown.trim().length > 0;
 
   const mountedRef = useRef(true);
   const savingRef = useRef(false);
@@ -218,6 +227,15 @@ export const NoteEditorModal = memo(function NoteEditorModal({
     }
   }, [saving, title, mode, selectedCards, candidates.length, host, lang, markdown, note, onSaved]);
 
+  const requestClose = useCallback(() => {
+    if (savingRef.current || saving) return;
+    if (dirty) {
+      setConfirmDiscard(true);
+      return;
+    }
+    onClose();
+  }, [saving, dirty, onClose]);
+
   const markdownFocused = mode === 'create' ? createField === 'markdown' : editField === 'markdown';
 
   useInput(
@@ -253,7 +271,7 @@ export const NoteEditorModal = memo(function NoteEditorModal({
         }
       }
     },
-    { isActive: !saving },
+    { isActive: !saving && !confirmDiscard },
   );
 
   const hints: KeyHint[] = useMemo(
@@ -261,9 +279,9 @@ export const NoteEditorModal = memo(function NoteEditorModal({
       { key: 'Tab', label: t(lang, '切换栏位', 'Next field') },
       ...(mode === 'create' && createField === 'cards' ? [{ key: 'Space', label: t(lang, '选/取消题', 'Toggle card') }] : []),
       { key: 'Ctrl+S', label: t(lang, '保存', 'Save') },
-      { key: 'Esc', label: t(lang, '取消', 'Cancel') },
+      { key: 'Esc', label: dirty ? t(lang, '放弃/取消', 'Discard') : t(lang, '取消', 'Cancel') },
     ],
-    [lang, mode, createField],
+    [lang, mode, createField, dirty],
   );
 
   const editorHeight = Math.max(5, Math.min(mode === 'edit' ? 14 : 6, terminalRows - (mode === 'edit' ? 13 : 21)));
@@ -271,12 +289,15 @@ export const NoteEditorModal = memo(function NoteEditorModal({
   const windowStart = Math.max(0, cardCursor - 2);
 
   return (
+    <>
     <Modal
       title={mode === 'create' ? t(lang, '新建学习笔记', 'New Study Note') : t(lang, '编辑笔记', 'Edit Note')}
+      subtitle={dirty ? t(lang, '未保存', 'unsaved') : undefined}
       icon={asciiMode ? '*' : '✎'}
       tone="primary"
       width={frameWidth}
-      onClose={saving ? undefined : onClose}
+      isActive={!confirmDiscard}
+      onClose={saving || confirmDiscard ? undefined : requestClose}
       hints={hints}
     >
       <Box flexDirection="column" gap={0}>
@@ -290,8 +311,8 @@ export const NoteEditorModal = memo(function NoteEditorModal({
             if (mode === 'create') setCreateField('query');
             else setEditField('markdown');
           }}
-          onCancel={onClose}
-          isActive={!saving && (mode === 'create' ? createField === 'title' : editField === 'title')}
+          onCancel={requestClose}
+          isActive={!saving && !confirmDiscard && (mode === 'create' ? createField === 'title' : editField === 'title')}
           width={innerWidth - 2}
           prompt={asciiMode ? '> ' : '› '}
           placeholder={t(lang, '例如：特征值与特征向量易错整理', 'e.g. Eigenvalues & common pitfalls')}
@@ -314,8 +335,8 @@ export const NoteEditorModal = memo(function NoteEditorModal({
                 if (query.trim()) void runSearch();
                 else setCreateField('cards');
               }}
-              onCancel={onClose}
-              isActive={!saving && createField === 'query'}
+              onCancel={requestClose}
+              isActive={!saving && !confirmDiscard && createField === 'query'}
               width={innerWidth - 2}
               prompt={asciiMode ? '? ' : '⌕ '}
               placeholder={t(lang, '输入关键词按 Enter 搜索题目，或 Tab 选下方列表', 'Type keywords + Enter to search, or Tab to pick below')}
@@ -358,11 +379,11 @@ export const NoteEditorModal = memo(function NoteEditorModal({
               value={markdown}
               onChange={setMarkdown}
               onSubmit={() => void handleSave()}
-              onCancel={onClose}
+              onCancel={requestClose}
               multiline
               height={editorHeight}
               width={innerWidth - 4}
-              isActive={!saving && (mode === 'create' ? createField === 'markdown' : editField === 'markdown')}
+              isActive={!saving && !confirmDiscard && (mode === 'create' ? createField === 'markdown' : editField === 'markdown')}
               placeholder={t(lang, `输入 Markdown 内容，按 Ctrl+S 保存${ell}`, `Write Markdown, press Ctrl+S to save${ell}`)}
               captureInput={false}
             />
@@ -385,5 +406,26 @@ export const NoteEditorModal = memo(function NoteEditorModal({
         </Box>
       </Box>
     </Modal>
+
+    {confirmDiscard ? (
+      <ConfirmDialog
+        title={t(lang, '放弃未保存的笔记修改？', 'Discard unsaved note changes?')}
+        message={t(
+          lang,
+          '当前笔记仍有未保存的编辑内容。放弃后将丢失这些修改。',
+          'You have unsaved edits in this note. Closing now will discard them.',
+        )}
+        confirmLabel={t(lang, '放弃修改', 'Discard')}
+        cancelLabel={t(lang, '继续编辑', 'Keep Editing')}
+        danger
+        isActive={confirmDiscard}
+        onConfirm={() => {
+          setConfirmDiscard(false);
+          onClose();
+        }}
+        onCancel={() => setConfirmDiscard(false)}
+      />
+    ) : null}
+    </>
   );
 });

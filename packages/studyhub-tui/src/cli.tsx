@@ -33,7 +33,7 @@ async function main() {
     return;
   }
 
-  if (parsed.doctor || parsed.stats || parsed.exportBackup || parsed.searchQuery !== undefined) {
+  if (parsed.doctor || parsed.stats || parsed.due || parsed.exportBackup || parsed.searchQuery !== undefined) {
     const cmds = await import('./cli-commands.js');
     if (parsed.doctor) {
       await cmds.runDoctorFastPath(parsed, PKG_VERSION);
@@ -41,6 +41,10 @@ async function main() {
     }
     if (parsed.stats) {
       await cmds.runStatsFastPath(parsed, PKG_VERSION);
+      return;
+    }
+    if (parsed.due) {
+      await cmds.runDueFastPath(parsed, PKG_VERSION);
       return;
     }
     if (parsed.exportBackup) {

@@ -427,3 +427,208 @@ export async function runSearchFastPath(parsed: ParsedCliArgs, version = '1.0.0'
     await host.dispose().catch(() => {});
   }
 }
+
+export interface DueDeckEntry {
+  id: string;
+  title: string;
+  course: string;
+  due: number;
+  weak: number;
+  newCount: number;
+  total: number;
+  mastery: number;
+}
+
+export interface DueCliReport {
+  version: string;
+  libraryRoot: string;
+  courseFilter: string | null;
+  limit: number;
+  generatedAt: string;
+  totals: {
+    decks: number;
+    decksWithDue: number;
+    due: number;
+    weak: number;
+    newCards: number;
+    totalCards: number;
+  };
+  decks: DueDeckEntry[];
+}
+
+interface SnapshotDeckLike {
+  id?: string;
+  title?: string;
+  name?: string;
+  course?: string;
+  archived?: boolean;
+  systemKind?: string;
+  count?: number;
+  cardCount?: number;
+  due?: number;
+  dueCount?: number;
+  wrong?: number;
+  wrongCount?: number;
+  newCount?: number;
+  mastery?: number;
+}
+
+interface SnapshotProgressLike {
+  total?: number;
+  due?: number;
+  mastery?: number;
+  counts?: {
+    new?: number;
+    weak?: number;
+  };
+}
+
+function finiteNonNeg(val: unknown): number {
+  const n = Number(val);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+}
+
+/**
+ * Build a deterministic offline due-queue report from a StudySnapshot.
+ */
+export function buildDueReport(opts: {
+  libraryRoot: string;
+  snapshot: { decks?: SnapshotDeckLike[]; progress?: Record<string, unknown> } | null | undefined;
+  courseFilter?: string;
+  limit?: number;
+  version?: string;
+  generatedAt?: string;
+}): DueCliReport {
+  const snap = opts.snapshot ?? {};
+  const rawDecks = Array.isArray(snap.decks) ? snap.decks : [];
+  const progress = (snap.progress && typeof snap.progress === 'object' ? snap.progress : {}) as Record<
+    string,
+    SnapshotProgressLike | undefined
+  >;
+  const courseFilterRaw = (opts.courseFilter ?? '').trim();
+  const courseNeedle = courseFilterRaw.toLowerCase();
+  const limit = Math.max(1, Math.min(100, Math.trunc(opts.limit ?? 20)));
+
+  const matched: DueDeckEntry[] = [];
+  let totalDue = 0;
+  let totalWeak = 0;
+  let totalNew = 0;
+  let totalCards = 0;
+  let decksWithDue = 0;
+
+  for (const deck of rawDecks) {
+    if (!deck || typeof deck !== 'object' || deck.archived || deck.systemKind) continue;
+    const id = strVal(deck.id);
+    if (!id) continue;
+    const course = singleLine(deck.course);
+    if (courseNeedle && !course.toLowerCase().includes(courseNeedle)) continue;
+
+    const p = progress[id];
+    const total = finiteNonNeg(deck.count ?? deck.cardCount ?? p?.total);
+    const due = finiteNonNeg(deck.due ?? deck.dueCount ?? p?.due);
+    const weak = finiteNonNeg(deck.wrong ?? deck.wrongCount ?? p?.counts?.weak);
+    const newCount = finiteNonNeg(p?.counts?.new ?? deck.newCount);
+    const rawMastery = typeof p?.mastery === 'number' ? p.mastery : typeof deck.mastery === 'number' ? deck.mastery : 0;
+    const mastery = Number.isFinite(rawMastery) ? Math.max(0, Math.min(100, Math.round(rawMastery))) : 0;
+
+    totalDue += due;
+    totalWeak += weak;
+    totalNew += newCount;
+    totalCards += total;
+    if (due > 0) decksWithDue += 1;
+
+    matched.push({
+      id,
+      title: singleLine(deck.title ?? deck.name) || id,
+      course,
+      due,
+      weak,
+      newCount,
+      total,
+      mastery,
+    });
+  }
+
+  matched.sort((a, b) => b.due - a.due || b.weak - a.weak || b.total - a.total || a.title.localeCompare(b.title));
+
+  return {
+    version: opts.version ?? '1.0.0',
+    libraryRoot: opts.libraryRoot,
+    courseFilter: courseFilterRaw || null,
+    limit,
+    generatedAt: opts.generatedAt ?? new Date().toISOString(),
+    totals: {
+      decks: matched.length,
+      decksWithDue,
+      due: totalDue,
+      weak: totalWeak,
+      newCards: totalNew,
+      totalCards,
+    },
+    decks: matched.slice(0, limit),
+  };
+}
+
+/**
+ * Format a `DueCliReport` for terminal output. Guaranteed 100% pure ASCII when `ascii` is true.
+ */
+export function formatDueReport(report: DueCliReport, ascii = false): string {
+  const rule = ascii ? '----------------------------------------' : '────────────────────────────────────────';
+  const bullet = ascii ? '-' : '•';
+  const sep = ascii ? ' | ' : ' · ';
+  const clean = (s: string) => (ascii ? toPureAscii(singleLine(s)) : singleLine(s));
+  const t = report.totals;
+
+  const lines = [
+    `StudyHub TUI Due Queue (v${clean(report.version)})`,
+    rule,
+    `Library: ${clean(report.libraryRoot || '(unset)')}`,
+    ...(report.courseFilter ? [`Course: ${clean(report.courseFilter)}`] : []),
+    `Queue: ${t.due} due | ${t.weak} weak | ${t.newCards} new (${t.decksWithDue}/${t.decks} decks with due, ${t.totalCards} cards)`,
+    `Decks (${report.decks.length}/${t.decks})`,
+  ];
+
+  if (report.decks.length === 0) {
+    lines.push(`  ${bullet} (none)`);
+  } else {
+    for (const d of report.decks) {
+      const titleText = clipText(d.title, 60, ascii);
+      const courseTag = d.course ? ` [${clipText(d.course, 32, ascii)}]` : '';
+      const metrics = `${d.due} due${sep}${d.weak} weak${sep}${d.total} cards${sep}${d.mastery}% mastery`;
+      lines.push(`  ${bullet} ${titleText}${courseTag}: ${metrics}`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * Run `--due` offline review queue summary without loading React, Ink, or any LLM provider.
+ */
+export async function runDueFastPath(parsed: ParsedCliArgs, version = '1.0.0'): Promise<void> {
+  const { createTuiHost } = await import('./host/tui-host.js');
+  const host = await createTuiHost({
+    libraryRoot: parsed.libraryRoot,
+    skipAutoProbe: true,
+    language: parsed.language,
+  });
+
+  try {
+    const snap = await host.refreshSnapshot();
+    const report = buildDueReport({
+      libraryRoot: host.getLibraryRoot() || parsed.libraryRoot || '',
+      snapshot: snap.snapshot,
+      courseFilter: parsed.course,
+      limit: parsed.searchLimit ?? 20,
+      version,
+    });
+    if (parsed.json) {
+      process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+    } else {
+      const ascii = parsed.asciiMode ?? shouldAutoAscii(process.env);
+      process.stdout.write(`${formatDueReport(report, ascii)}\n`);
+    }
+  } finally {
+    await host.dispose().catch(() => {});
+  }
+}

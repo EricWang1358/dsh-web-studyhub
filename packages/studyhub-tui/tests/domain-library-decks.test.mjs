@@ -46,7 +46,7 @@ const [
   { useTuiStore: useSrcTuiStore },
 ] = await Promise.all([
   import('../src/views/library/DeckManageModal.tsx'),
-  import('../src/views/library/LibraryView.tsx'),
+  import('../src/views/library/deck-export.ts'),
   import('../src/components/Badge.tsx'),
   import('../src/state/store.ts'),
 ]);
