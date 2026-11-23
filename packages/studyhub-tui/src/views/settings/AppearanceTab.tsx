@@ -237,9 +237,9 @@ export const AppearanceTab: React.FC<AppearanceTabProps> = memo(function Appeara
     },
     {
       key: 'proactiveHints' as const,
-      label: t(lang, '主动学习提示 (20s卡住)', 'Proactive Hints (20s)'),
+      label: t(lang, '主动学习提示', 'Proactive Study Nudges'),
       value: prefs.proactiveHints !== false ? t(lang, `开启 ${check}`, `On ${check}`) : t(lang, '关闭', 'Off'),
-      hint: t(lang, '做题卡住20秒时给轻量提示（每轮限3次，不打断输入）', 'Calm stuck hint after 20s (max 3/round)'),
+      hint: t(lang, '20秒卡住提示 / 每日简报 / 连错3题归因（限频且不打断输入）', '20s stuck / daily brief / 3-wrong streak (rate-limited)'),
     },
   ];
 
@@ -263,7 +263,7 @@ export const AppearanceTab: React.FC<AppearanceTabProps> = memo(function Appeara
     `Render: ${asciiMode ? 'ASCII' : 'Unicode'}${sep}Math: ${prefs.mathUnicode ? 'Unicode' : 'LaTeX'}${sep}Mouse SGR 1006: ${mouseEnabled ? 'On' : 'Off'}`,
   );
   const swatchGroups =
-    innerW < 92
+    innerW < 112
       ? [themeSwatches.slice(0, 3), themeSwatches.slice(3)]
       : [themeSwatches];
 

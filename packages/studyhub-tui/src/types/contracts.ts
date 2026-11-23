@@ -34,7 +34,7 @@ export interface PageMeta {
   descriptionEn: string;
 }
 
-export type ThemeId = 'dsh-dark' | 'warm-paper' | 'nord' | 'high-contrast' | 'warm-amber';
+export type ThemeId = 'dsh-dark' | 'warm-paper' | 'nord' | 'high-contrast' | 'warm-amber' | 'soft-sage';
 export type UiLanguage = 'zh' | 'en';
 
 export interface AssistantCommandStat {

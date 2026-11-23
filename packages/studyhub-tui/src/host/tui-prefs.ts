@@ -14,6 +14,7 @@ export const THEME_IDS: readonly ThemeId[] = Object.freeze([
   'nord',
   'high-contrast',
   'warm-amber',
+  'soft-sage',
 ]);
 export const UI_LANGUAGES: readonly UiLanguage[] = Object.freeze(['zh', 'en']);
 export const MAX_RECENT_COMMANDS = 12;

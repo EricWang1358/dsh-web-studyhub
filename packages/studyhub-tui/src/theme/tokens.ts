@@ -62,6 +62,7 @@ export const THEME_IDS: readonly ThemeId[] = Object.freeze([
   'nord',
   'high-contrast',
   'warm-amber',
+  'soft-sage',
 ]);
 
 function define(t: ThemeTokens): ThemeTokens {
@@ -215,12 +216,43 @@ const WARM_AMBER: ThemeTokens = define({
   heat: ['#2b231b', '#5c4124', '#8f602b', '#c48338', '#f2c15c'],
 });
 
+/** Low-glare eye-care theme #2 (Round 86 Track A5): gentle low-contrast sage palette, calibrated WCAG AA. */
+const SOFT_SAGE: ThemeTokens = define({
+  id: 'soft-sage',
+  label: 'Soft Sage',
+  dark: true,
+  primary: '#8fc1a9',
+  accent: '#9bb8cc',
+  success: '#9cc495',
+  warning: '#d9bc7a',
+  error: '#df9494',
+  ai: '#bfa6d6',
+  info: '#92b8c4',
+  text: '#dde5df',
+  muted: '#a0ada7',
+  dim: '#7c8a84',
+  border: '#3f4b47',
+  borderActive: '#8fc1a9',
+  bg: '#232927',
+  surface: '#2b3230',
+  selectionBg: '#374741',
+  selectionFg: '#f2f7f4',
+  heading: '#a5ceb9',
+  code: '#d9bc7a',
+  codeBg: '#2e3734',
+  link: '#9bb8cc',
+  quote: '#a0ada7',
+  track: '#35403c',
+  heat: ['#2e3734', '#3d544b', '#547a6b', '#72a18d', '#8fc1a9'],
+});
+
 const THEMES: Readonly<Record<ThemeId, ThemeTokens>> = Object.freeze({
   'dsh-dark': DSH_DARK,
   'warm-paper': WARM_PAPER,
   nord: NORD,
   'high-contrast': HIGH_CONTRAST,
   'warm-amber': WARM_AMBER,
+  'soft-sage': SOFT_SAGE,
 });
 
 /** Resolve a palette by id (unknown ids fall back to `dsh-dark`). */

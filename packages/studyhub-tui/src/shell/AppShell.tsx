@@ -260,9 +260,9 @@ export const AppShell = memo(function AppShell({
   const tailHints: KeyHint[] = useMemo(
     () => [
       { key: 'Ctrl+K', label: t(lang, '命令', 'Cmd') },
-      { key: '?', label: t(lang, '帮助', 'Help') },
+      { key: '?', label: footerHints.length > 4 ? t(lang, '全部键', 'All') : t(lang, '帮助', 'Help') },
     ],
-    [lang],
+    [lang, footerHints.length],
   );
   const defaultHints: KeyHint[] = useMemo(
     () => [
@@ -275,7 +275,7 @@ export const AppShell = memo(function AppShell({
   );
   const practiceReturnLabel = useMemo(() => formatReturnHintLabel(practiceStack, lang), [practiceStack, lang]);
   const hints = useMemo(() => {
-    const base = footerHints.length ? footerHints : defaultHints;
+    const base = footerHints.length ? footerHints.slice(0, 4) : defaultHints;
     const prefix: KeyHint[] = practiceReturnLabel ? [{ key: 'r', label: practiceReturnLabel }] : [];
     return [...prefix, ...base, ...tailHints];
   }, [practiceReturnLabel, footerHints, defaultHints, tailHints]);

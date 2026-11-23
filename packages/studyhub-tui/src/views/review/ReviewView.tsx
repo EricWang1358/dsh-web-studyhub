@@ -67,6 +67,13 @@ import {
   buildStuckNudgeMessage,
   shouldScheduleStuckNudge,
 } from './stuck-nudge.js';
+import {
+  buildWrongStreakBanner,
+  createWrongStreakState,
+  recordReviewOutcome,
+  shouldTriggerWrongStreakNudge,
+  type WrongStreakState,
+} from './wrong-streak-nudge.js';
 const AiHelpDrawer = lazy(() => import('./AiHelpDrawer.js').then((m) => ({ default: m.AiHelpDrawer })));
 const AnswerCardModal = lazy(() => import('./AnswerCardModal.js').then((m) => ({ default: m.AnswerCardModal })));
 const CardToolsModal = lazy(() => import('./CardToolsModal.js').then((m) => ({ default: m.CardToolsModal })));
@@ -321,6 +328,8 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
   const nudgedCardIdsRef = useRef<Set<string>>(new Set());
   const roundNudgeCountRef = useRef(0);
   const lastNudgeAtRef = useRef<number | null>(null);
+  const wrongStreakRef = useRef<WrongStreakState>(createWrongStreakState());
+  const [wrongStreakBanner, setWrongStreakBanner] = useState<string | null>(null);
 
   const mountedRef = useRef(true);
   const busyRef = useRef(false);
@@ -1549,7 +1558,38 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
   // Round 83 Track D1: Proactive 20s stuck nudge (one-shot timer, rate-limited, opt-out, never interrupts typing!)
   useEffect(() => {
     setStuckNudgeVisible(false);
+    setWrongStreakBanner(null);
   }, [cardKey]);
+
+  // Round 86 Track D3: Proactive 3-wrong streak attribution suggestion (opt-out, rate-limited, non-interrupting)
+  useEffect(() => {
+    if (!cardId || !feedback) return;
+    const next = recordReviewOutcome(wrongStreakRef.current, {
+      cardId,
+      prompt: String(run?.card?.prompt || ''),
+      userAnswer: extractUserAnswerText(run, kind, selectedIds, clozeInputs, openDraft, lang),
+      topic: typeof run?.card?.topic === 'string' ? run.card.topic : undefined,
+      correct: feedback.correct,
+      grade: feedback.grade,
+    });
+    wrongStreakRef.current = next;
+    if (
+      shouldTriggerWrongStreakNudge({
+        enabled: proactiveHints,
+        isActive,
+        isEditing: clozeEditing || openEditing,
+        anyModalOpen,
+        state: next,
+      })
+    ) {
+      wrongStreakRef.current = {
+        recentWrong: [],
+        roundNudgeCount: next.roundNudgeCount + 1,
+        lastNudgeAt: Date.now(),
+      };
+      setWrongStreakBanner(buildWrongStreakBanner(next.recentWrong, lang, asciiMode));
+    }
+  }, [cardId, feedback, proactiveHints, isActive, clozeEditing, openEditing, anyModalOpen, run, kind, selectedIds, clozeInputs, openDraft, lang, asciiMode]);
 
   useEffect(() => {
     if (
@@ -2407,6 +2447,35 @@ export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = 
                     mathUnicode={mathUnicode}
                   />
                 </Box>
+              ) : null}
+
+              {/* Calm Proactive 3-Wrong Attribution Banner (Round 86 Track D3 — opt-out, rate-limited, never steals focus) */}
+              {wrongStreakBanner && proactiveHints ? (
+                <ClickableBox
+                  marginTop={0}
+                  clickActive={mainActive}
+                  onClick={() => {
+                    setWrongStreakBanner(null);
+                    useTuiStore.getState().openAssistant({
+                      tab: 'guided',
+                      stage: 'question',
+                      cardContext: {
+                        runId: run.id,
+                        deckId: currentDeckIdOf(run) ?? undefined,
+                        cardId: cardId ?? '',
+                        prompt: String(run.card?.prompt || ''),
+                        userAnswer: userAnswerText,
+                        kind,
+                        isWrong: true,
+                        revealed: true,
+                      },
+                    });
+                  }}
+                >
+                  <Text color={theme.warning} wrap="truncate">
+                    {truncateDisplay(wrongStreakBanner, innerW, asciiMode ? '...' : '…')}
+                  </Text>
+                </ClickableBox>
               ) : null}
 
               {/* Saved AI Explanations Hint */}
