@@ -217,6 +217,7 @@ function persistPreferencePatch(host: HostClient | undefined, patch: Partial<Tui
 /** Build the full command list from store state + shell actions (pure, exported for tests). */
 export function buildPaletteItems(
   state: Pick<TuiStoreState, 'snapshot' | 'preferences' | 'activeRunId'> & {
+    page?: TuiStoreState['page'];
     navigate: TuiStoreState['navigate'];
     setTheme: TuiStoreState['setTheme'];
     setLanguage: TuiStoreState['setLanguage'];
@@ -429,6 +430,47 @@ export function buildPaletteItems(
     },
     ['terminal', 'osc', 'tmux', 'screen', 'doctor', '终端', '诊断', '能力'],
   );
+  act(
+    'cmd:pin',
+    '/pin',
+    t(lang, '收藏/取消收藏当前页面到快捷书签（最多 5 项）', 'Pin/unpin current page to quick bookmarks (max 5)'),
+    () => {
+      const activePage = state.page ?? useTuiStore.getState().page;
+      const curMeta = PAGE_REGISTRY.find((p) => p.id === activePage);
+      if (!curMeta) return;
+      const existing = state.preferences.pinnedTargets ?? [];
+      const exists = existing.some((p) => p.kind === 'page' && p.id === curMeta.id);
+      const nextPins = exists
+        ? existing.filter((p) => !(p.kind === 'page' && p.id === curMeta.id))
+        : [{ kind: 'page' as const, id: curMeta.id, label: lang === 'en' ? curMeta.labelEn : curMeta.labelZh }, ...existing].slice(0, 5);
+      setPrefs({ pinnedTargets: nextPins });
+      persistPreferencePatch(host, { pinnedTargets: nextPins });
+      notify(
+        t(
+          lang,
+          exists ? `已取消书签「${curMeta.labelZh}」` : `已添加快捷书签「${curMeta.labelZh}」`,
+          exists ? `Unpinned "${curMeta.labelEn}"` : `Pinned "${curMeta.labelEn}"`,
+        ),
+        'info',
+      );
+    },
+    ['pin', 'bookmark', 'favorite', '书签', '收藏', '置顶'],
+  );
+  const pinnedList = state.preferences.pinnedTargets ?? [];
+  for (const pin of pinnedList) {
+    items.push({
+      id: `pin:${pin.kind}:${pin.id}`,
+      label: `${asciiMode ? '*' : '★'} ${pin.label}`,
+      hint: t(lang, '快捷书签', 'Pinned bookmark'),
+      category: t(lang, '书签', 'Pinned'),
+      keywords: ['pin', 'bookmark', '书签', pin.label, pin.id],
+      action: () => {
+        if (pin.kind === 'page') state.navigate(pin.id as PageId);
+        else if (pin.kind === 'deck') state.navigate('review', { deckId: pin.id });
+        else state.navigate('sources', { sourceId: pin.id });
+      },
+    });
+  }
   act(
     'cmd:recover',
     '/recover',
