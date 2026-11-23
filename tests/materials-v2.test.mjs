@@ -135,7 +135,7 @@ test('removing current material sources preserves readable cited history without
   assert.equal(groupSourcesByDocument((await runtime.call('snapshot')).sources).length, 0);
   assert.equal((await runtime.call('source.get', { id: first.sourceIds[0] })).text, 'Historical quoted evidence.');
   assert.equal((await runtime.call('materials.document.get', { documentId: first.documentId, revision: first.revision })).sources[0].text, 'Historical quoted evidence.');
-  await assert.rejects(runtime.call('source.remove', { id: first.sourceIds[0] }), /referenced/);
+  await assert.rejects(runtime.call('source.remove', { id: first.sourceIds[0] }), /引用|referenced/);
   const restored = await runtime.call('materials.document.attach', { documentId: first.documentId, filename: 'lesson.txt', dataBase64: revisedBytes });
   assert.deepEqual(restored.sourceIds, current.sourceIds, 'explicitly importing the deleted revision restores its original identity');
   assert.equal((await runtime.call('materials.document.list', {})).total, 0, 'reattaching evidence does not undo archive');

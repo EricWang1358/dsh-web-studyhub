@@ -60,7 +60,7 @@ test('published bundle imports its real package exports and allows independent c
     state.decks.push({ id: 'retained-deck', title: 'Retained deck', cards: [{ id: 'retained-card', kind: 'flashcard',
       prompt: 'Question', answer: 'Answer', citations: [{ sourceId: 'retained-source', quote: 'original evidence' }] }] });
   });
-  await assert.rejects(runtime.call('source.remove', { id: 'retained-source' }), /referenced/);
+  await assert.rejects(runtime.call('source.remove', { id: 'retained-source' }), /引用|referenced/);
   await installed.get('study-suite-bank').dispose();
   assert.equal(runtime.hasAction('bank.list'), false, 'bundle siblings must not retain bank');
   assert.equal(runtime.hasAction('generate'), true);
@@ -70,7 +70,7 @@ test('published bundle imports its real package exports and allows independent c
   const restoredBank = ctx.plugin(await import(bankRow.name), bankRow.config);
   await restoredBank;
   assert.equal((await runtime.call('bank.list')).decks[0].id, 'retained-deck', 're-enable retains the citing deck');
-  await assert.rejects(runtime.call('source.remove', { id: 'retained-source' }), /referenced/);
+  await assert.rejects(runtime.call('source.remove', { id: 'retained-source' }), /引用|referenced/);
   await installed.get('study-suite-learning').dispose();
   await assert.rejects(runtime.call('source.remove', { id: 'retained-source' }), /启用.*学习/);
   await installed.get('study-suite-materials').dispose();

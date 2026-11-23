@@ -31,13 +31,22 @@ export default function CitationDisclosure({ card, sources = [], onOpenSource, d
             const pdfPage = !isJsonCardSource(source) && Number.isInteger(source?.document?.page) && source.document.page >= 1
               && (source.format || source.document?.format || "pdf") === "pdf" ? source.document.page : 0;
             return <div key={index} className="citations__row">
-              <Button className="citations__button sh-btn--lines" variant="quiet" wrap block align="start" iconEnd="arrow-right"
-                onClick={() => onOpenSource(targetSource, citation.quote)}>
-                <span>{source?.title || ui("资料")}{aiDrafted && <>{" "}<Badge size="sm" tone="warning" className="citations__provenance">{ui("AI 撰写 · 未核对")}</Badge></>}
-                  <blockquote>{citation.quote}</blockquote></span>
-              </Button>
-              {pdfPage > 0 && <Button iconEnd="arrow-right" className="citations__peek" variant="quiet" size="sm"
-                onClick={() => onOpenSource(targetSource, citation.quote, pdfPage)}>{ui("看原页")}</Button>}
+              {source ? (
+                <>
+                  <Button className="citations__button sh-btn--lines" variant="quiet" wrap block align="start" iconEnd="arrow-right"
+                    onClick={() => onOpenSource(targetSource, citation.quote)}>
+                    <span>{source.title || ui("资料")}{aiDrafted && <>{" "}<Badge size="sm" tone="warning" className="citations__provenance">{ui("AI 撰写 · 未核对")}</Badge></>}
+                      <blockquote>{citation.quote}</blockquote></span>
+                  </Button>
+                  {pdfPage > 0 && <Button iconEnd="arrow-right" className="citations__peek" variant="quiet" size="sm"
+                    onClick={() => onOpenSource(targetSource, citation.quote, pdfPage)}>{ui("看原页")}</Button>}
+                </>
+              ) : (
+                <div className="citations__missing">
+                  <span>{ui("资料")}{" "}<Badge size="sm" className="citations__provenance">{ui("原资料已移除")}</Badge>
+                    <blockquote>{citation.quote}</blockquote></span>
+                </div>
+              )}
             </div>;
           })}
         </div>

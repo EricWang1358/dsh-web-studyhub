@@ -457,6 +457,7 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
                   <Button iconEnd="arrow-right" variant="secondary"
                     lock={busy}
                     disabled={!viewingCards.length}
+                    title={!viewingCards.length ? ui("当前没有可练的题目（关联题目可能已归档、斩掉或删除）") : undefined}
                     onClick={() => onPractice(viewingCards.slice(0, 200))}
                   >{ui("练整个骨架")}</Button>
                   <HandOff id="skeleton.design" lead={ui("更新这份骨架：")} what="让主会话按现在的题目更新这份骨架"

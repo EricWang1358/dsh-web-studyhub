@@ -135,9 +135,9 @@ test('selection-only card references block deletion and unrelated empty-projecti
   });
 
   await runtime.call('source.archive', { sourceIds: cited.sourceIds, archived: true });
-  await assert.rejects(runtime.call('source.remove', { sourceIds: cited.sourceIds, confirm: true }), /referenced/);
+  await assert.rejects(runtime.call('source.remove', { sourceIds: cited.sourceIds, confirm: true }), /引用|referenced/);
   await runtime.call('source.archive', { sourceIds: citedByCitationSel.sourceIds, archived: true });
-  await assert.rejects(runtime.call('source.remove', { sourceIds: citedByCitationSel.sourceIds, confirm: true }), /referenced/);
+  await assert.rejects(runtime.call('source.remove', { sourceIds: citedByCitationSel.sourceIds, confirm: true }), /引用|referenced/);
 
   await runtime.call('source.archive', { sourceIds: disposable.sourceIds, archived: true });
   await runtime.call('source.remove', { sourceIds: disposable.sourceIds, confirm: true });

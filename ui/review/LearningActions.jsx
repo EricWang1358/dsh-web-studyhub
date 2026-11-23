@@ -13,7 +13,7 @@ import { companionSlideButtonLabel, openCompanionTarget, resolveCompanionTarget 
    panel instead, where it is the next step). Each needs the model except 试一道同类题's finder: without one the model gate shows in place of a call. */
 
 /** session: useReviewSession(); data: the snapshot; model: modelReadiness(data); onModelSettings; openModal: the app's modal opener (sources). */
-export default function LearningActions({ session, data, model, onModelSettings, openModal }) {
+export default function LearningActions({ session, data, model, onModelSettings, openModal, hideSimilar = false }) {
   const { run, entry, teachingBusy, teachingError, actions } = session;
   const teaching = entry.teaching;
   const key = reviewEntryKey(run);
@@ -53,7 +53,7 @@ export default function LearningActions({ session, data, model, onModelSettings,
         <Chip selected={teaching?.mode === "calculation"} onClick={() => teach("calculation")}>{ui("计算题引导练习")}</Chip>
         <Chip selected={retell} data-usage="review.retell" onClick={() => setRetell((open) => !open)}>{ui("用自己的话讲一遍")}</Chip>
         <TeachingStatus busy={teachingBusy} failure={teachingError} onCancel={actions.cancelTeaching} onRetry={actions.retryTeaching} />
-        {!teaching?.complete && <SimilarTry session={session} data={data} model={model} onModelSettings={onModelSettings} />}
+        {!teaching?.complete && !hideSimilar && <SimilarTry session={session} data={data} model={model} onModelSettings={onModelSettings} />}
       </div>
       {gate && !model.ready && <ModelSetupGate variant="inline" feature="welcome" model={model} onOpenSettings={onModelSettings} />}
       {retell && <RetellPanel key={key} op="teach.retell" args={{ deckId: run.deckId, cardId: run.card.id }} draftKey={`card:${run.deckId}:${run.card.id}`}

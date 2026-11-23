@@ -109,7 +109,7 @@ export function QuestionMetaBadges({ run, sources, cardNotes = [], onOpenNote })
 }
 
 /** Secondary post-answer disclosure: schedule details, non-picked option notes, misconception/rubric, and guided learning actions. */
-export function PostAnswerDetails({ session, data, model, onModelSettings, openModal, showSolution, verdict = false, enOn = false, enAnswer = null, defaultOpen = false, nextDueNode = null, misconceptionShownAbove = false }) {
+export function PostAnswerDetails({ session, data, model, onModelSettings, openModal, showSolution, verdict = false, enOn = false, enAnswer = null, defaultOpen = false, nextDueNode = null, misconceptionShownAbove = false, similarShownAbove = false }) {
   const { run, choice } = session;
   const key = reviewEntryKey(run);
   const [openState, setOpenState] = React.useState({ key, open: !!defaultOpen });
@@ -166,7 +166,7 @@ export function PostAnswerDetails({ session, data, model, onModelSettings, openM
             <Markdown text={run.solution.rubric} />
           </div>
         )}
-        <LearningActions session={session} data={data} model={model} onModelSettings={onModelSettings} openModal={openModal} />
+        <LearningActions session={session} data={data} model={model} onModelSettings={onModelSettings} openModal={openModal} hideSimilar={similarShownAbove} />
       </div>
     </details>
   );

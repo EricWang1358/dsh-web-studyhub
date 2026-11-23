@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ui } from "../i18n.js";
+import { ui, uiFormat } from "../i18n.js";
 import { Button, InlineMessage, Spinner, Tooltip } from "../components/index.js";
 import ModelSetupGate from "../ModelSetupGate.jsx";
 import { useStudy } from "../study-context.jsx";
@@ -34,7 +34,21 @@ export default function SimilarTry({ session, data, model, onModelSettings }) {
   const reqIdRef = useRef(0);
   useEffect(() => () => { mountedRef.current = false; }, []);
   const here = state.key === key ? state : { kind: "idle", message: "" };
-  if (!answeredWrong(run) || run.mode === "exam" || run.returnTo) return null;
+  if (run.mode === "exam") return null;
+  if (run.similarFor && run.returnTo) {
+    const originDeck = (data?.decks || []).find((deck) => deck.id === run.similarFor.deckId);
+    const originCard = originDeck?.cards?.find((card) => card.id === run.similarFor.cardId);
+    const originPrompt = String(originCard?.prompt || "").replace(/\s+/g, " ").trim().slice(0, 60);
+    return (
+      <div className="similar-try similar-try--detour" data-similar-detour>
+        <Button size="sm" variant="secondary" icon="arrow-left" lock={busy} onClick={() => actions.returnToOrigin?.()}>
+          {ui("回到原题")}
+        </Button>
+        {originPrompt && <span className="similar-try__note">{uiFormat("原题：{0}", [originPrompt])}</span>}
+      </div>
+    );
+  }
+  if (!answeredWrong(run) || run.returnTo) return null;
   const origin = { deckId: run.deckId, cardId: run.card.id };
   const detour = (cardId, deckId = run.deckId) => actions.studyPrerequisites([{ deckId, cardId }], { similarFor: origin });
   const variant = variantTask(data?.assist, run);

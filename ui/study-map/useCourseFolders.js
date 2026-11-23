@@ -15,7 +15,7 @@ export function useCourseFolders(data, { query, showArchived, showOtherCourses, 
   const visible = data.decks.filter((deck) => {
     if (!!deck.archived !== showArchived) return false;
     if (!query) return true;
-    return `${deck.title} ${deck.folder} ${deck.topics.join(' ')}`.toLowerCase().includes(query);
+    return `${deck.title} ${deck.course ?? deck.folder ?? ''} ${deck.topics.join(' ')}`.toLowerCase().includes(query);
   });
   const inFocus = useMemo(() => (data.focus?.course == null ? () => false : courseMatcher(data, data.focus.course)),
     [data.focus?.course, courses]); // eslint-disable-line react-hooks/exhaustive-deps

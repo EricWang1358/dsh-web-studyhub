@@ -13,6 +13,7 @@ import ModelSetupGate from "./ModelSetupGate.jsx";
 import { modelReadiness, generationFormDefaults, syncGenerationDefaults } from "./generation-status.js";
 import { TokenEstimate } from "./TokenUsage.jsx";
 import { courseProfileFromState, DEFAULT_MINUTES_PER_MARK, countWords, caseStyleLimit } from "../lib/case-study.js";
+import { courseKey } from "../lib/courses.js";
 import { QUESTION_REFERENCE_LIMITS, QUESTION_REFERENCE_HARD_LIMITS } from "../lib/question-references.js";
 import { formatNumber } from "./format.js";
 import css from "./case-study.css";
@@ -39,15 +40,16 @@ export default function CaseCreate({ data, onStarted, openImport, openReferenceI
   const [referenceSourceIds, setReferenceSourceIds] = useState(initial.referenceSourceIds || []);
   const [referenceLimits, setReferenceLimits] = useState(initial.referenceLimits);
   const [referenceFormat, setReferenceFormat] = useState(initial.referenceFormat);
-  // The course profile (WP13) from the snapshot's course records; guidance and focus topics are the course's.
-  const profile = useMemo(() => courseProfileFromState({ courses: data.courses }, course), [data.courses, course]);
+  // The course profile (WP13) from the snapshot's course records; guidance and focus topics inherit along courseAncestors.
+  const profile = useMemo(() => courseProfileFromState({ courses: data.courses, sources: data.sources }, course), [data.courses, data.sources, course]);
   const evidenceIds = [...sourceIds, ...profile.guidanceSourceIds];
   const referenceState = referenceSelection(data.sources, referenceSourceIds, evidenceIds, referenceLimits, referenceFormat);
   const defaults = { totalMarks: profile.exam.totalMarks || 20, language: generationFormDefaults(data.settings?.generation).language };
   const [form, setForm] = useState(() => ({ questions: 2, ...defaults, title: "", styleText: initial.styleText || "" }));
   const inherited = useRef({ course, ...defaults });
   const [pasted, setPasted] = useState({ title: "", scenario: "", questions: [blankQuestion()] });
-  const courseRecord = (data.courses || []).find((item) => item.name === course);
+  const targetCourseKey = courseKey(course);
+  const courseRecord = targetCourseKey ? (data.courses || []).find((item) => courseKey(item.name) === targetCourseKey || (item.aliases || []).some((alias) => courseKey(alias) === targetCourseKey)) : null;
   const [passage, setPassage] = useState(initial.focus || "");
   useEffect(() => {
     const before = inherited.current;
@@ -95,7 +97,7 @@ export default function CaseCreate({ data, onStarted, openImport, openReferenceI
         <div className="case-create__profile">
           <p className="muted">{uiFormat("按课程的考试设置：每分约 {0} 分钟{1}{2}。", [profile.exam.minutesPerMark || DEFAULT_MINUTES_PER_MARK,
             profile.guidanceSourceIds.length ? uiFormat("，评分说明 {0} 份", [profile.guidanceSourceIds.length]) : ui("，还没有评分说明"),
-            profile.focusTopics.length ? uiFormat("，重点主题：{0}", [profile.focusTopics.join("、")]) : ""])}</p>
+            profile.focusTopics.length ? uiFormat("，重点主题：{0}", [profile.focusTopics.join("、")]) : ""])}{profile.inheritedFrom?.length > 0 ? uiFormat("（部分设置继承自「{0}」）", [profile.inheritedFrom.join("、")]) : ""}</p>
           {courseRecord && onCourseSettings
             ? <Button className="case-create__action" size="sm" variant="link" onClick={() => onCourseSettings(courseRecord.id)}>{ui("修改课程的考试设置、评分说明和重点主题")}</Button>
             : <small className="muted">{ui("选好课程后，可以在课程设置里指定评分说明资料和重点主题。")}</small>}
