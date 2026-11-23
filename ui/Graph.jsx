@@ -164,7 +164,7 @@ export default function Graph({
 
   const loadOutline = useCallback(async () => {
     if (mode !== "mastery" || initialOutline) return;
-    if (course === "*" || typeof course !== "string") {
+    if (objectScope || course === "*" || typeof course !== "string") {
       setOutlineData(null);
       setOutlineLoading(false);
       setOutlineError("");
@@ -185,19 +185,18 @@ export default function Graph({
     } finally {
       if (outlineSeq.current === n) setOutlineLoading(false);
     }
-  }, [call, course, initialOutline, mode]);
+  }, [call, course, initialOutline, mode, objectScope]);
 
   useEffect(() => {
     loadOutline();
   }, [loadOutline, library?.revision]);
 
   const masteryDecks = useMemo(() => {
-    const inScope = decksInCourse(library, course, showInactive);
     if (objectScope && Array.isArray(scope) && scope.length) {
       const wanted = new Set(scope.map((item) => item?.deckId).filter(Boolean));
-      if (wanted.size) return inScope.filter((deck) => wanted.has(deck.id));
+      if (wanted.size) return (library?.decks || []).filter((deck) => !deck.archived && !deck.systemKind && wanted.has(deck.id));
     }
-    return inScope;
+    return decksInCourse(library, course, showInactive);
   }, [library, course, showInactive, objectScope, scope]);
 
   const [practising, setPractising] = useState(false);
@@ -310,6 +309,7 @@ export default function Graph({
   }, [canvasWanted]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onKeyDown = (ev) => {
+    if (ev.nativeEvent?.isComposing || ev.isComposing || ev.keyCode === 229) return;
     if (ev.key !== "Escape") return;
     // Expanded in the top layer, Escape leaves that first; native fullscreen is left by the browser itself.
     if (fullscreen.onEscape(ev) || fullscreen.native) return;
@@ -549,7 +549,7 @@ export default function Graph({
       {isMastery ? (
         <div className="graph-mastery-body">
           <MasteryMap
-            outline={initialOutline ?? (outlineData && outlineData.course === course ? outlineData : null)}
+            outline={objectScope ? null : (initialOutline ?? (outlineData && outlineData.course === course ? outlineData : null))}
             decks={masteryDecks}
             progress={library?.progress || {}}
             course={course}

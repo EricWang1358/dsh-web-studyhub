@@ -4,6 +4,8 @@ import { Button, Tooltip } from '../components/index.js';
 import useRangeAnchor from '../document-preview/translation/useRangeAnchor.js';
 import { columnBounds, selectedWords, selectionBox, selectionPoint, toolbarStays } from './ask-visibility.js';
 import { HandOffButton } from '../hand-off/HandOff.jsx';
+import { hasChatHost } from '../hand-off/use-hand-off.js';
+import { useStudy } from '../study-context.jsx';
 
 /* The selection toolbar of the review book (docs/review-book.md "Ask AI"): words selected in a point, by mouse, keyboard or touch (it listens to
    `selectionchange`, so a Shift+arrow selection and a long press count, in 翻看 too), show 「弄懂」「写一段…」「发给主会话」 above the selection's first line,
@@ -14,6 +16,8 @@ import { HandOffButton } from '../hand-off/HandOff.jsx';
 /** host: the page element it is placed in; scrollerRef; hidden: the 问 AI panel is open; model: modelReadiness; onExplain({ heading, words }),
     onWrite({ heading, words, range }), onSend({ heading, words }). */
 export default function BookSelectBar({ host, scrollerRef, hidden = false, model, onExplain, onWrite, onSend }) {
+  const { host: studyHost } = useStudy();
+  const canChat = hasChatHost(studyHost);
   const [picked, setPicked] = useState(null);
   const bar = useRef(null), rangeRef = useRef(null), columnRef = useRef(null);
   // Placed against one box over the selection's lines (ask-visibility.js selectionBox), within the reading column of the point it is in.
@@ -45,7 +49,7 @@ export default function BookSelectBar({ host, scrollerRef, hidden = false, model
     const onDown = event => { if (!bar.current?.contains(event.target)) down = true; };
     const onUp = () => { if (down) { down = false; later(10); } };
     const onKey = event => {
-      if (!bar.current || event.defaultPrevented) return;
+      if (!bar.current || event.defaultPrevented || event.isComposing || event.keyCode === 229) return;
       if (event.key === 'Escape') { setPicked(null); return; }
       // From a new selection, the first Tab goes into the toolbar (its buttons are reached by keyboard too); once only, and only from the page itself or the
       // reading column the words are in, so the keyboard is never held in a loop.
@@ -74,7 +78,7 @@ export default function BookSelectBar({ host, scrollerRef, hidden = false, model
   return (
     // A press on the toolbar keeps the selection (the words stay highlighted while the learner chooses).
     <div className="book-select" ref={bar} role="toolbar" aria-label={ui('选中的文字')} onMouseDown={event => event.preventDefault()}>
-      <Tooltip layer content={model?.ready ? ui('用你设置的模型讲这几句，约 1 分钟；写好后收成一行，放在这段后面。') : ui('先配置模型才能弄懂；发给主会话不需要模型。')} anchorClassName="book-select__tip">
+      <Tooltip layer content={model?.ready ? ui('用你设置的模型讲这几句，约 1 分钟；写好后收成一行，放在这段后面。') : canChat ? ui('先配置模型才能弄懂；发给主会话不需要模型。') : ui('先配置模型才能弄懂；复制提示词不需要模型。')} anchorClassName="book-select__tip">
         <Button size="sm" variant="secondary" icon="sparkle" data-book-select="explain" onClick={done(now => (model?.ready ? onExplain(now) : onWrite({ ...now, range: rangeRef.current })))}>{ui('弄懂')}</Button>
       </Tooltip>
       <Button size="sm" variant="quiet" data-book-select="write" onClick={done(now => onWrite({ ...now, range: rangeRef.current }))}>{ui('写一段…')}</Button>

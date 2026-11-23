@@ -78,8 +78,56 @@ export default function ExamCoachPage({
   const [mockReport, setMockReport] = useState(null);
   const [editingFamilyId, setEditingFamilyId] = useState(null);
   const [editDraft, setEditDraft] = useState({ reasoningText: '', rubricText: '' });
+  const [configureDirty, setConfigureDirty] = useState(false);
+  const [remainingDraft, setRemainingDraft] = useState(null);
+  const [quotaDrafts, setQuotaDrafts] = useState({});
+  const [timeDrafts, setTimeDrafts] = useState({});
   const [pageError, setPageError] = useState('');
   const [working, setWorking] = useState(false);
+
+  function resetConfigureDrafts() {
+    setConfigureDirty(false);
+    setRemainingDraft(null);
+    setQuotaDrafts({});
+    setTimeDrafts({});
+  }
+
+  function clampRemainingMinutes(raw, fallback = 60) {
+    const num = Number(raw);
+    if (raw === '' || !Number.isFinite(num)) return fallback;
+    return Math.min(1200, Math.max(15, Math.round(num)));
+  }
+
+  function clampQuota(raw) {
+    const num = Number(raw);
+    if (raw === '' || !Number.isFinite(num)) return 0;
+    return Math.min(50, Math.max(0, Math.floor(num)));
+  }
+
+  function clampTimeBudget(raw, fallback = 90) {
+    const num = Number(raw);
+    if (raw === '' || !Number.isFinite(num)) return fallback;
+    return Math.min(3600, Math.max(15, Math.round(num)));
+  }
+
+  function resolveSpecWithDrafts(baseSpec = spec) {
+    if (!baseSpec) return null;
+    const nextCrunch = baseSpec.crunchMode ? { ...baseSpec.crunchMode } : undefined;
+    if (remainingDraft !== null && nextCrunch) {
+      nextCrunch.remainingMinutes = clampRemainingMinutes(remainingDraft, 60);
+    }
+    const nextFamilies = (baseSpec.taskFamilies || []).map((f) => {
+      let next = f;
+      if (Object.prototype.hasOwnProperty.call(quotaDrafts, f.id)) {
+        next = { ...next, quota: clampQuota(quotaDrafts[f.id]) };
+      }
+      if (Object.prototype.hasOwnProperty.call(timeDrafts, f.id)) {
+        next = { ...next, timeBudgetSec: clampTimeBudget(timeDrafts[f.id], 90) };
+      }
+      return next;
+    });
+    return { ...baseSpec, ...(nextCrunch ? { crunchMode: nextCrunch } : {}), taskFamilies: nextFamilies };
+  }
 
   function handleCourseChange(next) {
     if (next === course) return;
@@ -92,6 +140,7 @@ export default function ExamCoachPage({
     setMockReport(null);
     setEditingFamilyId(null);
     setEditDraft({ reasoningText: '', rubricText: '' });
+    resetConfigureDrafts();
     setPageError('');
     setStage('analyze');
   }
@@ -105,6 +154,7 @@ export default function ExamCoachPage({
         if (!live() || !res || courseSeqRef.current !== seq || courseRef.current !== reqCourse) return;
         setSpec(res.spec || null);
         setEvidence(res.evidence || null);
+        resetConfigureDrafts();
         if (res.spec?.stage) setStage(res.spec.stage);
       },
       (err) => {
@@ -135,6 +185,7 @@ export default function ExamCoachPage({
       if (courseSeqRef.current !== seq || courseRef.current !== reqCourse) return;
       setSpec(res.spec);
       setEvidence(res.evidence);
+      resetConfigureDrafts();
       setCompiledPreview(null);
       setMockReport(null);
       setStage('confirm');
@@ -153,7 +204,10 @@ export default function ExamCoachPage({
     try {
       const res = await call('coach.calibration.confirm', { course: reqCourse, familyId, ...patch });
       if (courseSeqRef.current !== seq || courseRef.current !== reqCourse) return;
-      if (res?.spec) setSpec(res.spec);
+      if (res?.spec) {
+        setSpec(res.spec);
+        resetConfigureDrafts();
+      }
       if (res?.evidence) setEvidence(res.evidence);
       setCompiledPreview(null);
       if (patch.revealSampleSolution) {
@@ -172,7 +226,10 @@ export default function ExamCoachPage({
     try {
       const res = await call('coach.calibration.save', { course: reqCourse, ...patch });
       if (courseSeqRef.current !== seq || courseRef.current !== reqCourse) return false;
-      if (res?.spec) setSpec(res.spec);
+      if (res?.spec) {
+        setSpec(res.spec);
+        resetConfigureDrafts();
+      }
       if (res?.evidence) setEvidence(res.evidence);
       if (patch.stage) setStage(patch.stage);
       setCompiledPreview(null);
@@ -214,6 +271,7 @@ export default function ExamCoachPage({
 
   function updateFamilyLocal(familyId, updater) {
     if (!spec) return;
+    setConfigureDirty(true);
     setSpec({
       ...spec,
       taskFamilies: spec.taskFamilies.map((f) => (f.id === familyId ? updater(f) : f)),
@@ -356,9 +414,20 @@ export default function ExamCoachPage({
           value={stage}
           options={stageOptions}
           onChange={(next) => {
+            const leavingConfigure = stage === 'configure' && configureDirty;
             setStage(next);
-            if (spec && spec.stage !== next) {
-              handleSaveSpec({ stage: next });
+            if (spec && (spec.stage !== next || leavingConfigure)) {
+              if (leavingConfigure) {
+                const resolved = resolveSpecWithDrafts(spec);
+                handleSaveSpec({
+                  templateName: resolved.templateName,
+                  crunchMode: resolved.crunchMode,
+                  taskFamilies: resolved.taskFamilies,
+                  stage: next,
+                });
+              } else {
+                handleSaveSpec({ stage: next });
+              }
             }
           }}
         />
@@ -622,16 +691,22 @@ export default function ExamCoachPage({
                 <Field label={ui('配置模板名称')} width="md">
                   <TextInput
                     value={spec.templateName || ''}
-                    onChange={(e) => setSpec({ ...spec, templateName: e.target.value })}
+                    onChange={(e) => {
+                      setConfigureDirty(true);
+                      setSpec({ ...spec, templateName: e.target.value });
+                    }}
                   />
                 </Field>
                 <Checkbox
                   label={ui('开启考前压缩模式（自动延后非重点项，不降低通过标准）')}
                   checked={!!spec.crunchMode?.enabled}
-                  onChange={(checked) => setSpec({
-                    ...spec,
-                    crunchMode: { ...(spec.crunchMode || {}), enabled: checked },
-                  })}
+                  onChange={(checked) => {
+                    setConfigureDirty(true);
+                    setSpec({
+                      ...spec,
+                      crunchMode: { ...(spec.crunchMode || {}), enabled: checked },
+                    });
+                  }}
                 />
                 {spec.crunchMode?.enabled && (
                   <Field label={ui('剩余可用时间')} width="sm">
@@ -639,11 +714,20 @@ export default function ExamCoachPage({
                       min={15}
                       max={1200}
                       suffix={ui('分钟')}
-                      value={spec.crunchMode?.remainingMinutes ?? 120}
-                      onChange={(e) => setSpec({
-                        ...spec,
-                        crunchMode: { ...(spec.crunchMode || {}), remainingMinutes: Math.max(15, Number(e.target.value) || 60) },
-                      })}
+                      value={remainingDraft ?? String(spec.crunchMode?.remainingMinutes ?? 120)}
+                      onChange={(e) => {
+                        setConfigureDirty(true);
+                        setRemainingDraft(e.target.value);
+                      }}
+                      onBlur={() => {
+                        if (remainingDraft === null) return;
+                        const clamped = clampRemainingMinutes(remainingDraft, 60);
+                        setSpec((cur) => (cur ? {
+                          ...cur,
+                          crunchMode: { ...(cur.crunchMode || {}), remainingMinutes: clamped },
+                        } : cur));
+                        setRemainingDraft(null);
+                      }}
                     />
                   </Field>
                 )}
@@ -661,7 +745,15 @@ export default function ExamCoachPage({
                     <Button
                       variant="quiet"
                       size="sm"
-                      onClick={() => handleSaveSpec({ operations: [{ type: 'delete', familyId: f.id }] }, ui('已移除该考察任务族'))}
+                      lock={busy || working}
+                      onClick={() => {
+                        const resolved = resolveSpecWithDrafts(spec);
+                        handleSaveSpec({
+                          templateName: resolved.templateName,
+                          crunchMode: resolved.crunchMode,
+                          taskFamilies: resolved.taskFamilies.filter((item) => item.id !== f.id),
+                        }, ui('已移除该考察任务族'));
+                      }}
                     >
                       {ui('删除任务族')}
                     </Button>
@@ -672,8 +764,17 @@ export default function ExamCoachPage({
                       <NumberInput
                         min={0}
                         max={50}
-                        value={f.quota}
-                        onChange={(e) => updateFamilyLocal(f.id, (cur) => ({ ...cur, quota: Math.max(0, Math.floor(Number(e.target.value) || 0)) }))}
+                        value={quotaDrafts[f.id] ?? String(f.quota)}
+                        onChange={(e) => {
+                          setConfigureDirty(true);
+                          setQuotaDrafts((cur) => ({ ...cur, [f.id]: e.target.value }));
+                        }}
+                        onBlur={() => {
+                          if (!Object.prototype.hasOwnProperty.call(quotaDrafts, f.id)) return;
+                          const clamped = clampQuota(quotaDrafts[f.id]);
+                          updateFamilyLocal(f.id, (cur) => ({ ...cur, quota: clamped }));
+                          setQuotaDrafts((cur) => { const next = { ...cur }; delete next[f.id]; return next; });
+                        }}
                       />
                     </Field>
                     <Field label={ui('配额单位')} width="sm">
@@ -707,8 +808,17 @@ export default function ExamCoachPage({
                         min={15}
                         max={3600}
                         suffix={ui('秒')}
-                        value={f.timeBudgetSec}
-                        onChange={(e) => updateFamilyLocal(f.id, (cur) => ({ ...cur, timeBudgetSec: Math.max(15, Number(e.target.value) || 90) }))}
+                        value={timeDrafts[f.id] ?? String(f.timeBudgetSec)}
+                        onChange={(e) => {
+                          setConfigureDirty(true);
+                          setTimeDrafts((cur) => ({ ...cur, [f.id]: e.target.value }));
+                        }}
+                        onBlur={() => {
+                          if (!Object.prototype.hasOwnProperty.call(timeDrafts, f.id)) return;
+                          const clamped = clampTimeBudget(timeDrafts[f.id], 90);
+                          updateFamilyLocal(f.id, (cur) => ({ ...cur, timeBudgetSec: clamped }));
+                          setTimeDrafts((cur) => { const next = { ...cur }; delete next[f.id]; return next; });
+                        }}
                       />
                     </Field>
                   </div>
@@ -724,40 +834,48 @@ export default function ExamCoachPage({
               <div className="exam-coach-actions">
                 <Button
                   variant="secondary"
-                  onClick={() => handleSaveSpec({
-                    operations: [{
-                      type: 'add',
-                      family: {
-                        id: `custom-${Date.now().toString(36)}`,
-                        title: ui('自定义应用任务族'),
-                        origin: 'user-defined',
-                        primaryFormat: 'open',
-                        allowedFormats: ['open'],
-                        allowFormSubstitute: false,
-                        quota: 2,
-                        priority: 'high',
-                        reasoningSteps: [ui('核对题干约束条件'), ui('分步推导并验证结论')],
-                        rubricPoints: [{ criterion: ui('分步推导完整'), marks: 5, condition: ui('列出依据并逐步求解') }],
-                        sample: {
-                          format: 'open',
-                          stem: ui('请结合给定约束条件分步推导并验证边界情况。'),
-                          answer: ui('先列前提，再分步求解并核对边界。'),
-                          rubric: ui('列出前提与依据（2分）；分步推导准确且检验边界（3分）。'),
-                        },
+                  lock={busy || working}
+                  onClick={() => {
+                    const resolved = resolveSpecWithDrafts(spec);
+                    const added = {
+                      id: `custom-${Date.now().toString(36)}`,
+                      title: ui('自定义应用任务族'),
+                      origin: 'user-defined',
+                      primaryFormat: 'open',
+                      allowedFormats: ['open'],
+                      allowFormSubstitute: false,
+                      quota: 2,
+                      priority: 'high',
+                      reasoningSteps: [ui('核对题干约束条件'), ui('分步推导并验证结论')],
+                      rubricPoints: [{ criterion: ui('分步推导完整'), marks: 5, condition: ui('列出依据并逐步求解') }],
+                      sample: {
+                        format: 'open',
+                        stem: ui('请结合给定约束条件分步推导并验证边界情况。'),
+                        answer: ui('先列前提，再分步求解并核对边界。'),
+                        rubric: ui('列出前提与依据（2分）；分步推导准确且检验边界（3分）。'),
                       },
-                    }],
-                  }, ui('已新增自定义任务族'))}
+                    };
+                    handleSaveSpec({
+                      templateName: resolved.templateName,
+                      crunchMode: resolved.crunchMode,
+                      taskFamilies: [...resolved.taskFamilies, added],
+                    }, ui('已新增自定义任务族'));
+                  }}
                 >
                   {ui('新增任务族')}
                 </Button>
                 <Button
                   variant="primary"
-                  onClick={() => handleSaveSpec({
-                    templateName: spec.templateName,
-                    crunchMode: spec.crunchMode,
-                    taskFamilies: spec.taskFamilies,
-                    stage: 'evidence',
-                  }, ui('训练配置已保存'))}
+                  lock={busy || working}
+                  onClick={() => {
+                    const resolved = resolveSpecWithDrafts(spec);
+                    handleSaveSpec({
+                      templateName: resolved.templateName,
+                      crunchMode: resolved.crunchMode,
+                      taskFamilies: resolved.taskFamilies,
+                      stage: 'evidence',
+                    }, ui('训练配置已保存'));
+                  }}
                 >
                   {ui('保存配置并查看生成与能力证据')}
                 </Button>

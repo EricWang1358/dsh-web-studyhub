@@ -394,15 +394,16 @@ export default function DocumentLearning({ call, document, capture, scope = null
   /** A click on a term, a quick follow-up or the box under an answer: a child of `parentId`. Only the refusal or the jump needs no model. */
   function askInside({ parentId, term = '', question: typed = '' }) {
     const current = threadRef.current, plan = planAsk(current, { parentId, term });
-    if (plan.action === 'open') { commit(revealNode(current, plan.node.id)); setFocusId(plan.node.id); return; }
-    if (plan.action === 'refuse') { const why = refusal(plan.reason); say(why.text, why.why); return; }
+    if (plan.action === 'open') { commit(revealNode(current, plan.node.id)); setFocusId(plan.node.id); return true; }
+    if (plan.action === 'refuse') { const why = refusal(plan.reason); say(why.text, why.why); return false; }
     const text = term ? uiFormat('「{0}」是什么意思？', [term]) : typed;
-    if (!text.trim()) return;
+    if (!text.trim()) return false;
     // A question inside an answer reads the part of the page that answer read (接着读).
     const id = crypto.randomUUID(), context = threadFor(current, parentId), offset = nodeOf(current, parentId)?.offset || 0;
     say();
     commit(addNode(current, { id, parentId, question: text, term, ...(offset ? { offset } : {}) }));
     run(id, { question: text, term, context, offset });
+    return true;
   }
   function retryNodeAsk(id) {
     const current = threadRef.current, node = nodeOf(current, id);

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { errorMessage, ui, uiFormat } from '../i18n.js';
 import { Button, Icon, InlineMessage, ProgressBar } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
@@ -139,12 +139,20 @@ function ManualSteps({ update, showLead }) {
 }
 
 /* Desktop upgrade panel shown inside UpdateDialog instead of DSH's plugin manager flow (ui/host-parts.js). */
-export default function DesktopUpgradeGuide({ update, host }) {
+export default function DesktopUpgradeGuide({ update, host, onBusyChange }) {
   useInjectCss(css, 'study-desktop');
   const [phase, setPhase] = useState('idle');
   const [progress, setProgress] = useState(null);
   const [error, setError] = useState('');
   const [manualOpen, setManualOpen] = useState(false);
+
+  useEffect(() => {
+    onBusyChange?.(phase === 'working');
+  }, [phase, onBusyChange]);
+
+  useEffect(() => () => {
+    onBusyChange?.(false);
+  }, [onBusyChange]);
 
   const runInstall = resolveUpdaterRunner(host);
   const installFlavor = host?.updater?.installFlavor;

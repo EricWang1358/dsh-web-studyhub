@@ -19,8 +19,9 @@ function FollowUp({ node, onAsk, quick }) {
   const [text, setText] = useState('');
   const submit = event => {
     event.preventDefault();
-    if (!text.trim()) return;
-    onAsk({ parentId: node.id, question: text.trim() }); setText('');
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    if (onAsk({ parentId: node.id, question: trimmed }) !== false) setText('');
   };
   const chip = (label, question) => <Tooltip layer group="ask-help" content={uiFormat('接着这条回答问：「{0}」。点击即发送。', [question])}>
     <Button size="sm" onClick={() => onAsk({ parentId: node.id, question })}>{label}</Button>

@@ -49,22 +49,27 @@ export default function Composer({ columnTitle, studyRef, library, labelSuggesti
   }, [raw]);
   useEffect(() => { if (autoFocus) area.current?.focus(); }, [autoFocus]);
 
+const isImeComposing = (event) => Boolean(event.nativeEvent?.isComposing || event.isComposing || event.keyCode === 229);
+
   const submit = async () => {
     if (!ready) return;
     setSending(true);
-    const parts = splitDraft(raw);
-    const ok = await onSubmit({ ...parts, due, labels: labels.split(/[,，]/).map((label) => label.trim()).filter(Boolean) });
-    setSending(false);
-    if (ok) { setRaw(''); area.current?.focus(); }
+    try {
+      const parts = splitDraft(raw);
+      const ok = await onSubmit({ ...parts, due, labels: labels.split(/[,，]/).map((label) => label.trim()).filter(Boolean) });
+      if (ok) { setRaw(''); area.current?.focus(); }
+    } finally {
+      setSending(false);
+    }
   };
   const link = studyRef ? studyRefLabel(studyRef, library) : null;
   return (
     <form className="board-composer" aria-label={uiFormat('添加卡片到{0}', [columnTitle])} onSubmit={(event) => { event.preventDefault(); submit(); }}
-      onKeyDown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); onClose(); } }}>
+      onKeyDown={(event) => { if (event.key === 'Escape' && !isImeComposing(event)) { event.stopPropagation(); onClose(); } }}>
       <textarea ref={area} rows={1} value={raw} maxLength={5000} placeholder={ui('想做什么？')} aria-label={uiFormat('{0}卡片标题', [columnTitle])}
         aria-invalid={problem ? 'true' : undefined} aria-describedby={problem ? hintId : undefined} className="board-composer__title"
         onChange={(event) => setRaw(event.target.value)}
-        onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent?.isComposing) { event.preventDefault(); submit(); } }} />
+        onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !isImeComposing(event)) { event.preventDefault(); submit(); } }} />
       {problem && <p id={hintId} role="alert" className="board-hint">{problem}</p>}
       {link && <Chip tone="info" size="sm" icon="link" className="board-composer__link" onRemove={onClearStudyRef} removeLabel={ui('取消关联')}>
         {studyRef.root

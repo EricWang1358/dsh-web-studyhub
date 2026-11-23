@@ -1,5 +1,4 @@
 import { ui, uiFormat, uiMessage } from "../i18n.js";
-import { COURSE_TERMS_LIMITS } from "../../lib/contexts/courses/terms.js";
 import React from "react";
 import {
   Badge,
@@ -12,6 +11,8 @@ import {
   LoadingState,
   Menu,
 } from "../components/index.js";
+
+const COURSE_TERMS_MAX_ITEMS = 200;
 
 export const TERM_GROUPS = Object.freeze([
   { state: "unknown", label: "不认识", tone: "warning" },
@@ -83,8 +84,8 @@ export default function TermListDialog({
         <div className="term-list-dialog">
           <div className="term-list-head">
             <span className="term-list-head__count">
-              {list.length >= Math.floor(COURSE_TERMS_LIMITS.maxItems * 0.8)
-                ? uiFormat("共 {0} / {1} 个词", [list.length, COURSE_TERMS_LIMITS.maxItems])
+              {list.length >= Math.floor(COURSE_TERMS_MAX_ITEMS * 0.8)
+                ? uiFormat("共 {0} / {1} 个词", [list.length, COURSE_TERMS_MAX_ITEMS])
                 : uiFormat("共 {0} 个词", [list.length])}
             </span>
             <Menu

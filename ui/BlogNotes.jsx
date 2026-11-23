@@ -1,4 +1,4 @@
-import { ui, uiFormat } from "./i18n.js";
+import { errorMessage, ui, uiFormat } from "./i18n.js";
 import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { markdown } from "@codemirror/lang-markdown";
@@ -177,7 +177,7 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
     pending.current = true; setSaving(true); setPublishing(lockEditing);
     const live = () => identity.current === token;
     try { await work(live); }
-    catch (error) { if (live()) toast.error(ui(error.message)); }
+    catch (error) { if (live()) toast.error(errorMessage(error)); }
     finally { if (live()) { pending.current = false; setSaving(false); setPublishing(false); } }
   }
   async function save() {
@@ -339,7 +339,7 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
               ? [...picked, { deckId: item.deckId, cardId: item.cardId }]
               : picked.filter((ref) => ref.cardId !== item.cardId))} />
           {item.prompt}</label>)}
-        <Button variant="primary" disabled={!newTitle.trim() || !picked.length}
+        <Button variant="primary" disabled={!newTitle.trim() || !picked.length} lock={busy}
           onClick={() => act("note.create", { title: newTitle, cards: picked }, (created) => {
             setId(created.id); setPicked([]); setNewTitle(""); setResults([]);
           })}>{uiFormat("创建笔记草稿 · {0} 题", [picked.length])}</Button>
@@ -362,7 +362,7 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
       {serverVersion && <details className="note-linking"><summary>{ui('已保存版本有更新，展开核对；你的输入已保留')}</summary>
         <strong>{serverVersion.title}</strong><ReadingBlock as="article" prose className="note-preview" dangerouslySetInnerHTML={{ __html: renderNoteMarkdown(serverVersion.markdown || '') }} />
       </details>}
-      {note.status === 'draft' && !daily && <NoteDraft note={note} model={modelReadiness(data)} running={note.generation?.status === 'running'} disabled={saving || publishing}
+      {note.status === 'draft' && !daily && <NoteDraft note={note} model={modelReadiness(data)} running={note.generation?.status === 'running'} disabled={saving || publishing} demotePrimary={editing || dirty}
         onStart={startDraft} onCancel={cancelDraft} onModelSettings={onModelSettings} />}
       {bridgeOn && !editing && onPracticeCards && practicePlan.scope.length > 0 && (
         <div className="note-practice-bar">
@@ -412,6 +412,16 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
         <p className="muted">{ui("公开文章请使用通用案例，不写课程、PPT 或个人信息。原题关联只保存在学习库。")}</p>
         <div className="note-actions">
         {writable && <Button className="note-action-btn" disabled={note.generation?.status === "running"} lock={saving} onClick={() => perform(async live => {
+          const initialMarkdown = current.current?.markdown || "";
+          let copiedMarkdown = null;
+          if (initialMarkdown && navigator.clipboard?.writeText) {
+            try {
+              await navigator.clipboard.writeText(initialMarkdown);
+              copiedMarkdown = initialMarkdown;
+            } catch {
+              copiedMarkdown = null;
+            }
+          }
           const editorTab = window.open("", "_blank");
           try {
             const saved = await persistCurrent();
@@ -419,18 +429,29 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
             let lookupHint = "";
             try { const prepared = await call("note.preparePublish", { id: saved.id });
               lookupHint = prepared.reason || ""; }
-            catch (error) { lookupHint = error.message; }
-            await navigator.clipboard.writeText(saved.markdown);
+            catch (error) { lookupHint = errorMessage(error); }
+            let copied = copiedMarkdown !== null && copiedMarkdown === saved.markdown;
+            if (!copied && navigator.clipboard?.writeText) {
+              try {
+                await navigator.clipboard.writeText(saved.markdown);
+                copied = true;
+              } catch {
+                copied = false;
+              }
+            }
             if (editorTab) { editorTab.opener = null; editorTab.location.href = csdnEditor; }
             else window.open(csdnEditor, "_blank", "noopener,noreferrer");
-            if (live()) toast.success(uiFormat("草稿已保存，Markdown 已复制；请在 CSDN 审阅并发布。{0}",[lookupHint]));
+            if (live()) {
+              if (copied) toast.success(uiFormat("草稿已保存，Markdown 已复制；请在 CSDN 审阅并发布。{0}", [lookupHint]));
+              else toast.info(uiFormat("草稿已保存并打开 CSDN，但未能自动复制内容，请手动复制 Markdown。{0}", [lookupHint]));
+            }
           } catch (error) { editorTab?.close(); throw error; }
         })}>{ui("复制内容并打开 CSDN")}</Button>}
         {writable && <Button className="note-action-btn" lock={saving} onClick={findPublished}>{ui("查找已发布文章")}</Button>}
       </div>
         <div className="note-card-search"><TextInput className="note-input" aria-label={ui("https://blog.csdn.net/用户名")} value={home} placeholder={ui("https://blog.csdn.net/用户名")}
           onChange={(event) => setHome(event.target.value)} />
-          <Button onClick={() => act("note.home", { home }, () => toast.success(ui("公开主页已保存")))}>{ui("保存主页")}</Button></div>
+          <Button disabled={!home.trim()} lock={busy} onClick={() => act("note.home", { home: home.trim() }, () => toast.success(ui("公开主页已保存")))}>{ui("保存主页")}</Button></div>
         {lookup?.reason && <InlineMessage tone="info">{lookup.reason}</InlineMessage>}
         {lookup?.matches?.map((url) => <Button key={url} onClick={() => linkArticle(url)}>{uiFormat("确认这篇文章 · {0}", [url])}</Button>)}
         {note.publicUrl && <p><a href={note.publicUrl} target="_blank" rel="noopener noreferrer">{ui("打开已发布文章")}<Icon name="external" className="sh-icon--inline sh-icon--trail" /></a></p>}
@@ -450,7 +471,7 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
           </div>
         )}
         <ul>{note.cards.map((ref) => <li key={ref.cardId}>
-          <Button iconEnd={ref.missing ? undefined : "arrow-right"} disabled={ref.missing || !onOpenCard} onClick={() => onOpenCard(ref)}>{ref.missing ? ui('原题已移除') : ref.prompt || ui('查看原题')}</Button>
+          <Button iconEnd={ref.missing ? undefined : "arrow-right"} disabled={ref.missing || !onOpenCard} onClick={() => guardLeave(() => onOpenCard(ref))}>{ref.missing ? ui('原题已移除') : ref.prompt || ui('查看原题')}</Button>
           {ref.deckTitle && <small className="muted">{ref.deckTitle}</small>}
           {editing && note.status === "draft" && !daily && <Button onClick={() => edit({
             cards: note.cards.filter((item) => item.cardId !== ref.cardId) })}>{ui("移除")}</Button>}</li>)}</ul>

@@ -47,10 +47,11 @@ export function scopedAttemptsOf(data, course, decks) {
   const matchCourse = courseMatcher(data, course);
   const deckIds = new Set((decks || []).map(deck => deck.id));
   const knownDecks = new Map((data?.decks || []).map(deck => [deck.id, deck]));
+  const singleScope = deckIds.size === knownDecks.size && (data?.focus?.courses?.length ?? 0) <= 1;
   return attempts.filter(attempt => {
     if (attempt?.deckId && knownDecks.has(attempt.deckId)) return deckIds.has(attempt.deckId);
     if (typeof attempt?.course === 'string') return matchCourse(attempt.course);
-    return course === '*';
+    return course === '*' || (!attempt?.deckId && singleScope);
   });
 }
 
