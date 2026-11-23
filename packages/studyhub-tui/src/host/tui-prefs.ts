@@ -46,6 +46,7 @@ function parseTuiPreferencesObject(source: Record<string, unknown>): TuiPreferen
     typeof source.compactMode === 'boolean' ? source.compactMode : DEFAULT_TUI_PREFERENCES.compactMode;
   const showKeyHints =
     typeof source.showKeyHints === 'boolean' ? source.showKeyHints : DEFAULT_TUI_PREFERENCES.showKeyHints;
+  const proactiveHints = typeof source.proactiveHints === 'boolean' ? source.proactiveHints : undefined;
   const asciiMode = typeof source.asciiMode === 'boolean' ? source.asciiMode : false;
 
   const recentCommands: string[] = [];
@@ -160,6 +161,7 @@ function parseTuiPreferencesObject(source: Record<string, unknown>): TuiPreferen
   };
   return {
     ...base,
+    ...(proactiveHints !== undefined ? { proactiveHints } : {}),
     ...(lastOpenAiPreset ? { lastOpenAiPreset } : {}),
     ...(lastReadPages ? { lastReadPages } : {}),
     ...(lastPracticeContext ? { lastPracticeContext } : {}),

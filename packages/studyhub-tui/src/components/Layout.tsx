@@ -16,6 +16,55 @@ import { useTuiStore } from '../state/store.js';
 export const GRID_GUTTER = 1;
 export const PAGE_PADDING_X = 1;
 export const SECTION_GAP = 1;
+/** Comfortable reading measure cap (Round 83 Track A2): ultrawide screens center prose within 96 columns. */
+export const PROSE_MAX_COLS = 96;
+
+export interface ProseLayout {
+  proseWidth: number;
+  marginLeft: number;
+  centered: boolean;
+}
+
+/**
+ * Compute comfortable reading measure and horizontal centering offset.
+ * - When `availableWidth <= maxCols` (e.g. 80x24 or 120x36 with SideNav), uses full available width (`marginLeft = 0`).
+ * - When `availableWidth > maxCols` (ultrawide screens), caps prose width at `maxCols` and centers with balanced whitespace.
+ */
+export function computeProseLayout(availableWidth: number, maxCols = PROSE_MAX_COLS): ProseLayout {
+  const safeAvail = Math.max(12, Math.floor(availableWidth));
+  const cap = Math.max(20, Math.floor(maxCols));
+  if (safeAvail <= cap) {
+    return { proseWidth: safeAvail, marginLeft: 0, centered: false };
+  }
+  const marginLeft = Math.floor((safeAvail - cap) / 2);
+  return { proseWidth: cap, marginLeft, centered: marginLeft > 0 };
+}
+
+export interface ProseContainerProps {
+  width: number;
+  maxCols?: number;
+  height?: number;
+  flexGrow?: number;
+  children?: ReactNode | ((proseWidth: number) => ReactNode);
+}
+
+/** Centers long-form prose cleanly within `maxCols` (default 96) on ultrawide terminals. */
+export const ProseContainer = memo(function ProseContainer({
+  width,
+  maxCols = PROSE_MAX_COLS,
+  height,
+  flexGrow,
+  children,
+}: ProseContainerProps) {
+  const { proseWidth, marginLeft } = computeProseLayout(width, maxCols);
+  return (
+    <Box width={width} height={height} flexGrow={flexGrow} paddingLeft={marginLeft} flexDirection="column" overflow="hidden">
+      <Box width={proseWidth} height={height} flexGrow={flexGrow} flexDirection="column" overflow="hidden">
+        {typeof children === 'function' ? children(proseWidth) : children}
+      </Box>
+    </Box>
+  );
+});
 
 const UNICODE_HAIRLINE = '─'.repeat(400);
 const ASCII_HAIRLINE = '-'.repeat(400);

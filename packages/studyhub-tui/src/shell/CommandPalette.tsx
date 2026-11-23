@@ -68,11 +68,16 @@ export function filterPaletteItems(
   if (scope === 'card' || scope === 'passage') {
     return [];
   }
+  const recentCat = t(lang, '最近', 'Recent');
+  const recentOrder = new Map<string, number>();
+  recentCommands.forEach((id, idx) => {
+    if (!recentOrder.has(id)) recentOrder.set(id, idx);
+  });
+
   if (scope === 'all' && !term) {
     const byId = new Map(items.map((i) => [i.id, i]));
     const recent = recentCommands.map((id) => byId.get(id)).filter((x): x is CommandPaletteItem => Boolean(x));
     const recentIds = new Set(recent.map((r) => r.id));
-    const recentCat = t(lang, '最近', 'Recent');
     return [
       ...recent.map((r) => ({ ...r, category: recentCat })),
       ...items.filter(
@@ -90,12 +95,33 @@ export function filterPaletteItems(
   } else if (scope === 'page') {
     pool = items.filter((i) => i.id.startsWith('page:'));
   }
-  return fuzzyFilter(
+
+  // Round 83 Track B2: when scoped with empty term (`/`, `:`, `@`), pin recently used matching items to the top in MRU order!
+  if (!term) {
+    const recentPool: CommandPaletteItem[] = [];
+    const restPool: CommandPaletteItem[] = [];
+    for (const item of pool) {
+      if (recentOrder.has(item.id)) recentPool.push({ ...item, category: recentCat });
+      else restPool.push(item);
+    }
+    recentPool.sort((a, b) => (recentOrder.get(a.id) ?? 999) - (recentOrder.get(b.id) ?? 999));
+    return [...recentPool, ...restPool];
+  }
+
+  // When searching with a term, keep fuzzy score primary and boost recently used items on close ties
+  const scored = fuzzyFilter(
     pool,
     term,
     (i) => (scope === 'cmd' && i.label.startsWith('/') ? i.label.slice(1) : i.label),
     (i) => [...(i.keywords ?? []), i.hint ?? ''],
-  ).map((r) => r.item);
+  );
+  if (recentOrder.size === 0) return scored.map((r) => r.item);
+  scored.sort((a, b) => {
+    const aRecent = recentOrder.has(a.item.id) ? 12 - Math.min(10, recentOrder.get(a.item.id)!) : 0;
+    const bRecent = recentOrder.has(b.item.id) ? 12 - Math.min(10, recentOrder.get(b.item.id)!) : 0;
+    return b.score + bRecent - (a.score + aRecent);
+  });
+  return scored.map((r) => r.item);
 }
 
 interface CardSearchHit {
@@ -432,6 +458,25 @@ export function buildPaletteItems(
       );
     },
     ['hints', 'keyhints', 'footer', 'keys', '提示', '快捷键', '底部'],
+  );
+  act(
+    'cmd:proactive',
+    '/proactive',
+    t(
+      lang,
+      state.preferences.proactiveHints !== false ? '关闭卡住 20 秒主动学习提示' : '开启卡住 20 秒主动学习提示',
+      state.preferences.proactiveHints !== false ? 'Disable proactive 20s stuck hints' : 'Enable proactive 20s stuck hints',
+    ),
+    () => {
+      const next = state.preferences.proactiveHints === false;
+      setPrefs({ proactiveHints: next });
+      persistPreferencePatch(host, { proactiveHints: next });
+      notify(
+        t(lang, next ? '主动学习提示已开启' : '主动学习提示已关闭', next ? 'Proactive hints enabled' : 'Proactive hints disabled'),
+        'info',
+      );
+    },
+    ['proactive', 'nudge', 'stuck', '主动', '卡住', '提示'],
   );
   act('cmd:model', '/model', t(lang, '配置模型（agy / OpenAI）', 'Configure model (agy / OpenAI)'), () => actions.openModelSettings(), ['agy', 'openai', 'deepseek', '模型', 'api key']);
   act('cmd:voicepack', '/voicepack', t(lang, '语音包', 'Voice pack'), () => state.setVoicePackOpen(true), ['voice', '语音', 'tts']);

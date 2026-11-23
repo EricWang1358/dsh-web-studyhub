@@ -19,7 +19,7 @@ import {
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, Divider, EmptyState, ProgressBar, Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
-import { SectionHeader } from '../../components/Layout.js';
+import { SectionHeader, computeProseLayout } from '../../components/Layout.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
 import { Modal } from '../../components/Modal.js';
 import { Panel } from '../../components/Panel.js';
@@ -60,6 +60,11 @@ import {
 } from './review-helpers.js';
 import type { SavedFollowupItem } from './AiHelpDrawer.js';
 import type { CoachNudgeNote } from './CoachNudgeModal.js';
+import {
+  STUCK_NUDGE_DELAY_MS,
+  buildStuckNudgeMessage,
+  shouldScheduleStuckNudge,
+} from './stuck-nudge.js';
 const AiHelpDrawer = lazy(() => import('./AiHelpDrawer.js').then((m) => ({ default: m.AiHelpDrawer })));
 const AnswerCardModal = lazy(() => import('./AnswerCardModal.js').then((m) => ({ default: m.AnswerCardModal })));
 const CardToolsModal = lazy(() => import('./CardToolsModal.js').then((m) => ({ default: m.CardToolsModal })));
@@ -248,11 +253,18 @@ function GradeAdjustModal({
   );
 }
 
-export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive }) => {
+export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = ({
+  host,
+  width,
+  height,
+  isActive,
+  stuckNudgeDelayMs = STUCK_NUDGE_DELAY_MS,
+}) => {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
   const mathUnicode = useTuiStore((s) => s.preferences.mathUnicode);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const proactiveHints = useTuiStore((s) => s.preferences.proactiveHints !== false);
   const setPreferences = useTuiStore((s) => s.setPreferences);
   const navContext = useTuiStore((s) => s.navContext);
   const activeRunId = useTuiStore((s) => s.activeRunId);
@@ -301,6 +313,11 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
   const [showTranslation, setShowTranslation] = useState(false);
   const [translating, setTranslating] = useState(false);
   const [translationTick, setTranslationTick] = useState(0);
+  const [stuckNudgeVisible, setStuckNudgeVisible] = useState(false);
+  const [stuckActivityTick, setStuckActivityTick] = useState(0);
+  const nudgedCardIdsRef = useRef<Set<string>>(new Set());
+  const roundNudgeCountRef = useRef(0);
+  const lastNudgeAtRef = useRef<number | null>(null);
 
   const mountedRef = useRef(true);
   const busyRef = useRef(false);
@@ -1196,6 +1213,8 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
   // Main keyboard controller for active question
   useInput(
     (input, key) => {
+      if (stuckNudgeVisible) setStuckNudgeVisible(false);
+      setStuckActivityTick((v) => v + 1);
       if (key.escape) {
         const stack = useTuiStore.getState().practiceStack;
         const top = stack[stack.length - 1];
@@ -1489,6 +1508,50 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     },
     { isActive: isActive && !loading && (!run || Boolean(endedRestoreFrame)) },
   );
+
+  // Round 83 Track D1: Proactive 20s stuck nudge (one-shot timer, rate-limited, opt-out, never interrupts typing!)
+  useEffect(() => {
+    setStuckNudgeVisible(false);
+  }, [cardKey]);
+
+  useEffect(() => {
+    if (
+      !shouldScheduleStuckNudge({
+        enabled: proactiveHints,
+        isActive,
+        revealed,
+        hasFeedback: Boolean(feedback),
+        isEditing: clozeEditing || openEditing,
+        anyModalOpen,
+        cardId,
+        nudgedCardIds: nudgedCardIdsRef.current,
+        roundNudgeCount: roundNudgeCountRef.current,
+        lastNudgeAt: lastNudgeAtRef.current,
+      })
+    ) {
+      return undefined;
+    }
+    const targetCardId = cardId!;
+    const timer = setTimeout(() => {
+      if (!mountedRef.current || currentCardIdRef.current !== targetCardId) return;
+      nudgedCardIdsRef.current.add(targetCardId);
+      roundNudgeCountRef.current += 1;
+      lastNudgeAtRef.current = Date.now();
+      setStuckNudgeVisible(true);
+    }, Math.max(10, stuckNudgeDelayMs));
+    return () => clearTimeout(timer);
+  }, [
+    proactiveHints,
+    isActive,
+    revealed,
+    feedback,
+    clozeEditing,
+    openEditing,
+    anyModalOpen,
+    cardId,
+    stuckActivityTick,
+    stuckNudgeDelayMs,
+  ]);
 
   // Sync rich current card context into persistent AI Assistant without mutating practiceStack (#1315/#1319 coexistence)
   useEffect(() => {
@@ -1787,14 +1850,40 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
 
           <Divider width={innerW} />
 
-          {/* Question Stem */}
-          <Box flexDirection="column" flexShrink={0} width={innerW} marginY={0}>
-            <MarkdownView
-              markdown={stemMarkdown}
-              width={innerW}
-              mathUnicode={mathUnicode}
-            />
-          </Box>
+          {/* Question Stem (Round 83 A2: cap prose at 96 cols and center on ultrawide viewports) */}
+          {(() => {
+            const { proseWidth, marginLeft } = computeProseLayout(innerW);
+            return (
+              <Box flexDirection="column" flexShrink={0} width={innerW} paddingLeft={marginLeft} marginY={0}>
+                <MarkdownView
+                  markdown={stemMarkdown}
+                  width={proseWidth}
+                  mathUnicode={mathUnicode}
+                />
+              </Box>
+            );
+          })()}
+
+          {/* Round 83 Track D1: Calm non-interrupting 20s stuck nudge inline banner */}
+          {stuckNudgeVisible && !revealed && !feedback ? (
+            <Box height={1} width={innerW} flexDirection="row" justifyContent="space-between" overflow="hidden" marginTop={0}>
+              <Text color={theme.accent} wrap="truncate">
+                {truncateDisplay(buildStuckNudgeMessage(lang, asciiMode), Math.max(12, innerW - 10), asciiMode ? '...' : '…')}
+              </Text>
+              <ClickableBox
+                clickActive={mainActive}
+                onClick={() => {
+                  setStuckNudgeVisible(false);
+                  setPreferences({ proactiveHints: false });
+                  const dshHome = (host as { dshHome?: string }).dshHome;
+                  void saveTuiPreferences({ proactiveHints: false }, dshHome ? { env: { DSH_HOME: dshHome } } : undefined).catch(() => {});
+                  notify(t(lang, '主动学习提示已关闭（可用 /proactive 重开）', 'Proactive hints turned off'), 'info');
+                }}
+              >
+                <Text color={theme.dim}>{t(lang, '[关闭]', '[Off]')}</Text>
+              </ClickableBox>
+            </Box>
+          ) : null}
 
           {/* Interactive Answering Area */}
           {(kind === 'single' || kind === 'multiple' || kind === 'true_false') && options.length > 0 ? (

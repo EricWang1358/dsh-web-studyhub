@@ -23,7 +23,8 @@ type RowKey =
   | 'asciiMode'
   | 'sidebarCollapsed'
   | 'compactMode'
-  | 'showKeyHints';
+  | 'showKeyHints'
+  | 'proactiveHints';
 
 const ROWS: readonly RowKey[] = Object.freeze([
   'theme',
@@ -33,6 +34,7 @@ const ROWS: readonly RowKey[] = Object.freeze([
   'sidebarCollapsed',
   'compactMode',
   'showKeyHints',
+  'proactiveHints',
 ]);
 
 function describeColorLevel(level: ReturnType<typeof getColorLevel>): string {
@@ -131,6 +133,14 @@ export const AppearanceTab: React.FC<AppearanceTabProps> = memo(function Appeara
       }
       if (rowKey === 'showKeyHints') {
         void persistPatch({ showKeyHints: !prefs.showKeyHints });
+        return;
+      }
+      if (rowKey === 'proactiveHints') {
+        const next = prefs.proactiveHints === false;
+        void persistPatch(
+          { proactiveHints: next },
+          next ? t(lang, '已开启主动学习提示', 'Proactive hints enabled') : t(lang, '已关闭主动学习提示', 'Proactive hints disabled'),
+        );
       }
     },
     [lang, persistPatch, prefs],
@@ -224,6 +234,12 @@ export const AppearanceTab: React.FC<AppearanceTabProps> = memo(function Appeara
       label: t(lang, '显示底部快捷键提示', 'Footer Key Hints'),
       value: prefs.showKeyHints ? t(lang, `显示 ${check}`, `Visible ${check}`) : t(lang, '隐藏', 'Hidden'),
       hint: t(lang, '控制底部导航提示条是否显示', 'Show or hide the bottom shortcut bar'),
+    },
+    {
+      key: 'proactiveHints' as const,
+      label: t(lang, '主动学习提示 (20s卡住)', 'Proactive Hints (20s)'),
+      value: prefs.proactiveHints !== false ? t(lang, `开启 ${check}`, `On ${check}`) : t(lang, '关闭', 'Off'),
+      hint: t(lang, '做题卡住20秒时给轻量提示（每轮限3次，不打断输入）', 'Calm stuck hint after 20s (max 3/round)'),
     },
   ];
 

@@ -59,6 +59,8 @@ export interface TuiPreferences {
   mathUnicode: boolean;
   compactMode: boolean;
   showKeyHints: boolean;
+  /** Proactive non-interrupting study nudges (e.g. 20s stuck hint); defaults to true (Round 83 D1). */
+  proactiveHints?: boolean;
   /** ASCII-safe borders/bars/spinners for legacy Windows PowerShell 5.1 conhost or TERM=dumb. */
   asciiMode?: boolean;
   recentCommands: string[];

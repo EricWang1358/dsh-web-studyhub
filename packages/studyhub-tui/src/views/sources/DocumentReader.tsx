@@ -5,6 +5,7 @@ import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
+import { computeProseLayout } from '../../components/Layout.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
 import { Panel } from '../../components/Panel.js';
 import { ScrollView } from '../../components/ScrollView.js';
@@ -1922,26 +1923,42 @@ export const DocumentReader = memo(function DocumentReader({
               <Text color={theme.error}>{loadError}</Text>
             </Box>
           ) : (pageData?.format === 'md' || pageData?.format === 'tex') ? (
-            <MarkdownView
-              markdown={pageData?.text || t(lang, '（本页暂无可提取文字）', '(No extracted text on this page)')}
-              width={Math.max(12, mainW - 4)}
-              height={Math.max(2, readerH - 2)}
-              isActive={readerInputActive && subMode === 'read'}
-              mathUnicode={mathUnicode}
-              highlight={activeSearch || undefined}
-              scrollTop={pageScrollTop}
-              onScroll={setPageScrollTop}
-            />
+            (() => {
+              const availW = Math.max(12, mainW - 4);
+              const { proseWidth, marginLeft } = computeProseLayout(availW);
+              return (
+                <Box width={availW} height={Math.max(2, readerH - 2)} paddingLeft={marginLeft} overflow="hidden">
+                  <MarkdownView
+                    markdown={pageData?.text || t(lang, '（本页暂无可提取文字）', '(No extracted text on this page)')}
+                    width={proseWidth}
+                    height={Math.max(2, readerH - 2)}
+                    isActive={readerInputActive && subMode === 'read'}
+                    mathUnicode={mathUnicode}
+                    highlight={activeSearch || undefined}
+                    scrollTop={pageScrollTop}
+                    onScroll={setPageScrollTop}
+                  />
+                </Box>
+              );
+            })()
           ) : (
-            <ScrollView
-              content={pageData?.text || t(lang, '（本页暂无可提取文字）', '(No extracted text on this page)')}
-              width={Math.max(12, mainW - 4)}
-              height={Math.max(2, readerH - 2)}
-              isActive={readerInputActive && subMode === 'read'}
-              highlight={activeSearch || undefined}
-              scrollTop={pageScrollTop}
-              onScroll={setPageScrollTop}
-            />
+            (() => {
+              const availW = Math.max(12, mainW - 4);
+              const { proseWidth, marginLeft } = computeProseLayout(availW);
+              return (
+                <Box width={availW} height={Math.max(2, readerH - 2)} paddingLeft={marginLeft} overflow="hidden">
+                  <ScrollView
+                    content={pageData?.text || t(lang, '（本页暂无可提取文字）', '(No extracted text on this page)')}
+                    width={proseWidth}
+                    height={Math.max(2, readerH - 2)}
+                    isActive={readerInputActive && subMode === 'read'}
+                    highlight={activeSearch || undefined}
+                    scrollTop={pageScrollTop}
+                    onScroll={setPageScrollTop}
+                  />
+                </Box>
+              );
+            })()
           )}
         </Panel>
 
