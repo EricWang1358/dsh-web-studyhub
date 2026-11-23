@@ -57,7 +57,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/document-title.js`: 19 ui files; contexts generation, materials; 10 other lib files
 - `lib/draft-continuation.js`: 1 ui file; contexts generation, jobs, library; 3 other lib files
 - `lib/draft-fields.js`: 1 ui file; contexts bank, generation; 4 other lib files
-- `lib/exam-point-list.js`: 4 ui files; contexts generation, library, materials, study; 21 other lib files
+- `lib/exam-point-list.js`: 4 ui files; contexts generation, library, materials, study; 20 other lib files
 - `lib/exam-prep-roles.js`: 3 ui files; context generation
 - `lib/exam-prep-settings.js`: 2 ui files; contexts generation, system; 2 other lib files
 - `lib/exam-timing.js`: 3 ui files; context study; 2 other lib files
@@ -109,7 +109,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/semver.js`: 1 ui file; context generation; 4 other lib files
 - `lib/shortfall.js`: 2 ui files
 - `lib/sm2.js`: 2 ui files; 8 other lib files
-- `lib/source-courses.js`: 7 ui files; contexts audio, bank, courses, generation, library, materials, recording; 31 other lib files
+- `lib/source-courses.js`: 7 ui files; contexts audio, bank, courses, generation, library, materials, recording; 32 other lib files
 - `lib/source-groups.js`: 29 ui files; contexts generation, library, materials; 9 other lib files
 - `lib/source-provenance.js`: 7 ui files; contexts generation, library, materials; 6 other lib files
 - `lib/source-relations.js`: 2 ui files
@@ -171,7 +171,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/learner-facts.js`: contexts coach, library; 2 other lib files
 - `lib/learning-scope.js`: contexts skeleton, study; 5 other lib files
 - `lib/mastery.js`: contexts courses, generation, library, study; 32 other lib files
-- `lib/material-source-versions.js`: contexts generation, library; 3 other lib files
+- `lib/material-source-versions.js`: contexts generation, library; 4 other lib files
 - `lib/mineru-history.js`: contexts audio, jobs, materials; 1 other lib file
 - `lib/mineru-job.js`: contexts audio, jobs; 1 other lib file
 - `lib/model-retry.js`: contexts coach, generation; 7 other lib files
