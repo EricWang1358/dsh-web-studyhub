@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from './i18n.js';
 import { joinMeta } from './format.js';
 import { useStudy } from './study-context.jsx';
@@ -68,6 +68,9 @@ export default function ExamCoachPage({
   }, [data?.courses, data?.sources, data?.decks]);
 
   const [course, setCourse] = useState(() => data?.focus?.course || knownCourses[0] || '');
+  const courseRef = useRef(course);
+  courseRef.current = course;
+  const courseSeqRef = useRef(0);
   const [stage, setStage] = useState('analyze');
   const [spec, setSpec] = useState(null);
   const [evidence, setEvidence] = useState(null);
@@ -78,17 +81,34 @@ export default function ExamCoachPage({
   const [pageError, setPageError] = useState('');
   const [working, setWorking] = useState(false);
 
-  useLiveEffect((live) => {
+  function handleCourseChange(next) {
+    if (next === course) return;
+    courseSeqRef.current += 1;
+    courseRef.current = next;
+    setCourse(next);
+    setSpec(null);
+    setEvidence(null);
+    setCompiledPreview(null);
+    setMockReport(null);
+    setEditingFamilyId(null);
+    setEditDraft({ reasoningText: '', rubricText: '' });
     setPageError('');
-    Promise.resolve(call?.('coach.calibration.get', { course })).then(
+    setStage('analyze');
+  }
+
+  useLiveEffect((live) => {
+    const reqCourse = course;
+    const seq = courseSeqRef.current;
+    setPageError('');
+    Promise.resolve(call?.('coach.calibration.get', { course: reqCourse })).then(
       (res) => {
-        if (!live() || !res) return;
+        if (!live() || !res || courseSeqRef.current !== seq || courseRef.current !== reqCourse) return;
         setSpec(res.spec || null);
         setEvidence(res.evidence || null);
         if (res.spec?.stage) setStage(res.spec.stage);
       },
       (err) => {
-        if (live()) setPageError(errorMessage(err));
+        if (live() && courseSeqRef.current === seq && courseRef.current === reqCourse) setPageError(errorMessage(err));
       },
     );
   }, [call, course, data?.decks?.length, data?.attempts?.length]);
@@ -106,26 +126,33 @@ export default function ExamCoachPage({
   ];
 
   async function handleAnalyze(useModel = false) {
+    const reqCourse = course;
+    const seq = courseSeqRef.current;
     setWorking(true);
     setPageError('');
     try {
-      const res = await call('coach.calibration.analyze', { course, useModel });
+      const res = await call('coach.calibration.analyze', { course: reqCourse, useModel });
+      if (courseSeqRef.current !== seq || courseRef.current !== reqCourse) return;
       setSpec(res.spec);
       setEvidence(res.evidence);
       setCompiledPreview(null);
+      setMockReport(null);
       setStage('confirm');
       notify?.({ text: ui('已生成考察方式与代表样题草案，请逐项核对确认。'), tone: 'success' });
     } catch (err) {
-      setPageError(errorMessage(err));
+      if (courseSeqRef.current === seq && courseRef.current === reqCourse) setPageError(errorMessage(err));
     } finally {
-      setWorking(false);
+      if (courseSeqRef.current === seq && courseRef.current === reqCourse) setWorking(false);
     }
   }
 
   async function handleConfirmFlag(familyId, patch) {
+    const reqCourse = course;
+    const seq = courseSeqRef.current;
     setPageError('');
     try {
-      const res = await call('coach.calibration.confirm', { course, familyId, ...patch });
+      const res = await call('coach.calibration.confirm', { course: reqCourse, familyId, ...patch });
+      if (courseSeqRef.current !== seq || courseRef.current !== reqCourse) return;
       if (res?.spec) setSpec(res.spec);
       if (res?.evidence) setEvidence(res.evidence);
       setCompiledPreview(null);
@@ -133,21 +160,29 @@ export default function ExamCoachPage({
         notify?.({ text: ui('已展开样题答案并记录解法暴露；近似题干将不计入未见独立证据。'), tone: 'info' });
       }
     } catch (err) {
-      setPageError(errorMessage(err));
+      if (courseSeqRef.current === seq && courseRef.current === reqCourse) setPageError(errorMessage(err));
     }
   }
 
   async function handleSaveSpec(patch, toastText) {
+    const reqCourse = course;
+    const seq = courseSeqRef.current;
+    setWorking(true);
     setPageError('');
     try {
-      const res = await call('coach.calibration.save', { course, ...patch });
+      const res = await call('coach.calibration.save', { course: reqCourse, ...patch });
+      if (courseSeqRef.current !== seq || courseRef.current !== reqCourse) return false;
       if (res?.spec) setSpec(res.spec);
       if (res?.evidence) setEvidence(res.evidence);
       if (patch.stage) setStage(patch.stage);
       setCompiledPreview(null);
       if (toastText) notify?.({ text: toastText, tone: 'success' });
+      return true;
     } catch (err) {
-      setPageError(errorMessage(err));
+      if (courseSeqRef.current === seq && courseRef.current === reqCourse) setPageError(errorMessage(err));
+      return false;
+    } finally {
+      if (courseSeqRef.current === seq && courseRef.current === reqCourse) setWorking(false);
     }
   }
 
@@ -170,11 +205,11 @@ export default function ExamCoachPage({
         sample: { ...f.sample, rubric: nextRubric },
       };
     });
-    await handleSaveSpec(
+    const ok = await handleSaveSpec(
       { taskFamilies: updatedFamilies },
       ui('已更新推理与评分规则；版本已推进，请重新确认该项考察意图与答案。'),
     );
-    setEditingFamilyId(null);
+    if (ok) setEditingFamilyId(null);
   }
 
   function updateFamilyLocal(familyId, updater) {
@@ -186,10 +221,13 @@ export default function ExamCoachPage({
   }
 
   async function handleBuildPreview() {
+    const reqCourse = course;
+    const seq = courseSeqRef.current;
     setWorking(true);
     setPageError('');
     try {
-      const built = await call('coach.calibration.buildRequest', { course });
+      const built = await call('coach.calibration.buildRequest', { course: reqCourse });
+      if (courseSeqRef.current !== seq || courseRef.current !== reqCourse) return;
       let genPreview = null;
       if (built.totalCount > 0 && built.request.sourceIds?.length > 0) {
         try {
@@ -198,33 +236,40 @@ export default function ExamCoachPage({
           genPreview = null;
         }
       }
-      setCompiledPreview({ built, genPreview });
+      if (courseSeqRef.current !== seq || courseRef.current !== reqCourse) return;
+      setCompiledPreview({ course: reqCourse, built, genPreview });
     } catch (err) {
-      setPageError(errorMessage(err));
+      if (courseSeqRef.current === seq && courseRef.current === reqCourse) setPageError(errorMessage(err));
     } finally {
-      setWorking(false);
+      if (courseSeqRef.current === seq && courseRef.current === reqCourse) setWorking(false);
     }
   }
 
   async function handleApplyToGenerateForm() {
+    const reqCourse = course;
+    const seq = courseSeqRef.current;
     setPageError('');
     try {
-      const built = await call('coach.calibration.buildRequest', { course });
+      const built = await call('coach.calibration.buildRequest', { course: reqCourse });
+      if (courseSeqRef.current !== seq || courseRef.current !== reqCourse) return;
       if (onApplyToGenerate) {
         onApplyToGenerate(built);
       } else {
         onGoGenerate?.();
       }
     } catch (err) {
-      setPageError(errorMessage(err));
+      if (courseSeqRef.current === seq && courseRef.current === reqCourse) setPageError(errorMessage(err));
     }
   }
 
   async function handleDirectGenerate() {
+    const reqCourse = course;
+    const seq = courseSeqRef.current;
     setWorking(true);
     setPageError('');
     try {
-      const built = await call('coach.calibration.buildRequest', { course });
+      const built = await call('coach.calibration.buildRequest', { course: reqCourse });
+      if (courseSeqRef.current !== seq || courseRef.current !== reqCourse) return;
       if (built.totalCount <= 0) {
         setPageError(ui('当前启用配额为 0 题，请先在「调整训练配置」里设置至少 1 个非零配额任务族。'));
         return;
@@ -234,13 +279,15 @@ export default function ExamCoachPage({
         onOpenTasks?.();
       });
     } catch (err) {
-      setPageError(errorMessage(err));
+      if (courseSeqRef.current === seq && courseRef.current === reqCourse) setPageError(errorMessage(err));
     } finally {
-      setWorking(false);
+      if (courseSeqRef.current === seq && courseRef.current === reqCourse) setWorking(false);
     }
   }
 
   async function handleCheckStrictMock() {
+    const reqCourse = course;
+    const seq = courseSeqRef.current;
     setWorking(true);
     setPageError('');
     try {
@@ -257,12 +304,13 @@ export default function ExamCoachPage({
             subpartsCount: f.quotaUnit === 'subquestion' ? Math.max(2, f.questionsPerUnit) : 0,
           }))
         : [{ id: 'default-quiz', title: ui('基础客观题'), allowedKinds: ['quiz'], count: 4, marksPerItem: 2, timePerItemSec: 90 }];
-      const res = await call('coach.mockPaper.compose', { course, examShape: { sections } });
-      setMockReport(res);
+      const res = await call('coach.mockPaper.compose', { course: reqCourse, examShape: { sections } });
+      if (courseSeqRef.current !== seq || courseRef.current !== reqCourse) return;
+      setMockReport({ course: reqCourse, report: res });
     } catch (err) {
-      setPageError(errorMessage(err));
+      if (courseSeqRef.current === seq && courseRef.current === reqCourse) setPageError(errorMessage(err));
     } finally {
-      setWorking(false);
+      if (courseSeqRef.current === seq && courseRef.current === reqCourse) setWorking(false);
     }
   }
 
@@ -288,7 +336,7 @@ export default function ExamCoachPage({
       <div className="exam-coach-toolbar">
         <div className="exam-coach-course-row">
           <Field label={ui('当前课程')} inline width="sm">
-            <Select options={courseOptions} value={course} onChange={(val) => setCourse(val)} />
+            <Select options={courseOptions} value={course} onChange={handleCourseChange} />
           </Field>
           {spec && (
             <div className="exam-coach-meta-row">
@@ -335,7 +383,7 @@ export default function ExamCoachPage({
               </p>
             </div>
             <div className="exam-coach-actions">
-              <Button variant="primary" lock={busy || working} onClick={() => handleAnalyze(false)}>
+              <Button variant={!hasSources || spec ? 'secondary' : 'primary'} lock={busy || working} onClick={() => handleAnalyze(false)}>
                 {spec ? ui('重新整理考察方式') : ui('分析考察方式')}
               </Button>
               {model.ready && (
@@ -515,7 +563,7 @@ export default function ExamCoachPage({
                     />
                   </Field>
                   <div className="exam-coach-actions">
-                    <Button variant="primary" size="sm" onClick={() => saveRuleEdits(f)}>{ui('保存规则修改')}</Button>
+                    <Button variant="primary" size="sm" lock={busy || working} onClick={() => saveRuleEdits(f)}>{ui('保存规则修改')}</Button>
                     <Button variant="quiet" size="sm" onClick={() => setEditingFamilyId(null)}>{ui('取消')}</Button>
                   </div>
                 </div>
@@ -549,7 +597,7 @@ export default function ExamCoachPage({
 
           {spec && (
             <div className="exam-coach-actions">
-              <Button variant="primary" onClick={() => setStage('configure')}>{ui('下一步：调整题型配额与训练配置')}</Button>
+              <Button variant={editingFamilyId ? 'secondary' : 'primary'} onClick={() => setStage('configure')}>{ui('下一步：调整题型配额与训练配置')}</Button>
             </div>
           )}
         </div>
@@ -746,7 +794,7 @@ export default function ExamCoachPage({
               </div>
             </div>
 
-            {compiledPreview?.built && (
+            {compiledPreview?.course === course && compiledPreview?.built && (
               <div className="exam-coach-sample" data-testid="coach-compiled-preview">
                 <strong>{uiFormat('生效配置摘要（规格 {0}）', [compiledPreview.built.coachSpecVersion])}</strong>
                 <div className="exam-coach-meta">
@@ -884,17 +932,17 @@ export default function ExamCoachPage({
               </Button>
             </div>
 
-            {mockReport && (
+            {mockReport?.course === course && mockReport.report && (
               <div className="exam-coach-sample" data-testid="coach-strict-mock-report">
                 <div className="exam-coach-meta-row">
-                  <Badge tone={mockReport.complete ? 'success' : 'warning'} size="sm">
-                    {mockReport.complete ? ui('可完整组成同型卷') : uiFormat('存在 {0} 处结构缺口（未凑数）', [mockReport.shortfalls.length])}
+                  <Badge tone={mockReport.report.complete ? 'success' : 'warning'} size="sm">
+                    {mockReport.report.complete ? ui('可完整组成同型卷') : uiFormat('存在 {0} 处结构缺口（未凑数）', [mockReport.report.shortfalls.length])}
                   </Badge>
                   <Badge size="sm">
-                    {uiFormat('可达分值：{0} / {1} 分', [mockReport.totalMarks, mockReport.targetMarks])}
+                    {uiFormat('可达分值：{0} / {1} 分', [mockReport.report.totalMarks, mockReport.report.targetMarks])}
                   </Badge>
                 </div>
-                {mockReport.shortfalls?.map((sf) => (
+                {mockReport.report.shortfalls?.map((sf) => (
                   <div key={sf.sectionId} className="exam-coach-note exam-coach-note--warn">
                     {uiFormat('「{0}」需 {1} 题，实有合格 {2} 题：{3}', [sf.title, sf.requested, sf.fulfilled, sf.reason])}
                   </div>

@@ -436,7 +436,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             </>
           ) : rubricCard ? (
             <>
-              <RubricAnswer key={`rubric:${run.id}:${run.index}:${run.card.id}`} run={run} data={data} value={response} onChange={actions.setResponse} task={gradeTask}
+              <RubricAnswer key={`rubric:${run.id}:${run.index}:${run.card.id}`} run={run} data={data} value={response} onChange={actions.setResponse} task={gradeTask} onRefreshRun={session.pollNow}
                 onSubmit={(text) => assistAct("grade", text, [], undefined, { quiet: true })} onSetupModel={onModelSettings || (() => openSettings("settings-model"))} />
               {voice.answer}
               {prereqStrip}

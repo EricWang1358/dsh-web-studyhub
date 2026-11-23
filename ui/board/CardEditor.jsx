@@ -9,6 +9,30 @@ import { dueText, stamp, studyRefLabel } from './meta.js';
 const newItemId = () => `i${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 const sameList = (a, b) => JSON.stringify(a || []) === JSON.stringify(b || []);
 
+const splitLabels = (raw) => String(raw || '').split(/[,，]/).map((label) => label.trim()).filter(Boolean);
+
+export function isCardEditorDirty({ draft, card, itemInput = '', labelInput = '' }) {
+  const pendingItem = Boolean(String(itemInput || '').trim()) && (draft.checklist?.length || 0) < CHECKLIST_MAX_ITEMS;
+  const pendingLabels = splitLabels(labelInput).some((label) => !(draft.labels || []).includes(label));
+  return pendingItem || pendingLabels
+    || draft.title !== card.title || draft.note !== (card.note || '') || draft.due !== (card.due || '')
+    || draft.plannedDate !== (card.plannedDate || '') || !sameList(draft.labels, card.labels) || !sameList(draft.checklist, card.checklist);
+}
+
+export function finalizeCardFields({ draft, card, itemInput = '', labelInput = '' }) {
+  const extraLabels = splitLabels(labelInput);
+  const labels = extraLabels.length ? [...new Set([...draft.labels, ...extraLabels])].slice(0, 20) : draft.labels;
+  const fields = { title: draft.title.trim(), note: draft.note, due: draft.due, labels };
+  if (draft.plannedDate || card.plannedDate) fields.plannedDate = draft.plannedDate;
+  const checklist = draft.checklist.filter((item) => item.text.trim()).map((item) => ({ ...item, text: item.text.trim() }));
+  const pendingItem = String(itemInput || '').trim();
+  if (pendingItem && checklist.length < CHECKLIST_MAX_ITEMS) {
+    checklist.push({ id: newItemId(), text: pendingItem.slice(0, CHECKLIST_MAX_TEXT), done: false });
+  }
+  if (checklist.length || card.checklist) fields.checklist = checklist;
+  return fields;
+}
+
 const fromCard = (card) => ({ title: card.title, note: card.note || '', due: card.due || '', plannedDate: card.plannedDate || '', labels: [...(card.labels || [])],
   checklist: (card.checklist || []).map((item) => ({ ...item })) });
 
@@ -53,14 +77,10 @@ export default function CardEditor({ card, board, baseRevision, library, today, 
     event.preventDefault();
     setTouched(true);
     if (problem || stale || readOnly || saving) return;
-    const fields = { title: draft.title.trim(), note: draft.note, due: draft.due, labels: draft.labels };
-    if (draft.plannedDate || card.plannedDate) fields.plannedDate = draft.plannedDate;
-    const checklist = draft.checklist.filter((item) => item.text.trim()).map((item) => ({ ...item, text: item.text.trim() }));
-    if (checklist.length || card.checklist) fields.checklist = checklist;
+    const fields = finalizeCardFields({ draft, card, itemInput, labelInput });
     if (await onSave(fields)) onClose();
   };
-  const dirty = draft.title !== card.title || draft.note !== (card.note || '') || draft.due !== (card.due || '')
-    || draft.plannedDate !== (card.plannedDate || '') || !sameList(draft.labels, card.labels) || !sameList(draft.checklist, card.checklist);
+  const dirty = isCardEditorDirty({ draft, card, itemInput, labelInput });
 
   const footer = (
     <>

@@ -1,4 +1,4 @@
-import React, { useContext, useMemo, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { formatNumber } from '../format.js';
 import { useStudy } from '../study-context.jsx';
@@ -24,6 +24,16 @@ export default function CourseCompanionsBar({ course, data }) {
   const [expanded, setExpanded] = useState(false);
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const prevCourseRef = useRef(course);
+
+  // Reset search, progress filter and expand state when switching courses in place (e.g. StudyMap).
+  useEffect(() => {
+    if (prevCourseRef.current === course) return;
+    prevCourseRef.current = course;
+    setQuery('');
+    setStatusFilter('all');
+    setExpanded(false);
+  }, [course]);
 
   const companions = useMemo(() => {
     if (!course) return [];
@@ -31,21 +41,32 @@ export default function CourseCompanionsBar({ course, data }) {
     return (rec?.companions || []).filter(item => !undoable.hidden(`comp:${item.id}`));
   }, [course, data?.courses, undoable]);
 
+  const toolbarShown = companions.length > 6;
+  useEffect(() => {
+    if (!toolbarShown && (query || statusFilter !== 'all')) {
+      setQuery('');
+      setStatusFilter('all');
+    }
+  }, [toolbarShown, query, statusFilter]);
+
+  const effectiveQuery = toolbarShown ? query : '';
+  const effectiveStatus = toolbarShown ? statusFilter : 'all';
+
   const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase();
+    const needle = effectiveQuery.trim().toLowerCase();
     return companions.filter(item => {
-      if (statusFilter === 'done' && !item.progress?.completed) return false;
-      if (statusFilter === 'active' && (!(item.progress?.slide > 1) || item.progress?.completed)) return false;
+      if (effectiveStatus === 'done' && !item.progress?.completed) return false;
+      if (effectiveStatus === 'active' && (!(item.progress?.slide > 1) || item.progress?.completed)) return false;
       if (!needle) return true;
       const hay = `${item.title || ''} ${item.lessonId || ''} ${item.relPath || ''}`.toLowerCase();
       return hay.includes(needle);
     });
-  }, [companions, query, statusFilter]);
+  }, [companions, effectiveQuery, effectiveStatus]);
 
   if (course === null || course === undefined) return null;
 
   const isEmpty = companions.length === 0;
-  const isFiltering = Boolean(query.trim()) || statusFilter !== 'all';
+  const isFiltering = Boolean(effectiveQuery.trim()) || effectiveStatus !== 'all';
   const collapseCap = isFiltering ? 24 : 6;
   const shown = expanded ? filtered : filtered.slice(0, collapseCap);
   const remove = item => undoable.commitLater({

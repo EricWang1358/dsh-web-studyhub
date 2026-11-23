@@ -54,7 +54,7 @@ export default function LearningActions({ session, data, model, onModelSettings,
         <Chip selected={teaching?.mode === "understanding"} onClick={() => teach("understanding")}>{ui("逐步理解")}</Chip>
         <Chip selected={teaching?.mode === "calculation"} disabled={!calculationAvailable} title={!calculationAvailable ? ui("这道题没有关联原文资料，无法使用计算题引导练习") : undefined} onClick={() => { if (calculationAvailable) teach("calculation"); }}>{ui("计算题引导练习")}</Chip>
         <Chip selected={retell} data-usage="review.retell" onClick={() => setRetell((open) => !open)}>{ui("用自己的话讲一遍")}</Chip>
-        <TeachingStatus busy={teachingBusy} failure={teachingError} onCancel={actions.cancelTeaching} onRetry={actions.retryTeaching} />
+        {!teaching && <TeachingStatus busy={teachingBusy} failure={teachingError} onCancel={actions.cancelTeaching} onRetry={actions.retryTeaching} />}
         {!teaching?.complete && <SimilarTry session={session} data={data} model={model} onModelSettings={onModelSettings} />}
       </div>
       {gate && !model.ready && <ModelSetupGate variant="inline" feature="welcome" model={model} onOpenSettings={onModelSettings} />}

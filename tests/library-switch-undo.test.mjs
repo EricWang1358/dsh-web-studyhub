@@ -40,10 +40,12 @@ test('useLibraryReset hands abandonPending and unsentText to the reset (App wire
   assert.match(useLibraryReset.toString(), /abandonPending: \(\) => latest\.current\.abandonPending/);
 });
 
-test('a library move the learner makes sends what is waiting first: updateBinding awaits flushUndoable before epoch++ and binding.set', () => {
+test('a library move the learner makes sends what is waiting first: updateBinding awaits flushUndoable before binding.set and resets only after move', () => {
   const source = readFileSync('ui/app/use-library-connection.js', 'utf8');
-  const body = source.slice(source.indexOf('async function updateBinding'), source.indexOf("call('binding.set'"));
-  const flush = body.indexOf('await flushUndoable()'), epoch = body.indexOf('refs.epoch.current++');
-  assert.ok(flush > 0, 'updateBinding awaits flushUndoable');
-  assert.ok(epoch > flush, 'before the library epoch moves (a late answer would otherwise turn a done deletion into a false failure)');
+  const fnStart = source.indexOf('export async function performBindingUpdate');
+  const callIdx = source.indexOf("call('binding.set'", fnStart);
+  const resetIdx = source.indexOf("resetLibraryState('binding'", fnStart);
+  const flushIdx = source.indexOf('await flush()', fnStart);
+  assert.ok(flushIdx > fnStart && flushIdx < callIdx, 'performBindingUpdate awaits flushUndoable before binding.set');
+  assert.ok(resetIdx > callIdx, 'library epoch moves via resetLibraryState only after binding.set confirms a move');
 });

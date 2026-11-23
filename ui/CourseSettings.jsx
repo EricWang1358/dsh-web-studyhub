@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, Checkbox, Dialog, Disclosure, EmptyState, Field, Hint, Icon, IconButton, InlineConfirm, InlineMessage, NumberInput, ScrollWindow, SegmentedControl, SettingsSection, TextArea, TextInput, Tooltip, useToast } from './components/index.js';
+import { Button, Checkbox, ConfirmDialog, Dialog, Disclosure, EmptyState, Field, Hint, Icon, IconButton, InlineConfirm, InlineMessage, NumberInput, ScrollWindow, SegmentedControl, SettingsSection, TextArea, TextInput, Tooltip, useToast } from './components/index.js';
 import SourcePicker from './SourcePicker.jsx';
 import TopicChips from './TopicChips.jsx';
 import FocusProgressList from './FocusProgressList.jsx';
@@ -320,10 +320,12 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
   const [confirm, setConfirm] = useState(() => mergeFrom.length ? 'merge' : null); // 'rename' | 'merge'
   const [mergeIds, setMergeIds] = useState(() => mergeFrom.filter(id => id !== courseId && courses.some(item => item.id === id)));
   const renameTrigger = useRef(null), mergeTrigger = useRef(null);
+  const ruleDraftRef = useRef(null), notationDraftRef = useRef(null);
   const [error, setError] = useState('');
   const [working, setWorking] = useState(false);
   const [methodEditing, setMethodEditing] = useState(false);
   const [nestedWarn, setNestedWarn] = useState(false);
+  const [leavePrompt, setLeavePrompt] = useState(null); // null | { kind: 'focus-intake' } | { kind: 'close', reason: string } | { kind: 'leave', onConfirm: () => void }
   const weakTopics = useWeakTopics(course?.name);
   // Only the exam date is out in the open; the rest is one fold, open from the start when the course already has something in it (or a merge was asked for).
   const [startOpen] = useState(() => mergeFrom.length > 0 || (!!course && hasMoreValues(draftFromCourse(course))));
@@ -334,29 +336,55 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
   const likely = new Set([...(findDuplicateCourses(courses).get(course.id) || []).map(item => item.id), ...mergeFrom]);
   const mergeCandidates = [...others.filter(item => likely.has(item.id)), ...others.filter(item => !likely.has(item.id))];
   const change = patch => setDraft(current => ({ ...current, ...patch }));
+  const isDirty = JSON.stringify(payloadFromDraft(course, draft)) !== JSON.stringify(payloadFromDraft(course, draftFromCourse(course)))
+    || Boolean(ruleDraftRef.current?.hasDraft) || Boolean(notationDraftRef.current?.hasDraft);
   const run = async (action, args, done) => {
     setWorking(true); setError('');
-    try { await act(action, args, done, { rethrow: true }); }
-    catch (caught) { setError(errorMessage(caught)); }
+    try { await act(action, args, done, { rethrow: true }); return true; }
+    catch (caught) { setError(errorMessage(caught)); return false; }
     finally { setWorking(false); }
   };
-  const save = () => run('course.save', payloadFromDraft(course, draft), result => {
-    // 考前对齐 (#882): a changed exam date may have moved this course's questions; the receipt says how many.
-    const moved = alignmentReceipt(result?.alignment);
-    toast.success([uiFormat('已保存「{0}」的课程信息', [course.name]), moved].filter(Boolean).join(ui('；')));
-    onClose?.('saved');
-  });
+  const resolvePendingEditors = () => {
+    let nextDraft = draft;
+    const ruleResult = ruleDraftRef.current?.resolve(nextDraft.generationRules);
+    if (ruleResult?.status === 'invalid') { setError(ruleResult.reason); return null; }
+    if (ruleResult?.status === 'merged') {
+      nextDraft = { ...nextDraft, generationRules: ruleResult.next };
+    }
+    const notationResult = notationDraftRef.current?.resolve(nextDraft.notationOverrides || []);
+    if (notationResult?.status === 'invalid') { setError(notationResult.reason); return null; }
+    if (notationResult?.status === 'merged') {
+      nextDraft = { ...nextDraft, notationOverrides: notationResult.next };
+    }
+    return { nextDraft, mergedRule: ruleResult?.status === 'merged', mergedNotation: notationResult?.status === 'merged' };
+  };
+  const save = async ({ afterSave } = {}) => {
+    const resolved = resolvePendingEditors();
+    if (!resolved) return false;
+    const { nextDraft, mergedRule, mergedNotation } = resolved;
+    return run('course.save', payloadFromDraft(course, nextDraft), result => {
+      if (mergedRule) ruleDraftRef.current?.clear();
+      if (mergedNotation) notationDraftRef.current?.clear();
+      if (nextDraft !== draft) setDraft(nextDraft);
+      // 考前对齐 (#882): a changed exam date may have moved this course's questions; the receipt says how many.
+      const moved = alignmentReceipt(result?.alignment);
+      toast.success([uiFormat('已保存「{0}」的课程信息', [course.name]), moved].filter(Boolean).join(ui('；')));
+      if (afterSave) afterSave(result);
+      else onClose?.('saved');
+    });
+  };
   const rename = () => run('course.rename', { id: course.id, name: name.trim() }, result => {
     setConfirm(null); setNestedWarn(false); setName(result?.course?.name || name.trim());
     toast.success([uiFormat('已改名为「{0}」，题组、资料和练习都已同步', [result?.course?.name || name.trim()]), alignmentReceipt(result?.alignment)].filter(Boolean).join(ui('；')));
   });
   const merge = () => run('course.merge', { from: mergeIds, into: course.id }, result => {
     if (result?.course) setDraft(current => draftAfterMerge(course, current, result.course));
-    setConfirm(null); setMergeIds([]);
+    setConfirm(null); setMergeIds([]); setNestedWarn(false);
     toast.success([uiFormat('已把 {0} 门课程并入「{1}」', [result?.merged?.length || mergeIds.length, course.name]), alignmentReceipt(result?.alignment)].filter(Boolean).join(ui('；')));
   });
   const renamed = Boolean(name.trim() && name.trim() !== course.name);
-  const hasPendingNested = methodEditing || renamed;
+  const hasPendingMerge = mergeIds.length > 0;
+  const hasPendingNested = methodEditing || renamed || hasPendingMerge;
   const onSaveClick = () => {
     if (hasPendingNested && !nestedWarn) {
       setNestedWarn(true);
@@ -365,29 +393,45 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
     setNestedWarn(false);
     return save();
   };
-  const nestedWarningText = methodEditing && renamed
-    ? ui('学法仍在编辑，且课程名尚未点「改名」确认；「保存课程信息」不会保存这两项。请先分别保存或确认，或再点一次直接保存其余课程信息。')
-    : methodEditing
-      ? ui('学法仍在编辑中，「保存课程信息」不会保存学法改动；请先在上方点「保存学法」或「取消」，或再点一次直接保存其余课程信息。')
-      : ui('课程名称尚未点「改名」确认，「保存课程信息」不会改名；请先点「改名」，或再点一次直接保存其余课程信息。');
+  const pendingNestedParts = [
+    methodEditing ? ui('学法编辑') : '',
+    renamed ? ui('课程改名') : '',
+    hasPendingMerge ? ui('待合并课程') : '',
+  ].filter(Boolean);
+  const nestedWarningText = pendingNestedParts.length > 1
+    ? uiFormat('{0}尚未确认提交，「保存课程信息」不会保存这些独立操作。请先分别确认，或再点一次直接保存其余课程信息。', [pendingNestedParts.join(ui('、'))])
+    : hasPendingMerge
+      ? ui('已勾选待合并课程但尚未点「确认合并」，「保存课程信息」不会执行合并。请先点「合并所选课程」确认，或再点一次直接保存其余课程信息。')
+      : methodEditing
+        ? ui('学法仍在编辑中，「保存课程信息」不会保存学法改动；请先在上方点「保存学法」或「取消」，或再点一次直接保存其余课程信息。')
+        : ui('课程名称尚未点「改名」确认，「保存课程信息」不会改名；请先点「改名」，或再点一次直接保存其余课程信息。');
+  const requestClose = (reason) => {
+    if (isDirty) { setLeavePrompt({ kind: 'close', reason }); return; }
+    onClose?.(reason);
+  };
+  const requestOpenFocusIntake = () => {
+    if (isDirty) { setLeavePrompt({ kind: 'focus-intake' }); return; }
+    onClose?.('focus-intake');
+    openModal({ type: 'focusIntake', course: course.name });
+  };
   const mergeNames = others.filter(item => mergeIds.includes(item.id)).map(item => item.name);
   const formats = Object.keys(FORMAT_LABELS).map(value => ({ value, label: examFormatLabel(value) }));
   // Materials whose name says syllabus, unticked, with their reason (never chosen for the learner: guidance feeds the case questions and the grading).
   const guidance = guidanceSuggestions(data, course.name, draft.guidanceSourceIds);
   return (
     <Dialog size="lg" className="course-settings" bodyClassName="course-settings__body" title={course.name}
-      description={[ui('课程设置'), countLine(course)].filter(Boolean).join(' · ')} busy={working} onClose={() => onClose?.('dismiss')}
+      description={[ui('课程设置'), countLine(course)].filter(Boolean).join(' · ')} busy={working} onClose={() => requestClose('dismiss')}
       footer={<>
         {error && <InlineMessage className="course-settings__error">{error}</InlineMessage>}
         {nestedWarn && hasPendingNested && <InlineMessage tone="warning" className="course-settings__error">{nestedWarningText}</InlineMessage>}
-        <Button variant="quiet" lock={working} onClick={() => onClose?.('cancel')}>{ui('关闭')}</Button>
-        <Button variant="primary" icon="check" busy={working && !confirm} disabled={disabled} onClick={onSaveClick}>{ui(nestedWarn && hasPendingNested ? '仍保存课程信息' : '保存课程信息')}</Button>
+        <Button variant="quiet" lock={working} onClick={() => requestClose('cancel')}>{ui('关闭')}</Button>
+        <Button variant={confirm ? 'secondary' : 'primary'} icon="check" busy={working && !confirm} disabled={disabled} onClick={onSaveClick}>{ui(nestedWarn && hasPendingNested ? '仍保存课程信息' : '保存课程信息')}</Button>
       </>}>
       {/* The one thing most learners come here for, in the open; saving it is the button below. Everything else is in the fold. */}
       <section className="course-settings__block course-settings__first" aria-label={ui('考试日期')}>
         <Field label={ui('考试日期')} width="full" hint={ui('填了就会在首页倒数；其余都可以不填。')}>
           <TextInput type="date" value={draft.date} disabled={disabled} onChange={event => change({ date: event.target.value })} /></Field>
-        {examPointerShown(course.exam) && <ExamAlignmentPointer course={course.name} examDate={course.exam.date} onLeave={() => onClose?.('dismiss')} />}
+        {examPointerShown(course.exam) && <ExamAlignmentPointer course={course.name} examDate={course.exam.date} onLeave={() => requestClose('dismiss')} />}
       </section>
 
       {/* 学法 (#775): every course has one, the default package until it is changed. */}
@@ -395,7 +439,7 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
         onClose={onClose} onEditingChange={editing => { setMethodEditing(editing); if (!editing) setNestedWarn(false); }} />
 
       {/* Only a course the main chat made a custom plan for has the card. */}
-      <CustomPlanCard course={course} />
+      <CustomPlanCard course={course} data={data} onClose={onClose} />
 
       <Disclosure className="course-settings__more" bodyClassName="course-settings__more-body" summary={ui('更多设置')} defaultOpen={startOpen}
         meta={joinMeta([draft.format !== 'other' ? examFormatLabel(draft.format) : '', String(draft.interviewRole ?? '').trim(), splitTopics(draft.focusTopics).length ? uiFormat('{0} 个重点知识点', [splitTopics(draft.focusTopics).length]) : '',
@@ -452,7 +496,7 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
           <div className="course-settings__focus-head">
             <h3 id="course-settings-focus">{ui('重点知识点')}</h3>
             <Button size="sm" variant="secondary" icon="upload" lock={disabled}
-              onClick={() => { onClose?.('focus-intake'); openModal({ type: 'focusIntake', course: course.name }); }}>
+              onClick={requestOpenFocusIntake}>
               {ui('从图片 / 文字录入重点…')}
             </Button>
           </div>
@@ -464,13 +508,13 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
 
         <Disclosure className="course-settings__disclosure" bodyClassName="course-settings__disclosure-body" summary={ui('出题守则')}
           meta={draft.generationRules.length ? uiFormat('{0} 条守则', [draft.generationRules.length]) : ui('未设置')} defaultOpen={draft.generationRules.length > 0}>
-          <CourseRulesEditor value={draft.generationRules} disabled={disabled} onChange={generationRules => change({ generationRules })} />
+          <CourseRulesEditor value={draft.generationRules} disabled={disabled} draftRef={ruleDraftRef} onChange={generationRules => change({ generationRules })} />
         </Disclosure>
 
         <Disclosure className="course-settings__disclosure" bodyClassName="course-settings__disclosure-body" summary={ui('符号与术语口径')}
           meta={(draft.notationOverrides || []).length ? uiFormat('{0} 条覆写', [draft.notationOverrides.length]) : ui('未设置')}
           defaultOpen={(draft.notationOverrides || []).length > 0}>
-          <CourseNotationEditor value={draft.notationOverrides || []} disabled={disabled} onChange={notationOverrides => change({ notationOverrides })} />
+          <CourseNotationEditor value={draft.notationOverrides || []} disabled={disabled} draftRef={notationDraftRef} onChange={notationOverrides => change({ notationOverrides })} />
         </Disclosure>
 
         <section className="course-settings__block" aria-labelledby="course-settings-interview">
@@ -509,7 +553,7 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
             match={item => [item.name, ...(item.aliases || [])].join(' ')} filterable={mergeCandidates.length > 6} filterPlaceholder={ui('筛选课程…')}
             maxHeight={260} listClassName="course-settings__merge" renderItem={item => <Checkbox className="course-settings__merge-check" label={item.name} checked={mergeIds.includes(item.id)} disabled={disabled}
               hint={(countLine(item) || likely.has(item.id)) ? [likely.has(item.id) ? ui('名称几乎相同') : '', countLine(item)].filter(Boolean).join(' · ') : undefined}
-              onChange={checked => { setConfirm(null); setMergeIds(current => checked ? [...current, item.id] : current.filter(id => id !== item.id)); }} />} />
+              onChange={checked => { setConfirm(null); setNestedWarn(false); setMergeIds(current => checked ? [...current, item.id] : current.filter(id => id !== item.id)); }} />} />
           <Button className="course-settings__merge-btn" ref={mergeTrigger} variant="secondary" disabled={disabled || !mergeIds.length} onClick={() => setConfirm('merge')}>{ui('合并所选课程')}</Button>
           {confirm === 'merge' && mergeIds.length > 0 && <InlineConfirm tone="warning" title={uiFormat('把 {0} 门课程并入「{1}」？', [mergeNames.length, course.name])}
             confirmLabel={ui('确认合并')} busy={working || busy} returnFocusRef={mergeTrigger} onConfirm={merge} onCancel={() => setConfirm(null)}>
@@ -518,6 +562,31 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
           </InlineConfirm>}
         </Disclosure>}
       </Disclosure>
+      {leavePrompt?.kind === 'focus-intake' && (
+        <ConfirmDialog
+          tone="warning"
+          title={ui('先保存当前课程设置再录入重点？')}
+          description={ui('课程设置里还有未保存的改动；保存后再打开重点录入不会丢失刚才的修改。')}
+          confirmLabel={ui('保存并录入重点')}
+          cancelLabel={ui('继续编辑')}
+          onConfirm={async () => {
+            const ok = await save({ afterSave: () => { setLeavePrompt(null); onClose?.('focus-intake'); openModal({ type: 'focusIntake', course: course.name }); } });
+            if (!ok) setLeavePrompt(null);
+          }}
+          onClose={() => setLeavePrompt(null)}
+        />
+      )}
+      {leavePrompt?.kind === 'close' && (
+        <ConfirmDialog
+          tone="warning"
+          title={ui('放弃未保存的改动？')}
+          description={ui('离开后会丢失刚才在课程设置里尚未保存的修改。')}
+          confirmLabel={ui('放弃改动')}
+          cancelLabel={ui('继续编辑')}
+          onConfirm={() => { const reason = leavePrompt.reason; setLeavePrompt(null); onClose?.(reason); }}
+          onClose={() => setLeavePrompt(null)}
+        />
+      )}
     </Dialog>
   );
 }

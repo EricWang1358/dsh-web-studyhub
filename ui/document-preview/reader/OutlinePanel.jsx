@@ -64,9 +64,12 @@ export default function OutlinePanel({ items, activeId, onJump, labelOf = () => 
     onJump(next);
   };
   // 只看没覆盖的 / 只看未读: matching sections and their ancestors, in the outline's own order and indentation.
-  const narrowed = (onlyUncovered && !!coverage) || (onlyUnread && unreadPartial);
-  const kept = useMemo(() => items.filter(item => (!onlyUncovered || !coverage || coverage.uncovered.has(item.id))
-    && (!onlyUnread || !unreadKeptIds || unreadKeptIds.has(item.id))), [items, onlyUncovered, coverage, onlyUnread, unreadKeptIds]);
+  // Hide & disable 只看没覆盖的 when coverage sections could not align to any outline entry (e.g. untitled plain-text windows under an AI outline).
+  const canFilterUncovered = Boolean(coverage && coverageTotals?.leaves > 0 && coverageTotals.covered < coverageTotals.leaves && (coverage.aligned?.size ?? 0) > 0);
+  const activeOnlyUncovered = onlyUncovered && canFilterUncovered;
+  const narrowed = activeOnlyUncovered || (onlyUnread && unreadPartial);
+  const kept = useMemo(() => items.filter(item => (!activeOnlyUncovered || coverage.uncovered.has(item.id))
+    && (!onlyUnread || !unreadKeptIds || unreadKeptIds.has(item.id))), [items, activeOnlyUncovered, coverage, onlyUnread, unreadKeptIds]);
   const rows = useMemo(() => filtering ? filterOutline(kept, query) : narrowed ? kept : outlineRows(items, expanded), [filtering, kept, narrowed, items, query, expanded]);
   // The current entry, or the nearest part above it that is on screen.
   const current = useMemo(() => {
@@ -96,7 +99,7 @@ export default function OutlinePanel({ items, activeId, onJump, labelOf = () => 
     </div>}
     {coverage && coverageTotals?.leaves > 0 && <div className="reader-outline__covhead" data-coverage-head>
       <span className="cov-meter" data-coverage-count>{coverageOutlineHead(coverageTotals)}</span>
-      {coverageTotals.covered < coverageTotals.leaves && <Checkbox className="reader-outline__covtoggle" label={ui('只看没覆盖的')} checked={onlyUncovered} onChange={setOnlyUncovered} data-coverage-filter />}
+      {canFilterUncovered && <Checkbox className="reader-outline__covtoggle" label={ui('只看没覆盖的')} checked={onlyUncovered} onChange={setOnlyUncovered} data-coverage-filter />}
       {coverageAction && <div className="reader-outline__covaction">{coverageAction}</div>}
     </div>}
     {items.length > FILTER_FROM && <div className="reader-outline__filter" role="search">
@@ -107,6 +110,7 @@ export default function OutlinePanel({ items, activeId, onJump, labelOf = () => 
     <div className="reader-outline__scroll" ref={list}>
       {items.length === 0 && <p className="reader-outline__empty">{ui('没有解析出标题')}</p>}
       {items.length > 0 && filtering && rows.length === 0 && <p className="reader-outline__empty" role="status">{ui('没有找到')}</p>}
+      {items.length > 0 && !filtering && narrowed && rows.length === 0 && <p className="reader-outline__empty" role="status">{ui('当前筛选下没有目录项')}</p>}
       <ol>
         {rows.map(item => {
           const label = labelOf(item), open = expanded.has(item.id), foldable = !filtering && !narrowed && item.children > 0, here = coverage?.entries.get(item.id);

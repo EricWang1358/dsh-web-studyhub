@@ -90,11 +90,8 @@ export function pickRandomCard(cards, lastCardId = null, rng = Math.random) {
   return pool[index];
 }
 
-function clipText(value, limit) {
-  const text = String(value ?? '').replace(/\r\n/g, '\n').trim();
-  if (!text) return '';
-  if (text.length <= limit) return text;
-  return `${text.slice(0, limit - 1).trimEnd()}…`;
+function cleanMarkdown(value) {
+  return String(value ?? '').replace(/\r\n/g, '\n').trim();
 }
 
 function resolveCardAnswer(card) {
@@ -116,14 +113,31 @@ function resolveCardAnswer(card) {
   return typeof card.explanation === 'string' ? card.explanation.trim() : '';
 }
 
+function extractSlipOptions(card) {
+  if (!Array.isArray(card?.options) || !card.options.length) return [];
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const result = [];
+  for (let i = 0; i < card.options.length; i += 1) {
+    const opt = card.options[i];
+    if (!opt || typeof opt !== 'object') continue;
+    const text = cleanMarkdown(opt.text);
+    if (!text) continue;
+    const rawId = typeof opt.id === 'string' && opt.id.trim() ? opt.id.trim() : (letters[i] || String(i + 1));
+    const label = /^[a-z]$/i.test(rawId) ? rawId.toUpperCase() : (letters[i] || rawId);
+    result.push({ id: rawId, label, text, correct: Boolean(opt.correct) });
+  }
+  return result;
+}
+
 /** Build the compact Serendipity Slip view-model from a full card + deck object. */
 export function extractSlipCard(card, deck) {
   if (!card || !deck) return null;
-  const prompt = clipText(plainPrompt(card.prompt), 260);
+  const prompt = cleanMarkdown(plainPrompt(card.prompt));
   if (!prompt) return null;
-  const answer = clipText(resolveCardAnswer(card), 260);
-  const rawExplanation = typeof card.explanation === 'string' ? card.explanation.trim() : '';
-  const explanation = rawExplanation && rawExplanation !== answer ? clipText(rawExplanation, 220) : '';
+  const options = extractSlipOptions(card);
+  const answer = cleanMarkdown(resolveCardAnswer(card));
+  const rawExplanation = cleanMarkdown(card.explanation);
+  const explanation = rawExplanation && rawExplanation !== answer ? rawExplanation : '';
   return {
     deckId: deck.id,
     deckTitle: deck.title || '',
@@ -132,6 +146,7 @@ export function extractSlipCard(card, deck) {
     topic: card.topic || '',
     kind: card.kind || 'flashcard',
     prompt,
+    options,
     answer,
     explanation,
   };

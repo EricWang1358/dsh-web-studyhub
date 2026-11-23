@@ -673,6 +673,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   const [selected, setSelected] = useState([]);
   const [courseText, setCourseText] = useState(''), [proposals, setProposals] = useState(null);
   const [organizeStartingCount, setOrganizeStartingCount] = useState(0);
+  const [organizeStopping, setOrganizeStopping] = useState(false);
   const [organizeError, setOrganizeError] = useState('');
   const [organizeEditRev, setOrganizeEditRev] = useState(0);
   const prevOrganizeSignal = useRef({ jobId: activeOrganizeJob?.id || '', pendingKey: pendingOrganizeKey });
@@ -765,15 +766,20 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
       setOrganizeStartingCount(0);
     }
   };
+  const organizeCancelling = Boolean(activeOrganizeJob && (activeOrganizeJob.contract?.status || activeOrganizeJob.status) === 'cancelling');
   const stopOrganizeJob = async () => {
-    setOrganizeStartingCount(0);
-    setOptimisticOrganizeJob(null);
-    if (!activeOrganizeJob?.id) return;
+    if (organizeStopping || organizeCancelling || !activeOrganizeJob?.id) return;
+    setOrganizeStopping(true);
+    setOrganizeError('');
     try {
       await call('job.control', { jobId: activeOrganizeJob.id, action: 'cancel' });
+      setOrganizeStartingCount(0);
+      setOptimisticOrganizeJob(null);
       await Promise.resolve(refresh?.()).catch(() => {});
     } catch (err) {
       setOrganizeError(errorMessage(err));
+    } finally {
+      setOrganizeStopping(false);
     }
   };
   const toggleProposalInclude = (proposalId, include) => {
@@ -1136,7 +1142,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
                     <Button size="sm" variant="quiet" iconEnd="arrow-right" data-open-organize-task
                       onClick={() => showTask(activeOrganizeJob.id)}>{ui('查看任务')}</Button>
                   )}
-                  <Button size="sm" variant="quiet" lock={busy} data-stop-organize onClick={stopOrganizeJob}>{ui('停止')}</Button>
+                  <Button size="sm" variant="quiet" busy={organizeStopping || organizeCancelling} busyLabel={ui('正在停止…')} disabled={!activeOrganizeJob?.id || organizeStopping || organizeCancelling} lock={busy} data-stop-organize onClick={stopOrganizeJob}>{ui('停止')}</Button>
                 </div>
               </div>
               <ProgressBar size="sm" value={organizeDone} max={Math.max(organizeTotal, 1)} indeterminate={organizeDone === 0} label={ui('课程归属整理进度')} />
@@ -1145,7 +1151,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
           {organizeError && (
             <InlineMessage tone="error" className="source-organize-error">
               <span>{organizeError}</span>{' '}
-              <Button size="sm" variant="link" onClick={dismissOrganizeProposals}>{ui('关闭')}</Button>
+              <Button size="sm" variant="link" onClick={() => setOrganizeError('')}>{ui('关闭')}</Button>
             </InlineMessage>
           )}
           {!showArchived && <div className="source-folder-actions">

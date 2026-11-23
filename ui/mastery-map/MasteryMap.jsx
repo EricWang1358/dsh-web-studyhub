@@ -288,9 +288,11 @@ export default function MasteryMap({
   onOpenWrongBook,
   defaultLayout = 'heatmap',
   paceForecast: propPaceForecast,
+  practising = false,
 }) {
   useInjectCss(css, 'study-mastery-map');
-  const { busy } = useStudy();
+  const { busy: studyBusy } = useStudy();
+  const busy = studyBusy || practising;
   const storePaceForecast = useOptionalAppSelector((state) => state.data?.paceForecast);
   const paceForecast = propPaceForecast ?? storePaceForecast;
   const [filter, setFilter] = useState('all');

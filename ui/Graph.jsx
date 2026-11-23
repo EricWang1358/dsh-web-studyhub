@@ -14,6 +14,7 @@ import {
   layoutPath,
   pathColumns,
   bez,
+  pathPrereqPath,
   idTail,
   FIT_MAX,
   ZOOM_MIN,
@@ -199,11 +200,19 @@ export default function Graph({
     return inScope;
   }, [library, course, showInactive, objectScope, scope]);
 
+  const [practising, setPractising] = useState(false);
+  const practisingRef = useRef(false);
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
+
   const practiseOutlineKeys = useCallback(async (keys, { resume = false } = {}) => {
-    if (!keys?.length || !onPracticeScope) return;
+    if (practisingRef.current || !keys?.length || !onPracticeScope) return;
+    practisingRef.current = true;
+    setPractising(true);
     try {
       const targetCourse = course !== "*" ? course : (library?.focus?.course ?? null);
       const res = await call("course.outline", { course: targetCourse, pick: { keys } });
+      if (!mountedRef.current) return;
       const pickedScope = res?.practice?.scope || [];
       if (!pickedScope.length) {
         toast.info(ui("这里还没有题。可以先在「创建题组」里出题。"));
@@ -211,7 +220,10 @@ export default function Graph({
       }
       onPracticeScope(pickedScope, { resume });
     } catch (e) {
-      toast.error(errorMessage(e));
+      if (mountedRef.current) toast.error(errorMessage(e));
+    } finally {
+      practisingRef.current = false;
+      if (mountedRef.current) setPractising(false);
     }
   }, [call, course, library?.focus?.course, onPracticeScope, toast]);
 
@@ -502,8 +514,8 @@ export default function Graph({
               {ui("导出 SVG")}
             </Button>
           )}
-          <FullscreenButton full={fullscreen.full} variant={fullscreen.full ? "secondary" : "primary"} onToggle={fullscreen.toggle}
-            title={fullscreen.full ? ui("回到面板中查看（Esc）") : ui("用整个屏幕看这张图，可缩放、拖拽")} />
+          <FullscreenButton full={fullscreen.full} variant={fullscreen.full || isMastery ? "secondary" : "primary"} onToggle={fullscreen.toggle}
+            title={fullscreen.full ? ui("回到面板中查看（Esc）") : isMastery ? ui("用整个屏幕看掌握图谱") : ui("用整个屏幕看这张图，可缩放、拖拽")} />
           <Button size="sm" onClick={onClose}>{ui("关闭")}</Button>
         </div>
       </div>
@@ -552,6 +564,7 @@ export default function Graph({
             onOpenOutline={onOpenOutline ? () => onOpenOutline(course !== "*" ? course : undefined) : undefined}
             onOpenBook={onOpenBook ? (key) => onOpenBook(key, course !== "*" ? course : undefined) : undefined}
             onOpenWrongBook={onOpenWrongBook}
+            practising={practising}
           />
         </div>
       ) : (
@@ -635,7 +648,7 @@ export default function Graph({
                         key={`p${i}`}
                         className={spotlightEdgeClass("gn-prereq", edgeKey("prereq", e.from, e.to))}
                         markerEnd="url(#gn-arrow-prereq)"
-                        d={bez(a.x + a.w, a.y, b.x, b.y)}
+                        d={pathPrereqPath(a, b)}
                       >
                         <title>{ui("前置关系")}</title>
                       </path>

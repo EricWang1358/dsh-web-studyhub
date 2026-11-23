@@ -173,7 +173,7 @@ const TIMING_FLUSH_MS = 15000;
  * An open question with rubric criteria: write the answer, then 提交批改 (a
  * background grading task); the per-criterion result replaces self-rating.
  */
-export function RubricAnswer({ run, data, value = "", onChange, onSubmit, task, onSetupModel }) {
+export function RubricAnswer({ run, data, value = "", onChange, onSubmit, task, onSetupModel, onRefreshRun }) {
   const { busy, call } = useStudy();
   useInjectCss(css, "study-case-workspace");
   const card = run.card, rubric = run.feedback?.rubric;
@@ -261,7 +261,7 @@ export function RubricAnswer({ run, data, value = "", onChange, onSubmit, task, 
           {run.feedback.answer && <details className="rubric-my-answer"><summary>{ui("我的回答")}</summary><Markdown text={run.feedback.answer} /></details>}
           <RubricResult rubric={rubric} />
           {/* The reference answer, or its 分析题答案卡 when the question has one (ui/AnswerCard.jsx, 复习全书 M5). */}
-          {run.solution && <AnswerCardSection run={run} data={data} onSetupModel={onSetupModel} />}
+          {run.solution && <AnswerCardSection run={run} data={data} onSetupModel={onSetupModel} onRefreshRun={onRefreshRun} />}
         </>
       ) : (
         <>
