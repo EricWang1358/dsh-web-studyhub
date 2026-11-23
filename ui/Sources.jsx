@@ -40,6 +40,7 @@ import { chapterLabel, documentNotes, documentSearchText, inScope, relationNote,
 import { materialRelations } from '../lib/source-relations.js';
 import { compareMaterialReview, pickPracticeRefs, reviewUrgencyOf } from '../lib/contexts/materials/material-practice.js';
 import { dropRequest, pinnedKeys, splitPinned, stepRequest } from '../lib/material-pins.js';
+import { JOB_STATUS } from '../lib/job-status.js';
 import { MasteryLine } from './document-preview/practice/MasteryMark.jsx';
 import { CoverageChip } from './coverage/Coverage.jsx';
 import DocumentTopUp, { offersDocumentTopUp } from './coverage/DocumentTopUp.jsx';
@@ -775,7 +776,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
       setOrganizeStartingCount(0);
     }
   };
-  const organizeCancelling = Boolean(activeOrganizeJob && (activeOrganizeJob.contract?.status || activeOrganizeJob.status) === 'cancelling');
+  const organizeCancelling = Boolean(activeOrganizeJob && (activeOrganizeJob.contract?.status || activeOrganizeJob.status) === JOB_STATUS.CANCELLING);
   const stopOrganizeJob = async () => {
     if (organizeStopping || organizeCancelling || !activeOrganizeJob?.id) return;
     setOrganizeStopping(true);

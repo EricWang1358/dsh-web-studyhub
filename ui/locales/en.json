@@ -1890,7 +1890,6 @@
   "已标记题目，点击查看或修改": "Flagged question, click to view or edit",
   "修改后点「保存标记」更新，或点「清除标记」移除。": "Edit and click Save flag to update, or click Clear flag to remove.",
   "写下需要核对或回顾的原因。": "Write down what needs to be checked or reviewed.",
-  "复制错题讲解提示词": "Copy missed-question prompt",
   "复制这一轮错题的提示词，可粘贴到外部 AI 讲透后再回 StudyHub 重测": "Copy a prompt with the missed questions from this round to paste into an external AI, then come back to retest in StudyHub",
   "复制这道错题的提示词，可粘贴到外部 AI 讲透后再回 StudyHub 重测": "Copy a prompt with this missed question to paste into an external AI, then come back to retest in StudyHub",
   "这一块的基础还没搭起来，再往下补词效率不高。「{0}」先别急着做题，先读一遍，或者复制提示词让 AI 讲一讲。": "The foundations here are not in place yet, so filling more terms won't help much. Skip drilling \"{0}\" for now — read it once, or copy the prompt for an AI walkthrough.",
