@@ -25,14 +25,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --legacy-peer-deps
-      - name: Restore StudyHub TUI dist cache
-        uses: actions/cache@v4
-        with:
-          path: packages/studyhub-tui/dist
-          key: tui-dist-${{ runner.os }}-${{ hashFiles('packages/studyhub-tui/src/**', 'packages/studyhub-tui/package.json', 'packages/studyhub-tui/scripts/build.mjs') }}
       - run: npm run lint
       - run: npm run build
-      - run: npm run tui:build
 
   # Pull requests run all 3 Ubuntu shards (full suite) plus 1 fast Windows platform-smoke VM below (~4 test VMs per PR, ~3 minutes, well under GitHub's 20-VM cap).
   # Pushes to main run the full cross-platform shard matrix across both Ubuntu (1..3) and Windows (1..5), with cancel-in-progress replacing superseded main runs.
