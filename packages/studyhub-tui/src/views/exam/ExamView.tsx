@@ -62,6 +62,15 @@ export const ExamView: React.FC<ViewProps> = memo(function ExamView({
     }
   }, [host, setSnapshot]);
 
+  const hasActiveExam = phase === 'running' && Boolean(run || oral);
+  useEffect(() => {
+    if (!hasActiveExam) return undefined;
+    return useTuiStore.getState().registerQuitGuard(() => {
+      useTuiStore.getState().setQuitConfirmOpen(true);
+      return true;
+    });
+  }, [hasActiveExam]);
+
   // Open report if navigated with examId
   useEffect(() => {
     const examId = navContext.examId;

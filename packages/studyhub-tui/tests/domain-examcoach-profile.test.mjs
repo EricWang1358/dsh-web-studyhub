@@ -14,7 +14,9 @@ import {
   createVirtualTty,
   disposeTerminalPool,
   distDir,
+  installNoNetworkGuard,
   loadDistRuntime,
+  sanitizedTestEnv,
 } from './helpers/virtual-tty.mjs';
 
 const { StudyHubTuiApp, createTuiHost, saveTuiPreferences } = await loadDistRuntime();
@@ -31,6 +33,7 @@ assert.ok(useDistTuiStore, 'dist/store-*.mjs must export useTuiStore');
 assert.ok(DEFAULT_PREFERENCES, 'dist/store-*.mjs must export DEFAULT_PREFERENCES');
 
 const PREV_DSH_HOME = process.env.DSH_HOME;
+const restoreNetworkGuard = installNoNetworkGuard();
 const temps = createTempTracker('studyhub-tui-coach-profile-');
 
 function resetDistStore(language = 'zh', asciiMode = false, extra = {}) {
@@ -65,6 +68,7 @@ function resetDistStore(language = 'zh', asciiMode = false, extra = {}) {
 }
 
 after(async () => {
+  restoreNetworkGuard();
   resetDistStore('zh', false);
   disposeTerminalPool();
   if (PREV_DSH_HOME === undefined) delete process.env.DSH_HOME;
@@ -106,7 +110,7 @@ async function waitForCoachIdle(host) {
 describe('Round 43: Coach Background Prep Consent & Learner Profile Reset', () => {
   test('1) createTuiHost integration: coach.profile -> coach.consent (true/false) -> coach.preferences + coach.goal -> coach.forget', async () => {
     const base = await temps.make('r43-host');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     const libraryRoot = join(base, 'library');
     await cloneSampleLibrary('en', libraryRoot);
 
@@ -215,7 +219,7 @@ describe('Round 43: Coach Background Prep Consent & Learner Profile Reset', () =
     process.env.DSH_HOME = zhDshHome;
     await saveTuiPreferences(
       { language: 'zh', asciiMode: false, theme: 'tokyo-night', mathUnicode: true, showHints: true },
-      { env: { ...process.env, DSH_HOME: zhDshHome } },
+      { env: sanitizedTestEnv({ DSH_HOME: zhDshHome }) },
     );
 
     const zhLibraryRoot = join(zhBase, 'library');
@@ -224,7 +228,7 @@ describe('Round 43: Coach Background Prep Consent & Learner Profile Reset', () =
     let zhAiCalls = 0;
     const zhHost = await createTuiHost({
       libraryRoot: zhLibraryRoot,
-      env: { ...process.env, DSH_HOME: zhDshHome },
+      env: sanitizedTestEnv({ DSH_HOME: zhDshHome }),
       home: join(zhBase, 'home'),
       documentsDir: zhBase,
       providerDiscovery: fakeDiscovery(),
@@ -417,7 +421,7 @@ describe('Round 43: Coach Background Prep Consent & Learner Profile Reset', () =
 describe('Round 53: CoachPreferencesModal Learner Memory Bullets CRUD', () => {
   test('1) createTuiHost integration (0 AI calls): coach.profile addBullet / removeBullet with expectedRevision', async () => {
     const base = await temps.make('r53-host');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     const libraryRoot = join(base, 'library');
     await cloneSampleLibrary('en', libraryRoot);
 
@@ -521,7 +525,7 @@ describe('Round 53: CoachPreferencesModal Learner Memory Bullets CRUD', () => {
     process.env.DSH_HOME = zhDshHome;
     await saveTuiPreferences(
       { language: 'zh', asciiMode: false, theme: 'tokyo-night', mathUnicode: true, showHints: true },
-      { env: { ...process.env, DSH_HOME: zhDshHome } },
+      { env: sanitizedTestEnv({ DSH_HOME: zhDshHome }) },
     );
 
     const zhLibraryRoot = join(zhBase, 'library');
@@ -530,7 +534,7 @@ describe('Round 53: CoachPreferencesModal Learner Memory Bullets CRUD', () => {
     let zhAiCalls = 0;
     const zhHost = await createTuiHost({
       libraryRoot: zhLibraryRoot,
-      env: { ...process.env, DSH_HOME: zhDshHome },
+      env: sanitizedTestEnv({ DSH_HOME: zhDshHome }),
       home: join(zhBase, 'home'),
       documentsDir: zhBase,
       providerDiscovery: fakeDiscovery(),

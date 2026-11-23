@@ -13,6 +13,7 @@ import {
   createVirtualTty,
   disposeTerminalPool,
   distDir,
+  exportFilenameRegex,
   loadDistRuntime,
 } from './helpers/virtual-tty.mjs';
 
@@ -471,13 +472,12 @@ describe('Round 8: Board Pomodoro, Backup Export & Feynman Retell', () => {
     assert.ok(workspaceTab.includes('导出学习库备份') || workspaceTab.includes('Export backup'));
 
     const expectedStem = `studyhub-backup-${todayLocalYmd()}`;
-    const expectedFilename = `${expectedStem}.json`;
     tty.send('x');
     const exportModal = await tty.waitFor(
       (s) =>
         (s.includes('导出学习库备份') || s.includes('Export Library Backup')) &&
         s.includes(expectedStem),
-      { timeoutMs: 8_000, label: `Export Backup modal with ${expectedFilename}` },
+      { timeoutMs: 8_000, label: `Export Backup modal with ${expectedStem}` },
     );
     tty.assertHealthyScreen(exportModal, 120, 36, 'Export Backup modal');
     assert.ok(exportModal.includes(expectedStem), 'Export modal must prefill today backup stem');
@@ -495,11 +495,13 @@ describe('Round 8: Board Pomodoro, Backup Export & Feynman Retell', () => {
 
     const backupsDir = join(libraryRoot, 'backups');
     const backupFiles = await readdir(backupsDir);
+    const backupRe = exportFilenameRegex('studyhub-backup', 'json', todayLocalYmd());
+    const matchedFile = backupFiles.find((name) => backupRe.test(name));
     assert.ok(
-      backupFiles.includes(expectedFilename),
-      `Expected ${expectedFilename} in ${backupsDir}, found: ${JSON.stringify(backupFiles)}`,
+      matchedFile,
+      `Expected ${backupRe} in ${backupsDir}, found: ${JSON.stringify(backupFiles)}`,
     );
-    const rawBackup = await readFile(join(backupsDir, expectedFilename), 'utf8');
+    const rawBackup = await readFile(join(backupsDir, matchedFile), 'utf8');
     const parsedBackup = JSON.parse(rawBackup);
     assert.ok(Array.isArray(parsedBackup.decks) && parsedBackup.decks.length > 0, 'Backup JSON must contain non-empty decks array');
     const totalCards = parsedBackup.decks.reduce(

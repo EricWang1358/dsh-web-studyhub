@@ -467,6 +467,14 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
   const feedback: CardFeedbackShape | null = extractFeedback(run);
   const solution = extractSolution(run);
   const isFinished = Boolean(run && (run.complete || run.closed));
+  const hasActiveRound = Boolean(run && !isFinished);
+  useEffect(() => {
+    if (!hasActiveRound) return undefined;
+    return useTuiStore.getState().registerQuitGuard(() => {
+      useTuiStore.getState().setQuitConfirmOpen(true);
+      return true;
+    });
+  }, [hasActiveRound]);
   const revealed = Boolean(run?.revealed || feedback);
   const isSelfGraded = kind === 'flashcard' || isRubricEligibleKind;
   const needsRating = Boolean(run && !isFinished && revealed && !feedback && !gradeResult && isSelfGraded);

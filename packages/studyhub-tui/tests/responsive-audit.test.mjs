@@ -368,7 +368,12 @@ const EMPTY_16_VIEWS = [
   { id: 'board', key: 'b', zh: /空列/, en: /Empty/ },
   { id: 'tasks', key: 't', zh: /当前筛选下无任务/, en: /No jobs in this filter/ },
   { id: 'settings', key: ',', zh: /当前生效模型|未配置模型|提供方与预设/, en: /Active Model Route|No model configured|Routes & Presets/ },
-  { id: 'audio', key: 'a', zh: /暂无音频转写记录/, en: /No transcripts yet/ },
+  {
+    id: 'audio',
+    key: 'a',
+    zh: /暂无音频转写记录|暂无记录（未配置转写服务）|按 \[s\] 配置转写服务/,
+    en: /No transcripts yet|No results \(provider unconfigured\)|Press \[s\] to configure/,
+  },
   { id: 'review', key: '1r', zh: /当前没有待复习题目/, en: /No questions due for review/ },
 ];
 

@@ -13,7 +13,9 @@ import {
   createVirtualTty,
   disposeTerminalPool,
   distDir,
+  installNoNetworkGuard,
   loadDistRuntime,
+  sanitizedTestEnv,
 } from './helpers/virtual-tty.mjs';
 
 const { StudyHubTuiApp, createTuiHost, saveTuiPreferences, hostMod } = await loadDistRuntime();
@@ -32,9 +34,11 @@ assert.ok(useDistTuiStore, 'dist/store-*.mjs must export useTuiStore');
 assert.ok(DEFAULT_PREFERENCES, 'dist/store-*.mjs must export DEFAULT_PREFERENCES');
 
 const PREV_DSH_HOME = process.env.DSH_HOME;
+const restoreNetworkGuard = installNoNetworkGuard();
 const temps = createTempTracker('studyhub-tui-courses-');
 
 after(async () => {
+  restoreNetworkGuard();
   disposeTerminalPool();
   if (PREV_DSH_HOME === undefined) delete process.env.DSH_HOME;
   else process.env.DSH_HOME = PREV_DSH_HOME;
@@ -193,7 +197,7 @@ async function seedCourseWithCards(host, courseName = 'Computer Networks') {
 describe('Round 37: Course Merge & Active/Inactive Toggle', () => {
   test('1) createTuiHost integration: course.merge merges decks, sources, aliases, focusTopics and refuses self-merge', async () => {
     const base = await temps.make('r37-merge');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     const libraryRoot = join(base, 'library');
     const host = await createTuiHost({
       env,
@@ -243,7 +247,7 @@ describe('Round 37: Course Merge & Active/Inactive Toggle', () => {
 
   test('2) createTuiHost integration: course.deactivate and course.activate toggle course active state & due counts cleanly', async () => {
     const base = await temps.make('r37-active');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     const libraryRoot = join(base, 'library');
     const host = await createTuiHost({
       env,
@@ -294,7 +298,7 @@ describe('Round 37: Course Merge & Active/Inactive Toggle', () => {
 
   test('3) E2E UI (--ascii): CourseSettingsModal Tab 2 active toggle (a) and course merge (m -> Select -> Confirm)', async () => {
     const base = await temps.make('r37-ui');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     process.env.DSH_HOME = env.DSH_HOME;
     const libraryRoot = join(base, 'library');
 
@@ -406,8 +410,16 @@ describe('Round 37: Course Merge & Active/Inactive Toggle', () => {
       const closedScreen = await tty.waitFor((s) => !s.includes('课程设置与学法'), { timeoutMs: 8_000, label: 'CourseSettingsModal closed' });
       assert.ok(!closedScreen.includes('课程设置与学法'));
     } finally {
-      app.unmount();
-      tty.dispose();
+      try {
+        app?.unmount();
+      } catch {
+        // Ignore unmount errors during cleanup
+      }
+      try {
+        tty?.dispose();
+      } catch {
+        // Ignore tty dispose errors during cleanup
+      }
       await host.dispose();
     }
   });
@@ -416,7 +428,7 @@ describe('Round 37: Course Merge & Active/Inactive Toggle', () => {
 describe('Round 41: Course Glossary Term Mastery Marking', () => {
   test('1) createTuiHost integration: course.terms.mark -> course.terms.unmark -> course.terms.clear with disk persistence', async () => {
     const base = await temps.make('r41-terms-host');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     const home = join(base, 'home');
     const libraryRoot = join(base, 'library');
 
@@ -506,7 +518,7 @@ describe('Round 41: Course Glossary Term Mastery Marking', () => {
 
   test('2) E2E UI (zh): CourseSettingsModal Terms tab [Space] toggle & [C] clear ConfirmDialog Esc/n cancel & y confirm', async () => {
     const base = await temps.make('r41-terms-ui');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     process.env.DSH_HOME = env.DSH_HOME;
     const libraryRoot = join(base, 'library');
 
@@ -646,8 +658,16 @@ describe('Round 41: Course Glossary Term Mastery Marking', () => {
       assert.equal(afterClear.ok, true);
       assert.deepEqual(afterClear.value?.items, []);
     } finally {
-      app.unmount();
-      tty.dispose();
+      try {
+        app?.unmount();
+      } catch {
+        // Ignore unmount errors during cleanup
+      }
+      try {
+        tty?.dispose();
+      } catch {
+        // Ignore tty dispose errors during cleanup
+      }
       await host.dispose();
     }
   });
@@ -656,7 +676,7 @@ describe('Round 41: Course Glossary Term Mastery Marking', () => {
 describe('Round 64 Track 3: CourseSettingsModal Tab 3 [a] course.terms.attach', () => {
   test('1) createTuiHost integration (0 model calls): mark term -> course.terms.attach -> course.terms.get returns item.card', async () => {
     const base = await temps.make('r64-host');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     const home = join(base, 'home');
     const libraryRoot = join(base, 'library');
 
@@ -708,7 +728,7 @@ describe('Round 64 Track 3: CourseSettingsModal Tab 3 [a] course.terms.attach', 
 
   test('2) PTY E2E (120x36 zh): LibraryView -> C -> Tab 3 -> [a] -> Esc cancel (0 mutations) -> [a] -> j + Enter -> linked toast & badge persists -> Esc (0 LLM calls)', async () => {
     const base = await temps.make('r64-ui-zh');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     process.env.DSH_HOME = env.DSH_HOME;
     const libraryRoot = join(base, 'library');
 
@@ -834,8 +854,16 @@ describe('Round 64 Track 3: CourseSettingsModal Tab 3 [a] course.terms.attach', 
       assert.ok(!modalClosedScreen.includes('课程设置与学法'));
       assert.equal(modelCalls, 0);
     } finally {
-      app.unmount();
-      tty.dispose();
+      try {
+        app?.unmount();
+      } catch {
+        // Ignore unmount errors during cleanup
+      }
+      try {
+        tty?.dispose();
+      } catch {
+        // Ignore tty dispose errors during cleanup
+      }
       await host.dispose();
     }
   });

@@ -16,8 +16,10 @@ import {
   createVirtualTty,
   disposeTerminalPool,
   distDir,
+  findExportedBackupFile,
   loadDistRuntime,
   pkgRoot,
+  sanitizedTestEnv,
 } from './helpers/virtual-tty.mjs';
 
 const { StudyHubTuiApp, createTuiHost, saveTuiPreferences } = await loadDistRuntime();
@@ -265,7 +267,7 @@ async function seedCourseCards(host, { title, course, cards }) {
 describe('Round 42: Dashboard Knowledge Mastery Map', () => {
   test('1) createTuiHost integration: map {} returns expected today, next, mastery, and decks/topics structure', async () => {
     const base = await temps.make('r42-host');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     const libraryRoot = join(base, 'library');
     await cloneSampleLibrary('en', libraryRoot);
     const host = await createTuiHost({
@@ -314,7 +316,7 @@ describe('Round 42: Dashboard Knowledge Mastery Map', () => {
 
   test('2) E2E UI (zh, 120x36 & 80x24): DashboardView [m] opens StudyMapModal, filters with [/], Esc clears filter, and Enter launches practice', async () => {
     const base = await temps.make('r42-ui-zh');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     process.env.DSH_HOME = env.DSH_HOME;
 
     await saveTuiPreferences({ language: 'zh', asciiMode: false }, { env });
@@ -431,7 +433,7 @@ describe('Round 42: Dashboard Knowledge Mastery Map', () => {
 describe('Round 45: StudyMapModal Tab 2 Prerequisite & Topic Dependency Graph', () => {
   test('1) createTuiHost integration: sample.status + card.link + graph {} returns nodes & prerequisite edge', async () => {
     const base = await temps.make('r45-host');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     const libraryRoot = join(base, 'library');
     await cloneSampleLibrary('en', libraryRoot);
     const host = await createTuiHost({
@@ -474,7 +476,7 @@ describe('Round 45: StudyMapModal Tab 2 Prerequisite & Topic Dependency Graph', 
 
   test('2) E2E UI (zh, 120x36 & 80x24): DashboardView [m] -> Tab 2 renders Prerequisite Graph, filters, refreshes, launches practice, closes on Esc', async () => {
     const base = await temps.make('r45-ui-zh');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     process.env.DSH_HOME = env.DSH_HOME;
 
     await saveTuiPreferences({ language: 'zh', asciiMode: false }, { env });
@@ -894,8 +896,8 @@ describe('Round 66 Track 2: DashboardView [d] Usage Window & [x] Markdown Report
 
   test('2) PTY E2E (120x36 & 80x24 zh): Dashboard [6] -> [d] cycles 30->90->7 -> [x] writes atomic Markdown report (0 model calls)', async () => {
     fetchCalls = 0;
-    const expectedPath = join(libraryRoot, 'backups', `studyhub-report-${todayLocalYmd()}.md`);
-    await rm(expectedPath, { force: true });
+    const backupsDir = join(libraryRoot, 'backups');
+    await rm(backupsDir, { recursive: true, force: true });
 
     const tty = await mountApp({ initialPage: 'library', asciiMode: false, language: 'zh', cols: 120, rows: 36 });
     await tty.waitFor((s) => s.includes('Memento') || s.includes('学习库'), {
@@ -942,7 +944,9 @@ describe('Round 66 Track 2: DashboardView [d] Usage Window & [x] Markdown Report
     );
     tty.assertHealthyScreen(exportedScreen, 80, 24, 'DashboardView after [x] export zh 80x24');
 
-    const mdContent = await readFile(expectedPath, 'utf8');
+    const exportedInfo = await findExportedBackupFile(backupsDir, 'studyhub-report', 'md', todayLocalYmd());
+    assert.ok(exportedInfo, `expected studyhub-report-${todayLocalYmd()}-HHmmss.md in ${backupsDir}`);
+    const mdContent = await readFile(exportedInfo.path, 'utf8');
     assert.ok(mdContent.includes('# StudyHub 学习进度报告'), 'exported report has zh title');
     assert.ok(mdContent.includes('## 核心指标 (KPI)'), 'exported report has KPI table');
     assert.ok(mdContent.includes('| 总题数 (Total Cards) |'), 'exported report has Total Cards row');

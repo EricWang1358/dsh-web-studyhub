@@ -62,7 +62,27 @@ function sameCourseSet(a: readonly string[], b: readonly string[]): boolean {
   return sa.every((val, i) => val === sb[i]);
 }
 
-/** Collect up to 100 page-level sourceIds, prioritizing unassigned visible sources. */
+/** Validate that a `source.organize.suggest` batch obeys the backend 1–100 source cap before invoking the model. */
+export function validateOrganizeBatchSize(
+  sourceIds: readonly string[],
+  lang: 'zh' | 'en' = 'zh',
+): { ok: true; sourceIds: readonly string[] } | { ok: false; count: number; max: number; message: string } {
+  if (sourceIds.length > MAX_ORGANIZE_SUGGEST_SOURCES) {
+    return {
+      ok: false,
+      count: sourceIds.length,
+      max: MAX_ORGANIZE_SUGGEST_SOURCES,
+      message: t(
+        lang,
+        `单次 AI 归类最多支持 ${MAX_ORGANIZE_SUGGEST_SOURCES} 份资料（当前 ${sourceIds.length} 份），请缩小范围或分批处理`,
+        `AI organize supports at most ${MAX_ORGANIZE_SUGGEST_SOURCES} sources per batch (got ${sourceIds.length}); narrow the filter or process in batches`,
+      ),
+    };
+  }
+  return { ok: true, sourceIds };
+}
+
+/** Collect up to `limit` page-level sourceIds, prioritizing unassigned visible sources. */
 export function collectOrganizeSourceIds(
   groups: readonly DocumentGroup[],
   allGroups: readonly DocumentGroup[] = [],
@@ -142,7 +162,15 @@ export const OrganizeSourcesModal = memo(function OrganizeSourcesModal({
   // Hold input capture for the modal lifetime, including ConfirmDialog transitions.
   useInputCapture(isActive);
 
-  const sourceIds = useMemo(() => collectOrganizeSourceIds(groups, allGroups), [groups, allGroups]);
+  const allEligibleSourceIds = useMemo(
+    () => collectOrganizeSourceIds(groups, allGroups, Number.MAX_SAFE_INTEGER),
+    [groups, allGroups],
+  );
+  const exceedsBatchCap = allEligibleSourceIds.length > MAX_ORGANIZE_SUGGEST_SOURCES;
+  const sourceIds = useMemo(
+    () => allEligibleSourceIds.slice(0, MAX_ORGANIZE_SUGGEST_SOURCES),
+    [allEligibleSourceIds],
+  );
 
   const titleById = useMemo(() => {
     const map = new Map<string, string>();
@@ -193,6 +221,14 @@ export const OrganizeSourcesModal = memo(function OrganizeSourcesModal({
 
   const runSuggest = useCallback(async () => {
     if (sourceIds.length === 0 || busyRef.current || !isActive) return;
+    const batchCheck = validateOrganizeBatchSize(sourceIds, lang);
+    if (!batchCheck.ok) {
+      setProposals([]);
+      setCheckedIds(new Set());
+      setLoadError(batchCheck.message);
+      setPhase('error');
+      return;
+    }
     busyRef.current = true;
     const seq = ++seqRef.current;
     setPhase('loading');
@@ -474,11 +510,17 @@ export const OrganizeSourcesModal = memo(function OrganizeSourcesModal({
 
   const confirmWidth = Math.min(64, Math.max(40, columns - 4));
   const confirmTitle = t(lang, 'AI 分析资料所属课程', 'AI Organize Materials by Course');
-  const confirmBody = t(
-    lang,
-    `将分析 ${sourceIds.length} 份资料并调用 AI 建议课程归属，生成结果后由你勾选确认再保存。`,
-    `Analyze ${sourceIds.length} material(s) with AI to suggest course assignments; you review before saving.`,
-  );
+  const confirmBody = exceedsBatchCap
+    ? t(
+        lang,
+        `单次 AI 归类最多支持 ${MAX_ORGANIZE_SUGGEST_SOURCES} 份资料，请缩小范围或分批处理（当前共 ${allEligibleSourceIds.length} 份，将优先分析前 ${sourceIds.length} 份未归类资料，生成结果后由你勾选保存）。`,
+        `AI organize supports at most ${MAX_ORGANIZE_SUGGEST_SOURCES} sources per batch; narrow the filter or process in batches (${allEligibleSourceIds.length} total, analyzing the first ${sourceIds.length} prioritized sources for review).`,
+      )
+    : t(
+        lang,
+        `将分析 ${sourceIds.length} 份资料并调用 AI 建议课程归属，生成结果后由你勾选确认再保存。`,
+        `Analyze ${sourceIds.length} material(s) with AI to suggest course assignments; you review before saving.`,
+      );
 
   if (sourceIds.length > 0 && phase === 'confirm') {
     return (

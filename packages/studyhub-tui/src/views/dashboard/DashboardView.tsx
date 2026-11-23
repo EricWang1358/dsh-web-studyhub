@@ -2,7 +2,7 @@ import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, u
 import { Box, Text, useInput } from 'ink';
 import type { StudySnapshot, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
-import { atomicWriteTextFile, defaultBackupFilePath, todayLocalYmd } from '../../host/atomic-write.js';
+import { atomicWriteExportText, defaultBackupFilePath, todayLocalYmd } from '../../host/atomic-write.js';
 import { tryAction } from '../../host/sample-actions.js';
 import { currentCourse, dueToday } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
@@ -676,7 +676,7 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
     exportBusyRef.current = true;
     try {
       const baseDir = bindingRoot || host.getLibraryRoot?.() || process.cwd();
-      const targetPath = defaultBackupFilePath(baseDir, 'studyhub-report', 'md');
+      const defaultPath = defaultBackupFilePath(baseDir, 'studyhub-report', 'md', course || undefined);
       const markdown = formatDashboardMarkdownReport({
         stats,
         dailyPlan,
@@ -687,11 +687,11 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
         lang,
         generatedAt: todayLocalYmd(),
       });
-      await atomicWriteTextFile(targetPath, markdown);
+      const written = await atomicWriteExportText(defaultPath, markdown);
       if (!mountedRef.current) return;
       const arrow = asciiMode ? '->' : '→';
       notify(
-        t(lang, `已导出报告 ${arrow} ${targetPath}`, `Exported MD ${arrow} ${targetPath}`),
+        t(lang, `已导出报告 ${arrow} ${written.path}`, `Exported MD ${arrow} ${written.path}`),
         'success',
       );
     } catch (err) {

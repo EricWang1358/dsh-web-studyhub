@@ -1,11 +1,10 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { randomUUID } from 'node:crypto';
-import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { isAbsolute, resolve } from 'node:path';
 import { Box, Text, useInput } from 'ink';
 import type { HostClient, KeyHint } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
+import { atomicWriteExportText, atomicWriteTextFile, defaultBackupFilePath } from '../../host/atomic-write.js';
 import { cleanPathInput, tryAction } from '../../host/sample-actions.js';
 import { expandHomePath } from '../sources/path-complete.js';
 import { useTheme } from '../../theme/tokens.js';
@@ -52,7 +51,6 @@ export interface BookExportModalProps {
 }
 
 const QUESTION_MODES: readonly BookExportQuestionMode[] = ['linked', 'all', 'none'];
-const RETRY_CODES = new Set(['EBUSY', 'EPERM', 'EACCES']);
 
 export function sanitizeCourseFilename(course: string | null | undefined): string {
   const raw = String(course ?? '')
@@ -66,7 +64,8 @@ export function sanitizeCourseFilename(course: string | null | undefined): strin
 }
 
 export function defaultBookExportPath(rootPath: string, course: string | null | undefined): string {
-  return join(rootPath || process.cwd(), `studyhub-book-${sanitizeCourseFilename(course)}.md`);
+  const slug = course && course.trim() ? sanitizeCourseFilename(course) : undefined;
+  return defaultBackupFilePath(rootPath, 'studyhub-book', 'md', slug);
 }
 
 export function resolveBookExportPath(raw: string, baseDir: string): string {
@@ -78,30 +77,9 @@ export function resolveBookExportPath(raw: string, baseDir: string): string {
   return isAbsolute(withExt) ? withExt : resolve(baseDir || process.cwd(), withExt);
 }
 
-async function renameWithRetry(from: string, to: string): Promise<void> {
-  for (let attempt = 0; ; attempt += 1) {
-    try {
-      await rename(from, to);
-      return;
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException)?.code || '';
-      if (!RETRY_CODES.has(code) || attempt >= 5) throw error;
-      await new Promise((done) => setTimeout(done, 40 * (attempt + 1)));
-    }
-  }
-}
-
 export async function atomicWriteMarkdownFile(targetPath: string, text: string): Promise<number> {
-  await mkdir(dirname(targetPath), { recursive: true });
-  const temp = `${targetPath}.${randomUUID()}.tmp`;
-  await writeFile(temp, text, 'utf8');
-  try {
-    await renameWithRetry(temp, targetPath);
-  } catch (error) {
-    await rm(temp, { force: true }).catch(() => {});
-    throw error;
-  }
-  return Buffer.byteLength(text, 'utf8');
+  const { bytes } = await atomicWriteTextFile(targetPath, text);
+  return bytes;
 }
 
 function formatBytes(bytes: number): string {
@@ -206,15 +184,15 @@ export const BookExportModal = memo(function BookExportModal({
           setExportError(t(lang, '当前课程暂无可导出的复习全书正文', 'No review book Markdown available to export'));
           return;
         }
-        const bytes = await atomicWriteMarkdownFile(targetPath, res.value.text);
+        const written = await atomicWriteExportText(targetPath, res.value.text);
         if (!mountedRef.current) return;
         const pages = res.value.estimate?.pages ?? estimateData.estimate?.pages ?? 0;
         const arrow = asciiMode ? '->' : '→';
         notify(
           t(
             lang,
-            `已导出复习全书 (~${pages} A4页, ${res.value.text.length.toLocaleString()} 字, ${formatBytes(bytes)}) ${arrow} ${targetPath}`,
-            `Exported review book (~${pages} A4 pages, ${res.value.text.length.toLocaleString()} chars, ${formatBytes(bytes)}) ${arrow} ${targetPath}`,
+            `已导出复习全书 (~${pages} A4页, ${res.value.text.length.toLocaleString()} 字, ${formatBytes(written.bytes)}) ${arrow} ${written.path}`,
+            `Exported review book (~${pages} A4 pages, ${res.value.text.length.toLocaleString()} chars, ${formatBytes(written.bytes)}) ${arrow} ${written.path}`,
           ),
           'success',
         );

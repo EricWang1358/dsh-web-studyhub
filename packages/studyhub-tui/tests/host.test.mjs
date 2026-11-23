@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { tsImport } from 'tsx/esm/api';
+import { sanitizedTestEnv } from './helpers/virtual-tty.mjs';
 
 const H = await tsImport('../src/host/index.ts', import.meta.url);
 
@@ -399,8 +400,10 @@ describe('createTuiHost with injectedComplete', () => {
   test('library changes are forwarded debounced & coalesced', async () => {
     const events = [];
     const off = host.subscribeEvents((e) => events.push(e));
-    await host.call('library.notifyChanged', { reason: 'tui-test-1', changedAreas: ['decks'] });
-    await host.call('library.notifyChanged', { reason: 'tui-test-2', changedAreas: ['runs'] });
+    await Promise.all([
+      host.call('library.notifyChanged', { reason: 'tui-test-1', changedAreas: ['decks'] }),
+      host.call('library.notifyChanged', { reason: 'tui-test-2', changedAreas: ['runs'] }),
+    ]);
     await settle(150);
     const library = events.filter((e) => e.type === 'study:library-changed');
     assert.equal(library.length, 1, `coalesced into one event, got ${library.length}`);
@@ -620,8 +623,11 @@ describe('real local agy probe', () => {
   const agyPath = realAgyPath();
   test('auto-selects the locally installed agy CLI with a probed model', { skip: !agyPath && 'agy CLI not installed', timeout: 60_000 }, async () => {
     const box = await sandbox('real-agy');
-    const env = { ...process.env, DSH_HOME: box.env.DSH_HOME };
-    for (const key of ['DEEPSEEK_API_KEY', 'OPENAI_API_KEY', 'OPENAI_BASE_URL', 'SILICONFLOW_API_KEY', 'OPENROUTER_API_KEY', 'STUDYHUB_LIBRARY']) delete env[key];
+    const env = sanitizedTestEnv({
+      DSH_HOME: box.env.DSH_HOME,
+      OPENAI_BASE_URL: undefined,
+      STUDYHUB_LIBRARY: undefined,
+    });
     const host = await H.createTuiHost({ env, libraryRoot: box.libraryRoot, awaitAutoProbe: true });
     try {
       const result = await host.autoProbe;

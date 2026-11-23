@@ -2,7 +2,7 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from '
 import { resolve } from 'node:path';
 import { Box, Text, useInput } from 'ink';
 import type { StudySnapshot, UiLanguage } from '../../types/contracts.js';
-import { atomicWriteTextFile, defaultBackupFilePath, todayLocalYmd } from '../../host/atomic-write.js';
+import { atomicWriteExportText, defaultBackupFilePath, todayLocalYmd } from '../../host/atomic-write.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, EmptyState } from '../../components/Badge.js';
 import { Panel } from '../../components/Panel.js';
@@ -373,22 +373,24 @@ export const ExamSetup = memo(function ExamSetup({
     try {
       const rawRoot = bindingRoot?.trim() || (typeof snapshot?.root === 'string' ? snapshot.root.trim() : '') || '';
       const baseDir = rawRoot ? resolve(rawRoot) : process.cwd();
-      const targetPath = defaultBackupFilePath(baseDir, 'studyhub-exam', 'md');
       const selectedAttempt = exportRecords[safeHistoryIdx] ?? exportRecords[0] ?? null;
+      const focusCourse = typeof snapshot?.focus?.course === 'string' ? snapshot.focus.course.trim() : '';
+      const exportSlug = focusCourse || selectedAttempt?.title || selectedAttempt?.scope || mode || undefined;
+      const defaultPath = defaultBackupFilePath(baseDir, 'studyhub-exam', 'md', exportSlug);
       const markdown = formatExamHistoryMarkdown({
         history: exportRecords,
         selectedAttempt,
         lang,
         generatedAt: new Date(),
       });
-      await atomicWriteTextFile(targetPath, markdown);
+      const written = await atomicWriteExportText(defaultPath, markdown);
       if (!mountedRef.current) return;
       const arrow = asciiMode ? '->' : '→';
       notify(
         t(
           lang,
-          `已导出 ${exportRecords.length} 条模考记录 ${arrow} ${targetPath}`,
-          `Exported ${exportRecords.length} exam record(s) ${arrow} ${targetPath}`,
+          `已导出 ${exportRecords.length} 条模考记录 ${arrow} ${written.path}`,
+          `Exported ${exportRecords.length} exam record(s) ${arrow} ${written.path}`,
         ),
         'success',
       );
@@ -399,7 +401,7 @@ export const ExamSetup = memo(function ExamSetup({
     } finally {
       exportBusyRef.current = false;
     }
-  }, [asciiMode, bindingRoot, exportRecords, lang, notify, safeHistoryIdx, snapshot?.root]);
+  }, [asciiMode, bindingRoot, exportRecords, lang, mode, notify, safeHistoryIdx, snapshot?.focus?.course, snapshot?.root]);
 
   useClaimKeys(CLAIMED, isActive);
 

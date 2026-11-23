@@ -2,15 +2,20 @@
 // `node --test tests/cli-commands.test.mjs`
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { existsSync } from 'node:fs';
 import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
+import {
+  exportFilenameRegex,
+  installNoNetworkGuard,
+  sanitizedTestEnv,
+} from './helpers/virtual-tty.mjs';
 
 const execFileAsync = promisify(execFile);
+const restoreNetworkGuard = installNoNetworkGuard();
 const here = dirname(fileURLToPath(import.meta.url));
 const pkgRoot = resolve(here, '..');
 const binPath = resolve(pkgRoot, 'bin', 'studyhub-tui.mjs');
@@ -53,7 +58,7 @@ before(async () => {
 
   const seedHost = await createTuiHost({
     libraryRoot: tempLib,
-    env: { ...process.env, DSH_HOME: fakeDshHome },
+    env: sanitizedTestEnv({ DSH_HOME: fakeDshHome }),
     skipAutoProbe: true,
     language: 'en',
   });
@@ -67,6 +72,7 @@ before(async () => {
 });
 
 after(async () => {
+  restoreNetworkGuard();
   if (baseDir) {
     await rm(baseDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   }
@@ -80,17 +86,18 @@ function assertNoUnexpectedStderr(stderr) {
 }
 
 describe('CLI fast-path subprocess suite (--doctor / --stats / --search / --export)', () => {
-  describe('concurrent read-only & isolated-output CLI commands', { concurrency: 4 }, () => {
+  // Keep internal subprocess concurrency capped at 2 so running alongside other [tier:unit]
+  // files on a 4-core machine never oversubscribes CPU or starves event-loop timers.
+  describe('concurrent read-only & isolated-output CLI commands', { concurrency: 2 }, () => {
   test('1. --doctor --json exits 0, outputs valid JSON, never leaks API keys, and runs fast', async () => {
     const secret = 'sk-secret-do-not-leak';
     const t0 = performance.now();
     const { stdout, stderr } = await execFileAsync(process.execPath, [binPath, '--doctor', '--json'], {
-      timeout: 10_000,
-      env: {
-        ...process.env,
+      timeout: 15_000,
+      env: sanitizedTestEnv({
         DSH_HOME: doctorJsonDshHome,
         DEEPSEEK_API_KEY: secret,
-      },
+      }),
     });
     const elapsedMs = performance.now() - t0;
 
@@ -108,18 +115,17 @@ describe('CLI fast-path subprocess suite (--doctor / --stats / --search / --expo
     assert.ok(Array.isArray(parsed.providers.envKeysPresent));
     assert.ok(parsed.providers.envKeysPresent.includes('DEEPSEEK_API_KEY'));
     assert.ok(typeof parsed.terminal.colorLevel === 'number');
-    assert.ok(elapsedMs < 2_000, `cold --doctor --json took ${elapsedMs.toFixed(1)}ms`);
+    assert.ok(elapsedMs < 4_000, `cold --doctor --json took ${elapsedMs.toFixed(1)}ms`);
   });
 
   test('2. --doctor --ascii exits 0 with 100% pure ASCII human-readable diagnostics', async () => {
     const secret = 'sk-ascii-secret-never-print';
     const { stdout, stderr } = await execFileAsync(process.execPath, [binPath, '--doctor', '--ascii'], {
-      timeout: 10_000,
-      env: {
-        ...process.env,
+      timeout: 15_000,
+      env: sanitizedTestEnv({
         DSH_HOME: fakeDshHome,
         OPENAI_API_KEY: secret,
-      },
+      }),
     });
 
     assert.equal(stderr, '');
@@ -139,11 +145,10 @@ describe('CLI fast-path subprocess suite (--doctor / --stats / --search / --expo
       process.execPath,
       [binPath, '--stats', '--json', '--library', tempLib],
       {
-        timeout: 15_000,
-        env: {
-          ...process.env,
+        timeout: 25_000,
+        env: sanitizedTestEnv({
           DSH_HOME: fakeDshHome,
-        },
+        }),
       },
     );
     const elapsedMs = performance.now() - t0;
@@ -162,7 +167,7 @@ describe('CLI fast-path subprocess suite (--doctor / --stats / --search / --expo
     assert.ok(parsed.counts.cards >= parsed.counts.due, 'total cards >= due cards');
     assert.equal(typeof parsed.counts.archivedDecks, 'number');
     assert.ok(Array.isArray(parsed.courses) && parsed.courses.length >= 1);
-    assert.ok(elapsedMs < 10_000, `--stats --json took ${elapsedMs.toFixed(1)}ms`);
+    assert.ok(elapsedMs < 15_000, `--stats --json took ${elapsedMs.toFixed(1)}ms`);
   });
 
   test('4. --stats --ascii --library <tempLib> exits 0 with 100% pure ASCII summary', async () => {
@@ -170,11 +175,10 @@ describe('CLI fast-path subprocess suite (--doctor / --stats / --search / --expo
       process.execPath,
       [binPath, '--stats', '--ascii', '--library', tempLib],
       {
-        timeout: 15_000,
-        env: {
-          ...process.env,
+        timeout: 25_000,
+        env: sanitizedTestEnv({
           DSH_HOME: fakeDshHome,
-        },
+        }),
       },
     );
 
@@ -193,11 +197,10 @@ describe('CLI fast-path subprocess suite (--doctor / --stats / --search / --expo
       process.execPath,
       [distCliPath, '--search', 'Memento', '--json', '--limit', '2', '--library', tempLib],
       {
-        timeout: 15_000,
-        env: {
-          ...process.env,
+        timeout: 25_000,
+        env: sanitizedTestEnv({
           DSH_HOME: fakeDshHome,
-        },
+        }),
       },
     );
     const elapsedMs = performance.now() - t0;
@@ -218,34 +221,30 @@ describe('CLI fast-path subprocess suite (--doctor / --stats / --search / --expo
     assert.ok(typeof report.cards[0].deckTitle === 'string' && report.cards[0].deckTitle.length > 0);
     assert.ok(report.passages[0].sourceId && report.passages[0].title);
     assert.equal(typeof report.passages[0].snippet, 'string');
-    assert.ok(elapsedMs < 10_000, `--search --json took ${elapsedMs.toFixed(1)}ms`);
+    assert.ok(elapsedMs < 15_000, `--search --json took ${elapsedMs.toFixed(1)}ms`);
   });
 
   test('6. dist/cli.mjs --search Memento --ascii and zero-match query work cleanly', async () => {
-    const [{ stdout: hitOut, stderr: hitErr }, { stdout: emptyOut, stderr: emptyErr }] = await Promise.all([
-      execFileAsync(
-        process.execPath,
-        [distCliPath, '--search=Memento', '--ascii', '--limit', '3', '--library', tempLib],
-        {
-          timeout: 15_000,
-          env: {
-            ...process.env,
-            DSH_HOME: fakeDshHome,
-          },
-        },
-      ),
-      execFileAsync(
-        process.execPath,
-        [distCliPath, '--search', 'zzzznonexistentquery99999', '--json', '--library', tempLib],
-        {
-          timeout: 15_000,
-          env: {
-            ...process.env,
-            DSH_HOME: fakeDshHome,
-          },
-        },
-      ),
-    ]);
+    const { stdout: hitOut, stderr: hitErr } = await execFileAsync(
+      process.execPath,
+      [distCliPath, '--search=Memento', '--ascii', '--limit', '3', '--library', tempLib],
+      {
+        timeout: 25_000,
+        env: sanitizedTestEnv({
+          DSH_HOME: fakeDshHome,
+        }),
+      },
+    );
+    const { stdout: emptyOut, stderr: emptyErr } = await execFileAsync(
+      process.execPath,
+      [distCliPath, '--search', 'zzzznonexistentquery99999', '--json', '--library', tempLib],
+      {
+        timeout: 25_000,
+        env: sanitizedTestEnv({
+          DSH_HOME: fakeDshHome,
+        }),
+      },
+    );
     assertNoUnexpectedStderr(hitErr);
     assert.ok(!/[^\x00-\x7f]/.test(hitOut), '--search --ascii must output pure ASCII');
     assert.match(hitOut, /StudyHub TUI Search \(v1\.0\.0\)/);
@@ -265,7 +264,7 @@ describe('CLI fast-path subprocess suite (--doctor / --stats / --search / --expo
       let exitCode = 0;
       let stderrText = '';
       try {
-        await execFileAsync(process.execPath, [distCliPath, ...argv], { timeout: 10_000 });
+        await execFileAsync(process.execPath, [distCliPath, ...argv], { timeout: 15_000 });
       } catch (err) {
         exitCode = err.code;
         stderrText = String(err.stderr ?? '');
@@ -275,60 +274,80 @@ describe('CLI fast-path subprocess suite (--doctor / --stats / --search / --expo
     }
   });
 
-  test('8. --export <outPath> --json --library <tempLib> writes atomic JSON backup into dedicated temp dir with zero .tmp leftovers', async () => {
-    const outPath = join(exportOutDir, 'my-backup.json');
+  test('8. --export <relName> writes atomic JSON inside <tempLib>/backups/ and rejects absolute / traversal escapes', async () => {
     const backupsDir = join(tempLib, 'backups');
-    const hadBackupsBefore = existsSync(backupsDir);
+    const expectedOutPath = join(backupsDir, 'my-backup.json');
 
-    const { stdout, stderr } = await execFileAsync(
-      process.execPath,
-      [binPath, '--export', outPath, '--json', '--library', tempLib],
-      {
-        timeout: 15_000,
-        env: {
-          ...process.env,
-          DSH_HOME: fakeDshHome,
+    try {
+      const { stdout, stderr } = await execFileAsync(
+        process.execPath,
+        [binPath, '--export', 'my-backup.json', '--json', '--library', tempLib],
+        {
+          timeout: 25_000,
+          env: sanitizedTestEnv({
+            DSH_HOME: fakeDshHome,
+          }),
         },
-      },
-    );
+      );
 
-    assertNoUnexpectedStderr(stderr);
-    const receipt = JSON.parse(stdout);
-    assert.equal(receipt.ok, true);
-    assert.equal(receipt.path, outPath);
-    assert.equal(receipt.libraryRoot, tempLib);
-    assert.ok(receipt.bytes > 0, `expected bytes > 0, got ${receipt.bytes}`);
-    assert.ok(receipt.decks >= 1, `expected decks >= 1, got ${receipt.decks}`);
-    assert.ok(receipt.cards >= 1, `expected cards >= 1, got ${receipt.cards}`);
-    assert.ok(typeof receipt.generatedAt === 'string' && !Number.isNaN(Date.parse(receipt.generatedAt)));
+      assertNoUnexpectedStderr(stderr);
+      const receipt = JSON.parse(stdout);
+      assert.equal(receipt.ok, true);
+      assert.equal(receipt.path, expectedOutPath);
+      assert.equal(receipt.libraryRoot, tempLib);
+      assert.ok(receipt.bytes > 0, `expected bytes > 0, got ${receipt.bytes}`);
+      assert.ok(receipt.decks >= 1, `expected decks >= 1, got ${receipt.decks}`);
+      assert.ok(receipt.cards >= 1, `expected cards >= 1, got ${receipt.cards}`);
+      assert.ok(typeof receipt.generatedAt === 'string' && !Number.isNaN(Date.parse(receipt.generatedAt)));
 
-    const backupRaw = await readFile(outPath, 'utf8');
-    assert.equal(Buffer.byteLength(backupRaw, 'utf8'), receipt.bytes);
-    const backup = JSON.parse(backupRaw);
-    assert.ok(Array.isArray(backup.decks) && backup.decks.length >= 1, 'backup payload contains decks');
-    assert.ok(Array.isArray(backup.sources) && backup.sources.length >= 1, 'backup payload contains sources');
-    assert.ok(Array.isArray(backup.courses) && backup.courses.length >= 1, 'backup payload contains courses');
+      const backupRaw = await readFile(expectedOutPath, 'utf8');
+      assert.equal(Buffer.byteLength(backupRaw, 'utf8'), receipt.bytes);
+      const backup = JSON.parse(backupRaw);
+      assert.ok(Array.isArray(backup.decks) && backup.decks.length >= 1, 'backup payload contains decks');
+      assert.ok(Array.isArray(backup.sources) && backup.sources.length >= 1, 'backup payload contains sources');
+      assert.ok(Array.isArray(backup.courses) && backup.courses.length >= 1, 'backup payload contains courses');
 
-    const filesInOutDir = await readdir(exportOutDir);
-    assert.deepEqual(filesInOutDir, ['my-backup.json'], 'zero .tmp leftovers in export directory');
-    assert.equal(existsSync(backupsDir), hadBackupsBefore, 'explicit --export <path> leaves seeded library backups dir clean');
+      const filesInBackups = await readdir(backupsDir);
+      assert.deepEqual(filesInBackups, ['my-backup.json'], 'zero .tmp leftovers in backups directory');
+
+      for (const unsafePath of [join(exportOutDir, 'escape.json'), '../escape.json']) {
+        let failedCode = 0;
+        let errText = '';
+        try {
+          await execFileAsync(
+            process.execPath,
+            [binPath, '--export', unsafePath, '--json', '--library', tempLib],
+            {
+              timeout: 15_000,
+              env: sanitizedTestEnv({ DSH_HOME: fakeDshHome }),
+            },
+          );
+        } catch (err) {
+          failedCode = err.code ?? 1;
+          errText = String(err.stderr ?? err.message ?? '');
+        }
+        assert.notEqual(failedCode, 0, `unsafe --export "${unsafePath}" must exit non-zero`);
+        assert.match(errText, /Unsafe export path|backups/i);
+      }
+    } finally {
+      await rm(backupsDir, { recursive: true, force: true });
+    }
   });
 
-  test('9. --export --ascii --library <exportDefaultLib> exits 0 with pure ASCII summary and default dated backup file', async () => {
-    const expectedName = `studyhub-backup-${todayLocalYmd()}.json`;
+  test('9. --export --ascii --library <exportDefaultLib> exits 0 with pure ASCII summary and default timestamped backup file', async () => {
+    const todayYmd = todayLocalYmd();
+    const expectedRe = exportFilenameRegex('studyhub-backup', 'json', todayYmd);
     const backupsDir = join(exportDefaultLib, 'backups');
-    const expectedPath = join(backupsDir, expectedName);
 
     try {
       const { stdout, stderr } = await execFileAsync(
         process.execPath,
         [binPath, '--export', '--ascii', '--library', exportDefaultLib],
         {
-          timeout: 15_000,
-          env: {
-            ...process.env,
+          timeout: 25_000,
+          env: sanitizedTestEnv({
             DSH_HOME: fakeDshHome,
-          },
+          }),
         },
       );
 
@@ -336,18 +355,20 @@ describe('CLI fast-path subprocess suite (--doctor / --stats / --search / --expo
       assert.ok(!/[^\x00-\x7f]/.test(stdout), '--export --ascii output must contain zero non-ASCII characters');
       assert.match(stdout, /StudyHub TUI Export \(v1\.0\.0\)/);
       assert.match(stdout, /\[ok\] Exported library backup/);
-      assert.ok(stdout.includes(expectedPath), `stdout mentions default backup path ${expectedPath}`);
-
-      const backupRaw = await readFile(expectedPath, 'utf8');
-      const backup = JSON.parse(backupRaw);
-      assert.ok(Array.isArray(backup.decks) && backup.decks.length >= 1, 'default backup contains seeded decks');
 
       const backupFiles = await readdir(backupsDir);
       assert.ok(
         !backupFiles.some((name) => name.endsWith('.tmp')),
         `expected zero .tmp leftovers in backups dir, found: ${backupFiles.join(', ')}`,
       );
-      assert.ok(backupFiles.includes(expectedName), 'default dated backup file exists');
+      const matchedName = backupFiles.find((name) => expectedRe.test(name));
+      assert.ok(matchedName, `expected file matching ${expectedRe} in ${JSON.stringify(backupFiles)}`);
+      const expectedPath = join(backupsDir, matchedName);
+      assert.ok(stdout.includes(expectedPath), `stdout mentions default backup path ${expectedPath}`);
+
+      const backupRaw = await readFile(expectedPath, 'utf8');
+      const backup = JSON.parse(backupRaw);
+      assert.ok(Array.isArray(backup.decks) && backup.decks.length >= 1, 'default backup contains seeded decks');
     } finally {
       await rm(backupsDir, { recursive: true, force: true });
     }

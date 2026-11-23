@@ -16,7 +16,7 @@ import { useTheme } from '../../theme/tokens.js';
 import { currentCourse } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
-import { atomicWriteTextFile, defaultBackupFilePath, todayLocalYmd } from '../../host/atomic-write.js';
+import { atomicWriteExportText, defaultBackupFilePath, todayLocalYmd } from '../../host/atomic-write.js';
 import { errorMessage, tryAction } from '../../host/sample-actions.js';
 import {
   type DocumentGroup,
@@ -264,23 +264,21 @@ const BatchFolderModal = memo(function BatchFolderModal({
       setBusy(true);
       setErr(null);
       try {
-        const res = await tryAction<{ updated?: number }>(host, 'source.folder.set', {
-          keys: selectedKeys,
-          folder,
-        });
+        const result = await executeBatchSourceFolderSet(host, selectedKeys, folder, lang);
         if (!mountedRef.current) return;
-        if (!res.ok) {
-          setErr(res.error?.message || t(lang, '批量移动文件夹失败', 'Batch move failed'));
+        if (!result.ok) {
+          if (result.partial) await onRefresh();
+          if (!mountedRef.current) return;
+          setErr(result.error || t(lang, '批量移动文件夹失败', 'Batch move failed'));
           return;
         }
-        const count = typeof res.value?.updated === 'number' ? res.value.updated : selectedKeys.length;
         await onRefresh();
         if (!mountedRef.current) return;
         onAssigned();
         notify(
           folder
-            ? t(lang, `已将 ${count} 份资料移入「${folder}」`, `Moved ${count} materials to "${folder}"`)
-            : t(lang, `已将 ${count} 份资料移出文件夹`, `Unfiled ${count} materials`),
+            ? t(lang, `已将 ${result.updated} 份资料移入「${folder}」`, `Moved ${result.updated} materials to "${folder}"`)
+            : t(lang, `已将 ${result.updated} 份资料移出文件夹`, `Unfiled ${result.updated} materials`),
           'success',
         );
         onClose();
@@ -465,6 +463,105 @@ const BatchFolderModal = memo(function BatchFolderModal({
     </Modal>
   );
 });
+
+export const SOURCE_BATCH_MAX = 100;
+
+function chunkSourceBatch<T>(items: readonly T[], maxSize = SOURCE_BATCH_MAX): T[][] {
+  if (!Array.isArray(items) || items.length === 0) return [];
+  const size = Math.max(1, Math.floor(maxSize));
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
+
+export async function executeBatchSourceArchive(
+  host: HostClient,
+  sourceIds: readonly string[],
+  archived: boolean,
+  lang: 'zh' | 'en',
+): Promise<{ ok: boolean; processedIds: string[]; partial: boolean; error?: string }> {
+  const chunks = chunkSourceBatch(sourceIds, SOURCE_BATCH_MAX);
+  const processedIds: string[] = [];
+  for (let i = 0; i < chunks.length; i += 1) {
+    const chunk = chunks[i];
+    const res = await tryAction(host, 'source.archive', { sourceIds: chunk, archived });
+    if (!res.ok) {
+      const baseErr = res.error?.message || t(lang, '归档操作失败', 'Archive failed');
+      const error =
+        processedIds.length > 0
+          ? t(
+              lang,
+              `已处理 ${processedIds.length}/${sourceIds.length} 份资料，第 ${i + 1}/${chunks.length} 批失败：${baseErr}`,
+              `Processed ${processedIds.length}/${sourceIds.length} source(s); batch ${i + 1}/${chunks.length} failed: ${baseErr}`,
+            )
+          : baseErr;
+      return { ok: false, processedIds, partial: processedIds.length > 0, error };
+    }
+    processedIds.push(...chunk);
+  }
+  return { ok: true, processedIds, partial: false };
+}
+
+export async function executeBatchSourceRemove(
+  host: HostClient,
+  sourceIds: readonly string[],
+  lang: 'zh' | 'en',
+): Promise<{ ok: boolean; removedCount: number; partial: boolean; error?: string }> {
+  const chunks = chunkSourceBatch(sourceIds, SOURCE_BATCH_MAX);
+  let removedCount = 0;
+  for (let i = 0; i < chunks.length; i += 1) {
+    const chunk = chunks[i];
+    const res = await tryAction(host, 'source.remove', { sourceIds: chunk, confirm: true });
+    if (!res.ok) {
+      const baseErr =
+        res.error?.message || t(lang, '删除失败（可能被题组引用）', 'Delete failed (may be referenced by cards)');
+      const error =
+        removedCount > 0
+          ? t(
+              lang,
+              `已删除 ${removedCount}/${sourceIds.length} 份资料，第 ${i + 1}/${chunks.length} 批失败：${baseErr}`,
+              `Removed ${removedCount}/${sourceIds.length} source(s); batch ${i + 1}/${chunks.length} failed: ${baseErr}`,
+            )
+          : baseErr;
+      return { ok: false, removedCount, partial: removedCount > 0, error };
+    }
+    removedCount += chunk.length;
+  }
+  return { ok: true, removedCount, partial: false };
+}
+
+export async function executeBatchSourceFolderSet(
+  host: HostClient,
+  keys: readonly string[],
+  folder: string | null,
+  lang: 'zh' | 'en',
+): Promise<{ ok: boolean; updated: number; partial: boolean; error?: string }> {
+  const chunks = chunkSourceBatch(keys, SOURCE_BATCH_MAX);
+  let updated = 0;
+  for (let i = 0; i < chunks.length; i += 1) {
+    const chunk = chunks[i];
+    const res = await tryAction<{ updated?: number }>(host, 'source.folder.set', {
+      keys: chunk,
+      folder,
+    });
+    if (!res.ok) {
+      const baseErr = res.error?.message || t(lang, '批量移动文件夹失败', 'Batch move failed');
+      const error =
+        updated > 0
+          ? t(
+              lang,
+              `已移动 ${updated}/${keys.length} 份资料，第 ${i + 1}/${chunks.length} 批失败：${baseErr}`,
+              `Moved ${updated}/${keys.length} material(s); batch ${i + 1}/${chunks.length} failed: ${baseErr}`,
+            )
+          : baseErr;
+      return { ok: false, updated, partial: updated > 0, error };
+    }
+    updated += typeof res.value?.updated === 'number' ? res.value.updated : chunk.length;
+  }
+  return { ok: true, updated, partial: false };
+}
 
 export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
   host,
@@ -780,13 +877,12 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
       busyRef.current = true;
       setBusy(true);
       try {
-        const res = await tryAction(host, 'source.archive', {
-          sourceIds,
-          archived: nextArchived,
-        });
+        const result = await executeBatchSourceArchive(host, sourceIds, nextArchived, lang);
         if (!mountedRef.current) return;
-        if (!res.ok) {
-          notify(res.error?.message || t(lang, '归档操作失败', 'Archive failed'), 'error');
+        if (!result.ok) {
+          if (result.partial) await refresh();
+          if (!mountedRef.current) return;
+          notify(result.error || t(lang, '归档操作失败', 'Archive failed'), result.partial ? 'warning' : 'error');
           return;
         }
         const batchCount = selectedKeys.size > 0 ? targetGroups.length : 0;
@@ -935,31 +1031,25 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
   const handleDeleteConfirm = useCallback(async () => {
     if (!selectedItem || busy) return;
     setBusy(true);
-    let archivedByUs = false;
+    let archivedIds: string[] = [];
     try {
       if (!selectedItem.archived) {
-        const archRes = await tryAction(host, 'source.archive', {
-          sourceIds: selectedItem.sourceIds,
-          archived: true,
-        });
+        const archRes = await executeBatchSourceArchive(host, selectedItem.sourceIds, true, lang);
+        archivedIds = archRes.processedIds;
         if (!archRes.ok) {
-          notify(archRes.error?.message || t(lang, '归档失败，无法删除', 'Archive failed before delete'), 'error');
+          if (archivedIds.length > 0) {
+            await executeBatchSourceArchive(host, archivedIds, false, lang);
+          }
+          notify(archRes.error || t(lang, '归档失败，无法删除', 'Archive failed before delete'), 'error');
           return;
         }
-        archivedByUs = true;
       }
-      const delRes = await tryAction(host, 'source.remove', {
-        sourceIds: selectedItem.sourceIds,
-        confirm: true,
-      });
+      const delRes = await executeBatchSourceRemove(host, selectedItem.sourceIds, lang);
       if (!delRes.ok) {
         const errMsg =
-          delRes.error?.message || t(lang, '删除失败（可能被题组引用）', 'Delete failed (may be referenced by cards)');
-        if (archivedByUs) {
-          const rollbackRes = await tryAction(host, 'source.archive', {
-            sourceIds: selectedItem.sourceIds,
-            archived: false,
-          });
+          delRes.error || t(lang, '删除失败（可能被题组引用）', 'Delete failed (may be referenced by cards)');
+        if (archivedIds.length > 0) {
+          const rollbackRes = await executeBatchSourceArchive(host, archivedIds, false, lang);
           await refresh();
           if (rollbackRes.ok) {
             notify(
@@ -1007,7 +1097,12 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
     }
     exportBusyRef.current = true;
     try {
-      const targetPath = defaultBackupFilePath(host.getLibraryRoot(), 'studyhub-sources', '.md');
+      const courseSlug = !isBatchSelection && courseFilterOn && focusCourse ? focusCourse : '';
+      const folderSlug = !isBatchSelection && folderFilter !== null ? folderFilter || 'unfiled' : '';
+      const exportLabel =
+        [courseSlug, folderSlug].filter(Boolean).join('-') ||
+        (isBatchSelection ? `selected-${targetGroups.length}` : undefined);
+      const defaultPath = defaultBackupFilePath(host.getLibraryRoot(), 'studyhub-sources', '.md', exportLabel);
       const md = formatSourcesCatalogMarkdown({
         groups: targetGroups,
         course: !isBatchSelection && courseFilterOn && focusCourse ? focusCourse : undefined,
@@ -1017,14 +1112,14 @@ export const SourcesView: React.FC<ViewProps> = memo(function SourcesView({
             : undefined,
         lang,
       });
-      await atomicWriteTextFile(targetPath, md);
+      const written = await atomicWriteExportText(defaultPath, md);
       if (!mountedRef.current) return;
       const arrow = asciiMode ? '->' : '→';
       notify(
         t(
           lang,
-          `已导出 ${targetGroups.length} 份资料目录 ${arrow} ${targetPath}`,
-          `Exported ${targetGroups.length} source(s) ${arrow} ${targetPath}`,
+          `已导出 ${targetGroups.length} 份资料目录 ${arrow} ${written.path}`,
+          `Exported ${targetGroups.length} source(s) ${arrow} ${written.path}`,
         ),
         'success',
       );

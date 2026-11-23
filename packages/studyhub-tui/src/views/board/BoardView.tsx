@@ -2,7 +2,7 @@ import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, u
 import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 import { Box, Text, useInput } from 'ink';
-import { atomicWriteTextFile, defaultBackupFilePath } from '../../host/atomic-write.js';
+import { atomicWriteExportText, defaultBackupFilePath } from '../../host/atomic-write.js';
 import { Badge, EmptyState, Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
 import { Panel } from '../../components/Panel.js';
@@ -162,11 +162,14 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
   const [syncing, setSyncing] = useState(false);
   const [readOnlyError, setReadOnlyError] = useState<string | null>(null);
   const [readOnlyPath, setReadOnlyPath] = useState<string>('');
+  const [upstreamReadOnly, setUpstreamReadOnly] = useState(false);
   const [activeCol, setActiveCol] = useState<BoardColumnId>('todo');
   const [cursorByCol, setCursorByCol] = useState<Record<BoardColumnId, number>>({ todo: 0, doing: 0, done: 0 });
   const [modal, setModal] = useState<ActiveModal>(null);
   const [filterQuery, setFilterQuery] = useState('');
   const [filterEditing, setFilterEditing] = useState(false);
+
+  const isReadOnly = Boolean(readOnlyError) || upstreamReadOnly;
 
   const mountedRef = useRef(true);
   const loadReqRef = useRef(0);
@@ -177,6 +180,10 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
   docRef.current = doc;
   const readOnlyErrorRef = useRef<string | null>(readOnlyError);
   readOnlyErrorRef.current = readOnlyError;
+  const upstreamReadOnlyRef = useRef<boolean>(upstreamReadOnly);
+  upstreamReadOnlyRef.current = upstreamReadOnly;
+  const isReadOnlyRef = useRef<boolean>(isReadOnly);
+  isReadOnlyRef.current = isReadOnly;
 
   const enqueueUpstream = useCallback((fn: () => Promise<void>) => {
     const next = upstreamQueueRef.current.then(fn, fn);
@@ -184,14 +191,25 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
     return next;
   }, []);
 
-  const notifyReadOnlyError = useCallback(() => {
+  const notifyReadOnly = useCallback(() => {
+    if (readOnlyErrorRef.current) {
+      notify(
+        t(
+          lang,
+          '看板文件读取失败，已锁定只读防止覆盖原文件',
+          'Board file unreadable; read-only lock active to avoid overwriting',
+        ),
+        'error',
+      );
+      return;
+    }
     notify(
       t(
         lang,
-        '看板文件读取失败，已锁定只读防止覆盖原文件',
-        'Board file unreadable; read-only lock active to avoid overwriting',
+        '学习库看板当前为只读状态，已禁止编辑与同步',
+        'StudyHub board is read-only; edits and sync are disabled',
       ),
-      'error',
+      'warning',
     );
   }, [lang, notify]);
 
@@ -204,8 +222,8 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
 
   const persistDoc = useCallback(
     async (updater: (prev: BoardDocument) => BoardDocument) => {
-      if (readOnlyErrorRef.current) {
-        if (mountedRef.current) notifyReadOnlyError();
+      if (isReadOnlyRef.current) {
+        if (mountedRef.current) notifyReadOnly();
         return;
       }
       const nextDoc = updater(docRef.current);
@@ -223,20 +241,20 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
         }
       }
     },
-    [libraryRoot, notify, lang, notifyReadOnlyError],
+    [libraryRoot, notify, lang, notifyReadOnly],
   );
 
   const syncUpstreamBoard = useCallback(
     async ({ notifyResult }: { notifyResult: boolean }) => {
-      if (readOnlyErrorRef.current) {
-        if (notifyResult && mountedRef.current) notifyReadOnlyError();
+      if (isReadOnlyRef.current) {
+        if (notifyResult && mountedRef.current) notifyReadOnly();
         return;
       }
       const reqId = ++syncReqRef.current;
       if (notifyResult) setSyncing(true);
       try {
         await enqueueUpstream(async () => {
-          if (readOnlyErrorRef.current) return;
+          if (isReadOnlyRef.current) return;
           const res = await host.call<UpstreamBoardSnapshot>('board.get', {});
           if (!mountedRef.current || syncReqRef.current !== reqId) return;
           if (!res.ok || !res.value) {
@@ -246,10 +264,16 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
             return;
           }
           if (res.value.readOnly) {
-            if (notifyResult) {
-              notify(t(lang, '学习库看板当前为只读状态', 'StudyHub board is read-only'), 'warning');
-            }
+            upstreamReadOnlyRef.current = true;
+            isReadOnlyRef.current = true;
+            setUpstreamReadOnly(true);
+            if (notifyResult) notifyReadOnly();
             return;
+          }
+          if (upstreamReadOnlyRef.current) {
+            upstreamReadOnlyRef.current = false;
+            isReadOnlyRef.current = Boolean(readOnlyErrorRef.current);
+            setUpstreamReadOnly(false);
           }
           const upstreamSnapshot = res.value;
           const preview = mergeUpstreamBoard(
@@ -289,7 +313,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
         }
       }
     },
-    [host, lang, notify, persistDoc, notifyReadOnlyError, enqueueUpstream],
+    [host, lang, notify, persistDoc, notifyReadOnly, enqueueUpstream],
   );
 
   const syncUpstreamRef = useRef(syncUpstreamBoard);
@@ -302,16 +326,20 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
       const res = await loadBoardSafe(libraryRoot);
       if (!mountedRef.current || loadReqRef.current !== reqId) return;
       setLoading(false);
+      upstreamReadOnlyRef.current = false;
+      setUpstreamReadOnly(false);
       if (!res.ok) {
         readOnlyErrorRef.current = res.error;
+        isReadOnlyRef.current = true;
         setReadOnlyError(res.error);
         setReadOnlyPath(res.path);
         docRef.current = res.doc;
         setDoc(res.doc);
-        if (notifyOnReload) notifyReadOnlyError();
+        if (notifyOnReload) notifyReadOnly();
         return;
       }
       readOnlyErrorRef.current = null;
+      isReadOnlyRef.current = false;
       setReadOnlyError(null);
       setReadOnlyPath('');
       docRef.current = res.doc;
@@ -321,7 +349,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
       }
       void syncUpstreamRef.current({ notifyResult: false });
     },
-    [libraryRoot, lang, notify, notifyReadOnlyError],
+    [libraryRoot, lang, notify, notifyReadOnly],
   );
 
   const reloadBoardRef = useRef(reloadBoard);
@@ -333,7 +361,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
 
   const updateUpstreamDirect = useCallback(
     async (upstreamCardId: string, patch: { column?: BoardColumnId; title?: string; due?: string }) => {
-      if (readOnlyErrorRef.current) return;
+      if (isReadOnlyRef.current) return;
       for (let attempt = 0; attempt < 2; attempt += 1) {
         const boardRes = await host.call<UpstreamBoardSnapshot>('board.get', {});
         if (!boardRes.ok || !boardRes.value || boardRes.value.readOnly) return;
@@ -386,7 +414,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
 
   const removeUpstreamDirect = useCallback(
     async (upstreamCardId: string) => {
-      if (readOnlyErrorRef.current) return;
+      if (isReadOnlyRef.current) return;
       for (let attempt = 0; attempt < 2; attempt += 1) {
         const boardRes = await host.call<UpstreamBoardSnapshot>('board.get', {});
         if (!boardRes.ok || !boardRes.value || boardRes.value.readOnly) return;
@@ -412,7 +440,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
 
   const addUpstreamDirect = useCallback(
     async (localCardId: string) => {
-      if (readOnlyErrorRef.current) return;
+      if (isReadOnlyRef.current) return;
       for (let attempt = 0; attempt < 2; attempt += 1) {
         const localNow = docRef.current.cards.find((c) => c.id === localCardId);
         if (!localNow || localNow.upstreamCardId) return;
@@ -522,8 +550,8 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
 
   const moveCard = useCallback(
     (card: BoardCard, targetCol: BoardColumnId) => {
-      if (readOnlyErrorRef.current) {
-        notifyReadOnlyError();
+      if (isReadOnlyRef.current) {
+        notifyReadOnly();
         return;
       }
       const now = new Date().toISOString();
@@ -553,7 +581,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
         void mirrorUpstreamUpdate(resolvedUpstreamId, { column: targetCol });
       }
     },
-    [grouped, normalizedFilter, persistDoc, mirrorUpstreamUpdate, notifyReadOnlyError],
+    [grouped, normalizedFilter, persistDoc, mirrorUpstreamUpdate, notifyReadOnly],
   );
 
   const handleExportMarkdown = useCallback(async () => {
@@ -563,8 +591,9 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
       const currentDoc = docRef.current;
       const markdown = formatBoardMarkdown(currentDoc, lang);
       const baseDir = libraryRoot?.trim() ? resolve(libraryRoot.trim()) : process.cwd();
-      const targetPath = defaultBackupFilePath(baseDir, 'studyhub-board', 'md');
-      await atomicWriteTextFile(targetPath, markdown);
+      const exportLabel = focusCourse?.trim() || activeCol;
+      const rawTargetPath = defaultBackupFilePath(baseDir, 'studyhub-board', 'md', exportLabel);
+      const { path: targetPath } = await atomicWriteExportText(rawTargetPath, markdown);
       if (!mountedRef.current) return;
       const arrow = asciiMode ? '->' : '→';
       notify(
@@ -582,7 +611,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
     } finally {
       exportBusyRef.current = false;
     }
-  }, [asciiMode, lang, libraryRoot, notify]);
+  }, [activeCol, asciiMode, focusCourse, lang, libraryRoot, notify]);
 
   const moveCursorByWheel = useCallback(
     (delta: number) => {
@@ -655,44 +684,60 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
         return;
       }
       if (input === 'a') {
-        if (readOnlyErrorRef.current) {
-          notifyReadOnlyError();
+        if (isReadOnlyRef.current) {
+          notifyReadOnly();
           return;
         }
         setModal({ type: 'add' });
         return;
       }
       if (input === 'S') {
+        if (isReadOnlyRef.current) {
+          notifyReadOnly();
+          return;
+        }
         void syncUpstreamBoard({ notifyResult: true });
         return;
       }
       if (!selectedCard) return;
       if (input === 'H') {
+        if (isReadOnlyRef.current) {
+          notifyReadOnly();
+          return;
+        }
         const leftCol = adjacentColumn(selectedCard.column, -1, false);
         if (leftCol) moveCard(selectedCard, leftCol);
         return;
       }
       if (input === 'L') {
+        if (isReadOnlyRef.current) {
+          notifyReadOnly();
+          return;
+        }
         const rightCol = adjacentColumn(selectedCard.column, 1, false);
         if (rightCol) moveCard(selectedCard, rightCol);
         return;
       }
       if (input === 'm') {
+        if (isReadOnlyRef.current) {
+          notifyReadOnly();
+          return;
+        }
         const nextCol = adjacentColumn(selectedCard.column, 1, true);
         if (nextCol) moveCard(selectedCard, nextCol);
         return;
       }
       if (input === 'e' || key.return) {
-        if (readOnlyErrorRef.current) {
-          notifyReadOnlyError();
+        if (isReadOnlyRef.current) {
+          notifyReadOnly();
           return;
         }
         setModal({ type: 'edit', card: selectedCard });
         return;
       }
       if (input === 'd') {
-        if (readOnlyErrorRef.current) {
-          notifyReadOnlyError();
+        if (isReadOnlyRef.current) {
+          notifyReadOnly();
           return;
         }
         setModal({ type: 'delete', card: selectedCard });
@@ -703,8 +748,8 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
 
   const handleFocusComplete = useCallback(
     (minutes: number) => {
-      if (readOnlyErrorRef.current) {
-        notifyReadOnlyError();
+      if (isReadOnlyRef.current) {
+        notifyReadOnly();
         return;
       }
       void persistDoc((prev) => ({
@@ -720,7 +765,7 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
         'success',
       );
     },
-    [persistDoc, asciiMode, selectedCard, notify, lang, notifyReadOnlyError],
+    [persistDoc, asciiMode, selectedCard, notify, lang, notifyReadOnly],
   );
 
   const hints: KeyHint[] = useMemo(() => {
@@ -731,23 +776,31 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
       ];
     }
     return [
-      ...(readOnlyError ? [{ key: 'r', label: t(lang, '重载', 'Reload') }] : []),
+      ...(isReadOnly ? [{ key: 'r', label: t(lang, '重载', 'Reload') }] : []),
       { key: 'h/l', label: t(lang, '切列', 'Col') },
       { key: 'j/k', label: t(lang, '移动', 'Nav') },
-      { key: 'H/L/m', label: t(lang, '移列', 'Move') },
-      { key: 'a', label: t(lang, '添加', 'Add') },
+      ...(!isReadOnly
+        ? [
+            { key: 'H/L/m', label: t(lang, '移列', 'Move') },
+            { key: 'a', label: t(lang, '添加', 'Add') },
+          ]
+        : []),
       { key: '/', label: t(lang, '过滤', 'Filter') },
       ...(filterQuery ? [{ key: 'Esc', label: t(lang, '清过滤', 'Clear') }] : []),
       { key: 'x', label: t(lang, '导出', 'Export') },
-      { key: 'S', label: t(lang, '同步', 'Sync') },
-      { key: 'e', label: t(lang, '编辑', 'Edit') },
-      { key: 'd', label: t(lang, '删除', 'Del') },
+      ...(!isReadOnly
+        ? [
+            { key: 'S', label: t(lang, '同步', 'Sync') },
+            { key: 'e', label: t(lang, '编辑', 'Edit') },
+            { key: 'd', label: t(lang, '删除', 'Del') },
+          ]
+        : []),
       { key: 'Space/P', label: t(lang, '专注', 'Timer') },
       { key: 'M', label: t(lang, '模式', 'Mode') },
       { key: '+/-', label: t(lang, '时长', 'Min') },
       { key: 'R', label: t(lang, '重置', 'Reset') },
     ];
-  }, [filterEditing, filterQuery, lang, readOnlyError]);
+  }, [filterEditing, filterQuery, lang, isReadOnly]);
   useFooterHints(hints, isActive);
 
   const colMeta = useCallback(
@@ -787,7 +840,9 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
                 ? t(lang, 'Esc 清除过滤', 'Esc: clear filter')
                 : undefined
               : isFocusedCol
-                ? t(lang, 'a 添加 / S 同步', 'a: add / S: sync')
+                ? isReadOnly
+                  ? t(lang, '只读模式 (r 重载)', 'Read-only (r: reload)')
+                  : t(lang, 'a 添加 / S 同步', 'a: add / S: sync')
                 : undefined
           }
           icon={asciiMode ? '.' : '·'}
@@ -1014,35 +1069,53 @@ export const BoardView: React.FC<ViewProps> = memo(function BoardView({ host, wi
   );
 
   const barH = pomodoroBarHeight(width);
-  const bannerH = readOnlyError ? 4 : 0;
+  const bannerH = isReadOnly ? 4 : 0;
   const showFilterBar = filterEditing || filterQuery.length > 0;
   const filterBarH = showFilterBar ? 1 : 0;
   const ell = asciiMode ? '...' : '…';
   const resolvedBoardPath = readOnlyPath || boardFilePath(libraryRoot);
   const innerBannerW = Math.max(10, width - 4);
-  const readOnlyBanner = readOnlyError ? (
+  const readOnlyBanner = isReadOnly ? (
     <Box
       flexDirection="column"
       width={width}
       height={4}
       borderStyle={asciiMode ? 'classic' : 'single'}
-      borderColor={theme.error}
+      borderColor={readOnlyError ? theme.error : theme.warning}
       paddingX={1}
       overflow="hidden"
     >
-      <Text color={theme.error} bold wrap="truncate">
+      <Text color={readOnlyError ? theme.error : theme.warning} bold wrap="truncate">
         {truncateDisplay(
-          `${asciiMode ? '[!]' : '▲'} ${t(
-            lang,
-            '看板只读锁定: 修复/备份 tui-board.json 后按 [r] 重载',
-            'Read-only lock: fix/backup tui-board.json then press [r] to reload',
-          )}`,
+          `${asciiMode ? '[!]' : '▲'} ${
+            readOnlyError
+              ? t(
+                  lang,
+                  '看板只读锁定: 修复/备份 tui-board.json 后按 [r] 重载',
+                  'Read-only lock: fix/backup tui-board.json then press [r] to reload',
+                )
+              : t(
+                  lang,
+                  '看板只读锁定: 学习库看板为只读状态，已禁用编辑与同步，按 [r] 重载',
+                  'Read-only lock: StudyHub board is read-only; edits & sync disabled — press [r] to reload',
+                )
+          }`,
           innerBannerW,
           ell,
         )}
       </Text>
       <Text color={theme.muted} wrap="truncate">
-        {truncateDisplay(`${t(lang, '文件', 'File')}: ${resolvedBoardPath} (${readOnlyError})`, innerBannerW, ell)}
+        {truncateDisplay(
+          readOnlyError
+            ? `${t(lang, '文件', 'File')}: ${resolvedBoardPath} (${readOnlyError})`
+            : t(
+                lang,
+                '仅允许浏览、过滤 (/) 与导出 (x)；所有写入操作已锁定',
+                'Browse, filter (/), and export (x) only; all write actions locked',
+              ),
+          innerBannerW,
+          ell,
+        )}
       </Text>
     </Box>
   ) : null;

@@ -17,6 +17,7 @@ import {
   createVirtualTty,
   disposeTerminalPool,
   distDir,
+  findExportedBackupFile,
   loadDistRuntime,
 } from './helpers/virtual-tty.mjs';
 
@@ -1827,8 +1828,8 @@ describe('Domain Generate & Drafts: Suggest, Weak Topics, Path Planner, Source F
       );
 
       // Press 'X' to export filtered cards atomically to Markdown
+      const backupsDir = join(libraryRoot, 'backups');
       tty.send('X');
-      const expectedPath = join(libraryRoot, 'backups', `studyhub-draft-${todayLocalYmd()}.md`);
       const exportedScreen = await tty.waitFor(
         (s) => s.includes('已导出 1 道草稿题'),
         { label: 'Toast shown for [X] draft export (zh)' },
@@ -1836,7 +1837,9 @@ describe('Domain Generate & Drafts: Suggest, Weak Topics, Path Planner, Source F
       tty.assertHealthyScreen(exportedScreen, 120, 36, 'DraftEditor after [X] export 120x36 zh');
       assert.ok(exportedScreen.includes('已导出 1 道草稿题'));
 
-      const md = await readFile(expectedPath, 'utf8');
+      const draftExport = await findExportedBackupFile(backupsDir, 'studyhub-draft', 'md', todayLocalYmd());
+      assert.ok(draftExport, `expected studyhub-draft-${todayLocalYmd()}-HHmmss.md in ${backupsDir}`);
+      const md = await readFile(draftExport.path, 'utf8');
       assert.ok(md.includes('示例草稿 · 选对设计模式'), 'markdown should include draft title');
       assert.ok(md.includes('**题目数量**: 1'), 'markdown should export only the 1 filtered card');
       assert.ok(md.includes('SVG'), 'markdown should include filtered card prompt');

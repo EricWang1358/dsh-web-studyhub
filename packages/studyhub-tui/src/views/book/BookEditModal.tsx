@@ -109,6 +109,7 @@ export const BookEditModal = memo(function BookEditModal({
   const [conflictNotice, setConflictNotice] = useState<string | null>(null);
   const [statusNote, setStatusNote] = useState<string | null>(null);
   const [confirmRevert, setConfirmRevert] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   const mountedRef = useRef(true);
   const savingRef = useRef(false);
@@ -447,9 +448,18 @@ export const BookEditModal = memo(function BookEditModal({
     syncFromBook(openData, nextFile);
   }, [canSwitchSlot, dirty, fileTargets, lang, openData, slot, syncFromBook]);
 
+  const requestClose = useCallback(() => {
+    if (busy || confirmRevert || confirmDiscard) return;
+    if (dirtyRef.current) {
+      setConfirmDiscard(true);
+      return;
+    }
+    onClose();
+  }, [busy, confirmDiscard, confirmRevert, onClose]);
+
   useInput(
     (input, key) => {
-      if (busy || confirmRevert || !canEdit) return;
+      if (busy || confirmRevert || confirmDiscard || !canEdit) return;
       if (key.tab) {
         setFocus((f) => (f === 'editor' ? 'actions' : 'editor'));
         return;
@@ -487,7 +497,7 @@ export const BookEditModal = memo(function BookEditModal({
         }
       }
     },
-    { isActive: isActive && !busy && !confirmRevert && !loading && canEdit },
+    { isActive: isActive && !busy && !confirmRevert && !confirmDiscard && !loading && canEdit },
   );
 
   const frameW = Math.max(48, Math.min(104, width - 4));
@@ -584,8 +594,8 @@ export const BookEditModal = memo(function BookEditModal({
       tone="primary"
       width={frameW}
       height={frameH}
-      onClose={busy || confirmRevert ? undefined : onClose}
-      isActive={isActive && !confirmRevert}
+      onClose={busy || confirmRevert || confirmDiscard ? undefined : requestClose}
+      isActive={isActive && !confirmRevert && !confirmDiscard}
       hints={hints}
     >
       {loading ? (
@@ -714,11 +724,11 @@ export const BookEditModal = memo(function BookEditModal({
               value={text}
               onChange={setText}
               onSubmit={(val) => void handleSave(val)}
-              onCancel={busy || confirmRevert ? undefined : onClose}
+              onCancel={busy || confirmRevert || confirmDiscard ? undefined : requestClose}
               multiline
               height={editorHeight}
               width={editorWidth}
-              isActive={isActive && focus === 'editor' && !busy && !confirmRevert && !loading && canEdit}
+              isActive={isActive && focus === 'editor' && !busy && !confirmRevert && !confirmDiscard && !loading && canEdit}
               placeholder={t(lang, '输入 Markdown 正文，Ctrl+S 保存…', 'Write Markdown, Ctrl+S to save…')}
               captureInput={false}
             />
@@ -764,6 +774,25 @@ export const BookEditModal = memo(function BookEditModal({
             void handleRevert();
           }}
           onCancel={() => setConfirmRevert(false)}
+        />
+      ) : null}
+
+      {confirmDiscard ? (
+        <ConfirmDialog
+          title={t(lang, '放弃未保存的修改', 'Discard Unsaved Changes')}
+          message={t(
+            lang,
+            '有未保存的修改，确定放弃并关闭吗？',
+            'You have unsaved changes. Discard and close?',
+          )}
+          confirmLabel={t(lang, '放弃并关闭', 'Discard & Close')}
+          cancelLabel={t(lang, '继续编辑', 'Keep Editing')}
+          isActive={isActive && confirmDiscard}
+          onConfirm={() => {
+            setConfirmDiscard(false);
+            onClose();
+          }}
+          onCancel={() => setConfirmDiscard(false)}
         />
       ) : null}
     </Modal>

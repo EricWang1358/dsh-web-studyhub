@@ -18,7 +18,7 @@ import { useTheme } from '../../theme/tokens.js';
 import { currentCourse } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
-import { atomicWriteTextFile, defaultBackupFilePath, todayLocalYmd } from '../../host/atomic-write.js';
+import { atomicWriteExportText, defaultBackupFilePath, todayLocalYmd } from '../../host/atomic-write.js';
 import { cleanPathInput, tryAction } from '../../host/sample-actions.js';
 import { completeFsPath, expandHomePath } from '../sources/path-complete.js';
 
@@ -609,6 +609,7 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
   const [preflight, setPreflight] = useState<AudioPreflightInfo | null>(null);
   const [usage, setUsage] = useState<AudioUsageInfo | null>(null);
   const [results, setResults] = useState<AudioResultItem[]>([]);
+  const [resultsError, setResultsError] = useState<string | null>(null);
   const [filterQuery, setFilterQuery] = useState('');
   const [filterEditing, setFilterEditing] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -617,6 +618,8 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
     text: '',
     detail: null,
   });
+  const [detailError, setDetailError] = useState<{ id: string; message: string } | null>(null);
+  const [loadingDetailId, setLoadingDetailId] = useState<string | null>(null);
   const [loadingList, setLoadingList] = useState(false);
 
   const [overlay, setOverlay] = useState<AudioOverlay>('none');
@@ -672,11 +675,17 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
     setLoadingList(false);
     if (settingsRes.ok && settingsRes.value) setAudioSettings(settingsRes.value);
     if (listRes.ok && Array.isArray(listRes.value?.results)) {
+      setResultsError(null);
       setResults(listRes.value.results);
+    } else if (!listRes.ok) {
+      setResultsError(listRes.error?.message || t(lang, '加载音频转写结果失败', 'Failed to load audio transcripts'));
+    } else {
+      setResultsError(null);
+      setResults([]);
     }
     if (preflightRes.ok && preflightRes.value) setPreflight(preflightRes.value);
     if (usageRes.ok && usageRes.value) setUsage(usageRes.value);
-  }, [host]);
+  }, [host, lang]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -750,29 +759,43 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
   useEffect(() => {
     if (!isActive || !selectedResult) {
       setActiveTranscript({ id: '', text: '', detail: null });
+      setDetailError(null);
+      setLoadingDetailId(null);
       return;
     }
     const inlineText = selectedResult.transcript || selectedResult.text;
     if (typeof inlineText === 'string' && inlineText) {
+      setDetailError(null);
+      setLoadingDetailId(null);
       setActiveTranscript({ id: selectedResult.id, text: inlineText, detail: selectedResult });
       return;
     }
-    if (activeTranscript.id === selectedResult.id) return;
+    if (activeTranscript.id === selectedResult.id && (!detailError || detailError.id !== selectedResult.id)) return;
     let cancelled = false;
+    setLoadingDetailId(selectedResult.id);
+    setDetailError(null);
     void tryAction<AudioResultItem>(host, 'audio.result.get', { id: selectedResult.id }).then((res) => {
       if (cancelled) return;
+      setLoadingDetailId(null);
       if (res.ok && res.value) {
+        setDetailError(null);
         setActiveTranscript({
           id: selectedResult.id,
           text: String(res.value.transcript || res.value.text || ''),
           detail: res.value,
         });
+      } else {
+        setDetailError({
+          id: selectedResult.id,
+          message: res.error?.message || t(lang, '加载转写正文失败', 'Failed to load transcript detail'),
+        });
+        setActiveTranscript({ id: '', text: '', detail: null });
       }
     });
     return () => {
       cancelled = true;
     };
-  }, [host, isActive, selectedResult, activeTranscript.id]);
+  }, [host, isActive, selectedResult, activeTranscript.id, detailError, lang]);
 
   // Pre-fetch path completions while typing audio path
   useEffect(() => {
@@ -1047,14 +1070,19 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
       } else {
         const detailRes = await tryAction<AudioResultItem>(host, 'audio.result.get', { id: selectedResult.id });
         if (!mountedRef.current) return;
-        if (detailRes.ok && detailRes.value) {
-          detail = detailRes.value;
-          setActiveTranscript({
-            id: selectedResult.id,
-            text: String(detailRes.value.transcript || detailRes.value.text || ''),
-            detail: detailRes.value,
-          });
+        if (!detailRes.ok || !detailRes.value) {
+          const msg = detailRes.error?.message || t(lang, '加载转写正文失败', 'Failed to load transcript detail');
+          setDetailError({ id: selectedResult.id, message: msg });
+          notify(t(lang, `导出转写失败: ${msg}`, `Failed to export transcript: ${msg}`), 'error');
+          return;
         }
+        detail = detailRes.value;
+        setDetailError(null);
+        setActiveTranscript({
+          id: selectedResult.id,
+          text: String(detailRes.value.transcript || detailRes.value.text || ''),
+          detail: detailRes.value,
+        });
       }
 
       const markdown = formatAudioTranscriptMarkdown({
@@ -1071,9 +1099,17 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
         snapshotRoot?.trim() ||
         '';
       const baseDir = rawRoot ? resolve(rawRoot) : process.cwd();
-      const targetPath = defaultBackupFilePath(baseDir, 'studyhub-audio', 'md');
+      const exportSlugLabel = String(
+        detail?.title ||
+          selectedResult.title ||
+          selectedResult.courses?.[0] ||
+          selectedResult.course ||
+          selectedResult.id ||
+          '',
+      ).trim();
+      const rawTargetPath = defaultBackupFilePath(baseDir, 'studyhub-audio', 'md', exportSlugLabel || undefined);
 
-      await atomicWriteTextFile(targetPath, markdown);
+      const { path: targetPath } = await atomicWriteExportText(rawTargetPath, markdown);
       if (!mountedRef.current) return;
       const arrow = asciiMode ? '->' : '→';
       const label = truncateDisplay(String(detail?.title || selectedResult.title || selectedResult.id), 28, ell);
@@ -1186,6 +1222,8 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
       } else if (input === 't') {
         void handleTestProviders();
       } else if (input === 'r') {
+        setDetailError(null);
+        setActiveTranscript({ id: '', text: '', detail: null });
         void Promise.all([loadAudioData(), refresh()]);
       } else if (input === 'g' && selectedResult) {
         const targetId = selectedResult.sourceId || selectedResult.id;
@@ -1348,7 +1386,20 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
               {loadingList ? (
                 <Spinner label={asciiMode ? t(lang, '加载转写记录...', 'Loading transcripts...') : t(lang, '加载转写记录…', 'Loading transcripts…')} />
               ) : leftItems.length === 0 ? (
-                normalizedFilter ? (
+                resultsError && !normalizedFilter ? (
+                  <EmptyState
+                    icon={asciiMode ? '!' : '▲'}
+                    title={t(lang, '加载音频转写记录失败', 'Failed to load transcripts')}
+                    hint={truncateDisplay(
+                      `${resultsError} — ${t(lang, '按 [r] 重试', 'Press [r] to retry')}`,
+                      Math.max(20, (lw - 4) * 2),
+                      ell,
+                    )}
+                    actions={[{ key: 'r', label: t(lang, '重试', 'Retry') }]}
+                    width={Math.max(12, lw - 4)}
+                    height={Math.max(4, lh - 2)}
+                  />
+                ) : normalizedFilter ? (
                   <EmptyState
                     title={t(lang, '无匹配的音频转写记录', 'No matching transcripts')}
                     hint={t(lang, '按 [Esc] 清除筛选，或按 [/] 修改关键词', 'Press [Esc] to clear filter or [/] to edit')}
@@ -1357,17 +1408,54 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
                   />
                 ) : (
                   <EmptyState
-                    title={t(lang, '暂无音频转写记录', 'No transcripts yet')}
-                    hint={t(lang, '按 [i] 导入音频，或按 [u] 导入 .srt/.vtt/.txt 字幕', 'Press [i] for audio or [u] for .srt/.vtt/.txt subtitles')}
+                    title={
+                      configuredProviders.length > 0 || preflight?.transcription
+                        ? t(lang, '暂无音频转写记录', 'No transcripts yet')
+                        : t(lang, '暂无记录（未配置转写服务）', 'No transcripts (provider unset)')
+                    }
+                    hint={
+                      configuredProviders.length > 0 || preflight?.transcription
+                        ? t(
+                            lang,
+                            '转写服务已就绪：按 [i] 导入音频或 [u] 导入字幕',
+                            'Ready: press [i] for audio or [u] for subtitles',
+                          )
+                        : t(
+                            lang,
+                            '按 [s] 配置转写服务，或按 [u] 直接导入字幕',
+                            'Press [s] to configure providers or [u] for subtitles',
+                          )
+                    }
+                    actions={
+                      configuredProviders.length > 0 || preflight?.transcription
+                        ? [
+                            { key: 'i', label: t(lang, '导入音频', 'Audio') },
+                            { key: 'u', label: t(lang, '导入字幕', 'Subtitles') },
+                          ]
+                        : [
+                            { key: 's', label: t(lang, '配置转写', 'Providers') },
+                            { key: 'u', label: t(lang, '导入字幕', 'Subtitles') },
+                          ]
+                    }
                     width={Math.max(12, lw - 4)}
                     height={Math.max(4, lh - 2)}
                   />
                 )
               ) : (
-                <VirtualList
-                  items={leftItems}
-                  height={Math.max(1, lh - 2)}
-                  width={Math.max(12, lw - 4)}
+                <Box flexDirection="column" width={Math.max(12, lw - 4)} height={Math.max(1, lh - 2)}>
+                  {resultsError ? (
+                    <Text color={theme.error} wrap="truncate">
+                      {truncateDisplay(
+                        `${t(lang, '列表加载失败', 'Load error')}: ${resultsError} ([r])`,
+                        Math.max(12, lw - 4),
+                        ell,
+                      )}
+                    </Text>
+                  ) : null}
+                  <VirtualList
+                    items={leftItems}
+                    height={Math.max(1, lh - 2 - (resultsError ? 1 : 0))}
+                    width={Math.max(12, lw - 4)}
                   selectedIndex={selectedIndex}
                   onChange={(idx) => setSelectedIndex(idx)}
                   isActive={listNavActive}
@@ -1401,7 +1489,8 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
                       </Box>
                     );
                   }}
-                />
+                  />
+                </Box>
               )}
             </Panel>
           )}
@@ -1519,16 +1608,37 @@ export const AudioView: React.FC<ViewProps> = memo(function AudioView({
                         ))}
                       </Box>
                     ) : null}
-                    <ScrollView
-                      content={
-                        activeTranscript.id === selectedResult.id && activeTranscript.text
-                          ? activeTranscript.text
-                          : t(lang, '（暂无转写正文）', '(Empty transcript)')
-                      }
-                      width={innerW}
-                      height={scrollH}
-                      isActive={false}
-                    />
+                    {detailError && detailError.id === selectedResult.id ? (
+                      <EmptyState
+                        icon={asciiMode ? '!' : '▲'}
+                        title={t(lang, '加载转写正文失败', 'Failed to load transcript')}
+                        hint={truncateDisplay(
+                          `${detailError.message} — ${t(lang, '按 [r] 重试', 'Press [r] to retry')}`,
+                          Math.max(20, innerW * 2),
+                          ell,
+                        )}
+                        actions={[{ key: 'r', label: t(lang, '重试', 'Retry') }]}
+                        width={innerW}
+                        height={scrollH}
+                      />
+                    ) : loadingDetailId === selectedResult.id ? (
+                      <Box width={innerW} height={scrollH} alignItems="center" justifyContent="center">
+                        <Spinner
+                          label={asciiMode ? t(lang, '加载转写正文...', 'Loading transcript...') : t(lang, '加载转写正文…', 'Loading transcript…')}
+                        />
+                      </Box>
+                    ) : (
+                      <ScrollView
+                        content={
+                          activeTranscript.id === selectedResult.id && activeTranscript.text
+                            ? activeTranscript.text
+                            : t(lang, '（暂无转写正文）', '(Empty transcript)')
+                        }
+                        width={innerW}
+                        height={scrollH}
+                        isActive={false}
+                      />
+                    )}
                   </Box>
                 );
               })()}

@@ -16,7 +16,10 @@ import {
   createVirtualTty,
   disposeTerminalPool,
   distDir,
+  findExportedBackupFile,
+  installNoNetworkGuard,
   loadDistRuntime,
+  sanitizedTestEnv,
 } from './helpers/virtual-tty.mjs';
 
 const runtime = await loadDistRuntime();
@@ -42,9 +45,11 @@ assert.equal(
 );
 
 const PREV_DSH_HOME = process.env.DSH_HOME;
+const restoreNetworkGuard = installNoNetworkGuard();
 const temps = createTempTracker('studyhub-tui-dom-src-ops-');
 
 after(async () => {
+  restoreNetworkGuard();
   disposeTerminalPool();
   if (PREV_DSH_HOME === undefined) delete process.env.DSH_HOME;
   else process.env.DSH_HOME = PREV_DSH_HOME;
@@ -931,7 +936,7 @@ describe('Domain Sources Operations: Pins, Reread, Links, Batch, Original File &
 
   test('5) SourceCoverageModal Tab 2 integration: materials.pages.cards and materials.links.list return linked cards & citations', async () => {
     const base = await temps.make('links-host');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     const libraryRoot = join(base, 'library');
 
     const { documentId, sourceId, deckId, weakCardId, newCardId } = await seedCitedSourceAndCards(
@@ -988,7 +993,7 @@ describe('Domain Sources Operations: Pins, Reread, Links, Batch, Original File &
 
   test('6) SourceCoverageModal Tab 2 PTY E2E: [V] -> Tab/2 Linked Cards & mastery -> [p] ReviewView (zh 120x36 & 80x24 + en --ascii labels)', async () => {
     const baseZh = await temps.make('links-ui-zh');
-    const envZh = { ...process.env, DSH_HOME: join(baseZh, 'dsh-home') };
+    const envZh = sanitizedTestEnv({ DSH_HOME: join(baseZh, 'dsh-home') });
     process.env.DSH_HOME = envZh.DSH_HOME;
     const libraryRootZh = join(baseZh, 'library');
 
@@ -1911,13 +1916,13 @@ describe('Domain Sources Operations: Pins, Reread, Links, Batch, Original File &
 
     await saveTuiPreferences(
       { language: 'zh', asciiMode: false, theme: 'dsh-dark', mathUnicode: true, showHints: true },
-      { env: { ...process.env, DSH_HOME: dshHome } },
+      { env: sanitizedTestEnv({ DSH_HOME: dshHome }) },
     );
 
     let modelCalls = 0;
     const host = await createTuiHost({
       libraryRoot,
-      env: { ...process.env, DSH_HOME: dshHome },
+      env: sanitizedTestEnv({ DSH_HOME: dshHome }),
       home: join(base, 'home'),
       documentsDir: base,
       skipAutoProbe: true,
@@ -2000,22 +2005,24 @@ describe('Domain Sources Operations: Pins, Reread, Links, Batch, Original File &
       tty.assertHealthyScreen(srcScreen, 120, 36, 'zh SourcesView 120x36');
       assert.ok(srcScreen.includes('全部课程'));
 
-      const expectedPath = join(libraryRoot, 'backups', `studyhub-sources-${todayLocalYmd()}.md`);
+      const backupsDir = join(libraryRoot, 'backups');
+      const todayYmd = todayLocalYmd();
       tty.send('x');
       const afterExport = await tty.waitFor(
         (s) =>
-          fs.existsSync(expectedPath) &&
           useTuiStore
             .getState()
-            .toasts.some((toast) => toast.tone === 'success' && toast.text.includes('已导出 3 份资料目录') && toast.text.includes(expectedPath)) &&
+            .toasts.some((toast) => toast.tone === 'success' && toast.text.includes('已导出 3 份资料目录') && toast.text.includes('studyhub-sources-')) &&
           s.includes('已导出 3 份资料目录'),
         { timeoutMs: 10_000, label: 'zh SourcesView [x] export toast & file on disk' },
       );
       tty.assertHealthyScreen(afterExport, 120, 36, 'zh SourcesView after [x] export');
-      assert.equal(fs.existsSync(expectedPath), true);
+      const zhExport = await findExportedBackupFile(backupsDir, 'studyhub-sources', 'md', todayYmd);
+      assert.ok(zhExport, `expected studyhub-sources-${todayYmd}-HHmmss.md in ${backupsDir}`);
+      assert.equal(fs.existsSync(zhExport.path), true);
       assert.equal(afterExport.includes('\uFFFD'), false, 'No replacement char U+FFFD leaked');
 
-      const exportedMd = await readFile(expectedPath, 'utf8');
+      const exportedMd = await readFile(zhExport.path, 'utf8');
       assert.ok(exportedMd.includes('# StudyHub 学习资料目录与引用覆盖'), 'exported MD must have zh heading');
       assert.ok(exportedMd.includes('| # | 标题 | 课程 | 文件夹 | 页数 | 关联题 | 状态 |'), 'exported MD must have table header');
       assert.ok(exportedMd.includes('Operating Systems Ch1 Notes'), 'exported MD must include source 1 title');
@@ -2024,7 +2031,7 @@ describe('Domain Sources Operations: Pins, Reread, Links, Batch, Original File &
       assert.ok(!exportedMd.includes('**课程筛选**:'), 'exported MD should omit course filter when All Courses active');
 
       // Switch in-place to --ascii en and filter to CS301 before exporting again (no second PTY mount)
-      await rm(expectedPath, { force: true });
+      await rm(backupsDir, { recursive: true, force: true });
       switchMountedLocale(host, 'en', true);
       await tty.waitFor(
         () => useTuiStore.getState().footerHints.some((h) => h.key === 'x' && h.label === 'Export MD'),
@@ -2048,25 +2055,26 @@ describe('Domain Sources Operations: Pins, Reread, Links, Batch, Original File &
       tty.send('x');
       const afterExportEn = await tty.waitFor(
         () =>
-          fs.existsSync(expectedPath) &&
           useTuiStore
             .getState()
             .toasts.some(
               (toast) =>
                 toast.tone === 'success' &&
                 toast.text.includes('Exported 2 source(s) ->') &&
-                toast.text.includes(expectedPath),
+                toast.text.includes('studyhub-sources-'),
             ),
         { timeoutMs: 10_000, label: 'en SourcesView [x] export toast & file on disk' },
       );
       tty.assertHealthyScreen(afterExportEn, 120, 36, 'en SourcesView after [x] export 120x36');
       tty.assertAsciiPure(afterExportEn, 'en SourcesView after [x] export 120x36');
-      assert.equal(fs.existsSync(expectedPath), true);
+      const enExport = await findExportedBackupFile(backupsDir, 'studyhub-sources', 'md', todayYmd);
+      assert.ok(enExport, `expected studyhub-sources-${todayYmd}-HHmmss.md in ${backupsDir}`);
+      assert.equal(fs.existsSync(enExport.path), true);
       assert.ok(
         useTuiStore.getState().toasts.some((toast) => toast.tone === 'success' && toast.text.includes('Exported 2 source(s) ->')),
       );
 
-      const exportedEnMd = await readFile(expectedPath, 'utf8');
+      const exportedEnMd = await readFile(enExport.path, 'utf8');
       assert.ok(exportedEnMd.includes('# StudyHub Materials Catalog & Citation Coverage'), 'exported MD must have en heading');
       assert.ok(exportedEnMd.includes('| # | Title | Course(s) | Folder | Pages | Linked Cards | Status |'), 'exported MD must have en table header');
       assert.ok(exportedEnMd.includes('Operating Systems Ch1 Notes'), 'exported MD must include source 1');

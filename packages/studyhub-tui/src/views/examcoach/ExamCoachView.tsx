@@ -17,7 +17,7 @@ import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { currentCourse, listCourses, modelInfo } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
 import { tryAction } from '../../host/sample-actions.js';
-import { atomicWriteTextFile, defaultBackupFilePath } from '../../host/atomic-write.js';
+import { atomicWriteExportText, defaultBackupFilePath } from '../../host/atomic-write.js';
 import {
   formatKindLabel,
   overallLabel,
@@ -826,15 +826,15 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
         lang,
         generatedAt: new Date(),
       });
-      const targetPath = defaultBackupFilePath(host.getLibraryRoot(), 'studyhub-coach', '.md');
-      await atomicWriteTextFile(targetPath, markdown);
+      const defaultPath = defaultBackupFilePath(host.getLibraryRoot(), 'studyhub-coach', '.md', course || undefined);
+      const written = await atomicWriteExportText(defaultPath, markdown);
       if (!mountedRef.current) return;
       const arrow = asciiMode ? '->' : '→';
       notify(
         t(
           lang,
-          `已导出教练画像 ${arrow} ${targetPath}`,
-          `Exported coach profile ${arrow} ${targetPath}`,
+          `已导出教练画像 ${arrow} ${written.path}`,
+          `Exported coach profile ${arrow} ${written.path}`,
         ),
         'success',
       );

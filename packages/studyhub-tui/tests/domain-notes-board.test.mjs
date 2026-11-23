@@ -16,6 +16,7 @@ import {
   createVirtualTty,
   disposeTerminalPool,
   distDir,
+  findExportedBackupFile,
   loadDistRuntime,
 } from './helpers/virtual-tty.mjs';
 
@@ -1734,11 +1735,13 @@ describe('Domain Notes & Board: NotesView PTY E2E (zh & --ascii en)', () => {
       );
       tty.assertHealthyScreen(afterExport, 120, 36, 'NotesView after atomic export');
 
-      const exportsDir = join(libraryRoot, 'exports');
-      const entries = await readdir(exportsDir);
-      assert.deepEqual(entries, ['R69-Beta.md']);
+      const backupsDir = join(libraryRoot, 'backups');
+      const entries = await readdir(backupsDir);
       assert.equal(entries.filter((name) => name.includes('.tmp')).length, 0, 'must leave zero .tmp files');
-      const written = await readFile(join(exportsDir, 'R69-Beta.md'), 'utf8');
+      const noteExport = await findExportedBackupFile(backupsDir, 'studyhub-note', 'md', todayLocalYmd());
+      assert.ok(noteExport, `expected studyhub-note-*-${todayLocalYmd()}-HHmmss.md in ${backupsDir}, found: ${JSON.stringify(entries)}`);
+      assert.ok(noteExport.name.includes('R69-Beta'), `expected R69-Beta slug in ${noteExport.name}`);
+      const written = await readFile(noteExport.path, 'utf8');
       assert.equal(written, note2Markdown);
       assert.ok(written.includes('R69_ATOMIC_EXPORT_BODY'));
 
@@ -1923,8 +1926,9 @@ describe('Domain Notes & Board: BoardView PTY E2E (zh & --ascii en)', () => {
       const backupsDir = join(libraryRoot, 'backups');
       const backupEntries = await readdir(backupsDir);
       assert.equal(backupEntries.filter((n) => n.includes('.tmp')).length, 0, 'Board export must leave zero .tmp files');
-      const expectedExportPath = join(backupsDir, `studyhub-board-${todayLocalYmd()}.md`);
-      const exportedMd = await readFile(expectedExportPath, 'utf8');
+      const boardExport = await findExportedBackupFile(backupsDir, 'studyhub-board', 'md', todayLocalYmd());
+      assert.ok(boardExport, `expected studyhub-board-${todayLocalYmd()}-HHmmss.md in ${backupsDir}`);
+      const exportedMd = await readFile(boardExport.path, 'utf8');
       assert.ok(exportedMd.includes('# StudyHub Kanban Board'));
       assert.ok(exportedMd.includes('任务总计: 3 (待办: 3, 进行中: 0, 已完成: 0)'));
       assert.ok(exportedMd.includes('番茄专注: 2 次 (50 分钟)'));
@@ -1970,7 +1974,7 @@ describe('Domain Notes & Board: BoardView PTY E2E (zh & --ascii en)', () => {
       tty.assertHealthyScreen(wheelUp, 120, 36, 'BoardView wheel up');
 
       // Switch in-place to 80x24 --ascii en (reuses single mounted app)
-      await rm(expectedExportPath, { force: true });
+      await rm(backupsDir, { recursive: true, force: true });
       tty.resize(80, 24);
       host.setLanguage('en');
       useTuiStore.getState().setPreferences({ language: 'en', asciiMode: true });
@@ -2014,7 +2018,9 @@ describe('Domain Notes & Board: BoardView PTY E2E (zh & --ascii en)', () => {
       tty.assertHealthyScreen(exportedScreenEn, 80, 24, 'BoardView 80x24 ascii export toast');
       tty.assertAsciiPure(exportedScreenEn, 'BoardView 80x24 ascii export toast');
 
-      const exportedMdEn = await readFile(expectedExportPath, 'utf8');
+      const boardExportEn = await findExportedBackupFile(backupsDir, 'studyhub-board', 'md', todayLocalYmd());
+      assert.ok(boardExportEn, `expected studyhub-board-${todayLocalYmd()}-HHmmss.md in ${backupsDir}`);
+      const exportedMdEn = await readFile(boardExportEn.path, 'utf8');
       assert.ok(exportedMdEn.includes('# StudyHub Kanban Board'));
       assert.ok(exportedMdEn.includes('Cards: 3 (Todo: 3, Doing: 0, Done: 0)'));
       assert.ok(exportedMdEn.includes('Pomodoro: 2 (50m)'));

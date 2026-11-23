@@ -17,8 +17,10 @@ import {
   createVirtualTty,
   disposeTerminalPool,
   distDir,
+  installNoNetworkGuard,
   loadDistRuntime,
   pkgRoot,
+  sanitizedTestEnv,
 } from './helpers/virtual-tty.mjs';
 
 const unregisterTsx = register();
@@ -48,9 +50,11 @@ const [Helpers, { normalizeAsciiChrome }] = await Promise.all([
 ]);
 
 const PREV_DSH_HOME = process.env.DSH_HOME;
+const restoreNetworkGuard = installNoNetworkGuard();
 const temps = createTempTracker('studyhub-tui-review-');
 
 after(async () => {
+  restoreNetworkGuard();
   disposeTerminalPool();
   unregisterTsx?.();
   if (PREV_DSH_HOME === undefined) delete process.env.DSH_HOME;
@@ -58,13 +62,18 @@ after(async () => {
   await temps.cleanup();
 });
 
-const RESOURCE_KINDS = new Set(['FSEventWrap', 'StatWatcher', 'Timeout', 'ProcessWrap', 'TCPWrap', 'PipeWrap']);
+const RESOURCE_KINDS = new Set(['FSEventWrap', 'StatWatcher', 'ProcessWrap', 'TCPWrap', 'PipeWrap']);
 function resourceCounts() {
   const counts = {};
   for (const kind of process.getActiveResourcesInfo()) {
     if (RESOURCE_KINDS.has(kind)) counts[kind] = (counts[kind] || 0) + 1;
   }
   return counts;
+}
+
+function refTimeoutCount() {
+  if (typeof process._getActiveHandles !== 'function') return 0;
+  return process._getActiveHandles().filter((h) => h?.constructor?.name === 'Timeout').length;
 }
 
 function assertNoLeakedHandles(beforeResources, kinds = RESOURCE_KINDS) {
@@ -75,6 +84,37 @@ function assertNoLeakedHandles(beforeResources, kinds = RESOURCE_KINDS) {
       `Leaked ${kind} handles after unmount/dispose: before=${beforeResources[kind] || 0}, after=${afterResources[kind] || 0}`,
     );
   }
+}
+
+async function waitForNoLeakedHandles(beforeResources, kinds = RESOURCE_KINDS, timeoutMs = 1500, beforeRefTimeouts = 0) {
+  const deadline = Date.now() + timeoutMs;
+  await new Promise((r) => setImmediate(r));
+  while (Date.now() < deadline) {
+    const afterResources = resourceCounts();
+    let leaked = refTimeoutCount() > beforeRefTimeouts;
+    if (!leaked) {
+      for (const kind of kinds) {
+        if ((afterResources[kind] || 0) > (beforeResources[kind] || 0)) {
+          leaked = true;
+          break;
+        }
+      }
+    }
+    if (!leaked) return;
+    await new Promise((r) => {
+      let timerId = null;
+      timerId = setTimeout(() => {
+        clearTimeout(timerId);
+        setImmediate(r);
+      }, 25);
+      timerId.unref?.();
+    });
+  }
+  assert.ok(
+    refTimeoutCount() <= beforeRefTimeouts,
+    `Leaked ref'd Timeout handles after unmount/dispose: before=${beforeRefTimeouts}, after=${refTimeoutCount()}`,
+  );
+  assertNoLeakedHandles(beforeResources, kinds);
 }
 
 function resetDistStore(language = 'zh', asciiMode = false, extra = {}) {
@@ -364,7 +404,7 @@ function findWrongOptionKey(screen) {
 describe('Round 41: Review Draft Persistence (review.draft.save) & Card Placement (card.place)', () => {
   test('1) createTuiHost integration: review.draft.save -> review.get preserves draft & stale/closed run returns { ok: false, stale }', async () => {
     const base = await temps.make('r41-host-draft');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     const libraryRoot = join(base, 'library');
     await cloneSampleLibrary('en', libraryRoot);
     const host = await createTuiHost({
@@ -453,7 +493,7 @@ describe('Round 41: Review Draft Persistence (review.draft.save) & Card Placemen
 
   test('2) createTuiHost integration: card.place { deckId, cardId } returns exact placement shape', async () => {
     const base = await temps.make('r41-host-place');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     const libraryRoot = join(base, 'library');
     await cloneSampleLibrary('en', libraryRoot);
     const host = await createTuiHost({
@@ -518,14 +558,14 @@ describe('Round 41: Review Draft Persistence (review.draft.save) & Card Placemen
     process.env.DSH_HOME = dshHome;
     await saveTuiPreferences(
       { language: 'en', asciiMode: true, theme: 'tokyo-night', mathUnicode: false, showHints: true },
-      { env: { ...process.env, DSH_HOME: dshHome } },
+      { env: sanitizedTestEnv({ DSH_HOME: dshHome }) },
     );
 
     const libraryRoot = join(base, 'library');
     await cloneSampleLibrary('en', libraryRoot);
     const host = await createTuiHost({
       libraryRoot,
-      env: { ...process.env, DSH_HOME: dshHome },
+      env: sanitizedTestEnv({ DSH_HOME: dshHome }),
       home: join(base, 'home'),
       documentsDir: base,
       providerDiscovery: fakeDiscovery(),
@@ -682,13 +722,20 @@ describe('Round 41: Review Draft Persistence (review.draft.save) & Card Placemen
       } catch {
         // ignore
       }
-      await host.dispose();
-      tty.dispose();
+      try {
+        await host.dispose();
+      } catch {
+        // ignore
+      }
+      try {
+        tty.dispose();
+      } catch {
+        // ignore
+      }
       disposeTerminalPool();
     }
 
-    await tty.flush(80);
-    assertNoLeakedHandles(beforeResources);
+    await waitForNoLeakedHandles(beforeResources);
   });
 });
 
@@ -739,7 +786,7 @@ describe('Round 52: ReviewView Manual AI Grade Adjust (review.grade.adjust) & De
     let modelCalls = 0;
     const host = await createTuiHost({
       libraryRoot,
-      env: { ...process.env, DSH_HOME: join(base, 'dsh-home') },
+      env: sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') }),
       home: base,
       documentsDir: base,
       injectedComplete: createRubricStubComplete(() => {
@@ -821,14 +868,14 @@ describe('Round 52: ReviewView Manual AI Grade Adjust (review.grade.adjust) & De
     process.env.DSH_HOME = dshHome;
     await saveTuiPreferences(
       { language: 'zh', asciiMode: false, theme: 'dsh-dark', mathUnicode: false, showHints: true },
-      { env: { ...process.env, DSH_HOME: dshHome } },
+      { env: sanitizedTestEnv({ DSH_HOME: dshHome }) },
     );
     await cloneSampleLibrary('zh', libraryRoot);
 
     let modelCalls = 0;
     const host = await createTuiHost({
       libraryRoot,
-      env: { ...process.env, DSH_HOME: dshHome },
+      env: sanitizedTestEnv({ DSH_HOME: dshHome }),
       home: join(base, 'home'),
       documentsDir: base,
       injectedComplete: createRubricStubComplete(() => {
@@ -941,13 +988,20 @@ describe('Round 52: ReviewView Manual AI Grade Adjust (review.grade.adjust) & De
       } catch {
         // ignore
       }
-      await host.dispose();
-      tty.dispose();
+      try {
+        await host.dispose();
+      } catch {
+        // ignore
+      }
+      try {
+        tty.dispose();
+      } catch {
+        // ignore
+      }
       disposeTerminalPool();
     }
 
-    await tty.flush(80);
-    assertNoLeakedHandles(beforeResources);
+    await waitForNoLeakedHandles(beforeResources);
   });
 });
 
@@ -959,7 +1013,7 @@ describe('Round 53: RoundSummary Post-Round Coaching Debrief (coach.debrief) wit
     let modelCalls = 0;
     const host = await createTuiHost({
       libraryRoot,
-      env: { ...process.env, DSH_HOME: join(base, 'dsh-home') },
+      env: sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') }),
       home: base,
       documentsDir: base,
       injectedComplete: createDebriefStubComplete(() => {
@@ -1035,14 +1089,14 @@ describe('Round 53: RoundSummary Post-Round Coaching Debrief (coach.debrief) wit
     process.env.DSH_HOME = dshHome;
     await saveTuiPreferences(
       { language: 'zh', asciiMode: false, theme: 'dsh-dark', mathUnicode: false, showHints: true },
-      { env: { ...process.env, DSH_HOME: dshHome } },
+      { env: sanitizedTestEnv({ DSH_HOME: dshHome }) },
     );
     await cloneSampleLibrary('zh', libraryRoot);
 
     let modelCalls = 0;
     const host = await createTuiHost({
       libraryRoot,
-      env: { ...process.env, DSH_HOME: dshHome },
+      env: sanitizedTestEnv({ DSH_HOME: dshHome }),
       home: join(base, 'home'),
       documentsDir: base,
       injectedComplete: createDebriefStubComplete(() => {
@@ -1181,13 +1235,20 @@ describe('Round 53: RoundSummary Post-Round Coaching Debrief (coach.debrief) wit
       } catch {
         // ignore
       }
-      await host.dispose();
-      tty.dispose();
+      try {
+        await host.dispose();
+      } catch {
+        // ignore
+      }
+      try {
+        tty.dispose();
+      } catch {
+        // ignore
+      }
       disposeTerminalPool();
     }
 
-    await tty.flush(80);
-    assertNoLeakedHandles(beforeResources);
+    await waitForNoLeakedHandles(beforeResources);
   });
 });
 
@@ -1199,7 +1260,7 @@ describe('Round 54: CardToolsModal [R] Failed Rewrite Retry (coach.rewrite.retry
     let modelCalls = 0;
     const host = await createTuiHost({
       libraryRoot,
-      env: { ...process.env, DSH_HOME: join(base, 'dsh-home') },
+      env: sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') }),
       home: base,
       documentsDir: base,
       injectedComplete: async () => {
@@ -1235,14 +1296,14 @@ describe('Round 54: CardToolsModal [R] Failed Rewrite Retry (coach.rewrite.retry
     process.env.DSH_HOME = dshHome;
     await saveTuiPreferences(
       { language: 'zh', asciiMode: false, theme: 'dsh-dark', mathUnicode: false, showHints: true },
-      { env: { ...process.env, DSH_HOME: dshHome } },
+      { env: sanitizedTestEnv({ DSH_HOME: dshHome }) },
     );
     await cloneSampleLibrary('zh', libraryRoot);
 
     let modelCalls = 0;
     const host = await createTuiHost({
       libraryRoot,
-      env: { ...process.env, DSH_HOME: dshHome },
+      env: sanitizedTestEnv({ DSH_HOME: dshHome }),
       home: join(base, 'home'),
       documentsDir: base,
       injectedComplete: async () => {
@@ -1405,13 +1466,20 @@ describe('Round 54: CardToolsModal [R] Failed Rewrite Retry (coach.rewrite.retry
       } catch {
         // ignore
       }
-      await host.dispose();
-      tty.dispose();
+      try {
+        await host.dispose();
+      } catch {
+        // ignore
+      }
+      try {
+        tty.dispose();
+      } catch {
+        // ignore
+      }
       disposeTerminalPool();
     }
 
-    await tty.flush(80);
-    assertNoLeakedHandles(beforeResources);
+    await waitForNoLeakedHandles(beforeResources);
   });
 });
 
@@ -1436,7 +1504,7 @@ describe('Round 60 Track 1: CoachNudgeModal (coach.nudge + coach.reply) with P2 
     let followupCalls = 0;
     const host = await createTuiHost({
       libraryRoot: join(base, 'library'),
-      env: { ...process.env, DSH_HOME: join(base, 'dsh-home') },
+      env: sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') }),
       home: base,
       documentsDir: base,
       injectedComplete: createNudgeStubComplete({
@@ -1547,13 +1615,13 @@ describe('Round 60 Track 1: CoachNudgeModal (coach.nudge + coach.reply) with P2 
     process.env.DSH_HOME = dshHome;
     await saveTuiPreferences(
       { language: 'zh', asciiMode: false, theme: 'dsh-dark', mathUnicode: false, showHints: true },
-      { env: { ...process.env, DSH_HOME: dshHome } },
+      { env: sanitizedTestEnv({ DSH_HOME: dshHome }) },
     );
 
     let modelCalls = 0;
     const host = await createTuiHost({
       libraryRoot: join(base, 'library'),
-      env: { ...process.env, DSH_HOME: dshHome },
+      env: sanitizedTestEnv({ DSH_HOME: dshHome }),
       home: join(base, 'home'),
       documentsDir: base,
       injectedComplete: createNudgeStubComplete({
@@ -1718,13 +1786,24 @@ describe('Round 60 Track 1: CoachNudgeModal (coach.nudge + coach.reply) with P2 
       tty.assertHealthyScreen(closedScreen, 120, 36, '120x36 zh after Esc');
       assert.ok(!closedScreen.includes('混淆了 TCP 与 UDP 的可靠性机制'));
     } finally {
-      inkInst?.unmount();
-      tty.dispose();
-      await host.dispose();
+      try {
+        inkInst?.unmount();
+      } catch {
+        // ignore
+      }
+      try {
+        tty.dispose();
+      } catch {
+        // ignore
+      }
+      try {
+        await host.dispose();
+      } catch {
+        // ignore
+      }
       disposeTerminalPool();
     }
 
-    await tty.flush(40);
-    assertNoLeakedHandles(beforeResources, ['ProcessWrap', 'TCPWrap', 'PipeWrap']);
+    await waitForNoLeakedHandles(beforeResources, ['ProcessWrap', 'TCPWrap', 'PipeWrap']);
   });
 });

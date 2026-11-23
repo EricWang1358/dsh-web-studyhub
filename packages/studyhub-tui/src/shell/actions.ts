@@ -24,6 +24,13 @@ function errText(res: { error?: { message: string } } | undefined, fallback: str
   return res?.error?.message || fallback;
 }
 
+export function requestQuit(quit: () => void): void {
+  const s = useTuiStore.getState();
+  if (s.commandPaletteOpen) s.setCommandPaletteOpen(false);
+  if (s.quitGuard?.()) return;
+  quit();
+}
+
 export function createDefaultShellActions(host: HostClient, quit: () => void): ShellActions {
   const store = () => useTuiStore.getState();
   const refresh = async () => {
@@ -76,7 +83,7 @@ export function createDefaultShellActions(host: HostClient, quit: () => void): S
       await refresh();
       store().notify(store().preferences.language === 'en' ? `Course created: ${key}` : `已创建课程「${key}」`, 'success');
     },
-    quit,
+    quit: () => requestQuit(quit),
   };
 }
 

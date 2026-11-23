@@ -15,6 +15,7 @@ import {
   createVirtualTty,
   disposeTerminalPool,
   distDir,
+  findExportedBackupFile,
   loadDistRuntime,
 } from './helpers/virtual-tty.mjs';
 
@@ -1237,9 +1238,10 @@ describe('Round 67 Track 1: SkeletonView live filter, Markdown export, and SGR m
       );
       tty.assertHealthyScreen(exportToastScreen, 120, 36, 'SkeletonView after export');
 
-      const expectedExportPath = join(libraryRoot, 'backups', `studyhub-skeleton-${todayLocalYmd()}.md`);
-      assert.equal(existsSync(expectedExportPath), true, 'studyhub-skeleton-*.md must exist on disk');
-      const exportedMd = await readFile(expectedExportPath, 'utf8');
+      const skelExport = await findExportedBackupFile(join(libraryRoot, 'backups'), 'studyhub-skeleton', 'md', todayLocalYmd());
+      assert.ok(skelExport, 'studyhub-skeleton-*.md must exist on disk');
+      assert.equal(existsSync(skelExport.path), true, 'studyhub-skeleton-*.md must exist on disk');
+      const exportedMd = await readFile(skelExport.path, 'utf8');
       assert.ok(exportedMd.includes('# OS 知识骨架'));
       assert.ok(exportedMd.includes('### Kernel Trap'));
       assert.ok(exportedMd.includes('- **Virtual Memory**'));

@@ -5,7 +5,7 @@ import type { KeyHint, UiLanguage, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
 import { currentCourse } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
-import { atomicWriteTextFile, defaultBackupFilePath, todayLocalYmd } from '../../host/atomic-write.js';
+import { atomicWriteExportText, defaultBackupFilePath, todayLocalYmd } from '../../host/atomic-write.js';
 import { tryAction, type ReviewRun } from '../../host/sample-actions.js';
 import { toneColor, useTheme } from '../../theme/tokens.js';
 import { Badge, EmptyState, Spinner } from '../../components/Badge.js';
@@ -775,16 +775,17 @@ export const WrongBookView: React.FC<ViewProps> = memo(function WrongBookView({
         snapshotRoot?.trim() ||
         '';
       const baseDir = rawRoot ? resolve(rawRoot) : process.cwd();
-      const targetPath = defaultBackupFilePath(baseDir, 'studyhub-wrongbook', 'md');
+      const exportLabel = course || (selectedMap.size > 0 ? `selected-${selectedMap.size}` : undefined);
+      const defaultPath = defaultBackupFilePath(baseDir, 'studyhub-wrongbook', 'md', exportLabel);
 
-      await atomicWriteTextFile(targetPath, markdown);
+      const written = await atomicWriteExportText(defaultPath, markdown);
       if (!mountedRef.current) return;
       const arrow = asciiMode ? '->' : '→';
       notify(
         t(
           lang,
-          `已导出 ${enriched.length} 道错题 ${arrow} ${targetPath}`,
-          `Exported ${enriched.length} wrong card(s) ${arrow} ${targetPath}`,
+          `已导出 ${enriched.length} 道错题 ${arrow} ${written.path}`,
+          `Exported ${enriched.length} wrong card(s) ${arrow} ${written.path}`,
         ),
         'success',
       );

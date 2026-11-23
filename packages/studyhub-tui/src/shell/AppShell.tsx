@@ -4,10 +4,11 @@ import { PAGE_REGISTRY, type CommandPaletteItem, type HostClient, type KeyHint, 
 import { t, useTuiStore } from '../state/store.js';
 import { useTheme } from '../theme/tokens.js';
 import { KeyHintBar, Spinner, ToastStack } from '../components/Badge.js';
+import { ConfirmDialog } from '../components/ConfirmDialog.js';
 import { isKeyClaimed } from '../components/focus.js';
 import { TopBar } from './TopBar.js';
 import { SideNav, sideNavWidth } from './SideNav.js';
-import { ShellActionsContext, createDefaultShellActions, type ShellActions } from './actions.js';
+import { ShellActionsContext, createDefaultShellActions, requestQuit, type ShellActions } from './actions.js';
 import { isLibraryEmpty } from './data.js';
 
 const Launchpad = lazy(() => import('./Launchpad.js').then((m) => ({ default: m.Launchpad })));
@@ -75,6 +76,7 @@ export const AppShell = memo(function AppShell({
   const courseOpen = useTuiStore((s) => s.coursePickerOpen);
   const inboxOpen = useTuiStore((s) => s.inboxOpen);
   const voiceOpen = useTuiStore((s) => s.voicePackOpen);
+  const quitConfirmOpen = useTuiStore((s) => s.quitConfirmOpen);
   const showLaunchpad = useTuiStore((s) => s.showLaunchpad);
   const toasts = useTuiStore((s) => s.toasts);
   const footerHints = useTuiStore((s) => s.footerHints);
@@ -83,9 +85,16 @@ export const AppShell = memo(function AppShell({
   const snapshot = useTuiStore((s) => s.snapshot);
   const dismissToast = useTuiStore((s) => s.dismissToast);
 
+  const rawQuitRef = useRef<() => void>(() => exit());
+  rawQuitRef.current = actionOverrides?.quit ?? (() => exit());
+
   const actions = useMemo<ShellActions>(
-    () => ({ ...createDefaultShellActions(host, () => exit()), ...actionOverrides }),
-    [host, exit, actionOverrides],
+    () => ({
+      ...createDefaultShellActions(host, () => rawQuitRef.current()),
+      ...actionOverrides,
+      quit: () => requestQuit(rawQuitRef.current),
+    }),
+    [host, actionOverrides],
   );
 
   // First-run Launchpad.
@@ -97,7 +106,7 @@ export const AppShell = memo(function AppShell({
   }, [autoLaunchpad, loading, snapshot]);
 
   const voiceOverlay = voiceOpen && Boolean(renderVoicePack);
-  const overlayOpen = paletteOpen || helpOpen || courseOpen || inboxOpen || voiceOverlay;
+  const overlayOpen = paletteOpen || helpOpen || courseOpen || inboxOpen || voiceOverlay || quitConfirmOpen;
 
   // Render-time snapshot of routing state: every useInput handler for ONE keystroke sees
   // the state from BEFORE that keystroke (so closing an overlay with `?` never reopens it).
@@ -273,6 +282,20 @@ export const AppShell = memo(function AppShell({
             })
           : null}
         {overlays}
+        {quitConfirmOpen ? (
+          <ConfirmDialog
+            title={t(lang, '确认退出', 'Quit StudyHub')}
+            message={t(lang, '当前有进行中的考试/练习，确认退出吗？', 'Session in progress. Quit StudyHub?')}
+            confirmLabel={t(lang, '退出', 'Quit')}
+            cancelLabel={t(lang, '继续', 'Stay')}
+            isActive={quitConfirmOpen}
+            onConfirm={() => {
+              useTuiStore.getState().setQuitConfirmOpen(false);
+              rawQuitRef.current();
+            }}
+            onCancel={() => useTuiStore.getState().setQuitConfirmOpen(false)}
+          />
+        ) : null}
         {voiceOpen && !renderVoicePack ? <VoicePackFallback /> : null}
       </Box>
     </ShellActionsContext.Provider>

@@ -12,6 +12,7 @@ import { after, describe, test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { build } from 'esbuild';
 import { tsImport } from 'tsx/esm/api';
+import { sanitizedTestEnv } from './helpers/virtual-tty.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const pkgRoot = path.resolve(here, '..');
@@ -888,7 +889,7 @@ describe('NO_COLOR & ColorLevel audit', () => {
   test('spawning bin/studyhub-tui.mjs --help under NO_COLOR=1 emits zero ANSI escapes and exits 0', () => {
     const res = spawnSync(process.execPath, [binPath, '--help'], {
       cwd: pkgRoot,
-      env: { ...process.env, NO_COLOR: '1' },
+      env: sanitizedTestEnv({ NO_COLOR: '1' }),
       encoding: 'utf8',
     });
 

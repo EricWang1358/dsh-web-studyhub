@@ -9,7 +9,7 @@
  * 3. Direct `dist/App.mjs` & `dist/host.mjs` loading (avoids scanning & importing every `chunk-*.mjs`).
  */
 import assert from 'node:assert/strict';
-import { cp, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { PassThrough } from 'node:stream';
@@ -17,6 +17,126 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import xtermPkg from '@xterm/headless';
 
 const { Terminal } = xtermPkg;
+
+const SECRET_ENV_KEY_SUFFIX_RE = /(?:_API_KEY|_TOKEN|_SECRET|_ACCESS_KEY)$/i;
+const SECRET_ENV_PROVIDER_PREFIX_RE =
+  /^(?:OPENAI|DEEPSEEK|ANTHROPIC|GEMINI|GOOGLE_API|GROQ|OPENROUTER|SILICONFLOW|ZHIPU|ZHIPUAI|GLM|MOONSHOT|KIMI|COHERE|MISTRAL|AZURE_OPENAI|MINERU|DASHSCOPE|AWS_SECRET)/i;
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+
+/**
+ * Copy `process.env` while scrubbing API keys, tokens, secrets, and provider credentials,
+ * then merge explicit `overrides`.
+ */
+export function sanitizedTestEnv(overrides = {}) {
+  const env = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (value === undefined) continue;
+    if (SECRET_ENV_KEY_SUFFIX_RE.test(key) || SECRET_ENV_PROVIDER_PREFIX_RE.test(key)) {
+      continue;
+    }
+    env[key] = value;
+  }
+  for (const [key, value] of Object.entries(overrides)) {
+    if (value === undefined) {
+      delete env[key];
+    } else {
+      env[key] = value;
+    }
+  }
+  return env;
+}
+
+/**
+ * Return true if `input` points to a local loopback host (`localhost`, `127.0.0.1`, `::1`).
+ */
+export function isLoopbackUrl(input) {
+  try {
+    const raw = input instanceof URL ? input.href : typeof input === 'string' ? input : input?.url;
+    if (!raw) return false;
+    const parsed = new URL(String(raw));
+    return LOOPBACK_HOSTS.has(parsed.hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Wrap `globalThis.fetch` so any outbound request to a non-loopback host throws immediately.
+ * Returns a restore function.
+ */
+export function installNoNetworkGuard() {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input, init) => {
+    const target = input instanceof URL ? input.href : typeof input === 'string' ? input : input?.url ?? String(input);
+    if (!isLoopbackUrl(input)) {
+      throw new assert.AssertionError({
+        message: `0-network guard blocked outbound fetch to non-loopback host: ${target}`,
+        actual: target,
+        expected: 'loopback host (localhost, 127.0.0.1, ::1)',
+        operator: 'noExternalNetwork',
+      });
+    }
+    return originalFetch.call(globalThis, input, init);
+  };
+  return () => {
+    globalThis.fetch = originalFetch;
+  };
+}
+
+/**
+ * Run `fn` with `installNoNetworkGuard()` active and always restore `globalThis.fetch` afterwards.
+ */
+export async function assertZeroExternalNetwork(fn) {
+  const restore = installNoNetworkGuard();
+  try {
+    return await fn();
+  } finally {
+    restore();
+  }
+}
+
+/**
+ * Resolve cross-platform `npm` / `npx` spawn command and options (uses `.cmd` + `shell: true` on `win32`).
+ */
+export function resolveNpmCommand(tool = 'npm', platform = process.platform) {
+  const isWin = platform === 'win32';
+  const command = isWin && !/\.(?:cmd|exe|bat)$/i.test(tool) ? `${tool}.cmd` : tool;
+  return {
+    command,
+    options: {
+      shell: isWin,
+      windowsHide: true,
+    },
+  };
+}
+
+/**
+ * Build a regex matching timestamped export filenames produced by `defaultBackupFilePath`:
+ * `<prefix>-(?:<slug>-)?YYYY-MM-DD-HHmmss(?:-<seq>)?\.<ext>` (or optional `ymd` prefix).
+ */
+export function exportFilenameRegex(prefix, ext, ymd) {
+  const cleanExt = String(ext).replace(/^\./, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const escapedPrefix = String(prefix).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const datePart = ymd ? ymd.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '\\d{4}-\\d{2}-\\d{2}';
+  return new RegExp(`^${escapedPrefix}-(?:.+-)?${datePart}-\\d{6}(?:-\\d+)?\\.${cleanExt}$`);
+}
+
+/**
+ * Find the newest exported file in `backupsDir` matching `<prefix>-(?:<slug>-)?YYYY-MM-DD-HHmmss(?:-N)?\.<ext>`.
+ */
+export async function findExportedBackupFile(backupsDir, prefix, ext, ymd) {
+  const re = exportFilenameRegex(prefix, ext, ymd);
+  let names = [];
+  try {
+    names = await readdir(backupsDir);
+  } catch {
+    return null;
+  }
+  const matches = names.filter((name) => re.test(name)).sort();
+  if (matches.length === 0) return null;
+  const name = matches[matches.length - 1];
+  return { name, path: join(backupsDir, name), all: matches };
+}
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const pkgRoot = resolve(here, '..', '..');
@@ -111,7 +231,7 @@ export async function cloneSampleLibrary(language, destDir) {
     const { createTuiHost } = await loadDistRuntime();
     const host = await createTuiHost({
       libraryRoot: tplLib,
-      env: { ...process.env, DSH_HOME: tplDsh },
+      env: sanitizedTestEnv({ DSH_HOME: tplDsh }),
       home: base,
       documentsDir: base,
       skipAutoProbe: true,

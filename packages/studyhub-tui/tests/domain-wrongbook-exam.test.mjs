@@ -16,8 +16,10 @@ import {
   createVirtualTty,
   disposeTerminalPool,
   distDir,
+  findExportedBackupFile,
   loadDistRuntime,
   pkgRoot,
+  sanitizedTestEnv,
 } from './helpers/virtual-tty.mjs';
 
 const { StudyHubTuiApp, createTuiHost, saveTuiPreferences } = await loadDistRuntime();
@@ -287,7 +289,7 @@ async function answerCurrentCardWrong(tty, host, runId, cardNumberLabel) {
 describe('Round 44: WrongBook Coach Variant Practice ([V] / coach.practice)', () => {
   test('1) createTuiHost integration: coach.practice errors cleanly when none ready, then starts review run when prepared variant is ready', async () => {
     const base = await temps.make('r44-host');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     const libraryRoot = join(base, 'library');
     await cloneSampleLibrary('en', libraryRoot);
     const host = await createTuiHost({
@@ -364,7 +366,7 @@ describe('Round 44: WrongBook Coach Variant Practice ([V] / coach.practice)', ()
     process.env.DSH_HOME = zhDshHome;
     await saveTuiPreferences(
       { language: 'zh', asciiMode: false, theme: 'tokyo-night', mathUnicode: true, showHints: true },
-      { env: { ...process.env, DSH_HOME: zhDshHome } },
+      { env: sanitizedTestEnv({ DSH_HOME: zhDshHome }) },
     );
 
     const zhLibraryRoot = join(zhBase, 'library');
@@ -372,7 +374,7 @@ describe('Round 44: WrongBook Coach Variant Practice ([V] / coach.practice)', ()
 
     const zhHost = await createTuiHost({
       libraryRoot: zhLibraryRoot,
-      env: { ...process.env, DSH_HOME: zhDshHome },
+      env: sanitizedTestEnv({ DSH_HOME: zhDshHome }),
       home: join(zhBase, 'home'),
       documentsDir: zhBase,
       providerDiscovery: fakeDiscovery(),
@@ -666,13 +668,13 @@ describe('Round 66 Track 3: WrongBookView [X] Atomic Markdown Study Sheet Export
 
     await saveTuiPreferences(
       { language: 'zh', asciiMode: false, theme: 'dsh-dark', mathUnicode: true, showHints: true },
-      { env: { ...process.env, DSH_HOME: dshHome } },
+      { env: sanitizedTestEnv({ DSH_HOME: dshHome }) },
     );
 
     let modelCalls = 0;
     const host = await createTuiHost({
       libraryRoot,
-      env: { ...process.env, DSH_HOME: dshHome },
+      env: sanitizedTestEnv({ DSH_HOME: dshHome }),
       home: join(base, 'home'),
       documentsDir: base,
       skipAutoProbe: true,
@@ -778,20 +780,22 @@ describe('Round 66 Track 3: WrongBookView [X] Atomic Markdown Study Sheet Export
       const firstPromptSnippet = String(wbRes.value.items[0].prompt || '').trim().slice(0, 18);
 
       // Press 'X' to export Wrong-Book Markdown study sheet atomically
-      const expectedPath = join(libraryRoot, 'backups', `studyhub-wrongbook-${todayLocalYmd()}.md`);
+      const backupsDir = join(libraryRoot, 'backups');
+      const todayYmd = todayLocalYmd();
       tty.send('X');
       const afterExport = await tty.waitFor(
         (s) =>
-          fs.existsSync(expectedPath) &&
           useDistTuiStore
             .getState()
-            .toasts.some((toast) => toast.tone === 'success' && toast.text.includes('已导出') && toast.text.includes(expectedPath)) &&
+            .toasts.some((toast) => toast.tone === 'success' && toast.text.includes('已导出') && toast.text.includes('studyhub-wrongbook-')) &&
           s.includes('已导出'),
         { timeoutMs: 10_000, label: 'zh WrongBook [X] export toast & file on disk' },
       );
       tty.assertHealthyScreen(afterExport, 120, 36, 'zh WrongBookView after [X] export');
 
-      const exportedMd = await readFile(expectedPath, 'utf8');
+      const zhWbExport = await findExportedBackupFile(backupsDir, 'studyhub-wrongbook', 'md', todayYmd);
+      assert.ok(zhWbExport, `expected studyhub-wrongbook-${todayYmd}-HHmmss.md in ${backupsDir}`);
+      const exportedMd = await readFile(zhWbExport.path, 'utf8');
       assert.ok(exportedMd.includes('# 错题复习卷'), 'exported MD must have zh title');
       assert.ok(exportedMd.includes('<details>'), 'exported MD must contain <details>');
       assert.ok(exportedMd.includes('<summary>参考答案与解析 / Answer & Explanation</summary>'), 'exported MD must contain <summary>');
@@ -801,7 +805,7 @@ describe('Round 66 Track 3: WrongBookView [X] Atomic Markdown Study Sheet Export
       }
 
       // Switch in-place to 80x24 --ascii en (reuses single mounted app)
-      await rm(expectedPath, { force: true });
+      await rm(backupsDir, { recursive: true, force: true });
       tty.resize(80, 24);
       host.setLanguage('en');
       useDistTuiStore.getState().setPreferences({ language: 'en', asciiMode: true });
@@ -817,7 +821,6 @@ describe('Round 66 Track 3: WrongBookView [X] Atomic Markdown Study Sheet Export
       tty.send('X');
       const enAfterExport = await tty.waitFor(
         () =>
-          fs.existsSync(expectedPath) &&
           useDistTuiStore
             .getState()
             .toasts.some(
@@ -825,14 +828,16 @@ describe('Round 66 Track 3: WrongBookView [X] Atomic Markdown Study Sheet Export
                 toast.tone === 'success' &&
                 toast.text.includes('Exported') &&
                 toast.text.includes('wrong card(s) ->') &&
-                toast.text.includes(expectedPath),
+                toast.text.includes('studyhub-wrongbook-'),
             ),
         { timeoutMs: 10_000, label: 'en WrongBook [X] export toast & file on disk' },
       );
       tty.assertHealthyScreen(enAfterExport, 80, 24, 'en WrongBookView after [X] export 80x24');
       tty.assertAsciiPure(enAfterExport, 'en WrongBookView after [X] export 80x24');
 
-      const exportedEnMd = await readFile(expectedPath, 'utf8');
+      const enWbExport = await findExportedBackupFile(backupsDir, 'studyhub-wrongbook', 'md', todayYmd);
+      assert.ok(enWbExport, `expected studyhub-wrongbook-${todayYmd}-HHmmss.md in ${backupsDir}`);
+      const exportedEnMd = await readFile(enWbExport.path, 'utf8');
       assert.ok(exportedEnMd.includes('# Wrong-Book Study Sheet'), 'exported MD must have en title');
       assert.ok(exportedEnMd.includes('## 1.'), 'exported MD must have numbered question');
       assert.ok(exportedEnMd.includes('<details>'), 'exported MD must contain <details>');
@@ -861,13 +866,13 @@ describe('Round 72 Track 1: WrongBookView `/` Live Wrong-Card Search & Filter', 
 
     await saveTuiPreferences(
       { language: 'zh', asciiMode: false, theme: 'dsh-dark', mathUnicode: true, showHints: true },
-      { env: { ...process.env, DSH_HOME: dshHome } },
+      { env: sanitizedTestEnv({ DSH_HOME: dshHome }) },
     );
 
     let modelCalls = 0;
     const host = await createTuiHost({
       libraryRoot,
-      env: { ...process.env, DSH_HOME: dshHome },
+      env: sanitizedTestEnv({ DSH_HOME: dshHome }),
       home: join(base, 'home'),
       documentsDir: base,
       skipAutoProbe: true,
@@ -1295,8 +1300,9 @@ describe('Round 67 Track 3: ExamSetup [x] Atomic Exam History Markdown Report Ex
 
   test('2) PTY E2E (120x36 zh): Exam [5] empty toast -> seed completed exam -> [x] writes studyhub-exam-*.md (0 model calls)', async () => {
     fetchCalls = 0;
-    const expectedPath = join(libraryRoot, 'backups', `studyhub-exam-${todayLocalYmd()}.md`);
-    await rm(expectedPath, { force: true });
+    const backupsDir = join(libraryRoot, 'backups');
+    const todayYmd = todayLocalYmd();
+    await rm(backupsDir, { recursive: true, force: true });
 
     const tty = await mountApp({ initialPage: 'library', asciiMode: false, language: 'zh', cols: 120, rows: 36 });
     await tty.waitFor((s) => s.includes('Memento') || s.includes('学习库'), {
@@ -1319,7 +1325,7 @@ describe('Round 67 Track 3: ExamSetup [x] Atomic Exam History Markdown Report Ex
       { timeoutMs: 5_000, label: 'ExamSetup [x] empty warning toast (zh)' },
     );
     tty.assertHealthyScreen(emptyToastScreen, 120, 36, 'ExamSetup empty export toast zh 120x36');
-    assert.equal(fs.existsSync(expectedPath), false, 'empty history must not create report file');
+    assert.equal(await findExportedBackupFile(backupsDir, 'studyhub-exam', 'md', todayYmd), null, 'empty history must not create report file');
 
     // Seed a fast quiz deck + 2 completed written exam attempts through StudyRuntime host (0 model calls)
     const deckRes = await host.call('deck.import', {
@@ -1394,7 +1400,9 @@ describe('Round 67 Track 3: ExamSetup [x] Atomic Exam History Markdown Report Ex
     );
     tty.assertHealthyScreen(exportedScreen, 120, 36, 'ExamSetup after [x] export zh 120x36');
 
-    const mdContent = await readFile(expectedPath, 'utf8');
+    const zhExamExport = await findExportedBackupFile(backupsDir, 'studyhub-exam', 'md', todayYmd);
+    assert.ok(zhExamExport, `expected studyhub-exam-${todayYmd}-HHmmss.md in ${backupsDir}`);
+    const mdContent = await readFile(zhExamExport.path, 'utf8');
     assert.ok(mdContent.includes('# StudyHub 模拟考试历史报告'), 'exported report has zh title');
     assert.ok(mdContent.includes('考试记录总数**: 2'), 'exported report has record count');
     assert.ok(mdContent.includes('## 当前选中记录'), 'exported report has selected attempt section');
@@ -1403,7 +1411,7 @@ describe('Round 67 Track 3: ExamSetup [x] Atomic Exam History Markdown Report Ex
     assert.match(mdContent, /\d+%/, 'exported report contains score percentage');
 
     // Switch in-place to 80x24 --ascii en on same mounted app
-    await rm(expectedPath, { force: true });
+    await rm(backupsDir, { recursive: true, force: true });
     tty.resize(80, 24);
     host.setLanguage('en');
     useDistTuiStore.getState().setPreferences({ language: 'en', asciiMode: true });
@@ -1424,7 +1432,9 @@ describe('Round 67 Track 3: ExamSetup [x] Atomic Exam History Markdown Report Ex
     tty.assertHealthyScreen(exportedScreenEn, 80, 24, 'ExamSetup after [x] export en ascii 80x24');
     tty.assertAsciiPure(exportedScreenEn, 'ExamSetup after [x] export en ascii 80x24 pure');
 
-    const mdContentEn = await readFile(expectedPath, 'utf8');
+    const enExamExport = await findExportedBackupFile(backupsDir, 'studyhub-exam', 'md', todayYmd);
+    assert.ok(enExamExport, `expected studyhub-exam-${todayYmd}-HHmmss.md in ${backupsDir}`);
+    const mdContentEn = await readFile(enExamExport.path, 'utf8');
     assert.ok(mdContentEn.includes('# StudyHub Exam History Report'), 'exported report has en title');
     assert.ok(mdContentEn.includes('Total Exam Records**: 2'), 'exported report has en count');
     assert.ok(mdContentEn.includes('## Selected Attempt'), 'exported report has selected attempt section');

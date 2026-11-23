@@ -2,7 +2,6 @@
 // Merges: round45-focus-suggest, round68-examprep-export
 // node --test tests/domain-examprep.test.mjs
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import { readdir, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { after, describe, test } from 'node:test';
@@ -16,6 +15,7 @@ import {
   createVirtualTty,
   disposeTerminalPool,
   distDir,
+  findExportedBackupFile,
   loadDistRuntime,
 } from './helpers/virtual-tty.mjs';
 
@@ -601,8 +601,9 @@ describe('Round 68 Track 2: ExamPrepView `/` live filter & `[x]` atomic Markdown
       await tty.waitFor((s) => !s.includes('正在打开学习库'), { label: 'LibraryView ready (zh)' });
 
       // Navigate to ExamPrep ('0') -> empty state [x] shows friendly info toast and writes no file
-      const expectedExportPath = join(libraryRoot, 'backups', `studyhub-examprep-${todayLocalYmd()}.md`);
-      await rm(expectedExportPath, { force: true });
+      const backupsDir = join(libraryRoot, 'backups');
+      const todayYmd = todayLocalYmd();
+      await rm(backupsDir, { recursive: true, force: true });
       useDistTuiStore.setState({ toasts: [] });
       tty.send('0');
       const emptyPrep = await tty.waitFor(
@@ -620,7 +621,7 @@ describe('Round 68 Track 2: ExamPrepView `/` live filter & `[x]` atomic Markdown
       );
       tty.assertHealthyScreen(emptyToast, 120, 36, 'ExamPrepView empty export toast');
       assert.equal(useDistTuiStore.getState().page, 'examprep');
-      assert.equal(fs.existsSync(expectedExportPath), false, 'empty exam prep must not write markdown file');
+      assert.equal(await findExportedBackupFile(backupsDir, 'studyhub-examprep', 'md', todayYmd), null, 'empty exam prep must not write markdown file');
 
       // Seed 2 focus topics & reload ExamPrep via 'r'
       const saveRes = await host.call('course.save', {
@@ -702,8 +703,9 @@ describe('Round 68 Track 2: ExamPrepView `/` live filter & `[x]` atomic Markdown
       );
       tty.assertHealthyScreen(exportToastScreen, 80, 24, 'ExamPrepView after export 80x24');
 
-      assert.equal(fs.existsSync(expectedExportPath), true, 'studyhub-examprep-*.md must exist on disk');
-      const exportedMd = await readFile(expectedExportPath, 'utf8');
+      const prepExport = await findExportedBackupFile(backupsDir, 'studyhub-examprep', 'md', todayYmd);
+      assert.ok(prepExport, `studyhub-examprep-${todayYmd}-HHmmss.md must exist on disk`);
+      const exportedMd = await readFile(prepExport.path, 'utf8');
       assert.ok(exportedMd.includes('# StudyHub 备考计划与重点进度'));
       assert.ok(exportedMd.includes(`课程**: ${activeCourse}`));
       assert.ok(exportedMd.includes('考试日期**: 2026-12-20'));

@@ -15,7 +15,7 @@ import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { renderBarChart } from '../../render/charts.js';
 import { currentCourse, listCourses } from '../../shell/data.js';
 import { useShellActions } from '../../shell/actions.js';
-import { atomicWriteTextFile, defaultBackupFilePath } from '../../host/atomic-write.js';
+import { atomicWriteExportText, defaultBackupFilePath } from '../../host/atomic-write.js';
 import { tryAction } from '../../host/sample-actions.js';
 const AddFocusModal = lazy(() => import('./AddFocusModal.js').then((m) => ({ default: m.AddFocusModal })));
 const StudyPlanModal = lazy(() => import('./StudyPlanModal.js').then((m) => ({ default: m.StudyPlanModal })));
@@ -526,15 +526,15 @@ export const ExamPrepView: React.FC<ViewProps> = ({ host, width, height, isActiv
         planNotes,
         lang,
       });
-      const targetPath = defaultBackupFilePath(host.getLibraryRoot(), 'studyhub-examprep', '.md');
-      await atomicWriteTextFile(targetPath, markdown);
+      const defaultPath = defaultBackupFilePath(host.getLibraryRoot(), 'studyhub-examprep', '.md', course || undefined);
+      const written = await atomicWriteExportText(defaultPath, markdown);
       if (!mountedRef.current) return;
       const arrow = asciiMode ? '->' : '→';
       notify(
         t(
           lang,
-          `已导出 ${topics.length} 项重点 / ${crunchPoints.length} 项冲刺 ${arrow} ${targetPath}`,
-          `Exported ${topics.length} topic(s) / ${crunchPoints.length} crunch item(s) ${arrow} ${targetPath}`,
+          `已导出 ${topics.length} 项重点 / ${crunchPoints.length} 项冲刺 ${arrow} ${written.path}`,
+          `Exported ${topics.length} topic(s) / ${crunchPoints.length} crunch item(s) ${arrow} ${written.path}`,
         ),
         'success',
       );

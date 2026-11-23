@@ -11,7 +11,6 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { existsSync } from 'node:fs';
 import { mkdir, readdir, readFile, rm } from 'node:fs/promises';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { pathToFileURL } from 'node:url';
@@ -24,7 +23,9 @@ import {
   createVirtualTty,
   disposeTerminalPool,
   distDir,
+  findExportedBackupFile,
   loadDistRuntime,
+  sanitizedTestEnv,
 } from './helpers/virtual-tty.mjs';
 
 const unregisterTsx = register();
@@ -153,15 +154,21 @@ describe('Domain Settings & Workspace: Hygiene, Host Integration & PTY E2E', () 
     }
 
     const defPath = defaultBackupPath('/tmp/studyhub-lib');
-    assert.ok(defPath.startsWith('/tmp/studyhub-lib/backups/'), `unexpected defaultBackupPath: ${defPath}`);
-    assert.match(defPath, /studyhub-backup-\d{4}-\d{2}-\d{2}\.json$/);
+    assert.ok(defPath.startsWith(join('/tmp/studyhub-lib', 'backups')), `unexpected defaultBackupPath: ${defPath}`);
+    assert.match(defPath, /studyhub-backup-\d{4}-\d{2}-\d{2}-\d{6}\.json$/);
 
     assert.equal(resolveBackupPath('   ', '/tmp/studyhub-lib'), '');
-    assert.equal(resolveBackupPath('snap-one', '/tmp/studyhub-lib'), '/tmp/studyhub-lib/snap-one.json');
-    assert.equal(resolveBackupPath('/var/tmp/custom.json', '/tmp/studyhub-lib'), '/var/tmp/custom.json');
-    const homeResolved = resolveBackupPath('~/my-bak', '/tmp/studyhub-lib');
-    assert.equal(homeResolved, join(homedir(), 'my-bak.json'));
-    assert.equal(homeResolved.includes('~'), false);
+    assert.equal(
+      resolveBackupPath('snap-one', '/tmp/studyhub-lib'),
+      join('/tmp/studyhub-lib', 'backups', 'snap-one.json'),
+    );
+    assert.equal(
+      resolveBackupPath('/tmp/studyhub-lib/backups/nested-snap', '/tmp/studyhub-lib'),
+      join('/tmp/studyhub-lib', 'backups', 'nested-snap.json'),
+    );
+    assert.throws(() => resolveBackupPath('/var/tmp/custom.json', '/tmp/studyhub-lib'), /Unsafe export path/);
+    assert.throws(() => resolveBackupPath('~/my-bak', '/tmp/studyhub-lib'), /Unsafe export path/);
+    assert.throws(() => resolveBackupPath('../escape.json', '/tmp/studyhub-lib'), /Unsafe export path/);
 
     const emptySummary = summarizeExportPayload(null);
     assert.equal(emptySummary.decksCount, 0);
@@ -199,7 +206,7 @@ describe('Domain Settings & Workspace: Hygiene, Host Integration & PTY E2E', () 
 
     const host = await createTuiHost({
       libraryRoot,
-      env: { DSH_HOME: dshHome },
+      env: sanitizedTestEnv({ DSH_HOME: dshHome }),
       home: base,
       documentsDir: base,
       skipAutoProbe: true,
@@ -297,7 +304,7 @@ describe('Domain Settings & Workspace: Hygiene, Host Integration & PTY E2E', () 
 
     const host = await createTuiHost({
       libraryRoot,
-      env: { DSH_HOME: dshHome },
+      env: sanitizedTestEnv({ DSH_HOME: dshHome }),
       home: base,
       documentsDir: base,
       skipAutoProbe: true,
@@ -408,7 +415,7 @@ describe('Domain Settings & Workspace: Hygiene, Host Integration & PTY E2E', () 
     let modelCalls = 0;
     const host = await createTuiHost({
       libraryRoot,
-      env: { DSH_HOME: dshHome },
+      env: sanitizedTestEnv({ DSH_HOME: dshHome }),
       home: base,
       documentsDir: base,
       skipAutoProbe: true,
@@ -466,7 +473,7 @@ describe('Domain Settings & Workspace: Hygiene, Host Integration & PTY E2E', () 
   test('5) PTY E2E (round37+39): WorkspaceTab [f]/[u]/[U] & StudyGenTab qaToBook/practice_reset/examprep_reset with P2 cancel/confirm', async () => {
     const base = await temps.make('r37-39-pty');
     const dshHome = join(base, 'dsh-home');
-    const env = { DSH_HOME: dshHome };
+    const env = sanitizedTestEnv({ DSH_HOME: dshHome });
     process.env.DSH_HOME = dshHome;
     const libraryRoot = join(base, 'library');
     await mkdir(libraryRoot, { recursive: true });
@@ -757,7 +764,7 @@ describe('Domain Settings & Workspace: Hygiene, Host Integration & PTY E2E', () 
   test('6) PTY E2E (round59): StudyGenTab Book & ExamPrep rows at 120x36 & 80x24 zh with smooth PageDown/PageUp scrolling', async () => {
     const base = await temps.make('r59-pty');
     const dshHome = join(base, 'dsh-home');
-    const env = { DSH_HOME: dshHome };
+    const env = sanitizedTestEnv({ DSH_HOME: dshHome });
     process.env.DSH_HOME = dshHome;
     const libraryRoot = join(base, 'library');
     await mkdir(libraryRoot, { recursive: true });
@@ -917,7 +924,7 @@ describe('Domain Settings & Workspace: Hygiene, Host Integration & PTY E2E', () 
     async function mountApp({ initialPage = 'library', asciiMode = false, language = 'zh', cols = 120, rows = 36 } = {}) {
       await unmountActiveApp();
       resetTuiStore(language, asciiMode);
-      await saveTuiPreferences({ language, asciiMode }, { env: { DSH_HOME: dshHome } });
+      await saveTuiPreferences({ language, asciiMode }, { env: sanitizedTestEnv({ DSH_HOME: dshHome }) });
       host.setLanguage(language);
       const tty = createVirtualTty(cols, rows);
       let inkInstance = null;
@@ -957,7 +964,7 @@ describe('Domain Settings & Workspace: Hygiene, Host Integration & PTY E2E', () 
       };
 
       host = await createTuiHost({
-        env: { DSH_HOME: dshHome },
+        env: sanitizedTestEnv({ DSH_HOME: dshHome }),
         home: join(boxDir, 'home'),
         libraryRoot,
         skipAutoProbe: true,
@@ -1301,8 +1308,8 @@ describe('Domain Settings & Workspace: Hygiene, Host Integration & PTY E2E', () 
         { label: 'UsageReportModal resumed after second [p] (zh)' },
       );
 
-      const expectedPath = join(libraryRoot, 'backups', `studyhub-usage-${todayLocalYmd()}.json`);
-      await rm(expectedPath, { force: true });
+      const backupsDir = join(libraryRoot, 'backups');
+      await rm(backupsDir, { recursive: true, force: true });
       ttyZh.send('e');
       const exportedScreen = await ttyZh.waitFor(
         (s) => s.includes('studyhub-usage-') && s.includes('已导出'),
@@ -1310,7 +1317,9 @@ describe('Domain Settings & Workspace: Hygiene, Host Integration & PTY E2E', () 
       );
       assertStrictScreen(ttyZh, exportedScreen, 120, 36, 'UsageReportModal exported 120x36 zh');
 
-      const rawExported = await readFile(expectedPath, 'utf8');
+      const usageExport = await findExportedBackupFile(backupsDir, 'studyhub-usage', 'json', todayLocalYmd());
+      assert.ok(usageExport, `expected studyhub-usage-${todayLocalYmd()}-HHmmss.json in ${backupsDir}`);
+      const rawExported = await readFile(usageExport.path, 'utf8');
       const exportedJson = JSON.parse(rawExported);
       assert.equal(exportedJson.app, 'StudyHub');
       assert.equal(exportedJson.period, 7);
@@ -1418,16 +1427,18 @@ describe('Domain Settings & Workspace: Hygiene, Host Integration & PTY E2E', () 
       );
       assertStrictScreen(tty, refreshedScreen, 120, 36, 'LibraryContextModal refreshed 120x36 zh');
 
-      const expectedPath = join(libraryRoot, 'backups', `studyhub-context-${todayLocalYmd()}.json`);
-      await rm(expectedPath, { force: true });
+      const backupsDir = join(libraryRoot, 'backups');
+      await rm(backupsDir, { recursive: true, force: true });
       tty.send('e');
       const exportedScreen = await tty.waitFor(
-        (s) => s.includes('studyhub-context-') && s.includes('已导出'),
+        (s) => s.includes('已导出:') && s.includes('-context-') && s.includes('.json'),
         { label: 'LibraryContextModal confirms JSON export after [e] (zh)' },
       );
       assertStrictScreen(tty, exportedScreen, 120, 36, 'LibraryContextModal exported 120x36 zh');
 
-      const rawExported = await readFile(expectedPath, 'utf8');
+      const ctxExport = await findExportedBackupFile(backupsDir, 'studyhub-context', 'json', todayLocalYmd());
+      assert.ok(ctxExport, `expected studyhub-context-${todayLocalYmd()}-HHmmss.json in ${backupsDir}`);
+      const rawExported = await readFile(ctxExport.path, 'utf8');
       const exportedJson = JSON.parse(rawExported);
       assert.equal(exportedJson.library, libraryRoot);
       assert.equal(exportedJson.today, expectedCtx.today);

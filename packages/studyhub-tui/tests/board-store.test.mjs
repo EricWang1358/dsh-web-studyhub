@@ -26,9 +26,15 @@ const {
 } = boardStoreMod;
 
 const {
+  atomicWriteExportJson,
+  atomicWriteExportText,
   atomicWriteJsonFile,
   atomicWriteTextFile,
   defaultBackupFilePath,
+  localTimestampCompact,
+  resolveSafeBackupExportPath,
+  resolveUniqueFilePath,
+  sanitizeExportSlug,
   todayLocalYmd: atomicTodayLocalYmd,
 } = atomicWriteMod;
 
@@ -327,13 +333,49 @@ describe('shared atomic-write helpers & deduplication', () => {
     assert.equal(atomicTodayLocalYmd(new Date(2026, 0, 9)), '2026-01-09');
   });
 
-  test('2) defaultBackupFilePath builds cross-platform backups/<prefix>-YYYY-MM-DD.<ext>', () => {
-    const res = defaultBackupFilePath('/tmp/lib', 'studyhub-test', 'md', new Date(2026, 0, 9));
-    assert.equal(res, join('/tmp/lib', 'backups', 'studyhub-test-2026-01-09.md'));
-    assert.ok(res.endsWith(join('backups', 'studyhub-test-2026-01-09.md')));
+  test('2) defaultBackupFilePath builds cross-platform backups/<prefix>-<slug?>-YYYY-MM-DD-HHmmss.<ext>', () => {
+    const fixedDate = new Date(2026, 0, 9, 14, 5, 3);
+    assert.equal(localTimestampCompact(fixedDate), '2026-01-09-140503');
 
-    const dotExt = defaultBackupFilePath('/tmp/lib', 'studyhub-test', '.json', new Date(2026, 0, 9));
-    assert.equal(dotExt, join('/tmp/lib', 'backups', 'studyhub-test-2026-01-09.json'));
+    const res = defaultBackupFilePath('/tmp/lib', 'studyhub-test', 'md', fixedDate);
+    assert.equal(res, join('/tmp/lib', 'backups', 'studyhub-test-2026-01-09-140503.md'));
+    assert.ok(res.endsWith(join('backups', 'studyhub-test-2026-01-09-140503.md')));
+
+    const dotExt = defaultBackupFilePath('/tmp/lib', 'studyhub-test', '.json', fixedDate);
+    assert.equal(dotExt, join('/tmp/lib', 'backups', 'studyhub-test-2026-01-09-140503.json'));
+
+    const withSlug = defaultBackupFilePath('/tmp/lib', 'studyhub-deck', 'md', 'CS 101: 操作系统', fixedDate);
+    assert.equal(withSlug, join('/tmp/lib', 'backups', 'studyhub-deck-CS-101-操作系统-2026-01-09-140503.md'));
+
+    assert.equal(sanitizeExportSlug('  ../weird/name:test?  '), 'weird-name-test');
+  });
+
+  test('2b) resolveUniqueFilePath, atomicWriteExportText/Json, and resolveSafeBackupExportPath never overwrite or escape backups/', async () => {
+    const root = await makeTempDir('safe-export');
+    const first = resolveSafeBackupExportPath(root, 'my-snap', 'studyhub-backup', '.json');
+    assert.equal(first, join(root, 'backups', 'my-snap.json'));
+
+    const w1 = await atomicWriteExportJson(first, { run: 1 });
+    assert.equal(w1.path, first);
+
+    const second = resolveUniqueFilePath(first);
+    assert.equal(second, join(root, 'backups', 'my-snap-2.json'));
+
+    const w2 = await atomicWriteExportJson(first, { run: 2 });
+    assert.equal(w2.path, second);
+    assert.deepEqual(JSON.parse(await readFile(first, 'utf8')), { run: 1 });
+    assert.deepEqual(JSON.parse(await readFile(second, 'utf8')), { run: 2 });
+
+    const t1 = await atomicWriteExportText(join(root, 'backups', 'note.md'), '# First\n');
+    const t2 = await atomicWriteExportText(join(root, 'backups', 'note.md'), '# Second\n');
+    assert.equal(t1.path, join(root, 'backups', 'note.md'));
+    assert.equal(t2.path, join(root, 'backups', 'note-2.md'));
+    assert.equal(await readFile(t1.path, 'utf8'), '# First\n');
+    assert.equal(await readFile(t2.path, 'utf8'), '# Second\n');
+
+    for (const unsafe of ['/tmp/evil.json', '../escape.json', 'a/../../escape.json', 'C:\\evil.json', '\\\\host\\share\\x.json']) {
+      assert.throws(() => resolveSafeBackupExportPath(root, unsafe, 'studyhub-backup', '.json'), /Unsafe export path/);
+    }
   });
 
   test('3) atomicWriteTextFile creates missing parents, writes exact UTF-8 CJK/emoji, leaves zero .tmp, and overwrites atomically', async () => {

@@ -462,12 +462,158 @@ export async function createTuiHost(options: CreateTuiHostOptions = {}): Promise
   const CONFIG_ACTIONS = new Set(['desktop.config.get', 'desktop.config.save']);
   const CONFIG_MUTATIONS = new Set(['desktop.config.save', 'binding.set', 'desktop.library.confirm']);
 
+  type InvokableDesktop = DesktopHost & {
+    invoke?: (api: string, operation: string, args?: Record<string, unknown>) => Promise<unknown>;
+  };
+
+  const isAudioSourceRecord = (src: Record<string, unknown>): boolean => {
+    if (src.archived === true) return false;
+    if (src.audio && typeof src.audio === 'object') return true;
+    if (typeof src.id === 'string' && /^(audio|subtitle|live)-/.test(src.id)) return true;
+    const prov = typeof src.provenance === 'string' ? src.provenance : '';
+    const fmt = typeof src.format === 'string' ? src.format : '';
+    return prov === 'audio' || prov === 'audio-transcript' || fmt === 'audio' || fmt === 'srt' || fmt === 'vtt';
+  };
+
+  const mapAudioRecord = (raw: Record<string, unknown>): Record<string, unknown> => {
+    const audio = raw.audio && typeof raw.audio === 'object' ? (raw.audio as Record<string, unknown>) : undefined;
+    const courses = Array.isArray(raw.courses) ? raw.courses.filter((c): c is string => typeof c === 'string') : [];
+    const course = typeof raw.course === 'string' ? raw.course : courses[0];
+    const fileName =
+      (typeof raw.fileName === 'string' && raw.fileName) ||
+      (typeof raw.filename === 'string' && raw.filename) ||
+      (typeof audio?.fileName === 'string' && audio.fileName) ||
+      (typeof audio?.filename === 'string' && audio.filename) ||
+      undefined;
+    const durationSec =
+      typeof raw.durationSec === 'number'
+        ? raw.durationSec
+        : typeof raw.duration === 'number'
+          ? raw.duration
+          : typeof audio?.durationSec === 'number'
+            ? audio.durationSec
+            : typeof audio?.seconds === 'number'
+              ? audio.seconds
+              : undefined;
+    const provider =
+      (typeof raw.provider === 'string' && raw.provider) ||
+      (typeof audio?.provider === 'string' && audio.provider) ||
+      (typeof audio?.textProvider === 'string' && audio.textProvider) ||
+      undefined;
+    const createdAt =
+      (typeof raw.createdAt === 'string' && raw.createdAt) ||
+      (typeof audio?.importedAt === 'string' && audio.importedAt) ||
+      undefined;
+    const text = typeof raw.text === 'string' ? raw.text : undefined;
+    const transcript = typeof raw.transcript === 'string' ? raw.transcript : text;
+    const id = String(raw.id ?? '');
+    return {
+      ...raw,
+      id,
+      sourceId: typeof raw.sourceId === 'string' ? raw.sourceId : id,
+      ...(courses.length > 0 ? { courses } : {}),
+      ...(course ? { course } : {}),
+      ...(fileName ? { fileName, filename: fileName } : {}),
+      ...(durationSec !== undefined ? { durationSec } : {}),
+      ...(provider ? { provider } : {}),
+      ...(createdAt ? { createdAt } : {}),
+      ...(text !== undefined ? { text } : {}),
+      ...(transcript !== undefined ? { transcript } : {}),
+    };
+  };
+
+  const invokeAudioV1 = async <T>(operation: string, argsObj: Record<string, unknown>): Promise<HostCallResult<T> | null> => {
+    const invoker = (desktop as InvokableDesktop).invoke;
+    if (typeof invoker !== 'function') return null;
+    try {
+      const invoked = await invoker('audio.v1', operation, argsObj);
+      if (invoked && typeof invoked === 'object' && 'ok' in invoked && typeof (invoked as { ok?: unknown }).ok === 'boolean') {
+        return normalizeCallAnswer<T>(invoked as RawCallAnswer);
+      }
+      if (invoked && typeof invoked === 'object') {
+        return { ok: true, value: invoked as T };
+      }
+      return errorResult<T>('Empty audio.v1 response', 'EMPTY_RESPONSE');
+    } catch (error) {
+      const err = error as { message?: string; code?: string };
+      return errorResult<T>(err?.message || String(error), err?.code || 'STUDY_ERROR');
+    }
+  };
+
   async function call<T = any>(action: string, args: Record<string, unknown> = {}): Promise<HostCallResult<T>> {
     if (disposed) return errorResult<T>('StudyHub host has been disposed', 'host-disposed');
     const safeArgs = args && typeof args === 'object' ? args : {};
     const finalArgs = typeof action === 'string' && action.startsWith('desktop.') && language === 'en' && !('uiLanguage' in safeArgs)
       ? { ...safeArgs, uiLanguage: 'en' }
       : safeArgs;
+
+    if (action === 'audio.results') {
+      const [invokedRes, snapRaw] = await Promise.all([
+        invokeAudioV1<{ results?: unknown[] }>('results', finalArgs),
+        desktop.call('snapshot', {}).catch((err): RawCallAnswer => ({
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+        })),
+      ]);
+      const snapRes = normalizeCallAnswer<{ sources?: unknown[] }>(snapRaw);
+      const merged = new Map<string, Record<string, unknown>>();
+      const addItem = (item: unknown) => {
+        if (!item || typeof item !== 'object') return;
+        const mapped = mapAudioRecord(item as Record<string, unknown>);
+        if (!mapped.id) return;
+        const id = String(mapped.id);
+        const prev = merged.get(id);
+        merged.set(id, prev ? { ...prev, ...mapped } : mapped);
+      };
+      if (invokedRes?.ok && Array.isArray(invokedRes.value?.results)) {
+        for (const item of invokedRes.value.results) addItem(item);
+      }
+      if (snapRes.ok && Array.isArray(snapRes.value?.sources)) {
+        for (const src of snapRes.value.sources) {
+          if (src && typeof src === 'object' && isAudioSourceRecord(src as Record<string, unknown>)) {
+            addItem(src);
+          }
+        }
+      }
+      if (!snapRes.ok && (!invokedRes || !invokedRes.ok)) {
+        return (invokedRes && !invokedRes.ok ? invokedRes : snapRes) as HostCallResult<T>;
+      }
+      return { ok: true, value: { results: [...merged.values()] } as T };
+    }
+
+    if (action === 'audio.result.get') {
+      const targetId = typeof finalArgs.id === 'string' ? finalArgs.id.trim() : '';
+      if (!targetId) return errorResult<T>('Audio result ID is required', 'INVALID_ARGS');
+      const invokedRes = await invokeAudioV1<Record<string, unknown>>('result.get', finalArgs);
+      if (invokedRes?.ok && invokedRes.value && typeof invokedRes.value === 'object') {
+        return { ok: true, value: mapAudioRecord(invokedRes.value) as T };
+      }
+      let srcRaw: RawCallAnswer;
+      try {
+        srcRaw = await desktop.call('source.get', { id: targetId, offset: 0, limit: 60000 });
+      } catch (error) {
+        const err = error as { message?: string; code?: string };
+        return errorResult<T>(err?.message || String(error), err?.code || 'STUDY_ERROR');
+      }
+      const srcRes = normalizeCallAnswer<Record<string, unknown>>(srcRaw);
+      if (!srcRes.ok || !srcRes.value || typeof srcRes.value !== 'object') {
+        return srcRes as HostCallResult<T>;
+      }
+      let fullText = typeof srcRes.value.text === 'string' ? srcRes.value.text : '';
+      const totalChars = typeof srcRes.value.chars === 'number' ? srcRes.value.chars : fullText.length;
+      const maxChars = Math.min(totalChars, 300_000);
+      let offset = fullText.length;
+      for (let chunk = 0; chunk < 4 && offset > 0 && offset < maxChars; chunk += 1) {
+        const nextRaw = await desktop.call('source.get', { id: targetId, offset, limit: 60000 }).catch(() => null);
+        const nextRes = normalizeCallAnswer<Record<string, unknown>>(nextRaw);
+        const part = nextRes.ok && typeof nextRes.value?.text === 'string' ? nextRes.value.text : '';
+        if (!part) break;
+        fullText += part;
+        offset += part.length;
+      }
+      return { ok: true, value: mapAudioRecord({ ...srcRes.value, text: fullText, transcript: fullText }) as T };
+    }
+
     let raw: RawCallAnswer;
     try {
       raw = await desktop.call(action, finalArgs);

@@ -18,6 +18,7 @@ import {
   createVirtualTty,
   disposeTerminalPool,
   distDir,
+  findExportedBackupFile,
   loadDistRuntime,
 } from './helpers/virtual-tty.mjs';
 
@@ -1109,15 +1110,17 @@ describe('Domain Shell Overlays: CommandPalette, HelpOverlay, SelectList & Inbox
         );
         tty.assertHealthyScreen(afterEnterScreen, 120, 36, 'InboxModal after Enter (zh)');
 
-        const expectedPath = join(libraryRoot, 'backups', `studyhub-inbox-${todayLocalYmd()}.json`);
+        const backupsDir = join(libraryRoot, 'backups');
         tty.send('e');
         const afterExport = await tty.waitFor(
-          (s) => s.includes('已导出 5 条通知') && fs.existsSync(expectedPath),
+          (s) => s.includes('已导出 5 条通知'),
           { timeoutMs: 8_000, label: 'Export toast & file on disk (zh)' },
         );
         tty.assertHealthyScreen(afterExport, 120, 36, 'InboxModal after export (zh)');
 
-        const exportedRaw = JSON.parse(await readFile(expectedPath, 'utf8'));
+        const inboxExport = await findExportedBackupFile(backupsDir, 'studyhub-inbox', 'json', todayLocalYmd());
+        assert.ok(inboxExport, `expected studyhub-inbox-${todayLocalYmd()}-HHmmss.json in ${backupsDir}`);
+        const exportedRaw = JSON.parse(await readFile(inboxExport.path, 'utf8'));
         assert.equal(Array.isArray(exportedRaw), true, 'exported inbox.raw file must be a JSON array');
         assert.equal(exportedRaw.length, 5, 'exported inbox.raw JSON array must contain all 5 items');
         assert.ok(exportedRaw.every((item) => item && typeof item === 'object' && Object.keys(item).length > 0));

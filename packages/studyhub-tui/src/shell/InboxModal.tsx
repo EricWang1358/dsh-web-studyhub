@@ -9,7 +9,7 @@ import { Modal, modalContentWidth } from '../components/Modal.js';
 import { Spinner } from '../components/Badge.js';
 import { TextInput } from '../components/TextInput.js';
 import { VirtualList } from '../components/VirtualList.js';
-import { atomicWriteJsonFile, defaultBackupFilePath } from '../host/atomic-write.js';
+import { atomicWriteExportJson, defaultBackupFilePath } from '../host/atomic-write.js';
 import { tryAction } from '../host/sample-actions.js';
 import { extractInboxData, type InboxEntry } from './data.js';
 import { useShellActions } from './actions.js';
@@ -304,8 +304,13 @@ export const InboxModal = memo(function InboxModal({ host, isActive, onClose }: 
         snapshotRoot?.trim() ||
         '';
       const baseDir = rawRoot ? resolve(rawRoot) : process.cwd();
-      const targetPath = defaultBackupFilePath(baseDir, 'studyhub-inbox', 'json');
-      await atomicWriteJsonFile(targetPath, rawArray);
+      const defaultPath = defaultBackupFilePath(
+        baseDir,
+        'studyhub-inbox',
+        'json',
+        filter !== 'all' ? filter : undefined,
+      );
+      const written = await atomicWriteExportJson(defaultPath, rawArray);
       if (!mountedRef.current) return;
       const arrow = asciiMode ? '->' : '→';
       useTuiStore
@@ -313,8 +318,8 @@ export const InboxModal = memo(function InboxModal({ host, isActive, onClose }: 
         .notify(
           t(
             lang,
-            `已导出 ${rawArray.length} 条通知 ${arrow} ${targetPath}`,
-            `Exported ${rawArray.length} inbox item(s) ${arrow} ${targetPath}`,
+            `已导出 ${rawArray.length} 条通知 ${arrow} ${written.path}`,
+            `Exported ${rawArray.length} inbox item(s) ${arrow} ${written.path}`,
           ),
           'success',
         );
@@ -326,7 +331,7 @@ export const InboxModal = memo(function InboxModal({ host, isActive, onClose }: 
       busyRef.current = false;
       if (mountedRef.current) setBusy(false);
     }
-  }, [asciiMode, bindingRoot, busy, host, lang, snapshotRoot]);
+  }, [asciiMode, bindingRoot, busy, filter, host, lang, snapshotRoot]);
 
   const handleOpen = useCallback(
     async (item: InboxEntry) => {

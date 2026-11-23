@@ -1,4 +1,3 @@
-import { resolve } from 'node:path';
 import {
   buildDoctorReport,
   buildStatsSummary,
@@ -198,7 +197,7 @@ export async function runStatsFastPath(parsed: ParsedCliArgs, version = '1.0.0')
  * Run `--export` 1-shot atomic JSON library backup without loading React, Ink, or any LLM provider.
  */
 export async function runExportFastPath(args: ParsedCliArgs, version = '1.0.0'): Promise<void> {
-  const [{ createTuiHost }, { atomicWriteJsonFile, defaultBackupFilePath }] = await Promise.all([
+  const [{ createTuiHost }, { atomicWriteExportJson, resolveSafeBackupExportPath }] = await Promise.all([
     import('./host/tui-host.js'),
     import('./host/atomic-write.js'),
   ]);
@@ -210,21 +209,20 @@ export async function runExportFastPath(args: ParsedCliArgs, version = '1.0.0'):
   });
 
   try {
+    const libraryRoot = host.getLibraryRoot() || args.libraryRoot || '';
+    const safeTargetPath = resolveSafeBackupExportPath(
+      libraryRoot || process.cwd(),
+      args.exportPath,
+      'studyhub-backup',
+      '.json',
+    );
+
     const res = await host.call<Record<string, unknown>>('export', {});
     if (!res.ok || !res.value) {
       throw new Error(res.error?.message || 'Failed to export library backup');
     }
 
-    const libraryRoot = host.getLibraryRoot() || args.libraryRoot || '';
-    const rawExportPath = args.exportPath?.trim();
-    const targetPath = rawExportPath
-      ? resolve(
-          process.cwd(),
-          rawExportPath.toLowerCase().endsWith('.json') ? rawExportPath : `${rawExportPath}.json`,
-        )
-      : defaultBackupFilePath(host.getLibraryRoot(), 'studyhub-backup', '.json');
-
-    const { bytes } = await atomicWriteJsonFile(targetPath, res.value);
+    const written = await atomicWriteExportJson(safeTargetPath, res.value);
 
     const decksList = Array.isArray(res.value.decks) ? (res.value.decks as Array<{ cards?: unknown[] }>) : [];
     const decks = decksList.length;
@@ -236,8 +234,8 @@ export async function runExportFastPath(args: ParsedCliArgs, version = '1.0.0'):
 
     const receipt: ExportReceipt = {
       ok: true,
-      path: targetPath,
-      bytes,
+      path: written.path,
+      bytes: written.bytes,
       decks,
       cards,
       libraryRoot,

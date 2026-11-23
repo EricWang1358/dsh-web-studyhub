@@ -29,7 +29,9 @@ import {
   createVirtualTty,
   disposeTerminalPool,
   distDir,
+  installNoNetworkGuard,
   loadDistRuntime,
+  sanitizedTestEnv,
 } from './helpers/virtual-tty.mjs';
 
 const unregisterTsx = register();
@@ -77,9 +79,11 @@ assert.equal(typeof aiBlocksMod.parseAiBlocks, 'function', `${aiBlocksChunk} mus
 const { parseAiBlocks } = aiBlocksMod;
 
 const PREV_DSH_HOME = process.env.DSH_HOME;
+const restoreNetworkGuard = installNoNetworkGuard();
 const temps = createTempTracker('studyhub-tui-dom-book-');
 
 after(async () => {
+  restoreNetworkGuard();
   disposeTerminalPool();
   unregisterTsx?.();
   if (PREV_DSH_HOME === undefined) delete process.env.DSH_HOME;
@@ -143,8 +147,9 @@ async function seedBookLibrary(root, {
 }) {
   await mkdir(root, { recursive: true });
   const service = new StudyService(root);
-  await service.call('snapshot');
-  await service.store.update((state) => {
+  try {
+    await service.call('snapshot');
+    await service.store.update((state) => {
     for (const doc of docs) {
       state.sources.push({
         id: doc.id,
@@ -221,9 +226,11 @@ async function seedBookLibrary(root, {
       }),
       createdAt: '2026-10-09T01:00:00.000Z',
     });
-    openCourseBook(state, { course });
-  });
-  await service.dispose();
+      openCourseBook(state, { course });
+    });
+  } finally {
+    await service.dispose();
+  }
 }
 
 function seedResilienceLibrary(root, course, extra = {}) {
@@ -263,7 +270,7 @@ function seedResilienceLibrary(root, course, extra = {}) {
 
 async function createBookPtyHost(label, { course, seedFn, injectedComplete, language = 'zh', asciiMode = false }) {
   const base = await temps.make(label);
-  const env = { DSH_HOME: join(base, 'dsh-home') };
+  const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
   process.env.DSH_HOME = env.DSH_HOME;
   const libraryRoot = join(base, 'library');
   await seedFn(libraryRoot, course);
@@ -567,7 +574,7 @@ describe('Domain Book 1: Unplaced Section Placement (course.book.place)', () => 
 
   test('createTuiHost integration: save learner text -> delete leaf -> verify unplaced -> course.book.place moves & clears', async () => {
     const base = await temps.make('place-host');
-    const env = { DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     const libraryRoot = join(base, 'library');
     await seedPlaceLibrary(libraryRoot);
 
@@ -703,8 +710,16 @@ describe('Domain Book 1: Unplaced Section Placement (course.book.place)', () => 
       assert.ok(destNode, 'Destination leaf must remain after PTY place');
       assert.match(destNode?.mine ?? '', /ZH placed section body text/);
     } finally {
-      inkInstance?.unmount();
-      tty.dispose();
+      try {
+        inkInstance?.unmount();
+      } catch {
+        // Ignore unmount errors during cleanup
+      }
+      try {
+        tty?.dispose();
+      } catch {
+        // Ignore tty dispose errors during cleanup
+      }
       await host.dispose();
     }
   });
@@ -718,7 +733,7 @@ describe('Domain Book 2: Feynman Retell (book.retell + BookRetellModal + P2 Conf
 
   test('createTuiHost integration: book.retell persists aggregate in course.book.open & never stores raw text', async () => {
     const base = await temps.make('retell-host');
-    const env = { DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     const libraryRoot = join(base, 'library');
     await seedResilienceLibrary(libraryRoot, COURSE);
 
@@ -914,8 +929,16 @@ describe('Domain Book 2: Feynman Retell (book.retell + BookRetellModal + P2 Conf
       assert.equal(exported.ok, true);
       assert.equal(JSON.stringify(exported.value).includes(SECRET), false, 'raw draft must never persist');
     } finally {
-      inkInstance?.unmount();
-      tty.dispose();
+      try {
+        inkInstance?.unmount();
+      } catch {
+        // Ignore unmount errors during cleanup
+      }
+      try {
+        tty?.dispose();
+      } catch {
+        // Ignore tty dispose errors during cleanup
+      }
       await host.dispose();
     }
   });
@@ -936,7 +959,7 @@ describe('Domain Book 3: Mock Paper Planner & Section Q&A (book.mock.plan + book
 
   test('createTuiHost integration: course.book.open -> book.mock.plan -> book.mock -> course.outline.qa', async () => {
     const base = await temps.make('mock-host');
-    const env = { DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     const libraryRoot = join(base, 'library');
     await seedMockLibrary(libraryRoot);
 
@@ -1127,8 +1150,16 @@ describe('Domain Book 3: Mock Paper Planner & Section Q&A (book.mock.plan + book
       assert.equal(useTuiStore.getState().page, 'exam');
       assert.ok(useTuiStore.getState().snapshot?.runs?.some((r) => r.mode === 'exam'));
     } finally {
-      inkInstance?.unmount();
-      tty.dispose();
+      try {
+        inkInstance?.unmount();
+      } catch {
+        // Ignore unmount errors during cleanup
+      }
+      try {
+        tty?.dispose();
+      } catch {
+        // Ignore tty dispose errors during cleanup
+      }
       await host.dispose();
     }
   });
@@ -1142,7 +1173,7 @@ describe('Domain Book 4: AI Section Explain / Add Paragraph (generation.courseBo
 
   test('createTuiHost integration (0 model calls): validates missing book/point/request with normalized error codes', async () => {
     const base = await temps.make('explain-host');
-    const env = { DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     const libraryRoot = join(base, 'library');
     await seedResilienceLibrary(libraryRoot, COURSE);
 
@@ -1319,8 +1350,16 @@ describe('Domain Book 4: AI Section Explain / Add Paragraph (generation.courseBo
       assert.equal(useTuiStore.getState().page, 'book');
       assert.equal(modelCalls, 0);
     } finally {
-      inkInstance?.unmount();
-      tty.dispose();
+      try {
+        inkInstance?.unmount();
+      } catch {
+        // Ignore unmount errors during cleanup
+      }
+      try {
+        tty?.dispose();
+      } catch {
+        // Ignore tty dispose errors during cleanup
+      }
       await host.dispose();
     }
   });
@@ -1334,7 +1373,7 @@ describe('Domain Book 5: Revision History & Revert (course.book.revision & cours
 
   test('createTuiHost integration (0 model calls): save twice -> revision history -> revert restores prior text', async () => {
     const base = await temps.make('history-host');
-    const env = { DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     const libraryRoot = join(base, 'library');
     await seedResilienceLibrary(libraryRoot, COURSE);
 
@@ -1487,8 +1526,16 @@ describe('Domain Book 5: Revision History & Revert (course.book.revision & cours
       assert.equal(afterRevertOpen.ok, true);
       assert.equal(afterRevertOpen.value.nodes[0].children[0].gen, firstEdit);
     } finally {
-      inkInstance?.unmount();
-      tty.dispose();
+      try {
+        inkInstance?.unmount();
+      } catch {
+        // Ignore unmount errors during cleanup
+      }
+      try {
+        tty?.dispose();
+      } catch {
+        // Ignore tty dispose errors during cleanup
+      }
       await host.dispose();
     }
   });
@@ -1538,7 +1585,7 @@ describe('Domain Book 6: AI Blocks Review (course.book.block + BookAiBlocksModal
 
   test('createTuiHost integration (0 model calls): save 2 state=new AI blocks -> keep block 1 -> delete block 2', async () => {
     const base = await temps.make('aiblock-host');
-    const env = { DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     const libraryRoot = join(base, 'library');
     await seedAiBlockLibrary(libraryRoot);
 
@@ -1730,8 +1777,16 @@ describe('Domain Book 6: AI Blocks Review (course.book.block + BookAiBlocksModal
       assert.equal(remaining[0].id, 'blk-alpha');
       assert.equal(remaining[0].state, 'kept');
     } finally {
-      inkInstance?.unmount();
-      tty.dispose();
+      try {
+        inkInstance?.unmount();
+      } catch {
+        // Ignore unmount errors during cleanup
+      }
+      try {
+        tty?.dispose();
+      } catch {
+        // Ignore tty dispose errors during cleanup
+      }
       await host.dispose();
     }
   });
@@ -1918,8 +1973,16 @@ describe('Domain Book 7: Live TOC Filter (BookView /)', () => {
       assert.ok(narrowRestored.includes('Raft Leader'));
       assert.equal(modelCalls, 0);
     } finally {
-      inkInstance?.unmount();
-      tty.dispose();
+      try {
+        inkInstance?.unmount();
+      } catch {
+        // Ignore unmount errors during cleanup
+      }
+      try {
+        tty?.dispose();
+      } catch {
+        // Ignore tty dispose errors during cleanup
+      }
       await host.dispose();
     }
   });

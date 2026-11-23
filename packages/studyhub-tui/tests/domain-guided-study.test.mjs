@@ -14,7 +14,9 @@ import {
   createVirtualTty,
   disposeTerminalPool,
   distDir,
+  installNoNetworkGuard,
   loadDistRuntime,
+  sanitizedTestEnv,
 } from './helpers/virtual-tty.mjs';
 
 const { StudyHubTuiApp, createTuiHost, saveTuiPreferences } = await loadDistRuntime();
@@ -31,9 +33,11 @@ assert.ok(useDistTuiStore, 'dist/store-*.mjs must export useTuiStore');
 assert.ok(DEFAULT_PREFERENCES, 'dist/store-*.mjs must export DEFAULT_PREFERENCES');
 
 const PREV_DSH_HOME = process.env.DSH_HOME;
+const restoreNetworkGuard = installNoNetworkGuard();
 const temps = createTempTracker('studyhub-tui-guided-');
 
 after(async () => {
+  restoreNetworkGuard();
   disposeTerminalPool();
   if (PREV_DSH_HOME === undefined) delete process.env.DSH_HOME;
   else process.env.DSH_HOME = PREV_DSH_HOME;
@@ -121,7 +125,7 @@ async function seedDeckWithCardsAndSession(host, { title, course, goalTitle, car
 }
 
 function createZeroCallGuardHost(base, { label, onAiCall, onFetchCall }) {
-  const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+  const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
   return {
     env,
     create: (extra = {}) =>

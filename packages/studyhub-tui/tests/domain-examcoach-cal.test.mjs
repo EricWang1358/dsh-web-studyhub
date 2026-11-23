@@ -16,8 +16,11 @@ import {
   createVirtualTty,
   disposeTerminalPool,
   distDir,
+  findExportedBackupFile,
+  installNoNetworkGuard,
   loadDistRuntime,
   pkgRoot,
+  sanitizedTestEnv,
 } from './helpers/virtual-tty.mjs';
 
 const { StudyHubTuiApp, createTuiHost, saveTuiPreferences } = await loadDistRuntime();
@@ -34,6 +37,7 @@ assert.ok(useDistTuiStore, 'dist/store-*.mjs must export useTuiStore');
 assert.ok(DEFAULT_PREFERENCES, 'dist/store-*.mjs must export DEFAULT_PREFERENCES');
 
 const PREV_DSH_HOME = process.env.DSH_HOME;
+const restoreNetworkGuard = installNoNetworkGuard();
 const temps = createTempTracker('studyhub-tui-coach-cal-');
 
 // Bundle ExamCoachView & HelpOverlay helpers from TypeScript source for unit tests
@@ -96,6 +100,7 @@ function resetDistStore(language = 'zh', asciiMode = false, extra = {}) {
 }
 
 after(async () => {
+  restoreNetworkGuard();
   resetDistStore('zh', false);
   disposeTerminalPool();
   if (PREV_DSH_HOME === undefined) delete process.env.DSH_HOME;
@@ -200,7 +205,7 @@ function patchCoachFilterHost(realHost, seed) {
 describe('Round 40: Coach Learning Goal, Card Quality Feedback & Coach Revert', () => {
   test('1) createTuiHost integration: coach.profile -> coach.goal + coach.feedback (rewriteVia: assist, 0 AI calls) + coach.revert', async () => {
     const base = await temps.make('r40-host');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     const libraryRoot = join(base, 'library');
     await cloneSampleLibrary('en', libraryRoot);
 
@@ -311,7 +316,7 @@ describe('Round 40: Coach Learning Goal, Card Quality Feedback & Coach Revert', 
     process.env.DSH_HOME = zhDshHome;
     await saveTuiPreferences(
       { language: 'zh', asciiMode: false, theme: 'tokyo-night', mathUnicode: true, showHints: true },
-      { env: { ...process.env, DSH_HOME: zhDshHome } },
+      { env: sanitizedTestEnv({ DSH_HOME: zhDshHome }) },
     );
 
     const zhLibraryRoot = join(zhBase, 'library');
@@ -320,7 +325,7 @@ describe('Round 40: Coach Learning Goal, Card Quality Feedback & Coach Revert', 
     let zhAiCalls = 0;
     const zhHost = await createTuiHost({
       libraryRoot: zhLibraryRoot,
-      env: { ...process.env, DSH_HOME: zhDshHome },
+      env: sanitizedTestEnv({ DSH_HOME: zhDshHome }),
       home: join(zhBase, 'home'),
       documentsDir: zhBase,
       providerDiscovery: fakeDiscovery(),
@@ -512,7 +517,7 @@ describe('Round 40: Coach Learning Goal, Card Quality Feedback & Coach Revert', 
 describe('Round 55: ExamCoachView Manual Coach Prep Queue Flush (coach.prepare) & Live Queue Status Pill', () => {
   test('1) createTuiHost integration (0 AI calls): coach.prepare {} returns valid CoachStatusResult', async () => {
     const base = await temps.make('r55-host');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     const libraryRoot = join(base, 'library');
     await cloneSampleLibrary('en', libraryRoot);
 
@@ -555,7 +560,7 @@ describe('Round 55: ExamCoachView Manual Coach Prep Queue Flush (coach.prepare) 
     process.env.DSH_HOME = zhDshHome;
     await saveTuiPreferences(
       { language: 'zh', asciiMode: false, theme: 'tokyo-night', mathUnicode: true, showHints: true },
-      { env: { ...process.env, DSH_HOME: zhDshHome } },
+      { env: sanitizedTestEnv({ DSH_HOME: zhDshHome }) },
     );
 
     const zhLibraryRoot = join(zhBase, 'library');
@@ -564,7 +569,7 @@ describe('Round 55: ExamCoachView Manual Coach Prep Queue Flush (coach.prepare) 
     let zhAiCalls = 0;
     const zhHost = await createTuiHost({
       libraryRoot: zhLibraryRoot,
-      env: { ...process.env, DSH_HOME: zhDshHome },
+      env: sanitizedTestEnv({ DSH_HOME: zhDshHome }),
       home: join(zhBase, 'home'),
       documentsDir: zhBase,
       providerDiscovery: fakeDiscovery(),
@@ -876,13 +881,13 @@ describe('Round 68 Track 3: ExamCoachView [X] Atomic Markdown Export & HelpOverl
 
     await saveTuiPreferences(
       { language: 'zh', asciiMode: false, theme: 'dsh-dark', mathUnicode: true, showHints: true },
-      { env: { ...process.env, DSH_HOME: dshHome } },
+      { env: sanitizedTestEnv({ DSH_HOME: dshHome }) },
     );
 
     let modelCalls = 0;
     const host = await createTuiHost({
       libraryRoot,
-      env: { ...process.env, DSH_HOME: dshHome },
+      env: sanitizedTestEnv({ DSH_HOME: dshHome }),
       home: join(base, 'home'),
       documentsDir: base,
       providerDiscovery: fakeDiscovery(),
@@ -952,21 +957,23 @@ describe('Round 68 Track 3: ExamCoachView [X] Atomic Markdown Export & HelpOverl
       );
       tty.assertHealthyScreen(coachScreen, 120, 36, 'zh ExamCoachView 120x36');
 
-      // Press 'X' -> atomic export to studyhub-coach-YYYY-MM-DD.md
-      const expectedPath = join(libraryRoot, 'backups', `studyhub-coach-${todayLocalYmd()}.md`);
+      // Press 'X' -> atomic export to studyhub-coach-YYYY-MM-DD-HHmmss.md
+      const backupsDir = join(libraryRoot, 'backups');
+      const todayYmd = todayLocalYmd();
       tty.send('X');
       const afterExport = await tty.waitFor(
         (s) =>
-          fs.existsSync(expectedPath) &&
           useDistTuiStore
             .getState()
-            .toasts.some((toast) => toast.tone === 'success' && toast.text.includes('已导出教练画像') && toast.text.includes(expectedPath)) &&
+            .toasts.some((toast) => toast.tone === 'success' && toast.text.includes('已导出教练画像') && toast.text.includes('studyhub-coach-')) &&
           s.includes('已导出教练画像'),
         { timeoutMs: 10_000, label: 'zh ExamCoach [X] export toast & file on disk' },
       );
       tty.assertHealthyScreen(afterExport, 120, 36, 'zh ExamCoachView after [X] export');
 
-      const exportedMd = await readFile(expectedPath, 'utf8');
+      const coachExport = await findExportedBackupFile(backupsDir, 'studyhub-coach', 'md', todayYmd);
+      assert.ok(coachExport, `expected studyhub-coach-${todayYmd}-HHmmss.md in ${backupsDir}`);
+      const exportedMd = await readFile(coachExport.path, 'utf8');
       assert.ok(exportedMd.includes('# 考试教练校准与学习画像'), 'exported MD must have zh title');
       assert.ok(exportedMd.includes('备题队列状态'), 'exported MD must include prep queue status');
       assert.ok(exportedMd.includes(seededPref), 'exported MD must include seeded preference');
@@ -1267,13 +1274,13 @@ describe('Round 74 Track 3: ExamCoachView `/` Live Filter + HelpOverlay & KEYBIN
 
     await saveTuiPreferences(
       { language: 'zh', asciiMode: false, theme: 'dsh-dark', mathUnicode: true, showHints: true },
-      { env: { ...process.env, DSH_HOME: dshHome } },
+      { env: sanitizedTestEnv({ DSH_HOME: dshHome }) },
     );
 
     let modelCalls = 0;
     const realHost = await createTuiHost({
       libraryRoot,
-      env: { ...process.env, DSH_HOME: dshHome },
+      env: sanitizedTestEnv({ DSH_HOME: dshHome }),
       home: join(base, 'home'),
       documentsDir: base,
       providerDiscovery: fakeDiscovery(),

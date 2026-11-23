@@ -2,6 +2,7 @@
 // `node --test tests/packaging-smoke.test.mjs`
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
+import { realpathSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import { builtinModules } from 'node:module';
 import { tmpdir } from 'node:os';
@@ -18,8 +19,11 @@ import {
   createVirtualTty,
   disposeTerminalPool,
   distDir,
+  installNoNetworkGuard,
   loadDistRuntime,
   pkgRoot,
+  resolveNpmCommand,
+  sanitizedTestEnv,
 } from './helpers/virtual-tty.mjs';
 
 const execFileAsync = promisify(execFile);
@@ -37,6 +41,7 @@ const { displayWidth } = await import(pathToFileURL(resolve(distDir, cjkImport[1
 assert.ok(displayWidth, 'dist/ must export displayWidth');
 
 const PREV_DSH_HOME = process.env.DSH_HOME;
+const restoreNetworkGuard = installNoNetworkGuard();
 const temps = createTempTracker('studyhub-tui-pkg-soak-');
 
 const RESOURCE_KINDS = ['FSEventWrap', 'StatWatcher', 'ProcessWrap', 'Timeout'];
@@ -140,6 +145,7 @@ function isViewReady(screen, bodyRe) {
 }
 
 after(async () => {
+  restoreNetworkGuard();
   disposeTerminalPool();
   if (PREV_DSH_HOME === undefined) delete process.env.DSH_HOME;
   else process.env.DSH_HOME = PREV_DSH_HOME;
@@ -149,18 +155,23 @@ after(async () => {
 describe('StudyHub TUI Packaging, Out-of-Repo Bin Smoke & 64-Transition Resize Soak', () => {
   test('1. Out-of-repo /tmp bin execution (--version and --help)', async () => {
     const pkgJson = JSON.parse(await readFile(join(pkgRoot, 'package.json'), 'utf8'));
-    const workDir = tmpdir();
+    const workDir = realpathSync(tmpdir());
+    const env = sanitizedTestEnv();
 
     const verRes = await execFileAsync(process.execPath, [binEntry, '--version'], {
       cwd: workDir,
+      env,
       timeout: 10_000,
+      windowsHide: true,
     });
     assert.equal(verRes.stderr.trim(), '');
     assert.equal(verRes.stdout.trim(), `studyhub-tui ${pkgJson.version}`);
 
     const helpRes = await execFileAsync(process.execPath, [binEntry, '--help'], {
       cwd: workDir,
+      env,
       timeout: 10_000,
+      windowsHide: true,
     });
     assert.equal(helpRes.stderr.trim(), '');
     assert.ok(helpRes.stdout.includes(`StudyHub TUI v${pkgJson.version}`), 'help must include version banner');
@@ -174,8 +185,11 @@ describe('StudyHub TUI Packaging, Out-of-Repo Bin Smoke & 64-Transition Resize S
     assert.deepEqual(pkgJson.files, ['bin/', 'dist/', 'README.md', 'docs/KEYBINDINGS.md']);
     assert.equal(pkgJson.engines?.node, '>=22.0.0');
 
-    const { stdout } = await execFileAsync('npm', ['pack', '--dry-run', '--json'], {
+    const npmCmd = resolveNpmCommand('npm');
+    const { stdout } = await execFileAsync(npmCmd.command, ['pack', '--dry-run', '--json'], {
+      ...npmCmd.options,
       cwd: pkgRoot,
+      env: sanitizedTestEnv(),
       timeout: 20_000,
       maxBuffer: 4 * 1024 * 1024,
     });
@@ -184,7 +198,7 @@ describe('StudyHub TUI Packaging, Out-of-Repo Bin Smoke & 64-Transition Resize S
     const packInfo = Array.isArray(parsed) ? parsed[0] : parsed;
     assert.ok(packInfo && Array.isArray(packInfo.files), 'npm pack --json must return files list');
 
-    const packedPaths = packInfo.files.map((f) => f.path);
+    const packedPaths = packInfo.files.map((f) => String(f.path).replace(/\\/g, '/'));
     const required = [
       'package.json',
       'bin/studyhub-tui.mjs',
@@ -221,7 +235,7 @@ describe('StudyHub TUI Packaging, Out-of-Repo Bin Smoke & 64-Transition Resize S
     process.env.DSH_HOME = dshHome;
 
     const host = await createTuiHost({
-      env: { DSH_HOME: dshHome },
+      env: sanitizedTestEnv({ DSH_HOME: dshHome }),
       home: join(boxDir, 'home'),
       libraryRoot,
       injectedComplete: createStubComplete(),

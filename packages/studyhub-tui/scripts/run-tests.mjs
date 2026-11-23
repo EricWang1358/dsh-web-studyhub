@@ -8,11 +8,13 @@
  *      so heavy Ink + @xterm/headless suites do not starve CPU.
  *
  * Flags:
- *   --unit       Run only the fast unit/static tier
- *   --e2e        Run only the PTY/xterm E2E tier
- *   --force      Force rebuild ignoring dist/.build-hash
- *   --timing     Print per-file wall-clock summary sorted slowest first
- *   [files...]   Run explicit test file(s) with cached build
+ *   --unit         Run only the fast unit/static tier
+ *   --e2e          Run only the PTY/xterm E2E tier
+ *   --shard=i/n    Run LPT-balanced shard i of n (1-based)
+ *   --list         Print selected test file(s) one per line and exit without running
+ *   --force        Force rebuild ignoring dist/.build-hash
+ *   --timing       Print per-file wall-clock summary sorted slowest first
+ *   [files...]     Run explicit test file(s) with cached build
  */
 import { spawn } from 'node:child_process';
 import { readdir, readFile } from 'node:fs/promises';
@@ -24,16 +26,42 @@ import { ensureBuilt } from './build.mjs';
 const pkgRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const testsDir = resolve(pkgRoot, 'tests');
 
+function parseShard(text) {
+  const match = /^(\d+)\/(\d+)$/.exec(String(text ?? '').trim());
+  if (!match) return null;
+  const index = Number(match[1]);
+  const count = Number(match[2]);
+  return count >= 1 && count <= 64 && index >= 1 && index <= count ? { index, count } : null;
+}
+
 const argv = process.argv.slice(2);
 const forceBuild = argv.includes('--force') || process.env.STUDYHUB_FORCE_BUILD === '1';
 const unitOnly = argv.includes('--unit');
 const e2eOnly = argv.includes('--e2e');
 const showTiming = argv.includes('--timing');
+const listOnly = argv.includes('--list');
 const passThrough = [];
 const explicitFiles = [];
+let shardSpec = null;
+let shardError = false;
 
-for (const arg of argv) {
-  if (arg === '--force' || arg === '--unit' || arg === '--e2e' || arg === '--timing') continue;
+for (let i = 0; i < argv.length; i += 1) {
+  const arg = argv[i];
+  if (arg === '--force' || arg === '--unit' || arg === '--e2e' || arg === '--timing' || arg === '--list') {
+    continue;
+  }
+  if (arg === '--shard') {
+    const val = argv[i + 1];
+    i += 1;
+    shardSpec = parseShard(val);
+    if (!shardSpec) shardError = true;
+    continue;
+  }
+  if (arg.startsWith('--shard=')) {
+    shardSpec = parseShard(arg.slice('--shard='.length));
+    if (!shardSpec) shardError = true;
+    continue;
+  }
   if (arg.startsWith('-')) {
     passThrough.push(arg);
   } else {
@@ -41,7 +69,12 @@ for (const arg of argv) {
   }
 }
 
-const E2E_MARKER_RE = /@xterm\/headless|createVirtualTty|helpers\/virtual-tty\.mjs|new Terminal\b/;
+if (shardError) {
+  console.error('--shard needs index/count (1 <= index <= count <= 64)');
+  process.exit(2);
+}
+
+const E2E_MARKER_RE = /@xterm\/headless|createVirtualTty|new Terminal\b/;
 const BENCH_FILES = new Set(['perf-budget.test.mjs', 'scale-nfr.test.mjs']);
 
 // Approximate relative LPT weights so the heaviest E2E suites start first (minimizes tail latency).
@@ -119,8 +152,24 @@ async function runWithTiming(files, concurrency) {
   return { exitCode: failed > 0 ? 1 : 0, results };
 }
 
+function shardEntriesLpt(fileNames, { index, count }) {
+  const loads = Array.from({ length: count }, () => 0);
+  const shards = loads.map(() => []);
+  const sorted = [...fileNames].sort(
+    (a, b) => weightForFile(b) - weightForFile(a) || (a < b ? -1 : a > b ? 1 : 0),
+  );
+  for (const name of sorted) {
+    const at = loads.indexOf(Math.min(...loads));
+    loads[at] += weightForFile(name);
+    shards[at].push(name);
+  }
+  return shards[index - 1];
+}
+
 const totalStart = performance.now();
-await ensureBuilt({ force: forceBuild });
+if (!listOnly) {
+  await ensureBuilt({ force: forceBuild });
+}
 
 const cores = typeof availableParallelism === 'function' ? availableParallelism() : 4;
 const unitConcurrency = Math.max(
@@ -133,13 +182,18 @@ const e2eConcurrency = Math.max(
 );
 
 if (explicitFiles.length > 0) {
+  if (listOnly) {
+    for (const f of explicitFiles) console.log(f);
+    process.exit(0);
+  }
   const code = await runNodeTest(explicitFiles, Math.min(unitConcurrency, explicitFiles.length));
   process.exit(code);
 }
 
-const entries = (await readdir(testsDir))
+const allEntries = (await readdir(testsDir))
   .filter((name) => name.endsWith('.test.mjs'))
   .sort();
+const entries = shardSpec ? shardEntriesLpt(allEntries, shardSpec) : allEntries;
 
 const unitFiles = [];
 const benchFiles = [];
@@ -163,6 +217,18 @@ for (const name of entries) {
 // LPT schedule: start longest suites first in both tiers so the last worker finishes smoothly.
 unitFiles.sort((a, b) => weightForFile(b.name) - weightForFile(a.name) || a.name.localeCompare(b.name));
 e2eFiles.sort((a, b) => b.weight - a.weight || a.name.localeCompare(b.name));
+
+if (listOnly) {
+  const selected = [
+    ...(!e2eOnly ? unitFiles : []),
+    ...(!e2eOnly ? benchFiles : []),
+    ...(!unitOnly ? e2eFiles : []),
+  ];
+  for (const f of selected) {
+    console.log(f.rel);
+  }
+  process.exit(0);
+}
 
 const allTimings = [];
 let overallExit = 0;

@@ -16,7 +16,7 @@ import { useFooterHints } from '../../components/hooks.js';
 import { useShellActions } from '../../shell/actions.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
 import { tryAction } from '../../host/sample-actions.js';
-import { atomicWriteTextFile, defaultBackupFilePath } from '../../host/atomic-write.js';
+import { atomicWriteExportText, defaultBackupFilePath } from '../../host/atomic-write.js';
 
 export interface DraftEditorProps {
   host: HostClient;
@@ -618,15 +618,20 @@ export const DraftEditor = memo(function DraftEditor({
         lang,
         generatedAt: new Date(),
       });
-      const targetPath = defaultBackupFilePath(host.getLibraryRoot(), 'studyhub-draft', '.md');
-      await atomicWriteTextFile(targetPath, markdown);
+      const defaultPath = defaultBackupFilePath(
+        host.getLibraryRoot(),
+        'studyhub-draft',
+        '.md',
+        draft.title || draft.course || draft.id,
+      );
+      const written = await atomicWriteExportText(defaultPath, markdown);
       if (!mountedRef.current) return;
       const arrow = asciiMode ? '->' : '→';
       notify(
         t(
           lang,
-          `已导出 ${cardsToExport.length} 道草稿题 ${arrow} ${targetPath}`,
-          `Exported ${cardsToExport.length} draft card(s) ${arrow} ${targetPath}`,
+          `已导出 ${cardsToExport.length} 道草稿题 ${arrow} ${written.path}`,
+          `Exported ${cardsToExport.length} draft card(s) ${arrow} ${written.path}`,
         ),
         'success',
       );

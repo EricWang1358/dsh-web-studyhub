@@ -1,12 +1,17 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { homedir } from 'node:os';
-import { isAbsolute, resolve } from 'node:path';
+import { isAbsolute, relative, resolve } from 'node:path';
 import { Box, Text, useInput } from 'ink';
 import type { BindingSnapshot, HostClient } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
-import { atomicWriteJsonFile, atomicWriteTextFile, defaultBackupFilePath } from '../../host/atomic-write.js';
+import {
+  atomicWriteExportJson,
+  atomicWriteExportText,
+  atomicWriteJsonFile,
+  atomicWriteTextFile,
+  defaultBackupFilePath,
+  resolveSafeBackupExportPath,
+} from '../../host/atomic-write.js';
 import { cleanPathInput, loadSampleCourse, removeSampleCourse, tryAction } from '../../host/sample-actions.js';
-import { expandHomePath } from '../sources/path-complete.js';
 import { useShellActions } from '../../shell/actions.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, normalizeAsciiChrome, Spinner } from '../../components/Badge.js';
@@ -345,9 +350,17 @@ export function defaultBackupPath(libraryRoot: string): string {
 export function resolveBackupPath(raw: string, baseDir: string): string {
   const cleaned = cleanPathInput(raw);
   if (!cleaned) return '';
-  const expanded = expandHomePath(cleaned, homedir());
-  const withExt = expanded.toLowerCase().endsWith('.json') ? expanded : `${expanded}.json`;
-  return isAbsolute(withExt) ? withExt : resolve(baseDir, withExt);
+  const base = baseDir && baseDir.trim() ? resolve(baseDir) : resolve(process.cwd());
+  const backupsRoot = resolve(base, 'backups');
+  // If pre-filled with an absolute path already strictly inside <baseDir>/backups/, normalize to relative.
+  if (isAbsolute(cleaned)) {
+    const resolvedInput = resolve(cleaned);
+    const rel = relative(backupsRoot, resolvedInput);
+    if (rel && rel !== '.' && !rel.startsWith('..') && !isAbsolute(rel)) {
+      return resolveSafeBackupExportPath(base, rel, 'studyhub-backup', '.json');
+    }
+  }
+  return resolveSafeBackupExportPath(base, cleaned, 'studyhub-backup', '.json');
 }
 
 export function summarizeExportPayload(payload: Record<string, unknown> | null | undefined): {
@@ -1675,8 +1688,16 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
     async (raw: string) => {
       if (busyAction) return;
       const baseDir = binding?.root || host.getLibraryRoot() || process.cwd();
-      const targetPath = resolveBackupPath(raw, baseDir);
       setExportingBackup(false);
+      let targetPath = '';
+      try {
+        targetPath = resolveBackupPath(raw, baseDir);
+      } catch (err) {
+        if (!mountedRef.current) return;
+        const msg = err instanceof Error ? err.message : String(err);
+        notify(t(lang, `导出备份失败：${msg}`, `Export failed: ${msg}`), 'error');
+        return;
+      }
       if (!targetPath) return;
       setBusyAction(t(lang, `导出学习库备份${ell}`, `Exporting library backup${ell}`));
       try {
@@ -1686,7 +1707,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
           notify(res.error?.message || t(lang, '导出学习库备份失败', 'Failed to export library backup'), 'error');
           return;
         }
-        const { bytes } = await atomicWriteJsonFile(targetPath, res.value);
+        const written = await atomicWriteExportJson(targetPath, res.value);
         if (!mountedRef.current) return;
         const { decksCount, cardsCount, referencedOriginals } = summarizeExportPayload(res.value);
         const arrow = asciiMode ? '->' : '→';
@@ -1701,8 +1722,8 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
         notify(
           t(
             lang,
-            `已导出备份 (${formatBytes(bytes)}, ${decksCount} 牌组, ${cardsCount} 卡片) ${arrow} ${targetPath}${refSuffix}`,
-            `Exported backup (${formatBytes(bytes)}, ${decksCount} decks, ${cardsCount} cards) ${arrow} ${targetPath}${refSuffix}`,
+            `已导出备份 (${formatBytes(written.bytes)}, ${decksCount} 牌组, ${cardsCount} 卡片) ${arrow} ${written.path}${refSuffix}`,
+            `Exported backup (${formatBytes(written.bytes)}, ${decksCount} decks, ${cardsCount} cards) ${arrow} ${written.path}${refSuffix}`,
           ),
           'success',
         );
@@ -1714,7 +1735,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
         if (mountedRef.current) setBusyAction(null);
       }
     },
-    [asciiMode, binding?.root, busyAction, host, lang, notify],
+    [asciiMode, binding?.root, busyAction, ell, host, lang, notify],
   );
 
   const handleToggleExperimental = useCallback(async () => {
@@ -1869,14 +1890,14 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
         return;
       }
       const baseDir = binding?.root || host.getLibraryRoot() || process.cwd();
-      const targetPath = defaultBackupFilePath(baseDir, 'studyhub-usage', 'json');
-      await atomicWriteTextFile(targetPath, res.value.content);
+      const defaultPath = defaultBackupFilePath(baseDir, 'studyhub-usage', 'json', String(usageReportPeriod));
+      const written = await atomicWriteExportText(defaultPath, res.value.content);
       if (!mountedRef.current) return;
-      setUsageReportExportPath(targetPath);
+      setUsageReportExportPath(written.path);
       setUsageReportError(null);
       const arrow = asciiMode ? '->' : '→';
       notify(
-        t(lang, `已导出使用报表 ${arrow} ${targetPath}`, `Exported usage report ${arrow} ${targetPath}`),
+        t(lang, `已导出使用报表 ${arrow} ${written.path}`, `Exported usage report ${arrow} ${written.path}`),
         'success',
       );
     } catch (err) {
@@ -1931,14 +1952,14 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = memo(function Workspace
         setLibraryCtxData(res.value);
       }
       const baseDir = binding?.root || host.getLibraryRoot() || payload.library || process.cwd();
-      const targetPath = defaultBackupFilePath(baseDir, 'studyhub-context', 'json');
-      await atomicWriteJsonFile(targetPath, payload);
+      const defaultPath = defaultBackupFilePath(baseDir, 'studyhub-context', 'json', payload.focus?.course || undefined);
+      const written = await atomicWriteExportJson(defaultPath, payload);
       if (!mountedRef.current) return;
-      setLibraryCtxExportPath(targetPath);
+      setLibraryCtxExportPath(written.path);
       setLibraryCtxError(null);
       const arrow = asciiMode ? '->' : '→';
       notify(
-        t(lang, `已导出学习库上下文 ${arrow} ${targetPath}`, `Exported library context ${arrow} ${targetPath}`),
+        t(lang, `已导出学习库上下文 ${arrow} ${written.path}`, `Exported library context ${arrow} ${written.path}`),
         'success',
       );
     } catch (err) {

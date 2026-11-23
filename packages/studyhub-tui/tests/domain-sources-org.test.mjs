@@ -15,7 +15,9 @@ import {
   createVirtualTty,
   disposeTerminalPool,
   distDir,
+  installNoNetworkGuard,
   loadDistRuntime,
+  sanitizedTestEnv,
 } from './helpers/virtual-tty.mjs';
 
 const runtime = await loadDistRuntime();
@@ -32,9 +34,11 @@ assert.ok(useTuiStore, 'dist/store-*.mjs must export useTuiStore');
 assert.ok(DEFAULT_PREFERENCES, 'dist/store-*.mjs must export DEFAULT_PREFERENCES');
 
 const PREV_DSH_HOME = process.env.DSH_HOME;
+const restoreNetworkGuard = installNoNetworkGuard();
 const temps = createTempTracker('studyhub-tui-dom-src-org-');
 
 after(async () => {
+  restoreNetworkGuard();
   disposeTerminalPool();
   if (PREV_DSH_HOME === undefined) delete process.env.DSH_HOME;
   else process.env.DSH_HOME = PREV_DSH_HOME;
@@ -427,12 +431,12 @@ describe('Domain Sources Organization: FolderModal AI, OrganizeSources P2 Guard 
       await ttyZh.waitFor((s) => s.includes('AI 智能文件夹分类'), { label: 'zh ConfirmDialog before gated y' });
       ttyZh.send('y');
       await ttyZh.waitFor(
-        (s) => s.includes('正在调用 AI 生成文件夹建议'),
+        (s) => s.includes('正在调用 AI 生成文件夹建议') && zhModelCalls === 1,
         { label: 'zh FolderModal spinner while suggesting' },
       );
       ttyZh.send('\u001b');
       ttyZh.send('g');
-      await ttyZh.flush();
+      await ttyZh.flush(25);
       assert.equal(zhModelCalls, 1, 'busyRef must prevent duplicate model calls while running');
 
       releaseSuggest();
@@ -623,7 +627,7 @@ describe('Domain Sources Organization: FolderModal AI, OrganizeSources P2 Guard 
 
   test('4) OrganizeSourcesModal P2 guard PTY E2E: [G] ConfirmDialog (0 calls) -> [n]/[Esc] cancel -> [G]+[y] suggests -> [r] re-confirms', async () => {
     const base = await temps.make('org-e2e-zh');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     process.env.DSH_HOME = env.DSH_HOME;
     const libraryRoot = join(base, 'library');
     const counter = { calls: 0 };
@@ -788,7 +792,7 @@ describe('Domain Sources Organization: FolderModal AI, OrganizeSources P2 Guard 
 
   test('5) OrganizeSourcesModal empty library (0 materials): skips ConfirmDialog, renders EmptyState with 0 AI calls', async () => {
     const base = await temps.make('org-e2e-empty');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     process.env.DSH_HOME = env.DSH_HOME;
     const libraryRoot = join(base, 'library');
     const counter = { calls: 0 };
@@ -873,7 +877,7 @@ describe('Domain Sources Organization: FolderModal AI, OrganizeSources P2 Guard 
 
   test('6) Pending dismiss integration (0 model calls): source.organize.dismiss & source.folder.dismiss empty vs seeded', async () => {
     const base = await temps.make('dismiss-host');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     const libraryRoot = join(base, 'library');
     const counter = { calls: 0 };
 
@@ -937,7 +941,7 @@ describe('Domain Sources Organization: FolderModal AI, OrganizeSources P2 Guard 
 
   test('7) Pending dismiss PTY E2E: G -> pending banner -> X dismiss -> Esc -> F -> pending banner -> X dismiss -> Esc (0 model calls)', async () => {
     const base = await temps.make('dismiss-e2e-zh');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     process.env.DSH_HOME = env.DSH_HOME;
     const libraryRoot = join(base, 'library');
     const counter = { calls: 0 };

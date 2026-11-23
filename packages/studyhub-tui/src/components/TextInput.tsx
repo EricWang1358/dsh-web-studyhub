@@ -112,6 +112,12 @@ function indexFromRowCol(cs: string[], row: number, col: number): number {
 /** Choose a horizontal window [start, end) over `cells` so that `cursor` is visible within `width` columns. */
 function hWindow(cells: string[], cursor: number, width: number, prevStart: number): { start: number; end: number } {
   const w = (c: string | undefined) => (c === undefined ? 1 : Math.max(1, displayWidth(c)));
+  // If the entire string + trailing cursor fits within width, never stay scrolled right.
+  let totalWidth = cursor >= cells.length ? 1 : 0;
+  for (let i = 0; i < cells.length; i += 1) totalWidth += w(cells[i]);
+  if (totalWidth <= width) {
+    return { start: 0, end: cells.length };
+  }
   let start = Math.min(prevStart, cursor);
   // ensure cursor cell (or trailing caret) fits
   const fits = (s: number) => {
@@ -300,6 +306,8 @@ export const TextInput = memo(function TextInput({
   const fieldWidth = Math.max(1, width);
 
   if (value.length === 0) {
+    hStart.current = 0;
+    vStart.current = 0;
     return (
       <Box width={fieldWidth + (renderedPrompt ? displayWidth(renderedPrompt) + 1 : 0)} height={multiline ? height : 1}>
         {promptEl}

@@ -112,6 +112,15 @@ export const ExamRunner = memo(function ExamRunner({
     }
   }, [run?.highlights]);
 
+  const hasActiveExam = Boolean(run || oral);
+  useEffect(() => {
+    if (!hasActiveExam) return undefined;
+    return useTuiStore.getState().registerQuitGuard(() => {
+      useTuiStore.getState().setQuitConfirmOpen(true);
+      return true;
+    });
+  }, [hasActiveExam]);
+
   // Sync oral text buffer when question changes
   useEffect(() => {
     if (kind !== 'oral' || !oral?.entry) return;

@@ -61,8 +61,197 @@ type ModalMode = 'browse' | 'search' | 'rename' | 'folder' | 'course' | 'topic' 
 const SUPPLEMENT_COUNTS = [3, 5, 10, 15] as const;
 const SUPPLEMENT_KINDS = ['mixed', 'quiz', 'multi', 'truefalse', 'flashcard', 'open', 'cloze'] as const;
 const CONVERT_TARGETS = ['flashcard', 'open', 'truefalse', 'quiz', 'cloze'] as const;
-const MAX_MULTI_SELECT = 100;
+export const CARD_BATCH_MAX = 100;
+const MAX_MULTI_SELECT = 1000;
 type ConvertTargetKind = (typeof CONVERT_TARGETS)[number];
+
+/** Split a list into sequential slices no larger than `maxSize` to satisfy backend batch caps. */
+export function chunkItems<T>(items: readonly T[], maxSize: number): T[][] {
+  if (!Array.isArray(items) || items.length === 0) return [];
+  const size = Math.max(1, Math.floor(maxSize));
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
+
+export interface BatchSlayResult {
+  ok: boolean;
+  slain: number;
+  partial: boolean;
+  error?: string;
+}
+
+export async function executeBatchSlay(
+  host: HostClient,
+  deckId: string,
+  targetIds: readonly string[],
+  lang: 'zh' | 'en',
+): Promise<BatchSlayResult> {
+  const chunks = chunkItems(targetIds, CARD_BATCH_MAX);
+  let slain = 0;
+  for (let i = 0; i < chunks.length; i += 1) {
+    const chunk = chunks[i];
+    const res = await tryAction<{ updated?: number; slain?: number }>(host, 'card.review.batch', {
+      atomic: true,
+      items: chunk.map((cardId) => ({ deckId, cardId, slay: true })),
+    });
+    if (!res.ok) {
+      const baseErr = res.error?.message || t(lang, '批量斩题失败', 'Batch slay failed');
+      const error =
+        slain > 0
+          ? t(
+              lang,
+              `已斩除 ${slain}/${targetIds.length} 题，第 ${i + 1}/${chunks.length} 批失败：${baseErr}`,
+              `Slain ${slain}/${targetIds.length} card(s); batch ${i + 1}/${chunks.length} failed: ${baseErr}`,
+            )
+          : baseErr;
+      return { ok: false, slain, partial: slain > 0, error };
+    }
+    slain += typeof res.value?.slain === 'number' ? res.value.slain : chunk.length;
+  }
+  return { ok: true, slain, partial: false };
+}
+
+export interface BatchTopicResult {
+  ok: boolean;
+  updated: number;
+  failed: number;
+  partial: boolean;
+  error?: string;
+}
+
+export async function executeBatchTopicUpdate(
+  host: HostClient,
+  deckId: string,
+  targetIds: readonly string[],
+  topic: string,
+  lang: 'zh' | 'en',
+): Promise<BatchTopicResult> {
+  const chunks = chunkItems(targetIds, CARD_BATCH_MAX);
+  let updated = 0;
+  let failed = 0;
+  let firstError = '';
+  for (let i = 0; i < chunks.length; i += 1) {
+    const chunk = chunks[i];
+    const res = await tryAction<{
+      updated?: number;
+      failed?: number;
+      results?: Array<{ cardId?: string; ok: boolean; error?: string }>;
+    }>(host, 'card.update.batch', {
+      updates: chunk.map((cardId) => ({
+        deckId,
+        cardId,
+        patch: { topic },
+        reason: 'Batch topic retag from TUI',
+      })),
+    });
+    if (!res.ok) {
+      const baseErr = res.error?.message || t(lang, '批量修改主题失败', 'Batch topic retag failed');
+      const error =
+        updated > 0
+          ? t(
+              lang,
+              `已更新 ${updated}/${targetIds.length} 题主题，第 ${i + 1}/${chunks.length} 批失败：${baseErr}`,
+              `Retagged ${updated}/${targetIds.length} card(s); batch ${i + 1}/${chunks.length} failed: ${baseErr}`,
+            )
+          : baseErr;
+      return { ok: false, updated, failed, partial: updated > 0, error };
+    }
+    const chunkUpdated = typeof res.value?.updated === 'number' ? res.value.updated : chunk.length;
+    const chunkFailed = typeof res.value?.failed === 'number' ? res.value.failed : 0;
+    updated += chunkUpdated;
+    failed += chunkFailed;
+    if (!firstError && chunkFailed > 0) {
+      firstError = res.value?.results?.find((r) => !r.ok && r.error)?.error || '';
+    }
+  }
+  if (updated === 0) {
+    return {
+      ok: false,
+      updated: 0,
+      failed,
+      partial: false,
+      error: firstError || t(lang, '批量修改主题失败', 'Batch topic retag failed'),
+    };
+  }
+  return { ok: true, updated, failed, partial: false };
+}
+
+export interface BatchLinkResult {
+  ok: boolean;
+  linked: number;
+  failed: number;
+  partial: boolean;
+  error?: string;
+}
+
+export async function executeBatchLink(
+  host: HostClient,
+  deckId: string,
+  targetIds: readonly string[],
+  prereqCardId: string,
+  lang: 'zh' | 'en',
+): Promise<BatchLinkResult> {
+  const links = targetIds
+    .filter((id) => id !== prereqCardId)
+    .map((cardId) => ({
+      deckId,
+      cardId,
+      requires: { deckId, cardId: prereqCardId },
+    }));
+  if (links.length === 0) {
+    return {
+      ok: false,
+      linked: 0,
+      failed: 0,
+      partial: false,
+      error: t(lang, '没有可关联的目标题目（不能将题目设为自身前置）', 'No target cards to link (cannot link a card to itself)'),
+    };
+  }
+  const chunks = chunkItems(links, CARD_BATCH_MAX);
+  let linked = 0;
+  let failed = 0;
+  let firstError = '';
+  for (let i = 0; i < chunks.length; i += 1) {
+    const chunk = chunks[i];
+    const res = await tryAction<{
+      linked?: number;
+      failed?: number;
+      results?: Array<{ index?: number; cardId?: string; requires?: string; ok: boolean; error?: string }>;
+    }>(host, 'card.link.batch', { links: chunk });
+    if (!res.ok) {
+      const baseErr = res.error?.message || t(lang, '批量关联前置题失败', 'Batch prerequisite linking failed');
+      const error =
+        linked > 0
+          ? t(
+              lang,
+              `已关联 ${linked}/${links.length} 题，第 ${i + 1}/${chunks.length} 批失败：${baseErr}`,
+              `Linked ${linked}/${links.length} card(s); batch ${i + 1}/${chunks.length} failed: ${baseErr}`,
+            )
+          : baseErr;
+      return { ok: false, linked, failed, partial: linked > 0, error };
+    }
+    const chunkLinked = typeof res.value?.linked === 'number' ? res.value.linked : 0;
+    const chunkFailed = typeof res.value?.failed === 'number' ? res.value.failed : 0;
+    linked += chunkLinked;
+    failed += chunkFailed;
+    if (!firstError && chunkFailed > 0) {
+      firstError = res.value?.results?.find((r) => !r.ok && r.error)?.error || '';
+    }
+  }
+  if (linked === 0) {
+    return {
+      ok: false,
+      linked: 0,
+      failed,
+      partial: false,
+      error: firstError || t(lang, '批量关联前置题失败', 'Batch prerequisite linking failed'),
+    };
+  }
+  return { ok: true, linked, failed, partial: false };
+}
 
 interface ConvertDraft {
   primaryText: string;
@@ -830,16 +1019,19 @@ export const DeckManageModal = memo(function DeckManageModal({
     setBusy(true);
     setConfirmBatchSlay(false);
     try {
-      const res = await tryAction<{ updated?: number; slain?: number }>(host, 'card.review.batch', {
-        atomic: true,
-        items: targetIds.map((cardId) => ({ deckId: deck.id, cardId, slay: true })),
-      });
+      const result = await executeBatchSlay(host, deck.id, targetIds, lang);
       if (!mountedRef.current) return;
-      if (!res.ok) {
-        notify(res.error?.message || t(lang, '批量斩题失败', 'Batch slay failed'), 'error');
+      if (!result.ok) {
+        if (result.partial) {
+          setSelectedIds(new Set());
+          await reloadDeck();
+          await refreshSnapshot();
+          if (!mountedRef.current) return;
+          onUpdated?.();
+        }
+        notify(result.error || t(lang, '批量斩题失败', 'Batch slay failed'), result.partial ? 'warning' : 'error');
         return;
       }
-      const slainCount = typeof res.value?.slain === 'number' ? res.value.slain : targetIds.length;
       setSelectedIds(new Set());
       await reloadDeck();
       await refreshSnapshot();
@@ -848,8 +1040,8 @@ export const DeckManageModal = memo(function DeckManageModal({
       notify(
         t(
           lang,
-          `已原子斩除 ${slainCount} 题并移入「已斩题」（可随时按 [u] 恢复）`,
-          `Atomically slain ${slainCount} card(s) to "Slain" (press [u] anytime to restore)`,
+          `已原子斩除 ${result.slain} 题并移入「已斩题」（可随时按 [u] 恢复）`,
+          `Atomically slain ${result.slain} card(s) to "Slain" (press [u] anytime to restore)`,
         ),
         'success',
       );
@@ -878,30 +1070,18 @@ export const DeckManageModal = memo(function DeckManageModal({
       busyRef.current = true;
       setBusy(true);
       try {
-        const res = await tryAction<{
-          updated?: number;
-          failed?: number;
-          results?: Array<{ cardId?: string; ok: boolean; error?: string }>;
-        }>(host, 'card.update.batch', {
-          updates: targetIds.map((cardId) => ({
-            deckId: deck.id,
-            cardId,
-            patch: { topic: trimmed },
-            reason: 'Batch topic retag from TUI',
-          })),
-        });
+        const result = await executeBatchTopicUpdate(host, deck.id, targetIds, trimmed, lang);
         if (!mountedRef.current) return;
-        if (!res.ok) {
+        if (!result.ok) {
+          if (result.partial) {
+            setSelectedIds(new Set());
+            await reloadDeck();
+            await refreshSnapshot();
+            if (!mountedRef.current) return;
+            onUpdated?.();
+          }
           setMode('browse');
-          notify(res.error?.message || t(lang, '批量修改主题失败', 'Batch topic retag failed'), 'error');
-          return;
-        }
-        const updatedCount = typeof res.value?.updated === 'number' ? res.value.updated : targetIds.length;
-        const failedCount = typeof res.value?.failed === 'number' ? res.value.failed : 0;
-        if (updatedCount === 0) {
-          const firstErr = res.value?.results?.find((r) => !r.ok && r.error)?.error;
-          setMode('browse');
-          notify(firstErr || t(lang, '批量修改主题失败', 'Batch topic retag failed'), 'error');
+          notify(result.error || t(lang, '批量修改主题失败', 'Batch topic retag failed'), result.partial ? 'warning' : 'error');
           return;
         }
         setSelectedIds(new Set());
@@ -912,18 +1092,18 @@ export const DeckManageModal = memo(function DeckManageModal({
         onUpdated?.();
         setMode('browse');
         notify(
-          failedCount > 0
+          result.failed > 0
             ? t(
                 lang,
-                `已将 ${updatedCount} 题的主题更新为「${trimmed}」（${failedCount} 题失败）`,
-                `Retagged ${updatedCount} card(s) to "${trimmed}" (${failedCount} failed)`,
+                `已将 ${result.updated} 题的主题更新为「${trimmed}」（${result.failed} 题失败）`,
+                `Retagged ${result.updated} card(s) to "${trimmed}" (${result.failed} failed)`,
               )
             : t(
                 lang,
-                `已将 ${updatedCount} 题的主题更新为「${trimmed}」`,
-                `Retagged ${updatedCount} card(s) to "${trimmed}"`,
+                `已将 ${result.updated} 题的主题更新为「${trimmed}」`,
+                `Retagged ${result.updated} card(s) to "${trimmed}"`,
               ),
-          failedCount > 0 ? 'warning' : 'success',
+          result.failed > 0 ? 'warning' : 'success',
         );
       } finally {
         busyRef.current = false;
@@ -936,42 +1116,24 @@ export const DeckManageModal = memo(function DeckManageModal({
   const handleBatchLinkSubmit = useCallback(
     async (prereq: DeckCardItem) => {
       if (busyRef.current || busy || !deck || deck.systemKind || selectedIds.size === 0) return;
-      const links = [...selectedIds]
-        .filter((id) => id !== prereq.id)
-        .map((cardId) => ({
-          deckId: deck.id,
-          cardId,
-          requires: { deckId: deck.id, cardId: prereq.id },
-        }));
-      if (links.length === 0) {
-        setLinkError(
-          t(lang, '没有可关联的目标题目（不能将题目设为自身前置）', 'No target cards to link (cannot link a card to itself)'),
-        );
-        return;
-      }
+      const targetIds = [...selectedIds];
       busyRef.current = true;
       setBusy(true);
       setLinkError('');
       try {
-        const res = await tryAction<{
-          linked?: number;
-          failed?: number;
-          results?: Array<{ index?: number; cardId?: string; requires?: string; ok: boolean; error?: string }>;
-        }>(host, 'card.link.batch', { links });
+        const result = await executeBatchLink(host, deck.id, targetIds, prereq.id, lang);
         if (!mountedRef.current) return;
-        if (!res.ok) {
-          const msg = res.error?.message || t(lang, '批量关联前置题失败', 'Batch prerequisite linking failed');
+        if (!result.ok) {
+          if (result.partial) {
+            setSelectedIds(new Set());
+            await reloadDeck();
+            await refreshSnapshot();
+            if (!mountedRef.current) return;
+            onUpdated?.();
+          }
+          const msg = result.error || t(lang, '批量关联前置题失败', 'Batch prerequisite linking failed');
           setLinkError(msg);
-          notify(msg, 'error');
-          return;
-        }
-        const linkedCount = typeof res.value?.linked === 'number' ? res.value.linked : 0;
-        const failedCount = typeof res.value?.failed === 'number' ? res.value.failed : 0;
-        if (linkedCount === 0) {
-          const firstErr = res.value?.results?.find((r) => !r.ok && r.error)?.error;
-          const msg = firstErr || t(lang, '批量关联前置题失败', 'Batch prerequisite linking failed');
-          setLinkError(msg);
-          notify(msg, 'error');
+          notify(msg, result.partial ? 'warning' : 'error');
           return;
         }
         setSelectedIds(new Set());
@@ -988,18 +1150,18 @@ export const DeckManageModal = memo(function DeckManageModal({
           ell,
         );
         notify(
-          failedCount > 0
+          result.failed > 0
             ? t(
                 lang,
-                `已为 ${linkedCount} 题关联前置「${prereqLabel}」（${failedCount} 题失败）`,
-                `Linked ${linkedCount} card(s) to prerequisite "${prereqLabel}" (${failedCount} failed)`,
+                `已为 ${result.linked} 题关联前置「${prereqLabel}」（${result.failed} 题失败）`,
+                `Linked ${result.linked} card(s) to prerequisite "${prereqLabel}" (${result.failed} failed)`,
               )
             : t(
                 lang,
-                `已为 ${linkedCount} 题关联前置「${prereqLabel}」`,
-                `Linked ${linkedCount} card(s) to prerequisite "${prereqLabel}"`,
+                `已为 ${result.linked} 题关联前置「${prereqLabel}」`,
+                `Linked ${result.linked} card(s) to prerequisite "${prereqLabel}"`,
               ),
-          failedCount > 0 ? 'warning' : 'success',
+          result.failed > 0 ? 'warning' : 'success',
         );
       } finally {
         busyRef.current = false;

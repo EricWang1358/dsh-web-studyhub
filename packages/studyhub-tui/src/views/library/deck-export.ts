@@ -1,6 +1,6 @@
 import type { UiLanguage } from '../../types/contracts.js';
 import { t } from '../../state/store.js';
-import { atomicWriteTextFile, defaultBackupFilePath } from '../../host/atomic-write.js';
+import { atomicWriteExportText, defaultBackupFilePath } from '../../host/atomic-write.js';
 
 export interface DeckExportOption {
   id?: string;
@@ -105,7 +105,7 @@ export function formatDeckMarkdown({
   return lines.join('\n');
 }
 
-/** Atomically write a deck study sheet Markdown file under the backups directory. */
+/** Atomically write a deck study sheet Markdown file under the backups directory without overwriting. */
 export async function exportDeckToMarkdown({
   libraryRoot,
   deck,
@@ -115,8 +115,9 @@ export async function exportDeckToMarkdown({
   deck: DeckExportInput;
   lang: UiLanguage;
 }): Promise<{ targetPath: string; count: number }> {
-  const targetPath = defaultBackupFilePath(libraryRoot, 'studyhub-deck', '.md');
-  await atomicWriteTextFile(targetPath, formatDeckMarkdown({ deck, lang }));
+  const slugLabel = deck.title || deck.name || deck.course || deck.id || undefined;
+  const defaultPath = defaultBackupFilePath(libraryRoot, 'studyhub-deck', '.md', slugLabel);
+  const written = await atomicWriteExportText(defaultPath, formatDeckMarkdown({ deck, lang }));
   const count = Array.isArray(deck.cards) ? deck.cards.length : 0;
-  return { targetPath, count };
+  return { targetPath: written.path, count };
 }

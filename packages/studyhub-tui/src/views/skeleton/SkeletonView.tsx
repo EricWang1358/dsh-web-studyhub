@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { Box, Text, useInput } from 'ink';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';
 import { t, useTuiStore } from '../../state/store.js';
-import { atomicWriteTextFile, defaultBackupFilePath, todayLocalYmd } from '../../host/atomic-write.js';
+import { atomicWriteExportText, defaultBackupFilePath, todayLocalYmd } from '../../host/atomic-write.js';
 import { useShellActions } from '../../shell/actions.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, EmptyState, ProgressBar, Spinner, StatusPill } from '../../components/Badge.js';
@@ -1193,15 +1193,15 @@ export const SkeletonView: React.FC<ViewProps> = ({ host, width, height, isActiv
         snapshotRoot?.trim() ||
         '';
       const baseDir = rawRoot ? resolve(rawRoot) : process.cwd();
-      const targetPath = defaultBackupFilePath(baseDir, 'studyhub-skeleton', 'md');
-      await atomicWriteTextFile(targetPath, markdown);
+      const defaultPath = defaultBackupFilePath(baseDir, 'studyhub-skeleton', 'md', activeCourse || detail.title || undefined);
+      const written = await atomicWriteExportText(defaultPath, markdown);
       if (!mountedRef.current) return;
       const arrow = asciiMode ? '->' : '→';
       useTuiStore.getState().notify(
         t(
           lang,
-          `已导出 ${detail.nodes.length} 个知识节点 ${arrow} ${targetPath}`,
-          `Exported ${detail.nodes.length} skeleton node(s) ${arrow} ${targetPath}`,
+          `已导出 ${detail.nodes.length} 个知识节点 ${arrow} ${written.path}`,
+          `Exported ${detail.nodes.length} skeleton node(s) ${arrow} ${written.path}`,
         ),
         'success',
       );

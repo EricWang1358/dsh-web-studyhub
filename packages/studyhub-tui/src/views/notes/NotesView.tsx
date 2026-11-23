@@ -13,13 +13,12 @@ import { useClaimKeys } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import { useShellActions } from '../../shell/actions.js';
-import { atomicWriteTextFile } from '../../host/atomic-write.js';
+import { atomicWriteExportText, defaultBackupFilePath } from '../../host/atomic-write.js';
 import { errorMessage, tryAction } from '../../host/sample-actions.js';
 import { currentCourse } from '../../shell/data.js';
 import { t, useTuiStore } from '../../state/store.js';
 import type { KeyHint, ViewProps } from '../../types/contracts.js';
 import {
-  defaultExportPath,
   expandUserPath,
   formatShortDate,
   getNotePublishUrl,
@@ -880,10 +879,10 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
         (displayedNote?.id === modal.note.id ? displayedNote.markdown : undefined) ||
         modal.note.markdown ||
         `# ${modal.note.title}\n`;
-      await atomicWriteTextFile(resolved, content);
+      const written = await atomicWriteExportText(resolved, content);
       if (!mountedRef.current) return;
       setModal(null);
-      notify(t(lang, `已导出到 ${resolved}`, `Exported to ${resolved}`), 'success');
+      notify(t(lang, `已导出到 ${written.path}`, `Exported to ${written.path}`), 'success');
     } catch (err) {
       if (mountedRef.current) {
         setExportError(err instanceof Error ? err.message : String(err));
@@ -1053,7 +1052,14 @@ export const NotesView: React.FC<ViewProps> = memo(function NotesView({ host, wi
         return;
       }
       if (input === 'x') {
-        setExportPath(defaultExportPath(host.getLibraryRoot(), displayedNote.title));
+        setExportPath(
+          defaultBackupFilePath(
+            host.getLibraryRoot(),
+            'studyhub-note',
+            'md',
+            displayedNote.title || displayedNote.daily?.course,
+          ),
+        );
         setExportError('');
         setModal({ type: 'export', note: displayedNote });
         return;

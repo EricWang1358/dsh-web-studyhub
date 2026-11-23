@@ -17,8 +17,11 @@ import {
   createVirtualTty,
   disposeTerminalPool,
   distDir,
+  findExportedBackupFile,
+  installNoNetworkGuard,
   loadDistRuntime,
   pkgRoot,
+  sanitizedTestEnv,
 } from './helpers/virtual-tty.mjs';
 
 const runtime = await loadDistRuntime();
@@ -63,9 +66,11 @@ for (const chunkName of [audioChunk, tasksChunk, wfModalChunk]) {
 }
 
 const PREV_DSH_HOME = process.env.DSH_HOME;
+const restoreNetworkGuard = installNoNetworkGuard();
 const temps = createTempTracker('studyhub-tui-dom-tasks-audio-');
 
 after(async () => {
+  restoreNetworkGuard();
   disposeTerminalPool();
   if (PREV_DSH_HOME === undefined) delete process.env.DSH_HOME;
   else process.env.DSH_HOME = PREV_DSH_HOME;
@@ -1216,7 +1221,7 @@ describe('Domain Tasks & Audio: AudioView, TasksView Jobs Control/Recovery/Paral
 
   test('3.2) AudioView PTY E2E (120x36 zh): [a] nav, [/] live filter + Enter, [x] atomic MD export, Esc clear & 0/2 empty guard (0 model calls)', async () => {
     const base = await temps.make('r67-zh');
-    const env = { DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     process.env.DSH_HOME = env.DSH_HOME;
     const libraryRoot = join(base, 'library');
     await mkdir(libraryRoot, { recursive: true });
@@ -1257,6 +1262,7 @@ describe('Domain Tasks & Audio: AudioView, TasksView Jobs Control/Recovery/Paral
         id: 'aud-r67-2',
         title: 'Database Transactions',
         fileName: 'db-tx.wav',
+        format: 'audio',
         courses: ['CS302'],
         durationSec: 90,
         provider: 'groq',
@@ -1350,7 +1356,7 @@ describe('Domain Tasks & Audio: AudioView, TasksView Jobs Control/Recovery/Paral
       // Press 'x' to export selected audio transcript atomically (0 model calls)
       useTuiStore.setState({ toasts: [] });
       tty.send('x');
-      const expectedPath = join(resolve(libraryRoot), 'backups', `studyhub-audio-${todayLocalYmd()}.md`);
+      const audioBackupsDir = join(resolve(libraryRoot), 'backups');
       await tty.waitFor(
         () =>
           useTuiStore
@@ -1359,7 +1365,9 @@ describe('Domain Tasks & Audio: AudioView, TasksView Jobs Control/Recovery/Paral
         { label: '[x] export success toast zh' },
       );
 
-      const exported = await readFile(expectedPath, 'utf8');
+      const audioExport = await findExportedBackupFile(audioBackupsDir, 'studyhub-audio', 'md', todayLocalYmd());
+      assert.ok(audioExport, `expected studyhub-audio-${todayLocalYmd()}-HHmmss.md in ${audioBackupsDir}`);
+      const exported = await readFile(audioExport.path, 'utf8');
       assert.match(exported, /^# Compilers Lecture 01/m);
       assert.match(exported, /- 课程: CS401/);
       assert.match(exported, /- 文件: compilers-01\.mp3/);
@@ -2345,24 +2353,25 @@ describe('Domain Tasks & Audio: AudioView, TasksView Jobs Control/Recovery/Paral
 
       clearStoreToasts();
       tty.send('X');
-      const expectedPath = join(libraryRoot, 'backups', `studyhub-tasks-${todayLocalYmd()}.md`);
+      const tasksBackupsDir = join(libraryRoot, 'backups');
       const exportScreen = await tty.waitFor(
         (s) =>
-          fs.existsSync(expectedPath) &&
           useTuiStore
             .getState()
             .toasts.some(
               (toast) =>
                 toast.tone === 'success' &&
                 toast.text.includes('已导出 1 条任务汇总') &&
-                toast.text.includes(expectedPath),
+                toast.text.includes('studyhub-tasks-'),
             ) &&
           s.includes('已导出 1 条任务汇总'),
         { label: 'TasksView zh [X] export success toast' },
       );
       tty.assertHealthyScreen(exportScreen, 120, 36, 'TasksView zh after [X] export');
 
-      const exportedMd = await readFile(expectedPath, 'utf8');
+      const tasksExport = await findExportedBackupFile(tasksBackupsDir, 'studyhub-tasks', 'md', todayLocalYmd());
+      assert.ok(tasksExport, `expected studyhub-tasks-${todayLocalYmd()}-HHmmss.md in ${tasksBackupsDir}`);
+      const exportedMd = await readFile(tasksExport.path, 'utf8');
       assert.ok(exportedMd.includes('# StudyHub 后台任务汇总报告'));
       assert.ok(exportedMd.includes('**筛选关键词**: translation'));
       assert.ok(exportedMd.includes('**任务总数**: 1'));
@@ -2408,7 +2417,7 @@ describe('Domain Tasks & Audio: AudioView, TasksView Jobs Control/Recovery/Paral
   // ── Section 8: Round 59 WorkflowHistoryModal Context Inspector + HelpOverlay Sync ──
   test('8.1) Workflow host integration (0 model calls): workflow.list -> workflow.context & workflow.session.get', async () => {
     const base = await temps.make('r59-host');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     const libraryRoot = join(base, 'library');
 
     let aiCalls = 0;
@@ -2486,7 +2495,7 @@ describe('Domain Tasks & Audio: AudioView, TasksView Jobs Control/Recovery/Paral
 
   test('8.2) WorkflowHistoryModal PTY E2E (120x36 zh): TasksView -> w -> c/Enter context -> r refresh -> b/Esc -> ? HelpOverlay', async () => {
     const base = await temps.make('r59-pty-zh');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     const libraryRoot = join(base, 'library');
 
     let aiCalls = 0;
@@ -2628,7 +2637,7 @@ describe('Domain Tasks & Audio: AudioView, TasksView Jobs Control/Recovery/Paral
 
   test('8.3) WorkflowHistoryModal PTY E2E (80x24 en): empty workflow list -> c opens Global Context -> Esc closes cleanly', async () => {
     const base = await temps.make('r59-pty-empty');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     const libraryRoot = join(base, 'library');
 
     let aiCalls = 0;

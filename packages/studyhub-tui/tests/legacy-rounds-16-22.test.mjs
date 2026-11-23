@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { readdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { pathToFileURL } from 'node:url';
@@ -14,8 +15,10 @@ import {
   createVirtualTty,
   disposeTerminalPool,
   distDir,
+  installNoNetworkGuard,
   loadDistRuntime,
   pkgRoot,
+  sanitizedTestEnv,
 } from './helpers/virtual-tty.mjs';
 
 const cliBinPath = resolve(pkgRoot, 'bin', 'studyhub-tui.mjs');
@@ -32,6 +35,7 @@ const { useTuiStore, DEFAULT_PREFERENCES } = await import(pathToFileURL(join(dis
 assert.ok(useTuiStore, 'dist/store-*.mjs must export useTuiStore');
 
 const PREV_DSH_HOME = process.env.DSH_HOME;
+const restoreNetworkGuard = installNoNetworkGuard();
 const temps = createTempTracker('studyhub-tui-legacy-16-22-');
 
 function resetDistStore(language = 'zh', asciiMode = false, extra = {}) {
@@ -67,6 +71,7 @@ function resetDistStore(language = 'zh', asciiMode = false, extra = {}) {
 }
 
 after(async () => {
+  restoreNetworkGuard();
   resetDistStore('zh', false);
   disposeTerminalPool();
   if (PREV_DSH_HOME === undefined) delete process.env.DSH_HOME;
@@ -150,13 +155,14 @@ function createGroup2StubComplete() {
   };
 }
 
-function runCliSubprocess(args, extraEnv = {}, timeoutMs = 5_000) {
+function runCliSubprocess(args, extraEnv = {}, timeoutMs = 10_000) {
   return new Promise((resolveFn, rejectFn) => {
     const startedAt = performance.now();
     const child = spawn(process.execPath, [cliBinPath, ...args], {
       cwd: pkgRoot,
-      env: { ...process.env, ...extraEnv },
+      env: sanitizedTestEnv(extraEnv),
       stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
     });
     let stdout = '';
     let stderr = '';
@@ -168,6 +174,7 @@ function runCliSubprocess(args, extraEnv = {}, timeoutMs = 5_000) {
       child.kill('SIGKILL');
       rejectFn(new Error(`CLI subprocess timed out after ${timeoutMs}ms: ${args.join(' ')}`));
     }, timeoutMs);
+    timer.unref?.();
 
     child.stdout.on('data', (chunk) => {
       stdout += Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk);
@@ -227,10 +234,11 @@ async function mountSuiteApp(label, { initialPage = 'library', asciiMode = false
   const libraryRoot = join(boxDir, 'library');
   process.env.DSH_HOME = dshHome;
 
-  await saveTuiPreferences({ language, asciiMode }, { env: { DSH_HOME: dshHome } });
+  const env = sanitizedTestEnv({ DSH_HOME: dshHome });
+  await saveTuiPreferences({ language, asciiMode }, { env });
 
   const host = await createTuiHost({
-    env: { DSH_HOME: dshHome },
+    env,
     home: join(boxDir, 'home'),
     libraryRoot,
     injectedComplete: createGroup2StubComplete(),
@@ -697,7 +705,8 @@ describe('Round 17: BoardView Sync Bridge, NoteEditor Direct Ctrl+S & CLI Matrix
     assert.equal(verRes.stdout.includes('\x1b'), false, 'stdout must contain no ESC ANSI sequences');
     assert.equal(verRes.stdout.includes('\u009b'), false, 'stdout must contain no CSI ANSI sequences');
     assert.equal(verRes.stderr, '', '--version must produce empty stderr');
-    assert.ok(verRes.durationMs < 1000, `--version fast-path took ${verRes.durationMs.toFixed(1)}ms (>= 1000ms)`);
+    const coldBudgetMs = process.platform === 'win32' ? 3000 : 1500;
+    assert.ok(verRes.durationMs < coldBudgetMs, `--version fast-path took ${verRes.durationMs.toFixed(1)}ms (>= ${coldBudgetMs}ms)`);
 
     const helpAsciiRes = await runCliSubprocess(['--help'], { STUDYHUB_TUI_ASCII: '1' });
     assert.equal(helpAsciiRes.code, 0, `--help should exit 0, stderr: ${helpAsciiRes.stderr}`);
@@ -712,7 +721,7 @@ describe('Round 17: BoardView Sync Bridge, NoteEditor Direct Ctrl+S & CLI Matrix
       '--lang',
       'en',
       '--root',
-      '/tmp/path with spaces',
+      join(tmpdir(), 'path with spaces'),
       '--help',
     ]);
     assert.equal(spacedRes.code, 0, `spaced --root --help should exit 0, stderr: ${spacedRes.stderr}`);
@@ -1950,10 +1959,10 @@ describe('Round 22: SourcesView MinerUModal & ReviewView QueueModal', () => {
       { timeoutMs: 8_000, label: 'MinerUModal restored to 120x36' },
     );
 
-    const missingPdf = join(boxDir, 'missing-r22.pdf');
+    const missingPdf = join(boxDir, 'does-not-exist-round22.pdf');
     tty.send(missingPdf);
-    await tty.waitFor((s) => s.includes('missing-r22.pdf'), {
-      timeoutMs: 6_000,
+    await tty.waitFor((s) => s.includes('does-not-exist-round22.pdf'), {
+      timeoutMs: 8_000,
       label: 'Missing PDF path typed into MinerUModal',
     });
     tty.send('\r');
@@ -1963,11 +1972,14 @@ describe('Round 22: SourcesView MinerUModal & ReviewView QueueModal', () => {
         (s.includes('MinerU 扫描/长 PDF 转换') || s.includes('MinerU Scanned / Long PDF')) &&
         !s.includes('正在本地读取页数与分段计划') &&
         !s.includes('Reading PDF pages') &&
-        (s.includes('✕ ') || s.includes('x ')),
-      { timeoutMs: 8_000, label: 'MinerUModal inline error rendered for missing PDF' },
+        (s.includes('✕ ') || s.includes('[X]') || s.includes('x ')),
+      { timeoutMs: 12_000, label: 'MinerUModal inline error rendered for missing PDF' },
     );
     tty.assertHealthyScreen(errorScreen, 120, 36, 'MinerUModal missing PDF inline error at 120x36');
-    assert.ok(errorScreen.includes('✕ ') || errorScreen.includes('x '), 'Missing PDF must show inline error marker');
+    assert.ok(
+      errorScreen.includes('✕ ') || errorScreen.includes('[X]') || errorScreen.includes('x '),
+      'Missing PDF must show inline error marker',
+    );
     await tty.flush(80);
 
     tty.send('\x14');

@@ -66,6 +66,8 @@ export interface TuiStoreState {
   refreshing: boolean;
   lastError: string | null;
   activeRunId: string | null;
+  quitConfirmOpen: boolean;
+  quitGuard: (() => boolean) | null;
 
   /** UI feedback */
   toasts: ToastItem[];
@@ -91,6 +93,8 @@ export interface TuiStoreState {
   setRefreshing: (refreshing: boolean) => void;
   setLastError: (err: string | null) => void;
   setActiveRunId: (runId: string | null) => void;
+  setQuitConfirmOpen: (open: boolean) => void;
+  registerQuitGuard: (guard: () => boolean) => () => void;
 
   notify: (text: string, tone?: ToastItem['tone']) => void;
   dismissToast: (id: string) => void;
@@ -106,6 +110,7 @@ export interface TuiStoreState {
 }
 
 let toastSeq = 0;
+let quitGuards: Array<() => boolean> = [];
 
 export const useTuiStore = create<TuiStoreState>((set, get) => ({
   page: 'library',
@@ -127,6 +132,8 @@ export const useTuiStore = create<TuiStoreState>((set, get) => ({
   refreshing: false,
   lastError: null,
   activeRunId: null,
+  quitConfirmOpen: false,
+  quitGuard: null,
 
   toasts: [],
   footerHints: [],
@@ -190,6 +197,15 @@ export const useTuiStore = create<TuiStoreState>((set, get) => ({
   setRefreshing: (refreshing) => set({ refreshing }),
   setLastError: (lastError) => set({ lastError }),
   setActiveRunId: (activeRunId) => set({ activeRunId }),
+  setQuitConfirmOpen: (quitConfirmOpen) => set({ quitConfirmOpen }),
+  registerQuitGuard: (guard) => {
+    quitGuards = [...quitGuards.filter((g) => g !== guard), guard];
+    set({ quitGuard: guard });
+    return () => {
+      quitGuards = quitGuards.filter((g) => g !== guard);
+      if (get().quitGuard === guard) set({ quitGuard: quitGuards.at(-1) ?? null });
+    };
+  },
 
   notify: (text, tone = 'info') => {
     const id = `toast-${++toastSeq}`;

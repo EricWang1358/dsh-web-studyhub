@@ -18,7 +18,10 @@ import {
   createVirtualTty,
   disposeTerminalPool,
   distDir,
+  findExportedBackupFile,
+  installNoNetworkGuard,
   loadDistRuntime,
+  sanitizedTestEnv,
 } from './helpers/virtual-tty.mjs';
 
 const unregisterTsx = register();
@@ -49,9 +52,11 @@ const [
 ]);
 
 const PREV_DSH_HOME = process.env.DSH_HOME;
+const restoreNetworkGuard = installNoNetworkGuard();
 const temps = createTempTracker('studyhub-tui-decks-');
 
 after(async () => {
+  restoreNetworkGuard();
   disposeTerminalPool();
   unregisterTsx?.();
   if (PREV_DSH_HOME === undefined) delete process.env.DSH_HOME;
@@ -419,7 +424,7 @@ describe('Round 36: LibraryView deck reordering ([ / ]) E2E', () => {
 describe('Round 39: Slain Card Restore (card.restore) & Deck Folder Move (deck.move)', () => {
   test('1) createTuiHost integration: card.slay -> Slain system deck -> card.restore -> deck.move round-trip & empty clear', async () => {
     const base = await temps.make('r39-host');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     const libraryRoot = join(base, 'library');
     await cloneSampleLibrary('en', libraryRoot);
     const host = await createTuiHost({
@@ -512,7 +517,7 @@ describe('Round 39: Slain Card Restore (card.restore) & Deck Folder Move (deck.m
 
   test('2) PTY E2E: DeckManageModal on Slain deck (systemKind: "slain") shows origin + restore hint & restores both cards cleanly', async () => {
     const base = await temps.make('r39-slain-pty');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     process.env.DSH_HOME = env.DSH_HOME;
     const libraryRoot = join(base, 'library');
     await cloneSampleLibrary('zh', libraryRoot);
@@ -612,7 +617,7 @@ describe('Round 39: Slain Card Restore (card.restore) & Deck Folder Move (deck.m
 
   test('3) PTY E2E: StudyHubTuiApp -> LibraryView -> DeckManageModal [m] Folder Move set & clear in --ascii en mode', async () => {
     const base = await temps.make('r39-folder-pty');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     process.env.DSH_HOME = env.DSH_HOME;
 
     await saveTuiPreferences({ language: 'en', asciiMode: true }, { env });
@@ -731,7 +736,7 @@ describe('Round 39: Slain Card Restore (card.restore) & Deck Folder Move (deck.m
 describe('Round 46: Atomic Batch Slay (card.review.batch)', () => {
   test('1) createTuiHost integration: atomic rejection leaves c1 untouched; 2 valid cards move cleanly to Slain deck', async () => {
     const base = await temps.make('r46-host');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     const libraryRoot = join(base, 'library');
     await cloneSampleLibrary('en', libraryRoot);
     const host = await createTuiHost({
@@ -821,7 +826,7 @@ describe('Round 46: Atomic Batch Slay (card.review.batch)', () => {
 
   test('2) PTY E2E (120x36 zh): DeckManageModal Space multi-select 2 cards -> X -> n cancel (intact) -> X -> y confirm', async () => {
     const base = await temps.make('r46-pty-zh');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     process.env.DSH_HOME = env.DSH_HOME;
     const libraryRoot = join(base, 'library');
     await cloneSampleLibrary('zh', libraryRoot);
@@ -964,7 +969,7 @@ describe('Round 46: Atomic Batch Slay (card.review.batch)', () => {
 describe('Round 47: Batch Topic Retagging (card.update.batch)', () => {
   test('1) createTuiHost integration: load sample course -> card.update.batch updates topic on 2 cards -> deck.get reflects new topic', async () => {
     const base = await temps.make('r47-host');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     const libraryRoot = join(base, 'library');
     await cloneSampleLibrary('en', libraryRoot);
     const host = await createTuiHost({
@@ -1018,7 +1023,7 @@ describe('Round 47: Batch Topic Retagging (card.update.batch)', () => {
 
   test('2) PTY E2E (120x36 zh): DeckManageModal Space multi-select 2 cards -> T -> Esc cancel -> T -> type topic -> Enter', async () => {
     const base = await temps.make('r47-pty-zh');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     process.env.DSH_HOME = env.DSH_HOME;
     const libraryRoot = join(base, 'library');
     await cloneSampleLibrary('zh', libraryRoot);
@@ -1152,7 +1157,7 @@ describe('Round 47: Batch Topic Retagging (card.update.batch)', () => {
 describe('Round 49: Batch Prerequisite Linking (card.link.batch via [L])', () => {
   test('1) createTuiHost integration: load sample course -> card.link.batch links 2 cards to 3rd prereq -> graph {} has 2 prereq edges', async () => {
     const base = await temps.make('r49-host');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     const libraryRoot = join(base, 'library');
     await cloneSampleLibrary('en', libraryRoot);
     const host = await createTuiHost({
@@ -1207,7 +1212,7 @@ describe('Round 49: Batch Prerequisite Linking (card.link.batch via [L])', () =>
 
   test('2) PTY E2E (120x36 zh): DeckManageModal Space multi-select 2 cards -> L -> Esc cancel -> L -> j/k select prereq -> Enter', async () => {
     const base = await temps.make('r49-pty-zh');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     process.env.DSH_HOME = env.DSH_HOME;
     const libraryRoot = join(base, 'library');
     await cloneSampleLibrary('zh', libraryRoot);
@@ -1354,7 +1359,7 @@ describe('Round 49: Batch Prerequisite Linking (card.link.batch via [L])', () =>
 describe('Round 53: DeckOpsModal P2 AI Merge Suggestion Guard', () => {
   test('1) @xterm/headless E2E (120x36 zh): 0 auto AI calls on Tab 2 mount -> [g] Confirm -> [n] cancel -> [g]+[y] suggest -> [a] -> [n] cancel -> [a]+[y] merge', async () => {
     const base = await temps.make('r53-e2e-zh');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     const libraryRoot = join(base, 'library');
 
     let aiCalls = 0;
@@ -1537,7 +1542,7 @@ describe('Round 53: DeckOpsModal P2 AI Merge Suggestion Guard', () => {
 
   test('2) createTuiHost deck.merge.suggest handles too-few-decks (0 AI calls) and unavailable model', async () => {
     const base = await temps.make('r53-guards');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
 
     let aiCalls = 0;
     const host1 = await createTuiHost({
@@ -1572,7 +1577,7 @@ describe('Round 53: DeckOpsModal P2 AI Merge Suggestion Guard', () => {
     }
 
     const base2 = await temps.make('r53-unavail');
-    const env2 = { ...process.env, DSH_HOME: join(base2, 'dsh-home') };
+    const env2 = sanitizedTestEnv({ DSH_HOME: join(base2, 'dsh-home') });
     const host2 = await createTuiHost({
       env: env2,
       home: join(base2, 'home'),
@@ -1597,7 +1602,7 @@ describe('Round 53: DeckOpsModal P2 AI Merge Suggestion Guard', () => {
 describe('Round 55: DeckOpsModal Tab 1 On-Demand AI Filing Proposal', () => {
   test('1) createTuiHost draft.import.propose returns AI filing metadata (with model) and rules fallback (without model)', async () => {
     const base = await temps.make('r55-host');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
 
     let aiCalls = 0;
     const hostAi = await createTuiHost({
@@ -1646,7 +1651,7 @@ describe('Round 55: DeckOpsModal Tab 1 On-Demand AI Filing Proposal', () => {
     }
 
     const baseRules = await temps.make('r55-rules');
-    const envRules = { ...process.env, DSH_HOME: join(baseRules, 'dsh-home') };
+    const envRules = sanitizedTestEnv({ DSH_HOME: join(baseRules, 'dsh-home') });
     const hostRules = await createTuiHost({
       env: envRules,
       home: join(baseRules, 'home'),
@@ -1673,7 +1678,7 @@ describe('Round 55: DeckOpsModal Tab 1 On-Demand AI Filing Proposal', () => {
 
   test('2) @xterm/headless PTY E2E (120x36 zh): 0 auto calls, Ctrl+G P2 guard, n cancel, y propose + course fill + banner', async () => {
     const base = await temps.make('r55-e2e-zh');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     const libraryRoot = join(base, 'library');
 
     let aiCalls = 0;
@@ -1814,7 +1819,7 @@ describe('Round 55: DeckOpsModal Tab 1 On-Demand AI Filing Proposal', () => {
       assert.equal(capturedTargetId, seededDeck.id);
 
       tty.send('\x1b[A');
-      await tty.flush();
+      await tty.flush(40);
       tty.send('x');
       const clearedProposal = await tty.waitFor(
         (s) => !s.includes('建议归属:'),
@@ -1837,7 +1842,7 @@ describe('Round 55: DeckOpsModal Tab 1 On-Demand AI Filing Proposal', () => {
 describe('Round 56: DeckManageModal Reassign Deck Course (deck.course via [C])', () => {
   test('1) createTuiHost integration (0 model calls): deck.course updates deck & snapshot, blank course returns normalized error', async () => {
     const base = await temps.make('r56-host');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     let aiCalls = 0;
     const host = await createTuiHost({
       libraryRoot: join(base, 'library'),
@@ -1897,7 +1902,7 @@ describe('Round 56: DeckManageModal Reassign Deck Course (deck.course via [C])',
 
   test('2) @xterm/headless PTY E2E (120x36 zh): Library -> m -> C -> Esc cancel -> C -> blank reject -> type new course + Enter', async () => {
     const base = await temps.make('r56-e2e-zh');
-    const env = { ...process.env, DSH_HOME: join(base, 'dsh-home') };
+    const env = sanitizedTestEnv({ DSH_HOME: join(base, 'dsh-home') });
     let aiCalls = 0;
     resetStore(useDistTuiStore, 'zh', false);
     await saveTuiPreferences({ language: 'zh', asciiMode: false }, { env });
@@ -2210,14 +2215,14 @@ describe('Round 69 Track 2: LibraryView [x] Atomic Deck Study Sheet Markdown Exp
 
     await saveTuiPreferences(
       { language: 'zh', asciiMode: false, theme: 'dsh-dark', mathUnicode: true, showHints: true },
-      { env: { ...process.env, DSH_HOME: dshHome } },
+      { env: sanitizedTestEnv({ DSH_HOME: dshHome }) },
     );
 
     let modelCalls = 0;
     await cloneSampleLibrary('zh', libraryRoot);
     const host = await createTuiHost({
       libraryRoot,
-      env: { ...process.env, DSH_HOME: dshHome },
+      env: sanitizedTestEnv({ DSH_HOME: dshHome }),
       home: join(base, 'home'),
       documentsDir: base,
       skipAutoProbe: true,
@@ -2274,21 +2279,25 @@ describe('Round 69 Track 2: LibraryView [x] Atomic Deck Study Sheet Markdown Exp
         .trim()
         .slice(0, 18);
 
-      const expectedPath = join(libraryRoot, 'backups', `studyhub-deck-${todayLocalYmd()}.md`);
+      const backupsDir = join(libraryRoot, 'backups');
+      const todayYmd = todayLocalYmd();
+      let exportedInfo = null;
       tty.send('x');
       const afterExport = await tty.waitFor(
-        (s) =>
-          fs.existsSync(expectedPath) &&
-          useDistTuiStore
+        (s) => {
+          const hasToast = useDistTuiStore
             .getState()
-            .toasts.some((toast) => toast.tone === 'success' && toast.text.includes('已导出') && toast.text.includes(expectedPath)) &&
-          s.includes('已导出'),
+            .toasts.some((toast) => toast.tone === 'success' && toast.text.includes('已导出') && toast.text.includes('studyhub-deck-'));
+          return hasToast && s.includes('已导出');
+        },
         { timeoutMs: 10_000, label: 'zh LibraryView [x] export toast & file on disk' },
       );
       tty.assertHealthyScreen(afterExport, 120, 36, 'zh LibraryView after [x] export');
 
-      const exportedMd = await readFile(expectedPath, 'utf8');
-      assert.equal(fs.existsSync(expectedPath), true);
+      exportedInfo = await findExportedBackupFile(backupsDir, 'studyhub-deck', 'md', todayYmd);
+      assert.ok(exportedInfo, `expected studyhub-deck-${todayYmd}-HHmmss.md in ${backupsDir}`);
+      const exportedMd = await readFile(exportedInfo.path, 'utf8');
+      assert.equal(fs.existsSync(exportedInfo.path), true);
       assert.ok(afterExport.includes('已导出'));
       assert.ok(exportedMd.includes(`# ${firstDeck.title}`), 'exported MD must have selected deck title');
       assert.ok(exportedMd.includes('**课程**:'), 'exported MD must have Course metadata');
@@ -2323,14 +2332,14 @@ describe('Round 71 Track 2: LibraryView `/` Live Deck Search & Filter', () => {
 
     await saveTuiPreferences(
       { language: 'zh', asciiMode: false, theme: 'dsh-dark', mathUnicode: true, showHints: true },
-      { env: { ...process.env, DSH_HOME: dshHome } },
+      { env: sanitizedTestEnv({ DSH_HOME: dshHome }) },
     );
 
     let modelCalls = 0;
     await cloneSampleLibrary('zh', libraryRoot);
     const host = await createTuiHost({
       libraryRoot,
-      env: { ...process.env, DSH_HOME: dshHome },
+      env: sanitizedTestEnv({ DSH_HOME: dshHome }),
       home: join(base, 'home'),
       documentsDir: base,
       skipAutoProbe: true,

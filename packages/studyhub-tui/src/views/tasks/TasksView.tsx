@@ -19,7 +19,7 @@ import { useFooterHints } from '../../components/hooks.js';
 import { useTheme } from '../../theme/tokens.js';
 import { useShellActions } from '../../shell/actions.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
-import { atomicWriteTextFile, defaultBackupFilePath, todayLocalYmd } from '../../host/atomic-write.js';
+import { atomicWriteExportText, defaultBackupFilePath, todayLocalYmd } from '../../host/atomic-write.js';
 import { tryAction } from '../../host/sample-actions.js';
 const WorkflowHistoryModal = lazy(() => import('./WorkflowHistoryModal.js').then((m) => ({ default: m.WorkflowHistoryModal })));
 const MarkdownView = lazy(() => import('../../components/MarkdownView.js').then((m) => ({ default: m.MarkdownView })));
@@ -1607,15 +1607,16 @@ export const TasksView: React.FC<ViewProps> = memo(function TasksView({
         lang,
         generatedAt: new Date(),
       });
-      const targetPath = defaultBackupFilePath(host.getLibraryRoot(), 'studyhub-tasks', '.md');
-      await atomicWriteTextFile(targetPath, markdown);
+      const exportLabel = [filterTab !== 'all' ? filterTab : '', filterQuery.trim()].filter(Boolean).join('-') || undefined;
+      const defaultPath = defaultBackupFilePath(host.getLibraryRoot(), 'studyhub-tasks', '.md', exportLabel);
+      const written = await atomicWriteExportText(defaultPath, markdown);
       if (!mountedRef.current) return;
       const arrow = asciiMode ? '->' : '→';
       notify(
         t(
           lang,
-          `已导出 ${filteredJobs.length} 条任务汇总 ${arrow} ${targetPath}`,
-          `Exported ${filteredJobs.length} job(s) summary ${arrow} ${targetPath}`,
+          `已导出 ${filteredJobs.length} 条任务汇总 ${arrow} ${written.path}`,
+          `Exported ${filteredJobs.length} job(s) summary ${arrow} ${written.path}`,
         ),
         'success',
       );

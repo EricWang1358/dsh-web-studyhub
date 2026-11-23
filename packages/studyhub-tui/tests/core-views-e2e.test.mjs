@@ -631,9 +631,10 @@ describe('StudyHub TUI Core Views E2E, Deep Interactions & Memory Soak', () => {
       { timeoutMs: 8_000, label: 'Notes export modal opened' },
     );
     assertScreenHealthy(tty, exportModal, 120, 36, 'NotesView export modal');
+    await tty.flush(25);
 
     tty.send('\x15');
-    await tty.flush();
+    await tty.flush(20);
     tty.send(exportTarget);
     await tty.waitFor(
       (s) => s.includes('exported-deep-note.md'),
