@@ -10,9 +10,9 @@ The report moves nothing (#902): it is the data for deciding what could later go
 | Class | Modules |
 | --- | ---: |
 | Used by ui | 105 |
-| Used by several contexts | 71 |
+| Used by several contexts | 72 |
 | Used by exactly one context | 133 |
-| Used by none of these (other lib files, entry points, scripts and tests only) | 113 |
+| Used by none of these (other lib files, entry points, scripts and tests only) | 112 |
 
 ## Used by ui (105)
 
@@ -45,7 +45,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/course-method.js`: 4 ui files; context courses; 5 other lib files
 - `lib/course-rules.js`: 3 ui files; context authoring; 3 other lib files
 - `lib/course-setup.js`: 1 ui file
-- `lib/course-tree.js`: 13 ui files; contexts generation, library, materials; 19 other lib files
+- `lib/course-tree.js`: 13 ui files; contexts generation, library, materials; 20 other lib files
 - `lib/courses.js`: 11 ui files; contexts authoring, coach, courses, generation, library, study; 15 other lib files
 - `lib/coverage-run.js`: 6 ui files; contexts generation, library; 5 other lib files
 - `lib/coverage-strength.js`: 5 ui files; context generation; 5 other lib files
@@ -109,7 +109,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/semver.js`: 1 ui file; context generation; 4 other lib files
 - `lib/shortfall.js`: 2 ui files
 - `lib/sm2.js`: 2 ui files; 8 other lib files
-- `lib/source-courses.js`: 7 ui files; contexts audio, bank, courses, generation, library, materials, recording; 30 other lib files
+- `lib/source-courses.js`: 7 ui files; contexts audio, bank, courses, generation, library, materials, recording; 31 other lib files
 - `lib/source-groups.js`: 29 ui files; contexts generation, library, materials; 9 other lib files
 - `lib/source-provenance.js`: 7 ui files; contexts generation, library, materials; 6 other lib files
 - `lib/source-relations.js`: 2 ui files
@@ -122,7 +122,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/token-usage.js`: 9 ui files; contexts audio, generation, jobs, materials, study; 13 other lib files
 - `lib/usage-registry.js`: 1 ui file; 2 other lib files
 
-## Used by several contexts (71)
+## Used by several contexts (72)
 
 - `lib/assessment-quality.js`: contexts authoring, generation; 9 other lib files
 - `lib/atomic-json.js`: contexts generation, library; 19 other lib files
@@ -171,6 +171,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/learner-facts.js`: contexts coach, library; 2 other lib files
 - `lib/learning-scope.js`: contexts skeleton, study; 5 other lib files
 - `lib/mastery.js`: contexts courses, generation, library, study; 32 other lib files
+- `lib/material-source-versions.js`: contexts generation, library; 3 other lib files
 - `lib/mineru-history.js`: contexts audio, jobs, materials; 1 other lib file
 - `lib/mineru-job.js`: contexts audio, jobs; 1 other lib file
 - `lib/model-retry.js`: contexts coach, generation; 7 other lib files
@@ -332,7 +333,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/workflows.js`: context workflows; 4 other lib files
 - `lib/wrong-detail.js`: context library
 
-## Used by none of these (other lib files, entry points, scripts and tests only) (113)
+## Used by none of these (other lib files, entry points, scripts and tests only) (112)
 
 - `lib/assigned-plan.js`: 6 other lib files
 - `lib/assist-child.js`: 1 other lib file
@@ -400,7 +401,6 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/live-reply.js`: 2 other lib files
 - `lib/local-command.js`: 7 other lib files
 - `lib/marker-output.js`: 2 other lib files
-- `lib/material-source-versions.js`: 2 other lib files
 - `lib/math-text.js`: 2 other lib files
 - `lib/mineru-merge.js`: 1 other lib file
 - `lib/mineru-paths.js`: 2 other lib files
