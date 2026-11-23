@@ -58,8 +58,11 @@ export default function DeskIntro({ data, home, mastery, start, resume, endRun, 
   const { route, starter, headline, plan, alternatives, otherRuns, otherCourse } = home;
   const currentEntry = (data.focus?.courses || []).find((course) => course.name === data.focus?.course);
   const paceForecast = data?.paceForecast;
+  const focusedCourse = data.focus?.course;
   const coursePace = paceForecast
-    ? ((data.focus?.course && paceForecast.courses?.[data.focus.course]) || paceForecast.library || null)
+    ? (focusedCourse != null && focusedCourse !== '*'
+      ? (paceForecast.courses?.[focusedCourse] || null)
+      : (paceForecast.library || null))
     : null;
   return (
     <div className="desk-intro">
