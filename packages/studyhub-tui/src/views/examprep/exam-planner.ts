@@ -359,3 +359,46 @@ export function renderExamScheduleTable(
     { ascii: opts.ascii },
   );
 }
+
+/**
+ * Format an `ExamCountdownPlan` as a structured Markdown section (Round 97 Track D10, 0 LLM tokens).
+ * Includes phase breakdown, rolling 7-day schedule table, and gap-fill remediation checklist.
+ */
+export function formatExamScheduleMarkdown(plan: ExamCountdownPlan | null, lang: UiLanguage = 'zh'): string {
+  if (!plan || plan.status === 'past') return '';
+  const zh = lang !== 'en';
+  const esc = (s: string) => String(s ?? '').replace(/\|/g, '\\|').replace(/[\r\n]+/g, ' ').trim() || '-';
+  const lines: string[] = [
+    `## ${zh ? `考期倒推自动排程（距考 ${plan.daysLeft} 天 · 日均 ${plan.dailyCardTarget} 题）` : `Exam Countdown Auto-Schedule (${plan.daysLeft}d left · ~${plan.dailyCardTarget} cards/day)`}`,
+    '',
+  ];
+  if (plan.phases.length > 0) {
+    const phaseSummary = plan.phases
+      .map((p) => (zh ? `${p.label} ${p.days}天` : `${p.label} (${p.days}d)`))
+      .join(' → ');
+    lines.push(`- **${zh ? '阶段拆分' : 'Phases'}**: ${phaseSummary}`);
+  }
+  if (plan.gapTopics.length > 0) {
+    lines.push(`- **${zh ? '缺题待补' : 'Gap Topics'}**: ${plan.gapTopics.map(esc).join(', ')}`);
+  }
+  if (plan.next7Days.length > 0) {
+    lines.push(
+      '',
+      zh ? '| 日期 | 阶段 | 主攻重点 | 目标题量 | 建议 |' : '| Date | Phase | Primary Focus | Target Cards | Note |',
+      '| --- | --- | --- | ---: | --- |',
+    );
+    for (const slot of plan.next7Days) {
+      lines.push(
+        `| ${esc(slot.dateKey)} | ${esc(slot.phaseLabel)} | ${esc(slot.primaryTopic)} | ${slot.targetCards} | ${esc(slot.note)} |`,
+      );
+    }
+  }
+  const steps = buildGapFillWorkflowSteps(plan, lang);
+  if (steps.length > 0) {
+    lines.push('', `### ${zh ? '建议行动清单' : 'Recommended Next Actions'}`, '');
+    for (const step of steps) {
+      lines.push(`- [ ] ${esc(step.label)}`);
+    }
+  }
+  return lines.join('\n');
+}

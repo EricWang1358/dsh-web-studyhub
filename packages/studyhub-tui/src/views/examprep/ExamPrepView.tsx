@@ -17,6 +17,7 @@ import {
   buildExamCountdownPlan,
   buildGapFillWorkflowSteps,
   formatExamCountdownSummary,
+  formatExamScheduleMarkdown,
   renderExamScheduleTable,
 } from './exam-planner.js';
 import { buildExamGapAlert } from './exam-gap-alert.js';
@@ -128,6 +129,19 @@ export function formatExamPrepMarkdown({
       lines.push(`| ${topicCell} | ${statusCell} | ${masteryCell} | ${cardsCell} | ${weakCell} |`);
     }
     lines.push('');
+  }
+
+  if (typeof examDate === 'string' && examDate.trim()) {
+    const countdownPlan = buildExamCountdownPlan({
+      examDate: examDate.trim(),
+      topics: topicList,
+      lang,
+      today: generatedAt instanceof Date && !Number.isNaN(generatedAt.getTime()) ? generatedAt : undefined,
+    });
+    const scheduleMd = formatExamScheduleMarkdown(countdownPlan, lang);
+    if (scheduleMd) {
+      lines.push(scheduleMd, '');
+    }
   }
 
   if (crunchList.length > 0) {
