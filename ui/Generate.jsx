@@ -233,15 +233,16 @@ export default function Generate({
   const plannedCoverage = planned.status === 'ready' ? planned.estimate?.coverage : null, plannedGoal = plannedCoverage?.goal ?? null;
   // A summary promises questions: not for a button that is off (the reason is said below), and for the steps it is their own total.
   const blocked = !pathMode && advice.blocked;
+  const formBlocked = blocked || (!pathMode && invalidQuota) || Boolean(referenceState.reason);
   // The rough cost of each preset (and, with 更多选项 open, of every cell of the matrix), read from the estimate of each cell for these materials (ui/presets/cost.js).
   const priced = foldOpen ? MATRIX_CELLS : PRESET_CELLS;
-  const pricing = pricesCells({ applies, sources: validSelectedSources.length, count: custom, held: pathMode || blocked || Boolean(referenceState.reason) });
+  const pricing = pricesCells({ applies, sources: validSelectedSources.length, count: custom, held: pathMode || formBlocked });
   const cellEstimates = useCellEstimates(call, estimateRequest, priced, { enabled: pricing });
   const costs = pricing ? cellCosts(cellEstimates, priced) : null;
   const pickPreset = (id) => { const chosen = presetCell(id); if (chosen) setGen({ ...gen, coverageLevel: chosen.density, customCount: '', depth: chosen.depth }); };
-  const summary = pathMode ? pathSummary(path.included) : blocked ? '' : summaryLine({ ...stats, count: plannedGoal, low: plannedCoverage?.goalLow ?? null, difficulty: gen.difficulty, language: gen.language, minutes: plannedGoal ? estimateMinutes(data.jobs, plannedGoal) : null }, { choices: false });
+  const summary = pathMode ? (referenceState.reason ? '' : pathSummary(path.included)) : formBlocked ? '' : summaryLine({ ...stats, count: plannedGoal, low: plannedCoverage?.goalLow ?? null, difficulty: gen.difficulty, language: gen.language, minutes: plannedGoal ? estimateMinutes(data.jobs, plannedGoal) : null }, { choices: false });
   // The plan is priced for these materials: the tokens in the bar, the rest of the plan under it.
-  const estimating = !pathMode && !blocked && validSelectedSources.length > 0 && !referenceState.reason;
+  const estimating = !pathMode && !formBlocked && validSelectedSources.length > 0;
   const barRoom = useStickyRoom('--generate-bar-room');
   return (
     <section className="page generate-page">
@@ -443,6 +444,12 @@ export default function Generate({
               {/* Why the button is off, once: with pages picked by topic the panel above already says the topic is missing, so here it is only what to do. */}
               {model.ready && blocked && (retrievalMode ? <Hint>{ui("写下主题后才能生成。")}</Hint>
                 : <InlineMessage tone="warning">{ui("所选资料超过一次生成的上限。请按章节缩小选择，或按上面的建议用检索工具。")}</InlineMessage>)}
+              {model.ready && !blocked && !pathMode && invalidQuota && (
+                <InlineMessage tone="warning">{ui("请到「更多选项 › 额外要求」为至少一种题型分配 1 道题。")}</InlineMessage>
+              )}
+              {model.ready && !blocked && referenceState.reason && (
+                <InlineMessage tone="warning">{referenceState.reason}</InlineMessage>
+              )}
               {model.ready && running && <p className="muted generate-submit__note">{ui("已有出题任务在进行，新的会排在它后面。")}</p>}
             </div>
             <div className="generate-run" data-generate-run>

@@ -69,7 +69,7 @@ export function useGenerationPath({ sources, selectedIds, gen, course = '', goal
       });
       toast.warning(
         uiFormat('已排队 {0} 步，另有 {1} 步没能开始，请查看下方原因。', [result.started.length, result.failed.length]),
-        onGoLibrary ? { action: { label: ui('去学习库查看'), onClick: onGoLibrary } } : undefined,
+        onGoLibrary ? { action: { label: ui('去学习库查看'), iconEnd: 'arrow-right', onClick: onGoLibrary } } : undefined,
       );
     }
   }

@@ -81,7 +81,7 @@ function LibraryView() {
   const linePage = lineShown && !tour.tourStep && !tour.lineLater;
   const firstDeck = useFirstDeck({ data, gen: lib?.gen, setGen: set.setGen, deck: lineShown ? line.steps[2] : null,
     reasoningEffort: connection?.binding?.effort?.current || '', services: core });
-  const firstRun = lineShown ? { form: linePage ? 'page' : 'compact', plan: firstDeck, on: {
+  const firstRun = lineShown ? { form: linePage ? 'page' : 'compact', sampleBusy: tour.sampleBusy || tour.sampleForTour, plan: firstDeck, on: {
     importFirst: tour.openFirstImport, importMore: tour.openFirstImport,
     generate: firstDeck.start, tune: (sourceIds) => intents.goGenerate({ sourceIds, remember: true }),
     recheck: core.refresh, openModelSettings: settingsEntry.openModelSettings,
@@ -691,6 +691,7 @@ function GuidedStudyView() {
 
   // Read the session again at once: its reads may have slowed down, and a paused session is not read after that (#564).
   const handlePause = (id) => core.act('study.session.pause', { sessionId: id }, () => { void readGuidedSession(); });
+  const handleResume = (id) => core.act('study.session.resume', { sessionId: id }, () => { void readGuidedSession(); });
 
   const handleEnd = (id) => {
     if (!id) {
@@ -733,8 +734,10 @@ function GuidedStudyView() {
       estimate={guidedSession?.estimate}
       cost={guidedSession?.cost}
       modelReady={data?.modelReady !== false && data?.model?.ready !== false}
+      courses={data?.courses}
       host={host}
       onPause={handlePause}
+      onResume={handleResume}
       onEnd={handleEnd}
       onReveal={handleReveal}
       onAnswer={handleAnswer}

@@ -796,6 +796,7 @@ export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, on
             const firstId = blanks[0];
             setConfirming(false);
             if (!firstId) return;
+            setView("questions");
             setActiveId(firstId);
             requestAnimationFrame(() => {
               const cardEl = [...(document.querySelectorAll("[data-case-question]") || [])]

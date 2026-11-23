@@ -70,7 +70,7 @@ export default function OutlinePanel({ items, activeId, onJump, labelOf = () => 
   const narrowed = activeOnlyUncovered || (onlyUnread && unreadPartial);
   const kept = useMemo(() => items.filter(item => (!activeOnlyUncovered || coverage.uncovered.has(item.id))
     && (!onlyUnread || !unreadKeptIds || unreadKeptIds.has(item.id))), [items, activeOnlyUncovered, coverage, onlyUnread, unreadKeptIds]);
-  const rows = useMemo(() => filtering ? filterOutline(kept, query) : narrowed ? kept : outlineRows(items, expanded), [filtering, kept, narrowed, items, query, expanded]);
+  const rows = useMemo(() => filtering ? filterOutline(kept, query, labelOf) : narrowed ? kept : outlineRows(items, expanded), [filtering, kept, narrowed, items, query, expanded, labelOf]);
   // The current entry, or the nearest part above it that is on screen.
   const current = useMemo(() => {
     const byId = new Map(items.map(item => [item.id, item])), shown = new Set(rows.map(row => row.id));
@@ -86,7 +86,10 @@ export default function OutlinePanel({ items, activeId, onJump, labelOf = () => 
     else if (rect.bottom > box.bottom - 8) panel.scrollTop += rect.bottom - box.bottom + 8;
   }, [current, items, expanded]);
   const toggle = item => setToggled(previous => new Map(previous).set(item.id, !expanded.has(item.id)));
-  const onFilterKey = event => { if (event.key === 'Escape' && query) { event.preventDefault(); event.stopPropagation(); setQuery(''); } };
+  const onFilterKey = event => {
+    if (event.nativeEvent?.isComposing || event.isComposing || event.keyCode === 229) return;
+    if (event.key === 'Escape' && query) { event.preventDefault(); event.stopPropagation(); setQuery(''); }
+  };
   const name = item => [labelOf(item), item.title].filter(Boolean).join(' · ');
   return <nav id={id} className={`reader-outline ${className}`.trim()} aria-label={ui('目录')} {...rest}>
     <h3 className="reader-panel__title">{ui('目录')}</h3>

@@ -290,7 +290,7 @@ test('Guided Study Loop E2E: scripted 10-step full workflow (UC-01 ~ UC-09, Sect
   const resumed = await study.call('study.session.resume', { sessionId: session.id });
   assert.equal(resumed.found, true);
   assert.equal(resumed.session.id, session.id);
-  assert.equal(resumed.session.status, 'paused');
+  assert.equal(resumed.session.status, 'active');
   assert.equal(resumed.progress.independentPassedCount, 1);
   assert.equal(resumed.staleWarnings.length, 0);
 

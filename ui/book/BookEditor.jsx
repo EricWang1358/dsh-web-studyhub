@@ -62,6 +62,10 @@ export default function BookEditor({ book, file, onPick, onChanged, onDirty, onS
     if (kept && (submitted === null || typed.current === submitted)) setDraft(base.current.text);
     onChanged(next);
   };
+  const discardChanges = () => {
+    base.current = { file, version: book.files[file]?.version ?? 0, text: fileText(book, file) };
+    setDraft(base.current.text);
+  };
   const save = async () => {
     setSaving(true);
     onSaving?.(true);
@@ -98,10 +102,7 @@ export default function BookEditor({ book, file, onPick, onChanged, onDirty, onS
         <Combobox className="book-editor__file" label={ui('要改的文件')} aria-label={ui('要改的文件')} searchPlaceholder={ui('搜索文件')} value={file} options={options} disabled={dirty || working} onChange={value => onPick(value)} />
         {book.files[file]?.forked && <Badge size="sm" tone="warning" className="book-editor__forked">{ui('已改动')}</Badge>}
         <Button size="sm" variant="primary" disabled={!dirty} busy={saving} lock={reverting} onClick={save} className="book-editor__save">{ui('保存')}</Button>
-        <Button size="sm" variant="quiet" disabled={!dirty} lock={working} onClick={() => {
-          base.current = { file, version: book.files[file]?.version ?? 0, text: fileText(book, file) };
-          setDraft(base.current.text);
-        }}>{ui('放弃改动')}</Button>
+        <Button size="sm" variant="quiet" disabled={!dirty} lock={working} onClick={discardChanges}>{ui('放弃改动')}</Button>
         <Button size="sm" variant="quiet" icon="refresh" disabled={!book.history?.[file] || dirty} busy={reverting} lock={saving} onClick={revert} className="book-editor__revert">{ui('回退到上一版')}</Button>
         <Button size="sm" variant={historyOpen ? 'secondary' : 'quiet'} icon="clock" aria-expanded={historyOpen} lock={working}
           onClick={() => setHistoryOpen(value => !value)} className="book-editor__history-toggle">{ui('版本历史')}</Button>

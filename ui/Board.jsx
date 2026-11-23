@@ -743,8 +743,10 @@ export default function Board({ state, library, today: todayProp, view: viewProp
     </>}
     {editingCard && <CardEditor key={editing.id} card={editingCard} board={board} baseRevision={editing.revision} library={library} today={today}
       labelSuggestions={labels.map((entry) => entry.label)} saving={saving} error={message} conflict={conflict} onClose={() => { setEditing(null); clearError?.(); }}
-      onSave={async (fields) => { setSaving(true); const ok = await run("board.card.edit", { id: editingCard.id, revision: editing.revision, ...fields }, { optimistic: false }); setSaving(false); if (ok) onBoardChanged?.(); return ok; }}
-      onArchive={async (card) => { setEditing(null); await archiveCard(card); }} onDelete={async (card) => { const ok = await deleteCard(card); if (ok) setEditing(null); return ok; }}
+      onReloadRevision={(rev) => { setEditing((cur) => (cur ? { ...cur, revision: rev } : cur)); clearError?.(); }}
+      onSave={async (fields) => { setSaving(true); try { const ok = await run("board.card.edit", { id: editingCard.id, revision: editing.revision, ...fields }, { optimistic: false }); if (ok) onBoardChanged?.(); return ok; } finally { setSaving(false); } }}
+      onArchive={async (card) => { setSaving(true); try { const ok = await archiveCard(card); if (ok) setEditing(null); return ok; } finally { setSaving(false); } }}
+      onDelete={async (card) => { const ok = await deleteCard(card); if (ok) setEditing(null); return ok; }}
       onOrigin={openRef(onOrigin) && ((workspace) => { setEditing(null); return openRef(onOrigin)(workspace); })}
       onStudyRef={openRef(onStudyRef) && ((ref) => { setEditing(null); return openRef(onStudyRef)(ref); })} />}
     {confirm && <DeleteCardDialog card={confirm.card} purge={confirm.kind === "purge"} onClose={() => setConfirm(null)}

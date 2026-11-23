@@ -129,6 +129,52 @@ export default function ExamCoachPage({
     return { ...baseSpec, ...(nextCrunch ? { crunchMode: nextCrunch } : {}), taskFamilies: nextFamilies };
   }
 
+  function deleteFamily(familyId) {
+    const resolved = resolveSpecWithDrafts(spec);
+    return handleSaveSpec({
+      templateName: resolved.templateName,
+      crunchMode: resolved.crunchMode,
+      taskFamilies: resolved.taskFamilies.filter((item) => item.id !== familyId),
+    }, ui('已移除该考察任务族'));
+  }
+
+  function addCustomFamily() {
+    const resolved = resolveSpecWithDrafts(spec);
+    const added = {
+      id: `custom-${Date.now().toString(36)}`,
+      title: ui('自定义应用任务族'),
+      origin: 'user-defined',
+      primaryFormat: 'open',
+      allowedFormats: ['open'],
+      allowFormSubstitute: false,
+      quota: 2,
+      priority: 'high',
+      reasoningSteps: [ui('核对题干约束条件'), ui('分步推导并验证结论')],
+      rubricPoints: [{ criterion: ui('分步推导完整'), marks: 5, condition: ui('列出依据并逐步求解') }],
+      sample: {
+        format: 'open',
+        stem: ui('请结合给定约束条件分步推导并验证边界情况。'),
+        answer: ui('先列前提，再分步求解并核对边界。'),
+        rubric: ui('列出前提与依据（2分）；分步推导准确且检验边界（3分）。'),
+      },
+    };
+    return handleSaveSpec({
+      templateName: resolved.templateName,
+      crunchMode: resolved.crunchMode,
+      taskFamilies: [...resolved.taskFamilies, added],
+    }, ui('已新增自定义任务族'));
+  }
+
+  function saveConfigure() {
+    const resolved = resolveSpecWithDrafts(spec);
+    return handleSaveSpec({
+      templateName: resolved.templateName,
+      crunchMode: resolved.crunchMode,
+      taskFamilies: resolved.taskFamilies,
+      stage: 'evidence',
+    }, ui('训练配置已保存'));
+  }
+
   function handleCourseChange(next) {
     if (next === course) return;
     courseSeqRef.current += 1;
@@ -746,14 +792,7 @@ export default function ExamCoachPage({
                       variant="quiet"
                       size="sm"
                       lock={busy || working}
-                      onClick={() => {
-                        const resolved = resolveSpecWithDrafts(spec);
-                        handleSaveSpec({
-                          templateName: resolved.templateName,
-                          crunchMode: resolved.crunchMode,
-                          taskFamilies: resolved.taskFamilies.filter((item) => item.id !== f.id),
-                        }, ui('已移除该考察任务族'));
-                      }}
+                      onClick={() => deleteFamily(f.id)}
                     >
                       {ui('删除任务族')}
                     </Button>
@@ -835,47 +874,14 @@ export default function ExamCoachPage({
                 <Button
                   variant="secondary"
                   lock={busy || working}
-                  onClick={() => {
-                    const resolved = resolveSpecWithDrafts(spec);
-                    const added = {
-                      id: `custom-${Date.now().toString(36)}`,
-                      title: ui('自定义应用任务族'),
-                      origin: 'user-defined',
-                      primaryFormat: 'open',
-                      allowedFormats: ['open'],
-                      allowFormSubstitute: false,
-                      quota: 2,
-                      priority: 'high',
-                      reasoningSteps: [ui('核对题干约束条件'), ui('分步推导并验证结论')],
-                      rubricPoints: [{ criterion: ui('分步推导完整'), marks: 5, condition: ui('列出依据并逐步求解') }],
-                      sample: {
-                        format: 'open',
-                        stem: ui('请结合给定约束条件分步推导并验证边界情况。'),
-                        answer: ui('先列前提，再分步求解并核对边界。'),
-                        rubric: ui('列出前提与依据（2分）；分步推导准确且检验边界（3分）。'),
-                      },
-                    };
-                    handleSaveSpec({
-                      templateName: resolved.templateName,
-                      crunchMode: resolved.crunchMode,
-                      taskFamilies: [...resolved.taskFamilies, added],
-                    }, ui('已新增自定义任务族'));
-                  }}
+                  onClick={addCustomFamily}
                 >
                   {ui('新增任务族')}
                 </Button>
                 <Button
                   variant="primary"
                   lock={busy || working}
-                  onClick={() => {
-                    const resolved = resolveSpecWithDrafts(spec);
-                    handleSaveSpec({
-                      templateName: resolved.templateName,
-                      crunchMode: resolved.crunchMode,
-                      taskFamilies: resolved.taskFamilies,
-                      stage: 'evidence',
-                    }, ui('训练配置已保存'));
-                  }}
+                  onClick={saveConfigure}
                 >
                   {ui('保存配置并查看生成与能力证据')}
                 </Button>

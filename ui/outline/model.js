@@ -138,7 +138,7 @@ export function filterOutline(outline, details, open, query) {
   if (!needle) return { rows: outlineRows(outline, details, open), filtering: false, matchCount: 0 };
   if (!outline) return { rows: [], filtering: true, matchCount: 0 };
   if (outline.book) {
-    const matchedKeys = new Set(), forceOpen = new Set();
+    const matchedKeys = new Set(), selfHitKeys = new Set(), forceOpen = new Set();
     const visit = (node, ancestors) => {
       const selfHit = matchesOutlineNeedle(node.title, needle)
         || matchesOutlineNeedle(node.intro, needle)
@@ -152,6 +152,7 @@ export function filterOutline(outline, details, open, query) {
       }
       if (selfHit || childHit) {
         matchedKeys.add(node.key);
+        if (selfHit) selfHitKeys.add(node.key);
         for (const anc of ancestors) { matchedKeys.add(anc); forceOpen.add(anc); }
         if (childHit || (selfHit && node.children?.length)) forceOpen.add(node.key);
       }
@@ -162,14 +163,15 @@ export function filterOutline(outline, details, open, query) {
       const otherKey = outline.book.other.key;
       const otherHit = matchesOutlineNeedle(outline.book.other.title, needle) || cardsMatchNeedle(details[otherKey], needle)
         || (details[otherKey]?.anchors || []).some(anchor => matchesOutlineNeedle(anchor.title, needle));
-      if (otherHit) matchedKeys.add(otherKey);
+      if (otherHit) { matchedKeys.add(otherKey); selfHitKeys.add(otherKey); }
     }
     if (outline.unplaced?.total > 0 && (matchesOutlineNeedle('未归位 not placed', needle) || cardsMatchNeedle(details[UNPLACED], needle))) {
       matchedKeys.add(UNPLACED);
+      selfHitKeys.add(UNPLACED);
     }
     const effectiveOpen = new Set([...open, ...forceOpen]);
     const allOpenRows = bookRows(outline, details, effectiveOpen);
-    const rows = allOpenRows.filter(row => matchedKeys.has(row.key) || row.ancestors?.some(anc => matchedKeys.has(anc) && !forceOpen.has(anc)));
+    const rows = allOpenRows.filter(row => matchedKeys.has(row.key) || row.ancestors?.some(anc => selfHitKeys.has(anc)));
     return { rows, filtering: true, matchCount: rows.length };
   }
   const matchedKeys = new Set(), forceOpen = new Set();

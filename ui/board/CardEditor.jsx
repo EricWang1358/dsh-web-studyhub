@@ -43,7 +43,7 @@ const fromCard = (card) => ({ title: card.title, note: card.note || '', due: car
  * at; a newer board turns saving off until the learner loads the latest card.
  */
 export default function CardEditor({ card, board, baseRevision, library, today, labelSuggestions = [], saving = false, error = '', conflict = false,
-  onSave, onArchive, onDelete, onClose, onOrigin, onStudyRef }) {
+  onSave, onArchive, onDelete, onClose, onReloadRevision, onOrigin, onStudyRef }) {
   const formId = useId();
   const [draft, setDraft] = useState(() => fromCard(card));
   const [base, setBase] = useState(baseRevision ?? board.revision);
@@ -99,7 +99,7 @@ export default function CardEditor({ card, board, baseRevision, library, today, 
     <Dialog title={ui('编辑待办')} size="md" busy={saving} onClose={onClose} footer={footer} initialFocus={titleField} className="board-editor" footerClassName="board-editor__footer">
       <form id={formId} className="board-editor__form" onSubmit={submit}>
         {error && <InlineMessage tone={conflict ? 'warning' : 'error'}>{error}</InlineMessage>}
-        {stale && <InlineMessage tone="warning" boxed action={latest ? { label: ui('载入最新卡片（替换当前输入）'), onClick: () => { setDraft(fromCard(latest)); setBase(board.revision); } } : undefined}>
+        {stale && <InlineMessage tone="warning" boxed action={latest ? { label: ui('载入最新卡片（替换当前输入）'), onClick: () => { setDraft(fromCard(latest)); setBase(board.revision); onReloadRevision?.(board.revision); } } : undefined}>
           {ui('看板已在其他位置更新。你的输入仍保留；请先查看最新卡片再编辑。')}{!latest && <> {ui('这张卡片已被移除或归档。')}</>}
         </InlineMessage>}
         <fieldset className="board-editor__fields" disabled={saving || readOnly}>
