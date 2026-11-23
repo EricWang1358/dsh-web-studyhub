@@ -1,6 +1,6 @@
 /**
  * StudyHub TUI CLI entrypoint.
- * - Handles `--help` / `--version` / `--doctor` / `--stats` / `--export` fast-paths before importing Ink/React/Host (<150ms).
+ * - Handles `--help` / `--version` / `--doctor` / `--stats` / `--export` / `--search` fast-paths before importing Ink/React/Host (<150ms).
  * - Renders `ShellBootFrame` IMMEDIATELY while `createTuiHost` initializes StudyRuntime
  *   in parallel, slashing perceived Time-To-First-Frame by >60%.
  * - Supports both Linux bash and Windows PowerShell / Windows Terminal (including `--ascii`).
@@ -33,7 +33,7 @@ async function main() {
     return;
   }
 
-  if (parsed.doctor || parsed.stats || parsed.exportBackup) {
+  if (parsed.doctor || parsed.stats || parsed.exportBackup || parsed.searchQuery !== undefined) {
     const cmds = await import('./cli-commands.js');
     if (parsed.doctor) {
       await cmds.runDoctorFastPath(parsed, PKG_VERSION);
@@ -43,7 +43,11 @@ async function main() {
       await cmds.runStatsFastPath(parsed, PKG_VERSION);
       return;
     }
-    await cmds.runExportFastPath(parsed, PKG_VERSION);
+    if (parsed.exportBackup) {
+      await cmds.runExportFastPath(parsed, PKG_VERSION);
+      return;
+    }
+    await cmds.runSearchFastPath(parsed, PKG_VERSION);
     return;
   }
 

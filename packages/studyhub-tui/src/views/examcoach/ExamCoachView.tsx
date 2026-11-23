@@ -37,10 +37,56 @@ import {
 } from './types.js';
 const CoachPreferencesModal = lazy(() => import('./CoachPreferencesModal.js').then((m) => ({ default: m.CoachPreferencesModal })));
 
-const CLAIMED_KEYS = [
+const BASE_CLAIMED_KEYS = [
   '1', '2', '3', '4',
   'a', 'A', 'b', 'e', 'f', 'g', 'G', 'm', 'n', 'N', 'p', 'P', 'r', 'v', 'x', 'X', 'y', 'z',
 ] as const;
+
+export function filterCoachFamilies<T extends CoachTaskFamily>(
+  families: readonly T[],
+  query: string,
+): readonly T[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return families;
+  return families.filter((f) => {
+    if (f.title?.toLowerCase().includes(q)) return true;
+    if (f.id?.toLowerCase().includes(q)) return true;
+    if (f.primaryFormat?.toLowerCase().includes(q)) return true;
+    if (Array.isArray(f.knowledgePoints) && f.knowledgePoints.some((kp) => String(kp).toLowerCase().includes(q))) {
+      return true;
+    }
+    return false;
+  });
+}
+
+export function filterCoachWrongItems<T extends WrongBookEntry & { course?: string }>(
+  items: readonly T[],
+  query: string,
+): readonly T[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return items;
+  return items.filter((item) => {
+    if (item.prompt?.toLowerCase().includes(q)) return true;
+    if (item.topic?.toLowerCase().includes(q)) return true;
+    if (item.cardId?.toLowerCase().includes(q)) return true;
+    if (item.course?.toLowerCase().includes(q)) return true;
+    return false;
+  });
+}
+
+export function filterCoachEvidencePoints<T extends CourseEvidencePoint>(
+  points: readonly T[],
+  query: string,
+): readonly T[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return points;
+  return points.filter((pt) => {
+    if (pt.title?.toLowerCase().includes(q)) return true;
+    if (pt.overall?.toLowerCase().includes(q)) return true;
+    if (pt.gapHint?.toLowerCase().includes(q)) return true;
+    return false;
+  });
+}
 
 export interface CoachProfileBulletExport {
   id?: string;
@@ -296,6 +342,8 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
   const [familyIdx, setFamilyIdx] = useState(0);
   const [wrongIdx, setWrongIdx] = useState(0);
   const [pointIdx, setPointIdx] = useState(0);
+  const [filterQuery, setFilterQuery] = useState('');
+  const [filterOpen, setFilterOpen] = useState(false);
 
   // Modals
   const [noteModalOpen, setNoteModalOpen] = useState(false);
@@ -370,15 +418,32 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
   }, [host, loadAll]);
 
   const families = spec?.taskFamilies ?? [];
-  const selectedFamily: CoachTaskFamily | undefined = families[Math.min(familyIdx, Math.max(0, families.length - 1))];
-  const selectedWrong: WrongBookEntry | undefined = wrongItems[Math.min(wrongIdx, Math.max(0, wrongItems.length - 1))];
+  const filteredFamilies = useMemo(() => filterCoachFamilies(families, filterQuery), [families, filterQuery]);
+  const selectedFamily: CoachTaskFamily | undefined =
+    filteredFamilies[Math.min(familyIdx, Math.max(0, filteredFamilies.length - 1))];
+  const filteredWrongItems = useMemo(() => filterCoachWrongItems(wrongItems, filterQuery), [wrongItems, filterQuery]);
+  const selectedWrong: WrongBookEntry | undefined =
+    filteredWrongItems[Math.min(wrongIdx, Math.max(0, filteredWrongItems.length - 1))];
   const evidencePoints = courseEvidence?.points ?? [];
-  const selectedPoint: CourseEvidencePoint | undefined = evidencePoints[Math.min(pointIdx, Math.max(0, evidencePoints.length - 1))];
+  const filteredEvidencePoints = useMemo(
+    () => filterCoachEvidencePoints(evidencePoints, filterQuery),
+    [evidencePoints, filterQuery],
+  );
+  const selectedPoint: CourseEvidencePoint | undefined =
+    filteredEvidencePoints[Math.min(pointIdx, Math.max(0, filteredEvidencePoints.length - 1))];
 
-  useClaimKeys(CLAIMED_KEYS, isActive && !modalOpen);
+  const canFilter =
+    !(loading && !spec && !courseEvidence) &&
+    (tab === 'variants' || tab === 'evidence' || (tab === 'calibration' && Boolean(spec)));
+  const claimedKeys = useMemo(
+    () => (tab !== 'mock' ? [...BASE_CLAIMED_KEYS, '/'] : [...BASE_CLAIMED_KEYS]),
+    [tab],
+  );
+  useClaimKeys(claimedKeys, isActive && !modalOpen && !filterOpen);
 
   const hints = useMemo<KeyHint[]>(() => {
     const exportHint: KeyHint = { key: 'X', label: t(lang, '导出画像', 'Export MD') };
+    const filterHint: KeyHint = { key: '/', label: t(lang, '筛选', 'Filter') };
     if (tab === 'calibration') {
       return [
         { key: '1-4', label: t(lang, '标签页', 'Tabs') },
@@ -389,6 +454,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
         { key: 'e', label: t(lang, '编辑配额', 'Edit') },
         { key: 'p', label: t(lang, '学习偏好', 'Preferences') },
         { key: 'f', label: t(lang, '立即备题', 'Prep Queue') },
+        filterHint,
         exportHint,
       ];
     }
@@ -399,6 +465,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
         { key: 'f', label: t(lang, '立即备题', 'Prep Queue') },
         { key: 'p/P', label: t(lang, '教练练习', 'Coach Practice') },
         { key: 'r', label: t(lang, '刷新', 'Refresh') },
+        filterHint,
         exportHint,
       ];
     }
@@ -409,6 +476,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
         { key: 'p', label: t(lang, '练习当前考点', 'Practice') },
         { key: 'P', label: t(lang, '学习偏好', 'Preferences') },
         { key: 'r', label: t(lang, '刷新', 'Refresh') },
+        filterHint,
         exportHint,
       ];
     }
@@ -779,13 +847,53 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
     }
   }, [asciiMode, coachEvidence, coachStatus, course, courseEvidence, host, lang, notify, spec]);
 
+  const switchTab = useCallback((nextTab: CoachTab) => {
+    setTab(nextTab);
+    setFilterOpen(false);
+    setFilterQuery('');
+  }, []);
+
+  const resetActiveTabCursor = useCallback(() => {
+    if (tab === 'calibration') setFamilyIdx(0);
+    else if (tab === 'variants') setWrongIdx(0);
+    else if (tab === 'evidence') setPointIdx(0);
+  }, [tab]);
+
+  const handleFilterChange = useCallback(
+    (val: string) => {
+      setFilterQuery(val);
+      resetActiveTabCursor();
+    },
+    [resetActiveTabCursor],
+  );
+
+  const handleFilterSubmit = useCallback((val: string) => {
+    if (!val.trim()) setFilterQuery('');
+    setFilterOpen(false);
+  }, []);
+
+  const handleFilterClear = useCallback(() => {
+    setFilterQuery('');
+    setFilterOpen(false);
+    resetActiveTabCursor();
+  }, [resetActiveTabCursor]);
+
   useInput(
     (input, key) => {
-      if (modalOpen) return;
-      if (input === '1') { setTab('calibration'); return; }
-      if (input === '2') { setTab('variants'); return; }
-      if (input === '3') { setTab('evidence'); return; }
-      if (input === '4') { setTab('mock'); return; }
+      if (modalOpen || filterOpen) return;
+      if (key.escape && filterQuery && tab !== 'mock') {
+        handleFilterClear();
+        return;
+      }
+      if (input === '/' && !key.ctrl && !key.meta && canFilter) {
+        setFocusPane('left');
+        setFilterOpen(true);
+        return;
+      }
+      if (input === '1') { switchTab('calibration'); return; }
+      if (input === '2') { switchTab('variants'); return; }
+      if (input === '3') { switchTab('evidence'); return; }
+      if (input === '4') { switchTab('mock'); return; }
       if (key.tab) {
         setFocusPane((p) => (p === 'left' ? 'right' : 'left'));
         return;
@@ -852,11 +960,11 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
           void queueVariants([{ deckId: selectedWrong.deckId, cardId: selectedWrong.cardId }]);
           return;
         }
-        if (input === 'G' && wrongItems.length > 0) {
+        if (input === 'G' && filteredWrongItems.length > 0) {
           if (busyRef.current || busyLabel !== null) return;
           const readyIds = new Set((coachStatus?.readyCards ?? []).map((c) => c.originCardId));
           const prepIds = new Set(coachStatus?.preparingCards ?? []);
-          const todo = wrongItems
+          const todo = filteredWrongItems
             .filter((w) => !readyIds.has(w.cardId) && !prepIds.has(w.cardId))
             .slice(0, 5)
             .map((w) => ({ deckId: w.deckId, cardId: w.cardId }));
@@ -895,7 +1003,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
         }
       }
     },
-    { isActive: isActive && !modalOpen },
+    { isActive: isActive && !modalOpen && !filterOpen },
   );
 
   // Modals input handling
@@ -987,6 +1095,42 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
   // Layout dimensions
   const headerH = 3;
   const bodyH = Math.max(8, height - headerH - (errorMsg ? 1 : 0));
+  const showFilterBar = canFilter && (filterOpen || filterQuery.length > 0);
+  const renderInlineFilterBar = (innerW: number, filteredCount: number, totalCount: number, placeholderText: string) => {
+    if (!showFilterBar) return null;
+    const badgeText = `[${filteredCount}/${totalCount}] `;
+    const rightHint = innerW >= 46
+      ? filterOpen
+        ? t(lang, ' Enter|Esc', ' Enter|Esc')
+        : t(lang, ' /|Esc', ' /|Esc')
+      : '';
+    const inputW = Math.max(6, innerW - 2 - displayWidth(badgeText) - displayWidth(rightHint) - 2);
+    return (
+      <Box height={1} width={innerW} backgroundColor={theme.surface} overflow="hidden" paddingX={1}>
+        <Text color={filterOpen ? theme.primary : theme.accent} bold>
+          {badgeText}
+        </Text>
+        <Box flexGrow={1} overflow="hidden">
+          <TextInput
+            value={filterQuery}
+            onChange={handleFilterChange}
+            onSubmit={handleFilterSubmit}
+            onCancel={handleFilterClear}
+            isActive={isActive && !modalOpen && filterOpen}
+            width={inputW}
+            prompt="/"
+            placeholder={placeholderText}
+            maxLength={120}
+          />
+        </Box>
+        {rightHint ? (
+          <Text color={theme.dim} wrap="truncate">
+            {rightHint}
+          </Text>
+        ) : null}
+      </Box>
+    );
+  };
   const calibratedCount = families.filter((f) => f.calibrated).length;
   const prepReadyCount = coachStatus?.ready ?? 0;
   const prepQueuedCount = coachStatus?.preparingCards?.length ?? 0;
@@ -1076,21 +1220,32 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
             left={(sz) => (
               <Panel
                 title={t(lang, '考察任务族', 'Task Families')}
-                badge={families.length}
-                subtitle={t(lang, 'a分析 N样卷笔记', 'a:Analyze N:Notes')}
+                badge={filterQuery.trim() ? `${filteredFamilies.length}/${families.length}` : families.length}
+                subtitle={t(lang, 'a分析 N样卷笔记 /筛选', 'a:Analyze N:Notes /:Filter')}
                 focused={focusPane === 'left'}
                 width={sz.width}
                 height={sz.height}
                 paddingX={0}
               >
+                {renderInlineFilterBar(
+                  Math.max(10, sz.width - 2),
+                  filteredFamilies.length,
+                  families.length,
+                  t(lang, `标题/ID/题型/考点${ell}`, `title/id/format/topic${ell}`),
+                )}
                 <VirtualList
-                  items={families}
+                  items={filteredFamilies}
                   width={Math.max(10, sz.width - 2)}
-                  height={Math.max(3, sz.height - 2)}
-                  selectedIndex={familyIdx}
+                  height={Math.max(2, sz.height - 2 - (showFilterBar ? 1 : 0))}
+                  selectedIndex={Math.min(familyIdx, Math.max(0, filteredFamilies.length - 1))}
                   onChange={setFamilyIdx}
-                  isActive={isActive && !modalOpen && focusPane === 'left'}
-                  emptyText={t(lang, '暂无任务族', 'No task families')}
+                  isActive={isActive && !modalOpen && !filterOpen && focusPane === 'left'}
+                  emptyText={
+                    filterQuery.trim()
+                      ? t(lang, `没有匹配「${filterQuery.trim()}」的任务族`, `No families matching "${filterQuery.trim()}"`)
+                      : t(lang, '暂无任务族', 'No task families')
+                  }
+                  emptyHint={filterQuery.trim() ? t(lang, '按 Esc 清除筛选', 'Press Esc to clear filter') : undefined}
                   renderItem={(f, ctx) => {
                     const icon = f.calibrated ? (asciiMode ? '+' : '✓') : (asciiMode ? 'o' : '○');
                     const meta = `${formatKindLabel(f.primaryFormat, lang)}${asciiMode ? ':' : '·'}${f.quota}`;
@@ -1119,7 +1274,7 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
                     lines={familyLines}
                     width={Math.max(10, sz.width - 4)}
                     height={Math.max(3, sz.height - 2)}
-                    isActive={isActive && !modalOpen && focusPane === 'right'}
+                    isActive={isActive && !modalOpen && !filterOpen && focusPane === 'right'}
                   />
                 ) : (
                   <Text color={theme.muted}>{t(lang, '请选择左侧任务族', 'Select a task family')}</Text>
@@ -1139,22 +1294,36 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
           left={(sz) => (
             <Panel
               title={t(lang, '错题/薄弱题变式状态', 'Weak Cards Variant Status')}
-              badge={wrongItems.length}
-              subtitle={t(lang, 'g单题 G批量 p开练', 'g/G:Queue p:Practice')}
+              badge={filterQuery.trim() ? `${filteredWrongItems.length}/${wrongItems.length}` : wrongItems.length}
+              subtitle={t(lang, 'g单题 G批量 /筛选', 'g/G:Queue /:Filter')}
               focused={focusPane === 'left'}
               width={sz.width}
               height={sz.height}
               paddingX={0}
             >
+              {renderInlineFilterBar(
+                Math.max(10, sz.width - 2),
+                filteredWrongItems.length,
+                wrongItems.length,
+                t(lang, `题干/主题/ID/课程${ell}`, `prompt/topic/id/course${ell}`),
+              )}
               <VirtualList
-                items={wrongItems}
+                items={filteredWrongItems}
                 width={Math.max(10, sz.width - 2)}
-                height={Math.max(3, sz.height - 2)}
-                selectedIndex={wrongIdx}
+                height={Math.max(2, sz.height - 2 - (showFilterBar ? 1 : 0))}
+                selectedIndex={Math.min(wrongIdx, Math.max(0, filteredWrongItems.length - 1))}
                 onChange={setWrongIdx}
-                isActive={isActive && !modalOpen && focusPane === 'left'}
-                emptyText={t(lang, '当前课程暂无待巩固薄弱题', 'No weak cards in current course')}
-                emptyHint={t(lang, '完成刷题后，薄弱题会自动出现在这里以生成举一反三变式。', 'Wrong or weak items appear here for variant generation.')}
+                isActive={isActive && !modalOpen && !filterOpen && focusPane === 'left'}
+                emptyText={
+                  filterQuery.trim()
+                    ? t(lang, `没有匹配「${filterQuery.trim()}」的薄弱题`, `No weak cards matching "${filterQuery.trim()}"`)
+                    : t(lang, '当前课程暂无待巩固薄弱题', 'No weak cards in current course')
+                }
+                emptyHint={
+                  filterQuery.trim()
+                    ? t(lang, '按 Esc 清除筛选', 'Press Esc to clear filter')
+                    : t(lang, '完成刷题后，薄弱题会自动出现在这里以生成举一反三变式。', 'Wrong or weak items appear here for variant generation.')
+                }
                 renderItem={(item, ctx) => {
                   const isReady = (coachStatus?.readyCards ?? []).some((r) => r.originCardId === item.cardId);
                   const isPrep = (coachStatus?.preparingCards ?? []).includes(item.cardId);
@@ -1230,21 +1399,32 @@ export const ExamCoachView: React.FC<ViewProps> = ({ host, width, height, isActi
           left={(sz) => (
             <Panel
               title={t(lang, '考点证据清单', 'Course Point Evidence')}
-              badge={courseEvidence?.summary?.total ?? 0}
-              subtitle={t(lang, 'p 练习考点', 'p:Practice')}
+              badge={filterQuery.trim() ? `${filteredEvidencePoints.length}/${evidencePoints.length}` : (courseEvidence?.summary?.total ?? 0)}
+              subtitle={t(lang, 'p练习 /筛选', 'p:Practice /:Filter')}
               focused={focusPane === 'left'}
               width={sz.width}
               height={sz.height}
               paddingX={0}
             >
+              {renderInlineFilterBar(
+                Math.max(10, sz.width - 2),
+                filteredEvidencePoints.length,
+                evidencePoints.length,
+                t(lang, `标题/状态/缺口提示${ell}`, `title/status/gap${ell}`),
+              )}
               <VirtualList
-                items={evidencePoints}
+                items={filteredEvidencePoints}
                 width={Math.max(10, sz.width - 2)}
-                height={Math.max(3, sz.height - 2)}
-                selectedIndex={pointIdx}
+                height={Math.max(2, sz.height - 2 - (showFilterBar ? 1 : 0))}
+                selectedIndex={Math.min(pointIdx, Math.max(0, filteredEvidencePoints.length - 1))}
                 onChange={setPointIdx}
-                isActive={isActive && !modalOpen && focusPane === 'left'}
-                emptyText={t(lang, '当前课程暂无考点证据数据', 'No point evidence yet')}
+                isActive={isActive && !modalOpen && !filterOpen && focusPane === 'left'}
+                emptyText={
+                  filterQuery.trim()
+                    ? t(lang, `没有匹配「${filterQuery.trim()}」的考点`, `No points matching "${filterQuery.trim()}"`)
+                    : t(lang, '当前课程暂无考点证据数据', 'No point evidence yet')
+                }
+                emptyHint={filterQuery.trim() ? t(lang, '按 Esc 清除筛选', 'Press Esc to clear filter') : undefined}
                 renderItem={(pt, ctx) => {
                   const badge = `[${overallLabel(pt.overall, lang)}]`;
                   const metaW = displayWidth(badge) + 1;

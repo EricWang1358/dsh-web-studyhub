@@ -1121,7 +1121,7 @@ export const BookView: React.FC<ViewProps> = ({ host, width, height, isActive })
         return;
       }
       if (input === '/' && !key.ctrl && !key.meta) {
-        if (status === 'ok' && items.length > 0) {
+        if (items.length > 0) {
           setActivePane('left');
           setFilterEditing(true);
         }

@@ -5,6 +5,7 @@ import {
   formatDoctorReport,
   formatStatsSummary,
   shouldAutoAscii,
+  toPureAscii,
   type ParsedCliArgs,
 } from './cli-args.js';
 
@@ -16,6 +17,66 @@ export interface ExportReceipt {
   cards: number;
   libraryRoot: string;
   generatedAt: string;
+}
+
+export interface SearchCardHit {
+  deckId: string;
+  cardId: string;
+  prompt: string;
+  topic: string;
+  deckTitle: string;
+  course: string;
+}
+
+export interface SearchPassageHit {
+  sourceId: string;
+  title: string;
+  course: string;
+  page: number | null;
+  snippet: string;
+}
+
+export interface SearchCliReport {
+  version: string;
+  libraryRoot: string;
+  query: string;
+  limit: number;
+  generatedAt: string;
+  totals: {
+    cards: number;
+    passages: number;
+  };
+  cards: SearchCardHit[];
+  passages: SearchPassageHit[];
+}
+
+interface BackendCardSearchHit {
+  deckId?: string;
+  deckTitle?: string;
+  course?: string;
+  cardId?: string;
+  topic?: string;
+  prompt?: string;
+}
+
+interface BackendCardSearchResponse {
+  results?: BackendCardSearchHit[];
+}
+
+interface BackendContentSearchHit {
+  kind?: string;
+  sourceId?: string;
+  title?: string;
+  course?: string;
+  page?: number | null;
+  snippet?: string;
+}
+
+interface BackendContentSearchResponse {
+  results?: BackendContentSearchHit[];
+  groups?: {
+    sources?: BackendContentSearchHit[];
+  };
 }
 
 /**
@@ -201,6 +262,168 @@ export async function runExportFastPath(args: ParsedCliArgs, version = '1.0.0'):
         `  ${bullet} Generated: ${receipt.generatedAt}`,
       ];
       process.stdout.write(`${lines.join('\n')}\n`);
+    }
+  } finally {
+    await host.dispose().catch(() => {});
+  }
+}
+
+function strVal(value: unknown): string {
+  return typeof value === 'string' ? value : typeof value === 'number' ? String(value) : '';
+}
+
+function singleLine(value: unknown): string {
+  return strVal(value).replace(/\s+/g, ' ').trim();
+}
+
+function clipText(value: unknown, max: number, ascii: boolean): string {
+  const base = singleLine(value);
+  const text = ascii ? toPureAscii(base) : base;
+  if (!text) return '';
+  if (text.length <= max) return text;
+  const ell = ascii ? '...' : '…';
+  return `${text.slice(0, Math.max(1, max - ell.length)).trimEnd()}${ell}`;
+}
+
+/**
+ * Format a `SearchCliReport` for terminal output. Guaranteed 100% pure ASCII when `ascii` is true.
+ */
+export function formatSearchReport(report: SearchCliReport, ascii = false): string {
+  const rule = ascii ? '----------------------------------------' : '────────────────────────────────────────';
+  const bullet = ascii ? '-' : '•';
+  const sep = ascii ? ' | ' : ' · ';
+  const clean = (s: string) => (ascii ? toPureAscii(singleLine(s)) : singleLine(s));
+
+  const lines = [
+    `StudyHub TUI Search (v${clean(report.version)})`,
+    rule,
+    `Query: "${clean(report.query)}" (limit ${report.limit})`,
+    `Library: ${clean(report.libraryRoot || '(unset)')}`,
+    `Matches: ${report.totals.cards} cards, ${report.totals.passages} passages`,
+    `Cards (${report.cards.length})`,
+  ];
+
+  if (report.cards.length === 0) {
+    lines.push(`  ${bullet} (none)`);
+  } else {
+    for (const card of report.cards) {
+      const promptText = clipText(card.prompt, 120, ascii) || clipText(card.topic, 120, ascii) || clean(card.cardId);
+      const meta = [
+        clipText(card.topic, 40, ascii),
+        clipText(card.deckTitle, 40, ascii),
+        clipText(card.course, 32, ascii),
+      ]
+        .filter(Boolean)
+        .join(sep);
+      lines.push(`  ${bullet} ${promptText}${meta ? ` [${meta}]` : ''}`);
+    }
+  }
+
+  lines.push(`Passages (${report.passages.length})`);
+  if (report.passages.length === 0) {
+    lines.push(`  ${bullet} (none)`);
+  } else {
+    for (const passage of report.passages) {
+      const titleText = clipText(passage.title, 80, ascii) || clean(passage.sourceId);
+      const pageTag =
+        typeof passage.page === 'number' && Number.isFinite(passage.page) && passage.page >= 1
+          ? ` (p.${Math.trunc(passage.page)})`
+          : '';
+      const courseTag = clipText(passage.course, 32, ascii);
+      const snippetText = clipText(passage.snippet, 120, ascii);
+      const header = `${titleText}${pageTag}${courseTag ? ` [${courseTag}]` : ''}`;
+      lines.push(`  ${bullet} ${header}${snippetText ? `: ${snippetText}` : ''}`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * Run `--search <query>` offline full-text search across cards & source passages without loading React, Ink, or any LLM provider.
+ */
+export async function runSearchFastPath(parsed: ParsedCliArgs, version = '1.0.0'): Promise<void> {
+  const query = (parsed.searchQuery ?? '').trim();
+  const rawLimit = parsed.searchLimit ?? 10;
+  const limit = Math.max(1, Math.min(100, Math.trunc(rawLimit)));
+
+  const { createTuiHost } = await import('./host/tui-host.js');
+  const host = await createTuiHost({
+    libraryRoot: parsed.libraryRoot,
+    skipAutoProbe: true,
+    language: parsed.language,
+  });
+
+  try {
+    const contentLimit = Math.min(100, Math.max(limit * 4, 24));
+    const [cardRes, contentRes] = await Promise.all([
+      host.call<BackendCardSearchResponse>('card.search', { query, limit }).catch(() => null),
+      host
+        .call<BackendContentSearchResponse>('search.content', { query, limit: contentLimit, includeSample: true })
+        .catch(() => null),
+    ]);
+
+    const cardHits = cardRes?.ok && Array.isArray(cardRes.value?.results) ? cardRes.value.results : [];
+    const rawContentHits =
+      contentRes?.ok && Array.isArray(contentRes.value?.groups?.sources)
+        ? contentRes.value.groups.sources
+        : contentRes?.ok && Array.isArray(contentRes.value?.results)
+          ? contentRes.value.results.filter((item) => item?.kind === 'source')
+          : [];
+
+    const cards: SearchCardHit[] = [];
+    for (const hit of cardHits) {
+      if (cards.length >= limit) break;
+      const deckId = strVal(hit?.deckId);
+      const cardId = strVal(hit?.cardId);
+      if (!deckId || !cardId) continue;
+      cards.push({
+        deckId,
+        cardId,
+        prompt: singleLine(hit?.prompt),
+        topic: singleLine(hit?.topic),
+        deckTitle: singleLine(hit?.deckTitle),
+        course: singleLine(hit?.course),
+      });
+    }
+
+    const passages: SearchPassageHit[] = [];
+    for (const hit of rawContentHits) {
+      if (passages.length >= limit) break;
+      const sourceId = strVal(hit?.sourceId);
+      if (!sourceId) continue;
+      const page =
+        typeof hit?.page === 'number' && Number.isFinite(hit.page) && hit.page >= 1
+          ? Math.trunc(hit.page)
+          : null;
+      passages.push({
+        sourceId,
+        title: singleLine(hit?.title) || sourceId,
+        course: singleLine(hit?.course),
+        page,
+        snippet: singleLine(hit?.snippet),
+      });
+    }
+
+    const report: SearchCliReport = {
+      version,
+      libraryRoot: host.getLibraryRoot() || parsed.libraryRoot || '',
+      query,
+      limit,
+      generatedAt: new Date().toISOString(),
+      totals: {
+        cards: cards.length,
+        passages: passages.length,
+      },
+      cards,
+      passages,
+    };
+
+    if (parsed.json) {
+      process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+    } else {
+      const ascii = parsed.asciiMode ?? shouldAutoAscii(process.env);
+      process.stdout.write(`${formatSearchReport(report, ascii)}\n`);
     }
   } finally {
     await host.dispose().catch(() => {});

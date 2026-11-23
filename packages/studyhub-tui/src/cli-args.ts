@@ -8,6 +8,8 @@ export interface ParsedCliArgs {
   stats: boolean;
   exportBackup: boolean;
   exportPath?: string;
+  searchQuery?: string;
+  searchLimit?: number;
   json: boolean;
   libraryRoot?: string;
   theme?: ThemeId;
@@ -242,6 +244,29 @@ export function parseCliArgs(argv: readonly string[]): ParsedCliArgs {
       continue;
     }
 
+    if (flag === '--search') {
+      const val = takeValue();
+      const trimmed = val?.trim() ?? '';
+      if (!trimmed) {
+        result.error = 'Missing value for --search';
+        return result;
+      }
+      result.searchQuery = trimmed;
+      continue;
+    }
+
+    if (flag === '--limit') {
+      const val = takeValue();
+      const trimmed = val?.trim() ?? '';
+      const n = trimmed && /^\d+$/.test(trimmed) ? Number(trimmed) : NaN;
+      if (!Number.isInteger(n) || n < 1 || n > 100) {
+        result.error = `Invalid --limit "${val ?? ''}". Expected an integer between 1 and 100`;
+        return result;
+      }
+      result.searchLimit = n;
+      continue;
+    }
+
     if (flag === '--root' || flag === '--library' || flag === '-r') {
       const val = takeValue();
       if (!val) {
@@ -319,6 +344,9 @@ export function cliHelpText(version = '1.0.0'): string {
     '      --stats --json    Print offline library summary in JSON format and exit',
     '      --export [path]   Export full library JSON backup atomically and exit',
     '      --export --json   Export backup and print JSON receipt',
+    '      --search <query>  Search cards & source passages offline and exit',
+    '      --search <query> --json   Print search results in JSON format and exit',
+    '      --limit <n>       Limit --search results per category (1..100, default 10)',
     '  -v, --version         Print version and exit',
     '  -h, --help            Show this help message',
     '',
@@ -551,7 +579,7 @@ function toFiniteCount(value: unknown): number {
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
 }
 
-function toPureAscii(text: string): string {
+export function toPureAscii(text: string): string {
   return text
     .replace(/[·•]/g, '-')
     .replace(/[—–]/g, '-')

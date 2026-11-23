@@ -9,8 +9,9 @@ import { useShellActions } from '../../shell/actions.js';
 import { useTheme } from '../../theme/tokens.js';
 import { EmptyState, Spinner } from '../../components/Badge.js';
 import { Panel } from '../../components/Panel.js';
+import { TextInput } from '../../components/TextInput.js';
 import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
-import { useClaimKeys } from '../../components/focus.js';
+import { useClaimKeys, useInputCapture } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, padDisplay, truncateDisplay } from '../../render/cjk.js';
 import {
@@ -115,7 +116,7 @@ interface DeckProgressEntry {
   };
 }
 
-type DrillItem =
+export type DrillItem =
   | {
       kind: 'weak';
       key: string;
@@ -135,6 +136,33 @@ type DrillItem =
       dueCount: number;
       weakCount: number;
     };
+
+export type DashboardDrillFilterable =
+  | { kind: 'weak'; topic?: string | null; course?: string | null }
+  | { kind: 'course'; label?: string | null; course?: string | null };
+
+/**
+ * Filter dashboard drill items (weak topics and course rows) by a case-insensitive substring query.
+ */
+export function filterDashboardDrillItems<T extends DashboardDrillFilterable>(
+  items: readonly T[],
+  query: string,
+): T[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return items as T[];
+  return items.filter((item) => {
+    if (item.kind === 'weak') {
+      return (
+        (item.topic ?? '').toLowerCase().includes(q) ||
+        (item.course ?? '').toLowerCase().includes(q)
+      );
+    }
+    return (
+      (item.label ?? '').toLowerCase().includes(q) ||
+      (item.course ?? '').toLowerCase().includes(q)
+    );
+  });
+}
 
 function formatForecastLabel(date: string, index: number, lang: 'zh' | 'en'): string {
   if (index === 0) return t(lang, '今日', 'Today');
@@ -382,6 +410,8 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedIdx, setSelectedIdx] = useState(0);
+  const [filterQuery, setFilterQuery] = useState('');
+  const [filterOpen, setFilterOpen] = useState(false);
   const [busyPractice, setBusyPractice] = useState(false);
   const [showForecast, setShowForecast] = useState(false);
   const [mapModalOpen, setMapModalOpen] = useState(false);
@@ -555,11 +585,16 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
     return items;
   }, [weakTopics, courseStats]);
 
+  const filteredDrillItems = useMemo(
+    () => filterDashboardDrillItems(drillItems, filterQuery),
+    [drillItems, filterQuery],
+  );
+
   useEffect(() => {
-    if (selectedIdx >= drillItems.length) {
-      setSelectedIdx(Math.max(0, drillItems.length - 1));
+    if (selectedIdx >= filteredDrillItems.length) {
+      setSelectedIdx(Math.max(0, filteredDrillItems.length - 1));
     }
-  }, [drillItems.length, selectedIdx]);
+  }, [filteredDrillItems.length, selectedIdx]);
 
   const startReviewWith = useCallback(
     async (args: Record<string, unknown>, failMsg: string) => {
@@ -668,8 +703,10 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
     }
   }, [asciiMode, bindingRoot, course, courseStats, dailyPlan, host, lang, notify, stats, usage, usageDays]);
 
-  const claimedKeys = useMemo(() => ['j', 'k', 'r', 'p', 'w', 'f', 'm', 'd', 'x'], []);
-  useClaimKeys(claimedKeys, isActive && !mapModalOpen);
+  const viewInputActive = isActive && !mapModalOpen;
+  const claimedKeys = useMemo(() => ['j', 'k', 'r', 'p', 'w', 'f', 'm', 'd', 'x', '/'], []);
+  useClaimKeys(claimedKeys, viewInputActive);
+  useInputCapture(viewInputActive && filterOpen);
 
   const footerHints = useMemo(
     () => [
@@ -688,13 +725,24 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
       { key: 'd', label: t(lang, `用量:${usageDays}天`, `Usage:${usageDays}d`) },
       { key: 'x', label: t(lang, '导出报告', 'Export MD') },
       { key: 'r', label: t(lang, '刷新', 'Refresh') },
+      { key: '/', label: t(lang, '筛选', 'Filter') },
     ],
     [lang, extraWide, showForecast, usageDays],
   );
-  useFooterHints(footerHints, isActive && !mapModalOpen);
+  useFooterHints(footerHints, viewInputActive);
 
   useInput(
-    (input) => {
+    (input, key) => {
+      if (key.escape && filterQuery) {
+        setFilterQuery('');
+        setSelectedIdx(0);
+        return;
+      }
+      if (input === '/' && !key.ctrl && !key.meta) {
+        setFilterOpen(true);
+        setSelectedIdx(0);
+        return;
+      }
       if (input === 'm') {
         setMapModalOpen(true);
         return;
@@ -724,10 +772,11 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
         return;
       }
       if (input === 'p') {
-        launchDrillItem(drillItems[selectedIdx]);
+        const idx = Math.min(selectedIdx, Math.max(0, filteredDrillItems.length - 1));
+        launchDrillItem(filteredDrillItems[idx]);
       }
     },
-    { isActive: isActive && !mapModalOpen },
+    { isActive: viewInputActive && !filterOpen },
   );
 
   const totals = stats?.totals;
@@ -899,7 +948,7 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
   const kpiRowsHeight = wide ? 5 : 4;
   const middleSectionH = midH;
   const drillListPanelH = Math.max(5, height - 1 - kpiRowsHeight - middleSectionH);
-  const drillListRows = Math.max(1, drillListPanelH - 2);
+  const drillListRows = Math.max(1, drillListPanelH - 2 - (filterOpen ? 1 : 0));
 
   const renderDrillRow = useCallback(
     (item: DrillItem, ctx: VirtualListRenderContext) => {
@@ -997,6 +1046,45 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
   const titleCourse = course ? `${titleSep}${course}` : t(lang, `${titleSep}全部课程`, `${titleSep}All Courses`);
   const habitHeaderWidth = Math.max(0, width - displayWidth(titleLeft) - displayWidth(titleCourse) - 2);
 
+  const innerPanelW = Math.max(10, width - 4);
+  const trimmedFilter = filterQuery.trim();
+  const hasActiveFilter = trimmedFilter.length > 0;
+  const drillSepDot = asciiMode ? ' / ' : ' · ';
+  const ell = asciiMode ? '...' : '…';
+  const drillPanelBadge = hasActiveFilter
+    ? `${filteredDrillItems.length}/${drillItems.length}`
+    : weakTopics.length > 0
+      ? weakTopics.length
+      : drillItems.length;
+  const drillPanelBadgeTone = hasActiveFilter
+    ? filteredDrillItems.length > 0
+      ? 'info'
+      : 'warning'
+    : weakTopics.length > 0
+      ? 'warning'
+      : 'success';
+  const drillPanelSubtitle = hasActiveFilter
+    ? t(
+        lang,
+        `筛选: ${trimmedFilter} (${filteredDrillItems.length}/${drillItems.length})`,
+        `Filter: ${trimmedFilter} (${filteredDrillItems.length}/${drillItems.length})`,
+      )
+    : weakTopics.length > 0
+      ? t(
+          lang,
+          `薄弱 ${weakTopics.length}${drillSepDot}课程 ${courseStats.length}`,
+          `${weakTopics.length} weak${drillSepDot}${courseStats.length} courses`,
+        )
+      : undefined;
+  const filterBarBadge = `[${t(lang, '筛选', 'Filter')} ${filteredDrillItems.length}/${drillItems.length}] `;
+  const filterBarHint =
+    innerPanelW >= 62
+      ? ` ${t(lang, 'Enter 确认 | Esc 清除', 'Enter apply | Esc clear')}`
+      : innerPanelW >= 44
+        ? ' Enter/Esc'
+        : '';
+  const filterInputW = Math.max(8, innerPanelW - displayWidth(filterBarBadge) - displayWidth(filterBarHint) - 3);
+
   return (
     <Box flexDirection="column" width={width} height={height} overflow="hidden">
       <Box flexDirection="row" justifyContent="space-between" height={1} flexShrink={0}>
@@ -1092,17 +1180,48 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
 
       <Panel
         title={t(lang, '薄弱点与课程钻取 (Enter/p 立即练习)', 'Weak Topics & Courses (Enter/p Practise)')}
-        badge={weakTopics.length > 0 ? weakTopics.length : drillItems.length}
-        badgeTone={weakTopics.length > 0 ? 'warning' : 'success'}
-        subtitle={
-          weakTopics.length > 0
-            ? t(lang, `薄弱 ${weakTopics.length} · 课程 ${courseStats.length}`, `${weakTopics.length} weak · ${courseStats.length} courses`)
-            : undefined
-        }
-        focused={isActive && !mapModalOpen}
+        badge={drillPanelBadge}
+        badgeTone={drillPanelBadgeTone}
+        subtitle={drillPanelSubtitle}
+        focused={viewInputActive}
         width={width}
         height={drillListPanelH}
       >
+        {filterOpen ? (
+          <Box height={1} width={innerPanelW} backgroundColor={theme.surface} overflow="hidden">
+            <Text color={theme.primary} bold>
+              {filterBarBadge}
+            </Text>
+            <Box flexGrow={1} overflow="hidden">
+              <TextInput
+                value={filterQuery}
+                onChange={(next) => {
+                  setFilterQuery(next);
+                  setSelectedIdx(0);
+                }}
+                onSubmit={(val) => {
+                  if (!val.trim()) setFilterQuery('');
+                  setFilterOpen(false);
+                }}
+                onCancel={() => {
+                  setFilterQuery('');
+                  setFilterOpen(false);
+                  setSelectedIdx(0);
+                }}
+                isActive={viewInputActive && filterOpen}
+                width={filterInputW}
+                prompt="/"
+                placeholder={t(lang, `知识点/课程${ell}`, `topic/course${ell}`)}
+                maxLength={120}
+              />
+            </Box>
+            {filterBarHint ? (
+              <Text color={theme.dim} wrap="truncate">
+                {filterBarHint}
+              </Text>
+            ) : null}
+          </Box>
+        ) : null}
         {drillItems.length === 0 ? (
           <EmptyState
             icon={asciiMode ? '+' : '✓'}
@@ -1110,17 +1229,40 @@ export const DashboardView: React.FC<ViewProps> = ({ host, width, height, isActi
             hint={t(lang, '继续保持每日 FSRS 间隔复习', 'Keep up your daily FSRS reviews')}
             height={drillListRows}
           />
+        ) : filteredDrillItems.length === 0 ? (
+          drillListRows >= 4 ? (
+            <EmptyState
+              icon={asciiMode ? '?' : '⌕'}
+              title={t(lang, `没有匹配「${trimmedFilter}」的薄弱点或课程`, `No topics or courses matching "${trimmedFilter}"`)}
+              hint={t(lang, '按 Esc 清除筛选条件', 'Press Esc to clear filter')}
+              height={drillListRows}
+            />
+          ) : (
+            <Box height={drillListRows} width={innerPanelW} alignItems="center" justifyContent="center" overflow="hidden">
+              <Text color={theme.muted} wrap="truncate">
+                {truncateDisplay(
+                  t(
+                    lang,
+                    `没有匹配「${trimmedFilter}」的薄弱点或课程 (Esc 清除)`,
+                    `No topics or courses matching "${trimmedFilter}" (Esc clear)`,
+                  ),
+                  innerPanelW,
+                  ell,
+                )}
+              </Text>
+            </Box>
+          )
         ) : (
           <VirtualList
-            items={drillItems}
+            items={filteredDrillItems}
             height={drillListRows}
-            width={Math.max(10, width - 4)}
+            width={innerPanelW}
             selectedIndex={selectedIdx}
             onChange={(idx) => setSelectedIdx(idx)}
             onSelect={(item) => launchDrillItem(item)}
             renderItem={renderDrillRow}
             keyExtractor={(item) => item.key}
-            isActive={isActive && !mapModalOpen}
+            isActive={viewInputActive && !filterOpen}
           />
         )}
       </Panel>

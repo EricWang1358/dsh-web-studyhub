@@ -134,6 +134,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'f', label: t(lang, '7天预测', '7d forecast') },
         { key: 'm', label: t(lang, '知识地图 / 依赖图', 'Study map & prereq graph') },
         { key: 'd / x', label: t(lang, '切换用量周期 / 导出进度报告', 'Usage window / Export report') },
+        { key: '/', label: t(lang, '筛选薄弱点与课程', 'Filter weak topics & courses') },
       ],
     },
     {
@@ -150,6 +151,7 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'p', label: t(lang, '学习画像与偏好及记忆要点', 'Coach profile, prefs & bullets') },
         { key: 'f', label: t(lang, '触发教练后台备题队列', 'Flush coach prep queue') },
         { key: 'X', label: t(lang, '导出校准与学习画像 (MD)', 'Export coach profile (MD)') },
+        { key: '/', label: t(lang, '筛选任务族/错题/考点', 'Filter families/variants/points') },
       ],
     },
     {

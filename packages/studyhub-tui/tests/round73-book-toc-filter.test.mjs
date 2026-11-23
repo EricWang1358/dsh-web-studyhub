@@ -479,6 +479,7 @@ describe('Round 73 Track 2: BookView / Live TOC Filter', () => {
       );
       tty.assertHealthyScreen(initScreen, 80, 24, 'BookView initial 80x24 --ascii (en)');
       tty.assertAsciiPure(initScreen, 'BookView initial 80x24 --ascii (en)');
+      await tty.flush(60);
 
       // Press '/' -> filter to Paxos
       tty.send('/');
