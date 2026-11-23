@@ -310,14 +310,15 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
       setPracticeStack([]);
       return false;
     }
+    let courseRestore = null;
     if (frame.courseSwitched) {
-      await restoreCourseFocus({
+      courseRestore = await restoreCourseFocus({
         origin: frame,
         currentCourse: refs.dataRef.current?.focus?.course ?? null,
         call,
         live,
       });
-      if (!live()) return false;
+      if (courseRestore?.aborted || !live()) return false;
     }
     const result = await restorePracticeFrame({
       frame,
@@ -331,6 +332,18 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
       },
     });
     if (!live()) return false;
+    let refreshMessage = null;
+    if (courseRestore?.restored && typeof refresh === 'function') {
+      try {
+        await refresh();
+      } catch (error) {
+        if (!live()) return false;
+        refreshMessage = errorMessage(error);
+      }
+      if (!live()) return false;
+    }
+    const warning = courseRestore?.failureMessage || refreshMessage;
+    if (warning) setError(warning);
     if (result.status === 'restored') {
       setPracticeStack(nextStack);
       setContextTrail((previous) => (previous.at(-1)?.page === 'review' ? previous.slice(0, -1) : previous));
@@ -343,7 +356,7 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
       return false;
     }
     return false;
-  }, [call, guard, refs, session, setContextTrail, setError, setFocusRequest, setModal, setPracticeEnded, setPracticeStack]);
+  }, [call, guard, refresh, refs, session, setContextTrail, setError, setFocusRequest, setModal, setPracticeEnded, setPracticeStack]);
 
   const returnFromPracticeStack = useCallback(async () => {
     if (!(await draftSaved())) return false;
@@ -388,11 +401,8 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
   const openSourceAt = useCallback((sourceId, offset) => {
     const source = (refs.dataRef.current?.sources || []).find((item) => item.id === sourceId);
     if (!source) { notify(ui('这份资料已被删除。')); return; }
-    if (latest.current.page === 'review' && latest.current.run?.card?.id) {
-      pushPracticeContext({ originKind: 'source', reading: { sourceId, at: Math.max(0, Number(offset) || 0) } });
-    }
     setModal({ type: 'source', source, resume: { at: Math.max(0, Number(offset) || 0), sectionOffset: 0, scrollTop: 0, progress: 0, nonce: Date.now() } });
-  }, [notify, pushPracticeContext, refs, setModal]);
+  }, [notify, refs, setModal]);
 
   // After an arrival, the heading (or the control the learner came from) takes focus.
   const focusRequest = lib.state.focusRequest;

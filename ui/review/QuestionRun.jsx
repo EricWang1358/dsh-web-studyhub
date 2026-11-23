@@ -23,7 +23,7 @@ import { voteTipMoments } from "../guidance/practice-tips.js";
 import { reviewEntryKey } from "../async.js";
 import ModelErrorNote from "../ModelErrorNote.jsx";
 import TeachingPanel from "./TeachingPanel.jsx";
-import SocraticInlineDrawer, { SocraticWrongNudge, useSocraticInlineState } from "./SocraticInlineDrawer.jsx";
+import LazySocraticInlineDrawer, { SocraticWrongNudge, useSocraticInlineState } from "./LazySocraticInline.jsx";
 import { describeModelError, modelReadiness, plainAssistFailure } from "../generation-status.js";
 import { readableQualityIssue } from "../quality.js";
 import { ReadingBlock, useReadingProps } from "../reading-settings/ReadingSettings.jsx";
@@ -734,7 +734,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
         <PostAnswerDetails session={liveSession} data={data} model={model} onModelSettings={modelSettings} openModal={openModal} showSolution={showSolution} verdict={verdict} enOn={enOn} enAnswer={enAnswer} defaultOpen={!!inline} misconceptionShownAbove={answeredWrong} nextDueNode={run.feedback ? <NextDue feedback={run.feedback} telemetry={run.feedbackTelemetry} whyOnly /> : null} />
         <TeachingPanel session={liveSession} data={data} model={model} onModelSettings={modelSettings} />
       </div>
-      {socratic.open && <SocraticInlineDrawer key={`socratic:${run.deckId}:${run.card.id}`} deckId={run.deckId} cardId={run.card.id} runId={run.id} prompt={run.card.prompt || ""} topic={run.card.topic || ""} modelReady={model.ready} onClose={socratic.close} onCloseToQuestion={socratic.returnToQuestion} onNotify={notify} />}
+      {socratic.open && <LazySocraticInlineDrawer key={`socratic:${run.deckId}:${run.card.id}`} deckId={run.deckId} cardId={run.card.id} runId={run.id} prompt={run.card.prompt || ""} topic={run.card.topic || ""} modelReady={model.ready} modelConfirmed={socratic.modelConfirmed} onSaveModelConfirm={socratic.saveModelConfirm} cardAnswered={socratic.cardAnswered} retryQueued={socratic.retryQueued} onClose={socratic.close} onCloseToQuestion={socratic.returnToQuestion} onNotify={notify} />}
     </div>
   );
 }

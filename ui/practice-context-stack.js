@@ -20,6 +20,10 @@ export function originKindForDestination(page, modal = null) {
   return 'other';
 }
 
+function normalizeClozeValues(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? { ...value } : {};
+}
+
 function cloneDraft(entry, run) {
   if (!entry || typeof entry !== 'object') return null;
   const key = reviewEntryKey(run);
@@ -27,7 +31,7 @@ function cloneDraft(entry, run) {
     key,
     selected: Array.isArray(entry.selected) ? [...entry.selected] : [],
     response: typeof entry.response === 'string' ? entry.response : '',
-    clozeValues: Array.isArray(entry.clozeValues) ? [...entry.clozeValues] : [],
+    clozeValues: normalizeClozeValues(entry.clozeValues),
     hint: Boolean(entry.hint),
     explain: Boolean(entry.explain),
     teachAnswer: typeof entry.teachAnswer === 'string' ? entry.teachAnswer : '',
@@ -91,7 +95,16 @@ export function pushPracticeFrame(stack = [], frame = null) {
   if (!frame || !frame.runId || !frame.cardId) return list;
   const top = list.at(-1);
   if (top && top.root === frame.root && top.runId === frame.runId && top.cardId === frame.cardId && top.index === frame.index) {
-    return [...list.slice(0, -1), { ...top, ...frame, id: top.id }];
+    return [
+      ...list.slice(0, -1),
+      {
+        ...top,
+        ...frame,
+        id: top.id,
+        courseSwitched: Boolean(top.courseSwitched || frame.courseSwitched),
+        course: top.courseSwitched ? top.course : frame.course,
+      },
+    ];
   }
   const next = [...list, frame];
   return next.length > MAX_PRACTICE_STACK_DEPTH ? next.slice(-MAX_PRACTICE_STACK_DEPTH) : next;
@@ -211,6 +224,12 @@ export function readLastPracticePosition(storage, root) {
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object' || typeof parsed.runId !== 'string' || !parsed.runId || typeof parsed.cardId !== 'string' || !parsed.cardId) {
       return null;
+    }
+    if (parsed.draft && typeof parsed.draft === 'object') {
+      parsed.draft = {
+        ...parsed.draft,
+        clozeValues: normalizeClozeValues(parsed.draft.clozeValues),
+      };
     }
     return parsed;
   } catch {

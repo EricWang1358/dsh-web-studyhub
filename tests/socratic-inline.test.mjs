@@ -6,8 +6,12 @@ import { join } from 'node:path';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { StudyService } from '../lib/service.js';
-import { SOCRATIC_MAX_TURNS, enforceSingleQuestion } from '../lib/contexts/study/socratic-inline.js';
+import { SOCRATIC_MAX_TURNS, buildRevealMessage, enforceSingleQuestion } from '../lib/contexts/study/socratic-inline.js';
 import { studyStats, wrongBook } from '../lib/insights.js';
+import { cardLevel, latestOutcomes } from '../lib/mastery.js';
+import { undoableForRun } from '../lib/contexts/study/undo-ops.js';
+import { extractLearnerPace } from '../lib/pace/forecast.js';
+import { recapGroups } from '../lib/daily-recap.js';
 import { wrongDetail } from '../lib/wrong-detail.js';
 import { assistantRefusal } from '../lib/assistant-boundary.js';
 import { loadUi } from './helpers/ui-module.mjs';
@@ -18,6 +22,7 @@ const uiMod = await loadUi(`
   export { default as ReviewToolbar } from './ui/ReviewToolbar.jsx';
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { shortcutAction } from './ui/review/session-logic.js';
+  export { computeTodayPace } from './ui/review/today-pace.js';
   export { formatSocraticTurnCopy, formatSocraticTranscriptCopy } from './ui/review/socratic-copy.js';
   export { setUiLanguage } from './ui/i18n.js';
 `);
@@ -161,7 +166,7 @@ test('2) 阶梯提示 L1 -> L2：答偏逐级升级、等级可见且后端持�
   assert.equal(card.socratic.stage, 'judge');
 });
 
-test('3) 答对要求复述，复述不合格继续追问，合格后进入小结并提供回到原题重做', async (t) => {
+test('3) 答对要求复述，复述不合格继续追问，合格后进入小结并提供诚实的收尾 CTA', async (t) => {
   const service = await createSeededService(t);
 
   // Right answer at L0 -> moves to retell stage
@@ -199,11 +204,20 @@ test('3) 答对要求复述，复述不合格继续追问，合格后进入小�
   assert.equal(goodRetell.state.retellPassed, true);
   assert.equal(goodRetell.state.summary.mastered, true);
 
-  const summaryHtml = renderToStaticMarkup(h(uiMod.SocraticInlineDrawer, {
-    deckId: 'deck-os', cardId: 'card-deadlock', initialView: goodRetell, modelReady: false,
+  // Unanswered card -> CTA is 「回到原题作答」
+  const unansweredSummaryHtml = renderToStaticMarkup(h(uiMod.SocraticInlineDrawer, {
+    deckId: 'deck-os', cardId: 'card-deadlock', initialView: goodRetell, modelReady: false, cardAnswered: false,
   }));
-  assert.match(summaryHtml, /data-testid="socratic-inline-summary"/);
-  assert.match(summaryHtml, /回到原题重做/);
+  assert.match(unansweredSummaryHtml, /data-testid="socratic-inline-summary"/);
+  assert.match(unansweredSummaryHtml, /回到原题作答/);
+
+  // Already-answered card with queued retry -> honest 「收起带学」 + retry note, never misleading 「回到原题重做」 button
+  const answeredSummaryHtml = renderToStaticMarkup(h(uiMod.SocraticInlineDrawer, {
+    deckId: 'deck-os', cardId: 'card-deadlock', initialView: goodRetell, modelReady: false, cardAnswered: true, retryQueued: true,
+  }));
+  assert.match(answeredSummaryHtml, /<button[^>]*>收起带学<\/button>/);
+  assert.match(answeredSummaryHtml, /本轮末尾会再考一遍这道题/);
+  assert.doesNotMatch(answeredSummaryHtml, /<button[^>]*>[^<]*回到原题重做/);
 });
 
 test('4) 中断恢复与历史滑动窗口：重新打开该卡从上次阶段恢复，历史不超过上限', async (t) => {
@@ -281,14 +295,20 @@ test('5) 复制本条与复制整段包含题目、我的作答、提示等级�
   assert.match(html, /复制整段/);
 });
 
-test('6) 统计计入 (#1308) + 错题本显示提示等级 + 宽/窄屏不遮挡题目与选项', async (t) => {
+test('6) 统计隔离与独立口径 (#1323-11) + 错题本保留薄弱并显示提示等级 + 宽/窄屏不遮挡题目与选项', async (t) => {
   const service = await createSeededService(t);
+  const now = Date.now();
 
-  // Reach L1 then answer right, then pass retell
-  await service.call('socratic.step', { deckId: 'deck-os', cardId: 'card-deadlock', text: '不会', offline: true });
+  // Official wrong answer on the real question first -> card enters WrongBook weak & is undoable
+  const run = await service.call('review.start', { mode: 'path', scope: [{ deckId: 'deck-os', cardId: 'card-deadlock' }] });
+  await service.call('review.answer', { runId: run.id, cardId: 'card-deadlock', selected: ['b'] });
+
+  // Now open Socratic drawer, get L1 hint, answer right, and pass retell (all inside the same runId)
+  await service.call('socratic.step', { deckId: 'deck-os', cardId: 'card-deadlock', runId: run.id, text: '不会', offline: true });
   const right = await service.call('socratic.step', {
     deckId: 'deck-os',
     cardId: 'card-deadlock',
+    runId: run.id,
     text: '给资源按全局顺序编号并升序申请，破坏循环等待条件',
     offline: true,
   });
@@ -297,34 +317,67 @@ test('6) 统计计入 (#1308) + 错题本显示提示等级 + 宽/窄屏不遮�
   assert.equal(right.attempt.grade, 3, 'L1-assisted right answer grades as 3');
   assert.equal(right.attempt.socratic.hintLevel, 1);
 
-  // Verify counted in studyStats (#1308 alignment)
-  const state = await service.store.read();
-  const stats = studyStats(state, { course: '操作系统' }, new Date());
-  assert.equal(stats.totals.attempts, 1);
-  assert.equal(stats.totals.gradedAttempts, 1);
-  assert.equal(stats.totals.recentAttempts, 1);
-  assert.equal(stats.totals.correctRate, 100);
-  assert.equal(stats.trend.at(-1)?.gradedCount, 1);
-
-  // Verify wrongDetail & wrongBook expose socratic hintLevel for cards that missed
-  await service.store.update((s) => {
-    s.attempts.push({
-      id: 'att-miss',
-      deckId: 'deck-os',
-      quiz_id: 'card-deadlock',
-      topic: '死锁必要条件',
-      timestamp: new Date(Date.now() + 1000).toISOString(),
-      grade: 1,
-      assessment: 'graded',
-      retry: false,
-    });
+  await service.call('socratic.step', {
+    deckId: 'deck-os',
+    cardId: 'card-deadlock',
+    runId: run.id,
+    text: '因为死锁需要四个必要条件同时成立，全局升序编号后不会形成循环等待环路，所以能预防死锁。',
+    offline: true,
   });
-  const afterMiss = await service.store.read();
-  const wb = wrongBook(afterMiss, { course: '操作系统' });
+
+  const state = await service.store.read();
+  const card = state.decks[0].cards[0];
+
+  // 1) WrongBook MUST NOT be cleared out of `weak` by Socratic pass, and still exposes Socratic hintLevel
+  const wb = wrongBook(state, { course: '操作系统', view: 'weak' });
   const wbItem = wb.items.find((it) => it.cardId === 'card-deadlock');
-  assert.equal(wbItem?.socratic?.hintLevel, 1, 'wrongBook row exposes highest Socratic hint level');
-  const detail = wrongDetail(afterMiss, { deckId: 'deck-os', cardId: 'card-deadlock' });
+  assert.ok(wbItem, 'Socratic pass must NOT clear an unresolved mistake from WrongBook weak');
+  assert.equal(wbItem.socratic?.hintLevel, 1, 'wrongBook row exposes highest Socratic hint level');
+  const detail = wrongDetail(state, { deckId: 'deck-os', cardId: 'card-deadlock' });
   assert.equal(detail.socratic?.hintLevel, 1, 'wrongDetail exposes Socratic hint level');
+
+  // 2) latestOutcomes stays at the official wrong verdict (< 3)
+  const outcome = latestOutcomes(state.attempts);
+  assert.ok(outcome('deck-os', 'card-deadlock') < 3, 'latestOutcomes must ignore socratic attempt');
+
+  // 3) Z-key undoableForRun still targets the official attempt, NOT hijacked by socratic
+  const latestRun = state.runs.find((r) => r.id === run.id);
+  const undoable = undoableForRun(state.attempts, latestRun);
+  assert.ok(undoable, 'official answer remains undoable');
+  assert.notEqual(undoable.assessment, 'socratic', 'socratic attempt must never hijack Z undo');
+
+  // 4) studyStats / today-pace / forecast / daily-recap never double-count socratic alongside the official answer
+  const stats = studyStats(state, { course: '操作系统' }, new Date(now));
+  assert.equal(stats.totals.attempts, 1, 'official attempt counted once, never double-counted with socratic');
+  assert.equal(stats.totals.gradedAttempts, 1);
+  assert.equal(stats.totals.correctRate, 0, 'official wrong answer rate stays honest (0%), not inflated by socratic');
+  assert.equal(stats.totals.socraticAttempts, 1, 'socratic tutoring tracked separately in totals.socraticAttempts');
+  assert.equal(stats.totals.socraticRetold, 1, 'completed socratic retell tracked separately in totals.socraticRetold');
+  assert.equal(stats.trend.at(-1)?.gradedCount, 1);
+  assert.equal(stats.trend.at(-1)?.socraticCount, 1);
+
+  const todayPace = uiMod.computeTodayPace({ attempts: state.attempts, now });
+  assert.equal(todayPace.todayCount, 1, 'today-pace must not double-count socratic attempts');
+
+  const learnerPace = extractLearnerPace(state.attempts, { now });
+  assert.equal(learnerPace.attempts7d, 1, 'pace/forecast must not double-count socratic attempts');
+
+  const recap = recapGroups(state, { now: new Date(now) });
+  const recapCard = recap.groups[0]?.questions.find((q) => q.cardId === 'card-deadlock');
+  assert.equal(recapCard?.attempts.length, 1, 'daily-recap must exclude socratic attempts');
+  assert.notEqual(recapCard?.attempts[0]?.assessment, 'socratic');
+
+  // 5) New untouched card stays `new` after Socratic tutoring alone (never orphaned from new-card queue)
+  const freshService = await createSeededService(t);
+  await freshService.call('socratic.step', {
+    deckId: 'deck-os',
+    cardId: 'card-deadlock',
+    text: '给资源按全局顺序编号并升序申请，破坏循环等待条件',
+    offline: true,
+  });
+  const freshState = await freshService.store.read();
+  const freshCard = freshState.decks[0].cards[0];
+  assert.equal(cardLevel(freshCard, latestOutcomes(freshState.attempts)('deck-os', 'card-deadlock')), 'new');
 
   // Responsive CSS: 2-column beside question on wide screen, single-column below on narrow screen (<=959px), text wraps (#1309)
   const sessionCss = readFileSync(new URL('../ui/review/session.css', import.meta.url), 'utf8');
@@ -333,4 +386,56 @@ test('6) 统计计入 (#1308) + 错题本显示提示等级 + 宽/窄屏不遮�
   assert.match(css, /@container study \(max-width:\s*959px\)/);
   assert.match(css, /@media \(max-width:\s*959px\)/);
   assert.match(css, /\.socratic-inline__body\s*\{[^}]*overflow-wrap:\s*anywhere/s);
+  assert.ok(card.socratic.retellPassed);
+});
+
+test('7) #1323-12: 智能单问截断（忽略引号/代码/URL/三元）+ 参考答案讲解不误截 + L2 0调用查看参考答案', async (t) => {
+  // 1) enforceSingleQuestion ignores `?`/`？` inside quotes, inline/fenced code, URLs, contractions, and ternary operators
+  const tricky = '提示：看「为什么？」和 `x ? a : b` 以及 https://example.com?a=1&b=2，还有 cond ? 1 : 0，你觉得破坏了哪个条件？顺便回答第二个问题？';
+  const trimmed = enforceSingleQuestion(tricky);
+  assert.equal(trimmed, '提示：看「为什么？」和 `x ? a : b` 以及 https://example.com?a=1&b=2，还有 cond ? 1 : 0，你觉得破坏了哪个条件？');
+
+  const fenced = '先看代码：\n```js\n// why?\nconst v = ok ? 1 : 0;\n```\n这段代码解决了什么问题？\n2. 另一个问题？';
+  const trimmedFenced = enforceSingleQuestion(fenced);
+  assert.match(trimmedFenced, /\/\/ why\?/);
+  assert.match(trimmedFenced, /这段代码解决了什么问题？$/);
+  assert.doesNotMatch(trimmedFenced, /另一个问题/);
+
+  const englishContraction = "Don't you think TCP's handshake needs SYN? What about ACK?";
+  assert.equal(enforceSingleQuestion(englishContraction), "Don't you think TCP's handshake needs SYN?");
+
+  // 2) buildRevealMessage keeps full answer & explanation even when they contain `?`/`？`
+  const revealText = buildRevealMessage({
+    answer: '使用三元表达式 x > 0 ? 1 : -1（为什么？因为需要无分支返回值）',
+    explanation: '为什么这样写？参考 https://docs.example.com?q=1，这样能避免空值。',
+  }, 'zh');
+  assert.match(revealText, /参考答案：使用三元表达式 x > 0 \? 1 : -1/);
+  assert.match(revealText, /简要讲解：为什么这样写？参考 https:\/\/docs\.example\.com\?q=1/);
+  assert.match(revealText, /请用你自己的话复述一遍这道题为什么这样解？$/);
+
+  // 3) L2 zero-model-call `action: 'reveal'` + UI button rendered at hintLevel >= 2
+  let modelCalls = 0;
+  const service = await createSeededService(t, {
+    complete: async () => {
+      modelCalls += 1;
+      return JSON.stringify({ passed: false, reply: 'Should not be called' });
+    },
+  });
+  await service.call('socratic.step', { deckId: 'deck-os', cardId: 'card-deadlock', action: 'hint', offline: true });
+  const atL2 = await service.call('socratic.step', { deckId: 'deck-os', cardId: 'card-deadlock', action: 'hint', offline: true });
+  assert.equal(atL2.state.hintLevel, 2);
+
+  const l2Html = renderToStaticMarkup(h(uiMod.SocraticInlineDrawer, {
+    deckId: 'deck-os', cardId: 'card-deadlock', initialView: atL2, modelReady: true,
+  }));
+  assert.match(l2Html, /data-testid="socratic-reveal-btn"/);
+  assert.match(l2Html, /查看参考答案/);
+
+  const revealed = await service.call('socratic.step', { deckId: 'deck-os', cardId: 'card-deadlock', action: 'reveal' });
+  assert.equal(modelCalls, 0, 'action: reveal must invoke 0 model calls');
+  assert.equal(revealed.state.stage, 'retell');
+  assert.equal(revealed.state.hintLevel, 2);
+  assert.equal(revealed.state.turns.at(-1).kind, 'reveal');
+  assert.match(revealed.state.turns.at(-1).text, /参考答案：/);
+  assert.match(revealed.state.turns.at(-1).text, /简要讲解：/);
 });

@@ -17,42 +17,6 @@ import {
 
 const isImeComposing = (event) => Boolean(event?.nativeEvent?.isComposing || event?.isComposing || event?.keyCode === 229);
 
-/** Local drawer open/dismiss state for inline Socratic tutoring inside QuestionRun (#1316). */
-export function useSocraticInlineState({ run, closeAssist, reviewBodyRef }) {
-  const [open, setOpen] = React.useState(false);
-  const [dismissedKey, setDismissedKey] = React.useState('');
-  const allowed = run?.mode !== 'exam' && !run?.complete && Boolean(run?.card?.id);
-  const toggle = React.useCallback(() => {
-    if (run?.mode === 'exam' || run?.complete) return;
-    setOpen((prev) => !prev);
-  }, [run?.mode, run?.complete]);
-  const activate = React.useCallback(() => {
-    if (run?.mode === 'exam' || run?.complete) return;
-    closeAssist?.();
-    setOpen(true);
-  }, [closeAssist, run?.mode, run?.complete]);
-  const close = React.useCallback(() => setOpen(false), []);
-  const returnToQuestion = React.useCallback(() => {
-    setOpen(false);
-    requestAnimationFrame(() => reviewBodyRef?.current?.querySelector?.('.question-card')?.focus?.({ preventScroll: true }));
-  }, [reviewBodyRef]);
-  return { open: open && allowed, allowed, dismissedKey, setDismissedKey, toggle, activate, close, returnToQuestion };
-}
-
-/** One-line optional nudge shown after a wrong answer (never auto-opens the drawer). */
-export function SocraticWrongNudge({ show, entryKey, dismissedKey, onToggleSocratic, onDismiss }) {
-  if (!show || dismissedKey === entryKey) return null;
-  return (
-    <div className="socratic-nudge" data-testid="socratic-wrong-nudge" role="status">
-      <span className="socratic-nudge__text">{ui('要我用提问的方式带你想清楚吗？')}</span>
-      <span className="socratic-nudge__actions">
-        <Button variant="quiet" size="sm" onClick={onToggleSocratic}>{ui('苏格拉底带学')}</Button>
-        <Button variant="quiet" size="sm" aria-label={ui('关闭带学提示')} onClick={() => onDismiss(entryKey)}>{ui('不用')}</Button>
-      </span>
-    </div>
-  );
-}
-
 /**
  * Inline Socratic tutoring drawer sitting beside the question on wide screens and below on narrow screens (#1316).
  * Memoized so opening or typing never re-renders QuestionRun or steals focus from the question card.
@@ -65,6 +29,10 @@ const SocraticInlineDrawer = React.memo(function SocraticInlineDrawer({
   prompt = '',
   topic = '',
   modelReady = false,
+  modelConfirmed: externalModelConfirmed,
+  onSaveModelConfirm,
+  cardAnswered = false,
+  retryQueued = false,
   initialView = null,
   onClose,
   onCloseToQuestion,
@@ -80,7 +48,8 @@ const SocraticInlineDrawer = React.memo(function SocraticInlineDrawer({
   const [draft, setDraft] = React.useState('');
   const [error, setError] = React.useState('');
   const [copyNotice, setCopyNotice] = React.useState('');
-  const [modelConfirmed, setModelConfirmed] = React.useState(false);
+  const [localModelConfirmed, setLocalModelConfirmed] = React.useState(false);
+  const modelConfirmed = typeof onSaveModelConfirm === 'function' ? Boolean(externalModelConfirmed) : localModelConfirmed;
   const [pendingAction, setPendingAction] = React.useState(null);
   const historyRef = React.useRef(null);
   const nearBottomRef = React.useRef(true);
@@ -204,7 +173,8 @@ const SocraticInlineDrawer = React.memo(function SocraticInlineDrawer({
 
   const saveModelStep = () => {
     if (!pendingAction) return;
-    setModelConfirmed(true);
+    if (typeof onSaveModelConfirm === 'function') onSaveModelConfirm();
+    else setLocalModelConfirmed(true);
     void executeStep({ ...pendingAction, offline: false }, { clearDraft: true });
   };
 
@@ -217,6 +187,10 @@ const SocraticInlineDrawer = React.memo(function SocraticInlineDrawer({
 
   const saveHint = () => {
     void executeStep({ action: 'hint', offline: true });
+  };
+
+  const saveReveal = () => {
+    void executeStep({ action: 'reveal', offline: true });
   };
 
   const clearSocratic = () => {
@@ -355,9 +329,10 @@ const SocraticInlineDrawer = React.memo(function SocraticInlineDrawer({
                 : uiFormat('本卡已通过复述（用过 {0} 级提示，建议重做巩固）', [socraticHintTag(summary.maxHintLevelUsed ?? summary.hintLevel ?? 0)])}
             </strong>
             {summary.nextStep && <span>{summary.nextStep}</span>}
+            {cardAnswered && retryQueued && <span>{ui('本轮末尾会再考一遍这道题')}</span>}
             <div className="socratic-inline__summary-actions">
-              <Button variant="primary" size="sm" icon="arrow-left" onClick={closeToQuestion}>
-                {ui('回到原题重做')}
+              <Button variant="primary" size="sm" icon={cardAnswered ? undefined : 'arrow-left'} onClick={closeToQuestion}>
+                {cardAnswered ? ui('收起带学') : ui('回到原题作答')}
               </Button>
               <Button variant="quiet" size="sm" lock={submitting} onClick={clearSocratic}>
                 {ui('再练一遍')}
@@ -395,7 +370,7 @@ const SocraticInlineDrawer = React.memo(function SocraticInlineDrawer({
             stage === 'retell'
               ? ui('用自己的话讲一遍解法与原因（Enter 提交）')
               : stage === 'summary'
-                ? ui('已完成本卡带学，可复制记录或回到原题重做')
+                ? (cardAnswered ? ui('已完成本卡带学，可复制记录或收起面板') : ui('已完成本卡带学，可复制记录或回到原题作答'))
                 : ui('先写下你的思路，不抢原题焦点（Enter 提交）')
           }
           aria-label={stage === 'retell' ? ui('输入复述') : ui('输入带学回答')}
@@ -412,6 +387,10 @@ const SocraticInlineDrawer = React.memo(function SocraticInlineDrawer({
           {(stage === 'ask' || stage === 'answer' || stage === 'judge') && hintLevel < 2 ? (
             <Button variant="secondary" size="sm" lock={submitting} onClick={saveHint}>
               {hintLevel === 0 ? ui('要 L1 提示') : ui('要 L2 线索')}
+            </Button>
+          ) : (stage === 'ask' || stage === 'answer' || stage === 'judge') && hintLevel >= 2 ? (
+            <Button variant="secondary" size="sm" lock={submitting} data-testid="socratic-reveal-btn" onClick={saveReveal}>
+              {ui('查看参考答案')}
             </Button>
           ) : <span />}
           <Button

@@ -7,6 +7,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { loadUi } from './helpers/ui-module.mjs';
 import { StudyService } from '../lib/service.js';
+import { parseDraft } from '../lib/review-draft.js';
+import { entryForRun } from '../ui/review/session-logic.js';
 import {
   capturePracticeFrame,
   clearLastPracticePosition,
@@ -133,19 +135,23 @@ test('#1319-2: returning restores choice, cloze, and open drafts intact without 
   assert.deepEqual(movedArgs.draft.selected, ['a', 'c']);
   assert.equal(movedArgs.draft.hint, true);
 
-  // 2) Cloze draft
+  // 2) Cloze draft (plain object { [blankId]: string }, never an array)
+  const clozeRun = { id: 'r-cloze', deckId: 'd1', index: 0, total: 3, card: { id: 'c-cloze', kind: 'cloze', prompt: '{{A}} and {{B}}' } };
   const clozeFrame = capturePracticeFrame({
     root,
-    run: { id: 'r-cloze', deckId: 'd1', index: 0, total: 3, card: { id: 'c-cloze', kind: 'cloze', prompt: '{{A}} and {{B}}' } },
-    entry: { selected: [], response: '', clozeValues: ['SYN', 'ACK'] },
+    run: clozeRun,
+    entry: { selected: [], response: '', clozeValues: { b1: 'SYN', b2: 'ACK' } },
   });
   const resCloze = await restorePracticeFrame({
     frame: clozeFrame,
-    call: async (op) => (op === 'review.get' ? { id: 'r-cloze', deckId: 'd1', index: 0, card: { id: 'c-cloze' } } : null),
+    call: async (op) => (op === 'review.get' ? clozeRun : null),
     enterMovedRun: (run, draft) => { movedArgs = { run, draft }; },
   });
   assert.equal(resCloze.draftRestored, true);
-  assert.deepEqual(movedArgs.draft.clozeValues, ['SYN', 'ACK']);
+  assert.deepEqual(movedArgs.draft.clozeValues, { b1: 'SYN', b2: 'ACK' });
+  const restoredEntry = entryForRun(clozeRun, movedArgs.draft, { draft: () => '' });
+  assert.deepEqual(restoredEntry.clozeValues, { b1: 'SYN', b2: 'ACK' });
+  assert.doesNotThrow(() => parseDraft({ stepInputs: restoredEntry.clozeValues }), 'restored clozeValues must be valid for review.draft.save');
 
   // 3) Open-ended draft
   const openFrame = capturePracticeFrame({
@@ -316,4 +322,52 @@ test('#1319-6: returning never triggers re-grading or model/billing calls', asyn
   assert.deepEqual(calledOps, ['review.get', 'review.move']);
   const forbidden = calledOps.filter(op => /answer|grade|assist|socratic|generate|rubric|teach/.test(op));
   assert.deepEqual(forbidden, [], 'return must trigger 0 grading calls and 0 model/billing calls');
+});
+
+test('#1323-10: normalizes legacy array clozeValues to {} and preserves courseSwitched on adjacent frame merge', () => {
+  const root = '/tmp/lib-1323-10';
+  const storage = makeMemoryStorage();
+  const run = { id: 'r-open', deckId: 'd1', index: 1, total: 4, card: { id: 'c-open', kind: 'open', prompt: 'Explain TCP' } };
+
+  // Non-cloze / malformed array clozeValues must never survive as []
+  const captured = capturePracticeFrame({
+    root,
+    run,
+    entry: { selected: [], response: 'draft', clozeValues: [] },
+    course: 'Course A',
+    courseSwitched: true,
+    now: 100,
+  });
+  assert.deepEqual(captured.draft.clozeValues, {});
+  assert.equal(Array.isArray(captured.draft.clozeValues), false);
+  const openEntry = entryForRun(run, captured.draft, { draft: () => '' });
+  assert.doesNotThrow(() => parseDraft({ text: openEntry.response, stepInputs: openEntry.clozeValues }));
+
+  // Legacy corrupted storage payload with clozeValues: [] is sanitized on read and in entryForRun
+  storage.setItem(`studyhub:last-practice:${root}`, JSON.stringify({
+    ...captured,
+    draft: { ...captured.draft, clozeValues: ['stale'] },
+  }));
+  const loaded = readLastPracticePosition(storage, root);
+  assert.deepEqual(loaded.draft.clozeValues, {});
+  const defendedEntry = entryForRun(run, { ...captured.draft, clozeValues: ['stale'] }, { draft: () => '' });
+  assert.deepEqual(defendedEntry.clozeValues, {});
+
+  // Adjacent merge (e.g. rememberContext(courseSwitched: true) followed by leaveReviewRef(courseSwitched: false))
+  // MUST keep courseSwitched: true and the original pre-switch course!
+  let stack = pushPracticeFrame([], captured);
+  const followUp = capturePracticeFrame({
+    root,
+    run,
+    entry: { selected: [], response: 'draft', clozeValues: {} },
+    course: 'Course B',
+    courseSwitched: false,
+    originKind: 'wrongbook',
+    now: 200,
+  });
+  stack = pushPracticeFrame(stack, followUp);
+  assert.equal(stack.length, 1);
+  assert.equal(stack[0].courseSwitched, true);
+  assert.equal(stack[0].course, 'Course A');
+  assert.equal(stack[0].originKind, 'wrongbook');
 });

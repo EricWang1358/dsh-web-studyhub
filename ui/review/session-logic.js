@@ -27,12 +27,15 @@ export const emptyEntry = () => ({ selected: [], hint: false, explain: false, re
 export function entryForRun(run, restored, reader) {
   const back = restored?.key === reviewEntryKey(run) && !run.feedback ? restored : null;
   const saved = back || run.feedback ? null : restoredDraft(run);
+  const backCloze = back?.clozeValues && typeof back.clozeValues === 'object' && !Array.isArray(back.clozeValues)
+    ? back.clozeValues
+    : null;
   return {
     selected: back?.selected || run.feedback?.selected || saved?.selected || [],
     hint: back?.hint || false,
     explain: back?.explain || false,
     response: back?.response || saved?.text || '',
-    clozeValues: back?.clozeValues || saved?.stepInputs || {},
+    clozeValues: backCloze || saved?.stepInputs || {},
     teaching: run.teaching || null,
     teachAnswer: reader.draft(run.teaching) || back?.teachAnswer || '',
     assistance: run.feedback ? null : mergeAssistance(run.assistance, back?.assistance),
