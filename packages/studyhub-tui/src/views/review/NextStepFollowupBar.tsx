@@ -1,0 +1,554 @@
+/**
+ * Unified "What would you like to do next?" agent-style follow-up bar for AI result modals (#1313).
+ *
+ * Design:
+ * - Zero `marked` dependency (uses ScrollView + wrapDisplay) so non-markdown chunks like
+ *   CardToolsModal stay `marked`-free and pass strict perf-budget checks.
+ * - Consistent across all AI result pages: same key (`a`), same prompt copy, same quick presets,
+ *   same streaming reply & `[N]` save-to-followup/notes action (reuses `card.followup.add` + `note.qa.add`).
+ */
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Box, Text, useInput } from 'ink';
+import type { HostClient, UiLanguage } from '../../types/contracts.js';
+import { t, useTuiStore } from '../../state/store.js';
+import { useTheme } from '../../theme/tokens.js';
+import { errorMessage, tryAction, type ReviewRun } from '../../host/sample-actions.js';
+import { Badge, Spinner } from '../../components/Badge.js';
+import { ScrollView } from '../../components/ScrollView.js';
+import { TextInput } from '../../components/TextInput.js';
+import { ClickableBox } from '../../components/mouse.js';
+import { useStreamingBuffer } from '../../components/useStreamingBuffer.js';
+import { truncateDisplay, wrapDisplay } from '../../render/cjk.js';
+import {
+  MAX_AI_TURNS,
+  currentDeckIdOf,
+  extractReferenceAnswer,
+  kindLabel,
+  type AiTurn,
+  type NormalizedKind,
+} from './review-helpers.js';
+
+export interface NextStepPreset {
+  key: '1' | '2' | '3' | '4';
+  labelZh: string;
+  labelEn: string;
+  promptZh: string;
+  promptEn: string;
+}
+
+export const NEXT_STEP_PRESETS: readonly NextStepPreset[] = Object.freeze([
+  {
+    key: '1',
+    labelZh: '通俗讲解',
+    labelEn: 'Plain explain',
+    promptZh: '请结合上面的结果，给每个要点写一段通俗易懂的讲解。',
+    promptEn: 'Based on the result above, give a plain, intuitive explanation for each key point.',
+  },
+  {
+    key: '2',
+    labelZh: '举个例子',
+    labelEn: 'Example',
+    promptZh: '请结合上面的结果举一个具体例子，并说明关键步骤。',
+    promptEn: 'Give a concrete example based on the result above and walk through the key steps.',
+  },
+  {
+    key: '3',
+    labelZh: '换个讲法',
+    labelEn: 'Rephrase',
+    promptZh: '请换一种更直观的角度重新讲一遍，并指出最容易混淆的地方。',
+    promptEn: 'Explain this from a different, more intuitive angle and highlight common pitfalls.',
+  },
+  {
+    key: '4',
+    labelZh: '出前置题',
+    labelEn: 'Prereq Q',
+    promptZh: '请围绕上面涉及的核心概念，各出一道打基础的前置练习题（含参考答案与简短解析）。',
+    promptEn: 'Write one foundational prerequisite practice question per core concept above (with answer and brief explanation).',
+  },
+]);
+
+export const NEXT_STEP_ACTIVATION_KEY = 'a';
+
+export function nextStepIdlePrompt(lang: UiLanguage): string {
+  return t(
+    lang,
+    '接下来想做什么？按 [a] 自由输入指令（或点击此处）',
+    'What next? Press [a] to give a custom instruction (or click here)',
+  );
+}
+
+export function buildNextStepSystemPrompt(lang: UiLanguage): string {
+  return lang === 'en'
+    ? 'You are StudyHub AI Tutor. The user just viewed an AI study tool output for a flashcard/question and is giving a follow-up instruction. Use the provided question, user answer, and tool output directly as context without asking them to paste anything again. Be concise, accurate, and directly fulfill the instruction.'
+    : '你是 StudyHub 学习助教。用户刚刚查看了某道题的 AI 工具结果，现在直接下达后续指令。请直接基于提供的题目、用户作答和本次工具输出作答，不要让用户重复粘贴内容；回答清晰、准确、直奔主题。';
+}
+
+export function buildNextStepUserPrompt(params: {
+  run: ReviewRun;
+  kind: NormalizedKind;
+  userAnswer?: string;
+  toolLabel: string;
+  resultContext: string;
+  history: readonly AiTurn[];
+  instruction: string;
+  lang: UiLanguage;
+}): string {
+  const { run, kind, userAnswer, toolLabel, resultContext, history, instruction, lang } = params;
+  const lines: string[] = [];
+  const prompt = String(run.card?.prompt ?? '').trim();
+  const topic = typeof run.card?.topic === 'string' ? run.card.topic.trim() : '';
+  const refAns = extractReferenceAnswer(run, kind, lang);
+
+  lines.push(lang === 'en' ? `Question Type: ${kindLabel(kind, lang)}` : `题型：${kindLabel(kind, lang)}`);
+  if (topic) lines.push(lang === 'en' ? `Topic: ${topic}` : `主题：${topic}`);
+  if (prompt) lines.push(lang === 'en' ? `Question:\n${prompt}` : `题干：\n${prompt}`);
+  if (userAnswer && userAnswer.trim()) {
+    lines.push(lang === 'en' ? `User Answer: ${userAnswer.trim()}` : `用户作答：${userAnswer.trim()}`);
+  }
+  if (refAns) {
+    lines.push(lang === 'en' ? `Reference Answer: ${refAns}` : `参考答案：${refAns}`);
+  }
+  if (resultContext.trim()) {
+    lines.push(
+      lang === 'en'
+        ? `Previous AI Tool Output (${toolLabel}):\n${resultContext.trim().slice(0, 6000)}`
+        : `本次 AI 工具输出（${toolLabel}）：\n${resultContext.trim().slice(0, 6000)}`,
+    );
+  }
+  if (history.length > 0) {
+    lines.push(lang === 'en' ? 'Prior Follow-up Conversation:' : '此前后续对话：');
+    for (const turn of history.slice(-6)) {
+      const who = turn.role === 'user' ? (lang === 'en' ? 'User' : '用户') : 'AI';
+      lines.push(`${who}: ${turn.text}`);
+    }
+  }
+  lines.push(lang === 'en' ? `User's Next Instruction:\n${instruction}` : `用户接下来的指令：\n${instruction}`);
+  return lines.join('\n\n');
+}
+
+export interface NextStepFollowupBarProps {
+  host: HostClient;
+  run: ReviewRun;
+  cardId: string;
+  kind: NormalizedKind;
+  userAnswer?: string;
+  toolLabel: string;
+  resultContext: string;
+  width: number;
+  expandedHeight?: number;
+  isActive: boolean;
+  onFocusChange?: (engaged: boolean) => void;
+}
+
+export const NextStepFollowupBar = memo(function NextStepFollowupBar({
+  host,
+  run,
+  cardId,
+  kind,
+  userAnswer,
+  toolLabel,
+  resultContext,
+  width,
+  expandedHeight = 11,
+  isActive,
+  onFocusChange,
+}: NextStepFollowupBarProps) {
+  const theme = useTheme();
+  const lang = useTuiStore((s) => s.preferences.language);
+  const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const notify = useTuiStore((s) => s.notify);
+  const ell = asciiMode ? '...' : '…';
+
+  const [expanded, setExpanded] = useState(false);
+  const [inputFocused, setInputFocused] = useState(false);
+  const [inputValue, setInputValue] = useState('');
+  const [turns, setTurns] = useState<AiTurn[]>([]);
+  const [streaming, setStreaming] = useState(false);
+  const [errorText, setErrorText] = useState<string | null>(null);
+  const [savingNote, setSavingNote] = useState(false);
+
+  const {
+    text: streamingText,
+    push: pushStreamingChunk,
+    finish: finishStreaming,
+    reset: resetStreaming,
+  } = useStreamingBuffer();
+
+  const abortRef = useRef<AbortController | null>(null);
+  const mountedRef = useRef(true);
+  const turnsRef = useRef<AiTurn[]>(turns);
+  turnsRef.current = turns;
+
+  const engaged = expanded || inputFocused;
+
+  useEffect(() => {
+    onFocusChange?.(engaged);
+  }, [engaged, onFocusChange]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      abortRef.current?.abort();
+      abortRef.current = null;
+      onFocusChange?.(false);
+    };
+  }, [onFocusChange]);
+
+  // Reset conversation when card or tool changes.
+  useEffect(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setExpanded(false);
+    setInputFocused(false);
+    setInputValue('');
+    setTurns([]);
+    setStreaming(false);
+    setErrorText(null);
+    resetStreaming();
+  }, [cardId, toolLabel, resetStreaming]);
+
+  const sendInstruction = useCallback(
+    async (raw: string) => {
+      const instruction = raw.trim();
+      if (!instruction) return;
+      if (typeof host.streamComplete !== 'function') {
+        setErrorText(t(lang, '当前 Host 未提供流式 AI 接口', 'Streaming AI completion is unavailable on this host'));
+        setExpanded(true);
+        return;
+      }
+      abortRef.current?.abort();
+      const ctrl = new AbortController();
+      abortRef.current = ctrl;
+
+      const prior = turnsRef.current;
+      const withUser = [...prior, { role: 'user' as const, text: instruction }].slice(-MAX_AI_TURNS);
+      turnsRef.current = withUser;
+      setTurns(withUser);
+      setExpanded(true);
+      setInputFocused(false);
+      setStreaming(true);
+      setErrorText(null);
+      resetStreaming();
+
+      try {
+        const finalText = await host.streamComplete({
+          system: buildNextStepSystemPrompt(lang),
+          prompt: buildNextStepUserPrompt({
+            run,
+            kind,
+            userAnswer,
+            toolLabel,
+            resultContext,
+            history: prior,
+            instruction,
+            lang,
+          }),
+          signal: ctrl.signal,
+          onChunk: (delta) => {
+            if (!mountedRef.current || ctrl.signal.aborted) return;
+            pushStreamingChunk(delta);
+          },
+        });
+        if (!mountedRef.current || ctrl.signal.aborted) return;
+        const flushed = finishStreaming();
+        const reply = (finalText || flushed).trim();
+        if (reply) {
+          const next = [...withUser, { role: 'assistant' as const, text: reply }].slice(-MAX_AI_TURNS);
+          turnsRef.current = next;
+          setTurns(next);
+        }
+        resetStreaming();
+        setStreaming(false);
+      } catch (err) {
+        if (!mountedRef.current || ctrl.signal.aborted) return;
+        const flushed = finishStreaming();
+        setStreaming(false);
+        const partial = flushed.trim();
+        if (partial) {
+          const next = [...withUser, { role: 'assistant' as const, text: partial }].slice(-MAX_AI_TURNS);
+          turnsRef.current = next;
+          setTurns(next);
+          resetStreaming();
+        }
+        setErrorText(errorMessage(err));
+      } finally {
+        if (abortRef.current === ctrl) {
+          abortRef.current = null;
+        }
+      }
+    },
+    [host, lang, run, kind, userAnswer, toolLabel, resultContext, pushStreamingChunk, finishStreaming, resetStreaming],
+  );
+
+  const saveLatestToNotes = useCallback(async () => {
+    if (savingNote) return;
+    const deckId = currentDeckIdOf(run);
+    if (!deckId) {
+      notify(t(lang, '未找到题组 ID，无法保存', 'Missing deck ID; cannot save'), 'warning');
+      return;
+    }
+    const list = turnsRef.current;
+    const revIdx = [...list].reverse().findIndex((x) => x.role === 'assistant');
+    if (revIdx === -1) {
+      notify(t(lang, '还没有可保存的 AI 回答', 'No AI reply to save yet'), 'warning');
+      return;
+    }
+    const realIdx = list.length - 1 - revIdx;
+    const answerText = list[realIdx].text;
+    const prevUser = list.slice(0, realIdx).reverse().find((x) => x.role === 'user');
+    const questionText = prevUser?.text || `[${toolLabel}] ${t(lang, '后续指令', 'Follow-up')}`;
+
+    setSavingNote(true);
+    const fuRes = await tryAction<{ item?: { id?: string } }>(host, 'card.followup.add', {
+      deckId,
+      cardId,
+      question: questionText.slice(0, 1000),
+      answer: answerText.slice(0, 8000),
+      source: 'assistant',
+      silent: true,
+    });
+    if (!mountedRef.current) return;
+    if (!fuRes.ok || !fuRes.value?.item?.id) {
+      setSavingNote(false);
+      notify(fuRes.error?.message || t(lang, '保存追问失败', 'Failed to save follow-up'), 'error');
+      return;
+    }
+    const noteRes = await tryAction<{ status?: string }>(host, 'note.qa.add', {
+      deckId,
+      cardId,
+      followupId: fuRes.value.item.id,
+      language: lang,
+    });
+    if (!mountedRef.current) return;
+    setSavingNote(false);
+    if (!noteRes.ok) {
+      notify(noteRes.error?.message || t(lang, '写入学习笔记失败', 'Failed to save to study notes'), 'error');
+      return;
+    }
+    notify(t(lang, '已保存为本题追问与学习笔记', 'Saved as card follow-up & study note'), 'success');
+  }, [savingNote, run, host, lang, cardId, toolLabel, notify]);
+
+  const openAndFocus = useCallback(() => {
+    setExpanded(true);
+    setInputFocused(true);
+  }, []);
+
+  const fillPreset = useCallback(
+    (preset: NextStepPreset) => {
+      const text = lang === 'en' ? preset.promptEn : preset.promptZh;
+      setInputValue(text);
+      setExpanded(true);
+      setInputFocused(true);
+    },
+    [lang],
+  );
+
+  // Idle activation via uniform key 'a'
+  useInput(
+    (input, key) => {
+      if (key.ctrl || key.meta) return;
+      if (input === NEXT_STEP_ACTIVATION_KEY) {
+        openAndFocus();
+      }
+    },
+    { isActive: isActive && !engaged },
+  );
+
+  // Expanded (non-typing) controls: [a]/Enter continue, [1-4] fill preset, [N] save, [Esc] collapse
+  useInput(
+    (input, key) => {
+      if (key.escape) {
+        abortRef.current?.abort();
+        resetStreaming();
+        setStreaming(false);
+        setExpanded(false);
+        return;
+      }
+      if (key.ctrl || key.meta) return;
+      if (input === NEXT_STEP_ACTIVATION_KEY || input === 'i' || key.return) {
+        setInputFocused(true);
+        return;
+      }
+      if (input === 'N' && !streaming) {
+        void saveLatestToNotes();
+        return;
+      }
+      const preset = NEXT_STEP_PRESETS.find((p) => p.key === input);
+      if (preset && !streaming) {
+        fillPreset(preset);
+      }
+    },
+    { isActive: isActive && expanded && !inputFocused },
+  );
+
+  const innerW = Math.max(20, width);
+  const scrollTextW = Math.max(12, innerW - 3);
+
+  const transcriptLines = useMemo<string[]>(() => {
+    const out: string[] = [];
+    for (const turn of turns) {
+      const prefix =
+        turn.role === 'user'
+          ? `${asciiMode ? '>' : '▸'} ${t(lang, '你', 'You')}: `
+          : `${asciiMode ? '*' : '✦'} AI: `;
+      const paragraphs = turn.text.split('\n');
+      paragraphs.forEach((p, pIdx) => {
+        const rawLine = pIdx === 0 ? `${prefix}${p}` : p;
+        const wrapped = wrapDisplay(rawLine, scrollTextW);
+        for (const wLine of wrapped) out.push(wLine);
+      });
+      out.push('');
+    }
+    if (streaming) {
+      const live = streamingText || t(lang, `正在思考并回应${ell}`, `Thinking${ell}`);
+      for (const p of live.split('\n')) {
+        for (const wLine of wrapDisplay(p, scrollTextW)) out.push(wLine);
+      }
+    }
+    while (out.length > 0 && out[out.length - 1] === '') out.pop();
+    return out;
+  }, [turns, streaming, streamingText, scrollTextW, asciiMode, lang, ell]);
+
+  if (!expanded) {
+    return (
+      <ClickableBox
+        borderStyle={asciiMode ? 'classic' : 'single'}
+        borderColor={theme.border}
+        paddingX={1}
+        height={3}
+        width={innerW}
+        flexShrink={0}
+        overflow="hidden"
+        clickActive={isActive}
+        onClick={openAndFocus}
+      >
+        <Box flexDirection="row" alignItems="center" width={Math.max(12, innerW - 4)} overflow="hidden">
+          <Text color={theme.ai} bold>{`${asciiMode ? '>' : '›'} `}</Text>
+          <Text color={theme.muted} wrap="truncate">
+            {truncateDisplay(nextStepIdlePrompt(lang), Math.max(10, innerW - 6), ell)}
+          </Text>
+        </Box>
+      </ClickableBox>
+    );
+  }
+
+  // Expanded panel: header(1) + presets(1) + error(0|1) + scroll(scrollH) + input(3)
+  const errH = errorText ? 1 : 0;
+  const boxH = Math.max(8, expandedHeight);
+  const scrollH = Math.max(2, boxH - 5 - errH);
+
+  return (
+    <Box flexDirection="column" width={innerW} height={boxH} flexShrink={0} overflow="hidden">
+      {/* Header row */}
+      <Box flexDirection="row" alignItems="center" justifyContent="space-between" height={1} width={innerW} overflow="hidden">
+        <Box flexDirection="row" gap={1} flexShrink={0}>
+          <Badge label={t(lang, '接下来想做什么', 'Next Step AI')} tone="ai" variant="soft" />
+          {streaming ? <Spinner label={t(lang, `生成中${ell}`, `Streaming${ell}`)} tone="ai" active={isActive} /> : null}
+          {savingNote ? <Spinner label={t(lang, `保存中${ell}`, `Saving${ell}`)} tone="success" active={isActive} /> : null}
+        </Box>
+        <Text color={theme.dim} wrap="truncate">
+          {truncateDisplay(
+            inputFocused
+              ? t(lang, 'Enter 发送 · Esc 收起', 'Enter send · Esc close')
+              : t(lang, '[a] 追问 · [N] 存追问/笔记 · [Esc] 收起', '[a] Ask · [N] Save · [Esc] Collapse'),
+            Math.max(12, innerW - 18),
+            ell,
+          )}
+        </Text>
+      </Box>
+
+      {/* Quick preset pills (fill input, never restrict free-form typing) */}
+      <Box flexDirection="row" gap={1} height={1} width={innerW} overflow="hidden">
+        <Text color={theme.dim}>{t(lang, '快捷:', 'Quick:')}</Text>
+        {NEXT_STEP_PRESETS.map((p) => (
+          <ClickableBox
+            key={p.key}
+            clickActive={isActive && !streaming}
+            onClick={() => fillPreset(p)}
+            flexShrink={0}
+          >
+            <Text color={theme.ai}>{`[${p.key}]${lang === 'en' ? p.labelEn : p.labelZh}`}</Text>
+          </ClickableBox>
+        ))}
+      </Box>
+
+      {errorText ? (
+        <Box height={1} width={innerW} overflow="hidden">
+          <Text color={theme.error} wrap="truncate">
+            {`${asciiMode ? 'x' : '✕'} ${truncateDisplay(errorText, Math.max(10, innerW - 3), ell)}`}
+          </Text>
+        </Box>
+      ) : null}
+
+      {/* Transcript / Empty hint */}
+      <Box height={scrollH} width={innerW} overflow="hidden">
+        {transcriptLines.length > 0 ? (
+          <ScrollView
+            lines={transcriptLines}
+            width={innerW}
+            height={scrollH}
+            isActive={isActive && expanded && !inputFocused}
+            ascii={asciiMode}
+          />
+        ) : (
+          <Box paddingX={1} alignItems="center">
+            <Text color={theme.muted} wrap="truncate">
+              {truncateDisplay(
+                t(
+                  lang,
+                  `已自动带上本题与「${toolLabel}」结果，直接输入要求或点上方快捷项`,
+                  `Card & "${toolLabel}" output attached automatically — type your instruction or pick a preset`,
+                ),
+                Math.max(12, innerW - 2),
+                ell,
+              )}
+            </Text>
+          </Box>
+        )}
+      </Box>
+
+      {/* Free-form input */}
+      <ClickableBox
+        borderStyle={asciiMode ? 'classic' : 'single'}
+        borderColor={inputFocused ? theme.ai : theme.border}
+        paddingX={1}
+        height={3}
+        width={innerW}
+        flexShrink={0}
+        overflow="hidden"
+        clickActive={isActive && !inputFocused}
+        onClick={() => setInputFocused(true)}
+      >
+        <TextInput
+          value={inputValue}
+          onChange={setInputValue}
+          isActive={isActive && inputFocused}
+          width={Math.max(10, innerW - 6)}
+          prompt={asciiMode ? '>' : '›'}
+          placeholder={truncateDisplay(
+            t(
+              lang,
+              '接下来想做什么？直接输入要求，Enter 发送',
+              'What next? Type any instruction and press Enter',
+            ),
+            Math.max(10, innerW - 6),
+            ell,
+          )}
+          onSubmit={(val) => {
+            const trimmed = val.trim();
+            if (!trimmed) return;
+            setInputValue('');
+            void sendInstruction(trimmed);
+          }}
+          onCancel={() => {
+            setInputFocused(false);
+            if (turnsRef.current.length === 0 && !streaming && !errorText) {
+              setExpanded(false);
+            }
+          }}
+        />
+      </ClickableBox>
+    </Box>
+  );
+});

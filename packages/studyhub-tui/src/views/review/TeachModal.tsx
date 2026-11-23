@@ -10,6 +10,7 @@ import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { TextInput } from '../../components/TextInput.js';
 import { truncateDisplay } from '../../render/cjk.js';
 import { kindLabel, type NormalizedKind } from './review-helpers.js';
+import { NextStepFollowupBar } from './NextStepFollowupBar.js';
 
 export interface TeachingSessionView {
   id: string;
@@ -237,7 +238,9 @@ export const TeachModal = memo(function TeachModal({
     [submitting, loading, session, draft, notify, lang, host],
   );
 
+  const [followupEngaged, setFollowupEngaged] = useState(false);
   const canType = Boolean(session && !session.complete && !loading && !errorText);
+  const canFollowup = Boolean(session?.complete && !loading && !errorText);
   const inputActive = isActive && canType && inputFocused && !submitting;
 
   useInput(
@@ -255,7 +258,7 @@ export const TeachModal = memo(function TeachModal({
         setInputFocused(true);
       }
     },
-    { isActive: isActive && !inputActive },
+    { isActive: isActive && !inputActive && !followupEngaged },
   );
 
   const dialogueMarkdown = useMemo(() => {
@@ -291,8 +294,10 @@ export const TeachModal = memo(function TeachModal({
   const bodyH = Math.max(8, frameH - 5);
 
   const showInput = canType;
-  // Status bar (1) + Divider (1) + Input box (3 when shown)
-  const scrollH = Math.max(3, bodyH - (showInput ? 5 : 2));
+  const followupExpandedH = Math.min(11, Math.max(8, Math.floor(bodyH * 0.55)));
+  const followupReservedH = canFollowup ? (followupEngaged ? followupExpandedH : 3) : 0;
+  // Status bar (1) + Divider (1) + Input box (3 when shown) + Follow-up bar (when complete)
+  const scrollH = Math.max(3, bodyH - (showInput ? 5 : 2) - followupReservedH);
 
   const topicName = typeof run.card?.topic === 'string' && run.card.topic ? run.card.topic : '';
   const stepLabel = session
@@ -314,12 +319,13 @@ export const TeachModal = memo(function TeachModal({
     }
     const items: KeyHint[] = [];
     if (canType) items.push({ key: 'i/Tab', label: t(lang, '继续作答', 'Reply') });
+    if (canFollowup) items.push({ key: 'a', label: t(lang, '后续指令', 'Next step') });
     if (turns.length > 0) items.push({ key: asciiMode ? 'j/k' : '↑/↓', label: t(lang, '滚动', 'Scroll') });
     items.push({ key: 'm', label: teachMode === 'understanding' ? t(lang, '切计算', 'Calc') : t(lang, '切理解', 'Concept') });
     items.push({ key: 'r', label: t(lang, '刷新', 'Reload') });
     items.push({ key: 'Esc', label: t(lang, '关闭', 'Close') });
     return items;
-  }, [loading, submitting, inputActive, canType, turns.length, teachMode, lang, asciiMode]);
+  }, [loading, submitting, inputActive, canType, canFollowup, turns.length, teachMode, lang, asciiMode]);
 
   const needAnswerFirst = errorText ? needsAnswerFirstError(errorText) : false;
   const modelUnavailable = errorText ? isModelUnavailableError(errorText) : false;
@@ -333,7 +339,7 @@ export const TeachModal = memo(function TeachModal({
       width={frameW}
       height={frameH}
       onClose={onClose}
-      isActive={isActive && !inputActive}
+      isActive={isActive && !inputActive && !followupEngaged}
       hints={hints}
     >
       {/* Top Session Progress & Mode Bar */}
@@ -410,11 +416,26 @@ export const TeachModal = memo(function TeachModal({
               markdown={dialogueMarkdown}
               width={innerW}
               height={scrollH}
-              isActive={isActive && !inputActive}
+              isActive={isActive && !inputActive && !followupEngaged}
               mathUnicode={mathUnicode}
               follow={inputActive || submitting}
             />
           </Box>
+
+          {canFollowup ? (
+            <NextStepFollowupBar
+              host={host}
+              run={run}
+              cardId={cardId}
+              kind={kind}
+              toolLabel={t(lang, '苏格拉底带学', 'Socratic Teach')}
+              resultContext={dialogueMarkdown}
+              width={innerW}
+              expandedHeight={followupExpandedH}
+              isActive={isActive && canFollowup}
+              onFocusChange={setFollowupEngaged}
+            />
+          ) : null}
 
           {showInput ? (
             <Box
