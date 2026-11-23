@@ -10,6 +10,8 @@ import { TextInput } from '../components/TextInput.js';
 import { nextScrollOffset, parseSgrWheelDelta, useSgrMouseWheel } from '../components/VirtualList.js';
 import { fuzzyFilter } from './fuzzy.js';
 import { listCourses, pageIcon } from './data.js';
+import { parseAssistantIntent } from './assistant-intent.js';
+import { planAssistantWorkflow } from './assistant-workflow.js';
 import type { ShellActions } from './actions.js';
 import { useShellActions } from './actions.js';
 
@@ -68,11 +70,16 @@ export function filterPaletteItems(
   if (scope === 'card' || scope === 'passage') {
     return [];
   }
+  const recentCat = t(lang, '最近', 'Recent');
+  const recentOrder = new Map<string, number>();
+  recentCommands.forEach((id, idx) => {
+    if (!recentOrder.has(id)) recentOrder.set(id, idx);
+  });
+
   if (scope === 'all' && !term) {
     const byId = new Map(items.map((i) => [i.id, i]));
     const recent = recentCommands.map((id) => byId.get(id)).filter((x): x is CommandPaletteItem => Boolean(x));
     const recentIds = new Set(recent.map((r) => r.id));
-    const recentCat = t(lang, '最近', 'Recent');
     return [
       ...recent.map((r) => ({ ...r, category: recentCat })),
       ...items.filter(
@@ -90,12 +97,33 @@ export function filterPaletteItems(
   } else if (scope === 'page') {
     pool = items.filter((i) => i.id.startsWith('page:'));
   }
-  return fuzzyFilter(
+
+  // Round 83 Track B2: when scoped with empty term (`/`, `:`, `@`), pin recently used matching items to the top in MRU order!
+  if (!term) {
+    const recentPool: CommandPaletteItem[] = [];
+    const restPool: CommandPaletteItem[] = [];
+    for (const item of pool) {
+      if (recentOrder.has(item.id)) recentPool.push({ ...item, category: recentCat });
+      else restPool.push(item);
+    }
+    recentPool.sort((a, b) => (recentOrder.get(a.id) ?? 999) - (recentOrder.get(b.id) ?? 999));
+    return [...recentPool, ...restPool];
+  }
+
+  // When searching with a term, keep fuzzy score primary and boost recently used items on close ties
+  const scored = fuzzyFilter(
     pool,
     term,
     (i) => (scope === 'cmd' && i.label.startsWith('/') ? i.label.slice(1) : i.label),
     (i) => [...(i.keywords ?? []), i.hint ?? ''],
-  ).map((r) => r.item);
+  );
+  if (recentOrder.size === 0) return scored.map((r) => r.item);
+  scored.sort((a, b) => {
+    const aRecent = recentOrder.has(a.item.id) ? 12 - Math.min(10, recentOrder.get(a.item.id)!) : 0;
+    const bRecent = recentOrder.has(b.item.id) ? 12 - Math.min(10, recentOrder.get(b.item.id)!) : 0;
+    return b.score + bRecent - (a.score + aRecent);
+  });
+  return scored.map((r) => r.item);
 }
 
 interface CardSearchHit {
@@ -231,6 +259,22 @@ export function buildPaletteItems(
     '?',
   );
   act(
+    'cmd:assistant',
+    '/assistant',
+    t(lang, '打开右侧停靠 AI 助手（不抢焦点、自然语言、OSC 52 复制）', 'Open docked AI Assistant panel'),
+    () => useTuiStore.getState().openAssistant({ tab: 'assistant', focused: true }),
+    ['ai', 'assistant', '助手', '自然语言', '指令'],
+    'Ctrl+Space',
+  );
+  act(
+    'cmd:guided',
+    '/guided',
+    t(lang, `打开统一带学与复述工作台（提问${themeArrow}作答${themeArrow}判定${themeArrow}复述${themeArrow}小结）`, 'Open Guided Study & Retell tab'),
+    () => useTuiStore.getState().openAssistant({ tab: 'guided' }),
+    ['guided', 'socratic', 'retell', '带学', '复述', '苏格拉底'],
+    'T',
+  );
+  act(
     'cmd:theme',
     '/theme',
     t(lang, `切换主题 ${themeArrow} ${nextThemeId(state.preferences.theme)}`, `Cycle theme ${themeArrow} ${nextThemeId(state.preferences.theme)}`),
@@ -352,6 +396,25 @@ export function buildPaletteItems(
     ['math', 'latex', 'unicode', 'formula', '数学', '公式'],
   );
   act(
+    'cmd:density',
+    '/density',
+    t(
+      lang,
+      state.preferences.compactMode ? '切换为宽松间距（默认，抗视觉疲劳）' : '切换为紧凑间距（容纳更多行）',
+      state.preferences.compactMode ? 'Switch to relaxed spacing (default)' : 'Switch to compact spacing (more rows)',
+    ),
+    () => {
+      const next = !Boolean(state.preferences.compactMode);
+      setPrefs({ compactMode: next });
+      persistPreferencePatch(host, { compactMode: next });
+      notify(
+        t(lang, next ? '已切换为紧凑间距档位' : '已切换为宽松间距档位', next ? 'Density: Compact' : 'Density: Relaxed'),
+        'info',
+      );
+    },
+    ['density', 'compact', 'relaxed', 'spacing', '紧凑', '宽松', '间距'],
+  );
+  act(
     'cmd:recover',
     '/recover',
     t(lang, '恢复中断的后台任务', 'Recover interrupted background jobs'),
@@ -416,6 +479,25 @@ export function buildPaletteItems(
       );
     },
     ['hints', 'keyhints', 'footer', 'keys', '提示', '快捷键', '底部'],
+  );
+  act(
+    'cmd:proactive',
+    '/proactive',
+    t(
+      lang,
+      state.preferences.proactiveHints !== false ? '关闭卡住 20 秒主动学习提示' : '开启卡住 20 秒主动学习提示',
+      state.preferences.proactiveHints !== false ? 'Disable proactive 20s stuck hints' : 'Enable proactive 20s stuck hints',
+    ),
+    () => {
+      const next = state.preferences.proactiveHints === false;
+      setPrefs({ proactiveHints: next });
+      persistPreferencePatch(host, { proactiveHints: next });
+      notify(
+        t(lang, next ? '主动学习提示已开启' : '主动学习提示已关闭', next ? 'Proactive hints enabled' : 'Proactive hints disabled'),
+        'info',
+      );
+    },
+    ['proactive', 'nudge', 'stuck', '主动', '卡住', '提示'],
   );
   act('cmd:model', '/model', t(lang, '配置模型（agy / OpenAI）', 'Configure model (agy / OpenAI)'), () => actions.openModelSettings(), ['agy', 'openai', 'deepseek', '模型', 'api key']);
   act('cmd:voicepack', '/voicepack', t(lang, '语音包', 'Voice pack'), () => state.setVoicePackOpen(true), ['voice', '语音', 'tts']);
@@ -545,6 +627,84 @@ export interface CommandPaletteProps {
   extraCommands?: readonly CommandPaletteItem[];
   /** Initial query (e.g. '/' when opened with slash). */
   initialQuery?: string;
+}
+
+/**
+ * Synthesize a live Natural-Language command item for CommandPalette using the shared
+ * `#1315` Assistant intent & workflow parsers (Round 89 Track B6).
+ * Returns `null` for slash/scoped commands or non-actionable queries.
+ */
+export function buildNaturalLanguagePaletteItem(
+  rawQuery: string,
+  ctx: {
+    snapshot: StudySnapshot | null;
+    lang: UiLanguage;
+    asciiMode: boolean;
+    cardId?: string | null;
+    deckId?: string | null;
+  },
+): CommandPaletteItem | null {
+  const q = rawQuery.trim();
+  if (q.length < 2 || q.startsWith('/') || q.startsWith(':') || q.startsWith('@') || q.startsWith('#') || q.startsWith('$')) {
+    return null;
+  }
+
+  const nlIcon = ctx.asciiMode ? '*' : '✦';
+  const category = t(ctx.lang, '自然语言', 'Natural Lang');
+
+  const wf = planAssistantWorkflow(q, {
+    snapshot: ctx.snapshot,
+    currentCardId: ctx.cardId,
+    currentDeckId: ctx.deckId,
+    lang: ctx.lang,
+  });
+  if (wf && wf.steps.some((s) => s.intent.kind !== 'chat' && s.intent.kind !== 'unsupported')) {
+    return {
+      id: 'nl:workflow',
+      label: `${nlIcon} ${t(ctx.lang, `多步执行 (${wf.steps.length} 步): ${q}`, `Multi-step (${wf.steps.length}): ${q}`)}`,
+      hint: t(ctx.lang, '交由 AI 助手逐步确认执行', 'Hand off to AI Assistant step-by-step'),
+      category,
+      action: () => {
+        useTuiStore.getState().openAssistant({ tab: 'assistant', focused: true });
+      },
+    };
+  }
+
+  const intent = parseAssistantIntent(q, {
+    snapshot: ctx.snapshot,
+    currentCardId: ctx.cardId,
+    currentDeckId: ctx.deckId,
+    lang: ctx.lang,
+  });
+  if (intent.kind === 'chat' || intent.kind === 'unsupported') return null;
+
+  return {
+    id: `nl:${intent.actionName}`,
+    label: `${nlIcon} ${intent.paramsSummary}`,
+    hint: intent.requiresConfirm
+      ? t(ctx.lang, '需在 AI 助手确认后执行', 'Requires confirmation in AI Assistant')
+      : t(ctx.lang, '自然语言直达', 'Natural language action'),
+    category,
+    action: () => {
+      const s = useTuiStore.getState();
+      if (intent.kind === 'navigate') {
+        s.navigate(intent.page, {
+          ...(intent.sourceId ? { sourceId: intent.sourceId } : {}),
+          ...(intent.pageNumber ? { pageNumber: intent.pageNumber } : {}),
+        });
+        return;
+      }
+      if (intent.kind === 'enter_guided') {
+        s.openAssistant({ tab: 'guided', stage: intent.stage ?? 'question', focused: true });
+        return;
+      }
+      if (intent.kind === 'readonly_stats') {
+        s.navigate('dashboard');
+        return;
+      }
+      s.openAssistant({ tab: 'assistant', focused: true });
+    },
+  };
 }
 
 export const CommandPalette = memo(function CommandPalette({
@@ -699,10 +859,23 @@ export const CommandPalette = memo(function CommandPalette({
     [items, parsed, preferences.recentCommands, lang],
   );
 
-  const results = useMemo(
-    () => (liveItems.length ? [...fuzzyResults, ...liveItems] : fuzzyResults),
-    [fuzzyResults, liveItems],
+  const assistantCardContext = useTuiStore((s) => s.assistantCardContext);
+  const nlItem = useMemo(
+    () =>
+      buildNaturalLanguagePaletteItem(query, {
+        snapshot,
+        lang,
+        asciiMode,
+        cardId: assistantCardContext?.cardId,
+        deckId: assistantCardContext?.deckId,
+      }),
+    [query, snapshot, lang, asciiMode, assistantCardContext?.cardId, assistantCardContext?.deckId],
   );
+
+  const results = useMemo(() => {
+    const base = liveItems.length ? [...fuzzyResults, ...liveItems] : fuzzyResults;
+    return nlItem ? [nlItem, ...base] : base;
+  }, [fuzzyResults, liveItems, nlItem]);
 
   const width = Math.min(84, Math.max(40, columns - 8));
   const listRows = Math.max(3, Math.min(13, rows - 11));

@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, memo, useEffect, useMemo, useRef, type ReactNode } from 'react';
-import { Box, useApp, useInput, useWindowSize } from 'ink';
+import { Box, useApp, useInput } from 'ink';
 import { PAGE_REGISTRY, type CommandPaletteItem, type HostClient, type KeyHint, type PageId, type ViewProps } from '../types/contracts.js';
 import { t, useTuiStore } from '../state/store.js';
 import { useTheme } from '../theme/tokens.js';
@@ -7,16 +7,19 @@ import { KeyHintBar, Spinner, ToastStack } from '../components/Badge.js';
 import { ConfirmDialog } from '../components/ConfirmDialog.js';
 import { RESERVED_GLOBAL_KEY_SET, isKeyClaimed } from '../components/focus.js';
 import { useMouseClickInputFallback } from '../components/mouse.js';
+import { useStableWindowSize } from '../components/resize.js';
 import { TopBar } from './TopBar.js';
 import { SideNav, sideNavWidth } from './SideNav.js';
 import { ShellActionsContext, createDefaultShellActions, requestQuit, type ShellActions } from './actions.js';
 import { isLibraryEmpty } from './data.js';
+import { formatReturnHintLabel } from '../state/practice-stack.js';
 
 const Launchpad = lazy(() => import('./Launchpad.js').then((m) => ({ default: m.Launchpad })));
 const CommandPalette = lazy(() => import('./CommandPalette.js').then((m) => ({ default: m.CommandPalette })));
 const HelpOverlay = lazy(() => import('./HelpOverlay.js').then((m) => ({ default: m.HelpOverlay })));
 const CoursePickerModal = lazy(() => import('./CoursePickerModal.js').then((m) => ({ default: m.CoursePickerModal })));
 const InboxModal = lazy(() => import('./InboxModal.js').then((m) => ({ default: m.InboxModal })));
+const AssistantPanel = lazy(() => import('./AssistantPanel.js').then((m) => ({ default: m.AssistantPanel })));
 
 export interface VoicePackRenderProps {
   isActive: boolean;
@@ -64,7 +67,7 @@ export const AppShell = memo(function AppShell({
 }: AppShellProps) {
   const theme = useTheme();
   const { exit } = useApp();
-  const { columns, rows } = useWindowSize();
+  const { columns, rows } = useStableWindowSize();
 
   const page = useTuiStore((s) => s.page);
   const lang = useTuiStore((s) => s.preferences.language);
@@ -78,6 +81,10 @@ export const AppShell = memo(function AppShell({
   const inboxOpen = useTuiStore((s) => s.inboxOpen);
   const voiceOpen = useTuiStore((s) => s.voicePackOpen);
   const quitConfirmOpen = useTuiStore((s) => s.quitConfirmOpen);
+  const assistantOpen = useTuiStore((s) => s.assistantOpen);
+  const assistantFocused = useTuiStore((s) => s.assistantFocused);
+  const assistantFullscreen = useTuiStore((s) => s.assistantFullscreen);
+  const practiceStack = useTuiStore((s) => s.practiceStack);
   const showLaunchpad = useTuiStore((s) => s.showLaunchpad);
   const toasts = useTuiStore((s) => s.toasts);
   const footerHints = useTuiStore((s) => s.footerHints);
@@ -107,14 +114,26 @@ export const AppShell = memo(function AppShell({
   }, [autoLaunchpad, loading, snapshot]);
 
   const voiceOverlay = voiceOpen && Boolean(renderVoicePack);
-  const overlayOpen = paletteOpen || helpOpen || courseOpen || inboxOpen || voiceOverlay || quitConfirmOpen;
+  // Right-docked passive assistant (`assistantOpen && !assistantFocused && !assistantFullscreen`) NEVER steals focus!
+  const assistantCapturesFocus = assistantOpen && (assistantFocused || assistantFullscreen);
+  const overlayOpen = paletteOpen || helpOpen || courseOpen || inboxOpen || voiceOverlay || quitConfirmOpen || assistantCapturesFocus;
 
   // Render-time snapshot of routing state: every useInput handler for ONE keystroke sees
   // the state from BEFORE that keystroke (so closing an overlay with `?` never reopens it).
   const routing = useRef({ overlayOpen, inputCaptured, showLaunchpad });
   routing.current = { overlayOpen, inputCaptured, showLaunchpad };
 
-  const { navW, bodyH, contentW } = shellLayout(columns, rows, { sidebarCollapsed, showKeyHints, launchpad: showLaunchpad });
+  const { navW, bodyH, contentW: fullContentW } = shellLayout(columns, rows, {
+    sidebarCollapsed,
+    showKeyHints,
+    launchpad: showLaunchpad || (assistantOpen && assistantFullscreen),
+  });
+  const dockActive = assistantOpen && !assistantFullscreen && !showLaunchpad;
+  const dockSideBySide = dockActive && columns - navW >= 78;
+  const dockW = dockSideBySide ? Math.min(54, Math.max(36, Math.floor((columns - navW) * 0.42))) : Math.max(20, columns - navW - 2);
+  const dockH = dockSideBySide ? bodyH : Math.max(8, Math.floor(bodyH * 0.42));
+  const contentW = dockSideBySide ? Math.max(24, columns - navW - dockW - 2) : fullContentW;
+  const contentH = dockActive && !dockSideBySide ? Math.max(6, bodyH - dockH) : bodyH;
   useMouseClickInputFallback(true);
 
   useInput((input, key) => {
@@ -134,6 +153,26 @@ export const AppShell = memo(function AppShell({
         s.setCommandPaletteOpen(false);
       } else if (!r.overlayOpen && !r.inputCaptured) {
         s.setCommandPaletteOpen(true);
+      }
+      return;
+    }
+    // Ctrl+Space (NUL `\x00` or Ctrl+@ / Ctrl+Space) opens docked WITHOUT stealing focus; 2nd press focuses; 3rd collapses!
+    const isCtrlSpace = input === '\u0000' || (key.ctrl && (input === ' ' || input === '@'));
+    if (isCtrlSpace) {
+      if (!s.assistantOpen) {
+        if (!r.overlayOpen && !r.inputCaptured) s.openAssistant({ focused: false });
+      } else if (!s.assistantFocused && !s.assistantFullscreen) {
+        s.setAssistantFocused(true);
+      } else {
+        s.closeAssistant();
+      }
+      return;
+    }
+    if (key.ctrl && input === 'g') {
+      if (s.assistantOpen && (s.assistantFocused || s.assistantFullscreen)) {
+        s.closeAssistant();
+      } else if (!r.overlayOpen && !r.inputCaptured) {
+        s.openAssistant({ focused: true });
       }
       return;
     }
@@ -182,6 +221,10 @@ export const AppShell = memo(function AppShell({
     const target = SHORTCUTS.get(input);
     if (target) {
       if (target === 'review') {
+        if (s.practiceStack.length > 0) {
+          s.returnViaPracticeStack();
+          return;
+        }
         if (s.page === 'review' && (!s.activeRunId || s.navContext.runId === s.activeRunId)) return;
         if (s.activeRunId) s.navigate('review', { runId: s.activeRunId });
         else {
@@ -189,6 +232,20 @@ export const AppShell = memo(function AppShell({
           s.navigate('review', focusCourse ? { course: focusCourse } : {});
         }
       } else {
+        // Preserve intermediate reader location in stack if leaving sources while a practice stack is active (#1319)
+        if (s.practiceStack.length > 0 && s.page === 'sources' && target !== 'sources' && s.navContext.sourceId) {
+          s.pushPracticeContext({
+            kind: 'page',
+            returnPage: 'sources',
+            navContext: { ...s.navContext },
+            readingPos: {
+              sourceId: s.navContext.sourceId,
+              pageNumber: s.navContext.pageNumber,
+            },
+            originKind: 'source',
+            pushedAt: Date.now(),
+          });
+        }
         s.navigate(target);
       }
     }
@@ -196,16 +253,17 @@ export const AppShell = memo(function AppShell({
 
   const contentActive = !overlayOpen && !showLaunchpad;
   const view: ViewProps = useMemo(
-    () => ({ host, width: contentW, height: bodyH, isActive: contentActive }),
-    [host, contentW, bodyH, contentActive],
+    () => ({ host, width: contentW, height: contentH, isActive: contentActive }),
+    [host, contentW, contentH, contentActive],
   );
 
+  const compactMode = useTuiStore((s) => Boolean(s.preferences.compactMode));
   const tailHints: KeyHint[] = useMemo(
     () => [
       { key: 'Ctrl+K', label: t(lang, '命令', 'Cmd') },
-      { key: '?', label: t(lang, '帮助', 'Help') },
+      { key: '?', label: compactMode && footerHints.length > 4 ? t(lang, '全部键', 'All') : t(lang, '帮助', 'Help') },
     ],
-    [lang],
+    [lang, compactMode, footerHints.length],
   );
   const defaultHints: KeyHint[] = useMemo(
     () => [
@@ -216,10 +274,12 @@ export const AppShell = memo(function AppShell({
     ],
     [lang],
   );
-  const hints = useMemo(
-    () => [...(footerHints.length ? footerHints : defaultHints), ...tailHints],
-    [footerHints, defaultHints, tailHints],
-  );
+  const practiceReturnLabel = useMemo(() => formatReturnHintLabel(practiceStack, lang), [practiceStack, lang]);
+  const hints = useMemo(() => {
+    const base = footerHints.length ? (compactMode ? footerHints.slice(0, 4) : footerHints) : defaultHints;
+    const prefix: KeyHint[] = practiceReturnLabel ? [{ key: 'r', label: practiceReturnLabel }] : [];
+    return [...prefix, ...base, ...tailHints];
+  }, [practiceReturnLabel, footerHints, compactMode, defaultHints, tailHints]);
 
   const toastW = Math.min(48, Math.max(28, Math.floor(columns * 0.4)));
   const toastRows = Math.min(2, toasts.length);
@@ -249,9 +309,56 @@ export const AppShell = memo(function AppShell({
         <TopBar width={columns} />
         <Box flexDirection="row" height={bodyH} width={columns}>
           {navW > 0 ? <SideNav width={navW} height={bodyH} /> : null}
-          <Box flexDirection="column" width={columns - navW} height={bodyH} paddingX={1} overflow="hidden">
-            {main}
-          </Box>
+          {assistantOpen && assistantFullscreen ? (
+            <Box flexDirection="column" width={columns - navW} height={bodyH} paddingX={1} overflow="hidden">
+              <Suspense fallback={null}>
+                <AssistantPanel
+                  host={host}
+                  isActive={!paletteOpen && !helpOpen && !courseOpen && !inboxOpen && !quitConfirmOpen}
+                  width={Math.max(40, columns - navW - 2)}
+                  height={bodyH}
+                  docked
+                  onClose={() => useTuiStore.getState().closeAssistant()}
+                />
+              </Suspense>
+            </Box>
+          ) : dockSideBySide ? (
+            <Box flexDirection="row" width={columns - navW} height={bodyH} paddingX={1} overflow="hidden">
+              <Box flexDirection="column" width={contentW} height={bodyH} overflow="hidden">
+                {main}
+              </Box>
+              <Suspense fallback={null}>
+                <AssistantPanel
+                  host={host}
+                  isActive={assistantFocused && !paletteOpen && !helpOpen && !courseOpen && !inboxOpen && !quitConfirmOpen}
+                  width={dockW}
+                  height={bodyH}
+                  docked
+                  onClose={() => useTuiStore.getState().closeAssistant()}
+                />
+              </Suspense>
+            </Box>
+          ) : dockActive ? (
+            <Box flexDirection="column" width={columns - navW} height={bodyH} paddingX={1} overflow="hidden">
+              <Box flexDirection="column" width={contentW} height={contentH} overflow="hidden">
+                {main}
+              </Box>
+              <Suspense fallback={null}>
+                <AssistantPanel
+                  host={host}
+                  isActive={assistantFocused && !paletteOpen && !helpOpen && !courseOpen && !inboxOpen && !quitConfirmOpen}
+                  width={dockW}
+                  height={dockH}
+                  docked
+                  onClose={() => useTuiStore.getState().closeAssistant()}
+                />
+              </Suspense>
+            </Box>
+          ) : (
+            <Box flexDirection="column" width={columns - navW} height={bodyH} paddingX={1} overflow="hidden">
+              {main}
+            </Box>
+          )}
         </Box>
         {showKeyHints ? (
           <KeyHintBar

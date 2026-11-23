@@ -15,6 +15,8 @@ import { VirtualList } from '../../components/VirtualList.js';
 import { useClaimKeys } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { displayWidth, truncateDisplay } from '../../render/cjk.js';
+import { buildRoundNextStepSuggestion } from './round-next-step.js';
+import { dueToday } from '../../shell/data.js';
 
 interface LookBackOption {
   id?: string;
@@ -757,7 +759,24 @@ export const RoundSummary = memo(function RoundSummary({
 
   const ellipsis = asciiMode ? '...' : '…';
   const headerH = height <= 24 ? 4 : 5;
-  const bodyH = Math.max(6, height - headerH);
+  const proactiveHints = useTuiStore((s) => s.preferences.proactiveHints !== false);
+  const snapshot = useTuiStore((s) => s.snapshot);
+  const nextStepSuggestion = useMemo(
+    () =>
+      buildRoundNextStepSuggestion({
+        answered,
+        correct,
+        weakCount: Math.max(rows.filter((r) => r.status === 'wrong').length, Math.max(0, answered - correct)),
+        weakTopics,
+        remainingDue: dueToday(snapshot),
+        lang,
+        asciiMode,
+        proactiveHints,
+      }),
+    [answered, correct, rows, weakTopics, snapshot, lang, asciiMode, proactiveHints],
+  );
+  const effectiveHeaderH = nextStepSuggestion && height >= 16 ? Math.max(headerH, 5) : headerH;
+  const bodyH = Math.max(6, height - effectiveHeaderH);
   const headerInnerW = Math.max(16, width - 4);
   const barW = Math.min(20, Math.max(8, Math.floor(width * 0.16)));
   const statsPrefix = `${t(lang, '已答', 'Ans')} ${answered}/${totalQuestions}  ${t(lang, '答对', 'OK')} ${correct}`;
@@ -782,7 +801,7 @@ export const RoundSummary = memo(function RoundSummary({
         badge={answered > 0 ? `${accuracy}%` : t(lang, '已结束', 'Ended')}
         badgeTone={accuracy >= 70 ? 'success' : answered > 0 ? 'warning' : 'neutral'}
         width={width}
-        height={headerH}
+        height={effectiveHeaderH}
         ascii={asciiMode}
       >
         <Box flexDirection="row" alignItems="center" gap={1} height={1} overflow="hidden">
@@ -819,6 +838,13 @@ export const RoundSummary = memo(function RoundSummary({
             </Text>
           ) : null}
         </Box>
+        {nextStepSuggestion && height >= 16 ? (
+          <Box height={1} overflow="hidden">
+            <Text color={theme.ai} wrap="truncate">
+              {truncateDisplay(nextStepSuggestion.text, headerInnerW, ellipsis)}
+            </Text>
+          </Box>
+        ) : null}
       </Panel>
 
       <SplitPane

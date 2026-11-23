@@ -5,6 +5,7 @@ import { t, useTuiStore } from '../../state/store.js';
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
+import { computeProseLayout } from '../../components/Layout.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
 import { Panel } from '../../components/Panel.js';
 import { ScrollView } from '../../components/ScrollView.js';
@@ -15,6 +16,7 @@ import { useStreamingBuffer } from '../../components/useStreamingBuffer.js';
 import { errorMessage, startReview, tryAction } from '../../host/sample-actions.js';
 import { MAX_LAST_READ_PAGES, saveTuiPreferences } from '../../host/tui-prefs.js';
 import { wrapDisplay } from '../../render/cjk.js';
+import { formatLongformProse, formatReadingTimeLabel } from '../../render/longform.js';
 
 const ReaderOutlineDrawer = lazy(() =>
   import('./ReaderOutlineDrawer.js').then((m) => ({ default: m.ReaderOutlineDrawer })),
@@ -1672,12 +1674,12 @@ export const DocumentReader = memo(function DocumentReader({
     const items: KeyHint[] = [
       { key: '[/]', label: t(lang, '翻页', 'Page') },
       { key: 'O', label: t(lang, '目录', 'TOC') },
-      { key: 'B', label: t(lang, '批注', 'Notes') },
       { key: 'H', label: t(lang, '标记段落', 'Mark') },
+      { key: 'G', label: t(lang, '术语译文', 'Glossary') },
+      { key: 'B', label: t(lang, '批注', 'Notes') },
       ...(chapters.length > 0 ? [{ key: 'M', label: t(lang, '已读', 'Read') }] : []),
       { key: 'a', label: t(lang, '问AI', 'Ask') },
       { key: 't', label: t(lang, '翻译', 'Trans') },
-      { key: 'G', label: t(lang, '术语译文', 'Glossary') },
       { key: 'g', label: t(lang, '跳页', 'Go') },
       { key: '/', label: t(lang, '搜索', 'Search') },
       { key: 'm', label: t(lang, '公式', 'Math') },
@@ -1908,7 +1910,13 @@ export const DocumentReader = memo(function DocumentReader({
       <Box flexDirection={showSide ? 'row' : 'column'} width={width} height={bodyH} overflow="hidden">
         <Panel
           title={pageLabel.trim()}
-          subtitle={activeSearch ? `${asciiMode ? '?' : '🔍'} ${activeSearch} (${searchHits.length})` : undefined}
+          subtitle={
+            activeSearch
+              ? `${asciiMode ? '?' : '🔍'} ${activeSearch} (${searchHits.length})`
+              : pageData?.text
+                ? formatReadingTimeLabel(pageData.text, lang)
+                : undefined
+          }
           width={mainW}
           height={readerH}
           focused={subMode === 'read'}
@@ -1922,26 +1930,46 @@ export const DocumentReader = memo(function DocumentReader({
               <Text color={theme.error}>{loadError}</Text>
             </Box>
           ) : (pageData?.format === 'md' || pageData?.format === 'tex') ? (
-            <MarkdownView
-              markdown={pageData?.text || t(lang, '（本页暂无可提取文字）', '(No extracted text on this page)')}
-              width={Math.max(12, mainW - 4)}
-              height={Math.max(2, readerH - 2)}
-              isActive={readerInputActive && subMode === 'read'}
-              mathUnicode={mathUnicode}
-              highlight={activeSearch || undefined}
-              scrollTop={pageScrollTop}
-              onScroll={setPageScrollTop}
-            />
+            (() => {
+              const availW = Math.max(12, mainW - 4);
+              const { proseWidth, marginLeft } = computeProseLayout(availW);
+              return (
+                <Box width={availW} height={Math.max(2, readerH - 2)} paddingLeft={marginLeft} overflow="hidden">
+                  <MarkdownView
+                    markdown={pageData?.text || t(lang, '（本页暂无可提取文字）', '(No extracted text on this page)')}
+                    width={proseWidth}
+                    height={Math.max(2, readerH - 2)}
+                    isActive={readerInputActive && subMode === 'read'}
+                    mathUnicode={mathUnicode}
+                    highlight={activeSearch || undefined}
+                    scrollTop={pageScrollTop}
+                    onScroll={setPageScrollTop}
+                  />
+                </Box>
+              );
+            })()
           ) : (
-            <ScrollView
-              content={pageData?.text || t(lang, '（本页暂无可提取文字）', '(No extracted text on this page)')}
-              width={Math.max(12, mainW - 4)}
-              height={Math.max(2, readerH - 2)}
-              isActive={readerInputActive && subMode === 'read'}
-              highlight={activeSearch || undefined}
-              scrollTop={pageScrollTop}
-              onScroll={setPageScrollTop}
-            />
+            (() => {
+              const availW = Math.max(12, mainW - 4);
+              const { proseWidth, marginLeft } = computeProseLayout(availW);
+              const rawText = pageData?.text || t(lang, '（本页暂无可提取文字）', '(No extracted text on this page)');
+              const proseLines = formatLongformProse(rawText, Math.max(12, proseWidth - 1), {
+                relaxed: !useTuiStore.getState().preferences.compactMode,
+              });
+              return (
+                <Box width={availW} height={Math.max(2, readerH - 2)} paddingLeft={marginLeft} overflow="hidden">
+                  <ScrollView
+                    lines={proseLines}
+                    width={proseWidth}
+                    height={Math.max(2, readerH - 2)}
+                    isActive={readerInputActive && subMode === 'read'}
+                    highlight={activeSearch || undefined}
+                    scrollTop={pageScrollTop}
+                    onScroll={setPageScrollTop}
+                  />
+                </Box>
+              );
+            })()
           )}
         </Panel>
 

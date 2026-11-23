@@ -399,3 +399,110 @@ export function renderTreeLines(
   walk(nodes ?? [], 0, '');
   return out;
 }
+
+/* ----------------------------------------------------------- Stat Table */
+
+export interface StatTableColumn {
+  key: string;
+  label: string;
+  align?: 'left' | 'right';
+  /** Minimum column width (default 4). */
+  minWidth?: number;
+  /** Fixed width override; remaining columns share leftover width proportionally. */
+  width?: number;
+}
+
+export interface StatTableOptions {
+  ascii?: boolean;
+  /** Optional muted hairline rule between header and rows (default true). */
+  headerRule?: boolean;
+}
+
+/**
+ * Clean borderless tabular stats renderer (Round 89 Track A8).
+ * Guarantees CJK-aware alignment, right-aligned numeric metrics, pure ASCII fallback,
+ * NO_COLOR safety, and exact `width` columns on every emitted line.
+ */
+export function renderStatTable(
+  columns: readonly StatTableColumn[],
+  rows: readonly Record<string, string | number | undefined>[],
+  width: number,
+  theme: ChartTheme,
+  opts: StatTableOptions = {},
+): string[] {
+  const total = Math.max(0, Math.floor(width) || 0);
+  if (columns.length === 0 || total === 0) return [];
+  const chalk = makeChalk(getColorLevel());
+  const ascii = opts.ascii === true;
+  const ell = ascii ? '...' : '…';
+  const gap = columns.length > 1 ? 2 : 0;
+  const totalGaps = gap * (columns.length - 1);
+  const avail = Math.max(columns.length, total - totalGaps);
+
+  // Measure natural widths and fit cleanly into `avail`
+  const natural = columns.map((col) => {
+    if (typeof col.width === 'number' && col.width > 0) return Math.floor(col.width);
+    let w = displayWidth(col.label);
+    for (const r of rows) {
+      w = Math.max(w, displayWidth(String(r[col.key] ?? '')));
+    }
+    return Math.max(col.minWidth ?? 4, w);
+  });
+
+  const colWidths = natural.slice();
+  let sum = colWidths.reduce((a, b) => a + b, 0);
+  if (sum > avail) {
+    // Shrink widest columns first while honoring minWidth floor (down to 2 on extreme narrow widths)
+    const floors = columns.map((c) => Math.min(c.minWidth ?? 4, Math.max(2, Math.floor(avail / columns.length))));
+    while (sum > avail) {
+      let widestIdx = -1;
+      let widestSlack = 0;
+      for (let i = 0; i < colWidths.length; i += 1) {
+        const slack = colWidths[i] - floors[i];
+        if (slack > widestSlack) {
+          widestSlack = slack;
+          widestIdx = i;
+        }
+      }
+      if (widestIdx < 0) break;
+      colWidths[widestIdx] -= 1;
+      sum -= 1;
+    }
+  } else if (sum < avail) {
+    // Give extra breathing room to the first left-aligned column (typically the title/label)
+    const flexIdx = Math.max(0, columns.findIndex((c) => c.align !== 'right'));
+    colWidths[flexIdx] += avail - sum;
+  }
+
+  const sep = ' '.repeat(gap);
+  const formatRow = (cells: string[], colorize: (txt: string, col: StatTableColumn) => string): string => {
+    const rendered = columns.map((col, i) => {
+      const w = colWidths[i];
+      const cell = padDisplay(truncateDisplay(cells[i] ?? '', w, ell), w, col.align === 'right' ? 'right' : 'left');
+      return colorize(cell, col);
+    });
+    const joined = rendered.join(sep);
+    const padRight = total - (colWidths.reduce((a, b) => a + b, 0) + totalGaps);
+    return padRight > 0 ? joined + ' '.repeat(padRight) : joined;
+  };
+
+  const out: string[] = [];
+  out.push(
+    formatRow(
+      columns.map((c) => c.label),
+      (txt) => chalk.hex(theme.muted).bold(txt),
+    ),
+  );
+  if (opts.headerRule !== false) {
+    out.push(chalk.hex(theme.dim)((ascii ? '-' : '─').repeat(total)));
+  }
+  for (const row of rows) {
+    out.push(
+      formatRow(
+        columns.map((c) => String(row[c.key] ?? '')),
+        (txt, col) => (col.align === 'right' ? chalk.hex(theme.primary)(txt) : chalk.hex(theme.text ?? theme.primary)(txt)),
+      ),
+    );
+  }
+  return out;
+}

@@ -7,6 +7,7 @@ import { displayWidth, truncateDisplay } from '../render/cjk.js';
 import { Spinner } from '../components/Badge.js';
 import { useClaimedKeys } from '../components/focus.js';
 import { ClickableBox } from '../components/mouse.js';
+import { formatReturnHintLabel } from '../state/practice-stack.js';
 import { currentCourse, dueToday, modelInfo, pageIcon, runningJobs, unreadInboxCount } from './data.js';
 
 export interface TopBarProps {
@@ -38,6 +39,7 @@ export const TopBar = memo(function TopBar({ width }: TopBarProps) {
   const cfg = useTuiStore((s) => s.desktopConfig);
   const binding = useTuiStore((s) => s.binding);
   const refreshing = useTuiStore((s) => s.refreshing);
+  const practiceStack = useTuiStore((s) => s.practiceStack);
   const claimedKeys = useClaimedKeys();
   const courseKeyOverridden = claimedKeys.has('c');
   const paletteKeyOverridden = claimedKeys.has('/');
@@ -65,6 +67,8 @@ export const TopBar = memo(function TopBar({ width }: TopBarProps) {
   const jobsText = `  ${jobs} ${t(lang, '任务', 'jobs')} `;
   const cmdKeyLabel = paletteKeyOverridden ? '[Ctrl+K]' : '[/]';
   const helpText = ` [?] ${t(lang, '帮助', 'Help')}  ${cmdKeyLabel} ${t(lang, '命令', 'Cmd')} `;
+  const returnChipLabel = formatReturnHintLabel(practiceStack, lang);
+  const returnChipText = returnChipLabel ? ` ${asciiMode ? '<-' : '←'} ${returnChipLabel} [r] ` : '';
 
   // Dynamic budget allocation for course & model so wide terminals never truncate unnecessarily.
   const coursePrefix = courseKeyOverridden ? ' ' : ' [c] ';
@@ -75,6 +79,7 @@ export const TopBar = memo(function TopBar({ width }: TopBarProps) {
 
   const staticWidths: Array<{ id: string; priority: number; width: number }> = [
     { id: 'brand', priority: 100, width: displayWidth(brand) },
+    ...(returnChipText ? [{ id: 'return', priority: 95, width: displayWidth(returnChipText) + 1 }] : []),
     { id: 'page', priority: 60, width: displayWidth(pageLabel) + 1 },
     ...(unread > 0 ? [{ id: 'inbox', priority: 55, width: displayWidth(inboxText) + 1 }] : []),
     ...(jobs > 0 || refreshing ? [{ id: 'jobs', priority: 70, width: displayWidth(jobsText) + 1 }] : []),
@@ -142,6 +147,25 @@ export const TopBar = memo(function TopBar({ width }: TopBarProps) {
         </Text>
       ),
     },
+    ...(returnChipText
+      ? [
+          {
+            id: 'return',
+            priority: 95,
+            width: displayWidth(returnChipText) + 1,
+            node: (
+              <ClickableBox key="return" onClick={() => useTuiStore.getState().returnViaPracticeStack()}>
+                <Text>
+                  <Text> </Text>
+                  <Text backgroundColor={theme.success} color={onPrimary} bold>
+                    {returnChipText}
+                  </Text>
+                </Text>
+              </ClickableBox>
+            ),
+          } satisfies Segment,
+        ]
+      : []),
     {
       id: 'page',
       priority: 60,

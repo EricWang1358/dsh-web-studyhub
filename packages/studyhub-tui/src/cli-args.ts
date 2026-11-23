@@ -33,7 +33,7 @@ export interface ColorCapability {
   reason: string;
 }
 
-const VALID_THEMES = new Set<ThemeId>(['dsh-dark', 'warm-paper', 'nord', 'high-contrast']);
+const VALID_THEMES = new Set<ThemeId>(['dsh-dark', 'warm-paper', 'nord', 'high-contrast', 'warm-amber', 'soft-sage']);
 const VALID_PAGES = new Set<PageId>(PAGE_REGISTRY.map((p) => p.id));
 const TRUECOLOR_TERM_PROGRAMS = new Set([
   'wezterm',
@@ -331,7 +331,7 @@ export function parseCliArgs(argv: readonly string[]): ParsedCliArgs {
     if (flag === '--theme') {
       const val = takeValue();
       if (!val || !VALID_THEMES.has(val as ThemeId)) {
-        result.error = `Invalid --theme "${val ?? ''}". Valid: dsh-dark, warm-paper, nord, high-contrast`;
+        result.error = `Invalid --theme "${val ?? ''}". Valid: dsh-dark, warm-paper, nord, high-contrast, warm-amber, soft-sage`;
         return result;
       }
       result.theme = val as ThemeId;
@@ -382,7 +382,7 @@ export function cliHelpText(version = '1.0.0'): string {
     'Options:',
     '  -r, --root <path>     Open a specific StudyHub library directory (.dsh-study or folder; alias: --library)',
     '  -p, --page <id>       Start directly on a page (library, review, sources, generate, ...)',
-    '      --theme <id>      Theme: dsh-dark | warm-paper | nord | high-contrast',
+    '      --theme <id>      Theme: dsh-dark | warm-paper | nord | high-contrast | warm-amber | soft-sage',
     '      --lang <zh|en>    UI language: zh (default) | en',
     '      --no-alt-screen   Render inline without switching to the alternate screen buffer',
     '      --no-launchpad    Skip the first-run Launchpad even on an empty library',

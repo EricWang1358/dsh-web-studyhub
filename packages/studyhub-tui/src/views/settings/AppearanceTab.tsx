@@ -23,7 +23,8 @@ type RowKey =
   | 'asciiMode'
   | 'sidebarCollapsed'
   | 'compactMode'
-  | 'showKeyHints';
+  | 'showKeyHints'
+  | 'proactiveHints';
 
 const ROWS: readonly RowKey[] = Object.freeze([
   'theme',
@@ -33,6 +34,7 @@ const ROWS: readonly RowKey[] = Object.freeze([
   'sidebarCollapsed',
   'compactMode',
   'showKeyHints',
+  'proactiveHints',
 ]);
 
 function describeColorLevel(level: ReturnType<typeof getColorLevel>): string {
@@ -131,6 +133,14 @@ export const AppearanceTab: React.FC<AppearanceTabProps> = memo(function Appeara
       }
       if (rowKey === 'showKeyHints') {
         void persistPatch({ showKeyHints: !prefs.showKeyHints });
+        return;
+      }
+      if (rowKey === 'proactiveHints') {
+        const next = prefs.proactiveHints === false;
+        void persistPatch(
+          { proactiveHints: next },
+          next ? t(lang, '已开启主动学习提示', 'Proactive hints enabled') : t(lang, '已关闭主动学习提示', 'Proactive hints disabled'),
+        );
       }
     },
     [lang, persistPatch, prefs],
@@ -215,15 +225,21 @@ export const AppearanceTab: React.FC<AppearanceTabProps> = memo(function Appeara
     },
     {
       key: 'compactMode' as const,
-      label: t(lang, '紧凑布局模式', 'Compact Mode'),
-      value: prefs.compactMode ? t(lang, `紧凑 ${check}`, `Compact ${check}`) : t(lang, '标准', 'Standard'),
-      hint: t(lang, '减少卡片边距以在矮终端显示更多内容', 'Reduce padding for smaller terminals'),
+      label: t(lang, '界面间距档位', 'Spacing Density'),
+      value: prefs.compactMode ? t(lang, `紧凑 ${check}`, `Compact ${check}`) : t(lang, '宽松 (默认)', 'Relaxed (default)'),
+      hint: t(lang, '宽松更耐看、紧凑可容纳更多行，切换即时生效', 'Relaxed reduces fatigue; Compact fits more rows live'),
     },
     {
       key: 'showKeyHints' as const,
       label: t(lang, '显示底部快捷键提示', 'Footer Key Hints'),
       value: prefs.showKeyHints ? t(lang, `显示 ${check}`, `Visible ${check}`) : t(lang, '隐藏', 'Hidden'),
       hint: t(lang, '控制底部导航提示条是否显示', 'Show or hide the bottom shortcut bar'),
+    },
+    {
+      key: 'proactiveHints' as const,
+      label: t(lang, '主动学习提示', 'Proactive Study Nudges'),
+      value: prefs.proactiveHints !== false ? t(lang, `开启 ${check}`, `On ${check}`) : t(lang, '关闭', 'Off'),
+      hint: t(lang, '20秒卡住提示 / 每日简报 / 连错3题归因（限频且不打断输入）', '20s stuck / daily brief / 3-wrong streak (rate-limited)'),
     },
   ];
 
@@ -246,7 +262,10 @@ export const AppearanceTab: React.FC<AppearanceTabProps> = memo(function Appeara
     `渲染: ${asciiMode ? 'ASCII' : 'Unicode'}${sep}公式: ${prefs.mathUnicode ? 'Unicode' : 'LaTeX'}${sep}鼠标 SGR 1006: ${mouseEnabled ? 'On' : 'Off'}`,
     `Render: ${asciiMode ? 'ASCII' : 'Unicode'}${sep}Math: ${prefs.mathUnicode ? 'Unicode' : 'LaTeX'}${sep}Mouse SGR 1006: ${mouseEnabled ? 'On' : 'Off'}`,
   );
-  const swatchGroups = innerW < 92 ? [themeSwatches.slice(0, 2), themeSwatches.slice(2)] : [themeSwatches];
+  const swatchGroups =
+    innerW < 112
+      ? [themeSwatches.slice(0, 3), themeSwatches.slice(3)]
+      : [themeSwatches];
 
   return (
     <Box flexDirection="column" width={width} height={height} overflow="hidden">

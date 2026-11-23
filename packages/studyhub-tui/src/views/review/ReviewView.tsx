@@ -19,6 +19,7 @@ import {
 import { useTheme } from '../../theme/tokens.js';
 import { Badge, Divider, EmptyState, ProgressBar, Spinner } from '../../components/Badge.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
+import { SectionHeader, computeProseLayout } from '../../components/Layout.js';
 import { MarkdownView } from '../../components/MarkdownView.js';
 import { Modal } from '../../components/Modal.js';
 import { Panel } from '../../components/Panel.js';
@@ -26,8 +27,17 @@ import { TextInput } from '../../components/TextInput.js';
 import { useClaimKeys } from '../../components/focus.js';
 import { useFooterHints } from '../../components/hooks.js';
 import { ClickableBox } from '../../components/mouse.js';
+import { saveTuiPreferences } from '../../host/tui-prefs.js';
+import {
+  toLastPracticeContext,
+  type PracticeContextFrame,
+  type PracticeOriginKind,
+} from '../../state/practice-stack.js';
 import { LruCache } from '../../render/lru.js';
 import { displayWidth, truncateDisplay, wrapDisplay } from '../../render/cjk.js';
+import { buildFileHyperlinkUrl, formatOsc8Link } from '../../render/osc8.js';
+import { buildReviewWindowTitle, writeTerminalTitle } from '../../render/terminal-title.js';
+import { buildReviewQuickActions } from './quick-actions.js';
 import {
   FSRS_GRADES,
   MAX_TRANSLATION_CACHE,
@@ -53,6 +63,18 @@ import {
 } from './review-helpers.js';
 import type { SavedFollowupItem } from './AiHelpDrawer.js';
 import type { CoachNudgeNote } from './CoachNudgeModal.js';
+import {
+  STUCK_NUDGE_DELAY_MS,
+  buildStuckNudgeMessage,
+  shouldScheduleStuckNudge,
+} from './stuck-nudge.js';
+import {
+  buildWrongStreakBanner,
+  createWrongStreakState,
+  recordReviewOutcome,
+  shouldTriggerWrongStreakNudge,
+  type WrongStreakState,
+} from './wrong-streak-nudge.js';
 const AiHelpDrawer = lazy(() => import('./AiHelpDrawer.js').then((m) => ({ default: m.AiHelpDrawer })));
 const AnswerCardModal = lazy(() => import('./AnswerCardModal.js').then((m) => ({ default: m.AnswerCardModal })));
 const CardToolsModal = lazy(() => import('./CardToolsModal.js').then((m) => ({ default: m.CardToolsModal })));
@@ -126,6 +148,7 @@ const CARD_UTIL_KEYS: readonly string[] = Object.freeze([
   'L',
   '*',
   'T',
+  'W',
   'S',
   'D',
   'A',
@@ -134,6 +157,7 @@ const CARD_UTIL_KEYS: readonly string[] = Object.freeze([
   'u',
   'o',
   'N',
+  'R',
 ]);
 const RATING_DIGIT_KEYS: readonly string[] = Object.freeze(['0', '1', '2', '3', '4', '5']);
 const CHOICE_DIGIT_KEYS: readonly string[] = Object.freeze(['1', '2', '3', '4', '5', '6']);
@@ -240,11 +264,18 @@ function GradeAdjustModal({
   );
 }
 
-export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive }) => {
+export const ReviewView: React.FC<ViewProps & { stuckNudgeDelayMs?: number }> = ({
+  host,
+  width,
+  height,
+  isActive,
+  stuckNudgeDelayMs = STUCK_NUDGE_DELAY_MS,
+}) => {
   const theme = useTheme();
   const lang = useTuiStore((s) => s.preferences.language);
   const mathUnicode = useTuiStore((s) => s.preferences.mathUnicode);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const proactiveHints = useTuiStore((s) => s.preferences.proactiveHints !== false);
   const setPreferences = useTuiStore((s) => s.setPreferences);
   const navContext = useTuiStore((s) => s.navContext);
   const activeRunId = useTuiStore((s) => s.activeRunId);
@@ -259,6 +290,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [endedRestoreFrame, setEndedRestoreFrame] = useState<PracticeContextFrame | null>(null);
 
   // Per-card local input state
   const [cursorOpt, setCursorOpt] = useState(0);
@@ -292,6 +324,13 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
   const [showTranslation, setShowTranslation] = useState(false);
   const [translating, setTranslating] = useState(false);
   const [translationTick, setTranslationTick] = useState(0);
+  const [stuckNudgeVisible, setStuckNudgeVisible] = useState(false);
+  const [stuckActivityTick, setStuckActivityTick] = useState(0);
+  const nudgedCardIdsRef = useRef<Set<string>>(new Set());
+  const roundNudgeCountRef = useRef(0);
+  const lastNudgeAtRef = useRef<number | null>(null);
+  const wrongStreakRef = useRef<WrongStreakState>(createWrongStreakState());
+  const [wrongStreakBanner, setWrongStreakBanner] = useState<string | null>(null);
 
   const mountedRef = useRef(true);
   const busyRef = useRef(false);
@@ -300,7 +339,71 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
   const currentCardIdRef = useRef<string | null>(null);
   const runRef = useRef<ReviewRun | null>(null);
   runRef.current = run;
+  const selectedIdsRef = useRef<string[]>(selectedIds);
+  selectedIdsRef.current = selectedIds;
+  const clozeInputsRef = useRef<Record<string, string>>(clozeInputs);
+  clozeInputsRef.current = clozeInputs;
+  const openDraftRef = useRef<string>(openDraft);
+  openDraftRef.current = openDraft;
+  const pendingDraftRestoreRef = useRef<{
+    cardId?: string;
+    draft?: PracticeContextFrame['draft'];
+    submitted?: boolean;
+  } | null>(null);
+  const skipUnmountPushRef = useRef(false);
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const pushCurrentToPracticeStack = useCallback(
+    (originKind: PracticeOriginKind) => {
+      const activeRun = runRef.current;
+      const cid = currentCardId(activeRun);
+      if (
+        !activeRun?.id ||
+        !cid ||
+        activeRun.complete ||
+        activeRun.closed ||
+        Boolean((activeRun as { summary?: unknown }).summary) ||
+        (activeRun as { status?: string }).status === 'ended'
+      ) {
+        return;
+      }
+      const clozeInfo = resolveClozeBlanks(activeRun);
+      const clozeDrafts = clozeInfo
+        ? clozeInfo.blanks.map((b) => clozeInputsRef.current[b.id] ?? '')
+        : undefined;
+      const fb = extractFeedback(activeRun);
+      const frame: PracticeContextFrame = {
+        kind: 'review',
+        returnPage: 'review',
+        runId: activeRun.id,
+        cardId: cid,
+        deckId: currentDeckIdOf(activeRun) ?? undefined,
+        cardIndex: typeof activeRun.index === 'number' ? activeRun.index : 0,
+        total: typeof activeRun.total === 'number' ? activeRun.total : undefined,
+        promptPreview: String(activeRun.card?.prompt || '').replace(/\s+/g, ' ').trim().slice(0, 120),
+        draft: fb
+          ? undefined
+          : {
+              selected: selectedIdsRef.current.length > 0 ? [...selectedIdsRef.current] : undefined,
+              clozeDrafts: clozeDrafts && clozeDrafts.some((s) => s.length > 0) ? clozeDrafts : undefined,
+              openDraft: openDraftRef.current.length > 0 ? openDraftRef.current : undefined,
+            },
+        submitted: Boolean(fb),
+        originKind,
+        pushedAt: Date.now(),
+      };
+      useTuiStore.getState().pushPracticeContext(frame);
+      const persistRec = toLastPracticeContext(frame);
+      if (persistRec) {
+        const dshHome = (host as { dshHome?: string }).dshHome;
+        void saveTuiPreferences(
+          { lastPracticeContext: persistRec },
+          dshHome ? { env: { DSH_HOME: dshHome } } : undefined,
+        ).catch(() => {});
+      }
+    },
+    [host],
+  );
 
   const clearDraftTimer = useCallback(() => {
     if (draftTimerRef.current !== null) {
@@ -314,8 +417,25 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     return () => {
       mountedRef.current = false;
       clearDraftTimer();
+      // If leaving ReviewView to another page (e.g. WrongBook/Coach/Stats/Sources/Search) mid-round, push context stack (#1319)
+      if (!skipUnmountPushRef.current) {
+        const destPage = useTuiStore.getState().page;
+        if (destPage !== 'review' && destPage !== 'library') {
+          const originKind: PracticeOriginKind =
+            destPage === 'sources'
+              ? 'source'
+              : destPage === 'wrongbook'
+                ? 'wrongbook'
+                : destPage === 'examcoach'
+                  ? 'coach'
+                  : destPage === 'dashboard'
+                    ? 'stats'
+                    : 'other';
+          pushCurrentToPracticeStack(originKind);
+        }
+      }
     };
-  }, [clearDraftTimer]);
+  }, [clearDraftTimer, pushCurrentToPracticeStack]);
 
   const cardId = currentCardId(run);
   currentCardIdRef.current = cardId;
@@ -383,12 +503,40 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
       ? rawDraft.selected.filter((id): id is string => typeof id === 'string')
       : [];
 
+    // Restore in-memory Practice Context Stack draft when returning to this exact card (#1319) — NEVER re-submits already graded cards!
+    let finalSelected = restoredSelected;
+    let finalCloze = restoredCloze;
+    let finalOpen = restoredText;
+    const stackRestore = pendingDraftRestoreRef.current;
+    if (stackRestore && (!stackRestore.cardId || stackRestore.cardId === currentCardId(activeRun))) {
+      pendingDraftRestoreRef.current = null;
+      if (!stackRestore.submitted && !activeRun?.feedback && stackRestore.draft) {
+        if (Array.isArray(stackRestore.draft.selected) && stackRestore.draft.selected.length > 0) {
+          finalSelected = [...stackRestore.draft.selected];
+        }
+        if (typeof stackRestore.draft.openDraft === 'string' && stackRestore.draft.openDraft.length > 0) {
+          finalOpen = stackRestore.draft.openDraft;
+        }
+        if (Array.isArray(stackRestore.draft.clozeDrafts) && stackRestore.draft.clozeDrafts.length > 0) {
+          const clozeMeta = resolveClozeBlanks(activeRun);
+          const merged: Record<string, string> = { ...restoredCloze };
+          if (clozeMeta) {
+            clozeMeta.blanks.forEach((b, idx) => {
+              const val = stackRestore.draft?.clozeDrafts?.[idx];
+              if (typeof val === 'string' && val.length > 0) merged[b.id] = val;
+            });
+          }
+          finalCloze = merged;
+        }
+      }
+    }
+
     setCursorOpt(0);
-    setSelectedIds(restoredSelected);
-    setClozeInputs(restoredCloze);
+    setSelectedIds(finalSelected);
+    setClozeInputs(finalCloze);
     setActiveBlankIdx(0);
     setClozeEditing(false);
-    setOpenDraft(restoredText);
+    setOpenDraft(finalOpen);
     setOpenEditing(false);
     setGradeAdjustModalOpen(false);
     setNudgeModalOpen(false);
@@ -422,13 +570,50 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
       clearDraftTimer();
       setLoading(true);
       setLoadError(null);
-      const targetRunId = !forceFresh ? navContext.runId || activeRunId : null;
+      setEndedRestoreFrame(null);
+      const pendingRestore = !forceFresh ? useTuiStore.getState().consumePendingPracticeRestore() : null;
+      const targetRunId = !forceFresh ? pendingRestore?.runId || navContext.runId || activeRunId : null;
       if (targetRunId) {
         const res = await tryAction<ReviewRun>(host, 'review.get', { runId: targetRunId });
         if (!mountedRef.current) return;
         if (res.ok && res.value) {
+          // If restoring from Practice Context Stack and the original run has ended, show explicit prompt instead of silently jumping (#1319)
+          if (pendingRestore && (res.value.complete || res.value.closed)) {
+            setLoading(false);
+            setRun(null);
+            setEndedRestoreFrame(pendingRestore);
+            return;
+          }
+          let restoredRun = res.value;
+          if (
+            pendingRestore &&
+            typeof pendingRestore.cardIndex === 'number' &&
+            restoredRun.index !== pendingRestore.cardIndex &&
+            !restoredRun.complete &&
+            !restoredRun.closed
+          ) {
+            const moved = await tryAction<ReviewRun>(host, 'review.move', {
+              runId: restoredRun.id,
+              index: pendingRestore.cardIndex,
+            });
+            if (!mountedRef.current) return;
+            if (moved.ok && moved.value) restoredRun = moved.value;
+          }
+          if (pendingRestore) {
+            pendingDraftRestoreRef.current = {
+              cardId: pendingRestore.cardId,
+              draft: pendingRestore.draft,
+              submitted: pendingRestore.submitted,
+            };
+          }
           setLoading(false);
-          applyRun(res.value);
+          applyRun(restoredRun);
+          return;
+        }
+        if (pendingRestore) {
+          setLoading(false);
+          setRun(null);
+          setEndedRestoreFrame(pendingRestore);
           return;
         }
       }
@@ -686,7 +871,12 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
   const handleEndRound = useCallback(() => {
     if (!run?.id || busy) return;
     clearDraftTimer();
-    void runAction(() => endReview(host, run.id), true);
+    skipUnmountPushRef.current = true;
+    const endedId = run.id;
+    useTuiStore.setState((st) => ({
+      practiceStack: st.practiceStack.filter((f) => f.runId !== endedId),
+    }));
+    void runAction(() => endReview(host, endedId), true);
   }, [run, busy, clearDraftTimer, runAction, host]);
 
   const handleSubmitFlag = useCallback(async () => {
@@ -930,6 +1120,34 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     }
   }, [run, cardId, busy, canAckCorrection, host, applyRun, notify, lang]);
 
+  const canRedo = Boolean(run && cardId && (revealed || feedback));
+
+  const handleRedoCard = useCallback(async () => {
+    if (!run || !cardId || busyRef.current || busy) return;
+    if (!revealed && !feedback) {
+      notify(t(lang, '请先作答或翻看答案后再重做本题', 'Answer or reveal first to redo this card'), 'info');
+      return;
+    }
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      const nextRun = await startReview(host, {
+        mode: 'path',
+        scope: [{ deckId: currentDeckIdOf(run) ?? '', cardId }],
+        fresh: true,
+      });
+      if (!mountedRef.current) return;
+      applyRun(nextRun, true);
+      notify(t(lang, '已重做当前题目', 'Restarted current card'), 'info');
+    } catch (err) {
+      if (!mountedRef.current) return;
+      notify(err instanceof Error ? err.message : t(lang, '重做题目失败', 'Failed to redo card'), 'error');
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusy(false);
+    }
+  }, [run, cardId, busy, revealed, feedback, host, applyRun, notify, lang]);
+
   // Phase-aware key claiming: only claim digits when rating (0-5) or picking choices (1-6 / 1-2)
   const anyModalOpen =
     aiDrawerOpen ||
@@ -999,10 +1217,10 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
       base.push({ key: 'N', label: t(lang, '陪学点拨', 'Nudge') });
     }
     base.push({ key: 'h', label: t(lang, 'AI讲解', 'AI Help') });
-    base.push({ key: 'L', label: t(lang, '带学', 'Teach') });
+    base.push({ key: 'T', label: t(lang, '带学/复述', 'Guided') });
     base.push({ key: '*', label: t(lang, '重点', 'Focus') });
-    base.push({ key: 'F', label: t(lang, '复述', 'Retell') });
-    base.push({ key: 'T', label: t(lang, '翻译', 'Trans') });
+    if (canRedo) base.push({ key: 'R', label: t(lang, '重做', 'Redo') });
+    base.push({ key: 'W', label: t(lang, '翻译', 'Trans') });
     base.push({ key: 'S', label: t(lang, '同类', 'Similar') });
     base.push({ key: 'D', label: t(lang, '工具', 'Tools') });
     if (run.mode !== 'exam') base.push({ key: 'Q', label: t(lang, '队列', 'Queue') });
@@ -1026,6 +1244,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     canAdjustGrade,
     canAckCorrection,
     canCoachNudge,
+    canRedo,
     canUndo,
     mathUnicode,
     asciiMode,
@@ -1037,7 +1256,20 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
   // Main keyboard controller for active question
   useInput(
     (input, key) => {
+      if (stuckNudgeVisible) setStuckNudgeVisible(false);
+      setStuckActivityTick((v) => v + 1);
       if (key.escape) {
+        const stack = useTuiStore.getState().practiceStack;
+        const top = stack[stack.length - 1];
+        if (top && top.originKind === 'similar') {
+          skipUnmountPushRef.current = true;
+          const popped = useTuiStore.getState().returnViaPracticeStack();
+          if (popped && popped.kind === 'review') {
+            skipUnmountPushRef.current = false;
+            void loadInitialRun(false);
+          }
+          return;
+        }
         goBack();
         return;
       }
@@ -1091,11 +1323,30 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
         return;
       }
       if (input === 'T') {
+        useTuiStore.getState().openAssistant({
+          tab: 'guided',
+          stage: 'retell',
+          cardContext: {
+            runId: run.id,
+            deckId: currentDeckIdOf(run) ?? undefined,
+            cardId: cardId ?? '',
+            prompt: String(run.card?.prompt || ''),
+            userAnswer: extractUserAnswerText(run, kind, selectedIds, clozeInputs, openDraft, lang),
+            kind,
+          },
+        });
+        return;
+      }
+      if (input === 'W') {
         void handleToggleTranslate();
         return;
       }
       if (input === 'S') {
         setSimilarModalOpen(true);
+        return;
+      }
+      if (input === 'R') {
+        void handleRedoCard();
         return;
       }
       if (input === 'D') {
@@ -1124,6 +1375,8 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
         return;
       }
       if (input === 'o' && citation) {
+        pushCurrentToPracticeStack('source');
+        skipUnmountPushRef.current = true;
         navigate('sources', { sourceId: citation.sourceId, pageNumber: citation.pageNumber });
         return;
       }
@@ -1264,15 +1517,152 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     { isActive: mainActive },
   );
 
-  // Empty state shortcuts
+  // Empty & ended-restore state shortcuts
+  const handleRetryEndedCard = useCallback(async () => {
+    if (!endedRestoreFrame?.cardId) return;
+    setLoading(true);
+    setEndedRestoreFrame(null);
+    try {
+      const nextRun = await startReview(host, {
+        mode: 'path',
+        scope: [{ deckId: endedRestoreFrame.deckId || '', cardId: endedRestoreFrame.cardId }],
+        fresh: true,
+      });
+      if (!mountedRef.current) return;
+      setLoading(false);
+      applyRun(nextRun, true);
+    } catch (err) {
+      if (!mountedRef.current) return;
+      setLoading(false);
+      setLoadError(err instanceof Error ? err.message : String(err));
+    }
+  }, [endedRestoreFrame, host, applyRun]);
+
   useInput(
     (input, key) => {
+      if (endedRestoreFrame) {
+        if (input === 'R' || key.return) {
+          void handleRetryEndedCard();
+        } else if (key.escape || input === 'l' || input === 'L') {
+          setEndedRestoreFrame(null);
+          navigate('library');
+        }
+        return;
+      }
       if (key.escape) goBack();
       else if (input === 'l' || input === 'L') navigate('library');
       else if ((key.ctrl && input === 'r') || input === 'R') void loadInitialRun(true);
     },
-    { isActive: isActive && !loading && !run },
+    { isActive: isActive && !loading && (!run || Boolean(endedRestoreFrame)) },
   );
+
+  // Round 83 Track D1: Proactive 20s stuck nudge (one-shot timer, rate-limited, opt-out, never interrupts typing!)
+  useEffect(() => {
+    setStuckNudgeVisible(false);
+    setWrongStreakBanner(null);
+  }, [cardKey]);
+
+  // Round 86 Track D3: Proactive 3-wrong streak attribution suggestion (opt-out, rate-limited, non-interrupting)
+  useEffect(() => {
+    if (!cardId || !feedback) return;
+    const next = recordReviewOutcome(wrongStreakRef.current, {
+      cardId,
+      prompt: String(run?.card?.prompt || ''),
+      userAnswer: extractUserAnswerText(run, kind, selectedIds, clozeInputs, openDraft, lang),
+      topic: typeof run?.card?.topic === 'string' ? run.card.topic : undefined,
+      correct: feedback.correct,
+      grade: feedback.grade,
+    });
+    wrongStreakRef.current = next;
+    if (
+      shouldTriggerWrongStreakNudge({
+        enabled: proactiveHints,
+        isActive,
+        isEditing: clozeEditing || openEditing,
+        anyModalOpen,
+        state: next,
+      })
+    ) {
+      wrongStreakRef.current = {
+        recentWrong: [],
+        roundNudgeCount: next.roundNudgeCount + 1,
+        lastNudgeAt: Date.now(),
+      };
+      setWrongStreakBanner(buildWrongStreakBanner(next.recentWrong, lang, asciiMode));
+    }
+  }, [cardId, feedback, proactiveHints, isActive, clozeEditing, openEditing, anyModalOpen, run, kind, selectedIds, clozeInputs, openDraft, lang, asciiMode]);
+
+  useEffect(() => {
+    if (
+      !shouldScheduleStuckNudge({
+        enabled: proactiveHints,
+        isActive,
+        revealed,
+        hasFeedback: Boolean(feedback),
+        isEditing: clozeEditing || openEditing,
+        anyModalOpen,
+        cardId,
+        nudgedCardIds: nudgedCardIdsRef.current,
+        roundNudgeCount: roundNudgeCountRef.current,
+        lastNudgeAt: lastNudgeAtRef.current,
+      })
+    ) {
+      return undefined;
+    }
+    const targetCardId = cardId!;
+    const timer = setTimeout(() => {
+      if (!mountedRef.current || currentCardIdRef.current !== targetCardId) return;
+      nudgedCardIdsRef.current.add(targetCardId);
+      roundNudgeCountRef.current += 1;
+      lastNudgeAtRef.current = Date.now();
+      setStuckNudgeVisible(true);
+    }, Math.max(10, stuckNudgeDelayMs));
+    return () => clearTimeout(timer);
+  }, [
+    proactiveHints,
+    isActive,
+    revealed,
+    feedback,
+    clozeEditing,
+    openEditing,
+    anyModalOpen,
+    cardId,
+    stuckActivityTick,
+    stuckNudgeDelayMs,
+  ]);
+
+  // Round 87 Track C4: OSC 2 terminal window title with live review progress (restores on unmount)
+  useEffect(() => {
+    if (!run || isFinished) return undefined;
+    const total = Math.max(1, Number(run.total || run.navigation?.length || 1));
+    const at = Math.min(total, Number(run.position?.at ?? run.index + 1) || 1);
+    writeTerminalTitle(
+      buildReviewWindowTitle({ at, total, title: typeof run.title === 'string' ? run.title : undefined, lang }),
+      { asciiMode },
+    );
+    return undefined;
+  }, [run, isFinished, lang, asciiMode]);
+
+  useEffect(() => () => {
+    writeTerminalTitle('StudyHub', { asciiMode });
+  }, [asciiMode]);
+
+  // Sync rich current card context into persistent AI Assistant without mutating practiceStack (#1315/#1319 coexistence)
+  useEffect(() => {
+    if (!run || !cardId || isFinished) return;
+    useTuiStore.getState().setAssistantCardContext({
+      runId: run.id,
+      deckId: currentDeckIdOf(run) ?? undefined,
+      cardId,
+      cardIndex: typeof run.index === 'number' ? run.index : 0,
+      total: typeof run.total === 'number' ? run.total : undefined,
+      prompt: String(run.card?.prompt || ''),
+      userAnswer: extractUserAnswerText(run, kind, selectedIds, clozeInputs, openDraft, lang),
+      kind,
+      isWrong: Boolean(feedback && feedback.correct === false),
+      revealed,
+    });
+  }, [run, cardId, isFinished, kind, selectedIds, clozeInputs, openDraft, feedback, revealed, lang]);
 
   // Hooks above, early returns below.
   const activeTranslation = useMemo<CardTranslation | null>(() => {
@@ -1280,6 +1670,18 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
     void translationTick;
     return translationCacheRef.current.get(cardId) ?? null;
   }, [showTranslation, cardId, translationTick]);
+
+  const citationUrl = useMemo(() => {
+    if (!citation) return '';
+    const src = snapshot?.sources?.find((s) => s.id === citation.sourceId);
+    const rawPath =
+      (typeof src?.filePath === 'string' && src.filePath) ||
+      (typeof src?.path === 'string' && src.path) ||
+      (typeof src?.localPath === 'string' && src.localPath) ||
+      (typeof src?.url === 'string' && src.url) ||
+      '';
+    return rawPath ? buildFileHyperlinkUrl(rawPath, citation.pageNumber) : '';
+  }, [citation, snapshot?.sources]);
 
   const userAnswerText = useMemo(
     () => extractUserAnswerText(run, kind, selectedIds, clozeInputs, openDraft, lang),
@@ -1392,6 +1794,29 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
           active={isActive}
         />
       </Box>
+    );
+  }
+
+  if (endedRestoreFrame) {
+    const qNum = (endedRestoreFrame.cardIndex ?? 0) + 1;
+    return (
+      <Panel title={t(lang, '原题所在练习已结束', 'Original Practice Round Ended')} icon={asciiMode ? '!' : '⚠'} tone="warning" width={width} height={height}>
+        <EmptyState
+          icon={asciiMode ? '!' : '⚠'}
+          title={t(lang, `原题所在练习已结束（第 ${qNum} 题）`, `Original practice round ended (Question #${qNum})`)}
+          hint={
+            endedRestoreFrame.promptPreview
+              ? `${t(lang, '原题预览', 'Card')}: ${endedRestoreFrame.promptPreview}`
+              : t(lang, '你可以重新练习这道原题，或返回学习库。', 'You can practice this card again or return to Library.')
+          }
+          actions={[
+            { key: 'R', label: t(lang, '重新练这道题', 'Practice This Card Again') },
+            { key: 'Esc', label: t(lang, '返回学习库', 'Back to Library') },
+          ]}
+          width={Math.max(20, width - 4)}
+          height={Math.max(6, height - 4)}
+        />
+      </Panel>
     );
   }
 
@@ -1531,14 +1956,40 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
 
           <Divider width={innerW} />
 
-          {/* Question Stem */}
-          <Box flexDirection="column" flexShrink={0} width={innerW} marginY={0}>
-            <MarkdownView
-              markdown={stemMarkdown}
-              width={innerW}
-              mathUnicode={mathUnicode}
-            />
-          </Box>
+          {/* Question Stem (Round 83 A2: cap prose at 96 cols and center on ultrawide viewports) */}
+          {(() => {
+            const { proseWidth, marginLeft } = computeProseLayout(innerW);
+            return (
+              <Box flexDirection="column" flexShrink={0} width={innerW} paddingLeft={marginLeft} marginY={0}>
+                <MarkdownView
+                  markdown={stemMarkdown}
+                  width={proseWidth}
+                  mathUnicode={mathUnicode}
+                />
+              </Box>
+            );
+          })()}
+
+          {/* Round 83 Track D1: Calm non-interrupting 20s stuck nudge inline banner */}
+          {stuckNudgeVisible && !revealed && !feedback ? (
+            <Box height={1} width={innerW} flexDirection="row" justifyContent="space-between" overflow="hidden" marginTop={0}>
+              <Text color={theme.accent} wrap="truncate">
+                {truncateDisplay(buildStuckNudgeMessage(lang, asciiMode), Math.max(12, innerW - 10), asciiMode ? '...' : '…')}
+              </Text>
+              <ClickableBox
+                clickActive={mainActive}
+                onClick={() => {
+                  setStuckNudgeVisible(false);
+                  setPreferences({ proactiveHints: false });
+                  const dshHome = (host as { dshHome?: string }).dshHome;
+                  void saveTuiPreferences({ proactiveHints: false }, dshHome ? { env: { DSH_HOME: dshHome } } : undefined).catch(() => {});
+                  notify(t(lang, '主动学习提示已关闭（可用 /proactive 重开）', 'Proactive hints turned off'), 'info');
+                }}
+              >
+                <Text color={theme.dim}>{t(lang, '[关闭]', '[Off]')}</Text>
+              </ClickableBox>
+            </Box>
+          ) : null}
 
           {/* Interactive Answering Area */}
           {(kind === 'single' || kind === 'multiple' || kind === 'true_false') && options.length > 0 ? (
@@ -1691,48 +2142,48 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
             </Box>
           ) : null}
 
-          {/* Short answer / open / case draft input */}
+          {/* Short answer / open / case draft input (Track A1: quiet hairline + whitespace instead of nested box) */}
           {isRubricEligibleKind && !revealed ? (
-            <Box
-              flexDirection="column"
-              marginTop={1}
-              borderStyle={asciiMode ? 'classic' : 'single'}
-              borderColor={openEditing ? theme.primary : theme.border}
-              paddingX={1}
-              width={innerW}
-            >
-              <Text color={theme.muted}>
-                {openDraft.trim()
-                  ? t(
-                      lang,
-                      '你的作答（[i] 编辑，Enter 翻看，[G] AI 按标准评分，[Space] 翻看）:',
-                      'Your answer ([i] edit, Enter reveal, [G] AI rubric grade, [Space] reveal):',
-                    )
-                  : t(
-                      lang,
-                      '你的作答（按 [i] 输入，Enter 翻看答案；或按 [Space] 直接翻看）:',
-                      'Your answer ([i] to type, Enter to reveal; or [Space] to reveal):',
-                    )}
-              </Text>
-              <TextInput
-                value={openDraft}
-                onChange={(val) => {
-                  setOpenDraft(val);
-                  scheduleDraftSave({ text: val });
-                }}
-                isActive={isActive && !anyModalOpen && openEditing}
-                width={Math.max(16, innerW - 6)}
-                placeholder={
-                  asciiMode
-                    ? t(lang, '输入你的思路或简答...', 'Type your answer or key points...')
-                    : t(lang, '输入你的思路或简答…', 'Type your answer or key points…')
+            <Box flexDirection="column" marginTop={1} width={innerW}>
+              <SectionHeader
+                title={
+                  openDraft.trim()
+                    ? t(
+                        lang,
+                        '你的作答（[i] 编辑，Enter 翻看，[G] AI 按标准评分，[Space] 翻看）:',
+                        'Your answer ([i] edit, Enter reveal, [G] AI rubric grade, [Space] reveal):',
+                      )
+                    : t(
+                        lang,
+                        '你的作答（按 [i] 输入，Enter 翻看答案；或按 [Space] 直接翻看）:',
+                        'Your answer ([i] to type, Enter to reveal; or [Space] to reveal):',
+                      )
                 }
-                onSubmit={() => {
-                  setOpenEditing(false);
-                  handleReveal();
-                }}
-                onCancel={() => setOpenEditing(false)}
+                width={innerW}
+                ascii={asciiMode}
+                focused={openEditing}
               />
+              <Box paddingX={1} width={innerW}>
+                <TextInput
+                  value={openDraft}
+                  onChange={(val) => {
+                    setOpenDraft(val);
+                    scheduleDraftSave({ text: val });
+                  }}
+                  isActive={isActive && !anyModalOpen && openEditing}
+                  width={Math.max(16, innerW - 4)}
+                  placeholder={
+                    asciiMode
+                      ? t(lang, '输入你的思路或简答...', 'Type your answer or key points...')
+                      : t(lang, '输入你的思路或简答…', 'Type your answer or key points…')
+                  }
+                  onSubmit={() => {
+                    setOpenEditing(false);
+                    handleReveal();
+                  }}
+                  onCancel={() => setOpenEditing(false)}
+                />
+              </Box>
             </Box>
           ) : null}
 
@@ -2015,6 +2466,35 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                 </Box>
               ) : null}
 
+              {/* Calm Proactive 3-Wrong Attribution Banner (Round 86 Track D3 — opt-out, rate-limited, never steals focus) */}
+              {wrongStreakBanner && proactiveHints ? (
+                <ClickableBox
+                  marginTop={0}
+                  clickActive={mainActive}
+                  onClick={() => {
+                    setWrongStreakBanner(null);
+                    useTuiStore.getState().openAssistant({
+                      tab: 'guided',
+                      stage: 'question',
+                      cardContext: {
+                        runId: run.id,
+                        deckId: currentDeckIdOf(run) ?? undefined,
+                        cardId: cardId ?? '',
+                        prompt: String(run.card?.prompt || ''),
+                        userAnswer: userAnswerText,
+                        kind,
+                        isWrong: true,
+                        revealed: true,
+                      },
+                    });
+                  }}
+                >
+                  <Text color={theme.warning} wrap="truncate">
+                    {truncateDisplay(wrongStreakBanner, innerW, asciiMode ? '...' : '…')}
+                  </Text>
+                </ClickableBox>
+              ) : null}
+
               {/* Saved AI Explanations Hint */}
               {revealed && savedFollowupCount > 0 ? (
                 <ClickableBox
@@ -2032,19 +2512,26 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                 </ClickableBox>
               ) : null}
 
-              {/* Source Citation Bar */}
+              {/* Source Citation Bar (with OSC 8 hyperlink when terminal supports it — Round 84 C2) */}
               {revealed && citation ? (
                 <ClickableBox
                   marginTop={0}
                   clickActive={mainActive}
-                  onClick={() => navigate('sources', { sourceId: citation.sourceId, pageNumber: citation.pageNumber })}
+                  onClick={() => {
+                    pushCurrentToPracticeStack('source');
+                    skipUnmountPushRef.current = true;
+                    navigate('sources', { sourceId: citation.sourceId, pageNumber: citation.pageNumber });
+                  }}
                 >
                   <Text color={theme.info}>
-                    {`${asciiMode ? '#' : '▤'} ${citation.title ? `${citation.title} ` : ''}${
-                      citation.pageNumber != null
-                        ? t(lang, `第 ${citation.pageNumber} 页`, `p.${citation.pageNumber}`)
-                        : ''
-                    } `}
+                    {(() => {
+                      const rawLabel = `${asciiMode ? '#' : '▤'} ${citation.title ? `${citation.title} ` : ''}${
+                        citation.pageNumber != null
+                          ? t(lang, `第 ${citation.pageNumber} 页`, `p.${citation.pageNumber}`)
+                          : ''
+                      }`;
+                      return `${formatOsc8Link(rawLabel, citationUrl, { asciiMode })} `;
+                    })()}
                   </Text>
                   <Text color={theme.accent} bold>
                     {t(lang, '[o] 跳转原文', '[o] Open Source')}
@@ -2089,58 +2576,62 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
             </Box>
           ) : null}
 
-          {/* Bottom utility status strip */}
+          {/* Bottom utility status strip — Quick Action Bar (Round 84 Track B3) */}
           <Box flexGrow={1} />
           <Box height={1} width={innerW} flexDirection="row" overflow="hidden">
             {(() => {
               const ell = asciiMode ? '...' : '…';
-              const items: Array<{ id: string; text: string; onClick: () => void }> = [
-                { id: 'h', text: t(lang, '[h]讲解', '[h]Help'), onClick: () => setAiDrawerOpen((v) => !v) },
-                { id: 'L', text: t(lang, '[L]带学', '[L]Teach'), onClick: () => setTeachModalOpen(true) },
-                { id: '*', text: t(lang, '[*]重点', '[*]Focus'), onClick: () => void handleToggleFocus() },
-                { id: 'F', text: t(lang, '[F]复述', '[F]Retell'), onClick: () => setRetellModalOpen(true) },
-                ...(canRubricGrade
-                  ? [{ id: 'G', text: t(lang, '[G]评分', '[G]Grade'), onClick: () => void handleRubricGrade() }]
-                  : []),
-                { id: 'A', text: t(lang, '[A]答题卡', '[A]Card'), onClick: () => setAnswerCardModalOpen(true) },
-                { id: 'T', text: t(lang, '[T]翻译', '[T]Trans'), onClick: () => void handleToggleTranslate() },
-                { id: 'S', text: t(lang, '[S]同类', '[S]Sim'), onClick: () => setSimilarModalOpen(true) },
-                { id: 'D', text: t(lang, '[D]工具', '[D]Tools'), onClick: () => setCardToolsModalOpen(true) },
-                {
-                  id: 'Q',
-                  text: t(lang, '[Q]队列', '[Q]Queue'),
-                  onClick: () => {
-                    if (run.mode !== 'exam') setQueueModalOpen(true);
-                    else notify(t(lang, '模拟考试队列已锁定，不能修改', 'Exam queue is locked'), 'info');
-                  },
+              const actionHandlers: Record<string, () => void> = {
+                h: () => setAiDrawerOpen((v) => !v),
+                T: () =>
+                  useTuiStore.getState().openAssistant({
+                    tab: 'guided',
+                    stage: 'retell',
+                    cardContext: {
+                      runId: run.id,
+                      deckId: currentDeckIdOf(run) ?? undefined,
+                      cardId: cardId ?? '',
+                      prompt: String(run.card?.prompt || ''),
+                      userAnswer: userAnswerText,
+                      kind,
+                    },
+                  }),
+                S: () => setSimilarModalOpen(true),
+                '*': () => void handleToggleFocus(),
+                R: () => void handleRedoCard(),
+                G: () => void handleRubricGrade(),
+                A: () => setAnswerCardModalOpen(true),
+                W: () => void handleToggleTranslate(),
+                D: () => setCardToolsModalOpen(true),
+                Q: () => {
+                  if (run.mode !== 'exam') setQueueModalOpen(true);
+                  else notify(t(lang, '模拟考试队列已锁定，不能修改', 'Exam queue is locked'), 'info');
                 },
-                {
-                  id: 'E',
-                  text: t(lang, '[E]标记', '[E]Flag'),
-                  onClick: () => {
-                    setFlagReason('');
-                    setFlagModalOpen(true);
-                  },
+                E: () => {
+                  setFlagReason('');
+                  setFlagModalOpen(true);
                 },
-                {
-                  id: 's',
-                  text: t(lang, '[s]跳过', '[s]Skip'),
-                  onClick: () => {
-                    if (!feedback) handleSkip();
-                  },
+                s: () => {
+                  if (!feedback) handleSkip();
                 },
-                { id: 'u', text: t(lang, '[u]撤销', '[u]Undo'), onClick: () => handleUndo() },
-                { id: 'nav', text: t(lang, '[,/.]换题', '[,/.]Nav'), onClick: () => handleMove(1) },
-                ...(canAdjustGrade
-                  ? [{ id: 'J', text: t(lang, '[J]改分', '[J]Adjust'), onClick: () => setGradeAdjustModalOpen(true) }]
-                  : []),
-                ...(canAckCorrection
-                  ? [{ id: 'K', text: t(lang, '[K]确认订正', '[K]Ack'), onClick: () => void handleAckCorrection() }]
-                  : []),
-                ...(canCoachNudge
-                  ? [{ id: 'N', text: t(lang, '[N]陪学点拨', '[N]Nudge'), onClick: () => setNudgeModalOpen(true) }]
-                  : []),
-              ];
+                u: () => handleUndo(),
+                nav: () => handleMove(1),
+                J: () => setGradeAdjustModalOpen(true),
+                K: () => void handleAckCorrection(),
+                N: () => setNudgeModalOpen(true),
+              };
+              const items = buildReviewQuickActions({
+                lang,
+                isCardFocused,
+                canRubricGrade,
+                canRedo,
+                canAdjustGrade,
+                canAckCorrection,
+                canCoachNudge,
+              }).map((a) => ({
+                ...a,
+                onClick: actionHandlers[a.id] ?? (() => {}),
+              }));
               const fullW = items.reduce((n, it, i) => n + displayWidth(it.text) + (i > 0 ? 1 : 0), 0);
               let kept = items;
               let moreHint = '';
@@ -2166,7 +2657,7 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
                     <React.Fragment key={item.id}>
                       {i > 0 ? <Text color={theme.dim}> </Text> : null}
                       <ClickableBox clickActive={mainActive} onClick={item.onClick} flexShrink={0}>
-                        <Text color={theme.dim}>{item.text}</Text>
+                        <Text color={item.primary ? theme.accent : theme.dim}>{item.text}</Text>
                       </ClickableBox>
                     </React.Fragment>
                   ))}
@@ -2238,6 +2729,8 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
             mathUnicode={mathUnicode}
             onClose={() => setRetellModalOpen(false)}
             onNavigateToSource={(loc) => {
+              pushCurrentToPracticeStack('source');
+              skipUnmountPushRef.current = true;
               navigate('sources', { sourceId: loc.sourceId, pageNumber: loc.pageNumber });
             }}
           />
@@ -2255,7 +2748,10 @@ export const ReviewView: React.FC<ViewProps> = ({ host, width, height, isActive 
             isActive={isActive && similarModalOpen && !flagModalOpen && !cardToolsModalOpen && !retellModalOpen && !teachModalOpen}
             mathUnicode={mathUnicode}
             onClose={() => setSimilarModalOpen(false)}
-            onStartRun={(nextRun) => applyRun(nextRun, true)}
+            onStartRun={(nextRun) => {
+              pushCurrentToPracticeStack('similar');
+              applyRun(nextRun, true);
+            }}
           />
         ) : null}
 

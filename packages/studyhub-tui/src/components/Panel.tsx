@@ -30,6 +30,8 @@ export interface PanelProps {
   direction?: 'row' | 'column';
   /** Disable border completely (keeps title as a header line). */
   borderless?: boolean;
+  /** Quiet whitespace-first style (Round 82 Track A1): borderless with a subtle hairline header rule. */
+  quiet?: boolean;
   /** Override store asciiMode preference (`classic` borders when true). */
   ascii?: boolean;
   children?: ReactNode;
@@ -57,15 +59,19 @@ export const Panel = memo(function Panel({
   flexGrow,
   flexShrink,
   flexBasis,
-  paddingX = 1,
+  paddingX: paddingXProp,
   paddingY = 0,
   direction = 'column',
   borderless = false,
+  quiet = false,
   ascii: asciiProp,
   children,
 }: PanelProps) {
+  const effectiveBorderless = borderless || quiet;
   const theme = useTheme();
   const storeAscii = useTuiStore((s) => Boolean(s.preferences.asciiMode));
+  const compactMode = useTuiStore((s) => Boolean(s.preferences.compactMode));
+  const paddingX = paddingXProp ?? (compactMode ? 0 : 1);
   const ascii = asciiProp ?? storeAscii;
   const borderColor = tone ? toneColor(theme, tone) : focused ? theme.borderActive : theme.border;
   const titleColor = focused ? theme.primary : theme.text;
@@ -79,7 +85,7 @@ export const Panel = memo(function Panel({
   let metaText = metaRaw;
   if (numericWidth !== undefined) {
     // corners + spaces around title/badge/meta + at least 1 rule dash
-    const capsW = borderless ? 0 : 4;
+    const capsW = effectiveBorderless ? 0 : 4;
     const titleChrome = titleText ? 2 : 1;
     const badgeChrome = badgeText ? displayWidth(badgeText) + 1 : 0;
     const metaChrome = metaRaw ? 2 : 0;
@@ -110,16 +116,16 @@ export const Panel = memo(function Panel({
   }
 
   const ruleText = ascii ? ASCII_RULE : UNICODE_RULE;
-  const leftCap = borderless ? '' : ascii ? '+-' : '╭─';
+  const leftCap = effectiveBorderless ? '' : ascii ? '+-' : '╭─';
   const dashChar = ascii ? '-' : '─';
-  const rightCap = borderless ? '' : ascii ? '-+' : '─╮';
+  const rightCap = effectiveBorderless ? '' : ascii ? '-+' : '─╮';
 
   const header = hasHeader ? (
     <Box height={1} width={numericWidth} flexShrink={0}>
       <Text color={borderColor}>{leftCap}</Text>
       {titleText ? (
         <Text color={titleColor} bold>
-          {` ${titleText} `}
+          {effectiveBorderless ? `${titleText} ` : ` ${titleText} `}
         </Text>
       ) : (
         <Text color={borderColor}>{dashChar}</Text>
@@ -131,14 +137,14 @@ export const Panel = memo(function Panel({
       ) : null}
       {badgeText ? <Text> </Text> : null}
       <Box flexGrow={1} flexShrink={1} flexBasis={0} height={1} overflow="hidden">
-        <Text color={borderless ? theme.border : borderColor}>{ruleText}</Text>
+        <Text color={effectiveBorderless ? theme.border : borderColor}>{ruleText}</Text>
       </Box>
       {metaText ? <Text color={theme.muted}>{` ${metaText} `}</Text> : null}
       <Text color={borderColor}>{rightCap}</Text>
     </Box>
   ) : null;
 
-  if (borderless) {
+  if (effectiveBorderless) {
     return (
       <Box flexDirection="column" width={width} height={height} minHeight={minHeight} flexGrow={flexGrow} flexShrink={flexShrink} flexBasis={flexBasis}>
         {header}

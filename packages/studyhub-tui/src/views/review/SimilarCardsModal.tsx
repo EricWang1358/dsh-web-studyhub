@@ -9,6 +9,8 @@ import { MarkdownView } from '../../components/MarkdownView.js';
 import { Modal, modalContentWidth } from '../../components/Modal.js';
 import { SplitPane } from '../../components/SplitPane.js';
 import { VirtualList, type VirtualListRenderContext } from '../../components/VirtualList.js';
+import { ClickableBox } from '../../components/mouse.js';
+import { originReviewFrame } from '../../state/practice-stack.js';
 import { padDisplay, truncateDisplay } from '../../render/cjk.js';
 import {
   currentDeckIdOf,
@@ -69,6 +71,11 @@ export const SimilarCardsModal = memo(function SimilarCardsModal({
   const lang = useTuiStore((s) => s.preferences.language);
   const asciiMode = useTuiStore((s) => Boolean(s.preferences.asciiMode));
   const notify = useTuiStore((s) => s.notify);
+  const practiceStack = useTuiStore((s) => s.practiceStack);
+  const originFrame = useMemo(() => originReviewFrame(practiceStack), [practiceStack]);
+  const originCardId = originFrame?.cardId ?? cardId;
+  const originCardNum = (originFrame?.cardIndex ?? run.index ?? 0) + 1;
+  const originPromptText = originFrame?.promptPreview || String(run.card?.prompt || '').replace(/\s+/g, ' ').trim();
 
   const [loading, setLoading] = useState(true);
   const [launching, setLaunching] = useState(false);
@@ -152,9 +159,23 @@ export const SimilarCardsModal = memo(function SimilarCardsModal({
 
   const [followupEngaged, setFollowupEngaged] = useState(false);
 
+  const handleReturnToOrigin = useCallback(() => {
+    const st = useTuiStore.getState();
+    if (st.practiceStack.length > 0) {
+      onClose();
+      st.returnViaPracticeStack();
+      return;
+    }
+    onClose();
+  }, [onClose]);
+
   useInput(
     (input, key) => {
       if (launching) return;
+      if (input === 'B') {
+        handleReturnToOrigin();
+        return;
+      }
       if (input === 'r' && !loading) {
         void fetchSimilar();
         return;
@@ -183,16 +204,18 @@ export const SimilarCardsModal = memo(function SimilarCardsModal({
     if (items.length > 0) {
       return [
         { key: 'Enter', label: t(lang, '对比练习', 'Contrast Practice') },
+        { key: 'B', label: t(lang, `回到原题(#${originCardNum})`, `Back Origin(#${originCardNum})`) },
         { key: asciiMode ? 'Tab' : 'Tab/←→', label: t(lang, '切换面板', 'Pane') },
         { key: 'a', label: t(lang, '后续指令', 'Next step') },
         { key: 'Esc', label: t(lang, '关闭', 'Close') },
       ];
     }
     return [
+      { key: 'B', label: t(lang, '回到原题', 'Back Origin') },
       { key: 'r', label: t(lang, '重新查找', 'Retry') },
       { key: 'Esc', label: t(lang, '关闭', 'Close') },
     ];
-  }, [items.length, lang, asciiMode]);
+  }, [items.length, lang, asciiMode, originCardNum]);
 
   const contrastMarkdown = useMemo(() => {
     if (!selectedItem) return '';
@@ -225,23 +248,26 @@ export const SimilarCardsModal = memo(function SimilarCardsModal({
 
   const renderSimilarRow = useCallback(
     (item: SimilarCardItem, ctx: VirtualListRenderContext) => {
+      const isOrigin = item.cardId === originCardId;
+      const originTag = isOrigin ? t(lang, '[原题] ', '[Origin] ') : '';
       const k = `[${kindLabel(normalizeRemoteKind(item.kind), lang)}]`;
       const scoreText = typeof item.score === 'number' ? ` ${item.score.toFixed(1)}` : '';
-      const prefix = `${ctx.index + 1}. ${k} `;
+      const prefix = `${ctx.index + 1}. ${originTag}${k} `;
       const avail = Math.max(6, ctx.width - prefix.length - scoreText.length);
       const labelSource = `${item.topic ? `${item.topic} · ` : ''}${String(item.prompt || '').replace(/\s+/g, ' ')}`;
       const line = padDisplay(truncateDisplay(labelSource, avail), avail);
-      const fg = ctx.selected ? theme.selectionFg : theme.text;
+      const fg = ctx.selected ? theme.selectionFg : isOrigin ? theme.success : theme.text;
       return (
-        <Text color={fg} bold={ctx.selected}>
+        <Text color={fg} bold={ctx.selected || isOrigin}>
           <Text color={ctx.selected ? theme.selectionFg : theme.muted}>{`${ctx.index + 1}. `}</Text>
+          {isOrigin ? <Text color={ctx.selected ? theme.selectionFg : theme.success} bold>{originTag}</Text> : null}
           <Text color={ctx.selected ? theme.selectionFg : theme.accent}>{`${k} `}</Text>
           {line}
           {scoreText ? <Text color={ctx.selected ? theme.selectionFg : theme.dim}>{scoreText}</Text> : null}
         </Text>
       );
     },
-    [lang, theme],
+    [lang, theme, originCardId],
   );
 
   return (
@@ -283,6 +309,20 @@ export const SimilarCardsModal = memo(function SimilarCardsModal({
         />
       ) : (
         <Box flexDirection="column" height={bodyH} width={innerW} overflow="hidden">
+          <Box height={1} width={innerW} flexDirection="row" justifyContent="space-between" overflow="hidden" flexShrink={0}>
+            <Text color={theme.success} bold wrap="truncate">
+              {truncateDisplay(
+                `${t(lang, `[原题 第${originCardNum}题]`, `[Origin #${originCardNum}]`)} ${originPromptText}`,
+                Math.max(12, innerW - 18),
+                asciiMode ? '...' : '…',
+              )}
+            </Text>
+            <ClickableBox clickActive={isActive && !followupEngaged} onClick={handleReturnToOrigin}>
+              <Text backgroundColor={theme.surface} color={theme.primary} bold>
+                {` [B] ${t(lang, '回到原题', 'Back Origin')} `}
+              </Text>
+            </ClickableBox>
+          </Box>
           {launching ? (
             <Box height={1} flexShrink={0}>
               <Spinner label={t(lang, '正在生成对比练习轮…', 'Starting contrast run…')} active={isActive} />
@@ -290,7 +330,7 @@ export const SimilarCardsModal = memo(function SimilarCardsModal({
           ) : null}
           <SplitPane
             width={innerW}
-            height={launching ? Math.max(4, splitBodyH - 1) : splitBodyH}
+            height={Math.max(4, splitBodyH - 1 - (launching ? 1 : 0))}
             leftWidth={0.4}
             minLeft={22}
             minRight={28}

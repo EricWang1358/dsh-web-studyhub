@@ -34,8 +34,23 @@ export interface PageMeta {
   descriptionEn: string;
 }
 
-export type ThemeId = 'dsh-dark' | 'warm-paper' | 'nord' | 'high-contrast';
+export type ThemeId = 'dsh-dark' | 'warm-paper' | 'nord' | 'high-contrast' | 'warm-amber' | 'soft-sage';
 export type UiLanguage = 'zh' | 'en';
+
+export interface AssistantCommandStat {
+  count: number;
+  lastUsedAt: number;
+}
+
+export interface LastPracticeContext {
+  runId: string;
+  cardId: string;
+  deckId?: string;
+  cardIndex: number;
+  total?: number;
+  promptPreview?: string;
+  savedAt: number;
+}
 
 export interface TuiPreferences {
   theme: ThemeId;
@@ -44,6 +59,10 @@ export interface TuiPreferences {
   mathUnicode: boolean;
   compactMode: boolean;
   showKeyHints: boolean;
+  /** Proactive non-interrupting study nudges (e.g. 20s stuck hint); defaults to true (Round 83 D1). */
+  proactiveHints?: boolean;
+  /** YYYY-MM-DD local date when the user dismissed the Daily Study Briefing (Round 85 D2). */
+  dismissedBriefingDate?: string;
   /** ASCII-safe borders/bars/spinners for legacy Windows PowerShell 5.1 conhost or TERM=dumb. */
   asciiMode?: boolean;
   recentCommands: string[];
@@ -51,6 +70,10 @@ export interface TuiPreferences {
   lastOpenAiPreset?: string;
   /** Persistent last-read page per document (LRU-bounded at 100 entries). */
   lastReadPages?: Record<string, number>;
+  /** Last active practice card position for cross-restart resume (#1319). */
+  lastPracticeContext?: LastPracticeContext;
+  /** Per-page assistant command frequency for 3x chip promotion & recent pinning (#1315). */
+  assistantCommandStats?: Record<string, Record<string, AssistantCommandStat>>;
 }
 
 export interface HostCallResult<T = unknown> {

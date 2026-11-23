@@ -24,6 +24,7 @@ export interface ShortcutSection {
 export function globalShortcuts(lang: 'zh' | 'en', asciiMode = false): KeyHint[] {
   return [
     { key: 'Ctrl+K  /', label: t(lang, '命令面板 / 全文搜题与原文', 'Command palette & search') },
+    { key: 'Ctrl+Space', label: t(lang, '停靠 AI 助手 / 带学 (Ctrl+G聚焦 c/C/y复制 F全屏)', 'Dock AI Assistant (Ctrl+G focus, c/C/y copy, F full)') },
     { key: '?', label: t(lang, '帮助', 'Help') },
     { key: 'c', label: t(lang, '切换课程', 'Switch course') },
     { key: 'I', label: t(lang, '收件箱与通知', 'Notification inbox') },
@@ -78,12 +79,11 @@ export function featureShortcuts(lang: 'zh' | 'en'): ShortcutSection[] {
         { key: 'Space/Enter', label: t(lang, '翻开答案 / 提交选择', 'Reveal answer / submit') },
         { key: '0-5', label: t(lang, 'FSRS-6 六级记忆自评', 'FSRS-6 six-grade rating') },
         { key: 'h', label: t(lang, 'AI 帮我理解 / 讲解抽屉', 'AI Tutor / explanation drawer') },
-        { key: 'L', label: t(lang, '互动带学', 'Socratic teach') },
+        { key: 'T', label: t(lang, '带学（可直接进复述阶段）', 'Guided Study (direct to Retell stage)') },
         { key: '*', label: t(lang, '标记重点', 'Toggle focus') },
-        { key: 'F', label: t(lang, '费曼复述', 'Feynman retell') },
         { key: 'G', label: t(lang, 'AI 评分标准批改', 'AI rubric grade') },
         { key: 'A', label: t(lang, '答题卡 / 案例强化', 'Answer card & drills') },
-        { key: 'T', label: t(lang, '翻译题目', 'Translate') },
+        { key: 'W', label: t(lang, '翻译题目', 'Translate') },
         { key: 'S', label: t(lang, '同类题', 'Similar cards') },
         { key: 'D', label: t(lang, '卡片工具 (编辑/反馈/重试改题)', 'Card tools (edit/feedback/retry)') },
         { key: 'Q', label: t(lang, '队列编辑', 'Edit queue') },

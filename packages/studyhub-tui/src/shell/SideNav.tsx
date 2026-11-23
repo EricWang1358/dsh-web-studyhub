@@ -6,6 +6,7 @@ import { useTheme } from '../theme/tokens.js';
 import { displayWidth, truncateDisplay } from '../render/cjk.js';
 import { RESERVED_GLOBAL_KEY_SET, useClaimedKeys } from '../components/focus.js';
 import { ClickableBox } from '../components/mouse.js';
+import { formatReturnHintLabel } from '../state/practice-stack.js';
 import { draftCount, dueToday, pageIcon, runningJobs, wrongCount } from './data.js';
 
 export const SIDENAV_WIDTH = 24;
@@ -36,6 +37,7 @@ export const SideNav = memo(function SideNav({ width, height }: SideNavProps) {
   const page = useTuiStore((s) => s.page);
   const snapshot = useTuiStore((s) => s.snapshot);
   const activeRunId = useTuiStore((s) => s.activeRunId);
+  const practiceStack = useTuiStore((s) => s.practiceStack);
   const claimedKeys = useClaimedKeys();
   const collapsed = width <= SIDENAV_COLLAPSED_WIDTH;
   const inner = Math.max(1, width - 1);
@@ -55,15 +57,21 @@ export const SideNav = memo(function SideNav({ width, height }: SideNavProps) {
     used += 1;
   };
 
-  // Resume-practice callout.
-  if (activeRunId) {
-    const active = page === 'review';
+  // Resume-practice / Practice Context Stack return callout (#1319).
+  const returnLabel = formatReturnHintLabel(practiceStack, lang);
+  if (activeRunId || returnLabel) {
+    const active = page === 'review' && !returnLabel;
     const playGlyph = asciiMode ? '>' : '▶';
     const onClickResume = () => {
       const st = useTuiStore.getState();
+      if (st.practiceStack.length > 0) {
+        st.returnViaPracticeStack();
+        return;
+      }
       if (st.page === 'review' && st.navContext.runId === activeRunId) return;
-      st.navigate('review', { runId: activeRunId });
+      if (activeRunId) st.navigate('review', { runId: activeRunId });
     };
+    const labelText = returnLabel ?? t(lang, '继续练习', 'Resume');
     if (collapsed) {
       push(
         <ClickableBox key="resume" width={inner} height={1} onClick={onClickResume}>
@@ -76,7 +84,7 @@ export const SideNav = memo(function SideNav({ width, height }: SideNavProps) {
       push(
         <ClickableBox key="resume" width={inner} height={1} onClick={onClickResume}>
           <Text backgroundColor={active ? theme.selectionBg : theme.surface} color={theme.success} bold>
-            {truncateDisplay(` ${playGlyph} ${t(lang, '继续练习', 'Resume')}  r`, inner, ell).padEnd(0)}
+            {truncateDisplay(` ${playGlyph} ${labelText}  r`, inner, ell).padEnd(0)}
           </Text>
         </ClickableBox>,
       );
